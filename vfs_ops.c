@@ -220,13 +220,30 @@ static int reiser4_mknod( struct inode *parent /* inode of parent directory */,
 	return invoke_create_method( parent, dentry, &data );
 }
 
-static int reiser4_rename (struct inode *old_dir UNUSED_ARG,
-			   struct dentry *old UNUSED_ARG,
-			   struct inode *new_dir UNUSED_ARG,
-			   struct dentry *new UNUSED_ARG)
+/** ->rename() inode operation */
+static int reiser4_rename( struct inode *old_dir, struct dentry *old,
+			   struct inode *new_dir, struct dentry *new )
 {
-	printk("reiser4_rename\n");
-	return -ENOSYS;
+	int    result;
+	REISER4_ENTRY( old_dir -> i_sb );
+
+	assert( "nikita-2314", old_dir != NULL );
+	assert( "nikita-2315", old != NULL );
+	assert( "nikita-2316", new_dir != NULL );
+	assert( "nikita-2317", new != NULL );
+
+	result = perm_chk( old_dir, rename, old_dir, old, new_dir, new );
+	if( result == 0 ) {
+		dir_plugin *dplug;
+
+		dplug = inode_dir_plugin( old_dir );
+		assert( "nikita-2271", dplug != NULL );
+		if( dplug -> rename != NULL )
+			result = dplug -> rename( old_dir, old, new_dir, new );
+		else
+			result = -EPERM;
+	}
+	REISER4_EXIT( result );
 }
 
 static int reiser4_readlink (struct dentry *dentry,
@@ -1430,7 +1447,8 @@ static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
 			++ next;
 		}
 		for( j = 0 ; j < nr_opts ; ++ j ) {
-			if( !strcmp( opt_string, opts[ j ].name ) ) {
+			if( !strncmp( opt_string, opts[ j ].name, 
+				      strlen( opts[ j ].name ) ) ) {
 				result = parse_option( opt_string, &opts[ j ] );
 				break;
 			}
