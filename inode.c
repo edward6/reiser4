@@ -645,7 +645,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_plugin("\tfile", file_plugin_to_plugin(ref->pset->file));
 	print_plugin("\tdir", dir_plugin_to_plugin(ref->pset->dir));
 	print_plugin("\tperm", perm_plugin_to_plugin(ref->pset->perm));
-	print_plugin("\ttail", formatting_plugin_to_plugin(ref->pset->tail));
+	print_plugin("\tformatting", formatting_plugin_to_plugin(ref->pset->formatting));
 	print_plugin("\thash", hash_plugin_to_plugin(ref->pset->hash));
 	print_plugin("\tsd", item_plugin_to_plugin(ref->pset->sd));
 

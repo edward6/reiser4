@@ -322,7 +322,7 @@ _INIT_(fs_root)
 		assert("nikita-1814", info->pset->dir != NULL);
 		assert("nikita-1815", info->pset->sd != NULL);
 		assert("nikita-1816", info->pset->hash != NULL);
-		assert("nikita-1817", info->pset->tail != NULL);
+		assert("nikita-1817", info->pset->formatting != NULL);
 		assert("nikita-1818", info->pset->perm != NULL);
 		assert("vs-545", info->pset->dir_item != NULL);
 
