@@ -437,25 +437,29 @@ SPIN_LOCK_FUNCTIONS(txnh, txn_handle, hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr, txn_mgr, tmgr_lock);
 
 typedef enum {
-	FQ_IN_USE = 0x1,
-	FQ_CONNECTED = 0x2
+	FQ_IN_USE = 0x1
 } flush_queue_state_t;
 
 typedef struct flush_queue flush_queue_t;
 
-/* This is an accumulator for jnodes prepared for writing to disk. A flush queue is filled by the jnode_flush()
-   routine, and written to disk under memory pressure or at atom commit time. */
+/* This is an accumulator for jnodes prepared for writing to disk. A flush queue
+   is filled by the jnode_flush() routine, and written to disk under memory
+   pressure or at atom commit time. */
+/* LOCKING: fq state and fq->atom are protected by guard spinlock, fq->nr_queued
+   field and fq->prepped list can be modified if atom is spin-locked and fq
+   object is "in-use" state.  For read-only traversal of the fq->prepped list
+   and reading of the fq->nr_queued field it is enough to keep fq "in-use" or
+   only have atom spin-locked. */
 struct flush_queue {
 	/* linkage element is the first in this structure to make debugging
 	   easier.  See field in atom struct for description of list. */
 	fq_list_link alink;
-
-	/* A spinlock to protect state changes.  Acquire before modifying all
-	   fields in this struct except atomic fields. */
+	/* A spinlock to protect changes of fq state and fq->atom pointer */
 	reiser4_spin_data guard;
-	/* flush_handle state: empty, active, */
+	/* flush_queue state: [in_use | ready] */
 	flush_queue_state_t state;
-	/* list of not yet submitted to disk nodes */
+	/* A list which contains queued nodes, queued nodes are removed any
+	 * atom's list and put on this ->prepped one. */
 	capture_list_head prepped;
 	/* total number of queued nodes */
 	int nr_queued;
