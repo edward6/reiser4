@@ -433,12 +433,14 @@ init_once(void *obj /* pointer to new inode */ ,
 		inode_init_once(&info->vfs_inode);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		init_rwsem(&info->p.coc_sem);
-		sema_init(&info->p.loading, 1);
-		ON_DEBUG(info->p.nr_jnodes = 0);
+		/* init semaphore which is used during inode loading */
+		loading_init_once(&info->p);
 		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p), GFP_ATOMIC);
-		ON_DEBUG(info->p.captured_eflushed = 0);
-		ON_DEBUG(info->p.anonymous_eflushed = 0);
-		ON_DEBUG(inode_jnodes_list_init(&info->p.jnodes_list));
+#if REISER4_DEBUG
+		info->p.nr_jnodes = 0;
+		info->p.captured_eflushed = 0;
+		info->p.anonymous_eflushed = 0;
+#endif
 	}
 }
 
@@ -492,10 +494,8 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->crypt = NULL;
 		info->flags = 0;
 		spin_inode_object_init(info);
-
-		/* initizalize inode's jnode */
-		/*jnode_init(&info->inode_jnode, current_tree, JNODE_INODE);
-		  atomic_set(&info->inode_jnode.x_count, 1);*/
+		/* this deals with info's loading semaphore */
+		loading_alloc(info);
 		info->vroot = UBER_TREE_ADDR;
 		return &obj->vfs_inode;
 	} else
@@ -512,10 +512,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 
 	info = reiser4_inode_data(inode);
 
-	assert("vs-1220", jnode_tree_by_reiser4_inode(info)->rnode == NULL);
-	assert("vs-1222", info->captured_eflushed == 0);
-	assert("vs-1428", info->anonymous_eflushed == 0);
-	assert("zam-1050", info->nr_jnodes == 0);
+	assert("vs-1220", inode_has_no_jnodes(info));
 
 	if (!is_bad_inode(inode) && is_inode_loaded(inode)) {
 		file_plugin * fplug = inode_file_plugin(inode);
@@ -526,15 +523,16 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	if (info->pset)
 		plugin_set_put(info->pset);
 
-	/* FIXME: assert that info's page radix tree is empty */
-	/*assert("nikita-2872", list_empty(&info->moved_pages));*/
-
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
 	assert("nikita-2895", list_empty(&inode->i_dentry));
 	assert("nikita-2896", hlist_unhashed(&inode->i_hash));
 	assert("nikita-2898", readdir_list_empty(get_readdir_list(inode)));
+
+	/* this deals with info's loading semaphore */
+	loading_destroy(info);
+
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
@@ -671,12 +669,15 @@ reiser4_delete_inode(struct inode *object)
 static void
 reiser4_clear_inode(struct inode *object)
 {
+#if REISER4_DEBUG
 	reiser4_inode *r4_inode;
 
 	r4_inode = reiser4_inode_data(object);
-	assert("vs-1688", (r4_inode->anonymous_eflushed == 0 &&
-			   r4_inode->captured_eflushed == 0 &&
-			   r4_inode->nr_jnodes == 0));
+	if (!inode_has_no_jnodes(r4_inode))
+		warning("vs-1732", "reiser4 inode is not clear: ae %d, ce %d, jnodes %lu\n",
+			r4_inode->anonymous_eflushed, r4_inode->captured_eflushed,
+			r4_inode->nr_jnodes);
+#endif
 }
 
 const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";
