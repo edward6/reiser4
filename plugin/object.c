@@ -235,25 +235,31 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		break;
 	case IBK_INSERT_OK:
 	{
-		assert( "nikita-725", /* have we really inserted stat data? */
-			item_is_statdata( &coord ) );
+		result = zload( coord.node );
+		if( result == 0 ) {
+			assert( "nikita-725", /* have we really inserted stat
+					       * data? */
+				item_is_statdata( &coord ) );
 
-		spin_lock_inode( ref );
-		if( ref -> sd && ref -> sd -> s.sd.save ) {
-			area = item_body_by_coord( &coord );
-			result = ref -> sd -> s.sd.save( inode, &area );
-			if( result == 0 ) {
-				/* object has stat-data now */
-				*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
-				/* initialise stat-data seal */
-				seal_init( &ref -> sd_seal, &coord, &key );
-				ref -> sd_coord = coord;
-			} else {
-				error_message = "cannot save sd of";
-				result = -EIO;
+			spin_lock_inode( ref );
+			if( ref -> sd && ref -> sd -> s.sd.save ) {
+				area = item_body_by_coord( &coord );
+				result = ref -> sd -> s.sd.save( inode, &area );
+				if( result == 0 ) {
+					/* object has stat-data now */
+					*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
+					/* initialise stat-data seal */
+					seal_init( &ref -> sd_seal, 
+						   &coord, &key );
+					ref -> sd_coord = coord;
+				} else {
+					error_message = "cannot save sd of";
+					result = -EIO;
+				}
 			}
+			spin_unlock_inode( ref );
+			zrelse( coord.node );
 		}
-		spin_unlock_inode( ref );
 	}
 	}
 	done_lh( &lh );
