@@ -521,6 +521,8 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 	int ret;
 	lock_handle parent_lock;
 
+	assert ("jmacd-7444", znode_is_any_locked (node));
+
 	if (! znode_is_dirty (node)) {
 		return 0;
 	}
@@ -678,9 +680,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	if ((is_unformatted = flush_pos_unformatted (pos))) {
 		assert ("jmacd-9812", coord_is_after_rightmost (& pos->parent_coord));
 		node = pos->parent_lock.node;
+		assert ("jmacd-9814", znode_is_write_locked (node));
 	} else {
-		assert ("jmacd-9813", znode_is_write_locked (JZNODE (pos->point)));
 		node = JZNODE (pos->point);
+		assert ("jmacd-9813", znode_is_write_locked (node));
 	}
 
 	assert ("jmacd-4386", znode_check_dirty (node));
@@ -709,6 +712,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	/* Get the right neighbor. */
  RIGHT_AGAIN:
+	assert ("jmacd-1092", znode_is_write_locked (node));
 	if ((ret = znode_get_utmost_if_dirty (node, & right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
 		/* Unless we get ENAVAIL at the leaf level, it means to stop. */
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
@@ -842,13 +846,13 @@ static int flush_squalloc_right (flush_position *pos)
 		 * (including right_twig itself). */
 	}
 
-	/* Step 3: Formatted and unformatted cases. */
-	if ((ret = flush_squalloc_changed_ancestors (pos))) {
-		goto exit;
-	}
-
-	/* Repeat. */
 	if (flush_pos_valid (pos)) {
+		/* Step 3: Formatted and unformatted cases. */
+		if ((ret = flush_squalloc_changed_ancestors (pos))) {
+			goto exit;
+		}
+
+		/* Repeat. */
 		goto STEP_2;
 	}
 
@@ -1688,7 +1692,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		/* If off-the-end, try the next twig. */
 		if (coord_is_after_sideof_unit (& next_coord, scan->direction)) {
 
-			ret = znode_get_utmost_if_dirty (next_coord.node, & next_lock, scan->direction, ZNODE_READ_LOCK);
+			ret = znode_get_utmost_if_dirty (next_coord.node, & next_lock, scan->direction, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/);
 
 			if (ret == -ENAVAIL) { scan->stop = 1; ret = 0; break; }
 
@@ -1807,11 +1811,11 @@ static int flush_scan_formatted (flush_scan *scan)
 		init_lh (& end_lock);
 
 		/* Need the node locked to get the parent lock. */
-		if ((ret = longterm_lock_znode (& end_lock, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		if ((ret = longterm_lock_znode (& end_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/, ZNODE_LOCK_LOPRI))) {
 			return ret;
 		}
 
-		ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_READ_LOCK);
+		ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/);
 
 		done_lh (& end_lock);
 
@@ -1869,7 +1873,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 
 		if (coord_is_invalid (& scan->parent_coord)) {
 
-			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_READ_LOCK))) {
+			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/))) {
 				return ret;
 			}
 
@@ -1970,7 +1974,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	pos->point = child;
 
-	if ((ret = longterm_lock_znode (& pos->point_lock, JZNODE (child), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+	if ((ret = longterm_lock_znode (& pos->point_lock, JZNODE (child), ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/, ZNODE_LOCK_LOPRI))) {
 		return ret;
 	}
 
@@ -1991,7 +1995,7 @@ static int flush_pos_to_parent (flush_position *pos)
 	assert ("jmacd-6078", ! flush_pos_unformatted (pos));
 
 	/* Lock the parent, find the coordinate. */
-	if ((ret = jnode_lock_parent_coord (pos->point, & pos->parent_coord, & pos->parent_lock, & pos->parent_load, ZNODE_READ_LOCK))) {
+	if ((ret = jnode_lock_parent_coord (pos->point, & pos->parent_coord, & pos->parent_lock, & pos->parent_load, ZNODE_WRITE_LOCK))) {
 		return ret;
 	}
 
