@@ -53,6 +53,8 @@ int squeeze_ctail(flush_pos_t *, int child);
 __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
+unsigned long pg_to_clust(unsigned long, struct inode *);
+loff_t clust_to_off(unsigned long, struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
