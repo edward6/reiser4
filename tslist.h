@@ -374,6 +374,15 @@ PREFIX##_list_splice (PREFIX##_list_head  *head_join,                           
   PREFIX##_list_init (head_empty);                                                            \
 }                                                                                             \
                                                                                               \
+static __inline__ void                                                                        \
+PREFIX##_list_check (PREFIX##_list_head  *head)                                               \
+{                                                                                             \
+	PREFIX##_list_link *link;                                                             \
+                                                                                              \
+	for (link = head->_next ; link != ((PREFIX##_list_link *) head) ; link = link->_next) \
+		PREFIX##_list_link_ok (link);                                                 \
+}                                                                                             \
+                                                                                              \
 typedef struct { int foo; } PREFIX##_dummy_decl
 
 /* this last typedef is to allow semicolon a the and of TS_LIST_DEFINE() */
