@@ -32,8 +32,15 @@
    
    We use only cluster sizes that represented as (PAGE_CACHE_SIZE << shift),
    where shift (= 0, 1, 2,... ) is a parameter, which is supposed to be stored
-   in disk stat-data (we call this CLUSTER SHIFT).
-   
+   in disk stat-data (we call this CLUSTER SHIFT). Note that working with
+   cluster_size > PAGE_SIZE (when cluster_shift > 0, and cluster contains more
+   then one page) is suboptimal because before compression we should assemble
+   all cluster pages into one flow (this means superfluous memcpy during
+   read/write). So the better way to increase cluster size (and therefore
+   compression quality) is making PAGE_SIZE larger (for instance by page
+   clustering stuff of William Lee). But if you need PAGE_SIZE < cluster_size,
+   then use page clustering presented by reiser4.
+         
    Inode mapping of cryptcompress files contains pages filled by plain text.
    Cluster size also defines clustering in address space. For example,
    101K-file with cluster size 16K (cluster shift = 2), which can be mapped
