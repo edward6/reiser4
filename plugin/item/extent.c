@@ -2149,6 +2149,8 @@ int extent_readpage (void * p, struct page * page)
 /*
  * do not read more than MAX_READAHEAD pages ahead
  */
+
+/* VS-FIX-HANS: perform a complete review with me of the read ahead code */
 #define MAX_READAHEAD 1000
 
 /*
