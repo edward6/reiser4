@@ -82,6 +82,19 @@ int seal_is_set( const seal_t *seal /* seal to query */ )
 	return seal -> version != 0;
 }
 
+#if REISER4_DEBUG
+/** helper function for seal_validate() */
+static inline int check_seal_match( const coord_t *coord, const reiser4_key *k )
+{
+	reiser4_key ukey;
+
+	return
+		( coord -> between != AT_UNIT ) ||
+		( coord_is_existing_unit( coord ) && 
+		  keyeq( k, unit_key_by_coord( coord, &ukey ) ) );
+}
+#endif
+
 /**
  * (re-)validate seal.
  *
@@ -130,17 +143,16 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 					node == seal -> coord.node );
 				assert( "nikita-1898", WITH_DATA_RET
 					( coord -> node, 1, 
-					  ({ 
-						  reiser4_key ukey;
-
-						  coord_is_existing_unit( coord ) && 
-							  keyeq( key, 
-								 unit_key_by_coord( coord,
-										    &ukey ) );
-						}) ) );
+					  check_seal_match( coord, key ) ) );
 				reiser4_stat_seal_add( perfect_match );
-				/*result = 0;*/
-			} else if( znode_contains_key_lock( node, key ) )
+			} else if( coord -> between != AT_UNIT )
+				/*
+				 * if seal was placed on position with node
+				 * (rather than on the existing unit within
+				 * node), node lookup is not possible.
+				 */
+				result = -EAGAIN;
+			else if( znode_contains_key_lock( node, key ) )
 				/* 
 				 * seal is broken, but there is a hope that
 				 * key is still in @node
