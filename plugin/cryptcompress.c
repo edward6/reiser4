@@ -593,14 +593,13 @@ static int
 __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 {
 	int result = 0;
-	int prepped = 0;
-	int unprepped = 0;
 	
 	assert("edward-965", schedulable());
 	assert("edward-439", inode != NULL);
 	assert("edward-440", clust != NULL);
 	assert("edward-441", clust->pages != NULL);
-
+	assert("edward-1261", get_current_context()->grabbed_blocks == 0);
+	
 	if (clust->nr_pages == 0) {
 		assert("edward-1152", clust->win != NULL);
 		assert("edward-1153", clust->win->stat == HOLE_WINDOW);
@@ -609,20 +608,21 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	}
 	assert("edward-442", jprivate(clust->pages[0]) != NULL);
 	
-	prepped =   estimate_insert_cluster(inode, 0);
-	unprepped = estimate_insert_cluster(inode, 1);
-	result = reiser4_grab_space_force(prepped + unprepped, BA_CAN_COMMIT);
+	result = reiser4_grab_space_force(/* for prepped disk cluster */
+					  estimate_insert_cluster(inode, 0) +
+					  /* for unprepped disk cluster */
+					  estimate_insert_cluster(inode, 1),
+					  BA_CAN_COMMIT);
 	if (result)
 		return result;
 	clust->reserved = 1;
-	grabbed2cluster_reserved(prepped);
-	
+	grabbed2cluster_reserved(estimate_insert_cluster(inode, 0) +
+				 estimate_insert_cluster(inode, 1));
 #if REISER4_DEBUG
-	{
-		reiser4_context * ctx = get_current_context();
-		assert("edward-966", ctx->grabbed_blocks == unprepped);
-	}
+	clust->reserved_prepped = estimate_insert_cluster(inode, 0);
+	clust->reserved_unprepped = estimate_insert_cluster(inode, 1);
 #endif
+	assert("edward-1262", get_current_context()->grabbed_blocks == 0);
 	return 0;
 }
 
@@ -633,11 +633,11 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 #endif
 
 static void
-free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust)
+free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust, int count)
 {
 	assert("edward-967", clust->reserved == 1);
 	
-	cluster_reserved2free(estimate_insert_cluster(inode, 0));
+	cluster_reserved2free(count);
 	clust->reserved = 0;
 }
 #if REISER4_DEBUG
@@ -1196,13 +1196,16 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-971", clust->reserved == 1);
 	assert("edward-1028", spin_jnode_is_locked(node));
 	assert("edward-972", node->page_count < cluster_nrpages(inode));
-	
+	assert("edward-1263", clust->reserved_prepped ==  estimate_insert_cluster(inode, 0));
+	assert("edward-1264", clust->reserved_unprepped == 0);
+
 	if (jnode_is_dirty(node)) {
 		/* there are >= 1 pages already referenced by this jnode */
 		assert("edward-973", count_to_nrpages(off_to_count(*old_isize, clust->index, inode)));
 		old_refcnt = count_to_nrpages(off_to_count(*old_isize, clust->index, inode)) - 1;
 		/* space for the disk cluster is already reserved */
-		free_reserved4cluster(inode, clust);
+		
+		free_reserved4cluster(inode, clust, estimate_insert_cluster(inode, 0));
 	}
 	else {
 		/* there is only one page referenced by this jnode */
@@ -1211,6 +1214,9 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 		jnode_make_dirty_locked(node);
 		clust->reserved = 0;
 	}
+#if REISER4_DEBUG
+	clust->reserved_prepped -=  estimate_insert_cluster(inode, 0);
+#endif
 	new_refcnt = cluster_nrpages_to_capture(clust) - 1;
 	
 	/* get rid of duplicated references */
@@ -1485,25 +1491,20 @@ static int
 update_sd_cryptcompress(struct inode *inode)
 {
 	int result = 0;
-	int old_grabbed;
-	reiser4_context *ctx = get_current_context();
-	reiser4_super_info_data * sbinfo = get_super_private(ctx->super);
-
+	
 	assert("edward-978", schedulable());
-
-	old_grabbed = ctx->grabbed_blocks;
+	assert("edward-1265", get_current_context()->grabbed_blocks == 0);
 	
 	result = reiser4_grab_space_force(/* one for stat data update */
 					  estimate_update_common(inode),
 					  BA_CAN_COMMIT);
 	assert("edward-979", !result);
-	
 	if (result)
 		return result;
 	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 	result = reiser4_update_sd(inode);
 	
-	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - old_grabbed);
+	all_grabbed2free();
 	return result;
 }
 
@@ -1785,9 +1786,8 @@ find_cluster(reiser4_cluster_t * clust,
 	assert("edward-226", schedulable());
 	assert("edward-137", inode != NULL);
 	assert("edward-729", crc_inode_ok(inode));
-	assert("edward-474", ergo(clust->reserved,
-				  get_current_context()->grabbed_blocks ==
-				  estimate_insert_cluster(inode, 1)));
+	assert("edward-474", get_current_context()->grabbed_blocks == 0);
+	
 	hint = clust->hint;
 	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
@@ -1811,9 +1811,7 @@ find_cluster(reiser4_cluster_t * clust,
 		if (result)
 			goto out2;
 	}
-	assert("edward-1221", ergo(clust->reserved,
-				  get_current_context()->grabbed_blocks ==
-				  estimate_insert_cluster(inode, 1)) + estimate_disk_cluster(inode));
+	
 	ra_info.key_to_stop = f.key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 
@@ -1840,20 +1838,15 @@ find_cluster(reiser4_cluster_t * clust,
 			if (unlikely(result))
 				goto out2;
 			iplug = item_plugin_by_coord(&hint->coord.base_coord);
-			assert("edward-147", item_plugin_by_coord(&hint->coord.base_coord) == item_plugin_by_id(CTAIL_ID));
+			assert("edward-147", 
+			       item_id_by_coord(&hint->coord.base_coord) == CTAIL_ID);
 			
 			result = iplug->s.file.read(NULL, &f, hint);
 			if (result)
 				goto out;
 			if (write) {
-				assert("edward-1222", ergo(clust->reserved,
-							  get_current_context()->grabbed_blocks >=
-							  estimate_insert_cluster(inode, 1)));
 				znode_make_dirty(hint->coord.base_coord.node);
 				znode_set_convertible(hint->coord.base_coord.node);
-				assert("edward-1223", ergo(clust->reserved,
-							  get_current_context()->grabbed_blocks >=
-							  estimate_insert_cluster(inode, 1)));
 			}
 			zrelse(hint->coord.base_coord.node);
 			break;
@@ -1871,18 +1864,12 @@ find_cluster(reiser4_cluster_t * clust,
 		clust->dstat = UNPR_DISK_CLUSTER;
 	else
 		clust->dstat = PREP_DISK_CLUSTER;
-	if (write)
-		grabbed2free(get_current_context(), 
-			     get_super_private(get_current_context()->super), 
-			     get_current_context()->grabbed_blocks - estimate_insert_cluster(inode, 1));
+	all_grabbed2free(); 
 	return 0;
  out:
 	zrelse(hint->coord.base_coord.node);
  out2:
-	if (write)
-		grabbed2free(get_current_context(), 
-			     get_super_private(get_current_context()->super), 
-			     get_current_context()->grabbed_blocks - estimate_insert_cluster(inode, 1));
+	all_grabbed2free(); 
 	return result;
 }
 
@@ -1920,9 +1907,7 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 
 	iplug = item_plugin_by_id(CTAIL_ID);
 
-	assert("edward-733", ergo(clust->reserved, 
-				  get_current_context()->grabbed_blocks == 
-				  estimate_insert_cluster(inode, 1 /* unprepped */)));
+	assert("edward-733", get_current_context()->grabbed_blocks == 0);
 	assert("edward-924", !tfm_cluster_is_uptodate(&clust->tc));
 
 #if REISER4_DEBUG
@@ -2052,19 +2037,28 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-738", inode != NULL);
 	assert("edward-739", crc_inode_ok(inode));
 	assert("edward-1053", clust->hint != NULL);
-	
+	assert("edward-1266", get_current_context()->grabbed_blocks == 0);
+
+	if (clust->reserved){
+		cluster_reserved2grabbed(estimate_insert_cluster(inode, 1));
+#if REISER4_DEBUG
+		assert("edward-1267", clust->reserved_unprepped == estimate_insert_cluster(inode, 1));
+		clust->reserved_unprepped -= estimate_insert_cluster(inode, 1);
+#endif
+	}
 	if (!should_create_unprepped_cluster(clust, inode)) {
-		assert("edward-1165", ergo(clust->reserved, 
-					  get_current_context()->grabbed_blocks == 
-					  estimate_insert_cluster(inode, 1)));
 		all_grabbed2free();
 		return 0;	
+	} else {
+		assert("edward-1268", clust->reserved == 1);
 	}
 	result = ctail_insert_unprepped_cluster(clust, inode);
+	all_grabbed2free();
 	if (result)
 		return result;
 	
 	assert("edward-743", crc_inode_ok(inode));
+	assert("edward-1269", get_current_context()->grabbed_blocks == 0);
 	assert("edward-744", znode_is_write_locked(clust->hint->coord.lh->node));
 	
 	clust->dstat = UNPR_DISK_CLUSTER;
@@ -2127,6 +2121,13 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 	
 	LOCK_JNODE(node);
 	if (jnode_is_dirty(node)) {
+		/* jnode is dirty => space for disk cluster
+		   conversion grabbed */
+		cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
+		grabbed2free(get_current_context(),
+			     get_current_super_private(),
+			     estimate_insert_cluster(inode, 0));
+		
 		/* clear dirty bit to make sure that concurrent
 		   flush won't start convert the disk cluster */
 		JF_CLR(node, JNODE_DIRTY);
@@ -2178,6 +2179,9 @@ prepare_cluster(struct inode *inode,
 	reiser4_slide_t * win = clust->win;
 
 	reset_cluster_params(clust);
+#if REISER4_DEBUG
+	clust->ctx = get_current_context();
+#endif
 	assert("edward-1190", op != PCL_UNKNOWN);
 
 	clust->op = op;
@@ -2189,8 +2193,13 @@ prepare_cluster(struct inode *inode,
 	if (result)
 		goto err1;
 	result = read_some_cluster_pages(inode, clust);
-	if (result)
-		goto err2;
+	if (result) {
+		free_reserved4cluster(inode,
+				      clust,
+				      estimate_insert_cluster(inode, 0) +
+				      estimate_insert_cluster(inode, 1));
+		goto err1;
+	}
 	assert("edward-1124", clust->dstat != INVAL_DISK_CLUSTER);
 	
 	result = crc_make_unprepped_cluster(clust, inode);
@@ -2203,7 +2212,9 @@ prepare_cluster(struct inode *inode,
 	}
 	return 0;
  err2:
-	free_reserved4cluster(inode, clust);
+	free_reserved4cluster(inode,
+			      clust,
+			      estimate_insert_cluster(inode, 0));
  err1:
 	page_cache_release(clust->pages[0]);
 	release_cluster_pages_and_jnode(clust);
@@ -2395,7 +2406,9 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		release_cluster_pages_and_jnode(&clust);
 	err1:
 		if (clust.reserved)
-			free_reserved4cluster(inode, &clust);
+			free_reserved4cluster(inode, 
+					      &clust, 
+					      estimate_insert_cluster(inode, 0));
 		break;
 	} while (f.length);
  out:	
@@ -2521,11 +2534,13 @@ ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * 
 	
 	info = cryptcompress_inode_data(inode);
 	needed = cryptcompress_estimate_read(inode);
-
+	/* FIXME-EDWARD: 
+	   Grab space for sd_update so find_cluster will be happy */
+#if 0
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
 	if (result != 0)
 		return result;
-	
+#endif	
 	fsdata = reiser4_get_file_fsdata(file);
 	fsdata->ra2.data = file;
 	fsdata->ra2.readpages = readpages_crc;
@@ -2633,7 +2648,7 @@ adjust_left_coord(coord_t * left_coord)
 	switch(left_coord->between) {
 	case AFTER_UNIT:
 		left_coord->between = AFTER_ITEM;
-		break;
+	case AFTER_ITEM:
 	case BEFORE_UNIT:
 		break;
 	default:
@@ -2807,6 +2822,7 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	       hole_size, (unsigned long long)get_inode_oid(inode), nr_zeroes, clust.index);
 #endif	
 	result = prepare_cluster(inode, 0, 0, &clust, PCL_APPEND);
+	assert("edward-1271", !result);
 	if (result)
 		goto out;
 	assert("edward-1139", 
@@ -2997,9 +3013,6 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	if (result)
 		return result;
 	
-	assert("edward-1207", 
-	       ergo(off_to_cloff(inode->i_size, inode) == 0,
-		    inode->i_size == clust_to_off(aidx, inode)));
 	assert("edward-1208", 
 	       ergo(aidx > 0, inode->i_size > clust_to_off(aidx - 1, inode)));
 
@@ -3015,12 +3028,8 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
 						  reiser4_inode_data(inode)->captured_eflushed == 0));
 		}
-		if (update_sd) {
-			result = setattr_reserve_common(tree_by_inode(inode));
-			if (!result)
-				result = update_sd_cryptcompress(inode);
-			all_grabbed2free();
-		}
+		if (update_sd)
+			result = update_sd_cryptcompress(inode);
 		return result;
 	}
 	result = (old_size < new_size ? cryptcompress_append_hole(inode, new_size) :
