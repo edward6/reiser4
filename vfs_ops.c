@@ -2255,7 +2255,7 @@ try_to_lock:
 							 * rescan atom's list
 							 * for not busy flush
 							 * queues. */
-							atom_wait_event(get_current_context()->trans);
+							atom_wait_event(atom);
 
 							jput(node);
 							reiser4_lock_page(page);
