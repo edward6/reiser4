@@ -234,4 +234,6 @@ ARC(I_LOCK, longterm_lock, "reiser4_iget()");
 
 //one cannot wait for atom event keeping longterm lock
 ARC(atom_event, longterm_lock, "flush");
+//one cannot wait for atom event keeping page lock
+ARC(atom_event, page_lock, "jnode_extent_write()");
 }
