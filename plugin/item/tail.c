@@ -397,6 +397,22 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, write_mode
 	return result;
 }
 
+#if REISER4_DEBUG
+
+static int
+coord_matches_key(const coord_t *coord, const reiser4_key *key)
+{
+	reiser4_key item_key;
+
+	assert("vs-1356", coord_is_existing_unit(coord));
+	assert("vs-1354", keylt(key, append_key_tail(coord, &item_key)));
+	assert("vs-1355", keyge(key, item_key_by_coord(coord, &item_key)));
+	return get_key_offset(key) == get_key_offset(&item_key) + coord->unit_pos;
+	
+}
+
+#endif
+
 /* plugin->u.item.s.file.read */
 int
 read_tail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
@@ -414,7 +430,7 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
 	assert("vs-1118", znode_is_loaded(coord->node));
 
 	assert("nikita-3037", schedulable());
-	assert("", key_in_item_tail(uf_coord, &f->key));
+	assert("vs-1357", coord_matches_key(coord, &f->key));
 
 	/* calculate number of bytes to read off the item */
 	item_length = item_length_by_coord(coord);
@@ -469,25 +485,6 @@ int get_block_address_tail(const uf_coord_t *uf_coord, sector_t block, struct bu
 	bh->b_blocknr = *znode_get_block(uf_coord->base_coord.node);
 	return 0;
 }
-
-
-/*
-  plugin->u.item.s.file.key_in_item
-  return true @coord is set inside of item to key @key
-*/
-#if REISER4_DEBUG
-int
-key_in_item_tail(const uf_coord_t *uf_coord, const reiser4_key *key)
-{
-	reiser4_key item_key;
-
-	if (keygt(key, append_key_tail(&uf_coord->base_coord, &item_key)))
-		return 0;
-	if (keylt(key, item_key_by_coord(&uf_coord->base_coord, &item_key)))
-		return 0;
-	return get_key_offset(key) == get_key_offset(&item_key) + uf_coord->base_coord.unit_pos;
-}
-#endif
 
 /*
    Local variables:

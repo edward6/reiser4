@@ -32,10 +32,6 @@ void init_coord_extension_tail(uf_coord_t *, loff_t offset);
 int get_block_address_tail(const uf_coord_t *uf_coord, 
 			   sector_t block, struct buffer_head *bh);
 
-#if REISER4_DEBUG
-int key_in_item_tail(const uf_coord_t *, const reiser4_key *);
-#endif
-
 /* __REISER4_TAIL_H__ */
 #endif
 
