@@ -10,6 +10,7 @@
 
 /** ->max_key_inside() method for items consisting of exactly one key (like
     stat-data) */
+/* Audited by: green(2002.06.14) */
 static reiser4_key *single_key( const new_coord *coord /* coord of item */, 
 				reiser4_key *result /* resulting key */ )
 {
@@ -21,6 +22,7 @@ static reiser4_key *single_key( const new_coord *coord /* coord of item */,
 }
 
 /** ->nr_units() method for items consisting of exactly one unit always */
+/* Audited by: green(2002.06.14) */
 static unsigned int single_unit( const new_coord *coord UNUSED_ARG /* coord
 								       of
 								       item */ )
@@ -34,6 +36,7 @@ int agree_to_fast_op( const new_coord *coord UNUSED_ARG /* coord of item */ )
 	return 1;
 }
 
+/* Audited by: green(2002.06.14) */
 int item_can_contain_key( const new_coord *item /* coord of item */, 
 			  const reiser4_key *key /* key to check */,
 			  const reiser4_item_data *data /* parameters of item
@@ -66,6 +69,7 @@ int item_can_contain_key( const new_coord *item /* coord of item */,
 }
 
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
+/* Audited by: green(2002.06.14) */
 int are_items_mergeable( const new_coord *i1 /* coord of first item */, 
 			 const new_coord *i2 /* coord of second item */ )
 {
@@ -112,6 +116,7 @@ int are_items_mergeable( const new_coord *i1 /* coord of first item */,
 	}
 }
 
+/* Audited by: green(2002.06.14) */
 int item_is_extent (const new_coord *item)
 {
 	assert ("vs-482", ncoord_is_existing_item (item));
@@ -119,6 +124,7 @@ int item_is_extent (const new_coord *item)
 }
 
 /* this returns true if item is of internal type */
+/* Audited by: green(2002.06.14) */
 int item_is_internal (const new_coord *item)
 {
 	assert ("vs-483", ncoord_is_existing_item (item));
@@ -126,6 +132,7 @@ int item_is_internal (const new_coord *item)
 }
 
 
+/* Audited by: green(2002.06.14) */
 int item_is_statdata (const new_coord *item)
 {
 	assert ("vs-516", ncoord_is_existing_item (item));
