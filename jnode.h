@@ -100,60 +100,77 @@ struct jnode {
 #define JMAGIC 0x52654973 /* "ReIs" */
 	int magic;
 #endif
-	union {
-		/* pointers to maintain hash-table */
-		z_hash_link z;
-		j_hash_link j;
-	} link;
+	/* FIRST CACHE LINE (16 bytes): data used by jload */
 
-	union {
+	/* jnode's state: bitwise flags from the reiser4_jnode_state enum. */
+	/*   0 */ unsigned long state;
+
+	/* lock, protecting jnode's fields. */
+	/*   4 */ reiser4_spin_data load;
+
+	/* counter of references to jnode itself. Increased on jref().
+	   Decreased on jput().
+	*/
+	/*   8 */ atomic_t x_count;
+
+	/* counter of references to jnode's data. Pin data page(s) in
+	   memory while this is greater than 0. Increased on jload().
+	   Decreased on jrelse().
+	*/
+	/*   12 */ atomic_t d_count;
+
+	/* SECOND CACHE LINE: data used by hash table lookups */
+
+	/*   16 */ union {
 		/* znodes are hashed by block number */
 		reiser4_block_nr z;
 		/* unformatted nodes are hashed by mapping plus offset */
 		jnode_key_t j;
 	} key;
 
-	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
-	unsigned long state;
+	/* THIRD CACHE LINE */
 
-	/* lock, protecting jnode's fields. */
-	reiser4_spin_data guard;
-
-	/* counter of references to jnode itself. Increased on jref().
-	   Decreased on jput().
-	*/
-	atomic_t x_count;
-
-	/* the real blocknr (where io is going to/from) */
-	reiser4_block_nr blocknr;
+	/*   32 */ union {
+		/* pointers to maintain hash-table */
+		z_hash_link z;
+		j_hash_link j;
+	} link;
 
 	/* pointer to jnode page.  */
-	struct page *pg;
+	/*   36 */ struct page *pg;
 	/* pointer to node itself. This is page_address(node->pg) when page is
 	   attached to the jnode
 	*/
-	void *data;
+	/*   40 */ void *data;
 
-	/* counter of references to jnode's data. Pin data page(s) in
-	   memory while this is greater than 0. Increased on jload().
-	   Decreased on jrelse().
-	*/
-	atomic_t d_count;
+	/*   44 */ reiser4_tree *tree;
+
+	/* FORTH CACHE LINE: atom related fields */
+
+	/*   48 */ reiser4_spin_data guard;
 
 	/* atom the block is in, if any */
-	txn_atom *atom;
+	/*   52 */ txn_atom *atom;
 
 	/* capture list */
-	capture_list_link capture_link;
-	reiser4_tree *tree;
-	struct rcu_head rcu;
+	/*   56 */ capture_list_link capture_link;
+
+	/* FIFTH CACHE LINE */
+
+	/*   64 */ struct rcu_head rcu; /* crosses cache line */
+
+	/* SIXTH CACHE LINE */
+
+	/* the real blocknr (where io is going to/from) */
+	/*   80 */ reiser4_block_nr blocknr;
+	/*   88 */
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
 	int      written;
 #endif
-};
+} __attribute__((aligned(16)));
 
 typedef enum {
 	JNODE_UNFORMATTED_BLOCK,
@@ -244,7 +261,7 @@ typedef enum {
 	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25,
 	/* capture copy jnode */
 	JNODE_CC = 26
-} reiser4_znode_state;
+} reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
 static inline void
@@ -292,6 +309,10 @@ JF_TEST_AND_SET(jnode * j, int f)
 */
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
+#define spin_ordering_pred_jload(node) (1)
+
+SPIN_LOCK_FUNCTIONS(jload, jnode, load);
+
 static inline int
 jnode_is_in_deleteset(const jnode * node)
 {
@@ -324,8 +345,6 @@ extern void jnode_make_wander(jnode*) NONNULL;
 extern void jnode_make_reloc(jnode*, flush_queue_t*) NONNULL;
 extern void jnode_set_block(jnode * node,
 			    const reiser4_block_nr * blocknr) NONNULL;
-extern int jnode_io_hook(jnode *node, struct page *page, int rw) NONNULL;
-
 extern struct page *jnode_lock_page(jnode *) NONNULL;
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
@@ -494,6 +513,7 @@ extern void jdrop(jnode * node) NONNULL;
 extern int jwait_io(jnode * node, int rw) NONNULL;
 
 extern void jrelse_nolock(jnode * node) NONNULL;
+extern void jload_prefetch(const jnode * node);
 
 extern jnode *alloc_io_head(const reiser4_block_nr * block) NONNULL;
 extern void drop_io_head(jnode * node) NONNULL;
