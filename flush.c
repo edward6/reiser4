@@ -47,24 +47,61 @@ struct flush_scan {
 /* An encapsulation of the current flush point and all the parameters that are passed
  * through the entire flush routine. */
 struct flush_position {
-	jnode                *point;
-	lock_handle           point_lock;
-	lock_handle           parent_lock;
-	coord_t               parent_coord;
-	data_handle           point_load;
-	data_handle           parent_load;
-	reiser4_blocknr_hint  preceder;
-	int                   leaf_relocate;
-	int                  *nr_to_flush;
-	int                   alloc_cnt;
-	int                   enqueue_cnt;
-	jnode               **queue;
- 	int                   queue_num;
+	jnode                *point;           /* The current position, if it is formatted. */
+	lock_handle           point_lock;      /* The current position lock. */
+	lock_handle           parent_lock;     /* Parent of the current position, if it is unformatted. */
+	coord_t               parent_coord;    /* Coordinate of the current position, if unformatted. */
+	data_handle           point_load;      /* Loaded point */
+	data_handle           parent_load;     /* Loaded parent */
+	reiser4_blocknr_hint  preceder;        /* The flush 'hint' state. */
+	int                   leaf_relocate;   /* True if enough leaf-level nodes were
+						* found to suggest a relocate policy. */
+	int                  *nr_to_flush;     /* If called under memory pressure,
+						* indicates how many nodes to flush. */
+	int                   alloc_cnt;       /* The number of nodes allocated during squalloc. */
+	int                   enqueue_cnt;     /* The number of nodes enqueued (released
+						* for write) during squalloc.  This number
+						* would equal alloc_cnt except for:
+						*
+						* - Nodes may be deleted that never get enqueued
+						* - The final, rightmost set of ancestors are never enqueued */
+	jnode               **queue;           /* The flush queue holds allocated but not-yet-submitted jnodes
+						* until it reaches capacity at which point flush_empty_queue() is called. */
+ 	int                   queue_num;       /* The current number of queue entries. */
 
-	/* FIXME: Add a per-level bitmask, I think, or something to detect the first set
-	 * of nodes that needs to be checked for having still-unallocated children?  How
-	 * about the last set?  They're still FLUSH_BUSY in the final flush_finish now
-	 * that flush_enqueue_ancestors is not used. */
+	/* FIXME: Currently there is no checking for (internal) nodes that have
+	 * un-allocated children when the node is flushed.  This needs to be fixed for
+	 * performance reasons, but it will not cause file system corruption since the
+	 * unallocated children will need to be flushed later before the transaction
+	 * commits, causing the internal node to be re-written.  This is how it will be
+	 * fixed:
+	 *
+	 * 1. In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
+	 * nodes, flush begins an accelerated scan-left trying to find a node which is the
+	 * leftmost child of its parent with a left-neighbor that is clean.  The scan
+	 * end-point skips past non-rightmost, non-leftmost children of the parent because
+	 * flush has to pass by all potentially unallocated children.  If flush finds a
+	 * leftmost child with a left-neighbor that is clean, it stops.
+	 *
+	 * 2. Add a "int unalloc_mask", initially set to 0, which is bitwise-indexed by
+	 * tree level.  The first time a node is 'released' (see flush_release_jnode) at a
+	 * certain level the bit is set.  Except at the leaf level (which has no children)
+	 * and the twig level, which we scanned to the end of in step #1, setting this bit
+	 * means the node (with level > TWIG) may have unallocated children to the left.
+	 *
+	 * 3. If the bit is already set then it means a node to-the-left of the
+	 * currently-being-released node was already flushed, therefore it is known that
+	 * all its children were flushed.
+	 *
+	 * 4. After flush is finished (flush_empty_queue called with finish=1), there may
+	 * exist some nodes in the queue with FLUSH_BUSY still set.  Those nodes may have
+	 * unallocated children to the right.
+	 *
+	 * The general idea described here is to handle the leaf and twig cases as a
+	 * special case and then use the bitmask to detect possible unallocated children
+	 * to the left and the finished queue/FLUSH_BUSY to detect possible unallocated
+	 * children to the right.
+	 */
 };
 
 typedef enum {
@@ -88,10 +125,9 @@ static int           flush_query_relocate_dirty    (jnode *node, const coord_t *
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_release_znode          (znode *node);
 static int           flush_rewrite_jnode          (jnode *node);
-/*static int           flush_release_ancestors      (znode *node);*/
 static int           flush_queue_jnode            (jnode *node, flush_position *pos);
 
-static int           flush_finish                 (flush_position *pos, int nobusy);
+static int           flush_empty_queue                 (flush_position *pos, int nobusy);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
@@ -227,10 +263,15 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 
 	assert ("jmacd-6218", jnode_check_dirty (left_scan.node));
 
-	/* FIXME: Funny business here.  We set an unformatted point at the
-	 * left-end of the scan, but after that an unformatted flush position sets
-	 * pos->point to NULL.  This is awkward and may cause problems later.
-	 * Think about it. */
+	/* FIXME: Funny business here.  We set an unformatted point at the left-end of the
+	 * scan, but after that an unformatted flush position sets pos->point to NULL.
+	 * This seems lazy, but it makes the initial calls to flush_query_relocate much
+	 * easier because we know the first unformatted child.  I think it should be
+	 * fixed, but nothing is really broken by this, but the reason is subtle.  Holding
+	 * an extra reference on a jnode during flush can cause us to see nodes with
+	 * HEARD_BANSHEE during squalloc, which is not good, but this only happens on the
+	 * left-edge of flush, where nodes cannot be deleted.  So if nothing is broken,
+	 * why fix it? */
 	if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
 		goto failed;
 	}
@@ -269,7 +310,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	}
 
 	/* Write anything left in the queue. */
-	ret = flush_finish (& flush_pos, 1);
+	ret = flush_empty_queue (& flush_pos, 1);
 
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
    failed:
@@ -402,14 +443,19 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	/* Not using get_utmost_if_dirty because then we would not discover
 	 * a dirty unformatted leftmost child of a clean twig. */
 	if ((ret = reiser4_get_right_neighbor (& right_lock, pos->parent_lock.node, ZNODE_WRITE_LOCK, 0))) {
-		/* If -ENAVAIL,-ENOENT we are finished (or do we go upward anyway?). */
-		/* FIXME: check EDEADLK, EINVAL.  We can just stop in case of deadlock,
-		 * but I would like to have a test first. */
-		if (ret == -ENAVAIL || ret == -ENOENT) {
+		/* If -ENAVAIL,-ENOENT,-EDEADLK,-EINVAL we are finished at the end-of-twig. */
+		if (ret == -ENAVAIL || ret == -ENOENT || ret == -EDEADLK || ret == -EINVAL) {
 
 			/* Now finished with twig node. */
-			trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP (end of twig, ENAVAIL right): %s\n", flush_pos_tostring (pos));
+			trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP (end of twig, no right): %s\n", flush_pos_tostring (pos));
+
+			/* Note: flush_release_ancestors, which is commented-out several
+			 * places below, is no longer used.  It was a recursive-upward
+			 * function to call flush_release_jnode on every allocated
+			 * ancestor, but now they are just whatever is left over in the
+			 * flush_pos->queue. */
 			/*ret = flush_release_ancestors (pos->parent_lock.node);*/
+
 			ret = flush_pos_stop (pos);
 		}
 		goto exit;
@@ -461,18 +507,25 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
  * Flush Squeeze and Allocate
  ********************************************************************************/
 
-/* Here the rule is: squeeze left uncle with parent if uncle is dirty.  Repeat until the
- * child's parent is stable.  If the child is a leftmost child, repeat this left-edge
- * squeezing operation at the next level up.  AS YET UNIMPLEMENTED in the interest of
- * reducing time-to-benchmark.  Also note that we cannot allocate during the left-squeeze
- * and we have to maintain coordinates throughout or else repeat a tree search.
- * Difficult. */
+/* flush_squeeze_left_edge -- Here the rule is: squeeze left uncle with parent if uncle is
+ * dirty.  Repeat until the child's parent is stable.  If the child is a leftmost child,
+ * repeat this left-edge squeezing operation at the next level up.  AS YET UNIMPLEMENTED
+ * in the interest of reducing time-to-benchmark.  Also note that we cannot allocate
+ * during the left-squeeze and we have to maintain coordinates throughout or else repeat a
+ * tree search.  Difficult. */
 static int flush_squeeze_left_edge (flush_position *pos UNUSED_ARG)
 {
 	return 0;
 }
 
-/* FIXME: comment */
+/* flush_set_preceder -- This is one of two places where we may set the preceding block
+ * number.  It is called during flush_allocate_ancestors, the upward-recursive step the
+ * calls flush_query_relocate() as long as each child is a leftmost child.  At the
+ * twig-level, this routine is called to remember the rightmost child of the left twig.
+ * That child (if it is found in memory), is the preceder of the highest non-leftmost
+ * child that we encounter during flush_allocated_ancestors.  It helps to draw a
+ * picture...
+ */
 static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 {
 	int ret;
@@ -624,7 +677,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* Originally the idea was to assert that a node is always allocated before the
 	 * upward recursion here, but its not always true.  We are allocating in the
-	 * rightward direction and there is no reason the ancestor must be allocated. */
+	 * rightward direction and there is no reason the initial (leftmost) ancestors
+	 * must be allocated.  They are not considered part of this parent-first traversal. */
 	/*assert ("jmacd-9925", znode_check_allocated (node));*/
 
 	if ((ret = load_dh_znode (& node_load, node))) {
@@ -1540,7 +1594,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	spin_unlock_jnode (node);
 
 	if (pos->queue_num == FLUSH_QUEUE_SIZE) {
-		return flush_finish (pos, 0);
+		return flush_empty_queue (pos, 0);
 	}
 
 	return 0;
@@ -1602,13 +1656,13 @@ static void flush_bio_write (struct bio *bio)
  * ZNODE_FLUSH_BUSY state.  If @finish == 0 then ZNODE_FLUSH_BUSY nodes should be skipped
  * as their children are still being squeezed and allocated.
  */
-static int flush_finish (flush_position *pos, int finish)
+static int flush_empty_queue (flush_position *pos, int finish)
 {
 	int i;
 	int refill = 0;
 	int ret = 0;
 
-	trace_on (TRACE_FLUSH, "flush_finish with %u queued; finish? %u\n", pos->queue_num, finish);
+	trace_on (TRACE_FLUSH, "flush_empty_queue with %u queued; finish? %u\n", pos->queue_num, finish);
 
 	if (pos->queue_num == 0) {
 		return 0;
@@ -1681,7 +1735,7 @@ static int flush_finish (flush_position *pos, int finish)
 			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
-			warning ("jmacd-74232", "flush_finish: page in writeback already");
+			warning ("jmacd-74232", "flush_empty_queue: page in writeback already");
 			continue;
 
 		} else {
@@ -1748,7 +1802,7 @@ static int flush_finish (flush_position *pos, int finish)
 
 				JF_CLR (node, ZNODE_FLUSH_QUEUED);
 
-				/*trace_on (TRACE_FLUSH_VERB, "flush_finish writes %s\n", flush_jnode_tostring (node));*/
+				/*trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes %s\n", flush_jnode_tostring (node));*/
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
@@ -1773,7 +1827,7 @@ static int flush_finish (flush_position *pos, int finish)
 			i = j;
 			pos->enqueue_cnt += nr;
 
-			trace_on (TRACE_FLUSH, "flush_finish writes %u consecutive blocks: BIO %p\n", nr, bio);
+			trace_on (TRACE_FLUSH, "flush_empty_queue writes %u consecutive blocks: BIO %p\n", nr, bio);
 
 			submit_bio (WRITE, bio);
 
@@ -1782,52 +1836,11 @@ static int flush_finish (flush_position *pos, int finish)
 		}
 	}
 
-	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_finish wrote %u leaving %u queued\n", pos->queue_num - refill, refill); });
+	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue wrote %u leaving %u queued\n", pos->queue_num - refill, refill); });
 	pos->queue_num = refill;
 
 	return ret;
 }
-
-#if 0
-/* FIXME: comment */
-static int flush_release_ancestors (znode *node)
-{
-	int ret;
-	lock_handle parent_lock;
-
-	assert ("jmacd-7444", znode_is_any_locked (node));
-
-	if (! znode_check_dirty (node) || ! znode_check_allocated (node)) {
-		return 0;
-	}
-
-	assert ("jmacd-7443", znode_check_allocated (node));
-
-	if ((ret = flush_release_znode (node))) {
-		return ret;
-	}
-
-	if (znode_is_root (node)) {
-		return 0;
-	}
-
-	init_lh (& parent_lock);
-
-	/* FIXME: Don't really need a longterm lock here, just climbing the tree, right? */
-	if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_READ_LOCK, 1))) {
-		/* FIXME: check ENAVAIL, EINVAL, EDEADLK */
-		goto exit;
-	}
-
-	if ((ret = flush_release_ancestors (parent_lock.node))) {
-		goto exit;
-	}
-
- exit:
-	done_lh (& parent_lock);
-	return ret;
-}
-#endif
 
 /* This writes a single page when it is flushed after an earlier allocation within the
  * same txn. */
@@ -2242,9 +2255,6 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		/* Continue as long as there are more extent units. */
 
 		scan_index = extent_unit_index (& coord) + (flush_scanning_left (scan) ? extent_unit_width (& coord) - 1 : 0);
-		/*
-		 * FIXME-VS: repeat: starts from get_inode, so iput here?
-		 */
 		assert ("vs-835", ino);
 		iput (ino);
 		goto repeat;

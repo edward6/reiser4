@@ -1020,7 +1020,9 @@ void unlock_page(struct page *page);
 struct page *page_cache_alloc (struct address_space *);
 extern int add_to_page_cache_unique(struct page *, struct address_space *,
 				    unsigned long index);
-
+extern int add_to_page_cache (struct page * page,
+			      struct address_space * mapping,
+			      unsigned long offset);
 
 /* include/linux/swap.h */
 void lru_cache_del(struct page *);

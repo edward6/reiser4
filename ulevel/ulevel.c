@@ -1205,6 +1205,13 @@ int add_to_page_cache_unique (struct page * page,
 	return 0;
 }
 
+int add_to_page_cache (struct page * page,
+		       struct address_space * mapping,
+		       unsigned long offset)
+{
+	/* FIXME: JMACD->VS: Is this right? */
+	return add_to_page_cache_unique (page, mapping, offset);
+}
 
 void wait_on_page_locked(struct page * page)
 {
