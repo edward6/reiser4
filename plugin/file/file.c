@@ -811,8 +811,15 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key,
 	assert("vs-966", znode_is_locked(coord->node));
 	seal_init(&hint->seal, coord, key);
 	hint->coord = *coord;
-	if (!less_than_rdk(coord->node, key) || less_than_ldk(coord->node, key)) {
-		unset_hint(hint);
+	if ((!less_than_rdk(coord->node, key) || 
+	     less_than_ldk(coord->node, key)) &&
+	    /*
+	     * FIXME-NIKITA: temporary fix. Due to extents on the twig level,
+	     * it is possible that key we are trying to write at is less than
+	     * left delimiting key of the node we came into.
+	     */
+	    !coord_is_before_leftmost(coord)) {
+		unset_hint (hint);
 		return;
 	}
 	hint->key = *key;
@@ -1721,7 +1728,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 	if (!inode_get_flag(inode, REISER4_HAS_TAIL)) {
 		/* file is built of extents already */
 		drop_nonexclusive_access(inode);
-		return 0;
+		return generic_file_mmap (file, vma);
 	}
 
 	result = tail2extent(inode);
