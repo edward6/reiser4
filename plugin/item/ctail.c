@@ -1040,10 +1040,12 @@ int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * ino
 		return result;
 	assert("edward-1249", result == CBK_COORD_NOTFOUND);
 	assert("edward-1250", znode_is_write_locked(clust->hint->ext_coord.lh->node));
-	
-	clust->hint->ext_coord.coord.between = AFTER_ITEM;
-	clust->hint->ext_coord.coord.unit_pos = 0;
-	
+
+ 	assert("edward-1295", 
+ 	       clust->hint->ext_coord.lh->node == clust->hint->ext_coord.coord.node);
+ 
+ 	coord_set_between_clusters(&clust->hint->ext_coord.coord);
+ 
 	result = insert_unprepped_ctail(clust, inode);
 	all_grabbed2free();
 	
