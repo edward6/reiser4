@@ -234,6 +234,15 @@ void reiser4_set_unallocated_blocks (const struct super_block *super, __u64 nr)
 	get_super_private (super) -> blocks_unallocated = nr;
 }
 
+void reiser4_update_last_written_location( const struct super_block *s, const reiser4_block_nr *block)
+{
+	reiser4_super_info_data * private = get_super_private(s);
+
+	reiser4_spin_lock_sb(s);
+	private->last_written_location = *block;
+	reiser4_spin_unlock_sb(s);
+}
+
 /**
  * objectid allocator used by this file system
  */
