@@ -1,0 +1,17 @@
+/*
+	print.h -- output functions.
+	Copyright (C) 1996-2002 Hans Reiser
+*/
+
+#ifndef PRINT_H
+#define PRINT_H
+
+#include <stdarg.h>
+
+typedef void (*aal_printf_handler_t)(const char *);
+
+extern void aal_printf(const char *format, ...);
+extern int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list);
+
+#endif
+
