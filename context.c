@@ -173,6 +173,25 @@ reiser4_internal void reiser4_exit_context(reiser4_context * context)
 			txn_restart(context);
 			balance_dirty_pages_at(context);
 		}
+
+		/* if filesystem is mounted with -o sync or -o dirsync - commit
+		   transaction.  FIXME: TXNH_DONT_COMMIT is used to avoid
+		   commiting on exit_context when inode semaphore is held and
+		   to have ktxnmgrd to do commit instead to get better
+		   concurrent filesystem accesses. But, when one mounts with -o
+		   sync, he cares more about reliability than about
+		   performance. So, for now we have this simple mount -o sync
+		   support. */
+		if (context->super->s_flags & (MS_SYNCHRONOUS | MS_DIRSYNC)) {
+			txn_atom *atom;
+			
+			atom = get_current_atom_locked_nocheck();
+			if (atom) {
+				atom->flags |= ATOM_FORCE_COMMIT;
+				context->trans->flags &= ~TXNH_DONT_COMMIT;
+				UNLOCK_ATOM(atom);
+			}
+		}
 		txn_end(context);
 	}
 	done_context(context);
