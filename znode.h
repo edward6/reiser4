@@ -588,8 +588,6 @@ SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 
-#define znode_get_atom(x)           ZJNODE (x)->atom
-
 #define znode_is_dirty(x)           jnode_is_dirty  ( ZJNODE(x) )
 #define znode_set_dirty(x)          jnode_set_dirty ( ZJNODE(x) )
 #define znode_set_clean(x)          jnode_set_clean ( ZJNODE(x) )
