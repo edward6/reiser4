@@ -33,7 +33,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 
 	assert( "nikita-930", brother != NULL );
 	
-	/* AUDIT: In this point passed "level" should be cheked for validness */
+	/* AUDIT: In this point passed "level" should be checked for validness */
 	assert( "umka-264", level < REAL_MAX_ZTREE_HEIGHT );
 
 	/*
