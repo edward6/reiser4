@@ -96,7 +96,7 @@ void build_entryid_by_entry_info(reiserfs_entryid_t *entryid,
     reiserfs_key_init(&key);
     set_key_type(&key, KEY_FILE_NAME_MINOR);
     len = aal_strlen(info->name);
-    if ((len != 1) || (info->name != ".")) {
+    if ((len != 1) || aal_strncmp(info->name, ".", 1)) {
 	/* Not dot, pack the first part of the name into objectid. */
 	set_key_objectid(&key, pack_string(info->name, 1));
 	if (len <= OID_CHARS + sizeof(uint64_t)) {

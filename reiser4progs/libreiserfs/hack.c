@@ -113,12 +113,21 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     nh40_set_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_stat40_base_t) + sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_entry40_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
-    
+   
     nh40_set_free_space(node, block->size - (sizeof(reiserfs_nh40_t) + 
 	(2*sizeof(reiserfs_ih40_t)) + sizeof(reiserfs_stat40_base_t) + 
 	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_entry40_t) + 2 + 3 + 
 	2*sizeof(reiserfs_objid_t)));
 
+    aal_printf("\n %d %d %d %d %d %d %d\n", 
+	sizeof(reiserfs_nh40_t), 
+	sizeof(reiserfs_ih40_t),
+	sizeof(reiserfs_stat40_base_t),
+	sizeof(reiserfs_direntry40_t),
+	sizeof(reiserfs_entry40_t),
+	sizeof(reiserfs_objid_t),
+	nh40_get_free_space(node));
+    
     /* Forming stat data item and body */
     item = (reiserfs_ih40_t *)(block->data + block->size) - 1;
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));

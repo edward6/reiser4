@@ -145,7 +145,7 @@ static inline void set_key_##L(reiserfs_key_t *key, T loc) {	\
 }
 
 /* define get_key_locality(), set_key_locality() */
-DEFINE_KEY_FIELD(locality, LOCALITY, uint32_t);
+DEFINE_KEY_FIELD(locality, LOCALITY, uint64_t);
 
 /* define get_key_type(), set_key_type() */
 DEFINE_KEY_FIELD(type, TYPE, key_minor_locality);
@@ -154,7 +154,7 @@ DEFINE_KEY_FIELD(type, TYPE, key_minor_locality);
 DEFINE_KEY_FIELD(band, BAND, uint64_t);
 
 /* define get_key_objectid(), set_key_objectid() */
-DEFINE_KEY_FIELD(objectid, OBJECTID, uint32_t);
+DEFINE_KEY_FIELD(objectid, OBJECTID, uint64_t);
 
 /* define get_key_offset(), set_key_offset() */
 DEFINE_KEY_FIELD(offset, OFFSET, uint64_t);

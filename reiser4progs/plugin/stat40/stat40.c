@@ -31,10 +31,10 @@ static error_t reiserfs_stat40_create(reiserfs_coord_t *coord,
 	
     stat = coord->node->plugin->node.item(coord->node, coord->item_pos);
     stat40_set_mode(stat, stat_info->mode);
-    stat40_set_extmask(stat, stat_info->mode);
+    stat40_set_extmask(stat, stat_info->extmask);
     stat40_set_nlink(stat, stat_info->nlink);
     stat40_set_size(stat, stat_info->size);
-   
+  
     /* And its extentions should be created here also. */
     
     return 0;

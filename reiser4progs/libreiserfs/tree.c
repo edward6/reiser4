@@ -194,7 +194,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     /* Initialize stat_info */
     stat_info.mode = S_IFDIR | 0755;
     stat_info.extmask = 0;
-    stat_info.mode = 2;
+    stat_info.nlink = 2;
     stat_info.size = 0;
    
     reiserfs_init_item_info(&item_info);

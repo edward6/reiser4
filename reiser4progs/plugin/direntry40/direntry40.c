@@ -64,11 +64,16 @@ static error_t direntry40_create (reiserfs_coord_t *coord,
 	    info->entry[i].parent_id, info->entry[i].object_id);
 	
 	len = aal_strlen(info->entry[i].name);
-	aal_memcpy(body + offset + sizeof(reiserfs_objid_t), 
-	    &info->entry[i].name, len);
-	*((char *)body + offset + sizeof(reiserfs_objid_t) + 1) = 0;
+	
+	offset += sizeof(reiserfs_objid_t);
+	
+	aal_memcpy((char *)(body) + offset, info->entry[i].name, len);
+	
+	offset += len;
+	
+	*((char *)(body) + offset + 1) = 0;
 
-	offset += len + 1;
+	offset += 1;
     }
     
     return 0;
@@ -87,7 +92,8 @@ static error_t direntry40_estimate(reiserfs_coord_t *coord,
     item_info->length = info->count * sizeof(reiserfs_entry40_t);
     
     for (i = 0; i < info->count; i++)
-	item_info->length += aal_strlen(info->entry[i].name) + 1;
+	item_info->length += aal_strlen(info->entry[i].name) + sizeof(reiserfs_objid_t) 
+	    + 1;
     
     if (coord == NULL)
 	item_info->length += sizeof(reiserfs_direntry40_t);
