@@ -11,6 +11,12 @@
 /* XXX make this CONFIG option */
 #define REISER4_USE_SYSFS (1)
 
+#define KATTR_LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
+#define KATTR_PRINT(p, buf, ...)				\
+({ 								\
+	p += snprintf(p, LEFT(p, buf) , ## __VA_ARGS__); 	\
+})
+
 struct super_block;
 struct reiser4_kattr;
 typedef struct reiser4_kattr reiser4_kattr;

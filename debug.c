@@ -194,9 +194,6 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 	return get_super_private(super)->debug_flags & flag;
 }
 
-#define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
-#define PRINT(...) ({ p += snprintf(p, LEFT(p, buf) , ## __VA_ARGS__); })
-
 typedef struct reiser4_stats_cnt {
 	reiser4_kattr  kattr;
 	ptrdiff_t      offset;
@@ -296,14 +293,14 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 	val = getptrat(reiser4_prof_cnt, 
 		       &get_super_private(s)->prof, cnt->offset);
 	p = buf;
-	PRINT("%llu %llu %llu %llu %llu %llu\n",
-	      val->nr, val->total, val->max,
-	      val->noswtch_nr, val->noswtch_total, val->noswtch_max);
+	KATTR_PRINT(p, buf, "%llu %llu %llu %llu %llu %llu\n",
+		    val->nr, val->total, val->max,
+		    val->noswtch_nr, val->noswtch_total, val->noswtch_max);
 #ifdef CONFIG_FRAME_POINTER
 	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
 		int j;
 
-		p += snprintf(p, LEFT(p, buf), "\t%llu: ", val->bt[i].hits);
+		KATTR_PRINT(p, buf, "\t%llu: ", val->bt[i].hits);
 		for (j = 0 ; j < REISER4_PROF_TRACE_DEPTH ; ++ j) {
 			char         *module;
 			const char   *name;
@@ -315,12 +312,12 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 			address = (unsigned long) val->bt[i].trace[j];
 			name = kallsyms_lookup(address, &size, 
 					       &offset, &module, namebuf);
-			PRINT("0x%lx ", address);
+			KATTR_PRINT(p, buf, "0x%lx ", address);
 			if (name != NULL)
-				PRINT("%s+%lx/%lx [%s] ", name, offset, size,
-				      module ? : "core");
+				KATTR_PRINT(p, buf, "%s+%lx/%lx [%s] ", name, 
+					    offset, size, module ? : "core");
 		}
-		PRINT("\n");
+		KATTR_PRINT(p, buf, "\n");
 	}
 #endif
 	return (p - buf);
@@ -367,7 +364,7 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
 	val = getat(stat_cnt, &get_super_private(s)->stats, cnt->offset);
 	p = buf;
-	PRINT(cnt->format, val);
+	KATTR_PRINT(p, buf, cnt->format, val);
 	return (p - buf);
 }
 
@@ -385,7 +382,7 @@ show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 	val = getat(stat_cnt, &get_super_private(s)->stats.level[level],
 		    cnt->offset);
 	p = buf;
-	PRINT(cnt->format, val);
+	KATTR_PRINT(p, buf, cnt->format, val);
 	return (p - buf);
 }
 

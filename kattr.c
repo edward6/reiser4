@@ -83,7 +83,7 @@ show_ro_32(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 	cookie = kattr->cookie;
 	val = getat(get_super_private(s), cookie->offset, __u32);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), cookie->format, (unsigned long long)val);
+	KATTR_PRINT(p, buf, cookie->format, (unsigned long long)val);
 	return (p - buf);
 }
 
@@ -99,7 +99,7 @@ static ssize_t show_ro_64(struct super_block * s,
 	cookie = kattr->cookie;
 	val = getat(get_super_private(s), cookie->offset, __u64);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), cookie->format, (unsigned long long)val);
+	KATTR_PRINT(p, buf, cookie->format, (unsigned long long)val);
 	return (p - buf);
 }
 
