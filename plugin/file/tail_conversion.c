@@ -218,8 +218,8 @@ find_start(struct inode *object, reiser4_plugin_id id, __u64 *offset)
 			} else
 				result = RETERR(-ENOENT);
 		}
+		done_lh(&lh);
 	} while (result == 0 && !found);
-	done_lh(&lh);
 	*offset = get_key_offset(&key);
 	return result;
 }
