@@ -210,6 +210,14 @@ struct item_ops {
 		sd_ops            sd;
 		internal_item_ops internal;
 	} s;			/* item specific item operations */
+
+	/**
+	 * return rightmost or leftmost child of this item. If there is none,
+	 * or child is not in a memory return NULL.
+	 *
+	 * This method is optional. It is used by slum gathering code.
+	 */
+	jnode * ( *utmost_child )( const tree_coord *coord, sideof side );
 };
 
 
