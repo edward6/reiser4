@@ -36,8 +36,6 @@ typedef struct node40_header {
 	d8	       level;
 	/** magic field we need to tell formatted nodes */
   	d32	       magic;
-	/** number of items --- is it too large? Probably.  */
-	d16           num_items;
 	/** node flags to be used by fsck (reiser4ck or reiser4fsck?)
 	    and repacker */
 /* commented out because it was uncommented */

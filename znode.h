@@ -175,9 +175,6 @@ struct znode {
 	    loaded. */
 	node_plugin           *nplug;
 
-	/** number of items in this node */
-	int                    nr_items;
-
 	/** version of znode data. This is increased on each modification. */
 	__u64                  version;
 

@@ -309,6 +309,8 @@ typedef struct common_node_header {
 	 * of a node.
 	 */
 	d16            plugin_id;
+	/** number of items */
+	d16            nr_items;
 } common_node_header;
 
 /* 

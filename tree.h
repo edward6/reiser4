@@ -263,9 +263,15 @@ node_plugin_by_node( const znode *node /* node to query */ )
 
 static inline unsigned node_num_items (const znode * node)
 {
-	assert ("nikita-2468", 
-		node_plugin_by_node (node)->num_of_items (node) == node->nr_items);
-	return node->nr_items;
+	common_node_header *header;
+	int                 nr_items;
+
+	assert ("nikita-2677", znode_is_loaded (node));
+	header = (common_node_header *) zdata (node);
+	nr_items = d16tocpu (&header->nr_items);
+	assert ("nikita-2468",
+		node_plugin_by_node (node)->num_of_items (node) == nr_items);
+	return nr_items;
 }
 
 static inline int node_is_empty (const znode * node)

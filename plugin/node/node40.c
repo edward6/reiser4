@@ -94,14 +94,14 @@ static unsigned nh40_get_level (node40_header * nh)
 /* Audited by: green(2002.06.12) */
 static void nh40_set_num_items (node40_header * nh, unsigned value)
 {
-	cputod16 (value, &nh->num_items);
+	cputod16 (value, &nh -> common_header.nr_items);
 }
 
 
 /* Audited by: green(2002.06.12) */
 static inline unsigned nh40_get_num_items (node40_header * nh)
 {
-	return d16tocpu( &nh->num_items);
+	return d16tocpu (&nh -> common_header.nr_items);
 }
 
 /* plugin field of node header should be read/set by
@@ -677,10 +677,8 @@ int node40_parse( znode *node /* node to parse */)
 		warning( "nikita-495", 
 			 "Wrong magic in tree node: want %x, got %x",
 			 REISER4_NODE_MAGIC, nh40_get_magic( header ) );
-	else {
-		node -> nr_items = node40_num_of_items( node );
+	else
 		result = 0;
-	}
 	if( result != 0 )
 		print_znode( "node", node );
 	return result;
@@ -712,7 +710,6 @@ int node40_init( znode *node /* node to initialise */)
 	save_plugin_id (node_plugin_to_plugin (node -> nplug), &header -> common_header.plugin_id);
 	nh40_set_level (header, znode_get_level( node ));
 	nh40_set_magic (header, REISER4_NODE_MAGIC);
-	node -> nr_items = 0;
 
 	/* flags: 0 */
 	return 0;
@@ -865,7 +862,6 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 			      data->length - sizeof (item_header40));
 	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) + data->length);
 	nh40_set_num_items (nh, nh40_get_num_items (nh) + 1);
-	target->node->nr_items ++;
 
 	/* FIXME: check how does create_item work when between is set to BEFORE_UNIT */
 	target->unit_pos = 0;
@@ -1197,7 +1193,6 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 
 	/* update node header */
 	nh40_set_num_items (nh, node40_num_of_items (node) - removed_entirely);
-	node->nr_items -= removed_entirely;
 	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) -
 				    (freed_space_end - freed_space_start));
 	nh40_set_free_space (nh, nh40_get_free_space (nh) +
@@ -1640,7 +1635,6 @@ void node40_copy (struct shift_params * shift)
 
 		/* update node header */
 		nh40_set_num_items (nh, old_items + new_items);
-		shift->target->nr_items = old_items + new_items;
 		assert ("vs-170",
 			nh40_get_free_space (nh) < znode_size (shift->target));
 
@@ -1696,7 +1690,6 @@ void node40_copy (struct shift_params * shift)
 
 		/* update node header */
 		nh40_set_num_items (nh, old_items + new_items);
-		shift->target->nr_items = old_items + new_items;
 		assert ("vs-170",
 			nh40_get_free_space (nh) < znode_size (shift->target));
 
