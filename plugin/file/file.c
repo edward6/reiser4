@@ -156,14 +156,14 @@ item_of_that_file(const coord_t * coord, const reiser4_key * key, struct coord_i
 	return keylt(key, iplug->b.max_key_inside(coord, &max_possible, item));
 }
 
-write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG, 
-			const reiser4_key * key)
+write_mode how_to_write(coord_t * coord, const reiser4_key * key)
 {
 	write_mode result;
 	struct coord_item_info item_info;
 	ON_DEBUG(reiser4_key check);
 
-	assert("coord->node", znode_is_loaded(coord->node));
+	assert("vs-1252", znode_is_wlocked(coord->node));
+	assert("vs-1253", znode_is_loaded(coord->node));
 
 	if (less_than_ldk(coord->node, key)) {
 		assert("vs-1014", get_key_offset(key) == 0);
@@ -342,6 +342,7 @@ find_file_item(struct sealed_coord *hint,
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_inc(file.find_file_item);
 
+	init_lh(lh);
 	if (hint) {
 		hint->lock = lock_mode;
 		result = hint_validate(hint, key, coord, lh);
@@ -391,7 +392,6 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	unix_file_key_by_inode(inode, get_key_offset(max_key()), &key);
 
 	coord_init_zero(&coord);
-	init_lh(&lh);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
 	if (result == CBK_COORD_NOTFOUND) {
 		/* there are no items of this file */
@@ -473,7 +473,6 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		   help */
 		coord_init_zero(&intranode_to);
 		coord_init_zero(&intranode_from);
-		init_lh(&lh);
 
 		/* estimate and reserve space for removal of one item. This
 		 * has to be done before find_file_item(), because long term
@@ -816,7 +815,6 @@ unix_file_writepage_nolock(struct page *page)
 	unix_file_key_by_inode(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
 	coord_init_zero(&coord);
-	init_lh(&lh);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/, 0/* inode */);
 
 	reiser4_lock_page(page);
@@ -933,7 +931,6 @@ unix_file_readpage(void *vp, struct page *page)
 		return result;
 
 	coord_init_zero(&coord);
-	init_lh(&lh);
 	reiser4_unlock_page(page);
 	result = find_file_item(&hint, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, page->mapping->host);
 	reiser4_lock_page(page);
@@ -1016,35 +1013,6 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 	return common_estimate_update(inode);
 }
 
-#define FIND \
-{\
-	PROF_BEGIN(find);\
-	result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, inode);\
-	PROF_END(find, find);\
-}
-
-#define ZLOAD \
-{\
-	PROF_BEGIN(zload);\
-	result = zload_ra(coord.node, &ra_info);\
-	if (unlikely(result)) {\
-		done_lh(&lh);\
-		return result;\
-	}\
-	PROF_END(zload, zload);\
-}
-
-#define ITEM_READ \
-{\
-	PROF_BEGIN(item_read);\
-	if (file_is_built_of_extents(inode))\
-		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;\
-	else\
-		read_f = item_plugin_by_id(TAIL_ID)->s.file.read;\
-	result = read_f(file, &coord, &f);\
-	PROF_END(item_read, item_read);\
-}
-
 /* plugin->u.file.read 
 
    the read method for the unix_file plugin 
@@ -1070,25 +1038,33 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	{
 		PROF_BEGIN(prep);
 
-		inode = file->f_dentry->d_inode;
-
-		assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
-
-		get_nonexclusive_access(inode);
-
-		needed = unix_file_estimate_read(inode, read_amount);
-		result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
-		if (result != 0) {
-			drop_nonexclusive_access(inode);
-			return RETERR(-ENOSPC);
+		{
+			/*PROF_BEGIN(read_grab);*/
+			inode = file->f_dentry->d_inode;
+			
+			assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
+			
+			get_nonexclusive_access(inode);
+			
+			needed = unix_file_estimate_read(inode, read_amount);
+			result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
+			if (result != 0) {
+				drop_nonexclusive_access(inode);
+				return RETERR(-ENOSPC);
+			}
+			/*PROF_END(read_grab, read_grab);*/
 		}
+		{
+			/*PROF_BEGIN(build_flow);*/
 
-		/* build flow */
-		assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == common_build_flow);
-		result = common_build_flow(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
-		if (unlikely(result)) {
-			drop_nonexclusive_access(inode);
-			return result;
+			/* build flow */
+			assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == unix_file_build_flow);
+			result = unix_file_build_flow(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
+			if (unlikely(result)) {
+				drop_nonexclusive_access(inode);
+				return result;
+			}
+			/*PROF_END(build_flow, build_flow);*/
 		}
 
 		/* get seal and coord sealed with it from reiser4 private data of
@@ -1097,18 +1073,19 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		   is still valid.
 		*/
 		{
-			PROF_BEGIN(load_hint);
+			/*PROF_BEGIN(load_hint);*/
 			result = load_file_hint(file, &hint);
 			if (unlikely(result)) {
 				drop_nonexclusive_access(inode);
 				return result;
 			}
-			PROF_END(load_hint, load_hint);
+			/* initialize readahead info */
+			ra_info.key_to_stop = f.key;
+			set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+
+			/*PROF_END(load_hint, load_hint);*/
 		}
 
-		/* initialize readahead info */
-		ra_info.key_to_stop = f.key;
-		set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 
 		PROF_END(prep, prep);
 	}
@@ -1121,8 +1098,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			/* do not read out of file */
 			break;
 
-		init_lh(&lh);
-		FIND;
+		result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, inode);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			   -EIO */
@@ -1136,38 +1112,37 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			       (unsigned long long)get_key_offset(&f.key),
 			       get_inode_oid(inode),
 			       (unsigned long long)inode->i_size);
-			done_lh(&lh);
+			longterm_unlock_znode(&lh);
 			break;
 		}
 
-		ZLOAD;
+		result = zload_ra(coord.node, &ra_info);
+		if (unlikely(result)) {
+			longterm_unlock_znode(&lh);
+			return result;
+		}
 
-		ITEM_READ;
+		if (file_is_built_of_extents(inode))
+			read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
+		else
+			read_f = item_plugin_by_id(TAIL_ID)->s.file.read;
+		result = read_f(file, &coord, &f);
 
 		zrelse(coord.node);
+		if (result == 0)
+			set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
+		longterm_unlock_znode(&lh);
 		if (result == -EAGAIN) {
 			printk("zam-830: unix_file_read: key was not found in item, repeat search\n");
 			unset_hint(&hint);
-			done_lh(&lh);
 			continue;
 		}
-		if (result) {
-			done_lh(&lh);
+		if (result)
 			break;
-		}
-		{
-			PROF_BEGIN(set_hint);
-			set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
-			PROF_END(set_hint, set_hint);
-		}
-		done_lh(&lh);
 	}
 
-	{
-		PROF_BEGIN(save_hint);
-		save_file_hint(file, &hint);
-		PROF_END(save_hint, save_hint);
-	}
+	save_file_hint(file, &hint);
+
 	read = read_amount - f.length;
 	if (read) {
 		/* something was read. Update stat data */
@@ -1221,7 +1196,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		}
 		/* look for file's metadata (extent or tail item) corresponding
 		   to position we write to */
-		init_lh(&lh);
 		result = find_file_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, inode);
 		all_grabbed2free("append_and_or_overwrite after cbk");
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
@@ -1288,9 +1262,9 @@ write_flow(struct file *file, struct inode *inode, const char *buf, size_t count
 	int result;
 	flow_t f;
 
-	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == common_build_flow);
+	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == unix_file_build_flow);
 	
-	result = common_build_flow(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
+	result = unix_file_build_flow(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
 	if (result)
 		return result;
 
@@ -1622,7 +1596,6 @@ unix_file_get_block(struct inode *inode,
 	unix_file_key_by_inode(inode, (loff_t) block * current_blocksize, &key);
 
 	coord_init_zero(&coord);
-	init_lh(&lh);
 
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
 	if (result != CBK_COORD_FOUND || coord.between != AT_UNIT) {
@@ -1645,14 +1618,35 @@ unix_file_get_block(struct inode *inode,
 	return result;
 }
 
-/* plugin->u.file.flow_by_inode  = common_build_flow */
+/* plugin->u.file.flow_by_inode */
+int
+unix_file_build_flow(struct inode *inode /* file to build flow for */ ,
+		     char *buf /* user level buffer */ ,
+		     int user	/* 1 if @buf is of user space, 0 - if it is
+				   kernel space */ ,
+		     size_t size /* buffer size */ ,
+		     loff_t off /* offset to start io from */ ,
+		     rw_op op /* READ or WRITE */ ,
+		     flow_t * f /* resulting flow */ )
+{
+	assert("nikita-1100", inode != NULL);
+
+	f->length = size;
+	f->data = buf;
+	f->user = user;
+	f->op = op;
+	assert("nikita-1931", inode_file_plugin(inode) != NULL);
+	assert("nikita-1932", inode_file_plugin(inode)->key_by_inode == unix_file_key_by_inode);
+	return unix_file_key_by_inode(inode, off, &f->key);
+}
 
 /* plugin->u.file.key_by_inode */
-/* Audited by: green(2002.06.15) */
 int
 unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
 {
-	build_sd_key(inode, key);
+	key_init(key);
+	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_objectid(key, get_inode_oid(inode));
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
@@ -1802,153 +1796,6 @@ unix_file_pre_delete(struct inode *inode)
 {
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
 }
-
-
-#ifdef NEW_READ_IS_READY
-
-/* plugin->u.file.read */
-ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
-{
-	int result;
-	struct inode *inode;
-	coord_t coord;
-	lock_handle lh;
-	size_t to_read;		/* do we really need both this and read_amount? */
-	item_plugin *iplug;
-	reiser4_plugin_id id;
-	sink_t userspace_sink;
-
-	inode = file->f_dentry->d_inode;
-	result = 0;
-
-	/* this should now be called userspace_sink_build, now that we have
-	   both sinks and flows.  See discussion of sinks and flows in
-	   www.namesys.com/v4/v4.html */
-	result = userspace_sink_build(inode, buf, 1 /* user space */ , read_amount,
-				      *off, READ_OP, &f);
-
-	return result;
-
-	get_nonexclusive_access(inode);
-
-	/* have generic_readahead to return number of pages to
-	   readahead. generic_readahead must not do readahead, but return
-	   number of pages to readahead */
-	logical_intrafile_readahead_amount = logical_generic_readahead(struct file * file, off, read_amount);
-
-	while (intrafile_readahead_amount) {
-		if ((loff_t) get_key_offset(&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;	/* coord will point to current item on entry and next item on exit */
-		readahead_result = find_next_item(file, &f.key, &coord, &lh, ZNODE_READ_LOCK);
-		if (readahead_result != CBK_COORD_FOUND)
-			/* item had to be found, as it was not - we have
-			   -EIO */
-			break;
-
-		/* call readahead method of found item */
-		iplug = item_plugin_by_coord(&coord);
-		if (!iplug->s.file.readahead) {
-			readahead_result = RETERR(-EINVAL);
-			break;
-		}
-
-		readahead_result = iplug->s.file.readahead(inode, &coord, &lh, &intrafile_readahead_amount);
-		if (readahead_result)
-			break;
-	}
-
-	unix_file_interfile_readahead(struct file *file, off, read_amount, coord);
-
-	to_read = f.length;
-	while (f.length) {
-		if ((loff_t) get_key_offset(&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;
-
-		page_cache_readahead(file, (unsigned long) (get_key_offset(&f.key) >> PAGE_CACHE_SHIFT));
-
-		/* coord will point to current item on entry and next item on exit */
-		coord_init_zero(&coord);
-		init_lh(&lh);
-
-		/* FIXEM-VS: seal might be used here */
-		result = find_next_item(0, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
-		if (result != CBK_COORD_FOUND) {
-			/* item had to be found, as it was not - we have
-			   -EIO */
-			done_lh(&lh);
-			break;
-		}
-
-		result = zload(coord.node);
-		if (result) {
-			done_lh(&lh);
-			break;
-		}
-
-		iplug = item_plugin_by_coord(&coord);
-		id = item_plugin_id(iplug);
-		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
-			result = RETERR(-EIO);
-			zrelse(coord.node);
-			done_lh(&lh);
-			break;
-		}
-
-		set_tail_state(inode, id);
-
-		/* call read method of found item */
-		result = iplug->s.file.read(inode, &coord, &lh, &f);
-		zrelse(coord.node);
-		done_lh(&lh);
-		if (result) {
-			break;
-		}
-	}
-
-	if (to_read - f.length) {
-		/* something was read. Update stat data */
-		UPDATE_ATIME(inode);
-	}
-
-	drop_nonexclusive_access(inode);
-
-	/* update position in a file */
-	*off += (to_read - f.length);
-	/* return number of read bytes or error code if nothing is read */
-
-/* VS-FIXME-HANS: readahead_result needs to be handled here */
-	return (to_read - f.length) ? (to_read - f.length) : result;
-}
-
-unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
-{
-
-	interfile_readahead_amount = unix_file_interfile_readahead_amount(struct file *file, off, read_amount);
-
-	while (interfile_readahead_amount--) {
-		right = get_right_neightbor(current);
-		if (right is just after current) {
-			coord_dup(right, current);
-			zload(current);
-
-		} else {
-			break;
-/* VS-FIXME-HANS: insert some coord releasing code here */
-		}
-
-	}
-
-}
-
-unix_file_interfile_readahead_amount(struct file *file, off, read_amount)
-{
-	/* current generic guess.  More sophisticated code can come later in v4.1+. */
-	return 8;
-}
-
-#endif				/* NEW_READ_IS_READY */
 
 /*
    Local variables:
