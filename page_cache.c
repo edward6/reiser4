@@ -218,7 +218,7 @@ int init_formatted_fake( struct super_block *super )
 		return -ENOMEM;
 }
 
-/** release fake inode */
+/** release fake inode for @super */
 int done_formatted_fake( struct super_block *super )
 {
 	struct inode *fake;
@@ -230,7 +230,7 @@ int done_formatted_fake( struct super_block *super )
 
 /** 
  * check amount of available for allocation memory, and kick ktxnmgrd is it
- * is low. 
+ * is low. NEITHER FINISHED NOR USED.
  */
 void reiser4_check_mem( reiser4_context *ctx )
 {
@@ -301,6 +301,12 @@ reiser4_tree *tree_by_page( const struct page *page /* page to query */ )
 }
 
 #if REISER4_DEBUG_MEMCPY
+
+/*
+ * Our own versions of memcpy, memmove, and memset used to profile shifts of
+ * tree node content. Coded to avoid inlining.
+ */
+
 struct mem_ops_table {
 	void * ( *cpy ) ( void *dest, const void *src, size_t n );
 	void * ( *move )( void *dest, const void *src, size_t n );
@@ -330,10 +336,6 @@ struct mem_ops_table std_mem_ops = {
 
 struct mem_ops_table *mem_ops = &std_mem_ops;
 
-/*
- * Our own versions of memcpy, memmove, and memset used to profile shifts of
- * tree node content. Coded to avoid inlining.
- */
 void *xmemcpy( void *dest, const void *src, size_t n )
 {
 	return mem_ops -> cpy( dest, src, n );
@@ -405,7 +407,9 @@ static int formatted_writepage( struct page *page /* page to write */ )
 	return page_io( page, WRITE, GFP_NOFS | __GFP_HIGH );
 }
 
-int page_io( struct page *page, int rw, int gfp )
+/** submit single-page bio request */
+int page_io( struct page *page /* page to perform io for */, 
+	     int rw /* read or write */, int gfp /* GFP mask */ )
 {
 	struct bio *bio;
 	int         result;
@@ -490,16 +494,42 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		return ERR_PTR( -ENOMEM );
 }
 
-static int formatted_vm_writeback( struct page *page, int *nr_to_write )
+/**
+ * ->vm_writeback() callback for formatted page. Called from shrink_cache()
+ * (or however it will be called by the time you read this).
+ */
+static int formatted_vm_writeback( struct page *page /* page to start
+						      * writeback from */, 
+				   int *nr_to_write /* number of pages VM asks
+						     * us to submit. We should
+						     * try to stay reasonable
+						     * close. */ )
 {
-	return page_common_writeback( page, nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
+	return page_common_writeback( page, nr_to_write, 
+				      JNODE_FLUSH_MEMORY_FORMATTED);
 }
 
 /**
  * Common memory pressure notification.
+ *
+ * This is called from our ->vm_writeback() methods: formatted_vm_writeback()
+ * and reiser4_vm_writeback().
+ *
+ * Initial design was that this function would perform all flush and IO
+ * submitting directly (that is, in the context of kswapd, or caller of
+ * balance_classzone()). It was found, though, that problems with deadlocks
+ * and flush running of memory are very hard of at all possible to overcome.
+ *
+ * It was then decided, that this function should in stead just wake up some
+ * worker thread (disguised under fancy name of `ent') to perform actual flush
+ * and submit IO requests. Currently very simple scheme is implemented. There
+ * is no much sense in elaborating it now when VM is in such a flux.
+ *
  */
-/* nikita-fixme-hans: comment all functions and their parameters */
-int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags )
+int page_common_writeback( struct page *page /* page to start writeback from */,
+			   int *nr_to_write /* number of pages to write */, 
+			   int flush_flags /* Additional hint. Seems to be
+					    * unused currently. */ )
 {
 	int result;
 	jnode *node;
@@ -536,12 +566,12 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		REISER4_EXIT (0);
 	}
 
-	/* Attach the txn handle to this node, preventing the atom from committing while
-	 * this flush occurs.
+	/* Attach the txn handle to this node, preventing the atom from
+	 * committing while this flush occurs.
 	 *
-	 * Note: This ATOM_FORCE_COMMIT causes the atom to commit right away... except the
-	 * no_commit_thread() check in txnmgr.c may disable it if called from memory
-	 * pressure.
+	 * Note: This ATOM_FORCE_COMMIT causes the atom to commit right
+	 * away... except the no_commit_thread() check in txnmgr.c may disable
+	 * it if called from memory pressure.
 	 */
 	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
 
@@ -549,7 +579,7 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 
 	if( 1 ) {
 		/*
-		 * this is cof case when all flushing is done outside of
+		 * this is for case when all flushing is done outside of
 		 * kswapd context (in "ent" thread).
 		 */
 		ktxnmgrd_kick (get_super_private (ctx->super)->tmgr.daemon, 
@@ -572,7 +602,9 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	REISER4_EXIT (result);
 }
 
-static int formatted_set_page_dirty( struct page *page )
+/** ->set_page_dirty() method of formatted address_space */
+static int formatted_set_page_dirty( struct page *page /* page to mark
+							* dirty */ )
 {
 	assert( "nikita-2173", page != NULL );
 	return __set_page_dirty_nobuffers( page );
