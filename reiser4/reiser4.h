@@ -14,7 +14,7 @@
 /* here go tunable parameters that are not worth special entry in kernel
    configuration */
 
-/** number of slots in point-by-key caches */
+/** number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
 /** how many elementary tree operation to carry on the next level */
 #define CARRIES_POOL_SIZE        (10)

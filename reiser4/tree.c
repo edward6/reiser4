@@ -87,7 +87,7 @@ design needs to be justified in a seminar on Monday.
  *   lock.]. But dk lock is only sufficient for fast "pessimistic" check,
  *   because to simplify code and to decrease lock contention, balancing
  *   (carry) only updates delimiting keys right before unlocking all locked
- *   nodes on the given tree level. For example, point cache scans LRU list of
+ *   nodes on the given tree level. For example, coord cache scans LRU list of
  *   recently accessed znodes. For each node it first does fast check under dk
  *   spin lock. If key looked for is not between delimiting keys for this
  *   node, next node is inspected and so on. If key is inside of the key

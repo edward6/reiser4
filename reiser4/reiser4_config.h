@@ -9,7 +9,7 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
-/** number of slots in point-by-key caches */
+/** number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
 /** how many elementary tree operation to carry on the next level */
 #define CARRIES_POOL_SIZE        (10)
