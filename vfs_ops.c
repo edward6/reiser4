@@ -1232,7 +1232,6 @@ reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super block new
 		info -> hash  = NULL;
 		info -> sd    = NULL;
 		info -> dir_item = NULL;
-		info -> bytes = 0ull;
 		info -> extmask = 0ull;
 		info -> sd_len = 0;
 		info -> locality_id = 0ull;
@@ -2264,7 +2263,7 @@ struct inode_operations reiser4_inode_operations = {
 	.mkdir       = reiser4_mkdir, /* d */
  	.rmdir       = reiser4_rmdir, /* d */
 	.mknod       = reiser4_mknod, /* d */
- 	.rename      = reiser4_rename,
+ 	.rename      = reiser4_rename, /* d */
  	.readlink    = NULL,
  	.follow_link = NULL,
  	.truncate    = reiser4_truncate, /* d */

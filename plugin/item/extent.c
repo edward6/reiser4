@@ -3404,6 +3404,9 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 
 	result = 0;
 
+	if (DQUOT_ALLOC_SPACE_NODIRTY (inode, f->length))
+		return -EDQUOT;
+
 	/* write position */
 	file_off = get_key_offset (&f->key);
 
@@ -3420,7 +3423,8 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		page = grab_cache_page (inode->i_mapping,
 					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
 		if (!page) {
-			return -ENOMEM;
+			result = -ENOMEM;
+			break;
 		}
 
 		assert ("vs-701", PageLocked (page));
@@ -3491,7 +3495,8 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			txn_delete_page (page);
 			unlock_page (page);
 			page_cache_release (page);			
-			return -EFAULT;
+			result = -EFAULT;
+			break;
 		}
 		SetPageUptodate (page);
 		jnode_set_dirty (j);
@@ -3530,6 +3535,8 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		file_off += to_page;
 	}
 
+	if (f->length)
+		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 	return result;
 }
 
