@@ -2585,7 +2585,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	   (mapping + private + page_cache_get() by shrink_cache()) */
 	if (page_count(page) > 3) {
-		return 1;
+		return 0;
 	}
 
 	if (PageDirty(page)) {
@@ -2615,9 +2615,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	} else {
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
-		/* return non-zero. We don't want page to go to the active
-		 * list */
-		return 1;
+		return 0;
 	}
 }
 
