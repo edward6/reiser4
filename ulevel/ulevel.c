@@ -1063,18 +1063,25 @@ static int readdir( const char *prefix, struct file *dir, __u32 flags )
 		if( ( flags & EFF_SHOW_INODE ) && ( info.name != NULL ) ) {
 			struct inode *i;
 
-			i = call_lookup( dir -> f_dentry -> d_inode, info.name );
-			if( IS_ERR( i ) )
-				warning( "nikita-1767", "Not found: %s", 
-					 info.name );
-			else if( ( int ) i -> i_ino != info.inum )
-				warning( "nikita-1768", 
-					 "Wrong inode number: %i != %i",
-					 ( int ) info.inum, ( int ) i -> i_ino );
-			else
-				print_inode( info.name, i );
-			free( info.name );
-			iput( i );
+			if( strcmp( info.name, "." ) &&
+			    strcmp( info.name, ".." ) ) {
+				/*
+				 * FIXME-VS: this because reiser4_iget
+				 * deadlocks for "." and ".."
+				 */
+				i = call_lookup( dir -> f_dentry -> d_inode, info.name );
+				if( IS_ERR( i ) )
+					warning( "nikita-1767", "Not found: %s", 
+						 info.name );
+				else if( ( int ) i -> i_ino != info.inum )
+					warning( "nikita-1768", 
+						 "Wrong inode number: %i != %i",
+						 ( int ) info.inum, ( int ) i -> i_ino );
+				else
+					print_inode( info.name, i );
+				free( info.name );
+				iput( i );
+			}			
 		}
 	} while( !info.eof && ( result == 0 ) );
 
@@ -2153,8 +2160,7 @@ static int copy_dir (struct inode * dir)
  * @full_name is name of "normal" file. @name is name of file in reiser4 tree
  * in directory @dir
  */
-static void diff (const char * full_name,
-		  struct inode * dir, const char * name)
+static int bash_diff (char * real_file, struct inode * cwd, const char * name)
 {
 	int fd;
 	char * buf1, * buf2;
@@ -2164,27 +2170,27 @@ static void diff (const char * full_name,
 	struct stat st;
 
 
-	if (stat (full_name, &st)) {
+	if (stat (real_file, &st)) {
 		perror ("diff: stat failed");
-		return;
+		return 0;
 	}
 
 	/*
 	 * open file in "normal" filesystem
 	 */
-	fd = open (full_name, O_RDONLY);
+	fd = open (real_file, O_RDONLY);
 	if (fd == -1) {
 		perror ("diff: open failed");
-		return;
+		return 0;
 	}
 
 	/*
 	 * lookup for the file in current directory in reiser4 tree
 	 */
-	inode = call_lookup (dir, name);
+	inode = call_lookup (cwd, name);
 	if (IS_ERR (inode)) {
 		info ("diff: lookup failed\n");
-		return;
+		return 0;
 	}
 	
 	buf1 = malloc (BUFSIZE);
@@ -2192,7 +2198,7 @@ static void diff (const char * full_name,
 	if (!buf1 || !buf2) {
 		perror ("diff: malloc failed");
 		iput (inode);
-		return;
+		return 0;
 	}
 
 	count = BUFSIZE;
@@ -2221,9 +2227,154 @@ static void diff (const char * full_name,
 	free (buf1);
 	free (buf2);
 	iput (inode);
-	return;
+	return 0;
 }
 
+
+static int bash_cp (char * real_file, struct inode * cwd, const char * name)
+{
+	struct stat st;
+
+	if (stat (real_file, &st) || !S_ISREG (st.st_mode)) {
+		errno ? perror ("stat failed") : 
+			info ("%s is not regular file\n", real_file);
+	}
+	if (copy_file (real_file, cwd, name, &st)) {
+		info ("cp: copy_file failed\n");
+	}
+	return 0;
+}
+
+
+
+#include <string.h>
+
+/* read content of file. name must be "name N M" */
+static int bash_read (struct inode * dir, const char * name)
+{
+	unsigned from, count;
+	char * args;
+	struct inode * inode;
+	char * buf;
+
+	args = strchr (name, ' ');
+	if (!args) {
+		info ("usage: read name N M\n");
+		return 0;
+	}
+
+	*args ++ = 0;
+
+	if (sscanf (args, "%d %d", &from, &count) != 2) {
+		info ("usage: read name N M\n");
+		return 0;
+	}
+	info ("reading file %s from %d %d bytes\n", name, from, count);
+
+	inode = call_lookup (dir, name);
+	if (IS_ERR (inode)) {
+		info ("read: lookup failed\n");
+		return 0;
+	}
+	
+	buf = malloc (count);
+	if (!buf) {
+		info ("read: malloc failed\n");
+		return 0;
+	}
+	if (call_read (inode, buf, (loff_t)from, count) != (ssize_t)count) {
+		info ("read: read failed\n");
+		return 0;
+	}
+	info ("################### start ####################\n");
+	printf ("%.*s", (int)count, buf);
+	info ("################### end ####################\n");
+	iput (inode);
+	return 0;
+}
+
+/* write to file. name must be "name from" */
+static int bash_write (struct inode * dir, const char * name)
+{
+	unsigned from;
+	char * args;
+	struct inode * inode;
+	char * buf;
+	int count;
+	int n;
+
+
+	args = strchr (name, ' ');
+	if (!args) {
+		info ("usage: write name from\n");
+		return 0;
+	}
+
+	*args ++ = 0;
+
+	if (sscanf (args, "%d", &from) != 1) {
+		info ("usage: write name from\n");
+		return 0;
+	}
+	info ("writing file %s from %d\nType data (ctrl-d to end):\n", name, from);
+
+	buf = 0;
+	n = 0;
+	count = getdelim (&buf, &n, EOF, stdin);
+	if (count == -1) {
+		info ("write: getdelim failed\n");
+		return 0;
+	}
+	inode = call_lookup (dir, name);
+	if (IS_ERR (inode)) {
+		info ("write: lookup failed\n");
+		return 0;
+	}
+	if (call_write (inode, buf, (loff_t)from, (unsigned)count) != (ssize_t)count) {
+		info ("write failed\n");
+		return 0;
+	}
+
+	iput (inode);
+	free (buf);
+	return 0;
+}
+
+
+static int bash_trunc (struct inode * cwd, const char * name)
+{
+	struct inode * inode;
+	char * args;
+	loff_t new_size;
+
+
+	args = strchr (name, ' ');
+	if (!args) {
+		info ("usage: trunc name newsize\n");
+		return 0;
+	}
+
+	*args ++ = 0;
+
+	if (sscanf (args, "%Ld", &new_size) != 1) {
+		info ("usage: trunc name newsize\n");
+		return 0;
+	}
+
+	inode = call_lookup (cwd, name);
+	if (IS_ERR (inode)) {
+		info ("could not find file %s\n",
+		      name);
+		return 0;
+	}
+
+	info ("Current size: %Ld, new size: %Ld\n",
+	      inode->i_size, new_size);
+
+	call_truncate (inode, new_size);
+	iput (inode);
+	return 0;
+}
 
 /*
  * go through all "twig" nodes and call alloc_extent for every item
@@ -2567,13 +2718,25 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		
 	} else if (!strcmp (argv[2], "bash")) {
 		char * command = 0;
-		size_t n = 0;
 		struct inode * cwd;
 
+/* for (cwd, command + strlen ("foocmd ")) */
 #define BASH_CMD( name, function )						\
 		if (!strncmp (command, (name), strlen (name))) {		\
 			int code;						\
 			code = (function) (cwd, command + strlen (name));	\
+			if (code) {						\
+				info ("%s failed: %i\n", command, code);	\
+			}							\
+			continue;						\
+		}
+
+/* for (command + strlen ("foocmd "), cwd, last_name (command + strlen ("foocmd ")) */
+#define BASH_CMD3( name, function )						\
+		if (!strncmp (command, (name), strlen (name))) {		\
+			int code;						\
+			code = (function) (command + strlen (name), cwd,        \
+                                          last_name (command + strlen (name)) );\
 			if (code) {						\
 				info ("%s failed: %i\n", command, code);	\
 			}							\
@@ -2614,44 +2777,14 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			BASH_CMD ("ls", call_readdir);
 			BASH_CMD ("ll", call_readdir_long);
 			BASH_CMD ("ln ", call_ln);
-			if (!strncmp (command, "cp ", 3)) {
-				/*
-				 * cp
-				 */
-				struct stat st;
+			BASH_CMD ("read ", bash_read);
+			BASH_CMD ("write ", bash_write);
+			BASH_CMD ("trunc ", bash_trunc);
 
-				if (stat (command + 3, &st) || !S_ISREG (st.st_mode)) {
-					errno ? perror ("stat failed") : 
-						info ("%s is not regular file\n", command + 3);
-					continue;
-				}
-				if (copy_file (command + 3, cwd, last_name (command + 3), &st)) {
-					info ("%s failed\n", command);
-					continue;
-				}
-			} else if (!strncmp (command, "diff ", 5)) {
-				/*
-				 * compare original with file 
-				 */
-				diff (command + 5, cwd, last_name (command + 5));
-			} else if (!strncmp (command, "trunc ", 6)) {
-				/*
-				 * truncate
-				 */
-				struct inode * inode;
+			BASH_CMD3 ("cp ", bash_cp);
+			BASH_CMD3 ("diff ", bash_diff);
 
-				inode = call_lookup (cwd, command + 6);
-				if (IS_ERR (inode)) {
-					info ("could not find file %s\n",
-					      command + 6);
-					continue;
-				}
-				info ("Current size: %Ld, new size: ",
-				      inode->i_size);
-				getline (&command, &n, stdin);				
-				call_truncate (inode, atoll (command));
-				iput (inode);
-			} else if (!strncmp (command, "tail", 4)) {
+			if (!strncmp (command, "tail", 4)) {
 				/*
 				 * get tail plugin or set
 				 */
@@ -2690,12 +2823,14 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				      "\tmkdir dirname  - create new directory\n"
 				      "\tcp filename    - copy file to current directory\n"
 				      "\tdiff filename  - compare files\n"
-				      "\ttrunc filename - truncate file\n"
-				      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"
+				      "\ttrunc filename size - truncate file\n"
 				      "\ttouch          - create empty file\n"
+				      "\tread filename from count\n"
+				      "\twrite filename from\n"
 				      "\trm             - remove file\n"
 				      "\talloc          - allocate unallocated extents\n"
 				      "\tsqueeze        - squeeze twig level\n"
+				      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"
 				      "\tp              - print tree\n"
 				      "\texit\n");
 		}
@@ -3140,7 +3275,7 @@ int real_main( int argc, char **argv )
 		/* initialize reiser4_super_info_data's oid plugin */
 		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].oid_allocator;
 		get_super_private( &super ) -> oid_plug ->
-			init_oid_allocator( get_oid_allocator( &super ), 1ull, 10000ull );
+			init_oid_allocator( get_oid_allocator( &super ), 1ull, 0x10000ull );
 
 		s = &super;
 	}
