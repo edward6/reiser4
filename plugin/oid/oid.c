@@ -86,9 +86,9 @@ __u64 oid_next( void )
 	return private->oid_plug->next_oid(&private->oid_allocator);
 }
 
-int oid_init_allocator( __u64 nr_files, __u64 oids)
+int oid_init_allocator(const struct super_block *s,  __u64 nr_files, __u64 oids)
 {
-	reiser4_super_info_data * private = get_current_super_private();
+	reiser4_super_info_data * private = get_super_private(s);
 
 	assert ("zam-640", private != NULL);
 	assert ("zam-641", private->oid_plug != NULL);

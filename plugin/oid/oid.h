@@ -11,7 +11,7 @@ extern int  oid_release        ( oid_t  );
 extern void oid_count_allocated( void );
 extern void oid_count_released ( void );
 
-extern int  oid_init_allocator ( __u64, __u64);
+extern int  oid_init_allocator (const struct super_block *,  __u64, __u64);
 
 /* identifiers of available objectid managers */
 typedef enum {
