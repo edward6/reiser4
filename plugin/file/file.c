@@ -1533,9 +1533,17 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
+
+	if (*off >= inode->i_size)
+		/* position to read from is past the end of file */
+		return 0;
+
+	if (*off + read_amount > inode->i_size)
+		read_amount = inode->i_size - *off;
+
 	uf_info = unix_file_inode_data(inode);
-	
 	get_nonexclusive_access(uf_info);
+
 #if 0
 	/* FIXME: reading partially coverted files should work. Remove this if after making sure that it works */
 	if (inode_get_flag(inode, REISER4_PART_CONV) && !IS_RDONLY(inode)) {
