@@ -124,12 +124,6 @@ inode_get_digest (struct inode * inode)
 	return (inode_get_tfm(inode, DIGEST_TFM));
 }
 
-static inline struct crypto_tfm * 
-inode_get_compression (struct inode * inode)
-{
-	return (inode_get_tfm(inode, COMPRESS_TFM));
-}
-
 static inline unsigned int
 crypto_blocksize(struct inode * inode)
 {
