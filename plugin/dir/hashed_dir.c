@@ -49,9 +49,10 @@ reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object
 	return 0;
 }
 
-/* create sd for directory file. Create stat-data, dot, and dotdot. */
+/* plugin->u.dir.init
+   create sd for directory file. Create stat-data, dot, and dotdot. */
 int
-hashed_init(struct inode *object /* new directory */ ,
+init_hashed(struct inode *object /* new directory */ ,
 	    struct inode *parent /* parent directory */ ,
 	    reiser4_object_create_data * data UNUSED_ARG	/* info passed
 								 * to us, this
@@ -87,8 +88,9 @@ hashed_estimate_done(struct inode *object)
 	return res;
 }
 
+/* plugin->u.dir.estimate.unlink */
 reiser4_block_nr 
-hashed_estimate_detach(struct inode *parent, struct inode *object) 
+estimate_unlink_hashed(struct inode *parent, struct inode *object) 
 {
 	reiser4_block_nr res = 0;
 	
@@ -101,11 +103,12 @@ hashed_estimate_detach(struct inode *parent, struct inode *object)
 }
 
 /* ->delete() method of directory plugin
-  
+   plugin->u.dir.done
    Delete dot, and call common_file_delete() to delete stat data.
+   FIXME: it does not delete stat data
 */
 int
-hashed_done(struct inode *object /* object being deleted */)
+done_hashed(struct inode *object /* object being deleted */)
 {
 	int result;
 	reiser4_block_nr reserve;
@@ -130,7 +133,7 @@ hashed_done(struct inode *object /* object being deleted */)
 	entry.obj = goodby_dots.d_inode = object;
 	goodby_dots.d_name.name = ".";
 	goodby_dots.d_name.len = 1;
-	result = hashed_rem_entry(object, &goodby_dots, &entry);
+	result = rem_entry_hashed(object, &goodby_dots, &entry);
 	reiser4_free_dentry_fsdata(&goodby_dots);
 	if (result != 0)
 		/* only worth a warning
@@ -144,11 +147,11 @@ hashed_done(struct inode *object /* object being deleted */)
 }
 
 /* ->detach() method of directory plugin
-  
+   plugin->u.dir.done
    Delete dotdot, decrease nlink on parent
 */
 int
-hashed_detach(struct inode *object, struct inode *parent)
+detach_hashed(struct inode *object, struct inode *parent)
 {
 	int result;
 	struct dentry goodby_dots;
@@ -166,7 +169,7 @@ hashed_detach(struct inode *object, struct inode *parent)
 	entry.obj = goodby_dots.d_inode = parent;
 	goodby_dots.d_name.name = "..";
 	goodby_dots.d_name.len = 2;
-	result = hashed_rem_entry(object, &goodby_dots, &entry);
+	result = rem_entry_hashed(object, &goodby_dots, &entry);
 	reiser4_free_dentry_fsdata(&goodby_dots);
 	if (result != 0)
 		warning("nikita-2253", "Cannot remove .. of %lli: %i", 
@@ -228,7 +231,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	entry.obj = dots_entry.d_inode = object;
 	dots_entry.d_name.name = ".";
 	dots_entry.d_name.len = 1;
-	result = hashed_add_entry(object, &dots_entry, NULL, &entry);
+	result = add_entry_hashed(object, &dots_entry, NULL, &entry);
 
 	if (result == 0)
 		result = reiser4_add_nlink(object, parent, 0);
@@ -239,7 +242,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 		entry.obj = dots_entry.d_inode = parent;
 		dots_entry.d_name.name = "..";
 		dots_entry.d_name.len = 2;
-		result = hashed_add_entry(object, &dots_entry, NULL, &entry);
+		result = add_entry_hashed(object, &dots_entry, NULL, &entry);
 		reiser4_free_dentry_fsdata(&dots_entry);
 		/* if creation of ".." failed, iput() will delete object
 		   with ".". */
@@ -253,8 +256,8 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	return result;
 }
 
-/* implementation of ->resolve_into_inode() method for hashed directories. */
-file_lookup_result hashed_lookup(struct inode * parent	/* inode of directory to
+/* implementation of ->lookup() method for hashed directories. */
+file_lookup_result lookup_hashed(struct inode * parent	/* inode of directory to
 							 * lookup into */ ,
 				 struct dentry * dentry /* name to look for */ )
 {
@@ -420,7 +423,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	xmemset(&entry, 0, sizeof entry);
 	entry.obj = inode;
 	/* build key of directory entry description */
-	result = inode_dir_plugin(dir)->entry_key(dir, &name->d_name, &entry.key);
+	result = inode_dir_plugin(dir)->build_entry_key(dir, &name->d_name, &entry.key);
 	if (result != 0)
 		return result;
 
@@ -457,7 +460,8 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	return result;
 }
 
-reiser4_block_nr hashed_estimate_rename(
+static reiser4_block_nr
+hashed_estimate_rename(
 	struct inode  *old_dir  /* directory where @old is located */,
 	struct dentry *old_name /* old name */,
 	struct inode  *new_dir  /* directory where @new is located */,
@@ -543,7 +547,8 @@ reiser4_block_nr hashed_estimate_rename(
 	return res1;
 }
 
-static int hashed_rename_estimate_and_grab(
+static int
+hashed_rename_estimate_and_grab(
 	struct inode *old_dir /* directory where @old is located */ ,
 	struct dentry *old_name /* old name */ ,
 	struct inode *new_dir /* directory where @new is located */ ,
@@ -560,7 +565,7 @@ static int hashed_rename_estimate_and_grab(
 }
 
 /* ->rename directory plugin method implementation for hashed directories. 
-  
+   plugin->u.dir.rename  
    See comments in the body.
   
    It is arguable that this function can be made generic so, that it will be
@@ -571,7 +576,7 @@ static int hashed_rename_estimate_and_grab(
    implemented.
 */
 int
-hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
+rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	      struct dentry *old_name /* old name */ ,
 	      struct inode *new_dir /* directory where @new is located */ ,
 	      struct dentry *new_name /* new name */ )
@@ -753,7 +758,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 
 	xmemset(&old_entry, 0, sizeof old_entry);
 	old_entry.obj = old_inode;
-	result = dplug->entry_key(old_dir, &old_name->d_name, &old_entry.key);
+	result = dplug->build_entry_key(old_dir, &old_name->d_name, &old_entry.key);
 	if (result != 0)
 		return result;
 
@@ -763,7 +768,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	   We want to remove @old_name now. If @old_inode wasn't directory
 	   this is simple.
 	*/
-	result = hashed_rem_entry(old_dir, old_name, &old_entry);
+	result = rem_entry_hashed(old_dir, old_name, &old_entry);
 	if (result != 0) {
 		warning("nikita-2335", "Cannot remove old name: %i", result);
 	} else {
@@ -808,9 +813,11 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	return result;
 }
 
-/* ->add_entry() method for hashed directory object plugin. */
+/* ->add_entry() method for hashed directory object plugin.
+   plugin->u.dir.add_entry
+*/
 int
-hashed_add_entry(struct inode *object	/* directory to add new name
+add_entry_hashed(struct inode *object	/* directory to add new name
 					 * in */ ,
 		 struct dentry *where /* new name */ ,
 		 reiser4_object_create_data * data UNUSED_ARG	/* parameters
@@ -862,9 +869,11 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	return result;
 }
 
-/* ->rem_entry() method for hashed directory object plugin. */
+/* ->rem_entry() method for hashed directory object plugin.
+   plugin->u.dir.rem_entry
+ */
 int
-hashed_rem_entry(struct inode *object	/* directory from which entry
+rem_entry_hashed(struct inode *object	/* directory from which entry
 					 * is begin removed */ ,
 		 struct dentry *where	/* name that is being
 					 * removed */ ,
@@ -976,7 +985,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 	coord = &dec->entry_coord;
 	seal = &dec->entry_seal;
 	/* compose key of directory entry for @name */
-	result = inode_dir_plugin(dir)->entry_key(dir, name, &entry->key);
+	result = inode_dir_plugin(dir)->build_entry_key(dir, name, &entry->key);
 	if (result != 0)
 		return result;
 

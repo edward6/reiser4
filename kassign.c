@@ -84,38 +84,15 @@ extract_name_from_key(const reiser4_key *key, char *buf)
 	return buf;
 }
 
-/* build key to be used by ->readdir() method.
-  
-   See reiser4_readdir() for more detailed comment. */
+/* build key for directory entry. 
+   ->build_entry_key() for directory plugin */
 int
-build_readdir_key(struct file *dir /* directory being read */ ,
-		  reiser4_key * result /* where to store key */ )
-{
-	reiser4_file_fsdata *fdata;
-	struct inode *inode;
-
-	assert("nikita-1361", dir != NULL);
-	assert("nikita-1362", result != NULL);
-	assert("nikita-1363", dir->f_dentry != NULL);
-	inode = dir->f_dentry->d_inode;
-	assert("nikita-1373", inode != NULL);
-
-	fdata = reiser4_get_file_fsdata(dir);
-	if (IS_ERR(fdata))
-		return PTR_ERR(fdata);
-	assert("nikita-1364", fdata != NULL);
-	return extract_key_from_de_id(get_inode_oid(inode), &fdata->dir.readdir.position.dir_entry_key, result);
-
-}
-
-/* build key for directory entry. */
-int
-build_entry_key(const struct inode *dir	/* directory where entry is
-					 * (or will be) in.*/ ,
-		const struct qstr *qname	/* name of file referenced
-					 * by this entry */ ,
-		reiser4_key * result	/* resulting key of directory
-					 * entry */ )
+build_entry_key_common(const struct inode *dir	/* directory where entry is
+						 * (or will be) in.*/ ,
+		       const struct qstr *qname	/* name of file referenced
+						 * by this entry */ ,
+		       reiser4_key * result	/* resulting key of directory
+						 * entry */ )
 {
 	oid_t objectid;
 	__u64 offset;
@@ -188,18 +165,19 @@ build_entry_key(const struct inode *dir	/* directory where entry is
 }
 
 /* build key for directory entry.
+   ->build_entry_key() for directory plugin
   
    This is for directories where we want repeatable and restartable readdir()
    even in case 32bit user level struct dirent (readdir(3)).
 */
 int
-build_readdir_stable_entry_key(const struct inode *dir	/* directory where
+build_entry_key_stable_entry(const struct inode *dir	/* directory where
 							 * entry is (or
 							 * will be) in. */ ,
-			       const struct qstr *name	/* name of file
+			     const struct qstr *name	/* name of file
 							 * referenced by
 							 * this entry */ ,
-			       reiser4_key * result	/* resulting key of
+			     reiser4_key * result	/* resulting key of
 							 * directory entry */ )
 {
 	oid_t objectid;
@@ -231,6 +209,32 @@ build_readdir_stable_entry_key(const struct inode *dir	/* directory where
 	/* offset is always 0. */
 	set_key_offset(result, (__u64) 0);
 	return 0;
+}
+
+/* build key to be used by ->readdir() method.
+  
+   See reiser4_readdir() for more detailed comment. 
+   Common implementation of dir plugin's method build_readdir_key
+*/
+int
+build_readdir_key_common(struct file *dir /* directory being read */ ,
+			 reiser4_key * result /* where to store key */ )
+{
+	reiser4_file_fsdata *fdata;
+	struct inode *inode;
+
+	assert("nikita-1361", dir != NULL);
+	assert("nikita-1362", result != NULL);
+	assert("nikita-1363", dir->f_dentry != NULL);
+	inode = dir->f_dentry->d_inode;
+	assert("nikita-1373", inode != NULL);
+
+	fdata = reiser4_get_file_fsdata(dir);
+	if (IS_ERR(fdata))
+		return PTR_ERR(fdata);
+	assert("nikita-1364", fdata != NULL);
+	return extract_key_from_de_id(get_inode_oid(inode), &fdata->dir.readdir.position.dir_entry_key, result);
+
 }
 
 /* true, if @key is the key of "." */
@@ -348,7 +352,7 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
 	assert("nikita-1292", id != NULL);
 
 	/* NOTE-NIKITA this is suboptimal. */
-	inode_dir_plugin(dir)->entry_key(dir, name, &key);
+	inode_dir_plugin(dir)->build_entry_key(dir, name, &key);
 	return build_de_id_by_key(&key, id);
 }
 

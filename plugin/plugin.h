@@ -290,13 +290,13 @@ typedef struct dir_plugin {
 	    Can check for maximal length, reserved symbols etc */
 	int (*is_name_acceptable) (const struct inode * inode, const char *name, int len);
 
-	int (*entry_key) (const struct inode * dir	/* directory where entry
+	int (*build_entry_key) (const struct inode * dir	/* directory where entry
 							 * is (or will be) in.*/ ,
 			  const struct qstr * name	/* name of file referenced
 							 * by this entry */ ,
 			  reiser4_key * result	/* resulting key of directory
 						 * entry */ );
-	int (*readdir_key) (struct file * dir, reiser4_key * result);
+	int (*build_readdir_key) (struct file * dir, reiser4_key * result);
 	int (*add_entry) (struct inode * object, struct dentry * where,
 			  reiser4_object_create_data * data, reiser4_dir_entry_desc * entry);
 

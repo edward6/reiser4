@@ -100,7 +100,7 @@ static reiser4_block_nr common_estimate_link(
   
 */
 static int
-common_link(struct inode *parent /* parent directory */ ,
+link_common(struct inode *parent /* parent directory */ ,
 	    struct dentry *existing	/* dentry of object to which
 					 * new link is being
 					 * cerated */ ,
@@ -250,7 +250,7 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
        . if nlink drops to 0, delete object
 */
 static int
-common_unlink(struct inode *parent /* parent object */ ,
+unlink_common(struct inode *parent /* parent object */ ,
 	      struct dentry *victim /* name being removed from @parent */)
 {
 	int           result;
@@ -325,8 +325,9 @@ static reiser4_block_nr common_estimate_create_child(
    . instantiate dentry
   
 */
+/* ->create_child method of directory plugin */
 static int
-common_create_child(struct inode *parent /* parent object */ ,
+create_child_common(struct inode *parent /* parent object */ ,
 		    struct dentry *dentry /* new name */ ,
 		    reiser4_object_create_data * data	/* parameters
 							 * of new
@@ -577,7 +578,7 @@ is_dir_empty(const struct inode *dir)
 	dot.name = ".";
 	dot.len = 1;
 
-	result = inode_dir_plugin(dir)->entry_key(dir, &dot, &de_key);
+	result = inode_dir_plugin(dir)->build_entry_key(dir, &dot, &de_key);
 	if (result != 0)
 		return result;
 
@@ -765,7 +766,7 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	assert("nikita-2554", pos != NULL);
 
 	inode = dir->f_dentry->d_inode;
-	result = inode_dir_plugin(inode)->readdir_key(dir, &key);
+	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
 	result = coord_by_key(tree_by_inode(inode), &key,
@@ -925,7 +926,7 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 
 /* ->readdir method of directory plugin */
 static int
-common_readdir(struct file *f /* directory file being read */ ,
+readdir_common(struct file *f /* directory file being read */ ,
 	       void *dirent /* opaque data passed to us by VFS */ ,
 	       filldir_t filld	/* filler function passed to us
 				   * by VFS */ )
@@ -1001,8 +1002,9 @@ common_readdir(struct file *f /* directory file being read */ ,
 	return result;
 }
 
+/* ->attach method of directory plugin */
 static int
-common_attach(struct inode *child, struct inode *parent)
+attach_common(struct inode *child, struct inode *parent)
 {
 	assert("nikita-2647", child != NULL);
 	assert("nikita-2648", parent != NULL);
@@ -1010,77 +1012,82 @@ common_attach(struct inode *child, struct inode *parent)
 	return 0;
 }
 
-/* estimation of adding entry which supposes that entry is inserting a unit into item */
-static reiser4_block_nr common_estimate_add_entry(struct inode *inode)
+/* ->estimate.add_entry method of directory plugin
+   estimation of adding entry which supposes that entry is inserting a unit into item 
+*/
+static reiser4_block_nr
+estimate_add_entry_common(struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
 }
 
-static reiser4_block_nr common_estimate_rem_entry(struct inode *inode) 
+/* ->estimate.rem_entry method of directory plugin */
+static reiser4_block_nr
+estimate_rem_entry_common(struct inode *inode) 
 {
 	return estimate_one_item_removal(tree_by_inode(inode)->height);
 }
 
 dir_plugin dir_plugins[LAST_DIR_ID] = {
 	[HASHED_DIR_PLUGIN_ID] = {
-				  .h = {
-					.type_id = REISER4_DIR_PLUGIN_TYPE,
-					.id = HASHED_DIR_PLUGIN_ID,
-					.pops = NULL,
-					.label = "dir",
-					.desc = "hashed directory",
-					.linkage = TS_LIST_LINK_ZERO}
-				  ,
-				.lookup = hashed_lookup,
-				.unlink = common_unlink,
-				.link = common_link,
-				.is_name_acceptable = is_name_acceptable,
-				.entry_key = build_entry_key,
-				.readdir_key = build_readdir_key,
-				.add_entry = hashed_add_entry,
-				.rem_entry = hashed_rem_entry,
-				.create_child = common_create_child,
-				.rename = hashed_rename,
-				.readdir = common_readdir,
-				.init = hashed_init,
-				.done = hashed_done,
-				.attach = common_attach,
-				.detach = hashed_detach,
-				.estimate = {
-					.add_entry = common_estimate_add_entry,
-					.rem_entry = common_estimate_rem_entry,
-					.unlink    = hashed_estimate_detach
-				}
+		.h = {
+			.type_id = REISER4_DIR_PLUGIN_TYPE,
+			.id = HASHED_DIR_PLUGIN_ID,
+			.pops = NULL,
+			.label = "dir",
+			.desc = "hashed directory",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.lookup = lookup_hashed,
+		.unlink = unlink_common,
+		.link = link_common,
+		.is_name_acceptable = is_name_acceptable,
+		.build_entry_key = build_entry_key_common,
+		.build_readdir_key = build_readdir_key_common,
+		.add_entry = add_entry_hashed,
+		.rem_entry = rem_entry_hashed,
+		.create_child = create_child_common,
+		.rename = rename_hashed,
+		.readdir = readdir_common,
+		.init = init_hashed,
+		.done = done_hashed,
+		.attach = attach_common,
+		.detach = detach_hashed,
+		.estimate = {
+			.add_entry = estimate_add_entry_common,
+			.rem_entry = estimate_rem_entry_common,
+			.unlink    = estimate_unlink_hashed
+		}
 	},
 	[SEEKABLE_HASHED_DIR_PLUGIN_ID] = {
-				.h = {
-					.type_id = REISER4_DIR_PLUGIN_TYPE,
-					.id = HASHED_DIR_PLUGIN_ID,
-					.pops = NULL,
-					.label = "dir",
-					.desc = "hashed directory",
-					.linkage = TS_LIST_LINK_ZERO}
-				,
-				.lookup = hashed_lookup,
-				.unlink = common_unlink,
-				.link = common_link,
-				.is_name_acceptable = is_name_acceptable,
-				.entry_key = build_readdir_stable_entry_key,
-				.readdir_key = build_readdir_key,
-				.add_entry = hashed_add_entry,
-				.rem_entry = hashed_rem_entry,
-				.create_child = common_create_child,
-				.rename = hashed_rename,
-				.readdir = common_readdir,
-				.init = hashed_init,
-				.done = hashed_done,
-				.attach = common_attach,
-				.detach = hashed_detach,
-				.estimate = {
-					.add_entry = common_estimate_add_entry,
-					.rem_entry = common_estimate_rem_entry,
-					.unlink    = hashed_estimate_detach
-				}
+		.h = {
+			.type_id = REISER4_DIR_PLUGIN_TYPE,
+			.id = HASHED_DIR_PLUGIN_ID,
+			.pops = NULL,
+			.label = "dir",
+			.desc = "hashed directory",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.lookup = lookup_hashed,
+		.unlink = unlink_common,
+		.link = link_common,
+		.is_name_acceptable = is_name_acceptable,
+		.build_entry_key = build_entry_key_stable_entry,
+		.build_readdir_key = build_readdir_key_common,
+		.add_entry = add_entry_hashed,
+		.rem_entry = rem_entry_hashed,
+		.create_child = create_child_common,
+		.rename = rename_hashed,
+		.readdir = readdir_common,
+		.init = init_hashed,
+		.done = done_hashed,
+		.attach = attach_common,
+		.detach = detach_hashed,
+		.estimate = {
+			.add_entry = estimate_add_entry_common,
+			.rem_entry = estimate_rem_entry_common,
+			.unlink    = estimate_unlink_hashed
+		}
 	}
 };
 

@@ -12,26 +12,22 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 /* create sd for directory file. Create stat-data, dot, and dotdot. */
-extern int hashed_init(struct inode *object, struct inode *parent, reiser4_object_create_data *);
-extern int hashed_done(struct inode *object);
-extern int hashed_detach(struct inode *object, struct inode *parent);
+extern int init_hashed(struct inode *object, struct inode *parent, reiser4_object_create_data *);
+extern int done_hashed(struct inode *object);
+extern int detach_hashed(struct inode *object, struct inode *parent);
 extern int owns_item_hashed(const struct inode *inode, const coord_t * coord);
-extern file_lookup_result hashed_lookup(struct inode *inode, struct dentry *dentry);
-/*					     const struct qstr *name, name_t *,
-					     reiser4_key *key, 
-					     reiser4_dir_entry_desc *entry );*/
-extern int hashed_rename(struct inode *old_dir,
+extern file_lookup_result lookup_hashed(struct inode *inode, struct dentry *dentry);
+extern int rename_hashed(struct inode *old_dir,
 			 struct dentry *old_name, struct inode *new_dir, struct dentry *new_name);
-extern int hashed_add_entry(struct inode *object,
+extern int add_entry_hashed(struct inode *object,
 			    struct dentry *where, reiser4_object_create_data *, reiser4_dir_entry_desc * entry);
-extern int hashed_rem_entry(struct inode *object, struct dentry *where, reiser4_dir_entry_desc * entry);
-extern reiser4_block_nr	  hashed_estimate_rename(
-					     struct inode  *old_dir,
-					     struct dentry *old_name,
-					     struct inode  *new_dir,
-					     struct dentry *new_name);
-extern reiser4_block_nr   hashed_estimate_detach(struct inode *parent, 
-						 struct inode *object);
+extern int rem_entry_hashed(struct inode *object, struct dentry *where, reiser4_dir_entry_desc * entry);
+extern reiser4_block_nr	estimate_rename_hashed(struct inode  *old_dir,
+					       struct dentry *old_name,
+					       struct inode  *new_dir,
+					       struct dentry *new_name);
+extern reiser4_block_nr estimate_unlink_hashed(struct inode *parent, 
+					       struct inode *object);
 
 /* __HASHED_DIR_H__ */
 #endif

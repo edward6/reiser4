@@ -510,7 +510,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 	return result;
 }
 
-/* common_file_delete() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
+/* delete_file_common() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
 int
 delete_file_common(struct inode *inode /* object to remove */ )
 {
