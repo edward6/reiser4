@@ -126,3 +126,4 @@ testdir/s1/file
 plugin/item/tail_item.c.to-be-removed
 ulevel/#ulevel.h#
 .coord.o.cmd
+read.c
