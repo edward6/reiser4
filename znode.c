@@ -241,7 +241,7 @@ static void zinit( znode *node, znode *parent )
 {
 	assert( "nikita-466", node != NULL );
 
-	memset( node, 0, sizeof *node );
+	xmemset( node, 0, sizeof *node );
 	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
 	reiser4_init_coord( &node -> ptr_in_parent_hint );

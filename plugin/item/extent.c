@@ -265,12 +265,12 @@ int extent_paste (tree_coord * coord, reiser4_item_data * data,
 	}
 
 	/* prepare space for new units */
-	memmove (ext + coord->unit_pos + data->length / sizeof (reiser4_extent),
+	xmemmove (ext + coord->unit_pos + data->length / sizeof (reiser4_extent),
 		 ext + coord->unit_pos,
 		 (old_nr_units - coord->unit_pos) * sizeof (reiser4_extent));
 
 	/* copy new data */
-	memcpy (ext + coord->unit_pos, data->data, (unsigned)data->length);
+	xmemcpy (ext + coord->unit_pos, data->data, (unsigned)data->length);
 
 	/* after paste @coord is set to first of pasted units */
 	assert ("vs-332", coord_of_unit (coord));
@@ -340,7 +340,7 @@ void extent_copy_units (tree_coord * target, tree_coord * source,
 		node_plugin_by_node (target->node)->update_item_key (target, &key, 0/*todo*/);
 	}
 
-	memcpy (to_ext, from_ext, free_space);
+	xmemcpy (to_ext, from_ext, free_space);
 }
 
 
@@ -538,7 +538,7 @@ static int cut_or_kill_units (tree_coord * coord,
 
 	if (REISER4_DEBUG) {
 		ext = extent_item (coord);
-		memset (ext + *from, 0, count * sizeof (reiser4_extent));
+		xmemset (ext + *from, 0, count * sizeof (reiser4_extent));
 	}
 
 	if (*from == 0 && count != last_unit_pos (coord) + 1) {
@@ -731,12 +731,12 @@ static int add_extents (tree_coord * coord,
 	count = data->length / sizeof (reiser4_extent);
 
 	/* new data has to be added after position coord->unit_pos */
-	memmove (extent_item (coord) + coord->unit_pos + 1 + min (count, delta),
+	xmemmove (extent_item (coord) + coord->unit_pos + 1 + min (count, delta),
 		 extent_item (coord) + coord->unit_pos + 1,
 		 (new_num - coord->unit_pos - 1) *
 		 sizeof (reiser4_extent));
 	/* copy part of new data into space freed by "optimizing" */
-	memcpy (extent_item (coord) + coord->unit_pos + 1, data->data,
+	xmemcpy (extent_item (coord) + coord->unit_pos + 1, data->data,
 		min (count, delta) * sizeof (reiser4_extent));
 
 	if (delta < count) {
@@ -1615,7 +1615,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 			continue;
 		if (!buffer_mapped (bh)) {
 			if (state_of_extent (ext) == HOLE_EXTENT) {
-				memset (kmap (page) +
+				xmemset (kmap (page) +
 					desc->done_nr * blocksize,
 					0, blocksize);
 				flush_dcache_page (page);
@@ -1653,7 +1653,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 		 * file is over, padd the rest of page with zeros
 		 */
 		nr = PAGE_SIZE / blocksize - desc->done_nr;
-		memset (kmap (page) + desc->done_nr * blocksize,
+		xmemset (kmap (page) + desc->done_nr * blocksize,
 			0, blocksize * nr);
 		flush_dcache_page (page);
 		kunmap (page);
@@ -1733,7 +1733,7 @@ int extent_readpage (void * p, struct page * page)
 	if (result)
 		return result;
 
-	memset (&desc, 0, sizeof (struct readpage_desc));
+	xmemset (&desc, 0, sizeof (struct readpage_desc));
 	desc.page = page;
 	desc.bh = page->buffers;
 	/*

@@ -198,7 +198,7 @@ static int expand_item( const tree_coord *coord, int pos, int no,
 	/*
 	 * free space for new entry headers
 	 */
-	memmove( header + no, header, 
+	xmemmove( header + no, header, 
 		 ( unsigned )( address( coord, size ) - ( char * ) header ) );
 	/*
 	 * if adding to the end initialise first new header
@@ -215,7 +215,7 @@ static int expand_item( const tree_coord *coord, int pos, int no,
 	/*
 	 * free space for new entries
 	 */
-	memmove( dent + data_size, dent, 
+	xmemmove( dent + data_size, dent, 
 		 ( unsigned ) ( address( coord, size ) - dent ) );
 
 	/*
@@ -685,7 +685,7 @@ void cde_copy_units( tree_coord *target, tree_coord *source,
 		assert( "nikita-1309", 
 			( int ) ( from + count ) == units( source ) );
 		pos_in_target = 0;
-		memmove( item_body_by_coord( target ), 
+		xmemmove( item_body_by_coord( target ), 
 			 ( char * ) item_body_by_coord( target ) + free_space,
 			 item_length_by_coord( target ) - free_space );
 	}
@@ -715,13 +715,13 @@ void cde_copy_units( tree_coord *target, tree_coord *source,
 	/* copy entries */
 	entry_from  = ( char * ) entry_at( source, ( int ) from );
 	entry_to = ( char * ) entry_at( source, ( int ) ( from + count ) );
-	memmove( entry_at( target, pos_in_target ), 
+	xmemmove( entry_at( target, pos_in_target ), 
 		 entry_from, ( unsigned ) ( entry_to - entry_from ) );
 
 	/* copy headers */
 	header_from = ( char * ) header_at( source, ( int ) from );
 	header_to   = ( char * ) header_at( source, ( int ) ( from + count ) );
-	memmove( header_at( target, pos_in_target ),
+	xmemmove( header_at( target, pos_in_target ),
 		 header_from, ( unsigned ) ( header_to - header_from ) );
 	/*
 	 * update offsets
@@ -772,7 +772,7 @@ int cde_cut_units( tree_coord *coord, unsigned *from, unsigned *to,
 	entry_to = ( char * ) entry_at( coord, ( int ) ( *from + count ) );
 
 	/* move headers */
-	memmove( header_from, header_to, 
+	xmemmove( header_from, header_to, 
 		 ( unsigned ) ( address( coord, size ) - header_to ) );
 
 	header_delta = header_to - header_from;
@@ -782,7 +782,7 @@ int cde_cut_units( tree_coord *coord, unsigned *from, unsigned *to,
 	size       -= header_delta;
 
 	/* copy entries */
-	memmove( entry_from, entry_to, 
+	xmemmove( entry_from, entry_to, 
 		 ( unsigned ) ( address( coord, size ) - entry_to ) );
 
 	entry_delta = entry_to - entry_from;
@@ -808,18 +808,18 @@ int cde_cut_units( tree_coord *coord, unsigned *from, unsigned *to,
 		/*
 		 * entries from head was removed - move remaining to right
 		 */
-		memmove( ( char * ) item_body_by_coord( coord ) + 
+		xmemmove( ( char * ) item_body_by_coord( coord ) + 
 			 header_delta + entry_delta,
 			 item_body_by_coord( coord ), ( unsigned ) size );
 		if( REISER4_DEBUG )
-			memset( item_body_by_coord( coord ), 0, 
+			xmemset( item_body_by_coord( coord ), 0, 
 				( unsigned )header_delta + entry_delta );
 	} else {
 		/*
 		 * freed space is already at the end of item
 		 */
 		if( REISER4_DEBUG )
-			memset( ( char * )item_body_by_coord( coord ) + size, 0,
+			xmemset( ( char * )item_body_by_coord( coord ) + size, 0,
 				( unsigned )header_delta + entry_delta );
 	}
 

@@ -689,7 +689,7 @@ void reiser4_init_carry_level( carry_level *level, carry_pool *pool )
 	assert( "nikita-1045", level != NULL );
 	assert( "nikita-967", pool != NULL );
 
-	memset( level, 0, sizeof *level );
+	xmemset( level, 0, sizeof *level );
 	level -> pool = pool;
 
 	pool_level_list_init( &level -> nodes );

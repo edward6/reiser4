@@ -81,10 +81,10 @@ void tail_copy_units (tree_coord * target, unit_coord * source,
 
 	if (pend == append) {
 		/* append target item with @copy_amount bytes of source item */
-		memcpy (new_data, source_item, unit_num);
+		xmemcpy (new_data, source_item, unit_num);
 	} else {
 		/* item should have already free space at the beginning */
-		memcpy (new_data, source_item + length_by_coord (source) - unit_num,
+		xmemcpy (new_data, source_item + length_by_coord (source) - unit_num,
 			unit_num);
 		assert ("vs-107",
 			get_key_offset (&target_ih->key) >= unit_num);
@@ -119,7 +119,7 @@ void tail_pend_units (tree_coord * target, tree_coord * source,
 		/* make sure that free space is at the end */
 		assert ("vs-174", where_is_free_space == append);
 
-		memcpy (item_body_by_coord (target) + item_length_by_coord (target) - count,
+		xmemcpy (item_body_by_coord (target) + item_length_by_coord (target) - count,
 			item_body_by_coord (source), count);
 		return;
 	}
@@ -134,10 +134,10 @@ void tail_pend_units (tree_coord * target, tree_coord * source,
 		assert ("vs-175", from == last_unit_pos (source) - count + 1);
 		if (where_is_free_space != prepend) {
 			/* free space is not prepared */
-			memmove (item_body_by_coord (target) + count, item_body_by_coord (target),
+			xmemmove (item_body_by_coord (target) + count, item_body_by_coord (target),
 				 item_length_by_coord (target) - count);
 		}
-		memcpy (item_body_by_coord (target), item_body_by_coord (source) + from, count);
+		xmemcpy (item_body_by_coord (target), item_body_by_coord (source) + from, count);
 		return;
 	}
 
@@ -164,9 +164,9 @@ int tail_remove_units (item_coord *item, int from, int count,
 		return count;
 
 	body = item_body_by_coord (item);
-	memmove (body + from, body + from + count, length - from - count);
+	xmemmove (body + from, body + from + count, length - from - count);
 	if (where_to_move_free_space == prepend)
-		memmove (body + count, body, length - count);
+		xmemmove (body + count, body, length - count);
 
 	return count;
 }

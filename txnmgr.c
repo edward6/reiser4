@@ -185,7 +185,7 @@ atom_init (txn_atom     *atom)
 {
 	int level;
 
-	memset (atom, 0, sizeof (txn_atom));
+	xmemset (atom, 0, sizeof (txn_atom));
 	
 	atom->stage         = ASTAGE_FREE;
 	atom->start_time    = jiffies;

@@ -185,7 +185,7 @@ static int build_obj_key_id( const reiser4_key *key /* key to encode */,
 	assert( "nikita-1151", key != NULL );
 	assert( "nikita-1152", id != NULL );
 
-	memcpy( id, key, sizeof *id );
+	xmemcpy( id, key, sizeof *id );
 	return 0;
 }
 
@@ -218,7 +218,7 @@ int extract_key_from_id( const obj_key_id *id, reiser4_key *key )
 	assert( "nikita-1154", key != NULL );
 
 	key_init( key );
-	memcpy( key, id, sizeof *id );
+	xmemcpy( key, id, sizeof *id );
 	return 0;
 }
 
@@ -282,7 +282,7 @@ int build_de_id_by_key( const reiser4_key *entry_key /* full key of
 						      * entry */, 
 			de_id *id /* short key of directory entry */ )
 {
-	memcpy( id, ( ( __u64 * ) entry_key ) + 1, sizeof *id );
+	xmemcpy( id, ( ( __u64 * ) entry_key ) + 1, sizeof *id );
 	return 0;
 }
 
@@ -296,8 +296,10 @@ int build_de_id_by_key( const reiser4_key *entry_key /* full key of
 int extract_key_from_de_id( const oid_t locality, 
 			    const de_id *id, reiser4_key *key )
 {
-	key_init( key );
-	memcpy( ( ( __u64 * ) key ) + 1, id, sizeof *id );
+	/*
+	 * no need to initialise key here: all fields are overwritten
+	 */
+	xmemcpy( ( ( __u64 * ) key ) + 1, id, sizeof *id );
 	set_key_locality( key, locality );
 	set_key_type( key, KEY_FILE_NAME_MINOR );
 	return 0;

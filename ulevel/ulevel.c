@@ -251,7 +251,7 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE )
 	void *addr;
 
 	addr = kmalloc( slab -> size, 0 );
-	memset( addr, 0, slab -> size );
+	xmemset( addr, 0, slab -> size );
 
 	if (addr) {
 		spin_lock (& slab -> lock);
@@ -273,7 +273,7 @@ static struct inode * alloc_inode (struct super_block * sb)
 
 	inode = sb->s_op->alloc_inode(sb);
 	assert ("vs-289", inode);
-	memset (inode, 0, sizeof (struct inode));
+	xmemset (inode, 0, sizeof (struct inode));
 	inode->i_sb = sb;
 	inode->i_dev = sb->s_dev;
 	inode->i_blkbits = sb->s_blocksize_bits;
@@ -425,14 +425,14 @@ void insert_inode_hash(struct inode *inode UNUSED_ARG)
 
 int __copy_from_user (char * to, char * from, unsigned n)
 {
-	memcpy (to, from, n);
+	xmemcpy (to, from, n);
 	return 0;
 }
 
 
 int __copy_to_user (char * to, char * from, unsigned n)
 {
-	memcpy (to, from, n);
+	xmemcpy (to, from, n);
 	return 0;
 }
 
@@ -446,7 +446,7 @@ static struct page * new_page (struct address_space * mapping,
 
 	page = kmalloc (sizeof (struct page), 0);
 	assert ("vs-288", page);
-	memset (page, 0, sizeof (struct page));
+	xmemset (page, 0, sizeof (struct page));
 
 	page->index = ind;
 	page->mapping = mapping;
@@ -454,7 +454,7 @@ static struct page * new_page (struct address_space * mapping,
 
 	page->virtual = kmalloc (PAGE_SIZE, 0);
 	assert ("vs", page->virtual);
-	memset (page->virtual, 0, PAGE_SIZE);
+	xmemset (page->virtual, 0, PAGE_SIZE);
 
 	list_add (&page->list, &page_list);
 	return page;
@@ -953,7 +953,7 @@ void *mkdir_thread( void *arg )
 
 		fno = lc_rand_max( ( __u64 ) info -> max );
 		
-		sprintf( name, "123456712345-%lli-хлоп-Zzzz.", fno );
+		sprintf( name, "!@#$%%-%lli-хлоп-Zzzz.", fno );
 		dentry.d_name.name = name;
 		dentry.d_name.len = strlen( name );
 		SUSPEND_CONTEXT( old_context );
@@ -972,8 +972,8 @@ void *mkdir_thread( void *arg )
 			nanosleep( &delay, NULL );
 		}
 	}
-	memset( &df, 0, sizeof df );
-	memset( &dentry, 0, sizeof dentry );
+	xmemset( &df, 0, sizeof df );
+	xmemset( &dentry, 0, sizeof dentry );
 
 	dentry.d_inode = f;
 	df.f_dentry = &dentry;
@@ -1052,7 +1052,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		op -> u.insert.key = &key;
 		op -> u.insert.coord = &coord;
 
-		memset( &sd, 0, sizeof sd );
+		xmemset( &sd, 0, sizeof sd );
 		cputod16( S_IFDIR | 0111, &sd.base.mode );
 		cputod16( 0x0 , &sd.base.extmask );
 		cputod32( 1, &sd.base.nlink );
@@ -1075,7 +1075,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info( "_____________sd inserted_____________\n" );
 		reiser4_done_carry_pool( &pool );
 
-		memset( &rf, 0, sizeof rf );
+		xmemset( &rf, 0, sizeof rf );
 		INIT_LIST_HEAD( &f -> i_hash );
 		INIT_LIST_HEAD( &f -> i_list );
 		INIT_LIST_HEAD( &f -> i_dentry );
@@ -1158,8 +1158,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		print_tree_rec( "tree:dir", tree, REISER4_NODE_CHECK );
 
-		memset( &df, 0, sizeof df );
-		memset( &dd, 0, sizeof dd );
+		xmemset( &df, 0, sizeof df );
+		xmemset( &dd, 0, sizeof dd );
 
 		dd.d_inode = f;
 		df.f_dentry = &dd;
@@ -1237,7 +1237,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			op -> u.insert.key = &key;
 			op -> u.insert.coord = &coord;
 
-			memset( &sd, 0, sizeof sd );
+			xmemset( &sd, 0, sizeof sd );
 			cputod16( S_IFREG | 0111, &sd.base.mode );
 			cputod16( 0x0 , &sd.base.extmask );
 			cputod32( 1, &sd.base.nlink );
@@ -1270,7 +1270,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		print_tree_rec( "tree", tree, 0 );
 	} else if( !strcmp( argv[ 2 ], "inode" ) ) {
 		struct inode f;
-		memset( &f, 0, sizeof f );
+		xmemset( &f, 0, sizeof f );
 		INIT_LIST_HEAD( &f.i_hash );
 		INIT_LIST_HEAD( &f.i_list );
 		INIT_LIST_HEAD( &f.i_dentry );
@@ -1428,7 +1428,7 @@ static struct inode * create_root_dir (znode * root)
 	op -> u.insert.key = &key;
 	op -> u.insert.coord = &coord;
 	
-	memset( &sd, 0, sizeof sd );
+	xmemset( &sd, 0, sizeof sd );
 	cputod16( S_IFDIR | 0111, &sd.base.mode );
 	cputod16( 0x0 , &sd.base.extmask );
 	cputod32( 1, &sd.base.nlink );
@@ -1455,7 +1455,7 @@ static struct inode * create_root_dir (znode * root)
 	rii = malloc (sizeof *rii);
 	if (!rii)
 		return ERR_PTR (errno);
-	memset (rii, 0, sizeof *rii);
+	xmemset (rii, 0, sizeof *rii);
 	inode = &rii -> vfs_inode;
 	inode->i_ino = 42;
 	atomic_set( &inode->i_count, 0 );
@@ -1653,7 +1653,7 @@ static int call_readdir (struct inode * dir)
 	old_context = reiser4_get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
-	memset (&file, 0, sizeof (struct file));
+	xmemset (&file, 0, sizeof (struct file));
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
 	readdir (&file);
@@ -2025,7 +2025,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	for (i = 0; tree->height < TWIG_LEVEL ; i ++) {
 		char name [NAME_LENGTH];
 		
-		memset (name, '0' + i, NAME_LENGTH - 1);
+		xmemset (name, '0' + i, NAME_LENGTH - 1);
 		name [NAME_LENGTH - 1] = 0;
 		call_create (root_dir, name);
 	}
@@ -2042,7 +2042,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			char * buf;
 			struct inode * inode;
 
-			memset (name, '0', NAME_LENGTH - 1);
+			xmemset (name, '0', NAME_LENGTH - 1);
 			name [NAME_LENGTH - 1] = 0;
 		
 			/*
@@ -2065,7 +2065,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/*
 			 * "open" file "11111111111111111111111"
 			 */
-			memset (name, '1', NAME_LENGTH - 1);
+			xmemset (name, '1', NAME_LENGTH - 1);
 			name [NAME_LENGTH - 1] = 0;
 			inode = call_lookup (root_dir, name);
 			if (!inode || IS_ERR (inode)) {
@@ -2097,11 +2097,11 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			name.name = buf;
 			name.len = NAME_LENGTH - 1;
 
-			memset (buf, '4', NAME_LENGTH - 1);
+			xmemset (buf, '4', NAME_LENGTH - 1);
 			buf [NAME_LENGTH - 1] = 0;
 			build_entry_key (root_dir, &name, &from);
 
-			memset (buf, 'Q', NAME_LENGTH - 1);
+			xmemset (buf, 'Q', NAME_LENGTH - 1);
 			buf [NAME_LENGTH - 1] = 0;
 			build_entry_key (root_dir, &name, &to);
 			cut_tree (tree, &from, &to);
@@ -2688,7 +2688,7 @@ int real_main( int argc, char **argv )
 	init_plugins();
 	txn_init_static();
 	sys_rand_init();
-	memset( &super, 0, sizeof super );
+	xmemset( &super, 0, sizeof super );
 	super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
 	assert( "vs-417", super.s_blocksize == 512 ||
@@ -2698,7 +2698,7 @@ int real_main( int argc, char **argv )
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
 
-	memset( &reiser4_get_current_super_private() -> stats, 0, 
+	xmemset( &reiser4_get_current_super_private() -> stats, 0, 
 		sizeof reiser4_get_current_super_private() -> stats );
 	txn_mgr_init( &reiser4_get_super_private (&super) -> tmgr );
 

@@ -31,7 +31,7 @@ static const reiser4_key MAXIMAL_KEY = {
 void key_init( reiser4_key *key )
 {
 	assert( "nikita-1169", key != NULL );
-	memset( key, 0, sizeof *key );
+	xmemset( key, 0, sizeof *key );
 }
 
 /** minimal possible key in the tree. Return pointer to the static storage. */

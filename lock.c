@@ -939,7 +939,7 @@ void reiser4_init_lock_stack (reiser4_lock_stack *owner /* pointer to
 							 * allocated
 							 * structure. */)
 {
-	memset(owner, 0, sizeof(reiser4_lock_stack));
+	xmemset(owner, 0, sizeof(reiser4_lock_stack));
 	locks_list_init(&owner->locks);
 	requestors_list_clean (owner);
 	spin_lock_init(&owner->sguard);
@@ -954,7 +954,7 @@ void reiser4_init_lock (reiser4_zlock *lock /* pointer on allocated
 					     * uninitialized lock object
 					     * structure. */ )
 {
-	memset(lock, 0, sizeof(reiser4_zlock));
+	xmemset(lock, 0, sizeof(reiser4_zlock));
 	requestors_list_init(&lock->requestors);
 	owners_list_init(&lock->owners);
 }
@@ -962,7 +962,7 @@ void reiser4_init_lock (reiser4_zlock *lock /* pointer on allocated
 /* lock handle initialization */
 void reiser4_init_lh (reiser4_lock_handle *handle)
 {
-	memset(handle, 0, sizeof *handle);
+	xmemset(handle, 0, sizeof *handle);
 	locks_list_clean(handle);
 	owners_list_clean(handle);
 }

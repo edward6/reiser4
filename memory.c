@@ -54,8 +54,8 @@ static struct address_space_operations formatted_fake_as_ops;
  */
 int init_fakes()
 {
-	memset( &dummy, 0, sizeof dummy );
-	memset( &dummy_ops, 0, sizeof dummy_ops );
+	xmemset( &dummy, 0, sizeof dummy );
+	xmemset( &dummy_ops, 0, sizeof dummy_ops );
 
 	/*
 	 * FIXME-NIKITA This is remarkably clumsy, but new_inode() relies on
@@ -187,6 +187,23 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		result = -ENOMEM;
 	return result;
 }
+
+#if REISER4_DEBUG
+void *xmemcpy( void *dest, const void *src, size_t n )
+{
+	return memcpy( dest, src, n );
+}
+
+void *xmemmove( void *dest, const void *src, size_t n )
+{
+	return memmove( dest, src, n );
+}
+
+void *xmemset( void *s, int c, size_t n )
+{
+	return memset( s, c, n );
+}
+#endif
 
 /**
  * Our memory pressure hook attached to the ->releasepage() method of fake

@@ -360,7 +360,7 @@ jnode_lock_parent_coord (jnode *node,
 /* Initialize the slum_scan data structure. */
 static void slum_scan_init (slum_scan *scan)
 {
-	memset (scan, 0, sizeof (*scan));
+	xmemset (scan, 0, sizeof (*scan));
 }
 
 /* Release any resources held by the slum scan, e.g., release locks, free memory, etc. */

@@ -83,7 +83,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 
 	parent_dplug = reiser4_get_dir_plugin( parent );
 
-	memset( &entry, 0, sizeof entry );
+	xmemset( &entry, 0, sizeof entry );
 
 	data.mode = object -> i_mode;
 	data.id   = file_plugin_to_plugin( reiser4_get_object_state( object ) -> file ) -> h.id;
@@ -150,7 +150,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 
 	parent_dplug = reiser4_get_dir_plugin( parent );
 
-	memset( &entry, 0, sizeof entry );
+	xmemset( &entry, 0, sizeof entry );
 
 	/* removing last reference. Check that this is allowed.  This is
 	 * optimization for common case when file having only one name
@@ -254,7 +254,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	object = new_inode( parent -> i_sb );
 	if( object == NULL )
 		return -ENOMEM;
-	memset( &entry, 0, sizeof entry );
+	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
 #ifndef INSTALL_EXISTS

@@ -19,14 +19,14 @@ int reiser4_init_coord( tree_coord *coord )
 	assert( "nikita-312", coord != NULL );
 	trace_stamp( TRACE_TREE );
 
-	memset( coord, 0, sizeof *coord );
+	xmemset( coord, 0, sizeof *coord );
 	return 0;
 }
 
 /** correct tree_coord object duplication */
 void reiser4_dup_coord (tree_coord * new, const tree_coord * old)
 {
-	memcpy (new, old, sizeof (tree_coord));
+	xmemcpy (new, old, sizeof (tree_coord));
 	if (old->node != NULL) {
 		/* FIXME-NIKITA nikita: reiser4_done_coord() do nothing
 		   zref(old->node); */
@@ -387,7 +387,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	assert( "nikita-357", stop_level >= LEAF_LEVEL );
 	trace_stamp( TRACE_TREE );
 
-	memset( &handle, 0, sizeof handle );
+	xmemset( &handle, 0, sizeof handle );
 
 	handle.tree      = tree;
 	handle.key       = key;

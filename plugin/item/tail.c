@@ -156,15 +156,15 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
 		 * make space for pasted data when pasting at the beginning of
 		 * the item
 		 */
-		memmove (item + data->length, item, old_item_length);
+		xmemmove (item + data->length, item, old_item_length);
 
 	if (coord->between == AFTER_UNIT)
 		coord->unit_pos ++;
 
 	if (data->data)
-		memcpy (item + coord->unit_pos, data->data, (unsigned)data->length);
+		xmemcpy (item + coord->unit_pos, data->data, (unsigned)data->length);
 	else
-		memset (item + coord->unit_pos, 0, (unsigned)data->length);
+		xmemset (item + coord->unit_pos, 0, (unsigned)data->length);
 	return 0;
 }
 
@@ -215,7 +215,7 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
 		 */
 		assert ("vs-365", from == 0);
 
-		memcpy ((char *)item_body_by_coord (target) + item_length_by_coord (target) - count,
+		xmemcpy ((char *)item_body_by_coord (target) + item_length_by_coord (target) - count,
 			(char *)item_body_by_coord (source), count);
 	} else {
 		/*
@@ -226,7 +226,7 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
 
 		assert ("vs-367", (unsigned)item_length_by_coord (source) == from + count);
 
-		memcpy ((char *)item_body_by_coord (target),
+		xmemcpy ((char *)item_body_by_coord (target),
 			(char *)item_body_by_coord (source) + from, count);
 
 		/* new units are inserted before first unit in an item,
@@ -303,7 +303,7 @@ int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
 	}
 
 	if (REISER4_DEBUG)
-		memset ((char *)item_body_by_coord (coord) + *from, 0, count);
+		xmemset ((char *)item_body_by_coord (coord) + *from, 0, count);
 	return count;
 }
 
@@ -623,7 +623,7 @@ int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
 	if (count > f->length)
 		count = f->length;
 
-	memcpy (f->data, (char *)item_body_by_coord (coord) + coord->unit_pos,
+	xmemcpy (f->data, (char *)item_body_by_coord (coord) + coord->unit_pos,
 		count);
 
 	move_flow_forward (f, count);

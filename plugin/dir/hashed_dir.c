@@ -57,8 +57,8 @@ int hashed_delete( struct inode *object, struct inode *parent )
 
 	assert( "nikita-1449", object != NULL );
 
-	memset( &entry, 0, sizeof entry );
-	memset( &goodby_dots, 0, sizeof goodby_dots );
+	xmemset( &entry, 0, sizeof entry );
+	xmemset( &goodby_dots, 0, sizeof goodby_dots );
 
 	entry.obj = goodby_dots.d_inode = object;
 	goodby_dots.d_name.name = ".";
@@ -121,8 +121,8 @@ static int create_dot_dotdot( struct inode *object, struct inode *parent )
 	 *
 	 */
 
-	memset( &entry, 0, sizeof entry );
-	memset( &dots_entry, 0, sizeof dots_entry );
+	xmemset( &entry, 0, sizeof entry );
+	xmemset( &dots_entry, 0, sizeof dots_entry );
 	entry.obj = dots_entry.d_inode = object;
 	dots_entry.d_name.name = ".";
 	dots_entry.d_name.len = 1;

@@ -222,7 +222,7 @@ int reiser4_init_tree( reiser4_tree *tree /* pointer to structure being
 	assert( "nikita-309", nplug != NULL );
 	assert( "nikita-1099", read_node != NULL );
 
-	memset( tree, 0, sizeof *tree );
+	xmemset( tree, 0, sizeof *tree );
 	tree -> root_block = *root_block;
 	tree -> height = height;
 	tree -> nplug = nplug;

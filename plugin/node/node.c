@@ -43,7 +43,7 @@
      is shifting to, it will invoke an item handler method to handle
      the item merging.
 
-   * if it needs to move whole item bodies unchanged, the balancing code uses memcpy()
+   * if it needs to move whole item bodies unchanged, the balancing code uses xmemcpy()
      adjusting the item headers after the move is done using the node handler.
 */
 

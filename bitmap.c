@@ -128,7 +128,7 @@ static int load_bnode (struct reiser4_bnode * bnode)
 		if (ret == 0) {
 			/* commit bitmap is initialized by on-disk bitmap
 			 * content (working bitmap in this context) */
-			memcpy(bnode->commit->data,
+			xmemcpy(bnode->commit->data,
 			       bnode->working->data,
 			       super->s_blocksize);
 		}
@@ -423,7 +423,7 @@ int reiser4_init_bitmap ()
 		return -ENOMEM;
 
 	/* at fs mount time, no one bitmap block is loaded into memory */
-	memset(info->bitmap, sizeof(struct reiser4_bnode) * bitmap_blocks_nr);
+	xmemset(info->bitmap, sizeof(struct reiser4_bnode) * bitmap_blocks_nr);
 
 	return 0;
 }

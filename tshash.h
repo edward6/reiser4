@@ -97,7 +97,7 @@ PREFIX##_hash_init (PREFIX##_hash_table *hash,                                  
     {                                                                                         \
       return -ENOMEM;                                                                         \
     }                                                                                         \
-  memset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);                                    \
+  xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);                                    \
   return 0;                                                                                   \
 }                                                                                             \
                                                                                               \

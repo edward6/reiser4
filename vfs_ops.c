@@ -187,7 +187,7 @@ static struct dentry *lookup_object( struct inode *parent,
 		return ERR_PTR( -ENAMETOOLONG );
 	}
 
-	memset( &entry, 0, sizeof entry );
+	xmemset( &entry, 0, sizeof entry );
 
 	switch( dplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {
 	default: wrong_return_value( "nikita-407", "->lookup()" );
@@ -713,7 +713,7 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry )
 					      GFP_KERNEL );
 		if( dentry -> d_fsdata == NULL )
 			return ERR_PTR( -ENOMEM );
-		memset( dentry -> d_fsdata, 0, sizeof( reiser4_dentry_fsdata ) );
+		xmemset( dentry -> d_fsdata, 0, sizeof( reiser4_dentry_fsdata ) );
 	}
 	return dentry -> d_fsdata;
 }
@@ -744,7 +744,7 @@ reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f )
 					     GFP_KERNEL );
 		if( f -> private_data == NULL )
 			return ERR_PTR( -ENOMEM );
-		memset( f -> private_data, 0, sizeof( reiser4_file_fsdata ) );
+		xmemset( f -> private_data, 0, sizeof( reiser4_file_fsdata ) );
 	}
 	return f -> private_data;
 }

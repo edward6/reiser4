@@ -72,13 +72,13 @@ void reiser4_init_pool( reiser4_pool *pool,
 	assert( "nikita-956", num_of_objs >= 0 );
 	assert( "nikita-957", data != NULL );
 
-	memset( pool, 0, sizeof *pool );
+	xmemset( pool, 0, sizeof *pool );
 	pool -> obj_size = obj_size;
 	pool -> data = data;
 	pool_usage_list_init( &pool -> free );
 	pool_usage_list_init( &pool -> used );
 	pool_extra_list_init( &pool -> extra );
-	memset( data, 0, obj_size * num_of_objs );
+	xmemset( data, 0, obj_size * num_of_objs );
 	for( i = 0 ; i < num_of_objs ; ++ i ) {
 		h = ( reiser4_pool_header * ) ( data + i * obj_size );
 		reiser4_init_pool_obj( h );
@@ -135,7 +135,7 @@ void *reiser4_pool_alloc( reiser4_pool *pool )
 	++ pool -> objs;
 	pool_level_list_clean( result );
 	pool_usage_list_push_front( &pool -> used, result );
-	memset( result + 1, 0, pool -> obj_size - sizeof *result );
+	xmemset( result + 1, 0, pool -> obj_size - sizeof *result );
 	return result;
 }
 
