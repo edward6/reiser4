@@ -193,7 +193,8 @@ struct commit_handle {
 	/* current super block */
 	struct super_block *super;
 
-	/* */
+	/* Count of modified bitmaps */
+	reiser4_block_nr nr_bitmap;
 };
 
 static void
@@ -570,6 +571,9 @@ get_overwrite_set(struct commit_handle *ch)
 		if (JF_ISSET(cur, JNODE_OVRWR)) {
 			capture_list_remove_clean(cur);
 
+			if (jnode_get_type(cur) == JNODE_BITMAP)
+				ch->nr_bitmap++;
+			    
 			if (jnode_is_znode(cur)
 			    && znode_above_root(JZNODE(cur))) {
 				/* we replace fake znode by another (real)
@@ -1016,9 +1020,14 @@ reiser4_write_logs(void)
 		goto up_and_ret;
 	}
 
+	/* Grab space for modified bitmaps from 100% of disk space. */
+	if (reiser4_grab_space_exact(ch.nr_bitmap, 1))
+		rpanic("vpf-341", "No space left from reserved area.");
+	
+	grabbed2flush_reserved(ch.nr_bitmap);
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
-
+	
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
