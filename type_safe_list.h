@@ -403,7 +403,7 @@ PREFIX##_list_check (const PREFIX##_list_head  *head)                           
 		PREFIX##_list_link_ok (link);                                                 \
 }                                                                                             \
                                                                                               \
-typedef struct { int foo; } PREFIX##_hash_dummy_decl
+typedef struct { int foo; } PREFIX##_list_dummy_decl
 
 /* The final typedef is to allow a semicolon at the end of
  * TYPE_SAFE_LIST_DEFINE(); */
