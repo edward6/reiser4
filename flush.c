@@ -2103,11 +2103,12 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			best_reloc:
-				jnode_set_reloc (ZJNODE (node));
 				pos->preceder.max_dist = 0;
 				if ((ret = flush_allocate_znode_update (node, parent_coord, pos))) {
 					return ret;
 				}
+				/* set JNODE_RELOC bit _after_ node gets allocated */
+				jnode_set_reloc (ZJNODE (node));
 			}
 		}
 	}
