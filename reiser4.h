@@ -234,6 +234,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/security/perm.h"
 #include "tshash.h"
 #include "tslist.h"
+#include "lnode.h"
 #include "plugin/plugin.h"
 #include "txnmgr.h"
 #include "znode.h"
