@@ -49,15 +49,17 @@ extern int write_trace_stamp ( reiser4_tree *tree,
 
 typedef struct {} reiser4_trace_file;
 
-#define open_trace_file( super, file_name, size, trace ) noop
-#define write_trace( file, format, ... ) noop
-#define write_trace_raw( file, data, len ) noop
-#define hold_trace( file, flag ) noop
-#define disable_trace( file, flag ) noop
+#define open_trace_file( super, file_name, size, trace ) (0)
+#define write_trace( file, format, ... ) (0)
+#define write_trace_raw( file, data, len ) (0)
+#define hold_trace( file, flag ) (0)
+#define disable_trace( file, flag ) (0)
 #define close_trace_file( file ) noop
-#define write_trace_stamp( tree, op, key ) noop
+#define write_trace_stamp( tree, op, key ) (0)
 
 #endif
+
+#define WRITE_TRACE( ... ) ( ( void ) write_trace_stamp( __VA_ARGS__ ) )
 
 /* __REISER4_TRACE_H__ */
 #endif
