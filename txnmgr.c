@@ -710,6 +710,7 @@ atom_dec_and_unlock(txn_atom * atom)
 
 	assert("umka-186", atom != NULL);
 	assert("jmacd-1071", spin_atom_is_locked(atom));
+	assert("zam-1039", atomic_read(&atom->refcount) > 0);
 
 	if (atomic_dec_and_test(&atom->refcount)) {
 		/* take txnmgr lock and atom lock in proper order. */
