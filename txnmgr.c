@@ -2561,6 +2561,35 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 	atom->capture_count ++;
 }
 
+/**
+ * return 1 if two dirty jnodes belong to one atom, 0 - otherwise
+ */
+int txn_jnodes_of_one_atom (jnode * j1, jnode * j2)
+{
+	int ret;
+	int finish = 0;
+
+	assert ("zam-9003", j1 != j2);
+	assert ("zam-9004", jnode_check_dirty (j1));
+	assert ("zam-9005", jnode_check_dirty (j2));
+
+	do {
+		spin_lock_jnode (j1);
+		assert ("zam-9001", j1->atom != NULL);
+		if (spin_trylock_jnode (j2)) {
+			assert ("zam-9002", j2->atom != NULL);
+			ret = (j2->atom == j1->atom);
+			finish = 1;
+
+			spin_unlock_jnode (j2);
+		}
+		spin_unlock_jnode (j1);
+	} while (!finish);
+
+	return ret;
+}
+
+
 /*****************************************************************************************
 					DEBUG HELP
 *****************************************************************************************/
