@@ -2850,12 +2850,28 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 		znode_set_dirty(coord->node);
 		return 0;
 	} else if (pos_in_unit == 0) {
+		if (coord->unit_pos) {
+			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
+				extent_set_width(ext - 1, extent_get_width(ext - 1) + 1);
+				extent_set_width(ext, width - 1);
+				znode_set_dirty(coord->node);
+				return 0;
+			}
+		}
 		/* extent for replace */
 		set_extent(&replace, UNALLOCATED_EXTENT, 0, 1);
 		/* extent to be inserted */
 		set_extent(&new_exts[0], HOLE_EXTENT, 0, width - 1);
 		count = 1;
 	} else if (pos_in_unit == width - 1) {
+		if (coord->unit_pos < extent_nr_units(coord) - 1) {
+			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
+				extent_set_width(ext + 1, extent_get_width(ext + 1) + 1);
+				extent_set_width(ext, width - 1);
+				znode_set_dirty(coord->node);
+				return 0;
+			}
+		}
 		/* extent for replace */
 		set_extent(&replace, HOLE_EXTENT, 0, width - 1);
 		/* extent to be inserted */
