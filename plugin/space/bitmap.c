@@ -1015,8 +1015,8 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 	LOCK_JNODE(node);
 
 	if (node->atom == NULL) {
-		jnode_set_wander(node);
-		insert_into_atom_clean_list(atom, node);
+		JF_SET(node, JNODE_OVRWR);
+		insert_into_atom_ovrwr_list(atom, node);
 	} else {
 		assert("zam-549", node->atom == atom);
 	}
