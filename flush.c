@@ -530,7 +530,6 @@ static const char *flags_tostring(int flags);
 #define flags_tostring(f) ""
 #endif
 
-static flush_params *get_flush_params(void);
 
 #if REISER4_DEBUG
 static void
@@ -842,7 +841,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
 	*/
-	if ((ret = scan_left(&left_scan, &right_scan, node, get_flush_params()->scan_maxnodes))) {
+	if ((ret = scan_left(&left_scan, &right_scan, node, scan_maxnodes))) {
 		goto failed;
 	}
 
@@ -854,7 +853,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	reiser4_stat_add(flush.left, left_scan.count);
 
 	/* ZAM-FIXME-HANS: reduce the layers of wrappings, eliminate get_params function please */
-	todo = get_flush_params()->relocate_threshold - left_scan.count;
+	todo = relocate_threshold - left_scan.count;
 	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
@@ -871,7 +870,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= get_flush_params()->relocate_threshold);
+	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= ()->relocate_threshold);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node)); */
 
@@ -1052,7 +1051,7 @@ reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_bl
 
 	/* If the block is less than FLUSH_RELOCATE_DISTANCE blocks away from its preceder
 	   block, do not relocate. */
-	if (dist <= get_flush_params()->relocate_distance) {
+	if (dist <= ()->relocate_distance) {
 		return 0;
 	}
 
@@ -2236,7 +2235,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
 
 			/* See if we can find a closer block (forward direction only). */
-			pos->preceder.max_dist = min((reiser4_block_nr) get_flush_params()->relocate_distance, dist);
+			pos->preceder.max_dist = min((reiser4_block_nr) ()->relocate_distance, dist);
 			pos->preceder.level = znode_get_level(node);
 
 			if ((ret = allocate_znode_update(node, parent_coord, pos))
@@ -2247,7 +2246,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			if (ret == 0) {
 				/* Got a better allocation. */
 				jnode_set_reloc(ZJNODE(node));
-			} else if (dist < get_flush_params()->relocate_distance) {
+			} else if (dist < ()->relocate_distance) {
 				/* The present allocation is good enough. */
 				jnode_set_wander(ZJNODE(node));
 			} else {
@@ -3322,12 +3321,6 @@ int
 pos_leaf_relocate(flush_pos_t * pos)
 {
 	return pos->leaf_relocate;
-}
-
-static flush_params *
-get_flush_params(void)
-{
-	return &get_current_super_private()->flush;
 }
 
 #if REISER4_TRACE
