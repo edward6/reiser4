@@ -486,7 +486,6 @@ static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
 		pos->child = NULL;
 	}
 
-	done_load_count(&pos->load);
 	move_load_count(&pos->load, new_load);
 	done_lh(&pos->lock);
 	move_lh(&pos->lock, new_lock);
@@ -1447,33 +1446,17 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
 			0);
 }
 
-
-extern unsigned find_extent_slum_size(const coord_t *coord, unsigned pos_in_unit);
-extern int extent_handle_relocate_in_place(flush_pos_t *, unsigned *slum_size);
-extern int extent_handle_overwrite_in_place(flush_pos_t *, unsigned *slum_size);
-extern int extent_handle_relocate_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
-				    reiser4_key *stop_key);
-extern int extent_handle_overwrite_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
-				     reiser4_key *stop_key);
-static int
-should_relocate(unsigned slum_size)
-{
-	if (slum_size < get_current_super_private()->flush.relocate_threshold)
-		return 0;
-	return 1;
-}
-
 /* Copy as much of the leading extents from @right to @left, allocating
    unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
    SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
    internal item it calls shift_one_internal_unit and may then return
    SUBTREE_MOVED. */
+squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *, reiser4_key *stop_key);
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
 	int ret = SUBTREE_MOVED;
 	coord_t coord;		/* used to iterate over items */
 	reiser4_key stop_key;
-	unsigned slum_size;
 
 	assert("jmacd-2008", !node_is_empty(right));
 	coord_init_first_unit(&coord, right);
@@ -1490,7 +1473,23 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
 
-	if (item_is_extent(&coord)) {
+	/* FIXME: can be optimized to cut once */
+	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
+		assert("vs-1468", coord_is_leftmost_unit(&coord));
+		stop_key = *min_key();
+		ret = squalloc_extent(left, &coord, pos, &stop_key);
+		if (ret != SQUEEZE_CONTINUE)
+			break;
+		assert("vs-1465", !keyeq(&stop_key, min_key()));
+			
+		/* Helper function to do the cutting. */
+		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
+		check_me("vs-1466", squalloc_right_twig_cut(&coord, &stop_key, left) == 0);		
+	}
+	if (node_is_empty(coord.node))
+		ret = SQUEEZE_SOURCE_EMPTY;
+
+#if 0
 		slum_size = find_extent_slum_size(&coord, 0);
 		if (slum_size == 0)
 			ret = SQUEEZE_TARGET_FULL;
@@ -1530,6 +1529,8 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
 		}
 	}
+#endif
+
 
 	ENABLE_NODE_CHECK;
 	node_check(left, REISER4_NODE_DKEYS);
@@ -1992,6 +1993,7 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 		assert("vs-1383", jnode_is_unformatted(pos->child));
 		prepped = jnode_check_flushprepped(pos->child);
 		pos->pos_in_unit = jnode_get_index(pos->child) - extent_unit_index(&pos->coord);
+		assert("vs-1470", pos->pos_in_unit < extent_unit_width(&pos->coord));
 		jput(pos->child);
 		pos->child = NULL;
 
@@ -2005,6 +2007,8 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 	return leftmost_child_of_unit_check_flushprepped(&pos->coord);
 }
 
+int alloc_extent(flush_pos_t *flush_pos);
+
 /* Handle the case when regular reiser4 tree (znodes connected one to its
  * neighbors by sibling pointers) is interrupted on leaf level by one or more
  * unformatted nodes.  By having a lock on twig level and use extent code
@@ -2013,13 +2017,6 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 static int handle_pos_on_twig (flush_pos_t * pos)
 {
 	int ret;
-	int slum_size;
-	/*XXXX*/int init_slum_size;
-	/*XXXX*/coord_t init_coord;
-	/*XXXX*/int init_pos_in_unit;
-	/*XXXX*/reiser4_block_nr init_start;
-	/*XXXX*/reiser4_block_nr init_width;
-	/*XXXX*/reiser4_extent old[20];
 
 	assert ("zam-844", pos->state == POS_ON_EPOINT);
 	assert ("zam-843", item_is_extent(&pos->coord));
@@ -2037,6 +2034,15 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		return ret;
 	}
 
+	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord) && item_is_extent(&pos->coord)) {
+		ret = alloc_extent(pos);
+		if (ret) {
+			break;
+		}
+		coord_next_unit(&pos->coord);
+	}
+
+#if 0
 	slum_size = find_extent_slum_size(&pos->coord, pos->pos_in_unit);
 	if (!should_relocate(slum_size)) {
 		/* "slum" is not enough big to relocate */
@@ -2083,6 +2089,8 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		if (ret)
 			return ret;
 	}
+#endif
+
 	if (coord_is_after_rightmost(&pos->coord)) {
 		pos->state = POS_END_OF_TWIG;
 		return 0;
@@ -2604,6 +2612,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 				jnode_make_reloc(ZJNODE(node), pos->fq);
 			} else if (dist < sbinfo->flush.relocate_distance) {
 				/* The present allocation is good enough. */
+				printk("atom's flushreserved counter is broken?\n");
 				jnode_make_wander(ZJNODE(node));
 			} else {
 				/* Otherwise, try to relocate to the best position. */
