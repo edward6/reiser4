@@ -452,7 +452,7 @@ extern int flush_current_atom (int, long *, txn_atom **);
 
 extern int flush_some_atom(long *, struct writeback_control *, int);
 
-#if defined (REISER4_USE_RAPID_FLUSH)
+#if REISER4_USE_RAPID_FLUSH
 extern void set_rapid_flush_mode(int);
 #else
 #define set_rapid_flush_mode(on) do{}while(0)

@@ -34,6 +34,8 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_SUPPORT_GID_SPACE_RESERVATION (0)
 /* we are supporting reservation of disk space for root */
 #define REISER4_SUPPORT_ROOT_SPACE_RESERVATION (0)
+/* we use rapid flush mode, see flush.c for comments.  */
+#define REISER4_USE_RAPID_FLUSH (1)
 
 /* key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)

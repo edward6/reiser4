@@ -898,7 +898,7 @@ failed:
  * flush queues for long time.  The reason for rapid flush mode is to free
  * memory as fast as possible. */
 
-#if defined(REISER4_USE_RAPID_FLUSH)
+#if REISER4_USE_RAPID_FLUSH
 
 /* A system-wide rapid_flush_mode flag. */
 static atomic_t rapid_flush_mode_flg = ATOMIC_INIT(0);
