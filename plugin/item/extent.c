@@ -2307,7 +2307,7 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 		return result;
 	loaded = coord->node;
 	
-	todo = how_to_write(coord, lh, &tmp_key);
+	todo = how_to_write(coord, &tmp_key);
 	/*
 	 * FIXME: comparing unsigned and 0
 	 */
@@ -2505,7 +2505,7 @@ reserve_extent_write_iteration(struct inode *inode, tree_level height)
 {										\
 	PROF_BEGIN(copy);							\
 	/* FIXME: warning: pointer of type `void *' used in arithmetic */	\
-	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);	\
+	result = __copy_from_user((char *)kmap(page) + page_off, f->data, to_page);	\
 	kunmap(page);								\
 	PROF_END(copy, copy);							\
 }
@@ -2718,6 +2718,13 @@ filler(void *vp, struct page *page)
 	return result;
 }
 
+#define COPY_TO_USER \
+{\
+	PROF_BEGIN(copy_to_user);\
+	result = __copy_to_user(f->data, kaddr + page_off, count);\
+	PROF_END(copy_to_user, copy_to_user);\
+}
+
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 int
 extent_read(struct file *file, coord_t *coord, flow_t * f)
@@ -2800,8 +2807,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 
 	/* read_cache_page() already marked page as accessed. No need to call
 	 * mark_page_accessed() */
-
-	result = __copy_to_user(f->data, kaddr + page_off, count);
+	COPY_TO_USER;
 	kunmap(page);
 
 	page_cache_release(page);
