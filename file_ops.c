@@ -416,11 +416,10 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 			goto fail;
 		}
 
-		/* FIXME-UMKA: here I count, that page is not locked, because it is
-		   up-to-date. */
 		if (PageUptodate(page))
+			/* process locked, up-to-date  page by read actor */
 			goto actor;
-		
+
 		if (fplug->readpage != NULL)
 			result = fplug->readpage(file, page);
 		else
@@ -441,19 +440,17 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 				page_cache_release(page);
 				break;
 			}
-
-			unlock_page(page);
 		}
 
 	actor:
-		/* FIXME-UMKA: here page is unlocked. Is it correct to pass unlocked
-		   page to actor()? */
 		ret = actor(&desc, page, offset, nr);
-		
+
+		page_cache_release(page);
+		unlock_page(page);
+
 		offset += ret;
 		index += offset >> PAGE_CACHE_SHIFT;
 		offset &= ~PAGE_CACHE_MASK;
-		page_cache_release(page);
 
 		if (ret != nr || desc.count == 0)
 			break;
