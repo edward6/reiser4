@@ -245,8 +245,6 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
 
 	sbinfo->fsuid = 0;
-	/* FIXME-VS: this is should be taken from mount data? */
-	sbinfo->trace_flags = 0;
 	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
 							 * are not supported */
 	sbinfo->fs_flags |= (1 << REISER4_ONE_NODE_PLUGIN);	/* all nodes in
