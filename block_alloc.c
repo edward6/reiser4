@@ -159,6 +159,12 @@ sub_from_ctx_grabbed(reiser4_context *ctx, __u64 count)
 static void
 add_to_ctx_grabbed(reiser4_context *ctx, __u64 count)
 {
+#ifdef CONFIG_FRAME_POINTER
+	ctx->grabbed_at[0] = __builtin_return_address(0);
+	ctx->grabbed_at[1] = __builtin_return_address(1);
+	ctx->grabbed_at[2] = __builtin_return_address(2);
+	ctx->grabbed_at[3] = __builtin_return_address(3);
+#endif
 	ctx->grabbed_blocks += count;
 }
 
