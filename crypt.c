@@ -1,13 +1,5 @@
-/* This code encrypts crypto items before flushing them to disk (as
-   opposed to encrypting them after each write, which is more
-   performance expensive).
-
-Unresolved issues:
-
-  how do we flag an item as being a crypto item?  Or do we make crypto items distinct item types?
-EDWARD-FIXME-HANS: distinct item types sounds good to me.
-
-*/
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Crypto-plugins for reiser4 cryptcompress objects */
 
 #include "debug.h"
 #include "plugin/plugin.h"
@@ -18,27 +10,25 @@ EDWARD-FIXME-HANS: distinct item types sounds good to me.
 #define NONE_BLOCKSIZE 8
 
 /* default align() method of the crypto-plugin
-   creates the following aligning armored format of the cluster:
+   1) creates the following aligning armored format of the input flow before encryption :
 
-   [ cluster | tail ]
-               ^
-               |
-            @tail
-   returns length of tail
-
-EDWARD-FIXME-HANS: let us not have more than one meaning for a word in our filesystem (tail)
+   [ flow | aligninig_padding ]
+            ^   
+            |
+	  @pad
+  2) returns length of appended padding
 */
-static int align_cluster_common(__u8 *tail, int clust_size, int blocksize)
+static int align_cluster_common(__u8 *pad, int clust_size, int blocksize)
 {
-	int tail_size;
+	int pad_size;
 	
-	assert("edward-01", tail != NULL);
+	assert("edward-01", pad != NULL);
 	assert("edward-02", clust_size != 0);
 	assert("edward-03", blocksize != 0 || blocksize <= MAX_CRYPTO_BLOCKSIZE);
 	
-	tail_size = blocksize - (clust_size % blocksize);
-	get_random_bytes (tail, tail_size);
-	return tail_size;
+	pad_size = blocksize - (clust_size % blocksize);
+	get_random_bytes (pad, pad_size);
+	return pad_size;
 }
 
 /* use this only for symmetric algorithms 
@@ -78,7 +68,9 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
 			.id = NONE_CRYPTO_ID,
 			.pops = NULL,
-/* EDWARD-FIXME-HANS: I don't understand the label and desc chosen, explain it. */
+			/* this is a special crypto algorithm which
+			   doesn't change data, this is useful for
+			   debuging purposes and various benchmarks */
 			.label = "none",
 			.desc = "Id rearrangement",
 			.linkage = TS_LIST_LINK_ZERO
