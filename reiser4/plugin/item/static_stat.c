@@ -10,6 +10,10 @@
 
 /* see static_stat.h for explanation */
 
+/**
+ * ->print() method of static sd item. Prints human readable information about
+ * sd at @coord
+ */
 void sd_print( const char *prefix, tree_coord *coord )
 {
 	reiser4_stat_data_base *sd_base;
@@ -28,6 +32,10 @@ void sd_print( const char *prefix, tree_coord *coord )
 		      d16tocpu( &sd_base -> extmask ),
 		      ( unsigned long ) d32tocpu( &sd_base -> nlink ), 
 		      ( unsigned long ) d64tocpu( &sd_base -> size ) );
+		/*
+		 * FIXME-NIKITA should call ->print() sub-methods for all sd
+		 * extensions.
+		 */
 	}
 }
 
