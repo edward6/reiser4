@@ -936,13 +936,22 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 
 	assert( "vs-361", h -> level > h -> slevel );
 
-	iplug = item_plugin_by_coord( h -> coord );
-	if( !item_is_internal( h -> coord ) ) {
+	/*
+	 * FIXME-VS: work around twig thing: h->coord can be set such that
+	 * item_plugin can not be taken (h->coord->between == AFTER_ITEM)
+	 */
+	if( !coord_is_existing_item( h -> coord ) || !item_is_internal( h -> coord ) ) {
 		/* strange item type found on non-stop level?!  Twig
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );
 		assert( "vs-357",
-			item_id_by_coord( h -> coord )== EXTENT_POINTER_ID );
+			({
+				coord_t coord;
+
+				coord_dup( &coord, h -> coord );
+				check_me( "vs-733", coord_set_to_left( &coord ) == 0);
+				item_id_by_coord( &coord )== EXTENT_POINTER_ID;
+			 }));
 
 		if( result == NS_FOUND ) {
 			/*
@@ -1008,6 +1017,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			h -> flags &= ~CBK_TRUST_DK;
 		}
 		assert( "vs-362", item_is_internal( h -> coord ) );
+		iplug = item_plugin_by_coord( h -> coord );
+	} else {
 		iplug = item_plugin_by_coord( h -> coord );
 	}
 
