@@ -498,6 +498,7 @@ static int formatted_vm_writeback( struct page *page, int *nr_to_write )
 /**
  * Common memory pressure notification.
  */
+/* nikita-fixme-hans: comment all functions and their parameters */
 int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags )
 {
 	int result;
