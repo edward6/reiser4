@@ -2400,6 +2400,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					  ( ulong ) atoi( argv[ 3 ] ), '-' );
 		}
 		call_readdir( f, "unlink-end" );
+		iput( f );
 	} else if( !strcmp( argv[ 2 ], "dir" ) || 
 		   !strcmp( argv[ 2 ], "rm" ) ||
 		   !strcmp( argv[ 2 ], "mongo" ) ) {
@@ -2448,6 +2449,52 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		call_readdir( f, argv[ 2 ] );
 		// print_tree_rec( "tree-dir", tree, REISER4_TREE_CHECK_ALL );
+		iput( f );
+	} else if( !strcmp( argv[ 2 ], "bobber" ) ) {
+		struct inode *f;
+		struct inode *bobber;
+		struct inode *detritus;
+		struct inode *site;
+		char          buf[ 300 ];
+		int           iterations;
+		int           size;
+
+		f = sandbox( get_root_dir( tree -> super ) );
+		check_me( "nikita-2384", call_mkdir( f, "site" ) == 0 );
+		check_me( "nikita-2379", call_mkdir( f, "bobber" ) == 0 );
+		bobber = call_lookup( f, "bobber" );
+		check_me( "nikita-2380", !IS_ERR( bobber ) );
+		check_me( "nikita-2381", call_create( bobber, "detritus" ) == 0 );
+		detritus = call_lookup( bobber, "detritus" );
+		check_me( "nikita-2382", !IS_ERR( detritus ) );
+		check_me( "nikita-2383", 
+			  call_write( detritus, 
+				      buf, (loff_t)0, sizeof buf ) == sizeof buf );
+
+		iput( detritus );
+		iput( bobber );
+
+		site = call_lookup( f, "site" );
+		check_me( "nikita-2385", !IS_ERR( site ) );
+
+		iterations = atoi( argv[ 3 ] );
+		size       = atoi( argv[ 4 ] );
+
+		for( i = 0 ; i < iterations ; ++ i ) {
+			struct inode *stuff;
+
+			sprintf( buf, "stuff-%i", i );
+			check_me( "nikita-2386", call_create( site, buf ) == 0 );
+			stuff = call_lookup( site, buf );
+			check_me( "nikita-2387", !IS_ERR( stuff ) );
+			check_me( "nikita-2388", 
+				  call_write( stuff, buf, (loff_t)0, size ) == size );
+			iput( stuff );
+			print_percentage( ( ulong ) i, 
+					  ( ulong ) iterations, '+' );
+		}
+		iput( site );
+		iput( f );
 	} else if( !strcmp( argv[ 2 ], "queue" ) ) {
 		/*
 		 * a.out nikita queue T C O | egrep '^queue' | cut -f2 -d' '
