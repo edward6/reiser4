@@ -228,6 +228,7 @@ int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_page_cluster(struct inode * inode, cloff_t start);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
+void invalidate_hint_cluster(reiser4_cluster_t * clust);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, znode_lock_mode lock_mode);
 void reset_cluster_params(reiser4_cluster_t * clust);
 int prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture);
