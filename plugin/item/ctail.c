@@ -594,30 +594,74 @@ readpages_ctail(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct
 #endif
 } 
 
-/* Read pages which are not completely overwritten.
+/* Insert hole at the end of cluster, then skip hole clusters as much as possible.
+   Advance start position */
+static void
+append_hole(struct inode * inode,
+	    loff_t * from,            /* start hole position */
+	    loff_t to)                /* end hole position */
+
+{
+	unsigned to_clust;
+	
+	assert("edward-174", *from == inode->i_size);
+	assert("edward-175", *from < to);
+	
+	printk("edward-176, Warning: Hole of size %llu in cryptcompressed file "
+	       "(inode %llu, offset %llu) \n", to - *from, inode->i_ino, *from);
+
+	to_clust = (unsigned)(*from & (inode_cluster_size(inode) - 1));
+	
+	while ((*from >> inode_cluster_shift(inode)) < (to >> inode_cluster_shift(inode))) {
+		/* FIXME-EDWARD: Not finished */
+		*from -= to_clust;
+		to_clust = inode_cluster_size(inode);
+	}
+}
+
+/* Read pages which will be not completely overwritten.
    All cluster pages must be locked */
 __attribute__((unused)) static int
 prepare_cluster(struct inode *inode, struct page **pages,
-		int nr_pages,    /* number of pages */
+		int nr_pages,    /* number of pages to prepare */
 		unsigned from,   /* write position in cluster */
 		unsigned count   /* bytes to write */)
 {
 	char *data;
-	int result;
+	int result = 0;
+	unsigned long file_off;
 	
+	assert ("edward-177", inode != NULL);
+	assert ("edward-178", pages != NULL);
+	assert ("edward-179", 0 < nr_pages && nr_pages <= (1 << inode_cluster_shift(inode)));
 	assert ("edward-170", from < inode_cluster_size(inode));
 	assert ("edward-171", 1 <= count && count <= inode_cluster_size(inode));
+
+	file_off = (pages[0]->index << PAGE_CACHE_SHIFT) + from;
 	
-	result = 0;
-	
+	if (file_off > inode->i_size) {
+		/* insert the rest of hole at the beginning of cluster */
+		int i = 0;
+		size_t nr_zeroes;
+		unsigned off = (unsigned)(inode->i_size & (PAGE_CACHE_SIZE - 1));
+		unsigned long write_pos = inode->i_size;
+		
+		while (file_off > write_pos) {
+			nr_zeroes = file_off - inode->i_size;
+			if (nr_zeroes > PAGE_CACHE_SIZE)
+				nr_zeroes = PAGE_CACHE_SIZE;
+			data = kmap_atomic(pages[i], KM_USER0);
+			memset(data + off, 0, nr_zeroes);
+			kunmap_atomic(data, KM_USER0);
+			off = 0;
+			write_pos += nr_zeroes;
+			i++;
+		}
+	}
 	if (from == 0 && from + count >= inode->i_size) {
 		/* Current end of file is in this cluster. Write areas covers it
-		   all. No need to read cluster */
-
-		/* FIXME-EDWARD: Hold the case of new pages (fill areas around write
-		   ones by crypto-plugin special data */
-		
-		/* offset in last page after write */
+		   all. No need to read cluster. Align last page starting from
+		   this offset: */
 		unsigned off = (unsigned)((from + count) & (PAGE_CACHE_SIZE - 1));
 		if (off) {
 			crypto_plugin * cplug = inode_crypto_plugin(inode);
@@ -628,7 +672,7 @@ prepare_cluster(struct inode *inode, struct page **pages,
 		}
 	}
 	else {
-		/* read pages if it is necessary */
+		/* read if it is necessary */
 		int i;
 		reiser4_cluster_t clust;
 		reiser4_cluster_init(&clust);
@@ -687,9 +731,15 @@ write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
 	
 	/* write position in file */
 	file_off = get_key_offset(&f->key);
+	
+	if (file_off > inode->i_size) {
+		/* Uhmm, hole in crypto file */
+		file_off = inode->i_size;
+		append_hole(inode, &file_off, get_key_offset(&f->key));
+	}
 	/* write position in cluster */
 	clust_off = (unsigned) (file_off & (inode_cluster_size(inode) - 1));
-	
+
 	do {
 		int nr_pages;
 		unsigned page_off, to_page;
