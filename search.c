@@ -434,14 +434,9 @@ restart:
 	h->result = CBK_COORD_FOUND;
 
 	{
-/* I question whether fake znodes are a useful complication in the name of simplicity. -Hans */
-/* obtain fake znode */
 		znode *fake;
 
 		assert("zam-355", lock_stack_isclean(get_current_lock_stack()));
-/* ewww, ugly, why not just follow the super block pointer to the root
-   of the tree. Or even better, have some nice little
-   get_tree_root_node macro.  -Hans */
 		fake = zget(h->tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
 
 		if (IS_ERR(fake))
@@ -465,10 +460,9 @@ restart:
 	h->error = NULL;
 
 	/* loop descending a tree */
-	for (; !done; ++iterations) {
+	while (!done) {
 
 		if (unlikely((iterations > REISER4_CBK_ITERATIONS_LIMIT) &&
-			     /* is power of 2, which means that we print the message with decaying frequency */
 			     IS_POW(iterations))) {
 			warning("nikita-1481", "Too many iterations: %i", iterations);
 			print_key("key", h->key);
