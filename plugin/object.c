@@ -383,9 +383,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		if( 0 != data.length ) {
 			data.data = NULL;
 			data.user = 0;
-			result = resize_item( &coord, &data, &key,
-					      0/*FIXME-NIKITA lh?*/, 
-					      0/*flags*/ );
+			result = resize_item( &coord, &data, &key, &lh, 0 );
 			switch( result ) {
 			case RESIZE_OOM:
 				error_message = "out of memory while resizing sd of";
