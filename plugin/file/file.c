@@ -1544,20 +1544,6 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	uf_info = unix_file_inode_data(inode);
 	get_nonexclusive_access(uf_info);
 
-#if 0
-	/* FIXME: reading partially coverted files should work. Remove this if after making sure that it works */
-	if (inode_get_flag(inode, REISER4_PART_CONV) && !IS_RDONLY(inode)) {
-		get_exclusive_access(uf_info);
-		result = finish_conversion(inode);
-		if (result != 0) {
-			drop_access(uf_info);
-			return result;
-		}
-		drop_exclusive_access(uf_info);
-	}
-	get_nonexclusive_access(uf_info);
-#endif
-
 	/* we have nonexclusive access (NA) obtained. File's container may not change until we drop NA. If possible -
 	   calculate read function beforehand */
  	switch(uf_info->container) {
@@ -1874,7 +1860,13 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 			return result;
 		}
 
-		assert("vs-1648", (uf_info->container == UF_CONTAINER_TAILS || 
+		result = find_file_state(uf_info);
+		if (result != 0) {
+			drop_exclusive_access(uf_info);
+			return result;
+		}
+
+		assert("vs-1648", (uf_info->container == UF_CONTAINER_TAILS ||
 				   uf_info->container == UF_CONTAINER_EXTENTS));
 		if (uf_info->container == UF_CONTAINER_TAILS) {			
 			/* invalidate all pages and convert file from tails to extents */
