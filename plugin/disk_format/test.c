@@ -189,7 +189,7 @@ static void print_test_disk_sb (const char * mes,
 
 
 /* plugin->u.format.print_info */
-void test_format_print_info (const struct super_block * s)
+void test_format_print_info (const struct super_block * s UNUSED_ARG)
 {
 	/* there is nothing to print */
 }

@@ -430,7 +430,7 @@ typedef enum {
 static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 				       reiser4_key * key)
 {
-	reiser4_key item_key;
+	ON_DEBUG (reiser4_key item_key);
 
 
 	assert ("vs-860", znode_is_loaded (coord->node));
@@ -442,7 +442,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 			 * we are in leaf node. Its left neighbor is unformatted node.
 			 */
 			assert ("vs-684", UNDER_SPIN 
-				(tree, current_tree,
+				(tree, tree_by_inode (inode),
 				 znode_is_left_connected (coord->node) && coord->node->left == 0));
 			if (get_key_offset (key) == 0)
 				return TAIL_FIRST_ITEM;

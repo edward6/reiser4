@@ -127,7 +127,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  * Default value of maximal atom size. Can be ovewritten by
  * txnmgr.atom_max_size mount option. By default infinity.
  */
-#define REISER4_ATOM_MAX_SIZE         (~0)
+#define REISER4_ATOM_MAX_SIZE         (( unsigned )(~0))
 
 /**
  * Default value of maximal atom age (in jiffies). After reaching this age

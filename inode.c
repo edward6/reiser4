@@ -200,6 +200,7 @@ int max_hash_collisions( const struct inode *dir /* inode queried */ )
 #if REISER4_USE_COLLISION_LIMIT
 	return reiser4_inode_data( dir ) -> plugin.max_collisions;
 #else
+	( void ) dir;
 	return ~0;
 #endif
 }
