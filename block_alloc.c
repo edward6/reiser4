@@ -10,6 +10,7 @@
 #include "block_alloc.h"
 #include "tree.h"
 #include "super.h"
+#include "lib.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -252,7 +253,7 @@ check_block_counters(const struct super_block *super)
 /* Get the amount of blocks of 5% of disk. */
 reiser4_block_nr reiser4_fs_reserved_space(struct super_block * super) 
 {
-    return reiser4_block_count (super) / 20;
+    return div64_32(reiser4_block_count (super), 20, NULL);
 }
 
 void reiser4_grab_space_enable(void) 
