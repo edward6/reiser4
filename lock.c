@@ -363,7 +363,7 @@ static void wake_up_all_lopri_owners (znode *node)
 		}
 		/*
 		 * Wake up a single process */
-		reiser4_wake_up(handle->owner);
+		__reiser4_wake_up(handle->owner);
 
 		spin_unlock_stack(handle->owner);
 		handle = owners_list_next(handle);
@@ -676,9 +676,7 @@ void longterm_unlock_znode (reiser4_lock_handle *handle)
 		reiser4_lock_stack *requestor;
 
 		requestor = requestors_list_front(&node->lock.requestors);
-		spin_lock_stack(requestor);
 		reiser4_wake_up(requestor);
-		spin_unlock_stack(requestor);
 	}
 
 	spin_unlock_znode(node);
@@ -1048,12 +1046,8 @@ int prepare_to_sleep (reiser4_lock_stack *owner)
 /*
  * Wakes up a single thread
  */
-void reiser4_wake_up (reiser4_lock_stack *owner)
+void __reiser4_wake_up (reiser4_lock_stack *owner)
 {
-	/*
-	 * FIXME-NIKITA this was called without owner spin-locked from
-	 * longterm_unlock_znode() so I added locking there.
-	 */
 	up(&owner->sema);
 }
 
@@ -1062,15 +1056,6 @@ void reiser4_wake_up (reiser4_lock_stack *owner)
  */
 void go_to_sleep (reiser4_lock_stack *owner)
 {
-	/*
-	 * FIXME-NIKITA sema_init() is called on owner->sema under @onwer
-	 * spinlock. We keep this spinlock neither during up() in
-	 * reiser4_wake_up() nor during down() here. I am asking, because I
-	 * observe crashes within reiser4_wake_up()->up() and after looking
-	 * into glibc/linuxthreads code it looks like there is list corruption
-	 * of some kind, probably due to semaphore re-intialization while
-	 * there are waiters. Zam?
-	 */
 	down(&owner->sema);
 }
 
