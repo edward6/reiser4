@@ -69,17 +69,18 @@ static aal_block_t *reiserfs_layout36_super_open(aal_device_t *device) {
 		if ((block = aal_block_read(device, super_offset[i]))) {
 			super = (reiserfs_layout36_super_t *)block->data;
 			if (reiserfs_layout36_any_signature((const char *)super->s_v1.sb_magic)) {
+
 				size_t blocksize = get_sb_block_size(super);
 				if (!aal_device_set_blocksize(device, blocksize)) {
-					aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-						"umka-005", "Invalid blocksize %d. It must power of two.", blocksize);
 					aal_block_free(block);
 					continue;
 				}
+				
 				if (!reiserfs_layout36_super_check(super, device)) {
 					aal_block_free(block);
 					continue;
 				}
+				
 				return block;
 			}
 			aal_block_free(block);
