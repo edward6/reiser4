@@ -9,6 +9,9 @@
 typedef struct flush_scan     flush_scan;
 typedef struct flush_position flush_position;
 
+#define FLUSH_RELOCATE_THRESHOLD 64
+#define FLUSH_RELOCATE_DISTANCE  64
+
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
 struct flush_scan {
@@ -51,14 +54,18 @@ static int           flush_scan_left_formatted    (flush_scan *scan);
 static void          flush_scan_set_current       (flush_scan *scan, jnode *node);
 static int           flush_scan_left              (flush_scan *scan, jnode *node);
 
-static int           flush_check_relocate         (jnode *node, const tree_coord *parent_coord, unsigned long blocks_dirty_at_this_level);
-static int           flush_query_relocate         (jnode *node, const tree_coord *parent_coord, unsigned long blocks_dirty_at_this_level);
+static int           flush_left_relocate          (jnode *node, const tree_coord *parent_coord);
+static int           flush_right_relocate         (jnode *node, const tree_coord *parent_coord);
+
 static int           flush_extents                (flush_position *pos);
 
 static int           flush_lock_leftpoint         (jnode                  *start_node,
 						   lock_handle            *start_lock,
 						   flush_scan_left_config  scan_config,
 						   flush_position         *flush_pos);
+
+static int           flush_find_rightmost           (const tree_coord *parent_coord, reiser4_block_nr *pblk);
+static int           flush_find_preceder            (jnode *node, tree_coord *parent_coord, reiser4_block_nr *pblk);
 
 static int           squalloc_leftpoint             (flush_position *pos);
 static int           squalloc_leftpoint_end_of_twig (flush_position *pos);
@@ -277,7 +284,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	/* This policy should be a plugin.  I am concerned that breaking these
 	 * things into plugins will result in duplicated effort.  Returns 0
 	 * for no-relocate, 1 for relocate, < 0 for error. */
-	if ((ret = flush_check_relocate (end_node, & parent_coord, level_scan.size)) < 0) {
+	if ((ret = flush_left_relocate (end_node, & parent_coord)) < 0) {
 		goto failure;
 	}
 
@@ -288,6 +295,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 		if (! txn_same_atom_dirty (end_node, ZJNODE (parent_node))) {
 			done_lh (& parent_lock);
 
+			/* Note: This is a case where a "read-modify-write" request makes sense. */
 			if ((ret = jnode_lock_parent_coord (end_node, & parent_coord, & parent_lock, ZNODE_WRITE_LOCK))) {
 				goto failure;
 			}
@@ -354,83 +362,130 @@ static int flush_lock_leftpoint (jnode                  *start_node,
  * (RE-) LOCATION POLICIES
  ********************************************************************************/
 
-/* This relocation policy is:
- *
- *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
- *
- * This may become a plugin.
- *
- * There may be several options that dicate to always relocate, such as
- * "let_repacker_optimize" or "read_4_or_5_optimize".
- *
- * The blocks_dirty_at_this_level parameter may also be used (if > 1MB,
- * relocate), but it just a lower bound, since we did not scan to the right.
- *
- * Also want to add this: if the current block == the hint then it is in the
- * optimal position don't relocate.  (The current hint is write-optimized,
- * thus not set correctly for this "optimality" concern, see comment in
- * preceder_hint below).
- */
-static int flush_query_relocate (jnode *node, const tree_coord *parent_coord, unsigned long blocks_dirty_at_this_level UNUSED_ARG)
+/* FIXME: comment */
+static int flush_left_relocate (jnode *node, const tree_coord *parent_coord)
 {
 	int ret;
-	int is_leftmost;
-	item_plugin *iplug;
-	int is_dirty;
-	znode *parent = parent_coord->node;
 	tree_coord coord;
+	reiser4_block_nr pblk = 0;
+	reiser4_block_nr nblk = 0;
 
 	assert ("jmacd-8989", ! jnode_is_root (node));
-
-	dup_coord (& coord, parent_coord);
-
-	/* If coord_prev_unit returns 1, its the leftmost coord of this node,
-	 * otherwise... */
-	if (! (is_leftmost = coord_prev_unit (& coord))) {
-		/* Not leftmost of parent, don't relocate */
-		return 0;
-	}
-
-	/* If at the leaf level... */
-	if (jnode_get_level (node) == LEAF_LEVEL) {
-		/* Leftmost leaf, relocate */
-		return 1;
-	}
-
-	/* Reset coord to the leftmost child of parent, get its plugin. */
-	coord_first_unit (& coord, parent);
-
-	iplug = item_plugin_by_coord (& coord);
-
-	assert ("jmacd-2049", iplug->common.utmost_child_dirty != NULL);
-
-	/* Ask the item: is your left child dirty? */
-	if ((ret = iplug->common.utmost_child_dirty (& coord, LEFT_SIDE, & is_dirty))) {
-		assert ("jmacd-2051", ret < 0);
-		return ret;
-	}
-
-	return is_dirty;
-}
-
-/* Once we decide NOT to relocate a block, its "allocated" status is set.
- */
-static int flush_check_relocate (jnode *node, const tree_coord *parent_coord, unsigned long blocks_dirty_at_this_level)
-{
-	int ret;
-
-	assert ("jmacd-6712", ! jnode_is_allocated (node));
 
 	/* New nodes are treated as if they are being relocated. */
 	if (JF_ISSET (node, ZNODE_ALLOC)) {
 		return 1;
 	}
 
-	/* Query relocate, set WANDER now if relocate says no. */
-	if ((ret = flush_query_relocate (node, parent_coord, blocks_dirty_at_this_level)) == 0) {
-		JF_SET (node, ZNODE_WANDER);
+	/* Find the preceder. */
+	dup_coord (& coord, parent_coord);
+
+	if ((ret = flush_find_preceder (node, & coord, & pblk))) {
+		return ret;
 	}
 
+	/* If (pblk == 0) then the preceder isn't allocated either: relocate. */
+	if (pblk == 0) {
+		return 1;
+	}
+
+	nblk = *jnode_get_block (node);
+
+	assert ("jmacd-7711", ! blocknr_is_fake (& pblk));
+	assert ("jmacd-7711", ! blocknr_is_fake (& nblk));
+
+	/* First rule: If the block is less than 64 blocks away from its preceder block,
+	 * do not relocate. */
+	if (pblk - nblk <= FLUSH_RELOCATE_DISTANCE ||
+	    nblk - pblk <= FLUSH_RELOCATE_DISTANCE) {
+		return 0;
+	}
+
+	return 1;
+}
+
+/* FIXME: comment */
+static int flush_right_relocate (jnode *node UNUSED_ARG, const tree_coord *parent_coord UNUSED_ARG)
+{
+	/* FIXME: NOT IMPLEMENTED */
+	return 0;
+}
+
+/* FIXME: comment */
+static int flush_find_preceder (jnode *node, tree_coord *parent_coord, reiser4_block_nr *pblk)
+{
+	item_plugin *iplug;
+
+	/* If coord_prev_unit returns 1, its the leftmost coord of its parent. */
+	if (coord_prev_unit (parent_coord) == 1) {
+		/* Not leftmost of parent, don't relocate */
+		*pblk = *znode_get_block (parent_coord->node);
+		return 0;
+	}
+
+	/* If at the leaf level, its the rightmost child of the parent_coord... */
+	if (jnode_get_level (node) == LEAF_LEVEL) {
+		/* Get the neighbors block number, if its real. */
+		iplug = item_plugin_by_coord (parent_coord);
+		return iplug->common.utmost_child_real_block (parent_coord, RIGHT_SIDE, pblk);
+	}
+
+	/* Non-leftmost internal node case. */
+	return flush_find_rightmost (parent_coord, pblk);
+}
+
+/* Find the rightmost descendant block number of @node.  Set preceder->blk to
+ * that value.  This can never be called on a leaf node, the leaf case is
+ * handled by flush_preceder_hint. */
+static int flush_find_rightmost (const tree_coord *parent_coord, reiser4_block_nr *pblk)
+{
+	int ret;
+	znode *parent = parent_coord->node;
+	item_plugin *iplug;
+	jnode *child;
+	tree_coord child_coord;
+
+	iplug = item_plugin_by_coord (parent_coord);
+
+	assert ("jmacd-2043", znode_get_level (parent) >= TWIG_LEVEL);
+
+	if (znode_get_level (parent) == TWIG_LEVEL) {
+		/* End recursion, we made it all the way. */
+
+		assert ("jmacd-2042", iplug->common.utmost_child_real_block != NULL);
+
+		/* Get the rightmost block number of this coord, which is the
+		 * child to the left of the starting node.  If the block is a
+		 * unallocated or a hole, the preceder is set to 0. */
+		return iplug->common.utmost_child_real_block (parent_coord, RIGHT_SIDE, pblk);
+	}
+
+	/* Recurse downwards case: ABOVE TWIG LEVEL. */
+	assert ("jmacd-2045", iplug->common.utmost_child != NULL);
+
+	/* Get the child if it is in memory. */
+	if ((ret = iplug->common.utmost_child (parent_coord, RIGHT_SIDE, & child))) {
+		return ret;
+	}
+
+	/* If the child is not in memory, set preceder remains set to zero. */
+	if (child == NULL) {
+		return 0;
+	}
+
+	/* If the child is unallocated, there's no reason to continue, all its
+	 * children must be unallocated. */
+	if (! blocknr_is_fake (jnode_get_block (child))) {
+
+		assert ("jmacd-2061", jnode_is_formatted (child));
+
+		/* The child is in memory, recurse. */
+		coord_last_unit (& child_coord, JZNODE (child));
+
+		ret = flush_find_rightmost (& child_coord, pblk);
+	}
+
+	jput (child);
 	return ret;
 }
 
@@ -728,15 +783,13 @@ static int squalloc_parent_first (flush_position *pos)
 
         /* Stop recursion if its not dirty, meaning don't allocate children either.
          * Children might be dirty but there is an overwrite below this level or else this
-         * node would be dirty. */
-        if (! jnode_is_dirty (pos->point)) {
+         * node would be dirty.  Stop recursion if the node is not yet allocated. */
+        if (! jnode_is_dirty (pos->point) || jnode_is_allocated (pos->point)) {
                 return 0;
         }
 
-	/* If the node is not yet allocated, allocate it now (parent first).  The node may
-	 * have been allocated by an earlier call to flush_check_relocate in
-	 * flush_lock_leftpoint. */
-	if (! jnode_is_allocated (pos->point) && (ret = jnode_allocate_flush (pos))) {
+	/* Allocate it now (parent first). */
+	if ((ret = jnode_allocate_flush (pos))) {
 		return ret;
 	}
 
@@ -880,7 +933,12 @@ static int squalloc_children (flush_position *pos)
 	return 0;
 }
 
-/* FIXME: comment */
+/* This procedure takes care of descending the flush_position->point to @child, releasing
+ * the parent lock and getting the child lock.  Then it calls the squalloc_parent_first
+ * routine, recursively, and then it re-aquires the parent lock, returning
+ * flush_position->point back to the parent.  It is conceivable that the parent can change
+ * during this period, so the @coord argument is returned to allow it to change.
+ */
 static int squalloc_parent_first_recursive (flush_position *pos, znode *child, tree_coord *coord)
 {
 	int ret;
@@ -1177,7 +1235,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
  * returns true you may use the block number as a hint. */
 static int jnode_is_allocated (jnode *node)
 {
-	/* It must be relocated or wandered. */
+	/* It must be relocated or wandered.  New allocations are set to relocate. */
 	return JF_ISSET (node, ZNODE_RELOC) ||
 	       JF_ISSET (node, ZNODE_WANDER);
 }
@@ -1206,7 +1264,8 @@ static int jnode_allocate_flush (flush_position *pos)
 			goto exit;
 		}
 
-		if ((ret = flush_query_relocate (pos->point, & parent_coord, 0)) < 0) {
+		/* FIXME: HERE YOU ARE */
+		if ((ret = flush_right_relocate (pos->point, & parent_coord)) < 0) {
 			goto exit;
 		}
 
@@ -1238,7 +1297,7 @@ static int jnode_allocate_flush (flush_position *pos)
 	return ret;
 }
 
-/* This is called in two locations: the after first time a jnode is allocated (in
+/* This is called in two locations: after the first time a jnode is allocated (in
  * jnode_allocate_flush), it is flushed, and when jnode_flush() is called again after
  * being dirtied again, it is then flushed a second time.  Note: It is conceivable we
  * might want to compute a new relocation position, but that adds code complexity.
