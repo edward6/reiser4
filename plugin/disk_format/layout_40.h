@@ -37,4 +37,4 @@ typedef struct layout_40_super_info {
 /* declarations of functions implementing methods of layout plugin for
  * layout 40. The functions theirself are in layout_40.c */
 int                 layout_40_get_ready    (struct super_block *, void * data);
-const reiser4_key * layout_40_root_dir_key (void);
+const reiser4_key * layout_40_root_dir_key (const struct super_block *);
