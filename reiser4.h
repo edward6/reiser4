@@ -78,11 +78,15 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* If array contains less than REISER4_SEQ_SEARCH_BREAK elements then,
    sequential search is on average faster than binary. This is because
    of better optimization and because sequential search is more CPU
-   cache friendly. This number was found by experiments on dual AMD
+   cache friendly. This number (25) was found by experiments on dual AMD
    Athlon(tm), 1400MHz.
   
+   NOTE: testing in kernel has shown that binary search is more effective than
+   implied by results of the user level benchmarking. Probably because in the
+   node keys are separated by other data. So value was adjusted after few
+   tests. More thorough tuning is needed.
 */
-#define REISER4_SEQ_SEARCH_BREAK      (25)
+#define REISER4_SEQ_SEARCH_BREAK      (3)
 
 /* don't allow tree to be lower than this */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
