@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
 
 	aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, 
 		"umka-001", "Test message: %s, ya message: %s, number: %d.", "just message", 
-		"ya ya message", 524600);
+		"ya ya message", 5246);
 	
 	return 0;
 }
