@@ -599,18 +599,17 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 		return RETERR(-EIO);
 	}
 	result = unix_file_writepage_nolock(page);
-	assert("vs-98221", PageLocked(page));
 
 	/* FIXME: cut_file_items has already updated inode. Probably it would be better to update it here when file is
 	   really truncated */
 	all_grabbed2free("shorten_file");
 	if (result) {
-		reiser4_unlock_page(page);
 		page_cache_release(page);
 		reiser4_release_reserved(inode->i_sb);
 		return result;
 	}
 
+	lock_page(page);
 	assert("vs-1066", PageLocked(page));
 	kaddr = kmap_atomic(page, KM_USER0);
 	memset(kaddr + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
@@ -815,7 +814,6 @@ unix_file_writepage_nolock(struct page *page)
 
 	reiser4_stat_inc(file.page_ops.writepage_calls);
 
-	// assert("vs-1064", !PageLocked(page));
 	assert("vs-1065", page->mapping && page->mapping->host);
 
 	/* get key of first byte of the page */
@@ -824,7 +822,6 @@ unix_file_writepage_nolock(struct page *page)
 	hint_init_zero(&hint, &lh);
 	result = find_file_item(&hint, &key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/, 0/* inode */);
 
-	reiser4_lock_page(page);
 	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		done_lh(&lh);
 		return result;
@@ -839,7 +836,6 @@ unix_file_writepage_nolock(struct page *page)
 	/* get plugin of extent item */
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 	result = iplug->s.file.writepage(&key, &hint.coord, page, how_to_write(&hint.coord, &key));
-	assert("vs-982", PageLocked(page));
 	assert("vs-429378", result != -E_REPEAT);
 	zrelse(loaded);
 	done_lh(&lh);
@@ -857,30 +853,18 @@ capture_unix_file(struct page *page)
 
 	assert("vs-1084", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
-	assert("vs-1032", PageLocked(page));
 	assert("vs-1139", file_is_built_of_extents(inode));
 	/* page belongs to file */
 	assert("vs-1393", inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
 
-	reiser4_unlock_page(page);
 	uf_info = unix_file_inode_data(inode);
-	get_nonexclusive_access(uf_info);
-	if (inode->i_size <= ((loff_t) page->index << PAGE_CACHE_SHIFT)) {
-		/* race with truncate? */
-		drop_nonexclusive_access(uf_info);
-		reiser4_lock_page(page);
-		page_cache_release(page);
-		return RETERR(-EIO);
-	}
 
 	/* writepage may involve insertion of one unit into tree */
 	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT, "unix_file_writepage");
 	if (likely(!result)) {
 		result = unix_file_writepage_nolock(page);
-		assert("vs-1068", PageLocked(page));
 	}
 	all_grabbed2free("unix_file_writepage");
-	drop_nonexclusive_access(uf_info);
 	return result;
 }
 
