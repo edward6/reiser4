@@ -439,7 +439,7 @@ print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 
 /* Print statistical data accumulated so far. */
 void
-reiser4_print_stats()
+reiser4_print_stats(void)
 {
 	reiser4_stat *s;
 	int i;

@@ -200,7 +200,7 @@ int znode_shift_order;
 
 /* call this once on reiser4 initialisation */
 int
-znodes_init()
+znodes_init(void)
 {
 	znode_slab = kmem_cache_create("znode", sizeof (znode), 0,
 				       SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
@@ -219,7 +219,7 @@ znodes_init()
 
 /* call this before unloading reiser4 */
 int
-znodes_done()
+znodes_done(void)
 {
 	return kmem_cache_destroy(znode_slab);
 }
@@ -377,7 +377,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 void
 zdrop(znode * node /* znode to finish with */ )
 {
-	return jdrop(ZJNODE(node));
+	jdrop(ZJNODE(node));
 }
 
 /*

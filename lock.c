@@ -1364,7 +1364,7 @@ extern spinlock_t active_contexts_lock;
 extern context_list_head active_contexts;
 
 void
-check_lock_data()
+check_lock_data(void)
 {
 	if (0) {
 		reiser4_context *context;

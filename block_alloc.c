@@ -1182,7 +1182,7 @@ reiser4_dealloc_block(const reiser4_block_nr * block,
 }
 
 /* wrappers for block allocator plugin methods */
-extern int
+int
 pre_commit_hook(void)
 {
 	assert("zam-502", get_current_super_private() != NULL);

@@ -112,7 +112,7 @@ preempt_point(void)
 
 */
 lock_counters_info *
-lock_counters()
+lock_counters(void)
 {
 	reiser4_context *ctx = get_current_context();
 	assert("jmacd-1123", ctx != NULL);
@@ -120,7 +120,7 @@ lock_counters()
 }
 
 /* check that no spinlocks are held */
-int schedulable (void)
+int schedulable(void)
 {
 	if (REISER4_DEBUG && get_current_context_check() != NULL) {
 		lock_counters_info *counters;
@@ -287,7 +287,7 @@ reiser4_kfree_in_sb(void *area /* memory to from */,
 #if REISER4_DEBUG
 
 int
-no_counters_are_held()
+no_counters_are_held(void)
 {
 	lock_counters_info *counters;
 
@@ -315,7 +315,7 @@ no_counters_are_held()
 }
 
 int
-commit_check_locks()
+commit_check_locks(void)
 {
 	lock_counters_info *counters;
 	int inode_sem_r;

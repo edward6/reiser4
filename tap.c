@@ -191,7 +191,7 @@ tap_to_coord(tap_t * tap, coord_t * target)
 
 /** return list of all taps */
 tap_list_head *
-taps_list()
+taps_list(void)
 {
 	return &get_current_context()->taps;
 }
