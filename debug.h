@@ -75,11 +75,16 @@
  */
 #define assert( label, cond )					\
 ({								\
-	preempt_point();				\
+	preempt_point();					\
 	check_stack();						\
 	if( unlikely( !( cond ) ) )				\
 		rpanic( label, "assertion failed: " #cond );	\
 })
+
+/**
+ * like assertion, but @expr is evaluated even if REISER4_DEBUG is off.
+ */
+#define check_me( label, expr )	assert( label, ( expr ) )
 
 #define ON_DEBUG( exp ) exp
 
@@ -107,6 +112,7 @@ extern lock_counters_info *lock_counters(void);
 #define impossible( label, format, args... ) noop
 #define not_implemented( label, format, args... ) noop
 #define assert( label, cond ) noop
+#define check_me( label, expr )	( expr )
 #define ON_DEBUG( exp ) noop
 
 /* REISER4_DEBUG */
