@@ -1710,9 +1710,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 	file_container_t cur_container, new_container;
 	znode *loaded;
 	unix_file_info_t *uf_info;
-	struct page *page;
-	loff_t saved_flow_length;
-	size_t count;
 
 	assert("nikita-3031", schedulable());
 	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
@@ -1727,44 +1724,24 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 
 	to_write = flow->length;
 	while (flow->length) {
-		saved_flow_length = 0;
-		page = NULL;
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
 
 		{
-			unsigned long offset;
+			size_t count;
 
-			assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
+			count = PAGE_CACHE_SIZE;			
 
-			offset = get_key_offset(&flow->key) & (PAGE_CACHE_SIZE - 1);
-			count = PAGE_CACHE_SIZE - offset;
 			if (count > flow->length)
 				count = flow->length;
-
-			assert("reiser4-1", flow->user == 1);
-			if (flow->data != NULL && current->mm) {
-				/* bring user page to memory and pin it */
-				fault_in_pages_readable(flow->data, count);
-
-				down_read(&current->mm->mmap_sem);
-				result = get_user_pages(current, current->mm, (unsigned long)flow->data, 1, 0, 0, &page, NULL);
-				up_read(&current->mm->mmap_sem);
-				if (result < 0)
-					return result;
-				assert("reiser4-2", result == 1);
-				clog_op(GET_USER_PAGES, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
-			}
+			fault_in_pages_readable(flow->data, count);
 		}
 
 		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			   node between two extent items) */
 			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)), 0);
-			if (result) {
-				if (page != NULL)
-					page_cache_release(page);
+			if (result)
 				return result;
-			}
 		}
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
 		result = find_file_item(&hint, &flow->key, ZNODE_WRITE_LOCK, NULL/* ra_info */, inode);
@@ -1772,8 +1749,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 		if (IS_CBKERR(result)) {
 			/* error occurred */
 			done_lh(&lh);
-			if (page != NULL)
-				page_cache_release(page);
 			return result;
 		}
 
@@ -1787,8 +1762,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			} else {
 				new_container = UF_CONTAINER_TAILS;
 				write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
-				saved_flow_length = flow->length;
-				flow->length = count;				
 			}
 			break;
 
@@ -1799,8 +1772,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 
 		case UF_CONTAINER_TAILS:
 			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
-				if (page != NULL)
-					page_cache_release(page);
 				longterm_unlock_znode(&lh);
 				if (!ea_obtained(uf_info))
 					return RETERR(-E_REPEAT);
@@ -1812,22 +1783,16 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			}
 			write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
 			new_container = cur_container;
-			saved_flow_length = flow->length;
-			flow->length = count;
 			break;
 
 		default:			
 			longterm_unlock_znode(&lh);
-			if (page != NULL)
-				page_cache_release(page);
 			return RETERR(-EIO);
 		}
 		
 		result = zload(lh.node);
 		if (result) {
 			longterm_unlock_znode(&lh);
-			if (page != NULL)
-				page_cache_release(page);
 			return result;
 		}
 		loaded = lh.node;		
@@ -1837,18 +1802,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 				 &hint,
 				 0/* not grabbed */,
 				 how_to_write(&hint.coord, &flow->key));
-		if (page != NULL) {
-			clog_op(PUT_USER_PAGES, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
-			page_cache_release(page);
-		}
-
-		if (write_f == item_plugin_by_id(FORMATTING_ID)->s.file.write) {
-			size_t written;
-
-			assert("reiser4-3", saved_flow_length > 0 && saved_flow_length >= count);
-			written = count - flow->length;
-			flow->length = saved_flow_length - written;
-		}
 
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
 		if (cur_container == UF_CONTAINER_EMPTY && to_write != flow->length) {
