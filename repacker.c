@@ -497,7 +497,7 @@ static ssize_t count_attr_store (struct repacker * repacker,  const char *buf, s
 {
 	unsigned long long count;
 
-	sscanf(buf, "%llu", &count);
+	sscanf(buf, "%Lu", &count);
 
 	spin_lock(&repacker->guard);
 	repacker->params.count = (__u64)count;
@@ -514,14 +514,14 @@ static ssize_t chunk_size_attr_show (struct repacker * repacker, char * buf)
 	chunk_size = repacker->params.chunk_size;
 	spin_unlock(&repacker->guard);
 
-	return snprintf(buf, PAGE_SIZE, "%llu", (unsigned long long)chunk_size);
+	return snprintf(buf, PAGE_SIZE, "%Lu", (unsigned long long)chunk_size);
 }
 
 static ssize_t chunk_size_attr_store (struct repacker * repacker,  const char *buf, size_t size)
 {
 	unsigned long long chunk_size;
 
-	sscanf(buf, "%llu", &chunk_size);
+	sscanf(buf, "%Lu", &chunk_size);
 
 	spin_lock(&repacker->guard);
 	repacker->params.chunk_size = (__u64)chunk_size;
