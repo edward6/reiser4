@@ -1888,12 +1888,6 @@ static struct super_block *reiser4_get_sb( struct file_system_type *fs_type /* f
 	return get_sb_bdev( fs_type, flags, dev_name, data, reiser4_fill_super );
 }
 
-define_never_ever_op( prepare_write_vfs )
-define_never_ever_op( commit_write_vfs )
-define_never_ever_op( direct_IO_vfs )
-
-#define V( func ) ( ( void * ) ( func ) )
-
 /** ->invalidatepage method for reiser4 */
 int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
@@ -1916,37 +1910,33 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
-	/*
-	 * FIXME-NIKITA obviously there is a (possibility of) deadlock here,
-	 * or rather locking ordering between "our" locks (jnode, tree,
-	 * jnode-to-page, etc.)  and mm locks (page, mapping->page_lock) is
-	 * undefined. For example, this deadlocks with jdelete() that takes
-	 * page lock with jnode-to-page lock already held.
-	 *
-	 */
+
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
 	result = 0;
 
-	if( ( atomic_read( &node -> d_count ) == 0 ) && !PageDirty( page ) ) {
-		/*
-		 * can only release page if it is not in a atom and real block
-		 * number is assigned to it. Simple check for ->atom wouldn't
-		 * do, because it is possible for node to be clean, not it
-		 * atom yet, and still having fake block number. For example,
-		 * node just created in jinit_new().
-		 */
-		if( ( node -> atom == NULL ) && 
-		    !blocknr_is_fake( jnode_get_block( node ) ) ) {
-			page_clear_jnode( page );
-			result = 1;
-		}
-	}
+	if( PageDirty( page ) )
+		return 0;
+	if( atomic_read( &node -> d_count ) > 0 )
+		return 0;
+	if( znode_is_loaded( node ) )
+		return 0;
+	/*
+	 * can only release page if it is not in a atom and real block number
+	 * is assigned to it. Simple check for ->atom wouldn't do, because it
+	 * is possible for node to be clean, not it atom yet, and still having
+	 * fake block number. For example, node just created in jinit_new().
+	 */
+	if( node -> atom != NULL )
+		return 0;
+	if( blocknr_is_fake( jnode_get_block( node ) ) )
+		return 0;
+	page_clear_jnode( page );
 	/*
 	 * return with page still locked. shrink_cache() expects this.
 	 */
-	return result;
+	return 1;
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
@@ -2088,6 +2078,12 @@ struct inode_operations reiser4_symlink_inode_operations = {
  	.readlink    = reiser4_readlink,
  	.follow_link = reiser4_follow_link
 };
+
+define_never_ever_op( prepare_write_vfs )
+define_never_ever_op( commit_write_vfs )
+define_never_ever_op( direct_IO_vfs )
+
+#define V( func ) ( ( void * ) ( func ) )
 
 struct address_space_operations reiser4_as_operations = {
 	/** called from write_one_page(). Not sure how this is to be used. */
