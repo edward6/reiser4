@@ -3274,10 +3274,10 @@ static int rm_r (struct inode * dir, const char * path, regex_t * exp)
 
 				i = call_lookup (dir, info.name);
 				if( IS_ERR( i ) )
-					warning( "nikita-2235", "Not found: %s", 
+					warning( "nikita-2304", "Not found: %s", 
 						 info.name );
 				else if( ( int ) i -> i_ino != info.inum )
-					warning( "nikita-2236", 
+					warning( "nikita-2305", 
 						 "Wrong inode number: %i != %i",
 						 ( int ) info.inum, ( int ) i -> i_ino );
 				else {

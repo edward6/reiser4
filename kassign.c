@@ -196,7 +196,7 @@ int build_readdir_stable_entry_key( const struct inode *dir /* directory where
 	objectid = inode_hash_plugin( dir ) -> 
 		hash( name -> name, ( int ) name -> len ) & 0x7fffffff;
 
-	assert( "nikita-1405", !( objectid & ~KEY_OBJECTID_MASK ) );
+	assert( "nikita-2303", !( objectid & ~KEY_OBJECTID_MASK ) );
 	set_key_objectid( result, objectid );
 
 	/*
