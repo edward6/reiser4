@@ -2454,7 +2454,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 	} else if (pos->preceder.blk == 0) {
 
 		/* If we don't know the preceder, leave it where it is. */
-		ZF_SET(node, JNODE_OVRWR);
+		jnode_make_wander(ZJNODE(node));
 	} else {
 		/* Make a decision based on block distance. */
 		reiser4_block_nr dist;
@@ -2466,7 +2466,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 		if (pos->preceder.blk == nblk - 1) {
 			/* Ideal. */
-			JF_SET(ZJNODE(node), JNODE_OVRWR);
+			jnode_make_wander(ZJNODE(node));
 		} else {
 
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
@@ -2484,10 +2484,10 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 			if (ret == 0) {
 				/* Got a better allocation. */
-				jnode_set_reloc(ZJNODE(node));
+				jnode_make_reloc(ZJNODE(node), pos->fq);
 			} else if (dist < sbinfo->flush.relocate_distance) {
 				/* The present allocation is good enough. */
-				ZF_SET(node, JNODE_OVRWR);
+				jnode_make_wander(ZJNODE(node));
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
@@ -2495,7 +2495,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 					return ret;
 				}
 				/* set JNODE_RELOC bit _after_ node gets allocated */
-				jnode_set_reloc(ZJNODE(node));
+				jnode_make_reloc(ZJNODE(node), pos->fq);
 			}
 		}
 	}
@@ -2505,31 +2505,9 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 	check_preceder(pos->preceder.blk);
 	pos->alloc_cnt += 1;
 
-	{
-		txn_atom *atom;
+	assert ("jmacd-4277", !blocknr_is_fake(&pos->preceder.blk));
 
-		assert("jmacd-4277", !blocknr_is_fake(&pos->preceder.blk));
-		/*assert ("jmacd-4278", ! ZF_ISSET (node, JNODE_FLUSH_BUSY)); */
-
-		/*ZF_SET (node, JNODE_FLUSH_BUSY); */
-		trace_on(TRACE_FLUSH, "alloc: %s\n", znode_tostring(node));
-
-		spin_lock_znode(node);
-		atom = atom_locked_by_jnode(ZJNODE(node));
-		assert ("zam-827", atom);
-
-		if (ZF_ISSET(node, JNODE_RELOC)) {
-			queue_jnode(pos->fq, ZJNODE(node));
-		} else {
-			assert ("zam-828", ZF_ISSET(node, JNODE_OVRWR));
-			jnode_make_wander_nolock(ZJNODE(node));
-		}
-
-		UNLOCK_ATOM(atom);
-		spin_unlock_znode(node);
-
-		return 0;
-	}
+	return 0;
 }
 
 /* A subroutine of allocate_znode, this is called first to see if there is a close
