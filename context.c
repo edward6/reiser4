@@ -84,12 +84,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 #endif
 
 	grab_space_enable();
-	if (sdata->fake && !(current->flags & PF_MEMALLOC) && !current_is_pdflush())
-		/*
-		 * FIXME-ZAM: temporary
-		 */
-		balance_dirty_pages(sdata->fake->i_mapping);
-
 	return 0;
 }
 
@@ -123,14 +117,23 @@ done_context(reiser4_context * context /* context being released */ )
 	/* add more checks here */
 
 	if (parent == context) {
+		reiser4_super_info_data * sdata = get_super_private(context->super);
 		assert("jmacd-673", parent->trans == NULL);
 		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
 		assert("nikita-1936", no_counters_are_held());
 		assert("nikita-2626", tap_list_empty(taps_list()));
 
+		if (context->nr_marked_dirty != 0 && sdata->fake 
+		    && !(current->flags & PF_MEMALLOC) && !current_is_pdflush())
+		{
+			/*
+			 * FIXME-ZAM: temporary
+			 */
+			balance_dirty_pages(sdata->fake->i_mapping);
+		}
+
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free("done_context: free grabbed blocks");
-
 		
 #if REISER4_DEBUG
 		/* remove from active contexts */
