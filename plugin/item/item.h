@@ -256,7 +256,7 @@ typedef struct {
 	/* @page is used in extent's write. If it is set (when tail2extent
 	 * conversion is in progress) - do not grab a page and do not copy data
 	 * from flow into it because all the data are already */
-	int (* write) (struct inode *, lw_coord_t *, flow_t *,
+	int (* write) (struct inode *, struct sealed_coord *, flow_t *,
 		       struct page *);
 	int (* read) (struct inode *, coord_t *,
 		      lock_handle *, flow_t *);
