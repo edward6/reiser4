@@ -666,7 +666,7 @@ print_page(const char *prefix, struct page *page)
 	       page_flag_name(page, PG_reserved),
 	       page_flag_name(page, PG_private), page_flag_name(page, PG_writeback), page_flag_name(page, PG_nosave));
 	if (jprivate(page) != NULL) {
-		info_znode("\tpage jnode", (znode *) jprivate(page));
+		print_jnode("\tpage jnode", jprivate(page));
 		printk("\n");
 	}
 }
