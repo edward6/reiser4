@@ -154,6 +154,9 @@ int jnode_flush (jnode *node, int flags)
 		return 0;
 	}
 
+	if (FLUSH_DEBUG && jnode_is_formatted (node)) {
+		print_znode ("flush this znode:", JZNODE (node));
+	}
 	if (FLUSH_DEBUG) print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK);
 	assert ("jmacd-5012", jnode_check_dirty (node));
 
@@ -1908,6 +1911,7 @@ static int flush_scan_formatted (flush_scan *scan)
 		/* Node should be connected. */
 		znode *node = JZNODE (scan->node);
 
+		if (FLUSH_DEBUG) print_znode ("flush_formatted", node);
 		assert ("jmacd-1402", znode_is_connected (node));
 
 		/* Lock the tree, check & reference left sibling. */
