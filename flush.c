@@ -3156,10 +3156,8 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 			if (!item_is_extent(&scan->parent_coord)) {
 				/* we raced again extent->tail conversion and
 				   lost. */
-				/* FIXME-NIKITA warning is for debugging
-				   only. Will be removed. */
-				warning("nikita-2732", 
-					"Flush raced against extent->tail");
+				trace_on(TRACE_FLUSH,
+					 "Flush raced against extent->tail\n");
 				scan->stop = 1;
 				ret = 0;
 				goto exit;
