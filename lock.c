@@ -185,52 +185,18 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
       for the info how those fields are protected. */
 
 /* Znode lock and capturing intertwining. */
+/* In current implementation we capture formatted nodes before locking
+   them. Take a look on longterm lock znode, try_capture() request precedes
+   locking requests.  The longterm_lock_znode function unconditionally captures
+   znode before even checking of locking conditions.
 
-/*  */
-
-/* Josh's explanation to Zam on why the locking and capturing code are intertwined.
-  ZAM-FIXME-HANS: deadlock is not observed anymore, right?  rewrite this whole comment.
-
-   Point 1. The order in which a node is captured matters.  If a read-capture arrives
-   before a write-capture, the read-capture may cause no capturing "work" to be done at
-   all, whereas the write-capture may cause copy-on-capture to occur.  For this to be
-   correct the writer cannot beat the reader to the lock, if they are captured in the
-   opposite order.
-
-   Point 2. Just as locking can block waiting for the request to be satisfied, capturing
-   can block waiting for expired atoms to commit.
-
-   Point 3. It is not acceptable to first acquire the lock and then block waiting to
-   capture, especially when ignorant of deadlock.  There is no reason to lock until the
-   capture has succeeded.  To block in "capture" should be the same as to block waiting
-   for a lock, therefore a deadlock condition will cause the capture request to return
-   -E_DEADLOCK.
-
-   Point 4. It is acceptable to first capture and then wait to lock.  BUT, once the
-   capture request succeeds the lock request cannot be satisfied out-of-order.  For
-   example, once a read-capture is satisfied no writers may acquire the lock until the
-   reader has a chance to read the block.
-
-   Point 5. Summary: capture requests must be partially-ordered with respect to lock
-   requests.
-
-   What this means is for a regular lock_znode request (try_lock is slightly simpler).
-     1. acquire znode spinlock, check whether the lock request is compatible
-        (lock request and node state are compatible that means node can be
-        locked immediately)
-        \_ and if not, make request and sleep on lock_stack semaphore
-        |_ and when it wakes, go to step #1
-     2. perform a try_capture request
-        \_ and if it would block, sleep on lock_stack semaphore
-        |_ and when it wakes, go to step #1
-        |_ if the try_capture request is successful, it returns with
-           the znode locked
-     3. since try_capture occasionally releases the znode lock due to
-        spinlock-ordering constraints (there's a pointer cycle atom->node->atom),
-        recheck whether lock request is still compatible.
-        \_ and if it is not, same as step #1
-     4. before releasing znode spinlock, call lock_object() as before.  */
-/* ZAM-FIXME-HANS: the above is not clear to me */
+   Another variant is to capture znode after locking it.  It was not tested, but
+   at least one deadlock condition is supposed to be there.  One thread has
+   locked a znode (Node-1) and calls try_capture() for it.  Try_capture() sleeps
+   because znode's atom has CAPTURE_WAIT state.  Second thread is a flushing
+   thread, its current atom is the atom Node-1 belongs to. Second thread wants
+   to lock Node-1 and sleeps because Node-1 is locked by the first thread.  The
+   described situation is a deadlock. */
 
 #include "debug.h"
 #include "txnmgr.h"
