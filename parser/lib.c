@@ -256,7 +256,7 @@ static int free_expr( struct reiser4_syscall_w_space * ws,  expr_v4_t * expr)
 	case EXPR_LNODE:
 		assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=NULL);
 		path4_release( expr->lnode.lnode->dentry );
-		lput( expr->lnode.lnode ); 
+		lput( expr->lnode.lnode );
 		break;
 	case EXPR_FLOW:
 		break;
@@ -292,7 +292,7 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws /* work space ptr *
 {
 	lnode * ln;
 	reiser4_key key, * k_rez,* l_rez;
-	
+
 #if 0                      /*def NOT_YET*/
 	if ( is_reiser4_inode( ws->nd.dentry->inode ) ) {
 
@@ -387,7 +387,7 @@ static void level_up_named(struct reiser4_syscall_w_space *ws /* work space ptr 
 	rezult =  lookup_pars_var_word( ws , sink, make_new_word(ws, ASSIGN_RESULT ), VAR_TMP);
 	rezult->u.data  = kmalloc( SIZEFOR_ASSIGN_RESULT, GFP_KERNEL ) ;
 	sprintf( rezult->u.data, "%d", ret_code );
-	
+
 ?????
 
 	level_up( ws, type );
@@ -481,7 +481,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws /* work space
 		//					ws->yytext--;
 		//				}
 		//			if ( i ) for ( i/=2; i; i-- )      *ws->tmpWrdEnd++='\'';    /*   in source text for each '' - result will '   */
-		/*         \????????   */ 
+		/*         \????????   */
 		if ( *ws->yytext == '\\' ) {
 			int tmpI;
 			ws->yytext++;
@@ -729,7 +729,7 @@ static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws /* work space 
 //	walk_init_root( "/", (&ws->nd));   /* from namei.c walk_init_root */
 	{
 		read_lock(&current->fs->lock);
-		ws->nd.mnt = my_mntget("root", current->fs->rootmnt); 
+		ws->nd.mnt = my_mntget("root", current->fs->rootmnt);
 		ws->nd.dentry = my_dget("root", current->fs->root);
 		read_unlock(&current->fs->lock);
 	}
@@ -916,7 +916,7 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 					if (iplug->b.lookup != NULL) {
 						iplug->b.lookup();   /*????*/
 					}
-					
+
 				case INTERNAL_ITEM_TYPE:
 					printk("VD-item type is INTERNAL\n");
 				case ORDINARY_FILE_METADATA_TYPE:
@@ -1110,7 +1110,7 @@ static int lookup_pars_var_lnode(struct reiser4_syscall_w_space * ws /* work spa
 //			break;
 
 	PTRACE(ws, " w->u.name= %p, u.name->%s, u.len=%d",w->u.name,w->u.name,w->u.len);
-	
+
 	return rez;
 
 }
@@ -1309,11 +1309,11 @@ static expr_v4_t * list_expression(struct reiser4_syscall_w_space * ws /* work s
 		ret = union_lists( ws, e1, e2);
 	}
 	else {
-		
+
 		if ( e2->h.type == EXPR_LIST ) {
 			ret = union_lists( ws, e2, e1);
 		}
-		else {				
+		else {
 			ret = alloc_new_expr(ws, EXPR_LIST );
 			assert("VD alloct list 1", ret!=NULL);
 			ret->list.source = e1;
@@ -1410,7 +1410,7 @@ static  int source_not_empty(expr_v4_t *source)
 	return 0;
 }
 
-static mm_segment_t __ski_old_fs;	
+static mm_segment_t __ski_old_fs;
 
 
 #define START_KERNEL_IO_GLOB	                \
@@ -1418,7 +1418,7 @@ static mm_segment_t __ski_old_fs;
 		set_fs( KERNEL_DS )
 
 #define END_KERNEL_IO_GLOB			\
-		set_fs( __ski_old_fs );		
+		set_fs( __ski_old_fs );
 
 #define PUMP_BUF_SIZE (PAGE_CACHE_SIZE)
 
@@ -1826,7 +1826,7 @@ static size_t tube_to_sink_general(tube_t * tube)
 		break;
 	case VAR_TMP:
 		// memncpy(tube->target->data,tube->buf,tube->len);
-		// or 
+		// or
 		// tube->target->data=tube->buf;
 		// ?
 		printk("write to pseudo not yet work\n");
@@ -1974,7 +1974,7 @@ static expr_v4_t *  pump(struct reiser4_syscall_w_space * ws, pars_var_t *sink, 
 		length =  lookup_pars_var_word( ws , assoc, tmp_wrd, VAR_TMP);
 		length->val->u.data  = kmalloc( SIZEFOR_ASSIGN_LENGTH, GFP_KERNEL ) ;
 		sprintf( length->val->u.data, "%d", tube->writeoff );
-		
+
 
 		/*
 		ret1=alloc_new_expr( ws, EXPR_PARS_VAR );

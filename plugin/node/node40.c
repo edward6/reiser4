@@ -392,15 +392,15 @@ lookup_node40(znode * node /* node to query */ ,
 	   search the winner. Another, maybe more important, reason for this,
 	   is that sequential array is more CPU cache friendly, whereas binary
 	   search effectively destroys CPU caching.
-	
+
 	   Critical here is the notion of "smallness". Reasonable value of
 	   REISER4_SEQ_SEARCH_BREAK can be found by playing with code in
 	   fs/reiser4/ulevel/ulevel.c:test_search().
-	
+
 	   Don't try to further optimize sequential search by scanning from
 	   right to left in attempt to use more efficient loop termination
 	   condition (comparison with 0). This doesn't work.
-	
+
 	*/
 
 	while (right - left >= REISER4_SEQ_SEARCH_BREAK) {
@@ -1000,7 +1000,7 @@ struct cut40_info {
 	pos_in_node_t first_removed; /* position of first the leftmost item among items removed completely */
 	pos_in_node_t removed_count; /* number of items removed completely */
 	pos_in_node_t head_removed; /* position of item which gets head removed */
-	
+
 	pos_in_node_t freed_space_start;
 	pos_in_node_t freed_space_end;
 	pos_in_node_t first_moved;
@@ -1175,7 +1175,7 @@ parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
 		if (keygt(from_key, &min_from_key)) {
 			/* first item is not cut completely */
 			cinfo->tail_removed = params->from->item_pos;
-			cinfo->mode |= CMODE_TAIL;			
+			cinfo->mode |= CMODE_TAIL;
 		} else {
 			cinfo->first_removed --;
 			cinfo->removed_count ++;
@@ -1236,7 +1236,7 @@ kill_tail(coord_t *coord, void *data, reiser4_key *smallest_removed)
 {
 	struct carry_kill_data *kdata;
 	pos_in_node_t to;
-	
+
 	kdata = data;
 	to = coord_last_unit_pos(coord);
 	return kill_units(coord, coord->unit_pos, to, kdata, smallest_removed, 0);
@@ -1269,7 +1269,7 @@ cut_tail(coord_t *coord, void *data, reiser4_key *smallest_removed)
 {
 	carry_cut_data *cdata;
 	pos_in_node_t to;
-	
+
 	cdata = data;
 	to = coord_last_unit_pos(cdata->params.from);
 	return cut_units(coord, coord->unit_pos, to, data, smallest_removed, 0);
@@ -1289,7 +1289,7 @@ prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *para
 {
 	znode *node;
 	item_header40 *ih;
-	pos_in_node_t freed;	
+	pos_in_node_t freed;
 	pos_in_node_t item_pos;
 	coord_t coord;
 	reiser4_key new_first_key;
@@ -1303,7 +1303,7 @@ prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *para
 	node = params->from->node;
 
 	assert("vs-184", node == params->to->node);
-	assert("vs-312", !node_is_empty(node));	
+	assert("vs-312", !node_is_empty(node));
 	assert("vs-297", coord_compare(params->from, params->to) != COORD_CMP_ON_RIGHT);
 
 	if (is_cut) {
@@ -1823,9 +1823,9 @@ copy(struct shift_params *shift)
 	/* NOTE:NIKITA->VS not sure what I am doing: shift->target is empty,
 	   hence to.between is set to EMPTY_NODE above. Looks like we want it
 	   to be AT_UNIT.
-	
+
 	   Oh, wonders of ->betweeness...
-	
+
 	*/
 	to.between = AT_UNIT;
 
@@ -2351,7 +2351,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			}
 		} else {
 			/* unit @old did not move to left neighbor.
-			
+
 			   Use _nocheck, because @old is outside of its node.
 			*/
 			coord_dup_nocheck(new, old);
@@ -2418,7 +2418,7 @@ shift_check_prepare(const znode *left, const znode *right)
 	struct shift_check *data;
 	item_header40 *ih;
 
-	
+
 	if (node_is_empty(left) || node_is_empty(right))
 		mergeable = 0;
 	else {
@@ -2436,7 +2436,7 @@ shift_check_prepare(const znode *left, const znode *right)
 
 		coord_init_first_unit(&coord, left);
 		i = 0;
-		
+
 		for (item_pos = 0; item_pos < node40_num_of_items_internal(left); item_pos ++) {
 
 			coord_set_item_pos(&coord, item_pos);
@@ -2594,7 +2594,7 @@ shift_check(void *vp, const znode *left, const znode *right)
 		}
 		i ++;
 	}
-			
+
 	coord_init_first_unit(&coord, right);
 	if (mergeable) {
 		ih = node40_ih_at_coord(&coord);
@@ -2606,27 +2606,27 @@ shift_check(void *vp, const znode *left, const znode *right)
 		case FORMATTING_ID:
 			assert("vs-1596", data[i - 1].u.bytes == last_bytes + coord_num_units(&coord));
 			break;
-			
+
 		case EXTENT_POINTER_ID:
 			assert("vs-1597", data[i - 1].u.bytes == last_bytes + extent_size(&coord, coord_num_units(&coord)));
 			break;
-			
+
 		case COMPOUND_DIR_ID:
 			assert("vs-1598", data[i - 1].u.bytes == last_bytes + coord_num_units(&coord));
 			break;
-		default:			
+		default:
 			impossible("vs-1599", "wrong mergeable item");
 			break;
 		}
 		item_pos = 1;
 	} else
 		item_pos = 0;
-	
+
 	for (; item_pos < node40_num_of_items_internal(right); item_pos ++) {
 
 		coord_set_item_pos(&coord, item_pos);
 		ih = node40_ih_at_coord(&coord);
-		
+
 		assert("vs-1612", keyeq(&ih->key, &data[i].key));
 		assert("vs-1613", d16tocpu(&ih->plugin_id) == data[i].plugin_id);
 		switch(data[i].plugin_id) {

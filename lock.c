@@ -640,7 +640,7 @@ wake_up_requestor(znode *node)
 	}
 
 	WUNLOCK_ZLOCK(&node->lock);
-	
+
 	while (convoyused > 0) {
 		-- convoyused;
 		__reiser4_wake_up(convoy[convoyused]);
@@ -794,7 +794,7 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 
 	if (ok == 0) {
 		/* count a reference from lockhandle->node
-		
+
 		   znode was already referenced at the entry to this function,
 		   hence taking spin-lock here is not necessary (see comment
 		   in the zref()).
@@ -1315,7 +1315,7 @@ prepare_to_sleep(lock_stack * owner)
 	           NOTE-NIKITA: I commented call to sema_init() out hoping
 		   that it is the reason or thread sleeping in
 		   down(&owner->sema) without any other thread running.
-		
+
 		   Anyway, it is just an optimization: is semaphore is not
 		   reinitialised at this point, in the worst case
 		   longterm_lock_znode() would have to iterate its loop once

@@ -30,7 +30,7 @@ typedef enum {
 #define UNALLOCATED_EXTENT_START 1
 #define UNALLOCATED_EXTENT_START2 2
 
-typedef struct {	
+typedef struct {
 	reiser4_block_nr pos_in_unit;
 	reiser4_block_nr width; /* width of current unit */
 	pos_in_node_t nr_units; /* number of units */

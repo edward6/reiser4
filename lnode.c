@@ -220,7 +220,7 @@ lnodes_done(void)
 */
 /* Audited by: green(2002.06.15) */
 reiser4_internal lnode *
-lget(                 /*lnode * node ,  lnode to add to the hash table */ 
+lget(                 /*lnode * node ,  lnode to add to the hash table */
      lnode_type type /* lnode type */ , oid_t oid /* objectid */ )
 {
 	lnode *result;

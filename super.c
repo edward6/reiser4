@@ -500,7 +500,7 @@ inc_unalloc_unfm_ptr(void)
 	sbinfo = get_super_private(get_current_context()->super);
 	reiser4_spin_lock_sb(sbinfo);
 	sbinfo->unalloc_extent_pointers ++;
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 /* this is called when unallocated extent is converted to allocated */
@@ -513,7 +513,7 @@ dec_unalloc_unfm_ptrs(int nr)
 	reiser4_spin_lock_sb(sbinfo);
 	BUG_ON(sbinfo->unalloc_extent_pointers < nr);
 	sbinfo->unalloc_extent_pointers -= nr;
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 void
@@ -524,7 +524,7 @@ inc_unfm_ef(void)
 	sbinfo = get_super_private(get_current_context()->super);
 	reiser4_spin_lock_sb(sbinfo);
 	sbinfo->eflushed_unformatted ++;
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 void
@@ -536,7 +536,7 @@ dec_unfm_ef(void)
 	reiser4_spin_lock_sb(sbinfo);
 	BUG_ON(sbinfo->eflushed_unformatted == 0);
 	sbinfo->eflushed_unformatted --;
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 #endif

@@ -652,7 +652,7 @@ void
 clog_op(int op, void *data1, void *data2)
 {
 	spin_lock(&clog_lock);
-	
+
 	if (clog_length == CLOG_LENGTH) {
 		clog[clog_start].id = clog_id ++;
 		clog[clog_start].op = op;
@@ -668,9 +668,9 @@ clog_op(int op, void *data1, void *data2)
 		clog[clog_length].pid = current->pid;
 		clog[clog_length].data1 = data1;
 		clog[clog_length].data2 = data2;
-		clog_length ++;		
+		clog_length ++;
 	}
-		
+
 	spin_unlock(&clog_lock);
 }
 

@@ -525,7 +525,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	   journals? */
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_GRABBED;
-	
+
 	ret = reiser4_alloc_blocks(&hint, start, &wide_len,
 		BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
 
@@ -595,8 +595,8 @@ get_overwrite_set(struct commit_handle *ch)
 	__u64 nr_formatted_leaves = 0;
 	__u64 nr_unformatted_leaves = 0;
 #endif
-	
-	
+
+
 	assert("zam-697", ch->overwrite_set_size == 0);
 
 	ch->overwrite_set = ATOM_OVRWR_LIST(ch->atom);
@@ -625,7 +625,7 @@ get_overwrite_set(struct commit_handle *ch)
 			ch->nr_bitmap ++;
 
 		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
-			
+
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			/* we replace fake znode by another (real)
 			   znode which is suggested by disk_layout
@@ -663,7 +663,7 @@ get_overwrite_set(struct commit_handle *ch)
 			uncapture_block(cur);
 			UNLOCK_ATOM(ch->atom);
 			jput(cur);
-				
+
 			spin_lock(&scan_lock);
 			JF_CLR(cur, JNODE_SCANNED);
 			cur = next;
@@ -815,9 +815,9 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 					reiser4_stat_inc(pages_clean);
 
 				/* don't check return value: submit page even if
-				   it wasn't dirty. */		
+				   it wasn't dirty. */
 				test_clear_page_dirty(pg);
-				
+
 				list_del(&pg->list);
 				list_add(&pg->list, &pg->mapping->locked_pages);
 
@@ -907,7 +907,7 @@ write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted,
 				/* jnode from which next sequence of blocks starts */
 				break;
 
-			JF_SET(cur, JNODE_SCANNED);			
+			JF_SET(cur, JNODE_SCANNED);
 			++ nr;
 			end = cur;
 			cur = capture_list_next(cur);
@@ -963,7 +963,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 
 			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
 				BA_FORMATTED/* formatted, without defer */);
-			
+
 			return ret;
 		}
 
@@ -1001,7 +1001,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 				unscan_sequence_nolock(beg, prev_len);
 			return ret;
 		}
-		
+
 		spin_lock(&scan_lock);
 		if (beg == NULL)
 			cur = capture_list_front(ch->overwrite_set);
@@ -1069,8 +1069,8 @@ get_overwrite_set(struct commit_handle *ch)
 	__u64 nr_formatted_leaves = 0;
 	__u64 nr_unformatted_leaves = 0;
 #endif
-	
-	
+
+
 	assert("zam-697", ch->overwrite_set_size == 0);
 
 	ch->overwrite_set = ATOM_OVRWR_LIST(ch->atom);
@@ -1089,7 +1089,7 @@ get_overwrite_set(struct commit_handle *ch)
 			ch->nr_bitmap ++;
 
 		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
-			
+
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			/* we replace fake znode by another (real)
 			   znode which is suggested by disk_layout
@@ -1123,7 +1123,7 @@ get_overwrite_set(struct commit_handle *ch)
 			LOCK_JNODE(cur);
 			uncapture_block(cur);
 			jput(cur);
-				
+
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
@@ -1344,7 +1344,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 
 			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
 				BA_FORMATTED/* formatted, without defer */);
-			
+
 			return ret;
 		}
 
@@ -1430,7 +1430,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		/* FIXME: there should be some block allocation policy for
 		   nodes which contain wander records */
-		
+
 		/* We assume that disk space for wandered record blocks can be
 		 * taken from reserved area. */
 		ret = reiser4_alloc_blocks (&hint, &first, &len,
@@ -1545,7 +1545,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	 * ASTAGE_PRE_COMMIT */
 	atom = get_current_context()->trans->atom;
 	assert("zam-965", atom != NULL);
-	
+
 	/* relocate set is on the atom->clean_nodes list after
 	 * current_atom_complete_writes() finishes. It can be safely
 	 * uncaptured after commit_semaphore is taken, because any atom that
@@ -1600,7 +1600,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
-	
+
 	/* Grab more space for wandered records. */
 	ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED);
 	if (ret)
@@ -1827,7 +1827,7 @@ replay_transaction(const struct super_block *s,
 	init_commit_handle(&ch, NULL);
 	capture_list_init(&overwrite_set);
 	ch.overwrite_set = &overwrite_set;
-	
+
 	restore_commit_handle(&ch, tx_head);
 
 	while (log_rec_block != *end_block) {

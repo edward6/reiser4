@@ -83,7 +83,7 @@ reiser4_clear_page_dirty(struct page *page)
 		/* FIXME: remove this when reiser4_set_page_dirty will skip setting this tag for captured pages */
 		radix_tree_tag_clear(&mapping->page_tree, page->index,
 				     PAGECACHE_TAG_REISER4_MOVED);
-		
+
 		read_unlock_irqrestore(&mapping->tree_lock, flags);
 		if (!mapping->backing_dev_info->memory_backed)
 			dec_page_state(nr_dirty);
@@ -119,7 +119,7 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 				/* FIXME: if would be nice to not set this tag on pages which are captured already */
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index, PAGECACHE_TAG_REISER4_MOVED);
-			}			
+			}
 			read_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
@@ -235,7 +235,7 @@ static int reiser4_prepare_write(struct file *file, struct page *page,
 	inode = page->mapping->host;
 	init_context(&ctx, inode->i_sb);
 	fplug = inode_file_plugin(inode);
-	
+
 	if (fplug->prepare_write != NULL)
 		result = fplug->prepare_write(file, page, from, to);
 	else
@@ -577,7 +577,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 			__put_page(page);
 		}
 		write_unlock_irq(&mapping->tree_lock);
-		
+
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);

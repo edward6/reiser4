@@ -57,7 +57,7 @@ static reiser4_block_nr common_estimate_link(
 
 	fplug = inode_file_plugin(object);
 	dplug = inode_dir_plugin(parent);
-	
+
 	/* reiser4_add_nlink(object) */
 	res += fplug->estimate.update(object);
 	/* add_entry(parent) */
@@ -185,13 +185,13 @@ static reiser4_block_nr common_estimate_unlink (
 	reiser4_block_nr res = 0;
 	file_plugin *fplug;
 	dir_plugin *dplug;
-	
+
 	assert("vpf-317", object != NULL);
 	assert("vpf-318", parent != NULL );
 
 	fplug = inode_file_plugin(object);
 	dplug = inode_dir_plugin(parent);
-	
+
 	/* rem_entry(parent) */
 	res += dplug->estimate.rem_entry(parent);
 	/* reiser4_del_nlink(object) */
@@ -323,7 +323,7 @@ static reiser4_block_nr common_estimate_create_child(
 {
 	assert("vpf-309", parent != NULL);
 	assert("vpf-307", object != NULL);
-	
+
 	return
 		/* object creation estimation */
 		inode_file_plugin(object)->estimate.create(object) +
@@ -698,7 +698,7 @@ adjust_dir_pos(struct file   * dir,
 		assert("nikita-2576", adj < 0);
 		/* directory entry to which @pos points to is being
 		   removed.
-		
+
 		   NOTE-NIKITA: Right thing to do is to update @pos to point
 		   to the next entry. This is complex (we are under spin-lock
 		   for one thing). Just rewind it to the beginning. Next
@@ -946,7 +946,7 @@ feed_entry(struct file *f,
 	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-1371", name != NULL);
 
-	/* key of object the entry points to */	
+	/* key of object the entry points to */
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
 		return RETERR(-EIO);
 
@@ -965,12 +965,12 @@ feed_entry(struct file *f,
 
 	unit_key_by_coord(coord, &entry_key);
 	seal_init(&seal, coord, &entry_key);
-			
+
 	longterm_unlock_znode(tap->lh);
-			
+
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu, %llu\n",
 		 name, pos->fpos, pos->entry_no, get_key_objectid(&sd_key));
-			
+
 	/*
 	 * send information about directory entry to the ->filldir() filler
 	 * supplied to us by caller (VFS).

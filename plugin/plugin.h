@@ -282,9 +282,9 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	/* called from ->drop() when there are no links, and object should be
 	 * garbage collected. */
 	void (*delete_inode)(struct inode *);
-	
+
 	/* called from ->destroy_inode() */
-	void (*destroy_inode)(struct inode *);	
+	void (*destroy_inode)(struct inode *);
 	void (*forget_inode)(struct inode *);
 	ssize_t (*sendfile)(struct file *, loff_t *, size_t, read_actor_t, void __user *);
 	/*
@@ -402,7 +402,7 @@ typedef struct crypto_plugin {
 	/* generic fields */
 	plugin_header h;
 	int (*alloc) (struct inode * inode);
-	void (*free) (struct inode * inode);  
+	void (*free) (struct inode * inode);
 	/* number of cpu expkey words */
 	unsigned nr_keywords;
 	/* Offset translator. For each offset this returns (k * offset), where
@@ -411,7 +411,7 @@ typedef struct crypto_plugin {
 	   inflate data) offset translation guarantees that all disk cluster's
 	   units will have keys smaller then next cluster's one.
 	*/
-	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);	
+	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);
 	/* Crypto algorithms can accept data only by chunks of crypto block
 	   size. This method is to align any flow up to crypto block size when
 	   we pass it to crypto algorithm. To align means to append padding of
@@ -428,7 +428,7 @@ typedef struct digest_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* digest size */
-	int dsize; 
+	int dsize;
 	int (*alloc) (struct inode * inode);
 	void (*free) (struct inode * inode);
 } digest_plugin;
@@ -546,7 +546,7 @@ union reiser4_plugin {
 	/* crypto plugin, used by file plugin */
 	crypto_plugin crypto;
 	/* digest plugin, used by file plugin */
-	digest_plugin digest;	
+	digest_plugin digest;
 	/* compression plugin, used by file plugin */
 	compression_plugin compression;
 	/* tail plugin, used by file plugin */
@@ -694,8 +694,8 @@ typedef struct crypto_data {
 
 /* compression/clustering specific data */
 typedef struct compression_data {
-	reiser4_compression_id coa; /* id of the compression algorithm */	
-} compression_data_t; 
+	reiser4_compression_id coa; /* id of the compression algorithm */
+} compression_data_t;
 
 typedef __u8 cluster_data_t;        /* cluster info */
 

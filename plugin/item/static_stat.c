@@ -734,7 +734,7 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 	__u16 mask;
 	int result;
 	int num_of_plugins;
-	
+
 	assert("nikita-653", inode != NULL);
 	assert("nikita-654", area != NULL);
 	assert("nikita-655", *area != NULL);
@@ -943,10 +943,10 @@ static int crypto_stat_to_inode (struct inode *inode,
 				 unsigned int size /* fingerprint size */)
 {
 	crypto_stat_t * stat;
-	
+
 	assert ("edward-11", (reiser4_inode_data(inode))->crypt == NULL);
 	assert ("edward-33", !inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED));
-	
+
 	stat = reiser4_kmalloc(sizeof(*stat), GFP_KERNEL);
 	if (!stat)
 		return RETERR(-ENOMEM);
@@ -959,7 +959,7 @@ static int crypto_stat_to_inode (struct inode *inode,
 	stat->keysize = tmp->keysize;
 	xmemcpy(stat->keyid, tmp->keyid, (size_t)size);
 	reiser4_inode_data(inode)->crypt = stat;
-	
+
 	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;
 }
@@ -972,9 +972,9 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	reiser4_crypto_stat *sd;
 	crypto_stat_t stat;
 	digest_plugin * dplug = inode_digest_plugin(inode);
-	
+
 	unsigned int keyid_size;
-	
+
 	assert("edward-06", dplug != NULL);
 	assert("edward-684", dplug->dsize);
 	assert("edward-07", area != NULL);
@@ -984,16 +984,16 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 
 	if (*len < (int) sizeof (reiser4_crypto_stat)) {
 		return not_enough_space(inode, "crypto-sd");
-	}	
+	}
 	keyid_size = dplug->dsize;
 	/* *len is number of bytes in stat data item from *area to the end of
 	   item. It must be not less than size of this extension */
 	assert("edward-75", sizeof(*sd) + keyid_size <= *len);
-	
+
 	sd = (reiser4_crypto_stat *) * area;
 	stat.keysize = d16tocpu(&sd->keysize);
 	stat.keyid = (__u8 *)sd->keyid;
-	
+
 	result = crypto_stat_to_inode(inode, &stat, keyid_size);
 	move_on(len, area, sizeof(*sd) + keyid_size);
 	return result;
@@ -1019,14 +1019,14 @@ static int save_crypto_sd(struct inode *inode, char **area)
 	assert("edward-13", area != NULL);
 	assert("edward-14", *area != NULL);
 	assert("edward-76", reiser4_inode_data(inode) != NULL);
-	
+
 	sd = (reiser4_crypto_stat *) *area;
 	if (!inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
 		/* file is just created */
 		crypto_stat_t * stat = reiser4_inode_data(inode)->crypt;
-		
+
 		assert("edward-15", stat != NULL);
-		
+
 		/* copy inode crypto-stat to the disk stat-data */
 		cputod16(stat->keysize, &sd->keysize);
 		xmemcpy(sd->keyid, stat->keyid, (size_t)dplug->dsize);
@@ -1046,7 +1046,7 @@ print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 	/* FIXME-EDWARD Make sure we debug only with none digest plugin */
 	digest_plugin * dplug = digest_plugin_by_id(NONE_DIGEST_ID);
 	reiser4_crypto_stat *sd = (reiser4_crypto_stat *) * area;
-	
+
 	printk("%s: keysize: %u keyid: \"%llx\"\n", prefix, d16tocpu(&sd->keysize), *(__u64 *)(sd->keyid));
 	move_on(len, area, sizeof(*sd) + dplug->dsize);
 }
@@ -1057,17 +1057,17 @@ print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 static int present_cluster_sd(struct inode *inode, char **area, int *len)
 {
 	reiser4_inode * info;
-	
+
 	assert("edward-77", inode != NULL);
 	assert("edward-78", area != NULL);
 	assert("edward-79", *area != NULL);
 	assert("edward-80", len != NULL);
 	assert("edward-81", !inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	
+
 	info = reiser4_inode_data(inode);
-	
+
 	assert("edward-82", info != NULL);
-	
+
 	if (*len >= (int) sizeof (reiser4_cluster_stat)) {
 		reiser4_cluster_stat *sd;
 		sd = (reiser4_cluster_stat *) * area;
@@ -1093,11 +1093,11 @@ static int save_len_cluster_sd(struct inode *inode UNUSED_ARG)
 static int save_cluster_sd(struct inode *inode, char **area)
 {
 	reiser4_cluster_stat *sd;
-	
+
 	assert("edward-106", inode != NULL);
 	assert("edward-107", area != NULL);
 	assert("edward-108", *area != NULL);
-	
+
 	sd = (reiser4_cluster_stat *) * area;
 	if (!inode_get_flag(inode, REISER4_CLUSTER_KNOWN)) {
 		cputod8(reiser4_inode_data(inode)->cluster_shift, &sd->cluster_shift);

@@ -21,7 +21,7 @@ historical accuracy of course.
 1. In a data structure we use to store objects (tree) items
    with close keys are packed into the same disk block. This means that
    we cannot completely separate key allocation from block
-   allocation. That is, 
+   allocation. That is,
 
       - tree forces us to encode disk location preferences in a key. (A1)
 
@@ -45,7 +45,7 @@ historical accuracy of course.
 
 4. To solve this (locid, oid) scheme was born. It has following
    advantages:
-      
+
       - it is simple to implement
       - it allows one to encode enough location preference into the key (A3)
 

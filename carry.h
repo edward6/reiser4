@@ -168,7 +168,7 @@ struct carry_cut_data {
 struct carry_kill_data {
 	struct cut_kill_params params;
 	/* parameter to be passed to the ->kill_hook() method of item
-	 * plugin */	
+	 * plugin */
 	/*void *iplug_params;*/ /* FIXME: unused currently */
 	/* if not NULL---inode whose items are being removed. This is needed
 	 * for ->kill_hook() of extent item to update VM structures when
@@ -213,17 +213,17 @@ typedef struct carry_op {
 	reiser4_pool_header header;
 	carry_opcode op;
 	/* node on which operation is to be performed:
-	
+
 	   for insert, paste: node where new item is to be inserted
-	
+
 	   for delete: node where pointer is to be deleted
-	
+
 	   for cut: node to cut from
-	
+
 	   for update: node where delimiting key is to be modified
-	
+
 	   for modify: parent of modified node
-	
+
 	*/
 	carry_node *node;
 	union {

@@ -1,4 +1,4 @@
-<TITLE>Reiser4() Syntax In All Its Obscurities</TITLE> 
+<TITLE>Reiser4() Syntax In All Its Obscurities</TITLE>
 
 <H1>Introduction</H1>
 
@@ -8,10 +8,10 @@ by the usual Linux conventional VFS API.
 
 <p>The existing VFS API is appropriate for accessing streams of data
 that are larger than the buffers used to hold them, by using simple
-hierarchical names.  
+hierarchical names.
 
 <p>
-There exist other needs.  
+There exist other needs.
 
 <p> The new API provides a very few of them, but more significantly,
 makes it easy to add more of them later.  Much of what we do in v4 to
@@ -71,10 +71,10 @@ location later.  For now our first pass at the problem is to put the
 functionality into the kernel part of Reiser4.  Perhaps during the
 debugging phase we will even pull certain pieces out of the kernel....
 
-<h2>Creating Objects</h2> 
+<h2>Creating Objects</h2>
 
 <p> Every object must have at least one name, though that name might
-be just its key.  Every object has a key.  
+be just its key.  Every object has a key.
 
 <h3>Objects With Only Keys For Names</h3>
 
@@ -142,7 +142,7 @@ abstracted version of this (and the linux boot loaders currently
 support this poor abstraction we offer.)
 
 <p>
-ascii_command = 
+ascii_command =
 <p>                '/home/teletubbies/(..new/(..name<-glove_location,..object_t<-(audit|encrypted), ..perm_t<-acl );
 <p>                 glove_location/..acl/(uid=357, access<-denied));
 <p>                /home/teletubbies/glove_location/..audit/..new/(mailto<-"(teletubbies@pbs.org));

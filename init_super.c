@@ -197,7 +197,7 @@ _INIT_(read_super)
 		if (!silent) {
 			warning("nikita-2608", "Wrong master super block magic.");
 		}
-		
+
 		/* no standard reiser4 super block found */
 		brelse(super_bh);
 		/* FIXME-VS: call guess method for all available layout
@@ -301,7 +301,7 @@ _DONE_(disk_format)
 }
 
 _INIT_(sb_counters)
-{	
+{
 	/* There are some 'committed' versions of reiser4 super block
 	   counters, which correspond to reiser4 on-disk state. These counters
 	   are initialized here */
@@ -379,7 +379,7 @@ static struct {
 
 /* access to default plugin table */
 reiser4_internal reiser4_plugin *
-get_default_plugin(pset_member memb) 
+get_default_plugin(pset_member memb)
 {
 	return plugin_by_id(default_plugins[memb].type, default_plugins[memb].id);
 }
@@ -399,7 +399,7 @@ _INIT_(fs_root)
 		iput(inode);
 		return RETERR(-ENOMEM);
 	}
-	
+
 	s->s_root->d_op = &sbinfo->ops.dentry;
 
 	if (!is_inode_loaded(inode)) {

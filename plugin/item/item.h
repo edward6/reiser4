@@ -46,23 +46,23 @@ typedef struct {
 
 	*/
 	/* maximal key that can _possibly_ be occupied by this item
-	
+
 	    When inserting, and node ->lookup() method (called by
 	    coord_by_key()) reaches an item after binary search,
 	    the  ->max_key_inside() item plugin method is used to determine
 	    whether new item should pasted into existing item
 	     (new_key<=max_key_inside()) or new item has to be created
 	    (new_key>max_key_inside()).
-	
+
 	    For items that occupy exactly one key (like stat-data)
 	    this method should return this key. For items that can
 	    grow indefinitely (extent, directory item) this should
 	    return max_key().
-	
+
 	   For example extent with the key
-	
+
 	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-	
+
 	   ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
 	*/
 	reiser4_key *(*max_key_inside) (const coord_t *, reiser4_key *);
@@ -70,9 +70,9 @@ typedef struct {
 	/* true if item @coord can merge data at @key. */
 	int (*can_contain_key) (const coord_t *, const reiser4_key *, const reiser4_item_data *);
 	/* mergeable() - check items for mergeability
-	
+
 	   Optional method. Returns true if two items can be merged.
-	
+
 	*/
 	int (*mergeable) (const coord_t *, const coord_t *);
 
@@ -105,7 +105,7 @@ typedef struct {
 	   by last units of @source. @target node has @free_space
 	   bytes of free space. Total size of those units are returned
 	   via @size.
-	
+
 	   @target is not NULL if shifting to the mergeable item and
 	   NULL is new item will be created during shifting.
 	*/
@@ -234,11 +234,11 @@ typedef struct {
 	void (*readpages) (void *, struct address_space *, struct list_head *pages);
 	/* key of first byte which is not addressed by the item @coord is set to
 	   For example extent with the key
-	
+
 	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-	
+
 	   ->append_key is
-	
+
 	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size) */
 	/* FIXME: could be uf_coord also */
 	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);

@@ -179,7 +179,7 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 
 	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-414", keygt(key, &item_key));
-	
+
 	assert("umka-99945",
 	        !keygt(key, max_key_inside_extent(coord, &item_key)));
 
@@ -418,10 +418,10 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 
 			/* item is to be removed completely */
 			assert("nikita-3316", kdata->left != NULL && kdata->right != NULL);
-				
+
 			left = kdata->left->node;
 			right = kdata->right->node;
-				
+
 			tree = current_tree;
 			/* we have to do two things:
 			 *
@@ -478,7 +478,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 			set_key_offset(&key, get_key_offset(pto_key) + 1);
 
 			UNDER_RW_VOID(dk, current_tree, write, znode_set_rd_key(kdata->left->node, &key));
-		}		
+		}
 
 		from_off = get_key_offset(pfrom_key) >> PAGE_CACHE_SHIFT;
 		to_off = (get_key_offset(pto_key) + 1) >> PAGE_CACHE_SHIFT;
@@ -498,7 +498,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 	assert("vs-1552", from_off - offset <= extent_get_width(ext));
 	skip = from_off - offset;
 	offset = from_off;
-	
+
 	while (offset < to_off) {
 		length = extent_get_width(ext) - skip;
 		if (state_of_extent(ext) == HOLE_EXTENT) {
@@ -511,14 +511,14 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 		if (offset + length > to_off) {
 			length = to_off - offset;
 		}
-		
+
 		DQUOT_FREE_BLOCK(inode, length);
 
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* some jnodes corresponding to this unallocated extent */
 			fake_allocated2free(length,
 					    0 /* unformatted */);
-			
+
 			skip = 0;
 			offset += length;
 			ext ++;
@@ -529,7 +529,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 
 		if (length != 0) {
 			start = extent_get_start(ext) + skip;
-			
+
 			/* BA_DEFER bit parameter is turned on because blocks which get freed are not safe to be freed
 			   immediately */
 			reiser4_dealloc_blocks(&start, &length, 0 /* not used */,

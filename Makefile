@@ -132,7 +132,7 @@ reiser4-objs := \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o
 
-reiser4-objs += sys_reiser4.o 
+reiser4-objs += sys_reiser4.o
 
 ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
 
@@ -153,7 +153,7 @@ ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
                  $/parser/lib.c        \
                  $/parser/pars.cls.h   \
                  $/parser/pars.yacc.h  \
-                 $/parser/parser.h 
+                 $/parser/parser.h
 
 
 #	$(MAKE)  $(obj)/parser/parser

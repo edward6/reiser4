@@ -40,14 +40,14 @@ struct flush_scan {
 	/* The current scan position.  If @node is non-NULL then its reference count has
 	   been incremented to reflect this reference. */
 	jnode *node;
-	
+
 	/* node specific linkage status. This indicates if the node that flush
 	 * started from is linked to the tree (like formatted nodes, extent's jnodes),
 	 * or not (like jnodes of newly created cluster of cryptcompressed file.
 	 * If (nstat == UNLINKED) we don't do right scan. Also we use this status in
 	 * scan_by_coord() to assign item plugin */
 	flush_scan_node_stat_t nstat;
-	
+
 	/* A handle for zload/zrelse of current scan position node. */
 	load_count node_load;
 
@@ -153,12 +153,12 @@ item_squeeze_count (flush_pos_t * pos)
 static inline void
 inc_item_squeeze_count (flush_pos_t * pos)
 {
-	pos->sq->count++;	
+	pos->sq->count++;
 }
 static inline void
 set_item_squeeze_count (flush_pos_t * pos, int count)
 {
-	pos->sq->count = count;	
+	pos->sq->count = count;
 }
 static inline item_plugin *
 item_squeeze_plug (flush_pos_t * pos)
@@ -166,7 +166,7 @@ item_squeeze_plug (flush_pos_t * pos)
 	return pos->sq->iplug;
 }
 
-static inline squeeze_item_info_t * 
+static inline squeeze_item_info_t *
 item_squeeze_data (flush_pos_t * pos)
 {
 	return pos->sq->itm;

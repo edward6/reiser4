@@ -71,7 +71,7 @@ reiser4_internal int reiser4_status_init(reiser4_block_nr block)
 		warning("green-2007", "I/O error while tried to read status page\n");
 		return -EIO;
 	}
-	
+
 	statuspage = kmap_atomic(page, KM_USER0);
 	if ( memcmp( statuspage->magic, REISER4_STATUS_MAGIC, sizeof(REISER4_STATUS_MAGIC)) ) {
 		/* Magic does not match. */
@@ -82,7 +82,7 @@ reiser4_internal int reiser4_status_init(reiser4_block_nr block)
 		return -EINVAL;
 	}
 	kunmap_atomic(page, KM_USER0);
-	
+
 	get_super_private(sb)->status_page = page;
 	get_super_private(sb)->status_bio = bio;
 	return 0;

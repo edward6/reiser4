@@ -111,7 +111,7 @@ extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
 {
 	assert("nikita-1764", coord != NULL);
 	/* we don't store file type in the directory entry yet.
-	
+
 	   But see comments at kassign.h:obj_key_id
 	*/
 	return DT_UNKNOWN;

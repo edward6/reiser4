@@ -13,15 +13,15 @@
 
 /*
   Default align() method of the crypto-plugin (look for description of this method
-  in plugin/plugin.h)  
-  
+  in plugin/plugin.h)
+
 1) creates the aligning armored format of the input flow before encryption.
    "armored" means that padding is filled by private data (for example,
-   pseudo-random sequence of bytes is not private data).   
+   pseudo-random sequence of bytes is not private data).
 2) returns length of appended padding
 
    [ flow | aligning_padding ]
-            ^   
+            ^
             |
 	  @pad
 */
@@ -31,11 +31,11 @@ align_cluster_common(__u8 *pad /* pointer to the first byte of aligning format *
 				int blocksize /* crypto-block size */)
 {
 	int pad_size;
-	
+
 	assert("edward-01", pad != NULL);
 	assert("edward-02", flow_size != 0);
 	assert("edward-03", blocksize != 0 || blocksize <= MAX_CRYPTO_BLOCKSIZE);
-	
+
 	pad_size = blocksize - (flow_size % blocksize);
 	get_random_bytes (pad, pad_size);
 	return pad_size;

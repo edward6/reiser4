@@ -44,7 +44,7 @@ oid_allocate(struct super_block *super)
 		sbinfo->oids_in_use ++;
 	} else
 		oid = ABSOLUTE_MAX_OID;
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 	return oid;
 }
 

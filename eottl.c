@@ -314,7 +314,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	if (result == 0) {
 		/* item to the right is also an extent one. Allocate a new node
 		   and insert pointer to it after item h -> coord.
-		
+
 		   This is a result of extents being located at the twig
 		   level. For explanation, see comment just above
 		   is_next_item_internal().
@@ -349,7 +349,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 		   leftmost key in the node pointed to by said internal item
 		   (otherwise search wouldn't come to the extent in the first
 		   place).
-		
+
 		   This is a result of extents being located at the twig
 		   level. For explanation, see comment just above
 		   is_next_item_internal().

@@ -331,16 +331,16 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 	copy_lh(&lh, uf_coord->lh);
 	inode = page->mapping->host;
 	coord_dup(&coord, &uf_coord->base_coord);
-	
+
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
 	if ((result = tap_load(&tap)))
 		goto out_tap_done;
-	
+
 	/* lookup until page is filled up. */
 	for (mapped = 0; mapped < PAGE_CACHE_SIZE; mapped += count) {
 		void *pagedata;
-		
+
 		/* number of bytes to be copied to page. */
 		count = item_length_by_coord(&coord) - coord.unit_pos;
 
@@ -355,13 +355,13 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 			((char *)item_body_by_coord(&coord) + coord.unit_pos), count);
 
 		flush_dcache_page(page);
-		
+
 		/* dettaching page from address space. */
 		kunmap_atomic(page, KM_USER0);
-		
+
 		/* Getting next tail item. */
 		if (mapped + count < PAGE_CACHE_SIZE) {
-			
+
 			/* unlocking page in order to avoid keep it locked durring tree lookup,
 			   which takes long term locks. */
 			unlock_page(page);
@@ -378,7 +378,7 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 				result = 0;
 				goto out_unlock_page;
 			}
-			
+
 			if (result) {
 				/* check if there is no neighbour node. */
 				if (result == -E_NO_NEIGHBOR) {
@@ -396,11 +396,11 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 			}
 		}
 	}
-	
+
 	/* making page up to date and releasing it. */
 	SetPageUptodate(page);
 	unlock_page(page);
-	
+
 	/* releasing tap */
 	tap_relse(&tap);
 	tap_done(&tap);
@@ -453,7 +453,7 @@ item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 {
 	int result;
 	struct inode *inode;
-	
+
 	if (do_set_hint) {
 		if (hint->coord.valid)
 			set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
@@ -566,7 +566,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 				all_grabbed2free();
 			break;
 		}
-		
+
 		/* FIXME: do not rely on a coord yet */
 		hint->coord.valid = 0;
 
@@ -594,7 +594,7 @@ coord_matches_key_tail(const coord_t *coord, const reiser4_key *key)
 	assert("vs-1354", keylt(key, append_key_tail(coord, &item_key)));
 	assert("vs-1355", keyge(key, item_key_by_coord(coord, &item_key)));
 	return get_key_offset(key) == get_key_offset(&item_key) + coord->unit_pos;
-	
+
 }
 
 #endif
@@ -662,7 +662,7 @@ append_key_tail(const coord_t *coord, reiser4_key *key)
 reiser4_internal void
 init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
 {
-	uf_coord->valid = 1;	
+	uf_coord->valid = 1;
 }
 
 /*

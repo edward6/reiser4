@@ -82,7 +82,7 @@ RW_LOCK_FUNCTIONS(zlock, zlock, guard);
 struct lock_handle {
 	/* This flag indicates that a signal to yield a lock was passed to
 	   lock owner and counted in owner->nr_signalled
-	
+
 	   Locking: this is accessed under spin lock on ->node.
 	*/
 	int signaled;
@@ -126,7 +126,7 @@ struct lock_stack {
 	   requestors list of that lock */
 	requestors_list_link requestors_link;
 	/* Current lock request info.
-	
+
 	   This is only accessed by the current thread and thus requires no
 	   locking.
 	*/
@@ -138,7 +138,7 @@ struct lock_stack {
 	   up). "lost wakeup" occurs when process is waken up before he actually
 	   becomes 'sleepy' (through sleep_on()). Using of semaphore object is
 	   simplest way to avoid that problem.
-	
+
 	   A semaphore is used in the following way: only the process that is
 	   the owner of the lock_stack initializes it (to zero) and calls
 	   down(sema) on it. Usually this causes the process to sleep on the
@@ -146,11 +146,11 @@ struct lock_stack {
 	   advantage to a semaphore is that up() and down() calls are not
 	   required to preserve order. Unlike wait_queue it works when process
 	   is woken up before getting to sleep.
-	
+
 	   NOTE-NIKITA: Transaction manager is going to have condition variables
 	   (&kcondvar_t) anyway, so this probably will be replaced with
 	   one in the future.
-	
+
 	   After further discussion, Nikita has shown me that Zam's implementation is
 	   exactly a condition variable.  The znode's {zguard,requestors_list} represents
 	   condition variable and the lock_stack's {sguard,semaphore} guards entry and

@@ -278,7 +278,7 @@ done_formatted_fake(struct super_block *super)
 		iput(sinfo->bitmap);
 		sinfo->bitmap = NULL;
 	}
-	
+
 	if (sinfo->cc != NULL) {
 		iput(sinfo->cc);
 		sinfo->cc = NULL;
@@ -479,7 +479,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 	assert("nikita-2633", node != NULL);
 
 	/* Simple implemenation in the assumption that blocksize == pagesize.
-	
+
 	   We only have to submit one block, but submit_bh() will allocate bio
 	   anyway, so lets use all the bells-and-whistles of bio code.
 	*/
@@ -542,11 +542,11 @@ int set_page_dirty_internal (struct page * page, int tag_as_moved)
 					page->index, PAGECACHE_TAG_DIRTY);
 				if (tag_as_moved)
 					radix_tree_tag_set(
-						&mapping->page_tree, page->index, 
+						&mapping->page_tree, page->index,
 						PAGECACHE_TAG_REISER4_MOVED);
 				else
 					radix_tree_tag_clear(
-						&mapping->page_tree, page->index, 
+						&mapping->page_tree, page->index,
 						PAGECACHE_TAG_REISER4_MOVED);
 			}
 			read_unlock_irq(&mapping->tree_lock);
@@ -579,7 +579,7 @@ reiser4_internal void capture_reiser4_inodes (
 
 		{
 			file_plugin *fplug;
-			
+
 			fplug = inode_file_plugin(inode);
 			if (fplug != NULL && fplug->capture != NULL) {
 				/* call file plugin method to capture anonymous pages and
@@ -596,7 +596,7 @@ reiser4_internal void capture_reiser4_inodes (
 
 			read_lock_irqsave(&mapping->tree_lock, flags);
 			if (!radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_DIRTY) &&
-			    !radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED)) 
+			    !radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED))
 			{
 				inode->i_state &= ~(I_DIRTY);
 			}
@@ -635,7 +635,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	assert("vs-828", PageLocked(page));
 
 #if REISER4_USE_ENTD
-	
+
 	/* Throttle memory allocations if we were not in reiser4 */
 	if (ctx.parent == &ctx) {
 		write_page_by_ent(page, wbc);
@@ -720,7 +720,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.readpage = formatted_readpage,
 	/* ->sync_page() method of fake inode address space operations. Called
 	   from wait_on_page() and lock_page().
-	
+
 	   This is most annoyingly misnomered method. Actually it is called
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
@@ -787,7 +787,7 @@ invalidate_unformatted(jnode *node)
 		truncate_inode_pages_range(page->mapping, page->index, 1);
 		page_cache_release(page);
 	} else {
-		JF_SET(node, JNODE_HEARD_BANSHEE);		
+		JF_SET(node, JNODE_HEARD_BANSHEE);
 		uncapture_jnode(node);
 		unhash_unformatted_jnode(node);
 	}
@@ -864,7 +864,7 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 	unmap_mapping_range(mapping, from_bytes, count_bytes, 1/*even cows*/);
 	truncate_inode_pages_range(mapping, from, count);
 	truncate_jnodes_range(mapping->host, from, count);
-} 
+}
 
 
 #if REISER4_DEBUG_OUTPUT

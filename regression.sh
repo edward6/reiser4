@@ -13,7 +13,7 @@ function run()
 {
 #   do_mkfs
 	echo -n $* "..."
-	( /usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null ) || exit 1 
+	( /usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null ) || exit 1
 #	shift
 #	shift
 	RNAME=`echo $* | sed 's/[ \/]/./g'`.$r
@@ -44,7 +44,7 @@ then
 	exit 3
 fi
 
-for r in `seq 1 $ROUNDS` 
+for r in `seq 1 $ROUNDS`
 do
 echo Round $r
 

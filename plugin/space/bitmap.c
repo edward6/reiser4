@@ -589,7 +589,7 @@ adjust_first_zero_bit(struct bitmap_node *bnode, bmap_off_t offset)
 
 #define REISER4_FIRST_BITMAP_BLOCK \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
-	
+
 /* Audited by: green(2002.06.12) */
 reiser4_internal void
 get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr * bnr)
@@ -685,22 +685,22 @@ prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 	/* load commit bitmap */
 	ret = jload_gfp(cjnode, GFP_NOFS, 1);
-	
+
 	if (ret)
 		goto error;
-	
+
 	/* allocate memory for working bitmap block. Note that for
 	 * bitmaps jinit_new() doesn't actually modifies node content,
 	 * so parallel calls to this are ok. */
 	ret = jinit_new(wjnode, GFP_NOFS);
-	
+
 	if (ret != 0) {
 		jrelse(cjnode);
 		goto error;
 	}
 
 	return 0;
-	
+
  error:
 	jput(cjnode);
 	jput(wjnode);
@@ -717,7 +717,7 @@ check_adler32_jnode(jnode *jnode, unsigned long size) {
 /* Check the bnode data on read. */
 static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
 	void *data;
-	
+
 	/* Check CRC */
 	if (check_adler32_jnode(bnode->cjnode, bmap_size(blksize))) {
 		warning("vpf-1361", "Checksum for the bitmap block %llu "
@@ -749,7 +749,7 @@ load_and_lock_bnode(struct bitmap_node *bnode)
 	jnode *wjnode;
 
 	assert("nikita-3040", schedulable());
-	
+
 /* ZAM-FIXME-HANS: since bitmaps are never unloaded, this does not
  * need to be atomic, right? Just leave a comment that if bitmaps were
  * unloadable, this would need to be atomic.  */
@@ -778,11 +778,11 @@ load_and_lock_bnode(struct bitmap_node *bnode)
 			if (!ret) {
 				cjnode = wjnode = NULL;
 				atomic_set(&bnode->loaded, 1);
-				/* working bitmap is initialized by on-disk 
-				 * commit bitmap. This should be performed 
+				/* working bitmap is initialized by on-disk
+				 * commit bitmap. This should be performed
 				 * under semaphore. */
 				xmemcpy(bnode_working_data(bnode),
-					bnode_commit_data(bnode), 
+					bnode_commit_data(bnode),
 					bmap_size(current_blocksize));
 			} else {
 				up(&bnode->sema);
@@ -978,7 +978,7 @@ static int bitmap_alloc_forward(reiser4_block_nr * start, const reiser4_block_nr
 		if (len != 0)
 			goto out;
 	}
-		
+
 	len = search_one_bitmap_forward(bmap, &offset, end_offset, min_len, max_len);
 out:
 	*start = bmap * max_offset + offset;
@@ -1358,7 +1358,7 @@ pre_commit_hook_bitmap(void)
 			JF_CLR(node, JNODE_SCANNED);
 			node = capture_list_next(node);
 		}
-		spin_unlock(&scan_lock);		
+		spin_unlock(&scan_lock);
 	}
 
 	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);

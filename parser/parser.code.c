@@ -10,7 +10,7 @@ static char yyrcsid[] = "$Id: skeleton.c,v 1.4 1993/12/21 18:45:32 jtc Exp $\n 2
 #define YYRECOVERING (yyerrflag!=0)
 #define YYPREFIX "yy"
 #line 9 "fs/reiser4/parser/parser.y"
-typedef union 
+typedef union
 {
 	long charType;
 	expr_v4_t * expr;
@@ -76,7 +76,7 @@ extern char *yyrule[];
 #if defined(YYREISER4_DEF)
 #define YYSTACKSIZE 500
 #define YYMAXDEPTH 500
-#define yydebug ws->ws_yydebug 
+#define yydebug ws->ws_yydebug
 #define yynerrs ws->ws_yynerrs
 #define yyerrflag ws->ws_yyerrflag
 #define yychar ws->ws_yychar
@@ -208,7 +208,7 @@ yyloop:
     if (yyerrflag) goto yyinrecovery;
 #if defined(YYREISER4_DEF)
     yyerror(ws,11111,yystate,yychar);
-#else 
+#else
     yyerror("syntax error");
 #endif
 #ifdef lint
@@ -474,7 +474,7 @@ to state %d\n", YYPREFIX, *yyssp, yystate);
 yyoverflow:
 #if defined(YYREISER4_DEF)
     yyerror(ws,101); /*yacc stack overflow*/
-#else 
+#else
     yyerror("yacc stack overflow");
 #endif
 yyabort:

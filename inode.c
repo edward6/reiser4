@@ -78,7 +78,7 @@ reiser4_internal ino_t oid_to_uino(oid_t oid)
 	   32 bit i_ino field, but this is not a problem, because there is a
 	   way to further distinguish inodes with identical inode numbers
 	   (find_actor supplied to iget()).
-	
+
 	   But user space expects unique 32 bit inode number. Obviously this
 	   is impossible. Work-around is to somehow hash oid into user visible
 	   inode number.
@@ -744,7 +744,7 @@ inode_invariant(const struct inode *inode)
 	assert("nikita-3146", object->anonymous_eflushed >= 0 && object->captured_eflushed >= 0);
 	assert("nikita-3441", ergo(object->anonymous_eflushed > 0 || object->captured_eflushed > 0,
 				   jnode_tree_by_reiser4_inode(object)->rnode != NULL));
-	
+
 	spin_unlock_eflush(inode->i_sb);
 }
 

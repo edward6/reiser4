@@ -10,7 +10,7 @@
      "#define YYBYACC 1",
      "#define YYMAJOR 1",
 @@ -30,6 +30,9 @@
- 
+
  char *tables[] =
  {
 +    "#if defined(YYREISER4_DEF)",
@@ -20,7 +20,7 @@
      "extern short yylen[];",
      "extern short yydefred[];",
 @@ -49,28 +52,45 @@
- 
+
  char *header[] =
  {
 -    "#ifdef YYSTACKSIZE",
@@ -84,7 +84,7 @@
 +
      0
  };
- 
+
 @@ -82,11 +102,15 @@
      "#define YYACCEPT goto yyaccept",
      "#define YYERROR goto yyerrlab",

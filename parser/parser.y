@@ -6,7 +6,7 @@
 
 
 /* type definitions */
-%union 
+%union
 {
 	long charType;
 	expr_v4_t * expr;
@@ -25,9 +25,9 @@
 %type <expr> begin_from
 %type <expr> Expression
 
-%type <expr> if_statement 
+%type <expr> if_statement
 %type <expr> if_statement if_Expression if_Begin
-%type <expr> then_operation 
+%type <expr> then_operation
 
 %token TRANSCRASH
 %token SEMICOLON          /* ; */
@@ -37,7 +37,7 @@
 %token L_BRACKET R_BRACKET
 %token SLASH
 %token INV_L INV_R
-%token EQ NE  LE GE   LT  GT   
+%token EQ NE  LE GE   LT  GT
 %token IS
 %token AND
 %token OR
@@ -56,7 +56,7 @@
 
 %left PLUS               /* + */
 %left UNNAME NAME
-%left EQ NE  LE GE   LT  GT   
+%left EQ NE  LE GE   LT  GT
 %left NOT AND OR
 
 %right ELSE
@@ -99,7 +99,7 @@ Expression
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
 
 
-if_statement        
+if_statement
     : if_Begin then_operation ELSE Expression %prec PLUS   { $$ = if_then_else( ws, $1, $2, $4 ); }
     | if_Begin then_operation                 %prec PLUS   { $$ = if_then( ws, $1, $2) ;         }
 ;
@@ -111,8 +111,8 @@ if_Begin
 if: IF                                            { level_up( ws, IF_STATEMENT ); }
 ;
 
-if_Expression 
-    : NOT  Expression                                 { $$ = not_expression( ws, $2 ); } 
+if_Expression
+    : NOT  Expression                                 { $$ = not_expression( ws, $2 ); }
     | EXIST  Expression                               { $$ = check_exist( ws, $2 ); }
     | Expression EQ   Expression                      { $$ = compare_EQ_expression( ws, $1, $3 ); }
     | Expression NE   Expression                      { $$ = compare_NE_expression( ws, $1, $3 ); }
@@ -133,7 +133,7 @@ target
     | Object_Name NAMED Object_Name                   { $$ = target_name( $1, $3 );}
 ;
 
-Object_Name 
+Object_Name
     : begin_from name                 %prec ROOT       { $$ = pars_expr( ws, $1, $2 ) ; }
     | Object_Name SLASH name                           { $$ = pars_expr( ws, $1, $3 ) ; }
 ;
@@ -149,11 +149,11 @@ name
 ;
 
 level_up
-    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } 
+    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); }
 ;
 
 //named_level_up
-//    : Object_Name NAMED level_up                   { $$ = $1; level_up_named( ws, $1, $3 );} 
+//    : Object_Name NAMED level_up                   { $$ = $1; level_up_named( ws, $1, $3 );}
 //;
 
 %%

@@ -36,7 +36,7 @@ struct plugin_set {
 	/* crypto plugin */
 	crypto_plugin      *crypto;
 	/* digest plugin */
-	digest_plugin      *digest;	
+	digest_plugin      *digest;
 	/* compression plugin */
 	compression_plugin *compression;
 	ps_hash_link        link;

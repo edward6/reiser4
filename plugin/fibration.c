@@ -101,7 +101,7 @@ change_fibration(struct inode * inode, reiser4_plugin * plugin)
 						      &plugin->fibration);
 		else
 			result = RETERR(-ENOTEMPTY);
-	
+
 	}
 	return result;
 }

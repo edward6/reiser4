@@ -454,7 +454,7 @@ typedef struct reiser4_statistics {
 
 	/* statistics of unix file plugin */
 	struct {
-		
+
 		struct {
 			statcnt_t readpage_calls;
 			statcnt_t writepage_calls;
@@ -469,7 +469,7 @@ typedef struct reiser4_statistics {
 		statcnt_t find_file_item_via_seal;
 		statcnt_t find_file_item_via_right_neighbor;
 		statcnt_t find_file_item_via_cbk;
-		
+
 	} file;
 	struct {
 		/* how many unformatted nodes were read */
@@ -493,7 +493,7 @@ typedef struct reiser4_statistics {
 		 * to ask for research */
 		statcnt_t repeats;
 	} extent;
-	struct { /* stats on tail items */		
+	struct { /* stats on tail items */
 		/* tail_write calls balance_dirty_pages after every call to
 		   insert_flow. Before that it seals node it currently holds
 		   and uses seal_validate to lock it again. This field stores

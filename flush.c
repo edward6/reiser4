@@ -863,7 +863,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 		set_flush_scan_nstat(&left_scan, LINKED);
 		set_flush_scan_nstat(&right_scan, LINKED);
 	}
-	
+
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
 
@@ -886,7 +886,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	leftmost_in_slum = jref(left_scan.node);
 	scan_done(&left_scan);
-	
+
 	/* Then possibly go right to decide if we will use a policy of relocating leaves.
 	   This is only done if we did not scan past (and count) enough nodes during the
 	   leftward scan.  If we do scan right, we only care to go far enough to establish
@@ -1043,9 +1043,9 @@ failed:
 
 	switch (ret) {
 	    case -E_REPEAT:
-	    case -EINVAL: 
+	    case -EINVAL:
 	    case -E_DEADLOCK:
-	    case -E_NO_NEIGHBOR: 
+	    case -E_NO_NEIGHBOR:
 	    case -ENOENT:
 		/* FIXME(C): Except for E_DEADLOCK, these should probably be handled properly
 		   in each case.  They already are handled in many cases. */
@@ -1204,7 +1204,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 	/* trace_mark(flush); */
 	write_current_logf(WRITE_IO_LOG, "mark=flush\n");
-	
+
 	ret = write_fq(fq, nr_submitted, WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 
 	*atom = get_current_atom_locked();
@@ -1375,7 +1375,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 
 	if (znode_check_flushprepped(pos->lock.node))
 		return 0;
-	
+
 	ON_TRACE(TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", pos_tostring(pos));
 
 	coord_init_invalid(&pcoord, NULL);
@@ -1656,7 +1656,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 			break;
 		}
 		assert("vs-1465", !keyeq(&stop_key, min_key()));
-			
+
 		/* Helper function to do the cutting. */
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
 		check_me("vs-1466", squalloc_right_twig_cut(&coord, &stop_key, left) == 0);
@@ -1723,12 +1723,12 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 	int ret = 0;
 
 	item_plugin * iplug;
-	
+
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
 	assert("edward-475", znode_squeezable(node));
 	assert("edward-669", znode_is_wlocked(node));
-	
+
 	if (znode_get_level(node) != LEAF_LEVEL)
 		/* do not squeeze this node */
 		goto exit;
@@ -1750,7 +1750,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			break;
 		else {
 			iplug = item_plugin_by_coord(&pos->coord);
-			if (pos->sq && item_squeeze_plug(pos) != iplug) 
+			if (pos->sq && item_squeeze_plug(pos) != iplug)
 				set_item_squeeze_count(pos, 0);
 		}
 		assert("edward-844", iplug != NULL);
@@ -1764,9 +1764,9 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			continue;
 		if (ret)
 			goto exit;
-		
+
 		assert("edward-307", pos->child == NULL);
-		
+
 		/* now we should check if item_squeeze_data is valid, and if so,
 		   call previous method again, BUT if current item is last
 		   and mergeable with the first item of slum right neighbor,
@@ -1782,10 +1782,10 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 
 			if (!pos->sq || !item_squeeze_data(pos))
 				break;
-			
+
 			init_lh(&right_lock);
 			init_load_count(&right_load);
-			
+
 			/* check for slum right neighbor */
 			ret = neighbor_in_slum(node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 			if (ret == -E_NO_NEIGHBOR)
@@ -1800,7 +1800,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			}
 			coord_init_after_item_end(&pos->coord);
 			coord_init_before_first_item(&coord, right_lock.node);
-			
+
 			if (iplug->b.mergeable(&pos->coord, &coord)) {
 				/* go to slum right neighbor */
 				item_squeeze_data(pos)->mergeable = 1;
@@ -2089,7 +2089,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 	init_lh(&right_lock);
 	init_load_count(&right_load);
-	
+
 	check_pos(pos);
 	if (znode_squeezable(pos->lock.node)) {
 		ret = squeeze_node(pos, pos->lock.node);
@@ -2097,7 +2097,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (ret)
 			return ret;
 	}
-	
+
 	while (1) {
 		check_pos(pos);
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
@@ -2135,12 +2135,12 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		check_pos(pos);
 		if (ret < 0)
 			break;
-		
+
 		if (znode_check_flushprepped(right_lock.node)) {
 			pos_stop(pos);
 			break;
 		}
-		
+
 		if (node_is_empty(right_lock.node)) {
 			/* repeat if right node was squeezed completely */
 			done_load_count(&right_load);
@@ -2159,7 +2159,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		check_pos(pos);
 		if (ret)
 			break;
-		
+
 		if (should_terminate_squalloc(pos)) {
 			set_item_squeeze_count(pos, 0);
 			break;
@@ -2652,7 +2652,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 		   remembers why, though */
 		tree = znode_get_tree(left);
 		UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
-		
+
 		/* Carry is called to update delimiting key and, maybe, to remove empty
 		   node. */
 		grabbed = get_current_context()->grabbed_blocks;
@@ -3060,7 +3060,7 @@ jnode_lock_parent_coord(jnode         * node,
 
 		if (jnode_is_cluster_page(node))
 			stop_level = LEAF_LEVEL;
-		
+
 		assert("jmacd-1812", coord != NULL);
 
 		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
@@ -3420,7 +3420,7 @@ scan_should_link_node(flush_scan * scan)
 {
 	assert("edward-311", scan->node != NULL);
 	if (jnode_is_cluster_page(scan->node)) {
-		
+
 		assert("edward-303", scan->parent_coord.between != EMPTY_NODE);
 		return 1;
 	}
@@ -3503,7 +3503,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 				 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
 			assert("jmacd-8661", other != NULL);
 		}
-		
+
 		/* Duplicate the reference into the other flush_scan. */
 		coord_dup(&other->parent_coord, &scan->parent_coord);
 		copy_lh(&other->parent_lock, &scan->parent_lock);
@@ -3617,7 +3617,7 @@ scan_by_coord(flush_scan * scan)
 		iplug = item_plugin_by_jnode(scan->node);
 	else
 		iplug = item_plugin_by_coord(&scan->parent_coord);
-	
+
 	for (; !scan_finished(scan); scan_this_coord = 1) {
 		if (scan_this_coord) {
 			/* Here we expect that unit is scannable. it would not be so due
@@ -3653,7 +3653,7 @@ scan_by_coord(flush_scan * scan)
 				goto exit;
 			break;
 		}
-		
+
 		/* Either way, the invariant is that scan->parent_coord is set to the
 		   parent of scan->node. Now get the next unit. */
 		coord_dup(&next_coord, &scan->parent_coord);

@@ -152,7 +152,7 @@ while(next_leaf)
   if (is_formatted(current_leaf) && is_formatted(next_leaf))
     {
       squeeze_left(current_leaf, next_leaf);
-      if (is_empty(next_leaf)) 
+      if (is_empty(next_leaf))
 	{
 	  delete_node(next_leaf);
 	  next_leaf = get_right_neighbor_in_slum_level(current_leaf);
@@ -165,11 +165,11 @@ while(next_leaf)
     allocate_extent_in_parent_if_needed(current_leaf);
   /* the above may change the parent */
   check_and_handle_parent_change();
-  allocate(current_leaf);	  
+  allocate(current_leaf);
   next_leaf = get_right_neighbor_in_slum_level(current_leaf);
   check_and_handle_parent_change();
-  
-  
+
+
 }
 
 /* this means squeeze it as well as allocate it */
@@ -348,7 +348,7 @@ void allocate_and_squeeze_parent_first (jnode *node)
     } else if (can_shift_into (item, node)) {
        shift_item (item, node);
     }
-  } 
+  }
 }
 
 ########################################################################

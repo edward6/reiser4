@@ -44,10 +44,10 @@ typedef struct {
 typedef enum {
 	/* True if this file system doesn't support hard-links (multiple
 	   names) for directories: this is default UNIX behavior.
-	
+
 	   If hard-links on directoires are not allowed, file system is
 	   Acyclic Directed Graph (modulo dot, and dotdot, of course).
-	
+
 	   This is used by reiser4_link().
 	*/
 	REISER4_ADG = 0,
@@ -219,10 +219,10 @@ struct reiser4_super_info_data {
 
 	/* number of blocks reserved for flush operations. */
 	__u64 blocks_flush_reserved;
-	
+
         /* number of blocks reserved for cluster operations. */
 	__u64 blocks_clustered;
-	
+
 	/* unique file-system identifier */
 	/* does this conform to Andreas Dilger UUID stuff? */
 	__u32 fsuid;
@@ -573,7 +573,7 @@ void dec_unfm_ef(void);
 #define dec_unalloc_unfm_ptrs(nr) noop
 #define inc_unfm_ef() noop
 #define dec_unfm_ef() noop
- 
+
 #endif
 
 

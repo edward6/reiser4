@@ -154,7 +154,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 
 			if (coord_after.node != orig_znode)
 				zrelse(coord_after.node);
-			
+
 			if (return_inserted_position == 0) {
 				/* return un_extent and lh set to the same */
 				assert("vs-1662", WITH_DATA(coord_after.node, !memcmp(replace, extent_by_coord(&coord_after), sizeof(reiser4_extent))));

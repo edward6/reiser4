@@ -305,7 +305,7 @@ log_flush(reiser4_log_file * file)
 					written += result;
 				} else {
 					static int log_io_failed = 0;
-					
+
 					if (IS_POW(log_io_failed))
 						warning("nikita-2502",
 							"Error writing log: %i",

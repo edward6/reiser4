@@ -349,7 +349,7 @@ tail2extent(unix_file_info_t *uf_info)
 
 				result = zload(coord.node);
 				if (result) {
-					page_cache_release(page);										
+					page_cache_release(page);
 					done_lh(&lh);
 					goto error;
 				}
@@ -683,7 +683,7 @@ find_first_item(struct inode *inode)
 			result = RETERR(-EIO);
 	}
 	done_lh(&lh);
-	return result;	
+	return result;
 }
 
 /* exclusive access is obtained. File may be "partially converted" - that is file body may have both formatting and

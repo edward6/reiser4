@@ -525,10 +525,10 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	dispose_cursors(inode);
 	if (info->pset)
 		plugin_set_put(info->pset);
-	
+
 	/* FIXME: assert that info's page radix tree is empty */
 	/*assert("nikita-2872", list_empty(&info->moved_pages));*/
-	
+
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
@@ -697,7 +697,7 @@ typedef struct opt_bitmask_bit {
 /* description of option parseable by parse_option() */
 typedef struct opt_desc {
 	/* option name.
-	
+
 	   parsed portion of string has a form "name=value".
 	*/
 	const char *name;
@@ -885,7 +885,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 	opt_desc_t opts[] = {
 		/* trace_flags=N
-		
+
 		   set trace flags to be N for this mount. N can be C numeric
 		   literal recognized by %i scanf specifier.  It is treated as
 		   bitfield filled by values of debug.h:reiser4_trace_flags
@@ -893,7 +893,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		*/
 		SB_FIELD_OPT(trace_flags, "%i"),
 		/* log_flags=N
-		
+
 		   set log flags to be N for this mount. N can be C numeric
 		   literal recognized by %i scanf specifier.  It is treated as
 		   bitfield filled by values of debug.h:reiser4_log_flags
@@ -901,7 +901,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		*/
 		SB_FIELD_OPT(log_flags, "%i"),
 		/* debug_flags=N
-		
+
 		   set debug flags to be N for this mount. N can be C numeric
 		   literal recognized by %i scanf specifier.  It is treated as
 		   bitfield filled by values of debug.h:reiser4_debug_flags
@@ -909,13 +909,13 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		*/
 		SB_FIELD_OPT(debug_flags, "%i"),
 		/* tmgr.atom_max_size=N
-		
+
 		   Atoms containing more than N blocks will be forced to
 		   commit. N is decimal.
 		*/
 		SB_FIELD_OPT(tmgr.atom_max_size, "%u"),
 		/* tmgr.atom_max_age=N
-		
+
 		   Atoms older than N seconds will be forced to commit. N is
 		   decimal.
 		*/
@@ -926,7 +926,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		 */
 		SB_FIELD_OPT(tmgr.atom_max_flushers, "%u"),
 		/* tree.cbk_cache_slots=N
-		
+
 		   Number of slots in the cbk cache.
 		*/
 		SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u"),
@@ -1426,7 +1426,7 @@ struct super_operations reiser4_super_operations = {
 	.put_super = reiser4_put_super,
 	.write_super = reiser4_write_super,
 	.sync_fs = NULL,
- 	.write_super_lockfs = NULL, 
+ 	.write_super_lockfs = NULL,
  	.unlockfs           = NULL,
 	.statfs = reiser4_statfs,
  	.remount_fs         = NULL,

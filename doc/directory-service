@@ -21,7 +21,7 @@ non-unique keys in reiser4.
 
 NON-UNIQUE KEYS
 
-1. 
+1.
 
 Non-unique keys require changes in both tree lookup and tree update
 code. In addition some new API to iterate through items with identical
@@ -33,7 +33,7 @@ all items in a left sub-tree of given delimiting key are less than, and
 in the right sub-tree greater than or equal to the said key. In a search
 tree with non-unique keys both inequalities are not strict.
 
-2. 
+2.
 
 Tree lookups: we require that node layout ->lookup() methods always
 return leftmost item with the key looked for. The same for item
@@ -41,7 +41,7 @@ return leftmost item with the key looked for. The same for item
 keys. Standard node40 layout plugin handles this, see
 fs/reiser4/plugin/node/node40.c:node40_lookup().
 
-3. 
+3.
 
 Tree balancing: it seems that only change here is the handling of
 weakened search tree invariant. This can be gathered from the
@@ -49,7 +49,7 @@ observation that balancing never even compares keys, only tests them for
 equality. More thought/research is required though. Looking at the
 existing implementations (like Berkeley db) would be useful also.
 
-4. 
+4.
 
 Iteration through items/unit with identical keys. There are two
 interfaces to iterating abstraction known as "external" (also known as
@@ -124,9 +124,9 @@ typedef struct hdir_entry {
      * key of object stat-data. It's not necessary to store
      * whole key here, because it's always key of stat-data, so minor packing
      * locality and offset can be omitted here. But this relies on
-     * particular key allocation scheme for stat-data, so, for extensibility 
+     * particular key allocation scheme for stat-data, so, for extensibility
      * sake, whole key can be stored here.
-     * 
+     *
      * We store key as array of bytes, because we don't want 8-byte alignment
      * of dir entries.
      */
@@ -157,9 +157,9 @@ plugin. No then less, choice of default key allocation policy is still
 important decision, although not that important as in plugin-less
 file-system.
 
-4. 
+4.
 
-Function 
+Function
 
 int hdir_find_entry( inode *dir, const hdir_entry *entry,
                      tween_coord *coord, lock_handle *lh );
@@ -170,7 +170,7 @@ iterates through all directory entries in @dir that have the same key as
 5.
 
 During ->create()/->link() hdir_find_entry() is used to find place to insert new
-item (and to check for -EEXIST). 
+item (and to check for -EEXIST).
 
 During ->lookup() hdir_find_entry() is used find entry for the file
 being looked for and to load stat-data afterwards.
@@ -180,11 +180,11 @@ removed.
 
 NOTE ON ->lookup():
 
-VFS implements following protocol when creating new 
+VFS implements following protocol when creating new
 file (fs/namei.c:open_namei()):
 
 dentry hash is searched. If search is unsuccessful, file system
-->lookup() is called.  
+->lookup() is called.
 If lookup didn't find name, call ->create()
 
 While this protocol spares file system from dealing with dcache locking,

@@ -1,4 +1,4 @@
-<p> <H1> Reiser4 (Version 4 of ReiserFS)</H1> 
+<p> <H1> Reiser4 (Version 4 of ReiserFS)</H1>
 
 <H2> Primary sponsor www.DARPA.mil, regular sponsors applianceware.com and
 bigstorage.com.  DARPA does not endorse this project, it merely
@@ -156,7 +156,7 @@ Conclusion</a>
 
 <p>
 <a name="new_ext"></a>
-<H1> New Extensibility Infrastructure </H1> 
+<H1> New Extensibility Infrastructure </H1>
 <p>
 It takes more than a license to make source code open, it takes a design.
 
@@ -265,7 +265,7 @@ The balancing code will be able to balance an item iff it has an item
 plugin implemented for it.  The item plugin will implement each of
 the methods the balancing code needs (methods such as splitting items,
 estimating how large the split pieces will be, overwriting, appending
-to, cutting from, or inserting into the item, etc.)  
+to, cutting from, or inserting into the item, etc.)
 <p>
 In addition to all of the balancing operations, item plugins will also
 implement intra-item search plugins.
@@ -326,7 +326,7 @@ to where we can manage it over the long term.
 <a name="steps_crt"></a>
 <H2>Steps For Creating A Security Attribute</H2>
 <p>
-Once this infrastructure has been created, you will be able to create a new security attribute by: 
+Once this infrastructure has been created, you will be able to create a new security attribute by:
 <ul>
 <li>defining a pluginid
 <li>composing a set of methods for the plugin from ones you create or reuse from other existing plugins
@@ -392,7 +392,7 @@ grained.  This is a general principle of security, that good security
 requires precision of permissions.  When security lacks precision, it
 increases the burden of being secure, and the extent to which users
 adhere to security requirements in practice is a function of the
-burden of adhering to it.  
+burden of adhering to it.
 <p>
 <a name="imprecise_scrt"></a>
 <H3>Space Efficiency Concerns Motivate Imprecise Security</H3>
@@ -432,13 +432,13 @@ wished that you could have a modification time on each field in it?
 Have you ever wished the users could change part of it, such as the
 gecos field, themselves (setuid utilities have been written to allow
 this, but this is a pedagogical not a practical example), but not have
-the power to change it for other users?  
+the power to change it for other users?
 <p>
 There were good reasons why
 /etc/passwd was first implemented as a single file with one single
 permission governing the entire file.  If we can eliminate them one by
 one, the same techniques for making finer grained security effective
-will be of value to other highly secure data files.  
+will be of value to other highly secure data files.
 
 <a name="aggr_files"></a>
 <h3>Aggregating Files Can Improve The User Interface To Them</h3>
@@ -449,7 +449,7 @@ small files with separable acls for every field.  It is more
 convenient in screen real estate, buffer management, and other user
 interface considerations, to operate on them as an aggregation all
 placed into a single buffer rather than as a thousand 8-32 byte
-buffers.  
+buffers.
 
 <a name="aggr_modif"></a>
 <h3>How Do We Write Modifications To An Aggregation</h3>
@@ -515,7 +515,7 @@ Specifically, we will implement a plugin that executes an arbitrary
 constraint contained in an arbitary named file as a user space
 process, passes the proposed new file contents to that process as
 standard input, and iff the process exits without error allows the
-write to occur.  
+write to occur.
 
 <p>
 It can be useful to have read constraints as well as write constraints.
@@ -524,7 +524,7 @@ It can be useful to have read constraints as well as write constraints.
 <H3>Auditing </H3>
 <p>
 We will implement a plugin that notifies administrators by email when
-access is made to files, e.g. read access.  
+access is made to files, e.g. read access.
 
 <p>With each plugin implemented, creating additional plugins becomes
 easier as the available toolkit is enriched.  Auditing constitutes a
@@ -619,7 +619,7 @@ requests that we add more and more different kinds of attributes using
 more and more different APIs.  Can we do everything that can be done
 with {files, directories, attributes, streams} using just {files,
 directories}?  I say yes, if we make files and directories more powerful and flexible, and I hope that by the end of reading this you
-will agree.  
+will agree.
 <p>Let us have two basic objects.  A file is a sequence of bytes that has a name.  A directory is a namespace mapping names to a set of objects "within" the directory.  We connect these directory namespaces such that one can use compound names whose subcomponents are separated by a delimiter '/'.
 What is missing from files and directories now that attributes and streams offer?
 <p>In ReiserFS 3, there exist file attributes.  File attributes are out-of-band data describing the sequence of bytes which is the file.  For example, the permissions defining who can access a file, or the last modification time, are file attributes.
@@ -653,7 +653,7 @@ applied to any file.  Reiser4 will create that infrastructure.
 <li>hidden directory entries
 </ul>
 <p>
-The reader is asked to note that each of these additional features is a feature that the filesystem would benefit by the addition of anyway.  So we add them in v4.  
+The reader is asked to note that each of these additional features is a feature that the filesystem would benefit by the addition of anyway.  So we add them in v4.
 <a name="mnt_fs"></a>
 <H3>Mounting FS Flavors</H3>
 <p>
@@ -701,7 +701,7 @@ naming.
 <h3>Flaws In Traditional File API When Applied To Security Attributes</h3>
 Security related attributes tend to be small.  The traditional filesystem API for reading and writing files has these flaws in the context of accessing security attributes:
 <ul>
-<li>Creating a file descriptor is excessive overhead and not useful when accessing an 8 byte attribute.  
+<li>Creating a file descriptor is excessive overhead and not useful when accessing an 8 byte attribute.
 <li>A system call for every attribute accessed is too much overhead when accessing lots of little attributes.
 <li>Lacking constraints:  it is important to constrain what is written to the attribute, often in complex ways.
 <li>Lacking transactional semantics: Often one needs to update multiple attributes as one action that is guaranteed to either fully succeed or fully fail.
@@ -754,15 +754,15 @@ www.namesys.com/future_vision.html
 <a name="syscall"></a>
 <h3>reiser4() System Call Description</h3>
 <p>The reiser4() system call will contain a sequence of commands
-separated by a separator ( comma only for now).  
+separated by a separator ( comma only for now).
 
 <p>
 Assignment, and transaction, will be the commands supported in
 reiser4(), more commands will appear in reiser5.  => and <= will be
 the assignment operators.
- 
+
 <ul>lhs
-(assignment target) values: 
+(assignment target) values:
 
 <li> /process/buffer/first_byte/last_byte/bytes_written assigns
 (writes) to the buffer starting at address first_byte in the process
@@ -822,7 +822,7 @@ ACLs, etc.).
 <a name="tr_tr"></a>
 <H3>Transactions and Transcrashes:</H3>
 <a name="tr_necessary"></a>
-<h4>Transactions Are Necessary Safeguard Against Certain Race Condition Exploits</h4> 
+<h4>Transactions Are Necessary Safeguard Against Certain Race Condition Exploits</h4>
 
 (This section to be replaced with link to Josh MacDonald paper when that is complete.)
 <p>
@@ -831,12 +831,12 @@ http://www.linuxsecurity.net/advisories/other_advisory-1204.html
 <p>
 During the process of generating a new ticket, the attacker creates a symbolic link that redirects the ticket file being written to an arbitrary location.  This kind of vulnerability is quite common, unfortunately, due to inherent weaknesses of the traditional POSIX file system interface.  There is no primitive support for an operation that atomically tests for the existence of a symbolic link prior to opening that location, not without vulnerability to races. The solution posted in the Kerberos incident does not completely eliminate the vulnerability.  Instead, vulnerability is greatly reduced through programmer vigilance (provided a few assumptions).  The existing file system interface leaves open potential vulnerabilities such as this, by default, due to the fact that it is a stateless interface.  In general, lacking transactions the result of a file system read cannot be trusted for security decisions; the instant a value is returned it may be out of date.
 <p>
-When security is a concern and the application is sufficiently important that it can be modified to conform with more secure interfaces, there is an easy solution to these problems --- transactions.  Transactions provide the framework for strict, fine-grained locking that is used to extend the atomicity of individual operations into an atomic sequence of operations.  In the Kerberos example, the ticket-writing application would instead issue a sequence of operations to: 
+When security is a concern and the application is sufficiently important that it can be modified to conform with more secure interfaces, there is an easy solution to these problems --- transactions.  Transactions provide the framework for strict, fine-grained locking that is used to extend the atomicity of individual operations into an atomic sequence of operations.  In the Kerberos example, the ticket-writing application would instead issue a sequence of operations to:
 <ul>
-<li>lookup the file to be written, 
-<li>make security checks on that file, 
+<li>lookup the file to be written,
+<li>make security checks on that file,
 <li>open the file for writing
-<li>output data.  
+<li>output data.
 </ul>
 <p>The transaction framework provides a context for ensuring that a security check remains consistent throughout the resulting operation.
 <p>
@@ -881,8 +881,8 @@ There are three aspects of consistency we will support initially, and
 you'll note that they are decoupled and independently specifiable.
 <ul>
 <li>"Transcrashes", which guarantee that either all or none of the
-transcrash will survive a crash.  
-<li>Branches, which guarantee isolation but not exclusion. 
+transcrash will survive a crash.
+<li>Branches, which guarantee isolation but not exclusion.
 <li>Locks, which guarantee exclusion but not isolation.
 </ul>
 <p>
@@ -904,7 +904,7 @@ to not ever rollback, but more simply to instead take responsibility
 for ensuring that they can commit quickly enough.  If they fail to do
 so, the commit will be imposed upon them before they have completed
 the transcrash.  This approach is particularly useful for high
-performance short running transcrashes.  
+performance short running transcrashes.
 <p>
 For instance, suppose you want to do two simple updates to two files
 as an atomic transaction, and these updates will not require longer
@@ -976,7 +976,7 @@ modification to the tree, but instead:
 <ul>
 
 <li>in response to memory pressure
-triggering a commit.  
+triggering a commit.
 
 <li>when an insertion into an internal node presents a danger of
 needing to split the internal node, and the immediate children are not
@@ -985,21 +985,21 @@ value), and reducing the number of children could avoid the split.
 </ul>
 <a name="if_ram"></a>
 <h3>If It Is In RAM, Dirty, and Contiguous, Then Squeeze It ALL
-Together Just Before Writing</h3> 
+Together Just Before Writing</h3>
 
 <p>Let a slum be defined as a maximal sequence of contiguous in the
 tree order, and dirty in this transaction, nodes.  A dancing tree,
 when presented with memory pressure, responds to it by committing the
 transaction, and the commit in turn triggers a repacking of all slums
 involved in the transaction which it estimates can be squeezed into
-fewer nodes than they currently occupy.  
+fewer nodes than they currently occupy.
 <p>
 Balanced trees have an
 inherent tradeoff between balancing cost and space efficiency.  If
 they consider more neighboring nodes, for the purpose of merging them
 to save a node, with every change to the tree, then they can pack the
 tree more tightly at the cost of moving more data with every change to
-the tree.  
+the tree.
 <p>
 By contrast, with a dancing tree, you simply take a large slum, shove
 everything in it as far to the left as it will go, and then free all
@@ -1082,7 +1082,7 @@ This approach has two principle disadvantages:
 <li>blocks which contain data that must be retained if the transcrash
 fails to complete cannot be written in the place of the block
 containing the old data, and their location may not be as optimal as
-that of the new data (it may also be more optimal though) 
+that of the new data (it may also be more optimal though)
 
 <li>it does not support undo/redo for isolated transactions
 </ul>

@@ -31,7 +31,7 @@ ext_by_ext_coord(const uf_coord_t *uf_coord)
 #if REISER4_DEBUG
 static int
 coord_extension_is_ok(const uf_coord_t *uf_coord)
-{	
+{
 	const coord_t *coord;
 	const extent_coord_extension_t *ext_coord;
 	reiser4_extent *ext;
@@ -344,7 +344,7 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 	index = get_key_offset(key) >> current_blocksize_bits;
 
 	assert("vs-1312", uf_coord->base_coord.between == AT_UNIT);
-	
+
 	result = 0;
 	*created = 0;
 	ext_coord = &uf_coord->extension.extent;
@@ -391,7 +391,7 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key *key,
 
 	if (result != 0)
 		return;
-	
+
 	assert("vs-960", znode_is_write_locked(lh->node));
 	zload(lh->node);
 	result = lh->node->nplug->lookup(lh->node, key, FIND_EXACT, &coord);
@@ -458,7 +458,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode,
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = append_one_block(uf_coord, key, block);
 		if (result && inode != NULL)
-			DQUOT_FREE_BLOCK(inode, 1);		
+			DQUOT_FREE_BLOCK(inode, 1);
 		*created = 1;
 		break;
 
@@ -559,7 +559,7 @@ set_hint_unlock_node(hint_t *hint, flow_t *f, znode_lock_mode mode)
 {
 	if (hint->coord.valid) {
 		set_hint(hint, &f->key, mode);
-	} else {		
+	} else {
 		unset_hint(hint);
 	}
 	longterm_unlock_znode(hint->coord.lh);
@@ -580,7 +580,7 @@ static void
 zero_around(struct page *page, int from, int count)
 {
 	char *data;
-	
+
 	data = kmap_atomic(page, KM_USER0);
 	memset(data, 0, from);
 	memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
@@ -680,7 +680,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		page_cache_get(page);
 
 		if (!PageUptodate(page)) {
-			if (mode == OVERWRITE_ITEM) {				
+			if (mode == OVERWRITE_ITEM) {
 				/* this page may be either an anonymous page (a page which was dirtied via mmap,
 				   writepage-ed and for which extent pointer was just created. In this case jnode is
 				   eflushed) or correspod to not page cached block (in which case created == 0). In
@@ -874,12 +874,12 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file, unsi
 {
 	reiser4_file_fsdata *fsdata;
 	uf_coord_t ra_coord;
-	
+
 	fsdata = reiser4_get_file_fsdata(file);
 	ra_coord = *uf_coord;
 	ra_coord.extension.extent.expected_page = page_nr;
 	fsdata->reg.coord = &ra_coord;
-	
+
 	page_cache_readahead(mapping, &file->f_ra, file, page_nr);
 	fsdata->reg.coord = 0;
 }
@@ -1013,16 +1013,16 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 			flush_dcache_page(page);
 
 		assert("nikita-3034", schedulable());
-		
+
 
 		/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
 		result = __copy_to_user(flow->data - count, (char *)kmap(page) + page_off, count);
 		kunmap(page);
-	
+
 		page_cache_release(page);
 		if (unlikely(result))
 			return RETERR(-EFAULT);
-		
+
 		result = hint_validate(hint, &flow->key, 0/* do not check key */, ZNODE_READ_LOCK);
 		if (result)
 			break;
@@ -1055,7 +1055,7 @@ move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned c
 		}
 
 		if (coord->unit_pos == ext_coord->nr_units - 1) {
-			coord->between = AFTER_UNIT;			
+			coord->between = AFTER_UNIT;
 			return 1;
 		}
 
@@ -1069,14 +1069,14 @@ move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned c
 		ext_coord->width = extent_get_width(ext);
 	} while (1);
 
-	return 0;	
+	return 0;
 }
 
 static inline void
 zero_page(struct page *page)
 {
 	char *kaddr = kmap_atomic(page, KM_USER0);
-	
+
 	xmemset(kaddr, 0, PAGE_CACHE_SIZE);
 	flush_dcache_page(page);
 	kunmap_atomic(kaddr, KM_USER0);
@@ -1114,7 +1114,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 			BUG_ON(jnode_page(j) != page);
 			assert("vs-1504", jnode_page(j) == page);
 		}
-		
+
 		UNLOCK_JNODE(j);
 		break;
 
@@ -1130,7 +1130,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		} else
 			assert("vs-1403", j->blocknr == extent_get_start(ext) + pos);
 		break;
-		
+
 	case UNALLOCATED_EXTENT:
 		j = jfind(mapping, index);
 		assert("nikita-2688", j);
@@ -1183,7 +1183,7 @@ readahead_readpage_extent(void *vp, struct page *page)
 						    (loff_t)page->index << PAGE_CACHE_SHIFT));
 		ext_coord->expected_page = page->index;
 	}
-	
+
 	assert("vs-1281", page->index == ext_coord->expected_page);
 	result = do_readpage_extent(ext_by_ext_coord(uf_coord), ext_coord->pos_in_unit, page);
 	if (!result)
@@ -1233,7 +1233,7 @@ readpage_extent(void *vp, struct page *page)
 }
 
 /*
-  plugin->s.file.capture 
+  plugin->s.file.capture
 
   At the beginning: coord.node is write locked, zloaded, page is not locked, coord is set to existing unit inside of
   extent item
@@ -1283,7 +1283,7 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	}
 
 	if (*jnode_get_block(j) == 0)
-		jnode_set_block(j, &blocknr);		
+		jnode_set_block(j, &blocknr);
 	else {
 		assert("vs-1508", !blocknr_is_fake(&blocknr));
 		assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
@@ -1302,7 +1302,7 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 
 	if (created)
 		reiser4_update_sd(page->mapping->host);
-		/* warning about failure of this is issued already */		
+		/* warning about failure of this is issued already */
 
 	ON_TRACE(TRACE_EXTENTS, "OK\n");
 	return 0;
@@ -1364,7 +1364,7 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 	assert("vs-1327", znode_is_loaded(coord->node));
 
 	if (coord->between != AFTER_UNIT && coord->between != AT_UNIT)
-		return;		
+		return;
 
 	ext_coord = &uf_coord->extension.extent;
 	ext_coord->nr_units = nr_units_extent(coord);
@@ -1382,7 +1382,7 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 		/* AT_UNIT */
 		unit_key_by_coord(coord, &key);
 		offset = get_key_offset(&key);
-		
+
 		assert("vs-1328", offset <= lookuped);
 		assert("vs-1329", lookuped < offset + ext_coord->width * current_blocksize);
 		ext_coord->pos_in_unit = ((lookuped - offset) >> current_blocksize_bits);

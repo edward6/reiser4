@@ -62,14 +62,14 @@ $ . patches/setpc # set patch-script variables
 5. check status of core patches:
 
 $ pstatus # patch-scripts utility
-1:a:2.6.6-mm2 Needs changelog 
-2:a:all-sources.diff Needs changelog 
+1:a:2.6.6-mm2 Needs changelog
+2:a:all-sources.diff Needs changelog
     ...
-35:a:disable-vermagic Needs changelog 
-36:a:make-4kstack-option Needs changelog 
-37:a:radix_tree_lookup_slot Needs changelog 
-?:-:2.6.6-rc3-mm2 Needs changelog 
-?:-:do_mmap2-fix.diff Needs changelog 
+35:a:disable-vermagic Needs changelog
+36:a:make-4kstack-option Needs changelog
+37:a:radix_tree_lookup_slot Needs changelog
+?:-:2.6.6-rc3-mm2 Needs changelog
+?:-:do_mmap2-fix.diff Needs changelog
     ...
 
 Patches marked with ":a:" are applied (list of all currently applied patches

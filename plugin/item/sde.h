@@ -19,7 +19,7 @@ typedef struct directory_entry_format {
 	   packing locality and offset can be omitted here. But this
 	   relies on particular key allocation scheme for stat-data, so,
 	   for extensibility sake, whole key can be stored here.
-	
+
 	   We store key as array of bytes, because we don't want 8-byte
 	   alignment of dir entries.
 	*/

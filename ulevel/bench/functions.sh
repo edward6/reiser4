@@ -3,7 +3,7 @@
 LOGFILE=/dev/null
 CONTEXT=''
 
-function getfrom() 
+function getfrom()
 {
     local dir
     local file
@@ -26,7 +26,7 @@ function logit()
 
 function output()
 {
-    echo $* 
+    echo $*
     logit $*
 }
 

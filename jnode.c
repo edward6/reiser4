@@ -453,7 +453,7 @@ jfind(struct address_space *mapping, unsigned long index)
 	tree = tree_by_inode(mapping->host);
 
 	RLOCK_TREE(tree);
-	node = jfind_nolock(mapping, index);	
+	node = jfind_nolock(mapping, index);
 	if (node != NULL)
 		jref(node);
 	RUNLOCK_TREE(tree);
@@ -516,7 +516,7 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	assert("vs-1443", node->key.j.objectid == 0);
 	assert("vs-1444", node->key.j.index == (unsigned long)-1);
 	assert("nikita-3439", rw_tree_is_write_locked(jnode_get_tree(node)));
-	
+
 	node->key.j.mapping  = mapping;
 	node->key.j.objectid = get_inode_oid(mapping->host);
 	node->key.j.index    = index;
@@ -540,7 +540,7 @@ unhash_unformatted_node_nolock(jnode *node)
 	assert("vs-1683", node->key.j.mapping != NULL);
 	assert("vs-1684", node->key.j.objectid == get_inode_oid(node->key.j.mapping->host));
 
-	/* remove jnode from hash-table */	
+	/* remove jnode from hash-table */
 	j_hash_remove_rcu(&node->tree->jhash_table, node);
 	inode_detach_jnode(node);
 	node->key.j.mapping = 0;
@@ -590,7 +590,7 @@ find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 	if (likely(shadow == NULL)) {
 		/* add new jnode to hash table and inode's radix tree of jnodes */
 		jref(result);
-		hash_unformatted_jnode(result, mapping, index);		
+		hash_unformatted_jnode(result, mapping, index);
 	} else {
 		/* jnode is found in inode's radix tree of jnodes */
 		jref(shadow);
@@ -976,7 +976,7 @@ jload_gfp (jnode * node /* node to load */,
  failed:
 	jrelse_tail(node);
 	return result;
-	
+
 }
 
 /* start asynchronous reading for given jnode's page. */
@@ -1434,7 +1434,7 @@ clone_unformatted(jnode *node)
 	jnode_set_block(clone, jnode_get_block(node));
 
 	return clone;
-	
+
 }
 
 /*

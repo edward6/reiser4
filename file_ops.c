@@ -319,7 +319,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 		/*
 		  no ->release method defined, or we are within reiser4
 		  context already. How latter is possible? Simple:
-		
+
 		  (gdb) bt
 		  #0  get_exclusive_access ()
 		  #2  0xc01e56d3 in release_unix_file ()

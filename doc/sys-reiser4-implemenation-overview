@@ -77,7 +77,7 @@ lookup proceeds component-by-component as follows:
    lnode *parent;
    lnode  child;
 
-   ret_code = lnode_get_dir_plugin( parent ) -> lnode_by_name( parent, 
+   ret_code = lnode_get_dir_plugin( parent ) -> lnode_by_name( parent,
                                                                path_component,
                                                                &child );
 
@@ -147,11 +147,11 @@ int reiser4_assign( lnode *dst, lnode *src )
     /* build target sink */
     ret_code = dst_fplug -> build_sink( dst, &target, 0 /* offset */ );
 
-    /* 
-     * select how to transfer data from @src to @dst. 
-     * 
+    /*
+     * select how to transfer data from @src to @dst.
+     *
      * Default implementation of this is common_transfer() (see below).
-     * 
+     *
      * Smart file plugin can choose connection based on type of @dst.
      *
      */
@@ -162,7 +162,7 @@ int reiser4_assign( lnode *dst, lnode *src )
 }
 
 
-/* look to chain conversion of (lnode * dst) -> (sink_t target) -> (lnode * dst) 
+/* look to chain conversion of (lnode * dst) -> (sink_t target) -> (lnode * dst)
  I think, functions build_sink(...) and  sink_object(...) - superfluous */
 
 int common_transfer( sink_t *target, flow_t *source )
@@ -174,12 +174,12 @@ int common_transfer( sink_t *target, flow_t *source )
         char   *area;
         size_t  length;
 
-        /* 
+        /*
          * append some space to @target. Reasonable implementation will
          * allocate several pagesful here
          */
-        ret_code = lnode_get_body_plugin( dst ) -> prepare_append( dst, 
-                                                                   &area, 
+        ret_code = lnode_get_body_plugin( dst ) -> prepare_append( dst,
+                                                                   &area,
                                                                    &length );
                                             /* why @length not depended from source? */
         /*
@@ -191,7 +191,7 @@ int common_transfer( sink_t *target, flow_t *source )
          * perform necessary post-write activity required by @dst plugin, like
          * encryption, compression, etc. Release pages.
          */
-        ret_code = lnode_get_body_plugin( dst ) -> commit_append( dst, 
+        ret_code = lnode_get_body_plugin( dst ) -> commit_append( dst,
                                                                   area, length );
     }
 }

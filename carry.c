@@ -230,13 +230,13 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		/* repeat lock/do/unlock while
 
 		   (1) lock_carry_level() fails due to deadlock avoidance, or
-		
+
 		   (2) carry_on_level() decides that more nodes have to
 		   be involved.
-		
+
 		   (3) some unexpected error occured while balancing on the
 		   upper levels. In this case all changes are rolled back.
-		
+
 		*/
 		while (1) {
 			result = lock_carry_level(doing);
@@ -331,24 +331,24 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 	/* @doing->nodes are locked. */
 
 	/* This function can be split into two phases: analysis and modification.
-	
+
 	   Analysis calculates precisely what items should be moved between
 	   nodes. This information is gathered in some structures attached to
 	   each carry_node in a @doing queue. Analysis also determines whether
 	   new nodes are to be allocated etc.
-	
+
 	   After analysis is completed, actual modification is performed. Here
 	   we can take advantage of "batch modification": if there are several
 	   operations acting on the same node, modifications can be performed
 	   more efficiently when batched together.
-	
+
 	   Above is an optimization left for the future.
 	*/
 	/* Important, but delayed optimization: it's possible to batch
 	   operations together and perform them more efficiently as a
 	   result. For example, deletion of several neighboring items from a
 	   node can be converted to a single ->cut() operation.
-	
+
 	   Before processing queue, it should be scanned and "mergeable"
 	   operations merged.
 	*/
@@ -896,10 +896,10 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 	node->unlock = 1;
 	/* Load node content into memory and install node plugin by
 	   looking at the node header.
-	
+
 	   Most of the time this call is cheap because the node is
 	   already in memory.
-	
+
 	   Corresponding zrelse() is in unlock_carry_node()
 	*/
 	return zload(carry_real(node));
@@ -942,25 +942,25 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 	init_lh(&tmp_lh);
 	if (node->left_before) {
 		/* handling of new nodes, allocated on the previous level:
-		
+
 		   some carry ops were propably posted from the new node, but
 		   this node neither has parent pointer set, nor is
 		   connected. This will be done in ->create_hook() for
 		   internal item.
-		
+
 		   No then less, parent of new node has to be locked. To do
 		   this, first go to the "left" in the carry order. This
 		   depends on the decision to always allocate new node on the
 		   right of existing one.
-		
+
 		   Loop handles case when multiple nodes, all orphans, were
 		   inserted.
-		
+
 		   Strictly speaking, taking tree lock is not necessary here,
 		   because all nodes scanned by loop in
 		   find_begetting_brother() are write-locked by this thread,
 		   and thus, their sibling linkage cannot change.
-		
+
 		*/
 		reference_point = UNDER_RW
 		    (tree, znode_get_tree(reference_point), read,
@@ -1043,7 +1043,7 @@ unlock_carry_node(carry_level * level,
 	if (failure) {
 		if (node->deallocate && (real_node != NULL)) {
 			/* free node in bitmap
-			
+
 			   Prepare node for removal. Last zput() will finish
 			   with it.
 			*/
@@ -1189,11 +1189,11 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	/* There is a lot of possible variations here: to what parent
 	   new node will be attached and where. For simplicity, always
 	   do the following:
-	
+
 	   (1) new node and @brother will have the same parent.
-	
+
 	   (2) new node is added on the right of @brother
-	
+
 	*/
 
 	fresh = add_carry_skip(doing, ref ? POOLO_AFTER : POOLO_LAST, ref);

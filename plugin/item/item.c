@@ -140,7 +140,7 @@ max_item_key_by_coord(const coord_t *coord /* coord to query */ ,
 	coord_dup(&last, coord);
 	last.unit_pos = coord_num_units(&last) - 1;
 	assert("vs-1560", coord_is_existing_unit(&last));
-	
+
 	max_unit_key_by_coord(&last, key);
 	return key;
 }
@@ -716,7 +716,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.init_coord_extension = init_coord_extension_tail
 			}
 		}
-	},	
+	},
 	[BLACK_BOX_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,

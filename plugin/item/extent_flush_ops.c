@@ -88,7 +88,7 @@ reiser4_internal int
 utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_nr *block)
 {
 	reiser4_extent *ext;
-	
+
 	ext = extent_by_coord(coord);
 
 	switch (state_of_extent(ext)) {
@@ -139,7 +139,7 @@ reiser4_internal int scan_extent(flush_scan * scan)
 		return 0; /* Race with truncate, this node is already
 			   * truncated. */
 	}
-	
+
 	coord_dup(&coord, &scan->parent_coord);
 
 	assert("jmacd-1404", !scan_finished(scan));
@@ -185,7 +185,7 @@ repeat:
 		scan_dist = scan_max - unit_index;
 		incr = +1;
 	}
-	
+
 	tree = coord.node->zjnode.tree;
 
 	/* If the extent is allocated we have to check each of its blocks.  If the extent
@@ -381,7 +381,7 @@ split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 		 extent_get_start(ext), extent_get_width(ext),
 		 extent_get_start(&replace_ext), extent_get_width(&replace_ext),
 		 extent_get_start(&append_ext), extent_get_width(&append_ext));
-	
+
 	grabbed = reserve_replace();
 	result = replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, &append_ext, 1),
 				&replace_ext, COPI_DONT_SHIFT_LEFT, 0/* return replaced position */);
@@ -417,14 +417,14 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count, capture_list_head *p
 	assert("vs-1474", count > 0);
 	node = capture_list_back(protected_nodes);
 	do {
-		count --;		
+		count --;
 		junprotect(node);
 		ON_DEBUG(
 			LOCK_JNODE(node);
 			count_jnode(atom, node, PROTECT_LIST, DIRTY_LIST, 0);
 			UNLOCK_JNODE(node);
 			);
-		if (count == 0) {			
+		if (count == 0) {
 			break;
 		}
 		tmp = capture_list_prev(node);
@@ -574,19 +574,19 @@ try_to_merge_with_left(coord_t *coord, reiser4_extent *ext, reiser4_extent *repl
 
 		if (state_of_extent(ext) == ALLOCATED_EXTENT)
 			extent_set_start(ext, extent_get_start(ext) + extent_get_width(replace));
-		extent_set_width(ext, extent_get_width(ext) - extent_get_width(replace));		
+		extent_set_width(ext, extent_get_width(ext) - extent_get_width(replace));
 
 		ON_TRACE(TRACE_EXTENT_ALLOC, "[%llu %llu]\n", extent_get_start(ext), extent_get_width(ext));
 	} else {
 		/* current extent completely glued with its left neighbor, remove it */
 		coord_t from, to;
-		
+
 		ON_TRACE(TRACE_EXTENT_ALLOC, "delete [%llu %llu]\n", extent_get_start(ext), extent_get_width(ext));
 
 		coord_dup(&from, coord);
 		from.unit_pos = nr_units_extent(coord) - 1;
 		coord_dup(&to, &from);
-		
+
 		/* currently cut from extent can cut either from the beginning or from the end. Move place which got
 		   freed after unit removal to end of item */
 		xmemmove(ext, ext + 1, (from.unit_pos - coord->unit_pos) * sizeof(reiser4_extent));
@@ -648,7 +648,7 @@ conv_extent(coord_t *coord, reiser4_extent *replace)
 	/* insert_into_item will insert new units after the one @coord is set to. So, update key correspondingly */
 	unit_key_by_coord(coord, &key);
 	set_key_offset(&key, (get_key_offset(&key) + new_width * current_blocksize));
-	
+
 	ON_TRACE(TRACE_EXTENT_ALLOC,
 		 "replace: [%llu %llu]->[%llu %llu][%llu %llu]\n",
 		 start, width,
@@ -714,7 +714,7 @@ make_node_ovrwr(capture_list_head *jnodes, jnode *node)
 
 	JF_SET(node, JNODE_OVRWR);
 	capture_list_remove_clean(node);
-	capture_list_push_back(jnodes, node);	
+	capture_list_push_back(jnodes, node);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, OVRWR_LIST, 0));
 
 	UNLOCK_JNODE(node);
@@ -759,9 +759,9 @@ mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid, unsigned long index, re
 		make_node_ovrwr(&jnodes, node);
 		atomic_dec(&node->x_count);
 	}
-	
+
 	capture_list_splice(ATOM_OVRWR_LIST(atom), &jnodes);
-	UNLOCK_ATOM(atom);	
+	UNLOCK_ATOM(atom);
 }
 
 /* this is called by handle_pos_on_twig to proceed extent unit flush_pos->coord is set to. It is to prepare for flushing
@@ -821,7 +821,7 @@ alloc_extent(flush_pos_t *flush_pos)
 		ON_TRACE(TRACE_EXTENT_ALLOC,
 			 "ALLOC: relocate: (oid %llu, index %llu) [%llu %llu] - ",
 			 oid, index, start, width);
-		
+
 		/* Prevent nodes from e-flushing before allocating disk space for them. Nodes which were eflushed will be
 		   read from their temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that
 		   disk space will be freed. */
@@ -842,7 +842,7 @@ alloc_extent(flush_pos_t *flush_pos)
 			protected_jnodes_done(&jnodes);
 			return 0;
 		}
-		
+
 		if (state == ALLOCATED_EXTENT)
 			/* all protected nodes are not flushprepped, therefore
 			 * they are counted as flush_reserved */

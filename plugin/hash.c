@@ -264,7 +264,7 @@ change_hash(struct inode * inode, reiser4_plugin * plugin)
 						 &plugin->hash);
 		else
 			result = RETERR(-ENOTEMPTY);
-	
+
 	}
 	return result;
 }

@@ -48,7 +48,7 @@ init_ktxnmgrd_context(txn_mgr * mgr)
 	ctx = reiser4_kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
 	if (ctx == NULL)
 		return RETERR(-ENOMEM);
-		
+
 	assert("nikita-2442", ctx != NULL);
 
 	xmemset(ctx, 0, sizeof *ctx);
@@ -252,7 +252,7 @@ reiser4_internal void stop_ktxnmgrd (txn_mgr * mgr)
 	/* wait until daemon finishes */
 	wait_for_completion(&ctx->finish);
 }
- 
+
 reiser4_internal void
 done_ktxnmgrd_context (txn_mgr * mgr)
 {

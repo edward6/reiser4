@@ -35,7 +35,7 @@ store_black_box(reiser4_tree *tree,
 	init_lh(&lh);
 	result = insert_by_key(tree, key,
 			       &idata, &coord, &lh, LEAF_LEVEL, CBK_UNIQUE);
-	
+
 	assert("nikita-3413",
 	       ergo(result == 0,
 		    WITH_COORD(&coord, item_length_by_coord(&coord) == length)));

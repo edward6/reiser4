@@ -1144,7 +1144,7 @@ reiser4_internal int prepare_write_common (
 
 	inode = page->mapping->host;
 	fplug = inode_file_plugin(inode);
-	
+
 	if (fplug->readpage == NULL)
 		return RETERR(-EINVAL);
 

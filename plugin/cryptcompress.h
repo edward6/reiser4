@@ -106,19 +106,19 @@ void hint_init_zero(hint_t *, lock_handle *);
 void destroy_inode_cryptcompress(struct inode * inode);
 int crc_inode_ok(struct inode * inode);
 
-static inline struct crypto_tfm * 
+static inline struct crypto_tfm *
 inode_get_tfm (struct inode * inode, reiser4_tfm tfm)
 {
 	return cryptcompress_inode_data(inode)->tfm[tfm];
-}      
+}
 
-static inline struct crypto_tfm * 
+static inline struct crypto_tfm *
 inode_get_crypto (struct inode * inode)
 {
 	return (inode_get_tfm(inode, CRYPTO_TFM));
 }
-	
-static inline struct crypto_tfm * 
+
+static inline struct crypto_tfm *
 inode_get_digest (struct inode * inode)
 {
 	return (inode_get_tfm(inode, DIGEST_TFM));
@@ -154,7 +154,7 @@ static void free_none_ ## ALG (struct inode * inode)                 \
 	assert("edward-762", info != NULL);                          \
 	                                                             \
 	info->tfm[TFM ## _TFM] = NULL;                               \
-}                                                                     
+}
 
 #endif /* __FS_REISER4_CRYPTCOMPRESS_H__ */
 

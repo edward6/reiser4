@@ -16,7 +16,7 @@ any other threads and locks in the system (This only holds if io completion
 handlers don't acquire locks themselves.).
 
 -------------------------------LOCKS IN REISER4---------------------------------
- 
+
 Reiser4 introduces following locks:
 
 1.  Per-super-block tree spin lock                              (tree_lock*)
@@ -47,7 +47,7 @@ Reiser4 introduces following locks:
 
 14. Per-super-block cbk cache spin lock                         (cbk_guard)
 
-15. Per-jnode spin lock used by debugging code to access and 
+15. Per-jnode spin lock used by debugging code to access and
     modify check sum                                            (cksum_guard+)
 
 16. Per-super-block oid map spin lock                           (oid_guard+)
@@ -89,13 +89,13 @@ Reiser4 introduces following locks:
 33. Per-bitmap-block semaphore used to serialize bitmap loading (bnode_sema+)
 
 34. Per-super-block epoch lock, protecting updates to           (epoch_lock*)
-    znode_epoch field, used to implement seals (seal.[ch]) 
+    znode_epoch field, used to implement seals (seal.[ch])
     efficiently.
 
 35. Per-atom "event". This is not really lock. Rather, this is an event
     signaled each time atom changes its state.                  (atom_event)
 
-36. Per-znode spin lock used to protect long term locking 
+36. Per-znode spin lock used to protect long term locking
     structures                                                  (zlock*)
 
 37. Per flush queue lock                                        (fq_lock*)
@@ -201,7 +201,7 @@ LABEL AND DESCRIPTION                                 LOCKS
     /* it has special block number, and */
     znode_get_level(node) == 0 => *znode_get_block(node) == FAKE_TREE_ADDR, and
     /* it is the only znode with such block number, and */
-    !znode_above_root(node) && znode_is_loaded(node) => 
+    !znode_above_root(node) && znode_is_loaded(node) =>
                                   *znode_get_block(node) != FAKE_TREE_ADDR
     /* it is parent of the tree root node */
     znode_is_true_root(node)   => znode_above_root(znode_parent(node))
@@ -230,11 +230,11 @@ LABEL AND DESCRIPTION                                 LOCKS
 
      node->left != NULL => znode_is_left_connected(node)
      node->right != NULL => znode_is_right_connected(node)
-     node->left != NULL => 
+     node->left != NULL =>
 		      znode_is_right_connected(node->left) &&
 		      node->left->right == node
      node->right != NULL =>
-		      znode_is_left_connected(node->right) && 
+		      znode_is_left_connected(node->right) &&
 		      node->right->left == node
 
 [znode-c_count]                                       jnode_lock, tree_lock
@@ -290,7 +290,7 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     /* only relocated node can be queued, except that when znode
      * is being deleted, its JNODE_RELOC bit is cleared */
-    JF_ISSET(node, JNODE_FLUSH_QUEUED) => 
+    JF_ISSET(node, JNODE_FLUSH_QUEUED) =>
 		      JF_ISSET(node, JNODE_RELOC) || JF_ISSET(node, JNODE_HEARD_BANSHEE)
 
     (Checked by jnode_invariant_f().)
@@ -311,11 +311,11 @@ LABEL AND DESCRIPTION                                 LOCKS
 
 [sb-block-counts]                                     super_guard
 
-	reiser4_block_count(super) = reiser4_grabbed_blocks(super) + 
+	reiser4_block_count(super) = reiser4_grabbed_blocks(super) +
                                  reiser4_free_blocks(super) +
-                                 reiser4_data_blocks(super) + 
-                                 reiser4_fake_allocated(super) + 
-                                 reiser4_fake_allocated_unformatted(super) + 
+                                 reiser4_data_blocks(super) +
+                                 reiser4_fake_allocated(super) +
+                                 reiser4_fake_allocated_unformatted(super) +
                                  reiser4_flush_reserved(super)
 
     (Checked by check_block_counters().)
@@ -427,7 +427,7 @@ pfault and kalloc are something special: when page fault occurs at the page
 occupied by mmapped from reiser4 file, reiser4_readpage() is invoked that
 starts taking locks from the very beginning.
 
-DEAD1 
+DEAD1
 
    Scenario:
 
@@ -466,7 +466,7 @@ DEAD2
       term locked. It is easy to see, that ->readpage serving page fault (that
       is, readpage for unformatted data) will never attempt to lock said node.
 
-When memory allocation tries to free some memory it 
+When memory allocation tries to free some memory it
 
 1. asynchronously launches kswapd that will ultimately call
    reiser4_writepage().
@@ -543,7 +543,7 @@ tree_lock->cbk_guard
     znode_remove() calls cbk_cache_invalidate()
 
 zlock->stack_lock
- 
+
     wake_up_all_lopri_owners()
 
 atom->stack_lock

@@ -349,7 +349,7 @@ emergency_flush(struct page *page)
 
 			/* eflush without allocation temporary location for a node */
 			ON_TRACE(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
-			
+
 			/* get flush queue for this node */
 			result = fq_by_jnode_gfp(node, &fq, GFP_ATOMIC);
 
@@ -385,7 +385,7 @@ emergency_flush(struct page *page)
 			   not be unlocked again */
 			fq_put(fq);
 		}
-		
+
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
@@ -579,7 +579,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 			radix_tree_tag_set(jnode_tree_by_reiser4_inode(info),
 					   index_jnode(node), EFLUSH_TAG_ANONYMOUS);
 			ON_DEBUG(info->anonymous_eflushed ++);
-		} else {			
+		} else {
 			radix_tree_tag_set(jnode_tree_by_reiser4_inode(info),
 					   index_jnode(node), EFLUSH_TAG_CAPTURED);
 			ON_DEBUG(info->captured_eflushed ++);
@@ -627,7 +627,7 @@ eflush_get(const jnode *node)
 	assert("nikita-2741", JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-2767", spin_jnode_is_locked(node));
 
-	
+
 	tree = jnode_get_tree(node);
 	spin_lock_eflush(tree->super);
 	ef = ef_hash_find(get_jnode_enhash(node), C(node));
@@ -707,7 +707,7 @@ static void eflush_free (jnode * node)
 	ef_free_block(node, &blk,
 		      blocknr_is_fake(jnode_get_block(node)) ?
 		      BLOCK_UNALLOCATED : BLOCK_GRABBED, ef);
-	
+
 	kmem_cache_free(eflush_slab, ef);
 
 	LOCK_JNODE(node);
@@ -789,7 +789,7 @@ emergency_unflush(jnode *node)
 			page = jnode_page(node);
 			assert("nikita-2779", page != NULL);
 			wait_on_page_writeback(page);
-			
+
 			jrelse(node);
 		}
 	} else

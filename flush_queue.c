@@ -515,7 +515,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted, int flags)
 {
 	int ret;
 	txn_atom * atom;
-	
+
 	while (1) {
 		atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 		assert ("zam-924", atom);
@@ -524,10 +524,10 @@ write_fq(flush_queue_t * fq, long * nr_submitted, int flags)
 			break;
 		atom_wait_event(atom);
 	}
-	
+
 	atom->nr_running_queues ++;
 	UNLOCK_ATOM(atom);
-	
+
 	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags);
 	release_prepped_list(fq);
 
@@ -741,7 +741,7 @@ void check_fq(const txn_atom *atom)
 	}
 	if (count != atom->fq)
 		warning("", "fq counter %d, real %d\n", atom->fq, count);
-			
+
 }
 
 #endif

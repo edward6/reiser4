@@ -109,7 +109,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 			/* Do not scan read-ahead window if pages already
 			 * allocated (and i/o already started). */
 			break;
-		
+
 		i ++;
 	}
 	zput(cur);
@@ -192,7 +192,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 			break;
 
 		child = zget(tree, &blk, lock.node, LEAF_LEVEL, GFP_KERNEL);
-		
+
 		if (IS_ERR(child)) {
 			result = PTR_ERR(child);
 			break;
@@ -234,7 +234,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 
 			result = end_offset - offset;
 			break;
-		}					
+		}
 
 		result = tap_move(&tap, &next_lock);
 		if (result)

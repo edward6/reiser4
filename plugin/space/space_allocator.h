@@ -55,7 +55,7 @@ static inline void sa_print_info(const char * prefix, reiser4_space_allocator * 
 }
 
 DEF_SPACE_ALLOCATOR(bitmap)
- 
+
 /* this object is part of reiser4 private in-core super block */
 struct reiser4_space_allocator {
 	union {

@@ -355,16 +355,16 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 
 	/* This is our brand new proposed key allocation algorithm for
 	   directory entries:
-	
+
 	   If name is shorter than 7 + 8 = 15 characters, put first 7
 	   characters into objectid field and remaining characters (if
 	   any) into offset field. Dream long dreamt came true: file
 	   name as a key!
-	
+
 	   If file name is longer than 15 characters, put first 7
 	   characters into objectid and hash of remaining characters
 	   into offset field.
-	
+
 	   To distinguish above cases, in latter set up unused high bit
 	   in objectid field.
 

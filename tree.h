@@ -125,7 +125,7 @@ struct reiser4_tree {
 	__u64 estimate_one_insert;
 
 	/* cache of recent tree lookup results */
-	cbk_cache cbk_cache;	
+	cbk_cache cbk_cache;
 
 	/* hash table to look up znodes by block number. */
 	z_hash_table zhash_table;
@@ -196,7 +196,7 @@ struct reiser4_item_data {
 	   do xmemcpy itself, leaving this up to the caller. This can
 	   save some amount of unnecessary memory copying, for example,
 	   during insertion of stat data.
-	
+
 	*/
 	char *data;
 	/* 1 if 'char * data' contains pointer to user space and 0 if it is
@@ -208,22 +208,22 @@ struct reiser4_item_data {
 	    ->create_item() method of node layout, which in turn
 	    hands it to the ->create_hook() of item being created. This
 	    arg is currently used by:
-	
+
 	    .  ->create_hook() of internal item
 	    (fs/reiser4/plugin/item/internal.c:internal_create_hook()),
 	    . ->paste() method of directory item.
 	    . ->create_hook() of extent item
-	
+
 	   For internal item, this is left "brother" of new node being
 	   inserted and it is used to add new node into sibling list
 	   after parent to it was just inserted into parent.
-	
+
 	   While ->arg does look somewhat of unnecessary compication,
 	   it actually saves a lot of headache in many places, because
 	   all data necessary to insert or paste new data into tree are
 	   collected in one place, and this eliminates a lot of extra
 	   argument passing and storing everywhere.
-	
+
 	*/
 	void *arg;
 	/* plugin of item we are inserting */

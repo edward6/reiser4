@@ -1,6 +1,6 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* This file contains page/cluster index translators and offset modulators 
+/* This file contains page/cluster index translators and offset modulators
    See http://www.namesys.com/cryptcompress_design.html for details */
 
 #if !defined( __FS_REISER4_CLUSTER_H__ )
@@ -16,7 +16,7 @@ static inline __u8 inode_cluster_shift (struct inode * inode)
 	assert("edward-92", inode != NULL);
 	assert("edward-93", reiser4_inode_data(inode) != NULL);
 	assert("edward-94", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	
+
 	return reiser4_inode_data(inode)->cluster_shift;
 }
 
@@ -29,7 +29,7 @@ static inline int inode_cluster_pages (struct inode * inode)
 static inline size_t inode_cluster_size (struct inode * inode)
 {
 	assert("edward-96", inode != NULL);
-	
+
 	return (PAGE_CACHE_SIZE << inode_cluster_shift(inode));
 }
 
@@ -131,7 +131,7 @@ off_to_pgcount(loff_t off, unsigned long idx)
 	return off_to_pgoff(off);
 }
 
-static inline unsigned 
+static inline unsigned
 off_to_count(loff_t off, unsigned long idx, struct inode * inode)
 {
 	if (idx > off_to_clust(off, inode))
@@ -140,14 +140,14 @@ off_to_count(loff_t off, unsigned long idx, struct inode * inode)
 		return inode_cluster_size(inode);
 	return off_to_cloff(off, inode);
 }
-     
+
 static inline unsigned
 fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 {
 	assert("edward-288", clust != NULL);
 	assert("edward-289", inode != NULL);
-	
-	return off_to_count(inode->i_size, clust->index, inode);	
+
+	return off_to_count(inode->i_size, clust->index, inode);
 }
 
 static inline int

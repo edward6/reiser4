@@ -168,7 +168,7 @@ validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 {
 	assert("vs-1333", uf_coord->valid == 0);
 	assert("vs-1348", item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension);
-	
+
 	/* FIXME: */
 	item_body_by_coord(&uf_coord->base_coord);
 	item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension(uf_coord, offset);
@@ -201,7 +201,7 @@ how_to_write(uf_coord_t *uf_coord, const reiser4_key *key)
 	}
 
 	assert("vs-1335", less_than_rdk(coord->node, key));
-		
+
 	if (node_is_empty(coord->node)) {
 		assert("vs-879", znode_get_level(coord->node) == LEAF_LEVEL);
 		assert("vs-880", get_key_offset(key) == 0);
@@ -363,7 +363,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 
 	/* collect statistics on the number of calls to this function which did not get optimized */
 	reiser4_stat_inc(file.find_file_item_via_cbk);
-	
+
 	coord_init_zero(coord);
 	cbk_flags = (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE : (CBK_UNIQUE | CBK_FOR_INSERT);
 	if (inode != NULL) {
@@ -482,7 +482,7 @@ find_file_state(unix_file_info_t *uf_info)
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		loff_t file_size;
 
-		result = find_file_size(unix_file_info_to_inode(uf_info), &file_size);		
+		result = find_file_size(unix_file_info_to_inode(uf_info), &file_size);
 	}
 	assert("vs-1074", ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 	return result;
@@ -668,7 +668,7 @@ append_hole(struct inode *inode, loff_t new_size)
 	int result;
 	loff_t written;
 	loff_t hole_size;
-	
+
 	assert("vs-1107", inode->i_size < new_size);
 
 	result = 0;
@@ -803,7 +803,7 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 		return RETERR(-E_REPEAT);
 
 	assert("vs-1277", all_but_offset_key_eq(key, &hint->seal.key));
-	
+
 	if (check_key && get_key_offset(key) != hint->offset)
 		/* hint is set for different key */
 		return RETERR(-E_REPEAT);
@@ -1081,11 +1081,11 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 
 			/* spin_lock_eflush(mapping->host->i_sb); */
 			RLOCK_TREE(tree);
-		
+
 			found_jnodes = radix_tree_gang_lookup_tag(jnode_tree_by_inode(mapping->host),
 								  (void **)&jvec, cur, nr_jnodes,
 								  EFLUSH_TAG_ANONYMOUS);
-			if (found_jnodes != 0) {				
+			if (found_jnodes != 0) {
 				for (i = 0; i < found_jnodes; i ++) {
 					if (index_jnode(jvec[i]) < end) {
 						jref(jvec[i]);
@@ -1104,11 +1104,11 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 					ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
 						 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
 						 get_inode_oid(mapping->host), found_jnodes, cur, end - 1);
-			
+
 					/* start i/o for eflushed nodes */
 					for (i = 0; i < found_jnodes; i ++)
 						jstartio(jvec[i]);
-					
+
 					for (i = 0; i < found_jnodes; i ++) {
 						result = jload(jvec[i]);
 						if (result == 0) {
@@ -1488,7 +1488,7 @@ readpage_unix_file(void *vp, struct page *page)
 		unlock_page(page);
 		return 0;
 	}
-	
+
 	coord = &hint.coord.base_coord;
 	result = zload(coord->node);
 	if (result) {
@@ -1578,7 +1578,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 
 	if (unlikely(!read_amount))
 		return 0;
-	
+
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
@@ -1646,7 +1646,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	result = load_file_hint(file, &hint, &lh);
 
 	while (f.length && result == 0) {
-		result = find_file_item(&hint, &f.key, ZNODE_READ_LOCK, NULL, inode);		
+		result = find_file_item(&hint, &f.key, ZNODE_READ_LOCK, NULL, inode);
 		if (cbk_errored(result))
 			/* error happened */
 			break;
@@ -1723,7 +1723,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 		{
 			size_t count;
 
-			count = PAGE_CACHE_SIZE;			
+			count = PAGE_CACHE_SIZE;
 
 			if (count > flow->length)
 				count = flow->length;
@@ -1779,17 +1779,17 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			new_container = cur_container;
 			break;
 
-		default:			
+		default:
 			longterm_unlock_znode(&lh);
 			return RETERR(-EIO);
 		}
-		
+
 		result = zload(lh.node);
 		if (result) {
 			longterm_unlock_znode(&lh);
 			return result;
 		}
-		loaded = lh.node;		
+		loaded = lh.node;
 
 		result = write_f(inode,
 				 flow,
@@ -1831,7 +1831,7 @@ write_flow(struct file *file, struct inode *inode, const char *buf, loff_t count
 	flow_t flow;
 
 	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
-	
+
 	result = flow_by_inode_unix_file(inode,
 					 (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &flow);
 	if (result)
@@ -1924,7 +1924,7 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 		assert("vs-1648", (uf_info->container == UF_CONTAINER_TAILS ||
 				   uf_info->container == UF_CONTAINER_EXTENTS ||
 				   uf_info->container == UF_CONTAINER_EMPTY));
-		if (uf_info->container == UF_CONTAINER_TAILS) {			
+		if (uf_info->container == UF_CONTAINER_TAILS) {
 			/* invalidate all pages and convert file from tails to extents */
 			result = check_pages_unix_file(inode);
 			if (result) {
@@ -1957,9 +1957,9 @@ write_file(struct file *file, /* file to write to */
 
 	inode = file->f_dentry->d_inode;
 
-	/* estimation for write is entrusted to write item plugins */	
+	/* estimation for write is entrusted to write item plugins */
 	pos = *off;
-	
+
 	if (inode->i_size < pos) {
 		/* pos is set past real end of file */
 		written = append_hole(inode, pos);
@@ -1967,8 +1967,8 @@ write_file(struct file *file, /* file to write to */
 			return written;
 		assert("vs-1081", pos == inode->i_size);
 	}
-	
-	/* write user data to the file */	
+
+	/* write user data to the file */
 	written = write_flow(file, inode, buf, count, pos);
 	if (written > 0)
 		/* update position in a file */
@@ -2147,7 +2147,7 @@ unpack(struct inode *inode, int forever)
 			set_file_notail(inode);
 		if (result == 0) {
 			__u64 tograb;
-			
+
 			grab_space_enable();
 			tograb = inode_file_plugin(inode)->estimate.update(inode);
 			result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
@@ -2324,7 +2324,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 		/* truncate does reservation itself and requires exclusive
 		 * access obtained */
 		unix_file_info_t *ufo;
-		
+
 		ufo = unix_file_inode_data(inode);
 		get_exclusive_access(ufo);
 		result = setattr_truncate(inode, attr);
@@ -2367,7 +2367,7 @@ init_inode_data_unix_file(struct inode *inode,
 	init_rwsem(&data->latch);
 	data->tplug = inode_formatting_plugin(inode);
 	data->exclusive_use = 0;
-	
+
 #if REISER4_DEBUG
 	data->ea_owner = 0;
 #endif
@@ -2397,7 +2397,7 @@ reiser4_internal ssize_t sendfile_common (
 	int ret = 0;
 
 	assert("umka-3108", file != NULL);
-	
+
 	inode = file->f_dentry->d_inode;
 
 	desc.error = 0;
@@ -2462,7 +2462,7 @@ reiser4_internal ssize_t sendfile_common (
 		page_cache_release(page);
 
 		(*ppos) += ret;
-	
+
 		if (ret != read_request_size)
 			break;
 	}

@@ -23,9 +23,9 @@ static reiser4_block_nr
 max_balance_overhead(reiser4_block_nr childen, tree_level tree_height)
 {
 	reiser4_block_nr ten_percent;
-	
+
 	ten_percent = ((103 * childen) >> 10);
-	
+
 	/* If we have too many balancings at the time, tree height can raise on more
 	   then 1. Assume that if tree_height is 5, it can raise on 1 only. */
 	return ((tree_height < 5 ? 5 : tree_height) * 2 + (4 + ten_percent));
@@ -91,7 +91,7 @@ estimate_insert_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;
 	per_cluster = (unprepped ? 1 : inode_cluster_pages(inode));
-	
+
 	return 3 + per_cluster + max_balance_overhead(3 + per_cluster, REISER4_MAX_ZTREE_HEIGHT);
 }
 

@@ -1,6 +1,6 @@
 /* lzoconf.h -- configuration for the LZO real-time data compression library
    adopted for reiser4 compression tramsform plugin
-   
+
    This file is part of the LZO real-time data compression library.
 
    Copyright (C) 2002 Markus Franz Xaver Johannes Oberhumer
@@ -56,7 +56,7 @@ extern "C" {
 
 #define CHAR_BIT  8 /* -edward */
 #define USHRT_MAX 0xffff /* -edward */
-  
+
 #if 0 /* -edward */
 #if !defined(CHAR_BIT) || (CHAR_BIT != 8)
 #  error "invalid CHAR_BIT"

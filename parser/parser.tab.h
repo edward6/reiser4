@@ -31,7 +31,7 @@
 #define UNNAME 287
 #define NAMED 288
 #define ROOT 289
-typedef union 
+typedef union
 {
 	long charType;
 	expr_v4_t * expr;

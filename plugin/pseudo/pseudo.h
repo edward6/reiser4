@@ -78,7 +78,7 @@ struct pseudo_plugin {
 	   name of a pseudo file, and "dup" is name of an operation (method)
 	   applicable to "../acl". Once "..acl" is resolved to ACL object,
 	   ->lookup( "dup" ) can be called to get operation.
-	
+
 	*/
 	int (*lookup)(struct inode *parent, struct dentry ** dentry);
 

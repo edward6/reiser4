@@ -7,7 +7,7 @@ varying some parameters from run to run.
 
 At the top level bench main entry point is driver.sh. This script is supposed
 to be called directly from rc.d (powerhouse.namesys.com has hook for this in
-/etc/init.d/rc1.d). 
+/etc/init.d/rc1.d).
 
 driver.sh:    handles queues of tests: todo/, current/, and done/ with obvious
 meaning.

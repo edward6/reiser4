@@ -150,7 +150,7 @@ blocknr_is_fake(const reiser4_block_nr * da)
    several places. */
 static void
 sub_from_ctx_grabbed(reiser4_context *ctx, __u64 count)
-{	
+{
 	if (ctx->grabbed_blocks < count)
 		print_clog();
 	BUG_ON(ctx->grabbed_blocks < count);
@@ -310,7 +310,7 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 	if ((use_reserved && free_blocks < count) ||
 	    (!use_reserved && free_blocks < count + sbinfo->blocks_reserved)) {
 		ret = RETERR(-ENOSPC);
-		
+
 		ON_TRACE(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
 
 		goto unlock_and_ret;
@@ -491,18 +491,18 @@ grabbed2cluster_reserved(int count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
-	
+
 	ctx = get_current_context();
 	sub_from_ctx_grabbed(ctx, count);
 
 	sbinfo = get_super_private(ctx->super);
 	reiser4_spin_lock_sb(sbinfo);
-	
+
 	sub_from_sb_grabbed(sbinfo, count);
 	sbinfo->blocks_clustered += count;
 
 	assert("edward-504", check_block_counters(ctx->super));
-	
+
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
@@ -511,9 +511,9 @@ cluster_reserved2grabbed(int count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
-	
+
 	ctx = get_current_context();
-	
+
 	sbinfo = get_super_private(ctx->super);
 	reiser4_spin_lock_sb(sbinfo);
 
@@ -521,7 +521,7 @@ cluster_reserved2grabbed(int count)
 	sbinfo->blocks_grabbed += count;
 
 	assert("edward-505", check_block_counters(ctx->super));
-	
+
 	reiser4_spin_unlock_sb(sbinfo);
 	ctx->grabbed_blocks += count;
 }
@@ -531,7 +531,7 @@ cluster_reserved2free(int count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
-	
+
 	assert("edward-503", get_current_context()->grabbed_blocks == 0);
 
 	ctx = get_current_context();
@@ -540,9 +540,9 @@ cluster_reserved2free(int count)
 
 	sub_from_cluster_reserved(sbinfo, count);
 	sbinfo->blocks_free += count;
-	
+
 	assert("edward-502", check_block_counters(ctx->super));
-	
+
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
@@ -638,7 +638,7 @@ flush_reserved2used(txn_atom * atom, __u64 count)
 
 	assert ("zam-789", check_block_counters(reiser4_get_current_sb()));
 
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 /* update the per fs  blocknr hint default value. */
@@ -702,7 +702,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
-	
+
 	ON_TRACE(TRACE_RESERVE, "reiser4_alloc_blocks: needed %llu..", needed);
 
 	assert("vpf-339", hint != NULL);
@@ -902,7 +902,7 @@ grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 	ON_TRACE(TRACE_RESERVE, "__grabbed2flush_reserved_nolock %llu blocks: atom %u has %llu flush reserved blocks\n",
 		 count, atom->atom_id, atom->flush_reserved);
 
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 reiser4_internal void
@@ -939,7 +939,7 @@ reiser4_internal void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 
 	assert ("vpf-292", check_block_counters (ctx->super));
 
-	reiser4_spin_unlock_sb (sbinfo);	
+	reiser4_spin_unlock_sb (sbinfo);
 }
 
 /* release all blocks grabbed in context which where not used. */
@@ -979,7 +979,7 @@ used2free(reiser4_super_info_data *sbinfo, __u64 count)
 
 	assert("nikita-2685", check_block_counters(reiser4_get_current_sb()));
 
-	reiser4_spin_unlock_sb(sbinfo);	
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 #if REISER4_DEBUG
@@ -1060,7 +1060,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 
 		assert("zam-477", ret == 0);
 		assert("zam-433", atom != NULL);
-		
+
 		UNLOCK_ATOM(atom);
 
 	} else {
@@ -1078,7 +1078,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		switch (target_stage) {
 		case BLOCK_NOT_COUNTED:
 			assert("vs-960", flags & BA_FORMATTED);
-			
+
 			ON_TRACE(TRACE_RESERVE, "moved from used to free\n");
 
 			/* VITALY: This is what was grabbed for internal/tx-lists/similar only */
@@ -1086,7 +1086,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 			break;
 
 		case BLOCK_GRABBED:
-			
+
 			ON_TRACE(TRACE_RESERVE, "moved from used to grabbed\n");
 
 			used2grabbed(ctx, sbinfo, *len);

@@ -32,16 +32,16 @@ about closure, read www.namesys.com/future_vision.html.)
 
 A/B indicates that B is to be passed to A, and A will resolve its
 meaning.  This is consistent with Unix usage of /.  B is considered
-a subname of A in this example.  
+a subname of A in this example.
 
 Reiser4 supports a plugin that implements Unix regular files (regfile),
 and a plugin that implements Unix regular directories (regdir). (NIKITA-FIXME-HANS: use those names in the code)
 
 Plugins may resolve a subname by invoking a plugin of another object,
-or by invoking methods built into themselves.  
+or by invoking methods built into themselves.
 
 Special characters are whitespace plus []{}()/\,:;*$@!`' and keywords
-are <- and -> 
+are <- and ->
 
 <-, ->,  are assignment operators.
 
@@ -54,9 +54,9 @@ The righthand side of an assignment defines a flow.  We calculate the flow,
 and then invoke the the write method defined by the lefthand side of
 the assignment.
 
-Example: 
+Example:
 
-A<-B 
+A<-B
 
 assigns the contents of the object named B to A, overwriting the contents of A if A exists.
 
@@ -86,7 +86,7 @@ default values for all other parts, then overwriting those default
 values, some of which actually cannot be overwritten (e.g. pluginid).
 
 This means we need to name the object, and then perform multiple
-assignments in its creation. 
+assignments in its creation.
 
 (x_ and )x_ where x is any sequence (including the null sequence) of
 non-special characters, are `named parenthesis'.  They have the usual meaning of
@@ -94,17 +94,17 @@ parenthesis in most languages, and delimit what should be treated as a
 single unit by operators.  If you use named parenthesis you can avoid
 the "LISP bird nest" effect.  The disadvantage is that if you leave
 off the whitespace following the open parenthesis you will get an
-unintended effect.  Note that there must be no space between ( and x. 
+unintended effect.  Note that there must be no space between ( and x.
 
 Referencing the contents of parenthesis by the name of the parenthesis
 is planned in later versions..
 
 It is an unenforced but encouraged style convention that subnames which contain
 meta-information about the object, and pseudo-files that implement
-methods of the object, begin with `..'.  IT IS NOT A REQUIREMENT 
+methods of the object, begin with `..'.  IT IS NOT A REQUIREMENT
 THAT THEY START WITH `..',  READ THAT AGAIN!  Sorry, got tired of the complaints about
 the non-existent requirement.  It all depends on how you write your plugins that
-use the meta-information whether the meta-data starts with `..'.  
+use the meta-information whether the meta-data starts with `..'.
 
 Since what is meta-information, what is a method of the object, and
 what is contained information, or methods of sub-objects, are not
@@ -144,19 +144,19 @@ orders subnames within a compound name, and `;' orders operations.
 
 
 A,B indicates that A and B are independent of each other and
-unordered.  
+unordered.
 
-A/B indicates that the plugin for A is to be passed B, 
-and asked to handle it in its way, whatever that way is.  
+A/B indicates that the plugin for A is to be passed B,
+and asked to handle it in its way, whatever that way is.
 
 / and \ are considered equivalent, as a kindness to former windows users
 
-C/..invert<-A +"(some text)+ B 
+C/..invert<-A +"(some text)+ B
 
 indicates that C when read shall return the contents of A followed by
 'some text' as a delimiter followed by the contents of B.
 
-if  A  and   B  are object expressions then 
+if  A  and   B  are object expressions then
                A+B  is object expression
                A\B  is object expression
                A<-B is possible operation
@@ -179,12 +179,12 @@ DEMIDOV-FIXME-HANS: what is the meaning of the line below, and should it be ..ne
 a/b/(new/(name<-"new_file_name"; type<-"regular file"; perm_t<-"acl"); new_file_name/acl<- ( uid<-"357", access<-"denied" ))
 
 DEMIDOV-FIXME-HANS: what is the meaning of ..anon and backing?
-ascii_command = 
+ascii_command =
    "/home/teletubbies/glove_location<-
-             ( (..object_t<-audit, ..perm_t<-acl) ; 
-                ..acl<-  ( uid<-'357', access<-denied ); 
-                ..audit/(backing<-..anon<=(..object_t<-regular); // lookup<-/home/teletubbies/some-existing-file), 
-                         log<-(mailto<-teletubbies@pbs.org)); 
+             ( (..object_t<-audit, ..perm_t<-acl) ;
+                ..acl<-  ( uid<-'357', access<-denied );
+                ..audit/(backing<-..anon<=(..object_t<-regular); // lookup<-/home/teletubbies/some-existing-file),
+                         log<-(mailto<-teletubbies@pbs.org));
                 ..body<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower)';)";
 
 (a b)
@@ -196,7 +196,7 @@ result<-/subject/[elves strike]
 
 
 DEMIDOV-FIXME-HANS: cleanup the explanation below
-The components of this example have the following meanings: 
+The components of this example have the following meanings:
 /home/teletubbies/       - directory name
 /(..name                 - specifies that its argument is the name of the new file - parameter for ..new plugin
 /glove_location, - name of new file - parameter for name submethod of ..new method
@@ -211,7 +211,7 @@ glove_location - file name
 (              - begin parameters for ..new plugin of ..acl plugin
 uid            - plugin of ..acl plugin
 /357           - its value(parameter)
-,              - 
+,              -
 access         - ..
 /denied        -  value to assign
 )              - end of parameter list
@@ -233,7 +233,7 @@ reiser4(&ascii_command, ascii_command_length, stack_binary_parameters_referenced
 */
 
 /*
-  
+
      w=\$v v=\$u u=5 z=\$w+$w
                echo $z
           eval echo $z
@@ -248,7 +248,7 @@ $v+$u
 $u+5
 5+5
 
-tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ] 
+tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
         chgrp --      changes group ownership
         chown --      changes ownership
@@ -277,47 +277,47 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 Assignment, and transaction, will be the commands supported in Reiser4(); more commands will appear in Reiser5. -> and <- will be the assignment operators.
 
-The amount transferred by an assignment is the minimum of the size of the left hand side and the size of the right hand side.  This amount is usually made one of the return values.  
+The amount transferred by an assignment is the minimum of the size of the left hand side and the size of the right hand side.  This amount is usually made one of the return values.
 
-    * lhs (assignment target) values: 
+    * lhs (assignment target) values:
 
     /..process/..range/(first_byte<-(loff_t),last_byte<-(loff_t),bytes_written<-(ssize_t*) )
-              assigns (writes) to the buffer starting at address first_byte in the process address space, ending at last_byte, with the number of bytes actually written 
-	      (The assignment source may be smaller or larger than the assignment target.) being written to address bytes_written. 
-	      Representation of first_byte,last_byte, and bytes_written is left to the coder to determine. 
-	      It is an issue that will be of much dispute and little importance. 
-	      Notice / is used to indicate that the order of the operands matters; see www.namesys.com/future_vision.html for details of why this is appropriate syntax design. 
+              assigns (writes) to the buffer starting at address first_byte in the process address space, ending at last_byte, with the number of bytes actually written
+	      (The assignment source may be smaller or larger than the assignment target.) being written to address bytes_written.
+	      Representation of first_byte,last_byte, and bytes_written is left to the coder to determine.
+	      It is an issue that will be of much dispute and little importance.
+	      Notice / is used to indicate that the order of the operands matters; see www.namesys.com/future_vision.html for details of why this is appropriate syntax design.
 	      Note the lack of a file descriptor.
 
-    /filename 
+    /filename
               assigns to the file named filename, wholly obliterating its body with what is assigned.
 
     /filename/..range/(first_byte<-(loff_t),last_byte<-(loff_t),bytes_written<-(ssize_t*) )
-              writes to the body, starting at first_byte, ending not past last_byte, 
+              writes to the body, starting at first_byte, ending not past last_byte,
 	      recording number of bytes written in bytes_written
 
     /filename/..range/(first_byte<-(loff_t),bytes_written<-(ssize_t*) )
               writes to the body starting at offset, recording number of bytes written in bytes_written
 
-    * rhs (assignment source) values: 
+    * rhs (assignment source) values:
 
     /..process/..range/(first_byte<-(loff_t),last_byte<-(loff_t),bytes_read<-(ssize_t*) )
-              reads from the buffer starting at address first_byte in the process address space, ending at last_byte. 
-	      The number of bytes actually read (assignment source may be smaller or larger than assignment target) is written to address bytes_read. 
+              reads from the buffer starting at address first_byte in the process address space, ending at last_byte.
+	      The number of bytes actually read (assignment source may be smaller or larger than assignment target) is written to address bytes_read.
 	      Representation of first_byte, last_byte, and bytes_read is left to the coder to determine, as it is an issue that will be of much dispute and little importance.
 
-    /filename 
+    /filename
               reads the entirety of the file named filename.
 
     /filename/..range/(first_byte<-(loff_t),last_byte<-(loff_t),bytes_read<-(ssize_t*) )
-              reads from the body, starting at first_byte, ending not past last_byte, 
+              reads from the body, starting at first_byte, ending not past last_byte,
               recording number of bytes read in bytes_read
 
     /filename/..range/(first_byte<-(loff_t),bytes_read<-(ssize_t*) )
               reads from the body starting at offset until the end, recording number of bytes read in bytes_read
 
-    /filename/..stat/owner 
-              reads from the ownership field of the stat data (stat data is that which is returned by the 
+    /filename/..stat/owner
+              reads from the ownership field of the stat data (stat data is that which is returned by the
               stat() system call (owner, permissions, etc.) and stored on a per file basis by the FS.)
 
 
@@ -335,7 +335,7 @@ example:
 
 
 
-       /path0/path1/filename/..range/(offset<-100,bytes_written<-0xff001258,last_byte<-256)<-/path0/path2/filename/..range/(first_byte<-0,bytes_readed<-0xff001250) 
+       /path0/path1/filename/..range/(offset<-100,bytes_written<-0xff001258,last_byte<-256)<-/path0/path2/filename/..range/(first_byte<-0,bytes_readed<-0xff001250)
 
        /path0/(path1/filename/..range/(offset<-100,bytes_written<-0xff001258,last_byte<-256)<-path2/filename/..range(first_byte<-0,bytes_readed<-0xff001250) )
 
@@ -343,7 +343,7 @@ example:
 
 
                                                                           ?
-       /path0/path1/filename/..range/(offset<-100,bytes_written<-0xff001258),last_byte<-256,/path0/path2/filename/..range(first_byte<-0,p_bytes_readed<-0xff001250) 
+       /path0/path1/filename/..range/(offset<-100,bytes_written<-0xff001258),last_byte<-256,/path0/path2/filename/..range(first_byte<-0,p_bytes_readed<-0xff001250)
 
 ssize_t bytes_readed;
 

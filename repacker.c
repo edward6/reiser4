@@ -435,7 +435,7 @@ struct repacker_attr {
 	ssize_t (*store)(struct repacker *, const char * buf, size_t size);
 };
 
-static ssize_t start_attr_show (struct repacker * repacker, char * buf)	
+static ssize_t start_attr_show (struct repacker * repacker, char * buf)
 {
 	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state_bit(repacker, REPACKER_RUNNING));
 }
@@ -453,7 +453,7 @@ static ssize_t start_attr_store (struct repacker * repacker,  const char *buf, s
 	return size;
 }
 
-static ssize_t direction_attr_show (struct repacker * repacker, char * buf)	
+static ssize_t direction_attr_show (struct repacker * repacker, char * buf)
 {
 	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state_bit(repacker, REPACKER_GOES_BACKWARD));
 }
@@ -571,7 +571,7 @@ static ssize_t repacker_attr_show (struct kobject *kobj, struct attribute *attr,
 
 	return r_attr->show(repacker, buf);
 }
-	
+
 static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr, const char *buf, size_t size)
 {
 	struct repacker_attr * r_attr = container_of(attr, struct repacker_attr, attr);

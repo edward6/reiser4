@@ -13,29 +13,29 @@ while true ;do
 			START=$2
 			shift 2
 		;;
-		-e) 
+		-e)
 			END=$2
 			shift 2
 		;;
-		-t) 
+		-t)
 			TITLE=$2
 			shift 2
 		;;
-		-d) 
+		-d)
 			XSTYLE=$2
 			shift 2
 		;;
-		-o) 
+		-o)
 			OUTFILE=$2
 			shift 2
 		;;
-		--) 
-			shift 
-			break 
+		--)
+			shift
+			break
 		;;
-		*) 
-			echo "Internal error!" 
-			exit 1 
+		*)
+			echo "Internal error!"
+			exit 1
 		;;
 	esac
 done

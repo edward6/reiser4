@@ -403,7 +403,7 @@ reiser4_permission(struct inode *inode /* object */ ,
 {
 	/* reiser4_context creation/destruction removed from here,
 	   because permission checks currently don't require this.
-	
+
 	   Permission plugin have to create context itself if necessary. */
 	assert("nikita-1687", inode != NULL);
 

@@ -214,11 +214,11 @@ typedef struct node_plugin {
 	/* return true if this node allows skip carry() in some situations
 	   (see fs/reiser4/tree.c:insert_by_coord()). Reiser3.x format
 	   emulation doesn't.
-	
+
 	   This will speedup insertions that doesn't require updates to the
 	   parent, by bypassing initialisation of carry() structures. It's
 	   believed that majority of insertions will fit there.
-	
+
 	*/
 	int (*fast_insert) (const coord_t * coord);
 	int (*fast_paste) (const coord_t * coord);

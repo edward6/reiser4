@@ -35,7 +35,7 @@ typedef struct node40_header {
 	    who don't have the new trashcan installed on their linux distro
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
-	
+
 	/* magic field we need to tell formatted nodes NIKITA-FIXME-HANS: improve this comment*/
 	d32 magic;
 	/* flushstamp is made of mk_id and write_counter. mk_id is an
@@ -43,17 +43,17 @@ typedef struct node40_header {
 	   skip all nodes with different mk_id. write_counter is d64
 	   incrementing counter of writes on disk. It is used for
 	   choosing the newest data at fsck time. NIKITA-FIXME-HANS: why was field name changed but not comment? */
-	
+
 	d32 mkfs_id;
 	d64 flush_id;
 	/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
 	   and repacker NIKITA-FIXME-HANS: say more or reference elsewhere that says more */
 	d16 flags;
-	
+
 	/* 1 is leaf level, 2 is twig level, root is the numerically
 	   largest level */
 	d8 level;
-	
+
 	d8 pad;
 } PACKED node40_header;
 

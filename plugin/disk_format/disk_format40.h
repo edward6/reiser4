@@ -63,7 +63,7 @@ typedef struct format40_super_info {
 /* Defines for journal header and footer respectively. */
 #define FORMAT40_JOURNAL_HEADER_BLOCKNR \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 3)
-	
+
 #define FORMAT40_JOURNAL_FOOTER_BLOCKNR \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 4)
 

@@ -200,7 +200,7 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 
 		ret =  replace_extent(
 			coord, znode_lh(coord->node), &key,
-			init_new_extent(&item, &new_ext, 1), &replace_ext, 
+			init_new_extent(&item, &new_ext, 1), &replace_ext,
 			COPI_DONT_SHIFT_LEFT, 0);
 
 		/* release grabbed space if it was not used. */
@@ -294,7 +294,7 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 
 	unallocated_flg = (state_of_extent(extent_by_coord(coord)) == UNALLOCATED_EXTENT);
 	hint->block_stage = unallocated_flg ? BLOCK_UNALLOCATED : BLOCK_FLUSH_RESERVED;
-		
+
 	new_ext_width = *len;
 	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width, BA_PERMANENT);
 	if (ret)

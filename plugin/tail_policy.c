@@ -54,10 +54,10 @@ have_formatting_default(const struct inode *inode UNUSED_ARG	/* inode to operate
 		  loff_t size /* new object size */ )
 {
 	assert("umka-1253", inode != NULL);
-	
+
 	if (size > inode->i_sb->s_blocksize * 4)
 		return 0;
-	
+
 	return 1;
 }
 

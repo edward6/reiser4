@@ -525,7 +525,7 @@ zget(reiser4_tree * tree,
 
 	if (!result) {
 		znode * shadow;
-	
+
 		result = zalloc(gfp_flag);
 		if (!result) {
 			return ERR_PTR(RETERR(-ENOMEM));

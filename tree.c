@@ -393,7 +393,7 @@ insert_by_coord(coord_t * coord	/* coord where to
 	    (flags & COPI_DONT_SHIFT_LEFT) && (flags & COPI_DONT_SHIFT_RIGHT) && (flags & COPI_DONT_ALLOCATE)) {
 		/* we are forced to use free space of coord->node and new item
 		   does not fit into it.
-		
+
 		   Currently we get here only when we allocate and copy units
 		   of extent item from a node to its left neighbor during
 		   "squalloc"-ing.  If @node (this is left neighbor) does not
@@ -406,17 +406,17 @@ insert_by_coord(coord_t * coord	/* coord where to
 		   !coord_is_before_leftmost(coord) &&
 		   (node_plugin_by_node(node)->fast_insert != NULL) && node_plugin_by_node(node)->fast_insert(coord)) {
 		/* shortcut insertion without carry() overhead.
-		
+
 		   Only possible if:
-		
+
 		   - there is enough free space
-		
+
 		   - insertion is not into the leftmost position in a node
 		     (otherwise it would require updating of delimiting key in a
 		     parent)
-		
+
 		   - node plugin agrees with this
-		
+
 		*/
 		reiser4_stat_inc(tree.fast_insert);
 		result = node_plugin_by_node(node)->create_item(coord, key, data, NULL);
@@ -485,16 +485,16 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 	}
 
 	/* shortcut paste without carry() overhead.
-	
+
 	   Only possible if:
-	
+
 	   - there is enough free space
-	
+
 	   - paste is not into the leftmost unit in a node (otherwise
 	   it would require updating of delimiting key in a parent)
-	
+
 	   - node plugin agrees with this
-	
+
 	   - item plugin agrees with us
 	*/
 	if (size_change <= (int) znode_free_space(coord->node) &&
@@ -579,7 +579,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	   insert */
 	data.length = 0;
 	data.data = 0;
-	
+
 	op->u.insert_flow.flags = 0;
 	op->u.insert_flow.insert_point = coord;
 	op->u.insert_flow.flow = f;
@@ -1427,7 +1427,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 	   internal_kill_item_hook (we can delete the last item from the parent
 	   node, the parent node is going to be deleted and its c_count should
 	   be zero). */
-	
+
 	tree = znode_get_tree(node);
 	WLOCK_TREE(tree);
 	init_parent_coord(&node->in_parent, NULL);
@@ -1538,7 +1538,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			result = tap_load(tap);
 			if (result)
 				return result;
-			
+
 			/* Prepare the second (right) point for cut_node() */
 			if (iterations)
 				coord_init_last_unit(tap->coord, node);
@@ -1546,7 +1546,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			else if (item_plugin_by_coord(tap->coord)->b.lookup == NULL)
 				/* set rightmost unit for the items without lookup method */
 				tap->coord->unit_pos = coord_last_unit_pos(tap->coord);
-			
+
 			nplug = node->nplug;
 
 			assert("vs-686", nplug);
@@ -1618,7 +1618,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			result = -E_REPEAT;
 			break;
 		}
-			
+
 
 		++ iterations;
 	}
@@ -1746,7 +1746,7 @@ cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
 	do {
 		result = cut_tree_object(tree, from, to, NULL, inode, mode);
 	} while (result == -E_REPEAT);
-	
+
 	return result;
 }
 

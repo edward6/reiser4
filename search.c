@@ -1000,7 +1000,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		   waiting for the lock. Restart. More elaborate solution is
 		   to determine where key moved (to the left, or to the right)
 		   and try to follow it through sibling pointers.
-		
+
 		   2. or, node itself is going to be removed from the
 		   tree. Release lock and restart.
 		*/
@@ -1323,7 +1323,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		/* race. While this thread was waiting for the lock, node was
 		   rebalanced and item we are looking for, shifted out of it
 		   (if it ever was here).
-		
+
 		   Continuing scanning is almost hopeless: node key range was
 		   moved to, is almost certainly at the beginning of the LRU
 		   list at this time, because it's hot, but restarting
@@ -1516,7 +1516,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 				h->block = *znode_get_block(neighbor);
 				/* clear coord -> node so that cbk_level_lookup()
 				   wouldn't overwrite parent hint in neighbor.
-				
+
 				   Parent hint was set up by
 				   reiser4_get_left_neighbor()
 				*/

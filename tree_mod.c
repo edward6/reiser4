@@ -112,7 +112,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 	   deleted. Downward tree traversal takes lock on it before taking
 	   lock on a root node. This avoids race conditions with root
 	   manipulations.
-	
+
 	*/
 	assert("nikita-1348", znode_above_root(fake));
 	assert("nikita-1211", znode_is_root(old_root));
@@ -123,7 +123,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 		/* ext2 returns -ENOSPC when it runs out of free inodes with a
 		   following comment (fs/ext2/ialloc.c:441): Is it really
 		   ENOSPC?
-		
+
 		   -EXFULL? -EINVAL?
 		*/
 		result = RETERR(-ENOSPC);

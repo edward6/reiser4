@@ -65,7 +65,7 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
    required to be unique within one type, not globally.
 
    Thus, plugin in memory is uniquely identified by the pair (type_id,
-   id). 
+   id).
 
    Usage:
 
@@ -95,7 +95,7 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
    hard-coded into plugins[] array, declared and defined in
    plugin.c. Label and description of plugin are stored in .label and
    .desc fields of reiser4_plugin_header respectively. It's possible to
-   locate plugin by the pair of labels. 
+   locate plugin by the pair of labels.
 
    Features:
 
@@ -152,7 +152,7 @@ NIKITA-FIXME-HANS: describe the line below in more detail.
    Compatible/incompatible plugins.
    Inheritance for multi-linked files.
    Layered plugins.
-   Notion of plugin context is abandoned. 
+   Notion of plugin context is abandoned.
 
 Each file is associated
    with one plugin and dependant plugins (hash, etc.) are stored as

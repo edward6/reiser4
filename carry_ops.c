@@ -521,7 +521,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		} else if (right != NULL) {
 			/* node containing insertion point, and its right
 			   neighbor node are write locked by now.
-			
+
 			   shift everything possible on the right of but
 			   excluding insertion coord into the right neighbor
 			*/
@@ -536,7 +536,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		}
 	}
 	/* If there is still not enough space, allocate new node(s).
-	
+
 	   We try to allocate new blocks if COPI_DONT_ALLOCATE is not set in
 	   the carry operation flags (currently this is needed during flush
 	   only).
@@ -558,16 +558,16 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 
 		/* allocate new node on the right of @node. Znode and disk
 		   fake block number for new node are allocated.
-		
+
 		   add_new_znode() posts carry operation COP_INSERT with
 		   COPT_CHILD option to the parent level to add
 		   pointer to newly created node to its parent.
-		
+
 		   Subtle point: if several new nodes are required to complete
 		   insertion operation at this level, they will be inserted
 		   into their parents in the order of creation, which means
 		   that @node will be valid "cookie" at the time of insertion.
-		
+
 		*/
 		fresh = add_new_znode(node, op->node, doing, todo);
 		if (IS_ERR(fresh))
@@ -585,14 +585,14 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		}
 
 		/* both nodes are write locked by now.
-		
+
 		   shift everything possible on the right of and
 		   including insertion coord into the right neighbor.
 		*/
 		coord_dup(&coord_shadow, op->u.insert.d->coord);
 		node_shadow = op->node;
 		/* move insertion point into newly created node if:
-		
+
 		    . insertion point is rightmost in the source node, or
 		    . this is not the first node we are allocating in a row.
 		*/
@@ -706,16 +706,16 @@ insert_paste_common(carry_op * op	/* carry operation being
 		   operations here are given by coords where modification is
 		   to be performed, and one modification can invalidate coords
 		   of all following operations.
-		
+
 		   So, we are implementing yet another type for operation that
 		   will use (the only) "locator" stable across shifting of
 		   data between nodes, etc.: key (COPT_KEY).
-		
+
 		   This clause resolves key to the coord in the node.
-		
+
 		   But node can change also. Probably some pieces have to be
 		   added to the lock_carry_node(), to lock node by its key.
-		
+
 		*/
 		/* NOTE-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
 		   if you need something else. */
@@ -753,9 +753,9 @@ insert_paste_common(carry_op * op	/* carry operation being
 		   it so happened, that insertion of pointers to all new
 		   nodes before this one already caused parent node to
 		   split (may be several times).
-		
+
 		   I am going to come up with better solution.
-		
+
 		   You are not expected to understand this.
 		          -- v6root/usr/sys/ken/slp.c
 
@@ -1096,12 +1096,12 @@ static int
 make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * todo)
 {
 	__u32 flags = op->u.insert_flow.flags;
-	
+
 	if (enough_space_for_whole_flow(op)) {
 		/* whole flow fits into insert point node */
 		return 0;
 	}
-	
+
 	if (!(flags & COPI_DONT_SHIFT_LEFT) && (make_space_by_shift_left(op, doing, todo) == 0)) {
 		/* insert point is shifted to left neighbor of original insert
 		   point node and is set after last unit in that node. It has
@@ -1124,7 +1124,7 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * 
 		/* whole flow fits into insert point node */
 		return 0;
 	}
-	
+
 	return make_space_by_new_nodes(op, doing, todo);
 }
 
@@ -1177,7 +1177,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 			/* new item must be inserted */
 			pos_in_node_t new_pos;
 			flow_insert_data(op)->length += item_data_overhead(op);
-			
+
 			/* FIXME-VS: this is because node40_create_item changes
 			   insert_point for obscure reasons */
 			switch (insert_point->between) {
@@ -1571,23 +1571,23 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	reiser4_stat_level_inc(doing, extent);
 
 	/* extent insertion overview:
-	
+
 	   extents live on the TWIG LEVEL, which is level one above the leaf
 	   one. This complicates extent insertion logic somewhat: it may
 	   happen (and going to happen all the time) that in logical key
 	   ordering extent has to be placed between items I1 and I2, located
 	   at the leaf level, but I1 and I2 are in the same formatted leaf
 	   node N1. To insert extent one has to
-	
+
 	    (1) reach node N1 and shift data between N1, its neighbors and
 	    possibly newly allocated nodes until I1 and I2 fall into different
 	    nodes. Since I1 and I2 are still neighboring items in logical key
 	    order, they will be necessary utmost items in their respective
 	    nodes.
-	
+
 	    (2) After this new extent item is inserted into node on the twig
 	    level.
-	
+
 	   Fortunately this process can reuse almost all code from standard
 	   insertion procedure (viz. make_space() and insert_paste_common()),
 	   due to the following observation: make_space() only shifts data up
@@ -1596,7 +1596,7 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	   make_space() to perform step (1). All required for this is just to
 	   instruct free_space_shortage() to keep make_space() shifting data
 	   until insertion point is at the node border.
-	
+
 	*/
 
 	/* perform common functionality of insert and paste. */

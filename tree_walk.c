@@ -353,7 +353,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 		coord_init_last_unit(coord, node);
 	else
 		coord_init_first_unit(coord, node);
-	
+
 	if (0) {
  error_locked:
 		longterm_unlock_znode(handle);
@@ -880,7 +880,7 @@ static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
 
 	init_lh(&uber_znode_lock);
  again:
-	
+
 	ret = get_uber_znode(tree, mode, ZNODE_LOCK_HIPRI, &uber_znode_lock);
 	if (ret)
 		return ret;

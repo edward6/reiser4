@@ -89,7 +89,7 @@ struct znode {
 	   pos_in_node and pos_in_unit are only hints that are cached to
 	   speed up lookups during balancing. They are not required to be up to
 	   date. Synched in find_child_ptr().
-	
+
 	   This value allows us to avoid expensive binary searches.
 
 	   in_parent->node points to the parent of this node, and is NOT a

@@ -315,7 +315,7 @@ reiser4_internal int process_safelinks(struct super_block *super)
 {
 	safe_link_context ctx;
 	int result;
-	
+
 	if (rofs_super(super))
 		/* do nothing on the read-only file system */
 		return 0;

@@ -443,7 +443,7 @@ release_format40(struct super_block *s)
 	 * we will have no space left? */
 	if (reiser4_grab_space(1, BA_RESERVED))
 		return RETERR(-ENOSPC);
-	
+
 	if (!rofs_super(s)) {
 		ret = capture_super_block(s);
 		if (ret != 0)
@@ -515,7 +515,7 @@ print_info_format40(const struct super_block *s)
 reiser4_internal int
 check_open_format40(const struct inode *object) {
 	oid_t max, oid;
-	
+
 	max = oid_next(object->i_sb) - 1;
 
 	/* Check the oid. */
