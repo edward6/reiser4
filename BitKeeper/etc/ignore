@@ -1265,3 +1265,5 @@ reiser4progs/plugin/reg40/Makefile.in
 reiser4progs/plugin/reg40/libreg40-static.la
 reiser4progs/plugin/reg40/libreg40.la
 reiser4progs/plugin/reg40/reg40.lo
+.ioctl.o.cmd
+ulevel/make-teeny-files
