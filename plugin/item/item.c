@@ -36,17 +36,6 @@ int agree_to_fast_op( const coord_t *coord UNUSED_ARG /* coord of item */ )
 	return 1;
 }
 
-/* ->key_in_coord() method for items which have units referring to one key
- * only. Currently (2002.06.17) all but extents */
-static int single_key_in_coord( const coord_t *coord, const reiser4_key *key )
-{
-	reiser4_key unit_key;
-
-	assert( "vs-717", coord_is_existing_unit( coord ));
-	unit_key_by_coord( coord, &unit_key );
-	return keyeq( key, &unit_key ) ? 1 : 0;
-}
-
 /* Audited by: green(2002.06.14) */
 int item_can_contain_key( const coord_t *item /* coord of item */, 
 			  const reiser4_key *key /* key to check */,
