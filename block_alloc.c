@@ -646,6 +646,7 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 	} else {
 		warning("zam-676",
 			"block number %llu is too large to be used in a blocknr hint\n", (unsigned long long) *block);
+		dump_stack();
 		DEBUGON(1);
 	}
 	reiser4_spin_unlock_sb(sbinfo);
