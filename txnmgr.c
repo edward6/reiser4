@@ -2351,7 +2351,8 @@ znode_make_dirty(znode * z)
 	ON_DEBUG_MODIFY(znode_set_checksum(z));
 }
 
-/* this differs from the above that it starts with spin locked jnode and that it doesnot do anythoing with a page */
+/* this differs from the above that it starts with spin locked jnode and that it
+   does not do anything with a page */
 void
 unformatted_jnode_make_dirty(jnode * node)
 {
@@ -3084,33 +3085,142 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 /* TXNMGR STUFF */
 
+#ifdef COPY_ON_CAPTURE
+
+/* this is used to detach jnode from atom (which is in stage >= PRE_COMMIT) to make it
+   available for capturing by another atom. This node is part of overwrite set of its atom */
+static void
+uncapture_copied(jnode *node)
+{
+	assert("jmacd-1022", spin_jnode_is_locked(node));
+	assert("jmacd-1023", spin_atom_is_locked(node->atom));
+	assert("vs-1376", !JF_ISSET(node, JNODE_DIRTY));
+	assert("vs-1377", !JF_ISSET(node, JNODE_RELOC));
+	assert("vs-1379", !JF_ISSET(node, node, JNODE_WRITEBACK));
+	assert("vs-1380", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+
+	/* FIXME: is this true? */
+	assert("vs-1378", JF_ISSET(node, JNODE_OVRWR));
+	JF_CLR(node, JNODE_OVRWR);
+	JF_CLR(node, JNODE_CREATED);
+#if REISER4_DEBUG
+	node->written = 0;
+#endif
+
+	/* remove from atom's capture list */
+	capture_list_remove_clean(node);
+	atom->capture_count -= 1;
+	node->atom = NULL;
+
+}
+
+/* this is used to attach newly copied jnode to atom(which is in stage >=
+   PRE_COMMIT) to replace jnode which was captured by another atom */
+static void
+capture_copy(jnode *node, txn_atom *atom)
+{
+	assert("jmacd-321", spin_jnode_is_locked(node));
+	assert("umka-295", spin_atom_is_locked(atom));
+	assert("jmacd-323", node->atom == NULL);
+	
+	node->atom = atom;
+	/* put it on appripriate list */
+}
+
+static int
+copy_on_capture(jnode *node, txn_atom *atom)
+{
+	int result;
+	jnode *copy;
+	txn_stage stage;	
+
+	assert("jmacd-321", spin_jnode_is_locked(node));
+	assert("umka-295", spin_atom_is_locked(atom));
+	assert("vs-1381", node->atom == atom);
+
+	atomic_inc(&atom->refcount);
+	stage = atomf->stage;
+	UNLOCK_ATOM(atomf);
+	UNLOCK_JNODE(node);
+
+	/* create copy of jnode */
+	copy = jnew();
+	if (copy == NULL)
+		return RETERR(-ENOMEM);
+	jnode_set_type(copy, jnode_get_type(node));
+	/* set jnode mapping */
+	
+
+	/* create new page for new jnode and attach it to new jnode */
+	page = jnode_get_page_locked(copy, GFP_KERNEL);
+	if (page == NULL) {
+		jfree(copy);
+		return RETERR(-ENOMEM);		
+	}
+
+	result = jload(node);
+	if (result) {
+		unlock_page(page);
+		page_detach_jnode(page, mapping_jnode(copy), index);
+		jfree(copy);
+		return result;
+	}
+
+	xmemcpy(kmap(page), node->data, PAGE_CACHE_SIZE);
+	kunmap(page);
+	SetPageUptodate(page);
+	unlock_page(page);
+	jrelse(node);
+
+	LOCK_JNODE(node);
+	LOCK_ATOM(atomf);
+
+	/* make sure that atom is still the same, that it is still in its state,
+	   jnode still belongs to this atom */
+	if (node->atom != atom || atom->stage != stage) {
+		UNLOCK_ATOM(atom);
+		UNLOCK_JNODE(node);
+		page_detach_jnode(page, mapping_jnode(copy), index);
+		jfree(copy);		
+		return RETERR(-EAGAIN);
+	}
+
+	/* detach jnode from atom */
+	uncapture_orig(node);
+
+	/* attach copy of jnode to atom overwrite set */
+	capture_copy(atomf, copy);
+
+	UNLOCK_ATOM(atom);
+	UNLOCK_JNODE(node);
+	
+	return RETERR(-EAGAIN);
+}
+
+#endif
+
 /* Perform copy-on-capture of a block.  INCOMPLETE CODE. */
 static int
 capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode)
 {
-	ON_TRACE(TRACE_TXN, "capture_copy: fuse wait\n");
+#ifdef COPY_ON_CAPTURE
+	ON_TRACE(TRACE_TXN, "capture_copy\n");
 
-	return capture_fuse_wait(node, txnh, atomf, atomh, mode);
-#if 0
 	/* The txnh and its (possibly NULL) atom's locks are not needed at this
 	   point. */
 
 	UNLOCK_TXNH(txnh);
-
 	if (atomh != NULL) {
 		UNLOCK_ATOM(atomh);
 	}
+	return copy_on_capture(node, atomf);
 
-	uncapture_block(node);
+#else
+	ON_TRACE(TRACE_TXN, "capture_copy: fuse wait\n");
 
-	/* FIXME_JMACD What happens here?  Changes to: zstate?, buffer, data is copied -josh */
+	return capture_fuse_wait(node, txnh, atomf, atomh, mode);
 
-	/* EAGAIN implies all locks are released. */
-	UNLOCK_ATOM(atomf);
-	jput(node);
-	ON_SMP(assert("nikita-2187", spin_jnode_is_not_locked(node)));
 #endif
-	return RETERR(-EIO);
 }
 
 /* Release a block from the atom, reversing the effects of being captured, 
@@ -3140,6 +3250,7 @@ void uncapture_block(jnode * node)
 	JF_CLR(node, JNODE_OVRWR);
 	JF_CLR(node, JNODE_CREATED);
 	JF_CLR(node, JNODE_WRITEBACK);
+	JF_CLR(node, JNODE_REPACK);
 #if REISER4_DEBUG
 	node->written = 0;
 #endif
@@ -3205,6 +3316,29 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 {
 	return nr_free_pagecache_pages() / 2;
 }
+
+#ifdef COPY_ON_CAPTURE
+
+/* initialize fake inode */
+static int
+init_commit_fake(txn_atom *atom)
+{
+	assert("", atom->commit_fake == );
+}
+
+/* for all jnodes of overwrite set - create specialdetach page, attach it to commit mapping of atom, uncapture jnode */
+static int
+xxx(txn_atom *atom)
+{
+	jnode *j;
+
+	while(!capture_list_empty(&atom->ovrwr_nodes)) {
+		j = capture_list_front(&atom->ovrwr_nodes);
+		
+	}
+}
+
+#endif
 
 /* DEBUG HELP */
 
