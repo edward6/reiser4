@@ -243,7 +243,6 @@ year old --- define all technical terms used.
 #include <linux/pagemap.h>
 #include <linux/writeback.h>
 #include <linux/swap.h>        /* for nr_free_pagecache_pages() */
-#include <linux/rmap-locking.h>
 
 static void atom_free(txn_atom * atom);
 
@@ -2447,14 +2446,8 @@ uncapture_page(struct page *pg)
 
 	assert("umka-199", pg != NULL);
 	assert("nikita-3155", PageLocked(pg));
-
-	spin_lock(&pg->mapping->page_lock);
-	test_clear_page_dirty(pg);
-
-	list_del(&pg->list);
-	list_add(&pg->list, &pg->mapping->clean_pages);
-
-	spin_unlock(&pg->mapping->page_lock);
+	
+	reiser4_clear_page_dirty(pg);
 
 	reiser4_wait_page_writeback(pg);
 
