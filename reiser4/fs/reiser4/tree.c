@@ -50,7 +50,7 @@ And they aren't disjoint for all items not in the same node?  Really?  Explain. 
  *
  *    . something locks are taken on
  *
- *    . something tracked by the transaction manager (this is going to change)  (Josh, adjust this comment -Hans).
+ *    . the transaction manager captures formatted blocks using the znode
  *
  *    . something used to access node data
  *
