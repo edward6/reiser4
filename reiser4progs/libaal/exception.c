@@ -58,7 +58,7 @@ aal_exception_type_t aal_exception_type(
 char *aal_exception_option_string(
     aal_exception_option_t opt		/* exception option to be converted to string */
 ) {
-    return option_strings[aal_log2(opt)];
+    return option_strings[aal_log2(opt) - 1];
 }
 
 /* Returns exception option from passed exception */

@@ -31,10 +31,14 @@ enum aal_exception_option {
     EXCEPTION_OK	    = 1 << 3,
     EXCEPTION_RETRY	    = 1 << 4,
     EXCEPTION_IGNORE	    = 1 << 5,
-    EXCEPTION_CANCEL	    = 1 << 6
+    EXCEPTION_CANCEL	    = 1 << 6,
+    EXCEPTION_LAST	    = 1 << 7
 };
 
 typedef enum aal_exception_option aal_exception_option_t;
+
+#define EXCEPTION_YESNO	    (EXCEPTION_YES | EXCEPTION_NO)
+#define EXCEPTION_OKCANCEL  (EXCEPTION_OK | EXCEPTION_CANCEL)
 
 /* 
     This is exception structure. It contains: exception message, exception type,

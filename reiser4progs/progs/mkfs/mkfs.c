@@ -35,11 +35,11 @@ static void mkfs_print_usage(void) {
 	"                                 or mounted partition.\n"
 	"  -p | --profile                 profile to be used.\n"
 	"  -k | --known-profiles          prints known profiles.\n"
-	"  -b N | --block-size=N          block size, 4096 by default,\n"
+	"  -b | --block-size=N            block size, 4096 by default,\n"
 	"                                 other are not supported for awhile.\n"
-	"  -l LABEL | --label=LABEL       volume label lets to mount\n"
+	"  -l | --label=LABEL             volume label lets to mount\n"
 	"                                 filesystem by its label.\n"
-	"  -d UUID | --uuid=UUID          universally unique identifier.\n");
+	"  -d | --uuid=UUID               universally unique identifier.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -72,6 +72,8 @@ int main(int argc, char *argv[]) {
 	mkfs_print_usage();
 	return ERROR_USER;
     }
+    
+    aal_exception_set_handler(__progs_exception_handler);
     
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
@@ -122,6 +124,8 @@ int main(int argc, char *argv[]) {
 		break;
 	    }
 	    case 'i': {
+		
+		/* Parsing passed by user uuid */
 		if (aal_strlen(optarg) != 36) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Invalid uuid was specified (%s).", optarg);
@@ -165,7 +169,7 @@ int main(int argc, char *argv[]) {
     
     if (optind < argc) {
 	char *len_str = argv[optind];
-		
+
 	if (stat(host_dev, &st) == -1) {
 	    char *tmp = host_dev;
 	    host_dev = len_str;
@@ -195,8 +199,8 @@ int main(int argc, char *argv[]) {
 	    return ERROR_USER;
 	}
     } else {
-	if ((IDE_DISK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 64 == 0) ||
-	    (SCSI_BLK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 16 == 0))
+	if (((IDE_DISK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 64 == 0) ||
+	    (SCSI_BLK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 16 == 0)) && !force)
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Device \"%s\" is an entire harddrive, not just one partition.", host_dev);
@@ -211,7 +215,7 @@ int main(int argc, char *argv[]) {
 	return ERROR_USER;
     }
 
-#ifdef HANE_UUID    
+#ifdef HAVE_UUID    
     if (aal_strlen(uuid) == 0)
 	uuid_generate(uuid);
 #endif
@@ -246,11 +250,8 @@ int main(int argc, char *argv[]) {
 
     /* Checking for "quiet" mode */
     if (!quiet) {
-	if (!(c = progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
-		"All data on %s will be lost (y/n) ", host_dev)))
-	    goto error_free_libreiser4;
-	
-	if (c == 'n' || c == 'N')
+	if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YESNO, 
+		"All data on \"%s\" will be lost.", host_dev) == EXCEPTION_NO)
 	    goto error_free_libreiser4;
     }
 
