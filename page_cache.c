@@ -507,6 +507,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	REISER4_ENTRY(s);
 
+	reiser4_stat_inc(pcwb_calls);
+
 	assert("vs-828", PageLocked(page));
 	
 	tree = &get_super_private(s)->tree;
@@ -516,6 +518,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	   no atom - there is no reason to call jfind, jlook (or zlook if page
 	   is of fake inode) is enough */
 	if (page->mapping->host != get_super_private(s)->fake) {
+		reiser4_stat_inc(pcwb_unformatted);
+		
 		node = jlook_lock(tree, get_inode_oid(page->mapping->host),
 				  page->index);
 		if (!node) {
@@ -526,9 +530,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			 */
 			page->mapping->a_ops->set_page_dirty(page);
 			reiser4_unlock_page(page);
+
+			reiser4_stat_inc(pcwb_no_jnode);
 			REISER4_EXIT(0);
 		}
 	} else {
+		reiser4_stat_inc(pcwb_formatted);
 		/* formatted pages always have znode attached to them */
 		assert("vs-1101", PagePrivate(page) && jnode_by_page(page));
 		node = jnode_by_page(page);
@@ -541,8 +548,10 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	result = wait_for_flush(page, node, wbc);
 	jput(node);
-	if (result != 0)
+	if (result != 0) {
+		reiser4_stat_inc(pcwb_ented);
 		REISER4_EXIT(0);
+	}
 
 	assert("nikita-3044", schedulable());
 
@@ -565,9 +574,11 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		/* race with truncate? */
 		result = RETERR(-EINVAL);
 	}
-	if (result <= 0)
+	if (result <= 0) {
+		reiser4_stat_inc(pcwb_not_written);		
 		REISER4_EXIT(WRITEPAGE_ACTIVATE);
-
+	}
+	reiser4_stat_inc(pcwb_written);
 	REISER4_EXIT(0);
 }
 
