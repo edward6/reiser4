@@ -47,7 +47,7 @@
  *
  *   JNODE_DIRTY: If a node is dirty, it must be flushed.  But in order to be written it
  *   must be allocated first.  In order to be considered allocated, the jnode must have
- *   exactly one of { JNODE_WANDER, JNODE_RELOC } set.  These two bits are exclusive, and
+ *   exactly one of { JNODE_OVRWR, JNODE_RELOC } set.  These two bits are exclusive, and
  *   all dirtied jnodes eventually have one of these bits set during each transaction.
  *
  *   JNODE_CREATED: The node was freshly created in its transaction and has no previous
@@ -59,12 +59,12 @@
  *   (belonging to the preserve-set) have (JNODE_RELOC) set and created-set members which
  *   have no previous location to preserve have (JNODE_RELOC | JNODE_CREATED) set.
  *
- *   JNODE_WANDER: The flush algorithm made the decision to maintain the pre-existing
+ *   JNODE_OVRWR: The flush algorithm made the decision to maintain the pre-existing
  *   location for this node and it will be written to the wandered-log.  FIXME(E): The
  *   following NOTE needs to be fixed by adding a wander_list to the atom.  NOTE: In this
  *   case, flush sets the node to be clean!  By returning the node to the clean list,
  *   where the log-writer expects to find it, flush simply pretends it was written even
- *   though it has not been.  Clean nodes with JNODE_WANDER set cannot be released from
+ *   though it has not been.  Clean nodes with JNODE_OVRWR set cannot be released from
  *   memory (checked in reiser4_releasepage()).
  *
  *   JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
@@ -94,10 +94,10 @@
  *
  *   - The node is not dirty
  *   - The node has JNODE_RELOC set
- *   - The node has JNODE_WANDER set
+ *   - The node has JNODE_OVRWR set
  *
  * If either the node is not dirty or it has already been processed by flush (and assigned
- * JNODE_WANDER or JNODE_RELOC), then it is prepped.  If jnode_is_flushprepped() returns
+ * JNODE_OVRWR or JNODE_RELOC), then it is prepped.  If jnode_is_flushprepped() returns
  * true then flush has work to do on that node.
  */
 
@@ -195,7 +195,7 @@
  * facilitate this, we "undo" the read-optimized allocation that was given to the node so
  * that later it can be write-optimized, thus "unpreparing" the flush decision.  This is a
  * case where we disturb the FLUSH_PREP_ONCE_PER_TRANSACTION rule described above.  By a
- * call to flush_unprep() we will: if the node was wandered, unset the JNODE_WANDER bit;
+ * call to flush_unprep() we will: if the node was wandered, unset the JNODE_OVRWR bit;
  * if the node was relocated, unset the JNODE_RELOC bit, non-deferred-deallocate its block
  * location, and set the JNODE_CREATED bit, effectively setting the node back to an
  * unallocated state.
@@ -646,7 +646,7 @@ ON_DEBUG (atomic_t flush_cnt;)
  * number is re-allocated, making it possible to write deleted data on top of non-deleted
  * data.  Its just a theory, but it needs to be thought out. */
 
-/* E. Never put JNODE_WANDER blocks in the flush queue.  This is easy to implement, but it
+/* E. Never put JNODE_OVRWR blocks in the flush queue.  This is easy to implement, but it
  * is done for historical reasons related to the time when we had no log-writing and the
  * test layout.  If (WRITE_LOG == 0) then wandered blocks in the flush queue makes sense
  * (and the test layout doesn't support WRITE_LOG, I think?), but once (WRITE_LOG == 1)
@@ -2607,7 +2607,7 @@ static int flush_empty_queue (flush_position *pos)
 		 * queue at all, they should simply be ignored by jnode_flush_queue or
 		 * something similar.  Then we don't need this special case here or below
 		 * (See the NOTE*** mark below). */
-		if (WRITE_LOG && JF_ISSET (check, JNODE_WANDER)) {
+		if (WRITE_LOG && JF_ISSET (check, JNODE_OVRWR)) {
 			/* Log-writer expects these to be on the clean list.  They cannot
 			 * leave memory and will remain captured. */
 			flush_dequeue_jnode (pos, check);
@@ -2664,7 +2664,7 @@ static int flush_empty_queue (flush_position *pos)
 				npage = jnode_lock_page (node);
 				spin_unlock_jnode (node);
 
-				if ((WRITE_LOG && JF_ISSET (node, JNODE_WANDER)) /* NOTE*** Wandered blocks should not enter the queue.  See the note above */ ||
+				if ((WRITE_LOG && JF_ISSET (node, JNODE_OVRWR)) /* NOTE*** Wandered blocks should not enter the queue.  See the note above */ ||
 				    /*JF_ISSET (node, JNODE_FLUSH_BUSY) ||*/
 				    (*jnode_get_block (node) != *jnode_get_block (check) + nr) ||
 				    PageWriteback (npage)) {
@@ -2785,7 +2785,7 @@ static int flush_rewrite_jnode (jnode *node)
 	assert ("jmacd-53316", jnode_is_flushprepped (node));
 
 	/* If this node is being wandered, just set it clean and return. */
-	if ((WRITE_LOG && JF_ISSET (node, JNODE_WANDER))) {
+	if ((WRITE_LOG && JF_ISSET (node, JNODE_OVRWR))) {
 		spin_unlock_jnode (node);
 		jnode_set_clean (node);
 		return 0;
@@ -3973,7 +3973,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 
 	sprintf (block, " block=%s", sprint_address (jnode_get_block (node)));
 
-	if (JF_ISSET (node, JNODE_WANDER)) {
+	if (JF_ISSET (node, JNODE_OVRWR)) {
 		state = dirty ? "wandr,dirty" : "wandr";
 	} else if (JF_ISSET (node, JNODE_RELOC) && JF_ISSET (node, JNODE_CREATED)) {
 		state = dirty ? "creat,dirty" : "creat";

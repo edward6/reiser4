@@ -949,7 +949,7 @@ void bitmap_pre_commit_hook (void)
 				bmap_off_t offset;
 				struct bnode * bn;
 
-				assert ("zam-559", !JF_ISSET(node, JNODE_WANDER));
+				assert ("zam-559", !JF_ISSET(node, JNODE_OVRWR));
 				assert ("zam-460", !blocknr_is_fake(& node->blocknr));
 
 				parse_blocknr(& node->blocknr, &bmap, &offset);

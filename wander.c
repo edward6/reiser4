@@ -525,15 +525,15 @@ static int get_overwrite_set (struct commit_handle * ch)
 		jnode * next = capture_list_next(cur);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
-			trace_on (TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_WANDER));
+			trace_on (TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
 		assert ("nikita-2591", !jnode_check_dirty (cur));
 		if (0 && jnode_page (cur) && 
-		    PageDirty (jnode_page (cur)) && !JF_ISSET(cur, JNODE_WANDER))
+		    PageDirty (jnode_page (cur)) && !JF_ISSET(cur, JNODE_OVRWR))
 			rpanic( "nikita-2590", "Wow!" );
 
-		if (JF_ISSET(cur, JNODE_WANDER)) { 
+		if (JF_ISSET(cur, JNODE_OVRWR)) { 
 			capture_list_remove_clean (cur);
 
 			if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
@@ -577,7 +577,7 @@ static int get_overwrite_set (struct commit_handle * ch)
 				spin_lock_jnode(cur);
 
 				cur->atom = NULL;
-				JF_CLR(cur, JNODE_WANDER);
+				JF_CLR(cur, JNODE_OVRWR);
 
 				spin_unlock_jnode(cur);
 				jput(cur);
@@ -904,7 +904,7 @@ int alloc_wandered_blocks (struct commit_handle * ch)
 
 	cur = capture_list_front(&ch->overwrite_set);
 	while (!capture_list_end(&ch->overwrite_set, cur)) {
-		assert ("zam-567", JF_ISSET(cur, JNODE_WANDER));
+		assert ("zam-567", JF_ISSET(cur, JNODE_OVRWR));
 
 		ret = get_more_wandered_blocks (rest, &block, &len); 
 		if (ret) return ret;

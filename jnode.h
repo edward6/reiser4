@@ -107,7 +107,7 @@ typedef enum {
        /** this node is currently relocated */
        JNODE_RELOC             = 6,
        /** this node is currently wandered */
-       JNODE_WANDER            = 7,
+       JNODE_OVRWR            = 7,
 
        /** this znode has been modified */
        JNODE_DIRTY             = 8,
@@ -325,13 +325,13 @@ static inline int jnode_is_flushprepped (const jnode *node)
 {
 	assert ("jmacd-78212", node != NULL );
 	assert ("jmacd-71276", spin_jnode_is_locked (node));
-	return ! jnode_is_dirty (node) || JF_ISSET (node, JNODE_RELOC) || JF_ISSET (node, JNODE_WANDER);
+	return ! jnode_is_dirty (node) || JF_ISSET (node, JNODE_RELOC) || JF_ISSET (node, JNODE_OVRWR);
 }
 
 static inline void jnode_set_reloc (jnode *node)
 {
 	assert ("nikita-2431", node != NULL);
-	assert ("nikita-2432", !JF_ISSET (node, JNODE_WANDER));
+	assert ("nikita-2432", !JF_ISSET (node, JNODE_OVRWR));
 	JF_SET (node, JNODE_RELOC);
 }
 
@@ -339,7 +339,7 @@ static inline void jnode_set_wander (jnode *node)
 {
 	assert ("nikita-2431", node != NULL);
 	assert ("nikita-2432", !JF_ISSET (node, JNODE_RELOC));
-	JF_SET (node, JNODE_WANDER);
+	JF_SET (node, JNODE_OVRWR);
 }
 
 /** return true if "node" is the root */
