@@ -497,7 +497,7 @@ extent2tail(struct file *file)
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
-		set_file_state(inode, EXTENT_POINTER_ID);
+		set_file_state(inode, TAIL_ID);
 	else
 		warning("nikita-2282", "Partial conversion of %lu: %lu of %lu", inode->i_ino, i, num_pages);
 	drop_exclusive_access(inode);
