@@ -465,7 +465,6 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	}
 
 	jput (node);
-	prune_jcache (32, 1024);
 	REISER4_EXIT (result);
 }
 

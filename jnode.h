@@ -126,14 +126,19 @@ typedef enum {
        JNODE_TYPE_2            = 14,
        JNODE_TYPE_3            = 15,
 
-       /* jnode has to be recycled on last jput() */
-       JNODE_DROP              = 16
+       /** jnode is being destroyed */
+       JNODE_RIP               = 16
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
 static inline void JF_CLR (jnode *j, int f) { clear_bit (f, &j->state); }
 static inline int JF_ISSET (const jnode *j, int f) { return test_bit (f, &((jnode*)j)->state); }
 static inline void JF_SET (jnode *j, int f) { set_bit (f, &j->state); }
+
+static inline int JF_TEST_AND_SET (jnode *j, int f) 
+{ 
+	return test_and_set_bit (f, &j->state); 
+}
 
 /*
  * ordering constraint for znode spin lock: znode lock is weaker than 

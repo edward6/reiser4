@@ -271,8 +271,6 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	 * Stupid and slow, but simple algorithm. Umount is not time-critical
 	 * anyway.
 	 */
-	spin_lock_tree( tree );
-
 	do {
 		parents = 0;
 		killed  = 0;
@@ -289,8 +287,6 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 		}
 		assert( "nikita-2178", ( parents == 0 ) || ( killed > 0 ) );
 	} while( parents + killed > 0 );
-
-	spin_unlock_tree( tree );
 
 	z_hash_done( &tree -> zhash_table );
 }
@@ -1142,8 +1138,6 @@ void info_znode( const char *prefix /* prefix to print */,
 
 	info( "c_count: %i, readers: %i, ", 
 	      atomic_read( &node -> c_count ), node -> lock.nr_readers );
-
-	print_address( "blocknr", znode_get_block( node ) );
 }
 
 void print_znodes( const char *prefix, reiser4_tree *tree )

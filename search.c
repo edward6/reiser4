@@ -1136,7 +1136,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	tree_level          level;
 	tree_level          stop_level;
 	tree_level          lock_level;
-	reiser4_key        *key;
+	const reiser4_key  *key;
 	int                 result;
 
 	assert( "nikita-1317", h != NULL );

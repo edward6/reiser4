@@ -2162,13 +2162,12 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	page_clear_jnode_nolock( page, node );
 	spin_unlock_jnode( node );
 	tree = tree_by_page( page );
-	page_cache_release( page );
 
 	/*
 	 * we are under memory pressure so release jnode
 	 * also. jdrop() internally re-checks x_count.
 	 */
-	UNDER_SPIN_VOID( tree, tree, jdrop_in_tree( node, tree, 0 ) );
+	jdrop_in_tree( node, tree, 0 );
 
 	/*
 	 * return with page still locked. shrink_cache() expects this.
