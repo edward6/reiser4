@@ -664,8 +664,7 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	assert ("vs-618", (page->count == 1 &&
-			   PageLocked (page)));
+	assert ("vs-618", (page->count == 2 && PageLocked (page)));
 	page->mapping = 0;
 
 	txn_delete_page (page);
@@ -902,6 +901,11 @@ unsigned long get_jiffies ()
 	return (tv.tv_sec * 1e6 + tv.tv_usec);
 }
 
+void page_cache_get(struct page * page)
+{
+	page->count ++;
+}
+
 /* mm/page_alloc.c */
 void page_cache_release (struct page * page)
 {
@@ -933,6 +937,7 @@ int fsync_bdev(struct block_device * bdev)
 			ll_rw_block (WRITE, 1, &pbh);
 			kunmap (page);
 			ClearPageDirty (page);
+			jnode_detach_page (j);
 		} else {
 			info ("dirty page does not have jnode\n");
 			ClearPageDirty (page);
@@ -3051,7 +3056,8 @@ static int mkfs_bread (reiser4_tree *tree, jnode *node)
 	bh.b_data = (void *) (pg + 1);
 	pbh = &bh;
 	ll_rw_block (READ, 1, &pbh);
-	jnode_attach_to_page (node, pg);
+	jnode_attach_page (node, pg);
+	page_cache_release (pg);
 	unlock_page (pg);
 	kmap (pg);
 	return 0;
@@ -3065,7 +3071,8 @@ static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG)
 	pg = new_page (get_super_private (tree->super)->fake->i_mapping,
 		       (unsigned long)*jnode_get_block (node));
 	assert ("nikita-2049", pg);
-	jnode_attach_to_page (node, pg);
+	jnode_attach_page (node, pg);
+	page_cache_release (pg);
 	kmap (pg);
 	return 0;
 }
@@ -3087,6 +3094,13 @@ static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 	ll_rw_block (WRITE, 1, &pbh);
 	kunmap (jnode_page (node));
 	JF_CLR (node, ZNODE_DIRTY);
+	return 0;
+}
+
+static int mkfs_bdrop (reiser4_tree *tree UNUSED_ARG, jnode *node)
+{
+	assert ("nikita-2056", !JF_ISSET (node, ZNODE_DIRTY));
+
 	spin_lock (&page_list_guard);
 	list_del_init (&jnode_page (node)->list);
 	spin_unlock (&page_list_guard);
@@ -3094,6 +3108,7 @@ static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 	free (jnode_page (node));
 	return 0;
 }
+
 
 int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 {
@@ -3107,6 +3122,7 @@ static tree_operations mkfs_tops = {
 	.allocate_node = mkfs_getblk,
 	.delete_node   = NULL,
 	.release_node  = mkfs_brelse,
+	.drop_node     = mkfs_bdrop,
 	.dirty_node    = mkfs_dirty_node
 };
 

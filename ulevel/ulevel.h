@@ -929,6 +929,7 @@ void unlock_page(struct page *page);
 void lru_cache_del(struct page *);
 
 /* mm/page_alloc.c */
+void page_cache_get(struct page * page);
 void page_cache_release (struct page * page);
 
 

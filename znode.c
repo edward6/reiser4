@@ -284,14 +284,17 @@ static void zinit( znode *node /* znode to initialise */,
 /* Audited by: umka (2002.06.11) */
 void zdestroy( znode *node /* znode to finish with */ )
 {
+	reiser4_tree *tree;
+
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
 	assert( "nikita-1443", current_tree != NULL );
 
-	spin_lock_tree( current_tree );
+	tree = current_tree;
+	spin_lock_tree( tree );
 
 	if( atomic_read( &node -> x_count ) > 0 ) {
-		spin_unlock_tree( current_tree );
+		spin_unlock_tree( tree );
 		return;
 	}
 
@@ -321,10 +324,20 @@ void zdestroy( znode *node /* znode to finish with */ )
 	}
 
 	/* remove znode from hash-table */
-	z_hash_remove( & current_tree -> hash_table, node );
-	spin_unlock_tree( current_tree );
+	z_hash_remove( & tree -> hash_table, node );
+	spin_unlock_tree( tree );
+
+	assert( "nikita-2057", tree -> ops -> drop_node != NULL );
 	/*
-	 * poison memory. Put this under REISER4_DEBUG once race is fixed.
+	 * remove node backing store (page).
+	 */
+	if( tree -> ops -> drop_node( tree, ZJNODE( node ) ) != 0 ) {
+		warning( "nikita-2058", "Failed to drop node: %llx",
+			 *znode_get_block( node ) );
+	}
+
+	/*
+	 * poison memory.
 	 */
 	ON_DEBUG( xmemset( node, 0xde, sizeof *node ) );
 	zfree( node );
@@ -754,7 +767,6 @@ int zunload( znode *node /* znode to unload */ )
 
 	current_tree -> ops -> release_node( current_tree, ZJNODE( node ) );
 	ZF_CLR( node, ZNODE_LOADED );
-	ZJNODE( node ) -> pg = NULL;
 	return 0;
 }
 
@@ -986,31 +998,71 @@ int znode_is_root( const znode *node /* znode to query */ )
 	return result;
 }
 
-void jnode_attach_to_page( jnode *node, struct page *pg )
+void jnode_attach_page_nolock( jnode *node, struct page *pg )
+{
+	assert( "nikita-2060", node != NULL );
+	assert( "nikita-2061", pg != NULL );
+
+	assert( "nikita-2050", 
+		( pg -> private == 0ul ) || 
+		( pg -> private == ( unsigned long ) node ) );
+	if( !PagePrivate( pg ) ) {
+		assert( "nikita-2059", pg -> private == 0ul );
+		pg -> private = ( unsigned long ) node;
+		node -> pg  = pg;
+		SetPagePrivate( pg );
+		/* add reference to page */
+		page_cache_get( pg );
+	}
+}
+
+void jnode_attach_page( jnode *node, struct page *pg )
 {
 	assert( "nikita-2047", node != NULL );
 	assert( "nikita-2048", pg != NULL );
 
 	spin_lock( &_jnode_ptr_lock );
-	assert( "nikita-2050", 
-		( pg -> private == 0ul ) || 
-		( pg -> private == ( unsigned long ) node ) );
-	pg -> private = ( unsigned long ) node;
-	node -> pg  = pg;
-	SetPagePrivate( pg );
+	jnode_attach_page_nolock( node, pg );
 	spin_unlock( &_jnode_ptr_lock );
+}
+
+static void break_page_jnode_linkage( struct page *page, jnode *node )
+{
+	assert( "nikita-2063", page != NULL );
+	assert( "nikita-2064", node != NULL );
+
+	page -> private = 0ul;
+	ClearPagePrivate( page );
+	node -> pg = NULL;
+}
+
+jnode *page_detach_jnode( struct page *page )
+{
+	jnode *node;
+
+	assert( "nikita-2062", page != NULL );
+
+	spin_lock( &_jnode_ptr_lock );
+	node = ( jnode * ) page -> private;
+	if( node != NULL )
+		break_page_jnode_linkage( page, node );
+	spin_unlock( &_jnode_ptr_lock );
+	page_cache_release( page );
+	return node;
 }
 
 void jnode_detach_page( jnode *node )
 {
+	struct page *page;
+
 	assert( "nikita-2052", node != NULL );
 	assert( "nikita-2053", jnode_page( node ) != NULL );
 
 	spin_lock( &_jnode_ptr_lock );
-	jnode_page( node ) -> private = 0ul;
-	ClearPagePrivate( jnode_page( node ) );
-	node -> pg  = NULL;
+	page = jnode_page( node );
+	break_page_jnode_linkage( page, node );
 	spin_unlock( &_jnode_ptr_lock );
+	page_cache_release( page );
 }
 
 /** debugging aid: znode invariant */

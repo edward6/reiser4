@@ -80,8 +80,10 @@ typedef struct tree_operations {
 	int ( *allocate_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is deleted from the tree. */
 	int ( *delete_node )( reiser4_tree *tree, jnode *node );
-	/** called when node is removed from the memory */
+	/** called when node's data are no longer needed */
 	int ( *release_node )( reiser4_tree *tree, jnode *node );
+	/** called when node is removed from the memory */
+	int ( *drop_node )( reiser4_tree *tree, jnode *node );
 	/** mark node dirty */
 	int ( *dirty_node )( reiser4_tree *tree, jnode *node );
 } tree_operations;

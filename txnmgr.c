@@ -314,10 +314,12 @@ jnode_of_page (struct page* pg)
 	spin_lock (& _jnode_ptr_lock);
 
 	if ((jnode*) pg->private == NULL) {
+		struct inode *inode;
+
 		if (jal == NULL) {
 			spin_unlock (& _jnode_ptr_lock);
 			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
-			
+
 			/* 
 			 * umka (2002.06.13) 
 			 * In this point should be a check for kmalloc_cache_alloc 
@@ -328,17 +330,21 @@ jnode_of_page (struct page* pg)
 			
 			goto again;
 		}
-		pg->private = (unsigned long) jal;
-		SetPagePrivate (pg);
 
 		/* FIXME: jnode_init doesn't take struct page argument, so
 		 * znodes aren't having theirs set. */
 		jnode_init (jal);
 
 		jal->level = LEAF_LEVEL;
-		jal->pg    = pg;
 
-		JF_SET (jal, ZNODE_UNFORMATTED);
+		jnode_attach_page_nolock (jal, pg);
+
+		/* guess whether page is formatted */
+		inode = pg->mapping->host;
+		if ( inode != get_super_private (inode->i_sb)->fake)
+			JF_SET (jal, ZNODE_UNFORMATTED);
+		else
+			JF_CLR (jal, ZNODE_UNFORMATTED);
 
 		jal = NULL;
 	}
@@ -359,6 +365,11 @@ jnode_of_page (struct page* pg)
 		kmem_cache_free (_jnode_slab, jal);
 	}
 
+	/*
+	 * FIXME:NIKITA->JMACD possible race here: page is released and
+	 * allocated again. All jnode_of_page() callers have to protect
+	 * against this.
+	 */
 	return (jnode*) pg->private;
 }
 
@@ -1237,12 +1248,7 @@ void txn_delete_page (struct page *pg)
 	
 	assert("umka-199", pg != NULL);
 	
-	spin_lock (& _jnode_ptr_lock);
-	node = (jnode*) pg->private;
-	pg->private = 0;
-	spin_unlock (& _jnode_ptr_lock);
-	
-	if (node == NULL) {
+	if ((node = page_detach_jnode (pg)) == NULL) {
 		return;
 	}
 
