@@ -292,6 +292,11 @@ struct znode {
 #endif 
 };
 
+/* FIXME: NOTE: The members of this enum used to be logical bitmasks associated with each
+ * state, but now they are shift values so that clear_bit, test_bit, and set_bit
+ * primitives work properly.  The problem?  You can't write JF_ISSET (node, ZNODE_WANDER |
+ * ZNODE_RELOC) any more.  Nikita, please comment.
+ */
 typedef enum {
        /** data are loaded from node */
        ZNODE_LOADED            = 0,
@@ -324,15 +329,15 @@ typedef enum {
 	* need to keep track of deleted nodes, and this also allows us to
 	* delete nodes that are not in memory (which will be common for
 	* extents). */
-       /*ZNODE_DELETED           = 10,*/
+       /*ZNODE_DELETED           = */
 
        /** this znode has been modified */
-       ZNODE_DIRTY             = 10,
+       ZNODE_DIRTY             = 8,
        /** this znode has been modified */
-       ZNODE_WRITEOUT          = 11,
+       ZNODE_WRITEOUT          = 9,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = 12
+       ZNODE_IS_DYING          = 10,
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
@@ -596,7 +601,6 @@ extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
-
 extern int    jnode_flush     (jnode *node, int flags);
 
 #if REISER4_DEBUG
@@ -676,6 +680,12 @@ static inline int jnode_check_dirty( jnode *node )
 	is_dirty = jnode_is_dirty (node);
 	spin_unlock_jnode (node);
 	return is_dirty;
+}
+
+/** return true if "node" is the root */
+static inline int jnode_is_root (const jnode *node)
+{
+	return jnode_is_formatted (node) && znode_is_root (JZNODE (node));
 }
 
 /* __ZNODE_H__ */

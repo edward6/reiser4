@@ -293,6 +293,8 @@ jnode_of_page (struct page* pg)
 
 		jal->pg = pg;
 
+		JF_SET (jal, ZNODE_UNFORMATTED);
+
 		jal = NULL;
 	}
 
