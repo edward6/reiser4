@@ -440,16 +440,16 @@ fake_allocated2used(__u64 count, int formatted)
 /* wrapper to call space allocation plugin */
 int
 reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
-		     reiser4_block_nr * len, int formatted, int reserved)
+		     reiser4_block_nr * len, int formatted, int from_reserved_space)
 {
 	space_allocator_plugin *splug;
 	reiser4_block_nr needed = *len;
-	block_stage_t stage = BLOCK_NOT_COUNTED;
 
 	struct super_block *s = reiser4_get_current_sb();
 
 	int ret;
 
+	assert("vpf-339", hint != NULL);
 	assert("vs-514", (get_super_private(s) &&
 			  get_super_private(s)->space_plug &&
 			  get_super_private(s)->space_plug->alloc_blocks));
@@ -459,24 +459,21 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		 (unsigned long long) *len,
 		 (unsigned long long) (hint ? hint->blk : ~0ull));
 
-	if (hint != NULL) {
-		stage = hint->block_stage;
-
-		/* FIXME-ZAM: should a mount option control this? */
-		if (hint->blk == 0) {
-			reiser4_spin_lock_sb(s);
-			hint->blk = get_super_private(s)->last_written_location;
-			assert("zam-677",
-			       hint->blk < get_super_private(s)->block_count);
-			reiser4_spin_unlock_sb(s);
-		}
+	/* FIXME-ZAM: should a mount option control this? */
+	if (hint->blk == 0) {
+		reiser4_spin_lock_sb(s);
+		hint->blk = get_super_private(s)->last_written_location;
+		assert("zam-677",
+			hint->blk < get_super_private(s)->block_count);
+		reiser4_spin_unlock_sb(s);
 	}
-
+	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
-	if (stage == BLOCK_NOT_COUNTED) {
+	if (hint->block_stage == BLOCK_NOT_COUNTED) {
 		get_current_context()->grab_enabled = 1;
 		warning("vpf-337", "SPACE: grab for not counted %llu blocks.", *len);
-		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, reserved);
+		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, 
+			from_reserved_space);
 		if (ret != 0)
 			return ret;
 	}
@@ -491,11 +488,12 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		assert("zam-680", *blk < reiser4_block_count(s));
 		assert("zam-681", *blk + *len <= reiser4_block_count(s));
 
-		switch (stage) {
+		switch (hint->block_stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
 			warning("vpf-334", "SPACE: use %s %llu blocks.", 
-				stage == BLOCK_GRABBED ? "grabbed" : "not counted", *len);
+				hint->block_stage == BLOCK_GRABBED ? 
+				"grabbed" : "not counted", *len);
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
@@ -510,7 +508,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			impossible("zam-531", "wrong block stage");
 		}
 	} else {
-		if (stage == BLOCK_NOT_COUNTED)
+		if (hint->block_stage == BLOCK_NOT_COUNTED)
 			grabbed2free(needed);
 	}
 

@@ -324,7 +324,7 @@ format40_release(struct super_block *s)
 {
 	int ret;
 
-	if (reiser4_grab_space_exact(1, 0))
+	if (reiser4_grab_space_exact(1, 1))
 		return -ENOSPC;
 	    
 	if ((ret = capture_super_block(s))) {

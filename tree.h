@@ -640,7 +640,6 @@ get_current_context(void)
                 if (__ret != 0) {				\
 			return errret;				\
 		}						\
-		reiser4_grab_space_enable();			\
         } while (0)
 
 #define REISER4_ENTRY_PTR( super )  __REISER4_ENTRY( super, ERR_PTR(__ret) )

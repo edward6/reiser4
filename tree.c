@@ -736,6 +736,8 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	if (sdata->fake)
 		balance_dirty_pages(sdata->fake->i_mapping);
 
+	reiser4_grab_space_enable();
+
 	return 0;
 }
 
