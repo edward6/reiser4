@@ -514,11 +514,13 @@ jparse(jnode * node, struct page *page)
 static inline void
 load_page(struct page *page, jnode *node)
 {
+	PROF_BEGIN(load_page);
 	page_cache_get(page);
 	mark_page_accessed(page);
 	kmap(page);
 	if (REISER4_USE_EFLUSH)
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
+	PROF_END(load_page, load_page);
 }
 
 /* load jnode's data into memory using read_cache_page() */
@@ -585,7 +587,7 @@ jload(jnode * node)
 		   because page can be detached from jnode only when ->d_count
 		   is 0, and JNODE_LOADED is not set.
 		*/
-		if (page != NULL && !JF_ISSET(node, JNODE_ASYNC)) {
+		if (likely(page != NULL && !JF_ISSET(node, JNODE_ASYNC))) {
 			JF_SET(node, JNODE_LOADED);
 			load_page(page, node);
 			node->data = page_address(page);
@@ -600,15 +602,12 @@ jload(jnode * node)
 			if (!IS_ERR(page)) {
 				kmap(page);
 				node->data = page_address(page);
-				/* It is possible (however unlikely) that page
-				   was concurrently released (by flush or
-				   shrink_cache()), page is still in a page
-				   cache and up-to-date, but jnode was already
-				   detached from it.
-				*/
 				reiser4_lock_page(page);
 				spin_lock_jnode(node);
 				if (jnode_page(node) == NULL)
+					/* this line and jget() are the only
+					 * places, where page is attached to
+					 * jnode */
 					jnode_attach_page(node, page);
 				assert("nikita-2636", jnode_page(node) == page);
 				if (PageUptodate(page))
@@ -731,8 +730,12 @@ jstartio(jnode * node)
 
 	spin_lock_jnode(node);
 	if (jnode_page(node) == NULL) {
-		jnode_attach_page(node, page);
+		/* NOTE: JNODE_ASYNC has to be set *before* page is attached
+		 * to jnode, because jload() will assume that attached page is
+		 * ok, if JNODE_ASYNC is not set, and jload() doesn't hold
+		 * jnode spin-lock in this case. */
 		JF_SET(node, JNODE_ASYNC);
+		jnode_attach_page(node, page);
 		spin_unlock_jnode(node);
 		if (!PageUptodate(page))
 			result = page_io(page, node, READ, GFP_KERNEL);
