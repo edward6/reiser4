@@ -1,11 +1,11 @@
 #! /bin/sh
 
-OPTVAL=`getopt -o d:s:e:t: -n 'seeks.sh' -- "$@"`
+OPTVAL=`getopt -o d:e:s:t: -n 'seeks.sh' -- "$@"`
 
 # Note the quotes around `$TEMP': they are essential!
 eval set -- "$OPTVAL"
 
-XSTYLE=lines
+XSTYLE=dots
 
 while true ;do
 	case "$1" in
@@ -42,19 +42,21 @@ else
 	XRANGE=""
 fi
 
-if [ $TITLE ] ;then
-	XTITLE="title \"$TITLE\""
-else
-	XTITLE=""
-fi
+FNAME=tmp.$$
+cat > $FNAME
+grep r $FNAME > $FNAME.r
+grep w $FNAME > $FNAME.w
 
 (
-	echo "set terminal postscript;"
+	echo "set terminal postscript color;"
+	echo "set linestyle 1 lt 1;" # red line
+	echo "set linestyle 2 lt 3;" # blue line
 #	echo "clear;"
 	echo "set data style $XSTYLE;"
 	echo "set noborder;"
 #	echo "set offsets 0,0,0,1000;"
-	echo "set label \"generated on `date +%Y-%m-%d` by `whoami` at `uname -a`\" at graph -0.1,-0.07"
-	echo "plot $XRANGE '-' $XTITLE"
-	cat
+	echo "set label \"$TITLE: `date +%Y-%m-%d` by `whoami` at `uname -a`\" at graph -0.1,-0.07"
+	echo "plot $XRANGE '$FNAME.r' title 'reads' lt 1, '$FNAME.w' title 'writes' lt 3;"
 ) | gnuplot #| gv -landscape -
+
+rm -f $FNAME $FNAME.r $FNAME.w
