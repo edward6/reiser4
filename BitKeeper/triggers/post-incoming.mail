@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# Avoid commands that do nothing
+if test "X$BK_STATUS" = XDRYRUN -o "X$BK_STATUS" = XNOTHING; then
+    exit 0
+fi
+
+# Only interested in incoming push
+if test "X$BK_EVENT" != "Xincoming push"; then
+    exit 0
+fi
+
+MODULE=`basename $BKD_ROOT`
+
+(
+echo "Changes by ${BK_USER}@${BK_HOST} at" `date`
+echo "Repository ${BKD_HOST}:${BKD_ROOT}"
+echo
+
+# export the changes as a patch and remove some of the BK header
+if test "X$BK_CSETLIST" != X; then
+(
+#     bk changes -v - < $BK_CSETLIST
+     bk export -T -tpatch -dc -r`cat $BK_CSETLIST`
+) \
+| tail +5 - \
+| grep -v "^#$" \
+| grep -v "^# The following is the BitKeeper ChangeSet Log$"
+
+# indent it:
+#| sed 's/^/    /'
+
+fi
+
+) | mail -s "[bk] $MODULE" reiserfs-dev@namesys.com
