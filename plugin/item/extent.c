@@ -2983,7 +2983,6 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	char *data;
 	struct page *page;
 	jnode *j;
-	int to_write = f->length;
 
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", f->user == 1);
@@ -3096,10 +3095,6 @@ exit1:
 	if (f->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 
-	if (to_write == f->length) {
-		print_key("extent_write: key", &f->key);
-		info("extent_write: written nothing: %d\n", result);
-	}
 	return result;
 }
 
