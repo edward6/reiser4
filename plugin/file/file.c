@@ -1840,11 +1840,7 @@ unpack(struct inode *inode, int forever, int locked)
 	if (!locked)
 		get_exclusive_access(uf_info);
 
-	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
-		loff_t file_size;
-
-		result = find_file_size(inode, &file_size);
-	}
+	result = find_file_state(uf_info);
 	assert("vs-1074", ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 	if (result == 0) {
 		if (uf_info->container == UF_CONTAINER_TAILS)
