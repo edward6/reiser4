@@ -548,11 +548,11 @@ static int file_is_over (struct inode * inode, reiser4_key * key,
 	assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
 	assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
 	item_key_by_coord (coord, &coord_key);
-	assert ("vs-601", keycmp (key, &coord_key) == GREATER_THAN);
+	assert ("vs-601", keygt (key, &coord_key));
 	set_key_offset (&coord_key,
 			get_key_offset (&coord_key) +
 			item_length_by_coord (coord));
-	assert ("vs-568", keycmp (key, &coord_key) != GREATER_THAN);
+	assert ("vs-568", keyle (key, &coord_key));
 
 	/*
 	 * FIXME-VS: do we need to try harder?

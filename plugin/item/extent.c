@@ -81,7 +81,7 @@ int extent_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 
 	assert ("vs-458", coord->between == AFTER_UNIT);
 	set_key_offset (&item_key, extent_size (coord, coord->unit_pos + 1));
-	if (keycmp (&item_key, key) != EQUAL_TO) {
+	if (!keyeq (&item_key, key)) {
 		info ("could not merge extent items of one file\n");
 		return 0;
 	}
@@ -225,10 +225,9 @@ lookup_result extent_lookup (const reiser4_key * key,
 	/*
 	 * key we are looking for must be greater than key of item @coord
 	 */
-	assert ("vs-414", keycmp (key, &item_key) == GREATER_THAN);
+	assert ("vs-414", keygt (key, &item_key));
 
-	if (keycmp (key, extent_max_key_inside (coord, &item_key)) ==
-	    GREATER_THAN) {
+	if (keygt (key, extent_max_key_inside (coord, &item_key))) {
 		/*
 		 * @key is key of another file
 		 */
@@ -589,7 +588,7 @@ static int cut_or_kill_units (tree_coord * coord,
 		key_inside = key;
 		set_key_offset (&key_inside, (offset +
 					      extent_size (coord, *from)));
-		if (keycmp (from_key, &key_inside) == GREATER_THAN) {
+		if (keygt (from_key, &key_inside)) {
 			/*
 			 * @from-th extent can not be removed. Its width has to
 			 * be decreased in accordance with @from_key
@@ -602,8 +601,7 @@ static int cut_or_kill_units (tree_coord * coord,
 			 * completely */
 			assert ("vs-612", *to == last_unit_pos (coord));
 			assert ("vs-613",
-				keycmp (to_key, extent_max_key (coord, &key_inside)) !=
-				LESS_THAN);
+				keyge (to_key, extent_max_key (coord, &key_inside)));
 
 			ext = extent_item (coord) + *from;
 			first = offset + extent_size (coord, *from);
@@ -628,7 +626,7 @@ static int cut_or_kill_units (tree_coord * coord,
 		set_key_offset (&key_inside, (offset +
 					      extent_size (coord, *to + 1)));
 		set_key_offset (&key_inside, get_key_offset (&key_inside) - 1);
-		if (keycmp (to_key, &key_inside) == LESS_THAN) {
+		if (keylt (to_key, &key_inside)) {
 			/* @to-th unit can not be removed completely */
 			
 			reiser4_block_nr new_width;
@@ -637,7 +635,7 @@ static int cut_or_kill_units (tree_coord * coord,
 			 * make sure that head of item gets cut and cut is
 			 * aligned to block boundary */
 			assert ("vs-614", *from == 0);
-			assert ("vs-615", keycmp (from_key, &key) != GREATER_THAN);
+			assert ("vs-615", keyle (from_key, &key));
 			assert ("vs-616", ((get_key_offset (to_key) + 1) & 
 					   (blocksize - 1)) == 0);
 
@@ -924,7 +922,7 @@ static int add_extents (tree_coord * coord,
 			set_key_offset (&tmp_key, get_key_offset (&tmp_key) +
 					extent_size (coord,
 						     coord->unit_pos + 1));
-			assert ("vs-619", keycmp (key, &tmp_key) == EQUAL_TO);
+			assert ("vs-619", keyeq (key, &tmp_key));
 		}
 
 		return resize_item (coord, data, key, lh, 0/*flags*/);
@@ -1428,10 +1426,8 @@ static int key_in_item (tree_coord * coord, reiser4_key * key)
 	reiser4_key item_key;
 
 
-	return ((keycmp (item_key_by_coord (coord, &item_key),
-			 key) != GREATER_THAN) &&
-		(keycmp (key, last_key_in_extent (coord,
-						  &item_key)) == LESS_THAN));
+	return ((keyle (item_key_by_coord (coord, &item_key), key)) &&
+		(keylt (key, last_key_in_extent (coord, &item_key))));
 }
 
 
@@ -1458,7 +1454,7 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 		coord_first_unit (&left, coord->node);
 		item_key_by_coord (&left, &coord_key);
 
-		if (keycmp (key, &coord_key) == LESS_THAN) {
+		if (keylt (key, &coord_key)) {
 			/* if left neighbor of coord->node is unformatted node
 			 * of another file we can get here even if coord->node
 			 * does not contain key we are looking for */

@@ -1147,7 +1147,7 @@ static int item_removed_completely (tree_coord * from,
 
 	/* check first key just for case */
 	item_key_by_coord (from, &key_in_item);
-	if (keycmp (from_key, &key_in_item) == GREATER_THAN)
+	if (keygt (from_key, &key_in_item))
 		return 0;
 
 	/* check last key */
@@ -1156,7 +1156,7 @@ static int item_removed_completely (tree_coord * from,
 
 	iplug->common.real_max_key_inside (from, &key_in_item);
 
-	if (keycmp (to_key, &key_in_item) == LESS_THAN)
+	if (keylt (to_key, &key_in_item))
 		/* last byte is not removed */
 		return 0;
 	return 1;
@@ -1188,7 +1188,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 	assert ("vs-592", from->item_pos == to->item_pos);
 
 
-	if (keycmp (from_key, item_key_by_coord (from, &key)) == GREATER_THAN) {
+	if (keygt (from_key, item_key_by_coord (from, &key))) {
 		/* head of item @from is not removed, there is nothing to
 		 * worry about */
 		return 0;
@@ -1491,7 +1491,7 @@ int cut_tree (reiser4_tree * tree,
 		if (result)
 			break;
 		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
-	} while (keycmp (&smallest_removed, from_key) == GREATER_THAN);
+	} while (keygt (&smallest_removed, from_key));
 
 	done_coord (&intranode_to);
 	done_lh(&lock_handle);
