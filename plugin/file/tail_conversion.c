@@ -34,7 +34,7 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	down_write(&uf_info->latch);
 	assert("vs-1713", uf_info->ea_owner == NULL);
 	assert("vs-1713", atomic_read(&uf_info->nr_neas) == 0);
-	uf_info->ea_owner = current;
+	ON_DEBUG(uf_info->ea_owner = current);
 }
 
 reiser4_internal void
@@ -42,7 +42,7 @@ drop_exclusive_access(unix_file_info_t *uf_info)
 {
 	assert("vs-1714", uf_info->ea_owner == current);
 	assert("vs-1715", atomic_read(&uf_info->nr_neas) == 0);
-	uf_info->ea_owner = NULL;
+	ON_DEBUG(uf_info->ea_owner = NULL);
 	up_write(&uf_info->latch);
 	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
 	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
@@ -58,13 +58,15 @@ get_nonexclusive_access(unix_file_info_t *uf_info)
 	LOCK_CNT_INC(inode_sem_r);
 	assert("vs-1716", uf_info->ea_owner == NULL);
 	ON_DEBUG(atomic_inc(&uf_info->nr_neas));
-#ifdef CONFIG_FRAME_POINTER
+#if REISER4_DEBUG
 	uf_info->last_reader = current;
+#ifdef CONFIG_FRAME_POINTER
 	uf_info->where[0] = __builtin_return_address(0);
 	uf_info->where[1] = __builtin_return_address(1);
 	uf_info->where[2] = __builtin_return_address(2);
 	uf_info->where[3] = __builtin_return_address(3);
 	uf_info->where[4] = __builtin_return_address(4);
+#endif
 #endif
 }
 
