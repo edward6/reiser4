@@ -3583,7 +3583,7 @@ static int bash_mkfs (char * file_name)
 		init_formatted_fake( &super );
 		tree -> super = &super;
 		result = init_tree( tree, &root_block,
-				    1/*tree_height*/, node_plugin_by_id( NODE4_ID ));
+				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
 		assert ("", result == 0);
 		result = cbk_cache_init (&tree->cbk_cache);
 		assert ("", result == 0);
