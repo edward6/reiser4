@@ -23,6 +23,44 @@
 
 /* list of active lock stacks */
 ON_DEBUG(TS_LIST_DECLARE(context);)
+/*
+typedef enum {
+	FLUSH_MODE	    =   (1 << 0),
+	GRAB_ENABLED        =	(1 << 1)
+} context_flags_t;
+*/
+typedef enum {
+	CREATE_OP = 1,
+	WRITEBACK_OP = 2,
+	SCAN_MGR_OP = 3,
+	LOOKUP_OP = 4,
+	RENAME_OP = 5,
+	SETATTR_OP = 6,
+	GETATTR_OP = 7,
+	SYSREAD_OP = 8,
+	SYSWRITE_OP = 9,
+	TRUNCATE_OP = 10,
+	STATFS_OP = 11,
+	READPAGE_OP = 12,
+	BMAP_OP = 13,
+	LINK_OP = 14,
+	LSEEK_OP = 15,
+	READDIR_OP = 16,
+	IOCTL_OP = 17,
+	MMAP_OP = 18,
+	UNLINK_OP = 19,
+	DRELEASE_OP = 20,
+	RELEASE_OP = 21,
+	FSYNC_OP = 22,
+	DROPINODE_OP = 23,
+	DELETEINODE_OP = 24,
+	WRITESUPER_OP = 25,
+	INVPAGE_OP = 26,
+	RELEASEPAGE_OP = 27,
+	WRITEPAGES_OP = 28,
+	FILLSUPER_OP = 29,
+	KILLSUPER_OP = 30
+} op_t;
 
 /* global context used during system call. Variable of this type is
    allocated on the stack at the beginning of the reiser4 part of the
@@ -117,7 +155,9 @@ extern void print_contexts(void);
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
 
-extern int init_context(reiser4_context * context, struct super_block *super);
+
+
+extern int init_context(reiser4_context * context, struct super_block *super, op_t);
 extern void done_context(reiser4_context * context);
 
 /* magic constant we store in reiser4_context allocated at the stack. Used to
@@ -136,6 +176,7 @@ get_context(const struct task_struct *tsk)
 
 	return (reiser4_context *) tsk->fs_context;
 }
+
 
 /* return context associated with current thread */
 static inline reiser4_context *
@@ -196,19 +237,19 @@ extern int write_in_trace(const char *func, const char *mes);
 #define log_entry(super, str) noop
 #endif
 
-#define __REISER4_ENTRY(super, errret)				\
+#define __REISER4_ENTRY(super,op,errret)				\
 	reiser4_context __context;				\
 	do {							\
                 int __ret;					\
-                __ret = init_context(&__context, (super));	\
+                __ret = init_context(&__context, (super), op);	\
 		log_entry(super, ":in");			\
                 if (__ret != 0) {				\
 			return errret;				\
 		}						\
         } while (0)
 
-#define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
-#define REISER4_ENTRY(super)      __REISER4_ENTRY(super, __ret)
+#define REISER4_ENTRY_PTR(super,op)  __REISER4_ENTRY(super, op, ERR_PTR(__ret))
+#define REISER4_ENTRY(super,op)      __REISER4_ENTRY(super, op, __ret)
 
 extern int reiser4_exit_context(reiser4_context * context);
 
