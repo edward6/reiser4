@@ -379,7 +379,7 @@ static int squeeze_leaves (znode * right, znode * left)
 		return ret;
 	}
 
-	return node_is_empty (right) ? SQUEEZE_CONTINUE : SQUEEZE_DONE;
+	return node_is_empty (right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
 }
 
 /*
@@ -394,16 +394,10 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	tree_coord coord;
 	int size, moved;
 
-	if (node_is_empty (right)) {
-		return SQUEEZE_CONTINUE;
-	}
 
 	coord_first_unit (&coord, right);
 
-	if (! item_is_internal (&coord)) {
-		assert ("vs-433", item_is_extent (&coord));
-		return SQUEEZE_DONE;
-	}
+	assert ("jmacd-2007", item_is_internal (& coord));
 
 	reiser4_init_carry_pool (&pool);
 	reiser4_init_carry_level (&todo, &pool);
@@ -418,9 +412,9 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	 * If shift returns positive, then we shifted the item.
 	 */
 	assert ("vs-423", ret <= 0 || size == ret);
-	moved = (size > 0);
+	moved = (ret > 0);
 
-	if (ret >= 0) {
+	if (ret > 0) {
 		/*
 		 * carry is called to update delimiting key or to remove empty node,
 		 * unless shift failed.
@@ -434,7 +428,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 		return ret;
 	}
 	
-	return moved ? SUBTREE_MOVED : SQUEEZE_DONE;
+	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
 }
 
 /*
@@ -469,59 +463,79 @@ static int squalloc_twig (znode    *left,
 	int ret;
 	tree_coord coord;
 	reiser4_key stop_key;
-	int shift_done = 0;
-	int shift_some = 0;
+
 
 	assert ("jmacd-2008", ! node_is_empty (right));
 
 	coord_first_unit (&coord, right);
 
+	/*
+	 * if after while loop stop_key is still equal to *min_key - nothing
+	 * were copied, therefore there will be nothing to cut
+	 */
+	stop_key = *min_key ();
 	while (item_is_extent (&coord)) {
 
 		if ((ret = allocate_and_copy_extent (left, &coord, preceder, &stop_key)) < 0) {
 			return ret;
 		}
 
-		if (ret == SQUEEZE_DONE) {
+		if (ret == SQUEEZE_TARGET_FULL) {
 			/*
 			 * could not complete with current extent item
 			 */
-			shift_done = 1;
 			break;
 		}
-
-		shift_some = 1;
 
 		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
 
 		if (! coord_next_item (&coord)) {
+			ret = SQUEEZE_SOURCE_EMPTY;
 			break;
 		}
 	}
 
-	if (shift_some) {
+	if (keycmp (&stop_key, min_key ()) != EQUAL_TO) {
+		int cut_ret;
 		/*
-		 * @coord is set to first unit which does not have to be cut or after
-		 * last item in the node.  If we are positioned at the coord of a
-		 * unit, it means the allocate_and_copy_extent processing stops in the
-		 * middle of an extent item, the last unit of which was not copied.
-		 * Cut everything before that point.
+		 * something was copied
+		 */
+		/*
+		 * @coord is set to first unit which does not have to be cut or
+		 * after last item in the node.  If we are positioned at the
+		 * coord of a * unit, it means the allocate_and_copy_extent
+		 * processing stops in the * middle of an extent item, the last
+		 * unit of which was not copied.  * Cut everything before that
+		 * point.
 		 */
 		if (coord_of_unit (& coord)) {
 			coord_prev_unit (& coord);
 		}
 		
-		if ((ret = cut_copied (&coord, &stop_key))) {
-			return ret;
+		if ((cut_ret = cut_copied (&coord, &stop_key))) {
+			return cut_ret;
 		}
 	}
 
-	if (shift_done) {
-		return SQUEEZE_DONE;
+	if (node_is_empty (right)) {
+		/*
+		 * whole right fitted into left
+		 */
+		assert ("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
+		return ret;
 	}
 
-	assert ("jmacd-2007", (coord_first_unit (& coord, right), item_is_internal (& coord)));
-	
+	coord_first_unit (&coord, right);
+
+	if (! item_is_internal (&coord)) {
+		/*
+		 * there is no space in left anymore
+		 */
+		assert ("vs-433", item_is_extent (&coord));
+		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
+		return ret;
+	}
+
 	return shift_one_internal_unit (left, right);
 }
 
@@ -530,16 +544,23 @@ static int squalloc_twig (znode    *left,
  * shift items from @right to @left. Unallocated extents of extent items are
  * allocated first and then moved. When unit of internal item is moved -
  * squeezing stops and SUBTREE_MOVED is returned. When all content of @rigth is
- * squeezed - SQUEEZE_CONTINUE is returned. If nothing can be moved into @left
- * anymore - SQUEEZE_DONE is returned
+ * squeezed - SQUEEZE_SOURCE_EMPTY is returned. If nothing can be moved into
+ * @left anymore - SQUEEZE_TARGET_FULL is returned
  */
-static int squalloc_right_neighbor (znode    *left,
-				    znode    *right,
-				    block_nr *preceder)
+/*static*/ int squalloc_right_neighbor (znode    *left,
+					znode    *right,
+					block_nr *preceder)
 {
 	int ret;
 
-	assert ("vs-425", !node_is_empty (left) && !node_is_empty (right));
+	
+	assert ("vs-425", !node_is_empty (left));
+
+	if (node_is_empty (right))
+		/*
+		 * this is possible
+		 */
+		return SQUEEZE_SOURCE_EMPTY;
 
 	switch (znode_get_level (left)) {
 	case LEAF_LEVEL:
@@ -547,7 +568,7 @@ static int squalloc_right_neighbor (znode    *left,
 		 * shift as much as possible
 		 */
 		ret = squeeze_leaves (left, right);
-		assert ("jmacd-2010", ret < 0 || ret == SQUEEZE_CONTINUE || ret == SQUEEZE_DONE);
+		assert ("jmacd-2010", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL);
 		break;
 
 	case TWIG_LEVEL:
@@ -557,7 +578,7 @@ static int squalloc_right_neighbor (znode    *left,
 		 * in @left
 		 */
 		ret = squalloc_twig (left, right, preceder);
-		assert ("jmacd-2011", ret < 0 || ret == SQUEEZE_CONTINUE || ret == SUBTREE_MOVED || ret == SQUEEZE_DONE);
+		assert ("jmacd-2011", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL);
 		break;
 
 	default:
@@ -565,10 +586,13 @@ static int squalloc_right_neighbor (znode    *left,
 		 * all other levels contain items of internal type only
 		 */
 		ret = shift_one_internal_unit (left, right);
-		assert ("jmacd-2012", ret < 0 || ret == SQUEEZE_CONTINUE || ret == SUBTREE_MOVED || ret == SQUEEZE_DONE);
+		assert ("jmacd-2012", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL);
 		break;
 
 	}
+
+	if (ret == SQUEEZE_SOURCE_EMPTY)
+		reiser4_stat_slum_add (squeezed_completely);
 
 	return ret;
 }
@@ -673,7 +697,7 @@ static int squalloc_parent_first (jnode *node, block_nr *preceder)
 		}
 	}
 
-	if (squeeze == SQUEEZE_CONTINUE) {
+	if (squeeze == SQUEEZE_SOURCE_EMPTY) {
 		/*
 		 * right neighbor was squeezes completely into @node, try to
 		 * squeeze with new right neighbor
@@ -684,7 +708,7 @@ static int squalloc_parent_first (jnode *node, block_nr *preceder)
 	 * error or nothing else of right_lock.node can be shifted to @node
 	 */
 	assert ("vs-444", node_is_empty (right_lock.node));
-	assert ("vs-443", squeeze == SQUEEZE_DONE || squeeze < 0);
+	assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
 	ret = ((squeeze < 0) ? squeeze : 0);
 
  cleanup:
