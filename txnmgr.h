@@ -220,6 +220,9 @@ struct txn_atom {
 	/* The transaction's list of clean captured nodes. */
 	capture_list_head clean_nodes;
 
+	/* The atom's overwrite set */
+	capture_list_head ovrwr_nodes;
+
 	/* List of handles associated with this atom. */
 	txnh_list_head txnh_list;
 
@@ -339,10 +342,13 @@ extern int try_capture_page(struct page *pg, znode_lock_mode mode, int non_block
 extern int attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags);
 
 extern void uncapture_page(struct page *pg);
+extern void uncapture_block(txn_atom *, jnode *);
 extern void uncapture_jnode(jnode *);
 
 extern txn_atom *atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh);
 extern txn_atom *get_current_atom_locked_nocheck(void);
+
+#define atom_is_protected(atom) (spin_atom_is_locked(atom) || (atom)->stage >= ASTAGE_PRE_COMMIT)
 
 /* Get the current atom and spinlock it if current atom present. May not return NULL */
 static inline txn_atom *
@@ -373,7 +379,7 @@ extern txn_atom *atom_locked_by_jnode(jnode *);
 extern void atom_wait_event(txn_atom *);
 extern void atom_send_event(txn_atom *);
 
-extern void insert_into_atom_clean_list(txn_atom * atom, jnode * node);
+extern void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node);
 extern int capture_super_block(struct super_block *s);
 
 extern int jnodes_of_one_atom(jnode *, jnode *);
