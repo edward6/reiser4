@@ -612,14 +612,16 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 			slum_size += width;			
 			index += width;
 
+			/* check last jnode of unallocated extent. It may be not a part of slum yet */
 			node = jlookup(tree, oid, index - 1);
-			if (jnode_check_flushprepped(node)) {
-				/* last jnode of unit is not dirty yet */
+			if (!node || jnode_check_flushprepped(node)) {
+				/* last jnode of unit is part of slum */
 				slum_size --;
 				index --;
 				slum_done = 1;
 			}
-			jput(node);
+			if (node)
+				jput(node);
 			break;
 
 		case UNALLOCATED_EXTENT2:
