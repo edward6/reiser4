@@ -321,16 +321,6 @@ static struct inode *get_root_dir( struct super_block *s )
 static spinlock_t inode_hash_guard = SPIN_LOCK_UNLOCKED;
 struct list_head inode_hash_list;
 
-#if 0
-static node_operations ul_tops = {
-	.read_node     = ulevel_read_node,
-	.allocate_node = ulevel_read_node,
-	.delete_node   = NULL,
-	.release_node  = ulevel_release_node,
-	.dirty_node    = ulevel_dirty_node,
-	.drop_node     = NULL
-};
-#endif
 
 static struct inode * alloc_inode (struct super_block * sb)
 {
@@ -464,7 +454,7 @@ void iput( struct inode *inode )
 		file.f_dentry = &dentry;
 		dentry.d_inode = inode;
 		if( inode->i_nlink == 0 )
-			 truncate_inode_pages (inode->i_mapping, 0); 
+			 truncate_inode_pages (inode->i_mapping, (loff_t)0); 
 		if (inode->i_fop && inode->i_fop->release (inode, &file))
 			info ("release failed");
 
@@ -2480,11 +2470,6 @@ static int call_readdir_long (struct inode * dir, const char *prefix)
 }
 
 
-#if 0
-int alloc_extent (reiser4_tree *, coord_t *,
-		  lock_handle *, void *);
-#endif
-
 
 size_t BUFSIZE;
 
@@ -2596,159 +2581,6 @@ static const char * last_name (const char * full_name)
 }
 
 
-#if 0
-
-static int get_depth (const char * path)
-{
-	int i;
-	const char * slash;
-
-	i = 1;
-	for (slash = path; (slash = strchr (slash, '/')) != 0; i ++, slash ++);
-	return i;
-}
-
-
-static int copy_dir (struct inode * dir)
-{
-	char * name = 0;
-	size_t n = 0;
-	struct stat st;
-	int prefix;
-	char * cwd;
-	struct inode ** inodes;
-	int depth;
-	/*char label [10];*/
-	int i;
-	int dirs, files;
-	char * local;
-
-
-	/*
-	 * no tails for all the directory
-	 */
-	reiser4_inode_data (dir)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
-
-	dirs = 0;
-	files = 0;
-
-	prefix = 0;
-	cwd = getcwd (0, 0);
-	if (!cwd) {
-		perror ("copy_dir: getcwd failed");
-		return 0;
-	}
-
-	depth = 1;
-	inodes = (struct inode **) realloc (0, sizeof (struct inode *));
-	if (!inodes) {
-		perror ("realloc failed");
-		return 0;
-	}
-	inodes [0] = dir;
-	i = 0;
-	while (getline (&name, &n, stdin) != -1) {
-		/* remove '\n' */
-		name [strlen (name) - 1] = 0;
-
-		if (prefix == 0) {
-			/*
-			 * first line of find output is name of directory being
-			 * find-ed */
-			if (chdir (name)) {
-				perror ("copy_dir: chdir failed");
-				break;
-			}
-			if (name [strlen (name) - 1] == '/')
-				prefix = strlen (name) - 1;
-			else
-				prefix = strlen (name);
-			continue;
-		}
-		printf ("%s : ", name);
-		local = name + prefix + 1;
-		
-		/* stat "source" file */
-		if (!stat (local, &st)) {
-			int new_depth;
-
-			new_depth = get_depth (local) + 1;
-			assert ("vs-344", new_depth > 1);
-
-			for (i = new_depth - 1 ; i < depth ; ++ i)
-				if (inodes [i])
-					iput (inodes [i]);
-			depth = new_depth;
-
-			inodes = (struct inode **) realloc (inodes, sizeof (struct inode *) * depth);
-			if (!inodes) {
-				info ("copy_dir: realloc failed\n");
-				break;
-			}
-			assert ("vs-471", inodes [depth - 2]);
-			if (S_ISDIR (st.st_mode)) {
-				printf ("DIR\n");
-
-				if (call_mkdir (inodes [depth - 2], last_name (local))) {
-					info ("copy_dir: mkdir failed\n");
-					break;
-				}
-				inodes [depth - 1] = call_lookup (inodes [depth - 2], last_name (local));
-				if (IS_ERR (inodes [depth - 1])) {
-					info ("copy_dir: lookup failed\n");
-					break;
-				}
-				dirs ++;
-#if 0
-				/*
-				 * if parent directory has tails on - make
-				 * child directory to have tail off
-				 */
-				if (tail_plugin_id (get_object_state (inodes [depth - 2])->tail) == NEVER_TAIL_ID)
-					get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (ALWAYS_TAIL_ID);
-				else
-					get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (NEVER_TAIL_ID);
-#endif
-			} else if (S_ISREG (st.st_mode)) {
-				printf ("REG\n");
-				if (copy_file (local, inodes [depth - 2], last_name (local), &st)) {
-					info ("copy_dir: copy_file failed\n");
-					break;
-				}
-				inodes [depth - 1] = 0;
-				files ++;
-			} else
-				printf ("OTHER");
-		} else {
-			perror ("copy_dir: stat failed");
-			break;
-		}
-		/*
-		sprintf (label, "TREE%d", i ++);
-		print_tree_rec (label, tree_by_inode (dir), REISER4_TREE_VERBOSE);
-		*/
-	}
-
-	free (name);
-
-	for (i = 0 ; i < depth ; ++ i) {
-		if (inodes [i])
-			iput (inodes [i]);
-	}
-
-	if (chdir (cwd)) {
-		perror ("copy_dir: chdir failed");
-		return 0;
-	}
-	free (cwd);
-
-	info ("DONE: %d dirs, %d files\n", dirs, files);
-
-	return 0;
-}
-#endif /* old copy_dir*/
-
-
 
 static int bash_cp (char * real_file, struct inode * cwd, const char * name);
 static int bash_cpr (struct inode * dir, const char * source)
@@ -2757,8 +2589,7 @@ static int bash_cpr (struct inode * dir, const char * source)
 	DIR * d;
 	struct dirent * dirent;
 	struct stat st;
-	struct inode * subdir, * tmp;
-	char * cwd;
+	struct inode * subdir;
 	char * name;
 
 
@@ -2946,6 +2777,81 @@ static int bash_diff_r (struct inode * dir, const char * source)
 }
 
 
+/*
+ * ls -lR
+ */
+static int get_one_name (void *arg, const char *name, int namelen, 
+			 loff_t offset, ino_t inum, unsigned ftype)
+{
+	echo_filldir_info *info;
+
+	info = arg;
+	info -> eof = 0;
+	
+	if( info -> fired == 0 ) {
+		info -> fired = 1;
+		info -> name = strdup( name );
+		info -> inum = ( int ) inum;
+		return 0;
+	} else {
+		info -> fired = 0;
+		return -EINVAL;
+	}
+}
+
+static int ls_lR (struct inode * inode, const char * path)
+{
+	struct dentry dentry;
+	struct file file;
+	echo_filldir_info info;
+	int result;
+
+
+	xmemset (&file, 0, sizeof (struct file));
+	xmemset( &dentry, 0, sizeof dentry );
+	dentry.d_inode = inode;
+	file.f_dentry = &dentry;
+		
+	xmemset( &info, 0, sizeof info );
+
+	do {
+		info.eof = 1;
+		result = inode->i_fop->readdir (&file, &info, get_one_name);
+		if( info.eof )
+			break;
+		if( info.name != NULL ) {
+			struct inode *i;
+
+			if( strcmp( info.name, "." ) &&
+			    strcmp( info.name, ".." ) ) {
+				/* skip "." and ".." */
+				char * name;
+
+				asprintf (&name, "%s/%s", path, info.name);
+
+				i = call_lookup (inode, info.name);
+				if( IS_ERR( i ) )
+					warning( "nikita-1767", "Not found: %s", 
+						 info.name );
+				else if( ( int ) i -> i_ino != info.inum )
+					warning( "nikita-1768", 
+						 "Wrong inode number: %i != %i",
+						 ( int ) info.inum, ( int ) i -> i_ino );
+				else {
+					info ("%s\t%d\t%10llu\t%s\n", S_ISREG (i->i_mode) ? "-rw-r--r--" : "drw-r--r--",
+					      i->i_nlink, i->i_size, name);
+					ls_lR (i, name);
+				}
+				free (name);
+				free( info.name );
+				iput( i );
+			}			
+		}
+	} while( !info.eof && ( result == 0 ) );
+
+	return result;
+}
+
 static int bash_mount (/*reiser4_context * context,*/ char * cmd, struct super_block **sb)
 {
 	/*struct super_block * sb;*/
@@ -3096,7 +3002,7 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy);
+			cputod16 (ALWAYS_TAIL_ID, &test_sb->tail_policy);
 
 			/* block count on device */
 			block_count = get_fs_size (&super);
@@ -3686,6 +3592,10 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		BASH_CMD3 ("cp ", bash_cp);
 		BASH_CMD3 ("diff ", bash_diff);
+		if (!strcmp ("lR", command)) {
+			ls_lR (cwd, ".");
+			continue;
+		}
 #define CPR_THREADS 3
 		if (!strncmp (command, "mcpr", 4)) {
 			pthread_t tid [CPR_THREADS];
