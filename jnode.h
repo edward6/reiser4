@@ -273,9 +273,11 @@ typedef enum {
 	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25,
 	/* capture copy jnode */
 	JNODE_CC = 26,
+	/* this jnode is copy of coced original */
+	JNODE_CCED = 27,
 #if REISER4_DEBUG
 	/* this is set when jnode was copied on capture */
-	JNODE_CCED_RELOC = 27,
+	JNODE_CCED_RELOC = 28,
 	JNODE_CCED_OVRWR = 29,
 	JNODE_CCED_CLEAN = 30,
 	JNODE_CCED_UBER = 31,

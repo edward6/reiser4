@@ -1208,10 +1208,6 @@ check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len
 	release_and_unlock_bnode(bnode);
 }
 
-#else
-
-#define check_blocks_bitmap(start, len, desired) do{}while(0)
-
 #endif
 
 /* conditional insertion of @node into atom's overwrite set  if it was not there */
@@ -1565,7 +1561,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 		}
 
 		elapsed_time = jiffies - start_time;
-		printk(KERN_INFO "...done (%llu jiffies)\n", (unsigned long long)elapsed_time);
+		printk("...done (%llu jiffies)\n", (unsigned long long)elapsed_time);
 	}
 
 	return 0;

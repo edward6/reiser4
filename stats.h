@@ -117,12 +117,6 @@ typedef struct reiser4_level_statistics {
 	statcnt_t cbk_key_moved;
 	/* node was moved out of tree while thread was waiting for the lock */
 	statcnt_t cbk_met_ghost;
-	/* for how many pages on this level ->releasepage() was called. */
-	statcnt_t page_try_release;
-	/* how many pages were released on this level */
-	statcnt_t page_released;
-	/* how many times emergency flush was invoked on this level */
-	statcnt_t emergency_flush;
 	statcnt_t object_lookup_start;
 	struct {
 		/* calls to jload() */
@@ -184,6 +178,40 @@ typedef struct reiser4_level_statistics {
 			statcnt_t nextpos;
 		} lookup;
 	} node;
+	struct {
+		struct {
+			/* for how many pages on this level ->releasepage()
+			 * was called. */
+			statcnt_t try;
+			/* how many pages were released on this level */
+			statcnt_t ok;
+			statcnt_t loaded;
+			statcnt_t copy;
+			statcnt_t eflushed;
+			statcnt_t fake;
+			statcnt_t dirty;
+			statcnt_t ovrwr;
+			statcnt_t writeback;
+			statcnt_t keepme;
+			statcnt_t bitmap;
+		} release;
+		struct {
+			/* how many times emergency flush was invoked on this
+			 * level */
+			statcnt_t called;
+			statcnt_t ok;
+			statcnt_t nolonger;
+			statcnt_t needs_block;
+			statcnt_t loaded;
+			statcnt_t queued;
+			statcnt_t protected;
+			statcnt_t heard_banshee;
+			statcnt_t nopage;
+			statcnt_t writeback;
+			statcnt_t bitmap;
+			statcnt_t eflushed;
+		} eflush;
+	} vm;
 	statcnt_t total_hits_at_level;
 	statcnt_t time_slept;
 } reiser4_level_stat;

@@ -1211,7 +1211,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	   semaphore is used for transaction isolation instead. */
 	invalidate_list(&(*atom)->ovrwr_nodes);
 	up(&sbinfo->tmgr.commit_semaphore);
-	
+
 	invalidate_list(&(*atom)->clean_nodes);
 	invalidate_list(&(*atom)->writeback_nodes);
 	assert("zam-927", capture_list_empty(&(*atom)->inodes));
@@ -1526,8 +1526,8 @@ invalidate_list(capture_list_head * head)
 		LOCK_JNODE(pos_in_atom);
 		if (JF_ISSET(pos_in_atom, JNODE_CC) && pos_in_atom->pg) {
 			/* corresponding page_cache_get is in swap_jnode_pages */
+			assert("vs-1448", test_and_clear_bit(PG_arch_1, &pos_in_atom->pg->flags));
 			page_cache_release(pos_in_atom->pg);
-			assert("vs-1448", test_bit(PG_arch_1, &pos_in_atom->pg->flags));
 		}
 		uncapture_block(pos_in_atom);
 		JF_CLR(pos_in_atom, JNODE_SCANNED);
@@ -2086,28 +2086,31 @@ repeat:
 
 	assert("nikita-2974", spin_txnh_is_not_locked(txnh));
 
-	if (ret == -E_REPEAT && !(cap_mode & TXN_CAPTURE_NONBLOCKING)) {
-		/* E_REPEAT implies all locks were released, therefore we need to take the
-		   jnode's lock again. */
+	if (ret == -E_REPEAT) {
+		/* E_REPEAT implies all locks were released, therefore we need
+		   to take the jnode's lock again. */
 		LOCK_JNODE(node);
 
-		/* Although this may appear to be a busy loop, it is not.  There are
-		   several conditions that cause E_REPEAT to be returned by the call to
-		   try_capture_block, all cases indicating some kind of state
-		   change that means you should retry the request and will get a different
-		   result.  In some cases this could be avoided with some extra code, but
-		   generally it is done because the necessary locks were released as a
-		   result of the operation and repeating is the simplest thing to do (less
-		   bug potential).  The cases are: atom fusion returns E_REPEAT after it
-		   completes (jnode and txnh were unlocked); race conditions in
-		   assign_block, assign_txnh, and init_fusion return E_REPEAT (trylock
-		   failure); after going to sleep in capture_fuse_wait (request was
-		   blocked but may now succeed).  I'm not quite sure how capture_copy
-		   works yet, but it may also return E_REPEAT.  When the request is
-		   legitimately blocked, the requestor goes to sleep in fuse_wait, so this
-		   is not a busy loop. */
+		/* Although this may appear to be a busy loop, it is not.
+		   There are several conditions that cause E_REPEAT to be
+		   returned by the call to try_capture_block, all cases
+		   indicating some kind of state change that means you should
+		   retry the request and will get a different result.  In some
+		   cases this could be avoided with some extra code, but
+		   generally it is done because the necessary locks were
+		   released as a result of the operation and repeating is the
+		   simplest thing to do (less bug potential).  The cases are:
+		   atom fusion returns E_REPEAT after it completes (jnode and
+		   txnh were unlocked); race conditions in assign_block,
+		   assign_txnh, and init_fusion return E_REPEAT (trylock
+		   failure); after going to sleep in capture_fuse_wait
+		   (request was blocked but may now succeed).  I'm not quite
+		   sure how capture_copy works yet, but it may also return
+		   E_REPEAT.  When the request is legitimately blocked, the
+		   requestor goes to sleep in fuse_wait, so this is not a busy
+		   loop. */
 		/* NOTE-NIKITA: still don't understand:
-		
+
 		   try_capture_block->capture_assign_txnh->spin_trylock_atom->E_REPEAT
 		
 		   looks like busy loop?
@@ -2125,10 +2128,16 @@ repeat:
 	}
 
 	if (ret != 0) {
-		/* Failure means jnode is not locked.  FIXME_LATER_JMACD May want to fix
-		   the above code to avoid releasing the lock and re-acquiring it, but there
-		   are cases were failure occurs when the lock is not held, and those
-		   cases would need to be modified to re-take the lock. */
+		if (ret == -E_BLOCK) {
+			assert("nikita-3360", cap_mode & TXN_CAPTURE_NONBLOCKING);
+			ret = -E_REPEAT;
+		}
+
+		/* Failure means jnode is not locked.  FIXME_LATER_JMACD May
+		   want to fix the above code to avoid releasing the lock and
+		   re-acquiring it, but there are cases were failure occurs
+		   when the lock is not held, and those cases would need to be
+		   modified to re-take the lock. */
 		LOCK_JNODE(node);
 	}
 
@@ -2508,8 +2517,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	   relocate set we assume that atom's flush reserved counter was
 	   already adjusted. */
 	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC)
-	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node))
-	{
+	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)) {
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 		grabbed2flush_reserved_nolock(atom, (__u64)1);
 	}
@@ -2533,6 +2541,16 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		capture_list_remove(node);
 		capture_list_push_back(&atom->dirty_nodes[level], node);
 		ON_DEBUG(node->list = DIRTY_LIST);
+		/*
+		 * JNODE_CCED bit protects clean copy (page created by
+		 * copy-on-capture) from being evicted from the memory. This
+		 * is necessary, because otherwise jload() would load obsolete
+		 * disk block (up-to-date original is still in memory). But
+		 * once jnode is dirtied, it cannot be released without
+		 * storing its content on the disk, so protection is no longer
+		 * necessary.
+		 */
+		JF_CLR(node, JNODE_CCED);
 	}
 }
 
@@ -3026,7 +3044,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		ON_TRACE(TRACE_TXN, "thread %u nonblocking on atom %u\n", current->pid, atomf->atom_id);
 
 		reiser4_stat_inc(txnmgr.restart.fuse_wait_nonblock);
-		return RETERR(-E_REPEAT);
+		return RETERR(-E_BLOCK);
 	}
 
 	init_wlinks(&wlinks);
@@ -3389,6 +3407,7 @@ swap_jnode_pages(jnode *node, jnode *copy, struct page *new_page)
 	/* attach old page to new jnode */
 	assert("vs-1414", jnode_by_page(node->pg) == node);
 	copy->pg = node->pg;
+	copy->data = page_address(copy->pg);
 	jnode_set_block(copy, jnode_get_block(node));
 	copy->pg->private = (unsigned long)copy;
 						
@@ -3396,6 +3415,7 @@ swap_jnode_pages(jnode *node, jnode *copy, struct page *new_page)
 	assert("vs-1412", !PagePrivate(new_page));
 	page_cache_get(new_page);
 	node->pg = new_page;
+	node->data = page_address(new_page);
 	new_page->private = (unsigned long)node;
 	SetPagePrivate(new_page);
 
@@ -3476,7 +3496,7 @@ fake_jload(jnode *node)
 {
 	jref(node);
 	atomic_inc(&node->d_count);
-	JF_SET(node, JNODE_PARSED);	
+	JF_SET(node, JNODE_PARSED);
 }
 
 static int
@@ -3492,6 +3512,7 @@ copy_on_capture_clean(jnode *node)
 	spin_lock(&scan_lock);
 	if (!JF_ISSET(node, JNODE_SCANNED)) {
 		ON_DEBUG(JF_SET(node, JNODE_CCED_CLEAN));
+		JF_SET(node, JNODE_CCED);
 		uncapture_block(node);
 		/* atom is protected by stage >= ASTAGE_PRE_COMMIT, so no
 		   UNLOCK_ATOM here */
@@ -3564,6 +3585,7 @@ copy_on_capture_reloc(jnode *node, txn_atom *atom)
 		reiser4_stat_inc(coc.atom_changed);
 	} else {
 		ON_DEBUG(JF_SET(node, JNODE_CCED_RELOC));
+		JF_SET(node, JNODE_CCED);
 		replace_reloc(node, copy);
 		reiser4_stat_inc(coc.ok_reloc);
 		result = 0;
@@ -3573,6 +3595,21 @@ copy_on_capture_reloc(jnode *node, txn_atom *atom)
 	jput(node);
 	jput(copy);
 	return result;
+}
+
+static void check_coc(jnode * node, struct page * page)
+{
+	if (jnode_is_znode(node)) {
+		node40_header *nh;
+		znode *z;
+
+		z = JZNODE(node);
+		nh = (node40_header *)kmap(page);
+		/* this only works for node40-only file systems. For
+		 * debugging. */
+		assert("nikita-3253", z->nr_items == d16tocpu(&nh->nr_items));
+		kunmap(page);
+	}
 }
 
 /* create new jnode, create new page, jload old jnode, copy data, detach old
@@ -3625,10 +3662,11 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		}
 		LOCK_JNODE(node);
 		spin_lock(&scan_lock);
-		
+
 		if (node->atom == atom && !JF_ISSET(node, JNODE_SCANNED)) {
 			assert("vs-1428", znode_above_root(JZNODE(node)));
 			ON_DEBUG(JF_SET(node, JNODE_CCED_UBER));
+			JF_SET(node, JNODE_CCED);
 			replace_ovrwr(node, copy);
 			reiser4_stat_inc(coc.ok_uber);
 			result = 0;
@@ -3640,7 +3678,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		spin_unlock(&scan_lock);
 		UNLOCK_JNODE(node);
 		jput(copy);
-		return result;		
+		return result;
 	}
 
 	page_cache_get(page);
@@ -3655,14 +3693,17 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		new_page = alloc_page(GFP_KERNEL);
 		if (new_page) {
 			char *from;
+			char *to;
 
 			/* copy on capture */
 			result = RETERR(-E_REPEAT);
-			copy->data = kmap(new_page);
+			to = kmap(new_page);
 
 			lock_page(page);
 			from = kmap(page);
+			check_coc(node, page);
 			LOCK_JNODE(node);
+			BUG_ON(JF_ISSET(node, JNODE_EFLUSH));
 			if (node->atom == atom && node->pg == page) {
 				/* critical section: substitute page of old
 				   jnode, attach page to new one, remove old
@@ -3685,30 +3726,36 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 					replace_page_in_mapping(node, new_page);
 					swap_jnode_pages(node, copy, new_page);
 					replace_ovrwr(node, copy);
-					memcpy(copy->data, from, PAGE_CACHE_SIZE);
-					kunmap(page);
+					memcpy(to, from, PAGE_CACHE_SIZE);
 					SetPageUptodate(new_page);
 					if (was_jloaded)
 						fake_jload(copy);
+					else
+						kunmap(page);
 
 					assert("vs-1419", page_count(new_page) >= 3);
 					spin_unlock(&scan_lock);
 					ON_DEBUG(JF_SET(node, JNODE_CCED_OVRWR));
+					JF_SET(node, JNODE_CCED);
 					UNLOCK_JNODE(node);
 					unlock_page(page);
-	
+
 					if (was_jloaded)
 						jrelse(node);
+					else
+						kunmap(new_page);
 
 					ON_DEBUG(atomic_inc(&atom->coc_ovrwr));
 					reiser4_stat_inc(coc.ok_ovrwr);
 					jput(copy);
 					jput(node);
 					page_cache_release(page);
+					page_cache_release(new_page);
+					check_coc(node, new_page);
 					return 0;
 				} else {
 					ON_TRACE(TRACE_CAPTURE_COPY, "scanned jnode encountered: %s\n", jnode_tostring(node));
-					reiser4_stat_inc(coc.scan_race);					
+					reiser4_stat_inc(coc.scan_race);
 				}
 				spin_unlock(&scan_lock);
 			} else {
@@ -3762,9 +3809,13 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 		preempt_point();
 
 		if (result == 0) {
-			if (jnode_is_znode(node))
-				JZNODE(node)->version = znode_build_version(jnode_get_tree(node));
-			result = -E_REPEAT;
+			if (jnode_is_znode(node)) {
+				znode *z;
+
+				z = JZNODE(node);
+				z->version = znode_build_version(jnode_get_tree(node));
+			}
+			result = RETERR(-E_REPEAT);
 		}
 			
 		return result;
@@ -3809,6 +3860,7 @@ void uncapture_block(jnode * node)
 	JF_CLR(node, JNODE_CREATED);
 	JF_CLR(node, JNODE_WRITEBACK);
 	JF_CLR(node, JNODE_REPACK);
+	JF_CLR(node, JNODE_CCED);
 #if REISER4_DEBUG
 	node->written = 0;
 #endif

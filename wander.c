@@ -1495,7 +1495,7 @@ int reiser4_write_logs(long * nr_submitted)
 
 		 for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; ++ level)
 			  assert("nikita-3352",
-					 capture_list_empty(&atom->dirty_nodes[level]));
+				 capture_list_empty(&atom->dirty_nodes[level]));
 	}
 
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;

@@ -20,6 +20,10 @@ extern int alloc_blocks_bitmap(reiser4_space_allocator *,
 
 extern void check_blocks_bitmap(const reiser4_block_nr *, const reiser4_block_nr *, int);
 
+#else
+
+#define check_blocks_bitmap(start, len, desired) do{}while(0)
+
 #endif
 
 extern void dealloc_blocks_bitmap(reiser4_space_allocator *, reiser4_block_nr, reiser4_block_nr);

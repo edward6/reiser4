@@ -152,17 +152,17 @@ reiser4_readpage(struct file *f /* file to read from */ ,
    pages for which read requests are to be issued. So, reiser4_readpages just walks forward through extent unit, finds
    which blocks are to be read and start read for them.
 
-reiser4_readpages can be called from two places: from 
+reiser4_readpages can be called from two places: from
 sys_read->reiser4_read->read_unix_file->read_extent->page_cache_readahead and
 from
-handling page fault: 
+handling page fault:
 handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround
 
-In first case coord is set by reiser4 read code. This case is detected by  if 
+In first case coord is set by reiser4 read code. This case is detected by  if
 (is_in_reiser4_context()).
 
-In second case, coord is not set and currently, reiser4_readpages does not do 
-anything. 
+In second case, coord is not set and currently, reiser4_readpages does not do
+anything.
 */
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
@@ -303,6 +303,12 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 	return ret;
 }
 
+#define INC_STAT(page, node, counter)						\
+	reiser4_stat_inc_at(page->mapping->host->i_sb, 				\
+			    level[jnode_get_level(node)].counter);
+
+#define INC_NSTAT(node, counter) INC_STAT(jnode_page(node), node, counter)
+
 /* help function called from reiser4_releasepage(). It returns true if jnode
  * can be detached from its page and page released. */
 static int
@@ -313,39 +319,63 @@ releasable(const jnode *node /* node to check */)
 
 	/* is some thread is currently using jnode page, later cannot be
 	 * detached */
-	if (atomic_read(&node->d_count) != 0)
+	if (atomic_read(&node->d_count) != 0) {
+		INC_NSTAT(node, vm.release.loaded);
 		return 0;
+	}
 
 	assert("vs-1214", !jnode_is_loaded(node));
 
+	/* this jnode is just a copy. Its page cannot be released, because
+	 * otherwise next jload() would load obsolete data from disk
+	 * (up-to-date version may still be in memory). */
+	if (JF_ISSET(node, JNODE_CCED)) {
+		INC_NSTAT(node, vm.release.copy);
+		return 0;
+	}
+
 	/* emergency flushed page can be released. This is what emergency
 	 * flush is all about after all. */
-	if (JF_ISSET(node, JNODE_EFLUSH))
+	if (JF_ISSET(node, JNODE_EFLUSH)) {
+		INC_NSTAT(node, vm.release.eflushed);
 		return 1; /* yeah! */
+	}
 
 	/* can only release page if real block number is assigned to
 	   it. Simple check for ->atom wouldn't do, because it is possible for
 	   node to be clean, not it atom yet, and still having fake block
 	   number. For example, node just created in jinit_new(). */
-	if (blocknr_is_fake(jnode_get_block(node)))
+	if (blocknr_is_fake(jnode_get_block(node))) {
+		INC_NSTAT(node, vm.release.fake);
 		return 0;
+	}
 	/* dirty jnode cannot be released. It can however be submitted to disk
 	 * as part of early flushing, but only after getting flush-prepped. */
-	if (jnode_is_dirty(node))
+	if (jnode_is_dirty(node)) {
+		INC_NSTAT(node, vm.release.dirty);
 		return 0;
+	}
 	/* overwrite is only written by log writer. */
-	if (JF_ISSET(node, JNODE_OVRWR))
+	if (JF_ISSET(node, JNODE_OVRWR)) {
+		INC_NSTAT(node, vm.release.ovrwr);
 		return 0;
+	}
 	/* jnode is already under writeback */
-	if (JF_ISSET(node, JNODE_WRITEBACK))
+	if (JF_ISSET(node, JNODE_WRITEBACK)) {
+		INC_NSTAT(node, vm.release.writeback);
 		return 0;
+	}
 	/* page was modified through mmap, but its jnode is not yet
 	 * captured. Don't discard modified data. */
-	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME))
+	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME)) {
+		INC_NSTAT(node, vm.release.keepme);
 		return 0;
+	}
 	/* don't flush bitmaps or journal records */
-	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
+		INC_NSTAT(node, vm.release.bitmap);
 		return 0;
+	}
 	return 1;
 }
 
@@ -355,10 +385,6 @@ int jnode_is_releasable(const jnode *node)
 	return releasable(node);
 }
 #endif
-
-#define INC_STAT(page, node, counter)						\
-	reiser4_stat_inc_at(page->mapping->host->i_sb, 				\
-			    level[jnode_get_level(node) - LEAF_LEVEL].counter);
 
 /*
  * ->releasepage method for reiser4
@@ -386,7 +412,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	node = jnode_by_page(page);
 	assert("nikita-2258", node != NULL);
 
-	INC_STAT(page, node, page_try_release);
+	INC_STAT(page, node, vm.release.try);
 
 	/* is_page_cache_freeable() check
 
@@ -405,7 +431,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		struct address_space *mapping;
 
 		mapping = page->mapping;
-		INC_STAT(page, node, page_released);
+		INC_STAT(page, node, vm.release.ok);
 		jref(node);
 		/* there is no need to synchronize against
 		 * jnode_extent_write() here, because pages seen by

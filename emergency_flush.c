@@ -255,6 +255,9 @@ static kmem_cache_t *eflush_slab;
 
 #define EFLUSH_START_BLOCK ((reiser4_block_nr)0)
 
+#define INC_STAT(node, counter)						\
+	reiser4_stat_inc_at_level(jnode_get_level(node), counter);
+
 /* this function exists only until VM gets fixed to reserve pages properly,
  * which might or might not be very political. */
 /* try to flush @page to the disk
@@ -283,7 +286,7 @@ emergency_flush(struct page *page)
 	assert("vs-1452", node != NULL);
 
 	jref(node);
-	reiser4_stat_inc_at_level(jnode_get_level(node), emergency_flush);
+	INC_STAT(node, vm.eflush.called);
 
 	result = 0;
 	LOCK_JNODE(node);
@@ -305,6 +308,7 @@ emergency_flush(struct page *page)
 
 			blocknr_hint_init(&hint);
 			
+			INC_STAT(node, vm.eflush.needs_block);
 			result = ef_prepare(node, &blk, &efnode, &hint);
 			if (flushable(node, page) && result == 0) {
 				assert("nikita-2759", efnode != NULL);
@@ -314,6 +318,7 @@ emergency_flush(struct page *page)
 						 node,
 						 WRITE,
 						 GFP_NOFS | __GFP_HIGH);
+				INC_STAT(node, vm.eflush.ok);
 			} else {
 				UNLOCK_JNODE(node);
 				if (blk != 0ull)
@@ -322,6 +327,7 @@ emergency_flush(struct page *page)
 					kmem_cache_free(eflush_slab, efnode);
 				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
 				result = 1;
+				INC_STAT(node, vm.eflush.nolonger);
 			}
 
 			blocknr_hint_done(&hint);
@@ -380,23 +386,39 @@ flushable(const jnode * node, struct page *page)
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
 
-	if (jnode_is_loaded(node))              /* loaded */
+	if (jnode_is_loaded(node)) {             /* loaded */
+		INC_STAT(node, vm.eflush.loaded);
 		return 0;
-	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) /* already pending io */
+	}
+	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) { /* already pending io */
+		INC_STAT(node, vm.eflush.queued);
 		return 0;
-	if (JF_ISSET(node, JNODE_EPROTECTED))   /* protected from e-flush */
+	}
+	if (JF_ISSET(node, JNODE_EPROTECTED)) {  /* protected from e-flush */
+		INC_STAT(node, vm.eflush.protected);
 		return 0;
-	if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
+	}
+	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+		INC_STAT(node, vm.eflush.heard_banshee);
 		return 0;
-	if (page == NULL)           		/* nothing to flush */
+	}
+	if (page == NULL) {           		/* nothing to flush */
+		INC_STAT(node, vm.eflush.nopage);
 		return 0;
-	if (PageWriteback(page))                /* already under io */
+	}
+	if (PageWriteback(page)) {               /* already under io */
+		INC_STAT(node, vm.eflush.writeback);
 		return 0;
+	}
 	/* don't flush bitmaps or journal records */
-	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
+		INC_STAT(node, vm.eflush.bitmap);
 		return 0;
-	if (JF_ISSET(node, JNODE_EFLUSH))       /* already flushed */
+	}
+	if (JF_ISSET(node, JNODE_EFLUSH)) {      /* already flushed */
+		INC_STAT(node, vm.eflush.eflushed);
 		return 0;
+	}
 	return 1;
 }
 

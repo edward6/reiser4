@@ -219,6 +219,11 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /* deadlock happens */
 #define E_DEADLOCK     (REISER4_ERROR_CODES_BASE + 4)
+
+/* operation cannot be performed, because it would block and non-blocking mode
+ * was requested. */
+#define E_BLOCK        (REISER4_ERROR_CODES_BASE + 5)
+
 #endif				/* __REISER4_H__ */
 
 /* Make Linus happy.

@@ -439,22 +439,24 @@ truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 	reiser4_inode *r4_inode;
 	jnode *node;
 	int truncated_jnodes;
+	reiser4_tree *tree;
 
 	truncated_jnodes = 0;
 	r4_inode = reiser4_inode_data(inode);
-	WLOCK_TREE(node->tree);
+	tree = tree_by_inode(inode);
+	WLOCK_TREE(tree);
 	for (i = 0; i < count; i ++) {
 		node = radix_tree_lookup(&r4_inode->jnode_tree, from + i);
 		if (node) {
 			jref(node);
-			WUNLOCK_TREE(node->tree);
+			WUNLOCK_TREE(tree);
 			invalidate_unformatted(node);
 			truncated_jnodes ++;
 			jput(node);
-			WLOCK_TREE(node->tree);
+			WLOCK_TREE(tree);
 		}
 	}
-	WUNLOCK_TREE(node->tree);
+	WUNLOCK_TREE(tree);
 	return truncated_jnodes;
 }
 
