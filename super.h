@@ -40,10 +40,10 @@ typedef struct {
 typedef enum {
 	/* True if this file system doesn't support hard-links (multiple
 	   names) for directories: this is default UNIX behavior.
-	  
+	
 	   If hard-links on directoires are not allowed, file system is
 	   Acyclic Directed Graph (modulo dot, and dotdot, of course).
-	  
+	
 	   This is used by reiser4_link().
 	*/
 	REISER4_ADG = 0,
@@ -84,7 +84,7 @@ typedef struct object_ops {
 	struct inode_operations         symlink;
 } object_ops;
 
-/* reiser4-specific part of super block 
+/* reiser4-specific part of super block
 
    Locking
 
@@ -125,9 +125,9 @@ typedef struct object_ops {
     ->eflushed
     ->blocknr_hint_default
 
-   After journal replaying during mount, 
+   After journal replaying during mount,
 
-    ->last_committed_tx 
+    ->last_committed_tx
 
    is protected by ->tmgr.commit_semaphore
 
@@ -138,8 +138,8 @@ typedef struct object_ops {
       [sb-fake-allocated]
 */
 struct reiser4_super_info_data {
-	/* guard spinlock which protects reiser4 super 
-	   block fields (currently blocks_free, 
+	/* guard spinlock which protects reiser4 super
+	   block fields (currently blocks_free,
 	   blocks_free_committed)
 	*/
 	reiser4_spin_data guard;
@@ -208,7 +208,7 @@ struct reiser4_super_info_data {
 	/* file where tracing goes (if enabled). */
 	reiser4_trace_file trace_file;
 
-	/* per-fs debugging flags. This is bitmask populated from 
+	/* per-fs debugging flags. This is bitmask populated from
 	   reiser4_debug_flags enum. */
 	__u32 debug_flags;
 
@@ -288,6 +288,10 @@ struct reiser4_super_info_data {
 
 	/* operations for objects on this file system */
 	object_ops ops;
+
+	struct list_head mmapped_files;
+	spinlock_t mmaped_lock;
+
 #if REISER4_USE_SYSFS
 	struct kobject kobj;
 #endif
@@ -336,8 +340,8 @@ static inline reiser4_super_info_data *
 get_super_private(const struct super_block * super)
 {
 	assert("nikita-447", super != NULL);
-	assert("nikita-2245", 
-	       (super->s_op == NULL) || 
+	assert("nikita-2245",
+	       (super->s_op == NULL) ||
 	       (super->s_op == &reiser4_super_operations));
 
 	return (reiser4_super_info_data *) super->s_fs_info;
@@ -445,7 +449,7 @@ item_plugin *default_sd_plugin(const struct super_block *super);
 item_plugin *default_dir_item_plugin(const struct super_block *super);
 
 extern int reiser4_blocknr_is_sane(const reiser4_block_nr *blk);
-extern int reiser4_blocknr_is_sane_for(const struct super_block *super, 
+extern int reiser4_blocknr_is_sane_for(const struct super_block *super,
 				       const reiser4_block_nr *blk);
 
 /* Maximal possible object id. */
