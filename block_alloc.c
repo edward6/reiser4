@@ -584,6 +584,7 @@ fake_blocknr_unformatted(void)
 	assign_fake_blocknr(&blocknr);
 	grabbed2fake_allocated_unformatted();
 
+	/*XXXXX*/inc_unalloc_unfm_ptr();
 	return blocknr;
 }
 
