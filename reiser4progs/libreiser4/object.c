@@ -45,14 +45,16 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	reiserfs_key_set_type(&object->key, KEY40_STATDATA_MINOR);
 	reiserfs_key_set_offset(&object->key, 0);
 	
-	if (!reiserfs_tree_lookup(object->fs->tree, &object->key, &object->coord)) {
+	if (!reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
+	    &object->key, &object->coord)) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find stat data of directory %s.", track);
 	    return -1;
 	}
 	
 	/* Checking whether found item is a link */
-	if (!(body = reiserfs_node_item_at(object->coord.node, 
+	if (!(body = reiserfs_node_item_body(object->coord.node, 
 	    object->coord.pos.item))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -62,7 +64,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	    return -1;
 	}
 	
-	if (!(plugin = reiserfs_node_item_get_plugin(object->coord.node, 
+	if (!(plugin = reiserfs_node_get_item_plugin(object->coord.node, 
 	    object->coord.pos.item)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -110,9 +112,12 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	
 	reiserfs_key_build_dir_key(&object->key, hash_plugin, 
 	    reiserfs_key_get_locality(&object->key), 
-	    reiserfs_key_get_objectid(&object->key), dirname);
+	    reiserfs_key_get_objectid(&object->key), 
+	    dirname);
 	
-	if (!reiserfs_tree_lookup(object->fs->tree, &object->key, &object->coord)) {
+	if (!reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
+	    &object->key, &object->coord)) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find stat data of directory %s.", track);
 	    return -1;
@@ -178,10 +183,9 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     int i;
     reiserfs_object_t *object;
     reiserfs_object_hint_t *hint;
-    reiserfs_key_t parent_key, object_key;
     reiserfs_plugin_t *key_plugin;
-
     oid_t objectid, parent_objectid;
+    reiserfs_key_t parent_key, object_key;
     
     aal_assert("umka-740", fs != NULL, return NULL);
 
@@ -226,13 +230,17 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	}
     }
     
+    if (hint->count == 0) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Empty object hint has been received.");
+	goto error_free_object;
+    }
+    
     /* Inserting all items into tree */
     for (i = 0; i < hint->count; i++) {
-	if (reiserfs_tree_item_insert(fs->tree, 
-	    (reiserfs_key_t *)(&hint->item[i].key), &hint->item[i])) 
-	{
+	if (reiserfs_tree_insert_item(fs->tree, &hint->item[i])) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't insert %i item into tree.", i);
+		"Can't insert one of object items into tree.");
 	    goto error_free_hint;
 	}
     }

@@ -33,7 +33,7 @@ reiserfs_tree_t *reiserfs_tree_open(aal_device_t *device,
     tree->root_key = *root_key;
     
     if (!(tree->root_node = reiserfs_node_open(device, root_blk, 
-	    REISERFS_GUESS_PLUGIN_ID)))
+	    REISERFS_GUESS_PLUGIN_ID, root_key->plugin->h.id)))
 	goto error_free_tree;
     
     return tree;
@@ -76,7 +76,7 @@ reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device,
     }
   
     if (!(tree->root_node = reiserfs_node_create(device, block_nr,
-	profile->node, REISERFS_LEAF_LEVEL + 1)))
+	profile->node, profile->key, REISERFS_LEAF_LEVEL + 1)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create a root node at block %llu.", block_nr);
@@ -125,41 +125,52 @@ void reiserfs_tree_close(reiserfs_tree_t *tree) {
     aal_free(tree);
 }
 
-/*
-    Makes search for specified node in the tree. Caches all
-    nodes, search goes through.
+/* 
+    Makes search in the tree by specified key. Fills passed
+    coord by coords of found item. 
 */
-static int reiserfs_tree_node_lookup(reiserfs_tree_t *tree, 
-    reiserfs_node_t *node, reiserfs_key_t *key, reiserfs_coord_t *coord) 
+int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
+    reiserfs_key_t *key, reiserfs_coord_t *coord) 
 {
     int lookup;
     uint32_t pointer;
+    reiserfs_node_t *node;
     reiserfs_key_t internal_key;
 
-    aal_assert("umka-645", node != NULL, return 0);
-    aal_assert("umka-742", tree != NULL, return 0);
+    aal_assert("umka-645", node != NULL, return -1);
+    aal_assert("umka-742", key != NULL, return -1);
+    aal_assert("umka-742", coord != NULL, return -1);
    
-    coord->node = node;
     coord->pos.item = 0;
     coord->pos.unit = -1;
+    coord->node = node = tree->root_node;
 
     reiserfs_key_init(&internal_key, key->plugin);
     
     while (1) {
-	if (reiserfs_node_item_count(node) == 0)
+	if (reiserfs_node_count(node) == 0)
 	    return 0;
-
+	
+	/* 
+	    Looking up for key inside node. Result of lookuping will be stored
+	    in &coord->pos.
+	*/
 	if ((lookup = reiserfs_node_lookup(node, key, &coord->pos)) == -1)
 	    return -1;
 
-	if (reiserfs_node_get_level(node) == REISERFS_LEAF_LEVEL)
+	/* Checking for level */
+	if (reiserfs_node_get_level(node) == stop)
 	    return lookup;
        	
+	/* 
+	    Key not found, and pos->item points to item placed right after needed 
+	    internal item. So, we need to decrease position.
+	*/
 	if (lookup == 0)
 	    coord->pos.item--;
 	
-	if (!(pointer = reiserfs_node_item_get_pointer(node, 
-	    coord->pos.item))) 
+	if (!(pointer = reiserfs_node_get_item_pointer(node, 
+	    coord->pos.item)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
@@ -171,12 +182,12 @@ static int reiserfs_tree_node_lookup(reiserfs_tree_t *tree,
 	    Checking whether node at "pointer" already exists 
 	    in tree cache.
 	*/
-	aal_memcpy(internal_key.body, reiserfs_node_item_key_at(coord->node, 
+	aal_memcpy(internal_key.body, reiserfs_node_item_key(coord->node, 
 	    coord->pos.item), sizeof(internal_key.body));
 	
 	if (!(coord->node = reiserfs_node_find(node, &internal_key))) {
 	    if (!(coord->node = reiserfs_node_open(node->device, pointer, 
-		    REISERFS_GUESS_PLUGIN_ID))) 
+		    REISERFS_GUESS_PLUGIN_ID, node->key_plugin->h.id))) 
 		return -1;
 	}
 	
@@ -189,29 +200,25 @@ static int reiserfs_tree_node_lookup(reiserfs_tree_t *tree,
 }
 
 /* 
-    Makes search in the tree by specified key. Fills passed
-    coord by coords of found item. 
+    Inserts new item described by item hint into the tree. If found leaf doesn't
+    has enought free space for new item then creates new node and inserts it into
+    the tree by reiserfs_tree_node_insert function. See bellow for details.
 */
-int reiserfs_tree_lookup(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key, reiserfs_coord_t *coord) 
-{
-    aal_assert("umka-642", tree != NULL, return 0);
-    aal_assert("umka-643", key != NULL, return 0);
-    aal_assert("umka-644", coord != NULL, return 0);
-    
-    return reiserfs_tree_node_lookup(tree, tree->root_node, 
-	key, coord);
-}
-
-errno_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key, reiserfs_item_hint_t *hint)
+errno_t reiserfs_tree_insert_item(reiserfs_tree_t *tree, 
+    reiserfs_item_hint_t *item)
 {
     int lookup;
+    reiserfs_key_t *key;
     reiserfs_coord_t coord;
-    
-    if ((lookup = reiserfs_tree_lookup(tree, key, &coord)) == 1) {
+
+    key = (reiserfs_key_t *)&item->key;
+
+    /* Looking up for target leaf */
+    if ((lookup = reiserfs_tree_lookup(tree, REISERFS_LEAF_LEVEL, 
+	key, &coord)) == 1)
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) already exists.", 
+	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
 	    reiserfs_key_get_locality(key), reiserfs_key_get_type(key),
 	    reiserfs_key_get_objectid(key), reiserfs_key_get_offset(key));
 	return -1;
@@ -219,34 +226,43 @@ errno_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
   
     if (lookup == -1)
 	return -1;
-  
-    if (reiserfs_node_item_estimate(coord.node, hint, &coord.pos))
+ 
+    /* Estimating found node */
+    if (reiserfs_node_item_estimate(coord.node, item, &coord.pos))
         return -1;
  
+    /* 
+	Checking whether we should create new leaf or we can insert item into 
+	existent one. This will be performed in the case we have found an internal
+	node, or we have not enought free space in found leaf.
+    */
     if (reiserfs_node_get_level(coord.node) > REISERFS_LEAF_LEVEL ||
-	reiserfs_node_get_free_space(coord.node) < hint->length) 
+	reiserfs_node_get_free_space(coord.node) < item->length) 
     {
 	blk_t block_nr;
 	reiserfs_node_t *leaf;
 
+	/* Allocating the block */
 	if (!(block_nr = reiserfs_alloc_alloc(tree->alloc))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't allocate block for leaf node.");
 	    return -1;
 	}
 	
+	/* Creating new leaf */
 	if (!(leaf = reiserfs_node_create(tree->device, block_nr,
-	    reiserfs_node_get_plugin_id(tree->root_node), REISERFS_LEAF_LEVEL)))
+	    reiserfs_node_get_plugin_id(tree->root_node), 
+	    tree->root_node->key_plugin->h.id, REISERFS_LEAF_LEVEL)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create a leaf node at %llu.", block_nr);
 	    return -1;
 	}
-	coord.node = leaf;
 	coord.pos.item = 0;
 	coord.pos.unit = -1;
     
-	if (reiserfs_node_item_insert(coord.node, &coord.pos, key, hint)) {
+	/* Inserting item into new leaf */
+	if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert item into the node %llu.", 
 		aal_block_get_nr(coord.node->block));
@@ -255,17 +271,20 @@ errno_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
 	    return -1;
 	}
 	
-	if (reiserfs_tree_node_insert(tree, coord.node)) {
+	/* Inserting new leaf into the tree */
+	if (reiserfs_tree_insert_node(tree, coord.node->parent ? 
+	    coord.node->parent : tree->root_node, leaf)) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert node %llu into the thee.", 
-		aal_block_get_nr(coord.node->block));
+		aal_block_get_nr(leaf->block));
 
-	    reiserfs_node_close(coord.node);
+	    reiserfs_node_close(leaf);
 	    return -1;
 	}
-	
     } else {
-	if (reiserfs_node_item_insert(coord.node, &coord.pos, key, hint)) {
+	/* Inserting item into existent one leaf */
+	if (reiserfs_node_insert(coord.node, &coord.pos, key, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an internal item into the node %llu.", 
 		aal_block_get_nr(coord.node->block));
@@ -276,41 +295,41 @@ errno_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
 }
 
 /* Removes item by specified key */
-errno_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
+errno_t reiserfs_tree_remove_item(reiserfs_tree_t *tree, 
     reiserfs_key_t *key) 
 {
     return -1;
 }
 
-errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
-    reiserfs_node_t *node) 
+/* Inserts a node into the tree */
+errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree, 
+    reiserfs_node_t *parent, reiserfs_node_t *node) 
 {
     int lookup;
-    reiserfs_key_t ld_key;
+    reiserfs_key_t ldkey;
     reiserfs_coord_t coord;
 
     reiserfs_item_hint_t item_hint;
     reiserfs_internal_hint_t internal_hint;
     
     aal_assert("umka-646", tree != NULL, return -1);
+    aal_assert("umka-646", parent != NULL, return -1);
     aal_assert("umka-647", node != NULL, return -1);
 
-    /* Preparing left-delimiting key */
-    reiserfs_key_init(&ld_key, tree->root_key.plugin);
-    aal_memcpy(ld_key.body, reiserfs_node_item_key_at(node, 0), 
-	sizeof(ld_key.body));
-    
-    if ((lookup = reiserfs_tree_lookup(tree, &ld_key, &coord)) == 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) already exists.", 
-	    reiserfs_key_get_locality(&ld_key), reiserfs_key_get_type(&ld_key),
-	    reiserfs_key_get_objectid(&ld_key), reiserfs_key_get_offset(&ld_key));
-	return -1;
-    }
-  
-    if (lookup == -1)
+    if (reiserfs_node_ldkey(node, &ldkey))
 	return -1;
 
+    if ((lookup = reiserfs_node_lookup(parent, &ldkey, &coord.pos)) == -1)
+	return -1;
+    
+    if (lookup == 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
+	    reiserfs_key_get_locality(&ldkey), reiserfs_key_get_type(&ldkey),
+	    reiserfs_key_get_objectid(&ldkey), reiserfs_key_get_offset(&ldkey));
+	return -1;
+    }
+    
     aal_memset(&item_hint, 0, sizeof(item_hint));
     internal_hint.pointer = aal_block_get_nr(node->block);
 
@@ -321,28 +340,45 @@ errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
     if (!(item_hint.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 0x3)))
     	libreiser4_factory_failed(return -1, find, item, 0x3);
    
-    if (reiserfs_node_item_estimate(coord.node, &item_hint, &coord.pos))
+    /* Estimating found internal node */
+    if (reiserfs_node_item_estimate(parent, &item_hint, &coord.pos))
 	return -1;
  
-    if (reiserfs_node_get_free_space(coord.node) < item_hint.length) {
+    /* 
+	Checking for free space inside found internal node. If it is enought for
+	inserting one more internal item into it then we doing this. If no, we need 
+	to splitt internal node and insert item into one of new nodes in corresponding 
+	to key. After, we should insert new node into parent of found internal node by
+	reiserfs_tree_insert_node. This may cause tree growing when recursion reach the
+	root node.
+    */
+    if (reiserfs_node_get_free_space(parent) < item_hint.length) {
+	/* 
+	    Splitting and calling reiserfs_tree_insert_node for new block will 
+	    be here.
+	*/
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, repacking is not supported yet!");
+	    "Sorry, splitting is not suported yet!");
 	return -1;
     }
     
-    if (reiserfs_node_item_insert(coord.node, &coord.pos, &ld_key, &item_hint)) {
+    coord.pos.unit = -1;
+    /* Inserting item */
+    if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item_hint)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
-	    aal_block_get_nr(coord.node->block));
+	    aal_block_get_nr(parent->block));
 	return -1;
     }
-    reiserfs_node_add(coord.node, node);
+
+    /* Adding node to the tree cache */
+    reiserfs_node_add(parent, node);
     
     return 0;
 }
 
 /* Removes node from tree by its left delimiting key */
-errno_t reiserfs_tree_node_remove(reiserfs_tree_t *tree, 
+errno_t reiserfs_tree_remove_node(reiserfs_tree_t *tree, 
     reiserfs_key_t *key) 
 {
     return -1;

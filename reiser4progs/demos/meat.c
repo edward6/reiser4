@@ -49,7 +49,7 @@ static void meat_print_fs(reiserfs_fs_t *fs) {
     meat_print_plugin(fs->oid->plugin);
     
     aal_printf("(5) ");
-    meat_print_plugin(fs->tree->root_node->plugin);
+    meat_print_plugin(fs->tree->root_node->node_plugin);
 }
 
 int main(int argc, char *argv[]) {

@@ -240,6 +240,21 @@ struct reiserfs_node_ops {
     /* Makes lookup inside node by specified key */
     int (*lookup) (aal_block_t *, void *, void *);
     
+    /* Inserts item at specified pos */
+    errno_t (*insert) (aal_block_t *, void *, void *, void *);
+    
+    /* Pastes units at specified pos */
+    errno_t (*paste) (aal_block_t *, void *, void *, void *);
+    
+    /* Returns max item count */
+    uint16_t (*maxnum) (aal_block_t *);
+
+    /* Returns item count */
+    uint16_t (*count) (aal_block_t *);
+    
+    /* Prints node into given buffer */
+    void (*print) (aal_block_t *, char *, uint16_t);
+    
     /* Gets/sets node's free space */
     uint16_t (*get_free_space) (aal_block_t *);
     void (*set_free_space) (aal_block_t *, uint32_t);
@@ -251,37 +266,24 @@ struct reiserfs_node_ops {
     uint8_t (*get_level) (aal_block_t *);
     void (*set_level) (aal_block_t *, uint8_t);
 
-    /* Prints node into given buffer */
-    void (*print) (aal_block_t *, char *, uint16_t);
-    
-    /* Inserts item/past units into specified node/item */
-    errno_t (*item_insert) (aal_block_t *, void *, void *, void *);
-    errno_t (*item_paste) (aal_block_t *, void *, void *, void *);
-    
     /* Returns item's overhead */
     uint16_t (*item_overhead) (aal_block_t *);
 
-    /* Returns item's max size */
-    uint16_t (*item_maxsize) (aal_block_t *);
-
-    /* Returns max item count */
-    uint16_t (*item_maxnum) (aal_block_t *);
-
-    /* Returns item count */
-    uint16_t (*item_count) (aal_block_t *);
-    
     /* Returns item's length by pos */
     uint16_t (*item_length) (aal_block_t *, int32_t);
     
-    /* Gets item at passed pos */
-    void *(*item_at) (aal_block_t *, int32_t);
-
-    /* Gets/sets node's plugin ID */
-    uint16_t (*item_get_plugin_id) (aal_block_t *, int32_t);
-    void (*item_set_plugin_id) (aal_block_t *, int32_t, uint16_t);
+    /* Returns item's max size */
+    uint16_t (*item_maxsize) (aal_block_t *);
     
+    /* Gets item at passed pos */
+    void *(*item_body) (aal_block_t *, int32_t);
+
     /* Gets key by pos */
-    void *(*item_key_at) (aal_block_t *, int32_t);
+    void *(*item_key) (aal_block_t *, int32_t);
+    
+    /* Gets/sets node's plugin ID */
+    uint16_t (*get_item_plugin_id) (aal_block_t *, int32_t);
+    void (*set_item_plugin_id) (aal_block_t *, int32_t, uint16_t);
 };
 
 typedef struct reiserfs_node_ops reiserfs_node_ops_t;

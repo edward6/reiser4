@@ -76,7 +76,8 @@ struct reiserfs_node {
     aal_block_t *block;
     aal_device_t *device;
     
-    reiserfs_plugin_t *plugin;
+    reiserfs_plugin_t *node_plugin;
+    reiserfs_plugin_t *key_plugin;
     
     reiserfs_node_t *parent;
     aal_list_t *children;
