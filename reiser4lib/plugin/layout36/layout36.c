@@ -114,7 +114,7 @@ static void reiserfs_layout36_done(reiserfs_layout36_t *layout) {
 	if (!aal_block_write(layout->device, layout->super)) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-006", 
 			"Can't update super block.");
-	}	
+	}
 	aal_block_free(layout->super);
 	aal_free(layout);
 }
@@ -128,7 +128,6 @@ reiserfs_plugin_t plugin_info = {
 			.label = "layout36",
 			.desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 				"Copyright (C) 1996-2002 Hans Reiser",
-			.nlink = 0
 		},
 		.init = (reiserfs_layout_opaque_t *(*)(aal_device_t *))reiserfs_layout36_init,
 		.done = (void (*)(reiserfs_layout_opaque_t *))reiserfs_layout36_done

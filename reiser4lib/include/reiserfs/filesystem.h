@@ -10,20 +10,23 @@
 #include <reiserfs/plugin.h>
 
 struct reiserfs_super {
-	reiserfs_layout_plugin_t *entity;
+	reiserfs_layout_opaque_t *entity;
+	reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_super reiserfs_super_t;
 
 struct reiserfs_journal {
-	device_t *device;
-	reiserfs_journal_plugin_t *entity;
+	aal_device_t *device;
+	reiserfs_journal_opaque_t *entity;
+	reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_journal reiserfs_journal_t;
 
 struct reiserfs_alloc {
-	reiserfs_alloc_plugin_t *entity;
+	reiserfs_alloc_opaque_t *entity;
+	reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_alloc reiserfs_alloc_t;
@@ -34,7 +37,7 @@ struct reiserfs_tree {
 typedef struct reiserfs_tree reiserfs_tree_t;
 
 struct reiserfs_fs {
-	device_t *device;
+	aal_device_t *device;
 	reiserfs_super_t *super;
 	reiserfs_journal_t *journal;
 	reiserfs_alloc_t *alloc;

@@ -37,7 +37,6 @@ reiserfs_plugin_t plugin_info = {
 			.label = "layout40",
 			.desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 				"Copyright (C) 1996-2002 Hans Reiser",
-			.nlink = 0
 		},
 		.init = (reiserfs_layout_opaque_t *(*)(aal_device_t *))reiserfs_layout40_init,
 		.done = (void (*)(reiserfs_layout_opaque_t *))reiserfs_layout40_done

@@ -35,10 +35,11 @@ struct reiserfs_plugin_header {
 	reiserfs_plugin_type_t type;
 	const char label[REISERFS_PLUGIN_MAX_LABEL];
 	const char desc[REISERFS_PLUGIN_MAX_DESC];
-	int nlink;
 };
 
 typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
+
+typedef void reiserfs_file_opaque_t;
 
 struct reiserfs_file_plugin {
 	reiserfs_plugin_header_t h;
@@ -46,11 +47,15 @@ struct reiserfs_file_plugin {
 
 typedef struct reiserfs_file_plugin reiserfs_file_plugin_t;
 
+typedef void reiserfs_dir_opaque_t;
+
 struct reiserfs_dir_plugin {
 	reiserfs_plugin_header_t h;
 };
 
 typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
+
+typedef void reiserfs_item_opaque_t;
 
 struct reiserfs_item_plugin {
 	reiserfs_plugin_header_t h;
@@ -58,11 +63,15 @@ struct reiserfs_item_plugin {
 
 typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
 
+typedef void reiserfs_node_opaque_t;
+
 struct reiserfs_node_plugin {
 	reiserfs_plugin_header_t h;
 };
 
 typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
+
+typedef void reiserfs_hash_opaque_t;
 
 struct reiserfs_hash_plugin {
 	reiserfs_plugin_header_t h;
@@ -70,17 +79,23 @@ struct reiserfs_hash_plugin {
 
 typedef struct reiserfs_hash_plugin reiserfs_hash_plugin_t;
 
+typedef void reiserfs_tail_opaque_t;
+
 struct reiserfs_tail_plugin {
 	reiserfs_plugin_header_t h;
 };
 
 typedef struct reiserfs_tail_plugin reiserfs_tail_plugin_t;
 
+typedef void reiserfs_hook_opaque_t;
+
 struct reiserfs_hook_plugin {
 	reiserfs_plugin_header_t h;
 };
 
 typedef struct reiserfs_hook_plugin reiserfs_hook_plugin_t;
+
+typedef void reiserfs_perm_opaque_t;
 
 struct reiserfs_perm_plugin {
 	reiserfs_plugin_header_t h;
@@ -98,17 +113,23 @@ struct reiserfs_layout_plugin {
 
 typedef struct reiserfs_layout_plugin reiserfs_layout_plugin_t;
 
+typedef void reiserfs_oid_opaque_t;
+
 struct reiserfs_oid_plugin {
 	reiserfs_plugin_header_t h;
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
 
+typedef void reiserfs_alloc_opaque_t;
+
 struct reiserfs_alloc_plugin {
 	reiserfs_plugin_header_t h;
 };
 
 typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
+
+typedef void reiserfs_journal_opaque_t;
 
 struct reiserfs_journal_plugin {
 	reiserfs_plugin_header_t h;
@@ -135,10 +156,10 @@ union reiserfs_plugin {
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
-extern reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, 
+extern reiserfs_plugin_t *reiserfs_plugin_load(const char *name, 
 	const char *point);
 
-extern reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type, 
+reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id);
 
 extern void reiserfs_plugin_unload(reiserfs_plugin_t *plugin);

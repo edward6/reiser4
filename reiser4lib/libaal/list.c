@@ -4,7 +4,6 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
 
 #define ptr_by_pos(base, pos) (base + pos)
 #define size_by_count(count) (count * sizeof(void *))
