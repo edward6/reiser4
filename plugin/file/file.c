@@ -1712,8 +1712,9 @@ sync_unix_file(struct inode *inode, int datasync)
 }
 
 /* plugin->u.file.readpage
-   page must be not out of file. This is called either via page fault and in that case vp is struct file *file, or on
-   truncate when last page of a file is to be read to perform its partial truncate and in that case vp is 0
+   page must be not out of file. This is called either via page fault and in
+   that case vp is struct file *file, or on truncate when last page of a file
+   is to be read to perform its partial truncate and in that case vp is 0
 */
 reiser4_internal int
 readpage_unix_file(void *vp, struct page *page)
@@ -2856,6 +2857,8 @@ reiser4_internal void
 readpages_unix_file(struct file *file, struct address_space *mapping,
 		    struct list_head *pages)
 {
+	assert("vs-1740", 0);
+#if 0
 	reiser4_file_fsdata *fsdata;
 	item_plugin *iplug;
 
@@ -2867,6 +2870,7 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 	iplug->s.file.readpages(fsdata->reg.coord, mapping, pages);
 	return;
+#endif
 }
 
 /* plugin->u.file.init_inode_data */

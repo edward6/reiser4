@@ -269,7 +269,7 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 	assert ("zam-995", inode != NULL);
 
 	PRINTK ("R/A REQ: off=%llu, size=%llu\n", (ull_t)offset, (ull_t)size);
-	ra = &reiser4_get_file_fsdata(file)->ra;
+	ra = &reiser4_get_file_fsdata(file)->ra1;
 
 	max = get_max_readahead(ra);
 	if (max == 0)

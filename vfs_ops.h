@@ -96,11 +96,19 @@ struct reiser4_file_fsdata {
 	/* hints to speed up operations with regular files: read and write. */
 	struct {
 		hint_t hint;
-		/* this is set by read_extent before calling
-		 * page_cache_readahead */
-		void *coord;
 	} reg;
-	struct reiser4_file_ra_state ra;
+	/* */
+	struct {
+		/* this is called by reiser4_readpages if set */
+		void (*readpages)(struct address_space *,
+				 struct list_head *pages,
+				 void *data);
+		/* reiser4_readpaextended coord. It is set by read_extent before
+		   calling page_cache_readahead */
+		void *data;
+	} ra2;
+	struct reiser4_file_ra_state ra1;
+	
 };
 
 TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);

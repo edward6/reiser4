@@ -52,6 +52,38 @@ coord_extension_is_ok(const uf_coord_t *uf_coord)
 				       extent_get_width(ext) == extent_get_width(&ext_coord->extent)));
 }
 
+/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
+   correspondingly */
+static int
+offset_is_in_unit(const coord_t *coord, loff_t off)
+{
+	reiser4_key unit_key;
+	__u64 unit_off;
+	reiser4_extent *ext;
+
+	ext = extent_by_coord(coord);
+
+	unit_key_extent(coord, &unit_key);
+	unit_off = get_key_offset(&unit_key);
+	if (off < unit_off)
+		return 0;
+	if (off >= (unit_off + (current_blocksize * extent_get_width(ext))))
+		return 0;
+	return 1;
+}
+
+static int
+coord_matches_key_extent(const coord_t *coord, const reiser4_key *key)
+{
+	reiser4_key item_key;
+
+	assert("vs-771", coord_is_existing_unit(coord));
+	assert("vs-1258", keylt(key, append_key_extent(coord, &item_key)));
+	assert("vs-1259", keyge(key, item_key_by_coord(coord, &item_key)));
+
+	return offset_is_in_unit(coord, get_key_offset(key));
+}
+
 #endif
 
 /* @coord is set either to the end of last extent item of a file
@@ -930,6 +962,166 @@ read_move_coord(coord_t *coord, extent_coord_extension_t *ext_coord)
 	return 0;
 }
 
+static inline void
+zero_page(struct page *page)
+{
+	char *kaddr = kmap_atomic(page, KM_USER0);
+
+	xmemset(kaddr, 0, PAGE_CACHE_SIZE);
+	flush_dcache_page(page);
+	kunmap_atomic(kaddr, KM_USER0);
+	SetPageUptodate(page);
+	unlock_page(page);
+}
+
+static int
+do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
+{
+	jnode *j;
+	struct address_space *mapping;
+	unsigned long index;
+	oid_t oid;
+
+	mapping = page->mapping;
+	oid = get_inode_oid(mapping->host);
+	index = page->index;
+
+	switch (state_of_extent(ext)) {
+	case HOLE_EXTENT:
+		/*
+		 * it is possible to have hole page with jnode, if page was
+		 * eflushed previously.
+		 */
+		j = jfind(mapping, index);
+		if (j == NULL) {
+			zero_page(page);
+			return 0;
+		}
+		LOCK_JNODE(j);
+		if (!jnode_page(j)) {
+			jnode_attach_page(j, page);
+		} else {
+			BUG_ON(jnode_page(j) != page);
+			assert("vs-1504", jnode_page(j) == page);
+		}
+
+		UNLOCK_JNODE(j);
+		break;
+
+	case ALLOCATED_EXTENT:
+		j = jnode_of_page(page);
+		if (IS_ERR(j))
+			return PTR_ERR(j);
+		if (*jnode_get_block(j) == 0) {
+			reiser4_block_nr blocknr;
+
+			blocknr = extent_get_start(ext) + pos;
+			jnode_set_block(j, &blocknr);
+		} else
+			assert("vs-1403", j->blocknr == extent_get_start(ext) + pos);
+		break;
+
+	case UNALLOCATED_EXTENT:
+		j = jfind(mapping, index);
+		assert("nikita-2688", j);
+		assert("vs-1426", jnode_page(j) == NULL);
+
+		UNDER_SPIN_VOID(jnode, j, jnode_attach_page(j, page));
+
+		/* page is locked, it is safe to check JNODE_EFLUSH */
+		assert("vs-1668", JF_ISSET(j, JNODE_EFLUSH));
+		break;
+
+	default:
+		warning("vs-957", "extent_readpage: wrong extent\n");
+		return RETERR(-EIO);
+	}
+
+	BUG_ON(j == 0);
+	page_io(page, j, READ, GFP_NOIO);
+	jput(j);
+	return 0;
+}
+
+static int
+move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned count)
+{
+	reiser4_extent *ext;
+
+	ext_coord->expected_page += count;
+
+	ext = ext_by_offset(coord->node, ext_coord->ext_offset);
+
+	do {
+		if (ext_coord->pos_in_unit + count < ext_coord->width) {
+			ext_coord->pos_in_unit += count;
+			break;
+		}
+
+		if (coord->unit_pos == ext_coord->nr_units - 1) {
+			coord->between = AFTER_UNIT;
+			return 1;
+		}
+
+		/* shift to next unit */
+		count -= (ext_coord->width - ext_coord->pos_in_unit);
+		coord->unit_pos ++;
+		ext_coord->pos_in_unit = 0;
+		ext_coord->ext_offset += sizeof(reiser4_extent);
+		ext ++;
+		ON_DEBUG(ext_coord->extent = *ext);
+		ext_coord->width = extent_get_width(ext);
+	} while (1);
+
+	return 0;
+}
+
+static int
+readahead_readpage_extent(void *vp, struct page *page)
+{
+	int result;
+	uf_coord_t *uf_coord;
+	coord_t *coord;
+	extent_coord_extension_t *ext_coord;
+
+	uf_coord = vp;
+	coord = &uf_coord->base_coord;
+
+	if (coord->between != AT_UNIT) {
+		unlock_page(page);
+		return RETERR(-EINVAL);
+	}
+
+	ext_coord = &uf_coord->extension.extent;
+	if (ext_coord->expected_page != page->index) {
+		/* read_cache_pages skipped few pages. Try to adjust coord to page */
+		assert("vs-1269", page->index > ext_coord->expected_page);
+		if (move_coord_pages(coord, ext_coord,  page->index - ext_coord->expected_page)) {
+			/* extent pointing to this page is not here */
+			unlock_page(page);
+			return RETERR(-EINVAL);
+		}
+
+		assert("vs-1274", offset_is_in_unit(coord,
+						    (loff_t)page->index << PAGE_CACHE_SHIFT));
+		ext_coord->expected_page = page->index;
+	}
+
+	assert("vs-1281", page->index == ext_coord->expected_page);
+	result = do_readpage_extent(ext_by_ext_coord(uf_coord), ext_coord->pos_in_unit, page);
+	if (!result)
+		move_coord_pages(coord, ext_coord, 1);
+	return result;
+}
+
+/* long term lock is held, */
+static void
+read_readpages(struct address_space *mapping, struct list_head *pages, void *data)
+{
+	assert("vs-1737", data != NULL);
+	read_cache_pages(mapping, pages, readahead_readpage_extent, data);
+}
+
 static void
 call_page_cache_readahead(struct address_space *mapping, struct file *file, unsigned long page_nr,
 			  const uf_coord_t *uf_coord)
@@ -940,10 +1132,11 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file, unsi
 	fsdata = reiser4_get_file_fsdata(file);
 	ra_coord = *uf_coord;
 	ra_coord.extension.extent.expected_page = page_nr;
-	fsdata->reg.coord = &ra_coord;
+	fsdata->ra2.data = &ra_coord;
+	fsdata->ra2.readpages = read_readpages;
 
 	page_cache_readahead(mapping, &file->f_ra, file, page_nr);
-	fsdata->reg.coord = 0;
+	fsdata->ra2.readpages = NULL;
 }
 
 #if REISER4_TRACE
@@ -964,42 +1157,6 @@ print_ext_coord(const char *s, uf_coord_t *uf_coord)
 	       uf_coord->base_coord.unit_pos, ext_coord->pos_in_unit);
 }
 #endif
-
-#if REISER4_DEBUG
-
-/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
-   correspondingly */
-static int
-offset_is_in_unit(const coord_t *coord, loff_t off)
-{
-	reiser4_key unit_key;
-	__u64 unit_off;
-	reiser4_extent *ext;
-
-	ext = extent_by_coord(coord);
-
-	unit_key_extent(coord, &unit_key);
-	unit_off = get_key_offset(&unit_key);
-	if (off < unit_off)
-		return 0;
-	if (off >= (unit_off + (current_blocksize * extent_get_width(ext))))
-		return 0;
-	return 1;
-}
-
-static int
-coord_matches_key_extent(const coord_t *coord, const reiser4_key *key)
-{
-	reiser4_key item_key;
-
-	assert("vs-771", coord_is_existing_unit(coord));
-	assert("vs-1258", keylt(key, append_key_extent(coord, &item_key)));
-	assert("vs-1259", keyge(key, item_key_by_coord(coord, &item_key)));
-
-	return offset_is_in_unit(coord, get_key_offset(key));
-}
-
-#endif /* REISER4_DEBUG */
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 reiser4_internal int
@@ -1101,164 +1258,13 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 	return 0;
 }
 
-static int
-move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned count)
-{
-	reiser4_extent *ext;
-
-	ext_coord->expected_page += count;
-
-	ext = ext_by_offset(coord->node, ext_coord->ext_offset);
-
-	do {
-		if (ext_coord->pos_in_unit + count < ext_coord->width) {
-			ext_coord->pos_in_unit += count;
-			break;
-		}
-
-		if (coord->unit_pos == ext_coord->nr_units - 1) {
-			coord->between = AFTER_UNIT;
-			return 1;
-		}
-
-		/* shift to next unit */
-		count -= (ext_coord->width - ext_coord->pos_in_unit);
-		coord->unit_pos ++;
-		ext_coord->pos_in_unit = 0;
-		ext_coord->ext_offset += sizeof(reiser4_extent);
-		ext ++;
-		ON_DEBUG(ext_coord->extent = *ext);
-		ext_coord->width = extent_get_width(ext);
-	} while (1);
-
-	return 0;
-}
-
-static inline void
-zero_page(struct page *page)
-{
-	char *kaddr = kmap_atomic(page, KM_USER0);
-
-	xmemset(kaddr, 0, PAGE_CACHE_SIZE);
-	flush_dcache_page(page);
-	kunmap_atomic(kaddr, KM_USER0);
-	SetPageUptodate(page);
-	unlock_page(page);
-}
-
-static int
-do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
-{
-	jnode *j;
-	struct address_space *mapping;
-	unsigned long index;
-	oid_t oid;
-
-	mapping = page->mapping;
-	oid = get_inode_oid(mapping->host);
-	index = page->index;
-
-	switch (state_of_extent(ext)) {
-	case HOLE_EXTENT:
-		/*
-		 * it is possible to have hole page with jnode, if page was
-		 * eflushed previously.
-		 */
-		j = jfind(mapping, index);
-		if (j == NULL) {
-			zero_page(page);
-			return 0;
-		}
-		LOCK_JNODE(j);
-		if (!jnode_page(j)) {
-			jnode_attach_page(j, page);
-		} else {
-			BUG_ON(jnode_page(j) != page);
-			assert("vs-1504", jnode_page(j) == page);
-		}
-
-		UNLOCK_JNODE(j);
-		break;
-
-	case ALLOCATED_EXTENT:
-		j = jnode_of_page(page);
-		if (IS_ERR(j))
-			return PTR_ERR(j);
-		if (*jnode_get_block(j) == 0) {
-			reiser4_block_nr blocknr;
-
-			blocknr = extent_get_start(ext) + pos;
-			jnode_set_block(j, &blocknr);
-		} else
-			assert("vs-1403", j->blocknr == extent_get_start(ext) + pos);
-		break;
-
-	case UNALLOCATED_EXTENT:
-		j = jfind(mapping, index);
-		assert("nikita-2688", j);
-		assert("vs-1426", jnode_page(j) == NULL);
-
-		UNDER_SPIN_VOID(jnode, j, jnode_attach_page(j, page));
-
-		/* page is locked, it is safe to check JNODE_EFLUSH */
-		assert("vs-1668", JF_ISSET(j, JNODE_EFLUSH));
-		break;
-
-	default:
-		warning("vs-957", "extent_readpage: wrong extent\n");
-		return RETERR(-EIO);
-	}
-
-	BUG_ON(j == 0);
-	page_io(page, j, READ, GFP_NOIO);
-	jput(j);
-	return 0;
-}
-
-static int
-readahead_readpage_extent(void *vp, struct page *page)
-{
-	int result;
-	uf_coord_t *uf_coord;
-	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
-
-	uf_coord = vp;
-	coord = &uf_coord->base_coord;
-
-	if (coord->between != AT_UNIT) {
-		unlock_page(page);
-		return RETERR(-EINVAL);
-	}
-
-	ext_coord = &uf_coord->extension.extent;
-	if (ext_coord->expected_page != page->index) {
-		/* read_cache_pages skipped few pages. Try to adjust coord to page */
-		assert("vs-1269", page->index > ext_coord->expected_page);
-		if (move_coord_pages(coord, ext_coord,  page->index - ext_coord->expected_page)) {
-			/* extent pointing to this page is not here */
-			unlock_page(page);
-			return RETERR(-EINVAL);
-		}
-
-		assert("vs-1274", offset_is_in_unit(coord,
-						    (loff_t)page->index << PAGE_CACHE_SHIFT));
-		ext_coord->expected_page = page->index;
-	}
-
-	assert("vs-1281", page->index == ext_coord->expected_page);
-	result = do_readpage_extent(ext_by_ext_coord(uf_coord), ext_coord->pos_in_unit, page);
-	if (!result)
-		move_coord_pages(coord, ext_coord, 1);
-	return result;
-}
-
 /*
   plugin->u.item.s.file.readpages
 */
 reiser4_internal void
 readpages_extent(void *vp, struct address_space *mapping, struct list_head *pages)
 {
+	assert("vs-1739", 0);
 	if (vp)
 		read_cache_pages(mapping, pages, readahead_readpage_extent, vp);
 }

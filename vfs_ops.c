@@ -339,7 +339,7 @@ create_fsdata(struct file *file, int gfp)
 	fsdata = kmem_cache_alloc(file_fsdata_slab, gfp);
 	if (fsdata != NULL) {
 		xmemset(fsdata, 0, sizeof *fsdata);
-		fsdata->ra.max_window_size = VM_MAX_READAHEAD * 1024;
+		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;
 		fsdata->back = file;
 		readdir_list_clean(fsdata);
 	}

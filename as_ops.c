@@ -204,6 +204,11 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	return 0;
 }
 
+static int filler(void *vp, struct page *page)
+{
+	return reiser4_readpage(vp, page);
+}
+
 /* ->readpages() VFS method in reiser4 address_space_operations
    method serving page cache readahead
 
@@ -227,6 +232,21 @@ static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
 		  struct list_head *pages, unsigned nr_pages)
 {
+	reiser4_file_fsdata *fsdata;
+
+	fsdata = reiser4_get_file_fsdata(file);
+	if (IS_ERR(fsdata))
+		return PTR_ERR(fsdata);
+
+	if (fsdata->ra2.readpages)
+		fsdata->ra2.readpages(mapping, pages, fsdata->ra2.data);
+	else {
+		assert("vs-1738", lock_stack_isclean(get_current_lock_stack()));
+		read_cache_pages(mapping, pages, filler, file);
+	}
+	return 0;
+}
+#if 0
 	file_plugin *fplug;
 
 	if (is_in_reiser4_context()) {
@@ -250,6 +270,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	}
 	return 0;
 }
+#endif
 
 /* prepares @page to be written. This means, that if we want to modify only some
    part of page, page should be read first and than modified. Actually this function
