@@ -542,9 +542,10 @@ ON_DEBUG_CONTEXT(						\
 ({								\
 	__entry_counters.x_refs = lock_counters() -> x_refs;	\
 	__entry_counters.t_refs = lock_counters() -> t_refs;	\
-	assert( "nikita-2159",					\
-		!memcmp( &__entry_counters, lock_counters(),	\
-			 sizeof __entry_counters ) );		\
+	__entry_counters.d_refs = lock_counters() -> d_refs;	\
+	assert("nikita-2159",					\
+	       !memcmp(&__entry_counters, lock_counters(),	\
+		       sizeof __entry_counters));		\
 }) )
 
 #else
