@@ -468,27 +468,6 @@ SPIN_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 #define check_tree() noop
 #endif
 
-/* jput() - decrement x_count reference counter on znode.
-  
-   Count may drop to 0, jnode stays in cache until memory pressure causes the
-   eviction of its page. The c_count variable also ensures that children are
-   pressured out of memory before the parent. The jnode remains hashed as
-   long as the VM allows its page to stay in memory.
-*/
-static inline void
-jput(jnode * node)
-{
-	trace_stamp(TRACE_ZNODES);
-
-	assert("jmacd-509", node != NULL);
-	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("jmacd-511", atomic_read(&node->d_count) >= 0);
-	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
-
-	if (atomic_dec_and_test(&node->x_count))
-		jput_final(node);
-}
-
 /* estimate api. Implementation is in estimate.c */
 reiser4_block_nr estimate_internal_amount(reiser4_block_nr childen, tree_level);
 reiser4_block_nr estimate_one_insert_item(tree_level);
