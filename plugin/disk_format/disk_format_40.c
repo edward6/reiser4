@@ -284,7 +284,7 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	 */
 	/*private->kmalloc_allocated = 0;*/
 #endif
-		/* FIXME: it will be in read_super */
+
 	result = get_super_jnode(s);
 
 	return result;
