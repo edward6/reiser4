@@ -391,13 +391,12 @@ int jload_and_lock( jnode *node )
 	spin_lock_jnode( node );
 
 	reiser4_stat_znode_add( zload );
+	add_d_ref( node );
 	if( !jnode_is_loaded( node ) ) {
 		reiser4_tree *tree;
 
-		add_d_ref( node );
-
 		spin_unlock_jnode( node );
-		
+
 		tree = current_tree;
 
 		/* load data... */
@@ -413,21 +412,15 @@ int jload_and_lock( jnode *node )
 		result = tree -> ops -> read_node( tree, node );
 		reiser4_stat_znode_add( zload_read );
 
-		if( likely( result == 0 ) ) {
+		if( likely( result >= 0 ) ) {
 			assert( "nikita-2075", spin_jnode_is_locked( node ) );
-			if( likely( !jnode_is_loaded( node ) ) ) {
-				JF_SET( node, ZNODE_LOADED );
-			} else {
-				/* indicates that data was cached */
-				result = 1;
-			}
+			JF_SET( node, ZNODE_LOADED );
 		} else {
 			spin_lock_jnode( node );
 			jrelse_nolock( node );
 		}
 	} else {
-		assert( "nikita-2136", atomic_read( &node -> d_count ) > 0 );
-		add_d_ref( node );
+		assert( "nikita-2136", atomic_read( &node -> d_count ) > 1 );
 		result = 1;
 	}
 	assert( "nikita-2135", ergo( result >= 0,
