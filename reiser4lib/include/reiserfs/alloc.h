@@ -8,7 +8,8 @@
 #define ALLOC_H
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
+#include <reiserfs/filesystem.h>
+#include <reiserfs/plugin.h>
 
 extern error_t reiserfs_alloc_open(reiserfs_fs_t *fs);
 

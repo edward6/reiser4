@@ -145,14 +145,14 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	    return 0;
 	}
 
-	if (!reiserfs_item_is_internal (item_info))
+/*	if (!reiserfs_item_is_internal(item_info))
 	    return 1;
 	
 	if (!(from = reiserfs_item_down_link (item_link))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get node in block %d.", from);
 	    return 1;
-	}
+	}*/
     }
     return 0;
 }

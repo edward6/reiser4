@@ -8,6 +8,7 @@
 #define SUPER_H
 
 #include <aal/aal.h>
+#include <reiserfs/plugin.h>
 #include <reiserfs/filesystem.h>
 
 extern error_t reiserfs_super_open(reiserfs_fs_t *fs);

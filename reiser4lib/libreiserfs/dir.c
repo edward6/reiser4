@@ -4,7 +4,6 @@
     Author Vitaly Fertman.
 */
 
-int reiserfs_dir_create_child(/* parent, direntry, */reiserfs_opaque_t *data)
-{
+int reiserfs_dir_create_child(void *data) {
     return 0;
 }

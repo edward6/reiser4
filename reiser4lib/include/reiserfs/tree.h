@@ -9,6 +9,7 @@
 
 #include <reiserfs/plugin.h>
 #include <reiserfs/filesystem.h>
+#include <reiserfs/plugin.h>
 
 #define REISERFS_ROOT_LEVEL 2
 

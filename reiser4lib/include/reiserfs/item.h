@@ -7,18 +7,10 @@
 #ifndef ITEM_H
 #define ITEM_H
 
-/* On memory structure to work with items */
-/* Thougth: the key should not exist here, we should get it from item. */
-struct reiserfs_item {
-    reiserfs_key_t *key;
-    uint32_t length;
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
+#include <aal/aal.h>
+#include <reiserfs/filesystem.h>
 
-typedef struct reiserfs_item reiserfs_item_t;
-
-extern blk_t down_link (reiserfs_item_t *);
+extern blk_t reiserfs_item_down_link(reiserfs_item_t *item);
 
 #endif
 

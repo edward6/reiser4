@@ -9,12 +9,12 @@
 
 #include <aal/aal.h>
 #include <reiserfs/plugin.h>
-#include <reiserfs/node.h>
 
 #define REISERFS_DEFAULT_BLOCKSIZE	4096
 #define REISERFS_MASTER_OFFSET		65536
 #define REISERFS_MASTER_MAGIC		"R4Sb"
 
+/* Master super block structure and macros */
 struct reiserfs_master {
     char mr_magic[4];
     uint16_t mr_format_id;
@@ -31,6 +31,7 @@ typedef struct reiserfs_master reiserfs_master_t;
 #define get_mr_block_size(mr)		get_le16(mr, mr_blocksize)
 #define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
 
+/* Super block structure */
 struct reiserfs_super {
     reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
@@ -38,6 +39,7 @@ struct reiserfs_super {
 
 typedef struct reiserfs_super reiserfs_super_t;
 
+/* Journal structure */
 struct reiserfs_journal {
     aal_device_t *device;
     
@@ -47,6 +49,7 @@ struct reiserfs_journal {
 
 typedef struct reiserfs_journal reiserfs_journal_t;
 
+/* Allocator structure */
 struct reiserfs_alloc {
     reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
@@ -54,12 +57,43 @@ struct reiserfs_alloc {
 
 typedef struct reiserfs_alloc reiserfs_alloc_t;
 
+/* Tree related strucres */
+/* 
+    On memory structure to work with items
+    Thougth: the key should not exist here, 
+    we should get it from item.
+*/
+struct reiserfs_item {
+    reiserfs_key_t *key;
+    uint32_t length;
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_item reiserfs_item_t;
+
+struct reiserfs_node_common_header {
+    uint16_t plugin_id; 
+};
+
+typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
+
+struct reiserfs_node {
+    aal_device_t *device;
+    aal_block_t *block;
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_node reiserfs_node_t;
+
 struct reiserfs_tree {
     reiserfs_node_t *root;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
 
+/* Filesystem compound structure */
 struct reiserfs_fs {
     aal_device_t *device;
     

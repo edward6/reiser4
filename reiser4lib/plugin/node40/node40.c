@@ -250,7 +250,7 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where,
 
     /* Insert item or create it if needed */
 
-    plugin_id = item_info->plugin_id;
+//    plugin_id = item_info->plugin_id;
     
     if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -280,7 +280,7 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where,
        item.common.get_min_key or item_plugin.get_min_key */
     ih->key = *item_info->key;
     
-    ih->plugin_id = item_info->plugin_id;
+//    ih->plugin_id = item_info->plugin_id;
     ih->length = item_info->length;
     ih->offset = position - reiserfs_node40_data(where);
         
@@ -301,7 +301,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *,aal_block_t *, uint8_t))reiserfs_node40_create,
 	.confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_node40_confirm,
 	.check = (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
-	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *, reiserfs_coord_t *))reiserfs_node40_lookup,
+	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *, void *))reiserfs_node40_lookup,
 	
 	.item_max_size = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_size,
 	.item_max_num =  (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_num,
