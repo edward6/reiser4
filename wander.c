@@ -305,6 +305,7 @@ static void dealloc_tx_list (capture_list_head * tx_list)
 
 		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
+		unpin_jnode_data (cur);
 		drop_io_head (cur);
 	}
 }
@@ -608,6 +609,8 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct reiser4_io_hand
 				jfree (cur);
 				goto free_not_assigned;
 			}
+
+			pin_jnode_data (cur);
 
 			capture_list_push_back (tx_list, cur);
 
