@@ -685,7 +685,7 @@ znode_get_rd_key(znode * node /* znode to query */ )
 	assert("nikita-958", node != NULL);
 	assert("nikita-1661", rw_dk_is_locked(znode_get_tree(node)));
 	assert("nikita-3067", LOCK_CNT_GTZ(rw_locked_dk));
-
+	assert("nikita-30671", node->rd_key_version != 0);
 	return &node->rd_key;
 }
 
@@ -696,11 +696,11 @@ znode_get_ld_key(znode * node /* znode to query */ )
 	assert("nikita-974", node != NULL);
 	assert("nikita-1662", rw_dk_is_locked(znode_get_tree(node)));
 	assert("nikita-3068", LOCK_CNT_GTZ(rw_locked_dk));
-
+	assert("nikita-30681", node->ld_key_version != 0);
 	return &node->ld_key;
 }
 
-static int rd_key_version = 0;
+ON_DEBUG(atomic_t delim_key_version = ATOMIC_INIT(0);)
 
 /* update right-delimiting key of @node */
 reiser4_internal reiser4_key *
@@ -713,16 +713,15 @@ znode_set_rd_key(znode * node, const reiser4_key * key)
 	assert("nikita-2944",
 	       znode_is_any_locked(node) ||
 	       znode_get_level(node) != LEAF_LEVEL ||
-	       keyge(key, znode_get_rd_key(node)) ||
-	       keyeq(znode_get_rd_key(node), min_key()) ||
+	       keyge(key, &node->rd_key) ||
+	       keyeq(&node->rd_key, min_key()) ||
 	       ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	node->rd_key = *key;
-	node->rd_key_version = ++ rd_key_version;
+ 	ON_DEBUG(node->rd_key_version = atomic_inc_return(&delim_key_version));
 	return &node->rd_key;
 }
 
-static int ld_key_version = 0;
 
 /* update left-delimiting key of @node */
 reiser4_internal reiser4_key *
@@ -734,10 +733,10 @@ znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk > 0));
 	assert("nikita-2943",
 	       znode_is_any_locked(node) ||
-	       keyeq(znode_get_ld_key(node), min_key()));
+	       keyeq(&node->ld_key, min_key()));
 
 	node->ld_key = *key;
-	node->ld_key_version = ++ ld_key_version;
+	ON_DEBUG(node->ld_key_version = atomic_inc_return(&delim_key_version));
 	return &node->ld_key;
 }
 

@@ -256,7 +256,16 @@ link_left_and_right(znode * left, znode * right)
 		if (left->right == NULL) {
 			left->right = right;
 			ZF_SET(left, JNODE_RIGHT_CONNECTED);
+
+			ON_DEBUG(left->right_version = atomic_inc_return(&delim_key_version););
+
 		} else if (ZF_ISSET(left->right, JNODE_HEARD_BANSHEE)) {
+
+			ON_DEBUG(
+				left->right->left_version = atomic_inc_return(&delim_key_version);
+				left->right_version = atomic_inc_return(&delim_key_version);
+				);
+
 			left->right->left = NULL;
 			left->right = right;
 			ZF_SET(left, JNODE_RIGHT_CONNECTED);
@@ -280,10 +289,20 @@ link_left_and_right(znode * left, znode * right)
 		if (right->left == NULL) {
 			right->left = left;
 			ZF_SET(right, JNODE_LEFT_CONNECTED);
+
+			ON_DEBUG(right->left_version = atomic_inc_return(&delim_key_version););
+
 		} else if (ZF_ISSET(right->left, JNODE_HEARD_BANSHEE)) {
+
+			ON_DEBUG(
+				right->left->right_version = atomic_inc_return(&delim_key_version);
+				right->left_version = atomic_inc_return(&delim_key_version);
+				);
+
 			right->left->right = NULL;
 			right->left = left;
 			ZF_SET(right, JNODE_LEFT_CONNECTED);
+
 		} else
 			assert("nikita-3303",
 			       left == NULL || right->left == left);
@@ -504,6 +523,12 @@ connect_znode(coord_t * parent_coord, znode * child)
 		child->right = NULL;
 		ZF_SET(child, JNODE_LEFT_CONNECTED);
 		ZF_SET(child, JNODE_RIGHT_CONNECTED);
+
+		ON_DEBUG(
+			child->left_version = atomic_inc_return(&delim_key_version);
+			child->right_version = atomic_inc_return(&delim_key_version);
+			);
+		
 		return 0;
 	}
 
@@ -773,21 +798,39 @@ fail:
 reiser4_internal void
 sibling_list_remove(znode * node)
 {
+	reiser4_tree *tree;
+
+	tree = znode_get_tree(node);
 	assert("umka-255", node != NULL);
-	assert("zam-878", rw_tree_is_write_locked(znode_get_tree(node)));
+	assert("zam-878", rw_tree_is_write_locked(tree));
 	assert("nikita-3275", check_sibling_list(node));
+
+	WLOCK_DK(tree);
+	if (znode_is_right_connected(node) && node->right != NULL &&
+	    znode_is_left_connected(node) && node->left != NULL) {
+		assert("zam-32245", keyeq(znode_get_rd_key(node), znode_get_ld_key(node->right)));
+		znode_set_rd_key(node->left, znode_get_ld_key(node->right));
+	}
+	WUNLOCK_DK(tree);
 
 	if (znode_is_right_connected(node) && node->right != NULL) {
 		assert("zam-322", znode_is_left_connected(node->right));
 		node->right->left = node->left;
+		ON_DEBUG(node->right->left_version = atomic_inc_return(&delim_key_version););
 	}
 	if (znode_is_left_connected(node) && node->left != NULL) {
 		assert("zam-323", znode_is_right_connected(node->left));
 		node->left->right = node->right;
+		ON_DEBUG(node->left->right_version = atomic_inc_return(&delim_key_version););
 	}
+	
 	ZF_CLR(node, JNODE_LEFT_CONNECTED);
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
-	ON_DEBUG(node->left = node->right = NULL);
+	ON_DEBUG(
+		node->left = node->right = NULL;
+		node->left_version = atomic_inc_return(&delim_key_version);
+		node->right_version = atomic_inc_return(&delim_key_version);
+		);
 	assert("nikita-3276", check_sibling_list(node));
 }
 
@@ -805,15 +848,21 @@ sibling_list_drop(znode * node)
 	if (right != NULL) {
 		assert("nikita-2465", znode_is_left_connected(right));
 		right->left = NULL;
+		ON_DEBUG(right->left_version = atomic_inc_return(&delim_key_version););
 	}
 	left = node->left;
 	if (left != NULL) {
 		assert("zam-323", znode_is_right_connected(left));
 		left->right = NULL;
+		ON_DEBUG(left->right_version = atomic_inc_return(&delim_key_version););
 	}
 	ZF_CLR(node, JNODE_LEFT_CONNECTED);
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
-	ON_DEBUG(node->left = node->right = NULL);
+	ON_DEBUG(
+		node->left = node->right = NULL;
+		node->left_version = atomic_inc_return(&delim_key_version);
+		node->right_version = atomic_inc_return(&delim_key_version);
+		);
 }
 
 /* Insert new node into sibling list. Regular balancing inserts new node
@@ -834,12 +883,23 @@ sibling_list_insert_nolock(znode * new, znode * before)
 		assert("zam-333", znode_is_connected(before));
 		new->right = before->right;
 		new->left = before;
-		if (before->right != NULL)
+		ON_DEBUG(
+			new->right_version = atomic_inc_return(&delim_key_version);		
+			new->left_version = atomic_inc_return(&delim_key_version);
+			);
+		if (before->right != NULL) {
 			before->right->left = new;
+			ON_DEBUG(before->right->left_version = atomic_inc_return(&delim_key_version););
+		}
 		before->right = new;
+		ON_DEBUG(before->right_version = atomic_inc_return(&delim_key_version););
 	} else {
 		new->right = NULL;
 		new->left = NULL;
+		ON_DEBUG(
+			new->right_version = atomic_inc_return(&delim_key_version);
+			new->left_version = atomic_inc_return(&delim_key_version);
+			);
 	}
 	ZF_SET(new, JNODE_LEFT_CONNECTED);
 	ZF_SET(new, JNODE_RIGHT_CONNECTED);

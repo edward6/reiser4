@@ -105,6 +105,7 @@ struct znode {
 	znode *left;
 	/* right-neighbor */
 	znode *right;
+
 	/* long term lock on node content. This lock supports deadlock
 	   detection. See lock.c
 	*/
@@ -131,11 +132,8 @@ struct znode {
 	/* left delimiting key. Necessary to efficiently perform
 	   balancing with node-level locking. Kept in memory only. */
 	reiser4_key ld_key;
-	int ld_key_version;
 	/* right delimiting key. */
 	reiser4_key rd_key;
-	int rd_key_version;
-	
 
 	/* znode's tree level */
 	__u16 level;
@@ -147,9 +145,15 @@ struct znode {
 	void *creator;
 	reiser4_key first_key;
 	unsigned long times_locked;
+	int left_version;   /* when node->left was updated */
+	int right_version;  /* when node->right was updated */	
+	int ld_key_version; /* when node->ld_key was updated */
+	int rd_key_version; /* when node->rd_key was updated */
 #endif
 
 } __attribute__((aligned(16)));
+
+ON_DEBUG(extern atomic_t delim_key_version;)
 
 /* In general I think these macros should not be exposed. */
 #define znode_is_locked(node)          (lock_is_locked(&node->lock))
