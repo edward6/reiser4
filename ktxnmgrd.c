@@ -16,6 +16,7 @@
 #include <linux/sched.h> /* for struct task_struct */
 #include <linux/suspend.h>
 #include <linux/kernel.h>
+#include <linux/writeback.h>
 
 static int scan_mgr( txn_mgr *mgr );
 
@@ -298,7 +299,7 @@ int ktxnmgr_writeback (struct super_block * s, struct writeback_control *wbc)
 	
 	spin_lock_txnmgr (tmgr);
 
-	if (tmgr->flush_control.nr_to_flush) {
+	if (tmgr->flush_control.nr_to_flush == 0) {
 		tmgr->flush_control.nr_to_flush += wbc->nr_to_write * 2;
 		ktxnmgrd_kick (tmgr->daemon, 0);
 	}

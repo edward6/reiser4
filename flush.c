@@ -584,7 +584,6 @@ static int           flush_reverse_relocate_end_of_twig        (flush_position *
 /* Flush allocate write-queueing functions: */
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_allocate_znode_update  (znode *node, coord_t *parent_coord, flush_position *pos);
-static int           flush_empty_queue            (flush_position *pos);
 
 /* Flush helper functions: */
 static int           jnode_lock_parent_coord      (jnode *node, coord_t *coord, lock_handle *parent_lh, load_count *parent_zh, znode_lock_mode mode);
@@ -2542,13 +2541,6 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 	spin_unlock_jnode (node);
 
 	return 0;
-}
-
-/* Write some of the the flush_position->queue contents to disk.
- */
-static int flush_empty_queue (flush_position *pos)
-{
-	return fq_write (pos->fq, 0);
 }
 
 /********************************************************************************

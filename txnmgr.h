@@ -482,7 +482,7 @@ extern int  fq_write       (flush_queue_t *, int);
 extern int  finish_all_fq  (txn_atom *, int *);
 extern int  current_atom_finish_all_fq (void);
 extern void fq_init_atom   (txn_atom *);
-extern int  fq_writeback (struct super_block *, jnode *, int);
+extern int  fq_writeback (struct super_block *, jnode *, struct writeback_control *);
 
 extern void fq_add_bio     (flush_queue_t *, struct bio *);
 extern flush_queue_t * get_fq_for_current_atom (void);

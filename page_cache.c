@@ -584,8 +584,7 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 					    * unused currently. */ )
 {
 	jnode *node;
-	txn_atom * atom;
-	int flush_some = 0;
+	int flush_some;
 	struct super_block *s = page -> mapping -> host -> i_sb;
 
 	REISER4_ENTRY (s);
@@ -597,13 +596,12 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 
 	reiser4_unlock_page( page );
 
-	if (JF_ISSET (node, JNODE_FLUSH_QUEUED))
-		flush_some = 1;
+	flush_some = !JF_ISSET (node, JNODE_FLUSH_QUEUED);
 
-	fq_writeback (node, wbc);
+	fq_writeback (s, node, wbc);
 
 	if (flush_some) {
-		ktxnmgr_writeback (wbc);
+		ktxnmgr_writeback (s, wbc);
 	}
 
 	jput (node);

@@ -861,7 +861,7 @@ static jnode * find_first_dirty (txn_atom * atom)
 	jnode * first_dirty = NULL;
 	tree_level level;
 
-	assertion ("zam-753", spin_atom_is_locked (atom));
+	assert ("zam-753", spin_atom_is_locked (atom));
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
@@ -890,7 +890,6 @@ static jnode * find_first_dirty (txn_atom * atom)
 static int
 atom_try_commit_locked (txn_atom *atom)
 {
-	int level;
 	int ret = 0;
 	jnode *first_dirty;		/* a variable for atom's dirty lists scanning */
 
@@ -1148,11 +1147,13 @@ int txn_commit_some (txn_mgr *mgr)
 int txn_flush_one (txn_mgr * tmgr)
 {
 	txn_atom * atom;
+	reiser4_context * ctx = get_current_context();
 	txn_handle * txnh;
+	jnode * first_dirty;
 	spin_lock_txnmgr (tmgr);
 
 	for (atom = atom_list_front (&tmgr->atoms_list);
-	     ! atom_list_end (&tmgr->atom, atom);
+	     ! atom_list_end (&tmgr->atoms_list, atom);
 	     atom = atom_list_next (atom))
 	{
 		spin_lock_atom (atom);
@@ -1172,7 +1173,7 @@ int txn_flush_one (txn_mgr * tmgr)
 
 	spin_unlock_txnmgr (tmgr);
 	
-	txnh = get_current_context()->trans;
+	txnh = ctx->trans;
 
 	spin_lock_txnh (txnh);
 
@@ -1190,16 +1191,21 @@ int txn_flush_one (txn_mgr * tmgr)
 	if (first_dirty) {
 		int ret;
 
-		ret = jnode_flush (first_dirty, NULL);
+		ret = jnode_flush (first_dirty, NULL, 0);
 
 		jput(first_dirty);
 
 		if (ret) {
 			info ("jnode_flush failed with err = %d\n", ret);
+		} else {
+			spin_lock_txnmgr (tmgr);
+			/* FIXME: exact counting is not implemented  */
+			tmgr->flush_control.nr_to_flush = 0;
+			spin_unlock_txnmgr (tmgr);
 		}
 	}
 
-	return txn_end();
+	return txn_end(ctx);
 }
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
@@ -2032,7 +2038,7 @@ void jnode_set_dirty( jnode *node )
 				assert ("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
 				capture_list_remove     (node);
-				capture_list_push_front (& atom->dirty_nodes[level], node);
+				capture_list_push_back (& atom->dirty_nodes[level], node);
 
 				spin_unlock_atom (atom);
 			}

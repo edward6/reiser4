@@ -14,6 +14,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
+#include <linux/writeback.h>
 
 /* A flush queue object is an accumulator for keeping jnodes prepared
  * by the jnode_flush() function for writing to disk. Those "queued" jnodes are
@@ -845,15 +846,17 @@ int fq_writeback (struct super_block *s, jnode * node, struct writeback_control 
 	long total_est = 0;
 	flush_queue_t * list_fq_to_write = NULL;
 
-	assert ("zam-747", how_many > 0);
+	assert ("zam-747", wbc->nr_to_write > 0);
 
 	/* First, we try to get atom we have jnode from, and write dirty
 	 * jnodes from atom's flush queues */
 	spin_lock_jnode (node);
 	atom = atom_get_locked_by_jnode (node);
 
-	if (atom != NULL && atom_has_queues_to_write(atom)) {
-		total_est = get_enough_fq (atom, &list_fq_to_write, wbc->nr_to_write);
+	if (atom != NULL) {
+		if (atom_has_queues_to_write(atom)) {
+			total_est = get_enough_fq (atom, &list_fq_to_write, wbc->nr_to_write);
+		}
 		spin_unlock_atom (atom);
 	}
 
@@ -861,7 +864,7 @@ int fq_writeback (struct super_block *s, jnode * node, struct writeback_control 
 
 	/* If scanning of one atom was not enough we scan all atoms for flush
 	 * queues in proper state */
-	if (how_many > total_est) {
+	if (wbc->nr_to_write > total_est) {
 		txn_mgr * mgr = &get_super_private(s)->tmgr;
 
 		spin_lock_txnmgr (mgr);
@@ -890,7 +893,7 @@ int fq_writeback (struct super_block *s, jnode * node, struct writeback_control 
 		if (nr_submitted >= wbc->nr_to_write) {
 			wbc->nr_to_write = 0;
 		} else {
-			wbc->nr_to_Write -= nr_submitted;
+			wbc->nr_to_write -= nr_submitted;
 		}
 	}
 
