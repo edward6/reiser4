@@ -964,7 +964,7 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 		 *
 		 * FIXME: This can't be used if there is, e.g., an encryption plugin.
 		 */
-		ret = squeeze_right_leaf (left, right);
+		ret = squeeze_right_leaf (right, left);
 		break;
 
 	case TWIG_LEVEL:
