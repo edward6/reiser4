@@ -978,19 +978,21 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 
 			/* we have acquired left neighbor of from->node */
 			result = zload(left_lh.node);
-			if (result) {
-				done_lh(&left_lh);
-				return result;
-			}
-			left_zloaded_here = 1;
-			coord_init_last_unit(&left_coord, left_lh.node);
+			if (result)
+				goto done;
+
+			locked_left_neighbor = left_lh.node;
 		} else {
-			/* squalloc_right_twig_cut should have supplied loaded
-			   locked left neighbor */
-			assert("vs-833", znode_is_loaded(locked_left_neighbor));
+			/* squalloc_right_twig_cut should have supplied locked
+			 * left neighbor */
 			assert("vs-834", znode_is_write_locked(locked_left_neighbor));
-			coord_init_last_unit(&left_coord, locked_left_neighbor);
+			result = zload(locked_left_neighbor);
+			if (result)
+				return result;
 		}
+
+		left_zloaded_here = 1;
+		coord_init_last_unit(&left_coord, locked_left_neighbor);
 	}
 
 	if (!item_is_internal(&left_coord)) {
@@ -999,7 +1001,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 
 		/* there is no left formatted child */
 		if (left_zloaded_here)
-			zrelse(left_lh.node);
+			zrelse(locked_left_neighbor);
 		done_lh(&left_lh);
 		return 0;
 	}
@@ -1008,10 +1010,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	left_child = child_znode(&left_coord, left_coord.node, 1, 0);
 
 	if (IS_ERR(left_child)) {
-		if (left_zloaded_here)
-			zrelse(left_lh.node);
-		done_lh(&left_lh);
-		return PTR_ERR(left_child);
+		result = PTR_ERR(left_child);
+		goto done;
 	}
 
 	/* left child is acquired, calculate new right delimiting key for it
@@ -1028,15 +1028,9 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			switch (result) {
 			case 0:
 				result = zload(right_lh.node);
-				if (result) {
-					done_lh(&right_lh);
-					if (left_zloaded_here)
-						zrelse(left_lh.node);
-					done_lh(&left_lh);
-					if (left_child)
-						zput(left_child);
-					return result;
-				}
+				if (result)
+					goto done;
+
 				right_zloaded_here = 1;
 				coord_init_first_unit(&right_coord, right_lh.node);
 				item_key_by_coord(&right_coord, &key);
@@ -1048,16 +1042,11 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				UNDER_RW_VOID(dk, tree, read, 
 					      key = *znode_get_rd_key(from->node));
 				right_coord.node = 0;
+				result = 0;
 				break;
 			default:
 				/* real error */
-				done_lh(&right_lh);
-				if (left_zloaded_here)
-					zrelse(left_lh.node);
-				done_lh(&left_lh);
-				if (left_child)
-					zput(left_child);
-				return result;
+				goto done;
 			}
 		} else {
 			/* there is an item to the right of @from - take its key */
@@ -1071,15 +1060,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 						  right_coord.node, 1, 0);
 
 			if (IS_ERR(right_child)) {
-				if (right_zloaded_here)
-					zrelse(right_lh.node);
-				done_lh(&right_lh);
-				if (left_zloaded_here)
-					zrelse(left_lh.node);
-				done_lh(&left_lh);
-				if (left_child)
-					zput(left_child);
-				return PTR_ERR(right_child);
+				result = PTR_ERR(right_child); 
+				goto done;
 			}
 
 			/* link left_child and right_child */
@@ -1099,7 +1081,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	if (left_child)
 		UNDER_RW_VOID(dk, tree, write, 
 			      znode_set_rd_key(left_child, &key));
-
+ done:
 	if (right_child)
 		zput(right_child);
 	if (right_zloaded_here)
@@ -1109,7 +1091,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	if (left_child)
 		zput(left_child);
 	if (left_zloaded_here)
-		zrelse(left_lh.node);
+		zrelse(locked_left_neighbor);
 	done_lh(&left_lh);
 	return 0;
 }
@@ -1227,7 +1209,7 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 */
 
 /* Audited by: umka (2002.06.16) */
-#if 1
+#if 0
 int
 cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const reiser4_key * to_key)
 {
@@ -1323,7 +1305,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 
 /* cut_tree, the new version. */
 
-static int delete_node (znode * left, znode * node)
+static int delete_node (znode * left, znode * node, reiser4_key * smallest_removed)
 {
 	lock_handle parent_lock;
 	coord_t cut_from;
@@ -1349,21 +1331,29 @@ static int delete_node (znode * left, znode * node)
 	if (ret)
 		goto failed;
 
+	atomic_dec(&parent_lock.node->c_count);
+	node->in_parent.node = NULL;
+
 	/* remove a pointer from the parent node to the node being deleted. */
 	coord_dup(&cut_to, &cut_from);
 	ret = cut_node(&cut_from, &cut_to, NULL, NULL, NULL, 0, 0, NULL);
 	if (ret)
+		/* FIXME(Zam): Should we re-connect the node to its parent if
+		 * cut_node fails? */
 		goto failed;
-
-	atomic_dec(&parent_lock.node->c_count);
-	node->in_parent.node = NULL;
 
 	/* @node should be deleted after unlocking. */
 	ZF_SET(node, JNODE_HEARD_BANSHEE);
 
-	if (left) 
-		UNDER_RW(dk, current_tree, write, left->rd_key = node->rd_key);
+	{
+		reiser4_tree * tree = current_tree;
 
+		WLOCK_DK(tree);
+		if (left) 
+			left->rd_key = node->rd_key;
+		*smallest_removed = node->ld_key;
+		WUNLOCK_DK(tree);
+	}
  failed:
 	zrelse(parent_lock.node);
  failed_nozrelse:
@@ -1395,7 +1385,9 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 			break;
 
 		if (iterations && UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) {
-			result = delete_node(next_node_lock.node, tap->coord->node);
+			result = delete_node(next_node_lock.node, tap->coord->node, &smallest_removed);
+			if (result)
+				break;
 		} else {
 			result = tap_load(tap);
 			if (result)
@@ -1410,7 +1402,8 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 			assert("vs-686", nplug);
 			assert("vs-687", nplug->lookup);
 
-			result = nplug->lookup(tap->coord->node, from_key, FIND_EXACT, &left_coord);
+			result = nplug->lookup(tap->coord->node, from_key, 
+					       FIND_MAX_NOT_MORE_THAN, &left_coord);
 
 			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 				break;
@@ -1422,13 +1415,13 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 			tap_relse(tap);
 			if (result)
 				break;
-
-			/* Check whether all items with keys >= from_key were removed
-			 * from the tree. */
-			if (keyle(&smallest_removed, from_key))
-				/* result = 0;*/
-				break;
 		}
+
+		/* Check whether all items with keys >= from_key were removed
+		 * from the tree. */
+		if (keyle(&smallest_removed, from_key))
+			/* result = 0;*/
+				break;
 
 		if (next_node_lock.node == NULL)
 			break;
@@ -1473,7 +1466,9 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
 		result = cut_tree_worker(&tap, from_key, to_key);
 		tap_done(&tap);
-		
+
+		preempt_point();
+
 	} while (result == -EDEADLK);
 
 	if (result == -E_NO_NEIGHBOR)
