@@ -793,6 +793,9 @@ jdelete(jnode * node /* jnode to finish with */ )
 	assert("nikita-467", node != NULL);
 	assert("nikita-2123", JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	assert("nikita-2531", JF_ISSET(node, JNODE_RIP));
+	/* jnode cannot be eflushed at this point, because emegrency flush
+	 * acquired additional reference counter. */
+	assert("nikita-2917", !JF_ISSET(node, JNODE_EFLUSH));
 
 	trace_on(TRACE_PCACHE, "delete node: %p\n", node);
 

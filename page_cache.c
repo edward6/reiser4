@@ -653,9 +653,6 @@ void
 drop_page(struct page *page, jnode * node)
 {
 	assert("nikita-2181", PageLocked(page));
-	/* FIXME-NIKITA hmm, waiting for writeback completion with page lock
-	 * held... */
-	wait_on_page_writeback(page);
 	clear_page_dirty(page);
 	ClearPageUptodate(page);
 	remove_from_page_cache(page);

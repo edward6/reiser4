@@ -685,6 +685,9 @@ extent2tail(struct file *file)
 		reiser4_lock_page(page);
 		assert("vs-1086", page->mapping == inode->i_mapping);
 		assert("nikita-2690", (!PagePrivate(page) && page->private == 0));
+		/* FIXME-NIKITA hmm, waiting for writeback completion with
+		 * page lock held... */
+		wait_on_page_writeback(page);
 		drop_page(page, NULL);
 		/* release reference taken by read_cache_page() above */
 		page_cache_release(page);
