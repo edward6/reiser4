@@ -1,0 +1,7 @@
+DIR=$1
+
+(
+	echo "mount $REISER4_MOUNT $REISER4_MOUNT_OPTS"
+	echo "cp-r $DIR"
+	echo "umount"
+) | a.out sh
