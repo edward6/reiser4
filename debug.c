@@ -671,12 +671,11 @@ static const char *
 op2str(int op)
 {
 	static const char *op_names[OP_NUM] = {
-		"clear-inode",
-		"new-inode",
-		"get-new-inode",
-		"get-new-inode-fast",
-		"hash",
-		"unhash"
+		"eflush-del",
+		"eflush-start",
+		"eflush-done",
+		"eflush-reloc",
+		"eflush-failed",
 	};
 	assert("vs-1673", op < OP_NUM);
 	return op_names[op];

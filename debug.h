@@ -529,14 +529,13 @@ typedef struct err_site {} err_site;
 #endif
 
 /* operations to clog */
-/* debugging inode->i_state == 0 and r4_inode->jnodes != 0 */
-#define CLEAR_INODE 0
-#define NEW_INODE 1
-#define GET_NEW_INODE 2
-#define GET_NEW_INODE_FAST 3
-#define HASH_JNODE 4
-#define UNHASH_JNODE 5
-#define OP_NUM 6
+/* debugging eflush_free which does not find eflush node in hash table */
+#define EFLUSH_DEL 0
+#define EFLUSH_START 1
+#define EFLUSH_DONE 2
+#define EFLUSH_RELOC 3
+#define EFLUSH_FAILED 4
+#define OP_NUM 5
 
 void clog_op(int op, void *);
 void print_clog(void);
