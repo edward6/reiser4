@@ -26,6 +26,8 @@ typedef struct seal_s {
 extern void seal_init( seal_t *seal, tree_coord *coord, reiser4_key *key );
 extern void seal_done( seal_t *seal );
 
+extern int seal_is_set( const seal_t *seal );
+
 extern int seal_validate( seal_t            *seal, 
 			  tree_coord        *coord, 
 			  reiser4_key       *key, 

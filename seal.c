@@ -30,7 +30,6 @@
 
 #include "reiser4.h"
 
-static int seal_is_set( const seal_t *seal );
 static znode *seal_node( const seal_t *seal );
 static int seal_matches( const seal_t *seal, znode *node );
 static int seal_search_node( seal_t *seal, tree_coord *coord, 
@@ -73,12 +72,19 @@ void seal_done( seal_t *seal )
 		seal -> version = 0;
 }
 
+/** true if seal was initialised */
+int seal_is_set( const seal_t *seal /* seal to query */ )
+{
+	assert( "nikita-1890", seal != NULL );
+	return seal -> version != 0;
+}
+
 /**
  * (re-)validate seal.
  *
  * Checks whether seal is pristine, and try to revalidate it if possible.
  *
- * If seal was burned, or broken irreparable, return -EAGAIN.
+ * If seal was burned, or broken irreparably, return -EAGAIN.
  *
  */
 int seal_validate( seal_t            *seal  /* seal to validate */, 
@@ -142,13 +148,6 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 }
 
 /* helpers functions */
-
-/** true if seal was initialised */
-static int seal_is_set( const seal_t *seal /* seal to query */ )
-{
-	assert( "nikita-1890", seal != NULL );
-	return seal -> version != 0;
-}
 
 /** obtain reference to znode seal points to, if in cache */
 static znode *seal_node( const seal_t *seal /* seal to query */ )
@@ -216,7 +215,7 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 		} else
 			result = -ENOENT;
 	}
-	zrelse( node );
+	zrelse( node, 1 );
 	return result;
 }
 

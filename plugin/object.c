@@ -235,10 +235,12 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		if( ref -> sd && ref -> sd -> s.sd.save ) {
 			area = item_body_by_coord( &coord );
 			result = ref -> sd -> s.sd.save( inode, &area );
-			if( result == 0 )
+			if( result == 0 ) {
 				/* object has stat-data now */
 				*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
-			else {
+				/* initialise stat-data seal */
+				seal_init( &ref -> sd_seal, &coord, &key );
+			} else {
 				error_message = "cannot save sd of";
 				result = -EIO;
 			}
@@ -274,9 +276,20 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	init_coord( &coord );
 	init_lh( &lh );
 
-	result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
-	error_message = NULL;
 	state = reiser4_inode_data( inode );
+
+	if( seal_is_set( &state -> sd_seal ) ) {
+		/* first, try to use seal */
+		result = seal_validate( &state -> sd_seal, &coord, 
+					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
+					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
+		if( result == 0 )
+			dup_coord( &state -> sd_coord, &coord );
+	}
+
+	if( result != 0 )
+		result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
+	error_message = NULL;
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
@@ -326,6 +339,13 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 				item_length_by_coord( &coord ) == state -> sd_len );
 			area = item_body_by_coord( &coord );
 			result = state -> sd -> s.sd.save( inode, &area );
+			/* re-initialise stat-data seal */
+			seal_init( &state -> sd_seal, &coord, &key );
+			/* 
+			 * possibly coord changed during resizing. Update
+			 * sd_coord.
+			 */
+			dup_coord( &state -> sd_coord, &coord );
 		} else {
 			key_warning( error_message, &key, result );
 		}
