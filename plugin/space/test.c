@@ -10,12 +10,22 @@
  */
 
 
+/* plugin->u.space_allocator.init_allocator */
+int test_init_allocator (reiser4_space_allocator * allocator,
+			 struct super_block * super UNUSED_ARG, void * arg)
+{
+	reiser4_block_nr * next;
+
+	assert ("vs-629", arg);
+	next = arg;
+	allocator->u.test.new_block_nr = *next;
+	return 0;
+}
 
 /*
  * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
  */
 #define P 0.2
-
 
 /* plugin->u.space_allocator.alloc_blocks */
 int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
