@@ -253,7 +253,13 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 		if (item_plugin->u.item.item_type != INTERNAL_ITEM_TYPE) {
 			if (handle->owner != NULL)
 				reiser4_unlock_znode(handle);
-			return -ENAVAIL;
+			/*
+			 * FIXME-NIKITA Zam, is this correct? If @coord does
+			 * not contain an internal item, @child has to be
+			 * still connected to the NULL neighbor.
+			 */
+			link_znodes(child, NULL, flags & GN_GO_LEFT);
+			return 0;
 		}
 
 		if (handle->owner != NULL) {
