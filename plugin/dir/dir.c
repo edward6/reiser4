@@ -700,6 +700,8 @@ static int dir_go_to( struct file *dir, readdir_pos *pos, tap_t *tap )
 			       LEAF_LEVEL, LEAF_LEVEL, 0 );
 	if( result == CBK_COORD_FOUND )
 		result = rewind_right( tap, ( int ) pos -> position.pos );
+	else
+		tap -> coord -> node = NULL;
 	return result;
 }
 
