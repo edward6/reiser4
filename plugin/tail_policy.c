@@ -46,8 +46,8 @@ reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
 	if (is_fake) {
 	    reiser4_block_nr amount;
 	    
-	    /* In the case of unallocated allocated extent (truncate does) we are 
-	     * counting only overhead for one balancing */
+	    /* In the case of unallocated extent (truncate does) we are counting 
+	     * only overhead for one balancing */
 	    estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
 	    return inode_file_plugin(inode)->estimate.update(inode) + amount;
 	} else {
