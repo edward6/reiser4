@@ -213,6 +213,8 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	znode *node;
 	reiser4_item_data item;
 	carry_insert_data cdata;
+	reiser4_tree *tree;
+
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 	ON_STATS(todo.level_no = TWIG_LEVEL);
@@ -229,6 +231,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	trace_on(TRACE_RESERVE, "balancing grabs 1 block for a leaf.\n");
 #endif
 
+	tree = znode_get_tree(insert_coord->node);
 	node = new_node(insert_coord->node, LEAF_LEVEL);
 #if 0
 	/* VITALY: Ungrab block for the balancing needs. */
@@ -236,14 +239,13 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	    /*reiser4_release_grabbed_space */
 	    (get_current_context()->grabbed_blocks - grabbed);
 #endif
-
 	if (IS_ERR(node))
 		return PTR_ERR(node);
 	/* setup delimiting keys for node being inserted */
-	spin_lock_dk(znode_get_tree(node));
+	spin_lock_dk(tree);
 	znode_set_ld_key(node, key);
 	znode_set_rd_key(node, rdkey);
-	spin_unlock_dk(znode_get_tree(node));
+	spin_unlock_dk(tree);
 
 	parent_node = insert_coord->node;
 	op = post_carry(&todo, COP_INSERT, insert_coord->node, 0);
@@ -271,6 +273,14 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		if (parent_node != insert_coord->node) {
 			zrelse(parent_node);
 			result = zload(insert_coord->node);
+			if (result == 0) {
+				write_lock_tree(tree);
+				assert("nikita-2983", znode_is_right_connected(node));
+				assert("nikita-2984", node->right == NULL);
+				ZF_CLR(node, JNODE_RIGHT_CONNECTED);
+				write_unlock_tree(tree);
+				result = connect_znode(insert_coord, node);
+			}
 		}
 	}
 	return result;
