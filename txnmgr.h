@@ -170,7 +170,12 @@ struct blocknr_set {
 TS_LIST_DECLARE(fq);
 
 /* An atomic transaction: this is the underlying system representation
-   of a transaction, not the one seen by clients. */
+   of a transaction, not the one seen by clients. 
+
+   Invariants involving this data-type:
+
+      [sb-fake-allocated]
+*/
 struct txn_atom {
 	/* The spinlock protecting the atom, held during fusion and various other state
 	   changes. */

@@ -98,12 +98,19 @@ typedef enum {
     ->blocks_fake_allocated
     ->blocks_flush_reserved
     ->eflushed
-    ->
-    ->
-    ->
-    ->
-    ->
+    ->blocknr_hint_default
 
+   After journal replaying during mount, 
+
+    ->last_committed_tx 
+
+   is protected by ->tmgr.commit_semaphore
+
+   Invariants involving this data-type:
+
+      [sb-block-counts]
+      [sb-grabbed]
+      [sb-fake-allocated]
 */
 struct reiser4_super_info_data {
 	/* guard spinlock which protects reiser4 super 

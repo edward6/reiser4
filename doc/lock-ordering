@@ -39,7 +39,7 @@ Reiser4 introduces following locks:
 
 10. Per-inode read-write lock                                   (inode_rw_lock)
 
-11. Per-super-block spin lock                                   (super_guard+)
+11. Per-super-block spin lock                                   (super_guard*+)
 
 12. Per-flushing-thread spin lock                               (ktxnmgrd_lock)
 
@@ -72,6 +72,17 @@ Reiser4 introduces following locks:
 24. Per-flushing-thread condition variable                      (ktxnmgrd_wait)
 
 25. Per-lock-stack wakeup semaphore                             (stack_sema)
+
+26. Per-super-block flush serializing semaphore                 (flush_sema)
+
+27. Per-transaction-manager commit semaphore                    (commit_sema)
+
+28. Per-super-block semaphore used to arbitrate use of 5%       (delete_sema)
+    reserved disk space
+
+30. Global spin lock used to serialize calls to panic           (panic_guard+)
+
+31. Global spin lock used to protect plugin set hash table      (pset_guard+)
 
 99. Various locks used by the user level simulator
 
@@ -179,6 +190,29 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     (Checked by znode_invariant_f().)
 
+[sb-block-counts]                                     super_guard
+
+	reiser4_block_count(super) = reiser4_grabbed_blocks(super) + 
+                                 reiser4_free_blocks(super) +
+                                 reiser4_data_blocks(super) + 
+                                 reiser4_fake_allocated(super) + 
+                                 reiser4_fake_allocated_unformatted(super) + 
+                                 reiser4_flush_reserved(super)
+
+    (Checked by check_block_counters().)
+
+[sb-grabbed]                                          super_guard
+
+    reiser4_grabbed_blocks(super) equals the sum of ctx->grabbed_blocks for
+    all grabbed contexts
+
+[sb-fake-allocated]                                   txnmgr_lock, atom_lock
+
+    When all atoms and transaction manager are locked,
+    reiser4_flush_reserved(super) equals to sum of atom->flush_reserved for
+    all atoms.
+
+
 --------------------------------LOCK ORDERING-----------------------------------
 
 Lock ordering for kernel locks is taken from mm/filemap.c. Locks can be taken
@@ -187,34 +221,37 @@ with respect to each other. Any spin lock is righter than any long term lock,
 obviously.
 
 i_sem
-..inode_rw_lock <-----DEAD1---+
-....longterm_lock <---DEAD2-+ |
-......page_lock             | |
-........pfault              | |
-..........mm->mmap_sem------+-+                   [do_page_fault]
-............kalloc
-..............ktxnmgrd_lock
-..............inode_guard
-................txnmgr_lock
-..................atom_lock
-....................jnode_lock            [->vm_writeback()->jget()]
-......................txnh_lock
-........................dk_lock
-..........................tree_lock
-............................cbk_guard
-..............mapping->i_shared_lock          [vmtruncate]
-................mapping->private_lock         [__set_page_dirty_buffers]
-................mapping->page_lock
-..................cachep->spinlock
-..................zone->lock
-..................&inode_lock
-..................&swaplock
-....................swap->device_lock     [exclusive_swap_page,.others]
-......................mm->page_table_lock [handle_mm_fault, do_no_page]
-......................zone->lru_lock
-....................&sb_lock 		          [fs/fs-writeback.c]
-              ^
-              +-- spin locks are starting here. Don't schedule rightward.
+..delete_sema
+....flush_sema
+....commit_sema
+......inode_rw_lock <-----DEAD1---+
+........longterm_lock <---DEAD2-+ |
+..........page_lock             | |
+............pfault              | |
+..............mm->mmap_sem------+-+                   [do_page_fault]
+................kalloc
+..................ktxnmgrd_lock
+..................inode_guard
+....................txnmgr_lock
+......................atom_lock
+........................jnode_lock            [->vm_writeback()->jget()]
+..........................txnh_lock
+............................dk_lock
+..............................tree_lock
+................................cbk_guard
+..................mapping->i_shared_lock          [vmtruncate]
+....................mapping->private_lock         [__set_page_dirty_buffers]
+....................mapping->page_lock
+......................cachep->spinlock
+......................zone->lock
+......................&inode_lock
+......................&swaplock
+........................swap->device_lock     [exclusive_swap_page,.others]
+..........................mm->page_table_lock [handle_mm_fault, do_no_page]
+..........................zone->lru_lock
+........................&sb_lock 		          [fs/fs-writeback.c]
+                  ^
+                  +-- spin locks are starting here. Don't schedule rightward.
 
 NOT FINISHED.
 
@@ -281,7 +318,36 @@ is necessary.
 
 inode_guard->&inode_lock: eflush_add(). 
 
-    eflush_add(), while holding calls __iget() that requires &inode_lock
+    eflush_add()
+
+        while holding calls __iget() that requires &inode_lock
+
+flush_sema
+
+    jnode_flush()
+
+        to serialize flushing. This behavior can be disabled with mtflush
+        mount option.
+
+atom_lock->jnode_lock
+
+    uncapture_block()
+
+atom_lock->tree_lock && jnode_lock && page_lock
+
+    uncapture_block() calls jput()
+
+delete_sema
+
+    common_unlink()->unlink_check_and_grab()
+
+        to serialize access to reserved 5% of disk only used by unlinks. (This
+        is necessary so that it is always possible to unlink something and
+        free more space on file-system.)
+
+delete_sema->flush_sema || commit_sema
+
+    common_unlink() calls txnmgr_force_commit_current_atom()
 
 ----------------------------------DEADLOCKS-------------------------------------
 
