@@ -24,7 +24,6 @@ void profregion_functions_end_here(void);
 static locksite none = {
 	.hits = STATCNT_INIT,
 	.func = "",
-	.file = "",
 	.line = 0
 };
 
@@ -76,7 +75,7 @@ static ssize_t code_show(struct profregion *pregion, char *buf)
 	locksite *site;
 
 	site = pregion->code ? : &none;
-	KATTR_PRINT(p, buf, "%s:%s:%i\n", site->func, site->file, site->line);
+	KATTR_PRINT(p, buf, "%s:%s:%i\n", site->func, site->line);
 	return (p - buf);
 }
 

@@ -22,7 +22,6 @@ typedef struct percpu_counter scnt_t;
 typedef struct locksite {
 	statcnt_t   hits;
 	const char *func;
-	const char *file;
 	int         line;
 } locksite;
 
@@ -30,7 +29,6 @@ typedef struct locksite {
 	static locksite name = {		\
 		.hits = STATCNT_INIT,		\
 		.func = __FUNCTION__,		\
-		.file = __FILE__,		\
 		.line = __LINE__		\
 	}
 
