@@ -604,6 +604,7 @@ reiser4progs/libaal/.deps/exception.Plo
 reiser4progs/libaal/.deps/file.P
 reiser4progs/libaal/.deps/file.Plo
 reiser4progs/libaal/.deps/gauge.P
+reiser4progs/libaal/.deps/gauge.Plo
 reiser4progs/libaal/.deps/list.P
 reiser4progs/libaal/.deps/list.Plo
 reiser4progs/libaal/.deps/malloc.P
@@ -644,12 +645,15 @@ reiser4progs/libmisc/.deps/bitops.P
 reiser4progs/libmisc/.deps/bitops.Plo
 reiser4progs/libmisc/.deps/misc.P
 reiser4progs/libmisc/.deps/misc.Plo
+reiser4progs/libmisc/.libs/libmisc-static.al
+reiser4progs/libmisc/.libs/libmisc-static.la
 reiser4progs/libmisc/.libs/libmisc.al
 reiser4progs/libmisc/.libs/libmisc.la
 reiser4progs/libmisc/Makefile
 reiser4progs/libmisc/Makefile.in
 reiser4progs/libmisc/bitmap.lo
 reiser4progs/libmisc/bitops.lo
+reiser4progs/libmisc/libmisc-static.la
 reiser4progs/libmisc/libmisc.la
 reiser4progs/libmisc/misc.lo
 reiser4progs/libreiser4/.deps/alloc.P
@@ -670,6 +674,7 @@ reiser4progs/libreiser4/.deps/key.P
 reiser4progs/libreiser4/.deps/key.Plo
 reiser4progs/libreiser4/.deps/libreiser4.P
 reiser4progs/libreiser4/.deps/libreiser4.Plo
+reiser4progs/libreiser4/.deps/master.P
 reiser4progs/libreiser4/.deps/node.P
 reiser4progs/libreiser4/.deps/node.Plo
 reiser4progs/libreiser4/.deps/object.P
@@ -715,6 +720,7 @@ reiser4progs/libreiser4/libplugins_header.la
 reiser4progs/libreiser4/libreiser4-static.la
 reiser4progs/libreiser4/libreiser4.la
 reiser4progs/libreiser4/libreiser4.lo
+reiser4progs/libreiser4/master.lo
 reiser4progs/libreiser4/node.lo
 reiser4progs/libreiser4/object.lo
 reiser4progs/libreiser4/oid.lo
@@ -1050,6 +1056,12 @@ reiser4progs/progs/fsck/.libs/lt-fsck.reiser4
 reiser4progs/progs/fsck/Makefile
 reiser4progs/progs/fsck/Makefile.in
 reiser4progs/progs/fsck/fsck.reiser4
+reiser4progs/progs/include/Makefile
+reiser4progs/progs/include/Makefile.in
+reiser4progs/progs/libmisc/.deps/misc.P
+reiser4progs/progs/libmisc/.deps/profile.P
+reiser4progs/progs/libmisc/Makefile
+reiser4progs/progs/libmisc/Makefile.in
 reiser4progs/progs/libprogs/.deps/misc.P
 reiser4progs/progs/libprogs/.deps/misc.Po
 reiser4progs/progs/libprogs/Makefile
@@ -1120,14 +1132,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-reiser4progs/libmisc/.libs/libmisc-static.al
-reiser4progs/libmisc/.libs/libmisc-static.la
-reiser4progs/libmisc/libmisc-static.la
-reiser4progs/libreiser4/.deps/master.P
-reiser4progs/libreiser4/master.lo
-reiser4progs/progs/include/Makefile
-reiser4progs/progs/include/Makefile.in
-reiser4progs/progs/libmisc/.deps/misc.P
-reiser4progs/progs/libmisc/.deps/profile.P
-reiser4progs/progs/libmisc/Makefile
-reiser4progs/progs/libmisc/Makefile.in
