@@ -210,7 +210,11 @@ typedef enum {
 	JNODE_NEW = 19,
 	/* async io request was issued */
 	JNODE_ASYNC = 20,
-	JNODE_DKSET = 21
+	JNODE_DKSET = 21,
+
+	/* cheap and effective protection of jnode from emergency flush */
+	JNODE_EPROTECTED = 22
+
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -586,6 +590,35 @@ jrelse(jnode * node)
 
 	UNDER_SPIN_VOID(jnode, node, jrelse_nolock(node));
 	jput(node);
+}
+
+/* protect @node from e-flush */
+static inline int jprotect (jnode * node)
+{
+	int ret;
+
+	spin_lock_jnode(node);
+
+	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
+
+	JF_SET(node, JNODE_EPROTECTED);
+	ret = JF_ISSET(node, JNODE_EFLUSH);
+
+	spin_unlock(node);
+
+	if (ret)
+		ret = emergency_unflush(node);
+
+	return ret;
+}
+
+/* remove protection from e-flush */
+static inline void junprotect (jnode * node)
+{
+	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
+
+	JF_CLR(node, JNODE_EPROTECTED);
 }
 
 /* __JNODE_H__ */

@@ -279,6 +279,8 @@ flushable(const jnode * node, struct page *page)
 		return 0;
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) /* already pending io */
 		return 0;
+	if (JF_ISSET(node, JNODE_EPROTECTED))   /* protected from e-flush */
+		return 0;
 	if (PageWriteback(page))                /* already under io */
 		return 0;
 	/* don't flush bitmaps or journal records */

@@ -1961,12 +1961,12 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 	int             result;
 	reiser4_tree   *tree;
 	int             eflushed;
-	int             jloaded;
+	int             protected;
 
 	tree = current_tree;
 
 	eflushed = 0;
-	jloaded = 0;
+	protected = 0;
 	for (i = 0; i < count; ++i, ++ind) {
 		jnode  *node;
 
@@ -1982,15 +1982,15 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 			eflushed ++;
 		}
 
-		result = jload(node);
-		jloaded ++;
+		result = jprotect(node);
+		protected ++;
 		jput(node);
 		if (result != 0)
-			warning("vs-1134", "jload failed (oid %llu, page %lu, error %d)\n",
+			warning("vs-1134", "jprotect failed (oid %llu, page %lu, error %d)\n",
 				oid, ind, result);
 	}
-	assert("vs-1130", jloaded > 0);
-	return jloaded;
+	assert("vs-1130", protected > 0);
+	return protected;
 }
 
 /* jrelse @count nodes starting from index @ind */
@@ -2007,17 +2007,16 @@ unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
 		if (node == NULL)
 			continue;
-		assert("vs-1133", jnode_is_loaded(node));
-		jrelse(node);
+		junprotect(node);
 		jput(node);
 	}
 }
 
 #else
-#define unflush_finish(coord, done) noop
-#define unflush(coord) (0)
+
 #define unflush_finish_part(oid, ind, count) noop
 #define unflush_part(oid, ind, count) (count)
+
 #endif
 
 /* @right is extent item. @left is left neighbor of @right->node. Copy item
