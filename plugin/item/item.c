@@ -8,11 +8,11 @@
 #include "../../coord.h"
 #include "../plugin_header.h"
 #include "sde.h"
-#include "../cryptcompress.h"
 #include "internal.h"
 #include "item.h"
 #include "static_stat.h"
 #include "../plugin.h"
+#include "../cryptcompress.h"
 #include "../../znode.h"
 #include "../../tree.h"
 #include "../../context.h"
@@ -301,6 +301,13 @@ item_is_statdata(const coord_t * item)
 {
 	assert("vs-516", coord_is_existing_item(item));
 	return item_type_by_coord(item) == STAT_DATA_ITEM_TYPE;
+}
+
+reiser4_internal int
+item_is_ctail(const coord_t * item)
+{
+	assert("edward-xx", coord_is_existing_item(item));
+	return item_id_by_coord(item) == CTAIL_ID;
 }
 
 static int
@@ -678,7 +685,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.paste             = paste_ctail,
 			.fast_paste        = agree_to_fast_op,
 			.can_shift         = can_shift_ctail,
-			.create_hook       = NULL,
+			.create_hook       = create_hook_ctail,
 			.copy_units        = copy_units_ctail,
 			.kill_hook         = kill_hook_ctail,
 			.shift_hook        = shift_hook_ctail,
@@ -693,7 +700,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.item_stat         = NULL
 #endif
 #if REISER4_DEBUG
-			, .check           = NULL
+			, .check           = check_ctail
 #endif
 		},
 		.f = {
