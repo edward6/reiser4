@@ -854,8 +854,13 @@ atom_try_commit_locked (txn_atom *atom)
 
 	/* FIXME_NFQUCMPD: Read the comment at the end of jnode_flush() about only calling
 	 * jnode_flush() on the leaf level. */
-				/* comment the looping here ZAM-FIXME-HANS */
-	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
+
+	/* From the leaf level up (with the minor exception for the level 0,
+	 * which is for fake znode), find the first dirty node in this
+	 * transaction and call flush_jnode () and return -EAGAIN to the
+	 * caller.  The caller is supposed to re-lock the atom and repeat
+	 * flush attempt.  If the loop below completes that means there are no
+	 * more dirty jnodes in the atom and we can commit it. */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
 		if (capture_list_empty (& atom->dirty_nodes[level])) {
