@@ -1845,17 +1845,16 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 {
 	jnode        *node;
 	int           result;
-	reiser4_tree *tree;
+
+	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
-	tree = get_tree( page -> mapping -> host -> i_sb );
-
 	write_lock( &page -> mapping -> page_lock );
-	spin_lock_tree( tree );
+	spin_lock_tree( current_tree );
 
 	if( ( atomic_read( &node -> x_count ) == 0 ) && !PageDirty( page ) ) {
 		if( node -> atom == NULL ) {
@@ -1872,10 +1871,10 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 			result = 0;
 	}
 
-	spin_unlock_tree( tree );
+	spin_unlock_tree( current_tree );
 	write_unlock( &page -> mapping -> page_lock );
 
-	return result;
+	REISER4_EXIT (result);
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
