@@ -208,13 +208,14 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	struct page *page;
 
-	page = jnode_page( page );
+	page = jnode_page( node );
 
 	/* FIXME-NIKITA locking? */
 	ClearPageDirty( page );
 	ClearPageUptodate( page );
 	remove_inode_page( page );
  	jnode_detach_page( node );
+	return 0;
 }
 
 /** ->drop_node method of page-cache based tree operations */
@@ -417,6 +418,10 @@ static struct bio *page_bio( struct page *page, int gfp )
 		int                 blksz;
 		struct super_block *super;
 
+		trace_on( TRACE_BUG, "page: index: %lu, ino: %li, private: %p",
+			  page -> index, page -> mapping -> host -> i_ino,
+			  jprivate( page ) );
+
 		assert( "nikita-2026", jprivate( page ) != NULL );
 		node = jprivate( page );
 		assert( "nikita-2027", jnode_is_formatted( node ) );
@@ -461,7 +466,6 @@ define_never_ever_op( readpages )
 define_never_ever_op( prepare_write )
 define_never_ever_op( commit_write )
 define_never_ever_op( bmap )
-define_never_ever_op( invalidatepage )
 define_never_ever_op( direct_IO )
 
 #define V( func ) ( ( void * ) ( func ) )
