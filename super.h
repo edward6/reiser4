@@ -57,7 +57,9 @@ typedef enum {
 	/* [mac]_time are 32 bit in inode */
 	REISER4_32_BIT_TIMES = 3,
 	/* allow concurrent flushes */
-	REISER4_MTFLUSH = 4
+	REISER4_MTFLUSH = 4,
+	/* load all bitmap blocks at mount time */
+	REISER4_LOAD_BITMAP = 5
 } reiser4_fs_flag;
 
 #if REISER4_STATS

@@ -963,6 +963,17 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
                         }
                 },
 
+		/* Load all bitmap blocks at mount time */
+		{
+			.name = "loadbitmap",
+			.type = OPT_BIT,
+			.u = {
+				.bit = {
+					.nr = REISER4_LOAD_BITMAP,
+					.addr = &sbinfo->fs_flags
+				}
+			}
+		}
 #if REISER4_TRACE_TREE
 		{
 			.name = "trace_file",

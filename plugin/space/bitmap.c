@@ -526,93 +526,6 @@ done_bnode(struct bnode *bnode)
 	}
 }
 
-/* plugin->u.space_allocator.init_allocator
-    constructor of reiser4_space_allocator object. It is called on fs mount */
-int
-init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
-{
-	struct bitmap_allocator_data *data = NULL;
-	bmap_nr_t bitmap_blocks_nr;
-	bmap_nr_t i;
-
-	assert("nikita-3039", schedulable());
-	/* getting memory for bitmap allocator private data holder */
-	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
-
-	if (data == NULL)
-		return RETERR(-ENOMEM);
-
-	/* allocation and initialization for the array of bnodes */
-	bitmap_blocks_nr = get_nr_bmap(super);
-
-	/* FIXME-ZAM: it is not clear what to do with huge number of bitmaps
-	   which is bigger than 2^32. Kmalloc is not possible and, probably,
-	   another dynamic data structure should replace a static array of
-	   bnodes. */
-	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bnode) * bitmap_blocks_nr), GFP_KERNEL);
-
-	if (data->bitmap == NULL) {
-		reiser4_kfree(data, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
-		return RETERR(-ENOMEM);
-	}
-
-	for (i = 0; i < bitmap_blocks_nr; i++)
-		init_bnode(data->bitmap + i, super, i);
-
-	allocator->u.generic = data;
-
-#if REISER4_DEBUG
-	get_super_private(super)->min_blocks_used += bitmap_blocks_nr;
-#endif
-
-	return 0;
-}
-
-/* plugin->u.space_allocator.destroy_allocator
-   destructor. It is called on fs unmount */
-int
-destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super)
-{
-	bmap_nr_t bitmap_blocks_nr;
-	bmap_nr_t i;
-
-	struct bitmap_allocator_data *data = allocator->u.generic;
-
-	assert("zam-414", data != NULL);
-	assert("zam-376", data->bitmap != NULL);
-
-	bitmap_blocks_nr = get_nr_bmap(super);
-
-	for (i = 0; i < bitmap_blocks_nr; i++) {
-		struct bnode *bnode = data->bitmap + i;
-
-		down(&bnode->sema);
-
-#if REISER4_DEBUG
-		if (atomic_read(&bnode->loaded)) {
-			jnode *wj = bnode->wjnode;
-			jnode *cj = bnode->cjnode;
-
-			assert("zam-480", jnode_page(cj) != NULL);
-			assert("zam-633", jnode_page(wj) != NULL);
-
-			assert("zam-634", 
-			       memcmp(jdata(wj), jdata(wj), 
-				      bmap_size(super->s_blocksize)) == 0);
-
-		}
-#endif
-		done_bnode(bnode);
-		up(&bnode->sema);
-	}
-
-	reiser4_kfree(data->bitmap, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
-	reiser4_kfree(data, sizeof (struct bitmap_allocator_data));
-
-	allocator->u.generic = NULL;
-
-	return 0;
-}
 
 static int
 prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
@@ -1179,6 +1092,117 @@ pre_commit_hook_bitmap(void)
 		sbinfo->blocks_free_committed += blocks_freed;
 		reiser4_spin_unlock_sb(sbinfo);
 	}
+}
+
+/* plugin->u.space_allocator.init_allocator
+    constructor of reiser4_space_allocator object. It is called on fs mount */
+int
+init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
+{
+	struct bitmap_allocator_data *data = NULL;
+	bmap_nr_t bitmap_blocks_nr;
+	bmap_nr_t i;
+
+	assert("nikita-3039", schedulable());
+	/* getting memory for bitmap allocator private data holder */
+	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
+
+	if (data == NULL)
+		return RETERR(-ENOMEM);
+
+	/* allocation and initialization for the array of bnodes */
+	bitmap_blocks_nr = get_nr_bmap(super);
+
+	/* FIXME-ZAM: it is not clear what to do with huge number of bitmaps
+	   which is bigger than 2^32. Kmalloc is not possible and, probably,
+	   another dynamic data structure should replace a static array of
+	   bnodes. */
+	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bnode) * bitmap_blocks_nr), GFP_KERNEL);
+
+	if (data->bitmap == NULL) {
+		reiser4_kfree(data, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
+		return RETERR(-ENOMEM);
+	}
+
+	for (i = 0; i < bitmap_blocks_nr; i++)
+		init_bnode(data->bitmap + i, super, i);
+
+	allocator->u.generic = data;
+
+#if REISER4_DEBUG
+	get_super_private(super)->min_blocks_used += bitmap_blocks_nr;
+#endif
+
+	/* Load all bitmap blocks at mount time. */
+	if (test_bit(REISER4_LOAD_BITMAP, &get_super_private(super)->fs_flags)) {
+		__u64 start_time, elapsed_time;
+		struct bnode * bnode;
+		int ret;
+
+		printk(KERN_INFO "loading reiser4 bitmap...\n");
+		start_time = jiffies;
+
+		for (i = 0; i < bitmap_blocks_nr; i++) {
+			bnode = data->bitmap + i;
+			ret = load_and_lock_bnode(bnode);
+			if (ret) {
+				destroy_allocator_bitmap(allocator, super);
+				return ret;
+			}
+			release_and_unlock_bnode(bnode);
+		}
+
+		elapsed_time = jiffies - start_time;
+		printk(KERN_INFO "...done (%llu jiffies)\n", (unsigned long long)elapsed_time);
+	}
+
+	return 0;
+}
+
+/* plugin->u.space_allocator.destroy_allocator
+   destructor. It is called on fs unmount */
+int
+destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super)
+{
+	bmap_nr_t bitmap_blocks_nr;
+	bmap_nr_t i;
+
+	struct bitmap_allocator_data *data = allocator->u.generic;
+
+	assert("zam-414", data != NULL);
+	assert("zam-376", data->bitmap != NULL);
+
+	bitmap_blocks_nr = get_nr_bmap(super);
+
+	for (i = 0; i < bitmap_blocks_nr; i++) {
+		struct bnode *bnode = data->bitmap + i;
+
+		down(&bnode->sema);
+
+#if REISER4_DEBUG
+		if (atomic_read(&bnode->loaded)) {
+			jnode *wj = bnode->wjnode;
+			jnode *cj = bnode->cjnode;
+
+			assert("zam-480", jnode_page(cj) != NULL);
+			assert("zam-633", jnode_page(wj) != NULL);
+
+			assert("zam-634", 
+			       memcmp(jdata(wj), jdata(wj), 
+				      bmap_size(super->s_blocksize)) == 0);
+
+		}
+#endif
+		done_bnode(bnode);
+		up(&bnode->sema);
+	}
+
+	reiser4_kfree(data->bitmap, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
+	reiser4_kfree(data, sizeof (struct bitmap_allocator_data));
+
+	allocator->u.generic = NULL;
+
+	return 0;
 }
 
 /*
