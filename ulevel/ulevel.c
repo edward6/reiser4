@@ -1434,7 +1434,7 @@ static struct inode * create_root_dir (znode * root)
 	rii = malloc (sizeof *rii);
 	if (!rii)
 		return ERR_PTR (errno);
-
+	memset (rii, 0, sizeof *rii);
 	inode = &rii -> vfs_inode;
 	inode->i_ino = 42;
 	atomic_set( &inode->i_count, 0 );
@@ -1489,8 +1489,10 @@ int insert_item (struct inode *inode,
 }
 
 static int call_create (struct inode * dir, const char * name);
-static ssize_t call_write (struct inode * inode, const char * buf, loff_t offset, unsigned count);
-ssize_t call_read (struct inode * inode, loff_t offset, unsigned count);
+static ssize_t call_write (struct inode *, const char * buf,
+			   loff_t offset, unsigned count);
+static ssize_t call_read (struct inode *, char * buf, 
+			  loff_t offset, unsigned count);
 void call_truncate (struct inode * inode, loff_t size);
 static struct inode * call_lookup (struct inode * dir, const char * name);
 static int call_mkdir (struct inode * dir, const char * name);
@@ -1539,11 +1541,11 @@ static ssize_t call_write (struct inode * inode, const char * buf,
 }
 
 
-ssize_t call_read (struct inode * inode, loff_t offset, unsigned count)
+static ssize_t call_read (struct inode * inode, char * buf, loff_t offset,
+			  unsigned count)
 {
 	reiser4_context *old_context;
 	ssize_t result;
-	char * buf;
 	struct file file;
 	struct dentry dentry;
 
@@ -1551,16 +1553,11 @@ ssize_t call_read (struct inode * inode, loff_t offset, unsigned count)
 	old_context = reiser4_get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
-	buf = malloc (count);
-	if (!buf)
-		return -errno;
 	file.f_dentry = &dentry;
 	dentry.d_inode = inode;
 	result = inode->i_fop->read (&file, buf, count, &offset);
 
 	reiser4_init_context (old_context, inode->i_sb);
-	
-	free (buf);
 	return result;
 }
 
@@ -1594,21 +1591,13 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 	result = dir->i_op->lookup (dir, &dentry);
 	reiser4_init_context (old_context, dir->i_sb);
 
-	return !IS_ERR (result) ? dentry.d_inode : ERR_PTR (PTR_ERR (result));
-	
+	return (result == NULL) ? dentry.d_inode : ERR_PTR (PTR_ERR (result));	
 }
 
 
 static struct inode * call_cd (struct inode * dir, const char * name)
 {
-	struct inode * inode;
-
-	inode = call_lookup (dir, name);
-	if (!inode) {
-		return inode;
-	}
-	/* FIXME-VS */
-	return NULL;
+	return call_lookup (dir, name);
 }
 
 
@@ -1669,7 +1658,6 @@ int copy_file (const char * oldname,
 	int result;
 	struct inode * inode;
 
-	return 0;
 
 	result = 0;
 	/* read source file */
@@ -1776,7 +1764,8 @@ static int copy_dir (struct inode * dir)
 		name [strlen (name) - 1] = 0;
 
 		if (prefix == 0) {
-			/* first line of find output is name of directory being
+			/*
+			 * first line of find output is name of directory being
 			 * find-ed */
 			if (chdir (name)) {
 				perror ("copy_dir: chdir failed");
@@ -1803,7 +1792,7 @@ static int copy_dir (struct inode * dir)
 					break;
 				}
 				inodes [depth - 1] = call_lookup (inodes [depth - 2], last_name (name + prefix + 1));
-				if (IS_ERR (inodes [depth])) {
+				if (IS_ERR (inodes [depth - 1])) {
 					info ("copy_dir: lookup failed\n");
 					break;
 				}
@@ -1839,6 +1828,80 @@ static int copy_dir (struct inode * dir)
 	info ("DONE: %d dirs, %d files\n", dirs, files);
 
 	return 0;
+}
+
+
+/*
+ * @full_name is name of "normal" file. @name is name of file in reiser4 tree
+ * in directory @dir
+ */
+static void diff (const char * full_name,
+		  struct inode * dir, const char * name)
+{
+	int fd;
+	char * buf1, * buf2;
+	unsigned count;
+	loff_t off;
+	struct inode * inode;
+	struct stat st;
+
+
+	if (stat (full_name, &st)) {
+		perror ("diff: stat failed");
+		return;
+	}
+
+	/*
+	 * open file in "normal" filesystem
+	 */
+	fd = open (full_name, O_RDONLY);
+	if (fd == -1) {
+		perror ("diff: open failed");
+		return;
+	}
+
+	/*
+	 * lookup for the file in current directory in reiser4 tree
+	 */
+	inode = call_lookup (dir, name);
+	if (IS_ERR (inode)) {
+		info ("diff: lookup failed\n");
+		return;
+	}
+	
+	buf1 = malloc (BUFSIZE);
+	buf2 = malloc (BUFSIZE);
+	if (!buf1 || !buf2) {
+		perror ("diff: malloc failed");
+		return;
+	}
+
+	count = BUFSIZE;
+	off = 0;
+	while (st.st_size) {
+		if ((loff_t)count > st.st_size)
+			count = st.st_size;
+		if (read (fd, buf1, count) != (ssize_t)count) {
+			perror ("diff: read failed");
+			break;
+		}
+		if (call_read (inode, buf2, off, count) != (ssize_t)count) {
+			info ("diff: write failed\n");
+			break;
+		}
+		if (memcmp (buf1, buf2, count)) {
+			info ("diff: files differ\n");
+			break;
+		}
+
+		st.st_size -= count;
+		off += count;
+	}
+
+	close (fd);
+	free (buf1);
+	free (buf2);
+	return;
 }
 
 
@@ -1880,7 +1943,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		    reiser4_tree *tree )
 {
 	znode *root;
-	struct inode * root_dir, * inode;
+	struct inode * root_dir;
 	int i;
 	unsigned blocksize;
 
@@ -1901,7 +1964,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	/* make tree high enough */
 #define NAME_LENGTH 128
-	for (i = 0; i < 2; i ++) {
+	for (i = 0; i < 1; i ++) {
 		char name [NAME_LENGTH];
 		
 		memset (name, '0' + i, NAME_LENGTH - 1);
@@ -1919,6 +1982,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		{
 			char name [NAME_LENGTH];
 			char * buf;
+			struct inode * inode;
 
 			memset (name, '0', NAME_LENGTH - 1);
 			name [NAME_LENGTH - 1] = 0;
@@ -2011,7 +2075,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 #endif
 	} else if (!strcmp (argv[2], "copydir")) {
 		/*
-		 * simulate cp -r
+		 * this is to be used as: find | ./a.out vs copydir
 		 */
 		struct inode * dir;
 
@@ -2033,7 +2097,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		 * test modification of search to insert empty node when no
 		 * appropriate internal item is found
 		 */
-		struct inode * dir;
+		struct inode * dir, * inode;
 
 		call_mkdir (root_dir, "dir1");
 		dir = call_lookup (root_dir, "dir1");
@@ -2082,7 +2146,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			return 1;
 		}
 
-		while (getline (&command, &n, stdin) != -1) {
+		while (printf (">"), getline (&command, &n, stdin) != -1) {
 			/* remove ending '\n' */
 			command [strlen (command) - 1] = 0;
 			if (!strncmp (command, "pwd", 2)) {
@@ -2090,22 +2154,99 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			} else if (!strncmp (command, "ls", 2)) {
 				call_readdir (cwd);
 			} else if (!strncmp (command, "cd ", 3)) {
+				/*
+				 * cd
+				 */
 				struct inode * tmp;
 
 				tmp = call_cd (cwd, command + 3);
 				if (!tmp) {
-					info ("vs"); /* FIXME-VS */
-				} else {
-					cwd = 0; /* FIXME-VS */
+					info ("%s failed\n", command);
+					continue;
 				}
+				cwd = tmp;
 			} else if (!strncmp (command, "mkdir ", 6)) {
-				if (call_mkdir (cwd, command + 6))
-					info ("mkdir \"%s\"\n", command + 6);
-			} else if (command [0] == 0 ||
-				   !strcmp (command, "exit")) {
+				/*
+				 * mkdir
+				 */
+				if (call_mkdir (cwd, command + 6)) {
+					info ("%s failed\n", command);
+					continue;
+				}
+			} else if (!strncmp (command, "cp ", 3)) {
+				/*
+				 * cp
+				 */
+				struct stat st;
+
+				if (stat (command + 3, &st) || !S_ISREG (st.st_mode)) {
+					errno ? perror ("stat failed") : 
+						info ("%s is not regular file\n", command + 3);
+					continue;
+				}
+				if (copy_file (command + 3, cwd, last_name (command + 3), &st)) {
+					info ("%s failed\n", command);
+					continue;
+				}
+			} else if (!strncmp (command, "diff ", 5)) {
+				/*
+				 * compare original with file 
+				 */
+				diff (command + 5, cwd, last_name (command + 5));
+			} else if (!strncmp (command, "trunc ", 6)) {
+				/*
+				 * truncate
+				 */
+				struct inode * inode;
+
+				inode = call_lookup (cwd, command + 6);
+				if (IS_ERR (inode)) {
+					info ("could not find file %s\n",
+					      command + 6);
+					continue;
+				}
+				info ("Current size: %Ld, new size: ",
+				      inode->i_size);
+				getline (&command, &n, stdin);				
+				call_truncate (inode, atoll (command));
+			} else if (!strncmp (command, "tail", 4)) {
+				/*
+				 * get tail plugin or set
+				 */
+				if (!strcmp (command, "tail")) {
+					info (((reiser4_get_object_state (cwd)->tail ==
+					      tail_plugin_by_id (NEVER_TAIL_ID)) ? "NEVER\n" : "ALWAYS\n"));
+				} else if (!strcmp (command + 5, "off")) {
+					reiser4_get_object_state (cwd)->tail =
+						tail_plugin_by_id (NEVER_TAIL_ID);
+				} else if (!strcmp (command + 5, "on")) {
+					reiser4_get_object_state (cwd)->tail =
+						tail_plugin_by_id (ALWAYS_TAIL_ID);
+				} else {
+					info ("\ttail [on|off]\n");
+				}
+			} else if (!strncmp (command, "p", 1)) {
+				/*
+				 * print tree
+				 */
+				print_tree_rec ("DONE", tree_by_inode (cwd),
+						REISER4_NODE_PRINT_ALL);
+			} else if (!strcmp (command, "exit")) {
+				/*
+				 * exit
+				 */
 				break;
 			} else
-				info ("Unknown command \"%s\"\n", command);
+				info ("Commands:\n"
+				      "\tls             - list directory\n"
+				      "\tcd             - change directory\n"
+				      "\tmkdir dirname  - create new directory\n"
+				      "\tcp filename    - copy file to current directory\n"
+				      "\tdiff filename  - compare files\n"
+				      "\ttrunc filename - truncate file\n"
+				      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"
+				      "\tp              - print tree\n"
+				      "\texit\n");
 		}
 		info ("Done\n");
 	} else {
