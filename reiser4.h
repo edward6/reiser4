@@ -44,9 +44,9 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_3_5_KEY_ALLOCATION (0)
 
 /* size of hash-table for znodes */
-#define REISER4_ZNODE_HASH_TABLE_SIZE (8192)
+#define REISER4_ZNODE_HASH_TABLE_SIZE (1 << 13)
 /* order of emergency flush hash table */
-#define REISER4_EF_HASH_BITS (8)
+#define REISER4_EF_HASH_BITS (10)
 /* size of emergency flush hash table */
 #define REISER4_EF_HASH_SIZE (1 << REISER4_EF_HASH_BITS)
 
