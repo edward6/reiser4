@@ -97,6 +97,14 @@ Use the pluginid field?
 static int init_pseudo(struct inode *parent, struct inode *pseudo,
 		       pseudo_plugin *pplug, const char *name);
 
+static struct inode *add_pseudo(struct inode *parent, 
+				pseudo_plugin *pplug, struct dentry *d);
+
+static void pseudo_set_datum(struct inode *pseudo, unsigned long datum)
+{
+	reiser4_inode_data(pseudo)->file_plugin_data.pseudo_info.datum = datum;
+}
+
 int
 lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 {
@@ -112,32 +120,42 @@ lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 		return RETERR(-ENOENT);
 
 	name = dentry->d_name.name;
-	pseudo = 0;
+	pseudo = ERR_PTR(-ENOENT);
 	for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
 		pseudo_plugin *pplug;
 
 		pplug = &plugin->pseudo;
 		if (pplug->try != NULL && pplug->try(pplug, parent, name)) {
-			pseudo = new_inode(parent->i_sb);
-			if (pseudo != NULL) {
-				result = init_pseudo(parent, 
-						     pseudo, pplug, name);
-				if (result != 0)
-					pseudo = ERR_PTR(result);
-			} else
-				pseudo = ERR_PTR(RETERR(-ENOMEM));
+			pseudo = add_pseudo(parent, pplug, dentry);
 			break;
 		}
 	}
-	if (pseudo == NULL)
-		result = RETERR(-ENOENT);
-	else if (!IS_ERR(pseudo)) {
-		d_add(dentry, pseudo);
+	if (!IS_ERR(pseudo))
 		result = 0;
-	} else
+	else
 		result = PTR_ERR(pseudo);
 	return result;
 }
+
+static struct inode *add_pseudo(struct inode *parent, 
+				pseudo_plugin *pplug, struct dentry *d)
+{
+	struct inode *pseudo;
+
+	pseudo = new_inode(parent->i_sb);
+	if (pseudo != NULL) {
+		int result;
+
+		result = init_pseudo(parent, pseudo, pplug, d->d_name.name);
+		if (result != 0)
+			pseudo = ERR_PTR(result);
+		else
+			d_add(d, pseudo);
+	} else
+		pseudo = ERR_PTR(RETERR(-ENOMEM));
+	return pseudo;
+}
+
 
 static int 
 init_pseudo(struct inode *parent, struct inode *pseudo,
@@ -604,6 +622,36 @@ static plugin_entry pentry[] = {
 	}
 };
 
+typedef enum {
+	PFIELD_TYPEID,
+	PFIELD_ID,
+	PFIELD_LABEL,
+	PFIELD_DESC
+} plugin_field;
+
+static plugin_entry fentry[] = {
+	{
+		.name   = "type_id",
+		.offset = PFIELD_TYPEID
+	},
+	{
+		.name   = "id",
+		.offset = PFIELD_ID
+	},
+	{
+		.name   = "label",
+		.offset = PFIELD_LABEL
+	},
+	{
+		.name   = "desc",
+		.offset = PFIELD_DESC
+	},
+	{
+		.name   = NULL,
+		.offset = 0
+	},
+};
+
 static int show_plugin(struct seq_file *seq, void *cookie)
 {
 	struct inode   *host;
@@ -625,8 +673,93 @@ static int show_plugin(struct seq_file *seq, void *cookie)
 	plug  = *(reiser4_plugin **)(((char *)pset) + entry->offset);
 
 	if (plug != NULL)
-		seq_printf(seq, "%i %s %s", 
+		seq_printf(seq, "%i %s %s",
 			   plug->h.id, plug->h.label, plug->h.desc);
+	return 0;
+}
+
+static int lookup_plugin_field(struct inode *parent, struct dentry * dentry)
+{
+	int result;
+	int idx;
+	struct inode *pseudo;
+
+	pseudo_plugin *pplug;
+
+	pseudo = ERR_PTR(-ENOENT);
+	pplug  = pseudo_plugin_by_id(PSEUDO_PLUGIN_FIELD_ID);
+	for (idx = 0; fentry[idx].name != NULL; ++ idx) {
+		if (!strcmp(dentry->d_name.name, fentry[idx].name)) {
+
+			pseudo = add_pseudo(parent, pplug, dentry);
+			break;
+		}
+	}
+	if (IS_ERR(pseudo))
+		result = PTR_ERR(pseudo);
+	else {
+		result = 0;
+		pseudo_set_datum(pseudo, idx);
+	}
+	return result;
+}
+
+static int show_plugin_field(struct seq_file *seq, void *cookie)
+{
+	struct inode   *host;
+	struct inode   *parent;
+	struct file    *file;
+	struct inode   *inode;
+	reiser4_plugin *plug;
+	plugin_entry   *entry;
+	int             pidx;
+	int             idx;
+	plugin_set     *pset;
+
+	file  = seq->private;
+	inode = file->f_dentry->d_inode;
+
+	parent = get_inode_host(inode);
+	/* foo is grand-grand-parent of foo/..plugin/hash/id  */
+	host  = get_inode_host(get_inode_host(parent));
+	pidx  = reiser4_inode_data(parent)->file_plugin_data.pseudo_info.datum;
+	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
+	entry = &pentry[pidx];
+	pset  = reiser4_inode_data(host)->pset;
+	plug  = *(reiser4_plugin **)(((char *)pset) + entry->offset);
+
+	if (plug != NULL) {
+	switch (fentry[idx].offset) {
+	case PFIELD_TYPEID:
+		seq_printf(seq, "%i", plug->h.type_id);
+		break;
+	case PFIELD_ID:
+		seq_printf(seq, "%i", plug->h.id);
+		break;
+	case PFIELD_LABEL:
+		seq_printf(seq, "%s", plug->h.label);
+		break;
+	case PFIELD_DESC:
+		seq_printf(seq, "%s", plug->h.desc);
+		break;
+	}
+	}
+
+	return 0;
+}
+
+static int readdir_plugin_field(struct file *f, void *dirent, filldir_t filld)
+{
+	loff_t off;
+	for (off = f->f_pos; off < sizeof_array(fentry) - 1; ++ off) {
+		const char *name;
+
+		name = fentry[off].name;
+
+		if (filld(dirent, name, strlen(name), off, off + 10, DT_REG) < 0)
+			break;
+	}
+	f->f_pos = off;
 	return 0;
 }
 
@@ -634,27 +767,24 @@ static int lookup_plugins(struct inode *parent, struct dentry * dentry)
 {
 	int result;
 	int idx;
+	struct inode *pseudo;
 
 	pseudo_plugin *pplug;
 
-	result = -ENOENT;
+	pseudo = ERR_PTR(-ENOENT);
 	pplug  = pseudo_plugin_by_id(PSEUDO_PLUGIN_ID);
 	for (idx = 0; pentry[idx].name != NULL; ++ idx) {
 		if (!strcmp(dentry->d_name.name, pentry[idx].name)) {
-			struct inode *pseudo;
 
-			pseudo = new_inode(parent->i_sb);
-			if (pseudo != NULL) {
-				result = init_pseudo(parent, pseudo, pplug,
-						     dentry->d_name.name);
-				if (result == 0) {
-					reiser4_inode_data(pseudo)->file_plugin_data.pseudo_info.datum = idx;
-					d_add(dentry, pseudo);
-				}
-			} else
-				result = RETERR(-ENOMEM);
+			pseudo = add_pseudo(parent, pplug, dentry);
 			break;
 		}
+	}
+	if (IS_ERR(pseudo))
+		result = PTR_ERR(pseudo);
+	else {
+		pseudo_set_datum(pseudo, idx);
+		result = 0;
 	}
 	return result;
 }
@@ -908,13 +1038,14 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = NULL,
-			 .lookup      = NULL,
-			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .lookup      = lookup_plugin_field,
+			 .lookup_mode = S_IFREG | S_IRUGO | S_IXUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
 				 .single_show = show_plugin
 			 },
-			 .write_type  = PSEUDO_WRITE_NONE
+			 .write_type  = PSEUDO_WRITE_NONE,
+			 .readdir     = readdir_plugin_field
 	},
 	[PSEUDO_PLUGINS_ID] = {
 			 .h = {
@@ -931,6 +1062,25 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			 .read_type   = PSEUDO_READ_NONE,
 			 .write_type  = PSEUDO_WRITE_NONE,
 			 .readdir     = readdir_plugins
+	},
+	[PSEUDO_PLUGIN_FIELD_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_PLUGIN_ID,
+			       .pops = NULL,
+			       .label = "plugin",
+			       .desc = "plugin",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = NULL,
+			 .lookup      = NULL,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_plugin_field
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE,
+			 .readdir     = NULL
 	}
 };
 
