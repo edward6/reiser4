@@ -391,6 +391,8 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	lock_handle lh;
 	size_t to_read;		/* do we really need both this and read_amount? */
 	item_plugin * iplug;
+	reiser4_plugin_id id;
+
 #ifdef NEW_READ_IS_READY
 	sink_t userspace_sink;
 #else
@@ -477,15 +479,33 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		if (result) {
 			break;
 		}
-
-		/* call read method of found item */
+		
 		iplug = item_plugin_by_coord (&coord);
-		if (!iplug->s.file.read) {
-			result = -EINVAL;
+		id = item_plugin_id (iplug);
+		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
+			result = -EIO;
 			zrelse (coord.node);
 			break;
 		}
-		
+
+		/* for debugging sake make sure that tail status is set
+		 * correctly if it claimes to be known */
+		if (REISER4_DEBUG &&
+		    inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+			assert ("vs-829",
+				(id == TAIL_ID && inode_get_flag (inode, REISER4_HAS_TAIL)) ||
+				(id == EXTENT_POINTER_ID && !inode_get_flag (inode, REISER4_HAS_TAIL)));
+		}
+
+		/* get tail status if it is not known yet */
+		if (!inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+			if (id == TAIL_ID)
+				inode_set_flag (inode, REISER4_HAS_TAIL);
+			else
+				inode_clr_flag (inode, REISER4_HAS_TAIL);
+		}
+
+		/* call read method of found item */
 		result = iplug->s.file.read (inode, &coord, &lh, &f);
 		zrelse (coord.node);
 		if (result) {
@@ -618,6 +638,10 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 			/* resolves to extent_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, &f, 0);
+			if (!result) {
+				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
+				inode_clr_flag (inode, REISER4_HAS_TAIL);
+			}
 			break;
 
 		case WRITE_TAIL:
@@ -625,8 +649,12 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 			/* resolves to tail_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, &f, 0);
+			if (!result) {
+				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
+				inode_set_flag (inode, REISER4_HAS_TAIL);
+			}
 			break;
-			
+
 		case CONVERT:
 			zrelse (loaded);
 			done_lh (&lh);
@@ -776,9 +804,25 @@ int unix_file_release (struct file * file)
 
 	inode = file ->f_dentry->d_inode;
 
-	if (should_have_notail (inode, inode->i_size))
+	if (inode->i_size == 0)
 		return 0;
 
+	/*
+	 * FIXME-VS: it is not clear where to do extent2tail conversion yet
+	 */
+	if (!inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN))
+		/* there were no accesses to file body. Leave it as it is */
+		return 0;
+
+	if (should_have_notail (inode, inode->i_size)) {
+		if (inode_get_flag (inode, REISER4_HAS_TAIL))
+			info ("file_release: "
+			      "file is built of tails instead of extents\n");
+		return 0;
+	}
+	if (inode_get_flag (inode, REISER4_HAS_TAIL))
+		/* file is already built of tails */
+		return 0;
 	return extent2tail (file);
 }
 

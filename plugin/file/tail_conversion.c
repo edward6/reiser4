@@ -175,9 +175,9 @@ static int write_pages_by_extent (struct inode * inode, struct page ** pages,
 
 
 /* Audited by: green(2002.06.15) */
-static void drop_pages (struct page ** pages, int nr_pages)
+static void drop_pages (struct page ** pages, unsigned nr_pages)
 {
-	int i;
+	unsigned i;
 
 	for (i = 0; i < nr_pages; i ++) {
 		unlock_page (pages [i]);
@@ -280,10 +280,20 @@ int tail2extent (struct inode * inode)
 	char * item;
 
 
+	assert ("vs-831", (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
+			   inode_get_flag (inode, REISER4_HAS_TAIL)));
+
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
 	 * to write_down */
 	drop_nonexclusive_access (inode);
 	get_exclusive_access (inode);
+
+	if (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
+	    !inode_get_flag (inode, REISER4_HAS_TAIL)) {
+		/* tail was converted by someone else */
+		result = 0;
+		goto ok;
+	}
 
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_file_add (tail2extent);
@@ -302,29 +312,28 @@ int tail2extent (struct inode * inode)
 	init_lh (&lh);
 	while (1) {
 		if (!item) {
-			/* get next one */
+			/* get next item */
 			result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
 			if (result != CBK_COORD_FOUND) {
-				drop_pages (pages, (int)nr_pages);
-				break;
+				drop_pages (pages, nr_pages);
+				goto error1;
 			}
 			result = zload (coord.node);
 			if (result) {
-				break;
+				drop_pages (pages, nr_pages);
+				goto error1;
 			}
 			if (item_id_by_coord (&coord) != TAIL_ID) {
-				/* tail was converted by someone else */
-				assert ("vs-597", get_key_offset (&key) == 0);
-				assert ("vs-599", nr_pages == 0);
-				result = 0;
+				result = -EIO;
+				drop_pages (pages, nr_pages);
 				zrelse (coord.node);
-				break;
+				goto error1;
 			}
 			item = item_body_by_coord (&coord);
 			copied = 0;
 		}
 		assert ("vs-562", unix_file_owns_item (inode, &coord));
-
+		
 		if (!page) {
 			assert ("vs-598",
 				(get_key_offset (&key) & ~PAGE_CACHE_MASK) == 0);
@@ -332,24 +341,24 @@ int tail2extent (struct inode * inode)
 						(unsigned long)(get_key_offset (&key) >>
 								PAGE_CACHE_SHIFT));
 			if (!page) {
-				drop_pages (pages, (int)nr_pages);
+				drop_pages (pages, nr_pages);
 				zrelse (coord.node);
 				result = -ENOMEM;
-				break;
+				goto error1;
 			}
-
+			
 			page_off = 0;
 			pages [nr_pages] = page;
 			nr_pages ++;
 		}
-
+		
 		/* how many bytes to copy */
 		count = item_length_by_coord (&coord) - copied;
 		/* limit length of copy to end of page */
 		if (count > PAGE_CACHE_SIZE - page_off) {
 			count = PAGE_CACHE_SIZE - page_off;
 		}
-
+		
 		/* kmap/kunmap are necessary for pages which are not
 		 * addressable by direct kernel virtual addresses */
 		p_data = kmap (page);
@@ -370,20 +379,25 @@ int tail2extent (struct inode * inode)
 			result = replace (inode, pages, nr_pages, 
 					  (int)((nr_pages - 1) * PAGE_CACHE_SIZE +
 						page_off));
-			drop_pages (pages, (int)nr_pages);
-			if (done || result) {
-				/* conversion completed or error occured */
-				goto out;
+			drop_pages (pages, nr_pages);
+			if (result) {
+				goto error2;
 			}
-
-			/* go for next set of pages */
+			if (done) {
+				/* conversion completed */
+				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
+				inode_clr_flag (inode, REISER4_HAS_TAIL);
+				goto ok;
+			}
+			
+			/* there are still tail items of a file */
 			memset (pages, 0, sizeof (pages));
 			nr_pages = 0;
 			item = 0;
 			page = 0;
 			continue;
 		}
-
+		
 		if (copied == (unsigned)item_length_by_coord (&coord)) {
 			/* item is over, find next one */
 			item = 0;
@@ -394,20 +408,22 @@ int tail2extent (struct inode * inode)
 			page = 0;
 		}
 	}
-
+ error1:
 	done_lh (&lh);
-
- out:
+ error2:
 	drop_exclusive_access (inode);
 	get_nonexclusive_access (inode);
+	return result;
 
+ ok:
+	drop_exclusive_access (inode);
+	get_nonexclusive_access (inode);
+	
 	/* It is advisabel to check here that all grabbed pages were freed */
 
-	/*
-	 * FIXME-VS: ideally we should check that file is still built of extent
-	 * items. But it is not impossible that file was converted back to
-	 * extent because it only happens on file close
-	 */
+	/* file should not be converted back to tails */
+	assert ("vs-830", (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
+			   !inode_get_flag (inode, REISER4_HAS_TAIL)));
 
 	return result;
 }
@@ -447,42 +463,17 @@ int extent2tail (struct file * file)
 
 	get_exclusive_access (inode);
 
+	if (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
+	    inode_get_flag (inode, REISER4_HAS_TAIL)) {
+		drop_exclusive_access (inode);
+		return 0;		
+	}
+
 	/* number of pages in the file */
 	num_pages = (inode->i_size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
-	if (!num_pages) {
-		drop_exclusive_access (inode);
-		return 0;
-	}
 
 	unix_file_key_by_inode (inode, 0ull, &from);
 	to = from;
-
-	{
-		/* find which items file is built of */
-		coord_t coord;
-		lock_handle lh;
-		int do_conversion;
-		
-		do_conversion = 0;
-
-		coord_init_zero (&coord);
-		init_lh (&lh);
-		result = find_next_item (file, &from, &coord, &lh, ZNODE_READ_LOCK);
-		if (result == CBK_COORD_FOUND && (result = zload (coord.node))) {
-			if (item_id_by_coord (&coord) == EXTENT_POINTER_ID) {
-				do_conversion = 1;
-			}
-		}
-		zrelse (coord.node);
-		done_lh (&lh);
-		if (!do_conversion) {
-			assert ("vs-590", CBK_COORD_FOUND == 0);
-			/* error occured or file is built of tail items
-			 * already */
-			drop_exclusive_access (inode);
-			return result;
-		}
-	}
 
 	result = 0;
 
@@ -536,6 +527,12 @@ int extent2tail (struct file * file)
 		page_cache_release (page);		
 	}
 
+	if (i == num_pages)
+		/*
+		 * FIXME-VS: not sure what to do when conversion did
+		 * not complete
+		 */
+		inode_get_flag (inode, REISER4_HAS_TAIL);
 	drop_exclusive_access (inode);
 	return result;
 }
