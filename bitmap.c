@@ -29,7 +29,7 @@ static inline int find_next_zero_bit_in_byte (unsigned int byte, int start)
 
 #define reiser4_set_bit(nr, addr)    ext2_set_bit(nr, addr)
 #define reiser4_clear_bit(nr, addr)  ext2_clear_bit(nr, addr)
-#define reiiser4_test_bit(nr, addr)  ext2_test_bit(nr, addr)
+#define reiser4_test_bit(nr, addr)  ext2_test_bit(nr, addr)
 
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
 ext2_find_next_zero_bit(addr, maxoffset, offset)
