@@ -12,11 +12,11 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t stat40_confirm(stat40_base_t *stat) {
+static error_t stat40_confirm(reiserfs_stat40_base_t *stat) {
     return 0;
 }
 
-static error_t stat40_create(stat40_base_t *stat, 
+static error_t stat40_create(reiserfs_stat40_base_t *stat, 
     reiserfs_item_info_t *info) 
 {
     reiserfs_stat_info_t *stat_info;
@@ -41,20 +41,20 @@ static void stat40_estimate(reiserfs_item_info_t *info, reiserfs_coord_t *coord)
     aal_assert("vpf-074", info != NULL, return);
 
     /* Should calculate extentions size also */
-    info->length = sizeof(stat40_base_t);
+    info->length = sizeof(reiserfs_stat40_base_t);
 }
 
-static error_t stat40_check(stat40_base_t *stat) {
+static error_t stat40_check(reiserfs_stat40_base_t *stat) {
     return 0;
 }
 
-static void stat40_print(stat40_base_t *stat, char *buff, uint16_t n) {
+static void stat40_print(reiserfs_stat40_base_t *stat, char *buff, uint16_t n) {
     aal_assert("umka-546", stat != NULL, return);
     aal_assert("umka-547", buff != NULL, return);
 }
 
 static uint32_t stat40_minsize(void) {
-    return sizeof(stat40_base_t);
+    return sizeof(reiserfs_stat40_base_t);
 }
 
 static int stat40_internal(void) {

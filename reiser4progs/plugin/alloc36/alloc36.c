@@ -11,8 +11,8 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static alloc36_t *alloc36_open(aal_device_t *device, count_t len) {
-    alloc36_t *alloc;
+static reiserfs_alloc36_t *alloc36_open(aal_device_t *device, count_t len) {
+    reiserfs_alloc36_t *alloc;
 
     aal_assert("umka-413", device != NULL, return NULL);
 
@@ -30,8 +30,8 @@ error:
     return NULL;
 }
 
-static alloc36_t *alloc36_create(aal_device_t *device, count_t len) {
-    alloc36_t *alloc;
+static reiserfs_alloc36_t *alloc36_create(aal_device_t *device, count_t len) {
+    reiserfs_alloc36_t *alloc;
 
     aal_assert("umka-414", device != NULL, return NULL);
 	
@@ -49,13 +49,13 @@ error:
     return NULL;
 }
 
-static error_t alloc36_sync(alloc36_t *alloc) {
+static error_t alloc36_sync(reiserfs_alloc36_t *alloc) {
     aal_assert("umka-415", alloc != NULL, return -1);
     
     return -1;
 }
 
-static void alloc36_close(alloc36_t *alloc) {
+static void alloc36_close(reiserfs_alloc36_t *alloc) {
     aal_assert("umka-416", alloc != NULL, return);
     aal_free(alloc);
 }
@@ -76,6 +76,7 @@ static reiserfs_plugin_t alloc36_plugin = {
 	.sync = (error_t (*)(reiserfs_opaque_t *))alloc36_sync,
 
 	.mark = NULL,
+	.test = NULL,
 	
 	.alloc = NULL,
 	.dealloc = NULL,

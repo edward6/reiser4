@@ -10,7 +10,7 @@
 static reiserfs_plugin_factory_t *factory = NULL;
 
 static reiserfs_opaque_t *oid40_open(void *area, uint32_t len) {
-    oid40_t *oid;
+    reiserfs_oid40_t *oid;
 
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
@@ -21,12 +21,12 @@ static reiserfs_opaque_t *oid40_open(void *area, uint32_t len) {
     return oid;
 }
 
-static void oid40_close(oid40_t *oid) {
+static void oid40_close(reiserfs_oid40_t *oid) {
     aal_assert("umka-510", oid != NULL, return);
     aal_free(oid);
 }
 
-static oid_t oid40_alloc(oid40_t *oid) {
+static oid_t oid40_alloc(reiserfs_oid40_t *oid) {
     oid_t next, used;
 	    
     aal_assert("umka-513", oid != NULL, return 0);
@@ -39,7 +39,7 @@ static oid_t oid40_alloc(oid40_t *oid) {
     return next;
 }
 
-static void oid40_dealloc(oid40_t *oid, oid_t inode) {
+static void oid40_dealloc(reiserfs_oid40_t *oid, oid_t inode) {
     oid_t used;
     
     aal_assert("umka-528", oid != NULL, return);
@@ -48,25 +48,25 @@ static void oid40_dealloc(oid40_t *oid, oid_t inode) {
     oid40_set_used(oid->area, used - 1);
 }
 
-static oid_t oid40_next(oid40_t *oid) {
+static oid_t oid40_next(reiserfs_oid40_t *oid) {
     aal_assert("umka-529", oid != NULL, return 0);
     return oid40_get_next(oid->area);
 }
 
-static oid_t oid40_used(oid40_t *oid) {
+static oid_t oid40_used(reiserfs_oid40_t *oid) {
     aal_assert("umka-530", oid != NULL, return 0);
     return oid40_get_used(oid->area);
 }
 
-static oid_t oid40_root_parent_locality(oid40_t *oid) {
+static oid_t oid40_root_parent_locality(reiserfs_oid40_t *oid) {
     return REISERFS_OID40_ROOT_PARENT_LOCALITY;
 }
 
-static oid_t oid40_root_parent_objectid(oid40_t *oid) {
+static oid_t oid40_root_parent_objectid(reiserfs_oid40_t *oid) {
     return REISERFS_OID40_ROOT_PARENT_OBJECTID;
 }
 
-static oid_t oid40_root_objectid(oid40_t *oid) {
+static oid_t oid40_root_objectid(reiserfs_oid40_t *oid) {
     return REISERFS_OID40_ROOT_OBJECTID;
 }
 

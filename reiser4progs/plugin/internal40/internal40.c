@@ -17,7 +17,7 @@
 static reiserfs_plugin_factory_t *factory = NULL;
 
 /* Forms internal item in given memory area */
-static error_t internal40_create(internal40_t *internal, 
+static error_t internal40_create(reiserfs_internal40_t *internal, 
     reiserfs_item_info_t *info) 
 {
     reiserfs_internal_info_t *inter_info; 
@@ -33,40 +33,40 @@ static error_t internal40_create(internal40_t *internal,
 }
 
 static uint32_t internal40_minsize(void) {
-    return sizeof(internal40_t);
+    return sizeof(reiserfs_internal40_t);
 }
 
 static void internal40_estimate(reiserfs_item_info_t *info, 
     reiserfs_coord_t *coord) 
 {
     aal_assert("vpf-068", info != NULL, return);
-    info->length = sizeof(internal40_t);
+    info->length = sizeof(reiserfs_internal40_t);
 }
 
 static int internal40_internal(void) {
     return 1;
 }
 
-static void internal40_print(internal40_t *internal, 
+static void internal40_print(reiserfs_internal40_t *internal, 
     char *buff, uint16_t n) 
 {
     aal_assert("umka-544", internal != NULL, return);
     aal_assert("umka-545", buff != NULL, return);
 }
 
-static void internal40_set_pointer(internal40_t *internal, 
+static void internal40_set_pointer(reiserfs_internal40_t *internal, 
     blk_t blk) 
 {
     aal_assert("umka-605", internal != NULL, return);
     int40_set_blk(internal, blk);
 }
 
-static blk_t internal40_get_pointer(internal40_t *internal) {
+static blk_t internal40_get_pointer(reiserfs_internal40_t *internal) {
     aal_assert("umka-606", internal != NULL, return 0);
     return int40_get_blk(internal);
 }
 
-static int internal40_has_pointer(internal40_t *internal, 
+static int internal40_has_pointer(reiserfs_internal40_t *internal, 
     blk_t blk) 
 {
     aal_assert("umka-628", internal != NULL, return 0);

@@ -11,14 +11,14 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t journal36_header_check(journal36_header_t *header, 
+static error_t journal36_header_check(reiserfs_journal36_header_t *header, 
     aal_device_t *device) 
 {
     return 0;
 }
 
-static journal36_t *journal36_open(aal_device_t *device) {
-    journal36_t *journal;
+static reiserfs_journal36_t *journal36_open(aal_device_t *device) {
+    reiserfs_journal36_t *journal;
 
     aal_assert("umka-406", device != NULL, return NULL);
     
@@ -32,7 +32,7 @@ static journal36_t *journal36_open(aal_device_t *device) {
     return journal;
 }
 
-static error_t journal36_sync(journal36_t *journal) {
+static error_t journal36_sync(reiserfs_journal36_t *journal) {
     
     aal_assert("umka-407", journal != NULL, return -1);
     
@@ -44,13 +44,12 @@ static error_t journal36_sync(journal36_t *journal) {
     return 0;
 }
 
-static void journal36_close(journal36_t *journal) {
+static void journal36_close(reiserfs_journal36_t *journal) {
     aal_assert("umka-408", journal != NULL, return);
-    
     aal_free(journal);
 }
 
-static error_t journal36_replay(journal36_t *journal) {
+static error_t journal36_replay(reiserfs_journal36_t *journal) {
     return 0;
 }
 

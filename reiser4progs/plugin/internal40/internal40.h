@@ -9,11 +9,11 @@
 
 #include <aal/aal.h>
 
-struct internal40 {
+struct reiserfs_internal40 {
     blk_t block_nr;
 };
 
-typedef struct internal40 internal40_t;
+typedef struct reiserfs_internal40 reiserfs_internal40_t;
 
 #define int40_get_blk(int40)	    get_le64(int40, block_nr)
 #define int40_set_blk(int40, val)   set_le64(int40, block_nr, val)

@@ -11,7 +11,7 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t journal40_check_header(journal40_header_t *header, 
+static error_t journal40_check_header(reiserfs_journal40_header_t *header, 
     aal_device_t *device) 
 {
     aal_assert("umka-515", header != NULL, return -1);
@@ -26,7 +26,7 @@ static error_t journal40_check_header(journal40_header_t *header,
     return 0;
 }
 
-static error_t journal40_check_footer(journal40_footer_t *footer, 
+static error_t journal40_check_footer(reiserfs_journal40_footer_t *footer, 
     aal_device_t *device) 
 {
     aal_assert("umka-516", footer != NULL, return -1);
@@ -41,8 +41,8 @@ static error_t journal40_check_footer(journal40_footer_t *footer,
     return 0;
 }
 
-static journal40_t *journal40_open(aal_device_t *device) {
-    journal40_t *journal;
+static reiserfs_journal40_t *journal40_open(aal_device_t *device) {
+    reiserfs_journal40_t *journal;
 
     aal_assert("umka-409", device != NULL, return NULL);
     
@@ -86,10 +86,10 @@ error:
     return NULL;
 }
 
-static journal40_t *journal40_create(aal_device_t *device, 
+static reiserfs_journal40_t *journal40_create(aal_device_t *device, 
     reiserfs_params_opaque_t *params) 
 {
-    journal40_t *journal;
+    reiserfs_journal40_t *journal;
     
     aal_assert("umka-417", device != NULL, return NULL);
 //    aal_assert("umka-418", params != NULL, return NULL);
@@ -121,7 +121,7 @@ error:
     return NULL;
 }
 
-static error_t journal40_sync(journal40_t *journal) {
+static error_t journal40_sync(reiserfs_journal40_t *journal) {
 
     aal_assert("umka-410", journal != NULL, return -1);
     
@@ -141,7 +141,7 @@ static error_t journal40_sync(journal40_t *journal) {
     return 0;
 }
 
-static void journal40_close(journal40_t *journal) {
+static void journal40_close(reiserfs_journal40_t *journal) {
     aal_assert("umka-411", journal != NULL, return);
 
     aal_block_free(journal->header);
@@ -149,7 +149,7 @@ static void journal40_close(journal40_t *journal) {
     aal_free(journal);
 }
 
-static error_t journal40_replay(journal40_t *journal) {
+static error_t journal40_replay(reiserfs_journal40_t *journal) {
     aal_assert("umka-412", journal != NULL, return -1);
     return 0;
 }

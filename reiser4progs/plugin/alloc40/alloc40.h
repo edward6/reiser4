@@ -1,5 +1,5 @@
 /*
-    alloc40.h -- Space allocator plugin for reiserfs 4.0.
+    alloc40.h -- default block allocator plugin for reiserfs 4.0.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -10,12 +10,12 @@
 #include <aal/aal.h>
 #include <misc/bitmap.h>
 
-struct alloc40 {
+struct reiserfs_alloc40 {
     aal_device_t *device;
     reiserfs_bitmap_t *bitmap;
 };
 
-typedef struct alloc40 alloc40_t;
+typedef struct reiserfs_alloc40 reiserfs_alloc40_t;
 
 #endif
 

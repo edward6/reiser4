@@ -10,6 +10,10 @@
 
 #include <reiser4/reiser4.h>
 
+/*
+    Allocates block allocator structures and
+    requests block allocator plugin for opening.
+*/
 error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
     reiserfs_plugin_id_t plugin_id;
     reiserfs_plugin_t *plugin;
@@ -108,5 +112,13 @@ blk_t reiserfs_alloc_alloc(reiserfs_fs_t *fs) {
 
     return libreiser4_plugins_call(return 0, fs->alloc->plugin->alloc, 
 	alloc, fs->alloc->entity);
+}
+
+int reiserfs_alloc_test(reiserfs_fs_t *fs, blk_t blk) {
+    aal_assert("umka-661", fs != NULL, return 0);
+    aal_assert("umka-662", fs->alloc != NULL, return 0);
+
+    return libreiser4_plugins_call(return 0, fs->alloc->plugin->alloc, 
+	test, fs->alloc->entity, blk);
 }
 

@@ -245,6 +245,7 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	goto error_free_oid;
     
     reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
+    
     return fs;
 
 error_free_oid:

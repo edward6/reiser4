@@ -10,17 +10,16 @@
 
 #include <aal/debug.h>
 
-#define reiserfs_bitmap_range_check(bitmap, blk, action) \
-    do { \
-	if (blk >= bitmap->total_blocks) { \
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
-		"Block %llu is out of range (0-%llu)", blk, bitmap->total_blocks); \
-	    action; \
-	} \
-    } while (0); \
-	
+#define reiserfs_bitmap_range_check(bitmap, blk, action)			\
+do {										\
+    if (blk >= bitmap->total_blocks) {						\
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,			\
+	    "Block %llu is out of range (0-%llu)", blk, bitmap->total_blocks);  \
+	action;									\
+    }										\
+} while (0)
 
-void reiserfs_bitmap_use_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
+void reiserfs_bitmap_use(reiserfs_bitmap_t *bitmap, blk_t blk) {
     aal_assert("umka-336", bitmap != NULL, return);
 
     reiserfs_bitmap_range_check(bitmap, blk, return);
@@ -31,7 +30,7 @@ void reiserfs_bitmap_use_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
     bitmap->used_blocks++;
 }
 
-void reiserfs_bitmap_unuse_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
+void reiserfs_bitmap_unuse(reiserfs_bitmap_t *bitmap, blk_t blk) {
     aal_assert("umka-337", bitmap != NULL, return);
 
     reiserfs_bitmap_range_check(bitmap, blk, return);
@@ -42,13 +41,13 @@ void reiserfs_bitmap_unuse_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
     bitmap->used_blocks--;
 }
 
-int reiserfs_bitmap_test_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
+int reiserfs_bitmap_test(reiserfs_bitmap_t *bitmap, blk_t blk) {
     aal_assert("umka-338", bitmap != NULL, return 0);
     reiserfs_bitmap_range_check(bitmap, blk, return 0);
     return reiserfs_misc_test_bit(blk, bitmap->map);
 }
 
-blk_t reiserfs_bitmap_find_free(reiserfs_bitmap_t *bitmap, blk_t start) {
+blk_t reiserfs_bitmap_find(reiserfs_bitmap_t *bitmap, blk_t start) {
     blk_t blk;
 	
     aal_assert("umka-339", bitmap != NULL, return 0);
@@ -82,14 +81,14 @@ static blk_t reiserfs_bitmap_calc(reiserfs_bitmap_t *bitmap,
 	    blocks += bits;
 	    i += bits;
 	} else {
-	    if ((flag == 0 ? reiserfs_bitmap_test_block(bitmap, i) : 
-		    !reiserfs_bitmap_test_block(bitmap, i)))
+	    if ((flag == 0 ? reiserfs_bitmap_test(bitmap, i) : 
+		    !reiserfs_bitmap_test(bitmap, i)))
 		blocks++;
 	    i++;
 	}
 #else
-	if ((flag == 0 ? reiserfs_bitmap_test_block(bitmap, i) : 
-		!reiserfs_bitmap_test_block(bitmap, i)))
+	if ((flag == 0 ? reiserfs_bitmap_test(bitmap, i) : 
+		!reiserfs_bitmap_test(bitmap, i)))
 	    blocks++;
 	i++;	
 #endif
@@ -275,12 +274,12 @@ reiserfs_bitmap_t *reiserfs_bitmap_create(aal_device_t *device,
     bitmap->device = device;
     
     /* Marking first bitmap block as used */
-    reiserfs_bitmap_use_block(bitmap, start);
+    reiserfs_bitmap_use(bitmap, start);
   
     /* Setting up other bitmap blocks */
     bmap_blknr = (len - 1) / (aal_device_get_bs(device) * 8) + 1;
     for (i = 1; i < bmap_blknr; i++)
-	reiserfs_bitmap_use_block(bitmap, i * aal_device_get_bs(device) * 8);
+	reiserfs_bitmap_use(bitmap, i * aal_device_get_bs(device) * 8);
 
     return bitmap;
 }
@@ -356,7 +355,7 @@ error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap,
     /* Marking new bitmap blocks as used */
     if (bmap_new_blknr - bmap_old_blknr > 0) {
 	for (i = bmap_old_blknr; i < bmap_new_blknr; i++)
-	    reiserfs_bitmap_use_block(bitmap, i * aal_device_get_bs(bitmap->device) * 8);
+	    reiserfs_bitmap_use(bitmap, i * aal_device_get_bs(bitmap->device) * 8);
     }
 
     return 0;

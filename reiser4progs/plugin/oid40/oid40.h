@@ -15,12 +15,12 @@
 #define REISERFS_OID40_ROOT_OBJECTID		0x2a
 #define REISERFS_OID40_RESERVED			(1 << 16)
 
-struct oid40 {
+struct reiserfs_oid40 {
     void *area;
     uint32_t len;
 };
 
-typedef struct oid40 oid40_t;
+typedef struct reiserfs_oid40 reiserfs_oid40_t;
 
 #define oid40_get_next(area)			LE64_TO_CPU(*((uint64_t *)area))
 #define oid40_set_next(area, val)		(*((uint64_t *)area) = CPU_TO_LE64(val))

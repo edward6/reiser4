@@ -11,9 +11,9 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static alloc40_t *alloc40_open(aal_device_t *device, count_t len) {
+static reiserfs_alloc40_t *alloc40_open(aal_device_t *device, count_t len) {
     blk_t offset;
-    alloc40_t *alloc;
+    reiserfs_alloc40_t *alloc;
     
     aal_assert("umka-364", device != NULL, return NULL);
 
@@ -22,7 +22,7 @@ static alloc40_t *alloc40_open(aal_device_t *device, count_t len) {
     
     offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
 	aal_device_get_bs(device);
-    
+
     if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open bitmap.");
@@ -38,11 +38,11 @@ error:
     return NULL;
 }
 
-static alloc40_t *alloc40_create(aal_device_t *device, 
+static reiserfs_alloc40_t *alloc40_create(aal_device_t *device, 
     count_t len)
 {
     blk_t offset;
-    alloc40_t *alloc;
+    reiserfs_alloc40_t *alloc;
 
     aal_assert("umka-365", device != NULL, return NULL);
 	
@@ -52,9 +52,9 @@ static alloc40_t *alloc40_create(aal_device_t *device,
     offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
 	aal_device_get_bs(device);
     
-    if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create bitmap.");
+    if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create bitmap.");
 	goto error_free_alloc;
     }
 
@@ -67,7 +67,7 @@ error:
     return NULL;
 }
 
-static error_t alloc40_sync(alloc40_t *alloc) {
+static error_t alloc40_sync(reiserfs_alloc40_t *alloc) {
 
     aal_assert("umka-366", alloc != NULL, return -1);
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
@@ -75,7 +75,7 @@ static error_t alloc40_sync(alloc40_t *alloc) {
     return reiserfs_bitmap_sync(alloc->bitmap);
 }
 
-static void alloc40_close(alloc40_t *alloc) {
+static void alloc40_close(reiserfs_alloc40_t *alloc) {
     
     aal_assert("umka-368", alloc != NULL, return);
     aal_assert("umka-369", alloc->bitmap != NULL, return);
@@ -84,23 +84,23 @@ static void alloc40_close(alloc40_t *alloc) {
     aal_free(alloc);
 }
 
-static void alloc40_mark(alloc40_t *alloc, blk_t blk) {
+static void alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-370", alloc != NULL, return);
     aal_assert("umka-371", alloc->bitmap != NULL, return);
     
-    reiserfs_bitmap_use_block(alloc->bitmap, blk);
+    reiserfs_bitmap_use(alloc->bitmap, blk);
 }
 
-static void alloc40_dealloc(alloc40_t *alloc, blk_t blk) {
+static void alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-372", alloc != NULL, return);
     aal_assert("umka-373", alloc->bitmap != NULL, return);
     
-    reiserfs_bitmap_unuse_block(alloc->bitmap, blk);
+    reiserfs_bitmap_unuse(alloc->bitmap, blk);
 }
 
-static blk_t alloc40_alloc(alloc40_t *alloc) {
+static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
     blk_t blk;
     
     aal_assert("umka-374", alloc != NULL, return 0);
@@ -110,14 +110,14 @@ static blk_t alloc40_alloc(alloc40_t *alloc) {
 	It is possible to implement here more smart 
 	allocation algorithm 
     */
-    if (!(blk = reiserfs_bitmap_find_free(alloc->bitmap, 0)))
+    if (!(blk = reiserfs_bitmap_find(alloc->bitmap, 0)))
 	return 0;
     
-    reiserfs_bitmap_use_block(alloc->bitmap, blk);
+    reiserfs_bitmap_use(alloc->bitmap, blk);
     return blk;
 }
 
-count_t alloc40_free(alloc40_t *alloc) {
+count_t alloc40_free(reiserfs_alloc40_t *alloc) {
 
     aal_assert("umka-376", alloc != NULL, return 0);
     aal_assert("umka-377", alloc->bitmap != NULL, return 0);
@@ -125,12 +125,19 @@ count_t alloc40_free(alloc40_t *alloc) {
     return reiserfs_bitmap_unused(alloc->bitmap);
 }
 
-count_t alloc40_used(alloc40_t *alloc) {
+count_t alloc40_used(reiserfs_alloc40_t *alloc) {
     
     aal_assert("umka-378", alloc != NULL, return 0);
     aal_assert("umka-379", alloc->bitmap != NULL, return 0);
 
     return reiserfs_bitmap_used(alloc->bitmap);
+}
+
+int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
+    aal_assert("umka-663", alloc != NULL, return 0);
+    aal_assert("umka-664", alloc->bitmap != NULL, return 0);
+
+    return reiserfs_bitmap_test(alloc->bitmap, blk);
 }
 
 static reiserfs_plugin_t alloc40_plugin = {
@@ -149,6 +156,7 @@ static reiserfs_plugin_t alloc40_plugin = {
 	.sync = (error_t (*)(reiserfs_opaque_t *))alloc40_sync,
 
 	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
+	.test = (int (*)(reiserfs_opaque_t *, blk_t))alloc40_test,
 	.alloc = (blk_t (*)(reiserfs_opaque_t *))alloc40_alloc,
 	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_dealloc,
 	

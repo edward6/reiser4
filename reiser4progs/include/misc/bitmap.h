@@ -23,12 +23,14 @@ struct reiserfs_bitmap {
 
 typedef struct reiserfs_bitmap reiserfs_bitmap_t;
 
-typedef int (reiserfs_bitmap_pipe_func_t)(aal_device_t *, blk_t, char *, uint32_t, void *);
+typedef int (reiserfs_bitmap_pipe_func_t)(aal_device_t *, blk_t, 
+    char *, uint32_t, void *);
 
-extern void reiserfs_bitmap_use_block(reiserfs_bitmap_t *bitmap, blk_t blk);
-extern void reiserfs_bitmap_unuse_block(reiserfs_bitmap_t *bitmap, blk_t blk);
-extern int reiserfs_bitmap_test_block(reiserfs_bitmap_t *bitmap, blk_t blk);
-extern blk_t reiserfs_bitmap_find_free(reiserfs_bitmap_t *bitmap, blk_t start);
+extern void reiserfs_bitmap_use(reiserfs_bitmap_t *bitmap, blk_t blk);
+extern void reiserfs_bitmap_unuse(reiserfs_bitmap_t *bitmap, blk_t blk);
+extern int reiserfs_bitmap_test(reiserfs_bitmap_t *bitmap, blk_t blk);
+
+extern blk_t reiserfs_bitmap_find(reiserfs_bitmap_t *bitmap, blk_t start);
 
 extern blk_t reiserfs_bitmap_calc_used(reiserfs_bitmap_t *bitmap);
 extern blk_t reiserfs_bitmap_calc_unused(reiserfs_bitmap_t *bitmap);
