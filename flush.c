@@ -1691,7 +1691,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				pos->queue[j] = NULL;
 
-				trace_on (TRACE_FLUSH, "flush_finish writes %s\n", flush_jnode_tostring (node));
+				trace_on (TRACE_FLUSH_VERB, "flush_finish writes %s\n", flush_jnode_tostring (node));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
