@@ -84,6 +84,9 @@ int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_cluster(struct inode * inode, pgoff_t start, long count);
 int hint_prev_cluster(reiser4_cluster_t * clust);
+void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
+int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
+void release_cluster_pages(reiser4_cluster_t * clust, int from);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 
