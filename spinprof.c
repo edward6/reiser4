@@ -36,7 +36,7 @@ struct profregion_attr {
 #define PROFREGION_ATTR(aname)			\
 static struct profregion_attr aname = {		\
 	.attr = {				\
-		.name = #aname,			\
+		.name = (char *)#aname,		\
 		.mode = 0666			\
 	},					\
 	.show = aname ## _show			\
@@ -141,7 +141,7 @@ static struct kobj_type ktype_profregion = {
 	.default_attrs	= def_attrs,
 };
 
-static decl_subsys(profregion, &ktype_profregion);
+static decl_subsys(profregion, &ktype_profregion, NULL);
 
 DEFINE_PER_CPU(struct profregionstack, inregion) = {0};
 struct profregion outside = {
