@@ -103,7 +103,7 @@ void print_znode_content( const znode *node, __u32 flags )
 {
 	unsigned i;
 	tree_coord coord;
-	reiser4_plugin *ip;
+	item_plugin *iplug;
 	reiser4_key key;
 
 
@@ -132,19 +132,20 @@ void print_znode_content( const znode *node, __u32 flags )
 
 		coord.item_pos = i;
 		
-		ip = item_plugin_by_coord( &coord );
-		if( flags & REISER4_NODE_PRINT_PLUGINS )
-			print_plugin( "\titem plugin", ip ), indent_znode (node);
+		iplug = item_plugin_by_coord( &coord );
+		if( flags & REISER4_NODE_PRINT_PLUGINS ) {
+			print_plugin( "\titem plugin", item_plugin_to_plugin (iplug) ), indent_znode (node);
+		}
 		if( flags & REISER4_NODE_PRINT_KEYS ) {
 			item_key_by_coord( &coord, &key );
 			print_key( "\titem key", &key ), indent_znode (node);
 		}
 
 		if( ( flags & REISER4_NODE_PRINT_ITEMS ) &&
-		    ( ip -> u.item.b.print ) ) {
+		    ( iplug -> b.print ) ) {
 			info ("\tlength %d\n", item_length_by_coord( &coord ) );
 			indent_znode (node); 
-			ip -> u.item.b.print( "\titem", &coord );
+			iplug -> b.print( "\titem", &coord );
 		}
 		if( flags & REISER4_NODE_PRINT_DATA ) {
 			int   j;
@@ -197,8 +198,7 @@ void node_check( const znode *node, __u32 flags )
 reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
 	[ NODE40_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_NODE_PLUGIN_ID,
+			.type_id = REISER4_NODE_PLUGIN_TYPE,
 			.id      = NODE40_ID,
 			.pops    = NULL,
 			.label   = "unified",

@@ -203,34 +203,37 @@ unsigned int space_needed( const znode *node /* node data are inserted
 			   int insertion /* non-0 is inserting,
 					  * 0---paste */ )
 {
-	int             result;
-	reiser4_plugin *plugin;
+	int          result;
+	item_plugin *iplug;
 
 	assert( "nikita-917", node != NULL );
 	assert( "nikita-918", node_plugin_by_node( node ) != NULL );
 	assert( "vs-230", !insertion || ( coord == NULL ) );
 
 	result = 0;
-	plugin = data -> plugin;
-	if( plugin -> u.item.b.estimate != NULL )
+	iplug = data -> iplug;
+	if( iplug -> b.estimate != NULL ) {
 		/*
 		 * ask item plugin how much space is needed to insert this
 		 * item
 		 */
-		result += plugin -> u.item.b.estimate
-			( insertion ? NULL : coord, data );
-	else
+		result += iplug -> b.estimate ( insertion ? NULL : coord, data );
+	} else {
 		/*
 		 * reasonable default
 		 */
 		result += data -> length;
+	}
 	if( insertion ) {
-		plugin = node -> node_plugin;
+		node_plugin *nplug;
+		
+		nplug = node -> nplug;
 		/*
 		 * and add node overhead
 		 */
-		if( plugin -> u.node.item_overhead != NULL )
-			result += plugin -> u.node.item_overhead( node, 0 );
+		if( nplug -> item_overhead != NULL ) {
+			result += nplug -> item_overhead( node, 0 );
+		}
 	}
 	return result;
 }
@@ -831,7 +834,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	reiser4_item_data    data;
 	int                  result;
 	int                  real_size;
-	reiser4_item_plugin *iplug;
+	item_plugin         *iplug;
 	int                  can_paste_here;
 
 	assert( "nikita-982", op != NULL );
@@ -852,10 +855,10 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * of required type. restart as insert.
 	 */
 	iplug = coord_of_item( op -> u.insert.coord ) ? 
-		&item_plugin_by_coord( op -> u.insert.coord ) -> u.item : NULL;
+		item_plugin_by_coord( op -> u.insert.coord ) : NULL;
 	can_paste_here = 
 		coord_of_item( op -> u.insert.coord ) &&
-		( iplug == &op -> u.insert.data -> plugin -> u.item );
+		( iplug == op -> u.insert.data -> iplug );
 
 	if( !can_paste_here || 
 	    ( can_paste_here &&
@@ -877,23 +880,21 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
 	assert( "nikita-1286", coord_of_item( op -> u.insert.coord ) );
-	assert( "nikita-1287", 
-		item_plugin_by_coord( op -> u.insert.coord ) -> h.id == 
-		op -> u.insert.data -> plugin -> h.id );
 
 	assert( "nikita-992", iplug != NULL );
 	real_size = space_needed_for_op( node, op );
-	if( real_size > 0 )
-		node -> node_plugin ->
-			u.node.change_item_size( op -> u.insert.coord, 
-						 real_size );
+	if( real_size > 0 ) {
+		node -> nplug ->
+			change_item_size( op -> u.insert.coord, real_size );
+	}
 	doing -> restartable = 0;
 	result = iplug -> b.paste( op -> u.insert.coord,
 					 op -> u.insert.data, todo );
-	if( real_size < 0 )
-		node -> node_plugin ->
-			u.node.change_item_size( op -> u.insert.coord, 
-						 real_size );
+	if( real_size < 0 ) {
+		node -> nplug ->
+			change_item_size( op -> u.insert.coord, 
+					  real_size );
+	}
 	/*
 	 * if we pasted at the beginning of the item, update item's key.
 	 */
@@ -902,7 +903,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		reiser4_key item_key;
 
 		unit_key_by_coord( op -> u.insert.coord, &item_key );
-		node -> node_plugin -> u.node.update_item_key 
+		node -> nplug -> update_item_key 
 			( op -> u.insert.coord, &item_key, todo );
 	}
 

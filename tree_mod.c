@@ -64,18 +64,17 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		 */
 		retcode = zload( result );
 		if( retcode == 0 ) {
-			reiser4_plugin *plugin;
 
-			plugin = current_tree -> node_plugin;
-			result -> node_plugin = plugin;
-			assert( "nikita-933", plugin != NULL );
+			result -> nplug = current_tree -> nplug;
+			assert( "nikita-933", result -> nplug != NULL );
 			ZF_SET( result, ZNODE_PLUGIN );
 			
 			retcode = zinit_new( result );
 			zrelse( result, 1 );
 
-			if( retcode != 0 )
+			if( retcode != 0 ) {
 				result = ERR_PTR( retcode );
+			}
 		} else {
 			warning( "nikita-932",
 				 "Cannot load znode: %i", retcode );
@@ -192,7 +191,7 @@ void build_child_ptr_data( znode *child /* node pointer to which will be
 	/* this is subtle assignment to meditate upon */
 	data -> data = ( char * ) znode_get_block( child );
 	data -> length = sizeof( reiser4_disk_addr );
-	data -> plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, INTERNAL_ITEM_ID );
+	data -> iplug = item_plugin_by_id( INTERNAL_ITEM_ID );
 }
 
 /**

@@ -40,7 +40,7 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 	tree_coord coord;
 	reiser4_lock_handle lh;	
 	size_t to_write;
-	reiser4_item_plugin * iplug;
+	item_plugin * iplug;
 	
 
 	/* collect statistics on the number of writes */
@@ -64,7 +64,7 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 		}
 		switch (what_todo (&coord, &f->key)) {
 		case WRITE_EXTENT:
-			iplug = &plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID)->u.item;
+			iplug = item_plugin_by_id (EXTENT_ITEM_ID);
 			/* resolves to extent_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, f);
@@ -101,8 +101,7 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
 	tree_coord coord;
 	reiser4_lock_handle lh;
 	reiser4_key key;
-	reiser4_item_plugin * iplug;
-
+	item_plugin * iplug;
 
 	inode = file->f_dentry->d_inode;
 
@@ -121,7 +120,7 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
 		return result;
 	}
 
-	iplug = &item_plugin_by_coord (&coord)->u.item;
+	iplug = item_plugin_by_coord (&coord);
 	if (!iplug->s.file.fill_page) {
 		reiser4_done_lh (&lh);
 		reiser4_done_coord (&coord);

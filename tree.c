@@ -404,16 +404,12 @@ void reiser4_insert_znode( tree_coord *coord, znode *node )
 }
 
 
-reiser4_node_plugin *node_plugin_by_coord ( const tree_coord *coord )
+node_plugin *node_plugin_by_coord ( const tree_coord *coord )
 {
 	assert( "vs-1", coord != NULL );
 	assert( "vs-2", coord -> node != NULL );
-	assert( "nikita-1024",
-		( coord -> node -> node_plugin == NULL ) ||
-		( coord -> node -> node_plugin -> h.type_id ==
-		  REISER4_NODE_PLUGIN_ID ) );
 
-	return &coord -> node -> node_plugin -> u.node;
+	return coord -> node -> nplug;
 }
 
 
@@ -603,13 +599,13 @@ static int paste_into_item( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 {
 	int result;
 	int size_change;
-	reiser4_node_plugin *node_plugin;
-	reiser4_plugin      *item_plugin;
+	node_plugin      *nplug;
+	item_plugin      *iplug;
 
-	item_plugin = item_plugin_by_coord( coord );
-	node_plugin = node_plugin_by_coord( coord );
+	iplug = item_plugin_by_coord( coord );
+	nplug = node_plugin_by_coord( coord );
 
-	assert( "nikita-1480", item_plugin == data -> plugin );
+	assert( "nikita-1480", iplug == data -> iplug );
 
 	/*
 	 * shortcut paste without carry() overhead.
@@ -632,19 +628,19 @@ static int paste_into_item( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 	      ( coord -> unit_pos != 0 ) ||
 	      ( coord -> between == AFTER_UNIT ) ) &&
 	    ( coord -> unit_pos != 0 ) &&
-	    ( node_plugin -> fast_paste != NULL ) &&
-	    node_plugin -> fast_paste( coord ) &&
-	    ( item_plugin -> u.item.b.fast_paste != NULL ) && 
-	    item_plugin -> u.item.b.fast_paste( coord ) ) {
+	    ( nplug -> fast_paste != NULL ) &&
+	    nplug -> fast_paste( coord ) &&
+	    ( iplug -> b.fast_paste != NULL ) && 
+	    iplug -> b.fast_paste( coord ) ) {
 		reiser4_stat_tree_add( fast_paste );
 		if( size_change > 0 )
-			node_plugin -> change_item_size( coord, size_change );
+			nplug -> change_item_size( coord, size_change );
 		/*
 		 * FIXME-NIKITA: huh? where @key is used?
 		 */
-		result = item_plugin -> u.item.b.paste( coord, data, NULL );
+		result = iplug -> b.paste( coord, data, NULL );
 		if( size_change < 0 )
-			node_plugin -> change_item_size( coord, size_change );
+			nplug -> change_item_size( coord, size_change );
 	} else
 		/*
 		 * otherwise do full-fledged carry().
@@ -717,7 +713,7 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 		reiser4_disk_addr addr;
 
 		item_plugin_by_coord( parent_coord ) -> 
-			u.item.s.internal.down_link( parent_coord, NULL, &addr );
+			s.internal.down_link( parent_coord, NULL, &addr );
 		spin_unlock_dk( current_tree );
 		child = zget( current_tree, &addr, parent, 
 			      znode_get_level( parent ) - 1, GFP_KERNEL );
@@ -935,13 +931,12 @@ int check_tree_pointer( tree_coord *pointer, znode *child )
 		return NS_NOT_FOUND;
 
 	if( coord_of_unit( pointer ) ) {
-		reiser4_plugin    *plugin;
+		item_plugin    *iplug;
 		reiser4_disk_addr  addr;
 
-		plugin = item_plugin_by_coord( pointer );
-		if( ( plugin -> h.type_id == REISER4_ITEM_PLUGIN_ID ) &&
-		    ( plugin -> u.item.item_type == INTERNAL_ITEM_TYPE ) ) {
-			plugin -> u.item.s.internal.down_link( pointer,
+		iplug = item_plugin_by_coord( pointer );
+		if( ( iplug -> item_type == INTERNAL_ITEM_TYPE ) ) {
+			iplug -> s.internal.down_link( pointer,
 							       NULL, &addr );
 			/*
 			 * check that cached value is correct
@@ -996,7 +991,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 		    tree_coord *result /* where result is stored in */ )
 {
 	int                lookup_res;
-	reiser4_plugin    *plugin;
+	node_plugin       *nplug;
 	/* left delimiting key of a child */
 	reiser4_key        ld;
 
@@ -1008,8 +1003,8 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	reiser4_init_coord( result );
 	result -> node = parent;
 
-	plugin = parent -> node_plugin;
-	assert( "nikita-939", plugin != NULL );
+	nplug = parent -> nplug;
+	assert( "nikita-939", nplug != NULL );
 
 
 	/*
@@ -1039,7 +1034,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	/*
 	 * now, lookup parent with key just found.
 	 */
-	lookup_res = plugin -> u.node.lookup( parent, &ld, FIND_EXACT, result );
+	lookup_res = nplug -> lookup( parent, &ld, FIND_EXACT, result );
 	/* update cached pos_in_node */
 	if( lookup_res == NS_FOUND ) {
 		spin_lock_tree( current_tree );
@@ -1122,7 +1117,7 @@ int shift_right_of_but_excluding_insert_coord (tree_coord * insert_coord)
 	int result;
 	carry_pool  pool;
 	carry_level parent_level;
-	reiser4_node_plugin * np;
+	node_plugin * nplug;
 	znode * right;
 
 
@@ -1131,8 +1126,8 @@ int shift_right_of_but_excluding_insert_coord (tree_coord * insert_coord)
 	reiser4_init_carry_pool (&pool);
 	reiser4_init_carry_level (&parent_level, &pool);
 
-	np = node_plugin_by_node (right);
-	result = np->shift (insert_coord, right, SHIFT_PREPEND,
+	nplug = node_plugin_by_node (right);
+	result = nplug->shift (insert_coord, right, SHIFT_PREPEND,
 			    0 /* do not delete node if all contents of
 				 @insert_coord->node was shifted */,
 			    0 /* do not move @insert_coord to @right even if
@@ -1157,7 +1152,7 @@ int shift_left_of_and_including_insert_coord (tree_coord * insert_coord)
 	int result;
 	carry_pool  pool;
 	carry_level parent_level;
-	reiser4_node_plugin * np;
+	node_plugin * nplug;
 	znode * left;
 
 
@@ -1166,8 +1161,8 @@ int shift_left_of_and_including_insert_coord (tree_coord * insert_coord)
 	reiser4_init_carry_pool (&pool);
 	reiser4_init_carry_level (&parent_level, &pool);
 
-	np = node_plugin_by_node (left);
-	result = np->shift (insert_coord, left, SHIFT_APPEND,
+	nplug = node_plugin_by_node (left);
+	result = nplug->shift (insert_coord, left, SHIFT_APPEND,
 			    0 /* do not delete node if all contents of
 				 @insert_coord->node was shifted */,
 			    1 /* move @insert_coord to node @left if
@@ -1187,13 +1182,13 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 {
 	int result;
 	tree_coord from;
-	reiser4_node_plugin * np;
+	node_plugin * nplug;
 
 	from.node = right;
 	coord_last_unit (&from);
 
-	np = node_plugin_by_node (right);
-	result = np->shift (&from, left, SHIFT_APPEND,
+	nplug = node_plugin_by_node (right);
+	result = nplug->shift (&from, left, SHIFT_APPEND,
 			    1/* delete node @right if all its contents was moved to @left */,
 			    1/* @from will be set to @left node */,
 			    todo);

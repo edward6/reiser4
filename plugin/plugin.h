@@ -14,14 +14,14 @@
 /* plugin data-types and constants */
 
 typedef enum {
-	REISER4_FILE_PLUGIN_ID,
-	REISER4_ITEM_PLUGIN_ID,
-	REISER4_NODE_PLUGIN_ID,
-	REISER4_HASH_PLUGIN_ID,
-	REISER4_TAIL_PLUGIN_ID,
-	REISER4_HOOK_PLUGIN_ID,
-	REISER4_PERM_PLUGIN_ID,
-	REISER4_SD_EXT_PLUGIN_ID,
+	REISER4_FILE_PLUGIN_TYPE,
+	REISER4_ITEM_PLUGIN_TYPE,
+	REISER4_NODE_PLUGIN_TYPE,
+	REISER4_HASH_PLUGIN_TYPE,
+	REISER4_TAIL_PLUGIN_TYPE,
+	REISER4_HOOK_PLUGIN_TYPE,
+	REISER4_PERM_PLUGIN_TYPE,
+	REISER4_SD_EXT_PLUGIN_TYPE,
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
@@ -196,25 +196,19 @@ typedef struct dir_plugin {
 			    struct dentry *where, reiser4_entry *entry );
 } dir_plugin;
 
-
-
-} dplug;
-
-typedef struct reiser4_tail_plugin {
-	    into body of @inode at position determined by @key. This is
-	    called by write() when it has to insert new item into
-	    file. */
+typedef struct tail_plugin {
+	/* into body of @inode at position determined by @key. This is
+	 * called by write() when it has to insert new item into
+	 *  file. */
 	int ( *item_plugin_at )( const struct inode *inode, 
 				 const reiser4_key *key );
 
 	int ( *find_item )( reiser4_tree *tree, reiser4_key *key,
 			    tree_coord *coord, reiser4_lock_handle *lh );
-} old_file_plugin;
-
-typedef struct tail_plugin {
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int ( *tail )( const struct inode *inode, loff_t size );
+
 } tail_plugin;
 
 typedef struct hash_plugin {
@@ -444,12 +438,19 @@ static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )                
 {                                                                                  \
 	return (reiser4_plugin*) (((long) plugin) - sizeof (plugin_header));       \
 }                                                                                  \
+static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )                        \
+{                                                                                  \
+	return TYPE ## _to_plugin (plugin) -> h.id;                                \
+}                                                                                  \
 typedef struct { int foo; } TYPE ## _plugin_dummy
 
-PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_ID,item);
-PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_ID,file);
-PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_ID,node);
-PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_ID,sd_ext);
+PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
+PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
+PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);
+PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_TYPE,sd_ext);
+PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);
+PLUGIN_BY_ID(hash_plugin,REISER4_HASH_PLUGIN_TYPE,hash);
+PLUGIN_BY_ID(tail_plugin,REISER4_TAIL_PLUGIN_TYPE,tail);
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 

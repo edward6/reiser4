@@ -39,12 +39,6 @@ typedef struct reiser4_object_create_data reiser4_object_create_data;
 struct reiser4_plugin;
 typedef struct reiser4_plugin reiser4_plugin;
 
-struct node;
-typedef struct node reiser4_node_plugin;
-
-struct item_ops;
-typedef struct item_ops reiser4_item_plugin;
-
 struct reiser4_item_data;
 typedef struct reiser4_item_data reiser4_item_data;
 

@@ -20,11 +20,11 @@ static int always_tail( const struct inode *inode UNUSED_ARG,
 	return 1;
 }
 
+#if 0
 reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 	[ NEVER_TAIL_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_TAIL_PLUGIN_ID,
+			.type_id = REISER4_TAIL_PLUGIN_TYPE,
 			.id      = NEVER_TAIL_ID,
 			.pops    = NULL,
 			.label   = "never",
@@ -39,8 +39,7 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 	},
 	[ ALWAYS_TAIL_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_TAIL_PLUGIN_ID,
+			.type_id = REISER4_TAIL_PLUGIN_TYPE,
 			.id      = ALWAYS_TAIL_ID,
 			.pops    = NULL,
 			.label   = "always",
@@ -54,6 +53,7 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 		}
 	}
 };
+#endif
 
 /* 
  * Make Linus happy.

@@ -245,17 +245,18 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 	if (ret) {
 		if (ret != -ENOENT) return ret;
 	} else {
-		reiser4_plugin * item_plugin;
+		item_plugin * iplug;
 		spin_unlock_tree(tree);
 
 		/* does coord object points to internal item? We do not
 		 * support sibling pointers between znode for formatted and
 		 * unformatted nodes and return -ENAVAIL in that case. */
 		/* FIXME-NIKITA nikita: can child_znode() be used here? */
-		item_plugin = item_plugin_by_coord(coord);
-		if (item_plugin->u.item.item_type != INTERNAL_ITEM_TYPE) {
-			if (handle->owner != NULL)
+		iplug = item_plugin_by_coord(coord);
+		if (iplug->item_type != INTERNAL_ITEM_TYPE) {
+			if (handle->owner != NULL) {
 				reiser4_unlock_znode(handle);
+			}
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
 			/* we know there can't be formatted neighbor*/
 			return -ENAVAIL;
@@ -266,10 +267,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			side_parent = handle->node;
 		}
 
-		{
-			reiser4_plugin *plugin = item_plugin_by_coord(coord);
-			plugin -> u.item.s.internal.down_link( coord, NULL, &da);
-		}
+		iplug -> s.internal.down_link( coord, NULL, &da);
 
 		if (flags & GN_NO_ALLOC) {
 			neighbor = zlook(tree, &da, level);

@@ -46,7 +46,7 @@ __u32 *reiser4_inode_flags( const struct inode *inode )
 }
 
 /** file plugin for @inode */
-reiser4_file_plugin *reiser4_get_file_plugin( const struct inode *inode )
+file_plugin *reiser4_get_file_plugin( const struct inode *inode )
 {
 	assert( "nikita-269", inode != NULL );
 	assert( "nikita-270", is_reiser4_inode( inode ) );
@@ -123,16 +123,16 @@ int is_reiser4_inode( const struct inode *inode )
 int reiser4_max_filename_len( const struct inode *inode )
 {
 	assert( "nikita-287", is_reiser4_inode( inode ) );
-	return plugin_by_id( REISER4_ITEM_PLUGIN_ID, REISER4_DIR_ITEM_PLUGIN ) -> 
-		u.item.s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
+	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
+		s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
 }
 
 /** return plugin that should be used to create stat-data for this
     file */
-reiser4_plugin *reiser4_get_sd_plugin( const struct inode *inode UNUSED_ARG )
+item_plugin *reiser4_get_sd_plugin( const struct inode *inode UNUSED_ARG )
 {
 	assert( "nikita-288", is_reiser4_inode( inode ) );
-	return plugin_by_id( REISER4_ITEM_PLUGIN_ID, SD_ITEM_ID );
+	return item_plugin_by_id( SD_ITEM_ID );
 }
 
 /** return information about "repetitive access" (ra) patterns,
@@ -193,26 +193,26 @@ int setup_inode_ops( struct inode *inode )
 int init_inode( struct inode *inode, tree_coord *coord )
 {
 	int result;
-	reiser4_plugin *plugin;
+	item_plugin *iplug;
 	void           *body;
 	int             length;
 
 	assert( "nikita-292", coord != NULL );
 	assert( "nikita-293", inode != NULL );
 
-	plugin = item_plugin_by_coord( coord );
+	iplug = item_plugin_by_coord( coord );
 	body = item_body_by_coord( coord );
 	length = item_length_by_coord( coord );
 
-	assert( "nikita-295", plugin != NULL );
+	assert( "nikita-295", iplug != NULL );
 	assert( "nikita-296", body != NULL );
 	assert( "nikita-297", length > 0 );
 
 	/* call stat-data plugin method to load sd content into inode */
-	result = plugin -> u.item.s.sd.init_inode( inode, body, length );
+	result = iplug -> s.sd.init_inode( inode, body, length );
 	if( result )
 		return result;
-	reiser4_get_object_state( inode ) -> sd = plugin;
+	reiser4_get_object_state( inode ) -> sd = item_plugin_to_plugin (iplug);
 	return setup_inode_ops( inode );
 }
 

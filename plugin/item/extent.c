@@ -51,10 +51,12 @@ int extent_mergeable (const tree_coord * p1, const tree_coord * p2)
 {
 	reiser4_key key1, key2;
 
-	assert ("vs-299", item_plugin_by_coord (p1)->h.id == EXTENT_ITEM_ID);
-
-	if (item_plugin_by_coord (p2)->h.id != EXTENT_ITEM_ID)
+	assert ("vs-299", item_plugin_id (item_plugin_by_coord (p1)) == EXTENT_ITEM_ID);
+	/* FIXME-VS: Which is it? Assert or return 0 */
+	if (item_plugin_id (item_plugin_by_coord (p2)) != EXTENT_ITEM_ID) {
 		return 0;
+	}
+
 	item_key_by_coord (p1, &key1);
 	item_key_by_coord (p2, &key2);
 	if (get_key_locality (&key1) != get_key_locality (&key2) ||
@@ -544,7 +546,7 @@ int extent_item_data_by_flow (const tree_coord * coord UNUSED_ARG,
 {
 	data->data = f->data;
 	data->length = sizeof (reiser4_extent);
-	data->plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
+	data->iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 	return 0;
 }
 
@@ -765,7 +767,7 @@ static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
 	set_extent (&ext, UNALLOCATED_EXTENT, 1ull);
 	unit.data = (char *)&ext;
 	unit.length = sizeof (reiser4_extent);
-	unit.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
+	unit.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 	unit.arg = 0;
 
 	/*
@@ -778,20 +780,23 @@ static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
 	left = *coord;
 	assert ("vs-347", left_item_pos (&left) >= 0);
 	left.item_pos = left_item_pos (&left);
-	if (item_plugin_by_coord (&left)->u.item.item_type == INTERNAL_ITEM_TYPE) {
+	if (item_plugin_by_coord (&left)->item_type == INTERNAL_ITEM_TYPE) {
 		left.unit_pos = last_unit_pos (&left);
 		left.between = AT_UNIT;
 		spin_lock_dk (current_tree);
 		unit.arg = child_znode (&left, 1/*do setup delimiting keys*/);
 		spin_unlock_dk (current_tree);
-		if (IS_ERR (unit.arg))
+		if (IS_ERR (unit.arg)) {
 			return PTR_ERR (unit.arg);
+		}
 	}
 	result = insert_by_coord (coord, &unit, &first_key, lh, 0, 0);
-	if (unit.arg)
+	if (unit.arg) {
 		zput (unit.arg);
-	if (result)
+	}
+	if (result) {
 		return result;
+	}
 
 	/* do whatever is needed to be done with new block of a file */
 	bh->b_dev = reiser4_get_current_sb ()->s_dev;
@@ -832,8 +837,7 @@ static int append_one_block (reiser4_tree * tree, tree_coord * coord,
 		set_extent (&new_ext, UNALLOCATED_EXTENT, 1ull);
 		unit.data = (char *)&new_ext;
 		unit.length = sizeof (reiser4_extent);
-		unit.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID,
-					    EXTENT_ITEM_ID);
+		unit.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 		result = add_extents (tree, coord, lh, last_key_in_extent (coord, &key),
 				      &unit);
 		if (result)
@@ -896,7 +900,7 @@ static int plug_hole (reiser4_tree * tree,
 
 	item.data = (char *)new_exts;
 	item.length = count * sizeof (reiser4_extent);
-	item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
+	item.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 	coord->between = AFTER_UNIT;
 	return add_extents (tree, coord, lh, &key, &item);
 }
@@ -1045,7 +1049,7 @@ static int add_hole (reiser4_tree * tree,
 	/* prepare item data for insertion */
 	item.data = (char *)&new_ext;
 	item.length = sizeof (reiser4_extent);
-	item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);	
+	item.iplug = item_plugin_by_id (EXTENT_ITEM_ID);	
 	item.arg = 0;
 
 	if (todo == CREATE_HOLE) {
@@ -1065,7 +1069,7 @@ static int add_hole (reiser4_tree * tree,
 		reiser4_dup_coord (&left, coord);
 		assert ("vs-346", left_item_pos (&left) >= 0);
 		left.item_pos = left_item_pos (&left);
-		if (item_plugin_by_coord (&left)->u.item.item_type == INTERNAL_ITEM_TYPE) {
+		if (item_plugin_by_coord (&left)->item_type == INTERNAL_ITEM_TYPE) {
 			left.unit_pos = last_unit_pos (&left);
 			left.between = AT_UNIT;
 
@@ -1189,7 +1193,7 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 		item_key_by_coord (&left, &coord_key);
 		if (get_key_objectid (key) != get_key_objectid (&coord_key) ||
 		    item_type_by_coord (&left) != EXTENT_ITEM_TYPE ||
-		    item_plugin_by_coord (&left)->h.id != EXTENT_ITEM_ID) {
+		    item_plugin_id (item_plugin_by_coord (&left)) != EXTENT_ITEM_ID) {
 			/* @coord is set between items of other files */
 			if (fbb_offset == 0)
 				return FIRST_BLOCK;
@@ -1829,7 +1833,7 @@ static int allocate_unallocated_extent (reiser4_tree * tree,
 				
 					item.data = (char *)&new_ext;
 					item.length = sizeof (reiser4_extent);
-					item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
+					item.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 				}
 
 				coord->between = AFTER_UNIT;
@@ -1872,8 +1876,9 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 	int result;
 	reiser4_key key;
 
-	if (item_plugin_by_coord (coord)->h.id != EXTENT_ITEM_ID)
+	if (item_plugin_id (item_plugin_by_coord (coord)) != EXTENT_ITEM_ID) {
 		return 1;
+	}
 
 	item_key_by_coord (coord, &key);
 	while ((result = allocate_unallocated_extent (tree, coord, lh, &key)) > 0) {
@@ -1897,9 +1902,10 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 		}
 	}
 
-	if (result)
+	if (result) {
 		/* error occurred */
 		return result;
+	}
 	/* have reiser4_iterate_tree to continue */
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;

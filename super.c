@@ -205,18 +205,18 @@ int reiser4_init_tree( reiser4_tree *tree /* pointer to structure being
 							    * root block on a
 							    * disk */,
 		       tree_level height /* height of a tree */, 
-		       reiser4_plugin *plugin, node_read_actor read_node )
+		       node_plugin *nplug, node_read_actor read_node )
 {
 	assert( "nikita-306", tree != NULL );
 	assert( "nikita-307", root_block != NULL );
 	assert( "nikita-308", height > 0 );
-	assert( "nikita-309", plugin != NULL );
+	assert( "nikita-309", nplug != NULL );
 	assert( "nikita-1099", read_node != NULL );
 
 	memset( tree, 0, sizeof *tree );
 	tree -> root_block = *root_block;
 	tree -> height = height;
-	tree -> node_plugin = plugin;
+	tree -> nplug = nplug;
 	tree -> read_node = read_node;
 	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
 	if( tree -> cbk_cache == NULL )

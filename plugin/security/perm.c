@@ -11,8 +11,7 @@
 reiser4_plugin perm_plugins[] = {
 	[ RWX_PERM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_PERM_PLUGIN_ID,
+			.type_id = REISER4_PERM_PLUGIN_TYPE,
 			.id      = RWX_PERM_ID,
 			.pops    = NULL,
 			.label   = "rwx",

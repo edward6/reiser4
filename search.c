@@ -70,36 +70,25 @@ int item_length_by_coord( const tree_coord *coord )
 /**
  * return plugin of item at @coord
  */
-reiser4_plugin *item_plugin_by_coord( const tree_coord *coord )
+item_plugin *item_plugin_by_coord( const tree_coord *coord )
 {
-	reiser4_plugin *plugin;
-
 	assert( "nikita-330", coord != NULL );
 	assert( "nikita-331", coord -> node != NULL );
 	assert( "nikita-332", znode_is_loaded( coord -> node ) );
 	trace_stamp( TRACE_TREE );
 
-	plugin = node_plugin_by_node( coord -> node ) -> plugin_by_coord( coord );
-	assert( "nikita-1025",
-		( plugin == NULL ) ||
-		( plugin -> h.type_id == REISER4_ITEM_PLUGIN_ID ) );
-	return plugin;
+	return node_plugin_by_node( coord -> node ) -> plugin_by_coord( coord );
 }
 
 /**
  * return node plugin of @node
  */
-reiser4_node_plugin * node_plugin_by_node( const znode *node )
+node_plugin * node_plugin_by_node( const znode *node )
 {
 	assert( "vs-213", node != NULL );
 	assert( "vs-214", znode_is_loaded( node ) );
 
-	/* If you dislike this, change it to if (node->node_plugin == NULL) {
-	 * return NULL; }, because currently this returns (NULL+20), which is
-	 * no good. */
-	assert( "jmacd-1026", node -> node_plugin != NULL );
-
-	return &node->node_plugin->u.node;
+	return node->nplug;
 }
 
 /**
@@ -111,10 +100,10 @@ item_type item_type_by_coord( const tree_coord *coord )
 	assert( "nikita-334", coord -> node != NULL );
 	assert( "nikita-335", znode_is_loaded( coord -> node ) );
 	assert( "nikita-336", item_plugin_by_coord( coord ) != NULL );
-	assert( "nikita-337", item_plugin_by_coord( coord ) -> h.type_id == REISER4_ITEM_PLUGIN_ID );
+
 	trace_stamp( TRACE_TREE );
 
-	return item_plugin_by_coord( coord ) -> u.item.item_type;
+	return item_plugin_by_coord( coord ) -> item_type;
 }
 
 /**
@@ -140,8 +129,8 @@ reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key )
 	assert( "nikita-775", znode_is_loaded( coord -> node ) );
 	trace_stamp( TRACE_TREE );
 
-	if( item_plugin_by_coord( coord )->u.item.b.unit_key != NULL )
-		return item_plugin_by_coord( coord )->u.item.b.unit_key
+	if( item_plugin_by_coord( coord )->b.unit_key != NULL )
+		return item_plugin_by_coord( coord )->b.unit_key
 			( coord, key );
 	else
 		return item_key_by_coord( coord, key );
@@ -772,7 +761,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
  */
 static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 {
-	reiser4_plugin *item_plugin;
+	item_plugin *iplug;
 	int result;
 
 
@@ -781,8 +770,8 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		 * next item is in the same node
 		 */
 		coord -> item_pos ++;
-		item_plugin = item_plugin_by_coord( coord );
-		if( item_plugin -> u.item.item_type == INTERNAL_ITEM_TYPE )
+		iplug = item_plugin_by_coord( coord );
+		if( iplug -> item_type == INTERNAL_ITEM_TYPE )
 			return 1;
 		coord -> item_pos --;
 		return 0;
@@ -808,8 +797,8 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 			reiser4_init_coord( &right );
 			right.node = right_lh.node;
 			coord_first_unit( &right );
-			item_plugin = item_plugin_by_coord( &right );
-			if( item_plugin -> u.item.item_type == INTERNAL_ITEM_TYPE ) {
+			iplug = item_plugin_by_coord( &right );
+			if( iplug -> item_type == INTERNAL_ITEM_TYPE ) {
 				/*
 				 * switch to right neighbor
 				 */
@@ -918,7 +907,8 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
  */
 static level_lookup_result cbk_node_lookup( cbk_handle *h )
 {
-	reiser4_plugin   *plugin;
+	node_plugin      *nplug;
+	item_plugin      *iplug;
 	lookup_bias       node_bias;
 	znode            *active;
 	reiser4_tree     *tree;
@@ -934,8 +924,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	h -> result = zparse( active );
 	if( h -> result )
 		return LLR_DONE;
-	plugin = active -> node_plugin;
-	assert( "nikita-380", plugin != NULL );
+	nplug = active -> nplug;
+	assert( "nikita-380", nplug != NULL );
 
 	/* 
 	 * return item from "active" node with maximal key not greater than
@@ -949,8 +939,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	 */
 	node_bias = ( h -> level <= h -> llevel ) ?
 		h -> bias : FIND_MAX_NOT_MORE_THAN;
-	result = plugin -> u.node.lookup( active, h -> key,
-					       node_bias, h -> coord );
+	result = nplug -> lookup( active, h -> key,
+				  node_bias, h -> coord );
 	if( result != NS_FOUND && result != NS_NOT_FOUND ) {
 		/* error occured */
 		h -> result = result;
@@ -983,12 +973,12 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 
 	assert( "vs-361", h -> level > h -> slevel );
 
-	plugin = item_plugin_by_coord( h -> coord );
-	if( plugin -> u.item.item_type != INTERNAL_ITEM_TYPE ) {
+	iplug = item_plugin_by_coord( h -> coord );
+	if( iplug -> item_type != INTERNAL_ITEM_TYPE ) {
 		/* strange item type found on non-stop level?!  Twig
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );
-		assert( "vs-357", plugin -> h.id == EXTENT_ITEM_ID );
+		assert( "vs-357", item_plugin_id (iplug) == EXTENT_ITEM_ID );
 		/*
 		 * take a look at the item to the right of h -> coord
 		 */
@@ -1035,7 +1025,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 							   &key)) == EQUAL_TO );
 			assert( "vs-362", item_type_by_coord( h -> coord ) ==
 				INTERNAL_ITEM_TYPE );
-			plugin = item_plugin_by_coord( h -> coord );
+			iplug = item_plugin_by_coord( h -> coord );
 		}
 	}
 	/*
@@ -1047,8 +1037,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		return LLR_DONE;
 	}
 	/* go down to next level */
-	plugin -> u.item.s.internal.down_link( h -> coord, h -> key,
-					       &h -> block );
+	iplug -> s.internal.down_link( h -> coord, h -> key,
+				       &h -> block );
 	-- h -> level;
 	return LLR_CONT; /* continue */
 }
@@ -1293,7 +1283,7 @@ void print_coord_content( const char *prefix, tree_coord *p )
 	print_znode( prefix, p -> node );
 	item_key_by_coord( p, &key );
 	print_key( prefix, &key );
-	print_plugin( prefix, item_plugin_by_coord( p ) );
+	print_plugin( prefix, item_plugin_to_plugin (item_plugin_by_coord( p ) ) );
 }
 
 /** debugging aid: print human readable information about @block */

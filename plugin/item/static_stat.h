@@ -53,7 +53,7 @@ reiser4 is working, then fix it...:-)
    initialised to some sane values.
 
    To capitalize on existing code infrastructure, extensions are
-   implemented as plugins of type REISER4_SD_EXT_PLUGIN_ID.
+   implemented as plugins of type REISER4_SD_EXT_PLUGIN_TYPE.
    Each stat-data extension plugin implements four methods:
 
     ->present() called by sd_load() when this extension is found in stat-data

@@ -19,29 +19,32 @@ int tail_mergeable (const tree_coord * p1, const tree_coord * p2)
 	reiser4_key key1, key2;
 
 
-	assert ("vs-365", item_plugin_by_coord (p1)->h.id == BODY_ITEM_ID);
+	assert ("vs-365", item_plugin_id (item_plugin_by_coord (p1)) == BODY_ITEM_ID);
 
-	if (item_plugin_by_coord (p2)->h.id != BODY_ITEM_ID)
+	if (item_plugin_to_plugin (item_plugin_by_coord (p2))->h.id != BODY_ITEM_ID) {
 		/*
 		 * second item is of another type
 		 */
 		return 0;
+	}
 
 	item_key_by_coord (p1, &key1);
 	item_key_by_coord (p2, &key2);
 	if (get_key_locality (&key1) != get_key_locality (&key2) ||
 	    get_key_objectid (&key1) != get_key_objectid (&key2) ||
-	    get_key_type (&key1) != get_key_type (&key2))
+	    get_key_type (&key1) != get_key_type (&key2)) {
 		/*
 		 * items of different objects
 		 */
 		return 0;
+	}
 	if (get_key_offset (&key1) + tail_nr_units (p1) !=
-	    get_key_offset (&key2))
+	    get_key_offset (&key2)) {
 		/*
 		 * not adjacent items
 		 */
 		return 0;
+	}
 	return 1;
 }
 

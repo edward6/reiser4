@@ -259,8 +259,7 @@ static __u64 deg_hash( const unsigned char *name, int len UNUSED_ARG )
 reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
 	[ RUPASOV_HASH_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_HASH_PLUGIN_ID,
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id      = RUPASOV_HASH_ID,
 			.pops    = NULL,
 			.label   = "rupasov",
@@ -275,8 +274,7 @@ reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
 	},
 	[ R5_HASH_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_HASH_PLUGIN_ID,
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id      = R5_HASH_ID,
 			.pops    = NULL,
 			.label   = "r5",
@@ -291,8 +289,7 @@ reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
 	},
 	[ TEA_HASH_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_HASH_PLUGIN_ID,
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id      = TEA_HASH_ID,
 			.pops    = NULL,
 			.label   = "tea",
@@ -307,8 +304,7 @@ reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
 	},
 	[ FNV1_HASH_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_HASH_PLUGIN_ID,
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id      = FNV1_HASH_ID,
 			.pops    = NULL,
 			.label   = "fnv1",
@@ -323,8 +319,7 @@ reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
 	},
 	[ DEGENERATE_HASH_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_HASH_PLUGIN_ID,
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id      = DEGENERATE_HASH_ID,
 			.pops    = NULL,
 			.label   = "degenerate hash",

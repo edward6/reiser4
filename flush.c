@@ -199,7 +199,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	int ret;
 	reiser4_lock_handle node_lh, parent_lh, left_parent_lh;
 	tree_coord coord;
-	reiser4_item_plugin *iplug;
+	item_plugin *iplug;
 	jnode *child_left;
 
 	assert ("jmacd-1403", ! slum_scan_left_finished (scan));
@@ -253,7 +253,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 			coord_last_unit (& coord);
 		}
 
-		iplug = & item_plugin_by_coord (& coord)->u.item;
+		iplug = item_plugin_by_coord (& coord);
 		child_left = NULL;
 
 		/* If the item has no utmost_child routine (odd), or if the child is not in memory, stop. */

@@ -736,11 +736,11 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 	}
 	result = zload( root );
 	assert( "nikita-1171", result == 0 );
-	root -> node_plugin = plugin_by_id( REISER4_NODE_PLUGIN_ID,
-					    NODE40_ID );
-	if( ( mmap_back_end_fd == -1 ) || init_node_p )
+	root -> nplug = node_plugin_by_id( NODE40_ID );
+	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
 		zinit_new( root );
-	root -> node_plugin = NULL;
+	}
+	root -> nplug = NULL;
 	result = zparse( root );
 	assert( "nikita-1170", result == 0 );
 	return root;
@@ -1040,8 +1040,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		/* this inserts stat data */
 		data.data = ( char * ) &sd;
 		data.length = sizeof sd.base;
-		data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, 
-					    SD_ITEM_ID );
+		data.iplug = item_plugin_by_id( SD_ITEM_ID );
 		coord_first_unit( &coord );
 
 		key_init( &key );
@@ -1080,14 +1079,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		f.i_sb = reiser4_get_current_sb();
 		sema_init( &f.i_sem, 1 );
 		init_inode( &f, &coord );
-		reiser4_get_object_state( &f ) -> hash = plugin_by_id
-			( REISER4_HASH_PLUGIN_ID, DEGENERATE_HASH_ID );
-		reiser4_get_object_state( &f ) -> tail = plugin_by_id
-			( REISER4_TAIL_PLUGIN_ID, NEVER_TAIL_ID );
-		reiser4_get_object_state( &f ) -> perm = plugin_by_id
-			( REISER4_PERM_PLUGIN_ID, RWX_PERM_ID );
-		reiser4_get_object_state( &f ) -> locality_id = 
-			get_key_locality( &key );
+		reiser4_get_object_state( &f ) -> hash = hash_plugin_to_plugin (hash_plugin_by_id ( DEGENERATE_HASH_ID ));
+		reiser4_get_object_state( &f ) -> tail = tail_plugin_to_plugin (tail_plugin_by_id ( NEVER_TAIL_ID ));
+		reiser4_get_object_state( &f ) -> perm = perm_plugin_to_plugin (perm_plugin_by_id ( RWX_PERM_ID ));
+		reiser4_get_object_state( &f ) -> locality_id = get_key_locality( &key );
 
 		print_inode( "inode", &f );
 
@@ -1178,8 +1173,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, 
-						    SD_ITEM_ID );
+			data.iplug = item_plugin_by_id( SD_ITEM_ID );
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
@@ -1232,8 +1226,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/* this inserts stat data */
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, 
-						    SD_ITEM_ID );
+			data.iplug = item_plugin_by_id( SD_ITEM_ID );
 			coord_first_unit( &coord );
 
 			set_key_locality( &key, 2ull + i );
@@ -1307,8 +1300,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, 
-						    SD_ITEM_ID );
+			data.iplug = item_plugin_by_id( SD_ITEM_ID );
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
@@ -1335,12 +1327,12 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( reiser4_item_data );
 		STYPE( reiser4_inode_info_data );
 		STYPE( reiser4_super_info_data );
-		STYPE( reiser4_plugin_header );
-		STYPE( reiser4_file_plugin );
-		STYPE( reiser4_tail_plugin );
-		STYPE( reiser4_hash_plugin );
-		STYPE( reiser4_hook_plugin );
-		STYPE( reiser4_perm_plugin );
+		STYPE( plugin_header );
+		STYPE( file_plugin );
+		STYPE( tail_plugin );
+		STYPE( hash_plugin );
+		STYPE( hook_plugin );
+		STYPE( perm_plugin );
 		STYPE( reiser4_plugin );
 		STYPE( inter_syscall_ra_hint );
 		STYPE( reiser4_plugin_ref );
@@ -1416,8 +1408,7 @@ static struct inode * create_root_dir (znode * root)
 	/* this inserts stat data */
 	data.data = ( char * ) &sd;
 	data.length = sizeof sd.base;
-	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, 
-				    SD_ITEM_ID );
+	data.iplug = item_plugin_by_id( SD_ITEM_ID );
 	coord_first_unit( &coord );
 	
 	key_init( &key );
@@ -1453,14 +1444,10 @@ static struct inode * create_root_dir (znode * root)
 	inode->i_sb = reiser4_get_current_sb();
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
-	reiser4_get_object_state( inode ) -> hash = plugin_by_id
-		( REISER4_HASH_PLUGIN_ID, DEGENERATE_HASH_ID );
-	reiser4_get_object_state( inode ) -> tail = plugin_by_id
-		( REISER4_TAIL_PLUGIN_ID, NEVER_TAIL_ID );
-	reiser4_get_object_state( inode ) -> perm = plugin_by_id
-		( REISER4_PERM_PLUGIN_ID, RWX_PERM_ID );
-	reiser4_get_object_state( inode ) -> locality_id = 
-		get_key_locality( &key );
+	reiser4_get_object_state( inode ) -> hash = hash_plugin_to_plugin (hash_plugin_by_id ( DEGENERATE_HASH_ID ));
+	reiser4_get_object_state( inode ) -> tail = tail_plugin_to_plugin (tail_plugin_by_id ( NEVER_TAIL_ID ));
+	reiser4_get_object_state( inode ) -> perm = perm_plugin_to_plugin (perm_plugin_by_id ( RWX_PERM_ID ));
+	reiser4_get_object_state( inode ) -> locality_id = get_key_locality( &key );
 
 	return inode;
 }
@@ -1483,7 +1470,7 @@ int insert_item (struct inode *inode,
 	reiser4_init_coord (&coord);
 	reiser4_init_lh (&lh);
 
-	level = (data->plugin->h.id == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
+	level = (item_plugin_id (data->iplug) == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree_by_inode (inode), key, data, &coord, &lh,
 				level, reiser4_inter_syscall_ra (inode), 0);
 
@@ -1608,9 +1595,10 @@ static struct inode * call_cd (struct inode * dir, const char * name)
 	struct inode * inode;
 
 	inode = call_lookup (dir, name);
-	if (!inode)
+	if (!inode) {
 		return inode;
-	if (!)
+	}
+	/* FIXME-VS */
 }
 
 
@@ -2056,7 +2044,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		set_key_offset (&key, 0ull);
 
 
-		item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, SD_ITEM_ID);
+		item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_TYPE, SD_ITEM_ID);
 		if (insert_item (root_dir, &item, &key)) {
 			info ("insert_item failed for stat data\n");
 			return 1;
@@ -2094,10 +2082,11 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				struct inode * tmp;
 
 				tmp = call_cd (cwd, command + 3);
-				if (!tmp)
-					info ();
-				else
-					cwd = 
+				if (!tmp) {
+					info ("vs"); /* FIXME-VS */
+				} else {
+					cwd = 0; /* FIXME-VS */
+				}
 			} else if (!strncmp (command, "mkdir ", 6)) {
 				if (call_mkdir (cwd, command + 6))
 					info ("mkdir \"%s\"\n", command + 6);
@@ -2181,7 +2170,7 @@ void jmacd_key_no (reiser4_key *key, reiser4_key *next_key, jmacd_sd *sd, reiser
 	
 	id->data = ( char * ) sd;
 	id->length = sizeof (sd->base);
-	id->plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, SD_ITEM_ID );
+	id->iplug = item_plugin_by_id( SD_ITEM_ID );
 }
 
 void* monitor_test_handler (void* arg)
@@ -2543,8 +2532,7 @@ int real_main( int argc, char **argv )
 
 	tree = &reiser4_get_super_private( &super ) -> tree;
 	result = reiser4_init_tree( tree, &root_block,
-				 1, plugin_by_id( REISER4_NODE_PLUGIN_ID,
-						  NODE40_ID ),
+				    1, node_plugin_by_id( NODE40_ID ),
 				    ulevel_read_node );
 	tree -> height = tree_height;
 

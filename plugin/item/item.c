@@ -33,17 +33,17 @@ int agree_to_fast_op( const tree_coord *coord UNUSED_ARG )
 
 int item_can_contain_key( const tree_coord *item, const reiser4_key *key )
 {
-	reiser4_plugin *plugin;
+	item_plugin *iplug;
 	reiser4_key min_key_in_item;
 	reiser4_key max_key_in_item;
 	
 	assert( "nikita-1658", item != NULL );
 	assert( "nikita-1659", key != NULL );
 
-	plugin = item_plugin_by_coord( item );
-	assert( "nikita-1681", plugin -> u.item.b.max_key_inside != NULL );
+	iplug = item_plugin_by_coord( item );
+	assert( "nikita-1681", iplug -> b.max_key_inside != NULL );
 	item_key_by_coord( item, &min_key_in_item );
-	plugin -> u.item.b.max_key_inside( item, &max_key_in_item );
+	iplug -> b.max_key_inside( item, &max_key_in_item );
 	
 	/*
 	 * can contain key if 
@@ -58,15 +58,15 @@ int item_can_contain_key( const tree_coord *item, const reiser4_key *key )
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
 int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 {
-	reiser4_plugin *plugin;
+	item_plugin *iplug;
 	reiser4_key k1;
 	reiser4_key k2;
 
 	assert( "nikita-1336", i1 != NULL );
 	assert( "nikita-1337", i2 != NULL );
 
-	plugin = item_plugin_by_coord( i1 );
-	assert( "nikita-1338", plugin != NULL );
+	iplug = item_plugin_by_coord( i1 );
+	assert( "nikita-1338", iplug != NULL );
 
 	trace_if( TRACE_NODES, print_key( "k1", item_key_by_coord( i1, &k1 ) ) );
 	trace_if( TRACE_NODES, print_key( "k2", item_key_by_coord( i2, &k2 ) ) );
@@ -79,16 +79,16 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 		keycmp( item_key_by_coord( i1, &k1 ),
 			item_key_by_coord( i2, &k2 ) ) != GREATER_THAN );
 
-	if( plugin -> u.item.b.mergeable != NULL ) {
-		return plugin -> u.item.b.mergeable( i1, i2 );
-	} else if( plugin -> u.item.b.max_key_inside != NULL ) {
-		plugin -> u.item.b.max_key_inside( i1, &k1 );
+	if( iplug -> b.mergeable != NULL ) {
+		return iplug -> b.mergeable( i1, i2 );
+	} else if( iplug -> b.max_key_inside != NULL ) {
+		iplug -> b.max_key_inside( i1, &k1 );
 		item_key_by_coord( i2, &k2 );
 
 		/*
 		 * mergeable if ->max_key_inside() >= key of i2;
 		 */
-		return keycmp( plugin -> u.item.b.max_key_inside( i1, &k1 ), 
+		return keycmp( iplug -> b.max_key_inside( i1, &k1 ), 
 			       item_key_by_coord( i2, &k2 ) ) != LESS_THAN;
 	} else {
 		item_key_by_coord( i1, &k1 );
@@ -96,16 +96,15 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 
 		return 
 			( get_key_objectid( &k1 ) == get_key_objectid( &k2 ) ) &&
-			( plugin == item_plugin_by_coord( i2 ) );
+			( iplug == item_plugin_by_coord( i2 ) );
 	}
 }
 
-
+#if 0
 reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	[ SD_ITEM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = SD_ITEM_ID,
 			.pops    = NULL,
 			.label   = "sd",
@@ -149,8 +148,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	},
 	[ SIMPLE_DIR_ITEM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = SIMPLE_DIR_ITEM_ID,
 			.pops    = NULL,
 			.label   = "de",
@@ -196,8 +194,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	},
 	[ CMPND_DIR_ITEM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = CMPND_DIR_ITEM_ID,
 			.pops    = NULL,
 			.label   = "cde",
@@ -243,8 +240,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	},
 	[ INTERNAL_ITEM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = INTERNAL_ITEM_ID,
 			.pops    = NULL,
 			.label   = "internal",
@@ -287,8 +283,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	},
 	[ EXTENT_ITEM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = EXTENT_ITEM_ID,
 			.pops    = NULL,
 			.label   = "extent",
@@ -330,8 +325,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	},
 	[ BODY_ITEM_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = BODY_ITEM_ID,
 			.pops    = NULL,
 			.label   = "body",
@@ -372,7 +366,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		}
 	}
 };
-
+#endif
 
 
 /* 

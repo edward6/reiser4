@@ -274,7 +274,7 @@ struct znode {
 
 	/** plugin of node attached to this znode. NULL if znode is not
 	    loaded. */
-	reiser4_plugin        *node_plugin;
+	node_plugin           *nplug;
 	/** pointer to node content */
 	char                  *data;
 

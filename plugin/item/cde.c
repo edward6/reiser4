@@ -832,7 +832,7 @@ static int can_glue_to( tree_coord *coord, const struct inode *dir,
 	assert( "nikita-1330", plugin != NULL );
 
 	return( coord_of_item( coord ) && 
-		( item_plugin_by_coord( coord ) -> h.id == plugin -> h.id ) &&
+		( item_plugin_id( item_plugin_by_coord( coord ) ) == plugin -> h.id ) &&
 		( reiser4_get_file_plugin( dir ) -> owns_item( dir, coord ) ) );
 }
 
@@ -905,11 +905,11 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	entry.name = &name -> d_name;
 
 	data.data   = ( char * ) &edata;
-	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, CMPND_DIR_ITEM_ID );
+	data.iplug  = item_plugin_by_id( CMPND_DIR_ITEM_ID );
 	data.arg = dir_entry;
-	assert( "nikita-1302", data.plugin != NULL );
+	assert( "nikita-1302", data.iplug != NULL );
 
-	if( ! try_to_glue_to( coord, dir, data.plugin ) ) {
+	if( ! try_to_glue_to( coord, dir, item_plugin_to_plugin (data.iplug) ) ) {
 		data.length = cde_estimate( NULL, &data );
 		result = insert_by_coord( coord, &data, &dir_entry -> key, lh,
 					  reiser4_inter_syscall_ra( dir ), 

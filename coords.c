@@ -13,7 +13,7 @@ unsigned num_items (const znode * node)
 unsigned num_units (const tree_coord * coord)
 {
 	assert ("vs-276", coord_of_item (coord));
-	return item_plugin_by_coord (coord)->u.item.b.nr_units (coord);
+	return item_plugin_by_coord (coord)->b.nr_units (coord);
 }
 
 unsigned last_unit_pos (const tree_coord * coord)

@@ -15,7 +15,7 @@ static internal_item_layout *internal_at( const tree_coord *coord )
 {
 	assert( "nikita-607", coord != NULL );
 	assert( "nikita-1650", item_plugin_by_coord( coord ) == 
-		plugin_by_id( REISER4_ITEM_PLUGIN_ID, INTERNAL_ITEM_ID ) );
+		item_plugin_by_id( INTERNAL_ITEM_ID ) );
 	return ( internal_item_layout * ) item_body_by_coord( coord );
 }
 

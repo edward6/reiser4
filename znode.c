@@ -524,16 +524,16 @@ void zput (znode *node)
  * "guess" plugin for node loaded from the disk. Plugin id of node plugin is
  * stored at the fixed offset from the beginning of the node.
  */
-static reiser4_plugin *znode_guess_plugin( const znode *node )
+static node_plugin *znode_guess_plugin( const znode *node )
 {
 	assert( "nikita-1053", node != NULL );
 	assert( "nikita-1055", znode_is_loaded( node ) );
 
-	if( reiser4_get_current_super_private() -> one_node_plugin )
-		return current_tree -> node_plugin;
-	else {
-		return plugin_by_disk_id
-			( current_tree, REISER4_NODE_PLUGIN_ID, 
+	if( reiser4_get_current_super_private() -> one_node_plugin ) {
+		return current_tree -> nplug;
+	} else {
+		return node_plugin_by_disk_id
+			( current_tree, 
 			  &( ( common_node_header * ) zdata( node ) ) -> plugin_id );
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
@@ -541,7 +541,7 @@ static reiser4_plugin *znode_guess_plugin( const znode *node )
 		/*
 		 * FIXME-NIKITA add locking here when dynamic plugins will be implemented
 		 */
-		for_all_plugins( REISER4_NODE_PLUGIN_ID, plugin ) {
+		for_all_plugins( REISER4_NODE_PLUGIN_TYPE, plugin ) {
 			if( ( plugin -> u.node.guess != NULL ) &&
 			    plugin -> u.node.guess( node ) )
 				return plugin;
@@ -612,17 +612,19 @@ int zparse( znode *node )
 	if( result != 0 )
 		return result;
 	if( ! ZF_ISSET( node, ZNODE_PLUGIN ) ) {
-		reiser4_plugin *plugin;
+		node_plugin *nplug;
 
-		assert( "nikita-1047", node -> node_plugin == NULL );
-		plugin = znode_guess_plugin( node );
-		if( plugin != NULL ) {
-			node -> node_plugin = plugin;
-			result = plugin -> u.node.init_znode/*parse*/( node );
-			if( result == 0 )
+		assert( "nikita-1047", node -> nplug == NULL );
+		nplug = znode_guess_plugin( node );
+		if( nplug != NULL ) {
+			node -> nplug = nplug;
+			result = nplug -> init_znode/*parse*/( node );
+			if( result == 0 ) {
 				ZF_SET( node, ZNODE_PLUGIN );
-		} else
+			}
+		} else {
 			result = -EIO;
+		}
 	}
 	zrelse( node, 1 );
 	assert( "nikita-1380", znode_invariant( node ) );
@@ -893,7 +895,7 @@ static int znode_invariant_f( const znode *node, char const **msg )
 
 		_ergo( atomic_read( &node -> d_count ) > 0, 
 		      ZF_ISSET( node, ZNODE_LOADED ) ) &&
-		_equi( node -> node_plugin != NULL, 
+		_equi( node -> nplug != NULL, 
 		      ZF_ISSET( node, ZNODE_PLUGIN ) ) &&
 
 		zergo( ZNODE_PLUGIN, ZF_ISSET( node, ZNODE_LOADED ) ) &&
@@ -995,7 +997,7 @@ void print_znode( const char *prefix, const znode *node )
 	info_znode( "\tparent", znode_parent_nolock( node ) );
 	info_znode( "\tleft", node -> left );
 	info_znode( "\tright", node -> right );
-	print_plugin( "\tnode_plugin", node -> node_plugin );
+	print_plugin( "\tnode_plugin", node_plugin_to_plugin ( node -> nplug ) );
 	print_key( "\tld", &node -> ld_key );
 	print_key( "\trd", &node -> rd_key );
 	info( "\treaders: %i\n", node -> lock.nr_readers );

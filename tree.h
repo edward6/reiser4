@@ -123,7 +123,7 @@ struct reiser4_tree {
 	spinlock_t         dk_lock;
 
 	/** default plugin used to create new nodes in a tree. */
-	reiser4_plugin      *node_plugin;
+	node_plugin         *nplug;
 	/** read given address from persistent storage */
 	node_read_actor      read_node;
 };
@@ -170,7 +170,7 @@ struct reiser4_item_data {
 	/**
 	 * plugin of item we are inserting
 	 */
-	reiser4_plugin *plugin;
+	item_plugin   *iplug;
 };
 
 /** insertion outcome. IBK = insert by key */
@@ -208,22 +208,22 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 extern int reiser4_init_tree( reiser4_tree *tree, 
 			      const reiser4_disk_addr *root_block,
 			      tree_level height,
-			      reiser4_plugin *default_plugin,
+			      node_plugin *default_plugin,
 			      node_read_actor read_node );
 extern void reiser4_done_tree( reiser4_tree *tree );
 extern int reiser4_init_coord( tree_coord *coord );
 extern void reiser4_dup_coord(tree_coord * new, const tree_coord * old);
 extern int reiser4_done_coord( tree_coord *coord );
 extern void reiser4_insert_znode( tree_coord *coord, znode *node );
-extern reiser4_node_plugin *node_plugin_by_coord ( const tree_coord *coord );
-reiser4_node_plugin * node_plugin_by_node( const znode *node );
+extern node_plugin *node_plugin_by_coord ( const tree_coord *coord );
+extern node_plugin *node_plugin_by_node( const znode *node );
 extern int is_coord_in_node( const tree_coord *coord );
 extern int key_in_node( const reiser4_key *, const tree_coord * );
 extern void coord_item_move_to( tree_coord *coord, int items );
 extern void coord_unit_move_to( tree_coord *coord, int units );
 extern void *item_body_by_coord( const tree_coord *coord );
 extern int item_length_by_coord( const tree_coord *coord );
-extern reiser4_plugin *item_plugin_by_coord( const tree_coord *coord );
+extern item_plugin *item_plugin_by_coord( const tree_coord *coord );
 extern item_type item_type_by_coord( const tree_coord *coord );
 extern reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key );
 extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key );

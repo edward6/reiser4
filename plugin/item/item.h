@@ -17,7 +17,7 @@ typedef struct item_in_node {
 	pos_in_node pos;
 } item_in_node;
 */
-struct item_ops {
+typedef struct item_plugin {
 	/* in reiser4 key doesn't contain full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
 	   found what we have looked for, rather than some different item that
@@ -202,7 +202,7 @@ struct item_ops {
 	 * Maybe this method should go in balance_ops (.b)?
 	 */
 	jnode * ( *utmost_child )( const tree_coord *coord, sideof side );
-};
+} item_plugin;
 
 
 typedef enum {

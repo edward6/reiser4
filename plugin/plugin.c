@@ -147,9 +147,9 @@
  *
  * file bodies
  *
- * fplugs
+ * file plugins
  *
- * dplugs
+ * dir plugins
  *
  *  . perm:acl
  * 
@@ -239,8 +239,6 @@ int init_plugins( void )
 			reiser4_plugin *plugin;
 
 			plugin = &ptype -> builtin[ i ];
-			if( plugin -> h.rec_len == 0 )
-				continue;
 				
 			assert( "nikita-537", plugin -> h.type_id == type_id );
 			plugin -> h.id = i;
@@ -585,8 +583,7 @@ extern reiser4_plugin node_plugins[ LAST_NODE_ID ];
 reiser4_plugin hook_plugins[] = {
 	[ DUMP_HOOK_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_HOOK_PLUGIN_ID,
+			.type_id = REISER4_HOOK_PLUGIN_TYPE,
 			.id      = DUMP_HOOK_ID,
 			.pops    = NULL,
 			.label   = "dump",
@@ -648,8 +645,8 @@ static reiser4_plugin *sd_ext_fallback( void *subj UNUSED_ARG )
 
 static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	/* C90 initializers */
-	[ REISER4_FILE_PLUGIN_ID ] = {
-		.type_id       = REISER4_FILE_PLUGIN_ID,
+	[ REISER4_FILE_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_FILE_PLUGIN_TYPE,
 		.fallback      = file_fallback,
 		.label         = "file",
 		.desc          = "Object plugins",
@@ -657,8 +654,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = file_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_HASH_PLUGIN_ID ] = {
-		.type_id       = REISER4_HASH_PLUGIN_ID,
+	[ REISER4_HASH_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_HASH_PLUGIN_TYPE,
 		.fallback      = hash_fallback,
 		.label         = "hash",
 		.desc          = "Directory hashes",
@@ -666,8 +663,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = hash_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_TAIL_PLUGIN_ID ] = {
-		.type_id       = REISER4_TAIL_PLUGIN_ID,
+	[ REISER4_TAIL_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_TAIL_PLUGIN_TYPE,
 		.fallback      = tail_fallback,
 		.label         = "tail",
 		.desc          = "Tail inlining policies",
@@ -675,8 +672,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = tail_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_HOOK_PLUGIN_ID ] = {
-		.type_id       = REISER4_HOOK_PLUGIN_ID,
+	[ REISER4_HOOK_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_HOOK_PLUGIN_TYPE,
 		.fallback      = hook_fallback,
 		.label         = "hook",
 		.desc          = "Generic loadable hooks",
@@ -684,8 +681,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = hook_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_PERM_PLUGIN_ID ] = {
-		.type_id       = REISER4_PERM_PLUGIN_ID,
+	[ REISER4_PERM_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_PERM_PLUGIN_TYPE,
 		.fallback      = perm_fallback,
 		.label         = "perm",
 		.desc          = "Permission checks",
@@ -693,8 +690,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = perm_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_ITEM_PLUGIN_ID ] = {
-		.type_id       = REISER4_ITEM_PLUGIN_ID,
+	[ REISER4_ITEM_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_ITEM_PLUGIN_TYPE,
 		.fallback      = item_fallback,
 		.label         = "item",
 		.desc          = "Item handlers",
@@ -702,8 +699,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = item_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_NODE_PLUGIN_ID ] = {
-		.type_id       = REISER4_NODE_PLUGIN_ID,
+	[ REISER4_NODE_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_NODE_PLUGIN_TYPE,
 		.fallback      = node_fallback,
 		.label         = "node",
 		.desc          = "node layout handlers",
@@ -711,8 +708,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = node_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_SD_EXT_PLUGIN_ID ] = {
-		.type_id       = REISER4_SD_EXT_PLUGIN_ID,
+	[ REISER4_SD_EXT_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_SD_EXT_PLUGIN_TYPE,
 		.fallback      = sd_ext_fallback,
 		.label         = "sd_ext",
 		.desc          = "Parts of stat-data",

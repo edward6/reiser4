@@ -111,7 +111,7 @@ int common_file_install( struct inode *inode, reiser4_plugin *plug,
 	assert( "nikita-712", parent != NULL );
 	assert( "nikita-713", plug != NULL );
 	assert( "nikita-714", data != NULL );
-	assert( "nikita-715", plug -> h.type_id == REISER4_FILE_PLUGIN_ID );
+	assert( "nikita-715", plug -> h.type_id == REISER4_FILE_PLUGIN_TYPE );
 
 	inode -> i_mode = data -> mode;
 	inode -> i_generation = reiser4_new_inode_generation( inode -> i_sb );
@@ -203,7 +203,7 @@ int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode,
 		/* check that what we really found is stat data */
 		if( item_type_by_coord( coord ) != STAT_DATA_ITEM_TYPE ) {
 			error_message = "sd found, but it doesn't look like sd ";
-			print_plugin( "found", item_plugin_by_coord( coord ) );
+			/* FIXME_BREAKAGE print_plugin( "found", item_plugin_by_coord( coord ) ); */
 			result = -ENOENT;
 		}
 	}
@@ -235,14 +235,14 @@ static int insert_new_sd( struct inode *inode )
 
 	ref = reiser4_get_object_state( inode );
 
-	data.plugin = ref -> sd;
-	if( data.plugin == NULL ) {
-		data.plugin = reiser4_get_sd_plugin( inode );
-		ref -> sd = data.plugin;
+	if( ref -> sd == NULL ) {
+		ref -> sd = item_plugin_to_plugin( reiser4_get_sd_plugin( inode ) );
 	}
+	assert ("jmacd-1600", ref -> sd -> h.type_id == REISER4_ITEM_PLUGIN_TYPE);
+	data.iplug = & ref -> sd  -> u.item;
 	data.length = ref -> sd_len;
 	if( data.length == 0 ) {
-		data.length = data.plugin -> u.item.s.sd.save_len( inode );
+		data.length = data.iplug -> s.sd.save_len( inode );
 		ref -> sd_len = data.length;
 	}
 
@@ -295,7 +295,7 @@ static int insert_new_sd( struct inode *inode )
 		assert( "nikita-725", /* have we really inserted stat data? */
 			item_type_by_coord( &coord ) == STAT_DATA_ITEM_TYPE );
 		area = item_body_by_coord( &coord );
-		result = data.plugin -> u.item.s.sd.save( inode, &area );
+		result = data.iplug -> s.sd.save( inode, &area );
 		if( result == 0 )
 			/* object has stat-data now */
 			*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
@@ -342,13 +342,13 @@ static int update_sd( struct inode *inode )
 	if( result == 0 ) {
 		char *area;
 
-		data.plugin = state -> sd;
-		assert( "nikita-728", data.plugin != NULL );
+		assert( "nikita-728", state -> sd != NULL );
+		data.iplug = & state -> sd -> u.item;
 
 		if( state -> sd_len == 0 ) {
 			/* recalculate stat-data length */
 			state -> sd_len = 
-				data.plugin -> u.item.s.sd.save_len( inode );
+				data.iplug -> s.sd.save_len( inode );
 		}
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
@@ -384,9 +384,10 @@ static int update_sd( struct inode *inode )
 			assert( "nikita-729", 
 				item_length_by_coord( &coord ) == state -> sd_len );
 			area = item_body_by_coord( &coord );
-			result = data.plugin -> u.item.s.sd.save( inode, &area );
-		} else
+			result = data.iplug -> s.sd.save( inode, &area );
+		} else {
 			key_warning( error_message, &key, result );
+		}
 	}
 	reiser4_done_lh( &lh );
 	reiser4_done_coord( &coord );
@@ -529,7 +530,7 @@ reiser4_plugin *guess_plugin_by_mode( struct inode *inode )
 		break;
 	}
 	assert( "nikita-738", result >= 0 );
-	return plugin_by_id( REISER4_FILE_PLUGIN_ID, result );
+	return plugin_by_type_id( REISER4_FILE_PLUGIN_TYPE, result );
 }
 
 /** standard implementation of ->owns_item() plugin method: compare objectids
@@ -586,8 +587,8 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 {
         int result;
 
-	reiser4_plugin      *plugin;
-        reiser4_file_plugin *fplug;
+        dir_plugin          *dplug;
+	file_plugin         *fplug;
 	struct inode        *object;
 	int                  reserved;
 	reiser4_entry        entry;
@@ -596,21 +597,23 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	assert( "nikita-1419", dentry != NULL );
 	assert( "nikita-1420", data   != NULL );
 
-	fplug = reiser4_get_file_plugin( parent );
+	dplug = reiser4_get_dir_plugin( parent );
 	/* check permissions */
-	if( perm_chk( parent, create, parent, dentry, data ) )
+	if( perm_chk( parent, create, parent, dentry, data ) ) {
 		return -EPERM;
+	}
 
 	/* check, that name is acceptable for parent */
-	if( fplug -> is_name_acceptable && 
-	    !fplug -> is_name_acceptable( parent, 
-						  dentry -> d_name.name, 
-						  (int) dentry -> d_name.len ) )
+	if( dplug -> is_name_acceptable && 
+	    !dplug -> is_name_acceptable( parent, 
+					  dentry -> d_name.name, 
+					  (int) dentry -> d_name.len ) ) {
 		return -ENAMETOOLONG;
+	}
 
 	result = 0;
-	plugin = plugin_by_id( REISER4_FILE_PLUGIN_ID, ( int ) data -> id );
-	if( plugin == NULL ) {
+	fplug = file_plugin_by_id( ( int ) data -> id );
+	if( fplug == NULL ) {
 		warning( "nikita-430", "Cannot find plugin %i", data -> id );
 		return -ENOENT;
 	}
@@ -620,14 +623,14 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	memset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
-	result = plugin -> u.file.install( object, plugin, parent, data );
+	result = fplug -> install( object, fplug, parent, data );
 	if( result ) {
 		warning( "nikita-431", "Cannot install plugin %i on %lx", 
 			 data -> id, ( long ) object -> i_ino );
 		return result;
 	}
        
-	result = plugin -> u.file.inherit
+	result = fplug -> inherit
 		( object, parent, object -> i_sb -> s_root -> d_inode );
 	if( result < 0 ) {
 		warning( "nikita-432", "Cannot inherit from %lx to %lx", 
@@ -636,16 +639,16 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	}
 
 	/* reget plugin after installation */
-	plugin = reiser4_get_object_state( object ) -> file;
+	fplug = & reiser4_get_object_state( object ) -> file -> u.file;
 	reiser4_get_object_state( object ) -> locality_id = parent -> i_ino;
 
 	/* reserve space in transaction to add new entry to parent */
-	reserved = fplug -> estimate.add( parent, dentry, data );
+	reserved = dplug -> estimate.add( parent, dentry, data );
 	/* reserve space in transaction to create stat-data */
-	reserved += plugin -> u.file.estimate.create( data );
+	reserved += fplug -> estimate.create( data );
 	/* if addition of new entry to the parent fails, we have to
 	   remove stat-data just created, prepare for this. */
-	reserved += plugin -> u.file.estimate.destroy( object );
+	reserved += fplug -> estimate.destroy( object );
 
 	result = txn_reserve( reserved );
 	if( result == 0 ) {
@@ -664,23 +667,23 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 		   objectid (if we support objectid reuse). For
 		   directories this implies creation of dot and
 		   dotdot */
-		result = plugin -> u.file.create( object, parent, data );
+		result = fplug -> create( object, parent, data );
 		if( result == 0 ) {
 			assert( "nikita-434", !( *reiser4_inode_flags( object ) & 
 						 REISER4_NO_STAT_DATA ) );
 			/* insert inode into VFS hash table */
 			insert_inode_hash( object );
 			/* create entry */
-			result = fplug -> add_entry( parent, dentry,
+			result = dplug -> add_entry( parent, dentry,
 							     data, &entry );
 			if( result != 0 ) {
-				if( plugin -> u.file.destroy != NULL )
+				if( fplug -> destroy != NULL ) {
 					/*
 					 * failure to create entry,
 					 * remove object
 					 */
-					plugin -> u.file.destroy( object, parent );
-				else {
+					fplug -> destroy( object, parent );
+				} else {
 					warning( "nikita-1164",
 						 "Cannot cleanup failed create: %i"
 						 " Possible disk space leak.",
@@ -699,8 +702,9 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 		   REISER4_NO_STAT_DATA bit in
 		   inode.u.reiser4_i.plugin.flags */
 		iput( object );
-	} else
+	} else {
 		d_instantiate( dentry, object );
+	}
 	return result;
 }
 
@@ -724,8 +728,8 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 {
 	int                        result;
 	struct inode              *object;
-	reiser4_file_plugin       *fplug;
-	reiser4_file_plugin       *parent_fplug;
+	file_plugin               *fplug;
+	file_plugin               *parent_fplug;
 	reiser4_entry              entry;
 	int reserved;
 	unlink_f_type              uf_type;
@@ -822,8 +826,8 @@ static int common_link( struct inode *parent, struct dentry *existing,
 {
 	int                        result;
 	struct inode              *object;
-	reiser4_file_plugin       *fplug;
-	reiser4_file_plugin       *parent_fplug;
+	file_plugin               *fplug;
+	file_plugin               *parent_fplug;
 	reiser4_entry              entry;
 	int                        reserved;
 	reiser4_object_create_data data;
@@ -869,9 +873,10 @@ static int common_link( struct inode *parent, struct dentry *existing,
 		reserved += 2 * fplug -> estimate.save( object );
 
 	result = txn_reserve( reserved );
-	if( result != 0 )
+	if( result != 0 ) {
 		/* cannot open transaction, chiao. */
 		return result;
+	}
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
 		/* add entry to the parent */
@@ -897,11 +902,11 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	return result;
 }
 
+#if 0
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_FILE_PLUGIN_ID,
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id      = REGULAR_FILE_PLUGIN_ID,
 			.pops    = NULL,
 			.label   = "reg",
@@ -953,8 +958,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_FILE_PLUGIN_ID,
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id      = DIRECTORY_FILE_PLUGIN_ID,
 			.pops    = NULL,
 			.label   = "dir",
@@ -1010,8 +1014,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_FILE_PLUGIN_ID,
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id      = SYMLINK_FILE_PLUGIN_ID,
 			.pops    = NULL,
 			.label   = "symlink",
@@ -1063,8 +1066,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_FILE_PLUGIN_ID,
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id      = SPECIAL_FILE_PLUGIN_ID,
 			.pops    = NULL,
 			.label   = "special",
@@ -1115,6 +1117,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		}
 	},
 };
+#endif
 
 /* 
  * Make Linus happy.

@@ -117,7 +117,7 @@ typedef enum {
 /**
    The responsibility of the node layout is to store and give access
    to the sequence of items within the node.  */
-struct node {
+typedef struct node_plugin {
 	/* calculates the amount of space that will be required to store an
 	   item which is in addition to the space consumed by the item body.
 	   (the space consumed by the item body can be gotten by calling
@@ -143,7 +143,7 @@ struct node {
 	/*int ( *item_at )( const tree_coord *coord, reiser4_item_data *data );*/
 	char *( *item_by_coord )( const tree_coord *coord );	
 	int ( *length_by_coord )( const tree_coord *coord );
-	reiser4_plugin *( *plugin_by_coord )( const tree_coord *coord );
+	item_plugin *( *plugin_by_coord )( const tree_coord *coord );
 
 	/** store item key in @key */
 	reiser4_key * ( *key_at )( const tree_coord *coord, reiser4_key *key );
@@ -152,7 +152,7 @@ struct node {
 	    actually looking into node's content (free space is saved in
 	    znode). */
 	size_t  ( *estimate )( znode *node );
-	
+
 	/* performs every consistency check the node layout author could
 	 * imagine. Optional. */
 	int   ( *check )( const znode *node, __u32 flags, const char **error );
@@ -229,7 +229,7 @@ struct node {
 	int ( *fast_insert )( const tree_coord *coord );
 	int ( *fast_paste )( const tree_coord *coord );
 	int ( *fast_cut )( const tree_coord *coord );
-};
+} node_plugin;
 
 
 typedef enum { 

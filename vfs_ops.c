@@ -37,7 +37,7 @@ static int reiser4_removexattr(struct dentry *, const char *);
 
 static loff_t reiser4_llseek (struct file *, loff_t, int);
 static ssize_t reiser4_read (struct file *, char *, size_t, loff_t *);
-static ssize_t reiser4_write (struct file *, const char *, size_t, loff_t *);
+static ssize_t reiser4_write (struct file *, char *, size_t, loff_t *);
 static int reiser4_readdir (struct file *, void *, filldir_t);
 static unsigned int reiser4_poll (struct file *, struct poll_table_struct *);
 static int reiser4_ioctl (struct inode *, 
@@ -96,8 +96,6 @@ static int            create_object  ( struct inode *parent,
 				       reiser4_object_create_data *data );
 static struct dentry *lookup_object  ( struct inode *parent, 
 				       struct dentry *dentry );
-inline static ssize_t io_to_object   ( struct file *file, char *buf, 
-				       size_t size, loff_t *off, rw_op op );
 
 
 static int readdir_actor( reiser4_tree *tree, 
@@ -141,7 +139,7 @@ static struct dentry *reiser4_lookup( struct inode *parent,
 static struct dentry *lookup_object( struct inode *parent, 
 				     struct dentry *dentry )
 {
-	reiser4_file_plugin *fplug;
+	dir_plugin          *dplug;
 	struct inode        *inode;
 	reiser4_key          key;
 	reiser4_entry        entry;
@@ -152,11 +150,12 @@ static struct dentry *lookup_object( struct inode *parent,
 	assert( "nikita-403", parent != NULL );
 	assert( "nikita-404", dentry != NULL );
 
-	fplug = reiser4_get_file_plugin( parent );
-	assert( "nikita-406", fplug != NULL );
+	dplug = reiser4_get_dir_plugin( parent );
 
-	if( !fplug -> lookup )
+	/* FIXME-HANS: is this okay? */
+	if( dplug == NULL || !dplug -> lookup ) {
 		return ERR_PTR( -ENOTDIR );
+	}
 
 	/* check permissions */
 	if( perm_chk( parent, lookup, parent, dentry ) )
@@ -173,14 +172,15 @@ static struct dentry *lookup_object( struct inode *parent,
 	 */
 	dentry -> d_op = &reiser4_dentry_operation;
 
-	if( fplug -> is_name_acceptable && 
-	    !fplug -> is_name_acceptable( parent, name, len ) )
+	if( dplug -> is_name_acceptable && 
+	    !dplug -> is_name_acceptable( parent, name, len ) ) {
 		/* some arbitrary error code to return */
 		return ERR_PTR( -ENAMETOOLONG );
+	}
 
 	memset( &entry, 0, sizeof entry );
 
-	switch( fplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {
+	switch( dplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {
 	default: wrong_return_value( "nikita-407", "->lookup()" );
 	case FILE_IO_ERROR:
 		return ERR_PTR( -EIO );
@@ -274,31 +274,46 @@ static int reiser4_mknod( struct inode *parent, struct dentry *dentry,
 static ssize_t reiser4_read( struct file *file, 
 			     char *buf, size_t size, loff_t *off )
 {
-
+	file_plugin *fplug;
+	ssize_t result;
+	
 	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
-	plugin = reiser4_get_file_plugin( inode );
-	assert( "nikita-417", plugin != NULL );
-	if( result == 0 ) {
-		rw_f_type fun;
+	fplug = reiser4_get_file_plugin( file -> f_dentry -> d_inode );
+	assert( "nikita-417", fplug != NULL );
 
-		fun = plugin -> rw_f[ op ];
-		if( fun == NULL )
-			result = -EPERM;
-		else
-			/* dispatch control to the appropriate plugin method */
-			result = fun( file, &aflow, off );
+	if( fplug->read == NULL ) {
+		result = -EPERM;
+	} else {
+		result = fplug -> read ( file, buf, size, off );
 	}
-	REISER4_EXIT( );
+
+	REISER4_EXIT( result );
 }
 
 /**
  * ->write() VFS method in reiser4 file_operations
  */
-static ssize_t reiser4_write( struct file *file, const char *buf, 
+static ssize_t reiser4_write( struct file *file, char *buf, 
 			      size_t size, loff_t *off )
 {
+	file_plugin *fplug;
+	ssize_t result;
+
 	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
-	REISER4_EXIT( io_to_object( file, ( char * ) buf, size, off, WRITE_OP ) );
+	
+	assert( "nikita-1421", file != NULL );
+	assert( "nikita-1422", buf != NULL );
+	assert( "nikita-1424", off != NULL );
+
+	fplug = reiser4_get_file_plugin( file -> f_dentry -> d_inode );
+
+	if( fplug -> write != NULL ) {
+		result = fplug -> write( file, buf, size, off );
+	} else {
+		result = -EPERM;
+	}
+
+	REISER4_EXIT( result );
 }
 
 /**
@@ -361,8 +376,7 @@ static int reiser4_writepage( struct page *page UNUSED_ARG )
 static int reiser4_readpage( struct file *f, struct page *page )
 {
 	struct inode *inode;
-	reiser4_file_plugin *fplug;
-
+	file_plugin *fplug;
 
 	assert( "vs-318", page -> mapping && page -> mapping -> host );
 	assert( "nikita-1352", 
@@ -370,8 +384,9 @@ static int reiser4_readpage( struct file *f, struct page *page )
 
 	inode = page -> mapping -> host;
 	fplug = reiser4_get_file_plugin( inode );
-	if( !fplug -> readpage )
+	if( !fplug -> readpage ) {
 		return -EINVAL;
+	}
 	return fplug -> readpage( f, page );
 }
 
@@ -388,7 +403,7 @@ static int reiser4_link( struct dentry *existing,
 			 struct inode *parent, struct dentry *where )
 {
 	int result;
-	reiser4_file_plugin *fplug;
+	dir_plugin *dplug;
 	REISER4_ENTRY( parent -> i_sb );
 
 	assert( "nikita-1031", parent != NULL );
@@ -401,12 +416,13 @@ static int reiser4_link( struct dentry *existing,
 		REISER4_EXIT( -EINTR );
 	}
 	unlock_kernel();
-	fplug = reiser4_get_file_plugin( parent );
-	assert( "nikita-1430", fplug != NULL );
-	if( fplug -> link != NULL )
-		result = fplug -> link( parent, existing, where );
-	else
+	dplug = reiser4_get_dir_plugin( parent );
+	assert( "nikita-1430", dplug != NULL );
+	if( dplug -> link != NULL ) {
+		result = dplug -> link( parent, existing, where );
+	} else {
 		result = -EPERM;
+	}
 	lock_kernel();
 	reiser4_unlock_inode( existing -> d_inode );
 	reiser4_unlock_inode( parent );
@@ -523,26 +539,28 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 static int reiser4_unlink( struct inode *parent, struct dentry *victim )
 {
 	int result;
-	reiser4_file_plugin *fplug;
+	dir_plugin *dplug;
 	REISER4_ENTRY( parent -> i_sb );
  
 	assert( "nikita-1435", parent != NULL );
 	assert( "nikita-1436", victim != NULL );
 
 	/* is this dead-lock safe? FIXME-NIKITA */
-	if( reiser4_lock_inode_interruptible( parent ) != 0 )
+	if( reiser4_lock_inode_interruptible( parent ) != 0 ) {
 		REISER4_EXIT( -EINTR );
+	}
 	if( reiser4_lock_inode_interruptible( victim -> d_inode ) != 0 ) {
 		reiser4_unlock_inode( parent );
 		REISER4_EXIT( -EINTR );
 	}
 	unlock_kernel();
-	fplug = reiser4_get_file_plugin( parent );
-	assert( "nikita-1429", fplug != NULL );
-	if( fplug -> unlink != NULL )
-		result = fplug -> unlink( parent, victim );
-	else
+	dplug = reiser4_get_dir_plugin( parent );
+	assert( "nikita-1429", dplug != NULL );
+	if( dplug -> unlink != NULL ) {
+		result = dplug -> unlink( parent, victim );
+	} else {
 		result = -EPERM;
+	}
 	lock_kernel();
 	/* 
 	 * @victim can be already removed from the disk by this
@@ -565,27 +583,6 @@ static int reiser4_permission( struct inode *inode, int mask )
 	return perm_chk( inode, mask, inode, mask ) ? -EACCES : 0;
 }
 
-/** 
- * common parts of read/write processing. Delegate functionality to the
- * object plugin. 
- */
-inline static ssize_t io_to_object( struct file *file, char *buf, size_t size, 
-				    loff_t *off, rw_op op )
-{
-	reiser4_file_plugin *plugin;
-
-	assert( "nikita-1421", file != NULL );
-	assert( "nikita-1422", buf != NULL );
-	assert( "nikita-1424", off != NULL );
-
-	plugin = reiser4_get_file_plugin( file -> f_dentry -> d_inode );
-	assert( "nikita-1425", plugin != NULL );
-	if( plugin -> io != NULL )
-		return plugin -> io( file, buf, size, off, op );
-	else
-		return -EPERM;
-}
-
 /**
  * helper function: increase inode nlink count and call plugin method to save
  * updated stat-data.
@@ -594,26 +591,28 @@ inline static ssize_t io_to_object( struct file *file, char *buf, size_t size,
  */
 int reiser4_add_nlink( struct inode *object )
 {
-	reiser4_file_plugin *plugin;
+	file_plugin *fplug;
 
 	assert( "nikita-1351", object != NULL );
 
-	plugin = reiser4_get_file_plugin( object );
-	assert( "nikita-1445", plugin != NULL );
+	fplug = reiser4_get_file_plugin( object );
+	assert( "nikita-1445", fplug != NULL );
 
 	/* ask plugin whether it can add yet another link to this
 	   object */
-	if( !plugin -> can_add_link( object ) )
+	if( !fplug -> can_add_link( object ) ) {
 		return -EMLINK;
+	}
 
-	if( plugin -> add_link != NULL ) {
+	if( fplug -> add_link != NULL ) {
 		/* call plugin to do actual addition of link */
-		return plugin -> add_link( object );
+		return fplug -> add_link( object );
 	} else {
+		reiser4_plugin *plugin = file_plugin_to_plugin (fplug);
 		/* do reasonable default stuff */
 		++ object -> i_nlink;
 		object -> i_ctime = CURRENT_TIME;
-		return  plugin -> save_sd( object );
+		return plugin -> h.pops->save( object, plugin, NULL /* FIXME-HANS what's this? */ );
 	}
 }
 
@@ -625,23 +624,24 @@ int reiser4_add_nlink( struct inode *object )
  */
 int reiser4_del_nlink( struct inode *object )
 {
-	reiser4_file_plugin *plugin;
+	file_plugin *fplug;
 
 	assert( "nikita-1349", object != NULL );
 
-	plugin = reiser4_get_file_plugin( object );
-	assert( "nikita-1350", plugin != NULL );
+	fplug = reiser4_get_file_plugin( object );
+	assert( "nikita-1350", fplug != NULL );
 
 	assert( "nikita-1446", object -> i_nlink > 0 );
 
-	if( plugin -> rem_link != NULL ) {
+	if( fplug -> rem_link != NULL ) {
 		/* call plugin to do actual addition of link */
-		return plugin -> rem_link( object );
+		return fplug -> rem_link( object );
 	} else {
+		reiser4_plugin *plugin = file_plugin_to_plugin (fplug);
 		/* do reasonable default stuff */
 		-- object -> i_nlink;
 		object -> i_ctime = CURRENT_TIME;
-		return plugin -> save_sd( object );
+		return plugin -> h.pops->save( object, plugin, NULL /* FIXME-HANS what's this? */ );
 	}
 }
 
@@ -650,24 +650,26 @@ int reiser4_del_nlink( struct inode *object )
  */
 int truncate_object( struct inode *inode, loff_t size )
 {
-	reiser4_file_plugin *plugin;
+	file_plugin *fplug;
 
 	assert( "nikita-1026", inode != NULL );
 	assert( "nikita-1027", is_reiser4_inode( inode ) );
 	assert( "nikita-1028", inode -> i_sb != NULL );
 
-	plugin = reiser4_get_file_plugin( inode );
-	assert( "vs-142", plugin != NULL );
+	fplug = reiser4_get_file_plugin( inode );
+	assert( "vs-142", fplug != NULL );
 
-	if( plugin -> truncate != NULL ) {
+	if( fplug -> truncate != NULL ) {
 		int result;
-		result = plugin -> truncate( inode, size );
-		if( result != 0 )
+		result = fplug -> truncate( inode, size );
+		if( result != 0 ) {
 			warning( "nikita-1602", "Truncate error: %i for %li",
 				 result, inode -> i_ino );
+		}
 		return result;
-	} else
+	} else {
 		return -EPERM;
+	}
 }
 
 /** initial prefix of names of pseudo-files like ..plugin, ..acl,
@@ -760,8 +762,8 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 			  reiser4_lock_handle *lh UNUSED_ARG, void *arg )
 {
 	readdir_actor_args  *args;
-	reiser4_file_plugin *fplug;
-	reiser4_item_plugin *iplug;
+	file_plugin         *fplug;
+	item_plugin         *iplug;
 	struct inode        *inode;
 	char                *name;
 	reiser4_key          de_key;
@@ -771,29 +773,33 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 	assert( "nikita-1368", coord != NULL );
 	assert( "nikita-1369", arg != NULL );
 	
-	if( item_type_by_coord( coord ) != DIR_ENTRY_ITEM_TYPE )
+	if( item_type_by_coord( coord ) != DIR_ENTRY_ITEM_TYPE ) {
 		return 0;
+	}
 
 	args = arg;
 	inode = args -> dir -> f_dentry -> d_inode;
 	assert( "nikita-1370", inode != NULL );
 	fplug = reiser4_get_file_plugin( inode );
-	if( ! fplug -> owns_item( inode, coord ) )
+	if( ! fplug -> owns_item( inode, coord ) ) {
 		return 0;
+	}
 
-	iplug = &item_plugin_by_coord( coord ) -> u.item;
+	iplug = item_plugin_by_coord( coord );
 	name = iplug -> s.dir.extract_name( coord );
 	assert( "nikita-1371", name != NULL );
-	if( iplug -> s.dir.extract_key( coord, &sd_key ) != 0 )
+	if( iplug -> s.dir.extract_key( coord, &sd_key ) != 0 ) {
 		return -EIO;
+	}
 	unit_key_by_coord( coord, &de_key );
 	if( args -> filldir( args -> dirent, name, ( int ) strlen( name ),
 			     /* FIXME-NIKITA into kassign.c */
 			     ( loff_t ) get_key_objectid( &de_key ), 
 			     /* FIXME-NIKITA into kassign.c */
 			     ( ino_t ) get_key_objectid( &sd_key ), 
-			     DT_UNKNOWN ) < 0 )
+			     DT_UNKNOWN ) < 0 ) {
 		return 0;
+	}
 	args -> offset_hi = get_key_objectid( &de_key );
 	args -> offset_lo = get_key_offset( &de_key );
 	return 1;
@@ -807,7 +813,7 @@ static int create_object( struct inode *parent, struct dentry *dentry,
 			  reiser4_object_create_data *data )
 {
 	int result;
-	reiser4_file_plugin *fplug;
+	file_plugin *fplug;
 	REISER4_ENTRY( parent -> i_sb );
 
 	assert( "nikita-426", parent != NULL );
@@ -816,10 +822,11 @@ static int create_object( struct inode *parent, struct dentry *dentry,
 
 	fplug = reiser4_get_file_plugin( parent );
 	assert( "nikita-429", fplug != NULL );
-	if( fplug -> create_child != NULL )
-		result = fplug -> create_child( parent, dentry, data );
-	else
+	if( fplug -> create != NULL ) {
+		result = fplug -> create( parent, dentry, data );
+	} else {
 		result = -EPERM;
+	}
 	REISER4_EXIT( result );
 }
 

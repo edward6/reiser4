@@ -10,7 +10,7 @@
 #define __REISER4_PERM_H__
 
 
-typedef struct reiser4_perm_plugin {
+typedef struct perm_plugin {
 	/** check permissions for read/write */
 	int ( *rw_ok )( struct file *file, const char *buf, 
 			size_t size, loff_t *off, rw_op op );
@@ -33,7 +33,7 @@ typedef struct reiser4_perm_plugin {
 	/** check UNIX access bits. This is ->permission() check called by
 	 * VFS */
 	int ( *mask_ok )( struct inode *inode, int mask );
-} reiser4_perm_plugin;
+} perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
 #define perm_chk( inode, check, args... )			\

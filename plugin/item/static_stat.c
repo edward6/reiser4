@@ -126,10 +126,10 @@ int sd_load( struct inode *inode, char *sd, int len )
 	     ++ bit, mask >>= 1 ) {
 		if( ( ( bit + 1 ) % 16 ) != 0 ) {
 			/* handle extension */
-			reiser4_plugin *ext;
+			sd_ext_plugin *sdplug;
 
-			ext = plugin_by_id( REISER4_SD_EXT_PLUGIN_ID, bit );
-			if( ext == NULL ) {
+			sdplug = sd_ext_plugin_by_id( bit );
+			if( sdplug == NULL ) {
 				warning( "nikita-627", 
 					 "No such extension %i in inode %lx",
 					 bit, ( long ) inode -> i_ino );
@@ -137,15 +137,15 @@ int sd_load( struct inode *inode, char *sd, int len )
 				break;
 			}
 			if( mask & 1 ) {
-				assert( "nikita-628", ext -> u.sd_ext.present );
+				assert( "nikita-628", sdplug -> present );
 				result = align( inode, &len, &sd, 
-						ext -> u.sd_ext.alignment );
+						sdplug -> alignment );
 				if( result != 0 )
 					return result;
-				result = ext -> u.sd_ext.present( inode, 
-								  &sd, &len );
-			} else if( ext -> u.sd_ext.absent != NULL )
-				result = ext -> u.sd_ext.absent( inode );
+				result = sdplug -> present( inode, 
+							    &sd, &len );
+			} else if( sdplug -> absent != NULL )
+				result = sdplug -> absent( inode );
 			if( result )
 				break;
 		/* else, we are looking at the last bit in 16-bit
@@ -205,13 +205,13 @@ int sd_len( struct inode *inode )
 	mask = reiser4_get_object_state( inode ) -> extmask;
 	for( bit = 0 ; mask != 0 ; ++ bit, mask >>= 1 ) {
 		if( mask & 1 ) {
-			reiser4_plugin *plugin;
+			sd_ext_plugin *sdplug;
 
-			plugin = plugin_by_id( REISER4_SD_EXT_PLUGIN_ID, bit );
-			assert( "nikita-633", plugin != NULL );
+			sdplug = sd_ext_plugin_by_id( bit );
+			assert( "nikita-633", sdplug != NULL );
 			result += 
-				round_up( result, plugin -> u.sd_ext.alignment ) - result;
-			result += plugin -> u.sd_ext.save_len( inode );
+				round_up( result, sdplug -> alignment ) - result;
+			result += sdplug -> save_len( inode );
 		}
 	}
 	result += sizeof( d16 ) * bit / 16;
@@ -244,13 +244,12 @@ int sd_save( struct inode *inode, char **area )
 	for( bit = 0 ; emask != 0 ; ++ bit, emask >>= 1 ) {
 		if( emask & 1 ) {
 			if( ( bit + 1 ) % 16 != 0 ) {
-				reiser4_plugin *plugin;
-				plugin = plugin_by_id( REISER4_SD_EXT_PLUGIN_ID, 
-						       bit );
-				assert( "nikita-636", plugin != NULL );
+				sd_ext_plugin *sdplug;
+				sdplug = sd_ext_plugin_by_id( bit );
+				assert( "nikita-636", sdplug != NULL );
 				align( inode, &len, area, 
-				       plugin -> u.sd_ext.alignment );
-				result = plugin -> u.sd_ext.save( inode, area );
+				       sdplug -> alignment );
+				result = sdplug -> save( inode, area );
 				if( result )
 					break;
 			} else {
@@ -388,8 +387,9 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 	assert( "nikita-656", len != NULL );
 	assert( "nikita-657", *len > 0 );
 
-	if( *len < ( int ) sizeof( reiser4_plugin_stat ) )
+	if( *len < ( int ) sizeof( reiser4_plugin_stat ) ) {
 		return not_enough_space( inode, "plugin" );
+	}
 
 	sd = ( reiser4_plugin_stat * ) *area;
 
@@ -403,24 +403,26 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 		slot = ( reiser4_plugin_slot * ) *area;
 		if( *len < ( int ) sizeof *slot )
 			return not_enough_space( inode, "additional plugin" );
-		plugin = plugin_by_id( d16tocpu( &slot -> type_id ), 
-				       d16tocpu( &slot -> id ) );
-		if( plugin == NULL )
+		plugin = plugin_by_type_id( d16tocpu( &slot -> type_id ), 
+					    d16tocpu( &slot -> id ) );
+		if( plugin == NULL ) {
 			return unknown_plugin( d16tocpu( &slot -> id ), inode );
+		}
 		move_on( len, area, sizeof *slot );
 		align( inode, len, area, plugin -> h.pops -> alignment );
 		/* load plugin data, if any */
 		if( plugin -> h.pops -> load ) {
 			result = plugin -> h.pops -> load( inode, 
 							   plugin, area, len );
-			if( result != 0 )
+			if( result != 0 ) {
 				return result;
+			}
 		}
 		/* plugin is loaded into inode, mark this into inode's
 		   bitmask of loaded non-standard plugins */
-		if( !( mask & ( 1 << plugin -> h.type_id ) ) )
+		if( !( mask & ( 1 << plugin -> h.type_id ) ) ) {
 			mask |= ( 1 << plugin -> h.type_id );
-		else {
+		} else {
 			warning( "nikita-658", "duplicate plugin for %lx",
 				 ( long ) inode -> i_ino );
 			print_plugin( "plugin", plugin );
@@ -430,10 +432,11 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 	/* if object plugin wasn't loaded from stat-data, guess it by
 	   mode bits */
 	plugin = reiser4_get_object_state( inode ) -> file;
-	if( plugin == NULL )
+	if( plugin == NULL ) {
 		result = plugin_sd_absent( inode );
-	else if( plugin -> u.file.activate != NULL )
+	} else if( plugin -> u.file.activate != NULL ) {
 		result = plugin -> u.file.activate( inode, plugin );
+	}
 
 	reiser4_get_object_state( inode ) -> plugin_mask = mask;
 	return result;
@@ -452,10 +455,11 @@ static int plugin_sd_absent( struct inode *inode )
 	   "bad-file plugin". */
 	assert( "nikita-660", plugin != NULL );
 	reiser4_get_object_state( inode ) -> file = plugin;
-	if( plugin -> u.file.activate != NULL )
+	if( plugin -> u.file.activate != NULL ) {
 		return plugin -> u.file.activate( inode, plugin );
-	else
+	} else {
 		return 0;
+	}
 }
 
 /** helper function for plugin_sd_save_len(): calculate how much space
@@ -564,8 +568,7 @@ static int plugin_sd_save( struct inode *inode, char **area )
 reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ] = {
 	[ UNIX_STAT ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_SD_EXT_PLUGIN_ID,
+			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
 			.id      = UNIX_STAT,
 			.pops    = NULL,
 			.label   = "unix-sd",
@@ -584,8 +587,7 @@ reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ] = {
 	},
 	[ PLUGIN_STAT ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_SD_EXT_PLUGIN_ID,
+			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
 			.id      = PLUGIN_STAT,
 			.pops    = NULL,
 			.label   = "plugin-sd",
@@ -604,8 +606,7 @@ reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ] = {
 	},
 	[ GEN_AND_FLAGS_STAT ] = {
 		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_SD_EXT_PLUGIN_ID,
+			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
 			.id      = GEN_AND_FLAGS_STAT,
 			.pops    = NULL,
 			.label   = "gaf-sd",
