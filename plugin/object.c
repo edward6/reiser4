@@ -836,7 +836,7 @@ common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 
 	obj = dentry->d_inode;
 
-	stat->dev = obj->i_dev;
+	stat->dev = obj->i_sb->s_dev;
 	stat->ino = oid_to_uino(get_inode_oid(obj));
 	stat->mode = obj->i_mode;
 	stat->nlink = obj->i_nlink;

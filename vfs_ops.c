@@ -54,7 +54,7 @@ static int reiser4_unlink(struct inode *, struct dentry *);
 static int reiser4_rmdir(struct inode *, struct dentry *);
 static int reiser4_symlink(struct inode *, struct dentry *, const char *);
 static int reiser4_mkdir(struct inode *, struct dentry *, int);
-static int reiser4_mknod(struct inode *, struct dentry *, int, int);
+static int reiser4_mknod(struct inode *, struct dentry *, int, dev_t);
 static int reiser4_rename(struct inode *, struct dentry *, struct inode *, struct dentry *);
 static int reiser4_readlink(struct dentry *, char *, int);
 static int reiser4_follow_link(struct dentry *, struct nameidata *);
@@ -244,7 +244,7 @@ reiser4_mknod(struct inode *parent /* inode of parent directory */ ,
 	      struct dentry *dentry	/* dentry of new object to
 					 * create */ ,
 	      int mode /* new object's mode */ ,
-	      int rdev /* minor and major of new device node */ )
+	      dev_t rdev /* minor and major of new device node */ )
 {
 	reiser4_object_create_data data;
 
@@ -562,6 +562,13 @@ reiser4_writepage(struct page *page)
 	struct writeback_control wbc;
 	REISER4_ENTRY(page->mapping->host->i_sb);
 
+	xmemset(&wbc, 0, sizeof wbc);
+	wbc.nr_to_write = 1;
+
+	if (current->flags & PF_MEMALLOC) {
+		return reiser4_vm_writeback(page, &wbc );
+	}
+
 	impossible("vs-1099", "this is not to be called");
 
 	trace_on(TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n", page->mapping->host->i_ino, page->index);
@@ -576,9 +583,6 @@ reiser4_writepage(struct page *page)
 		reiser4_unlock_page(page);
 		REISER4_EXIT(result);
 	}
-
-	xmemset(&wbc, 0, sizeof wbc);
-	wbc.nr_to_write = 1;
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
 	   clean page.  An extra reference should protect this page from
@@ -2658,7 +2662,7 @@ struct address_space_operations reiser4_as_operations = {
 	/* called during sync (pdflush) */
 	.writepages = reiser4_writepages,
 	/* called during memory pressure by kswapd */
-	.vm_writeback = reiser4_vm_writeback,
+//	.vm_writeback = reiser4_vm_writeback,
 	.set_page_dirty = reiser4_set_page_dirty,
 	/* called during read-ahead */
 	.readpages = NULL,

@@ -578,14 +578,6 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 		reiser4_unlock_page(pg);
 
-		/* Put pages to inactive list where they have chance to be
-		   freed. (as in mpage_writepages()) */
-		if ((current->flags & PF_MEMALLOC) && !PageActive(pg) && PageLRU(pg)) {
-			page_cache_get(pg);
-			if (!pagevec_add(&pvec, pg))
-				pagevec_deactivate_inactive(&pvec);
-		}
-
 		jnode_io_hook(first, pg, WRITE);
 
 		bio->bi_io_vec[nr_processed].bv_page = pg;
@@ -597,8 +589,6 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 		first = capture_list_next(first);
 	}
-
-	pagevec_deactivate_inactive(&pvec);
 
 	add_fq_to_bio(fq, bio);
 	submit_bio(WRITE, bio);
