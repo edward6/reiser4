@@ -50,25 +50,24 @@ struct reiser4_blocknr_hint {
 extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
 extern void blocknr_hint_done (reiser4_blocknr_hint *hint);
 
+/* free -> grabbed -> fake_allocated -> used */
 extern int reiser4_grab_space (reiser4_block_nr *, __u64, __u64);
-extern int reiser4_grab_space1 (__u64);
-extern void reiser4_release_grabbed_space (__u64 count);
-extern void reiser4_release_all_grabbed_space (void);
+extern int reiser4_grab_space_exact (__u64);
+/* grabbed -> fake_allocated */
+extern int assign_fake_blocknr (reiser4_block_nr *, int formatted);
+/* fake_allocated -> used */
+extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
+				 reiser4_block_nr * start,
+				 reiser4_block_nr * len, int formatted);
 
-extern void reiser4_count_fake_allocation   (__u64);
-extern void reiser4_count_fake_deallocation (__u64);
-extern void reiser4_unformatted_grabbed2unallocated (__u64 count);
 
-extern void reiser4_count_block_mapping     (__u64);
-extern void reiser4_count_block_unmapping   (__u64);
-
-extern void reiser4_count_real_allocation   (__u64);
-extern void reiser4_count_real_deallocation (__u64);
+/* used -> fake_allocated -> grabbed -> free */
+extern void fake_allocated2free (__u64, int formatted);
+extern void grabbed2free (__u64);
+extern void all_grabbed2free (void);
 
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
-extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
-				 reiser4_block_nr * start, reiser4_block_nr * len);
 extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int defer, block_stage_t);
 extern void check_block_counters (const struct super_block *);
 
@@ -90,8 +89,6 @@ static inline int reiser4_dealloc_block (const reiser4_block_nr *block, int defe
 	return reiser4_dealloc_blocks (block, &one, defer, stage);
 }
 
-extern int assign_fake_blocknr (reiser4_block_nr *);
-extern int release_blocknr (const reiser4_block_nr *);
 
 extern void pre_commit_hook      (void);
 extern void post_commit_hook     (void);
