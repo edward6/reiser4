@@ -83,8 +83,8 @@ int total_inheritance( struct inode *inode,
 	assert( "nikita-705", ( parent == NULL ) || S_ISDIR( parent -> i_mode ) );
 	assert( "nikita-706", ( root == NULL ) || S_ISDIR( root -> i_mode ) );
 
-	self = reiser4_get_object_state( inode );
-	ancestor = reiser4_get_object_state( parent ? : root );
+	self = get_object_state( inode );
+	ancestor = get_object_state( parent ? : root );
 	changed = 0;
 
 	changed |= inherit_if_nil( &self -> hash, &ancestor -> hash );
@@ -124,7 +124,7 @@ int common_file_install( struct inode *inode, reiser4_plugin *plug,
 	else
 		inode -> i_gid = current -> fsgid;
 
-	reiser4_get_object_state( inode ) -> file = plug;
+	get_object_state( inode ) -> file = plug;
 
 	/* this object doesn't have stat-data yet */
 	*reiser4_inode_flags( inode ) |= REISER4_NO_STAT_DATA;
@@ -237,7 +237,7 @@ static int insert_new_sd( struct inode *inode )
 	if( !( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA ) )
 		return 0;
 
-	ref = reiser4_get_object_state( inode );
+	ref = get_object_state( inode );
 
 	if( ref -> sd == NULL ) {
 		ref -> sd = reiser4_get_sd_plugin( inode );
@@ -339,7 +339,7 @@ static int update_sd( struct inode *inode )
 
 	result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	error_message = NULL;
-	state = reiser4_get_object_state( inode );
+	state = get_object_state( inode );
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
@@ -499,9 +499,9 @@ int guess_plugin_by_mode( struct inode *inode )
 		fplug_id = REGULAR_FILE_PLUGIN_ID;
 		break;
 	}
-	reiser4_get_object_state( inode ) -> file = 
+	get_object_state( inode ) -> file = 
 		( fplug_id >= 0 ) ? file_plugin_by_id( fplug_id ) : NULL;
-	reiser4_get_object_state( inode ) -> dir = 
+	get_object_state( inode ) -> dir = 
 		( dplug_id >= 0 ) ? dir_plugin_by_id( dplug_id ) : NULL;
 	return 0;
 }

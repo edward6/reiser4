@@ -1590,10 +1590,10 @@ static struct inode * create_root_dir (znode * root)
 	inode->i_sb = reiser4_get_current_sb();
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
-	reiser4_get_object_state( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-	reiser4_get_object_state( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
-	reiser4_get_object_state( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-	reiser4_get_object_state( inode ) -> locality_id = get_key_locality( &key );
+	get_object_state( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
+	get_object_state( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
+	get_object_state( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
+	get_object_state( inode ) -> locality_id = get_key_locality( &key );
 
 	call_create (inode, ".");
 	inode -> i_sb -> s_root -> d_inode = inode;
@@ -1913,7 +1913,7 @@ static int copy_dir (struct inode * dir)
 	/*
 	 * no tails for all the directory
 	 */
-	reiser4_get_object_state (dir)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+	get_object_state (dir)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
 
 	dirs = 0;
 	files = 0;
@@ -1982,10 +1982,10 @@ static int copy_dir (struct inode * dir)
 				 * if parent directory has tails on - make
 				 * child directory to have tail off
 				 */
-				if (tail_plugin_id (reiser4_get_object_state (inodes [depth - 2])->tail) == NEVER_TAIL_ID)
-					reiser4_get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (ALWAYS_TAIL_ID);
+				if (tail_plugin_id (get_object_state (inodes [depth - 2])->tail) == NEVER_TAIL_ID)
+					get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (ALWAYS_TAIL_ID);
 				else
-					reiser4_get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+					get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (NEVER_TAIL_ID);
 #endif
 			} else if (S_ISREG (st.st_mode)) {
 				printf ("REG\n");
@@ -2532,12 +2532,12 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				 */
 				if (!strcmp (command, "tail")) {
 					print_plugin("", 
-						     tail_plugin_to_plugin(reiser4_get_object_state (cwd)->tail));
+						     tail_plugin_to_plugin(get_object_state (cwd)->tail));
 				} else if (!strcmp (command + 5, "off")) {
-					reiser4_get_object_state (cwd)->tail =
+					get_object_state (cwd)->tail =
 						tail_plugin_by_id (NEVER_TAIL_ID);
 				} else if (!strcmp (command + 5, "on")) {
-					reiser4_get_object_state (cwd)->tail =
+					get_object_state (cwd)->tail =
 						tail_plugin_by_id (ALWAYS_TAIL_ID);
 				} else {
 					info ("\ttail [on|off]\n");
