@@ -162,6 +162,7 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
+#include "tree_walk.h"
 #include "super.h"
 #include "reiser4.h"
 
@@ -633,9 +634,9 @@ zparse(znode * node /* znode to parse */ )
 	return result;
 }
 
-/* load content of node into memory */
+/* zload with readahead */
 int
-zload(znode * node /* znode to load */ )
+zload_ra(znode * node /* znode to load */, ra_info_t *info)
 {
 	int result;
 
@@ -645,10 +646,22 @@ zload(znode * node /* znode to load */ )
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
 	schedulable();
 
+	if (info && znode_just_created(node)) {
+		/* only handle readahead flags if node content is not available immediately */
+		if (info->flags & RA_READDIR)
+			readdir_readahead(node, info);
+	}
+
 	result = jload(ZJNODE(node));
 	ON_DEBUG_MODIFY(znode_pre_write(node));
 	assert("nikita-1378", znode_invariant(node));
 	return result;
+}
+
+/* load content of node into memory */
+int zload(znode * node)
+{
+	return zload_ra(node, 0);
 }
 
 /* call node plugin to initialise newly allocated node. */
