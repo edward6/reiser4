@@ -938,7 +938,6 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 		   zam's suggestion */
 		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, GN_TRY_LOCK))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
-			printk("reiser4_get_left_neighbor returned %d\n", ret);
 			if (ret == -EAGAIN || ret == -ENAVAIL || ret == -ENOENT) { ret = 0; }
 			goto exit;
 		}
