@@ -116,7 +116,7 @@
  * extra I/O because the node will have to be written again when the child is finally
  * allocated.
  *
- * WE HAVE NOT YET SOLVED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this should
+ * WE HAVE NOT YET ELIMINATED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this should
  * not cause any file system corruption, it only degrades I/O performance because a node
  * may be written when it is sure to be written at least one more time in the same
  * transaction when the remaining children are allocated.  What follows is a description
@@ -137,6 +137,12 @@
  * allocating many leaves as well.  Instead, we adopt a solution that treats twigs and
  * leaves as a special case.  The idea is for the squeeze-and-allocate pass to ensure that
  * for any twigs that it allocates, the children of those twigs are fully allocated.
+
+We do not try to allocate all the descendents of every node we process, as this could result in allocating the entire
+tree if the the root node was among the nodes processed.  We choose to be moderately conservative in how much we flush
+to disk as a result of memory pressure on a slum member, and so we adopt a poicy of allocating all the children of every
+twig node we process.
+
  *
  * There are several parts to this solution:
  *
