@@ -1277,6 +1277,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	node  = h -> active_lh -> node;
 	assert( "nikita-1717", coord_wrt( coord ) == COORD_ON_THE_LEFT );
 
+	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 
 						 ( int ) h -> lock_mode,
 						 GN_LOAD_NEIGHBOR );
@@ -1311,6 +1312,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	default: /* some other error */ 
 			result = LLR_DONE;
 		} else if( h -> result == NS_FOUND ) {
+			reiser4_stat_tree_add( left_nonuniq_found );
 			spin_lock_dk( current_tree );
 			h -> rd_key = *znode_get_ld_key( node );
 			leftmost_key_in_node( neighbor, &h -> ld_key );

@@ -356,6 +356,8 @@ typedef struct reiser4_stat {
 		 * right delimiting key is not exact
 		 */
 		stat_cnt rd_key_skew;
+		stat_cnt check_left_nonuniq;
+		stat_cnt left_nonuniq_found;
 	} tree;
 	struct {
 		/*
