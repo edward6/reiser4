@@ -287,7 +287,7 @@ static struct file_system_type * find_filesystem (const char * name)
 
 
 
-static struct super_block * call_mount (const char * dev_name, char *opts)
+static struct super_block * call_mount (const char * dev_name, const char *opts)
 {
 	struct file_system_type * fs;
 
@@ -298,6 +298,10 @@ static struct super_block * call_mount (const char * dev_name, char *opts)
 	return fs->get_sb (fs, 0/*flags*/, (char *)dev_name, opts);
 }
 
+static struct inode *get_root_dir( struct super_block *s )
+{
+	return reiser4_iget (s, get_super_private (s)->lplug->root_dir_key (s));
+}
 
 
 /****************************************************************************/
@@ -818,7 +822,7 @@ void wait_on_page_locked(struct page * page)
 	}
 }
 
-void wait_on_page_writeback(struct page * page)
+void wait_on_page_writeback(struct page * page UNUSED_ARG)
 {
 	return;
 }
@@ -1028,10 +1032,6 @@ void wait_on_buffer (struct buffer_head * bh)
 #define STYPE( type ) info( #type "\t%i\n", sizeof( type ) )
 
 char *__prog_name;
-
-static int mmap_back_end_fd = -1;
-static char *mmap_back_end_start = NULL;
-static size_t mmap_back_end_size = 0;
 
 int submit_bio( int rw, struct bio *bio )
 {
@@ -1938,8 +1938,6 @@ void *mt_queue_thread( void *arg )
 int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG, 
 		 reiser4_tree *tree )
 {
-	znode *root;
-	znode *fake;
 	int ret;
 	carry_pool  pool;
 	carry_level lowest_level;
@@ -1951,19 +1949,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	assert( "nikita-1096", tree != NULL );
 
-	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
-	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block );
-	root -> rd_key = *max_key();
-	sibling_list_insert( root, NULL );
-
-	if( !strcmp( argv[ 2 ], "mkfs" ) ) {
-		/*
-		 * root is already allocated/initialised above.
-		 */
-		fs_is_here = 0;
-		create_root_dir( root );
-		info( "Done.\n" );
-	} else if( !strcmp( argv[ 2 ], "clean" ) ) {
+	if( !strcmp( argv[ 2 ], "clean" ) ) {
 		ret = cut_tree( tree, min_key(), max_key() );
 		printf( "result: %i\n", ret );
 	} else if( !strcmp( argv[ 2 ], "print" ) ) {
@@ -1973,7 +1959,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		struct inode *f;
 		char name[ 30 ];
 
-		f = sandbox( create_root_dir( root ) );
+		f = sandbox( get_root_dir( tree -> super ) );
 		create_twig( tree, f );
 		call_readdir( f, "unlink-start" );
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
@@ -2000,7 +1986,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		mkdir_thread_info info;
 		struct inode *f;
 
-		f = sandbox( create_root_dir( root ) );
+		f = sandbox( get_root_dir( tree -> super ) );
 		create_twig( tree, f );
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
@@ -2140,60 +2126,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		}
 		print_tree_rec( "tree:ibk", tree, REISER4_NODE_CHECK );
 		/* print_tree_rec( "tree", tree, ~0u ); */
-	} else if( !strcmp( argv[ 2 ], "carry" ) ) {
-		reiser4_item_data data;
-		struct {
-			reiser4_stat_data_base base;
-			reiser4_unix_stat      un;
-		} sd;
-
-		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
-			init_carry_pool( &pool );
-			init_carry_level( &lowest_level, &pool );
-		
-			op = post_carry( &lowest_level, 
-						 COP_INSERT, root, 0 );
-			assert( "nikita-1268", !IS_ERR( op ) && ( op != NULL ) );
-			// fill in remaining fields in @op, according to
-			// carry.h:carry_op
-			cdata.data  = &data;
-			cdata.key   = &key;
-			cdata.coord = &coord;
-			op -> u.insert.type = COPT_ITEM_DATA;
-			op -> u.insert.d = &cdata;
-
-			xmemset( &sd, 0, sizeof sd );
-			cputod16( S_IFREG | 0111, &sd.base.mode );
-			cputod16( 0x0 , &sd.base.extmask );
-			cputod32( 1, &sd.base.nlink );
-			cputod64( 0x283746ull + i, &sd.base.size );
-			cputod32( 201, &sd.un.uid );
-			cputod32( 1, &sd.un.gid );
-			cputod32( ( unsigned ) time( NULL ), &sd.un.atime );
-			cputod32( ( unsigned ) time( NULL ), &sd.un.mtime );
-			cputod32( ( unsigned ) time( NULL ), &sd.un.ctime );
-			cputod64( 0x283746ull + i, &sd.un.bytes );
-
-			/* this inserts stat data */
-			data.data = ( char * ) &sd;
-			data.user = 0;
-			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-			coord_init_first_unit( &coord, NULL );
-			
-			set_key_locality( &key, 2ull + i );
-
-			coord.between = ( i == 0 ) ? AT_UNIT : AFTER_UNIT;
-			info( "_____________%i_____________\n", i );
-			coord_print( "before", &coord, 1 );
-			ret = carry( &lowest_level, NULL );
-			printf( "result: %i\n", ret );
-			done_carry_pool( &pool );
-			coord_print( "after", &coord, 1 );
-			print_znode_content( root, REISER4_NODE_PRINT_ALL );
-			info( "____end______%i_____________\n", i );
-		}
-		print_tree_rec( "tree", tree, 0 );
 	} else if( !strcmp( argv[ 2 ], "inode" ) ) {
 		struct inode f;
 		xmemset( &f, 0, sizeof f );
@@ -2319,7 +2251,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	} else {
 		info( "Huh?\n" );
 	}
-	zput( root );
 	return 0;
 }
 
@@ -4420,18 +4351,9 @@ int real_main( int argc, char **argv )
 	int result, eresult, fresult;
 	struct super_block *s;
 	reiser4_tree *tree;
-	reiser4_block_nr root_block;
-	oid_t next_to_use;
-	oid_t locality, objectid; /* key of root directory read from meta file */
-	int tree_height;
-	struct super_block super;
-	struct dentry root_dentry;
 	reiser4_context __context;
-	char *mmap_fname;
-	char *mmap_meta_fname;
-	int   mmap_meta_fd;
-	reiser4_key root_dir_key;
-
+	int blocksize;
+	pthread_t uswapper;
 
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
@@ -4444,23 +4366,19 @@ int real_main( int argc, char **argv )
 	 * currently reiser4 supports only pagesize==blocksize, we have to make
 	 * sure that PAGE_CACHE_* are set correspondingly to blocksize
 	 */
-	{
-		int blocksize;
-
-		blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
-			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
-		for (PAGE_CACHE_SHIFT = 0; blocksize >>= 1; PAGE_CACHE_SHIFT ++);
-		
-		PAGE_CACHE_SIZE	= (1UL << PAGE_CACHE_SHIFT);
-		PAGE_CACHE_MASK	= (~(PAGE_CACHE_SIZE-1));
-		info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%d, PAGE_CACHE_MASK=0x%x\n",
-		      PAGE_CACHE_SHIFT, PAGE_CACHE_SIZE, PAGE_CACHE_MASK);
-	}
-
+	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
+		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+	for (PAGE_CACHE_SHIFT = 0; blocksize >>= 1; PAGE_CACHE_SHIFT ++);
+	
+	PAGE_CACHE_SIZE	= (1UL << PAGE_CACHE_SHIFT);
+	PAGE_CACHE_MASK	= (~(PAGE_CACHE_SIZE-1));
+	info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%d, PAGE_CACHE_MASK=0x%x\n",
+	      PAGE_CACHE_SHIFT, PAGE_CACHE_SIZE, PAGE_CACHE_MASK);
 /*
 	trap_signal( SIGBUS );
 	trap_signal( SIGSEGV );
 */
+
 	if( getenv( "REISER4_TRACE_FLAGS" ) != NULL ) {
 		reiser4_current_trace_flags = 
 			strtol( getenv( "REISER4_TRACE_FLAGS" ), NULL, 0 );
@@ -4478,145 +4396,36 @@ int real_main( int argc, char **argv )
 	if (argc == 2 && !strcmp (argv[1], "sh")) {
 		bash_test (argc, argv, 0);
 	}
-	if( getenv( "REISER4_MOUNT" ) != NULL ) {
-		set_current ();
-		run_init_reiser4 ();
-		call_mount( getenv( "REISER4_MOUNT" ), 
-			    getenv( "REISER4_MOUNT_OPTS" ) );
+	if( getenv( "REISER4_MOUNT" ) == NULL ) {
+		warning( "nikita-2110", "Set REISER4_MOUNT" );
+		return 0;
 	}
+	set_current ();
+	run_init_reiser4 ();
+	s = call_mount( getenv( "REISER4_MOUNT" ),
+			getenv( "REISER4_MOUNT_OPTS" ) ? : "" );
 
-	root_block = 3ull;
-	tree_height = 1;
-	next_to_use = 0x10000ull;
-	new_block_nr = 10;
-	mmap_fname = getenv( "REISER4_UL_DURABLE_MMAP" );
-	mmap_meta_fname = getenv( "REISER4_UL_DURABLE_MMAP_META" );
-	mmap_meta_fd = -1;
-	root_dir_key = ROOT_DIR_KEY;
-	fs_is_here = 0;
-	if( ( mmap_fname != NULL ) && ( mmap_meta_fname != NULL ) ) {
-		mmap_back_end_fd = open( mmap_fname, O_CREAT | O_RDWR, 0700 );
-		if( mmap_back_end_fd == -1 ) {
-			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
-				 mmap_fname, strerror( errno ) );
-			exit( 1 );
-		}
-		mmap_back_end_size = lseek( mmap_back_end_fd, (off_t)0, SEEK_END );
-		if( ( off_t ) mmap_back_end_size == ( off_t ) -1 ) {
-			perror( "lseek" );
-			exit( 2 );
-		}
-		mmap_back_end_start = mmap( NULL, 
-					    mmap_back_end_size, 
-					    PROT_WRITE | PROT_READ, 
-					    MAP_SHARED, mmap_back_end_fd, (off_t)0 );
-		if( mmap_back_end_start == MAP_FAILED ) {
-			perror( "mmap" );
-			exit( 3 );
-		}
-		mmap_meta_fd = open( mmap_meta_fname, O_CREAT | O_RDWR, 0777 );
-		if( mmap_meta_fd == -1 ) {
-			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
-				 mmap_meta_fname, strerror( errno ) );
-		} else {
-			char buf[ 100 ];
+	s = &super_blocks[0];
+	tree = &get_super_private(s) -> tree;
 
-			if( read( mmap_meta_fd, buf, sizeof buf ) != sizeof buf ) {
-				fprintf( stderr, "%s: read error %s\n", 
-					 argv[ 0 ], mmap_meta_fname );
-				exit( 4 );
-			}
-			
-			if( sscanf( buf, "%lli %i %lli %lli %lli %lli", 
-				    &root_block, &tree_height, 
-				    &next_to_use, &new_block_nr,
-				    &locality, &objectid ) != 6 ) {
-				fprintf( stderr, "%s: Wrong conversion in %s\n", 
-					 argv[ 0 ], buf );
-				exit( 5 );
-			} else {
-				fs_is_here = 1;
-			}
-		}
-	}
-
-	{
-		pthread_t uswapper;
-
-		super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
-					       GFP_KERNEL);
-		if( super.u.generic_sbp == NULL )
-			BUG();
-		xmemset (super.u.generic_sbp, 0, 
-			 sizeof (reiser4_super_info_data));
-
-		super.s_op = &reiser4_super_operations;
-		super.s_root = &root_dentry;
-		super.s_blocksize = PAGE_CACHE_SIZE; /*getenv( "REISER4_BLOCK_SIZE" ) ? 
-			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512; */
-		super.s_blocksize_bits = PAGE_CACHE_SHIFT;
-		xmemset( &root_dentry, 0, sizeof root_dentry );
-
-		init_context( &__context, &super );
+	init_context( &__context, s );
 
 #if REISER4_DEBUG
-		atomic_set( &get_current_super_private() -> total_threads, 0 );
-		atomic_set( &get_current_super_private() -> active_threads, 0 );
+	atomic_set( &get_current_super_private() -> total_threads, 0 );
+	atomic_set( &get_current_super_private() -> active_threads, 0 );
 #endif
-		get_current_super_private() -> blocks_free = ~0ul;
 
-		assert ("jmacd-998", super.s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
-
-		register_thread();
-		spin_lock_init( &mp_guard );
-		kcond_init( &memory_pressed );
-		result = pthread_create( &uswapper, NULL, uswapd, &super );
-		assert( "nikita-1938", result == 0 );
-
-		/* check that blocksize is a power of two */
-		assert( "vs-417", 
-			! ( super.s_blocksize & ( super.s_blocksize - 1 ) ) );
-
-		spin_lock_init( &inode_hash_guard );
-/*		spin_lock_init( &alloc_guard );*/
-
-		init_inodecache();
-		znodes_init();
-		init_plugins();
-		txn_init_static();
-		sys_rand_init();
-		txn_mgr_init( &get_super_private (&super) -> tmgr );
-		init_formatted_fake( &super );
-		
-		root_dentry.d_inode = NULL;
-		/* initialize reiser4_super_info_data's oid plugin */
-		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].oid_allocator;
-		get_super_private( &super ) -> oid_plug ->
-			init_oid_allocator( get_oid_allocator( &super ), 1ull, next_to_use );
-		/* initialize space plugin */
-		{
-			reiser4_super_info_data * private;
-			reiser4_space_allocator * allocator;
-
-			private = get_super_private( &super );
-			private -> space_plug =
-				space_allocator_plugin_by_id( TEST_SPACE_ALLOCATOR_ID );
-			allocator = get_space_allocator( &super );
-			private -> space_plug -> init_allocator( allocator,
-								 &super, &next_to_use );
-		}
-
-		get_super_private( &super ) -> lplug = layout_plugin_by_id( LAYOUT_40_ID );
-		s = &super;
-		
-		tree = &get_super_private( s ) -> tree;
-		result = init_tree( tree, s, &root_block,
-				    tree_height, node_plugin_by_id( NODE40_ID ),
-				    &page_cache_tops );
-		if( result )
-			rpanic ("jmacd-500", "znode_tree_init failed");
-	}
-
+	assert ("jmacd-998", s -> s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
+	
+	register_thread();
+	spin_lock_init( &mp_guard );
+	kcond_init( &memory_pressed );
+	result = pthread_create( &uswapper, NULL, uswapd, &s );
+	assert( "nikita-1938", result == 0 );
+	
+	/* check that blocksize is a power of two */
+	assert( "vs-417", ! ( s -> s_blocksize & ( s -> s_blocksize - 1 ) ) );
+	
 	if( argc >= 2 ) {
 		int i;
 
@@ -4635,30 +4444,12 @@ int real_main( int argc, char **argv )
 	if( getenv( "REISER4_PRINT_STATS" ) != NULL )
 		reiser4_print_stats();
 
-	if( mmap_meta_fd != -1 ) {
-		char buf[ 100 ];
-		get_super_private( &super ) -> oid_plug ->
-			allocate_oid( get_oid_allocator( &super ), &next_to_use );
-		root_block = tree -> root_block;
-		tree_height = tree -> height;
-		
-		lseek( mmap_meta_fd, 0, SEEK_SET );
-		sprintf( buf, "%lli %i %lli %lli %lli %lli\n", 
-			 root_block, tree_height, next_to_use, ++ new_block_nr,
-			 reiser4_inode_data (s->s_root->d_inode)->locality_id,
-			 (long long int)s->s_root->d_inode->i_ino);
-		write( mmap_meta_fd, buf, strlen( buf ) + 1 );
-	}
-
 	info( "tree height: %i\n", tree -> height );
 
 	deregister_thread();
 
-	fresult = txn_mgr_force_commit (s);
-
-	eresult = __REISER4_EXIT( &__context );
-
-	return result ? : (fresult ? : (eresult ? : 0));
+	bash_umount ( &__context );
+	return 0;
 }
 
 int main (int argc, char **argv)

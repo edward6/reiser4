@@ -97,8 +97,8 @@ const reiser4_block_nr FAKE_TREE_ADDR = 0ull;
  * contexts, used for debugging purposes.  */
 TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 
-static spinlock_t        active_contexts_lock;
-static context_list_head active_contexts;
+spinlock_t        active_contexts_lock;
+context_list_head active_contexts;
 #endif
 
 /* Audited by: umka (2002.06.16) */
@@ -1479,7 +1479,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_ZNODE )
 		print_znode( "", node );
 
-	if( flags & REISER4_NODE_PRINT_ZADDR ) {
+	if( 0 && flags & REISER4_NODE_PRINT_ZADDR ) {
 		info( "[node %p block %llu level %u]\n", node, *znode_get_block( node ), znode_get_level( node ) );
 	} else {
 		print_znode_content( node, flags );
@@ -1543,6 +1543,7 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 		     GFP_KERNEL );
 	if( IS_ERR( root ) ) {
 		info( "Cannot get root\n" );
+		zput( fake );
 		return;
 	}
 	tree_rec( tree, root, flags );
