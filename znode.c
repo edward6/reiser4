@@ -724,7 +724,6 @@ znode_set_rd_key(znode * node, const reiser4_key * key)
 	       znode_get_level(node) != LEAF_LEVEL ||
 	       keyge(key, znode_get_rd_key(node)) ||
 	       keyeq(znode_get_rd_key(node), min_key()));
-	BUG_ON(keyeq(znode_get_ld_key(node), key));
 
 	node->rd_key = *key;
 	return &node->rd_key;
