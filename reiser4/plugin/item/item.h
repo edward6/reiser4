@@ -175,28 +175,6 @@ struct item_ops {
 					    reiser4_item_data *data );
 	} b;
 	
-
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-
-/* Josh's note:	child_on_right and child_on_left seem to be taken care of by
- * the utmost_child operation.  The "child" routine doesn't appear to be useful. */
-
-/* These next three functions only apply to internal node items that coord to
-   children (e.g. extents and block pointers).  They are used for tree
-   traversal.  */
-
-/* should the input of these functions be keys, or coords, or znodes, or
-   what? */
-
-/* return znode of child that contains the key.  Perhaps */
-	child(key key, znode **child);
-	/* return znode of right neighbor of child that contains the key, if it is within this item */
-	child_on_right(key key, znode **next_child);
-	/* return znode of left neighbor of child that contains the key, if it is within this item */
-	child_on_left(key key, znode **prev_child);
-
-#endif
-
 	/* item methods are separated into two groups:
             . methods common for all item types, used by balancing code.
               They are declared in .b struct above this point.
