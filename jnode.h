@@ -30,6 +30,13 @@ struct jnode
 	 */
 	spinlock_t   guard;
 
+	/**
+	 * counter of references to jnode's data. Pin data page(s) in
+	 * memory while this is greater than 0. Increased on jload().
+	 * Decreased on jrelse().
+	 */
+	atomic_t               d_count;
+
 	/* the real blocknr (as far as the parent node is concerned) */
 	reiser4_block_nr blocknr;
 
@@ -248,6 +255,13 @@ static inline int jnode_is_formatted( const jnode *node)
 	return ! JF_ISSET (node, ZNODE_UNFORMATTED);
 }
 
+static inline int jnode_is_loaded (const jnode * node)
+{
+	assert ("zam-506", node != NULL);
+	return JF_ISSET (node, ZNODE_LOADED);
+}
+
+
 /** return true if "node" is dirty */
 static inline int jnode_is_dirty( const jnode *node )
 {
@@ -302,16 +316,59 @@ typedef struct node_operations {
 	int ( *clean_node )( reiser4_tree *tree, jnode *node );
 } node_operations;
 
-/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
-extern int  jload    (jnode* node);
-extern void jkmap    (jnode* node);
-extern int  jwrite   (jnode* node);
-extern int  jwait_io (jnode* node);
-extern int  jrelse   (jnode* node);
-extern void junload  (jnode* node);
+extern void add_d_ref( jnode *node );
 
-/* __JNODE_H__ */
-#endif
+/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
+
+/* load jnode data, leave jnode spin-locked return positive number if
+ * cached data was used */
+extern int  jload_and_lock    (jnode* node);
+
+/* load jnode data, unlock jnode and hide the difference between using cached
+ * data and reading data from disk */
+static inline int jload (jnode * node)
+{
+	int ret;
+
+	ret = jload_and_lock (node);
+
+	if (unlikely (ret < 0)) return ret;
+
+	if (ret > 0) ret = 0;
+
+	spin_unlock_jnode (node);
+
+	return ret;
+}
+
+extern int  jwrite            (jnode* node);
+extern int  jwait_io          (jnode* node);
+
+extern void jrelse_nolock     (jnode* node);
+
+/**
+ * drop reference to node data. When last reference is dropped, data are
+ * unloaded.
+ */
+static inline void jrelse( jnode *node)
+{
+	assert( "zam-507", node != NULL );
+	assert( "zam-508", atomic_read( &node -> d_count ) > 0 );
+
+	spin_lock_jnode (node);
+	jrelse_nolock(node);
+	spin_unlock_jnode( node );
+}
+
+static inline void junlock_and_relse (jnode * node)
+{
+	assert ("zam-509", node != NULL);
+	assert ("zam-510", spin_jnode_is_locked (node));
+	jrelse_nolock(node);
+	spin_unlock_jnode( node );
+}
+
+#endif /* __JNODE_H__ */
 
 /*
  * Make Linus happy.
