@@ -1418,78 +1418,110 @@ should_wait_commit(txn_handle * h)
 	return h->flags & TXNH_WAIT_COMMIT;
 }
 
+typedef struct commit_data {
+	txn_atom    *atom;
+	txn_handle  *txnh;
+	long         nr_written;
+	int          preflush;
+	int          wait;
+	int          failed;
+} commit_data;
+
+static int
+try_commit_txnh(commit_data *cd)
+{
+	int result;
+
+	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
+
+	/* Get the atom and txnh locked. */
+	cd->atom = get_current_atom_locked();
+
+	if (cd->wait) {
+		cd->atom->nr_waiters --;
+		cd->wait = 0;
+	}
+
+	if (cd->atom->stage == ASTAGE_DONE)
+		return 0;
+
+	trace_on(TRACE_TXN,
+		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
+		 cd->atom->atom_id, cd->failed, cd->atom->txnh_count, cd->atom_should_commit(cd->atom));
+
+	if (cd->failed)
+		return 0;
+
+	if (atom_should_commit(cd->atom)) {
+		result = -EAGAIN;
+		if (!atom_can_be_committed(cd->atom)) {
+			if (should_wait_commit(cd->txnh)) {
+				cd->atom->nr_waiters++;
+				cd->wait = 1;
+				atom_wait_event(cd->atom);
+			} else
+				result = 0;
+		} else if (cd->preflush > 0) {
+			/*
+			 * optimization: flush atom without switching it into
+			 * ASTAGE_CAPTURE_WAIT.
+			 */
+			result = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS,
+						    &cd->nr_written, &cd->atom);
+			if (result == 0) {
+				UNLOCK_ATOM(cd->atom);
+				cd->preflush = 0;
+				result = -EAGAIN;
+			} else
+				-- cd->preflush;
+		} else {
+			/* We change atom state to ASTAGE_CAPTURE_WAIT to
+			   prevent atom fusion and count ourself as an active
+			   flusher */
+			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
+			cd->atom->flags |= ATOM_FORCE_COMMIT;
+
+			result = commit_current_atom(&cd->nr_written, &cd->atom);
+			if (result != 0 && result != -EAGAIN)
+				cd->failed = 1;
+		}
+	} else
+		result = 0;
+
+	assert("jmacd-1027", ergo(result == 0, spin_atom_is_locked(cd->atom)));
+	assert("jmacd-1028", ergo(result != 0, spin_atom_is_not_locked(cd->atom)));
+	return result;
+}
+
 /* Called to commit a transaction handle.  This decrements the atom's number of open
    handles and if it is the last handle to commit and the atom should commit, initiates
    atom commit. if commit does not fail, return number of written blocks */
 static long
 commit_txnh(txn_handle * txnh)
 {
-	int ret = 0;
-	txn_atom *atom;
-	int failed = 0;
-	int wait = 0;
-	long nr_written = 0;
-
+	commit_data cd;
 	assert("umka-192", txnh != NULL);
 
-again:
-	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
+	xmemset(&cd, 0, sizeof cd);
+	cd.txnh = txnh;
+	cd.preflush = 10;
 
-	/* Get the atom and txnh locked. */
-	atom = get_current_atom_locked();
+	while (try_commit_txnh(&cd) != 0)
+		preempt_point();
 
-	if (wait) {
-		atom->nr_waiters --;
-		wait = 0;
-	}
-
-	if (atom->stage == ASTAGE_DONE)
-		goto done;
-
-	trace_on(TRACE_TXN,
-		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
-		 atom->atom_id, failed, atom->txnh_count, atom_should_commit(atom));
-
-	if (!failed && atom_should_commit(atom)) {
-		if (!atom_can_be_committed(atom)) {
-			if (should_wait_commit(txnh)) {
-				atom->nr_waiters++;
-				wait = 1;
-				atom_wait_event(atom);
-				goto again;
-			}
-
-			goto done;
-		}
-
-		/* We change atom state to ASTAGE_CAPTURE_WAIT to prevent atom fusion and count
-		   ourself as an active flusher */
-		atom->stage = ASTAGE_CAPTURE_WAIT;
-		atom->flags |= ATOM_FORCE_COMMIT;
-
-		ret = commit_current_atom(&nr_written, &atom);
-		if (ret) {
-			if (ret != -EAGAIN)
-				failed = 1;
-			ret = 0;
-			preempt_point();
-			goto again;
-		}
-	}
-
-	assert("jmacd-1027", spin_atom_is_locked(atom));
-done:
+	assert("nikita-3171", spin_txnh_is_not_locked(txnh));
 	LOCK_TXNH(txnh);
 
-	atom->txnh_count -= 1;
+	cd.atom->txnh_count -= 1;
 	txnh->atom = NULL;
 
 	txnh_list_remove(txnh);
 
-	trace_on(TRACE_TXN, "close txnh atom %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
+	trace_on(TRACE_TXN, "close txnh atom %u refcount %d\n", 
+		 cd.atom->atom_id, atomic_read(&cd.atom->refcount));
 
 	UNLOCK_TXNH(txnh);
-	atom_dec_and_unlock(atom);
+	atom_dec_and_unlock(cd.atom);
 
 	/* Note: We are ignoring the failure code.  Can't change the result of the caller.
 	   E.g., in write():
@@ -1500,7 +1532,7 @@ done:
 	   It cannot "forget" that 512 bytes were written, even if commit fails.  This
 	   means force_txn_commit will retry forever.  Is there a better solution?
 	*/
-	return nr_written;
+	return cd.nr_written;
 }
 
 /* TRY_CAPTURE */
