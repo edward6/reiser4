@@ -41,7 +41,9 @@
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
 #define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: break; } })
 
+#ifndef __KERNEL__
 #define CONFIG_REISER4_CHECK
+#endif
 
 #ifndef REISER4_DEBUG
 #if defined( CONFIG_REISER4_CHECK )
