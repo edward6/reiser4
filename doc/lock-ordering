@@ -125,6 +125,10 @@ Reiser4 introduces following locks:
     description allows one to reduce (at least partially) problem of waiting
     on atom fusion to the lock ordering.
 
+41. Per-super-block spin lock protecting consistency of emergency flush hash
+    table, ->eflushed, and ->eflushed_anon counters in inode, and ->flushed
+    counter in atom.                                            (eflush_guard)
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -351,6 +355,7 @@ i_sem
 ....................txnmgr_lock
 ......................atom_lock
 ........................jnode_lock            [->vm_writeback()->jget()]
+................................eflush_guard
 ..........................txnh_lock
 ............................zlock
 ........................fq_lock
@@ -537,7 +542,12 @@ txnh->stack_lock
 
 jnode_lock->jload_lock
 
-    reiser4_releasepage(). But this can actually be made other way around.
+    reiser4_releasepage(), emergency_flush(). But this can actually be made
+    other way around.
+
+jnode_lock->eflush_guard
+
+    eflush_add(), eflush_del()
 
 ----------------------------------DEADLOCKS-------------------------------------
 
