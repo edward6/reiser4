@@ -189,6 +189,38 @@ const int REISER4_MAGIC_OFFSET; /* offset to magic string from the beginning of
 
 #include "ulevel/ulevel.h"
 
+#else
+
+/* kernel includes/defines */
+
+/* for error codes in enums */
+#include <asm/errno.h>
+/* for size_t */
+#include <linux/types.h>
+/* for __u?? */
+#include <asm/types.h>
+#include <asm/semaphore.h>
+#include <asm/page.h>
+#include <linux/list.h>
+#include <linux/pagemap.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
+/* for kernel_locked(), lock_kernel() etc. */
+#include <linux/smp_lock.h>
+#include <linux/spinlock.h>
+
+#include <linux/spinlock.h>
+/* following for includes are used in debug.h */
+#include <linux/config.h>
+#include <asm/hardirq.h>
+#include <asm/current.h>
+#include <asm/uaccess.h>
+#include <linux/sched.h>
+
+#define no_context      ( in_interrupt() || in_irq() )
+#define current_pname   ( current -> comm )
+#define current_pid     ( current -> pid )
+
 #endif
 
 #include "forward.h"
