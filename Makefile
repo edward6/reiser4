@@ -96,6 +96,9 @@ reiser4-objs := \
 		   plugin/item/tail.o \
 		   plugin/item/ctail.o \
 		   plugin/item/extent.o \
+		   plugin/item/extent_item_ops.o \
+		   plugin/item/extent_file_ops.o \
+		   plugin/item/extent_flush_ops.o \
            \
 		   plugin/hash.o \
 		   plugin/tail_policy.o \
