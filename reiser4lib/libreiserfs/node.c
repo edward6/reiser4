@@ -34,6 +34,15 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk) {
 	goto error_free_block;
     }
     
+    reiserfs_plugin_check_routine(node->plugin->node, open, return NULL);
+    
+    if (!(node->entity = node->plugin->node.open (node->device, node->block))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,		
+	    "Node plugin hasn't been able to open a node %d.", 
+            aal_device_get_block_location (node->device, node->block));
+       goto error_free_node;
+    }    
+    
     return node;
 
 error_free_block:
@@ -43,17 +52,13 @@ error_free_node:
     return NULL;
 }
 
+reiserfs_node_t *reiserfs_node_create(
+    aal_device_t *device,                /* device which a node will be created on */
+    blk_t blk,                           /* allocated block */
+    reiserfs_plugin_id_t plugin_id,      /* node plugin id to be used */
+    uint8_t level)                       /* level of the node in the tree */
 #ifndef ENABLE_COMPACT
 
-/* 
-    Parameters:
-    (1) device a node will be created on
-    (2) allocated block
-    (3) node plugin id to be used
-    (4) level of the node in the tree 
-*/
-reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, 
-    reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
     reiserfs_node_t *node;
  
@@ -78,7 +83,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     }
     
     reiserfs_plugin_check_routine(node->plugin->node, create, goto error_free_node);
-    if (node->plugin->node.create(node->block, level)) {
+    if (!(node->entity = node->plugin->node.create(node->device, node->block, level))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Node plugin hasn't been able to create a node on block %d.", blk);
 	goto error_free_node;
@@ -97,7 +102,7 @@ error:
 void reiserfs_node_close(reiserfs_node_t *node) {
     aal_assert("umka-122", node != NULL, return);
     
-    aal_device_free_block(node->block);
+    aal_device_free_block(node->entity);
     aal_free(node);
 }
 
@@ -106,7 +111,7 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
 
     reiserfs_plugin_check_routine(node->plugin->node, check, return -1);
-    return node->plugin->node.check(node->block, flags);
+    return node->plugin->node.check(node->entity, flags);
 }
 
 #ifndef ENABLE_COMPACT
@@ -140,7 +145,7 @@ uint32_t reiserfs_node_max_item_size(reiserfs_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
     reiserfs_plugin_check_routine(node->plugin->node, max_item_size, return 0); 
-    return node->plugin->node.max_item_size(node->block);
+    return node->plugin->node.max_item_size(node->entity);
 }
     
 uint32_t reiserfs_node_max_item_num(reiserfs_node_t *node) {
@@ -153,7 +158,7 @@ uint32_t reiserfs_node_count(reiserfs_node_t *node) {
 
 uint8_t reiserfs_node_level(reiserfs_node_t *node) {
     reiserfs_plugin_check_routine(node->plugin->node, level, return 0);
-    return node->plugin->node.level(node->block);
+    return node->plugin->node.level(node->entity);
 }
 
 uint32_t reiserfs_node_free_space(reiserfs_node_t *node) {
