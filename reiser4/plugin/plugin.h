@@ -208,9 +208,6 @@ typedef struct reiser4_file_plugin {
 	int ( *inherit )( struct inode *inode, 
 			  struct inode *parent, struct inode *root );
 
-	/** read-write methods */
-	rw_f_type rw_f[ WRITE_OP + 1 ];
-
 	/** return pointer to plugin of new item that should be inserted
 	    into body of @inode at position determined by @key. This is
 	    called by write() when it has to insert new item into
