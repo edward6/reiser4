@@ -10,7 +10,6 @@
 #include "../../prof.h"
 
 #include <linux/writeback.h>
-#include <linux/swap.h>
 
 /* this file contains file plugin of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
@@ -1069,7 +1068,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	flow_t f;
 	hint_t hint;
 	size_t read;
-	static reiser4_block_nr needed = 0;
+	reiser4_block_nr needed;
 	ra_info_t ra_info;
 	int (*read_f) (struct file *, coord_t *, flow_t *);
 	unix_file_info_t *uf_info;
@@ -1180,9 +1179,8 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	/* FIXME: remove the above */
 #endif
 
-	
 	get_nonexclusive_access(uf_info);
-	
+
 	needed = tree_by_inode(inode)->estimate_one_insert;/*unix_file_estimate_read(inode, read_amount);*/
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
 	if (result != 0) {
