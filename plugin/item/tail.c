@@ -102,7 +102,8 @@ tail_nr_units(const coord_t * coord)
 }
 
 /* plugin->u.item.b.lookup */
-lookup_result tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
+lookup_result
+tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 {
 	reiser4_key item_key;
 	__u64 lookuped, offset;
@@ -458,33 +459,25 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 int
 tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
 {
-	int result;
 	unsigned count;
 
 	assert("vs-571", f->user == 1);
 	assert("vs-571", f->data);
 	assert("vs-967", coord && coord->node);
 	ON_DEBUG_CONTEXT(assert("green-8", lock_counters()->spin_locked == 0));
+	assert("vs-1117", znode_is_rlocked(coord->node));
+	assert("vs-1118", znode_is_loaded(coord->node));
 
-	result = zload(coord->node);
-	if (result)
-		return result;
-
-	if (!tail_key_in_item(coord, &f->key)) {
-		zrelse(coord->node);
+	if (!tail_key_in_item(coord, &f->key))
 		return -EAGAIN;
-	}
 
 	/* calculate number of bytes to read off the item */
 	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > f->length)
 		count = f->length;
 
-	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count)) {
-		zrelse(coord->node);
+	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count))
 		return -EFAULT;
-	}
-	zrelse(coord->node);
 
 	move_flow_forward(f, count);
 
