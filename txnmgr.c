@@ -683,6 +683,18 @@ same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 	return compat;
 }
 
+/* Like atom_dec_and_unlock(), but txnmgr's spin-lock is already held */
+void atom_dec_and_unlock_locked(txn_atom * atom)
+{
+	assert("nikita-3347", atom != NULL);
+	assert("nikita-3348", spin_atom_is_locked(atom));
+
+	if (atomic_dec_and_test(&atom->refcount))
+		atom_free(atom);
+	else
+		UNLOCK_ATOM(atom);
+}
+
 /* Decrement the atom's reference count and if it falls to zero, free it. */
 void atom_dec_and_unlock(txn_atom * atom)
 {
@@ -710,9 +722,8 @@ void atom_dec_and_unlock(txn_atom * atom)
 		assert("nikita-2656", spin_txnmgr_is_locked(mgr));
 		atom_free(atom);
 		spin_unlock_txnmgr(mgr);
-	} else {
+	} else
 		UNLOCK_ATOM(atom);
-	}
 }
 
 /* Return a new atom, locked.  This adds the atom to the transaction manager's list and
@@ -1357,6 +1368,7 @@ commit_some_atoms(txn_mgr * mgr)
 {
 	int ret = 0;
 	txn_atom *atom;
+	txn_atom *next_atom;
 	txn_handle *txnh;
 	reiser4_context *ctx;
 
@@ -1367,13 +1379,22 @@ commit_some_atoms(txn_mgr * mgr)
 	spin_lock_txnmgr(mgr);
 
 	/* look for atom to commit */
-	for_all_tslist(atom, &mgr->atoms_list, atom) {
+	for_all_tslist_safe(atom, &mgr->atoms_list, atom, next_atom) {
 		LOCK_ATOM(atom);
 
-		if ((atom->stage < ASTAGE_PRE_COMMIT) && (atom->txnh_count == 0) && atom_should_commit(atom))
+		if (atom->stage < ASTAGE_PRE_COMMIT &&
+		    atom->txnh_count == 0 && atom_should_commit(atom))
 			break;
 
-		UNLOCK_ATOM(atom);
+		/*
+		 * to simplify locking in other places, it is allowed to
+		 * rarely left fused (ASTAGE_INVALID) unreferenced atom on the
+		 * transaction manager list (see
+		 * trylock_wait()). commit_some_atoms() is called periodically
+		 * from ktxnmgrd and is good place to perform some cleanup.
+		 */
+		atomic_inc(&atom->refcount);
+		atom_dec_and_unlock_locked(atom);
 	}
 
 	ret = atom_list_end(&mgr->atoms_list, atom);

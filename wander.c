@@ -729,7 +729,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int releasable(const jnode *));
+			ON_DEBUG(int jnode_is_releasable(const jnode *));
 
 			assert("vs-1423", ergo(jnode_is_znode(cur) || jnode_is_unformatted(cur),  JF_ISSET(cur, JNODE_SCANNED)));
 			pg = jnode_page(cur);
@@ -743,7 +743,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			assert("nikita-3166",
 			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
-			assert("nikita-3165", !releasable(cur));
+			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			UNLOCK_JNODE(cur);
@@ -1144,7 +1144,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int releasable(const jnode *));
+			ON_DEBUG(int jnode_is_releasable(const jnode *));
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
@@ -1158,7 +1158,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
-			assert("nikita-3165", !releasable(cur));
+			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			UNLOCK_JNODE(cur);
