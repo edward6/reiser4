@@ -566,10 +566,13 @@ handle_vroot(struct inode *object, znode *node)
 	file_plugin *fplug;
 	coord_t coord;
 
+	fplug = inode_file_plugin(object);
+	assert("nikita-3353", fplug != NULL);
+	assert("nikita-3354", fplug->owns_item != NULL);
+
 	if (unlikely(node_is_empty(node)))
 		return;
 
-	fplug = inode_file_plugin(object);
 	coord_init_first_unit(&coord, node);
 	/*
 	 * if leftmost item of @node belongs to @object, we cannot be sure
