@@ -272,7 +272,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/* ... and the answer is: */
 	flush_pos.leaf_relocate = (left_scan.size + right_scan.size >= FLUSH_RELOCATE_THRESHOLD);
 
-	assert ("jmacd-6218", jnode_check_dirty (left_scan.node));
+	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node));*/
 
 	/* FIXME: Funny business here.  We set an unformatted point at the left-end of the
 	 * scan, but after that an unformatted flush position sets pos->point to NULL.
@@ -471,14 +471,6 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 
 			/* Now finished with twig node. */
 			trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP (end of twig, no right): %s\n", flush_pos_tostring (pos));
-
-			/* Note: flush_release_ancestors, which is commented-out several
-			 * places below, is no longer used.  It was a recursive-upward
-			 * function to call flush_release_jnode on every allocated
-			 * ancestor, but now they are just whatever is left over in the
-			 * flush_pos->queue. */
-			/*ret = flush_release_ancestors (pos->parent_lock.node);*/
-
 			ret = flush_pos_stop (pos);
 		}
 		goto exit;
@@ -506,7 +498,6 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	if (child == NULL || ! jnode_check_dirty (child)) {
 		/* Finished at this twig. */
 		trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP right node & leftmost child clean\n");
-		/*ret = flush_release_ancestors (pos->parent_lock.node);*/
 		ret = flush_pos_stop (pos);
 		goto exit;
 	}
@@ -932,7 +923,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring (pos));
-				/*ret = flush_release_ancestors (node);*/
 				ret = flush_pos_stop (pos);
 			} else {
 				warning ("jmacd-61433", "znode_get_if_dirty failed: %d", ret);
@@ -970,7 +960,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				goto repeat;
 			} else {
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (right twig clean): %s\n", flush_pos_tostring (pos));
-				/*ret = flush_release_ancestors (node);*/
 				ret = flush_pos_stop (pos);
 				goto exit;
 			}
@@ -983,7 +972,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
 			trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (at twig): %s\n", flush_pos_tostring (pos));
-			/*ret = flush_release_ancestors (node);*/
 			ret = flush_pos_stop (pos);
 			goto exit;
 		}
@@ -1008,11 +996,13 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	trace_on (TRACE_FLUSH_VERB, "sq_rca ready to move right %s\n", flush_znode_tostring (right_lock.node));
 
 	/* We have a new right and it should have been allocated by the call to
-	 * flush_squalloc_one_changed_ancestor.  FIXME: I think it is coneivable that this
-	 * can be violated under a multi-threaded workload.  Nikita seems to have proven
-	 * it.  Eventually handle this nicely.  Until then, this asserts that sq1 does the
-	 * right thing. */
-	assert ("jmacd-90123", jnode_check_allocated (ZJNODE (right_lock.node)));
+	 * flush_squalloc_one_changed_ancestor.  However, a concurrent thread could
+	 * possibly insert a new node, so just stop if ! allocated. */
+	if (! jnode_check_allocated (ZJNODE (right_lock.node))) {
+		trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (right not allocated): %s\n", flush_pos_tostring (pos));
+		ret = flush_pos_stop (pos);
+		goto exit;
+	}
 
 	if (is_unformatted) {
 		done_dh (& pos->parent_load);
@@ -1050,8 +1040,10 @@ static int flush_squalloc_right (flush_position *pos)
 	 * child. */
 	trace_on (TRACE_FLUSH_VERB, "sq_r alloc ancestors: %s\n", flush_pos_tostring (pos));
 
-	assert ("jmacd-9921", jnode_check_dirty (pos->point));
-	assert ("jmacd-9925", ! jnode_check_allocated (pos->point));
+	if (jnode_check_allocated (pos->point)) {
+		trace_on (TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", flush_pos_tostring (pos));
+		return 0;
+	}
 
 	if ((ret = flush_alloc_ancestors (pos))) {
 		goto exit;
@@ -1097,7 +1089,6 @@ static int flush_squalloc_right (flush_position *pos)
 				goto STEP_2;
 			} else {
 				/* We are finished at this level. */
-				/*ret = flush_release_ancestors (pos->parent_coord.node);*/
 				ret = 0;
 				goto exit;
 			}
@@ -1515,7 +1506,8 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 {
 	int ret;
 
-	/* FIXME: Some kind of atomicity is needed for allocation. */
+	/* We have the node write-locked and should have checked for ! allocated()
+	 * somewhere before reaching this point. */
 	assert ("jmacd-7987", ! jnode_check_allocated (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
@@ -2726,7 +2718,6 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	if (0) {
 	stop:
-		/*ret = flush_release_ancestors (pos->parent_lock.node);*/
 		ret = flush_pos_stop (pos);
 		return ret;
 	}
