@@ -401,7 +401,7 @@ struct flush_position {
 	int                  *nr_to_flush;     /* If called under memory pressure,
 						* indicates how many nodes the VM asked to flush. */
 	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
-	int                   enqueue_cnt;     /* The number of nodes enqueued during squeeze and allocate. */
+	int                   prep_or_free_cnt;/* The number of nodes prepared for write (allocate) or squeezed and freed. */
 	capture_list_head     queue;           /* The flush queue holds allocated but not-yet-submitted jnodes that are
 						* actually written when flush_empty_queue() is called. */
  	int                   queue_num;       /* The current number of queue entries. */
@@ -459,6 +459,7 @@ static int           flush_reverse_relocate_end_of_twig        (flush_position *
 
 /* Flush allocate write-queueing functions: */
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
+static int           flush_allocate_znode_update  (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_rewrite_jnode          (jnode *node);
 static int           flush_queue_jnode            (jnode *node, flush_position *pos);
 static int           flush_empty_queue            (flush_position *pos);
@@ -795,8 +796,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	if (nr_to_flush != NULL) {
 		if (ret == 0) {
-			trace_on (TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.enqueue_cnt);
-			(*nr_to_flush) = flush_pos.enqueue_cnt;
+			trace_on (TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.prep_or_free_cnt);
+			(*nr_to_flush) = flush_pos.prep_or_free_cnt;
 		} else {
 			(*nr_to_flush) = 0;
 		}
@@ -1445,6 +1446,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				goto exit;
 			}
 
+			/* If end_of_twig stops the flush, we are finished. */
 			if (! flush_pos_valid (pos)) {
 				goto exit;
 			}
@@ -1682,8 +1684,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		done_load_count (& right_load);
 		done_lh (& right_lock);
 
-		/* FIXME: Note: We should subtract from nr_to_write here, or something
-		 * like that. */
+		/* We have released a node. */
+		pos->prep_or_free_cnt += 1;
 
 		goto RIGHT_AGAIN;
 	}
@@ -2108,72 +2110,15 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	node -> blocknr = *blocknr;
 }
 
-/* FIXME: comment */
-static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flush_position *pos)
-{
-	int ret;
-	reiser4_block_nr blk;
-	reiser4_block_nr len = 1;
-	lock_handle fake_lock;
-
-	pos->preceder.block_stage = BLOCK_NOT_COUNTED;
-
-	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
-		return ret;
-	}
-
-	 /* FIXME: JMACD->ZAM: In the dealloc_block call, it is unclear to me whether I
-	  * need to pass BLOCK_NOT_COUNTED or whether setting preceder.block_stage above
-	  * is correct. */
-	if (! ZF_ISSET (node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block (znode_get_block (node), 1 /* defer */, 0 /* BLOCK_NOT_COUNTED */))) {
-		return ret;
-	}
-
-	init_lh (& fake_lock);
-
-	if (! znode_is_root (node)) {
-
-		internal_update (parent_coord, blk);
-
-		znode_set_dirty (parent_coord->node);
-
-	} else {
-		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
-
-		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
-
-		/* We take a longterm lock on the fake node in order to change the root
-		 * block number.  This may cause atom fusion. */
-		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
-			/* The fake node cannot be deleted, and we must have priority
-			 * here, and may not be confused with ENOSPC. */
-			assert ("jmacd-74412", ret != -EINVAL && ret != -EDEADLK && ret != -ENOSPC);
-			zput (fake);
-			goto exit;
-		}
-
-		UNDER_SPIN_VOID (tree, current_tree,
-				 current_tree->root_block = blk);
-
-		znode_set_dirty(fake);
-
-		zput (fake);
-	}
-
-	ret = znode_rehash (node, & blk);
- exit:
-	done_lh (& fake_lock);
-	return ret;
-}
-
-/* FIXME: comment */
+/* Make the final relocate/wander decision during forward parent-first squalloc for a
+ * znode.  For unformatted nodes this is done in plugin/item/extent.c:extent_needs_allocation(). */
 static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_position *pos)
 {
 	int ret;
 
 	/* FIXME(D): We have the node write-locked and should have checked for ! 
-	 * allocated() somewhere before reaching this point. */
+	 * allocated() somewhere before reaching this point, but there can be a race, so
+	 * this assertion is bogus. */
 	assert ("jmacd-7987", ! jnode_check_flushprepped (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
@@ -2250,7 +2195,69 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	return flush_queue_jnode (ZJNODE (node), pos);
 }
 
-/* FIXME: comment */
+/* A subroutine of flush_allocate_znode, this is called first to see if there is a close
+ * position to relocate to.  It may return ENOSPC if there is no close position.  If there
+ * is no close position it may not relocate.  This takes care of updating the parent node
+ * with the relocated block address. */
+static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flush_position *pos)
+{
+	int ret;
+	reiser4_block_nr blk;
+	reiser4_block_nr len = 1;
+	lock_handle fake_lock;
+
+	pos->preceder.block_stage = BLOCK_NOT_COUNTED;
+
+	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
+		return ret;
+	}
+
+	 /* FIXME: JMACD->ZAM: In the dealloc_block call, it is unclear to me whether I
+	  * need to pass BLOCK_NOT_COUNTED or whether setting preceder.block_stage above
+	  * is correct. */
+	if (! ZF_ISSET (node, JNODE_CREATED) &&
+	    (ret = reiser4_dealloc_block (znode_get_block (node), 1 /* defer */, 0 /* BLOCK_NOT_COUNTED */))) {
+		return ret;
+	}
+
+	init_lh (& fake_lock);
+
+	if (! znode_is_root (node)) {
+
+		internal_update (parent_coord, blk);
+
+		znode_set_dirty (parent_coord->node);
+
+	} else {
+		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
+
+		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
+
+		/* We take a longterm lock on the fake node in order to change the root
+		 * block number.  This may cause atom fusion. */
+		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
+			/* The fake node cannot be deleted, and we must have priority
+			 * here, and may not be confused with ENOSPC. */
+			assert ("jmacd-74412", ret != -EINVAL && ret != -EDEADLK && ret != -ENOSPC);
+			zput (fake);
+			goto exit;
+		}
+
+		UNDER_SPIN_VOID (tree, current_tree,
+				 current_tree->root_block = blk);
+
+		znode_set_dirty(fake);
+
+		zput (fake);
+	}
+
+	ret = znode_rehash (node, & blk);
+ exit:
+	done_lh (& fake_lock);
+	return ret;
+}
+
+/* Enter a jnode into the flush queue. */
 static int flush_queue_jnode (jnode *node, flush_position *pos)
 {
 	assert ("jmacd-65551", spin_jnode_is_locked (node));
@@ -2294,7 +2301,8 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	return 0;
 }
 
-/* take jnode from flush queue and put it on clean_nodes list */
+/* Take jnode from flush queue and put it on clean_nodes list, called during
+ * flush_empty_queue. */
 static void flush_dequeue_jnode (flush_position * pos, jnode * node)
 {
 	txn_atom * atom;
@@ -2548,7 +2556,7 @@ static int flush_empty_queue (flush_position *pos)
 			bio->bi_vcnt = nr;
 			bio->bi_size   = blksz * nr;
 
-			pos->enqueue_cnt += nr;
+			pos->prep_or_free_cnt += nr;
 
 			trace_on (TRACE_FLUSH_VERB, "\n");
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
@@ -2593,7 +2601,7 @@ static int flush_rewrite_jnode (jnode *node)
 		return 0;
 	}
 
-	/* FIXME: JMACD->NIKTA: This spinlock does very little.  Why?  Races are
+	/* FIXME: JMACD->NIKITA: This spinlock does very little.  Why?  Races are
 	 * everywhere and I'm confused.  What do you think? */
 	spin_unlock_jnode (node);
 
@@ -3413,7 +3421,7 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
 	pos->alloc_cnt = 0;
-	pos->enqueue_cnt = 0;
+	pos->prep_or_free_cnt = 0;
 	pos->nr_to_flush = nr_to_flush;
 
 	coord_init_invalid (& pos->parent_coord, NULL);
@@ -3440,13 +3448,13 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
  */
 static int flush_pos_valid (flush_position *pos)
 {
-	if (pos->nr_to_flush != NULL && pos->enqueue_cnt >= *pos->nr_to_flush) {
+	if (pos->nr_to_flush != NULL && pos->prep_or_free_cnt >= *pos->nr_to_flush) {
 		return 0;
 	}
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 
-/* return jnode back to atom's lists */
+/* Return jnode back to atom's lists */
 static void invalidate_flush_queue (struct flush_position * pos)
 {
 	if (capture_list_empty(&pos->queue)) return;
@@ -3480,7 +3488,7 @@ static void invalidate_flush_queue (struct flush_position * pos)
 	}
 }
 
-/* Release any resources of a flush_position. */
+/* Release any resources of a flush_position.  Called when jnode_flush finishes. */
 static void flush_pos_done (flush_position *pos)
 {
 	invalidate_flush_queue (pos);
@@ -3488,7 +3496,8 @@ static void flush_pos_done (flush_position *pos)
 	blocknr_hint_done (& pos->preceder);
 }
 
-/* Reset the point and parent. */
+/* Reset the point and parent.  Called during flush subroutines to terminate the
+ * flush_forward_squalloc loop. */
 static int flush_pos_stop (flush_position *pos)
 {
 	done_load_count (& pos->parent_load);
@@ -3503,7 +3512,9 @@ static int flush_pos_stop (flush_position *pos)
 	return 0;
 }
 
-/* FIXME: comments. */
+/* When the flush_position is on a twig and just finished allocating an extent, if the
+ * next item is an internal item, this function descends to the child and, if the child is
+ * not flushprepped, it sets the flush_position to continue at the leaf level.  */
 static int flush_pos_to_child_and_alloc (flush_position *pos)
 {
 	int ret;
@@ -3525,8 +3536,8 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 		goto stop;
 	}
 
-	if (! jnode_check_dirty (child)) {
-		trace_on (TRACE_FLUSH_VERB, "fpos_to_child_alloc: STOP (not dirty): %s\n", flush_pos_tostring (pos));
+	if (jnode_check_flushprepped (child)) {
+		trace_on (TRACE_FLUSH_VERB, "fpos_to_child_alloc: STOP (already flushprepped): %s\n", flush_pos_tostring (pos));
 		jput (child);
 		goto stop;
 	}
@@ -3544,7 +3555,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 		return ret;
 	}
 
-	if (! jnode_check_flushprepped (child) && (ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
+	if ((ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
 		return ret;
 	}
 
@@ -3561,7 +3572,9 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	return 0;
 }
 
-/* FIXME: comments. */
+/* The flush position is positioned at the leaf level and wants to shift to the parent
+ * level.  Releases the flush_position->point_lock, acquires flush_position->parent_lock
+ * and sets the parent coordinate. */
 static int flush_pos_to_parent (flush_position *pos)
 {
 	int ret;
@@ -3586,11 +3599,15 @@ static int flush_pos_to_parent (flush_position *pos)
 	return 0;
 }
 
+/* Return true if the flush position is set to the parent coordinate of some node on the
+ * leaf level.  This is done as part of handling unformatted nodes. */
 static int flush_pos_on_twig_level (flush_position *pos)
 {
 	return pos->parent_lock.node != NULL;
 }
 
+/* Release all references associated with flush_position->point: a reference count,
+ * load_count, and lock_handle. */
 static void flush_pos_release_point (flush_position *pos)
 {
 	if (pos->point != NULL) {
@@ -3601,7 +3618,9 @@ static void flush_pos_release_point (flush_position *pos)
 	done_lh (& pos->point_lock);
 }
 
-/* JOSH-FIXME-HANS: comment me */
+/* This function changes the current value of flush_position->point by releasing the old
+ * point (its ref_count, load_count, and lock_handle) then refcounting and load_counting
+ * the new point.  Setting the new point's lock_handle is left to the calling code. */
 static int flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
@@ -3609,6 +3628,9 @@ static int flush_pos_set_point (flush_position *pos, jnode *node)
 	return incr_load_count_jnode (& pos->point_load, node);
 }
 
+/* This function implements a special case to lock the parent coordinate of the current
+ * flush point.  If the flush position is on the twig level then the parent coordinate is
+ * already locked--otherwise we actually lock the parent coordinate. */
 static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_count *parent_load, znode_lock_mode mode)
 {
 	int ret;
@@ -3636,11 +3658,14 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 	}
 }
 
+/* Return the flush_position's block allocator hint. */
 reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
 {
 	return & pos->preceder;
 }
 
+/* Return true if we have decided to unconditionally relocate leaf nodes, thus write
+ * optimizing. */
 int flush_pos_leaf_relocate (flush_position *pos)
 {
 	return pos->leaf_relocate;
