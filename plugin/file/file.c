@@ -9,13 +9,13 @@
  * all file data have to be stored in unformatted nodes
  */
 #define should_have_notail(inode,new_size) \
-get_object_state (inode)->tail->notail (inode, new_size)
+!get_object_state (inode)->tail->have_tail (inode, new_size)
 
 /*
  * not all file data have to be stored in unformatted nodes
  */
 #define should_have_tail(inode) \
-get_object_state (inode)->tail->tail (inode, inode->i_size)
+get_object_state (inode)->tail->have_tail (inode, inode->i_size)
 
 /* Dead USING_INSERT_UNITYPE_FLOW code removed from version 1.76 of this file. */
 
@@ -76,7 +76,7 @@ write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
 			return WRITE_TAIL;
 	}
 
-	assert ("vs-377", get_object_state (inode)->tail->notail);
+	assert ("vs-377", get_object_state (inode)->tail->have_tail);
 
 	if (inode->i_size == 0) {
 		/*
@@ -169,6 +169,8 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 		init_coord (&coord);
 		init_lh (&lh);
 
+		if (get_key_objectid (&f.key) == 0x100c6)
+			info ("writing to file 0x100c6\n");
 		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/*
@@ -213,6 +215,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	 */
 	print_tree_rec ("WRITE", tree_by_inode (inode), REISER4_NODE_CHECK);
 
+	
 	*off += (to_write - f.length);
 	return (to_write - f.length) ? (to_write - f.length) : result;
 }
@@ -359,57 +362,6 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	return (to_read - f.length) ? (to_read - f.length) : result;
 }
 
-#if 0
-{
-	{
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-		}
-
-		page_nr = (get_key_offset (&f->key) >> PAGE_SHIFT);
-		page = read_cache_page (inode->i_mapping, page_nr,
-					(filler_t *)reiser4_ordinary_readpage, file);
-		if (IS_ERR (page)) {
-			result = PTR_ERR (page);
-			break;
-		}
-		wait_on_page (page);
-
-		if (!Page_Uptodate(page)) {
-			page_cache_release (page);
-			result = -EIO;
-			break;
-		}
-
-		/* from which position we have to read the page */
-		page_off = (file_off & ~PAGE_MASK);
-		/* how many bytes do we have to read of this page */
-		if (((loff_t)file_off & PAGE_MASK) == (inode->i_size & PAGE_MASK))
-			/* we read last page of a file. Calculate size of file
-			   tail */
-			count = inode->i_size & ~PAGE_MASK;
-		else
-			count = PAGE_SIZE;
-		count -= page_off;
-		if (count > f->length)
-			count = f->length;
-
-		kaddr = kmap (page);
-		result = __copy_to_user (f->data, kaddr + page_off, count);
-		kunmap (page);
-		page_cache_release (page);
-		if (result)
-			break;
-
-		file_off += count;
-		f->data += count;
-		f->length -= count;
-		set_key_offset (&f->key, file_off);
-	}
-
-	*off += (to_read - f->length);
-	return (to_read - f->length) ? (to_read - f->length) : result;
-}
-#endif
 
 /*
  * plugin->u.file.truncate
