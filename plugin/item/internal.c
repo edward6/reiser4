@@ -23,7 +23,7 @@ int internal_mergeable (const tree_coord * p1 UNUSED_ARG,
 }
 
 /*
- *
+ * Nice comment!
  */
 lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias UNUSED_ARG,
 			       tree_coord * coord)
@@ -51,18 +51,18 @@ static internal_item_layout *internal_at( const tree_coord *coord )
 }
 
 /** return child block number stored in the internal item at @coord */
-/* FIXME: casts 64bit -> 32bit */
-static __u32 pointer_at( const tree_coord *coord )
+static reiser4_block_nr pointer_at( const tree_coord *coord )
 {
 	assert( "nikita-608", coord != NULL );
-	return d64tocpu( &internal_at( coord ) -> pointer.blk );
+	return dblock_to_cpu( & internal_at( coord ) -> pointer );
 }
 
-/** get znode pointet to by internal @item */
+/** get znode pointed to by internal @item */
 static znode *znode_at( const tree_coord *item )
 {
 	znode *result;
 
+	/* Take DK lock, as required by child_znode. */
 	spin_lock_dk( current_tree );
 	result = child_znode( item, 0 );
 	spin_unlock_dk( current_tree );
@@ -88,10 +88,31 @@ void internal_down_link( const tree_coord *coord,
 	*block = pointer_at( coord );
 }
 
-/* FIXME_JMACD: Implement me! */
-int internal_utmost_child ( const tree_coord *coord, sideof side, int flags, jnode **child, reiser4_block_nr *blocknr )
+/**
+ * Return the child or child's block number according to the utmost_child interface.
+ */
+int internal_utmost_child ( const tree_coord  *coord,
+			    sideof             side UNUSED_ARG,
+			    jnode            **childp,
+			    reiser4_block_nr  *blockp )
 {
-	not_yet ("jmacd-20000", "internal_utmost_child");
+	reiser4_block_nr block = pointer_at (coord);
+
+	if (blockp != NULL) {
+		*blockp = block;
+	}
+
+	if (childp != NULL) {
+		znode *child = zlook (current_tree, & block, znode_get_level (coord->node) - 1);
+
+		if (IS_ERR (child)) {
+			return PTR_ERR (child);
+		}
+
+		*childp = ZJNODE (child);
+	}
+
+	return 0;
 }
 
 /** 
@@ -100,7 +121,7 @@ int internal_utmost_child ( const tree_coord *coord, sideof side, int flags, jno
  */
 void internal_print( const char *prefix, tree_coord *coord )
 {
-	info( "%s: internal: %li\n", prefix, ( long ) pointer_at( coord ) );
+	info( "%s: internal: %llu\n", prefix, pointer_at( coord ) );
 }
 
 /** return true only if this item really points to "block" */
