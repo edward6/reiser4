@@ -20,7 +20,8 @@
  * called during lookup, readdir, and may be creation.
  *
  */
-void directory_readahead( struct inode *dir, tree_coord *coord )
+void directory_readahead( struct inode *dir /* directory being accessed */, 
+			  tree_coord *coord /* coord of acces */ )
 {
 	assert( "nikita-1682", dir != NULL );
 	assert( "nikita-1683", coord != NULL );
@@ -49,8 +50,11 @@ typedef enum {
  *     . close transaction
  *
  */
-static int common_link( struct inode *parent, struct dentry *existing, 
-			struct dentry *where )
+static int common_link( struct inode *parent /* parent directory */, 
+			struct dentry *existing /* dentry of object to which
+						 * new link is being
+						 * cerated */, 
+			struct dentry *where /* new name */ )
 {
 	int                        result;
 	struct inode              *object;
@@ -124,7 +128,9 @@ l	assert( "nikita-1432", parent != NULL );
  *     . if nlink drops to 0, delete object
  *     . close transaction
  */
-static int common_unlink( struct inode *parent, struct dentry *victim )
+static int common_unlink( struct inode *parent /* parent object */, 
+			  struct dentry *victim /* name being removed from
+						 * @parent */ )
 {
 	int                        result;
 	struct inode              *object;
@@ -220,8 +226,11 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
  * . instantiate dentry
  *
  */
-static int common_create_child( struct inode *parent, struct dentry *dentry, 
-				reiser4_object_create_data *data )
+static int common_create_child( struct inode *parent /* parent object */, 
+				struct dentry *dentry /* new name */, 
+				reiser4_object_create_data *data /* parameters
+								  * of new
+								  * object */)
 {
         int result;
 
@@ -387,8 +396,10 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	return result;
 }
 
-int is_name_acceptable( const struct inode *inode, const char *name UNUSED_ARG, 
-			int len )
+/** ->is_name_acceptable() method of directory plugin */
+int is_name_acceptable( const struct inode *inode /* directory to check */, 
+			const char *name UNUSED_ARG /* name to check */, 
+			int len /* @name's length */)
 {
 	assert( "nikita-733", inode != NULL );
 	assert( "nikita-734", name != NULL );

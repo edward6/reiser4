@@ -462,7 +462,6 @@ extern int handle_default_plugin_option( char *option,
 extern int setup_plugins( struct super_block *super, 
 				  reiser4_plugin **area );
 extern reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
-extern int inherit_if_nil( reiser4_plugin **to, reiser4_plugin **from );
 extern int init_plugins( void );
 
 /* builtin plugins */

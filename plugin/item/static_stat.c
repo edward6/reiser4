@@ -14,7 +14,8 @@
  * ->print() method of static sd item. Prints human readable information about
  * sd at @coord
  */
-void sd_print( const char *prefix, tree_coord *coord )
+void sd_print( const char *prefix /* prefix to print */, 
+	       tree_coord *coord /* coord of item */ )
 {
 	reiser4_stat_data_base *sd_base;
 
@@ -40,10 +41,10 @@ void sd_print( const char *prefix, tree_coord *coord )
 }
 
 /** helper function used while we are dumping/loading inode/plugin state
-    to/from the stat-data. "area" is current coord in stat data and
-    "length" is space remaining in stat-data. Move "size_of" bytes
-    forward. */
-static void move_on( int *length, char **area, int size_of )
+    to/from the stat-data. */
+static void move_on( int *length /* space remaining in stat-data */, 
+		     char **area /* current coord in stat data */, 
+		     int size_of /* how many bytes to move forward */ )
 {
 	assert( "nikita-615", length != NULL );
 	assert( "nikita-616", area != NULL );
@@ -57,7 +58,8 @@ static void move_on( int *length, char **area, int size_of )
 /** helper function used while loading inode/plugin state from stat-data.
     Complain if there is less space in stat-data than was expected.
     Can only happen on disk corruption. */
-static int not_enough_space( struct inode *inode, const char *where )
+static int not_enough_space( struct inode *inode /* object being processed */, 
+			     const char *where /* error message */ )
 {
 	assert( "nikita-618", inode != NULL );
 
@@ -68,7 +70,8 @@ static int not_enough_space( struct inode *inode, const char *where )
 
 /** helper funtion used while loading inode/plugin state from
     stat-data. Call it if invalid plugin id was found. */
-static int unknown_plugin( reiser4_plugin_id id, struct inode *inode )
+static int unknown_plugin( reiser4_plugin_id id /* invalid id */, 
+			   struct inode *inode /* object being processed */ )
 {
 	warning( "nikita-620", "Unknown plugin %i in %lx", 
 		 id, ( long ) inode -> i_ino );
@@ -78,7 +81,10 @@ static int unknown_plugin( reiser4_plugin_id id, struct inode *inode )
 /** helper function used while storing/loading inode/plugin data to/from
     stat-data. Move current coord in stat-data ("area") to position
     aligned up to "alignment" bytes. */
-static int align( struct inode *inode, int *length, char **area, int alignment )
+static int align( struct inode *inode /* object being processed */, 
+		  int *length /* space remaining in stat-data */, 
+		  char **area /* current coord in stat data */, 
+		  int alignment /* required alignment */ )
 {
 	int delta;
 
@@ -99,7 +105,9 @@ static int align( struct inode *inode, int *length, char **area, int alignment )
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
     Hanldes stat-data extensions. */
-int sd_load( struct inode *inode, char *sd, int len )
+int sd_load( struct inode *inode /* object being processed */, 
+	     char *sd /* stat-data body */, 
+	     int len /* length of stat-data */ )
 {
 	int   result;
 	int   bit;
@@ -193,7 +201,7 @@ int sd_load( struct inode *inode, char *sd, int len )
 /** estimates size of stat-data required to store inode.
     Installed as ->save_len() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
-int sd_len( struct inode *inode )
+int sd_len( struct inode *inode /* object being processed */ )
 {
 	unsigned int result;
 	__u64 mask;
@@ -221,7 +229,8 @@ int sd_len( struct inode *inode )
 /** saves inode into stat-data.
     Installed as ->save() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
-int sd_save( struct inode *inode, char **area )
+int sd_save( struct inode *inode /* object being processed */, 
+	     char **area /* where to save stat-data */ )
 {
 	int   result;
 	__u64 emask;
@@ -264,7 +273,9 @@ int sd_save( struct inode *inode, char **area )
 
 /* stat-data extension handling functions. */
 
-static int unix_sd_present( struct inode *inode, char **area, int *len )
+static int unix_sd_present( struct inode *inode /* object being processed */, 
+			    char **area /* position in stat-data */, 
+			    int *len /* remaining length */ )
 {
 	assert( "nikita-637", inode != NULL );
 	assert( "nikita-638", area != NULL );
@@ -291,7 +302,7 @@ static int unix_sd_present( struct inode *inode, char **area, int *len )
 		return not_enough_space( inode, "unix sd" );
 }
 
-static int unix_sd_absent( struct inode *inode )
+static int unix_sd_absent( struct inode *inode /* object being processed */ )
 {
 	inode -> i_uid = get_super_private( inode -> i_sb ) -> default_uid;
 	inode -> i_gid = get_super_private( inode -> i_sb ) -> default_gid;
@@ -304,12 +315,14 @@ static int unix_sd_absent( struct inode *inode )
 	return 0;
 }
 
-static int unix_sd_save_len( struct inode *inode UNUSED_ARG )
+static int unix_sd_save_len( struct inode *inode UNUSED_ARG /* object being
+							     * processed */ )
 {
 	return sizeof( reiser4_unix_stat );
 }
 
-static int unix_sd_save( struct inode *inode, char **area )
+static int unix_sd_save( struct inode *inode /* object being processed */, 
+			 char **area /* position in stat-data */ )
 {
 	reiser4_unix_stat *sd;
 
@@ -329,7 +342,9 @@ static int unix_sd_save( struct inode *inode, char **area )
 	return 0;
 }
 
-static int gaf_sd_present( struct inode *inode, char **area, int *len )
+static int gaf_sd_present( struct inode *inode /* object being processed */, 
+			   char **area /* position in stat-data */, 
+			   int *len /* remaining length */ )
 {
 	assert( "nikita-645", inode != NULL );
 	assert( "nikita-646", area != NULL );
@@ -351,12 +366,14 @@ static int gaf_sd_present( struct inode *inode, char **area, int *len )
 		return not_enough_space( inode, "generation and attrs" );
 }
 
-static int gaf_sd_save_len( struct inode *inode UNUSED_ARG )
+static int gaf_sd_save_len( struct inode *inode UNUSED_ARG /* object being
+							    * processed */ )
 {
 	return sizeof( reiser4_gen_and_flags_stat );
 }
 
-static int gaf_sd_save( struct inode *inode, char **area )
+static int gaf_sd_save( struct inode *inode /* object being processed */, 
+			char **area /* position in stat-data */ )
 {
 	reiser4_gen_and_flags_stat *sd;
 
@@ -372,7 +389,9 @@ static int gaf_sd_save( struct inode *inode, char **area )
 }
 
 static int plugin_sd_absent( struct inode *inode );
-static int plugin_sd_present( struct inode *inode, char **area, int *len )
+static int plugin_sd_present( struct inode *inode /* object being processed */, 
+			      char **area /* position in stat-data */, 
+			      int *len /* remaining length */ )
 {
 	reiser4_plugin_stat *sd;
 	reiser4_plugin      *plugin;
@@ -441,7 +460,7 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 	return result;
 }
 
-static int plugin_sd_absent( struct inode *inode )
+static int plugin_sd_absent( struct inode *inode /* object being processed */ )
 {
 	int result;
 
@@ -460,7 +479,8 @@ static int plugin_sd_absent( struct inode *inode )
 
 /** helper function for plugin_sd_save_len(): calculate how much space
     required to save state of given plugin */
-static int len_for( reiser4_plugin *plugin, struct inode *inode, int len )
+static int len_for( reiser4_plugin *plugin /* plugin to save */, 
+		    struct inode *inode /* object being processed */, int len )
 {
 	assert( "nikita-661", inode != NULL );
 	assert( "nikita-662", plugin != NULL );
@@ -479,7 +499,7 @@ static int len_for( reiser4_plugin *plugin, struct inode *inode, int len )
 
 /** calculate how much space is required to save state of all plugins,
     associated with inode */
-static int plugin_sd_save_len( struct inode *inode )
+static int plugin_sd_save_len( struct inode *inode /* object being processed */ )
 {
 	int                 len;
 	inodes_plugins *state;
@@ -500,9 +520,12 @@ static int plugin_sd_save_len( struct inode *inode )
 }
 
 /** helper function for plugin_sd_save(): save plugin, associated with
-    inode. Update "count" if plugin was actually saved. */
-static int save_plug( reiser4_plugin *plugin, struct inode *inode,
-		      char **area, int *count )
+    inode. */
+static int save_plug( reiser4_plugin *plugin /* plugin to save */, 
+		      struct inode *inode /* object being processed */,
+		      char **area /* position in stat-data */, 
+		      int *count /* incremented if plugin were actually
+				  * saved. */ )
 {
 	reiser4_plugin_slot *slot;
 	int                  fake_len;
@@ -529,7 +552,8 @@ static int save_plug( reiser4_plugin *plugin, struct inode *inode,
 }
 
 /** save state of all non-standard plugins associated with inode */
-static int plugin_sd_save( struct inode *inode, char **area )
+static int plugin_sd_save( struct inode *inode /* object being processed */, 
+			   char **area /* position in stat-data */ )
 {
 	int result;
 	int num_of_plugins;
