@@ -40,25 +40,32 @@ tree_by_inode(const struct inode * inode /* inode queried */ )
 	return get_tree(inode->i_sb);
 }
 
-void
-inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f)
+static unsigned long *
+inode_flags(const struct inode * const inode)
 {
-	assert("nikita-2248", inode != NULL);
-	set_bit((int) f, &reiser4_inode_data(inode)->flags);
+	assert("nikita-2842", inode != NULL);
+	return (unsigned long *)&inode->i_mapping->assoc_mapping;
 }
 
 void
-inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f)
+inode_set_flag(struct inode * inode, reiser4_file_plugin_flags f)
+{
+	assert("nikita-2248", inode != NULL);
+	set_bit((int) f, inode_flags(inode));
+}
+
+void
+inode_clr_flag(struct inode * inode, reiser4_file_plugin_flags f)
 {
 	assert("nikita-2250", inode != NULL);
-	clear_bit((int) f, &reiser4_inode_data(inode)->flags);
+	clear_bit((int) f, inode_flags(inode));
 }
 
 int
-inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f)
+inode_get_flag(const struct inode * inode, reiser4_file_plugin_flags f)
 {
 	assert("nikita-2251", inode != NULL);
-	return test_bit((int) f, &reiser4_inode_data(inode)->flags);
+	return test_bit((int) f, inode_flags(inode));
 }
 
 /* get inode oid */
@@ -123,26 +130,6 @@ ino_t oid_to_uino(oid_t oid)
 		*/
 		return REISER4_UINO_SHIFT + ((oid - max_ino) & (max_ino >> 1));
 }
-
-/* INODE LOCKING: not sure what to do.
-  
-   lock inode. We lock file-system wide spinlock, because we have to lock
-   inode _before_ we have actually read and initialised it and we cannot rely
-   on memset() in fs/inode.c to initialise spinlock. Alternative is to grab
-   i_sem, but it's semaphore rather than spinlock, so it's not clear what
-   would be more effective.
-  
-   Taking inode->i_sem is simple and scalable, but taking and releasing
-   semaphore is much more expensive than taking spin-lock. So, for the time
-   being, let's just pile a number of possible locking schemes here and choose
-   best (or leave them as options) after benchmarking.
-  
-   This is because we dont't have enough empirical evidence about scalability
-   of each scheme.
-  
-   FIXME-NIKITA ->i_sem is not what we actually won't. May be spinlock is
-   better after all.
-*/
 
 /* check that "inode" is on reiser4 file-system */
 /* Audited by: green(2002.06.17) */
@@ -536,7 +523,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	state->extmask |= (1 << ext);
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
-	state->sd_len = 0;
+	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
 	spin_unlock_inode(inode);
 }
 
@@ -583,14 +570,13 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_plugin("\ttail", tail_plugin_to_plugin(ref->tail));
 	print_plugin("\thash", hash_plugin_to_plugin(ref->hash));
 	print_plugin("\tsd", item_plugin_to_plugin(ref->sd));
-	info("\treiser4 inode flags: %lx\n", ref->flags);
 
 	/* FIXME-VS: this segfaults trying to print seal's coord */
 	print_seal("\tsd_seal", &ref->sd_seal);
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
 	info
-	    ("\tflags: %lx, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
-	     ref->flags, ref->extmask, (int) ref->sd_len, ref->plugin_mask, ref->locality_id);
+	    ("\tflags: %lx, extmask: %llu, pmask: %i, locality: %llu\n",
+	     *inode_flags(i), ref->extmask, ref->plugin_mask, ref->locality_id);
 }
 #endif
 

@@ -234,14 +234,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 		ref->sd = inode_sd_plugin(inode);
 	}
 	data.iplug = ref->sd;
-	data.length = ref->sd_len;
-	if (data.length == 0) {
-		data.length = ref->sd->s.sd.save_len(inode);
-		ref->sd_len = data.length;
-	}
-
-	ref->sd_len = data.length;
+	data.length = ref->sd->s.sd.save_len(inode);
 	spin_unlock_inode(inode);
+
 	data.data = NULL;
 	data.user = 0;
 
@@ -314,6 +309,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 				if (result == 0) {
 					/* object has stat-data now */
 					inode_clr_flag(inode, REISER4_NO_SD);
+					inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 					/* initialise stat-data seal */
 					seal_init(&ref->sd_seal, &coord, &key);
 					ref->sd_coord = coord;
@@ -402,17 +398,15 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		assert("nikita-728", state->sd != NULL);
 		data.iplug = state->sd;
 
-		if (state->sd_len == 0) {
-			/* recalculate stat-data length */
-			state->sd_len = state->sd->s.sd.save_len(inode);
-
-		}
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
-		data.length = state->sd_len - item_length_by_coord(&coord);
-		if (data.length < 0) {
-			info("sd_len: %i, item: %i\n", state->sd_len, item_length_by_coord(&coord));
-		}
+		if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
+			/* recalculate stat-data length */
+			data.length = 
+				state->sd->s.sd.save_len(inode) - 
+				item_length_by_coord(&coord);
+		} else
+			data.length = 0;
 		spin_unlock_inode(inode);
 
 		zrelse(coord.node);
@@ -440,7 +434,6 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		if (result == 0 && ((result = zload(coord.node)) == 0)) {
 			area = item_body_by_coord(&coord);
 			spin_lock_inode(inode);
-			assert("nikita-729", item_length_by_coord(&coord) == state->sd_len);
 			result = state->sd->s.sd.save(inode, &area);
 			znode_set_dirty(coord.node);
 			/* re-initialise stat-data seal */
@@ -473,8 +466,8 @@ common_file_save(struct inode *inode /* object to save */ )
 		result = update_sd(inode);
 	if ((result != 0) && (result != -ENAMETOOLONG))
 		/* Don't issue warnings about "name is too long" */
-		warning("nikita-2221", "Failed to save sd for %llu: %i (%lx)",
-			get_inode_oid(inode), result, reiser4_inode_data(inode)->flags);
+		warning("nikita-2221", "Failed to save sd for %llu: %i",
+			get_inode_oid(inode), result);
 	return result;
 }
 
@@ -557,7 +550,6 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 							 * data */ )
 {
 	object->i_mode = data->mode;
-	object->i_generation = new_inode_generation(object->i_sb);
 	/* this should be plugin decision */
 	object->i_uid = current->fsuid;
 	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;

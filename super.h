@@ -119,13 +119,6 @@ struct reiser4_super_info_data {
 
 	/* number of blocks reserved for flush operations. */
 	__u64     blocks_flush_reserved;
-	/* current inode generation.
-	  
-	   FIXME-NIKITA not sure this is really needed now when we have 64-bit
-	   inode numbers.
-	  
-	*/
-	__u32 inode_generation;
 
 	/* unique file-system identifier */
 	/* does this conform to Andreas Dilger UUID stuff? */
@@ -299,7 +292,6 @@ extern reiser4_oid_allocator *get_oid_allocator(const struct super_block
 						*super);
 extern struct inode *get_super_fake(const struct super_block *super);
 extern reiser4_tree *get_tree(const struct super_block *super);
-extern __u32 new_inode_generation(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 
 file_plugin *default_file_plugin(const struct super_block *super);

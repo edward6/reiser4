@@ -226,7 +226,6 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_block_count(s, get_format40_block_count(sb_copy));
 	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
 
-	private->inode_generation = get_format40_oid(sb_copy);
 	private->fsuid = 0;
 	/* FIXME-VS: this is should be taken from mount data? */
 	private->trace_flags = 0;
@@ -324,7 +323,6 @@ format40_release(struct super_block *s)
 		warning("vs-898", "capture_super_block failed in umount: %d", ret);
 	}
 
-	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember writing this. */
 	if ((ret = txnmgr_force_commit_all(s))) {
 		warning("jmacd-74438", "txn_force failed in umount: %d", ret);
 	}

@@ -20,6 +20,12 @@
 #include <asm/types.h>
 
 /* reiser4-specific inode flags */
+/* reiser4-specific inode flags. They are "transient" and are not
+   supposed to be stored on a disk. Used to trace "state" of
+   inode. Bitmasks for this field are defined in
+   reiser4_file_plugin_flags enum. 
+
+   Flags are stored in inode->i_mapping.assoc_mapping field */
 typedef enum {
 	/* this is light-weight inode, inheriting some state from its
 	   parent  */
@@ -43,7 +49,8 @@ typedef enum {
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
 	REISER4_GENERIC_VP_USED = 6,
-	REISER4_EXCLUSIVE_USE = 7
+	REISER4_EXCLUSIVE_USE = 7,
+	REISER4_SDLEN_KNOWN   = 8
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -55,12 +62,12 @@ typedef struct {;
 typedef __u32 oid_hi_t;
 #endif
 
-#define OID_HI_SHIFT ( sizeof( ino_t ) * 8 )
+#define OID_HI_SHIFT (sizeof(ino_t) * 8)
 
 /* state associated with each inode.
    reiser4 inode.
   
-   FIXME-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
+   NOTE-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
    be of the same size. File-system allocates inodes by itself through
    s_op->allocate_inode() method. So, it is possible to adjust size of inode
    at the time of its creation.
@@ -68,46 +75,42 @@ typedef __u32 oid_hi_t;
 */
 typedef struct reiser4_inode {
 	/* plugin of file */
-	file_plugin *file;
+	/*  0 */ file_plugin *file;
 	/* plugin of dir */
-	dir_plugin *dir;
+	/*  4 */ dir_plugin *dir;
 	/* perm plugin for this file */
-	perm_plugin *perm;
+	/*  8 */ perm_plugin *perm;
 	/* tail policy plugin. Only meaningful for regular files */
-	tail_plugin *tail;
+	/* 12 */ tail_plugin *tail;
 	/* hash plugin. Only meaningful for directories. */
-	hash_plugin *hash;
+	/* 16 */ hash_plugin *hash;
 	/* plugin of stat-data */
-	item_plugin *sd;
+	/* 20 */ item_plugin *sd;
 	/* plugin of items a directory is built of */
-	item_plugin *dir_item;
-	struct inode *parent;
+	/* 24 */ item_plugin *dir_item;
+	/* 28 */ struct inode *parent;
 	/* seal for stat-data */
-	seal_t sd_seal;
-	__u64 extmask;
+	/* 32 */ seal_t sd_seal;
+	/* 48 */ __u64 extmask;
 	/* locality id for this file */
-	oid_t locality_id;
+	/* 56 */ oid_t locality_id;
 	/* coord of stat-data in sealed node */
-	coord_t sd_coord;
-	/* reiser4-specific inode flags. They are "transient" and are not
-	   supposed to be stored on a disk. Used to trace "state" of
-	   inode. Bitmasks for this field are defined in
-	   reiser4_file_plugin_flags enum */
-	unsigned long flags;
-	/* length of stat-data for this inode */
-	short sd_len;
+	/* 64 */ coord_t sd_coord;
 	/* bitmask of non-default plugins for this inode */
-	__u16 plugin_mask;
-	inter_syscall_rap ra;
-	/* truncate, tail2extent and extent2tail use down_write, read, write, readpage - down_read */
-	struct rw_semaphore sem;
+	/* truncate, tail2extent and extent2tail use down_write, read, write,
+	 * readpage - down_read */
+	/* 76 */ struct rw_semaphore sem;
+	/* high 32 bits of object id */
+	/* 92 */ oid_hi_t oid_hi;
+	/* 96 */ int eflushed;
+	/* 100 */ __u16 plugin_mask;
+	/* 102 */ inter_syscall_rap ra;
+	/* 102 */ __u16 padding;
+	/* 104 */
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
 #endif
-	/* high 32 bits of object id */
-	oid_hi_t oid_hi;
-	int eflushed;
 } reiser4_inode;
 
 typedef struct reiser4_inode_object {
@@ -163,7 +166,7 @@ get_readdir_list(const struct inode *inode)
 #if REISER4_DEBUG_OUTPUT
 extern void print_inode(const char *prefix, const struct inode *i);
 #else
-#define print_inode( p, i ) noop
+#define print_inode(p, i) noop
 #endif
 
 /* __REISER4_INODE_H__ */
