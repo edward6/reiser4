@@ -113,13 +113,7 @@ extern void reiser4_handle_error(void);
 extern int reiser4_parse_options (struct super_block *, char *);
 
 #if REISER4_DEBUG
-static void finish_rcu(reiser4_super_info_data *sbinfo)
-{
-	spin_lock_irq(&sbinfo->all_guard);
-	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
-		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
-	spin_unlock_irq(&sbinfo->all_guard);
-}
+extern void finish_rcu(reiser4_super_info_data *sbinfo);
 #else
 #define finish_rcu(sbinfo) noop
 #endif
