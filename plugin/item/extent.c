@@ -510,18 +510,6 @@ int extent_create_hook (const coord_t * coord, void * arg)
 }
 
 
-/*
- * FIXME-VS: no check for return value here. See the comment in
- * plugin/item/item.h near kill_hook
- */
-/* Audited by: green(2002.06.13) */
-static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
-{
-	reiser4_dealloc_blocks(&start, &length, 1);
-	return 0;
-}
-
-
 /* plugin->u.item.b.kill_item_hook
  */
 /* Audited by: green(2002.06.13) */
@@ -530,6 +518,7 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 {
  	reiser4_extent * ext;
 	unsigned i;
+	reiser4_block_nr start, length;
 
 
 	ext = extent_by_coord (coord) + from;
@@ -541,7 +530,11 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 		/*
 		 * FIXME-VS: do I need to do anything for unallocated extents
 		 */
-		free_blocks (extent_get_start (ext), extent_get_width (ext));
+		start = extent_get_start (ext);
+		length = extent_get_width (ext);
+		/* "defer" parameter is set to 1 because blocks which get freed
+		 * are not safe to be freed immediately */
+		reiser4_dealloc_blocks (&start, &length, 1 /* defer */);
 	}
 	return 0;
 }
@@ -636,13 +629,18 @@ static int cut_or_kill_units (coord_t * coord,
 			first = offset + extent_size (coord, *from);
 			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) >> blocksize_bits;
 			assert ("vs-307", new_width > 0 && new_width <= extent_get_width (ext));
-			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+			if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
+				reiser4_block_nr start, length;
 				/*
-				 * free blocks that are not addressed by this
-				 * extent anymore
-				 */				
-				free_blocks (extent_get_start (ext) + new_width,
-					     extent_get_width (ext) - new_width);
+				 * truncate is in progress. Some blocks can be
+				 * freed. As they do not get immediately
+				 * available, set defer parameter of
+				 * reiser4_dealloc_blocks to 1
+				 */
+				start = extent_get_start (ext) + new_width;
+				length = extent_get_width (ext) - new_width;
+				reiser4_dealloc_blocks (&start, &length,
+							1 /* defer */);
 			}
 			extent_set_width (ext, new_width);
 			(*from) ++;
@@ -677,14 +675,21 @@ static int cut_or_kill_units (coord_t * coord,
 			cut_from_to = (old_width - new_width) * blocksize;
 
 			assert ("vs-617", new_width > 0 && new_width < old_width);
-			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+
+			if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
+				reiser4_block_nr start, length;
 				/*
-				 * free blocks that are not addressed by this
-				 * extent anymore
+				 * extent2tail is in progress. Some blocks can
+				 * be freed. As they do not get immediately
+				 * available, set defer parameter of
+				 * reiser4_dealloc_blocks to 1
 				 */
-				free_blocks (extent_get_start (ext),
-					     old_width - new_width);
+				start = extent_get_start (ext);
+				length = old_width - new_width;
+				reiser4_dealloc_blocks (&start, &length,
+							1 /* defer */);
 			}
+
 			/* (old_width - new_width) blocks of this extent were
 			 * free, update both extent's start and width */
 			extent_set_start (ext, extent_get_start (ext) + old_width - new_width);
@@ -2696,19 +2701,13 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 * because this extent will stay in
 				 * right->node, and, therefore, blocks it
 				 * points to have different predecer in
-				 * parent-first order
+				 * parent-first order. Set "defer" parameter of
+				 * reiser4_dealloc_block to 0 because these
+				 * blocks can be made allocable again
+				 * immediately
 				 */
-				/* FIXME: JMACD->VS: I think we should also
-				 * un-assign-jnode-blocknrs here.  I can reproduce the
-				 * problem for you.  This also leads to the problem in
-				 * squalloc_right_twig_cut, where we have disabled
-				 * cut_node() with a to_key argument.  So if this
-				 * allocation fails in the middle and only some of the
-				 * extent was copied, cut_node needs a to_key.  Right? */
-				/* FIXME: JMACD->VS/ZAM: This free_blocks does not need to
-				 * 'defer' releasing these blocks, since they were not
-				 * used. free_blocks() passes 1 for defer. */
-				free_blocks (first_allocated, allocated);
+				reiser4_dealloc_blocks (&first_allocated, &allocated,
+							0 /* defer */);
 				result = SQUEEZE_TARGET_FULL;
 				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 				goto done;
@@ -2750,7 +2749,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
  * insert_into_item to not try to shift anything to left
  */
 /* Audited by: green(2002.06.13) */
-static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
+	static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
 				     reiser4_block_nr width)
 {
 	int result;
