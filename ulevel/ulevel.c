@@ -698,7 +698,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 	unsigned ind;
 
 
-	ind = (from + PAGE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	ind = (from + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	list_for_each_safe (cur, tmp, &page_list) {
 		page = list_entry (cur, struct page, list);
 		if (page->mapping == mapping) {
@@ -778,9 +778,9 @@ void print_page( struct page *page )
 		info( "null page\n" );
 		return;
 	}
-	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
+	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx kmap_count %d\n",
 	      page -> index, page -> virtual, page -> mapping, page -> count,
-	      page -> private );
+	      page -> private, page -> kmap_count );
 	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s%s\n",
 	      page_flag_name( page,  PG_locked ),
 	      page_flag_name( page,  PG_error ),
@@ -877,9 +877,12 @@ void print_inodes (void)
 
 char * kmap (struct page * page)
 {
-	assert ("vs-664", !PageKmaped (page));
-	SetPageKmaped (page);
-	page->virtual = (char *)page + sizeof (struct page);
+	if (!PageKmaped (page)) {
+		assert ("vs-664", page->kmap_count == 0);
+		SetPageKmaped (page);
+		page->virtual = (char *)page + sizeof (struct page);
+	}
+	page->kmap_count ++;
 	return page->virtual;
 }
 
@@ -887,8 +890,12 @@ char * kmap (struct page * page)
 void kunmap (struct page * page)
 {
 	assert ("vs-665", PageKmaped (page));
-	ClearPageKmaped (page);
-	page->virtual = 0;
+	assert ("vs-724", page->kmap_count > 0);
+	page->kmap_count --;
+	if (page->kmap_count == 0) {
+		ClearPageKmaped (page);
+		page->virtual = 0;
+	}
 }
 
 unsigned long get_jiffies ()
@@ -949,45 +956,20 @@ int fsync_bdev(struct block_device * bdev)
 	return 0;
 }
 
-/*
-int create_empty_buffers (struct page * page, unsigned blocksize,
-			  unsigned long b_state UNUSED_ARG)
+
+sector_t generic_block_bmap(struct address_space *mapping,
+			    sector_t block, get_block_t *get_block)
 {
-	int i;
-	struct buffer_head * bh, * last;
-
-
-	assert ("vs-292", !page_has_buffers (page));
-
-	bh = NULL;
-	last = NULL;
-	for (i = PAGE_SIZE / blocksize - 1; i >= 0; i --) {
-		bh = kmalloc (sizeof (struct buffer_head), 1);
-		assert ("vs-250", bh);
-		if (page->buffers)
-			bh->b_this_page = page->buffers;
-		else
-			last = bh;
-		page->buffers = bh;
-		bh->b_data = (char *)page->virtual + i * blocksize;
-		bh->b_size = blocksize;
-		bh->b_blocknr = 0;
-		bh->b_state = 0;
-	}
-	last->b_this_page = bh;
-	return 0;
+	struct buffer_head tmp;
+        struct inode *inode = mapping->host;
+        tmp.b_state = 0;
+        tmp.b_blocknr = 0;
+        get_block(inode, block, &tmp, 0);
+        return tmp.b_blocknr;	
 }
 
 
-void map_bh (struct buffer_head * bh, struct super_block * sb, reiser4_block_nr block)
-{
-	mark_buffer_mapped (bh);
-	bh->b_bdev = sb->s_bdev;
-	bh->b_dev = sb->s_dev;
-	bh->b_blocknr = block;
-}
-*/
-
+/* drivers/block/ll_rw_block.c */
 void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 {
 	int i;
@@ -1073,12 +1055,12 @@ int submit_bio( int rw, struct bio *bio )
 		addr = ( char * ) page_address( pg ) + bvec -> bv_offset;
 		count = bvec -> bv_len;
 		if( rw == READ ) {
-			if( read( fd, addr, count) != count ) {
+			if( read( fd, addr, count) != (ssize_t)count ) {
 				info( "submit_bio: read failed\n" );
 				success = 0;
 			}
 		} else if( rw == WRITE ) {
-			if( write( fd, addr, count ) != count ) {
+			if( write( fd, addr, count ) != (ssize_t)count ) {
 				perror( "submit_bio: write failed\n" );
 				success = 0;
 			}
@@ -1579,6 +1561,7 @@ static int create_twig( reiser4_tree *tree, struct inode *root )
 static void call_umount (struct super_block * sb)
 {
 	reiser4_context *old_context;
+
 
 	fsync_bdev (sb->s_bdev);
 
@@ -2513,6 +2496,7 @@ static ssize_t call_write (struct inode * inode, const char * buf,
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
+	xmemset( &file, 0, sizeof file);
 	file.f_dentry = &dentry;
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = inode;
@@ -2930,7 +2914,6 @@ static int copy_dir (struct inode * dir)
 #endif /* old copy_dir*/
 
 
-#include <dirent.h>
 
 static int bash_cp (char * real_file, struct inode * cwd, const char * name);
 static int bash_cpr (struct inode * dir, const char * source)
@@ -3443,7 +3426,6 @@ static int bash_cp (char * real_file, struct inode * cwd, const char * name)
 
 
 
-#include <string.h>
 
 /* read content of file. name must be "name N M" */
 static int bash_read (struct inode * dir, const char * name)
