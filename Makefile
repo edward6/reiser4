@@ -80,6 +80,7 @@ reiser4-objs := \
 	           crypt.o \
 		   compress.o\
 		   diskmap.o \
+		   prof.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \
