@@ -510,6 +510,11 @@ static int submit_write (jnode * first, int nr,
 
 			unlock_page (pg);
 
+			/*
+			 * prepare node to being written
+			 */
+			jnode_ops (cur)->io_hook (cur, pg, WRITE);
+
 			bio->bi_io_vec[i].bv_page   = pg;
 			bio->bi_io_vec[i].bv_len    = super->s_blocksize;
 			bio->bi_io_vec[i].bv_offset = 0;
