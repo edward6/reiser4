@@ -825,16 +825,12 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 			for (j = 0; j < extent_get_width(ext); j ++) {
 				jnode *node;
 
-				RLOCK_TREE(tree);
 				node = jlookup(tree, oid, index + j);
 				if (node == NULL) {
-					BUG();
 					print_coord("scan", &scan, 0);
 					*error = "Jnode missing";
-					RUNLOCK_TREE(tree);
 					return -1;
 				}
-				RUNLOCK_TREE(tree);
 				jput(node);
 			}
 		}
