@@ -244,7 +244,7 @@ JF_TEST_AND_SET(jnode * j, int f)
 #define spin_ordering_pred_jnode( node )					\
 	( ( lock_counters() -> rw_locked_tree == 0 ) &&			\
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&                       \
-	  ( lock_counters() -> spin_locked_dk == 0 )   &&                       \
+	  ( lock_counters() -> rw_locked_dk == 0 )   &&                       \
 	  /*                                                                    \
 	     in addition you cannot hold more than one jnode spin lock at a     \
 	     time.                                                              \

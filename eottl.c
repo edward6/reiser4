@@ -187,7 +187,7 @@ rd_key(coord_t * coord, reiser4_key * key)
 	assert("nikita-2281", coord_is_between_items(coord));
 	coord_dup(&dup, coord);
 
-	spin_lock_dk(current_tree);
+	read_lock_dk(current_tree);
 
 	if (coord_set_to_right(&dup) == 0)
 		/* get right delimiting key from an item to the right of @coord */
@@ -196,7 +196,7 @@ rd_key(coord_t * coord, reiser4_key * key)
 		/* use right delimiting key of parent znode */
 		*key = *znode_get_rd_key(coord->node);
 
-	spin_unlock_dk(current_tree);
+	read_unlock_dk(current_tree);
 	return key;
 }
 
@@ -225,10 +225,10 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	if (IS_ERR(node))
 		return PTR_ERR(node);
 	/* setup delimiting keys for node being inserted */
-	spin_lock_dk(tree);
+	write_lock_dk(tree);
 	znode_set_ld_key(node, key);
 	znode_set_rd_key(node, rdkey);
-	spin_unlock_dk(tree);
+	write_unlock_dk(tree);
 
 	parent_node = insert_coord->node;
 	op = post_carry(&todo, COP_INSERT, insert_coord->node, 0);

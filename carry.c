@@ -629,7 +629,7 @@ find_begetting_brother(carry_node * node	/* node to start search
 
 	assert("nikita-1614", node != NULL);
 	assert("nikita-1615", kin != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1616", lock_counters()->rw_locked_tree > 0));
+	assert("nikita-1616", lock_counters()->rw_locked_tree > 0);
 	assert("nikita-1619", ergo(carry_real(node) != NULL, 
 				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
@@ -803,10 +803,10 @@ sync_dkeys(carry_node * node /* node to update */ ,
 
 	assert("nikita-1610", node != NULL);
 	assert("nikita-1611", doing != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1612", lock_counters()->spin_locked_dk == 0));
+	assert("nikita-1612", lock_counters()->rw_locked_dk == 0);
 
 	tree = znode_get_tree(carry_real(node));
-	spin_lock_dk(tree);
+	write_lock_dk(tree);
 	spot = carry_real(node);
 	RLOCK_TREE(tree);
 
@@ -851,7 +851,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	}
 
 	RUNLOCK_TREE(tree);
-	spin_unlock_dk(tree);
+	write_unlock_dk(tree);
 }
 
 void
@@ -1275,10 +1275,10 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	add_pointer->u.insert.child = fresh;
 	add_pointer->u.insert.brother = brother;
 	/* initially new node spawns empty key range */
-	spin_lock_dk(znode_get_tree(brother));
+	write_lock_dk(znode_get_tree(brother));
 	znode_set_ld_key(new_znode, 
 			 znode_set_rd_key(new_znode, znode_get_rd_key(brother)));
-	spin_unlock_dk(znode_get_tree(brother));
+	write_unlock_dk(znode_get_tree(brother));
 	return fresh;
 }
 
@@ -1323,8 +1323,6 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 				print_node_content("left", left, ~0);
 				print_znode("right", right);
 				print_node_content("right", right, ~0);
-				spin_unlock_dk(current_tree);
-				BUG();
 				return 0;
 			}
 		}

@@ -85,7 +85,8 @@ znode_at(const coord_t * item /* coord of item */ ,
 	 znode * parent /* parent node */)
 {
 	/* Take DK lock, as required by child_znode. */
-	return UNDER_SPIN(dk, znode_get_tree(item->node), child_znode(item, parent, 1, 0));
+	return UNDER_RW(dk, znode_get_tree(item->node), write,
+			child_znode(item, parent, 1, 0));
 }
 
 /* store pointer from internal item into "block". Implementation of
@@ -211,7 +212,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 
 		left = arg;
 		tree = znode_get_tree(item->node);
-		spin_lock_dk(tree);
+		write_lock_dk(tree);
 		WLOCK_TREE(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL) || (znode_above_root(child->in_parent.node)));
 		atomic_inc(&item->node->c_count);
@@ -229,7 +230,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 					     znode_get_rd_key(child))) {
 			znode_set_rd_key(child, znode_get_rd_key(left));
 		}
-		spin_unlock_dk(tree);
+		write_unlock_dk(tree);
 		zput(child);
 		return result;
 	} else
@@ -311,7 +312,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 	new_node = item->node;
 	assert("nikita-2132", new_node != old_node);
 	tree = znode_get_tree(item->node);
-	child = UNDER_SPIN(dk, tree, child_znode(item, old_node, 1, 0));
+	child = UNDER_RW(dk, tree, write, child_znode(item, old_node, 1, 0));
 	if (child == NULL)
 		return 0;
 	if (!IS_ERR(child)) {

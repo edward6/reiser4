@@ -135,7 +135,7 @@ struct reiser4_tree {
 
 	/* lock protecting delimiting keys
 	   */
-	reiser4_spin_data dk_lock;
+	reiser4_rw_data dk_lock;
 
 	/* default plugin used to create new nodes in a tree. */
 	node_plugin *nplug;
@@ -465,7 +465,7 @@ RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
 /* ordering constraint for delimiting key spin lock: dk lock is weaker than 
    tree lock */
-#define spin_ordering_pred_dk( tree )			\
+#define rw_ordering_pred_dk( tree )			\
 	(lock_counters()->rw_locked_tree == 0) &&	\
 	(lock_counters()->spin_locked_jnode == 0) &&	\
 	(lock_counters()->spin_locked_txnh == 0) &&	\
@@ -475,7 +475,7 @@ RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
 /* Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting
    keys. */
-SPIN_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
+RW_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 
 #if REISER4_DEBUG
 #define check_tree() print_tree_rec( "", current_tree, REISER4_TREE_CHECK )

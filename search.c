@@ -618,7 +618,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* FIXME: there is a guess that right delimiting key which are brought from the parent can be incorrect
 	   already */
-	spin_lock_dk(h->tree);
+	write_lock_dk(h->tree);
 	RLOCK_TREE(h->tree);
 	if (ZF_ISSET(active, JNODE_RIGHT_CONNECTED) && active->right) {
 		if (!keyeq(znode_get_rd_key(active), znode_get_ld_key(active->right))) {
@@ -627,7 +627,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 	RUNLOCK_TREE(h->tree);
-	spin_unlock_dk(h->tree);
+	write_unlock_dk(h->tree);
 
 
 
@@ -687,7 +687,7 @@ fail_or_restart:
 void
 check_dkeys(const znode *node)
 {
-	spin_lock_dk(current_tree);
+	read_lock_dk(current_tree);
 	RLOCK_TREE(current_tree);
 
 	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
@@ -701,7 +701,7 @@ check_dkeys(const znode *node)
 		assert("vs-1199", keyeq(&node->rd_key, &node->right->ld_key));
 
 	RUNLOCK_TREE(current_tree);
-	spin_unlock_dk(current_tree);
+	read_unlock_dk(current_tree);
 }
 #else
 #define check_dkeys(node) noop
@@ -733,10 +733,10 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 		 assert("nikita-1716", node != NULL);
 		 assert("nikita-1758", key != NULL);
 
-		 spin_lock_dk(znode_get_tree(node));
+		 read_lock_dk(znode_get_tree(node));
 		 assert("nikita-1759", znode_contains_key(node, key));
 		 ld = keyeq(znode_get_ld_key(node), key);
-		 spin_unlock_dk(znode_get_tree(node));
+		 read_unlock_dk(znode_get_tree(node));
 		 return ld;
 	}
 	assert("nikita-379", h != NULL);
@@ -1032,7 +1032,7 @@ znode_contains_key_strict(znode * node	/* node to check key
 {
 	assert("nikita-1760", node != NULL);
 	assert("nikita-1722", key != NULL);
-	assert("zam-839", spin_dk_is_locked(znode_get_tree(node)));
+	assert("zam-839", rw_dk_is_locked(znode_get_tree(node)));
 	
 	return keylt(znode_get_ld_key(node), key) && keylt(key, znode_get_rd_key(node));
 }
@@ -1064,7 +1064,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	level = h->level;
 	key = h->key;
 
-	spin_lock_dk(tree);
+	read_lock_dk(tree);
 	RLOCK_TREE(tree);
 	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
@@ -1089,7 +1089,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 
 	cbk_cache_unlock(cache);
 	RUNLOCK_TREE(tree);
-	spin_unlock_dk(tree);
+	read_unlock_dk(tree);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
@@ -1107,7 +1107,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result = UNDER_SPIN(dk, tree, znode_contains_key_strict(node, key))
+	result = UNDER_RW(dk, tree, read, znode_contains_key_strict(node, key))
 		&& !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
 
 	if (result) {
@@ -1223,7 +1223,7 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 	coord_t neighbor;
 
 	assert("nikita-1484", parent != NULL);
-	assert("nikita-1485", spin_dk_is_locked(znode_get_tree(parent)));
+	assert("nikita-1485", rw_dk_is_locked(znode_get_tree(parent)));
 
 	coord_dup(&neighbor, parent_coord);
 
@@ -1257,14 +1257,14 @@ set_child_delimiting_keys(znode * parent,
 	       znode_get_level(parent) == znode_get_level(coord->node));
 
 	tree = znode_get_tree(parent);
-	spin_lock_dk(tree);
+	write_lock_dk(tree);
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
 		find_child_delimiting_keys(parent, coord, 
 					   znode_get_ld_key(child),
 					   znode_get_rd_key(child));
 		ZF_SET(child, JNODE_DKSET);
 	}
-	spin_unlock_dk(tree);
+	write_unlock_dk(tree);
 }
 
 static level_lookup_result
@@ -1322,10 +1322,10 @@ search_to_left(cbk_handle * h /* search handle */ )
 			} else if (h->result == NS_FOUND) {
 				reiser4_stat_inc(tree.left_nonuniq_found);
 
-				spin_lock_dk(znode_get_tree(neighbor));
+				read_lock_dk(znode_get_tree(neighbor));
 				h->rd_key = *znode_get_ld_key(node);
 				leftmost_key_in_node(neighbor, &h->ld_key);
-				spin_unlock_dk(znode_get_tree(neighbor));
+				read_unlock_dk(znode_get_tree(neighbor));
 				h->flags |= CBK_DKSET;
 
 				h->block = *znode_get_block(neighbor);
@@ -1444,13 +1444,13 @@ setup_delimiting_keys(cbk_handle * h /* search handle */)
 	assert("nikita-1088", h != NULL);
 
 	active = h->active_lh->node;
-	spin_lock_dk(znode_get_tree(active));
+	write_lock_dk(znode_get_tree(active));
 	if (!ZF_ISSET(active, JNODE_DKSET)) {
 		znode_set_ld_key(active, &h->ld_key);
 		znode_set_rd_key(active, &h->rd_key);
 		ZF_SET(active, JNODE_DKSET);
 	}
-	spin_unlock_dk(znode_get_tree(active));
+	write_unlock_dk(znode_get_tree(active));
 }
 
 static int

@@ -728,10 +728,9 @@ insert_paste_common(carry_op * op	/* carry operation being
 				return result;
 		}
 
-		spin_lock_dk(znode_get_tree(child));
-		op->u.insert.d->key = leftmost_key_in_node(child, znode_get_ld_key(child));
+		op->u.insert.d->key = UNDER_RW(dk, znode_get_tree(child), read,
+					       leftmost_key_in_node(child, znode_get_ld_key(child)));
 		op->u.insert.d->data->arg = op->u.insert.brother;
-		spin_unlock_dk(znode_get_tree(child));
 	} else {
 		assert("vs-243", op->u.insert.d->coord != NULL);
 		op->u.insert.d->coord->node = carry_real(op->node);
@@ -1236,10 +1235,10 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	if (znode_is_root(parent) &&
 	    (znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT) && (node_num_items(parent) == 1)) {
 		/* Delimiting key manipulations. */
-		spin_lock_dk(tree);
+		write_lock_dk(tree);
 		znode_set_ld_key(child, znode_set_ld_key(parent, min_key()));
 		znode_set_rd_key(child, znode_set_rd_key(parent, max_key()));
-		spin_unlock_dk(tree);
+		write_unlock_dk(tree);
 
 		/* @child escaped imminent death! */
 		ZF_CLR(child, JNODE_HEARD_BANSHEE);
@@ -1662,7 +1661,8 @@ update_delimiting_key(znode * parent	/* node key is updated
 	if (!ZF_ISSET(right, JNODE_HEARD_BANSHEE))
 		leftmost_key_in_node(right, &ldkey);
 	else
-		UNDER_SPIN_VOID(dk, znode_get_tree(parent), ldkey = *znode_get_rd_key(right));
+		UNDER_RW_VOID(dk, znode_get_tree(parent), read,
+			      ldkey = *znode_get_rd_key(right));
 	node_plugin_by_node(parent)->update_item_key(&right_pos, &ldkey, &info);
 	doing->restartable = 0;
 	znode_set_dirty(parent);

@@ -123,7 +123,8 @@ ea2nea(struct inode *inode)
 static int
 file_continues_in_right_neighbor(const struct inode *inode, znode *node)
 {
-	return UNDER_SPIN(dk, current_tree, get_inode_oid(inode) == get_key_objectid(znode_get_rd_key(node)));
+	return UNDER_RW(dk, current_tree, read,
+			get_inode_oid(inode) == get_key_objectid(znode_get_rd_key(node)));
 }
 
 /* the below two functions are helpers for prepare_tail2extent and prepare_extent2tail. They are to be used like:

@@ -35,7 +35,8 @@ static inline int ra_get_rn_hard(int flags)
 static int
 should_readahead_neighbor(znode *node, ra_info_t *info)
 {
-	return (UNDER_SPIN(dk, ZJNODE(node)->tree, keyle(znode_get_rd_key(node), &info->key_to_stop)));
+	return (UNDER_RW(dk, ZJNODE(node)->tree, read,
+			 keyle(znode_get_rd_key(node), &info->key_to_stop)));
 }
 
 /* start read for @node and for few of its right neighbors */

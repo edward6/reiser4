@@ -125,15 +125,18 @@ int schedulable (void)
 void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
-	printk("%s: jnode: %i, jload: %i, tree: %i (r:%i,w:%i), dk: %i\n"
+	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
 	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
 	       "inode: %i, spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
-	       info->spin_locked_jnode, info->spin_locked_jload,
+	       info->spin_locked_jnode, 
 	       info->rw_locked_tree, info->read_locked_tree, 
 	       info->write_locked_tree,
-	       info->spin_locked_dk, info->spin_locked_txnh,
+
+	       info->rw_locked_dk, info->read_locked_dk, info->write_locked_dk,
+
+	       info->spin_locked_txnh,
 	       info->spin_locked_atom, info->spin_locked_stack,
 	       info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
 	       info->spin_locked_fq, info->spin_locked_super,
@@ -723,7 +726,7 @@ no_counters_are_held()
 		(counters->rw_locked_tree == 0) &&
 		(counters->read_locked_tree == 0) &&
 		(counters->write_locked_tree == 0) &&
-		(counters->spin_locked_dk == 0) &&
+		(counters->rw_locked_dk == 0) &&
 		(counters->spin_locked_txnh == 0) &&
 		(counters->spin_locked_atom == 0) &&
 		(counters->spin_locked_stack == 0) &&

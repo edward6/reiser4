@@ -553,7 +553,7 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 
 	assert("nikita-1374", parent_coord != NULL);
 	assert("nikita-1482", parent != NULL);
-	assert("nikita-1384", spin_dk_is_locked(znode_get_tree(parent)));
+	assert("nikita-1384", rw_dk_is_write_locked(znode_get_tree(parent)));
 	assert("nikita-2947", znode_is_any_locked(parent));
 
 	if (znode_get_level(parent) <= LEAF_LEVEL) {
@@ -572,14 +572,14 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 		iplug->s.internal.down_link(parent_coord, NULL, &addr);
 
 		tree = znode_get_tree(parent);
-		spin_unlock_dk(tree);
+		write_unlock_dk(tree);
 		if (incore_p)
 			child = zlook(tree, &addr);
 		else
 			child = zget(tree, &addr, parent, znode_get_level(parent) - 1, GFP_KERNEL);
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
 			set_child_delimiting_keys(parent, parent_coord, child);
-		spin_lock_dk(tree);
+		write_lock_dk(tree);
 	} else {
 		warning("nikita-1483", "Internal item expected");
 		print_znode("node", parent);
@@ -731,8 +731,7 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 
 	/* is above failed, find some key from @child. We are looking for the
 	   least key in a child. */
-	spin_lock_dk(tree);
-	ld = *znode_get_ld_key(child);
+	UNDER_RW_VOID(dk, tree, read, ld = *znode_get_ld_key(child));
 	/* now, lookup parent with key just found. */
 	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
@@ -743,7 +742,6 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 		WUNLOCK_TREE(tree);
 		lookup_res = check_tree_pointer(result, child);
 	}
-	spin_unlock_dk(tree);
 	if (lookup_res == NS_NOT_FOUND)
 		lookup_res = find_child_by_addr(parent, child, result);
 	return lookup_res;
@@ -988,8 +986,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	}
 
 	tree = znode_get_tree(left_coord.node);
-	left_child = UNDER_SPIN(dk, tree,
-				child_znode(&left_coord, left_coord.node, 1, 0 /* update delimiting keys */ ));
+	left_child = UNDER_RW(dk, tree, write,
+			      child_znode(&left_coord, left_coord.node, 1, 0 /* update delimiting keys */ ));
 
 	if (IS_ERR(left_child)) {
 		if (left_zloaded_here)
@@ -1029,7 +1027,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			case -E_NO_NEIGHBOR:
 				/* there is no formatted node to the right of
 				   from->node */
-				UNDER_SPIN_VOID(dk, tree, key = *znode_get_rd_key(from->node));
+				UNDER_RW_VOID(dk, tree, read, 
+					      key = *znode_get_rd_key(from->node));
 				right_coord.node = 0;
 				break;
 			default:
@@ -1050,9 +1049,10 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 		/* try to get right child of @from */
 		if (right_coord.node &&	/* there is right neighbor of @from */
 		    item_is_internal(&right_coord)) {	/* it is internal item */
-			right_child = UNDER_SPIN
-			    (dk, tree,
-			     child_znode(&right_coord, right_coord.node, 1, 0 /* update delimiting keys */ ));
+			right_child = UNDER_RW
+				(dk, tree, write, 
+				 child_znode(&right_coord, 
+					     right_coord.node, 1, 0 /* update delimiting keys */ ));
 
 			if (IS_ERR(right_child)) {
 				if (right_zloaded_here)
@@ -1081,8 +1081,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	/* update right delimiting key of left_child */
 
 	if (left_child)
-		UNDER_SPIN_VOID(dk, tree,
-				znode_set_rd_key(left_child, &key));
+		UNDER_RW_VOID(dk, tree, write, 
+			      znode_set_rd_key(left_child, &key));
 
 	if (right_child)
 		zput(right_child);
@@ -1618,8 +1618,8 @@ tree_rec(reiser4_tree * tree /* tree to print */ ,
 		if (item_is_internal(&coord)) {
 			znode *child;
 
-			child = UNDER_SPIN
-			    (dk, znode_get_tree(coord.node),
+			child = UNDER_RW
+				(dk, znode_get_tree(coord.node), write,
 			     child_znode(&coord, coord.node, (int) (flags & REISER4_NODE_ONLY_INCORE), 0));
 			if (child == NULL) ;
 			else if (!IS_ERR(child)) {

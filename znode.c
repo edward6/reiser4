@@ -222,7 +222,7 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 {
 	assert("umka-050", tree != NULL);
 
-	spin_dk_init(tree);
+	rw_dk_init(tree);
 
 	return z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE);
 }
@@ -690,7 +690,8 @@ reiser4_key *
 znode_get_rd_key(znode * node /* znode to query */ )
 {
 	assert("nikita-958", node != NULL);
-	assert("nikita-1661", spin_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-1661", rw_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-3067", lock_counters()->rw_locked_dk > 0);
 
 	return &node->rd_key;
 }
@@ -700,7 +701,8 @@ reiser4_key *
 znode_get_ld_key(znode * node /* znode to query */ )
 {
 	assert("nikita-974", node != NULL);
-	assert("nikita-1662", spin_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-1662", rw_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-3068", lock_counters()->rw_locked_dk > 0);
 
 	return &node->ld_key;
 }
@@ -709,7 +711,8 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2937", node != NULL);
 	assert("nikita-2939", key != NULL);
-	assert("nikita-2938", spin_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-2938", rw_dk_is_write_locked(znode_get_tree(node)));
+	assert("nikita-3069", lock_counters()->write_locked_dk > 0);
 /*
 	assert("nikita-2944", 
 	       znode_is_any_locked(node) || 
@@ -725,7 +728,8 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2940", node != NULL);
 	assert("nikita-2941", key != NULL);
-	assert("nikita-2942", spin_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
+	assert("nikita-3070", lock_counters()->write_locked_dk > 0);
 	assert("nikita-2943", 
 	       znode_is_any_locked(node) || 
 	       keyeq(znode_get_ld_key(node), min_key()));
@@ -767,7 +771,8 @@ znode_contains_key_lock(znode * node /* znode to look in */ ,
 	assert("umka-057", key != NULL);
 	assert("umka-058", current_tree != NULL);
 
-	return UNDER_SPIN(dk, znode_get_tree(node), znode_contains_key(node, key));
+	return UNDER_RW(dk, znode_get_tree(node), 
+			read, znode_contains_key(node, key));
 }
 
 /* get parent pointer, assuming tree is not locked */
@@ -1215,7 +1220,7 @@ znodes_check_dk(reiser4_tree * tree)
 	    (check_dk_called % check_dk_step))
 		return;
 
-	spin_lock_dk(tree);
+	read_lock_dk(tree);
 	RLOCK_TREE(tree);
 	htable = &tree->zhash_table;
 
@@ -1230,7 +1235,7 @@ znodes_check_dk(reiser4_tree * tree)
 				     znode_get_ld_key(node)));
 	}
 	RUNLOCK_TREE(tree);
-	spin_unlock_dk(tree);
+	read_unlock_dk(tree);
 }
 
 #endif

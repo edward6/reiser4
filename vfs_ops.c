@@ -2044,7 +2044,6 @@ init_committed_sb_counters(const struct super_block *s)
 
 DEFINE_SPIN_PROFREGIONS(jnode);
 DEFINE_SPIN_PROFREGIONS(jload);
-DEFINE_SPIN_PROFREGIONS(dk);
 DEFINE_SPIN_PROFREGIONS(stack);
 DEFINE_SPIN_PROFREGIONS(super);
 DEFINE_SPIN_PROFREGIONS(atom);
@@ -2055,6 +2054,7 @@ DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
 DEFINE_SPIN_PROFREGIONS(cbk_cache);
 
+DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 
 #if REISER4_LOCKPROF
@@ -2077,7 +2077,6 @@ static int register_profregions(void)
 #endif
 	register_jnode_profregion();
 	register_jload_profregion();
-	register_dk_profregion();
 	register_stack_profregion();
 	register_super_profregion();
 	register_atom_profregion();
@@ -2088,6 +2087,7 @@ static int register_profregions(void)
 	register_fq_profregion();
 	register_cbk_cache_profregion();
 
+	register_dk_profregion();
 	register_tree_profregion();
 
 	return 0;
@@ -2097,7 +2097,6 @@ static void unregister_profregions(void)
 {
 	unregister_jnode_profregion();
 	unregister_jload_profregion();
-	unregister_dk_profregion();
 	unregister_stack_profregion();
 	unregister_super_profregion();
 	unregister_atom_profregion();
@@ -2108,6 +2107,7 @@ static void unregister_profregions(void)
 	unregister_fq_profregion();
 	unregister_cbk_cache_profregion();
 
+	unregister_dk_profregion();
 	unregister_tree_profregion();
 }
 

@@ -2222,7 +2222,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 	}
 #endif
 
-	UNDER_SPIN_VOID(dk, znode_get_tree(left), update_znode_dkeys(left, right));
+	UNDER_RW_VOID(dk, znode_get_tree(left), write, update_znode_dkeys(left, right));
 
 	if (ret > 0) {
 		reiser4_block_nr amount;
@@ -2330,7 +2330,7 @@ shift_one_internal_unit(znode * left, znode * right)
 		
 		znode_set_dirty(left);
 		znode_set_dirty(right);
-		UNDER_SPIN_VOID(dk, znode_get_tree(left), update_znode_dkeys(left, right));
+		UNDER_RW_VOID(dk, znode_get_tree(left), write, update_znode_dkeys(left, right));
 
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
 		ret = carry(&todo, NULL /* previous level */ );

@@ -120,19 +120,19 @@ check_coord(const coord_t * coord, const reiser4_key * key)
 static int
 less_than_ldk(znode * node, const reiser4_key * key)
 {
-	return UNDER_SPIN(dk, current_tree, keylt(key, znode_get_ld_key(node)));
+	return UNDER_RW(dk, current_tree, read, keylt(key, znode_get_ld_key(node)));
 }
 
 static int
 equal_to_rdk(znode * node, const reiser4_key * key)
 {
-	return UNDER_SPIN(dk, current_tree, keyeq(key, znode_get_rd_key(node)));
+	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_rd_key(node)));
 }
 
 static int
 less_than_rdk(znode * node, const reiser4_key * key)
 {
-	return UNDER_SPIN(dk, current_tree, keylt(key, znode_get_rd_key(node)));
+	return UNDER_RW(dk, current_tree, read, keylt(key, znode_get_rd_key(node)));
 }
 
 static int
@@ -151,7 +151,7 @@ item_of_that_file(const coord_t * coord, const reiser4_key * key)
 static int
 equal_to_ldk(znode * node, const reiser4_key * key)
 {
-	return UNDER_SPIN(dk, current_tree, keyeq(key, znode_get_ld_key(node)));
+	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_ld_key(node)));
 }
 
 /* get key of item next to one @coord is set to */
@@ -160,7 +160,8 @@ get_next_item_key(const coord_t * coord, reiser4_key * next_key)
 {
 	if (coord->item_pos == node_num_items(coord->node) - 1) {
 		/* get key of next item if it is in right neighbor */
-		UNDER_SPIN_VOID(dk, znode_get_tree(coord->node), *next_key = *znode_get_rd_key(coord->node));
+		UNDER_RW_VOID(dk, znode_get_tree(coord->node), read,
+			      *next_key = *znode_get_rd_key(coord->node));
 	} else {
 		/* get key of next item if it is in the same node */
 		coord_t next;
@@ -238,11 +239,13 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 	if (node_is_empty(coord->node)) {
 		assert("vs-879", znode_get_level(coord->node) == LEAF_LEVEL);
 		assert("vs-880", get_key_offset(key) == 0);
-		if (UNDER_SPIN(dk, current_tree, !keyeq(key, znode_get_ld_key(coord->node)))) {
+		if (UNDER_RW(dk, current_tree, read,
+			     !keyeq(key, znode_get_ld_key(coord->node)))) {
 			/* this is possible when cbk_cache_search does eottl handling and returns not found */
 			return RESEARCH;
 		}
-		assert("vs-1000", UNDER_SPIN(dk, current_tree, keylt(key, znode_get_rd_key(coord->node))));
+		assert("vs-1000", UNDER_RW(dk, current_tree, read,
+					   keylt(key, znode_get_rd_key(coord->node))));
 		assert("vs-1002", coord->between == EMPTY_NODE);
 		result = FIRST_ITEM;
 		goto ok;

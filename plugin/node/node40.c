@@ -614,7 +614,7 @@ node40_check(const znode * node /* node to check */ ,
 		}
 	}
 
-	spin_lock_dk(current_tree);
+	read_lock_dk(current_tree);
 	if ((flags & REISER4_NODE_DKEYS) && !node_is_empty(node)) {
 		coord_t coord;
 		item_plugin *iplug;
@@ -667,7 +667,7 @@ node40_check(const znode * node /* node to check */ ,
 
 		RUNLOCK_TREE(current_tree);
 	}
-	spin_unlock_dk(current_tree);
+	read_unlock_dk(current_tree);
 
 	return 0;
 }
@@ -1646,7 +1646,7 @@ update_znode_dkeys(znode * left, znode * right)
 {
 	reiser4_key key;
 
-	assert("nikita-1470", spin_dk_is_locked(znode_get_tree(left)));
+	assert("nikita-1470", rw_dk_is_write_locked(znode_get_tree(left)));
 
 	leftmost_key_in_node(right, &key);
 

@@ -156,10 +156,10 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				/* insert into new root pointer to the
 				   @old_root. */
 				assert("nikita-1110", WITH_DATA(new_root, node_is_empty(new_root)));
-				spin_lock_dk(tree);
+				write_lock_dk(tree);
 				znode_set_ld_key(new_root, min_key());
 				znode_set_rd_key(new_root, max_key());
-				spin_unlock_dk(tree);
+				write_unlock_dk(tree);
 				sibling_list_insert(new_root, NULL);
 				result = add_child_ptr(new_root, old_root);
 				done_lh(&rlh);
@@ -224,7 +224,7 @@ add_child_ptr(znode * parent, znode * child)
 	build_child_ptr_data(child, &data);
 	data.arg = NULL;
 
-	key = UNDER_SPIN(dk, znode_get_tree(parent), znode_get_ld_key(child));
+	key = UNDER_RW(dk, znode_get_tree(parent), read, znode_get_ld_key(child));
 	result = node_plugin_by_node(parent)->create_item(&coord, key, &data, NULL);
 	znode_set_dirty(parent);
 	zrelse(parent);
@@ -325,7 +325,7 @@ kill_tree_root(znode * old_root /* tree root that we are removing */ )
 	coord_init_first_unit(&down_link, old_root);
 
 	tree = znode_get_tree(old_root);
-	new_root = UNDER_SPIN(dk, tree, child_znode(&down_link, old_root, 0, 1));
+	new_root = UNDER_RW(dk, tree, write, child_znode(&down_link, old_root, 0, 1));
 	if (!IS_ERR(new_root)) {
 		result = kill_root(tree, old_root, new_root, znode_get_block(new_root));
 		zput(new_root);
