@@ -1720,8 +1720,7 @@ repeat:
 	assert("nikita-2674", ergo(ret == 0, spin_jnode_is_locked(node)));
 	assert("nikita-2675", ergo(ret != 0, spin_jnode_is_not_locked(node)));
 
-	assert("nikita-2973", ergo(ret == 0, spin_txnh_is_locked(txnh)));
-	assert("nikita-2974", ergo(ret != 0, spin_txnh_is_not_locked(txnh)));
+	assert("nikita-2974", spin_txnh_is_not_locked(txnh));
 
 	if (ret == -EAGAIN && !non_blocking) {
 		/* EAGAIN implies all locks were released, therefore we need to take the
