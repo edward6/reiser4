@@ -749,7 +749,8 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	}
 	
 	/* A memory allocation may schedule we have to release those spinlocks
-	 * before kmem_cache_alloc() call. */	UNLOCK_JNODE(node);
+	 * before kmem_cache_alloc() call. */	
+	UNLOCK_JNODE(node);
 	UNLOCK_TXNH(txnh);
 
 	if (*atom_alloc == NULL) {
