@@ -99,12 +99,17 @@ int kcond_wait( kcond_t *cvar /* cvar to wait for */,
 	spin_unlock( lock );
 
 	result = 0;
-	if( signl ) {
-		down_interruptible( &qlink.wait );
-		if( signal_pending( current ) )
-			result = -EINTR;
-	} else
+	if( signl )
+		result = down_interruptible( &qlink.wait );
+	else
 		down( &qlink.wait );
+	/*
+	 * wait until kcond_{broadcast|signal} finishes. Otherwise down()
+	 * could interleave with up() in such a way that, that kcond_wait()
+	 * would exit and up() would see garbage in a semaphore.
+	 */
+	spin_lock( &cvar -> lock );
+	spin_unlock( &cvar -> lock );
 	spin_lock( lock );
 	return result;
 }
