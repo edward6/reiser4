@@ -3810,7 +3810,7 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 				 * because an empty radix tree node is freed and
 				 * the node's free space may not be re-used in
 				 * insertion. */
-				radix_tree_preload();
+				radix_tree_preload(GFP_KERNEL);
 				lock_two_nodes(node, copy);
 				/*LOCK_JNODE(node);*/
 				spin_lock(&scan_lock);
