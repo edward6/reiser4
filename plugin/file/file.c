@@ -1130,23 +1130,6 @@ unix_file_how_to_read(struct inode *inode, coord_t * coord)
 	return id == EXTENT_POINTER_ID ? READ_EXTENT : READ_TAIL;
 }
 
-static ssize_t
-do_readahead(struct address_space *mapping, struct file *filp,
-	     size_t pos, size_t read_amount)
-{
-	unsigned long index;
-	unsigned long pages;
-	unsigned long active;
-	unsigned long inactive;
-
-	/* Don't wipe out all memory by read-ahead */
-	get_zone_counts(&active, &inactive);
-	pages = min(inactive / 2, read_amount >> PAGE_CACHE_SHIFT);
-	index = pos >> PAGE_CACHE_SHIFT;
-	do_page_cache_readahead(mapping, filp, index, pages);
-	return 0;
-}
-
 /* plugin->u.file.read */
 ssize_t
 unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
@@ -1215,8 +1198,9 @@ unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 
 		switch (mode) {
 		case READ_EXTENT:
-			do_readahead(inode->i_mapping, 
-				     file, cur_offset, read_amount);
+			page_cache_readahead(inode->i_mapping, 
+					     &file->f_ra, file, 
+					     cur_offset >> PAGE_CACHE_SHIFT);
 			iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 			break;
 
