@@ -1080,14 +1080,12 @@ print_znode(const char *prefix /* prefix to print */ ,
 	info_znode(prefix, node);
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
-	info("\n");
 	info_znode("\tparent", znode_parent_nolock(node));
 	info_znode("\tleft", node->left);
 	info_znode("\tright", node->right);
-	print_plugin("\tnode_plugin", node_plugin_to_plugin(node->nplug));
 	print_key("\tld", &node->ld_key);
 	print_key("\trd", &node->rd_key);
-	info("\treaders: %i\n", node->lock.nr_readers);
+	info("\n");
 }
 
 /* debugging aid: output human readable information about @node */
@@ -1102,7 +1100,8 @@ info_znode(const char *prefix /* prefix to print */ ,
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
 
-	info("c_count: %i, readers: %i, ", atomic_read(&node->c_count), node->lock.nr_readers);
+	info("c_count: %i, readers: %i, items: %i\n", 
+	     atomic_read(&node->c_count), node->lock.nr_readers, node->nr_items);
 }
 
 void
