@@ -1333,7 +1333,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( SD_ITEM_ID );
-			coord_first_unit( &coord );
+			coord_first_unit( &coord, NULL );
 
 			set_key_locality( &key, 2ull + i );
 
@@ -1520,7 +1520,7 @@ static struct inode * create_root_dir (znode * root)
 	data.data = ( char * ) &sd;
 	data.length = sizeof sd.base;
 	data.iplug = item_plugin_by_id( SD_ITEM_ID );
-	coord_first_unit( &coord );
+	coord_first_unit( &coord, NULL );
 	
 	key_init( &key );
 	set_key_type( &key, KEY_SD_MINOR );
@@ -2063,7 +2063,7 @@ static void allocate_unallocated (reiser4_tree * tree)
 			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
 			       TWIG_LEVEL, TWIG_LEVEL, 
 			       CBK_FOR_INSERT | CBK_UNIQUE);
-	coord_first_unit (&coord);
+	coord_first_unit (&coord, NULL);
 	result = reiser4_iterate_tree (tree, &coord, &lh, 
 				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
 
