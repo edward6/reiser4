@@ -298,14 +298,14 @@ struct znode {
 	   least common parent node.  It is so as to not have to get a
 	   lock on the least common parent node? -Hans */
 	/**
-	 * right delimiting key. Necessary to efficiently perform
+	 * left delimiting key. Necessary to efficiently perform
 	 * balancing with node-level locking. Kept in memory only.
 	 */
-	reiser4_key            rd_key;
-	/**
-	 * left delimiting key.
-	 */
 	reiser4_key            ld_key;
+	/**
+	 * right delimiting key.
+	 */
+	reiser4_key            rd_key;
 
 	/**
 	 * position of this node in a parent node. This is cached to
