@@ -385,7 +385,7 @@ typedef struct reiser4_prof {
 	reiser4_prof_cnt set_child_delimiting_keys;
 	reiser4_prof_cnt zget;
 	reiser4_prof_cnt submit_bio;
-/* FIXME: write prifiling */
+/* write profiling */
 	reiser4_prof_cnt extent_write;
 		/* 
 		   reserve write iteration
@@ -401,7 +401,11 @@ typedef struct reiser4_prof {
 			reiser4_prof_cnt update_sd;
 			reiser4_prof_cnt bdp;
 			reiser4_prof_cnt validate;
-/* FIXME: write profiling */
+/* read profiling */
+	reiser4_prof_cnt file_read;
+		reiser4_prof_cnt find;
+		reiser4_prof_cnt zload;
+		reiser4_prof_cnt item_read;
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);
@@ -876,6 +880,15 @@ typedef struct reiser4_statistics {
 	stat_cnt non_uniq_max;
 	/* maximal stack size ever consumed by reiser4 thread. */
 	stat_cnt stack_size_max;
+
+	/* page_common_writeback stats */
+	stat_cnt pcwb_calls;
+	stat_cnt pcwb_formatted;
+	stat_cnt pcwb_unformatted;
+	stat_cnt pcwb_no_jnode;
+	stat_cnt pcwb_ented;
+	stat_cnt pcwb_written;
+	stat_cnt pcwb_not_written;
 } reiser4_stat;
 
 struct kobject;
