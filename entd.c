@@ -22,7 +22,7 @@
  * set this to 0 if you don't want to use wait-for-flush in ->writepage(). This
  * is useful for debugging emergency flush, for example.
  */
-#define USE_ENTD (0)
+#define USE_ENTD (1)
 
 #define DEF_PRIORITY 12
 
@@ -51,6 +51,7 @@ init_entd_context(struct super_block *super)
 	xmemset(ctx, 0, sizeof *ctx);
 	kcond_init(&ctx->startup);
 	kcond_init(&ctx->wait);
+	kcond_init(&ctx->flush_wait);
 	init_completion(&ctx->finish);
 	spin_lock_init(&ctx->guard);
 
@@ -104,6 +105,7 @@ entd(void *arg)
 
 		entd_set_comm(".");
 		spin_lock(&ctx->guard);
+		kcond_broadcast(&ctx->flush_wait);
 		ctx->kicks_pending = 0;
 		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
 
@@ -144,6 +146,78 @@ done_entd_context(struct super_block *super)
 	/* wait until daemon finishes */
 	wait_for_completion(&ctx->finish);
 }
+
+reiser4_internal void enter_flush (struct super_block * super)
+{
+	entd_context * ent;
+
+	assert ("zam-1029", super != NULL);
+	ent = get_entd_context(super);
+
+	assert ("zam-1030", ent != NULL);
+
+	spin_lock(&ent->guard);
+	ent->flushers ++;
+#if REISER4_DEBUG
+	flushers_list_push_front(&ent->flushers_list, get_current_context());
+#endif
+	spin_unlock(&ent->guard);
+}
+
+reiser4_internal void leave_flush (struct super_block * super)
+{
+	entd_context * ent;
+
+	assert ("zam-1027", super != NULL);
+	ent = get_entd_context(super);
+
+	assert ("zam-1028", ent != NULL);
+
+	spin_lock(&ent->guard);
+	ent->flushers --;
+#if REISER4_DEBUG
+	flushers_list_remove_clean(get_current_context());
+#endif
+	kcond_broadcast(&ent->flush_wait);
+	spin_unlock(&ent->guard);
+}
+
+reiser4_internal void flush_started_io (void)
+{
+}
+
+static void kick_entd(entd_context * ent)
+{
+	kcond_signal(&ent->wait);
+}
+
+static void __wait_for_flush (struct super_block * super)
+{
+	entd_context * ent;
+
+	assert ("zam-1031", super != NULL);
+	ent = get_entd_context(super);
+
+	assert ("zam-1032", ent != NULL);
+
+	spin_lock(&ent->guard);
+	if (ent->flushers == 0)
+		kick_entd(ent);
+	kcond_wait(&ent->flush_wait, &ent->guard, 1);
+	spin_unlock(&ent->guard);
+}
+
+reiser4_internal int
+wait_for_flush(struct page *page)
+{
+	struct super_block * super = page->mapping->host->i_sb;
+
+	if (super != NULL)
+		__wait_for_flush(super);
+	return 0;
+}
+
+#if 0 /* old code */
 
 reiser4_internal void
 enter_flush(struct super_block *super)
@@ -350,6 +424,7 @@ static int dont_wait_for_flush(struct super_block *super)
  *     0 no luck, proceed with emergency flush
  *
  */
+
 reiser4_internal int
 wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 {
@@ -453,6 +528,15 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 	 */
 	return result;
 }
+#endif
+
+static void entd_capture_anonymous_pages(
+	struct super_block * super, struct writeback_control * wbc)
+{
+	spin_lock(&inode_lock);
+	generic_sync_sb_inodes(super, wbc);
+	spin_unlock(&inode_lock);
+}
 
 static void entd_flush(struct super_block *super)
 {
@@ -471,6 +555,7 @@ static void entd_flush(struct super_block *super)
 
 	txn.entd = 1;
 
+	entd_capture_anonymous_pages(super, &wbc);
 	result = flush_some_atom(&nr_submitted, &wbc, 0);
 	if (result != 0)
 		warning("nikita-3100", "Flush failed: %i", result);
