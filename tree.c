@@ -1243,13 +1243,6 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 
 	write_tree_trace(tree, tree_cut, from_key, to_key);
 
-#define WE_HAVE_READAHEAD (0)
-#if WE_HAVE_READAHEAD
-	request_read_ahead_key_range(from, to, LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
-	/* locking? */
-	spans_node = key_range_spans_node(from, to);
-#endif				/* WE_HAVE_READAHEAD */
-
 	do {
 		/* FIXME-VS: find_next_item is highly optimized for sequential
 		   writes/reads. For case of cut_tree it can not help */
