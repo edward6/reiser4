@@ -445,36 +445,34 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	if (result != 0)
 		return result;
 
-	if (is_dir)
-		/* ext2 does this in different order: first inserts new entry,
-		   then increases directory nlink. We don't want do this,
-		   because reiser4_add_nlink() calls ->add_link() plugin
-		   method that can fail for whatever reason, leaving as with
-		   cleanup problems.
-		*/
-		result = reiser4_add_nlink(dir, inode, 0);
-	if (result == 0) {
-		/* @inode is getting new name */
-		reiser4_add_nlink(inode, dir, 0);
-		/* create @new_name in @new_dir pointing to
-		   @old_inode */
-		result = WITH_COORD(coord,
-				   inode_dir_item_plugin(dir)->s.dir.add_entry(dir, coord, lh, name, &entry));
+	/* ext2 does this in different order: first inserts new entry,
+	   then increases directory nlink. We don't want do this,
+	   because reiser4_add_nlink() calls ->add_link() plugin
+	   method that can fail for whatever reason, leaving as with
+	   cleanup problems.
+	*/
+	/* @inode is getting new name */
+	reiser4_add_nlink(inode, dir, 0);
+	/* create @new_name in @new_dir pointing to
+	   @old_inode */
+	result = WITH_COORD(coord,
+			    inode_dir_item_plugin(dir)->s.dir.add_entry(dir,
+									coord,
+									lh,
+									name,
+									&entry));
+	if (result != 0) {
+		result = reiser4_del_nlink(inode, dir, 0);
 		if (result != 0) {
-			result = reiser4_del_nlink(inode, dir, 0);
-			if (result != 0) {
-				warning("nikita-2327", "Cannot drop link on source: %i. %s", result, possible_leak);
-			}
-			result = reiser4_del_nlink(dir, inode, 0);
-			if (result != 0) {
-				warning("nikita-2328", "Cannot drop link on target dir %i. %s", result, possible_leak);
-			}
-			/* Has to return success, because entry is already
-			   created. */
-			result = 0;
-		} else
-			INODE_INC_FIELD(dir, i_size);
-	}
+			warning("nikita-2327", "Cannot drop link on %lli %i. %s",
+				get_inode_oid(inode),
+				result, possible_leak);
+		}
+		/* Has to return success, because entry is already
+		   created. */
+		result = 0;
+	} else
+		INODE_INC_FIELD(dir, i_size);
 	return result;
 }
 
@@ -580,6 +578,29 @@ hashed_rename_estimate_and_grab(
 		return RETERR(-ENOSPC);
 
 	return 0;
+}
+
+/* check whether @old_inode and @new_inode can be moved within file system
+ * tree. This singles out attempts to rename pseudo-files, for example. */
+static int
+can_rename(struct inode *old_inode, struct inode *new_inode)
+{
+	file_plugin *fplug;
+
+	assert("nikita-3370", old_inode != NULL);
+
+	fplug = inode_file_plugin(old_inode);
+	if (fplug->can_add_link(old_inode)) {
+		if (new_inode != NULL) {
+			fplug = inode_file_plugin(new_inode);
+			if (fplug->can_rem_link != NULL &&
+			    !fplug->can_rem_link(new_inode))
+				return RETERR(-EBUSY);
+		}
+		return 0;
+	} else
+		return RETERR(-EMLINK);
+	
 }
 
 /* ->rename directory plugin method implementation for hashed directories.
@@ -696,7 +717,6 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	lock_handle new_lh;
 
 	dir_plugin *dplug;
-	int res;
 
 	assert("nikita-2318", old_dir != NULL);
 	assert("nikita-2319", new_dir != NULL);
@@ -718,14 +738,19 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	/* if target is existing directory and it's not empty---return error.
 	
 	   This check is done specifically, because is_dir_empty() requires
-	   tree traversal and have to be done before an locks are taken.
+	   tree traversal and have to be done before locks are taken.
 	*/
-	if (is_dir && (new_inode != NULL) && (is_dir_empty(new_inode) != 0))
+	if (is_dir && new_inode != NULL && is_dir_empty(new_inode) != 0)
 		return RETERR(-ENOTEMPTY);
 
-	res = hashed_rename_estimate_and_grab(old_dir, old_name, new_dir, new_name);
-	if (res)
-	    return res;
+	result = can_rename(old_inode, new_inode);
+	if (result != 0)
+	    return result;
+
+	result = hashed_rename_estimate_and_grab(old_dir, old_name,
+						 new_dir, new_name);
+	if (result != 0)
+	    return result;
 		
 	init_lh(&new_lh);
 
@@ -797,7 +822,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		}
 	}
 
-	if ((result == 0) && is_dir) {
+	if (result == 0 && is_dir) {
 		/* @old_inode is directory. We also have to update dotdot
 		   entry. */
 		coord_t *dotdot_coord;
@@ -819,15 +844,12 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 
 		result = find_entry(old_inode, &dotdot_name, &dotdot_lh, ZNODE_WRITE_LOCK, &dotdot_entry);
 		if (result == 0) {
-			result = replace_name(new_dir, old_inode, old_dir, dotdot_coord, &dotdot_lh);
 			/* replace_name() decreases i_nlink on @old_dir */
-			if (result == 0) {
-				/* NIKITA-FIXME-ZAM: in case of moving a directory, one reference to
-				 * @new_dir added by call to add_name/replace_name() when @new_name
-				 * is created/replaced, replacing ".." adds another reference.  In
-				 * result, @new_dir->i_nlink gets one more than needed. */
-				reiser4_del_nlink(new_dir, old_inode, 0);
-			}
+			result = replace_name(new_dir,
+					      old_inode,
+					      old_dir,
+					      dotdot_coord,
+					      &dotdot_lh);
 		} else {
 			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
 			result = RETERR(-EIO);
