@@ -18,11 +18,17 @@ int unix_file_writepage_nolock(struct page *page);
 int file_is_built_of_extents(const struct inode *inode);
 
 
+static inline struct task_struct *
+inode_ea_owner(const struct inode *inode)
+{
+	return reiser4_inode_data(inode)->ea_owner;
+}
+
 static int ea_obtained(const struct inode *inode)
 {
 	
-	assert("vs-1167", ergo (reiser4_inode_data(inode)->ea_owner,
-			 reiser4_inode_data(inode)->ea_owner == current));
+	assert("vs-1167", ergo (inode_ea_owner(inode) != NULL,
+				inode_ea_owner(inode) == current));
 	return inode_get_flag(inode, REISER4_EXCLUSIVE_USE);
 }
 
@@ -35,7 +41,7 @@ static void ea_set(const struct inode *inode, void *value)
 #define ea_set(inode, value) noop
 #endif
 
-/* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extetn2tail, etc */
+/* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
 void
 get_exclusive_access(struct inode *inode)
 {
@@ -46,6 +52,7 @@ get_exclusive_access(struct inode *inode)
 		lock_counters()->inode_sem_w ++;
 	}
 	down_write(&reiser4_inode_data(inode)->sem);
+	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1157", !ea_obtained(inode));
 	ea_set(inode, current);
 	inode_set_flag(inode, REISER4_EXCLUSIVE_USE);
@@ -54,6 +61,7 @@ get_exclusive_access(struct inode *inode)
 void
 drop_exclusive_access(struct inode *inode)
 {
+	assert("nikita-3060", inode_ea_owner(inode) == current);
 	assert("vs-1158", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
@@ -76,12 +84,14 @@ get_nonexclusive_access(struct inode *inode)
 		assert("nikita-3051", lock_counters()->inode_sem_r == 0);
 		lock_counters()->inode_sem_r ++;
 	}
+	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1159", !ea_obtained(inode));
 }
 
 void
 drop_nonexclusive_access(struct inode *inode)
 {
+	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1160", !ea_obtained(inode));
 	up_read(&reiser4_inode_data(inode)->sem);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
@@ -101,9 +111,13 @@ nea2ea(struct inode *inode)
 static void
 ea2nea(struct inode *inode)
 {
+	assert("nikita-3060", inode_ea_owner(inode) == current);
 	assert("vs-1168", ea_obtained(inode));
-	drop_exclusive_access(inode);
-	get_nonexclusive_access(inode);
+	ea_set(inode, 0);
+	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
+	downgrade_write(&reiser4_inode_data(inode)->sem);
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
 }
 
 static int
