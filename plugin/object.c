@@ -507,7 +507,9 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */)
 			if (result == 0) {
 				oid_count_released();
 
-				result = safe_link_del(inode, SAFE_UNLINK);
+				result = safe_link_del(tree_by_inode(inode),
+						       get_inode_oid(inode),
+						       SAFE_UNLINK);
 			}
 		}
 	} else

@@ -142,7 +142,8 @@ link_common(struct inode *parent /* parent directory */ ,
 	 * reiser4_unlink() viz. creation of safe-link.
 	 */
 	if (unlikely(inode_file_plugin(object)->not_linked(object))) {
-		result = safe_link_del(object, SAFE_UNLINK);
+		result = safe_link_del(tree_by_inode(object),
+				       get_inode_oid(object), SAFE_UNLINK);
 		if (result != 0)
 			return result;
 	}

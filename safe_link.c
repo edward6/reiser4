@@ -91,11 +91,12 @@ safe_link_locality(reiser4_tree *tree)
 
  */
 static reiser4_key *
-build_link_key(struct inode *inode, reiser4_safe_link_t link, reiser4_key *key)
+build_link_key(reiser4_tree *tree, oid_t oid, reiser4_safe_link_t link,
+	       reiser4_key *key)
 {
 	reiser4_key_init(key);
-	set_key_locality(key, safe_link_locality(tree_by_inode(inode)));
-	set_key_objectid(key, get_inode_oid(inode));
+	set_key_locality(key, safe_link_locality(tree));
+	set_key_objectid(key, oid);
 	set_key_offset(key, link);
 	return key;
 }
@@ -171,7 +172,7 @@ reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link
 		cputod64(inode->i_size, &sl.size);
 	}
 	tree = tree_by_inode(inode);
-	build_link_key(inode, link, &key);
+	build_link_key(tree, get_inode_oid(inode), link, &key);
 
 	result = store_black_box(tree, &key, &sl, length);
 	if (result == -EEXIST)
@@ -183,12 +184,13 @@ reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link
  * remove safe-link corresponding to the operation @link on inode @inode from
  * the tree.
  */
-reiser4_internal int safe_link_del(struct inode *inode, reiser4_safe_link_t link)
+reiser4_internal int
+safe_link_del(reiser4_tree *tree, oid_t oid, reiser4_safe_link_t link)
 {
 	reiser4_key key;
 
-	return kill_black_box(tree_by_inode(inode),
-			      build_link_key(inode, link, &key));
+	return kill_black_box(tree,
+			      build_link_key(tree, oid, link, &key));
 }
 
 /*
@@ -273,6 +275,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 
 		fplug = inode_file_plugin(inode);
 		assert("nikita-3428", fplug != NULL);
+		assert("", oid == get_inode_oid(inode));
 		if (fplug->safelink != NULL) {
 			/* txn_restart_current is not necessary because
 			 * mounting is signle thread. However, without it
@@ -295,11 +298,11 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		reiser4_iget_complete(inode);
 		iput(inode);
 		if (result == 0) {
-			result = safe_link_grab(tree_by_inode(inode),
+			result = safe_link_grab(get_tree(super),
 						BA_CAN_COMMIT);
 			if (result == 0)
-				result = safe_link_del(inode, link);
-			safe_link_release(tree_by_inode(inode));
+				result = safe_link_del(get_tree(super), oid, link);
+			safe_link_release(get_tree(super));
 			/*
 			 * restart transaction: if there was large number of
 			 * safe-links, their processing may fail to fit into

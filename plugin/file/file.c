@@ -2521,7 +2521,7 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 
 	s_result = safe_link_grab(tree, BA_CAN_COMMIT);
 	if (s_result == 0)
-		s_result = safe_link_del(inode, SAFE_TRUNCATE);
+		s_result = safe_link_del(tree, get_inode_oid(inode), SAFE_TRUNCATE);
 	if (s_result != 0) {
 		warning("nikita-3417", "Cannot kill safelink %lli: %i",
 			(unsigned long long)get_inode_oid(inode), s_result);
