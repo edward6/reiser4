@@ -903,10 +903,12 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 			ret = commit_txnh (txnh);
 
 			assert ("jmacd-635", txnh_isclean (txnh));
+		} else {
+			warning ("jmacd-81726", "flush failed: %d", ret);
 		}
 	}
 
-	return 0;
+	return ret;
 }
 #endif
 

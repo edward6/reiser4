@@ -1713,11 +1713,11 @@ static void flush_scan_init (flush_scan *scan)
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
 static void flush_scan_done (flush_scan *scan)
 {
+	done_zh (& scan->node_load);
 	if (scan->node != NULL) {
 		jput (scan->node);
 		scan->node = NULL;
 	}
-	done_zh (& scan->node_load);
 	done_zh (& scan->parent_load);
 	done_lh (& scan->parent_lock);
 }
