@@ -1,14 +1,18 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Tail policy plugins */
 
 /* Tail policy is used by object plugin (of regular file) to convert file
    between two representations. TO BE CONTINUED.
 
-   Currently only trivial policies are implemented.
+   Currently following policies are implemented:
 
-   NIKITA-FIXME-HANS: update comment
+       never tail
 
+       always tail
+
+       only tail if file is smaller than 4 blocks (default).
 */
 
 #include "../tree.h"
