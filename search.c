@@ -406,6 +406,22 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
+int get_fake_znode(reiser4_tree * tree, znode_lock_mode mode, 
+		   znode_lock_request pri, lock_handle *lh)
+{
+	znode *fake;
+	int result;
+
+	fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+
+	if (!IS_ERR(fake)) {
+		result = longterm_lock_znode(lh, fake, mode, pri);
+		zput(fake);
+	} else
+		result = PTR_ERR(fake);
+	return result;
+}
+
 /* main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
 static lookup_result
@@ -421,6 +437,8 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	assert("nikita-369", (h->bias == FIND_EXACT) || (h->bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-370", h->stop_level >= LEAF_LEVEL);
 	assert("nikita-2949", !(h->flags & CBK_DKSET));
+	assert("zam-355", lock_stack_isclean(get_current_lock_stack()));
+
 	trace_stamp(TRACE_TREE);
 	reiser4_stat_inc(tree.cbk);
 
@@ -433,28 +451,19 @@ restart:
 
 	h->result = CBK_COORD_FOUND;
 
-	{
-		znode *fake;
+	done = get_fake_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
+			      h->parent_lh);
 
-		assert("zam-355", lock_stack_isclean(get_current_lock_stack()));
-		fake = zget(h->tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+	assert("nikita-1637", done != -EDEADLK);
 
-		if (IS_ERR(fake))
-			return PTR_ERR(fake);
+	if (done)
+		return done;
 
-		done = longterm_lock_znode(h->parent_lh, fake, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
-
-		assert("nikita-1637", done != -EDEADLK);
-
-		zput(fake);
-		if (done)
-			return done;
-		/* connect_znode() needs it */
-		h->coord->node = fake;
-		h->ld_key = *min_key();
-		h->rd_key = *max_key();
-		h->flags |= CBK_DKSET;
-	}
+	/* connect_znode() needs it */
+	h->coord->node = h->parent_lh->node;
+	h->ld_key = *min_key();
+	h->rd_key = *max_key();
+	h->flags |= CBK_DKSET;
 
 	h->block = h->tree->root_block;
 	h->level = h->tree->height;

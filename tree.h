@@ -246,6 +246,8 @@ typedef enum { RESIZE_OK = 0,
 typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord, lock_handle * lh, void *arg);
 extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
 			tree_iterate_actor_t actor, void *arg, znode_lock_mode mode, int through_units_p);
+extern int get_fake_znode(reiser4_tree * tree, znode_lock_mode mode, 
+			  znode_lock_request pri, lock_handle *lh);
 
 /* return node plugin of @node */
 static inline node_plugin *

@@ -244,6 +244,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 {
 	znode *fake;
 	int result;
+	lock_handle handle_for_fake;
 
 	assert("umka-265", tree != NULL);
 	assert("nikita-1198", new_root != NULL);
@@ -253,47 +254,40 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 	assert("nikita-1203", disk_addr_eq(new_root_blk, znode_get_block(new_root)));
 
-	result = 0;
+	init_lh(&handle_for_fake);
 	/* obtain and lock "fake" znode protecting changes in tree height. */
-	fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
-	if (!IS_ERR(fake)) {
-		lock_handle handle_for_fake;
+	result = get_fake_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
+				&handle_for_fake);
+	if (result == 0) {
+		fake = handle_for_fake.node;
+		tree->root_block = *new_root_blk;
+		--tree->height;
+		assert("nikita-1202", tree->height = znode_get_level(new_root));
 
-		init_lh(&handle_for_fake);
-		result = longterm_lock_znode(&handle_for_fake, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
-		zput(fake);
+		znode_set_dirty(fake);
+
+		/* don't take long term lock a @new_root. Take spinlock. */
+
+		spin_lock_tree(tree);
+
+		/* new root is child on "fake" node */
+		new_root->in_parent.node = fake;
+		coord_invalid_item_pos(&new_root->in_parent);
+		new_root->in_parent.between = AT_UNIT;
+		atomic_inc(&fake->c_count);
+
+		sibling_list_insert_nolock(new_root, NULL);
+		spin_unlock_tree(tree);
+
+		/* reinitialise old root. */
+		result = node_plugin_by_node(old_root)->init(old_root);
 		if (result == 0) {
-			tree->root_block = *new_root_blk;
-			--tree->height;
-			assert("nikita-1202", tree->height = znode_get_level(new_root));
-
-			znode_set_dirty(fake);
-
-			/* don't take long term lock a @new_root. Take
-			   spinlock. */
-
-			spin_lock_tree(tree);
-
-			/* new root is child on "fake" node */
-			new_root->in_parent.node = fake;
-			coord_invalid_item_pos(&new_root->in_parent);
-			new_root->in_parent.between = AT_UNIT;
-			atomic_inc(&fake->c_count);
-
-			sibling_list_insert_nolock(new_root, NULL);
-			spin_unlock_tree(tree);
-
-			/* reinitialise old root. */
-			result = node_plugin_by_node(old_root)->init(old_root);
-			if (result == 0) {
-				assert("nikita-1279", node_is_empty(old_root));
-				ZF_SET(old_root, JNODE_HEARD_BANSHEE);
-				atomic_set(&old_root->c_count, 0);
-			}
+			assert("nikita-1279", node_is_empty(old_root));
+			ZF_SET(old_root, JNODE_HEARD_BANSHEE);
+			atomic_set(&old_root->c_count, 0);
 		}
-		done_lh(&handle_for_fake);
-	} else
-		result = PTR_ERR(fake);
+	}
+	done_lh(&handle_for_fake);
 	return result;
 }
 

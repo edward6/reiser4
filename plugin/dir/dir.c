@@ -774,8 +774,10 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 			      tap->coord, tap->lh, tap->mode, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, &tap->ra_info);
 	if (result == CBK_COORD_FOUND)
 		result = rewind_right(tap, (int) pos->position.pos);
-	else
+	else {
 		tap->coord->node = NULL;
+		done_lh(tap->lh);
+	}
 	return result;
 }
 

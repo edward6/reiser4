@@ -2291,23 +2291,18 @@ capture_super_block(struct super_block *s)
 	znode *fake;
 	lock_handle lh;
 
-	fake = zget(get_tree(s), &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
-	if (IS_ERR(fake))
-		return PTR_ERR(fake);
-
 	init_lh(&lh);
-	result = longterm_lock_znode(&lh, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-	if (result) {
-		zput(fake);
+	result = get_fake_znode(get_tree(s), 
+				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI, &lh);
+	if (result)
 		return result;
-	}
 
+	fake = lh.node;
 	/* Grabbing one block for superblock */
 	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED, "capture_super_block")) != 0)
 		return result;
 	
 	znode_set_dirty(fake);
-	zput(fake);
 
 	done_lh(&lh);
 	return 0;
