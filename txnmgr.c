@@ -1914,17 +1914,17 @@ uncapture_page(struct page *pg)
 
 	jnode_set_clean(node);
 
-	spin_lock_jnode(node);
-
 repeat:
+	spin_lock_jnode(node);
 	atom = atom_get_locked_by_jnode(node);
+	spin_unlock_jnode (node);
 
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
-		spin_unlock_jnode(node);
 		return;
 	}
 
+	/* FXIME-ZAM: jnode_get_type seems to be atomic */
 	if (jnode_is_znode(node)) {
 		if ( /**jnode_get_block(node) &&*/
 			   !blocknr_is_fake(jnode_get_block(node))) {
@@ -1937,26 +1937,18 @@ repeat:
 				assert("zam-561", *jnode_get_block(node) < reiser4_block_count(s));
 				reiser4_spin_unlock_sb(s);
 			}
-
 			ret = blocknr_set_add_block(atom, &atom->delete_set, &blocknr_entry, jnode_get_block(node));
 
-			if (ret == -EAGAIN) {
-				/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
+			if (ret == -EAGAIN)
 				goto repeat;
-			}
 		} else {
 			/* jnode has assigned block which is counted as "fake
-			   allocated". Return it back to "free blocks" (via
-			   "grabbed space")
-			*/
-			/*reiser4_count_fake_deallocation ((__u64)1);
-			   reiser4_release_grabbed_space ((__u64)1); */
+			   allocated". Return it back to "free blocks") */
 			fake_allocated2free((__u64) 1, 1 /*formatted */ );
 		}
 	}
-	assert("jmacd-5177", blocknr_entry == NULL);
 
-	spin_unlock_jnode(node);
+	assert("jmacd-5177", blocknr_entry == NULL);
 
 	uncapture_block(atom, node);
 
