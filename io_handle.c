@@ -154,7 +154,7 @@ int atom_wait_on_io (txn_atom * atom, int * io_error)
 	io = io_handles_list_pop_front (&atom->io_handles);
 	spin_unlock_atom (atom);
 	*io_error += io_handle_wait_io (io);
-	kfree (io);
+	reiser4_kfree (io, sizeof (struct reiser4_io_handle));
 
 	return -EAGAIN;
 }
