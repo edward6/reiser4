@@ -12,7 +12,7 @@
 #include <misc/misc.h>
 
 /* (*(__u32 *)"R4FS"); */
-static uint32_t reiserfs_node_magic = 0x52344653;
+#define REISERFS_NODE40_MAGIC 0x52344653
 
 /* Format of node header for node40. */
 struct reiserfs_node40_header {
@@ -64,17 +64,17 @@ typedef struct reiserfs_node40 reiserfs_node40_t;
     Item headers are not standard across all node layouts, pass
     pos_in_node to functions instead.
 */
-struct reiserfs_item_header40 {
+struct reiserfs_item40_header {
     reiserfs_key_t key;	    
     uint16_t offset;
     uint16_t length;
     uint16_t plugin_id;
 };
 
-typedef struct reiserfs_item_header40 reiserfs_item_header40_t;
+typedef struct reiserfs_item40_header reiserfs_item40_header_t;
 
 #define reiserfs_node40_ih_at(node, pos) \
-    ((reiserfs_item_header40_t *) \
+    ((reiserfs_item40_header_t *) \
     (reiserfs_node40_data(node) + reiserfs_node40_size(node)) - pos - 1)
 
 #define reiserfs_node40_item_at(node, pos) \

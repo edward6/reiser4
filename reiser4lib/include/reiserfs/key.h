@@ -53,6 +53,20 @@ union reiserfs_key {
 
 typedef union reiserfs_key reiserfs_key_t;
 
+struct reiserfs_dirid {
+    uint8_t objectid[sizeof(uint64_t)];
+    uint8_t offset[sizeof(uint64_t)];
+};
+
+typedef struct reiserfs_dirid reiserfs_dirid_t;
+
+struct reiserfs_objid {
+    uint8_t locality[sizeof(uint64_t)];
+    uint8_t objectid[sizeof(uint64_t)];
+};
+
+typedef struct reiserfs_objid reiserfs_objid_t;
+
 typedef enum {
     /* major locality occupies higher 60 bits of the first element */
     KEY_LOCALITY_MASK    = 0xfffffffffffffff0ull,
@@ -75,7 +89,6 @@ typedef enum {
     /* generation counter occupies lower 8 bits of 3rd element */
     KEY_GEN_MASK         = 0xffull,
 } reiserfs_key_field_mask;
-
 
 typedef enum {
     KEY_LOCALITY_SHIFT   = 4,

@@ -30,7 +30,7 @@ static error_t reiserfs_stat40_check(reiserfs_stat40_t *stat) {
 static void reiserfs_stat40_print(reiserfs_stat40_t *stat, char *buff) {
 }
 
-#define STAT40_ID 0x1
+#define STAT40_ID 0x0
 
 static reiserfs_plugin_t stat40_plugin = {
     .item = {
