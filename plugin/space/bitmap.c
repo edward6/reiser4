@@ -543,7 +543,7 @@ VS-FIXME-HANS: explain calculation, using device with block count of 8 * 4096 bl
    super private data */
 /* Audited by: green(2002.06.12) */
 static bmap_nr_t
-get_nr_bmap(struct super_block *super)
+get_nr_bmap(const struct super_block *super)
 {
 	assert("zam-393", reiser4_block_count(super) != 0);
 
@@ -709,6 +709,7 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 	/* load commit bitmap */
 	ret = jload_gfp(cjnode, GFP_NOFS);
+	
 	if (ret)
 		goto error;
 	
@@ -716,22 +717,12 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 	 * bitmaps jinit_new() doesn't actually modifies node content,
 	 * so parallel calls to this are ok. */
 	ret = jinit_new(wjnode);
+	
 	if (ret != 0) {
 		jrelse(cjnode);
 		goto error;
 	}
 
-#if REISER4_CHECK_BMAP_CRC
-	/* we cannot use bnode_commit_crc() and bnode_calc_crc() here,
-	 * because bnode->{c,w}node are not yet set. */
-	if (d32tocpu((d32 *)jdata(cjnode)) != adler32(jdata(cjnode) + CHECKSUM_SIZE, bmap_size(super->s_blocksize))) {
-		warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", bmap);
-		ret = -EIO;
-		jrelse(cjnode);
-		jrelse(wjnode);
-		goto error;
-	}
-#endif
 	return 0;
 	
  error:
@@ -1166,12 +1157,12 @@ dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_bl
 	release_and_unlock_bnode(bnode);
 }
 
-#if REISER4_DEBUG
 
 /* plugin->u.space_allocator.check_blocks(). */
 void
 check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
+#if REISER4_DEBUG
 	struct super_block *super = reiser4_get_current_sb();
 
 	bmap_nr_t bmap;
@@ -1206,9 +1197,8 @@ check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len
 	}
 
 	release_and_unlock_bnode(bnode);
-}
-
 #endif
+}
 
 /* conditional insertion of @node into atom's overwrite set  if it was not there */
 static void
@@ -1609,6 +1599,63 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 	reiser4_kfree(data, sizeof (struct bitmap_allocator_data));
 
 	allocator->u.generic = NULL;
+
+	return 0;
+}
+
+static int 
+check_adler32_jnode(jnode *jnode, unsigned long size) 
+{
+	return (adler32(jdata(jnode) + CHECKSUM_SIZE, size) != *(__u32 *)jdata(jnode));
+}
+
+int
+check_struct_allocator_bitmap(reiser4_space_allocator * allocator, 
+			      const struct super_block *super) 
+{
+	struct bitmap_allocator_data *ba;
+	struct bnode *bnode;
+	bmap_nr_t count, i;
+	int res;
+
+	/* Get the bitmap allocator. */
+	ba = (struct bitmap_allocator_data *)allocator->u.generic;
+
+	/* get the count of bitmap bnodes */
+	count = get_nr_bmap(super);
+
+	/* Check the checksum of every bitmap block. */
+	for (i = 0; i < count; i++) {
+		void *data;
+		
+		bnode = ba->bitmap + i;
+
+		/* Get the allocator bnode loaded&locked. */
+		if ((res = load_and_lock_bnode(bnode)))
+			return res;
+
+		/* Check CRC */
+		if (check_adler32_jnode(bnode->cjnode, bmap_size(super->s_blocksize))) {
+			warning("vpf-1361", "Checksum for the bitmap block %llu "
+				"is incorrect", bnode->cjnode->blocknr);
+
+			release_and_unlock_bnode(bnode);
+			return -EINVAL;
+		}
+
+		data = jdata(bnode->cjnode) + CHECKSUM_SIZE;
+		
+		/* Check the very first bit -- it must be busy. */
+		if (!reiser4_test_bit(0, data)) {
+			warning("vpf-1362", "The allocator block %llu is not marked as used.",
+				bnode->cjnode->blocknr);
+
+			release_and_unlock_bnode(bnode);
+			return -EINVAL;
+		}
+
+		release_and_unlock_bnode(bnode);
+	}
 
 	return 0;
 }
