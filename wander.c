@@ -996,7 +996,7 @@ reiser4_write_logs(void)
 	get_tx_size(&ch);
 	
 	/* VITALY: Check that flush_reserve is enough. */	
-	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
+	assert("vpf-279", check_atom_reserved_blocks(atom, (__u64)ch.overwrite_set_size));
 
 	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED)))
 		goto up_and_ret;

@@ -836,7 +836,7 @@ atom_try_commit_locked(txn_atom * atom)
 	jnode *first_dirty;	/* a variable for atom's dirty lists scanning */
 
 	assert("umka-190", atom != NULL);
-	assert("jmacd-150", atom->txnh_count == atom->nr_waiters + 1);
+	assert("jmacd-150", atom->txnh_count == (unsigned)atom->nr_waiters + 1);
 	assert("jmacd-151", atom_isopen(atom));
 
 	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current->pid);
@@ -1333,7 +1333,7 @@ again:
 			goto done;
 		}
 
-		if (atom->txnh_count > atom->nr_waiters + 1) {
+		if (atom->txnh_count > (unsigned)atom->nr_waiters + 1) {
 			if (should_wait_commit(txnh)) {
 				atom->nr_waiters++;
 				wait = 1;
@@ -2030,7 +2030,7 @@ jnode_set_dirty(jnode * node)
 			assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 			trace_on(TRACE_RESERVE1, 
 				 "jnode_set_dirty: moving 1 grabbed block to flush reserved. Atom %u: block %llu\n", atom ? atom->atom_id : 0, node->blocknr);
-			grabbed2flush_reserved_nolock(atom, 1);
+			grabbed2flush_reserved_nolock(atom, (__u64)1);
 		}
 
 		if (atom && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
@@ -2277,7 +2277,7 @@ capture_super_block(struct super_block *s)
 	}
 
 	/* Grabbing one block for superblock */
-	if ((result = reiser4_grab_space_force(1, BA_RESERVED)) != 0)
+	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED)) != 0)
 		return result;
 	
 	znode_set_dirty(fake);

@@ -42,9 +42,6 @@
 
 #include <malloc.h>
 
-#include "bitops.h"
-#include "atomic.h"
-
 /* This let's us test with posix locks, thereby allowing use of typedef'd spinlock_t as
  * the lock guarding our condition variables. */
 /*#define KUT_LOCK_POSIX 1*/
@@ -54,7 +51,34 @@
 
 extern void spinlock_bug (const char *msg);
 
+typedef char __s8;
+typedef unsigned char __u8;
+
+typedef short __s16;
+typedef unsigned short __u16;
+
+typedef int __s32;
+typedef unsigned int __u32;
+
+typedef long long __s64;
+typedef unsigned long long __u64;
+
+typedef unsigned umode_t;
+
+#define __cpu_to_le64(x) ((__u64)(x))
+#define __le64_to_cpu(x) ((__u64)(x))
+#define __cpu_to_le32(x) ((__u32)(x))
+#define __le32_to_cpu(x) ((__u32)(x))
+#define __cpu_to_le16(x) ((__u16)(x))
+#define __le16_to_cpu(x) ((__u16)(x))
+
 #define printk printf
+
+#include "debug.h"
+
+#include "bitops.h"
+#include "atomic.h"
+
 
 #include "../tshash.h"
 #include "../reiser4.h"
@@ -69,7 +93,7 @@ extern void spinlock_bug (const char *msg);
 
 #define no_context (0)
 #define current_pname   (__prog_name) /* __libc_argv[ 0 ] */
-#define current->pid     ( ( int ) pthread_self() )
+#define current_pid     ( ( int ) pthread_self() )
 #define UNUSE __attribute__( ( unused ) )
 
 /*
@@ -108,7 +132,15 @@ extern void spinlock_bug (const char *msg);
 #define SLAB_CTOR_ATOMIC	0x002UL	/* tell constructor it can't sleep */
 #define	SLAB_CTOR_VERIFY	0x004UL	/* tell constructor it's a verify call */
 
-#define CURRENT_TIME ( ( __u32 ) time( NULL ) )
+#define CURRENT_TIME				\
+({						\
+	struct timespec foo;			\
+						\
+	foo.tv_sec = time(0);			\
+	foo.tv_nsec = 0;			\
+	foo;					\
+})
+
 #define likely( x ) ( x )
 #define unlikely( x ) ( x )
 #define BUG() do { printf ("BUG! help!\n"); abort (); } while (0)
@@ -164,6 +196,8 @@ void run_##b ()					\
 
 /* from <linux/list.h> */
 
+#define wmb()
+
 /*
  * Simple doubly linked list implementation.
  *
@@ -177,8 +211,6 @@ void run_##b ()					\
 struct list_head {
 	struct list_head *next, *prev;
 };
-
-typedef struct list_head list_t;
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 
@@ -195,9 +227,9 @@ typedef struct list_head list_t;
  * This is only for internal list manipulation where we know
  * the prev/next entries already!
  */
-static __inline__ void __list_add(struct list_head * new,
-	struct list_head * prev,
-	struct list_head * next)
+static inline void __list_add(struct list_head *new,
+			      struct list_head *prev,
+			      struct list_head *next)
 {
 	next->prev = new;
 	new->next = next;
@@ -213,7 +245,7 @@ static __inline__ void __list_add(struct list_head * new,
  * Insert a new entry after the specified head.
  * This is good for implementing stacks.
  */
-static __inline__ void list_add(struct list_head *new, struct list_head *head)
+static inline void list_add(struct list_head *new, struct list_head *head)
 {
 	__list_add(new, head, head->next);
 }
@@ -226,9 +258,52 @@ static __inline__ void list_add(struct list_head *new, struct list_head *head)
  * Insert a new entry before the specified head.
  * This is useful for implementing queues.
  */
-static __inline__ void list_add_tail(struct list_head *new, struct list_head *head)
+static inline void list_add_tail(struct list_head *new, struct list_head *head)
 {
 	__list_add(new, head->prev, head);
+}
+
+/*
+ * Insert a new entry between two known consecutive entries. 
+ *
+ * This is only for internal list manipulation where we know
+ * the prev/next entries already!
+ */
+static __inline__ void __list_add_rcu(struct list_head * new,
+	struct list_head * prev,
+	struct list_head * next)
+{
+	new->next = next;
+	new->prev = prev;
+	wmb();
+	next->prev = new;
+	prev->next = new;
+}
+
+/**
+ * list_add_rcu - add a new entry to rcu-protected list
+ * @new: new entry to be added
+ * @head: list head to add it after
+ *
+ * Insert a new entry after the specified head.
+ * This is good for implementing stacks.
+ */
+static __inline__ void list_add_rcu(struct list_head *new, struct list_head *head)
+{
+	__list_add_rcu(new, head, head->next);
+}
+
+/**
+ * list_add_tail_rcu - add a new entry to rcu-protected list
+ * @new: new entry to be added
+ * @head: list head to add it before
+ *
+ * Insert a new entry before the specified head.
+ * This is useful for implementing queues.
+ */
+static __inline__ void list_add_tail_rcu(struct list_head *new, struct list_head *head)
+{
+	__list_add_rcu(new, head->prev, head);
 }
 
 /*
@@ -238,8 +313,7 @@ static __inline__ void list_add_tail(struct list_head *new, struct list_head *he
  * This is only for internal list manipulation where we know
  * the prev/next entries already!
  */
-static __inline__ void __list_del(struct list_head * prev,
-				  struct list_head * next)
+static inline void __list_del(struct list_head * prev, struct list_head * next)
 {
 	next->prev = prev;
 	prev->next = next;
@@ -248,9 +322,21 @@ static __inline__ void __list_del(struct list_head * prev,
 /**
  * list_del - deletes entry from list.
  * @entry: the element to delete from the list.
- * Note: list_empty on entry does not return true after this, the entry is in an undefined state.
+ * Note: list_empty on entry does not return true after this, the entry is
+ * in an undefined state.
  */
-static __inline__ void list_del(struct list_head *entry)
+static inline void list_del(struct list_head *entry)
+{
+	__list_del(entry->prev, entry->next);
+}
+/**
+ * list_del_rcu - deletes entry from list without re-initialization
+ * @entry: the element to delete from the list.
+ * Note: list_empty on entry does not return true after this, 
+ * the entry is in an undefined state. It is useful for RCU based
+ * lockfree traversal.
+ */
+static inline void list_del_rcu(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
 }
@@ -259,19 +345,56 @@ static __inline__ void list_del(struct list_head *entry)
  * list_del_init - deletes entry from list and reinitialize it.
  * @entry: the element to delete from the list.
  */
-static __inline__ void list_del_init(struct list_head *entry)
+static inline void list_del_init(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
 	INIT_LIST_HEAD(entry); 
 }
 
 /**
+ * list_move - delete from one list and add as another's head
+ * @list: the entry to move
+ * @head: the head that will precede our entry
+ */
+static inline void list_move(struct list_head *list, struct list_head *head)
+{
+        __list_del(list->prev, list->next);
+        list_add(list, head);
+}
+
+/**
+ * list_move_tail - delete from one list and add as another's tail
+ * @list: the entry to move
+ * @head: the head that will follow our entry
+ */
+static inline void list_move_tail(struct list_head *list,
+				  struct list_head *head)
+{
+        __list_del(list->prev, list->next);
+        list_add_tail(list, head);
+}
+
+/**
  * list_empty - tests whether a list is empty
  * @head: the list to test.
  */
-static __inline__ int list_empty(struct list_head *head)
+static inline int list_empty(struct list_head *head)
 {
 	return head->next == head;
+}
+
+static inline void __list_splice(struct list_head *list,
+				 struct list_head *head)
+{
+	struct list_head *first = list->next;
+	struct list_head *last = list->prev;
+	struct list_head *at = head->next;
+
+	first->prev = head;
+	head->next = first;
+
+	last->next = at;
+	at->prev = last;
 }
 
 /**
@@ -279,19 +402,25 @@ static __inline__ int list_empty(struct list_head *head)
  * @list: the new list to add.
  * @head: the place to add it in the first list.
  */
-static __inline__ void list_splice(struct list_head *list, struct list_head *head)
+static inline void list_splice(struct list_head *list, struct list_head *head)
 {
-	struct list_head *first = list->next;
+	if (!list_empty(list))
+		__list_splice(list, head);
+}
 
-	if (first != list) {
-		struct list_head *last = list->prev;
-		struct list_head *at = head->next;
-
-		first->prev = head;
-		head->next = first;
-
-		last->next = at;
-		at->prev = last;
+/**
+ * list_splice_init - join two lists and reinitialise the emptied list.
+ * @list: the new list to add.
+ * @head: the place to add it in the first list.
+ *
+ * The list at @list is reinitialised
+ */
+static inline void list_splice_init(struct list_head *list,
+				    struct list_head *head)
+{
+	if (!list_empty(list)) {
+		__list_splice(list, head);
+		INIT_LIST_HEAD(list);
 	}
 }
 
@@ -302,7 +431,7 @@ static __inline__ void list_splice(struct list_head *list, struct list_head *hea
  * @member:	the name of the list_struct within the struct.
  */
 #define list_entry(ptr, type, member) \
-	((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+	container_of(ptr, type, member)
 
 /**
  * list_for_each	-	iterate over a list
@@ -312,6 +441,28 @@ static __inline__ void list_splice(struct list_head *list, struct list_head *hea
 #define list_for_each(pos, head) \
 	for (pos = (head)->next, prefetch(pos->next); pos != (head); \
         	pos = pos->next, prefetch(pos->next))
+
+/**
+ * __list_for_each	-	iterate over a list
+ * @pos:	the &struct list_head to use as a loop counter.
+ * @head:	the head for your list.
+ *
+ * This variant differs from list_for_each() in that it's the
+ * simplest possible list iteration code, no prefetching is done.
+ * Use this for code that knows the list to be very short (empty
+ * or 1 entry) most of the time.
+ */
+#define __list_for_each(pos, head) \
+	for (pos = (head)->next; pos != (head); pos = pos->next)
+
+/**
+ * list_for_each_prev	-	iterate over a list backwards
+ * @pos:	the &struct list_head to use as a loop counter.
+ * @head:	the head for your list.
+ */
+#define list_for_each_prev(pos, head) \
+	for (pos = (head)->prev, prefetch(pos->prev); pos != (head); \
+        	pos = pos->prev, prefetch(pos->prev))
         	
 /**
  * list_for_each_safe	-	iterate over a list safe against removal of list entry
@@ -322,6 +473,43 @@ static __inline__ void list_splice(struct list_head *list, struct list_head *hea
 #define list_for_each_safe(pos, n, head) \
 	for (pos = (head)->next, n = pos->next; pos != (head); \
 		pos = n, n = pos->next)
+
+/**
+ * list_for_each_entry	-	iterate over list of given type
+ * @pos:	the type * to use as a loop counter.
+ * @head:	the head for your list.
+ * @member:	the name of the list_struct within the struct.
+ */
+#define list_for_each_entry(pos, head, member)				\
+	for (pos = list_entry((head)->next, typeof(*pos), member),	\
+		     prefetch(pos->member.next);			\
+	     &pos->member != (head); 					\
+	     pos = list_entry(pos->member.next, typeof(*pos), member),	\
+		     prefetch(pos->member.next))
+
+/**
+ * list_for_each_rcu	-	iterate over an rcu-protected list
+ * @pos:	the &struct list_head to use as a loop counter.
+ * @head:	the head for your list.
+ */
+#define list_for_each_rcu(pos, head) \
+	for (pos = (head)->next, prefetch(pos->next); pos != (head); \
+        	pos = pos->next, ({ read_barrier_depends(); 0;}), prefetch(pos->next))
+        	
+#define __list_for_each_rcu(pos, head) \
+	for (pos = (head)->next; pos != (head); \
+        	pos = pos->next, ({ read_barrier_depends(); 0;}))
+        	
+/**
+ * list_for_each_safe_rcu	-	iterate over an rcu-protected list safe
+ *					against removal of list entry
+ * @pos:	the &struct list_head to use as a loop counter.
+ * @n:		another &struct list_head to use as temporary storage
+ * @head:	the head for your list.
+ */
+#define list_for_each_safe_rcu(pos, n, head) \
+	for (pos = (head)->next, n = pos->next; pos != (head); \
+		pos = n, ({ read_barrier_depends(); 0;}), n = pos->next)
 
 
 /* end of <linux/list.h> */
@@ -414,11 +602,25 @@ struct vfsmount {
 	struct super_block *mnt_sb;
 };
 
+/*
+ * Track a single file's readahead state
+ */
+struct file_ra_state {
+	unsigned long start;		/* Current window */
+	unsigned long size;
+	unsigned long next_size;	/* Next window size */
+	unsigned long prev_page;	/* Cache last read() position */
+	unsigned long ahead_start;	/* Ahead window */
+	unsigned long ahead_size;
+	unsigned long ra_pages;		/* Maximum readahead window */
+};
+
 struct file {
 	struct list_head	f_list;
 	struct dentry		*f_dentry;
 	struct vfsmount         *f_vfsmnt;
 	struct file_operations	*f_op;
+	struct file_ra_state	f_ra;
 	atomic_t		f_count;
 	unsigned int 		f_flags;
 	mode_t			f_mode;
@@ -507,9 +709,9 @@ struct iattr {
 	uid_t		ia_uid;
 	gid_t		ia_gid;
 	loff_t		ia_size;
-	time_t		ia_atime;
-	time_t		ia_mtime;
-	time_t		ia_ctime;
+	struct timespec	ia_atime;
+	struct timespec ia_mtime;
+	struct timespec ia_ctime;
 	unsigned int	ia_attr_flags;
 };
 
@@ -583,10 +785,29 @@ struct signal_struct {
 	spinlock_t		siglock;
 };
 
+/*
+ * Some file systems need context associated with current thread during
+ * one system call (transaction handle, for example). This context in
+ * attached to current->fs_context.
+ *
+ * As it is possible for file system calls to nest (through quota of VM
+ * call backs), every file system using current->fs_context should store
+ * original ->fs_context value of entrance and restore in on exit.
+ */
+struct fs_activation {
+	/*
+	 * cookie allowing to distinguish file system instances
+	 * (mounts). Usually this is pointer to the super block, but not
+	 * necessary. This is used to tell reentrance.
+	 */
+	void *owner;
+};
+
 struct task_struct {
 	char comm[ 30 ];
 	int   pid;
-	void *fs_context;
+/* info about current file system activation */
+	struct fs_activation *fs_context;
 	__u32         fsuid;
 	__u32         fsgid;
 	int i_am_swapd; /**/
@@ -621,9 +842,7 @@ struct super_block {
 	struct super_operations *s_op;
 	unsigned long s_flags;
 	char * s_id;
-	union {
-		void * generic_sbp;
-	} u;
+	void 			*s_fs_info;	/* Filesystem private info */
 };
 
 struct address_space;
@@ -652,7 +871,8 @@ struct writeback_control {
 	long nr_to_write;		/* Write this many pages, and decrement
 					   this for each page written */
 	unsigned int gfp_mask;
-	int priority;
+	int nonblocking;		/* Don't get stuck on request queues */
+	int encountered_congestion;	/* An output: a queue is full */
 };
 
 
@@ -687,11 +907,27 @@ struct address_space_operations {
 				loff_t offset, size_t count);
 };
 
+enum bdi_state {
+	BDI_pdflush,		/* A pdflush thread is working this device */
+	BDI_write_congested,	/* The write queue is getting full */
+	BDI_read_congested,	/* The read queue is getting full */
+	BDI_write_active,	/* There are one or more queued writes */
+	BDI_read_active,	/* There are one or more queued reads */
+	BDI_unused,		/* Available bits start here */
+};
+
+struct backing_dev_info {
+	unsigned long ra_pages;	/* max readahead in PAGE_CACHE_SIZE units */
+	unsigned long state;	/* Always use atomic bitops on this */
+	int memory_backed;	/* Cannot clean pages with writepage */
+};
+
 
 struct address_space {
 	struct list_head	clean_pages;	/* list of clean pages */
 	struct list_head	dirty_pages;	/* list of dirty pages */
 	struct list_head	locked_pages;	/* list of locked pages */
+	struct list_head	io_pages;	/* list of locked pages */
 	unsigned long		nrpages;	/* number of total pages */
 	struct address_space_operations *a_ops;	/* methods */
 	struct inode		*host;		/* owner: inode, block_device */
@@ -704,6 +940,10 @@ struct address_space {
 	spinlock_t              page_lock;      /* lock protecting
 						 * adding/removing/searching
 						 * pages*/
+	spinlock_t		private_lock;	/* for use by the address_space */
+	struct list_head	private_list;	/* ditto */
+	struct address_space	*assoc_mapping;	/* ditto */
+	struct backing_dev_info *backing_dev_info; /* device readahead, etc */
 };
 
 struct block_device;
@@ -726,9 +966,9 @@ struct inode {
 	gid_t			i_gid;
 	__u16			i_rdev;
 	loff_t			i_size;
-	time_t			i_atime;
-	time_t			i_mtime;
-	time_t			i_ctime;
+	struct timespec		i_atime;
+	struct timespec		i_mtime;
+	struct timespec		i_ctime;
 	unsigned int		i_blkbits;
 	unsigned long		i_blksize;
 	unsigned long		i_blocks;
@@ -1077,7 +1317,9 @@ struct page {
 
 
 void remove_inode_page(struct page *);
-void page_cache_readahead(struct file *file, unsigned long offset);
+void page_cache_readahead(struct address_space *mapping, 
+			  struct file_ra_state *ra,
+			  struct file *filp, unsigned long offset);
 
 
 /* include/linux/pagemap.h */
@@ -1477,9 +1719,9 @@ struct kstat {
         gid_t           gid;
         dev_t           rdev;
         loff_t          size;
-        time_t          atime;
-        time_t          mtime;
-        time_t          ctime;
+	struct timespec		atime;
+	struct timespec		mtime;
+	struct timespec		ctime;
         unsigned long   blksize;
         unsigned long   blocks;
 };
@@ -1489,10 +1731,6 @@ struct kstat {
 
 #define to_kdev_t( x ) ( x )
 #define kdev_t_to_nr( x ) ( x )
-
-#if !REISER4_DEBUG
-/*typedef long long off64_t;*/
-#endif
 
 static inline void init_rwsem( struct rw_semaphore *rwsem )
 {
@@ -1793,6 +2031,145 @@ static inline void clear_page_dirty(struct page *page)
 }
 
 extern void generic_delete_inode(struct inode *inode);
+
+#define in_interrupt() (0)
+#define in_irq() (0)
+#define might_sleep() ((void)(0))
+#define PAGE_OFFSET (0)
+#define current_is_pdflush() (0)
+
+extern void __mark_inode_dirty(struct inode *inode, int flags);
+
+struct mm_struct;
+struct vm_operations_struct;
+
+/*
+ * This struct defines a memory VMM memory area. There is one of these
+ * per VM-area/task.  A VM area is any part of the process virtual memory
+ * space that has a special rule for the page-fault handlers (ie a shared
+ * library, the executable area etc).
+ */
+struct vm_area_struct {
+	struct mm_struct * vm_mm;	/* The address space we belong to. */
+	unsigned long vm_start;		/* Our start address within vm_mm. */
+	unsigned long vm_end;		/* The first byte after our end address
+					   within vm_mm. */
+
+	/* linked list of VM areas per task, sorted by address */
+	struct vm_area_struct *vm_next;
+
+	unsigned long vm_flags;		/* Flags, listed below. */
+
+	/*
+	 * For areas with an address space and backing store,
+	 * one of the address_space->i_mmap{,shared} lists,
+	 * for shm areas, the list of attaches, otherwise unused.
+	 */
+	struct list_head shared;
+
+	/* Function pointers to deal with this struct. */
+	struct vm_operations_struct * vm_ops;
+
+	/* Information about our backing store: */
+	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
+					   units, *not* PAGE_CACHE_SIZE */
+	struct file * vm_file;		/* File we map to (can be NULL). */
+	unsigned long vm_raend;		/* XXX: put full readahead info here. */
+	void * vm_private_data;		/* was vm_pte (shared mem) */
+};
+
+/*
+ * These are the virtual MM functions - opening of an area, closing and
+ * unmapping it (needed to keep files on disk up-to-date etc), pointer
+ * to the functions called when a no-page or a wp-page exception occurs. 
+ */
+struct vm_operations_struct {
+	void (*open)(struct vm_area_struct * area);
+	void (*close)(struct vm_area_struct * area);
+	struct page * (*nopage)(struct vm_area_struct * area, unsigned long address, int unused);
+	int (*populate)(struct vm_area_struct * area, unsigned long address, unsigned long len, unsigned long prot, unsigned long pgoff, int nonblock);
+};
+
+#define BITS_PER_LONG (32)
+
+extern void generic_delete_inode(struct inode *inode);
+extern void generic_forget_inode(struct inode *inode);
+
+#define called_for_sync() (0)
+#define bdi_write_congested(bdi) (0)
+
+#define get_seconds() (time(0))
+
+extern struct page * filemap_nopage(struct vm_area_struct * area, 
+				    unsigned long address, int unused);
+
+extern void __iget(struct inode * inode);
+
+/* ioctl command encoding: 32 bits total, command in lower 16 bits,
+ * size of the parameter structure in the lower 14 bits of the
+ * upper 16 bits.
+ * Encoding the size of the parameter structure in the ioctl request
+ * is useful for catching programs compiled with old versions
+ * and to avoid overwriting user space outside the user buffer area.
+ * The highest 2 bits are reserved for indicating the ``access mode''.
+ * NOTE: This limits the max parameter size to 16kB -1 !
+ */
+
+/*
+ * The following is for compatibility across the various Linux
+ * platforms.  The i386 ioctl numbering scheme doesn't really enforce
+ * a type field.  De facto, however, the top 8 bits of the lower 16
+ * bits are indeed used as a type field, so we might just as well make
+ * this explicit here.  Please be sure to use the decoding macros
+ * below from now on.
+ */
+#define _IOC_NRBITS	8
+#define _IOC_TYPEBITS	8
+#define _IOC_SIZEBITS	14
+#define _IOC_DIRBITS	2
+
+#define _IOC_NRMASK	((1 << _IOC_NRBITS)-1)
+#define _IOC_TYPEMASK	((1 << _IOC_TYPEBITS)-1)
+#define _IOC_SIZEMASK	((1 << _IOC_SIZEBITS)-1)
+#define _IOC_DIRMASK	((1 << _IOC_DIRBITS)-1)
+
+#define _IOC_NRSHIFT	0
+#define _IOC_TYPESHIFT	(_IOC_NRSHIFT+_IOC_NRBITS)
+#define _IOC_SIZESHIFT	(_IOC_TYPESHIFT+_IOC_TYPEBITS)
+#define _IOC_DIRSHIFT	(_IOC_SIZESHIFT+_IOC_SIZEBITS)
+
+/*
+ * Direction bits.
+ */
+#define _IOC_NONE	0U
+#define _IOC_WRITE	1U
+#define _IOC_READ	2U
+
+#define _IOC(dir,type,nr,size) \
+	(((dir)  << _IOC_DIRSHIFT) | \
+	 ((type) << _IOC_TYPESHIFT) | \
+	 ((nr)   << _IOC_NRSHIFT) | \
+	 ((size) << _IOC_SIZESHIFT))
+
+/* used to create numbers */
+#define _IO(type,nr)		_IOC(_IOC_NONE,(type),(nr),0)
+#define _IOR(type,nr,size)	_IOC(_IOC_READ,(type),(nr),sizeof(size))
+#define _IOW(type,nr,size)	_IOC(_IOC_WRITE,(type),(nr),sizeof(size))
+#define _IOWR(type,nr,size)	_IOC(_IOC_READ|_IOC_WRITE,(type),(nr),sizeof(size))
+
+/* used to decode ioctl numbers.. */
+#define _IOC_DIR(nr)		(((nr) >> _IOC_DIRSHIFT) & _IOC_DIRMASK)
+#define _IOC_TYPE(nr)		(((nr) >> _IOC_TYPESHIFT) & _IOC_TYPEMASK)
+#define _IOC_NR(nr)		(((nr) >> _IOC_NRSHIFT) & _IOC_NRMASK)
+#define _IOC_SIZE(nr)		(((nr) >> _IOC_SIZESHIFT) & _IOC_SIZEMASK)
+
+/* ...and for the drivers/sound files... */
+
+#define IOC_IN		(_IOC_WRITE << _IOC_DIRSHIFT)
+#define IOC_OUT		(_IOC_READ << _IOC_DIRSHIFT)
+#define IOC_INOUT	((_IOC_WRITE|_IOC_READ) << _IOC_DIRSHIFT)
+#define IOCSIZE_MASK	(_IOC_SIZEMASK << _IOC_SIZESHIFT)
+#define IOCSIZE_SHIFT	(_IOC_SIZESHIFT)
 
 /* __REISER4_ULEVEL_H__ */
 #endif

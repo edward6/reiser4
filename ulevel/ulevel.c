@@ -7,8 +7,19 @@
  */
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
+#include "ulevel.h"
 #include "../reiser4.h"
+#include "../kcond.h"
+#include "../inode.h"
+#include "../super.h"
+#include "../key.h"
+#include "../dformat.h"
 
+#include "../pool.h"
+#include "../carry.h"
+#include "../carry_ops.h"
+
+#include <pthread.h>
 
 void panic( const char *format, ... )
 {
@@ -487,7 +498,6 @@ struct inode * new_inode (struct super_block * sb)
 	list_add (&inode->i_hash, &inode_hash_list);
 	spin_unlock( &inode_hash_guard );
 
-	spin_lock_init( &reiser4_inode_data( inode ) -> guard );
 	init_rwsem( &reiser4_inode_data( inode ) -> sem );
 	return inode;
 }
@@ -620,7 +630,7 @@ void generic_delete_inode(struct inode *inode)
 	op->destroy_inode (inode);
 }
 
-static void generic_forget_inode(struct inode *inode)
+void generic_forget_inode(struct inode *inode)
 {
 	/* last reference to file is closed, call release */
 	struct file file;
@@ -718,7 +728,6 @@ get_new_inode(struct super_block *sb,
 	if (inode == NULL)
 		return NULL;
 		
-	spin_lock_init( &reiser4_inode_data( inode ) -> guard );
 	init_rwsem( &reiser4_inode_data( inode ) -> sem );
 	if (inode) {
 		struct inode * old;
@@ -1302,10 +1311,10 @@ int reiser4_do_page_cache_readahead (struct file * file,
 				     unsigned long start_page,
 				     unsigned long intrafile_readahead_amount);
 
-void page_cache_readahead (struct file * file, unsigned long offset)
+void page_cache_readahead(struct address_space *mapping, 
+			  struct file_ra_state *ra,
+			  struct file *filp, unsigned long offset)
 {
-	/* do readahead only if reading from the beginning of file */
-		reiser4_do_page_cache_readahead (file, 0, READAHEAD_SIZE);
 }
 
 
@@ -2608,6 +2617,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		reiser4_item_data data;
 		struct {
 			reiser4_stat_data_base base;
+			reiser4_light_weight_stat lw;
 			reiser4_unix_stat      un;
 		} sd;
 		struct inode *f;
@@ -2627,10 +2637,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			info( "_____________%i_____________\n", i );
 			set_key_objectid( &key, ( __u64 ) 1000 + i * 8 );
 
-			cputod16( S_IFREG | 0111, &sd.base.mode );
 			cputod16( 0x0 , &sd.base.extmask );
-			cputod32( 1, &sd.base.nlink );
-			cputod64( 0x283746ull + i, &sd.base.size );
+			cputod16( S_IFREG | 0111, &sd.lw.mode );
+			cputod32( 1, &sd.lw.nlink );
+			cputod64( 0x283746ull + i, &sd.lw.size );
 			cputod32( 201, &sd.un.uid );
 			cputod32( 1, &sd.un.gid );
 			cputod32( ( unsigned ) time( NULL ), &sd.un.atime );
@@ -2672,9 +2682,9 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		f.i_uid = 201;
 		f.i_gid = 201;
 		f.i_size = 1000;
-		f.i_atime = 0;
-		f.i_mtime = 0;
-		f.i_ctime = 0;
+		f.i_atime.tv_sec = 0;
+		f.i_mtime.tv_sec = 0;
+		f.i_ctime.tv_sec = 0;
 		f.i_blkbits = 12;
 		f.i_blksize = 4096;
 		f.i_blocks = 1;
@@ -2687,6 +2697,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		reiser4_item_data data;
 		struct {
 			reiser4_stat_data_base base;
+			reiser4_light_weight_stat lw;
 			reiser4_unix_stat      un;
 		} sd;
 
@@ -2700,10 +2711,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			key_init( &key );
 			set_key_objectid( &key, ( __u64 ) 1000 + i * 8 );
 
-			cputod16( S_IFREG | 0111, &sd.base.mode );
 			cputod16( 0x0 , &sd.base.extmask );
-			cputod32( 1, &sd.base.nlink );
-			cputod64( 0x283746ull + i, &sd.base.size );
+			cputod16( S_IFREG | 0111, &sd.lw.mode );
+			cputod32( 1, &sd.lw.nlink );
+			cputod64( 0x283746ull + i, &sd.lw.size );
 			cputod32( 201, &sd.un.uid );
 			cputod32( 1, &sd.un.gid );
 			cputod32( ( unsigned ) time( NULL ), &sd.un.atime );
@@ -2754,8 +2765,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( d32 );
 		STYPE( d64 );
 		STYPE( d64 );
-		STYPE( carry_op );
-		STYPE( carry_pool );
 		STYPE( carry_level );
 		STYPE( carry_node );
 		STYPE( reiser4_pool_header );
@@ -3562,13 +3571,12 @@ static int bash_mkfs (char * file_name)
 	{
 
 		REISER4_ENTRY( &super );
-		txn_mgr_init( &get_super_private (&super) -> tmgr );
+		txnmgr_init( &get_super_private (&super) -> tmgr );
 
 		/* FIXME-ZAM: bash mkfs does not work if WRITE_LOG is ON, because
 		 * it supplies empty overwrite set (this is unusual) to
 		 * transaction manager, which triggers an error check code in
 		 * the log writer. */
-		WRITE_LOG = 0;
 
 		get_super_private (&super)->df_plug = disk_format_plugin_by_id (TEST_FORMAT_ID);
 
@@ -3664,7 +3672,10 @@ static int bash_mkfs (char * file_name)
 			reiser4_key from;
 			reiser4_key to;
 
-			reiser4_stat_data_base sd;
+			struct {
+				reiser4_stat_data_base base;
+				reiser4_light_weight_stat lw;
+			} sd;
 			reiser4_item_data insert_data;
 			reiser4_key key;
 
@@ -3676,10 +3687,10 @@ static int bash_mkfs (char * file_name)
 
 			/* item body */
 			xmemset( &sd, 0, sizeof sd );
-			cputod16( S_IFDIR | 0111, &sd.mode );
-			cputod16( 0x0 , &sd.extmask );
-			cputod32( 1, &sd.nlink );
-			cputod64( 0ull, &sd.size );
+			cputod16( S_IFDIR | 0111, &sd.lw.mode );
+			cputod16( 0x0 , &sd.base.extmask );
+			cputod32( 1, &sd.lw.nlink );
+			cputod64( 0ull, &sd.lw.size );
 
 			/* data for insertion */
 			insert_data.data = ( char * ) &sd;
@@ -4316,287 +4327,6 @@ sys_lrand (__u32 max)
 	return d % max;
 }
 
-typedef struct {
-	reiser4_stat_data_base base;
-	reiser4_unix_stat      un;
-} jmacd_sd;
-
-static __u32       _jmacd_items = 0;
-static __u32       _jmacd_ops = 0;
-static __u32       _jmacd_ops_done = 0;
-static __u32       _jmacd_items_created = 0;
-static spinlock_t  _jmacd_items_created_lock;
-static spinlock_t  _jmacd_exists_lock;
-static __u8*       _jmacd_exists_map;
-
-void jmacd_key_no (reiser4_key *key, reiser4_key *next_key, jmacd_sd *sd, reiser4_item_data *id, __u64 key_no)
-{
-	key_no *= 8;
-	key_no += 1000;
-	key_init           (key);
-	set_key_objectid   (key, key_no);
-	set_key_locality   (key, ~0ull - getpid());
-
-	if (next_key != NULL) {
-		key_init           (next_key);
-		set_key_objectid   (next_key, key_no + 1);
-		set_key_locality   (next_key, ~0ull - getpid());
-	}
-
-	cputod16( 0, &sd->base.mode );
-	cputod16( 0, &sd->base.extmask );
-	cputod32( 1, &sd->base.nlink );
-	cputod64( 0ULL, &sd->base.size );
-	cputod32( 0, &sd->un.uid );
-	cputod32( 0, &sd->un.gid );
-	cputod32( 0, &sd->un.atime );
-	cputod32( 0, &sd->un.mtime );
-	cputod32( 0, &sd->un.ctime );
-	cputod64( 0ULL, &sd->un.bytes );
-	
-	id->data = ( char * ) sd;
-	id->user = 0;
-	id->length = sizeof (sd->base);
-	id->iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-}
-
-void* monitor_test_handler (void* arg)
-{
-	struct super_block *super = (struct super_block*) arg;
-
-	REISER4_ENTRY_PTR (super);
-
-	for (;;) {
-		sleep (10);
-
-		print_contexts ();
-	}
-
-	REISER4_EXIT_PTR (NULL);
-}
-
-void* build_test_handler (void* arg)
-{
-	struct super_block *super = (struct super_block*) arg;
-	int ret;
-
-	for (;;) {
-		reiser4_item_data      data;
-		lock_handle    lock;
-		jmacd_sd               sd;
-		coord_t            coord;
-		reiser4_key            key;
-		__u32                  count;
-		reiser4_tree          *tree;
-		
-		REISER4_ENTRY_PTR (super);
-
-		tree = & get_super_private (super)->tree;
-		
-		spin_lock (& _jmacd_items_created_lock);
-		if (_jmacd_items_created == _jmacd_items) {
-			spin_unlock      (& _jmacd_items_created_lock);
-			REISER4_EXIT_PTR (NULL);
-		}
-		count = (__u64) _jmacd_items_created ++;
-
-		/* least-key issues... first insert must be serialized. */
-		if (count != 0) {
-			spin_unlock (& _jmacd_items_created_lock);
-		}
-
-		/*if ((count % 100) == 0) {*/
-		info ("_____________%u_____________ thread %u\n", count, (unsigned) pthread_self ());
-		/*}*/
-
-		coord_init_zero (& coord);
-		jmacd_key_no (& key, NULL, & sd, & data, (__u64) count);
-
-	deadlk:
-		init_lh    (& lock);
-		
-		ret = insert_by_key( tree, &key, &data, &coord, &lock, 
-				     LEAF_LEVEL,
-				     ( inter_syscall_rap * )1, 0, CBK_UNIQUE );
-
-		done_lh (& lock);
-
-		/* least-key issues... first insert must be serialized. */
-		if (count == 0) {
-			spin_unlock (& _jmacd_items_created_lock);
-		}
-		
-		if (ret == -EDEADLK) {
-			goto deadlk;
-		}
-
-		if (ret != 0) {
-			reiser4_panic("jmacd-1030", "build insert_by_key failed");
-		}
-
-		if ((ret = __REISER4_EXIT( &__context )) != 0) {
-			reiser4_panic("jmacd-563", "reiser4_exit failed");
-		}
-	}
-
-	return NULL;
-}
-
-void* drive_test_handler (void* arg)
-{
-	struct super_block *super = (struct super_block*) arg;
-	int ret;
-
-	for (;;) {
-		reiser4_item_data      data;
-		lock_handle    lock;
-		jmacd_sd               sd;
-		coord_t             coord;
-		reiser4_key            key, next_key;
-		reiser4_tree          *tree;
-		__u32                  item;
-		__u32                  exists;
-		__u32                  opc;
-		
-		REISER4_ENTRY_PTR (super);
-
-		tree = & get_super_private (super)->tree;
-	again:
-		item = sys_lrand (_jmacd_items);
-
-		if (item == 0) {
-			goto again;
-		}
-
-		spin_lock (& _jmacd_exists_lock);
-		if (_jmacd_ops_done == _jmacd_ops) {
-			spin_unlock (& _jmacd_exists_lock);
-			REISER4_EXIT_PTR (NULL);
-		}
-
-		if ((exists = _jmacd_exists_map[item]) == 0xff) {
-			spin_unlock (& _jmacd_exists_lock);
-			goto again;
-		}
-
-		opc = _jmacd_ops_done ++;
-		_jmacd_exists_map[item] = 0xff;
-		spin_unlock (& _jmacd_exists_lock);
-
-		/*if ((opc % 100) == 0) {*/
-		info ("_____________%u_____________ %s thread %u\n", opc, exists ? "delete" : "insert", (unsigned) pthread_self ());
-		/*}*/
-
-		coord_init_zero (& coord);
-		jmacd_key_no       (& key, & next_key, & sd, & data, (__u64) item);
-
-	deadlk:
-		if (exists == 0) {
-
-			init_lh (& lock);
-
-			ret = insert_by_key( tree, &key, &data, &coord, &lock, 
-					     LEAF_LEVEL,
-					     ( inter_syscall_rap * )1, 0, CBK_UNIQUE );
-
-			done_lh (& lock);
-
-		} else {
-
-			ret = cut_tree (tree, & key, & next_key);
-		}
-
-		if (ret == -EDEADLK) {
-			goto deadlk;
-		}
-
-		if (ret != 0) {
-			reiser4_panic("jmacd-1032", "drive cut_tree failed");
-		}
-
-		spin_lock (& _jmacd_exists_lock);
-		_jmacd_exists_map[item] = ! exists;
-		spin_unlock (& _jmacd_exists_lock);
-		
-		if ((ret = __REISER4_EXIT( &__context )) != 0) {
-			reiser4_panic("jmacd-563", "reiser4_exit failed");
-		}
-	}
-
-	return NULL;
-}
-
-int jmacd_test( int argc UNUSED_ARG,
-		char **argv UNUSED_ARG, 
-		reiser4_tree *tree )
-{
-	__u32 i;
-	struct super_block *super = reiser4_get_current_sb ();
-	__u32               procs;
-	pthread_t          *proc_ids;
-	pthread_t           mon_id;
-	znode *fake;
-	znode *root;
-
-	spin_lock_init (& _jmacd_items_created_lock);
-	spin_lock_init (& _jmacd_exists_lock);
-
-	if (argc != 6) {
-	oops:
-		printf ("usage: a.out jmacd command thread# item# op#\n");
-		abort ();
-	}
-
-	if (strcmp (argv[2], "build") == 0) {
-	} else {
-		goto oops;
-	}
-
-	procs        = atoi (argv[3]);
-	_jmacd_items = atoi (argv[4]);
-	_jmacd_ops   = atoi (argv[5]);
-
-	proc_ids              = xxmalloc (sizeof (pthread_t) * procs);
-	_jmacd_exists_map     = xxmalloc (_jmacd_items);
-
-	for (i = 0; i < _jmacd_items; i += 1) {
-		_jmacd_exists_map[i] = 1;
-	}
-
-	/* These four magic lines are taken from nikita_test, and seem to be
-	 * necessary--maybe they belong somewhere else... */
-	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
-	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block );
-	root -> rd_key = *max_key();
-	sibling_list_insert( root, NULL );
-
-	info ("building tree containing %u items using %u threads\n", _jmacd_items, procs);
-
-	for (i = 0; i < procs; i += 1) {
-		pthread_create (& proc_ids[i], NULL, build_test_handler, super);
-	}
-
-	/*pthread_create (& mon_id, NULL, monitor_test_handler, super);*/
-	(void)mon_id;
-	
-	for (i = 0; i < procs; i += 1) {
-		pthread_join (proc_ids[i], NULL);
-	}
-
-	info ("finished building tree containing %u items\n", _jmacd_items);
-
-	info ("running insert/delete test for %u operations\n", _jmacd_ops);
-
-	for (i = 0; i < procs; i += 1) {
-		pthread_create (& proc_ids[i], NULL, drive_test_handler, super);
-	}
-
-	for (i = 0; i < procs; i += 1) {
-		pthread_join (proc_ids[i], NULL);
-	}
-
-	return 0;
-}
 
 /*****************************************************************************************
  *                                      BITMAP TEST
@@ -4767,10 +4497,6 @@ static tester team[] = {
 		.func = nikita_test
 	},
 	{
-		.name = "jmacd",
-		.func = jmacd_test
-	},
-	{
 		.name = NULL,
 		.func = NULL
 	},
@@ -4861,12 +4587,13 @@ int real_main( int argc, char **argv )
 		bash_test (argc, argv, 0);
 	}
 
+	set_current ();
+
 	e = getenv( "REISER4_MOUNT" );
 	if( e == NULL ) {
 		warning( "nikita-2175", "Set REISER4_MOUNT" );
 		return 0;
 	}
-	set_current ();
 	run_init_reiser4 ();
 	s = call_mount( e, getenv( "REISER4_MOUNT_OPTS" ) ? : "" );
 	if( IS_ERR( s ) ) {
@@ -5313,6 +5040,20 @@ int test_clear_page_dirty(struct page *page)
 		return 1;
 	}
 	return 0;
+}
+
+struct page * filemap_nopage(struct vm_area_struct * area, 
+			     unsigned long address, int unused)
+{
+	return NULL;
+}
+
+/*
+ * inode_lock must be held
+ */
+void __iget(struct inode * inode)
+{
+	atomic_inc(&inode->i_count);
 }
 
 /*

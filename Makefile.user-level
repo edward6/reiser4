@@ -37,7 +37,6 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -pipe \
 	       -W \
 	       -Wall \
-	       -Wid-clash-32 \
 	       -Wpointer-arith \
 	       -Wwrite-strings \
 	       -Wconversion \
@@ -54,6 +53,7 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -Wreorder \
 	       -Wsign-promo
 
+#	       -Wid-clash-32 \
 #	       -Wtraditional \ gcc version 3.0.4 is mad about this
 #	       -Wshadow: forces warnings on int foo(flow *flow);
 #	       -pedantic, -ansi: don't allow macros with variable arguments
@@ -116,7 +116,7 @@ FIND_NON_SCCS	  := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\|\(reiser4lib\)\).*
   #									    #
   ###########################################################################
 
-INCS		:= -I.
+INCS		:= -I. -Iulevel
 SRC		:= \
 		   debug.c \
 		   jnode.c \
@@ -175,10 +175,12 @@ SRC		:= \
 		   lnode.c \
 		   kcond.c \
 		   seal.c \
-		   io_handle.c \
 		   trace.c \
 		   flush_queue.c \
 		   emergency_flush.c \
+		   scint.c \
+		   estimate.c \
+		   ioctl.c \
 		   ktxnmgrd.c
 
 OBJ_DIR     := obj

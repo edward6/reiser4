@@ -127,7 +127,7 @@ static inline void
 coord_invalid_item_pos(coord_t * coord)
 {
 	assert("nikita-2832", coord != NULL);
-	coord->item_pos = ~0;
+	coord->item_pos = (unsigned short)~0;
 	coord_clear_iplug(coord);
 }
 

@@ -516,7 +516,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	reiser4_inode *state;
 
 	assert("nikita-2716", inode != NULL);
-	assert("nikita-2717", (0 <= ext) && (ext < LAST_SD_EXTENSION));
+	assert("nikita-2717", ext < LAST_SD_EXTENSION);
 
 	state = reiser4_inode_data(inode);
 	spin_lock_inode(inode);

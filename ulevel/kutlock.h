@@ -267,12 +267,6 @@ static inline int atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
 	return 0;
 }
 
-static __inline__ void print_spin_lock (const char *prefix, const spinlock_t *s)
-{
-	info ("%s: calls: %u, free: %u, slept: %llu, max sleep: %llu", prefix,
-	      s->_calls, s->_free, s->_sleep, s->_max_sleep);
-}
-
 #else
 
 #error #define KUT_LOCK_SPINLOCK or KUT_LOCK_POSIX
