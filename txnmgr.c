@@ -804,7 +804,7 @@ atom_should_commit (const txn_atom *atom)
 {
 	assert("umka-189", atom != NULL);
 	return 
-		(atom_pointer_count (atom) > get_current_super_private ()->txnmgr.atom_max_size) || 
+		((unsigned)atom_pointer_count (atom) > get_current_super_private ()->txnmgr.atom_max_size) || 
 		atom_is_dotard (atom) || (atom->flags & ATOM_FORCE_COMMIT);
 }
 
@@ -1642,9 +1642,10 @@ txn_try_capture_page  (struct page        *pg,
 
 	jnode *node;
        
-	assert("umka-292", pg != NULL);
+	assert ("umka-292", pg != NULL);
+	assert ("nikita-2597", PageLocked (pg));
 	
-	if ( IS_ERR(node = jnode_of_page (pg))) {
+	if (IS_ERR(node = jnode_of_page (pg))) {
 		return PTR_ERR(node);
 	}
 	
@@ -1654,6 +1655,9 @@ txn_try_capture_page  (struct page        *pg,
 	if (ret == 0) {
 		spin_unlock_jnode (node);
 	}
+	/*
+	 * jput() requires unlocked page
+	 */
 	unlock_page (pg);
 	jput (node);
 	lock_page (pg);
@@ -2066,8 +2070,7 @@ int capture_super_block (struct super_block * s)
 	lock_handle lh;
 
 
-	fake = zget (current_tree, &FAKE_TREE_ADDR,
-		     NULL, 0, GFP_KERNEL);
+	fake = zget (get_tree (s), &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
 	if (IS_ERR (fake))
 		return PTR_ERR (fake);
 
