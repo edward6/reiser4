@@ -362,6 +362,7 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 			reiser4_block_nr block;
 			block = ext_start + reloc_end;
 			jnode_set_block(check, &block);
+			check->parent_item_id = EXTENT_POINTER_ID;
 		}
 
 		if (!relocatable(check)) {
