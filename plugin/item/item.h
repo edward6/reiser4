@@ -251,8 +251,7 @@ typedef struct {
 		       struct page *);
 	int (* read) (struct inode *, new_coord *,
 		      lock_handle *, flow_t *);
-	int (* readpage) (new_coord *,
-			  lock_handle *, struct page *);
+	int (* readpage) (void *, struct page *);
 } file_ops;
 
 

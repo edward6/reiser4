@@ -8,6 +8,16 @@ typedef struct {
 	reiser4_dblock_nr width;
 } reiser4_extent;
 
+/*
+ * this structure is used to pass both coord and lock handle from extent_read
+ * down to extent_readpage via read_cache_page which can deliver to filler only
+ * one parameter specified by its caller
+ */
+struct readpage_arg {
+	new_coord * coord;
+	lock_handle * lh;
+};
+
 
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr extent_get_start(const reiser4_extent *ext)
@@ -99,7 +109,7 @@ int extent_write    (struct inode *, new_coord *, lock_handle *,
 		     flow_t *, struct page *);
 int extent_read     (struct inode *, new_coord *, lock_handle *,
 		     flow_t *);
-int extent_readpage (new_coord *, lock_handle *, struct page * page);
+int extent_readpage (void *, struct page * page);
 
 /* these are used in flush.c
  * FIXME-VS: should they be somewhere in item_plugin? */

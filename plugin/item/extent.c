@@ -1155,7 +1155,8 @@ void extent_get_inode_and_key (const new_coord *item, struct inode **inode, reis
 
 	ino = get_key_objectid (key);
 
-	(*inode) = find_inode (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);
+	*inode = reiser4_iget (reiser4_get_current_sb (), key);
+/*	(*inode) = find_inode (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);*/
 }
 
 /**
@@ -1667,7 +1668,6 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 	/*
 	 * FIXME-VS: remove this when page will may have more than one jnode
 	 */
-	printf ("PAGESIZE=%ld\n", PAGE_CACHE_SIZE);
 	assert ("vs-655", blocksize == PAGE_CACHE_SIZE);
 
 	
@@ -1940,6 +1940,7 @@ static void start_page_read (struct page * page)
 	data = kmap (page);
 	blocks = PAGE_CACHE_SIZE / reiser4_get_current_sb ()->s_blocksize;
 
+	j = jnode_of_page (page);
 	for (i = 0, nr = 0; i < blocks; i ++, j = page_next_jnode (j)) {
 		if (JF_ISSET (j, ZNODE_LOADED))
 			continue;
@@ -1976,15 +1977,6 @@ struct readpage_desc {
 	
 };
 
-/*
- * this structure is used to pass both coord and lock handle from extent_read
- * down to extent_readpage via read_cache_page which can deliver to filler only
- * one parameter specified by its caller
- */
-struct readpage_arg {
-	new_coord * coord;
-	lock_handle * lh;
-};
 
 /*
  * @arg is "readpage descriptor" which contains information about how many page
@@ -2140,7 +2132,7 @@ static int reset_coord (struct page * page,
  * plugin->u.item.s.file.readpage
  * map all buffers of the page and start io if necessary
  */
-int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
+int extent_readpage (void * vp, struct page * page)
 {
 	int result;
 	unsigned blocksize;
@@ -2148,16 +2140,17 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 	struct readpage_arg * arg;
 	jnode * j;
 
-	impossible ("vs-685", "DEBUG ME");
+
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 
+	arg = vp;
 	/* get or create jnode for a page */
 	j = jnode_of_page (page);
 
 	/*
 	 * set arg->coord to extent containing beginning of page
 	 */
-	result = reset_coord (page, coord, lh);
+	result = reset_coord (page, arg->coord, arg->lh);
 	if (result)
 		return result;
 
@@ -2167,7 +2160,7 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 	/*
 	 * go through extents until all buffers are mapped
 	 */
-	result = iterate_tree (current_tree, coord, lh,
+	result = iterate_tree (current_tree, arg->coord, arg->lh,
 			       map_extent, &desc,
 			       ZNODE_READ_LOCK, 1 /* through units */);
 	if (result)
@@ -2191,111 +2184,6 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 }
 
 
-/*
- * do not read more than MAX_READAHEAD pages ahead
- */
-
-/* VS-FIX-HANS: perform a complete review with me of the read ahead code */
-#define MAX_READAHEAD 1000
-
-/*
- * when doing readahead mm/filemap.c:read_cache_page() is called with this
- * function as a filler. The page consists of contiguous blocks. @arg is
- * pointer to block number of first of them
- */
-static int extent_readpage_ahead (void * arg, struct page * page)
-{
-	struct buffer_head *pbhs [MAX_BUF_PER_PAGE];
-	struct buffer_head bhs [MAX_BUF_PER_PAGE];
-	reiser4_block_nr block;
-	unsigned nr;
-	jnode * j, * first;
-	char * data;
-	unsigned long blocksize;
-
-
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
-
-	j = first = jnode_of_page (page);
-
-	data = kmap (page);
-
-	block = *(reiser4_block_nr *)arg;
-	nr = 0;
-	do {
-		jnode_set_block (j, &block);
-		if (JF_ISSET (j, ZNODE_LOADED))
-			continue;
-
-		bhs [nr].b_blocknr = block;
-		bhs [nr].b_size = blocksize;
-		bhs [nr].b_data = data;
-		pbhs [nr] = &bhs [nr];
-		nr ++;
-	} while (block ++, data += blocksize, j = page_next_jnode (j), j != first);
-
-	/* all jnodes of the page have blocknr set */
-	start_page_read (page);
-	return 0;
-}
-
-
-/*
- * @coord is set to extent addressing last block of @page. If this extent is an
- * allocated one we try to use the rest of it to readahead few pages
- */
-static void read_ahead (struct page * page, new_coord * coord)
-{
-	int i;
-	reiser4_block_nr start, can_readahead;
-	int blocks_per_page;
-	struct page * ra_page;
-	reiser4_extent * ext;
-	reiser4_block_nr pos_in_extent, offset;
-
-
-	/*
-	 * item @coord must belong to the file we read
-	 */
-	assert ("vs-392", ({
-		struct inode * inode;
-		inode = page->mapping->host;
-		inode_file_plugin (inode)->owns_item (inode, coord);
-	}));
-	
-	ext = extent_by_coord (coord);
-	if (state_of_extent (ext) != ALLOCATED_EXTENT)
-		return;
-
- 	blocks_per_page = PAGE_SIZE / reiser4_get_current_sb ()->s_blocksize;
-
-	/*
-	 * offset of last block in the page
-	 */
-	offset = ((reiser4_block_nr)page->index << PAGE_CACHE_SHIFT) + PAGE_SIZE - 
-		reiser4_get_current_sb ()->s_blocksize;
-	/*
-	 * position wihin the extent of next block
-	 */
-	pos_in_extent = in_extent (coord, offset) + 1;
-
-	/*
-	 * how many blocks does the rest of extent can we readahead (not looking
-	 * further than current extent)
-	 */
-	can_readahead = ((extent_get_width (ext) - pos_in_extent) >> PAGE_CACHE_SHIFT);
-
-	if (can_readahead > MAX_READAHEAD)
-		can_readahead = MAX_READAHEAD;
-
-	start = extent_get_start (ext) + pos_in_extent;
-
-	for (i = 0; i < (int)can_readahead; i ++, start += blocks_per_page) {
-		ra_page = read_cache_page (page->mapping, page->index + i + 1,
-					   extent_readpage_ahead, &start);
-		page_cache_release (ra_page);
-	}
-}
 
 
 /*
@@ -2323,12 +2211,6 @@ int extent_read (struct inode * inode, new_coord * coord,
 
 	if (IS_ERR (page)) {
 		return PTR_ERR (page);
-	}
-
-	if (!PageUptodate (page)) {
-		/* make some readahead pages of extent we stopped at and start
-		 * reading them */
-		read_ahead (page, arg.coord);
 	}
 
 	wait_on_page_locked (page);

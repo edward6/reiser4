@@ -719,7 +719,8 @@ int zload( znode *node /* znode to load */ )
 
 			/* @data may be not a beginning of page, so calculate
 			 * its beginning */
-			data -= ((*znode_get_block( node ) % (PAGE_CACHE_SIZE / blocksize)) * blocksize);
+			assert( "vs-690", blocksize == PAGE_CACHE_SIZE );
+			/*data -= ((*znode_get_block( node ) % (PAGE_CACHE_SIZE / blocksize)) * blocksize);*/
 			ZJNODE( node ) -> pg =	virt_to_page( data );
 
 			add_d_ref( node );

@@ -165,7 +165,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 	wait_on_page_locked( page );
 	if( !PageUptodate( page ) ) {
 		page_cache_release( page );
-		return result;
+		return -EIO;
 	}
 	/*
 	 * FIXME-VS: to return pointer inside of page via @area we have to kmap
@@ -228,8 +228,8 @@ static struct page * page_by_znode (znode * node)
 	int block_per_page;	
 
 	block_per_page = PAGE_CACHE_SIZE / reiser4_get_current_sb ()->s_blocksize;
-	virt = zdata( node ) - ((*znode_get_block( node ) % block_per_page) *
-				reiser4_get_current_sb ()->s_blocksize);
+	assert ("vs-691", block_per_page == 1);
+	virt = zdata( node );
 	return virt_to_page (virt);
 }
 
