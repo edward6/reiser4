@@ -31,6 +31,9 @@ static aal_list_t *possibilities = NULL;
 
 #include <misc/misc.h>
 
+extern aal_exception_option_t
+    progs_exception_handler(aal_exception_t *exception);
+
 /* This function gets user enter */
 char *progs_ui_readline(
     char *prompt		/* prompt to be printed */
@@ -188,18 +191,32 @@ aal_list_t *progs_ui_get_possibilities(void) {
 
 #endif
 
-static void _init(void) __attribute__((constructor));
+/* Common alpha handler */
+static char *progs_ui_alpha_handler(
+    const char *prompt, char *defvalue, 
+    aal_check_alpha_func_t check_func)
+{
+    char *line;
+    char buff[255];
+    
+    aal_assert("umka-1133", prompt != NULL, return NULL);
+    
+    aal_memset(buff, 0, sizeof(buff));
+    aal_snprintf(buff, sizeof(buff), "%s [%s]: ", prompt, defvalue);
+    
+    while (1) {
+	if (aal_strlen((line = progs_ui_readline(buff))) == 0) 
+	    return defvalue;
 
-static void _init(void) {
-#ifdef HAVE_LIBREADLINE
-    rl_initialize();
-    rl_attempted_completion_function = 
-	(CPPFunction *)progs_ui_complete;
-#endif
+	if (!check_func || check_func(line))
+	    break;
+    }
+    
+    return line; 
 }
 
-/* Common for all progs ui get numeric handler*/
-int64_t progs_ui_numeric_handler(
+/* Common for all progs ui get numeric handler */
+static int64_t progs_ui_numeric_handler(
     const char *prompt, int64_t defvalue, 
     aal_check_numeric_func_t check_func
 ) {
@@ -232,5 +249,19 @@ int64_t progs_ui_numeric_handler(
     }
     
     return value; 
+}
+
+static void _init(void) __attribute__((constructor));
+
+static void _init(void) {
+#ifdef HAVE_LIBREADLINE
+    rl_initialize();
+    rl_attempted_completion_function = 
+	(CPPFunction *)progs_ui_complete;
+#endif
+    
+    aal_exception_set_handler(progs_exception_handler);
+    aal_ui_set_numeric_handler(progs_ui_numeric_handler);
+    aal_ui_set_alpha_handler(progs_ui_alpha_handler);
 }
 

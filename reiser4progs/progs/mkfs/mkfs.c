@@ -56,8 +56,6 @@ static void mkfs_init(void) {
     /* Setting up exception streams*/
     for (i = 0; i < 5; i++)
 	progs_exception_set_stream(i, stderr);
-	
-    aal_exception_set_handler(progs_exception_handler);
 }
 
 /* Crates lost+found directory */

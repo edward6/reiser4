@@ -23,7 +23,8 @@ static void info_print_usage(void) {
 }
 
 static void info_print_plugin(reiser4_plugin_t *plugin) {
-    fprintf(stderr, "0x%x:0x%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
+    fprintf(stderr, "0x%x:0x%x:%s\n(%s)\n\n", 
+	plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
 }
 
 static void info_print_fs(reiser4_fs_t *fs) {
@@ -70,8 +71,6 @@ int main(int argc, char *argv[]) {
 	info_print_usage();
 	return 0xfe;
     }
-    
-    aal_exception_set_handler(progs_exception_handler);
     
     if (libreiser4_init()) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
