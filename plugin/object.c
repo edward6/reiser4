@@ -926,7 +926,7 @@ bind_dir(struct inode *child, struct inode *parent)
 reiser4_internal int
 setattr_reserve_common(reiser4_tree *tree)
 {
-	assert("vs-1096", is_grab_enabled(get_current_context()));
+ 	assert("vs-1096", is_grab_enabled(get_current_context()));
 	return reiser4_grab_space(estimate_one_insert_into_item(tree),
 				  BA_CAN_COMMIT);
 }
@@ -1101,6 +1101,7 @@ process_truncate(struct inode *inode, __u64 size)
 	fplug = inode_file_plugin(inode);
 
 	down(&inode->i_sem);
+	assert("vs-1704", get_current_context()->trans->atom == NULL);
 	result = fplug->setattr(inode, &attr);
 	up(&inode->i_sem);
 
@@ -1115,6 +1116,7 @@ safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
 {
 	int result;
 
+	assert("vs-1705", get_current_context()->trans->atom == NULL);
 	if (link == SAFE_UNLINK)
 		/* nothing to do. iput() in the caller (process_safelink) will
 		 * finish with file */
