@@ -1553,7 +1553,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				    GFP_KERNEL);
 	if (!s->u.generic_sbp) {
-		brelse (super_bh);
 		REISER4_EXIT (-ENOMEM);
 	}
 	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
@@ -1562,6 +1561,12 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	get_super_private (s)->lplug = lplug;
 
 	txn_mgr_init (&get_super_private (s)->tmgr);
+
+	/* initialize fake inode, formatted nodes will be read/written through
+	 * it */
+	result = init_formatted_fake (s);
+	if (result)
+		REISER4_EXIT (result);
 
 	/* call disk format plugin method to do all the preparations like
 	 * journal replay, reiser4_super_info_data initialization, read oid

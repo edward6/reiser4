@@ -181,9 +181,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	xmemset(&private->stats, 0, sizeof (reiser4_stat));
 	/* private->tmgr is initialized already */
 
-	/* init fake inode which will be used to read all the formatted nodes
-	 * into page cache */
-	init_formatted_fake (s);
 
 #if REISER4_DEBUG
 	private->kmalloc_allocated = 0;
