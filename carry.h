@@ -109,19 +109,65 @@ typedef enum {
 } carry_opcode;
 
 typedef enum {
-	COP_MODIFY_FREE_SPACE, /* FIXME_JMACD currently unused -josh */
+	COP_MODIFY_FREE_SPACE = ( 1 << 0 ), /* FIXME_JMACD currently unused
+					     * -josh */
 } cop_modify_flag;
 
+/**
+ * mode (or subtype) of COP_{INSERT|PASTE} operation. Specifies how target
+ * item is determined.
+ */
 typedef enum {
+	/**
+	 * target item is one containing pointer to the ->child node
+	 */
 	COPT_CHILD,
+	/**
+	 * target item is given explicitly by @coord
+	 */
 	COPT_ITEM_DATA,
+	/**
+	 * target item is given by key
+	 */
 	COPT_KEY,
+	/**
+	 * see insert_paste_common() for more comments on this.
+	 */
 	COPT_PASTE_RESTARTED,
 } cop_insert_pos_type;
 
 typedef enum {
+	COPI_DONT_SHIFT_LEFT     = ( 1 << 0 ),
+	COPI_DONT_SHIFT_RIGHT    = ( 1 << 1 ),
+	COPI_DONT_ALLOCATE       = ( 1 << 2 )
+} cop_insert_flag;
+
+typedef enum {
 	DELETE_RETAIN_EMPTY = ( 1 << 0 )
 } cop_delete_flag;
+
+/**
+ * data supplied to COP_{INSERT|PASTE} by callers
+ */
+typedef struct carry_insert_data {
+	/** position where new item is to be inserted */
+	tree_coord          *coord;
+	/** new item description */
+	reiser4_item_data   *data;
+	/** key of new item */
+	const reiser4_key   *key;
+} carry_insert_data;
+
+/**
+ * data supplied to COP_CUT by callers
+ */
+typedef struct carry_cut_data {
+	tree_coord        *from;
+	tree_coord        *to;
+	const reiser4_key *from_key;
+	const reiser4_key *to_key;
+	reiser4_key       *smallest_removed;
+} carry_cut_data;
 
 /** 
  * &carry_tree_op - operation to "carry" upward.
@@ -165,23 +211,21 @@ typedef struct carry_op {
 	carry_node     *node;
 	union {
 		struct {
-			/** position where new item is to be inserted */
-			tree_coord          *coord;
-			cop_insert_pos_type  type;
+			/**
+			 * (sub-)type of insertion/paste. Taken from
+			 * cop_insert_pos_type.
+			 */
+			__u8                 type;
+			/**
+			 * various operation flags. Taken from
+			 * cop_insert_flags.
+			 */
+			__u8                 flags;
+			carry_insert_data   *d;
 			carry_node          *child;
-			/** new item description */
-			reiser4_item_data   *data;
-			/** key of new item */
-			const reiser4_key   *key;
 			znode               *brother;
 		} insert, paste, extent;
-		struct {
-			tree_coord         *from;
-			tree_coord         *to;
-			const reiser4_key   *from_key;
-			const reiser4_key   *to_key;
-			reiser4_key   *smallest_removed;
-		} cut;
+		carry_cut_data *cut;
 		struct {
 			carry_node          *left;
 		} update;

@@ -814,7 +814,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 	carry_op         *op;
 	znode            *node;
 	reiser4_item_data item;
-
+	carry_insert_data cdata;
 
 	reiser4_init_carry_pool( &pool );
 	reiser4_init_carry_level( &todo, &pool );
@@ -834,13 +834,13 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 	op = reiser4_post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
 	if( IS_ERR( op ) )
 		return PTR_ERR( op );
-
-	op -> u.insert.coord = insert_coord;
+	cdata.coord = insert_coord;
+	cdata.key   = key;
+	cdata.data  = &item;
+	op -> u.insert.d = &cdata;
 	op -> u.insert.type = COPT_ITEM_DATA;
 	build_child_ptr_data( node, &item );
 	item.arg = NULL;
-	op -> u.insert.data = &item;
-	op -> u.insert.key = key;
 	/*
 	 * have @insert_coord to be set at inserted item after insertion is
 	 * done

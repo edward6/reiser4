@@ -939,12 +939,8 @@ void *mkdir_thread( void *arg )
 	dentry.d_name.name = dir_name;
 	dentry.d_name.len = strlen( dir_name );
 	SUSPEND_CONTEXT( old_context );
-	if( info -> mkdir )
-		ret = info -> dir -> i_op -> mkdir( info -> dir, 
-						    &dentry, S_IFDIR | 0777 );
-	else
-		ret = info -> dir -> i_op -> create( info -> dir, 
-						     &dentry, S_IFREG | 0777 );
+	ret = info -> dir -> i_op -> mkdir( info -> dir, 
+					    &dentry, S_IFDIR | 0777 );
 	rlog( "nikita-1638", "In directory: %s", dir_name );
 	reiser4_init_context( old_context, info -> dir -> i_sb );
 
@@ -964,7 +960,10 @@ void *mkdir_thread( void *arg )
 		dentry.d_name.name = name;
 		dentry.d_name.len = strlen( name );
 		SUSPEND_CONTEXT( old_context );
-		ret = f -> i_op -> mkdir( f, &dentry, S_IFDIR | 0777 );
+		if( info -> mkdir )
+			ret = f -> i_op -> mkdir( f, &dentry, S_IFDIR | 0777 );
+		else
+			ret = f -> i_op -> create( f, &dentry, S_IFREG | 0777 );
 		reiser4_init_context( old_context, f -> i_sb );
 		info( "(%i) %i: %s/%s: %i\n", current_pid, i, 
 		      dir_name, name, ret );
@@ -1003,6 +1002,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	carry_op   *op;
 	reiser4_key key;
 	tree_coord coord;
+	carry_insert_data cdata;
 	struct file df;
 	struct dentry dd;
 	int i;
@@ -1055,10 +1055,11 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		assert( "nikita-1074", !IS_ERR( op ) && ( op != NULL ) );
 		// fill in remaining fields in @op, according to
 		// carry.h:carry_op
+		cdata.data  = &data;
+		cdata.key   = &key;
+		cdata.coord = &coord;
 		op -> u.insert.type = COPT_ITEM_DATA;
-		op -> u.insert.data = &data;
-		op -> u.insert.key = &key;
-		op -> u.insert.coord = &coord;
+		op -> u.insert.d = &cdata;
 
 		xmemset( &sd, 0, sizeof sd );
 		cputod16( S_IFDIR | 0111, &sd.base.mode );
@@ -1237,6 +1238,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} sd;
 
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
+			carry_insert_data cdata;
+
 			reiser4_init_carry_pool( &pool );
 			reiser4_init_carry_level( &lowest_level, &pool );
 		
@@ -1245,10 +1248,11 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			assert( "nikita-1268", !IS_ERR( op ) && ( op != NULL ) );
 			// fill in remaining fields in @op, according to
 			// carry.h:carry_op
+			cdata.data  = &data;
+			cdata.key   = &key;
+			cdata.coord = &coord;
 			op -> u.insert.type = COPT_ITEM_DATA;
-			op -> u.insert.data = &data;
-			op -> u.insert.key = &key;
-			op -> u.insert.coord = &coord;
+			op -> u.insert.d = &cdata;
 
 			xmemset( &sd, 0, sizeof sd );
 			cputod16( S_IFREG | 0111, &sd.base.mode );
@@ -1426,6 +1430,7 @@ static struct inode * create_root_dir (znode * root)
 		reiser4_stat_data_base base;
 	} sd;
 	int ret;
+	carry_insert_data cdata;
 
 
 	reiser4_init_carry_pool( &pool );
@@ -1436,10 +1441,11 @@ static struct inode * create_root_dir (znode * root)
 	assert( "nikita-1269", !IS_ERR( op ) && ( op != NULL ) );
 	// fill in remaining fields in @op, according to
 	// carry.h:carry_op
+	cdata.data = &data;
+	cdata.key = &key;
+	cdata.coord = &coord;
 	op -> u.insert.type = COPT_ITEM_DATA;
-	op -> u.insert.data = &data;
-	op -> u.insert.key = &key;
-	op -> u.insert.coord = &coord;
+	op -> u.insert.d = &cdata;
 	
 	xmemset( &sd, 0, sizeof sd );
 	cputod16( S_IFDIR | 0111, &sd.base.mode );
@@ -2033,6 +2039,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	/* root directory is the only thing in the tree */
 
+	call_create (root_dir, ".");
 	/* make tree high enough */
 #define NAME_LENGTH 10
 	for (i = 0; tree->height < TWIG_LEVEL ; i ++) {

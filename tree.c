@@ -455,6 +455,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 	carry_pool  pool;
 	carry_level lowest_level;
 	carry_op * op;
+	carry_insert_data cdata;
 
 	reiser4_init_carry_pool( &pool );
 	reiser4_init_carry_level( &lowest_level, &pool );
@@ -462,11 +463,12 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 	op = reiser4_post_carry( &lowest_level, cop, coord->node, 0 );
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
-	op -> u.insert.coord = coord;
+	cdata.coord = coord;
+	cdata.data  = data;
+	cdata.key   = key;
+	op -> u.insert.d = &cdata;
 	op -> u.insert.type = COPT_ITEM_DATA;
 	op -> u.insert.child = 0;
-	op -> u.insert.data = data;
-	op -> u.insert.key = key;
 	op -> node -> track = 1;
 	op -> node -> tracked = lh;
 
@@ -493,6 +495,7 @@ static int paste_with_carry( tree_coord *coord,
 	carry_pool  pool;
 	carry_level lowest_level;
 	carry_op * op;
+	carry_insert_data cdata;
 
 	reiser4_init_carry_pool( &pool );
 	reiser4_init_carry_level( &lowest_level, &pool );
@@ -500,10 +503,11 @@ static int paste_with_carry( tree_coord *coord,
 	op = reiser4_post_carry( &lowest_level, COP_PASTE, coord -> node, 0 );
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
-	op -> u.paste.coord = coord;
+	cdata.coord = coord;
+	cdata.data  = data;
+	cdata.key   = key;
+	op -> u.paste.d = &cdata;
 	op -> u.paste.type  = COPT_ITEM_DATA;
-	op -> u.paste.data  = data;
-	op -> u.paste.key   = key;
 	if( lh != NULL ) {
 		op -> node -> track = 1;
 		op -> node -> tracked = lh;
@@ -1257,7 +1261,7 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	carry_pool  pool;
 	carry_level lowest_level;
 	carry_op * op;
-
+	carry_cut_data cdata;
 
 	assert ("vs-316", !is_empty_node (from->node));
 
@@ -1278,11 +1282,12 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 
-	op->u.cut.from = from;
-	op->u.cut.to = to;
-	op->u.cut.from_key = from_key;
-	op->u.cut.to_key = to_key;
-	op->u.cut.smallest_removed = smallest_removed;
+	cdata.from = from;
+	cdata.to = to;
+	cdata.from_key = from_key;
+	cdata.to_key = to_key;
+	cdata.smallest_removed = smallest_removed;
+	op->u.cut = &cdata;
 
 	result = carry (&lowest_level, 0);
 	reiser4_done_carry_pool( &pool );

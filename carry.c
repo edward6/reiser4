@@ -1405,16 +1405,16 @@ void print_op( const char *prefix, carry_op *op )
 	switch( op -> op ) {
 	case COP_INSERT:
 	case COP_PASTE:
-		print_coord_content( "\tcoord", op -> u.insert.coord );
-		print_key( "\tkey", op -> u.insert.key );
+		print_coord_content( "\tcoord", op -> u.insert.d -> coord );
+		print_key( "\tkey", op -> u.insert.d -> key );
 		print_carry( "\tchild", op -> u.insert.child );
 		break;
 	case COP_DELETE:
 		print_carry( "\tchild", op -> u.delete.child );
 		break;
 	case COP_CUT:
-		print_coord_content( "\tfrom", op -> u.cut.from );
-		print_coord_content( "\tto", op -> u.cut.to );
+		print_coord_content( "\tfrom", op -> u.cut -> from );
+		print_coord_content( "\tto", op -> u.cut -> to );
 		break;
 	case COP_UPDATE:
 		print_carry( "\tleft", op -> u.update.left );
