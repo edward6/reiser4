@@ -99,7 +99,7 @@ typedef enum {
 	TXN_CAPTURE_DONT_FUSE = (1 << 5),
 
 	/* if it is set - copy on capture is allowed */
-	TXN_CAPTURE_CAN_COC = (1 << 6)
+	/*TXN_CAPTURE_CAN_COC = (1 << 6)*/
 
 	    /* This macro selects only the exclusive capture request types, stripping out any
 	       options that were supplied (i.e., NONBLOCKING). */
@@ -439,12 +439,12 @@ extern txn_capture build_capture_mode(jnode           * node,
 				      znode_lock_mode   lock_mode,
 				      txn_capture       flags);
 
-extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
+extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags, int can_coc);
 extern int try_capture_args(jnode * node,
 			    txn_handle * txnh,
 			    znode_lock_mode lock_mode,
 			    txn_capture flags,
-			    int non_blocking, txn_capture cap_mode);
+			    int non_blocking, txn_capture cap_mode, int can_coc);
 
 extern int try_capture_page_to_invalidate(struct page *pg);
 

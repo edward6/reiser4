@@ -325,7 +325,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 				}
 
 				/* Add to the transaction */
-				ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
+				ret = try_capture(node, ZNODE_WRITE_LOCK, 0, 0/* no can_coc */);
 				if (ret)
 					break;
 
@@ -571,7 +571,7 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 			goto out;
 		}
 		/* add node to transaction. */
-		ret = try_capture(check, ZNODE_WRITE_LOCK, 0);
+		ret = try_capture(check, ZNODE_WRITE_LOCK, 0, 0/* no can_coc */);
 		if (ret)
 			goto out;
 		UNDER_SPIN_VOID(jnode, check, jnode_make_dirty_locked(check));

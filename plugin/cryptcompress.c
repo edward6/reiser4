@@ -863,7 +863,7 @@ try_capture_cluster(reiser4_cluster_t * clust, int * num)
 		
 		LOCK_JNODE(node);
 		
-		result = try_capture(node, ZNODE_WRITE_LOCK, 0/* not non-blocking */);
+		result = try_capture(node, ZNODE_WRITE_LOCK, 0/* not non-blocking */, 0 /* no can_coc */);
 		if (result) {
 			UNLOCK_JNODE(node);
 			jput(node);
