@@ -811,7 +811,6 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
 		if (result != 0)
 			break;
 
-		result = RETERR(-EINVAL);
 		if (item_type_by_coord(scan.coord) != DIR_ENTRY_ITEM_TYPE)
 			break;
 		else if (!fplug->owns_item(inode, scan.coord))
