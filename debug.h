@@ -64,12 +64,16 @@
 
 #endif /* REISER4_DEBUG */
 
+#ifndef REISER4_DEBUG_MODIFY
 #define REISER4_DEBUG_MODIFY (0) /* this significantly slows down testing, but we should run
 				* our testsuite through with this every once in a
 				* while. */
+#endif
 
+#ifndef REISER4_DEBUG_MEMCPY
 /** provide our own memcpy/memmove to profile shifts */
 #define REISER4_DEBUG_MEMCPY (0)
+#endif
 
 #ifndef REISER4_DEBUG_NODE
 /** check node content integrity */

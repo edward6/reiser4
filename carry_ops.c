@@ -1363,19 +1363,14 @@ static int carry_cut( carry_op *op /* operation to be performed */,
  * helper function for carry_paste(): returns true if @op can be continued as
  * paste 
  */
-static int can_paste( carry_op *op /* carry operation to check */,
-		      coord_t *icoord, const reiser4_key *key,
+static int can_paste( coord_t *icoord, const reiser4_key *key,
 		      const reiser4_item_data *data )
 {
-	/*coord_t *icoord;*/
 	coord_t  circa;
 	item_plugin *new_iplug;
 	item_plugin *old_iplug;
-	/*const reiser4_key *key;
-	  reiser4_item_data *data;*/
 	int result;
 
-	/*icoord = op -> u.insert.d -> coord;*/
 	assert( "nikita-2512", icoord -> between != AT_UNIT );
 
 	/*
@@ -1392,8 +1387,6 @@ static int can_paste( carry_op *op /* carry operation to check */,
 	coord_dup( &circa, icoord );
 	circa.between = AT_UNIT;
 
-	/*key = op -> u.insert.d -> key;
-	  data = op -> u.insert.d -> data;*/
 	old_iplug = item_plugin_by_coord( &circa );
 	new_iplug  = data -> iplug;
 
@@ -1509,7 +1502,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	if( !can_paste( op, op -> u.insert.d -> coord, op -> u.insert.d -> key,
+	if( !can_paste( op -> u.insert.d -> coord, op -> u.insert.d -> key,
 			op -> u.insert.d -> data ) ) {
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;

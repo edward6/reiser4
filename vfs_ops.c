@@ -2099,8 +2099,8 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 
 		/* account for spin_lock_jnode() above */
 		if( REISER4_DEBUG && get_current_context() == &__context ) {
-			++ lock_counters() -> spin_locked_jnode;
-			++ lock_counters() -> spin_locked;
+			ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_jnode );
+			ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );
 		}
 
 		jref( node );
