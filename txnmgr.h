@@ -508,7 +508,7 @@ void print_atom(const char *prefix, txn_atom * atom);
 void info_atom(const char *prefix, txn_atom * atom);
 #else
 #define       print_atom(p,a) noop
-#define       ifno_atom(p,a) noop
+#define       info_atom(p,a) noop
 #endif
 
 # endif				/* __REISER4_TXNMGR_H__ */
