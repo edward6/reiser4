@@ -103,6 +103,9 @@ Reiser4 introduces following locks:
 38. Per-super-block zgen lock, protecting znode generation      (zgen*)
     counter
 
+39. Per-jnode spin lock used to synchronize jload() with        (jload_lock*)
+    ->releasepage().
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -323,6 +326,7 @@ i_sem
 ................................cbk_guard
 ................................epoch_lock
 ................................zgen_lock
+..........................jload_lock
 ....................mm->page_table_lock
 ......................mapping->private_lock
 ........................swaplock
@@ -506,6 +510,10 @@ atom->stack_lock
 txnh->stack_lock
 
     check_not_fused_lock_owners()
+
+jnode_lock->jload_lock
+
+    reiser4_releasepage(). But this can actually be made other way around.
 
 ----------------------------------DEADLOCKS-------------------------------------
 

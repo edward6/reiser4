@@ -99,6 +99,7 @@ subgraph spin {
 	RSPIN(stack_lock);
 	RSPIN(zlock);
 	RSPIN(fq_lock);
+	RSPIN(jload_lock);
 
 	//RSPIN(stack_lock);
 	//RSPIN(super_guard);
@@ -267,5 +268,5 @@ ARC(mm_page_table_lock, zone_lock, "try_to_unmap_one()"); // get_user_pages, do_
 ARC(mm_page_table_lock, zone_lru_lock, "try_to_unmap_one()"); // get_user_pages, do_wp_page, do_anonymous_page, do_no_page
 ARC(jnode_lock, zone_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
 ARC(jnode_lock, zone_lru_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
-
+ARC(jnode_lock, jload_lock, "reiser4_releasepage()");
 }

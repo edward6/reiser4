@@ -67,6 +67,8 @@
 #define __ODC ON_DEBUG_CONTEXT
 #define __ODCA(l, e) __ODC(assert(l, e))
 
+#define REISER4_LOCKPROF_OBJECTS (0)
+
 #if REISER4_LOCKPROF
 
 /*
@@ -188,6 +190,12 @@ extern struct profregion pregion_rw_ ## NAME ## _w_held;	\
 extern struct profregion pregion_rw_ ## NAME ## _r_trying;	\
 extern struct profregion pregion_rw_ ## NAME ## _w_trying;
 
+#if REISER4_LOCKPROF_OBJECTS
+#define OBJCNT(field) field
+#else
+#define OBJCNT(field) (NULL)
+#endif
+
 /*
  * Helper macros to enter and leave profiling regions.
  */
@@ -198,10 +206,10 @@ extern struct profregion pregion_rw_ ## NAME ## _w_trying;
 #define PUTCPU(cpu) put_cpu()
 
 #define PREG_IN(cpu, preg, objloc, codeloc)				\
-	profregion_in(cpu, preg, objloc, codeloc)
+	profregion_in(cpu, preg, OBJCNT(objloc), codeloc)
 
 #define PREG_REPLACE(cpu, preg, objloc, codeloc)			\
-	profregion_replace(cpu, preg, objloc, codeloc)
+	profregion_replace(cpu, preg, OBJCNT(objloc), codeloc)
 
 #define PREG_EX(cpu, preg) profregion_ex(cpu, preg)
 
@@ -251,7 +259,7 @@ static inline void unregister_ ## aname ## _profregion(void)	\
 typedef struct reiser4_spin_data {
 	/* spin lock proper */
 	spinlock_t lock;
-#if REISER4_LOCKPROF
+#if REISER4_LOCKPROF && REISER4_LOCKPROF_OBJECTS
 	/* number of times clock interrupt found spin lock of this objects to
 	 * be held */
 	int        held;
@@ -267,7 +275,7 @@ typedef struct reiser4_spin_data {
 typedef struct reiser4_rw_data {
 	/* read write lock proper */
 	rwlock_t lock;
-#if REISER4_LOCKPROF
+#if REISER4_LOCKPROF && REISER4_LOCKPROF_OBJECTS
 	/* number of times clock interrupt found read write lock of this
 	 * objects to be read held */
 	int      r_held;
@@ -707,6 +715,14 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	spin_lock_jnode_at(node, &__hits_t, &__hits_h);	\
 })
 
+#define LOCK_JLOAD(node)				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	spin_lock_jload_at(node, &__hits_t, &__hits_h);	\
+})
+
 #define LOCK_ATOM(atom)					\
 ({							\
 	LOCKSITE_INIT(__hits_t);			\
@@ -774,6 +790,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 
 #else
 #define LOCK_JNODE(node) spin_lock_jnode(node)
+#define LOCK_JLOAD(node) spin_lock_jload(node)
 #define LOCK_ATOM(atom) spin_lock_atom(atom)
 #define LOCK_TXNH(txnh) spin_lock_txnh(txnh)
 #define LOCK_ZLOCK(lock) spin_lock_zlock(lock)
@@ -785,6 +802,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 #endif
 
 #define UNLOCK_JNODE(node) spin_unlock_jnode(node)
+#define UNLOCK_JLOAD(node) spin_unlock_jload(node)
 #define UNLOCK_ATOM(atom) spin_unlock_atom(atom)
 #define UNLOCK_TXNH(txnh) spin_unlock_txnh(txnh)
 #define UNLOCK_ZLOCK(lock) spin_unlock_zlock(lock)
