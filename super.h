@@ -215,7 +215,7 @@ perm_plugin *default_perm_plugin( const struct super_block *super );
 tail_plugin *default_tail_plugin( const struct super_block *super );
 item_plugin *default_sd_plugin( const struct super_block *super );
 item_plugin *default_dir_item_plugin( const struct super_block *super );
-void print_fs_info (const struct super_block *);
+void print_fs_info (const char *prefix, const struct super_block *);
 
 int default_read_node (const reiser4_block_nr *addr, char **data,
 		       size_t blocksize);

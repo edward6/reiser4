@@ -328,7 +328,7 @@ typedef struct oid_allocator_plugin {
 	/* how many pages to reserve in transaction for freeing of an
 	   objectid */
 	int ( *oid_reserve_release )( reiser4_oid_allocator *map );
-	void ( *print_info )( reiser4_oid_allocator * );
+	void ( *print_info )( const char *, reiser4_oid_allocator * );
 } oid_allocator_plugin;
 
 /* this plugin contains method to allocate and deallocate free space of disk */
@@ -344,7 +344,7 @@ typedef struct space_allocator_plugin {
 			       reiser4_block_nr *start, reiser4_block_nr *len );
 	void ( *dealloc_blocks )( reiser4_space_allocator *,
 				  reiser4_block_nr start, reiser4_block_nr len );
-	void ( *print_info )( reiser4_space_allocator * );
+	void ( *print_info )( const char *, reiser4_space_allocator * );
 
 	/* program hooks from journal code */
 	void ( *pre_commit_hook      )( void );

@@ -106,8 +106,9 @@ void indent_znode( const znode *node /* current node */ )
 /**
  * debugging aid: output human readable information about @node
  */
-void print_znode_content( const znode *node /* node to print */, 
-			  __u32 flags /* print flags */ )
+void print_node_content( const char *prefix /* output prefix */, 
+			 const znode *node /* node to print */, 
+			 __u32 flags /* print flags */ )
 {
 	unsigned i;
 	coord_t coord;
@@ -122,7 +123,7 @@ void print_znode_content( const znode *node /* node to print */,
 	if( ( flags & REISER4_NODE_PRINT_HEADER ) &&
 	    ( node_plugin_by_node( node ) -> print != NULL ) ) {
 		indent_znode (node);
-		node_plugin_by_node( node ) -> print( node, flags );
+		node_plugin_by_node( node ) -> print( prefix, node, flags );
 
 		indent_znode (node);
 		print_key ("LDKEY", &node->ld_key);
@@ -207,7 +208,7 @@ void node_check( const znode *node /* node to check */,
 	if( ( node_plugin_by_node( node ) -> check ) &&
 	    node_plugin_by_node( node ) -> check( node, flags, &mes ) ) {
 		info( "%s\n", mes );
-		print_znode_content( node, ~0u );
+		print_node_content( "check", node, ~0u );
 		if( flags & REISER4_NODE_PANIC )
 			rpanic( "vs-273", "node corrupted" );
 	}

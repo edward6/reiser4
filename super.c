@@ -450,7 +450,7 @@ item_plugin *default_dir_item_plugin( const struct super_block *super UNUSED_ARG
 	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
 }
 
-void print_fs_info (const struct super_block * s)
+void print_fs_info (const char *prefix, const struct super_block * s)
 {
 	reiser4_super_info_data * private;
 
@@ -460,9 +460,9 @@ void print_fs_info (const struct super_block * s)
 	info ("root block: %lli\ntree height: %i\n",
 	      private->tree.root_block, private->tree.height);
 	if (private->space_plug->print_info)
-		private->space_plug->print_info (get_space_allocator (s));
+		private->space_plug->print_info (prefix, get_space_allocator (s));
 	if (private->oid_plug->print_info)
-		private->oid_plug->print_info (get_oid_allocator (s));
+		private->oid_plug->print_info (prefix, get_oid_allocator (s));
 }
 
 #if REISER4_DEBUG

@@ -937,25 +937,25 @@ static void invalidate_pages (void)
 	spin_unlock( &page_list_guard );
 }
 
-void print_pages (void)
+void print_pages (const char *prefix)
 {
 	struct page *  tmp;
 	struct page *  page;
 	struct page ** bucket;
 
 	for_all_in_htable( &page_htable, bucket, page, tmp, link )
-		print_page( page );
+		print_page( prefix, page );
 }
 
 
-void print_inodes (void)
+void print_inodes (const char *prefix)
 {
 	struct list_head * cur;
 	struct inode * inode;
 
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
-		print_inode ("", inode);
+		print_inode (prefix, inode);
 	}
 }
 
@@ -1761,9 +1761,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) &&
 		    ( ret != -EINTR ) )
 			rpanic( "nikita-1493", "!!!" );
-		/* print_tree_rec( "tree", tree, 
-		   REISER4_NODE_PRINT_ZNODE ); */
-	  
+
 		if( info -> sleep && ( lc_rand_max( 10ull ) < 2 ) ) {
 			delay.tv_sec  = 0;
 			delay.tv_nsec = lc_rand_max( 1000000000ull );
@@ -2063,8 +2061,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			mkdir_thread( &info );
 
 		call_readdir( f, argv[ 2 ] );
-		print_tree_rec( "tree-dir", tree, 
-				REISER4_NODE_CHECK | REISER4_NODE_ONLY_INCORE | REISER4_NODE_SILENT );
+		print_tree_rec( "tree-dir", tree, REISER4_TREE_CHECK );
 	} else if( !strcmp( argv[ 2 ], "queue" ) ) {
 		/*
 		 * a.out nikita queue T C O | egrep '^queue' | cut -f2 -d' '
@@ -2162,16 +2159,12 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
-			/* print_pbk_cache( "pbk", tree -> pbk_cache ); */
-			/* print_tree( "tree", tree ); */
 			info( "____end______%i_____________\n", i );
 
 			done_lh( &lh );
 
 		}
-		print_tree_rec( "tree:ibk", tree, 
-				REISER4_NODE_CHECK | REISER4_NODE_ONLY_INCORE );
-		/* print_tree_rec( "tree", tree, ~0u ); */
+		print_tree_rec( "tree:ibk", tree, REISER4_TREE_CHECK );
 	} else if( !strcmp( argv[ 2 ], "inode" ) ) {
 		struct inode f;
 		xmemset( &f, 0, sizeof f );
@@ -2239,15 +2232,13 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
-			/* print_pbk_cache( "pbk", tree -> pbk_cache ); */
-			/* print_tree( "tree", tree ); */
 			info( "____end______%i_____________\n", i );
 
 			done_lh( &lh );
 		}
 		ret = cut_tree( tree, min_key(), max_key() );
 		printf( "result: %i\n", ret );
-		print_tree_rec( "tree:cut", tree, ~0u );
+		print_tree_rec( "tree:cut", tree, REISER4_TREE_VERBOSE );
 	} else if( !strcmp( argv[ 2 ], "sizeof" ) ) {
 		STYPE( reiser4_key );
 		STYPE( reiser4_tree );
@@ -2717,8 +2708,7 @@ static int copy_dir (struct inode * dir)
 		}
 		/*
 		sprintf (label, "TREE%d", i ++);
-		print_tree_rec (label, tree_by_inode (dir), REISER4_NODE_PRINT_HEADER |
-				REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
+		print_tree_rec (label, tree_by_inode (dir), REISER4_TREE_VERBOSE);
 		*/
 	}
 
@@ -3256,7 +3246,7 @@ static int bash_mkfs (const char * file_name)
 
 		}
 
-		/*print_tree_rec ("mkfs", tree, REISER4_NODE_PRINT_ALL);*/
+		/*print_tree_rec ("mkfs", tree, REISER4_TREE_VERBOSE);*/
 
 		result = __REISER4_EXIT( &__context );
 		call_umount (&super);
@@ -3720,10 +3710,10 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			 */
 			if (!strncmp (command, "pp", 2)) {
 				print_tree_rec ("DONE", tree_by_inode (cwd),
-						REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_ZADDR & ~REISER4_NODE_SILENT & ~REISER4_NODE_ONLY_INCORE);
+						REISER4_TREE_VERBOSE & ~REISER4_NODE_ONLY_INCORE);
 			} else {
 				print_tree_rec ("DONE", tree_by_inode (cwd),
-						REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE & ~REISER4_NODE_PRINT_ZADDR);
+						REISER4_TREE_VERBOSE);
 			}
 			__REISER4_EXIT (&__context);
 		} else if (!strncmp (command, "info", 1)) {

@@ -36,9 +36,9 @@ static int never_ever_ ## op ( void )						\
 
 
 #if REISER4_DEBUG
-extern void print_page( struct page *page );
+extern void print_page( const char *prefix, struct page *page );
 #else
-#define print_page( p ) noop
+#define print_page( prf, p ) noop
 #endif
 
 /* __REISER4_PAGE_CACHE_H__ */

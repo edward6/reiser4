@@ -484,7 +484,7 @@ static int formatted_invalidatepage( struct page *page /* page to write */,
 								      *  offset */ )
 {
 	warning( "nikita-2129", "Shouldn't happen" );
-	print_page( page );
+	print_page( __FUNCTION__, page );
 	return 0;
 }
 
@@ -534,7 +534,7 @@ static struct bio *page_bio( struct page *page, int gfp )
 		int                 blksz;
 		struct super_block *super;
 
-		trace_if( TRACE_BUG, print_page( page ) );
+		trace_if( TRACE_BUG, print_page( __FUNCTION__, page ) );
 
 		assert( "nikita-2172", jprivate( page ) != NULL );
 		node = jprivate( page );
@@ -632,14 +632,14 @@ node_operations page_cache_tops = {
 #define page_flag_name( page, flag )			\
 	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
 
-void print_page( struct page *page )
+void print_page( const char *prefix, struct page *page )
 {
 	if( page == NULL ) {
 		info( "null page\n" );
 		return;
 	}
-	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
-	      page -> index, page -> virtual, page -> mapping, 
+	info( "%s: page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
+	      prefix, page -> index, page -> virtual, page -> mapping, 
 	      atomic_read( &page -> count ), page -> private );
 	info( "\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	      page_flag_name( page,  PG_locked ),

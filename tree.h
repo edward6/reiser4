@@ -349,12 +349,10 @@ extern void cbk_cache_invalidate( const znode *node );
 extern void cbk_cache_add( znode *node );
 
 #if REISER4_DEBUG
-extern void print_tree( const char *prefix, reiser4_tree *tree, __u32 flags );
 extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
 extern void print_cbk_slot( const char *prefix, cbk_cache_slot *slot );
 extern void print_cbk_cache( const char *prefix, cbk_cache  *cache );
 #else
-#define print_tree( p, t, f ) noop
 #define print_tree_rec( p, f, t ) noop
 #define print_cbk_slot( p, s ) noop
 #define print_cbk_cache( p, c ) noop

@@ -183,7 +183,7 @@ static void print_test_disk_sb (const char * mes,
 void test_layout_print_info (struct super_block * s)
 {
 	/* print filesystem information common to all layouts */
-	print_fs_info (s);
+	print_fs_info ("test layout", s);
 
 	/* print some info from test layout specific part of reiser4
 	 * private super block */
