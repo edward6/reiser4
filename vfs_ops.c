@@ -1929,12 +1929,14 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 
 		assert( "nikita-2264", !jnode_is_dirty( node ) );
 		if( node -> atom == NULL ) {
-			assert( "nikita-2262", page_count( page ) == 3 );
 			/*
 			 * page is free-able: one reference from page cache
-			 * itself and another from ->private field. (Third
-			 * reference is temporary acquired by shrink_cache().)
+			 * itself and another from ->private field(Third
+			 * reference is temporary acquired by
+			 * shrink_cache(). Jnode could be detached already, so
+			 * there could be only 2 references to this page.
 			 */
+			assert( "nikita-2262", page_count( page ) >= 2 );
 			page_detach_jnode( page );
 			assert( "nikita-2261", page_count( page ) == 2 );
 
