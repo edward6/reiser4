@@ -218,8 +218,8 @@ int reiser4_bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_le
 
 #define WALK_ATOM                                             \
         for (h = 0; h < REAL_MAX_ZTREE_HEIGHT; h ++)          \
-        for (node = capture_list_front(&atom->dirty_nodes[h]; \
-             capture_list_end(&atom->dirty_nodes[h];          \
+        for (node = capture_list_front(&atom->dirty_nodes[h]); \
+             capture_list_end(&atom->dirty_nodes[h]);          \
              node = capture_list_next(node))
 
 /*
