@@ -444,7 +444,7 @@ assignment          :  Object_Name L_ASSIGN       Expression           /*  <-  d
 
 
 Expression          : Object_Name
-                    | '(' assignment ')'
+                    | '(' assignment ')'                               /*  this expresion has value same as target of assigne       */
                     | Constant
                     | Expression '+' Expression
                     | Expression EQ Expression
@@ -468,8 +468,8 @@ Then_Else           : THEN operation
 
 /* Object name begin */
 Object_Name         : Object_Path_Name 
-                    | Ordering                                                                         /* name eq vova  */
-                    | '[' Unordered_list ']'                                                            /* [name1 name2 [name3]]  */
+/*                    | Ordering                                                                         /* name eq vova  */
+                    | '[' Unordered_list ']'                                                            /* gruping: [name1 name2 [name3]]  */
 ;
 
 Unordered_list      : Object_Name
@@ -509,8 +509,12 @@ range               : OFFSET  L_ASSIGN N_WORD                                   
 /*                    | LINES                                                                       /*p_units<-lines*/
 ;
 
-
+/* 
 Ordering            : Expression SLASH Expression
+*/
+
+
+
 
 pattern             : pattern '~' pattern               {}
                     | PATTERN
