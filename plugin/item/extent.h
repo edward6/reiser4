@@ -101,7 +101,9 @@ int           extent_utmost_child_real_block ( const coord_t  *coord,
 					       reiser4_block_nr  *block );
 reiser4_key * extent_max_key            (const coord_t * coord, 
 					 reiser4_key * key);
-int           extent_key_in_coord       ( const coord_t *coord,
+int           extent_key_in_item        ( coord_t *coord,
+					  const reiser4_key *key );
+int           extent_key_in_unit        ( const coord_t *coord,
 					  const reiser4_key *key );
 
 /*
