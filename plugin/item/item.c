@@ -25,19 +25,30 @@ item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 	assert("nikita-324", coord != NULL);
 	assert("nikita-325", coord->node != NULL);
 	assert("nikita-326", znode_is_loaded(coord->node));
-	assert("nikita-3200", coord->body == NULL);
+	assert("nikita-3200", coord->offset == INVALID_OFFSET);
 	trace_stamp(TRACE_TREE);
 
-	coord->body = node_plugin_by_node(coord->node)->item_by_coord(coord);
+	coord->offset = node_plugin_by_node(coord->node)->item_by_coord(coord) - zdata(coord->node);
 	ON_DEBUG(coord->body_v = coord->node->times_locked);
 }
 
-reiser4_internal int item_body_is_valid(const coord_t * coord)
+reiser4_internal void *
+item_body_by_coord_easy(const coord_t * coord /* coord to query */ )
+{
+	return zdata(coord->node) + coord->offset;
+}
+
+#if REISER4_DEBUG
+
+reiser4_internal int
+item_body_is_valid(const coord_t * coord)
 {
 	return
-		coord->body ==
-		node_plugin_by_node(coord->node)->item_by_coord(coord);
+		coord->offset ==
+		node_plugin_by_node(coord->node)->item_by_coord(coord) - zdata(coord->node);
 }
+
+#endif
 
 /* return length of item at @coord */
 reiser4_internal pos_in_node_t
