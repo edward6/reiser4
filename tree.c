@@ -1120,8 +1120,10 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 
 	assert ("vs-316", !node_is_empty (from->node));
 
-	if (coord_eq (from, to))
+	if (coord_eq (from, to) && !coord_of_unit (from)) {
+		assert ("nikita-1812", !coord_of_unit (to));
 		return 0;
+	}
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
 	if (coord_set_to_right (from) || coord_set_to_left (to))
@@ -1221,6 +1223,10 @@ int cut_tree (reiser4_tree * tree,
 			/* -EIO, or something like that */
 			break;
 
+		if (coord_eq (&intranode_from, &intranode_to) && 
+		    !coord_of_unit (&intranode_from))
+			/* nothing to cut */
+			break;
 		/* cut data from one node */
 		smallest_removed = *min_key ();
 		result = cut_node (&intranode_from,
@@ -1231,8 +1237,8 @@ int cut_tree (reiser4_tree * tree,
 				   from_key, to_key, &smallest_removed, 0/*flags*/);
 		if (result)
 			break;
-		assert ("vs-301",
-			keycmp (&smallest_removed, min_key ()) != EQUAL_TO);
+		assert ("vs-301", keycmp (&smallest_removed, 
+					  min_key ()) != EQUAL_TO);
 	} while (keycmp (&smallest_removed, from_key) == GREATER_THAN);
 
 	reiser4_done_coord (&intranode_to);
