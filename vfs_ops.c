@@ -1703,7 +1703,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	
 	if (REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
 	    REISER4_STATS || REISER4_DEBUG_MEMCPY)
-		warning ("nikita-2372", "Debugging is on. Happy benchmarking.");
+		warning ("nikita-2372", "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
 	 * specific part of info can be attached to, though */
