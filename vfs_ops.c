@@ -64,6 +64,7 @@ static int reiser4_statfs(struct super_block *, struct statfs *);
 static void reiser4_kill_super(struct super_block *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
+static void reiser4_sync_inodes(struct super_block *s, struct writeback_control * wbc);
 #if 0
 static void reiser4_dirty_inode(struct inode *);
 static void reiser4_write_inode(struct inode *, int);
@@ -552,6 +553,54 @@ reiser4_drop_inode(struct inode *object)
 		(void)reiser4_exit_context(&ctx);
 	} else
 		generic_forget_inode(object);
+}
+
+static void
+writeout(struct super_block *sb, struct writeback_control *wbc)
+{
+	/* reiser4 has its own means of periodical write-out */
+	if (wbc->for_kupdate)
+		return;
+
+	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
+	   sys_fsync(). */
+	/* FIXME: This way to support fsync is too expensive. Proper solution
+	   support is to commit only atoms which contain dirty pages from given
+	   address space. */
+	if (wbc->sync_mode != WB_SYNC_NONE)
+		txnmgr_force_commit_all(sb);
+
+	do {
+		long nr_submitted = 0;
+
+#if 0
+		/* do not put more requests to overload write queue */
+		if (wbc->nonblocking && 
+		    bdi_write_congested(mapping->backing_dev_info)) {
+			blk_run_queues();
+			wbc->encountered_congestion = 1;
+			break;
+		}
+#endif
+		flush_some_atom(&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+		if (!nr_submitted)
+			break;
+
+		wbc->nr_to_write -= nr_submitted;
+	} while (0);
+}
+
+static void
+reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
+{
+	reiser4_context ctx;
+
+	init_context(&ctx, sb);
+	generic_sync_sb_inodes(sb, wbc);
+	spin_unlock(&inode_lock);
+	writeout(sb, wbc);
+	spin_lock(&inode_lock);
+	(void)reiser4_exit_context(&ctx);
 }
 
 /* ->delete_inode() super operation */
@@ -1641,7 +1690,8 @@ struct super_operations reiser4_super_operations = {
 /* 	.umount_begin       = reiser4_umount_begin,*/
 /* 	.fh_to_dentry       = reiser4_fh_to_dentry, */
 /* 	.dentry_to_fh       = reiser4_dentry_to_fh */
-	.show_options = reiser4_show_options	/* d */
+	.show_options = reiser4_show_options,	/* d */
+	.sync_inodes = reiser4_sync_inodes
 };
 
 struct dentry_operations reiser4_dentry_operation = {
