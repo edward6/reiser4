@@ -420,6 +420,23 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	return 0;
 }
 
+static int
+find_file_state(unix_file_info_t *uf_info)
+{
+	int result;
+
+	assert("vs-1628", ea_obtained(uf_info));
+
+	result = 0;
+	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+		loff_t file_size;
+
+		result = find_file_size(unix_file_info_to_inode(uf_info), &file_size);		
+	}
+	assert("vs-1074", ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
+	return result;
+}
+
 /* estimate and reserve space needed to truncate page which gets partially truncated: one block for page itself, stat
    data update (estimate_one_insert_into_item) and one item insertion (estimate_one_insert_into_item) which may happen
    if page corresponds to hole extent and unallocated one will have to be created */
@@ -1281,8 +1298,9 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			drop_access(uf_info);
 			return result;
 		}
-	} else
-		get_nonexclusive_access(uf_info);
+		drop_exclusive_access(uf_info);
+	}
+	get_nonexclusive_access(uf_info);
 
 	if (*off >= inode->i_size) {
 		/* position to read from is past the end of file */
@@ -1589,82 +1607,58 @@ static struct vm_operations_struct unix_file_vm_ops = {
    is going to be written or mapped for write. This functions may be called
    from write_unix_file() or mmap_unix_file(). */
 static int
-check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
-		      int perform_convert, int *gotaccess)
+check_pages_unix_file(struct inode *inode)
 {
-	int result;
-	struct inode *inode;
-	unix_file_info_t *uf_info;
-
-	inode = file->f_dentry->d_inode;
-	uf_info = unix_file_inode_data(inode);
-
-	*gotaccess = 0;
-
-	/* Check if object is RDONLY. If so, we go out with no error. This may
-	   happened, when file is opened for RDONLY and then mmaped for read
-	   with flags MAP_PRIVATE. */
-	if (IS_RDONLY(inode))
-		return 0;
-
-	result = 0;
-	/* throwing out mapped pages if they was mapped for read and file
-	 * consists of tails. */
-	if (inode_get_flag(inode, REISER4_TAILS_FILE_MMAPED)) {
-		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
-			get_exclusive_access(uf_info);
-			*gotaccess = 1;
-			reiser4_invalidate_pages(inode->i_mapping, 0,
-						 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
-			inode_clr_flag(inode, REISER4_TAILS_FILE_MMAPED);
-		}
-	}
-
-	/* converting file to extents if it is going to be mapped for write. */
-	if (perform_convert) {
-		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
-			if (!*gotaccess) {
-				get_exclusive_access(uf_info);
-				*gotaccess = 1;
-			}
-			result = unpack(inode, 0, 1);
-		}
-	}
-	return result;
+	reiser4_invalidate_pages(inode->i_mapping, 0, 
+				 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
+	return unpack(inode, 0, 1);
 }
 
 /* plugin->u.file.mmap
    make sure that file is built of extent blocks. An estimation is in tail2extent */
+
+/* This sets inode flags: file has mapping. if file is mmaped with VM_MAYWRITE - invalidate pages and convert. */
 reiser4_internal int
 mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 {
 	int result;
 	struct inode *inode;
 	unix_file_info_t *uf_info;
-	int gotaccess;
 
 	inode = file->f_dentry->d_inode;
 	uf_info = unix_file_inode_data(inode);
 
-	/* Checking for mapped pages, converting to something (tails, extents) */
-	result = check_pages_unix_file(file, vma->vm_flags, 0, 1, &gotaccess);
-	if (gotaccess)
-		drop_access(uf_info);
+	get_exclusive_access(uf_info);
 
-	if (result != 0)
-		return result;
-	
+	if (!IS_RDONLY(inode) && (vma->vm_flags & (VM_MAYWRITE | VM_SHARED))) {
+		/* we need file built of extent items. If it is still built of tail items we have to convert it. Find
+		   what items the file is built of */
+		result = find_file_state(uf_info);
+		if (result) {
+			drop_exclusive_access(uf_info);
+			return result;
+		}
+		if (uf_info->container == UF_CONTAINER_TAILS) {			
+			/* invalidate all pages and convert file from tails to extents */
+			result = check_pages_unix_file(inode);
+			if (result) {
+				drop_exclusive_access(uf_info);
+				return result;
+			}
+		}
+	}
 	result = generic_file_mmap(file, vma);
-	if (result)
+	if (result) {
+		drop_exclusive_access(uf_info);
 		return result;
+	}
 
+	/* mark file as having mapping. */
+	inode_set_flag(inode, REISER4_HAS_MMAP);
 	vma->vm_ops = &unix_file_vm_ops;
 
-	/* marking file as mapped for read only and it contains of tails. */
-	if (!(vma->vm_flags & VM_MAYWRITE) && (uf_info->container == UF_CONTAINER_TAILS))
-		inode_set_flag(inode, REISER4_TAILS_FILE_MMAPED);
-	
-	return 0;
+	drop_exclusive_access(uf_info);
+	return result;
 }
 
 static ssize_t
@@ -1723,16 +1717,25 @@ write_unix_file(struct file *file, /* file to write to */
 	down(&inode->i_sem);
 	written = generic_write_checks(file, off, &count, 0);
 	if (written == 0) {
-		int gotaccess;
+		unix_file_info_t *uf_info;
+		int gotaccess = 0;
 
+		uf_info = unix_file_inode_data(inode);
 
-		/* Checking for mapped pages, converting to something (tails, extents) */
-		written = check_pages_unix_file(file, 0, 1, 0, &gotaccess);
+		if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
+			/* file has been mmaped before. If it is built of tails - invalidate pages created so far and
+			   convert to extents */
+			get_exclusive_access(uf_info);
+			written = find_file_state(uf_info);
+			if (written == 0) {
+				if (uf_info->container == UF_CONTAINER_TAILS) {
+					written = check_pages_unix_file(inode);
+				}
+			}
+			drop_exclusive_access(uf_info);
+		}
 		if (written == 0) {
-			unix_file_info_t *uf_info;
 			int rep;
-
-			uf_info = unix_file_inode_data(inode);
 
 			for (rep = 0;; ++ rep) {
 				if (!gotaccess) {
@@ -2220,40 +2223,30 @@ reiser4_internal ssize_t sendfile_common (
 	return ret;
 }
 
-reiser4_internal ssize_t sendfile_unix_file (
-	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target)
+reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, size_t count, 
+					    read_actor_t actor, void __user *target)
 {
-	struct inode * inode;
 	ssize_t ret;
 
-	int gotaccess = 0;
-
-	inode = file->f_dentry->d_inode;
-
-	down(&inode->i_sem);
-
-	ret = check_pages_unix_file(file, 0, 1, 1, &gotaccess);
-	if (gotaccess)
-		drop_exclusive_access(unix_file_inode_data(inode));
-	up(&inode->i_sem);
-	if (ret)
-		return ret;
-
-	return sendfile_common(file, ppos, count, actor, target);
+	get_nonexclusive_access(unix_file_inode_data(file->f_dentry->d_inode));
+	ret = sendfile_common(file, ppos, count, actor, target);
+	drop_nonexclusive_access(unix_file_inode_data(file->f_dentry->d_inode));
+	return ret;
 }
 
 reiser4_internal int prepare_write_unix_file (
 	struct file * file, struct page * page, unsigned from, unsigned to)
 {
-	ssize_t ret;
-	int gotaccess;
+/*	ssize_t ret;*/
 
-	ret = check_pages_unix_file(file, 0, 1, 1, &gotaccess);
+	/* this is not ready yet */
+	return -EINVAL;
+/*
+	ret = check_pages_unix_file(file, 0, 1, 1);
 	if (ret)
 		return ret;
-	if (gotaccess)
-		drop_exclusive_access(unix_file_inode_data(file->f_dentry->d_inode));
 	return prepare_write_common(file, page, from, to);
+*/
 }
 
 /*
