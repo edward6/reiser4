@@ -178,7 +178,7 @@ void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
 int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
 void release_cluster_pages(reiser4_cluster_t * clust, int from);
 void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act);
-int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_stream_id id);
+int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_action act, tfm_stream_id id);
 int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
