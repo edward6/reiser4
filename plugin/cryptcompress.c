@@ -49,7 +49,7 @@ reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
 int setattr_reserve(reiser4_tree *);
 int reserve_cut_iteration(reiser4_tree *);
 int writepage_ctail(struct page *);
-int truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count);
+int truncate_eflushed_jnodes_range(struct inode *inode, unsigned long from, int count);
 int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size, int mode);
 int delete_object(struct inode *inode, int mode);
 __u8 cluster_shift_by_coord(const coord_t * coord);
@@ -2610,7 +2610,7 @@ reiser4_internal void
 truncate_cluster(struct inode * inode, pgoff_t start, long count)
 {
 	truncate_mapping_pages_range(inode->i_mapping, start, count);
-	truncate_inode_jnodes_range(inode, start, count);
+	truncate_eflushed_jnodes_range(inode, start, count);
 }
 
 static int
@@ -2639,7 +2639,9 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	if(result)
 		return result;
 	
-	assert("edward-660", ergo(!new_size, !reiser4_inode_data(inode)->jnodes));
+	assert("edward-660", ergo(!new_size,
+				  (reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
+				   reiser4_inode_data(inode)->captured_eflushed == 0)));
 
 	if (!off_to_cloff(new_size, inode))
 		/* truncated to cluster boundary (1) */
@@ -2735,8 +2737,10 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		INODE_SET_FIELD(inode, i_size, asize);
 		truncate_cluster(inode, size_to_next_pg(new_size),
 				 size_to_pg(old_size) - size_to_next_pg(new_size) + 1);
-		assert("edward-663", ergo(!new_size, !reiser4_inode_data(inode)->jnodes));
-
+		assert("edward-663", ergo(!new_size,
+					  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
+					  reiser4_inode_data(inode)->captured_eflushed == 0));
+		
 		if (update_sd) {
 			result = setattr_reserve(tree_by_inode(inode));
 			if (!result)
