@@ -481,6 +481,7 @@ struct block_device {
 };
 
 typedef unsigned short kdev_t;
+typedef long long off64_t;
 #define val_to_kdev(val) val
 #define kdev_val(kdev) kdev
 
