@@ -770,6 +770,7 @@ static int all_but_offset_key_eq(const reiser4_key *k1, const reiser4_key *k2)
 	return (get_key_locality(k1) == get_key_locality(k2) &&
 		get_key_type(k1) == get_key_type(k2) &&
 		get_key_band(k1) == get_key_band(k2) &&
+		get_key_ordering(k1) == get_key_ordering(k2) &&
 		get_key_objectid(k1) == get_key_objectid(k2));
 }
 #endif
