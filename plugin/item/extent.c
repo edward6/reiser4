@@ -2016,6 +2016,8 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				/* FIXME-VS: undo might be necessary */
 				return -EFAULT;
 			}
+
+			balance_dirty_pages (page->mapping);
 		}
 		jnode_set_loaded (j);
 		jnode_set_dirty (j);
