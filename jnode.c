@@ -816,8 +816,8 @@ jnode_type jnode_get_type( const jnode *node )
 void jnode_set_type( jnode * node, jnode_type type)
 {
 	static unsigned long type_to_mask[] = {
-		[JNODE_UNFORMATTED_BLOCK] = 0,
-		[JNODE_FORMATTED_BLOCK]   = 1,
+		[JNODE_UNFORMATTED_BLOCK] = 1,
+		[JNODE_FORMATTED_BLOCK]   = 0,
 		[JNODE_BITMAP]            = 2,
 		[JNODE_JOURNAL_RECORD]    = 4,
 		[JNODE_IO_HEAD]           = 6
