@@ -109,6 +109,9 @@ struct reiser4_inode {
 	seal_t sd_seal;
 	/* locality id for this file */
 	oid_t locality_id;
+#if REISER4_LARGE_KEY
+	__u64 ordering;
+#endif
 	/* coord of stat-data in sealed node */
 	coord_t sd_coord;
 	/* bit-mask of stat-data extentions used by this file */
@@ -237,6 +240,24 @@ get_inode_locality(const struct inode *inode)
 {
 	return reiser4_inode_data(inode)->locality_id;
 }
+
+#if REISER4_LARGE_KEY
+static inline __u64 get_inode_ordering(const struct inode *inode)
+{
+	return reiser4_inode_data(inode)->ordering;
+}
+
+static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
+{
+	reiser4_inode_data(inode)->ordering = ordering;
+}
+
+#else
+
+#define get_inode_ordering(inode) (0)
+#define set_inode_ordering(inode, val) noop
+
+#endif
 
 /*
  * each reiser4 inode maintain a list of pages dirtied through mmap. This is

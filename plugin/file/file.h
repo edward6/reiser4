@@ -62,9 +62,6 @@ typedef struct unix_file_info {
 	void *ea_owner; /* pointer to task struct of thread owning exclusive
 			 * access to file */
 #endif
-#if REISER4_LARGE_KEY
-	__u64 ordering;
-#endif
 } unix_file_info_t;
 
 inline struct unix_file_info *unix_file_inode_data(const struct inode * inode);
@@ -100,23 +97,6 @@ void unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key, znode_lock_mode);
 int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size, int update_times, int update_sd);
 
-#if REISER4_LARGE_KEY
-static inline __u64 get_inode_ordering(const struct inode *inode)
-{
-	return unix_file_inode_data(inode)->ordering;
-}
-
-static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
-{
-	unix_file_inode_data(inode)->ordering = ordering;
-}
-
-#else
-
-#define get_inode_ordering(inode) (0)
-#define set_inode_ordering(inode, val) noop
-
-#endif
 
 #if REISER4_DEBUG
 static inline struct task_struct *
