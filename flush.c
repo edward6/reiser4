@@ -1040,8 +1040,8 @@ static int squalloc_right_twig (znode    *left,
 
 		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
 
-		/* coord_next_item returns 0 if there are no more items. */
-		if (coord_next_item (&coord) == 0) {
+		/* coord_next_item returns 0 if there are more items. */
+		if (coord_next_item (&coord) != 0) {
 			ret = SQUEEZE_SOURCE_EMPTY;
 			break;
 		}
@@ -1100,15 +1100,16 @@ static int squalloc_right_twig (znode    *left,
 
 /* squalloc_right_twig helper function, cut a range of extent items from
  * cut node to->node from the beginning up to coord @to. */
-static int squalloc_right_twig_cut (coord_t * to, reiser4_key * to_key, znode * left)
+static int squalloc_right_twig_cut (coord_t * to, reiser4_key * to_key UNUSED_ARG, znode * left)
 {
 	coord_t from;
-	reiser4_key from_key;
+	/*reiser4_key from_key;*/
 
 	coord_init_first_unit (&from, to->node);
-	item_key_by_coord (&from, &from_key);
+	/*item_key_by_coord (&from, &from_key);*/
 
-	return cut_node (&from, to, &from_key, to_key,
+	/* We don't need to pass from_key, to_key when cutting a whole number of units. */
+	return cut_node (&from, to, NULL /*from_key*/, NULL/*to_key*/,
 			 NULL /* smallest_removed */, DELETE_DONT_COMPACT, left);
 }
 
