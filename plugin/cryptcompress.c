@@ -546,10 +546,11 @@ try_capture_cluster(reiser4_cluster_t * clust, znode_lock_mode lock_mode, int no
 static void
 set_cluster_uptodate(struct inode * inode, reiser4_cluster_t * clust)
 {
+	int i;
+
 	assert("edward-209", inode != NULL);
 	assert("edward-210", clust != NULL);
 	assert("edward-211", clust->nr_pages <= (1 << inode_cluster_shift(inode)));
-	int i;
 	for (i=0; i < clust->nr_pages; i++)
 		SetPageUptodate(clust->pages[i]);
 }
