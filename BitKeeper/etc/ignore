@@ -1420,3 +1420,5 @@ znode.bbg
 ulevel/iozone.rr
 ulevel/iozone.rr.1
 carry_ops.
+.safe_link.o.cmd
+plugin/item/.blackbox.o.cmd
