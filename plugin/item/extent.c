@@ -1400,7 +1400,10 @@ static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
 
 
 /*
- * mark all modified buffers dirty, update inode's i_size
+ * mark all modified buffers dirty and update, if all buffers are uptodate -
+ * mark page uptodate, update inode's i_size
+ *
+ * FIXME-VS: shouldn't we call generic_commit_write instead?
  */
 static int commit_write (struct page * page, __u64 file_off,
 			 unsigned count)
@@ -1408,9 +1411,9 @@ static int commit_write (struct page * page, __u64 file_off,
 	struct inode * inode;
 	unsigned page_off, cur_off, blocksize, to_block;
 	struct buffer_head * bh;
+	int partial;
 
 
-	/* FIXME-VS: generic_commit_write? */
 	inode = page->mapping->host;
 	if ((loff_t)file_off + count > inode->i_size) {
 		inode->i_size = file_off + count;
@@ -1419,18 +1422,31 @@ static int commit_write (struct page * page, __u64 file_off,
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 	page_off = file_off & ~PAGE_MASK;
+	partial = 0;
 	for (cur_off = 0, bh = page->buffers; count > 0; bh = bh->b_this_page) {
 		cur_off += blocksize;
-		if (page_off >= cur_off)
-			/* this buffer was not modified */
+		if (page_off >= cur_off) {
+			/*
+			 * this buffer was not modified
+			 */
+			if (!buffer_uptodate (bh))
+				partial = 1;
 			continue;
-		/* FIXME-VS: do whatever is necessary with modified buffer */
+		}
+
+		make_buffer_uptodate (bh, 1);
+		/*
+		 * FIXME-VS: do whatever else is necessary with modified buffer
+		 */
 		mark_buffer_dirty (bh);
 		to_block = blocksize - (page_off & (blocksize - 1));
 		if (to_block > count)
 			to_block = count;
 		count -= to_block;
 	}
+	if (!partial)
+		SetPageUptodate(page);
+
 	return 0;
 }
 
