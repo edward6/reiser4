@@ -41,10 +41,13 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 		show_stack( NULL );
 		/* do something more impressive here, print content of
 		   get_current_context() */
-		panic( "reiser4 panicked cowardly: %s", panic_buf );
 	} else {
 		BUG(); /* push it down harder */
 	}
+	/*
+	 * panic is here so that gcc is happy about __noreturn__
+	 */
+	panic( "reiser4 panicked cowardly: %s", panic_buf );
 }
 
 /**
