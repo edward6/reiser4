@@ -77,6 +77,37 @@ static struct buffer_head *read_super_block (struct super_block * s
     return find_a_disk_format_40_super_block(s);
 }
 
+/* load journal header or footer */
+static int load_journal_control_block (jnode ** node,  const reiser4_block_nr * block)
+{
+	int ret;
+
+	*node = jnew ();
+	if (!(*node)) return -ENOMEM;
+
+	jnode_set_block(*node, block);
+
+	ret = jload(*node);
+	if (ret) { jfree(*node); *node = NULL; return ret;}
+
+	jref(*node);
+	jrelse(*node);
+
+	return 0;
+}
+
+/* unload journal header or footer and free jnode */
+static void unload_journal_control_block (jnode ** node)
+{
+	if (*node) {
+		jput(*node);
+		jdrop(*node);
+		jfree(*node);
+		*node = NULL;
+	}
+}
+
+/* release journal control blocks */
 static void done_journal_info (struct super_block *s)
 {
 
@@ -84,55 +115,28 @@ static void done_journal_info (struct super_block *s)
 
 	assert ("zam-476", private != NULL);
 
-	if (private->journal_header != NULL) {
-		jput (private->journal_header);
-		jdrop (private->journal_header);
-		jfree (private->journal_header);
-
-		private->journal_header = NULL;
-	}
-
-	if (private->journal_footer != NULL) {
-		jput (private->journal_footer);
-		jdrop (private->journal_footer);
-		jfree (private->journal_footer);
-
-		private->journal_footer = NULL;
-	}
+	unload_journal_control_block(&private->journal_header);
+	unload_journal_control_block(&private->journal_footer);
 }
 
+/* load journal control blocks */
 static int init_journal_info (struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private(s);
 
+	const reiser4_block_nr jh_block = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
+	const reiser4_block_nr jf_block = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
+
 	int ret;
 
-	ret = -ENOMEM;
+	ret = load_journal_control_block (&private->journal_header, &jh_block);
+	if (ret) return ret;
 
-	if ((private->journal_header = jnew()) == NULL) return ret;
-
-	if ((private->journal_footer = jnew()) == NULL) goto fail;
-
-	private->journal_header->blocknr = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
-	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
-
-	if ((ret = jload (private->journal_header)) < 0) {
-		goto fail;
-	}
-	if ((ret = jload (private->journal_footer)) < 0) {
-		jrelse (private->journal_header);
-		goto fail;
+	ret = load_journal_control_block (&private->journal_footer, &jf_block);
+	if (ret) {
+		unload_journal_control_block(&private->journal_header);
 	}
 
-	jref(private->journal_header);
-	jref(private->journal_footer);
-
-	jrelse(private->journal_header);
-	jrelse(private->journal_footer);
-
-	return 0;
- fail:
-	done_journal_info(s);
 	return ret;
 }
 
