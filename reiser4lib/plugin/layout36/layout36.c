@@ -29,17 +29,18 @@ static void reiserfs_layout36_done(reiserfs_layout36_t *layout) {
 }
 
 reiserfs_plugin_t plugin_info = {
-	.h = {
-		.handle = NULL,
-		.id = 0x2,
-		.type = REISERFS_LAYOUT_PLUGIN,
-		.label = "layout36",
-		.desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, Copyright (C) 1996-2002 Hans Reiser",
-		.nlink = 0
-	},
 	.layout = {
+		.h = {
+			.handle = NULL,
+			.id = 0x2,
+			.type = REISERFS_LAYOUT_PLUGIN,
+			.label = "layout36",
+			.desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
+				"Copyright (C) 1996-2002 Hans Reiser",
+			.nlink = 0
+		},
 		.init = (reiserfs_layout_opaque_t *(*)(device_t *))reiserfs_layout36_init,
-		.done = (void *(*)(void))reiserfs_layout36_done
+		.done = (void (*)(reiserfs_layout_opaque_t *))reiserfs_layout36_done
 	}
 };
 

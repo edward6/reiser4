@@ -132,13 +132,15 @@ agl_exception_option_t agl_exception_throw(agl_exception_type_t type,
 	exception->options = opts;
 
 	/* This call should be replaced by someone worked in alone maner */
-	strncpy(exception->hint, hint, 4096);
+	agl_strncpy(exception->hint, hint, 4096);
 
-	/* This calls should be replaced too */
+#ifndef ENABLE_ALONE
 	va_start(arg_list, message);
 	vsnprintf(exception->message, 4096, message, arg_list);
 	va_end(arg_list);
-
+#else
+	agl_strncpy(exception->message, message, 4096);
+#endif
 	return agl_exception_actual_throw(exception);
 
 no_memory:
