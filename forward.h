@@ -46,11 +46,16 @@ typedef struct reiser4_space_allocator reiser4_space_allocator;
 typedef struct flush_scan flush_scan;
 typedef struct flush_position flush_pos_t;
 
-typedef unsigned short pos_in_node;
-typedef unsigned short pos_in_item;
+typedef unsigned short pos_in_node_t;
+typedef unsigned short pos_in_item_t;
+typedef int pos_in_unit_t;
 
 typedef struct jnode jnode;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
+
+typedef struct uf_coord uf_coord_t;
+typedef struct hint hint_t;
+
 
 typedef struct ktxnmgrd_context ktxnmgrd_context;
 
