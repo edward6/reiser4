@@ -83,7 +83,7 @@ pointers in the nodes that they point to.
    Someone else can do the code for the exchanging disks and make it
    complex. It would not be that hard.  Using other than the PAGE_SIZE
    might be suboptimal.  y*/
-#define LEAF40_NODE_SIZE PAGE_SIZE
+#define LEAF40_NODE_SIZE PAGE_CACHE_SIZE
 
 typedef enum { 
 	NS_FOUND = 0, 
