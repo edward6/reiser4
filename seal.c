@@ -224,6 +224,20 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 	return result;
 }
 
+#if REISER4_DEBUG
+void print_seal( const char *prefix, const seal_t *seal )
+{
+	if( seal == NULL ) {
+		info( "%s: null seal\n", prefix );
+	} else {
+		info( "%s: version: %llu, block: %llu\n",
+		      prefix, seal -> version, seal -> block );
+		print_key( "seal key", &seal -> key );
+		print_coord( "seal coord", &seal -> coord, 1 );
+	}
+}
+#endif
+
 /*
  * Make Linus happy.
  * Local variables:
