@@ -775,7 +775,20 @@ commit_txnh (txn_handle *txnh)
 
 	assert ("jmacd-1027", spin_atom_is_locked (atom));
 
+	/* We unlock atom to allow journal writer and others (block allocator
+	 * hooks) to do things which may schedule, like memory allocation or
+	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
+	 * can't be fused */
+	spin_unlock_atom (atom);
+
+	pre_commit_hook ();
+
+	/* write transaction log records in a manner which allows further
+	 * transaction recovery after a system crash */
+	reiser4_write_logs ();
+
 	/* Now close this txnh's reference to the atom. */
+	spin_lock_atom (atom);
 	spin_lock_txnh (txnh);
 
 	atom->txnh_count -= 1;
