@@ -2392,7 +2392,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 		return RETERR(-EAGAIN);
 
 	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
-	assert("vs-1283", ergo(result == 0, memcmp(&hint->coord, coord, sizeof(coord_t))));
+	assert("vs-1283", ergo(result == 0, !memcmp(&hint->coord, coord, sizeof(coord_t))));
 	return result;
 }
 
@@ -2651,9 +2651,6 @@ static void move_coord_page(coord_t *coord)
 
 typedef struct {
 	coord_t coord;
-	reiser4_extent *ext;
-	reiser4_block_nr width;
-	int nr_units;
 	unsigned long expected_page;
 } extent_coord_t;
 
@@ -2691,9 +2688,6 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 
 		fsdata = reiser4_get_file_fsdata(file);
 		ra_coord.coord = *coord;
-		ra_coord.ext = extent_item(coord);
-		ra_coord.width = extent_get_width(ra_coord.ext);
-		ra_coord.nr_units = nr_units_extent(coord);
 		ra_coord.expected_page = page_nr;
 		fsdata->reg.coord = &ra_coord;
 
@@ -2778,21 +2772,21 @@ static int move_coord_pages(extent_coord_t *ext_coord, unsigned count)
 
 	coord = &ext_coord->coord;
 	do {
-		if (coord->pos_in_unit + count < ext_coord->width) {
+		if (coord->pos_in_unit + count < coord->width) {
 			coord->pos_in_unit += count;
 			break;
 		}
 		
-		if (coord->unit_pos == ext_coord->nr_units - 1) {
+		if (coord->unit_pos == coord->nr_units - 1) {
 			coord->between = AFTER_UNIT;			
 			return 1;
 		}
 
 		/* shift to next unit */
-		count -= (ext_coord->width - coord->pos_in_unit);
+		count -= (coord->width - coord->pos_in_unit);
 		coord->pos_in_unit = 0;
 		coord->unit_pos ++;
-		ext_coord->width = extent_get_width(ext_coord->ext + coord->unit_pos);
+		coord->width = extent_get_width((reiser4_extent *)coord->vp + coord->unit_pos);
 	} while (1);
 
 	return 0;	
@@ -2903,13 +2897,13 @@ readahead_readpage_extent(void * vp, struct page *page)
 			return RETERR(-EINVAL);
 		}
 
-		assert("vs-1274", offset_is_in_unit(coord, ext_coord->ext + coord->unit_pos, 
+		assert("vs-1274", offset_is_in_unit(coord, (reiser4_extent *)coord->vp + coord->unit_pos, 
 						    (loff_t)page->index << PAGE_CACHE_SHIFT, 0));
 		ext_coord->expected_page = page->index;
 	}
 	
 	assert("vs-1281", page->index == ext_coord->expected_page);
-	result = do_readpage_extent(ext_coord->ext + coord->unit_pos, coord->pos_in_unit, page);
+	result = do_readpage_extent((reiser4_extent *)coord->vp + coord->unit_pos, coord->pos_in_unit, page);
 	if (!result)
 		move_coord_pages(ext_coord, 1);
 	return result;
