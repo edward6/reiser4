@@ -71,8 +71,8 @@ void          print_atom                      (const char *prefix,
 static inline unsigned jnode_real_level (jnode *node)
 {
 	assert ("umka-167", node != NULL);
-	assert ("jmacd-1232", jnode_get_level (node) >= LEAF_LEVEL);
-	return jnode_get_level (node) - LEAF_LEVEL;
+//	assert ("jmacd-1232", jnode_get_level (node) >= 0);
+	return jnode_get_level (node);
 }
 
 /****************************************************************************************
@@ -221,7 +221,7 @@ atom_init (txn_atom     *atom)
 	atom->stage         = ASTAGE_FREE;
 	atom->start_time    = jiffies;
 
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 		capture_list_init (& atom->dirty_nodes[level]);
 	}
 
@@ -245,7 +245,7 @@ atom_isclean (txn_atom *atom)
 
 	assert("umka-174", atom != NULL);
 	
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 		if (! capture_list_empty (& atom->dirty_nodes[level])) {
 			return 0;
 		}
@@ -591,7 +591,7 @@ static void txn_wait_on_io (txn_atom *atom)
 	     /**/ ! capture_list_end   (& atom->clean_nodes, scan);
 	     scan = capture_list_next  (scan)) {
 
-		if (PageWriteback (scan->pg)) {
+		if (scan->pg && PageWriteback (scan->pg)) {
 			wait_on_page_writeback (scan->pg);
 		}
 	}
@@ -626,7 +626,7 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->stage = ASTAGE_CAPTURE_WAIT;
 
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
 		if (capture_list_empty (& atom->dirty_nodes[level])) {
 			continue;
@@ -658,7 +658,7 @@ atom_try_commit_locked (txn_atom *atom)
 	
 	if (REISER4_DEBUG) {
 		int level;
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level ++) {
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level ++) {
 			assert ("zam-542", capture_list_empty(&atom->dirty_nodes[level]));
 		}
 	}
@@ -883,7 +883,7 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 			continue;
 		}
 
-		for (level = 0; atom->stage < ASTAGE_CAPTURE_WAIT && level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+		for (level = 0; atom->stage < ASTAGE_CAPTURE_WAIT && level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 			if (! capture_list_empty (& atom->dirty_nodes [level])) {
 				/* Found a dirty node to flush. */
 				node = jref (capture_list_back (& atom->dirty_nodes [level]));
@@ -1854,7 +1854,7 @@ capture_fuse_into (txn_atom  *small,
 	trace_on (TRACE_TXN, "fuse atom %u into %u\n", small->atom_id, large->atom_id);
 
 	/* Splice and update the per-level dirty jnode lists */
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 		zcount += capture_fuse_jnode_lists (large, & large->dirty_nodes[level], & small->dirty_nodes[level]);
 	}
 
@@ -2012,7 +2012,7 @@ print_atom (const char *prefix, txn_atom *atom)
 	      atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
 	      atom->capture_count, atom->stage, atom->start_time);
 
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
 		sprintf (list, "capture level %d", level);
 

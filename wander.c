@@ -363,6 +363,11 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 	while (!capture_list_end (head, cur)) {
 		jnode * next = capture_list_next(cur);
 
+
+		if (jnode_get_level(cur) == 0) {
+			warning ("zam-590", "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, ZNODE_WANDER)); 
+		}
+
 		if (JF_ISSET(cur, ZNODE_WANDER)) { 
 			set_size ++;
 

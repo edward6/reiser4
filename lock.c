@@ -799,31 +799,29 @@ int longterm_lock_znode (
 		assert("nikita-1844", 
 		       (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we could get the lock... Try to capture first before taking the
-		 * lock.  Don't capture above the root. */
-		if (! znode_above_root (node)) {
-			
-			if ((ret = txn_try_capture (ZJNODE (node), mode, non_blocking)) != 0) {
-				/* In the failure case, the txnmgr releases the znode's lock (or
-				 * in some cases, it was released a while ago).  There's no need
-				 * to reacquire it so we should return here, avoid releasing the
-				 * lock. */
-				owner->request.mode = 0;
-				/* next requestor may not fail */
-				wake_up_next = 1;
-				if (ret != -EAGAIN) {
-					warning("nikita-1845", 
-						"Failed to capture node: %i",
-						ret);
-					print_znode("node", node);
-				}
-				break;
+		 * lock.*/
+		if ((ret = txn_try_capture (ZJNODE (node), mode, non_blocking)) != 0) {
+			/* In the failure case, the txnmgr releases the znode's lock (or
+			 * in some cases, it was released a while ago).  There's no need
+			 * to reacquire it so we should return here, avoid releasing the
+			 * lock. */
+			owner->request.mode = 0;
+			/* next requestor may not fail */
+			wake_up_next = 1;
+			if (ret != -EAGAIN) {
+				warning("nikita-1845", 
+					"Failed to capture node: %i",
+					ret);
+				print_znode("node", node);
 			}
-
-			/* Check the lock's availability again -- this is because under some
-			 * circumstances the capture code has to release and reacquire the znode
-			 * spinlock. */
-			ret = can_lock_object(owner, node);
+			break;
 		}
+
+		/* Check the lock's availability again -- this is because under some
+		 * circumstances the capture code has to release and reacquire the znode
+		 * spinlock. */
+		ret = can_lock_object(owner, node);
+
 
 		/* This time, a return of (ret == 0) means we can lock, so we should break
 		 * out of the loop. */

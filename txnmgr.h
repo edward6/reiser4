@@ -197,8 +197,9 @@ struct txn_atom
 	/* The atom's wandered_block mapping. */
 	blocknr_set            wandered_map;
 	
-	/* The transaction's list of dirty captured nodes--per level.  Index by (level-LEAF_LEVEL). */
-	capture_list_head      dirty_nodes[REAL_MAX_ZTREE_HEIGHT];
+	/* The transaction's list of dirty captured nodes--per level.  Index
+	 * by (level). dirty_nodes[0] is for znode-above-root */
+	capture_list_head      dirty_nodes[REAL_MAX_ZTREE_HEIGHT + 1];
 
 	/* The transaction's list of clean captured nodes. */
 	capture_list_head      clean_nodes;
