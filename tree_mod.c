@@ -291,6 +291,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			new_root -> ptr_in_parent_hint.node = fake;
 			new_root -> ptr_in_parent_hint.item_pos = ~0u;
 			new_root -> ptr_in_parent_hint.between = AT_UNIT;
+			atomic_inc( &fake -> c_count );
 
 			sibling_list_insert_nolock( new_root, NULL );
 			spin_unlock_tree( tree );
