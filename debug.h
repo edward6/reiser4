@@ -25,13 +25,17 @@
     whatever standard prefixes/postfixes we want. "Fun" is a function
     that will be actually called, can be printk, panic etc.
     This is for use by other debugging macros, not by users. */
+#define DCALL(lev, fun, label, format, ...)				\
+	fun(lev "reiser4[%s]: " format "\n", label , ## __VA_ARGS__)
+
+#if 0
 #define DCALL( lev, fun, label, format, ... )				\
-         do { fun( /**/lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
-		       no_context ? "interrupt" : current_pname,		\
-		       no_context ? -1 : current_pid,				\
-		       __FUNCTION__,                 				\
-		       __FILE__, __LINE__, label , ## __VA_ARGS__ );	\
-		      } while( 0 )
+	fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
+	     no_context ? "interrupt" : current_pname,			\
+	     no_context ? -1 : current_pid,				\
+	     __FUNCTION__,						\
+	     __FILE__, __LINE__, label , ## __VA_ARGS__ );
+#endif
 
 /* panic. Print backtrace and die */
 #define rpanic( label, format, ... )		\
@@ -147,11 +151,11 @@
 /* assert assures that @cond is true. If it is not, rpanic() is
    called. Use this for checking logical consistency and _never_ call
    this to check correctness of external data: disk blocks and user-input . */
-#define assert( label, cond )					\
+#define assert(label, cond)					\
 ({								\
-	check_stack();						\
-	if( unlikely( !( cond ) ) )				\
-		rpanic( label, "assertion failed: " #cond );	\
+/*	check_stack();	*/					\
+	if(unlikely(!(cond)))					\
+		rpanic(label, "assertion failed: " #cond);	\
 })
 
 /* like assertion, but @expr is evaluated even if REISER4_DEBUG is off. */
