@@ -1136,18 +1136,12 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 	flow_t *f;
 	coord_t *insert_point;
 	node_plugin *nplug;
-	int something_written;
 	carry_plugin_info info;
 	znode *orig_node;
 	lock_handle *orig_lh;
 
 	f = op->u.insert_flow.flow;
 	result = 0;
-
-	/* this flag is used to distinguish a need to have carry to propagate
-	   leaf level modifications up in the tree when make_space fails not in
-	   first iteration of the loop below */
-	something_written = 0;
 
 	/* carry system needs this to work */
 	info.doing = doing;
@@ -1205,7 +1199,6 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 		znode_make_dirty(insert_point->node);
 
 		move_flow_forward(f, (unsigned) flow_insert_data(op)->length);
-		something_written = 1;
 	}
 
 	if (orig_node != flow_insert_point(op)->node) {
