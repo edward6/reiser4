@@ -873,6 +873,11 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 			assert("nikita-2126", !PageDirty(page));
 			assert("nikita-2127", PageUptodate(page));
 			assert("nikita-2181", PageLocked(page));
+			/* usually one calls jnode_wait_fq() before detaching
+			 * page from jnode to avoid races with
+			 * jnode_extent_write(). But here last reference to
+			 * jnode is dropped, which means, jnode is no longer
+			 * in atom. */
 			remove_from_page_cache(page);
 			page_clear_jnode(page, node);
 			reiser4_unlock_page(page);
@@ -914,6 +919,25 @@ static void jnode_finish_io(jnode * node)
 		page_cache_release(page);
 	} else
 		UNLOCK_JNODE(node);
+}
+
+/* wait until jnode is removed from flush queue. */
+void
+jnode_wait_fq(jnode * node)
+{
+	assert("nikita-3147", node != NULL);
+	assert("nikita-3148", JF_ISSET(node, JNODE_HEARD_BANSHEE));
+
+	LOCK_JNODE(node);
+	while (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+		txn_atom * atom;
+
+		atom = atom_locked_by_jnode(node);
+		UNLOCK_JNODE(node);
+		atom_wait_event(atom);
+		LOCK_JNODE(node);
+	}
+	UNLOCK_JNODE(node);
 }
 
 void

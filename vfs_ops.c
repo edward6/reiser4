@@ -2449,7 +2449,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 * this is called for each truncated page from
 	 * truncate_inode_pages()->truncate_{complete,partial}_page().
 	 *
-	 * At the moment of, call page is under lock, and outstanding io (if
+	 * At the moment of call, page is under lock, and outstanding io (if
 	 * any) has completed.
 	 */
 
@@ -2471,6 +2471,9 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 		if (node != NULL) {
 			jref(node);
 			JF_SET(node, JNODE_HEARD_BANSHEE);
+			jnode_wait_fq(node);
+			assert("nikita-3149", 
+			       !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 			uncapture_page(page);
 			UNDER_SPIN_VOID(jnode, 
 					node, page_clear_jnode(page, node));
@@ -2553,6 +2556,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 			spin_jnode_inc();
 
 		jref(node);
+		jnode_wait_fq(node);
 		page_clear_jnode(page, node);
 		UNLOCK_JNODE(node);
 

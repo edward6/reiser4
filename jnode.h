@@ -465,6 +465,8 @@ extern void jrelse_nolock(jnode * node);
 extern jnode *alloc_io_head(const reiser4_block_nr * block);
 extern void drop_io_head(jnode * node);
 
+extern void jnode_wait_fq(jnode * node);
+
 static inline reiser4_tree *
 jnode_get_tree(const jnode * node)
 {
