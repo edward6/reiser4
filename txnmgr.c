@@ -295,6 +295,8 @@ jnode_of_page (struct page* pg)
 
 		JF_SET (jal, ZNODE_UNFORMATTED);
 
+		info ("allocate jnode: 0x%p\n", jal);
+
 		jal = NULL;
 	}
 
@@ -322,7 +324,7 @@ jnode *jref( jnode *node )
 		return ZJNODE (zref (JZNODE (node)));
 	} else {
 		/* FIXME_JMACD: What to do here? */
-		return NULL;
+		return node;
 	}
 }
 
@@ -332,7 +334,7 @@ void   jput( jnode *node )
 	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
 		zput (JZNODE (node));
 	} else {
-		/* FIXME_JMACD: What to do here? */
+		/* FIXME: */
 	}
 }
 

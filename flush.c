@@ -1602,6 +1602,8 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 	int go;
 	int ret;
 
+	assert ("jmacd-6334", znode_is_connected (node));
+
 	spin_lock_tree (current_tree);
 	neighbor = side == RIGHT_SIDE ? node->right : node->left;
 	if (neighbor != NULL) {

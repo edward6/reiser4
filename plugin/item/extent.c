@@ -1847,8 +1847,8 @@ int extent_write (struct inode * inode, tree_coord * coord,
 			if (!page) {
 				return -ENOMEM;
 			}
-			/* Capture the page. */
 
+			/* Capture the page. */
 			result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 			if (result != 0) {
 				page_cache_release (page);
@@ -2293,7 +2293,7 @@ int extent_read (struct inode * inode, tree_coord * coord,
 		page_cache_release (page);
 		return result;
 	}
-	
+
 	/* position within the page to read from */
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
 
