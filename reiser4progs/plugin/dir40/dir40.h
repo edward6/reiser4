@@ -7,5 +7,12 @@
 #ifndef DIR40_H
 #define DIR40_H
 
+struct reiserfs_dir40 {
+    reiserfs_place_t place;
+    reiserfs_key_t key;
+};
+
+typedef struct reiserfs_dir40 reiserfs_dir40_t;
+
 #endif
 

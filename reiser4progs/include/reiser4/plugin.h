@@ -180,12 +180,12 @@ struct reiserfs_item_hint {
 
 typedef struct reiserfs_item_hint reiserfs_item_hint_t;
 
-struct reiserfs_object_hint {
+/*struct reiserfs_object_hint {
     uint16_t count;
     reiserfs_item_hint_t *item;
 };
 
-typedef struct reiserfs_object_hint reiserfs_object_hint_t;
+typedef struct reiserfs_object_hint reiserfs_object_hint_t;*/
 
 struct reiserfs_pos {
     uint16_t item;
@@ -271,8 +271,6 @@ typedef struct reiserfs_key_ops reiserfs_key_ops_t;
 struct reiserfs_file_ops {
     reiserfs_plugin_header_t h;
 
-    void *(*create) (void *, void *, uint16_t, uint16_t); 
-    void (*close) (void *);
 };
 
 typedef struct reiserfs_file_ops reiserfs_file_ops_t;
@@ -280,10 +278,10 @@ typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 struct reiserfs_dir_ops {
     reiserfs_plugin_header_t h;
 
-    void *(*create) (void *, void *, uint16_t, uint16_t); 
-    void (*close) (void *);
-
+    reiserfs_entity_t *(*create) (const void *, reiserfs_key_t *, 
+	reiserfs_key_t *); 
     
+    void (*close) (reiserfs_entity_t *);
 };
 
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;

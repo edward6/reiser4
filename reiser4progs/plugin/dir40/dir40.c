@@ -19,20 +19,17 @@ static reiserfs_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
 
-/*
-    FIXME-UMKA: Is it possible will be exist objects without stat data? If so, 
-    we need to throw out stat_pid from accepted parameters.
-*/
-static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent, 
-    reiserfs_key_t *object, uint16_t stat_pid, uint16_t direntry_pid) 
+static reiserfs_dir40_t *dir40_create(const void *tree, 
+    reiserfs_key_t *parent, reiserfs_key_t *object) 
 {
-    reiserfs_object_hint_t *hint;
-    reiserfs_item_hint_t *item_hint;
-
-    reiserfs_stat_hint_t *stat_hint;
-    reiserfs_direntry_hint_t *direntry_hint;
-
+    reiserfs_dir40_t *dir;
+    reiserfs_item_hint_t item;
+    reiserfs_stat_hint_t stat;
     reiserfs_plugin_t *key_plugin;
+    reiserfs_direntry_hint_t direntry;
+   
+    reiserfs_id_t stat_pid;
+    reiserfs_id_t direntry_pid;
     
     oid_t parent_objectid;
     oid_t parent_locality;
@@ -40,7 +37,11 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
 
     aal_assert("umka-743", parent != NULL, return NULL);
     aal_assert("umka-744", object != NULL, return NULL);
+    aal_assert("umka-835", tree != NULL, return NULL);
 
+    if (!(dir = aal_calloc(sizeof(*dir), 0)))
+	return NULL;
+    
     key_plugin = object->plugin;
     
     parent_objectid = libreiser4_plugin_call(return NULL, 
@@ -52,105 +53,96 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     objectid = libreiser4_plugin_call(return NULL, 
 	key_plugin->key_ops, get_objectid, object->body);
     
-    if (!(hint = aal_calloc(sizeof(*hint), 0)))
-	return NULL;
-
-    hint->count = 2;
-    
-    if (!(hint->item = aal_calloc(hint->count * sizeof(reiserfs_item_hint_t), 0)))
-	goto error_free_hint;
+    aal_memset(&item, 0, sizeof(item));
     
     /* Initializing stat data hint */
-    hint->item[0].type = REISERFS_STATDATA_ITEM; 
-    
-    if (!(hint->item[0].plugin = 
-	core->factory_find(REISERFS_ITEM_PLUGIN, stat_pid)))
-    {
-	libreiser4_factory_failed(goto error_free_item, 
-	    find, item, stat_pid);
-    }
-
-    if (!(hint->item[0].hint = aal_calloc(sizeof(reiserfs_stat_hint_t), 0)))
-	goto error_free_item;
+    item.type = REISERFS_STATDATA_ITEM; 
    
-    hint->item[0].key.plugin = key_plugin;
-    aal_memcpy(&hint->item[0].key.body, object->body, sizeof(object->body));
-    
-    stat_hint = hint->item[0].hint;
+    /* FIXME-UMKA: Here should not hardcoded stat data plugin id */
+    stat_pid = REISERFS_STATDATA_ITEM;
+    if (!(item.plugin = core->factory_find(REISERFS_ITEM_PLUGIN, stat_pid))) 
+	libreiser4_factory_failed(goto error_free_dir, find, item, stat_pid);
 
-    stat_hint->mode = S_IFDIR | 0755;
-    stat_hint->extmask = 0;
-    stat_hint->nlink = 2;
-    stat_hint->size = 0;
+    item.key.plugin = key_plugin;
     
+    aal_memcpy(item.key.body, object->body, libreiser4_plugin_call(goto error_free_dir, 
+	key_plugin->key_ops, size,));
+    
+    stat.mode = S_IFDIR | 0755;
+    stat.extmask = 0;
+    stat.nlink = 2;
+    stat.size = 0;
+
+    item.hint = &stat;
+
+    /* Calling balancing code in order to insert statdata item into the tree */
+    if (core->tree_insert(tree, &item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't insert stat data item of object %llx into "
+	    "the thee.", objectid);
+	goto error_free_dir;
+    }
+    
+    aal_memset(&item, 0, sizeof(item));
+
     /* Initializing direntry hint */
-    hint->item[1].type = REISERFS_CDE_ITEM; 
+    item.type = REISERFS_CDE_ITEM; 
     
-    if (!(hint->item[1].plugin = core->factory_find(REISERFS_ITEM_PLUGIN,
-	direntry_pid)))
-    {
-	libreiser4_factory_failed(goto error_free_hint0, find, item, 
-	    direntry_pid);
-    }
+    /* FIXME-UMKA: Here should be not hardcoded direntry plugin id */
+    direntry_pid = REISERFS_CDE_ITEM;
+    if (!(item.plugin = core->factory_find(REISERFS_ITEM_PLUGIN, direntry_pid))) 
+	libreiser4_factory_failed(goto error_free_dir, find, item, direntry_pid);
     
-    if (!(hint->item[1].hint = aal_calloc(sizeof(reiserfs_direntry_hint_t), 0)))
-	goto error_free_hint0;
-
-    hint->item[1].key.plugin = key_plugin; 
-    aal_memcpy(&hint->item[1].key.body, parent, sizeof(parent->body));
+    item.key.plugin = key_plugin; 
+    aal_memcpy(item.key.body, parent, libreiser4_plugin_call(goto error_free_dir, 
+	key_plugin->key_ops, size,));
     
-    direntry_hint = hint->item[1].hint;
-
-    direntry_hint->count = 2;
-    direntry_hint->key_plugin = key_plugin;
-    direntry_hint->hash_plugin = NULL;
+    direntry.count = 2;
+    direntry.key_plugin = key_plugin;
+    direntry.hash_plugin = NULL;
    
-    libreiser4_plugin_call(goto error_free_hint1, key_plugin->key_ops, 
-	build_entry_full, &hint->item[1].key.body, direntry_hint->hash_plugin, 
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, 
+	build_entry_full, item.key.body, direntry.hash_plugin, 
 	parent_objectid, objectid, ".");
     
-    if (!(direntry_hint->entry = aal_calloc(direntry_hint->count * 
+    if (!(direntry.entry = aal_calloc(direntry.count * 
 	    sizeof(reiserfs_entry_hint_t), 0)))
-	goto error_free_hint1;
+	goto error_free_dir;
     
-    direntry_hint->entry[0].locality = parent_objectid;
-    direntry_hint->entry[0].objectid = objectid;
-    direntry_hint->entry[0].name = ".";
+    direntry.entry[0].locality = parent_objectid;
+    direntry.entry[0].objectid = objectid;
+    direntry.entry[0].name = ".";
     
-    direntry_hint->entry[1].locality = parent_locality;
-    direntry_hint->entry[1].objectid = parent_objectid;
-    direntry_hint->entry[1].name = "..";
+    direntry.entry[1].locality = parent_locality;
+    direntry.entry[1].objectid = parent_objectid;
+    direntry.entry[1].name = "..";
     
-    return hint;
+    item.hint = &direntry;
+    
+    /* Inserting the direntry item into the tree */
+    if (core->tree_insert(tree, &item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't insert direntry item of object %llx into "
+	    "the thee.", objectid);
+	goto error_free_dir;
+    }
+    
+    aal_free(direntry.entry);
 
-error_free_hint1:
-    aal_free(hint->item[1].hint);
-error_free_hint0:
-    aal_free(hint->item[0].hint);
-error_free_item:
-    aal_free(hint->item);
-error_free_hint:
-    aal_free(hint);
+    aal_memcpy(dir->key.body, object->body, libreiser4_plugin_call(goto error_free_dir, 
+	key_plugin->key_ops, size,));
+    
+    return dir;
+
+error_free_dir:
+    aal_free(dir);
 error:
     return NULL;
 }
 
-static void dir40_close(reiserfs_object_hint_t *hint) {
-    int i;
-    
-    aal_assert("umka-750", hint != NULL, return);
-
-    for (i = 0; i < hint->count; i++) {
-	if (hint->item[i].type == REISERFS_CDE_ITEM) {
-	    reiserfs_direntry_hint_t *direntry_hint = 
-		(reiserfs_direntry_hint_t *)hint->item[i].hint;
-
-	    aal_free(direntry_hint->entry);
-	    aal_free(direntry_hint);
-	}
-    }
-    aal_free(hint->item);
-    aal_free(hint);
+static void dir40_close(reiserfs_dir40_t *dir) {
+    aal_assert("umka-750", dir != NULL, return);
+    aal_free(dir);
 }
 
 #endif
@@ -166,10 +158,10 @@ static reiserfs_plugin_t dir40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 #ifndef ENABLE_COMPACT
-	.create = (void *(*)(void *, void *, uint16_t, uint16_t))
-	    dir40_create,
+	.create = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *, 
+	    reiserfs_key_t *)) dir40_create,
 
-	.close = (void (*)(void *))dir40_close
+	.close = (void (*)(reiserfs_entity_t *))dir40_close
 #else
 	.create = NULL,
 	.close = NULL

@@ -95,8 +95,8 @@ struct reiserfs_object {
     reiserfs_key_t key;
     reiserfs_coord_t coord;
 
+    reiserfs_entity_t *entity;
     reiserfs_plugin_t *plugin;
-    reiserfs_object_hint_t *hint;
 };
 
 typedef struct reiserfs_object reiserfs_object_t;

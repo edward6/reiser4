@@ -11,23 +11,14 @@
 #include <reiser4/reiser4.h>
 #include <sys/stat.h>
 
-/* Translation table for item types. It is used for nice exceptions */
-char *reiserfs_item_name[] = {
-    [REISERFS_STATDATA_ITEM] = "stat data",
-    [REISERFS_SDE_ITEM] = "sde",
-    [REISERFS_CDE_ITEM] = "cde",
-    [REISERFS_INTERNAL_ITEM] = "internal",
-    [REISERFS_ACL_ITEM] = "acl",
-    [REISERFS_EXTENT_ITEM] = "extent",
-    [REISERFS_TAIL_ITEM] = "tail"
-};
-
-static int reiserfs_object_find_entry(reiserfs_coord_t *coord, reiserfs_key_t *key) {
+static int reiserfs_object_find_entry(reiserfs_coord_t *coord, 
+    reiserfs_key_t *key) 
+{
     return 0;
 }
 	
-static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *name, 
-    reiserfs_key_t *parent) 
+static errno_t reiserfs_object_lookup(reiserfs_object_t *object, 
+    const char *name, reiserfs_key_t *parent) 
 {
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *hash_plugin;
@@ -231,12 +222,11 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	parent_objectid, objectid, 0);
 	
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {
-	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, 
-	    plugin->dir_ops, create, &parent_key, &object_key, 
-	    profile->item.statdata, profile->item.direntry)))
+	if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
+	    plugin->dir_ops, create, fs->tree, &parent_key, &object_key)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't create directory hint.");
+		"Can't create object with oid %llx.", reiserfs_key_get_objectid(&object_key));
 	    goto error_free_object;
 	}
     } else {
@@ -245,33 +235,13 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	goto error_free_object;
     }
     
-    if (object->hint->count == 0) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Empty object hint has been received.");
-	goto error_free_object;
-    }
-    
-    /* Inserting all items into tree */
-    for (i = 0; i < object->hint->count; i++) {
-	if (reiserfs_tree_insert(fs->tree, &object->hint->item[i])) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't insert \"%s\" item of object %llx into the tree.", 
-		reiserfs_item_name[object->hint->item[i].type], 
-		reiserfs_key_get_objectid(&object_key));
-	    goto error_free_hint;
-	}
-    }
-    
-    /* FIXME-UMKA: Here should be creating of the entry in parent directory */
+    /* Here will be also adding entry to parent object */
     
     object->key = object_key;
     object->plugin = plugin;
     
     return object;
 
-error_free_hint:
-    libreiser4_plugin_call(goto error_free_object, plugin->dir_ops, 
-	close, object->hint);
 error_free_object:
     aal_free(object);
     return NULL;
@@ -282,10 +252,9 @@ error_free_object:
 void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);
     
-    if (object->hint) {
-	libreiser4_plugin_call(return, object->plugin->dir_ops, 
-	    close, object->hint);
-    }
+    libreiser4_plugin_call(return, object->plugin->dir_ops, 
+        close, object->entity);
+    
     aal_free(object);
 }
 
