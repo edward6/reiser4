@@ -1628,12 +1628,12 @@ static int __init init_reiser4(void)
 /**
  * finish with reiser4: this is called either at shutdown or at module unload.
  */
-/* Audited by: umka (2002.06.12) */
 static void __exit done_reiser4(void)
 {
         unregister_filesystem( &reiser4_fs_type );
 	znodes_done();
 	destroy_inodecache();
+	txn_done_static();
 	/*
 	 * FIXME-NIKITA more cleanups here
 	 */

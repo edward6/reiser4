@@ -248,6 +248,13 @@ int register_filesystem (struct file_system_type * fs)
 	return 0;
 }
 
+int unregister_filesystem(struct file_system_type * fs)
+{
+	assert( "nikita-2117", fs == file_systems[ 0 ] );
+	file_systems[ 0 ] = NULL;
+	return 0;
+}
+
 struct super_block super_blocks[1];
 struct block_device block_devices[1];
 
@@ -371,7 +378,6 @@ int is_bad_inode( struct inode *inode UNUSED_ARG )
 	return 0;
 }
 
-
 static struct inode * find_inode (struct super_block *super UNUSED_ARG,
 				  unsigned long ino, 
 				  int (*test)(struct inode *, void *), 
@@ -421,6 +427,7 @@ static void invalidate_inodes (void)
 			print_inode ("invalidate_inodes", inode);
 		spin_lock( &inode_hash_guard );
 		list_del_init( &inode -> i_hash );
+		inode -> i_sb -> s_op -> destroy_inode( inode );
 		spin_unlock( &inode_hash_guard );
 	}
 }
@@ -4466,6 +4473,7 @@ int real_main( int argc, char **argv )
 	deregister_thread();
 
 	bash_umount ( &__context );
+	run_done_reiser4 ();
 	return 0;
 }
 
@@ -4478,13 +4486,23 @@ int main (int argc, char **argv)
 		rpanic ("jmacd-901", "pthread_key_create failed");
 	}
 
-	/* Some init functions need to run before REISER4_ENTRY */
-	init_context_mgr();
+	if (argc == 1) {
+		int i;
 
-	ret = real_main (argc, argv);
+		struct {
+			int argc; const char *argv[ 10 ];
+		} args[] = {
+			{ 4, { "./a.out", "nikita", "ibk", "300", } },
+			{ 6, { "./a.out", "nikita", "dir", "1000", "0", } }
+		};
 
-	txn_done_static ();
-
+		for( i = 0 ; i < sizeof_array( args ) ; ++ i ) {
+			ret = real_main( args[ i ].argc, args[ i ].argv );
+			if( ret != 0 )
+				break;
+		}
+	} else
+		ret = real_main (argc, argv);
 	return ret;
 }	
 

@@ -228,6 +228,15 @@ int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 	return z_hash_init( &tree -> hash_table, REISER4_ZNODE_HASH_TABLE_SIZE );
 }
 
+/** free this znode */
+/* Audited by: umka (2002.06.11) */
+static void zfree( znode *node /* znode to free */ )
+{
+	trace_stamp( TRACE_ZNODES );
+	assert( "nikita-465", node != NULL );
+	kmem_cache_free( znode_slab, node );
+}
+
 /** call this to free tree of znodes */
 /* Audited by: umka (2002.06.11) */
 void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
@@ -252,9 +261,10 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 		parents = 0;
 		for_all_ht_buckets( &tree -> hash_table, bucket ) {
 			for_all_in_bucket( bucket, item, link ) {
-				if( atomic_read( &item -> c_count ) == 0 )
+				if( atomic_read( &item -> c_count ) == 0 ) {
 					znode_remove( item );
-				else
+					zfree( item );
+				} else
 					++ parents;
 			}
 		}
@@ -268,15 +278,6 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 /****************************************************************************************
 				   ZNODE STRUCTURES
  ****************************************************************************************/
-
-/** free this znode */
-/* Audited by: umka (2002.06.11) */
-static void zfree( znode *node /* znode to free */ )
-{
-	trace_stamp( TRACE_ZNODES );
-	assert( "nikita-465", node != NULL );
-	kmem_cache_free( znode_slab, node );
-}
 
 /** allocate fresh znode */
 /* Audited by: umka (2002.06.11) */
