@@ -396,7 +396,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    I have witnessed more than 800 iterations (in 30 thread test) before cbk
    finished. --nikita
 */
-#define REISER4_MAX_CBK_ITERATIONS    ((unsigned)~0)
+#define REISER4_MAX_CBK_ITERATIONS    500000
 
 /* put a per-inode limit on maximal number of directory entries with identical
    keys in hashed directory.
