@@ -605,6 +605,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	reiser4_unlock_page(page);
 
+	result = 0;
 	if (node) {
 		result = writeback_queued_jnodes(s, node, wbc);
 		jput(node);
