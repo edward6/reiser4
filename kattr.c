@@ -126,9 +126,7 @@ int reiser4_sysfs_init_all(void)
 void reiser4_sysfs_done_all(void)
 {
 #if 0
-	return fs_subsys_unregister(&subsys);
-#else
-	return;
+	fs_subsys_unregister(&subsys);
 #endif
 }
 
