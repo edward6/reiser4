@@ -531,6 +531,7 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 		znode * child  = (h == 0) ? node : path[h - 1].node;
 		znode * parent = path[h].node;
 
+		reiser4_stat_add_at_level(h + LEAF_LEVEL, sibling_search);
 		ret = zload(parent);
 		if (ret) break;
 
