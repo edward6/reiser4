@@ -25,9 +25,9 @@ typedef struct {
 } reiser4_trace_file;
 
 typedef enum { 
+	tree_cut    = 'c',
 	tree_lookup = 'l',
 	tree_insert = 'i',
-	tree_cut    = 'c',
 	tree_paste  = 'p'
 } reiser4_traced_op;
 
