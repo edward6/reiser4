@@ -717,13 +717,14 @@ void done_context( reiser4_context *context /* context being released */ )
 }
 
 /* Audited by: umka (2002.06.16) */
-void
+int
 init_context_mgr (void)
 {
 #if REISER4_DEBUG
 	spin_lock_init    (& active_contexts_lock);
 	context_list_init (& active_contexts);
 #endif
+	return 0;
 }
 
 #if REISER4_DEBUG

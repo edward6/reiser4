@@ -507,7 +507,7 @@ struct reiser4_context {
 };
 
 /* Debugging helps. */
-extern void init_context_mgr (void);
+extern int  init_context_mgr (void);
 #if REISER4_DEBUG
 extern void show_context     (int show_tree);
 #else
