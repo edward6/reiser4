@@ -1325,8 +1325,6 @@ static int put_super (struct super_block * s)
 	REISER4_ENTRY (s);
 	assert( "umka-087", get_super_private (s) != NULL );
 	
-	print_tree_rec( "put_super", current_tree, ~0ull );
-
 	if ((ret = txn_mgr_force_commit (s))) {
 		warning ("jmacd-7711", "txn_force failed in put_super: %u", ret);
 	}
