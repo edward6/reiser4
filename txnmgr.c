@@ -2115,7 +2115,6 @@ fail_unlock:
 void
 uncapture_page(struct page *pg)
 {
-	int ret;
 	jnode *node;
 	txn_atom *atom;
 	blocknr_set_entry *blocknr_entry = NULL;
@@ -2136,7 +2135,6 @@ uncapture_page(struct page *pg)
 	if (node == NULL)
 		return;
 
-repeat:
 	LOCK_JNODE(node);
 
 	eflush_del(node, 1/* page is locked */);
@@ -2148,28 +2146,6 @@ repeat:
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_check_dirty(node));
 		return;
-	}
-
-	if (jnode_is_znode(node)) {
-		if (!blocknr_is_fake(jnode_get_block(node))) {
-			/* jnode has assigned real disk block. Put it into
-			   atom's delete set */
-			if (REISER4_DEBUG) {
-				reiser4_super_info_data *sbinfo = get_current_super_private();
-
-				reiser4_spin_lock_sb(sbinfo);
-				assert("zam-561", *jnode_get_block(node) < sbinfo->block_count);
-				reiser4_spin_unlock_sb(sbinfo);
-			}
-			ret = blocknr_set_add_block(atom, &atom->delete_set, &blocknr_entry, jnode_get_block(node));
-
-			if (ret == -EAGAIN)
-				goto repeat;
-		} else {
-			/* jnode has assigned block which is counted as "fake
-			   allocated". Return it back to "free blocks") */
-			fake_allocated2free((__u64) 1, BA_FORMATTED, "uncapture_page: formatted fake allocated node");
-		}
 	}
 
 	assert("jmacd-5177", blocknr_entry == NULL);
@@ -3072,7 +3048,11 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 
 /* Release a block from the atom, reversing the effects of being captured, 
    do not release atom's reference to jnode due to holding spin-locks.
-   Currently this is only called when the atom commits. */
+   Currently this is only called when the atom commits. 
+
+   NOTE: this function does not release a (journal) reference to jnode
+   due to locking optimizations, you should call jput() somewhere after
+   calling uncapture_block(). */
 void uncapture_block(jnode * node)
 {
 	txn_atom * atom;
