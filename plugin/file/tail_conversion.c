@@ -19,6 +19,12 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	assert("nikita-3028", schedulable());
 	assert("nikita-3047", LOCK_CNT_NIL(inode_sem_w));
 	assert("nikita-3048", LOCK_CNT_NIL(inode_sem_r));
+	/*
+	 * "deadlock detection": sometimes we commit a transaction under
+	 * rw-semaphore on a file. Such commit can deadlock with another
+	 * thread that captured some block (hence preventing atom from being
+	 * committed) and waits on rw-semaphore.
+	 */
 	assert("nikita-3361", get_current_context()->trans->atom == NULL);
 	BUG_ON(get_current_context()->trans->atom != NULL);
 	LOCK_CNT_INC(inode_sem_w);
