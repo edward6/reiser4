@@ -179,7 +179,6 @@ find(const coord_t * coord /* coord of item */ ,
      const reiser4_key * entry_key /* key to look for */ ,
      cmp_t * last /* result of last comparison */ )
 {
-	int i;
 	int entries;
 
 	int left;
