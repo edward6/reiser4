@@ -73,7 +73,7 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	height = d16tocpu (&disk_sb->tree_height);
 	assert ("vs-642", d16tocpu (&disk_sb->node_plugin) == NODE40_ID);
 	result = init_tree (&private->tree, &root_block, height, node_plugin_by_id (NODE40_ID),
-			    ulevel_read_node, 0/* allocate_actor*/);
+			    ulevel_read_node, ulevel_allocate_node);
 	if (result)
 		return result;
 
