@@ -2535,7 +2535,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 
 	pos->preceder.block_stage = BLOCK_GRABBED;
 	if (ZF_ISSET(node, JNODE_CREATED)) {
-		assert ("zam-816", blocknr_is_fake(jnode_get_block(node)));
+		assert ("zam-816", blocknr_is_fake(znode_get_block(node)));
 		pos->preceder.block_stage = BLOCK_UNALLOCATED;
 	}
 
