@@ -169,7 +169,6 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	char *area;
 	reiser4_inode_info *ref;
 	lock_handle lh;
-	oid_allocator_plugin *oplug;
 	oid_t oid;
 
 
@@ -203,12 +202,8 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		 */
 		return -ENAMETOOLONG;
 	}
+	result = allocate_oid( &oid );
 
-	assert( "vs-479", get_super_private( inode -> i_sb ) );
-	oplug = get_super_private( inode -> i_sb ) -> oid_plug;
-	assert( "vs-480", oplug && oplug -> allocate_oid );
-	result = oplug -> allocate_oid( get_oid_allocator( inode -> i_sb ), 
-					&oid );
 	if( result != 0 )
 		return result;
 
@@ -284,7 +279,9 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 
 	if( result != 0 )
 		key_warning( error_message, &key, result );
-	done_lh(&lh);
+	else 
+		count_allocated_oid();
+
 	return result;
 }
 
@@ -477,18 +474,14 @@ int common_file_delete( struct inode *inode /* object to remove */,
 
 		build_sd_key( inode, &sd_key );
 		result = cut_tree( tree_by_inode( inode ), &sd_key, &sd_key );
-		if( result == 0 ) {
-			oid_allocator_plugin *oplug;
 
-			assert( "nikita-1902", 
-				get_super_private( inode -> i_sb ) );
-			oplug = get_super_private( inode -> i_sb ) -> oid_plug;
-			assert( "nikita-1903", ( oplug != NULL ) && 
-				( oplug -> release_oid != NULL ) );
-			result = oplug -> release_oid
-				( get_oid_allocator( inode -> i_sb ), 
-				  ( oid_t ) inode -> i_ino );
-		}
+		if( result ) return result;
+
+		result = release_oid( ( oid_t ) inode -> i_ino );
+
+		if (result) return result;
+
+		count_released_oid();
 	} else
 		result = 0;
 	return result;

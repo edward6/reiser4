@@ -3,6 +3,11 @@
  */
 
 
+extern int allocate_oid (oid_t *);
+extern int release_oid  (oid_t);
+extern void count_allocated_oid(void);
+extern void count_released_oid(void);
+
 /* identifiers of available objectid managers */
 typedef enum {
 	/* default for reiser 4.0 oid manager id */
