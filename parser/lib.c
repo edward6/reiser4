@@ -12,7 +12,7 @@
 
 /* FIXME:NIKITA->VOVA this file uses indentation completely different than the
  * rest of reiser4 and kernel. This complicates reading of the code by other
- * people. I think this should be changed. 
+ * people. I think this should be changed.
  * OK. But after it's works*/
 
 static struct
@@ -40,79 +40,79 @@ pars_key [] =
 
 struct lexcls lexcls[64]={
 /*
-..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +       
+..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +
 Blk Wrd Int Ptr Pru Stb Ste   Lpr Rpr Com Mns Les Slh Lsq Rsq   Bsl Lfl Rfl Pip Sp1 Sp2 Dot Sp4   Sp5 Sp6 Pls ...  */
-[Blk]={ 0, {0, 
+[Blk]={ 0, {0,
 Blk,Wrd,Int,Ptr,Pru,Str,ERR,  Lpr,Rpr,Com,Mns,Les,Slh,Lsq,Rsq,  Bsl,Lfl,Rfl,Pip,Sp1,Sp2,Dot,Sp4,  Sp5,Sp6,ERR,ERR,ERR,ERR,ERR,ERR}},
-[Wrd]={  WORD, {0,  
+[Wrd]={  WORD, {0,
 OK ,Wrd,Wrd,Wrd,Wrd,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Bsl,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
-[Int]={  WORD, {0,  
+[Int]={  WORD, {0,
 OK ,Wrd,Int,Wrd,Wrd,OK ,OK ,  OK ,OK ,OK ,Wrd,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
-[Ptr]={  WORD,{0, 
+[Ptr]={  WORD,{0,
 OK ,Wrd,Wrd,Wrd,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Pru]={  P_RUNNER,{0, 
+[Pru]={  P_RUNNER,{0,
 OK ,Pru,Pru,Pru,Pru,OK ,OK ,  OK ,OK ,OK ,Pru,OK ,OK ,OK ,OK ,  Pru,OK ,OK ,OK ,OK ,OK ,Pru,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
-[Stb]={  STRING_CONSTANT_EMPTY, {1, 
+[Stb]={  STRING_CONSTANT_EMPTY, {1,
 Str,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
-[Ste]={  0, {0, 
+[Ste]={  0, {0,
 ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
-[Lpr]={  L_BRACKET /*L_PARENT*/,{0, 
+[Lpr]={  L_BRACKET /*L_PARENT*/,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Rpr]={  R_BRACKET,{0, 
+[Rpr]={  R_BRACKET,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Com]={  COMMA,{0, 
+[Com]={  COMMA,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Mns]={  0,{0, 
+[Mns]={  0,{0,
 ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  Lnk,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
-[Les]{  LT,{0, 
+[Les]{  LT,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,ASG,App,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
-[Slh]={  SLASH,{0, 
+[Slh]={  SLASH,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,Slh,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
 [Lsq]={  0/*L_SKW_PARENT*/,{0,           /*mast removed*/
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Rsq]={  0/*R_SKW_PARENT*/,{0,            /*mast removed*/
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Bsl]={  0,{0, 
+[Bsl]={  0,{0,
 Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd}},
 [Lfl]={  0 /*L_FLX_PARENT*/,{0,            /*mast removed*/
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Rfl]={  0 /*R_FLX_PARENT*/,{0,            /*mast removed*/
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Pip]={  0,{0, 
+[Pip]={  0,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp1]={  0,{0, 
+[Sp1]={  0,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp2]={  SEMICOLON,{0, 
+[Sp2]={  SEMICOLON,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Dot]={  0,{0, 
+[Dot]={  0,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp4]={  0,{0, 
+[Sp4]={  0,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp5]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Sp6]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Pls]={  PLUS,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0, 
+[Sp5]={  0,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
-[Str]={  STRING_CONSTANT,{1, 
+[Sp6]={  0,{0,
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Pls]={  PLUS,{0,
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0,
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Str]={  STRING_CONSTANT,{1,
 OK ,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
-[ASG]={  L_ASSIGN,{0, 
+[ASG]={  L_ASSIGN,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[App]={  L_ASSIGN,{0, 
+[App]={  L_ASSIGN,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,Ap2,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Lnk]={ L_SYMLINK,{0, 
+[Lnk]={ L_SYMLINK,{0,
 ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  OK ,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
 
-[Ap2]={  L_APPEND,{0, 
+[Ap2]={  L_APPEND,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }}
 
 };
@@ -279,7 +279,7 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * ino
 static struct reiser4_syscall_w_space * reiser4_pars_init()
 {
 	struct reiser4_syscall_w_space * ws;
-                                                            /* allocate work space for parser 
+                                                            /* allocate work space for parser
 							       working variables, attached to this call */
 	ws = kmalloc( sizeof( struct reiser4_syscall_w_space ), GFP_KERNEL );
 	assert("VD", ws != NULL);
@@ -324,10 +324,10 @@ static void level_up(struct reiser4_syscall_w_space *ws, long type)
 static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long type2)
 {
 	PTRACE(ws, "%s", "begin");
-	if (type1!=type2) 
+	if (type1!=type2)
 		warning("VD","level_down=%d, type %d mithmatch",
 			type1,type2);
-	if (type1!=ws->cur_level->stype) 
+	if (type1!=ws->cur_level->stype)
 		warning("VD","level_down=%d, type level %d mithmatch",
 			type1==ws->cur_level->stype);
 //	path_release(ws->cur_level->path_walk->nd); ??????
@@ -340,8 +340,8 @@ static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long t
 #define tolower(a) a
 #define isdigit(a) ((a)>=0 && (a)<=9)
 
-/* move_selected_word - copy term from input bufer to free space. 
- * if it need more, move freeSpace to the end. 
+/* move_selected_word - copy term from input bufer to free space.
+ * if it need more, move freeSpace to the end.
  * otherwise next term will owerwrite it
  *  freeSpace is a kernel space no need make getnam().
  * exclude is for special for string: store without ''
@@ -362,7 +362,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 			//				{
 			//					ws->yytext++;
 			//					i++;
-			//				} 
+			//				}
 			//			while ( ws->yytext >  curr_symbol(ws) )
 			//				{
 			//					i--;
@@ -389,7 +389,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 										{
 											i = (i << 4) + ( *ws->yytext++ - 'a' + 10 );
 										}
-									else 
+									else
 										{
 											if ( tmpI & 1 )
 												{
@@ -449,9 +449,9 @@ static int b_check_word(struct reiser4_syscall_w_space * ws )
 			i  =  ( j + l /*+ 1*/ ) >> 1;
 			switch( strcmp( pars_key[i].wrd, ws->freeSpCur->freeSpace ) )
 				{
-				case  0: 
+				case  0:
 					PTRACE(ws,"founded: i=%d, %s, %d", i, pars_key[i].wrd, pars_key[i].class);
-					return( pars_key[i].class );  
+					return( pars_key[i].class );
 					break;
 				case  1: j = i - 1;               break;
 				default: l = i + 1;               break;
@@ -541,7 +541,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 				{
 					term=0;
 				}
-			else 
+			else
 				{
 					PTRACE(ws, "error: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
 					yyerror ( ws, 2222, (lcls-1)* 20+i, curr_symbol(ws) );
@@ -552,7 +552,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	switch (lcls)
 		{
 		case Blk:
-		case Ste: 
+		case Ste:
 			yyerror(ws,0);
 			break;
 		case Wrd:
@@ -578,11 +578,11 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 			ws->ws_yyval.w = _wrd_inittab(ws);
 			break;
 			*/
-		case Stb: 
-		case Com: 
-		case Mns: 
-		case Les: 
-		case Slh: 
+		case Stb:
+		case Com:
+		case Mns:
+		case Les:
+		case Slh:
 		case Bsl: /*\ */
 		case Sp1: /*;*/
 		case Sp2: /*:*/
@@ -595,8 +595,8 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 		case Lnk:/*->*/
 			ret=lexcls[ lcls ].term;
 			break;
-		case Lpr: 
-		case Rpr: 
+		case Lpr:
+		case Rpr:
 			ws->ws_yylval.charType = *ws->yytext ;
 			ret=lexcls[ lcls ].term;
 			break;
@@ -651,7 +651,7 @@ static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws)
 	e->vnode.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
 
 
-	e->vnode.v->ln     = get_lnode(ws,current->fs->pwd->d_inode) ; 
+	e->vnode.v->ln     = get_lnode(ws,current->fs->pwd->d_inode) ;
 	e->vnode.v->parent = ws->root_e->vnode.v;
 	return e;
 }
@@ -688,12 +688,12 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
 	vnode_t * cur_vnode;
 	PTRACE(ws, "&w=%p,w->u.name=%p, %s",w,w->u.name,w->u.name);
 #if 1           /* tmp.  this is fist version.  for II we need do "while" throus expression for all vnode */
-	cur_vnode        = ws->cur_level->wrk_exp->vnode.v; 
+	cur_vnode        = ws->cur_level->wrk_exp->vnode.v;
 
 
 
 #else
-	cur_vnode       = getFirsVnodeFromExpr(ws->level->wrk_exp); 
+	cur_vnode       = getFirsVnodeFromExpr(ws->level->wrk_exp);
 	while(vnode!=NULL)
 		{
 #endif
@@ -706,9 +706,9 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
 
 
 #if 0
-			vnode=getNextVnodeFromExpr(ws->level->wrk_exp); 
+			vnode=getNextVnodeFromExpr(ws->level->wrk_exp);
 		}
- all rezult mast be connected to expression. 
+ all rezult mast be connected to expression.
 #endif
 
 
@@ -943,11 +943,11 @@ static expr_v4_t * reiser4_assign( vnode_t *dst, expr_v4_t *src )
     file_plugin  *dst_fplug;
     connect_t     connection;
 
-    /* 
-     * select how to transfer data from @src to @dst. 
-     * 
+    /*
+     * select how to transfer data from @src to @dst.
+     *
      * Default implementation of this is common_transfer() (see below).
-     * 
+     *
      * Smart file plugin can choose connection based on type of @dst.
      *
      */
@@ -1080,7 +1080,7 @@ static int  pump( vnode_t *sink, expr_v4_t *source )
 
       //      pos_t source_pos;
       //      pos_t sink_pos;
-      
+
 	PTRACE1( "%s", "begin");
 
       /* remember to write code for freeing tube, error handling, etc. */

@@ -222,7 +222,7 @@ struct list_head {
 } while (0)
 
 /*
- * Insert a new entry between two known consecutive entries. 
+ * Insert a new entry between two known consecutive entries.
  *
  * This is only for internal list manipulation where we know
  * the prev/next entries already!
@@ -264,7 +264,7 @@ static inline void list_add_tail(struct list_head *new, struct list_head *head)
 }
 
 /*
- * Insert a new entry between two known consecutive entries. 
+ * Insert a new entry between two known consecutive entries.
  *
  * This is only for internal list manipulation where we know
  * the prev/next entries already!
@@ -332,7 +332,7 @@ static inline void list_del(struct list_head *entry)
 /**
  * list_del_rcu - deletes entry from list without re-initialization
  * @entry: the element to delete from the list.
- * Note: list_empty on entry does not return true after this, 
+ * Note: list_empty on entry does not return true after this,
  * the entry is in an undefined state. It is useful for RCU based
  * lockfree traversal.
  */
@@ -348,7 +348,7 @@ static inline void list_del_rcu(struct list_head *entry)
 static inline void list_del_init(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
-	INIT_LIST_HEAD(entry); 
+	INIT_LIST_HEAD(entry);
 }
 
 /**
@@ -759,7 +759,7 @@ struct super_operations {
 	void (*destroy_inode)(struct inode *);
 
 	void (*read_inode) (struct inode *);
-  
+
    	void (*dirty_inode) (struct inode *);
 	void (*write_inode) (struct inode *, int);
 	void (*put_inode) (struct inode *);
@@ -1040,9 +1040,9 @@ extern void make_bad_inode( struct inode *inode );
 extern int is_bad_inode( struct inode *inode );
 
 extern struct inode *
-iget5_locked(struct super_block *sb, 
-	     unsigned long hashval, 
-	     int (*test)(struct inode *, void *), 
+iget5_locked(struct super_block *sb,
+	     unsigned long hashval,
+	     int (*test)(struct inode *, void *),
 	     int (*set)(struct inode *, void *), void *data);
 extern struct inode *iget_locked(struct super_block *sb, unsigned long ino);
 extern struct inode * ilookup5(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data);
@@ -1085,10 +1085,10 @@ static inline long IS_ERR(const void *ptr)
 }
 
 
-extern kmem_cache_t *kmem_cache_create( const char *name, 
-				 size_t size UNUSED_ARG, 
+extern kmem_cache_t *kmem_cache_create( const char *name,
+				 size_t size UNUSED_ARG,
 				 size_t offset UNUSED_ARG,
-				 unsigned long flags UNUSED_ARG, 
+				 unsigned long flags UNUSED_ARG,
 				 void (*ctor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG,
 				 void (*dtor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG );
 extern int  kmem_cache_destroy( kmem_cache_t *slab );
@@ -1314,7 +1314,7 @@ struct page {
 
 
 void remove_inode_page(struct page *);
-void page_cache_readahead(struct address_space *mapping, 
+void page_cache_readahead(struct address_space *mapping,
 			  struct file_ra_state *ra,
 			  struct file *filp, unsigned long offset);
 
@@ -1401,7 +1401,7 @@ struct address_space;
 struct inode;
 typedef int (get_block_t)(struct inode*,sector_t,struct buffer_head*,int);
 
-/*int create_empty_buffers (struct page * page, unsigned blocksize, 
+/*int create_empty_buffers (struct page * page, unsigned blocksize,
   unsigned long b_state);*/
 void ll_rw_block(int, int, struct buffer_head * bh[]);
 void mark_buffer_async_read (struct buffer_head * bh);
@@ -1522,7 +1522,7 @@ struct dentry_operations {
 	void (*d_iput)(struct dentry *, struct inode *);
 };
 
-static inline int vfs_permission(struct inode * inode UNUSED_ARG, 
+static inline int vfs_permission(struct inode * inode UNUSED_ARG,
 				 int mask UNUSED_ARG)
 {
 	return 0;
@@ -1804,7 +1804,7 @@ extern int inode_change_ok( struct inode *inode, struct iattr *attr );
 
 extern loff_t default_llseek( struct file *, loff_t, int );
 
-extern int vfs_readlink(struct dentry *dentry, char *buffer, 
+extern int vfs_readlink(struct dentry *dentry, char *buffer,
 		 int buflen, const char *link);
 
 extern int vfs_follow_link(struct nameidata *nd, const char *link);
@@ -2082,7 +2082,7 @@ struct vm_area_struct {
 /*
  * These are the virtual MM functions - opening of an area, closing and
  * unmapping it (needed to keep files on disk up-to-date etc), pointer
- * to the functions called when a no-page or a wp-page exception occurs. 
+ * to the functions called when a no-page or a wp-page exception occurs.
  */
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
@@ -2101,7 +2101,7 @@ extern void generic_forget_inode(struct inode *inode);
 
 #define get_seconds() (time(0))
 
-extern struct page * filemap_nopage(struct vm_area_struct * area, 
+extern struct page * filemap_nopage(struct vm_area_struct * area,
 				    unsigned long address, int unused);
 
 extern void __iget(struct inode * inode);
@@ -2175,7 +2175,7 @@ extern void __iget(struct inode * inode);
 /* __REISER4_ULEVEL_H__ */
 #endif
 
-/* 
+/*
  * Make Linus happy.
  * Local variables:
  * c-indentation-style: "K&R"

@@ -16,11 +16,11 @@
    to store block numbers from the beginning and for extents from the end of
    the data field (char data[...]). The ->nr_blocks and ->nr_pairs fields
    count numbers of blocks and extents.
-  
+
    +------------------- blocknr_set_entry->data ------------------+
    |block1|block2| ... <free space> ... |pair3|pair2|pair1|
    +------------------------------------------------------------+
-  
+
    When current blocknr_set_entry is full, allocate a new one. */
 
 /* Usage examples: blocknr sets are used in reiser4 for storing atom's delete
@@ -162,7 +162,7 @@ blocknr_set_add(txn_atom * atom,
 	assert("jmacd-5101", a != NULL);
 
 	entries_needed = (b == NULL) ? 1 : 2;
-	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries)) 
+	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries))
 	    < entries_needed) {
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {

@@ -18,7 +18,7 @@
 #if REISER4_PROF
 
 #ifdef CONFIG_FRAME_POINTER
-static void 
+static void
 update_prof_trace(reiser4_prof_cnt *cnt, int depth, int shift)
 {
 	int i;
@@ -52,8 +52,8 @@ update_prof_trace(reiser4_prof_cnt *cnt, int depth, int shift)
 #define update_prof_trace(cnt, depth, shift) noop
 #endif
 
-void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark, __u64 start_jif, 
+void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
+		     unsigned long swtch_mark, __u64 start_jif,
 		     int depth, int shift)
 {
 	__u64 delta;
@@ -77,7 +77,7 @@ struct prof_attr_entry {
 
 static struct prof_attr_entry prof_attr[REISER4_PROF_TRACE_NUM];
 
-static ssize_t 
+static ssize_t
 show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 {
 	char *p;
@@ -107,7 +107,7 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 			unsigned long size;
 
 			address = (unsigned long) val->bt[pos].path.trace[j];
-			name = kallsyms_lookup(address, &size, 
+			name = kallsyms_lookup(address, &size,
 					       &offset, &module, namebuf);
 			KATTR_PRINT(p, buf, "\n\t\t%#lx ", address);
 			if (name != NULL)
@@ -121,7 +121,7 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 }
 
 /* zero a prof entry corresponding to @attr */
-static ssize_t 
+static ssize_t
 store_prof_attr(struct kobject *kobj, struct attribute *attr, const char *buf, size_t size)
 {
 	reiser4_prof_entry *entry;
@@ -201,7 +201,7 @@ int init_prof_kobject(void)
 	}
 
 	result = subsystem_register(&prof_subsys);
-	if (result != 0) 
+	if (result != 0)
 		return result;
 
 	cpu_prof.kset = &prof_subsys.kset;
@@ -212,7 +212,7 @@ int init_prof_kobject(void)
 
 	/* populate */
 	array = (reiser4_prof_entry *)&reiser4_prof_defs;
-	for(i = 0 ; i < sizeof(reiser4_prof_defs)/sizeof(reiser4_prof_entry); 
+	for(i = 0 ; i < sizeof(reiser4_prof_defs)/sizeof(reiser4_prof_entry);
 	    ++ i) {
 		struct kobject *kobj;
 		int j;

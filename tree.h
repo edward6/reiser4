@@ -28,10 +28,10 @@ extern const reiser4_block_nr UBER_TREE_ADDR;
 TS_LIST_DECLARE(cbk_cache);
 
 /* &cbk_cache_slot - entry in a coord cache.
-  
+
    This is entry in a coord_by_key (cbk) cache, represented by
    &cbk_cache.
-  
+
 */
 typedef struct cbk_cache_slot {
 	/* cached node */
@@ -41,7 +41,7 @@ typedef struct cbk_cache_slot {
 } cbk_cache_slot;
 
 /* &cbk_cache - coord cache. This is part of reiser4_tree.
-  
+
    cbk_cache is supposed to speed up tree lookups by caching results of recent
    successful lookups (we don't cache negative results as dentry cache
    does). Cache consists of relatively small number of entries kept in a LRU
@@ -53,7 +53,7 @@ typedef struct cbk_cache_slot {
    tree traversal is performed and if result is successful, appropriate entry
    is inserted into cache, possibly pulling least recently used entry out of
    it.
-  
+
    Tree spin lock is used to protect coord cache. If contention for this
    lock proves to be too high, more finer grained locking can be added.
 
@@ -98,7 +98,7 @@ typedef enum {
    the tree (bitmaps, journalling area, mount options, etc.) and there
    are things in a tree that bear no relation to the super block, like
    tree of znodes.
-  
+
    At this time, there is only one tree
    per filesystem, and this struct is part of the super block.  We only
    call the super block the super block for historical reasons (most
@@ -180,9 +180,9 @@ extern int init_tree(reiser4_tree * tree,
 extern void done_tree(reiser4_tree * tree);
 
 /* &reiser4_item_data - description of data to be inserted or pasted
-  
+
    Q: articulate the reasons for the difference between this and flow.
-  
+
    A: Becides flow we insert into tree other things: stat data, directory
    entry, etc.  To insert them into tree one has to provide this structure. If
    one is going to insert flow - he can use insert_flow, where this structure
@@ -193,11 +193,11 @@ struct reiser4_item_data {
 	   do xmemcpy itself, leaving this up to the caller. This can
 	   save some amount of unnecessary memory copying, for example,
 	   during insertion of stat data.
-	  
+	
 	*/
 	char *data;
 	/* 1 if 'char * data' contains pointer to user space and 0 if it is
-	   kernel space 
+	   kernel space
 
 	 could be a char not an int?
 	*/
@@ -208,22 +208,22 @@ struct reiser4_item_data {
 	    ->create_item() method of node layout, which in turn
 	    hands it to the ->create_hook() of item being created. This
 	    arg is currently used by:
-	  
+	
 	    .  ->create_hook() of internal item
 	    (fs/reiser4/plugin/item/internal.c:internal_create_hook()),
 	    . ->paste() method of directory item.
 	    . ->create_hook() of extent item
-	  
+	
 	   For internal item, this is left "brother" of new node being
 	   inserted and it is used to add new node into sibling list
 	   after parent to it was just inserted into parent.
-	  
+	
 	   While ->arg does look somewhat of unnecessary compication,
 	   it actually saves a lot of headache in many places, because
 	   all data necessary to insert or paste new data into tree are
 	   collected in one place, and this eliminates a lot of extra
 	   argument passing and storing everywhere.
-	  
+	
 	*/
 /* arg is a bad name. */
 	void *arg;
@@ -235,7 +235,7 @@ struct reiser4_item_data {
 typedef enum {
 	/* coord_by_key() is called for insertion. This is necessary because
 	   of extents being located at the twig level. For explanation, see
-	   comment just above is_next_item_internal(). 
+	   comment just above is_next_item_internal().
 	*/
 	CBK_FOR_INSERT = (1 << 0),
 	/* coord_by_key() is called with key that is known to be unique */
@@ -272,7 +272,7 @@ typedef enum { RESIZE_OK = 0,
 typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord, lock_handle * lh, void *arg);
 extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
 			tree_iterate_actor_t actor, void *arg, znode_lock_mode mode, int through_units_p);
-extern int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode, 
+extern int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 			  znode_lock_request pri, lock_handle *lh);
 
 /* return node plugin of @node */
@@ -289,7 +289,7 @@ static inline pos_in_node_t
 node_num_items(const znode * node)
 {
 	assert("nikita-2754", znode_is_loaded(node));
-	assert("nikita-2468", 
+	assert("nikita-2468",
 	       node_plugin_by_node(node)->num_of_items(node) == node->nr_items);
 
 	return node->nr_items;
@@ -447,7 +447,7 @@ typedef struct cbk_handle {
 	tree_level lock_level;
 	/* level where search will stop. Either item will be found between
 	   lock_level and stop_level, or CBK_COORD_NOTFOUND will be
-	   returned. 
+	   returned.
 	*/
 	tree_level stop_level;
 	/* level we are currently at */
@@ -492,7 +492,7 @@ int lookup_couple(reiser4_tree * tree,
    spin lock protecting znode hash, and parent and sibling pointers. */
 RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
-/* ordering constraint for delimiting key spin lock: dk lock is weaker than 
+/* ordering constraint for delimiting key spin lock: dk lock is weaker than
    tree lock */
 #define rw_ordering_pred_dk( tree )			\
 	(lock_counters()->rw_locked_tree == 0) &&	\

@@ -31,7 +31,7 @@ extern void print_internal(const char *prefix, coord_t * coord);
 extern int utmost_child_internal(const coord_t * coord, sideof side, jnode ** child);
 int utmost_child_real_block_internal(const coord_t * coord, sideof side, reiser4_block_nr * block);
 
-extern void update_internal(const coord_t * coord, 
+extern void update_internal(const coord_t * coord,
 			    const reiser4_block_nr * blocknr);
 /* FIXME: reiserfs has check_internal */
 extern int check__internal(const coord_t * coord, const char **error);

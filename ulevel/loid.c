@@ -145,7 +145,7 @@ int main( int argc, char **argv )
 		  fname[ j - min + shift ] = alphabet[ ( int ) name[ j ] ];
 		}
 	  fname[ MAX_LEN - min + shift ] = 0;
-	  if( reverse ) 
+	  if( reverse )
 		{
 		  int len;
 
@@ -192,9 +192,9 @@ int main( int argc, char **argv )
 		  struct timeval now;
 
 		  gettimeofday( &now, 0 );
-		  printf( "%lli\t files: %lli (%f/%f), %s\n", i, 
+		  printf( "%lli\t files: %lli (%f/%f), %s\n", i,
 				  tdiff( &now, &instant ),
-				  RAT( i * 1000000, tdiff( &now, &start ) ), 
+				  RAT( i * 1000000, tdiff( &now, &start ) ),
 				  RAT( ( i - prev ) * 1000000, tdiff( &now, &instant ) ),
 				  fname );
 		  gettimeofday( &instant, 0 );

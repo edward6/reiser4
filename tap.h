@@ -11,7 +11,7 @@
 
 TS_LIST_DECLARE(tap);
 
-/** 
+/**
     tree_access_pointer aka tap. Data structure combining coord_t and lock
     handle.
 NIKITA-FIXME-HANS: the below means what?

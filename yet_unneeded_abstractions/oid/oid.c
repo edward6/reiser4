@@ -1,6 +1,6 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* VS-FIXME-HANS: replace this code with a few macros that go something like 
+/* VS-FIXME-HANS: replace this code with a few macros that go something like
 
 oid = sb->next_oid++; sb->nr_used_oids++;
 

@@ -8,23 +8,23 @@
 /* A circular doubly linked list that differs from the previous
    <linux/list.h> implementation because it is parametrized to provide
    type safety.  This data structure is also useful as a queue or stack.
-  
+
    The "list template" consists of a set of types and methods for
    implementing list operations.  All of the types and methods
    associated with a single list class are assigned unique names and
    type signatures, thus allowing the compiler to verify correct
    usage.
-  
+
    The first parameter of a list class is the item type being stored
    in the list.  The list class maintains two pointers within each
    item structure for its "next" and "prev" pointers.
-  
+
    There are two structures associated with the list, in addition to
    the item type itself.  The "list link" contains the two pointers
    that are embedded within the item itself.  The "list head" also
    contains two pointers which refer to the first item ("front") and
    last item ("back") of the list.
-  
+
    The list maintains a "circular" invariant, in that you can always
    begin at the front and follow "next" pointers until eventually you
    reach the same point.  The "list head" is included within the
@@ -33,7 +33,7 @@
    user's perspective, but the core algorithms that operate on this
    style of list treat the "list head" and "list link" as identical
    types.  That is why these algorithms are so simple.
-  
+
    The <linux/list.h> implementation uses the same algorithms as those
    in this file but uses only a single type "struct list_head".  There
    are two problems with this approach.  First, there are no type
@@ -47,7 +47,7 @@
    to insert at the front or back of the list.  This common case
    should accept two different argument types: a "list head" and an
    "item", this allows for no confusion.
-  
+
    The second problem with using a single "struct list_head" is that
    it does not distinguish between list objects of distinct list
    classes.  If a single item can belong to two separate lists, there
@@ -55,7 +55,7 @@
    item to be added to a "list head" using the wrong "list link".  By
    using a parametrized list class we can statically detect such
    mistakes, detecting mistakes as soon as they happen.
-  
+
    To create a new list class takes several steps which are described
    below.  Suppose for this example that you would like to link
    together items of type "rx_event".  You should decide on
@@ -82,9 +82,9 @@
    name of the list class.  Following the example, this will create
    types named rx_event_list_head and rx_event_list_link.  In the
    example you would write:
-  
+
    TS_LIST_DECLARE(rx_event);
-  
+
 */
 #define TS_LIST_DECLARE(PREFIX)                                                               \
                                                                                               \
@@ -108,16 +108,16 @@ struct _##PREFIX##_list_head                                                    
    declared before the item type because the item type must contain an
    embedded "list link" object.  Following the example, you might define
    rx_event as follows:
-  
+
    typedef struct _rx_event  rx_event;
-  
+
    struct _rx_event
    {
      ... other members ...
-  
+
      rx_event_list_link  _link;
    };
-  
+
    In this case we have given the rx_event a field named "_link" of
    the appropriate type.
 */
@@ -129,11 +129,11 @@ struct _##PREFIX##_list_head                                                    
    the item type.  In the above example you would supply "rx_event" as
    the type name and "_link" as the field name (without quotes).
    E.g.,
-  
+
    TS_LIST_DEFINE(rx_event,rx_event,_link)
-  
+
    The list class you define is now complete with the functions:
-  
+
    rx_event_list_init             Initialize a list_head
    rx_event_list_clean            Initialize a list_link
    rx_event_list_is_clean         True if list_link is not in a list
@@ -154,14 +154,14 @@ struct _##PREFIX##_list_head                                                    
    rx_event_list_end              Test to end an iteration, either direction
    rx_event_list_splice           Join two lists at the head
    rx_event_list_empty            True if the list is empty
-   rx_event_list_object_ok        Check that list element satisfies double 
+   rx_event_list_object_ok        Check that list element satisfies double
                                   list invariants. For debugging.
-  
+
    To iterate over such a list use a for-loop such as:
-  
+
      rx_event_list_head *head = ...;
      rx_event *item;
-  
+
      for (item = rx_event_list_front (head);
                ! rx_event_list_end   (head, item);
           item = rx_event_list_next  (item))

@@ -31,7 +31,7 @@ typedef enum {
 } reiser4_plugin_type;
 
 struct reiser4_plugin_ops;
-/* generic plugin operations, supported by each 
+/* generic plugin operations, supported by each
     plugin type. */
 typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 

@@ -18,51 +18,51 @@ typedef enum
     Blk  ,   /* blank */
     Wrd  ,   /* any symbol exept spec symbl */
     Int  ,   /* numeric */
-    
+
     Ptr  ,   /* pointer */
-    
+
     Pru  ,   /* _pruner */
-    
+
     Stb  ,   /* ` string begin */
     Ste  ,   /* ' string end */
-    Lpr  ,   /* ( [ { */ 
+    Lpr  ,   /* ( [ { */
     Rpr  ,   /* ) ] } */
     Com  ,   /* , */
     Mns  ,   /* - */
-    
-       
+
+
     Les  ,   /* < */
     Slh  ,   /* / */
-    
+
     Lsq  ,   /* [ ----------*/
     Rsq  ,   /* ] ----------*/
-    
+
     Bsl  ,   /* \ */
-    
+
     Lfl  ,   /* { ----------*/
     Rfl  ,   /* } ----------*/
-    
+
     Pip  ,   /* | */
     Sp1  ,   /* : */
     Sp2  ,   /* ; */
-    
+
     Dot  ,   /* . */
-    
+
     Sp4  ,   /* = */
     Sp5  ,   /* > */
     Sp6  ,   /* ? */
     Pls  ,   /* +  ???*/
-    
+
     /*LastTerm Sp6*/
-    
+
     Res  ,   /*  */
-    
+
     Str  ,
     ASG  ,
     App  ,
     Lnk  ,
 
-    Ap2  
+    Ap2
 
   } state;
 #else
@@ -77,7 +77,7 @@ typedef enum
 
 #define Stb  6   /* ` string begin */
 #define Ste  7   /* ' string end */
-#define Lpr  8   /* ( [ { */ 
+#define Lpr  8   /* ( [ { */
 #define Rpr  9   /* ) ] } */
 #define Com 10   /* , */
 #define Mns 11   /* - */
@@ -136,7 +136,7 @@ static char   ncl     [256] =
 	Int,  Int,  Int,  Int,  Int,  Int,  Int,  Int,
       /* 8      9     :    ;     <     =     >     ? */
 	Int,  Int,  Sp2,  Sp1,  Les,  Sp4,  Sp5,  Sp6,
-        
+
 	/* 64*/
       /* @      A     B    C     D     E     F     G */
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
@@ -155,7 +155,7 @@ static char   ncl     [256] =
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
       /* x      y     z    {     |     }     ~       */
 	Wrd,  Wrd,  Wrd,  Lpr,  Pip,  Rpr,  Wrd,  ERR,
-        
+
 	/*128*/
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,

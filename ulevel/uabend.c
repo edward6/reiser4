@@ -104,13 +104,13 @@ void printBacktrace()
 {
 	int   i;
 	char *frame;
-  
+
 	printk( "Stack backtrace:\n" );
 	for( i = 0 ; isValidFrame( frame = getFrame( i ) ) ; ++i ) {
 		char *baseAddress;
 		const char *name;
 
-		name = getNameByAddress( ( char * ) frame, 
+		name = getNameByAddress( ( char * ) frame,
 					 ( void ** ) &baseAddress );
 		if( name != NULL ) {
 			printk( "%i: %p: %s %c 0x%x\n", i, frame, name,
@@ -124,8 +124,8 @@ void printBacktrace()
 	printk( "End backtrace.\n" );
 }
 
-static void trap_sig(int signum, 
-		     siginfo_t *info UNUSED_ARG, 
+static void trap_sig(int signum,
+		     siginfo_t *info UNUSED_ARG,
 		     void *datum UNUSED_ARG)
 {
 	panic( "Signal %i trapped\n", signum );
@@ -186,7 +186,7 @@ static void *getFrame( int n )
 {
 #if USE_BUILTIN_RETURN_ADDRESS
 #define GET_FRAME( n ) case n: return __builtin_return_address( n )
-    
+
 	switch( n ) {
 		GET_FRAME( 0 );
 		GET_FRAME( 1 );
@@ -282,7 +282,7 @@ static const char *getBfdNameByAddress( void *address, void **exactAddress )
 #if HAS_BFD
 	int low;
 	int high;
-          
+
 	low = 0;
 	high = data.bfd.tableSize - 1;
 
@@ -292,11 +292,11 @@ static const char *getBfdNameByAddress( void *address, void **exactAddress )
 	if( data.bfd.addresses[ 0 ] > address ) {
 		return NULL;
 	}
-  
+
 	/* binary serach */
 	while( high - low > 1 ) {
 		int median;
-	  
+	
 		median = ( high + low ) / 2;
 		if( data.bfd.addresses[ median ] > address ) {
 			high = median;
@@ -328,8 +328,8 @@ static const char *getDlNameByAddress( void *address, void **exactAddress )
 		if( exactAddress != NULL ) {
 			*exactAddress = symbolInfo.dli_saddr;
 		}
-		snprintf( dlSymbolName, sizeof dlSymbolName, "(%s@%p) %s", 
-			  ( symbolInfo.dli_fname != NULL ) ? symbolInfo.dli_fname : "", 
+		snprintf( dlSymbolName, sizeof dlSymbolName, "(%s@%p) %s",
+			  ( symbolInfo.dli_fname != NULL ) ? symbolInfo.dli_fname : "",
 			  symbolInfo.dli_fbase,
 			  symbolInfo.dli_sname );
 		return dlSymbolName;
@@ -373,14 +373,14 @@ static int initBfd( char *image )
 	int number_of_symbols;
 	int i;
 	int j;
-    
+
 	if( data.bfd.tableLoaded ) {
 		return 1;
 	}
 	if( data.bfd.wasBFDError ) {
 		return 0;
 	}
-    
+
 	bfd_init();
 	if( bfd_get_error() != bfd_error_no_error ) {
 		BFD_ERROR( "bfd_init()" );
@@ -401,7 +401,7 @@ static int initBfd( char *image )
 	}
 
 	storage_needed = bfd_get_symtab_upper_bound( abfd );
-     
+
 	if( storage_needed < 0 ) {
 		BFD_ERROR( "bfd_get_symtab_upper_bound(): storage_needed < 0" );
 		data.bfd.wasBFDError = 1;
@@ -421,8 +421,8 @@ static int initBfd( char *image )
 		data.bfd.wasBFDError = 1;
 		return 0;
 	}
-     
-	qsort( symbol_table, ( size_t ) number_of_symbols, 
+
+	qsort( symbol_table, ( size_t ) number_of_symbols,
 	       sizeof symbol_table[ 0 ], compare_by_address );
 
 	data.bfd.tableSize = 0;
@@ -436,7 +436,7 @@ static int initBfd( char *image )
 		}
 		++data.bfd.tableSize;
 	}
-  
+
 	data.bfd.addresses = malloc( data.bfd.tableSize * sizeof( void * ) );
 	data.bfd.names = malloc( data.bfd.tableSize * sizeof( char * ) );
 
@@ -450,12 +450,12 @@ static int initBfd( char *image )
 		if( symbol_table[ i ] -> name[ 0 ] == ( char ) 0 ) {
 			continue;
 		}
-		data.bfd.addresses[ j ] =  
+		data.bfd.addresses[ j ] =
 			( void * ) bfd_asymbol_value( symbol_table[ i ] );
 		data.bfd.names[ j ] = strdup( symbol_table[ i ] -> name );
 		++j;
 	}
-  
+
 	free( symbol_table );
 	if( ! bfd_close( abfd ) ) {
 		BFD_ERROR( "bfd_close()" );
@@ -471,7 +471,7 @@ static int initBfd( char *image )
 static int compare_by_address( const void *symb1, const void *symb2 )
 {
 #if HAS_BFD
-	return( bfd_asymbol_value( *( asymbol ** ) symb1 ) - 
+	return( bfd_asymbol_value( *( asymbol ** ) symb1 ) -
 		bfd_asymbol_value( *( asymbol ** ) symb2 ) );
 #else
 	return 1;
@@ -492,7 +492,7 @@ static int stackGrowth()
 }
 
 
-/* 
+/*
  * Make Linus happy.
  * Local variables:
  * c-indentation-style: "K&R"

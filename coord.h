@@ -47,7 +47,7 @@ struct coord {
 	   functions below.
 	*/
 	/*  8 */ char iplugid;
-	/* position of coord w.r.t. to neighboring items and/or units. 
+	/* position of coord w.r.t. to neighboring items and/or units.
 	   Values are taken from &between_enum above.
 	*/
 	/*  9 */ char between;
@@ -124,12 +124,12 @@ sideof_reverse(sideof side)
 }
 
 /* NOTE: There is a somewhat odd mixture of the following opposed terms:
-  
+
    "first" and "last"
    "next" and "prev"
    "before" and "after"
    "leftmost" and "rightmost"
-  
+
    But I think the chosen names are decent the way they are.
 */
 
@@ -174,7 +174,7 @@ extern void coord_init_sideof_unit(coord_t * coord, const znode * node, sideof d
 extern void coord_init_parent_hint(coord_t * coord, const znode * node);
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
-   it was not clear how actually 
+   it was not clear how actually
    FIXME-VS: added by vs (2002, june, 8) */
 extern void coord_init_zero(coord_t * coord);
 

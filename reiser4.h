@@ -80,7 +80,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    of better optimization and because sequential search is more CPU
    cache friendly. This number (25) was found by experiments on dual AMD
    Athlon(tm), 1400MHz.
-  
+
    NOTE: testing in kernel has shown that binary search is more effective than
    implied by results of the user level benchmarking. Probably because in the
    node keys are separated by other data. So value was adjusted after few
@@ -134,14 +134,14 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_ENTD_TIMEOUT (3 * HZ / 1000)
 
 /* start complaining after that many restarts in coord_by_key().
-  
+
    This either means incredibly heavy contention for this part of a tree, or
    some corruption or bug.
 */
 #define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
 /* return -EIO after that many iterations in coord_by_key().
-  
+
    I have witnessed more than 800 iterations (in 30 thread test) before cbk
    finished. --nikita
 */
@@ -152,7 +152,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /* put a per-inode limit on maximal number of directory entries with identical
    keys in hashed directory.
-  
+
    Disable this until inheritance interfaces stabilize: we need some way to
    set per directory limit.
 */
@@ -187,7 +187,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /* what size units of IO we would like cp, etc., to use, in writing to
    reiser4. In bytes.
-  
+
    Can be overwritten by optimal_io_size mount option.
 */
 #define REISER4_OPTIMAL_IO_SIZE (64 * 1024)

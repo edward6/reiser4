@@ -40,7 +40,7 @@ search_table:
 
 		/* Since entries in tables are sorted, we iterate until we hit item that we are looking for,
 		   or we reach end of whole fixmap or end of current block */
-		while ((d32tocpu(&diskmap->table[i].label) <= label) && 
+		while ((d32tocpu(&diskmap->table[i].label) <= label) &&
 		       (d32tocpu(&diskmap->table[i].parameter) < parameter))
 			i++;
 

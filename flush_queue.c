@@ -31,8 +31,8 @@ TS_LIST_DEFINE(atom, txn_atom, atom_link);
 
 SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 
-/* 
-   LOCKING: 
+/*
+   LOCKING:
 
    fq->guard spin lock protects fq->atom pointer and nothing else.  fq->prepped
    list protected by atom spin lock.  fq->prepped list uses the following
@@ -204,7 +204,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 		assert("nikita-3013", schedulable());
 
 		blk_run_queues();
-		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) ) 
+		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) )
 			down(&fq->io_sem);
 
 		/* Ask the caller to re-aquire the locks and call this
@@ -480,7 +480,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require
-   several iterations which is indicated by -E_REPEAT return code. 
+   several iterations which is indicated by -E_REPEAT return code.
 
    This function does not contain code for obtaining an atom lock because an
    atom lock is obtained by different ways in different parts of reiser4,

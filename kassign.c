@@ -49,11 +49,11 @@ is_longname(const char *name UNUSED_ARG, int len)
 }
 
 /* code ascii string into __u64.
-  
+
    Put characters of @name into result (@str) one after another starting
    from @start_idx-th highest (arithmetically) byte. This produces
    endian-safe encoding. memcpy(2) will not do.
-   
+
 */
 static __u64
 pack_string(const char *name /* string to encode */ ,
@@ -105,7 +105,7 @@ extract_name_from_key(const reiser4_key *key, char *buf)
 	return buf;
 }
 
-/* build key for directory entry. 
+/* build key for directory entry.
    ->build_entry_key() for directory plugin */
 int
 build_entry_key_common(const struct inode *dir	/* directory where entry is
@@ -146,16 +146,16 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 
 	/* This is our brand new proposed key allocation algorithm for
 	   directory entries:
-	  
+	
 	   If name is shorter than 7 + 8 = 15 characters, put first 7
 	   characters into objectid field and remaining characters (if
 	   any) into offset field. Dream long dreamt came true: file
 	   name as a key!
-	  
+	
 	   If file name is longer than 15 characters, put first 7
 	   characters into objectid and hash of remaining characters
 	   into offset field.
-	  
+	
 	   To distinguish above cases, in latter set up unused high bit
 	   in objectid field.
 
@@ -207,7 +207,7 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 
 /* build key for directory entry.
    ->build_entry_key() for directory plugin
-  
+
    This is for directories where we want repeatable and restartable readdir()
    even in case 32bit user level struct dirent (readdir(3)).
 */
@@ -253,8 +253,8 @@ build_entry_key_stable_entry(const struct inode *dir	/* directory where
 }
 
 /* build key to be used by ->readdir() method.
-  
-   See reiser4_readdir() for more detailed comment. 
+
+   See reiser4_readdir() for more detailed comment.
    Common implementation of dir plugin's method build_readdir_key
 */
 int
@@ -284,17 +284,17 @@ is_dot_key(const reiser4_key * key /* key to check */ )
 {
 	assert("nikita-1717", key != NULL);
 	assert("nikita-1718", get_key_type(key) == KEY_FILE_NAME_MINOR);
-	return 
-		(get_key_ordering(key) == 0ull) && 
-		(get_key_objectid(key) == 0ull) && 
+	return
+		(get_key_ordering(key) == 0ull) &&
+		(get_key_objectid(key) == 0ull) &&
 		(get_key_offset(key) == 0ull);
 }
 
 /* build key for stat-data.
-  
+
    return key of stat-data of this object. This should became sd plugin
    method in the future. For now, let it be here.
-  
+
 */
 reiser4_key *
 build_sd_key(const struct inode * target /* inode of an object */ ,
@@ -313,10 +313,10 @@ build_sd_key(const struct inode * target /* inode of an object */ ,
 }
 
 /* encode part of key into &obj_key_id
-  
+
    This encodes into @id part of @key sufficient to restore @key later,
    given that latter is key of object (key of stat-data).
-  
+
    See &obj_key_id
 */
 int
@@ -331,7 +331,7 @@ build_obj_key_id(const reiser4_key * key /* key to encode */ ,
 }
 
 /* encode reference to @obj in @id.
-  
+
    This is like build_obj_key_id() above, but takes inode as parameter. */
 int
 build_inode_key_id(const struct inode *obj /* object to build key of */ ,
@@ -348,7 +348,7 @@ build_inode_key_id(const struct inode *obj /* object to build key of */ ,
 }
 
 /* decode @id back into @key
-  
+
    Restore key of object stat-data from @id. This is dual to
    build_obj_key_id() above.
 */
@@ -377,12 +377,12 @@ oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
 }
 
 /* encode into @id key of directory entry.
-  
+
    Encode into @id information sufficient to later distinguish directory
    entries within the same directory. This is not whole key, because all
    directory entries within directory item share locality which is equal
    to objectid of their directory.
-  
+
 */
 int
 build_de_id(const struct inode *dir /* inode of directory */ ,
@@ -402,12 +402,12 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
 }
 
 /* encode into @id key of directory entry.
-  
+
    Encode into @id information sufficient to later distinguish directory
    entries within the same directory. This is not whole key, because all
    directory entries within directory item share locality which is equal
    to objectid of their directory.
-  
+
 */
 int
 build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
@@ -419,10 +419,10 @@ build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
 }
 
 /* restore from @id key of directory entry.
-  
+
    Function dual to build_de_id(): given @id and locality, build full
    key of directory entry within directory item.
-  
+
 */
 int
 extract_key_from_de_id(const oid_t locality	/* locality of directory

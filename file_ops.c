@@ -106,20 +106,20 @@ typedef struct readdir_actor_args {
 } readdir_actor_args;
 
 /* reiser4_readdir() - our readdir() method.
-  
+
    readdir(2)/getdents(2) interface is based on implicit assumption that
    readdir can be restarted from any particular point by supplying file
    system with off_t-full of data. That is, file system fill ->d_off
    field in struct dirent and later user passes ->d_off to the
    seekdir(3), which is, actually, implemented by glibc as lseek(2) on
    directory.
-  
+
    Reiser4 cannot restart readdir from 64 bits of data, because two last
    components of the key of directory entry are unknown, which given 128
    bits: locality and type fields in the key of directory entry are
    always known, to start readdir() from given point objectid and offset
    fields have to be filled.
-  
+
 */
 static int
 reiser4_readdir(struct file *f /* directory file being read */ ,
@@ -151,8 +151,8 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 }
 
 /* reiser4_ioctl - handler for ioctl for inode supported commands:
-   
-   REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing 
+
+   REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing
    file (argument arg has to be non-zero)
 */
 static int
@@ -188,7 +188,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	reiser4_stat_inc(vfs_calls.mmap);
 
 	ON_TRACE(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
-		 get_inode_oid(file->f_dentry->d_inode), 
+		 get_inode_oid(file->f_dentry->d_inode),
 		 file->f_dentry->d_inode->i_size);
 
 	inode = file->f_dentry->d_inode;
@@ -200,10 +200,10 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 }
 
 /* reiser4 implementation of ->read() VFS method, member of reiser4 struct file_operations
- 
- reads some part of a file from the filesystem into the user space buffer 
 
- gets the plugin for the file and calls its read method which does everything except some initialization 
+ reads some part of a file from the filesystem into the user space buffer
+
+ gets the plugin for the file and calls its read method which does everything except some initialization
 
 */
 static ssize_t
@@ -319,7 +319,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 	return result;
 }
 
-static int 
+static int
 reiser4_open(struct inode * inode, struct file * file)
 {
 	int result;
@@ -343,7 +343,7 @@ reiser4_open(struct inode * inode, struct file * file)
 /* FIXME: This way to support fsync is too expensive. Proper solution support is
    to commit only atoms which contain dirty pages from given address space. */
 static int
-reiser4_fsync(struct file *file UNUSED_ARG, 
+reiser4_fsync(struct file *file UNUSED_ARG,
 	      struct dentry *dentry, int datasync UNUSED_ARG)
 {
 	int result;

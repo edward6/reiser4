@@ -77,13 +77,13 @@ hash_r5(const unsigned char *name /* name to hash */ ,
 /* Keyed 32-bit hash function using TEA in a Davis-Meyer function
      H0 = Key
      Hi = E Mi(Hi-1) + Hi-1
-  
+
    (see Applied Cryptography, 2nd edition, p448).
-  
+
    Jeremy Fitzhardinge <jeremy@zip.com.au> 1998
-   
+
    Jeremy has agreed to the contents of reiserfs/README. -Hans
-  
+
    This code was blindly upgraded to __u64 by s/__u32/__u64/g.
 */
 static __u64
@@ -195,20 +195,20 @@ hash_tea(const unsigned char *name /* name to hash */ ,
 
 }
 
-/* classical 64 bit Fowler/Noll/Vo-1 (FNV-1) hash. 
-   
+/* classical 64 bit Fowler/Noll/Vo-1 (FNV-1) hash.
+
    See http://www.isthe.com/chongo/tech/comp/fnv/ for details.
-   
+
    Excerpts:
-   
+
      FNV hashes are designed to be fast while maintaining a low collision
      rate.
-   
+
      [This version also seems to preserve lexicographical order locally.]
-   
+
      FNV hash algorithms and source code have been released into the public
      domain.
-   
+
 */
 static __u64
 hash_fnv1(const unsigned char *name /* name to hash */ ,

@@ -57,19 +57,19 @@ extern int phash_destroy_hook(phash_scope scope, void *object);
 extern int phash_init(void);
 extern void phash_done(void);
 
-static inline int 
+static inline int
 phash_inode_destroy(struct inode *inode)
 {
 	return phash_destroy_hook(PHASH_INODE, inode);
 }
 
-static inline int 
+static inline int
 phash_jnode_destroy(jnode *node)
 {
 	return phash_destroy_hook(PHASH_JNODE, node);
 }
 
-static inline int 
+static inline int
 phash_super_destroy(struct super_block *super)
 {
 	return phash_destroy_hook(PHASH_SUPER, super);

@@ -78,12 +78,12 @@ lock_neighbor(
 	/* get neighbor's address by using of sibling link, quit while loop
 	   (and return) if link is not available. */
 	while (1) {
-		reiser4_stat_inc_at_level(znode_get_level(node), 
+		reiser4_stat_inc_at_level(znode_get_level(node),
 					  znode.lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 
 		/* return -E_NO_NEIGHBOR if parent or side pointer is NULL or if
-		 * node pointed by it is not connected.  
+		 * node pointed by it is not connected.
 		 *
 		 * However, GN_ALLOW_NOT_CONNECTED option masks "connected"
 		 * check and allows passing reference to not connected znode to
@@ -196,7 +196,7 @@ int check_sibling_list(znode * node)
 	znode *scan;
 	znode *next;
 
-	ON_DEBUG_CONTEXT(assert("nikita-3283", 
+	ON_DEBUG_CONTEXT(assert("nikita-3283",
 				lock_counters()->write_locked_tree > 0));
 
 	if (node == NULL)
@@ -234,18 +234,18 @@ int check_sibling_list(znode * node)
    maintaining overhead is in additional hash table searches for left and
    right neighbors (and worse locking scheme in case close neighbors do not
    share same parent).
-  
+
    We can reduce that overhead by introducing of znode `connected' states. For
    simpler locking and simpler implementation znodes have two connection state
    bits: left-connected and right connected. We never do hash table search for
-   neighbor from connected side 
+   neighbor from connected side
 
 ZAM-FIXME-HANS: connected side means?  rewrite sentence
 
 even corresponded pointer is null. This way we
    only do hash searches when new znode is allocated and should be connected
    to znode web dynamic structure.
-  
+
    Locking in left direction (required for finding of parent of left neighbor)
    can fail and cause whole lookup process to restart. It means lookup process
    may leave znode in unconnected state. These znodes should not be used,
@@ -295,7 +295,7 @@ link_left_and_right(znode * left, znode * right)
 			right->left = left;
 			ZF_SET(right, JNODE_LEFT_CONNECTED);
 		} else
-			assert("nikita-3303", 
+			assert("nikita-3303",
 			       left == NULL || right->left == left);
 	}
 	assert("nikita-3275", check_sibling_list(left));
@@ -365,7 +365,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 /* Very significant function which performs a step in horizontal direction
    when sibling pointer is not available.  Actually, it is only function which
-   does it. 
+   does it.
    Note: this function does not restore locking status at exit,
    caller should does care about proper unlocking and zrelsing */
 static int
@@ -558,9 +558,9 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 	assert("umka-307", tree != NULL);
 	assert("umka-308", level <= tree->height);
 
-	/* umka (2002.06.14) 
+	/* umka (2002.06.14)
 	   Here probably should be a check for given "level" validness.
-	   Something like assert("xxx-yyy", level < REAL_MAX_ZTREE_HEIGHT); 
+	   Something like assert("xxx-yyy", level < REAL_MAX_ZTREE_HEIGHT);
 	*/
 
 	coord_dup(&local, coord);
@@ -847,7 +847,7 @@ sibling_list_insert(znode * new, znode * before)
 	assert("umka-256", new != NULL);
 	assert("umka-257", znode_get_tree(new) != NULL);
 
-	UNDER_RW_VOID(tree, znode_get_tree(new), write, 
+	UNDER_RW_VOID(tree, znode_get_tree(new), write,
 		      sibling_list_insert_nolock(new, before));
 }
 struct tw_handle {
@@ -864,9 +864,9 @@ struct tw_handle {
 	/* A direction of a tree traversal: 1 if going from right to left. */
 	int                    go_left:1;
 	/* "Done" flag */
-	int                    done:1; 
+	int                    done:1;
 	/* Current node was processed completely */
-	int                    node_completed:1; 
+	int                    node_completed:1;
 };
 
 /* it locks the root node, handles the restarts inside */
@@ -914,7 +914,7 @@ static int update_start_key(struct tw_handle * h)
 		tap_relse(&h->tap);
 	}
 	return ret;
-} 
+}
 
 /* Move tap to the next node, load it. */
 static int go_next_node (struct tw_handle * h, lock_handle * lock, const coord_t * coord)
@@ -966,7 +966,7 @@ static void next_unit (struct tw_handle * h)
 
 /* Move tree traversal position (which is embedded into tree_walk_handle) to the
  * parent of current node (h->lh.node). */
-static int tw_up (struct tw_handle * h) 
+static int tw_up (struct tw_handle * h)
 {
 	coord_t coord;
 	lock_handle lock;
@@ -1120,7 +1120,7 @@ int tree_walk (const reiser4_key *start_key, int go_left, struct tree_walk_actor
 		if (ret)
 			return ret;
 		ret = zload(lock.node);
-		if (ret) 
+		if (ret)
 			goto done;
 
 		if (go_left)

@@ -625,11 +625,11 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 	assert("nikita-2841", c2 != NULL);
 
 	/* assertion to track changes in coord_t */
-	cassert(sizeof(*c1) == sizeof(c1->node) + 
+	cassert(sizeof(*c1) == sizeof(c1->node) +
 		sizeof(c1->item_pos) +
-		sizeof(c1->unit_pos) + 
+		sizeof(c1->unit_pos) +
 		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad) + sizeof(c1->body));
-	return 
+	return
 		c1->node == c2->node &&
 		c1->item_pos == c2->item_pos &&
 		c1->unit_pos == c2->unit_pos &&

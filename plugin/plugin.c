@@ -2,40 +2,40 @@
 
 /* Basic plugin infrastructure, lookup etc. */
 
-/* PLUGINS: 
-  
+/* PLUGINS:
+
    Plugins are internal Reiser4 "modules" or "objects" used to increase
    extensibility and allow external users to easily adapt reiser4 to
    their needs.
-  
+
    Plugins are classified into several disjoint "types". Plugins
    belonging to the particular plugin type are termed "instances" of
    this type. Currently the following types are present:
-  
+
     . object plugin
     . hash plugin
     . tail plugin
     . perm plugin
     . item plugin
     . node layout plugin
-  
+
    Object (file) plugin determines how given file-system object serves
    standard VFS requests for read, write, seek, mmap etc. Instances of
    file plugins are: regular file, directory, symlink. Another example
    of file plugin is audit plugin, that optionally records accesses to
    underlying object and forward request to it.
-  
+
    Hash plugins compute hashes used by reiser4 to store and locate
-   files within directories. Instances of hash plugin type are: r5, 
+   files within directories. Instances of hash plugin type are: r5,
    tea, rupasov.
-   
+
    Tail plugins (or, more precisely, tail policy plugins) determine
    when last part of the file should be stored in a direct item.
-   
+
    Perm plugins control permissions granted for process accessing file.
-  
+
    Scope and lookup:
-  
+
    label such that pair ( type_label, plugin_label ) is unique.  This
    pair is a globally persistent and user-visible plugin
    identifier. Internally kernel maintains plugins and plugin types in
@@ -44,34 +44,34 @@
    "dictionary" which is mapping from plugin label to numerical
    identifier which is stored in file-system objects.  That is, we
    store the offset into the plugin array for that plugin type as the
-   plugin id in the stat data of the filesystem object.  
+   plugin id in the stat data of the filesystem object.
 
    plugin_labels have meaning for the user interface that assigns
    plugins to files, and may someday have meaning for dynamic loading of
    plugins and for copying of plugins from one fs instance to
    another by utilities like cp and tar.
-  
+
    Internal kernel plugin type identifier (index in plugins[] array) is
    of type reiser4_plugin_type. Set of available plugin types is
    currently static, but dynamic loading doesn't seem to pose
    insurmountable problems.
-  
+
    Within each type plugins are addressed by the identifiers of type
    reiser4_plugin_id (indices in
    reiser4_plugin_type_data.builtin[]). Such identifiers are only
    required to be unique within one type, not globally.
-  
+
    Thus, plugin in memory is uniquely identified by the pair (type_id,
    id). Each plugin is either builtin, or dynamic. Builtin plugins are
    ones, required to provide standard file-system semantics and are
    hard-coded into kernel image, or reiser4 module. Dynamic plugins, on
    the other hand, are loaded as modules on demand.
-  
+
    NOTE: dynamic plugin loading will be deferred until some future version
    or until we have enough time to implement it efficiently.
-  
+
    Usage:
-  
+
    There exists only one instance of each plugin instance, but this
    single instance can be associated with many entities (file-system
    objects, items, nodes, transactions, file-descriptors etc.). Entity
@@ -83,15 +83,15 @@
    plugin, hash plugin type and some particular instance of hash plugin
    type. Inode, representing regular file is subject of "regular file"
    plugin, tail-policy plugin type etc.
-  
+
    With each subject plugin possibly stores some state. For example,
    state of directory plugin (instance of object plugin type) is pointer
    to hash plugin (if directories always use hashing that is). State of
    audit plugin is file descriptor (struct file) of log file or some
    magic value to do logging through printk().
-   
+
    Interface:
-  
+
    In addition to a scalar identifier, each plugin type and plugin
    proper has a "label": short string and a "description"---longer
    descriptive string. Labels and descriptions of plugin types are
@@ -106,56 +106,56 @@
    "reiserplug-hash-thash". After module requesting, lookup by labels is
    repeated, so that if module registers itself through
    reiser4_register_plugin() it will be found.
-  
+
    NOTE: dynamic plugin loading will be deferred until some future version
    or until we have enough time to implement it efficiently.
-  
+
    Features:
-  
+
     . user-level plugin manipulations:
       + reiser4("filename/..file_plugin<='audit'");
       + write(open("filename/..file_plugin"), "audit", 8);
-  
+
     . user level utilities lsplug and chplug to manipulate plugins.
       Utilities are not of primary priority. Possibly they will be not
       working on v4.0
-  
+
     . mount option "plug" to set-up plugins of root-directory.
       "plug=foo:bar" will set "bar" as default plugin of type "foo".
-  
-   Limitations: 
-  
+
+   Limitations:
+
     . each plugin type has to provide at least one builtin
       plugin. This is technical limitation and it can be lifted in the
       future.
-  
+
    TODO:
-  
+
    New plugin types/plugings:
    Things we should be able to separately choose to inherit:
-  
+
    security plugins
-  
+
    stat data
-  
+
    file bodies
-  
+
    file plugins
-  
+
    dir plugins
-  
+
     . perm:acl
-   
-    d audi---audit plugin intercepting and possibly logging all 
+
+    d audi---audit plugin intercepting and possibly logging all
       accesses to object. Requires to put stub functions in file_operations
-      in stead of generic_file_*. 
-   
+      in stead of generic_file_*.
+
     . over---handle hash overflows
-  
+
     . sqnt---handle different access patterns and instruments read-ahead
-  
+
     . hier---handle inheritance of plugins along file-system hierarchy
-  
+
    Different kinds of inheritance: on creation vs. on access.
    Compatible/incompatible plugins.
    Inheritance for multi-linked files.
@@ -166,7 +166,7 @@
    but not for directories, how such plugins would be inherited?
     . always store them with directories also
     . use inheritance hierarchy, independent of file-system namespace
-  
+
 */
 
 #include "../debug.h"
@@ -382,7 +382,7 @@ locate_plugin(struct inode *inode, plugin_locator * loc)
 #endif
 
 /* return plugin by its @type_id and @id.
-  
+
    Both arguments are checked for validness: this is supposed to be called
    from user-level.
 */
@@ -398,7 +398,7 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 			return plugin_at(&plugins[type_id], id);
 		else
 			/* id out of bounds */
-			warning("nikita-2913", 
+			warning("nikita-2913",
 				"Invalid plugin id: [%i:%i]", type_id, id);
 	} else
 		/* type_id out of bounds */

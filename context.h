@@ -167,7 +167,7 @@ static inline reiser4_context * get_current_context(void) __attribute__((const))
 
 /* return context associated with current thread */
 static inline reiser4_context *
-get_current_context(void) 
+get_current_context(void)
 {
 	return get_context(current);
 }
@@ -189,12 +189,12 @@ static inline void writeout_mode_disable(void)
 	get_current_context()->writeout_mode = 0;
 }
 
-static inline void grab_space_enable(void) 
+static inline void grab_space_enable(void)
 {
 	get_current_context()->grab_enabled = 1;
 }
 
-static inline void grab_space_disable(void) 
+static inline void grab_space_disable(void)
 {
 	get_current_context()->grab_enabled = 0;
 }
@@ -203,7 +203,7 @@ static inline void grab_space_set_enabled (int enabled)
 {
 	get_current_context()->grab_enabled = enabled;
 }
- 
+
 static inline int is_grab_enabled(reiser4_context *ctx)
 {
 	return ctx->grab_enabled;

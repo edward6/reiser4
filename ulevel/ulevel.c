@@ -87,7 +87,7 @@ void down( semaphore *sem )
 
 		/* sleep 100ms */
 		usleep (100 * 1000);
-	} 
+	}
 #endif
 }
 
@@ -119,7 +119,7 @@ void cond_resched()
 
 void spinlock_bug (const char *msg)
 {
-	reiser4_panic("jmacd-1010", "spinlock: %s", msg); 
+	reiser4_panic("jmacd-1010", "spinlock: %s", msg);
 }
 
 
@@ -232,15 +232,15 @@ void kfree( void *addr )
 		xxfree( addr );
 }
 
-/* 
+/*
     Audited by umka (2002.06.13)
     Here in kmalloc request should be exactly specified the kind of request
     GFP_KERNEL, etc.
 */
-kmem_cache_t *kmem_cache_create( const char *name, 
-				 size_t size UNUSED_ARG, 
+kmem_cache_t *kmem_cache_create( const char *name,
+				 size_t size UNUSED_ARG,
 				 size_t offset UNUSED_ARG,
-				 unsigned long flags UNUSED_ARG, 
+				 unsigned long flags UNUSED_ARG,
 				 void (*ctor)(void*, kmem_cache_t *, unsigned long),
 				 void (*dtor)(void*, kmem_cache_t *, unsigned long) )
 {
@@ -283,9 +283,9 @@ void kmem_cache_free( kmem_cache_t *slab, void *addr )
 	spin_unlock (& slab -> lock);
 }
 
-/* 
+/*
     Audited by umka (2002.06.13)
-    xmemset may try access NULL addr in the case kmalloc 
+    xmemset may try access NULL addr in the case kmalloc
     will unable to allocate specified size.
 */
 void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag )
@@ -335,7 +335,7 @@ struct request_queue rq;
 struct block_device block_devices[1];
 
 struct super_block * get_sb_bdev (struct file_system_type *fs_type,
-				  int flags, char *dev_name, 
+				  int flags, char *dev_name,
 				  void * data,
 				  int (*fill_super)(struct super_block *, void *, int))
 {
@@ -412,8 +412,8 @@ typedef struct page *page_p;
 static inline int indexeq( const page_p *p1,
 			   const page_p *p2 )
 {
-	return 
-		( ( *p1 ) -> index == ( *p2 ) -> index ) && 
+	return
+		( ( *p1 ) -> index == ( *p2 ) -> index ) &&
 		( ( *p1 ) -> mapping == ( *p2 ) -> mapping );
 }
 
@@ -529,8 +529,8 @@ int is_bad_inode( struct inode *inode UNUSED_ARG )
 }
 
 static struct inode * find_inode (struct super_block *super UNUSED_ARG,
-				  unsigned long ino, 
-				  int (*test)(struct inode *, void *), 
+				  unsigned long ino,
+				  int (*test)(struct inode *, void *),
 				  void *data)
 {
 	struct list_head * cur;
@@ -538,7 +538,7 @@ static struct inode * find_inode (struct super_block *super UNUSED_ARG,
 
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
-		trace_on( TRACE_VFS_OPS, 
+		trace_on( TRACE_VFS_OPS,
 			  "inode: %li, %li\n", inode->i_ino, ino );
 		if (inode->i_ino != ino)
 			continue;
@@ -624,7 +624,7 @@ void generic_delete_inode(struct inode *inode)
 	spin_unlock( &inode_hash_guard );
 
 	/* file is deleted. free all its pages */
-	truncate_inode_pages (inode->i_mapping, (loff_t)0); 
+	truncate_inode_pages (inode->i_mapping, (loff_t)0);
 
 	/* delete file from the tree */
 	/*
@@ -654,7 +654,7 @@ void generic_forget_inode(struct inode *inode)
 	xmemset (&file, 0, sizeof file);
 	file.f_dentry = &dentry;
 	dentry.d_inode = inode;
-	if (inode->i_fop && inode->i_fop->release && 
+	if (inode->i_fop && inode->i_fop->release &&
 	    inode->i_fop->release (inode, &file))
 		info ("release failed\n");
 	/* leave inode in hash table with all its pages */
@@ -697,7 +697,7 @@ void iput( struct inode *inode )
 /*
  * FIXME-VS: these are copied from reiser4/inode.c
  */
-static int ul_init_locked_inode( struct inode *inode /* new inode */, 
+static int ul_init_locked_inode( struct inode *inode /* new inode */,
 				 void *opaque /* key of stat data passed to the
 					    * iget5_locked as cookie */ )
 {
@@ -719,16 +719,16 @@ static int ul_find_actor( struct inode *inode /* inode from hash table to
     reiser4_key *key;
 
     key = opaque;
-    return 
+    return
 	    ( inode -> i_ino == get_key_objectid( key ) ) &&
 	    ( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
 }
 
 
 static struct inode *
-get_new_inode(struct super_block *sb, 
-	      unsigned long hashval, 
-	      int (*test)(struct inode *, void *), 
+get_new_inode(struct super_block *sb,
+	      unsigned long hashval,
+	      int (*test)(struct inode *, void *),
 	      int (*set)(struct inode *, void *), void *data)
 {
 	struct inode * inode;
@@ -779,9 +779,9 @@ set_failed:
 }
 
 struct inode *
-iget5_locked(struct super_block *sb, 
-	     unsigned long hashval, 
-	     int (*test)(struct inode *, void *), 
+iget5_locked(struct super_block *sb,
+	     unsigned long hashval,
+	     int (*test)(struct inode *, void *),
 	     int (*set)(struct inode *, void *), void *data)
 {
 	struct inode * inode;
@@ -935,7 +935,7 @@ int radix_tree_delete (struct radix_tree_root * tree, unsigned long index)
 
 static int check_list_head( struct list_head *entry )
 {
-	return 
+	return
 		( entry != NULL ) &&
 		( entry -> next != NULL ) && ( entry -> prev != NULL ) &&
 		( entry -> next -> prev == entry ) &&
@@ -1326,7 +1326,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 				     unsigned long start_page,
 				     unsigned long intrafile_readahead_amount);
 
-void page_cache_readahead(struct address_space *mapping, 
+void page_cache_readahead(struct address_space *mapping,
 			  struct file_ra_state *ra,
 			  struct file *filp, unsigned long offset)
 {
@@ -1554,7 +1554,7 @@ void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 			return;
 		}
 		if (rw == READ) {
-			if (read (pbh[i]->b_bdev->bd_dev, pbh[i]->b_data, pbh[i]->b_size) != 
+			if (read (pbh[i]->b_bdev->bd_dev, pbh[i]->b_data, pbh[i]->b_size) !=
 			    (ssize_t)pbh[i]->b_size) {
 				info ("ll_rw_block: read failed\n");
 				clear_buffer_uptodate (pbh[i]);
@@ -1679,7 +1679,7 @@ struct buffer_head * sb_bread (struct super_block * sb, int block)
 		return bh;
 	}
 
-	if (lseek64 (sb->s_bdev->bd_dev, bh->b_size * (off64_t)block, SEEK_SET) != 
+	if (lseek64 (sb->s_bdev->bd_dev, bh->b_size * (off64_t)block, SEEK_SET) !=
 	    bh->b_size * (off64_t)block, SEEK_SET) {
 		brelse (bh);
 		return 0;
@@ -1918,7 +1918,7 @@ void test_search( int rounds, int size, int num )
 		rdtscll( stamp2 );
 		cycles += stamp2 - stamp1;
 	}
-	dinfo( "total %lu cycles, %f cycles per search\n", 
+	dinfo( "total %lu cycles, %f cycles per search\n",
 	       ( unsigned long ) cycles, ( ( double ) cycles ) / rounds );
 }
 
@@ -1964,7 +1964,7 @@ typedef enum {
 	EFF_SHOW_INODE      = ( 1 << 0 )
 } echo_filldir_flag;
 
-static int one_shot_filldir(void *arg, const char *name, int namelen, 
+static int one_shot_filldir(void *arg, const char *name, int namelen,
 			    loff_t offset, ino_t inum, unsigned ftype)
 {
 	echo_filldir_info *info;
@@ -1977,7 +1977,7 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 		info -> name = strdup( name );
 		info -> inum = ( int ) inum;
 		dinfo( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-		       current->pid, name, namelen, offset, 
+		       current->pid, name, namelen, offset,
 		       ( long unsigned ) inum, ftype );
 		return 0;
 	} else {
@@ -1986,7 +1986,7 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 	}
 }
 
-static int echo_filldir(void *arg, const char *name, int namelen, 
+static int echo_filldir(void *arg, const char *name, int namelen,
 			loff_t offset, ino_t inum, unsigned ftype)
 {
 	echo_filldir_info *info;
@@ -1996,7 +1996,7 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
 	dinfo( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-	       current->pid, name, namelen, offset, 
+	       current->pid, name, namelen, offset,
 	       ( long unsigned ) inum, ftype );
 	return 0;
 }
@@ -2011,8 +2011,8 @@ static int readdir2( const char *prefix, struct file *dir, __u32 flags )
 
 	do {
 		info.eof = 1;
-		result = dir -> f_dentry -> d_inode -> i_fop -> 
-			readdir( dir, &info, 
+		result = dir -> f_dentry -> d_inode -> i_fop ->
+			readdir( dir, &info,
 				 flags ? one_shot_filldir : echo_filldir );
 		if( info.eof )
 			break;
@@ -2027,10 +2027,10 @@ static int readdir2( const char *prefix, struct file *dir, __u32 flags )
 				 */
 				i = call_lookup( dir -> f_dentry -> d_inode, info.name );
 				if( IS_ERR( i ) )
-					warning( "nikita-1767", "Not found: %s", 
+					warning( "nikita-1767", "Not found: %s",
 						 info.name );
 				else if( ( int ) i -> i_ino != info.inum )
-					warning( "nikita-1768", 
+					warning( "nikita-1768",
 						 "Wrong inode number: %i != %i",
 						 ( int ) info.inum, ( int ) i -> i_ino );
 				else
@@ -2059,7 +2059,7 @@ static ssize_t call_write (struct inode *, const char * buf,
 			   loff_t offset, unsigned count);
 static ssize_t call_write2 (struct inode * inode,
 			    loff_t offset, unsigned count);
-static ssize_t call_read (struct inode *, char * buf, 
+static ssize_t call_read (struct inode *, char * buf,
 			  loff_t offset, unsigned count);
 void call_truncate (struct inode * inode, loff_t size);
 static int call_readdir (struct inode * dir, const char *prefix);
@@ -2091,7 +2091,7 @@ static void call_umount (struct super_block * sb)
 }
 
 
-static int call_unlink( struct inode * dir, struct inode *victim, 
+static int call_unlink( struct inode * dir, struct inode *victim,
 			const char *name, int dir_p )
 {
 	struct dentry guillotine;
@@ -2187,7 +2187,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = dir_name;
 	dentry.d_name.len = strlen( dir_name );
-	ret = info -> dir -> i_op -> mkdir( info -> dir, 
+	ret = info -> dir -> i_op -> mkdir( info -> dir,
 					    &dentry, S_IFDIR | 0777 );
 	dinfo( "In directory: %s", dir_name );
 
@@ -2251,7 +2251,7 @@ void *mkdir_thread_start( void *arg )
 	REISER4_EXIT_PTR( NULL );
 }
 
-static void print_percentage( unsigned long reached, 
+static void print_percentage( unsigned long reached,
 			      unsigned long total, int gap )
 {
 	int percentage;
@@ -2322,7 +2322,7 @@ static int mt_queue_get( mt_queue_t *queue )
 	}
 	if( v != 0 )
 		return v;
-	el = mt_queue_list_pop_front( &queue -> body ); 
+	el = mt_queue_list_pop_front( &queue -> body );
 	-- queue -> elements;
 	spin_unlock( &queue -> custodian );
 	v = el -> datum;
@@ -2384,7 +2384,7 @@ static int mt_queue_is_buried( mt_queue_t *queue )
 static void mt_queue_info( mt_queue_t *queue )
 {
 	spin_lock( &queue -> custodian );
-	assert( "nikita-1920", 
+	assert( "nikita-1920",
 		( 0 <= queue -> elements ) &&
 		( queue -> elements <= queue -> capacity ) );
 	printk( "queue: %i %i\n", queue -> elements, queue -> capacity );
@@ -2413,7 +2413,7 @@ void *mt_queue_thread( void *arg )
 	REISER4_ENTRY_PTR( info -> sb );
 
 	queue = info -> queue;
-	for( i = 0 ; 
+	for( i = 0 ;
 	     !mt_queue_is_buried( queue ) && ( ( info -> role != any_role ) ||
 					       ( i < info -> ops ) ) ; ++ i ) {
 		mt_queue_thread_role_t role;
@@ -2442,7 +2442,7 @@ void *mt_queue_thread( void *arg )
 	REISER4_EXIT_PTR( NULL );
 }
 
-int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG, 
+int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		 reiser4_tree *tree )
 {
 	int ret;
@@ -2469,7 +2469,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_create( f, name );
 			assert( "nikita-1769", ret == 0 );
-			print_percentage( ( ulong ) i, 
+			print_percentage( ( ulong ) i,
 					  ( ulong ) atoi( argv[ 3 ] ), '+' );
 		}
 		call_readdir( f, "unlink-filled" );
@@ -2477,12 +2477,12 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_rm( f, name );
 			assert( "nikita-1770", ret == 0 );
-			print_percentage( ( ulong ) i, 
+			print_percentage( ( ulong ) i,
 					  ( ulong ) atoi( argv[ 3 ] ), '-' );
 		}
 		call_readdir( f, "unlink-end" );
 		iput( f );
-	} else if( !strcmp( argv[ 2 ], "dir" ) || 
+	} else if( !strcmp( argv[ 2 ], "dir" ) ||
 		   !strcmp( argv[ 2 ], "rm" ) ||
 		   !strcmp( argv[ 2 ], "mongo" ) ) {
 		int threads;
@@ -2516,7 +2516,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			info.unlink = 1;
 		if( threads > 1 ) {
 			for( i = 0 ; i < threads ; ++ i )
-				pthread_create( &tid[ i ], NULL, 
+				pthread_create( &tid[ i ], NULL,
 						mkdir_thread_start, &info );
 
 			/*
@@ -2548,8 +2548,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		check_me( "nikita-2381", call_create( bobber, "detritus" ) == 0 );
 		detritus = call_lookup( bobber, "detritus" );
 		check_me( "nikita-2382", !IS_ERR( detritus ) );
-		check_me( "nikita-2383", 
-			  call_write( detritus, 
+		check_me( "nikita-2383",
+			  call_write( detritus,
 				      buf, (loff_t)0, sizeof buf ) == sizeof buf );
 
 		iput( detritus );
@@ -2568,10 +2568,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			check_me( "nikita-2386", call_create( site, buf ) == 0 );
 			stuff = call_lookup( site, buf );
 			check_me( "nikita-2387", !IS_ERR( stuff ) );
-			check_me( "nikita-2388", 
+			check_me( "nikita-2388",
 				  call_write( stuff, buf, (loff_t)0, (unsigned) size ) == size );
 			iput( stuff );
-			print_percentage( ( ulong ) i, 
+			print_percentage( ( ulong ) i,
 					  ( ulong ) iterations, '+' );
 		}
 		iput( site );
@@ -2602,7 +2602,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		assert( "nikita-1919", tid != NULL );
 
 		for( i = 0 ; i < capacity / 2 ; ++ i )
-			mt_queue_put( &queue, 
+			mt_queue_put( &queue,
 				      ( int ) lc_rand_max( ( __u64 ) INT_MAX ) );
 
 		info.queue = &queue;
@@ -2615,12 +2615,12 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					NULL, mt_queue_thread, &info );
 		copy1 = info;
 		copy1.role = consumer;
-		pthread_create( &tid[ threads ], 
+		pthread_create( &tid[ threads ],
 				NULL, mt_queue_thread, &copy1 );
 
 		copy2 = info;
 		copy2.role = producer;
-		pthread_create( &tid[ threads + 1 ], 
+		pthread_create( &tid[ threads + 1 ],
 				NULL, mt_queue_thread, &copy2 );
 
 		for( i = 0 ; i < threads ; ++ i )
@@ -2668,9 +2668,9 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
-			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
+			ret = insert_by_key( tree, &key, &data, &coord, &lh,
 					     LEAF_LEVEL,
-					     ( inter_syscall_rap * )1, 0, 
+					     ( inter_syscall_rap * )1, 0,
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
@@ -2742,9 +2742,9 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
-			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
+			ret = insert_by_key( tree, &key, &data, &coord, &lh,
 					     LEAF_LEVEL,
-					     ( inter_syscall_rap * )1, 0, 
+					     ( inter_syscall_rap * )1, 0,
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
@@ -2792,7 +2792,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( coord_t );
 	} else if( !strcmp( argv[ 2 ], "binseq" ) ) {
 		if( argc == 4 )
-			test_search( atoi( argv[ 1 ] ), 
+			test_search( atoi( argv[ 1 ] ),
 				     atoi( argv[ 2 ] ), atoi( argv[ 3 ] ) );
 		else {
 			printk( "Usage: %s rounds arrays size\n", argv[ 0 ] );
@@ -2822,7 +2822,7 @@ static int insert_item (reiser4_tree * tree, reiser4_item_data * data,
 
 	level = (item_id_by_plugin (data->iplug) == EXTENT_POINTER_ID) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree, key, data, &coord, &lh,
-				level, &ra, 0, 
+				level, &ra, 0,
 				CBK_UNIQUE);
 
 	done_lh (&lh);
@@ -2948,7 +2948,7 @@ static int call_mkdir (struct inode * dir, const char * name)
 	return result;
 }
 
-static int call_readdir_common (struct inode * dir, const char *prefix, 
+static int call_readdir_common (struct inode * dir, const char *prefix,
 				__u32 flags)
 {
 	struct dentry dentry;
@@ -3347,15 +3347,15 @@ static int ls_lR (struct inode * inode, const char * path)
 
 				i = call_lookup (inode, info.name);
 				if( IS_ERR( i ) )
-					warning( "nikita-2235", "Not found: %s", 
+					warning( "nikita-2235", "Not found: %s",
 						 info.name );
 				else if( ( int ) i -> i_ino != info.inum )
-					warning( "nikita-2236", 
+					warning( "nikita-2236",
 						 "Wrong inode number: %i != %i",
 						 ( int ) info.inum, ( int ) i -> i_ino );
 				else {
-					info ("(%llu:%lu) %crw-r--r--\t%d\t%10llu\t%s\n", 
-					      reiser4_inode_data (i)->locality_id, i->i_ino, 
+					info ("(%llu:%lu) %crw-r--r--\t%d\t%10llu\t%s\n",
+					      reiser4_inode_data (i)->locality_id, i->i_ino,
 					      S_ISREG (i->i_mode) ? '-' : 'd',
 					      i->i_nlink, i->i_size, name);
 					ls_lR (i, name);
@@ -3404,10 +3404,10 @@ static int rm_r (struct inode * dir, const char * path, regex_t * exp)
 
 				i = call_lookup (dir, info.name);
 				if( IS_ERR( i ) )
-					warning( "nikita-2304", "Not found: %s", 
+					warning( "nikita-2304", "Not found: %s",
 						 info.name );
 				else if( ( int ) i -> i_ino != info.inum )
-					warning( "nikita-2305", 
+					warning( "nikita-2305",
 						 "Wrong inode number: %i != %i",
 						 ( int ) info.inum, ( int ) i -> i_ino );
 				else {
@@ -3568,7 +3568,7 @@ static int bash_mkfs (char * file_name)
 	ON_DEBUG (INIT_LIST_HEAD (&info->all_jnodes));
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
-	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
+	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ?
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
 	super.s_blocksize = blocksize;
 	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
@@ -3655,7 +3655,7 @@ static int bash_mkfs (char * file_name)
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
 
-			/* initialize super block fields: 
+			/* initialize super block fields:
 			 * number of blocks on device */
 			reiser4_set_block_count(&super, block_count);
 			/* number of used blocks */
@@ -3671,7 +3671,7 @@ static int bash_mkfs (char * file_name)
 		tree -> super = &super;
 		result = init_tree( tree, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
-		tree -> cbk_cache.nr_slots = getenv( "REISER4_CBK_SLOTS" ) ? 
+		tree -> cbk_cache.nr_slots = getenv( "REISER4_CBK_SLOTS" ) ?
 			atoi( getenv( "REISER4_CBK_SLOTS" ) ) : CBK_CACHE_SLOTS;
 
 		result = cbk_cache_init( &tree -> cbk_cache );
@@ -3730,7 +3730,7 @@ static int bash_mkfs (char * file_name)
 			/* get inode of fake parent */
 
 			fake_parent = get_new_inode (&super, 2,
-						     ul_find_actor, 
+						     ul_find_actor,
 						     ul_init_locked_inode,
 						     &key);
 			if (fake_parent == NULL)
@@ -3746,7 +3746,7 @@ static int bash_mkfs (char * file_name)
 				perm_plugin_by_id (RWX_PERM_ID);
 			reiser4_inode_data (fake_parent)->dir_item =
 				item_plugin_by_id (REISER4_DIR_ITEM_PLUGIN);
-			reiser4_inode_data (fake_parent)->sd = 
+			reiser4_inode_data (fake_parent)->sd =
 				item_plugin_by_id (STATIC_STAT_DATA_ID);
 
 			super.s_root->d_inode = fake_parent;
@@ -3807,7 +3807,7 @@ static int bash_mkfs (char * file_name)
 			inode->i_state &= ~I_DIRTY;
 			iput (fake_parent);
 			super.s_root->d_inode = inode;
-			cputod64 (reiser4_inode_data( inode ) -> locality_id, 
+			cputod64 (reiser4_inode_data( inode ) -> locality_id,
 				  &test_sb->root_locality);
 			cputod64 ((__u64)inode -> i_ino, &test_sb->root_objectid);
 			cputod64 (tree -> root_block, &test_sb->root_block);
@@ -3840,7 +3840,7 @@ static int bash_cp (char * real_file, struct inode * cwd, const char * name)
 	int ret;
 	
 	if (stat (real_file, &st) || !S_ISREG (st.st_mode)) {
-		errno ? perror ("stat failed") : 
+		errno ? perror ("stat failed") :
 			info ("%s is not regular file\n", real_file);
 		return 0;
 	}
@@ -4101,7 +4101,7 @@ void * cpr_thread_start (void *arg)
 extern void run_init_reiser4( void );
 extern void run_done_reiser4( void );
 
-static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG, 
+static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		      reiser4_tree *tree UNUSED_ARG)
 {
 	char * command = 0;
@@ -4123,7 +4123,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 
 
-/* for (cwd, command + strlen ("foocmd ")) 
+/* for (cwd, command + strlen ("foocmd "))
    like
    static int bash_read (struct inode * dir, const char * name);
    static int bash_write (struct inode * dir, const char * name);
@@ -4269,7 +4269,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info[i].source = command + 5;
 				info[i].dir = cwd;
 				info[i].num = i;
-				pthread_create (&tid [i], NULL, 
+				pthread_create (&tid [i], NULL,
 						cpr_thread_start, &info [i]);
 			}
 			for (i = 0 ; i < CPR_THREADS; ++ i)
@@ -4280,7 +4280,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			 * get tail plugin or set
 			 */
 			if (!strcmp (command, "tail")) {
-				print_plugin("", 
+				print_plugin("",
 					     tail_plugin_to_plugin(inode_tail_plugin (cwd)));
 			} else if (!strcmp (command + 5, "off")) {
 				reiser4_inode_data (cwd) -> tail =
@@ -4507,7 +4507,7 @@ void declare_memory_pressure( void )
 }
 
 /*****************************************************************************************
-				      
+				
  *****************************************************************************************/
 
 typedef struct {
@@ -4582,7 +4582,7 @@ int real_main( int argc, char **argv )
 
 	e = getenv( "REISER4_TRACE_FLAGS" );
 	if( e != NULL ) {
-		reiser4_current_trace_flags = 
+		reiser4_current_trace_flags =
 			strtol( e, NULL, 0 );
 	}
 
@@ -4654,7 +4654,7 @@ int real_main( int argc, char **argv )
 			}
 		}
 		if( team[ i ].name == NULL )
-			fprintf( stderr, "%s: Unknown user %s\n", 
+			fprintf( stderr, "%s: Unknown user %s\n",
 				 argv[ 0 ], argv[ 1 ] );
 	} else {
 		fprintf( stderr, "Usage: %s user-name\n", argv[ 0 ] );
@@ -4711,9 +4711,9 @@ void funJustAfterMain()
 #if REISER4_DEBUG
 
 /** helper called by print_tree_rec() */
-void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
-		   znode *node /* node to print */, 
-		   __u32 flags /* print flags */, 
+void tree_rec_dot( reiser4_tree *tree /* tree to print */,
+		   znode *node /* node to print */,
+		   __u32 flags /* print flags */,
 		   FILE *dot /* dot-output */ )
 {
 	int ret;
@@ -4730,8 +4730,8 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 	sprintf_key( buffer_l, &node -> ld_key );
 	sprintf_key( buffer_r, &node -> rd_key );
 
-	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n", 
-		 *znode_get_block( node ), *znode_get_block( node ), 
+	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n",
+		 *znode_get_block( node ), *znode_get_block( node ),
 		 buffer_l, buffer_r );
 
 	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
@@ -4740,16 +4740,16 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			child = UNDER_SPIN( dk, znode_get_tree( coord.node ),
-					    child_znode( &coord, 
+					    child_znode( &coord,
 							 coord.node, 0, 0 ) );
 			if( !IS_ERR( child ) ) {
 				tree_rec_dot( tree, child, flags, dot );
-				fprintf( dot, "B%lli -> B%lli ;\n", 
+				fprintf( dot, "B%lli -> B%lli ;\n",
 					 *znode_get_block( node ),
 					 *znode_get_block( child ) );
 				zput( child );
 			} else {
-				printk( "Cannot get child: %li\n", 
+				printk( "Cannot get child: %li\n",
 					PTR_ERR( child ) );
 			}
 		}
@@ -4859,7 +4859,7 @@ int inode_setattr( struct inode * inode, struct iattr * attr )
 	
 	lock_kernel();
 	if (ia_valid & ATTR_SIZE) {
-		/* 
+		/*
 		error = vmtruncate(inode, attr->ia_size);
 		if (error)
 			goto out;
@@ -4884,7 +4884,7 @@ int inode_setattr( struct inode * inode, struct iattr * attr )
 	return error;
 }
 
-int inode_change_ok( struct inode *inode UNUSED_ARG, 
+int inode_change_ok( struct inode *inode UNUSED_ARG,
 		     struct iattr *attr UNUSED_ARG )
 {
 	return 0;
@@ -4919,14 +4919,14 @@ int seq_printf(struct seq_file *file UNUSED_ARG, const char *f UNUSED_ARG, ...)
 	return 0;
 }
 
-int vfs_readlink(struct dentry *dentry UNUSED_ARG, 
-		 char *buffer UNUSED_ARG, 
+int vfs_readlink(struct dentry *dentry UNUSED_ARG,
+		 char *buffer UNUSED_ARG,
 		 int buflen UNUSED_ARG, const char *link UNUSED_ARG)
 {
 	return 0;
 }
 
-int vfs_follow_link(struct nameidata *nd UNUSED_ARG, 
+int vfs_follow_link(struct nameidata *nd UNUSED_ARG,
 		    const char *link UNUSED_ARG)
 {
 	return 0;
@@ -4970,8 +4970,8 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags UNUSED_ARG)
 	args -> arg = arg;
 	pthread_attr_init( &kattr );
 	pthread_attr_setdetachstate( &kattr, PTHREAD_CREATE_DETACHED );
-	check_me( "nikita-2457", 
-		  pthread_create( &id, &kattr, 
+	check_me( "nikita-2457",
+		  pthread_create( &id, &kattr,
 				  kernel_thread_helper, args ) == 0 );
 	pthread_attr_destroy( &kattr );
 	return id;
@@ -5039,11 +5039,11 @@ void complete_and_exit( struct completion *comp, long code UNUSED_ARG )
  * that the inode is no longer useful. We just
  * terminate it with extreme prejudice.
  */
- 
+
 void clear_inode(struct inode *inode)
 {
 	// invalidate_inode_buffers(inode);
-       
+
 	if (inode->i_data.nrpages)
 		BUG();
 	if (inode->i_state & I_CLEAR)
@@ -5061,7 +5061,7 @@ void fsync_super( struct super_block *s )
 }
 
 /*
- * Clear a page's dirty flag, while caring for dirty memory accounting. 
+ * Clear a page's dirty flag, while caring for dirty memory accounting.
  * Returns true if the page was previously dirty.
  */
 int test_clear_page_dirty(struct page *page)
@@ -5072,7 +5072,7 @@ int test_clear_page_dirty(struct page *page)
 	return 0;
 }
 
-struct page * filemap_nopage(struct vm_area_struct * area, 
+struct page * filemap_nopage(struct vm_area_struct * area,
 			     unsigned long address, int unused)
 {
 	return NULL;

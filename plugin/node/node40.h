@@ -87,7 +87,7 @@ int cut_node40(struct cut_list *);
 int shift_node40(coord_t * from, znode * to, shift_direction pend,
 		 /* if @from->node becomes
 		    empty - it will be deleted from
-		    the tree if this is set to 1 
+		    the tree if this is set to 1
 		 */
 		 int delete_child, int including_stop_coord, carry_plugin_info * info);
 

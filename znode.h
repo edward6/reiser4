@@ -29,34 +29,34 @@ typedef struct parent_coord {
 } parent_coord_t;
 
 /* &znode - node in a reiser4 tree.
-  
+
    NOTE-NIKITA fields in this struct have to be rearranged (later) to reduce
    cacheline pressure.
-  
-   Locking: 
-  
+
+   Locking:
+
    Long term: data in a disk node attached to this znode are protected
    by long term, deadlock aware lock ->lock;
-  
+
    Spin lock: the following fields are protected by the spin lock:
-  
+
     ->lock
 
    Following fields are protected by the global tree lock:
-  
+
     ->left
     ->right
     ->in_parent
 
    Following fields are protected by the global delimiting key lock (dk_lock):
-  
+
     ->ld_key (to update ->ld_key long-term lock on the node is also required)
     ->rd_key
-  
+
    Atomic counters
-  
+
     ->c_count
-  
+
    Following fields are protected by the long term lock:
 
     ->nr_items
@@ -88,7 +88,7 @@ struct znode {
 	   pos_in_node and pos_in_unit are only hints that are cached to
 	   speed up lookups during balancing. They are not required to be up to
 	   date. Synched in find_child_ptr().
-	  
+	
 	   This value allows us to avoid expensive binary searches.
 
 	   in_parent->node points to the parent of this node, and is NOT a
@@ -110,7 +110,7 @@ struct znode {
 	   removing it from memory you must decrease the c_count.  This makes
 	   the code simpler, and the cases where it is suboptimal are truly
 	   obscure.
-	  
+	
 	   All three znode reference counters ([cdx]_count) are atomic_t
 	   because we don't want to take and release spinlock for each
 	   reference addition/drop.
@@ -339,7 +339,7 @@ znode_rip_check(reiser4_tree *tree, znode * node)
 int znode_is_loaded(const znode * node /* znode to query */ );
 #endif
 
-extern z_hash_table *get_htable(reiser4_tree * tree, 
+extern z_hash_table *get_htable(reiser4_tree * tree,
 				const reiser4_block_nr * const blocknr);
 extern z_hash_table *znode_get_htable(const znode *node);
 

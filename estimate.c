@@ -11,7 +11,7 @@
    is 2 neighbours, 2 new blocks and the current block on the leaf level, 2 neighbour nodes + the current (or 1
    neighbour and 1 new and the current) on twig level, 2 neighbour nodes on upper levels and 1 for a new root. So 5 for
    leaf level, 3 for twig level, 2 on upper + 1 for root.
-   
+
    Do not calculate the current node of the lowest level here - this is overhead only.
 
    children is almost always 1 here. Exception is flow insertion

@@ -102,7 +102,7 @@ typedef enum {
     64bit integers in disk byte order (little-endian by default). This
     array is actually indexed by reiser4_key_field.  Each __u64 within
     this array is called "element". Logical key component encoded within
-    elements are called "fields". 
+    elements are called "fields".
 
     We declare this as union with second component dummy to suppress
     inconvenient array<->pointer casts implied in C. */
@@ -357,7 +357,7 @@ prefetchkey(reiser4_key *key)
 	prefetch(&key->el[KEY_CACHELINE_END]);
 }
 
-/* (%Lx:%x:%Lx:%Lx:%Lx:%Lx) = 
+/* (%Lx:%x:%Lx:%Lx:%Lx:%Lx) =
            1 + 16 + 1 + 1 + 1 + 1 + 1 + 16 + 1 + 16 + 1 + 16 + 1 */
 /* size of a buffer suitable to hold human readable key representation */
 #define KEY_BUF_LEN (80)

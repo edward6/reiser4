@@ -36,10 +36,10 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 /* Directory read-ahead control.
-  
+
    NOTE-NIKITA this is just stub. This function is supposed to be
    called during lookup, readdir, and may be creation.
-  
+
 */
 void
 directory_readahead(struct inode *dir /* directory being accessed */ ,
@@ -67,10 +67,10 @@ reiser4_update_dir(struct inode *dir)
 
 static reiser4_block_nr common_estimate_link(
 	struct inode *parent /* parent directory */,
-	struct inode *object /* object to which new link is being cerated */) 
+	struct inode *object /* object to which new link is being cerated */)
 {
 	reiser4_block_nr res = 0;
-	file_plugin *fplug; 
+	file_plugin *fplug;
 	dir_plugin *dplug;
 
 	assert("vpf-317", object != NULL);
@@ -92,7 +92,7 @@ static reiser4_block_nr common_estimate_link(
 }
 
 /* add link from @parent directory to @existing object.
-  
+
        . get plugins
        . check permissions
        . check that "existing" can hold yet another link
@@ -100,7 +100,7 @@ static reiser4_block_nr common_estimate_link(
        . add link to "existing"
        . add entry to "parent"
        . if last step fails, remove link from "existing"
-  
+
 */
 static int
 link_common(struct inode *parent /* parent directory */ ,
@@ -182,10 +182,10 @@ link_common(struct inode *parent /* parent directory */ ,
 
 static reiser4_block_nr common_estimate_unlink (
 	struct inode *parent /* parent directory */,
-	struct inode *object /* object to which new link is being cerated */) 
+	struct inode *object /* object to which new link is being cerated */)
 {
 	reiser4_block_nr res = 0;
-	file_plugin *fplug; 
+	file_plugin *fplug;
 	dir_plugin *dplug;
 	
 	assert("vpf-317", object != NULL);
@@ -239,12 +239,12 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	if (result < 0)
 		return result;
 
-	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT, 
+	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT,
 				     __FUNCTION__);
 }
 
 /* remove link from @parent directory to @victim object.
-  
+
        . get plugins
        . find entry in @parent
        . check permissions
@@ -298,14 +298,14 @@ unlink_common(struct inode *parent /* parent object */ ,
    - update the SD of parent
    - estimate child creation
 */
-static reiser4_block_nr common_estimate_create_child( 
+static reiser4_block_nr common_estimate_create_child(
 	struct inode *parent, /* parent object */
 	struct inode *object /* object */)
 {
 	assert("vpf-309", parent != NULL);
 	assert("vpf-307", object != NULL);
 	
-	return 
+	return
 		/* object creation estimation */
 		inode_file_plugin(object)->estimate.create(object) +
 		/* stat data of parent directory estimation */
@@ -317,7 +317,7 @@ static reiser4_block_nr common_estimate_create_child(
 }
 
 /* Create child in directory.
-  
+
    . get object's plugin
    . get fresh inode
    . initialize inode
@@ -325,7 +325,7 @@ static reiser4_block_nr common_estimate_create_child(
    . initialize object's directory
    . add entry to the parent
    . instantiate dentry
-  
+
 */
 /* ->create_child method of directory plugin */
 static int
@@ -524,7 +524,7 @@ is_name_acceptable(const struct inode *inode /* directory to check */ ,
 static int
 is_valid_dir_coord(struct inode * inode, coord_t * coord)
 {
-	return 
+	return
 		item_type_by_coord(coord) == DIR_ENTRY_ITEM_TYPE &&
 		inode_file_plugin(inode)->owns_item(inode, coord);
 }
@@ -664,7 +664,7 @@ print_de_id(const char *prefix, const de_id *did)
 	print_key(prefix, &key);
 	return;
 	printk("%s: %c%c%c%c%c%c%c%c:%c%c%c%c%c%c%c%c",
-	       prefix, 
+	       prefix,
 	       filter(&did->objectid[0]),
 	       filter(&did->objectid[1]),
 	       filter(&did->objectid[2]),
@@ -707,7 +707,7 @@ adjust_dir_pos(struct file   * dir,
 	ON_TRACE(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
 	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
 	IF_TRACE(TRACE_DIR, print_dir_pos("\nspot", &readdir_spot->position));
-	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.entry_no: %llu\n", 
+	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.entry_no: %llu\n",
 		 dir->f_pos, readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
@@ -737,8 +737,8 @@ adjust_dir_pos(struct file   * dir,
 		   already exists. */
 		assert("nikita-2576", adj < 0);
 		/* directory entry to which @pos points to is being
-		   removed. 
-		  
+		   removed.
+		
 		   NOTE-NIKITA: Right thing to do is to update @pos to point
 		   to the next entry. This is complex (we are under spin-lock
 		   for one thing). Just rewind it to the beginning. Next
@@ -789,7 +789,7 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
-	result = coord_by_key(tree_by_inode(inode), 
+	result = coord_by_key(tree_by_inode(inode),
 			      &key,
 			      tap->coord,
 			      tap->lh,
@@ -956,7 +956,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 		    /* offset of the next entry */
 		    (loff_t) pos->entry_no + 1,
 		    /* inode number of object bounden by this entry */
-		    oid_to_uino(get_key_objectid(&sd_key)), 
+		    oid_to_uino(get_key_objectid(&sd_key)),
 		    iplug->s.dir.extract_file_type(coord)) < 0) {
 		/* ->filldir() is satisfied. */
 		result = 1;
@@ -1019,7 +1019,7 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	return dir_rewind(f, *pos, f->f_pos, tap);
 }
 
-/* 
+/*
  * ->readdir method of directory plugin
  *
  * readdir problems:
@@ -1085,8 +1085,8 @@ readdir_common(struct file *f /* directory file being read */ ,
 	set_key_objectid(&tap.ra_info.key_to_stop, get_key_objectid(max_key()));
 	set_key_offset(&tap.ra_info.key_to_stop, get_key_offset(max_key()));
 
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, 
-		 "readdir: inode: %llu offset: %lli\n", 
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
+		 "readdir: inode: %llu offset: %lli\n",
 		 get_inode_oid(inode), f->f_pos);
 
 	result = dir_readdir_init(f, &tap, &pos);
@@ -1101,7 +1101,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
 			result = feed_entry(pos, coord, filld, dirent);
-			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, 
+			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 				 "readdir: entry: offset: %lli\n", f->f_pos);
 			if (result > 0) {
 				break;
@@ -1126,7 +1126,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, 
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 		 "readdir_exit: offset: %lli\n", f->f_pos);
 	return result;
 }
@@ -1142,7 +1142,7 @@ attach_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 }
 
 /* ->estimate.add_entry method of directory plugin
-   estimation of adding entry which supposes that entry is inserting a unit into item 
+   estimation of adding entry which supposes that entry is inserting a unit into item
 */
 static reiser4_block_nr
 estimate_add_entry_common(struct inode *inode)
@@ -1152,7 +1152,7 @@ estimate_add_entry_common(struct inode *inode)
 
 /* ->estimate.rem_entry method of directory plugin */
 static reiser4_block_nr
-estimate_rem_entry_common(struct inode *inode) 
+estimate_rem_entry_common(struct inode *inode)
 {
 	return estimate_one_item_removal(tree_by_inode(inode));
 }

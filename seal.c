@@ -9,18 +9,18 @@
    seal_validate(). If znode is in cache and its version number is still the
    same, seal is "pristine" and coord associated with it can be re-used
    immediately.
-  
+
    If, on the other hand, znode is out of cache, or it is obviously different
    one from the znode seal was initially attached to (for example, it is on
    the different level, or is being removed from the tree), seal is
    irreparably invalid ("burned") and tree traversal has to be repeated.
-  
+
    Otherwise, there is some hope, that while znode was modified (and seal was
    "broken" as a result), key attached to the seal is still in the node. This
    is checked by first comparing this key with delimiting keys of node and, if
    key is ok, doing intra-node lookup.
-  
-  
+
+
 */
 
 #include "forward.h"
@@ -112,16 +112,16 @@ should_repeat(int ltlz_result)
 }
 
 /* (re-)validate seal.
-  
+
    Checks whether seal is pristine, and try to revalidate it if possible.
-  
+
    If seal was burned, or broken irreparably, return -E_REPEAT.
-  
+
    NOTE-NIKITA currently seal_validate() returns -E_REPEAT if key we are
    looking for is in range of keys covered by the sealed node, but item wasn't
    found by node ->lookup() method. Alternative is to return -ENOENT in this
    case, but this would complicate callers logic.
-  
+
 */
 /* Audited by: green(2002.06.17) */
 int
@@ -162,7 +162,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				/* if seal was placed on position with node
 				   (rather than on the existing unit within
 				   node), we don't know what to lookup for.
-				  
+				
 				   Seals were designed to "point" to existing
 				   units in the tree, rather than positions
 				   within a node. This is not a problem

@@ -16,7 +16,7 @@ int connect_znode(coord_t * coord, znode * node);
 
   return codes:
 
-  @return : 0        - OK, 
+  @return : 0        - OK,
 
 ZAM-FIXME-HANS: wrong return code name.  Change them all.
 	    -ENOENT  - neighbor is not in cache, what is detected by sibling

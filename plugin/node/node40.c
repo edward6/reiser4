@@ -209,7 +209,7 @@ node40_num_of_items_internal(const znode * node)
 #if REISER4_DEBUG
 static inline void check_num_items(const znode *node)
 {
-	assert("nikita-2749", 
+	assert("nikita-2749",
 	       node40_num_of_items_internal(node) == node->nr_items);
 	assert("nikita-2746", znode_is_write_locked(node));
 }
@@ -226,7 +226,7 @@ num_of_items_node40(const znode * node)
 	return node40_num_of_items_internal(node);
 }
 
-static void 
+static void
 node40_set_num_items(znode * node, node40_header * nh, unsigned value)
 {
 	assert("nikita-2751", node != NULL);
@@ -373,15 +373,15 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	   search the winner. Another, maybe more important, reason for this,
 	   is that sequential array is more CPU cache friendly, whereas binary
 	   search effectively destroys CPU caching.
-	  
+	
 	   Critical here is the notion of "smallness". Reasonable value of
 	   REISER4_SEQ_SEARCH_BREAK can be found by playing with code in
 	   fs/reiser4/ulevel/ulevel.c:test_search().
-	  
+	
 	   Don't try to further optimize sequential search by scanning from
 	   right to left in attempt to use more efficient loop termination
 	   condition (comparison with 0). This doesn't work.
-	  
+	
 	*/
 
 	while (right - left >= REISER4_SEQ_SEARCH_BREAK) {
@@ -632,22 +632,22 @@ check_node40(const znode * node /* node to check */ ,
 			prev = unit_key;
 		}
 		coord.unit_pos = 0;
-		if (level != TWIG_LEVEL && 
+		if (level != TWIG_LEVEL &&
 		    item_is_extent(&coord)) {
 			*error = "extent on the wrong level";
 			return -1;
 		}
-		if (level == LEAF_LEVEL && 
+		if (level == LEAF_LEVEL &&
 		    item_is_internal(&coord)) {
 			*error = "internal item on the wrong level";
 			return -1;
 		}
-		if (level != LEAF_LEVEL && 
+		if (level != LEAF_LEVEL &&
 		    !item_is_internal(&coord) && !item_is_extent(&coord)) {
 			*error = "wrong item on the internal level";
 			return -1;
 		}
-		if (level > TWIG_LEVEL && 
+		if (level > TWIG_LEVEL &&
 		    !item_is_internal(&coord)) {
 			*error = "non-internal item on the internal level";
 			return -1;
@@ -676,7 +676,7 @@ check_node40(const znode * node /* node to check */ ,
 
 		coord_init_last_unit(&coord, node);
 		iplug = item_plugin_by_coord(&coord);
-		if ((item_is_extent(&coord) || item_is_tail(&coord)) && 
+		if ((item_is_extent(&coord) || item_is_tail(&coord)) &&
 		    iplug->s.file.append_key != NULL) {
 			reiser4_key mkey;
 
@@ -745,7 +745,7 @@ parse_node40(znode * node /* node to parse */ )
 			znode_get_level(node), nh40_get_level(header));
 	else if (unlikely(nh40_get_magic(header) != REISER4_NODE_MAGIC))
 		warning("nikita-495",
-			"Wrong magic in tree node: want %x, got %x", 
+			"Wrong magic in tree node: want %x, got %x",
 			REISER4_NODE_MAGIC, nh40_get_magic(header));
 	else {
 		node->nr_items = node40_num_of_items_internal(node);
@@ -1163,7 +1163,7 @@ cut_or_kill(struct cut_list *params, int cut)
 
 		assert("vs-313", wrong_item >= removed_entirely);
 		wrong_item -= removed_entirely;
-		assert("vs-314", 
+		assert("vs-314",
 		       (short)wrong_item < node40_num_of_items_internal(node));
 		coord.node = node;
 		coord_set_item_pos(&coord, wrong_item);
@@ -1489,9 +1489,9 @@ copy(struct shift_params *shift)
 	/* NOTE:NIKITA->VS not sure what I am doing: shift->target is empty,
 	   hence to.between is set to EMPTY_NODE above. Looks like we want it
 	   to be AT_UNIT.
-	  
+	
 	   Oh, wonders of ->betweeness...
-	  
+	
 	*/
 	to.between = AT_UNIT;
 
@@ -1627,7 +1627,7 @@ copy(struct shift_params *shift)
 			/* copy item bodies */
 			coord_add_item_pos(&from, -(int) (shift->entire - 1));
 			xmemcpy(zdata(to.node) + sizeof (node40_header) +
-				shift->part_bytes, item_by_coord_node40(&from), 
+				shift->part_bytes, item_by_coord_node40(&from),
 				shift->entire_bytes);
 			coord_dec_item_pos(&from);
 		}
@@ -1707,7 +1707,7 @@ update_znode_dkeys(znode * left, znode * right)
 	leftmost_key_in_node(right, &key);
 
 	if (0) {
-		printk("update_znode_dkeys: %p(%s) %p(%s)\n", 
+		printk("update_znode_dkeys: %p(%s) %p(%s)\n",
 		       left, left ? (node_is_empty(left) ? "e" : "o") : "n",
 		       right, right ? (node_is_empty(right) ? "e" : "o") : "n");
 		print_key("leftmost", &key);
@@ -1773,7 +1773,7 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 		carry_node *reference;
 
 		if (info->doing)
-			reference = insert_carry_node(info->doing, 
+			reference = insert_carry_node(info->doing,
 						      info->todo, left);
 		else
 			reference = op->node;
@@ -2042,7 +2042,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 		}
 		new->node = old->node;
 		coord_set_item_pos(new,
-				   old->item_pos + shift->entire + 
+				   old->item_pos + shift->entire +
 				   (shift->part_units ? 1 : 0));
 		new->unit_pos = old->unit_pos;
 		if (old->item_pos == 0 && shift->merging_units)
@@ -2058,8 +2058,8 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			new->node = shift->target;
 			coord_set_item_pos(new,
 					   node_num_items(shift->target) -
-					   shift->entire - 
-					   (shift->part_units ? 1 : 0) + 
+					   shift->entire -
+					   (shift->part_units ? 1 : 0) +
 					   old->item_pos);
 
 			new->unit_pos = old->unit_pos;
@@ -2073,7 +2073,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			}
 		} else {
 			/* unit @old did not move to left neighbor.
-			  
+			
 			   Use _nocheck, because @old is outside of its node.
 			*/
 			coord_dup_nocheck(new, old);
@@ -2085,13 +2085,13 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 		if (unit_moved_right(shift, old)) {
 			/* unit @old moved to right neighbor */
 			new->node = shift->target;
-			coord_set_item_pos(new, 
-					   old->item_pos - 
+			coord_set_item_pos(new,
+					   old->item_pos -
 					   shift->real_stop.item_pos);
 			if (new->item_pos == 0) {
 				/* unit @old might change unit pos */
 				coord_set_item_pos(new,
-						   old->unit_pos - 
+						   old->unit_pos -
 						   shift->real_stop.unit_pos);
 			}
 		} else {
@@ -2244,7 +2244,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	return result ? result : (int) shift.shift_bytes;
 }
 
-/* plugin->u.node.fast_insert() 
+/* plugin->u.node.fast_insert()
    look for description of this method in plugin/node/node.h */
 int
 fast_insert_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
@@ -2252,7 +2252,7 @@ fast_insert_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 	return 1;
 }
 
-/* plugin->u.node.fast_paste() 
+/* plugin->u.node.fast_paste()
    look for description of this method in plugin/node/node.h */
 int
 fast_paste_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
@@ -2260,7 +2260,7 @@ fast_paste_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 	return 1;
 }
 
-/* plugin->u.node.fast_cut() 
+/* plugin->u.node.fast_cut()
    look for description of this method in plugin/node/node.h */
 int
 fast_cut_node40(const coord_t * coord UNUSED_ARG /* node to query */ )

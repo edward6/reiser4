@@ -17,7 +17,7 @@ int main( int argc, char **argv )
 
   directory = opendir( argv[ 1 ] );
   do_stat   = atoi( argv[ 2 ] );
-  if( directory != NULL ) 
+  if( directory != NULL )
 	{
 	  while( ( dentry = readdir64( directory ) ) != NULL )
 		{
@@ -36,7 +36,7 @@ int main( int argc, char **argv )
 		  perror( "readdir" );
 	  closedir( directory );
     }
-  else 
+  else
 	{
 	  perror( "cannot opendir" );
 	}

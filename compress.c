@@ -18,7 +18,7 @@ static void compress_none(__u8 *buf, __u8 *src_first, unsigned src_len,
 	*dst_len = src_len;
 	memcpy(dst_first, src_first, src_len);
 }
-			   
+			
 /* compression plugins */
 compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	[NONE_COMPRESSION_ID] = {

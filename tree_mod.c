@@ -56,7 +56,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 
 		/* @result is created and inserted into hash-table. There is
 		   no need to lock it: nobody can access it yet anyway.
-		  
+		
 		   FIXME_JMACD zget() should add additional checks to panic if attempt to
 		   access orphaned znode is made. -- is this comment still
 		   accurate? nikita: yes, it is, I think.  want to add those
@@ -90,9 +90,9 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 }
 
 /* allocate new root and add it to the tree
-  
+
    This helper function is called by add_new_root().
-  
+
 */
 /* Audited by: umka (2002.06.15) */
 znode *
@@ -112,7 +112,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 	   deleted. Downward tree traversal takes lock on it before taking
 	   lock on a root node. This avoids race conditions with root
 	   manipulations.
-	  
+	
 	*/
 	assert("nikita-1348", znode_above_root(fake));
 	assert("nikita-1211", znode_is_root(old_root));
@@ -123,7 +123,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 		/* ext2 returns -ENOSPC when it runs out of free inodes with a
 		   following comment (fs/ext2/ialloc.c:441): Is it really
 		   ENOSPC?
-		  
+		
 		   -EXFULL? -EINVAL?
 		*/
 		result = RETERR(-ENOSPC);
@@ -184,10 +184,10 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 }
 
 /* build &reiser4_item_data for inserting child pointer
-  
+
    Build &reiser4_item_data that can be later used to insert pointer to @child
    in its parent.
-  
+
 */
 /* Audited by: umka (2002.06.15) */
 void
@@ -210,7 +210,7 @@ build_child_ptr_data(znode * child	/* node pointer to which will be
 }
 
 /* add pointer to @child into empty @parent.
-  
+
    This is used when pointer to old root is inserted into new root which is
    empty.
 */
@@ -306,20 +306,20 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 }
 
 /* remove tree root
-  
+
    This function removes tree root, decreasing tree height by one.  Tree root
    and its only child (that is going to become new tree root) are write locked
    at the entry.
-  
+
    To remove tree root we need to take lock on special "fake" znode that
    protects changes of tree height. See comments in add_tree_root() for more
    on this.
-  
+
    Also parent pointers have to be updated in
    old and new root. To simplify code, function is split into two parts: outer
    kill_tree_root() collects all necessary arguments and calls kill_root()
    to do the actual job.
-  
+
 */
 /* Audited by: umka (2002.06.15) */
 int

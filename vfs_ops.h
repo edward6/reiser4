@@ -61,8 +61,8 @@ typedef struct de_location {
 } de_location;
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
-  
-   This is allocated dynamically and released in d_op->d_release() 
+
+   This is allocated dynamically and released in d_op->d_release()
 
    Currently it only contains cached location (hint) of directory entry, but
    it is expected that other information will be accumulated here.
@@ -79,7 +79,7 @@ typedef struct reiser4_dentry_fsdata {
 TS_LIST_DECLARE(readdir);
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
-  
+
    This is allocated dynamically and released in reiser4_release() */
 typedef struct reiser4_file_fsdata {
 	/* pointer back to the struct file which this reiser4_file_fsdata is

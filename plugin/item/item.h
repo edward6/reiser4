@@ -38,7 +38,7 @@ struct cut_list;
 typedef struct {
 	item_type_id item_type;
 
-	/* operations called by balancing 
+	/* operations called by balancing
 
 	It is interesting to consider that some of these item
 	operations could be given sources or targets that are not
@@ -46,23 +46,23 @@ typedef struct {
 
 	*/
 	/* maximal key that can _possibly_ be occupied by this item
-	  
+	
 	    When inserting, and node ->lookup() method (called by
 	    coord_by_key()) reaches an item after binary search,
 	    the  ->max_key_inside() item plugin method is used to determine
-	    whether new item should pasted into existing item 
+	    whether new item should pasted into existing item
 	     (new_key<=max_key_inside()) or new item has to be created
 	    (new_key>max_key_inside()).
-	  
+	
 	    For items that occupy exactly one key (like stat-data)
 	    this method should return this key. For items that can
 	    grow indefinitely (extent, directory item) this should
 	    return max_key().
-	    
-	   For example extent with the key 
-	  
+	
+	   For example extent with the key
+	
 	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-	  
+	
 	   ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
 	*/
 	reiser4_key *(*max_key_inside) (const coord_t *, reiser4_key *);
@@ -70,9 +70,9 @@ typedef struct {
 	/* true if item @coord can merge data at @key. */
 	int (*can_contain_key) (const coord_t *, const reiser4_key *, const reiser4_item_data *);
 	/* mergeable() - check items for mergeability
-	  
+	
 	   Optional method. Returns true if two items can be merged.
-	  
+	
 	*/
 	int (*mergeable) (const coord_t *, const coord_t *);
 
@@ -105,7 +105,7 @@ typedef struct {
 	   by last units of @source. @target node has @free_space
 	   bytes of free space. Total size of those units are returned
 	   via @size.
-	  
+	
 	   @target is not NULL if shifting to the mergeable item and
 	   NULL is new item will be created during shifting.
 	*/
@@ -220,7 +220,7 @@ typedef struct {
 			  coord_t *, lock_handle *,
 			  const struct dentry *name, reiser4_dir_entry_desc *entry);
 	int (*rem_entry) (struct inode *dir, const struct qstr *name,
-			  coord_t *, lock_handle *, 
+			  coord_t *, lock_handle *,
 			  reiser4_dir_entry_desc *entry);
 	int (*max_name_len) (const struct inode *dir);
 } dir_entry_ops;
@@ -234,12 +234,12 @@ typedef struct {
 	int (*get_block) (const uf_coord_t *, sector_t, struct buffer_head *);
 	void (*readpages) (void *, struct address_space *, struct list_head *pages);
 	/* key of first byte which is not addressed by the item @coord is set to
-	   For example extent with the key 
-	  
+	   For example extent with the key
+	
 	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-	  
-	   ->append_key is 
-	  
+	
+	   ->append_key is
+	
 	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size) */
 	/* FIXME: could be uf_coord also */
 	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
@@ -258,10 +258,10 @@ typedef struct {
 typedef struct {
 	/* all tree traversal want to know from internal item is where
 	    to go next. */
-	void (*down_link) (const coord_t * coord, 
+	void (*down_link) (const coord_t * coord,
 			   const reiser4_key * key, reiser4_block_nr * block);
 	/* check that given internal item contains given pointer. */
-	int (*has_pointer_to) (const coord_t * coord, 
+	int (*has_pointer_to) (const coord_t * coord,
 			       const reiser4_block_nr * block);
 } internal_item_ops;
 
@@ -290,7 +290,7 @@ item_id_by_plugin(item_plugin * plugin)
 	return plugin->h.id;
 }
 
-static inline char 
+static inline char
 get_iplugid(item_plugin *iplug)
 {
 	assert("nikita-2838", iplug != NULL);

@@ -51,9 +51,9 @@
 
 /* inode operations */
 
-static int reiser4_create(struct inode *, struct dentry *, int, 
+static int reiser4_create(struct inode *, struct dentry *, int,
 			  struct nameidata *);
-static struct dentry *reiser4_lookup(struct inode *, struct dentry *, 
+static struct dentry *reiser4_lookup(struct inode *, struct dentry *,
 				     struct nameidata *);
 static int reiser4_link(struct dentry *, struct inode *, struct dentry *);
 static int reiser4_unlink(struct inode *, struct dentry *);
@@ -76,8 +76,8 @@ static ssize_t reiser4_listxattr(struct dentry *, char *, size_t);
 static int reiser4_removexattr(struct dentry *, const char *);
 #endif
 
-static int invoke_create_method(struct inode *parent, 
-				struct dentry *dentry, 
+static int invoke_create_method(struct inode *parent,
+				struct dentry *dentry,
 				reiser4_object_create_data * data);
 
 /* ->create() VFS method in reiser4 inode_operations */
@@ -184,10 +184,10 @@ reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir,
 }
 
 /* reiser4_lookup() - entry point for ->lookup() method.
-  
+
    This is a wrapper for lookup_object which is a wrapper for the directory
    plugin that does the lookup.
-  
+
    This is installed in ->lookup() in reiser4_inode_operations.
 */
 static struct dentry *
@@ -271,7 +271,7 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 }
 
 /* ->setattr() inode operation
-  
+
    Called from notify_change. */
 static int
 reiser4_setattr(struct dentry *dentry, struct iattr *attr)
@@ -382,7 +382,7 @@ reiser4_permission(struct inode *inode /* object */ ,
 	int result;
 	/* reiser4_context creation/destruction removed from here,
 	   because permission checks currently don't require this.
-	  
+	
 	   Permission plugin have to create context itself if necessary.
 	*/
 	/* REISER4_ENTRY( inode -> i_sb ); */
@@ -408,7 +408,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
 
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "unlink: %lli/%s\n", 
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "unlink: %lli/%s\n",
 		 get_inode_oid(parent), victim->d_name.name);
 
 	dplug = inode_dir_plugin(parent);
@@ -427,12 +427,12 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	/* prevent balance_dirty_pages() from being called: we don't want to
 	 * do this under directory i_sem. */
 	context_set_commit_async(&ctx);
-	reiser4_exit_context(&ctx); 
+	reiser4_exit_context(&ctx);
 	return result;
 }
 
 /* ->unlink() VFS method in reiser4 inode_operations
-  
+
    remove link from @parent directory to @victim object: delegate work
    to object plugin
 */
@@ -453,9 +453,9 @@ reiser4_unlink(struct inode *parent /* parent directory */ ,
 }
 
 /* ->rmdir() VFS method in reiser4 inode_operations
-  
+
    The same as unlink, but only for directories.
-  
+
 */
 /* Audited by: umka (2002.06.12) */
 static int
@@ -477,9 +477,9 @@ reiser4_rmdir(struct inode *parent /* parent directory */ ,
 }
 
 /* ->link() VFS method in reiser4 inode_operations
-  
+
    entry point for ->link() method.
-  
+
    This is installed as ->link inode operation for reiser4
    inodes. Delegates all work to object plugin
 */
@@ -563,7 +563,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		} else {
 			d_instantiate(dentry, child);
 			ON_TRACE(TRACE_VFS_OPS, "create: %s (%o) %llu\n",
-				 dentry->d_name.name, 
+				 dentry->d_name.name,
 				 data->mode, get_inode_oid(child));
 		}
 	} else

@@ -41,12 +41,12 @@ typedef struct {
 	__u64 entry_no;
 } readdir_pos;
 
-extern void adjust_dir_file(struct inode *dir, const struct dentry *de, 
+extern void adjust_dir_file(struct inode *dir, const struct dentry *de,
 			    int offset, int adj);
 extern int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos);
 
 /* description of directory entry being created/destroyed/sought for
-   
+
    It is passed down to the directory plugin and farther to the
    directory item plugin methods. Creation of new directory is done in
    several stages: first we search for an entry with the same name, then
@@ -55,7 +55,7 @@ extern int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos);
    item that we want to insert/delete and pointer to an object that will
    be bound by the new directory entry. Probably some more fields will
    be added there.
-  
+
 */
 struct reiser4_dir_entry_desc {
 	/* key of directory entry */

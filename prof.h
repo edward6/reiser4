@@ -63,8 +63,8 @@ typedef struct {
 extern reiser4_prof reiser4_prof_defs;
 
 extern unsigned long nr_context_switches(void);
-void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark, __u64 start_jif, 
+void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
+		     unsigned long swtch_mark, __u64 start_jif,
 		     int delta, int shift);
 void calibrate_prof(void);
 

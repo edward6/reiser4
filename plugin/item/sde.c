@@ -109,7 +109,7 @@ extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
 {
 	assert("nikita-1764", coord != NULL);
 	/* we don't store file type in the directory entry yet.
-	  
+	
 	   But see comments at kassign.h:obj_key_id
 	*/
 	return DT_UNKNOWN;
@@ -147,7 +147,7 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
 		return -EDQUOT;
 
-	result = insert_by_coord(coord, &data, &entry->key, lh, 
+	result = insert_by_coord(coord, &data, &entry->key, lh,
 				 inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
 	if (result != 0)
 		return result;

@@ -23,16 +23,16 @@
 #include <asm/semaphore.h>
 
 /* per-znode lock requests queue; list items are lock owner objects
-   which want to lock given znode. 
+   which want to lock given znode.
 
    Locking: protected by znode spin lock. */
 TS_LIST_DECLARE(requestors);
 /* per-znode list of lock handles for this znode
-   
+
    Locking: protected by znode spin lock. */
 TS_LIST_DECLARE(owners);
 /* per-owner list of lock handles that point to locked znodes which
-   belong to one lock owner 
+   belong to one lock owner
 
    Locking: this list is only accessed by the thread owning the lock stack this
    list is attached to. Hence, no locking is necessary.
@@ -81,8 +81,8 @@ SPIN_LOCK_FUNCTIONS(zlock, zlock, guard);
 */
 struct lock_handle {
 	/* This flag indicates that a signal to yield a lock was passed to
-	   lock owner and counted in owner->nr_signalled 
-	  
+	   lock owner and counted in owner->nr_signalled
+	
 	   Locking: this is accessed under spin lock on ->node.
 	*/
 	int signaled;
@@ -111,7 +111,7 @@ struct lock_stack {
 	reiser4_spin_data sguard;
 	/* number of znodes which were requested by high priority processes */
 	atomic_t nr_signaled;
-	/* Current priority of a process 
+	/* Current priority of a process
 
 	   This is only accessed by the current thread and thus requires no
 	   locking.
@@ -125,7 +125,7 @@ struct lock_stack {
 	   requestors list of that lock */
 	requestors_list_link requestors_link;
 	/* Current lock request info.
-	  
+	
 	   This is only accessed by the current thread and thus requires no
 	   locking.
 	*/
@@ -137,19 +137,19 @@ struct lock_stack {
 	   up). "lost wakeup" occurs when process is waken up before he actually
 	   becomes 'sleepy' (through sleep_on()). Using of semaphore object is
 	   simplest way to avoid that problem.
-	  
+	
 	   A semaphore is used in the following way: only the process that is
 	   the owner of the lock_stack initializes it (to zero) and calls
 	   down(sema) on it. Usually this causes the process to sleep on the
 	   semaphore. Other processes may wake him up by calling up(sema). The
 	   advantage to a semaphore is that up() and down() calls are not
 	   required to preserve order. Unlike wait_queue it works when process
-	   is woken up before getting to sleep. 
-	  
+	   is woken up before getting to sleep.
+	
 	   NOTE-NIKITA: Transaction manager is going to have condition variables
 	   (&kcondvar_t) anyway, so this probably will be replaced with
 	   one in the future.
-	  
+	
 	   After further discussion, Nikita has shown me that Zam's implementation is
 	   exactly a condition variable.  The znode's {zguard,requestors_list} represents
 	   condition variable and the lock_stack's {sguard,semaphore} guards entry and
@@ -165,12 +165,12 @@ TS_LIST_DEFINE(owners, lock_handle, owners_link);
 TS_LIST_DEFINE(locks, lock_handle, locks_link);
 
 /*
-  User-visible znode locking functions 
+  User-visible znode locking functions
 */
 
-extern int longterm_lock_znode   (lock_handle * handle, 
-				  znode * node, 
-				  znode_lock_mode mode, 
+extern int longterm_lock_znode   (lock_handle * handle,
+				  znode * node,
+				  znode_lock_mode mode,
 				  znode_lock_request request);
 
 extern void longterm_unlock_znode(lock_handle * handle);

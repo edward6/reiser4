@@ -1,6 +1,6 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* 
+/*
    Tree Access Pointers (taps).
 
    tap is data structure combining coord and lock handle (mostly). It is
@@ -58,9 +58,9 @@ tap_relse(tap_t * tap)
 	tap_check(tap);
 }
 
-/** 
+/**
  * init tap to consist of @coord and @lh. Locks on nodes will be acquired with
- * @mode 
+ * @mode
  */
 void
 tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
@@ -83,7 +83,7 @@ tap_monitor(tap_t * tap)
 	tap_check(tap);
 }
 
-void 
+void
 tap_copy(tap_t * dst, tap_t * src)
 {
 	assert("nikita-3193", src != NULL);
@@ -113,9 +113,9 @@ tap_done(tap_t * tap)
 	tap->coord->node = NULL;
 }
 
-/** 
+/**
  * move @tap to the new node, locked with @target. Load @target, if @tap was
- * already loaded. 
+ * already loaded.
  */
 int
 tap_move(tap_t * tap, lock_handle * target)
@@ -143,9 +143,9 @@ tap_move(tap_t * tap, lock_handle * target)
 	return result;
 }
 
-/** 
+/**
  * move @tap to @target. Acquire lock on @target, if @tap was already
- * loaded. 
+ * loaded.
  */
 int
 tap_to(tap_t * tap, znode * target)
@@ -171,9 +171,9 @@ tap_to(tap_t * tap, znode * target)
 	return result;
 }
 
-/** 
+/**
  * move @tap to given @target, loading and locking @target->node if
- * necessary 
+ * necessary
  */
 int
 tap_to_coord(tap_t * tap, coord_t * target)
@@ -252,9 +252,9 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
 	return result;
 }
 
-/** 
+/**
  * move @tap to the next unit, transparently crossing item and node
- * boundaries 
+ * boundaries
  */
 int
 go_next_unit(tap_t * tap)
@@ -262,7 +262,7 @@ go_next_unit(tap_t * tap)
 	return go_dir_el(tap, RIGHT_SIDE, 1);
 }
 
-/** 
+/**
  * move @tap to the previous unit, transparently crossing item and node
  * boundaries
  */
@@ -272,7 +272,7 @@ go_prev_unit(tap_t * tap)
 	return go_dir_el(tap, LEFT_SIDE, 1);
 }
 
-/** 
+/**
  * @shift times apply @actor to the @tap. This is used to move @tap to the
  * @shift units (or items, or nodes) in either direction.
  */
@@ -339,11 +339,11 @@ static int tap_invariant(const tap_t * tap)
 
 	if (tap == NULL)
 		return 1;
-	/* tap->mode is one of 
-	 * 
+	/* tap->mode is one of
+	 *
 	 * {ZNODE_NO_LOCK, ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}, and
 	 */
-	if (tap->mode != ZNODE_NO_LOCK && 
+	if (tap->mode != ZNODE_NO_LOCK &&
 	    tap->mode != ZNODE_READ_LOCK && tap->mode != ZNODE_WRITE_LOCK)
 		return 2;
 	/* tap->coord != NULL, and */

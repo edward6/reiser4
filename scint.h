@@ -51,7 +51,7 @@ scint_pack(scint_t *scint, __u64 value, int gfp_mask UNUSED_ARG)
 	return 0;
 }
 
-static inline __u64 
+static inline __u64
 scint_unpack(const scint_t *scint)
 {
 	return *scint;

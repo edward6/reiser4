@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Declarations of debug macros. */
-  
+
 #if !defined( __FS_REISER4_DEBUG_H__ )
 #define __FS_REISER4_DEBUG_H__
 
@@ -38,12 +38,12 @@
 #define reiser4_log(label, format, ...) 				\
 	DCALL(KERN_DEBUG, printk, 0, label, format , ## __VA_ARGS__)
 
-/* Assertion checked during compilation. 
+/* Assertion checked during compilation.
     If "cond" is false (0) we get duplicate case label in switch.
-    Use this to check something like famous 
+    Use this to check something like famous
        cassert (sizeof(struct reiserfs_journal_commit) == 4096) ;
     in 3.x journal.c. If cassertion fails you get compiler error,
-    so no "maintainer-id". 
+    so no "maintainer-id".
 */
 #define cassert(cond) ({ switch(-1) { case (cond): case 0: break; } })
 
@@ -86,7 +86,7 @@
 
 #if defined(CONFIG_REISER4_TRACE)
 /* tracing facility.
-  
+
     REISER4_DEBUG doesn't necessary implies tracing, because tracing is only
     meaningful during debugging and can produce big amonts of output useless
     for average user.
@@ -169,7 +169,7 @@
 
 #define ON_DEBUG( exp ) exp
 
-extern int schedulable (void); 
+extern int schedulable (void);
 
 #else
 
@@ -348,7 +348,7 @@ typedef enum {
 	TRACE_EFLUSH  = (1 << 23),	/* 0x00800000 */
 
 	/* trace ctails */
-	TRACE_CTAIL = (1 << 24),       /* 0x01000000 */   
+	TRACE_CTAIL = (1 << 24),       /* 0x01000000 */
 
 	TRACE_PARSE = (1 << 25),       /* 0x02000000 */
 
@@ -376,7 +376,7 @@ extern void reiser4_do_panic(const char *format, ...)
 __attribute__ ((noreturn, format(printf, 1, 2)));
 
 extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
-				 const char *function, 
+				 const char *function,
 				 const char *file, int lineno);
 
 extern int preempt_point(void);

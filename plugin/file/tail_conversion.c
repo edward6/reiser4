@@ -363,7 +363,7 @@ tail2extent(unix_file_info_t *uf_info)
 	}
 
 	if (uf_info->container == UF_CONTAINER_EXTENTS) {
-		warning("vs-1171", 
+		warning("vs-1171",
 			"file %llu is built of tails already. Should not happen",
 			get_inode_oid(uf_info->inode));
 		/* tail was converted by someone else */
@@ -679,10 +679,10 @@ extent2tail(unix_file_info_t *uf_info)
 		/* cut part of file we have read */
 		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
 		set_key_offset(&to, (__u64) ((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
-		result = cut_tree_object(tree_by_inode(inode), 
-					 &from, 
-					 &to, 
-					 NULL, 
+		result = cut_tree_object(tree_by_inode(inode),
+					 &from,
+					 &to,
+					 NULL,
 					 inode);
 		if (result) {
 			page_cache_release(page);

@@ -1,10 +1,10 @@
 /* This code encrypts crypto items before flushing them to disk (as
    opposed to encrypting them after each write, which is more
-   performance expensive).  
+   performance expensive).
 
 Unresolved issues:
 
-  how do we flag an item as being a crypto item?  Or do we make crypto items distinct item types?  
+  how do we flag an item as being a crypto item?  Or do we make crypto items distinct item types?
 
 
 */
@@ -21,7 +21,7 @@ Unresolved issues:
    creates the following aligning armored format of the cluster:
 
    [ cluster | tail ]
-               ^         
+               ^
                |
             @tail
    returns length of tail

@@ -3,7 +3,7 @@
 #include "debug.h"
 #include "latch.h"
 
-void 
+void
 rw_latch_init(rw_latch_t * latch)
 {
 	spin_lock_init(&latch->guard);
@@ -11,14 +11,14 @@ rw_latch_init(rw_latch_t * latch)
 	kcond_init(&latch->cond);
 }
 
-void 
+void
 rw_latch_done(rw_latch_t * latch)
 {
 	assert("nikita-3062", latch->access == 0);
 	kcond_destroy(&latch->cond);
 }
 
-void 
+void
 rw_latch_down_read(rw_latch_t * latch)
 {
 	spin_lock(&latch->guard);

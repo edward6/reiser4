@@ -54,8 +54,8 @@
 #include "parser/parser.code.c"
 
 
-/* @p_string is a command string for parsing  
-this function allocates work area for yacc, 
+/* @p_string is a command string for parsing
+this function allocates work area for yacc,
 initializes fields, calls yacc, free space
 and call for execute the generated code */
 
@@ -67,10 +67,10 @@ sys_reiser4(char *p_string)
 	char * str;
 	struct reiser4_syscall_w_space *work_space;
 	str=getname(p_string);
-	if (!IS_ERR(str)) 
+	if (!IS_ERR(str))
 		{
 			reiser4_current_trace_flags = TRACE_PARSE;
-			/* allocate work space for parser 
+			/* allocate work space for parser
 			   working variables, attached to this call */
 			if ((work_space = reiser4_pars_init()) == NULL) {
 				return -ENOMEM;
@@ -613,7 +613,7 @@ static proto_token_type_t extract_extended_string(proto_ctx_t *ctx, int *pos,
 			token->u.string.len = width.u.number.val;
 			token->u.string.delta = *pos - token->pos;
 			*pos += token->u.string.len;
-		} 
+		}
 	}
 	if (token->type == TOKEN_INVALID)
 		*pos = token->pos;
@@ -754,7 +754,7 @@ static int inlevel(proto_ctx_t *ctx)
 		return -EOVERFLOW;
 	}
 	++ ctx->depth;
-	xmemset(get_level(ctx), 0, sizeof *get_level(ctx)); 
+	xmemset(get_level(ctx), 0, sizeof *get_level(ctx));
 	get_val(ctx)->type = VAL_VOID;
 	return 0;
 }
@@ -770,19 +770,19 @@ static void exlevel(proto_ctx_t *ctx)
 
 /* given @token which should be token for string literal, produce string
  * value */
-static void build_string_val(proto_ctx_t *ctx, 
+static void build_string_val(proto_ctx_t *ctx,
 			     proto_token_t *token, proto_val_t *val)
 {
 	int len;
 
-	assert("nikita-3238", 
+	assert("nikita-3238",
 	       token->type == TOKEN_STRING || token->type == TOKEN_NAME);
 
 	len = token->u.string.len;
 	val->type = VAL_STRING;
 	val->u.string.string = kmalloc(len + 1, GFP_KERNEL);
 	if (val->u.string.string != NULL) {
-		strncpy(val->u.string.string, 
+		strncpy(val->u.string.string,
 			ctx->command + token->pos + token->u.string.delta, len);
 		val->u.string.string[len] = 0;
 		val->u.string.len = len;
@@ -915,7 +915,7 @@ static int pump(fs_point_t *lefthand, fs_point_t *righthand)
 			result = 0;
 			START_KERNEL_IO;
 			while (result >= 0) {
-				result = vfs_read(src, 
+				result = vfs_read(src,
 						  buf, PUMP_BUF_SIZE, &readoff);
 				if (result <= 0)
 					break;
@@ -1243,7 +1243,7 @@ static int execute(proto_ctx_t *ctx)
 
 			level = &ctx->level[i];
 			if (level->error != NULL) {
-				printk("    %02i: %s at %i\n", 
+				printk("    %02i: %s at %i\n",
 				       i, level->error, level->error_pos);
 			}
 		}

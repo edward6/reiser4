@@ -154,10 +154,10 @@ static void check_link(znode *left, znode *right)
 		if (znode_is_right_connected(scan) && scan->right != NULL) {
 			if (ZF_ISSET(scan->right, JNODE_RIP))
 				break;
-			assert("nikita-3285", 
+			assert("nikita-3285",
 			       znode_is_left_connected(scan->right));
-			assert("nikita-3265", 
-			       ergo(scan != left, 
+			assert("nikita-3265",
+			       ergo(scan != left,
 				    ZF_ISSET(scan, JNODE_HEARD_BANSHEE)));
 			assert("nikita-3284", scan->right->left == scan);
 		} else
@@ -239,10 +239,10 @@ has_pointer_to_internal(const coord_t * coord /* coord of item */ ,
 
 /* hook called by ->create_item() method of node plugin after new internal
    item was just created.
-  
+
    This is point where pointer to new node is inserted into tree. Initialize
    parent pointer in child znode, insert child into sibling list and slum.
-  
+
 */
 int
 create_hook_internal(const coord_t * item /* coord of item */ ,
@@ -290,19 +290,19 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 
 /* hook called by ->cut_and_kill() method of node plugin just before internal
    item is removed.
-  
+
    This is point where empty node is removed from the tree. Clear parent
    pointer in child, and mark node for pending deletion.
-  
+
    Node will be actually deleted later and in several installations:
-    
+
     . when last lock on this node will be released, node will be removed from
     the sibling list and its lock will be invalidated
-  
+
     . when last reference to this node will be dropped, bitmap will be updated
     and node will be actually removed from the memory.
-  
-  
+
+
 */
 int
 kill_hook_internal(const coord_t * item /* coord of item */ ,
@@ -342,9 +342,9 @@ kill_hook_internal(const coord_t * item /* coord of item */ ,
 
 /* hook called by ->shift() node plugin method when iternal item was just
    moved from one node to another.
-  
+
    Update parent pointer in child and c_counts in old and new parent
-  
+
 */
 int
 shift_hook_internal(const coord_t * item /* coord of item */ ,

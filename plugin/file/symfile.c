@@ -38,14 +38,14 @@
    will return when read
 
    The contents of filenameAsome text stored in the uninvertable symfileThe contents of filenameB
-   
+
    and write of what has been read will not be possible to implement as
    an identity operation because there are no delimiters denoting the
    boundaries of what is to be written to what subfile.
 
    Note that one could make this a read/write symfile if one specified
    delimiters, and the write method understood those delimiters delimited
-   what was written to subfiles.  
+   what was written to subfiles.
 
    So, specifying the symfile in a manner that allows writes:
 
@@ -74,7 +74,7 @@
    Notice that if the file demidov has a carriage return in it, the
    parsing fails, but then if you put carriage returns in the wrong place
    in a normal /etc/passwd file it breaks things also.
-   
+
    Note that it is forbidden to have no text between two interpolations
    if one wants to be able to define what parts of a write go to what
    subfiles referenced in an interpolation.

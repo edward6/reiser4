@@ -4,14 +4,14 @@
    separately from the node itself so that it does not get written to
    disk.  In this respect znode is like buffer head or page head. We
    also use znodes for additional reiser4 specific purposes:
-  
+
     . they are organized into tree structure which is a part of whole
-      reiser4 tree. 
+      reiser4 tree.
     . they are used to implement node grained locking
     . they are used to keep additional state associated with a
-      node 
+      node
     . they contain links to lists used by the transaction manager
-  
+
    Znode is attached to some variable "block number" which is instance of
    fs/reiser4/tree.h:reiser4_block_nr type. Znode can exist without
    appropriate node being actually loaded in memory. Existence of znode itself
@@ -26,47 +26,47 @@
    (being actually recycled in zdestroy()) which can be some time after last
    reference to this child dies if we support some form of LRU cache for
    znodes.
-  
+
 */
 /* EVERY ZNODE'S STORY
-  
+
    1. His infancy.
-  
+
    Once upon a time, the znode was born deep inside of zget() by call to
    zalloc(). At the return from zget() znode had:
-  
+
     . reference counter (x_count) of 1
     . assigned block number, marked as used in bitmap
-    . pointer to parent znode. Root znode parent pointer points 
+    . pointer to parent znode. Root znode parent pointer points
       to its father: "fake" znode. This, in turn, has NULL parent pointer.
     . hash table linkage
     . no data loaded from disk
     . no node plugin
     . no sibling linkage
-  
+
    2. His childhood
-  
+
    Each node is either brought into memory as a result of tree traversal, or
    created afresh, creation of the root being a special case of the latter. In
    either case it's inserted into sibling list. This will typically require
    some ancillary tree traversing, but ultimately both sibling pointers will
    exist and JNODE_LEFT_CONNECTED and JNODE_RIGHT_CONNECTED will be true in
    zjnode.state.
-  
+
    3. His youth.
-  
+
    If znode is bound to already existing node in a tree, its content is read
    from the disk by call to zload(). At that moment, JNODE_LOADED bit is set
    in zjnode.state and zdata() function starts to return non null for this
    znode. zload() further calls zparse() that determines which node layout
    this node is rendered in, and sets ->nplug on success.
-  
+
    If znode is for new node just created, memory for it is allocated and
    zinit_new() function is called to initialise data, according to selected
    node layout.
-  
+
    4. His maturity.
-  
+
    After this point, znode lingers in memory for some time. Threads can
    acquire references to znode either by blocknr through call to zget(), or by
    following a pointer to unallocated znode from internal item. Each time
@@ -76,29 +76,29 @@
    (x_count drops to 0), znode is not recycled immediately. Rather, it is
    still cached in the hash table in the hope that it will be accessed
    shortly.
-  
-   There are two ways in which znode existence can be terminated: 
-  
+
+   There are two ways in which znode existence can be terminated:
+
     . sudden death: node bound to this znode is removed from the tree
     . overpopulation: znode is purged out of memory due to memory pressure
-  
+
    5. His death.
-  
+
    Death is complex process.
-  
+
    When we irrevocably commit ourselves to decision to remove node from the
    tree, JNODE_HEARD_BANSHEE bit is set in zjnode.state of corresponding
    znode. This is done either in ->kill_hook() of internal item or in
    kill_root() function when tree root is removed.
-  
+
    At this moment znode still has:
-  
+
     . locks held on it, necessary write ones
     . references to it
     . disk block assigned to it
     . data loaded from the disk
     . pending requests for lock
-  
+
    But once JNODE_HEARD_BANSHEE bit set, last call to unlock_znode() does node
    deletion. Node deletion includes two phases. First all ways to get
    references to that znode (sibling and parent links and hash lookup using
@@ -113,19 +113,19 @@
    longterm_lock_znode(). Future locking attempts are not possible because all
    ways to get references to that znode are removed already. Last, node is
    uncaptured from transaction.
-  
+
    When last reference to the dying znode is just about to be released,
    block number for this lock is released and znode is removed from the
    hash table.
-  
+
    Now znode can be recycled.
-  
+
    [it's possible to free bitmap block and remove znode from the hash
    table when last lock is released. This will result in having
    referenced but completely orphaned znode]
 
    6. Limbo
-  
+
    As have been mentioned above znodes with reference counter 0 are
    still cached in a hash table. Once memory pressure increases they are
    purged out of there [this requires something like LRU list for
@@ -135,7 +135,7 @@
    unreferenced znode are flushed back to the durable storage if
    necessary and memory is freed. Znodes themselves can be recycled at
    this point too.
-  
+
 */
 
 #include "debug.h"
@@ -207,8 +207,8 @@ znodes_init()
 	if (znode_slab == NULL) {
 		return RETERR(-ENOMEM);
 	} else {
-		for (znode_shift_order = 0; 
-		     (1 << znode_shift_order) < sizeof(znode); 
+		for (znode_shift_order = 0;
+		     (1 << znode_shift_order) < sizeof(znode);
 		     ++ znode_shift_order)
 			;
 		-- znode_shift_order;
@@ -352,8 +352,8 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 	cbk_cache_invalidate(node, tree);
 	/* while we were taking lock on pbk cache to remove us from
 	   there, some lucky parallel process could hit reference to
-	   this znode from pbk cache. Check for this. 
-	   
+	   this znode from pbk cache. Check for this.
+	
 	   Tree lock, shared by the hash table protects us from another
 	   process taking reference to this node.
 	*/
@@ -372,7 +372,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 }
 
 /* zdrop() -- Remove znode from the tree.
-  
+
    This is called when znode is removed from the memory. */
 void
 zdrop(znode * node /* znode to finish with */ )
@@ -415,7 +415,7 @@ znode_rehash(znode * node /* node to rehash */ ,
 /* ZNODE LOOKUP, GET, PUT */
 
 /* zlook() - get znode with given block_nr in a hash table or return NULL
-  
+
    If result is non-NULL then the znode's x_count is incremented.  Internal version
    accepts pre-computed hash index.  The hash table is accessed under caller's
    tree->hash_lock.
@@ -474,11 +474,11 @@ znode_get_htable(const znode *node)
 }
 
 /* zget() - get znode from hash table, allocating it if necessary.
-  
+
    First a call to zlook, locating a x-referenced znode if one
    exists.  If znode is not found, allocate new one and return.  Result
    is returned with x_count reference increased.
-  
+
    LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
    LOCK ORDERING: NONE
 */
@@ -718,10 +718,10 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 	assert("nikita-2938", rw_dk_is_write_locked(znode_get_tree(node)));
 	ON_CONTEXT(assert("nikita-3069", lock_counters()->write_locked_dk > 0));
 /*
-	assert("nikita-2944", 
-	       znode_is_any_locked(node) || 
+	assert("nikita-2944",
+	       znode_is_any_locked(node) ||
 	       znode_get_level(node) != LEAF_LEVEL ||
-	       keyge(key, znode_get_rd_key(node)) || 
+	       keyge(key, znode_get_rd_key(node)) ||
 	       keyeq(znode_get_rd_key(node), min_key()));
 */
 	node->rd_key = *key;
@@ -734,8 +734,8 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert("nikita-2941", key != NULL);
 	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
 	ON_CONTEXT(assert("nikita-3070", lock_counters()->write_locked_dk > 0));
-	assert("nikita-2943", 
-	       znode_is_any_locked(node) || 
+	assert("nikita-2943",
+	       znode_is_any_locked(node) ||
 	       keyeq(znode_get_ld_key(node), min_key()));
 
 	node->ld_key = *key;
@@ -763,7 +763,7 @@ znode_contains_key_lock(znode * node /* znode to look in */ ,
 	assert("umka-056", node != NULL);
 	assert("umka-057", key != NULL);
 
-	return UNDER_RW(dk, znode_get_tree(node), 
+	return UNDER_RW(dk, znode_get_tree(node),
 			read, znode_contains_key(node, key));
 }
 
@@ -860,7 +860,7 @@ znode_build_version(reiser4_tree * tree)
 	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
 }
 
-static int 
+static int
 relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
 {
 	coord_t  inparent;
@@ -880,7 +880,7 @@ relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
 
 		grabbed = get_current_context()->grabbed_blocks;
 		/* for a node and its parent */
-		result = reiser4_grab_space_force((__u64)2, BA_RESERVED, 
+		result = reiser4_grab_space_force((__u64)2, BA_RESERVED,
 						  __FUNCTION__);
 		if (result == 0) {
 			item_plugin *iplug;
@@ -901,7 +901,7 @@ relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
  * relocate znode to the new block number @blk. Used for speculative
  * relocation of bad blocks.
  */
-int 
+int
 znode_relocate(znode * node, reiser4_block_nr * blk)
 {
 	lock_handle lh;
@@ -1087,7 +1087,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		   except for the fake znode, and */
 		_ergo(znode_parent(node) && !znode_above_root(znode_parent(node)),
 		      znode_get_level(znode_parent(node)) ==
-		      znode_get_level(node) + 1) && 
+		      znode_get_level(node) + 1) &&
 		/* left neighbor is at the same level, and */
 		_ergo(znode_is_left_connected(node) && node->left != NULL,
 		      znode_get_level(node) == znode_get_level(node->left)) &&
@@ -1103,7 +1103,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		      znode_is_right_connected(node->left) &&
 		      node->left->right == node) &&
 		_ergo(!znode_is_root(node) && node->right != NULL,
-		      znode_is_left_connected(node->right) && 
+		      znode_is_left_connected(node->right) &&
 		      node->right->left == node) &&
 
 		/* [znode-c_count] invariant */
@@ -1210,11 +1210,11 @@ znode_post_write(znode * node)
 	if (znode_page(node) != NULL) {
 		cksum = znode_checksum(node);
 
-		if (!znode_is_dirty(node) && 
-		    cksum != node->cksum && 
+		if (!znode_is_dirty(node) &&
+		    cksum != node->cksum &&
 		    node->cksum != 0)
-			reiser4_panic("jmacd-1081", 
-				      "changed znode is not dirty: %llu", 
+			reiser4_panic("jmacd-1081",
+				      "changed znode is not dirty: %llu",
 				      node->zjnode.blocknr);
 	}
 	spin_unlock_znode(node);
@@ -1257,8 +1257,8 @@ info_znode(const char *prefix /* prefix to print */ ,
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
 
-	printk("c_count: %i, readers: %i, items: %i\n", 
-	       atomic_read(&node->c_count), node->lock.nr_readers, 
+	printk("c_count: %i, readers: %i, items: %i\n",
+	       atomic_read(&node->c_count), node->lock.nr_readers,
 	       node->nr_items);
 }
 
@@ -1326,11 +1326,11 @@ znodes_check_dk(reiser4_tree * tree)
 
 	for_all_in_htable(htable, z, node, next) {
 		if (znode_is_right_connected(node) && node->right != NULL)
-			assert("nikita-2971", 
+			assert("nikita-2971",
 			       keyeq(znode_get_ld_key(node->right),
 				     znode_get_rd_key(node)));
 		if (znode_is_left_connected(node) && node->left != NULL)
-			assert("nikita-2972", 
+			assert("nikita-2972",
 			       keyeq(znode_get_rd_key(node->left),
 				     znode_get_ld_key(node)));
 	}

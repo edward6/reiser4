@@ -19,7 +19,7 @@ typedef struct ctail_squeeze_info {
 	flow_t flow;
 } ctail_squeeze_info_t;
 
-#define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE  
+#define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE
 
 #define list_to_page(head) (list_entry((head)->prev, struct page, list))
 #define list_to_next_page(head) (list_entry((head)->prev->prev, struct page, list))

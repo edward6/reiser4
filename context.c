@@ -17,7 +17,7 @@ context_list_head active_contexts;
 #endif
 
 /* initialise context and bind it to the current thread
-  
+
    This function should be called at the beginning of reiser4 part of
    syscall.
 */
@@ -93,16 +93,16 @@ get_context_by_lock_stack(lock_stack * owner)
 int
 is_in_reiser4_context(void)
 {
-	return current->fs_context != NULL && 
+	return current->fs_context != NULL &&
 		( (unsigned long) current->fs_context->owner) == context_magic;
 }
 
-static void 
+static void
 balance_dirty_pages_at(reiser4_context * context)
 {
 	reiser4_super_info_data * sbinfo = get_super_private(context->super);
 
-	if (context->nr_marked_dirty != 0 && sbinfo->fake && 
+	if (context->nr_marked_dirty != 0 && sbinfo->fake &&
 	    !(current->flags & PF_MEMALLOC) && !current_is_pdflush()) {
 		balance_dirty_pages(sbinfo->fake->i_mapping);
 	}
@@ -124,13 +124,13 @@ int reiser4_exit_context(reiser4_context * context)
 }
 
 /* release resources associated with context.
-  
+
    This function should be called at the end of "session" with reiser4,
    typically just before leaving reiser4 driver back to VFS.
-  
+
    This is good place to put some degugging consistency checks, like that
    thread released all locks and closed transcrash etc.
-  
+
 */
 /* Audited by: umka (2002.06.16) */
 void

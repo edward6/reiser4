@@ -94,7 +94,7 @@ typedef enum {
 	LEAF_LEVEL = 1,
 
 	/* number of level one above leaf level of the tree.
-	  
+	
 	   It is supposed that internal tree used by reiser4 to store file
 	   system data and meta data will have height 2 initially (when
 	   created by mkfs).

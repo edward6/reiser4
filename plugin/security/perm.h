@@ -13,18 +13,18 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 /* interface for perm plugin.
-  
+
    Perm plugin method can be implemented through:
-  
+
     1. consulting ->i_mode bits in stat data
-  
+
     2. obtaining acl from the tree and inspecting it
-  
+
     3. asking some kernel module or user-level program to authorize access.
-  
+
    This allows for integration with things like capabilities, SELinux-style
    secutiry contexts, etc.
-  
+
 */
 typedef struct perm_plugin {
 	/* generic fields */

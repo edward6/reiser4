@@ -2,7 +2,7 @@
 
 /* Reiser4 Wandering Log */
 
-/* You should read http://www.namesys.com/txn-doc.html 
+/* You should read http://www.namesys.com/txn-doc.html
 
    That describes how filesystem operations are performed as atomic
    transactions, and how we try to arrange it so that we can write most of the
@@ -53,28 +53,28 @@
                        |                       | ends transaction commit
    --------------------+-----------------------+----------------------------
    journal header      |  journal footer       | atomic write of this record
-                       |                       | ends post-commit writes. 
+                       |                       | ends post-commit writes.
                        |                       | After successful
                        |                       | writing of this journal
                        |                       | blocks (in reiser3) or
                        |                       | wandered blocks/records are
                        |                       | free for re-use.
-   --------------------+-----------------------+----------------------------  
+   --------------------+-----------------------+----------------------------
 
-   The atom commit process is the following: 
-  
+   The atom commit process is the following:
+
    1. The overwrite set is taken from atom's clean list, and its size is
       counted.
-  
+
    2. The number of necessary wander records (including tx head) is calculated,
       and the wander record blocks are allocated.
-  
+
    3. Allocate wandered blocks and populate wander records by wandered map.
-   
+
    4. submit write requests for wander records and wandered blocks.
-  
+
    5. wait until submitted write requests complete.
-   
+
    6. update journal header: change the pointer to the block number of just
    written tx head, submit an i/o for modified journal header block and wait
    for i/o completion.
@@ -84,9 +84,9 @@
    complex (see comments in the source code for details).
 
    The atom playing process is the following:
-  
+
    1. Write atom's overwrite set in-place.
-  
+
    2. Wait on i/o.
 
    3. Update journal footer: change the pointer to block number of tx head
@@ -94,7 +94,7 @@
    completion.
 
    4. Free disk space which was used for wandered blocks and wander records.
-  
+
    After the freeing of wandered blocks and wander records we have that journal
    footer points to the on-disk structure which might be overwritten soon.
    Neither the log writer nor the journal recovery procedure use that pointer
@@ -115,15 +115,15 @@
 /* There are some reiser4 super block fields (free block count and OID allocator
    state (number of files and next free OID) which are logged separately from
    super block to avoid unnecessary atom fusion.
-  
+
    So, the reiser4 super block can be not captured by a transaction with
    allocates/deallocates disk blocks or create/delete file objects.  Moreover,
    the reiser4 on-disk super block is not touched when such a transaction is
    committed and flushed.  Those "counters logged specially" are logged in "tx
    head" blocks and in the journal footer block.
-  
+
    A step-by-step description of special logging:
-  
+
    0. The per-atom information about deleted or created files and allocated or
    freed blocks is collected during the transaction.  The atom's
    ->nr_objects_created and ->nr_objects_deleted are for object
@@ -131,7 +131,7 @@
    calculated using atom's delete set and atom's capture list -- all new and
    relocated nodes should be on atom's clean list and should have JNODE_RELOC
    bit set.
-   
+
    1. The "logged specially" reiser4 super block fields have their "committed"
    versions in the reiser4 in-memory super block.  They get modified only at
    atom commit time.  The atom's commit thread has an exclusive access to those
@@ -140,17 +140,17 @@
    that time "committed" counters are modified using per-atom information
    collected during the transaction. These counters are stored on disk as a
    part of tx head block when atom is committed.
-   
+
    2. When the atom is flushed the value of the free block counter and the OID
    allocator state get written to the journal footer block.  A special journal
    procedure (journal_recover_sb_data()) takes those values from the journal
    footer and updates the reiser4 in-memory super block.
-  
+
    NOTE: That means free block count and OID allocator state are logged
    separately from the reiser4 super block regardless of the fact that the
    reiser4 super block has fields to store both the free block counter and the
    OID allocator.
-  
+
    Writing the whole super block at commit time requires knowing true values of
    all its fields without changes made by not yet committed transactions. It is
    possible by having their "committed" version of the super block like the
@@ -363,7 +363,7 @@ get_tx_size(struct commit_handle *ch)
 	assert("zam-440", ch->overwrite_set_size != 0);
 	assert("zam-695", ch->tx_size == 0);
 
-	/* count all ordinary wander records 
+	/* count all ordinary wander records
 	   (<overwrite_set_size> - 1) / <wander_record_capacity> + 1 and add one
 	   for tx head block */
 	ch->tx_size = (ch->overwrite_set_size - 1) / wander_record_capacity(ch->super) + 2;
@@ -518,7 +518,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_GRABBED;
 	
-	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 
+	ret = reiser4_alloc_blocks (&hint, start, &wide_len,
 		BA_FORMATTED/* formatted, not from reserved area */, "get_more_wandered_blocks");
 
 	*len = (int) wide_len;
@@ -610,7 +610,7 @@ get_overwrite_set(struct commit_handle *ch)
 			ch->nr_bitmap ++;
 
 		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
-			    
+			
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			/* we replace fake znode by another (real)
 			   znode which is suggested by disk_layout
@@ -652,7 +652,7 @@ get_overwrite_set(struct commit_handle *ch)
 			int ret;
 			ch->overwrite_set_size++;
 			ret = jload(cur);
-			if (ret) 
+			if (ret)
 				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 
 			spin_lock(&scan_lock);
@@ -667,7 +667,7 @@ get_overwrite_set(struct commit_handle *ch)
 
 	/* Grab space for writing (wandered blocks) of not leaves found in
 	 * overwrite set. */
-	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED, 
+	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED,
 				       "get_overwrite_set: grab space for not leaves.");
 	if (ret)
 		return ret;
@@ -686,7 +686,7 @@ get_overwrite_set(struct commit_handle *ch)
    jnodes are after the @first on the double-linked "capture" list.  All
    jnodes will be written to the disk region of @nr blocks starting with
    @block_p block number.  If @fq is not NULL it means that waiting for i/o
-   completion will be done more efficiently by using flush_queue_t objects 
+   completion will be done more efficiently by using flush_queue_t objects
 
 ZAM-FIXME-HANS: brief me on why this function exists, and why bios are
 aggregated in this function instead of being left to the layers below
@@ -740,7 +740,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			lock_and_wait_page_writeback(pg);
 
 			LOCK_JNODE(cur);
-			assert("nikita-3166", 
+			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 			assert("nikita-3165", !releasable(cur));
@@ -1040,7 +1040,7 @@ get_overwrite_set(struct commit_handle *ch)
 			ch->nr_bitmap ++;
 
 		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
-			    
+			
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			/* we replace fake znode by another (real)
 			   znode which is suggested by disk_layout
@@ -1079,7 +1079,7 @@ get_overwrite_set(struct commit_handle *ch)
 			int ret;
 			ch->overwrite_set_size++;
 			ret = jload(cur);
-			if (ret) 
+			if (ret)
 				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 		}
 
@@ -1088,7 +1088,7 @@ get_overwrite_set(struct commit_handle *ch)
 
 	/* Grab space for writing (wandered blocks) of not leaves found in
 	 * overwrite set. */
-	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED, 
+	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED,
 				       "get_overwrite_set: grab space for not leaves.");
 	if (ret)
 		return ret;
@@ -1158,7 +1158,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			LOCK_JNODE(cur);
 			ON_DEBUG_MODIFY(znode_set_checksum(cur, 1));
-			assert("nikita-3166", 
+			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 			assert("nikita-3165", !releasable(cur));
@@ -1382,7 +1382,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		
 		/* We assume that disk space for wandered record blocks can be
 		 * taken from reserved area. */
-		ret = reiser4_alloc_blocks (&hint, &first, &len, 
+		ret = reiser4_alloc_blocks (&hint, &first, &len,
 			BA_FORMATTED | BA_RESERVED /* formatted, from reserved area */, "alloc_tx");
 
 		blocknr_hint_done(&hint);
@@ -1843,7 +1843,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	if (nr_wander_records != 0) {
-		warning("zam-632", "number of wander records in the linked list" 
+		warning("zam-632", "number of wander records in the linked list"
 			" less than number stored in tx head.\n");
 		ret = RETERR(-EIO);
 		goto free_ow_set;

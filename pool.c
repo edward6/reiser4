@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Fast pool allocation.
-  
+
    There are situations when some sub-system normally asks memory allocator
    for only few objects, but under some circumstances could require much
    more. Typical and actually motivating example is tree balancing. It needs
@@ -10,37 +10,37 @@
    balancings end up after working with only few nodes (3.141592 on
    average). But in rare cases balancing can involve much more nodes
    (3*tree_height+1 in extremal situation).
-  
+
    On the one hand, we don't want to resort to dynamic allocation (slab,
     malloc(), etc.) to allocate data structures required to keep track of
    nodes during balancing. On the other hand, we cannot statically allocate
    required amount of space on the stack, because first: it is useless wastage
    of precious resource, and second: this amount is unknown in advance (tree
    height can change).
-  
+
    Pools, implemented in this file are solution for this problem:
-  
+
     - some configurable amount of objects is statically preallocated on the
     stack
-  
+
     - if this preallocated pool is exhausted and more objects is requested
     they are allocated dynamically.
-  
+
    Pools encapsulate distinction between statically and dynamically allocated
    objects. Both allocation and recycling look exactly the same.
-  
+
    To keep track of dynamically allocated objects, pool adds its own linkage
-   to each object. 
-  
+   to each object.
+
    NOTE-NIKITA This linkage also contains some balancing-specific data. This
    is not perfect. On the other hand, balancing is currently the only client
    of pool code.
-  
+
    NOTE-NIKITA Another desirable feature is to rewrite all pool manipulation
    functions in the style of tslist/tshash, i.e., make them unreadable, but
    type-safe.
-  
-  
+
+
 */
 
 #include "debug.h"
@@ -92,10 +92,10 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 }
 
 /* release pool resources
-  
+
    Release all resources acquired by this pool, specifically, dynamically
    allocated objects.
-  
+
 */
 /* Audited by: green(2002.06.15) */
 void
@@ -104,10 +104,10 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
 }
 
 /* allocate carry object from pool
-  
+
    First, try to get preallocated object. If this fails, resort to dynamic
    allocation.
-  
+
 */
 /* Audited by: green(2002.06.15) */
 void *
@@ -167,20 +167,20 @@ reiser4_pool_free(reiser4_pool * pool,
 }
 
 /* add new object to the carry level list
-  
+
    Carry level is FIFO most of the time, but not always. Complications arise
    when make_space() function tries to go to the left neighbor and thus adds
    carry node before existing nodes, and also, when updating delimiting keys
    after moving data between two nodes, we want left node to be locked before
    right node.
-  
+
    Latter case is confusing at the first glance. Problem is that COP_UPDATE
    opration that updates delimiting keys is sometimes called with two nodes
    (when data are moved between two nodes) and sometimes with only one node
    (when leftmost item is deleted in a node). In any case operation is
    supplied with at least node whose left delimiting key is to be updated
    (that is "right" node).
-  
+
 */
 /* Audited by: green(2002.06.15) */
 reiser4_pool_header *

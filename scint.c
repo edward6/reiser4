@@ -5,13 +5,13 @@
 /* scint_t is 32bit data-type used for representation of "mostly 31bit" 64bit
    quantities, that is quantities that require 64bits in the worst case, but
    usually fit into 31bits.
-  
+
    When such value fits into 31 bit it is stored directly in the
    scint->datum. Otherwise, scint->datum is pointer to 64 bit chunk allocated
    from slab. Sign bit of scint->datum is used to discriminate above cases:
-   
+
    if scint->datum<0, then scint->datum<<1 is pointer to __u64, otherwise
-   
+
    scint->datum is value itself.
  */
 
@@ -104,7 +104,7 @@ static kmem_cache_t *scint_slab;
 
 int scint_init_once(void)
 {
-	scint_slab = kmem_cache_create("scint", sizeof(__u64), 0, 
+	scint_slab = kmem_cache_create("scint", sizeof(__u64), 0,
 				       SLAB_HWCACHE_ALIGN, NULL, NULL);
 	return (scint_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }

@@ -13,9 +13,9 @@
    independent of key scheme. */
 static const reiser4_key MINIMAL_KEY = {
 	.el = {
-		{0ull}, 
+		{0ull},
 		ON_LARGE_KEY({0ull},)
-		{0ull}, 
+		{0ull},
 		{0ull}
 	}
 };
@@ -24,9 +24,9 @@ static const reiser4_key MINIMAL_KEY = {
    independent of key scheme. */
 static const reiser4_key MAXIMAL_KEY = {
 	.el = {
-		{~0ull}, 
+		{~0ull},
 		ON_LARGE_KEY({~0ull},)
-		{~0ull}, 
+		{~0ull},
 		{~0ull}
 	}
 };
@@ -88,18 +88,18 @@ print_key(const char *prefix /* prefix to print */ ,
 	else {
 		if (REISER4_LARGE_KEY)
 			printk("%s: (%Lx:%x:%Lx:%Lx:%Lx:%Lx)", prefix,
-			       get_key_locality(key), 
+			       get_key_locality(key),
 			       get_key_type(key),
 			       get_key_ordering(key),
-			       get_key_band(key), 
-			       get_key_objectid(key), 
+			       get_key_band(key),
+			       get_key_objectid(key),
 			       get_key_offset(key));
 		else
 			printk("%s: (%Lx:%x:%Lx:%Lx:%Lx)", prefix,
-			       get_key_locality(key), 
+			       get_key_locality(key),
 			       get_key_type(key),
-			       get_key_band(key), 
-			       get_key_objectid(key), 
+			       get_key_band(key),
+			       get_key_objectid(key),
 			       get_key_offset(key));
 		if (get_key_type(key) == KEY_FILE_NAME_MINOR) {
 			char buf[DE_NAME_BUF_LEN];
@@ -131,18 +131,18 @@ sprintf_key(char *buffer /* buffer to print key into */ ,
 {
 	if (REISER4_LARGE_KEY)
 		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx:%Lx)",
-			       get_key_locality(key), 
+			       get_key_locality(key),
 			       get_key_type(key),
 			       get_key_ordering(key),
-			       get_key_band(key), 
-			       get_key_objectid(key), 
+			       get_key_band(key),
+			       get_key_objectid(key),
 			       get_key_offset(key));
 	else
 		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
-			       get_key_locality(key), 
+			       get_key_locality(key),
 			       get_key_type(key),
-			       get_key_band(key), 
-			       get_key_objectid(key), 
+			       get_key_band(key),
+			       get_key_objectid(key),
 			       get_key_offset(key));
 }
 

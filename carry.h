@@ -14,7 +14,7 @@
 #include <linux/types.h>
 
 /* &carry_node - "location" of carry node.
-  
+
    "location" of node that is involved or going to be involved into
    carry process. Node where operation will be carried to on the
    parent level cannot be recorded explicitly. Operation will be carried
@@ -23,7 +23,7 @@
    modifications are performed at the current level, parent may
    change. So, we have to allow some indirection (or, positevly,
    flexibility) in locating carry nodes.
-  
+
 */
 typedef struct carry_node {
 	/* pool linkage */
@@ -59,16 +59,16 @@ typedef struct carry_node {
 } carry_node;
 
 /* &carry_opcode - elementary operations that can be carried upward
-  
+
    Operations that carry() can handle. This list is supposed to be
    expanded.
-  
+
    Each carry operation (cop) is handled by appropriate function defined
    in fs/reiser4/carry.c. For example COP_INSERT is handled by
    fs/reiser4/carry.c:carry_insert() etc. These functions in turn
    call plugins of nodes affected by operation to modify nodes' content
    and to gather operations to be performed on the next level.
-  
+
 */
 typedef enum {
 	/* insert new item into node. */
@@ -83,7 +83,7 @@ typedef enum {
 	COP_EXTENT,
 	/* update delimiting key in least common ancestor of two
 	   nodes. This is performed when items are moved between two
-	   nodes. 
+	   nodes.
 	*/
 	COP_UPDATE,
 	/* update parent to reflect changes in the child. 3.x format
@@ -150,41 +150,41 @@ typedef struct carry_cut_data {
 } carry_cut_data;
 
 /* &carry_tree_op - operation to "carry" upward.
-  
+
    Description of an operation we want to "carry" to the upper level of
    a tree: e.g, when we insert something and there is not enough space
    we allocate a new node and "carry" the operation of inserting a
    pointer to the new node to the upper level, on removal of empty node,
    we carry up operation of removing appropriate entry from parent.
-  
+
    There are two types of carry ops: when adding or deleting node we
    node at the parent level where appropriate modification has to be
    performed is known in advance. When shifting items between nodes
    (split, merge), delimiting key should be changed in the least common
    parent of the nodes involved that is not known in advance.
-  
+
    For the operations of the first type we store in &carry_op pointer to
    the &carry_node at the parent level. For the operation of the second
    type we store &carry_node or parents of the left and right nodes
    modified and keep track of them upward until they coincide.
-  
+
 */
 typedef struct carry_op {
 	/* pool linkage */
 	reiser4_pool_header header;
 	carry_opcode op;
 	/* node on which operation is to be performed:
-	  
+	
 	   for insert, paste: node where new item is to be inserted
-	  
+	
 	   for delete: node where pointer is to be deleted
-	  
+	
 	   for cut: node to cut from
-	  
+	
 	   for update: node where delimiting key is to be modified
-	  
+	
 	   for modify: parent of modified node
-	  
+	
 	*/
 	carry_node *node;
 	union {
@@ -240,12 +240,12 @@ typedef struct carry_pool {
 } carry_pool;
 
 /* &carry_tree_level - carry process on given level
-  
-   Description of balancing process on the given level. 
-  
+
+   Description of balancing process on the given level.
+
    No need for locking here, as carry_tree_level is essentially per
    thread thing (for now).
-  
+
 */
 struct carry_level {
 	/* this level may be restarted */
@@ -285,10 +285,10 @@ carry_node *add_carry(carry_level * level, pool_ordering order, carry_node * ref
 carry_node *add_carry_skip(carry_level * level, pool_ordering order, carry_node * reference);
 carry_op *add_op(carry_level * level, pool_ordering order, carry_op * reference);
 
-extern carry_node *insert_carry_node(carry_level * doing, 
+extern carry_node *insert_carry_node(carry_level * doing,
 				     carry_level * todo, const znode * node);
 
-extern carry_node *add_carry_atplace(carry_level *doing, 
+extern carry_node *add_carry_atplace(carry_level *doing,
 				     carry_level *todo, znode *node);
 
 extern carry_node *find_begetting_brother(carry_node * node, carry_level * kin);

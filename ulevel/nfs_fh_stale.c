@@ -339,7 +339,7 @@ main(int argc, char **argv)
 				}
 			}
 			if (!op->label) {
-				fprintf(stderr, "%s: Unknown op: %s\n", 
+				fprintf(stderr, "%s: Unknown op: %s\n",
 					argv[0], optarg);
 				return 1;
 			}
@@ -435,7 +435,7 @@ main(int argc, char **argv)
 			       op->result.busy,
 			       op->result.failure,
 			       done - subtotal,
-			       rate((done - subtotal) * ratio, delta), 
+			       rate((done - subtotal) * ratio, delta),
 			       rate(done * ratio, i));
 		}
 		fflush(stdout);
@@ -524,7 +524,7 @@ sync_file(params_t *params)
 		return;
 	}
 	if (fsync(fd)) {
-		fprintf(stderr, "%s sync: %s(%i)\n", 
+		fprintf(stderr, "%s sync: %s(%i)\n",
 			fileName, strerror(errno), errno);
 		STEX(++stats.errors);
 		STEX(++ops[syncop].result.failure);
@@ -794,7 +794,7 @@ trunc_file(params_t *params)
 	}
 }
 
-static void 
+static void
 pip_file(params_t *params)
 {
 	struct dirent  entry;
@@ -837,19 +837,19 @@ pip_file(params_t *params)
 		} else {
 			STEX(++ops[pipop].result.ok);
 			if (verbose)
-				printf("[%li] P: %s\n", 
+				printf("[%li] P: %s\n",
 				       pthread_self(), entry.d_name);
 		}
 	} else if (errno == ENOENT || ptr == NULL)
 		rewinddir(params->cwd[dirno]);
 	else if (verbose) {
-		printf("[%li] P: %i, %i, %p, %s\n", 
+		printf("[%li] P: %i, %i, %p, %s\n",
 		       pthread_self(), result, errno, ptr, entry.d_name);
 		STEX(++ops[dogc ? gcop : pipop].result.failure);
 	}
 }
 
-static void 
+static void
 open_file(params_t *params)
 {
 	int fdno;
@@ -862,7 +862,7 @@ open_file(params_t *params)
 		fileName = params->filename;
 		fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
 		if (fd == -1) {
-			fprintf(stderr, "%s open/open: %s(%i)\n", 
+			fprintf(stderr, "%s open/open: %s(%i)\n",
 				fileName, strerror(errno), errno);
 			STEX(++stats.errors);
 			STEX(++ops[openop].result.missed);
@@ -890,7 +890,7 @@ static roundtopage(unsigned long val)
 	return (val + pgsize - 1) / pgsize * pgsize;
 }
 
-static void 
+static void
 mmap_file(params_t *params)
 {
 	int areano;
@@ -912,8 +912,8 @@ mmap_file(params_t *params)
 			flags  = RND(1) == 0 ? MAP_SHARED : MAP_PRIVATE;
 			result = ftruncate(fd, offset + length + 1);
 			if (result == -1) {
-				fprintf(stderr, 
-					"%i mmap/truncate: %s(%i)\n", 
+				fprintf(stderr,
+					"%i mmap/truncate: %s(%i)\n",
 					fd, strerror(errno), errno);
 				STEX(++stats.errors);
 				STEX(++ops[mmapop].result.missed);
@@ -921,7 +921,7 @@ mmap_file(params_t *params)
 				addr = mmap(NULL, length, PROT_READ | PROT_WRITE,
 					    flags, fd, offset);
 				if (addr == MAP_FAILED) {
-					fprintf(stderr, "%i mmap: %s(%i)\n", 
+					fprintf(stderr, "%i mmap: %s(%i)\n",
 						fd, strerror(errno), errno);
 					STEX(++stats.errors);
 					STEX(++ops[mmapop].result.missed);
@@ -961,7 +961,7 @@ mmap_file(params_t *params)
 	}
 }
 
-static void 
+static void
 gc_file(params_t *params)
 {
 	params->buffer[0] = 0x66;
@@ -993,7 +993,7 @@ _nap(int secs, int nanos)
 	}
 }
 
-/* 
+/*
  * When renaming or linking file (through link, rename, or symlink), maintain
  * certain order, so that infinite loops of symlinks are avoided.
  */
@@ -1002,7 +1002,7 @@ static void orderedname(params_t *params, char *name)
 	int targetno;
 	int dirno;
 
-	targetno = params->fileno + 
+	targetno = params->fileno +
 		RND(params->files - params->fileno - 1) + 1;
 
 	dirno = RND(params->dirs);

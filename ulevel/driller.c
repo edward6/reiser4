@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-static void print_percentage( unsigned long reached, 
+static void print_percentage( unsigned long reached,
 			      unsigned long total, int gap )
 {
 	int percentage;

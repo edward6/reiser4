@@ -28,16 +28,16 @@
 
     /filenameA/<>+"(some text stored in the invert)+/filenameB/<>
 
-====================== 
+======================
 Each element in this definition should be an invert, and all files
 should be called recursively - too.  This is bad. If one of the
 included files in not a regular or invert file, then we can't read
 main file.
 
-I think to make it is possible easier: 
+I think to make it is possible easier:
 
 internal structure of invert file should be like symlink file. But
-read and write method should be explitely indicated in i/o operation.. 
+read and write method should be explitely indicated in i/o operation..
 
 By default we read and write (if probably) as symlink and if we
 specify ..invert at reading time that too we can specify it at write time.
@@ -46,13 +46,13 @@ example:
 /my_invert_file/..invert<- ( (/filenameA<-"(The contents of filenameA))+"(some text stored in the invert)+(/filenameB<-"(The contents of filenameB) ) )
 will create  /my_invert_file as invert, and will creat /filenameA and /filenameB with specified body.
 
-read of /my_invert_file/..invert will be 
+read of /my_invert_file/..invert will be
 /filenameA<-"(The contents of filenameA)+"(some text stored in the invert)+/filenameB<-"(The contents of filenameB)
 
-but read of /my_invert_file/ will be 
+but read of /my_invert_file/ will be
 The contents of filenameAsome text stored in the invertThe contents of filenameB
 
-we also can creat this file as  
+we also can creat this file as
 /my_invert_file/<-/filenameA+"(some text stored in the invert)+/filenameB
 will create  /my_invert_file , and use existing files /filenameA and /filenameB.
 
@@ -60,7 +60,7 @@ and when we will read it will be as previously invert file.
 
 This is correct?
  vv
-======================= 
+=======================
 
   Then a read will return:
 
@@ -82,7 +82,7 @@ This is correct?
   Parse failures cause write failures.
 
   Questions to ponder: should the invert be acted on prior to file
-  close when writing to an open filedescriptor? 
+  close when writing to an open filedescriptor?
 
  Example:
 
@@ -102,20 +102,20 @@ Then a read will return:
   During opening we parse the body of invert and get a list of the 'entryes'
   (that describes all its subfiles) and place pointer on the first struct in
   reiserfs-specific part of invert inode (arbitrary decision).
-  
+
   Each subfile is described by the struct inv_entry that has a pointer @sd on
   in-core based stat-data and  a pointer on struct file @f (if we find that the
   subfile uses more then one unformated node (arbitrary decision), we load
   struct file in memory, otherwise we load base stat-data (and maybe 1-2 bytes
   of some other information we need)
- 
+
   Since READ and WRITE methods for inverts were formulated in assignment
   language, they don't contain arguments 'size' and 'offset' that make sense
-  only in ordinary read/write methods. 
-  
+  only in ordinary read/write methods.
+
   READ method is a combination of two methods:
   1) ordinary read method (with offset=0, lenght = @f->...->i_size) for entries
-  with @f != 0, this method uses pointer on struct file as an argument    
+  with @f != 0, this method uses pointer on struct file as an argument
   2) read method for inode-less files with @sd != 0, this method uses
   in-core based stat-data instead struct file as an argument.
   in the first case we don't use pagecache, just copy data that we got after
@@ -146,24 +146,24 @@ Then a read will return:
   of list #S (#I) and inherited order on #I (#S) must coincide.
   The other parsing results give malformed signature that aborts READ method
   and releases all resources.
-   
+
 
   Format of subfile (entry) signature:
 
-  "START_MAGIC"<>(TYPE="...",LOOKUP_ARG="...")SUBFILE_BODY"END_MAGIC"  
+  "START_MAGIC"<>(TYPE="...",LOOKUP_ARG="...")SUBFILE_BODY"END_MAGIC"
 
   Legend:
 
     START_MAGIC - keyword indicates the start of subfile signature;
 
     <> indicates the start of 'subfile metadata', that is the pair
-  (TYPE="...",LOOKUP_ARG="...") in parenthesis separated by comma. 
-  
+  (TYPE="...",LOOKUP_ARG="...") in parenthesis separated by comma.
+
     TYPE - the string "type" indicates the start of one of the three words:
   - ORDINARY_FILE,
   - LIGHT_WEIGHT_FILE,
-  - INVERT_FILE;  
-  
+  - INVERT_FILE;
+
     LOOKUP_ARG - lookup argument depends on previous type:
   */
 
@@ -179,9 +179,9 @@ Then a read will return:
 
  /* where:
   *stat-data key - the string contains stat data key of this subfile, it will be
-  passed to fast-access lookup method for light-weight files; 
+  passed to fast-access lookup method for light-weight files;
   *filename - pathname of this subfile, iyt well be passed to VFS lookup methods
-  for ordinary and invert files; 
+  for ordinary and invert files;
 
   SUBFILE_BODY - data of this subfile (it will go to the flow)
   END_MAGIC - the keyword indicates the end of subfile signature.
@@ -378,7 +378,7 @@ allocate_incore_sd_base(struct inv_entry *inv_entry)
 }
 
 /* this can be installed as ->init_inv_entry () method of
-   item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). 
+   item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
    Copies data from on-disk stat-data format into light-weight analog of inode .
    Doesn't hanlde stat-data extensions. */
 

@@ -30,7 +30,7 @@ static void update_none(void *ctx, const __u8 *data, unsigned int len)
 
 static void final_none(void *ctx, __u8 *out)
 {
-	memset(out, 0, NONE_DIGEST_SIZE); 
+	memset(out, 0, NONE_DIGEST_SIZE);
 }
 
 

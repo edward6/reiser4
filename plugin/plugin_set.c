@@ -35,23 +35,23 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 	/* make sure fields are not missed in the code below */
 	cassert(sizeof *set1 ==
 
-		sizeof set1->hashval + 
-		sizeof set1->link + 
+		sizeof set1->hashval +
+		sizeof set1->link +
 
-		sizeof set1->file + 
-		sizeof set1->dir + 
-		sizeof set1->perm + 
-		sizeof set1->tail + 
-		sizeof set1->hash + 
-		sizeof set1->sd + 
-		sizeof set1->dir_item + 
+		sizeof set1->file +
+		sizeof set1->dir +
+		sizeof set1->perm +
+		sizeof set1->tail +
+		sizeof set1->hash +
+		sizeof set1->sd +
+		sizeof set1->dir_item +
 		sizeof set1->crypto +
 		sizeof set1->digest +
 		sizeof set1->compression);
 
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);
-	return 
+	return
 		set1->hashval == set2->hashval &&
 
 		set1->file == set2->file &&
@@ -207,9 +207,9 @@ int plugin_set_init(void)
 
 	result = ps_hash_init(&ps_table, PS_TABLE_SIZE, NULL);
 	if (result == 0) {
-		plugin_set_slab = kmem_cache_create("plugin_set", 
-						    sizeof (plugin_set), 0, 
-						    SLAB_HWCACHE_ALIGN, 
+		plugin_set_slab = kmem_cache_create("plugin_set",
+						    sizeof (plugin_set), 0,
+						    SLAB_HWCACHE_ALIGN,
 						    NULL, NULL);
 		if (plugin_set_slab == NULL)
 			result = RETERR(-ENOMEM);

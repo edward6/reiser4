@@ -19,7 +19,7 @@ typedef struct directory_entry_format {
 	   packing locality and offset can be omitted here. But this
 	   relies on particular key allocation scheme for stat-data, so,
 	   for extensibility sake, whole key can be stored here.
-	   
+	
 	   We store key as array of bytes, because we don't want 8-byte
 	   alignment of dir entries.
 	*/
@@ -41,7 +41,7 @@ int max_name_len_de(const struct inode *dir);
 
 int de_rem_and_shrink(struct inode *dir, coord_t * coord, int length);
 
-char *extract_dent_name(const coord_t * coord, 
+char *extract_dent_name(const coord_t * coord,
 			directory_entry_format *dent, char *buf);
 
 #if REISER4_LARGE_KEY

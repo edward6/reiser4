@@ -21,7 +21,7 @@ main()
 		       return 0;
 		       }
 
-/* 
+/*
  * Make Linus happy.
  * Local variables:
  * c-indentation-style: "K&R"

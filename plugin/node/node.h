@@ -33,7 +33,7 @@
    Leaf variable length items and keys layout : (lvar)
 
    |node header:key offset + item offset + pluginid triplets:free space:key bodies:item bodies|
-   
+
    We grow towards the middle, optimizing layout for the case where we
    append new items to the end of the node.  The node header is fixed
    length.  Keys and item offsets for the items corresponding to them are
@@ -44,12 +44,12 @@
    Item offsets consist of pointers to the zeroth byte of the item body.
    Item length equals the start of the next item's key minus the start of
    this item, except the zeroth item whose length equals the end of the
-   node minus the start of that item (plus a byte).  
+   node minus the start of that item (plus a byte).
 
    leaf compressed keys layout: (lcomp)
 
    |node header:key offset + key inherit + item offset pairs:free space:key bodies:item bodies|
-   
+
    We grow towards the middle, optimizing layout for the case where we
    append new items to the end of the node.  The node header is fixed
    length.  Keys and item offsets for the items corresponding to them are
@@ -71,7 +71,7 @@
    anywhere, and it does not need to be since it is computable.
 
    internal node default layout: (idef1)
-   
+
    just like ldef1 except that item bodies are either blocknrs of
    children or extents, and moving them may require updating parent
    pointers in the nodes that they point to.
@@ -232,11 +232,11 @@ typedef struct node_plugin {
 	/* return true if this node allows skip carry() in some situations
 	   (see fs/reiser4/tree.c:insert_by_coord()). Reiser3.x format
 	   emulation doesn't.
-	  
+	
 	   This will speedup insertions that doesn't require updates to the
 	   parent, by bypassing initialisation of carry() structures. It's
 	   believed that majority of insertions will fit there.
-	  
+	
 	*/
 	int (*fast_insert) (const coord_t * coord);
 	int (*fast_paste) (const coord_t * coord);

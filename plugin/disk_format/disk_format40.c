@@ -225,7 +225,7 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	if (!equi(REISER4_LARGE_KEY,
 		  get_format40_flags(sb_copy) & (1 << FORMAT40_LARGE_KEYS))) {
 		warning("nikita-3228", "Key format mismatch. "
-			"Only %s keys are supported.", 
+			"Only %s keys are supported.",
 			REISER4_LARGE_KEY ? "large" : "small");
 		return RETERR(-EINVAL);
 	}
@@ -275,9 +275,9 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
 
 #if REISER4_DEBUG
-	sbinfo->min_blocks_used = 
-		16 /* reserved area */ + 
-		2 /* super blocks */ + 
+	sbinfo->min_blocks_used =
+		16 /* reserved area */ +
+		2 /* super blocks */ +
 		2 /* journal footer and header */;
 #endif
 
@@ -341,11 +341,11 @@ release_format40(struct super_block *s)
 	sbinfo = get_super_private(s);
 	assert("zam-579", sbinfo != NULL);
 
-	/* FIXME-UMKA: Should we tell block transaction manager to commit all if 
+	/* FIXME-UMKA: Should we tell block transaction manager to commit all if
 	 * we will have no space left? */
 	if (reiser4_grab_space(1, BA_RESERVED, "format40_release"))
 		return RETERR(-ENOSPC);
-	    
+	
 	if ((ret = capture_super_block(s))) {
 		warning("vs-898", "capture_super_block failed in umount: %d", ret);
 	}

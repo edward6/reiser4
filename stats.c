@@ -41,7 +41,7 @@ typedef struct reiser4_stats_cnt {
 
 #if REISER4_STATS
 
-static ssize_t 
+static ssize_t
 show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	       void * opaque, char * buf)
 {
@@ -58,7 +58,7 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	return (p - buf);
 }
 
-static ssize_t 
+static ssize_t
 store_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 		void *opaq UNUSED_ARG, const char * buf UNUSED_ARG, size_t size)
 {
@@ -71,7 +71,7 @@ store_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	return size;
 }
 
-static ssize_t 
+static ssize_t
 show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 		     void *da, char * buf)
 {
@@ -89,7 +89,7 @@ show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 	return (p - buf);
 }
 
-static ssize_t 
+static ssize_t
 store_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 		      void *da, const char * buf UNUSED_ARG, size_t size)
 {
@@ -99,7 +99,7 @@ store_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 
 	level = *(int *)da;
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
-	val = getptrat(statcnt_t, &get_super_private(s)->stats->level[level], 
+	val = getptrat(statcnt_t, &get_super_private(s)->stats->level[level],
 		       cnt->offset);
 	statcnt_reset(val);
 	return size;
@@ -376,7 +376,7 @@ static void
 print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
 	printk("%s%s:\t ", prefix, cnt->kattr.attr.name);
-	printk(cnt->format, 
+	printk(cnt->format,
 	       statcnt_get(getptrat(statcnt_t, base, cnt->offset)));
 }
 

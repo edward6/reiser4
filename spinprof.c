@@ -128,12 +128,12 @@ static struct sysfs_ops profregion_attr_ops = {
 };
 
 static struct attribute * def_attrs[] = {
-	&hits.attr, 
-	&busy.attr, 
-	&obj.attr, 
-	&objhit.attr, 
-	&code.attr, 
-	&codehit.attr, 
+	&hits.attr,
+	&busy.attr,
+	&obj.attr,
+	&objhit.attr,
+	&code.attr,
+	&codehit.attr,
 	NULL
 };
 
@@ -353,7 +353,7 @@ void profregion_ex(int cpu, struct profregion *pregion)
 	put_cpu();
 }
 
-void profregion_replace(int cpu, struct profregion *pregion, 
+void profregion_replace(int cpu, struct profregion *pregion,
 			void *objloc, void *codeloc)
 {
 	struct profregionstack *stack;

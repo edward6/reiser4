@@ -4,9 +4,9 @@
 
 /* Tail policy is used by object plugin (of regular file) to convert file
    between two representations. TO BE CONTINUED.
-  
+
    Currently only trivial policies are implemented.
-  
+
 */
 
 #include "../tree.h"

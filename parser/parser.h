@@ -47,7 +47,7 @@
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/types.h>
 
-typedef enum 
+typedef enum
 {
 	TW_BEGIN,
 	ASYN_BEGIN,
@@ -58,7 +58,7 @@ typedef enum
 	UNORDERED
 } def;
 
-//#define printf(p1,...) PTRACE(ws,p1,...)  
+//#define printf(p1,...) PTRACE(ws,p1,...)
 #define yylex()  reiser4_lex(ws)
 #define register
 #define  yyacc
@@ -147,7 +147,7 @@ struct wrd
 	struct qstr u ;             /* u.name  is ptr to space     */
 };
 
-typedef enum 
+typedef enum
 {
 	noV4Space,
 	V4Space,
@@ -171,7 +171,7 @@ struct vnode
 
 typedef union expr_v4  expr_v4_t;
 
-typedef struct expr_common 
+typedef struct expr_common
 {
 	__u8          type;
 	__u8          exp_type;
@@ -183,20 +183,20 @@ typedef struct expr_lnode
 	lnode  *lnode;
 } expr_lnode_t;
 
-typedef struct expr_flow 
+typedef struct expr_flow
 {
 	expr_common_t    h;
 	flow_t     *   flw;
 } expr_flow_t;
 
-typedef struct expr_vnode 
+typedef struct expr_vnode
 {
 	expr_common_t   h;
 	vnode_t  *  v;
 } expr_vnode_t;
 
 
-typedef struct expr_wrd 
+typedef struct expr_wrd
 {
 	expr_common_t   h;
 	wrd_t  *  s;
@@ -210,7 +210,7 @@ typedef struct expr_list {
 } expr_list;
 */
 
-typedef struct expr_op3 
+typedef struct expr_op3
 {
 	expr_common_t   h;
 	expr_v4_t  *  op;
@@ -218,20 +218,20 @@ typedef struct expr_op3
 	expr_v4_t  *  op_r;
 } expr_op3_t;
 
-typedef struct expr_op2 
+typedef struct expr_op2
 {
 	expr_common_t   h;
 	expr_v4_t  *  op_l;
 	expr_v4_t  *  op_r;
 } expr_op2_t;
 
-typedef struct expr_op 
+typedef struct expr_op
 {
 	expr_common_t   h;
 	expr_v4_t  *  op;
 } expr_op_t;
 
-typedef struct expr_assign 
+typedef struct expr_assign
 {
 	expr_common_t   h;
 	vnode_t       *  target;
@@ -240,14 +240,14 @@ typedef struct expr_assign
 } expr_assign_t;
 
 typedef struct expr_list expr_list_t;
-struct expr_list 
+struct expr_list
 {
 	expr_common_t   h;
 	expr_list_t     *  next;
 	expr_v4_t       *  source;
 } ;
 
-typedef enum 
+typedef enum
 {
 	EXPR_WRD,
 	EXPR_VNODE,
@@ -260,7 +260,7 @@ typedef enum
 	EXPR_OP
 } expr_v4_type;
 
-union expr_v4 
+union expr_v4
 {
 	expr_common_t   h;
 	expr_wrd_t      wd;
@@ -340,13 +340,13 @@ static struct
 	unsigned char typesOfParam[4]       ;
 }
 	typesOfCommand[]=
-		{ 
+		{
 			{0,{0,0,0,0}}
 		};
 
 
 
-static struct 
+static struct
 {
 	void (*	call_function)(void) ;
 	unsigned char type;            /* describe parameters, and its types */
@@ -402,7 +402,7 @@ r4_pars_list_head     HeadVar;
 
 typedef struct _p_VarTab  p_VarTab;
 
-struct _p_VarTab 
+struct _p_VarTab
 {
 	r4_pars_list_link     links;	
 
@@ -411,7 +411,7 @@ struct _p_VarTab
 
 TS_LIST_DEFINE( r4_pars, p_VarTab, links );
 
- * 
+ *
  * r4_pars_list_init             Initialize a list_head
  * r4_pars_list_clean            Initialize a list_link
  * r4_pars_list_is_clean         True if list_link is not in a list
@@ -432,7 +432,7 @@ TS_LIST_DEFINE( r4_pars, p_VarTab, links );
  * r4_pars_list_end              Test to end an iteration, either direction
  * r4_pars_list_splice           Join two lists at the head
  * r4_pars_list_empty            True if the list is empty
- * r4_pars_list_object_ok        Check that list element satisfies double 
+ * r4_pars_list_object_ok        Check that list element satisfies double
  *                                list invariants. For debugging.
  *
  * To iterate over such a list use a for-loop such as:

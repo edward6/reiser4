@@ -69,7 +69,7 @@
 
 #if REISER4_LOCKPROF
 
-/* 
+/*
  * If spin lock profiling is on, define profregions (see spinprof.[ch])
  * exporting through sysfs information about spin lock contention. With each
  * spin lock type two profregions are associated: "held" region (exported as
@@ -117,7 +117,7 @@ typedef struct { int foo; } aname ## _spin_dummy_profregion
 extern struct profregion pregion_spin_ ## NAME ## _held;	\
 extern struct profregion pregion_spin_ ## NAME ## _trying;
 
-/* 
+/*
  * If spin lock profiling is on, define profregions (see spinprof.[ch])
  * exporting through sysfs information about read write lock contention. With
  * each read write lock type four profregions are associated: "read held" and
@@ -438,7 +438,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 	__result;								\
 })
 
-/* 
+/*
  * The same as UNDER_SPIN, but without storing and returning @exp's result.
  */
 #define UNDER_SPIN_VOID(obj_type, obj, exp)					\
@@ -675,7 +675,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	__result;							\
 })
 
-/* 
+/*
  * The same as UNDER_RW, but without storing and returning @exp's result.
  */
 #define UNDER_RW_VOID(obj_type, obj, rw, exp)				\
@@ -777,7 +777,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 #define LOCK_ATOM(atom) spin_lock_atom(atom)
 #define LOCK_TXNH(txnh) spin_lock_txnh(txnh)
 #define LOCK_ZLOCK(lock) spin_lock_zlock(lock)
-#define LOCK_INODE(inode) spin_lock_inode_object(inode) 
+#define LOCK_INODE(inode) spin_lock_inode_object(inode)
 #define RLOCK_TREE(tree) read_lock_tree(tree)
 #define WLOCK_TREE(tree) write_lock_tree(tree)
 #define RLOCK_DK(tree) read_lock_dk(tree)
@@ -788,7 +788,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 #define UNLOCK_ATOM(atom) spin_unlock_atom(atom)
 #define UNLOCK_TXNH(txnh) spin_unlock_txnh(txnh)
 #define UNLOCK_ZLOCK(lock) spin_unlock_zlock(lock)
-#define UNLOCK_INODE(inode) spin_unlock_inode_object(inode) 
+#define UNLOCK_INODE(inode) spin_unlock_inode_object(inode)
 #define RUNLOCK_TREE(tree) read_unlock_tree(tree)
 #define WUNLOCK_TREE(tree) write_unlock_tree(tree)
 #define RUNLOCK_DK(tree) read_unlock_dk(tree)

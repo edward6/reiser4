@@ -35,7 +35,7 @@ item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 int item_body_is_valid(const coord_t * coord)
 {
 	return
-		coord->body == 
+		coord->body ==
 		node_plugin_by_node(coord->node)->item_by_coord(coord);
 }
 
@@ -62,7 +62,7 @@ obtain_item_plugin(const coord_t * coord)
 
 	coord_set_iplug((coord_t *) coord,
 			node_plugin_by_node(coord->node)->plugin_by_coord(coord));
-	assert("nikita-2479", 
+	assert("nikita-2479",
 	       coord_iplug(coord) == node_plugin_by_node(coord->node)->plugin_by_coord(coord));
 }
 
@@ -145,8 +145,8 @@ nr_units_single_unit(const coord_t * coord UNUSED_ARG	/* coord of item */ )
 }
 
 static int
-paste_no_paste(coord_t * coord UNUSED_ARG, 
-	       reiser4_item_data * data UNUSED_ARG, 
+paste_no_paste(coord_t * coord UNUSED_ARG,
+	       reiser4_item_data * data UNUSED_ARG,
 	       carry_plugin_info * info UNUSED_ARG)
 {
 	return 0;
@@ -180,7 +180,7 @@ item_can_contain_key(const coord_t * item /* coord of item */ ,
 		item_key_by_coord(item, &min_key_in_item);
 		iplug->b.max_key_inside(item, &max_key_in_item);
 
-		/* can contain key if 
+		/* can contain key if
 		      min_key_in_item <= key &&
 		      key <= max_key_in_item
 		*/

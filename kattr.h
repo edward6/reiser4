@@ -24,10 +24,10 @@ typedef struct reiser4_kattr reiser4_kattr;
 struct reiser4_kattr {
 	struct attribute attr;
 	void  *cookie;
-	ssize_t (*show) (struct super_block * s, 
+	ssize_t (*show) (struct super_block * s,
 			 reiser4_kattr *, void *opaque, char *buf);
-	ssize_t (*store) (struct super_block * s, 
-			  reiser4_kattr *, void *opaque, const char *buf, 
+	ssize_t (*store) (struct super_block * s,
+			  reiser4_kattr *, void *opaque, const char *buf,
 			  size_t size);
 };
 

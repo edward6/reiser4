@@ -4,25 +4,25 @@
    set of changes that need to be propagated to the next level.  We manage
    node locking such that any searches that collide with carrying are
    restarted, from the root if necessary.
-  
+
    Insertion of a new item may result in items being moved among nodes and
    this requires the delimiting key to be updated at the least common parent
    of the nodes modified to preserve search tree invariants. Also, insertion
    may require allocation of a new node. A pointer to the new node has to be
    inserted into some node on the parent level, etc.
-   
+
    Tree carrying is meant to be analogous to arithmetic carrying.
-   
+
    A carry operation is always associated with some node (&carry_node).
-  
+
    Carry process starts with some initial set of operations to be performed
    and an initial set of already locked nodes.  Operations are performed one
    by one. Performing each single operation has following possible effects:
-  
+
     - content of carry node associated with operation is modified
     - new carry nodes are locked and involved into carry process on this level
     - new carry operations are posted to the next level
-  
+
    After all carry operations on this level are done, process is repeated for
    the accumulated sequence on carry operations for the next level. This
    starts by trying to lock (in left to right order) all carry nodes
@@ -30,15 +30,15 @@
    whether more nodes are required on the left of already locked set. If so,
    all locks taken on the parent level are released, new carry nodes are
    added, and locking process repeats.
-  
+
    It may happen that balancing process fails owing to unrecoverable error on
    some of upper levels of a tree (possible causes are io error, failure to
    allocate new node, etc.). In this case we should unmount the filesystem,
    rebooting if it is the root, and possibly advise the use of fsck.
-  
+
    USAGE:
-  
-  
+
+
     int some_tree_operation( znode *node, ... )
     {
        // Allocate on a stack pool of carry objects: operations and nodes.
@@ -50,10 +50,10 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
        carry_pool  pool;
        carry_level lowest_level;
        carry_op   *op;
-  
+
        init_carry_pool( &pool );
        init_carry_level( &lowest_level, &pool );
-  
+
        // operation may be one of:
        //   COP_INSERT    --- insert new item into node
        //   COP_CUT       --- remove part of or whole node
@@ -63,7 +63,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
        //                     common ancestor of two
        //   COP_MODIFY    --- update parent to reflect changes in
        //                     the child
-  
+
        op = post_carry( &lowest_level, operation, node, 0 );
        if( IS_ERR( op ) || ( op == NULL ) ) {
            handle error
@@ -73,61 +73,61 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
        }
        done_carry_pool( &pool );
     }
-  
+
    When you are implementing node plugin method that participates in carry
    (shifting, insertion, deletion, etc.), do the following:
-  
+
    int foo_node_method( znode *node, ..., carry_level *todo )
    {
        carry_op   *op;
-  
+
        ....
-  
+
        // note, that last argument to post_carry() is non-null
        // here, because @op is to be applied to the parent of @node, rather
        // than to the @node itself as in the previous case.
-  
+
        op = node_post_carry( todo, operation, node, 1 );
        // fill in remaining fields in @op, according to carry.h:carry_op
-  
+
        ....
-  
+
    }
-  
+
    BATCHING:
-  
+
    One of the main advantages of level-by-level balancing implemented here is
    ability to batch updates on a parent level and to peform them more
    efficiently as a result.
-  
+
    Description To Be Done (TBD).
-  
+
    DIFFICULTIES AND SUBTLE POINTS:
-  
+
    1. complex plumbing is required, because:
-  
+
        a. effective allocation through pools is needed
-  
+
        b. target of operation is not exactly known when operation is
        posted. This is worked around through bitfields in &carry_node and
        logic in lock_carry_node()
-  
+
        c. of interaction with locking code: node should be added into sibling
        list when pointer to it is inserted into its parent, which is some time
        after node was created. Between these moments, node is somewhat in
        suspended state and is only registered in the carry lists
-  
+
     2. whole balancing logic is implemented here, in particular, insertion
     logic is coded in make_space().
-  
+
     3. special cases like insertion (add_tree_root()) or deletion
     (kill_tree_root()) of tree root and morphing of paste into insert
     (insert_paste()) have to be handled.
-  
+
     4. there is non-trivial interdependency between allocation of new nodes
     and almost everything else. This is mainly due to the (1.c) above. I shall
     write about this later.
-  
+
 */
 
 #include "forward.h"
@@ -179,15 +179,15 @@ static int carry_level_invariant(carry_level * level, carry_queue_state state);
 #endif
 
 /* main entry point for tree balancing.
-  
+
    Tree carry performs operations from @doing and while doing so accumulates
    information about operations to be performed on the next level ("carried"
    to the parent level). Carried operations are performed, causing possibly
    more operations to be carried upward etc. carry() takes care about
    locking and pinning znodes while operating on them.
-  
+
    For usage, see comment at the top of fs/reiser4/carry.c
-  
+
 */
 int
 carry(carry_level * doing /* set of carry operations to be performed */ ,
@@ -224,13 +224,13 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		/* repeat lock/do/unlock while
 
 		   (1) lock_carry_level() fails due to deadlock avoidance, or
-		  
+		
 		   (2) carry_on_level() decides that more nodes have to
 		   be involved.
-		  
+		
 		   (3) some unexpected error occured while balancing on the
 		   upper levels. In this case all changes are rolled back.
-		  
+		
 		*/
 		while (1) {
 			result = lock_carry_level(doing);
@@ -320,7 +320,7 @@ for( node = carry_node_front( level ),						\
      node = tmp, tmp = carry_node_next( node ) )
 
 /* macro to iterate over all nodes in a @level in reverse order
-  
+
    This is used, because nodes are unlocked in reversed order of locking */
 #define for_all_nodes_back( level /* carry level (of type carry_level *) */,	\
 		            node  /* pointer to carry node, modified by loop	\
@@ -333,17 +333,17 @@ for( node = carry_node_back( level ),		\
      node = tmp, tmp = carry_node_prev( node ) )
 
 /* perform carry operations on given level.
-  
+
    Optimizations proposed by pooh:
-  
+
    (1) don't lock all nodes from queue at the same time. Lock nodes lazily as
    required;
-  
+
    (2) unlock node if there are no more operations to be performed upon it and
    node didn't add any operation to @todo. This can be implemented by
    attaching to each node two counters: counter of operaions working on this
    node and counter and operations carried upward from this node.
-  
+
 */
 static int
 carry_on_level(carry_level * doing	/* queue of carry operations to
@@ -370,24 +370,24 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 	/* @doing->nodes are locked. */
 
 	/* This function can be split into two phases: analysis and modification.
-	  
+	
 	   Analysis calculates precisely what items should be moved between
 	   nodes. This information is gathered in some structures attached to
 	   each carry_node in a @doing queue. Analysis also determines whether
 	   new nodes are to be allocated etc.
-	  
+	
 	   After analysis is completed, actual modification is performed. Here
 	   we can take advantage of "batch modification": if there are several
 	   operations acting on the same node, modifications can be performed
 	   more efficiently when batched together.
-	  
+	
 	   Above is an optimization left for the future.
 	*/
 	/* Important, but delayed optimization: it's possible to batch
 	   operations together and perform them more efficiently as a
 	   result. For example, deletion of several neighboring items from a
 	   node can be converted to a single ->cut() operation.
-	  
+	
 	   Before processing queue, it should be scanned and "mergeable"
 	   operations merged.
 	*/
@@ -432,18 +432,18 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 }
 
 /* post carry operation
-  
+
    This is main function used by external carry clients: node layout plugins
    and tree operations to create new carry operation to be performed on some
    level.
-  
+
    New operation will be included in the @level queue. To actually perform it,
    call carry( level, ... ). This function takes write lock on @node. Carry
    manages all its locks by itself, don't worry about this.
-   
+
    This function adds operation and node at the end of the queue. It is up to
    caller to guarantee proper ordering of node queue.
-   
+
 */
 carry_op *
 post_carry(carry_level * level	/* queue where new operation is to
@@ -527,13 +527,13 @@ done_carry_pool(carry_pool * pool UNUSED_ARG /* pool to destroy */ )
 }
 
 /* add new carry node to the @level.
-  
+
    Returns pointer to the new carry node allocated from pool.  It's up to
    callers to maintain proper order in the @level. Assumption is that if carry
    nodes on one level are already sorted and modifications are peroformed from
    left to right, carry nodes added on the parent level will be ordered
    automatically. To control ordering use @order and @reference parameters.
-  
+
 */
 carry_node *
 add_carry_skip(carry_level * level	/* &carry_level to add node
@@ -562,8 +562,8 @@ add_carry_skip(carry_level * level	/* &carry_level to add node
 		else
 			reference = carry_node_prev(reference);
 	}
-	assert("nikita-2209", 
-	       ergo(orig_ref != NULL, 
+	assert("nikita-2209",
+	       ergo(orig_ref != NULL,
 		    carry_real(reference) == carry_real(orig_ref)));
 	return add_carry(level, order, reference);
 }
@@ -587,11 +587,11 @@ add_carry(carry_level * level	/* &carry_level to add node
 }
 
 /* add new carry operation to the @level.
-  
+
    Returns pointer to the new carry operations allocated from pool. It's up to
    callers to maintain proper order in the @level. To control ordering use
    @order and @reference parameters.
-  
+
 */
 carry_op *
 add_op(carry_level * level /* &carry_level to add node to */ ,
@@ -610,13 +610,13 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
 }
 
 /* Return node on the right of which @node was created.
-  
+
    Each node is created on the right of some existing node (or it is new root,
    which is special case not handled here).
-  
+
    @node is new node created on some level, but not yet inserted into its
    parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
-  
+
 */
 carry_node *
 find_begetting_brother(carry_node * node	/* node to start search
@@ -629,7 +629,7 @@ find_begetting_brother(carry_node * node	/* node to start search
 	assert("nikita-1614", node != NULL);
 	assert("nikita-1615", kin != NULL);
 	assert("nikita-1616", lock_counters()->rw_locked_tree > 0);
-	assert("nikita-1619", ergo(carry_real(node) != NULL, 
+	assert("nikita-1619", ergo(carry_real(node) != NULL,
 				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
 	for (scan = node;; scan = carry_node_prev(scan)) {
@@ -783,14 +783,14 @@ lock_carry_level(carry_level * level /* level to lock */ )
 }
 
 /* Synchronize delimiting keys between @node and its left neighbor.
-  
+
    To reduce contention on dk key and simplify carry code, we synchronize
    delimiting keys only when carry ultimately leaves tree level (carrying
    changes upward) and unlocks nodes at this level.
-  
+
    This function first finds left neighbor of @node and then updates left
    neighbor's right delimiting key to conincide with least key in @node.
-  
+
 */
 static void
 sync_dkeys(carry_node * node /* node to update */ ,
@@ -835,8 +835,8 @@ sync_dkeys(carry_node * node /* node to update */ ,
 #if 0
 		/* on the leaf level we can only increase right delimiting key
 		 * of a node on which we don't hold a long term lock. */
-		assert("nikita-2930", 
-		       ergo(!znode_is_write_locked(spot) && 
+		assert("nikita-2930",
+		       ergo(!znode_is_write_locked(spot) &&
 			    znode_get_level(spot) == LEAF_LEVEL,
 			    keyge(&pivot, znode_get_rd_key(spot))));
 #endif
@@ -920,14 +920,14 @@ done_carry_level(carry_level * level /* level to finish */ )
 }
 
 /* helper function to complete locking of carry node
-  
+
    Finish locking of carry node. There are several ways in which new carry
    node can be added into carry level and locked. Normal is through
    lock_carry_node(), but also from find_{left|right}_neighbor(). This
    function factors out common final part of all locking scenarios. It
    supposes that @node -> lock_handle is lock handle for lock just taken and
    fills ->real_node from this lock handle.
-  
+
 */
 int
 lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
@@ -939,31 +939,31 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 	node->unlock = 1;
 	/* Load node content into memory and install node plugin by
 	   looking at the node header.
-	  
+	
 	   Most of the time this call is cheap because the node is
 	   already in memory.
-	  
+	
 	   Corresponding zrelse() is in unlock_carry_node()
 	*/
 	return zload(carry_real(node));
 }
 
 /* lock carry node
-  
+
    "Resolve" node to real znode, lock it and mark as locked.
    This requires recursive locking of znodes.
-  
+
    When operation is posted to the parent level, node it will be applied to is
    not yet known. For example, when shifting data between two nodes,
    delimiting has to be updated in parent or parents of nodes involved. But
    their parents is not yet locked and, moreover said nodes can be reparented
    by concurrent balancing.
-  
+
    To work around this, carry operation is applied to special "carry node"
    rather than to the znode itself. Carry node consists of some "base" or
    "reference" znode and flags indicating how to get to the target of carry
    operation (->real_node field of carry_node) from base.
-  
+
 */
 int
 lock_carry_node(carry_level * level /* level @node is in */ ,
@@ -985,28 +985,28 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 	init_lh(&tmp_lh);
 	if (node->left_before) {
 		/* handling of new nodes, allocated on the previous level:
-		  
+		
 		   some carry ops were propably posted from the new node, but
 		   this node neither has parent pointer set, nor is
 		   connected. This will be done in ->create_hook() for
 		   internal item.
-		  
+		
 		   No then less, parent of new node has to be locked. To do
 		   this, first go to the "left" in the carry order. This
 		   depends on the decision to always allocate new node on the
 		   right of existing one.
-		  
+		
 		   Loop handles case when multiple nodes, all orphans, were
 		   inserted.
-		  
+		
 		   Strictly speaking, taking tree lock is not necessary here,
 		   because all nodes scanned by loop in
 		   find_begetting_brother() are write-locked by this thread,
 		   and thus, their sibling linkage cannot change.
-		  
+		
 		*/
 		reference_point = UNDER_RW
-		    (tree, znode_get_tree(reference_point), read, 
+		    (tree, znode_get_tree(reference_point), read,
 		     find_begetting_brother(node, level)->node);
 		assert("nikita-1186", reference_point != NULL);
 	}
@@ -1057,14 +1057,14 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 }
 
 /* release a lock on &carry_node.
-  
+
    Release if necessary lock on @node. This opearion is pair of
    lock_carry_node() and is idempotent: you can call it more than once on the
    same node.
-  
+
 */
 static void
-unlock_carry_node(carry_level * level, 
+unlock_carry_node(carry_level * level,
 		  carry_node * node /* node to be released */ ,
 		  int failure	/* 0 if node is unlocked due
 				 * to some error */ )
@@ -1085,7 +1085,7 @@ unlock_carry_node(carry_level * level,
 	if (failure) {
 		if (node->deallocate && (real_node != NULL)) {
 			/* free node in bitmap
-			  
+			
 			   Prepare node for removal. Last zput() will finish
 			   with it.
 			*/
@@ -1100,14 +1100,14 @@ unlock_carry_node(carry_level * level,
 }
 
 /* fatal_carry_error() - all-catching error handling function
-  
+
    It is possible that carry faces unrecoverable error, like unability to
    insert pointer at the internal level. Our simple solution is just panic in
    this situation. More sophisticated things like attempt to remount
    file-system as read-only can be implemented without much difficlties.
-  
+
    It is believed, that:
-  
+
    1. in stead of panicking, all current transactions can be aborted rolling
    system back to the consistent state.
 
@@ -1117,7 +1117,7 @@ by virtue of the design of the transactional mechanism. Well, wait, let's be
 precise.  If an internal node is corrupted on disk due to hardware failure,
 then there may be no consistent state that can be rolled back to, so instead
 we should say that it will rollback the transactions, which barring other
-factors means rolling back to a consistent state.  
+factors means rolling back to a consistent state.
 
 # Nikita: there is a subtle difference between panic and aborting
 # transactions: machine doesn't reboot. Processes aren't killed. Processes
@@ -1131,13 +1131,13 @@ factors means rolling back to a consistent state.
 It would be a nice feature though to support rollback without rebooting
 followed by remount, but this can wait for later versions.
 
-  
+
    2. once isolated transactions will be implemented it will be possible to
    roll back offending transaction.
 
 2. is additional code complexity of inconsistent value (it implies that a broken tree should be kept in operation), so we must think about
 it more before deciding if it should be done.  -Hans
-  
+
 */
 static void
 fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
@@ -1154,14 +1154,14 @@ fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
 }
 
 /* add new root to the tree
-  
+
    This function itself only manages changes in carry structures and delegates
    all hard work (allocation of znode for new root, changes of parent and
    sibling pointers to the add_tree_root().
-  
+
    Locking: old tree root is locked by carry at this point. Fake znode is also
    locked.
-  
+
 */
 static int
 add_new_root(carry_level * level	/* carry level in context of which
@@ -1200,10 +1200,10 @@ add_new_root(carry_level * level	/* carry level in context of which
 
 /* allocate new znode and add the operation that inserts the
    pointer to it into the parent node into the todo level
-  
+
    Allocate new znode, add it into carry queue and post into @todo queue
    request to add pointer to new node into its parent.
-  
+
    This is carry related routing that calls new_node() to allocate new
    node.
 */
@@ -1231,11 +1231,11 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	/* There is a lot of possible variations here: to what parent
 	   new node will be attached and where. For simplicity, always
 	   do the following:
-	  
+	
 	   (1) new node and @brother will have the same parent.
-	  
+	
 	   (2) new node is added on the right of @brother
-	  
+	
 	*/
 
 	fresh = add_carry_skip(doing, ref ? POOLO_AFTER : POOLO_LAST, ref);
@@ -1276,14 +1276,14 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	add_pointer->u.insert.brother = brother;
 	/* initially new node spawns empty key range */
 	WLOCK_DK(znode_get_tree(brother));
-	znode_set_ld_key(new_znode, 
+	znode_set_ld_key(new_znode,
 			 znode_set_rd_key(new_znode, znode_get_rd_key(brother)));
 	WUNLOCK_DK(znode_get_tree(brother));
 	return fresh;
 }
 
-/* DEBUGGING FUNCTIONS. 
-  
+/* DEBUGGING FUNCTIONS.
+
    Probably we also should leave them on even when
    debugging is turned off to print dumps at errors.
 */
@@ -1297,7 +1297,7 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 	if (level == NULL)
 		return 0;
 
-	if (level->track_type != 0 && 
+	if (level->track_type != 0 &&
 	    level->track_type != CARRY_TRACK_NODE &&
 	    level->track_type != CARRY_TRACK_CHANGE)
 		return 0;
@@ -1322,7 +1322,7 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 				continue;
 			if (node_is_empty(right) || node_is_empty(left))
 				continue;
-			if (!keyle(leftmost_key_in_node(left, &lkey), 
+			if (!keyle(leftmost_key_in_node(left, &lkey),
 				   leftmost_key_in_node(right, &rkey))) {
 				print_znode("left", left);
 				print_node_content("left", left, ~0);
@@ -1441,7 +1441,7 @@ print_level(const char *prefix /* prefix to print */ ,
 		printk("%s: null\n", prefix);
 		return;
 	}
-	printk("%s: %p, restartable: %s\n", 
+	printk("%s: %p, restartable: %s\n",
 	       prefix, level, tf(level->restartable));
 
 	for_all_nodes(level, node, tmp_node)

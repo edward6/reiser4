@@ -50,7 +50,7 @@ extern void close_trace_file(reiser4_trace_file * file);
 	write_current_tracef("%s "format, __FUNCTION__ , ## __VA_ARGS__)
 extern void write_node_trace(const jnode *node);
 struct address_space;
-extern void write_page_trace(const struct address_space *mapping, 
+extern void write_page_trace(const struct address_space *mapping,
 			     unsigned long index);
 extern void write_io_trace(const char *moniker, int rw, struct bio *bio);
 extern void write_tree_trace(reiser4_tree * tree, reiser4_traced_op op, ...);

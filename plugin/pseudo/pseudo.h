@@ -26,13 +26,13 @@ typedef enum {
 } pseudo_write_type;
 
 /* low level operations on the pseudo files.
-  
+
    Methods from this interface are directly callable by reiser4 system call.
-  
+
    This operation structure looks suspiciously like yet another plugin
    type. Doing so would simplify some things. For example, there are already
    functions to look up plugin by name, dynamic loading is planned, etc.
-  
+
 */
 struct pseudo_plugin;
 typedef struct pseudo_plugin pseudo_plugin;
@@ -42,12 +42,12 @@ struct pseudo_plugin {
 	int (*try) (pseudo_plugin *pplug,
 		    const struct inode *parent, const char *name);
 	/* lookup method applicable to this pseudo file by method name.
-	  
+	
 	   This is for something like "foo/..acl/dup", here "../acl" is the
 	   name of a pseudo file, and "dup" is name of an operation (method)
 	   applicable to "../acl". Once "..acl" is resolved to ACL object,
 	   ->lookup( "dup" ) can be called to get operation.
-	  
+	
 	*/
 	int (*lookup)(struct inode *parent, struct dentry * dentry);
 
@@ -69,7 +69,7 @@ struct pseudo_plugin {
 	pseudo_write_type write_type;
 	union {
 		int (*gets)(struct file *, const char *);
-		ssize_t (*write)(struct file *, 
+		ssize_t (*write)(struct file *,
 				 const char __user *, size_t , loff_t *);
 	} write;
 	int (*readdir)(struct file *f, void *dirent, filldir_t filld);
@@ -83,7 +83,7 @@ typedef struct pseudo_info {
 
 extern int lookup_pseudo_file(struct inode *parent, struct dentry *dentry);
 
-typedef enum { 
+typedef enum {
 	PSEUDO_UID_ID,
 	PSEUDO_GID_ID,
 	PSEUDO_RWX_ID,

@@ -2,7 +2,7 @@
 
 /* Traditional deadlock avoidance is achieved by acquiring all locks in a single order.  V4 balances the tree from the bottom up, and searches the tree from the top down, and that is really the way we want it, so tradition won't work for us.
 
-Instead we have two lock orderings, a high priority lock ordering, and a low priority lock ordering.  Each node in the tree has a lock in its znode. 
+Instead we have two lock orderings, a high priority lock ordering, and a low priority lock ordering.  Each node in the tree has a lock in its znode.
 
    Suppose we have a set of processes which lock (R/W) tree nodes. Each
    process has a set (maybe empty) of already locked nodes ("process locked
@@ -12,10 +12,10 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    Deadlock occurs when we have a loop constructed from
    process locked sets and lock request vectors.
 
-  
+
    NOTE: The reiser4 "tree" is a tree on disk, but its cached representation in memory is extended with "znodes" with which we connect nodes with their left and right neighbors using sibling pointers stored in the znodes.  When we perform balancing operations we often go from left to right and from right to left.
 
-  
+
    +-P1-+          +-P3-+
    |+--+|   V1     |+--+|
    ||N1|| -------> ||N3||
@@ -29,7 +29,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    ||N2|  --------  |N4||
    |+--+            +--+|
    +--------------------+
-  
+
    We solve this by ensuring that only low priority processes lock in top to
    bottom order and from right to left, and high priority processes lock from
    bottom to top and left to right.
@@ -46,27 +46,27 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    atom locks.
 
    How does it help to avoid deadlocks ?
-  
+
    Suppose we have a deadlock with n processes. Processes from one priority
    class never deadlock because they take locks in one consistent
    order.
-  
+
    So, any possible deadlock loop must have low priority as well as high
    priority processes.  There are no other lock priority levels except low and
    high. We know that any deadlock loop contains at least one node locked by a
    low priority process and requested by a high priority process. If this
    situation is caught and resolved it is sufficient to avoid deadlocks.
-  
+
    V4 DEADLOCK PREVENTION ALGORITHM IMPLEMENTATION.
-  
-   The deadlock prevention algorithm is based on comparing 
+
+   The deadlock prevention algorithm is based on comparing
    priorities of node owners (processes which keep znode locked) and
    requesters (processes which want to acquire a lock on znode).  We
    implement a scheme where low-priority owners yield locks to
    high-priority requesters. We created a signal passing system that
    is used to ask low-priority processes to yield one or more locked
    znodes.
-  
+
    The condition when a znode needs to change its owners is described by the
    following formula:
 
@@ -80,27 +80,27 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
 
      Note that a low-priority process
      delays node releasing if another high-priority process owns this node.  So, slightly more strictly speaking, to have a deadlock capable cycle you must have a loop in which a high priority process is waiting on a low priority process to yield a node, which is slightly different from saying a high priority process is waiting on a node owned by a low priority process.
-    
+
    It is enough to avoid deadlocks if we prevent any low-priority process from
    falling asleep if its locked set contains a node which satisfies the
    deadlock condition.
-  
+
    That condition is implicitly or explicitly checked in all places where new
    high-priority requests may be added or removed from node request queue or
    high-priority process takes or releases a lock on node. The main
    goal of these checks is to never lose the moment when node becomes "has
    wrong owners" and send "must-yield-this-lock" signals to its low-pri owners
    at that time.
-  
+
    The information about received signals is stored in the per-process
    structure (lock stack) and analyzed before a low-priority process goes to
    sleep but after a "fast" attempt to lock a node fails. Any signal wakes
    sleeping process up and forces him to re-check lock status and received
    signal info. If "must-yield-this-lock" signals were received the locking
    primitive (longterm_lock_znode()) fails with -E_DEADLOCK error code.
-    
+
    V4 LOCKING DRAWBACKS
-   
+
    If we have already balanced on one level, and we are propagating our changes upward to a higher level, it could be
    very messy to surrender all locks on the lower level because we put so much computational work into it, and reverting
    them to their state before they were locked might be very complex.  We also don't want to acquire all locks before
@@ -108,14 +108,14 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    conservative and lock too much.  We want balancing to be done only at high priority.  Yet, we might want to go to the
    left one node and use some of its empty space... So we make one attempt at getting the node to the left using
    try_lock, and if it fails we do without it, because we didn't really need it, it was only a nice to have.
-  
+
    LOCK STRUCTURES DESCRIPTION
-  
+
    The following data structures are used in the reiser4 locking
    implementation:
 
    All fields related to long-term locking are stored in znode->lock.
-  
+
    The lock stack is a per thread object.  It owns all znodes locked by the
    thread. One znode may be locked by several threads in case of read lock or
    one znode may be write locked by one thread several times. The special link
@@ -124,7 +124,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
 
    <Thread 1>                       <Thread 2>
 
-   +---------+                     +---------+ 
+   +---------+                     +---------+
    |  LS1    |		           |  LS2    |
    +---------+			   +---------+
        ^                                ^
@@ -138,7 +138,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
        v                   v                        v
    +---------+      +---------+                  +---------+
    |  Z1     |	    |	Z2    |                  |  Z3     |
-   +---------+	    +---------+                  +---------+ 
+   +---------+	    +---------+                  +---------+
 
    Thread 1 locked znodes Z1 and Z2, thread 2 locked znodes Z2 and Z3. The picture above shows that lock stack LS1 has a
    list of 2 lock handles LH1 and LH2, lock stack LS2 has a list with lock handles LH3 and LH4 on it.  Znode Z1 is
@@ -157,9 +157,9 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    and a lock owner implemented as it is described above. Full information
    (priority, pointers to lock and link objects) about each lock request is
    stored in lock owner structure in `request' field.
-  
+
    SHORT_TERM LOCKING
-  
+
    This is a list of primitive operations over lock stacks / lock handles /
    znodes and locking descriptions for them.
 
@@ -169,7 +169,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
       znode->lock.guard spinlock.  The list owned by the lock stack can be
       modified only by thread who owns the lock stack and nobody else can
       modify/read it. There is nothing to be protected by a spinlock or
-      something else.  
+      something else.
 
    2. adding/removing a lock request to/from znode requesters list. The rule is
       that znode->lock.guard spinlock should be taken for this.
@@ -185,30 +185,30 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
   ZAM-FIXME-HANS: deadlock is not observed anymore, right?  rewrite this whole comment.
-  
+
    Point 1. The order in which a node is captured matters.  If a read-capture arrives
    before a write-capture, the read-capture may cause no capturing "work" to be done at
    all, whereas the write-capture may cause copy-on-capture to occur.  For this to be
    correct the writer cannot beat the reader to the lock, if they are captured in the
    opposite order.
-  
+
    Point 2. Just as locking can block waiting for the request to be satisfied, capturing
    can block waiting for expired atoms to commit.
-  
+
    Point 3. It is not acceptable to first acquire the lock and then block waiting to
    capture, especially when ignorant of deadlock.  There is no reason to lock until the
    capture has succeeded.  To block in "capture" should be the same as to block waiting
    for a lock, therefore a deadlock condition will cause the capture request to return
    -E_DEADLOCK.
-  
+
    Point 4. It is acceptable to first capture and then wait to lock.  BUT, once the
    capture request succeeds the lock request cannot be satisfied out-of-order.  For
    example, once a read-capture is satisfied no writers may acquire the lock until the
    reader has a chance to read the block.
-  
+
    Point 5. Summary: capture requests must be partially-ordered with respect to lock
    requests.
-  
+
    What this means is for a regular lock_znode request (try_lock is slightly simpler).
      1. acquire znode spinlock, check whether the lock request is compatible
         (lock request and node state are compatible that means node can be
@@ -238,7 +238,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
 #include <linux/spinlock.h>
 
 #if REISER4_DEBUG
-static int request_is_deadlock_safe(znode *, znode_lock_mode, 
+static int request_is_deadlock_safe(znode *, znode_lock_mode,
 				    znode_lock_request);
 #endif
 
@@ -425,7 +425,7 @@ znode_is_write_locked(const znode * node)
    state (set of owners and request queue) is changed. Locking code is
    designed to use this condition to trigger procedure of passing object from
    low priority owner(s) to high priority one(s).
-  
+
    The procedure results in passing an event (setting lock_handle->signaled
    flag) and counting this event in nr_signaled field of owner's lock stack
    object and wakeup owner's process.
@@ -741,7 +741,7 @@ longterm_unlock_znode(lock_handle * handle)
 
 	/* If the node is locked it must have an owners list.  Likewise, if the node is
 	   unlocked it must have an empty owners list. */
-	assert("zam-319", equi(znode_is_locked(node), 
+	assert("zam-319", equi(znode_is_locked(node),
 			       !owners_list_empty(&node->lock.owners)));
 
 	/* If there are pending lock requests we wake up a requestor */
@@ -780,8 +780,8 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 		UNLOCK_ZLOCK(&node->lock);
 
 	if (ok == 0) {
-		/* count a reference from lockhandle->node 
-		  
+		/* count a reference from lockhandle->node
+		
 		   znode was already referenced at the entry to this function,
 		   hence taking spin-lock here is not necessary (see comment
 		   in the zref()).
@@ -801,7 +801,7 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 }
 
 /* locks given lock object */
-int 
+int
 longterm_lock_znode(
 	/* local link object (allocated by lock owner thread, usually on its own
 	 * stack) */
@@ -879,7 +879,7 @@ longterm_lock_znode(
 	/* Synchronize on node's zlock guard lock. */
 	LOCK_ZLOCK(lock);
 
-	if (znode_is_locked(node) && 
+	if (znode_is_locked(node) &&
 	    mode == ZNODE_WRITE_LOCK && recursive(owner))
 		return lock_tail(owner, wake_up_next, 0, mode);
 
@@ -915,7 +915,7 @@ longterm_lock_znode(
 		/* safe to do without taking locks, because:
 		 *
 		 * 1. read of aligned word is atomic with respect to writes to
-		 * this word 
+		 * this word
 		 *
 		 * 2. false negatives are handled in try_capture_args().
 		 *
@@ -929,7 +929,7 @@ longterm_lock_znode(
 		 *
 		 * At the time T1 node->atom is stored in node_atom.
 		 *
-		 * At the time T2 we observe that 
+		 * At the time T2 we observe that
 		 *
 		 *     txnh_atom != NULL && node_atom == txnh_atom.
 		 *
@@ -976,7 +976,7 @@ longterm_lock_znode(
 			UNLOCK_ZLOCK(lock);
 			spin_lock_znode(node);
 			ret = try_capture_args(ZJNODE(node), txnh, mode,
-					       cap_flags | TXN_CAPTURE_CAN_COC, non_blocking, 
+					       cap_flags | TXN_CAPTURE_CAN_COC, non_blocking,
 					       cap_mode);
 			spin_unlock_znode(node);
 			LOCK_ZLOCK(lock);
@@ -1249,7 +1249,7 @@ prepare_to_sleep(lock_stack * owner)
 	           NOTE-NIKITA: I commented call to sema_init() out hoping
 		   that it is the reason or thread sleeping in
 		   down(&owner->sema) without any other thread running.
-		  
+		
 		   Anyway, it is just an optimization: is semaphore is not
 		   reinitialised at this point, in the worst case
 		   longterm_lock_znode() would have to iterate its loop once
@@ -1300,7 +1300,7 @@ __go_to_sleep(lock_stack * owner
 		    reiser4_stat_add(txnmgr.slept_in_wait_atom, jiffies - sleep_start);
 		    break;
 	    default:
-		    reiser4_stat_add_at_level(node_level, time_slept, 
+		    reiser4_stat_add_at_level(node_level, time_slept,
 					      jiffies - sleep_start);
 	}
 #endif

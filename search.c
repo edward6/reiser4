@@ -247,15 +247,15 @@ static void hput(cbk_handle * h);
 static level_lookup_result search_to_left(cbk_handle * h);
 
 /* main tree lookup procedure
-  
+
    Check coord cache. If key we are looking for is not found there, call cbk()
    to do real tree traversal.
-  
+
    As we have extents on the twig level, @lock_level and @stop_level can
    be different from LEAF_LEVEL and each other.
-  
+
    Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
-   long term locks) while calling this. 
+   long term locks) while calling this.
 */
 lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 						 * in. Usually this tree is
@@ -327,7 +327,7 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	handle.ra_info = info;
 
 	result = coord_by_handle(&handle);
-	assert("nikita-3247", 
+	assert("nikita-3247",
 	       ergo(result == CBK_COORD_FOUND || result == CBK_COORD_NOTFOUND,
 		    coord->node == lh->node));
 	return result;
@@ -345,15 +345,15 @@ coord_by_handle(cbk_handle * handle)
 		return traverse_tree(handle);
 }
 /* Execute actor for each item (or unit, depending on @through_units_p),
-   starting from @coord, right-ward, until either: 
-  
+   starting from @coord, right-ward, until either:
+
    - end of the tree is reached
    - unformatted node is met
    - error occurred
    - @actor returns 0 or less
-  
+
    Error code, or last actor return value is returned.
-  
+
    This is used by readdir() and alikes.
 */
 int
@@ -415,7 +415,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
-int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode, 
+int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 		   znode_lock_request pri, lock_handle *lh)
 {
 	znode *uber;
@@ -539,7 +539,7 @@ restart:
 /* Perform tree lookup at one level. This is called from cbk_traverse()
    function that drives lookup through tree and calls cbk_node_lookup() to
    perform lookup within one node.
-  
+
    See comments in a code.
 */
 static level_lookup_result
@@ -572,7 +572,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	setdk = 0;
 	/* if @active is accessed for the first time, setup delimiting keys on
 	   it. Delimiting keys are taken from the parent node. See
-	   setup_delimiting_keys() for details. 
+	   setup_delimiting_keys() for details.
 	*/
 	if (h->flags & CBK_DKSET) {
 		setdk = setup_delimiting_keys(h);
@@ -641,7 +641,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		   waiting for the lock. Restart. More elaborate solution is
 		   to determine where key moved (to the left, or to the right)
 		   and try to follow it through sibling pointers.
-		  
+		
 		   2. or, node itself is going to be removed from the
 		   tree. Release lock and restart.
 		*/
@@ -698,12 +698,12 @@ check_dkeys(const znode *node)
 	left = node->left;
 	right = node->right;
 
-	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) && 
+	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
 	    left != NULL && ZF_ISSET(left, JNODE_DKSET))
 		/* check left neighbor */
 		assert("vs-1198", keyeq(&left->rd_key, &node->ld_key));
 
-	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right != NULL && 
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right != NULL &&
 	    ZF_ISSET(right, JNODE_DKSET))
 		/* check right neighbor */
 		assert("vs-1199", keyeq(&node->rd_key, &right->ld_key));
@@ -714,7 +714,7 @@ check_dkeys(const znode *node)
 #endif
 
 /* Process one node during tree traversal.
-  
+
    This is called by cbk_level_lookup(). */
 static level_lookup_result
 cbk_node_lookup(cbk_handle * h /* search handle */ )
@@ -812,31 +812,31 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 /* multi-key search: comment it out and leave rotting until really needed. */
 #if 0
 
-/* look for several keys at once. 
-  
+/* look for several keys at once.
+
    Outline:
-  
+
    One cannot just issue several tree traversals in sequence without releasing
    locks on lookup results, because keeping a lock at the bottom of the tree
    while doing new top-to-bottom traversal can easily lead to the
    deadlock. (Actually, there is assertion at the very beginning of
    coord_by_key(), checking that no locks are held.)
-  
+
    Still, node-level locking for rename requires locking of several nodes at
    once, before starting balancings.
-  
+
    lookup_multikey() uses seals (see seal.[ch]) to work around deadlocks:
-  
+
    tree lookups are issued starting from the largest key in decsending key
    order. For each, but the smallest key, after lookup finishes, its result is
    sealed and corresponding node is unlocked.
-  
+
    After all lookups were performed, we have result of lookup of smallest key
    locked and results of the rest of lookups sealed.
-  
+
    All seals are re-validated in ascending key order. If seal is found broken,
    all locks and seals are released and process repeated.
-  
+
    See comments in the body.
 */
 int
@@ -930,14 +930,14 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 }
 
 /* lookup two keys in a tree. This is required for node-level locking during
-   rename. Arguments are similar to these of coord_by_key(). 
-  
+   rename. Arguments are similar to these of coord_by_key().
+
    Returned value: if some sort of unexpected error (-EIO, -ENOMEM) happened,
    all locks are released, all seals are invalidated, and error code is
    returned. *result1 and *result2 are not modified. If searches completed
    successfully (items were either found, or not found), 0 is returned and
     result1 and *result2 contain search results for respective keys.
-  
+
 */
 int
 lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
@@ -1027,7 +1027,7 @@ lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
 #endif
 
 /* true if @key is strictly within @node
-  
+
    we are looking for possibly non-unique key and it is item is at the edge of
    @node. May be it is in the neighbor.
 */
@@ -1157,8 +1157,8 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result = 
-		UNDER_RW(dk, tree, read, 
+	result =
+		UNDER_RW(dk, tree, read,
 			 znode_contains_key_strict(node, key, isunique)) &&
 		!ZF_ISSET(node, JNODE_HEARD_BANSHEE);
 
@@ -1193,7 +1193,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		/* race. While this thread was waiting for the lock, node was
 		   rebalanced and item we are looking for, shifted out of it
 		   (if it ever was here).
-		  
+		
 		   Continuing scanning is almost hopeless: node key range was
 		   moved to, is almost certainly at the beginning of the LRU
 		   list at this time, because it's hot, but restarting
@@ -1210,17 +1210,17 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 }
 
 /* look for item with given key in the coord cache
-  
+
    This function, called by coord_by_key(), scans "coord cache" (&cbk_cache)
    which is a small LRU list of znodes accessed lately. For each znode in
    znode in this list, it checks whether key we are looking for fits into key
    range covered by this node. If so, and in addition, node lies at allowed
    level (this is to handle extents on a twig level), node is locked, and
    lookup inside it is performed.
-  
+
    we need a measurement of the cost of this cache search compared to the cost
    of coord_by_key.
-  
+
 */
 static int
 cbk_cache_search(cbk_handle * h /* cbk handle */ )
@@ -1255,10 +1255,10 @@ znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
 }
 
 /* find delimiting keys of child
-  
+
    Determine left and right delimiting keys for child pointed to by
    @parent_coord.
-  
+
 */
 static int
 find_child_delimiting_keys(znode * parent	/* parent znode, passed
@@ -1306,7 +1306,7 @@ set_child_delimiting_keys(znode * parent,
 	reiser4_tree *tree;
 	int result;
 
-	assert("nikita-2952", 
+	assert("nikita-2952",
 	       znode_get_level(parent) == znode_get_level(coord->node));
 
 	tree = znode_get_tree(parent);
@@ -1316,7 +1316,7 @@ set_child_delimiting_keys(znode * parent,
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
 		WLOCK_DK(tree);
 		if (!ZF_ISSET(child, JNODE_DKSET)) {
-			find_child_delimiting_keys(parent, coord, 
+			find_child_delimiting_keys(parent, coord,
 						   znode_get_ld_key(child),
 						   znode_get_rd_key(child));
 			ZF_SET(child, JNODE_DKSET);
@@ -1425,11 +1425,11 @@ search_to_left(cbk_handle * h /* search handle */ )
 				h->block = *znode_get_block(neighbor);
 				/* clear coord -> node so that cbk_level_lookup()
 				   wouldn't overwrite parent hint in neighbor.
-				  
+				
 				   Parent hint was set up by
 				   reiser4_get_left_neighbor()
 				*/
-				UNDER_RW_VOID(tree, znode_get_tree(neighbor), write, 
+				UNDER_RW_VOID(tree, znode_get_tree(neighbor), write,
 					      h->coord->node = NULL);
 				result = LOOKUP_CONT;
 			} else {

@@ -26,7 +26,7 @@ extern reiser4_block_nr	estimate_rename_hashed(struct inode  *old_dir,
 					       struct dentry *old_name,
 					       struct inode  *new_dir,
 					       struct dentry *new_name);
-extern reiser4_block_nr estimate_unlink_hashed(struct inode *parent, 
+extern reiser4_block_nr estimate_unlink_hashed(struct inode *parent,
 					       struct inode *object);
 
 /* __HASHED_DIR_H__ */

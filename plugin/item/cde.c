@@ -3,35 +3,35 @@
 /* Directory entry implementation */
 
 /* DESCRIPTION:
-  
+
    This is "compound" directory item plugin implementation. This directory
    item type is compound (as opposed to the "simple directory item" in
    fs/reiser4/plugin/item/sde.[ch]), because it consists of several directory
    entries.
-  
+
    The reason behind this decision is disk space efficiency: all directory
    entries inside the same directory have identical fragment in their
    keys. This, of course, depends on key assignment policy. In our default key
    assignment policy, all directory entries have the same locality which is
    equal to the object id of their directory.
-  
+
    Composing directory item out of several directory entries for the same
    directory allows us to store said key fragment only once. That is, this is
    some ad hoc form of key compression (stem compression) that is implemented
    here, because general key compression is not supposed to be implemented in
    v4.0.
-  
+
    Another decision that was made regarding all directory item plugins, is
    that they will store entry keys unaligned. This is for that sake of disk
    space efficiency again.
-  
+
    In should be noted, that storing keys unaligned increases CPU consumption,
    at least on some architectures.
-  
+
    Internal on-disk structure of the compound directory item is the following:
-  
+
         HEADER          cde_item_format.        Here number of entries is stored.
-        ENTRY_HEADER_0  cde_unit_header.        Here part of entry key and 
+        ENTRY_HEADER_0  cde_unit_header.        Here part of entry key and
         ENTRY_HEADER_1                          offset of entry body are stored.
         ENTRY_HEADER_2				(basically two last parts of key)
         ...
@@ -44,12 +44,12 @@
   						 stored on disk).
         ...
         ENTRY_BODY_N
-  
+
    When it comes to the balancing, each directory entry in compound directory
    item is unit, that is, something that can be cut from one item and pasted
    into another item of the same type. Handling of unit cut and paste is major
    reason for the complexity of code below.
-  
+
 */
 
 #include "../../forward.h"
@@ -212,7 +212,7 @@ find(const coord_t * coord /* coord of item */ ,
 				median --;
 				header --;
 			} while (median >= 0 &&
-				 de_id_key_cmp(&header->hash, 
+				 de_id_key_cmp(&header->hash,
 					       entry_key) == EQUAL_TO);
 			return median + 1;
 		}
@@ -332,7 +332,7 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 	build_de_id_by_key(&dir_entry->key, &header->hash);
 	build_inode_key_id(entry->obj, &dent->id);
 	/* AUDIT unsafe strcpy() operation! It should be replaced with
-	   much less CPU hungry 
+	   much less CPU hungry
 	   memcpy( ( char * ) dent -> name, entry -> name -> name , entry -> name -> len );
 
 	   Also a more major thing is that there should be a way to figure out
@@ -369,7 +369,7 @@ estimate_cde(const coord_t * coord /* coord of item */ ,
 		/* paste */
 		result = 0;
 
-	result += e->num_of_entries * 
+	result += e->num_of_entries *
 		(sizeof (cde_unit_header) + sizeof (directory_entry_format));
 	for (i = 0; i < e->num_of_entries; ++i) {
 		const char *name;
@@ -407,10 +407,10 @@ unit_key_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* mergeable_cde(): implementation of ->mergeable() item method.
-  
+
    Two directory items are mergeable iff they are from the same
    directory. That simple.
-  
+
 */
 int
 mergeable_cde(const coord_t * p1 /* coord of first item */ ,
@@ -524,10 +524,10 @@ print_cde(const char *prefix /* prefix to print */ ,
 #endif
 
 /* cde_check ->check() method for compressed directory items
-  
+
    used for debugging, every item should have here the most complete
    possible check of the consistency of the item that the inventor can
-   construct 
+   construct
 */
 int
 check_cde(const coord_t * coord /* coord of item to check */ ,

@@ -341,7 +341,7 @@ write_tree_trace(reiser4_tree * tree, reiser4_traced_op op, ...)
 			flags = va_arg(args, __u32);
 
 			rest += sprintf(rest, "%s (%u,%u) %x",
-					data->iplug->h.label, 
+					data->iplug->h.label,
 					coord->item_pos, coord->unit_pos, flags);
 		}
 		}
@@ -374,7 +374,7 @@ write_node_trace(const jnode *node)
 	char jbuf[100];
 
 	jnode_short_info(node, jbuf);
-	write_current_tracef(".....node %s %s", 
+	write_current_tracef(".....node %s %s",
 			     sprint_address(jnode_get_block(node)), jbuf);
 }
 

@@ -21,7 +21,7 @@ reiser4 is working, then fix it...:-)
 
 #include <linux/fs.h>		/* for struct inode */
 
-/* Stat data layout: goals and implementation.  
+/* Stat data layout: goals and implementation.
 
 We want to be able to have lightweight files which have complete flexibility in what semantic metadata is attached to
 them, including not having semantic metadata attached to them.
@@ -32,7 +32,7 @@ This leads to a natural compromise, which is to special case those files which h
 attributes, and only employ the full dynamic stat data mechanism for those files that differ from the standard unix file
 in their use of file attributes.
 
-Yet this compromise deserves to be compromised a little.  
+Yet this compromise deserves to be compromised a little.
 
 We accomodate the case where you have no more than the standard unix file attributes by using an "extension bitmask":
 each bit in it indicates presence or absence of or particular stat data extension (see sd_ext_bits enum).

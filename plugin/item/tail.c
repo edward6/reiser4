@@ -300,7 +300,7 @@ int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	new_size = get_key_offset(&f->key);
 	object = mapping->host;
 	size_changed = new_size > object->i_size;
-	result = update_inode_and_sd_if_necessary(object, new_size, 
+	result = update_inode_and_sd_if_necessary(object, new_size,
 						  size_changed, f->user, 1);
 	if (result)
 		return result;
@@ -479,7 +479,7 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	return 0;
 }
 
-/* 
+/*
    plugin->u.item.s.file.append_key
    key of first byte which is the next to last byte by addressed by this item
 */
@@ -503,7 +503,7 @@ init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
 */
 int get_block_address_tail(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
 {
-	assert("nikita-3252", 
+	assert("nikita-3252",
 	       znode_get_level(uf_coord->base_coord.node) == LEAF_LEVEL);
 
 	bh->b_blocknr = *znode_get_block(uf_coord->base_coord.node);

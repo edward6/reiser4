@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Statistics gathering. */
-  
+
 #if !defined( __FS_REISER4_STATS_H__ )
 #define __FS_REISER4_STATS_H__
 

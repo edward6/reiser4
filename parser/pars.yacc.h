@@ -40,7 +40,7 @@ struct reiser4_syscall_w_space
 	int	ws_level;              /* current level            */
 	int	ws_errco;              /* number of errors         */
 	                               /* working fields  */
-	char        * tmpWrdEnd; 
+	char        * tmpWrdEnd;
 	char        * yytext;
 	                               /* space for   */
 	freeSpace_t * freeSpHead;
@@ -48,7 +48,7 @@ struct reiser4_syscall_w_space
 	wrd_t       * wrdHead;
 	vnode_t     * Head_vnode;
 	streg_t     * Head_level;	
-	streg_t     * cur_level;	 
+	streg_t     * cur_level;	
 	expr_v4_t   * root_e;          /* root expression  for this task */
 
 	vnode_t     * wvn;              /* work    for this task */
@@ -66,7 +66,7 @@ struct reiser4_syscall_w_space
 
 #define printf prink
 
-/* 
+/*
  * Make Linus happy.
  * Local variables:
  * c-indentation-style: "K&R"

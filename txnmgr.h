@@ -23,12 +23,12 @@ TS_LIST_DECLARE(atom);
 /* list of transaction handles attached to given atom */
 TS_LIST_DECLARE(txnh);
 
-/* 
+/*
  * ->fwaitfor and ->fwaiting lists.
  *
  * Each atom has one of these lists: one for its own handles waiting on
  * another atom and one for reverse mapping.  Used to prevent deadlock in the
- * ASTAGE_CAPTURE_WAIT state. 
+ * ASTAGE_CAPTURE_WAIT state.
  *
  * Thread that needs to wait for a given atom, attaches itself to the atom's
  * ->fwaitfor list. This is done in atom_wait_event() (and, in
@@ -165,34 +165,34 @@ typedef enum {
 /* A note on lock ordering: the handle & jnode spinlock protects reading of their ->atom
    fields, so typically an operation on the atom through either of these objects must (1)
    lock the object, (2) read the atom pointer, (3) lock the atom.
-  
+
    During atom fusion, the process holds locks on both atoms at once.  Then, it iterates
    through the list of handles and pages held by the smaller of the two atoms.  For each
    handle and page referencing the smaller atom, the fusing process must: (1) lock the
    object, and (2) update the atom pointer.
-  
+
    You can see that there is a conflict of lock ordering here, so the more-complex
    procedure should have priority, i.e., the fusing process has priority so that it is
    guaranteed to make progress and to avoid restarts.
-  
+
    This decision, however, means additional complexity for aquiring the atom lock in the
-   first place.  
+   first place.
 
    The general original procedure followed in the code was:
-  
+
        TXN_OBJECT *obj = ...;
        TXN_ATOM   *atom;
 
        spin_lock (& obj->_lock);
-  
+
        atom = obj->_atom;
-  
+
        if (! spin_trylock_atom (atom))
          {
            spin_unlock (& obj->_lock);
            RESTART OPERATION, THERE WAS A RACE;
          }
-  
+
        ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
 
 
@@ -204,9 +204,9 @@ typedef enum {
        TXN_ATOM   *atom;
 
        spin_lock (& obj->_lock);
-  
+
        atom = obj->_atom;
-  
+
        if (! spin_trylock_atom (atom))
          {
            atomic_inc (& atom->refcount);
@@ -217,7 +217,7 @@ typedef enum {
            spin_unlock (&atom->_lock);
            RESTART OPERATION, THERE WAS A RACE;
          }
-  
+
        ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
 
    (core of this is implemented in trylock_throttle() function)
@@ -235,7 +235,7 @@ struct blocknr_set {
 };
 
 /* An atomic transaction: this is the underlying system representation
-   of a transaction, not the one seen by clients. 
+   of a transaction, not the one seen by clients.
 
    Invariants involving this data-type:
 
@@ -319,7 +319,7 @@ struct txn_atom {
 	int nr_objects_deleted;
 	int nr_objects_created;
 	/* number of blocks allocated during the transaction */
-	__u64 nr_blocks_allocated; 
+	__u64 nr_blocks_allocated;
 	/* Number of jnodes which were removed from atom's lists and put
 	   on flush_queue */
 	int num_queued;
@@ -327,7 +327,7 @@ struct txn_atom {
 	fq_list_head flush_queues;
 #if REISER4_DEBUG
 	/* number of flush queues for this atom. */
-	int nr_flush_queues; 
+	int nr_flush_queues;
 #endif
 	/* number of threads who wait for this atom to complete commit */
 	int nr_waiters;
@@ -435,14 +435,14 @@ extern void set_rapid_flush_mode(int);
 extern int same_slum_check(jnode * base, jnode * check, int alloc_check, int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
-extern txn_capture build_capture_mode(jnode           * node, 
-				      znode_lock_mode   lock_mode, 
+extern txn_capture build_capture_mode(jnode           * node,
+				      znode_lock_mode   lock_mode,
 				      txn_capture       flags);
 
 extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 extern int try_capture_args(jnode * node,
-			    txn_handle * txnh, 
-			    znode_lock_mode lock_mode, 
+			    txn_handle * txnh,
+			    znode_lock_mode lock_mode,
 			    txn_capture flags,
 			    int non_blocking, txn_capture cap_mode);
 

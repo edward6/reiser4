@@ -408,7 +408,7 @@ default_dir_item_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.dir_item;
 }
 
-int reiser4_blocknr_is_sane_for(const struct super_block *super, 
+int reiser4_blocknr_is_sane_for(const struct super_block *super,
 				const reiser4_block_nr *blk)
 {
 	reiser4_super_info_data *sbinfo;

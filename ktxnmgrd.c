@@ -65,7 +65,7 @@ ktxnmgrd(void *arg)
 
 		set_comm("wait");
 		/* wait for @ctx -> timeout or explicit wake up.
-		  
+		
 		   kcond_wait() is called with last argument 1 enabling wakeup
 		   by signals so that this thread is not counted in
 		   load-average. This doesn't require any special handling,

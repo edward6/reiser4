@@ -41,16 +41,16 @@ struct PREFIX##_hash_link_                                                      
 
 /* Step 3: Use TS_HASH_DEFINE to define the hash table interface using
    the type and field name used in step 3.  The arguments are:
-  
+
    ITEM_TYPE    The item type being hashed
    KEY_TYPE     The type of key being hashed
    KEY_NAME     The name of the key field within the item
    LINK_NAME    The name of the link field within the item, which you must make type PREFIX_hash_link)
    HASH_FUNC    The name of the hash function (or macro, takes const pointer to key)
    EQ_FUNC      The name of the equality function (or macro, takes const pointer to two keys)
-  
+
    It implements these functions:
-  
+
    prefix_hash_init           Initialize the table given its size.
    prefix_hash_insert         Insert an item
    prefix_hash_insert_index   Insert an item w/ precomputed hash_index
@@ -58,25 +58,25 @@ struct PREFIX##_hash_link_                                                      
    prefix_hash_find_index     Find an item w/ precomputed hash_index
    prefix_hash_remove         Remove an item, returns 1 if found, 0 if not found
    prefix_hash_remove_index   Remove an item w/ precomputed hash_index
-  
+
    If you'd like something to be done differently, feel free to ask me
    for modifications.  Additional features that could be added but
    have not been:
-  
+
    prefix_hash_remove_key           Find and remove an item by key
    prefix_hash_remove_key_index     Find and remove an item by key w/ precomputed hash_index
-  
+
    The hash_function currently receives only the key as an argument,
    meaning it must somehow know the number of buckets.  If this is a
    problem let me know.
-  
+
    This hash table uses a single-linked hash chain.  This means
    insertion is fast but deletion requires searching the chain.
 
    There is also the doubly-linked hash chain approach, under which
    deletion requires no search but the code is longer and it takes two
    pointers per item.
-  
+
    The circularly-linked approach has the shortest code but requires
    two pointers per bucket, doubling the size of the bucket array (in
    addition to two pointers per item).

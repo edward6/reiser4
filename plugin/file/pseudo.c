@@ -42,7 +42,7 @@ int open_pseudo(struct inode * inode, struct file * file)
 	return result;
 }
 
-ssize_t read_pseudo(struct file *file, 
+ssize_t read_pseudo(struct file *file,
 		    char __user *buf, size_t size, loff_t *ppos)
 {
 	switch (get_pplug(file)->read_type) {
@@ -91,7 +91,7 @@ void drop_pseudo(struct inode * object)
 	generic_delete_inode(object);
 }
 
-ssize_t write_pseudo(struct file *file, 
+ssize_t write_pseudo(struct file *file,
 		     const char __user *buf, size_t size, loff_t *ppos)
 {
 	ssize_t result;
@@ -109,7 +109,7 @@ ssize_t write_pseudo(struct file *file,
 		} else
 			result = PTR_ERR(inkernel);
 		break;
-	} 
+	}
 	case PSEUDO_WRITE_FORWARD:
 		result = get_pplug(file)->write.write(file, buf, size, ppos);
 		break;
