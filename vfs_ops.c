@@ -566,6 +566,8 @@ reiser4_writepage(struct page *page)
 	struct writeback_control wbc;
 	REISER4_ENTRY(page->mapping->host->i_sb);
 
+	impossible("vs-1099", "this is not to be called");
+
 	trace_on(TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n", page->mapping->host->i_ino, page->index);
 
 	fplug = inode_file_plugin(page->mapping->host);
