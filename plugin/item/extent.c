@@ -1119,7 +1119,13 @@ static int append_one_block (coord_t * coord,
 	jnode_set_mapped (j);
 	jnode_set_created (j);
 
+	/* it is possible that coord is moved to newly allocated node. If so -
+	 * coord->node can be not loaded now */
+	result = zload (coord->node);
+	if (result)
+		return result;
 	coord->unit_pos = coord_last_unit_pos (coord);
+	zrelse (coord->node);
 	coord->between = AFTER_UNIT;
 	return 0;
 }
@@ -2637,7 +2643,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		int all_dirty = 1;
 		int ret;
 
-		item_key_by_coord (coord, & item_key);
+		unit_key_by_coord (coord, & item_key);
 
 		/* Offset of first byte, blocksize */
 		start = extent_get_start (extent);
