@@ -319,7 +319,6 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 		break;
 
 	case UNALLOCATED_EXTENT:
-		*block = 0;
 		break;
 
 	default:
@@ -523,9 +522,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	assert("vs-700", flow->user == 1);
 	assert("vs-1352", flow->length > 0);
 
-	/* FIXME-VS: fix this */
-	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
-		return RETERR(-EDQUOT);
 
 	tree = tree_by_inode(inode);
 	oid = get_inode_oid(inode);
@@ -577,8 +573,12 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			assert("vs-1508", !blocknr_is_fake(&blocknr));
 			assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
 		}
-		if (created)
+		if (created) {
 			JF_SET(j, JNODE_CREATED);
+			/* new block is added to file. Update inode->i_blocks and inode->i_bytes. FIXME:
+			   inode_set/get/add/sub_bytes is used to be called by quota macros */
+			inode_add_bytes(inode, PAGE_CACHE_SIZE);
+		}
 		UNLOCK_JNODE(j);
 
 		move_flow_forward(flow, count);
@@ -675,6 +675,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		unlock_page(page);
 		page_cache_release(page);
 	exit2:
+		if (created)
+			inode_sub_bytes(inode, PAGE_CACHE_SIZE);
 		jput(j);
 	exit1:
 		if (!grabbed)
@@ -688,9 +690,10 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		*/
 	} while (flow->length && uf_coord->valid == 1);
 
+/*
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
-
+*/
 	return result;
 }
 
@@ -724,7 +727,9 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
 	hint->coord.valid = 0;
 	if (!result) {
 		done_lh(hint->coord.lh);
-		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/, 1/*update times*/, 1/* update stat data */);
+		INODE_SET_FIELD(inode, i_size, new_size);
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		result = reiser4_update_sd(inode);
 	}
 	if (!grabbed)
 		all_grabbed2free();
@@ -1179,20 +1184,21 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	set_page_dirty_internal(page);
 	unlock_page(page);
 
+	LOCK_JNODE(j);
 	if (created) {
 		/* extent corresponding to this jnode was just created */
 		assert("vs-1504", *jnode_get_block(j) == 0);
-		UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
+		JF_SET(j, JNODE_CREATED);
+		inode_add_bytes(page->mapping->host, PAGE_CACHE_SIZE);
 	}
 
-	/* jnode_of_page() might create new jnode which requires setting its
-	 * block number.  It is not related to whether the extent unit is new or
-	 * not. */
+	/* jnode_of_page() might create new jnode which requires setting its block number.  It is not related to whether
+	   the extent unit is new or not. */
 	if (*jnode_get_block(j) == 0)
 		jnode_set_block(j, &blocknr);		
 
+	UNLOCK_JNODE(j);
 	done_lh(uf_coord->lh);
-
 
 	LOCK_JNODE(j);
 	result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
@@ -1201,6 +1207,12 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	jnode_make_dirty_locked(j);
 	UNLOCK_JNODE(j);
 	jput(j);
+
+	if (created) {
+		reiser4_update_sd(page->mapping->host);
+		/* warning about failure of this is issued already */
+	}
+		
 
 	ON_TRACE(TRACE_EXTENTS, "OK\n");
 	return 0;
@@ -1246,7 +1258,7 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 	extent_coord_extension_t *ext_coord;
 	reiser4_key key;
 	loff_t offset;
-	pos_in_item_t i;
+	pos_in_node_t i;
 
 	assert("vs-1295", uf_coord->valid == 0);
 
