@@ -386,11 +386,13 @@ wait_for_flush(struct page *page, struct writeback_control *wbc)
 			 * if scanning priority (which is a measure of memory
 			 * pressure) is lowest, do nothing
 			 */
+#if 0
 			if (wbc->priority == 12) {
 				reiser4_stat_inc(entd.low_priority);
 				result = 1;
 				break;
 			}
+#endif
 
 			/*
 			 * wait until at least one flushing thread is running
