@@ -544,7 +544,7 @@ set_low_priority(lock_stack * owner)
 	}
 }
 
-#define MAX_CONVOY_SIZE ((unsigned)(NR_CPUS - 1))
+#define MAX_CONVOY_SIZE ((NR_CPUS - 1))
 
 /* helper function used by longterm_unlock_znode() to wake up requestor(s). */
 /*
