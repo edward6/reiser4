@@ -28,7 +28,7 @@ lookup_result internal_lookup (const reiser4_key *key /* key to look up */,
 	switch( keycmp( unit_key_by_coord( coord, &ukey ), key ) ) {
 	default: impossible( "", "keycmp()?!" );
 	case LESS_THAN:
-		coord -> between = AFTER_ITEM;
+		coord -> between = AFTER_UNIT;
 	case EQUAL_TO:
 		return CBK_COORD_FOUND;
 	case GREATER_THAN:
