@@ -2731,6 +2731,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	tap_t watch;
 	reiser4_extent orig_ext;	/* this is for debugging */
 	znode *orig_znode;
+	reiser4_block_nr grabbed;
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
 
@@ -2756,11 +2757,21 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 		assert("vs-1080", keyeq(&tmp, key));
 	}
 
+	reiser4_grab_space_exact(1, 1);	
+	grabbed = get_current_context()->grabbed_blocks;
+
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
 	result = insert_into_item(un_extent,
 				  (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh,
 				  key, data, flags);
+	
+	/** While assigning unallocated block to block numbers we need to insert 
+	  * new extent units - this may lead to new block allocation on twig and 
+	  * upper levels. Take these blocks from 5% of disk space. */
+	if (grabbed == get_current_context()->grabbed_blocks)
+		grabbed2free(1);
+	    
 	if (!result) {
 		reiser4_extent *ext;
 

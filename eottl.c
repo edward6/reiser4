@@ -242,9 +242,10 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh,
 	grabbed = get_current_context() -> grabbed_blocks;
 	/* VITALY: Grab block for the balancing needs. */
 	result = reiser4_grab_space_exact( (__u64)1 , 0);
-	warning("vpf-300", "SPACE: balance grabs %d block for a leaf.", result ? 0: 1);
 	if( result != 0 )
 		return result;
+
+	warning("vpf-300", "SPACE: balance grabs 1 block for a leaf.");
 
 	node = new_node(insert_coord->node, LEAF_LEVEL);
 	/* VITALY: Ungrab block for the balancing needs. */

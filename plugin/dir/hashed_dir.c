@@ -123,7 +123,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 
 		xmemset(&entry, 0, sizeof entry);
 
-		if (reiser4_grab_space_exact(reserve = hashed_estimate_done(parent, object), 0) < 0)
+		if (reiser4_grab_space_exact(reserve = hashed_estimate_done(parent, object), 1) < 0)
 			return -ENOSPC;
 		
 		warning("vpf-327", "SPACE: hashed_done grabs %llu blocks.", reserve);
@@ -960,7 +960,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
-	if (reiser4_grab_space_exact(inode_dir_plugin(object)->estimate.rem_entry(object), 0))
+	if (reiser4_grab_space_exact(inode_dir_plugin(object)->estimate.rem_entry(object), 1))
 		return -ENOSPC;
 	init_lh(&lh);
 
