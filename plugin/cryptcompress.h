@@ -385,7 +385,7 @@ cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode);
 int equal_to_rdk(znode *, const reiser4_key *);
 int equal_to_ldk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
-int load_file_hint(struct file *, hint_t *, lock_handle *);
+int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 
 /* declarations of functions implementing methods of cryptcompress object plugin */
@@ -407,7 +407,7 @@ int setattr_cryptcompress(struct inode *, struct iattr *);
 void readpages_cryptcompress(struct file *, struct address_space *, struct list_head *pages);
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_cryptcompress(struct inode *);
-void hint_init_zero(hint_t *, lock_handle *);
+void hint_init_zero(hint_t *);
 void destroy_inode_cryptcompress(struct inode * inode);
 int crc_inode_ok(struct inode * inode);
 

@@ -2094,10 +2094,11 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-749", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
 	
-	init_lh(&lh);
-	result = load_file_hint(file, &hint, &lh);
+	result = load_file_hint(file, &hint);
 	if (result)
 		return result;
+	init_lh(&lh);
+	hint.coord.lh = &lh;
 	//coord_init_invalid(&hint.coord.base_coord, 0);
 	
 	result = flow_by_inode_cryptcompress(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
@@ -2278,7 +2279,8 @@ find_object_size(struct inode *inode, loff_t * size)
 	assert("edward-95", crc_inode_ok(inode));
 
 	init_lh(&lh);
-	hint_init_zero(&hint, &lh);
+	hint_init_zero(&hint);
+	hint.coord.lh = &lh;
 	
 	fplug->key_by_inode(inode, get_key_offset(max_key()), &key);
 
@@ -2726,7 +2728,9 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 
 		assert("edward-420", create == 0);
 		key_by_inode_cryptcompress(inode, (loff_t)block * current_blocksize, &key);
-		hint_init_zero(&hint, &lh);
+		init_lh(&lh);
+		hint_init_zero(&hint);
+		hint.coord.lh = &lh;
 		result = find_cluster_item(&hint, &key, 0, ZNODE_READ_LOCK, 0, FIND_EXACT);
 		if (result != CBK_COORD_FOUND) {
 			done_lh(&lh);

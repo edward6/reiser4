@@ -648,10 +648,11 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	assert("edward-867", !tfm_cluster_is_uptodate(&clust->tc));
 
 	clust->hint = &hint;
-	init_lh(&lh);
-	result = load_file_hint(clust->file, &hint, &lh);
+	result = load_file_hint(clust->file, &hint);
 	if (result)
 		return result;
+	init_lh(&lh);
+	hint.coord.lh = &lh;
 
 	result = do_readpage_ctail(clust, page);
 	assert("edward-868", ergo (!result, tfm_cluster_is_uptodate(&clust->tc)));
@@ -735,9 +736,10 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	ret = alloc_page_cluster(&clust, inode_cluster_pages(inode));
 	if (ret)
 		goto out;
-	ret = load_file_hint(clust.file, &hint, &lh);
+	ret = load_file_hint(clust.file, &hint);
 	if (ret) 
 		goto out;
+ 	hint.coord.lh = &lh;	
 
 	/* address_space-level file readahead doesn't know about
 	   reiser4 page clustering, so we work around this fact */
