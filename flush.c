@@ -394,6 +394,7 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 		coord_prev_unit (& coord);
 	} else {
 		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, 0))) {
+			if (ret == -ENAVAIL || ret == -ENOENT) { ret = 0; }
 			goto exit;
 		}
 	}
