@@ -291,7 +291,7 @@ static int renew_sibling_link (tree_coord * coord, lock_handle * handle,
 		iplug -> s.internal.down_link( coord, NULL, &da);
 
 		if (flags & GN_NO_ALLOC) {
-			neighbor = zlook(tree, &da, level);
+			neighbor = zlook(tree, &da);
 		} else {
 			neighbor = zget(tree, &da, side_parent, level, GFP_KERNEL);
 		}

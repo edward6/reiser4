@@ -140,7 +140,7 @@ int internal_utmost_child ( const tree_coord  *coord,
 
 	assert ("jmacd-2059", childp != NULL); 
 
-	child = zlook (current_tree, & block, znode_get_level (coord->node) - 1);
+	child = zlook (current_tree, & block);
 
 	if (IS_ERR (child)) {
 		return PTR_ERR (child);
