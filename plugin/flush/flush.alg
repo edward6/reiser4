@@ -128,18 +128,24 @@ Given the above assumption, that nodes are marked dirty whenever they
 should be relocated (i.e., that the flush algorithm does not make this
 decision during as part of its passing over the tree).
 
-Starting from some leaf node, find the maximal dirty ancestor (note:
-no scan left involved).  If the maximal dirty ancestor is NOT the
-leftmost child of its own parent (and not the root node), there may be
-a dirty parent-first-ordered node in a subtree to the left of this
-one.  In those cases, from the maximal dirty ancestor, find the
-leftmost in-memory descendant.  If the leftmost descendant is dirty,
-consider its left neighbor.  If the neighbor is also dirty, repeat the
-steps of this paragraph starting at that node.  Pseudo-code for this
-is:
+Starting from some leaf node, find the greatest dirty ancestor, defined as the
+least (i.e., lowest-level) ancestor of a node without a dirty parent.  The
+greatest dirty ancestor will be overwritten, therefore its preceding node in
+the parent-first order should not be considered.
+
+    [Dead text: If the greatest dirty ancestor is NOT the leftmost child of
+    its own parent (and not the root node), there may be a dirty
+    parent-first-ordered node in a subtree to the left of this one.  In those
+    cases, from the greatest dirty ancestor, find the leftmost in-memory
+    descendant.  If the leftmost descendant is dirty, consider its left
+    neighbor.  If the neighbor is also dirty, repeat the steps of this
+    paragraph starting at that node (i.e., find the new greatest dirty
+    ancestor).]
+
+Pseudo-code for this is:
 
 /* Starting from a node, find the greatest dirty ancestor. */
-jnode* greatest_dirty_parent (jnode *node)
+jnode* greatest_dirty_ancestor (jnode *node)
 {
   while (! is_root_node (node)) {
      znode *parent = get_parent (node);
@@ -153,54 +159,21 @@ jnode* greatest_dirty_parent (jnode *node)
   return node;
 }
 
-/* Starting at a node, find the greatest dirty parent, then see if it
- * has a preceding dirty node on the leaf of the subtree to its left. */
-void find_maximal_dirty_ancestor (jnode *node)
-{
- repeat:
-  node = greatest_dirty_parent (node)
+Now we have found the greatest dirty ancestor from which to begin allocating
+and squeezing.  From this point we will traverse all descendants of the
+greatest dirty ancestor, in parent-first order, allocating blocks and
+squeezing nodes in the following order.  Squeezing must be performed in a
+bottom-up, left-to-right order, whereas allocation occurs in parent-first
+order.  The following pseudo-code accomplishes both at once:
 
-  /* End search at the root node or if the node is the leftmost child
-   * of its parent, in which case the left-of-leftmost-descendent does
-   * not precede it in parent first order, its parent does in that
-   * case. */
-  if (! is_root_node (node) && ! leftmost_child_of_parent (node)) {
-     jnode *godown = node;
+########################################################################
 
-     while (jnode_get_level (godown) > LEAF_LEVEL) {
-       /* Iterate downward as long as leftmost nodes in memory (note:
-        * they don't have to be dirty). */
-       jnode *child = leftmost_child (godown);
+Problems with above to be addressed:
 
-       if (child == NULL) {
-         return node;
-       }
+Nikita suggests squeezing all the formatted nodes of a twig before allocating
+its extents, thereby increasing room for extents to "inflate".
 
-       godown = child;
-    }
-
-    /* Reached the leftmost descendant of the maximal dirty node,
-     * now see if its left is dirty.  Otherwise return. */
-    if ((godown = godown->left) == NULL || ! jnode_is_dirty (godown)) {
-      return node;
-    }
-
-    /* At this point, "godown" precedes "node" in the parent-first
-     * traversal, so search for a new maximal dirty node. */
-    node = godown;
-    goto repeat;
-  }
-}
-
-Now we have found the maximal dirty ancestor from which to begin
-allocating and squeezing.  From this point we will traverse all
-descendants of the maximal dirty ancestor, in parent-first order,
-allocating blocks and squeezing nodes in the following order.
-
-Squeezing must be performed in a bottom-up, left-to-right order, whereas
-allocation occurs in parent-first order.  The following pseudo-code
-accomplishes both at once:
-
+########################################################################
 
 /* A function to find the parent-first-preceder of a node, although
  * there may not be enough nodes in memory to actually compute this.
@@ -214,9 +187,10 @@ accomplishes both at once:
 blocknr parent_first_preceder_of (jnode *node) { ... }
 
 /* A parent-first recursive tree traversal, allocate and squeeze.
- * This allocates and squeezes the children of a single sub-tree.
+ * This is called on the greatest dirty ancestor of a region to be
+ * flushed.
  */
-void allocate_and_squeeze_parent_first_subtree (jnode *node)
+void allocate_and_squeeze_parent_first (jnode *node)
 {
   /* Stop recursion if its not dirty, meaning don't allocate children either.
    * Children might be dirty but there is an overwrite below this level
@@ -262,7 +236,59 @@ void allocate_and_squeeze_parent_first_subtree (jnode *node)
   } 
 }
 
-/* Allocate and squeeze starting at the maximal dirty ancestor
+########################################################################
+########################################################################
+
+Dead pseudo code, older stuff:
+
+########################################################################
+########################################################################
+
+
+Problem: The root of a subtree gets overwritten, so the subtree to the left
+will not follow in parent-first order.  That would simplify things.  Killed
+this code:
+
+/* Starting at a node, find the greatest dirty parent, then see if it
+ * has a preceding dirty node on the leaf of the subtree to its left. */
+void find_maximal_dirty_ancestor (jnode *node)
+{
+ repeat:
+  node = greatest_dirty_ancestor (node)
+
+  /* End search at the root node or if the node is the leftmost child
+   * of its parent, in which case the left-of-leftmost-descendent does
+   * not precede it in parent first order, its parent does in that
+   * case. */
+  if (! is_root_node (node) && ! leftmost_child_of_parent (node)) {
+     jnode *godown = node;
+
+     while (jnode_get_level (godown) > LEAF_LEVEL) {
+       /* Iterate downward as long as leftmost nodes in memory (note:
+        * they don't have to be dirty). */
+       jnode *child = leftmost_child (godown);
+
+       if (child == NULL) {
+         return node;
+       }
+
+       godown = child;
+    }
+
+    /* Reached the leftmost descendant of the maximal dirty node,
+     * now see if its left is dirty.  Otherwise return. */
+    if ((godown = godown->left) == NULL || ! jnode_is_dirty (godown)) {
+      return node;
+    }
+
+    /* At this point, "godown" precedes "node" in the parent-first
+     * traversal, so search for a new maximal dirty node. */
+    node = godown;
+    goto repeat;
+  }
+}
+
+/* Allocate and squeeze starting at the greatest dirty ancestor
  * described above.  Repeat in rightward direction for adjacent
  * subtrees.
  */
@@ -272,20 +298,16 @@ void allocate_and_squeeze_parent_first (jnode *node)
 
 repeat:
   /* Do one sub-tree */
-  allocate_and_squeeze_parent_first (node);
+  allocate_and_squeeze_parent_first_subtree (node);
 
   /* Now try to repeat to the right. */
   right = get_right_neighbor (node);
 
   if (right != NULL && jnode_is_dirty (right)) {
-     node = greatest_dirty_parent (right);
+     node = greatest_dirty_ancestor (right);
      goto repeat;
   }
 }
-
-
-
-
 
 
 /* The crap below was my first attempt to write this iteratively. */
