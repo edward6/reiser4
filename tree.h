@@ -150,9 +150,13 @@ extern void done_tree( reiser4_tree *tree );
 
 /**
  * &reiser4_item_data - description of data to be inserted or pasted
-
-articulate the reasons for the difference between this and flow.
-
+ *
+ * Q: articulate the reasons for the difference between this and flow.
+ *
+ * A: Becides flow we insert into tree other things: stat data, directory
+ * entry, etc.  To insert them into tree one has to provide this structure. If
+ * one is going to insert flow - he can use insert_flow, where this structure
+ * does not have to be created
  */
 struct reiser4_item_data {
 	/**
