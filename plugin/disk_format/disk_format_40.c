@@ -258,6 +258,12 @@ int format_40_release (struct super_block * s)
 
 	done_tree (&get_super_private (s)->tree);
 
+	assert ("zam-579", get_super_private(s) != NULL);
+	assert ("zam-580", get_super_private(s)->space_plug != NULL);
+
+	if (get_super_private(s)->space_plug->destroy_allocator != NULL) 
+		get_super_private(s)->space_plug->destroy_allocator(&get_super_private(s)->space_allocator, s);
+
 	done_journal_info(s);
 
 	return 0;
