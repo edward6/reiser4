@@ -123,7 +123,6 @@ AC_OUTPUT([
 	include/reiserfs/Makefile
 	libreiserfs/Makefile
 	libdal/Makefile
-	demos/Makefile
 	debug/Makefile
 	doc/Makefile
 	libreiserfs.spec

@@ -1,4 +1,4 @@
-SUBDIRS = libdal libreiserfs demos include doc debug
+SUBDIRS = libdal libreiserfs include doc debug
 
 EXTRA_DIST = ABOUT-NLS AUTHORS BUGS COPYING TODO NEWS THANKS README \
 	rbeiserfs.spec.in libreiserfs.m4
