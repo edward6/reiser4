@@ -79,6 +79,7 @@ typedef int (*foreach_func_t) (const void *, const void *);
 #include "bitops.h"
 #include "endian.h"
 #include "debug.h"
+#include "gauge.h"
 
 #endif
 

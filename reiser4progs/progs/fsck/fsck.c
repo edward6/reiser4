@@ -195,13 +195,15 @@ int main(int argc, char *argv[]) {
 	goto error_free_libreiser4;
     }
     
-    if (check)
-	fprintf(stderr, "Checking reiser4 with \"%s\" profile...", profile->label);
-    else
-	fprintf(stderr, "Rebuilding reiser4 with \"%s\" profile...", profile->label);
+    if (aal_gauge_create(GAUGE_SILENT, "", __progs_gauge_handler, NULL))
+	goto error_free_libreiser4;
     
-    fflush(stderr);
+    if (check)
+	aal_gauge_rename("Checking reiser4 with \"%s\" profile", profile->label);
+    else
+	aal_gauge_rename("Rebuilding reiser4 with \"%s\" profile", profile->label);
 
+    aal_gauge_start();
     
     if (check) {
 	if (reiserfs_fs_check(fs)) {
@@ -213,10 +215,6 @@ int main(int argc, char *argv[]) {
 	/* Rebuilding will be here */
     }
 
-    fprintf(stderr, "done\n");
-
-    fprintf(stderr, "Synchronizing...");
-    
     if (reiserfs_fs_sync(fs)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize created filesystem.");
@@ -229,9 +227,9 @@ int main(int argc, char *argv[]) {
 	goto error_free_fs;
     }
 
-    fprintf(stderr, "done\n");
-    
     reiserfs_fs_close(fs);
+    aal_gauge_done();
+
     libreiser4_done();
     aal_file_close(device);
     
