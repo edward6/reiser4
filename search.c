@@ -488,7 +488,6 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 				if( result == 0 ) {
 					reiser4_done_lh( lh );
 					reiser4_done_coord( coord );
-					reiser4_init_coord( coord );
 
 					coord_first_unit( coord, couple.node );
 					reiser4_move_lh( lh, &couple );
@@ -756,7 +755,6 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 			return result;
 		}
 		if( !result ) {
-			reiser4_init_coord( &right );
 			coord_first_unit( &right, right_lh.node );
 			iplug = item_plugin_by_coord( &right );
 			if( iplug -> item_type == INTERNAL_ITEM_TYPE ) {

@@ -317,7 +317,6 @@ static void tree_rec_dot( reiser4_tree *tree, znode *node,
 		 sprintf_key( buffer_l, &node -> ld_key ),
 		 sprintf_key( buffer_r, &node -> rd_key ) );
 
-	reiser4_init_coord( &coord );
 	coord_first_unit( &coord, node );
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
@@ -371,7 +370,6 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 	if( flags & REISER4_NODE_CHECK )
 		node_check( node, flags );
 
-	reiser4_init_coord( &coord );
 	coord_first_unit( &coord, node );
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
 		print_address( "children of node", znode_get_block( node ) );
