@@ -482,7 +482,7 @@ txn_same_atom_dirty (jnode *node, jnode *check)
  * EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.
  * The second call is guaranteed to provide a pre-allocated blocknr_entry so
  * it can only "repeat" once.  */
-int atom_add_to_delete_set (jnode *node)
+static int atom_add_to_delete_set (jnode *node)
 {
 	blocknr_set_entry *blocknr_entry = NULL;
 	txn_atom *atom;
