@@ -4,11 +4,13 @@
     Author Vitaly Fertman.
 */
 
+#include <reiserfs/reiserfs.h>
+
 #include "direntry40.h"
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-static reiserfs_file_plugin_t direntry40_plugin /*= {
+static reiserfs_plugin_t direntry40_plugin/* = {
     .item = {
 	.h = {
 	    .handle = NULL,
@@ -26,7 +28,7 @@ static reiserfs_file_plugin_t direntry40_plugin /*= {
 
 reiserfs_plugin_t *reiserfs_direntry40_entry(reiserfs_plugins_factory_t *f) {
     factory = f;
-    return NULL;
+    return &direntry40_plugin;
 }
 
 reiserfs_plugin_register(reiserfs_direntry40_entry);

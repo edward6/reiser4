@@ -66,25 +66,22 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
 	    node_plugin_id, REISERFS_ROOT_LEVEL))) 
 	goto error_free_tree;*/
     
-    return 0;
 
-    {
-	/* create 2 nodes - leaf and squeeze */
-	/* create internel item, insert it into squeeze */
-	/*  */
+    /* Create 2 nodes - leaf and squeeze */
+    /* Create internel item, insert it into squeeze */
 
-	
-	/* init internal item to be inserted into tree->root */
+    /* Init internal item to be inserted into tree->root */
+/*    {
 	reiserfs_key_t key;
-//	reiserfs_sd40_t sd40;
+	reiserfs_stat40_t stat40;
 	    
         set_key_type(&key, KEY_SD_MINOR);
         set_key_locality(&key, 1ull);
         set_key_objectid(&key, 2ull);
-
-    }
-
+    }*/
     
+    return 0;
+
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;

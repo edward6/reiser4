@@ -4,5 +4,10 @@
     Author Vitaly Fertman.
 */
 
+#ifndef DIR_H
+#define DIR_H
 
-extern int reiserfs_dir_create_child(/* parent, direntry, */reiserfs_opaque_t *data);
+extern int reiserfs_dir_create_child(reiserfs_opaque_t *data);
+
+#endif
+

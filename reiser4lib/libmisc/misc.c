@@ -70,4 +70,3 @@ int reiserfs_misc_comp_keys(void *key1, void *key2) {
     return -1;
 }
 
-

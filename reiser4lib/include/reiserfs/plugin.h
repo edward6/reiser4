@@ -35,8 +35,9 @@ enum reiserfs_item_type_id {
     ORDINARY_FILE_METADATA
 };
 
+typedef enum reiserfs_item_type_id reiserfs_item_type_id_t;
+
 typedef int reiserfs_plugin_id_t;
-typedef int reiserfs_item_type_id_t;
 
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256

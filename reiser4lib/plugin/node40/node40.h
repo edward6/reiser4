@@ -28,11 +28,11 @@ struct reiserfs_node40_header {
 
 typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
 
-#define node40(node)        ((reiserfs_node40_t *)node)
-#define node40_data(node)   (node40(node)->block->data)
-#define node40_block(node)  (node40(node)->block)
-#define node40_size(node)   (node40(node)->block->size)
-#define node40_header(node) ((reiserfs_node40_header_t *) node40_data (node))
+#define reiserfs_node40(node)			((reiserfs_node40_t *)node)
+#define reiserfs_node40_data(node)		(reiserfs_node40(node)->block->data)
+#define reiserfs_node40_block(node)		(reiserfs_node40(node)->block)
+#define reiserfs_node40_size(node)		(reiserfs_node40(node)->block->size)
+#define reiserfs_node40_header(node)		((reiserfs_node40_header_t *)reiserfs_node40_data (node))
 
 #define get_nh40_free_space(header)		get_le16(header, free_space)
 #define set_nh40_free_space(header, val)	set_le16(header, free_space, val)
@@ -73,10 +73,12 @@ struct reiserfs_item_header40 {
 
 typedef struct reiserfs_item_header40 reiserfs_item_header40_t;
 
-#define node40_ih_at(node, pos) \
-    ((reiserfs_item_header40_t *) (node40_data(node) + node40_size(node)) - pos - 1)
+#define reiserfs_node40_ih_at(node, pos) \
+    ((reiserfs_item_header40_t *) \
+    (reiserfs_node40_data(node) + reiserfs_node40_size(node)) - pos - 1)
 
-#define node40_item_at(node, pos) node40_data(node) + get_ih40_offset(node40_ih_at(node, pos))	
+#define reiserfs_node40_item_at(node, pos) \
+    reiserfs_node40_data(node) + get_ih40_offset(reiserfs_node40_ih_at(node, pos))	
     
 #define get_ih40_offset(item_header)        get_le16(item_header, offset)
 #define set_ih40_offset(item_header,val)    set_le16(item_header, offset, val)

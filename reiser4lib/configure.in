@@ -186,7 +186,7 @@ AC_OUTPUT([
     plugin/alloc40/Makefile
     plugin/node36/Makefile    
     plugin/node40/Makefile
-    plugin/sd40/Makefile
+    plugin/stat40/Makefile
     plugin/direntry40/Makefile
     demos/Makefile
     debug/Makefile

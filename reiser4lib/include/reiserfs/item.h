@@ -1,11 +1,13 @@
 /*
-    key.h -- reiser4 item structures.
+    item.h -- reiser4 item structures.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Vitaly Fertman.
 */
 
+#ifndef ITEM_H
+#define ITEM_H
 
-/* on memory structure to wotk with items */
+/* On memory structure to work with items */
 struct reiserfs_item_data {
     reiserfs_key_t * key;
     uint32_t length;
@@ -14,4 +16,6 @@ struct reiserfs_item_data {
 };
 
 typedef struct reiserfs_item_data reiserfs_item_data_t;
+
+#endif
 
