@@ -29,7 +29,13 @@ struct reiserfs_dir40 {
 	Statdata item of the dir. It is used for passing it to statdata plugin in order to
 	get or set someone field.
     */
-    void *statdata;
+    struct {
+	void *data;
+	uint32_t len;
+    } statdata;
+
+    /* Current position in the directory */
+    uint32_t pos;
 };
 
 typedef struct reiserfs_dir40 reiserfs_dir40_t;

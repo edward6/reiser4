@@ -287,15 +287,35 @@ typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 struct reiserfs_dir_ops {
     reiserfs_plugin_header_t h;
 
+    /* Creates new directory with passed parent and object keys */
     reiserfs_entity_t *(*create) (const void *, reiserfs_key_t *, 
 	reiserfs_key_t *); 
     
+    /* Opens directory with specified key */
     reiserfs_entity_t *(*open) (const void *, reiserfs_key_t *);
+    
+    /* Closes previously opened or created directory */
     void (*close) (reiserfs_entity_t *);
     
+    /* 
+	Resets internal position so that next read from the directory will return
+	first entry.
+    */
     errno_t (*rewind) (reiserfs_entity_t *);
+   
+    /* Reads next entry from the directory */
+    errno_t (*read) (reiserfs_entity_t *, reiserfs_entry_hint_t *);
     
+    /* Adds new entry into directory */
+    errno_t (*add) (reiserfs_entity_t *, reiserfs_entry_hint_t *);
+
+    /* Makes check of directory */
     errno_t (*check) (reiserfs_entity_t *, int);
+
+    /* 
+	Simple check for validness (for instance, is statdata exists for dir40 
+	directory). 
+    */
     int (*confirm) (reiserfs_entity_t *);
 };
 
@@ -700,6 +720,12 @@ struct reiserfs_core {
 	file realy lies. It is used in all object plugins.
     */
     int (*tree_lookup) (const void *, reiserfs_key_t *, reiserfs_place_t *);
+
+    /*
+	Returns pointer on the item and its size by passed coord from the tree.
+	It is used all object plugins in order to access data stored in items.
+    */
+    errno_t (*tree_data) (const void *, reiserfs_place_t *, void **, uint32_t *);
 };
 
 typedef struct reiserfs_core reiserfs_core_t;

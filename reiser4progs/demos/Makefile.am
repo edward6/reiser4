@@ -1,4 +1,4 @@
-noinst_PROGRAMS = list meat
+noinst_PROGRAMS = list info
 
 list_SOURCES	= list.c
 
@@ -6,11 +6,11 @@ list_LDFLAGS	= $(PROGS_LDFLAGS)
 
 list_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la
 
-meat_SOURCES	= meat.c
+info_SOURCES	= info.c
 
-meat_LDFLAGS	= $(PROGS_LDFLAGS)
+info_LDFLAGS	= $(PROGS_LDFLAGS)
 
-meat_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la
+info_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la
 
 INCLUDES	= -I$(top_srcdir)/include
 
