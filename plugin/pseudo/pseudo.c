@@ -994,24 +994,15 @@ static int show_pagecache(struct seq_file *seq, void *cookie)
 	struct address_space *as;
 
 	unsigned long nrpages;
-	unsigned long clean;
-	unsigned long dirty;
-	unsigned long locked;
-	unsigned long io;
 
 	host = get_seq_pseudo_host(seq);
 	
 	as = host->i_mapping;
-	spin_lock(&as->page_lock);
+	spin_lock(&as->tree_lock);
 	nrpages = as->nrpages;
-	clean   = list_length(&as->clean_pages);
-	dirty   = list_length(&as->dirty_pages);
-	locked  = list_length(&as->locked_pages);
-	io      = list_length(&as->io_pages);
-	spin_unlock(&as->page_lock);
+	spin_unlock(&as->tree_lock);
 
-	seq_printf(seq, "%lu %lu %lu %lu %lu",
-		   nrpages, clean, dirty, locked, io);
+	seq_printf(seq, "%lu", nrpages);
 	return 0;
 }
 
@@ -1043,6 +1034,9 @@ static int show_pagecache_stat(struct seq_file *seq, void *cookie)
 	host  = get_inode_host(inode);
 	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
 	as    = host->i_mapping;
+
+	seq_printf(seq, "not info available");
+#if 0
 	spin_lock(&as->page_lock);
 	switch (idx) {
 	case PAGECACHE_NRPAGES:
@@ -1062,7 +1056,7 @@ static int show_pagecache_stat(struct seq_file *seq, void *cookie)
 		break;
 	}
 	spin_unlock(&as->page_lock);
-
+#endif
 	return 0;
 }
 
