@@ -317,6 +317,8 @@ static znode *zalloc( int gfp_flag /* allocation flag */ )
 static void zinit( znode *node /* znode to initialise */, 
 		   znode *parent /* parent znode */ )
 {
+	reiser4_tree *tree;
+
 	assert( "nikita-466", node != NULL );
 	assert( "umka-268", current_tree != NULL );
 	
@@ -324,12 +326,13 @@ static void zinit( znode *node /* znode to initialise */,
 	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
 
-	assert( "umka-051", current_tree != NULL );
+	tree = current_tree;
+	assert( "umka-051", tree != NULL );
 	
-	spin_lock_tree( current_tree );
+	spin_lock_tree( tree );
 	coord_init_parent_hint (&node -> ptr_in_parent_hint, parent);
-	node -> version = ++ current_tree -> znode_epoch;
-	spin_unlock_tree( current_tree );
+	node -> version = ++ tree -> znode_epoch;
+	spin_unlock_tree( tree );
 }
 
 /** remove znode from hash table */
