@@ -493,20 +493,28 @@ read the root block, and check it for validness; return initialized filesystem i
 
 <h2>libreiserfs</h2>
 
-<table width=80%><tr><td align=justify>
-libreiserfs will consists of set of APIs. There are following: plugins API 
-(plugin  factory), filesystem API, journal API, allocator API, oid allocator 
-API, tree API. Also  it  will contain API (the set of wrappers functions)
-for every plugin. For example, libreiserfs will be working with directory 
-plugin via directory API.<br><br>
+<table width=70%><tr><td align=justify>
+Libreiserfs will consists of set of APIs. There are following:<br>
+plugins API (plugin factory), filesystem API, gauge API, tree API, 
+memory allocation functions, string working functions.
+<br><br>
 
-Also  libreiserfs  will  contain additional minor APIs: exceptions API, 
-memory handling functions, tools.<br>
+Also it will contain API (a set of wrapper functions) for every plugin:<br>
+journal API, allocator API, oid allocator API, directory API, file API, node API,
+item API, etc.<br><br>
+
+For example, libreiserfs will be working with directory plugin via directory API.
+Additional API for every plugin is needed because plugins will be implemented for using
+by any software. For example, plugins will be using by kernel, libreiserfs or yet another 
+project. Besides, all plugins operate on lowest abstraction level in libreiserfs and can't
+modify objects which lie on higher level. So we need some layer for working with plugins 
+in libreiserfs. This layer will operate on the same abstraction level as filesystem API and
+will be able to modify internal structures of it.<br>
 
 <h3>Abstraction levels in libreiserfs.</h3>
 
 <p>
-libreiserfs is structured into several abstraction layers.
+Libreiserfs is structured into several abstraction layers.
 Main goal of an abstraction layer is to  correctly  handle all possible 
 situations and let higher abstraction layer to know what was the result.<br><br>
 
@@ -515,11 +523,12 @@ libreiserfs has got such abstraction levels:<br>
 <ul>
 	<li>lowest level: plugins, DAL.
 	<li>middle level: wrappers for plugins (journal, allocator, oid allocator, etc).
-	<li>highest level: filesystem (reiserfs_fs_open, reiserfs_fs_create, etc)
+	<li>higher level: filesystem (reiserfs_fs_open, reiserfs_fs_create, etc)
+	<li>highest level: "master" project that is using libreiserfs.
 </ul>
 
 In the case of an error, current abstraction layer issues error message, 
-meaningful on this level, handles  error condition as much  as possible 
+meaningful on this level, handles  error condition as much as possible 
 (by means of "exceptions" see below) and returns error code to the higher 
 layer.<br><br>
 
@@ -546,12 +555,19 @@ return NULL;
 It issues error message, meaningful on it level and return NULL instead
 initialized filesystem instance.<br><br>
 
-etc.
+etc.<br><br>
+
+In the case an fatal exception occurs (an exception that causes imposibility to continue 
+current operation) then control will be passed onto highest level (the level of "master"
+project). And than "master" project have to deside what it will be doing. As usual it's actions
+are following: report about exception and going to finalization.<br><br>
+
+However more smart behavior may implemented too.<br>
 </td></tr></table>
 
 <h3>Exceptions in libreiserfs.</h3>
 
-<table width=80%><tr><td align=justify>
+<table width=70%><tr><td align=justify>
 Exceptions in libreiserfs are uniform way to handle errors. Contrary to 
 some similarity in naming, they have nothing to with non-local exits in 
 languages like C++. When using exceptions, control flow is still based 
@@ -590,8 +606,12 @@ static reiserfs_exception_option_t default_handler(reiserfs_exception_t *ex) {
 }
 </pre><br>	
 	
-A front-end may reimplement exception handler and add  new
-functionality to it.<br><br>
+A front-end ("master project") may reimplement exception handler in order to add extra 
+functionality to it. It may to ask user something. For example: <br><br>
+
+<i>"Error: Can't read block 8193. (C)ancel, (R)etry"</i><br><br>
+
+Or yet another behavior. Exception handler may emmit all errors in system log.<br><br>
 
 Exception handling functions:<br><br>
 
@@ -621,12 +641,30 @@ Releases exception.<br><br>
 <b>void libreiserfs_exception_fetch_all(void);</b>
 
 <p>
-Disables exceptions: force exception handler to just return.<br><br>
+Disables exceptions: force exception handler to just return. It is useful for implementing
+few debug levels in the "master" project. It may be disabling all exceptions for some 
+operations. For example:<br>
+
+<pre>
+int main (int argc, char *argv[]) {
+	reiserfs_fs_t *fs = reiserfs_fs_open(dal, dal);
+
+	libreiserfs_exception_fetch_all();
+
+	<i>Doing something with opened filesystem. Exception handler will not be called.</i>
+
+	libreiserfs_exception_leave_all();
+
+	reiserfs_fs_close(fs);
+}
+</pre>
+
+<br>
 
 <b>void libreiserfs_exception_leave_all(void);</b>
 
 <p>
-Enables exceptions: switches back to normal handler behavior.<br>
+Enables exceptions: switches back to normal handler behavior. See above for usage.<br>
 </td></tr></table>
 
 <h3>Gauge API.</h3>
