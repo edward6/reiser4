@@ -32,7 +32,7 @@ static inline __u8 inode_cluster_shift (struct inode * inode)
 static inline unsigned
 page_cluster_shift(struct inode * inode)
 {
-	return 1U << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT;
+	return inode_cluster_shift(inode) + PAGE_CACHE_SHIFT;
 }
 
 /* cluster size in page units */
@@ -235,6 +235,7 @@ int get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, zno
 int hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode);
 void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
 int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
+void reset_cluster_params(reiser4_cluster_t * clust);
 int prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture);
 void release_cluster_pages(reiser4_cluster_t * clust, int from);
 void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act);
