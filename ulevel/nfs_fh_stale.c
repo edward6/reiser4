@@ -631,9 +631,11 @@ write_file(params_t *params)
 	int bufSize;
 	int offset;
 	const char *fileName;
+	int osync;
 
 	fileName = params->filename;
-	fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
+	osync = RND(2);
+	fd = open(fileName, O_CREAT | O_APPEND | O_RDWR | (osync ? O_SYNC : 0), 0700);
 	if (fd == -1) {
 		fprintf(stderr, "%s open/write: %s(%i)\n", fileName, strerror(errno),
 			errno);
