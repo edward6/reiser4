@@ -433,17 +433,18 @@ eflush_del(jnode *node, int page_locked)
 			spin_lock_jnode(node);
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
-		jput(node);
 
 		spin_unlock_jnode(node);
 
 #if REISER4_DEBUG
-		if (blocknr_is_fake(&blk)) {
+		if (blocknr_is_fake(jnode_get_block(node))) {
 			assert ("zam-817", ef->initial_stage == BLOCK_UNALLOCATED);
 		} else {
 			assert ("zam-818", ef->initial_stage == BLOCK_GRABBED);
 		}
 #endif
+
+		jput(node);
 
 		kmem_cache_free(eflush_slab, ef);
 		ef_free_block(node, &blk);
