@@ -461,7 +461,7 @@ static int shorten (struct inode * inode)
 
 	/* make sure that page has corresponding extent */
 	if (!jnode_mapped (j)) {
-		result = unix_file_writepage (page);
+		result = unix_file_writepage_nolock (0, page);
 		if (result) {
 			unlock_page (page);
 			page_cache_release (page);
@@ -535,7 +535,7 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 
 	inode->i_size = size;
 
-	get_nonexclusive_access (inode);
+//	get_nonexclusive_access (inode);
 
 
 	file_size = find_file_size (inode);
@@ -551,7 +551,7 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 		if (result)
 			warning ("vs-638", "updating stat data failed: %i", result);
 	}
-	drop_nonexclusive_access (inode);
+//	drop_nonexclusive_access (inode);
 	return result;
 }	
 
@@ -1497,7 +1497,25 @@ int unix_file_owns_item( const struct inode *inode /* object to check
 	return 1;
 }
 
+/* plugin->u.file.setattr method */
+/* This calls inode_setattr and if truncate is in effect it also takes
+   exclusive inode access to avoid races */
+int unix_file_setattr( struct inode * inode,/* Object to change attributes */
+		       struct iattr * attr /* change description */)
+{
+	int truncate = attr->ia_valid & ATTR_SIZE;
+	int retval;
 
+	if ( truncate )
+		get_exclusive_access(inode);
+
+	retval = inode_setattr(inode, attr);
+
+	if (truncate)
+		drop_exclusive_access(inode);
+
+	return retval;
+}
 /* plugin->u.file.can_add_link = common_file_can_add_link
  */
 
