@@ -450,16 +450,13 @@ struct flush_queue {
 	   easier.  See field in atom struct for description of list. */
 	fq_list_link alink;
 
-	/* A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
-	   fields. */
+	/* A spinlock to protect state changes.  Acquire before modifying all
+	   fields in this struct except atomic fields. */
 	reiser4_spin_data guard;
 	/* flush_handle state: empty, active, */
 	flush_queue_state_t state;
 	/* list of not yet submitted to disk nodes */
 	capture_list_head prepped;
-	/* list of already submitted to disk nodes (more precisely, sent or just about to be sent, see
-	   prepare_node_for_write() details */
-	capture_list_head sent;
 	/* total number of queued nodes */
 	int nr_queued;
 	/* number of submitted i/o requests */
@@ -478,12 +475,10 @@ extern void fq_put_nolock(flush_queue_t *);
 extern void fq_put(flush_queue_t *);
 extern void fuse_fq(txn_atom * to, txn_atom * from);
 extern void queue_jnode(flush_queue_t *, jnode *);
-extern int write_fq(flush_queue_t *, int);
-extern int scan_and_write_fq(flush_queue_t *, int);
+extern int write_fq(flush_queue_t *);
 extern int finish_all_fq(txn_atom *, int *);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
-extern int writeback_queued_jnodes(struct super_block *, jnode *);
 
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);

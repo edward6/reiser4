@@ -163,7 +163,7 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int wandered_extent_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
+static int jnode_extent_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -404,7 +404,7 @@ update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = wandered_extent_write(jh, 1, jnode_get_block(jh), NULL);
+	ret = jnode_extent_write(jh, 1, jnode_get_block(jh), NULL);
 
 	if (ret)
 		return ret;
@@ -435,7 +435,7 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = wandered_extent_write(jf, 1, jnode_get_block(jf), 0);
+	ret = jnode_extent_write(jf, 1, jnode_get_block(jf), 0);
 	if (ret)
 		return ret;
 
@@ -604,7 +604,7 @@ get_overwrite_set(struct commit_handle *ch)
    @block_p block number.  If @fq is not NULL it means that waiting for i/o
    completion will be done more efficiently by using flush_queue_t objects */
 static int
-wandered_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
@@ -652,6 +652,13 @@ wandered_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, f
 			page_cache_get(pg);
 
 			lock_and_wait_page_writeback(pg);
+
+			LOCK_JNODE(cur);
+			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
+			JF_SET(cur, JNODE_WRITEBACK);
+			JF_CLR(cur, JNODE_DIRTY);
+			UNLOCK_JNODE(cur);
+
 			SetPageWriteback(pg);
 
 			write_lock(&pg->mapping->page_lock);
@@ -694,8 +701,7 @@ wandered_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, f
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
-static int
-submit_batched_write(capture_list_head * head, flush_queue_t * fq)
+int write_jnode_list (capture_list_head * head, flush_queue_t * fq)
 {
 	int ret;
 	jnode *beg = capture_list_front(head);
@@ -711,7 +717,7 @@ submit_batched_write(capture_list_head * head, flush_queue_t * fq)
 			cur = capture_list_next(cur);
 		}
 
-		ret = wandered_extent_write(beg, nr, jnode_get_block(beg), fq);
+		ret = jnode_extent_write(beg, nr, jnode_get_block(beg), fq);
 		if (ret)
 			return ret;
 
@@ -819,7 +825,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		}
 	}
 
-	ret = submit_batched_write(&ch->tx_list, fq);
+	ret = write_jnode_list(&ch->tx_list, fq);
 
 	return ret;
 
@@ -904,7 +910,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		if (ret)
 			return ret;
 
-		ret = wandered_extent_write(cur, len, &block, fq);
+		ret = jnode_extent_write(cur, len, &block, fq);
 		if (ret)
 			return ret;
 
@@ -1037,7 +1043,7 @@ reiser4_write_logs(void)
 
 		UNLOCK_ATOM(fq->atom);
 
-		ret = submit_batched_write(ch.overwrite_set, fq);
+		ret = write_jnode_list(ch.overwrite_set, fq);
 
 		fq_put(fq);
 
@@ -1290,7 +1296,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	{			/* write wandered set in place */
-		submit_batched_write(ch.overwrite_set, 0);
+		write_jnode_list(ch.overwrite_set, 0);
 		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {

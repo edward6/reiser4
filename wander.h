@@ -113,6 +113,7 @@ extern int reiser4_journal_recover_sb_data(struct super_block *);
 extern int init_journal_info(struct super_block *, const reiser4_block_nr *, const reiser4_block_nr *);
 extern void done_journal_info(struct super_block *);
 
+extern int write_jnode_list (capture_list_head*, flush_queue_t *);
 #endif				/* __FS_REISER4_WANDER_H__ */
 
 /* Make Linus happy.
