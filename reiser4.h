@@ -224,6 +224,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <asm/unaligned.h>
 /* For __init definitions */
 #include <linux/init.h>
+/* For BIO stuff */
+#include <linux/bio.h>
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
