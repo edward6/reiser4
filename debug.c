@@ -45,8 +45,6 @@
 #include <linux/ctype.h>
 #include <linux/sysctl.h>
 
-extern void cond_resched(void);
-
 /*
  * global buffer where message given to reiser4_panic is formatted.
  */
