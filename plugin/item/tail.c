@@ -417,6 +417,8 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 		}
 		zrelse(loaded);
 
+		if (result)
+			break;
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh);
 		if (result) {
