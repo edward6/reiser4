@@ -4177,6 +4177,9 @@ static void *uswapd( void *untyped )
 			if( result != 0 )
 				warning( "nikita-1937", "flushing failed: %i", result );
 			flushed += to_flush;
+			if (to_flush == 0) {
+				break;
+			}
 		}
 	}
 	REISER4_EXIT_PTR( NULL );
@@ -4184,7 +4187,7 @@ static void *uswapd( void *untyped )
 
 void declare_memory_pressure( void )
 {
-	/*return;*/
+	return;
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );

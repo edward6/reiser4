@@ -1,9 +1,8 @@
+/* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ */
 
-/* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README */
-
-/* The design document for this file is at www.namesys.com/flush-alg.html */
-
-/* Note on abbreviation: "squeeze and allocate" == "squalloc" */
+/* The design document for this file is at www.namesys.com/flush-alg.html.
+ * Note on abbreviation: "squeeze and allocate" == "squalloc" */
 
 #include "reiser4.h"
 
@@ -11,6 +10,10 @@
  * written location.  When you're writing just a single internal node, use the global
  * value. */
 
+/* FIXME: */
+#define NEW_ENQUEUE 0
+
+/* FIXME: Make these mount options. */
 #define FLUSH_RELOCATE_THRESHOLD 64
 #define FLUSH_RELOCATE_DISTANCE  64
 
@@ -98,7 +101,6 @@ static int           flush_left_relocate_dirty    (jnode *node, const coord_t *p
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_enqueue_jnode          (jnode *node, flush_position *pos);
 static int           flush_enqueue_ancestors      (znode *node, flush_position *pos);
-
 
 static int           flush_finish                 (flush_position *pos);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
@@ -280,6 +282,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	//print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF);
 	if (nr_to_flush != NULL) {
 		if (ret == 0) {
+			trace_on (TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.enqueue_cnt);
 			(*nr_to_flush) = flush_pos.enqueue_cnt;
 		} else {
 			(*nr_to_flush) = 0;
@@ -593,44 +596,6 @@ static int flush_alloc_ancestors (flush_position *pos)
  exit:
 	done_zh (& pload);
 	done_lh (& plock);
-	return ret;
-}
-
-/* FIXME: comment */
-static int flush_enqueue_ancestors (znode *node, flush_position *pos)
-{
-	int ret;
-	lock_handle parent_lock;
-
-	assert ("jmacd-7444", znode_is_any_locked (node));
-
-	if (! znode_check_dirty (node) || ! znode_check_allocated (node)) {
-		return 0;
-	}
-
-	assert ("jmacd-7443", znode_check_allocated (node));
-
-	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
-		return ret;
-	}
-
-	if (znode_is_root (node)) {
-		return 0;
-	}
-
-	init_lh (& parent_lock);
-
-	if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_READ_LOCK, 1))) {
-		/* FIXME: check ENAVAIL, EINVAL, EDEADLK */
-		goto exit;
-	}
-
-	if ((ret = flush_enqueue_ancestors (parent_lock.node, pos))) {
-		goto exit;
-	}
-
- exit:
-	done_lh (& parent_lock);
 	return ret;
 }
 
@@ -961,7 +926,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	}
 
 	/* We have a new right and it should have been allocated by the call to
-	 * flush_squalloc_one_changed_ancestor. */
+	 * flush_squalloc_one_changed_ancestor.  FIXME: its coneivable under a
+	 * multi-threaded workload that this can be violated.  Nikita seems to have proven
+	 * it.  Eventually handle this nicely.  Until then, this asserts that sq1 does the
+	 * right thing. */
 	assert ("jmacd-90123", jnode_check_allocated (ZJNODE (right_lock.node)));
 
 	if (is_unformatted) {
@@ -1525,6 +1493,56 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	return 0;
 }
 
+#if NEW_ENQUEUE
+/* These are no-ops under the new enqueueing strategy. */
+static int flush_enqueue_ancestors (znode *node UNUSED_ARG, flush_position *pos UNUSED_ARG)
+{
+	return 0;
+}
+
+static int flush_enqueue_jnode (jnode *node UNUSED_ARG, flush_position *pos UNUSED_ARG)
+{
+	return 0;
+}
+#else
+/* FIXME: comment */
+static int flush_enqueue_ancestors (znode *node, flush_position *pos)
+{
+	int ret;
+	lock_handle parent_lock;
+
+	assert ("jmacd-7444", znode_is_any_locked (node));
+
+	if (! znode_check_dirty (node) || ! znode_check_allocated (node)) {
+		return 0;
+	}
+
+	assert ("jmacd-7443", znode_check_allocated (node));
+
+	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+		return ret;
+	}
+
+	if (znode_is_root (node)) {
+		return 0;
+	}
+
+	init_lh (& parent_lock);
+
+	if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_READ_LOCK, 1))) {
+		/* FIXME: check ENAVAIL, EINVAL, EDEADLK */
+		goto exit;
+	}
+
+	if ((ret = flush_enqueue_ancestors (parent_lock.node, pos))) {
+		goto exit;
+	}
+
+ exit:
+	done_lh (& parent_lock);
+	return ret;
+}
+
 /* This enqueues the current flush point into the developing "struct bio" queue. */
 static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 {
@@ -1541,6 +1559,7 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	pos->enqueue_cnt += 1;
 	return ret;
 }
+#endif
 
 /* FIXME: comment */
 int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG, struct page *pg)
@@ -1554,12 +1573,18 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG
 	    
 	assert ("jmacd-1771", jnode_check_allocated (node));
 
-	ret = write_one_page (pg, 0);
-
-	jnode_set_clean (node);
-
-	trace_on (TRACE_FLUSH, "enqueue: %s\n", flush_jnode_tostring (node));
-
+	if (1) {
+		/* Real code */
+		ret = write_one_page (pg, 0);
+		jnode_set_clean (node);		
+		trace_on (TRACE_FLUSH, "enqueue: %s\n", flush_jnode_tostring (node));
+	} else {
+		/* Stub code */
+		ret = 0;
+		unlock_page (pg);
+		jnode_set_clean (node);
+	}
+	
 	if (ret != 0) {
 		warning ("jmacd-61449", "write_one_page failed: %d", ret);
 	}

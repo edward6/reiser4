@@ -907,6 +907,8 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 		} else {
 			warning ("jmacd-81726", "flush failed: %d", ret);
 		}
+	} else {
+		(*nr_to_flush) = 0;
 	}
 
 	return ret;

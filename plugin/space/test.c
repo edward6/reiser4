@@ -68,7 +68,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 #else
 	p = jiffies % 10;
 #endif
-	if (p < P) {
+	if (p <= P) {
 		/*
 		 * return what we were asked for
 		 */
