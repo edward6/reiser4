@@ -6,7 +6,7 @@
 There may be (by default is) a dedicated journaling area.  Its purpose
 is to allow a batch of nodes that will not be logged in their optimal
 location to all be journaled together efficiently in one seek and one
-write (or perhaps to be journaled using NVRAM.)
+write (or perhaps to be journalled using NVRAM.)
 
 The "preserve" of a transaction is the set of blocks which may not be
 overwritten before the transaction is committed, but may be
