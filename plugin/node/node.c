@@ -135,7 +135,7 @@ void print_znode_content( const znode *node /* node to print */,
 		
 		iplug = item_plugin_by_coord( &coord );
 		if( flags & REISER4_NODE_PRINT_PLUGINS ) {
-			print_plugin( "\titem plugin", item_plugin_to_plugin (iplug) ), indent_znode (node);
+			print_plugin( "\titem plugin", item_plugin_to_plugin (iplug) ); indent_znode (node);
 		}
 		if( flags & REISER4_NODE_PRINT_KEYS ) {
 			item_key_by_coord( &coord, &key );
