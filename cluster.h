@@ -221,6 +221,23 @@ hint_is_unprepped_dclust(hint_t * hint)
 	return dclust_get_extension(hint) == (int)UCTAIL_SHIFT;
 }
 
+static inline void
+coord_set_between_clusters(coord_t * coord)
+{
+#if REISER4_DEBUG
+	int result;
+	result = zload(coord->node);
+	assert("edward-1296", !result);
+#endif
+	if (!coord_is_between_items(coord)) {
+		coord->between = AFTER_ITEM;
+		coord->unit_pos = 0;
+	}
+#if REISER4_DEBUG
+	zrelse(coord->node);
+#endif
+}
+
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 void forget_cluster_pages(struct page ** page, int nrpages);
