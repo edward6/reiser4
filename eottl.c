@@ -218,6 +218,7 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	carry_pool        pool;
 	carry_level       todo;
 	carry_op         *op;
+	znode            *parent_node;
 	znode            *node;
 	reiser4_item_data item;
 	carry_insert_data cdata;
@@ -246,7 +247,7 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	*znode_get_rd_key( node ) = *rdkey;
 	spin_unlock_dk( current_tree );
 
-	zrelse( insert_coord -> node );
+	parent_node = insert_coord -> node;
 	op = post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
 	if( !IS_ERR( op ) ) {
 		cdata.coord = insert_coord;
@@ -268,8 +269,16 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 		result = PTR_ERR( op );
 	zput( node );
 	done_carry_pool( &pool );
-	if( result == 0 )
-		result = zload( insert_coord -> node );
+	if( result == 0 ) {
+		/*
+		 * balancing probably shifted @insert_coord into different
+		 * node. Reload.
+		 */
+		if( parent_node != insert_coord -> node ) {
+			zrelse( parent_node );
+			result = zload( insert_coord -> node );
+		}
+	}
 	return result;
 }
 
