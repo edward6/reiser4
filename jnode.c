@@ -906,7 +906,6 @@ jnode_remove_op(jnode * node, reiser4_tree * tree)
 {
 	/* remove jnode from hash-table */
 	j_hash_remove(&tree->jhash_table, node);
-	eflush_del(node);
 	jfree(node);
 	return 0;
 }
