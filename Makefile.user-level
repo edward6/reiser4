@@ -30,7 +30,8 @@ DEFINES      = -D_REENTRANT -DREISER4_USER_LEVEL_SIMULATION=1
 LIBS         = -lpthread \
                -ldl \
                -lbfd \
-               -liberty
+               -liberty \
+               -lreadline
 PROFFLAGS   := -pg
 OPTFLAGS    := 
 CFLAGS      := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
