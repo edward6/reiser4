@@ -668,7 +668,7 @@ atom_try_commit_locked (txn_atom *atom)
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
-#ifdef WRITE_LOG 	
+#if WRITE_LOG
 	/* We unlock atom to allow journal writer and others (block allocator
 	 * hooks) to do things which may schedule, like memory allocation or
 	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
