@@ -389,13 +389,11 @@ split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	return result;
 }
 
-/* remove protection from e-flush */
+/* clear bit preventing node from being written bypassing extent allocation procedure */
 static inline void
 junprotect (jnode * node)
 {
 	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
-	/* when REISER4_USE_EFLUSH is not defined - EPROTECT bit does not get
-	 * set */
 	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
 
 	JF_CLR(node, JNODE_EPROTECTED);
