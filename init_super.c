@@ -435,6 +435,11 @@ _INIT_(fs_root)
 _DONE_(fs_root)
 {
 	shrink_dcache_parent(s->s_root);
+	shrink_dcache_anon(&s->s_anon);
+	dput(s->s_root);
+	s->s_root = NULL;
+	invalidate_inodes(s);
+	
 }
 
 _INIT_(sysfs)
