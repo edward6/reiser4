@@ -385,8 +385,11 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, in
 {
 	struct page *page;
 
-	if (bio->bi_size != 0)
+	if (bio->bi_size != 0) {
+		warning("nikita-3332", "Truncated single page read: %i",
+			bio->bi_size);
 		return 1;
+	}
 
 	page = bio->bi_io_vec[0].bv_page;
 
@@ -411,8 +414,11 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, i
 {
 	struct page *page;
 
-	if (bio->bi_size != 0)
+	if (bio->bi_size != 0) {
+		warning("nikita-3333", "Truncated single page write: %i",
+			bio->bi_size);
 		return 1;
+	}
 
 	page = bio->bi_io_vec[0].bv_page;
 
@@ -445,7 +451,10 @@ page_io(struct page *page /* page to perform io for */ ,
 	assert("nikita-2634", node != NULL);
 	assert("nikita-2893", rw == READ || rw == WRITE);
 
-	jnode_io_hook(node, page, rw);
+	if (unlikely(page->mapping->host->i_sb->s_flags & MS_RDONLY)) {
+		reiser4_unlock_page(page);
+		return 0;
+	}
 
 	bio = page_bio(page, node, rw, gfp);
 	if (!IS_ERR(bio)) {
@@ -453,12 +462,7 @@ page_io(struct page *page /* page to perform io for */ ,
 			SetPageWriteback(page);
 			reiser4_unlock_page(page);
 		}
-		if ( (rw == WRITE) && (reiser4_get_current_sb()->s_flags & MS_RDONLY) ) {
-			ClearPageWriteback(page);
-			bio_put(bio);
-		} else {
-			reiser4_submit_bio(rw, bio);
-		}
+		reiser4_submit_bio(rw, bio);
 		result = 0;
 	} else
 		result = PTR_ERR(bio);
