@@ -196,7 +196,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 /* prepares @page to be written. This means, that if we want to modify only some
    part of page, page should be read first and than modified. Actually this function
    almost the same as reiser4_readpage(). The differentce is only that, it does not
-   unlock the page in teh case of error. This is needed because loop back device
+   unlock the page in the case of error. This is needed because loop back device
    driver expects it locked. */
 static int reiser4_prepare_write(struct file *file, struct page *page,
 				 unsigned from, unsigned to)
@@ -210,6 +210,9 @@ static int reiser4_prepare_write(struct file *file, struct page *page,
 	assert("umka-3100", page != NULL);
 	assert("umka-3095", PageLocked(page));
 
+	if (to - from == PAGE_CACHE_SIZE || PageUptodate(page))
+		return 0;
+
 	inode = page->mapping->host;
 	init_context(&ctx, inode->i_sb);
 	fplug = inode_file_plugin(inode);
@@ -219,22 +222,33 @@ static int reiser4_prepare_write(struct file *file, struct page *page,
 	else
 		result = RETERR(-EINVAL);
 	
-	if (result != 0) {
+	if (result != 0)
 		SetPageError(page);
 		/* here we do not unlock the page, as loop back device driver
-		   expects it will be locked after ->prepare_write() finish. */
-	} else {
-		/* fplug->readpage() might unlock @page, as it got uptodate.
-		   Check if it is uptodate, we lock it back, because loop back
-		   driver expects it to be locked. */
-		if (PageUptodate(page)) {
-			assert("umka-3098", !PageLocked(page));
-			lock_page(page);
-		}
+		   expects it will be locked after ->prepare_write()
+		   finish. */
+	else {
+		/*
+		 * ->readpage() either:
+		 *
+		 *     1. starts IO against @page. @page is locked for IO in
+		 *     this case.
+		 *
+		 *     2. doesn't start IO. @page is unlocked.
+		 *
+		 * In either case, page should be locked.
+		 */
+		lock_page(page);
+		/*
+		 * IO (if any) is completed at this point. Check for IO
+		 * errors.
+		 */
+		if (!PageUptodate(page))
+			result = RETERR(-EIO);
 	}
-	
+	assert("umka-3098", PageLocked(page));
 	reiser4_exit_context(&ctx);
-	return 0;
+	return result;
 }
 
 /* captures jnode of @page to current atom. */
