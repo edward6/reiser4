@@ -963,7 +963,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		BIT_OPT("bsdgroups", REISER4_BSD_GID),
 		/* turn on 32 bit times */
 		BIT_OPT("32bittimes", REISER4_32_BIT_TIMES),
-		/* turn on concurrent flushing */
+		/* turn off concurrent flushing */
 		BIT_OPT("mtflush", REISER4_MTFLUSH),
 		/* disable pseudo files support */
 		BIT_OPT("nopseudo", REISER4_NO_PSEUDO),
