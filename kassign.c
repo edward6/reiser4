@@ -355,7 +355,8 @@ cmp_t de_id_key_cmp( const de_id *id /* directory entry id to compare */,
 extern const reiser4_key ROOT_DIR_KEY;
 
 /** true if key of root directory sd */
-int is_root_dir_key( const struct super_block *super /* super block to check*/, 
+int is_root_dir_key( const struct super_block *super UNUSED_ARG /* super block
+								 * to check*/, 
 		     const reiser4_key *key /* key to check */ )
 {
 	assert( "nikita-1819", super != NULL );

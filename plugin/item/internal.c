@@ -68,7 +68,8 @@ static znode *znode_at( const tree_coord *item /* coord of item */ )
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
 void internal_down_link( const tree_coord *coord /* coord of item */, 
-			 const reiser4_key *key /* key to get pointer for */, 
+			 const reiser4_key *key UNUSED_ARG /* key to get
+							    * pointer for */, 
 			 reiser4_block_nr *block /* resulting block number */ )
 {
 #if REISER4_DEBUG

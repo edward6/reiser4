@@ -55,7 +55,7 @@ static __u64 rupasov_hash( const unsigned char *name /* name to hash */,
 
 /** r5 hash */
 static __u64 r5_hash( const unsigned char *name /* name to hash */, 
-		      int len /* @name's length */ )
+		      int len UNUSED_ARG /* @name's length */ )
 {
 	__u64 a = 0;
 
@@ -251,7 +251,7 @@ static __u64 tea_hash( const unsigned char *name /* name to hash */,
  * 
  */
 static __u64 fnv1_hash( const unsigned char *name /* name to hash */, 
-			int len /* @name's length */ )
+			int len UNUSED_ARG /* @name's length */ )
 {
 	unsigned long long a = 0xcbf29ce484222325ull;
 	const unsigned long long fnv_64_prime = 0x100000001b3ull;
@@ -272,7 +272,7 @@ static __u64 fnv1_hash( const unsigned char *name /* name to hash */,
 
 /** degenerate hash function used to simplify testing of non-unique key
  * handling */
-static __u64 deg_hash( const unsigned char *name /* name to hash */, 
+static __u64 deg_hash( const unsigned char *name UNUSED_ARG /* name to hash */, 
 		       int len UNUSED_ARG /* @name's length */ )
 {
 	trace_on( TRACE_DIR, "Hashing %s\n", name );

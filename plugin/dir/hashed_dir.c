@@ -450,7 +450,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 /**
  * Function called by find_entry() to look for given name in the directory.
  */
-static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
+static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */, 
 			tree_coord *coord /* current coord */, 
 			lock_handle *lh /* current lock handle */,
 			void *entry_actor_arg /* argument to scan */ )
