@@ -53,6 +53,9 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	reiser4_set_data_blocks (s, d64tocpu (&disk_sb->next_free_block));
 	reiser4_set_free_blocks (s, (d64tocpu (&disk_sb->block_count) -
 				     d64tocpu (&disk_sb->next_free_block)));
+	/* set tail policy plugin */
+	get_super_private (s)->tplug =
+		tail_plugin_by_id (d16tocpu (&disk_sb->tail_policy));
 
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
@@ -137,6 +140,9 @@ void test_layout_release (struct super_block * s)
 	/* next free objectid */
 	cputod64 (get_oid_allocator (s)->u.oid_40.next_to_use, &disk_sb->next_free_oid);
 
+	/* */
+	
+
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("release:\n", disk_sb);
 
@@ -155,11 +161,16 @@ static void print_test_disk_sb (const char * mes,
 	info ("root %llu, tree height %u,\n"
 	      "block count %llu, next free block %llu,\n"
 	      "next free oid %llu\n"
-	      "root dir [%llu %llu]\n", d64tocpu (&disk_sb->root_block),
+	      "root dir [%llu %llu]\n"
+	      "tail policy \"%s\"\n"
+	      "node format \"%s\"\n",
+	      d64tocpu (&disk_sb->root_block),
 	      d16tocpu (&disk_sb->tree_height),
 	      d64tocpu (&disk_sb->block_count), d64tocpu (&disk_sb->next_free_block), 
 	      d64tocpu (&disk_sb->next_free_oid),
-	      d64tocpu (&disk_sb->root_locality), d64tocpu (&disk_sb->root_objectid));
+	      d64tocpu (&disk_sb->root_locality), d64tocpu (&disk_sb->root_objectid),
+	      tail_plugin_by_id (d16tocpu (&disk_sb->tail_policy))->h.label,
+	      node_plugin_by_id (d16tocpu (&disk_sb->node_plugin))->h.label);
 }
 
 
