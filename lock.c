@@ -662,6 +662,7 @@ void longterm_unlock_znode (lock_handle *handle)
 	if (znode_is_wlocked_once(node)) {
 
 		ON_DEBUG_MODIFY (WITH_DATA (node, znode_post_write (node)));
+		ON_DEBUG (node_check (node, REISER4_NODE_PANIC));
 
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
