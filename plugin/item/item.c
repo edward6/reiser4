@@ -39,7 +39,7 @@ int item_can_contain_key( const tree_coord *item /* coord of item */,
 			  const reiser4_item_data *data /* parameters of item
 							 * being created */ )
 {
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	reiser4_key min_key_in_item;
 	reiser4_key max_key_in_item;
 	
@@ -47,12 +47,12 @@ int item_can_contain_key( const tree_coord *item /* coord of item */,
 	assert( "nikita-1659", key != NULL );
 
 	iplug = item_plugin_by_coord( item );
-	if( iplug -> can_contain_key != NULL )
-		return iplug -> can_contain_key( item, key, data );
+	if( iplug -> common.can_contain_key != NULL )
+		return iplug -> common.can_contain_key( item, key, data );
 	else {
-		assert( "nikita-1681", iplug -> max_key_inside != NULL );
+		assert( "nikita-1681", iplug -> common.max_key_inside != NULL );
 		item_key_by_coord( item, &min_key_in_item );
-		iplug -> max_key_inside( item, &max_key_in_item );
+		iplug -> common.max_key_inside( item, &max_key_in_item );
 	
 		/*
 		 * can contain key if 
@@ -69,7 +69,7 @@ int item_can_contain_key( const tree_coord *item /* coord of item */,
 int are_items_mergeable( const tree_coord *i1 /* coord of first item */, 
 			 const tree_coord *i2 /* coord of second item */ )
 {
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	reiser4_key k1;
 	reiser4_key k2;
 
@@ -90,16 +90,16 @@ int are_items_mergeable( const tree_coord *i1 /* coord of first item */,
 		keycmp( item_key_by_coord( i1, &k1 ),
 			item_key_by_coord( i2, &k2 ) ) != GREATER_THAN );
 
-	if( iplug -> mergeable != NULL ) {
-		return iplug -> mergeable( i1, i2 );
-	} else if( iplug -> max_key_inside != NULL ) {
-		iplug -> max_key_inside( i1, &k1 );
+	if( iplug -> common.mergeable != NULL ) {
+		return iplug -> common.mergeable( i1, i2 );
+	} else if( iplug -> common.max_key_inside != NULL ) {
+		iplug -> common.max_key_inside( i1, &k1 );
 		item_key_by_coord( i2, &k2 );
 
 		/*
 		 * mergeable if ->max_key_inside() >= key of i2;
 		 */
-		return keycmp( iplug -> max_key_inside( i1, &k1 ), 
+		return keycmp( iplug -> common.max_key_inside( i1, &k1 ), 
 			       item_key_by_coord( i2, &k2 ) ) != LESS_THAN;
 	} else {
 		item_key_by_coord( i1, &k1 );
@@ -118,28 +118,26 @@ int item_is_extent (const tree_coord *item)
 	assert ("vs-482", coord_of_item (item));
 	return item_plugin_by_coord (item)->item_plugin_id == EXTENT_POINTER_IT;
 }
+#endif
 
 
-/* this returns true if item contains pointers to subtree of formatted nodes */
+
+/* this returns true if item is of internal type */
 int item_is_internal (const tree_coord *item)
 {
 	assert ("vs-483", coord_of_item (item));
-	return item_plugin_by_coord (item)->down_link;
+	return item_type_by_coord (item) == INTERNAL_ITEM_TYPE;
 }
 
 
 int item_is_statdata (const tree_coord *item)
 {
-	common_item_plugin *common;
-
 	assert ("vs-516", coord_of_item (item));
-	common = item_plugin_by_coord (item);
-	return (common->item_plugin_id == STATIC_STAT_DATA_ID);
+	return item_type_by_coord (item) == STAT_DATA_ITEM_TYPE;
 }
-#endif
 
 reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
-	[ STATIC_STAT_DATA_ID ] = {
+	[ 0 ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -149,36 +147,44 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.desc    = "stat-data",
 				.linkage = TS_LIST_LINK_ZERO
 			},
-			.item_plugin_id = STATIC_STAT_DATA_ID,
-			.max_key_inside = single_key,
-			.can_contain_key = NULL,
-			.mergeable      = NULL,
-			.print          = sd_print,
-			.check          = NULL,
-			.nr_units       = single_unit,
-			/* to need for ->lookup method */
-			.lookup         = NULL,
-			.init           = NULL,
-			.paste          = NULL,
-			.fast_paste     = NULL,
-			.can_shift      = NULL,
-			.copy_units     = NULL,
-			.create_hook    = NULL,
-			.kill_hook      = NULL,
-			.shift_hook     = NULL,
-			.cut_units      = NULL,
-			.kill_units     = NULL,
-			.unit_key       = NULL,
-			.estimate       = NULL,
-			.item_data_by_flow = NULL,
-			.utmost_child   = NULL,
-                        .utmost_child_dirty = NULL,
-                        .utmost_child_real_block = NULL,
-			.down_link      = NULL,
-			.has_pointer_to = NULL
-		},
+			.common = {
+				.type2                    = STAT_DATA_ITEM_TYPE,
+				.id2                      = STATIC_STAT_DATA_ID,
+				.max_key_inside          = single_key,
+				.can_contain_key         = NULL,
+				.mergeable               = NULL,
+				.print                   = sd_print,
+				.check                   = NULL,
+				.nr_units                = single_unit,
+				/* to need for ->lookup method */
+				.lookup                  = NULL,
+				.init                    = NULL,
+				.paste                   = NULL,
+				.fast_paste              = NULL,
+				.can_shift               = NULL,
+				.copy_units              = NULL,
+				.create_hook             = NULL,
+				.kill_hook               = NULL,
+				.shift_hook              = NULL,
+				.cut_units               = NULL,
+				.kill_units              = NULL,
+				.unit_key                = NULL,
+				.estimate                = NULL,
+				.item_data_by_flow       = NULL,
+				.utmost_child            = NULL,
+				.utmost_child_dirty      = NULL,
+				.utmost_child_real_block = NULL
+			},
+			.s = {
+				.sd = {
+					.init_inode = sd_load,
+					.save_len   = sd_len,
+					.save       = sd_save
+				}
+			}
+		}
 	},
-	[ SIMPLE_DIR_ENTRY_ID ] = {
+	[ 1 ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -188,36 +194,47 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.desc    = "directory entry",
 				.linkage = TS_LIST_LINK_ZERO
 			},
-			.item_plugin_id = SIMPLE_DIR_ENTRY_ID,
-			.max_key_inside = single_key,
-			.can_contain_key = NULL,
-			.mergeable      = NULL,
-			.print          = de_print,
-			.check          = NULL,
-			.nr_units       = single_unit,
-			/* to need for ->lookup method */
-			.lookup         = NULL,
-			.init           = NULL,
-			.paste          = NULL,
-			.fast_paste     = NULL,
-			.can_shift      = NULL,
-			.copy_units     = NULL,
-			.create_hook    = NULL,
-			.kill_hook      = NULL,
-			.shift_hook     = NULL,
-			.cut_units      = NULL,
-			.kill_units     = NULL,
-			.unit_key       = NULL,
-			.estimate       = NULL,
-			.item_data_by_flow = NULL,
-			.utmost_child   = NULL,
-                        .utmost_child_dirty = NULL,
-                        .utmost_child_real_block = NULL,
-			.down_link      = NULL,
-			.has_pointer_to = NULL
+			.common = {
+				.type2                    = DIR_ENTRY_ITEM_TYPE,
+				.id2                      = SIMPLE_DIR_ENTRY_ID,
+				.max_key_inside          = single_key,
+				.can_contain_key         = NULL,
+				.mergeable               = NULL,
+				.print                   = de_print,
+				.check                   = NULL,
+				.nr_units                = single_unit,
+				/* to need for ->lookup method */
+				.lookup                  = NULL,
+				.init                    = NULL,
+				.paste                   = NULL,
+				.fast_paste              = NULL,
+				.can_shift               = NULL,
+				.copy_units              = NULL,
+				.create_hook             = NULL,
+				.kill_hook               = NULL,
+				.shift_hook              = NULL,
+				.cut_units               = NULL,
+				.kill_units              = NULL,
+				.unit_key                = NULL,
+				.estimate                = NULL,
+				.item_data_by_flow       = NULL,
+				.utmost_child            = NULL,
+				.utmost_child_dirty      = NULL,
+				.utmost_child_real_block = NULL
+			},
+			.s = {
+				.dir = {
+					.extract_key       = de_extract_key,
+					.extract_name      = de_extract_name,
+					.extract_file_type = de_extract_file_type,
+					.add_entry         = de_add_entry,
+					.rem_entry         = de_rem_entry,
+					.max_name_len      = de_max_name_len
+				}
+			}
 		}
 	},
-	[ COMPOUND_DIR_ID ] = {
+	[ 2 ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -227,35 +244,46 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.desc    = "compressed directory entry",
 				.linkage = TS_LIST_LINK_ZERO
 			},
-			.item_plugin_id = COMPOUND_DIR_ID,
-			.max_key_inside = cde_max_key_inside,
-			.can_contain_key = cde_can_contain_key,
-			.mergeable      = cde_mergeable,
-			.print          = cde_print,
-			.check          = cde_check,
-			.nr_units       = cde_nr_units,
-			.lookup         = cde_lookup,
-			.init           = cde_init,
-			.paste          = cde_paste,
-			.fast_paste     = agree_to_fast_op,
-			.can_shift      = cde_can_shift,
-			.copy_units     = cde_copy_units,
-			.create_hook    = NULL,
-			.kill_hook      = NULL,
-			.shift_hook     = NULL,
-			.cut_units      = cde_cut_units,
-			.kill_units     = cde_cut_units,
-			.unit_key       = cde_unit_key,
-			.estimate       = cde_estimate,
-			.item_data_by_flow = NULL,
-			.utmost_child   = NULL,
-                        .utmost_child_dirty = NULL,
-                        .utmost_child_real_block = NULL,
-			.down_link      = NULL,
-			.has_pointer_to = NULL
+			.common = {
+				.type2                    = DIR_ENTRY_ITEM_TYPE,
+				.id2                      = COMPOUND_DIR_ID,
+				.max_key_inside          = cde_max_key_inside,
+				.can_contain_key         = cde_can_contain_key,
+				.mergeable               = cde_mergeable,
+				.print                   = cde_print,
+				.check                   = cde_check,
+				.nr_units                = cde_nr_units,
+				.lookup                  = cde_lookup,
+				.init                    = cde_init,
+				.paste                   = cde_paste,
+				.fast_paste              = agree_to_fast_op,
+				.can_shift               = cde_can_shift,
+				.copy_units              = cde_copy_units,
+				.create_hook             = NULL,
+				.kill_hook               = NULL,
+				.shift_hook              = NULL,
+				.cut_units               = cde_cut_units,
+				.kill_units              = cde_cut_units,
+				.unit_key                = cde_unit_key,
+				.estimate                = cde_estimate,
+				.item_data_by_flow       = NULL,
+				.utmost_child            = NULL,
+				.utmost_child_dirty      = NULL,
+				.utmost_child_real_block = NULL
+			},
+			.s = {
+				.dir = {
+					.extract_key       = cde_extract_key,
+					.extract_name      = cde_extract_name,
+					.extract_file_type = de_extract_file_type,
+					.add_entry         = cde_add_entry,
+					.rem_entry         = cde_rem_entry,
+					.max_name_len      = cde_max_name_len
+				}
+			}
 		}
 	},
-	[ NODE_POINTER_ID ] = {
+	[ 3 ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -265,35 +293,42 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.desc    = "internal item",
 				.linkage = TS_LIST_LINK_ZERO
 			},
-			.item_plugin_id    = NODE_POINTER_ID,
-			.max_key_inside    = NULL,
-			.can_contain_key   = NULL,
-			.mergeable         = internal_mergeable,
-			.print             = internal_print,
-			.check             = NULL,
-			.nr_units          = single_unit,
-			.lookup            = internal_lookup,
-			.init              = NULL,
-			.paste             = NULL,
-			.fast_paste        = NULL,
-			.can_shift         = NULL,
-			.copy_units        = NULL,
-			.create_hook       = internal_create_hook,
-			.kill_hook         = internal_kill_hook,
-			.shift_hook        = internal_shift_hook,
-			.cut_units         = NULL,
-			.kill_units        = NULL,
-			.unit_key          = NULL,
-			.estimate          = NULL,
-			.item_data_by_flow = NULL,
-			.utmost_child      = internal_utmost_child,
-                        .utmost_child_dirty = internal_utmost_child_dirty,
-                        .utmost_child_real_block = internal_utmost_child_real_block,
-			.down_link         = internal_down_link,
-			.has_pointer_to    = internal_has_pointer_to
+			.common = {
+				.type2                    = INTERNAL_ITEM_TYPE,
+				.id2                      = NODE_POINTER_ID,
+				.max_key_inside          = NULL,
+				.can_contain_key         = NULL,
+				.mergeable               = internal_mergeable,
+				.print                   = internal_print,
+				.check                   = NULL,
+				.nr_units                = single_unit,
+				.lookup                  = internal_lookup,
+				.init                    = NULL,
+				.paste                   = NULL,
+				.fast_paste              = NULL,
+				.can_shift               = NULL,
+				.copy_units              = NULL,
+				.create_hook             = internal_create_hook,
+				.kill_hook               = internal_kill_hook,
+				.shift_hook              = internal_shift_hook,
+				.cut_units               = NULL,
+				.kill_units              = NULL,
+				.unit_key                = NULL,
+				.estimate                = NULL,
+				.item_data_by_flow       = NULL,
+				.utmost_child            = internal_utmost_child,
+				.utmost_child_dirty      = internal_utmost_child_dirty,
+				.utmost_child_real_block = internal_utmost_child_real_block
+			},
+			.s = {
+				.internal = {
+					.down_link      = internal_down_link,
+					.has_pointer_to = internal_has_pointer_to
+				}
+			}
 		}
 	},
-	[ EXTENT_POINTER_ID ] = {
+	[ 4 ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -303,35 +338,43 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.desc    = "extent item",
 				.linkage = TS_LIST_LINK_ZERO
 			},
-			.item_plugin_id = EXTENT_POINTER_ID,
-			.max_key_inside = extent_max_key_inside,
-			.can_contain_key = extent_can_contain_key,
-			.mergeable      = extent_mergeable,
-			.print          = extent_print,
-			.check          = NULL,
-			.nr_units       = extent_nr_units,
-			.lookup         = extent_lookup,
-			.init           = NULL,
-			.paste          = extent_paste,
-			.fast_paste     = agree_to_fast_op,
-			.can_shift      = extent_can_shift,
-			.create_hook    = extent_create_hook,
-			.copy_units     = extent_copy_units,
-			.kill_hook      = extent_kill_item_hook,
-			.shift_hook     = NULL,
-			.cut_units      = extent_cut_units,
-			.kill_units     = extent_kill_units,
-			.unit_key       = extent_unit_key,
-			.estimate       = NULL,
-			.item_data_by_flow = extent_item_data_by_flow,
-			.utmost_child   = extent_utmost_child,
-                        .utmost_child_dirty   = extent_utmost_child_dirty,
-                        .utmost_child_real_block   = extent_utmost_child_real_block,
-			.down_link      = NULL,
-			.has_pointer_to = NULL
+			.common = {
+				.type2                   = ORDINARY_FILE_METADATA_TYPE,
+				.id2                     = EXTENT_POINTER_ID,
+				.max_key_inside          = extent_max_key_inside,
+				.can_contain_key         = extent_can_contain_key,
+				.mergeable               = extent_mergeable,
+				.print                   = extent_print,
+				.check                   = NULL,
+				.nr_units                = extent_nr_units,
+				.lookup                  = extent_lookup,
+				.init                    = NULL,
+				.paste                   = extent_paste,
+				.fast_paste              = agree_to_fast_op,
+				.can_shift               = extent_can_shift,
+				.create_hook             = extent_create_hook,
+				.copy_units              = extent_copy_units,
+				.kill_hook               = extent_kill_item_hook,
+				.shift_hook              = NULL,
+				.cut_units               = extent_cut_units,
+				.kill_units              = extent_kill_units,
+				.unit_key                = extent_unit_key,
+				.estimate                = NULL,
+				.item_data_by_flow       = NULL,
+				.utmost_child            = extent_utmost_child,
+				.utmost_child_dirty      = extent_utmost_child_dirty,
+				.utmost_child_real_block = extent_utmost_child_real_block
+			},
+			.s = {
+				.file = {
+					.write    = extent_write,
+					.read     = extent_read,
+					.readpage = extent_readpage
+				}
+			}
 		}
 	},
-	[ TAIL_ID ] = {
+	[ 5 ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -341,32 +384,40 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.desc    = "body (or tail?) item",
 				.linkage = TS_LIST_LINK_ZERO
 			},
-			.item_plugin_id = TAIL_ID,
-			.max_key_inside = tail_max_key_inside,
-			.can_contain_key = tail_can_contain_key,
-			.mergeable      = tail_mergeable,
-			.print          = NULL,
-			.check          = NULL,
-			.nr_units       = tail_nr_units,
-			.lookup         = tail_lookup,
-			.init           = NULL,
-			.paste          = tail_paste,
-			.fast_paste     = agree_to_fast_op,
-			.can_shift      = tail_can_shift,
-			.create_hook    = NULL,
-			.copy_units     = tail_copy_units,
-			.kill_hook      = NULL,
-			.shift_hook     = NULL,
-			.cut_units      = tail_cut_units,
-			.kill_units     = tail_cut_units,
-			.unit_key       = tail_unit_key,
-			.estimate       = NULL,
-			.item_data_by_flow = extent_item_data_by_flow,
-			.utmost_child   = NULL,
-                        .utmost_child_dirty   = NULL,
-                        .utmost_child_real_block   = NULL,
-			.down_link      = NULL,
-			.has_pointer_to = NULL
+			.common = {
+				.type2                   = ORDINARY_FILE_METADATA_TYPE,
+				.id2                     = TAIL_ID,
+				.max_key_inside          = tail_max_key_inside,
+				.can_contain_key         = tail_can_contain_key,
+				.mergeable               = tail_mergeable,
+				.print                   = NULL,
+				.check                   = NULL,
+				.nr_units                = tail_nr_units,
+				.lookup                  = tail_lookup,
+				.init                    = NULL,
+				.paste                   = tail_paste,
+				.fast_paste              = agree_to_fast_op,
+				.can_shift               = tail_can_shift,
+				.create_hook             = NULL,
+				.copy_units              = tail_copy_units,
+				.kill_hook               = NULL,
+				.shift_hook              = NULL,
+				.cut_units               = tail_cut_units,
+				.kill_units              = tail_cut_units,
+				.unit_key                = tail_unit_key,
+				.estimate                = NULL,
+				.item_data_by_flow       = NULL,
+				.utmost_child            = NULL,
+				.utmost_child_dirty      = NULL,
+				.utmost_child_real_block = NULL
+			},
+			.s = {
+				.file = {
+					.write    = tail_write,
+					.read     = tail_read,
+					.readpage = NULL
+				}
+			}
 		}
 	}
 };

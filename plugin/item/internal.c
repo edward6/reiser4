@@ -42,7 +42,7 @@ static internal_item_layout *internal_at( const tree_coord *coord /* coord of
 {
 	assert( "nikita-607", coord != NULL );
 	assert( "nikita-1650", item_plugin_by_coord( coord ) == 
-		common_item_plugin_by_id( NODE_POINTER_ID ) );
+		item_plugin_by_id( NODE_POINTER_ID ) );
 	return ( internal_item_layout * ) item_body_by_coord( coord );
 }
 

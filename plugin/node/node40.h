@@ -63,7 +63,7 @@ node_search_result node40_lookup           ( znode *node,
 int                node40_num_of_items     ( const znode *node );
 char              *node40_item_by_coord    ( const tree_coord *coord );
 int                node40_length_by_coord  ( const tree_coord *coord );
-common_item_plugin *node40_plugin_by_coord  ( const tree_coord *coord );
+item_plugin       *node40_plugin_by_coord  ( const tree_coord *coord );
 reiser4_key       *node40_key_at           ( const tree_coord *coord, 
 					     reiser4_key *key );
 size_t             node40_estimate         ( znode *node );

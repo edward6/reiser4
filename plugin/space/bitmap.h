@@ -21,5 +21,5 @@ typedef struct {
 int bitmap_init_allocator (reiser4_space_allocator *, struct super_block *);
 int bitmap_destroy_allocator (reiser4_space_allocator *, struct super_block *);
 int bitmap_alloc_blocks ( reiser4_blocknr_hint *, int needed,
-			 reiser4_block_nr *start, int *len);
-void bitmap_dealloc_blocks (reiser4_block_nr start, int len);
+			 reiser4_block_nr *start, reiser4_block_nr *len);
+void bitmap_dealloc_blocks (reiser4_block_nr start, reiser4_block_nr len);

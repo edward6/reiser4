@@ -132,10 +132,10 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		assert( "nikita-722", 
 			keyeq( unit_key_by_coord( coord, &key_found ), key ) );
 		/* check that what we really found is stat data */
-		if( item_plugin_id_by_coord( coord ) != STATIC_STAT_DATA_ID ) {
+		if( !item_is_statdata( coord ) ) {
 			error_message = "sd found, but it doesn't look like sd ";
 			print_plugin( "found", 
-				      common_item_plugin_to_plugin( 
+				      item_plugin_to_plugin( 
 					      item_plugin_by_coord( coord ) ) );
 			result = -ENOENT;
 		}
@@ -171,10 +171,10 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	if( ref -> sd == NULL ) {
 		ref -> sd = inode_sd_plugin( inode );
 	}
-	data.iplug = ref -> sd -> common;
+	data.iplug = ref -> sd;
 	data.length = ref -> sd_len;
 	if( data.length == 0 ) {
-		data.length = ref -> sd -> save_len( inode );
+		data.length = ref -> sd -> s.sd.save_len( inode );
 		ref -> sd_len = data.length;
 	}
 
@@ -229,16 +229,12 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		break;
 	case IBK_INSERT_OK:
 	{
-		sd_plugin *sd_plug;
-
 		assert( "nikita-725", /* have we really inserted stat data? */
-			item_plugin_by_coord( &coord ) -> item_plugin_id ==
-			STATIC_STAT_DATA_ID );
+			item_is_statdata( &coord ) );
 
-		sd_plug = find_sd_plugin (STATIC_STAT_DATA_ID);
-		if( sd_plug && sd_plug -> save ) {
+		if( ref -> sd && ref -> sd -> s.sd.save ) {
 			area = item_body_by_coord( &coord );
-			result = sd_plug -> save( inode, &area );
+			result = ref -> sd -> s.sd.save( inode, &area );
 			if( result == 0 )
 				/* object has stat-data now */
 				*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
@@ -288,12 +284,12 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		char *area;
 
 		assert( "nikita-728", state -> sd != NULL );
-		data.iplug = state -> sd -> common;
+		data.iplug = state -> sd;
 
 		if( state -> sd_len == 0 ) {
 			/* recalculate stat-data length */
 			state -> sd_len = 
-				state -> sd -> save_len( inode );
+				state -> sd -> s.sd.save_len( inode );
 
 		}
 		/* data.length is how much space to add to (or remove
@@ -329,7 +325,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			assert( "nikita-729", 
 				item_length_by_coord( &coord ) == state -> sd_len );
 			area = item_body_by_coord( &coord );
-			result = state -> sd -> save( inode, &area );
+			result = state -> sd -> s.sd.save( inode, &area );
 		} else {
 			key_warning( error_message, &key, result );
 		}

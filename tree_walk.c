@@ -274,7 +274,7 @@ static int renew_sibling_link (tree_coord * coord, lock_handle * handle,
 		 * unformatted nodes and return -ENAVAIL in that case. */
 		/* FIXME-NIKITA nikita: can child_znode() be used here? */
 		iplug = item_plugin_by_coord(coord);
-		if (iplug->item_plugin_id != NODE_POINTER_IT) {
+		if (!item_is_internal (coord)) {
 			if (handle->owner != NULL) {
 				longterm_unlock_znode(handle);
 			}

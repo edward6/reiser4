@@ -1403,7 +1403,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
+			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
@@ -1458,7 +1458,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/* this inserts stat data */
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
+			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 			coord_first_unit( &coord, NULL );
 
 			set_key_locality( &key, 2ull + i );
@@ -1532,7 +1532,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
+			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
@@ -1651,7 +1651,7 @@ static struct inode * create_root_dir (znode * root)
 	/* this inserts stat data */
 	data.data = ( char * ) &sd;
 	data.length = sizeof sd.base;
-	data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
+	data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 	coord_first_unit( &coord, NULL );
 	
 	key_init( &key );
@@ -1720,7 +1720,7 @@ int insert_item (struct inode *inode,
 	init_coord (&coord);
 	init_lh (&lh);
 
-	level = (item_plugin_id (data->iplug) == EXTENT_POINTER_IT) ? TWIG_LEVEL : LEAF_LEVEL;
+	level = (item_id_by_plugin (data->iplug) == EXTENT_POINTER_ID) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree_by_inode (inode), key, data, &coord, &lh,
 				level, inter_syscall_ra (inode), 0, 
 				CBK_UNIQUE);
@@ -2277,7 +2277,7 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 		item_plugin_by_coord (coord)->s.internal.down_link (coord, 0,
 								    &da);
 		preceder.blk = da;
-	} else if (item_is_extent (coord)) {
+	} else if (item_id_by_coord (coord) == EXTENT_POINTER_ID) {
 		reiser4_extent * ext;
 		ext = extent_by_coord (coord);
 		preceder.blk = extent_get_start (ext) + extent_get_width (ext);
@@ -2758,7 +2758,7 @@ void jmacd_key_no (reiser4_key *key, reiser4_key *next_key, jmacd_sd *sd, reiser
 	
 	id->data = ( char * ) sd;
 	id->length = sizeof (sd->base);
-	id->iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
+	id->iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 }
 
 void* monitor_test_handler (void* arg)
@@ -3122,7 +3122,8 @@ int real_main( int argc, char **argv )
 		root_dentry.d_inode = NULL;
 		/* initialize reiser4_super_info_data's oid plugin */
 		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].oid_allocator;
-		get_super_private( &super ) -> oid_plug -> init_oid_allocator( get_oid_allocator( &super ) );
+		get_super_private( &super ) -> oid_plug ->
+			init_oid_allocator( get_oid_allocator( &super ), 0ull, 0ull );
 
 		s = &super;
 	}

@@ -101,11 +101,12 @@ int is_reiser4_inode( const struct inode *inode /* inode queried */ )
 int reiser4_max_filename_len( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-287", is_reiser4_inode( inode ) );
-	assert( "nikita-1710", 
-		item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_plugin_id == 
-		SIMPLE_DIR_ENTRY_IT );
-	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
-		s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
+	assert( "nikita-1710", inode_dir_item_plugin( inode ) );
+	if( inode_dir_item_plugin( inode ) -> s.dir.max_name_len )
+		return inode_dir_item_plugin( inode ) -> 
+			s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
+	else
+		return 255;
 }
 
 /**
@@ -392,6 +393,18 @@ hash_plugin *inode_hash_plugin( const struct inode *inode )
 {
 	assert( "nikita-1885", inode != NULL );
 	return reiser4_inode_data( inode ) -> hash;
+}
+
+item_plugin *inode_sd_plugin( const struct inode *inode )
+{
+	assert( "vs-534", inode != NULL );
+	return reiser4_inode_data( inode ) -> sd;
+}
+
+item_plugin *inode_dir_item_plugin( const struct inode *inode )
+{
+	assert( "vs-534", inode != NULL );
+	return reiser4_inode_data( inode ) -> dir_item;
 }
 
 /** Debugging aid: print information about inode. */

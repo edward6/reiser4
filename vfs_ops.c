@@ -817,13 +817,15 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 	assert( "nikita-1368", coord != NULL );
 	assert( "nikita-1369", arg != NULL );
 	
-	if( item_plugin_id_by_coord( coord ) != SIMPLE_DIR_ENTRY_IT ) {
-		return 0;
-	}
 
 	args = arg;
 	inode = args -> dir -> f_dentry -> d_inode;
 	assert( "nikita-1370", inode != NULL );
+
+	if( item_id_by_coord( coord ) !=
+	    item_id_by_plugin( inode_dir_item_plugin( inode ) ) )
+		return 0;
+
 	fplug = inode_file_plugin( inode );
 	if( ! fplug -> owns_item( inode, coord ) ) {
 		return 0;

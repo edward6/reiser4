@@ -86,7 +86,7 @@ int hashed_owns_item( const struct inode *inode /* object to check against */,
 	assert( "nikita-1335", inode != NULL );
 	assert( "nikita-1334", coord != NULL );
 
-	if( item_plugin_id_by_coord( coord ) == SIMPLE_DIR_ENTRY_ID )
+	if( item_id_by_coord( coord ) == SIMPLE_DIR_ENTRY_ID )
 		/*
 		 * FIXME-NIKITA move this into kassign.c
 		 */
@@ -206,17 +206,8 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 			     ZNODE_READ_LOCK, &entry );
 	if( result == 0 ) {
 		/* entry was found, extract object key from it. */
-		switch( item_plugin_by_coord( &coord ) -> item_plugin_id ) {
-		case SIMPLE_DIR_ENTRY_ID:
-			result = simple_dir_plugin.simple_extract_key( &coord, &entry.key );
-			break;
-		case COMPOUND_DIR_ID:
-			result = compound_dir_plugin.compound_extract_key( &coord, &entry.key );
-			break;
-		default:
-			result = -EINVAL;
-			break;
-		}
+		result = item_plugin_by_coord( &coord ) ->
+			s.dir.extract_key( &coord, &entry.key );
 	}
 	done_lh( &lh );
 	done_coord( &coord );
@@ -283,19 +274,10 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		 * add new entry. Just pass control to the directory
 		 * item plugin.
 		 */
-		switch( reiser4_inode_data( object ) -> dir_item_plugin_id) {
-		case SIMPLE_DIR_ENTRY_ID:
-			result = simple_dir_plugin.simple_add_entry( object, 
-								     &coord, &lh, where, entry );
-			break;
-		case COMPOUND_DIR_ID:
-			result = compound_dir_plugin.compound_add_entry( object, 
-									 &coord, &lh, where, entry );
-			break;
-		default:
-			result = -EINVAL;
-			break;
-		}
+		assert( "nikita-1709", inode_dir_item_plugin( object ) );
+		result = inode_dir_item_plugin( object ) ->
+			s.dir.add_entry( object, 
+					 &coord, &lh, where, entry );
 	} else if( result == 0 )
 		result = -EEXIST;
 	done_lh( &lh );
@@ -333,19 +315,9 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 * remove entry. Just pass control to the directory item
 		 * plugin.
 		 */
-		switch( reiser4_inode_data( object ) -> dir_item_plugin_id) {
-		case SIMPLE_DIR_ENTRY_ID:
-			result = simple_dir_plugin.simple_rem_entry( object, 
-								     &coord, &lh, entry );
-			break;
-		case COMPOUND_DIR_ID:
-			result = compound_dir_plugin.compound_rem_entry( object, 
-									 &coord, &lh, entry );
-			break;
-		default:
-			result = -EINVAL;
-			break;
-		}
+		assert( "vs-542", inode_dir_item_plugin( object ) );
+		result = inode_dir_item_plugin( object ) ->
+			s.dir.rem_entry( object, &coord, &lh, entry );
 	}
 	done_lh( &lh );
 	done_coord( &coord );
@@ -370,7 +342,7 @@ typedef struct entry_actor_args {
 
 	tree_coord          last_coord;
 	lock_handle last_lh;
-
+	const struct inode *inode;
 } entry_actor_args;
 
 /**
@@ -423,6 +395,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		arg.max_non_uniq = max_hash_collisions( dir );
 #endif
 		arg.mode = mode;
+		arg.inode = dir;
 		init_coord( &arg.last_coord );
 		init_lh( &arg.last_lh );
 
@@ -461,9 +434,8 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 			void *entry_actor_arg /* argument to scan */ )
 {
 	reiser4_key         unit_key;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	entry_actor_args   *args;
-	int ( *extract_name )(); /**/
 
 	assert( "nikita-1131", tree != NULL );
 	assert( "nikita-1132", coord != NULL );
@@ -490,16 +462,18 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 		args -> last_coord.between = AFTER_UNIT;
 		return 0;
 	}
-	/* get common item plugin of found item */
 	iplug = item_plugin_by_coord( coord );
 	if( iplug == NULL ) {
 		warning( "nikita-1135", "Cannot get item plugin" );
 		print_coord( "coord", coord, 1 );
 		return -EIO;
-	} else if( ( item_plugin_id_by_coord( coord ) != SIMPLE_DIR_ENTRY_ID ) ) {
+	} else if( item_id_by_coord( coord ) !=
+		   item_id_by_plugin( inode_dir_item_plugin( args -> inode ) ) ) {
+		/* item id of current item does not match to id of items a
+		 * directory is built of */
 		warning( "nikita-1136", "Wrong item plugin" );
 		print_coord( "coord", coord, 1 );
-		print_plugin( "plugin", common_item_plugin_to_plugin (iplug) );
+		print_plugin( "plugin", item_plugin_to_plugin (iplug) );
 		return -EIO;
 	}
 	assert( "nikita-1137", iplug -> s.dir.extract_name );

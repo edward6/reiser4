@@ -19,7 +19,7 @@
 
 /* plugin->u.space_allocator.alloc_blocks */
 int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
-		       reiser4_block_nr * start, int * len)
+		       reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	double p;
 	static reiser4_block_nr min_free = 10000;
@@ -59,7 +59,7 @@ int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
 
 
 void test_dealloc_blocks (reiser4_block_nr start UNUSED_ARG,
-			  int len UNUSED_ARG)
+			  reiser4_block_nr len UNUSED_ARG)
 {
 	return;
 }

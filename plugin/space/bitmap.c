@@ -462,7 +462,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 
 /* plugin->u.space_allocator.alloc_blocks */
 int bitmap_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
-			 reiser4_block_nr * start, int * len)
+			 reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	struct super_block      * super = get_current_context()->super;
 
@@ -507,7 +507,8 @@ int bitmap_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
 }
 
 /* plugin->u.space_allocator.dealloc_block */
-void bitmap_dealloc_blocks (reiser4_block_nr start UNUSED_ARG, int len UNUSED_ARG)
+void bitmap_dealloc_blocks (reiser4_block_nr start UNUSED_ARG,
+			    reiser4_block_nr len UNUSED_ARG)
 {
 	struct super_block      * super = get_current_context()->super;
 	reiser4_super_info_data * info_data = get_current_super_private();

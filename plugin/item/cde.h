@@ -30,13 +30,18 @@ typedef struct cde_entry_data {
 	cde_entry *entry;
 } cde_entry_data;
 
+/* plugin->item.common.* */
+reiser4_key  *cde_max_key_inside( const tree_coord *coord, 
+				  reiser4_key *result );
+int           cde_can_contain_key( const tree_coord *coord, const reiser4_key *key,
+				   const reiser4_item_data * );
 int           cde_mergeable  ( const tree_coord *p1, const tree_coord *p2 );
 unsigned      cde_nr_units   ( const tree_coord *coord );
 reiser4_key  *cde_unit_key   ( const tree_coord *coord, reiser4_key *key );
 int           cde_estimate   ( const tree_coord *coord, 
 			       const reiser4_item_data *data );
 void          cde_print      ( const char *prefix, tree_coord *coord );
-int           cde_init       ( tree_coord *coord );
+int           cde_init       ( tree_coord *coord, reiser4_item_data *data );
 lookup_result cde_lookup     ( const reiser4_key *key, lookup_bias bias, 
 			       tree_coord *coord );
 int           cde_paste      ( tree_coord *coord, reiser4_item_data *data, 
@@ -55,6 +60,7 @@ int           cde_cut_units  ( tree_coord *coord, unsigned *from, unsigned *to,
 void          cde_print      ( const char *prefix, tree_coord *coord );
 int           cde_check      ( tree_coord *coord, const char **error );
 
+/* plugin->u.item.s.dir.* */
 int   cde_extract_key  ( const tree_coord *coord, reiser4_key *key );
 char *cde_extract_name ( const tree_coord *coord );
 int   cde_add_entry    ( const struct inode *dir, tree_coord *coord, 
@@ -64,35 +70,6 @@ int   cde_rem_entry    ( const struct inode *dir, tree_coord *coord,
 			 lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   cde_max_name_len ( int block_size );
 
-reiser4_key  *cde_max_key_inside( const tree_coord *coord, 
-				  reiser4_key *result );
-int   cde_can_contain_key( const tree_coord *coord, const reiser4_key *key,
-			   const reiser4_item_data * );
-
-
-typedef struct compound_dir_item_plugin {
-	/**
-	 * extract stat-data key from directory entry at @coord and place it
-	 * into @key.
-	 */
-	int ( *compound_file_key_by_entry )( const tree_coord *coord, reiser4_key *key );
-	/**
-	 * extract name from directory entry at @coord and return it
-	 */
-	char *( *compound_extract_name )( const tree_coord *coord );
-	/**
-	 * extract file type (DT_* stuff) from directory entry at @coord and
-	 * return it
-	 */
-	unsigned ( *compound_extract_file_type )( const tree_coord *coord );
-	int ( *compound_add_entry )( const struct inode *dir,
-				     tree_coord *coord, lock_handle *lh,
-				     const struct dentry *name, reiser4_dir_entry_desc *entry );
-	int ( *compound_rem_entry )( const struct inode *dir,
-				     tree_coord *coord, lock_handle *lh,
-				     reiser4_dir_entry_desc *entry );
-	int ( *compound_max_name_len )( int block_size );
-} compound_dir_item_plugin;
 
 
 /* __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ */

@@ -41,7 +41,7 @@ extern void reiser4_dealloc_block (jnode *node);
 int blocknr_is_fake(const reiser4_block_nr * da);
 void get_next_fake_blocknr (reiser4_block_nr *bnr);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
-				 reiser4_block_nr * start, int * len);
+				 reiser4_block_nr * start, reiser4_block_nr * len);
 
 
 

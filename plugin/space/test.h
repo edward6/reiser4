@@ -3,5 +3,5 @@
  */
 
 int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
-		       reiser4_block_nr * start, int * len);
-void test_dealloc_blocks (reiser4_block_nr start, int len);
+		       reiser4_block_nr * start, reiser4_block_nr * len);
+void test_dealloc_blocks (reiser4_block_nr start, reiser4_block_nr len);

@@ -176,7 +176,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	int left;
 	int right;
 	int found;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	item_header_40 *bstop;
 	cmp_t order;
 
@@ -306,7 +306,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		}
 	}
 	/* left <= key, ok */
-	iplug = common_item_plugin_by_disk_id( current_tree, &bstop -> plugin_id );
+	iplug = item_plugin_by_disk_id( current_tree, &bstop -> plugin_id );
 
 	if( iplug == NULL ) {
 		warning( "nikita-588", "Unknown plugin %i",
@@ -344,8 +344,8 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		}
 	}
 #endif
-	if( iplug -> lookup != NULL ) {
-		return iplug -> lookup( key, bias, coord );
+	if( iplug -> common.lookup != NULL ) {
+		return iplug -> common.lookup( key, bias, coord );
 	} else {
 		assert( "nikita-1260", order == LESS_THAN );
 		coord -> between = AFTER_UNIT;
@@ -404,7 +404,7 @@ int node40_length_by_coord (const tree_coord * coord)
 /* plugin->u.node.plugin_by_coord
    look for description of this method in plugin/node/node.h
 */
-common_item_plugin *node40_plugin_by_coord( const tree_coord *coord )
+item_plugin *node40_plugin_by_coord( const tree_coord *coord )
 {
 	item_header_40 *ih;
 
@@ -414,7 +414,7 @@ common_item_plugin *node40_plugin_by_coord( const tree_coord *coord )
 	assert( "vs-259", coord_of_item( coord ) );
 
 	ih = node40_ih_at_coord( coord );
-	return common_item_plugin_by_disk_id( current_tree, &ih->plugin_id);
+	return item_plugin_by_disk_id( current_tree, &ih->plugin_id);
 }
 
 
@@ -533,8 +533,8 @@ int node40_check( const znode *node /* node to check */,
 			prev = unit_key;
 		}
 		coord.unit_pos =  0;
-		if( item_plugin_by_coord( &coord ) -> check &&
-		    item_plugin_by_coord( &coord ) -> check( &coord, error ) )
+		if( item_plugin_by_coord( &coord ) -> common.check &&
+		    item_plugin_by_coord( &coord ) -> common.check( &coord, error ) )
 			return -1;
 		if( i ) {
 			tree_coord prev_coord;
@@ -778,7 +778,7 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 	ih = node40_ih_at_coord (target);
 	xmemcpy (&ih->key, key, sizeof (reiser4_key));
 	ih_40_set_offset (ih, offset);
-	save_plugin_id (common_item_plugin_to_plugin (data->iplug), &ih->plugin_id);
+	save_plugin_id (item_plugin_to_plugin (data->iplug), &ih->plugin_id);
 
 	/* update node header */
 	nh_40_set_free_space (nh, nh_40_get_free_space (nh) -
@@ -792,12 +792,12 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 	target->between = AT_UNIT;
 
 	/* initialise item */
-	if (data->iplug->init != NULL) {
-		data->iplug->init (target);
+	if (data->iplug->common.init != NULL) {
+		data->iplug->common.init (target, data);
 	}
 	/* copy item body */
-	if (data->iplug->paste != NULL) {
-		data->iplug->paste (target, data, todo);
+	if (data->iplug->common.paste != NULL) {
+		data->iplug->common.paste (target, data, todo);
 	}
 	else if (data->data != NULL) {
 		xmemcpy (zdata (target->node) + offset, data->data, 
@@ -809,9 +809,9 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 		prepare_for_update (NULL, target->node, todo);
 	}
 
-	if (item_plugin_by_coord (target) -> create_hook != NULL) {
-		item_plugin_by_coord (target) -> create_hook (target,
-							      data->arg);
+	if (item_plugin_by_coord (target) -> common.create_hook != NULL) {
+		item_plugin_by_coord (target) -> common.create_hook (target,
+								     data->arg);
 	}
 
 	node_check (target->node, REISER4_NODE_PANIC);
@@ -843,7 +843,7 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 			   reiser4_key * smallest_removed)
 {
 	unsigned cut_size;
-	common_item_plugin * iplug;
+	item_plugin * iplug;
 	int (*cut_f) (tree_coord *, unsigned *, unsigned *,
 		       const reiser4_key *, const reiser4_key *,
 		       reiser4_key *);
@@ -851,9 +851,9 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 
 	iplug = item_plugin_by_coord (coord);
 	if (cut) {
-		cut_f = iplug->cut_units;
+		cut_f = iplug->common.cut_units;
 	} else {
-		cut_f = iplug->kill_units;
+		cut_f = iplug->common.kill_units;
 	}
 
 	if (cut_f) {
@@ -870,8 +870,8 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 		cut_size = item_length_by_coord (coord);
 		if (smallest_removed)
 			item_key_by_coord (coord, smallest_removed);
-		if (!cut && iplug->kill_hook)
-			iplug->kill_hook (coord, 0, 1);
+		if (!cut && iplug->common.kill_hook)
+			iplug->common.kill_hook (coord, 0, 1);
 	}
 
 	return cut_size;
@@ -983,15 +983,15 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			 * and @to call special kill method
 			 */
 			tree_coord tmp;
-			common_item_plugin * iplug;
+			item_plugin * iplug;
 			
 			tmp.node = node;
 			for (i = 0; i < removed_entirely; i ++) {
 				tmp.item_pos = first_removed + i;
 
 				iplug = item_plugin_by_coord (&tmp);
-				if (iplug->kill_hook) {
-					iplug->kill_hook (&tmp, 0, coord_num_units (&tmp));
+				if (iplug->common.kill_hook) {
+					iplug->common.kill_hook (&tmp, 0, coord_num_units (&tmp));
 				}
 			}
 		}
@@ -1194,7 +1194,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 	unsigned stop_item; /* item which estimating should not consider */
 	unsigned want; /* number of units of item we want shifted */
 	tree_coord source; /* item being estimated */
-	common_item_plugin * iplug;
+	item_plugin * iplug;
 
 
 	/* shifting to left/right starts from first/last units of
@@ -1233,10 +1233,10 @@ static void node40_estimate_shift (struct shift_params * shift)
 			/* how many units of @source we can merge to item
 			   @to */
 			iplug = item_plugin_by_coord (&source);
-			if (iplug->can_shift != NULL)
-				shift->merging_units = iplug->can_shift (target_free_space, &source,
-									 shift->target, shift->pend, &size,
-									 want);
+			if (iplug->common.can_shift != NULL)
+				shift->merging_units = iplug->common.can_shift (target_free_space, &source,
+										shift->target, shift->pend, &size,
+										want);
 			else {
 				shift->merging_units = 0;
 				size = 0;
@@ -1305,10 +1305,10 @@ static void node40_estimate_shift (struct shift_params * shift)
 		if (target_free_space >= (unsigned) item_creation_overhead (&source)) {
 			target_free_space -= item_creation_overhead (&source);
 			iplug = item_plugin_by_coord (&source);
-			if (iplug->can_shift) {
-				shift->part_units = iplug->can_shift (target_free_space, &source,
-								      0/*target*/, shift->pend, &size,
-								      want);
+			if (iplug->common.can_shift) {
+				shift->part_units = iplug->common.can_shift (target_free_space, &source,
+									     0/*target*/, shift->pend, &size,
+									     want);
 			} else {
 				target_free_space = 0;
 				shift->part_units = 0;
@@ -1342,17 +1342,15 @@ static void copy_units (tree_coord * target, tree_coord * source,
 			unsigned from, unsigned count, 
 			shift_direction dir, unsigned free_space)
 {
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 
 	assert ("nikita-1463", target != NULL);
 	assert ("nikita-1464", source != NULL);
 	assert ("nikita-1465", from + count <= coord_num_units (source));
-	assert ("vs-393", (item_plugin_by_coord (target)->item_plugin_id ==
-			   item_plugin_by_coord (source)->item_plugin_id));
 
 	iplug = item_plugin_by_coord (source);
 	assert ("nikita-1468", iplug == item_plugin_by_coord (target));
-	iplug -> copy_units (target, source, from, count, dir, free_space);
+	iplug -> common.copy_units (target, source, from, count, dir, free_space);
 
 	if (dir == SHIFT_RIGHT) {
 		/*
@@ -1460,8 +1458,8 @@ void node40_copy (struct shift_params * shift)
 			to.item_pos = node_num_items (to.node) - 1;
 			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
 			ih_40_set_offset (to_ih, nh_40_get_free_space_start (nh) - shift->part_bytes);
-			if (item_plugin_by_coord (&to)->init)
-				item_plugin_by_coord (&to)->init(&to);
+			if (item_plugin_by_coord (&to)->common.init)
+				item_plugin_by_coord (&to)->common.init(&to, 0);
 			copy_units (&to, &from, 0, shift->part_units, 
 				    SHIFT_LEFT, shift->part_bytes);
 		}
@@ -1546,8 +1544,8 @@ void node40_copy (struct shift_params * shift)
 			/* copy item header of partially copied item */
 			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
 			ih_40_set_offset (to_ih, sizeof (node_header_40));
-			if (item_plugin_by_coord (&to)->init)
-				item_plugin_by_coord (&to)->init(&to);
+			if (item_plugin_by_coord (&to)->common.init)
+				item_plugin_by_coord (&to)->common.init(&to, 0);
 			copy_units (&to, &from, 
 				    last_unit_pos (&from) - shift->part_units + 1,
 				    shift->part_units,
@@ -1787,7 +1785,7 @@ static int call_shift_hooks (struct shift_params * shift)
 {
 	unsigned i, shifted;
 	tree_coord coord;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 
 
 	assert ("vs-275", !node_is_empty (shift->target));
@@ -1819,9 +1817,9 @@ static int call_shift_hooks (struct shift_params * shift)
 				from = 0;
 			}
 
-			if (iplug->shift_hook) {
-				iplug->shift_hook (&coord, from, count,
-						   shift->wish_stop.node);
+			if (iplug->common.shift_hook) {
+				iplug->common.shift_hook (&coord, from, count,
+							  shift->wish_stop.node);
 			}
 			coord.item_pos -= shift->pend;
 		}
@@ -1847,9 +1845,9 @@ static int call_shift_hooks (struct shift_params * shift)
 				from = 0;
 			}
 
-			if (iplug->shift_hook) {
-				iplug->shift_hook (&coord, from, count,
-						   shift->wish_stop.node);
+			if (iplug->common.shift_hook) {
+				iplug->common.shift_hook (&coord, from, count,
+							  shift->wish_stop.node);
 			}
 			coord.item_pos -= shift->pend;
 		}

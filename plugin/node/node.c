@@ -104,7 +104,7 @@ void print_znode_content( const znode *node /* node to print */,
 {
 	unsigned i;
 	tree_coord coord;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	reiser4_key key;
 
 
@@ -135,7 +135,7 @@ void print_znode_content( const znode *node /* node to print */,
 		
 		iplug = item_plugin_by_coord( &coord );
 		if( flags & REISER4_NODE_PRINT_PLUGINS ) {
-			print_plugin( "\titem plugin", common_item_plugin_to_plugin (iplug) ), indent_znode (node);
+			print_plugin( "\titem plugin", item_plugin_to_plugin (iplug) ), indent_znode (node);
 		}
 		if( flags & REISER4_NODE_PRINT_KEYS ) {
 			item_key_by_coord( &coord, &key );
@@ -143,11 +143,11 @@ void print_znode_content( const znode *node /* node to print */,
 		}
 
 		if( ( flags & REISER4_NODE_PRINT_ITEMS ) &&
-		    ( iplug -> print ) ) {
+		    ( iplug -> common.print ) ) {
 			indent_znode (node);
 			info ("\tlength %d\n", item_length_by_coord( &coord ) );
 			indent_znode (node); 
-			iplug -> print( "\titem", &coord );
+			iplug -> common.print( "\titem", &coord );
 		}
 		if( flags & REISER4_NODE_PRINT_DATA ) {
 			int   j;
