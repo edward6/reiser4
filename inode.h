@@ -9,7 +9,15 @@
 #if !defined( __REISER4_INODE_H__ )
 #define __REISER4_INODE_H__
 
-/** reiser4-specific part of inode */
+/** 
+ * reiser4 inode.
+ *
+ * FIXME-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
+ * be of the same size. File-system allocates inodes by itself through
+ * s_op->allocate_inode() method. So, it is possible to adjust size of inode
+ * at the time of its creation.
+ *
+ */
 typedef struct reiser4_inode_info {
 	/** plugin, associated with inode and its state, including
 	     dependant plugins: 
@@ -19,7 +27,7 @@ typedef struct reiser4_inode_info {
 	     hash for directories */
 	reiser4_plugin_ref plugin;
 	/**
-	 * generic fields
+	 * generic VFS fields
 	 */
 	struct inode       vfs_inode;
 } reiser4_inode_info;
