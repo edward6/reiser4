@@ -60,12 +60,12 @@ static int    capture_copy                    (jnode      *node,
 static void   uncapture_block                 (txn_atom   *atom,
 					       jnode      *node);
 
+static void   invalidate_clean_list           (txn_atom * atom);
+
 
 /* Local debugging */
 void          print_atom                      (const char *prefix,
 					       txn_atom   *atom);
-
-#define JNODE_ID(x) ((unsigned long long) (x))
 
 /* Audited by: umka (2002.06.13) */
 static inline unsigned jnode_real_level (jnode *node)
@@ -418,7 +418,7 @@ atom_get_locked_by_jnode (jnode *node)
  * neighbors. */
 /* Audited by: umka (2002.06.13) */
 int
-txn_same_atom_dirty (jnode *node, jnode *check)
+txn_same_atom_dirty (jnode *node, jnode *check, int also_allocated)
 {
 	int compat;
 	txn_atom *atom;
@@ -429,15 +429,21 @@ txn_same_atom_dirty (jnode *node, jnode *check)
 	/* Need a lock on CHECK to get its atom and to check various state
 	 * bits.  Don't need a lock on NODE once we get the atom lock. */
 	spin_lock_jnode (check);
-	
+
 	atom = atom_get_locked_by_jnode (check);
 
 	if (atom == NULL) {
 		compat = 0;
 	} else {
-		compat = ((jnode_is_unformatted (check) ? 1 : znode_is_connected (JZNODE (check))) &&
-			  jnode_is_dirty (check) &&
-			  (node->atom == atom));
+		compat = (node->atom == atom && jnode_is_dirty (check));
+
+		if (compat && jnode_is_formatted (check)) {
+			compat &= znode_is_connected (JZNODE (check));
+		}
+
+		if (compat && also_allocated) {
+			compat &= jnode_is_allocated (check);
+		}
 
 		spin_unlock_atom (atom);
 	}
@@ -592,6 +598,7 @@ atom_try_commit_locked (txn_atom *atom)
 	int level;
 	int ret;
 	jnode *scan;
+	reiser4_super_info_data * private = get_current_super_private();
 
 	assert ("umka-190", atom != NULL);	
 	assert ("jmacd-150", atom->txnh_count == 1);
@@ -631,6 +638,36 @@ atom_try_commit_locked (txn_atom *atom)
 
 	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
 	
+	if (REISER4_DEBUG) {
+		int level;
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level ++) {
+			assert ("zam-542", capture_list_empty(&atom->dirty_nodes[level]));
+		}
+	}
+
+	/* We unlock atom to allow journal writer and others (block allocator
+	 * hooks) to do things which may schedule, like memory allocation or
+	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
+	 * can't be fused */
+	spin_unlock_atom (atom);
+
+	/* isolate critical code path which should be executed by only one thread using
+	 * tmgr semaphore */
+	down (&private->tmgr.commit_semaphore);
+
+	pre_commit_hook ();
+
+#if 0	/* NOT YET TESTED */
+	/* write transaction log records in a manner which allows further
+	 * transaction recovery after a system crash */
+	reiser4_write_logs ();
+#endif
+
+	up (&private->tmgr.commit_semaphore);
+
+	/* Now close this txnh's reference to the atom. */
+	spin_lock_atom (atom);
+
 	wakeup_atom_waitfor_list (atom);
 	wakeup_atom_waiting_list (atom);
 
@@ -641,7 +678,7 @@ atom_try_commit_locked (txn_atom *atom)
 	assert ("jmacd-1070", atom->refcount > 0);
 	assert ("jmacd-1071", spin_atom_is_locked (atom));
 
-	trace_on (TRACE_TXN, "commit atom %u refcount %d\n", atom->atom_id, atom->refcount);
+	trace_on (TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atom->refcount);
 	
 	return 0;
 }
@@ -723,6 +760,7 @@ txn_mgr_force_commit (struct super_block *super)
 	return 0;
 }
 
+/* FIXME: comment */
 static void invalidate_clean_list (txn_atom * atom)
 {
 
@@ -736,21 +774,6 @@ static void invalidate_clean_list (txn_atom * atom)
 		
 		uncapture_block (atom, scan);
 	}
-}
-
-/**
- * start commit and end_commit isolate critical code path which should be
- * executed by only one thread.. */
-void start_commit (void)
-{
-	reiser4_super_info_data * private = get_current_super_private();
-	down (&private->tmgr.commit_semaphore);
-}
-
-void end_commit (void)
-{
-	reiser4_super_info_data * private = get_current_super_private();
-	up (&private->tmgr.commit_semaphore);
 }
 
 /* Called to commit a transaction handle.  This decrements the atom's number of open
@@ -773,7 +796,7 @@ commit_txnh (txn_handle *txnh)
 	 * we don't need the txnh lock while trying to commit. */
 	spin_unlock_txnh (txnh);
 
-	trace_on (TRACE_TXN, "commit_txnh: failed %u; txnh_count %u; should_commit %u\n", failed, atom->txnh_count, atom_should_commit (atom));
+	trace_on (TRACE_TXN, "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n", atom->atom_id, failed, atom->txnh_count, atom_should_commit (atom));
 
 	/* Only the atom is still locked. */
 	if (! failed && (atom->txnh_count == 1) && atom_should_commit (atom)) {
@@ -791,36 +814,6 @@ commit_txnh (txn_handle *txnh)
 			}
 			goto again;
 		}
-
-		assert ("jmacd-1027", spin_atom_is_locked (atom));
-
-		/* We unlock atom to allow journal writer and others (block allocator
-		 * hooks) to do things which may schedule, like memory allocation or
-		 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
-		 * can't be fused */
-		spin_unlock_atom (atom);
-
-		/* code between start_commit and end_commit() is protected from
-		 * parallel execution. */
-		start_commit();
-
-		pre_commit_hook ();
-
-#if 0	/* NOT YET TESTED */
-		/* write transaction log records in a manner which allows further
-		 * transaction recovery after a system crash */
-		reiser4_write_logs ();
-#endif
-
-		end_commit();
-
-		/* Now close this txnh's reference to the atom. */
-		spin_lock_atom (atom);
-
-		invalidate_clean_list(atom);
-		assert ("jmacd-1062", atom->capture_count == 0);
-
-	}
 
 	spin_lock_txnh (txnh);
 
@@ -1287,7 +1280,7 @@ capture_assign_block_nolock (txn_atom *atom,
 	jref (node);
 	ON_DEBUG (++ lock_counters() -> t_refs);
 
-	/*trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);*/
+	trace_on (TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
 
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
@@ -1921,7 +1914,7 @@ uncapture_block (txn_atom *atom,
 	assert ("jmacd-1023", spin_atom_is_locked (atom));
 	assert ("nikita-2118", !jnode_check_dirty (node));
 
-	/*trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);*/
+	trace_on (TRACE_TXN, "uncapture %p from atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 
 	spin_lock_jnode (node);
 
@@ -1935,8 +1928,6 @@ uncapture_block (txn_atom *atom,
 
 	spin_unlock_jnode (node);
 
-	/* FIXME: It is theorized that this jput() should detach the jnode and its
-	 * unformatted node.  Currently no detachment happens. */
 	jput (node);
 	ON_DEBUG (-- lock_counters() -> t_refs);
 }
