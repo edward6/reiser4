@@ -391,7 +391,7 @@ txn_atom * get_current_atom_locked (void)
  * break the lock-ordering cycle.  Assumes the jnode is already locked, and
  * returns NULL if atom is not set. */
 /* Audited by: umka (2002.06.13) */
-static txn_atom*
+txn_atom*
 atom_get_locked_by_jnode (jnode *node)
 {
 	txn_atom *atom;
@@ -1428,8 +1428,9 @@ void jnode_set_dirty( jnode *node )
 		atom = atom_get_locked_by_jnode (node);
 
 		/* Sometimes a node is set dirty before being captured -- the case for new jnodes.  In that case the
-		 * jnode will be added to the appropriate list in capture_assign_block_nolock. */
-		if (atom != NULL) {
+		 * jnode will be added to the appropriate list in capture_assign_block_nolock. Another reason not to
+		 * re-link jnode is that jnode is on a flush queue (see flush.c for details) */
+		if (atom != NULL && !JF_ISSET(node, ZNODE_FLUSH_QUEUED)) {
 
 			int level = jnode_real_level (node);
 
@@ -1491,19 +1492,22 @@ void jnode_set_clean( jnode *node )
 		            jnode_is_formatted (node) ? "" : "un", node);*/
 	}
 
-	/* FIXME-VS: remove jnode from capture list even when jnode is not
-	 * dirty.  JMACD says: Is it wrong? */
-	atom = atom_get_locked_by_jnode (node);
+	/* do not steal nodes from flush queue */
+	if (JF_ISSET(node, ZNODE_FLUSH_QUEUED)) {
+		/* FIXME-VS: remove jnode from capture list even when jnode is not
+		 * dirty.  JMACD says: Is it wrong? */
+		atom = atom_get_locked_by_jnode (node);
 	
-	capture_list_remove (node);
+		capture_list_remove (node);
 
-	/* Now it's possible that atom may be NULL, in case this was called
-	 * from invalidate page */
-	if (atom != NULL) {
+		/* Now it's possible that atom may be NULL, in case this was called
+		 * from invalidate page */
+		if (atom != NULL) {
 
-		capture_list_push_front (& atom->clean_nodes, node);
-	
-		spin_unlock_atom (atom);
+			capture_list_push_front (& atom->clean_nodes, node);
+
+			spin_unlock_atom (atom);
+		}
 	}
 
 	spin_unlock_jnode (node);
