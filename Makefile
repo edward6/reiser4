@@ -8,7 +8,6 @@ EXTRA_CFLAGS += \
 	       -Wpointer-arith \
            -Wformat \
 	       -Wundef \
-	       -Wlarger-than-16384 \
            -Wunused \
 	       -Wcomment \
            \
@@ -16,6 +15,7 @@ EXTRA_CFLAGS += \
 	       -Wno-write-strings \
 	       -Wno-sign-compare
 
+#	       -Wlarger-than-16384 \
 #	       -Winline \
 
 ifeq ($(CONFIG_REISER4_NOOPT),y)
