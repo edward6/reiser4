@@ -11,8 +11,8 @@
 
 #include <linux/mount.h>
 
-#define my_mntget(mess,s)  {mntget(s); printk ("mntget  %d,  %s\n",(s)->mnt_count, mess);}
-#define my_dget(mess,s)    {dget(s)  ; printk ("dget    %d,  %s\n",(s)->d_count, mess);}
+#define my_mntget(mess,s)  mntget(s); printk ("mntget  %d,  %s\n",(s)->mnt_count, mess);
+#define my_dget(mess,s)    dget(s)  ; printk ("dget    %d,  %s\n",(s)->d_count, mess);
 
 #define path4_release( pointer )  { dput( (pointer).dentry ); \
                                      mntput((pointer).mnt);   \
@@ -1078,7 +1078,6 @@ static expr_v4_t * allocate_expr_op2(struct reiser4_syscall_w_space * ws /* work
 	ret->h.exp_code = op;
 	ret->op2.op_l = e1;
 	ret->op2.op_r = e2;
-	printk ("allocate new expr op2: e1=%p e2=%p ret=%p op=%d", e1, e2, ret, op);
 	return ret;
 }
 
@@ -1342,7 +1341,6 @@ static int push_tube_stack( tube_t * tube, long type, void * pointer )
 		ret->type        = type;
 		ret->u.pointer   = pointer;
 		tube->st_current = ret;
-		printk("get stack tube=%p, type=%d ret=%p\n", tube, type, ret);
 		return 0;
 	}
 	else {
@@ -1401,7 +1399,7 @@ static int change_tube_stack(tube_t * tube, long type, void * pointer )
 static int pop_tube_stack( tube_t * tube )
 {
 	sourece_stack_t * ret;
-	if ( tube->st_current->prev == NULL ) {
+	if ( tube->st_current == NULL ) {
 		return -1;
 	}
 	else {
@@ -1435,9 +1433,6 @@ static int get_tube_next_src(tube_t * tube)
 	struct file * fl;
 
 	tube->readoff=0;
-
-	printk("get stack tube=%p, tube->writeoff=%d\n ", tube, tube->writeoff);
-
 	assert ("VD stack is empty", tube->st_current != NULL );
 
 	/* check stack and change its head */
@@ -1533,24 +1528,12 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 		if (!IS_ERR(buf)) {
 			START_KERNEL_IO_GLOB;
 			memset( tube , 0, sizeof( struct tube ));
-					
 			assert("VD get_tube_general: no tube",!IS_ERR(tube));
 			assert("VD get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
-					
-			//	assert("get_tube_general: src expression wrong",source->h.type == EXPR_PARS_VAR);
-			//	assert("get_tube_general: src no dentry",source->pars_var.v->ln->h.type== LNODE_DENTRY);
-					
-
-#if 0
-			tube->readoff     = 0;
-			tube->type_offset = 0;
-			tube->offset      = 0;
-			tube->len         = 0;
-			tube->used        = 0;
-#endif
-			tube->dst         = dentry_open( sink->ln->dentry.dentry, sink->ln->dentry.mnt, O_WRONLY|O_TRUNC );
+			tube->dst         = dentry_open( sink->ln->dentry.dentry,
+							 sink->ln->dentry.mnt,
+							 O_WRONLY|O_TRUNC );
 			tube->writeoff    = 0;
-			printk("get stack tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
 			tube->st_current  = NULL;
 			push_tube_stack( tube, ST_EXPR, (long *)source );
 			return tube;
@@ -1577,7 +1560,6 @@ static size_t get_available_src_len(tube_t * tube)
 	size_t s_len;
 	int ret = 1;
 	len = PUMP_BUF_SIZE;
-	printk("get av src len tube=%p, tube->writeoff=%d len=%d\n", tube,(int) (tube->writeoff), (int) len);
 	while ( tube->st_current != NULL && ret ) {
 		ret = 0;
 		switch( tube->st_current->type )
@@ -1605,7 +1587,6 @@ static size_t get_available_src_len(tube_t * tube)
 	else {
 		if ( len > s_len ) len = s_len;
 	}
-	printk( " len =%d, slen=%d, readoff=%d\n", (int)len,(int) s_len, (int)tube->readoff );
 	return len;
 }
 
@@ -1636,11 +1617,14 @@ static size_t source_to_tube_general(tube_t * tube)
 	case 	ST_DE:
 		break;
 	case 	ST_WD:
-		memcpy( tube->buf,  tube->st_current->u.wd->u.name + tube->readoff, ret = tube->len );
-		tube->readoff += ret;
+		if ( tube->readoff < tube->st_current->u.wd->u.len ) {
+			assert ("VD source to tube(wd)", tube->readoff+tube->len <= tube->st_current->u.wd->u.len);
+			memcpy( tube->buf,  tube->st_current->u.wd->u.name + tube->readoff, ret = tube->len );
+			tube->readoff += ret;
+		}
+		else ret = 0;
 		break;
 	}
-	printk("source ro tube tube=%p, stack =%p tube->writeoff=%d,tube->readoff=%d\n", tube, tube->st_current, (int)tube->writeoff,(int)tube->readoff);
 	return ret;
 }
 
@@ -1660,6 +1644,7 @@ static void put_tube(tube_t * tube)
 	PTRACE1( "%s\n", "begin");
 	END_KERNEL_IO_GLOB;
 	assert("VD :stack not empty ",tube->st_current == NULL);
+	do_truncate( tube->dst->f_dentry, tube->writeoff);
 	filp_close(tube->dst, current->files );
 	kfree(tube->buf);
 	kfree(tube);
@@ -1682,49 +1667,46 @@ static void put_tube(tube_t * tube)
 */
 static int  pump( pars_var_t *sink, expr_v4_t *source )
 {
-      tube_t * tube;
-      int ret_code;
-      int (*prep_tube)(tube_t *);
-//      int (*prep_tube)(expr_v4_t *);
-      int (*source_to_tube)(tube_t *);
-      int (*tube_to_sink)(tube_t *);
-
+	tube_t * tube;
+	int ret_code;
+	int (*prep_tube)(tube_t *);
+	int (*source_to_tube)(tube_t *);
+	int (*tube_to_sink)(tube_t *);
 	PTRACE1( "%s", "begin");
 
-      /* remember to write code for freeing tube, error handling, etc. */
+	/* remember to write code for freeing tube, error handling, etc. */
 #if 0
-      ret_code = sink->fplug -> get_tube( tube, sink, source);
-      prep_tube = sink->fplug->prep_tube (tube);
-      source_to_tube = source->fplug->source_to_tube;
-      tube_to_sink = sink->fplug->tube_to_sink;
+	ret_code = sink->fplug -> get_tube( tube, sink, source);
+	prep_tube = sink->fplug->prep_tube (tube);
+	source_to_tube = source->fplug->source_to_tube;
+	tube_to_sink = sink->fplug->tube_to_sink;
 #else
-      tube       = get_tube_general( tube, sink, source);
-      if ( tube == NULL ) {
-	      ret_code=-1;
-      }
-      else {
-	      printk("p tube=%p, tube->writeoff=%d \n", tube, (int)tube->writeoff);
-	      prep_tube      = prep_tube_general;
-	      source_to_tube = source_to_tube_general;
-	      tube_to_sink   = tube_to_sink_general;
+	tube       = get_tube_general( tube, sink, source);
+	if ( tube == NULL ) {
+		ret_code = -1;
+	}
+	else {
+		prep_tube      = prep_tube_general;
+		source_to_tube = source_to_tube_general;
+		tube_to_sink   = tube_to_sink_general;
 #endif
-	      reserv_space_in_sink( tube );
-	      while ( tube->st_current != NULL ) {
-		      if (ret_code = prep_tube( tube ) ) {
-			      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
-			      ret_code = source_to_tube( tube );
-			      if ( ret_code>0 ) {
-				      ret_code = tube_to_sink( tube );
-			      }
-		      }
-		      if ( tube->st_current != NULL && !(ret_code>0)) {
-			      put_tube_src( tube );
-		      }
-	      }
-	      printk("p 3 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff,(int)tube->readoff);
-	      
-	      ret_code=tube->writeoff;
-	      put_tube(tube);
+		reserv_space_in_sink( tube );
+
+
+		while ( tube->st_current != NULL ) {
+			if ( ret_code = prep_tube( tube ) >0 ) {
+				while ( ret_code = source_to_tube( tube ) > 0 ) {
+					ret_code = tube_to_sink( tube );
+				}
+				if ( ret_code < 0 ) {
+					printk("IO error\n");
+				}
+				put_tube_src( tube );
+			}
+		}
+
+	      ret_code = tube->writeoff;
+	      put_tube( tube );
       }
       return ret_code;
 }
