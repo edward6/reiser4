@@ -330,20 +330,23 @@ cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 		item_key_by_coord(coord, smallest_removed);
 		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
 	}
-	if (*from == 0) {
-		/* head of item is removed, update item key therefore */
-		reiser4_key key;
-		item_key_by_coord(coord, &key);
-		set_key_offset(&key, get_key_offset(&key) + count);
-		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
 
-		if (count == nr_units_ctail(coord))
+	if (!cut)
+		kill_hook_ctail(coord, *from, 0, p);
+	
+	if (*from == 0) {
+		if (count != nr_units_ctail(coord)) {
+			/* part of item is removed, update item key therefore */
+			reiser4_key key;
+			item_key_by_coord(coord, &key);
+			set_key_offset(&key, get_key_offset(&key) + count);
+			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
+		}
+		else 
 			/* whole item is cut, so more then amount of space occupied
 			   by units got freed */
 			count += sizeof(ctail_item_format);
 	}
-	if (!cut)
-		kill_hook_ctail(coord, *from, 0, p);
 	
 	if (REISER4_DEBUG)
 		xmemset((char *)item_body_by_coord(coord) + *to - count + 1, 0, count);
@@ -794,7 +797,9 @@ int scan_ctail(flush_scan * scan)
 	set_flush_scan_nstat(scan, LINKED);
 
  exit:	
-	put_cluster_data(&clust, inode);
+	/* put_cluster_data(&clust, inode); */
+	reiser4_kfree(clust.buf, inode_scaled_cluster_size(inode));
+	
 	return result;
 }
 
