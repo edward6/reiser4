@@ -1,18 +1,10 @@
 %Start Normal
 
 LETTER          [A-Za-z_]
-ODIG            [0-7]
-DIGIT           ([8-9]|{ODIG})
-WORD           ({LETTER}|{DIGIT})+
-WHITESPACE      [ \t\n]+
+DIG             [0-9]
+WRD             ({LETTER}|{DIG})+
+SP              [ \t\n]+
 SPECIAL         [\[\]\{\}\/\\\,\:\;\*\$\@\!\`\']
-
-BS_B            \\b
-BS_R            \\r
-BS_T            \\t
-BS_N            \\n
-BS_F            \\f
-BS_BS           \\\\
 
 
 
@@ -22,30 +14,52 @@ BS_BS           \\\\
 BEGIN Normal;
 %}
 
+{SP}"/"{SP}                                       {return BLANK_SLASH_BLANK;}
 
-\\o{ODIG}{3,3}          { ret( 0 );}
+{SP}?";"{SP}?                                     {return SEMICOLON;}
+{SP}?","{SP}?                                     {return COMMA;}
+{SP}?"+"{SP}?                                     {return PLUS;}
+{SP}?"("{SP}?                                     {return L_PARENT;}
+{SP}?")"{SP}?                                     {return R_PARENT;}
+{SP}?"{"{SP}?                                     {return L_FLX_PARENT;}
+{SP}?"}"{SP}?                                     {return R_FLX_PARENT;}
+{SP}?"["{SP}?                                     {return L_SKW_PARENT;}
+{SP}?"]"{SP}?                                     {return R_SKW_PARENT;}
 
-\\b    {x("b");}
-\\r    {x("r");}
-\\t    {x("t");}
-\\n    {x("n");}
-\\f    {x("f");}
-\\"'"  {x("\'") ;}
-\\\\  {x("\\");}
+{SP}?eq{SP}?                                      {return EQ;}
+{SP}?ne{SP}?                                      {return NE;}
+{SP}?le{SP}?                                      {return LE;}
+{SP}?ge{SP}?                                      {return GE;}
+{SP}?lt{SP}?                                      {return LT;}
+{SP}?gt{SP}?                                      {return GT;}
+{SP}?is{SP}?                                      {return IS;}
+{SP}?and{SP}?                                     {return AND;}
+{SP}?or{SP}?                                      {return OR;}
+{SP}?not{SP}?                                     {return NOT;}
+{SP}?if{SP}?                                      {return IF;}
+{SP}?then{SP}?                                    {return THEN;}
+{SP}?else{SP}?                                    {return ELSE;}
+{SP}?exist{SP}?                                   {return EXIST;}
 
-{SPECIAL}{1,1}           { ret( SP_SIM );}
-"("({WORD}_)?            { ret( L_BRACET );}
-")"({WORD}_)?            { ret(R_BRACET);}
-{WORD}                   { ret( WRD );}
-{WHITESPACE}             { ret( SP );}
+{SP}?"<""-"{SP}?                                  {return L_ASSIGN;}
+{SP}?"<""-""="{SP}?                               {return L_SYMLINK;}
 
-"<""-"                   { ret( L_ASSIGN );}
-"-"">"                   { ret( L_SYMLINK );}
-.                        { ret( 0 );}
+{SP}?tw"/""("{SP}?                                {return TRANSCRASH;}
+
+"/"process                                        {return SLASH_PROCESS;}
+"/"stat                                           {return SLASH_STAT;}
+"/"range                                          {return SLASH_RANGE;}
+"/""("                                            {return SLASH_L_PARENT;}
+"/"                                               {return SLASH;}
+
+
+{SP}?"]"{SP}?                                     {return BLANK_SLASH_BLANK;}
+
+
+{WRD}                                             { return  WORD ;}
+
+.                                                 { return  0 ;}
 %%
 
-ret(int par)
-{
 
-}
 
