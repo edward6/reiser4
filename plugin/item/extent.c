@@ -2774,7 +2774,7 @@ reserve_extent_write_iteration(tree_level height)
 	grab_space_enable();
 	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
 	   involved */
-	return reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0, "extent_write");
+	return reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0/* flags */, "extent_write");
 }
 
 /* write flow's data into file by pages */
