@@ -26,7 +26,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, reiserfs_
     node->parent = parent;
     node->children = NULL;
     
-    if (!(node->block = aal_device_alloc_block(device, blk, 0))) {
+    if (!(node->block = aal_block_alloc(device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block %llu.", blk);
 	goto error_free_node;
@@ -52,7 +52,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, reiserfs_
     return node;
     
 error_free_block:
-    aal_device_free_block(node->block);
+    aal_block_free(node->block);
 error_free_node:    
     aal_free(node);
 
@@ -75,7 +75,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     node->parent = parent;
     node->children = NULL;
     
-    if (!(node->block = aal_device_read_block(device, blk))) {
+    if (!(node->block = aal_block_read(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read block %llu.", blk);
 	goto error_free_node;
@@ -103,7 +103,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     return node;
     
 error_free_block:
-    aal_device_free_block(node->block);
+    aal_block_free(node->block);
 error_free_node:
     aal_free(node);
 
@@ -134,7 +134,8 @@ error_t reiserfs_node_close(reiserfs_node_t *node) {
         }
     }
 
-    aal_device_free_block(node->block);
+    aal_block_free(node->block);
+    aal_free(node);
 
     return 0;
 }
@@ -161,7 +162,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_item_coord_t *coord,
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the node %llu failed.", 
-	    aal_device_get_block_nr(node->block));
+	    aal_block_get_nr(node->block));
 	return -1;
     }
 
@@ -171,7 +172,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_item_coord_t *coord,
     if (!(item_plugin = reiserfs_node_item_get_plugin(node, coord->item_pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
-	    aal_device_get_block_nr(node->block), 
+	    aal_block_get_nr(node->block), 
 	    coord->item_pos);
 	return -1;
     }
@@ -179,7 +180,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_item_coord_t *coord,
     if (!(body = reiserfs_node_item_at(node, coord->item_pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item at node %llu and pos %u.", 
-	    aal_device_get_block_nr(node->block), 
+	    aal_block_get_nr(node->block), 
 	    coord->item_pos);
 	return -1;
     }
@@ -188,7 +189,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_item_coord_t *coord,
 	if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Lookup in the item %d in the node %llu failed.", coord->item_pos,	    
-		aal_device_get_block_nr(node->block));
+		aal_block_get_nr(node->block));
 	    return -1;
 	}
     }
@@ -278,16 +279,16 @@ error_t reiserfs_node_flush(reiserfs_node_t *node) {
 	}
     }
     
-    if (aal_device_write_block(node->device, node->block)) {
+    if (aal_block_write(node->device, node->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize block %llu to device.", 
-	    aal_device_get_block_nr(node->block));
+	    aal_block_get_nr(node->block));
 	return -1;
     }
     aal_list_free(node->children);
     node->children = NULL;
     
-    aal_device_free_block(node->block);
+    aal_block_free(node->block);
     aal_free(node);
     return 0;
 }
@@ -305,10 +306,10 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
 	}
     }
     
-    if (aal_device_write_block(node->device, node->block)) {
+    if (aal_block_write(node->device, node->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize block %llu to device.", 
-	    aal_device_get_block_nr(node->block));
+	    aal_block_get_nr(node->block));
 	return -1;
     }
     return 0;
@@ -427,7 +428,7 @@ blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, uint32_t pos) {
     if (!(body = reiserfs_node_item_at(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
-	    aal_device_get_block_nr(node->block), pos);
+	    aal_block_get_nr(node->block), pos);
 	return 0;
     }
     
@@ -452,7 +453,7 @@ void reiserfs_node_item_set_pointer(reiserfs_node_t *node,
     if (!(body = reiserfs_node_item_at(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
-	    aal_device_get_block_nr(node->block), pos);
+	    aal_block_get_nr(node->block), pos);
 	return;
     }
     
@@ -477,7 +478,7 @@ int reiserfs_node_item_has_pointer(reiserfs_node_t *node,
     if (!(body = reiserfs_node_item_at(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
-	    aal_device_get_block_nr(node->block), pos);
+	    aal_block_get_nr(node->block), pos);
 	return 0;
     }
     
@@ -543,7 +544,7 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node,
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "There is no space to insert the item of (%u) size in the node (%llu).", 
-	    info->length, aal_device_get_block_nr(node->block));
+	    info->length, aal_block_get_nr(node->block));
 	return -1;
     }
 
@@ -572,7 +573,7 @@ error_t reiserfs_node_item_replace(reiserfs_node_t *node,
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "There is no space to insert the item of (%u) size in the node (%llu).", 
-	    info->length, aal_device_get_block_nr(node->block));
+	    info->length, aal_block_get_nr(node->block));
 	return -1;
     }
 
