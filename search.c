@@ -478,7 +478,7 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 				reiser4_init_lh( &couple );
 				result = reiser4_get_right_neighbor
 					( &couple, coord -> node, ( int ) mode, 
-					  GN_LOAD_NEIGHBOR | GN_DO_READ );
+					  GN_DO_READ );
 				if( result == 0 ) {
 					reiser4_done_lh( lh );
 					reiser4_done_coord( coord );
@@ -740,7 +740,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		result = reiser4_get_right_neighbor( &right_lh,
 						     coord -> node,
 						     ZNODE_READ_LOCK,
-						     GN_LOAD_NEIGHBOR | GN_DO_READ);
+						     GN_DO_READ);
 		if( result && result != -ENAVAIL ) {
 			/* error occured */
 			reiser4_done_lh( &right_lh );
@@ -1288,8 +1288,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 
 	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 
-						 ( int ) h -> lock_mode,
-						 GN_LOAD_NEIGHBOR );
+						 ( int ) h -> lock_mode, 0 );
 	switch( h -> result ) {
 	case -EDEADLK:
 		result = LLR_REST;
