@@ -3093,7 +3093,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 
 
 	ext = extent_item (item);
-	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
+	for (i = item->unit_pos; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
 
 		if ((result = extent_needs_allocation (ext, item, flush_pos)) < 0) {
 			return result;
