@@ -47,6 +47,17 @@ long reiser4_statfs_type( const struct super_block *super UNUSED_ARG )
 	return ( long ) REISER4_SUPER_MAGIC;
 }
 
+/** 
+ * block size used by file system corresponding to @super
+ */
+int reiser4_blksize( const struct super_block *super )
+{
+	assert( "nikita-450", super != NULL );
+	assert( "nikita-451", is_reiser4_super( super ) );
+	return super -> s_blocksize;
+}
+
+
 /**
  * amount of blocks used (allocated for data) in file system
  */
@@ -91,7 +102,7 @@ long reiser4_reserved_blocks( const struct super_block *super,
 /**
  * objectid allocator used by this file system
  */
-reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super )
+reiser4_oid_allocator_t *reiser4_get_oid_allocator( const struct super_block *super )
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );

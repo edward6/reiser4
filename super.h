@@ -23,7 +23,7 @@ typedef struct reiser4_super_info_data {
 	 * system. Current default implementation of object id allocator is
 	 * just counter and
 	 */
-	reiser4_oid_allocator allocator;
+	reiser4_oid_allocator_t allocator;
 
 	/**
 	 * reiser4 internal tree
@@ -128,7 +128,7 @@ extern long reiser4_data_blocks( const struct super_block *super );
 extern long reiser4_free_blocks( const struct super_block *super );
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 				     uid_t uid, gid_t gid );
-extern reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super );
+extern reiser4_oid_allocator_t *reiser4_get_oid_allocator( const struct super_block *super );
 extern struct inode *reiser4_get_super_fake( const struct super_block *super );
 extern reiser4_tree *reiser4_get_tree( const struct super_block *super );
 extern __u32 reiser4_new_inode_generation( const struct super_block *super );
