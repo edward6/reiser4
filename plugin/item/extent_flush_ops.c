@@ -559,7 +559,7 @@ try_to_merge_with_left(coord_t *coord, reiser4_extent *ext, reiser4_extent *repl
 	if (extent_get_start(ext - 1) + extent_get_width(ext - 1) != extent_get_start(replace))
 		return 0;
 
-	/* we can clue, widen previous unit */
+	/* we can glue, widen previous unit */
 	ON_TRACE(TRACE_EXTENT_ALLOC,
 		 "wide previous [%llu %llu] ->",
 		 extent_get_start(ext - 1), extent_get_width(ext - 1));
