@@ -664,8 +664,8 @@ static reiser4_block_nr estimate_create_dir_common(struct inode *object)
 
 /* ->create method of object plugin */
 static int
-create_common(struct inode *object, struct inode *parent, 
-	      reiser4_object_create_data * data)
+create_common(struct inode *object, struct inode *parent UNUSED_ARG,
+	      reiser4_object_create_data * data UNUSED_ARG)
 {
 	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);
@@ -846,7 +846,7 @@ seek_dir(struct file *file, loff_t off, int origin)
 	struct inode *inode;
 
 	inode = file->f_dentry->d_inode;
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "dir_seek: %s: %lli -> %lli/%i\n",
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "dir_seek: %s: %lli -> %lli/%i\n",
 		 file->f_dentry->d_name.name, file->f_pos, off, origin);
 	down(&inode->i_sem);
 	result = default_llseek(file, off, origin);
@@ -878,6 +878,7 @@ bind_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 }
 
 #define detach_common bind_common
+#define cannot bind_common
 
 static int
 detach_dir(struct inode *child, struct inode *parent)
@@ -900,7 +901,8 @@ estimate_update_common(const struct inode *inode)
 }
 
 static reiser4_block_nr 
-estimate_unlink_common(struct inode *object, struct inode *parent)
+estimate_unlink_common(struct inode *object UNUSED_ARG, 
+		       struct inode *parent UNUSED_ARG)
 {
 	return 0;
 }
@@ -1154,43 +1156,41 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "pseudo file",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-#if 0
-		.truncate          = ,
-		.write_sd_by_inode = ,
-		.readpage          = ,
-		.writepage         = ,
-		.read              = ,
-		.write             = ,
-		.release           = ,
-		.ioctl             = ,
-		.mmap              = ,
-		.get_block         = ,
-		.flow_by_inode     = ,
-		.key_by_inode      = ,
-		.set_plug_in_inode = ,
-		.adjust_to_parent  = ,
-		.create            = ,
-		.delete            = ,
-		.add_link          = ,
-		.rem_link          = ,
-		.owns_item         = ,
-		.can_add_link      = ,
-		.can_rem_link      = ,
-		.not_linked        = ,
-		.setattr           = ,
-		.getattr           = ,
-		.seek              = ,
-		.detach            = ,
-		.bind              = ,
+		.truncate          = eperm,
+		.write_sd_by_inode = eperm,
+		.readpage          = eperm,
+		.writepage         = eperm,
+		.read              = eperm,
+		.write             = eperm,
+		.release           = eperm,
+		.ioctl             = eperm,
+		.mmap              = eperm,
+		.get_block         = eperm,
+		.flow_by_inode     = eperm,
+		.key_by_inode      = eperm,
+		.set_plug_in_inode = NULL,
+		.adjust_to_parent  = NULL,
+		.create            = NULL,
+		.delete            = eperm,
+		.add_link          = eperm,
+		.rem_link          = eperm,
+		.owns_item         = eperm,
+		.can_add_link      = cannot,
+		.can_rem_link      = cannot,
+		.not_linked        = eperm,
+		.setattr           = eperm,
+		.getattr           = eperm,
+		.seek              = eperm,
+		.detach            = eperm,
+		.bind              = eperm,
 		.estimate = {
-			.create = ,
-			.update = ,
-			.unlink = 
+			.create = NULL,
+			.update = NULL,
+			.unlink = NULL
 		},
-		.readpages = ,
-		.init_inode_data,
+		.readpages = NULL,
+		.init_inode_data = NULL,
 		.pre_delete = NULL
-#endif
 	}
 };
 
