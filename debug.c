@@ -361,7 +361,10 @@ reiser4_print_stats()
 		     "\t cbk_key_moved:\t %lu\n"
 		     "\t cbk_met_ghost:\t %lu\n"
 		     "\t page_try_release:\t %lu\n"
-		     "\t page_releases:\t %lu\n",
+		     "\t page_releases:\t %lu\n"
+		     "\t emergency_flush:\t %lu\n"
+		     "\t long_term_lock_contented:\t %lu\n"
+		     "\t long_term_lock_uncontented:\t %lu\n",
 		     i + LEAF_LEVEL,
 		     s->level[i].carry_restart,
 		     s->level[i].carry_done,
@@ -393,7 +396,10 @@ reiser4_print_stats()
 		     s->level[i].cbk_key_moved,
 		     s->level[i].cbk_met_ghost, 
 		     s->level[i].page_try_release, 
-		     s->level[i].page_released);
+		     s->level[i].page_released,
+		     s->level[i].emergency_flush,
+		     s->level[i].long_term_lock_contented,
+		     s->level[i].long_term_lock_uncontented);
 	}
 }
 #else

@@ -322,7 +322,7 @@ extern __u32 reiser4_current_trace_flags;
    see */
 
 #define ON_STATS( e ) e
-#define STS ( get_super_private_nocheck( reiser4_get_current_sb() ) -> stats )
+#define STS (get_super_private_nocheck(reiser4_get_current_sb()) -> stats)
 #define ST_INC_CNT( field ) ( ++ STS . field )
 #define ST_ADD_CNT( field, cnt ) ( STS . field += cnt )
 
@@ -362,15 +362,15 @@ extern __u32 reiser4_current_trace_flags;
 
 #define MAX_CNT( field, value )						\
 ({									\
-	if( get_super_private_nocheck( reiser4_get_current_sb() ) &&	\
-	    ( value ) > STS.field )					\
-		STS.field = ( value );					\
+	if(get_super_private_nocheck(reiser4_get_current_sb()) &&	\
+	    (value) > STS.field)					\
+		STS.field = (value);					\
 })
 
-#define reiser4_stat_nuniq_max( gen )			\
+#define reiser4_stat_nuniq_max(gen)			\
 ({							\
-	ST_INC_CNT( non_uniq );				\
-	MAX_CNT( non_uniq_max, gen );			\
+	ST_INC_CNT(non_uniq);				\
+	MAX_CNT(non_uniq_max, gen);			\
 })
 
 #define reiser4_stat_stack_check_max( gap ) MAX_CNT( stack_size_max, gap )
@@ -535,6 +535,12 @@ typedef struct reiser4_statistics {
 		stat_cnt page_released;
 		/* how many times emergency flush was invoked on this level */
 		stat_cnt emergency_flush;
+		/* how many requests for znode long term lock couldn't succeed
+		 * immediately. */
+		stat_cnt long_term_lock_contented;
+		/* how many requests for znode long term lock managed to
+		 * succeed immediately. */
+		stat_cnt long_term_lock_uncontented;
 		stat_cnt total_hits_at_level;
 	} level[REAL_MAX_ZTREE_HEIGHT];
 	struct {
@@ -698,7 +704,7 @@ extern void print_lock_counters(const char *prefix, const lock_counters_info * i
 #define print_lock_counters( p, i ) noop
 #endif
 
-#define REISER4_STACK_ABORT          (8192 - sizeof( struct task_struct ) - 30)
+#define REISER4_STACK_ABORT          (8192 - sizeof(struct task_struct) - 30)
 #define REISER4_STACK_GAP            (REISER4_STACK_ABORT - 100)
 
 #if REISER4_DEBUG_MEMCPY
