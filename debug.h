@@ -867,7 +867,8 @@ typedef struct reiser4_statistics {
 		stat_cnt skipped_last;
 		stat_cnt low_priority;
 		stat_cnt removed;
-	} entd;
+		stat_cnt toolong;
+	} wff;
 	/* how many non-unique keys were scanned into tree */
 	stat_cnt non_uniq;
 	/* maximal length of sequence of items with identical keys found

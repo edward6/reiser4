@@ -256,27 +256,29 @@ static void kick_entd(struct super_block *super)
 static int
 is_writepage_done(jnode *node, int *iterations)
 {
-	reiser4_stat_inc(entd.iteration);
+	reiser4_stat_inc(wff.iteration);
 	/*
 	 * if flush managed to process this node we are done.
 	 */
 	if (jnode_check_flushprepped(node)) {
-		reiser4_stat_inc(entd.cleaned);
+		reiser4_stat_inc(wff.cleaned);
 		return 1;
 	}
 	/*
 	 * jnode removed from the tree (truncate or balancing)
 	 */
 	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-		reiser4_stat_inc(entd.removed);
+		reiser4_stat_inc(wff.removed);
 		return 1;
 	}
 	/*
 	 * check for some weird condition to avoid stalling
 	 * memory scan.
 	 */
-	if (++ (*iterations) > 100)
+	if (++ (*iterations) > 100) {
+		reiser4_stat_inc(wff.toolong);
 		return RETERR(-ENOMEM);
+	}
 
 	return 0;
 }
@@ -296,12 +298,12 @@ static int dont_wait_for_flush(struct super_block *super)
 	cur = get_current_context();
 
 	if (cur->entd) {
-		reiser4_stat_inc(entd.skipped_ent);
+		reiser4_stat_inc(wff.skipped_ent);
 		return 1;
 	}
 	if (get_flushers(super, &flush_started) == 1 && 
 	    cur->flush_started != INITIAL_JIFFIES) {
-		reiser4_stat_inc(entd.skipped_last);
+		reiser4_stat_inc(wff.skipped_last);
 		return 1;
 	}
 	return 0;
@@ -362,7 +364,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 	super   = page->mapping->host->i_sb;
 	timeout = get_entd_context(super)->timeout;
 
-	reiser4_stat_inc(entd.asked);
+	reiser4_stat_inc(wff.asked);
 
 	result     = 0;
 	iterations = 0;
@@ -386,7 +388,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 			 * thread.
 			 */
 			if (flushers == 0) {
-				reiser4_stat_inc(entd.kicked);
+				reiser4_stat_inc(wff.kicked);
 				kick_entd(super);
 			}
 
@@ -395,7 +397,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 			 * pressure) is lowest, do nothing
 			 */
 			if (wbc->priority > DEF_PRIORITY / 2) {
-				reiser4_stat_inc(entd.low_priority);
+				reiser4_stat_inc(wff.low_priority);
 				result = 1;
 				break;
 			}
@@ -409,7 +411,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 				break;
 
 			schedule_timeout(timeout);
-			reiser4_stat_inc(entd.wait_flush);
+			reiser4_stat_inc(wff.wait_flush);
 
 			/*
 			 * if flush managed to clean this page we are done.
@@ -424,7 +426,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 		 */
 		if (result == 0 && bdi_write_congested(bdi)) {
 			schedule_timeout(timeout);
-			reiser4_stat_inc(entd.wait_congested);
+			reiser4_stat_inc(wff.wait_congested);
 			result = is_writepage_done(node, &iterations);
 			if (result == 0)
 				/*
@@ -433,6 +435,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 				continue;
 		}
 
+		result = is_writepage_done(node, &iterations);
 		/*
 		 * at this point we are either done (result != 0), or there is
 		 * flushing thread going on for at least @timeout, but nothing
