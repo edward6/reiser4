@@ -184,6 +184,8 @@ all: $(OBJ)
 	$(CC) $(LDFLAGS) $(OBJ) $(LIBS)
 
 all-in-one:
+	echo "/* Automatically generated do *NOT* edit. -*- c -*- */" > all-reiser4.c
+	for f in $(SRC) ;do echo '#include "'$$f'"' >> all-reiser4.c ;done
 	$(CC)  $(INCS) $(CFLAGS) $(DEFINES) $(LDFLAGS) all-reiser4.c $(LIBS)
 
 clean:
