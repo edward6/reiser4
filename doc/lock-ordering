@@ -115,8 +115,8 @@ obviously.
 
 i_sem
 ..inode_rw_lock <-----DEAD1---+
-....page_lock                 |
-......longterm_lock <-DEAD2-+ |
+....longterm_lock <---DEAD2-+ |
+......page_lock             | |
 ........pfault              | |
 ..........mm->mmap_sem------+-+                   [do_page_fault]
 ............kalloc
