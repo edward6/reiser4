@@ -665,7 +665,7 @@ cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 }
 
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG_OUTPUT && REISER4_TRACE
 static char filter(const d8 *dch)
 {
 	char ch;
