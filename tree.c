@@ -1676,6 +1676,13 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 	znode *fake;
 	znode *root;
 
+	/*
+	 * print_tree_rec() could be called late during umount, when znode
+	 * hash table is already destroyed. Check for this.
+	 */
+	if( tree -> hash_table._table == NULL )
+		return;
+
 	if( !( flags & REISER4_NODE_SILENT ) )
 		info( "tree: [%s]\n", prefix );
 	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
