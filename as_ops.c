@@ -601,6 +601,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		mapping = page->mapping;
 		INC_STAT(page, node, vm.release.ok);
 		jref(node);
+		if (jnode_is_znode(node))
+			znode_at_read(JZNODE(node));
 		/* there is no need to synchronize against
 		 * jnode_extent_write() here, because pages seen by
 		 * jnode_extent_write() are !releasable(). */

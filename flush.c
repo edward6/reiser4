@@ -563,6 +563,17 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 	return ret;
 }
 
+#if REISER4_DEBUG
+void check_pos(flush_pos_t *pos)
+{
+	znode *node;
+
+	node = pos->lock.node;
+	if (node != NULL && znode_is_any_locked(node))
+		assert("nikita-3562", znode_at_read(node));
+}
+#endif
+
 /* TODO LIST (no particular order): */
 /* I have labelled most of the legitimate FIXME comments in this file with letters to
    indicate which issue they relate to.  There are a few miscellaneous FIXMEs with
@@ -815,7 +826,9 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 		goto failed;
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
+	check_pos(&flush_pos);
 	ret = squalloc(&flush_pos);
+	check_pos(&flush_pos);
 	pos_stop(&flush_pos);
 	if (ret)
 		goto failed;
@@ -1932,13 +1945,16 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 	
+	check_pos(pos);
 	if (znode_squeezable(pos->lock.node)) {
 		ret = squeeze_node(pos, pos->lock.node);
+		check_pos(pos);
 		if (ret)
 			return ret;
 	}
 	
 	while (1) {
+		check_pos(pos);
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 		if (ret)
 			break;
@@ -1958,6 +1974,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 		if (znode_squeezable(right_lock.node)) {
 			ret = squeeze_node(pos, right_lock.node);
+			check_pos(pos);
 			if (ret)
 				break;
 			if (node_is_empty(right_lock.node)) {
@@ -1970,6 +1987,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
                 /* squeeze _before_ going upward. */
 		ret = squeeze_right_neighbor(pos, pos->lock.node, right_lock.node);
+		check_pos(pos);
 		if (ret < 0)
 			break;
 
@@ -1983,10 +2001,12 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		/* parent(right_lock.node) has to be processed before
 		 * (right_lock.node) due to "parent-first" allocation order. */
 		ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+		check_pos(pos);
 		if (ret)
 			break;
 		/* (re)allocate _after_ going upward */
 		ret = lock_parent_and_allocate_znode(right_lock.node, pos);
+		check_pos(pos);
 		if (ret)
 			break;
 
@@ -1994,9 +2014,11 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 
 		ret = rapid_flush(pos);
+		check_pos(pos);
 		if (ret)
 			break;
 	}
+	check_pos(pos);
 
 	done_load_count(&right_load);
 	done_lh(&right_lock);
@@ -2076,6 +2098,7 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	assert ("zam-844", pos->state == POS_ON_EPOINT);
 	assert ("zam-843", item_is_extent(&pos->coord));
 
+	check_pos(pos);
 	/* We decide should we continue slum processing with current extent
 	   unit: if leftmost child of current extent unit is flushprepped
 	   (i.e. clean or already processed by flush) we stop squalloc().  There
@@ -2090,7 +2113,9 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	}
 
 	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord) && item_is_extent(&pos->coord)) {
+		check_pos(pos);
 		ret = alloc_extent(pos);
+		check_pos(pos);
 		if (ret) {
 			break;
 		}
@@ -2108,6 +2133,7 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 
 	assert ("zam-860", item_is_extent(&pos->coord));
 
+	check_pos(pos);
 	/* "slum" is over */
 	pos->state = POS_INVALID;
 	return 0;
@@ -2131,6 +2157,7 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
+	check_pos(pos);
 	/* We get a lock on the right twig node even it is not dirty because
 	 * slum continues or discontinues on leaf level not on next twig. This
 	 * lock on the right twig is needed for getting its leftmost child. */
@@ -2147,7 +2174,9 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 		/* If right twig node is dirty we always attempt to squeeze it
 		 * content to the left... */
 became_dirty:
+		check_pos(pos);
 		ret = squeeze_right_twig_and_advance_coord(pos, right_lock.node);
+		check_pos(pos);
 		if (ret <=0) {
 			/* pos->coord is on internal item, go to leaf level, or
 			 * we have an error which will be caught in squalloc() */
@@ -2165,11 +2194,13 @@ became_dirty:
 		if (!znode_check_flushprepped(right_lock.node)) {
 			/* As usual, process parent before ...*/
 			ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+			check_pos(pos);
 			if (ret)
 				goto out;
 
 			/* ... processing the child */
 			ret = lock_parent_and_allocate_znode(right_lock.node, pos);
+			check_pos(pos);
 			if (ret)
 				goto out;
 		}
@@ -2185,7 +2216,9 @@ became_dirty:
 
 		/* check clean twig for possible relocation */
 		if (!znode_check_flushprepped(right_lock.node)) {
+			check_pos(pos);
 			ret = reverse_relocate_check_dirty_parent(child, &at_right, pos);
+			check_pos(pos);
 			if (ret)
 				goto out;
 			if (znode_check_dirty(right_lock.node))
@@ -2208,6 +2241,7 @@ became_dirty:
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
  out:
+	check_pos(pos);
 	done_load_count(&right_load);
 	done_lh(&right_lock);
 
@@ -2232,6 +2266,7 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	init_lh(&child_lock);
 	init_load_count(&child_load);
 
+	check_pos(pos);
 	ret = get_leftmost_child_of_unit(&pos->coord, &child);
 	if (ret)
 		return ret;
@@ -2254,6 +2289,7 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 		goto out;
 
 	ret = allocate_znode(JZNODE(child), &pos->coord, pos);
+	check_pos(pos);
 	if (ret)
 		goto out;
 
@@ -2263,9 +2299,11 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 
 	if (node_is_empty(JZNODE(child))) {
 		ret = delete_empty_node(JZNODE(child));
+		check_pos(pos);
 		pos->state = POS_INVALID;
 	}
  out:
+	check_pos(pos);
 	done_load_count(&child_load);
 	done_lh(&child_lock);
 	jput(child);
@@ -2287,6 +2325,7 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 
+	check_pos(pos);
 	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK, 0);
 	if (ret)
 		goto out;
@@ -2317,6 +2356,7 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	move_flush_pos(pos, &parent_lock, &parent_load, &pcoord);
 
  out:
+	check_pos(pos);
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
 
@@ -2351,11 +2391,14 @@ static int squalloc (flush_pos_t * pos)
 	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
 	 * greater CPU efficiency? Measure and see.... -Hans */
 	while (pos_valid(pos)) {
+		check_pos(pos);
 		ret = flush_pos_handlers[pos->state](pos);
+		check_pos(pos);
 		if (ret < 0)
 			break;
 
 		ret = rapid_flush(pos);
+		check_pos(pos);
 		if (ret)
 			break;
 	}
@@ -2446,9 +2489,13 @@ squeeze_right_non_twig(znode * left, znode * right)
 		reiser4_tree *tree;
 		__u64 grabbed;
 
-		/* update delimiting keys of nodes which participated in shift. FIXME: it
-		   would be better to have this in shift node's operation. But it can not
-		   be done there. Nobody remembers why, though */
+		znode_make_dirty(left);
+		znode_make_dirty(right);
+
+		/* update delimiting keys of nodes which participated in
+		   shift. FIXME: it would be better to have this in shift
+		   node's operation. But it can not be done there. Nobody
+		   remembers why, though */
 		tree = znode_get_tree(left);
 		UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
 		

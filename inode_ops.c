@@ -442,6 +442,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	 * already been deleted, but dentry (@victim) still exists. */
 	/* prevent balance_dirty_pages() from being called: we don't want to
 	 * do this under directory i_sem. */
+
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;

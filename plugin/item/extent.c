@@ -178,7 +178,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 		}
 	}
 	tap_done(&watch);
-	
+
 	ENABLE_NODE_CHECK;
 	return result;
 }
