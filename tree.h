@@ -386,7 +386,7 @@ int cut_node(coord_t * from, coord_t * to,
 
 int resize_item(coord_t * coord, reiser4_item_data * data,
 		reiser4_key * key, lock_handle * lh, cop_insert_flag);
-int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key, reiser4_item_data * data, unsigned);
+int insert_into_item(coord_t * coord, lock_handle * lh, const reiser4_key * key, reiser4_item_data * data, unsigned);
 int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
 int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * result);
 
