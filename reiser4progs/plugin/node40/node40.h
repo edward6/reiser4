@@ -26,8 +26,8 @@ struct node40 {
 typedef struct node40 node40_t;
 
 struct node40_flush {
-    uint32_t mkfs_id;
-    uint64_t flush_id;
+    d32_t mkfs_id;
+    d64_t flush_id;
 };
 
 typedef struct node40_flush node40_flush_t;
@@ -39,22 +39,22 @@ struct node40_header {
     reiser4_node_header_t h;
     
     /* The number of items */
-    uint16_t num_items;
+    d16_t num_items;
     
     /* Node free space */
-    uint16_t free_space;
+    d16_t free_space;
 
     /* Free space start */
-    uint16_t free_space_start;
+    d16_t free_space_start;
 
     /* Node40 magic 0x52344653 */
-    uint32_t magic;
-    
-    /* Node flush stamp */
-    node40_flush_t flush;
+    d32_t magic;
     
     /* Node level (is not used in libreiser4) */
-    uint8_t level;
+    d8_t level;
+
+    /* Node flush stamp */
+    node40_flush_t flush;
 };
 
 typedef struct node40_header node40_header_t;  
@@ -79,11 +79,8 @@ typedef struct node40_header node40_header_t;
 #define nh40_get_magic(header)			aal_get_le32(header, magic)
 #define nh40_set_magic(header, val)		aal_set_le32(header, magic, val)
 
-#define nh40_get_state(header)			aal_get_le32(header, state)
-#define nh40_set_state(header, val)		aal_set_le32(header, state, val)
-
 union key40 {
-    uint64_t el[3];
+    d64_t el[3];
     int pad;
 };
 
@@ -92,9 +89,9 @@ typedef union key40 key40_t;
 struct item40_header {
     key40_t key;
     
-    uint16_t offset;
-    uint16_t len;
-    uint16_t pid;
+    d16_t offset;
+    d16_t len;
+    d16_t pid;
 };
 
 typedef struct item40_header item40_header_t;
@@ -117,4 +114,3 @@ static uint16_t node40_free_space_end(aal_block_t *block) {
 }
 
 #endif
-
