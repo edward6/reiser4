@@ -51,7 +51,11 @@ typedef enum {
 	   name of symlink */
 	REISER4_GENERIC_VP_USED = 6,
 	REISER4_EXCLUSIVE_USE = 7,
-	REISER4_SDLEN_KNOWN   = 8
+	REISER4_SDLEN_KNOWN   = 8,
+	/* reiser4_inode->keyid points to the identification word */
+	REISER4_KEYID_LOADED = 9,
+	/* reiser4_inode->expkey points to the secret key */
+	REISER4_SECRET_KEY_INSTALLED = 10
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -107,8 +111,12 @@ typedef struct reiser4_inode {
 	/* 96 */ __u16 plugin_mask;
 	/* 98 */ inter_syscall_rap ra;
 	/* 98 */ __u16 padding;
-	/* 100 */
-
+	/* secret key and its id. The last supposed to be stored on disk.
+	   Only meaningful for crypto-files */
+	/* 100 */__u32 *expkey;
+	/* 104 */__u8 *keyid;
+	/* 108 */
+	
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
