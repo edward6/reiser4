@@ -28,7 +28,7 @@ reiser4_key *unit_key_tail(const coord_t * coord, reiser4_key * key);
 
 /* plugin->u.item.s.* */
 int write_tail(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
-int read_tail(struct file *, flow_t *, uf_coord_t *);
+int read_tail(struct file *, flow_t *, hint_t *);
 reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
 void init_coord_extension_tail(uf_coord_t *, loff_t offset);
 int get_block_address_tail(const uf_coord_t *uf_coord, 
