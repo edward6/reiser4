@@ -3565,13 +3565,14 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	return nr_marked;
 }
 
-/* Should the repacker relocate this node. */
+/* Check should the repacker relocate this node. */
 static int relocatable (jnode * check)
 {
 	return !JF_ISSET(check, JNODE_OVRWR) && !JF_ISSET(check, JNODE_RELOC);
 }
 
-static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_start, reiser4_block_nr end_part_width, int * all_replaced)
+static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_start, 
+				  reiser4_block_nr end_part_width, int * all_replaced)
 {
 	reiser4_extent * ext;
 	reiser4_block_nr ext_start;
@@ -3633,8 +3634,9 @@ static int make_new_extent_at_end (coord_t * coord, reiser4_block_nr width, int 
 	return replace_end_of_extent(coord, new_ext_start, width, all_replaced);
 }
 
-static int move_one_part_of_extent_unit (struct inode * inode, tap_t * tap, reiser4_block_nr * start, 
-					 reiser4_block_nr * len, int * done, int * nr_processed)
+static int relocate_one_part_of_extent_unit (
+	struct inode * inode, tap_t * tap, reiser4_block_nr * start, 
+	reiser4_block_nr * len, int * done, int * nr_reserved)
 {
 	reiser4_extent * ext;
 	jnode *check;
@@ -3682,37 +3684,57 @@ static int move_one_part_of_extent_unit (struct inode * inode, tap_t * tap, reis
 	/* new block number for the first node we relocate. */
 	new_block = *start + *len - 1;
 
-	/* find last node which we can relocate. */
-	for (j = i; j >= 0; j --) {
+	/* relocate all unformatted nodes which we can relocate, determine size of relocated extent,
+	   update extent item/unit to the new location. */
+	j = i;
+	while(0) {
+		/* all reserved space is used already. */
+		if (*nr_reserved <= 0)
+			break;
+
+		/* add node to transaction. */
+		ret = try_capture(check, ZNODE_WRITE_LOCK, 0);
+		if (ret)
+			break;
+
+		jnode_make_dirty_locked(check);
+		JF_SET(check, JNODE_REPACK);
+		JF_SET(check, JNODE_RELOC);
+		(*nr_reserved) --;
+
+		/* relocate node */
 		jnode_set_block(check, &new_block);
 		new_block --;
 		(*len) --;
-		(*nr_processed) ++;
 		
 		jput(check);
+
+		if (-- j <= 0)
+			break;
 
 		check = get_jnode_by_mapping(inode, j + ext_index);
 		if (IS_ERR(check)) {
 			ret = PTR_ERR(check);
-			jput(check);
+			check = NULL;
 			break;
 		}
-		if (!relocatable(check)) {
-			jput(check);
+		if (!relocatable(check))
 			break;
-		}
-
-		jput(check);
+		
 	}
+
+	if (check != NULL)
+		jput(check);
 
 	return replace_end_of_extent(tap->coord, *start + ext_width - (i - j), (reiser4_block_nr)(i - j), done);
 }
-/*  */
+
+/* process (relocate) unformatted nodes in backward direction: from the end of extent to the its start.  */
 int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, reiser4_blocknr_hint * hint)
 {
 	coord_t * coord = tap->coord;
 	reiser4_extent *ext;
-	int nr_processed = 0;
+	int nr_reserved = max_nr_processed;
 	struct inode * inode;
 	int ret;
 	reiser4_block_nr start, len;
@@ -3724,15 +3746,16 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 
 	ret = get_reiser4_inode_by_tap(&inode, tap);
 
-	while (!done) {
+	while (!done && !ret) {
 
 		len = extent_get_width(ext);
 		ret = reiser4_alloc_blocks(hint, &start, &len, BA_PERMANENT, __FUNCTION__);
 		if (ret)
 			break;
 
+		hint->blk = start;
 		while (len != 0) {
-			ret = move_one_part_of_extent_unit(inode, tap, &len, &start, &done, &nr_processed);
+			ret = relocate_one_part_of_extent_unit(inode, tap, &start, &len, &done, &nr_reserved);
 			if (ret)
 				break;
 		}
@@ -3745,7 +3768,7 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 	iput(inode);
 	if (ret)
 		return ret;
-	return nr_processed;
+	return (max_nr_processed - nr_reserved);
 }
 
 /*
