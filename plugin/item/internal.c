@@ -146,16 +146,20 @@ utmost_child_internal(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 
 static void check_link(const znode *left, const znode *right)
 {
+	znode *scan;
+
 	RLOCK_TREE(znode_get_tree(left));
 	if (znode_is_right_connected(left)) {
 		assert("nikita-3258", znode_is_left_connected(right));
-		assert("nikita-3259", left->right == right);
-		assert("nikita-3260", right->left == left);
+		for (scan = left->right; scan != right; scan = scan->right)
+			assert("nikita-3265", 
+			       ZF_ISSET(scan, JNODE_HEARD_BANSHEE));
 	}
 	if (znode_is_left_connected(right)) {
 		assert("nikita-3261", znode_is_right_connected(left));
-		assert("nikita-3262", right->left == left);
-		assert("nikita-3263", left->right == right);
+		for (scan = right->left; scan != left; scan = scan->left)
+			assert("nikita-3266", 
+			       ZF_ISSET(scan, JNODE_HEARD_BANSHEE));
 	}
 	RUNLOCK_TREE(znode_get_tree(left));
 }
