@@ -1258,7 +1258,7 @@ int txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
 	txn_atom *atom;
 	int ret = 0;
 
-	assert ("jmacd-77917", spin_txnh_is_locked (txnh));
+	ON_SMP (assert ("jmacd-77917", spin_txnh_is_locked (txnh)));
 	assert ("jmacd-77918", txnh->atom == NULL);
 
 	spin_lock_jnode (node);
