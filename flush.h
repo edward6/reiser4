@@ -2,6 +2,8 @@
 
 /* DECLARATIONS: */
 
+#include "plugin/item/ctail.h" /* for ctail squeeze info */
+
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
    single level of the tree.  A flush-scan is used for counting the number of adjacent
    nodes to flush, which is used to determine whether we should relocate, and it is also
@@ -51,6 +53,9 @@ struct flush_scan {
 	reiser4_block_nr preceder_blk;
 };
 
+typedef union flush_squeeze_item_data {
+	ctail_squeeze_info_t ctail_info;
+} flush_squeeze_item_data_t;
 
 typedef enum flush_position_state {
 	POS_INVALID,		/* Invalid or stopped pos, do not continue slum
@@ -66,6 +71,8 @@ typedef enum flush_position_state {
 	POS_ON_INTERNAL		/* same as POS_ON_LEAF, but points to internal node */
 
 } flushpos_state_t;
+
+
 
 /* An encapsulation of the current flush point and all the parameters that are passed
    through the entire squeeze-and-allocate stage of the flush routine.  A single
@@ -93,6 +100,8 @@ struct flush_position {
 
 	znode * prev_twig;	/* previous parent pointer value, used to catch
 				 * processing of new twig node */
+	flush_squeeze_item_data_t * idata; /* squeeze item data handle */
+
 	unsigned long pos_in_unit; /* for extents only. Position
 				      within an extent unit of first
 				      jnode of slum */
