@@ -499,14 +499,8 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	buf->f_type = statfs_type(super);
 	buf->f_bsize = super->s_blocksize;
 
-	/* UMKA: At Green's propose we do not show the real block count on
-	   the device. */
-	buf->f_blocks = reiser4_block_count(super) - reiser4_fs_reserved_space(super);
-
-	/* UMKA: We should do not show the reserved space */
-        bfree = (long)(reiser4_free_blocks(super) > reiser4_fs_reserved_space(super) ?
-		reiser4_free_blocks(super) - reiser4_fs_reserved_space(super) : 0);
-	    
+	buf->f_blocks = reiser4_block_count(super);
+        bfree = reiser4_free_blocks(super);
 	buf->f_bfree = bfree;
 	
 	buf->f_bavail = buf->f_bfree - reiser4_reserved_blocks(super, 0, 0);
@@ -1354,10 +1348,10 @@ reiser4_dirty_inode(struct inode *inode)
 	*/
 
 	assert("nikita-2523", inode != NULL);
-	if (reiser4_grab_space_exact(1, 1))
+	if (reiser4_grab_space_exact(1, BA_RESERVED | BA_CAN_COMMIT))
 		goto no_space;
 	
-	trace_on(TRACE_RESERVE, "ditry inode grabs 1 block.\n");
+	trace_on(TRACE_RESERVE, info("ditry inode grabs 1 block.\n"));
 
 	result = reiser4_write_sd(inode);
 	if (result != 0)
@@ -1419,10 +1413,10 @@ reiser4_delete_inode(struct inode *object)
 				fplug->estimate.truncate ? fplug->estimate.truncate(object, 0) : 0 + 
 				fplug->estimate.delete(object); 
 		
-		if (reiser4_grab_space_exact(reserved, 1))
+		if (reiser4_grab_space_exact(reserved, BA_RESERVED | BA_CAN_COMMIT))
 			goto no_space;
 		
-		trace_on(TRACE_RESERVE, "delete inode grabs %llu blocks.\n", reserved);
+		trace_on(TRACE_RESERVE, info("delete inode grabs %llu blocks.\n", reserved));
 		
 		get_exclusive_access(object);
 		truncate_object(object, (loff_t) 0);

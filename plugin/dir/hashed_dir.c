@@ -69,10 +69,10 @@ hashed_init(struct inode *object /* new directory */ ,
 	assert("nikita-687", object->i_mode & S_IFDIR);
 	trace_stamp(TRACE_DIR);
 
-	if (reiser4_grab_space_exact(reserve = hashed_estimate_init(parent, object), 0))
+	if (reiser4_grab_space_exact(reserve = hashed_estimate_init(parent, object), BA_CAN_COMMIT))
 		return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, "hashed_init grabs %llu blocks.\n", reserve);
+	trace_on(TRACE_RESERVE, info("hashed_init grabs %llu blocks.\n", reserve));
 	
 	return create_dot_dotdot( object, parent );
 }
@@ -114,10 +114,13 @@ hashed_done(struct inode *object /* object being deleted */ )
 
 		xmemset(&entry, 0, sizeof entry);
 
-		if (reiser4_grab_space_exact(reserve = hashed_estimate_done(parent, object), 1) < 0)
+		if (reiser4_grab_space_exact(reserve = hashed_estimate_done(parent, object), 
+			BA_CAN_COMMIT | BA_RESERVED) < 0)
+		{
 			return -ENOSPC;
+		}
 		
-		trace_on(TRACE_RESERVE, "hashed_done grabs %llu blocks.\n", reserve);
+		trace_on(TRACE_RESERVE, info("hashed_done grabs %llu blocks.\n", reserve));
 		
 		entry.obj = goodby_dots.d_inode = object;
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
@@ -686,13 +689,13 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	    return reserve;
 	}
 	
-	if (reiser4_grab_space_exact(reserve, 0)) {
+	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) {
 	    /* FIXME-VITALY: What about seal for old_fs_data? */
 	    done_lh(&new_lh);
 	    return -ENOSPC;
 	}
 
-	trace_on(TRACE_RESERVE, "hashed rename grabs %llu blocks.\n", reserve);
+	trace_on(TRACE_RESERVE, info("hashed rename grabs %llu blocks.\n", reserve));
 	
 	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
@@ -811,10 +814,11 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	fsdata = reiser4_get_dentry_fsdata(where);
 	if (unlikely(IS_ERR(fsdata)))
 		return PTR_ERR(fsdata);
-	if (reiser4_grab_space_exact(reserve = inode_dir_plugin(object)->estimate.add_entry(object), 0))
+		
+	if (reiser4_grab_space_exact(reserve = inode_dir_plugin(object)->estimate.add_entry(object), BA_CAN_COMMIT))
 		return -ENOSPC;
 
-	trace_on(TRACE_RESERVE, "add_entry grabs %llu blocks.\n", reserve);
+	trace_on(TRACE_RESERVE, info("add entry grabs %llu blocks.\n", reserve));
 	
 	init_lh(&lh);
 	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid, where->d_name.name, get_inode_oid(object));
@@ -859,8 +863,12 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
-	if (reiser4_grab_space_exact(inode_dir_plugin(object)->estimate.rem_entry(object), 1))
+	if (reiser4_grab_space_exact(inode_dir_plugin(object)->estimate.rem_entry(object), 
+		BA_CAN_COMMIT | BA_RESERVED))
+	{
 		return -ENOSPC;
+	}
+	
 	init_lh(&lh);
 
 	/* check for this entry in a directory. This is plugin method. */

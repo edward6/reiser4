@@ -220,11 +220,11 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 
 	/* UMKA: Should we grab any way here? What if grab_enabled is false?
 	 Is this function used in hierarchical context creation code pathes? */
-	result = reiser4_grab_space_exact( (__u64)1 , 0);
+	result = reiser4_grab_space_exact(1, BA_CAN_COMMIT);
 	if( result != 0 )
 		return result;
 
-	trace_on(TRACE_RESERVE, "balancing grabs 1 block for a leaf.\n");
+	trace_on(TRACE_RESERVE, info("balancing grabs 1 block for a leaf.\n"));
 
 	node = new_node(insert_coord->node, LEAF_LEVEL);
 	/* VITALY: Ungrab block for the balancing needs. */

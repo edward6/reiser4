@@ -312,7 +312,9 @@ format40_release(struct super_block *s)
 	info = get_super_private(s);
 	assert("zam-579", info != NULL);
 
-	if (reiser4_grab_space_exact(1, 1))
+	/* FIXME-UMKA: Should we tell block transaction manager to commit all if 
+	 * we will have no space left? */
+	if (reiser4_grab_space_exact(1, BA_RESERVED))
 		return -ENOSPC;
 	    
 	if ((ret = capture_super_block(s))) {

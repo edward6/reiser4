@@ -731,8 +731,8 @@ done_context(reiser4_context * context /* context being released */ )
 		assert("nikita-2626", tap_list_empty(taps_list()));
 
 		if (context->grabbed_blocks != 0) {
-			trace_on(TRACE_RESERVE, "%llu grabbed blocks "
-				"were not freed, free them now.\n", context->grabbed_blocks);
+			trace_on(TRACE_RESERVE, info("%llu grabbed blocks "
+				"were not freed, free them now.\n", context->grabbed_blocks));
 		
 			all_grabbed2free();
 		}
