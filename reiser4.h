@@ -171,26 +171,29 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /** Reiser4 specific error codes **/
 
-#define REISER4_ERROR_CODES_BASE 500
+#define REISER4_ERROR_CODE_BASE 500
 
 /* Neighbor is not available (side neighbor or parent) */
-#define E_NO_NEIGHBOR  (REISER4_ERROR_CODES_BASE)
+#define E_NO_NEIGHBOR  (REISER4_ERROR_CODE_BASE)
 
 /* Node was not found in cache */
-#define E_NOT_IN_CACHE (REISER4_ERROR_CODES_BASE + 1)
+#define E_NOT_IN_CACHE (REISER4_ERROR_CODE_BASE + 1)
 
 /* node has no free space enough for completion of balancing operation */
-#define E_NODE_FULL    (REISER4_ERROR_CODES_BASE + 2)
+#define E_NODE_FULL    (REISER4_ERROR_CODE_BASE + 2)
 
 /* repeat operation */
-#define E_REPEAT       (REISER4_ERROR_CODES_BASE + 3)
+#define E_REPEAT       (REISER4_ERROR_CODE_BASE + 3)
 
 /* deadlock happens */
-#define E_DEADLOCK     (REISER4_ERROR_CODES_BASE + 4)
+#define E_DEADLOCK     (REISER4_ERROR_CODE_BASE + 4)
 
 /* operation cannot be performed, because it would block and non-blocking mode
  * was requested. */
-#define E_BLOCK        (REISER4_ERROR_CODES_BASE + 5)
+#define E_BLOCK        (REISER4_ERROR_CODE_BASE + 5)
+
+/* wait some event (depends on context), then repeat */
+#define E_WAIT         (REISER4_ERROR_CODE_BASE + 6)
 
 #endif				/* __REISER4_H__ */
 

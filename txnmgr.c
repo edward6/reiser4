@@ -2121,6 +2121,9 @@ try_capture(jnode * node,  znode_lock_mode lock_mode,
 	txn_atom    *atom_alloc = NULL;
 	txn_capture cap_mode;
 	txn_handle * txnh = get_current_context()->trans;
+#if REISER4_COPY_ON_CAPTURE
+	int coc_enabled = 1;
+#endif
 	int ret;
 
 	assert("jmacd-604", spin_jnode_is_locked(node));
@@ -2131,8 +2134,10 @@ repeat:
 		return 0;
 
 	/* Repeat try_capture as long as -E_REPEAT is returned. */
-	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc, can_coc);
-
+	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc, can_coc && coc_enabled);
+#if REISER4_COPY_ON_CAPTURE
+	coc_enabled = 1;
+#endif
 	/* Regardless of non_blocking:
 
 	   If ret == 0 then jnode is still locked.
@@ -2174,6 +2179,15 @@ repeat:
 		*/
 		goto repeat;
 	}
+
+#if REISER4_COPY_ON_CAPTURE
+	if (ret == -E_WAIT) {
+		reiser4_stat_inc(coc.coc_wait);
+		/* disable COC for the next loop iteration */
+		coc_enabled = 0;
+		goto repeat;
+	}
+#endif
 
 	/* free extra atom object that was possibly allocated by
 	   try_capture_block().
@@ -3778,34 +3792,32 @@ fake_jload(jnode *node)
 
 /* for now - refuse to copy-on-capture any suspicious nodes (WRITEBACK, DIRTY, FLUSH_QUEUED) */
 static int
-capturable(const jnode *node, const txn_atom *atom)
+check_capturable(const jnode *node, const txn_atom *atom)
 {
 	assert("vs-1429", spin_jnode_is_locked(node));
 	assert("vs-1487", check_spin_is_locked(&scan_lock));
 	
-/*
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		reiser4_stat_inc(coc.writeback);
-		return 0;
+		return RETERR(-E_WAIT);
 	}
-*/
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		reiser4_stat_inc(coc.flush_queued);
-		return 0;
+		return RETERR(-E_WAIT);
 	}
 	if (JF_ISSET(node, JNODE_DIRTY)) {
 		reiser4_stat_inc(coc.dirty);
-		return 0;
+		return RETERR(-E_WAIT);
 	}
 	if (JF_ISSET(node, JNODE_SCANNED)) {
 		reiser4_stat_inc(coc.scan_race);
-		return 0;
+		return RETERR(-E_REPEAT);
 	}
 	if (node->atom != atom) {
 		reiser4_stat_inc(coc.atom_changed);
-		return 0;
+		return RETERR(-E_WAIT);
 	}
-	return 1;
+	return 0; /* OK */
 }
 
 static void
@@ -3859,14 +3871,12 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 	assert("vs-1627", !JF_ISSET(node, JNODE_WRITEBACK));
 
 	spin_lock(&scan_lock);
-	if (capturable(node, atom)) {
+	result = check_capturable(node, atom);
+	if (result == 0) {
 		/* remove jnode from capture list */
 		remove_from_capture_list(node);
 		reiser4_stat_inc(coc.ok_clean);
-		result = 0;
-	} else
-		result = RETERR(-E_REPEAT);
-
+	}
 	spin_unlock(&scan_lock);
 	UNLOCK_JNODE(node);
 	UNLOCK_ATOM(atom);
@@ -3910,17 +3920,19 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	LOCK_ATOM(atom);
 	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
-	
-	if (capturable(node, atom) && node->pg == 0) {
-		replace_on_capture_list(node, copy);
-		if (znode_above_root(JZNODE(node))) {
-			reiser4_stat_inc(coc.ok_uber);
-		} else {
-			reiser4_stat_inc(coc.ok_nopage);
-		}
-		result = 0;
-	} else {
-		result = RETERR(-E_REPEAT);
+
+	result = check_capturable(node, atom);
+	if (result == 0) {
+		if (jnode_page(node) == NULL) {
+			replace_on_capture_list(node, copy);
+#if REISER4_STATS
+			if (znode_above_root(JZNODE(node)))
+				reiser4_stat_inc(coc.ok_uber);
+			else
+				reiser4_stat_inc(coc.ok_nopage);
+#endif
+		} else
+			result = RETERR(-E_REPEAT);
 	}
 
 	spin_unlock(&scan_lock);
@@ -3958,7 +3970,9 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 	LOCK_ATOM(atom);
 	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
-	if (capturable(node, atom)) {
+
+	result = check_capturable(node, atom);
+	if (result == 0) {
 		/* if node was jloaded by get_overwrite_set, we have to jrelse
 		   it here, because we remove jnode from atom's capture list -
 		   put_overwrite_set will not jrelse it */
@@ -4005,7 +4019,6 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 		page_cache_release(page);
 		page_cache_release(new_page);
 		ON_TRACE(TRACE_CAPTURE_COPY, "copy on capture done\n");
-		result = 0;
 	} else {
 		spin_unlock(&scan_lock);
 		UNLOCK_JNODE(node);
@@ -4016,7 +4029,6 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 		unlock_page(page);
 		kunmap(new_page);
 		page_cache_release(new_page);
-		result = RETERR(-E_REPEAT);
 	}
 	return result;
 }
@@ -4100,7 +4112,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		reiser4_stat_inc(coc.coc_race);
 		UNLOCK_JNODE(node);
 		UNLOCK_ATOM(atom);
-		return RETERR(-E_REPEAT);
+		return RETERR(-E_WAIT);
 	}
 
 	set_cced_bit(node);

@@ -508,6 +508,7 @@ typedef struct reiser4_statistics {
 		statcnt_t scan_race;
 		statcnt_t atom_changed;
 		statcnt_t coc_race;
+		statcnt_t coc_wait;
 	} coc;
 
 	statcnt_t pages_dirty;

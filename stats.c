@@ -327,7 +327,8 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(coc.eflush),
 	DEFINE_STATCNT(coc.scan_race),
 	DEFINE_STATCNT(coc.atom_changed),
-	DEFINE_STATCNT(coc.coc_race)
+	DEFINE_STATCNT(coc.coc_race),
+	DEFINE_STATCNT(coc.coc_wait),
 };
 
 #define DEFINE_STAT_LEVEL_CNT(field)					\
