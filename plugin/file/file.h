@@ -51,6 +51,16 @@ typedef enum {
 } write_mode;
 
 write_mode how_to_write(coord_t *, lock_handle *, const reiser4_key *);
+/* plugin->file.estimate.*
+   methods */
+reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count, 
+    loff_t *off);
+
+reiser4_block_nr unix_file_estimate_read(struct inode *inode, size_t count);
+reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count);
+reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, size_t count);
+reiser4_block_nr unix_file_estimate_release(struct inode *inode);
+  
 
 /* plugin->file.*
    required by VFS */
