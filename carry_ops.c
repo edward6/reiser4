@@ -848,11 +848,20 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, cut );
 
-	result = node_plugin_by_node( op -> node -> real_node ) ->
-		cut( op -> u.cut -> from, op -> u.cut -> to,
-		     op -> u.cut -> from_key, op -> u.cut -> to_key,
-		     op -> u.cut -> smallest_removed,
-		     todo, 0 /* FIXME-NIKITA flags */ );
+	if( op -> u.cut -> flags & DELETE_KILL )
+		/* data gets removed from the tree */
+		result = node_plugin_by_node( op -> node -> real_node ) ->
+			cut_and_kill( op -> u.cut -> from, op -> u.cut -> to,
+				      op -> u.cut -> from_key, op -> u.cut -> to_key,
+				      op -> u.cut -> smallest_removed,
+				      todo, 0 /* FIXME-NIKITA flags */ );
+	else
+		/* data get cut,  */
+		result = node_plugin_by_node( op -> node -> real_node ) ->
+			cut( op -> u.cut -> from, op -> u.cut -> to,
+			     op -> u.cut -> from_key, op -> u.cut -> to_key,
+			     op -> u.cut -> smallest_removed,
+			     todo, 0 /* FIXME-NIKITA flags */ );
 	znode_set_dirty( op -> u.cut -> from -> node );
 	znode_set_dirty( op -> u.cut -> to -> node );
 	doing -> restartable = 0;
