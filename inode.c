@@ -308,22 +308,23 @@ static int init_locked_inode( struct inode *inode /* new inode */,
  * reiser4_inode_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
  *
  * This function is called by iget5_locked() to distinguish reiserfs inodes
- * having the same inode numbers. Such inodes can only exist due to some
- * error condition. One of them should be bad. Inodes with identical
- * inode numbers (objectids) are distinguished by their packing locality.
+ * having the same inode numbers. Such inodes can only exist due to some error
+ * condition. One of them should be bad. Inodes with identical inode numbers
+ * (objectids) are distinguished by their packing locality.
  *
  */
 int reiser4_inode_find_actor( struct inode *inode /* inode from hash table to
-					    * check */,
-		       void *opaque /* "cookie" passed to iget5_locked(). This
-				     * is stat data key */ )
+						   * check */,
+			      void *opaque /* "cookie" passed to
+					    * iget5_locked(). This is stat data
+					    * key */ )
 {
-    reiser4_key *key;
-
-    key = opaque;
-    return 
-	    ( inode -> i_ino == get_key_objectid( key ) ) &&
-	    ( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
+	reiser4_key *key;
+	
+	key = opaque;
+	return 
+		( inode -> i_ino == get_key_objectid( key ) ) &&
+		( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
 }
 
 /** this is our helper function a la iget().
