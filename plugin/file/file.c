@@ -752,7 +752,7 @@ void
 unset_hint(struct sealed_coord *hint)
 {
 	if (hint)
-		memset(hint, 0, sizeof (hint));
+		memset(hint, 0, sizeof (*hint));
 }
 
 /* coord must be set properly. So, that set_hint has nothing to do */
