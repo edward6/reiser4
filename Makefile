@@ -4,7 +4,7 @@
 
 obj-$(CONFIG_REISER4_FS) += reiser4.o
 
-ifeq ($(CONFIG_REISER4_CHECK),y)
+ifeq ($(CONFIG_REISER4_NOOPT),y)
 	EXTRA_CFLAGS += -O0
 endif
 
