@@ -545,7 +545,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	s = page->mapping->host->i_sb;
 	init_context(&ctx, s);
 
-	reiser4_stat_inc(pcwb_calls);
+	reiser4_stat_inc(pcwb.calls);
 
 	assert("vs-828", PageLocked(page));
 
@@ -558,7 +558,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	   no atom - there is no reason to call jfind, jlook (or zlook if page
 	   is of fake inode) is enough */
 	if (page->mapping->host != get_super_fake(s)) {
-		reiser4_stat_inc(pcwb_unformatted);
+		reiser4_stat_inc(pcwb.unformatted);
 		
 		node = jprivate(page);
 		if (node == NULL)
@@ -576,12 +576,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			page->mapping->a_ops->set_page_dirty(page);
 			reiser4_unlock_page(page);
 
-			reiser4_stat_inc(pcwb_no_jnode);
+			reiser4_stat_inc(pcwb.no_jnode);
 			reiser4_exit_context(&ctx);
 			return 0;
 		}
 	} else {
-		reiser4_stat_inc(pcwb_formatted);
+		reiser4_stat_inc(pcwb.formatted);
 		/* formatted pages always have znode attached to them */
 		assert("vs-1101", PagePrivate(page) && jnode_by_page(page));
 		node = jnode_by_page(page);
@@ -596,7 +596,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	jput(node);
 	if (result != 0) {
 		set_page_dirty_internal(page);
-		reiser4_stat_inc(pcwb_ented);
+		reiser4_stat_inc(pcwb.ented);
 		reiser4_exit_context(&ctx);
 		return 0;
 	}
@@ -623,12 +623,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		result = RETERR(-EINVAL);
 	}
 	if (result <= 0) {
-		reiser4_stat_inc(pcwb_not_written);		
+		reiser4_stat_inc(pcwb.not_written);		
 		set_page_dirty_internal(page);
 		reiser4_unlock_page(page);
 		result = 0;
 	} else
-		reiser4_stat_inc(pcwb_written);
+		reiser4_stat_inc(pcwb.written);
 	reiser4_exit_context(&ctx);
 	return result;
 }
