@@ -890,6 +890,7 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
+/* estimate number of blocks which will be dirtied during stat data updating */
 static reiser4_block_nr 
 common_estimate_update(const struct inode *node)
 {
