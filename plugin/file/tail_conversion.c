@@ -248,6 +248,7 @@ tail2extent(unix_file_info_t *uf_info)
 	int i;
 	struct inode *inode;
 	__u64 offset;
+	int first_iteration;
 
 	assert("nikita-3362", ea_obtained(uf_info));
 
@@ -290,12 +291,18 @@ tail2extent(unix_file_info_t *uf_info)
 
 	done = 0;
 	result = 0;
+	first_iteration = 1;
 	while (!done) {
 		xmemset(pages, 0, sizeof (pages));
 		all_grabbed2free();
 		result = reserve_tail2extent_iteration(inode);
 		if (result != 0)
 			break;
+		if (first_iteration) {
+			inode_set_flag(inode, REISER4_PART_CONV);
+			reiser4_update_sd(inode);
+			first_iteration = 0;
+		}
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
 			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT));
@@ -405,14 +412,15 @@ tail2extent(unix_file_info_t *uf_info)
 		/* It is advisable to check here that all grabbed pages were
 		 * freed */
 	} else {
+		/* conversion is not complete. Inode was already marked as
+		 * REISER4_PART_CONV and stat-data were updated at the first
+		 * iteration of the loop above. */
 error:
 		for_all_pages(pages, sizeof_array(pages), DROP);
 exit:
 		warning("nikita-2282", "Partial conversion of %llu: %i",
 			get_inode_oid(inode), result);
 		print_inode("inode", inode);
-		inode_set_flag(inode, REISER4_PART_CONV);
-		reiser4_update_sd(inode);
 	}
 
 	s_result = safe_link_del(inode, SAFE_T2E);
@@ -582,6 +590,10 @@ extent2tail(unix_file_info_t *uf_info)
 		result = reserve_extent2tail_iteration(inode);
 		if (result != 0)
 			break;
+		if (i == 0) {
+			inode_set_flag(inode, REISER4_PART_CONV);
+			reiser4_update_sd(inode);
+		}
 
 		page = read_cache_page(inode->i_mapping,
 				       (unsigned) (i + start_page),
@@ -642,20 +654,19 @@ extent2tail(unix_file_info_t *uf_info)
 	assert("vs-1260", reiser4_inode_data(inode)->eflushed == 0);
 
 	if (i == num_pages) {
-		/* FIXME-VS: not sure what to do when conversion did
-		   not complete */
 		uf_info->container = UF_CONTAINER_TAILS;
 		if (inode_get_flag(inode, REISER4_PART_CONV)) {
 			inode_clr_flag(inode, REISER4_PART_CONV);
 			reiser4_update_sd(inode);
 		}
 	} else {
+		/* conversion is not complete. Inode was already marked as
+		 * REISER4_PART_CONV and stat-data were updated at the first
+		 * iteration of the loop above. */
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
 			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
-		inode_set_flag(inode, REISER4_PART_CONV);
-		reiser4_update_sd(inode);
 	}
 	s_result = safe_link_del(inode, SAFE_E2T);
 	if (s_result != 0) {
