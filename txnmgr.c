@@ -1262,6 +1262,7 @@ int txn_attach_txnh_to_node (jnode *node)
 	capture_assign_txnh_nolock (atom, txnh);
 
 	spin_unlock_atom (atom);
+	spin_unlock_txnh (txnh);
 	
 	return 0;
 }
