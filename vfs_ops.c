@@ -630,14 +630,6 @@ static int reiser4_link( struct dentry *existing /* dentry of existing
 	assert( "umka-080", existing != NULL );
 	assert( "nikita-1031", parent != NULL );
 	
-	/* is this dead-lock safe? FIXME-NIKITA */
-	if( reiser4_lock_inode_interruptible( parent ) != 0 )
-		REISER4_EXIT( -EINTR );
-	if( reiser4_lock_inode_interruptible( existing -> d_inode ) != 0 ) {
-		reiser4_unlock_inode( parent );
-		REISER4_EXIT( -EINTR );
-	}
-	unlock_kernel();
 	dplug = inode_dir_plugin( parent );
 	assert( "nikita-1430", dplug != NULL );
 	if( dplug -> link != NULL ) {
@@ -648,10 +640,6 @@ static int reiser4_link( struct dentry *existing /* dentry of existing
 	} else {
 		result = -EPERM;
 	}
-	lock_kernel();
-	reiser4_unlock_inode( existing -> d_inode );
-	reiser4_unlock_inode( parent );
-	
 	REISER4_EXIT( result );
 }
 
