@@ -386,7 +386,7 @@ txn_end(reiser4_context * context)
 
 	assert("umka-283", context != NULL);
 	assert("nikita-3012", schedulable());
-	/* ZAM-FIXME-HANS: explain what a non-top-level context is and why it does not need to decrement the number of transaction handles.  */
+
 	/* closing non top-level context---nothing to do */
 	if (context != context->parent)
 		return 0;
@@ -754,9 +754,8 @@ static int atom_can_be_committed (txn_atom * atom)
 	return atom->txnh_count == atom->nr_waiters + 1;
 }
 
-/* Return true if an atom should commit now.  This will be determined by aging.  For now
-   this says to commit after the atom has 20 captured nodes.  The routine is only called
-   when the txnh_count drops to 0. */
+/* Return true if an atom should commit now.  This is determined by aging, atom
+   size or atom flags. */
 static int
 atom_should_commit(const txn_atom * atom)
 {
