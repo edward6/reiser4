@@ -284,6 +284,7 @@ extern void jnode_make_clean_nolock(jnode * node);
 extern void jnode_make_clean(jnode * node);
 extern void jnode_make_wander_nolock(jnode * node);
 extern void jnode_make_wander(jnode*);
+extern void jnode_make_reloc(jnode*, flush_queue_t*);
 extern void jnode_set_block(jnode * node, const reiser4_block_nr * blocknr);
 extern int jnode_io_hook(jnode *node, struct page *page, int rw);
 
