@@ -46,7 +46,7 @@ typedef struct pseudo_info {
 	struct inode  *host;
 } pseudo_info_t;
 
-extern struct inode *pseudo_lookup(struct inode *parent, const char *name);
+extern struct inode *lookup_pseudo(struct inode *parent, const char *name);
 
 typedef enum { 
 	PSEUDO_TEST_ID,
