@@ -278,13 +278,13 @@ static int scan_mgr( txn_mgr *mgr )
 	{
 		REISER4_ENTRY( tree -> super );
 
-		ret = txn_commit_some( mgr );
+		ret = commit_some( mgr );
 
 		if (ret)
 			goto out;
 
 		if (need_flush( mgr )) {
-			ret = txn_flush_one (mgr, NULL, JNODE_FLUSH_WRITE_BLOCKS);
+			ret = flush_one (mgr, NULL, JNODE_FLUSH_WRITE_BLOCKS);
 
 			if (ret)
 				goto out;

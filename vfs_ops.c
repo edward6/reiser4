@@ -1986,7 +1986,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	/* init layout plugin */
 	info->df_plug = df_plug;
 
-	txn_mgr_init (&info->tmgr);
+	mgr_init (&info->tmgr);
 
 	result = ktxnmgrd_attach (& kdaemon, &info->tmgr);
 	if (result) {
@@ -2078,7 +2078,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	/* shutdown daemon */
 	ktxnmgrd_detach (&info->tmgr);
  error2:
-	txn_mgr_done (&info->tmgr);
+	mgr_done (&info->tmgr);
  error1:
 	kfree (info);
 	s->s_fs_info = NULL;
@@ -2172,7 +2172,7 @@ static void reiser4_write_super (struct super_block * s)
 
 	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember putting this
 	 * here. */
-	if ((ret = txn_mgr_force_commit_all (s))) {
+	if ((ret = mgr_force_commit_all (s))) {
 		warning ("jmacd-77113", "txn_force failed in write_super: %d", ret);
 	}
 
@@ -2215,7 +2215,7 @@ try_to_lock:
 			spin_lock_jnode( node );
 			reiser4_unlock_page( page );
 
-			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
+			ret = try_capture( node, ZNODE_WRITE_LOCK, 0 );
 
 			if( !ret) {
 				/* If node is flush queued (i.e. prepard to
@@ -2286,14 +2286,14 @@ try_to_lock:
 			assert( "nikita-2676", jprivate( page ) == node );
 			if ( ret ) {
 				warning( "green-20", 
-					 "txn_try_capture returned %d", ret );
+					 "try_capture returned %d", ret );
 				if( ( ret == -EAGAIN ) || ( ret == -EDEADLK ) ||
 				    ( ret == -EINTR ) ) {
 					preempt_point();
 					goto try_to_lock;
 				}
 			} else {
-				txn_delete_page( page );
+				delete_page( page );
 
 				UNDER_SPIN_VOID( jnode, node,
 						 page_clear_jnode( page, 
@@ -2413,7 +2413,7 @@ int reiser4_writepages( struct address_space *mapping, struct writeback_control 
 				break;
 			}
 
-			ret = txn_flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+			ret = flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
 
 			if (!nr_submitted)
 				break;
@@ -2455,7 +2455,7 @@ static void __exit done_reiser4(void)
         DONE_IF( INIT_FS_REGISTERED, unregister_filesystem( &reiser4_fs_type ) );
 	DONE_IF( INIT_JNODES, jnode_done_static() );
 	DONE_IF( INIT_FAKES, ; );
-	DONE_IF( INIT_TXN, txn_done_static() );
+	DONE_IF( INIT_TXN, done_static() );
 	DONE_IF( INIT_PLUGINS, ; );
 	DONE_IF( INIT_ZNODES, znodes_done() );
 	DONE_IF( INIT_CONTEXT_MGR, ; );
@@ -2510,7 +2510,7 @@ static int __init init_reiser4(void)
 	CHECK_INIT_RESULT( init_context_mgr() );
 	CHECK_INIT_RESULT( znodes_init() );
 	CHECK_INIT_RESULT( init_plugins() );
-	CHECK_INIT_RESULT( txn_init_static() );
+	CHECK_INIT_RESULT( init_static() );
 	CHECK_INIT_RESULT( init_fakes() );
 	CHECK_INIT_RESULT( jnode_init_static() );
 	CHECK_INIT_RESULT( register_filesystem( &reiser4_fs_type ) );

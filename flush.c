@@ -2652,7 +2652,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 		return -ENAVAIL;
 	}
 
-	if (! (go = txn_same_atom_dirty (ZJNODE (node), ZJNODE (neighbor), 0, 0))) {
+	if (! (go = same_atom_dirty (ZJNODE (node), ZJNODE (neighbor), 0, 0))) {
 		ret = -ENAVAIL;
 		goto fail;
 	}
@@ -2728,7 +2728,7 @@ static int flush_scan_finished (flush_scan *scan)
  * same_atom_dirty condition.  If not, deref the "left" node and stop the scan. */
 static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 {
-	int go = txn_same_atom_dirty (scan->node, tonode, 1, 0);
+	int go = same_atom_dirty (scan->node, tonode, 1, 0);
 
 	if (! go) {
 		scan->stop = 1;
@@ -3286,7 +3286,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		trace_on (TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, flush_jnode_tostring (neighbor));
 
-		assert ("jmacd-3551", ! jnode_check_flushprepped (neighbor) && txn_same_atom_dirty (neighbor, scan->node, 0, 0));
+		assert ("jmacd-3551", ! jnode_check_flushprepped (neighbor) && same_atom_dirty (neighbor, scan->node, 0, 0));
 
 		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist, & coord))) {
 			goto exit;

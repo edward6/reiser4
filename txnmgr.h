@@ -37,7 +37,7 @@ TS_LIST_DECLARE(blocknr_set);      /* Used for the transaction's delete set
 				    TYPE DECLARATIONS
  ****************************************************************************************/
 
-/* This enumeration describes the possible types of a capture request (txn_try_capture).
+/* This enumeration describes the possible types of a capture request (try_capture).
  * A capture request dynamically assigns a block to the calling thread's transaction
  * handle. */
 typedef enum
@@ -74,11 +74,11 @@ typedef enum
 	TXN_CAPTURE_WTYPES        = (TXN_CAPTURE_READ_MODIFY |
 				     TXN_CAPTURE_WRITE),
 
-	/* An option to txn_try_capture, NONBLOCKING indicates that the caller would
+	/* An option to try_capture, NONBLOCKING indicates that the caller would
 	 * prefer not to sleep waiting for an aging atom to commit. */
 	TXN_CAPTURE_NONBLOCKING   = (1 << 4),
 
-	/* An option to txn_try_capture to prevent atom fusion, just simple capturing is allowed */
+	/* An option to try_capture to prevent atom fusion, just simple capturing is allowed */
 	TXN_CAPTURE_DONT_FUSE     = (1 << 5)
 
 	/* This macro selects only the exclusive capture request types, stripping out any
@@ -345,39 +345,39 @@ TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
  * are prefixed with "txn_".  For comments, see txnmgr.c. */
    
-extern int          txn_init_static       (void);
-extern void         txn_mgr_init          (txn_mgr            *mgr);
+extern int          init_static       (void);
+extern void         mgr_init          (txn_mgr            *mgr);
 
-extern int          txn_done_static       (void);
-extern int          txn_mgr_done          (txn_mgr            *mgr);
+extern int          done_static       (void);
+extern int          mgr_done          (txn_mgr            *mgr);
 
 extern int          txn_reserve           (int                 reserved);
 
 extern void         txn_begin             (reiser4_context    *context);
 extern int          txn_end               (reiser4_context    *context);
 
-extern int          txn_mgr_force_commit_all (struct super_block *super);
+extern int          mgr_force_commit_all (struct super_block *super);
 
-extern int          txn_commit_some       (txn_mgr  *);
-extern int          txn_flush_one         (txn_mgr  *, long *, int);
-extern int          txn_flush_some_atom   (long *, int);
+extern int          commit_some       (txn_mgr  *);
+extern int          flush_one         (txn_mgr  *, long *, int);
+extern int          flush_some_atom   (long *, int);
 
-extern int          txn_same_atom_dirty   (jnode              *base,
+extern int          same_atom_dirty   (jnode              *base,
 					   jnode              *check,
 					   int                 alloc_check,
 					   int                 alloc_value);
 
-extern int          txn_try_capture       (jnode              *node,
+extern int          try_capture       (jnode              *node,
 					   znode_lock_mode     mode,
 					   txn_capture         flags);
 
-extern int          txn_try_capture_page  (struct page        *pg,
+extern int          try_capture_page  (struct page        *pg,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);
 
-extern int          txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags);
+extern int          attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags);
 
-extern void         txn_delete_page       (struct page        *pg);
+extern void         delete_page       (struct page        *pg);
 
 extern txn_atom*    atom_get_locked_with_txnh_locked_nocheck (txn_handle       *txnh);
 extern txn_atom*    get_current_atom_locked_nocheck (void);
@@ -409,10 +409,10 @@ extern txn_atom*    atom_get_locked_by_jnode (jnode *);
 extern txn_atom*    atom_wait_event       (txn_handle *);
 extern void         atom_send_event       (txn_atom *);
 
-extern void         txn_insert_into_clean_list (txn_atom * atom, jnode * node);
+extern void         insert_into_clean_list (txn_atom * atom, jnode * node);
 extern int          capture_super_block   (struct super_block * s);
 
-extern int txn_jnodes_of_one_atom (jnode *, jnode *);
+extern int jnodes_of_one_atom (jnode *, jnode *);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
  * calling convention of these three routines. */

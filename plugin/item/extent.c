@@ -1652,7 +1652,7 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	assert ("vs-864", znode_is_wlocked (coord->node));
 
 
-	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+	result = try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 	if (result)
 		return result;
 	j = jnode_by_page (page);
@@ -1662,7 +1662,7 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	result = extent_get_block (page->mapping->host, coord, lh, j);
 	reiser4_lock_page (page);
 	if (result) {
-		txn_delete_page (page);
+		delete_page (page);
 
 		trace_on (TRACE_EXTENTS, "extent_writepage failed: %d\n",
 			  result);
@@ -2327,7 +2327,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 				 * to one atom. Check that
 				 */
 				if (check) {
-					assert ("vs-936", txn_jnodes_of_one_atom (check, j));
+					assert ("vs-936", jnodes_of_one_atom (check, j));
 				} else {
 					check = jref (j);
 				}
@@ -3301,7 +3301,7 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
 			goto exit1;
 		}
 
-		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+		result = try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result) {
 			goto exit2;
 		}
@@ -3363,7 +3363,7 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
 		 * jnode (in that case page must be unlocked) because we got
 		 * reference to it in extent_capture_page
 		 */
-		txn_delete_page (page);
+		delete_page (page);
 	exit2:
 		reiser4_unlock_page (page);
 		page_cache_release (page);

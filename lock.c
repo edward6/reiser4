@@ -799,7 +799,7 @@ int longterm_lock_znode (
 		       (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we can get the lock... Try to capture first before taking the
 		 * lock.*/
-		if ((ret = txn_try_capture (ZJNODE (node), mode, try_capture_flags)) != 0) {
+		if ((ret = try_capture (ZJNODE (node), mode, try_capture_flags)) != 0) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
 			 * in some cases, it was released a while ago).  There's no need
 			 * to reacquire it so we should return here, avoid releasing the

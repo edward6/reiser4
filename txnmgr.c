@@ -283,7 +283,7 @@ ktxnmgrd_context kdaemon;
 
 /* Initialize static variables in this file. */
 int
-txn_init_static (void)
+init_static (void)
 {
 	assert ("jmacd-600", _atom_slab == NULL);
 	assert ("jmacd-601", _txnh_slab == NULL);
@@ -317,7 +317,7 @@ txn_init_static (void)
 
 /* Un-initialize static variables in this file. */
 int
-txn_done_static (void)
+done_static (void)
 {
 	int ret1, ret2, ret3;
 
@@ -338,7 +338,7 @@ txn_done_static (void)
 
 /* Initialize a new transaction manager.  Called when the super_block is initialized. */
 void
-txn_mgr_init (txn_mgr *mgr)
+mgr_init (txn_mgr *mgr)
 {
 	assert("umka-169", mgr != NULL);
 	
@@ -355,7 +355,7 @@ txn_mgr_init (txn_mgr *mgr)
 
 /* Free transaction manager. */
 int
-txn_mgr_done (txn_mgr* mgr UNUSED_ARG)
+mgr_done (txn_mgr* mgr UNUSED_ARG)
 {
 	assert("umka-170", mgr != NULL);
 	
@@ -593,7 +593,7 @@ atom_get_locked_by_jnode (jnode *node)
  * by flush code to indicate whether the next node (in some direction) is suitable for
  * flushing. */
 int
-txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value)
+same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value)
 {
 	int compat;
 	txn_atom *atom;
@@ -717,7 +717,7 @@ atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
 		trace_on (TRACE_TXN, "alloc atom race\n");
 		/*
 		 * FIXME-NIKITA probably it is rather better to free
-		 * *atom_alloc here than thread it up to txn_try_capture().
+		 * *atom_alloc here than thread it up to try_capture().
 		 */
 		return ERR_PTR (-EAGAIN);
 	}
@@ -984,7 +984,7 @@ atom_try_commit_locked (txn_atom *atom)
  * wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
  * created. */
 int
-txn_mgr_force_commit_all (struct super_block *super)
+mgr_force_commit_all (struct super_block *super)
 {
 	int ret;
 	txn_atom *atom;
@@ -1061,7 +1061,7 @@ txn_mgr_force_commit_all (struct super_block *super)
 /**
  * called periodically from ktxnmgrd to commit old atoms.
  */
-int txn_commit_some (txn_mgr *mgr)
+int commit_some (txn_mgr *mgr)
 {
 	int ret = 0;
 	txn_atom   *atom;
@@ -1130,7 +1130,7 @@ int txn_commit_some (txn_mgr *mgr)
 }
 
 /* Flush some nodes from given locked atom */
-static int txn_flush_this_atom (txn_atom * atom, long * nr_submitted, int flags)
+static int flush_this_atom (txn_atom * atom, long * nr_submitted, int flags)
 {
 	int ret = 0;
 	jnode * first_dirty;
@@ -1181,7 +1181,7 @@ static int txn_flush_this_atom (txn_atom * atom, long * nr_submitted, int flags)
 }
 
 /* Call jnode_flush for a node from one atom, count submitted nodes */
-int txn_flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
+int flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
 {
 	txn_atom * atom;
 	reiser4_context * ctx = get_current_context();
@@ -1236,7 +1236,7 @@ int txn_flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
 	{ 
 		int ret;
 
-		ret = txn_flush_this_atom (atom, nr_submitted, flags);
+		ret = flush_this_atom (atom, nr_submitted, flags);
 
 		if (ret < 0) {
 			info ("jnode_flush failed with err = %d\n", ret);
@@ -1251,7 +1251,7 @@ int txn_flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
 
 /* calls jnode_flush for current atom if it exists; if not, just take another atom and call
  * jnode_flush() for him  */
-int txn_flush_some_atom (long * nr_submitted, int flags)
+int flush_some_atom (long * nr_submitted, int flags)
 {
 	reiser4_context * ctx = get_current_context();
 	txn_handle * txnh = ctx ->trans;
@@ -1266,10 +1266,10 @@ int txn_flush_some_atom (long * nr_submitted, int flags)
 		atom = atom_get_locked_with_txnh_locked (txnh);
 		spin_unlock_txnh (txnh);
 
-		ret = txn_flush_this_atom (atom, nr_submitted, flags);
+		ret = flush_this_atom (atom, nr_submitted, flags);
 	} else {
 		txn_mgr * tmgr = &get_super_private (ctx->super)->tmgr;
-		ret = txn_flush_one (tmgr, nr_submitted, flags);
+		ret = flush_one (tmgr, nr_submitted, flags);
 	}
 
 	return ret;
@@ -1456,14 +1456,14 @@ commit_txnh (txn_handle *txnh)
 
 
 /*****************************************************************************************
-				   TXN_TRY_CAPTURE
+				   TRY_CAPTURE
 *****************************************************************************************/
 
 /* This routine attempts a single block-capture request.  It may return -EAGAIN if some
  * condition indicates that the request should be retried, and it may block if the
  * txn_capture mode does not include the TXN_CAPTURE_NONBLOCKING request flag.
  *
- * The txn_try_capture() function (below) is the external interface, which calls this
+ * The try_capture() function (below) is the external interface, which calls this
  * function repeatedly as long as -EAGAIN is returned.
  *
  * This routine encodes the basic logic of block capturing described by:
@@ -1496,7 +1496,7 @@ commit_txnh (txn_handle *txnh)
  * This function acquires and releases the handle's spinlock.  This function is called
  * under the jnode lock and if the return value is 0, it returns with the jnode lock still
  * held.  If the return is -EAGAIN or some other error condition, the jnode lock is
- * released.  The external interface (txn_try_capture) manages re-aquiring the jnode lock
+ * released.  The external interface (try_capture) manages re-aquiring the jnode lock
  * in the failure case.
  */
 static int
@@ -1509,7 +1509,7 @@ try_capture_block (txn_handle  *txnh,
 	txn_atom *block_atom;
 	txn_atom *txnh_atom;
 
-	/* Should not call capture for READ_NONCOM requests, handled in txn_try_capture. */
+	/* Should not call capture for READ_NONCOM requests, handled in try_capture. */
 	assert ("jmacd-567", CAPTURE_TYPE (mode) != TXN_CAPTURE_READ_NONCOM);
 
 	/* FIXME_LATER_JMACD Should assert that atom->tree == node->tree somewhere. */
@@ -1517,7 +1517,7 @@ try_capture_block (txn_handle  *txnh,
 	assert("umka-194", txnh != NULL);
 	assert("umka-195", node != NULL);
 
-	/* The jnode is already locked!  Being called from txn_try_capture(). */
+	/* The jnode is already locked!  Being called from try_capture(). */
 	assert ("jmacd-567", spin_jnode_is_locked (node));
 
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
@@ -1667,7 +1667,7 @@ try_capture_block (txn_handle  *txnh,
  * held.
  */
 int
-txn_try_capture (jnode           *node,
+try_capture (jnode           *node,
 		 znode_lock_mode  lock_mode,
 		 txn_capture      flags /* ...NONBLOCKING and ...DONT_FUSE are allowed here */)
 {
@@ -1867,7 +1867,7 @@ static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
 /* This is the interface to capture unformatted nodes via their struct page
  * reference. */
 int
-txn_try_capture_page  (struct page        *pg,
+try_capture_page  (struct page        *pg,
 		       znode_lock_mode     lock_mode,
 		       int                 non_blocking)
 {
@@ -1885,7 +1885,7 @@ txn_try_capture_page  (struct page        *pg,
 	spin_lock_jnode (node);
 	reiser4_unlock_page (pg);
 
-	ret = txn_try_capture (node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
+	ret = try_capture (node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
 	if (ret == 0) {
 		spin_unlock_jnode (node);
 	}
@@ -1898,7 +1898,7 @@ txn_try_capture_page  (struct page        *pg,
  * committing while they perform early flushing.  The node is already captured but the
  * txnh is not.
  */
-int txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
+int attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
 {
 	txn_atom *atom;
 	int ret = 0;
@@ -1936,7 +1936,7 @@ int txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
  * why the EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.  The
  * second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
  * "repeat" once.  */
-void txn_delete_page (struct page *pg)
+void delete_page (struct page *pg)
 {
 	int ret;
 	jnode *node;
@@ -2805,7 +2805,7 @@ uncapture_block (txn_atom *atom,
  * Unconditional insert of jnode into atom's clean list. Currently used in
  * bitmap-based allocator code for adding modified bitmap blocks the
  * transaction. @atom and @node are spin locked */
-void txn_insert_into_clean_list (txn_atom * atom, jnode * node) 
+void insert_into_clean_list (txn_atom * atom, jnode * node) 
 {
 	assert ("zam-538", spin_atom_is_locked (atom));
 	assert ("zam-539", spin_jnode_is_locked (node));
@@ -2821,7 +2821,7 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 /**
  * return 1 if two dirty jnodes belong to one atom, 0 - otherwise
  */
-int txn_jnodes_of_one_atom (jnode * j1, jnode * j2)
+int jnodes_of_one_atom (jnode * j1, jnode * j2)
 {
 	int ret;
 	int finish = 0;
