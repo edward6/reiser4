@@ -311,6 +311,10 @@ void zdestroy( znode *node )
 	/* remove znode from hash-table */
 	z_hash_remove( & current_tree -> hash_table, node );
 	spin_unlock_tree( current_tree );
+	/*
+	 * poison memory. Put this under REISER4_DEBUG once race is fixed.
+	 */
+	xmemset( node, 0xde, sizeof *node );
 	zfree( node );
 }
 
@@ -518,12 +522,12 @@ void zput (znode *node)
 	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
 	assert ("jmacd-572", atomic_read (& node->c_count) >= 0);
 
-	atomic_dec (& node->x_count); 
 	/*
 	 * FIXME-NIKITA nikita: handle releasing reference to the znode that is
 	 * removed from the tree. Locking?
 	 */
-	if (atomic_read (& node->x_count) == 0 && ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+	if (atomic_dec_and_test (& node->x_count) && 
+	    ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
 
 		/* FIXME_JMACD: Currently deallocate_znode just calls zdestroy(). */
 		deallocate_znode (node);
