@@ -329,7 +329,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
-	if( result == 0 ) {
+	if( result == 0 && ( ( result = zload( coord.node ) ) == 0 ) ) {
 		char *area;
 
 		spin_lock_inode( state );
@@ -350,6 +350,8 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			      item_length_by_coord( &coord ) );
 		}
 		spin_unlock_inode( state );
+
+		zrelse( coord.node );
 
 		/* if on-disk stat data is of different length than required
 		   for this inode, resize it */
@@ -377,7 +379,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			case RESIZE_OK:
 			}
 		}
-		if( result == 0 ) {
+		if( result == 0 && ( ( result = zload( coord.node ) ) == 0 ) ) {
 			area = item_body_by_coord( &coord );
 			spin_lock_inode( state );
 			assert( "nikita-729", 
@@ -388,6 +390,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			seal_init( &state -> sd_seal, &coord, &key );
 			state -> sd_coord = coord;
 			spin_unlock_inode( state );
+			zrelse( coord.node );
 		} else {
 			key_warning( error_message, &key, result );
 		}
