@@ -634,8 +634,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 
-	if (setdk)
-		update_stale_dk(h->tree, active);
+	update_stale_dk(h->tree, active);
 
 	/* put_parent() cannot be called earlier, because connect_znode()
 	   assumes parent node is referenced; */
@@ -693,18 +692,26 @@ fail_or_restart:
 void
 check_dkeys(const znode *node)
 {
+	znode *left;
+	znode *right;
+
 	RLOCK_DK(current_tree);
 	RLOCK_TREE(current_tree);
 
 	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
 
-	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) && node->left != NULL)
-		/* check left neighbor */
-		assert("vs-1198", keyeq(&node->left->rd_key, &node->ld_key));
+	left = node->left;
+	right = node->right;
 
-	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right != NULL)
+	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) && 
+	    left != NULL && ZF_ISSET(left, JNODE_DKSET))
+		/* check left neighbor */
+		assert("vs-1198", keyeq(&left->rd_key, &node->ld_key));
+
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right != NULL && 
+	    ZF_ISSET(right, JNODE_DKSET))
 		/* check right neighbor */
-		assert("vs-1199", keyeq(&node->rd_key, &node->right->ld_key));
+		assert("vs-1199", keyeq(&node->rd_key, &right->ld_key));
 
 	RUNLOCK_TREE(current_tree);
 	RUNLOCK_DK(current_tree);

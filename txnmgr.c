@@ -2347,8 +2347,12 @@ znode_make_dirty(znode * z)
 	jnode_make_dirty_locked(node);
 	page = jnode_page(node);
 	if (page != NULL) {
-		assert("nikita-3292", 
-		       !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK));
+		/* this is useful assertion (allows one to check that no
+		 * modifications are lost due to update of in-flight page),
+		 * but it requires locking on page to check PG_writeback
+		 * bit. */
+		/* assert("nikita-3292", 
+		       !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK)); */
 		page_cache_get(page);
 		ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
 		/* jnode lock is not needed for the rest of

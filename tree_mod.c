@@ -153,6 +153,10 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				WLOCK_TREE(tree);
 				in_parent = &new_root->in_parent;
 				init_parent_coord(in_parent, fake);
+				/* manually insert new root into sibling
+				 * list. With this all nodes involved into
+				 * balancing are connected after balancing is
+				 * done---useful invariant to check. */
 				sibling_list_insert_nolock(new_root, NULL);
 				WUNLOCK_TREE(tree);
 
@@ -163,6 +167,11 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				znode_set_ld_key(new_root, min_key());
 				znode_set_rd_key(new_root, max_key());
 				WUNLOCK_DK(tree);
+				if (REISER4_DEBUG) {
+					ZF_CLR(old_root, JNODE_LEFT_CONNECTED);
+					ZF_CLR(old_root, JNODE_RIGHT_CONNECTED);
+					ZF_SET(old_root, JNODE_ORPHAN);
+				}
 				result = add_child_ptr(new_root, old_root);
 				done_lh(&rlh);
 			}
