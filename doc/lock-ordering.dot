@@ -95,6 +95,7 @@ subgraph spin {
 	RSPIN(ktxnmgrd_lock);
 	RSPIN(cbk_guard);
 	RSPIN(epoch_lock);
+	RSPIN(zgen_lock);
 	RSPIN(stack_lock);
 	RSPIN(zlock);
 	RSPIN(fq_lock);
@@ -234,6 +235,7 @@ ARC(tree_lock, zone_lock, "page_clear_jnode()");//,\njrelse_nolock()");
 ARC(tree_lock, zone_lru_lock, "page_clear_jnode()");//,\njrelse_nolock()");
 ARC(tree_lock, mapping_page_lock, "jdrop_in_tree()");
 ARC(tree_lock, epoch_lock, "zget()");
+ARC(tree_lock, zgen_lock, "zget()");
 
 ARC(bkl, inode_lock, "iget()");
 

@@ -325,6 +325,7 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
 	init_parent_coord(&node->in_parent, parent);
+	node->zgen = UNDER_SPIN(zgen, tree, tree->zgen ++);
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
 
@@ -1248,8 +1249,9 @@ info_znode(const char *prefix /* prefix to print */ ,
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
 
-	printk("c_count: %i, readers: %i, items: %i\n", 
-	       atomic_read(&node->c_count), node->lock.nr_readers, node->nr_items);
+	printk("c_count: %i, readers: %i, items: %i, zgen: %lu\n", 
+	       atomic_read(&node->c_count), node->lock.nr_readers, 
+	       node->nr_items, node->zgen);
 }
 
 void

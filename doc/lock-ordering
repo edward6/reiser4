@@ -100,6 +100,9 @@ Reiser4 introduces following locks:
 
 37. Per flush queue lock                                        (fq_lock*)
 
+38. Per-super-block zgen lock, protecting znode generation      (zgen*)
+    counter
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -303,6 +306,7 @@ i_sem
 ..............................tree_lock
 ................................cbk_guard
 ................................epoch_lock
+................................zgen_lock
 ....................mm->page_table_lock
 ......................mapping->private_lock
 ........................swaplock
