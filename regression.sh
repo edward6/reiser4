@@ -13,7 +13,11 @@ function run()
 {
 #   do_mkfs
 	echo -n $* "..."
-	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null
+	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null || exit 1
+#	shift
+#	shift
+	RNAME=`echo $* | sed 's/ /./g'`.$r
+	mv gmon.out gmon.out.$RNAME 2>/dev/null
 }
 
 function do_mkfs()
@@ -33,59 +37,33 @@ ORDER=${2:-''}
 
 do_mkfs
 
+if [ -z $REISER4_MOUNT ]
+then
+	echo 'Set $REISER4_MOUNT'
+	exit 3
+fi
+
 for r in `seq 1 $ROUNDS` 
 do
 echo Round $r
-run ${PROGRAM} nikita ibk 30${ORDER} || exit 1
-mv gmon.out gmon.out.ibk.30${ORDER}.$r 2>/dev/null
 
+run ${PROGRAM} nikita ibk 30${ORDER}
+#	run ${PROGRAM} jmacd build 3 1000 1000
+run ${PROGRAM} nikita dir 1 100${ORDER} 0
+run ${PROGRAM} nikita dir 1 100${ORDER} 1
+run ${PROGRAM} nikita dir 4 7${ORDER} 0
+run ${PROGRAM} nikita dir 4 7${ORDER} 1
+run ${PROGRAM} nikita mongo 3 20${ORDER} 0
+run ${PROGRAM} nikita mongo 3 20${ORDER} 1
+run ${PROGRAM} nikita rm 6 10${ORDER} 0
+run ${PROGRAM} nikita rm 6 10${ORDER} 1
+run ${PROGRAM} nikita unlink 15${ORDER}
+#run ${PROGRAM} nikita queue 30 10${ORDER} 10000
+run ${PROGRAM} nikita mongo 30 1${ORDER} 0
+run ${PROGRAM} nikita mongo 30 1${ORDER} 1
+run ${PROGRAM} nikita bobber 100${ORDER} 300
+#run ulevel/cp-r plugin
+#( find /tmp | ${PROGRAM} vs copydir )
 
-#	run ${PROGRAM} jmacd build 3 1000 1000 || exit 4
-#	mv gmon.out gmon.out.build.3.1000.$r 2>/dev/null
-
-run ${PROGRAM} nikita dir 1 100${ORDER} 0 || exit 2
-mv gmon.out gmon.out.dir.1.100${ORDER}.0.$r 2>/dev/null
-
-run ${PROGRAM} nikita dir 1 100${ORDER} 1 || exit 2
-mv gmon.out gmon.out.dir.1.100${ORDER}.1.$r 2>/dev/null
-
-run ${PROGRAM} nikita dir 4 7${ORDER} 0 || exit 3
-mv gmon.out gmon.out.dir.7.7${ORDER}.0.$r 2>/dev/null
-
-run ${PROGRAM} nikita dir 4 7${ORDER} 1 || exit 3
-mv gmon.out gmon.out.dir.7.7${ORDER}.1.$r 2>/dev/null
-
-run ${PROGRAM} nikita mongo 3 20${ORDER} 0 || exit 5
-mv gmon.out gmon.out.mongo.3.20${ORDER}.0.$r 2>/dev/null
-
-run ${PROGRAM} nikita mongo 3 20${ORDER} 1 || exit 5
-mv gmon.out gmon.out.mongo.3.20${ORDER}.1.$r 2>/dev/null
-
-run ${PROGRAM} nikita rm 6 10${ORDER} 0 || exit 6
-mv gmon.out gmon.out.rm.6.10${ORDER}.0.$r 2>/dev/null
-
-run ${PROGRAM} nikita rm 6 10${ORDER} 1 || exit 6
-mv gmon.out gmon.out.rm.6.10${ORDER}.1.$r 2>/dev/null
-
-run ${PROGRAM} nikita unlink 15${ORDER} || exit 7
-mv gmon.out gmon.out.unlink.15${ORDER}.$r 2>/dev/null
-
-#run ${PROGRAM} nikita queue 30 10${ORDER} 10000  || exit 6
-#mv gmon.out gmon.out.rm.30.10${ORDER}.10000.$r 2>/dev/null
-
-run ${PROGRAM} nikita mongo 30 1${ORDER} 0 || exit 6
-mv gmon.out gmon.out.rm.30.1${ORDER}.0.$r 2>/dev/null
-
-run ${PROGRAM} nikita mongo 30 1${ORDER} 1 || exit 6
-mv gmon.out gmon.out.rm.30.1${ORDER}.1.$r 2>/dev/null
-
-run ${PROGRAM} nikita bobber 100${ORDER} 300 || exit 6
-mv gmon.out gmon.out.bobber.100${ORDER}.30.$r 2>/dev/null
-
-#run ulevel/cp-r plugin || exit 7
-#mv gmon.out gmon.out.cp-r.plugin.$r 2>/dev/null
-
-#( find /tmp | ${PROGRAM} vs copydir ) || exit 8
-#mv gmon.out gmon.out.vs.copydir.tmp.$r
 echo Round $r done.
 done
