@@ -1,6 +1,215 @@
+
 diff -rupN reiser4-release/Kconfig.reiser4 reiser4-full/Kconfig.reiser4
---- reiser4-release/Kconfig.reiser4	2005-01-19 18:41:35.314377946 +0300
-+++ reiser4-full/Kconfig.reiser4	2005-01-19 18:37:54.825228353 +0300
+
+
+ Kconfig                                                             |   66 
+ Makefile                                                            |   71 
+ as_ops.c                                                            |   15 
+ block_alloc.c                                                       |   92 
+ block_alloc.h                                                       |   10 
+ carry.c                                                             |   59 
+ carry.h                                                             |   23 
+ carry_ops.c                                                         |   59 
+ cluster.h                                                           |    8 
+ context.c                                                           |   29 
+ context.h                                                           |   39 
+ coord.c                                                             |   46 
+ coord.h                                                             |    6 
+ debug.c                                                             |  343 +
+ debug.h                                                             |  214 
+ diskmap.c                                                           |   76 
+ diskmap.h                                                           |   52 
+ doc/directory-service                                               |  203 
+ doc/lock-ordering                                                   |  601 ++
+ doc/lock-ordering.dot                                               |  276 +
+ doc/metadata-in-pagecache                                           |   57 
+ doc/oid-locid                                                       |  108 
+ doc/page-cache-for-formatted-nodes                                  |   60 
+ doc/plugin.inheritance                                              |  119 
+ doc/readdir-problems-and-implementations                            |   12 
+ doc/reiser4.writeback.overview                                      |   68 
+ doc/reiser4_roadmap.html                                            | 1120 +++++
+ doc/set-theoretic-stuff.tex                                         |   82 
+ doc/syntax.alg                                                      |  152 
+ doc/sys-reiser4-implemenation-overview                              |  222 +
+ doc/wander.txt                                                      |  184 
+ emergency_flush.c                                                   |   24 
+ entd.c                                                              |    2 
+ eottl.c                                                             |    2 
+ estimate.c                                                          |    6 
+ file_ops.c                                                          |   36 
+ flush.c                                                             |  189 
+ flush.h                                                             |    6 
+ flush_queue.c                                                       |    6 
+ init_super.c                                                        |   53 
+ inode.c                                                             |   14 
+ inode.h                                                             |    6 
+ inode_ops.c                                                         |   58 
+ jnode.c                                                             |   99 
+ jnode.h                                                             |   27 
+ kassign.c                                                           |   47 
+ kassign.h                                                           |    3 
+ kattr.c                                                             |  641 ++
+ kattr.h                                                             |   70 
+ kcond.c                                                             |   17 
+ kcond.h                                                             |    3 
+ key.c                                                               |    4 
+ key.h                                                               |    2 
+ ktxnmgrd.c                                                          |    2 
+ lnode.c                                                             |  431 +
+ lnode.h                                                             |  122 
+ lock.c                                                              |   95 
+ lock.h                                                              |   20 
+ log.c                                                               |  522 ++
+ log.h                                                               |  122 
+ not-for-inclusion/dont-use-rwlocks.patch                            |  358 +
+ not-for-inclusion/interpolate.c                                     |   20 
+ not-for-inclusion/linux-5_reiser4_syscall.patch                     |   38 
+ not-for-inclusion/parser/Makefile                                   |   35 
+ not-for-inclusion/parser/lex.l                                      |   65 
+ not-for-inclusion/parser/lib.c                                      | 2187 ++++++++++
+ not-for-inclusion/parser/lib.h                                      |   84 
+ not-for-inclusion/parser/pars.cls.h                                 |  242 +
+ not-for-inclusion/parser/pars.yacc.h                                |   66 
+ not-for-inclusion/parser/parser.code.c                              |  484 ++
+ not-for-inclusion/parser/parser.doc                                 |  473 ++
+ not-for-inclusion/parser/parser.h                                   |  345 +
+ not-for-inclusion/parser/parser.tab.c                               |  194 
+ not-for-inclusion/parser/parser.tab.h                               |   40 
+ not-for-inclusion/parser/parser.y                                   |  175 
+ not-for-inclusion/parser/tmp.c                                      |   32 
+ not-for-inclusion/parser/yacc_reiser4.patch                         |  127 
+ not-for-inclusion/plugin/name/invterp.c                             |   11 
+ not-for-inclusion/reiser4-for-2.6.9.patch                           |  186 
+ not-for-inclusion/sys_reiser4.c                                     |  106 
+ not-for-inclusion/sys_reiser4_2.c                                   | 1174 +++++
+ not-for-inclusion/ulevel/bench/README                               |   20 
+ not-for-inclusion/ulevel/bench/driver.sh                            |   59 
+ not-for-inclusion/ulevel/bench/functions.sh                         |  115 
+ not-for-inclusion/ulevel/bench/kernel                               |    1 
+ not-for-inclusion/ulevel/bench/rc1.d.sample                         |   65 
+ not-for-inclusion/ulevel/bench/start-bench.sh                       |    7 
+ not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs       |    1 
+ not-for-inclusion/ulevel/bench/template/mongo/options               |   23 
+ not-for-inclusion/ulevel/bench/template/mongo/run.me                |   87 
+ not-for-inclusion/ulevel/bench/template/mongo/stage                 |    1 
+ not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs           |    1 
+ not-for-inclusion/ulevel/bench/template/read-write/ext2/options     |    8 
+ not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me      |  159 
+ not-for-inclusion/ulevel/bench/template/read-write/ext2/stage       |    1 
+ not-for-inclusion/ulevel/bench/template/read-write/reiser4/options  |    8 
+ not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me   |  159 
+ not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage    |    1 
+ not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options |    9 
+ not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me  |  159 
+ not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage   |    1 
+ not-for-inclusion/ulevel/bench/template/read-write/run.me           |  159 
+ not-for-inclusion/ulevel/bench/template/reiserfs/run.me             |  159 
+ not-for-inclusion/ulevel/bench/template/run.me                      |  159 
+ not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me     |  150 
+ not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage      |    1 
+ not-for-inclusion/ulevel/bio-out.py                                 |   78 
+ not-for-inclusion/ulevel/bio-out.sh                                 |    4 
+ not-for-inclusion/ulevel/cp-r                                       |    7 
+ not-for-inclusion/ulevel/driller.c                                  |   45 
+ not-for-inclusion/ulevel/loid.c                                     |  206 
+ not-for-inclusion/ulevel/make-teeny-files.c                         |  102 
+ not-for-inclusion/ulevel/massage-lockmeter-output                   |   17 
+ not-for-inclusion/ulevel/nfs_fh_stale.c                             | 1065 ++++
+ not-for-inclusion/ulevel/puncher.sh                                 |   23 
+ not-for-inclusion/ulevel/readdir.c                                  |   43 
+ not-for-inclusion/ulevel/seek-info.sh                               |    3 
+ not-for-inclusion/ulevel/seeks.sh                                   |   73 
+ not-for-inclusion/ulevel/shortlived                                 |   72 
+ not-for-inclusion/ulevel/show-stats.sh                              |   27 
+ not-for-inclusion/ulevel/sleep-info-parse                           |    4 
+ not-for-inclusion/ulevel/stripspaces                                |   14 
+ not-for-inclusion/ulevel/syscalltest.c                              |   20 
+ not-for-inclusion/yet_unneeded_abstractions/oid/oid.c               |  172 
+ not-for-inclusion/yet_unneeded_abstractions/oid/oid.h               |   54 
+ not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c             |  170 
+ not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h             |   57 
+ page_cache.c                                                        |   87 
+ page_cache.h                                                        |   10 
+ plugin/compress/compress.c                                          |    4 
+ plugin/cryptcompress.c                                              |   51 
+ plugin/cryptcompress.h                                              |    9 
+ plugin/dir/dir.c                                                    |   53 
+ plugin/dir/hashed_dir.c                                             |   41 
+ plugin/disk_format/disk_format40.c                                  |    7 
+ plugin/file/file.c                                                  |  261 +
+ plugin/file/funcs.h                                                 |    1 
+ plugin/file/pseudo.c                                                |    2 
+ plugin/file/tail_conversion.c                                       |   22 
+ plugin/hash.c                                                       |    1 
+ plugin/item/blackbox.c                                              |    6 
+ plugin/item/cde.c                                                   |   28 
+ plugin/item/ctail.c                                                 |   36 
+ plugin/item/ctail.h                                                 |    2 
+ plugin/item/extent.c                                                |   15 
+ plugin/item/extent.h                                                |    2 
+ plugin/item/extent_file_ops.c                                       |   52 
+ plugin/item/extent_flush_ops.c                                      |  105 
+ plugin/item/extent_item_ops.c                                       |    8 
+ plugin/item/extent_repack_ops.c                                     |  447 ++
+ plugin/item/internal.c                                              |   13 
+ plugin/item/item.c                                                  |   29 
+ plugin/item/item.h                                                  |   12 
+ plugin/item/sde.c                                                   |    2 
+ plugin/item/static_stat.c                                           |    9 
+ plugin/item/tail.c                                                  |   24 
+ plugin/node/node.c                                                  |  248 +
+ plugin/node/node.h                                                  |   32 
+ plugin/node/node40.c                                                |  168 
+ plugin/node/node40.h                                                |    5 
+ plugin/object.c                                                     |   12 
+ plugin/object.h                                                     |    2 
+ plugin/plugin.c                                                     |   27 
+ plugin/plugin.h                                                     |    8 
+ plugin/plugin_set.c                                                 |   41 
+ plugin/plugin_set.h                                                 |    4 
+ plugin/pseudo/pseudo.c                                              |   10 
+ plugin/space/bitmap.c                                               |   23 
+ plugin/space/bitmap.h                                               |    3 
+ pool.c                                                              |   14 
+ pool.h                                                              |    1 
+ prof.c                                                              |  273 +
+ prof.h                                                              |  130 
+ readahead.c                                                         |    4 
+ reiser4.h                                                           |  236 +
+ repacker.c                                                          |  661 +++
+ repacker.h                                                          |   22 
+ safe_link.c                                                         |    4 
+ safe_link.h                                                         |    5 
+ seal.c                                                              |    4 
+ seal.h                                                              |    5 
+ search.c                                                            |  114 
+ spin_macros.h                                                       |  400 +
+ spinprof.c                                                          |  567 ++
+ spinprof.h                                                          |  131 
+ statcnt.h                                                           |  113 
+ stats.c                                                             |  639 ++
+ stats.h                                                             |  769 +++
+ super.c                                                             |   75 
+ super.h                                                             |   59 
+ tap.c                                                               |   13 
+ tap.h                                                               |    2 
+ tree.c                                                              |   32 
+ tree.h                                                              |   12 
+ tree_walk.c                                                         |    9 
+ tree_walk.h                                                         |    2 
+ txnmgr.c                                                            |  225 -
+ txnmgr.h                                                            |   16 
+ type_safe_hash.h                                                    |   16 
+ vfs_ops.c                                                           |  122 
+ wander.c                                                            |   66 
+ znode.c                                                             |  305 +
+ znode.h                                                             |   39 
+ 203 files changed, 23846 insertions(+), 473 deletions(-)
+
+diff -puN Kconfig~profile-stat-trace-repacker Kconfig
+--- reiser4/Kconfig~profile-stat-trace-repacker	2005-01-21 20:07:48.004222087 +0300
++++ reiser4-vs/Kconfig	2005-01-21 20:07:48.880260313 +0300
 @@ -1,7 +1,7 @@
  config REISER4_FS
  	tristate "Reiser4 (EXPERIMENTAL very fast general purpose filesystem)"
@@ -86,9 +295,9 @@ diff -rupN reiser4-release/Kconfig.reiser4 reiser4-full/Kconfig.reiser4
 +	help
 +	  Enable compilation of functions that print internal kernel data
 +	  structures in human readable form. Useful for debugging.
-diff -rupN reiser4-release/Makefile reiser4-full/Makefile
---- reiser4-release/Makefile	2005-01-19 18:41:35.316378086 +0300
-+++ reiser4-full/Makefile	2005-01-19 18:37:55.335263040 +0300
+diff -puN Makefile~profile-stat-trace-repacker Makefile
+--- reiser4/Makefile~profile-stat-trace-repacker	2005-01-21 20:07:48.012222436 +0300
++++ reiser4-vs/Makefile	2005-01-21 20:07:48.882260400 +0300
 @@ -4,8 +4,37 @@
  
  obj-$(CONFIG_REISER4_FS) += reiser4.o
@@ -201,9 +410,9 @@ diff -rupN reiser4-release/Makefile reiser4-full/Makefile
 +
 +endif
 +
-diff -rupN reiser4-release/as_ops.c reiser4-full/as_ops.c
---- reiser4-release/as_ops.c	2005-01-19 18:41:35.318378225 +0300
-+++ reiser4-full/as_ops.c	2005-01-19 18:37:55.668285690 +0300
+diff -puN as_ops.c~profile-stat-trace-repacker as_ops.c
+--- reiser4/as_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.020222785 +0300
++++ reiser4-vs/as_ops.c	2005-01-21 20:07:48.885260531 +0300
 @@ -18,12 +18,14 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -302,9 +511,9 @@ diff -rupN reiser4-release/as_ops.c reiser4-full/as_ops.c
  		jref(node);
  		/* there is no need to synchronize against
  		 * jnode_extent_write() here, because pages seen by
-diff -rupN reiser4-release/block_alloc.c reiser4-full/block_alloc.c
---- reiser4-release/block_alloc.c	2005-01-19 18:41:35.321378434 +0300
-+++ reiser4-full/block_alloc.c	2005-01-19 18:37:55.250257258 +0300
+diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
+--- reiser4/block_alloc.c~profile-stat-trace-repacker	2005-01-21 20:07:48.034223396 +0300
++++ reiser4-vs/block_alloc.c	2005-01-21 20:07:48.888260662 +0300
 @@ -123,7 +123,7 @@
  reiser4_internal void
  blocknr_hint_init(reiser4_blocknr_hint * hint)
@@ -562,9 +771,9 @@ diff -rupN reiser4-release/block_alloc.c reiser4-full/block_alloc.c
  			atom = get_current_atom_locked();
  			used2flush_reserved(sbinfo, atom, *len, flags & BA_FORMATTED);
  			UNLOCK_ATOM(atom);
-diff -rupN reiser4-release/block_alloc.h reiser4-full/block_alloc.h
---- reiser4-release/block_alloc.h	2005-01-19 18:41:35.323378573 +0300
-+++ reiser4-full/block_alloc.h	2005-01-19 18:37:54.793226177 +0300
+diff -puN block_alloc.h~profile-stat-trace-repacker block_alloc.h
+--- reiser4/block_alloc.h~profile-stat-trace-repacker	2005-01-21 20:07:48.043223789 +0300
++++ reiser4-vs/block_alloc.h	2005-01-21 20:07:48.890260750 +0300
 @@ -150,14 +150,24 @@ extern int check_block_counters(const st
  
  #if REISER4_DEBUG
@@ -590,9 +799,9 @@ diff -rupN reiser4-release/block_alloc.h reiser4-full/block_alloc.h
  extern int pre_commit_hook(void);
  extern void post_commit_hook(void);
  extern void post_write_back_hook(void);
-diff -rupN reiser4-release/carry.c reiser4-full/carry.c
---- reiser4-release/carry.c	2005-01-19 18:41:35.326378782 +0300
-+++ reiser4-full/carry.c	2005-01-19 18:37:54.787225769 +0300
+diff -puN carry.c~profile-stat-trace-repacker carry.c
+--- reiser4/carry.c~profile-stat-trace-repacker	2005-01-21 20:07:48.050224094 +0300
++++ reiser4-vs/carry.c	2005-01-21 20:07:48.894260924 +0300
 @@ -146,6 +146,7 @@ I feel uneasy about this pool.  It adds 
  #include "carry_ops.h"
  #include "super.h"
@@ -848,9 +1057,9 @@ diff -rupN reiser4-release/carry.c reiser4-full/carry.c
  
  /* Make Linus happy.
     Local variables:
-diff -rupN reiser4-release/carry.h reiser4-full/carry.h
---- reiser4-release/carry.h	2005-01-19 18:41:35.328378922 +0300
-+++ reiser4-full/carry.h	2005-01-19 18:37:55.692287322 +0300
+diff -puN carry.h~profile-stat-trace-repacker carry.h
+--- reiser4/carry.h~profile-stat-trace-repacker	2005-01-21 20:07:48.058224443 +0300
++++ reiser4-vs/carry.h	2005-01-21 20:07:48.896261011 +0300
 @@ -317,6 +317,9 @@ struct carry_level {
  	/* lock handle supplied by user that we are tracking. See
  	   above. */
@@ -906,9 +1115,9 @@ diff -rupN reiser4-release/carry.h reiser4-full/carry.h
  /* __FS_REISER4_CARRY_H__ */
  #endif
  
-diff -rupN reiser4-release/carry_ops.c reiser4-full/carry_ops.c
---- reiser4-release/carry_ops.c	2005-01-19 18:41:35.333379270 +0300
-+++ reiser4-full/carry_ops.c	2005-01-19 18:37:55.033242499 +0300
+diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
+--- reiser4/carry_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.065224749 +0300
++++ reiser4-vs/carry_ops.c	2005-01-21 20:07:48.900261186 +0300
 @@ -62,6 +62,7 @@ find_left_neighbor(carry_op * op	/* node
  				assert("nikita-3408", !carry_node_end(doing,
  								      left));
@@ -1118,9 +1327,9 @@ diff -rupN reiser4-release/carry_ops.c reiser4-full/carry_ops.c
  	RUNLOCK_TREE(tree);
  
  	if (right != NULL) {
-diff -rupN reiser4-release/cluster.h reiser4-full/cluster.h
---- reiser4-release/cluster.h	2005-01-19 18:41:35.335379410 +0300
-+++ reiser4-full/cluster.h	2005-01-19 18:37:55.701287934 +0300
+diff -puN cluster.h~profile-stat-trace-repacker cluster.h
+--- reiser4/cluster.h~profile-stat-trace-repacker	2005-01-21 20:07:48.072225054 +0300
++++ reiser4-vs/cluster.h	2005-01-21 20:07:48.902261273 +0300
 @@ -193,13 +193,13 @@ fsize_to_count(reiser4_cluster_t * clust
  static inline void
  reiser4_slide_init (reiser4_slide_t * win){
@@ -1148,9 +1357,9 @@ diff -rupN reiser4-release/cluster.h reiser4-full/cluster.h
  int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
  void forget_cluster_pages(struct page ** page, int nrpages);
  int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
-diff -rupN reiser4-release/context.c reiser4-full/context.c
---- reiser4-release/context.c	2005-01-19 18:41:35.339379689 +0300
-+++ reiser4-full/context.c	2005-01-19 18:37:55.758291811 +0300
+diff -puN context.c~profile-stat-trace-repacker context.c
+--- reiser4/context.c~profile-stat-trace-repacker	2005-01-21 20:07:48.079225360 +0300
++++ reiser4-vs/context.c	2005-01-21 20:07:48.904261360 +0300
 @@ -40,10 +40,9 @@
  #include <linux/writeback.h> /* balance_dirty_pages() */
  #include <linux/hardirq.h>
@@ -1256,9 +1465,9 @@ diff -rupN reiser4-release/context.c reiser4-full/context.c
  #endif
  
  /* Make Linus happy.
-diff -rupN reiser4-release/context.h reiser4-full/context.h
---- reiser4-release/context.h	2005-01-19 18:41:35.341379828 +0300
-+++ reiser4-full/context.h	2005-01-19 18:37:55.365265080 +0300
+diff -puN context.h~profile-stat-trace-repacker context.h
+--- reiser4/context.h~profile-stat-trace-repacker	2005-01-21 20:07:48.085225621 +0300
++++ reiser4-vs/context.h	2005-01-21 20:07:48.906261448 +0300
 @@ -20,7 +20,7 @@
  #include <linux/sched.h>	/* for struct task_struct */
  
@@ -1330,9 +1539,9 @@ diff -rupN reiser4-release/context.h reiser4-full/context.h
  #endif
  
  #define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
-diff -rupN reiser4-release/coord.c reiser4-full/coord.c
---- reiser4-release/coord.c	2005-01-19 18:41:35.343379967 +0300
-+++ reiser4-full/coord.c	2005-01-19 18:37:55.398267325 +0300
+diff -puN coord.c~profile-stat-trace-repacker coord.c
+--- reiser4/coord.c~profile-stat-trace-repacker	2005-01-21 20:07:48.092225927 +0300
++++ reiser4-vs/coord.c	2005-01-21 20:07:48.909261579 +0300
 @@ -167,7 +167,7 @@ coord_init_after_item(coord_t * coord)
  reiser4_internal void
  coord_init_zero(coord_t * coord)
@@ -1400,9 +1609,9 @@ diff -rupN reiser4-release/coord.c reiser4-full/coord.c
  /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost
     return NCOORD_ON_THE_LEFT, otherwise return NCOORD_INSIDE. */
  /* Audited by: green(2002.06.15) */
-diff -rupN reiser4-release/coord.h reiser4-full/coord.h
---- reiser4-release/coord.h	2005-01-19 18:41:35.345380107 +0300
-+++ reiser4-full/coord.h	2005-01-19 18:37:55.408268005 +0300
+diff -puN coord.h~profile-stat-trace-repacker coord.h
+--- reiser4/coord.h~profile-stat-trace-repacker	2005-01-21 20:07:48.098226189 +0300
++++ reiser4-vs/coord.h	2005-01-21 20:07:48.911261666 +0300
 @@ -215,6 +215,10 @@ coord_update_v(coord_t * coord)
  
  extern int coords_equal(const coord_t * c1, const coord_t * c2);
@@ -1423,9 +1632,9 @@ diff -rupN reiser4-release/coord.h reiser4-full/coord.h
  extern const char *coord_tween_tostring(between_enum n);
  #endif
  
-diff -rupN reiser4-release/debug.c reiser4-full/debug.c
---- reiser4-release/debug.c	2005-01-19 18:41:35.348380316 +0300
-+++ reiser4-full/debug.c	2005-01-19 18:37:55.012241070 +0300
+diff -puN debug.c~profile-stat-trace-repacker debug.c
+--- reiser4/debug.c~profile-stat-trace-repacker	2005-01-21 20:07:48.105226494 +0300
++++ reiser4-vs/debug.c	2005-01-21 20:07:48.914261797 +0300
 @@ -28,6 +28,7 @@
   *
   */
@@ -1906,9 +2115,9 @@ diff -rupN reiser4-release/debug.c reiser4-full/debug.c
  /* Make Linus happy.
     Local variables:
     c-indentation-style: "K&R"
-diff -rupN reiser4-release/debug.h reiser4-full/debug.h
---- reiser4-release/debug.h	2005-01-19 18:41:35.351380525 +0300
-+++ reiser4-full/debug.h	2005-01-19 18:37:55.546277391 +0300
+diff -puN debug.h~profile-stat-trace-repacker debug.h
+--- reiser4/debug.h~profile-stat-trace-repacker	2005-01-21 20:07:48.112226800 +0300
++++ reiser4-vs/debug.h	2005-01-21 20:07:48.918261971 +0300
 @@ -61,6 +61,7 @@
  		 * warnings for things like assert(a = b); */			\
  		;								\
@@ -2220,9 +2429,9 @@ diff -rupN reiser4-release/debug.h reiser4-full/debug.h
  
  /* __FS_REISER4_DEBUG_H__ */
  #endif
-diff -rupN reiser4-release/diskmap.c reiser4-full/diskmap.c
---- reiser4-release/diskmap.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/diskmap.c	2005-01-19 18:37:55.572279160 +0300
+diff -puN /dev/null diskmap.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/diskmap.c	2005-01-21 20:07:48.920262059 +0300
 @@ -0,0 +1,76 @@
 +/* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
 +/* Functions to deal with diskmap storage - read-only storage (currently can only be
@@ -2300,9 +2509,9 @@ diff -rupN reiser4-release/diskmap.c reiser4-full/diskmap.c
 +
 +	return retval;
 +}
-diff -rupN reiser4-release/diskmap.h reiser4-full/diskmap.h
---- reiser4-release/diskmap.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/diskmap.h	2005-01-19 18:37:55.486273310 +0300
+diff -puN /dev/null diskmap.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/diskmap.h	2005-01-21 20:07:48.921262102 +0300
 @@ -0,0 +1,52 @@
 +#if !defined (__REISER4_DISKMAP_H__)
 +#define __REISER4_DISKMAP_H__
@@ -2356,10 +2565,9 @@ diff -rupN reiser4-release/diskmap.h reiser4-full/diskmap.h
 +
 +
 +#endif
-Binary files reiser4-release/doc/block-capture.pdf and reiser4-full/doc/block-capture.pdf differ
-diff -rupN reiser4-release/doc/directory-service reiser4-full/doc/directory-service
---- reiser4-release/doc/directory-service	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/directory-service	2005-01-19 18:37:54.946236582 +0300
+diff -puN /dev/null doc/directory-service
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/directory-service	2005-01-21 20:07:48.922262146 +0300
 @@ -0,0 +1,203 @@
 +
 +					  DIRECTORY SERVICE IN REISER4
@@ -2564,9 +2772,9 @@ diff -rupN reiser4-release/doc/directory-service reiser4-full/doc/directory-serv
 +^ tab-width: 4
 +^ eval: (progn (flyspell-mode) (flyspell-buffer))
 +^ End:
-diff -rupN reiser4-release/doc/lock-ordering reiser4-full/doc/lock-ordering
---- reiser4-release/doc/lock-ordering	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/lock-ordering	2005-01-19 18:37:55.763292151 +0300
+diff -puN /dev/null doc/lock-ordering
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/lock-ordering	2005-01-21 20:07:48.925262277 +0300
 @@ -0,0 +1,601 @@
 +---------------------------------INTRODUCTION-----------------------------------
 +
@@ -3169,9 +3377,9 @@ diff -rupN reiser4-release/doc/lock-ordering reiser4-full/doc/lock-ordering
 +^ tab-width: 4
 +^ eval: (progn (flyspell-mode) (flyspell-buffer))
 +^ End:
-diff -rupN reiser4-release/doc/lock-ordering.dot reiser4-full/doc/lock-ordering.dot
---- reiser4-release/doc/lock-ordering.dot	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/lock-ordering.dot	2005-01-19 18:37:55.380266101 +0300
+diff -puN /dev/null doc/lock-ordering.dot
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/lock-ordering.dot	2005-01-21 20:07:48.927262364 +0300
 @@ -0,0 +1,276 @@
 +/* this is dot(1) input file for lock-ordering diagram */
 +/* it should be passed through C preprocessor first */
@@ -3449,9 +3657,9 @@ diff -rupN reiser4-release/doc/lock-ordering.dot reiser4-full/doc/lock-ordering.
 +ARC(jnode_lock, eflush_guard, "eflush_add()");
 +ARC(inode_guard, d_lock, "detach_fsdata()");
 +}
-diff -rupN reiser4-release/doc/metadata-in-pagecache reiser4-full/doc/metadata-in-pagecache
---- reiser4-release/doc/metadata-in-pagecache	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/metadata-in-pagecache	2005-01-19 18:37:55.139249709 +0300
+diff -puN /dev/null doc/metadata-in-pagecache
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/metadata-in-pagecache	2005-01-21 20:07:48.929262451 +0300
 @@ -0,0 +1,57 @@
 +Hello,
 +
@@ -3510,9 +3718,9 @@ diff -rupN reiser4-release/doc/metadata-in-pagecache reiser4-full/doc/metadata-i
 +Nikita.
 +
 +
-diff -rupN reiser4-release/doc/oid-locid reiser4-full/doc/oid-locid
---- reiser4-release/doc/oid-locid	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/oid-locid	2005-01-19 18:37:55.400267461 +0300
+diff -puN /dev/null doc/oid-locid
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/oid-locid	2005-01-21 20:07:48.930262495 +0300
 @@ -0,0 +1,108 @@
 +MIME-Version: 1.0
 +Content-Type: text/plain; charset=us-ascii
@@ -3622,9 +3830,9 @@ diff -rupN reiser4-release/doc/oid-locid reiser4-full/doc/oid-locid
 +Comments?
 +
 +Nikita.
-diff -rupN reiser4-release/doc/page-cache-for-formatted-nodes reiser4-full/doc/page-cache-for-formatted-nodes
---- reiser4-release/doc/page-cache-for-formatted-nodes	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/page-cache-for-formatted-nodes	2005-01-19 18:37:55.494273855 +0300
+diff -puN /dev/null doc/page-cache-for-formatted-nodes
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/page-cache-for-formatted-nodes	2005-01-21 20:07:48.931262539 +0300
 @@ -0,0 +1,60 @@
 +PROPOSAL:
 +
@@ -3686,9 +3894,9 @@ diff -rupN reiser4-release/doc/page-cache-for-formatted-nodes reiser4-full/doc/p
 +# tab-width: 4
 +# eval: (if (fboundp 'flyspell-mode) (flyspell-mode))
 +# End:
-diff -rupN reiser4-release/doc/plugin.inheritance reiser4-full/doc/plugin.inheritance
---- reiser4-release/doc/plugin.inheritance	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/plugin.inheritance	2005-01-19 18:37:55.534276575 +0300
+diff -puN /dev/null doc/plugin.inheritance
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/plugin.inheritance	2005-01-21 20:07:48.933262626 +0300
 @@ -0,0 +1,119 @@
 +
 +				 Report about "plugin inheritance discussion"
@@ -3809,9 +4017,9 @@ diff -rupN reiser4-release/doc/plugin.inheritance reiser4-full/doc/plugin.inheri
 +    methods are delegated to object plugin.
 +
 +
-diff -rupN reiser4-release/doc/readdir-problems-and-implementations reiser4-full/doc/readdir-problems-and-implementations
---- reiser4-release/doc/readdir-problems-and-implementations	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/readdir-problems-and-implementations	2005-01-19 18:37:54.860230733 +0300
+diff -puN /dev/null doc/readdir-problems-and-implementations
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/readdir-problems-and-implementations	2005-01-21 20:07:48.934262670 +0300
 @@ -0,0 +1,12 @@
 +1.
 +
@@ -3825,9 +4033,9 @@ diff -rupN reiser4-release/doc/readdir-problems-and-implementations reiser4-full
 +^ tab-width: 4
 +^ eval: (if (fboundp 'flyspell-mode) (flyspell-mode))
 +^ End:
-diff -rupN reiser4-release/doc/reiser4.writeback.overview reiser4-full/doc/reiser4.writeback.overview
---- reiser4-release/doc/reiser4.writeback.overview	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/reiser4.writeback.overview	2005-01-19 18:37:55.630283105 +0300
+diff -puN /dev/null doc/reiser4.writeback.overview
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/reiser4.writeback.overview	2005-01-21 20:07:48.935262713 +0300
 @@ -0,0 +1,68 @@
 +Hello,
 +
@@ -3897,9 +4105,9 @@ diff -rupN reiser4-release/doc/reiser4.writeback.overview reiser4-full/doc/reise
 +
 +Actually latter can be implemented completely within reiser4 but with some
 +awkwardness.
-diff -rupN reiser4-release/doc/reiser4_roadmap.html reiser4-full/doc/reiser4_roadmap.html
---- reiser4-release/doc/reiser4_roadmap.html	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/reiser4_roadmap.html	2005-01-19 18:37:55.098246920 +0300
+diff -puN /dev/null doc/reiser4_roadmap.html
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/reiser4_roadmap.html	2005-01-21 20:07:48.941262975 +0300
 @@ -0,0 +1,1120 @@
 +<p> <H1> Reiser4 (Version 4 of ReiserFS)</H1>
 +
@@ -5021,9 +5229,9 @@ diff -rupN reiser4-release/doc/reiser4_roadmap.html reiser4-full/doc/reiser4_roa
 +features.  Performance will be greatly improved by the use of dancing
 +trees, wandering logs, allocate on flush, a repacker, and encryption
 +on commit.
-diff -rupN reiser4-release/doc/set-theoretic-stuff.tex reiser4-full/doc/set-theoretic-stuff.tex
---- reiser4-release/doc/set-theoretic-stuff.tex	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/set-theoretic-stuff.tex	2005-01-19 18:37:55.768292491 +0300
+diff -puN /dev/null doc/set-theoretic-stuff.tex
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/set-theoretic-stuff.tex	2005-01-21 20:07:48.942263019 +0300
 @@ -0,0 +1,82 @@
 +\documentclass[a4paper, oneside, fleqn]{article}
 +
@@ -5107,9 +5315,9 @@ diff -rupN reiser4-release/doc/set-theoretic-stuff.tex reiser4-full/doc/set-theo
 +% tab-width: 4
 +% eval: (progn (if (fboundp 'flyspell-mode) (flyspell-mode)) (set (make-local-variable 'compile-command) "latex set-theoretic-stuff.tex ; dvips -o set-theoretic-stuff.ps set-theoretic-stuff.dvi"))
 +% End:
-diff -rupN reiser4-release/doc/syntax.alg reiser4-full/doc/syntax.alg
---- reiser4-release/doc/syntax.alg	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/syntax.alg	2005-01-19 18:37:55.093246580 +0300
+diff -puN /dev/null doc/syntax.alg
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/syntax.alg	2005-01-21 20:07:48.944263106 +0300
 @@ -0,0 +1,152 @@
 +<TITLE>Reiser4() Syntax In All Its Obscurities</TITLE>
 +
@@ -5263,9 +5471,9 @@ diff -rupN reiser4-release/doc/syntax.alg reiser4-full/doc/syntax.alg
 +
 +
 +
-diff -rupN reiser4-release/doc/sys-reiser4-implemenation-overview reiser4-full/doc/sys-reiser4-implemenation-overview
---- reiser4-release/doc/sys-reiser4-implemenation-overview	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/sys-reiser4-implemenation-overview	2005-01-19 18:37:54.791226041 +0300
+diff -puN /dev/null doc/sys-reiser4-implemenation-overview
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/sys-reiser4-implemenation-overview	2005-01-21 20:07:48.946263193 +0300
 @@ -0,0 +1,222 @@
 +SYS_REISER4 IMPLEMENTATION OVERVIEW
 +
@@ -5489,9 +5697,9 @@ diff -rupN reiser4-release/doc/sys-reiser4-implemenation-overview reiser4-full/d
 +# tab-width: 4
 +# eval: (if (fboundp 'flyspell-mode) (flyspell-mode))
 +# End:
-diff -rupN reiser4-release/doc/wander.txt reiser4-full/doc/wander.txt
---- reiser4-release/doc/wander.txt	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/doc/wander.txt	2005-01-19 18:37:54.847229849 +0300
+diff -puN /dev/null doc/wander.txt
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/doc/wander.txt	2005-01-21 20:07:48.948263280 +0300
 @@ -0,0 +1,184 @@
 +
 +Before discussing the format of the commit record occupying the
@@ -5677,9 +5885,9 @@ diff -rupN reiser4-release/doc/wander.txt reiser4-full/doc/wander.txt
 +allocated using ordinary methods.
 +
 +Comments?
-diff -rupN reiser4-release/emergency_flush.c reiser4-full/emergency_flush.c
---- reiser4-release/emergency_flush.c	2005-01-19 18:41:35.382382686 +0300
-+++ reiser4-full/emergency_flush.c	2005-01-19 18:37:54.834228965 +0300
+diff -puN emergency_flush.c~profile-stat-trace-repacker emergency_flush.c
+--- reiser4/emergency_flush.c~profile-stat-trace-repacker	2005-01-21 20:07:48.121227192 +0300
++++ reiser4-vs/emergency_flush.c	2005-01-21 20:07:48.950263368 +0300
 @@ -291,6 +291,7 @@ emergency_flush(struct page *page)
  	assert("vs-1452", node != NULL);
  
@@ -5801,9 +6009,9 @@ diff -rupN reiser4-release/emergency_flush.c reiser4-full/emergency_flush.c
  }
  
  reiser4_internal void
-diff -rupN reiser4-release/entd.c reiser4-full/entd.c
---- reiser4-release/entd.c	2005-01-19 18:41:35.384382825 +0300
-+++ reiser4-full/entd.c	2005-01-19 18:37:55.589280316 +0300
+diff -puN entd.c~profile-stat-trace-repacker entd.c
+--- reiser4/entd.c~profile-stat-trace-repacker	2005-01-21 20:07:48.129227541 +0300
++++ reiser4-vs/entd.c	2005-01-21 20:07:48.952263455 +0300
 @@ -54,7 +54,7 @@ init_entd_context(struct super_block *su
  
  	ctx = get_entd_context(super);
@@ -5813,9 +6021,9 @@ diff -rupN reiser4-release/entd.c reiser4-full/entd.c
  	kcond_init(&ctx->startup);
  	kcond_init(&ctx->wait);
  	init_completion(&ctx->finish);
-diff -rupN reiser4-release/eottl.c reiser4-full/eottl.c
---- reiser4-release/eottl.c	2005-01-19 18:41:35.386382964 +0300
-+++ reiser4-full/eottl.c	2005-01-19 18:37:54.851230121 +0300
+diff -puN eottl.c~profile-stat-trace-repacker eottl.c
+--- reiser4/eottl.c~profile-stat-trace-repacker	2005-01-21 20:07:48.138227934 +0300
++++ reiser4-vs/eottl.c	2005-01-21 20:07:48.954263542 +0300
 @@ -181,6 +181,7 @@ add_empty_leaf(coord_t * insert_coord, l
  	if (IS_ERR(pool))
  		return PTR_ERR(pool);
@@ -5832,9 +6040,9 @@ diff -rupN reiser4-release/eottl.c reiser4-full/eottl.c
  		*outcome = LOOKUP_DONE;
  		return 1;
  	}
-diff -rupN reiser4-release/estimate.c reiser4-full/estimate.c
---- reiser4-release/estimate.c	2005-01-19 18:41:35.387383034 +0300
-+++ reiser4-full/estimate.c	2005-01-19 18:37:54.765224273 +0300
+diff -puN estimate.c~profile-stat-trace-repacker estimate.c
+--- reiser4/estimate.c~profile-stat-trace-repacker	2005-01-21 20:07:48.147228327 +0300
++++ reiser4-vs/estimate.c	2005-01-21 20:07:48.956263630 +0300
 @@ -41,6 +41,12 @@ calc_estimate_one_insert(tree_level heig
  }
  
@@ -5848,9 +6056,9 @@ diff -rupN reiser4-release/estimate.c reiser4-full/estimate.c
  estimate_one_insert_item(reiser4_tree *tree)
  {
  	return tree->estimate_one_insert;
-diff -rupN reiser4-release/file_ops.c reiser4-full/file_ops.c
---- reiser4-release/file_ops.c	2005-01-19 18:41:35.390383243 +0300
-+++ reiser4-full/file_ops.c	2005-01-19 18:37:55.018241479 +0300
+diff -puN file_ops.c~profile-stat-trace-repacker file_ops.c
+--- reiser4/file_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.154228632 +0300
++++ reiser4-vs/file_ops.c	2005-01-21 20:07:48.958263717 +0300
 @@ -26,12 +26,14 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -5987,9 +6195,9 @@ diff -rupN reiser4-release/file_ops.c reiser4-full/file_ops.c
  	fplug = inode_file_plugin(inode);
  
  	if (fplug->open != NULL)
-diff -rupN reiser4-release/flush.c reiser4-full/flush.c
---- reiser4-release/flush.c	2005-01-19 18:41:35.398383801 +0300
-+++ reiser4-full/flush.c	2005-01-19 18:37:55.330262700 +0300
+diff -puN flush.c~profile-stat-trace-repacker flush.c
+--- reiser4/flush.c~profile-stat-trace-repacker	2005-01-21 20:07:48.170229331 +0300
++++ reiser4-vs/flush.c	2005-01-21 20:07:48.966264066 +0300
 @@ -23,8 +23,10 @@
  #include "page_cache.h"
  #include "wander.h"
@@ -6630,9 +6838,9 @@ diff -rupN reiser4-release/flush.c reiser4-full/flush.c
  reiser4_internal flush_queue_t * pos_fq(flush_pos_t * pos)
  {
  	return pos->fq;
-diff -rupN reiser4-release/flush.h reiser4-full/flush.h
---- reiser4-release/flush.h	2005-01-19 18:41:35.400383940 +0300
-+++ reiser4-full/flush.h	2005-01-19 18:37:55.203254062 +0300
+diff -puN flush.h~profile-stat-trace-repacker flush.h
+--- reiser4/flush.h~profile-stat-trace-repacker	2005-01-21 20:07:48.178229680 +0300
++++ reiser4-vs/flush.h	2005-01-21 20:07:48.968264153 +0300
 @@ -277,17 +277,21 @@ txn_atom *atom_locked_by_fq(flush_queue_
  int init_fqs(void);
  void done_fqs(void);
@@ -6656,9 +6864,9 @@ diff -rupN reiser4-release/flush.h reiser4-full/flush.h
  #endif
  
  /* __REISER4_FLUSH_H__ */
-diff -rupN reiser4-release/flush_queue.c reiser4-full/flush_queue.c
---- reiser4-release/flush_queue.c	2005-01-19 18:41:35.402384080 +0300
-+++ reiser4-full/flush_queue.c	2005-01-19 18:37:55.619282357 +0300
+diff -puN flush_queue.c~profile-stat-trace-repacker flush_queue.c
+--- reiser4/flush_queue.c~profile-stat-trace-repacker	2005-01-21 20:07:48.186230029 +0300
++++ reiser4-vs/flush_queue.c	2005-01-21 20:07:48.970264240 +0300
 @@ -58,7 +58,7 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, g
  #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
  
@@ -6686,9 +6894,9 @@ diff -rupN reiser4-release/flush_queue.c reiser4-full/flush_queue.c
  fq_by_atom_gfp(txn_atom * atom, flush_queue_t ** new_fq, int gfp)
  {
  	flush_queue_t *fq;
-diff -rupN reiser4-release/init_super.c reiser4-full/init_super.c
---- reiser4-release/init_super.c	2005-01-19 18:41:35.404384219 +0300
-+++ reiser4-full/init_super.c	2005-01-19 18:37:54.970238214 +0300
+diff -puN init_super.c~profile-stat-trace-repacker init_super.c
+--- reiser4/init_super.c~profile-stat-trace-repacker	2005-01-21 20:07:48.194230378 +0300
++++ reiser4-vs/init_super.c	2005-01-21 20:07:48.973264371 +0300
 @@ -13,8 +13,11 @@
  #include "ktxnmgrd.h"
  #include "super.h"
@@ -6808,9 +7016,9 @@ diff -rupN reiser4-release/init_super.c reiser4-full/init_super.c
  	_SUBSYS(safelink),
  	_SUBSYS(exit_context)
  };
-diff -rupN reiser4-release/inode.c reiser4-full/inode.c
---- reiser4-release/inode.c	2005-01-19 18:41:35.406384358 +0300
-+++ reiser4-full/inode.c	2005-01-19 18:37:55.075245356 +0300
+diff -puN inode.c~profile-stat-trace-repacker inode.c
+--- reiser4/inode.c~profile-stat-trace-repacker	2005-01-21 20:07:48.202230727 +0300
++++ reiser4-vs/inode.c	2005-01-21 20:07:48.975264459 +0300
 @@ -331,7 +331,7 @@ init_locked_inode(struct inode *inode /*
     (objectids) are distinguished by their packing locality.
  
@@ -6846,9 +7054,9 @@ diff -rupN reiser4-release/inode.c reiser4-full/inode.c
  reiser4_internal int
  get_reiser4_inode_by_key (struct inode ** result, const reiser4_key * key)
  {
-diff -rupN reiser4-release/inode.h reiser4-full/inode.h
---- reiser4-release/inode.h	2005-01-19 18:41:35.408384498 +0300
-+++ reiser4-full/inode.h	2005-01-19 18:37:55.423269025 +0300
+diff -puN inode.h~profile-stat-trace-repacker inode.h
+--- reiser4/inode.h~profile-stat-trace-repacker	2005-01-21 20:07:48.209231032 +0300
++++ reiser4-vs/inode.h	2005-01-21 20:07:48.977264546 +0300
 @@ -315,6 +315,7 @@ extern int inode_has_no_jnodes(reiser4_i
  
  extern znode *inode_get_vroot(struct inode *inode);
@@ -6877,9 +7085,9 @@ diff -rupN reiser4-release/inode.h reiser4-full/inode.h
  #endif
  
  /* __REISER4_INODE_H__ */
-diff -rupN reiser4-release/inode_ops.c reiser4-full/inode_ops.c
---- reiser4-release/inode_ops.c	2005-01-19 18:41:35.411384707 +0300
-+++ reiser4-full/inode_ops.c	2005-01-19 18:37:55.015241275 +0300
+diff -puN inode_ops.c~profile-stat-trace-repacker inode_ops.c
+--- reiser4/inode_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.216231338 +0300
++++ reiser4-vs/inode_ops.c	2005-01-21 20:07:48.980264677 +0300
 @@ -19,12 +19,14 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -7100,9 +7308,9 @@ diff -rupN reiser4-release/inode_ops.c reiser4-full/inode_ops.c
  	reiser4_exit_context(&ctx);
  	return result;
  }
-diff -rupN reiser4-release/jnode.c reiser4-full/jnode.c
---- reiser4-release/jnode.c	2005-01-19 18:41:35.415384986 +0300
-+++ reiser4-full/jnode.c	2005-01-19 18:37:55.748291131 +0300
+diff -puN jnode.c~profile-stat-trace-repacker jnode.c
+--- reiser4/jnode.c~profile-stat-trace-repacker	2005-01-21 20:07:48.223231643 +0300
++++ reiser4-vs/jnode.c	2005-01-21 20:07:48.984264851 +0300
 @@ -113,6 +113,7 @@
  #include "super.h"
  #include "inode.h"
@@ -7374,9 +7582,9 @@ diff -rupN reiser4-release/jnode.c reiser4-full/jnode.c
  
  /* this is only used to created jnode during capture copy */
  reiser4_internal jnode *jclone(jnode *node)
-diff -rupN reiser4-release/jnode.h reiser4-full/jnode.h
---- reiser4-release/jnode.h	2005-01-19 18:41:35.418385195 +0300
-+++ reiser4-full/jnode.h	2005-01-19 18:37:55.162251273 +0300
+diff -puN jnode.h~profile-stat-trace-repacker jnode.h
+--- reiser4/jnode.h~profile-stat-trace-repacker	2005-01-21 20:07:48.230231949 +0300
++++ reiser4-vs/jnode.h	2005-01-21 20:07:48.987264982 +0300
 @@ -394,6 +394,7 @@ extern void unformatted_make_reloc(jnode
  
  extern void jnode_set_block(jnode * node,
@@ -7469,9 +7677,9 @@ diff -rupN reiser4-release/jnode.h reiser4-full/jnode.h
  		jput_final(node);
  	} else
  		rcu_read_unlock();
-diff -rupN reiser4-release/kassign.c reiser4-full/kassign.c
---- reiser4-release/kassign.c	2005-01-19 18:41:35.420385334 +0300
-+++ reiser4-full/kassign.c	2005-01-19 18:37:55.109247668 +0300
+diff -puN kassign.c~profile-stat-trace-repacker kassign.c
+--- reiser4/kassign.c~profile-stat-trace-repacker	2005-01-21 20:07:48.237232254 +0300
++++ reiser4-vs/kassign.c	2005-01-21 20:07:48.989265070 +0300
 @@ -272,7 +272,7 @@ pack_string(const char *name /* string t
  	return str;
  }
@@ -7566,9 +7774,9 @@ diff -rupN reiser4-release/kassign.c reiser4-full/kassign.c
  /*
   * return number of bytes necessary to encode @inode identity.
   */
-diff -rupN reiser4-release/kassign.h reiser4-full/kassign.h
---- reiser4-release/kassign.h	2005-01-19 18:41:35.422385473 +0300
-+++ reiser4-full/kassign.h	2005-01-19 18:37:55.626282833 +0300
+diff -puN kassign.h~profile-stat-trace-repacker kassign.h
+--- reiser4/kassign.h~profile-stat-trace-repacker	2005-01-21 20:07:48.243232516 +0300
++++ reiser4-vs/kassign.h	2005-01-21 20:07:48.991265157 +0300
 @@ -70,6 +70,8 @@ extern oid_t extract_dir_id_from_key(con
  extern int build_de_id(const struct inode *dir, const struct qstr *name, de_id * id);
  extern int build_de_id_by_key(const reiser4_key * entry_key, de_id * id);
@@ -7586,9 +7794,9 @@ diff -rupN reiser4-release/kassign.h reiser4-full/kassign.h
  
  extern int is_longname_key(const reiser4_key *key);
  extern int is_longname(const char *name, int len);
-diff -rupN reiser4-release/kattr.c reiser4-full/kattr.c
---- reiser4-release/kattr.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/kattr.c	2005-01-19 18:37:55.113247940 +0300
+diff -puN /dev/null kattr.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/kattr.c	2005-01-21 20:07:48.993265244 +0300
 @@ -0,0 +1,641 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -8231,9 +8439,9 @@ diff -rupN reiser4-release/kattr.c reiser4-full/kattr.c
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/kattr.h reiser4-full/kattr.h
---- reiser4-release/kattr.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/kattr.h	2005-01-19 18:37:55.508274807 +0300
+diff -puN /dev/null kattr.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/kattr.h	2005-01-21 20:07:48.994265288 +0300
 @@ -0,0 +1,70 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -8305,9 +8513,9 @@ diff -rupN reiser4-release/kattr.h reiser4-full/kattr.h
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/kcond.c reiser4-full/kcond.c
---- reiser4-release/kcond.c	2005-01-19 18:41:35.427385822 +0300
-+++ reiser4-full/kcond.c	2005-01-19 18:37:54.798226517 +0300
+diff -puN kcond.c~profile-stat-trace-repacker kcond.c
+--- reiser4/kcond.c~profile-stat-trace-repacker	2005-01-21 20:07:48.250232822 +0300
++++ reiser4-vs/kcond.c	2005-01-21 20:07:48.996265375 +0300
 @@ -55,12 +55,19 @@ kcond_init(kcond_t * cvar /* cvar to ini
  {
  	assert("nikita-1868", cvar != NULL);
@@ -8344,9 +8552,9 @@ diff -rupN reiser4-release/kcond.c reiser4-full/kcond.c
  /* timer expiration function used by kcond_timedwait */
  static void
  kcond_timeout(unsigned long datum)
-diff -rupN reiser4-release/kcond.h reiser4-full/kcond.h
---- reiser4-release/kcond.h	2005-01-19 18:41:35.428385892 +0300
-+++ reiser4-full/kcond.h	2005-01-19 18:37:55.781293375 +0300
+diff -puN kcond.h~profile-stat-trace-repacker kcond.h
+--- reiser4/kcond.h~profile-stat-trace-repacker	2005-01-21 20:07:48.256233083 +0300
++++ reiser4-vs/kcond.h	2005-01-21 20:07:48.997265419 +0300
 @@ -28,12 +28,15 @@ struct kcond_queue_link_s {
  };
  
@@ -8363,9 +8571,9 @@ diff -rupN reiser4-release/kcond.h reiser4-full/kcond.h
  extern void kcond_print(kcond_t * cvar);
  
  #define KCOND_STATIC_INIT			\
-diff -rupN reiser4-release/key.c reiser4-full/key.c
---- reiser4-release/key.c	2005-01-19 18:41:35.430386031 +0300
-+++ reiser4-full/key.c	2005-01-19 18:37:54.924235086 +0300
+diff -puN key.c~profile-stat-trace-repacker key.c
+--- reiser4/key.c~profile-stat-trace-repacker	2005-01-21 20:07:48.263233389 +0300
++++ reiser4-vs/key.c	2005-01-21 20:07:48.999265506 +0300
 @@ -36,7 +36,7 @@ reiser4_internal void
  reiser4_key_init(reiser4_key * key /* key to init */ )
  {
@@ -8384,9 +8592,9 @@ diff -rupN reiser4-release/key.c reiser4-full/key.c
  /* debugging aid: print symbolic name of key type */
  static const char *
  type_name(unsigned int key_type /* key type */ )
-diff -rupN reiser4-release/key.h reiser4-full/key.h
---- reiser4-release/key.h	2005-01-19 18:41:35.432386170 +0300
-+++ reiser4-full/key.h	2005-01-19 18:37:55.346263788 +0300
+diff -puN key.h~profile-stat-trace-repacker key.h
+--- reiser4/key.h~profile-stat-trace-repacker	2005-01-21 20:07:48.269233651 +0300
++++ reiser4-vs/key.h	2005-01-21 20:07:49.001265593 +0300
 @@ -369,7 +369,7 @@ prefetchkey(reiser4_key *key)
  #define KEY_BUF_LEN (80)
  
@@ -8396,9 +8604,9 @@ diff -rupN reiser4-release/key.h reiser4-full/key.h
  extern void print_key(const char *prefix, const reiser4_key * key);
  #else
  #define print_key(p,k) noop
-diff -rupN reiser4-release/ktxnmgrd.c reiser4-full/ktxnmgrd.c
---- reiser4-release/ktxnmgrd.c	2005-01-19 18:41:35.434386310 +0300
-+++ reiser4-full/ktxnmgrd.c	2005-01-19 18:37:55.370265421 +0300
+diff -puN ktxnmgrd.c~profile-stat-trace-repacker ktxnmgrd.c
+--- reiser4/ktxnmgrd.c~profile-stat-trace-repacker	2005-01-21 20:07:48.277234000 +0300
++++ reiser4-vs/ktxnmgrd.c	2005-01-21 20:07:49.002265637 +0300
 @@ -51,7 +51,7 @@ init_ktxnmgrd_context(txn_mgr * mgr)
  
  	assert("nikita-2442", ctx != NULL);
@@ -8408,9 +8616,9 @@ diff -rupN reiser4-release/ktxnmgrd.c reiser4-full/ktxnmgrd.c
  	init_completion(&ctx->finish);
  	kcond_init(&ctx->startup);
  	kcond_init(&ctx->wait);
-diff -rupN reiser4-release/lnode.c reiser4-full/lnode.c
---- reiser4-release/lnode.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/lnode.c	2005-01-19 18:37:55.216254946 +0300
+diff -puN /dev/null lnode.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/lnode.c	2005-01-21 20:07:49.005265768 +0300
 @@ -0,0 +1,431 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -8843,9 +9051,9 @@ diff -rupN reiser4-release/lnode.c reiser4-full/lnode.c
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/lnode.h reiser4-full/lnode.h
---- reiser4-release/lnode.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/lnode.h	2005-01-19 18:37:55.361264808 +0300
+diff -puN /dev/null lnode.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/lnode.h	2005-01-21 20:07:49.006265811 +0300
 @@ -0,0 +1,122 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -8969,9 +9177,9 @@ diff -rupN reiser4-release/lnode.h reiser4-full/lnode.h
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/lock.c reiser4-full/lock.c
---- reiser4-release/lock.c	2005-01-19 18:41:35.441386798 +0300
-+++ reiser4-full/lock.c	2005-01-19 18:37:55.359264672 +0300
+diff -puN lock.c~profile-stat-trace-repacker lock.c
+--- reiser4/lock.c~profile-stat-trace-repacker	2005-01-21 20:07:48.285234349 +0300
++++ reiser4-vs/lock.c	2005-01-21 20:07:49.009265942 +0300
 @@ -324,6 +324,9 @@ lock_object(lock_stack * owner)
  	if (owner->curpri) {
  		node->lock.nr_hipri_owners++;
@@ -9248,9 +9456,9 @@ diff -rupN reiser4-release/lock.c reiser4-full/lock.c
  check_lock_stack(lock_stack * stack)
  {
  	spin_lock_stack(stack);
-diff -rupN reiser4-release/lock.h reiser4-full/lock.h
---- reiser4-release/lock.h	2005-01-19 18:41:35.443386937 +0300
-+++ reiser4-full/lock.h	2005-01-19 18:37:55.404267733 +0300
+diff -puN lock.h~profile-stat-trace-repacker lock.h
+--- reiser4/lock.h~profile-stat-trace-repacker	2005-01-21 20:07:48.293234698 +0300
++++ reiser4-vs/lock.h	2005-01-21 20:07:49.011266030 +0300
 @@ -190,7 +190,25 @@ extern void done_lh(lock_handle *);
  extern znode_lock_mode lock_mode(lock_handle *);
  
@@ -9278,9 +9486,9 @@ diff -rupN reiser4-release/lock.h reiser4-full/lock.h
  extern void __reiser4_wake_up(lock_stack * owner);
  
  extern int lock_stack_isclean(lock_stack * owner);
-diff -rupN reiser4-release/log.c reiser4-full/log.c
---- reiser4-release/log.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/log.c	2005-01-19 18:37:55.068244879 +0300
+diff -puN /dev/null log.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/log.c	2005-01-21 20:07:49.015266204 +0300
 @@ -0,0 +1,522 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -9804,9 +10012,9 @@ diff -rupN reiser4-release/log.c reiser4-full/log.c
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/log.h reiser4-full/log.h
---- reiser4-release/log.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/log.h	2005-01-19 18:37:55.485273242 +0300
+diff -puN /dev/null log.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/log.h	2005-01-21 20:07:49.016266248 +0300
 @@ -0,0 +1,122 @@
 +/* Copyright 2000, 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -9930,9 +10138,9 @@ diff -rupN reiser4-release/log.h reiser4-full/log.h
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/dont-use-rwlocks.patch reiser4-full/not-for-inclusion/dont-use-rwlocks.patch
---- reiser4-release/not-for-inclusion/dont-use-rwlocks.patch	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/dont-use-rwlocks.patch	2005-01-19 18:37:55.688287050 +0300
+diff -puN /dev/null not-for-inclusion/dont-use-rwlocks.patch
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/dont-use-rwlocks.patch	2005-01-21 20:07:49.018266335 +0300
 @@ -0,0 +1,358 @@
 +diff -ru bk/reiser4/lock.c /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/lock.c
 +--- bk/reiser4/lock.c	2004-10-27 18:47:03.467643409 +0400
@@ -10292,9 +10500,9 @@ diff -rupN reiser4-release/not-for-inclusion/dont-use-rwlocks.patch reiser4-full
 + 
 + /* define list manipulation functions for cbk_cache LRU list */
 + TYPE_SAFE_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
-diff -rupN reiser4-release/not-for-inclusion/interpolate.c reiser4-full/not-for-inclusion/interpolate.c
---- reiser4-release/not-for-inclusion/interpolate.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/interpolate.c	2005-01-19 18:37:54.773224817 +0300
+diff -puN /dev/null not-for-inclusion/interpolate.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/interpolate.c	2005-01-21 20:07:49.020266422 +0300
 @@ -0,0 +1,20 @@
 +/* We will use @ as the symbol for dereferencing, we won't use * because
 +we want to reserve it for use as a wildcard someday.
@@ -10316,9 +10524,9 @@ diff -rupN reiser4-release/not-for-inclusion/interpolate.c reiser4-full/not-for-
 +writing to filename/sym.
 +
 +*/
-diff -rupN reiser4-release/not-for-inclusion/linux-5_reiser4_syscall.patch reiser4-full/not-for-inclusion/linux-5_reiser4_syscall.patch
---- reiser4-release/not-for-inclusion/linux-5_reiser4_syscall.patch	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/linux-5_reiser4_syscall.patch	2005-01-19 18:37:55.610281745 +0300
+diff -puN /dev/null not-for-inclusion/linux-5_reiser4_syscall.patch
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/linux-5_reiser4_syscall.patch	2005-01-21 20:07:49.021266466 +0300
 @@ -0,0 +1,38 @@
 +===== arch/um/kernel/sys_call_table.c 1.5 vs edited =====
 +--- 1.5/arch/um/kernel/sys_call_table.c	Wed Nov  6 17:36:22 2002
@@ -10358,9 +10566,9 @@ diff -rupN reiser4-release/not-for-inclusion/linux-5_reiser4_syscall.patch reise
 +
 + #endif
 +
-diff -rupN reiser4-release/not-for-inclusion/parser/Makefile reiser4-full/not-for-inclusion/parser/Makefile
---- reiser4-release/not-for-inclusion/parser/Makefile	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/Makefile	2005-01-19 18:37:55.752291403 +0300
+diff -puN /dev/null not-for-inclusion/parser/Makefile
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/Makefile	2005-01-21 20:07:49.022266510 +0300
 @@ -0,0 +1,35 @@
 +
 +.SUFFIXES= .l .y .c
@@ -10397,9 +10605,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/Makefile reiser4-full/not-fo
 +
 +
 +
-diff -rupN reiser4-release/not-for-inclusion/parser/lex.l reiser4-full/not-for-inclusion/parser/lex.l
---- reiser4-release/not-for-inclusion/parser/lex.l	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/lex.l	2005-01-19 18:37:55.427269297 +0300
+diff -puN /dev/null not-for-inclusion/parser/lex.l
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/lex.l	2005-01-21 20:07:49.023266553 +0300
 @@ -0,0 +1,65 @@
 +%Start Normal
 +
@@ -10466,9 +10674,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/lex.l reiser4-full/not-for-i
 +
 +
 +
-diff -rupN reiser4-release/not-for-inclusion/parser/lib.c reiser4-full/not-for-inclusion/parser/lib.c
---- reiser4-release/not-for-inclusion/parser/lib.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/lib.c	2005-01-19 18:37:54.975238554 +0300
+diff -puN /dev/null not-for-inclusion/parser/lib.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/lib.c	2005-01-21 20:07:49.029266815 +0300
 @@ -0,0 +1,2187 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -12657,9 +12865,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/lib.c reiser4-full/not-for-i
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/parser/lib.h reiser4-full/not-for-inclusion/parser/lib.h
---- reiser4-release/not-for-inclusion/parser/lib.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/lib.h	2005-01-19 18:37:55.085246036 +0300
+diff -puN /dev/null not-for-inclusion/parser/lib.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/lib.h	2005-01-21 20:07:49.031266902 +0300
 @@ -0,0 +1,84 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -12745,9 +12953,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/lib.h reiser4-full/not-for-i
 +#define tolower(a) a
 +#define isdigit(a) ((a)>=0 && (a)<=9)
 +
-diff -rupN reiser4-release/not-for-inclusion/parser/pars.cls.h reiser4-full/not-for-inclusion/parser/pars.cls.h
---- reiser4-release/not-for-inclusion/parser/pars.cls.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/pars.cls.h	2005-01-19 18:37:54.841229441 +0300
+diff -puN /dev/null not-for-inclusion/parser/pars.cls.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/pars.cls.h	2005-01-21 20:07:49.033266990 +0300
 @@ -0,0 +1,242 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -12991,9 +13199,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/pars.cls.h reiser4-full/not-
 +};
 +
 +
-diff -rupN reiser4-release/not-for-inclusion/parser/pars.yacc.h reiser4-full/not-for-inclusion/parser/pars.yacc.h
---- reiser4-release/not-for-inclusion/parser/pars.yacc.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/pars.yacc.h	2005-01-19 18:37:55.505274603 +0300
+diff -puN /dev/null not-for-inclusion/parser/pars.yacc.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/pars.yacc.h	2005-01-21 20:07:49.034267033 +0300
 @@ -0,0 +1,66 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -13061,9 +13269,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/pars.yacc.h reiser4-full/not
 + * tab-width: 8
 + * End:
 + */
-diff -rupN reiser4-release/not-for-inclusion/parser/parser.code.c reiser4-full/not-for-inclusion/parser/parser.code.c
---- reiser4-release/not-for-inclusion/parser/parser.code.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/parser.code.c	2005-01-19 18:37:54.774224885 +0300
+diff -puN /dev/null not-for-inclusion/parser/parser.code.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/parser.code.c	2005-01-21 20:07:49.036267121 +0300
 @@ -0,0 +1,484 @@
 +#ifndef lint
 +/*static char yysccsid[] = "from: @(#)yaccpar	1.9 (Berkeley) 02/21/93";*/
@@ -13549,9 +13757,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/parser.code.c reiser4-full/n
 +yyaccept:
 +    return (0);
 +}
-diff -rupN reiser4-release/not-for-inclusion/parser/parser.doc reiser4-full/not-for-inclusion/parser/parser.doc
---- reiser4-release/not-for-inclusion/parser/parser.doc	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/parser.doc	2005-01-19 18:37:55.383266305 +0300
+diff -puN /dev/null not-for-inclusion/parser/parser.doc
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/parser.doc	2005-01-21 20:07:49.039267251 +0300
 @@ -0,0 +1,473 @@
 +/* Parser for the reiser4() system call */
 +
@@ -14026,9 +14234,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/parser.doc reiser4-full/not-
 +ok. command string is executed.
 +
 +
-diff -rupN reiser4-release/not-for-inclusion/parser/parser.h reiser4-full/not-for-inclusion/parser/parser.h
---- reiser4-release/not-for-inclusion/parser/parser.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/parser.h	2005-01-19 18:37:55.083245900 +0300
+diff -puN /dev/null not-for-inclusion/parser/parser.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/parser.h	2005-01-21 20:07:49.041267339 +0300
 @@ -0,0 +1,345 @@
 + /*
 + * Copyright, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -14375,9 +14583,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/parser.h reiser4-full/not-fo
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/parser/parser.tab.c reiser4-full/not-for-inclusion/parser/parser.tab.c
---- reiser4-release/not-for-inclusion/parser/parser.tab.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/parser.tab.c	2005-01-19 18:37:55.337263176 +0300
+diff -puN /dev/null not-for-inclusion/parser/parser.tab.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/parser.tab.c	2005-01-21 20:07:49.043267426 +0300
 @@ -0,0 +1,194 @@
 +short yylhs[] = {                                        -1,
 +    0,    6,    6,    6,    6,    6,    6,    6,    6,    6,
@@ -14573,9 +14781,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/parser.tab.c reiser4-full/no
 +"level_up : L_BRACKET",
 +};
 +#endif
-diff -rupN reiser4-release/not-for-inclusion/parser/parser.tab.h reiser4-full/not-for-inclusion/parser/parser.tab.h
---- reiser4-release/not-for-inclusion/parser/parser.tab.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/parser.tab.h	2005-01-19 18:37:55.425269161 +0300
+diff -puN /dev/null not-for-inclusion/parser/parser.tab.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/parser.tab.h	2005-01-21 20:07:49.044267470 +0300
 @@ -0,0 +1,40 @@
 +#define L_BRACKET 257
 +#define R_BRACKET 258
@@ -14617,9 +14825,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/parser.tab.h reiser4-full/no
 +	wrd_t * wrd;
 +} YYSTYPE;
 +extern YYSTYPE yylval;
-diff -rupN reiser4-release/not-for-inclusion/parser/parser.y reiser4-full/not-for-inclusion/parser/parser.y
---- reiser4-release/not-for-inclusion/parser/parser.y	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/parser.y	2005-01-19 18:37:55.605281404 +0300
+diff -puN /dev/null not-for-inclusion/parser/parser.y
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/parser.y	2005-01-21 20:07:49.045267513 +0300
 @@ -0,0 +1,175 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -14796,9 +15004,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/parser.y reiser4-full/not-fo
 +   tab-width: 8
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/parser/tmp.c reiser4-full/not-for-inclusion/parser/tmp.c
---- reiser4-release/not-for-inclusion/parser/tmp.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/tmp.c	2005-01-19 18:37:55.753291471 +0300
+diff -puN /dev/null not-for-inclusion/parser/tmp.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/tmp.c	2005-01-21 20:07:49.046267557 +0300
 @@ -0,0 +1,32 @@
 +
 +/*
@@ -14832,9 +15040,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/tmp.c reiser4-full/not-for-i
 + * tab-width: 8
 + * End:
 + */
-diff -rupN reiser4-release/not-for-inclusion/parser/yacc_reiser4.patch reiser4-full/not-for-inclusion/parser/yacc_reiser4.patch
---- reiser4-release/not-for-inclusion/parser/yacc_reiser4.patch	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/parser/yacc_reiser4.patch	2005-01-19 18:37:55.426269229 +0300
+diff -puN /dev/null not-for-inclusion/parser/yacc_reiser4.patch
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/parser/yacc_reiser4.patch	2005-01-21 20:07:49.047267601 +0300
 @@ -0,0 +1,127 @@
 +--- ../yacc/skeleton.c	1993-12-22 14:28:01.000000000 +0300
 ++++ skeleton.c	2004-01-29 23:05:26.000000000 +0300
@@ -14963,9 +15171,9 @@ diff -rupN reiser4-release/not-for-inclusion/parser/yacc_reiser4.patch reiser4-f
 +     "yyabort:",
 +     "    return (1);",
 +     "yyaccept:",
-diff -rupN reiser4-release/not-for-inclusion/plugin/name/invterp.c reiser4-full/not-for-inclusion/plugin/name/invterp.c
---- reiser4-release/not-for-inclusion/plugin/name/invterp.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/plugin/name/invterp.c	2005-01-19 18:37:55.604281336 +0300
+diff -puN /dev/null not-for-inclusion/plugin/name/invterp.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/plugin/name/invterp.c	2005-01-21 20:07:49.048267644 +0300
 @@ -0,0 +1,11 @@
 +/* Invterp is short for invertable interpolate, and interpolate means to
 +substitute in.
@@ -14978,9 +15186,9 @@ diff -rupN reiser4-release/not-for-inclusion/plugin/name/invterp.c reiser4-full/
 +wherever used.
 +
 +*/
-diff -rupN reiser4-release/not-for-inclusion/reiser4-for-2.6.9.patch reiser4-full/not-for-inclusion/reiser4-for-2.6.9.patch
---- reiser4-release/not-for-inclusion/reiser4-for-2.6.9.patch	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/reiser4-for-2.6.9.patch	2005-01-19 18:37:54.919234746 +0300
+diff -puN /dev/null not-for-inclusion/reiser4-for-2.6.9.patch
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/reiser4-for-2.6.9.patch	2005-01-21 20:07:49.049267688 +0300
 @@ -0,0 +1,186 @@
 +
 +This patch is to get reiser4 runable under not mm serie of kernel
@@ -15168,9 +15376,9 @@ diff -rupN reiser4-release/not-for-inclusion/reiser4-for-2.6.9.patch reiser4-ful
 + static int
 +
 +_
-diff -rupN reiser4-release/not-for-inclusion/sys_reiser4.c reiser4-full/not-for-inclusion/sys_reiser4.c
---- reiser4-release/not-for-inclusion/sys_reiser4.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/sys_reiser4.c	2005-01-19 18:37:54.843229577 +0300
+diff -puN /dev/null not-for-inclusion/sys_reiser4.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/sys_reiser4.c	2005-01-21 20:07:49.051267775 +0300
 @@ -0,0 +1,106 @@
 +/* System call for accessing enhanced semantics of the Reiser Filesystem Version 4 (reiser4). */
 +
@@ -15278,9 +15486,9 @@ diff -rupN reiser4-release/not-for-inclusion/sys_reiser4.c reiser4-full/not-for-
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/sys_reiser4_2.c reiser4-full/not-for-inclusion/sys_reiser4_2.c
---- reiser4-release/not-for-inclusion/sys_reiser4_2.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/sys_reiser4_2.c	2005-01-19 18:37:54.846229781 +0300
+diff -puN /dev/null not-for-inclusion/sys_reiser4_2.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/sys_reiser4_2.c	2005-01-21 20:07:49.055267950 +0300
 @@ -0,0 +1,1174 @@
 +
 +/*
@@ -16456,9 +16664,9 @@ diff -rupN reiser4-release/not-for-inclusion/sys_reiser4_2.c reiser4-full/not-fo
 +		result = PTR_ERR(inkernel);
 +	return result;
 +}
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/README reiser4-full/not-for-inclusion/ulevel/bench/README
---- reiser4-release/not-for-inclusion/ulevel/bench/README	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/README	2005-01-19 18:37:55.684286778 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/README
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/README	2005-01-21 20:07:49.056267993 +0300
 @@ -0,0 +1,20 @@
 +README file for bench package.
 +
@@ -16480,9 +16688,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/README reiser4-full/no
 +Each test is represented by directory (initially within todo/). The only thing
 +driver.sh requires from test is existence of executable run.me file within
 +test directory.
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/driver.sh reiser4-full/not-for-inclusion/ulevel/bench/driver.sh
---- reiser4-release/not-for-inclusion/ulevel/bench/driver.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/driver.sh	2005-01-19 18:37:55.340263380 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/driver.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/driver.sh	2005-01-21 20:07:49.057268037 +0300
 @@ -0,0 +1,59 @@
 +#! /bin/sh
 +
@@ -16543,9 +16751,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/driver.sh reiser4-full
 +fi
 +
 +systemrestart $KERNEL
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/functions.sh reiser4-full/not-for-inclusion/ulevel/bench/functions.sh
---- reiser4-release/not-for-inclusion/ulevel/bench/functions.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/functions.sh	2005-01-19 18:37:55.506274671 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/functions.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/functions.sh	2005-01-21 20:07:49.058268081 +0300
 @@ -0,0 +1,115 @@
 +#! /bin/sh
 +
@@ -16662,14 +16870,14 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/functions.sh reiser4-f
 +    date              >> $rep
 +    echo -------------------------------------------------- >> $rep
 +}
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/kernel reiser4-full/not-for-inclusion/ulevel/bench/kernel
---- reiser4-release/not-for-inclusion/ulevel/bench/kernel	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/kernel	2005-01-19 18:37:55.608281609 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/kernel
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/kernel	2005-01-21 20:07:49.059268124 +0300
 @@ -0,0 +1 @@
 +test s
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/rc1.d.sample reiser4-full/not-for-inclusion/ulevel/bench/rc1.d.sample
---- reiser4-release/not-for-inclusion/ulevel/bench/rc1.d.sample	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/rc1.d.sample	2005-01-19 18:37:55.166251545 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/rc1.d.sample
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/rc1.d.sample	2005-01-21 20:07:49.060268168 +0300
 @@ -0,0 +1,65 @@
 +#! /bin/sh
 +# Copyright (c) 1996-2002 SuSE Linux AG, Nuernberg, Germany.
@@ -16736,9 +16944,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/rc1.d.sample reiser4-f
 +	exit 1
 +esac
 +rc_exit
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/start-bench.sh reiser4-full/not-for-inclusion/ulevel/bench/start-bench.sh
---- reiser4-release/not-for-inclusion/ulevel/bench/start-bench.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/start-bench.sh	2005-01-19 18:37:55.432269638 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/start-bench.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/start-bench.sh	2005-01-21 20:07:49.061268212 +0300
 @@ -0,0 +1,7 @@
 +#! /bin/sh
 +
@@ -16747,15 +16955,15 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/start-bench.sh reiser4
 +. functions.sh
 +
 +systemrestart "$(cat kernel)"
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs
---- reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs	2005-01-19 18:37:55.686286914 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs	2005-01-21 20:07:49.061268212 +0300
 @@ -0,0 +1 @@
 +MKFS=mkfs.ext3 -O dir_index
 \ No newline at end of file
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/options reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/options
---- reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/options	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/options	2005-01-19 18:37:54.979238826 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/options
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/options	2005-01-21 20:07:49.062268255 +0300
 @@ -0,0 +1,23 @@
 +#! /bin/sh
 +
@@ -16780,9 +16988,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/options
 +ext3_common="FSTYPE=ext3"
 +
 +PATH=$PATH:/usr/local/sbin
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/run.me	2005-01-19 18:37:55.558278208 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/run.me	2005-01-21 20:07:49.063268299 +0300
 @@ -0,0 +1,87 @@
 +#! /bin/sh
 +
@@ -16871,20 +17079,20 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/run.me 
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/stage reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/stage
---- reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/stage	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/stage	2005-01-19 18:37:54.976238622 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/stage
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/stage	2005-01-21 20:07:49.064268342 +0300
 @@ -0,0 +1 @@
 +1
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs
---- reiser4-release/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs	2005-01-19 18:37:55.020241615 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs	2005-01-21 20:07:49.065268386 +0300
 @@ -0,0 +1 @@
 +MKFS=mkfs.reiser4 -q -o policy=extents
 \ No newline at end of file
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ext2/options reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/ext2/options
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ext2/options	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/ext2/options	2005-01-19 18:37:55.205254198 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/options
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/options	2005-01-21 20:07:49.066268430 +0300
 @@ -0,0 +1,8 @@
 +#! /bin/sh
 +
@@ -16894,9 +17102,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ex
 +DEVICE=/dev/hdb1
 +MKOPTS=''
 +
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me	2005-01-19 18:37:55.339263312 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me	2005-01-21 20:07:49.067268473 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17057,14 +17265,14 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ex
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage	2005-01-19 18:37:55.164251409 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/stage
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage	2005-01-21 20:07:49.068268517 +0300
 @@ -0,0 +1 @@
 +INIT
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options	2005-01-19 18:37:55.434269774 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/options
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options	2005-01-21 20:07:49.069268561 +0300
 @@ -0,0 +1,8 @@
 +#! /bin/sh
 +
@@ -17074,9 +17282,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/re
 +DEVICE=/dev/hdb1
 +MKOPTS='-q'
 +
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me	2005-01-19 18:37:55.429269434 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me	2005-01-21 20:07:49.070268604 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17237,14 +17445,14 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/re
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage	2005-01-19 18:37:55.204254130 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage	2005-01-21 20:07:49.071268648 +0300
 @@ -0,0 +1 @@
 +INIT
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options	2005-01-19 18:37:55.754291539 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options	2005-01-21 20:07:49.072268692 +0300
 @@ -0,0 +1,9 @@
 +#! /bin/sh
 +
@@ -17255,9 +17463,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/re
 +MKOPTS='-ff --format 3.6'
 +
 +
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me	2005-01-19 18:37:55.168251681 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me	2005-01-21 20:07:49.073268735 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17418,14 +17626,14 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/re
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage	2005-01-19 18:37:55.092246512 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage	2005-01-21 20:07:49.074268779 +0300
 @@ -0,0 +1 @@
 +INIT
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/read-write/run.me	2005-01-19 18:37:55.431269570 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/run.me	2005-01-21 20:07:49.075268822 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17586,9 +17794,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/read-write/ru
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/reiserfs/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/reiserfs/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/reiserfs/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/reiserfs/run.me	2005-01-19 18:37:55.385266441 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/reiserfs/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/reiserfs/run.me	2005-01-21 20:07:49.077268910 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17749,9 +17957,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/reiserfs/run.
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/run.me	2005-01-19 18:37:55.385266441 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/run.me	2005-01-21 20:07:49.078268953 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17912,9 +18120,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/run.me reiser
 +# mode: shell-script
 +# tab-width: 8
 +# End:
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me reiser4-full/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me
---- reiser4-release/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me	2005-01-19 18:37:55.087246172 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me	2005-01-21 20:07:49.080269041 +0300
 @@ -0,0 +1,150 @@
 +#! /bin/sh
 +
@@ -18066,14 +18274,14 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/untar-build/e
 +    ;;
 +
 +esac
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage reiser4-full/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage
---- reiser4-release/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage	2005-01-19 18:37:55.607281541 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage	2005-01-21 20:07:49.081269084 +0300
 @@ -0,0 +1 @@
 +INIT
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bio-out.py reiser4-full/not-for-inclusion/ulevel/bio-out.py
---- reiser4-release/not-for-inclusion/ulevel/bio-out.py	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bio-out.py	2005-01-19 18:37:55.169251749 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bio-out.py
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bio-out.py	2005-01-21 20:07:49.082269128 +0300
 @@ -0,0 +1,78 @@
 +#! /usr/bin/python
 +
@@ -18153,17 +18361,17 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/bio-out.py reiser4-full/not-
 +close_all_files()
 +
 +
-diff -rupN reiser4-release/not-for-inclusion/ulevel/bio-out.sh reiser4-full/not-for-inclusion/ulevel/bio-out.sh
---- reiser4-release/not-for-inclusion/ulevel/bio-out.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/bio-out.sh	2005-01-19 18:37:55.089246308 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/bio-out.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/bio-out.sh	2005-01-21 20:07:49.083269172 +0300
 @@ -0,0 +1,4 @@
 +#! /bin/sh
 +
 +egrep '\.\.\.\.\.\.bio' | \
 +awk 'BEGIN {cnt=1} { split($9, pair, "[(,)]"); for(i=0 ; i<pair[3] ; ++i) { print cnt " " pair[2]+i " " $7; cnt +=1; } }'
-diff -rupN reiser4-release/not-for-inclusion/ulevel/cp-r reiser4-full/not-for-inclusion/ulevel/cp-r
---- reiser4-release/not-for-inclusion/ulevel/cp-r	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/cp-r	2005-01-19 18:37:55.021241683 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/cp-r
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/cp-r	2005-01-21 20:07:49.084269215 +0300
 @@ -0,0 +1,7 @@
 +DIR=$1
 +
@@ -18172,9 +18380,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/cp-r reiser4-full/not-for-in
 +	echo "cp-r $DIR"
 +	echo "umount"
 +) | ./a.out sh
-diff -rupN reiser4-release/not-for-inclusion/ulevel/driller.c reiser4-full/not-for-inclusion/ulevel/driller.c
---- reiser4-release/not-for-inclusion/ulevel/driller.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/driller.c	2005-01-19 18:37:54.977238690 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/driller.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/driller.c	2005-01-21 20:07:49.085269259 +0300
 @@ -0,0 +1,45 @@
 +#include <unistd.h>
 +#include <stdio.h>
@@ -18221,9 +18429,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/driller.c reiser4-full/not-f
 +	printf( "\nDone.\n" );
 +	return 0;
 +}
-diff -rupN reiser4-release/not-for-inclusion/ulevel/loid.c reiser4-full/not-for-inclusion/ulevel/loid.c
---- reiser4-release/not-for-inclusion/ulevel/loid.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/loid.c	2005-01-19 18:37:54.920234814 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/loid.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/loid.c	2005-01-21 20:07:49.086269302 +0300
 @@ -0,0 +1,206 @@
 +#include <stdio.h>
 +#include <unistd.h>
@@ -18431,9 +18639,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/loid.c reiser4-full/not-for-
 +  if( buf != NULL )
 +	free( buf );
 +}
-diff -rupN reiser4-release/not-for-inclusion/ulevel/make-teeny-files.c reiser4-full/not-for-inclusion/ulevel/make-teeny-files.c
---- reiser4-release/not-for-inclusion/ulevel/make-teeny-files.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/make-teeny-files.c	2005-01-19 18:37:54.776225021 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/make-teeny-files.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/make-teeny-files.c	2005-01-21 20:07:49.087269346 +0300
 @@ -0,0 +1,102 @@
 +/*
 + * make-teeny-files.c by Andrew Morton <akpm@digeo.com>
@@ -18537,9 +18745,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/make-teeny-files.c reiser4-f
 +	doit(depth, fpd);
 +	exit(0);
 +}
-diff -rupN reiser4-release/not-for-inclusion/ulevel/massage-lockmeter-output reiser4-full/not-for-inclusion/ulevel/massage-lockmeter-output
---- reiser4-release/not-for-inclusion/ulevel/massage-lockmeter-output	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/massage-lockmeter-output	2005-01-19 18:37:55.342263516 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/massage-lockmeter-output
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/massage-lockmeter-output	2005-01-21 20:07:49.088269390 +0300
 @@ -0,0 +1,17 @@
 +#! /bin/sh
 +
@@ -18558,9 +18766,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/massage-lockmeter-output rei
 +sed 's/\([0-9]\)ms /\1000 /g' | \
 +# add "total waited" and "total held" fields
 +awk '{ if (NF == 12) { printf "%10li %10li %s\n", $3 * $8, $5 * $8, $0} }'
-diff -rupN reiser4-release/not-for-inclusion/ulevel/nfs_fh_stale.c reiser4-full/not-for-inclusion/ulevel/nfs_fh_stale.c
---- reiser4-release/not-for-inclusion/ulevel/nfs_fh_stale.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/nfs_fh_stale.c	2005-01-19 18:37:55.683286710 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/nfs_fh_stale.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/nfs_fh_stale.c	2005-01-21 20:07:49.090269477 +0300
 @@ -0,0 +1,1065 @@
 +/* -*- C -*- */
 +
@@ -19627,9 +19835,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/nfs_fh_stale.c reiser4-full/
 +  fill-column: 79
 +  End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/ulevel/puncher.sh reiser4-full/not-for-inclusion/ulevel/puncher.sh
---- reiser4-release/not-for-inclusion/ulevel/puncher.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/puncher.sh	2005-01-19 18:37:55.433269706 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/puncher.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/puncher.sh	2005-01-21 20:07:49.091269521 +0300
 @@ -0,0 +1,23 @@
 +#! /bin/sh
 +
@@ -19654,9 +19862,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/puncher.sh reiser4-full/not-
 +        $DD seek=$REPLY 2>/dev/null || exit 3
 +        echo -n .
 +done
-diff -rupN reiser4-release/not-for-inclusion/ulevel/readdir.c reiser4-full/not-for-inclusion/ulevel/readdir.c
---- reiser4-release/not-for-inclusion/ulevel/readdir.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/readdir.c	2005-01-19 18:37:54.842229509 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/readdir.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/readdir.c	2005-01-21 20:07:49.092269564 +0300
 @@ -0,0 +1,43 @@
 +#define _LARGEFILE64_SOURCE
 +
@@ -19701,16 +19909,16 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/readdir.c reiser4-full/not-f
 +	  perror( "cannot opendir" );
 +	}
 +}
-diff -rupN reiser4-release/not-for-inclusion/ulevel/seek-info.sh reiser4-full/not-for-inclusion/ulevel/seek-info.sh
---- reiser4-release/not-for-inclusion/ulevel/seek-info.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/seek-info.sh	2005-01-19 18:37:55.090246376 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/seek-info.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/seek-info.sh	2005-01-21 20:07:49.093269608 +0300
 @@ -0,0 +1,3 @@
 +#! /bin/sh
 +
 +awk 'BEGIN {prev=0} {cur = $2 ; print (cur - prev - 1) " " prev " " cur ; prev = cur}'
-diff -rupN reiser4-release/not-for-inclusion/ulevel/seeks.sh reiser4-full/not-for-inclusion/ulevel/seeks.sh
---- reiser4-release/not-for-inclusion/ulevel/seeks.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/seeks.sh	2005-01-19 18:37:55.167251613 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/seeks.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/seeks.sh	2005-01-21 20:07:49.094269652 +0300
 @@ -0,0 +1,73 @@
 +#! /bin/sh
 +
@@ -19785,9 +19993,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/seeks.sh reiser4-full/not-fo
 +) | gnuplot #| gv -landscape -
 +
 +rm -f $FNAME $FNAME.r $FNAME.w
-diff -rupN reiser4-release/not-for-inclusion/ulevel/shortlived reiser4-full/not-for-inclusion/ulevel/shortlived
---- reiser4-release/not-for-inclusion/ulevel/shortlived	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/shortlived	2005-01-19 18:37:54.978238758 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/shortlived
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/shortlived	2005-01-21 20:07:49.094269652 +0300
 @@ -0,0 +1,72 @@
 +#! /bin/sh
 +
@@ -19861,9 +20069,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/shortlived reiser4-full/not-
 +done
 +
 +wait
-diff -rupN reiser4-release/not-for-inclusion/ulevel/show-stats.sh reiser4-full/not-for-inclusion/ulevel/show-stats.sh
---- reiser4-release/not-for-inclusion/ulevel/show-stats.sh	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/show-stats.sh	2005-01-19 18:37:54.921234882 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/show-stats.sh
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/show-stats.sh	2005-01-21 20:07:49.095269695 +0300
 @@ -0,0 +1,27 @@
 +#! /bin/sh
 +
@@ -19893,17 +20101,17 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/show-stats.sh reiser4-full/n
 +	cd ..
 +done
 \ No newline at end of file
-diff -rupN reiser4-release/not-for-inclusion/ulevel/sleep-info-parse reiser4-full/not-for-inclusion/ulevel/sleep-info-parse
---- reiser4-release/not-for-inclusion/ulevel/sleep-info-parse	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/sleep-info-parse	2005-01-19 18:37:55.680286506 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/sleep-info-parse
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/sleep-info-parse	2005-01-21 20:07:49.096269739 +0300
 @@ -0,0 +1,4 @@
 +BEGIN { filename=/dev/null; system("mkdir ./zzz") }
 +/[0-9]+ [0-9]+ [0-9]+$/ { filename="./zzz/" sprintf("%0.15d", $2) }
 +{ print $0 >filename }
 +END { system("cat ./zzz/*; rm -fr zzz 0") }
-diff -rupN reiser4-release/not-for-inclusion/ulevel/stripspaces reiser4-full/not-for-inclusion/ulevel/stripspaces
---- reiser4-release/not-for-inclusion/ulevel/stripspaces	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/stripspaces	2005-01-19 18:37:55.088246240 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/stripspaces
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/stripspaces	2005-01-21 20:07:49.097269782 +0300
 @@ -0,0 +1,14 @@
 +#! /bin/sh
 +
@@ -19920,9 +20128,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/stripspaces reiser4-full/not
 +    echo $f
 +done
 \ No newline at end of file
-diff -rupN reiser4-release/not-for-inclusion/ulevel/syscalltest.c reiser4-full/not-for-inclusion/ulevel/syscalltest.c
---- reiser4-release/not-for-inclusion/ulevel/syscalltest.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/ulevel/syscalltest.c	2005-01-19 18:37:55.089246308 +0300
+diff -puN /dev/null not-for-inclusion/ulevel/syscalltest.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/ulevel/syscalltest.c	2005-01-21 20:07:49.098269826 +0300
 @@ -0,0 +1,20 @@
 +#include <stdio.h>
 +#include <errno.h>
@@ -19944,9 +20152,9 @@ diff -rupN reiser4-release/not-for-inclusion/ulevel/syscalltest.c reiser4-full/n
 +	result = reiser4(argv[1]);
 +	printf("%i\n", result);
 +}
-diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c
---- reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c	2005-01-19 18:37:55.609281677 +0300
+diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c	2005-01-21 20:07:49.099269870 +0300
 @@ -0,0 +1,172 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -20120,9 +20328,9 @@ diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h
---- reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h	2005-01-19 18:37:55.388266645 +0300
+diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h	2005-01-21 20:07:49.100269913 +0300
 @@ -0,0 +1,54 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -20178,9 +20386,9 @@ diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c
---- reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c	2005-01-19 18:37:55.386266509 +0300
+diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c	2005-01-21 20:07:49.101269957 +0300
 @@ -0,0 +1,170 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -20352,9 +20560,9 @@ diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid40
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h
---- reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h	2005-01-19 18:37:54.777225089 +0300
+diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h	2005-01-21 20:07:49.103270044 +0300
 @@ -0,0 +1,57 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -20413,9 +20621,9 @@ diff -rupN reiser4-release/not-for-inclusion/yet_unneeded_abstractions/oid/oid40
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/page_cache.c reiser4-full/page_cache.c
---- reiser4-release/page_cache.c	2005-01-19 18:41:35.543393907 +0300
-+++ reiser4-full/page_cache.c	2005-01-19 18:37:55.503274467 +0300
+diff -puN page_cache.c~profile-stat-trace-repacker page_cache.c
+--- reiser4/page_cache.c~profile-stat-trace-repacker	2005-01-21 20:07:48.358237534 +0300
++++ reiser4-vs/page_cache.c	2005-01-21 20:07:49.105270132 +0300
 @@ -286,6 +286,15 @@ done_formatted_fake(struct super_block *
  	return 0;
  }
@@ -20555,9 +20763,9 @@ diff -rupN reiser4-release/page_cache.c reiser4-full/page_cache.c
  
  #define page_flag_name( page, flag )			\
  	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
-diff -rupN reiser4-release/page_cache.h reiser4-full/page_cache.h
---- reiser4-release/page_cache.h	2005-01-19 18:41:35.545394046 +0300
-+++ reiser4-full/page_cache.h	2005-01-19 18:37:55.760291947 +0300
+diff -puN page_cache.h~profile-stat-trace-repacker page_cache.h
+--- reiser4/page_cache.h~profile-stat-trace-repacker	2005-01-21 20:07:48.364237796 +0300
++++ reiser4-vs/page_cache.h	2005-01-21 20:07:49.106270175 +0300
 @@ -20,7 +20,15 @@ extern reiser4_tree *tree_by_page(const 
  
  extern int set_page_dirty_internal (struct page * page, int tag_as_moved);
@@ -20583,9 +20791,9 @@ diff -rupN reiser4-release/page_cache.h reiser4-full/page_cache.h
  extern void print_page(const char *prefix, struct page *page);
  #else
  #define print_page(prf, p) noop
-diff -rupN reiser4-release/plugin/compress/compress.c reiser4-full/plugin/compress/compress.c
---- reiser4-release/plugin/compress/compress.c	2005-01-19 18:41:35.546394116 +0300
-+++ reiser4-full/plugin/compress/compress.c	2005-01-19 18:37:55.200253858 +0300
+diff -puN plugin/compress/compress.c~profile-stat-trace-repacker plugin/compress/compress.c
+--- reiser4/plugin/compress/compress.c~profile-stat-trace-repacker	2005-01-21 20:07:48.372238145 +0300
++++ reiser4-vs/plugin/compress/compress.c	2005-01-21 20:07:49.108270262 +0300
 @@ -35,7 +35,7 @@ null_compress(coa_t coa, __u8 * src_firs
  	assert("edward-797", dst_len != NULL);
  
@@ -20604,9 +20812,9 @@ diff -rupN reiser4-release/plugin/compress/compress.c reiser4-full/plugin/compre
  	case TFM_READ:	/* decompress */
  		break;
  	default:
-diff -rupN reiser4-release/plugin/cryptcompress.c reiser4-full/plugin/cryptcompress.c
---- reiser4-release/plugin/cryptcompress.c	2005-01-19 18:41:35.552394534 +0300
-+++ reiser4-full/plugin/cryptcompress.c	2005-01-19 18:37:54.816227741 +0300
+diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompress.c
+--- reiser4/plugin/cryptcompress.c~profile-stat-trace-repacker	2005-01-21 20:07:48.382238582 +0300
++++ reiser4-vs/plugin/cryptcompress.c	2005-01-21 20:07:49.114270524 +0300
 @@ -59,6 +59,7 @@ int cut_file_items(struct inode *inode, 
  int delete_object(struct inode *inode, int mode);
  __u8 cluster_shift_by_coord(const coord_t * coord);
@@ -20791,9 +20999,9 @@ diff -rupN reiser4-release/plugin/cryptcompress.c reiser4-full/plugin/cryptcompr
  load_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin, char **area, int *len)
  {
  	assert("edward-455", inode != NULL);
-diff -rupN reiser4-release/plugin/cryptcompress.h reiser4-full/plugin/cryptcompress.h
---- reiser4-release/plugin/cryptcompress.h	2005-01-19 18:41:35.555394743 +0300
-+++ reiser4-full/plugin/cryptcompress.h	2005-01-19 18:37:55.240256578 +0300
+diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompress.h
+--- reiser4/plugin/cryptcompress.h~profile-stat-trace-repacker	2005-01-21 20:07:48.390238931 +0300
++++ reiser4-vs/plugin/cryptcompress.h	2005-01-21 20:07:49.117270655 +0300
 @@ -71,7 +71,7 @@ alloc_ts(tfm_stream_t ** stm)
  	*stm = reiser4_kmalloc(sizeof ** stm, GFP_KERNEL);
  	if (*stm == NULL)
@@ -20838,9 +21046,9 @@ diff -rupN reiser4-release/plugin/cryptcompress.h reiser4-full/plugin/cryptcompr
  int goto_right_neighbor(coord_t *, lock_handle *);
  int load_file_hint(struct file *, hint_t *);
  void save_file_hint(struct file *, const hint_t *);
-diff -rupN reiser4-release/plugin/dir/dir.c reiser4-full/plugin/dir/dir.c
---- reiser4-release/plugin/dir/dir.c	2005-01-19 18:41:35.558394952 +0300
-+++ reiser4-full/plugin/dir/dir.c	2005-01-19 18:37:55.444270454 +0300
+diff -puN plugin/dir/dir.c~profile-stat-trace-repacker plugin/dir/dir.c
+--- reiser4/plugin/dir/dir.c~profile-stat-trace-repacker	2005-01-21 20:07:48.399239324 +0300
++++ reiser4-vs/plugin/dir/dir.c	2005-01-21 20:07:49.121270830 +0300
 @@ -120,7 +120,7 @@ link_common(struct inode *parent /* pare
  
  	parent_dplug = inode_dir_plugin(parent);
@@ -21047,9 +21255,9 @@ diff -rupN reiser4-release/plugin/dir/dir.c reiser4-full/plugin/dir/dir.c
  	down(&inode->i_sem);
  
  	/* update ->f_pos */
-diff -rupN reiser4-release/plugin/dir/hashed_dir.c reiser4-full/plugin/dir/hashed_dir.c
---- reiser4-release/plugin/dir/hashed_dir.c	2005-01-19 18:41:35.562395231 +0300
-+++ reiser4-full/plugin/dir/hashed_dir.c	2005-01-19 18:37:55.226255626 +0300
+diff -puN plugin/dir/hashed_dir.c~profile-stat-trace-repacker plugin/dir/hashed_dir.c
+--- reiser4/plugin/dir/hashed_dir.c~profile-stat-trace-repacker	2005-01-21 20:07:48.408239716 +0300
++++ reiser4-vs/plugin/dir/hashed_dir.c	2005-01-21 20:07:49.124270961 +0300
 @@ -59,7 +59,7 @@ static int find_entry(struct inode *dir,
  static int check_item(const struct inode *dir,
  		      const coord_t * coord, const char *name);
@@ -21205,9 +21413,9 @@ diff -rupN reiser4-release/plugin/dir/hashed_dir.c reiser4-full/plugin/dir/hashe
  	/* Compare name stored in this entry with name we are looking for.
  
  	   NOTE-NIKITA Here should go code for support of something like
-diff -rupN reiser4-release/plugin/disk_format/disk_format40.c reiser4-full/plugin/disk_format/disk_format40.c
---- reiser4-release/plugin/disk_format/disk_format40.c	2005-01-19 18:41:35.564395371 +0300
-+++ reiser4-full/plugin/disk_format/disk_format40.c	2005-01-19 18:37:55.255257599 +0300
+diff -puN plugin/disk_format/disk_format40.c~profile-stat-trace-repacker plugin/disk_format/disk_format40.c
+--- reiser4/plugin/disk_format/disk_format40.c~profile-stat-trace-repacker	2005-01-21 20:07:48.416240065 +0300
++++ reiser4-vs/plugin/disk_format/disk_format40.c	2005-01-21 20:07:49.126271048 +0300
 @@ -12,6 +12,7 @@
  #include "../../tree.h"
  #include "../../super.h"
@@ -21236,9 +21444,9 @@ diff -rupN reiser4-release/plugin/disk_format/disk_format40.c reiser4-full/plugi
  
  	sa_destroy_allocator(&sbinfo->space_allocator, s);
  	done_journal_info(s);
-diff -rupN reiser4-release/plugin/file/file.c reiser4-full/plugin/file/file.c
---- reiser4-release/plugin/file/file.c	2005-01-19 18:41:35.569395719 +0300
-+++ reiser4-full/plugin/file/file.c	2005-01-19 18:37:55.662285281 +0300
+diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
+--- reiser4/plugin/file/file.c~profile-stat-trace-repacker	2005-01-21 20:07:48.426240502 +0300
++++ reiser4-vs/plugin/file/file.c	2005-01-21 20:07:49.132271310 +0300
 @@ -8,6 +8,7 @@
  #include "../../page_cache.h"
  #include "../../ioctl.h"
@@ -21713,9 +21921,9 @@ diff -rupN reiser4-release/plugin/file/file.c reiser4-full/plugin/file/file.c
  		}
  	}
  	drop_exclusive_access(uf_info);
-diff -rupN reiser4-release/plugin/file/funcs.h reiser4-full/plugin/file/funcs.h
---- reiser4-release/plugin/file/funcs.h	2005-01-19 18:41:35.571395858 +0300
-+++ reiser4-full/plugin/file/funcs.h	2005-01-19 18:37:55.056244063 +0300
+diff -puN plugin/file/funcs.h~profile-stat-trace-repacker plugin/file/funcs.h
+--- reiser4/plugin/file/funcs.h~profile-stat-trace-repacker	2005-01-21 20:07:48.434240851 +0300
++++ reiser4-vs/plugin/file/funcs.h	2005-01-21 20:07:49.133271353 +0300
 @@ -5,6 +5,7 @@ void get_exclusive_access(unix_file_info
  void drop_exclusive_access(unix_file_info_t *);
  void get_nonexclusive_access(unix_file_info_t *, int);
@@ -21724,9 +21932,9 @@ diff -rupN reiser4-release/plugin/file/funcs.h reiser4-full/plugin/file/funcs.h
  
  int tail2extent(unix_file_info_t *);
  int extent2tail(unix_file_info_t *);
-diff -rupN reiser4-release/plugin/file/pseudo.c reiser4-full/plugin/file/pseudo.c
---- reiser4-release/plugin/file/pseudo.c	2005-01-19 18:41:35.573395998 +0300
-+++ reiser4-full/plugin/file/pseudo.c	2005-01-19 18:37:54.916234542 +0300
+diff -puN plugin/file/pseudo.c~profile-stat-trace-repacker plugin/file/pseudo.c
+--- reiser4/plugin/file/pseudo.c~profile-stat-trace-repacker	2005-01-21 20:07:48.441241156 +0300
++++ reiser4-vs/plugin/file/pseudo.c	2005-01-21 20:07:49.135271441 +0300
 @@ -12,6 +12,8 @@
  #include <linux/seq_file.h>
  #include <linux/fs.h>
@@ -21736,9 +21944,9 @@ diff -rupN reiser4-release/plugin/file/pseudo.c reiser4-full/plugin/file/pseudo.
  /* extract pseudo file plugin, stored in @file */
  static pseudo_plugin *
  get_pplug(struct file * file)
-diff -rupN reiser4-release/plugin/file/tail_conversion.c reiser4-full/plugin/file/tail_conversion.c
---- reiser4-release/plugin/file/tail_conversion.c	2005-01-19 18:41:35.575396137 +0300
-+++ reiser4-full/plugin/file/tail_conversion.c	2005-01-19 18:37:55.004240526 +0300
+diff -puN plugin/file/tail_conversion.c~profile-stat-trace-repacker plugin/file/tail_conversion.c
+--- reiser4/plugin/file/tail_conversion.c~profile-stat-trace-repacker	2005-01-21 20:07:48.449241505 +0300
++++ reiser4-vs/plugin/file/tail_conversion.c	2005-01-21 20:07:49.137271528 +0300
 @@ -279,6 +279,9 @@ tail2extent(unix_file_info_t *uf_info)
  	int first_iteration;
  	int bytes;
@@ -21810,9 +22018,9 @@ diff -rupN reiser4-release/plugin/file/tail_conversion.c reiser4-full/plugin/fil
  	}
  	all_grabbed2free();
  	return result;
-diff -rupN reiser4-release/plugin/hash.c reiser4-full/plugin/hash.c
---- reiser4-release/plugin/hash.c	2005-01-19 18:41:35.577396277 +0300
-+++ reiser4-full/plugin/hash.c	2005-01-19 18:37:55.373265625 +0300
+diff -puN plugin/hash.c~profile-stat-trace-repacker plugin/hash.c
+--- reiser4/plugin/hash.c~profile-stat-trace-repacker	2005-01-21 20:07:48.455241767 +0300
++++ reiser4-vs/plugin/hash.c	2005-01-21 20:07:49.139271615 +0300
 @@ -240,6 +240,7 @@ static __u64
  hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
  	 int len UNUSED_ARG /* @name's length */ )
@@ -21821,9 +22029,9 @@ diff -rupN reiser4-release/plugin/hash.c reiser4-full/plugin/hash.c
  	return 0xc0c0c0c010101010ull;
  }
  
-diff -rupN reiser4-release/plugin/item/blackbox.c reiser4-full/plugin/item/blackbox.c
---- reiser4-release/plugin/item/blackbox.c	2005-01-19 18:41:35.578396346 +0300
-+++ reiser4-full/plugin/item/blackbox.c	2005-01-19 18:37:54.966237942 +0300
+diff -puN plugin/item/blackbox.c~profile-stat-trace-repacker plugin/item/blackbox.c
+--- reiser4/plugin/item/blackbox.c~profile-stat-trace-repacker	2005-01-21 20:07:48.463242116 +0300
++++ reiser4-vs/plugin/item/blackbox.c	2005-01-21 20:07:49.140271659 +0300
 @@ -25,7 +25,7 @@ store_black_box(reiser4_tree *tree,
  	coord_t coord;
  	lock_handle lh;
@@ -21851,9 +22059,9 @@ diff -rupN reiser4-release/plugin/item/blackbox.c reiser4-full/plugin/item/black
  			} else {
  				warning("nikita-3437",
  					"Wrong black box length: %i < %i",
-diff -rupN reiser4-release/plugin/item/cde.c reiser4-full/plugin/item/cde.c
---- reiser4-release/plugin/item/cde.c	2005-01-19 18:41:35.581396555 +0300
-+++ reiser4-full/plugin/item/cde.c	2005-01-19 18:37:54.857230529 +0300
+diff -puN plugin/item/cde.c~profile-stat-trace-repacker plugin/item/cde.c
+--- reiser4/plugin/item/cde.c~profile-stat-trace-repacker	2005-01-21 20:07:48.471242465 +0300
++++ reiser4-vs/plugin/item/cde.c	2005-01-21 20:07:49.143271790 +0300
 @@ -262,7 +262,7 @@ expand_item(const coord_t * coord /* coo
  	/* place where new header will be in */
  	header = header_at(coord, pos);
@@ -21952,9 +22160,9 @@ diff -rupN reiser4-release/plugin/item/cde.c reiser4-full/plugin/item/cde.c
  	}
  
  	return header_delta + entry_delta;
-diff -rupN reiser4-release/plugin/item/ctail.c reiser4-full/plugin/item/ctail.c
---- reiser4-release/plugin/item/ctail.c	2005-01-19 18:41:35.584396765 +0300
-+++ reiser4-full/plugin/item/ctail.c	2005-01-19 18:37:54.824228285 +0300
+diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
+--- reiser4/plugin/item/ctail.c~profile-stat-trace-repacker	2005-01-21 20:07:48.479242815 +0300
++++ reiser4-vs/plugin/item/ctail.c	2005-01-21 20:07:49.146271921 +0300
 @@ -69,7 +69,7 @@ pg_by_coord(const coord_t * coord)
  	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
  }
@@ -22097,9 +22305,9 @@ diff -rupN reiser4-release/plugin/item/ctail.c reiser4-full/plugin/item/ctail.c
  
  	/* iplug->init_convert_data() */
  	return init_convert_data_ctail(sq->itm, inode);
-diff -rupN reiser4-release/plugin/item/ctail.h reiser4-full/plugin/item/ctail.h
---- reiser4-release/plugin/item/ctail.h	2005-01-19 18:41:35.586396904 +0300
-+++ reiser4-full/plugin/item/ctail.h	2005-01-19 18:37:55.677286302 +0300
+diff -puN plugin/item/ctail.h~profile-stat-trace-repacker plugin/item/ctail.h
+--- reiser4/plugin/item/ctail.h~profile-stat-trace-repacker	2005-01-21 20:07:48.487243164 +0300
++++ reiser4-vs/plugin/item/ctail.h	2005-01-21 20:07:49.148272008 +0300
 @@ -68,6 +68,8 @@ int convert_ctail(flush_pos_t *);
  item_plugin * item_plugin_by_jnode(jnode *);
  
@@ -22109,9 +22317,9 @@ diff -rupN reiser4-release/plugin/item/ctail.h reiser4-full/plugin/item/ctail.h
  
  #endif /* __FS_REISER4_CTAIL_H__ */
  
-diff -rupN reiser4-release/plugin/item/extent.c reiser4-full/plugin/item/extent.c
---- reiser4-release/plugin/item/extent.c	2005-01-19 18:41:35.587396974 +0300
-+++ reiser4-full/plugin/item/extent.c	2005-01-19 18:37:54.906233862 +0300
+diff -puN plugin/item/extent.c~profile-stat-trace-repacker plugin/item/extent.c
+--- reiser4/plugin/item/extent.c~profile-stat-trace-repacker	2005-01-21 20:07:48.495243513 +0300
++++ reiser4-vs/plugin/item/extent.c	2005-01-21 20:07:49.150272095 +0300
 @@ -7,6 +7,7 @@
  #include "../../inode.h"
  #include "../../page_cache.h"
@@ -22162,9 +22370,9 @@ diff -rupN reiser4-release/plugin/item/extent.c reiser4-full/plugin/item/extent.
  	return result;
  }
  
-diff -rupN reiser4-release/plugin/item/extent.h reiser4-full/plugin/item/extent.h
---- reiser4-release/plugin/item/extent.h	2005-01-19 18:41:35.589397113 +0300
-+++ reiser4-full/plugin/item/extent.h	2005-01-19 18:37:55.230255898 +0300
+diff -puN plugin/item/extent.h~profile-stat-trace-repacker plugin/item/extent.h
+--- reiser4/plugin/item/extent.h~profile-stat-trace-repacker	2005-01-21 20:07:48.503243862 +0300
++++ reiser4-vs/plugin/item/extent.h	2005-01-21 20:07:49.151272139 +0300
 @@ -141,8 +141,10 @@ int allocate_extent_item_in_place(coord_
  int allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * pos, reiser4_key * stop_key);
  
@@ -22176,9 +22384,9 @@ diff -rupN reiser4-release/plugin/item/extent.h reiser4-full/plugin/item/extent.
  
  /* plugin->u.item.f. */
  int scan_extent (flush_scan * scan);
-diff -rupN reiser4-release/plugin/item/extent_file_ops.c reiser4-full/plugin/item/extent_file_ops.c
---- reiser4-release/plugin/item/extent_file_ops.c	2005-01-19 18:41:35.592397322 +0300
-+++ reiser4-full/plugin/item/extent_file_ops.c	2005-01-19 18:37:55.707288342 +0300
+diff -puN plugin/item/extent_file_ops.c~profile-stat-trace-repacker plugin/item/extent_file_ops.c
+--- reiser4/plugin/item/extent_file_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.512244255 +0300
++++ reiser4-vs/plugin/item/extent_file_ops.c	2005-01-21 20:07:49.154272270 +0300
 @@ -474,6 +474,8 @@ make_extent(reiser4_key *key, uf_coord_t
  	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
  	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
@@ -22316,9 +22524,9 @@ diff -rupN reiser4-release/plugin/item/extent_file_ops.c reiser4-full/plugin/ite
  	return 0;
  }
  
-diff -rupN reiser4-release/plugin/item/extent_flush_ops.c reiser4-full/plugin/item/extent_flush_ops.c
---- reiser4-release/plugin/item/extent_flush_ops.c	2005-01-19 18:41:35.596397601 +0300
-+++ reiser4-full/plugin/item/extent_flush_ops.c	2005-01-19 18:37:54.939236106 +0300
+diff -puN plugin/item/extent_flush_ops.c~profile-stat-trace-repacker plugin/item/extent_flush_ops.c
+--- reiser4/plugin/item/extent_flush_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.520244604 +0300
++++ reiser4-vs/plugin/item/extent_flush_ops.c	2005-01-21 20:07:49.159272488 +0300
 @@ -10,8 +10,6 @@
  
  #include <linux/pagemap.h>
@@ -22636,9 +22844,9 @@ diff -rupN reiser4-release/plugin/item/extent_flush_ops.c reiser4-full/plugin/it
  	}
  	*stop_key = key;
  	return SQUEEZE_CONTINUE;
-diff -rupN reiser4-release/plugin/item/extent_item_ops.c reiser4-full/plugin/item/extent_item_ops.c
---- reiser4-release/plugin/item/extent_item_ops.c	2005-01-19 18:41:35.599397810 +0300
-+++ reiser4-full/plugin/item/extent_item_ops.c	2005-01-19 18:37:54.986239302 +0300
+diff -puN plugin/item/extent_item_ops.c~profile-stat-trace-repacker plugin/item/extent_item_ops.c
+--- reiser4/plugin/item/extent_item_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.528244953 +0300
++++ reiser4-vs/plugin/item/extent_item_ops.c	2005-01-21 20:07:49.161272575 +0300
 @@ -249,12 +249,12 @@ paste_extent(coord_t *coord, reiser4_ite
  	}
  
@@ -22664,9 +22872,9 @@ diff -rupN reiser4-release/plugin/item/extent_item_ops.c reiser4-full/plugin/ite
  }
  
  /* item_plugin->b.create_hook
-diff -rupN reiser4-release/plugin/item/extent_repack_ops.c reiser4-full/plugin/item/extent_repack_ops.c
---- reiser4-release/plugin/item/extent_repack_ops.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/plugin/item/extent_repack_ops.c	2005-01-19 18:37:54.982239030 +0300
+diff -puN /dev/null plugin/item/extent_repack_ops.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/plugin/item/extent_repack_ops.c	2005-01-21 20:07:49.163272663 +0300
 @@ -0,0 +1,447 @@
 +/* Copyright 2003 by Hans Reiser. */
 +
@@ -23115,9 +23323,9 @@ diff -rupN reiser4-release/plugin/item/extent_repack_ops.c reiser4-full/plugin/i
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/plugin/item/internal.c reiser4-full/plugin/item/internal.c
---- reiser4-release/plugin/item/internal.c	2005-01-19 18:41:35.604398158 +0300
-+++ reiser4-full/plugin/item/internal.c	2005-01-19 18:37:55.775292967 +0300
+diff -puN plugin/item/internal.c~profile-stat-trace-repacker plugin/item/internal.c
+--- reiser4/plugin/item/internal.c~profile-stat-trace-repacker	2005-01-21 20:07:48.536245302 +0300
++++ reiser4-vs/plugin/item/internal.c	2005-01-21 20:07:49.165272750 +0300
 @@ -274,6 +274,10 @@ create_hook_internal(const coord_t * ite
  		assert("nikita-3297", ZF_ISSET(child, JNODE_ORPHAN));
  		ZF_CLR(child, JNODE_ORPHAN);
@@ -23159,9 +23367,9 @@ diff -rupN reiser4-release/plugin/item/internal.c reiser4-full/plugin/item/inter
  		return 0;
  	} else
  		return PTR_ERR(child);
-diff -rupN reiser4-release/plugin/item/item.c reiser4-full/plugin/item/item.c
---- reiser4-release/plugin/item/item.c	2005-01-19 18:41:35.606398298 +0300
-+++ reiser4-full/plugin/item/item.c	2005-01-19 18:37:55.212254674 +0300
+diff -puN plugin/item/item.c~profile-stat-trace-repacker plugin/item/item.c
+--- reiser4/plugin/item/item.c~profile-stat-trace-repacker	2005-01-21 20:07:48.542245564 +0300
++++ reiser4-vs/plugin/item/item.c	2005-01-21 20:07:49.168272881 +0300
 @@ -26,6 +26,7 @@ item_body_by_coord_hard(coord_t * coord 
  	assert("nikita-325", coord->node != NULL);
  	assert("nikita-326", znode_is_loaded(coord->node));
@@ -23285,9 +23493,9 @@ diff -rupN reiser4-release/plugin/item/item.c reiser4-full/plugin/item/item.c
  #if REISER4_DEBUG
  			.check             = NULL
  #endif
-diff -rupN reiser4-release/plugin/item/item.h reiser4-full/plugin/item/item.h
---- reiser4-release/plugin/item/item.h	2005-01-19 18:41:35.609398507 +0300
-+++ reiser4-full/plugin/item/item.h	2005-01-19 18:37:55.565278684 +0300
+diff -puN plugin/item/item.h~profile-stat-trace-repacker plugin/item/item.h
+--- reiser4/plugin/item/item.h~profile-stat-trace-repacker	2005-01-21 20:07:48.550245913 +0300
++++ reiser4-vs/plugin/item/item.h	2005-01-21 20:07:49.170272968 +0300
 @@ -167,7 +167,15 @@ typedef struct {
  	/* converts flow @f to item data. @coord == 0 on insert */
  	int (*item_data_by_flow) (const coord_t *, const flow_t *, reiser4_item_data *);
@@ -23321,9 +23529,9 @@ diff -rupN reiser4-release/plugin/item/item.h reiser4-full/plugin/item/item.h
  
  	if (coord->offset == INVALID_OFFSET)
  		item_body_by_coord_hard((coord_t *)coord);
-diff -rupN reiser4-release/plugin/item/sde.c reiser4-full/plugin/item/sde.c
---- reiser4-release/plugin/item/sde.c	2005-01-19 18:41:35.611398646 +0300
-+++ reiser4-full/plugin/item/sde.c	2005-01-19 18:37:55.571279092 +0300
+diff -puN plugin/item/sde.c~profile-stat-trace-repacker plugin/item/sde.c
+--- reiser4/plugin/item/sde.c~profile-stat-trace-repacker	2005-01-21 20:07:48.558246262 +0300
++++ reiser4-vs/plugin/item/sde.c	2005-01-21 20:07:49.172273055 +0300
 @@ -156,7 +156,7 @@ add_entry_de(struct inode *dir /* direct
  	dent = (directory_entry_format *) item_body_by_coord(coord);
  	build_inode_key_id(entry->obj, &dent->id);
@@ -23333,9 +23541,9 @@ diff -rupN reiser4-release/plugin/item/sde.c reiser4-full/plugin/item/sde.c
  		cputod8(0, &dent->name[len]);
  	}
  	return 0;
-diff -rupN reiser4-release/plugin/item/static_stat.c reiser4-full/plugin/item/static_stat.c
---- reiser4-release/plugin/item/static_stat.c	2005-01-19 18:41:35.614398855 +0300
-+++ reiser4-full/plugin/item/static_stat.c	2005-01-19 18:37:54.932235630 +0300
+diff -puN plugin/item/static_stat.c~profile-stat-trace-repacker plugin/item/static_stat.c
+--- reiser4/plugin/item/static_stat.c~profile-stat-trace-repacker	2005-01-21 20:07:48.566246611 +0300
++++ reiser4-vs/plugin/item/static_stat.c	2005-01-21 20:07:49.174273143 +0300
 @@ -598,7 +598,7 @@ symlink_target_to_inode(struct inode *in
  	if (!inode->u.generic_ip)
  		return RETERR(-ENOMEM);
@@ -23380,9 +23588,9 @@ diff -rupN reiser4-release/plugin/item/static_stat.c reiser4-full/plugin/item/st
  		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
  	} else {
  		/* do nothing */
-diff -rupN reiser4-release/plugin/item/tail.c reiser4-full/plugin/item/tail.c
---- reiser4-release/plugin/item/tail.c	2005-01-19 18:41:35.616398995 +0300
-+++ reiser4-full/plugin/item/tail.c	2005-01-19 18:37:55.104247328 +0300
+diff -puN plugin/item/tail.c~profile-stat-trace-repacker plugin/item/tail.c
+--- reiser4/plugin/item/tail.c~profile-stat-trace-repacker	2005-01-21 20:07:48.574246960 +0300
++++ reiser4-vs/plugin/item/tail.c	2005-01-21 20:07:49.177273273 +0300
 @@ -133,7 +133,7 @@ paste_tail(coord_t *coord, reiser4_item_
  	if (coord->unit_pos == 0)
  		/* make space for pasted data when pasting at the beginning of
@@ -23456,9 +23664,9 @@ diff -rupN reiser4-release/plugin/item/tail.c reiser4-full/plugin/item/tail.c
  
  		flush_dcache_page(page);
  
-diff -rupN reiser4-release/plugin/node/node.c reiser4-full/plugin/node/node.c
---- reiser4-release/plugin/node/node.c	2005-01-19 18:41:35.619399204 +0300
-+++ reiser4-full/plugin/node/node.c	2005-01-19 18:37:55.176252225 +0300
+diff -puN plugin/node/node.c~profile-stat-trace-repacker plugin/node/node.c
+--- reiser4/plugin/node/node.c~profile-stat-trace-repacker	2005-01-21 20:07:48.582247309 +0300
++++ reiser4-vs/plugin/node/node.c	2005-01-21 20:07:49.179273361 +0300
 @@ -74,6 +74,251 @@ leftmost_key_in_node(const znode * node 
  	return key;
  }
@@ -23721,9 +23929,9 @@ diff -rupN reiser4-release/plugin/node/node.c reiser4-full/plugin/node/node.c
  		.change_item_size = change_item_size_node40,
  		.create_item = create_item_node40,
  		.update_item_key = update_item_key_node40,
-diff -rupN reiser4-release/plugin/node/node.h reiser4-full/plugin/node/node.h
---- reiser4-release/plugin/node/node.h	2005-01-19 18:41:35.621399343 +0300
-+++ reiser4-full/plugin/node/node.h	2005-01-19 18:37:55.593280588 +0300
+diff -puN plugin/node/node.h~profile-stat-trace-repacker plugin/node/node.h
+--- reiser4/plugin/node/node.h~profile-stat-trace-repacker	2005-01-21 20:07:48.590247658 +0300
++++ reiser4-vs/plugin/node/node.h	2005-01-21 20:07:49.181273448 +0300
 @@ -179,7 +179,7 @@ typedef struct node_plugin {
  	   Uncomment after 4.0 only.
  	*/
@@ -23778,9 +23986,9 @@ diff -rupN reiser4-release/plugin/node/node.h reiser4-full/plugin/node/node.h
  /* __REISER4_NODE_H__ */
  #endif
  /*
-diff -rupN reiser4-release/plugin/node/node40.c reiser4-full/plugin/node/node40.c
---- reiser4-release/plugin/node/node40.c	2005-01-19 18:41:35.627399762 +0300
-+++ reiser4-full/plugin/node/node40.c	2005-01-19 18:37:55.131249164 +0300
+diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
+--- reiser4/plugin/node/node40.c~profile-stat-trace-repacker	2005-01-21 20:07:48.599248051 +0300
++++ reiser4-vs/plugin/node/node40.c	2005-01-21 20:07:49.187273710 +0300
 @@ -1,5 +1,6 @@
  /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
  
@@ -24317,9 +24525,9 @@ diff -rupN reiser4-release/plugin/node/node40.c reiser4-full/plugin/node/node40.
  	return result ? result : (int) shift.shift_bytes;
  }
  
-diff -rupN reiser4-release/plugin/node/node40.h reiser4-full/plugin/node/node40.h
---- reiser4-release/plugin/node/node40.h	2005-01-19 18:41:35.629399901 +0300
-+++ reiser4-full/plugin/node/node40.h	2005-01-19 18:37:55.402267597 +0300
+diff -puN plugin/node/node40.h~profile-stat-trace-repacker plugin/node/node40.h
+--- reiser4/plugin/node/node40.h~profile-stat-trace-repacker	2005-01-21 20:07:48.607248400 +0300
++++ reiser4-vs/plugin/node/node40.h	2005-01-21 20:07:49.189273797 +0300
 @@ -79,10 +79,11 @@ reiser4_key *key_at_node40(const coord_t
  size_t estimate_node40(znode * node);
  int check_node40(const znode * node, __u32 flags, const char **error);
@@ -24334,9 +24542,9 @@ diff -rupN reiser4-release/plugin/node/node40.h reiser4-full/plugin/node/node40.
  void change_item_size_node40(coord_t * coord, int by);
  int create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
  void update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info);
-diff -rupN reiser4-release/plugin/object.c reiser4-full/plugin/object.c
---- reiser4-release/plugin/object.c	2005-01-19 18:41:35.632400110 +0300
-+++ reiser4-full/plugin/object.c	2005-01-19 18:37:55.196253586 +0300
+diff -puN plugin/object.c~profile-stat-trace-repacker plugin/object.c
+--- reiser4/plugin/object.c~profile-stat-trace-repacker	2005-01-21 20:07:48.616248793 +0300
++++ reiser4-vs/plugin/object.c	2005-01-21 20:07:49.191273884 +0300
 @@ -72,6 +72,7 @@ NIKITA-FIXME-HANS: period?
  #include "../inode.h"
  #include "../super.h"
@@ -24398,9 +24606,9 @@ diff -rupN reiser4-release/plugin/object.c reiser4-full/plugin/object.c
  safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
  {
  	int result;
-diff -rupN reiser4-release/plugin/object.h reiser4-full/plugin/object.h
---- reiser4-release/plugin/object.h	2005-01-19 18:41:35.634400249 +0300
-+++ reiser4-full/plugin/object.h	2005-01-19 18:37:54.954237126 +0300
+diff -puN plugin/object.h~profile-stat-trace-repacker plugin/object.h
+--- reiser4/plugin/object.h~profile-stat-trace-repacker	2005-01-21 20:07:48.624249142 +0300
++++ reiser4-vs/plugin/object.h	2005-01-21 20:07:49.193273972 +0300
 @@ -22,6 +22,8 @@ extern int write_sd_by_inode_common(stru
  extern int owns_item_common(const struct inode *inode,
  			    const coord_t * coord);
@@ -24410,9 +24618,9 @@ diff -rupN reiser4-release/plugin/object.h reiser4-full/plugin/object.h
  extern int prepare_write_common (struct file *, struct page *, unsigned, unsigned);
  extern int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
  extern int setattr_reserve_common(reiser4_tree *);
-diff -rupN reiser4-release/plugin/plugin.c reiser4-full/plugin/plugin.c
---- reiser4-release/plugin/plugin.c	2005-01-19 18:41:35.636400389 +0300
-+++ reiser4-full/plugin/plugin.c	2005-01-19 18:37:54.996239982 +0300
+diff -puN plugin/plugin.c~profile-stat-trace-repacker plugin/plugin.c
+--- reiser4/plugin/plugin.c~profile-stat-trace-repacker	2005-01-21 20:07:48.630249404 +0300
++++ reiser4-vs/plugin/plugin.c	2005-01-21 20:07:49.196274103 +0300
 @@ -187,6 +187,7 @@ NIKTIA-FIXME-HANS: Do the line above.  I
  int init_plugins(void);
  int setup_plugins(struct super_block *super, reiser4_plugin ** area);
@@ -24475,9 +24683,9 @@ diff -rupN reiser4-release/plugin/plugin.c reiser4-full/plugin/plugin.c
  /* true if plugin type id is valid */
  reiser4_internal int
  is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
-diff -rupN reiser4-release/plugin/plugin.h reiser4-full/plugin/plugin.h
---- reiser4-release/plugin/plugin.h	2005-01-19 18:41:35.639400598 +0300
-+++ reiser4-full/plugin/plugin.h	2005-01-19 18:37:54.964237806 +0300
+diff -puN plugin/plugin.h~profile-stat-trace-repacker plugin/plugin.h
+--- reiser4/plugin/plugin.h~profile-stat-trace-repacker	2005-01-21 20:07:48.637249709 +0300
++++ reiser4-vs/plugin/plugin.h	2005-01-21 20:07:49.198274190 +0300
 @@ -471,6 +471,9 @@ typedef struct sd_ext_plugin {
  	int (*absent) (struct inode * inode);
  	int (*save_len) (struct inode * inode);
@@ -24500,9 +24708,9 @@ diff -rupN reiser4-release/plugin/plugin.h reiser4-full/plugin/plugin.h
  
  TYPE_SAFE_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
  
-diff -rupN reiser4-release/plugin/plugin_set.c reiser4-full/plugin/plugin_set.c
---- reiser4-release/plugin/plugin_set.c	2005-01-19 18:41:35.641400737 +0300
-+++ reiser4-full/plugin/plugin_set.c	2005-01-19 18:37:55.368265284 +0300
+diff -puN plugin/plugin_set.c~profile-stat-trace-repacker plugin/plugin_set.c
+--- reiser4/plugin/plugin_set.c~profile-stat-trace-repacker	2005-01-21 20:07:48.644250015 +0300
++++ reiser4-vs/plugin/plugin_set.c	2005-01-21 20:07:49.200274277 +0300
 @@ -150,6 +150,11 @@ reiser4_internal void plugin_set_put(plu
  {
  }
@@ -24583,9 +24791,9 @@ diff -rupN reiser4-release/plugin/plugin_set.c reiser4-full/plugin/plugin_set.c
  	if (result == 0) {
  		plugin_set_slab = kmem_cache_create("plugin_set",
  						    sizeof (plugin_set), 0,
-diff -rupN reiser4-release/plugin/plugin_set.h reiser4-full/plugin/plugin_set.h
---- reiser4-release/plugin/plugin_set.h	2005-01-19 18:41:35.643400877 +0300
-+++ reiser4-full/plugin/plugin_set.h	2005-01-19 18:37:54.859230665 +0300
+diff -puN plugin/plugin_set.h~profile-stat-trace-repacker plugin/plugin_set.h
+--- reiser4/plugin/plugin_set.h~profile-stat-trace-repacker	2005-01-21 20:07:48.651250320 +0300
++++ reiser4-vs/plugin/plugin_set.h	2005-01-21 20:07:49.202274364 +0300
 @@ -43,14 +43,17 @@ struct plugin_set {
  };
  
@@ -24612,9 +24820,9 @@ diff -rupN reiser4-release/plugin/plugin_set.h reiser4-full/plugin/plugin_set.h
  extern reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb);
  
  /* __PLUGIN_SET_H__ */
-diff -rupN reiser4-release/plugin/pseudo/pseudo.c reiser4-full/plugin/pseudo/pseudo.c
---- reiser4-release/plugin/pseudo/pseudo.c	2005-01-19 18:41:35.646401086 +0300
-+++ reiser4-full/plugin/pseudo/pseudo.c	2005-01-19 18:37:55.081245764 +0300
+diff -puN plugin/pseudo/pseudo.c~profile-stat-trace-repacker plugin/pseudo/pseudo.c
+--- reiser4/plugin/pseudo/pseudo.c~profile-stat-trace-repacker	2005-01-21 20:07:48.658250626 +0300
++++ reiser4-vs/plugin/pseudo/pseudo.c	2005-01-21 20:07:49.205274495 +0300
 @@ -359,6 +359,7 @@ init_pseudo(struct inode *parent, struct
  							      parent, &data);
  	if (result != 0) {
@@ -24646,9 +24854,9 @@ diff -rupN reiser4-release/plugin/pseudo/pseudo.c reiser4-full/plugin/pseudo/pse
  
  		data.mode = S_IFREG | 0 /* mode */;
  		data.id = UNIX_FILE_PLUGIN_ID;
-diff -rupN reiser4-release/plugin/space/bitmap.c reiser4-full/plugin/space/bitmap.c
---- reiser4-release/plugin/space/bitmap.c	2005-01-19 18:41:35.649401295 +0300
-+++ reiser4-full/plugin/space/bitmap.c	2005-01-19 18:37:55.556278072 +0300
+diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.c
+--- reiser4/plugin/space/bitmap.c~profile-stat-trace-repacker	2005-01-21 20:07:48.665250931 +0300
++++ reiser4-vs/plugin/space/bitmap.c	2005-01-21 20:07:49.208274626 +0300
 @@ -8,7 +8,10 @@
  #include "../../tree.h"
  #include "../../super.h"
@@ -24730,9 +24938,9 @@ diff -rupN reiser4-release/plugin/space/bitmap.c reiser4-full/plugin/space/bitma
  {
  	struct super_block *super = get_current_context()->super;
  	int actual_len;
-diff -rupN reiser4-release/plugin/space/bitmap.h reiser4-full/plugin/space/bitmap.h
---- reiser4-release/plugin/space/bitmap.h	2005-01-19 18:41:35.651401434 +0300
-+++ reiser4-full/plugin/space/bitmap.h	2005-01-19 18:37:55.531276371 +0300
+diff -puN plugin/space/bitmap.h~profile-stat-trace-repacker plugin/space/bitmap.h
+--- reiser4/plugin/space/bitmap.h~profile-stat-trace-repacker	2005-01-21 20:07:48.672251237 +0300
++++ reiser4-vs/plugin/space/bitmap.h	2005-01-21 20:07:49.209274670 +0300
 @@ -27,6 +27,9 @@ extern int pre_commit_hook_bitmap(void);
  typedef __u64 bmap_nr_t;
  typedef __u32 bmap_off_t;
@@ -24743,9 +24951,9 @@ diff -rupN reiser4-release/plugin/space/bitmap.h reiser4-full/plugin/space/bitma
  #endif				/* __REISER4_PLUGIN_SPACE_BITMAP_H__ */
  
  /* Make Linus happy.
-diff -rupN reiser4-release/pool.c reiser4-full/pool.c
---- reiser4-release/pool.c	2005-01-19 18:41:35.652401504 +0300
-+++ reiser4-full/pool.c	2005-01-19 18:37:55.490273583 +0300
+diff -puN pool.c~profile-stat-trace-repacker pool.c
+--- reiser4/pool.c~profile-stat-trace-repacker	2005-01-21 20:07:48.678251498 +0300
++++ reiser4-vs/pool.c	2005-01-21 20:07:49.211274757 +0300
 @@ -76,13 +76,13 @@ reiser4_init_pool(reiser4_pool * pool /*
  	assert("nikita-956", num_of_objs >= 0);
  	assert("nikita-957", data != NULL);
@@ -24812,9 +25020,9 @@ diff -rupN reiser4-release/pool.c reiser4-full/pool.c
  	result = reiser4_pool_alloc(pool);
  	if (IS_ERR(result))
  		return result;
-diff -rupN reiser4-release/pool.h reiser4-full/pool.h
---- reiser4-release/pool.h	2005-01-19 18:41:35.654401643 +0300
-+++ reiser4-full/pool.h	2005-01-19 18:37:55.492273719 +0300
+diff -puN pool.h~profile-stat-trace-repacker pool.h
+--- reiser4/pool.h~profile-stat-trace-repacker	2005-01-21 20:07:48.684251760 +0300
++++ reiser4-vs/pool.h	2005-01-21 20:07:49.213274844 +0300
 @@ -51,6 +51,7 @@ TYPE_SAFE_LIST_DEFINE(pool_level, reiser
  
  extern void reiser4_init_pool(reiser4_pool * pool, size_t obj_size, int num_of_objs, char *data);
@@ -24823,9 +25031,9 @@ diff -rupN reiser4-release/pool.h reiser4-full/pool.h
  extern void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h);
  reiser4_pool_header *add_obj(reiser4_pool * pool, pool_level_list_head * list,
  			     pool_ordering order, reiser4_pool_header * reference);
-diff -rupN reiser4-release/prof.c reiser4-full/prof.c
---- reiser4-release/prof.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/prof.c	2005-01-19 18:37:55.237256374 +0300
+diff -puN /dev/null prof.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/prof.c	2005-01-21 20:07:49.215274932 +0300
 @@ -0,0 +1,273 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -25100,9 +25308,9 @@ diff -rupN reiser4-release/prof.c reiser4-full/prof.c
 +
 +/* REISER4_PROF */
 +#endif
-diff -rupN reiser4-release/prof.h reiser4-full/prof.h
---- reiser4-release/prof.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/prof.h	2005-01-19 18:37:54.953237058 +0300
+diff -puN /dev/null prof.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/prof.h	2005-01-21 20:07:49.216274975 +0300
 @@ -0,0 +1,130 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -25234,9 +25442,9 @@ diff -rupN reiser4-release/prof.h reiser4-full/prof.h
 +
 +/* __REISER4_PROF_H__ */
 +#endif
-diff -rupN reiser4-release/readahead.c reiser4-full/readahead.c
---- reiser4-release/readahead.c	2005-01-19 18:41:35.658401922 +0300
-+++ reiser4-full/readahead.c	2005-01-19 18:37:54.828228557 +0300
+diff -puN readahead.c~profile-stat-trace-repacker readahead.c
+--- reiser4/readahead.c~profile-stat-trace-repacker	2005-01-21 20:07:48.694252197 +0300
++++ reiser4-vs/readahead.c	2005-01-21 20:07:49.218275063 +0300
 @@ -68,6 +68,8 @@ formatted_readahead(znode *node, ra_info
  	if (low_on_memory())
  		return;
@@ -25255,9 +25463,9 @@ diff -rupN reiser4-release/readahead.c reiser4-full/readahead.c
  }
  
  static inline loff_t get_max_readahead(struct reiser4_file_ra_state *ra)
-diff -rupN reiser4-release/reiser4.h reiser4-full/reiser4.h
---- reiser4-release/reiser4.h	2005-01-19 18:41:35.661402131 +0300
-+++ reiser4-full/reiser4.h	2005-01-19 18:37:55.674286098 +0300
+diff -puN reiser4.h~profile-stat-trace-repacker reiser4.h
+--- reiser4/reiser4.h~profile-stat-trace-repacker	2005-01-21 20:07:48.700252458 +0300
++++ reiser4-vs/reiser4.h	2005-01-21 20:07:49.220275150 +0300
 @@ -25,6 +25,133 @@
  #define REISER4_DEBUG (0)
  #endif
@@ -25519,9 +25727,9 @@ diff -rupN reiser4-release/reiser4.h reiser4-full/reiser4.h
  #define ENABLE_REISER4_PSEUDO (0)
  
  /*
-diff -rupN reiser4-release/repacker.c reiser4-full/repacker.c
---- reiser4-release/repacker.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/repacker.c	2005-01-19 18:37:54.981238962 +0300
+diff -puN /dev/null repacker.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/repacker.c	2005-01-21 20:07:49.223275281 +0300
 @@ -0,0 +1,661 @@
 +/* Copyright 2003 by Hans Reiser */
 +
@@ -26184,9 +26392,9 @@ diff -rupN reiser4-release/repacker.c reiser4-full/repacker.c
 +	kfree(repacker);
 +	sinfo->repacker = NULL;
 +}
-diff -rupN reiser4-release/repacker.h reiser4-full/repacker.h
---- reiser4-release/repacker.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/repacker.h	2005-01-19 18:37:55.484273174 +0300
+diff -puN /dev/null repacker.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/repacker.h	2005-01-21 20:07:49.224275324 +0300
 @@ -0,0 +1,22 @@
 +/* Copyright 2003 by Hans Reiser */
 +
@@ -26210,9 +26418,9 @@ diff -rupN reiser4-release/repacker.h reiser4-full/repacker.h
 +extern int repacker_d(void *arg);
 +
 +#endif /* __FS_REISER4_REPACKER_H__ */
-diff -rupN reiser4-release/safe_link.c reiser4-full/safe_link.c
---- reiser4-release/safe_link.c	2005-01-19 18:41:35.666402480 +0300
-+++ reiser4-full/safe_link.c	2005-01-19 18:37:55.390266781 +0300
+diff -puN safe_link.c~profile-stat-trace-repacker safe_link.c
+--- reiser4/safe_link.c~profile-stat-trace-repacker	2005-01-21 20:07:48.708252807 +0300
++++ reiser4-vs/safe_link.c	2005-01-21 20:07:49.226275412 +0300
 @@ -104,8 +104,7 @@ build_link_key(struct inode *inode, reis
   * how much disk space is necessary to insert and remove (in the
   * error-handling path) safe-link.
@@ -26231,9 +26439,9 @@ diff -rupN reiser4-release/safe_link.c reiser4-full/safe_link.c
  			result = 0;
  		}
  		if (result != 0) {
-diff -rupN reiser4-release/safe_link.h reiser4-full/safe_link.h
---- reiser4-release/safe_link.h	2005-01-19 18:41:35.667402549 +0300
-+++ reiser4-full/safe_link.h	2005-01-19 18:37:55.381266169 +0300
+diff -puN safe_link.h~profile-stat-trace-repacker safe_link.h
+--- reiser4/safe_link.h~profile-stat-trace-repacker	2005-01-21 20:07:48.716253157 +0300
++++ reiser4-vs/safe_link.h	2005-01-21 20:07:49.227275455 +0300
 @@ -7,8 +7,11 @@
  #define __FS_SAFE_LINK_H__
  
@@ -26247,9 +26455,9 @@ diff -rupN reiser4-release/safe_link.h reiser4-full/safe_link.h
  int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags);
  void safe_link_release(reiser4_tree *tree);
  int safe_link_add(struct inode *inode, reiser4_safe_link_t link);
-diff -rupN reiser4-release/seal.c reiser4-full/seal.c
---- reiser4-release/seal.c	2005-01-19 18:41:35.669402689 +0300
-+++ reiser4-full/seal.c	2005-01-19 18:37:55.568278888 +0300
+diff -puN seal.c~profile-stat-trace-repacker seal.c
+--- reiser4/seal.c~profile-stat-trace-repacker	2005-01-21 20:07:48.724253506 +0300
++++ reiser4-vs/seal.c	2005-01-21 20:07:49.229275543 +0300
 @@ -55,7 +55,7 @@ seal_init(seal_t * seal /* seal to initi
  						 * attached to */ )
  {
@@ -26275,9 +26483,9 @@ diff -rupN reiser4-release/seal.c reiser4-full/seal.c
  		result = RETERR(-E_REPEAT);
  	}
  	return result;
-diff -rupN reiser4-release/seal.h reiser4-full/seal.h
---- reiser4-release/seal.h	2005-01-19 18:41:35.670402759 +0300
-+++ reiser4-full/seal.h	2005-01-19 18:37:55.055243995 +0300
+diff -puN seal.h~profile-stat-trace-repacker seal.h
+--- reiser4/seal.h~profile-stat-trace-repacker	2005-01-21 20:07:48.732253855 +0300
++++ reiser4-vs/seal.h	2005-01-21 20:07:49.230275586 +0300
 @@ -39,6 +39,11 @@ extern int seal_validate(seal_t * seal,
  			 tree_level level,
  			 lock_handle * lh, lookup_bias bias, znode_lock_mode mode, znode_lock_request request);
@@ -26290,9 +26498,9 @@ diff -rupN reiser4-release/seal.h reiser4-full/seal.h
  
  /* __SEAL_H__ */
  #endif
-diff -rupN reiser4-release/search.c reiser4-full/search.c
---- reiser4-release/search.c	2005-01-19 18:41:35.674403037 +0300
-+++ reiser4-full/search.c	2005-01-19 18:37:55.519275555 +0300
+diff -puN search.c~profile-stat-trace-repacker search.c
+--- reiser4/search.c~profile-stat-trace-repacker	2005-01-21 20:07:48.739254160 +0300
++++ reiser4-vs/search.c	2005-01-21 20:07:49.234275761 +0300
 @@ -15,14 +15,14 @@
  #include "block_alloc.h"
  #include "tree_walk.h"
@@ -26607,9 +26815,9 @@ diff -rupN reiser4-release/search.c reiser4-full/search.c
  	}
  }
  
-diff -rupN reiser4-release/spin_macros.h reiser4-full/spin_macros.h
---- reiser4-release/spin_macros.h	2005-01-19 18:41:35.678403316 +0300
-+++ reiser4-full/spin_macros.h	2005-01-19 18:37:55.448270726 +0300
+diff -puN spin_macros.h~profile-stat-trace-repacker spin_macros.h
+--- reiser4/spin_macros.h~profile-stat-trace-repacker	2005-01-21 20:07:48.747254509 +0300
++++ reiser4-vs/spin_macros.h	2005-01-21 20:07:49.238275935 +0300
 @@ -35,6 +35,7 @@
  #include <linux/profile.h>
  
@@ -27211,9 +27419,9 @@ diff -rupN reiser4-release/spin_macros.h reiser4-full/spin_macros.h
  
  #define UNLOCK_JNODE(node) spin_unlock_jnode(node)
  #define UNLOCK_JLOAD(node) spin_unlock_jload(node)
-diff -rupN reiser4-release/spinprof.c reiser4-full/spinprof.c
---- reiser4-release/spinprof.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/spinprof.c	2005-01-19 18:37:55.048243519 +0300
+diff -puN /dev/null spinprof.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/spinprof.c	2005-01-21 20:07:49.241276066 +0300
 @@ -0,0 +1,567 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -27782,9 +27990,9 @@ diff -rupN reiser4-release/spinprof.c reiser4-full/spinprof.c
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/spinprof.h reiser4-full/spinprof.h
---- reiser4-release/spinprof.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/spinprof.h	2005-01-19 18:37:55.699287798 +0300
+diff -puN /dev/null spinprof.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/spinprof.h	2005-01-21 20:07:49.242276110 +0300
 @@ -0,0 +1,131 @@
 +/* Copyright 2002, 2003, 2004 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -27917,9 +28125,9 @@ diff -rupN reiser4-release/spinprof.h reiser4-full/spinprof.h
 +   scroll-step: 1
 +   End:
 +*/
-diff -rupN reiser4-release/statcnt.h reiser4-full/statcnt.h
---- reiser4-release/statcnt.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/statcnt.h	2005-01-19 18:37:55.491273651 +0300
+diff -puN /dev/null statcnt.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/statcnt.h	2005-01-21 20:07:49.243276154 +0300
 @@ -0,0 +1,113 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -28034,9 +28242,9 @@ diff -rupN reiser4-release/statcnt.h reiser4-full/statcnt.h
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/stats.c reiser4-full/stats.c
---- reiser4-release/stats.c	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/stats.c	2005-01-19 18:37:54.912234270 +0300
+diff -puN /dev/null stats.c
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/stats.c	2005-01-21 20:07:49.245276241 +0300
 @@ -0,0 +1,639 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -28677,9 +28885,9 @@ diff -rupN reiser4-release/stats.c reiser4-full/stats.c
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/stats.h reiser4-full/stats.h
---- reiser4-release/stats.h	1970-01-01 03:00:00.000000000 +0300
-+++ reiser4-full/stats.h	2005-01-19 18:37:55.766292355 +0300
+diff -puN /dev/null stats.h
+--- /dev/null	2003-09-23 21:59:22.000000000 +0400
++++ reiser4-vs/stats.h	2005-01-21 20:07:49.249276415 +0300
 @@ -0,0 +1,769 @@
 +/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -29450,9 +29658,9 @@ diff -rupN reiser4-release/stats.h reiser4-full/stats.h
 +   fill-column: 120
 +   End:
 +*/
-diff -rupN reiser4-release/super.c reiser4-full/super.c
---- reiser4-release/super.c	2005-01-19 18:41:35.691404222 +0300
-+++ reiser4-full/super.c	2005-01-19 18:37:54.839229305 +0300
+diff -puN super.c~profile-stat-trace-repacker super.c
+--- reiser4/super.c~profile-stat-trace-repacker	2005-01-21 20:07:48.756254902 +0300
++++ reiser4-vs/super.c	2005-01-21 20:07:49.251276503 +0300
 @@ -42,6 +42,17 @@ statfs_type(const struct super_block *su
  	return (long) REISER4_SUPER_MAGIC;
  }
@@ -29584,9 +29792,9 @@ diff -rupN reiser4-release/super.c reiser4-full/super.c
  /* space allocator used by this file system */
  reiser4_internal reiser4_space_allocator *
  get_space_allocator(const struct super_block * super)
-diff -rupN reiser4-release/super.h reiser4-full/super.h
---- reiser4-release/super.h	2005-01-19 18:41:35.694404431 +0300
-+++ reiser4-full/super.h	2005-01-19 18:37:54.943236378 +0300
+diff -puN super.h~profile-stat-trace-repacker super.h
+--- reiser4/super.h~profile-stat-trace-repacker	2005-01-21 20:07:48.764255251 +0300
++++ reiser4-vs/super.h	2005-01-21 20:07:49.254276634 +0300
 @@ -10,8 +10,11 @@
  #include "debug.h"
  #include "tree.h"
@@ -29716,9 +29924,9 @@ diff -rupN reiser4-release/super.h reiser4-full/super.h
  #endif
  
  #if REISER4_DEBUG
-diff -rupN reiser4-release/tap.c reiser4-full/tap.c
---- reiser4-release/tap.c	2005-01-19 18:41:35.696404571 +0300
-+++ reiser4-full/tap.c	2005-01-19 18:37:54.948236718 +0300
+diff -puN tap.c~profile-stat-trace-repacker tap.c
+--- reiser4/tap.c~profile-stat-trace-repacker	2005-01-21 20:07:48.772255600 +0300
++++ reiser4-vs/tap.c	2005-01-21 20:07:49.256276721 +0300
 @@ -151,7 +151,7 @@ tap_move(tap_t * tap, lock_handle * targ
   * move @tap to @target. Acquire lock on @target, if @tap was already
   * loaded.
@@ -29762,9 +29970,9 @@ diff -rupN reiser4-release/tap.c reiser4-full/tap.c
  /** check [tap-sane] invariant */
  static int tap_invariant(const tap_t * tap)
  {
-diff -rupN reiser4-release/tap.h reiser4-full/tap.h
---- reiser4-release/tap.h	2005-01-19 18:41:35.697404640 +0300
-+++ reiser4-full/tap.h	2005-01-19 18:37:55.054243927 +0300
+diff -puN tap.h~profile-stat-trace-repacker tap.h
+--- reiser4/tap.h~profile-stat-trace-repacker	2005-01-21 20:07:48.778255862 +0300
++++ reiser4-vs/tap.h	2005-01-21 20:07:49.257276764 +0300
 @@ -44,11 +44,13 @@ extern void tap_monitor(tap_t * tap);
  extern void tap_copy(tap_t * dst, tap_t * src);
  extern void tap_done(tap_t * tap);
@@ -29779,9 +29987,9 @@ diff -rupN reiser4-release/tap.h reiser4-full/tap.h
  extern int rewind_right(tap_t * tap, int shift);
  extern int rewind_left(tap_t * tap, int shift);
  
-diff -rupN reiser4-release/tree.c reiser4-full/tree.c
---- reiser4-release/tree.c	2005-01-19 18:41:35.700404849 +0300
-+++ reiser4-full/tree.c	2005-01-19 18:37:55.280259299 +0300
+diff -puN tree.c~profile-stat-trace-repacker tree.c
+--- reiser4/tree.c~profile-stat-trace-repacker	2005-01-21 20:07:48.785256168 +0300
++++ reiser4-vs/tree.c	2005-01-21 20:07:49.261276939 +0300
 @@ -186,6 +186,7 @@
  #include "carry_ops.h"
  #include "tap.h"
@@ -29932,9 +30140,9 @@ diff -rupN reiser4-release/tree.c reiser4-full/tree.c
  	init_lh(&lock);
  
  	do {
-diff -rupN reiser4-release/tree.h reiser4-full/tree.h
---- reiser4-release/tree.h	2005-01-19 18:41:35.703405059 +0300
-+++ reiser4-full/tree.h	2005-01-19 18:37:55.418268685 +0300
+diff -puN tree.h~profile-stat-trace-repacker tree.h
+--- reiser4/tree.h~profile-stat-trace-repacker	2005-01-21 20:07:48.793256517 +0300
++++ reiser4-vs/tree.h	2005-01-21 20:07:49.263277026 +0300
 @@ -406,28 +406,37 @@ extern int delete_node(znode * node, rei
  extern int check_tree_pointer(const coord_t * pointer, const znode * child);
  extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
@@ -29982,9 +30190,9 @@ diff -rupN reiser4-release/tree.h reiser4-full/tree.h
  reiser4_block_nr estimate_one_insert_item(reiser4_tree *);
  reiser4_block_nr estimate_one_insert_into_item(reiser4_tree *);
  reiser4_block_nr estimate_insert_flow(tree_level);
-diff -rupN reiser4-release/tree_walk.c reiser4-full/tree_walk.c
---- reiser4-release/tree_walk.c	2005-01-19 18:41:35.705405198 +0300
-+++ reiser4-full/tree_walk.c	2005-01-19 18:37:55.045243315 +0300
+diff -puN tree_walk.c~profile-stat-trace-repacker tree_walk.c
+--- reiser4/tree_walk.c~profile-stat-trace-repacker	2005-01-21 20:07:48.801256866 +0300
++++ reiser4-vs/tree_walk.c	2005-01-21 20:07:49.266277157 +0300
 @@ -70,6 +70,8 @@ lock_neighbor(
  	assert("umka-237", tree != NULL);
  	assert("umka-301", rw_tree_is_locked(tree));
@@ -30029,9 +30237,9 @@ diff -rupN reiser4-release/tree_walk.c reiser4-full/tree_walk.c
  		ret = zload(parent);
  		if (ret)
  			break;
-diff -rupN reiser4-release/tree_walk.h reiser4-full/tree_walk.h
---- reiser4-release/tree_walk.h	2005-01-19 18:41:35.707405337 +0300
-+++ reiser4-full/tree_walk.h	2005-01-19 18:37:55.180252497 +0300
+diff -puN tree_walk.h~profile-stat-trace-repacker tree_walk.h
+--- reiser4/tree_walk.h~profile-stat-trace-repacker	2005-01-21 20:07:48.809257215 +0300
++++ reiser4-vs/tree_walk.h	2005-01-21 20:07:49.267277201 +0300
 @@ -98,7 +98,7 @@ struct tree_walk_actor {
  };
  extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *, void *);
@@ -30041,9 +30249,9 @@ diff -rupN reiser4-release/tree_walk.h reiser4-full/tree_walk.h
  int check_sibling_list(znode * node);
  #else
  #define check_sibling_list(n) (1)
-diff -rupN reiser4-release/txnmgr.c reiser4-full/txnmgr.c
---- reiser4-release/txnmgr.c	2005-01-19 18:41:35.714405825 +0300
-+++ reiser4-full/txnmgr.c	2005-01-19 18:37:55.481272970 +0300
+diff -puN txnmgr.c~profile-stat-trace-repacker txnmgr.c
+--- reiser4/txnmgr.c~profile-stat-trace-repacker	2005-01-21 20:07:48.819257651 +0300
++++ reiser4-vs/txnmgr.c	2005-01-21 20:07:49.274277506 +0300
 @@ -232,6 +232,7 @@ year old --- define all technical terms 
  #include "reiser4.h"
  #include "vfs_ops.h"
@@ -30573,9 +30781,9 @@ diff -rupN reiser4-release/txnmgr.c reiser4-full/txnmgr.c
  #endif
  
  static int count_deleted_blocks_actor (
-diff -rupN reiser4-release/txnmgr.h reiser4-full/txnmgr.h
---- reiser4-release/txnmgr.h	2005-01-19 18:41:35.716405965 +0300
-+++ reiser4-full/txnmgr.h	2005-01-19 18:37:55.600281064 +0300
+diff -puN txnmgr.h~profile-stat-trace-repacker txnmgr.h
+--- reiser4/txnmgr.h~profile-stat-trace-repacker	2005-01-21 20:07:48.827258000 +0300
++++ reiser4-vs/txnmgr.h	2005-01-21 20:07:49.277277637 +0300
 @@ -460,6 +460,7 @@ extern long txn_end(reiser4_context * co
  extern void txn_restart(reiser4_context * context);
  extern void txn_restart_current(void);
@@ -30636,9 +30844,9 @@ diff -rupN reiser4-release/txnmgr.h reiser4-full/txnmgr.h
  #endif
  
  # endif				/* __REISER4_TXNMGR_H__ */
-diff -rupN reiser4-release/type_safe_hash.h reiser4-full/type_safe_hash.h
---- reiser4-release/type_safe_hash.h	2005-01-19 18:41:35.719406174 +0300
-+++ reiser4-full/type_safe_hash.h	2005-01-19 18:37:55.233256102 +0300
+diff -puN type_safe_hash.h~profile-stat-trace-repacker type_safe_hash.h
+--- reiser4/type_safe_hash.h~profile-stat-trace-repacker	2005-01-21 20:07:48.835258349 +0300
++++ reiser4-vs/type_safe_hash.h	2005-01-21 20:07:49.279277724 +0300
 @@ -8,6 +8,7 @@
  #define __REISER4_TYPE_SAFE_HASH_H__
  
@@ -30727,9 +30935,9 @@ diff -rupN reiser4-release/type_safe_hash.h reiser4-full/type_safe_hash.h
  											\
    ins_item->LINK_NAME._next = hash->_table[hash_index];					\
    smp_wmb();    									\
-diff -rupN reiser4-release/vfs_ops.c reiser4-full/vfs_ops.c
---- reiser4-release/vfs_ops.c	2005-01-19 18:41:35.722406383 +0300
-+++ reiser4-full/vfs_ops.c	2005-01-19 18:37:55.733290111 +0300
+diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
+--- reiser4/vfs_ops.c~profile-stat-trace-repacker	2005-01-21 20:07:48.843258699 +0300
++++ reiser4-vs/vfs_ops.c	2005-01-21 20:07:49.283277899 +0300
 @@ -21,14 +21,18 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -30990,9 +31198,9 @@ diff -rupN reiser4-release/vfs_ops.c reiser4-full/vfs_ops.c
  	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);
  	return 0;
  #undef CHECK_INIT_RESULT
-diff -rupN reiser4-release/wander.c reiser4-full/wander.c
---- reiser4-release/wander.c	2005-01-19 18:41:35.727406731 +0300
-+++ reiser4-full/wander.c	2005-01-19 18:37:55.585280044 +0300
+diff -puN wander.c~profile-stat-trace-repacker wander.c
+--- reiser4/wander.c~profile-stat-trace-repacker	2005-01-21 20:07:48.852259091 +0300
++++ reiser4-vs/wander.c	2005-01-21 20:07:49.287278074 +0300
 @@ -212,7 +212,7 @@ struct commit_handle {
  static void
  init_commit_handle(struct commit_handle *ch, txn_atom * atom)
@@ -31186,9 +31394,9 @@ diff -rupN reiser4-release/wander.c reiser4-full/wander.c
  	return ret;
  }
  /* load journal control block (either journal header or journal footer block) */
-diff -rupN reiser4-release/znode.c reiser4-full/znode.c
---- reiser4-release/znode.c	2005-01-19 18:41:35.731407010 +0300
-+++ reiser4-full/znode.c	2005-01-19 18:37:55.155250797 +0300
+diff -puN znode.c~profile-stat-trace-repacker znode.c
+--- reiser4/znode.c~profile-stat-trace-repacker	2005-01-21 20:07:48.859259397 +0300
++++ reiser4-vs/znode.c	2005-01-21 20:07:49.291278248 +0300
 @@ -154,16 +154,13 @@
  #include "tree_walk.h"
  #include "super.h"
@@ -31701,9 +31909,9 @@ diff -rupN reiser4-release/znode.c reiser4-full/znode.c
  
  /* Make Linus happy.
     Local variables:
-diff -rupN reiser4-release/znode.h reiser4-full/znode.h
---- reiser4-release/znode.h	2005-01-19 18:41:35.733407149 +0300
-+++ reiser4-full/znode.h	2005-01-19 18:37:55.065244675 +0300
+diff -puN znode.h~profile-stat-trace-repacker znode.h
+--- reiser4/znode.h~profile-stat-trace-repacker	2005-01-21 20:07:48.866259702 +0300
++++ reiser4-vs/znode.h	2005-01-21 20:07:49.293278335 +0300
 @@ -142,13 +142,21 @@ struct znode {
  	/* number of items in this node. This field is modified by node
  	 * plugin. */
@@ -31811,3 +32019,5 @@ diff -rupN reiser4-release/znode.h reiser4-full/znode.h
  #define STORE_COUNTERS						\
  	lock_counters_info __entry_counters = *lock_counters()
  #define CHECK_COUNTERS						\
+
+_
