@@ -1313,6 +1313,7 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 	params.smallest_removed = op->u.cut->smallest_removed;
 	params.info = &info;
 	params.flags = 0;
+	params.inode = op->u.cut->inode;
 	if (op->u.cut->flags & DELETE_KILL) {
 		/* data gets removed from the tree */
 		result = node_plugin_by_node(carry_real(op->node))->cut_and_kill(&params);

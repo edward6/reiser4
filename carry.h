@@ -151,6 +151,7 @@ typedef struct carry_cut_data {
 	reiser4_key *smallest_removed;
 	unsigned flags;
 	void *iplug_params;
+	struct inode *inode;
 } carry_cut_data;
 
 /* &carry_tree_op - operation to "carry" upward.
