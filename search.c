@@ -497,7 +497,7 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 		} else if( through_units_p )
 			coord_next_unit( coord );
 		else
-			++ coord -> item_pos;
+			coord_next_item( coord );
 		assert( "nikita-1149", coord_of_unit( coord ) );
 	}
 	return result;
