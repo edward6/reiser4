@@ -104,6 +104,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .minsize = (uint32_t (*)(void))internal40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))internal40_print,
 	    .internal = (int (*)(void))internal40_internal,
+	    .max_key_inside = NULL,
 	    
 	    .lookup = NULL,
 	    .confirm = NULL,

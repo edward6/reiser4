@@ -93,6 +93,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
 	    .minsize = (uint32_t (*)(void))stat40_minsize,
 	    .internal = (int (*)(void))stat40_internal,
+	    .max_key_inside = NULL,
 
 	    .lookup = NULL,
 	    .unit_add = NULL,
