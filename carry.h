@@ -94,7 +94,7 @@ typedef enum {
 	COP_LAST_OP,
 } carry_opcode;
 
-#define CARRY_FLOW_NEW_NODES_LIMIT 10
+#define CARRY_FLOW_NEW_NODES_LIMIT 20
 
 typedef enum {
 	COP_MODIFY_FREE_SPACE = (1 << 0),	/* FIXME_JMACD currently unused
@@ -276,6 +276,9 @@ typedef struct carry_op {
 			carry_node *child;
 		} delete;
 		struct {
+			/* various operation flags. Taken from
+			   cop_insert_flag. */
+			__u32 flags;
 			flow_t *flow;
 			coord_t *insert_point;
 			reiser4_item_data *data;
