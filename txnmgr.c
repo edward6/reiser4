@@ -1618,6 +1618,25 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	block_atom = node->atom;
 	txnh_atom = txnh->atom;
 
+	if (REISER4_STATS) {
+		if (block_atom != NULL && txnh_atom != NULL)
+			if (block_atom == txnh_atom)
+				reiser4_stat_inc(txnmgr.capture_equal);
+			else
+				reiser4_stat_inc(txnmgr.capture_both);
+		else if (block_atom != NULL && txnh_atom == NULL)
+			reiser4_stat_inc(txnmgr.capture_block);
+		else if (block_atom == NULL && txnh_atom != NULL)
+			reiser4_stat_inc(txnmgr.capture_txnh);
+		else
+			reiser4_stat_inc(txnmgr.capture_none);
+	}
+
+	if (txnh_atom != NULL && block_atom == txnh_atom) {
+		UNLOCK_TXNH(txnh);
+		return 0;
+	}
+
 	if (txnh_atom != NULL) {
 		/* It is time to perform deadlock prevention check over the node we want to capture.
 		   It is possible this node was locked for read without capturing it. The
