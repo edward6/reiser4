@@ -15,7 +15,7 @@
     method id needed because of root key in reiser3 and reiser4 has a diffrent 
     locality and object id values.
 */
-static errno_t reiser4_fs_build_root_key(
+errno_t reiser4_fs_build_root_key(
     reiser4_fs_t *fs,		/* filesystem to be used */
     reiser4_id_t pid		/* key plugin id to be used */
 ) {
@@ -61,6 +61,7 @@ reiser4_fs_t *reiser4_fs_open(
     /* Allocating memory and initializing fields */
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
+
 
     /* Reads master super block. See above for details */
     if (!(fs->master = reiser4_master_open(host_device)))
@@ -333,7 +334,7 @@ errno_t reiser4_fs_sync(
 	return -1;
     
     /* Synchronizing the journal */
-    if (reiser4_journal_sync(fs->journal))
+    if (fs->journal && reiser4_journal_sync(fs->journal))
 	return -1;
     
     /* Synchronizing block allocator */
@@ -344,7 +345,6 @@ errno_t reiser4_fs_sync(
     if (reiser4_oid_sync(fs->oid))
 	return -1;
     
-    /* Synchronizing the disk format */
     if (reiser4_format_sync(fs->format))
 	return -1;
 
@@ -357,7 +357,7 @@ errno_t reiser4_fs_sync(
 	if (reiser4_master_sync(fs->master))
 	    return -1;
     }
-    
+
     return 0;
 }
 
