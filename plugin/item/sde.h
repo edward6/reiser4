@@ -9,33 +9,6 @@
 #if !defined( __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ )
 #define __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__
 
-/**
- * methods specific to the directory item
- */
-typedef struct simple_dir_item_plugin {
-	/**
-	 * extract stat-data key from directory entry at @coord and place it
-	 * into @key.
-	 */
-	int ( *simple_file_key_by_entry )( const tree_coord *coord, reiser4_key *key );
-	/**
-	 * extract name from directory entry at @coord and return it
-	 */
-	char *( *simple_extract_name )( const tree_coord *coord );
-	/**
-	 * extract file type (DT_* stuff) from directory entry at @coord and
-	 * return it
-	 */
-	unsigned ( *simple_extract_file_type )( const tree_coord *coord );
-	int ( *simple_add_entry )( const struct inode *dir,
-				   tree_coord *coord, lock_handle *lh,
-				   const struct dentry *name, reiser4_dir_entry_desc *entry );
-	int ( *simple_rem_entry )( const struct inode *dir,
-				   tree_coord *coord, lock_handle *lh,
-				   reiser4_dir_entry_desc *entry );
-	int ( *simple_max_name_len )( int block_size );
-} simple_dir_item_plugin;
-
 typedef struct directory_entry_format {
 	/**
 	 * key of object stat-data. It's not necessary to store whole

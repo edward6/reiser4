@@ -19,7 +19,7 @@ typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef union  reiser4_plugin reiser4_plugin;
-typedef struct common_item_plugin common_item_plugin;
+typedef struct item_plugin item_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
 typedef union  reiser4_key reiser4_key;
 typedef union  reiser4_dblock_nr reiser4_dblock_nr;

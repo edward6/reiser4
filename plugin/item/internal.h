@@ -11,18 +11,6 @@
 #define __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__
 
 #if 0
-/** operations specific to internal item. Used in
-    fs/reiser4/plugin/item/item.h:item_ops */
-typedef struct {
-	/** all tree traversal want to know from internal item is where
-	    to go next. */
-	void ( *down_link )( const tree_coord *coord, 
-			     const reiser4_key *key, 
-			     reiser4_block_nr *block );
-	/** check that given internal item contains given pointer. */
-	int ( *has_pointer_to )( const tree_coord *coord, 
-				 const reiser4_block_nr *block );
-} internal_item_plugin;
 #endif
 
 /** on-disk layout of internal item */
