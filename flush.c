@@ -2831,7 +2831,7 @@ neighbor_in_slum(
 {
 	int ret;
 
-	/* assert("jmacd-6334", znode_is_connected(node)); */
+	assert("jmacd-6334", znode_is_connected(node));
 
 	ret = reiser4_get_neighbor(lock, node, mode, GN_SAME_ATOM | (side == LEFT_SIDE ? GN_GO_LEFT : 0));
 

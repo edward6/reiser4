@@ -7,6 +7,8 @@ typedef struct {
 	int not_used;
 } tail_coord_extension_t;
 
+struct cut_list;
+
 
 /* plugin->u.item.b.* */
 reiser4_key *max_key_inside_tail(const coord_t *, reiser4_key *);
@@ -21,7 +23,7 @@ void copy_units_tail(coord_t * target, coord_t * source,
 		     unsigned from, unsigned count, shift_direction, unsigned free_space);
 int cut_units_tail(coord_t * item, unsigned *from,
 		   unsigned *to,
-		   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
+		   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
 reiser4_key *unit_key_tail(const coord_t * coord, reiser4_key * key);
 
 /* plugin->u.item.s.* */

@@ -15,6 +15,8 @@ typedef struct internal_item_layout {
 	/*  4 */
 } internal_item_layout;
 
+struct cut_list;
+
 int mergeable_internal(const coord_t * p1, const coord_t * p2);
 lookup_result lookup_internal(const reiser4_key * key, lookup_bias bias, coord_t * coord);
 /* store pointer from internal item into "block". Implementation of
@@ -22,7 +24,7 @@ lookup_result lookup_internal(const reiser4_key * key, lookup_bias bias, coord_t
 extern void down_link_internal(const coord_t * coord, const reiser4_key * key, reiser4_block_nr * block);
 extern int has_pointer_to_internal(const coord_t * coord, const reiser4_block_nr * block);
 extern int create_hook_internal(const coord_t * item, void *arg);
-extern int kill_hook_internal(const coord_t * item, unsigned from, unsigned count, void *);
+extern int kill_hook_internal(const coord_t * item, unsigned from, unsigned count, struct cut_list *);
 extern int shift_hook_internal(const coord_t * item, unsigned from, unsigned count, znode * old_node);
 extern void print_internal(const char *prefix, coord_t * coord);
 

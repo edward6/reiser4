@@ -139,6 +139,8 @@ struct cut_list {
 	carry_plugin_info * info;
 	__u32 flags;
 	struct inode *inode; /* this is to pass list of eflushed jnodes down to extent_kill_hook */
+	lock_handle *left;
+	lock_handle *right;
 };
 
 /* The responsibility of the node plugin is to store and give access

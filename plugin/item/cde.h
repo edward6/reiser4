@@ -33,6 +33,8 @@ typedef struct cde_entry_data {
 	cde_entry *entry;
 } cde_entry_data;
 
+struct cut_list;
+
 /* plugin->item.b.* */
 reiser4_key *max_key_inside_cde(const coord_t * coord, reiser4_key * result);
 int can_contain_key_cde(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
@@ -49,7 +51,7 @@ int can_shift_cde(unsigned free_space, coord_t * coord,
 void copy_units_cde(coord_t * target, coord_t * source,
 		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
 int cut_units_cde(coord_t * coord, unsigned *from, unsigned *to,
-		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
+		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *cl);
 void print_cde(const char *prefix, coord_t * coord);
 int check_cde(const coord_t * coord, const char **error);
 

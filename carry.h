@@ -145,6 +145,8 @@ typedef struct carry_cut_data {
 	unsigned flags;
 	void *iplug_params;
 	struct inode *inode;
+	lock_handle *left;
+	lock_handle *right;
 } carry_cut_data;
 
 /* &carry_tree_op - operation to "carry" upward.

@@ -308,7 +308,7 @@ int
 kill_hook_internal(const coord_t * item /* coord of item */ ,
 		   unsigned from UNUSED_ARG /* start unit */ ,
 		   unsigned count UNUSED_ARG /* stop unit */,
-		   void *p UNUSED_ARG)
+		   struct cut_list *p UNUSED_ARG)
 {
 	znode *child;
 
