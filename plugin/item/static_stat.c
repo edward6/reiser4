@@ -262,7 +262,9 @@ init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	scint_pack(&state->extmask, bigmask, GFP_ATOMIC);
 	/* common initialisations */
 	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
-	if (len > 0)
+	if (len - (sizeof (d16) * bit / 16) > 0)
+		/* alignment in save_len_static_sd() is taken into account
+		   -edward */
 		warning("nikita-631", "unused space in inode %llu", get_inode_oid(inode));
 	return result;
 }
@@ -762,7 +764,12 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 		next_stat(len, area, sizeof *slot);
 		if (plugin->h.pops == NULL)
 			continue;
-		align(inode, len, area, plugin->h.pops->alignment);
+		/*
+		  align(inode, len, area, plugin->h.pops->alignment);
+		  
+		  - commented because alignment policies in len_for() and save_plug()
+		  are incompatible -edward */
+		
 		/* load plugin data, if any */
 		if (plugin->h.pops->load) {
 			result = plugin->h.pops->load(inode, plugin, area, len);
@@ -811,11 +818,15 @@ len_for(reiser4_plugin * plugin /* plugin to save */ ,
 
 	if (plugin && (reiser4_inode_data(inode)->plugin_mask & (1 << (plugin->h.type_id)))) {
 		len += sizeof (reiser4_plugin_slot);
+#if 0
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
 			/* non-standard plugin, call method */
 			len = round_up(len, plugin->h.pops->alignment);
 			len += plugin->h.pops->save_len(inode, plugin);
 		}
+		/* commented as it is incompatible with alignment policy in
+		   save_plug() -edward */ 
+#endif
 	}
 	return len;
 }
@@ -881,7 +892,13 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	++*count;
 	result = 0;
 	if (plugin->h.pops != NULL) {
+#if 0
 		align(inode, &fake_len, area, plugin->h.pops->alignment);
+                /*
+		  commented as it is incompatible with alignment policy
+		  in len_for() -edward
+		*/
+#endif
 		if (plugin->h.pops->save != NULL)
 			result = plugin->h.pops->save(inode, plugin, area);
 	}
