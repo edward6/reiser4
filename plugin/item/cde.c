@@ -134,6 +134,20 @@ set_offset(const coord_t * coord /* coord of item */ ,
 	cputod16((__u16) offset, &header_at(coord, idx)->offset);
 }
 
+static void
+adj_offset(const coord_t * coord /* coord of item */ ,
+	   int idx /* index of unit */ ,
+	   int delta /* offset change */ )
+{
+	d16  *doffset;
+	__u16 offset;
+
+	doffset = &header_at(coord, idx)->offset;
+	offset = d16tocpu(doffset);
+	offset += delta;
+	cputod16((__u16) offset, doffset);
+}
+
 /* return pointer to @offset-th byte from the beginning of @coord */
 static char *
 address(const coord_t * coord /* coord of item */ ,
@@ -168,25 +182,54 @@ find(const coord_t * coord /* coord of item */ ,
 	int i;
 	int entries;
 
+	int left;
+	int right;
+
+	cde_unit_header *header;
+
 	assert("nikita-1295", coord != NULL);
 	assert("nikita-1296", entry_key != NULL);
 	assert("nikita-1297", last != NULL);
 
-	/* NOTE-NIKITA hidden treasure! sequential search for now */
 	entries = units(coord);
-	for (i = 0; i < entries; ++i) {
-		cde_unit_header *header;
+	left = 0;
+	right = entries - 1;
+	while (right - left >= REISER4_SEQ_SEARCH_BREAK) {
+		int median;
 
-		header = header_at(coord, i);
+		median = (left + right) >> 1;
+
+		header = header_at(coord, median);
 		*last = de_id_key_cmp(&header->hash, entry_key);
-
+		switch (*last) {
+		case LESS_THAN:
+			left = median;
+			break;
+		case GREATER_THAN:
+			right = median;
+			break;
+		case EQUAL_TO: {
+			do {
+				median --;
+				header --;
+			} while (median >= 0 &&
+				 de_id_key_cmp(&header->hash, 
+					       entry_key) == EQUAL_TO);
+			return median + 1;
+		}
+		}
+	}
+	header = header_at(coord, left);
+	for (; left < entries; ++ left, ++ header) {
+		*last = de_id_key_cmp(&header->hash, entry_key);
 		if (*last != LESS_THAN)
 			break;
 	}
-	if (i < entries)
-		return i;
+	if (left < entries)
+		return left;
 	else
-		return -ENOENT;
+		return RETERR(-ENOENT);
+
 }
 
 /* expand @coord as to accomodate for insertion of @no new entries starting
@@ -235,17 +278,14 @@ expand_item(const coord_t * coord /* coord of item */ ,
 	entries += no;
 	cputod16((__u16) entries, &formatted_at(coord)->num_of_entries);
 
-	/* AUDIT both loops from below have static parts that should not be
-	   recalculated for each iteration. Esp. since we might have potentially
-	   very large number of direntries per node/block */
 	/* [ 0 ... pos ] entries were shifted by no * ( sizeof *header )
 	   bytes.  */
 	for (i = 0; i <= pos; ++i)
-		set_offset(coord, i, offset_of(coord, i) + no * sizeof *header);
+		adj_offset(coord, i, no * sizeof *header);
 	/* [ pos + no ... +\infty ) entries were shifted by ( no *
 	   sizeof *header + data_size ) bytes */
 	for (i = pos + no; i < entries; ++i)
-		set_offset(coord, i, offset_of(coord, i) + no * sizeof *header + data_size);
+		adj_offset(coord, i, no * sizeof *header + data_size);
 	return 0;
 }
 
@@ -757,9 +797,8 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 	xmemmove(header_at(target, pos_in_target), header_from, (unsigned) (header_to - header_from));
 
 	/* update offsets */
-	for (i = pos_in_target; i < (int) (pos_in_target + count); ++i) {
-		set_offset(target, i, offset_of(target, i) + data_delta);
-	}
+	for (i = pos_in_target; i < (int) (pos_in_target + count); ++i)
+		adj_offset(target, i, data_delta);
 	CHECKME(target);
 	CHECKME(source);
 }
@@ -826,13 +865,11 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 
 	/* update offsets */
 
-	for (i = 0; i < (int) *from; ++i) {
-		set_offset(coord, i, offset_of(coord, i) - header_delta);
-	}
+	for (i = 0; i < (int) *from; ++i)
+		adj_offset(coord, i, - header_delta);
 
-	for (i = *from; i < units(coord) - (int) count; ++i) {
-		set_offset(coord, i, offset_of(coord, i) - header_delta - entry_delta);
-	}
+	for (i = *from; i < units(coord) - (int) count; ++i)
+		adj_offset(coord, i, - header_delta - entry_delta);
 
 	cputod16((__u16) units(coord) - count, &formatted_at(coord)->num_of_entries);
 
