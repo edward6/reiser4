@@ -177,7 +177,7 @@ blknreq(const reiser4_block_nr * b1, const reiser4_block_nr * b2)
 /* Hash znode by block number. Used by hash-table macros */
 /* Audited by: umka (2002.06.11) */
 static inline __u32
-blknrhashfn(const reiser4_block_nr * b)
+blknrhashfn(z_hash_table *table, const reiser4_block_nr * b)
 {
 	assert("nikita-536", b != NULL);
 
@@ -432,8 +432,8 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	assert("jmacd-506", tree != NULL);
 	assert("jmacd-507", blocknr != NULL);
 
-	hash   = blknrhashfn(blocknr);
 	htable = get_htable(tree, blocknr);
+	hash   = blknrhashfn(htable, blocknr);
 
 	rcu_read_lock();
 	result = z_hash_find_index(htable, hash, blocknr);
@@ -487,12 +487,11 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	assert("jmacd-513", blocknr != NULL);
 	assert("jmacd-514", level < REISER4_MAX_ZTREE_HEIGHT);
 
-	hashi = blknrhashfn(blocknr);
+	zth = get_htable(tree, blocknr);
+	hashi = blknrhashfn(zth, blocknr);
 
 	/* NOTE-NIKITA address-as-unallocated-blocknr still is not
 	   implemented. */
-
-	zth = get_htable(tree, blocknr);
 
 	z_hash_prefetch_bucket(zth, hashi);
 

@@ -41,7 +41,7 @@ hash(unsigned long user, unsigned long object)
 }
 
 static inline unsigned long
-phash_hash(const phash_hash_link * a)
+phash_hash(phash_hash_table *table, const phash_hash_link * a)
 {
 	phash_header *h;
 

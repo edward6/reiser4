@@ -90,7 +90,7 @@ static inline unsigned long calculate_hash(const plugin_set *set)
 }
 
 static inline unsigned long
-pshash(const unsigned long * a)
+pshash(ps_hash_table *table, const unsigned long * a)
 {
 	return *a;
 }
