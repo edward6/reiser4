@@ -345,8 +345,8 @@ static int unix_sd_absent( struct inode *inode /* object being processed */ )
 	/* mark inode as lightweight, so that caller (reiser4_lookup)
 	   will complete initialisation by copying [ug]id from a
 	   parent.*/
-	inode_set_flag( inode, REISER4_LIGHT_WEIGHT_INODE );
-	/*reiser4_inode_data( inode ) -> flags |= REISER4_LIGHT_WEIGHT_INODE;*/
+	inode_set_flag( inode, REISER4_LIGHT_WEIGHT );
+	/*reiser4_inode_data( inode ) -> flags |= REISER4_LIGHT_WEIGHT;*/
 	return 0;
 }
 

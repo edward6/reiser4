@@ -10,8 +10,8 @@
 #define __FS_REISER4_VFS_OPS_H__
 
 extern int reiser4_write_sd ( struct inode *object );
-extern int reiser4_add_nlink( struct inode *object, int write_sd_p );
-extern int reiser4_del_nlink( struct inode *object, int write_sd_p );
+extern int reiser4_add_nlink( struct inode *, struct inode *, int );
+extern int reiser4_del_nlink( struct inode *, struct inode *, int );
 
 extern int truncate_object  ( struct inode *inode, loff_t size );
 

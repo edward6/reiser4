@@ -950,7 +950,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 	inode = file->f_dentry->d_inode;
 
-	assert ("vs-947", !inode_get_flag( inode, REISER4_NO_STAT_DATA ));
+	assert ("vs-947", !inode_get_flag( inode, REISER4_NO_SD ));
 
 	get_nonexclusive_access (inode);
 
@@ -993,7 +993,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	if (written) {
 		/* something was written. Update stat data */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		assert ("vs-946", !inode_get_flag( inode, REISER4_NO_STAT_DATA ));
+		assert ("vs-946", !inode_get_flag( inode, REISER4_NO_SD ));
 		result = reiser4_write_sd (inode);
 		if (result)
 			warning ("vs-636", "updating stat data failed: %i",
@@ -1214,26 +1214,6 @@ int unix_file_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
  * plugin->u.file.set_plug_in_inode = NULL
  * plugin->u.file.create_blank_sd = NULL
  */
-
-
-/* plugin->u.file.create
- * create sd for unix file. Just pass control to
- * fs/reiser4/plugin/object.c:common_file_save()
- */
-/* Audited by: green(2002.06.15) */
-int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
-		      reiser4_object_create_data *data UNUSED_ARG )
-{
-	assert( "nikita-744", object != NULL );
-	assert( "nikita-745", parent != NULL );
-	assert( "nikita-747", data != NULL );
-	assert( "nikita-748", inode_get_flag( object, REISER4_NO_STAT_DATA ) );
-	assert( "nikita-749", 
-		( data -> id == REGULAR_FILE_PLUGIN_ID ) ||
-		( data -> id == SPECIAL_FILE_PLUGIN_ID ) );
-	
-	return reiser4_write_sd( object );
-}
 
 
 /* plugin->u.file.delete = NULL

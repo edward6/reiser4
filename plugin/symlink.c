@@ -21,7 +21,7 @@ int symlink_create( struct inode * symlink, /* inode of symlink */
 
 	assert( "nikita-680", symlink != NULL );
 	assert( "nikita-681", S_ISLNK( symlink -> i_mode ) );
-	assert( "nikita-685", inode_get_flag( symlink, REISER4_NO_STAT_DATA ) );
+	assert( "nikita-685", inode_get_flag( symlink, REISER4_NO_SD ) );
 	assert( "nikita-682", dir != NULL );
 	assert( "nikita-684", data != NULL );
 	assert( "nikita-686", data -> id == SYMLINK_FILE_PLUGIN_ID );

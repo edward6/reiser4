@@ -178,7 +178,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	assert( "nikita-723", inode != NULL );
 
 	/* stat data is already there */
-	if( !inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
+	if( !inode_get_flag( inode, REISER4_NO_SD ) )
 		return 0;
 
 	ref = reiser4_inode_data( inode );
@@ -271,7 +271,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 			result = ref -> sd -> s.sd.save( inode, &area );
 			if( result == 0 ) {
 				/* object has stat-data now */
-				inode_clr_flag( inode, REISER4_NO_STAT_DATA );
+				inode_clr_flag( inode, REISER4_NO_SD );
 				/* initialise stat-data seal */
 				seal_init( &ref -> sd_seal, &coord, &key );
 				ref -> sd_coord = coord;
@@ -309,7 +309,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	assert( "nikita-726", inode != NULL );
 
 	/* no stat-data, nothing to update?! */
-	if( inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
+	if( inode_get_flag( inode, REISER4_NO_SD ) )
 		return -ENOENT;
 
 	init_lh( &lh );
@@ -426,7 +426,7 @@ int common_file_save( struct inode *inode /* object to save */ )
 
 	assert( "nikita-730", inode != NULL );
 	
-	if( inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
+	if( inode_get_flag( inode, REISER4_NO_SD ) )
 		/* object doesn't have stat-data yet */
 		result = insert_new_sd( inode );
 	else 
@@ -464,14 +464,13 @@ int common_file_can_add_link( const struct inode *object /* object to check */ )
 }
 
 /** common_file_delete() - delete object stat-data */
-int common_file_delete( struct inode *inode /* object to remove */, 
-			struct inode *parent UNUSED_ARG /* parent object */ )
+int common_file_delete( struct inode *inode /* object to remove */ )
 {
 	int result;
 
 	assert( "nikita-1477", inode != NULL );
 
-	if( !inode_get_flag( inode, REISER4_NO_STAT_DATA ) ) {
+	if( !inode_get_flag( inode, REISER4_NO_SD ) ) {
 		reiser4_key sd_key;
 
 	    	DQUOT_FREE_INODE( inode );
@@ -481,7 +480,7 @@ int common_file_delete( struct inode *inode /* object to remove */,
 		result = cut_tree( tree_by_inode( inode ), &sd_key, &sd_key );
 
 		if( result == 0 ) {
-			inode_set_flag( inode, REISER4_NO_STAT_DATA );
+			inode_set_flag( inode, REISER4_NO_SD );
 			result = oid_release( get_inode_oid( inode ) );
 			if( result == 0 )
 				oid_count_released();
@@ -522,7 +521,7 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 		object -> i_gid = current -> fsgid;
 
 	/* this object doesn't have stat-data yet */
-	inode_set_flag( object, REISER4_NO_STAT_DATA );
+	inode_set_flag( object, REISER4_NO_SD );
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops( object, data );
 	/* i_nlink is left 1 here as set by new_inode() */
@@ -579,6 +578,23 @@ int guess_plugin_by_mode( struct inode *inode /* object to guess plugins
 		( dplug_id >= 0 ) ? dir_plugin_by_id( dplug_id ) : NULL;
 	return 0;
 }
+
+/* 
+ * ->create method of object plugin
+ */
+static int common_file_create( struct inode *object, 
+			       struct inode *parent UNUSED_ARG,
+			       reiser4_object_create_data *data UNUSED_ARG )
+{
+	assert( "nikita-744", object != NULL );
+	assert( "nikita-745", parent != NULL );
+	assert( "nikita-747", data != NULL );
+	assert( "nikita-748", inode_get_flag( object, REISER4_NO_SD ) );
+
+	return reiser4_write_sd( object );
+}
+
+
 
 /** standard implementation of ->owns_item() plugin method: compare objectids
     of keys in inode and coord */
@@ -646,7 +662,8 @@ static int unix_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key
 
 
 /** default ->add_link() method of file plugin */
-static int common_add_link( struct inode *object )
+static int common_add_link( struct inode *object, 
+			    struct inode *parent UNUSED_ARG )
 {
 	++ object -> i_nlink;
 	object -> i_ctime = CURRENT_TIME;
@@ -654,7 +671,8 @@ static int common_add_link( struct inode *object )
 }
 
 /** default ->rem_link() method of file plugin */
-static int common_rem_link( struct inode *object )
+static int common_rem_link( struct inode *object, 
+			    struct inode *parent UNUSED_ARG )
 {
 	assert( "nikita-2021", object != NULL );
 	assert( "nikita-2163", object -> i_nlink > 0 );
@@ -795,6 +813,20 @@ static loff_t dir_seek( struct file *file, loff_t off, int origin )
 	return result;
 }
 
+static int common_bind( struct inode *child, struct inode *parent )
+{
+	return 0;
+}
+
+static int dir_bind( struct inode *child, struct inode *parent )
+{
+	dir_plugin *dplug;
+
+	dplug = inode_dir_plugin( child );
+	assert( "nikita-2646", dplug != NULL );
+	return dplug -> attach( child, parent );
+}
+
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
 		.file = {
@@ -821,7 +853,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.key_by_inode        = unix_key_by_inode,
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
-			.create              = unix_file_create,
+			.create              = common_file_create,
 			.delete              = common_file_delete,
 			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
@@ -831,7 +863,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.not_linked          = common_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
-			.seek                = NULL
+			.seek                = NULL,
+			.bind                = common_bind
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
@@ -859,8 +892,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.key_by_inode        = NULL,
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = dir_adjust_to_parent,
-			.create              = hashed_create,
-			.delete              = hashed_delete,
+			.create              = common_file_create,
+			.delete              = common_file_delete,
 			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = hashed_owns_item,
@@ -869,7 +902,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.not_linked          = dir_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
-			.seek                = dir_seek
+			.seek                = dir_seek,
+			.bind                = dir_bind
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
@@ -910,7 +944,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.not_linked          = common_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
-			.seek                = NULL
+			.seek                = NULL,
+			.bind                = common_bind
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
@@ -926,7 +961,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write_flow          = NULL,
 			.read_flow           = NULL,
 			.truncate            = NULL,
-			.create              = unix_file_create,
+			.create              = common_file_create,
 			.write_sd_by_inode   = common_file_save,
 			.readpage            = NULL,
 			.writepage           = NULL,
@@ -948,7 +983,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.not_linked          = common_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
-			.seek                = NULL
+			.seek                = NULL,
+			.bind                = common_bind
 		}
 	}
 };

@@ -183,23 +183,23 @@ typedef struct file_plugin {
 				   struct inode *root );
 	/*
 	 * this does whatever is necessary to do when object is created. For
-	 * instance, for ordinary files stat data is inserted, for directory
-	 * entries "." and ".." get inserted becides stat data
+	 * instance, for ordinary files stat data is inserted
 	 */
 	int ( *create )( struct inode *object, struct inode *parent,
 			 reiser4_object_create_data *data );
 	/** 
-	 * delete empty object. This method should check REISER4_NO_STAT_DATA
-	 * and set REISER4_NO_STAT_DATA on success. Deletion of empty object
+	 * delete empty object. This method should check REISER4_NO_SD
+	 * and set REISER4_NO_SD on success. Deletion of empty object
 	 * at least includes removal of stat-data if any. For directories this
 	 * also includes removal of dot and dot-dot.
 	 */
-	int ( *delete )( struct inode *object, struct inode *parent );
-	/** bump reference counter on "object" */
-	int ( *add_link )( struct inode *object );
+	int ( *delete )( struct inode *object );
 
-	/** decrease reference counter on "object" */
-	int ( *rem_link )( struct inode *object );
+	/** add link from @parent to @object */
+	int ( *add_link )( struct inode *object, struct inode *parent );
+
+	/** remove link from @parent to @object */
+	int ( *rem_link )( struct inode *object, struct inode *parent );
 
 	/** return true if item addressed by @coord belongs to @inode.
 	    This is used by read/write to properly slice flow into items
@@ -237,6 +237,8 @@ typedef struct file_plugin {
 	/** seek */
 	loff_t ( *seek )( struct file *f, loff_t offset, int origin );
 
+	/** called when @child was just looked up in the @parent */
+	int   ( *bind )( struct inode *child, struct inode *parent );
 } file_plugin;
 
 
@@ -302,6 +304,17 @@ typedef struct dir_plugin {
 	/** readdir implementation */
 	int ( *readdir )( struct file *f, void *cookie, filldir_t filldir );
 
+	/**
+	 * initialize directory structure for newly created object. For normal
+	 * unix directories, insert dot and dotdot.
+	 */
+	int ( *init )( struct inode *object, struct inode *parent,
+		       reiser4_object_create_data *data );
+	/** destroy directory */
+	int ( *done )( struct inode *child );
+
+	/** called when @subdir was just looked up in the @dir */
+	int ( *attach )( struct inode *subdir, struct inode *dir );
 } dir_plugin;
 
 typedef struct tail_plugin {
