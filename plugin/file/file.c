@@ -2256,7 +2256,7 @@ reiser4_internal ssize_t sendfile_common (
 		if (ret != 0) {
 			SetPageError(page);
 			ClearPageUptodate(page);
-			goto fail_page;
+			goto fail_locked_page;
 		}
 
 		lock_page(page);
@@ -2282,7 +2282,6 @@ reiser4_internal ssize_t sendfile_common (
 
  fail_locked_page:
 	unlock_page(page);
- fail_page:
 	page_cache_release(page);
  fail_no_page:
 
