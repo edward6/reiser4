@@ -151,7 +151,7 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
-	//print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
+	print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
 	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
@@ -1245,7 +1245,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
 	pos->alloc_cnt += 1;
-	//info ("allocte node: %p block %llu level %u\n", node, *znode_get_block (node), znode_get_level (node));
+	info ("allocte node: %p block %llu level %u\n", node, *znode_get_block (node), znode_get_level (node));
 	return 0;
 }
 

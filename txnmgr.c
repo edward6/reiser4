@@ -1395,6 +1395,8 @@ void jnode_set_dirty( jnode *node )
 
 		JF_SET (node, ZNODE_DIRTY);
 
+		assert ("jmacd-3981", jnode_is_dirty (node));
+
 		/* If the atom is not set yet, it will be added to the appropriate list in
 		 * capture_assign_block_nolock. */
 		atom = atom_get_locked_by_jnode (node);
@@ -1410,6 +1412,8 @@ void jnode_set_dirty( jnode *node )
 
 			spin_unlock_atom (atom);
 		}
+
+		info ("dirty %s node %p\n", jnode_is_formatted (node) ? "formatted" : "unformatted", node);
 	}
 
 	if (jnode_is_formatted (node)) {
@@ -1423,8 +1427,6 @@ void jnode_set_dirty( jnode *node )
 		 * captured.  Perhaps that is no longer true. */
 		/*assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));*/
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
-	} else {
-		/*info ("dirty unformatted page %lu\n", node->pg->index);*/
 	}
 
 	current_tree -> ops -> dirty_node( current_tree, node );
@@ -1447,10 +1449,15 @@ void jnode_set_clean( jnode *node )
 	if (jnode_is_dirty (node)) {
 
 		JF_CLR (node, ZNODE_DIRTY);
+
+		assert ("jmacd-9366", ! jnode_is_dirty (node));
+		
 #if REISER4_DEBUG_MODIFY
 		if ( ! JF_ISSET (node, ZNODE_UNFORMATTED))
 			JZNODE (node)->cksum = znode_checksum (JZNODE (node));
 #endif
+
+		info ("clean %s node %p\n", jnode_is_formatted (node) ? "formatted" : "unformatted", node);
 	}
 	/*
 	 * FIXME-VS: remove jnode from capture list even when jnode is not

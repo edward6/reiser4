@@ -3032,6 +3032,7 @@ static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG)
 
 static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 {
+#if 0
 	struct buffer_head bh, *pbh;
 
 	memset (&bh, 0, sizeof (bh));
@@ -3046,6 +3047,7 @@ static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 	ll_rw_block (WRITE, 1, &pbh);
 	kunmap (jnode_page (node));
 	JF_CLR (node, ZNODE_DIRTY);
+#endif
 	return 0;
 }
 
@@ -3062,7 +3064,7 @@ static int mkfs_bdrop (reiser4_tree *tree UNUSED_ARG, jnode *node)
 }
 
 
-int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
+int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert ("vs-692", JF_ISSET (node, ZNODE_LOADED));
 	set_page_dirty (jnode_page (node));
