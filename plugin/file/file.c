@@ -1811,7 +1811,8 @@ write_file(struct file *file, /* file to write to */
 	unix_file_info_t *uf_info;
 	int gotaccess;
 
-	assert("vs-855", count > 0);
+	if (unlikely(count == 0))
+		return 0;
 
 	inode = file->f_dentry->d_inode;
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
