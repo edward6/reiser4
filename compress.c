@@ -6,18 +6,17 @@
 #include "plugin/cryptcompress.h"
 #include <linux/types.h>
 
-static void none_compress (__u8 *buf, __u8 *src_first, unsigned *src_len,
+static void none_compress (__u8 *buf, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len)
 {
 	assert("edward-17", buf != NULL);
 	assert("edward-18", src_first != NULL);
-	assert("edward-19", src_len != NULL);
+	assert("edward-19", src_len != 0);
 	assert("edward-20", dst_first != NULL);
 	assert("edward-21", dst_len != NULL);
-	assert("edward-22", *src_len != 0 && *src_len <= MIN_CLUSTER_SIZE);
 	
-	*dst_len = *src_len;
-	memcpy(dst_first, src_first, *src_len);
+	*dst_len = src_len;
+	memcpy(dst_first, src_first, src_len);
 }
 			   
 /* compression plugins */
