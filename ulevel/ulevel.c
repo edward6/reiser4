@@ -1454,7 +1454,7 @@ static struct inode * create_root_dir (znode * root)
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
 	reiser4_get_object_state( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-	reiser4_get_object_state( inode ) -> tail = tail_plugin_by_id ( NEVER_TAIL_ID );
+	reiser4_get_object_state( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
 	reiser4_get_object_state( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
 	reiser4_get_object_state( inode ) -> locality_id = get_key_locality( &key );
 
