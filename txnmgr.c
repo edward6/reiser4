@@ -1266,12 +1266,13 @@ txn_try_capture_page  (struct page        *pg,
 	return ret;
 }
 
-/* This informs the transaction manager when an unformatted node is deleted.  Add a jnode
- * to the atom's delete set.  Handles the EAGAIN result, which is returned by
- * blocknr_set_add when it releases the atom lock to perform an allocation.  The atom
- * could fuse while this lock is held, which is why the EAGAIN must be handled by
- * repeating the call to atom_get_locked_by_jnode.  The second call is guaranteed to
- * provide a pre-allocated blocknr_entry so it can only "repeat" once.  */
+/* This informs the transaction manager when a node is deleted.  Add the block to the
+ * atom's delete set and uncapture the block.  Handles the EAGAIN result from
+ * blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
+ * lock to perform an allocation.  The atom could fuse while this lock is held, which is
+ * why the EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.  The
+ * second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
+ * "repeat" once.  */
 void txn_delete_page (struct page *pg)
 {
 	int ret;
@@ -1280,7 +1281,6 @@ void txn_delete_page (struct page *pg)
 	blocknr_set_entry *blocknr_entry = NULL;
 	
 	assert("umka-199", pg != NULL);
-	
 	node = (jnode *)(pg->private);
 	spin_lock_jnode (node);
 
