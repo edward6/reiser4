@@ -177,7 +177,7 @@ static reiser4_plugin_t stat40_plugin = {
 	    .label = "stat40",
 	    .desc = "Stat data for reiserfs 4.0, ver. " VERSION,
 	},
-	.t = STATDATA_ITEM_TYPE,
+	.group = STATDATA_ITEM_GROUP,
 	.common = {
 		
 #ifndef ENABLE_COMPACT

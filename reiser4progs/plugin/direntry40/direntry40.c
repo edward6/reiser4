@@ -348,7 +348,7 @@ static reiser4_plugin_t direntry40_plugin = {
 	    .label = "direntry40",
 	    .desc = "Compound direntry for reiserfs 4.0, ver. " VERSION,
 	},
-	.t = DIRENTRY_ITEM_TYPE,
+	.group = DIRENTRY_ITEM_GROUP,
 	.common = {
 #ifndef ENABLE_COMPACT	    
 	    .init	= direntry40_init,

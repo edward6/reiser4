@@ -56,15 +56,15 @@ enum reiser4_item_plugin_id {
     ITEM_DROP40_ID		= 0x6
 };
 
-enum reiser4_item_type {
-    STATDATA_ITEM_TYPE		= 0x0,
-    INTERNAL_ITEM_TYPE		= 0x1,
-    DIRENTRY_ITEM_TYPE		= 0x2,
-    FILEBODY_ITEM_TYPE		= 0x3,
-    PERMISSN_ITEM_TYPE		= 0x4
+enum reiser4_item_group {
+    STATDATA_ITEM_GROUP		= 0x0,
+    INTERNAL_ITEM_GROUP		= 0x1,
+    DIRENTRY_ITEM_GROUP		= 0x2,
+    FILEBODY_ITEM_GROUP		= 0x3,
+    PERMISSN_ITEM_GROUP		= 0x4
 };
 
-typedef enum reiser4_item_type reiser4_item_type_t;
+typedef enum reiser4_item_group reiser4_item_group_t;
 
 enum reiser4_node_plugin_id {
     NODE_REISER40_ID		= 0x0,
@@ -492,8 +492,8 @@ typedef struct reiser4_internal_ops reiser4_internal_ops_t;
 struct reiser4_item_ops {
     reiser4_plugin_header_t h;
 
-    /* Item type (stat data, internal, file body, etc) */
-    reiser4_item_type_t t;
+    /* Item group (stat data, internal, file body, etc) */
+    reiser4_item_group_t group;
 
     /* Methods common for all item types */
     reiser4_item_common_ops_t common;
