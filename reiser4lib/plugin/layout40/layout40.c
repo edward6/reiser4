@@ -17,7 +17,7 @@ static reiserfs_layout40_t *reiserfs_layout40_init(dal_t *dal) {
 		return NULL;
 	layout->dal = dal;
 
-	/* Initializing superblock and other */
+	/* Initializing superblock */
 	
 	return layout;
 }
@@ -33,13 +33,12 @@ reiserfs_plugin_t plugin_info = {
 		.id = 0x1,
 		.type = REISERFS_LAYOUT_PLUGIN,
 		.label = "layout40",
-		.desc = "Reiserfs 4.0 disk-layout plugin, ver. 0.1, "
-			"Copyright (C) 1996 - 2002 Hans Reiser",
+		.desc = "Disk-layout for reiserfs 4.0, ver. 0.1, Copyright (C) 1996-2002 Hans Reiser",
 		.nlink = 0
 	},
 	.layout = {
-		.init = reiserfs_layout40_init,
-		.done = reiserfs_layout40_done
+		.init = (reiserfs_layout_opaque_t *(*)(dal_t *))reiserfs_layout40_init,
+		.done = (void *(*)(void))reiserfs_layout40_done
 	}
 };
 

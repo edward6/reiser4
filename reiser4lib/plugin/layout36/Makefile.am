@@ -6,7 +6,7 @@ liblayout36_la_LDFLAGS  = -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) \
 
 liblayout36_la_LIBADD   = $(top_builddir)/libdal/libdal.la
 
-liblayout36_la_SOURCES  = layout36.c
+liblayout36_la_SOURCES  = layout36.c layout36.h
 
 INCLUDES = $(includedir)
 
