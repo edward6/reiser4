@@ -923,7 +923,10 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 	}
 	done_lh (&lh);
 
-	return to_write - f->length;
+	/* if nothing were written - there must be an error */
+	assert ("vs-951", ergo ((to_write == f->length), result < 0));
+
+	return (to_write - f->length) ? (to_write - f->length) : result;
 }
 
 
