@@ -234,8 +234,6 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_mkfs_id(s, get_format40_mkfs_id(sb_copy));
 	reiser4_set_block_count(s, get_format40_block_count(sb_copy));
 	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
-	/* number of used blocks */
-	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
 
 	private->inode_generation = get_format40_oid(sb_copy);
 	private->fsuid = 0;
@@ -254,6 +252,9 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	/* recover sb data which were logged separately from sb block */
 	reiser4_journal_recover_sb_data(s);
+
+	/* number of used blocks */
+	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
 
 #if REISER4_DEBUG
 	/* FIXME-VS: init_tree worked already */
