@@ -76,8 +76,10 @@ typedef struct vnode vnode_t;
 
 typedef struct wrd wrd_t;
 
+
                                  /* sizes defines      */
-#define FREESPACESIZE (4096 - sizeof(char*)*2 - sizeof(int) )
+#define FREESPACESIZE_DEF PAGESIZE*4
+#define FREESPACESIZE (FREESPACESIZE_DEF - sizeof(char*)*2 - sizeof(int) )
 
 #define _ROUND_UP_MASK(n) ((1UL<<(n))-1UL)
 
