@@ -1004,7 +1004,7 @@ coord_is_after_last_unit(coord_t * coord)
 	return 1;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_TRACE
 const char *
 coord_tween_tostring(between_enum n)
 {
