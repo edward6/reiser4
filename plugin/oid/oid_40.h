@@ -14,6 +14,10 @@
  */
 typedef struct {
 	/**
+	 * spinlock serializing accesses to this structure.
+	 */
+	spinlock_t oguard;
+	/**
 	 * greatest oid ever allocated plus one. This is increased on each oid
 	 * allocation.
 	 */
@@ -21,12 +25,14 @@ typedef struct {
 	/**
 	 * oids actually used. This is increased on each oid allocation, and
 	 * decreased on each oid release.
+	 * number of files, in short
 	 */
 	oid_t      oids_in_use;	
 } oid_40_allocator;
 
 
-int   oid_40_init_allocator  ( reiser4_oid_allocator * );
+int   oid_40_read_allocator  ( reiser4_oid_allocator *, __u64 nr_files,
+			       __u64 oids );
 __u64 oid_40_free            ( reiser4_oid_allocator * );
 __u64 oid_40_used            ( reiser4_oid_allocator * );
 int   oid_40_allocate        ( reiser4_oid_allocator *, oid_t *result );
