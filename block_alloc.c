@@ -252,7 +252,7 @@ print_block_counters(const char *prefix,
 	if (atom == NULL)
 		atom = get_current_atom_locked_nocheck();
 	if (atom != NULL) {
-		info("\tatom: R: %i", atom->flush_reserved);
+		info("\tatom: R: %llu", atom->flush_reserved);
 		spin_unlock_atom(atom);
 	}
 	info("\n");
@@ -489,7 +489,7 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 /* wrapper to call space allocation plugin */
 int
 reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk, 
-	reiser4_block_nr * len, reiser4_ba_flags_t flags)
+		     reiser4_block_nr * len, reiser4_ba_flags_t flags)
 {
 	space_allocator_plugin *splug;
 	reiser4_block_nr needed = *len;
