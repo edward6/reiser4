@@ -191,16 +191,25 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 	result = reiser4_get_right_neighbor (&lh_right_neighbor,
 					     coord->node, (int)lock_mode,
 					     GN_DO_READ );
-	if (result == 0) {
-		done_lh (lh);
-		
-		result = zload (lh_right_neighbor.node);
-		if (result != 0)
-			return result;
-		coord_init_first_unit (coord, lh_right_neighbor.node);
-		move_lh (lh, &lh_right_neighbor);
-		zrelse (lh_right_neighbor.node);
+	if (result) {
+		done_lh (&lh_right_neighbor);
+		return result;
 	}
+
+	/*
+	 * FIXME-VS: zload only to use coord_init_first_unit
+	 */
+	result = zload (lh_right_neighbor.node);
+	if (result != 0) {
+		done_lh (&lh_right_neighbor);
+		return result;
+	}
+	coord_init_first_unit (coord, lh_right_neighbor.node);
+	zrelse (lh_right_neighbor.node);
+
+	done_lh (lh);
+	move_lh (lh, &lh_right_neighbor);
+
 	return result;	
 }
 
