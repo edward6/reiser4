@@ -94,7 +94,7 @@ typedef enum {
 	COP_LAST_OP,
 } carry_opcode;
 
-#define CARRY_FLOW_NEW_NODES_LIMIT 4
+#define CARRY_FLOW_NEW_NODES_LIMIT 10
 
 typedef enum {
 	COP_MODIFY_FREE_SPACE = (1 << 0),	/* FIXME_JMACD currently unused
