@@ -433,22 +433,18 @@ typedef struct digest_plugin {
 	void (*free) (struct inode * inode);
 } digest_plugin;
 
-
-typedef void * tfm_info_t;
-#define SQUEEZE_TFM_INFO_SIZE (LAST_COMPRESSION_ID * sizeof(tfm_info_t))
-
 typedef struct compression_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* the maximum number of bytes the size of the "compressed" data can
 	 * exceed the uncompressed data. */
 	int (*overrun) (unsigned src_len);
-	int (*alloc) (tfm_info_t * ctx, tfm_action act);
-	void (*free) (tfm_info_t * ctx, tfm_action act);
-	/* main text processing procedures */
-	void (*compress)   (tfm_info_t ctx, __u8 *src_first, unsigned src_len,
+	coa_t (*alloc) (tfm_action act);
+	void (*free) (coa_t coa, tfm_action act);
+	/* main transform procedures */
+	void (*compress)   (coa_t coa, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
-	void (*decompress) (tfm_info_t ctx, __u8 *src_first, unsigned src_len,
+	void (*decompress) (coa_t coa, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
 }compression_plugin;
 
@@ -662,16 +658,6 @@ typedef enum {
 	NONE_DIGEST_ID,
 	LAST_DIGEST_ID
 } reiser4_digest_id;
-
-/* builtin compression plugins */
-
-typedef enum {
-	NONE_COMPRESSION_ID,
-	NULL_COMPRESSION_ID,
-	LZO1_COMPRESSION_ID,
-	GZIP1_COMPRESSION_ID,
-	LAST_COMPRESSION_ID
-} reiser4_compression_id;
 
 /* builtin tail-plugins */
 
