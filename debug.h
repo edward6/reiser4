@@ -777,6 +777,8 @@ typedef struct reiser4_statistics {
 		stat_cnt post_commit_writes;
 		/* jiffies, spent in commits and post commit writes */
 		stat_cnt time_spent_in_commits;
+		stat_cnt raced_with_truncate;
+		stat_cnt empty_bio;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
@@ -837,6 +839,7 @@ typedef struct reiser4_statistics {
 		stat_cnt skipped_ent;
 		stat_cnt skipped_last;
 		stat_cnt low_priority;
+		stat_cnt removed;
 	} entd;
 	/* how many non-unique keys were scanned into tree */
 	stat_cnt non_uniq;

@@ -630,20 +630,13 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 		struct bio *bio;
 		int nr_blocks = min(nr, max_blocks);
 		int i;
+		int nr_used;
 
 		bio = bio_alloc(GFP_NOIO, nr_blocks);
 		if (!bio)
 			return -ENOMEM;
 
-		/* NOTE:NIKITA->ZAM this is very similar to the
-		   wandered_extent_write(). */
-
-		bio->bi_sector = block * (super->s_blocksize >> 9);
-		bio->bi_bdev = super->s_bdev;
-		bio->bi_vcnt = nr_blocks;
-		bio->bi_size = super->s_blocksize * nr_blocks;
-
-		for (i = 0; i < nr_blocks; i++) {
+		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 
 			pg = jnode_page(cur);
@@ -652,6 +645,21 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 			page_cache_get(pg);
 
 			lock_and_wait_page_writeback(pg);
+
+			/*
+			 * race with truncate. We have to submit half baked
+			 * bio.
+			 */
+			if (pg->mapping != jnode_get_mapping(cur)) {
+				reiser4_unlock_page(pg);
+				page_cache_release(pg);
+				reiser4_stat_inc(txnmgr.raced_with_truncate);
+				/* skip this node */
+				nr --;
+				cur = capture_list_next(cur);
+				block ++;
+				break;
+			}
 
 			LOCK_JNODE(cur);
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
@@ -677,22 +685,30 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 			/* prepare node to being written */
 			jnode_io_hook(cur, pg, WRITE);
 
-			bio->bi_io_vec[i].bv_page = pg;
-			bio->bi_io_vec[i].bv_len = super->s_blocksize;
-			bio->bi_io_vec[i].bv_offset = 0;
+			bio->bi_io_vec[nr_used].bv_page = pg;
+			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
+			bio->bi_io_vec[nr_used].bv_offset = 0;
 
 			cur = capture_list_next(cur);
+			nr_used ++;
 		}
+		if (nr_used > 0) {
+			bio->bi_sector = block * (super->s_blocksize >> 9);
+			bio->bi_bdev = super->s_bdev;
+			bio->bi_size = super->s_blocksize * nr_used;
+			bio->bi_vcnt = nr_used;
 
-		add_fq_to_bio(fq, bio);
+			add_fq_to_bio(fq, bio);
+			reiser4_submit_bio(WRITE, bio);
 
-		reiser4_submit_bio(WRITE, bio);
-
-		nr -= nr_blocks;
-
-		block += nr_blocks - 1;
-		update_blocknr_hint_default (super, &block);
-		block += 1;
+			block += nr_used - 1;
+			update_blocknr_hint_default (super, &block);
+			block += 1;
+		} else {
+			reiser4_stat_inc(txnmgr.empty_bio);
+			bio_put(bio);
+		}
+		nr -= nr_used;
 	}
 
 	return 0;

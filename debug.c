@@ -503,6 +503,8 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(txnmgr.commits),
 	DEFINE_STAT_CNT(txnmgr.post_commit_writes),
 	DEFINE_STAT_CNT(txnmgr.time_spent_in_commits),
+	DEFINE_STAT_CNT(txnmgr.raced_with_truncate),
+	DEFINE_STAT_CNT(txnmgr.empty_bio),
 
 	DEFINE_STAT_CNT(flush.squeezed_completely),
 	DEFINE_STAT_CNT(flush.flushed_with_unallocated),
@@ -554,6 +556,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(entd.skipped_ent),
 	DEFINE_STAT_CNT(entd.skipped_last),
 	DEFINE_STAT_CNT(entd.low_priority),
+	DEFINE_STAT_CNT(entd.removed),
 
 	DEFINE_STAT_CNT(non_uniq),
 	DEFINE_STAT_CNT(non_uniq_max),
