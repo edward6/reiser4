@@ -875,17 +875,17 @@ jnode * find_first_dirty_jnode (txn_atom * atom)
 	return NULL;
 }
 
-/* Called with the atom locked and no open txnhs, this function determines
-   whether the atom can commit and if so, initiates commit processing.
-   However, the atom may not be able to commit due to un-allocated nodes.  As
-   it finds such nodes, it calls the appropriate allocate/balancing routines.
+/* Called with the atom locked and no open "active" transaction handlers except
+   ours, this function calls flush_current_atom() until all dirty nodes are
+   processed.  Then it initiates commit processing.
   
-   Called by the single remaining open txnh, which is closing.  Therefore as
+   Called by the single remaining open "active" txnh, which is closing. Other
+   open txnhs belong to processes which wait atom commit in commit_txnh()
+   routine. They are counted as "waiters" in atom->nr_waiters.  Therefore as
    long as we hold the atom lock none of the jnodes can be captured and/or
    locked.
    
-   Return value is an error code if commit fails, or non-negative number of
-   blocks written.
+   Return value is an error code if commit fails.
 */
 static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 {
