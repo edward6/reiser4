@@ -2389,7 +2389,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 		   node. */
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
 
-		amount = left->zjnode.tree->height;
+		amount = tree->height;
 		grabbed = get_current_context()->grabbed_blocks;
 		ret = reiser4_grab_space_force(amount, BA_RESERVED);
 		if (ret != 0) {
