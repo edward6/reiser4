@@ -4,4 +4,4 @@
     Author Vitaly Fertman.
 */
 
-#define BANNER(prog_name) "\n%s, 2002 (%s %s)\n\n", prog_name, PACKAGE, VERSION
+#define BANNER(name) "%s, %s\n", name, VERSION
