@@ -31,7 +31,7 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree,
     }
 
     return reiserfs_node_create(tree->fs->host_device, block_nr,
-        reiserfs_node_get_plugin_id(tree->cache->node), 
+        reiserfs_node_get_pid(tree->cache->node), 
         tree->cache->node->key_plugin->h.id, level);
 }
 
@@ -214,8 +214,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 	    Check whether specified node already in cache. If so, we use node
 	    from the cache.
 	*/
-	reiserfs_key_init(&ikey, reiserfs_node_item_key(coord->cache->node, 
-	    coord->pos.item), key->plugin);
+	reiserfs_node_item_key(coord->cache->node, coord->pos.item, &ikey);
 
 	if (!(coord->cache = reiserfs_cache_find(parent, &ikey))) {
 	    reiserfs_node_t *node;

@@ -117,14 +117,11 @@ struct reiserfs_key_ops {
     /* Get size of the key */
     uint8_t (*size) (void);
 
-    errno_t (*build_file_key) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
-    errno_t (*build_dir_key) (void *, void *, uint64_t, uint64_t, const char *);
+    errno_t (*build_generic_full) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
+    errno_t (*build_entry_full) (void *, void *, uint64_t, uint64_t, const char *);
     
-    errno_t (*build_file_short_key) (void *, uint32_t, uint64_t, uint64_t, uint8_t);
-    errno_t (*build_dir_short_key) (void *, const char *, void *, uint8_t);
-    
-    errno_t (*build_key_by_file_short_key) (void *, void *, uint8_t);
-    errno_t (*build_key_by_dir_short_key) (void *, void *, uint8_t); 
+    errno_t (*build_generic_short) (void *, uint32_t, uint64_t, uint64_t, uint8_t);
+    errno_t (*build_entry_short) (void *, const char *, void *, uint8_t);
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;
@@ -288,20 +285,20 @@ struct reiserfs_node_ops {
     uint16_t (*item_overhead) (aal_block_t *);
 
     /* Returns item's length by pos */
-    uint16_t (*item_len) (aal_block_t *, int32_t);
+    uint16_t (*item_len) (aal_block_t *, uint32_t);
     
     /* Returns item's max size */
     uint16_t (*item_maxsize) (aal_block_t *);
     
     /* Gets item at passed pos */
-    void *(*item_body) (aal_block_t *, int32_t);
+    void *(*item_body) (aal_block_t *, uint32_t);
 
     /* Gets key by pos */
-    void *(*item_key) (aal_block_t *, int32_t);
+    void *(*item_key) (aal_block_t *, uint32_t);
     
     /* Gets/sets node's plugin ID */
-    uint16_t (*get_item_plugin_id) (aal_block_t *, int32_t);
-    void (*set_item_plugin_id) (aal_block_t *, int32_t, uint16_t);
+    uint16_t (*item_get_pid) (aal_block_t *, uint32_t);
+    void (*item_set_pid) (aal_block_t *, uint32_t, uint16_t);
 };
 
 typedef struct reiserfs_node_ops reiserfs_node_ops_t;
@@ -403,9 +400,9 @@ struct reiserfs_format_ops {
     void (*set_free) (reiserfs_opaque_t *, count_t);
     
     /* Returns children objects plugins */
-    reiserfs_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
-    reiserfs_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
-    reiserfs_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
+    reiserfs_id_t (*journal_pid) (reiserfs_opaque_t *);
+    reiserfs_id_t (*alloc_pid) (reiserfs_opaque_t *);
+    reiserfs_id_t (*oid_pid) (reiserfs_opaque_t *);
 
     void (*oid)(reiserfs_opaque_t *, void **, void **);
 };

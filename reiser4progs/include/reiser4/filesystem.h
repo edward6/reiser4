@@ -88,7 +88,7 @@ struct reiserfs_node {
 };
 
 struct reiserfs_node_header {
-    uint16_t plugin_id; 
+    uint16_t pid; 
 };
 
 typedef struct reiserfs_node_header reiserfs_node_header_t;
@@ -192,7 +192,7 @@ extern errno_t reiserfs_fs_check(reiserfs_fs_t *fs);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
-extern reiserfs_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs);
+extern reiserfs_id_t reiserfs_fs_format_pid(reiserfs_fs_t *fs);
 
 #endif
 

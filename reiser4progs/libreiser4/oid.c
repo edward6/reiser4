@@ -12,7 +12,7 @@
 #include <reiser4/reiser4.h>
 
 reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end, 
-    reiserfs_id_t oid_plugin_id) 
+    reiserfs_id_t oid_pid) 
 {
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
@@ -23,8 +23,8 @@ reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end,
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
-    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_plugin_id))) 
-	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid))) 
+	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
     
@@ -55,7 +55,7 @@ void reiserfs_oid_close(reiserfs_oid_t *oid) {
 #ifndef ENABLE_COMPACT
 
 reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end, 
-    reiserfs_id_t oid_plugin_id) 
+    reiserfs_id_t oid_pid) 
 {
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
@@ -66,8 +66,8 @@ reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end,
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
-    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_plugin_id)))
-	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid)))
+	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
     

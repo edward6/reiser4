@@ -278,13 +278,13 @@ static reiserfs_plugin_t format36_plugin = {
 	
 	.oid = NULL,
 	
-	.journal_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.journal_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format36_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.alloc_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format36_alloc_plugin,
 	
-	.oid_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.oid_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format36_oid_plugin,
     }
 };

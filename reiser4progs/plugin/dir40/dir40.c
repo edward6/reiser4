@@ -21,10 +21,10 @@ static reiserfs_plugin_factory_t *factory = NULL;
 
 /*
     FIXME-UMKA: Is it possible will be exist objects without stat data? If so, 
-    we need to throw out stat_plugin_id from accepted parameters.
+    we need to throw out stat_pid from accepted parameters.
 */
 static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent, 
-    reiserfs_key_t *object, uint16_t stat_plugin_id, uint16_t direntry_plugin_id) 
+    reiserfs_key_t *object, uint16_t stat_pid, uint16_t direntry_pid) 
 {
     reiserfs_object_hint_t *hint;
     reiserfs_item_hint_t *item_hint;
@@ -64,10 +64,10 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     hint->item[0].type = REISERFS_STATDATA_ITEM; 
     
     if (!(hint->item[0].plugin = 
-	factory->find(REISERFS_ITEM_PLUGIN, stat_plugin_id)))
+	factory->find(REISERFS_ITEM_PLUGIN, stat_pid)))
     {
 	libreiser4_factory_failed(goto error_free_item, 
-	    find, item, stat_plugin_id);
+	    find, item, stat_pid);
     }
 
     if (!(hint->item[0].hint = aal_calloc(sizeof(reiserfs_stat_hint_t), 0)))
@@ -87,10 +87,10 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     hint->item[1].type = REISERFS_CDE_ITEM; 
     
     if (!(hint->item[1].plugin = factory->find(REISERFS_ITEM_PLUGIN,
-	direntry_plugin_id)))
+	direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_hint0, find, item, 
-	    direntry_plugin_id);
+	    direntry_pid);
     }
     
     if (!(hint->item[1].hint = aal_calloc(sizeof(reiserfs_direntry_hint_t), 0)))
@@ -106,7 +106,7 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     direntry_hint->hash_plugin = NULL;
    
     libreiser4_plugin_call(goto error_free_hint1, key_plugin->key, 
-	build_dir_key, &hint->item[1].key.body, direntry_hint->hash_plugin, 
+	build_entry_full, &hint->item[1].key.body, direntry_hint->hash_plugin, 
 	parent_objectid, objectid, ".");
     
     if (!(direntry_hint->entry = aal_calloc(direntry_hint->count * 

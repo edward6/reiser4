@@ -51,11 +51,11 @@ static uint16_t node40_item_len(aal_block_t *block, uint32_t pos) {
 }
 
 /* Gets/sets pos-th item's plugin identifier */
-static uint16_t node40_get_item_plugin_id(aal_block_t *block, 
+static uint16_t node40_item_get_pid(aal_block_t *block, 
     uint16_t pos) 
 {
     aal_assert("vpf-039", block != NULL, return 0);
-    return ih40_get_plugin_id(node40_ih_at(block, pos));
+    return ih40_get_pid(node40_ih_at(block, pos));
 }
 
 /* Returns item number in given block. Used for any loops through all items */
@@ -66,11 +66,11 @@ static uint16_t node40_count(aal_block_t *block) {
 
 #ifndef ENABLE_COMPACT
 
-static void node40_set_item_plugin_id(aal_block_t *block, 
-    uint16_t pos, uint16_t plugin_id) 
+static void node40_item_set_pid(aal_block_t *block, 
+    uint16_t pos, uint16_t pid) 
 {
     aal_assert("vpf-039", block != NULL, return);
-    ih40_set_plugin_id(node40_ih_at(block, pos), plugin_id);
+    ih40_set_pid(node40_ih_at(block, pos), pid);
 }
 
 static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos, 
@@ -149,7 +149,7 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
 	key->plugin->key, size,));
     
     ih40_set_offset(ih, offset);
-    ih40_set_plugin_id(ih, item->plugin->h.id);
+    ih40_set_pid(ih, item->plugin->h.id);
     ih40_set_length(ih, item->len);
     
     return 0;
@@ -292,10 +292,10 @@ static uint16_t node40_maxnum(aal_block_t *block) {
     aal_assert("vpf-017", block != NULL, return 0);
    
     for (i = 0; i < nh40_get_num_items(reiserfs_nh40(block)); i++) {
-	uint16_t plugin_id = ih40_get_plugin_id(node40_ih_at(block, i));
+	uint16_t pid = ih40_get_pid(node40_ih_at(block, i));
 	
-	if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, plugin_id)))
-	    libreiser4_factory_failed(return 0, find, item, plugin_id);
+	if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, pid)))
+	    libreiser4_factory_failed(return 0, find, item, pid);
 	
 	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
 	    minsize,) + sizeof(reiserfs_ih40_t);
@@ -458,8 +458,8 @@ static reiserfs_plugin_t node40_plugin = {
 	.set_free_space = (void (*)(aal_block_t *, uint32_t))
 	    node40_set_free_space,
 
-	.set_item_plugin_id = (void (*)(aal_block_t *, int32_t, uint16_t))
-	    node40_set_item_plugin_id,
+	.item_set_pid = (void (*)(aal_block_t *, uint32_t, uint16_t))
+	    node40_item_set_pid,
 #else
 	.create = NULL,
 	.insert = NULL,
@@ -467,22 +467,22 @@ static reiserfs_plugin_t node40_plugin = {
 	.paste = NULL,
 	.set_level = NULL,
 	.set_free_space = NULL,
-	.set_item_plugin_id = NULL,
+	.set_item_pid = NULL,
 #endif
 	.item_overhead = (uint16_t (*)(aal_block_t *))node40_item_overhead,
 	.item_maxsize = (uint16_t (*)(aal_block_t *))node40_item_maxsize,
 	
-	.item_len = (uint16_t (*)(aal_block_t *, int32_t))
+	.item_len = (uint16_t (*)(aal_block_t *, uint32_t))
 	    node40_item_len,
 	
-	.item_body = (void *(*)(aal_block_t *, int32_t))
+	.item_body = (void *(*)(aal_block_t *, uint32_t))
 	    node40_item_body,
 
-	.item_key = (reiserfs_opaque_t *(*)(aal_block_t *, int32_t))
+	.item_key = (reiserfs_opaque_t *(*)(aal_block_t *, uint32_t))
 	    node40_item_key,
 	
-	.get_item_plugin_id = (uint16_t (*)(aal_block_t *, int32_t))
-	    node40_get_item_plugin_id,
+	.item_get_pid = (uint16_t (*)(aal_block_t *, uint32_t))
+	    node40_item_get_pid,
     }
 };
 

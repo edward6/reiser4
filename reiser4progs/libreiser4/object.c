@@ -75,7 +75,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	    return -1;
 	}
 	
-	if (!(plugin = reiserfs_node_get_item_plugin(object->coord.cache->node, 
+	if (!(plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
 	    object->coord.pos.item)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -122,7 +122,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	if (!(hash_plugin = libreiser4_factory_find(REISERFS_HASH_PLUGIN, 0x0)))
 	    libreiser4_factory_failed(return -1, find, hash, 0x0);
 	
-	reiserfs_key_build_dir_key(&object->key, hash_plugin, 
+	reiserfs_key_build_entry_full(&object->key, hash_plugin, 
 	    reiserfs_key_get_locality(&object->key), 
 	    reiserfs_key_get_objectid(&object->key), 
 	    dirname);
@@ -158,7 +158,7 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 	return NULL;
 
     object->fs = fs;
-    reiserfs_key_clone(&fs->key, &object->key);
+    reiserfs_key_init(&object->key, fs->key.body, fs->key.plugin);
     
     /* FIXME-UMKA: Hardcoded plugin id */
     if (!(object->plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0)))
@@ -168,7 +168,7 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
-    reiserfs_key_clone(&fs->key, &parent_key);
+    reiserfs_key_init(&parent_key, fs->key.body, fs->key.plugin);
     
     if (reiserfs_object_lookup(object, name, &parent_key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -200,18 +200,18 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	return NULL;
 
     object->fs = fs;
-    reiserfs_key_clone(&fs->key, &object->key);
+    reiserfs_key_init(&object->key, fs->key.body, fs->key.plugin);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
     if (parent) {
-	reiserfs_key_clone(&parent->key, &parent_key);
+	reiserfs_key_init(&parent_key, parent->key.body, parent->key.plugin);
 	objectid = reiserfs_oid_alloc(parent->fs->oid);
     } else {
 	parent_key.plugin = fs->key.plugin;
-	reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR, 
+	reiserfs_key_build_generic_full(&parent_key, KEY40_STATDATA_MINOR, 
 	    reiserfs_oid_root_parent_locality(fs->oid), 
 	    reiserfs_oid_root_parent_objectid(fs->oid), 0);
 
@@ -220,7 +220,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
     parent_objectid = reiserfs_key_get_objectid(&parent_key);
     
     object_key.plugin = parent_key.plugin;
-    reiserfs_key_build_file_key(&object_key, KEY40_STATDATA_MINOR,
+    reiserfs_key_build_generic_full(&object_key, KEY40_STATDATA_MINOR,
 	parent_objectid, objectid, 0);
 	
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {

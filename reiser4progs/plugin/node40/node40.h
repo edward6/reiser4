@@ -61,7 +61,7 @@ struct reiserfs_ih40 {
     } key;
     uint16_t offset;
     uint16_t length;
-    uint16_t plugin_id;
+    uint16_t pid;
 };
 
 typedef struct reiserfs_ih40 reiserfs_ih40_t;
@@ -72,8 +72,8 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
 #define ih40_get_length(ih)			aal_get_le16(ih, length)
 #define ih40_set_length(ih, val)		aal_set_le16(ih, length, val)
 
-#define ih40_get_plugin_id(ih)			aal_get_le16(ih, plugin_id)
-#define ih40_set_plugin_id(ih, val)		aal_set_le16(ih, plugin_id, val)
+#define ih40_get_pid(ih)			aal_get_le16(ih, pid)
+#define ih40_set_pid(ih, val)			aal_set_le16(ih, pid, val)
 
 /* Returns item header by pos */
 inline reiserfs_ih40_t *node40_ih_at(aal_block_t *block, uint32_t pos) {

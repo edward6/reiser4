@@ -128,8 +128,7 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
 	coord.pos.item++;
     }
     
-    reiserfs_key_init(key, reiserfs_node_item_key(cache->parent->node, 
-	coord.pos.item), cache->node->key_plugin);
+    reiserfs_node_item_key(cache->parent->node, coord.pos.item, key);
     
     return 0;
 }

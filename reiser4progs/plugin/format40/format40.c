@@ -294,13 +294,13 @@ static reiserfs_plugin_t format40_plugin = {
 	.set_free = NULL,
 	.set_height = NULL,
 #endif
-	.journal_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.journal_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format40_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.alloc_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format40_alloc_plugin,
 	
-	.oid_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.oid_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format40_oid_plugin,
     }
 };

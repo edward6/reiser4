@@ -16,22 +16,10 @@ errno_t reiserfs_key_init(reiserfs_key_t *key, const void *data,
     aal_memset(key, 0, sizeof(key));
     
     key->plugin = plugin;
-    aal_memcpy(key->body, data, 
-	libreiser4_plugin_call(return -1, plugin->key, size,));
-
-    return 0;
-}
-
-errno_t reiserfs_key_clone(reiserfs_key_t *key, reiserfs_key_t *clone) {
-    aal_assert("umka-787", key != NULL, return -1);
-    aal_assert("umka-788", clone != NULL, return -1);
-
-    clone->plugin = key->plugin;
-    reiserfs_key_set_type(clone, reiserfs_key_get_type(key));
-    reiserfs_key_set_locality(clone, reiserfs_key_get_locality(key));
-    reiserfs_key_set_objectid(clone, reiserfs_key_get_objectid(key));
-    reiserfs_key_set_offset(clone, reiserfs_key_get_offset(key));
     
+    aal_memcpy(key->body, data, libreiser4_plugin_call(return -1,
+	plugin->key, size,));
+
     return 0;
 }
 
@@ -50,17 +38,17 @@ void reiserfs_key_clean(reiserfs_key_t *key) {
     libreiser4_plugin_call(return, key->plugin->key, clean, key->body);
 } 
 
-errno_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
+errno_t reiserfs_key_build_generic_full(reiserfs_key_t *key, 
     uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
 {
     aal_assert("umka-665", key != NULL, return -1);
     aal_assert("umka-666", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, key->plugin->key, 
-	build_file_key, key->body, type, locality, objectid, offset);
+	build_generic_full, key->body, type, locality, objectid, offset);
 }
 
-errno_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
+errno_t reiserfs_key_build_entry_full(reiserfs_key_t *key, 
     reiserfs_plugin_t *hash_plugin, oid_t locality, 
     oid_t objectid, const char *name)
 {
@@ -69,7 +57,7 @@ errno_t reiserfs_key_build_dir_key(reiserfs_key_t *key,
     aal_assert("umka-670", name != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, key->plugin->key, 
-	build_dir_key, key->body, hash_plugin, locality, objectid, name);
+	build_entry_full, key->body, hash_plugin, locality, objectid, name);
 }
 
 errno_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {

@@ -16,7 +16,7 @@
     used in all further operations.
 */
 reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device, 
-    count_t len, reiserfs_id_t plugin_id) 
+    count_t len, reiserfs_id_t pid) 
 {
     reiserfs_alloc_t *alloc;
     reiserfs_plugin_t *plugin;
@@ -27,8 +27,8 @@ reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
 	return NULL;
     
     /* Finding block allocator plugin */
-    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, plugin_id)))
-    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, pid)))
+    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
 
     alloc->plugin = plugin;
 
@@ -55,7 +55,7 @@ error_free_alloc:
     plugin in order to initialize allocator instance and returns instance to caller.
 */
 reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device, 
-    count_t len, reiserfs_id_t plugin_id) 
+    count_t len, reiserfs_id_t pid) 
 {
     reiserfs_alloc_t *alloc;
     reiserfs_plugin_t *plugin;
@@ -65,8 +65,8 @@ reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, plugin_id)))
-    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, pid)))
+    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
 
     alloc->plugin = plugin;
 

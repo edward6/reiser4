@@ -38,11 +38,11 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
     for (i = 0; i < direntry_hint->count; i++) {	
 	en40_set_offset(&direntry->entry[i], offset);
 
-	libreiser4_plugin_call(return -1, key_plugin->key, build_dir_short_key, 
+	libreiser4_plugin_call(return -1, key_plugin->key, build_entry_short, 
 	    &direntry->entry[i].entryid, direntry_hint->entry[i].name, 
 	    direntry_hint->hash_plugin, sizeof(reiserfs_entryid_t));
 
-	libreiser4_plugin_call(return -1, key_plugin->key, build_file_short_key, 
+	libreiser4_plugin_call(return -1, key_plugin->key, build_generic_short, 
 	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
 	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid, 
 	    sizeof(reiserfs_objid_t));
@@ -140,7 +140,7 @@ static int callback_comp_for_lookup(const void *key1,
     objectid = entryid_get_objectid(((reiserfs_entryid_t *)key1));
     offset = entryid_get_offset(((reiserfs_entryid_t *)key1));
     
-    libreiser4_plugin_call(return -1, plugin->key, build_file_key, 
+    libreiser4_plugin_call(return -1, plugin->key, build_generic_full, 
 	&key, KEY40_STATDATA_MINOR, locality, objectid, offset);
     
     return libreiser4_plugin_call(return -1, plugin->key, 

@@ -12,7 +12,7 @@
 #include <reiser4/reiser4.h>
 
 reiserfs_format_t *reiserfs_format_open(aal_device_t *device, 
-    reiserfs_id_t plugin_id) 
+    reiserfs_id_t pid) 
 {
     reiserfs_format_t *format;
     reiserfs_plugin_t *plugin;
@@ -22,8 +22,8 @@ reiserfs_format_t *reiserfs_format_open(aal_device_t *device,
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
 	
-    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, plugin_id))) 
-	libreiser4_factory_failed(goto error_free_format, find, format, plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
+	libreiser4_factory_failed(goto error_free_format, find, format, pid);
     
     format->plugin = plugin;
 	
@@ -46,15 +46,15 @@ error_free_format:
 #ifndef ENABLE_COMPACT
 
 reiserfs_format_t *reiserfs_format_create(aal_device_t *device, 
-    count_t len, uint16_t tail_policy, reiserfs_id_t plugin_id) 
+    count_t len, uint16_t tail_policy, reiserfs_id_t pid) 
 {
     reiserfs_format_t *format;
     reiserfs_plugin_t *plugin;
 		
     aal_assert("umka-105", device != NULL, return NULL);
 
-    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, plugin_id))) 
-	libreiser4_factory_failed(return NULL, find, format, plugin_id); 
+    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
+	libreiser4_factory_failed(return NULL, find, format, pid); 
     
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
@@ -183,24 +183,24 @@ void reiserfs_format_set_height(reiserfs_format_t *format, uint16_t height) {
 
 #endif
 
-reiserfs_id_t reiserfs_format_journal_plugin_id(reiserfs_format_t *format) {
+reiserfs_id_t reiserfs_format_journal_pid(reiserfs_format_t *format) {
     aal_assert("umka-115", format != NULL, return -1);
 	
     return libreiser4_plugin_call(return -1, format->plugin->format, 
-	journal_plugin_id, format->entity);
+	journal_pid, format->entity);
 }
 
-reiserfs_id_t reiserfs_format_alloc_plugin_id(reiserfs_format_t *format) {
+reiserfs_id_t reiserfs_format_alloc_pid(reiserfs_format_t *format) {
     aal_assert("umka-117", format != NULL, return -1);
 	
     return libreiser4_plugin_call(return -1, format->plugin->format, 
-	alloc_plugin_id, format->entity);
+	alloc_pid, format->entity);
 }
 
-reiserfs_id_t reiserfs_format_oid_plugin_id(reiserfs_format_t *format) {
+reiserfs_id_t reiserfs_format_oid_pid(reiserfs_format_t *format) {
     aal_assert("umka-491", format != NULL, return -1);
 	
     return libreiser4_plugin_call(return -1, format->plugin->format, 
-	oid_plugin_id, format->entity);
+	oid_pid, format->entity);
 }
 

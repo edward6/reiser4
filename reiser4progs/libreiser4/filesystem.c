@@ -13,7 +13,7 @@
 #ifndef ENABLE_COMPACT
 
 /* Forms master super blocks */
-static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_plugin_id, 
+static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_pid, 
     unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
@@ -34,7 +34,7 @@ static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_pl
 	aal_strncpy(fs->master->mr_label, label, sizeof(fs->master->mr_label));
 
     /* Setting plugin id for used disk format plugin */
-    set_mr_format_id(fs->master, format_plugin_id);
+    set_mr_format_id(fs->master, format_pid);
 
     /* Setting block filesystem used */
     set_mr_block_size(fs->master, blocksize);
@@ -156,15 +156,15 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
     id values.
 */
 static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
-    reiserfs_id_t plugin_id) 
+    reiserfs_id_t pid) 
 {
     oid_t objectid;
     oid_t parent_objectid;
     reiserfs_plugin_t *plugin;
     
     /* Finding needed key plugin by its identifier */
-    if (!(plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, plugin_id)))
-	libreiser4_factory_failed(return -1, find, key, plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, pid)))
+	libreiser4_factory_failed(return -1, find, key, pid);
 
     /* Getting root directory attributes from oid allocator */
     parent_objectid = libreiser4_plugin_call(return -1,
@@ -177,7 +177,7 @@ static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
     fs->key.plugin = plugin;
 
     /* Building the key */
-    reiserfs_key_build_file_key(&fs->key, KEY40_STATDATA_MINOR,
+    reiserfs_key_build_generic_full(&fs->key, KEY40_STATDATA_MINOR,
 	parent_objectid, objectid, 0);
 
     return 0;
@@ -193,10 +193,10 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     count_t len;
     reiserfs_fs_t *fs;
 
-    reiserfs_id_t oid_plugin_id;
-    reiserfs_id_t format_plugin_id;
-    reiserfs_id_t alloc_plugin_id;
-    reiserfs_id_t journal_plugin_id;
+    reiserfs_id_t oid_pid;
+    reiserfs_id_t format_pid;
+    reiserfs_id_t alloc_pid;
+    reiserfs_id_t journal_pid;
 
     void *oid_area_start, *oid_area_end;
 	
@@ -213,19 +213,19 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	goto error_free_fs;
     
     /* Initializes used disk format. See format.c for details */
-    format_plugin_id = get_mr_format_id(fs->master);
-    if (!(fs->format = reiserfs_format_open(host_device, format_plugin_id)))
+    format_pid = get_mr_format_id(fs->master);
+    if (!(fs->format = reiserfs_format_open(host_device, format_pid)))
 	goto error_free_master;
 
     /* Getting plugins in use from disk format object */
-    alloc_plugin_id = reiserfs_format_alloc_plugin_id(fs->format);
-    journal_plugin_id = reiserfs_format_journal_plugin_id(fs->format);
-    oid_plugin_id = reiserfs_format_oid_plugin_id(fs->format);
+    alloc_pid = reiserfs_format_alloc_pid(fs->format);
+    journal_pid = reiserfs_format_journal_pid(fs->format);
+    oid_pid = reiserfs_format_oid_pid(fs->format);
    
     len = reiserfs_format_get_blocks(fs->format);
     
     /* Initializes block allocator. See alloc.c for details */
-    if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_plugin_id)))
+    if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_pid)))
 	goto error_free_super;
     
     /* Jouranl device may be not specified. In this case it will not be opened */
@@ -235,7 +235,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	aal_device_set_bs(journal_device, reiserfs_fs_blocksize(fs));
 
 	/* Initializing the journal. See  journal.c for details */
-	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_plugin_id)))
+	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_pid)))
 	    goto error_free_alloc;
 	
 	/* 
@@ -257,7 +257,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
 	oid, fs->format->entity, &oid_area_start, &oid_area_end);
     
-    if (!(fs->oid = reiserfs_oid_open(oid_area_start, oid_area_end, oid_plugin_id)))
+    if (!(fs->oid = reiserfs_oid_open(oid_area_start, oid_area_end, oid_pid)))
 	goto error_free_journal;
   
     /* 
@@ -491,7 +491,7 @@ const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
 }
 
 /* Returns disk format plugin in use */
-reiserfs_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {
+reiserfs_id_t reiserfs_fs_format_pid(reiserfs_fs_t *fs) {
     aal_assert("umka-151", fs != NULL, return -1);
     aal_assert("umka-152", fs->master != NULL, return -1);
 

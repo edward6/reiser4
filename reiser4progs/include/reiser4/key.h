@@ -10,9 +10,8 @@
 #include <aal/aal.h>
 
 /* 
-    Maximal possible key size. It is used for creating
-    temporary keys by declaring array of uint8_t elements
-    REISERFS_KEY_SIZE long.
+    Maximal possible key size. It is used for creating temporary keys by declaring 
+    array of uint8_t elements REISERFS_KEY_SIZE long.
 */
 #define REISERFS_KEY_SIZE 24
 
@@ -26,13 +25,11 @@ typedef struct reiserfs_key reiserfs_key_t;
 typedef uint64_t oid_t;
 
 /*
-    FIXME-VITALY: We should change these names to plugin 
-    independent style. Pass these names to key plugin where 
-    they will be converted to plugin-specific names.
+    FIXME-VITALY: We should change these names to plugin independent style. Pass 
+    these names to key plugin where they will be converted to plugin-specific names.
 
-    FIXME-UMKA: For awhile key40 minor is defined here. Not 
-    in key40 plugin. It will be fixed when key format independent
-    types will be produced here.
+    FIXME-UMKA: For awhile key40 minor is defined here. Not in key40 plugin. It will 
+    be fixed when key format independent types will be produced here.
 */
 typedef enum {
     /* File name key type */
@@ -50,18 +47,15 @@ typedef enum {
 extern errno_t reiserfs_key_init(reiserfs_key_t *key, 
     const void *data, reiserfs_plugin_t *plugin);
 
-extern errno_t reiserfs_key_clone(reiserfs_key_t *key, 
-    reiserfs_key_t *clone);
-
 extern int reiserfs_key_compare(reiserfs_key_t *key1, 
     reiserfs_key_t *key2);
 
 extern void reiserfs_key_clean(reiserfs_key_t *key);
 
-extern errno_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
+extern errno_t reiserfs_key_build_generic_full(reiserfs_key_t *key, 
     uint32_t type, oid_t locality, oid_t objectid, uint64_t offset);
 
-extern errno_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
+extern errno_t reiserfs_key_build_entry_full(reiserfs_key_t *key, 
     reiserfs_plugin_t *hash_plugin, oid_t locality, 
     oid_t objectid, const char *name);
 
