@@ -2589,7 +2589,7 @@ jnode_lock_parent_coord(jnode         * node,
 {
 	int ret;
 
-	assert("edward-xxx", coord_is_invalid(coord));
+	assert("edward-300", coord_is_invalid(coord));
 	assert("edward-53", jnode_is_unformatted(node) || jnode_is_znode(node));
 	assert("edward-54", jnode_is_unformatted(node) || znode_is_any_locked(JZNODE(node)));
 	
@@ -2930,7 +2930,7 @@ scan_common(flush_scan * scan, flush_scan * other)
 	assert("nikita-2376", scan->node != NULL);
 	assert("edward-54", jnode_is_unformatted(scan->node) || jnode_is_znode(scan->node));
 
-	/* Special case for starting at a non-formatted node.  Optimization: we only want
+	/* Special case for starting at an unformatted node.  Optimization: we only want
 	   to search for the parent (which requires a tree traversal) once.  Obviously, we
 	   shouldn't have to call it once for the left scan and once for the right scan.
 	   For this reason, if we search for the parent during scan-left we then duplicate
@@ -2940,10 +2940,8 @@ scan_common(flush_scan * scan, flush_scan * other)
 		if (ret != 0)
 			return ret;
 	}
-	/* This loop expects to start at a formatted position, which explains the
-	   scan_extent case above.  After scanning from a formatted position the
-	   code then checks for an extent and scans past all extents until the next
-	   formatted position, then returns and repeats this loop. */
+	/* This loop expects to start at a formatted position and performs chaining of
+	   formatted regions */
 	while (!scan_finished(scan)) {
 
 		ret = scan_formatted(scan);
@@ -2969,7 +2967,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		/* formatted position*/
 
 		lock_handle lock;
-		assert("edward-xxx", jnode_is_znode(scan->node));
+		assert("edward-301", jnode_is_znode(scan->node));
 		init_lh(&lock);
 		try = scanning_left(scan) && !lock_stack_isclean(get_current_lock_stack());
 		/* Need the node locked to get the parent lock, We have to
@@ -3099,7 +3097,7 @@ scan_formatted(flush_scan * scan)
 
 /* NOTE-EDWARD:
    This scans adjacent items of the same type and calls scan flush plugin for each one.
-   Performs leftward scanning starting from a (possibly) unformatted node.  If we start
+   Performs left(right)ward scanning starting from a (possibly) unformatted node.  If we start
    from unformatted node, then we continue only if the next neighbor is also unformatted.
    When called from scan_formatted, we skip first iteration (to make sure that
    right(left)most item of the left(right) neighbor on the parent level is of the same
@@ -3122,7 +3120,7 @@ scan_by_coord(flush_scan * scan)
         /* set initial item id */
 	if(coord_is_invalid(&scan->parent_coord)) {
 		/* this is possible only for ctails for a while */
-		assert("edward-xxx", jnode_is_cluster_page(scan->node));
+		assert("edward-302", jnode_is_cluster_page(scan->node));
 		iplug = item_plugin_by_id(CTAIL_ID);
 	}
 	else
@@ -3201,7 +3199,7 @@ scan_by_coord(flush_scan * scan)
 
 		/* Get the next child. */
 
-		assert("edward-xxx", iplug->f.utmost_child != NULL);
+		assert("edward-303", iplug->f.utmost_child != NULL);
 		
 		ret = item_utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
 		if (ret != 0) {
