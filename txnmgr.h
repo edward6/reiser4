@@ -228,6 +228,7 @@ typedef enum {
 
 /* A block number set consists of only the list head. */
 struct blocknr_set {
+/* ZAM-FIXME-HANS: this is defined where? */
 	blocknr_set_list_head entries;
 };
 
