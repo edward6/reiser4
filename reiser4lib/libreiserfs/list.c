@@ -6,7 +6,7 @@
 #include <agl/agl.h>
 #include <reiserfs/reiserfs.h>
 
-#define ptr_by_pos(base, pos) (base + (pos * sizeof(void *)))
+#define ptr_by_pos(base, pos) (base + pos)
 #define size_by_count(count) (count * sizeof(void *))
 
 list_t *list_create(int inc) {
@@ -54,7 +54,7 @@ int list_expand(list_t *list) {
 
 int list_shrink(list_t *list) {
 	
-	if (list->count - list->size >= list->inc)
+	if (list->size - list->count < list->inc)
 		return 1;
 	
 	if (!agl_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
@@ -66,7 +66,7 @@ int list_shrink(list_t *list) {
 }
 
 void *list_at(list_t *list, int pos) {
-	return ptr_by_pos(list->body, pos);
+	return *ptr_by_pos(list->body, pos);
 }
 
 int list_pos(list_t *list, void *item) {
@@ -91,17 +91,21 @@ int list_insert(list_t *list, void *item, int pos) {
 	}	
 	
 	*ptr_by_pos(list->body, pos) = item;
+	list->count++;
+
 	return 1;
 }
 
 int list_delete(list_t *list, int pos) {
-	if (pos < list->count - 1) {
+	
+	if (pos < list->count) {
 		int i;
 		for (i = pos; i < list->count; i++)
 			*ptr_by_pos(list->body, i) = *ptr_by_pos(list->body, i + 1);
 	}
 	
 	list->count--;
+	
 	list_shrink(list);
 	
 	return 1;
@@ -132,5 +136,9 @@ void *list_run(list_t *list, int (*item_func)(void *, void *), void *data) {
 			return item;
 	}
 	return NULL;
+}
+
+int list_count(list_t *list) {
+	return list->count;
 }
 

@@ -141,8 +141,8 @@ agl_exception_option_t agl_exception_throw(agl_exception_type_t type,
 #else
 	agl_strncpy(exception->message, message, 4096);
 #endif
+	
 	return agl_exception_actual_throw(exception);
-
 no_memory:
 	agl_print("Out of memory in exception handler!\n");
 	return EXCEPTION_UNHANDLED;

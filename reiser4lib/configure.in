@@ -147,6 +147,7 @@ AC_OUTPUT([
 	plugin/Makefile
 	plugin/layout36/Makefile
 	plugin/layout40/Makefile
+	demos/Makefile
 	debug/Makefile
 	doc/Makefile
 	libreiserfs.spec

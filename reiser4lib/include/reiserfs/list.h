@@ -29,6 +29,7 @@ extern int list_add(list_t *list, void *item);
 extern int list_remove(list_t *list, void *item);
 
 extern void *list_run(list_t *list, int (*item_func)(void *, void *), void *data);
+extern int list_count(list_t *list);
 
 #endif
 
