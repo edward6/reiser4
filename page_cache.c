@@ -601,6 +601,18 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	assert( "vs-828", PageLocked( page ) );
 	unlock_page( page );
 
+	if (get_current_context ()->trans->atom != NULL) {
+		/*
+		 * Good Lord, we are called synchronously! What a shame.
+		 *
+		 * we got here by
+		 * __alloc_pages->balance_classzone->...->shrink_cache
+		 *
+		 * no chance of working in such situation.
+		 */
+		REISER4_EXIT (0);
+	}
+
 	node = jnode_by_page (page);
 
 	/* Attach the txn handle to this node, preventing the atom from committing while
@@ -617,7 +629,7 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		result = jnode_flush (node, nr_to_write, flush_flags);
 	}
 
-	REISER4_EXIT( result );
+	REISER4_EXIT (result);
 }
 
 static int formatted_set_page_dirty( struct page *page )
