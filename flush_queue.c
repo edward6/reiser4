@@ -155,6 +155,7 @@ count_enqueued_node(flush_queue_t * fq)
 static void
 count_dequeued_node(flush_queue_t * fq)
 {
+	assert("zam-993", fq->atom->num_queued > 0);
 	fq->atom->num_queued--;
 }
 
