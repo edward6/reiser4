@@ -252,7 +252,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 static ssize_t
 reiser4_write(struct file *file /* file to write on */ ,
 	      const char *buf	/* user-space buffer to get data
-				 * to write on the file */ ,
+				 * to write into the file */ ,
 	      size_t size /* bytes to write */ ,
 	      loff_t * off	/* offset to start writing
 				 * from. This is updated to indicate
