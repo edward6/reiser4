@@ -1235,7 +1235,7 @@ kill_cursor(dir_cursor *cursor)
 	unsigned long index;
 
 	assert("nikita-3566", cursor->ref == 0);
-	assert("nikita-3572", cursor->fsdata == NULL);
+	assert("nikita-3572", cursor->fsdata != NULL);
 
 	index = (unsigned long)cursor->key.oid;
 	readdir_list_remove_clean(cursor->fsdata);
