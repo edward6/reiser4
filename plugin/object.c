@@ -461,7 +461,7 @@ int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 file_lookup_result noent( struct inode *inode UNUSED_ARG, 
 			  const struct qstr *name UNUSED_ARG,
 			  reiser4_key *key UNUSED_ARG, 
-			  reiser4_entry *entry UNUSED_ARG )
+			  reiser4_dir_entry_desc *entry UNUSED_ARG )
 {
 	return FILE_NAME_NOTFOUND;
 }
@@ -574,7 +574,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
         dir_plugin          *dplug;
 	file_plugin         *fplug;
 	struct inode        *object;
-	reiser4_entry        entry;
+	reiser4_dir_entry_desc        entry;
 
 	assert( "nikita-1418", parent != NULL );
 	assert( "nikita-1419", dentry != NULL );
@@ -703,7 +703,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	struct inode              *object;
 	file_plugin               *fplug;
 	dir_plugin                *parent_dplug;
-	reiser4_entry              entry;
+	reiser4_dir_entry_desc              entry;
 	unlink_f_type              uf_type;
 
 	assert( "nikita-864", parent != NULL );
@@ -794,7 +794,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	struct inode              *object;
 	file_plugin               *fplug;
 	dir_plugin                *parent_dplug;
-	reiser4_entry              entry;
+	reiser4_dir_entry_desc              entry;
 	reiser4_object_create_data data;
 
 	assert( "nikita-1431", existing != NULL );

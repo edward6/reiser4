@@ -245,7 +245,7 @@ static int expand_item( const tree_coord *coord, int pos, int no,
  * insert new @entry into item
  */
 static int expand( const tree_coord *coord, cde_entry *entry, 
-		   int len, int *pos, reiser4_entry *dir_entry )
+		   int len, int *pos, reiser4_dir_entry_desc *dir_entry )
 {
 	cmp_t  cmp_res;
 
@@ -263,7 +263,7 @@ static int expand( const tree_coord *coord, cde_entry *entry,
  * paste body of @entry into item
  */
 static int paste_entry( const tree_coord *coord, cde_entry *entry, 
-			int pos, reiser4_entry *dir_entry )
+			int pos, reiser4_dir_entry_desc *dir_entry )
 {
 	cde_unit_header        *header;
 	directory_entry_format *dent;
@@ -887,7 +887,7 @@ static int try_to_glue_to( tree_coord *coord, const struct inode *dir,
  */
 int cde_add_entry( const struct inode *dir, tree_coord *coord, 
 		   reiser4_lock_handle *lh, const struct dentry *name, 
-		   reiser4_entry *dir_entry )
+		   reiser4_dir_entry_desc *dir_entry )
 {
 	reiser4_item_data data;
 	cde_entry         entry;
