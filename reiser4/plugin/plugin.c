@@ -589,7 +589,9 @@ reiser4_plugin perm_plugins[] = {
 				.create_ok = NULL,
 				.link_ok   = NULL,
 				.unlink_ok = NULL,
-				.delete_ok = NULL
+				.delete_ok = NULL,
+				/* smart thing */
+				.mask_ok   = vfs_permissions
 			}
 		}
 	}
