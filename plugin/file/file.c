@@ -1045,7 +1045,6 @@ capture_anonymous_jnodes(struct inode *inode)
 			result = capture_anonymous_page(jnode_page(node), keepme);
 
 			jrelse(node);
-			spin_lock_eflush(tree->super);
 
 			if (result == 1) {
 				/* jnode is captured */
@@ -1057,8 +1056,10 @@ capture_anonymous_jnodes(struct inode *inode)
 				}
 				
 				scan_over = 0;
+				spin_lock_eflush(tree->super);
 				break;
 			}
+			spin_lock_eflush(tree->super);
 		}
 		spin_unlock_eflush(tree->super);
 		if (too_many)
