@@ -134,9 +134,6 @@ nr_units_ctail(const coord_t * coord)
 	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->cluster_shift));
 }
 
-/* plugin->u.item.b.unit_key:
-   tail_unit_key */
-
 /* plugin->u.item.b.estimate:
    estimate how much space is needed to insert/paste @data->length bytes
    into ctail at @coord */
@@ -384,9 +381,6 @@ kill_units_ctail(coord_t *item, unsigned *from, unsigned *to,
 {
 	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
 }
-
-/* plugin->u.item.b.unit_key :
-   tail_unit_key */
 
 /* plugin->u.item.s.file.read */
 int
