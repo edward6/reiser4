@@ -37,7 +37,6 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree,
 
 reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     reiserfs_tree_t *tree;
-    reiserfs_coord_t coord;
 
     aal_assert("umka-737", fs != NULL, return NULL);
 
@@ -149,11 +148,8 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 
     aal_assert("umka-742", key != NULL, return -1);
     aal_assert("umka-742", coord != NULL, return -1);
-   
-    coord->pos.item = 0;
-    coord->pos.unit = 0xffff;
-    coord->node = tree->root;
-
+  
+    reiserfs_coord_init(coord, tree->root, 0, 0xffff);
     while (1) {
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored

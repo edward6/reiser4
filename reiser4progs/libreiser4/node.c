@@ -349,21 +349,15 @@ errno_t reiserfs_node_split(reiserfs_node_t *node,
     reiserfs_node_t *right) 
 {
     uint32_t median;
+    reiserfs_coord_t dst, src;
     
     aal_assert("umka-780", node != NULL, return -1);
     aal_assert("umka-781", right != NULL, return -1);
 
     median = reiserfs_node_count(node) / 2;
     while (reiserfs_node_count(node) > median) {
-	reiserfs_coord_t dst, src;
-	
-	src.node = node;
-	src.pos.item = reiserfs_node_count(node) - 1;
-	src.pos.unit = 0xffff;
-	
-	dst.node = right;
-	dst.pos.item = 0;
-	dst.pos.unit = 0xffff;
+	reiserfs_coord_init(&src, node, reiserfs_node_count(node) - 1, 0xffff);	    
+	reiserfs_coord_init(&dst, right, 0, 0xffff);
 	
 	if (reiserfs_node_move_item(&dst, &src, node->key_plugin))
 	    return -1;
@@ -653,13 +647,8 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     while (left && reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(left) >= 
 	reiserfs_node_item_length(old->node, 0) + reiserfs_node_item_overhead(old->node))
     {
-        src.node = old->node;
-        src.pos.item = 0;
-        src.pos.unit = 0xffff;
-	
-        dst.node = left;
-        dst.pos.item = reiserfs_node_count(left);
-        dst.pos.unit = 0xffff;
+	reiserfs_coord_init(&src, old->node, 0, 0xffff);
+	reiserfs_coord_init(&dst, left, reiserfs_node_count(left), 0xffff);
 	
         if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

@@ -2,7 +2,7 @@ includedir		     = -I$(top_srcdir)/include
 
 libreiser4_sources	     = libreiser4.c filesystem.c format.c journal.c \
 			       alloc.c oid.c tools.c plugin.c node.c tree.c \
-			       key.c object.c
+			       key.c object.c coord.c
 
 libreiser4_plugins	     = libplugins_header.la \
 			       $(top_builddir)/plugin/format40/libformat40-static.la \
