@@ -520,7 +520,7 @@ reiser4_internal int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
 	jnode *node;
-	/*reiser4_context ctx;*/
+	void *oid;
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
@@ -533,27 +533,25 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	node = jnode_by_page(page);
 	assert("nikita-2258", node != NULL);
-	BUG_ON(page->mapping == NULL);
-	BUG_ON(page->mapping->host == NULL);
+	assert("reiser4-4", page->mapping != NULL);
+	assert("reiser4-5", page->mapping->host != NULL);
 
 	INC_STAT(page, node, vm.release.try);
 
-	clog_op(RELEASEPAGE_IN, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
-
+	oid = (void *)(unsigned long)get_inode_oid(page->mapping->host);
+	clog_op(RELEASEPAGE_IN, oid, (void *)page->index);
 
 	/* is_page_cache_freeable() check
 	   (mapping + private + page_cache_get() by shrink_cache()) */
 	if (page_count(page) > 3) {
-		clog_op(RELEASEPAGE_0, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
+		clog_op(RELEASEPAGE_0, oid, (void *)page->index);
 		return 0;
 	}
 
 	if (PageDirty(page)) {
-		clog_op(RELEASEPAGE_0, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
+		clog_op(RELEASEPAGE_0, oid, (void *)page->index);
 		return 0;
 	}
-
-/*	init_context(&ctx, page->mapping->host->i_sb);*/
 
 	/* releasable() needs jnode lock, because it looks at the jnode fields
 	 * and we need jload_lock here to avoid races with jload(). */
@@ -585,13 +583,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		}
 		write_unlock_irq(&mapping->tree_lock);
 		
-		clog_op(RELEASEPAGE_1, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
+		clog_op(RELEASEPAGE_1, oid, (void *)page->index);
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
-		clog_op(RELEASEPAGE_0, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
+		clog_op(RELEASEPAGE_0, oid, (void *)page->index);
 		return 0;
 	}
 }
