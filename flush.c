@@ -531,6 +531,8 @@ struct flush_position {
 	int alloc_cnt;		/* The number of nodes allocated during squeeze and allococate. */
 	int prep_or_free_cnt;	/* The number of nodes prepared for write (allocate) or squeezed and freed. */
 	flush_queue_t *fq;
+	long nr_written;		/* number of nodes submitted to disk */
+	int flags;		/* a copy of jnode_flush flags argument */
 };
 
 /* The flushers list maintains a per-atom list of active flush_positions.  This is because
@@ -593,7 +595,7 @@ static int znode_get_utmost_if_dirty(znode * node, lock_handle * right_lock, sid
 static int znode_same_parents(znode * a, znode * b);
 
 /* Flush position functions */
-static int flush_pos_init(flush_position * pos, long *, flush_queue_t *);
+static int flush_pos_init(flush_position * pos);
 static int flush_pos_valid(flush_position * pos);
 static void flush_pos_done(flush_position * pos);
 static int flush_pos_stop(flush_position * pos);
@@ -638,6 +640,26 @@ check_preceder(reiser4_block_nr blk)
    useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
    no static initializer function...) */
 ON_DEBUG(atomic_t flush_cnt;)
+
+/* conditionally write flush queue */
+static int write_prepped_nodes (flush_position * pos, int scan)
+{
+	int ret;
+
+	assert("zam-831", pos);
+	assert("zam-832", pos->fq);
+
+	if (!(pos->flags & JNODE_FLUSH_WRITE_BLOCKS))
+		return 0;
+	ret = scan ? scan_and_write_fq(pos->fq, 0) : write_fq(pos->fq, 0);
+
+	if (ret > 0) {
+		pos->nr_written += ret;
+		ret = 0;
+	}
+
+	return ret;
+}
 
 /* TODO LIST (no particular order): */
 /* I have labelled most of the legitimate FIXME comments in this file with letters to
@@ -857,9 +879,13 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	/* Initialize a flush position.  Currently this cannot fail but if any memory
 	   allocation, locks, etc. were needed then this would be the place to fail before
 	   flush really gets going. */
-	if ((ret = flush_pos_init(&flush_pos, nr_to_flush, fq))) {
+	if ((ret = flush_pos_init(&flush_pos))) {
 		goto clean_out;
 	}
+
+	flush_pos.nr_to_flush = nr_to_flush;
+	flush_pos.fq = fq;
+	flush_pos.flags = flags;
 
 	flush_scan_init(&right_scan);
 	flush_scan_init(&left_scan);
@@ -1015,11 +1041,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	*/
 
 	/* Write anything left in the queue, if specified by flags */
-	if (flags & JNODE_FLUSH_WRITE_BLOCKS) {
-		ret = scan_and_write_fq(fq, 0);
-	} else {
-		ret = 0;
-	}
+	ret = write_prepped_nodes(&flush_pos, 1);
 
 	/* Any failure reaches this point. */
 failed:
@@ -1044,6 +1066,10 @@ failed:
 	if (ret < 0) {
 		warning("jmacd-16739", "flush failed: %ld", ret);
 	}
+
+	/* number of submitted to disk nodes is passed to caller as a return value */
+	if (!ret)
+		ret = flush_pos.nr_written;
 
 	flush_pos_done(&flush_pos);
 	flush_scan_done(&left_scan);
@@ -1565,10 +1591,7 @@ ALLOC_EXTENTS:
 				ret = 0;
 				goto exit;
 			}
-		} else {
-			/* write flush queue at the and of twig */
-			write_fq(pos->fq, 0);
-		}
+		} else
 
 		/* We are about to try to allocate the right twig by calling
 		   flush_squalloc_changed_ancestors in the flush_pos_on_twig_level state.
@@ -1577,6 +1600,10 @@ ALLOC_EXTENTS:
 		if ((ret = flush_reverse_relocate_end_of_twig(pos))) {
 			goto exit;
 		}
+
+		/* write flush queue at the and of twig (if twig is ended by extent item) */
+		ret = write_prepped_nodes(pos, 0);
+
 	}
 
 	if (flush_pos_valid(pos)) {
@@ -3506,14 +3533,9 @@ exit:
 
 /* Initialize the fields of a flush_position. */
 static int
-flush_pos_init(flush_position * pos, long *nr_to_flush, flush_queue_t * fq)
+flush_pos_init(flush_position * pos)
 {
-	pos->point = NULL;
-	pos->leaf_relocate = 0;
-	pos->alloc_cnt = 0;
-	pos->prep_or_free_cnt = 0;
-	pos->nr_to_flush = nr_to_flush;
-
+	xmemset(pos, 0, sizeof *pos);
 	coord_init_invalid(&pos->parent_coord, NULL);
 
 	blocknr_hint_init(&pos->preceder);
@@ -3521,8 +3543,6 @@ flush_pos_init(flush_position * pos, long *nr_to_flush, flush_queue_t * fq)
 	init_lh(&pos->parent_lock);
 	init_load_count(&pos->parent_load);
 	init_load_count(&pos->point_load);
-
-	pos->fq = fq;
 
 	return 0;
 }
