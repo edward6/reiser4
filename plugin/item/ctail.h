@@ -62,7 +62,7 @@ size_t inode_scaled_cluster_size(struct inode *);
 __u8 inode_cluster_shift (struct inode * inode);
 unsigned long cluster_index_by_page(struct page *, struct inode *);
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
-int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *);
+int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *, lookup_bias);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
