@@ -1122,6 +1122,7 @@ static int squeeze_right_non_twig (znode *left, znode *right)
 	carry_pool pool;
 	carry_level todo;
 
+	assert ("nikita-2246", znode_get_level (left) == znode_get_level (right));
 	init_carry_pool (& pool);
 	init_carry_level (& todo, & pool);
 
@@ -1135,6 +1136,7 @@ static int squeeze_right_non_twig (znode *left, znode *right)
 		/* Carry is called to update delimiting key or to remove empty
 		 * node. */
 		//info ("shifted %u bytes %p <- %p\n", ret, left, right);
+		ON_STATS (todo.level_no = znode_get_level (left) + 1);
 		ret = carry (& todo, NULL /* previous level */);
 	}
 
@@ -1279,6 +1281,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	int size, moved;
 	carry_plugin_info info;
 
+	assert ("nikita-2247", znode_get_level (left) == znode_get_level (right));
 	coord_init_first_unit (&coord, right);
 
 	assert ("jmacd-2007", item_is_internal (&coord));
@@ -1305,6 +1308,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 		update_znode_dkeys (left, right);
 		spin_unlock_dk (current_tree);
 
+		ON_STATS (todo.level_no = znode_get_level (left) + 1);
 		ret = carry (&todo, NULL /* previous level */);
 	}
 
@@ -1546,7 +1550,7 @@ static void flush_bio_write (struct bio *bio)
 	}
 	/* Note, we may put assertion here that this is in fact our sb and so
 	   on */
-	if (REISER4_TRACE) {
+	if (0 && REISER4_TRACE) {
 		info ("flush_bio_write completion for %u blocks: BIO %p\n", 
 		      bio->bi_vcnt, bio);
 	}
@@ -1554,7 +1558,7 @@ static void flush_bio_write (struct bio *bio)
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		if (REISER4_TRACE) {
+		if (0 && REISER4_TRACE) {
 			print_page ("flush_bio_write", pg);
 		}
 
