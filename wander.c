@@ -27,7 +27,7 @@ int WRITE_LOG = 1;		/* journal is written by default  */
  * are written in place) and _before_ wandered blocks and log records are
  * freed in WORKING bitmap */
 
-static int submit_write (jnode*, int, const reiser4_block_nr *, struct reiser4_io_handle*);
+static int submit_write (jnode*, int, const reiser4_block_nr *, int use_io_handle);
 
 /**
  * fill journal header block data 
@@ -260,7 +260,7 @@ static int update_journal_header (capture_list_head * tx_list)
 
 	format_journal_header (s, tx_list);
 
-	ret = submit_write(jh, 1, jnode_get_block(jh), NULL);
+	ret = submit_write(jh, 1, jnode_get_block(jh), 0);
 
 	if (ret) return ret;
 
@@ -289,7 +289,7 @@ static int update_journal_footer (jnode * txhead)
 
 	format_journal_footer (s, txhead);
 
-	ret = submit_write (jf, 1, jnode_get_block(jf), NULL);
+	ret = submit_write (jf, 1, jnode_get_block(jf), 0);
 	if (ret) return ret;
 
 	blk_run_queues();
@@ -464,7 +464,7 @@ static void wander_end_io (struct bio * bio)
 /* FIXME: it should be combined with similar code in flush.c */
 static int submit_write (jnode * first, int nr, 
 			 const reiser4_block_nr * block_p,
-			 struct reiser4_io_handle * io_hdl)
+			 int use_io_handle)
 {
 	struct super_block * super = reiser4_get_current_sb();
 	int max_blocks;
@@ -490,7 +490,8 @@ static int submit_write (jnode * first, int nr,
 		int ret;
 
 		bio = bio_alloc(GFP_NOIO, nr_blocks);
-		if (!bio) return -ENOMEM;
+		if (!bio)
+			return -ENOMEM;
 
 		assert ("zam-574", jnode_page (first) != NULL);
 
@@ -527,11 +528,14 @@ static int submit_write (jnode * first, int nr,
 			cur = capture_list_next (cur);
 		}
 
-		ret = current_atom_add_bio(bio);
-
-		if (ret) {
-			bio_put(bio);
-			return ret;
+		if (use_io_handle) {
+			ret = current_atom_add_bio(bio);
+			if (ret) {
+				bio_put(bio);
+				return ret;
+			}
+		} else {
+			bio->bi_private = NULL;
 		}
 
 		submit_bio(WRITE, bio);
@@ -548,7 +552,7 @@ static int submit_write (jnode * first, int nr,
 /* This is a procedure which recovers a contiguous sequences of disk block
  * numbers in the given list of j-nodes and submits write requests on this
  * per-sequence basis */
-static int submit_batched_write (capture_list_head * head, struct reiser4_io_handle * io)
+static int submit_batched_write (capture_list_head * head, int use_io_handle)
 {
 	int ret;
 	jnode * beg = capture_list_front(head);
@@ -563,7 +567,7 @@ static int submit_batched_write (capture_list_head * head, struct reiser4_io_han
 			cur = capture_list_next(cur);
 		}
 
-		ret = submit_write(beg, nr, jnode_get_block(beg), io);
+		ret = submit_write(beg, nr, jnode_get_block(beg), use_io_handle);
 		if (ret) return ret;
 
 		beg = cur;
@@ -574,7 +578,7 @@ static int submit_batched_write (capture_list_head * head, struct reiser4_io_han
 
 /* allocate given number of nodes over the journal area and link them into a
  * list, return pinter to the first jnode in the list */
-static int alloc_tx (int nr, capture_list_head * tx_list, struct reiser4_io_handle * io)
+static int alloc_tx (int nr, capture_list_head * tx_list)
 {
 	reiser4_blocknr_hint  hint;
 
@@ -671,7 +675,7 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct reiser4_io_hand
 		}
 	}
 
-	ret = submit_batched_write(tx_list, io);
+	ret = submit_batched_write(tx_list, 1);
 
 	return ret;
 
@@ -727,7 +731,7 @@ static int add_region_to_wmap (jnode * cur,
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
  * submit IO for allocated blocks.  We assume that current atom is in a stage
  * when any atom fusion is impossible and atom is unlocked and it is safe. */
-int alloc_wandered_blocks (int set_size, capture_list_head * set, struct reiser4_io_handle * io_hdl)
+int alloc_wandered_blocks (int set_size, capture_list_head * set)
 {
 	reiser4_block_nr block;
 
@@ -754,7 +758,7 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct reiser4
 		ret = add_region_to_wmap(cur, len, &block);
 		if (ret) return ret;
 
-		ret = submit_write (cur, len, &block, io_hdl);
+		ret = submit_write (cur, len, &block, 1);
 		if (ret) return ret;
 
 		while ((len --) > 0) {
@@ -775,8 +779,6 @@ int reiser4_write_logs (void)
 
 	struct super_block * super = reiser4_get_current_sb();
 	reiser4_super_info_data * private = get_super_private(super);
-
-	struct reiser4_io_handle io_hdl;
 
 	capture_list_head overwrite_set, tx_list;
 	int overwrite_set_size, tx_size;
@@ -819,10 +821,10 @@ int reiser4_write_logs (void)
 	if ((ret = reiser4_grab_space1((__u64)(overwrite_set_size + tx_size))))
 		goto up_and_ret;
 
-	if ((ret = alloc_wandered_blocks (overwrite_set_size, &overwrite_set, &io_hdl)))
+	if ((ret = alloc_wandered_blocks (overwrite_set_size, &overwrite_set)))
 		goto up_and_ret;
 
-	if ((ret = alloc_tx (tx_size, &tx_list, &io_hdl)))
+	if ((ret = alloc_tx (tx_size, &tx_list)))
 		goto up_and_ret;
 
 	ret = current_atom_wait_on_io();
@@ -840,7 +842,7 @@ int reiser4_write_logs (void)
 	post_commit_hook();
 
 	/* force j-nodes write back */
-	if ((ret = submit_batched_write(&overwrite_set, &io_hdl)))
+	if ((ret = submit_batched_write(&overwrite_set, 1)))
 		goto up_and_ret;
 
 	ret = current_atom_wait_on_io();
@@ -881,6 +883,30 @@ static int check_journal_header (const jnode * node UNUSED_ARG)
 {
 	/* FIXME: journal header has no magic field yet. */
 	return 0;
+}
+
+/* wait for write completion for all jnodes from given list */
+static int wait_on_jnode_list (capture_list_head * head)
+{
+	jnode *scan;
+	int ret = 0;
+
+	for (scan = capture_list_front (head);
+	     ! capture_list_end   (head, scan);
+	     scan = capture_list_next  (scan))
+	{
+		struct page * pg = scan->pg;
+
+		if (pg) {
+			if (PageWriteback (pg))
+				wait_on_page_writeback (scan->pg);
+
+			if (PageError (pg))
+				ret ++;
+		}
+	}
+
+	return ret;
 }
 
 static int check_journal_footer (const jnode * node UNUSED_ARG)
@@ -997,14 +1023,14 @@ static int replay_transaction (const struct super_block * s,
 		goto free_ow_set;
 	} 
 
-
 	{       /* write wandered set in place */
-		struct reiser4_io_handle io;
+		submit_batched_write(&overwrite, 0);
+		ret = wait_on_jnode_list (&overwrite);
 
-		submit_batched_write(&overwrite, &io);
-		ret = current_atom_wait_on_io();
-
-		if (ret) goto free_ow_set;
+		if (ret) {
+			ret = -EIO;
+			goto free_ow_set;
+		}
 	}
 
 	ret = update_journal_footer(tx_head);
@@ -1128,9 +1154,8 @@ int reiser4_journal_recover_sb_data (struct super_block * s)
 
 	JF = (struct journal_footer *)jdata(private->journal_footer);
 
-	/* FIXME: there should be more clear was to recognize a state of
-	 * reiser4 journal, free block counter is obviously a wrong choice. */
-	if (d64tocpu(&JF->free_blocks)) {
+	/* was there at least one flushed transaction?  */
+	if (d64tocpu(&JF->last_flushed_tx)) {
 
 		/* restore free block counter logged in this transaction */
 		reiser4_set_free_blocks (s, d64tocpu(&JF->free_blocks));
