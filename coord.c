@@ -849,8 +849,10 @@ coord_set_to_right(coord_t * coord)
 		coord->between = AT_UNIT;
 		return 0;
 
-	case INVALID_COORD:
 	case EMPTY_NODE:
+		return 1;
+
+	case INVALID_COORD:
 		break;
 	}
 
@@ -910,8 +912,10 @@ coord_set_to_left(coord_t * coord)
 		coord->between = AT_UNIT;
 		return 0;
 
-	case INVALID_COORD:
 	case EMPTY_NODE:
+		return 1;
+
+	case INVALID_COORD:
 		break;
 	}
 

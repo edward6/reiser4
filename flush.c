@@ -1937,13 +1937,12 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			ret = squeeze_node(pos, right_lock.node);
 			if (ret)
 				break;
-		}
-
-		if (node_is_empty(right_lock.node)) {
-			/* node was squeezed completely, repeat */
-			done_load_count(&right_load);
-			done_lh(&right_lock);
-			continue;
+			if (node_is_empty(right_lock.node)) {
+				/* node was squeezed completely, repeat */
+				done_load_count(&right_load);
+				done_lh(&right_lock);
+				continue;
+			}
 		}
 
                 /* squeeze _before_ going upward. */

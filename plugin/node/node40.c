@@ -2668,9 +2668,14 @@ shift_node40(coord_t *from, znode *to, shift_direction pend,
 				coord_init_before_first_item(from, to);
 			}
 		}
+
+		if (delete_child && node_is_empty(shift.wish_stop.node))
+			result = prepare_removal_node40(shift.wish_stop.node, info);
+		else
+			result = 0;
 		/* there is nothing to shift */
 		assert("nikita-2078", coord_check(from));
-		return 0;
+		return result;
 	}
 
 	target_empty = node_is_empty(to);
