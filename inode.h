@@ -15,9 +15,9 @@ typedef enum {
 	 * this is light-weight inode, inheriting some state from its
 	 * parent 
 	 */
-	REISER4_LIGHT_WEIGHT_INODE = 0,
+	REISER4_LIGHT_WEIGHT       = 0,
 	/** stat data wasn't yet created */
-	REISER4_NO_STAT_DATA       = 1,
+	REISER4_NO_SD              = 1,
 	/** internal immutable flag. Currently is only used
 	    to avoid race condition during file creation.
 	    See comment in create_object(). */
@@ -74,28 +74,29 @@ typedef struct reiser4_inode {
 	item_plugin            *dir_item;
 	spinlock_t              guard;
 	/** seal for stat-data */
-	seal_t                    sd_seal;
+	seal_t                  sd_seal;
 	/** coord of stat-data in sealed node */
-	coord_t                sd_coord;
+	coord_t                 sd_coord;
 	/** reiser4-specific inode flags. They are "transient" and are not
 	    supposed to be stored on a disk. Used to trace "state" of
 	    inode. Bitmasks for this field are defined in
 	    reiser4_file_plugin_flags enum */
-	unsigned long              flags;
-	__u64                      extmask;
+	unsigned long           flags;
+	__u64                   extmask;
 	/** length of stat-data for this inode */
-	short                      sd_len;
+	short                   sd_len;
 	/** bitmask of non-default plugins for this inode */
-	__u16                      plugin_mask;
-	inter_syscall_rap          ra;
+	__u16                   plugin_mask;
+	inter_syscall_rap       ra;
 	/** locality id for this file */
-	oid_t                      locality_id;
+	oid_t                   locality_id;
 	/* tail2extent and extent2tail use down_write, read, write, readpage -
 	 * down_read */
-	struct rw_semaphore        sem;
+	struct rw_semaphore     sem;
 	/** high 32 bits of object id */
-	oid_hi_t                   oid_hi;
-	readdir_list_head          readdir_list;
+	oid_hi_t                oid_hi;
+	readdir_list_head       readdir_list;
+	struct inode           *parent;
 } reiser4_inode;
 
 typedef struct reiser4_inode_object {
