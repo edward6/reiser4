@@ -1632,8 +1632,11 @@ static int flush_finish (flush_position *pos, int none_busy)
 			struct super_block *super;
 			int blksz;
 
+			super = check->pg->mapping->host->i_sb;
+			assert( "jmacd-2029", super != NULL );
+
 			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
-			for (j = i + 1; j < pos->queue_num; j += 1) {
+			for (j = i + 1; j < min(pos->queue_num, i+(bdev_get_queue(super->s_bdev)->max_sectors >> ( super->s_blocksize_bits - 9 ) )); j += 1) {
 				if (JF_ISSET (pos->queue[j], ZNODE_WANDER) ||
 				    (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j]))) {
 					break;
@@ -1651,8 +1654,6 @@ static int flush_finish (flush_position *pos, int none_busy)
 			}
 
 			/* Note: very much copied from page_cache.c:page_bio. */
-			super = check->pg->mapping->host->i_sb;
-			assert( "jmacd-2029", super != NULL );
 			blksz = super->s_blocksize;
 			assert( "jmacd-2028", blksz == ( int ) PAGE_CACHE_SIZE );
 
