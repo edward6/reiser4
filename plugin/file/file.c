@@ -856,7 +856,20 @@ unix_file_writepage(struct page *page)
 	if (PagePrivate(page)) {
 		/* tree already has pointer to this page */
 		assert("vs-1097", jnode_mapped(jnode_by_page(page)));
-		return 0;
+
+		result = reiser4_grab_space(1, BA_CAN_COMMIT, "unix_file_writepage");
+		if (result)
+			warning("vs-1246", "Failed to grab space for page (%llu (%lu): %d\n",
+				get_inode_oid(inode), page->index, result);
+		else {
+			result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+			if (result)
+				warning("vs-1245", "Failed to capture page (%llu (%lu): %d\n",
+					get_inode_oid(inode), page->index, result);
+			else
+				jnode_make_dirty(jnode_by_page(page));
+		}
+		return result;
 	}
 
 	/* to keep order of locks right we have to unlock page before call to get_nonexclusive_access */
@@ -999,6 +1012,27 @@ reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
 
+#define FIND \
+{\
+	PROF_BEGIN(find);\
+	result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, inode);\
+	PROF_END(find, find);\
+}
+
+#define ZLOAD \
+{\
+	PROF_BEGIN(zload);\
+	result = zload_ra(coord.node, &ra_info);\
+	PROF_END(zload, zload);\
+}
+
+#define ITEM_READ \
+{\
+	PROF_BEGIN(item_read);\
+	result = read_f(file, &coord, &f);\
+	PROF_END(item_read, item_read);\
+}
+
 /* plugin->u.file.read 
 
    the read method for the unix_file plugin 
@@ -1016,6 +1050,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	reiser4_block_nr needed;
 	ra_info_t ra_info;
 	int (*read_f) (struct file *, coord_t *, flow_t *);
+	PROF_BEGIN(file_read);
 
 	if (unlikely(!read_amount))
 		return 0;
@@ -1066,7 +1101,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			break;
 
 		init_lh(&lh);
-		result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, inode);
+		FIND;
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			   -EIO */
@@ -1084,7 +1119,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			break;
 		}
 
-		result = zload_ra(coord.node, &ra_info);
+		ZLOAD;
 		if (unlikely(result)) {
 			done_lh(&lh);
 			return result;
@@ -1095,7 +1130,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		else
 			read_f = item_plugin_by_id(TAIL_ID)->s.file.read;
 
-		result = read_f(file, &coord, &f);
+		ITEM_READ;
 		zrelse(coord.node);
 		if (result == -EAGAIN) {
 			printk("zam-830: unix_file_read: key was not found in item, repeat search\n");
@@ -1126,6 +1161,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	*off += read;
 
 	/* return number of read bytes or error code if nothing is read */
+	PROF_END(file_read, file_read);
 	return read ?: result;
 }
 
