@@ -3,7 +3,7 @@
  */
 
 /* 
- * Directory entry.
+ * Compound directory item. See cde.c for description.
  */
 
 #if !defined( __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ )
