@@ -612,9 +612,12 @@ find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 	WLOCK_TREE(tree);
 	shadow = jfind_nolock(mapping, index);
 	if (likely(shadow == NULL)) {
+		/* add new jnode to hash table and inode's radix tree of jnodes */
 		jref(result);
 		hash_unformatted_jnode(result, mapping, index);		
 	} else {
+		/* jnode is found in inode's radix tree of jnodes */
+		jref(shadow);
 		jnode_free(result, JNODE_UNFORMATTED_BLOCK);
 		assert("vs-1498", shadow->key.j.mapping == mapping);
 		result = shadow;
