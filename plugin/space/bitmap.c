@@ -472,10 +472,18 @@ static int load_bnode_half (struct bnode * bnode, jnode * node)
 
 	if (ret) return ret;
 
+	/*
+	 * FIXME-VS: read_node spin locks jnode
+	 */
+	assert("vs-774", spin_jnode_is_locked(node));
+	JF_SET (node, ZNODE_LOADED);
+	spin_unlock_jnode(node);
+
 	spin_lock_bnode(bnode);
 
-	JF_SET (node, ZNODE_LOADED);
-
+	/*
+	 * FIXME-VS: JF_SET was here
+	 */
 	return 0;
 }
 
