@@ -8,6 +8,7 @@
 .*.flags
 .as_ops.o.cmd
 .block_alloc.o.cmd
+.block_alloc.o.d
 .blocknrset.o.cmd
 .build
 .built-in.o.cmd
@@ -55,6 +56,7 @@
 .lock.o.cmd
 .memory.o.cmd
 .new_coord.o.cmd
+.oid.o.cmd
 .page_cache.o.cmd
 .pool.o.cmd
 .prof.o.cmd
@@ -101,6 +103,8 @@ a1.mmap.meta
 a2.mmap
 a3.mmap
 all-reiser4.c
+as_yet_unneeded_abstractions/oid/.oid.o.cmd
+as_yet_unneeded_abstractions/oid/.oid40.o.cmd
 bash.rc
 bash.rc1
 bash.rc2
@@ -243,6 +247,7 @@ plugin/item/cde.bb
 plugin/item/cde.bbg
 plugin/item/extent.bb
 plugin/item/extent.bbg
+plugin/item/extent.c.new
 plugin/item/extent.c.orig
 plugin/item/internal.bb
 plugin/item/internal.bbg
@@ -1318,10 +1323,6 @@ wander.bbg
 write-test
 write-test.1
 write-test.2
+yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
-.oid.o.cmd
-as_yet_unneeded_abstractions/oid/.oid.o.cmd
-as_yet_unneeded_abstractions/oid/.oid40.o.cmd
-yet_unneeded_abstractions/oid/.oid40.o.cmd
-.block_alloc.o.d
