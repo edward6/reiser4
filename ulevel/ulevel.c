@@ -12,14 +12,6 @@
 
 int fs_is_here;
 
-static void
-SUSPEND_CONTEXT( reiser4_context *context )
-{
-	if( __REISER4_EXIT( context ) != 0) {                
-		rpanic( "jmacd-533", "txn_end failed");   
-	}
-}
-
 void panic( const char *format, ... )
 {
 	va_list args;
@@ -1498,15 +1490,10 @@ static int readdir2( const char *prefix, struct file *dir, __u32 flags )
 	info.prefix = prefix;
 
 	do {
-		reiser4_context *ctx;
-
 		info.eof = 1;
-		ctx = get_current_context();
-		SUSPEND_CONTEXT( ctx );
 		result = dir -> f_dentry -> d_inode -> i_fop -> 
 			readdir( dir, &info, 
 				 flags ? one_shot_filldir : echo_filldir );
-		init_context( ctx, dir -> f_dentry -> d_inode -> i_sb );
 		if( info.eof )
 			break;
 		if( ( flags & EFF_SHOW_INODE ) && ( info.name != NULL ) ) {
@@ -1577,27 +1564,18 @@ static int create_twig( reiser4_tree *tree, struct inode *root )
 
 static void call_umount (struct super_block * sb)
 {
-	reiser4_context *old_context;
-
-
 	fsync_bdev (sb->s_bdev);
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	if (sb->s_op->put_super)
 		sb->s_op->put_super (sb);
 
 	iput (sb->s_root->d_inode);
-
-	init_context( old_context, sb );
 }
 
 
 static int call_unlink( struct inode * dir, struct inode *victim, 
 			const char *name, int dir_p )
 {
-	reiser4_context *old_context;
 	struct dentry guillotine;
 	int result;
 
@@ -1606,19 +1584,11 @@ static int call_unlink( struct inode * dir, struct inode *victim,
 	guillotine.d_name.name = name;
 	guillotine.d_name.len = strlen( name );
 	if( dir_p ) {
-		old_context = get_current_context();
-		SUSPEND_CONTEXT( old_context );
-
 		result = dir -> i_op -> rmdir( dir, &guillotine );
 	} else {
 		truncate_inode_pages (victim->i_mapping, 0ull);
-		
-		old_context = get_current_context();
-		SUSPEND_CONTEXT( old_context );
-
 		result = dir -> i_op -> unlink( dir, &guillotine );
 	}
-	init_context( old_context, dir -> i_sb );
 	return result;
 }
 
@@ -1666,13 +1636,9 @@ static int call_link( struct inode *dir, const char *old, const char *new )
 
 	old_dentry.d_inode = call_lookup( dir, old );
 	if( !IS_ERR( old_dentry.d_inode ) ) {
-		reiser4_context *old_context;
 		int r;
 
-		old_context = get_current_context();
-		SUSPEND_CONTEXT( old_context );
 		r = dir -> i_op -> link( &old_dentry, dir, &new_dentry );
-		init_context( old_context, dir -> i_sb );
 		iput( old_dentry.d_inode );
 		iput( new_dentry.d_inode );
 		return r;
@@ -1697,22 +1663,18 @@ void *mkdir_thread( mkdir_thread_info *info )
 	char               name[ 30 ];
 	struct dentry      dentry;
 	struct inode      *f;
-	reiser4_context   *old_context;
 	int                ret;
 	struct file        df;
 
 	register_thread();
-	old_context = get_current_context();
 
 	sprintf( dir_name, "Dir-%i", current_pid );
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = dir_name;
 	dentry.d_name.len = strlen( dir_name );
-	SUSPEND_CONTEXT( old_context );
 	ret = info -> dir -> i_op -> mkdir( info -> dir, 
 					    &dentry, S_IFDIR | 0777 );
 	rlog( "nikita-1638", "In directory: %s", dir_name );
-	init_context( old_context, info -> dir -> i_sb );
 
 	if( ret != 0 ) {
 		rpanic( "nikita-1636", "Cannot create dir: %i", ret );
@@ -2481,13 +2443,8 @@ static int insert_item (reiser4_tree * tree, reiser4_item_data * data,
 
 static int call_create (struct inode * dir, const char * name)
 {
-	reiser4_context *old_context;
 	struct dentry dentry;
 	int ret;
-
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = name;
@@ -2496,7 +2453,6 @@ static int call_create (struct inode * dir, const char * name)
 
 	if( ret == 0 )
 		iput( dentry.d_inode );
-	init_context( old_context, dir->i_sb );
 	return ret;
 }
 
@@ -2504,22 +2460,15 @@ static int call_create (struct inode * dir, const char * name)
 static ssize_t call_write (struct inode * inode, const char * buf,
 			   loff_t offset, unsigned count)
 {
-	reiser4_context *old_context;
 	ssize_t result;
 	struct file file;
 	struct dentry dentry;
-
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	xmemset( &file, 0, sizeof file);
 	file.f_dentry = &dentry;
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = inode;
 	result = inode->i_fop->write (&file, buf, count, &offset);
-
-	init_context (old_context, inode->i_sb);
 
 	return result;
 }
@@ -2545,38 +2494,24 @@ static ssize_t call_write2 (struct inode * inode,
 static ssize_t call_read (struct inode * inode, char * buf, loff_t offset,
 			  unsigned count)
 {
-	reiser4_context *old_context;
 	ssize_t result;
 	struct file file;
 	struct dentry dentry;
-
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	file.f_dentry = &dentry;
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = inode;
 	result = inode->i_fop->read (&file, buf, count, &offset);
 
-	init_context (old_context, inode->i_sb);
 	return result;
 }
 
 
 void call_truncate (struct inode * inode, loff_t size)
 {
-	reiser4_context *old_context;
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
-
-
 	truncate_inode_pages (inode->i_mapping, size);
 	inode->i_size = size;
-
 	inode->i_op->truncate (inode);
-	init_context (old_context, inode->i_sb);
 }
 
 
@@ -2584,16 +2519,11 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 {
 	struct dentry dentry;
 	struct dentry * result;
-	reiser4_context *old_context;
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen (name);
 	result = dir->i_op->lookup (dir, &dentry);
-	init_context (old_context, dir->i_sb);
 
 	if (result == NULL)
 		return dentry.d_inode ? : ERR_PTR (-ENOENT);
@@ -2622,13 +2552,8 @@ static struct inode *sandbox( struct inode * dir )
 
 static int call_mkdir (struct inode * dir, const char * name)
 {
-	reiser4_context *old_context;
 	struct dentry dentry;
 	int result;
-
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = name;
@@ -2637,7 +2562,6 @@ static int call_mkdir (struct inode * dir, const char * name)
 
 	if( result == 0 )
 		iput( dentry.d_inode );
-	init_context (old_context, dir->i_sb);
 	return result;
 }
 
@@ -3542,10 +3466,6 @@ static int bash_write (struct inode * dir, const char * name)
 static void bash_df (struct inode * cwd)
 {
 	struct statfs st;
-	reiser4_context *old_context;
-
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
 
 	cwd -> i_sb -> s_op -> statfs( cwd -> i_sb, &st );
 	info( "\n\tf_type: %lx", st.f_type );
@@ -3557,8 +3477,6 @@ static void bash_df (struct inode * cwd)
 	info( "\n\tf_ffree: %li", st.f_ffree );
 	info( "\n\tf_fsid: %lx", st.f_fsid );
 	info( "\n\tf_namelen: %li\n", st.f_namelen );
-
-	init_context( old_context, cwd -> i_sb );
 }
 
 static int bash_trunc (struct inode * cwd, const char * name)
@@ -4405,14 +4323,11 @@ static void *uswapd( void *untyped )
 		spin_unlock( &mp_guard );
 		rlog( "nikita-1939", "uswapd wakes up..." );
 
-		SUSPEND_CONTEXT( &__context );
 		result = memory_pressure( super );
-		init_context( &__context, super );
-
 		if( result != 0 )
 			warning( "nikita-1937", "flushing failed: %i", result );
 	}
-	return NULL;
+	REISER4_EXIT_PTR( NULL );
 }
 
 void declare_memory_pressure( void )

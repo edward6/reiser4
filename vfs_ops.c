@@ -1150,7 +1150,7 @@ static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /
 		info -> hash  = NULL;
 		info -> sd    = NULL;
 		info -> dir_item = NULL;
-		info -> bytes = NULL;
+		info -> bytes = 0ull;
 		info -> extmask = 0ull;
 		info -> sd_len = 0;
 		info -> locality_id = 0ull;

@@ -490,11 +490,11 @@ static inline reiser4_context *get_current_context(void)
 #define REISER4_ENTRY_PTR( super )  __REISER4_ENTRY( super, ERR_PTR(__ret) )
 #define REISER4_ENTRY( super )      __REISER4_ENTRY( super, __ret )
 
-#define __REISER4_EXIT( context )			\
-({							\
-        int __ret1 = txn_end( ( context ) -> parent );	\
-	done_context( context );			\
-        __ret1;						\
+#define __REISER4_EXIT( context )		\
+({						\
+        int __ret1 = txn_end( context );	\
+	done_context( context );		\
+        __ret1;					\
 })
 
 #define REISER4_EXIT( ret_exp ) 		                       \

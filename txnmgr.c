@@ -474,6 +474,10 @@ txn_end (reiser4_context *context)
 	
 	assert("umka-283", context != NULL);
 	
+	/* closing non top-level context---nothing to do */
+	if (context != context -> parent)
+		return 0;
+
 	txnh = context->trans;
 	
 	if (txnh != NULL) { 
