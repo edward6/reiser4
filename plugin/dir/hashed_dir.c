@@ -297,7 +297,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 {
 	int                 result;
 	new_coord         *coord;
-	lock_handle lh;
+	znode             *loaded;
+	lock_handle        lh;
 
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
@@ -309,7 +310,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	 */
 	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
 	coord = &reiser4_get_dentry_fsdata( where ) -> entry_coord;
-	if( result == 0 ) {
+	loaded = coord -> node;
+	if( ( result == 0 ) && ( ( result = zload( loaded ) ) == 0 ) ) {
 		/*
 		 * remove entry. Just pass control to the directory item
 		 * plugin.
@@ -317,6 +319,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		assert( "vs-542", inode_dir_item_plugin( object ) );
 		result = inode_dir_item_plugin( object ) ->
 			s.dir.rem_entry( object, coord, &lh, entry );
+		zrelse( loaded );
 	}
 	done_lh( &lh );
 

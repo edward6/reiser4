@@ -120,17 +120,20 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				 * coincide */
 				assert( "nikita-1990", 
 					node == seal -> coord.node );
-				assert( "nikita-1898", 
-					({ 
-						reiser4_key ukey;
+				if( REISER4_DEBUG && ( (result = zload( coord -> node )) == 0 ) ) {
+					assert( "nikita-1898", 
+						({ 
+							reiser4_key ukey;
 
-						ncoord_is_existing_unit( coord ) && 
-						keyeq( key, 
-						       unit_key_by_coord( coord,
-									  &ukey ) );
-					}) );
+							ncoord_is_existing_unit( coord ) && 
+								keyeq( key, 
+								       unit_key_by_coord( coord,
+											  &ukey ) );
+						}) );
+					zrelse( coord -> node );
+				}
 				reiser4_stat_seal_add( perfect_match );
-				result = 0;
+				/*result = 0;*/
 			} else if( znode_contains_key_lock( node, key ) )
 				/* 
 				 * seal is broken, but there is a hope that
