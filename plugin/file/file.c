@@ -434,7 +434,7 @@ static int reserve_cut_iteration(tree_level height)
 	return reiser4_grab_reserved(reiser4_get_current_sb(),
 				     estimate_one_item_removal(height) + 
 				     estimate_one_insert_into_item(height),
-				     0 /* flags */, __FUNCTION__);
+				     BA_CAN_COMMIT, __FUNCTION__);
 }
 
 /* estimate and reserve space needed to truncate page which gets partially truncated: one block for page itself, stat

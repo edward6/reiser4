@@ -261,7 +261,7 @@ obviously.
 i_sem
 ..inode_rw_lock <-------DEAD1-----+
 ......I_LOCK                      |
-....delete_sema                   |
+......delete_sema                 |
 ......flush_sema                  |
 ........atom_event                |
 ........longterm_lock <---DEAD2-+ |

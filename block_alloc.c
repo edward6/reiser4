@@ -367,11 +367,30 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
     return ret;
 }
 
+/*
+ * SPACE RESERVED FOR UNLINK/TRUNCATE
+ *
+ * Unlink and truncate require space in transaction (to update stat data, at
+ * least). But we don't want rm(1) to fail with "No space on device" error.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 int
 reiser4_grab_reserved(struct super_block *super,
 		      __u64 count, reiser4_ba_flags_t flags, const char *message)
 {
 	reiser4_super_info_data *sbinfo;
+
+	assert("nikita-3175", flags & BA_CAN_COMMIT);
 
 	sbinfo = get_super_private(super);
 	if (reiser4_grab_space(count, flags, message)) {
@@ -397,10 +416,6 @@ reiser4_release_reserved(struct super_block *super)
 	info = get_super_private(super);
 	if (info->delete_sema_owner == current) {
 		info->delete_sema_owner = NULL;
-		/* we have to commit transaction here because we need to get
-		   reserved free space back before delete semaphore is up
-		   again */
-		txnmgr_force_commit_current_atom();
 		up(&info->delete_sema);
 	}
 }

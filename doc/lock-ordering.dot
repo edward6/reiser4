@@ -157,7 +157,7 @@ ARC(txnmgr_lock, jnode_lock, "atom_begin_andlock()");
 ARC(txnmgr_lock, txnh_lock, "atom_begin_andlock()");
 ARC(i_sem, inode_rw_lock, "unix_file_setattr()");//,\nunix_file_write()");
 ARC(inode_rw_lock, delete_sema, "shorten()");
-ARC(delete_sema, txncommit, "reiser4_release_reserved()");
+//ARC(delete_sema, txncommit, "reiser4_release_reserved()");
 ARC(flush_sema, longterm_lock, "flush_scan_left()");//,\nflush_allocate_znode_update(),\nflush_scan_formatted(),\nflush_pos_to_child_and_alloc()");
 ARC(longterm_lock, page_lock, "cbk_level_lookup()");
 ARC(commit_sema, page_lock, "submit_write()");
