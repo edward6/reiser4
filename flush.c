@@ -1442,7 +1442,7 @@ static int flush_forward_squalloc (flush_position *pos)
 		 * allocate_extent_item_in_place call will try to allocate everything.  If
 		 * the disk is fragmented and we are low on memory, this may be a bad
 		 * idea.  Perhaps extent allocation should be aware of this... */
-		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
+		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, & pos->parent_lock, pos))) {
 			goto exit;
 		}
 

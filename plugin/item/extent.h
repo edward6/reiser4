@@ -131,7 +131,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 
 /* these are used in flush.c
  * FIXME-VS: should they be somewhere in item_plugin? */
-int allocate_extent_item_in_place (coord_t * item, flush_position *pos);
+int allocate_extent_item_in_place (coord_t *, lock_handle *, flush_position *pos);
 int allocate_and_copy_extent (znode * left, coord_t * right,
 			      flush_position *pos,
 			      reiser4_key * stop_key);
