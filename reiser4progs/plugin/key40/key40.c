@@ -194,6 +194,16 @@ static error_t key40_build_hash(reiserfs_key40_t *key, char *name,
     return 0;
 }
 
+static void key40_build_dir_key(reiserfs_key40_t *key, oid_t locality, 
+    oid_t objectid, char *name, reiserfs_plugin_t *hash_plugin) 
+{
+    key40_clean(key);
+    set_key40_locality(key, objectid);
+    set_key40_type(key, KEY40_FILE_NAME_MINOR);
+    
+    key40_build_hash(key, name, hash_plugin);
+}
+
 static void key40_build_file_key(reiserfs_key40_t *key, uint32_t type, 
     oid_t locality, oid_t objectid, uint64_t offset) 
 {
@@ -206,14 +216,29 @@ static void key40_build_file_key(reiserfs_key40_t *key, uint32_t type,
     set_key40_offset(key, offset);
 }
 
-static void key40_build_dir_key(reiserfs_key40_t *key, oid_t locality, 
-    oid_t objectid, char *name, reiserfs_plugin_t *hash_plugin) 
+static void key40_build_short_dir_key(void *sh_key, char *name, 
+    reiserfs_plugin_t *hash_plugin, uint8_t size) 
 {
-    key40_clean(key);
-    set_key40_locality(key, objectid);
-    set_key40_type(key, KEY40_FILE_NAME_MINOR);
+    reiserfs_key40_t key;    
+    aal_assert("vpf-131", size >= 2 * sizeof(uint64_t), return);
     
-    key40_build_hash(key, name, hash_plugin);
+    key40_clean(&key);    
+    key40_build_hash(&key, name, hash_plugin);
+    aal_memcpy(sh_key, &key.el[1], 2 * sizeof(uint64_t));
+}
+
+static void key40_build_short_file_key(void *sh_key, uint32_t type, 
+    oid_t locality, oid_t objectid, uint8_t size)
+{
+    reiserfs_key40_t key;
+    aal_assert("vpf-132", type != KEY40_FILE_NAME_MINOR, return);
+    aal_assert("vpf-133", size >= 2 * sizeof(uint64_t), return);
+
+    key40_clean(&key);
+    set_key40_locality(key, locality);
+    set_key40_type(key, (key40_minor_t)type);
+    set_key40_objectid(key, objectid);
+    aal_memcpy(sh_key, &key, 2 * sizeof(uint64_t));
 }
 
 static reiserfs_plugin_t key40_plugin = {
@@ -257,6 +282,12 @@ static reiserfs_plugin_t key40_plugin = {
 	
 	.build_dir_key = (void (*)(void *, oid_t, oid_t, char *, void *))
 	    key40_build_dir_key,
+
+	.build_dir_short_key = (void (*)(void *, oid_t, oid_t, char *, void *))
+	    key40_build_dir_short_key,
+
+	.build_file_short_key = (void (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
+	    key40_build_file_short_key,
 
 	.size = (uint8_t (*)(void))key40_size
     }
