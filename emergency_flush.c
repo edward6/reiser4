@@ -650,6 +650,8 @@ eflush_del(jnode *node, int page_locked)
 				page_cache_release(page);
 				return;
 			}
+			set_page_dirty_internal(page);
+#if 0
 			if (jnode_is_dirty(node))
 				/*
 				 * jnode was dirty (otherwise it wouldn't be
@@ -662,6 +664,7 @@ eflush_del(jnode *node, int page_locked)
 				 * called again if necessary.
 				 */
 				set_page_dirty_internal(page);
+#endif
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
