@@ -109,7 +109,7 @@
      squeeze-and-allocate on a node while its children are actively being squeezed and
      allocated.  This flag was created to avoid submitting a write request for a node
      while its children are still being allocated and squeezed. Then flush queue was
-     re-implemented to allow unlimited number of node be queued. This flag support was
+     re-implemented to allow unlimited number of nodes be queued. This flag support was
      commented out in source code because we decided that there was no reason to submit
      queued nodes before jnode_flush() finishes.  However, current code calls fq_write()
      during a slum traversal and may submit "busy nodes" to disk. Probably we can
@@ -392,7 +392,7 @@ ZAM-FXME-HANS: Please update the comments above.
    algorithm.  As discussed above for the issue of unallocated children, we decided to
    treat twig and leaf nodes specially--always allocating all children of a twig to ensure
    proper read- and write-optimization of those levels.  We would like to modify the flush
-   algorithm to return control after it finishes squeezing all the childre of a single
+   algorithm to return control after it finishes squeezing all the children of a single
    twig, allowing the queue of nodes prepared for writing to be consumed somewhat before
    continuing.
   
@@ -1317,7 +1317,7 @@ flush_alloc_ancestors(flush_position * pos)
 	/* FIXME(D): This check has no atomicity--the node is not spinlocked--so what good
 	   is it?  It needs to be moved into some kind of spinlock protection, probably
 	   flush_reverse_relocate_check_dirty_parent or flush_reverse_relocate_test,
-	   definetly flush_allocate_znode. */
+	   definitely flush_allocate_znode. */
 	if (jnode_check_flushprepped(pos->point)) {
 		trace_on(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", flush_pos_tostring(pos));
 		return 0;
@@ -3261,6 +3261,8 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 				break;
 			}
 		} else {
+			/* FIXME:NIKITA->* the same race against truncate as
+			 * above is possible here, it seems */
 			/* In this case, apply the same end-of-node logic but don't scan
 			   the first coordinate. */
 			assert("jmacd-1231", item_is_internal(&scan->parent_coord));
