@@ -332,7 +332,8 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(jrelse),
 	DEFINE_PROF_CNT(carry),
 	DEFINE_PROF_CNT(flush_alloc),
-	DEFINE_PROF_CNT(forward_squalloc)
+	DEFINE_PROF_CNT(forward_squalloc),
+	DEFINE_PROF_CNT(atom_wait_event)
 };
 
 void calibrate_prof(void)
