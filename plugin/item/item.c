@@ -8,11 +8,11 @@
 #include "../../coord.h"
 #include "../plugin_header.h"
 #include "sde.h"
-#include "tail.h"
+/*#include "tail.h"*/
 #include "../cryptcompress.h"
 #include "internal.h"
 #include "item.h"
-#include "extent.h"
+/*#include "extent.h"*/
 #include "static_stat.h"
 #include "../plugin.h"
 #include "../../znode.h"
@@ -128,8 +128,7 @@ unit_key_by_coord(const coord_t * coord /* coord to query */ ,
     stat-data) */
 static reiser4_key *
 max_key_inside_single_key(const coord_t * coord /* coord of item */ ,
-			  reiser4_key * result /* resulting key */,
-			  void *p UNUSED_ARG)
+			  reiser4_key * result /* resulting key */)
 {
 	assert("nikita-604", coord != NULL);
 
@@ -139,7 +138,7 @@ max_key_inside_single_key(const coord_t * coord /* coord of item */ ,
 }
 
 /* ->nr_units() method for items consisting of exactly one unit always */
-static unsigned int
+static pos_in_item_t
 nr_units_single_unit(const coord_t * coord UNUSED_ARG	/* coord of item */ )
 {
 	return 1;
@@ -179,7 +178,7 @@ item_can_contain_key(const coord_t * item /* coord of item */ ,
 	else {
 		assert("nikita-1681", iplug->b.max_key_inside != NULL);
 		item_key_by_coord(item, &min_key_in_item);
-		iplug->b.max_key_inside(item, &max_key_in_item, 0);
+		iplug->b.max_key_inside(item, &max_key_in_item);
 
 		/* can contain key if 
 		      min_key_in_item <= key &&
@@ -214,11 +213,11 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	if (iplug->b.mergeable != NULL) {
 		return iplug->b.mergeable(i1, i2);
 	} else if (iplug->b.max_key_inside != NULL) {
-		iplug->b.max_key_inside(i1, &k1, 0);
+		iplug->b.max_key_inside(i1, &k1);
 		item_key_by_coord(i2, &k2);
 
 		/* mergeable if ->max_key_inside() >= key of i2; */
-		return keyge(iplug->b.max_key_inside(i1, &k1, 0), item_key_by_coord(i2, &k2));
+		return keyge(iplug->b.max_key_inside(i1, &k1), item_key_by_coord(i2, &k2));
 	} else {
 		item_key_by_coord(i1, &k1);
 		item_key_by_coord(i2, &k2);
@@ -294,14 +293,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = NULL,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_sd,
-#endif
-			.check = NULL,
 			.nr_units = nr_units_single_unit,
 			/* to need for ->lookup method */
 			.lookup = NULL,
-			.init_coord = NULL,
 			.init = NULL,
 			.paste = paste_no_paste,
 			.fast_paste = NULL,
@@ -314,8 +308,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = NULL,
 			.unit_key = NULL,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
-			.item_stat = item_stat_static_sd/*sd_item_stat*/
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_sd,
+			.item_stat = item_stat_static_sd
+#endif
+#if REISER4_DEBUG
+			, .check = NULL
+#endif
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -324,9 +324,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.sd = {
-				.init_inode = init_inode_static_sd,/*sd_load,*/
-				.save_len = save_len_static_sd,/*sd_len,*/
-				.save = save_static_sd/*sd_save*/
+				.init_inode = init_inode_static_sd,
+				.save_len = save_len_static_sd,
+				.save = save_static_sd
 			}
 		}
 	},
@@ -344,14 +344,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = NULL,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_de,
-#endif
-			.check = NULL,
 			.nr_units = nr_units_single_unit,
 			/* to need for ->lookup method */
 			.lookup = NULL,
-			.init_coord = NULL,
 			.init = NULL,
 			.paste = NULL,
 			.fast_paste = NULL,
@@ -364,8 +359,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = NULL,
 			.unit_key = NULL,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_de,
 			.item_stat = NULL
+#endif
+#if REISER4_DEBUG
+			, .check = NULL
+#endif
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -398,13 +399,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_cde,
 			.can_contain_key = can_contain_key_cde,
 			.mergeable = mergeable_cde,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_cde,
-#endif
-			.check = check_cde,
 			.nr_units = nr_units_cde,
 			.lookup = lookup_cde,
-			.init_coord = NULL,
 			.init = init_cde,
 			.paste = paste_cde,
 			.fast_paste = agree_to_fast_op,
@@ -417,8 +413,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = cut_units_cde,
 			.unit_key = unit_key_cde,
 			.estimate = estimate_cde,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_cde,
 			.item_stat = NULL
+#endif
+#if REISER4_DEBUG
+			, .check = check_cde
+#endif
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -451,13 +453,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = NULL,
 			.can_contain_key = NULL,
 			.mergeable = mergeable_internal,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_internal,
-#endif
-			.check = check__internal,
 			.nr_units = nr_units_single_unit,
 			.lookup = lookup_internal,
-			.init_coord = NULL,
 			.init = NULL,
 			.paste = NULL,
 			.fast_paste = NULL,
@@ -470,8 +467,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = NULL,
 			.unit_key = NULL,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_internal,
 			.item_stat = NULL
+#endif
+#if REISER4_DEBUG
+			, .check = check__internal
+#endif
 		},
 		.f = {
 			.utmost_child            = utmost_child_internal,
@@ -499,13 +502,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_extent,
 			.can_contain_key = can_contain_key_extent,
 			.mergeable = mergeable_extent,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_extent,
-#endif
-			.check = check_extent,
 			.nr_units = nr_units_extent,
 			.lookup = lookup_extent,
-			.init_coord = init_coord_extent,
 			.init = NULL,
 			.paste = paste_extent,
 			.fast_paste = agree_to_fast_op,
@@ -518,8 +516,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = kill_units_extent,
 			.unit_key = unit_key_extent,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_extent,
 			.item_stat = item_stat_extent
+#endif
+#if REISER4_DEBUG
+			, .check = check_extent
+#endif
 		},
 		.f = {
 			.utmost_child            = utmost_child_extent,
@@ -532,12 +536,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.read = read_extent,
 				.readpage = readpage_extent,
 				.writepage = writepage_extent,
-				.page_cache_readahead = NULL,
 				.get_block = get_block_address_extent,
-				/*extent_page_cache_readahead */
 				.readpages = readpages_extent,
 				.append_key = append_key_extent,
-				.key_in_item = key_in_item_extent
+				.init_coord_extension = init_coord_extension_extent
+#if REISER4_DEBUG
+				, .key_in_item = key_in_item_extent
+#endif
 			}
 		}
 	},
@@ -555,13 +560,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_tail,
 			.mergeable = mergeable_tail,
-#if REISER4_DEBUG_OUTPUT
-			.print = NULL,
-#endif
-			.check = NULL,
 			.nr_units = nr_units_tail,
 			.lookup = lookup_tail,
-			.init_coord = NULL,
 			.init = NULL,
 			.paste = paste_tail,
 			.fast_paste = agree_to_fast_op,
@@ -574,8 +574,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = cut_units_tail,
 			.unit_key = unit_key_tail,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = NULL,
 			.item_stat = NULL
+#endif
+#if REISER4_DEBUG
+			, .check = NULL
+#endif
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -588,11 +594,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.read = read_tail,
 				.readpage = NULL,
 				.writepage = NULL,
-				.page_cache_readahead = NULL,
 				.get_block = NULL,
 				.readpages = NULL,
 				.append_key = append_key_tail,
-				.key_in_item = key_in_item_tail
+				.init_coord_extension = init_coord_extension_tail
+#if REISER4_DEBUG
+				, .key_in_item = key_in_item_tail
+#endif
 			}
 		}
 	},
@@ -610,13 +618,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_tail,
 			.mergeable = mergeable_ctail,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_ctail,
-#endif
-			.check = NULL,
 			.nr_units = nr_units_ctail,
 			.lookup = lookup_tail,
-			.init_coord = NULL,
 			.init = NULL,
 			.paste = paste_ctail,
 			.fast_paste = agree_to_fast_op,
@@ -629,8 +632,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = cut_units_ctail,
 			.unit_key = unit_key_tail,
 			.estimate = estimate_ctail,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_ctail,
 			.item_stat = NULL
+#endif
+#if REISER4_DEBUG
+			, .check = NULL
+#endif
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -643,11 +652,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.read = read_ctail,
 				.readpage = readpage_ctail,
 				.writepage = writepage_ctail,
-				.page_cache_readahead = NULL,
 				.get_block = NULL,
 				.readpages = readpages_ctail,
-				.append_key = append_key_ctail,
-				.key_in_item = key_in_item_ctail
+				.append_key = append_key_ctail
+#if REISER4_DEBUG
+				, .key_in_item = key_in_item_ctail
+#endif
 			}
 		}
 	},	
@@ -668,13 +678,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_tail,
 			.mergeable = mergeable_frozen,
-#if REISER4_DEBUG_OUTPUT
-			.print = NULL,
-#endif
-			.check = NULL,
 			.nr_units = nr_units_tail,
 			.lookup = lookup_tail,
-			.init_coord = NULL,
 			.init = NULL,
 			.paste = paste_frozen,
 			.fast_paste = agree_to_fast_op,
@@ -687,8 +692,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = cut_units_tail,
 			.unit_key = unit_key_tail,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = NULL,
 			.item_stat = NULL
+#endif
+#if REISER4_DEBUG
+			, .check = NULL
+#endif
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -702,10 +713,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.readpage = NULL,
 				.writepage = NULL,
 				.readpages = NULL,
-				.page_cache_readahead = NULL,
 				.get_block = NULL,
 				.append_key = append_key_tail,
-				.key_in_item = key_in_item_tail
+				.init_coord_extension = init_coord_extension_tail
+#if REISER4_DEBUG
+				, .key_in_item = key_in_item_tail
+#endif
 			}
 		}
 	},
@@ -723,13 +736,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_key_inside = max_key_inside_extent,
 			.can_contain_key = can_contain_key_extent,
 			.mergeable = mergeable_frozen,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_extent,
-#endif
-			.check = check_extent,
 			.nr_units = nr_units_extent,
 			.lookup = lookup_extent,
-			.init_coord = init_coord_extent,
 			.init = NULL,
 			.paste = paste_frozen,
 			.fast_paste = agree_to_fast_op,
@@ -742,8 +750,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = kill_units_extent,
 			.unit_key = unit_key_extent,
 			.estimate = NULL,
-			.item_data_by_flow = NULL,
+			.item_data_by_flow = NULL
+#if REISER4_DEBUG_OUTPUT
+			, .print = print_extent,
 			.item_stat = item_stat_extent
+#endif
+#if REISER4_DEBUG
+			, .check = check_extent
+#endif
 		},
 		.f = {
 			.utmost_child = utmost_child_extent,
@@ -757,10 +771,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.readpage = readpage_extent,
 				.readpages = NULL,
 				.writepage = NULL,
-				.page_cache_readahead = NULL,
 				.get_block = NULL,
 				.append_key = append_key_extent,
-				.key_in_item = key_in_item_extent
+				.init_coord_extension = init_coord_extension_extent
+#if REISER4_DEBUG
+				, .key_in_item = key_in_item_extent
+#endif
 			}
 		}
 	}
