@@ -45,6 +45,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 		reiser4_context *parent;
 
 		parent = (reiser4_context *) current->fs_context;
+		/* NOTE-NIKITA this is dubious */
 		if (parent->super == super) {
 			context->parent = parent;
 #if (REISER4_DEBUG)
@@ -79,6 +80,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context_list_push_front(&active_contexts, context);
 	spin_unlock(&active_contexts_lock);
 	context->task = current;
+	context->flush_started = INITIAL_JIFFIES;
 #endif
 
 	grab_space_enable();

@@ -130,6 +130,9 @@ DEFINE_SUPER_RO(21, tree.carry.insert_flags, "%llx", 32);
 DEFINE_SUPER_RO(22, oid_allocator.u.oid40.next_to_use, "%llu", 64);
 DEFINE_SUPER_RO(23, oid_allocator.u.oid40.oids_in_use, "%llu", 64);
 
+DEFINE_SUPER_RO(24, entd.flushers, "%llu", 32);
+DEFINE_SUPER_RO(25, entd.timeout, "%llu", 32);
+
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
@@ -154,6 +157,8 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_21.attr,
 	&kattr_super_ro_22.attr,
 	&kattr_super_ro_23.attr,
+	&kattr_super_ro_24.attr,
+	&kattr_super_ro_25.attr,
 	NULL
 };
 

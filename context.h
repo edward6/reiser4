@@ -21,12 +21,7 @@
 
 /* list of active lock stacks */
 ON_DEBUG(TS_LIST_DECLARE(context);)
-/*
-typedef enum {
-	FLUSH_MODE	    =   (1 << 0),
-	GRAB_ENABLED        =	(1 << 1)
-} context_flags_t;
-*/
+ON_DEBUG(TS_LIST_DECLARE(flushers);)
 
 /* global context used during system call. Variable of this type is
    allocated on the stack at the beginning of the reiser4 part of the
@@ -71,11 +66,17 @@ struct reiser4_context {
 	tap_list_head taps;
 
 	/* grabbing space is enabled */
-	int grab_enabled:1;
+	int grab_enabled  :1;
     	/* should be set when we are write dirty nodes to disk in jnode_flush or
 	 * reiser4_write_logs() */
-	int writeout_mode:1;
-	    
+	int writeout_mode :1;
+	int entd          :1;
+
+	/* count non-trivial jnode_set_dirty() calls */
+	__u64 nr_marked_dirty;
+	unsigned long flush_started;
+	unsigned long io_started;
+
 #if REISER4_DEBUG
 	/* thread ID */
 	__u32 tid;
@@ -87,17 +88,17 @@ struct reiser4_context {
 	struct task_struct *task; /* so we can easily find owner of the stack */
 	
 	reiser4_block_nr grabbed_initially;
-	void *grabbed_at;
+	void *grabbed_at[5];
+	flushers_list_link  flushers_link;
 #endif
 #if REISER4_DEBUG_NODE
 	int disable_node_check;
 #endif
-	/* count non-trivial jnode_set_dirty() calls */
-	__u64 nr_marked_dirty;
 };
 
 #if REISER4_DEBUG
 TS_LIST_DEFINE(context, reiser4_context, contexts_link);
+TS_LIST_DEFINE(flushers, reiser4_context, flushers_link);
 #endif
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);

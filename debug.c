@@ -545,6 +545,13 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(hashes.eflush.remove),
 	DEFINE_STAT_CNT(hashes.eflush.scanned),
 
+	DEFINE_STAT_CNT(entd.asked),
+	DEFINE_STAT_CNT(entd.iteration),
+	DEFINE_STAT_CNT(entd.wait_flush),
+	DEFINE_STAT_CNT(entd.wait_congested),
+	DEFINE_STAT_CNT(entd.kicked),
+	DEFINE_STAT_CNT(entd.cleaned),
+
 	DEFINE_STAT_CNT(non_uniq),
 	DEFINE_STAT_CNT(non_uniq_max),
 	DEFINE_STAT_CNT(stack_size_max)
@@ -790,12 +797,34 @@ no_counters_are_held()
 		(counters->inode_sem_w == 0);
 }
 
+int
+commit_check_locks()
+{
+	lock_counters_info *counters;
+	int inode_sem_r;
+	int inode_sem_w;
+	int result;
+
+	counters = lock_counters();
+	inode_sem_r = counters->inode_sem_r;
+	inode_sem_w = counters->inode_sem_w;
+
+	counters->inode_sem_r = counters->inode_sem_w = 0;
+	result = no_counters_are_held();
+	counters->inode_sem_r = inode_sem_r;
+	counters->inode_sem_w = inode_sem_w;
+	return result;
+}
 #endif
 
 #if KERNEL_DEBUGGER
 void debugtrap(void)
 {
 	/* do nothing. Put break point here. */
+#ifdef CONFIG_KGDB
+	extern void breakpoint(void);
+	breakpoint();
+#endif
 }
 #endif
 

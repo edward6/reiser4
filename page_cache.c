@@ -177,6 +177,7 @@
 #include "vfs_ops.h"
 #include "inode.h"
 #include "super.h"
+#include "entd.h"
 #include "page_cache.h"
 #include "ktxnmgrd.h"
 
@@ -187,6 +188,7 @@
 #include <linux/pagemap.h>
 #include <linux/bio.h>
 #include <linux/writeback.h>
+#include <linux/backing-dev.h>
 
 static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
 
@@ -488,6 +490,143 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(-ENOMEM);
 }
 
+static int
+is_writepage_done(struct page *page, int *iterations)
+{
+	reiser4_stat_inc(entd.iteration);
+	/*
+	 * if flush managed to clean this page we are done.
+	 */
+	if (!PageDirty(page)) {
+		reiser4_stat_inc(entd.cleaned);
+		return 1;
+	}
+	/*
+	 * check for some weird condition to avoid stalling
+	 * memory scan.
+	 */
+	if (++ (*iterations) > 100) {
+		warning("nikita-3110", "Flush cannot start");
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+/*
+ * This function uses some heuristic algorithm that results in @page being
+ * cleaned by normal flushing (flush.c) in most cases. Reason for this is
+ * whenever possible to avoid emergency flush (emergency_flush.c) that doesn't
+ * perform disk layout optimization.
+ *
+ * Algorithm:
+ *
+ *  1. there is dedicated per-super block "ent" (from Tolkien's LOTR) thread
+ *  used to start flushing if no other flushers are active. Presumably it is
+ *  called ent because one has to wake it up to do anything useful.
+ *
+ *  2. our goal is to wait for some reasonable amount of time ("timeout") in
+ *  hope that ongoing concurrent flush would process and clean @page.
+ *
+ *  3. specifically we wait until following happens:
+ *
+ *       there is flush (possibly being done by the ent) that started more
+ *       than timeout ago, 
+ *  
+ *                              and
+ *
+ *       device queue is not congested.
+ *
+ *
+ *  Intuitively this means that flush stalled, probably waiting for free
+ *  memory.
+ *
+ *  Tricky part here is selection of timeout value. Probably it should be
+ *  dynamically adjusting based on CPU load and average time it takes flush to
+ *  start submitting nodes.
+ *
+ * Return:
+ *
+ *   > 0 we are done with page (it has been cleaned)
+ *   < 0 some error occurred
+ *  == 0 no luck, proceed with emergency flush
+ *
+ */
+static int
+wait_for_flush(struct page *page, struct super_block *super)
+{
+	struct backing_dev_info *bdi;
+	int                      flushers;
+	unsigned long            flush_started;
+	unsigned long            timeout;
+	int                      result;
+	int                      iterations;
+
+	bdi     = page->mapping->backing_dev_info;
+	timeout = get_entd_context(super)->timeout;
+
+	reiser4_stat_inc(entd.asked);
+
+	result     = 0;
+	iterations = 0;
+
+	while (result == 0) {
+
+		while (result == 0) {
+			flushers = get_flushers(super, &flush_started);
+			/*
+			 * if there is no flushing going on---launch ent
+			 * thread.
+			 */
+			if (flushers == 0) {
+				reiser4_stat_inc(entd.kicked);
+				kick_entd(super);
+			}
+			/*
+			 * wait until at least one flushing thread is running
+			 * for at least @timeout
+			 */
+			if (flushers != 0 &&
+			    time_before(flush_started + timeout, jiffies))
+				break;
+
+			schedule_timeout(timeout);
+			reiser4_stat_inc(entd.wait_flush);
+
+			/*
+			 * if flush managed to clean this page we are done.
+			 */
+			result = is_writepage_done(page, &iterations);
+		}
+		/*
+		 * at this point we are either done (result != 0), or there is
+		 * flush going on for at least @timeout. If device in
+		 * congested, we conjecture that flush is actively progressing
+		 * (as opposed to being stalled). Wait more.
+		 */
+		if (result == 0 && bdi_write_congested(bdi)) {
+			schedule_timeout(timeout);
+			reiser4_stat_inc(entd.wait_congested);
+			result = is_writepage_done(page, &iterations);
+			if (result == 0)
+				/*
+				 * still no luck.
+				 */
+				continue;
+		}
+
+		/*
+		 * at this point we are either done (result != 0), or there is
+		 * flushing thread going on for at least @timeout, but nothing
+		 * is send down to the disk. Probably flush stalls waiting for
+		 * memory. This shouldn't happen often for normal file system
+		 * loads, because balance dirty pages ensures there are enough
+		 * clean pages around.
+		 */
+		break;
+	}
+	return result;
+}
+
 /* Common memory pressure notification. */
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
@@ -501,8 +640,9 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	int result;
 
 	REISER4_ENTRY(s);
-	assert("vs-828", PageLocked(page));
 
+	assert("vs-828", PageLocked(page));
+	
 	tree = &get_super_private(s)->tree;
 	/* jfind which used to be here creates jnode for the page if it is not
 	   private yet. But that jnode is only later used by
@@ -532,7 +672,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	reiser4_unlock_page(page);
 
-	result = 0;
+	result = wait_for_flush(page, s);
+	if (result != 0) {
+		jput(node);
+		REISER4_EXIT(0);
+	}
+
 	if (node) {
 		result = writeback_queued_jnodes(s, node);
 		jput(node);

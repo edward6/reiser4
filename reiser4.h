@@ -125,6 +125,9 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* sleeping period for ktxnmrgd */
 #define REISER4_TXNMGR_TIMEOUT  (5 * HZ)
 
+/* timeout to wait for ent thread in writepage. Default: 3 milliseconds. */
+#define REISER4_ENTD_TIMEOUT (3 * HZ / 1000)
+
 /* start complaining after that many restarts in coord_by_key().
   
    This either means incredibly heavy contention for this part of a tree, or

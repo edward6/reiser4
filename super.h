@@ -11,6 +11,7 @@
 #include "context.h"
 #include "trace.h"
 #include "lnode.h"
+#include "entd.h"
 #include "plugin/plugin.h"
 
 #include "plugin/space/space_allocator.h"
@@ -205,6 +206,9 @@ struct reiser4_super_info_data {
 
 	/* transaction manager */
 	txn_mgr tmgr;
+
+	/* ent thread */
+	entd_context entd;
 
 	/* fake inode used to bind formatted nodes */
 	struct inode *fake;

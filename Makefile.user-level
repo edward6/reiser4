@@ -186,6 +186,7 @@ SRC		:= \
 		   estimate.c \
 		   ioctl.c \
 		   spinprof.c\
+		   entd.c\
 		   ktxnmgrd.c
 
 OBJ_DIR     := obj
