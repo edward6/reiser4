@@ -1056,14 +1056,19 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 	carry_plugin_info info;
 
 
-	op -> u.insert_flow.new_nodes = 0;
 	f = op -> u.insert_flow.flow;
 	result = 0;
+
+	/* this flag is used to distinguish a need to have carry to propagate
+	 * leaf level modifications up in the tree when make_space fails not in
+	 * first iteration of the loop below */
 	something_written = 0;
+
+	/* carry system needs this to work */
 	info.doing  = doing;
 	info.todo   = todo;
-	while( f -> length )
-	{
+
+	while( f -> length ) {
 		result = make_space_for_flow_insertion( op, doing, todo );
 		if( result ) {
 			if( something_written ) {
@@ -1087,9 +1092,11 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 		data.arg = 0;
 
 		if( can_paste( op ) ) {
+			/* existing item must be expanded */
 			nplug -> change_item_size( insert_point, data.length );
 			data.iplug -> common.paste( insert_point, &data, &info );
 		} else {
+			/* new item must be inserted */
 			nplug -> create_item( insert_point, &f -> key,
 					      &data, &info );
 		}
