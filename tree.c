@@ -1548,10 +1548,7 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	tree -> root_block = *root_block;
 	tree -> height = height;
 	tree -> nplug = nplug;
-	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
-	if( tree -> cbk_cache == NULL )
-		return -ENOMEM;
-	cbk_cache_init( tree -> cbk_cache );
+
 	tree -> znode_epoch = 1ull;
 
 	result = znodes_tree_init( tree );
@@ -1568,9 +1565,7 @@ void done_tree( reiser4_tree *tree /* tree to release */ )
 
 	znodes_tree_done( tree );
 	jnodes_tree_done( tree );
-
-	if( tree -> cbk_cache != NULL )
-		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
+	cbk_cache_done( &tree -> cbk_cache );
 }
 
 #if REISER4_DEBUG

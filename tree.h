@@ -51,10 +51,11 @@ typedef struct cbk_cache_slot {
  *
  */
 typedef struct cbk_cache {
+	int                 nr_slots;
 	/** head of LRU list of cache slots */
 	cbk_cache_list_head lru;
 	/** actual array of slots */
-	cbk_cache_slot      slot[ CBK_CACHE_SLOTS ];
+	cbk_cache_slot     *slot;
 	/** serializator */
 	spinlock_t          guard;
 } cbk_cache;
@@ -94,14 +95,14 @@ struct reiser4_tree {
 	/* block_nr == 0 is fake znode. Write lock it, while changing
 	   tree height. */
 	/** disk address of root node of a tree */
-	reiser4_block_nr    root_block;
+	reiser4_block_nr     root_block;
 
 	/** level of the root node. If this is 1, tree consists of root
 	    node only */
 	tree_level           height;
 
 	/** cache of recent tree lookup results */
-	cbk_cache           *cbk_cache;
+	cbk_cache            cbk_cache;
 
 	/** hash table to look up znodes by block number. */
 	z_hash_table         zhash_table;
@@ -362,7 +363,8 @@ extern znode *child_znode( const coord_t *in_parent, znode *parent, int incore_p
 extern void print_coord_content( const char *prefix, coord_t *p );
 extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern const char *bias_name( lookup_bias bias );
-extern int cbk_cache_init( cbk_cache *cache );
+extern int  cbk_cache_init( cbk_cache *cache );
+extern void cbk_cache_done( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node, reiser4_tree *tree );
 extern void cbk_cache_add( const znode *node );
 

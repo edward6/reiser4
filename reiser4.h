@@ -17,7 +17,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /* here go tunable parameters that are not worth special entry in kernel
    configuration */
 
-/** number of slots in coord-by-key caches */
+/** default number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
 /** how many elementary tree operation to carry on the next level */
 #define CARRIES_POOL_SIZE        (5)
@@ -30,14 +30,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #define REISER4_SUPPORT_GID_SPACE_RESERVATION (0)
 /** we are supporting reservation of disk space for root */
 #define REISER4_SUPPORT_ROOT_SPACE_RESERVATION (0)
-
-/** enable lock passing support */
-#define REISER4_SUPPORT_PASS_LOCK (0)
-
-/** inodes are locked by single super-block lock */
-#define REISER4_USE_SB_ILOCK    (0)
-/** inodes are locked by ->i_data lock */
-#define REISER4_USE_I_DATA_LOCK (0)
 
 /** key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)
@@ -188,8 +180,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  * maximal number of keys lookup_multikey() can handle.
  */
 #define REISER4_MAX_MULTI_SEARCH (4)
-
-/* FIXME: JMACD->? Make these flush-tunables into mount options. */
 
 /* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level blocks it
  * will force them to be relocated. */

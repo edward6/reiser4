@@ -791,11 +791,14 @@ int jnode_try_drop( jnode *node )
 {
 	assert( "nikita-2491", node != NULL );
 
-	if( atomic_read( &node -> x_count ) > 0 )
+	/*
+	 * first do lazy check without taking tree lock.
+	 */
+	if( ( atomic_read( &node -> x_count ) > 0 ) ||
+	    ( jnode_is_znode( node ) && 
+	      atomic_read( &JZNODE( node ) -> c_count ) > 0 ) ||
+	    UNDER_SPIN( jnode, node, node -> pg ) )
 		return -EBUSY;
-	if( jnode_is_znode( node ) && 
-	    atomic_read( &JZNODE( node ) -> c_count ) > 0 )
-		return -ENOTEMPTY;
 }
 
 /**

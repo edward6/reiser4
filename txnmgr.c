@@ -1368,7 +1368,7 @@ txn_try_capture (jnode           *node,
 		cap_mode = TXN_CAPTURE_WRITE;
 	} else if ((txnh->mode == TXN_READ_FUSING) && (jnode_get_level( node ) == LEAF_LEVEL)) {
 		/* We only need a READ_FUSING capture at the leaf level.  This is because
-		 * the internal levels of the tree (twigs included) are redundent from the
+		 * the internal levels of the tree (twigs included) are redundant from the
 		 * point of the user that asked for a read-fusing transcrash.  The user
 		 * only wants to read-fuse atoms due to reading uncommitted data that
 		 * another user has written.  It is the file system that reads/writes the

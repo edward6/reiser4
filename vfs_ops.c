@@ -1553,105 +1553,105 @@ static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
 	return result;
 }
 
+#define NUM_OPT( label, fmt, addr )				\
+		{						\
+			.name = ( label ),			\
+			.type = OPT_FORMAT,			\
+			.u = {					\
+				.f = {				\
+					.format  = ( fmt ),	\
+					.nr_args = 1,		\
+					.arg1 = ( addr ),	\
+					.arg2 = NULL,		\
+					.arg3 = NULL,		\
+					.arg4 = NULL		\
+				}				\
+			}					\
+		}
+
+#define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &info -> field )
+
 static int reiser4_parse_options( struct super_block * s, char *opt_string )
 {
 	int result;
+	reiser4_super_info_data *info = get_super_private (s);
 
 	opt_desc_t opts[] = {
-		{
-			/*
-			 * trace=N
-			 *
-			 * set trace flags to be N for this mount. N can be C
-			 * numeric literal recognized by %i scanf specifier.
-			 * It is treated as bitfield filled by values of
-			 * debug.h:reiser4_trace_flags enum
-			 */
-			.name = "trace",
-			.type = OPT_FORMAT,
-			.u = {
-				.f = {
-					.format  = "%i",
-					.nr_args = 1,
-					/*
-					 * neat gcc feature: allow
-					 * non-constant initializers.
-					 */
-					.arg1 = &get_super_private (s) -> trace_flags,
-					.arg2 = NULL,
-					.arg3 = NULL,
-					.arg4 = NULL
-				}
-			}
-		},
-		{
-			/*
-			 * debug=N
-			 *
-			 * set debug flags to be N for this mount. N can be C
-			 * numeric literal recognized by %i scanf specifier.
-			 * It is treated as bitfield filled by values of
-			 * debug.h:reiser4_debug_flags enum
-			 */
-			.name = "debug",
-			.type = OPT_FORMAT,
-			.u = {
-				.f = {
-					.format  = "%i",
-					.nr_args = 1,
-					.arg1 = &get_super_private (s) -> debug_flags,
-					.arg2 = NULL,
-					.arg3 = NULL,
-					.arg4 = NULL
-				}
-			}
-		},
-		{
-			/*
-			 * atom_max_size=N
-			 *
-			 * Atoms containing more than N blocks will be forced
-			 * to commit. N is decimal.
-			 */
-			.name = "atom_max_size",
-			.type = OPT_FORMAT,
-			.u = {
-				.f = {
-					.format  = "%d",
-					.nr_args = 1,
-					.arg1 = &get_super_private (s) -> txnmgr.atom_max_size,
-					.arg2 = NULL,
-					.arg3 = NULL,
-					.arg4 = NULL
-				}
-			}
-		},
-		{
-			/*
-			 * atom_max_age=N
-			 *
-			 * Atoms older than N seconds will be forced
-			 * to commit. N is decimal.
-			 */
-			.name = "atom_max_age",
-			.type = OPT_FORMAT,
-			.u = {
-				.f = {
-					.format  = "%ld",
-					.nr_args = 1,
-					.arg1 = &get_super_private (s) -> txnmgr.atom_max_age,
-					.arg2 = NULL,
-					.arg3 = NULL,
-					.arg4 = NULL
-				}
-			}
-		}
+		/*
+		 * trace=N
+		 *
+		 * set trace flags to be N for this mount. N can be C numeric
+		 * literal recognized by %i scanf specifier.  It is treated as
+		 * bitfield filled by values of debug.h:reiser4_trace_flags
+		 * enum
+		 */
+		SB_FIELD_OPT( trace_flags, "%i" ),
+		/*
+		 * debug=N
+		 *
+		 * set debug flags to be N for this mount. N can be C numeric
+		 * literal recognized by %i scanf specifier.  It is treated as
+		 * bitfield filled by values of debug.h:reiser4_debug_flags
+		 * enum
+		 */
+		SB_FIELD_OPT( debug_flags, "%i" ),
+		/*
+		 * atom_max_size=N
+		 *
+		 * Atoms containing more than N blocks will be forced to
+		 * commit. N is decimal.
+		 */
+		SB_FIELD_OPT( txnmgr.atom_max_size, "%u" ),
+		/*
+		 * atom_max_age=N
+		 *
+		 * Atoms older than N seconds will be forced to commit. N is
+		 * decimal.
+		 */
+		SB_FIELD_OPT( txnmgr.atom_max_age, "%u" ),
+		/*
+		 * cbk_cache_slots=N
+		 *
+		 * Number of slots in the cbk cache.
+		 */
+		SB_FIELD_OPT( tree.cbk_cache.nr_slots, "%u" ),
+
+		/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent
+		 * dirty leaf-level blocks it will force them to be
+		 * relocated. */
+		SB_FIELD_OPT( flush.relocate_threshold, "%u" ),
+		/* If flush finds can find a block allocation closer than at
+		 * most FLUSH_RELOCATE_DISTANCE from the preceder it will
+		 * relocate to that position. */
+		SB_FIELD_OPT( flush.relocate_distance, "%u" ),
+		/* Flush defers actualy BIO submission until it gathers
+		 * FLUSH_QUEUE_SIZE blocks. */
+		SB_FIELD_OPT( flush.queue_size, "%u" ),
+		/* If we have written this much or more blocks before
+		   encountering busy jnode in flush list - abort flushing
+		   hoping that next time we get called this jnode will be
+		   clean already, and we will save some seeks. */
+		SB_FIELD_OPT( flush.written_threshold, "%u" ),
+		/**
+		 * The maximum number of nodes to scan left on a level during
+		 * flush.
+		 */
+		SB_FIELD_OPT( flush.scan_maxnodes, "%u" )
 	};
 
-	get_super_private (s) -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
-	get_super_private (s) -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	info -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
+	info -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+
+	info -> tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
+
+	info -> flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
+	info -> flush.relocate_distance  = FLUSH_RELOCATE_DISTANCE;
+	info -> flush.queue_size         = FLUSH_QUEUE_SIZE;
+	info -> flush.written_threshold  = FLUSH_WRITTEN_THRESHOLD;
+	info -> flush.scan_maxnodes      = FLUSH_SCAN_MAXNODES;
+
 	result = parse_options( opt_string, opts, sizeof_array( opts ) );
-	get_super_private (s) -> txnmgr.atom_max_age *= HZ;
+	info -> txnmgr.atom_max_age *= HZ;
 	return result;
 }
 
@@ -1702,7 +1702,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	assert( "umka-085", s != NULL );
 	
 	if (REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
-	    REISER4_STATS || REISER4_DEBUG_MEMCPY)
+	    REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE)
 		warning ("nikita-2372", "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
@@ -1803,6 +1803,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	 * FIXME-NIKITA actually, options should be parsed by plugins also.
 	 */
 	result = reiser4_parse_options (s, data);
+	if (result) {
+		goto error4;
+	}
+
+	result = cbk_cache_init (&info->tree.cbk_cache);
 	if (result) {
 		goto error4;
 	}
