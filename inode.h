@@ -101,7 +101,11 @@ extern int common_build_flow( struct inode *, char *buf,
 extern int common_write_inode( struct inode *inode );
 extern int common_file_owns_item( const struct inode *inode, 
 				  const coord_t *coord );
+#if REISER4_DEBUG
 extern void print_inode( const char *prefix, const struct inode *i );
+#else
+#define print_inode( p, i ) noop
+#endif
 
 extern file_plugin *inode_file_plugin( const struct inode *inode );
 extern dir_plugin  *inode_dir_plugin ( const struct inode *inode );
