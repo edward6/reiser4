@@ -189,7 +189,7 @@ int aal_device_write_block(aal_device_t *device, aal_device_block_t *block) {
     if (!device || !block)
 	return 0;
 
-    if (!block->dirty)
+    if (!aal_block_dirty(block))
 	return 1;
 	
     return aal_device_write(device, block->data, aal_device_get_block_location(block), 1);

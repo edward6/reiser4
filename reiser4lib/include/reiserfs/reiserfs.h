@@ -30,8 +30,8 @@ extern "C" {
 #include "tree.h"
 #include "plugin.h"
 #include "tools.h"
-#include "endian.h"
 #include "node.h"
+#include "key.h"
 
 extern int libreiserfs_get_max_interface_version(void);
 extern int libreiserfs_get_min_interface_version(void);

@@ -10,19 +10,41 @@
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
+static uint32_t reiser4_node_magic = 0x52344653; /* (*(__u32 *)"R4FS"); */
+
 /* Format of node header for node40. */
 struct reiserfs_node40_header {
     reiserfs_node_common_header_t header;
-    size_t free_space;
-    size_t free_space_start;
+    uint16_t free_space;
+    uint16_t free_space_start;
     uint8_t level;
     uint32_t magic;
     uint16_t num_items;
-    char flags;
+/*    char flags;  - still commented out in kernel */
     uint32_t flush_time;
 };
 
 typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
+
+#define get_node_free_space(node)		get_le16(node, free_space)
+#define set_node_free_space(node, val)		set_le16(node, free_space, val)
+
+#define get_node_free_space_start(node)		get_le16(node, free_space_start)
+#define set_node_free_space_start(node, val)	set_le16(node, free_space_start, val)
+
+#define get_node_level(node)			node->level 
+#define set_node_level(node, val)		node->level = val
+
+#define get_node_magic(node)			get_le32(node, magic)
+#define set_node_magic(node, val)		set_le32(node, magic, val)
+
+#define get_node_num_items(node)		get_le16(node, num_items)
+#define set_node_num_items(node, val)		set_le16(node, num_items, val)
+
+#define get_node_flush_time(node)		get_le32(node, flush_time)
+#define set_node_flush_time(node, val)		set_le32(node, flush_time, val)
+
+
 
 /* Node object which plugin works with */
 struct reiserfs_node40 {
@@ -31,37 +53,13 @@ struct reiserfs_node40 {
 
 typedef struct reiserfs_node40 reiserfs_node40_t;
 
-typedef enum {
-    /** major "locale", aka dirid. Sits in 1st element */
-    KEY_LOCALITY_INDEX   = 0,
-    /** minor "locale", aka item type. Sits in 1st element */
-    KEY_TYPE_INDEX       = 0,
-    /** "object band". Sits in 2nd element */
-    KEY_BAND_INDEX       = 1,
-    /** objectid. Sits in 2nd element */
-    KEY_OBJECTID_INDEX   = 1,
-    /** Offset. Sits in 3rd element */
-    KEY_OFFSET_INDEX     = 2,
-    /** Name hash. Sits in 3rd element */
-    KEY_HASH_INDEX       = 2,
-    KEY_LAST_INDEX       = 3
-} reiser4_key_field_index;
-
-union reiser4_key {
-    uint64_t el[ KEY_LAST_INDEX ];
-    int pad;
-};
-
-typedef union reiser4_key reiser4_key_t;
-
-typedef uint16_t node40_size_t;
 /* 
     Item headers are not standard across all node layouts, pass
     pos_in_node to functions instead.
 */
 struct reiserfs_item_header40 {
     reiser4_key_t key;	    
-    node40_size_t offset;
+    uint16_t offset;
     uint16_t length;
     uint16_t plugin_id;
 };
