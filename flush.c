@@ -1787,7 +1787,8 @@ static int flush_rewrite_jnode (jnode *node)
 
 	jnode_set_clean (node);
 
-	SetPageWriteback (pg);
+	lock_page (pg);
+	/*SetPageWriteback (pg);*/
 
 	ret = write_one_page (pg, 0 /* no wait */);
 
