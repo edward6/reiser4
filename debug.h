@@ -653,6 +653,7 @@ typedef struct reiser4_statistics {
 
 #define ON_STATS( e ) noop
 
+#define	reiser4_stat_key_add( stat ) noop
 #define	reiser4_stat_tree_add( stat ) noop
 #define	reiser4_stat_tree_level_add( level, stat ) noop
 #define reiser4_stat_znode_add( stat ) noop
