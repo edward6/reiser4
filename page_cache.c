@@ -744,18 +744,20 @@ print_page(const char *prefix, struct page *page)
 	}
 	printk("%s: page index: %lu mapping: %p count: %i private: %lx\n",
 	       prefix, page->index, page->mapping, page_count(page), page->private);
-	printk("\tflags: %s%s%s%s %s%s%s %s%s%s%s %s%s%s\n",
+	printk("\tflags: %s%s%s%s %s%s%s %s%s%s %s%s%s\n",
 	       page_flag_name(page, PG_locked),
 	       page_flag_name(page, PG_error),
 	       page_flag_name(page, PG_referenced),
 	       page_flag_name(page, PG_uptodate),
+
 	       page_flag_name(page, PG_dirty),
 	       page_flag_name(page, PG_lru),
 	       page_flag_name(page, PG_slab),
+
 	       page_flag_name(page, PG_highmem),
 	       page_flag_name(page, PG_checked),
-	       page_flag_name(page, PG_arch_1),
 	       page_flag_name(page, PG_reserved),
+
 	       page_flag_name(page, PG_private), page_flag_name(page, PG_writeback), page_flag_name(page, PG_nosave));
 	if (jprivate(page) != NULL) {
 		print_jnode("\tpage jnode", jprivate(page));

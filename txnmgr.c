@@ -1507,11 +1507,8 @@ invalidate_list(capture_list_head * head)
 		atom = node->atom;
 		LOCK_ATOM(atom);
 		LOCK_JNODE(node);
-		if (JF_ISSET(node, JNODE_CC) && node->pg) {
-			/* corresponding page_cache_get is in swap_jnode_pages */
-			assert("vs-1448", test_and_clear_bit(PG_arch_1, &node->pg->flags));
+		if (JF_ISSET(node, JNODE_CC) && node->pg)
 			page_cache_release(node->pg);
-		}
 		uncapture_block(node);
 		UNLOCK_ATOM(atom);
 		JF_CLR(node, JNODE_SCANNED);
@@ -3578,7 +3575,6 @@ swap_jnode_pages(jnode *node, jnode *copy, struct page *new_page)
 		assert("vs-1416", radix_tree_lookup(&mapping->page_tree, index) == NULL);
 		check_me("vs-1418", radix_tree_insert(&mapping->page_tree, index, copy->pg) == 0);
 		___add_to_page_cache(copy->pg, mapping, index);
-		ON_DEBUG(set_bit(PG_arch_1, &(copy->pg)->flags));
 
 		/* corresponding page_cache_release is in invalidate_list */
 		page_cache_get(copy->pg);
