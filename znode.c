@@ -306,7 +306,7 @@ zalloc(int gfp_flag /* allocation flag */ )
 /* initialise fields of znode */
 static void
 zinit(znode * node /* znode to initialise */ ,
-      znode * parent /* parent znode */ ,
+      const znode * parent /* parent znode */ ,
       reiser4_tree * tree /* tree we are in */ )
 {
 	assert("nikita-466", node != NULL);
@@ -318,11 +318,7 @@ zinit(znode * node /* znode to initialise */ ,
 
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
-
-	WLOCK_TREE(tree);
 	coord_init_parent_hint(&node->in_parent, parent);
-	node->version = ++tree->znode_epoch;
-	WUNLOCK_TREE(tree);
 	ON_DEBUG_MODIFY(spin_lock_init(&node->cksum_guard));
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
@@ -473,7 +469,7 @@ znode *
 zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
 {
 	znode *result;
-	znode *shadow;
+	znode * shadow;
 	__u32 hashi;
 
 	z_hash_table *zth;
@@ -513,80 +509,42 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	/* Release the hash table lock. */
 	RUNLOCK_TREE(tree);
 
-	if (result != NULL) {
-
-		/* ZGET HIT CASE: No locks are held at this point. */
-
-		/* Arrive here after a race to insert a new znode: the shadow variable
-		   below became result. */
-retry_miss_race:
-
-		/* Take the znode lock in order to test its blocknr and status. */
-		if (REISER4_DEBUG) {
-			spin_lock_znode(result);
-
-			/* The block numbers must be equal. */
-			assert("jmacd-1160", blknreq(&ZJNODE(result)->blocknr, blocknr));
-			spin_unlock_znode(result);
-		}
-
-	} else {
-
-		/* ZGET MISS CASE: No locks are held at this point. */
-		result = zalloc(gfp_flag);
-
-		if (result == NULL) {
-			PROF_END(zget, zget);
-			return ERR_PTR(-ENOMEM);
-		}
-
-		/* Initialize znode before checking for a race and inserting.  Since this
-		   is a freshly allocated znode there is no need to lock it here. */
-		zinit(result, parent, tree);
-
-		ZJNODE(result)->blocknr = *blocknr;
-		ZJNODE(result)->key.z = *blocknr;
-
-		result->level = level;
-
-		add_x_ref(ZJNODE(result));
-
-		/* Repeat search in case of a race, first take the hash table lock. */
-		WLOCK_TREE(tree);
-
-		shadow = z_hash_find_index(zth, hashi, blocknr);
-
-		if (shadow != NULL) {
-
-			/* Another process won: release hash lock, free result, retry as
-			   if it were an earlier hit. */
-			WUNLOCK_TREE(tree);
-			zfree(result);
-			result = shadow;
-			goto retry_miss_race;
-		}
-
-		/* Insert it into hash: no race. */
-		z_hash_insert_index(zth, hashi, result);
-
-		/* Has to be done under tree lock, because it protects parent
-		   pointer. */
-		if (parent != NULL) {
-			atomic_inc(&parent->c_count);
-		}
-
-		/* Release hash lock. */
-		WUNLOCK_TREE(tree);
-
+	if (result)
+		goto out;
+	
+	result = zalloc(gfp_flag);
+	if (!result) {
+		PROF_END(zget, zget);
+		return ERR_PTR(-ENOMEM);
 	}
 
-	assert("jmacd-503", (result != NULL) && !IS_ERR(result));
+	zinit(result, parent, tree);
+	ZJNODE(result)->blocknr = *blocknr;
+	ZJNODE(result)->key.z = *blocknr;
+	result->level = level;
 
+	WLOCK_TREE(tree);
+
+	shadow = z_hash_find_index(zth, hashi, blocknr);
+	if (shadow != NULL) {
+		zfree(result);
+		result = shadow;
+	} else {
+		result->version = ++ tree->znode_epoch;
+		z_hash_insert_index(zth, hashi, result);
+
+		if (parent != NULL)
+			atomic_inc(&parent->c_count);
+	}
+
+	add_x_ref(ZJNODE(result));
+
+	WUNLOCK_TREE(tree);
+ out:
 #if REISER4_DEBUG
 	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
 		reiser4_check_block(blocknr, 1);
 #endif
-
 	PROF_END(zget, zget);
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
@@ -597,6 +555,7 @@ retry_miss_race:
 	}
 
 	assert("nikita-1227", znode_invariant(result));
+
 	return result;
 }
 
