@@ -28,6 +28,7 @@
 
 
 /* Initialize a blocknr hint. */
+/* Audited by: green(2002.06.11) */
 void blocknr_hint_init (reiser4_blocknr_hint *hint)
 {
 	hint->blk = 0;
@@ -42,12 +43,18 @@ void blocknr_hint_done (reiser4_blocknr_hint *hint UNUSED_ARG)
 
 /** is it a real block number from real block device or fake block number for
  * not-yet-mapped object? */
+/* Audited by: green(2002.06.11) */
 int blocknr_is_fake(const reiser4_block_nr * da)
 {
+	/* The reason for not simply returning result of '&' operation is that
+	   while return value is (possibly 32bit) int,  the reiser4_block_nr is
+	   at least 64 bits long, and high bit (which is the only possible
+	   non zero bit after the masking) would be stripped off */ 
 	return (*da & REISER4_FAKE_BLOCKNR_BIT_MASK) ? 1 : 0;
 }
 
 /** a generator for tree nodes fake block numbers */
+/* Audited by: green(2002.06.11) */
 void get_next_fake_blocknr (reiser4_block_nr *bnr)
 {
 	static spinlock_t       fake_lock = SPIN_LOCK_UNLOCKED;
@@ -72,6 +79,7 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 
 
 /* wrapper to call space allocation plugin */
+/* Audited by: green(2002.06.11) */
 int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 			  reiser4_block_nr *len)
 {
@@ -89,6 +97,7 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 }
 
 /* wrapper to call dealloc_blocks method of space allocation plugin */
+/* Audited by: green(2002.06.11) */
 int reiser4_dealloc_blocks (const reiser4_block_nr * start, const reiser4_block_nr * len)
 {
 	txn_atom          * atom; 
@@ -109,9 +118,9 @@ int reiser4_dealloc_blocks (const reiser4_block_nr * start, const reiser4_block_
 		atom = atom_get_locked_by_txnh (tx);
 		assert ("zam-430", atom != NULL);
 
-		if (*len == 1) ret = blocknr_set_add_block (atom, & atom->delete_set, &bsep, start);
-		else           ret = blocknr_set_add_extent (atom, & atom->delete_set, &bsep, start, len);
+		ret = blocknr_set_add_extent (atom, & atom->delete_set, &bsep, start, len);
 
+	/* This loop might spin at most two times */
 	} while (ret != -EAGAIN);
 
 	if (ret != 0) return ret;
