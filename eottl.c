@@ -123,8 +123,6 @@
 static int
 is_next_item_internal(coord_t * coord, lock_handle * lh)
 {
-	int result;
-
 	if (coord->item_pos != node_num_items(coord->node) - 1) {
 		/* next item is in the same node */
 		coord_t right;
@@ -135,8 +133,13 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 			coord_dup(coord, &right);
 			return 1;
 		}
-		return 0;
+	}
+	return 0;
+#if 0
+	int result;
+
 	} else {
+		return 0;
 		/* look for next item in right neighboring node */
 		lock_handle right_lh;
 		coord_t right;
@@ -171,6 +174,7 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 		done_lh(&right_lh);
 		return 0;
 	}
+#endif
 }
 
 /* inserting empty leaf after (or between) item of not internal type we have to
@@ -212,7 +216,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 	ON_STATS(todo.level_no = TWIG_LEVEL);
-	assert("", znode_contains_key_lock(insert_coord->node, key));
+	assert("vs-49827", znode_contains_key_lock(insert_coord->node, key));
 
 #if 0
 	grabbed = get_current_context() -> grabbed_blocks;
