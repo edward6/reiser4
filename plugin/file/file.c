@@ -157,14 +157,29 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	if (keyge (key, &item_key)) {
 		/* item_key <= key */
 		if (keygt (key, &max_possible_key)) {
-			/* key > max_possible_key */
+			/* key is of another file */
 			if (keylt (key, &next_item_key)) {
 				coord->unit_pos = 0;
 				coord->between = AFTER_ITEM;
 				zrelse (coord->node);
 				return 1;
 			}
+			/*
+			 * FIXME-VS: this is probably possible
+			 */
+			info ("coord_set_properly: "
+			      "next item after the one coord is set to has smaller key than the key which was used to get that coord\n");
+			zrelse (coord->node);
+			return 0;
 		}
+		/* @key and item @coord are of the same object */
+		if (keyle (&next_item_key, key)) {
+			assert ("vs-993", (node_num_items (coord->node) ==
+					   (coord->item_pos + 1)));
+			zrelse (coord->node);
+			return 0;
+		}
+
 		if (keylt (key, &max_possible_key)) {
 			/* key < max_possible_key */
 			coord->unit_pos = coord_last_unit_pos (coord);
@@ -245,7 +260,7 @@ int find_next_item (struct sealed_coord * hint,
 {
 	int result;
 
-
+#if 0
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add (find_next_item);
 
@@ -266,7 +281,7 @@ int find_next_item (struct sealed_coord * hint,
 				}
 		}
 	}
-
+#endif
 #if 0
 	/*
 	 * FIXME-VS: longterm_lock_znode is needed here
