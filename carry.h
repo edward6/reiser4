@@ -37,8 +37,6 @@ typedef struct carry_node {
 	/* base node from which real_node is calculated. See
 	    fs/reiser4/carry.c:lock_carry_node(). */
 	znode *node;
-	/* node that we actually locked */
-	znode *real_node;
 
 	/* how to get ->real_node */
 	/* to get ->real_node obtain parent of ->node*/
@@ -308,6 +306,8 @@ extern int carry_node_num(const carry_level * level);
 carry_node *add_new_znode(znode * brother, carry_node * reference, carry_level * doing, carry_level * todo);
 
 carry_node *find_carry_node(carry_level * level, const znode * node);
+
+extern znode *carry_real(const carry_node * node);
 
 /* debugging function */
 

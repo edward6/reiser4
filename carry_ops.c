@@ -48,10 +48,10 @@ find_left_neighbor(carry_op * op	/* node to find left
 	node = op->node;
 
 	/* first, check whether left neighbor is already in a @doing queue */
-	if (node->real_node->left != NULL) {
+	if (carry_real(node)->left != NULL) {
 		/* NOTE: there is locking subtlety here. Look into
 		 * find_right_neighbor() for more info */
-		left = find_carry_node(doing, node->real_node->left);
+		left = find_carry_node(doing, carry_real(node)->left);
 
 		if (left != NULL) {
 			reiser4_stat_level_inc(doing, carry_left_in_carry);
@@ -71,7 +71,8 @@ find_left_neighbor(carry_op * op	/* node to find left
 		flags |= GN_NO_ALLOC;
 
 	/* then, feeling lucky, peek left neighbor in the cache. */
-	result = reiser4_get_left_neighbor(&left->lock_handle, node->real_node, ZNODE_WRITE_LOCK, flags);
+	result = reiser4_get_left_neighbor(&left->lock_handle, carry_real(node),
+					   ZNODE_WRITE_LOCK, flags);
 	if (result == 0) {
 		/* ok, node found and locked. */
 		result = lock_carry_node_tail(left);
@@ -127,7 +128,7 @@ find_right_neighbor(carry_op * op	/* node to find right
 	node = op->node;
 
 	/* first, check whether right neighbor is already in a @doing queue */
-	if (node->real_node->right != NULL) {
+	if (carry_real(node)->right != NULL) {
 		/* Subtle:
 		 *
 		 * Q: why don't we need tree lock here, looking for the right
@@ -141,7 +142,7 @@ find_right_neighbor(carry_op * op	/* node to find right
 		 * couldn't change, because node cannot be inserted between
 		 * locked neighbors.
 		 */
-		right = find_carry_node(doing, node->real_node->right);
+		right = find_carry_node(doing, carry_real(node)->right);
 
 		if (right != NULL) {
 			reiser4_stat_level_inc(doing, carry_right_in_carry);
@@ -155,7 +156,8 @@ find_right_neighbor(carry_op * op	/* node to find right
 
 	/* then, try to lock right neighbor */
 	init_lh(&lh);
-	result = reiser4_get_right_neighbor(&lh, node->real_node, ZNODE_WRITE_LOCK, flags);
+	result = reiser4_get_right_neighbor(&lh, carry_real(node), 
+					    ZNODE_WRITE_LOCK, flags);
 	if (result == 0) {
 		/* ok, node found and locked. */
 		reiser4_stat_level_inc(doing, carry_right_in_cache);
@@ -262,11 +264,11 @@ find_new_child_coord(carry_op * op	/* COP_INSERT carry operation to
 
 	trace_stamp(TRACE_CARRY);
 
-	node = op->node->real_node;
+	node = carry_real(op->node);
 	assert("nikita-943", node != NULL);
 	assert("nikita-944", node_plugin_by_node(node) != NULL);
 
-	child = op->u.insert.child->real_node;
+	child = carry_real(op->u.insert.child);
 	result = find_new_child_ptr(node, child, op->u.insert.brother, op->u.insert.d->coord);
 
 	build_child_ptr_data(child, op->u.insert.d->data);
@@ -309,11 +311,12 @@ sync_op(carry_op * op, carry_node * target)
 	insertion_node = op->u.insert.d->coord->node;
 	/* if insertion point was actually moved into new node,
 	   update carry node pointer in operation. */
-	if (insertion_node != op->node->real_node) {
+	if (insertion_node != carry_real(op->node)) {
 		op->node = target;
-		assert("nikita-2540", target->real_node == insertion_node);
+		assert("nikita-2540", carry_real(target) == insertion_node);
 	}
-	assert("nikita-2541", op->node->real_node == op->u.insert.d->coord->node);
+	assert("nikita-2541", 
+	       carry_real(op->node) == op->u.insert.d->coord->node);
 	return insertion_node;
 }
 
@@ -381,7 +384,8 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	assert("nikita-890", op != NULL);
 	assert("nikita-891", todo != NULL);
 	assert("nikita-892", op->op == COP_INSERT || op->op == COP_PASTE || op->op == COP_EXTENT);
-	assert("nikita-1607", op->node->real_node == op->u.insert.d->coord->node);
+	assert("nikita-1607", 
+	       carry_real(op->node) == op->u.insert.d->coord->node);
 
 	trace_stamp(TRACE_CARRY);
 
@@ -429,7 +433,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			adj = get_split_point(op, LEFT_SIDE);
 			/* shift everything possible on the left of and
 			   including insertion coord into the left neighbor */
-			result = carry_shift_data(LEFT_SIDE, coord, left->real_node, doing, todo, flags & COPI_GO_LEFT);
+			result = carry_shift_data(LEFT_SIDE, coord, carry_real(left), doing, todo, flags & COPI_GO_LEFT);
 			put_split_point(op, adj, flags);
 
 			/* reget node from coord: shift_left() might move
@@ -462,7 +466,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			   excluding insertion coord into the right neighbor
 			*/
 			result = carry_shift_data(RIGHT_SIDE, coord,
-						  right->real_node, doing, todo, flags & COPI_GO_RIGHT);
+						  carry_real(right), doing, todo, flags & COPI_GO_RIGHT);
 			put_split_point(op, adj, flags);
 			/* reget node from coord: shift_right() might move
 			   insertion coord to the right neighbor */
@@ -509,10 +513,10 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 
 		/* Try to shift into new node. */
 		result = lock_carry_node(doing, fresh);
-		zput(fresh->real_node);
+		zput(carry_real(fresh));
 		if (result != 0) {
 			warning("nikita-947", "Cannot lock new node: %i", result);
-			print_znode("new", fresh->real_node);
+			print_znode("new", carry_real(fresh));
 			print_znode("node", node);
 			return result;
 		}
@@ -532,7 +536,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		*/
 		gointo = (blk_alloc > 0) || coord_is_after_rightmost(op->u.insert.d->coord);
 
-		result = carry_shift_data(RIGHT_SIDE, coord, fresh->real_node, 
+		result = carry_shift_data(RIGHT_SIDE, coord, carry_real(fresh),
 					  doing, todo, gointo);
 		put_split_point(op, adj, flags);
 		/* if insertion point was actually moved into new node,
@@ -572,7 +576,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		result = longterm_lock_znode(tracking->tracked, node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		reiser4_stat_level_inc(doing, track_lh);
 	}
-	assert("nikita-1622", ergo(result == 0, op->node->real_node == coord->node));
+	assert("nikita-1622", ergo(result == 0, carry_real(op->node) == coord->node));
 	assert("nikita-2616", coord = op->u.insert.d->coord);
 	return result;
 }
@@ -659,7 +663,7 @@ insert_paste_common(carry_op * op	/* carry operation being
 		/* NOTE-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
 		   if you need something else. */
 		op->u.insert.d->coord = coord;
-		node = op->node->real_node;
+		node = carry_real(op->node);
 		intra_node = node_plugin_by_node(node)->lookup
 		    (node, op->u.insert.d->key, FIND_EXACT, op->u.insert.d->coord);
 		if ((intra_node != NS_FOUND) && (intra_node != NS_NOT_FOUND)) {
@@ -678,13 +682,13 @@ insert_paste_common(carry_op * op	/* carry operation being
 		op->u.insert.d = cdata;
 		op->u.insert.d->coord = coord;
 		op->u.insert.d->data = data;
-		op->u.insert.d->coord->node = op->node->real_node;
+		op->u.insert.d->coord->node = carry_real(op->node);
 		result = find_new_child_coord(op);
-		child = op->u.insert.child->real_node;
+		child = carry_real(op->u.insert.child);
 		if (result != NS_NOT_FOUND) {
 			warning("nikita-993", "Cannot find a place for child pointer: %i", result);
 			print_znode("child", child);
-			print_znode("parent", op->node->real_node);
+			print_znode("parent", carry_real(op->node));
 			return result;
 		}
 		/* This only happens when we did multiple insertions at
@@ -698,7 +702,7 @@ insert_paste_common(carry_op * op	/* carry operation being
 		   You are not expected to understand this.
 		          -- v6root/usr/sys/ken/slp.c
 		*/
-		if (op->node->real_node != op->u.insert.d->coord->node) {
+		if (carry_real(op->node) != op->u.insert.d->coord->node) {
 			pool_ordering direction;
 			znode *z1;
 			znode *z2;
@@ -706,7 +710,7 @@ insert_paste_common(carry_op * op	/* carry operation being
 			reiser4_key k2;
 
 			z1 = op->u.insert.d->coord->node;
-			z2 = op->node->real_node;
+			z2 = carry_real(op->node);
 			if (keyle(leftmost_key_in_node(z1, &k1),
 				  leftmost_key_in_node(z2, &k2)))
 				direction = POOLO_BEFORE;
@@ -729,7 +733,7 @@ insert_paste_common(carry_op * op	/* carry operation being
 		spin_unlock_dk(znode_get_tree(child));
 	} else {
 		assert("vs-243", op->u.insert.d->coord != NULL);
-		op->u.insert.d->coord->node = op->node->real_node;
+		op->u.insert.d->coord->node = carry_real(op->node);
 	}
 
 	/* find free space. */
@@ -931,8 +935,9 @@ make_space_by_shift_left(carry_op * op, carry_level * doing, carry_level * todo)
 	/* try to shift content of node @orig from its head upto insert point
 	   including insertion point into the left neighbor */
 	carry_shift_data(LEFT_SIDE, flow_insert_point(op),
-			 left->real_node, doing, todo, 1 /* including insert point */ );
-	if (left->real_node != flow_insert_point(op)->node) {
+			 carry_real(left), doing, todo, 1 /* including insert
+							   * point */);
+	if (carry_real(left) != flow_insert_point(op)->node) {
 		/* insertion point did not move */
 		return 1;
 	}
@@ -971,7 +976,10 @@ make_space_by_shift_right(carry_op * op, carry_level * doing, carry_level * todo
 		/* shift everything possible on the right of but excluding
 		   insertion coord into the right neighbor */
 		carry_shift_data(RIGHT_SIDE, flow_insert_point(op),
-				 right->real_node, doing, todo, 0 /* not including insert point */ );
+				 carry_real(right), doing, todo, 0 /* not
+								    * including
+								    * insert
+								    * point */);
 	} else {
 		/* right neighbor either does not exist or is unformatted
 		   node */
@@ -1010,14 +1018,17 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 		return PTR_ERR(new);
 	}
 	result = lock_carry_node(doing, new);
-	zput(new->real_node);
+	zput(carry_real(new));
 	if (unlikely(result)) {
 		return result;
 	}
 	op->u.insert_flow.new_nodes++;
 	if (!coord_is_after_rightmost(flow_insert_point(op))) {
 		carry_shift_data(RIGHT_SIDE, flow_insert_point(op),
-				 new->real_node, doing, todo, 0 /* not including insert point */ );
+				 carry_real(new), doing, todo, 0 /* not
+								  * including
+								  * insert
+								  * point */);
 
 		assert("vs-901", coord_is_after_rightmost(flow_insert_point(op)));
 
@@ -1033,7 +1044,7 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 			return PTR_ERR(new);
 		}
 		result = lock_carry_node(doing, new);
-		zput(new->real_node);
+		zput(carry_real(new));
 		if (unlikely(result)) {
 			return result;
 		}
@@ -1041,7 +1052,7 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 	}
 
 	/* move insertion point to new node */
-	coord_init_before_first_item(flow_insert_point(op), new->real_node);
+	coord_init_before_first_item(flow_insert_point(op), carry_real(new));
 	op->node = new;
 	return 0;
 }
@@ -1202,8 +1213,9 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	coord_init_zero(&coord);
 	coord_init_zero(&coord2);
 
-	parent = op->node->real_node;
-	child = op->u.delete.child ? op->u.delete.child->real_node : op->node->node;
+	parent = carry_real(op->node);
+	child = op->u.delete.child ? 
+		carry_real(op->u.delete.child) : op->node->node;
 	tree = znode_get_tree(child);
 	read_lock_tree(tree);
 	if (znode_parent(child) != parent) {
@@ -1303,10 +1315,10 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 	params.flags = 0;
 	if (op->u.cut->flags & DELETE_KILL) {
 		/* data gets removed from the tree */
-		result = node_plugin_by_node(op->node->real_node)->cut_and_kill(&params);
+		result = node_plugin_by_node(carry_real(op->node))->cut_and_kill(&params);
 	} else
 		/* data get cut,  */
-		result = node_plugin_by_node(op->node->real_node)->cut(&params);
+		result = node_plugin_by_node(carry_real(op->node))->cut(&params);
 
 	assert("vs-1192", op->u.cut->from->node == op->u.cut->to->node);
 	znode_set_dirty(op->u.cut->from->node);
@@ -1687,7 +1699,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 	if (lchild != NULL) {
 		assert("nikita-1001", lchild->parent);
 		assert("nikita-1003", !lchild->left);
-		left = lchild->real_node;
+		left = carry_real(lchild);
 	} else
 		left = NULL;
 
@@ -1699,7 +1711,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 		if (rchild != NULL) {
 			assert("nikita-1000", rchild->parent);
 			assert("nikita-1002", !rchild->left);
-			old_right = rchild->real_node;
+			old_right = carry_real(rchild);
 		} else
 			old_right = NULL;
 		if (znode_parent(rchild->node) != old_right)
@@ -1750,7 +1762,7 @@ carry_modify(carry_op * op /* operation to be performed */ ,
 	trace_stamp(TRACE_CARRY);
 	reiser4_stat_level_inc(doing, modify);
 
-	node = op->node->real_node;
+	node = carry_real(op->node);
 	assert("nikita-995", node != NULL);
 #ifdef MODIFY_EXISTS
 	if (node_plugin_by_node(node)->modify != NULL)
@@ -1856,7 +1868,7 @@ find_dir_carry(carry_node * node	/* node to start scanning
 		neighbor = iterator(neighbor);
 		if (pool_level_list_end(&level->nodes, &neighbor->header))
 			return NULL;
-		if (neighbor->real_node != node->real_node)
+		if (carry_real(neighbor) != carry_real(node))
 			return neighbor;
 	}
 }

@@ -846,9 +846,10 @@ insert_new_node(coord_t * insert_coord, lock_handle * lh)
 	new_znode = ERR_PTR(-EIO);
 	cn = add_new_znode(insert_coord->node, 0, &this_level, &parent_level);
 	if (!IS_ERR(cn)) {
-		result = longterm_lock_znode(lh, cn->real_node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		result = longterm_lock_znode(lh, carry_real(cn), 
+					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		if (!result) {
-			new_znode = cn->real_node;
+			new_znode = carry_real(cn);
 			result = carry(&parent_level, &this_level);
 		}
 		if (result)

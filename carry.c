@@ -419,7 +419,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 		for_all_nodes(doing, scan, tmp_scan) {
 			znode *node;
 
-			node = scan->real_node;
+			node = carry_real(scan);
 			assert("nikita-2547", node != NULL);
 			if (node_is_empty(node)) {
 				result = node_plugin_by_node(node)->prepare_removal(node, &info);
@@ -563,7 +563,9 @@ add_carry_skip(carry_level * level	/* &carry_level to add node
 		else
 			reference = carry_node_prev(reference);
 	}
-	assert("nikita-2209", ergo(orig_ref != NULL, reference->real_node == orig_ref->real_node));
+	assert("nikita-2209", 
+	       ergo(orig_ref != NULL, 
+		    carry_real(reference) == carry_real(orig_ref)));
 	return add_carry(level, order, reference);
 }
 
@@ -628,12 +630,13 @@ find_begetting_brother(carry_node * node	/* node to start search
 	assert("nikita-1614", node != NULL);
 	assert("nikita-1615", kin != NULL);
 	ON_DEBUG_CONTEXT(assert("nikita-1616", lock_counters()->rw_locked_tree > 0));
-	assert("nikita-1619", ergo(node->real_node != NULL, ZF_ISSET(node->real_node, JNODE_ORPHAN)));
+	assert("nikita-1619", ergo(carry_real(node) != NULL, 
+				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
 	for (scan = node;; scan = carry_node_prev(scan)) {
 		assert("nikita-1617", !carry_node_end(kin, scan));
 		if ((scan->node != node->node) && !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
-			assert("nikita-1618", scan->real_node != NULL);
+			assert("nikita-1618", carry_real(scan) != NULL);
 			break;
 		}
 	}
@@ -668,10 +671,18 @@ find_carry_node(carry_level * level, const znode * node)
 	assert("nikita-2203", node != NULL);
 
 	for_all_nodes(level, scan, tmp_scan) {
-		if (scan->real_node == node)
+		if (carry_real(scan) == node)
 			return scan;
 	}
 	return NULL;
+}
+
+znode *
+carry_real(const carry_node * node)
+{
+	assert("nikita-3061", node != NULL);
+
+	return node->lock_handle.node;
 }
 
 carry_node *
@@ -794,9 +805,9 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	assert("nikita-1611", doing != NULL);
 	ON_DEBUG_CONTEXT(assert("nikita-1612", lock_counters()->spin_locked_dk == 0));
 
-	tree = znode_get_tree(node->real_node);
+	tree = znode_get_tree(carry_real(node));
 	spin_lock_dk(tree);
-	spot = node->real_node;
+	spot = carry_real(node);
 	read_lock_tree(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
@@ -871,11 +882,12 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 	for_all_nodes_back(level, node, tmp_node) {
 		/* all allocated nodes should be already linked to their
 		   parents at this moment. */
-		assert("nikita-1631", ergo(!failure, !ZF_ISSET(node->real_node, JNODE_ORPHAN)));
+		assert("nikita-1631", ergo(!failure, !ZF_ISSET(carry_real(node),
+							       JNODE_ORPHAN)));
 		if (!failure)
 			node_check(node->real_node, REISER4_NODE_DKEYS);
 		/* FIXME: remove after debugging */
-		check_dkeys(node->real_node);
+		check_dkeys(carry_real(node));
 		unlock_carry_node(level, node, failure);
 	}
 	level->new_root = NULL;
@@ -920,11 +932,10 @@ int
 lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 {
 	assert("nikita-1052", node != NULL);
-	assert("nikita-1187", node->real_node == NULL);
+	assert("nikita-1187", carry_real(node) != NULL);
 	assert("nikita-1188", !node->unlock);
 
 	node->unlock = 1;
-	node->real_node = node->lock_handle.node;
 	/* Load node content into memory and install node plugin by
 	   looking at the node header.
 	  
@@ -933,7 +944,7 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 	  
 	   Corresponding zrelse() is in unlock_carry_node()
 	*/
-	return zload(node->real_node);
+	return zload(carry_real(node));
 }
 
 /* lock carry node
@@ -1063,8 +1074,7 @@ unlock_carry_node(carry_level * level,
 
 	trace_stamp(TRACE_CARRY);
 
-	real_node = node->real_node;
-	node->real_node = NULL;
+	real_node = carry_real(node);
 	/* pair to zload() in lock_carry_node_tail() */
 	zrelse(real_node);
 	if (node->unlock && (real_node != NULL)) {
@@ -1246,14 +1256,14 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	ZF_SET(new_znode, JNODE_ORPHAN);
 	fresh->node = new_znode;
 
-	while (ZF_ISSET(ref->real_node, JNODE_ORPHAN)) {
+	while (ZF_ISSET(carry_real(ref), JNODE_ORPHAN)) {
 		ref = carry_node_prev(ref);
 		assert("nikita-1606", !carry_node_end(doing, ref));
 	}
 
 	info.todo = todo;
 	info.doing = doing;
-	add_pointer = node_post_carry(&info, COP_INSERT, ref->real_node, 1);
+	add_pointer = node_post_carry(&info, COP_INSERT, carry_real(ref), 1);
 	if (IS_ERR(add_pointer)) {
 		/* no need to deallocate @new_znode here: it will be
 		   deallocated during carry error handling. */
@@ -1299,8 +1309,8 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 				right = node->node;
 				left = carry_node_prev(node)->node;
 			} else {
-				right = node->real_node;
-				left = carry_node_prev(node)->real_node;
+				right = carry_real(node);
+				left = carry_real(carry_node_prev(node));
 			}
 			if (right == NULL || left == NULL)
 				continue;
@@ -1373,7 +1383,7 @@ print_carry(const char *prefix /* prefix to print */ ,
 	printk("%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
 	       prefix, node, tf(node->parent), tf(node->left), tf(node->unlock), tf(node->free), tf(node->deallocate));
 	print_znode("\tnode", node->node);
-	print_znode("\treal_node", node->real_node);
+	print_znode("\treal_node", carry_real(node));
 }
 
 /* dump information about carry operation */
