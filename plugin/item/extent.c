@@ -1133,12 +1133,12 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 		item_key_by_coord (coord, key);
 
 		/* FIXME: Probably not quite right. */
-		objectid = get_key_objectid (key);
-		offset   = get_key_offset (key) + pos_in_unit;
+		objectid = get_key_objectid (&key);
+		offset   = get_key_offset (&key) + pos_in_unit;
 
 		inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
 
-		if ((pg = find_get_page (inode->mapping, offset))) {
+		if ((pg = find_get_page (inode->i_mapping, offset))) {
 			return ret;
 		}
 
@@ -1815,7 +1815,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 	inode = page->mapping->host;
 	
 	if (!item_is_extent (coord) ||
-	    !get_file_plugin (inode)->owns_item (inode, coord)) {
+	    !inode_file_plugin (inode)->owns_item (inode, coord)) {
 		warning ("vs-283", "there should be more items of file\n");
 		return -EIO;
 	}
@@ -2051,7 +2051,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
 	assert ("vs-392", ({
 		struct inode * inode;
 		inode = page->mapping->host;
-		get_file_plugin (inode)->owns_item (inode, coord);
+		inode_file_plugin (inode)->owns_item (inode, coord);
 	}));
 	
 	ext = extent_by_coord (coord);
@@ -2264,8 +2264,7 @@ static void check_resize_result (tree_coord * coord, reiser4_key * key UNUSED_AR
 	item_key_by_coord (coord, &k);
 	set_key_offset (&k, (get_key_offset (&k) +
 			     extent_size (coord, (unsigned) coord->unit_pos)));
-	assert ("vs-329",
-		keycmp (&k, key) == EQUAL_TO);
+	assert ("vs-329", keyeq (&k, key));
 }
 
 
@@ -2356,8 +2355,7 @@ static int allocate_unallocated_extent (tree_coord * coord,
 					      first, needed);
 
 				if (!coord_of_unit (coord) ||
-				    (keycmp (key, unit_key_by_coord (coord, &tmp_key)) !=
-				     EQUAL_TO))
+				    !keyeq (key, unit_key_by_coord (coord, &tmp_key)))
 					/* have to research a place where we
 					   stopped at */
 					return 1;
@@ -2409,7 +2407,7 @@ static int must_insert (tree_coord * coord, reiser4_key * key)
 	reiser4_key last;
 
 	if (item_is_extent (coord) &&
-	    keycmp (last_key_in_extent (coord, &last), key) == EQUAL_TO)
+	    keyeq (last_key_in_extent (coord, &last), key))
 		return 0;
 	return 1;
 }
@@ -2473,8 +2471,7 @@ static int try_to_glue (znode * left, tree_coord * right,
 		return 0;
 
 	result = 0;
-	if ((keycmp (last_key_in_extent (&last, &last_key), &item_key) ==
-	     EQUAL_TO) &&
+	if (keyeq (last_key_in_extent (&last, &last_key), &item_key) &&
 	    (extent_get_start (ext) + extent_get_width (ext) ==
 	     first_allocated)) {
 		/*
@@ -2744,7 +2741,7 @@ int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * pre
 				set_key_offset (&ext_key,
 						get_key_offset (&ext_key) +
 						allocated * blocksize);
-				keycmp (&ext_key, &key) == EQUAL_TO;
+				keyeq (&ext_key, &key);
 			}));
 	}
 

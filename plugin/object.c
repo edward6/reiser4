@@ -130,8 +130,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		/* next assertion checks that item we found really has
 		   the key we've been looking for */
 		assert( "nikita-722", 
-			keycmp( unit_key_by_coord( coord, &key_found ), 
-				key ) == EQUAL_TO );
+			keyeq( unit_key_by_coord( coord, &key_found ), key ) );
 		/* check that what we really found is stat data */
 		if( item_plugin_id_by_coord( coord ) != STATIC_STAT_DATA_ID ) {
 			error_message = "sd found, but it doesn't look like sd ";
@@ -157,7 +156,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	reiser4_item_data  data;
 	const char *error_message;
 	char *area;
-	inodes_plugins *ref;
+	reiser4_inode_info *ref;
 	lock_handle lh;
 	oid_allocator_plugin *oplug;
 	oid_t oid;
@@ -169,10 +168,8 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	if( !( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA ) )
 		return 0;
 
-	ref = get_object_state( inode );
-
 	if( ref -> sd == NULL ) {
-		ref -> sd = get_sd_plugin( inode );
+		ref -> sd = inode_sd_plugin( inode );
 	}
 	data.iplug = ref -> sd -> common;
 	data.length = ref -> sd_len;
@@ -187,8 +184,8 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	assert( "vs-479", get_super_private( inode -> i_sb ) );
 	oplug = get_super_private( inode -> i_sb ) -> oid_plug;
 	assert( "vs-480", oplug && oplug -> allocate_oid );
-	result = oplug -> allocate_oid(
-		get_oid_allocator( inode -> i_sb ), &oid );
+	result = oplug -> allocate_oid( get_oid_allocator( inode -> i_sb ), 
+					&oid );
 	if( result != 0 )
 		return result;
 
@@ -201,7 +198,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 				build_sd_key( inode, &key ), &data, &coord, &lh,
 				/* stat data lives on a leaf level */
 				LEAF_LEVEL, 
-				inter_syscall_ra( inode ), NO_RA, 
+				inter_syscall_ra( inode ), NO_RAP,
 				CBK_UNIQUE );
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
@@ -269,7 +266,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	tree_coord coord;
 	reiser4_item_data  data;
 	const char *error_message;
-	inodes_plugins *state;
+	reiser4_inode_info *state;
 	lock_handle lh;
 
 	assert( "nikita-726", inode != NULL );
@@ -283,7 +280,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 
 	result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	error_message = NULL;
-	state = get_object_state( inode );
+	state = reiser4_inode_data( inode );
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
@@ -435,9 +432,9 @@ int guess_plugin_by_mode( struct inode *inode /* object to guess plugins
 		fplug_id = REGULAR_FILE_PLUGIN_ID;
 		break;
 	}
-	get_object_state( inode ) -> file = 
+	reiser4_inode_data( inode ) -> file = 
 		( fplug_id >= 0 ) ? file_plugin_by_id( fplug_id ) : NULL;
-	get_object_state( inode ) -> dir = 
+	reiser4_inode_data( inode ) -> dir = 
 		( dplug_id >= 0 ) ? dir_plugin_by_id( dplug_id ) : NULL;
 	return 0;
 }
@@ -494,140 +491,132 @@ static int ordinary_key_by_inode ( struct inode *inode, const loff_t *off, reise
 
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = REGULAR_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "reg",
-			.desc    = "regular file",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
-				.truncate            = ordinary_file_truncate,
-				.write_sd_by_inode   = common_file_save,
-				.readpage            = ordinary_readpage,
-				.read                = ordinary_file_read,
-				.write               = ordinary_file_write,
-				.flow_by_inode       = common_build_flow/*NULL*/,
-				.flow_by_key         = NULL,
-				.key_by_inode        = ordinary_key_by_inode,
-				.set_plug_in_sd      = NULL,
-				.set_plug_in_inode   = NULL,
-				.create_blank_sd     = NULL,
-				.create              = ordinary_file_create,
-				.destroy_stat_data   = common_file_delete,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.owns_item           = common_file_owns_item,
-				.can_add_link        = common_file_can_add_link,
-			}
+		.file = {
+			.h = {
+				.type_id = REISER4_FILE_PLUGIN_TYPE,
+				.id      = REGULAR_FILE_PLUGIN_ID,
+				.pops    = NULL,
+				.label   = "reg",
+				.desc    = "regular file",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.write_flow          = NULL,
+			.read_flow           = NULL,
+			.truncate            = ordinary_file_truncate,
+			.write_sd_by_inode   = common_file_save,
+			.readpage            = ordinary_readpage,
+			.read                = ordinary_file_read,
+			.write               = ordinary_file_write,
+			.flow_by_inode       = common_build_flow/*NULL*/,
+			.flow_by_key         = NULL,
+			.key_by_inode        = ordinary_key_by_inode,
+			.set_plug_in_sd      = NULL,
+			.set_plug_in_inode   = NULL,
+			.create_blank_sd     = NULL,
+			.create              = ordinary_file_create,
+			.destroy_stat_data   = common_file_delete,
+			.add_link            = NULL,
+			.rem_link            = NULL,
+			.owns_item           = common_file_owns_item,
+			.can_add_link        = common_file_can_add_link,
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = DIRECTORY_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "dir",
-			.desc    = "hashed directory",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
-				.truncate            = NULL, /* EISDIR */
-				.write_sd_by_inode   = common_file_save,
-				.readpage            = NULL, /* EISDIR */
-				.read                = NULL, /* EISDIR */
-				.write               = NULL, /* EISDIR */
-				.flow_by_inode       = NULL,
-				.flow_by_key         = NULL,
-				.key_by_inode        = NULL,
-				.set_plug_in_sd      = NULL,
-				.set_plug_in_inode   = NULL,
-				.create_blank_sd     = NULL,
-				.create              = hashed_create,
-				.destroy_stat_data   = hashed_delete,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.owns_item           = hashed_owns_item,
-				.can_add_link        = common_file_can_add_link,
-			}
+		.file = {
+			.h = {
+				.type_id = REISER4_FILE_PLUGIN_TYPE,
+				.id      = DIRECTORY_FILE_PLUGIN_ID,
+				.pops    = NULL,
+				.label   = "dir",
+				.desc    = "hashed directory",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.write_flow          = NULL,
+			.read_flow           = NULL,
+			.truncate            = NULL, /* EISDIR */
+			.write_sd_by_inode   = common_file_save,
+			.readpage            = NULL, /* EISDIR */
+			.read                = NULL, /* EISDIR */
+			.write               = NULL, /* EISDIR */
+			.flow_by_inode       = NULL,
+			.flow_by_key         = NULL,
+			.key_by_inode        = NULL,
+			.set_plug_in_sd      = NULL,
+			.set_plug_in_inode   = NULL,
+			.create_blank_sd     = NULL,
+			.create              = hashed_create,
+			.destroy_stat_data   = hashed_delete,
+			.add_link            = NULL,
+			.rem_link            = NULL,
+			.owns_item           = hashed_owns_item,
+			.can_add_link        = common_file_can_add_link,
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = SYMLINK_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "symlink",
-			.desc    = "symbolic link",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
-				.truncate            = NULL,
-				.write_sd_by_inode   = common_file_save,
-				.readpage            = NULL,
-				.read                = NULL,
-				.write               = NULL,
-				.flow_by_inode       = NULL,
-				.flow_by_key         = NULL,
-				.key_by_inode        = NULL,
-				.set_plug_in_sd      = NULL,
-				.set_plug_in_inode   = NULL,
-				.create_blank_sd     = NULL,
-				.create              = NULL,
-				/*
-				 * FIXME-VS: symlink should probably have its own destroy method
-				 */
-				.destroy_stat_data   = common_file_delete,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.owns_item           = NULL,
-				.can_add_link        = common_file_can_add_link,
-			}
+		.file = {
+			.h = {
+				.type_id = REISER4_FILE_PLUGIN_TYPE,
+				.id      = SYMLINK_FILE_PLUGIN_ID,
+				.pops    = NULL,
+				.label   = "symlink",
+				.desc    = "symbolic link",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.write_flow          = NULL,
+			.read_flow           = NULL,
+			.truncate            = NULL,
+			.write_sd_by_inode   = common_file_save,
+			.readpage            = NULL,
+			.read                = NULL,
+			.write               = NULL,
+			.flow_by_inode       = NULL,
+			.flow_by_key         = NULL,
+			.key_by_inode        = NULL,
+			.set_plug_in_sd      = NULL,
+			.set_plug_in_inode   = NULL,
+			.create_blank_sd     = NULL,
+			.create              = NULL,
+			/*
+			 * FIXME-VS: symlink should probably have its own destroy method
+			 */
+			.destroy_stat_data   = common_file_delete,
+			.add_link            = NULL,
+			.rem_link            = NULL,
+			.owns_item           = NULL,
+			.can_add_link        = common_file_can_add_link,
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = SPECIAL_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "special",
-			.desc    = "special file: fifo, device or socket",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
-				.truncate            = NULL,
-				.create              = NULL,
-				.write_sd_by_inode   = common_file_save,
-				.readpage            = NULL,
-				.read                = NULL,
-				.write               = NULL,
-				.flow_by_inode       = NULL,
-				.flow_by_key         = NULL,
-				.key_by_inode        = NULL,
-				.set_plug_in_sd      = NULL,
-				.set_plug_in_inode   = NULL,
-				.create_blank_sd     = NULL,
-				.destroy_stat_data   = common_file_delete,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.owns_item           = common_file_owns_item,
-				.can_add_link        = common_file_can_add_link,
-			}
+		.file = {
+			.h = {
+				.type_id = REISER4_FILE_PLUGIN_TYPE,
+				.id      = SPECIAL_FILE_PLUGIN_ID,
+				.pops    = NULL,
+				.label   = "special",
+				.desc    = "special: fifo, device or socket",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.write_flow          = NULL,
+			.read_flow           = NULL,
+			.truncate            = NULL,
+			.create              = NULL,
+			.write_sd_by_inode   = common_file_save,
+			.readpage            = NULL,
+			.read                = NULL,
+			.write               = NULL,
+			.flow_by_inode       = NULL,
+			.flow_by_key         = NULL,
+			.key_by_inode        = NULL,
+			.set_plug_in_sd      = NULL,
+			.set_plug_in_inode   = NULL,
+			.create_blank_sd     = NULL,
+			.destroy_stat_data   = common_file_delete,
+			.add_link            = NULL,
+			.rem_link            = NULL,
+			.owns_item           = common_file_owns_item,
+			.can_add_link        = common_file_can_add_link,
 		}
-	},
+	}
 };
 
 

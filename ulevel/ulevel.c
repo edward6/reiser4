@@ -916,7 +916,7 @@ int bin_search( reiser4_key *array, int n, reiser4_key *key )
 			break;
 		}
 		if( left == right ) {
-			found = keycmp( key, &array[ left ] ) == EQUAL_TO;
+			found = keyeq( key, &array[ left ] );
 			break;
 		}
 	} while( ( left < right ) && !found );
@@ -1407,7 +1407,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
-					     ( inter_syscall_ra_hint * )1, 0, 
+					     ( inter_syscall_rap * )1, 0, 
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
@@ -1536,7 +1536,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
-					     ( inter_syscall_ra_hint * )1, 0, 
+					     ( inter_syscall_rap * )1, 0, 
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
@@ -1567,8 +1567,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( hook_plugin );
 		STYPE( perm_plugin );
 		STYPE( reiser4_plugin );
-		STYPE( inter_syscall_ra_hint );
-		STYPE( inodes_plugins );
+		STYPE( inter_syscall_rap );
 		STYPE( reiser4_plugin_ops );
 		STYPE( file_plugins );
 		STYPE( item_header_40 );
@@ -1692,10 +1691,10 @@ static struct inode * create_root_dir (znode * root)
 	inode->i_sb = reiser4_get_current_sb();
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
-	get_object_state( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-	get_object_state( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
-	get_object_state( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-	get_object_state( inode ) -> locality_id = get_key_locality( &key );
+	reiser4_inode_data( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
+	reiser4_inode_data( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
+	reiser4_inode_data( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
+	reiser4_inode_data( inode ) -> locality_id = get_key_locality( &key );
 
 	call_create (inode, ".");
 	inode -> i_sb -> s_root -> d_inode = inode;
@@ -2013,7 +2012,7 @@ static int copy_dir (struct inode * dir)
 	/*
 	 * no tails for all the directory
 	 */
-	get_object_state (dir)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+	reiser4_inode_data (dir)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
 
 	dirs = 0;
 	files = 0;
@@ -2643,12 +2642,12 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				 */
 				if (!strcmp (command, "tail")) {
 					print_plugin("", 
-						     tail_plugin_to_plugin(get_object_state (cwd)->tail));
+						     tail_plugin_to_plugin(inode_tail_plugin (cwd)));
 				} else if (!strcmp (command + 5, "off")) {
-					get_object_state (cwd)->tail =
+					reiser4_inode_data (cwd) -> tail =
 						tail_plugin_by_id (NEVER_TAIL_ID);
 				} else if (!strcmp (command + 5, "on")) {
-					get_object_state (cwd)->tail =
+					reiser4_inode_data (cwd) -> tail =
 						tail_plugin_by_id (ALWAYS_TAIL_ID);
 				} else {
 					info ("\ttail [on|off]\n");
@@ -2819,7 +2818,7 @@ void* build_test_handler (void* arg)
 		
 		ret = insert_by_key( tree, &key, &data, &coord, &lock, 
 				     LEAF_LEVEL,
-				     ( inter_syscall_ra_hint * )1, 0, CBK_UNIQUE );
+				     ( inter_syscall_rap * )1, 0, CBK_UNIQUE );
 
 		done_lh (& lock);
 
@@ -2899,7 +2898,7 @@ void* drive_test_handler (void* arg)
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lock, 
 					     LEAF_LEVEL,
-					     ( inter_syscall_ra_hint * )1, 0, CBK_UNIQUE );
+					     ( inter_syscall_rap * )1, 0, CBK_UNIQUE );
 
 			done_lh (& lock);
 
@@ -3013,11 +3012,11 @@ int zam_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree 
 
 	if (get_super_private (super)->space_plug->init_allocator)
 		get_super_private (super)->space_plug->init_allocator (
-			reiser4_get_space_allocator (super), super);
+			get_space_allocator (super), super);
 
 	if (get_super_private (super)->space_plug->destroy_allocator)
 		get_super_private (super)->space_plug->destroy_allocator (
-			reiser4_get_space_allocator (super), super);
+			get_space_allocator (super), super);
 
 	return 0;
 }
@@ -3122,7 +3121,7 @@ int real_main( int argc, char **argv )
 		
 		root_dentry.d_inode = NULL;
 		/* initialize reiser4_super_info_data's oid plugin */
-		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].u.oid_allocator;
+		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].oid_allocator;
 		get_super_private( &super ) -> oid_plug -> init_oid_allocator( get_oid_allocator( &super ) );
 
 		s = &super;

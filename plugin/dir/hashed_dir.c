@@ -283,7 +283,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		 * add new entry. Just pass control to the directory
 		 * item plugin.
 		 */
-		switch( get_object_state( object ) -> dir_item_plugin_id) {
+		switch( reiser4_inode_data( object ) -> dir_item_plugin_id) {
 		case SIMPLE_DIR_ENTRY_ID:
 			result = simple_dir_plugin.simple_add_entry( object, 
 								     &coord, &lh, where, entry );
@@ -333,7 +333,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 * remove entry. Just pass control to the directory item
 		 * plugin.
 		 */
-		switch( get_object_state( object ) -> dir_item_plugin_id) {
+		switch( reiser4_inode_data( object ) -> dir_item_plugin_id) {
 		case SIMPLE_DIR_ENTRY_ID:
 			result = simple_dir_plugin.simple_rem_entry( object, 
 								     &coord, &lh, entry );
@@ -458,7 +458,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
 			tree_coord *coord /* current coord */, 
 			lock_handle *lh /* current lock handle */,
-			void *args /* argument to scan */ )
+			void *entry_actor_arg /* argument to scan */ )
 {
 	reiser4_key         unit_key;
 	common_item_plugin *iplug;
@@ -481,8 +481,7 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 		return -EBUSY;
 	}
 #endif
-	if( keycmp( args -> key, 
-		    unit_key_by_coord( coord, &unit_key ) ) != EQUAL_TO ) {
+	if( !keycmp( args -> key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		assert( "nikita-1791", 
 			keycmp( args -> key, 
 				unit_key_by_coord( coord, 

@@ -131,7 +131,7 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 
 	/* find @parent directory plugin and make sure that it has lookup
 	 * method */
-	dplug = get_dir_plugin( parent );
+	dplug = inode_dir_plugin( parent );
 	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
 		return ERR_PTR( -ENOTDIR );
 	}
@@ -218,7 +218,7 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 	ssize_t result;
 	
 	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
-	fplug = get_file_plugin( file -> f_dentry -> d_inode );
+	fplug = inode_file_plugin( file -> f_dentry -> d_inode );
 	assert( "nikita-417", fplug != NULL );
 
 	if( fplug->read == NULL ) {
@@ -249,7 +249,7 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 	assert( "nikita-1422", buf != NULL );
 	assert( "nikita-1424", off != NULL );
 
-	fplug = get_file_plugin( inode );
+	fplug = inode_file_plugin( inode );
 	if( fplug -> write != NULL ) {
 		result = fplug -> write( file, buf, size, off );
 	} else {
@@ -392,7 +392,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		f -> f_dentry -> d_inode == page -> mapping -> host );
 
 	inode = page -> mapping -> host;
-	fplug = get_file_plugin( inode );
+	fplug = inode_file_plugin( inode );
 	if( !fplug -> readpage ) {
 		return -EINVAL;
 	}
@@ -427,7 +427,7 @@ static int reiser4_link( struct dentry *existing /* dentry of existing
 		REISER4_EXIT( -EINTR );
 	}
 	unlock_kernel();
-	dplug = get_dir_plugin( parent );
+	dplug = inode_dir_plugin( parent );
 	assert( "nikita-1430", dplug != NULL );
 	if( dplug -> link != NULL ) {
 		result = dplug -> link( parent, existing, where );
@@ -571,7 +571,7 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
 		REISER4_EXIT( -EINTR );
 	}
 	unlock_kernel();
-	dplug = get_dir_plugin( parent );
+	dplug = inode_dir_plugin( parent );
 	assert( "nikita-1429", dplug != NULL );
 	if( dplug -> unlink != NULL ) {
 		result = dplug -> unlink( parent, victim );
@@ -612,7 +612,7 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */ 
 
 	assert( "nikita-1351", object != NULL );
 
-	fplug = get_file_plugin( object );
+	fplug = inode_file_plugin( object );
 	assert( "nikita-1445", fplug != NULL );
 
 	/* ask plugin whether it can add yet another link to this
@@ -645,7 +645,7 @@ int reiser4_del_nlink( struct inode *object /* object from which link is
 
 	assert( "nikita-1349", object != NULL );
 
-	fplug = get_file_plugin( object );
+	fplug = inode_file_plugin( object );
 	assert( "nikita-1350", fplug != NULL );
 
 	assert( "nikita-1446", object -> i_nlink > 0 );
@@ -679,7 +679,7 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 	assert( "nikita-427", dentry != NULL );
 	assert( "nikita-428", data != NULL );
 
-	dplug = get_dir_plugin( parent );
+	dplug = inode_dir_plugin( parent );
 	assert( "nikita-429", dplug != NULL );
 	if( dplug -> create_child != NULL ) {
 		result = dplug -> create_child( parent, dentry, data );
@@ -699,7 +699,7 @@ int truncate_object( struct inode *inode /* object to truncate */,
 	assert( "nikita-1027", is_reiser4_inode( inode ) );
 	assert( "nikita-1028", inode -> i_sb != NULL );
 
-	fplug = get_file_plugin( inode );
+	fplug = inode_file_plugin( inode );
 	assert( "vs-142", fplug != NULL );
 
 	if( fplug -> truncate != NULL ) {
@@ -824,7 +824,7 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 	args = arg;
 	inode = args -> dir -> f_dentry -> d_inode;
 	assert( "nikita-1370", inode != NULL );
-	fplug = get_file_plugin( inode );
+	fplug = inode_file_plugin( inode );
 	if( ! fplug -> owns_item( inode, coord ) ) {
 		return 0;
 	}
@@ -841,7 +841,7 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 	 * skip some entries that we already processed during previous
 	 * readdir()
 	 */
-	if( keycmp( &de_key, &args -> key ) == EQUAL_TO ) {
+	if( keyeq( &de_key, &args -> key ) ) {
 		++ args -> skipped;
 		if( args -> skipped <= args -> skip ) {
 			return 1;
