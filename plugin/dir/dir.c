@@ -1131,7 +1131,8 @@ readdir_common(struct file *f /* directory file being read */ ,
 				++ f->f_pos;
 				tap_relse(&tap);
 				goto repeat;
-			}
+			} else
+				warning("vs-1617", "readdir_common: unexpected error %d", result);
 		}
 		tap_relse(&tap);
 
