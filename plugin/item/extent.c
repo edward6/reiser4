@@ -3362,10 +3362,16 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 		 * check other items to the left of this one
 		 */
 		ext = extent_item (item);
+
+#if 0	       
+               /* FIXME-ZAM: I think it is possible to allocate an extent when
+		* it left neighbors are not allocated yet. It could happen
+		* when flush code was called to flush limited number of dirty
+		* pages (in case of memory pressure) */
 		for (i = 0; i < item->unit_pos; i ++, ext ++) {
 			assert ("vs-797", state_of_extent (ext) != UNALLOCATED_EXTENT);
 		}
-
+#endif
 		/*
 		 * @item is set to unit which flush_pos->point falls to. Check
 		 * that
