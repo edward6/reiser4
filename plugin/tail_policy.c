@@ -73,16 +73,17 @@ always_tail(const struct inode *inode UNUSED_ARG	/* inode to
 reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_fake) 
 {
-	__u32 worse_item_size;
 	reiser4_block_nr amount;
+	__u32 max_item_size, item_nr;
 	
 	assert("umka-1244", inode != NULL);
 
-	/* The five blocks become dirty durring shifting on the leaf level */
-        worse_item_size = div64_32(tree_by_inode(inode)->nplug->max_item_size(), 5, NULL);
+        max_item_size = tree_by_inode(inode)->nplug->max_item_size();
 	
+	/* The five blocks become dirty durring shifting on the leaf level */
+	item_nr = div64_32(size + (max_item_size - 1), max_item_size, NULL) * 2;
 	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
-        return div64_32(size + (worse_item_size - 1), worse_item_size, NULL) * amount;
+        return (item_nr * amount) + (item_nr * 5);
 }
 
 /* This function makes test if we should store file denoted @inode as tails only or
