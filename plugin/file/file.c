@@ -520,7 +520,7 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 
 /*
  * get access hint (seal, coord, key, level) stored in reiser4 private part of
- * struct file if it was stores in previous access to file
+ * struct file if it was stored in a previous access to the file
  */
 static int load_file_hint (struct file * file,
 			   struct sealed_coord * hint)
@@ -809,21 +809,14 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	struct inode * inode;
 	coord_t coord;
 	lock_handle lh;
-	size_t to_read;		/* do we really need both this and read_amount? */
+	size_t to_read;		/* VS-FIXME-HANS: do we really need both this and read_amount? */
 	item_plugin * iplug;
 	flow_t f;
 	read_todo mode;
 	struct sealed_coord hint;
 
 
-	if (!read_amount)
-		/*
-		 * Before any action described below is taken, and if nbyte is
-		 * zero, the read() function may detect and return errors as
-		 * described below. In the absence of errors, or if error
-		 * detection is not performed, the read() function shall
-		 * return zero and have no other results. --SUS
-		 */
+	if (unlikely(!read_amount))
 		return 0;
 
 	inode = file->f_dentry->d_inode;
@@ -837,17 +830,17 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 							   1/* user space */,
 							   read_amount, *off,
 							   READ_OP, &f);
-	if (result)
+	if (unlikely(result))
 		return result;
 	
 	init_lh (&lh);
 
 	/*
-	 * get seal and coord sealed with it from reiser4 private data of
-	 * struct file
+	 * get seal and coord sealed with it from reiser4 private data of struct file.  The coord will tell us where our
+	 * last read of this file finished, and the seal will help us determine if that location is still valid.
 	 */
 	result = load_file_hint (file, &hint);
-	if (result)
+	if (unlikely(result))
 		return result;
 
 	to_read = f.length;
@@ -951,7 +944,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	/* have generic_readahead to return number of pages to
 	 * readahead. generic_readahead must not do readahead, but return
 	 * number of pages to readahead */
-	intrafile_readahead_amount = wrapper_for_generic_readahead(struct file * file, off, read_amount);
+	logical_intrafile_readahead_amount = logical_generic_readahead(struct file * file, off, read_amount);
 
 	while (intrafile_readahead_amount) {
 		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
