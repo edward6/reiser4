@@ -3668,7 +3668,7 @@ static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, in
 
 	parse_extent(coord, &ext_start, &ext_width, &ext_index);
 
-	for (reloc_start = ext_width - 1; reloc_start > 0; reloc_start --) {
+	for (reloc_start = ext_width - 1; reloc_start >= 0; reloc_start --) {
 		check = get_jnode_by_mapping(inode, reloc_start + ext_index);
 		if (IS_ERR(check))
 			return PTR_ERR(check);
@@ -3706,6 +3706,7 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 	if (ret)
 		return ret;
 
+	hint->blk = new_ext_start;
 	if (!unallocated_flg) {
 		reiser4_block_nr dealloc_ext_start;
 
@@ -3749,7 +3750,7 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 	parse_extent(coord, &ext_start, &ext_width, &ext_index);
 
 	for (reloc_end = ext_width - 1;
-	     reloc_end > 0 && *nr_reserved > 0; reloc_end --) 
+	     reloc_end >= 0 && *nr_reserved > 0; reloc_end --) 
 	{
 		check = get_jnode_by_mapping(inode, reloc_end + ext_index);
 		if (IS_ERR(check))
