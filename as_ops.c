@@ -335,6 +335,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	}
 
 	LOCK_JNODE(node);
+	LOCK_JLOAD(node);
 	if (releasable(node)) {
 		struct address_space *mapping;
 
@@ -345,6 +346,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		 * jnode_extent_write() here, because pages seen by
 		 * jnode_extent_write() are !releasable(). */
 		page_clear_jnode(page, node);
+		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 
 		/* we are under memory pressure so release jnode also. */
@@ -358,6 +360,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		spin_unlock(&mapping->page_lock);
 		return 1;
 	} else {
+		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
 		return 0;
@@ -425,30 +428,26 @@ static int capture_anonymous_page(struct page *pg)
 		spin_unlock (&mapping->page_lock);
 
 		lock_page(pg);
+		/* page is guaranteed to be in the mapping, because we are
+		 * operating under rw-semaphore. */
+		assert("nikita-3336", pg->mapping == mapping);
 		node = jnode_of_page(pg);
+		unlock_page(pg);
 		if (!IS_ERR(node)) {
-			jref(node);
-			unlock_page(pg);
 			result = jload(node);
-			lock_page(pg);
-			jput(node);
+			assert("nikita-3334", result == 0);
+			assert("nikita-3335", jnode_page(node) == pg);
+			result = capture_page_and_create_extent(pg);
 			if (result == 0) {
-				result = capture_page_and_create_extent(pg);
-				if (result == 0) {
-					assert("nikita-3326",
-					       jnode_check_dirty(node));
-					assert("nikita-3327",
-					       node->atom != NULL);
-					JF_CLR(node, JNODE_KEEPME);
-				} else
-					warning("nikita-3329",
-						"Cannot capture anon page: %i",
-						result);
-				jrelse(node);
-			}
+				assert("nikita-3326", jnode_check_dirty(node));
+				assert("nikita-3327", node->atom != NULL);
+				JF_CLR(node, JNODE_KEEPME);
+			} else
+				warning("nikita-3329",
+					"Cannot capture anon page: %i", result);
+			jrelse(node);
 		} else
 			result = PTR_ERR(node);
-		unlock_page(pg);
 		page_cache_release(pg);
 		spin_lock(&mapping->page_lock);
 	}
