@@ -175,6 +175,8 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	jref(node);
 	reiser4_stat_add_at_level(jnode_get_level(node), emergency_flush);
 
+	trace_on(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
+
 	result = 0;
 	blk = 0ull;
 	efnode = NULL;
@@ -194,20 +196,25 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 			if (result == 0) {
 				--wbc->nr_to_write;
 				result = 1;
-			} else
+				trace_on(TRACE_EFLUSH, "ok\n");
+			} else {
 				/* 
 				 * XXX may be set_page_dirty() should be called
 				 */
 				__set_page_dirty_nobuffers(page);
+				trace_on(TRACE_EFLUSH, "submit-failure\n");
+			}
 		} else {
 			spin_unlock_jnode(node);
 			if (blk != 0ull)
 				ef_free_block(node, &blk);
 			if (efnode != NULL)
 				kmem_cache_free(eflush_slab, efnode);
+			trace_on(TRACE_EFLUSH, "failure-2\n");
 		}
 	} else {
 		spin_unlock_jnode(node);
+		trace_on(TRACE_EFLUSH, "failure-1\n");
 	}
 
 	jput(node);
@@ -240,15 +247,6 @@ flushable(const jnode * node, struct page *page)
 	if (JF_ISSET(node, JNODE_RELOC) &&
 	    !blocknr_is_fake(jnode_get_block(node)))
 		return 0;
-	/* extents of jnode's inode are being allocated. Don't flush */
-	if (jnode_is_unformatted(node)) {
-		struct inode *obj;
-
-		obj = node->key.j.mapping->host;
-		assert("nikita-2800", is_reiser4_inode(obj));
-		if (inode_get_flag(obj, REISER4_BEING_ALLOCATED))
-			return 0;
-	}
 	return 1;
 }
 
@@ -406,6 +404,8 @@ eflush_del(jnode *node)
 		jput(node);
 		kmem_cache_free(eflush_slab, ef);
 		spin_lock_jnode(node);
+		trace_on(TRACE_EFLUSH, "unflush: %i...\n", 
+			 get_super_private(tree->super)->eflushed);
 	}
 }
 

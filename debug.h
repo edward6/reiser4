@@ -298,6 +298,8 @@ typedef enum {
 	/* trace space reservation */
 	TRACE_RESERVE = (1 << 22),	/* 0x00400000 */
 
+	/* trace emergency flush */
+	TRACE_EFLUSH  = (1 << 23),	/* 0x00800000 */
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
 	TRACE_BUG = (1 << 31),	/* 0x80000000 */

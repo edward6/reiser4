@@ -496,6 +496,9 @@ jnode_is_root(const jnode * node)
 	return jnode_is_znode(node) && znode_is_root(JZNODE(node));
 }
 
+extern struct address_space * jnode_mapping(const jnode * node);
+extern unsigned long jnode_index(const jnode * node);
+
 extern int jnode_try_drop(jnode * node);
 
 /* __JNODE_H__ */

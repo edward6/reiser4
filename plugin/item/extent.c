@@ -1332,6 +1332,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	unsigned long page_nr;
 	unsigned page_off, count;
 	char *kaddr;
+	jnode *j;
 
 	result = zload(coord->node);
 	if (result)
@@ -1353,7 +1354,12 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 		return PTR_ERR(page);
 	}
 
-	wait_on_page_locked(page);
+	reiser4_lock_page(page);
+	j = jnode_by_page(page);
+	if (j)
+		UNDER_SPIN_VOID(jnode, j, eflush_del(j));
+	reiser4_unlock_page(page);
+
 	if (!PageUptodate(page)) {
 		page_detach_jnode(page, inode->i_mapping, page_nr);
 		page_cache_release(page);
@@ -1380,7 +1386,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
 	kaddr = kmap(page);
 	assert("vs-572", f->user == 1);
-	ON_DEBUG_CONTEXT(assert("green-6", lock_counters()->spin_locked == 0));
+	schedulable();
 
 	result = __copy_to_user(f->data, kaddr + page_off, count);
 	kunmap(page);
@@ -2320,8 +2326,42 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	return result;
 }
 
+static void
+unflush_finish(coord_t *coord, __u64 done)
+{
+	reiser4_extent *ext;
+	reiser4_key     key;
+	oid_t           oid;
+	__u64           i;
+	unsigned long   ind;
+	int             result;
+
+	assert("nikita-2793", item_is_extent(coord));
+
+	result = 0;
+
+	ext = extent_by_coord(coord);
+
+	unit_key_by_coord(coord, &key);
+
+	oid   = get_key_objectid(&key);
+	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
+	
+	for (result = 0, i = 0 ; i < done ; ++ i, ++ ind) {
+		jnode  *node;
+		reiser4_tree *tree;
+
+		tree = current_tree;
+		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (node == NULL)
+			continue;
+		jrelse(node);
+		jput(node);
+	}
+}
+
 static int
-unflush(coord_t *coord, struct inode **obj)
+unflush(coord_t *coord)
 {
 	reiser4_extent *ext;
 	reiser4_key     key;
@@ -2339,12 +2379,11 @@ unflush(coord_t *coord, struct inode **obj)
 
 	unit_key_by_coord(coord, &key);
 
-
 	width = extent_get_width(ext);
 	oid   = get_key_objectid(&key);
 	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
 	
-	for (i = 0 ; i < width && result == 0 ; ++ i, ++ ind) {
+	for (result = 0, i = 0 ; i < width ; ++ i, ++ ind) {
 		jnode  *node;
 		reiser4_tree *tree;
 
@@ -2352,37 +2391,14 @@ unflush(coord_t *coord, struct inode **obj)
 		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
 		if (node == NULL)
 			continue;
-		if (!JF_ISSET(node, JNODE_EFLUSH)) {
-			jput(node);
-			continue;
-		}
-		assert("nikita-2794", jnode_is_unformatted(node));
-		if (*obj == NULL) {
-			*obj = node->key.j.mapping->host;
-			assert("nikita-2801", *obj != NULL);
-			assert("nikita-2795", is_reiser4_inode(*obj));
-			assert("nikita-2799", get_inode_oid(*obj) == oid);
-			inode_set_flag(*obj, REISER4_BEING_ALLOCATED);
-			__iget(*obj);
-		}
-
-		assert("nikita-2796", *obj == node->key.j.mapping->host);
-		result = emergency_unflush(node);
+		result = jload(node);
 		jput(node);
+		if (result != 0) {
+			unflush_finish(coord, i);
+			break;
+		}
 	}
 	return result;
-}
-
-static void
-unflush_finish(struct inode *obj)
-{
-	if (obj != NULL) {
-		assert("nikita-2797", is_reiser4_inode(obj));
-		assert("nikita-2798", inode_get_flag(obj, 
-						     REISER4_BEING_ALLOCATED));
-		inode_clr_flag(obj, REISER4_BEING_ALLOCATED);
-		iput(obj);
-	}
 }
 
 /* find all units of extent item which require allocation. Allocate free blocks
@@ -2443,11 +2459,15 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		   UNALLOCATED stage */
 		flush_pos_hint(flush_pos)->block_stage = BLOCK_UNALLOCATED;
 
-		result = unflush(coord, &object);
+		result = unflush(coord);
 		if (result)
 			break;
 
-		result = extent_allocate_blocks(flush_pos_hint(flush_pos), initial_width, &first_allocated, &allocated);
+		result = extent_allocate_blocks(flush_pos_hint(flush_pos), 
+						initial_width, 
+						&first_allocated, &allocated);
+		unflush_finish(coord, initial_width);
+
 		if (result)
 			break;
 
@@ -2500,17 +2520,14 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		num_units = coord_num_units(coord);
 	}
 
-	unflush_finish(object);
-	if (result == 0) {
-		/* content of extent item may be optimize-able (it may have
-		   mergeable extents)) */
-		optimize_extent(coord);
+	/* content of extent item may be optimize-able (it may have
+	   mergeable extents)) */
+	optimize_extent(coord);
 
-		/* set coord after last unit in the item */
-		assert("vs-679", item_is_extent(coord));
-		coord->unit_pos = coord_last_unit_pos(coord);
-		coord->between = AFTER_UNIT;
-	}
+	/* set coord after last unit in the item */
+	assert("vs-679", item_is_extent(coord));
+	coord->unit_pos = coord_last_unit_pos(coord);
+	coord->between = AFTER_UNIT;
 
 	return result;
 }
@@ -2863,8 +2880,10 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 	reiser4_stat_extent_add(unfm_block_reads);
 
 	page_io(page, j, READ, GFP_NOIO);
-	wait_on_page_locked(page);
+
 	reiser4_lock_page(page);
+	UNDER_SPIN_VOID(jnode, j, eflush_del(j));
+
 	if (!PageUptodate(page)) {
 		warning("jmacd-61238", "prepare_page: page not up to date");
 		return -EIO;
@@ -2952,7 +2971,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		if (result)
 			goto exit3;
 
-		assert("green-13", lock_counters()->spin_locked == 0);
+		schedulable();
 
 		/* copy user data into page */
 		data = kmap(page);
