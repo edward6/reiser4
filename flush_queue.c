@@ -508,8 +508,6 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 	atom = atom_get_locked_by_jnode (node);
 	assert ("zam-726", atom != NULL);
 
-	capture_list_remove (node);
-
 	if (!JF_ISSET (node, JNODE_DIRTY)) {
 		/* dequeue it */
 		fq_dequeue_node (fq, node);
@@ -519,7 +517,9 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 		JF_SET (node, JNODE_WRITEBACK);
 		JF_CLR (node, JNODE_DIRTY);
 
+		capture_list_remove (node);
 		capture_list_push_back (&fq->io, node);
+
 		spin_unlock_jnode (node);
 	}
 
