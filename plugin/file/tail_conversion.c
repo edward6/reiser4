@@ -155,6 +155,8 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 
 	assert("vs-596", nr_pages > 0 && pages[0]);
 
+	info("tail2extent: %lu: reserved in replace: %llu\n", inode->i_ino, get_current_context()->grabbed_blocks);
+
 	/* cut copied items */
 	result = cut_tail_items(inode, (loff_t) pages[0]->index << PAGE_CACHE_SHIFT, count);
 	if (result)
@@ -199,7 +201,7 @@ reserve_tail2extent(struct inode *inode, znode **first, znode **last)
 
 	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
 	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
-	result = reiser4_grab_space_exact(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
+	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
 					  unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
 	if (result) {
 		zput(*first);
@@ -245,6 +247,7 @@ tail2extent(struct inode *inode)
 	result = reserve_tail2extent(inode, &first, &last);
 	if (result)
 		return result;
+	info("tail2extent: %lu: reserved: %llu\n", inode->i_ino, get_current_context()->grabbed_blocks);
 
 	xmemset(pages, 0, sizeof (pages));
 
