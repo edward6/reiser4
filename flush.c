@@ -2970,9 +2970,13 @@ scan_common(flush_scan * scan, flush_scan * other)
 						     &scan->parent_coord,
 						     &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK, 0))) {
 				/* FIXME(C): check EINVAL, EDEADLK */
+				trace_on(TRACE_FLUSH,
+					 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);				
 				return ret;
 			}
 
+			trace_on(TRACE_FLUSH,
+				 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
 			assert("jmacd-8661", other != NULL);
 
 			/* Duplicate the reference into the other flush_scan. */
