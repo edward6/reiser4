@@ -7,250 +7,314 @@
  * parser.y
  */
 
-				 /* level type defines */
-#define TW_BEGIN
-#define ASYN_BEGIN
-#define CD_BEGIN
-#define OP_LEVEL
-#define NOT_HEAD
-#define IF_STATEMENT
-#define UNORDERED
+                                 /* level type defines */
 
-#define  yyacc
+#include "../forward.h"
+#include "../debug.h"
+#include "../dformat.h"
+#include "../key.h"
+#include "../tslist.h"
+#include "../plugin/plugin_header.h"
+#include "../plugin/item/static_stat.h"
+#include "../plugin/item/internal.h"
+#include "../plugin/item/sde.h"
+#include "../plugin/item/cde.h"
+#include "../plugin/item/extent.h"
+#include "../plugin/item/tail.h"
+#include "../plugin/file/file.h"
+#include "../plugin/symlink.h"
+#include "../plugin/dir/hashed_dir.h"
+#include "../plugin/dir/dir.h"
+#include "../plugin/item/item.h"
+#include "../plugin/node/node.h"
+#include "../plugin/node/node40.h"
+#include "../plugin/security/perm.h"
 
-				 /* sizes defines      */
-#define WRDTABSIZE
-#define FREESPACESIZE (4096 - sizeof(char*)*2 - sizeof(int) )
-#define VARTABSIZE
+#include "../plugin/oid/oid40.h"
+#include "../plugin/oid/oid.h"
 
-/*
-#ifndef YYSTYPE
-typedef int YYSTYPE;
-#endif
-*/
+#include "../plugin/space/bitmap.h"
+#include "../plugin/space/test.h"
+#include "../plugin/space/space_allocator.h"
 
-#define Stype(x)    f_s_type(ws,x)
-#define Slab(x)     f_s_lab(ws,x)
-#define Slsco(x)    f_s_lsco(ws,x)
-#define Slist(x)    f_s_list(ws,x)
+#include "../plugin/disk_format/disk_format40.h"
+#include "../plugin/disk_format/test.h"
+#include "../plugin/disk_format/disk_format.h"
 
-/*
-#define pnline   ws->ws_pnline
-#define yyerrco  ws->ws_yyerrco
-#define errco    ws->ws_errco
-#define labco    ws->ws_labco 
-#define strco    ws->ws_strco 
-#define varco    ws->ws_varco 
-*/
+#include <linux/fs.h>		/* for struct super_block, address_space  */
+#include <linux/mm.h>		/* for struct page */
+#include <linux/buffer_head.h>	/* for struct buffer_head */
+#include <linux/dcache.h>	/* for struct dentry */
+#include <linux/types.h>
 
-#define yylex()  reiser4_lex(work_space)
-
-/*
-%union 
+typedef enum 
 {
-	long longType;
-	struct Label * Label;
-	struct String * StrPtr;
-	struct expr_v4 * expr;
-	struct var * Var;
-}
+	TW_BEGIN,
+	ASYN_BEGIN,
+	CD_BEGIN,
+	OP_LEVEL,
+	NOT_HEAD,
+	IF_STATEMENT,
+	UNORDERED
+} def;
+
+#define yylex()  reiser4_lex(ws)
+#define  yyacc
+//#define  bizon
+
+#define  PARSER_DEBUG
+
+typedef struct vnode vnode_t;
+
+typedef struct wrd wrd_t;
+
+                                 /* sizes defines      */
+#define FREESPACESIZE (4096 - sizeof(char*)*2 - sizeof(int) )
+
+#define _ROUND_UP_MASK(n) ((1UL<<(n))-1UL)
+
+#define _ROUND_UP(x,n) (((long)(x)+_ROUND_UP_MASK(n)) & ~_ROUND_UP_MASK(n))
+
+// to be ok for alpha and others we have to align structures to 8 byte  boundary.
+
+
+#define ROUND_UP(x) _ROUND_UP((x),3)
+
+//struct flow {
+//	reiser4_key key;	/* key of start of flow's sequence of bytes */
+//	size_t length;		/* length of flow's sequence of bytes */
+//	char *data;		/* start of flow's sequence of bytes */
+//	int user;		/* if 1 data is user space, 0 - kernel space */
+//	rw_op op;               /* */
+//};
+
+struct path_walk {
+	struct vfsmount *mnt;
+	struct dentry *dentry;
+};
+
+
+typedef struct path_walk_name
+{
+	struct qstr  rest_path;     /**/
+	struct qstr  sub_name;
+}path_walk_name;
+
+struct wrd
+{
+	wrd_t * next ;                /* next word                   */
+	struct qstr u ;             /* u.name  is ptr to space     */
+};
+
+struct vnode
+{
+	vnode_t * next ;            /* next                          */
+	vnode_t * parent;           /* parent                        */
+	wrd_t * w ;                 /* pair (parent,w) is unique     */
+	lnode * ln;                 /* file/dir name lnode           */
+	int count;                  /* ref counter                   */
+	int vtype;                  /* Type of name                  */
+	size_t off;	            /* current offset read/write of object */
+	size_t len;		    /* length of sequence of bytes for read/write (-1 no limit) */
+	int vSpace  ;               /* v4  space name or not ???        */
+	int vlevel  ;               /* level              ???           */
+	int  (*fplug)(lnode * node, const reiser4_plugin_ref * area);
+	//	struct qstr restfilename;   /* rest of not resolved name     */
+} ;
+
+typedef union expr_v4  expr_v4_t;
+
+typedef struct expr_common 
+{
+	__u8          type;
+	__u8          exp_type;
+} expr_common_t;
+
+typedef struct expr_lnode
+{
+	expr_common_t   h;
+	lnode  *lnode;
+} expr_lnode_t;
+
+typedef struct expr_flow 
+{
+	expr_common_t    h;
+	flow_t     *   flw;
+} expr_flow_t;
+
+typedef struct expr_vnode 
+{
+	expr_common_t   h;
+	vnode_t  *  v;
+} expr_vnode_t;
+
+
+typedef struct expr_wrd 
+{
+	expr_common_t   h;
+	wrd_t  *  s;
+} expr_wrd_t;
+
+/* list is same as op2
+typedef struct expr_list {
+	expr_common   h;
+	expr_v4_t  *  next;
+	expr_v4_t  *  e;
+} expr_list;
 */
 
-typedef enum {
+typedef struct expr_op3 
+{
+	expr_common_t   h;
+	expr_v4_t  *  op;
+	expr_v4_t  *  op_l;
+	expr_v4_t  *  op_r;
+} expr_op3_t;
+
+typedef struct expr_op2 
+{
+	expr_common_t   h;
+	expr_v4_t  *  op_l;
+	expr_v4_t  *  op_r;
+} expr_op2_t;
+
+typedef struct expr_op 
+{
+	expr_common_t   h;
+	expr_v4_t  *  op;
+} expr_op_t;
+
+typedef struct expr_assign 
+{
+	expr_common_t   h;
+	vnode_t       *  target;
+	expr_v4_t       *  source;
+	expr_v4_t       *  (* construct)( lnode *, expr_v4_t *  );
+} expr_assign_t;
+
+typedef struct expr_list expr_list_t;
+struct expr_list 
+{
+	expr_common_t   h;
+	expr_list_t     *  next;
+	expr_v4_t       *  source;
+} ;
+
+typedef enum 
+{
+	EXPR_WRD,
+	EXPR_VNODE,
+	EXPR_LIST,
+	EXPR_ASSIGN
 	EXPR_LNODE,
+	EXPR_FLOW,
+	EXPR_OP3,
 	EXPR_OP2,
-	EXPR_OP,
-	EXPR_STRING
+	EXPR_OP
 } expr_v4_type;
 
-/** declare hash table of lnode_lw's */
-/*TS_HASH_DECLARE( ln, lnode );*/
+union expr_v4 
+{
+	expr_common_t   h;
+	expr_wrd_t      wd;
+	expr_vnode_t    vnode;
+	expr_list_t     list;
 
-typedef union expr_v4 expr_v4;
+        expr_assign_t   assgn;
 
-struct String {
-};
-
-struct Label {
-};
-
-typedef struct expr_common {
-	/** 
-	 * type of expression node
-	 */
-	__u8 type;
-	/** 
-	 * type of expression
-	 */
-	__u8 exp_type;
-} expr_common;
-
-typedef struct expr_lnode {
-	expr_common h;
-	lnode *lnode;
-} expr_lnode;
-
-typedef struct expr_gen {
-	expr_common h;
-	reiser4_key key;	/* key of start of flow's sequence of bytes */
-	size_t len;		/* length of flow's sequence of bytes */
-} expr_gen;
-
-typedef struct expr_iden {
-	expr_common h;
-	String *s;
-} expr_iden;
-
-typedef struct expr_string {
-	expr_common h;
-	String *s;
-} expr_string;
-
-typedef struct expr_list {
-	expr_common h;
-	expr_v4 *next;
-} expr_list;
-
-typedef struct expr_op2 {
-	expr_common h;
-	expr_v4 *op_l;
-	expr_v4 *op_r;
-} expr_op2;
-
-typedef struct expr_op {
-	expr_common h;
-	expr_v4 *op;
-} expr_op;
-
-typedef struct expr_assign {
-	expr_common h;
-	expr_v4 *target;
-	expr_v4 *source;
-	expr_v4 *(*construct) (expr_v4 *, expr_v4 *);
-} expr_assign;
-
-union expr_v4 {
-	expr_common h;
-	expr_lnode lnode;
-	expr_gen gen;
-	expr_iden iden;
-	expr_string str;
-	expr_list next;
-	expr_op2 op2;
-	expr_op op;
-	expr_assign assign;
+	expr_lnode_t    lnode;
+	expr_flow_t     flow;
+	expr_op3_t      op3;
+	expr_op2_t      op2;
+	expr_op_t       op;
 };
 
 /* ok this is space for names, constants and tmp*/
 typedef struct freeSpace freeSpace;
 
-struct freeSpace {
-	freeSpace *freeSpace_next;
-	char *freeSpace;
-	char *freeSpaceMax;
-	char freeSpaceBase[FREESPACESIZE];
+struct freeSpace
+{
+	freeSpace  * freeSpace_next;                 /* next buffer   */
+	char       * freeSpace;                      /* pointer to free space */
+	char       * freeSpaceMax;                   /* for overflow control */
+	char         freeSpaceBase[FREESPACESIZE];   /* current buffer */
 };
 
-/* this is copy for remember
-struct qstr {
-	const unsigned char * name;
-	unsigned int len;
-	unsigned int hash;
+/*
+struct nameidata
+{
+	struct dentry	*dentry;
+	struct vfsmount *mnt;
+	struct qstr	last;
+	unsigned int	flags;
+	int		last_type;
+	struct dentry	*old_dentry;
+	struct vfsmount	*old_mnt;
 };
 */
 
-typedef struct var var;
 
-struct var {
-	struct qstr u;		/* txt.name  is ptr to space     */
-	var *next;		/* next var                      */
-	lnode *vlnode;		/* lnode for object     on r4-fs */
-	int vtype;		/* Type of name                  */
-	int vSpace;		/* v4  space name or not         */
-	int vlevel;		/* level                     */
+typedef struct streg  streg_t;
+
+struct streg
+{
+	int stype;                  /* cur type of level        */
+	int level;                  /* cur level                */
+        streg_t * next;
+        streg_t * prev;
+	expr_v4_t * cur_exp;          /* current (pwd)  expression for this level */
+	expr_v4_t * wrk_exp;          /* current (work) expression for this level */
+
+//	struct path_walk path_walk;
+//	struct dentry * de;          /* current   for this level */
+//	struct vfsmount *mnt;
+//	struct nameidata_reiser4 nd;        /* current   for this level */
+//	lnode * cur_lnode;          /* cur lnode for this level */
+//	vnode_t * cur_vnode;          /* cur lnode for this level */
+
 };
 
-typedef struct streg {		/* for compile time level information */
-	int stype;		/* cur type of level        */
-	int slab;		/* label 1                  */
-	int sflag;		/*                  flag    */
-	int slsco;		/* cur count of lists       */
-	int slist;		/* cur type  of lists       */
-	lnode *scurrent;	/* cur path for this level  */
-	/* struct nameidata * curent_nd; */
-} streg;
 
-struct msglist {
-	int msgnum;
+
+struct msglist
+{
+	int  msgnum;
 	long fileoff;
-	struct msglist *nextmsg;
-};
+	struct msglist * nextmsg;
+} ;
 
 static struct msglist *Fistmsg;
-#define MAXLEVELCO 500
 
-struct yy_r4_work_spaces {
-	/*      char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
-	char *ws_pline;		/*   of token, second (pline) walk to end to token                   */
 
-#ifdef yyacc
-	/* next field need for yacc */
-	int ws_yydebug;
-	int ws_yynerrs;
-	int ws_yyerrflag;
-	int ws_yychar;
-	short *ws_yyssp;	/* state of automat */
-	YYSTYPE *ws_yyvsp;
-	YYSTYPE ws_yyval;
-	YYSTYPE ws_yylval;
-	short ws_yyss[YYSTACKSIZE];	/* s stack size is ws_yystacksize */
-	YYSTYPE ws_yyvs[YYSTACKSIZE];	/* v stack size is ws_yystacksize */
-	int ws_yystacksize;	/*500 */
-	int ws_yymaxdepth;	/*500 */
-#else
-	/* declare for bison */
-#endif
-	int ws_yyerrco;
-	int ws_level;		/* current level            */
-	int ws_labco;		/* current label            */
-	int ws_errco;		/* number of errors         */
-	int ws_strco;		/* number of entries in tptr */
-	int ws_varco;		/* number of variables      */
-	int ws_varsol;		/* begin number of variables */
 
-	/* working fields  */
-	char *tmpWrdEnd;
-
-	char *yytext;
-	/* space for   */
-	freeSpace *freeSpHead;
-	freeSpace *freeSpCur;
-
-	var *WrdHead;
-
-	lnode *root_lnode;
-
-	/*      int       * Gencode; */
-};
-
-static struct {
+static struct
+{
 	unsigned char numOfParam;
-	unsigned char typesOfParam[4];
-} typesOfCommand[] = {
-	{
-		0, {
-	0, 0, 0, 0}}
+	unsigned char typesOfParam[4]       ;
+}
+	typesOfCommand[]=
+		{ 
+			{0,{0,0,0,0}}
+		};
+
+
+
+static struct 
+{
+	void (*	call_function)(void) ;
+	unsigned char type;            /* describe parameters, and its types */
+}
+	Code[] =
+{
 };
 
-static struct {
-	void (*call_function) (void);
-	unsigned char type;	/* describe parameters, and its types */
-} Code[] = {
-};
 
 /*
 
 TS_LIST_DECLARE( r4_pars );
+
+
+
 
 r4_pars_list_head     HeadVar;
 
@@ -261,6 +325,7 @@ struct _p_VarTab
 	r4_pars_list_link     links;	
 
 };
+
 
 TS_LIST_DEFINE( r4_pars, p_VarTab, links );
 
@@ -299,102 +364,7 @@ TS_LIST_DEFINE( r4_pars, p_VarTab, links );
  *     {...}
  * */
 
-static struct {
-	char *wrd;
-	int class;
-} key[] = {
-	{
-	"and", AND}, {
-	"bytes", BYTES}, {
-	"else", ELSE}, {
-	"eq", EQ}, {
-	"exist", EXIST}, {
-	"first", FIRST}, {
-	"ge", GE}, {
-	"gt", GT}, {
-	"if", IF}, {
-	"last", LAST}, {
-	"le", LE}, {
-	"lt", LT}, {
-	"ne", NE}, {
-	"not", NOT}, {
-	"offset", OFFSET}, {
-	"offset_back", OFFSET_BACK}, {
-	"or", OR}, {
-	"/process", SLASH_PROCESS}, {
-	"/range", SLASH_RANGE}, {
-	"/stat", SLASH_STAT}, {
-	"then", THEN}, {
-	"tw/", TRANSCRASH}
-};
 
-void level_down(int);
-void level_down(int);
-void goto_end(void);
-void else_lab(void);
-void make_end_label(void);
-
-freeSpace *freeSpaceAlloc(void);
-/*strtab * StrTabAlloc(void)*/
-
-lnode *make_do_it(lnode *);
-lnode *objToExpr(lnode *);
-lnode *constToExpr(lnode *);
-lnode *connect_expression(lnode *, lnode *);
-lnode *compare_EQ_expression(lnode *, lnode *);
-lnode *compare_NE_expression(lnode *, lnode *);
-lnode *compare_LE_expression(lnode *, lnode *);
-lnode *compare_GE_expression(lnode *, lnode *);
-lnode *compare_LT_expression(lnode *, lnode *);
-lnode *compare_GT_expression(lnode *, lnode *);
-lnode *compare_OR_expression(lnode *, lnode *);
-lnode *compare_AND_expression(lnode *, lnode *);
-lnode *not_expression(lnode *);
-lnode *check_exist(lnode *);
-lnode *associate(lnode *, lnode *);
-lnode *end_tw_list(struct Label *, lnode *);
-lnode *list_expression(lnode *, lnode *);
-lnode *list_async_expression(lnode *, lnode *);
-lnode *end_async_list(struct Label *, lnode *);
-lnode *assign(lnode *, lnode *);
-lnode *assign_invert(lnode *, lnode *);
-lnode *symlink(lnode *, lnode *);
-lnode *contens_of(lnode *);
-lnode *contens_to(lnode *);
-lnode *make_cd(lnode *, int);
-lnode *init_Unordered(struct var *);
-lnode *add_Unordered(lnode *, struct var *);
-lnode *range_lnode(lnode *, $2);
-lnode *pars_path_walk(struct var *);
-lnode *make_proc_lnode();
-
-struct Label *begin_tw_list(int);
-struct Label *begin_asynchronouse(int);
-struct Label *goto_if_false(struct Label *, lnode *);
-struct Label *reserv_label(int);
-
-void move_selected_word(struct yy_r4_work_spaces *);
-int b_check_word(struct yy_r4_work_spaces *);
-var *inttab(struct yy_r4_work_spaces *);
-int reiser4_lex(struct yy_r4_work_spaces *);
-
-lnode *get_root_lnode(struct yy_r4_work_spaces *);
-
-int pars_path_walk(struct yy_r4_work_space *ws, struct ? ? ? Name * NamePtr);
-
-lnode *make_inode_from_plugin(reiser4_plugin, nd);
-
-int getvar(struct yy_r4_work_space *ws, int n, int def);
-int newvar(struct yy_r4_work_space *ws, int n);
-int newtmp(struct yy_r4_work_space *ws, int n);
-
-void lup(struct yy_r4_work_space *ws, int s1);
-
-int ldw(struct yy_r4_work_space *ws);
-int reiser4_assign(sink_t * dst, flow_t * src);
-int common_transfer(sink_t * target, flow_t * source);
-
-/*******************************************/
 
 /* 
  * Make Linus happy.
