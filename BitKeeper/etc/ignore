@@ -360,3 +360,5 @@ bash.rc3
 MKFS-DEV-HDB6
 read
 josh-test
+reiser4lib/libreiserfs/.deps/item.P
+reiser4lib/libreiserfs/item.lo
