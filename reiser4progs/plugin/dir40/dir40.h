@@ -7,11 +7,29 @@
 #ifndef DIR40_H
 #define DIR40_H
 
+/* Compaund directory structure */
 struct reiserfs_dir40 {
+    /* 
+	Poiter to the instance of internal libreiser4 b*tree, dir opened on stored here 
+	for lookup and modiying purposes. It is passed by libreiser4 durring initialization
+	of the directory instance.
+    */
     const void *tree;
 
-    reiserfs_place_t place;
+    /* 
+	The key of stat data (or just first item if stat data doesn't exists) for this
+	directory.
+    */
     reiserfs_key_t key;
+
+    /* Coords of stat data are stored here */
+    reiserfs_place_t place;
+
+    /* 
+	Statdata item of the dir. It is used for passing it to statdata plugin in order to
+	get or set someone field.
+    */
+    void *statdata;
 };
 
 typedef struct reiserfs_dir40 reiserfs_dir40_t;

@@ -292,6 +292,11 @@ struct reiserfs_dir_ops {
     
     reiserfs_entity_t *(*open) (const void *, reiserfs_key_t *);
     void (*close) (reiserfs_entity_t *);
+    
+    errno_t (*rewind) (reiserfs_entity_t *);
+    
+    errno_t (*check) (reiserfs_entity_t *, int);
+    int (*confirm) (reiserfs_entity_t *);
 };
 
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;

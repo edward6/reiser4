@@ -262,8 +262,23 @@ error_free_object:
 
 #endif
 
+errno_t reiserfs_object_rewind(reiserfs_object_t *object) {
+    aal_assert("umka-842", object != NULL, return -1);
+    aal_assert("umka-843", object->entity != NULL, return -1);
+
+    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
+	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
+	    rewind, object->entity);
+    } else {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Sorry, files are not supported now!");
+	return -1;
+    }
+}
+
 void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);
+    aal_assert("umka-841", object->entity != NULL, return);
     
     libreiser4_plugin_call(return, object->plugin->dir_ops, 
         close, object->entity);

@@ -36,6 +36,23 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
     return 0;
 }
 
+/* This function grabbs the stat data of directory */
+static errno_t dir40_realize(reiserfs_dir40_t *dir) {
+    reiserfs_plugin_t *node_plugin;
+    
+    aal_assert("umka-840", dir->place.node != NULL, return -1);
+
+    /* 
+	FIXME-UMKA: Here should be not hardcoded node plugin id. Actually we can get it
+	from node header, but this will not be work on reiser3 nodes.
+    */
+    if (!(node_plugin = core->factory_find(REISERFS_NODE_PLUGIN, 0x0)))
+	libreiser4_factory_failed(return -1, find, node, 0x0);
+    
+    return ((dir->statdata = libreiser4_plugin_call(return -1, node_plugin->node_ops, 
+	item_body, dir->place.node, dir->place.pos.item)) == NULL);
+}
+
 static reiserfs_dir40_t *dir40_open(const void *tree, 
     reiserfs_key_t *key) 
 {
@@ -62,7 +79,12 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	goto error_free_dir;
     }
     
-    /* FIXME-UMKA: Here should be stat data grabbing */
+    if (dir40_realize(dir)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't grabb stat data of  directory with oid %llx.", 
+	    dir40_objectid(dir));
+	goto error_free_dir;
+    }
     
     return dir;
 
@@ -202,7 +224,12 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	goto error_free_dir;
     }
     
-    /* FIXME-UMKA: Here should be stat data grabbing */
+    if (dir40_realize(dir)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't grabb stat data of  directory with oid %llx.", 
+	    dir40_objectid(dir));
+	goto error_free_dir;
+    }
 
     return dir;
 
@@ -232,14 +259,18 @@ static reiserfs_plugin_t dir40_plugin = {
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *, 
 	    reiserfs_key_t *)) dir40_create,
-
+	
+	.check = NULL,
 #else
 	.create = NULL,
+	.check = NULL,
 #endif
 	.open = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *))
 	    dir40_open,
 
-	.close = (void (*)(reiserfs_entity_t *))dir40_close
+	.close = (void (*)(reiserfs_entity_t *))dir40_close,
+	.confirm = NULL,
+	.rewind = (errno_t (*)(reiserfs_entity_t *))dir40_rewind
     }
 };
 
