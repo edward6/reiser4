@@ -1120,6 +1120,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	coord_t left_coord;
 	znode * left_child;
 	znode * right_child;
+	int left_zloaded_here;
 
 
 	assert ("umka-326", from != NULL);
@@ -1138,12 +1139,13 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		return 0;
 	}
 
+	left_zloaded_here = 0;
 
 	coord_dup (&left_coord, from);
 	init_lh (&left_lh);
 	if (coord_prev_unit (&left_coord)) {
+		/* @from is leftmost item in its node */
 		if (!locked_left_neighbor) {
-			/* @from is leftmost item in its node */
 			result = reiser4_get_left_neighbor (&left_lh, from->node,
 							    ZNODE_READ_LOCK,
 							    GN_DO_READ);
@@ -1163,17 +1165,28 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			}
 
 			/* we have acquired left neighbor of from->node */
+			result = zload (left_lh.node);
+			if (result)
+				return result;
+			left_zloaded_here = 1;
 			coord_init_last_unit (&left_coord, left_lh.node);
 		} else {
+			/* squalloc_right_twig_cut should have supplied loaded
+			 * locked left neighbor */
+			assert ("vs-833", znode_is_loaded (locked_left_neighbor));
+			assert ("vs-834", znode_is_write_locked (locked_left_neighbor));
 			coord_init_last_unit (&left_coord, locked_left_neighbor);
 		}
 	}
 
 	if (!item_is_internal (&left_coord)) {
-		/* there is no left child */
-		done_lh (&left_lh);
 		/* what else but extent can be on twig level */
 		assert ("vs-606", item_is_extent (&left_coord));
+
+		/* there is no left formatted child */
+		if (left_zloaded_here)
+			zrelse (left_lh.node);
+		done_lh (&left_lh);
 		return 0;
 	}
 
@@ -1183,6 +1196,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	spin_unlock_dk (current_tree);
 
 	if (IS_ERR (left_child)) {
+		if (left_zloaded_here)
+			zrelse (left_lh.node);
+		done_lh (&left_lh);
 		return PTR_ERR (left_child);
 	}
 
@@ -1220,6 +1236,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			default:
 				/* real error */
 				done_lh (&right_lh);
+				if (left_zloaded_here)
+					zrelse (left_lh.node);
 				done_lh (&left_lh);
 				return result;
 			}
@@ -1239,6 +1257,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 
 			if (IS_ERR (right_child)) {
 				done_lh (&right_lh);
+				if (left_zloaded_here)
+					zrelse (left_lh.node);
 				done_lh (&left_lh);
 				return PTR_ERR (right_child);
 			}
@@ -1267,6 +1287,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	spin_unlock_dk (current_tree);	
 
 	zput (left_child);
+	if (left_zloaded_here)
+		zrelse (left_lh.node);
 	done_lh (&left_lh);
 	return 0;
 }
@@ -1465,6 +1487,18 @@ int cut_tree (reiser4_tree * tree,
 						     loop iteration */
 				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/, 0);
 		zrelse (loaded);
+
+		if (result == -EAGAIN) {
+			/*
+			 * cut_node returns this when we cut from the beginning
+			 * of twig node and it had to lock neighbor to get
+			 * "left child" to update its right delimiting key and
+			 * it failed becasue left neighbor was locked. So,
+			 * release lock held and try again */
+			done_lh (&lock_handle);
+			continue;
+		}
+
 		if (result) {
 			done_lh (&lock_handle);
 			break;
@@ -1480,9 +1514,9 @@ int cut_tree (reiser4_tree * tree,
 
 /* a first stage of reiser4 tree initialization which makes jload/jrelse
  * functions working (it is needed for journal replaying ) */
-void init_tree_0( reiser4_tree *tree, 
-		  struct super_block * super,
-		  node_operations *tops)
+void init_tree_ops( reiser4_tree *tree, 
+		    struct super_block *super,
+		    node_operations *tops )
 {
 	assert ("zam-585", tree != NULL);
 	assert( "nikita-2037", tops != NULL );
