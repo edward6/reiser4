@@ -316,7 +316,7 @@ void put_cluster_data(reiser4_cluster_t * clust, struct inode * inode)
 int cluster_is_uptodate (reiser4_cluster_t * clust)
 {
 	assert("edward-126", clust != NULL);
-	return (clust->buf != NULL || clust->stat == FAKE_CLUSTER);
+	return (clust->buf != NULL);
 }
 
 /* returns index of the cluster that @page belongs to */
