@@ -55,7 +55,10 @@ reiser4_panic(const char *format /* format string */ , ... /* rest */ )
 		if ((get_super_private(super) != NULL) && reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
 			print_znodes("znodes", current_tree);
 	}
-	panic("reiser4 panicked cowardly: %s", panic_buf);
+
+	/* panic("reiser4 panicked cowardly: %s", panic_buf); */
+	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
+	BUG();
 }
 
 /* Preemption point: this should be called periodically during long running
