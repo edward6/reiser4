@@ -164,6 +164,8 @@ struct blocknr_set {
 	blocknr_set_list_head entries;
 };
 
+TS_LIST_DECLARE (io_handles);
+
 /* An atomic transaction: this is the underlying system representation
  * of a transaction, not the one seen by clients. */
 struct txn_atom
@@ -234,6 +236,9 @@ struct txn_atom
 				 * atom's lists and put on flush_queue */
 	/* all flush_pos objects that flush this atom are on this list  */
 	flushers_list_head      flushers; 
+
+	/* active i/o requests accounting */
+	io_handles_list_head    io_handles;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
@@ -358,6 +363,33 @@ extern int          blocknr_set_iterator   (txn_atom                *atom,
 					    blocknr_set_actor_f     actor,
 					    void                    *data,
 					    int                      delete);
+
+/* i/o handles, see io_handle.c for details */
+
+struct reiser4_io_handle {
+	struct semaphore      io_sema;
+	atomic_t              nr_submitted;
+	atomic_t              nr_errors;
+	io_handles_list_link  linkage;
+};
+
+extern void io_handle_end_io (struct bio                *bio);
+
+extern int  atom_add_bio     (txn_atom                  *atom,
+			      struct bio                *bio,
+			      struct reiser4_io_handle **io);
+
+extern int  atom_wait_on_io (txn_atom                  *atom,
+			      int                       *error_count);
+
+extern void atom_fuse_io     (txn_atom                 *to,
+			      txn_atom                 *from);
+
+extern void atom_init_io     (txn_atom                 *atom);
+extern void atom_done_io     (txn_atom                 *atom);
+
+extern int  current_atom_add_bio (struct bio*);
+extern int  current_atom_wait_on_io (void);
 
 /*
  * these are needed to move to PAGE_CACHE_SIZE > blocksize

@@ -415,6 +415,7 @@ atom_init (txn_atom     *atom)
 	blocknr_set_init   (& atom->wandered_map);
 
 	flush_init_atom (atom);
+	atom_init_io (atom);
 }
 
 #if REISER4_DEBUG
@@ -777,6 +778,8 @@ atom_free (txn_atom *atom)
 	blocknr_set_destroy (& atom->delete_set);
 	blocknr_set_destroy (& atom->wandered_map);
 
+	atom_done_io (atom);
+
 	assert ("jmacd-16", atom_isclean (atom));
 
 	spin_unlock_atom (atom);
@@ -805,6 +808,7 @@ atom_should_commit (const txn_atom *atom)
 		atom_is_dotard (atom) || (atom->flags & ATOM_FORCE_COMMIT);
 }
 
+#if 0
 /* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
  * active io_handles here. */
 static void txn_wait_on_io (txn_atom *atom)
@@ -820,6 +824,7 @@ static void txn_wait_on_io (txn_atom *atom)
 		}
 	}
 }
+#endif
 
 /* Called with the atom locked and no open txnhs, this function determines
  * whether the atom can commit and if so, initiates commit processing.
@@ -898,9 +903,7 @@ atom_try_commit_locked (txn_atom *atom)
 		}
 	}
 
-	/* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all
-	 * its active io_handles here. */
-	txn_wait_on_io (atom);
+	current_atom_wait_on_io ();
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
@@ -2407,6 +2410,9 @@ capture_fuse_into (txn_atom  *small,
 
 	/* splice flush queues */
 	flush_fuse_queues (large, small);
+
+	/* splice lists of i/o handles */
+	atom_fuse_io (large, small);
 	
 	/* Transfer list counts to large. */
 	large->txnh_count          += small->txnh_count;

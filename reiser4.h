@@ -445,7 +445,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "page_cache.h"
 
 #include "wander.h"
-#include "io_handle.h"
 
 #include "ktxnmgrd.h"
 
