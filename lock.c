@@ -637,15 +637,15 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 			 * still waiting on this node and notifying them
 			 * that node is dying.
 			 *
-			 * FIXME_JMACD Can we rename delete_znode() to
-			 * remove_znode_from_sibling_list() in light of the
-			 * above comment?  Please?  Please?  Please? -josh
-			 *
-			 * Renamed it to forget_znode()
+			 * FIXME_JMACD: Can we not call invalidate_lock from
+			 * forget_znode()?  Its confusing.
 			 */
 			spin_unlock_znode(node);
 			forget_znode(handle);
-			
+
+			/* FIXME_JMACD: for now, set it to clean so it doesn't
+			 * get flushed. */
+			znode_set_clean (node);
 			return;
 		}
 	}
