@@ -2724,11 +2724,13 @@ void jnode_make_wander (jnode * node)
 	UNLOCK_JNODE(node);
 }
 
-/* Make node RELOC and put it on flush queue */
-void jnode_make_reloc (jnode * node, flush_queue_t * fq)
+/* Make znode RELOC and put it on flush queue */
+void znode_make_reloc (znode *z, flush_queue_t * fq)
 {
+	jnode *node;
 	txn_atom * atom;
 
+	node = ZJNODE(z);
 	LOCK_JNODE(node);
 
 	atom = atom_locked_by_jnode(node);
@@ -2746,6 +2748,21 @@ void jnode_make_reloc (jnode * node, flush_queue_t * fq)
 	UNLOCK_JNODE(node);
 	
 }
+
+/* Make unformatted node RELOC and put it on flush queue */
+void
+unformatted_make_reloc(jnode *node, flush_queue_t * fq)
+{
+	assert("vs-1479", jnode_is_unformatted(node));
+	assert("vs-1480", spin_jnode_is_locked(node));
+	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
+	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
+	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+
+	jnode_set_reloc(node);
+	mark_jnode_queued(fq, node);
+}
+
 
 static int
 trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
