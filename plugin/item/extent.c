@@ -2318,6 +2318,7 @@ int extent_read (struct inode * inode, new_coord * coord,
 	/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
 	kaddr = kmap (page);
 	assert ("vs-572", f->user == 1);
+	assert( "green-6", lock_counters() -> spin_locked == 0 );
 	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
 
