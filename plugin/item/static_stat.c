@@ -199,7 +199,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 
 	result = 0;
 	sd_base = (reiser4_stat_data_base *) sd;
-	state = reiser4_inode_data(inode);
+	state = reiser4_inode_by_inode(inode);
 	mask = d16tocpu(&sd_base->extmask);
 	bigmask = mask;
 	inode_set_flag(inode, REISER4_SDLEN_KNOWN);
@@ -279,7 +279,7 @@ sd_len(struct inode *inode /* object being processed */ )
 	assert("nikita-632", inode != NULL);
 
 	result = sizeof (reiser4_stat_data_base);
-	mask = scint_unpack(&reiser4_inode_data(inode)->extmask);
+	mask = scint_unpack(&reiser4_inode_by_inode(inode)->extmask);
 	for (bit = 0; mask != 0; ++bit, mask >>= 1) {
 		if (mask & 1) {
 			sd_ext_plugin *sdplug;
@@ -313,7 +313,7 @@ sd_save(struct inode *inode /* object being processed */ ,
 	assert("nikita-635", area != NULL);
 
 	result = 0;
-	emask = scint_unpack(&reiser4_inode_data(inode)->extmask);
+	emask = scint_unpack(&reiser4_inode_by_inode(inode)->extmask);
 	sd_base = (reiser4_stat_data_base *) * area;
 	cputod16((unsigned) (emask & 0xffff), &sd_base->extmask);
 
@@ -773,7 +773,7 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 	}
 	/* FIXME-VS: activate was called here */
 
-	reiser4_inode_data(inode)->plugin_mask = mask;
+	reiser4_inode_by_inode(inode)->plugin_mask = mask;
 	return result;
 }
 
@@ -803,7 +803,7 @@ len_for(reiser4_plugin * plugin /* plugin to save */ ,
 {
 	assert("nikita-661", inode != NULL);
 
-	if (plugin && (reiser4_inode_data(inode)->plugin_mask & (1 << (plugin->h.type_id)))) {
+	if (plugin && (reiser4_inode_by_inode(inode)->plugin_mask & (1 << (plugin->h.type_id)))) {
 		len += sizeof (reiser4_plugin_slot);
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
 			/* non-standard plugin, call method */
@@ -824,7 +824,7 @@ plugin_sd_save_len(struct inode *inode /* object being processed */ )
 
 	assert("nikita-663", inode != NULL);
 
-	state = reiser4_inode_data(inode);
+	state = reiser4_inode_by_inode(inode);
 	/* common case: no non-standard plugins */
 	if (state->plugin_mask == 0)
 		return 0;
@@ -896,7 +896,7 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	assert("nikita-670", area != NULL);
 	assert("nikita-671", *area != NULL);
 
-	state = reiser4_inode_data(inode);
+	state = reiser4_inode_by_inode(inode);
 	if (state->plugin_mask == 0)
 		return 0;
 	sd = (reiser4_plugin_stat *) * area;
@@ -923,7 +923,7 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 
 static int keyid_to_inode (struct inode *inode, const __u8 * word)
 {
-	reiser4_inode *info = reiser4_inode_data(inode);
+	reiser4_inode *info = reiser4_inode_by_inode(inode);
 
 	assert ("edward-11", info->keyid == NULL);
 	assert ("edward-33", !inode_get_flag(inode, REISER4_KEYID_LOADED));
@@ -969,7 +969,7 @@ static int keyid_sd_save(struct inode *inode, char **area)
 {
 	int result = 0;
 	reiser4_keyid_stat *sd;
-	reiser4_inode * info = reiser4_inode_data(inode);
+	reiser4_inode * info = reiser4_inode_by_inode(inode);
 	
 	assert("edward-12", inode != NULL);
 	assert("edward-13", area != NULL);
