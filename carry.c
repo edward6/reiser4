@@ -1142,7 +1142,7 @@ static void fatal_carry_error( carry_level *doing UNUSED_ARG /* carry level
 							      * where
 							      * unrecoverable
 							      * error
-							      * occured */, 
+							      * occurred */, 
 			       int ecode /* error code */ )
 {
 	assert( "nikita-1230", doing != NULL );
