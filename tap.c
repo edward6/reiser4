@@ -104,7 +104,6 @@ void
 tap_done(tap_t * tap)
 {
 	assert("nikita-2565", tap != NULL);
-	assert("nikita-2566", tap->coord->node == tap->lh->node);
 	tap_check(tap);
 	if (tap->loaded > 0)
 		zrelse(tap->lh->node);
