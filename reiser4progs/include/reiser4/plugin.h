@@ -58,6 +58,15 @@ enum reiserfs_tail_policy {
 
 typedef enum reiserfs_tail_policy reiserfs_tail_policy_t;
 
+enum reiserfs_hash {
+    REISERFS_RUPASOV_HASH,
+    REISERFS_R5_HASH,
+    REISERFS_TEA_HASH,
+    REISERFS_FNV1_HASH
+};
+
+typedef enum reiserfs_hash reiserfs_hash_t;
+
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
     array of uint8_t elements REISERFS_KEY_SIZE long.
@@ -463,6 +472,7 @@ typedef struct reiserfs_node_ops reiserfs_node_ops_t;
 
 struct reiserfs_hash_ops {
     reiserfs_plugin_header_t h;
+    uint64_t (*build) (const unsigned char *, uint32_t);
 };
 
 typedef struct reiserfs_hash_ops reiserfs_hash_ops_t;

@@ -181,6 +181,10 @@ AC_OUTPUT([
     plugin/format36/Makefile
     plugin/journal36/Makefile
     plugin/alloc36/Makefile
+    plugin/r5_hash/Makefile
+    plugin/tea_hash/Makefile
+    plugin/rupasov_hash/Makefile
+    plugin/fnv1_hash/Makefile
     demos/Makefile
     reiser4progs/Makefile
     reiser4progs/libmisc/Makefile
