@@ -133,8 +133,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 		print_znode("znode is not loaded\n", node);
 		return;
 	}
-	if ((flags & REISER4_NODE_PRINT_HEADER) &&
-	    (node_plugin_by_node(node)->print != NULL)) {
+	if ((flags & REISER4_NODE_PRINT_HEADER) && (node_plugin_by_node(node)->print != NULL)) {
 		indent_znode(node);
 		node_plugin_by_node(node)->print(prefix, node, flags);
 
@@ -159,9 +158,8 @@ print_node_content(const char *prefix /* output prefix */ ,
 
 		iplug = item_plugin_by_coord(&coord);
 		if (flags & REISER4_NODE_PRINT_PLUGINS) {
-			print_plugin("\titem plugin",
-				     item_plugin_to_plugin(iplug));
-			    indent_znode(node);
+			print_plugin("\titem plugin", item_plugin_to_plugin(iplug));
+			indent_znode(node);
 		}
 		if (flags & REISER4_NODE_PRINT_KEYS) {
 			item_key_by_coord(&coord, &key);
@@ -182,8 +180,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 			data = item_body_by_coord(&coord);
 			length = item_length_by_coord(&coord);
 			indent_znode(node);
-			info("\titem length: %i, offset: %i\n",
-			     length, data - zdata(node));
+			info("\titem length: %i, offset: %i\n", length, data - zdata(node));
 			for (j = 0; j < length; ++j) {
 				char datum;
 
@@ -231,8 +228,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 		print_znode("znode is not loaded\n", node);
 		return;
 	}
-	if ((flags & REISER4_NODE_PRINT_HEADER) &&
-	    (node_plugin_by_node(node)->print != NULL)) {
+	if ((flags & REISER4_NODE_PRINT_HEADER) && (node_plugin_by_node(node)->print != NULL)) {
 		indent_znode(node);
 		node_plugin_by_node(node)->print(prefix, node, flags);
 
@@ -263,9 +259,8 @@ print_node_items(const char *prefix /* output prefix */ ,
 
 		iplug = item_plugin_by_coord(&coord);
 		if (flags & REISER4_NODE_PRINT_PLUGINS) {
-			print_plugin("\titem plugin",
-				     item_plugin_to_plugin(iplug));
-			    indent_znode(node);
+			print_plugin("\titem plugin", item_plugin_to_plugin(iplug));
+			indent_znode(node);
 		}
 		if (flags & REISER4_NODE_PRINT_KEYS) {
 			item_key_by_coord(&coord, &key);
@@ -286,8 +281,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 			data = item_body_by_coord(&coord);
 			length = item_length_by_coord(&coord);
 			indent_znode(node);
-			info("\titem length: %i, offset: %i\n",
-			     length, data - zdata(node));
+			info("\titem length: %i, offset: %i\n", length, data - zdata(node));
 			for (j = 0; j < length; ++j) {
 				char datum;
 

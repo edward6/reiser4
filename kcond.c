@@ -253,9 +253,8 @@ kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 
 	spin_lock(&cvar->lock);
 
-	for (queue_head = cvar->queue;
-	     queue_head != NULL; queue_head = queue_head->next)
-		    up(&queue_head->wait);
+	for (queue_head = cvar->queue; queue_head != NULL; queue_head = queue_head->next)
+		up(&queue_head->wait);
 
 	cvar->queue = NULL;
 	spin_unlock(&cvar->lock);
@@ -296,8 +295,7 @@ kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
 	assert("nikita-2440", cvar != NULL);
 	assert("nikita-2441", check_spin_is_locked(&cvar->lock));
 
-	for (scan = cvar->queue, prev = NULL;
-	     scan != NULL; prev = scan, scan = scan->next) {
+	for (scan = cvar->queue, prev = NULL; scan != NULL; prev = scan, scan = scan->next) {
 		if (scan == link) {
 			if (prev == NULL)
 				cvar->queue = scan->next;

@@ -52,11 +52,8 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 		/* FIXME-VS: Make sure that symlink->u.generic_ip is not attached
 		   to kmalloced data */
 	} else {
-		assert("vs-849", symlink->u.generic_ip &&
-		       inode_get_flag(symlink, REISER4_GENERIC_VP_USED));
-		assert("vs-850", !memcmp((char *) symlink->u.generic_ip,
-					 data->name,
-					 (size_t) symlink->i_size + 1));
+		assert("vs-849", symlink->u.generic_ip && inode_get_flag(symlink, REISER4_GENERIC_VP_USED));
+		assert("vs-850", !memcmp((char *) symlink->u.generic_ip, data->name, (size_t) symlink->i_size + 1));
 	}
 	return result;
 }

@@ -433,8 +433,7 @@ lock_object(lock_stack * owner, znode * node)
 	}
 	trace_on(TRACE_LOCKS,
 		 "%spri lock: %p node: %p: hipri_owners: %u: nr_readers: %d\n",
-		 owner->curpri ? "hi" : "lo", owner, node,
-		 node->lock.nr_hipri_owners, node->lock.nr_readers);
+		 owner->curpri ? "hi" : "lo", owner, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 }
 
 /**
@@ -480,8 +479,7 @@ znode_is_any_locked(const znode * node)
 	ret = 0;
 
 	for (handle = locks_list_front(&stack->locks);
-	     !locks_list_end(&stack->locks, handle);
-	     handle = locks_list_next(handle)) {
+	     !locks_list_end(&stack->locks, handle); handle = locks_list_next(handle)) {
 
 		if (handle->node == node) {
 			ret = 1;
@@ -532,8 +530,7 @@ static inline int
 check_deadlock_condition(znode * node)
 {
 	assert("nikita-1833", spin_znode_is_locked(node));
-	return node->lock.nr_hipri_requests > 0
-	    && node->lock.nr_hipri_owners == 0;
+	return node->lock.nr_hipri_requests > 0 && node->lock.nr_hipri_owners == 0;
 }
 
 /**
@@ -558,8 +555,7 @@ can_lock_object(lock_stack * owner, znode * node)
 		return -EAGAIN;
 	}
 
-	if (!is_lock_compatible(node, owner->request.mode) &&
-	    !recursive(owner, node)) {
+	if (!is_lock_compatible(node, owner->request.mode) && !recursive(owner, node)) {
 		return -EAGAIN;
 	}
 
@@ -587,8 +583,7 @@ set_high_priority(lock_stack * owner)
 
 			trace_on(TRACE_LOCKS,
 				 "set_hipri lock: %p node: %p: hipri_owners after: %u nr_readers: %d\n",
-				 item, node, node->lock.nr_hipri_owners,
-				 node->lock.nr_readers);
+				 item, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
 			/* we can safely set signaled to zero, because
 			 * previous statement (nr_hipri_owners ++) guarantees
@@ -626,8 +621,7 @@ set_low_priority(lock_stack * owner)
 			 */
 			trace_on(TRACE_LOCKS,
 				 "set_lopri lock: %p node: %p: hipri_owners before: %u nr_readers: %d\n",
-				 handle, node, node->lock.nr_hipri_owners,
-				 node->lock.nr_readers);
+				 handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
 			node->lock.nr_hipri_owners--;
 			/*
@@ -660,8 +654,7 @@ longterm_unlock_znode(lock_handle * handle)
 
 	assert("jmacd-1021", handle != NULL);
 	assert("jmacd-1022", handle->owner != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1392",
-				lock_counters()->long_term_locked_znode > 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1392", lock_counters()->long_term_locked_znode > 0));
 
 	assert("zam-130", oldowner == get_current_lock_stack());
 
@@ -678,8 +671,7 @@ longterm_unlock_znode(lock_handle * handle)
 	}
 	trace_on(TRACE_LOCKS,
 		 "%spri unlock: %p node: %p: hipri_owners: %u nr_readers %d\n",
-		 oldowner->curpri ? "hi" : "lo", handle, node,
-		 node->lock.nr_hipri_owners, node->lock.nr_readers);
+		 oldowner->curpri ? "hi" : "lo", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
 	/* Last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
@@ -688,8 +680,7 @@ longterm_unlock_znode(lock_handle * handle)
 
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-			assert("nikita-1221", ergo(znode_is_loaded(node),
-						   node_is_empty(node)));
+			assert("nikita-1221", ergo(znode_is_loaded(node), node_is_empty(node)));
 
 			/*
 			 * invalidate lock. FIXME-NIKITA locking.  This doesn't
@@ -772,8 +763,7 @@ int longterm_lock_znode(
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert("jmacd-808", handle->owner == NULL);
 
-	ON_DEBUG_CONTEXT(assert("nikita-1391",
-				lock_counters()->spin_locked == 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1391", lock_counters()->spin_locked == 0));
 	if (request & ZNODE_LOCK_NONBLOCK) {
 		try_capture_flags |= TXN_CAPTURE_NONBLOCKING;
 		non_blocking = 1;
@@ -817,8 +807,7 @@ int longterm_lock_znode(
 			break;
 		}
 
-		assert("nikita-1844",
-		       (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
+		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we can get the lock... Try to capture first before taking the
 		 * lock.*/
 		if ((ret = try_capture(ZJNODE(node), mode, try_capture_flags))
@@ -830,10 +819,8 @@ int longterm_lock_znode(
 			owner->request.mode = 0;
 			/* next requestor may not fail */
 			wake_up_next = 1;
-			if ((ret != -EAGAIN) &&
-			    (ret != -EINTR) && (ret != -EDEADLK)) {
-				warning("nikita-1845",
-					"Failed to capture node: %i", ret);
+			if ((ret != -EAGAIN) && (ret != -EINTR) && (ret != -EDEADLK)) {
+				warning("nikita-1845", "Failed to capture node: %i", ret);
 				print_znode("node", node);
 			}
 			break;
@@ -874,8 +861,7 @@ int longterm_lock_znode(
 				wake_up_all_lopri_owners(node);
 			/*
 			 * And prepare a lock request */
-			requestors_list_push_front(&node->lock.requestors,
-						   owner);
+			requestors_list_push_front(&node->lock.requestors, owner);
 		} else {
 			/*
 			 * If we are going in low priority direction then we
@@ -883,8 +869,7 @@ int longterm_lock_znode(
 			 * case  when a process may become low priority */
 			/*
 			 * And finally prepare a lock request */
-			requestors_list_push_back(&node->lock.requestors,
-						  owner);
+			requestors_list_push_back(&node->lock.requestors, owner);
 		}
 
 		/*
@@ -919,8 +904,7 @@ int longterm_lock_znode(
 	}
 
 	if (wake_up_next && !requestors_list_empty(&node->lock.requestors)) {
-		lock_stack *next =
-		    requestors_list_front(&node->lock.requestors);
+		lock_stack *next = requestors_list_front(&node->lock.requestors);
 		reiser4_wake_up(next);
 	}
 
@@ -980,8 +964,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 
 	/* all requestors will be informed that lock is invalidated. */
 	for (rq = requestors_list_front(&node->lock.requestors);
-	     !requestors_list_end(&node->lock.requestors, rq);
-	     rq = requestors_list_next(rq)) {
+	     !requestors_list_end(&node->lock.requestors, rq); rq = requestors_list_next(rq)) {
 		reiser4_wake_up(rq);
 	}
 
@@ -1050,8 +1033,7 @@ done_lh(lock_handle * handle)
 }
 
 /* What kind of lock? */
-znode_lock_mode
-lock_mode(lock_handle * handle)
+znode_lock_mode lock_mode(lock_handle * handle)
 {
 	if (handle->owner == NULL) {
 		return ZNODE_NO_LOCK;
@@ -1221,22 +1203,18 @@ print_lock_stack(const char *prefix, lock_stack * owner)
 	info(".... curpri %s\n", owner->curpri ? "high" : "low");
 
 	if (owner->request.mode != 0) {
-		info(".... current request: %s",
-		     owner->request.mode ==
-		     ZNODE_WRITE_LOCK ? "write" : "read");
+		info(".... current request: %s", owner->request.mode == ZNODE_WRITE_LOCK ? "write" : "read");
 		print_address("", znode_get_block(owner->request.node));
 	}
 
 	info(".... current locks:\n");
 
 	for (handle = locks_list_front(&owner->locks);
-	     !locks_list_end(&owner->locks, handle);
-	     handle = locks_list_next(handle)) {
+	     !locks_list_end(&owner->locks, handle); handle = locks_list_next(handle)) {
 
 		if (handle->node != NULL)
 			print_address(znode_is_rlocked(handle->node) ?
-				      "......  read" : "...... write",
-				      znode_get_block(handle->node));
+				      "......  read" : "...... write", znode_get_block(handle->node));
 	}
 
 	spin_unlock_stack(owner);
@@ -1264,8 +1242,7 @@ check_lock_data()
 
 		spin_lock(&active_contexts_lock);
 		for (context = context_list_front(&active_contexts);
-		     !context_list_end(&active_contexts, context);
-		     context = context_list_next(context)) {
+		     !context_list_end(&active_contexts, context); context = context_list_next(context)) {
 			check_lock_stack(&context->stack);
 		}
 		spin_unlock(&active_contexts_lock);

@@ -58,18 +58,14 @@ item_plugin_by_coord(const coord_t * coord /* coord to query */ )
 	trace_stamp(TRACE_TREE);
 
 	if (coord->iplug == NULL)
-		
-		    ((coord_t *) coord)->iplug =
-		    node_plugin_by_node(coord->node)->plugin_by_coord(coord);
-	assert("nikita-2479",
-	       coord->iplug ==
-	       node_plugin_by_node(coord->node)->plugin_by_coord(coord));
+
+		((coord_t *) coord)->iplug = node_plugin_by_node(coord->node)->plugin_by_coord(coord);
+	assert("nikita-2479", coord->iplug == node_plugin_by_node(coord->node)->plugin_by_coord(coord));
 	return coord->iplug;
 }
 
 /** return type of item at @coord */
-item_type_id
-item_type_by_coord(const coord_t * coord /* coord to query */ )
+item_type_id item_type_by_coord(const coord_t * coord /* coord to query */ )
 {
 	assert("nikita-333", coord != NULL);
 	assert("nikita-334", coord->node != NULL);
@@ -83,8 +79,7 @@ item_type_by_coord(const coord_t * coord /* coord to query */ )
 
 /* return id of item */
 /* Audited by: green(2002.06.15) */
-item_id
-item_id_by_coord(const coord_t * coord /* coord to query */ )
+item_id item_id_by_coord(const coord_t * coord /* coord to query */ )
 {
 	assert("vs-539", coord != NULL);
 	assert("vs-538", coord->node != NULL);
@@ -93,8 +88,7 @@ item_id_by_coord(const coord_t * coord /* coord to query */ )
 
 	trace_stamp(TRACE_TREE);
 
-	assert("vs-540",
-	       item_id_by_plugin(item_plugin_by_coord(coord)) < LAST_ITEM_ID);
+	assert("vs-540", item_id_by_plugin(item_plugin_by_coord(coord)) < LAST_ITEM_ID);
 	return item_id_by_plugin(item_plugin_by_coord(coord));
 }
 
@@ -189,9 +183,7 @@ item_can_contain_key(const coord_t * item /* coord of item */ ,
 		 *    min_key_in_item <= key &&
 		 *    key <= max_key_in_item
 		 */
-		return
-		    keyle(&min_key_in_item, key) &&
-		    keyle(key, &max_key_in_item);
+		return keyle(&min_key_in_item, key) && keyle(key, &max_key_in_item);
 	}
 }
 
@@ -217,8 +209,7 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	 * FIXME-NIKITA are_items_mergeable() is also called by assertions in
 	 * shifting code when nodes are in "suspended" state.
 	 */
-	assert("nikita-1663",
-	       keyle(item_key_by_coord(i1, &k1), item_key_by_coord(i2, &k2)));
+	assert("nikita-1663", keyle(item_key_by_coord(i1, &k1), item_key_by_coord(i2, &k2)));
 
 	if (iplug->b.mergeable != NULL) {
 		return iplug->b.mergeable(i1, i2);
@@ -229,16 +220,14 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 		/*
 		 * mergeable if ->max_key_inside() >= key of i2;
 		 */
-		return keyge(iplug->b.max_key_inside(i1, &k1),
-			     item_key_by_coord(i2, &k2));
+		return keyge(iplug->b.max_key_inside(i1, &k1), item_key_by_coord(i2, &k2));
 	} else {
 		item_key_by_coord(i1, &k1);
 		item_key_by_coord(i2, &k2);
 
 		return
 		    (get_key_locality(&k1) == get_key_locality(&k2)) &&
-		    (get_key_objectid(&k1) == get_key_objectid(&k2)) &&
-		    (iplug == item_plugin_by_coord(i2));
+		    (get_key_objectid(&k1) == get_key_objectid(&k2)) && (iplug == item_plugin_by_coord(i2));
 	}
 }
 
@@ -373,8 +362,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					       .extract_key = de_extract_key,
 					       .update_key = de_update_key,
 					       .extract_name = de_extract_name,
-					       .extract_file_type =
-					       de_extract_file_type,
+					       .extract_file_type = de_extract_file_type,
 					       .add_entry = de_add_entry,
 					       .rem_entry = de_rem_entry,
 					       .max_name_len = de_max_name_len}
@@ -429,8 +417,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					   .extract_key = cde_extract_key,
 					   .update_key = cde_update_key,
 					   .extract_name = cde_extract_name,
-					   .extract_file_type =
-					   de_extract_file_type,
+					   .extract_file_type = de_extract_file_type,
 					   .add_entry = cde_add_entry,
 					   .rem_entry = cde_rem_entry,
 					   .max_name_len = cde_max_name_len}
@@ -477,15 +464,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			     ,
 			     .f = {
 				   .utmost_child = internal_utmost_child,
-				   .utmost_child_real_block =
-				   internal_utmost_child_real_block,
+				   .utmost_child_real_block = internal_utmost_child_real_block,
 				   }
 			     ,
 			     .s = {
 				   .internal = {
 						.down_link = internal_down_link,
-						.has_pointer_to =
-						internal_has_pointer_to}
+						.has_pointer_to = internal_has_pointer_to}
 				   }
 			     }
 	,
@@ -529,8 +514,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			       ,
 			       .f = {
 				     .utmost_child = extent_utmost_child,
-				     .utmost_child_real_block =
-				     extent_utmost_child_real_block,
+				     .utmost_child_real_block = extent_utmost_child_real_block,
 				     }
 			       ,
 			       .s = {
@@ -539,8 +523,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					      .read = extent_read,
 					      .readpage = extent_readpage,
 					      .writepage = extent_writepage,
-					      .page_cache_readahead =
-					      NULL
+					      .page_cache_readahead = NULL
 					      /*extent_page_cache_readahead */ ,
 					      }
 				     }

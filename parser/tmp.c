@@ -16,8 +16,10 @@ main()
 	int i;
 	i = 0;
 	while (i != 307) {
-	printf("-------->%d\n", i = sys_reiser4("a<-b;");}
-	       return 0;}
+		printf("-------->%d\n", i = sys_reiser4("a<-b;");
+		       }
+		       return 0;
+		       }
 
 /* 
  * Make Linus happy.

@@ -138,14 +138,12 @@ extern void reiser4_unlock_inode(struct inode *inode);
 extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern int init_inode(struct inode *inode, coord_t * coord);
-extern struct inode *reiser4_iget(struct super_block *super,
-				  const reiser4_key * key);
+extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key * key);
 extern int reiser4_inode_find_actor(struct inode *inode, void *opaque);
 
 extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern int inode_get_flag(const struct inode *inode,
-			  reiser4_file_plugin_flags f);
+extern int inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f);
 
 extern file_plugin *inode_file_plugin(const struct inode *inode);
 extern dir_plugin *inode_dir_plugin(const struct inode *inode);

@@ -31,9 +31,7 @@ de_print(const char *prefix /* prefix to print */ ,
 	assert("nikita-1457", coord != NULL);
 
 	if (item_length_by_coord(coord) < (int) sizeof (directory_entry_format)) {
-		info("%s: wrong size: %i < %i\n", prefix,
-		     item_length_by_coord(coord),
-		     sizeof (directory_entry_format));
+		info("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (directory_entry_format));
 	} else {
 		reiser4_key sdkey;
 		char *name;
@@ -59,14 +57,12 @@ de_extract_key(const coord_t * coord /* coord of item */ ,
 	assert("nikita-1459", key != NULL);
 
 	dent = (directory_entry_format *) item_body_by_coord(coord);
-	assert("nikita-1158", item_length_by_coord(coord) >=
-	       (int) sizeof *dent);
+	assert("nikita-1158", item_length_by_coord(coord) >= (int) sizeof *dent);
 	return extract_key_from_id(&dent->id, key);
 }
 
 int
-de_update_key(const coord_t * coord,
-	      const reiser4_key * key, lock_handle * lh UNUSED_ARG)
+de_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
 	obj_key_id obj_id;
@@ -95,8 +91,7 @@ de_extract_name(const coord_t * coord /* coord of item */ )
 	assert("nikita-1460", coord != NULL);
 
 	dent = (directory_entry_format *) item_body_by_coord(coord);
-	assert("nikita-1160", item_length_by_coord(coord) >=
-	       (int) sizeof *dent);
+	assert("nikita-1160", item_length_by_coord(coord) >= (int) sizeof *dent);
 	return (char *) dent->name;
 }
 
@@ -139,8 +134,7 @@ de_add_entry(struct inode *dir /* directory of item */ ,
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
 		return -EDQUOT;
 
-	result = insert_by_coord(coord, &data, &entry->key, lh,
-				 inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
+	result = insert_by_coord(coord, &data, &entry->key, lh, inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
 	if (result != 0)
 		return result;
 
@@ -167,8 +161,7 @@ de_rem_entry(struct inode *dir /* directory of item */ ,
 
 	length = item_length_by_coord(coord);
 	if (inode_get_bytes(dir) < length) {
-		warning("nikita-2627", "Dir is broke: %llu: %llu",
-			get_inode_oid(dir), inode_get_bytes(dir));
+		warning("nikita-2627", "Dir is broke: %llu: %llu", get_inode_oid(dir), inode_get_bytes(dir));
 		return -EIO;
 	}
 
@@ -192,9 +185,7 @@ de_rem_entry(struct inode *dir /* directory of item */ ,
 int
 de_max_name_len(const struct inode *dir)
 {
-	return
-	    tree_by_inode(dir)->nplug->max_item_size() -
-	    sizeof (directory_entry_format) - 2;
+	return tree_by_inode(dir)->nplug->max_item_size() - sizeof (directory_entry_format) - 2;
 }
 
 /* 

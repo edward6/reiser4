@@ -33,7 +33,7 @@ common_setattr_ok(struct dentry *dentry, struct iattr *attr)
 		valid = attr->ia_valid;
 		if ((valid & ATTR_UID && attr->ia_uid != inode->i_uid) ||
 		    (valid & ATTR_GID && attr->ia_gid != inode->i_gid))
-			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
+			    result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
 	}
 	return result;
 }

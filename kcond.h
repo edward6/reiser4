@@ -35,8 +35,7 @@ extern kcond_t *kcond_init(kcond_t * cvar);
 extern int kcond_destroy(kcond_t * cvar);
 
 extern int kcond_wait(kcond_t * cvar, spinlock_t * lock, int signl);
-extern int kcond_timedwait(kcond_t * cvar, spinlock_t * lock,
-			   signed long timeout, int signl);
+extern int kcond_timedwait(kcond_t * cvar, spinlock_t * lock, signed long timeout, int signl);
 extern int kcond_signal(kcond_t * cvar);
 extern int kcond_broadcast(kcond_t * cvar);
 

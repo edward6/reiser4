@@ -142,8 +142,7 @@ extern void coord_init_after_last_item(coord_t * coord, const znode * node);
 void coord_init_after_item_end(coord_t * coord);
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-extern void coord_init_sideof_unit(coord_t * coord, const znode * node,
-				   sideof dir);
+extern void coord_init_sideof_unit(coord_t * coord, const znode * node, sideof dir);
 
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
  * look for comments there)
@@ -307,7 +306,7 @@ extern int coord_set_to_unit(coord_t * coord);
 extern int coord_set_after_unit(coord_t * coord);
 
 /* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
-extern int coord_sideof_unit (coord_t *coord, sideof dir);
+extern int coord_sideof_unit(coord_t * coord, sideof dir);
 
 /** iterate over all units in @node */
 #define for_all_units( coord, node )					\
@@ -327,10 +326,8 @@ extern const char *coord_tween_tostring(between_enum n);
 /* 				     COORD/ITEM METHODS                                  */
 /*****************************************************************************************/
 
-extern int item_utmost_child_real_block(const coord_t * coord, sideof side,
-					reiser4_block_nr * blk);
-extern int item_utmost_child(const coord_t * coord, sideof side,
-			     jnode ** child);
+extern int item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk);
+extern int item_utmost_child(const coord_t * coord, sideof side, jnode ** child);
 
 /* __REISER4_NEW_COORD_H__ */
 #endif

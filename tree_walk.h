@@ -39,8 +39,7 @@ int connect_znode(coord_t * coord, znode * node);
 
 */
 
-int reiser4_get_parent(lock_handle * result, znode * node,
-		       znode_lock_mode mode, int only_connected_p);
+int reiser4_get_parent(lock_handle * result, znode * node, znode_lock_mode mode, int only_connected_p);
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */
 typedef enum {
@@ -68,26 +67,21 @@ typedef enum {
 	GN_ALLOW_NOT_CONNECTED = 0x40
 } znode_get_neigbor_flags;
 
-int reiser4_get_neighbor(lock_handle * neighbor,
-			 znode * node, znode_lock_mode lock_mode, int flags);
+int reiser4_get_neighbor(lock_handle * neighbor, znode * node, znode_lock_mode lock_mode, int flags);
 
 /* there are wrappers for most common usages of reiser4_get_neighbor() */
 static inline int
-reiser4_get_left_neighbor(lock_handle * result,
-			  znode * node, int lock_mode, int flags)
+reiser4_get_left_neighbor(lock_handle * result, znode * node, int lock_mode, int flags)
 {
-	return reiser4_get_neighbor(result, node, lock_mode,
-				    flags | GN_GO_LEFT);
+	return reiser4_get_neighbor(result, node, lock_mode, flags | GN_GO_LEFT);
 }
 
 static inline int
-reiser4_get_right_neighbor(lock_handle * result, znode * node, int lock_mode,
-			   int flags)
+reiser4_get_right_neighbor(lock_handle * result, znode * node, int lock_mode, int flags)
 {
 	ON_DEBUG(check_lock_node_data(node));
 	ON_DEBUG(check_lock_data());
-	return reiser4_get_neighbor(result, node, lock_mode,
-				    flags & (~GN_GO_LEFT));
+	return reiser4_get_neighbor(result, node, lock_mode, flags & (~GN_GO_LEFT));
 }
 
 extern void invalidate_lock(lock_handle * _link);

@@ -134,18 +134,10 @@ tea_hash(const unsigned char *name /* name to hash */ ,
 	pad |= pad << 16;
 
 	while (len >= 16) {
-		a = (__u64) name[0] |
-		    (__u64) name[1] << 8 |
-		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
-		b = (__u64) name[4] |
-		    (__u64) name[5] << 8 |
-		    (__u64) name[6] << 16 | (__u64) name[7] << 24;
-		c = (__u64) name[8] |
-		    (__u64) name[9] << 8 |
-		    (__u64) name[10] << 16 | (__u64) name[11] << 24;
-		d = (__u64) name[12] |
-		    (__u64) name[13] << 8 |
-		    (__u64) name[14] << 16 | (__u64) name[15] << 24;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] << 16 | (__u64) name[7] << 24;
+		c = (__u64) name[8] | (__u64) name[9] << 8 | (__u64) name[10] << 16 | (__u64) name[11] << 24;
+		d = (__u64) name[12] | (__u64) name[13] << 8 | (__u64) name[14] << 16 | (__u64) name[15] << 24;
 
 		TEACORE(PARTROUNDS);
 
@@ -158,15 +150,9 @@ tea_hash(const unsigned char *name /* name to hash */ ,
 		if (len >= 16)
 			*(int *) 0 = 0;
 
-		a = (__u64) name[0] |
-		    (__u64) name[1] << 8 |
-		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
-		b = (__u64) name[4] |
-		    (__u64) name[5] << 8 |
-		    (__u64) name[6] << 16 | (__u64) name[7] << 24;
-		c = (__u64) name[8] |
-		    (__u64) name[9] << 8 |
-		    (__u64) name[10] << 16 | (__u64) name[11] << 24;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] << 16 | (__u64) name[7] << 24;
+		c = (__u64) name[8] | (__u64) name[9] << 8 | (__u64) name[10] << 16 | (__u64) name[11] << 24;
 
 		d = pad;
 		for (i = 12; i < len; i++) {
@@ -177,12 +163,8 @@ tea_hash(const unsigned char *name /* name to hash */ ,
 		//assert(len < 12);
 		if (len >= 12)
 			*(int *) 0 = 0;
-		a = (__u64) name[0] |
-		    (__u64) name[1] << 8 |
-		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
-		b = (__u64) name[4] |
-		    (__u64) name[5] << 8 |
-		    (__u64) name[6] << 16 | (__u64) name[7] << 24;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] << 16 | (__u64) name[7] << 24;
 
 		c = d = pad;
 		for (i = 8; i < len; i++) {
@@ -193,9 +175,7 @@ tea_hash(const unsigned char *name /* name to hash */ ,
 		//assert(len < 8);
 		if (len >= 8)
 			*(int *) 0 = 0;
-		a = (__u64) name[0] |
-		    (__u64) name[1] << 8 |
-		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
 
 		b = c = d = pad;
 		for (i = 4; i < len; i++) {
@@ -321,8 +301,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 				      .id = DEGENERATE_HASH_ID,
 				      .pops = NULL,
 				      .label = "degenerate hash",
-				      .desc =
-				      "Degenerate hash: only for testing",
+				      .desc = "Degenerate hash: only for testing",
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
 				.hash = deg_hash}

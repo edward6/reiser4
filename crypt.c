@@ -14,8 +14,7 @@ Unresolved issues:
 void *
 encrypt_slum_crypto_items(reiser4_key * current_slum_key)
 {
-	scan slum for items that are marked encrypt before flush and encrypt
-	    them;
+	scan slum for items that are marked encrypt before flush and encrypt them;
 }
 
 #endif

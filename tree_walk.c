@@ -85,9 +85,8 @@ lock_neighbor(
 		reiser4_stat_znode_add(lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 
-		if (neighbor == NULL ||
-		    !((flags & GN_ALLOW_NOT_CONNECTED)
-		      || znode_is_connected(neighbor))) {
+		if (neighbor == NULL || !((flags & GN_ALLOW_NOT_CONNECTED)
+					  || znode_is_connected(neighbor))) {
 			return -ENAVAIL;
 		}
 
@@ -144,9 +143,7 @@ reiser4_get_parent(lock_handle * result	/* resulting lock
 
 	return UNDER_SPIN(tree, znode_get_tree(node),
 			  lock_neighbor(result, node, PARENT_PTR_OFFSET, mode,
-					ZNODE_LOCK_HIPRI,
-					only_connected_p ? 0 :
-					GN_ALLOW_NOT_CONNECTED));
+					ZNODE_LOCK_HIPRI, only_connected_p ? 0 : GN_ALLOW_NOT_CONNECTED));
 }
 
 /** 
@@ -155,8 +152,7 @@ reiser4_get_parent(lock_handle * result	/* resulting lock
  */
 /* Audited by: umka (2002.06.14) */
 static inline int
-lock_side_neighbor(lock_handle * result,
-		   znode * node, znode_lock_mode mode, int flags)
+lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int flags)
 {
 	int ret;
 	int ptr_offset;
@@ -252,9 +248,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 	handle->owner = NULL;	/* mark lock handle as unused */
 
-	ret =
-	    (flags & GN_GO_LEFT) ? coord_prev_unit(coord) :
-	    coord_next_unit(coord);
+	ret = (flags & GN_GO_LEFT) ? coord_prev_unit(coord) : coord_next_unit(coord);
 	if (!ret)
 		return 0;
 
@@ -294,8 +288,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
  * Note: this function does not restore locking status at exit,
  * caller should does care about proper unlocking and zrelsing */
 static int
-renew_sibling_link(coord_t * coord, lock_handle * handle,
-		   znode * child, tree_level level, int flags, int *nr_locked)
+renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_level level, int flags, int *nr_locked)
 {
 	int ret;
 	reiser4_block_nr da;
@@ -342,8 +335,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle,
 		if (flags & GN_NO_ALLOC) {
 			neighbor = zlook(tree, &da);
 		} else {
-			neighbor =
-			    zget(tree, &da, side_parent, level, GFP_KERNEL);
+			neighbor = zget(tree, &da, side_parent, level, GFP_KERNEL);
 		}
 
 		if (IS_ERR(neighbor)) {
@@ -355,9 +347,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle,
 		if (neighbor) {
 			/* update delimiting keys */
 			UNDER_SPIN_VOID(dk, tree, find_child_delimiting_keys
-					(coord->node, coord,
-					 znode_get_ld_key(neighbor),
-					 znode_get_rd_key(neighbor)));
+					(coord->node, coord, znode_get_ld_key(neighbor), znode_get_rd_key(neighbor)));
 		}
 
 		spin_lock_tree(tree);
@@ -394,8 +384,7 @@ connect_one_side(coord_t * coord, znode * node, int flags)
 
 	init_lh(&handle);
 
-	ret = renew_sibling_link(&local, &handle, node, znode_get_level(node),
-				 flags | GN_NO_ALLOC, &nr_locked);
+	ret = renew_sibling_link(&local, &handle, node, znode_get_level(node), flags | GN_NO_ALLOC, &nr_locked);
 
 	if (handle.owner != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
@@ -498,9 +487,7 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 
 	coord_dup(&local, coord);
 
-	ret =
-	    renew_sibling_link(&local, &empty[0], node, level,
-			       flags & ~GN_NO_ALLOC, &nr_locked);
+	ret = renew_sibling_link(&local, &empty[0], node, level, flags & ~GN_NO_ALLOC, &nr_locked);
 	if (ret)
 		goto out;
 
@@ -515,8 +502,7 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 		goto out;
 	}
 
-	ret = renew_sibling_link(&local, &empty[nr_locked], neighbor,
-				 level, flags | GN_NO_ALLOC, &nr_locked);
+	ret = renew_sibling_link(&local, &empty[nr_locked], neighbor, level, flags | GN_NO_ALLOC, &nr_locked);
 	/* second renew_sibling_link() call is used for znode connection only,
 	 * so we can live with these errors */
 	if (-ENOENT == ret || -ENAVAIL == ret)
@@ -590,8 +576,7 @@ again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	 * link existence */
 
-	ret = UNDER_SPIN(tree, tree,
-			 lock_side_neighbor(neighbor, node, lock_mode, flags));
+	ret = UNDER_SPIN(tree, tree, lock_side_neighbor(neighbor, node, lock_mode, flags));
 
 	if (!ret) {
 		/* load znode content if it was specified */
@@ -660,9 +645,7 @@ again:
 			/* sibling link is not available -- we go
 			 * upward. */
 			init_lh(&path[h + 1]);
-			ret =
-			    reiser4_get_parent(&path[h + 1], parent,
-					       ZNODE_READ_LOCK, 1);
+			ret = reiser4_get_parent(&path[h + 1], parent, ZNODE_READ_LOCK, 1);
 			if (ret)
 				goto fail;
 			++h;
@@ -778,8 +761,7 @@ sibling_list_insert(znode * new, znode * before)
 	assert("umka-256", new != NULL);
 	assert("umka-257", znode_get_tree(new) != NULL);
 
-	UNDER_SPIN_VOID(tree, znode_get_tree(new),
-			sibling_list_insert_nolock(new, before));
+	UNDER_SPIN_VOID(tree, znode_get_tree(new), sibling_list_insert_nolock(new, before));
 }
 
 /*

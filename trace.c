@@ -35,8 +35,7 @@ static void unlock_trace(reiser4_trace_file * trace);
 })
 
 int
-open_trace_file(struct super_block *super, const char *file_name,
-		size_t size, reiser4_trace_file * trace)
+open_trace_file(struct super_block *super, const char *file_name, size_t size, reiser4_trace_file * trace)
 {
 	assert("nikita-2498", file_name != NULL);
 	assert("nikita-2499", trace != NULL);
@@ -59,8 +58,7 @@ open_trace_file(struct super_block *super, const char *file_name,
 	}
 	trace->fd = filp_open(file_name, O_CREAT | O_WRONLY, S_IFREG | S_IWUSR);
 	if (IS_ERR(trace->fd)) {
-		warning("nikita-2501", "cannot open trace file '%s': %li",
-			file_name, PTR_ERR(trace->fd));
+		warning("nikita-2501", "cannot open trace file '%s': %li", file_name, PTR_ERR(trace->fd));
 		trace->fd = NULL;
 		return PTR_ERR(trace->fd);
 	}
@@ -81,8 +79,7 @@ write_trace(reiser4_trace_file * file, const char *format, ...)
 	int result;
 	va_list args;
 
-	if ((file == NULL) || (file->type == log_to_bucket) ||
-	    (file->buf == NULL) || (file->disabled > 0))
+	if ((file == NULL) || (file->type == log_to_bucket) || (file->buf == NULL) || (file->disabled > 0))
 		return 0;
 
 	va_start(args, format);
@@ -93,8 +90,7 @@ write_trace(reiser4_trace_file * file, const char *format, ...)
 	result = free_space(file, &len);
 	if (result == 0) {
 		va_start(args, format);
-		file->used += vsnprintf(file->buf + file->used,
-					file->size - file->used, format, args);
+		file->used += vsnprintf(file->buf + file->used, file->size - file->used, format, args);
 		va_end(args);
 	}
 	unlock_trace(file);
@@ -106,8 +102,7 @@ write_trace_raw(reiser4_trace_file * file, const void *data, size_t len)
 {
 	int result;
 
-	if ((file == NULL) || (file->type == log_to_bucket) ||
-	    (file->buf == NULL) || (file->disabled > 0))
+	if ((file == NULL) || (file->type == log_to_bucket) || (file->buf == NULL) || (file->disabled > 0))
 		return 0;
 
 	LOCK_OR_FAIL(file);
@@ -190,31 +185,24 @@ flush_trace(reiser4_trace_file * file)
 				written = 0;
 				START_KERNEL_IO;
 				while (file->used > 0) {
-					result = fd->f_op->write
-					    (fd, file->buf + written,
-					     file->used, &fd->f_pos);
+					result = fd->f_op->write(fd, file->buf + written, file->used, &fd->f_pos);
 					if (result > 0) {
 						file->used -= result;
 						written += result;
 					} else {
-						warning("nikita-2502",
-							"Error writing trace: %i",
-							result);
+						warning("nikita-2502", "Error writing trace: %i", result);
 						break;
 					}
 				}
 				END_KERNEL_IO;
 			} else {
-				warning("nikita-2504",
-					"no ->write() in trace-file");
+				warning("nikita-2504", "no ->write() in trace-file");
 				result = -EINVAL;
 			}
 			break;
 		}
 	default:
-		warning("nikita-2505",
-			"unknown trace-file type: %i. Dumping to console",
-			file->type);
+		warning("nikita-2505", "unknown trace-file type: %i. Dumping to console", file->type);
 	case log_to_console:
 		if (file->buf != NULL)
 			info(file->buf);
@@ -229,9 +217,7 @@ static int
 free_space(reiser4_trace_file * file, size_t * len)
 {
 	if (*len > file->size) {
-		warning("nikita-2503",
-			"trace record too large: %i > %i. Truncating",
-			*len, file->size);
+		warning("nikita-2503", "trace record too large: %i > %i. Truncating", *len, file->size);
 		*len = file->size;
 	}
 	while (*len > file->size - file->used) {
@@ -291,16 +277,12 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 			flags = va_arg(args, __u32);
 
 			rest += sprintf(rest, "%s:(%u:%u):%x",
-					data->iplug->h.label,
-					coord->item_pos, coord->unit_pos,
-					flags);
+					data->iplug->h.label, coord->item_pos, coord->unit_pos, flags);
 		}
 	}
 	va_end(args);
 	return write_trace(file, "%i:[%s]:%c:%x:%lu:%s\n",
-			   current->pid,
-			   kdevname(to_kdev_t(tree->super->s_dev)),
-			   op, 0xacc0u, jiffies, buf);
+			   current->pid, kdevname(to_kdev_t(tree->super->s_dev)), op, 0xacc0u, jiffies, buf);
 }
 
 #endif

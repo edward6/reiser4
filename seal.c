@@ -43,8 +43,7 @@
 static znode *seal_node(const seal_t * seal);
 static int seal_matches(const seal_t * seal, znode * node);
 static int seal_search_node(seal_t * seal, coord_t * coord,
-			    znode * node, const reiser4_key * key,
-			    lookup_bias bias, tree_level level);
+			    znode * node, const reiser4_key * key, lookup_bias bias, tree_level level);
 
 /** 
  * initialise seal. This can be called several times on the same seal. @coord
@@ -107,9 +106,7 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
 	     * FIXME-VS: we only can compare keys for items whose units
 	     * represent exactly one key
 	     */
-	    (coord_is_existing_unit(coord) &&
-	     (item_is_extent(coord) ||
-	      keyeq(k, unit_key_by_coord(coord, &ukey))));
+	    (coord_is_existing_unit(coord) && (item_is_extent(coord) || keyeq(k, unit_key_by_coord(coord, &ukey))));
 }
 #endif
 
@@ -159,9 +156,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				/* if seal version and znode version
 				 * coincide */
 				assert("nikita-1990", node == seal->coord.node);
-				assert("nikita-1898", WITH_DATA_RET
-				       (coord->node, 1,
-					check_seal_match(coord, key)));
+				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
 				reiser4_stat_seal_add(perfect_match);
 			} else if (coord->between != AT_UNIT)
 				/*
@@ -180,8 +175,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				 * seal is broken, but there is a hope that
 				 * key is still in @node
 				 */
-				result = seal_search_node(seal, coord, node,
-							  key, bias, level);
+				result = seal_search_node(seal, coord, node, key, bias, level);
 			else {
 				/* key is not in @node */
 				reiser4_stat_seal_add(key_drift);
@@ -243,8 +237,7 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 	return -EAGAIN;
 
 	if ((znode_get_level(node) != level) ||
-	    ZF_ISSET(node, JNODE_HEARD_BANSHEE) ||
-	    ZF_ISSET(node, JNODE_IS_DYING) || (node != coord->node)) {
+	    ZF_ISSET(node, JNODE_HEARD_BANSHEE) || ZF_ISSET(node, JNODE_IS_DYING) || (node != coord->node)) {
 		reiser4_stat_seal_add(wrong_node);
 		return -EAGAIN;
 	}
@@ -253,14 +246,12 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 	if (result != 0)
 		return result;
 
-	if (coord_is_existing_unit(coord) &&
-	    keyeq(key, unit_key_by_coord(coord, &unit_key))) {
+	if (coord_is_existing_unit(coord) && keyeq(key, unit_key_by_coord(coord, &unit_key))) {
 		/* coord is still at the same position in the @node */
 		reiser4_stat_seal_add(didnt_move);
 		result = 0;
 	} else {
-		result = node_plugin_by_node(node)->lookup(node, key,
-							   bias, coord);
+		result = node_plugin_by_node(node)->lookup(node, key, bias, coord);
 		if (result == NS_FOUND) {
 			/* renew seal */
 			reiser4_stat_seal_add(found);
@@ -280,8 +271,7 @@ print_seal(const char *prefix, const seal_t * seal)
 	if (seal == NULL) {
 		info("%s: null seal\n", prefix);
 	} else {
-		info("%s: version: %llu, block: %llu\n",
-		     prefix, seal->version, seal->block);
+		info("%s: version: %llu, block: %llu\n", prefix, seal->version, seal->block);
 #if REISER4_DEBUG
 		print_key("seal key", &seal->key);
 		print_coord("seal coord", &seal->coord, 0);

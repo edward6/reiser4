@@ -65,9 +65,7 @@ build_readdir_key(struct file *dir /* directory being read */ ,
 	if (IS_ERR(fdata))
 		return PTR_ERR(fdata);
 	assert("nikita-1364", fdata != NULL);
-	return extract_key_from_de_id
-	    (get_inode_oid(inode),
-	     &fdata->dir.readdir.position.dir_entry_key, result);
+	return extract_key_from_de_id(get_inode_oid(inode), &fdata->dir.readdir.position.dir_entry_key, result);
 
 }
 
@@ -146,9 +144,7 @@ build_entry_key(const struct inode *dir	/* directory where entry is
 		/*
 		 * offset is the hash of the file name.
 		 */
-		offset = inode_hash_plugin(dir)->hash(name->name + OID_CHARS,
-						      (int) (name->len -
-							     OID_CHARS));
+		offset = inode_hash_plugin(dir)->hash(name->name + OID_CHARS, (int) (name->len - OID_CHARS));
 	}
 
 	/*
@@ -204,9 +200,7 @@ build_readdir_stable_entry_key(const struct inode *dir	/* directory where
 	/*
 	 * objectid of key is 31 lowest bits of hash.
 	 */
-	objectid =
-	    inode_hash_plugin(dir)->hash(name->name,
-					 (int) name->len) & 0x7fffffff;
+	objectid = inode_hash_plugin(dir)->hash(name->name, (int) name->len) & 0x7fffffff;
 
 	assert("nikita-2303", !(objectid & ~KEY_OBJECTID_MASK));
 	set_key_objectid(result, objectid);
@@ -313,10 +307,9 @@ extract_key_from_id(const obj_key_id * id	/* object key id to extract key
  * directory.
  *
  */
-oid_t
-extract_dir_id_from_key(const reiser4_key * de_key	/* key of
-							 * directory
-							 * entry */ )
+oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
+								 * directory
+								 * entry */ )
 {
 	assert("nikita-1314", de_key != NULL);
 	return get_key_locality(de_key);
@@ -397,9 +390,8 @@ extract_key_from_de_id(const oid_t locality	/* locality of directory
 }
 
 /** compare two &obj_key_id */
-cmp_t
-key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
-	   const obj_key_id * i2 /* second object key id to compare */ )
+cmp_t key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
+		 const obj_key_id * i2 /* second object key id to compare */ )
 {
 	reiser4_key k1;
 	reiser4_key k2;
@@ -410,9 +402,8 @@ key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
 }
 
 /** compare &obj_key_id with full key */
-cmp_t
-key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
-	       const reiser4_key * key /* key to compare */ )
+cmp_t key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
+		     const reiser4_key * key /* key to compare */ )
 {
 	reiser4_key k1;
 
@@ -421,9 +412,8 @@ key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
 }
 
 /** compare two &de_id's */
-cmp_t
-de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
-	  const de_id * id2 /* second &de_id to compare */ )
+cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
+		const de_id * id2 /* second &de_id to compare */ )
 {
 	/* FIXME-NIKITA ugly implementation */
 	reiser4_key k1;
@@ -435,9 +425,8 @@ de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 }
 
 /** compare &de_id with key */
-cmp_t
-de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
-	      const reiser4_key * key /* key to compare */ )
+cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
+		    const reiser4_key * key /* key to compare */ )
 {
 	reiser4_key k1;
 
@@ -455,11 +444,8 @@ is_root_dir_key(const struct super_block *super /* super block to check */ ,
 	/*
 	 * call disk plugin's root_dir_key method if it exists
 	 */
-	if (get_super_private(super)->df_plug &&
-	    get_super_private(super)->df_plug->root_dir_key)
-		    return keyeq(key,
-				 get_super_private(super)->df_plug->
-				 root_dir_key(super));
+	if (get_super_private(super)->df_plug && get_super_private(super)->df_plug->root_dir_key)
+		return keyeq(key, get_super_private(super)->df_plug->root_dir_key(super));
 	return 0;
 }
 

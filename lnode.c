@@ -117,12 +117,9 @@ static struct {
 	int (*eq) (const lnode * node1, const lnode * node2);
 } lnode_ops[LNODE_NR_TYPES] = {
 	[LNODE_INODE] = {
-		.key = lnode_inode_key,.get_plugins = NULL,.set_plugins =
-		    NULL,.eq = lnode_inode_eq},[LNODE_PSEUDO] = {
-	.key = NULL,.get_plugins = NULL,.set_plugins = NULL,.eq =
-		    NULL},[LNODE_LW] = {
-		.key = lnode_lw_key,.get_plugins = NULL,.set_plugins =
-		    NULL,.eq = lnode_lw_eq},};
+	.key = lnode_inode_key,.get_plugins = NULL,.set_plugins = NULL,.eq = lnode_inode_eq},[LNODE_PSEUDO] = {
+	.key = NULL,.get_plugins = NULL,.set_plugins = NULL,.eq = NULL},[LNODE_LW] = {
+.key = lnode_lw_key,.get_plugins = NULL,.set_plugins = NULL,.eq = lnode_lw_eq},};
 
 /* hash table support */
 
@@ -176,8 +173,7 @@ lnodes_init(struct super_block *super	/* super block to initialise lnodes
 					 * for */ )
 {
 	assert("nikita-1861", super != NULL);	/* slavery forbidden in Russia */
-	ln_hash_init(&get_super_private(super)->lnode_htable,
-		     LNODE_HTABLE_BUCKETS);
+	ln_hash_init(&get_super_private(super)->lnode_htable, LNODE_HTABLE_BUCKETS);
 	spin_lock_init(&get_super_private(super)->lnode_htable_guard);
 	return 0;
 }
@@ -277,8 +273,7 @@ lput(lnode * node /* lnode to release */ )
 								 * space */
 	sinfo = get_current_super_private();
 	spin_lock(&sinfo->lnode_htable_guard);
-	assert("nikita-1878", ln_hash_find(&sinfo->lnode_htable,
-					   &node->h.oid) == node);
+	assert("nikita-1878", ln_hash_find(&sinfo->lnode_htable, &node->h.oid) == node);
 	if (--node->h.ref == 0) {
 		ln_hash_remove(&sinfo->lnode_htable, node);
 		kcond_broadcast(&node->h.cvar);

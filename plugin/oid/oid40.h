@@ -39,8 +39,7 @@ typedef struct {
 	oid_t oids_in_use;
 } oid40_allocator;
 
-extern int oid40_read_allocator(reiser4_oid_allocator *, __u64 nr_files,
-				__u64 oids);
+extern int oid40_read_allocator(reiser4_oid_allocator *, __u64 nr_files, __u64 oids);
 extern __u64 oid40_free(reiser4_oid_allocator *);
 extern __u64 oid40_next_oid(reiser4_oid_allocator *);
 extern __u64 oid40_used(reiser4_oid_allocator *);

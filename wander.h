@@ -119,8 +119,7 @@ extern int reiser4_write_logs(void);
 extern int reiser4_journal_replay(struct super_block *);
 extern int reiser4_journal_recover_sb_data(struct super_block *);
 
-extern int init_journal_info(struct super_block *, const reiser4_block_nr *,
-			     const reiser4_block_nr *);
+extern int init_journal_info(struct super_block *, const reiser4_block_nr *, const reiser4_block_nr *);
 extern void done_journal_info(struct super_block *);
 
 #endif				/* __FS_REISER4_WANDER_H__ */

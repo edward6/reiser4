@@ -306,12 +306,9 @@ struct carry_plugin_info {
 
 int carry(carry_level * doing, carry_level * done);
 
-carry_node *add_carry(carry_level * level, pool_ordering order,
-		      carry_node * reference);
-carry_node *add_carry_skip(carry_level * level, pool_ordering order,
-			   carry_node * reference);
-carry_op *add_op(carry_level * level, pool_ordering order,
-		 carry_op * reference);
+carry_node *add_carry(carry_level * level, pool_ordering order, carry_node * reference);
+carry_node *add_carry_skip(carry_level * level, pool_ordering order, carry_node * reference);
+carry_op *add_op(carry_level * level, pool_ordering order, carry_op * reference);
 
 extern carry_node *find_begetting_brother(carry_node * node, carry_level * kin);
 
@@ -320,16 +317,13 @@ extern void done_carry_pool(carry_pool * pool);
 
 extern void init_carry_level(carry_level * level, carry_pool * pool);
 
-extern carry_op *post_carry(carry_level * level, carry_opcode op,
-			    znode * node, int apply_to_parent);
-extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op,
-				 znode * node, int apply_to_parent_p);
+extern carry_op *post_carry(carry_level * level, carry_opcode op, znode * node, int apply_to_parent);
+extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op, znode * node, int apply_to_parent_p);
 
 extern int carry_op_num(const carry_level * level);
 extern int carry_node_num(const carry_level * level);
 
-carry_node *add_new_znode(znode * brother, carry_node * reference,
-			  carry_level * doing, carry_level * todo);
+carry_node *add_new_znode(znode * brother, carry_node * reference, carry_level * doing, carry_level * todo);
 
 carry_node *find_carry_node(carry_level * level, const znode * node);
 

@@ -128,7 +128,7 @@
 #include "forward.h"
 #include "debug.h"
 
-static int flushable(const jnode *node);
+static int flushable(const jnode * node);
 
 /**
  * try to flush @page to the disk
@@ -137,11 +137,11 @@ int
 emergency_flush(struct page *page, struct writeback_control *wbc)
 {
 	struct super_block *sb;
-	jnode              *node;
-	int                 result;
+	jnode *node;
+	int result;
 
 	assert("nikita-2721", page != NULL);
-	assert("nikita-2722", wbc  != NULL);
+	assert("nikita-2722", wbc != NULL);
 	assert("nikita-2723", PageDirty(page));
 	assert("nikita-2724", PageLocked(page));
 
@@ -174,9 +174,9 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 		} else {
 		}
 		if (sendit) {
-			result = page_io(page, node, WRITE, GFP_NOFS|__GFP_HIGH);
+			result = page_io(page, node, WRITE, GFP_NOFS | __GFP_HIGH);
 			if (result == 0)
-				-- wbc->nr_to_write;
+				--wbc->nr_to_write;
 		}
 	}
 	spin_unlock_jnode(node);
@@ -184,7 +184,8 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	return result;
 }
 
-static int flushable(const jnode *node)
+static int
+flushable(const jnode * node)
 {
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));

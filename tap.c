@@ -101,8 +101,7 @@ tap_to(tap_t * tap, znode * target)
 		lock_handle here;
 
 		init_lh(&here);
-		result = longterm_lock_znode(&here, target, tap->mode,
-					     ZNODE_LOCK_HIPRI);
+		result = longterm_lock_znode(&here, target, tap->mode, ZNODE_LOCK_HIPRI);
 		if (result == 0) {
 			result = tap_move(tap, &here);
 			done_lh(&here);
@@ -154,8 +153,7 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
 		get_dir_neighbor = reiser4_get_right_neighbor;
 		coord_init = coord_init_first_unit;
 	}
-	ON_DEBUG(coord_check =
-		 units_p ? coord_is_existing_unit : coord_is_existing_item);
+	ON_DEBUG(coord_check = units_p ? coord_is_existing_unit : coord_is_existing_item);
 	assert("nikita-2560", coord_check(tap->coord));
 
 	coord = tap->coord;
@@ -168,8 +166,7 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
 			lock_handle dup;
 
 			init_lh(&dup);
-			result = get_dir_neighbor(&dup, coord->node,
-						  (int) tap->mode, GN_DO_READ);
+			result = get_dir_neighbor(&dup, coord->node, (int) tap->mode, GN_DO_READ);
 			if (result == 0) {
 				result = tap_move(tap, &dup);
 				if (result == 0)

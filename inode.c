@@ -66,8 +66,7 @@ inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f)
 }
 
 /** get inode oid */
-oid_t
-get_inode_oid(const struct inode *inode)
+oid_t get_inode_oid(const struct inode *inode)
 {
 	oid_t result;
 
@@ -98,15 +97,13 @@ set_inode_oid(struct inode *inode, oid_t oid)
 }
 
 /** convert oid to inode number */
-ino_t
-oid_to_ino(oid_t oid)
+ino_t oid_to_ino(oid_t oid)
 {
 	return (ino_t) oid;
 }
 
 /** convert oid to user visible inode number */
-ino_t
-oid_to_uino(oid_t oid)
+ino_t oid_to_uino(oid_t oid)
 {
 	/*
 	 * reiser4 object is uniquely identified by oid which is 64 bit
@@ -159,9 +156,7 @@ oid_to_uino(oid_t oid)
 int
 is_reiser4_inode(const struct inode *inode /* inode queried */ )
 {
-	return ((inode != NULL) &&
-		(is_reiser4_super(inode->i_sb) ||
-		 (inode->i_op == &reiser4_inode_operations)));
+	return ((inode != NULL) && (is_reiser4_super(inode->i_sb) || (inode->i_op == &reiser4_inode_operations)));
 
 }
 
@@ -265,8 +260,7 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 		inode->i_mapping->a_ops = &reiser4_as_operations;
 		break;
 	default:
-		warning("nikita-291", "wrong file mode: %o for %llu",
-			inode->i_mode, get_inode_oid(inode));
+		warning("nikita-291", "wrong file mode: %o for %llu", inode->i_mode, get_inode_oid(inode));
 		reiser4_make_bad_inode(inode);
 		return -EINVAL;
 	}
@@ -312,8 +306,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 	state->sd = iplug;
 	if (result == 0) {
 		result = setup_inode_ops(inode, NULL);
-		if ((result == 0) && (inode->i_sb->s_root) &&
-		    (inode->i_sb->s_root->d_inode)) {
+		if ((result == 0) && (inode->i_sb->s_root) && (inode->i_sb->s_root->d_inode)) {
 			reiser4_inode *self;
 			reiser4_inode *root;
 
@@ -363,8 +356,7 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 	coord_init_zero(&coord);
 	init_lh(&lh);
 	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd_by_key(tree_by_inode(inode),
-				  ZNODE_READ_LOCK, &coord, &lh, key);
+	result = lookup_sd_by_key(tree_by_inode(inode), ZNODE_READ_LOCK, &coord, &lh, key);
 	assert("nikita-301", !is_inode_loaded(inode));
 	if (result == 0) {
 		inode_set_flag(inode, REISER4_LOADED);
@@ -455,8 +447,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	/** call iget(). Our ->read_inode() is dummy, so this will either
 	    find inode in cache or return uninitialised inode */
 	inode = iget5_locked(super, (unsigned long) get_key_objectid(key),
-			     reiser4_inode_find_actor, init_locked_inode,
-			     (reiser4_key *) key);
+			     reiser4_inode_find_actor, init_locked_inode, (reiser4_key *) key);
 	if (inode == NULL)
 		return ERR_PTR(-ENOMEM);
 	else if (is_bad_inode(inode)) {
@@ -465,8 +456,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	} else if (inode->i_state & I_NEW) {
 		/* locking: iget5_locked returns locked inode */
 		assert("nikita-1941", !is_inode_loaded(inode));
-		assert("nikita-1949", reiser4_inode_find_actor(inode,
-							       (reiser4_key *)
+		assert("nikita-1949", reiser4_inode_find_actor(inode, (reiser4_key *)
 							       key));
 		/* now, inode has objectid as -> i_ino and locality in
 		   reiser4-specific part. This data is enough for read_inode()
@@ -600,12 +590,9 @@ print_inode(const char *prefix /* prefix to print */ ,
 		return;
 	}
 	info("%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
-	     prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink,
-	     i->i_mode, (unsigned long long) i->i_size);
-	info("\tuid: %i, gid: %i, dev: %i, rdev: %i\n",
-	     i->i_uid, i->i_gid, i->i_dev, kdev_t_to_nr(i->i_rdev));
-	info("\tatime: %li, mtime: %li, ctime: %li\n",
-	     i->i_atime, i->i_mtime, i->i_ctime);
+	     prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink, i->i_mode, (unsigned long long) i->i_size);
+	info("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_dev, kdev_t_to_nr(i->i_rdev));
+	info("\tatime: %li, mtime: %li, ctime: %li\n", i->i_atime, i->i_mtime, i->i_ctime);
 	info("\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %u\n",
 	     i->i_blkbits, i->i_blksize, i->i_blocks, i->i_bytes);
 	info("\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
@@ -628,8 +615,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
 	info
 	    ("\tflags: %lx, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
-	     ref->flags, ref->extmask, (int) ref->sd_len, ref->plugin_mask,
-	     ref->locality_id);
+	     ref->flags, ref->extmask, (int) ref->sd_len, ref->plugin_mask, ref->locality_id);
 }
 #endif
 

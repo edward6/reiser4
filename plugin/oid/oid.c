@@ -75,8 +75,7 @@ oid_count_released(void)
 	spin_unlock_atom(atom);
 }
 
-__u64
-oid_used(void)
+__u64 oid_used(void)
 {
 	reiser4_super_info_data *private = get_current_super_private();
 
@@ -87,8 +86,7 @@ oid_used(void)
 	return private->oid_plug->oids_used(&private->oid_allocator);
 }
 
-__u64
-oid_next(void)
+__u64 oid_next(void)
 {
 	reiser4_super_info_data *private = get_current_super_private();
 
@@ -108,8 +106,7 @@ oid_init_allocator(const struct super_block *s, __u64 nr_files, __u64 oids)
 	assert("zam-641", private->oid_plug != NULL);
 	assert("zam-642", private->oid_plug->init_oid_allocator != NULL);
 
-	return private->oid_plug->init_oid_allocator(&private->oid_allocator,
-						     nr_files, oids);
+	return private->oid_plug->init_oid_allocator(&private->oid_allocator, nr_files, oids);
 }
 
 #if REISER4_DEBUG_OUTPUT
@@ -128,8 +125,7 @@ oid_print_allocator(const char *prefix, const struct super_block *s)
 oid_allocator_plugin oid_plugins[LAST_OID_ALLOCATOR_ID] = {
 	[OID40_ALLOCATOR_ID] = {
 				.h = {
-				      .type_id =
-				      REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+				      .type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 				      .id = OID40_ALLOCATOR_ID,
 				      .pops = NULL,
 				      .label = "reiser40 default oid manager",

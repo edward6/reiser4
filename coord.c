@@ -12,10 +12,7 @@
 
 /* Internal constructor. */
 static inline void
-coord_init_values(coord_t * coord,
-		  const znode * node,
-		  pos_in_node item_pos,
-		  pos_in_item unit_pos, between_enum between)
+coord_init_values(coord_t * coord, const znode * node, pos_in_node item_pos, pos_in_item unit_pos, between_enum between)
 {
 	coord->node = (znode *) node;
 	coord_set_item_pos(coord, item_pos);
@@ -42,19 +39,15 @@ coord_normalize(coord_t * coord)
 
 	if (node_is_empty(node)) {
 		coord_init_first_unit(coord, node);
-	} else if ((coord->between == AFTER_ITEM) ||
-		   (coord->between == AFTER_UNIT)) {
+	} else if ((coord->between == AFTER_ITEM) || (coord->between == AFTER_UNIT)) {
 		return;
-	} else if (coord->item_pos == coord_num_items(coord) &&
-		   coord->between == BEFORE_ITEM) {
+	} else if (coord->item_pos == coord_num_items(coord) && coord->between == BEFORE_ITEM) {
 		coord_dec_item_pos(coord);
 		coord->between = AFTER_ITEM;
-	} else if (coord->unit_pos == coord_num_units(coord) &&
-		   coord->between == BEFORE_UNIT) {
+	} else if (coord->unit_pos == coord_num_units(coord) && coord->between == BEFORE_UNIT) {
 		coord->unit_pos--;
 		coord->between = AFTER_UNIT;
-	} else if (coord->item_pos == coord_num_items(coord) &&
-		   coord->unit_pos == 0 && coord->between == BEFORE_UNIT) {
+	} else if (coord->item_pos == coord_num_items(coord) && coord->unit_pos == 0 && coord->between == BEFORE_UNIT) {
 		coord_dec_item_pos(coord);
 		coord->unit_pos = 0;
 		coord->between = AFTER_ITEM;
@@ -107,9 +100,7 @@ coord_init_last_unit(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
 
-	coord_init_values(coord, node,
-			  (is_empty ? 0 : node_num_items(node) - 1), 0,
-			  (is_empty ? EMPTY_NODE : AT_UNIT));
+	coord_init_values(coord, node, (is_empty ? 0 : node_num_items(node) - 1), 0, (is_empty ? EMPTY_NODE : AT_UNIT));
 	if (!is_empty)
 		coord->unit_pos = coord_last_unit_pos(coord);
 	assert("jmacd-9802", coord_check(coord));
@@ -122,8 +113,7 @@ coord_init_before_first_item(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
 
-	coord_init_values(coord, node, 0, 0,
-			  (is_empty ? EMPTY_NODE : BEFORE_ITEM));
+	coord_init_values(coord, node, 0, 0, (is_empty ? EMPTY_NODE : BEFORE_ITEM));
 
 	assert("jmacd-9803", coord_check(coord));
 }
@@ -136,8 +126,7 @@ coord_init_after_last_item(coord_t * coord, const znode * node)
 	int is_empty = node_is_empty(node);
 
 	coord_init_values(coord, node,
-			  (is_empty ? 0 : node_num_items(node) - 1), 0,
-			  (is_empty ? EMPTY_NODE : AFTER_ITEM));
+			  (is_empty ? 0 : node_num_items(node) - 1), 0, (is_empty ? EMPTY_NODE : AFTER_ITEM));
 
 	assert("jmacd-9804", coord_check(coord));
 }
@@ -182,8 +171,7 @@ coord_num_units(const coord_t * coord)
 unsigned
 coord_item_pos(const coord_t * coord)
 {
-	assert("jmacd-5512", coord->between != EMPTY_NODE
-	       && coord->between != INVALID_COORD);
+	assert("jmacd-5512", coord->between != EMPTY_NODE && coord->between != INVALID_COORD);
 	assert("jmacd-5513", node_num_items(coord->node) != 0);
 	return coord->item_pos;
 }
@@ -236,8 +224,7 @@ coord_is_existing_unit(const coord_t * coord)
 		return 0;
 
 	case AT_UNIT:
-		return (coord->item_pos < coord_num_items(coord) &&
-			coord->unit_pos < coord_num_units(coord));
+		return (coord->item_pos < coord_num_items(coord) && coord->unit_pos < coord_num_units(coord));
 	}
 
 	impossible("jmacd-9902", "unreachable");
@@ -250,8 +237,7 @@ coord_is_existing_unit(const coord_t * coord)
 int
 coord_is_leftmost_unit(const coord_t * coord)
 {
-	return (coord->between == AT_UNIT &&
-		coord->item_pos == 0 && coord->unit_pos == 0);
+	return (coord->between == AT_UNIT && coord->item_pos == 0 && coord->unit_pos == 0);
 }
 
 /* Returns true if the coordinate is positioned at the last unit of the last item.  Not
@@ -262,8 +248,7 @@ coord_is_rightmost_unit(const coord_t * coord)
 {
 	assert("jmacd-9809", coord_is_existing_item(coord));
 	return (coord->between == AT_UNIT &&
-		coord->item_pos == coord_num_units(coord) - 1 &&
-		coord->unit_pos == coord_last_unit_pos(coord));
+		coord->item_pos == coord_num_units(coord) - 1 && coord->unit_pos == coord_last_unit_pos(coord));
 }
 
 /* Returns true if the coordinate is positioned at any unit of the last item.  Not true
@@ -273,8 +258,7 @@ int
 coord_is_rightmost_item(const coord_t * coord)
 {
 	assert("jmacd-9820", coord_is_existing_item(coord));
-	return (coord->between == AT_UNIT &&
-		coord->item_pos == coord_num_units(coord) - 1);
+	return (coord->between == AT_UNIT && coord->item_pos == coord_num_units(coord) - 1);
 }
 
 #if REISER4_DEBUG
@@ -300,8 +284,7 @@ coord_check(const coord_t * coord)
 
 	case BEFORE_UNIT:
 	case AFTER_UNIT:
-		if (node_is_empty(coord->node) &&
-		    (coord->item_pos == 0) && (coord->unit_pos == 0))
+		if (node_is_empty(coord->node) && (coord->item_pos == 0) && (coord->unit_pos == 0))
 			return 1;
 	case AT_UNIT:
 		break;
@@ -325,8 +308,7 @@ coord_check(const coord_t * coord)
 	if (coord->between == AFTER_ITEM || coord->between == BEFORE_ITEM)
 		return 1;
 
-	if (coord->unit_pos >
-	    item_plugin_by_coord(coord)->b.nr_units(coord) - 1) {
+	if (coord->unit_pos > item_plugin_by_coord(coord)->b.nr_units(coord) - 1) {
 		return 0;
 	}
 
@@ -511,8 +493,7 @@ coord_prev_unit(coord_t * coord)
 
 	case AFTER_UNIT:
 		/* What if unit_pos is out-of-range? */
-		assert("jmacd-5442",
-		       coord->unit_pos <= coord_last_unit_pos(coord));
+		assert("jmacd-5442", coord->unit_pos <= coord_last_unit_pos(coord));
 		coord->between = AT_UNIT;
 		return 0;
 
@@ -644,25 +625,19 @@ coord_eq(const coord_t * c1, const coord_t * c2)
 
 	case BEFORE_UNIT:
 		/* c2 must be after the previous unit. */
-		return (c1->item_pos == c2->item_pos &&
-			c2->between == AFTER_UNIT &&
-			c2->unit_pos == c1->unit_pos - 1);
+		return (c1->item_pos == c2->item_pos && c2->between == AFTER_UNIT && c2->unit_pos == c1->unit_pos - 1);
 
 	case AFTER_UNIT:
 		/* c2 must be before the next unit. */
-		return (c1->item_pos == c2->item_pos &&
-			c2->between == BEFORE_UNIT &&
-			c2->unit_pos == c1->unit_pos + 1);
+		return (c1->item_pos == c2->item_pos && c2->between == BEFORE_UNIT && c2->unit_pos == c1->unit_pos + 1);
 
 	case BEFORE_ITEM:
 		/* c2 must be after the previous item. */
-		return (c1->item_pos == c2->item_pos - 1 &&
-			c2->between == AFTER_ITEM);
+		return (c1->item_pos == c2->item_pos - 1 && c2->between == AFTER_ITEM);
 
 	case AFTER_ITEM:
 		/* c2 must be before the next item. */
-		return (c1->item_pos == c2->item_pos + 1 &&
-			c2->between == BEFORE_ITEM);
+		return (c1->item_pos == c2->item_pos + 1 && c2->between == BEFORE_ITEM);
 	}
 
 	impossible("jmacd-9906", "unreachable");
@@ -672,8 +647,7 @@ coord_eq(const coord_t * c1, const coord_t * c2)
 /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost
  * return NCOORD_ON_THE_LEFT, otherwise return NCOORD_INSIDE. */
 /* Audited by: green(2002.06.15) */
-coord_wrt_node
-coord_wrt(const coord_t * coord)
+coord_wrt_node coord_wrt(const coord_t * coord)
 {
 	if (coord_is_before_leftmost(coord)) {
 		return COORD_ON_THE_LEFT;
@@ -806,8 +780,7 @@ coord_are_neighbors(coord_t * c1, coord_t * c2)
 	if (left->item_pos == right->item_pos) {
 		return left->unit_pos + 1 == right->unit_pos;
 	} else if (left->item_pos + 1 == right->item_pos) {
-		return (left->unit_pos == coord_last_unit_pos(left)) &&
-		    (right->unit_pos == 0);
+		return (left->unit_pos == coord_last_unit_pos(left)) && (right->unit_pos == 0);
 	} else {
 		return 0;
 	}
@@ -816,8 +789,7 @@ coord_are_neighbors(coord_t * c1, coord_t * c2)
 /* Assuming two coordinates are positioned in the same node, return COORD_CMP_ON_RIGHT,
  * COORD_CMP_ON_LEFT, or COORD_CMP_SAME depending on c1's position relative to c2.  */
 /* Audited by: green(2002.06.15) */
-coord_cmp
-coord_compare(coord_t * c1, coord_t * c2)
+coord_cmp coord_compare(coord_t * c1, coord_t * c2)
 {
 	assert("vs-209", c1->node == c2->node);
 	assert("vs-194", coord_is_existing_unit(c1)
@@ -1049,20 +1021,16 @@ print_coord(const char *mes, const coord_t * coord, int node)
 		return;
 	}
 	info("%s: item_pos = %d, unit_pos %d, tween=%s\n",
-	     mes, coord->item_pos, coord->unit_pos,
-	     coord_tween_tostring(coord->between));
+	     mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between));
 	if (node)
 		print_znode("\tnode", coord->node);
 }
 #endif
 
 int
-item_utmost_child_real_block(const coord_t * coord, sideof side,
-			     reiser4_block_nr * blk)
+item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk)
 {
-	return item_plugin_by_coord(coord)->f.utmost_child_real_block(coord,
-								      side,
-								      blk);
+	return item_plugin_by_coord(coord)->f.utmost_child_real_block(coord, side, blk);
 }
 
 int

@@ -8,7 +8,6 @@
 /* maximal cost in leaf nodes of updating an item (current is wandered)*/
 #define ESTIMATE_ITEM_UPDATE 1
 
-
 estimate_rename()
 {
 

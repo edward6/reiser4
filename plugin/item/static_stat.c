@@ -65,8 +65,7 @@ sd_print(const char *prefix /* prefix to print */ ,
 
 	sd_base = (reiser4_stat_data_base *) sd;
 	if (len < (int) sizeof *sd_base) {
-		info("%s: wrong size: %i < %i\n", prefix,
-		     item_length_by_coord(coord), sizeof *sd_base);
+		info("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof *sd_base);
 		return;
 	}
 
@@ -150,8 +149,7 @@ not_enough_space(struct inode *inode /* object being processed */ ,
 {
 	assert("nikita-618", inode != NULL);
 
-	warning("nikita-619", "Not enough space in %llu while loading %s",
-		get_inode_oid(inode), where);
+	warning("nikita-619", "Not enough space in %llu while loading %s", get_inode_oid(inode), where);
 	return -EINVAL;
 }
 
@@ -161,8 +159,7 @@ static int
 unknown_plugin(reiser4_plugin_id id /* invalid id */ ,
 	       struct inode *inode /* object being processed */ )
 {
-	warning("nikita-620", "Unknown plugin %i in %llu",
-		id, get_inode_oid(inode));
+	warning("nikita-620", "Unknown plugin %i in %llu", id, get_inode_oid(inode));
 	return -EINVAL;
 }
 
@@ -217,18 +214,14 @@ sd_load(struct inode *inode /* object being processed */ ,
 
 /* NIKITA-FIXME-HANS: comment this function */
 	next_stat(&len, &sd, sizeof *sd_base);
-	for (bit = 0, chunk = 0;
-	     (mask != 0) || (bit <= LAST_IMPORTANT_SD_EXTENSION);
-	     ++bit, mask >>= 1) {
+	for (bit = 0, chunk = 0; (mask != 0) || (bit <= LAST_IMPORTANT_SD_EXTENSION); ++bit, mask >>= 1) {
 		if (((bit + 1) % 16) != 0) {
 			/* handle extension */
 			sd_ext_plugin *sdplug;
 
 			sdplug = sd_ext_plugin_by_id(bit);
 			if (sdplug == NULL) {
-				warning("nikita-627",
-					"No such extension %i in inode %llu",
-					bit, get_inode_oid(inode));
+				warning("nikita-627", "No such extension %i in inode %llu", bit, get_inode_oid(inode));
 				result = -EINVAL;
 				break;
 			}
@@ -250,9 +243,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 		} else if (mask & 1) {
 			/* next portion of bitmask */
 			if (len < (int) sizeof (d16)) {
-				warning("nikita-629",
-					"No space for bitmap in inode %llu",
-					get_inode_oid(inode));
+				warning("nikita-629", "No space for bitmap in inode %llu", get_inode_oid(inode));
 				result = -EINVAL;
 				break;
 			}
@@ -268,9 +259,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 					continue;
 				}
 				/* too much */
-				warning("nikita-630",
-					"Too many extensions in %llu",
-					get_inode_oid(inode));
+				warning("nikita-630", "Too many extensions in %llu", get_inode_oid(inode));
 				result = -EINVAL;
 				break;
 			}
@@ -282,8 +271,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
 	inode->i_version = ++event;
 	if (len > 0)
-		warning("nikita-631", "unused space in inode %llu",
-			get_inode_oid(inode));
+		warning("nikita-631", "unused space in inode %llu", get_inode_oid(inode));
 	return result;
 }
 
@@ -354,8 +342,7 @@ sd_save(struct inode *inode /* object being processed */ ,
 				if (result)
 					break;
 			} else {
-				cputod16((unsigned) (emask & 0xffff),
-					 (d16 *) * area);
+				cputod16((unsigned) (emask & 0xffff), (d16 *) * area);
 				*area += sizeof (d16);
 			}
 		}
@@ -511,8 +498,7 @@ unix_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 	     d32tocpu(&sd->uid),
 	     d32tocpu(&sd->gid),
 	     d32tocpu(&sd->atime),
-	     d32tocpu(&sd->mtime),
-	     d32tocpu(&sd->ctime), d32tocpu(&sd->rdev), d64tocpu(&sd->bytes));
+	     d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d32tocpu(&sd->rdev), d64tocpu(&sd->bytes));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -603,8 +589,7 @@ symlink_sd_save(struct inode *inode, char **area)
 		(*area)[length] = 0;
 	} else {
 		/* there is nothing to do in update but move area */
-		assert("vs-844", !memcmp(inode->u.generic_ip,
-					 sd->body, (size_t) length + 1));
+		assert("vs-844", !memcmp(inode->u.generic_ip, sd->body, (size_t) length + 1));
 	}
 
 	*area += (length + 1);
@@ -712,8 +697,7 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 		slot = (reiser4_plugin_slot *) * area;
 		if (*len < (int) sizeof *slot)
 			return not_enough_space(inode, "additional plugin");
-		plugin = plugin_by_id(d16tocpu(&slot->type_id),
-				      d16tocpu(&slot->id));
+		plugin = plugin_by_id(d16tocpu(&slot->type_id), d16tocpu(&slot->id));
 		if (plugin == NULL) {
 			return unknown_plugin(d16tocpu(&slot->id), inode);
 		}
@@ -731,8 +715,7 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 		if (!(mask & (1 << plugin->h.type_id))) {
 			mask |= (1 << plugin->h.type_id);
 		} else {
-			warning("nikita-658", "duplicate plugin for %llu",
-				get_inode_oid(inode));
+			warning("nikita-658", "duplicate plugin for %llu", get_inode_oid(inode));
 			print_plugin("plugin", plugin);
 			return -EINVAL;
 		}
@@ -777,8 +760,7 @@ len_for(reiser4_plugin * plugin /* plugin to save */ ,
 {
 	assert("nikita-661", inode != NULL);
 
-	if (plugin && (reiser4_inode_data(inode)->plugin_mask &
-		       (1 << (plugin->h.type_id)))) {
+	if (plugin && (reiser4_inode_data(inode)->plugin_mask & (1 << (plugin->h.type_id)))) {
 		len += sizeof (reiser4_plugin_slot);
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
 			/* non-standard plugin, call method */
@@ -836,8 +818,8 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	assert("nikita-667", *area != NULL);
 	assert("nikita-668", plugin != NULL);
 
-	if (!(reiser4_inode_data(inode)->plugin_mask &
-	      (1 << plugin->h.type_id))) return 0;
+	if (!(reiser4_inode_data(inode)->plugin_mask & (1 << plugin->h.type_id)))
+		return 0;
 	slot = (reiser4_plugin_slot *) * area;
 	cputod16(plugin->h.type_id, &slot->type_id);
 	cputod16((unsigned) plugin->h.id, &slot->id);
@@ -879,15 +861,10 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	/* for now, use hardcoded list of plugins that can be associated
 	   with inode */
 	/* AUDIT. Hardcoded list of plugins is bad */
-	result =
-	    save_plug(file_plugin_to_plugin(state->file), inode, area,
-		      &num_of_plugins)
-	    && save_plug(perm_plugin_to_plugin(state->perm), inode, area,
-			 &num_of_plugins)
-	    && save_plug(tail_plugin_to_plugin(state->tail), inode, area,
-			 &num_of_plugins)
-	    && save_plug(hash_plugin_to_plugin(state->hash), inode, area,
-			 &num_of_plugins);
+	result = save_plug(file_plugin_to_plugin(state->file), inode, area, &num_of_plugins)
+	    && save_plug(perm_plugin_to_plugin(state->perm), inode, area, &num_of_plugins)
+	    && save_plug(tail_plugin_to_plugin(state->tail), inode, area, &num_of_plugins)
+	    && save_plug(hash_plugin_to_plugin(state->hash), inode, area, &num_of_plugins);
 
 	cputod16((unsigned) num_of_plugins, &sd->plugins_no);
 	return result;
@@ -937,8 +914,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.id = SYMLINK_STAT,
 				.pops = NULL,
 				.label = "symlink-sd",
-				.desc =
-				"stat data is appended with symlink name",
+				.desc = "stat data is appended with symlink name",
 				.linkage = TS_LIST_LINK_ZERO}
 			  ,
 			  .present = symlink_sd_present,

@@ -15,8 +15,7 @@
  * file (argument arg has to be non-zero)
  */
 int
-reiser4_ioctl(struct inode *inode, struct file *filp,
-	      unsigned int cmd, unsigned long arg)
+reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int result;
 

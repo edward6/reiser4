@@ -247,6 +247,7 @@ fl_set_magic(flow_header * fh, __u32 value)
 {
 	cputod32(value, &fh->fh_magic);
 }
+
 static __u32
 fl_get_magic(flow_header * fh)
 {
@@ -270,6 +271,7 @@ sh_set_magic(subfile_header * sh, __u32 value)
 {
 	cputod32(value, &sh->sh_magic);
 }
+
 static __u32
 sh_get_magic(subfile_header * sh)
 {
@@ -300,6 +302,7 @@ sh_set_body_len(subfile_header * sh, __u32 value)
 {
 	cputod32(value, &sh->sh_body_len);
 }
+
 static __u32
 sh_get_body_len(subfile_header * sh)
 {
@@ -438,8 +441,7 @@ get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
 
 		init_coord(&coord);
 		init_lh(&lh);
-		result = lookup_sd_by_key(tree_by_inode(invert_inode),
-					  ZNODE_READ_LOCK, &coord, &lh, key);
+		result = lookup_sd_by_key(tree_by_inode(invert_inode), ZNODE_READ_LOCK, &coord, &lh, key);
 		if (result == 0)
 			init_incore_sd_base(ientry, coord);
 
@@ -470,26 +472,22 @@ open_invert(struct file *invert_file)
 
 }
 
-ssize_t
-subfile_read(struct *invert_entry, flow * f)
+ssize_t subfile_read(struct *invert_entry, flow * f)
 {
 
 }
 
-ssize_t
-subfile_write(struct *invert_entry, flow * f)
+ssize_t subfile_write(struct *invert_entry, flow * f)
 {
 
 }
 
-ssize_t
-invert_read(struct *file, flow * f)
+ssize_t invert_read(struct *file, flow * f)
 {
 
 }
 
-ssize_t
-invert_write(struct *file, flow * f)
+ssize_t invert_write(struct *file, flow * f)
 {
 
 }

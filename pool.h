@@ -68,14 +68,12 @@ TS_LIST_DEFINE(pool_level, reiser4_pool_header, level_linkage);
  * pool manipulation functions
  */
 
-extern void reiser4_init_pool(reiser4_pool * pool, size_t obj_size,
-			      int num_of_objs, char *data);
+extern void reiser4_init_pool(reiser4_pool * pool, size_t obj_size, int num_of_objs, char *data);
 extern void reiser4_done_pool(reiser4_pool * pool);
 extern void *reiser4_pool_alloc(reiser4_pool * pool);
 extern void reiser4_pool_free(reiser4_pool_header * h);
 reiser4_pool_header *add_obj(reiser4_pool * pool, pool_level_list_head * list,
-			     pool_ordering order,
-			     reiser4_pool_header * reference);
+			     pool_ordering order, reiser4_pool_header * reference);
 
 /* __REISER4_POOL_H__ */
 #endif

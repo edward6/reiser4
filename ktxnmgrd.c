@@ -118,8 +118,7 @@ ktxnmgrd(void *arg)
 		do {
 			ctx->rescan = 0;
 			for (mgr = txn_mgrs_list_front(&ctx->queue);
-			     !txn_mgrs_list_end(&ctx->queue, mgr);
-			     mgr = txn_mgrs_list_next(mgr)) {
+			     !txn_mgrs_list_end(&ctx->queue, mgr); mgr = txn_mgrs_list_next(mgr)) {
 				scan_mgr(mgr);
 				ktxnmgrd_trace("\tscan mgr\n");
 			}

@@ -40,8 +40,7 @@ struct sealed_coord {
 	znode_lock_mode lock;
 };
 
-extern void seal_init(seal_t * seal, const coord_t * coord,
-		      const reiser4_key * key);
+extern void seal_init(seal_t * seal, const coord_t * coord, const reiser4_key * key);
 extern void seal_done(seal_t * seal);
 
 extern int seal_is_set(const seal_t * seal);
@@ -50,9 +49,7 @@ extern int seal_validate(seal_t * seal,
 			 coord_t * coord,
 			 const reiser4_key * key,
 			 tree_level level,
-			 lock_handle * lh,
-			 lookup_bias bias,
-			 znode_lock_mode mode, znode_lock_request request);
+			 lock_handle * lh, lookup_bias bias, znode_lock_mode mode, znode_lock_request request);
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_seal(const char *prefix, const seal_t * seal);

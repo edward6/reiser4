@@ -38,14 +38,11 @@ typedef enum {
 	tree_paste = 'p'
 } reiser4_traced_op;
 
-extern int open_trace_file(struct super_block *super,
-			   const char *file_name, size_t size,
-			   reiser4_trace_file * trace);
+extern int open_trace_file(struct super_block *super, const char *file_name, size_t size, reiser4_trace_file * trace);
 extern int write_trace(reiser4_trace_file * file, const char *format, ...)
     __attribute__ ((format(printf, 2, 3)));
 
-extern int write_trace_raw(reiser4_trace_file * file,
-			   const void *data, size_t len);
+extern int write_trace_raw(reiser4_trace_file * file, const void *data, size_t len);
 extern int hold_trace(reiser4_trace_file * file, int flag);
 extern int disable_trace(reiser4_trace_file * file, int flag);
 extern void close_trace_file(reiser4_trace_file * file);

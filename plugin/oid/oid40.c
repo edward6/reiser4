@@ -66,8 +66,7 @@ unlock(reiser4_oid_allocator * map)
  * plugin->u.oid_allocator.oids_free
  * number of oids available for use by users
  */
-__u64
-oid40_free(reiser4_oid_allocator * map)
+__u64 oid40_free(reiser4_oid_allocator * map)
 {
 	__u64 result;
 
@@ -82,8 +81,7 @@ oid40_free(reiser4_oid_allocator * map)
 /**
  * plugin->u.oid_allocator.next_oid
  */
-__u64
-oid40_next_oid(reiser4_oid_allocator * map)
+__u64 oid40_next_oid(reiser4_oid_allocator * map)
 {
 	__u64 result;
 
@@ -100,8 +98,7 @@ oid40_next_oid(reiser4_oid_allocator * map)
  * plugin->u.oid_allocator.oids_used
  * return number of user-visible oids already allocated in this map
  */
-__u64
-oid40_used(reiser4_oid_allocator * map)
+__u64 oid40_used(reiser4_oid_allocator * map)
 {
 	__u64 result;
 
@@ -128,8 +125,7 @@ oid40_allocate(reiser4_oid_allocator * map, oid_t * result)
 	++map->u.oid40.next_to_use;
 	++map->u.oid40.oids_in_use;
 	trace_on(TRACE_OIDS, "[%i]: allocated: %llx\n", current_pid, *result);
-	assert("nikita-1983",
-	       map->u.oid40.next_to_use >= map->u.oid40.oids_in_use);
+	assert("nikita-1983", map->u.oid40.next_to_use >= map->u.oid40.oids_in_use);
 	unlock(map);
 	return 0;
 }
@@ -149,8 +145,7 @@ oid40_release(reiser4_oid_allocator * map, oid_t oid UNUSED_ARG)
 	lock(map);
 	assert("nikita-1985", map->u.oid40.oids_in_use > 0);
 	--map->u.oid40.oids_in_use;
-	assert("nikita-1986",
-	       map->u.oid40.next_to_use >= map->u.oid40.oids_in_use);
+	assert("nikita-1986", map->u.oid40.next_to_use >= map->u.oid40.oids_in_use);
 	unlock(map);
 	return 0;
 }
@@ -183,7 +178,6 @@ oid40_print_info(const char *prefix, reiser4_oid_allocator * map)
 {
 	lock(map);
 	info("%s: next free objectid %lli, "
-	     "oids in use %llu\n",
-	     prefix, map->u.oid40.next_to_use, map->u.oid40.oids_in_use);
+	     "oids in use %llu\n", prefix, map->u.oid40.next_to_use, map->u.oid40.oids_in_use);
 	unlock(map);
 }

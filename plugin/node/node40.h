@@ -80,9 +80,7 @@ typedef struct item_header40 {
 
 size_t node40_item_overhead(const znode * node, flow_t * aflow);
 size_t node40_free_space(znode * node);
-node_search_result node40_lookup(znode * node,
-				 const reiser4_key * key,
-				 lookup_bias bias, coord_t * coord);
+node_search_result node40_lookup(znode * node, const reiser4_key * key, lookup_bias bias, coord_t * coord);
 int node40_num_of_items(const znode * node);
 char *node40_item_by_coord(const coord_t * coord);
 int node40_length_by_coord(const coord_t * coord);
@@ -97,32 +95,24 @@ void node40_print(const char *prefix, const znode * node, __u32 flags);
 int node40_init(znode * node);
 int node40_guess(const znode * node);
 void node40_change_item_size(coord_t * coord, int by);
-int node40_create_item(coord_t * target,
-		       const reiser4_key * key,
-		       reiser4_item_data * data, carry_plugin_info * info);
-void node40_update_item_key(coord_t * target,
-			    const reiser4_key * key, carry_plugin_info * info);
+int node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
+void node40_update_item_key(coord_t * target, const reiser4_key * key, carry_plugin_info * info);
 int node40_cut_and_kill(coord_t * from,
 			coord_t * to,
 			const reiser4_key * from_key,
 			const reiser4_key * to_key,
-			reiser4_key * smallest_removed,
-			carry_plugin_info * info,
-			void *kill_params, __u32 flags);
+			reiser4_key * smallest_removed, carry_plugin_info * info, void *kill_params, __u32 flags);
 int node40_cut(coord_t * from,
 	       coord_t * to,
 	       const reiser4_key * from_key,
-	       const reiser4_key * to_key,
-	       reiser4_key * smallest_removed,
-	       carry_plugin_info * info, __u32 flags);
+	       const reiser4_key * to_key, reiser4_key * smallest_removed, carry_plugin_info * info, __u32 flags);
 int node40_shift(coord_t * from, znode * to, shift_direction pend,
 		 /* 
 		  * if @from->node becomes
 		  * empty - it will be deleted from
 		  * the tree if this is set to 1 
 		  */
-		 int delete_child,
-		 int including_stop_coord, carry_plugin_info * info);
+		 int delete_child, int including_stop_coord, carry_plugin_info * info);
 
 int node40_fast_insert(const coord_t * coord);
 int node40_fast_paste(const coord_t * coord);

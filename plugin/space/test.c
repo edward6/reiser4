@@ -19,8 +19,7 @@
 
 /* plugin->u.space_allocator.init_allocator */
 int
-test_init_allocator(reiser4_space_allocator * allocator,
-		    struct super_block *super UNUSED_ARG, void *arg)
+test_init_allocator(reiser4_space_allocator * allocator, struct super_block *super UNUSED_ARG, void *arg)
 {
 	reiser4_block_nr *next;
 
@@ -49,8 +48,7 @@ test_init_allocator(reiser4_space_allocator * allocator,
 
 /* plugin->u.space_allocator.alloc_blocks */
 int
-test_alloc_blocks(reiser4_space_allocator * allocator,
-		  reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start	/* first of allocated blocks */
+test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start	/* first of allocated blocks */
 		  , reiser4_block_nr * num /* num of allocated blocks */ )
 {
 	int p;
@@ -97,20 +95,16 @@ test_alloc_blocks(reiser4_space_allocator * allocator,
 
 	/* update space allocator */
 	if (min_free > reiser4_block_count(reiser4_get_current_sb())) {
-		allocator->u.test.new_block_nr =
-		    reiser4_block_count(reiser4_get_current_sb());
+		allocator->u.test.new_block_nr = reiser4_block_count(reiser4_get_current_sb());
 		spin_unlock(&allocator->u.test.guard);
 
 		trace_if(TRACE_ALLOC, info("test_alloc_blocks: "
-					   "asked for %d blocks from %llu. ENOSPC returned\n",
-					   needed, hint->blk));
+					   "asked for %d blocks from %llu. ENOSPC returned\n", needed, hint->blk));
 		trace_if(TRACE_ALLOC, info("test_alloc_blocks: "
 					   "next free is %llu, block count %llu, free %llu\n",
 					   allocator->u.test.new_block_nr,
 					   reiser4_block_count
-					   (reiser4_get_current_sb()),
-					   reiser4_free_blocks
-					   (reiser4_get_current_sb())));
+					   (reiser4_get_current_sb()), reiser4_free_blocks(reiser4_get_current_sb())));
 
 		return -ENOSPC;
 	}
@@ -123,9 +117,7 @@ test_alloc_blocks(reiser4_space_allocator * allocator,
 				   "next free is %llu, block count %llu, free %llu\n",
 				   allocator->u.test.new_block_nr,
 				   reiser4_block_count(reiser4_get_current_sb
-						       ()),
-				   reiser4_free_blocks(reiser4_get_current_sb
-						       ())));
+						       ()), reiser4_free_blocks(reiser4_get_current_sb())));
 
 	/* update hint to next free */
 	hint->blk = min_free;
@@ -137,18 +129,14 @@ test_alloc_blocks(reiser4_space_allocator * allocator,
 
 void
 test_dealloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
-		    reiser4_block_nr start UNUSED_ARG,
-		    reiser4_block_nr len UNUSED_ARG)
+		    reiser4_block_nr start UNUSED_ARG, reiser4_block_nr len UNUSED_ARG)
 {
-	trace_if(TRACE_ALLOC,
-		 info("test_dealloc_blocks: %llu blocks from %llu\n", start,
-		      len));
+	trace_if(TRACE_ALLOC, info("test_dealloc_blocks: %llu blocks from %llu\n", start, len));
 	return;
 }
 
 void
-test_check_blocks(const reiser4_block_nr * start,
-		  const reiser4_block_nr * len, int desired)
+test_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
 	test_space_allocator *allocator;
 
@@ -169,7 +157,6 @@ void
 test_print_info(const char *str, reiser4_space_allocator * allocator)
 {
 	spin_lock(&allocator->u.test.guard);
-	info("%s: test space allocator: next free block is %lli\n",
-	     str, allocator->u.test.new_block_nr);
+	info("%s: test space allocator: next free block is %lli\n", str, allocator->u.test.new_block_nr);
 	spin_unlock(&allocator->u.test.guard);
 }
