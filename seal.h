@@ -30,7 +30,7 @@ extern int seal_is_set( const seal_t *seal );
 
 extern int seal_validate( seal_t            *seal, 
 			  coord_t        *coord, 
-			  reiser4_key       *key, 
+			  const reiser4_key       *key, 
 			  tree_level         level,
 			  lock_handle       *lh, 
 			  lookup_bias        bias,
