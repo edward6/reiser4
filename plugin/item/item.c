@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -277,7 +277,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 					.extract_name      = cde_extract_name,
 					.extract_file_type = de_extract_file_type,
 					.add_entry         = cde_add_entry,
-					.rem_entry         = cde_rem_entry,
+					.rem_entry         = de_rem_entry,
 					.max_name_len      = cde_max_name_len
 				}
 			}
