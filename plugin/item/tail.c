@@ -462,7 +462,7 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
  * access to data stored in tails goes directly through formatted nodes
  */
 int tail_write (struct inode * inode, struct sealed_coord * hint,
-		flow_t * f, struct page * page UNUSED_ARG)
+		flow_t * f)
 {
 	int result;
 	znode * loaded;
