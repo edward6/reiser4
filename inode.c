@@ -497,6 +497,13 @@ inode_compression_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->compression;
 }
 
+digest_plugin *
+inode_digest_plugin(const struct inode * inode)
+{
+	assert("edward-86", inode != NULL);
+	return reiser4_inode_data(inode)->pset->digest;
+}
+
 /* Audited by: green(2002.06.17) */
 item_plugin *
 inode_sd_plugin(const struct inode * inode)
