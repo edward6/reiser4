@@ -506,7 +506,7 @@ static int reiser4_writepage( struct page *page )
 	trace_on( TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n",
 		  page -> mapping -> host -> i_ino, page ->index );
 
-	if( !PagePrivate( page ) || !jnode_mapped( jnode_of_page( page ) ) ) {
+	if( !PagePrivate( page ) || !jnode_mapped( jnode_by_page( page ) ) ) {
 		/* page does not have jnode attached to it. Get page mapping */
 		fplug = inode_file_plugin( page -> mapping -> host );
 		result = fplug -> writepage( page );
@@ -1658,7 +1658,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	layout_plugin * lplug;
 	struct inode * inode;
 	int result;
-	int i;
 	unsigned long blocksize;
 	reiser4_context __context;
 
@@ -1735,9 +1734,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	info = get_super_private (s);
 	spin_lock_init (&info->guard);
-
-	for (i = 0; i < REISER4_JNODE_TO_PAGE_HASH_SIZE; ++i)
-		spin_lock_init (&info->j_to_p[i]);
 
 	/* init layout plugin */
 	info->lplug = lplug;
@@ -1928,13 +1924,8 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
-	write_lock( &page -> mapping -> page_lock );
 	result = 0;
 
-	/*
-	 * locking: we are under page lock and mapping write lock. Latter
-	 * protected against races with parallel calls to jload().
-	 */
 	if( ( atomic_read( &node -> d_count ) == 0 ) && !PageDirty( page ) ) {
 		/*
 		 * can only release page if it is not in a atom and real block
@@ -1945,12 +1936,17 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 		 */
 		if( ( node -> atom == NULL ) && 
 		    !blocknr_is_fake( jnode_get_block( node ) ) ) {
-			page_detach_jnode( page );
+			spin_lock_jnode( node );
+			page -> private = 0ul;
+			ClearPagePrivate( page );
+			node -> pg = NULL;
+			spin_unlock_jnode( node );
 			result = 1;
 		}
 	}
-	write_unlock( &page -> mapping -> page_lock );
-
+	/*
+	 * return with page still locked. shrink_cache() expects this.
+	 */
 	return result;
 }
 

@@ -105,11 +105,6 @@ struct reiser4_super_info_data {
 	 */
 	__u32    debug_flags;
 
-	/**
-	 * spinlocks used to protect page to jnode linkage
-	 */
-	spinlock_t ____cacheline_aligned_in_smp j_to_p[ REISER4_JNODE_TO_PAGE_HASH_SIZE ];
-
 	/* super block flags */
 
 	/**

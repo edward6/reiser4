@@ -177,9 +177,6 @@ extern int    flush_enqueue_unformatted (jnode *node, flush_position *pos);
 extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 extern int    flush_pos_leaf_relocate (flush_position *pos);
 
-extern spinlock_t *jnode_to_page_lock( const jnode *node );
-extern spinlock_t *page_to_jnode_lock( const struct page *page );
-
 extern int jnode_check_allocated (jnode *node);
 extern int znode_check_allocated (znode *node);
 
@@ -284,9 +281,11 @@ static inline int jnode_is_dirty( const jnode *node )
 
 extern void jnode_attach_page_nolock( jnode *node, struct page *pg );
 extern void jnode_attach_page( jnode *node, struct page *pg );
+extern void page_detach_jnode_lock( struct page *page, 
+				    struct address_space *mapping, 
+				    unsigned long index );
 extern void page_detach_jnode( struct page *page );
 extern void jnode_detach_page( jnode *node );
-extern void break_page_jnode_linkage( struct page *page, jnode *node );
 
 /** return true if "node" is dirty, node is unlocked */
 static inline int jnode_check_dirty( jnode *node )

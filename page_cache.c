@@ -182,6 +182,19 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
+struct page *reiser4_lock_page( struct address_space *mapping, 
+				unsigned long index )
+{
+	struct page *page;
+
+	assert( "nikita-2408", mapping != NULL );
+	assert( "nikita-2409", lock_counters() -> spin_locked == 0 );
+	page = find_lock_page( mapping, index );
+	if( page )
+		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
+	return page;
+}
+
 #if REISER4_DEBUG_MEMCPY
 struct mem_ops_table {
 	void * ( *cpy ) ( void *dest, const void *src, size_t n );
@@ -386,12 +399,16 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 	assert( "vs-828", PageLocked( page ) );
+
+	node = jget (current_tree, page);
+
 	unlock_page( page );
 
 	ctx  = get_current_context ();
 	txnh = ctx->trans;
 
 	if (! spin_trylock_txnh (txnh)) {
+		jput (node);
 		REISER4_EXIT (0);
 	}
 
@@ -405,13 +422,12 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		 * no chance of working in such situation.
 		 */
 		spin_unlock_txnh (txnh);
+		jput (node);
 		REISER4_EXIT (0);
 	}
 
-	node = jnode_by_page (page);
-
-	/* Attach the txn handle to this node, preventing the atom from committing while
-	 * this flush occurs. */ 
+	/* Attach the txn handle to this node, preventing the atom from
+	 * committing while this flush occurs. */ 
 	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
 
 	spin_unlock_txnh (txnh);
@@ -426,6 +442,7 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		result = jnode_flush (node, nr_to_write, flush_flags);
 	}
 
+	jput (node);
 	REISER4_EXIT (result);
 }
 

@@ -66,9 +66,11 @@ int jnodes_tree_init( reiser4_tree *tree /* tree to initialise jnodes for */ )
 /** call this to destroy jnode hash table */
 int jnodes_tree_done( reiser4_tree *tree /* tree to destroy jnodes for */ )
 {
-	jnode       **bucket;
-	jnode        *node;
-	jnode        *next;
+	j_hash_table  *jtable;
+	jnode        **bucket;
+	jnode         *node;
+	jnode         *next;
+	int            killed;
 
 	assert( "nikita-2360", tree != NULL );
 
@@ -79,17 +81,18 @@ int jnodes_tree_done( reiser4_tree *tree /* tree to destroy jnodes for */ )
 			  spin_unlock_tree( tree );
 		  }) );
 
+	jtable = &tree -> jhash_table;
 	spin_lock_tree( tree );
 
-	for_all_in_htable( &tree -> jhash_table, bucket, node, next, link.j ) {
-		/*
-		 * FIXME debugging output
-		 */
-		if( atomic_read( &node -> x_count ) != 0 )
-			info_jnode( "busy on umount", node );
-		assert( "nikita-2361", atomic_read( &node -> x_count ) == 0 );
-		jdrop( node );
-	}
+	do {
+		killed = 0;
+		for_all_in_htable( jtable, bucket, node, next, link.j ) {
+			assert( "nikita-2361", !atomic_read( &node -> x_count ) );
+			jdrop( node );
+			++ killed;
+			break;
+		}
+	} while( killed > 0 );
 
 	spin_unlock_tree( tree );
 
@@ -147,40 +150,17 @@ jnode_init (jnode *node)
 	capture_list_clean (node);
 }
 
+#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
+
 /* return already existing jnode of page */
 jnode* 
 jnode_by_page (struct page* pg)
 {
-	jnode *node;
-	spinlock_t *lock;
-
 	assert ("nikita-2066", pg != NULL);
-	lock = page_to_jnode_lock (pg);
-	spin_lock (lock);
+	assert ("nikita-2400", PageLocked (pg));
 	assert ("nikita-2068", PagePrivate (pg));
-	node = (jnode*) pg->private;
-	assert ("nikita-2067", node != NULL);
-	spin_unlock (lock);
-	return node;
-}
-
-static unsigned int jnode_page_hash( const jnode *node )
-{
-	return ( ( ( unsigned long ) node ) / sizeof *node ) % REISER4_JNODE_TO_PAGE_HASH_SIZE;
-}
-
-spinlock_t *jnode_to_page_lock( const jnode *node )
-{
-	int spin_ind;
-
-	spin_ind = jnode_page_hash( node );
-	return &get_current_super_private() -> j_to_p[ spin_ind ];
-}
-
-spinlock_t *page_to_jnode_lock( const struct page *page )
-{
-	return &get_super_private( page -> mapping -> host -> i_sb ) ->
-		j_to_p[ jnode_page_hash( ( jnode * ) page -> private ) ];
+	assert ("nikita-2067", jprivate (pg) != NULL);
+	return jprivate (pg);
 }
 
 /* exported functions to allocate/free jnode objects outside this file */
@@ -234,13 +214,11 @@ jnode *jlook (reiser4_tree *tree,
 	node = j_hash_find( &tree -> jhash_table, &jkey );
 	if( node != NULL )
 		/*
-		 * protect @in_hash from recycling
+		 * protect @node from recycling
 		 */
 		jref( node );
 	return node;
 }
-
-#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
 
 /**
  * jget() (a la zget() but for unformatted nodes). Returns (and possibly
@@ -260,11 +238,8 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 	/* check that page is unformatted */
 	assert ("nikita-2065", pg->mapping->host != 
 		get_super_private (pg->mapping->host->i_sb)->fake);
-	
+	assert ("nikita-2394", PageLocked (pg));
  again:
-	lock = page_to_jnode_lock (pg);
-	spin_lock (lock);
-
 	if (jprivate(pg) == NULL) {
 		jnode *in_hash;
 		/** check hash-table first */
@@ -273,7 +248,10 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 		in_hash = jlook (tree, pg->mapping, pg->index);
 		if (in_hash != NULL) {
 			assert ("nikita-2358", jnode_page (in_hash) == NULL);
+			spin_unlock_tree (tree);
+			spin_lock_jnode (in_hash);
 			jnode_attach_page_nolock (in_hash, pg);
+			spin_unlock_jnode (in_hash);
 			assert ("nikita-2356", 
 				jnode_get_type (in_hash) == JNODE_UNFORMATTED_BLOCK);
 		} else {
@@ -294,19 +272,23 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 			jnode_init (jal);
 			jref (jal);
 
-			jnode_attach_page_nolock (jal, pg);
-			jnode_set_type (jal, JNODE_UNFORMATTED_BLOCK);
-
 			jal->key.mapping = pg->mapping;
 			jal->key.index   = pg->index;
 
 			jtable = &tree->jhash_table;
 			assert ("nikita-2357", 
 				j_hash_find (jtable, &jal->key) == NULL);
+
 			j_hash_insert (jtable, jal);
+			spin_unlock_tree (tree);
+
+			spin_lock_jnode (jal);
+			jnode_attach_page_nolock (jal, pg);
+			spin_unlock_jnode (jal);
+			jnode_set_type (jal, JNODE_UNFORMATTED_BLOCK);
+
 			jal = NULL;
 		}
-		spin_unlock_tree (tree);
 	} else
 		jref (jprivate(pg));
 
@@ -322,12 +304,10 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 	 * If jnodes are unconditionally assigned at some other point, then
 	 * this interface and lock not needed? */
 
-	spin_unlock (lock);
-
 	if (jal != NULL) {
 		jfree(jal);
 	}
-	return jprivate(pg);
+	return jnode_by_page(pg);
 }
 
 jnode* jnode_of_page (struct page* pg)
@@ -342,7 +322,7 @@ jnode * nth_jnode (struct page * page, int block)
 	assert ("vs-695", PagePrivate (page) && page->private);
 	assert ("vs-696", current_blocksize == (unsigned)PAGE_CACHE_SIZE);
 	assert ("vs-697", block == 0);
-	return (jnode *)page->private;
+	return jprivate (page);
 }
 
 
@@ -390,89 +370,119 @@ void jnode_attach_page_nolock( jnode *node, struct page *pg )
 	assert( "nikita-2060", node != NULL );
 	assert( "nikita-2061", pg != NULL );
 
-	assert( "nikita-2050", 
-		( pg -> private == 0ul ) || 
-		( pg -> private == ( unsigned long ) node ) );
-	if( !PagePrivate( pg ) ) {
-		assert( "nikita-2059", pg -> private == 0ul );
-		page_cache_get( pg );
-		pg -> private = ( unsigned long ) node;
-		node -> pg  = pg;
-		SetPagePrivate( pg );
-		/* add reference to page */
-	}
+	assert( "nikita-2050", pg -> private == 0ul );
+	assert( "nikita-2393", !PagePrivate( pg ) );
+
+	assert( "nikita-2396", PageLocked( pg ) );
+	assert( "nikita-2397", spin_jnode_is_locked( node ) );
+
+	page_cache_get( pg );
+	pg -> private = ( unsigned long ) node;
+	node -> pg  = pg;
+	SetPagePrivate( pg );
 }
 
 /* Audited by: umka (2002.06.15) */
-void jnode_attach_page( jnode *node, struct page *pg )
+void jnode_attach_page( jnode *node, struct page *page )
 {
-	spinlock_t *lock;
-
 	assert( "nikita-2047", node != NULL );
-	assert( "nikita-2048", pg != NULL );
+	assert( "nikita-2048", page != NULL );
 
-	trace_on( TRACE_PCACHE, "attach: node %p, page: %p\n", node, pg );
+	assert( "nikita-2398", spin_jnode_is_not_locked( node ) );
 
-	lock = jnode_to_page_lock( node );
-	spin_lock( lock );
-	jnode_attach_page_nolock( node, pg );
-	assert( "nikita-2183", ergo( pg != NULL,
-				     lock == page_to_jnode_lock( pg ) ) );
-	spin_unlock( lock );
+	trace_on( TRACE_PCACHE, "attach: node %p, page: %p\n", node, page );
+
+	lock_page( page );
+	spin_lock( node );
+	jnode_attach_page_nolock( node, page );
 }
 
-void break_page_jnode_linkage( struct page *page, jnode *node )
+void page_detach_jnode_nolock( jnode *node, struct page *page )
 {
-	assert( "nikita-2063", page != NULL );
-	assert( "nikita-2064", node != NULL );
+	assert( "nikita-2256", node != NULL );
+	assert( "nikita-2391", page != NULL );
+	assert( "nikita-2389", spin_jnode_is_locked( node ) );
+	assert( "nikita-2390", PageLocked( page ) );
 	assert( "jmacd-20642", !PageDirty( page ) );
-
-	trace_on( TRACE_PCACHE, "break page: %p\n", page );
 
 	page -> private = 0ul;
 	ClearPagePrivate( page );
 	node -> pg = NULL;
-}
 
-void page_detach_jnode_nolock( jnode *node, struct page *page, spinlock_t *lock )
-{
-	assert( "nikita-2256", lock != NULL );
-
-	spin_lock( lock );
-	if( likely( ( node != NULL ) && ( page != NULL ) ) ) {
-		assert( "nikita-2184", 
-			ergo( get_current_context() != NULL,
-			      lock == jnode_to_page_lock( node ) ) );
-		assert( "nikita-2185", lock == page_to_jnode_lock( page ) );
-		break_page_jnode_linkage( page, node );
-		spin_unlock( lock );
-		page_cache_release( page );
-	} else
-		spin_unlock( lock );
+	spin_unlock_jnode( node );
+	unlock_page( page );
+	page_cache_release( page );
 }
 
 void page_detach_jnode( struct page *page )
 {
-	spinlock_t *lock;
+	jnode *node;
 
 	assert( "nikita-2062", page != NULL );
+	assert( "nikita-2392", PageLocked( page ) );
+	assert( "nikita-2399", spin_jnode_is_not_locked( node ) );
 
 	trace_on( TRACE_PCACHE, "detach page: %p\n", page );
-
-	lock = page_to_jnode_lock( page );
-	page_detach_jnode_nolock( ( jnode * ) page -> private, page, lock );
+	if( PagePrivate( page ) ) {
+		node = jprivate( page );
+		spin_lock_jnode( node );
+		page_detach_jnode_nolock( node, page );
+	} else
+		unlock_page( page );
 }
 
-void jnode_detach_page( jnode *node )
+void page_detach_jnode_lock( struct page *page, 
+			     struct address_space *mapping, unsigned long index )
 {
-	spinlock_t  *lock;
+	assert( "nikita-2395", page != NULL );
+
+	lock_page( page );
+	if( ( page -> mapping == mapping ) && ( page -> index == index ) )
+		page_detach_jnode( page );
+	else
+		unlock_page( page );
+}
+
+struct page *jnode_lock_page( jnode *node )
+{
+	struct page *page;
 
 	assert( "nikita-2052", node != NULL );
+	assert( "nikita-2401", spin_jnode_is_not_locked( node ) );
 
-	trace_on( TRACE_PCACHE, "detach jnode: %p\n", node );
+	while( 1 ) {
 
-	lock = jnode_to_page_lock( node );
-	page_detach_jnode_nolock( node, jnode_page( node ), lock );
+		spin_lock_jnode( node );
+		page = node -> pg;
+		if( page == NULL ) {
+			break;
+		}
+
+		/*
+		 * no need to page_cache_get( page ) here, because page cannot
+		 * be evicted from memory without detaching it from jnode and
+		 * this requires spin lock on jnode that we already hold.
+		 */
+		if( !TestSetPageLocked( page ) ) {
+			/*
+			 * We won a lock on jnode page, proceed.
+			 */
+			break;
+		}
+
+		/*
+		 * Page is locked by someone else.
+		 */
+		page_cache_get( page );
+		spin_unlock_jnode( node );
+		wait_on_page_locked( page );
+		page_cache_release( page );
+
+		/*
+		 * try again
+		 */
+	}
+	return page;
 }
 
 /** bump data counter on @node */
@@ -505,13 +515,15 @@ static int page_filler( void *arg, struct page *page )
 	 * 
 	 * We are under page lock now, so it can be used as synchronization.
 	 */
-	jnode_attach_page( node, page );
+	spin_lock_jnode( node );
+	jnode_attach_page_nolock( node, page );
+	spin_unlock_jnode( node );
 	result = page -> mapping -> a_ops -> readpage( NULL, page );
 	/*
 	 * on error, detach jnode from page
 	 */
 	if( unlikely( result != 0 ) )
-		jnode_detach_page( node );
+		page_detach_jnode( page );
 	return result;
 }
 
@@ -615,7 +627,9 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 				jplug -> index( node ) );
 	if( page != NULL ) {
 		SetPageUptodate( page );
-		jnode_attach_page( node, page );
+		spin_lock_jnode( node );
+		jnode_attach_page_nolock( node, page );
+		spin_unlock_jnode( node );
 		unlock_page( page );
 		kmap( page );
 		result = 0;
@@ -664,14 +678,10 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 
 
 /** 
- * jdelete() -- Remove znode from the tree
- *
- * This is called from zdrop() when last reference to the znode removed from
- * the tree is release.
+ * jdelete() -- Remove jnode from the tree
  */
 int jdelete( jnode *node /* jnode to finish with */ )
 {
-	spinlock_t   *lock;
 	struct page  *page;
 	int           result;
 	reiser4_tree *tree;
@@ -682,21 +692,22 @@ int jdelete( jnode *node /* jnode to finish with */ )
 
 	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
 
-	lock = jnode_to_page_lock( node );
-	spin_lock( lock );
-	page = jnode_page( node );
+	page = jnode_lock_page( node );
+	assert( "nikita-2402", spin_jnode_is_locked( node ) );
+	if( atomic_read( &node -> d_count ) > 0 ) {
+		/*
+		 * see comment in jdrop().
+		 */
+		return -EAGAIN;
+	}
 	if( page != NULL ) {
-		assert( "nikita-2181", lock == page_to_jnode_lock( page ) );
-		lock_page( page );
+		assert( "nikita-2181", PageLocked( page ) );
 		ClearPageDirty( page );
 		ClearPageUptodate( page );
 		remove_inode_page( page );
-		unlock_page( page );
-		break_page_jnode_linkage( page, node );
-		spin_unlock( lock );
-		page_cache_release( page );
+		page_detach_jnode_nolock( node, page );
 	} else
-		spin_unlock( lock );
+		spin_unlock_jnode( node );
 
 	tree = current_tree;
 
@@ -716,35 +727,49 @@ int jdelete( jnode *node /* jnode to finish with */ )
 /* drop jnode on the floor */
 void jdrop (jnode * node)
 {
-	int result;
-	struct page *page;
-	spinlock_t  *lock;
+	int           result;
+	struct page  *page;
+	reiser4_tree *tree;
 
 	assert( "zam-602", node != NULL );
 	assert( "nikita-2362", spin_tree_is_locked( current_tree ) );
+	assert( "nikita-2403", !JF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
+
+	/* still in use? */
+	if( atomic_read( &node -> x_count ) > 0 )
+		return;
+
+	tree = current_tree;
+	assert( "nikita-2404", spin_tree_is_locked( tree ) );
+	spin_unlock_tree( tree );
+
+	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
+
+	page = jnode_lock_page( node );
+	assert( "nikita-2405", spin_jnode_is_locked( node ) );
+	if( atomic_read( &node -> d_count ) > 0 ) {
+		/*
+		 * updates to ->d_count are not protected by any lock by
+		 * themselves, but change of ->d_count from 0 to 1 (in jload)
+		 * passes through acquiring of page lock and jnode spin
+		 * lock. At this moment we hold both locks.
+		 */
+		return;
+	}
+	if( page != NULL ) {
+		assert( "nikita-2126", !PageDirty( page ) );
+		assert( "nikita-2127", PageUptodate( page ) );
+		assert( "nikita-2181", PageLocked( page ) );
+		remove_inode_page( page );
+		page_detach_jnode_nolock( node, page );
+	} else
+		spin_unlock_jnode( node );
+
+	spin_lock_tree( tree );
 
 	/* reference was acquired by other thread. */
 	if( atomic_read( &node -> x_count ) > 0 )
 		return;
-
-	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
-
-	lock = jnode_to_page_lock( node );
-	spin_lock( lock );
-	page = jnode_page( node );
-	trace_if( TRACE_PCACHE, print_page( "drop node", page ) );
-	if( page != NULL ) {
-		assert( "nikita-2182", lock == page_to_jnode_lock( page ) );
-		lock_page( page );
-		assert( "nikita-2126", !PageDirty( page ) );
-		assert( "nikita-2127", PageUptodate( page ) );
-		remove_inode_page( page );
-		unlock_page( page );
-		break_page_jnode_linkage( page, node );
-		spin_unlock( lock );
-		page_cache_release( page );
-	} else
-		spin_unlock( lock );
 
 	result = jnode_ops( node ) -> remove( node );
 	if( result != 0 )
