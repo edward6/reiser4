@@ -2481,6 +2481,24 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	REISER4_EXIT(ret);
 }
 
+static int reiser4_sync_page(struct page *page)
+{
+#if REISER4_TRACE_TREE
+	jnode *j;
+	reiser4_block_nr block;
+
+	assert("vs-1111", page->mapping && page->mapping->host);
+	assert("vs-1113", page->mapping->host->i_ino != 1);
+	assert("vs-1112", PagePrivate(page) && jprivate(page));
+	j = jprivate(page);
+	block = *jnode_get_block(j);
+	write_trace(&get_super_private(page->mapping->host->i_sb)->trace_file,
+		    "reiser4_sync_page: wait_on_page?: %s: %llu\n", kdevname(to_kdev_t(page->mapping->host->i_sb->s_dev)), block);
+#endif
+	block_sync_page(page);
+	return 0;
+}
+
 typedef enum {
 	INIT_NONE,
 	INIT_INODECACHE,
@@ -2645,7 +2663,7 @@ struct address_space_operations reiser4_as_operations = {
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
 	*/
-	.sync_page = block_sync_page,
+	.sync_page = reiser4_sync_page,
 	/* called during sync (pdflush) */
 	.writepages = reiser4_writepages,
 	.set_page_dirty = reiser4_set_page_dirty,
