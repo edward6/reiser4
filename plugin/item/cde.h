@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /* 
@@ -66,8 +66,6 @@ char *cde_extract_name ( const tree_coord *coord );
 int   cde_add_entry    ( const struct inode *dir, tree_coord *coord, 
 			 lock_handle *lh, const struct dentry *name, 
 			 reiser4_dir_entry_desc *entry );
-int   cde_rem_entry    ( const struct inode *dir, tree_coord *coord, 
-			 lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   cde_max_name_len ( int block_size );
 
 

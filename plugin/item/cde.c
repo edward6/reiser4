@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -895,6 +895,8 @@ int cde_add_entry( const struct inode *dir /* directory object */,
 	}
 	return result;
 }
+
+/** ->s.dir.rem_entry() == de_rem_entry */
 
 /** ->s.dir.max_name_len() method for this item plugin */
 int cde_max_name_len( int block_size /* block size */ )
