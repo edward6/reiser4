@@ -297,18 +297,20 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		result = seal_validate( &seal, &coord, 
 					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
 					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
-		if( result == 0 ) {
+		if( REISER4_DEBUG && ( result == 0 ) ) {
 			reiser4_key ukey;
-			if( !coord_of_unit( &coord ) )
-				info( "not unit\n" );
-			if( !item_plugin_by_coord( &coord ) )
-				info( "no plugin\n" );
-			if( !keyeq( unit_key_by_coord( &coord, &ukey ), &key ) )
-				info( "wrong key\n" );
-			if( znode_get_level( coord.node ) != LEAF_LEVEL )
-				info( "wrong level\n" );
-			if( !item_is_statdata( &coord ) )
-				info( "wrong item type\n" );
+
+			if( !coord_of_unit( &coord ) ||
+			    !item_plugin_by_coord( &coord ) ||
+			    !keyeq( unit_key_by_coord( &coord, &ukey ), &key ) ||
+			    ( znode_get_level( coord.node ) != LEAF_LEVEL ) ||
+			    !item_is_statdata( &coord ) ) {
+				warning( "nikita-1901", "Conspicuous seal" );
+				print_inode( "inode", inode );
+				print_key( "key", &key );
+				print_coord( "coord", &coord, 1 );
+				result = -EIO;
+			}
 		}
 	} else
 		result = -EAGAIN;
