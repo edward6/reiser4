@@ -663,7 +663,6 @@ static void eflush_free (jnode * node)
 	}
 
 	assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
-	JF_CLR(node, JNODE_EFLUSH);
 
 	if (jnode_is_unformatted(node)) {
 		reiser4_inode *info;
@@ -754,6 +753,7 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
 	assert("nikita-2766", atomic_read(&node->x_count) > 1);
 	/* release allocated disk block and in-memory structures  */
 	eflush_free(node);
+	JF_CLR(node, JNODE_EFLUSH);
  out:
 	if (!page_locked)
 		unlock_page(page);
