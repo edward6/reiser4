@@ -365,7 +365,7 @@ int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 	
 	/* making page up to date and releasing it. */
 	SetPageUptodate(page);
-	reiser4_unlock_page(page);
+	unlock_page(page);
 	
 	/* releasing tap */
 	tap_relse(&tap);
@@ -376,7 +376,7 @@ int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
  out_update_page:
 	SetPageUptodate(page);
  out_unlock_page:
-	reiser4_unlock_page(page);
+	unlock_page(page);
  out_tap_relse:
 	tap_relse(&tap);
  out_tap_done:
