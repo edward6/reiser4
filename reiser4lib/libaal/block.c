@@ -19,7 +19,7 @@ aal_block_t *aal_block_alloc(aal_device_t *device, blk_t blk, char c) {
 	goto error_free_block;
 	
     block->device = device;
-    block->location = (aal_device_blocksize(device) * blk);
+    block->offset = (aal_device_blocksize(device) * blk);
 	
     return block;
 	
@@ -38,7 +38,7 @@ aal_block_t *aal_block_realloc(aal_block_t *block, aal_device_t *device, blk_t b
 	return NULL;
 
     block->device = device;
-    block->location = (aal_device_blocksize(device) * blk);
+    block->offset = (aal_device_blocksize(device) * blk);
 	
     return block;
 }
@@ -102,14 +102,14 @@ blk_t aal_block_location(aal_block_t *block) {
     if (!block)
 	return 0;
 
-    return (blk_t)(block->location / aal_device_blocksize(block->device));
+    return (blk_t)(block->offset / aal_device_blocksize(block->device));
 }
 
 void aal_block_set_location(aal_block_t *block, blk_t blk) {
     if (!block)	
 	return;
 	
-    block->location = (uint64_t)(blk * aal_device_blocksize(block->device));
+    block->offset = (uint64_t)(blk * aal_device_blocksize(block->device));
 }
 
 void aal_block_free(aal_block_t *block) {

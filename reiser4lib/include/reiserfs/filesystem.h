@@ -9,6 +9,7 @@
 
 #include <aal/aal.h>
 #include <reiserfs/plugin.h>
+#include <reiserfs/node.h>
 
 #define REISERFS_MASTER_MAGIC		"R4Sb"
 
@@ -57,7 +58,7 @@ struct reiserfs_alloc {
 typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 struct reiserfs_tree {
-    reiserfs_node_opaque_t *entity;
+    reiserfs_node_t *root;
     reiserfs_plugin_t *plugin;
 };
 

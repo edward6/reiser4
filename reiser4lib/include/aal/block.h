@@ -13,7 +13,7 @@
 struct aal_block {
     int dirty;
     void *data;
-    uint64_t location;
+    uint64_t offset;
     aal_device_t *device;
 };
 

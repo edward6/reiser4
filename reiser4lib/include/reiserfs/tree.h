@@ -9,6 +9,8 @@
 
 #include <reiserfs/reiserfs.h>
 
+#define REISERFS_ROOT_LEVEL 2
+
 extern int reiserfs_tree_open(reiserfs_fs_t *fs);
 extern int reiserfs_tree_create(reiserfs_fs_t *fs);
 extern void reiserfs_tree_close(reiserfs_fs_t *fs, int sync);
