@@ -334,7 +334,7 @@ static reiser4_block_nr common_estimate_create_child(
 	return 
 		/* object creation estimation */
 		inode_file_plugin(object)->estimate.create(object) +
-		/* stat data of parent dirctory estimation */
+		/* stat data of parent directory estimation */
 		inode_file_plugin(parent)->estimate.update(parent) +
 		/* adding entry estimation */
 		inode_dir_plugin(parent)->estimate.add_entry(parent) +
@@ -524,18 +524,6 @@ common_create_child(struct inode *parent /* parent object */ ,
 	return result;
 }
 
-/* static common_esimate_create( 
-    struct inode *parent // parent object , 
-			      struct dentry *dentry // new name , 
-			      reiser4_object_create_data *data // parameters
-							//	* of new
-							//	* object ) 
-{
-	assert( "vpf-307", parent != NULL );
-	assert( "vpf-308", dentry != NULL );
-	assert( "vpf-309", data   != NULL );
-}
-*/
 /* ->is_name_acceptable() method of directory plugin */
 /* Audited by: green(2002.06.15) */
 int
@@ -995,19 +983,11 @@ common_attach(struct inode *child, struct inode *parent)
 static reiser4_block_nr common_estimate_add_entry(struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
-/*
-	reiser4_block_nr amount;
-	assert("vpf-316", inode != NULL);
-	
-	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
-
-	return amount + 1;
-*/
 }
 
 static reiser4_block_nr common_estimate_rem_entry(struct inode *inode) 
 {
-	return 2 /* SD bytes, current node */;
+	return estimate_one_item_removal(tree_by_inode(inode)->height);
 }
 
 dir_plugin dir_plugins[LAST_DIR_ID] = {
@@ -1036,11 +1016,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 				.attach = common_attach,
 				.estimate = {
 					.add_entry = common_estimate_add_entry,
-					.rem_entry = common_estimate_rem_entry,
+					.rem_entry = common_estimate_rem_entry/*,
 					.link = common_estimate_link,
 					.unlink = common_estimate_unlink,
 					.rename	= hashed_estimate_rename,
-					.done = hashed_estimate_done
+					.done = hashed_estimate_done*/
 				}
 	},
 	[SEEKABLE_HASHED_DIR_PLUGIN_ID] = {
@@ -1068,11 +1048,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 				.attach = common_attach,
 				.estimate = {
 					.add_entry = common_estimate_add_entry,
-					.rem_entry = common_estimate_rem_entry,
+					.rem_entry = common_estimate_rem_entry/*,
 					.link = common_estimate_link,
 					.unlink = common_estimate_unlink,
 					.rename	= hashed_estimate_rename,
-					.done = hashed_estimate_done
+					.done = hashed_estimate_done*/
 				}
 	}
 };
