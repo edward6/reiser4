@@ -377,6 +377,10 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 			trace_on (TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_WANDER));
 		}
 
+		assert ("nikita-2591", !jnode_check_dirty (cur));
+		if (jnode_page (cur) && 
+		    PageDirty (jnode_page (cur)) && !JF_ISSET(cur, JNODE_WANDER))
+			rpanic( "nikita-2590", "Wow!" );
 
 		if (JF_ISSET(cur, JNODE_WANDER)) { 
 			capture_list_remove_clean (cur);
