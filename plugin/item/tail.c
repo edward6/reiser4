@@ -4,17 +4,23 @@
 #include "../../key.h"
 #include "../../tree.h"
 #include "../../context.h"
+#include "../file/file.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
 #include <linux/writeback.h>
 
 /* plugin->u.item.b.max_key_inside */
-/* Audited by: green(2002.06.14) */
 reiser4_key *
-tail_max_key_inside(const coord_t * coord, reiser4_key * key)
+tail_max_key_inside(const coord_t * coord, reiser4_key * key, void *p)
 {
 	item_key_by_coord(coord, key);
+	if (p) {
+		struct coord_item_info *info;
+
+		info = (struct coord_item_info *)p;
+		info->key = *key;
+	}
 	set_key_offset(key, get_key_offset(max_key()));
 	return key;
 }
@@ -109,7 +115,7 @@ tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-416", keygt(key, &item_key));
 
-	if (keygt(key, tail_max_key_inside(coord, &item_key))) {
+	if (keygt(key, tail_max_key_inside(coord, &item_key, 0))) {
 		/* @key is key of another file */
 		coord->unit_pos = nr_units - 1;
 		coord->between = AFTER_UNIT;
@@ -276,45 +282,6 @@ tail_unit_key(const coord_t * coord, reiser4_key * key)
 /* plugin->u.item.b.estimate
    plugin->u.item.b.item_data_by_flow */
 
-/* item_plugin->common.real_max_key_inside */
-reiser4_key *
-tail_max_key(const coord_t * coord, reiser4_key * key)
-{
-	item_key_by_coord(coord, key);
-	set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord) - 1);
-	return key;
-}
-
-/* item_plugin->common.key_in_item */
-int
-tail_key_in_item(coord_t * coord, const reiser4_key * key)
-{
-	reiser4_key item_key;
-
-	assert("vs-778", coord_is_existing_item(coord));
-
-	if (keygt(key, tail_max_key(coord, &item_key))) {
-		/* key > max key of item */
-		if (get_key_offset(key) == get_key_offset(&item_key) + 1) {
-			coord->unit_pos = tail_nr_units(coord) - 1;
-			coord->between = AFTER_UNIT;
-			return 1;
-		}
-		
-		return 0;
-	}
-
-	/* key of first byte pointed by item */
-	item_key_by_coord(coord, &item_key);
-	if (keylt(key, &item_key))
-		/* key < min key of item */
-		return 0;
-
-	coord->unit_pos = get_key_offset(key) - get_key_offset(&item_key);
-	coord->between = AT_UNIT;
-	return 1;
-}
-
 /* overwrite tail item or its part by use data */
 static int
 overwrite_tail(coord_t * coord, flow_t * f)
@@ -342,13 +309,13 @@ overwrite_tail(coord_t * coord, flow_t * f)
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
-static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh)
+static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
+				    	struct sealed_coord *hint)
 {
 	int result;
-	struct sealed_coord hint;
 	loff_t new_size;
 	
-	set_hint(&hint, &f->key, coord);
+	set_hint(hint, &f->key, coord);
 	done_lh(lh);
 	coord->node = 0;
 	new_size = get_key_offset(&f->key);
@@ -364,7 +331,7 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	spin_unlock(&inode_lock);
 
 	balance_dirty_pages_ratelimited(mapping);
-	return hint_validate(&hint, &f->key, coord, lh);
+	return hint_validate(hint, &f->key, coord, lh);
 }
 
 /* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.
@@ -388,7 +355,7 @@ overwrite_reserve(tree_level height)
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
 int
-tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
+tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint)
 {
 	int result;
 	write_mode todo;
@@ -448,7 +415,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 			break;
 		}
 		/* throttle the writer */
-		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh);
+		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint);
 		all_grabbed2free("tail_write");
 		if (result) {
 			// reiser4_stat_tail_add(bdp_caused_repeats);
@@ -472,7 +439,7 @@ tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	assert("vs-1118", znode_is_loaded(coord->node));
 
 	assert("nikita-3037", schedulable());
-	if (!tail_key_in_item(coord, &f->key))
+	if (!tail_key_in_item(coord, &f->key, 0))
 		return -EAGAIN;
 
 	/* calculate number of bytes to read off the item */
@@ -489,6 +456,68 @@ tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	move_flow_forward(f, count);
 
 	return 0;
+}
+
+/* 
+   plugin->u.item.s.file.append_key
+   key of first byte which is the next to last byte by addressed by this extent
+*/
+reiser4_key *
+tail_append_key(const coord_t * coord, reiser4_key * key, void *p)
+{
+	if (p) {
+		struct coord_item_info *pinfo = p;
+
+		/* item key must be already set  */
+		assert("vs-1207", keyeq(&pinfo->key, item_key_by_coord(coord, key)));
+
+		*key = pinfo->key;
+		pinfo->nr_units = item_length_by_coord(coord);
+		set_key_offset(key, get_key_offset(key) + pinfo->nr_units);
+	} else {
+		item_key_by_coord(coord, key);
+		set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord));
+	}
+	return key;
+}
+
+/*
+  plugin->u.item.s.file.key_in_item
+  return true @coord is set inside of item to key @key
+*/
+int
+tail_key_in_item(coord_t * coord, const reiser4_key * key, void *p)
+{
+	struct coord_item_info info, *pinfo;
+	reiser4_key append_key;
+
+	assert("vs-778", coord_is_existing_item(coord));
+
+	if (!p) {
+		pinfo = &info;
+		item_key_by_coord(coord, &pinfo->key);
+	} else
+		pinfo = p;
+
+	if (keyge(key, tail_append_key(coord, &append_key, pinfo))) {
+		/* key >= append key */
+		if (get_key_offset(key) == get_key_offset(&append_key)) {
+			/* key == append key*/
+			coord->unit_pos = pinfo->nr_units - 1;
+			coord->between = AFTER_UNIT;
+			return 1;
+		}
+		/* hole is necessary */
+		return 0;
+	}
+
+	if (keylt(key, &pinfo->key))
+		/* key < min key of item */
+		return 0;
+
+	coord->unit_pos = get_key_offset(key) - get_key_offset(&pinfo->key);
+	coord->between = AT_UNIT;
+	return 1;
 }
 
 /*
