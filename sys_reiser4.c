@@ -28,17 +28,21 @@ int yywrap()
     return 1;
 }
 
+/* comment me */
 int sys_reiser4(char * str)
 {
-
+/* comment me */
   work_space = kmalloc();
   
+/* comment me */
   work_space->pline  =  work_space->inline = str;
   
 
 
+/* comment me */
 	struct nameidata * nd;
 
+/* comment me */
 	int	ws_yyerrco;
 	int	ws_level;              /* current level            */
 	int	ws_labco;              /* current label            */
