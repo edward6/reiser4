@@ -100,14 +100,12 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	char * p_data;
 	unsigned i;
 	int to_page;
-	seal_t seal;
-	lw_coord_t lw_coord = {&seal, &coord};
+	struct sealed_coord hint;
 
 
 	assert ("vs-604", ergo (item_plugin_id(iplug) == TAIL_ID, 
 				nr_pages == 1));
 	assert ("vs-564", iplug && iplug->s.file.write);
-
 
 	result = 0;
 
@@ -147,10 +145,10 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			assert ("vs-958", ergo (result == CBK_COORD_FOUND,
 						get_key_offset (&f.key) != 0));
 
-			seal_init (&seal, &coord, &f.key);
+			set_hint (&hint, &f.key, &coord);
 			done_lh (&lh);
 
-			result = iplug->s.file.write (inode, &lw_coord, &f,
+			result = iplug->s.file.write (inode, &hint, &f,
 						      pages [i]);
 			if (result)
 				goto done;
@@ -277,8 +275,6 @@ static int file_is_over (struct inode * inode, reiser4_key * key,
 int tail2extent (struct inode * inode)
 {
 	int result;
-	coord_t coord;
-	lock_handle lh;	
 	reiser4_key key;     /* key of next byte to be moved to page */
 	reiser4_key tmp;
 	struct page * page;
@@ -318,142 +314,125 @@ int tail2extent (struct inode * inode)
 	item = 0;
 	copied = 0;
 
-	coord_init_zero (&coord);
-	init_lh (&lh);
-	while (1) {
-		if (!item) {
-			/* get next item */
-			result = find_next_item (0, &key, &coord, &lh,
-						 ZNODE_READ_LOCK, CBK_UNIQUE);
-			if (result != CBK_COORD_FOUND) {
-				drop_pages (pages, nr_pages);
-				if (result == CBK_COORD_NOTFOUND &&
-				    get_key_offset (&key) == 0)
-					/* conversion can be called
-					 * for empty file */
-					result = 0;
-				goto error1;
-			}
-			result = zload (coord.node);
-			if (result) {
-				drop_pages (pages, nr_pages);
-				goto error1;
-			}
-			if (item_id_by_coord (&coord) != TAIL_ID) {
-				/*
-				 * something other than tail found
-				 */
-				if (get_key_offset (&key) == (__u64)0) {
-					if (item_id_by_coord (&coord) != EXTENT_POINTER_ID)
-						result = -EIO;
-					else
-						result = 0;
-				} else
-					result = -EIO;
-				drop_pages (pages, nr_pages);
-				zrelse (coord.node);
-				goto error1;
-			}
-			item = item_body_by_coord (&coord);
-			if (coord.between == AFTER_UNIT) {
-				done = 1;
-				goto done;
-			}
-			assert ("vs-856", coord.between == AT_UNIT);
-			assert ("vs-857", coord.unit_pos == 0);
-			assert ("green-11",
-				keyeq (&key, item_key_by_coord (&coord, &tmp)));
-			copied = 0;
-		}
-		assert ("vs-562", unix_file_owns_item (inode, &coord));
-		
-		if (!page) {
+	while (!done) {
+		memset (pages, 0, sizeof (pages));
+		nr_pages = 0;
+		for (i = 0; i < sizeof_array (pages) && !done; i ++) {
 			assert ("vs-598",
 				(get_key_offset (&key) & ~PAGE_CACHE_MASK) == 0);
-			page = grab_cache_page (inode->i_mapping,
-						(unsigned long)(get_key_offset (&key) >>
-								PAGE_CACHE_SHIFT));
-			if (!page) {
-				drop_pages (pages, nr_pages);
-				zrelse (coord.node);
+			pages [i] = grab_cache_page (inode->i_mapping,
+						     (unsigned long)(get_key_offset (&key) >>
+								     PAGE_CACHE_SHIFT));
+			if (!pages [i]) {
+				drop_pages (pages, i);
 				result = -ENOMEM;
-				goto error1;
+				goto error;
 			}
-			
-			page_off = 0;
-			pages [nr_pages] = page;
-			nr_pages ++;
-		}
-		
-		/* how many bytes to copy */
-		count = item_length_by_coord (&coord) - copied;
-		/* limit length of copy to end of page */
-		if (count > PAGE_CACHE_SIZE - page_off) {
-			count = PAGE_CACHE_SIZE - page_off;
-		}
-		
-		/* kmap/kunmap are necessary for pages which are not
-		 * addressable by direct kernel virtual addresses */
-		p_data = kmap_atomic (page, KM_USER0);
-		/* copy item (as much as will fit starting from the beginning
-		 * of the item) into the page */
-		memcpy (p_data + page_off, item, (unsigned)count);
-		kunmap_atomic (p_data, KM_USER0);
-		page_off += count;
-		copied += count;
-		item += count;
-		set_key_offset (&key, get_key_offset (&key) + count);
 
-		if ((done = file_is_over (inode, &key, &coord)) ||
-		    all_pages_are_full (nr_pages, page_off)) {
-			char *kaddr;
-		done:
-			kaddr = kmap_atomic (page, KM_USER0);
-			memset (kaddr + page_off, 0, PAGE_CACHE_SIZE - page_off);
-			kunmap_atomic (kaddr, KM_USER0);
-			zrelse (coord.node);
-			done_lh (&lh);
-			/* replace tail items with extent */
-			result = replace (inode, pages, nr_pages, 
-					  (int)((nr_pages - 1) * PAGE_CACHE_SIZE +
-						page_off));
-			drop_pages (pages, nr_pages);
-			if (result) {
-				goto error2;
-			}
-			if (done) {
-				/* conversion completed */
-				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
-				inode_clr_flag (inode, REISER4_HAS_TAIL);
-				goto ok;
-			}
+			page_off = 0;
+
+			while (page_off < PAGE_CACHE_OFFSET) {
+				coord_t coord;
+				lock_handle lh;
+
+				/* get next item */
+				coord_init_zero (&coord);
+				init_lh (&lh);
+				result = find_next_item (0, &key, &coord, &lh,
+							 ZNODE_READ_LOCK, CBK_UNIQUE);
+				if (result != CBK_COORD_FOUND) {
+					drop_pages (pages, nr_pages);
+					if (result == CBK_COORD_NOTFOUND &&
+					    get_key_offset (&key) == 0)
+						/* conversion can be called for
+						 * empty file */
+						result = 0;
+					goto error;
+				}
+				assert ("vs-562", unix_file_owns_item (inode, &coord));
+				if (coord.between == AFTER_UNIT) {
+					/*
+					 * FIXME-VS: this is more save way to
+					 * detect end of file
+					 */
+					done_lh (&lh);
+					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					kunmap (page);
+					done = 1;
+					break;
+				}
+				
+				result = zload (coord.node);
+				if (result) {
+					drop_pages (pages, nr_pages);
+					goto error1;
+				}
+				assert ("vs-856", coord.between == AT_UNIT);
+				assert ("green-11",
+					keyeq (&key, unit_key_by_coord (&coord, &tmp)));
+				if (item_id_by_coord (&coord) != TAIL_ID) {
+					impossible ("vs-968", "does this ever happen?");
+					/*
+					 * something other than tail found
+					 */
+					if (get_key_offset (&key) == (__u64)0) {
+						if (item_id_by_coord (&coord) != EXTENT_POINTER_ID)
+							result = -EIO;
+						else
+							result = 0;
+					} else
+						result = -EIO;
+					drop_pages (pages, nr_pages);
+					zrelse (coord.node);
+					done_lh (&lh);					
+					goto error1;
+				}
+				item = item_body_by_coord (&coord) + coord.unit_pos;
+				
+				/* how many bytes to copy */
+				count = item_length_by_coord (&coord) - coord.unit_pos;
+				/* limit length of copy to end of page */
+				if (count > PAGE_CACHE_SIZE - page_off)
+				count = PAGE_CACHE_SIZE - page_off;
 			
-			/* there are still tail items of a file */
-			memset (pages, 0, sizeof (pages));
-			nr_pages = 0;
-			item = 0;
-			page = 0;
-			coord_init_zero (&coord);
-			init_lh (&lh);
-			continue;
-		}
-		
-		if (copied == (unsigned)item_length_by_coord (&coord)) {
-			/* item is over, find next one */
-			item = 0;
-			zrelse (coord.node);
-		}
-		if (page_off == PAGE_CACHE_SIZE) {
-			/* page is over */
-			page = 0;
-		}
+				/* kmap/kunmap are necessary for pages which
+				 * are not addressable by direct kernel virtual
+				 * addresses */
+				p_data = kmap (page);
+				/* copy item (as much as will fit starting from
+				 * the beginning of the item) into the page */
+				memcpy (p_data + page_off, item, (unsigned)count);
+				kunmap (page);
+				
+				page_off += count;
+				set_key_offset (&key, get_key_offset (&key) + count);
+				
+				zrelse (coord.node);
+				done_lh (&lh);
+				
+				if (get_key_offset (&key) == inode->i_size) {
+					/*
+					 * FIXME-VS: this can be used to detect
+					 * end of file
+					 */
+					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					kunmap (page);
+					done = 1;
+					/*break;*/
+				}
+			} /* while */
+		} /* for */
+
+		result = replace (inode, pages, nr_pages, 
+				  (int)((nr_pages - 1) * PAGE_CACHE_SIZE +
+					page_off));
+		drop_pages (pages, nr_pages);
+		if (result)
+			goto error;
 	}
- error1:
-	done_lh (&lh);
- error2:
-	drop_exclusive_access (inode);
-	get_nonexclusive_access (inode);
-	return result;
+
+	inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
+	inode_clr_flag (inode, REISER4_HAS_TAIL);
 
  ok:
 	drop_exclusive_access (inode);
@@ -461,10 +440,15 @@ int tail2extent (struct inode * inode)
 	
 	/* It is advisabel to check here that all grabbed pages were freed */
 
-	/* file should not be converted back to tails */
+	/* file can not be converted back to tails, because tail */
 	assert ("vs-830", (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
 			   !inode_get_flag (inode, REISER4_HAS_TAIL)));
 
+	return result;
+
+ error:
+	drop_exclusive_access (inode);
+	get_nonexclusive_access (inode);
 	return result;
 }
 
