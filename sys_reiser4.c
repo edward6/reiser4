@@ -22,7 +22,7 @@
 #include <linux/backing-dev.h>
 #include <asm-generic/errno.h>
 
-#if 0 /*CONFIG_REISER4_FS_SYSCALL*/
+#if CONFIG_REISER4_FS_SYSCALL
 
 #include "forward.h"
 #include "debug.h"

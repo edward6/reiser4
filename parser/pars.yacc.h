@@ -47,8 +47,8 @@ struct reiser4_syscall_w_space
 	freeSpace * freeSpCur;
 	wrd_t     * wrdHead;
 	vnode_t   * Head_vnode;
-	streg     * Head_level;	
-	streg     * cur_level;	 
+	streg_t   * Head_level;	
+	streg_t   * cur_level;	 
 	expr_v4_t * root_e;          /* root expression  for this task */
 
 	vnode_t   * wvn;              /* work    for this task */
