@@ -598,6 +598,7 @@ static inline int jparse( jnode *node )
 
 	assert( "nikita-2466", node != NULL );
 
+	result = 0;
 	spin_lock_jnode( node );
 	if( !jnode_is_loaded( node ) ) {
 		result = jnode_ops( node ) -> parse( node );
