@@ -556,7 +556,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		 * callers don't check ->readpage() return value, so we have
 		 * to kill page ourselves.
 		 */
-		remove_inode_page( page );
+		remove_from_page_cache( page );
 		page_cache_release(page);
 		unlock_page( page );
 	}
@@ -1282,33 +1282,24 @@ static void reiser4_dirty_inode( struct inode *inode )
 /** ->delete_inode() super operation */
 static void reiser4_delete_inode( struct inode *object )
 {
-	file_plugin *fplug;
 	__REISER4_ENTRY( object -> i_sb, );
 
-	assert( "nikita-2611", object != NULL );
+	if( reiser4_inode_data( object ) -> flags & REISER4_LOADED ) {
+		file_plugin *fplug;
 
-	fplug = inode_file_plugin( object );
-	/*
-	 * fake inode has NULL fplug
-	 */
-	if( fplug != NULL ) {
 		truncate_object( object, ( loff_t ) 0 );
 
+		fplug = inode_file_plugin( object );
 		assert( "nikita-2613", fplug != NULL );
 		if( fplug -> delete != NULL )
 			fplug -> delete( object, NULL );
-		object -> i_blocks = 0;
 	}
+	object -> i_blocks = 0;
 	clear_inode( object );
 	__REISER4_EXIT( &__context );
 }
 
 
-/**
- * read super block from device and fill remaining fields in @s.
- *
- * This is read_super() of the past.  
- */
 /* Audited by: umka (2002.06.12) */
 const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
@@ -1752,6 +1743,11 @@ static void init_committed_sb_counters (const struct super_block * s)
 	private->nr_files_committed    = oid_used ();
 }
 
+/**
+ * read super block from device and fill remaining fields in @s.
+ *
+ * This is read_super() of the past.  
+ */
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
@@ -1994,7 +1990,7 @@ static void reiser4_kill_super (struct super_block *s)
 
 #if REISER4_DEBUG
 	{
-		list_t *scan;
+		struct list_head *scan;
 
 		/*
 		 * print jnodes that survived umount.
