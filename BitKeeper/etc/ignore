@@ -1085,3 +1085,5 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
+plugin/disk_format/.disk_format40.o.cmd
+plugin/oid/.oid40.o.cmd
