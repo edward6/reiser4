@@ -2647,6 +2647,9 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	small->nr_objects_deleted = 0;
 	small->nr_objects_created = 0;
 
+	/* Merge allocated blocks counts */
+	large->nr_blocks_allocated += small->nr_blocks_allocated;
+
 	/* Merge blocks reserved for overwrite set. */
 	large->flush_reserved += small->flush_reserved;
 	small->flush_reserved = 0;

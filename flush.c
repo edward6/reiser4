@@ -2539,7 +2539,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	}
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         if ((ret = reiser4_alloc_blocks(
-		&pos->preceder, &blk, &len, BA_FORMATTED/* formatted, do not use 5% */)))
+		&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT)))
                 return ret;
                             
         trace_on(TRACE_RESERVE, "flush allocates %llu blocks.\n", len);

@@ -519,6 +519,13 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		assert("zam-680", *blk < reiser4_block_count(s));
 		assert("zam-681", *blk + *len <= reiser4_block_count(s));
 
+		if (flags & BA_PERMANENT) {
+			/* we assume that current atom exists at this moment */
+			txn_atom * atom = get_current_atom_locked ();
+			atom -> nr_blocks_allocated += *len;
+			spin_unlock_atom (atom);
+		}
+
 		switch (hint->block_stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
@@ -830,6 +837,14 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * 
 		assert("zam-462", splug->dealloc_blocks != NULL);
 
 		splug->dealloc_blocks(get_space_allocator(reiser4_get_current_sb()), *start, *len);
+
+		if (flags & BA_PERMANENT) {
+			/* These blocks were counted as allocated, we have to revert it
+			 * back if allocation is discarded. */
+			txn_atom * atom = get_current_atom_locked ();
+			atom->nr_blocks_allocated -= *len;
+			spin_unlock_atom (atom);
+		}
 
 		switch (target_stage) {
 		case BLOCK_NOT_COUNTED:
