@@ -200,7 +200,7 @@ unsigned int space_needed( const znode *node /* node data are inserted
 					  * 0---paste */ )
 {
 	int          result;
-	item_plugin *iplug;
+	common_item_plugin *iplug;
 
 	assert( "nikita-917", node != NULL );
 	assert( "nikita-918", node_plugin_by_node( node ) != NULL );
@@ -208,12 +208,12 @@ unsigned int space_needed( const znode *node /* node data are inserted
 
 	result = 0;
 	iplug = data -> iplug;
-	if( iplug -> b.estimate != NULL ) {
+	if( iplug -> estimate != NULL ) {
 		/*
 		 * ask item plugin how much space is needed to insert this
 		 * item
 		 */
-		result += iplug -> b.estimate ( insertion ? NULL : coord, data );
+		result += iplug -> estimate ( insertion ? NULL : coord, data );
 	} else {
 		/* reasonable default */
 		result += data -> length;
@@ -849,7 +849,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	reiser4_item_data    data;
 	int                  result;
 	int                  real_size;
-	item_plugin         *iplug;
+	common_item_plugin  *iplug;
 	int                  can_paste_here;
 
 	assert( "nikita-982", op != NULL );
@@ -904,8 +904,8 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 			change_item_size( op -> u.insert.d -> coord, real_size );
 	}
 	doing -> restartable = 0;
-	result = iplug -> b.paste( op -> u.insert.d -> coord,
-				   op -> u.insert.d -> data, todo );
+	result = iplug -> paste( op -> u.insert.d -> coord,
+				 op -> u.insert.d -> data, todo );
 	if( real_size < 0 ) {
 		node -> nplug ->
 			change_item_size( op -> u.insert.d -> coord, 
