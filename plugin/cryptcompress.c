@@ -1697,7 +1697,7 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 {
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
-	int result;
+	int result = 0;
 	
 	assert("edward-293", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
 	key_by_inode_cryptcompress(inode, off_to_clust_to_off(new_size, inode), &from_key);

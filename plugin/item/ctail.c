@@ -278,12 +278,9 @@ kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_
 	inode = p->inode;
 	if (inode) {
 		reiser4_key key;
-		
-		assert("edward-292", count == nr_units_ctail(coord));
-
 		item_key_by_coord(coord, &key);
-		if (from == 0 &&
-		    ((get_key_offset(&key) & ((loff_t) (cluster_size_by_coord(coord)) - 1)) == 0))
+		
+		if (from == 0 && cluster_key(&key, coord))
 			truncate_pages_cryptcompress(inode->i_mapping, off_to_pg(get_key_offset(&key)));
 	}
 	return 0;
@@ -295,16 +292,15 @@ int
 cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
 	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
-	       struct cut_list *p UNUSED_ARG)
+	       struct cut_list *p)
 {
-	reiser4_key key;
 	unsigned count;
 	
  	count = *to - *from + 1;
 	/* regarless to whether we cut from the beginning or from the end of
 	   item - we have nothing to do */
 	assert("edward-73", count > 0 && count <= nr_units_ctail(coord));
-	assert("edward-74", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
+	assert("edward-74", *to == coord_last_unit_pos(coord));
 
 	if (smallest_removed) {
 		/* store smallest key removed */
@@ -312,14 +308,15 @@ cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
 	}
 	if (*from == 0) {
-		/* head of item is removed, update item key therefore */
-		item_key_by_coord(coord, &key);
-		set_key_offset(&key, get_key_offset(&key) + count);
-		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
+		/* whole item is cut, so take into account ctail header */
+		count += sizeof(ctail_item_format);
+		assert("edward-454", count == item_length_by_coord(coord));
 	}
 
+	kill_hook_ctail(coord, *from, 0, p);
+
 	if (REISER4_DEBUG)
-		xmemset(first_unit(coord) + *from, 0, count);
+		xmemset((*from ? first_unit(coord) + *from : (char *) item_body_by_coord(coord)), 0, count);
 	return count;
 }
 
@@ -461,13 +458,11 @@ int readpage_ctail(void * vp, struct page * page)
 	result = do_readpage_ctail(clust, page);
 
 	assert("edward-213", PageLocked(page));
-	/* */
-	reiser4_unlock_page(page);
-
 	return result;
 }
 
 /* plugin->s.file.writepage */
+
 /* plugin->u.item.s.file.readpages
    populate an address space with some pages, and start reads against them.
    FIXME_EDWARD: this function should return errors
@@ -522,6 +517,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			}
 			break;
 		}
+		reiser4_unlock_page(page);
 	}
 	put_cluster_data(&clust, inode);
 	pagevec_lru_add(&lru_pvec);
