@@ -35,10 +35,10 @@
 
 /* code on-disk data-types as structs with a single field
    to rely on compiler type-checking. Like include/asm-i386/page.h */
-typedef struct d8 { __u8 datum; } d8;
-typedef struct d16 { __u16 datum; } d16;
-typedef struct d32 { __u32 datum; } d32;
-typedef struct d64 { __u64 datum; } d64;
+typedef struct d8  { __u8  datum; } d8;  //__attribute__ ( ( aligned ( 1 ) ) );
+typedef struct d16 { __u16 datum; } d16; //__attribute__ ( ( aligned ( 2 ) ) );
+typedef struct d32 { __u32 datum; } d32; //__attribute__ ( ( aligned ( 4 ) ) );
+typedef struct d64 { __u64 datum; } d64; //__attribute__ ( ( aligned ( 8 ) ) );
 
 static inline __u8 d8tocpu( const d8 *ondisk /* on-disk value to convert */ ) 
 { 
