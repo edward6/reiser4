@@ -2463,6 +2463,8 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		ext_coord->pos_in_unit ++;
 }
 
+void jnode_attach_page(jnode *, struct page *);
+
 /* staring from page through extent to jnode */
 static jnode *
 page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *uf_coord,
@@ -2501,6 +2503,7 @@ page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *u
 					jnode_set_created(j);
 					JF_SET(j, JNODE_NEW);			
 				}
+				assert("vs-1402", !jlook_lock(tree, oid, page->index));
 				bind_jnode_and_page(j, oid, page);
 			} else {
 				/* page was attached to jnode already in other thread */
@@ -2512,7 +2515,7 @@ page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *u
 			}
 		} else {
 			assert("vs-1390", jnode_mapped(j));
-			bind_jnode_and_page(j, oid, page);
+			UNDER_SPIN_VOID(jnode, j, jnode_attach_page(j, page));
 		}
 	} else {
 		/* page has jnode already. Therefore, there is non hole extent which points to this page */

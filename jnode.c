@@ -286,7 +286,7 @@ void jnode_lockprof_hook(const jnode *node)
 }
 #endif
 
-static void
+void
 jnode_attach_page(jnode * node, struct page *pg);
 
 void
@@ -390,7 +390,7 @@ jnode_of_page(struct page * pg)
 	return result;
 }
 
-static void
+void
 jnode_attach_page(jnode * node, struct page *pg)
 {
 	assert("nikita-2060", node != NULL);
