@@ -75,7 +75,7 @@ static inline void
 cbk_cache_lock(cbk_cache * cache /* cache to lock */ )
 {
 	assert("nikita-1800", cache != NULL);
-	spin_lock(&cache->guard);
+	spin_lock_cbk_cache(cache);
 }
 
 /* Audited by: green(2002.06.15) */
@@ -83,7 +83,7 @@ static inline void
 cbk_cache_unlock(cbk_cache * cache /* cache to unlock */ )
 {
 	assert("nikita-1801", cache != NULL);
-	spin_unlock(&cache->guard);
+	spin_unlock_cbk_cache(cache);
 }
 
 /* macro to iterate over all cbk cache slots */
