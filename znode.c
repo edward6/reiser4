@@ -1014,7 +1014,7 @@ znode_pre_write(znode * node)
 		return 0;
 
 	spin_lock(&node->cksum_guard);
-	if ((node->cksum == 0) && !znode_is_dirty(node))
+	if ((node->cksum == 0) && !znode_check_dirty(node))
 		node->cksum = znode_checksum(node);
 	spin_unlock(&node->cksum_guard);
 	return 0;
