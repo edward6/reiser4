@@ -108,3 +108,60 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
     fs->tree = NULL;
 }
 
+/*static int reiserfs_tree_lookup(reiserfs_tree_t *tree, blk_t from, 
+    reiserfs_comp_func_t comp_func, struct key *key, int for_leaf, 
+    reiserfs_path_t *path) 
+{
+    reiserfs_block_t *node;
+    uint32_t level, found = 0, pos = 0;
+	
+    ASSERT(tree != NULL, return 0);
+    ASSERT(key != NULL, return 0);
+	
+    if (!comp_func) return 0;
+
+    if (path)
+	reiserfs_path_clear(path);
+	
+    while (1) {
+	if (!(node = reiserfs_fs_read(tree->fs, from))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't read block %d.", from);
+	    return 0;
+	}    
+		
+	if ((level = get_node_level((reiserfs_node_head_t *)node->data)) > 
+	    (uint32_t)reiserfs_tree_height(tree) - 1)
+	{
+	    libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, 
+		_("Invalid node level. Found %d, expected less than %d."), 
+		level, reiserfs_tree_height(tree));
+	    return 0;
+	}
+		
+	if (!for_leaf && is_leaf_node(node))
+	    return 0;
+			
+	found = reiserfs_tools_fast_search(key, get_ih_item_head(node, 0), 
+	    get_node_nritems(get_node_head(node)), (is_leaf_node(node) ? 
+	    IH_SIZE : FULL_KEY_SIZE), comp_func, &pos);
+		
+	if (path) {
+	    if (!reiserfs_path_inc(path, reiserfs_path_node_create(reiserfs_path_last(path), node, 
+		    (found && is_internal_node(node) ? pos + 1 : pos))))
+		return 0;
+	}
+		
+	if (is_leaf_node(node))
+	    return found;
+			
+	if (level == 2 && !for_leaf)
+	    return 1;
+			
+	if (found) pos++;
+		
+	blk = get_dc_child_blocknr(get_node_disk_child(node, pos)) + tree->offset;
+    }
+    return 0;
+}*/
+

@@ -134,16 +134,22 @@ typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
 struct reiserfs_node_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*open)  (aal_device_t *, aal_block_t *);
+    reiserfs_opaque_t *(*open) (aal_device_t *, aal_block_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *, aal_block_t *, uint8_t);
+    
     error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *, int);
-    uint32_t (*max_item_size) (reiserfs_opaque_t *);
-    uint32_t (*max_item_num) (reiserfs_opaque_t *);
+    
+    uint32_t (*item_maxsize) (reiserfs_opaque_t *);
+    uint32_t (*item_maxnum) (reiserfs_opaque_t *);
     uint32_t (*item_count) (reiserfs_opaque_t *);
+    
+    uint8_t (*level) (reiserfs_opaque_t *);
+    
     uint32_t (*get_free_space) (reiserfs_opaque_t *);
     void (*set_free_space) (reiserfs_opaque_t *, uint32_t);
-    void (*print) (reiserfs_opaque_t *);
+    
+    void (*print) (reiserfs_opaque_t *, char *);
 };
 
 typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
