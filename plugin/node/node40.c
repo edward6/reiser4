@@ -312,7 +312,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	assert( "nikita-583", node != NULL );
 	assert( "nikita-584", key != NULL );
 	assert( "nikita-585", coord != NULL );
-	assert( "nikita-2693", znode_is_rlocked( node ) );
+	assert( "nikita-2693", znode_is_any_locked( node ) );
 	trace_stamp( TRACE_NODES );
 
 	node_check( node, REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
@@ -689,7 +689,7 @@ int node40_check( const znode *node /* node to check */,
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-int node40_parse( znode *node /* node to parse */)
+int node40_parse( znode *node /* node to parse */ )
 {
 	node40_header   *header;
 	int               result;
@@ -706,6 +706,15 @@ int node40_parse( znode *node /* node to parse */)
 	else {
 		node -> nr_items = node40_num_of_items( node );
 		result = 0;
+	}
+	if( 0 && result == 0 ) {
+		ZF_SET( node, JNODE_LOADED );
+		result = check_jnode_for_unallocated_in_core( node );
+		ZF_CLR( node, JNODE_LOADED );
+		if( result != 0 ) {
+			warning( "nikita-2695", "Unallocated: %i", result );
+			result = -EIO;
+		}
 	}
 	if( result != 0 )
 		print_znode( "node", node );
