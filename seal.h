@@ -23,6 +23,15 @@ typedef struct seal_s {
 #endif
 } seal_t;
 
+
+/** light-weight coord. In contrast to coord_t ->coord must be first
+ * seal_validate-ed with ->seal */
+typedef struct {
+	seal_t          *seal;
+	coord_t         *coord;
+} lw_coord_t;
+
+
 extern void seal_init( seal_t *seal, coord_t *coord, const reiser4_key *key );
 extern void seal_done( seal_t *seal );
 
