@@ -320,9 +320,9 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/space/test.h"
 #include "plugin/space/space_allocator.h"
 
-#include "plugin/disk_format/layout_40.h"
+#include "plugin/disk_format/disk_format_40.h"
 #include "plugin/disk_format/test.h"
-#include "plugin/disk_format/layout.h"
+#include "plugin/disk_format/disk_format.h"
 
 #include "plugin/plugin.h"
 #include "txnmgr.h"
