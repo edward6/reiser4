@@ -823,8 +823,17 @@ static long write_list_fq (flush_queue_t * first, long how_many)
 		first = cur->next_to_write;
 		cur->next_to_write = NULL;
 
-		if (atomic_read (&cur->nr_submitted) == 0)
+		if (atomic_read (&cur->nr_submitted) == 0) {
+			txn_atom * atom;
+
+			spin_lock_fq (cur);
+			atom = atom_get_locked_by_fq (cur);
+
 			fq_scan_io_list (cur);
+
+			spin_unlock_atom (atom);
+			spin_unlock_fq (cur);
+		}
 
 		if (nr_submitted < how_many) {
 			ret = fq_write (cur, how_many - nr_submitted);
