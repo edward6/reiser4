@@ -240,6 +240,18 @@ node40_num_of_items(const znode * node)
 	return node40_num_of_items_internal(node);
 }
 
+static void 
+node40_set_num_items(znode * node, node40_header * nh, unsigned value)
+{
+	assert("nikita-2751", node != NULL);
+	assert("nikita-2750", nh == node40_node_header(node));
+
+	check_num_items(node);
+	nh40_set_num_items(nh, value);
+	node->nr_items = value;
+	check_num_items(node);
+}
+
 /* plugin->u.node.item_by_coord
    look for description of this method in plugin/node/node.h
 */
@@ -878,9 +890,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	/* update node header */
 	nh40_set_free_space(nh, nh40_get_free_space(nh) - data->length - sizeof (item_header40));
 	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + data->length);
-	nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
-	target->node->nr_items++;
-	check_num_items(target->node);
+	node40_set_num_items(target->node, nh, nh40_get_num_items(nh) + 1);
 
 	/* FIXME: check how does create_item work when between is set to BEFORE_UNIT */
 	target->unit_pos = 0;
@@ -1180,9 +1190,7 @@ cut_or_kill(coord_t * from, coord_t * to,
 		 sizeof (item_header40) * (node40_num_of_items_internal(node) - removed_entirely - first_removed));
 
 	/* update node header */
-	nh40_set_num_items(nh, node40_num_of_items_internal(node) - removed_entirely);
-	node->nr_items -= removed_entirely;
-	check_num_items(node);
+	node40_set_num_items(node, nh, node40_num_of_items_internal(node) - removed_entirely);
 	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - (freed_space_end - freed_space_start));
 	nh40_set_free_space(nh, nh40_get_free_space(nh) +
 			    ((freed_space_end - freed_space_start) + sizeof (item_header40) * removed_entirely));
@@ -1590,9 +1598,7 @@ node40_copy(struct shift_params *shift)
 				    (shift->shift_bytes - shift->merging_bytes + sizeof (item_header40) * new_items));
 
 		/* update node header */
-		nh40_set_num_items(nh, old_items + new_items);
-		shift->target->nr_items = old_items + new_items;
-		check_num_items(shift->target);
+		node40_set_num_items(shift->target, nh, old_items + new_items);
 		assert("vs-170", nh40_get_free_space(nh) < znode_size(shift->target));
 
 		if (shift->part_units) {
@@ -1641,9 +1647,7 @@ node40_copy(struct shift_params *shift)
 				    (shift->shift_bytes + sizeof (item_header40) * new_items));
 
 		/* update node header */
-		nh40_set_num_items(nh, old_items + new_items);
-		shift->target->nr_items = old_items + new_items;
-		check_num_items(shift->target);
+		node40_set_num_items(shift->target, nh, old_items + new_items);
 		assert("vs-170", nh40_get_free_space(nh) < znode_size(shift->target));
 
 		if (shift->merging_units) {
