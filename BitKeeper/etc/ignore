@@ -1496,3 +1496,4 @@ tags
 reiser4.ko
 reiser4.mod.c
 plugin/.plugin_set.c.swp
+plugin/item/item.c.orig
