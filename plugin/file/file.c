@@ -351,9 +351,16 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 		return result;
 	}
 
+	result = zload (coord.node);
+	if (result) {
+		done_lh (&lh);
+		return result;
+	}
+
 	/* get plugin of found item */
 	iplug = item_plugin_by_coord (&coord);
 	if (!iplug->s.file.readpage) {
+		zrelse (coord.node);
 		done_lh (&lh);
 		return -EINVAL;
 	}
@@ -362,6 +369,7 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 	arg.lh = &lh;
 	result = iplug->s.file.readpage (&arg, page);
 
+	zrelse (coord.node);
 	done_lh (&lh);
 
 	return result;
