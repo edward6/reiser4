@@ -754,11 +754,18 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	flush_scan right_scan;
 	flush_scan left_scan;
 	int todo;
+	struct super_block *sb;
+	reiser4_super_info_data *info;
 
 	txn_atom *atom;
 	flush_queue_t *fq = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
+
+	sb = reiser4_get_current_sb();
+	info = get_super_private(sb);
+	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
+		down(&info->flush_sema);
 
 	flush_mode();
 	WRITE_IN_TRACE(__FUNCTION__, "in");
@@ -766,12 +773,14 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	reiser4_stat_flush_add(flush);
 
 	/* Flush-concurrency debug code */
-	ON_DEBUG(atomic_inc(&flush_cnt);
-		 trace_on(TRACE_FLUSH,
-			  "flush enter: pid %ul %u concurrent procs\n",
-			  current->pid, atomic_read(&flush_cnt)); trace_if(TRACE_FLUSH, if (atomic_read(&flush_cnt) > 1) {
-									  info("flush concurrency\n");}
-		 );) ;
+#if REISER4_DEBUG
+	atomic_inc(&flush_cnt);
+	trace_on(TRACE_FLUSH,
+		 "flush enter: pid %ul %u concurrent procs\n",
+		 current->pid, atomic_read(&flush_cnt)); 
+	trace_if(TRACE_FLUSH,
+		 if (atomic_read(&flush_cnt) > 1) info("flush concurrency\n"););
+#endif
 
 	/* The following code gets a fq attached to the atom and takes spin
 	   locks on both atom and jnode */
@@ -1069,6 +1078,9 @@ clean_out:
 	spin_unlock_atom(atom);
 	not_flush_mode();
 	WRITE_IN_TRACE(__FUNCTION__, "ex");
+
+	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
+		up(&info->flush_sema);
 
 	return ret;
 }
@@ -1491,6 +1503,8 @@ flush_forward_squalloc(flush_position * pos)
 	}
 #endif
 
+	DISABLE_NODE_CHECK;
+
 ALLOC_EXTENTS:
 
 	if (JF_ISSET(pos->point, JNODE_HEARD_BANSHEE)) {
@@ -1601,6 +1615,7 @@ ALLOC_EXTENTS:
 	}
 
 exit:
+	ENABLE_NODE_CHECK;
 	return ret;
 }
 
