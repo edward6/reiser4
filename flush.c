@@ -2322,7 +2322,10 @@ static int flush_rewrite_jnode (jnode *node)
 		return 0;
 	}
 
-	assert ("jmacd-76515", PageDirty (pg));
+	/* NOTE: this page can be not dirty due to mpage.c:mpage_writepages
+	 * strange behavior which is in cleaning page right before calling
+	 * reiser4 hook (reiser4_writepage) */
+	// assert ("jmacd-76515", PageDirty (pg));
 
 	ret = write_one_page (pg, 0 /* no wait */);
 
