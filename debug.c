@@ -324,7 +324,8 @@ static void tree_rec_dot( reiser4_tree *tree, znode *node,
 	coord_first_unit( &coord, node );
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
-		if( item_plugin_id_by_coord( &coord ) == NODE_POINTER_IT ) {
+
+		if( item_plugin_by_coord( &coord ) -> down_link ) {
 			znode *child;
 
 			spin_lock_dk( current_tree );
@@ -380,7 +381,7 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 	}
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
-		if( item_plugin_id_by_coord( &coord ) == NODE_POINTER_IT ) {
+		if( item_plugin_by_coord(&coord ) -> down_link ) {
 			znode *child;
 
 			spin_lock_dk( current_tree );
