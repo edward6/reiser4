@@ -44,4 +44,6 @@ typedef struct format_40_super_info {
  * format 40. The functions theirself are in disk_format_40.c */
 int                 format_40_get_ready    (struct super_block *, void * data);
 const reiser4_key * format_40_root_dir_key (const struct super_block *);
+int format_40_release (struct super_block * s);
+
 

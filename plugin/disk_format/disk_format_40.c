@@ -191,6 +191,15 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	return 0;
 }
 
+int format_40_release (struct super_block * s)
+{
+
+	done_tree (&get_super_private (s)->tree);
+	return 0;
+}
+	
+
+
 #define FORMAT40_ROOT_LOCALITY 41
 #define FORMAT40_ROOT_OBJECTID 42
 
