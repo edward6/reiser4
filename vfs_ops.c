@@ -2335,7 +2335,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 		/* account for spin_lock_jnode() above */
 		if (REISER4_DEBUG && get_current_context() == &__context)
-			spin_jnode_update();
+			spin_jnode_inc();
 
 		jref(node);
 		page_clear_jnode(page, node);

@@ -27,10 +27,16 @@
 /* Define several inline functions for each type of spinlock. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
 										\
-static inline void spin_ ## NAME ## _update(void)				\
+static inline void spin_ ## NAME ## _inc(void)   				\
 {										\
-	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
+	ON_DEBUG_CONTEXT(++ lock_counters()->spin_locked_ ## NAME);		\
+	ON_DEBUG_CONTEXT(++ lock_counters()->spin_locked);			\
+}										\
+										\
+static inline void spin_ ## NAME ## _dec(void)   				\
+{										\
+	ON_DEBUG_CONTEXT(--lock_counters()->spin_locked_ ## NAME);		\
+	ON_DEBUG_CONTEXT(--lock_counters()->spin_locked);			\
 }										\
 										\
 static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
@@ -47,7 +53,7 @@ static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x)			\
 {										\
 	assert( "nikita-2703", spin_ ## NAME ## _is_not_locked( x ) );		\
 	spin_lock( &x -> FIELD );						\
-	spin_ ## NAME ## _update();     					\
+	spin_ ## NAME ## _inc();        					\
 }										\
 										\
 static inline void spin_lock_ ## NAME (TYPE *x)					\
@@ -60,7 +66,7 @@ static inline void spin_lock_ ## NAME (TYPE *x)					\
 static inline int  spin_trylock_ ## NAME (TYPE *x)				\
 {										\
 	if (spin_trylock (& x->FIELD)) {					\
-		spin_ ## NAME ## _update();    					\
+		spin_ ## NAME ## _inc();    					\
 		return 1;							\
 	}									\
 	return 0;								\
@@ -72,8 +78,7 @@ static inline void spin_unlock_ ## NAME (TYPE *x)				\
 		lock_counters() -> spin_locked_ ## NAME > 0 ) );		\
 	ON_DEBUG_CONTEXT( assert( "nikita-1376",				\
 		lock_counters() -> spin_locked > 0 ) );				\
-	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked );			\
+	spin_ ## NAME ## _dec();        					\
 	assert( "nikita-2703", spin_ ## NAME ## _is_locked( x ) );		\
 	spin_unlock (& x->FIELD);						\
 }										\

@@ -249,11 +249,8 @@ scan_mgr(txn_mgr * mgr)
 	{
 		REISER4_ENTRY(tree->super);
 
-		if (REISER4_DEBUG) {
-			/* Count a spinlock taken without context */
-			ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_ktxnmgrd);
-			ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
-		}
+		/* Count a spinlock taken without context */
+		spin_ktxnmgrd_inc();
 
 		ret = commit_one_atom(mgr);
 
@@ -279,10 +276,7 @@ scan_mgr(txn_mgr * mgr)
 			mgr->daemon->rescan = 1;
 		}
 
-		if (REISER4_DEBUG) {
-			ON_DEBUG_CONTEXT(--lock_counters()->spin_locked_ktxnmgrd);
-			ON_DEBUG_CONTEXT(--lock_counters()->spin_locked);
-		}
+		spin_ktxnmgrd_dec();
 
 		REISER4_EXIT(ret);
 	}
