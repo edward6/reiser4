@@ -197,7 +197,7 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 		if (result)
 			return result;
 		break;
-	case UNALLOCATED_EXTENT2:
+	default:
 		assert("", 0);
 	}
 

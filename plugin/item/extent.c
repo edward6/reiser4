@@ -64,8 +64,6 @@ state_of_extent(reiser4_extent *ext)
 		return HOLE_EXTENT;
 	case 1:
 		return UNALLOCATED_EXTENT;
-	case 2:
-		return UNALLOCATED_EXTENT2;
 	default:
 		break;
 	}

@@ -49,7 +49,7 @@ utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 	case ALLOCATED_EXTENT:
 	case UNALLOCATED_EXTENT:
 		break;
-	case UNALLOCATED_EXTENT2:
+	default:
 		/* this should never happen */
 		assert("vs-1417", 0);
 	}
@@ -100,7 +100,7 @@ utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_
 	case UNALLOCATED_EXTENT:
 		*block = 0;
 		break;
-	case UNALLOCATED_EXTENT2:
+	default:
 		/* this should never happen */
 		assert("vs-1418", 0);
 	}

@@ -23,7 +23,6 @@ typedef struct extent_stat {
 typedef enum {
 	HOLE_EXTENT,
 	UNALLOCATED_EXTENT,
-	UNALLOCATED_EXTENT2,
 	ALLOCATED_EXTENT
 } extent_state;
 
