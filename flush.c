@@ -885,11 +885,53 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		/* goto failed; */
 	}
 
-	/* FIXME: (NEW QUEUE UNALLOCATED CHILDREN): Here, handle the twig-special case.
-	 * Finish allocating until the last twig that was allocated has no unallocated
-	 * children.  Note that the last twig may be the first one, and it may not have
-	 * been allocated at all, in which case this doesn't matter. */
+	/* FIXME_NFQUCMPD: Here, handle the twig-special case for unallocated children.
+	 * First, the flush_pos_stop() and flush_pos_valid() routines should be modified
+	 * so that flush_pos_stop() sets a flush_position->stop flag to 1 without
+	 * releasing the current position immediately--instead release it in
+	 * flush_pos_done().  This is a better implementation than the current one anyway.
+	 *
+	 * It is not clear that all fields of the flush_position should not be released,
+	 * but at the very least the parent_lock, parent_coord, and parent_load should
+	 * remain held because they are hold the last twig when flush_pos_stop() is
+	 * called.
+	 *
+	 * When we reach this point in the code, if the parent_coord is set to after the
+	 * last item then we know that flush reached the end of a twig (and according to
+	 * the new flush queueing design, we will return now).  If parent_coord is not
+	 * past the last item, we should check if the current twig has any unallocated
+	 * children to the right (we are not concerned with unallocated children to the
+	 * left--in that case the twig itself should not have been allocated).  If the
+	 * twig has unallocated children to the right, set the parent_coord to that
+	 * position and then repeat the call to flush_forward_squalloc.
+	 *
+	 * Testing for unallocated children may be defined in two ways: if any internal
+	 * item has a fake block number, it is unallocated; if any extent item is
+	 * unallocated then all of its children are unallocated.  But there is a more
+	 * aggressive approach: if there are any dirty children of the twig to the right
+	 * of the current position, we may wish to relocate those nodes now.  Checking for
+	 * potential relocation is more expensive as it requires knowing whether there are
+	 * any dirty children that are not unallocated.  The extent_needs_allocation
+	 * should be used after setting the correct preceder.
+	 *
+	 * When we reach the end of a twig at this point in the code, if the flush can
+	 * continue (when the queue is ready) it will need some information on the future
+	 * starting point.  That should be stored away in the flush_handle using a seal, I
+	 * believe.  Holding a jref() on the future starting point may break other code
+	 * that deletes that node.
+	 */
 
+	/* FIXME_NFQUCMPD: Also, we don't want to do any flushing when flush is called
+	 * above the twig level.  If the VM calls flush above the twig level, do nothing
+	 * and return (but figure out why this happens).  The txnmgr should be modified to
+	 * only flush its leaf-level dirty list.  This will do all the necessary squeeze
+	 * and allocate steps but leave unallocated branches and possibly unallocated
+	 * twigs (when the twig's leftmost child is not dirty).  After flushing the leaf
+	 * level, the remaining unallocated nodes should be given write-optimized
+	 * locations.  (Possibly, the remaining unallocated twigs should be allocated just
+	 * before their leftmost child.)
+	 */
+   
 	/* Write anything left in the queue. */
 	ret = flush_empty_queue (& flush_pos);
 
@@ -926,7 +968,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * objects are initialized any abnormal return goes to the 'failed' label. */
  clean_out:
 
-	/* Wait for io completion.
+	/* Wait for io completion.  (FIXME_NFQUCMPD)
 	 *
 	 * FIXME(A): I THINK THIS IS KILLING COMMIT PERFORMANCE!
 	 *
@@ -1068,6 +1110,11 @@ static int flush_reverse_relocate_end_of_twig (flush_position *pos)
 	load_count right_load;
 	coord_t right_coord;
 
+	/* FIXME_NFQUCMPD: This is NOT the place to check for an end-of-twig condition,
+	 * which we need to do to stop after a twig, because this function is not always
+	 * called at the end of a twig, it is only called when the last item in the twig
+	 * is an extent (because we don't know the leaf-level's right neighbor). */
+
 	init_lh (& right_lock);
 	init_load_count (& right_load);
 
@@ -1175,6 +1222,11 @@ static int flush_alloc_ancestors (flush_position *pos)
 			goto exit;
 		}
 
+		/* FIXME_NFQUCMPD: We only need to allocate the twig (if child is
+		 * leftmost) and the leaf/child, so recursion is not needed.  Levels above
+		 * the twig will be allocated for write-optimization before the
+		 * transaction commits.  */
+		
 		/* Do the recursive step, allocating zero or more of our ancestors. */
 		ret = flush_alloc_one_ancestor (& pcoord, pos);
 	}
@@ -1672,6 +1724,14 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
+	/* FIXME_NFQUCMPD: We want to squeeze and allocate one twig at a time, thus: We do
+	 * not need to allocate in this routine at all.  The calling function,
+	 * flush_squalloc_changed_ancestors, can handle allocating the leaf level (rename
+	 * this to flush_squeeze_one_changed_ancestor?).  Allocating the twig level is
+	 * already done in flush_alloc_ancestors.  But this is where we detect that we
+	 * have reached the end of a twig--see below.
+	 */
+
  RIGHT_AGAIN:
 	/* First get the right neighbor. */
 	if ((ret = znode_get_utmost_if_dirty (node, & right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
@@ -1826,6 +1886,11 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		}
 
 		done_lh (& parent_lock);
+
+		/* FIXME_NFQUCMPD: When we get here and (node->level == TWIG_LEVEL), we've
+		 * finished allocating a twig and squeezing all of its ancestors.
+		 * right_node is the next twig to squeeze.  Perhaps it should be saved
+		 * into flush_position or the flush_handle right now (using a seal). */
 
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 	}

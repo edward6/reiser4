@@ -843,6 +843,9 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->flags |= ATOM_FORCE_COMMIT;
 	atom->stage = ASTAGE_CAPTURE_WAIT;
 
+	/* FIXME_NFQUCMPD: Read the comment at the end of jnode_flush() about only calling
+	 * jnode_flush() on the leaf level. */
+
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
