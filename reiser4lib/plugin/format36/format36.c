@@ -191,12 +191,20 @@ static count_t reiserfs_format36_get_blocks(reiserfs_format36_t *format) {
     return get_sb_block_count((reiserfs_format36_super_t *)format->super->data);
 }
 
+static count_t reiserfs_format36_get_free(reiserfs_format36_t *format) {
+    return get_sb_free_blocks((reiserfs_format36_super_t *)format->super->data);
+}
+
 static void reiserfs_format36_set_root(reiserfs_format36_t *format, blk_t root) {
     set_sb_root_block((reiserfs_format36_super_t *)format->super->data, root);
 }
 
 static void reiserfs_format36_set_blocks(reiserfs_format36_t *format, count_t blocks) {
     set_sb_block_count((reiserfs_format36_super_t *)format->super->data, blocks);
+}
+
+static void reiserfs_format36_set_free(reiserfs_format36_t *format, count_t blocks) {
+    set_sb_free_blocks((reiserfs_format36_super_t *)format->super->data, blocks);
 }
 
 static reiserfs_plugin_t format36_plugin = {
@@ -224,9 +232,11 @@ static reiserfs_plugin_t format36_plugin = {
 	
 	.get_root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_root,
 	.get_blocks = (count_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_blocks,
+	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_free,
 	
 	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_format36_set_root,
 	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format36_set_blocks,
+	.set_free = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format36_set_free,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_journal_plugin,

@@ -119,9 +119,11 @@ struct reiserfs_format_plugin {
     
     blk_t (*get_root) (reiserfs_opaque_t *);
     count_t (*get_blocks) (reiserfs_opaque_t *);
+    count_t (*get_free) (reiserfs_opaque_t *);
 	
     void (*set_root) (reiserfs_opaque_t *, blk_t);
     void (*set_blocks) (reiserfs_opaque_t *, count_t);
+    void (*set_free) (reiserfs_opaque_t *, count_t);
     
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
@@ -143,8 +145,9 @@ struct reiserfs_alloc_plugin {
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
 
-    blk_t (*allocate) (reiserfs_opaque_t *);
-    void (*deallocate) (reiserfs_opaque_t *, blk_t);
+    void (*use) (reiserfs_opaque_t *, blk_t);
+    void (*unuse) (reiserfs_opaque_t *, blk_t);
+    blk_t (*find) (reiserfs_opaque_t *, blk_t);
     
     count_t (*free) (reiserfs_opaque_t *);
     count_t (*used) (reiserfs_opaque_t *);

@@ -186,8 +186,8 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     size_t blocksize, const char *uuid, const char *label, count_t len, 
     aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
-    blk_t root_blk;
     reiserfs_fs_t *fs;
+    blk_t root_blk, blk;
 
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
@@ -213,6 +213,16 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_alloc_create(fs))
 	goto error_free_super;
     
+    /* Marking the skiped area (0-16 4Kb blocks) as used */
+    for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / blocksize); blk++)
+	reiserfs_alloc_use(fs, blk);
+    
+    /* Marking master super block as used */
+    reiserfs_alloc_use(fs, (REISERFS_MASTER_OFFSET / blocksize));
+    
+    /* Marking format-specific super block as used */
+    reiserfs_alloc_use(fs, reiserfs_super_offset(fs));
+
 /*    if (reiserfs_journal_create(fs, journal_device, journal_params))
 	goto error_free_alloc;*/
 	
@@ -223,14 +233,31 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	Setting up root block. Here also should be setting 
 	of free-blocks filed. 
     */
-    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, allocate, goto error_free_journal);
-    if (!(root_blk = fs->alloc->plugin->alloc.allocate(fs->alloc->entity))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't allocate root block.");
+    if (!(root_blk = reiserfs_alloc_find(fs))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate root block.");
 	goto error_free_journal;
     }
+    
+    /* Marking nodes used */
+    reiserfs_alloc_use(fs, root_blk);
 
+    /* 
+	Here leaf should be found, marked used and passed into 
+	internal root create function.
+    */
+    reiserfs_alloc_use(fs, reiserfs_alloc_find(fs));
+
+    /* Following calls should be made via reiserfs_super_* functions */
     reiserfs_plugin_check_routine(fs->super->plugin->format, set_root, goto error_free_journal);
     fs->super->plugin->format.set_root(fs->super->entity, root_blk);
+
+    /* 
+	Free blocks value equals: block count - skiped area - master super block -
+       	- format-specific super block - first bitmap block - minus root internal node - leaf.
+    */
+    reiserfs_plugin_check_routine(fs->super->plugin->format, set_free, goto error_free_journal);
+    fs->super->plugin->format.set_free(fs->super->entity, reiserfs_alloc_free(fs));
 
     return fs;
 

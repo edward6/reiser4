@@ -136,3 +136,27 @@ count_t reiserfs_alloc_used(reiserfs_fs_t *fs) {
     return fs->alloc->plugin->alloc.used(fs->alloc->entity);
 }
 
+void reiserfs_alloc_use(reiserfs_fs_t *fs, blk_t blk) {
+    aal_assert("umka-361", fs != NULL, return);
+    aal_assert("umka-362", fs->alloc != NULL, return);
+
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, use, return);
+    fs->alloc->plugin->alloc.use(fs->alloc->entity, blk);
+}
+
+void reiserfs_alloc_unuse(reiserfs_fs_t *fs, blk_t blk) {
+    aal_assert("umka-361", fs != NULL, return);
+    aal_assert("umka-362", fs->alloc != NULL, return);
+
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, unuse, return);
+    fs->alloc->plugin->alloc.unuse(fs->alloc->entity, blk);
+}
+
+blk_t reiserfs_alloc_find(reiserfs_fs_t *fs) {
+    aal_assert("umka-361", fs != NULL, return 0);
+    aal_assert("umka-362", fs->alloc != NULL, return 0);
+
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, find, return 0);
+    return fs->alloc->plugin->alloc.find(fs->alloc->entity, 0);
+}
+

@@ -78,8 +78,9 @@ static reiserfs_plugin_t alloc36_plugin = {
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_alloc36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc36_sync,
 
-	.allocate = NULL,
-	.deallocate = NULL,
+	.use = NULL,
+	.unuse = NULL,
+	.find = NULL,
 	
 	.free = NULL,
 	.used = NULL
