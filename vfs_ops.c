@@ -57,15 +57,13 @@ static int reiser4_rmdir(struct inode *, struct dentry *);
 static int reiser4_symlink(struct inode *, struct dentry *, const char *);
 static int reiser4_mkdir(struct inode *, struct dentry *, int);
 static int reiser4_mknod(struct inode *, struct dentry *, int, int);
-static int reiser4_rename(struct inode *, struct dentry *,
-			  struct inode *, struct dentry *);
+static int reiser4_rename(struct inode *, struct dentry *, struct inode *, struct dentry *);
 static int reiser4_readlink(struct dentry *, char *, int);
 static int reiser4_follow_link(struct dentry *, struct nameidata *);
 static void reiser4_truncate(struct inode *);
 static int reiser4_permission(struct inode *, int);
 static int reiser4_setattr(struct dentry *, struct iattr *);
-static int reiser4_getattr(struct vfsmount *mnt, struct dentry *,
-			   struct kstat *);
+static int reiser4_getattr(struct vfsmount *mnt, struct dentry *, struct kstat *);
 static int reiser4_setxattr(struct dentry *, const char *, void *, size_t, int);
 static ssize_t reiser4_getxattr(struct dentry *, const char *, void *, size_t);
 static ssize_t reiser4_listxattr(struct dentry *, char *, size_t);
@@ -85,15 +83,11 @@ static int reiser4_release(struct inode *, struct file *);
 static int reiser4_fsync(struct file *, struct dentry *, int datasync);
 static int reiser4_fasync(int, struct file *, int);
 static int reiser4_lock(struct file *, int, struct file_lock *);
-static ssize_t reiser4_readv(struct file *,
-			     const struct iovec *, unsigned long, loff_t *);
-static ssize_t reiser4_writev(struct file *,
-			      const struct iovec *, unsigned long, loff_t *);
-static ssize_t reiser4_sendpage(struct file *, struct page *,
-				int, size_t, loff_t *, int);
+static ssize_t reiser4_readv(struct file *, const struct iovec *, unsigned long, loff_t *);
+static ssize_t reiser4_writev(struct file *, const struct iovec *, unsigned long, loff_t *);
+static ssize_t reiser4_sendpage(struct file *, struct page *, int, size_t, loff_t *, int);
 static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
-					       unsigned long, unsigned long,
-					       unsigned long);
+					       unsigned long, unsigned long, unsigned long);
 /* super operations */
 
 static struct inode *reiser4_alloc_inode(struct super_block *super);
@@ -110,10 +104,8 @@ static int reiser4_statfs(struct super_block *, struct statfs *);
 static int reiser4_remount_fs(struct super_block *, int *, char *);
 static void reiser4_clear_inode(struct inode *);
 static void reiser4_kill_super(struct super_block *);
-static struct dentry *reiser4_fh_to_dentry(struct super_block *sb, __u32 * fh,
-					   int len, int fhtype, int parent);
-static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh,
-				int *lenp, int need_parent);
+static struct dentry *reiser4_fh_to_dentry(struct super_block *sb, __u32 * fh, int len, int fhtype, int parent);
+static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need_parent);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 
@@ -121,8 +113,7 @@ static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
-static int reiser4_vm_writeback(struct page *page,
-				struct writeback_control *wbc);
+static int reiser4_vm_writeback(struct page *page, struct writeback_control *wbc);
 /*
 static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
@@ -138,9 +129,7 @@ extern struct dentry_operations reiser4_dentry_operation;
 
 static struct file_system_type reiser4_fs_type;
 
-static int invoke_create_method(struct inode *parent,
-				struct dentry *dentry,
-				reiser4_object_create_data * data);
+static int invoke_create_method(struct inode *parent, struct dentry *dentry, reiser4_object_create_data * data);
 
 /**
  * reiser4_lookup() - entry point for ->lookup() method.
@@ -264,8 +253,7 @@ reiser4_mknod(struct inode *parent /* inode of parent directory */ ,
 
 /** ->rename() inode operation */
 static int
-reiser4_rename(struct inode *old_dir, struct dentry *old,
-	       struct inode *new_dir, struct dentry *new)
+reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir, struct dentry *new)
 {
 	int result;
 	REISER4_ENTRY(old_dir->i_sb);
@@ -293,9 +281,8 @@ static int
 reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
 {
 	assert("vs-852", S_ISLNK(dentry->d_inode->i_mode));
-	if (!dentry->d_inode->u.generic_ip ||
-	    !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
-		    return -EINVAL;
+	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
+		return -EINVAL;
 	return vfs_readlink(dentry, buf, buflen, dentry->d_inode->u.generic_ip);
 }
 
@@ -304,9 +291,8 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	if (!dentry->d_inode->u.generic_ip ||
-	    !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
-		    return -EINVAL;
+	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
+		return -EINVAL;
 	return vfs_follow_link(data, dentry->d_inode->u.generic_ip);
 }
 
@@ -340,8 +326,7 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
  * ->getattr() inode operation called (indirectly) by sys_stat().
  */
 static int
-reiser4_getattr(struct vfsmount *mnt UNUSED_ARG,
-		struct dentry *dentry, struct kstat *stat)
+reiser4_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *inode = dentry->d_inode;
 	int result;
@@ -382,8 +367,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 
 	trace_on(TRACE_VFS_OPS,
 		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
-		 file->f_dentry->d_inode->i_ino,
-		 file->f_dentry->d_inode->i_size, size, *off);
+		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size, size, *off);
 
 	fplug = inode_file_plugin(file->f_dentry->d_inode);
 	assert("nikita-417", fplug != NULL);
@@ -420,8 +404,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	reiser4_stat_vfs_calls_add(writes);
 
 	trace_on(TRACE_VFS_OPS,
-		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
-		 inode->i_ino, inode->i_size, size, *off);
+		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", inode->i_ino, inode->i_size, size, *off);
 
 	if (size != 0) {
 		down(&inode->i_sem);
@@ -444,8 +427,7 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 
 	assert("umka-075", inode != NULL);
 
-	trace_on(TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n",
-		 inode->i_ino, inode->i_size);
+	trace_on(TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n", inode->i_ino, inode->i_size);
 
 	truncate_object(inode, inode->i_size);
 	/* 
@@ -554,8 +536,7 @@ reiser4_writepage(struct page *page)
 	struct writeback_control wbc;
 	REISER4_ENTRY(page->mapping->host->i_sb);
 
-	trace_on(TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n",
-		 page->mapping->host->i_ino, page->index);
+	trace_on(TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n", page->mapping->host->i_ino, page->index);
 
 	fplug = inode_file_plugin(page->mapping->host);
 	if (fplug->writepage != NULL)
@@ -575,8 +556,7 @@ reiser4_writepage(struct page *page)
 	 * clean page.  An extra reference should protect this page from
 	 * removing from memory */
 	page_cache_get(page);
-	result = page_common_writeback(page, &wbc,
-				       JNODE_FLUSH_MEMORY_UNFORMATTED);
+	result = page_common_writeback(page, &wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	page_cache_release(page);
 	REISER4_EXIT(result);
 }
@@ -598,8 +578,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	assert("vs-976", !PageUptodate(page));
 
 	assert("vs-318", page->mapping && page->mapping->host);
-	assert("nikita-1352",
-	       (f == NULL) || (f->f_dentry->d_inode == page->mapping->host));
+	assert("nikita-1352", (f == NULL) || (f->f_dentry->d_inode == page->mapping->host));
 
 	/*
 	 * ->readpage can be called from page fault service routine
@@ -673,9 +652,7 @@ reiser4_bmap(struct address_space *mapping, sector_t block)
  * return value: number of pages for which i/o is started
  */
 int
-reiser4_do_page_cache_readahead(struct file *file,
-				unsigned long start_page,
-				unsigned long intrafile_readahead_amount)
+reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, unsigned long intrafile_readahead_amount)
 {
 	int result = 0;
 	struct inode *inode;
@@ -708,15 +685,12 @@ reiser4_do_page_cache_readahead(struct file *file,
 	cur_page = start_page;
 	while (intrafile_readahead_amount) {
 		/* calc key of next page to readahead */
-		fplug->key_by_inode(inode,
-				    (loff_t) cur_page << PAGE_CACHE_SHIFT,
-				    &key);
+		fplug->key_by_inode(inode, (loff_t) cur_page << PAGE_CACHE_SHIFT, &key);
 
 		/*
 		 * FIXME-ME: seal might be used to find_next_item
 		 */
-		result = find_next_item(0, &key, &coord, &lh,
-					ZNODE_READ_LOCK, CBK_UNIQUE);
+		result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			break;
 		}
@@ -734,15 +708,12 @@ reiser4_do_page_cache_readahead(struct file *file,
 		}
 		/* item's readahead returns number of pages for which readahead
 		 * is started */
-		result = iplug->s.file.page_cache_readahead(file, &coord, &lh,
-							    cur_page,
-							    intrafile_readahead_amount);
+		result = iplug->s.file.page_cache_readahead(file, &coord, &lh, cur_page, intrafile_readahead_amount);
 		zrelse(coord.node);
 		if (result <= 0) {
 			break;
 		}
-		assert("vs-794",
-		       (unsigned long) result <= intrafile_readahead_amount);
+		assert("vs-794", (unsigned long) result <= intrafile_readahead_amount);
 		intrafile_readahead_amount -= result;
 		cur_page += result;
 	}
@@ -795,8 +766,7 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 	REISER4_ENTRY(inode->i_sb);
 
 	trace_on(TRACE_VFS_OPS,
-		 "llseek: (i_ino %li, size %lld): off %lli, origin %d\n",
-		 inode->i_ino, inode->i_size, off, origin);
+		 "llseek: (i_ino %li, size %lld): off %lli, origin %d\n", inode->i_ino, inode->i_size, off, origin);
 
 	fplug = inode_file_plugin(inode);
 	assert("nikita-2291", fplug != NULL);
@@ -863,8 +833,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
 
 	trace_on(TRACE_VFS_OPS, "MMAP: (i_ino %li, size %lld)\n",
-		 file->f_dentry->d_inode->i_ino,
-		 file->f_dentry->d_inode->i_size);
+		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size);
 
 	inode = file->f_dentry->d_inode;
 	if (inode_file_plugin(inode)->mmap == NULL)
@@ -886,8 +855,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "unlink: %li/%s\n",
-		 (long) parent->i_ino, victim->d_name.name);
+	trace_on(TRACE_DIR | TRACE_VFS_OPS, "unlink: %li/%s\n", (long) parent->i_ino, victim->d_name.name);
 
 	dplug = inode_dir_plugin(parent);
 	assert("nikita-1429", dplug != NULL);
@@ -1087,8 +1055,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		} else {
 			d_instantiate(dentry, child);
 			trace_on(TRACE_VFS_OPS, "create: %s (%o) %llu\n",
-				 dentry->d_name.name, data->mode,
-				 get_inode_oid(child));
+				 dentry->d_name.name, data->mode, get_inode_oid(child));
 		}
 		
 	} else
@@ -1115,8 +1082,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 		int result;
 		result = fplug->truncate(inode, size);
 		if (result != 0) {
-			warning("nikita-1602", "Truncate error: %i for %lli",
-				result, get_inode_oid(inode));
+			warning("nikita-1602", "Truncate error: %i for %lli", result, get_inode_oid(inode));
 		}
 		return result;
 	} else {
@@ -1147,8 +1113,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	if (dentry->d_fsdata == NULL) {
 		reiser4_stat_file_add(fsdata_alloc);
 		/* FIXME-NIKITA use slab in stead */
-		dentry->d_fsdata =
-		    reiser4_kmalloc(sizeof (reiser4_dentry_fsdata), GFP_KERNEL);
+		dentry->d_fsdata = reiser4_kmalloc(sizeof (reiser4_dentry_fsdata), GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(-ENOMEM);
 		xmemset(dentry->d_fsdata, 0, sizeof (reiser4_dentry_fsdata));
@@ -1240,8 +1205,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 	assert("umka-082", fplug != NULL);
 
 	trace_on(TRACE_VFS_OPS,
-		 "RELEASE: (i_ino %li, size %lld, tail status: %s)\n", i->i_ino,
-		 i->i_size, tail_status(i));
+		 "RELEASE: (i_ino %li, size %lld, tail status: %s)\n", i->i_ino, i->i_size, tail_status(i));
 
 	if (fplug->release)
 		result = fplug->release(f);
@@ -1281,8 +1245,7 @@ init_once(void *obj /* pointer to new inode */ ,
 
 	info = obj;
 
-	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) ==
-	    SLAB_CTOR_CONSTRUCTOR) {
+	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) == SLAB_CTOR_CONSTRUCTOR) {
 		/*
 		 * FIXME-NIKITA add here initialisations for locks, list
 		 * heads, etc. that will be added to our private inode part.
@@ -1302,8 +1265,7 @@ int
 init_inodecache(void)
 {
 	inode_cache = kmem_cache_create("reiser4_inode_cache",
-					sizeof (reiser4_inode_object), 0,
-					SLAB_HWCACHE_ALIGN, init_once, NULL);
+					sizeof (reiser4_inode_object), 0, SLAB_HWCACHE_ALIGN, init_once, NULL);
 	return (inode_cache != NULL) ? 0 : -ENOMEM;
 }
 
@@ -1360,20 +1322,15 @@ static void
 reiser4_destroy_inode(struct inode *inode	/* inode being
 						 * destroyed */ )
 {
-	__REISER4_ENTRY(inode->i_sb,);
-
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
-			reiser4_kfree(inode->u.generic_ip,
-				      (size_t) inode->i_size + 1);
+			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
 			inode->u.generic_ip = 0;
 			inode_clr_flag(inode, REISER4_GENERIC_VP_USED);
 		}
 	}
 	kmem_cache_free(inode_cache, reiser4_inode_data(inode));
-
-	__REISER4_EXIT(&__context);
 }
 
 /** ->dirty_inode() super operation */
@@ -1402,8 +1359,7 @@ reiser4_dirty_inode(struct inode *inode)
 
 	result = reiser4_write_sd(inode);
 	if (result != 0)
-		warning("nikita-2524", "Failed to write sd of %llu: %i",
-			get_inode_oid(inode), result);
+		warning("nikita-2524", "Failed to write sd of %llu: %i", get_inode_oid(inode), result);
 no_space:
 	__REISER4_EXIT(&__context);
 }
@@ -1606,9 +1562,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 			break;
 		}
 		if (sscanf(val_start, opt->u.f.format,
-			   opt->u.f.arg1,
-			   opt->u.f.arg2,
-			   opt->u.f.arg3, opt->u.f.arg4) != opt->u.f.nr_args) {
+			   opt->u.f.arg1, opt->u.f.arg2, opt->u.f.arg3, opt->u.f.arg4) != opt->u.f.nr_args) {
 			err_msg = "Wrong conversion";
 			result = -EINVAL;
 		}
@@ -1625,8 +1579,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 				break;
 			}
 
-			plug =
-			    lookup_plugin(opt->u.plugin.type_label, val_start);
+			plug = lookup_plugin(opt->u.plugin.type_label, val_start);
 			if (plug != NULL)
 				*opt->u.plugin.addr = plug;
 			else {
@@ -1641,8 +1594,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 	}
 	if (err_msg != NULL) {
 		warning("nikita-2496", "%s when parsing option \"%s%s%s\"",
-			err_msg,
-			opt->name, val_start ? "=" : "", val_start ? : "");
+			err_msg, opt->name, val_start ? "=" : "", val_start ? : "");
 	}
 	return result;
 }
@@ -1666,15 +1618,13 @@ parse_options(char *opt_string /* starting point */ ,
 			++next;
 		}
 		for (j = 0; j < nr_opts; ++j) {
-			if (!strncmp(opt_string, opts[j].name,
-				     strlen(opts[j].name))) {
+			if (!strncmp(opt_string, opts[j].name, strlen(opts[j].name))) {
 				result = parse_option(opt_string, &opts[j]);
 				break;
 			}
 		}
 		if (j == nr_opts) {
-			warning("nikita-2307", "Unrecognized option: \"%s\"",
-				opt_string);
+			warning("nikita-2307", "Unrecognized option: \"%s\"", opt_string);
 			/* 
 			 * traditionally, -EINVAL is returned on wrong mount
 			 * option
@@ -1856,8 +1806,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	if (info->plug.sd == NULL)
 		info->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
 	if (info->plug.dir_item == NULL)
-		info->plug.dir_item =
-		    item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
+		info->plug.dir_item = item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
 	if (info->plug.p == NULL)
 		info->plug.p = perm_plugin_by_id(REISER4_PERM_PLUGIN);
 	if (info->plug.f == NULL)
@@ -1897,9 +1846,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	}
 #if REISER4_TRACE_TREE
 	if (trace_file_name != NULL)
-		result = open_trace_file(s, trace_file_name,
-					 REISER4_TRACE_BUF_SIZE,
-					 &info->trace_file);
+		result = open_trace_file(s, trace_file_name, REISER4_TRACE_BUF_SIZE, &info->trace_file);
 	else
 		info->trace_file.type = log_to_bucket;
 #endif
@@ -1919,14 +1866,12 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	seq_printf(m, ",debug=0x%x", info->debug_flags);
 	seq_printf(m, ",atom_max_size=0x%x", info->txnmgr.atom_max_size);
 
-	seq_printf(m, ",default plugins: file=\"%s\"",
-		   default_file_plugin(super)->h.label);
+	seq_printf(m, ",default plugins: file=\"%s\"", default_file_plugin(super)->h.label);
 	seq_printf(m, ",dir=\"%s\"", default_dir_plugin(super)->h.label);
 	seq_printf(m, ",hash=\"%s\"", default_hash_plugin(super)->h.label);
 	seq_printf(m, ",tail=\"%s\"", default_tail_plugin(super)->h.label);
 	seq_printf(m, ",perm=\"%s\"", default_perm_plugin(super)->h.label);
-	seq_printf(m, ",dir_item=\"%s\"",
-		   default_dir_item_plugin(super)->h.label);
+	seq_printf(m, ",dir_item=\"%s\"", default_dir_item_plugin(super)->h.label);
 	seq_printf(m, ",sd=\"%s\"", default_sd_plugin(super)->h.label);
 	return 0;
 }
@@ -1965,10 +1910,8 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	assert("umka-085", s != NULL);
 
 	if ((REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
-	     REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE ||
-	     REISER4_TRACE_TREE) && !silent)
-		warning("nikita-2372",
-			"Debugging is on. Benchmarking is invalid.");
+	     REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE || REISER4_TRACE_TREE) && !silent)
+		warning("nikita-2372", "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
 	 * specific part of info can be attached to, though */
@@ -2005,9 +1948,7 @@ read_super_block:
 
 		if (blocksize != PAGE_CACHE_SIZE) {
 			if (!silent)
-				warning("nikita-2609",
-					"%s: wrong block size %ld\n",
-					s->s_id, blocksize);
+				warning("nikita-2609", "%s: wrong block size %ld\n", s->s_id, blocksize);
 			brelse(super_bh);
 			goto error1;
 		}
@@ -2021,15 +1962,13 @@ read_super_block:
 
 		plugin_id = d16tocpu(&master_sb->disk_plugin_id);
 		/* only two plugins are available for now */
-		assert("vs-476", (plugin_id == FORMAT40_ID ||
-				  plugin_id == TEST_FORMAT_ID));
+		assert("vs-476", (plugin_id == FORMAT40_ID || plugin_id == TEST_FORMAT_ID));
 		df_plug = disk_format_plugin_by_id(plugin_id);
 		brelse(super_bh);
 	} else {
 		if (!silent)
 			warning("nikita-2608", "Wrong magic: %x != %x",
-				*(__u32 *) master_sb->magic,
-				*(__u32 *) REISER4_SUPER_MAGIC_STRING);
+				*(__u32 *) master_sb->magic, *(__u32 *) REISER4_SUPER_MAGIC_STRING);
 		/* no standard reiser4 super block found */
 		brelse(super_bh);
 		/* FIXME-VS: call guess method for all available layout
@@ -2179,9 +2118,7 @@ reiser4_kill_super(struct super_block *s)
 	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT)) {
 		get_current_context()->trace_flags |= (TRACE_PCACHE |
 						       TRACE_TXN |
-						       TRACE_FLUSH |
-						       TRACE_ZNODES |
-						       TRACE_IO_R | TRACE_IO_W);
+						       TRACE_FLUSH | TRACE_ZNODES | TRACE_IO_R | TRACE_IO_W);
 	}
 
 	/* flushes transactions, etc. */
@@ -2217,8 +2154,7 @@ reiser4_kill_super(struct super_block *s)
 		}
 	}
 	if (info->kmalloc_allocated > 0)
-		warning("nikita-2622", "%i bytes still allocated",
-			info->kmalloc_allocated);
+		warning("nikita-2622", "%i bytes still allocated", info->kmalloc_allocated);
 #endif
 
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
@@ -2240,9 +2176,8 @@ reiser4_write_super(struct super_block *s)
 
 	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember putting this
 	 * here. */
-	if ((ret = mgr_force_commit_all(s))) {
-		warning("jmacd-77113", "txn_force failed in write_super: %d",
-			ret);
+	if ((ret = txnmgr_force_commit_all(s))) {
+		warning("jmacd-77113", "txn_force failed in write_super: %d", ret);
 	}
 
 	/* Oleg says do this: */
@@ -2310,8 +2245,7 @@ try_to_lock:
 					 * is on
 					 */
 					nr_io_errors = 0;
-					ret =
-					    finish_all_fq(atom, &nr_io_errors);
+					ret = finish_all_fq(atom, &nr_io_errors);
 
 					if (ret) {
 						if (ret == -EBUSY) {
@@ -2321,10 +2255,7 @@ try_to_lock:
 							 * rescan atom's list
 							 * for not busy flush
 							 * queues. */
-							atom =
-							    atom_wait_event
-							    (get_current_context
-							     ()->trans);
+							atom = atom_wait_event(get_current_context()->trans);
 							spin_unlock_atom(atom);
 
 							jput(node);
@@ -2334,8 +2265,7 @@ try_to_lock:
 
 						if (ret != -EAGAIN)
 							reiser4_panic
-							    ("zam-x1071: cannot flush queued node (ret = %d)\n",
-							     ret);
+							    ("zam-x1071: cannot flush queued node (ret = %d)\n", ret);
 						/* -EAGAIN means we have to
 						 * repeat. Repeating of
 						 * finish_all_fq() may be not
@@ -2362,18 +2292,15 @@ try_to_lock:
 			reiser4_lock_page(page);
 			assert("nikita-2676", jprivate(page) == node);
 			if (ret) {
-				warning("green-20",
-					"try_capture returned %d", ret);
-				if ((ret == -EAGAIN) || (ret == -EDEADLK) ||
-				    (ret == -EINTR)) {
+				warning("green-20", "try_capture returned %d", ret);
+				if ((ret == -EAGAIN) || (ret == -EDEADLK) || (ret == -EINTR)) {
 					preempt_point();
 					goto try_to_lock;
 				}
 			} else {
 				uncapture_page(page);
 
-				UNDER_SPIN_VOID(jnode, node,
-						page_clear_jnode(page, node));
+				UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
 				JF_SET(node, JNODE_HEARD_BANSHEE);
 			}
 			/*
@@ -2394,8 +2321,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
-	ON_DEBUG_CONTEXT(assert("nikita-2586",
-				lock_counters()->spin_locked == 0));
+	ON_DEBUG_CONTEXT(assert("nikita-2586", lock_counters()->spin_locked == 0));
 
 	/*
 	 * FIXME-NIKITA: this can be called in the context of reiser4 call. It
@@ -2407,8 +2333,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2258", node != NULL);
 
 #if REISER4_STATS
-	++get_super_private(page->mapping->host->i_sb)->stats.
-	    level[jnode_get_level(node) - LEAF_LEVEL].page_try_release;
+	++get_super_private(page->mapping->host->i_sb)->stats.level[jnode_get_level(node) -
+								    LEAF_LEVEL].page_try_release;
 #endif
 
 	/*
@@ -2429,8 +2355,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	 * number. For example, node just created in jinit_new().
 	 */
 	if (atomic_read(&node->d_count) || jnode_is_loaded(node) ||
-	    blocknr_is_fake(jnode_get_block(node)) ||
-	    jnode_is_dirty(node) || JF_ISSET(node, JNODE_OVRWR)
+	    blocknr_is_fake(jnode_get_block(node)) || jnode_is_dirty(node) || JF_ISSET(node, JNODE_OVRWR)
 	    || JF_ISSET(node, JNODE_WRITEBACK)) {
 		spin_unlock_jnode(node);
 		return 0;
@@ -2464,7 +2389,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 }
 
 /* reiser4 writepages() address space operation */
-int reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
+int
+reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	int ret = 0;
 	struct super_block *s = mapping->host->i_sb;
@@ -2472,7 +2398,7 @@ int reiser4_writepages(struct address_space *mapping, struct writeback_control *
 
 	REISER4_ENTRY(s);
 
-	assert ("zam-760", lock_stack_isclean(get_current_lock_stack()));
+	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
 	/* Here we can call synchronously. We can be called from
 	 * balance_dirty_pages() Reiser4 code is supposed to call
 	 * balance_dirty_pages at paces where no locks are hold it means we can
@@ -2489,7 +2415,7 @@ int reiser4_writepages(struct address_space *mapping, struct writeback_control *
 			break;
 		}
 
-		ret = flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+		ret = flush_some_atom(&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
 
 		if (!nr_submitted)
 			break;
@@ -2528,14 +2454,11 @@ done_reiser4(void)
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
 	DONE_IF(INIT_JNODES, jnode_done_static());
-	DONE_IF(INIT_FAKES,;
-	    );
+	DONE_IF(INIT_FAKES,;);
 	DONE_IF(INIT_TXN, txnmgr_done_static());
-	DONE_IF(INIT_PLUGINS,;
-	    );
+	DONE_IF(INIT_PLUGINS,;);
 	DONE_IF(INIT_ZNODES, znodes_done());
-	DONE_IF(INIT_CONTEXT_MGR,;
-	    );
+	DONE_IF(INIT_CONTEXT_MGR,;);
 	DONE_IF(INIT_INODECACHE, destroy_inodecache());
 	assert("nikita-2516", init_stage == INIT_NONE);
 
@@ -2550,8 +2473,7 @@ test(struct notifier_block *self, unsigned long event, void *arg)
 
 	info = arg;
 
-	info("low_mem: %lu, zone: %s, prio: %i, scanned: %i\n",
-	     event, info->zone->name, info->priority, info->scanned);
+	info("low_mem: %lu, zone: %s, prio: %i, scanned: %i\n", event, info->zone->name, info->priority, info->scanned);
 	return NOTIFY_DONE;
 }
 
@@ -2581,8 +2503,7 @@ init_reiser4(void)
 
 	int result;
 
-	info(KERN_INFO "Loading Reiser4. "
-	     "See www.namesys.com for a description of Reiser4.\n");
+	info(KERN_INFO "Loading Reiser4. " "See www.namesys.com for a description of Reiser4.\n");
 	init_stage = INIT_NONE;
 
 	CHECK_INIT_RESULT(init_inodecache());
