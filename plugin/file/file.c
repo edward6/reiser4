@@ -462,7 +462,9 @@ static int reserve_cut_iteration(reiser4_tree *tree, const char * message)
 	assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
 
 	grab_space_enable();
-	return reiser4_grab_reserved(reiser4_get_current_sb(), estimate, BA_CAN_COMMIT, message);
+	/* We need to double our estimate now that we can delete more than one
+	   node. */
+	return reiser4_grab_reserved(reiser4_get_current_sb(), estimate*2, BA_CAN_COMMIT, message);
 }
 
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
