@@ -562,6 +562,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
+	/* next page after last one */
 	last_page = ((inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
 	if (start_page + intrafile_readahead_amount > last_page)
 		/* do not read past current file size */
