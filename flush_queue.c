@@ -400,6 +400,7 @@ add_fq_to_bio(flush_queue_t * fq, struct bio *bio)
 		atomic_add(bio->bi_vcnt, &fq->nr_submitted);
 }
 
+/* Move all queued nodes out from @fq->prepped list. */
 static void release_prepped_list(flush_queue_t * fq)
 {
 	txn_atom * atom;
@@ -450,10 +451,8 @@ static void release_prepped_list(flush_queue_t * fq)
 /* Submit write requests for nodes on the already filled flush queue @fq.
 
    @fq: flush queue object which contains jnodes we can (and will) write.
-
-   @return: number of submitted blocks (>=0) if success, otherwise -- error code
-            (<0).
-*/
+   @return: number of submitted blocks (>=0) if success, otherwise -- an error
+            code (<0). */
 int
 write_fq(flush_queue_t * fq)
 {

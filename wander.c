@@ -65,15 +65,9 @@
    fields makes processes of atom commit, flush and recovering a bit more
    complex (see comments in the source code for details).
 
-   The atom flush process (the term "flush" is used here in a different
-   meaning than in flush.c, it means writing block of atom's overwrite set
-   in-place, i.e. to their real locations) follows atom commit.
-
-ZAM-FIXME-HANS: use term "play" and define it too;-)
-
-   Atom flush:
+   The atom playing is the following:
   
-   1. Write atom's overwrite set in-place
+   1. Write atom's overwrite set in-place.
   
    2. Wait on i/o.
   
