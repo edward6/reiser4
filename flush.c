@@ -2125,7 +2125,6 @@ squeeze_right_non_twig(znode * left, znode * right)
 	carry_pool pool;
 	carry_level todo;
 	int old_items;
-	int old_free_space;
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
 
@@ -2136,15 +2135,18 @@ squeeze_right_non_twig(znode * left, znode * right)
 	init_carry_level(&todo, &pool);
 
 	old_items = node_num_items(left);
-	old_free_space = znode_free_space(left);
 	ret = shift_everything_left(right, left, &todo);
 
+#if REISER4_STATS
 	/* FIXME-VS: urgently added squeeze statistics */
 	if (znode_get_level(left) == LEAF_LEVEL) {
+		int old_free_space = znode_free_space(left);
+		
 		reiser4_stat_inc(flush.squeezed_leaves);
 		reiser4_stat_add(flush.squeezed_leaf_items, node_num_items(left) - old_items);
 		reiser4_stat_add(flush.squeezed_leaf_bytes, old_free_space - znode_free_space(left));
 	}
+#endif
 
 	UNDER_SPIN_VOID(dk, znode_get_tree(left), update_znode_dkeys(left, right));
 
