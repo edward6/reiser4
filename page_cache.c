@@ -183,6 +183,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <linux/mm.h>		/* for struct page */
+#include <linux/swap.h>		/* for struct page */
 #include <linux/pagemap.h>
 #include <linux/bio.h>
 #include <linux/writeback.h>
@@ -667,7 +668,7 @@ print_page_state(const char *prefix, struct page_state *ps)
 	       "free: %u, "
 	       "dirty: %lu, "
 	       "writeback: %lu, "
-	       "pagecache: %lu, "
+//	       "pagecache: %lu, "
 //	     "page_table_pages: %lu, "
 //	     "reverse_maps: %lu, "
 	       "mapped: %lu, "

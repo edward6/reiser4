@@ -8,6 +8,7 @@
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
+#include <linux/swap.h>
 #include <linux/writeback.h>
 
 /* plugin->u.item.b.max_key_inside */
