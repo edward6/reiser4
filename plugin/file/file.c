@@ -357,7 +357,7 @@ static int shorten (struct inode * inode)
 ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f);
 
 /* append hole to a file until inode->i_size < real size */
-static int expand (struct inode * inode, loff_t file_size)
+static int expand_file (struct inode * inode, loff_t file_size)
 {
 	int result;
 	file_plugin * fplug;
@@ -401,7 +401,7 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 	if (file_size < 0)
 		return (int)file_size;
 	if (file_size < inode->i_size)
-		result = expand (inode, file_size);
+		result = expand_file (inode, file_size);
 	else
 		result = shorten (inode);
 	if (!result) {
