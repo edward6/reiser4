@@ -30,6 +30,7 @@ ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 typedef struct {
 	ino_t ino;
 	int   delayed;
+	void *stack[4];
 } dirty_inode_info[TRACKED_DELAYED_UPDATE];
 
 extern void mark_inode_update(struct inode *object, int immediate);

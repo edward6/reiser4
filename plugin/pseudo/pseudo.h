@@ -107,6 +107,7 @@ typedef enum {
 	PSEUDO_PLUGINS_ID,
 	PSEUDO_PLUGIN_FIELD_ID,
 	PSEUDO_ITEMS_ID,
+	PSEUDO_NEW_ID,
 	LAST_PSEUDO_ID
 } reiser4_pseudo_id;
 

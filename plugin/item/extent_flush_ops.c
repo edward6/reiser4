@@ -895,7 +895,7 @@ alloc_extent(flush_pos_t *flush_pos)
 
 		/* adjust extent item */
 		result = conv_extent(coord, &replace_ext);
-		if (result) {
+		if (result != 0 && result != -ENOMEM) {
   			warning("vs-1461", "Failed to allocate extent. Should not happen\n");
 			return result;
 		}

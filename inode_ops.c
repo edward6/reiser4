@@ -570,7 +570,16 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		result = dplug->create_child(data, &child);
 		if (unlikely(result != 0)) {
 			if (child != NULL) {
-				assert("nikita-3140", child->i_size == 0);
+				/*
+				 * what we actually want to check in the
+				 * assertion below is that @child only
+				 * contains items that iput()->... is going to
+				 * remove (usually stat-data). Obvious check
+				 * for child->i_size == 0 doesn't work for
+				 * symlinks.
+				 */
+				assert("nikita-3140", S_ISLNK(child->i_mode) ||
+				       child->i_size == 0);
 				reiser4_make_bad_inode(child);
 				iput(child);
 			}

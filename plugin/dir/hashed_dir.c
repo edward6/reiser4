@@ -110,7 +110,6 @@ estimate_unlink_hashed(struct inode *parent, struct inode *object)
 /* ->delete() method of directory plugin
    plugin->u.dir.done
    Delete dot, and call common_file_delete() to delete stat data.
-   FIXME: it does not delete stat data
 */
 reiser4_internal int
 done_hashed(struct inode *object /* object being deleted */)
@@ -130,8 +129,7 @@ done_hashed(struct inode *object /* object being deleted */)
 	xmemset(&entry, 0, sizeof entry);
 
 	reserve = hashed_estimate_done(object);
-	if (reiser4_grab_space(reserve,
-			       BA_CAN_COMMIT | BA_RESERVED))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED))
 		return RETERR(-ENOSPC);
 				
 	xmemset(&goodby_dots, 0, sizeof goodby_dots);
@@ -140,7 +138,7 @@ done_hashed(struct inode *object /* object being deleted */)
 	goodby_dots.d_name.len = 1;
 	result = rem_entry_hashed(object, &goodby_dots, &entry);
 	reiser4_free_dentry_fsdata(&goodby_dots);
-	if (result != 0)
+	if (unlikely(result != 0 && result != -ENOMEM && result != -ENOENT))
 		/* only worth a warning
 			
          		"values of B will give rise to dom!\n"
@@ -176,18 +174,19 @@ detach_hashed(struct inode *object, struct inode *parent)
 	goodby_dots.d_name.len = 2;
 	result = rem_entry_hashed(object, &goodby_dots, &entry);
 	reiser4_free_dentry_fsdata(&goodby_dots);
-	if (result != 0)
-		warning("nikita-2253", "Cannot remove .. of %lli: %i",
-			get_inode_oid(object), result);
+	if (result == 0) {
+		/* the dot should be the only entry remaining at this time... */
+		assert("nikita-3400", object->i_size == 1);
+		/* and, together with the only name directory can have, they
+		 * provides for the last 2 remaining references. If we get
+		 * here as part of error handling during mkdir, @object
+		 * possibly has no name yet, so its nlink == 1. */
+		assert("nikita-3401",
+		       object->i_nlink == 2 || object->i_nlink == 1);
 
-	/* the dot should be the only entry remaining at this time... */
-	assert("nikita-3400", object->i_size == 1);
-	/* and, together with the only name directory can have, they provides
-	 * for the last 2 remaining references */
-	assert("nikita-3401", object->i_nlink == 2);
-
-	reiser4_del_nlink(parent, object, 0);
-	return 0;
+		reiser4_del_nlink(parent, object, 0);
+	}
+	return result;
 }
 
 
@@ -245,25 +244,37 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	result = add_entry_hashed(object, &dots_entry, NULL, &entry);
 	reiser4_free_dentry_fsdata(&dots_entry);
 
-	if (result == 0)
-		result = reiser4_add_nlink(object, parent, 0);
-	else
-		warning("nikita-2222", "Failed to create dot in %llu: %i", get_inode_oid(object), result);
-
 	if (result == 0) {
-		entry.obj = dots_entry.d_inode = parent;
-		dots_entry.d_name.name = "..";
-		dots_entry.d_name.len = 2;
-		result = add_entry_hashed(object, &dots_entry, NULL, &entry);
-		reiser4_free_dentry_fsdata(&dots_entry);
-		/* if creation of ".." failed, iput() will delete object
-		   with ".". */
-		if (result != 0)
-			warning("nikita-2234", "Failed to create dotdot in %llu: %i", get_inode_oid(object), result);
+		result = reiser4_add_nlink(object, object, 0);
+		if (result == 0) {
+			entry.obj = dots_entry.d_inode = parent;
+			dots_entry.d_name.name = "..";
+			dots_entry.d_name.len = 2;
+			result = add_entry_hashed(object,
+						  &dots_entry, NULL, &entry);
+			reiser4_free_dentry_fsdata(&dots_entry);
+			/* if creation of ".." failed, iput() will delete
+			   object with ".". */
+			if (result == 0) {
+				result = reiser4_add_nlink(parent, object, 0);
+				if (result != 0)
+					/*
+					 * if we failed to bump i_nlink, try
+					 * to remove ".."
+					 */
+					detach_hashed(object, parent);
+			}
+		}
 	}
 
-	if (result == 0)
-		result = reiser4_add_nlink(parent, object, 0);
+	if (result != 0) {
+		/*
+		 * in the case of error, at least update stat-data so that,
+		 * ->i_nlink updates are not lingering.
+		 */
+		reiser4_update_sd(object);
+		reiser4_update_sd(parent);
+	}
 
 	return result;
 }
@@ -283,6 +294,7 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name
 	const char *name;
 	int len;
 	reiser4_dir_entry_desc entry;
+	reiser4_dentry_fsdata *fsdata;
 
 	assert("nikita-1247", parent != NULL);
 	assert("nikita-1248", dentry != NULL);
@@ -301,7 +313,11 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name
 		/* some arbitrary error code to return */
 		return RETERR(-ENAMETOOLONG);
 
-	coord = &reiser4_get_dentry_fsdata(dentry)->dec.entry_coord;
+	fsdata = reiser4_get_dentry_fsdata(dentry);
+	if (IS_ERR(fsdata))
+		return PTR_ERR(fsdata);
+
+	coord = &fsdata->dec.entry_coord;
 	coord_clear_iplug(coord);
 	init_lh(&lh);
 
@@ -481,15 +497,13 @@ add_name(struct inode *inode	/* inode where @coord is to be
 									name,
 									&entry));
 	if (result != 0) {
-		result = reiser4_del_nlink(inode, dir, 0);
-		if (result != 0) {
+		int result2;
+		result2 = reiser4_del_nlink(inode, dir, 0);
+		if (result2 != 0) {
 			warning("nikita-2327", "Cannot drop link on %lli %i. %s",
 				get_inode_oid(inode),
-				result, possible_leak);
+				result2, possible_leak);
 		}
-		/* Has to return success, because entry is already
-		   created. */
-		result = 0;
 	} else
 		INODE_INC_FIELD(dir, i_size);
 	return result;
@@ -748,11 +762,15 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	dplug = inode_dir_plugin(old_dir);
 
 	new_fsdata = reiser4_get_dentry_fsdata(new_name);
+	if (IS_ERR(new_fsdata))
+		return PTR_ERR(new_fsdata);
 
 	new_coord = &new_fsdata->dec.entry_coord;
 	coord_clear_iplug(new_coord);
 
 	is_dir = S_ISDIR(old_inode->i_mode);
+
+	assert("nikita-3461", old_inode->i_nlink >= 1 + !!is_dir);
 
 	/* if target is existing directory and it's not empty---return error.
 	
@@ -830,6 +848,9 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		}
 	}
 
+	assert("nikita-3462", ergo(result == 0,
+				   old_inode->i_nlink >= 2 + !!is_dir));
+
 	/* We are done with all modifications to the @new_dir, release lock on
 	   node. */
 	done_lh(&new_lh);
@@ -852,12 +873,12 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		   directory this is simple.
 		*/
 		result = rem_entry_hashed(old_dir, old_name, &old_entry);
-		if (result != 0) {
+		if (result != 0 && result != -ENOMEM) {
 			warning("nikita-2335",
 				"Cannot remove old name: %i", result);
 		} else {
 			result = reiser4_del_nlink(old_inode, old_dir, 0);
-			if (result != 0) {
+			if (result != 0 && result != -ENOMEM) {
 				warning("nikita-2337",
 					"Cannot drop link on old: %i", result);
 			}
@@ -870,20 +891,26 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 			lock_handle dotdot_lh;
 			struct dentry dotdot_name;
 			reiser4_dir_entry_desc dotdot_entry;
+			reiser4_dentry_fsdata  dataonstack;
 			reiser4_dentry_fsdata *fsdata;
 
+			xmemset(&dataonstack, 0, sizeof dataonstack);
 			xmemset(&dotdot_entry, 0, sizeof dotdot_entry);
 			dotdot_entry.obj = old_dir;
 			xmemset(&dotdot_name, 0, sizeof dotdot_name);
 			dotdot_name.d_name.name = "..";
 			dotdot_name.d_name.len = 2;
-
+			/*
+			 * allocate ->d_fsdata on the stack to avoid using
+			 * reiser4_get_dentry_fsdata(). Locking is not needed,
+			 * because dentry is private to the current thread.
+			 */
+			dotdot_name.d_fsdata = &dataonstack;
 			init_lh(&dotdot_lh);
 
-			fsdata = reiser4_get_dentry_fsdata(&dotdot_name);
+			fsdata = &dataonstack;
 			dotdot_coord = &fsdata->dec.entry_coord;
 			coord_clear_iplug(dotdot_coord);
-
 
 			result = find_entry(old_inode, &dotdot_name, &dotdot_lh,
 					    ZNODE_WRITE_LOCK, &dotdot_entry);
@@ -895,14 +922,9 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 						      old_dir,
 						      dotdot_coord,
 						      &dotdot_lh);
-			} else {
-				warning("nikita-2336",
-					"Dotdot not found in %llu",
-					get_inode_oid(old_inode));
+			} else
 				result = RETERR(-EIO);
-			}
 			done_lh(&dotdot_lh);
-			reiser4_free_dentry_fsdata(&dotdot_name);
 		}
 	}
 	reiser4_update_dir(new_dir);
@@ -1038,6 +1060,9 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 	/* check for this entry in a directory. This is plugin method. */
 	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry);
 	fsdata = reiser4_get_dentry_fsdata(where);
+	if (IS_ERR(fsdata))
+		return PTR_ERR(fsdata);
+
 	coord = &fsdata->dec.entry_coord;
 
 	assert("nikita-3404",
@@ -1124,6 +1149,7 @@ find_entry(struct inode *dir /* directory to scan */,
 	int result;
 	__u32 flags;
 	de_location *dec;
+	reiser4_dentry_fsdata *fsdata;
 
 	assert("nikita-1130", lh != NULL);
 	assert("nikita-1128", dir != NULL);
@@ -1137,7 +1163,11 @@ find_entry(struct inode *dir /* directory to scan */,
 	   This is not so for inodes, because there is no -the- parent in
 	   inode case.
 	*/
-	dec = &reiser4_get_dentry_fsdata(de)->dec;
+	fsdata = reiser4_get_dentry_fsdata(de);
+	if (IS_ERR(fsdata))
+		return PTR_ERR(fsdata);
+	dec = &fsdata->dec;
+	
 	coord = &dec->entry_coord;
 	coord_clear_iplug(coord);
 	seal = &dec->entry_seal;

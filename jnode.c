@@ -973,7 +973,7 @@ reiser4_internal int jstartio (jnode * node)
 
 /* Initialize a node by calling appropriate plugin instead of reading
  * node from disk as in jload(). */
-reiser4_internal int jinit_new (jnode * node)
+reiser4_internal int jinit_new (jnode * node, int gfp_flags)
 {
 	struct page * page;
 	int result;
@@ -981,7 +981,7 @@ reiser4_internal int jinit_new (jnode * node)
 	jref(node);
 	add_d_ref(node);
 
-	page = jnode_get_page_locked(node, GFP_KERNEL);
+	page = jnode_get_page_locked(node, gfp_flags);
 	if (IS_ERR(page)) {
 		result = PTR_ERR(page);
 		goto failed;

@@ -1208,6 +1208,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 		return ret;
 
 	assert ("zam-906", capture_list_empty(&(*atom)->writeback_nodes));
+
 	ON_TRACE(TRACE_FLUSH, "everything written back atom %u\n",
 		 (*atom)->atom_id);
 
@@ -1280,9 +1281,9 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 	UNLOCK_TXNH(txnh);
 	UNLOCK_ATOM(atom);
 
-	if ((ret = txn_end(ctx)) < 0) {
+	ret = txn_end(ctx);
+	if (ret < 0)
 		return ret;
-	}
 
 	preempt_point();
 
@@ -4088,7 +4089,7 @@ reiser4_internal reiser4_block_nr txnmgr_count_deleted_blocks (void)
 	spin_lock_txnmgr(tmgr);
 	for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
 		LOCK_ATOM(atom);
-		blocknr_set_iterator(atom, &atom->delete_set, 
+		blocknr_set_iterator(atom, &atom->delete_set,
 				     count_deleted_blocks_actor, &result, 0);
 		UNLOCK_ATOM(atom);
 	}

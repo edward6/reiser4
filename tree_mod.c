@@ -68,7 +68,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 		result->nplug = znode_get_tree(brother)->nplug;
 		assert("nikita-933", result->nplug != NULL);
 
-		retcode = zinit_new(result);
+		retcode = zinit_new(result, GFP_KERNEL);
 		if (retcode == 0) {
 			ZF_SET(result, JNODE_CREATED);
 			zrelse(result);

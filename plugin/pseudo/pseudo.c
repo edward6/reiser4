@@ -1044,6 +1044,16 @@ static int items_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+static int get_new(struct file *file, const char *buf)
+{
+	int result;
+
+	if (strchr(buf, '/') == NULL) {
+		result = RETERR(-ENOSYS);
+	} else
+		result = RETERR(-EINVAL);
+	return result;
+}
 
 pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 	[PSEUDO_UID_ID] = {
@@ -1381,6 +1391,27 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 				 }
 			 },
 			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_NEW_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_NEW_ID,
+			       .pops = NULL,
+			       .label = "..new",
+			       .desc = "creates new file in the host",
+			       .linkage = TYPE_SAFE_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = NULL,
+			 .lookup_mode = S_IFREG | S_IWUSR,
+			 .read_type   = PSEUDO_READ_NONE,
+			 .read        = {
+				 .single_show = show_rwx
+			 },
+			 .write_type  = PSEUDO_WRITE_STRING,
+			 .write       = {
+				 .gets        = get_new
+			 }
 	},
 };
 

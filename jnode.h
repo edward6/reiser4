@@ -550,7 +550,7 @@ static inline int jload(jnode * node)
 	return jload_gfp(node, GFP_KERNEL);
 }
 
-extern int jinit_new(jnode * node) NONNULL;
+extern int jinit_new(jnode * node, int gfp_flags) NONNULL;
 extern int jstartio(jnode * node) NONNULL;
 
 extern void jdrop(jnode * node) NONNULL;

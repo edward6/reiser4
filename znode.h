@@ -172,7 +172,7 @@ extern znode *zget(reiser4_tree * tree, const reiser4_block_nr * const block,
 extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
 extern int zload(znode * node);
 extern int zload_ra(znode * node, ra_info_t *info);
-extern int zinit_new(znode * node);
+extern int zinit_new(znode * node, int gfp_flags);
 extern void zrelse(znode * node);
 extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
 

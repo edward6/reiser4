@@ -723,6 +723,10 @@ mark_inode_update(struct inode *object, int immediate)
 	else {
 		ctx->dirty[pos].ino = object->i_ino;
 		ctx->dirty[pos].delayed = !immediate;
+		ctx->dirty[pos].stack[0] = __builtin_return_address(0);
+		ctx->dirty[pos].stack[1] = __builtin_return_address(1);
+		ctx->dirty[pos].stack[2] = __builtin_return_address(2);
+		ctx->dirty[pos].stack[3] = __builtin_return_address(3);
 	}
 }
 

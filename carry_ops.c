@@ -1923,33 +1923,157 @@ find_dir_carry(carry_node * node	/* node to start scanning
 	}
 }
 
+#define TREE_HEIGHT_CAP (5)
+
+static int
+cap_tree_height(reiser4_tree * tree)
+{
+	return tree->height >= TREE_HEIGHT_CAP ? TREE_HEIGHT_CAP : tree->height;
+}
+
+static int capped_height(void)
+{
+	return cap_tree_height(current_tree);
+}
+
+static int bytes_to_pages(int bytes)
+{
+	return (bytes + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+}
+
+static int
+carry_estimate_znodes(void)
+{
+	return bytes_to_pages(capped_height() * sizeof(znode) * 3);
+}
+
+static int
+carry_estimate_bitmaps(void)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DONT_LOAD_BITMAP)) {
+		int bytes;
+
+		bytes = capped_height() *
+			(0 +   /* bnode should be added, but its is private to
+				* bitmap.c, skip for now. */
+			 2 * sizeof(jnode));      /* working and commit jnodes */
+		return bytes_to_pages(bytes) + 2; /* and their contents */
+	} else
+		/* bitmaps were pre-loaded during mount */
+		return 0;
+}
+
+static int
+carry_estimate_insert(carry_op * op, carry_level * level)
+{
+	return
+		carry_estimate_bitmaps() +
+		carry_estimate_znodes() +
+		1 + /* new atom */
+		capped_height() + /* new block on each level */
+		1 + /* and possibly extra new block at the leaf level */
+		3; /* loading of leaves into memory */
+}
+
+static int
+carry_estimate_delete(carry_op * op, carry_level * level)
+{
+	return
+		carry_estimate_bitmaps() +
+		carry_estimate_znodes() +
+		1 + /* new atom */
+		3; /* loading of leaves into memory */
+}
+
+static int
+carry_estimate_cut(carry_op * op, carry_level * level)
+{
+	return
+		carry_estimate_bitmaps() +
+		carry_estimate_znodes() +
+		1 + /* new atom */
+		3; /* loading of leaves into memory */
+}
+
+static int
+carry_estimate_paste(carry_op * op, carry_level * level)
+{
+	return
+		carry_estimate_bitmaps() +
+		carry_estimate_znodes() +
+		1 + /* new atom */
+		capped_height() + /* new block on each level */
+		1 + /* and possibly extra new block at the leaf level */
+		3; /* loading of leaves into memory */
+}
+
+static int
+carry_estimate_extent(carry_op * op, carry_level * level)
+{
+	return
+		carry_estimate_insert(op, level) + /* insert extent */
+		carry_estimate_delete(op, level);  /* kill leaf */
+}
+
+static int
+carry_estimate_update(carry_op * op, carry_level * level)
+{
+	return 0;
+}
+
+static int
+carry_estimate_modify(carry_op * op, carry_level * level)
+{
+	return 0;
+}
+
+static int
+carry_estimate_insert_flow(carry_op * op, carry_level * level)
+{
+	int newnodes;
+
+	newnodes = bytes_to_pages(op->u.insert_flow.flow->length);
+	/*
+	 * roughly estimate insert_flow as a sequence of insertions.
+	 */
+	return newnodes * carry_estimate_insert(op, level);
+}
+
 /* This is dispatch table for carry operations. It can be trivially
    abstracted into useful plugin: tunable balancing policy is a good
    thing. */
 reiser4_internal carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_INSERT] = {
-		.handler = carry_insert
+		.handler = carry_insert,
+		.estimate = carry_estimate_insert
 	},
 	[COP_DELETE] = {
-		.handler = carry_delete
+		.handler = carry_delete,
+		.estimate = carry_estimate_delete
 	},
 	[COP_CUT] = {
-		.handler = carry_cut
+		.handler = carry_cut,
+		.estimate = carry_estimate_cut
 	},
 	[COP_PASTE] = {
-		.handler = carry_paste
+		.handler = carry_paste,
+		.estimate = carry_estimate_paste
 	},
 	[COP_EXTENT] = {
-		.handler = carry_extent
+		.handler = carry_extent,
+		.estimate = carry_estimate_extent
 	},
 	[COP_UPDATE] = {
-		.handler = carry_update
+		.handler = carry_update,
+		.estimate = carry_estimate_update
 	},
 	[COP_MODIFY] = {
-		.handler = carry_modify
+		.handler = carry_modify,
+		.estimate = carry_estimate_modify
 	},
 	[COP_INSERT_FLOW] = {
-		.handler = carry_insert_flow
+		.handler = carry_insert_flow,
+		.estimate = carry_estimate_insert_flow
 	}
 };
 

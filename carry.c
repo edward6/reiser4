@@ -169,6 +169,8 @@ static int carry_on_level(carry_level * doing, carry_level * todo);
 static void fatal_carry_error(carry_level * doing, int ecode);
 static int add_new_root(carry_level * level, carry_node * node, znode * fake);
 
+static int carry_estimate_reserve(carry_level * level);
+
 #if REISER4_DEBUG
 typedef enum {
 	CARRY_TODO,
@@ -198,6 +200,8 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	carry_level todo_area;
 	/* queue of new requests */
 	carry_level *todo;
+	int wasreserved;
+	int reserve;
 	ON_DEBUG(STORE_COUNTERS;)
 
 	assert("nikita-888", doing != NULL);
@@ -212,7 +216,12 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		init_carry_level(done, doing->pool);
 	}
 
-	/* NOTE-NIKITA enough free memory has to be reserved. */
+	wasreserved = perthread_pages_count();
+	reserve = carry_estimate_reserve(doing);
+	result = perthread_pages_reserve(reserve, GFP_KERNEL);
+	if (result != 0)
+		return result;
+
 	/* iterate until there is nothing more to do */
 	while (result == 0 && carry_op_num(doing) > 0) {
 		carry_level *tmp;
@@ -239,8 +248,11 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 				result = carry_on_level(doing, todo);
 				if (result == 0)
 					break;
-				else if ((result != -E_REPEAT) || !doing->restartable) {
-					warning("nikita-1043", "Fatal error during carry: %i", result);
+				else if (result != -E_REPEAT ||
+					 !doing->restartable) {
+					warning("nikita-1043",
+						"Fatal error during carry: %i",
+						result);
 					print_level("done", done);
 					print_level("doing", doing);
 					print_level("todo", todo);
@@ -273,6 +285,9 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		preempt_point();
 	}
 	done_carry_level(done);
+
+	assert("nikita-3460", perthread_pages_count() - wasreserved >= 0);
+	perthread_pages_release(perthread_pages_count() - wasreserved);
 
 	/* all counters, but x_refs should remain the same. x_refs can change
 	   owing to transaction manager */
@@ -1225,6 +1240,22 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 			 znode_set_rd_key(new_znode, znode_get_rd_key(brother)));
 	WUNLOCK_DK(znode_get_tree(brother));
 	return fresh;
+}
+
+/*
+ * Estimate how many pages of memory have to be reserved to complete execution
+ * of @level.
+ */
+static int carry_estimate_reserve(carry_level * level)
+{
+	carry_op *op;
+	carry_op *tmp_op;
+	int result;
+
+	result = 0;
+	for_all_ops(level, op, tmp_op)
+		result += op_dispatch_table[op->op].estimate(op, level);
+	return result;
 }
 
 /* DEBUGGING FUNCTIONS.

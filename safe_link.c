@@ -144,7 +144,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 	struct inode *inode;
 	int result;
 
-	inode = reiser4_iget(super, sdkey, 0);
+	inode = reiser4_iget(super, sdkey, 1);
 	if (!IS_ERR(inode)) {
 		reiser4_context ctx;
 		file_plugin *fplug;
