@@ -1168,9 +1168,11 @@ int flush_one_atom(txn_mgr * tmgr, long *nr_submitted, int flags)
 
 	return 0;
 found:
-	atom_list_remove(atom);
-	atom_list_push_back(&tmgr->atoms_list, atom);
 
+/* 	
+        atom_list_remove(atom);
+ 	atom_list_push_back(&tmgr->atoms_list, atom); 
+*/
 	spin_unlock_txnmgr(tmgr);
 
 	txnh = ctx->trans;
