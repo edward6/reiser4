@@ -113,8 +113,9 @@ static int           slum_scan_left_extent        (slum_scan *scan, jnode *node)
 static int           slum_scan_left_formatted     (slum_scan *scan, znode *node);
 static void          slum_scan_set_current        (slum_scan *scan, jnode *node);
 static int           slum_scan_left               (slum_scan *scan, jnode *node);
+
 static int           slum_lock_left_ancestor      (jnode *node, jnode **left_ancestor, reiser4_lock_handle *left_ancestor_lock);
-static int            slum_allocate_and_squeeze_parent_first (jnode *gda);
+static int           slum_allocate_and_squeeze_parent_first (jnode *gda);
 
 static int           jnode_lock_parent_coord      (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh,
 						   tree_coord *coord, znode_lock_mode mode);
@@ -307,7 +308,9 @@ static int slum_allocate_and_squeeze_children (znode *node)
 
 static int slum_allocate_and_squeeze_parent_first (jnode *node)
 {
-	int ret;
+	int ret, goright;
+	znode *right;
+	reiser4_lock_handle right_lock;
 
         /* Stop recursion if its not dirty, meaning don't allocate children
          * either.  Children might be dirty but there is an overwrite below
@@ -316,17 +319,19 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
                 return 0;
         }
 
+	/* We got here because the unformatted node is not being relocated.
+	 * Otherwise the parent would be dirty (and this recursive function
+	 * does not descend to unformatted nodes).  Since the node is in the
+	 * overwrite set, there's no allocation to do. */
+	if (jnode_is_unformatted (node)) {
+		return 0;
+	}
+
+	assert ("jmacd-1050", ! is_empty_node (JZNODE (node)));
+	assert ("jmacd-1051", znode_is_write_locked (JZNODE (node)));
+	
 	/* Allocate (parent) first. It might be allocated already. */
         if (! jnode_is_allocated (node)) {
-
-                if (jnode_is_unformatted (node)) {
-                        /* We got here because the unformatted node is not
-			 * being relocated.  Otherwise the parent would be
-			 * dirty (and this recursive function does not descend
-			 * * to unformatted nodes).  Since the node is in the
-			 * overwrite set, there's no allocation to do. */
-			return 0;
-                }
 
 		/* Allocate it. */
                 jnode_allocate (node);
@@ -336,57 +341,80 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 		    (ret = slum_allocate_and_squeeze_children (JZNODE (node)))) {
 			return ret;
                 }
-
-        } else {
-                /* We went through this node already. We are back here because
-                 * its right neighbor now has the same parent. */
-
-		/* FIXME_JMACD: VS: I don't understand. */
 	}
 
-#if 0
-        /*
-         * @node and everything below it are squeezed and allocated
-         */
-        if (jnode_is_formatted (node->right) && is_dirty (node->right)) {
-                /*
-                 * Now we try to move into @node content of its right
-                 * neighbor. Moving stops whenever one unit of internal item
-                 * and, therefore, whole subtree is moved
-                 */
-                while (squeeze_to_left (node, node->right) == subtree_moved) {
-                        /*
-                         * last item in @node is internal item. Its last unit
-                         * was just moved from node->right, therefore, it
-                         * points to subtree which still has to be allocated &
-                         * squeezed.
-                         */
-                        assert (is_internal_item (last_item (node)));
+        /* Now @node and all its children (recursively) are squeezed and
+	 * allocated.  Next, we will squeeze this node's right neighbor into
+	 * this one, allocating as we go.  First, we must check that the right
+	 * node is in the same atom without requesting a long term lock.
+	 * (Because the long term lock request will FORCE it into the same
+	 * atom...).  The "again" label is used to repeat the following steps,
+	 * as long as node's right neighbor is squeezed into this one. */
 
-                        /*
-                         * FIXME-VS: the below complication can be avoided if
-                         * we can disregard the possibility of merging new last
-                         * child of @node with its left neighbor
-                         */
-                        if (is_internal_item (last_but_one (node)) &&
-                            jnode_is_dirty (internal_item_child (last_but_one (node))) {
-                                /*
-                                 * we may have to squeeze moved child with old
-                                 * last child
-                                 */
-                                allocate_and_squeeze_parent_first (internal_item_child (last_but_one (node)));
-			} else {
-                                /*
-                                 * there is nothing to the left of moved child
-                                 * we can squeeze it with
-                                 */
-                                allocate_and_squeeze_parent_first (internal_item_child (last_item (node)));
-			}
-                }
-        }
-#endif 
+ again:
+	spin_lock_tree (current_tree);
+	right = zref (JZNODE (node)->right);
+	spin_unlock_tree (current_tree);
 
-	return 0;
+	goright = txn_same_atom_dirty (node, ZJNODE (right));
+
+	if (! goright) {
+		return 0;
+	}
+
+	/* Get long term lock on right neighbor. */
+	reiser4_init_lh (& right_lock);
+
+	if ((ret = reiser4_get_right_neighbor (& right_lock, JZNODE (node), ZNODE_WRITE_LOCK, 0))) {
+		goto cleanup;
+	}
+
+	/* Can't assert is_dirty here, even though we checked it above,
+	 * because there is a race when the tree_lock is released. */
+        if (! znode_is_dirty (right_lock.node)) {
+		ret = 0;
+		goto cleanup;
+	}
+
+	assert ("jmacd-1052", ! is_empty_node (right_lock.node));
+
+	/* FIXME: Check ZNODE_HEARD_BANSHEE? */
+#if 0	
+	/* Try to move into @node content of its right
+	 * neighbor. Moving stops whenever one unit of internal item
+	 * and, therefore, whole subtree is moved */
+	while (squeeze_to_left (node, right_lock.node) == subtree_moved) {
+
+		/* Last item in @node is an internal item. Its last
+		 * unit was just moved from node->right, therefore, it
+		 * points to subtree which still has to be allocated &
+		 * squeezed. */
+		assert ("jmacd-2002", is_internal_item (last_item (node)));
+
+		/*
+		 * FIXME-VS: the below complication can be avoided if
+		 * we can disregard the possibility of merging new last
+		 * child of @node with its left neighbor
+		 */
+		if (is_internal_item (last_but_one (node)) &&
+		    jnode_is_dirty (internal_item_child (last_but_one (node)))) {
+			/*
+			 * we may have to squeeze moved child with old
+			 * last child
+			 */
+			allocate_and_squeeze_parent_first (internal_item_child (last_but_one (node)));
+		} else {
+			/*
+			 * there is nothing to the left of moved child
+			 * we can squeeze it with
+			 */
+			allocate_and_squeeze_parent_first (internal_item_child (last_item (node)));
+		}
+	}
+#endif
+ cleanup:
+	reiser4_done_lh (& right_lock);
+	return ret;
 }
 
 /********************************************************************************
@@ -508,14 +536,7 @@ static int slum_scan_goleft (slum_scan *scan, jnode *left)
 {
 	int goleft;
 
-	/* Spin lock the left node to check its state. */
-	spin_lock_jnode (left);
-
-	goleft = ((jnode_is_unformatted (left) ? 1 : znode_is_connected (JZNODE (left))) &&
-		  jnode_is_dirty (left) &&
-		  (scan->atom == left->atom));
-
-	spin_unlock_jnode (left);
+	goleft = txn_same_atom_dirty (scan->node, left);
 
 	if (! goleft) {
 		jput (left);
