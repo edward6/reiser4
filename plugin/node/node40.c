@@ -1,9 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-#include "../../forward.h"
+/*#include "../../forward.h"*/
 #include "../../debug.h"
-
-/*#include "../../dformat.h"*/
 #include "../../key.h"
 #include "../../coord.h"
 #include "../plugin_header.h"
@@ -271,6 +269,25 @@ length_by_coord_node40(const coord_t * coord)
 	ih = node40_ih_at_coord(coord);
 	if ((int) coord->item_pos == node40_num_of_items_internal(coord->node) - 1)
 		result = nh40_get_free_space_start(node40_node_header(coord->node)) - ih40_get_offset(ih);
+	else
+		result = ih40_get_offset(ih - 1) - ih40_get_offset(ih);
+
+	return result;
+}
+
+static pos_in_node_t
+node40_item_length(const znode *node, pos_in_node_t item_pos)
+{
+	item_header40 *ih;
+	pos_in_node_t result;
+
+	/* @coord is set to existing item */
+	assert("vs-256", node != NULL);
+	assert("vs-257", node40_num_of_items_internal(node) > item_pos);
+
+	ih = node40_ih_at(node, item_pos);
+	if (item_pos == node40_num_of_items_internal(node) - 1)
+		result = nh40_get_free_space_start(node40_node_header(node)) - ih40_get_offset(ih);
 	else
 		result = ih40_get_offset(ih - 1) - ih40_get_offset(ih);
 
@@ -972,244 +989,510 @@ update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_i
 	}
 }
 
-static unsigned
-cut_units(coord_t * coord, unsigned *from, unsigned *to,
-	  int cut,
-	  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed,
-	  struct cut_list *p)
+/* this bits encode cut mode */
+#define CMODE_TAIL 1
+#define CMODE_WHOLE 2
+#define CMODE_HEAD 4
+
+struct cut40_info {
+	int mode;
+	pos_in_node_t tail_removed; /* position of item which gets tail removed */
+	pos_in_node_t first_removed; /* position of first the leftmost item among items removed completely */
+	pos_in_node_t removed_count; /* number of items removed completely */
+	pos_in_node_t head_removed; /* position of item which gets head removed */
+	
+	pos_in_node_t freed_space_start;
+	pos_in_node_t freed_space_end;
+	pos_in_node_t first_moved;
+	pos_in_node_t head_removed_location;
+};
+
+static void
+init_cinfo(struct cut40_info *cinfo)
 {
-	int (*cut_f) (coord_t *, unsigned *, unsigned *, const reiser4_key *, const reiser4_key *, reiser4_key *, struct cut_list *);
-
-	if (cut) {
-		cut_f = item_plugin_by_coord(coord)->b.cut_units;
-	} else {
-		cut_f = item_plugin_by_coord(coord)->b.kill_units;
-	}
-
-	if (cut_f) {
-		/* FIXME-VS:
-		   kill_item_hook for units being cut will be called by
-		   kill_units method, because it is not clear here which units
-		   will be actually cut. To have kill_item_hook here we would
-		   have to pass keys to kill_item_hook */
-		return cut_f(coord, from, to, from_key, to_key, smallest_removed, p);
-	} else {
-		/* cut method is not defined, so there should be request to cut the single unit of item. The item will
-		   be removed entirely */
-		assert("vs-302", *from == 0 && *to == 0 && coord->unit_pos == 0 && coord_num_units(coord) == 1);
-
-		if (smallest_removed)
-			item_key_by_coord(coord, smallest_removed);
-		if (!cut && item_plugin_by_coord(coord)->b.kill_hook)
-			item_plugin_by_coord(coord)->b.kill_hook(coord, 0, 1, p);
-		return item_length_by_coord(coord);
-	}
+	cinfo->mode = 0;
+	cinfo->tail_removed = MAX_POS_IN_NODE;
+	cinfo->first_removed = MAX_POS_IN_NODE;
+	cinfo->removed_count = MAX_POS_IN_NODE;
+	cinfo->head_removed = MAX_POS_IN_NODE;
+	cinfo->freed_space_start = MAX_POS_IN_NODE;
+	cinfo->freed_space_end = MAX_POS_IN_NODE;
+	cinfo->first_moved = MAX_POS_IN_NODE;
+	cinfo->head_removed_location = MAX_POS_IN_NODE;
 }
 
-/* this is auxiliary function used by both cutting methods - cut and cut_and_kill. If it is called by cut_and_kill (@cut
-   == 0) special action (kill_hook) will be performed on every unit being removed from tree. When @params->info != 0 -
-   it is called not by node40_shift who cares about delimiting keys itself - update znode's delimiting keys */
-static inline int
-cut_or_kill(struct cut_list *params, int cut)
+/* complete cut_node40/kill_node40 content by removing the gap created by */
+static void
+compact(znode *node, struct cut40_info *cinfo)
 {
-	znode *node;
 	node40_header *nh;
 	item_header40 *ih;
-	unsigned freed_space_start;	/*new_from_end; */
-	unsigned freed_space_end;	/*new_to_start; */
-	unsigned first_removed;	/* position of first item removed entirely */
-	int rightmost_not_moved;	/* position of item which is the rightmost of
-					 * items which do not change their offset */
-	unsigned removed_entirely;	/* number of items removed entirely */
-	unsigned i;
-	unsigned cut_size;
-	reiser4_key old_first_key;
-	pos_in_node_t wrong_item; /* position of item for which may get
-				      mismatching item key and key of first
-				      unit in it */
-	unsigned from_unit, to_unit;
+	pos_in_node_t freed;
+	pos_in_node_t pos, nr_items;
 
-	assert("vs-184", params->from->node == params->to->node);
-	assert("vs-297", ergo(params->from->item_pos == params->to->item_pos, params->from->unit_pos <= params->to->unit_pos));
-	assert("vs-312", !node_is_empty(params->from->node));
+	assert("vs-1526", (cinfo->freed_space_start != MAX_POS_IN_NODE &&
+			   cinfo->freed_space_end != MAX_POS_IN_NODE &&
+			   cinfo->first_moved != MAX_POS_IN_NODE));
+	assert("vs-1523", cinfo->freed_space_end >= cinfo->freed_space_start);
 
-	node = params->from->node;
 	nh = node40_node_header(node);
-	old_first_key = node40_ih_at(node, 0)->key;
+	nr_items = nh40_get_num_items(nh);
 
-	wrong_item = (pos_in_node_t)~0;
+	/* remove gap made up by removal */
+	xmemmove(zdata(node) + cinfo->freed_space_start, zdata(node) + cinfo->freed_space_end,
+		 nh40_get_free_space_start(nh) - cinfo->freed_space_end);
+
+	/* update item headers of moved items - change their locations */
+	pos = cinfo->first_moved;
+	ih = node40_ih_at(node, pos);
+	if (cinfo->head_removed_location != MAX_POS_IN_NODE) {
+		assert("vs-1580", pos == cinfo->head_removed);
+		ih40_set_offset(ih, cinfo->head_removed_location);
+		pos ++;
+		ih --;
+	}
+
+	freed = cinfo->freed_space_end - cinfo->freed_space_start;
+	for (; pos < nr_items; pos ++, ih --) {
+		assert("vs-1581", ih == node40_ih_at(node, pos));
+		ih40_set_offset(ih, (ih40_get_offset(ih) - freed));
+	}
+
+	/* free space start moved to right */
+	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - freed);
+
+	if (cinfo->removed_count != MAX_POS_IN_NODE) {
+		/* number of items changed. Remove item headers of those items */
+		ih = node40_ih_at(node, nr_items - 1);
+		xmemmove(ih + cinfo->removed_count, ih,
+			 sizeof (item_header40) * (nr_items - cinfo->removed_count - cinfo->first_removed));
+		freed += sizeof (item_header40) * cinfo->removed_count;
+		node40_set_num_items(node, nh, nr_items - cinfo->removed_count);
+	}
+
+	/* total amount of free space increased */
+	nh40_set_free_space(nh, nh40_get_free_space(nh) + freed);
+}
+
+/* this is used by cut_node40 and kill_node40. It analyses input parameters and calculates cut mode. There are 2 types
+   of cut. First is when a unit is removed from the middle of an item.  In this case this function returns 1. All the
+   rest fits into second case: 0 or 1 of items getting tail cut, 0 or more items removed completely and 0 or 1 item
+   getting head cut. Function returns 0 in this case */
+static int
+parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
+{
+	reiser4_key left_key, right_key;
+	reiser4_key min_from_key, max_to_key;
+	const reiser4_key *from_key, *to_key;
+
+	init_cinfo(cinfo);
+
+	/* calculate minimal key stored in first item of items to be cut (params->from) */
+	item_key_by_coord(params->from, &min_from_key);
+	/* and max key stored in last item of items to be cut (params->to) */
+	max_item_key_by_coord(params->to, &max_to_key);
+
+	/* if cut key range is not defined in input parameters - define it using cut coord range */
+	if (params->from_key == NULL) {
+		assert("vs-1513", params->to_key == NULL);
+		unit_key_by_coord(params->from, &left_key);
+		from_key = &left_key;
+		max_unit_key_by_coord(params->to, &right_key);
+		to_key = &right_key;
+	} else {
+		from_key = params->from_key;
+		to_key = params->to_key;
+	}
+
 	if (params->from->item_pos == params->to->item_pos) {
-		/* cut one item (partially or as whole) */
-		first_removed = params->from->item_pos;
-		removed_entirely = 0;
-		from_unit = params->from->unit_pos;
-		to_unit = params->to->unit_pos;
-		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed, params);
-		if (cut_size == (unsigned) item_length_by_coord(params->from))
-			/* item will be removed entirely */
-			removed_entirely = 1;
-		else
-			/* this item may have wrong key after cut_units */
-			wrong_item = params->from->item_pos;
+		if (keylt(&min_from_key, from_key) && keylt(to_key, &max_to_key))
+			return 1;
 
-		ih = node40_ih_at(node, (unsigned) params->from->item_pos);
-		/* there are 4 possible cases: cut from the beginning, cut from
-		   the end, cut from the middle and cut whole item */
-		if (removed_entirely) {
-			/* whole item is cut */
-			freed_space_start = ih40_get_offset(ih);
-			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = params->from->item_pos - 1;
-		} else if (from_unit == 0) {
-			/* head is cut, freed space is in the beginning */
-			freed_space_start = ih40_get_offset(ih);
-			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = params->from->item_pos - 1;
-			/* item now starts at different place */
-			ih40_set_offset(ih, freed_space_end);
-
-		} else if (to_unit == coord_last_unit_pos(params->to)) {
-			/* tail is cut, freed space is in the end */
-			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(params->from) - cut_size;
-			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = params->from->item_pos;
+		if (keygt(from_key, &min_from_key)) {
+			/* tail of item is to be cut cut */
+			cinfo->tail_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_TAIL;
+		} else if (keylt(to_key, &max_to_key)) {
+			/* head of item is to be cut */
+			cinfo->head_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_HEAD;
 		} else {
-			/* cut from the middle
-			   NOTE: cut method of item must leave freed space at
-			   the end of item
-			*/
-			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(params->from) - cut_size;
-			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = params->from->item_pos;
+			/* item is removed completely */
+			cinfo->first_removed = params->from->item_pos;
+			cinfo->removed_count = 1;
+			cinfo->mode |= CMODE_WHOLE;
 		}
 	} else {
-		/* @from and @to are different items */
-		first_removed = params->from->item_pos + 1;
-		removed_entirely = params->to->item_pos - params->from->item_pos - 1;
-		rightmost_not_moved = params->from->item_pos;
+		cinfo->first_removed = params->from->item_pos + 1;
+		cinfo->removed_count = params->to->item_pos - params->from->item_pos - 1;
 
-		if (!cut) {
-			/* for every item being removed entirely between @from
-			   and @to call special kill method */
-			coord_t tmp;
-			item_plugin *iplug;
-
-			/* FIXME-VS: this iterates items starting not from
-			   0-th, so it does not use new coord interface */
-			tmp.node = node;
-			tmp.unit_pos = 0;
-			tmp.between = AT_UNIT;
-			for (i = 0; i < removed_entirely; i++) {
-				coord_set_item_pos(&tmp, first_removed + i);
-				tmp.unit_pos = 0;
-				tmp.between = AT_UNIT;
-				iplug = item_plugin_by_coord(&tmp);
-				if (iplug->b.kill_hook) {
-					iplug->b.kill_hook(&tmp, 0, coord_num_units(&tmp), params);
-				}
-			}
+		if (keygt(from_key, &min_from_key)) {
+			/* first item is not cut completely */
+			cinfo->tail_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_TAIL;			
+		} else {
+			cinfo->first_removed --;
+			cinfo->removed_count ++;
 		}
-
-		/* cut @from item first */
-		from_unit = params->from->unit_pos;
-		to_unit = coord_last_unit_pos(params->from);
-		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed, params);
-		if (cut_size == (unsigned) item_length_by_coord(params->from)) {
-			/* whole @from is cut */
-			first_removed--;
-			removed_entirely++;
-			rightmost_not_moved--;
+		if (keylt(to_key, &max_to_key)) {
+			/* last item is not cut completely */
+			cinfo->head_removed = params->to->item_pos;
+			cinfo->mode |= CMODE_HEAD;
+		} else {
+			cinfo->removed_count ++;
 		}
-		ih = node40_ih_at(node, (unsigned) params->from->item_pos);
-		freed_space_start = ih40_get_offset(ih) + length_by_coord_node40(params->from) - cut_size;
-
-		/* cut @to item */
-		from_unit = 0;
-		to_unit = params->to->unit_pos;
-		cut_size = cut_units(params->to, &from_unit, &to_unit, cut, params->from_key, params->to_key, 0/*smallest_removed*/, params);
-		if (cut_size == (unsigned) item_length_by_coord(params->to))
-			/* whole @to is cut */
-			removed_entirely++;
-		else
-			/* this item may have wrong key after cut_units */
-			wrong_item = params->to->item_pos;
-
-		ih = node40_ih_at(node, (unsigned) params->to->item_pos);
-		freed_space_end = ih40_get_offset(ih) + cut_size;
-
-		/* item now starts at different place */
-		ih40_set_offset(ih, freed_space_end);
+		if (cinfo->removed_count)
+			cinfo->mode |= CMODE_WHOLE;
 	}
 
-	/* move remaining data to left */
-	xmemmove(zdata(node) + freed_space_start, zdata(node) + freed_space_end,
-		 nh40_get_free_space_start(nh) - freed_space_end);
+	return 0;
+}
 
-	/* update item headers of moved items */
-	for (i = rightmost_not_moved + 1 + removed_entirely; (int) i < node40_num_of_items_internal(node); i++) {
-		ih = node40_ih_at(node, i);
-		ih40_set_offset(ih, (ih40_get_offset(ih) - (freed_space_end - freed_space_start)));
-	}
+static void
+call_kill_hooks(znode *node, pos_in_node_t from, pos_in_node_t count, carry_kill_data *kdata)
+{
+	coord_t coord;
+	item_plugin *iplug;
+	pos_in_node_t pos;
 
-	/* cut item headers of removed items */
-	ih = node40_ih_at(node, (unsigned) node40_num_of_items_internal(node) - 1);
-	xmemmove(ih + removed_entirely, ih,
-		 sizeof (item_header40) * (node40_num_of_items_internal(node) - removed_entirely - first_removed));
-
-	/* update node header */
-	node40_set_num_items(node, nh, node40_num_of_items_internal(node) - removed_entirely);
-	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - (freed_space_end - freed_space_start));
-	nh40_set_free_space(nh, nh40_get_free_space(nh) +
-			    ((freed_space_end - freed_space_start) + sizeof (item_header40) * removed_entirely));
-
-	if (wrong_item != (unsigned short)~0u) {
-		coord_t coord;
-		reiser4_key unit_key;
-
-		assert("vs-313", wrong_item >= removed_entirely);
-		wrong_item -= removed_entirely;
-		assert("vs-314",
-		       (short)wrong_item < node40_num_of_items_internal(node));
-		coord.node = node;
-		coord_set_item_pos(&coord, wrong_item);
+	coord.node = node;
+	coord.unit_pos = 0;
+	coord.between = AT_UNIT;
+	for (pos = 0; pos < count; pos ++) {
+		coord_set_item_pos(&coord, from + pos);
 		coord.unit_pos = 0;
 		coord.between = AT_UNIT;
-		unit_key_by_coord(&coord, &unit_key);
-		update_item_key_node40(&coord, &unit_key, 0);
+		iplug = item_plugin_by_coord(&coord);
+		if (iplug->b.kill_hook) {
+			iplug->b.kill_hook(&coord, 0, coord_num_units(&coord), kdata);
+		}
+	}
+}
+
+/* this is used to kill item partially */
+static pos_in_node_t
+kill_units(coord_t *coord, pos_in_node_t from, pos_in_node_t to, void *data, reiser4_key *smallest_removed,
+	   reiser4_key *new_first_key)
+{
+	struct carry_kill_data *kdata;
+	item_plugin *iplug;
+
+	kdata = data;
+	iplug = item_plugin_by_coord(coord);
+
+	assert("vs-1524", iplug->b.kill_units);
+	return iplug->b.kill_units(coord, from, to, kdata, smallest_removed, new_first_key);
+}
+
+/* call item plugin to cut tail of file */
+static pos_in_node_t
+kill_tail(coord_t *coord, void *data, reiser4_key *smallest_removed)
+{
+	struct carry_kill_data *kdata;
+	pos_in_node_t to;
+	
+	kdata = data;
+	to = coord_last_unit_pos(coord);
+	return kill_units(coord, coord->unit_pos, to, kdata, smallest_removed, 0);
+}
+
+/* call item plugin to cut head of item */
+static pos_in_node_t
+kill_head(coord_t *coord, void *data, reiser4_key *smallest_removed, reiser4_key *new_first_key)
+{
+	return kill_units(coord, 0, coord->unit_pos, data, smallest_removed, new_first_key);
+}
+
+/* this is used to cut item partially */
+static pos_in_node_t
+cut_units(coord_t *coord, pos_in_node_t from, pos_in_node_t to, void *data,
+	  reiser4_key *smallest_removed, reiser4_key *new_first_key)
+{
+	carry_cut_data *cdata;
+	item_plugin *iplug;
+
+	cdata = data;
+	iplug = item_plugin_by_coord(coord);
+	assert("vs-302", iplug->b.cut_units);
+	return iplug->b.cut_units(coord, from, to, cdata, smallest_removed, new_first_key);
+}
+
+/* call item plugin to cut tail of file */
+static pos_in_node_t
+cut_tail(coord_t *coord, void *data, reiser4_key *smallest_removed)
+{
+	carry_cut_data *cdata;
+	pos_in_node_t to;
+	
+	cdata = data;
+	to = coord_last_unit_pos(cdata->params.from);
+	return cut_units(coord, coord->unit_pos, to, data, smallest_removed, 0);
+}
+
+/* call item plugin to cut head of item */
+static pos_in_node_t
+cut_head(coord_t *coord, void *data, reiser4_key *smallest_removed, reiser4_key *new_first_key)
+{
+	return cut_units(coord, 0, coord->unit_pos, data, smallest_removed, new_first_key);
+}
+
+/* this returns 1 of key of first item changed, 0 - if it did not */
+static int
+prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *params, int is_cut,
+		    void *data, carry_plugin_info *info)
+{
+	znode *node;
+	item_header40 *ih;
+	pos_in_node_t freed;	
+	pos_in_node_t item_pos;
+	coord_t coord;
+	reiser4_key new_first_key;
+	pos_in_node_t (*kill_units_f)(coord_t *, pos_in_node_t, pos_in_node_t, void *, reiser4_key *, reiser4_key *);
+	pos_in_node_t (*kill_tail_f)(coord_t *, void *, reiser4_key *);
+	pos_in_node_t (*kill_head_f)(coord_t *, void *, reiser4_key *, reiser4_key *);
+	int retval;
+
+	retval = 0;
+
+	node = params->from->node;
+
+	assert("vs-184", node == params->to->node);
+	assert("vs-312", !node_is_empty(node));	
+	assert("vs-297", coord_compare(params->from, params->to) != COORD_CMP_ON_RIGHT);
+
+	if (is_cut) {
+		kill_units_f = cut_units;
+		kill_tail_f = cut_tail;
+		kill_head_f = cut_head;
+	} else {
+		kill_units_f = kill_units;
+		kill_tail_f = kill_tail;
+		kill_head_f = kill_head;
 	}
 
-	if (params->info) {
+	if (parse_cut(cinfo, params) == 1) {
+		/* cut from the middle of item */
+		freed = kill_units_f(params->from, params->from->unit_pos, params->to->unit_pos, data, params->smallest_removed, NULL);
+
+		item_pos = params->from->item_pos;
+		ih = node40_ih_at(node, item_pos);
+		cinfo->freed_space_start = ih40_get_offset(ih) + node40_item_length(node, item_pos) - freed;
+		cinfo->freed_space_end = cinfo->freed_space_start + freed;
+		cinfo->first_moved = item_pos + 1;
+	} else {
+		assert("vs-1521", (cinfo->tail_removed != MAX_POS_IN_NODE ||
+				   cinfo->first_removed != MAX_POS_IN_NODE || 
+				   cinfo->head_removed != MAX_POS_IN_NODE));
+
+		switch (cinfo->mode) {
+		case CMODE_TAIL:
+			/* one item gets cut partially from its end */
+			assert("vs-1562", cinfo->tail_removed == params->from->item_pos);
+
+			freed = kill_tail_f(params->from, data, params->smallest_removed);
+
+			item_pos = cinfo->tail_removed;
+			ih = node40_ih_at(node, item_pos);
+			cinfo->freed_space_start = ih40_get_offset(ih) + node40_item_length(node, item_pos) - freed;
+			cinfo->freed_space_end = cinfo->freed_space_start + freed;
+			cinfo->first_moved = cinfo->tail_removed + 1;
+			break;
+
+		case CMODE_WHOLE:
+			/* one or more items get removed completely */
+			assert("vs-1563", cinfo->first_removed == params->from->item_pos);
+			assert("vs-1564", cinfo->removed_count > 0 && cinfo->removed_count != MAX_POS_IN_NODE);
+
+			/* call kill hook for all items removed completely */
+			if (is_cut == 0)
+				call_kill_hooks(node, cinfo->first_removed, cinfo->removed_count, data);
+
+			item_pos = cinfo->first_removed;
+			ih = node40_ih_at(node, item_pos);
+
+			if (params->smallest_removed)
+				xmemcpy(params->smallest_removed, &ih->key, sizeof (reiser4_key));
+
+			cinfo->freed_space_start = ih40_get_offset(ih);
+
+			item_pos += (cinfo->removed_count - 1);
+			ih -= (cinfo->removed_count - 1);
+			cinfo->freed_space_end = ih40_get_offset(ih) + node40_item_length(node, item_pos);
+			cinfo->first_moved = item_pos + 1;
+			if (cinfo->first_removed == 0)
+				/* key of first item of the node changes */
+				retval = 1;
+			break;
+
+		case CMODE_HEAD:
+			/* one item gets cut partially from its head */
+			assert("vs-1565", cinfo->head_removed == params->from->item_pos);
+
+			freed = kill_head_f(params->to, data, params->smallest_removed, &new_first_key);
+
+			item_pos = cinfo->head_removed;
+			ih = node40_ih_at(node, item_pos);
+			cinfo->freed_space_start = ih40_get_offset(ih);
+			cinfo->freed_space_end = ih40_get_offset(ih) + freed;
+			cinfo->first_moved = cinfo->head_removed + 1;
+
+			/* item head is removed, therefore, item key changed */
+			coord.node = node;
+			coord_set_item_pos(&coord, item_pos);
+			coord.unit_pos = 0;
+			coord.between = AT_UNIT;
+			update_item_key_node40(&coord, &new_first_key, 0);
+			if (item_pos == 0)
+				/* key of first item of the node changes */
+				retval = 1;
+			break;
+
+		case CMODE_TAIL | CMODE_WHOLE:
+			/* one item gets cut from its end and one or more items get removed completely */
+			assert("vs-1566", cinfo->tail_removed == params->from->item_pos);
+			assert("vs-1567", cinfo->first_removed == cinfo->tail_removed + 1);
+			assert("vs-1564", cinfo->removed_count > 0 && cinfo->removed_count != MAX_POS_IN_NODE);
+
+			freed = kill_tail_f(params->from, data, params->smallest_removed);
+
+			item_pos = cinfo->tail_removed;
+			ih = node40_ih_at(node, item_pos);
+			cinfo->freed_space_start = ih40_get_offset(ih) + node40_item_length(node, item_pos) - freed;
+
+			/* call kill hook for all items removed completely */
+			if (is_cut == 0)
+				call_kill_hooks(node, cinfo->first_removed, cinfo->removed_count, data);
+
+			item_pos += cinfo->removed_count;
+			ih -= cinfo->removed_count;
+			cinfo->freed_space_end = ih40_get_offset(ih) + node40_item_length(node, item_pos);
+			cinfo->first_moved = item_pos + 1;
+			break;
+
+		case CMODE_WHOLE | CMODE_HEAD:
+			/* one or more items get removed completely and one item gets cut partially from its head */
+			assert("vs-1568", cinfo->first_removed == params->from->item_pos);
+			assert("vs-1564", cinfo->removed_count > 0 && cinfo->removed_count != MAX_POS_IN_NODE);
+			assert("vs-1569", cinfo->head_removed == cinfo->first_removed + cinfo->removed_count);
+
+			/* call kill hook for all items removed completely */
+			if (is_cut == 0)
+				call_kill_hooks(node, cinfo->first_removed, cinfo->removed_count, data);
+
+			item_pos = cinfo->first_removed;
+			ih = node40_ih_at(node, item_pos);
+
+			if (params->smallest_removed)
+				xmemcpy(params->smallest_removed, &ih->key, sizeof (reiser4_key));
+
+			freed = kill_head_f(params->to, data, 0, &new_first_key);
+
+			cinfo->freed_space_start = ih40_get_offset(ih);
+
+			ih = node40_ih_at(node, cinfo->head_removed);
+			/* this is the most complex case. Item which got head removed and items which are to be moved
+			   intact change their location differently. */
+			cinfo->freed_space_end = ih40_get_offset(ih) + freed;
+			cinfo->first_moved = cinfo->head_removed;
+			cinfo->head_removed_location = cinfo->freed_space_start;
+
+			/* item head is removed, therefore, item key changed */
+			coord.node = node;
+			coord_set_item_pos(&coord, cinfo->head_removed);
+			coord.unit_pos = 0;
+			coord.between = AT_UNIT;
+			update_item_key_node40(&coord, &new_first_key, 0);
+
+			assert("vs-1579", cinfo->first_removed == 0);
+			/* key of first item of the node changes */
+			retval = 1;
+			break;
+
+		case CMODE_TAIL | CMODE_HEAD:
+			/* one item get cut from its end and its neighbor gets cut from its tail */
+			impossible("vs-1576", "this can not happen currently");
+			break;
+
+		case CMODE_TAIL | CMODE_WHOLE | CMODE_HEAD:
+			impossible("vs-1577", "this can not happen currently");
+			break;
+		default:
+			impossible("vs-1578", "unexpected cut mode");
+			break;
+		}
+	}
+	return retval;
+}
+
+
+/* plugin->u.node.kill
+   return value is number of items removed completely */
+int
+kill_node40(struct carry_kill_data *kdata, carry_plugin_info *info)
+{
+	znode *node;
+	struct cut40_info cinfo;
+	int first_key_changed;
+
+	node = kdata->params.from->node;
+	node_check(node, 0);
+
+	first_key_changed = prepare_for_compact(&cinfo, &kdata->params, 0/* not cut */, kdata, info);
+	compact(node, &cinfo);
+
+	if (info) {
 		/* it is not called by node40_shift, so we have to take care
 		   of changes on upper levels */
-		if (node_is_empty(node) && !(params->flags & DELETE_RETAIN_EMPTY))
+		if (node_is_empty(node) && !(kdata->flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
-			prepare_removal_node40(node, params->info);
-		else if (!keyeq(&node40_ih_at(node, 0)->key, &old_first_key)) {
-			/* first key changed */
-			prepare_for_update(NULL, node, params->info);
+			prepare_removal_node40(node, info);
+		else if (first_key_changed) {
+			prepare_for_update(NULL, node, info);
 		}
 	}
 
-	coord_clear_iplug(params->from);
-	coord_clear_iplug(params->to);
+	coord_clear_iplug(kdata->params.from);
+	coord_clear_iplug(kdata->params.to);
 
-	/*print_znode_content (node, ~0u); */
-	return removed_entirely;
+	node_check(node, 0);
+	znode_make_dirty(node);
+	return cinfo.removed_count == MAX_POS_IN_NODE ? 0 : cinfo.removed_count ;
 }
 
-/* plugin->u.node.cut_and_kill */
-reiser4_internal int
-cut_and_kill_node40(struct cut_list *params)
+/* plugin->u.node.cut
+   return value is number of items removed completely */
+int
+cut_node40(struct carry_cut_data *cdata, carry_plugin_info *info)
 {
-	return cut_or_kill(params, 0 /* kill (as regards - not cut) */);
+	znode *node;
+	struct cut40_info cinfo;
+	int first_key_changed;
+
+	node = cdata->params.from->node;
+	node_check(node, 0);
+
+	first_key_changed = prepare_for_compact(&cinfo, &cdata->params, 1/* not cut */, cdata, info);
+	compact(node, &cinfo);
+
+	if (info) {
+		/* it is not called by node40_shift, so we have to take care
+		   of changes on upper levels */
+		if (node_is_empty(node))
+			/* all contents of node is deleted */
+			prepare_removal_node40(node, info);
+		else if (first_key_changed) {
+			prepare_for_update(NULL, node, info);
+		}
+	}
+
+	coord_clear_iplug(cdata->params.from);
+	coord_clear_iplug(cdata->params.to);
+
+	node_check(node, 0);
+	znode_make_dirty(node);
+	return cinfo.removed_count == MAX_POS_IN_NODE ? 0 : cinfo.removed_count ;
 }
 
-/* plugin->u.node.cut */
-reiser4_internal int
-cut_node40(struct cut_list *params)
-{
-	return cut_or_kill(params, 1 /* cut */);
-}
 
 /* this structure is used by shift method of node40 plugin */
 struct shift_params {
@@ -1663,7 +1946,7 @@ delete_copied(struct shift_params *shift)
 {
 	coord_t from;
 	coord_t to;
-	struct cut_list params;
+	struct carry_cut_data cdata;
 
 	if (shift->pend == SHIFT_LEFT) {
 		/* we were shifting to left, remove everything from the
@@ -1689,14 +1972,12 @@ delete_copied(struct shift_params *shift)
 		coord_prev_unit(&shift->u.future_last);
 	}
 
-	params.from = &from;
-	params.to = &to;
-	params.from_key = 0;
-	params.to_key = 0;
-	params.smallest_removed = 0;
-	params.info = 0;
-	params.flags = 0;
-	return cut_node40(&params);
+	cdata.params.from = &from;
+	cdata.params.to = &to;
+	cdata.params.from_key = 0;
+	cdata.params.to_key = 0;
+	cdata.params.smallest_removed = 0;
+	return cut_node40(&cdata, 0);
 }
 
 /* znode has left and right delimiting keys. We moved data between nodes,
@@ -1814,6 +2095,8 @@ prepare_removal_node40(znode * empty, carry_plugin_info * info)
 		return RETERR(op ? PTR_ERR(op) : -EIO);
 
 	op->u.delete.child = 0;
+	op->u.delete.flags = 0;
+
 	/* fare thee well */
 	ZF_SET(empty, JNODE_HEARD_BANSHEE);
 	return 0;
@@ -2125,22 +2408,272 @@ update_taps(const struct shift_params *shift)
 	}
 }
 
+#if REISER4_DEBUG
+
+struct shift_check {
+	reiser4_key key;
+	__u16 plugin_id;
+	union {
+		__u64 bytes;
+		__u64 entries;
+		void *unused;
+	} u;
+};
+
+void *
+shift_check_prepare(const znode *left, const znode *right)
+{
+	pos_in_node_t i, nr_items;
+	int mergeable;
+	struct shift_check *data;
+	item_header40 *ih;
+
+	
+	if (node_is_empty(left) || node_is_empty(right))
+		mergeable = 0;
+	else {
+		coord_t l, r;
+
+		coord_init_last_unit(&l, left);
+		coord_init_first_unit(&r, right);
+		mergeable = are_items_mergeable(&l, &r);
+	}
+	nr_items = node40_num_of_items_internal(left) + node40_num_of_items_internal(right) - (mergeable ? 1 : 0);
+	data = reiser4_kmalloc(sizeof(struct shift_check) * nr_items, GFP_KERNEL);
+	if (data != NULL) {
+		coord_t coord;
+		pos_in_node_t item_pos;
+
+		coord_init_first_unit(&coord, left);
+		i = 0;
+		
+		for (item_pos = 0; item_pos < node40_num_of_items_internal(left); item_pos ++) {
+
+			coord_set_item_pos(&coord, item_pos);
+			ih = node40_ih_at_coord(&coord);
+
+			data[i].key = ih->key;
+			data[i].plugin_id = d16tocpu(&ih->plugin_id);
+			switch(data[i].plugin_id) {
+			case FORMATTING_ID:
+				data[i].u.bytes = coord_num_units(&coord);
+				break;
+			case EXTENT_POINTER_ID:
+				data[i].u.bytes = extent_size(&coord, coord_num_units(&coord));
+				break;
+			case COMPOUND_DIR_ID:
+				data[i].u.entries = coord_num_units(&coord);
+				break;
+			default:
+				data[i].u.unused = NULL;
+				break;
+			}
+			i ++;
+		}
+
+		coord_init_first_unit(&coord, right);
+
+		if (mergeable) {
+			assert("vs-1609", i != 0);
+
+			ih = node40_ih_at_coord(&coord);
+
+			assert("vs-1589", data[i - 1].plugin_id == d16tocpu(&ih->plugin_id));
+			switch(data[i - 1].plugin_id) {
+			case FORMATTING_ID:
+				data[i - 1].u.bytes += coord_num_units(&coord);
+				break;
+			case EXTENT_POINTER_ID:
+				data[i - 1].u.bytes += extent_size(&coord, coord_num_units(&coord));
+				break;
+			case COMPOUND_DIR_ID:
+				data[i - 1].u.entries += coord_num_units(&coord);
+				break;
+			default:
+				impossible("vs-1605", "wrong mergeable item");
+				break;
+			}
+			item_pos = 1;
+		} else
+			item_pos = 0;
+		for (; item_pos < node40_num_of_items_internal(right); item_pos ++) {
+
+			assert("vs-1604", i < nr_items);
+			coord_set_item_pos(&coord, item_pos);
+			ih = node40_ih_at_coord(&coord);
+
+			data[i].key = ih->key;
+			data[i].plugin_id = d16tocpu(&ih->plugin_id);
+			switch(data[i].plugin_id) {
+			case FORMATTING_ID:
+				data[i].u.bytes = coord_num_units(&coord);
+				break;
+			case EXTENT_POINTER_ID:
+				data[i].u.bytes = extent_size(&coord, coord_num_units(&coord));
+				break;
+			case COMPOUND_DIR_ID:
+				data[i].u.entries = coord_num_units(&coord);
+				break;
+			default:
+				data[i].u.unused = NULL;
+				break;
+			}
+			i ++;
+		}
+		assert("vs-1606", i == nr_items);
+	}
+	return data;
+}
+
+void
+shift_check(void *vp, const znode *left, const znode *right)
+{
+	pos_in_node_t i, nr_items;
+	coord_t coord;
+	__u64 last_bytes;
+	int mergeable;
+	item_header40 *ih;
+	pos_in_node_t item_pos;
+	struct shift_check *data;
+
+	data = (struct shift_check *)vp;
+
+	if (data == NULL)
+		return;
+
+	if (node_is_empty(left) || node_is_empty(right))
+		mergeable = 0;
+	else {
+		coord_t l, r;
+
+		coord_init_last_unit(&l, left);
+		coord_init_first_unit(&r, right);
+		mergeable = are_items_mergeable(&l, &r);
+	}
+
+	nr_items = node40_num_of_items_internal(left) + node40_num_of_items_internal(right) - (mergeable ? 1 : 0);
+
+	i = 0;
+	last_bytes = 0;
+
+	coord_init_first_unit(&coord, left);
+
+	for (item_pos = 0; item_pos < node40_num_of_items_internal(left); item_pos ++) {
+
+		coord_set_item_pos(&coord, item_pos);
+		ih = node40_ih_at_coord(&coord);
+
+		assert("vs-1611", i == item_pos);
+		assert("vs-1590", keyeq(&ih->key, &data[i].key));
+		assert("vs-1591", d16tocpu(&ih->plugin_id) == data[i].plugin_id);
+		if ((i < (node40_num_of_items_internal(left) - 1)) || !mergeable) {
+			switch(data[i].plugin_id) {
+			case FORMATTING_ID:
+				assert("vs-1592", data[i].u.bytes == coord_num_units(&coord));
+				break;
+			case EXTENT_POINTER_ID:
+				assert("vs-1593", data[i].u.bytes == extent_size(&coord, coord_num_units(&coord)));
+				break;
+			case COMPOUND_DIR_ID:
+				assert("vs-1594", data[i].u.entries == coord_num_units(&coord));
+				break;
+			default:
+				break;
+			}
+		}
+		if (item_pos == (node40_num_of_items_internal(left) - 1) && mergeable) {
+			switch(data[i].plugin_id) {
+			case FORMATTING_ID:
+				last_bytes = coord_num_units(&coord);
+				break;
+			case EXTENT_POINTER_ID:
+				last_bytes = extent_size(&coord, coord_num_units(&coord));
+				break;
+			case COMPOUND_DIR_ID:
+				last_bytes = coord_num_units(&coord);
+				break;
+			default:
+				impossible("vs-1595", "wrong mergeable item");
+				break;
+			}
+		}
+		i ++;
+	}
+			
+	coord_init_first_unit(&coord, right);
+	if (mergeable) {
+		ih = node40_ih_at_coord(&coord);
+
+		assert("vs-1589", data[i - 1].plugin_id == d16tocpu(&ih->plugin_id));
+		assert("vs-1608", last_bytes != 0);
+		switch(data[i - 1].plugin_id) {
+		case FORMATTING_ID:
+			assert("vs-1596", data[i - 1].u.bytes == last_bytes + coord_num_units(&coord));
+			break;
+			
+		case EXTENT_POINTER_ID:
+			assert("vs-1597", data[i - 1].u.bytes == last_bytes + extent_size(&coord, coord_num_units(&coord)));
+			break;
+			
+		case COMPOUND_DIR_ID:
+			assert("vs-1598", data[i - 1].u.bytes == last_bytes + coord_num_units(&coord));
+			break;
+		default:			
+			impossible("vs-1599", "wrong mergeable item");
+			break;
+		}
+		item_pos = 1;
+	} else
+		item_pos = 0;
+	
+	for (; item_pos < node40_num_of_items_internal(right); item_pos ++) {
+
+		coord_set_item_pos(&coord, item_pos);
+		ih = node40_ih_at_coord(&coord);
+		
+		assert("vs-1612", keyeq(&ih->key, &data[i].key));
+		assert("vs-1613", d16tocpu(&ih->plugin_id) == data[i].plugin_id);
+		switch(data[i].plugin_id) {
+		case FORMATTING_ID:
+			assert("vs-1600", data[i].u.bytes == coord_num_units(&coord));
+			break;
+		case EXTENT_POINTER_ID:
+			assert("vs-1601", data[i].u.bytes == extent_size(&coord, coord_num_units(&coord)));
+			break;
+		case COMPOUND_DIR_ID:
+			assert("vs-1602", data[i].u.entries == coord_num_units(&coord));
+			break;
+		default:
+			break;
+		}
+		i ++;
+	}
+
+	assert("vs-1603", i == nr_items);
+	reiser4_kfree(data);
+}
+
+#endif
+
 ON_DEBUG_MODIFY(extern __u32 znode_checksum(const znode * node);)
 
 /* plugin->u.node.shift
    look for description of this method in plugin/node/node.h */
 reiser4_internal int
-shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will
-											   be deleted from the tree if this is set
-											   to 1 */
+shift_node40(coord_t *from, znode *to, shift_direction pend,
+	     int delete_child,	/* if @from->node becomes empty - it will be deleted from the tree if this is set to
+				   1 */
 	     int including_stop_coord /* */ ,
-	     carry_plugin_info * info)
+	     carry_plugin_info *info)
 {
 	struct shift_params shift;
 	int result;
 	znode *left, *right;
 	znode *source;
 	int target_empty;
+#if REISER4_DEBUG
+	struct shift_check *check_data;
+#endif
 
 	assert("nikita-2161", coord_check(from));
 
@@ -2171,6 +2704,9 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		left = from->node;
 		right = to;
 	}
+
+	ON_DEBUG(check_data = shift_check_prepare(left, right));
+
 	if (result) {
 		/* move insertion coord even if there is nothing to move */
 		if (including_stop_coord) {
@@ -2210,10 +2746,10 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	copy(&shift);
 
+	/* result value of this is important. It is used by adjust_coord below */
 	result = delete_copied(&shift);
-	if (result < 0)
-		return result;
 
+	assert("vs-1610", result >= 0);
 	assert("vs-1471", ((reiser4_context *) current->fs_context)->magic == context_magic);
 
 	/* item which has been moved from one node to another might want to do
@@ -2260,6 +2796,8 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	node_check(source, 0);
 	node_check(to, 0);
 	assert("nikita-2080", coord_check(from));
+
+	ON_DEBUG(shift_check(check_data, left, right));
 
 	return result ? result : (int) shift.shift_bytes;
 }
