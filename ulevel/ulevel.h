@@ -504,6 +504,9 @@ struct address_space {
 	int			gfp_mask;	/* how to allocate the pages */
 };
 
+struct block_device;
+typedef __u64 sector_t;
+
 struct inode {
 	struct list_head	i_hash;
 	struct list_head	i_list;
@@ -542,6 +545,7 @@ struct inode {
 	unsigned int		i_flags;
 	unsigned char		i_sock;
 
+	struct block_device    *i_bdev;
 	atomic_t		i_writecount;
 	unsigned int		i_attr_flags;
 	__u32			i_generation;
@@ -653,13 +657,6 @@ extern void       kcondvar_broadcast (kcondvar_t        *kcond);
 #define DEBUGGING_REISER4_WRITE
 #ifdef DEBUGGING_REISER4_WRITE
 
-
-/* include/asm/page.h */
-#define PAGE_SHIFT 12
-#define PAGE_SIZE  (1UL << PAGE_SHIFT)
-#define PAGE_MASK  (~(PAGE_SIZE - 1))
-
-
 /* include/linux/mm.h */
 
 struct page {
@@ -753,7 +750,8 @@ struct buffer_head {
 
 struct address_space;
 struct inode;
-typedef int (get_block_t)(struct inode*,long,struct buffer_head*,int);
+typedef int (get_block_t)(struct inode*,sector_t,struct buffer_head*,int);
+
 int create_empty_buffers (struct page * page, unsigned blocksize);
 void ll_rw_block(int, int, struct buffer_head * bh[]);
 void set_buffer_async_io (struct buffer_head * bh);
@@ -886,6 +884,38 @@ static inline int unregister_filesystem(struct file_system_type * fs UNUSED_ARG)
 {
 	return 0;
 }
+
+static inline int block_read_full_page(struct page *page UNUSED_ARG, 
+				       get_block_t *get_block UNUSED_ARG)
+{
+	return 0;
+}
+
+#define PAGE_SHIFT	12
+#define PAGE_SIZE	(1UL << PAGE_SHIFT)
+#define PAGE_MASK	(~(PAGE_SIZE-1))
+
+#define PAGE_CACHE_SHIFT	PAGE_SHIFT
+#define PAGE_CACHE_SIZE		PAGE_SIZE
+#define PAGE_CACHE_MASK		PAGE_MASK
+#define PAGE_CACHE_ALIGN(addr)	(((addr)+PAGE_CACHE_SIZE-1)&PAGE_CACHE_MASK)
+
+enum bh_state_bits {
+	BH_Uptodate,	/* 1 if the buffer contains valid data */
+	BH_Dirty,	/* 1 if the buffer is dirty */
+	BH_Lock,	/* 1 if the buffer is locked */
+	BH_Req,		/* 0 if the buffer has been invalidated */
+	BH_Mapped,	/* 1 if the buffer has a disk mapping */
+	BH_New,		/* 1 if the buffer is new and not yet written out */
+	BH_Async,	/* 1 if the buffer is under end_buffer_io_async I/O */
+	BH_Wait_IO,	/* 1 if we should write out this buffer */
+	BH_launder,	/* 1 if we should throttle on this buffer */
+	BH_JBD,		/* 1 if it has an attached journal_head */
+
+	BH_PrivateStart,/* not a state bit, but the first bit available
+			 * for private allocation by other entities
+			 */
+};
 
 /* __REISER4_ULEVEL_H__ */
 #endif
