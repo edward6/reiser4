@@ -526,6 +526,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 			new_wrd = cur_wrd->next;
 		}
 	new_wrd         = ( wrd_t *)(ws->freeSpCur->freeSpace + ROUND_UP( len+1 ));
+        PTRACE( ws, "VD-wrd_inittab:_ROUND_UP_MASK=%d",((unsigned long) new_wrd & _ROUND_UP_MASK(3)) );
 	new_wrd->u.name = ws->freeSpCur->freeSpace;
 	new_wrd->u.len  = len;
 	ws->freeSpCur->freeSpace= (char*)new_wrd + ROUND_UP(sizeof(wrd_t));
@@ -550,12 +551,12 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	char * s ;
 
 //	s = curr_symbol(ws);              /* first symbol or Last readed symbol of the previous token parsing */
-	if ( *curr_symbol(ws) == 0 ) return EOF;        /* end of string is EOF */
+	if ( *curr_symbol(ws) == 0 ) return  0;        /* end of string is EOF */
 
 	while(ncl[*curr_symbol(ws)]==Blk)
 		{
 			next_symbol(ws);
-			if ( *curr_symbol(ws) == 0 ) return EOF;  /* end of string is EOF */
+			if ( *curr_symbol(ws) == 0 ) return  0;  /* end of string is EOF */
 		}
 
 
