@@ -502,6 +502,8 @@ void add_x_ref( znode *node /* node to increase x_count of */ )
 {
 	assert( "nikita-1911", node != NULL );
 
+	/*trace_on (TRACE_FLUSH, "add_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
+
 	atomic_inc( &node -> x_count );
 	ON_DEBUG( ++ lock_counters() -> x_refs );
 }
@@ -709,6 +711,7 @@ void zput (znode *node)
 	 * FIXME-NIKITA nikita: handle releasing reference to the znode that is
 	 * removed from the tree. Locking?
 	 */
+	/*trace_on (TRACE_FLUSH, "del_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
 	if (atomic_dec_and_test (& node->x_count)) {
 		if (ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
 
