@@ -258,7 +258,7 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	spin_lock_tree(current_tree);
 
 	if (bnode->commit == NULL) {
-		ret = load_bnode_half(&bnode->commit, reiser4_get_bitmap_blocknr(super, bmap_nr));
+		ret = load_bnode_half(&bnode->commit, get_bitmap_blocknr(super, bmap_nr));
 
 		if (ret < 0) goto out;
 	}
@@ -404,7 +404,7 @@ int reiser4_init_bitmap (struct super_block * super)
 	reiser4_super_info_data * info_data = reiser4_get_super_private(super); 
 	int bitmap_blocks_nr;
 
-	bitmap_blocks_nr = reiser4_get_nr_bmap(super); 
+	bitmap_blocks_nr = get_nr_bmap(super); 
 
 	info_data->bitmap = reiser4_kmalloc (sizeof(struct reiser4_bnode) * bitmap_blocks_nr, 
 					GFP_KERNEL);
@@ -426,7 +426,7 @@ void reiser4_done_bitmap (struct super_block * super)
 
 	assert ("zam-376", info_data->bitmap != NULL);
 
-	bitmap_blocks_nr = reiser4_get_nr_bmap(super);
+	bitmap_blocks_nr = get_nr_bmap(super);
 
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
 		struct reiser4_bnode * bnode 
