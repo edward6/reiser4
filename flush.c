@@ -2242,6 +2242,11 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		/* Continue as long as there are more extent units. */
 
 		scan_index = extent_unit_index (& coord) + (flush_scanning_left (scan) ? extent_unit_width (& coord) - 1 : 0);
+		/*
+		 * FIXME-VS: repeat: starts from get_inode, so iput here?
+		 */
+		assert ("vs-835", ino);
+		iput (ino);
 		goto repeat;
 	}
 
