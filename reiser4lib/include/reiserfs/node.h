@@ -25,15 +25,14 @@ struct reiserfs_node {
 
 typedef struct reiserfs_node reiserfs_node_t;
 
-extern reiserfs_plugin_id_t reiserfs_node_get_plugin_id(aal_block_t *block);
-extern void reiserfs_node_set_plugin_id(aal_block_t *block, reiserfs_plugin_id_t id);
 
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk);
 
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, 
     reiserfs_plugin_id_t plugin_id, uint8_t level);
 
-void reiserfs_node_close(reiserfs_node_t *node);
+extern reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node);
+extern void reiserfs_node_close(reiserfs_node_t *node);
     
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 extern error_t reiserfs_node_sync(reiserfs_node_t *node);

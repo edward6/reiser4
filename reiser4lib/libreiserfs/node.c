@@ -24,7 +24,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk) {
 	goto error_free_node;
     }
     
-    plugin_id = reiserfs_node_get_plugin_id(node->block);
+    plugin_id = reiserfs_node_get_plugin_id(node);
     if (!(node->plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Node plugin cannot be find by its identifier %x.", plugin_id);
@@ -65,7 +65,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
 	goto error_free_node;
     }
 	    
-    reiserfs_node_set_plugin_id(node->block, plugin_id);
+    set_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id, plugin_id);
     if (!(node->plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find node plugin by its identifier %x.", plugin_id);
@@ -120,14 +120,9 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
     what node format is used. This code must be aware
     about reiser3 node format.
 */
-reiserfs_plugin_id_t reiserfs_node_get_plugin_id(aal_block_t *block) {
-    aal_assert("umka-161", block != NULL, return -1);
-    return get_le16((reiserfs_node_common_header_t *)block->data, plugin_id);
-}
-
-void reiserfs_node_set_plugin_id(aal_block_t *block, reiserfs_plugin_id_t id) {
-    aal_assert("umka-162", block != NULL, return);
-    set_le16((reiserfs_node_common_header_t *)block->data, plugin_id, id);
+reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node) {
+    aal_assert("umka-161", node != NULL, return -1);
+    return get_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id);
 }
 
 uint32_t reiserfs_node_max_item_size(reiserfs_node_t *node) {
