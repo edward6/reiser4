@@ -53,6 +53,9 @@ TYPE_SAFE_LIST_DECLARE(fwaiting);
 
 /* The transaction's list of captured jnodes */
 TYPE_SAFE_LIST_DECLARE(capture);
+#if REISER4_DEBUG
+TYPE_SAFE_LIST_DECLARE(inode_jnodes);
+#endif
 
 TYPE_SAFE_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
 				 * and wandered mapping. */

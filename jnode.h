@@ -176,8 +176,11 @@ struct jnode {
 	int      written;
 	/* this indicates which atom's list the jnode is on */
         atom_list list1;
+	/* for debugging jnodes of one inode are attached to inode via this list */
+	inode_jnodes_list_link inode_link;
 #endif
 } __attribute__((aligned(16)));
+
 
 /*
  * jnode types. Enumeration of existing jnode types.
@@ -193,6 +196,9 @@ typedef enum {
 } jnode_type;
 
 TYPE_SAFE_LIST_DEFINE(capture, jnode, capture_link);
+#if REISER4_DEBUG
+TYPE_SAFE_LIST_DEFINE(inode_jnodes, jnode, inode_link);
+#endif
 
 /* jnode states */
 typedef enum {

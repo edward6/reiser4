@@ -438,6 +438,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		INIT_RADIX_TREE(ef_jnode_tree_by_reiser4_inode(&info->p), GFP_ATOMIC);
 		ON_DEBUG(info->p.captured_eflushed = 0);
 		ON_DEBUG(info->p.anonymous_eflushed = 0);
+		ON_DEBUG(inode_jnodes_list_init(&info->p.jnodes_list));
 	}
 }
 
