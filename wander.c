@@ -647,15 +647,19 @@ get_overwrite_set(struct commit_handle *ch)
 			 * jload() to avoid races with emergency flush. */
 			if (!jnode_is_leaf(cur))
 				nr_not_leaves ++;
-#if REISER4_DEBUG
-			/* this is to check atom's flush reserved space for overwritten leaves */
+			/* this is to check atom's flush reserved space for
+			 * overwritten leaves */
 			else {
+#if REISER4_DEBUG
+				assert("nikita-3450",
+				       JF_ISSET(cur, JNODE_FLUSH_RESERVED));
 				if (jnode_is_znode(cur))
 					nr_formatted_leaves ++;
 				else
 					nr_unformatted_leaves ++;
-			}
 #endif
+				JF_CLR(cur, JNODE_FLUSH_RESERVED);
+			}
 			spin_lock(&scan_lock);
 			JF_SET(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
 			assert("", cur->pg);
@@ -1032,14 +1036,17 @@ get_overwrite_set(struct commit_handle *ch)
 		 * reserved". */
 		if (!jnode_is_leaf(cur))
 			nr_not_leaves ++;
-#if REISER4_DEBUG
 		else {
+#if REISER4_DEBUG
+			assert("nikita-3451",
+			       JF_ISSET(cur, JNODE_FLUSH_RESERVED));
 			if (jnode_is_znode(cur))
 				nr_formatted_leaves ++;
 			else
 				nr_unformatted_leaves ++;
+#endif
+			JF_CLR(cur, JNODE_FLUSH_RESERVED);
 		}
-#endif		
 
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */

@@ -719,7 +719,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	/* scan right is inherently deadlock prone, because we are
-	 * (potentially) holding a lock on the twig node at this moment. 
+	 * (potentially) holding a lock on the twig node at this moment.
 	 * FIXME: this is incorrect comment: lock is not held */
 	if (todo > 0 && (get_flush_scan_nstat(&right_scan) == LINKED)) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
@@ -2698,9 +2698,22 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		 * counter if @node is leaf, otherwise we grab space using BA_RESERVED (means grab
 		 * space from whole disk not from only 95%). */
 		if (znode_get_level(node) == LEAF_LEVEL) {
+			/*
+			 * earlier (during do_jnode_make_dirty()) we decided
+			 * that @node can possibly go into overwrite set and
+			 * reserved block for its wandering location.
+			 */
 			txn_atom * atom = get_current_atom_locked();
+			assert("nikita-3449",
+			       ZF_ISSET(node, JNODE_FLUSH_RESERVED));
 			flush_reserved2grabbed(atom, (__u64)1);
 			spin_unlock_atom(atom);
+			/*
+			 * we are trying to move node into relocate
+			 * set. Allocation of relocated position "uses"
+			 * reserved block.
+			 */
+			ZF_CLR(node, JNODE_FLUSH_RESERVED);
 			flush_reserved_used = 1;
 		} else {
 			ret = reiser4_grab_space_force((__u64)1, BA_RESERVED);
@@ -2719,8 +2732,14 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	zrelse(node);
 	if(ret) {
 		/* Get flush reserved block back if allocation fails. */
-		if (flush_reserved_used)
+		if (flush_reserved_used) {
+			/*
+			 * ok, we failed to move node into relocate
+			 * set. Restore status quo.
+			 */
 			grabbed2flush_reserved((__u64)1);
+			ZF_SET(node, JNODE_FLUSH_RESERVED);
+		}
 		goto exit;
 	}
 

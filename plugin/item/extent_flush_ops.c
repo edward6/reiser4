@@ -680,6 +680,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 		assert("vs-1476", atomic_read(&node->x_count) > 0);
 		assert("vs-1412", JF_ISSET(node, JNODE_EPROTECTED));
  		assert("vs-1460", !JF_ISSET(node, JNODE_EFLUSH));
+		JF_CLR(node, JNODE_FLUSH_RESERVED);
 		jnode_set_block(node, &first);
 		unformatted_make_reloc(node, fq);
 		junprotect(node);

@@ -277,10 +277,24 @@ typedef enum {
 	/* capture copy jnode */
 	JNODE_CC = 27,
 	/* this jnode is copy of coced original */
-	JNODE_CCED_CLEAN = 28,
-	JNODE_CCED_RELOC = 29,
-	JNODE_CCED_NOPAGE = 30,
-	JNODE_CCED_OVRWR = 31
+	JNODE_CCED = 28,
+	/*
+	 * When jnode is dirtied for the first time in given transaction,
+	 * do_jnode_make_dirty() checks whether this jnode can possible became
+	 * member of overwrite set. If so, this bit is set, and one block is
+	 * reserved in the ->flush_reserved space of atom.
+	 *
+	 * This block is "used" (and JNODE_FLUSH_RESERVED bit is cleared) when
+	 *
+	 *     (1) flush decides that we want this block to go into relocate
+	 *     set after all.
+	 *
+	 *     (2) wandering log is allocated (by log writer)
+	 *
+	 *     (3) extent is allocated
+	 *
+	 */
+	JNODE_FLUSH_RESERVED = 29
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */

@@ -706,10 +706,7 @@ forget_znode(lock_handle * handle)
 		/* Here we return flush reserved block which was reserved at the
 		 * moment when this allocated node was marked dirty and still
 		 * not used by flush in node relocation procedure.  */
-		if (znode_is_dirty(node) && !znode_created(node) &&
-		    !ZF_ISSET(node, JNODE_RELOC) && !ZF_ISSET(node, JNODE_OVRWR) &&
-		    (znode_get_level(node) == LEAF_LEVEL))
-		{
+		if (ZF_ISSET(node, JNODE_FLUSH_RESERVED)) {
 			txn_atom * atom ;
 
 			atom = jnode_get_atom(ZJNODE(node));
