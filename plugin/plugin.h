@@ -270,6 +270,7 @@ typedef struct file_plugin {
 	void (*delete_inode)(struct inode *);
 	void (*forget_inode)(struct inode *);
 	void (*clear_inode)(struct inode *);
+	ssize_t (*sendfile)(struct file *, loff_t *, size_t, read_actor_t, void __user *);
 
 	struct {
 		int (*set) (struct dentry*, const char*,const void *,size_t,int);

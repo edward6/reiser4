@@ -1215,7 +1215,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.forget_inode = forget_inode_common,
-		.clear_inode  = clear_inode_common
+		.clear_inode  = clear_inode_common,
+		.sendfile = sendfile_unix_file,
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1512,7 +1513,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.forget_inode = forget_inode_common,
-		.clear_inode  = clear_inode_common
+		.clear_inode  = clear_inode_common,
+		.sendfile = sendfile_common,
 	}
 };
 

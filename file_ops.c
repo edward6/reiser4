@@ -364,103 +364,20 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 				size_t count, read_actor_t actor,
 				void __user *target)
 {
-	int result = 0;
+	int result;
 	file_plugin *fplug;
 	reiser4_context ctx;
 	struct inode *inode;
-	unsigned long index;
-	unsigned long eindex;
-	unsigned long offset;
-	read_descriptor_t desc;
-	struct page *page = NULL;
 
-	assert("umka-3108", file != NULL);
-	
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
 
-	/* FIXME-UMKA: apparently here readahead should be called first.*/
-
-	desc.error = 0;
-	desc.written = 0;
-	desc.buf = target;
-	desc.count = count;
-
-	index = *ppos >> PAGE_CACHE_SHIFT;
-	offset = *ppos & ~PAGE_CACHE_MASK;
 	fplug = inode_file_plugin(inode);
 
-	while (1) {
-		unsigned long nr, ret;
-		loff_t isize = i_size_read(inode);
-
-		eindex = (isize >> PAGE_CACHE_SHIFT);
-		
-		if (index > eindex)
-			break;
-
-		nr = PAGE_CACHE_SIZE;
-
-		if (index == eindex) {
-			nr = isize & ~PAGE_CACHE_MASK;
-			if (nr <= offset)
-				break;
-		}
-
-		nr = nr - offset;
-
-		page = grab_cache_page(inode->i_mapping, index);
-		if (unlikely(page == NULL)) {
-			result = RETERR(-ENOMEM);
-			goto fail_no_page;
-		}
-
-		if (PageUptodate(page))
-			/* process locked, up-to-date  page by read actor */
-			goto actor;
-
-		if (fplug->readpage != NULL) {
-			result = RETERR(-EINVAL);
-			goto fail_locked_page;
-		}
-
-		result = fplug->readpage(file, page);
-		if (result != 0) {
-			SetPageError(page);
-			ClearPageUptodate(page);
-			goto fail_page;
-		}
-
-		lock_page(page);
-		if (!PageUptodate(page)) {
-			result = RETERR(-EIO);
-			goto fail_locked_page;
-		}
-
-	actor:
-		ret = actor(&desc, page, offset, nr);
-
-		unlock_page(page);
-		page_cache_release(page);
-
-		offset += ret;
-		index += offset >> PAGE_CACHE_SHIFT;
-		offset &= ~PAGE_CACHE_MASK;
-
-		if (ret != nr || desc.count == 0)
-			break;
-	}
-
-	if (0) {
-	fail_locked_page:
-		unlock_page(page);
-	fail_page:
-		page_cache_release(page);
-	}
-	fail_no_page:
-
-	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
-	update_atime(inode);
+	if (fplug->sendfile != NULL)
+		result = fplug->sendfile(file, ppos, count, actor, target);
+	else
+		result = RETERR(-EINVAL);
 
 	reiser4_exit_context(&ctx);
 	return result;

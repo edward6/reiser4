@@ -24,6 +24,11 @@ int pre_delete_unix_file(struct inode *);
 int safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
 		       __u64 value);
 
+ssize_t sendfile_common (
+	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);
+ssize_t sendfile_unix_file (
+	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);
+
 void balance_dirty_page_unix_file(struct inode *object);
 
 /* all the write into unix file is performed by item write method. Write method of unix file plugin only decides which
