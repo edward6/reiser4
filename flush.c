@@ -595,7 +595,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 {
 	int ret;
 	int same_parents;
-	int any_shifted = 0;
+	int any_shifted;
 	lock_handle right_lock;
 	lock_handle parent_lock;
 	load_handle right_load;
@@ -653,7 +653,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
-	any_shifted |= ! coord_is_after_rightmost (& at_right);
+	any_shifted = ! coord_is_after_rightmost (& at_right);
 
 	/* any_shifted may be true but we still may have allocated to the end of a twig
 	 * (via extent_copy_and_allocate), in which case we should unset it. */
@@ -697,7 +697,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* If anything is shifted at an upper level, we should not allocate any further
 	 * because the child is no longer rightmost. */
-	if (any_shifted && znode_get_level (node) != LEAF_LEVEL) {
+	if (any_shifted && call_depth > 0 /*FIXME: This doesn't work for flush at non-leaf level: znode_get_level (node) != LEAF_LEVEL*/) {
 		ret = 0;
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] shifted & not leaf: %s\n", call_depth, flush_pos_tostring (pos));
 		goto exit;
@@ -724,7 +724,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 	}
 
-	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to enqueue: %s\n", call_depth, flush_pos_tostring (pos));
+	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to enqueue node %p: %s\n", call_depth, node, flush_pos_tostring (pos));
 
 	/* Now finished with node. */
 	if (znode_is_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
@@ -745,14 +745,16 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * parents after shifting. */
 
 	/* Allocate the right node. */
-	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to allocate: %s\n", call_depth, flush_pos_tostring (pos));
+	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to allocate right %p: %s\n", call_depth, right_lock.node, flush_pos_tostring (pos));
 
-	if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
-		goto exit;
-	}
+	if (! znode_is_allocated (right_lock.node)) {
+		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
+			goto exit;
+		}
 
-	if ((ret = flush_allocate_znode (right_lock.node, & right_parent_coord, pos))) {
-		goto exit;
+		if ((ret = flush_allocate_znode (right_lock.node, & right_parent_coord, pos))) {
+			goto exit;
+		}
 	}
 
  exit:
@@ -2367,7 +2369,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 			}
 		}			
 	} else if (pos->point != NULL) {
-		sprintf (fmtbuf+strlen(fmtbuf), "pt: %p ", pos->point);
+		sprintf (fmtbuf+strlen(fmtbuf), "pt: %p dirty %u alloc %u", pos->point, jnode_check_dirty (pos->point), jnode_check_allocated (pos->point));
 	}
 
 	done_zh (& load);
