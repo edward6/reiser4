@@ -192,7 +192,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 		case UNLINK_BY_NLINK:
 			-- object -> i_nlink;
 			object -> i_ctime = CURRENT_TIME;
-			result = fplug -> write_inode( object );
+			result = fplug -> write_sd_by_inode( object );
 		default:
 			wrong_return_value( "nikita-1478", "uf_type" );
 		}
@@ -408,7 +408,7 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 				.is_name_acceptable  = is_name_acceptable,
 				.add_entry           = hashed_add_entry,
 				.rem_entry           = hashed_rem_entry,
-				.create              = hashed_create,
+				/*.create              = hashed_create,*/
 				.create_child        = common_create_child
 			}
 		}

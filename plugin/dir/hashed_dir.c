@@ -17,17 +17,12 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
 int hashed_create( struct inode *object /* new directory */, 
 		   struct inode *parent /* parent directory */,
-		   reiser4_object_create_data *data UNUSED_ARG /* info
-								* passed
-								* to us,
-								* this
-								* is
-								* filled
-								* by
+		   reiser4_object_create_data *data UNUSED_ARG /* info passed
+								* to us, this
+								* is filled by
 								* reiser4()
-								* syscall
-								* in
-								* particular */ )
+								* syscall in
+								* particular */)
 {
 	int result;
 

@@ -40,17 +40,6 @@ int ordinary_readpage (struct file * file, struct page * page);
 
 
 /*
- * this structure is used to pass both coord and lock handle from extent_read
- * down to extent_readpage via read_cache_page which can deliver to filler only
- * one parameter specified by its caller
- */
-struct readpage_arg {
-	tree_coord * coord;
-	reiser4_lock_handle * lh;
-};
-
-
-/*
  * part of item plugin. These are operations specific to items regular file
  * metadata are built of
  */
@@ -59,7 +48,7 @@ typedef struct file_ops {
 		       reiser4_lock_handle *, flow *);
 	int (* read) (struct inode *, tree_coord *,
 		      reiser4_lock_handle *, flow *);
-	int (* readpage) (struct readpage_arg *, struct page *);
+	int (* readpage) (void *, struct page *);
 } file_ops;
 
 

@@ -243,7 +243,7 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 	 * get plugin of found item
 	 */
 	iplug = item_plugin_by_coord (&coord);
-	if (!iplug->s.file.fill_page) {
+	if (!iplug->s.file.readpage) {
 		reiser4_done_lh (&lh);
 		reiser4_done_coord (&coord);
 		return -EINVAL;
@@ -251,7 +251,7 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 
 	arg.coord = &coord;
 	arg.lh = &lh;
-	result = iplug->s.file.readpage (page, &arg);
+	result = iplug->s.file.readpage (&arg, page);
 
 	reiser4_done_lh (&lh);
 	reiser4_done_coord (&coord);
@@ -317,7 +317,7 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 		reiser4_init_coord (&coord);
 		reiser4_init_lh (&lh);
 		
-		result = find_item (inode, &f.key, &coord, &lh,
+		result = find_item (&f.key, &coord, &lh,
 				    ZNODE_READ_LOCK);
 		switch (result) {
 		case CBK_COORD_FOUND:
