@@ -23,8 +23,8 @@ max_balance_overhead(reiser4_block_nr childen, tree_level tree_height)
 	
 	ten_percent = ((103 * childen) >> 10);
 	
-	/** If we have too many balancings at the time, tree height can raise on more
-	 *  then 1. Assume that if tree_height is 5, it can raise on 1 only. */
+	/* If we have too many balancings at the time, tree height can raise on more
+	   then 1. Assume that if tree_height is 5, it can raise on 1 only. */
 	return ((tree_height < 5 ? 5 : tree_height) * 2 + (4 + ten_percent));
 }
 
@@ -35,7 +35,7 @@ estimate_internal_amount(reiser4_block_nr children, tree_level tree_height)
 }
 
 /* this returns maximal possible number of nodes which can be modified plus number of new nodes which can be required to
- * perform insertion of one item into the tree */
+   perform insertion of one item into the tree */
 reiser4_block_nr
 estimate_one_insert_item(tree_level height)
 {
@@ -44,7 +44,7 @@ estimate_one_insert_item(tree_level height)
 }
 
 /* this returns maximal possible number of nodes which can be modified plus number of new nodes which can be required to
- * perform insertion of one unit into an item in the tree */
+   perform insertion of one unit into an item in the tree */
 reiser4_block_nr
 estimate_one_insert_into_item(tree_level height)
 {
@@ -65,7 +65,7 @@ reiser4_block_nr
 estimate_one_item_removal(tree_level height)
 {
 	/* on item removal reiser4 does not try to pack nodes more complact, so, only one node may be dirtied on leaf
-	 * level */
+	   level */
 	return 1 + max_balance_overhead(1, height);
 	
 }
