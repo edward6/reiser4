@@ -8,7 +8,7 @@
 reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
 	[ OID_40_ALLOCATOR_ID ] = {
 		.h = {
-			.type_id = REISER4_OID_MGR_PLUGIN_TYPE,
+			.type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 			.id      = OID_40_ALLOCATOR_ID,
 			.pops    = NULL,
 			.label   = "reiser40 default oid manager",
@@ -16,10 +16,10 @@ reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
 			.linkage = TS_LIST_LINK_ZERO,
 		},
 		.u = {
-			.oid_mgr = {
-				.init_oid_allocator   = oid_40_init_allocator,
+			.oid_allocator = {
+				.init_oid_allocator   = oid_40_read_allocator,
 				.oids_used            = oid_40_used,
-				.oids_free            =  oid_40_free,
+				.oids_free            = oid_40_free,
 				.allocate_oid         = oid_40_allocate,
 				.release_oid          = oid_40_release,
 				.oid_reserve_allocate = oid_40_reserve_allocate,
