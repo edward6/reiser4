@@ -159,6 +159,8 @@ int kcond_timedwait( kcond_t *cvar /* cvar to wait for */,
 	timer.data     = ( unsigned long ) &targ;
 	timer.function = kcond_timeout;
 
+	woken_up      = 0;
+
 	targ.link     = &qlink;
 	targ.woken_up = &woken_up;
 
