@@ -342,7 +342,7 @@ static int fq_finish (flush_queue_t * fq, int * nr_io_errors)
 
 		fq_put (fq);
 
-		if (ret)
+		if (ret < 0)
 			return ret;
 
 		return -EAGAIN;
