@@ -13,6 +13,13 @@ typedef enum {
 	FAKE_CLUSTER = 2
 } reiser4_cluster_status;
 
+typedef enum {
+	CRC_FIRST_ITEM = 1,
+	CRC_APPEND_ITEM = 2,
+	CRC_OVERWRITE_ITEM = 3,
+	CRC_CUT_ITEM = 4
+} crc_write_mode_t;
+
 /* cluster lives in many places:
    - in user space
    - in adress space (splitted into pages)
@@ -64,8 +71,8 @@ int pre_delete_cryptcompress(struct inode *);
 
 /* secret key params supposed to be stored on disk */
 typedef struct crypto_stat {
-	__u16 keysize; /* key size, bits */
 	__u8 * keyid;  /* key public id */
+	__u16 keysize; /* key size, bits */
 } crypto_stat_t; 
 
 typedef struct cryptcompress_info {
