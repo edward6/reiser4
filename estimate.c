@@ -2,6 +2,8 @@
 
 #include "debug.h"
 #include "dformat.h"
+#include "tree.h"
+#include "carry.h"
 
 /* this returns how many nodes might get dirty and added nodes if @children nodes are dirtied
 
@@ -47,8 +49,16 @@ reiser4_block_nr
 estimate_one_insert_into_item(tree_level height)
 {
 	/* estimate insert into item just like item insertion */
-	return estimate_one_insert_item(height);
-	
+	return estimate_one_insert_item(height);	
+}
+
+/* on leaf level insert_flow may add CARRY_FLOW_NEW_NODES_LIMIT new nodes and dirty 3 existing nodes (insert point and
+   both its neighbors). Max_balance_overhead should estimate number of blocks which may change/get added on internal
+   levels */
+reiser4_block_nr
+estimate_insert_flow(tree_level height)
+{
+	return 3 + CARRY_FLOW_NEW_NODES_LIMIT + max_balance_overhead(3 + CARRY_FLOW_NEW_NODES_LIMIT, height);
 }
 
 reiser4_block_nr

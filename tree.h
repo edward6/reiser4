@@ -506,6 +506,7 @@ jput(jnode * node)
 reiser4_block_nr estimate_internal_amount(reiser4_block_nr childen, tree_level);
 reiser4_block_nr estimate_one_insert_item(tree_level);
 reiser4_block_nr estimate_one_insert_into_item(tree_level);
+reiser4_block_nr estimate_insert_flow(tree_level);
 reiser4_block_nr estimate_one_item_removal(tree_level);
 
 /* __REISER4_TREE_H__ */
