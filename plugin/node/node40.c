@@ -445,7 +445,10 @@ item_plugin *node40_plugin_by_coord( const coord_t *coord )
 	assert( "vs-259", coord_is_existing_item( coord ) );
 
 	ih = node40_ih_at_coord( coord );
-	return item_plugin_by_disk_id( current_tree, &ih->plugin_id);
+	/*
+	 * pass NULL in stead of current tree. This is time critical call.
+	 */
+	return item_plugin_by_disk_id( NULL, &ih->plugin_id);
 }
 
 
