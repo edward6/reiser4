@@ -498,6 +498,13 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_found_read),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_scan),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_convoy),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.calls),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.items),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.binary),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.seq),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.found),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.pos),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.posrelative),
 
 	DEFINE_STAT_LEVEL_CNT(time_slept),
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)

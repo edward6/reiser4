@@ -309,6 +309,12 @@ key_at_node40(const coord_t * coord, reiser4_key * key)
 	return key;
 }
 
+#define INCSTAT(n, counter)							\
+	reiser4_stat_inc_at_level(znode_get_level(n), node.lookup.counter)
+
+#define ADDSTAT(n, counter, val)						\
+	reiser4_stat_add_at_level(znode_get_level(n), node.lookup.counter, val)
+
 /* plugin->u.node.lookup
    look for description of this method in plugin/node/node.h */
 node_search_result lookup_node40(znode * node /* node to query */ ,
@@ -319,6 +325,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	int left;
 	int right;
 	int found;
+	int items;
 	item_plugin *iplug;
 	item_header40 *bstop;
 	item_header40 *ih;
@@ -330,16 +337,20 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	assert("nikita-2693", znode_is_any_locked(node));
 	trace_stamp(TRACE_NODES);
 
+	items = node40_num_of_items_internal(node);
+	INCSTAT(node, calls);
+	ADDSTAT(node, items, items);
+
 	node_check(node, REISER4_NODE_DKEYS);
 
-	if (unlikely(node_is_empty(node))) {
+	if (unlikely(items == 0)) {
 		coord_init_first_unit(coord, node);
 		return NS_NOT_FOUND;
 	}
 
 	/* binary search for item that can contain given key */
 	left = 0;
-	right = node40_num_of_items_internal(node) - 1;
+	right = items - 1;
 	coord->node = node;
 	found = 0;
 
@@ -369,7 +380,8 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 		median = (left + right) / 2;
 
 		assert("nikita-1084", median >= 0);
-		assert("nikita-1085", median < node40_num_of_items_internal(node));
+		assert("nikita-1085", median < items);
+		INCSTAT(node, binary);
 		switch (keycmp(key, __get_key(median))) {
 		case EQUAL_TO:
 			do {
@@ -398,6 +410,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	     ++ih, prefetch(ih), --left) {
 		cmp_t comparison;
 
+		INCSTAT(node, seq);
 		comparison = keycmp(&ih->key, key);
 		if (comparison == GREATER_THAN)
 			continue;
@@ -419,6 +432,15 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 		left = 0;
 
 	assert("nikita-3214", equi(found, keyeq(__get_key(left), key)));
+
+	if (REISER4_STATS) {
+		ADDSTAT(node, found, !!found);
+		ADDSTAT(node, pos, left);
+		if (items > 1)
+			ADDSTAT(node, posrelative, (left << 10) / (items - 1));
+		else
+			ADDSTAT(node, posrelative, 1 << 10);
+	}
 
 	coord_set_item_pos(coord, left);
 	coord->unit_pos = 0;

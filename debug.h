@@ -385,17 +385,17 @@ extern __u32 reiser4_current_trace_flags;
 	}									\
 })
 
-#define	reiser4_stat_add_at_level_value(lev, stat, value)		\
-({									\
-	int level;							\
-									\
-	level = (lev) - LEAF_LEVEL;					\
-	if (level >= 0) {						\
-		if(level < REAL_MAX_ZTREE_HEIGHT) {			\
-			reiser4_stat_add(level[level]. stat , value );	\
+#define	reiser4_stat_add_at_level(lev, stat, value)				\
+({										\
+	int level;								\
+										\
+	level = (lev) - LEAF_LEVEL;						\
+	if (level >= 0) {							\
+		if(level < REAL_MAX_ZTREE_HEIGHT) {				\
+			reiser4_stat_add(level[level]. stat , value );		\
 			reiser4_stat_inc(level[level]. total_hits_at_level);	\
-		}							\
-	}								\
+		}								\
+	}									\
 })
 
 #define	reiser4_stat_level_inc(l, stat)			\
@@ -555,6 +555,17 @@ typedef struct reiser4_level_statistics {
 		stat_cnt wakeup_scan;
 		stat_cnt wakeup_convoy;
 	} znode;
+	struct {
+		struct {
+		stat_cnt calls;
+		stat_cnt items;
+		stat_cnt binary;
+		stat_cnt seq;
+		stat_cnt found;
+		stat_cnt pos;
+		stat_cnt posrelative;
+		} lookup;
+	} node;
 	stat_cnt total_hits_at_level;
 	stat_cnt time_slept;
 } reiser4_level_stat;
@@ -839,7 +850,7 @@ extern int reiser4_populate_kattr_level_dir(struct kobject * kobj);
 
 #define	reiser4_stat_inc_at(sb, counter) noop
 #define	reiser4_stat_inc_at_level(lev, stat) noop
-#define reiser4_stat_add_at_level_value(lev, stat, cnt) noop
+#define reiser4_stat_add_at_level(lev, stat, cnt) noop
 #define	reiser4_stat_level_inc(l, stat) noop
 #define reiser4_stat_nuniq_max(gen) noop
 #define reiser4_stat_stack_check_max(gap) noop
