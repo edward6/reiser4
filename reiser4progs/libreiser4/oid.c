@@ -17,11 +17,8 @@ error_t reiserfs_oid_open(reiserfs_fs_t *fs) {
 	return -1;
     
     plugin_id = reiserfs_format_oid_plugin_id(fs);
-    if (!(fs->oid->plugin = libreiser4_factory_find_by_coord(REISERFS_OID_PLUGIN, plugin_id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find oid allocator plugin by its id %x.", plugin_id);
-	goto error_free_oid;
-    }
+    if (!(fs->oid->plugin = libreiser4_factory_find_by_coord(REISERFS_OID_PLUGIN, plugin_id)))
+	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, plugin_id, goto error_free_oid);
 
     if (!(fs->oid->entity = reiserfs_format_oid(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

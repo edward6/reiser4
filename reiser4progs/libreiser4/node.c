@@ -32,13 +32,8 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     }
     
     set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
-    if (!(node->plugin = libreiser4_factory_find_by_coord(REISERFS_NODE_PLUGIN, 
-	plugin_id))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find node plugin by its identifier %x.", plugin_id);
-	goto error_free_block;
-    }
+    if (!(node->plugin = libreiser4_factory_find_by_coord(REISERFS_NODE_PLUGIN, plugin_id))) 
+	libreiser4_factory_find_failed(REISERFS_NODE_PLUGIN, plugin_id, goto error_free_block);
 
     if (node->plugin->node.create != NULL ) {
         if (node->plugin->node.create(node->block, level)) {
@@ -82,13 +77,8 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     if (plugin_id == REISERFS_GUESS_PLUGIN_ID) 
 	plugin_id = reiserfs_node_get_plugin_id(node);
     
-    if (!(node->plugin = libreiser4_factory_find_by_coord(REISERFS_NODE_PLUGIN, 
-	plugin_id))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Node plugin cannot be find by its identifier %x.", plugin_id);
-	goto error_free_block;
-    }
+    if (!(node->plugin = libreiser4_factory_find_by_coord(REISERFS_NODE_PLUGIN, plugin_id))) 
+	libreiser4_factory_find_failed(REISERFS_NODE_PLUGIN, plugin_id, goto error_free_block);
 
     if (node->plugin->node.open != NULL) {
         if (node->plugin->node.open (node->block)) {
@@ -162,11 +152,12 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
     aal_assert("umka-476", key != NULL, return -1);
     aal_assert("vpf-048", node != NULL, return -1);
 
-    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -2;
-    }
+    /*
+	FIXME-UMKA: Here should be not hardcoded key plugin
+	identifier.
+    */
+    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) 
+    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
     
     if ((found = libreiser4_plugin_call(return -1, node->plugin->node, 
 	lookup, node->block, coord, key, key_plugin)) == -1) 
@@ -268,11 +259,8 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
 	FIXME-UMKA: We should avoid hardcoded magic numbers.
 	Here should be passed plugin id number for key plugin.
     */
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -2;
-    }
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) 
+    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
     
     key1 = reiserfs_node_item_key_at(node1, 0);
     key2 = reiserfs_node_item_key_at(node2, 0);
@@ -294,11 +282,8 @@ static int callback_comp_for_find(reiserfs_node_t *node, void *key) {
 	FIXME-UMKA: We should avoid hardcoded magic numbers.
 	Here should be passed plugin id number for key plugin.
     */
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -2;
-    }
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) 
+    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
     
     return reiserfs_node_cmp_key(plugin, reiserfs_node_item_key_at(node, 0), key);
 }

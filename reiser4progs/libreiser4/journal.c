@@ -27,11 +27,8 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
 	return -1;
 	
     id = reiserfs_format_journal_plugin_id(fs);
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_JOURNAL_PLUGIN, id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find journal plugin by its identifier %x.", id);
-	goto error_free_journal;
-    }
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_JOURNAL_PLUGIN, id)))
+	libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, id, goto error_free_journal);
 	
     fs->journal->plugin = plugin;
 	

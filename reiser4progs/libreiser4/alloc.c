@@ -31,11 +31,8 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
 	return -1;
     
     plugin_id = reiserfs_format_alloc_plugin_id(fs);
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_ALLOC_PLUGIN, plugin_id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find block allocator plugin by its identifier %x.", plugin_id);
-	goto error_free_alloc;
-    }
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_ALLOC_PLUGIN, plugin_id)))
+    	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, plugin_id, goto error_free_alloc);
 
     fs->alloc->plugin = plugin;
 

@@ -40,18 +40,12 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     /* All the stuff bellow will be in dir API when ready */
     
     /* FIXME-UMKA: Here should be not hardcoded dir plugin id */
-    if (!(fs->tree->dir_plugin = libreiser4_factory_find_by_coord(REISERFS_DIR_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find dir plugin by its id %x.", 0x0);
-	goto error_free_tree;
-    }
+    if (!(fs->tree->dir_plugin = libreiser4_factory_find_by_coord(REISERFS_DIR_PLUGIN, 0x0)))
+    	libreiser4_factory_find_failed(REISERFS_DIR_PLUGIN, 0x0, goto error_free_tree);
 
     /* FIXME-UMKA: Here should be not hardcoded key plugin id */
-    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	goto error_free_tree;
-    }
+    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
+    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, goto error_free_tree);
     
     /* 
 	Finding the root directory stat data.
@@ -106,13 +100,8 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     aal_assert("vpf-115", profile != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
 
-    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 
-	profile->key))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -1;
-    }
+    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, profile->key))) 
+    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, profile->key, return -1);
     
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
@@ -155,10 +144,8 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     if (!(item_info.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
 	profile->item.internal))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find internal item plugin by its id %x.", 
-	    profile->item.internal);
-	goto error_free_squeeze;
+    	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, profile->item.internal,
+	    goto error_free_squeeze);
     }
     
     coord.item_pos = 0;
@@ -191,9 +178,8 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     if (!(dir_plugin = libreiser4_factory_find_by_coord(REISERFS_DIR_PLUGIN, 
 	profile->dir)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find dir plugin by its id %x.", profile->dir);
-	goto error_free_leaf;
+    	libreiser4_factory_find_failed(REISERFS_DIR_PLUGIN, profile->dir,
+	    goto error_free_leaf);
     }
 
     coord.item_pos = 0;

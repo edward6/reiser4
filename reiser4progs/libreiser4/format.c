@@ -29,10 +29,8 @@ error_t reiserfs_format_open(reiserfs_fs_t *fs) {
     if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_FORMAT_PLUGIN, 
 	get_mr_format_id(fs->master)))) 
     {
-	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-	    "Can't find disk-format plugin by its identifier %x.", 
-	    get_mr_format_id(fs->master));
-	goto error_free_format;
+	libreiser4_factory_find_failed(REISERFS_FORMAT_PLUGIN, 
+	    get_mr_format_id(fs->master), goto error_free_format);
     }
     fs->format->plugin = plugin;
 	
@@ -73,9 +71,8 @@ error_t reiserfs_format_create(reiserfs_fs_t *fs,
     if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_FORMAT_PLUGIN, 
 	format_plugin_id))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find format plugin by its identifier %x.", format_plugin_id);
-	return -1;
+	libreiser4_factory_find_failed(REISERFS_FORMAT_PLUGIN, format_plugin_id, 
+	    return -1);
     }
     
     if (!(fs->format = aal_calloc(sizeof(*fs->format), 0)))

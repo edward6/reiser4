@@ -614,8 +614,16 @@ extern void libreiser4_factory_done(void);
 
 #define libreiser4_factory_register(entry)			    \
     reiserfs_plugin_entry_t __plugin_entry = entry
-    
+
 #endif
+
+#define libreiser4_factory_find_failed(type, id, action)	    \
+    do {							    \
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,	    \
+	    "Can't find plugin by its coord (%x, %x).",		    \
+	    ##type##, ##id##);					    \
+	action;							    \
+    } while (0)
 
 extern reiserfs_plugin_t *libreiser4_factory_find_by_coord(reiserfs_plugin_id_t type,
     reiserfs_plugin_id_t id);
