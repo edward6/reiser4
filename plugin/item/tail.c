@@ -3,7 +3,9 @@
 #include "item.h"
 #include "../../key.h"
 #include "../../tree.h"
+#include "../../inode.h"
 #include "../../context.h"
+#include "../../page_cache.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
@@ -279,6 +281,137 @@ overwrite_tail(coord_t *coord, flow_t *f)
 
 	move_flow_forward(f, count);
 	return 0;
+}
+
+/* tail redpage function. It is called from readpage_tail(). */
+int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
+	tap_t tap;
+	int result;
+	coord_t coord;
+	lock_handle lh;
+
+	int count, mapped;
+	struct inode *inode;
+
+	/* saving passed coord in order to do not move it by tap. */
+	copy_lh(&lh, uf_coord->lh);
+	inode = page->mapping->host;
+	coord_dup(&coord, &uf_coord->base_coord);
+	
+	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
+
+	if ((result = tap_load(&tap)))
+		goto out_tap_done;
+	
+	/* lookup until page is filled up. */
+	for (mapped = 0; mapped < PAGE_CACHE_SIZE; mapped += count) {
+		void *pagedata;
+		
+		/* number of bytes to be copied to page. */
+		count = item_length_by_coord(&coord) - coord.unit_pos;
+
+		if (count > PAGE_CACHE_SIZE - mapped)
+			count = PAGE_CACHE_SIZE - mapped;
+
+		/* attaching @page to address space and getting data address. */
+		pagedata = kmap_atomic(page, KM_USER0);
+
+		/* copying tail body to page. */
+		xmemcpy((char *)(pagedata + mapped),
+			((char *)item_body_by_coord(&coord) + coord.unit_pos), count);
+
+		flush_dcache_page(page);
+		
+		/* dettaching page from address space. */
+		kunmap_atomic(page, KM_USER0);
+		
+		/* Getting next tail item. */
+		if (mapped + count < PAGE_CACHE_SIZE) {
+			
+			/* unlocking page in order to avoid keep it locked durring tree lookup,
+			   which takes long term locks. */
+			reiser4_unlock_page(page);
+
+			/* getting right neighbour. */
+			result = go_dir_el(&tap, RIGHT_SIDE, 0);
+
+			/* lock page back */
+			reiser4_lock_page(page);
+
+			/* page is uptodate due to another thread made it up to date. Getting
+			   out of here. */
+			if (PageUptodate(page)) {
+				result = 0;
+				goto out_unlock_page;
+			}
+			
+			if (result) {
+				/* check if there is no neighbour node. */
+				if (result == -E_NO_NEIGHBOR) {
+					result = 0;
+					goto out_update_page;
+				} else {
+					goto out_tap_relse;
+				}
+			} else {
+				/* check if found coord is not owned by file. */
+				if (!reiser4_inode_data(inode)->pset->file->owns_item(inode, &coord)) {
+					result = 0;
+					goto out_update_page;
+				}
+			}
+		}
+	}
+	
+	/* making page up to date and releasing it. */
+	SetPageUptodate(page);
+	reiser4_unlock_page(page);
+	
+	/* releasing tap */
+	tap_relse(&tap);
+	tap_done(&tap);
+
+	return 0;
+
+ out_update_page:
+	SetPageUptodate(page);
+ out_unlock_page:
+	reiser4_unlock_page(page);
+ out_tap_relse:
+	tap_relse(&tap);
+ out_tap_done:
+	tap_done(&tap);
+	return result;
+}
+
+/*
+   plugin->s.file.readpage
+   reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->readpage_tail
+   or
+   filemap_nopage->reiser4_readpage->readpage_unix_file->->readpage_tail
+
+   At the beginning: coord->node is read locked, zloaded, page is locked, coord is set to existing unit inside of tail
+   item. */
+int
+readpage_tail(void *vp, struct page *page)
+{
+	uf_coord_t *uf_coord = vp;
+	coord_t *coord = &uf_coord->base_coord;
+	
+	ON_DEBUG(reiser4_key key);
+
+	assert("umka-2515", PageLocked(page));
+	assert("umka-2516", !PageUptodate(page));
+	assert("umka-2517", !jprivate(page) && !PagePrivate(page));
+	assert("umka-2518", page->mapping && page->mapping->host);
+
+	assert("umka-2519", znode_is_loaded(coord->node));
+	assert("umka-2520", item_is_tail(coord));
+	assert("umka-2521", coord_is_existing_unit(coord));
+	assert("umka-2522", znode_is_rlocked(coord->node));
+	assert("umka-2523", page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key)));
+
+	return do_readpage_tail(uf_coord, page);
 }
 
 int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,

@@ -16,9 +16,8 @@
 #include <linux/writeback.h>
 #include <linux/pagemap.h>
 
-static const reiser4_block_nr zero = 0;
-static const reiser4_block_nr one = 1;
-
+/*static const reiser4_block_nr zero = 0;
+static const reiser4_block_nr one = 1;*/
 
 
 /* prepare structure reiser4_item_data. It is used to put one extent unit into tree */

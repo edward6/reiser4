@@ -554,7 +554,9 @@ adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
 
 /* return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
-#define REISER4_FIRST_BITMAP_BLOCK 18
+#define REISER4_FIRST_BITMAP_BLOCK \
+	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
+	
 /* Audited by: green(2002.06.12) */
 void
 get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr * bnr)

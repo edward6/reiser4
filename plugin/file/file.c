@@ -15,6 +15,7 @@
 /* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
+static int unpack(struct inode *inode, int forever);
 
 /* get unix file plugin specific portion of inode */
 inline unix_file_info_t *
@@ -1165,7 +1166,7 @@ readpage_unix_file(void *vp, struct page *page)
 
 	if (PageUptodate(page)) {
 		done_lh(&lh);
-		unlock_page(page);
+		reiser4_unlock_page(page);
 		return 0;
 	}
 	
@@ -1639,6 +1640,95 @@ void balance_dirty_page_unix_file(struct inode *object)
 	balance_dirty_pages_ratelimited(object->i_mapping);
 }
 
+struct page *
+unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int unused)
+{
+	struct page *page;
+	struct inode *inode;
+
+	inode = area->vm_file->f_dentry->d_inode;
+	get_nonexclusive_access(unix_file_inode_data(inode));
+	page = filemap_nopage(area, address, unused);
+	drop_nonexclusive_access(unix_file_inode_data(inode));
+	return page;
+}
+
+static struct vm_operations_struct unix_file_vm_ops = {
+	.nopage = unix_file_filemap_nopage,
+};
+
+/* takes care about mapped pages. Performs tail conversion. Called from write_unix_file() and mmap_unix_file(). */
+int check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
+			  int perform_convert)
+{
+	int result;
+	struct inode *inode;
+	unix_file_info_t *uf_info;
+
+	inode = file->f_dentry->d_inode;
+	uf_info = unix_file_inode_data(inode);
+
+	/* Check if object is RDONLY. If so, we go out with no error. This may happed, when file
+	   is opened for RDONLY and then mmaped for read with flags MAP_PRIVATE. */
+	if (IS_RDONLY(inode))
+		return 0;
+
+	get_exclusive_access(uf_info);
+
+	/* throwing out mapped pages if they was mapped for read and file consists of tails. */
+	if (inode_get_flag(inode, REISER4_TAILS_FILE_MMAPED)) {
+		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
+			truncate_inode_pages(inode->i_mapping, 0);
+			inode_clr_flag(inode, REISER4_TAILS_FILE_MMAPED);
+		}
+	}
+
+	/* converting file to extents if it is going to be mapped for write. */
+	if (perform_convert) {
+		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
+			drop_access(uf_info);
+			
+			if ((result = unpack(inode, 0)))
+				return result;
+
+			get_exclusive_access(uf_info);
+		}
+	}
+
+	drop_access(uf_info);
+	return 0;
+}
+
+/* plugin->u.file.mmap
+   make sure that file is built of extent blocks. An estimation is in tail2extent */
+int
+mmap_unix_file(struct file *file, struct vm_area_struct *vma)
+{
+	int result;
+	struct inode *inode;
+	unix_file_info_t *uf_info;
+
+	inode = file->f_dentry->d_inode;
+	uf_info = unix_file_inode_data(inode);
+
+	/* Checking for mapped pages, converting to something (tails, extents) */
+	if ((result = check_pages_unix_file(file, vma->vm_flags, 0, 1)))
+		return result;
+	
+	result = generic_file_mmap(file, vma);
+	if (result)
+		return result;
+
+	vma->vm_ops = &unix_file_vm_ops;
+
+	/* marking file as mapped for read only and it contains of tails. */
+	if (!(vma->vm_flags & VM_MAYWRITE) && (uf_info->container == UF_CONTAINER_TAILS))
+		inode_set_flag(inode, REISER4_TAILS_FILE_MMAPED);
+	
+
+	return 0;
+}
+
 /* plugin->u.file.write */
 ssize_t
 write_unix_file(struct file *file, /* file to write to */
@@ -1651,6 +1741,10 @@ write_unix_file(struct file *file, /* file to write to */
 	ssize_t written;
 	loff_t pos;
 	unix_file_info_t *uf_info;
+
+	/* Checking for mapped pages, converting to something (tails, extents) */
+	if ((result = check_pages_unix_file(file, 0, 1, 0)))
+		return result;
 
 	inode = file->f_dentry->d_inode;
 
@@ -1748,23 +1842,6 @@ release_unix_file(struct inode *object, struct file *file)
 	return 0;
 }
 
-struct page *
-unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int unused)
-{
-	struct page *page;
-	struct inode *inode;
-
-	inode = area->vm_file->f_dentry->d_inode;
-	get_nonexclusive_access(unix_file_inode_data(inode));
-	page = filemap_nopage(area, address, unused);
-	drop_nonexclusive_access(unix_file_inode_data(inode));
-	return page;
-}
-
-static struct vm_operations_struct unix_file_vm_ops = {
-	.nopage = unix_file_filemap_nopage,
-};
-
 static void
 set_file_notail(struct inode *inode)
 {
@@ -1832,27 +1909,6 @@ ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int 
 		break;
 	}
 	return result;
-}
-
-/* plugin->u.file.mmap
-   make sure that file is built of extent blocks. An estimation is in tail2extent */
-int
-mmap_unix_file(struct file *file, struct vm_area_struct *vma)
-{
-	struct inode *inode;
-	int result;
-
-	inode = file->f_dentry->d_inode;
-
-	result = unpack(inode, 0);
-	if (result)
-		return result;
-
-	result = generic_file_mmap(file, vma);
-	if (result)
-		return result;
-	vma->vm_ops = &unix_file_vm_ops;
-	return 0;
 }
 
 /* plugin->u.file.get_block */
@@ -2052,6 +2108,7 @@ init_inode_data_unix_file(struct inode *inode,
 	data->tplug = inode_tail_plugin(inode);
 	data->inode = inode;
 	data->exclusive_use = 0;
+	
 #if REISER4_DEBUG
 	data->ea_owner = 0;
 #endif
