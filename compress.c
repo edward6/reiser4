@@ -15,7 +15,7 @@ static void none_compress (__u8 *buf, __u8 *src_first, unsigned *src_len,
 	assert("edward-19", src_len != NULL);
 	assert("edward-20", dst_first != NULL);
 	assert("edward-21", dst_len != NULL);
-	assert("edward-22", src_len != 0 && src_len <= NONE_CLUSTER_SIZE);
+	assert("edward-22", *src_len != 0 && *src_len <= NONE_CLUSTER_SIZE);
 	
 	*dst_len = *src_len;
 	memcpy(dst_first, src_first, *src_len);
