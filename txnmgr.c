@@ -2060,6 +2060,8 @@ jnode_set_dirty(jnode * node)
 
 		assert("jmacd-3981", jnode_is_dirty(node));
 
+		get_current_context()->nr_marked_dirty ++;
+
 		/* We grab2flush_reserve one additional block only if node was
 		   not CREATED and jnode_flush did not sort it into neither
 		   relocate set nor overwrite one. If node is in overwrite or

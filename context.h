@@ -86,6 +86,8 @@ struct reiser4_context {
 #if REISER4_DEBUG_NODE
 	int disable_node_check;
 #endif
+	/* count non-trivial jnode_set_dirty() calls */
+	__u64 nr_marked_dirty;
 };
 
 #if REISER4_DEBUG
