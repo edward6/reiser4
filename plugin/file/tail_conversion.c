@@ -39,6 +39,8 @@ static void ea_set(const struct inode *inode, void *value)
 void
 get_exclusive_access(struct inode *inode)
 {
+	schedulable();
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w ++);
 	down_write(&reiser4_inode_data(inode)->sem);
 	assert("vs-1157", !ea_obtained(inode));
 	ea_set(inode, current);
@@ -52,6 +54,7 @@ drop_exclusive_access(struct inode *inode)
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
 	up_write(&reiser4_inode_data(inode)->sem);
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
 }
 
 /* nonexclusive access to a file is acquired for read, write, readpage */
@@ -59,6 +62,8 @@ drop_exclusive_access(struct inode *inode)
 void
 get_nonexclusive_access(struct inode *inode)
 {
+	schedulable();
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
 	down_read(&reiser4_inode_data(inode)->sem);
 	assert("vs-1159", !ea_obtained(inode));
 }
@@ -69,6 +74,7 @@ drop_nonexclusive_access(struct inode *inode)
 {
 	assert("vs-1160", !ea_obtained(inode));
 	up_read(&reiser4_inode_data(inode)->sem);
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r --);
 }
 
 static void
@@ -84,6 +90,8 @@ ea2nea(struct inode *inode)
 	assert("vs-1168", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
+	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
 	downgrade_write(&reiser4_inode_data(inode)->sem);
 }
 
