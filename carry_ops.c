@@ -1233,7 +1233,7 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 
 	result = node_plugin_by_node( node ) -> shift
 		( insert_coord, node, 
-		  ( side == LEFT_SIDE ) ? SHIFT_APPEND : SHIFT_PREPEND, 0,
+		  ( side == LEFT_SIDE ) ? SHIFT_LEFT : SHIFT_RIGHT, 0,
 		  including_insert_coord_p, todo );
 	assert( "nikita-915", result >= 0 );
 	if( result > 0 ) {
