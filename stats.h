@@ -488,6 +488,8 @@ typedef struct reiser4_statistics {
 		statcnt_t ented;
 		statcnt_t written;
 		statcnt_t not_written;
+		statcnt_t ent_written; /* !PageDirty */
+		statcnt_t ent_repeat;  /* E_REPEAT returned */
 	} pcwb;
 
 	/* stat of copy on capture requests */

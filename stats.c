@@ -310,6 +310,8 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(pcwb.ented),
 	DEFINE_STATCNT(pcwb.not_written),
 	DEFINE_STATCNT(pcwb.written),
+	DEFINE_STATCNT(pcwb.ent_written),
+	DEFINE_STATCNT(pcwb.ent_repeat),
 
 	/* cop on capture stats */
 	DEFINE_STATCNT(coc.calls),

@@ -557,11 +557,15 @@ static int write_page_by_ent (struct page *page)
 		unlock_page(page);
 		wait_for_flush(super);
 		lock_page(page);
-		if (!PageDirty(page))
+		if (!PageDirty(page)) {
+			reiser4_stat_inc(pcwb.ent_written);
 			break;
+		}
 		/* FIXME(zam): this is a temporary solution for the deadlock problem.  */
-		if (--count <= 0)
+		if (--count <= 0) {
+			reiser4_stat_inc(pcwb.ent_repeat);
 			return -E_REPEAT;
+		}
 		blk_run_queues();
 	}
 	unlock_page(page);
