@@ -397,10 +397,6 @@ create_child_common(struct inode *parent /* parent object */ ,
 	/* reget plugin after installation */
 	obj_plug = inode_file_plugin(object);
 
-	/* call file plugin's method to initialize plugin specific part of inode */
-	if (obj_plug->init_inode_data)
-		obj_plug->init_inode_data(object, 1/*create*/);
-
 	if (obj_plug->create == NULL)
 		return RETERR(-EPERM);
 
@@ -414,6 +410,10 @@ create_child_common(struct inode *parent /* parent object */ ,
 		warning("nikita-432", "Cannot inherit from %llx to %llx", get_inode_oid(parent), get_inode_oid(object));
 		return result;
 	}
+
+	/* call file plugin's method to initialize plugin specific part of inode */
+	if (obj_plug->init_inode_data)
+		obj_plug->init_inode_data(object, 1/*create*/);
 
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);
