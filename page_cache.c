@@ -535,7 +535,7 @@ static struct bio *page_bio( struct page *page, int gfp )
 		super = page -> mapping -> host -> i_sb;
 		assert( "nikita-2029", super != NULL );
 		blksz = super -> s_blocksize;
-		assert( "nikita-2028", blksz == PAGE_CACHE_SIZE );
+		assert( "nikita-2028", blksz == (int)PAGE_CACHE_SIZE );
 
 		bio -> bi_sector = *jnode_get_block( node ) * ( blksz >> 9 );
 		bio -> bi_bdev   = super -> s_bdev;

@@ -91,14 +91,14 @@ static int cut_tail_items (struct inode * inode, loff_t offset, int count)
 /* @page contains file data. tree does not contain items corresponding to those
  * data. Put them in using specified item plugin */
 static int write_pages_by_item (struct inode * inode, struct page ** pages,
-				int nr_pages, int count, item_plugin * iplug)
+				unsigned nr_pages, int count, item_plugin * iplug)
 {
 	flow_t f;
 	coord_t coord;
 	lock_handle lh;
 	int result;
 	char * p_data;
-	int i;
+	unsigned i;
 	int to_page;
 
 
@@ -167,7 +167,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
  * be created by using extent_write */
 /* Audited by: green(2002.06.15) */
 static int write_pages_by_extent (struct inode * inode, struct page ** pages,
-				  int nr_pages, int count)
+				  unsigned nr_pages, int count)
 {
 	return write_pages_by_item (inode, pages, nr_pages, count,
 				    item_plugin_by_id (EXTENT_POINTER_ID));
@@ -188,11 +188,11 @@ static void drop_pages (struct page ** pages, int nr_pages)
 
 /* part of tail2extent.  */
 /* Audited by: green(2002.06.15) */
-static int replace (struct inode * inode, struct page ** pages, int nr_pages,
+static int replace (struct inode * inode, struct page ** pages, unsigned nr_pages,
 		    int count)
 {
 	int result;
-	int i;
+	unsigned i;
 	unsigned to_page;
 	STORE_COUNTERS;
 
@@ -231,10 +231,11 @@ static int replace (struct inode * inode, struct page ** pages, int nr_pages,
 				 * items */
 
 /* Audited by: green(2002.06.15) */
-static int all_pages_are_full (int nr_pages, int page_off)
+static int all_pages_are_full (unsigned nr_pages, unsigned page_off)
 {
 	/* max number of pages is used and last one is full */
-	return nr_pages == TAIL2EXTENT_PAGE_NUM && page_off == PAGE_CACHE_SIZE;
+	return (nr_pages == TAIL2EXTENT_PAGE_NUM &&
+		page_off == PAGE_CACHE_SIZE);
 }
 
 
@@ -269,12 +270,12 @@ int tail2extent (struct inode * inode)
 	reiser4_key key;     /* key of next byte to be moved to page */
 	struct page * page;
 	char * p_data;       /* data of page */
-	int page_off,        /* offset within the page where to copy data */
-		count,       /* number of bytes of item which can be copied to
-			      * page */
+	unsigned page_off,   /* offset within the page where to copy data */
+		count,       /* number of bytes of item which can be
+			      * copied to page */
 		copied;      /* number of bytes of item copied already */
 	struct page * pages [TAIL2EXTENT_PAGE_NUM];
-	int nr_pages;        /* number of pages in the above array */
+	unsigned nr_pages;        /* number of pages in the above array */
 	int done;            /* set to 1 when all file is read */
 	char * item;
 
@@ -304,7 +305,7 @@ int tail2extent (struct inode * inode)
 			/* get next one */
 			result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
 			if (result != CBK_COORD_FOUND) {
-				drop_pages (pages, nr_pages);
+				drop_pages (pages, (int)nr_pages);
 				break;
 			}
 			result = zload (coord.node);
@@ -331,7 +332,7 @@ int tail2extent (struct inode * inode)
 						(unsigned long)(get_key_offset (&key) >>
 								PAGE_CACHE_SHIFT));
 			if (!page) {
-				drop_pages (pages, nr_pages);
+				drop_pages (pages, (int)nr_pages);
 				zrelse (coord.node);
 				result = -ENOMEM;
 				break;
@@ -369,7 +370,7 @@ int tail2extent (struct inode * inode)
 			result = replace (inode, pages, nr_pages, 
 					  (int)((nr_pages - 1) * PAGE_CACHE_SIZE +
 						page_off));
-			drop_pages (pages, nr_pages);
+			drop_pages (pages, (int)nr_pages);
 			if (done || result) {
 				/* conversion completed or error occured */
 				goto out;
@@ -383,7 +384,7 @@ int tail2extent (struct inode * inode)
 			continue;
 		}
 
-		if (copied == item_length_by_coord (&coord)) {
+		if (copied == (unsigned)item_length_by_coord (&coord)) {
 			/* item is over, find next one */
 			item = 0;
 			zrelse (coord.node);
