@@ -130,7 +130,7 @@ void run_##b ()					\
 	_x > _y ? _x : _y; })
 
 
-#define MEMORY_PRESSURE_THRESHOLD   (1000)
+#define MEMORY_PRESSURE_THRESHOLD   (5000000)/*(1000)*/
 #define MEMORY_PRESSURE_HOWMANY     (100)
 
 /* from <linux/list.h> */
@@ -295,9 +295,11 @@ static __inline__ void list_splice(struct list_head *list, struct list_head *hea
 
 /* end of <linux/list.h> */
 
+
 /* include/linux/radix-tree.h */
 struct radix_tree_root {
-	void * root;
+	void * vp;
+	/*pc_hash_table page_ht;*/
 };
 
 extern void *radix_tree_lookup(struct radix_tree_root *, unsigned long);
@@ -561,6 +563,7 @@ struct address_space_operations {
 	int (*direct_IO)(int, struct inode *, struct kiobuf *, unsigned long, int);
 };
 
+
 struct address_space {
 	struct list_head	clean_pages;	/* list of clean pages */
 	struct list_head	dirty_pages;	/* list of dirty pages */
@@ -572,8 +575,11 @@ struct address_space {
 	struct vm_area_struct	*i_mmap_shared; /* list of shared mappings */
 	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
 	int			gfp_mask;	/* how to allocate the pages */
-	spinlock_t                page_lock;
-	struct radix_tree_root  page_tree;
+
+	struct radix_tree_root  page_tree;      /* pages attached to mapping */
+	spinlock_t              page_lock;      /* lock protecting
+						 * adding/removing/searching
+						 * pages*/
 };
 
 struct block_device;
@@ -759,7 +765,7 @@ struct kcondvar_t
 /* include/linux/mm.h */
 
 /** declare hash table of znodes */
-TS_HASH_DECLARE(pc, struct page);
+TS_HASH_DECLARE(mp, struct page);
 
 struct page {
 	unsigned long index;
@@ -768,14 +774,14 @@ struct page {
 	unsigned long flags;
 	atomic_t count;
 	unsigned long private;
-	/** pointers to maintain hash-table */
-	pc_hash_link            link;
-	struct list_head mapping_list;
+	struct list_head list; /* either mapping's clean, dirty or locked
+				* list */
+	struct list_head lru;  /* global page list */
 	spinlock_t lock;
 	spinlock_t lock2;
 	int kmap_count;
 	struct page *self;
-	struct list_head list; /* FIXME-VS: this is used to link page into */
+	mp_hash_link link; /* link to mapping */
 };
 
 #define PG_locked	 0	/* Page is locked. Don't touch. */
@@ -1394,6 +1400,16 @@ static inline void read_lock (spinlock_t * lock)
 }
 
 static inline void read_unlock (spinlock_t * lock)
+{
+	spin_unlock (lock);
+}
+
+static inline void write_lock (spinlock_t * lock)
+{
+	spin_lock (lock);
+}
+
+static inline void write_unlock (spinlock_t * lock)
 {
 	spin_unlock (lock);
 }
