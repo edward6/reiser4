@@ -10,7 +10,7 @@
 #define __REISER4_INODE_H__
 
 /** reiser4-specific part of inode */
-typedef struct reiser4_inode_info_data {
+typedef struct reiser4_inode_info {
 	/** plugin, associated with inode and its state, including
 	     dependant plugins: 
 	     object,
@@ -18,11 +18,15 @@ typedef struct reiser4_inode_info_data {
 	     tail policy, 
 	     hash for directories */
 	reiser4_plugin_ref plugin;
-} reiser4_inode_info_data;
+	/**
+	 * generic fields
+	 */
+	struct inode       vfs_inode;
+} reiser4_inode_info;
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
 extern reiser4_plugin_ref *reiser4_get_object_state( const struct inode *inode );
-extern reiser4_inode_info_data *reiser4_inode_data( const struct inode * );
+extern reiser4_inode_info *reiser4_inode_data( const struct inode * );
 extern __u32 *reiser4_inode_flags( const struct inode *inode );
 extern file_plugin *reiser4_get_file_plugin( const struct inode *inode );
 extern dir_plugin *reiser4_get_dir_plugin( const struct inode *inode );
