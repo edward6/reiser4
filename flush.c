@@ -362,7 +362,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	}
 
 	/* If the parent is dirty, it needs to be squeezed also, recurse upwards */
-	if (znode_is_dirty (parent_node)) {
+	if (znode_is_dirty (parent_node) && ! jnode_is_allocated (ZJNODE (parent_node))) {
 
 		/* Release lock at this level before going upward. */
 		done_lh (start_lock ? start_lock : & end_lock);
@@ -886,7 +886,10 @@ static int squalloc_parent_first (flush_position *pos)
 	if ((ret = znode_get_right_if_dirty (JZNODE (pos->point), & right_lock))) {
 		/* A return value of -ENOENT means the neighbor is not dirty,
 		 * not in the same atom, or not in memory. */
-		if (ret == -ENOENT || ret == -ENAVAIL) { ret = 0; }
+		if (ret == -ENOENT || ret == -ENAVAIL) {
+			ret = 0;
+			goto enqueue;
+		}
 		goto cleanup;
 	}
 
@@ -948,7 +951,7 @@ static int squalloc_parent_first (flush_position *pos)
 		assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
 		ret = ((squeeze < 0) ? squeeze : 0);
 	}
-
+ enqueue:
 	if (ret == 0) {
 		ret = flush_enqueue_point (pos);
 	}
