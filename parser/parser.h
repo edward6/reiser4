@@ -5,6 +5,7 @@
 #define OP_LEVEL
 #define NOT_HEAD
 #define IF_STATEMENT
+#define UNORDERED
 
 
 #define  yyacc
@@ -43,7 +44,116 @@ typedef int YYSTYPE;
 #define labco    ws->ws_labco 
 #define strco    ws->ws_strco 
 #define varco    ws->ws_varco 
-#define yylex    reiser4_lex(work_space)
+#define yylex()  reiser4_lex(work_space)
+
+
+
+/*
+%union 
+{
+	long longType;
+	struct Label * Label;
+	struct String * StrPtr;
+	struct expr_v4 * expr;
+	struct var * Var;
+}
+*/
+
+
+typedef enum {
+	EXPR_LNODE,
+	EXPR_OP2,
+	EXPR_OP,
+	EXPR_STRING
+} expr_type;
+
+/** declare hash table of lnode_lw's */
+/*TS_HASH_DECLARE( ln, lnode );*/
+
+typedef union expr_v4  expr_v4;
+
+
+
+struct String
+{
+};
+
+struct Label{
+};
+
+typedef struct expr_common {
+	/** 
+	 * type of expression node
+	 */
+	__u8          type;
+	/** 
+	 * type of expression
+	 */
+	__u8          exp_type;
+	union expr_v4 (* de_struct)(union expr_v4 *);
+} expr_common;
+
+typedef struct expr_lnode {
+	expr_common   h;
+	lnode  *lnode;
+} expr_lnode;
+
+typedef struct expr_genirik {
+	expr_common   h;
+	reiser4_key    key;                 /* key of start of flow's sequence of bytes */
+	size_t len;			   /* length of flow's sequence of bytes */
+} expr_generic;
+
+typedef struct expr_iden {
+	expr_common   h;
+	String  *  s;
+} expr_iden;
+
+typedef struct expr_string {
+	expr_common   h;
+	String  *  s;
+} expr_string;
+
+typedef struct expr_list {
+	expr_common   h;
+	expr_v4  *  next;
+} expr_list;
+
+typedef struct expr_op2 {
+	expr_common   h;
+	expr_v4  *  op_l;
+	expr_v4  *  op_r;
+} expr_op2;
+
+typedef struct expr_op {
+	expr_common   h;
+	expr_v4  *  op;
+} expr_op;
+
+typedef struct expr_assign {
+	expr_common   h;
+	expr_v4  *  target;
+	expr_v4  *  source;
+	union expr_v4 (* construct)( union expr_v4 *, union expr_v4 *  );
+} expr_assign;
+
+
+
+
+
+
+union expr_v4 {
+	expr_common   h;
+	expr_lnode    lnode;
+	expr_generic  gen;
+	expr_iden     iden;
+	expr_string   str;
+	expr_list     next;
+	expr_op2      op2;
+	expr_op       op;
+        expr_assign   assign;
+};
+
 
 
 
@@ -78,13 +188,11 @@ struct var
 {
 	struct qstr u ;             /* txt.name  is ptr to space     */
 	var_t * next ;              /* next var                      */
-	struct lnode *  vlnode;    /* lnode for object     on r4-fs */
+	lnode *  vlnode;            /* lnode for object     on r4-fs */
 	int vtype   ;               /* Type of name                  */
 	int vSpace  ;               /* v4  space name or not         */
 	int vlevel  ;               /* level                     */
 };
-
-
 
 typedef struct streg                /* for compile time level information */
 {
@@ -93,23 +201,9 @@ typedef struct streg                /* for compile time level information */
 	int sflag;                  /*                  flag    */
 	int slsco;                  /* cur count of lists       */
 	int slist;                  /* cur type  of lists       */
-	struct lnode * scurrent;   /* default path for this level */
+	lnode * scurrent;           /* cur path for this level  */
 	                            /* struct nameidata * curent_nd; */
 } streg;
-
-
-freeList(freeSpace_t * list)
-{
-	freeSpace_t * curr,* next;
-	next = list;
-	while (next)
-		{
-			curr = next;
-			next = curr->freeSpace_next;
-			kfree(curr);
-		}
-}
-
 
 
 
@@ -121,6 +215,7 @@ struct msglist
 } ;
 
 static struct msglist *Fistmsg;
+#define MAXLEVELCO 500
 
 struct yy_r4_work_spaces
 {
@@ -180,11 +275,11 @@ struct yy_r4_work_spaces
 static struct
 {
 	unsigned char numOfParam;
-	unsigned char typesOfParam[]       ;
+	unsigned char typesOfParam[4]       ;
 }
 	typesOfCommand[]=
 		{ 
-			{0,0}
+			{0,{0,0,0,0}}
 		};
 
 
@@ -265,7 +360,7 @@ struct tree_struct
 
 struct tree_string
 {
-	char common[sizeof (struct tree_stuct)];
+	struct tree_stuct common;
 	int  length;
 	char *pointer;
 };
@@ -273,15 +368,14 @@ struct tree_string
 
 struct tree_identifier
 {
-	char common[sizeof (struct tree_stuct)];
-	
+	struct tree_stuct common;
 	int length;
 	char *pointer;
 };
 
 struct tree_var
 {
-	char common[sizeof (struct tree_stuct)];
+	struct tree_stuct common;
 	union tree_node *purpose;
 	union tree_node *value;
 };
@@ -292,16 +386,16 @@ struct tree_var
 
 struct tree_list
 {
-  char common[sizeof (struct tree_stuct)];
-  union tree_node *purpose;
-  union tree_node *value;
+	struct tree_stuct common;
+	union tree_node *purpose;
+	union tree_node *value;
 };
 
 struct tree_vec
 {
-  char common[sizeof (struct tree_stuct)];
-  int length;
-  union tree_node *a[1];
+	struct tree_stuct common;
+	int length;
+	union tree_node *a[1];
 };
 
 
@@ -309,8 +403,7 @@ struct tree_vec
 
 struct tree_type
 {
-  char common[sizeof (struct tree_stuct)];
-
+	struct tree_stuct common;
 	union tree_node (* construct)( union tree_node *, union tree_node *  );
 	union tree_node (* de_struct)(union tree_node *);
 
@@ -318,19 +411,19 @@ struct tree_type
 
 union tree_node
 {
-  struct tree_stuct common;
+	struct tree_stuct common;
+	
+	struct tree_string string;
+	
+	struct tree_identifier identifier;
+	
+	struct tree_type type;
+	
+	struct tree_list list;
+	struct tree_vec vec;
+	struct tree_exp exp;
 
-  struct tree_string string;
-
-  struct tree_identifier identifier;
-
-  struct tree_type type;
-
-  struct tree_list list;
-  struct tree_vec vec;
-  struct tree_exp exp;
-
- };
+};
 
 
 
@@ -375,13 +468,75 @@ key [] =
 
 		{ "then"        ,    THEN           },
 		{ "tw/"          ,    TRANSCRASH     }
-	}
+	};
 
 
+void level_down( int );
+void level_down( int  );
+void goto_end(void);
+void else_lab(void);
+void make_end_label(void);
 
 
+freeSpace_t * freeSpaceAlloc(void);
+/*strtab * StrTabAlloc(void)*/
 
+lnode * make_do_it( lnode * );
+lnode * objToExpr( lnode * );
+lnode * constToExpr( lnode * ); 
+lnode * connect_expression( lnode *, lnode * ); 
+lnode * compare_EQ_expression( lnode * , lnode *  );
+lnode * compare_NE_expression( lnode * , lnode *  );
+lnode * compare_LE_expression( lnode * , lnode *  );
+lnode * compare_GE_expression( lnode * , lnode *  );
+lnode * compare_LT_expression( lnode * , lnode *  );
+lnode * compare_GT_expression( lnode * , lnode *  );
+lnode * compare_OR_expression( lnode * , lnode *  );
+lnode * compare_AND_expression( lnode * , lnode *  );
+lnode * not_expression( lnode *  ); 
+lnode * check_exist( lnode *  );
+lnode * associate( lnode * , lnode *  );
+lnode * end_tw_list( struct Label * , lnode *  );
+lnode * list_expression( lnode * , lnode *  );
+lnode * list_async_expression( lnode * , lnode *  );
+lnode * end_async_list( struct Label *, lnode *  );
+lnode * assign( lnode * , lnode *  );
+lnode * assign_invert( lnode * , lnode *  );
+lnode * symlink( lnode * , lnode *  );
+lnode * contens_of( lnode *  );
+lnode * contens_to( lnode *  );
+lnode * make_cd( lnode * ,  int );
+lnode * init_Unordered(struct var * );
+lnode * add_Unordered( lnode * ,struct var *);
+lnode * range_lnode ( lnode * , $2 );
+lnode * pars_path_walk( struct var * );
+lnode * make_proc_lnode();
 
+struct Label * begin_tw_list( int );
+struct Label * begin_asynchronouse( int ); 
+struct Label * goto_if_false( struct Label *, lnode *  );
+struct Label * reserv_label( int );
+
+void move_selected_word(struct yy_r4_work_spaces *  );
+int b_check_word(struct yy_r4_work_spaces * );
+var_t * inttab(struct yy_r4_work_spaces * );
+int reiser4_lex( struct yy_r4_work_spaces * );
+
+lnode * get_root_lnode(struct yy_r4_work_spaces * );
+
+int pars_path_walk(struct yy_r4_work_space * ws, struct ???Name * NamePtr);
+
+lnode * make_inode_from_plugin( reiser4_plugin , nd );
+
+int getvar(struct yy_r4_work_space * ws, int n, int def);
+int newvar(struct yy_r4_work_space * ws, int n);
+int newtmp(struct yy_r4_work_space * ws, int n);
+
+void lup(struct yy_r4_work_space *ws, int s1);
+
+int ldw(struct yy_r4_work_space * ws);
+int reiser4_assign( sink_t *dst, flow_t *src );
+int common_transfer( sink_t *target, flow_t *source );
 
 /*******************************************/
 
