@@ -572,7 +572,8 @@ bitmap_destroy_allocator(reiser4_space_allocator * allocator, struct super_block
 
 		down(&bnode->sema);
 
-		if (REISER4_DEBUG && atomic_read(&bnode->loaded)) {
+#if REISER4_DEBUG
+		if (atomic_read(&bnode->loaded)) {
 			jnode *wj = bnode->wjnode;
 			jnode *cj = bnode->cjnode;
 
@@ -584,6 +585,7 @@ bitmap_destroy_allocator(reiser4_space_allocator * allocator, struct super_block
 				      bmap_size(super->s_blocksize)) == 0);
 
 		}
+#endif
 		done_bnode(bnode);
 		up(&bnode->sema);
 	}
