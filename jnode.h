@@ -274,8 +274,6 @@ extern int jnode_done_static(void);
 extern jnode *jalloc(void);
 extern void jfree(jnode * node);
 extern jnode *jnew(void);
-extern jnode *jget(reiser4_tree * tree, struct page *pg);
-extern jnode *jfind(struct page *pg);
 extern jnode *jlook(reiser4_tree *, oid_t objectid, unsigned long index);
 extern jnode *jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long ind);
 extern jnode *jnode_by_page(struct page *pg);

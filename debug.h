@@ -803,6 +803,9 @@ typedef struct reiser4_statistics {
 	stat_cnt pcwb_ented;
 	stat_cnt pcwb_written;
 	stat_cnt pcwb_not_written;
+
+	stat_cnt pages_dirty;
+	stat_cnt pages_clean;
 } reiser4_stat;
 
 struct kobject;

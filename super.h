@@ -296,8 +296,6 @@ struct reiser4_super_info_data {
 	/* Alternative master superblock offset (in bytes) */
 	unsigned long altsuper;
 #endif
-	int pages_dirty;
-	int pages_clean;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct

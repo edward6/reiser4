@@ -686,11 +686,12 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 			spin_lock(&pg->mapping->page_lock);
 
+#if REISER4_STATS
+			if (!PageDirty(pg))
+				reiser4_stat_inc(pages_clean);
+#endif
 			/* don't check return value: submit page even if it
-			   wasn't dirty. */
-			if (PageDirty(pg))
-				get_current_super_private()->pages_clean++;
-		
+			   wasn't dirty. */		
 			test_clear_page_dirty(pg);
 
 			list_del(&pg->list);

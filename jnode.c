@@ -268,7 +268,7 @@ jnode_attach_page(jnode * node, struct page *pg);
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
-jnode *
+static jnode *
 jget(reiser4_tree * tree, struct page * pg)
 {
 	/* FIXME: Note: The following code assumes page_size == block_size.
@@ -351,6 +351,8 @@ jnode_of_page(struct page * pg)
 }
 
 /* return jnode associated with page, possibly creating it. */
+/* FIXME: currently it is used nowhere */
+#if 0
 jnode *
 jfind(struct page * page)
 {
@@ -368,26 +370,7 @@ jfind(struct page * page)
 	}
 	return node;
 }
-
-/* FIXME-VS: change next two functions switching to support of blocksize !=
-   page cache size */
-jnode *
-nth_jnode(struct page * page, int block)
-{
-	assert("vs-695", PagePrivate(page) && page->private);
-	assert("vs-696", current_blocksize == (unsigned) PAGE_CACHE_SIZE);
-	assert("vs-697", block == 0);
-	return jprivate(page);
-}
-
-/* get next jnode of a page.
-   FIXME-VS: update this when more than one jnode per page will be allowed */
-/* Audited by: umka (2002.06.13) */
-jnode *
-next_jnode(jnode * node UNUSED_ARG)
-{
-	return 0;
-}
+#endif /* 0 */
 
 
 static void
