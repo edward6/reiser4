@@ -261,14 +261,35 @@ link_left_and_right(znode * left, znode * right)
 {
 	assert("nikita-3275", check_sibling_list(left));
 	assert("nikita-3275", check_sibling_list(right));
+
 	if (left != NULL) {
-		left->right = right;
-		ZF_SET(left, JNODE_RIGHT_CONNECTED);
+		if (left->right == NULL) {
+			left->right = right;
+			ZF_SET(left, JNODE_RIGHT_CONNECTED);
+		} else
+			/*
+			 * there is a race condition in renew_sibling_link()
+			 * and assertions below check that it is only one
+			 * there. Thread T1 calls renew_sibling_link() without
+			 * GN_NO_ALLOC flag. zlook() doesn't find neighbor
+			 * node, but before T1 gets to the
+			 * link_left_and_right(), another thread T2 creates
+			 * neighbor node and connects it. check for
+			 * left->right == NULL above protects T1 from
+			 * overwriting correct left->right pointer installed
+			 * by T2.
+			 */
+			assert("nikita-3302", 
+			       right == NULL || left->right == right);
 	}
 
 	if (right != NULL) {
-		right->left = left;
-		ZF_SET(right, JNODE_LEFT_CONNECTED);
+		if (right->left == NULL) {
+			right->left = left;
+			ZF_SET(right, JNODE_LEFT_CONNECTED);
+		} else
+			assert("nikita-3303", 
+			       left == NULL || right->left == left);
 	}
 	assert("nikita-3275", check_sibling_list(left));
 	assert("nikita-3275", check_sibling_list(right));
@@ -785,6 +806,10 @@ void
 sibling_list_insert_nolock(znode * new, znode * before)
 {
 	assert("zam-334", new != NULL);
+	assert("nikita-3298", !znode_is_left_connected(new));
+	assert("nikita-3299", !znode_is_right_connected(new));
+	assert("nikita-3300", new->left == NULL);
+	assert("nikita-3301", new->right == NULL);
 	assert("nikita-3278", check_sibling_list(new));
 	assert("nikita-3279", check_sibling_list(before));
 
