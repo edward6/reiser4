@@ -52,35 +52,14 @@ typedef struct format40_super_info {
 	jnode *sb_jnode;
 } format40_super_info;
 
-#define FORMAT40_FIXMAP_MAGIC "R4FiXMaPv1.0"
-/* ondisk fixmap table for format 40, it's length is up to block size */
-typedef struct format40_fixmap_block {
-	/* magic */
-	/*   0 */ char magic[16];
-	/* if not zero - actual location of format-specific superblock */
-	/*  16 */ d64 fm_super;
-	/* if not zero - actual location of format-secific journal header */
-	/*  24 */ d64 fm_journal_header;
-	/* if not zero - actual location of format-secific journal footer */
-	/*  32 */ d64 fm_journal_footer;
-	/* fixmap table for bitmaps. */
-	/* This one is just a list of bitmaps that happen to hit badblocks, and
-	   blocknumbers where they are stored now. If the table will grow so big
-	   that it won't fit on single block, the last entry in this array should
-	   have bmap_nr equal to -1 and then the blocknumber will be threated as
-	   the block where this table is continued. Entries in the table should be
-	   sorted by bmap_nr. Last entry is represented with {0,0} */
-	/*  40 */
-	struct {
-		/* Bitmap number */
-		d64 bmap_nr;
-		/* blocknumber where this bitmap lives */
-		d64 new_block;
-	} fm_bitmap_table[1];
-} format40_fixmap_info;
-
 #define FORMAT40_JOURNAL_HEADER_BLOCKNR 19
 #define FORMAT40_JOURNAL_FOOTER_BLOCKNR 20
+
+/* Diskmap declarations */
+#define FORMAT40_PLUGIN_DISKMAP_ID ((REISER4_FORMAT_PLUGIN_TYPE<<16) | (FORMAT40_ID))
+#define FORMAT40_SUPER 1
+#define FORMAT40_JH 2
+#define FORMAT40_JF 3
 
 /* declarations of functions implementing methods of layout plugin for
    format 40. The functions theirself are in disk_format40.c */
