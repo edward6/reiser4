@@ -424,8 +424,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 			
 			tree = &get_super_private(super)->tree;
 
-			tree.ops->drop_node(tree, &bnode->wjnode);
-			tree.ops->drop_node(tree, &bnode->cjnode);
+			tree->ops->drop_node(tree, &bnode->wjnode);
+			tree->ops->drop_node(tree, &bnode->cjnode);
 //			jnode_detach_page (&bnode->wjnode);
 //			jnode_detach_page (&bnode->cjnode);
 
