@@ -1469,7 +1469,9 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 
 		/* @coord must be set for inserting of new item */
 		assert ("vs-711", (coord->between == AFTER_ITEM ||
-				   coord->between == BEFORE_ITEM));
+				   coord->between == BEFORE_ITEM ||
+				   (coord->between == EMPTY_NODE &&
+				    node_is_empty (coord->node))));
 		
 		hole_key = *key;
 		set_key_offset (&hole_key, 0ull);
