@@ -1,5 +1,5 @@
 /*
-    progs.h -- the central reiser4progs include file.
+    repair.h -- the central recovery include file.
     Copyright (C) 1996 - 2002 Hans Reiser
     Author Vitaly Fertman
 */
@@ -7,33 +7,46 @@
 #ifndef PROGS_H
 #define PROGS_H
 
-#include <reiser4/reiser4.h>
+//#include <reiser4/reiser4.h>
 #include <getopt.h>
+#include <stdio.h>
 
-/* Error codes for progs */
-#define NO_ERROR	    0 /*  */
-#define OPERATION_ERROR	    8 /* bug in the code, assertions, etc. */
-#define USER_ERROR	   16 /* wrong parameters, not allowed values, syntax error, etc. */
-
-struct reiser4_program_data {
-    aal_device_t *host_device;
-    aal_device_t *journal_device;
-
-    reiserfs_fs_t *fs;
+struct repair_data {
     reiserfs_profile_t *profile;
-    
-    void *data;
+    uint16_t mode;
+    uint16_t options;
+
+    FILE *logfile;
 };
 
-typedef struct reiser4_program_data reiser4_program_data_t;
+typedef struct repair_data repair_data_t;
+
+/* Repair modes. */
+#define REPAIR_CHECK	0x1
+#define REPAIR_REBUILD	0x2
+#define REPAIR_ROLLBACK	0x3
+
+#define repair_mode(repair_data)	((repair_data)->mode)
+
+/* Repair options. */
+#define REPAIR_OPT_NO_JOURNAL	0x1
+#define REPAIR_OPT_AUTO		0x2
+#define REPAIR_OPT_FORCE	0x3
+#define REPAIR_OPT_QUIET	0x4
+#define REPAIR_OPT_VERBOSE	0x5
+
+#define repair_set_option(bit, repair_data)	(aal_set_bit(bit, &repair_data->options))
+#define repair_test_option(bit, repair_data)	(aal_test_bit(bit, &repair_data->options))
+#define repair_clear_option(bit, repair_data)	(aal_clear_bit(bit, &repair_data->options))
+
 
 /*  -----------------------------------------------------------
     | Common scheem for communication with users.             |
     |---------------------------------------------------------|
     |  stream (modifier) | default | with log | with 'no-log' |
     |--------------------|---------|--------------------------|
-    | info               | stderr  | stderr   |  -            |
     | warn  (verbose)    | stderr  | log      |  -            |
+    | info               | stderr  | stderr   |  -            |
     | error (verbose)    | stderr  | log      |  -            |
     | fatal              | stderr  | stderr   | stderr        |
     | bug                | stderr  | stderr   | stderr        |
@@ -48,35 +61,16 @@ typedef struct reiser4_program_data reiser4_program_data_t;
     and quiet mode (minimum of the progress) for all plugins.
 */
 
-void progs_set_progress(FILE *stream);
-FILE *progs_get_progress();
-void progs_set_verbose();
-void progs_init();
+#define progs_fatal(msg, list...) \
+    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, msg, ##list)
+#define progs_bug(msg, list...)	\
+    aal_exception_throw(EXCEPTION_BUG, EXCEPTION_OK, msg, ##list)
+#define progs_error(msg, list...) \
+    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, msg, ##list)
+#define progs_warn(msg, list...) \
+    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, msg, ##list)
+#define progs_info(msg, list...) \
+    aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, msg, ##list)
 
-#define progs_progress(msg, list...)	    aal_throw_msg(progs_get_progress(), msg, ##list);\
-					    fflush(progs_get_progress());
-#define progs_fatal(msg, list...)	    aal_throw_fatal(EO_OK, msg, ##list)
-#define progs_bug(msg, list...)		    aal_throw_bug(EO_OK, msg, ##list)
-#define progs_error(msg, list...)	    aal_throw_error(EO_OK, msg, ##list)
-#define progs_warn(msg, list...)	    aal_throw_warning(EO_OK, msg, ##list)
-#define progs_info(msg, list...)	    aal_throw_information(EO_OK, msg, ##list)
-#define progs_ask(opt, def, msg, list...)   aal_throw_ask(opt, def, msg, ##list)
-
-/*
-#define prog_bug(msg, list...)	    progs_get_log() ?			    \
-    aal_exception_throw(progs_get_log(), ET_BUG, EO_OK, 0, msg, ##list) :   \
-    aal_throw_bug(EO_OK, msg, ##list)
-#define prog_error(msg, list...)    progs_get_log() ?			    \
-    aal_exception_throw(progs_get_log(), ET_ERROR, EO_OK, 0, msg, ##list) : \
-    aal_throw_error(EO_OK, msg, ##list)
-#define prog_warn(msg, list...)	    progs_get_log() ?			    \
-    aal_exception_throw(progs_get_log(), ET_WARN, EO_OK, 0, msg, ##list) :  \
-    aal_throw_warning(EO_OK, msg, ##list)
-#define prog_info(msg, list...)	    progs_get_log() ?			    \
-    aal_exception_throw(progs_get_log(), ET_INFO, EO_OK, 0, msg, ##list) :  \
-    aal_throw_information(EO_OK, msg, ##list)
-#define prog_ask(opt, def, msg, list...)				    \
-    aal_exception_throw(stdout, 0, opt, def, msg, ##list)
-*/
 #endif
 

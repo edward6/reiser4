@@ -5,9 +5,9 @@
     Author Vitaly Fertman.
 */
 
-#include <progs/filesystem.h>
+#include <repair/filesystem.h>
 
-errno_t progs_fs_check(reiserfs_fs_t *fs) {
+errno_t repair_fs_check(reiserfs_fs_t *fs) {
     return 0;
 }
 

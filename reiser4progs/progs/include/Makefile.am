@@ -1,1 +1,1 @@
-noinst_HEADERS		= misc.h
+noinst_HEADERS		= misc.h profile.h version.h

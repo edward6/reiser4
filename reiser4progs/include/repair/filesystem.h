@@ -5,6 +5,6 @@
 */
 
 #include <reiser4/reiser4.h>
-#include <progs/progs.h>
+#include "repair.h"
 
-extern errno_t progs_fs_check(reiserfs_fs_t *fs);
+extern errno_t repair_fs_check(reiserfs_fs_t *fs);
