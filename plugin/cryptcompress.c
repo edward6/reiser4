@@ -1012,7 +1012,7 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 		struct inode *inode)
 {
 	int result = 0;
-	__u8 * dst;
+	__u8 * dst = NULL;
 	__u8 * bf = NULL;  /* buffer to handle temporary results */
 	size_t bfsize = 0; /* size of the buffer above */
 	struct page * pg = NULL; /* pointer to a single page if cluster size
