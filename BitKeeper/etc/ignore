@@ -1508,3 +1508,4 @@ plugin/item/ctail.c.rej
 plugin/item/ctail.h.orig
 series
 txt/profile-stat-trace-repacker.txt
+patches/profile-stat-trace-repacker.patch
