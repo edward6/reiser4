@@ -42,9 +42,9 @@ static __u32 nh_40_get_magic (node_header_40 * nh)
 	return d32tocpu (&nh->magic);
 }
 
-static nh_40_set_magic (node_header_40 * nh, __u32 magic)
+static void nh_40_set_magic (node_header_40 * nh, __u32 magic)
 {
-	return cputod32 (magic, &nh->magic);
+	cputod32 (magic, &nh->magic);
 }
 
 
