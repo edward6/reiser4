@@ -410,36 +410,31 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 		nr = nr - offset;
 
 		page = grab_cache_page(inode->i_mapping, index);
-		
 		if (unlikely(page == NULL)) {
 			result = RETERR(-ENOMEM);
-			goto fail;
+			goto fail_no_page;
 		}
 
 		if (PageUptodate(page))
 			/* process locked, up-to-date  page by read actor */
 			goto actor;
 
-		if (fplug->readpage != NULL)
-			result = fplug->readpage(file, page);
-		else
+		if (fplug->readpage != NULL) {
 			result = RETERR(-EINVAL);
+			goto fail_locked_page;
+		}
 
+		result = fplug->readpage(file, page);
 		if (result != 0) {
 			SetPageError(page);
 			ClearPageUptodate(page);
-			unlock_page(page);
-			page_cache_release(page);
-			break;
-		} else {
-			lock_page(page);
-			
-			if (!PageUptodate(page)) {
-				result = RETERR(-EIO);
-				unlock_page(page);
-				page_cache_release(page);
-				break;
-			}
+			goto fail_page;
+		}
+
+		lock_page(page);
+		if (!PageUptodate(page)) {
+			result = RETERR(-EIO);
+			goto fail_locked_page;
 		}
 
 	actor:
@@ -456,11 +451,17 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 			break;
 	}
 
+	if (0) {
+	fail_locked_page:
+		unlock_page(page);
+	fail_page:
+		page_cache_release(page);
+	fail_no_page:
+	}
+
 	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
 	update_atime(inode);
 
-fail:
-	desc.error = result;
 	reiser4_exit_context(&ctx);
 	return result;
 }
