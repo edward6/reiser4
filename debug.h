@@ -193,6 +193,10 @@ typedef enum {
 	 */
 	TRACE_OIDS       =     (1 << 11),     /* 0x00000800 */
 	/*
+	 * trace item shifts
+	 */
+	TRACE_SHIFT      =     (1 << 12),     /* 0x00001000 */
+	/*
 	 * trace everything above
 	 */
 	TRACE_ALL        =     0xffffffffu
