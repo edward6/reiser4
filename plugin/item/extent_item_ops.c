@@ -341,8 +341,8 @@ create_hook_extent(const coord_t *coord, void *arg)
 
 	assert("nikita-3246", znode_get_level(child_coord->node) == LEAF_LEVEL);
 
-	WLOCK_DK(tree);
 	WLOCK_TREE(tree);
+	WLOCK_DK(tree);
 	/* find a node on the left level for which right delimiting key has to
 	   be updated */
 	if (coord_wrt(child_coord) == COORD_ON_THE_LEFT) {
@@ -360,12 +360,17 @@ create_hook_extent(const coord_t *coord, void *arg)
 		assert("nikita-3282", check_sibling_list(node));
 		/* break sibling links */
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
+			ON_DEBUG(
+				node->right->left_version = atomic_inc_return(&delim_key_version);
+				node->right_version = atomic_inc_return(&delim_key_version);
+				);
+
 			node->right->left = NULL;
 			node->right = NULL;
 		}
 	}
-	WUNLOCK_TREE(tree);
 	WUNLOCK_DK(tree);
+	WUNLOCK_TREE(tree);
 	return 0;
 }
 
@@ -433,12 +438,12 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 			 * atomicity of these operations is protected by
 			 * taking dk-lock and tree-lock.
 			 */
-			WLOCK_DK(tree);
 			/* if neighbors of item being removed are znodes -
 			 * link them */
 			UNDER_RW_VOID(tree, tree,
 				      write, link_left_and_right(left, right));
 
+			WLOCK_DK(tree);
 			if (left) {
 				/* update right delimiting key of left
 				 * neighbor of extent item */
@@ -453,7 +458,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 					item_key_by_coord(&next, &key);
 				znode_set_rd_key(left, &key);
 			}
-			WUNLOCK_DK(tree);
+ 			WUNLOCK_DK(tree);
 
 			from_off = get_key_offset(&min_item_key) >> PAGE_CACHE_SHIFT;
 			to_off = (get_key_offset(&max_item_key) + 1) >> PAGE_CACHE_SHIFT;

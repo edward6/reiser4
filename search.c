@@ -827,6 +827,10 @@ set_child_delimiting_keys(znode * parent,
 			find_child_delimiting_keys(parent, coord,
 						   &child->ld_key,
 						   &child->rd_key);
+			ON_DEBUG(
+				child->ld_key_version = atomic_inc_return(&delim_key_version);
+				child->rd_key_version = atomic_inc_return(&delim_key_version);
+				);
 			ZF_SET(child, JNODE_DKSET);
 		}
 		WUNLOCK_DK(tree);
@@ -1004,8 +1008,8 @@ check_dkeys(znode *node)
 	znode *left;
 	znode *right;
 
-	RLOCK_DK(current_tree);
 	RLOCK_TREE(current_tree);
+	RLOCK_DK(current_tree);
 
 	assert("vs-1710", znode_is_any_locked(node));
 	assert("vs-1197", !keygt(znode_get_ld_key(node), znode_get_rd_key(node)));
@@ -1027,8 +1031,8 @@ check_dkeys(znode *node)
 		assert("vs-1199", (keyeq(znode_get_rd_key(node), znode_get_ld_key(right)) ||
 				   ZF_ISSET(right, JNODE_HEARD_BANSHEE)));
 
-	RUNLOCK_TREE(current_tree);
 	RUNLOCK_DK(current_tree);
+	RUNLOCK_TREE(current_tree);
 }
 #endif
 
@@ -1333,8 +1337,8 @@ static void stale_dk(reiser4_tree *tree, znode *node)
 {
 	znode *right;
 
-	WLOCK_DK(tree);
 	RLOCK_TREE(tree);
+	WLOCK_DK(tree);
 	right = node->right;
 
 	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && 
@@ -1342,8 +1346,8 @@ static void stale_dk(reiser4_tree *tree, znode *node)
 	    !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))
 		znode_set_rd_key(node, znode_get_ld_key(right));
 
-	RUNLOCK_TREE(tree);
 	WUNLOCK_DK(tree);
+	RUNLOCK_TREE(tree);
 }
 
 /* check for possibly outdated delimiting keys, and update them if
@@ -1353,9 +1357,9 @@ static void update_stale_dk(reiser4_tree *tree, znode *node)
 	znode *right;
 	reiser4_key rd;
 
+	RLOCK_TREE(tree);
 	RLOCK_DK(tree);
 	rd = *znode_get_rd_key(node);
-	RLOCK_TREE(tree);
 	right = node->right;
 	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && 
 		     right && ZF_ISSET(right, JNODE_DKSET) &&
@@ -1363,13 +1367,13 @@ static void update_stale_dk(reiser4_tree *tree, znode *node)
 		/* does this ever happen? */
 		warning("nikita-38210", "stale dk");
 		assert("nikita-38211", ZF_ISSET(node, JNODE_DKSET));
-		RUNLOCK_TREE(tree);
 		RUNLOCK_DK(tree);
+		RUNLOCK_TREE(tree);
 		stale_dk(tree, node);
 		return;
 	}
-	RUNLOCK_TREE(tree);
 	RUNLOCK_DK(tree);
+	RUNLOCK_TREE(tree);
 }
 
 /*
@@ -1568,6 +1572,7 @@ setup_delimiting_keys(cbk_handle * h /* search handle */)
 	assert("nikita-1088", h != NULL);
 
 	active = h->active_lh->node;
+
 	/* fast check without taking dk lock. This is safe, because
 	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(active, JNODE_DKSET)) {

@@ -1441,6 +1441,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 		reiser4_tree * tree = current_tree;
 		__u64 start_offset = 0, end_offset = 0;
 
+		RLOCK_TREE(tree);
 		WLOCK_DK(tree);
 		if (object) {
 			/* We use @smallest_removed and the left delimiting of
@@ -1452,15 +1453,14 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 			end_offset = get_key_offset(smallest_removed);
 		}
 
-		RLOCK_TREE(tree);
 		assert("zam-1021", znode_is_connected(node));
 		if (node->left)
 			znode_set_rd_key(node->left, znode_get_rd_key(node));
-		RUNLOCK_TREE(tree);
 
 		*smallest_removed = *znode_get_ld_key(node);
 
 		WUNLOCK_DK(tree);
+		RUNLOCK_TREE(tree);
 
 		if (object) {
 			/* we used to perform actions which are to be performed on items on their removal from tree in

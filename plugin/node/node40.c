@@ -663,7 +663,6 @@ check_node40(const znode * node /* node to check */ ,
 		}
 	}
 
-	RLOCK_DK(current_tree);
 	if ((flags & REISER4_NODE_DKEYS) && !node_is_empty(node)) {
 		coord_t coord;
 		item_plugin *iplug;
@@ -676,7 +675,7 @@ check_node40(const znode * node /* node to check */ ,
 
 			iplug->s.file.append_key(&coord, &mkey);
 			set_key_offset(&mkey, get_key_offset(&mkey) - 1);
-			if (keygt(&mkey, znode_get_rd_key((znode *) node))) {
+			if (UNDER_RW(dk, current_tree, read, keygt(&mkey, znode_get_rd_key((znode *) node)))) {
 				*error = "key of rightmost item is too large";
 				return -1;
 			}
@@ -684,17 +683,22 @@ check_node40(const znode * node /* node to check */ ,
 	}
 	if (flags & REISER4_NODE_DKEYS) {
 		RLOCK_TREE(current_tree);
+		RLOCK_DK(current_tree);
 
 		flags |= REISER4_NODE_TREE_STABLE;
 
 		if (keygt(&prev, znode_get_rd_key((znode *)node))) {
 			if (flags & REISER4_NODE_TREE_STABLE) {
 				*error = "Last key is greater than rdkey";
+				RUNLOCK_DK(current_tree);
+				RUNLOCK_TREE(current_tree);
 				return -1;
 			}
 		}
 		if (keygt(znode_get_ld_key((znode *)node), znode_get_rd_key((znode *)node))) {
 			*error = "ldkey is greater than rdkey";
+			RUNLOCK_DK(current_tree);
+			RUNLOCK_TREE(current_tree);
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
@@ -704,6 +708,8 @@ check_node40(const znode * node /* node to check */ ,
 			 !keyeq(znode_get_rd_key(node->left), znode_get_ld_key((znode *)node))) &&
 		    ergo(!(flags & REISER4_NODE_TREE_STABLE), keygt(znode_get_rd_key(node->left), znode_get_ld_key((znode *)node)))) {
 			*error = "left rdkey or ldkey is wrong";
+			RUNLOCK_DK(current_tree);
+			RUNLOCK_TREE(current_tree);
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
@@ -713,12 +719,14 @@ check_node40(const znode * node /* node to check */ ,
 			 !keyeq(znode_get_rd_key((znode *)node), znode_get_ld_key(node->right))) &&
 		    ergo(!(flags & REISER4_NODE_TREE_STABLE), keygt(znode_get_rd_key((znode *)node), znode_get_ld_key(node->right)))) {
 			*error = "rdkey or right ldkey is wrong";
+			RUNLOCK_DK(current_tree);
+			RUNLOCK_TREE(current_tree);
 			return -1;
 		}
 
+		RUNLOCK_DK(current_tree);
 		RUNLOCK_TREE(current_tree);
 	}
-	RUNLOCK_DK(current_tree);
 
 	return 0;
 }
@@ -2027,6 +2035,15 @@ prepare_removal_node40(znode * empty, carry_plugin_info * info)
 	op->u.delete.flags = 0;
 
 	/* fare thee well */
+
+	RLOCK_TREE(current_tree);
+	WLOCK_DK(current_tree);
+	znode_set_ld_key(empty, znode_get_rd_key(empty));
+	if (znode_is_left_connected(empty) && empty->left)
+		znode_set_rd_key(empty->left, znode_get_rd_key(empty));
+	WUNLOCK_DK(current_tree);
+	RUNLOCK_TREE(current_tree);
+
 	ZF_SET(empty, JNODE_HEARD_BANSHEE);
 	return 0;
 }

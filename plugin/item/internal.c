@@ -264,8 +264,8 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 
 		left = arg;
 		tree = znode_get_tree(item->node);
-		WLOCK_DK(tree);
 		WLOCK_TREE(tree);
+		WLOCK_DK(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL) || (znode_above_root(child->in_parent.node)));
 		++ item->node->c_count;
 		coord_to_parent_coord(item, &child->in_parent);
@@ -274,12 +274,12 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 		assert("nikita-3297", ZF_ISSET(child, JNODE_ORPHAN));
 		ZF_CLR(child, JNODE_ORPHAN);
 
-		WUNLOCK_TREE(tree);
 		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
 					     znode_get_rd_key(child))) {
 			znode_set_rd_key(child, znode_get_rd_key(left));
 		}
 		WUNLOCK_DK(tree);
+		WUNLOCK_TREE(tree);
 		zput(child);
 		return result;
 	} else

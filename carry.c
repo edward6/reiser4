@@ -733,6 +733,9 @@ lock_carry_level(carry_level * level /* level to lock */ )
    neighbor's right delimiting key to conincide with least key in @node.
 
 */
+
+ON_DEBUG(extern atomic_t delim_key_version;)
+
 static void
 sync_dkeys(znode *spot /* node to update */)
 {
@@ -743,6 +746,7 @@ sync_dkeys(znode *spot /* node to update */)
 	assert("nikita-1612", LOCK_CNT_NIL(rw_locked_dk));
 
 	tree = znode_get_tree(spot);
+	RLOCK_TREE(tree);
 	WLOCK_DK(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
@@ -755,7 +759,6 @@ sync_dkeys(znode *spot /* node to update */)
 
 	znode_set_ld_key(spot, &pivot);
 
-	RLOCK_TREE(tree);
 	/* there can be sequence of empty nodes pending removal on the left of
 	   @spot. Scan them and update their left and right delimiting keys to
 	   match left delimiting key of @spot. Also, update right delimiting
@@ -788,8 +791,8 @@ sync_dkeys(znode *spot /* node to update */)
 			break;
 	}
 
-	RUNLOCK_TREE(tree);
 	WUNLOCK_DK(tree);
+	RUNLOCK_TREE(tree);
 }
 
 ON_DEBUG(void check_dkeys(const znode *);)
