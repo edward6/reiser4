@@ -416,14 +416,13 @@ int connect_znode (coord_t * coord, znode * node)
 
 	if (!znode_is_right_connected(node)) {
 		spin_unlock_tree(tree);
-
+                /* connect right (default is right) */
 		ret = connect_one_side(coord, node, GN_NO_ALLOC);
 		if (ret) goto zrelse_and_ret;
 
 		spin_lock_tree(tree);
 	}
 
-	/* connect to right neighbor */
 	ret = znode_is_left_connected(node);
 
 	spin_unlock_tree(tree);

@@ -3,7 +3,7 @@
  */
 
 #include "reiser4.h"
-
+#include "eottl.c"
 /* rules for locking during searches: never insert before the first
    item in a node without locking the left neighbor and the patch to
    the common parent from the node and left neighbor.  This ensures
@@ -301,7 +301,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* in "coord" are only valid if
 						* coord_by_key() returned
 						* "CBK_COORD_FOUND" */,
-			    lock_handle *lh ,
+			    lock_handle *lh , /* NIKITA-FIXME-HANS: comment needed */
 			    znode_lock_mode lock_mode /* type of lookup we
 						       * want on node. Pass
 						       * ZNODE_READ_LOCK here
@@ -476,14 +476,11 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	h -> result = CBK_COORD_FOUND;
 
 	{ 
-/* vs, determine whether we can easily eliminate this fake znode.  I
-   worry that our new programmers merely copy the other literature without
-   really considering whether those others are right. -Hans */
+/* I question whether fake znodes are a useful complication in the name of simplicity. -Hans */
 /* obtain fake znode */
 		znode *fake;
 
-		assert ("zam-355", lock_stack_isclean(
-				get_current_lock_stack()));
+		assert ("zam-355", lock_stack_isclean(get_current_lock_stack()));
 /* ewww, ugly, why not just follow the super block pointer to the root
    of the tree. Or even better, have some nice little
    get_tree_root_node macro.  -Hans */
@@ -492,8 +489,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 
 		if (IS_ERR(fake)) return PTR_ERR(fake);
 
-		done = longterm_lock_znode(h->parent_lh, fake, 
-					   ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
+		done = longterm_lock_znode(h->parent_lh, fake, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
 
 		assert( "nikita-1637", done != -EDEADLK );
 
@@ -514,12 +510,13 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	for( ; !done ; ++ iterations ) {
 
 		if( unlikely( ( iterations > REISER4_CBK_ITERATIONS_LIMIT ) &&
+                    /* is power of 2, which means that we print the message with decaying frequency */
 		    !( iterations & ( iterations - 1 ) ) ) ) {
 			warning( "nikita-1481", "Too many iterations: %i",
 				 iterations );
 			print_key( "key", h -> key );
 		} else if( unlikely( iterations > REISER4_MAX_CBK_ITERATIONS ) ) {
-			h -> error = "Too many iterations. Tree corrupted?";
+			h -> error = "reiser-2018: Too many iterations. Tree corrupted, or starvation occuring.  Starvation handling code needs to be written.";
 			h -> result = -EIO;
 			break;
 		}
@@ -596,6 +593,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	/* lock @active */
 	h->result = longterm_lock_znode(h->active_lh, active,
 					cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
+/* ZAM-FIXME-HANS: explain this in a comment (why do we zput after locking) */
 	zput(active);
 	if (h->result)
 		goto fail_or_restart;
@@ -609,7 +607,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		setup_delimiting_keys( h );
 
 	/*
-	 * FIXME-NIKITA this is ugly kludge. Remainder: this is necessary,
+	 * FIXME-NIKITA this is ugly kludge. Reminder: this is necessary,
 	 * because ->lookup() method returns coord with ->between field
 	 * probably set to something different from AT_UNIT.
 	 *
@@ -618,6 +616,9 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 * code) coord_t is used for something different. As a result,
 	 * ->between field is not only useless---it is strictly
 	 * counter-productive.
+
+	 Programmers who are opposed to an idea will implement it stupidly so as to prove themselves right.  Why do you
+	 need to set this?  -Hans
 	 */
 	h->coord->between = AT_UNIT;
 
