@@ -453,6 +453,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 	lock_handle lh;
 	int result;
 	znode *loaded;
+	int err = 0;
 	STORE_COUNTERS;
 
 	inode_file_plugin(inode)->key_by_inode(inode, new_size, &from_key);
@@ -474,12 +475,14 @@ cut_file_items(struct inode *inode, loff_t new_size)
 									 * iteration (if there
 									 * was one) */
 					&lh, ZNODE_WRITE_LOCK, CBK_UNIQUE);
+		err = 1;
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 			/* -EIO, or something like that */
 			break;
 
 		loaded = intranode_to.node;
 		result = zload(loaded);
+		err = 2;
 		if (result) {
 			done_lh(&lh);
 			break;
@@ -491,6 +494,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 		result = intranode_to.node->nplug->lookup(intranode_to.node,
 							  &from_key, FIND_MAX_NOT_MORE_THAN, &intranode_from);
 
+		err = 3;
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* -EIO, or something like that */
 			zrelse(loaded);
@@ -507,6 +511,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 		}
 		/* estimate and reserve space for removal of one item */
 		result = reserve_cut_iteration(tree_by_inode(inode)->height);
+		err = 4;
 		if (result) {
 			zrelse(loaded);
 			done_lh(&lh);
@@ -521,6 +526,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 									   loop iteration */
 				  &from_key, &to_key, &smallest_removed, DELETE_KILL,	/*flags */
 				  0/* left neighbor is not known */);
+		err = 5;
 		zrelse(loaded);
 		done_lh(&lh);
 
@@ -537,14 +543,18 @@ cut_file_items(struct inode *inode, loff_t new_size)
 		assert("vs-301", !keyeq(&smallest_removed, min_key()));
 
 		result = update_inode_and_sd_if_necessary(inode, get_key_offset(&smallest_removed), 1/*update inode->i_size*/);
+		err = 6;
 		all_grabbed2free("cut_file_items after update_inode..");
 		if (result)
 			break;
 		balance_dirty_pages(inode->i_mapping);
 
+		err = 7;
 	} while (keygt(&smallest_removed, &from_key));
 
 	CHECK_COUNTERS;
+	if (result != 0)
+		warning("nikita-2912", "result: %i, err: %i", result, err);
 	return result;
 }
 
@@ -668,8 +678,11 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 		return result;
 
 	if (inode->i_size != cur_size) {
+		int (*truncate_f)(struct inode *, loff_t);
+
 		INODE_SET_FIELD(inode, i_size, cur_size);
-		result = (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size);
+		truncate_f = (cur_size < new_size) ? append_hole : shorten_file;
+		result = truncate_f(inode, new_size);
 	} else {
 		/* when file is built of extens - find_file_size can only calculate old file size up to page size. Case
 		 * of not changing file size is detected in unix_file_setattr, therefore here we have expanding file
