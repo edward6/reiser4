@@ -1934,61 +1934,13 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
 	return 1;
 }
 
-/* before allocating unallocated extent we have to prevent from eflushing those jnodes which are not eflushed yet and
-   "unflush" jnodes which are already eflushed. Both are achieved by jload. However there can be too many eflushed
+/* before allocating unallocated extent we have to protect from eflushing those jnodes which are not eflushed yet and
+   "unflush" jnodes which are already eflushed. However there can be too many eflushed
    jnodes so, we limit number of them with this macro */
 #define JNODES_TO_UNFLUSH 16
 
-/* jload part of unallocated extent. Make sure that there were not more than JNODES_TO_UNFLUSH eflushed nodes. Return
- * number of nodes which were jloaded. They will be allocated */
-static __u64
-unflush_part(oid_t oid, unsigned long ind, __u64 count)
-{
-#if REISER4_USE_EFLUSH
-	__u64           i;
-	int             result;
-	reiser4_tree   *tree;
-	int             eflushed;
-	int             protected;
-
-	tree = current_tree;
-
-	eflushed = 0;
-	protected = 0;
-	for (i = 0; i < count; ++i, ++ind) {
-		jnode  *node;
-
-		node = jlook_lock(tree, oid, ind);
-		if (node == NULL)
-			/* reiser4_delete_inode starts from dropping of emergency flushed jnodes. Here we probably tried
-			   to look for one of them */
-			continue;
-
-		if (JF_ISSET(node, JNODE_EFLUSH)) {
-			if (eflushed == JNODES_TO_UNFLUSH) {
-				jput(node);
-				break;
-			}
-			eflushed ++;
-		}
-
-		result = jprotect(node);
-		protected ++;
-		jput(node);
-		if (result != 0)
-			warning("vs-1134", "jprotect failed (oid %llu, page %lu, error %d)\n",
-				oid, ind, result);
-	}
-	return protected;
-#else
-/* !REISER4_USE_EFLUSH */
-	return count;
-#endif
-}
-
-/* jrelse @count nodes starting from index @ind */
 static int
-unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
+unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
 {
 #if REISER4_USE_EFLUSH
 	__u64         i;
@@ -2002,8 +1954,7 @@ unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 		jnode  *node;
 
 		node = jlook_lock(tree, oid, ind);
-		if (node == NULL)
-			continue;
+		assert("vs-1204", node);
 		junprotect(node);
 		unprotected ++;
 		jput(node);
@@ -2014,6 +1965,61 @@ unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 	return count;
 #endif
 }
+
+/* unallocated extent of width @count is going to be allocated. Protect all unformatted nodes from e-flushing. If
+   unformatted node is eflushed already - it gets e-unflushed. Note, that it does not eflush more than JNODES_TO_UNFLUSH
+   jnodes. All jnodes corresponding to this extent must exist. If any of them does not - that means that file is being
+   either deleted or truncated, therefore, there is no reason to allocated this extent, so we return -EAGAIN */
+static int
+protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected)
+{
+#if REISER4_USE_EFLUSH
+	__u64           i;
+	int             result;
+	reiser4_tree   *tree;
+	int             eflushed;
+
+	tree = current_tree;
+
+	eflushed = 0;
+	*protected = 0;
+	for (i = 0; i < count; ++i, ++ind) {
+		jnode  *node;
+
+		node = jlook_lock(tree, oid, ind);
+		if (node == NULL) {
+			/* non-existence of at least one jnode means that this unallocated extent is going to be
+			   removed */
+			result = -EAGAIN;
+			goto error;
+		}
+
+		if (JF_ISSET(node, JNODE_EFLUSH)) {
+			if (eflushed == JNODES_TO_UNFLUSH) {
+				jput(node);
+				break;
+			}
+			eflushed ++;
+		}
+
+		result = jprotect(node);
+		jput(node);
+		if (result < 0)
+			goto error;
+		(*protected) ++;
+	}
+	return 0;
+ error:
+	/* unprotect all the jnodes we have protected so far */
+	unprotect_extent_nodes(oid, ind, *protected);
+	return result;
+#else
+/* !REISER4_USE_EFLUSH */
+	return count;
+#endif
+}
+
+/* jrelse @count nodes starting from index @ind */
 
 /* @right is extent item. @left is left neighbor of @right->node. Copy item
    @right to @left unit by unit. Units which do not require allocation are
@@ -2037,8 +2043,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 	reiser4_extent *ext, new_ext;
 	unsigned long index;
 	oid_t oid;
-	__u64 width, to_allocate, can_be_allocated, allocated;
-	int loaded;
+	__u64 width, to_allocate, protected, allocated;
 
 	/* skip extent being converted into tail */
 	if (item_id_by_coord(right) == FROZEN_EXTENT_POINTER_ID)
@@ -2091,22 +2096,19 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 		to_allocate = width;
 		/* until whole extent is allocated and there is space in left neighbor */
 		while (to_allocate) {
-			/* zload nodes before allocating disk space for them. Nodes which were eflushed will be read
-			   from their temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that
-			   disk space will be freed. */		
-			can_be_allocated = unflush_part(oid, index, to_allocate);
-			loaded = can_be_allocated;
-			if (!can_be_allocated) {
-				/* this is possible because eflushed jnodes get dropped before item truncate. Flush
-				   seems to come up right in between */
-				result = -EAGAIN;
+			/* Prevent node from e-flushing before allocating disk space for them. Nodes which were eflushed
+			   will be read from their temporary locations (but not more than certain limit:
+			   JNODES_TO_UNFLUSH) and that disk space will be freed. */
+			result = protect_extent_nodes(oid, index, to_allocate, &protected);
+			if (result)
+				/* EAGAIN or error code. EAGAIN is returned when there was a missing jnode. That means
+				   that this item is going  to be removed soon */
 				goto done;
-			}
 
 			check_me("vs-1137", extent_allocate_blocks(pos_hint(flush_pos),
-								   can_be_allocated, &first_allocated, &allocated) == 0);
-			if (allocated < can_be_allocated)
-				loaded -= unflush_finish_part(oid, index + allocated, can_be_allocated - allocated);
+								   protected, &first_allocated, &allocated) == 0);
+			if (allocated < protected)
+				protected -= unprotect_extent_nodes(oid, index + allocated, protected - allocated);
 
 			trace_on(TRACE_EXTENTS,
 				 "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
@@ -2143,14 +2145,15 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 						   @right at this unit so that it will be cut properly by
 						   squalloc_right_twig_cut */
 					}
-					unflush_finish_part(oid, index, allocated);
+					protected -= unprotect_extent_nodes(oid, index, allocated);
+					assert("vs-1203", protected == 0);
 					goto done;
 				}
 			}
 			/* find all jnodes for which blocks were allocated and assign block numbers to them */
 			assign_jnode_blocknrs(oid, index, first_allocated, allocated, flush_pos);
-			loaded -= unflush_finish_part(oid, index, allocated);
-			assert("vs-1201", loaded == 0);
+			protected -= unprotect_extent_nodes(oid, index, allocated);
+			assert("vs-1201", protected == 0);
 
 			index += allocated;
 			set_key_offset(&key, index << PAGE_CACHE_SHIFT);
@@ -2296,9 +2299,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	reiser4_block_nr grabbed;
 	unsigned long index;
 	oid_t oid;
-	__u64 width, can_be_allocated, allocated;
+	__u64 width, protected, allocated;
 	znode *orig;
-	int loaded;
 	ON_DEBUG(reiser4_key orig_key;)
 
 	assert("vs-1019", item_is_extent(coord));
@@ -2364,35 +2366,29 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		 *
 		 */
 
-		/* zload nodes before allocating disk space for them. Nodes which were eflushed will be read from their
-		   temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that disk space will be
-		   freed. */
-		can_be_allocated = unflush_part(oid, index, width);
-		loaded = can_be_allocated;
-		if (!can_be_allocated) {
-			/* this is possible because eflushed jnodes get dropped before item truncate. Flush seems to
-			   come up right in between */
-			result = -EAGAIN;
+		/* Prevent node from e-flushing before allocating disk space for them. Nodes which were eflushed will be
+		   read from their temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that
+		   disk space will be freed. */
+		result = protect_extent_nodes(oid, index, width, &protected);
+		if (result)
+			/* EAGAIN or error code. EAGAIN is returned when there was a missing jnode. That means that this
+			   item is going to be removed soon */
 			break;
-		}
 
 		check_me("vs-1138", extent_allocate_blocks(pos_hint(flush_pos), 
-							   can_be_allocated, &first_allocated, &allocated) == 0);
-		assert("vs-440", allocated > 0 && allocated <= can_be_allocated);
-		if (allocated < can_be_allocated)
-			/* jrelse nodes which will not be allocated on this iteration
-			   FIXME-VS: unflush_finish for the rest is right after call to block allocator. Maybe we could
-			   unflush_finish all nodes there 
-			*/
-			loaded -= unflush_finish_part(oid, index + allocated, can_be_allocated - allocated);
+							   protected, &first_allocated, &allocated) == 0);
+		assert("vs-440", allocated > 0 && allocated <= protected);
+		if (allocated < protected)
+			/* unprotect nodes which will not be allocated on this iteration */
+			protected -= unprotect_extent_nodes(oid, index + allocated, protected - allocated);
 
 		/* find all jnodes for which blocks were allocated and assign block numbers to them */
 		assign_jnode_blocknrs(oid, index, first_allocated, allocated, flush_pos);
 		
 		/* now all nodes are marked RELOC and have real block number assigned, therefore, they are protected by
 		   being eflushed and we may jrelse them. */
-		loaded -= unflush_finish_part(oid, index, allocated);
-		assert("vs-1202", loaded == 0);
+		protected -= unprotect_extent_nodes(oid, index, allocated);
+		assert("vs-1202", protected == 0);
 
 		index += allocated;
 		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
