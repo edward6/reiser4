@@ -133,6 +133,26 @@ static reiser4_kattr compile_options = {
 	.show = show_options
 };
 
+static ssize_t 
+show_device(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+{
+	char *p;
+
+	(void)o;
+	p = buf;
+	KATTR_PRINT(p, buf, "(%u,%u)", MAJOR(s->s_dev), MINOR(s->s_dev));
+	return (p - buf);
+}
+
+static reiser4_kattr device = {
+	.attr = {
+		.name = (char *) "device",
+		.mode = 0444   /* r--r--r-- */
+	},
+	.cookie = NULL,
+	.show = show_device
+};
+
 #if REISER4_STATS
 static const char *txn_stage_name(txn_stage stage)
 {
@@ -281,6 +301,7 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_27.attr,
 	&kattr_super_ro_28.attr,
 	&compile_options.attr,
+	&device.attr,
 #if REISER4_STATS
 	&atoms.attr,
 #endif
