@@ -312,7 +312,7 @@ tail2extent(unix_file_info_t *uf_info)
 			}
 
 			/* usually when one is going to longterm lock znode (as
-			   find_next_item does, for instance) he must not hold
+			   find_file_item does, for instance) he must not hold
 			   locked pages. However, there is an exception for
 			   case tail2extent. Pages appearing here are not
 			   reachable to everyone else, they are clean, they do
