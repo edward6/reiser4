@@ -744,7 +744,7 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
 
 	trace_stamp( TRACE_CARRY );
 
-	for_all_nodes( level, node, tmp_node ) {
+/*	for_all_nodes( level, node, tmp_node ) {
 		znode *left;
 		znode *right;
 
@@ -769,6 +769,7 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
 		}
 		spin_unlock_dk( current_tree );
 	}
+*/
 
 	/* lock nodes from left to right */
 	result = 0;

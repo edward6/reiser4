@@ -693,7 +693,9 @@ static int cut_or_kill_units (coord_t * coord,
 
 			/* (old_width - new_width) blocks of this extent were
 			 * free, update both extent's start and width */
-			extent_set_start (ext, extent_get_start (ext) + old_width - new_width);
+			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+				extent_set_start (ext, extent_get_start (ext) + old_width - new_width);
+			}
 			extent_set_width (ext, new_width);
 			(*to) --;
 			count --;

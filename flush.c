@@ -75,8 +75,8 @@ struct flush_position {
 	reiser4_blocknr_hint  preceder;
 	int                   leaf_relocate;
 	int                  *nr_to_flush;
-	ON_DEBUG (int alloc_cnt);
-	ON_DEBUG (int enqueue_cnt);
+	int                   alloc_cnt;
+	int                   enqueue_cnt;
 };
 
 typedef enum {
@@ -1466,7 +1466,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
-	ON_DEBUG (pos->alloc_cnt += 1);
+	pos->alloc_cnt += 1;
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
 
@@ -1487,10 +1487,7 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	lock_page (pg);
 
 	ret = flush_enqueue_jnode_page_locked (node, pos, pg);
-	ON_DEBUG (pos->enqueue_cnt += 1);
-	if (pos->nr_to_flush != NULL) {
-		(*pos->nr_to_flush) += 1;
-	}
+	pos->enqueue_cnt += 1;
 	return ret;
 }
 
@@ -2191,10 +2188,9 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
+	pos->alloc_cnt = 0;
+	pos->enqueue_cnt = 0;
 	pos->nr_to_flush = nr_to_flush;
-
-	ON_DEBUG (pos->alloc_cnt = 0);
-	ON_DEBUG (pos->enqueue_cnt = 0);
 
 	coord_init_invalid (& pos->parent_coord, NULL);
 
@@ -2210,7 +2206,7 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 /* FIXME: comment */
 static int flush_pos_valid (flush_position *pos)
 {
-	if (pos->nr_to_flush != NULL && *pos->nr_to_flush <= 0) {
+	if (pos->nr_to_flush != NULL && pos->enqueue_cnt >= *pos->nr_to_flush) {
 		return 0;
 	}
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
