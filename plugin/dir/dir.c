@@ -292,7 +292,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops( object );
 	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
-
+	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
 #else
 	result = fplug -> install( object, fplug, parent, data );
 	if( result ) {
