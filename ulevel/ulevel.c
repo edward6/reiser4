@@ -1033,22 +1033,51 @@ static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
 static size_t mmap_back_end_size = 0;
 
-int submit_bio (int rw, struct bio *bio)
+int submit_bio( int rw, struct bio *bio )
 {
 	int i;
+	int success;
+	int fd;
 
-	set_bit( BIO_UPTODATE, &bio -> bi_flags );
-	bio -> bi_end_io(bio);
-	return 0;
+	assert ("jmacd-997", (rw == WRITE) || (rw == READ));
 
-	assert ("jmacd-997", rw == WRITE);
+	fd = bio -> bi_bdev -> fd;
+	success = lseek64( fd, ( off64_t )( bio -> bi_sector * 512 ), SEEK_SET );
+	if( success == ( off64_t )-1 ) {
+		perror( "lseek64" );
+		return 0;
+	}
+	success = 1;
+	for( i = 0; ( i < bio -> bi_vcnt ) && success ; ++ i ) {
+		struct bio_vec *bvec;
+		char  *addr;
+		size_t count;
+		struct page *pg;
 
-	for (i = 0; i < bio->bi_vcnt; i += 1) {
-		struct bio_vec *bvec = & bio->bi_io_vec[i];
-
-		xmemcpy (mmap_back_end_start + bvec->bv_offset, bvec->bv_page->virtual, PAGE_SIZE);
+		bvec = & bio -> bi_io_vec[ i ];
+		pg = bvec -> bv_page;
+		kmap( pg );
+		addr = ( char * ) page_address( pg ) + bvec -> bv_offset;
+		count = bvec -> bv_len;
+		if( rw == READ ) {
+			if( read( fd, addr, count) != count ) {
+				info( "submit_bio: read failed\n" );
+				success = 0;
+			}
+		} else if( rw == WRITE ) {
+			if( write( fd, addr, count ) != count ) {
+				perror( "submit_bio: write failed\n" );
+				success = 0;
+			}
+		}
+		kunmap( pg );
 	}
 
+	if( success )
+		set_bit( BIO_UPTODATE, &bio -> bi_flags );
+	else
+		clear_bit( BIO_UPTODATE, &bio -> bi_flags );
+	bio -> bi_end_io( bio );
 	return 0;
 }
 
