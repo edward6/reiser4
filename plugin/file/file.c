@@ -1030,6 +1030,8 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	nr_pages = pagevec_lookup(&pvec, mapping, page->index, PAGEVEC_SIZE);
 	assert("vs-1665", nr_pages >= 1);
 	nr_pages = 0;
+	done = 0;
+	result = 0;
 	for (i = 0; i < pagevec_count(&pvec); i ++) {
 		page = pvec.pages[i];
 		if (i && page->index != pvec.pages[i - 1]->index + 1)
@@ -1060,11 +1062,10 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 		if (result == 0) {
 			/*
 			 * node will be captured into atom by
-			 * capture_page_and_create_extent(). Atom
-			 * cannot commit (because we have open
-			 * transaction handle), and node cannot be
-			 * truncated, because we have non-exclusive
-			 * access to the file.
+			 * capture_page_and_create_extent(). Atom cannot
+			 * commit (because we have open transaction handle),
+			 * and node cannot be truncated, because we have
+			 * non-exclusive access to the file.
 			 */
 			node = jprivate(pvec.pages[i]);
 			assert("nikita-3327", node->atom != NULL);
