@@ -417,7 +417,11 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/* wait for io completion */
 	if (flags & JNODE_FLUSH_COMMIT) {
 		int rc = done_io_handle(&hio);
-		if (rc && ret == 0) ret = rc;
+		if (rc && ret == 0) {
+			warning ("nikita-2421", 
+				 "Error waiting for io completion: %i", rc);
+			ret = rc;
+		}
 	}
 
 	atomic_dec (& flush_cnt);
@@ -1859,9 +1863,9 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		}
 
 		/* Lock the first page, test writeback. */
-		cpage = jnode_page (check);
+		cpage = jnode_lock_page (check);
+		spin_unlock_jnode (check);
 		assert ("jmacd-78199", cpage != NULL);
-		lock_page (cpage);
 
 		if (PageWriteback (cpage)) {
 			/* FIXME: It is being written, presumably it is clean already?  In
@@ -1887,6 +1891,11 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			super = cpage->mapping->host->i_sb;
 			assert( "jmacd-2029", super != NULL );
 
+			/*
+			 * FIXME:NIKITA->JMACD cpage has to be unlocked
+			 * somewhere right?
+			 */
+
 			/* FIXME: Need to work on this: */
 #if REISER4_USER_LEVEL_SIMULATION
 			max_j = pos->queue_num;
@@ -1899,8 +1908,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				jnode *next;
 				struct page *npage;
 				next = pos->queue[j];
-				npage = jnode_page (next);
-				lock_page (npage);
+				npage = jnode_lock_page (next);
+				spin_unlock_jnode (next);
 				if ((WRITE_LOG && JF_ISSET (next, ZNODE_WANDER)) ||
 				    JF_ISSET (next, ZNODE_FLUSH_BUSY) ||
 				    (*jnode_get_block (prev) + 1 != *jnode_get_block (next)) ||
@@ -1909,6 +1918,9 @@ static int flush_empty_queue (flush_position *pos, int finish)
 					break;
 				}
 				prev = next;
+				//
+				// FIXME:NIKITA->JMACD npage unlock?
+				//
 			} */
 
 			nr = 1;
@@ -1919,8 +1931,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				if (capture_list_end(&pos->queue, node) || nr > max_j) 
 					break;
 
-				npage = jnode_page (node);
-				lock_page (npage);
+				npage = jnode_lock_page (node);
+				spin_unlock_jnode (node);
 
 				if ((WRITE_LOG && JF_ISSET (node, ZNODE_WANDER)) ||
 				    JF_ISSET (node, ZNODE_FLUSH_BUSY) ||
@@ -1966,7 +1978,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				/* FIXME: Use TestClearPageDirty? */
 				
 				assert ("jmacd-74233", !PageWriteback (pg));
-				assert ("jmacd-74234", PageDirty (pg));
+				// assert ("jmacd-74234", PageDirty (pg));
 				ClearPageDirty (pg);
 				SetPageWriteback (pg);
 
@@ -2040,24 +2052,16 @@ static int flush_rewrite_jnode (jnode *node)
 	/* FIXME: This spinlock does very little.  Why?  Races are everywhere. */
 	spin_unlock_jnode (node);
 
-	if ((pg = jnode_page (node)) == NULL) {
+	pg = jnode_lock_page (node);
+	spin_unlock_jnode (node);
+	if (pg == NULL) {
+		/*
+		 * FIXME:NIKITA->JMACD -ENOMEM? Why?
+		 */
 		return -ENOMEM;
 	}
 
 	jnode_set_clean (node);
-
-	lock_page (pg);
-
-	if (unlikely (pg->mapping == NULL)) {
-		/*
-		 * page was freed while we were waiting for the lock.
-		 *
-		 * FIXME:NIKITA->JMACD such checks should go after each
-		 * lock_page().
-		 */
-		unlock_page (pg);
-		return 0;
-	}
 
 	/*
 	 * FIXME-NIKITA not sure about this. mpage.c:mpage_writepages() does
@@ -2678,12 +2682,13 @@ static int flush_scan_formatted (flush_scan *scan)
  *
  * Rapid scanning is used only during scan_left, where we are interested in finding the
  * 'leftpoint' where we begin flushing.  We are not interested in HERE YOU ARE. */
-static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit, __u32 rapid_after)
+/* FIXME:NIKITA->JMACD I commented out `rapid_after' stuff, for it doesn't compile */
+static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit /*, __u32 rapid_after*/)
 {
 	int ret;
 
 	scan->max_size    = limit;
-	scan->rapid_after = rapid_after;
+	/* scan->rapid_after = rapid_after; */
 	scan->direction   = LEFT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 1, NULL))) {
@@ -2707,7 +2712,8 @@ static int flush_scan_right (flush_scan *scan, jnode *node, __u32 limit)
 	int ret;
 
 	scan->max_size    = limit;
-	scan->rapid_after = 0;
+	/* scan->rapid_after = 0; FIXME:NIKITA->JMACD commented out to restore
+	 * compilability */
 	scan->direction   = RIGHT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 0, NULL))) {
