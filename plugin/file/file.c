@@ -1741,6 +1741,8 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	while (left > 0) {
 		size_t to_read;		
 
+		txn_restart_current();
+
 		size = i_size_read(inode);
 		if (*off >= size)
 			/* position to read from is past the end of file */
@@ -1774,7 +1776,6 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
 		drop_nonexclusive_access(uf_info);
-		txn_restart_current();
 
 		if (read < 0) {
 			result = read;
@@ -1974,6 +1975,8 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 
 	drop_nonexclusive_access(unix_file_inode_data(inode));
 	up_read(&reiser4_inode_data(inode)->coc_sem);
+
+	txn_restart_current();
 
 	reiser4_exit_context(&ctx);
 	return page;
