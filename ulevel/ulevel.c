@@ -258,6 +258,7 @@ int unregister_filesystem(struct file_system_type * fs)
 }
 
 struct super_block super_blocks[1];
+struct request_queue rq;
 struct block_device block_devices[1];
 
 struct super_block * get_sb_bdev (struct file_system_type *fs_type,
@@ -278,6 +279,9 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type,
 	s->s_bdev->last_sector = 0ull;
 	if (s->s_bdev->bd_dev == -1)
 		return ERR_PTR (-errno);
+	rq.max_sectors = 256;
+	s->s_bdev->bd_queue = &rq;
+
 
 	result = fill_super (s, data, 0/*silent*/);
 
@@ -1078,6 +1082,12 @@ sector_t generic_block_bmap(struct address_space *mapping,
 
 
 /* drivers/block/ll_rw_block.c */
+request_queue_t *bdev_get_queue(struct block_device *bdev)
+{
+	return bdev->bd_queue;
+}
+
+
 void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 {
 	int i;

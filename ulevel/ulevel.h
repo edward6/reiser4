@@ -305,6 +305,16 @@ struct radix_tree_root {
 extern void *radix_tree_lookup(struct radix_tree_root *, unsigned long);
 
 
+/* include/linux/blkdev.h */
+typedef struct request_queue
+{
+	unsigned short max_sectors;
+} request_queue_t;
+
+struct block_device;
+request_queue_t *bdev_get_queue(struct block_device *bdev);
+
+
 
 static inline void prefetch(const void *x UNUSED_ARG ) {;}
 
@@ -490,8 +500,10 @@ struct task_struct {
 	__u32         fsgid;
 };
 
+
 struct block_device {
 	int bd_dev;
+	struct request_queue * bd_queue;
 	void * vp;
 	__u64 last_sector;
 };
