@@ -515,6 +515,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	reiser4_stat_inc(pcwb_calls);
 
 	assert("vs-828", PageLocked(page));
+
+	set_rapid_flush_mode(1);
 	
 	tree = &get_super_private(s)->tree;
 	/* jfind which used to be here creates jnode for the page if it is not

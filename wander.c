@@ -1141,6 +1141,8 @@ int reiser4_write_logs(long * nr_submitted)
 	reiser4_stat_inc(txnmgr.post_commit_writes);
 	reiser4_stat_add(txnmgr.time_spent_in_commits, jiffies - commit_start_time);
 
+	set_rapid_flush_mode(0);
+
 up_and_ret:
 	if (ret) {
 		/* there could be fq attached to current atom; the only way to
