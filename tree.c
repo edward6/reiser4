@@ -108,7 +108,7 @@
    Invalid block addresses are 0 by tradition.
   
 */
-const reiser4_block_nr FAKE_TREE_ADDR = 0ull;
+const reiser4_block_nr UBER_TREE_ADDR = 0ull;
 
 /* Audited by: umka (2002.06.16) */
 node_plugin *
@@ -1745,10 +1745,10 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 	if (result == 0)
 		result = jnodes_tree_init(tree);
 	if (result == 0) {
-		tree->fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
-		if (IS_ERR(tree->fake)) {
-			result = PTR_ERR(tree->fake);
-			tree->fake = NULL;
+		tree->uber = zget(tree, &UBER_TREE_ADDR, NULL, 0, GFP_KERNEL);
+		if (IS_ERR(tree->uber)) {
+			result = PTR_ERR(tree->uber);
+			tree->uber = NULL;
 		}
 	}
 	return result;
@@ -1760,9 +1760,9 @@ done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	assert("nikita-311", tree != NULL);
 
-	if (tree->fake != NULL) {
-		zput(tree->fake);
-		tree->fake = NULL;
+	if (tree->uber != NULL) {
+		zput(tree->uber);
+		tree->uber = NULL;
 	}
 	znodes_tree_done(tree);
 	jnodes_tree_done(tree);
@@ -2015,7 +2015,7 @@ print_tree_rec(const char *prefix /* prefix to print */ ,
 
 	if (!(flags & REISER4_NODE_SILENT))
 		printk("tree: [%s]\n", prefix);
-	fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+	fake = zget(tree, &UBER_TREE_ADDR, NULL, 0, GFP_KERNEL);
 	if (IS_ERR(fake)) {
 		printk("Cannot get fake\n");
 		return;

@@ -244,9 +244,9 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 	  const reiser4_block_nr * new_root_blk	/* disk address of
 						 * @new_root */ )
 {
-	znode *fake;
+	znode *uber;
 	int result;
-	lock_handle handle_for_fake;
+	lock_handle handle_for_uber;
 
 	assert("umka-265", tree != NULL);
 	assert("nikita-1198", new_root != NULL);
@@ -256,12 +256,12 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 	assert("nikita-1203", disk_addr_eq(new_root_blk, znode_get_block(new_root)));
 
-	init_lh(&handle_for_fake);
+	init_lh(&handle_for_uber);
 	/* obtain and lock "fake" znode protecting changes in tree height. */
-	result = get_fake_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
-				&handle_for_fake);
+	result = get_uber_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
+				&handle_for_uber);
 	if (result == 0) {
-		fake = handle_for_fake.node;
+		uber = handle_for_uber.node;
 		tree->root_block = *new_root_blk;
 		--tree->height;
 
@@ -270,15 +270,15 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 		assert("nikita-1202", tree->height = znode_get_level(new_root));
 
-		znode_make_dirty(fake);
+		znode_make_dirty(uber);
 
 		/* don't take long term lock a @new_root. Take spinlock. */
 
 		WLOCK_TREE(tree);
 
 		/* new root is child on "fake" node */
-		init_parent_coord(&new_root->in_parent, fake);
-		atomic_inc(&fake->c_count);
+		init_parent_coord(&new_root->in_parent, uber);
+		atomic_inc(&uber->c_count);
 
 		sibling_list_insert_nolock(new_root, NULL);
 		WUNLOCK_TREE(tree);
@@ -291,7 +291,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 			atomic_set(&old_root->c_count, 0);
 		}
 	}
-	done_lh(&handle_for_fake);
+	done_lh(&handle_for_uber);
 	return result;
 }
 

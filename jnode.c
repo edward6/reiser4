@@ -1410,6 +1410,201 @@ jnode_get_mapping(const jnode * node)
 	return jnode_ops(node)->mapping(node);
 }
 
+#if REISER4_DEBUG
+/* debugging aid: jnode invariant */
+int
+jnode_invariant_f(const jnode * node,
+		  char const **msg)
+{
+#define _ergo(ant, con) 						\
+	((*msg) = "{" #ant "} ergo {" #con "}", ergo((ant), (con)))
+#define _check(exp) ((*msg) = #exp, (exp))
+
+	return
+		_check(node != NULL) &&
+
+		/* [jnode-queued] */
+
+		/* only relocated node can be queued, except that when znode
+		 * is being deleted, its JNODE_RELOC bit is cleared */
+		_ergo(JF_ISSET(node, JNODE_FLUSH_QUEUED),
+		      JF_ISSET(node, JNODE_RELOC) || 
+		      JF_ISSET(node, JNODE_HEARD_BANSHEE)) &&
+
+		_check(node->jnodes.prev != NULL) &&
+		_check(node->jnodes.next != NULL) &&
+
+		/* [jnode-refs] invariant */
+
+		/* only referenced jnode can be loaded */
+		_check(atomic_read(&node->x_count) >= atomic_read(&node->d_count));
+
+}
+
+/* debugging aid: check znode invariant and panic if it doesn't hold */
+int
+jnode_invariant(const jnode * node, int tlocked, int jlocked)
+{
+	char const *failed_msg;
+	int result;
+	reiser4_tree *tree;
+
+	tree = jnode_get_tree(node);
+
+	assert("umka-063312", node != NULL);
+	assert("umka-064321", tree != NULL);
+
+	if (!jlocked && !tlocked)
+		LOCK_JNODE((jnode *) node);
+	if (!tlocked)
+		RLOCK_TREE(jnode_get_tree(node));
+	result = jnode_invariant_f(node, &failed_msg);
+	if (!result) {
+		info_jnode("corrupted node", node);
+		warning("jmacd-555", "Condition %s failed", failed_msg);
+	}
+	if (!tlocked)
+		RUNLOCK_TREE(jnode_get_tree(node));
+	if (!jlocked && !tlocked)
+		UNLOCK_JNODE((jnode *) node);
+	return result;
+}
+/* REISER4_DEBUG */
+#endif
+
+#if REISER4_STATS
+void reiser4_stat_inc_at_level_jput(const jnode * node)
+{
+	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jput);
+}
+
+void reiser4_stat_inc_at_level_jputlast(const jnode * node)
+{
+	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jputlast);
+}
+/* REISER4_STATS */
+#endif
+
+#if REISER4_DEBUG_OUTPUT
+
+const char *
+jnode_type_name(jnode_type type)
+{
+	switch (type) {
+	case JNODE_UNFORMATTED_BLOCK:
+		return "unformatted";
+	case JNODE_FORMATTED_BLOCK:
+		return "formatted";
+	case JNODE_BITMAP:
+		return "bitmap";
+	case JNODE_IO_HEAD:
+		return "io head";
+	case JNODE_INODE:
+		return "inode";
+	case LAST_JNODE_TYPE:
+		return "last";
+	default:{
+			static char unknown[30];
+
+			sprintf(unknown, "unknown %i", type);
+			return unknown;
+		}
+	}
+}
+
+#define jnode_state_name( node, flag )			\
+	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
+
+/* debugging aid: output human readable information about @node */
+void
+info_jnode(const char *prefix /* prefix to print */ ,
+	   const jnode * node /* node to print */ )
+{
+	assert("umka-068", prefix != NULL);
+
+	if (node == NULL) {
+		printk("%s: null\n", prefix);
+		return;
+	}
+
+	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	       " block: %s, d_count: %d, x_count: %d, "
+	       "pg: %p, atom: %p, lock: %i:%i, type: %s, ",
+	       prefix, node, node->state,
+	       jnode_state_name(node, JNODE_PARSED),
+	       jnode_state_name(node, JNODE_HEARD_BANSHEE),
+	       jnode_state_name(node, JNODE_LEFT_CONNECTED),
+	       jnode_state_name(node, JNODE_RIGHT_CONNECTED),
+	       jnode_state_name(node, JNODE_ORPHAN),
+	       jnode_state_name(node, JNODE_CREATED),
+	       jnode_state_name(node, JNODE_RELOC),
+	       jnode_state_name(node, JNODE_OVRWR),
+	       jnode_state_name(node, JNODE_DIRTY),
+	       jnode_state_name(node, JNODE_IS_DYING),
+	       jnode_state_name(node, JNODE_MAPPED),
+	       jnode_state_name(node, JNODE_EFLUSH),
+	       jnode_state_name(node, JNODE_FLUSH_QUEUED),
+	       jnode_state_name(node, JNODE_RIP),
+	       jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
+	       jnode_state_name(node, JNODE_WRITEBACK),
+	       jnode_state_name(node, JNODE_NEW),
+	       jnode_state_name(node, JNODE_DKSET),
+	       jnode_state_name(node, JNODE_EPROTECTED),
+	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
+	       atomic_read(&node->d_count), atomic_read(&node->x_count),
+	       jnode_page(node), node->atom,
+#if REISER4_LOCKPROF
+	       node->guard.held, node->guard.trying,
+#else
+	       0, 0,
+#endif
+	       jnode_type_name(jnode_get_type(node)));
+	if (jnode_is_unformatted(node)) {
+		printk("inode: %llu, index: %lu, ", 
+		       node->key.j.objectid, node->key.j.index);
+	}
+}
+
+/* debugging aid: output human readable information about @node */
+void
+print_jnode(const char *prefix /* prefix to print */ ,
+	    const jnode * node /* node to print */)
+{
+	if (jnode_is_znode(node))
+		print_znode(prefix, JZNODE(node));
+	else
+		info_jnode(prefix, node);
+}
+
+/* this is cut-n-paste replica of print_znodes() */
+void
+print_jnodes(const char *prefix, reiser4_tree * tree)
+{
+	jnode *node;
+	jnode *next;
+	j_hash_table *htable;
+	int tree_lock_taken;
+
+	if (tree == NULL)
+		tree = current_tree;
+
+	/* this is a debugging function. It can be called by reiser4_panic()
+	   with tree spin-lock already held. Trylock is not exactly what we
+	   want here, but it is passable.
+	*/
+	tree_lock_taken = write_trylock_tree(tree);
+	htable = &tree->jhash_table;
+
+	for_all_in_htable(htable, j, node, next) {
+		info_jnode(prefix, node);
+		printk("\n");
+	}
+	if (tree_lock_taken)
+		WUNLOCK_TREE(tree);
+}
+
+/* REISER4_DEBUG_OUTPUT */
+#endif
 
 /* Make Linus happy.
    Local variables:

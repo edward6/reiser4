@@ -415,19 +415,19 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
-int get_fake_znode(reiser4_tree * tree, znode_lock_mode mode, 
+int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode, 
 		   znode_lock_request pri, lock_handle *lh)
 {
-	znode *fake;
+	znode *uber;
 	int result;
 
-	fake = zref(tree->fake);
+	uber = zref(tree->uber);
 
-	if (!IS_ERR(fake)) {
-		result = longterm_lock_znode(lh, fake, mode, pri);
-		zput(fake);
+	if (!IS_ERR(uber)) {
+		result = longterm_lock_znode(lh, uber, mode, pri);
+		zput(uber);
 	} else
-		result = PTR_ERR(fake);
+		result = PTR_ERR(uber);
 	return result;
 }
 
@@ -460,7 +460,7 @@ restart:
 
 	h->result = CBK_COORD_FOUND;
 
-	done = get_fake_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
+	done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
 			      h->parent_lh);
 
 	assert("nikita-1637", done != -EDEADLK);

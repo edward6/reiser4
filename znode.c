@@ -783,7 +783,7 @@ znode_above_root(const znode * node /* znode to query */ )
 {
 	assert("umka-059", node != NULL);
 
-	return disk_addr_eq(&ZJNODE(node)->blocknr, &FAKE_TREE_ADDR);
+	return disk_addr_eq(&ZJNODE(node)->blocknr, &UBER_TREE_ADDR);
 }
 
 /* check that @node is root---that its block number is recorder in the tree as
@@ -1074,10 +1074,10 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		/* it has special block number, and */
 		_ergo(znode_get_level(node) == 0,
 		      disk_addr_eq(znode_get_block(node),
-				   &FAKE_TREE_ADDR)) &&
+				   &UBER_TREE_ADDR)) &&
 		/* it is the only znode with such block number, and */
 		_ergo(!znode_above_root(node) && znode_is_loaded(node),
-		      !disk_addr_eq(znode_get_block(node), &FAKE_TREE_ADDR)) &&
+		      !disk_addr_eq(znode_get_block(node), &UBER_TREE_ADDR)) &&
 		/* it is parent of the tree root node */
 		_ergo(znode_is_true_root(node), znode_above_root(znode_parent(node))) &&
 

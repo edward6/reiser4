@@ -777,26 +777,26 @@ static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
 	int ret;
 
 	reiser4_tree * tree = current_tree;
-	lock_handle fake_znode_lock;
+	lock_handle uber_znode_lock;
 	znode * root;
 
-	init_lh(&fake_znode_lock);
+	init_lh(&uber_znode_lock);
  again:
 	
-	ret = get_fake_znode(tree, mode, ZNODE_LOCK_HIPRI, &fake_znode_lock);
+	ret = get_uber_znode(tree, mode, ZNODE_LOCK_HIPRI, &uber_znode_lock);
 	if (ret)
 		return ret;
 
-	root = zget(tree, &tree->root_block, fake_znode_lock.node, tree->height, GFP_KERNEL);
+	root = zget(tree, &tree->root_block, uber_znode_lock.node, tree->height, GFP_KERNEL);
 	if (IS_ERR(root)) {
-		done_lh(&fake_znode_lock);
+		done_lh(&uber_znode_lock);
 		return PTR_ERR(root);
 	}
 
 	ret = longterm_lock_znode(lock, root, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 
 	zput(root);
-	done_lh(&fake_znode_lock);
+	done_lh(&uber_znode_lock);
 
 	if (ret == -EDEADLK)
 		goto again;

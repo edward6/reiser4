@@ -19,8 +19,6 @@
 
 #include <linux/sched.h>
 
-/* basic debug/logging output macro. "label" is infamous "maintainer-id" NIKITA-FIXME-HANS: so call it that, and also comment lev.  Provide an example of usage.  */
-
 /* generic function to produce formatted output, decorating it with
    whatever standard prefixes/postfixes we want. "Fun" is a function
    that will be actually called, can be printk, panic etc.
@@ -177,7 +175,9 @@ extern int schedulable (void);
 
 /* REISER4_DEBUG */
 #endif
-/* NIKITA-FIXME-HANS: create a REISER4_DEBUG_LITE and put this into it. */
+
+/* per-thread information about lock acquired by this thread. Used by lock
+ * ordering checking in spin_macros.h */
 typedef struct lock_counters_info {
 	int rw_locked_tree;
 	int read_locked_tree;
@@ -233,8 +233,9 @@ typedef struct {} backtrace_path;
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */
 typedef enum {
-/* NIKITA-FIXME-HANS: email me a description of what is a lot, and when we would not want a lot of info when panicking. */
-	/* print a lot of information during panic. */
+	/* print a lot of information during panic. When this is on all jnodes
+	 * are listed. This can be *very* large output. Usually you don't want
+	 * this. Especially over serial line. */
 	REISER4_VERBOSE_PANIC = 0x00000001,
 	/* print a lot of information during umount */
 	REISER4_VERBOSE_UMOUNT = 0x00000002,
@@ -264,7 +265,7 @@ extern int is_in_reiser4_context(void);
 
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
-/* NIKITA-FIXME-HANS: comment is where? */
+/* Issue warning message to the console */
 #define warning( label, format, ... )					\
 	DCALL( KERN_WARNING, 						\
 	       printk, 1, label, "WARNING: " format , ## __VA_ARGS__ )

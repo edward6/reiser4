@@ -1567,8 +1567,7 @@ should_relocate(unsigned slum_size)
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
 	int ret = 0;
-	coord_t coord,		/* used to iterate over items */
-		stop_coord;	/* used to call twig_cut properly */
+	coord_t coord;		/* used to iterate over items */
 	reiser4_key stop_key;
 	unsigned slum_size;
 
@@ -2660,11 +2659,11 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	int ret;
 	reiser4_block_nr blk;
 	reiser4_block_nr len = 1;
-	lock_handle fake_lock;
+	lock_handle uber_lock;
 	int flush_reserved_used = 0;
 	int grabbed;
 
-	init_lh(&fake_lock);
+	init_lh(&uber_lock);
 
 	grabbed = get_current_context()->grabbed_blocks;
 
@@ -2721,12 +2720,12 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 
 	} else {
 		reiser4_tree *tree = znode_get_tree(node);
-		znode *fake;
+		znode *uber;
 
 		/* We take a longterm lock on the fake node in order to change
 		   the root block number.  This may cause atom fusion. */
-		ret = get_fake_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
-				     &fake_lock);
+		ret = get_uber_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
+				     &uber_lock);
 		/* The fake node cannot be deleted, and we must have priority
 		   here, and may not be confused with ENOSPC. */
 		assert("jmacd-74412", 
@@ -2735,11 +2734,11 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		if (ret)
 			goto exit;
 
-		fake = fake_lock.node;
+		uber = uber_lock.node;
 
 		UNDER_RW_VOID(tree, tree, write, tree->root_block = blk);
 
-		znode_make_dirty(fake);
+		znode_make_dirty(uber);
 	}
 
 	/* FIXME-ZAM: Is zload needed here? */
@@ -2750,7 +2749,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	ret = znode_rehash(node, &blk);
 	zrelse(node);
 exit:
-	done_lh(&fake_lock);
+	done_lh(&uber_lock);
 	grabbed2free_mark(grabbed);
 	return ret;
 }

@@ -22,7 +22,7 @@
 #include <linux/sched.h>	/* for struct task_struct */
 
 /* fictive block number never actually used */
-extern const reiser4_block_nr FAKE_TREE_ADDR;
+extern const reiser4_block_nr UBER_TREE_ADDR;
 
 /* define typed list for cbk_cache lru */
 TS_LIST_DECLARE(cbk_cache);
@@ -121,11 +121,11 @@ struct reiser4_tree {
 	    node only */
 	tree_level height;
 
-/* NIKITA-FIXME-HANS: */
-/* the cost of an insert should be represented as independent of tree height, and equal to 3 + (insert_size mod
- * max_body_item_size) it might need to be different for compressed items though, not sure how to estimate that except
- * by attempting it and reversing if we fail, EDWARD-FIXME-HANS:, but in any event, the plugin not the tree should be
- * what determines the space reservation. */
+	/*
+	 * this is cached here avoid calling plugins through function
+	 * dereference all the time.
+	 */
+	__u64 estimate_one_insert;
 
 	/* cache of recent tree lookup results */
 	cbk_cache cbk_cache;	
@@ -158,11 +158,8 @@ pointer, and then alter the pointers?  there was some reason it was not simple, 
 	 * information. */
 	__u64 znode_epoch;
 
-	/* fake znode: I find this annoyingly and gainlessly imitative.  Remove by Aug. 1, VS-FIXME-HANS:*/
-	znode *fake;
-
-	/* default plugin used to create new nodes in a tree. Replace with a define.  VS-FIXME-HANS: */
-/* 	node_plugin *nplug; */
+	znode       *uber;
+ 	node_plugin *nplug;
 	struct super_block *super;
 	struct {
 		/* carry flags used for insertion of new nodes */
@@ -279,7 +276,7 @@ typedef enum { RESIZE_OK = 0,
 typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord, lock_handle * lh, void *arg);
 extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
 			tree_iterate_actor_t actor, void *arg, znode_lock_mode mode, int through_units_p);
-extern int get_fake_znode(reiser4_tree * tree, znode_lock_mode mode, 
+extern int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode, 
 			  znode_lock_request pri, lock_handle *lh);
 
 /* return node plugin of @node */

@@ -2700,21 +2700,21 @@ int
 capture_super_block(struct super_block *s)
 {
 	int result;
-	znode *fake;
+	znode *uber;
 	lock_handle lh;
 
 	init_lh(&lh);
-	result = get_fake_znode(get_tree(s), 
+	result = get_uber_znode(get_tree(s), 
 				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI, &lh);
 	if (result)
 		return result;
 
-	fake = lh.node;
+	uber = lh.node;
 	/* Grabbing one block for superblock */
 	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED, "capture_super_block")) != 0)
 		return result;
 	
-	znode_make_dirty(fake);
+	znode_make_dirty(uber);
 
 	done_lh(&lh);
 	return 0;

@@ -30,8 +30,9 @@ static int create_dot_dotdot(struct inode *object, struct inode *parent);
 static int find_entry(const struct inode *dir, struct dentry *name,
 		      lock_handle * lh, znode_lock_mode mode, 
 		      reiser4_dir_entry_desc * entry);
-static int check_item(const struct inode *dir, const coord_t * coord, const char *name);
-/* NIKITA-FIXME-HANS: comment me */
+static int check_item(const struct inode *dir, 
+		      const coord_t * coord, const char *name);
+
 #define WITH_COORD(coord, exp)			\
 ({						\
 	coord_t *__coord;			\
@@ -972,11 +973,6 @@ check_entry(const struct inode *dir, coord_t *coord, const struct qstr *name)
    First calculate key that directory entry for @name would have. Search
    for this key in the tree. If such key is found, scan all items with
    the same key, checking name in each directory entry along the way.
-
-   DEMIDOV-FIXME-HANS: tell me if this could be more efficient.  Tell me if we should have per directory hints.
-
-   If used with a poor (e.g. no has due to sorting by creation time), this will be moderately inefficient code.
-  
 */
 static int
 find_entry(const struct inode *dir /* directory to scan */,
@@ -991,7 +987,6 @@ find_entry(const struct inode *dir /* directory to scan */,
 	coord_t *coord;
 	int result;
 	__u32 flags;
-/* NIKITA-FIXME-HANS: comment this, and use a different variable name */
 	de_location *dec;
 
 	assert("nikita-1130", lh != NULL);
@@ -1011,7 +1006,6 @@ find_entry(const struct inode *dir /* directory to scan */,
 	coord_clear_iplug(coord);
 	seal = &dec->entry_seal;
 	/* compose key of directory entry for @name */
-/* NIKITA-FIXME-HANS: since you know what the directory plugin is, you don't need to use a function dereference */
 	result = inode_dir_plugin(dir)->build_entry_key(dir, name, &entry->key);
 	if (result != 0)
 		return result;
@@ -1133,26 +1127,24 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 }
 
 static int
-check_dir_item(const struct inode *dir, const coord_t * coord, const char *name)
+check_item(const struct inode *dir, const coord_t * coord, const char *name)
 {
 	item_plugin *iplug;
 	char buf[DE_NAME_BUF_LEN];
 
-/* NIKITA-FIXME-HANS: since you know what the directory plugin is, you don't need to use a function dereference */
 	iplug = item_plugin_by_coord(coord);
-/* NIKITA-FIXME-HANS: make this an assertion */
-/* 	if (iplug == NULL) { */
-/* 		warning("nikita-1135", "Cannot get item plugin"); */
-/* 		print_coord("coord", coord, 1); */
-/* 		return RETERR(-EIO); */
-/* 	} else if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir))) { */
-/* 		/* item id of current item does not match to id of items a */
-/* 		   directory is built of */ */
-/* 		warning("nikita-1136", "Wrong item plugin"); */
-/* 		print_coord("coord", coord, 1); */
-/* 		print_plugin("plugin", item_plugin_to_plugin(iplug)); */
-/* 		return RETERR(-EIO); */
-/* 	} */
+ 	if (iplug == NULL) {
+ 		warning("nikita-1135", "Cannot get item plugin");
+ 		print_coord("coord", coord, 1);
+ 		return RETERR(-EIO);
+ 	} else if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir))) {
+ 		/* item id of current item does not match to id of items a
+ 		   directory is built of */
+ 		warning("nikita-1136", "Wrong item plugin");
+ 		print_coord("coord", coord, 1);
+ 		print_plugin("plugin", item_plugin_to_plugin(iplug));
+ 		return RETERR(-EIO);
+ 	}
 	assert("nikita-1137", iplug->s.dir.extract_name);
 
 	ON_TRACE(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli (%lli)\n",
@@ -1163,7 +1155,6 @@ check_dir_item(const struct inode *dir, const coord_t * coord, const char *name)
 	   NOTE-NIKITA Here should go code for support of something like
 	   unicode, code tables, etc.
 	*/
-/* NIKITA-FIXME-HANS: since you know what the directory plugin is, you don't need to use a function dereference */
 	return !!strcmp(name, iplug->s.dir.extract_name(coord, buf));
 }
 
