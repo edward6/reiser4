@@ -8,7 +8,7 @@
 
 #include "reiser4.h"
 
-reiser4_trace_flags reiser4_current_trace_flags = 0;
+__u32 reiser4_current_trace_flags = 0;
 
 extern void show_stack( unsigned long * esp );
 extern void cond_resched( void );
