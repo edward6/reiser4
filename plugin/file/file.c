@@ -1326,7 +1326,6 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 
 	size_t read;
 	reiser4_block_nr needed;
-	ra_info_t ra_info;
 	int (*read_f) (struct file *, flow_t *, hint_t *);
 	unix_file_info_t *uf_info;
 
@@ -1379,10 +1378,6 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		return result;
 	}
 
-	/* initialize readahead info */
-	ra_info.key_to_stop = f.key;
-	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));/*FIXME: ~0ull*/
-
 	switch(uf_info->container) {
 	case UF_CONTAINER_EXTENTS:
 		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
@@ -1407,7 +1402,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	while (f.length) {
 		assert("vs-1354", inode->i_size > get_key_offset(&f.key));
 
-		result = find_file_item(&hint, &f.key, ZNODE_READ_LOCK, CBK_UNIQUE, NULL /*&ra_info*/, uf_info);
+		result = find_file_item(&hint, &f.key, ZNODE_READ_LOCK, CBK_UNIQUE, NULL, uf_info);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			   -EIO */
@@ -1428,7 +1423,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 
 		coord_clear_iplug(coord);
 		hint.coord.valid = 0;
-		result = zload_ra(coord->node, &ra_info);
+		result = zload(coord->node);
 		if (unlikely(result)) {
 			longterm_unlock_znode(&lh);
 			return result;
