@@ -238,8 +238,7 @@ update_inode_and_sd_if_necessary(struct inode *inode,
 	/* FIXME: no need to avoid mark_inode_dirty call. It does not do anything but "capturing" inode */
 	inode_changed = 0;
 
-	if (update_i_size) {
-		assert("vs-1104", inode->i_size != new_size);
+	if (update_i_size && (inode->i_size != new_size)) {
 		INODE_SET_FIELD(inode, i_size, new_size);
 		inode_changed = 1;
 	}
