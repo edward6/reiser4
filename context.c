@@ -104,7 +104,7 @@ balance_dirty_pages_at(reiser4_context * context)
 
 	if (context->nr_marked_dirty != 0 && sbinfo->fake &&
 	    !(current->flags & PF_MEMALLOC) && !current_is_pdflush()) {
-		balance_dirty_pages(sbinfo->fake->i_mapping);
+		balance_dirty_pages_ratelimited(sbinfo->fake->i_mapping);
 	}
 }
 
