@@ -546,7 +546,7 @@ extern reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];
 /* defined in fs/reiser4/dformat.c */
 extern reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ];
 /* defined in fs/reiser4/dformat.c */
-extern reiser4_plugin layout_plugins[ LAST_FORMAT_ID ];
+extern reiser4_plugin format_plugins[ LAST_FORMAT_ID ];
 /* defined in jnode.c */
 extern reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ];
 
