@@ -32,7 +32,7 @@ struct cut_list;
 /* plugin->item.b.* */
 int can_contain_key_ctail(const coord_t *, const reiser4_key *, const reiser4_item_data *);
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
-pos_in_item_t nr_units_ctail(const coord_t * coord);
+pos_in_node_t nr_units_ctail(const coord_t * coord);
 int estimate_ctail(const coord_t * coord, const reiser4_item_data * data);
 void print_ctail(const char *prefix, coord_t * coord);
 lookup_result lookup_ctail(const reiser4_key *, lookup_bias, coord_t *);
@@ -43,10 +43,10 @@ int can_shift_ctail(unsigned free_space, coord_t * coord,
 		  znode * target, shift_direction pend, unsigned *size, unsigned want);
 void copy_units_ctail(coord_t * target, coord_t * source,
 		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
-int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
-		    const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
-int kill_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
-		     const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
+int cut_units_ctail(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
+		    carry_cut_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
+int kill_units_ctail(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
+		     carry_kill_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
 
 /*int check_check(const coord_t * coord, const char **error);*/
 
@@ -55,7 +55,7 @@ int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
-int kill_hook_ctail(const coord_t *, unsigned, unsigned, struct cut_list *);
+int kill_hook_ctail(const coord_t *, pos_in_node_t, pos_in_node_t, carry_kill_data *);
 int shift_hook_ctail(const coord_t *, unsigned, unsigned, znode *);
 
 /* plugin->u.item.f */

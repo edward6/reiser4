@@ -386,7 +386,7 @@ estimate_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* ->nr_units() method for this item plugin. */
-reiser4_internal pos_in_item_t
+reiser4_internal pos_in_node_t
 nr_units_cde(const coord_t * coord /* coord of item */ )
 {
 	return units(coord);
@@ -810,13 +810,10 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 /* ->cut_units() method for this item plugin. */
 reiser4_internal int
 cut_units_cde(coord_t * coord /* coord of item */ ,
-	      unsigned *from /* start unit pos */ ,
-	      unsigned *to /* stop unit pos */ ,
-	      const reiser4_key * from_key UNUSED_ARG /* start key */ ,
-	      const reiser4_key * to_key UNUSED_ARG /* stop key */ ,
-	      reiser4_key * smallest_removed	/* smallest key actually
-						 * removed */,
-	      struct cut_list *p UNUSED_ARG)
+	      pos_in_node_t from /* start unit pos */ ,
+	      pos_in_node_t to /* stop unit pos */ ,
+	      struct carry_cut_data *cdata UNUSED_ARG, reiser4_key *smallest_removed,
+	      reiser4_key *new_first)
 {
 	char *header_from;
 	char *header_to;
@@ -833,24 +830,36 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 
 	CHECKME(coord);
 
-	count = *to - *from + 1;
+	count = to - from + 1;
 
 	assert("nikita-1454", coord != NULL);
-	assert("nikita-1455", (int) (*from + count) <= units(coord));
+	assert("nikita-1455", (int) (from + count) <= units(coord));
 
 	if (smallest_removed)
 		unit_key_by_coord(coord, smallest_removed);
+
+	if (new_first) {
+		coord_t next;
+
+		/* not everything is cut from item head */
+		assert("vs-1527", from == 0);
+		assert("vs-1528", to < units(coord) - 1);
+
+		coord_dup(&next, coord);
+		next.unit_pos ++;
+		unit_key_by_coord(&next, new_first);
+	}
 
 	size = item_length_by_coord(coord);
 	if (count == (unsigned) units(coord)) {
 		return size;
 	}
 
-	header_from = (char *) header_at(coord, (int) *from);
-	header_to = (char *) header_at(coord, (int) (*from + count));
+	header_from = (char *) header_at(coord, (int) from);
+	header_to = (char *) header_at(coord, (int) (from + count));
 
-	entry_from = (char *) entry_at(coord, (int) *from);
-	entry_to = (char *) entry_at(coord, (int) (*from + count));
+	entry_from = (char *) entry_at(coord, (int) from);
+	entry_to = (char *) entry_at(coord, (int) (from + count));
 
 	/* move headers */
 	xmemmove(header_from, header_to, (unsigned) (address(coord, size) - header_to));
@@ -869,15 +878,15 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 
 	/* update offsets */
 
-	for (i = 0; i < (int) *from; ++i)
+	for (i = 0; i < (int) from; ++i)
 		adj_offset(coord, i, - header_delta);
 
-	for (i = *from; i < units(coord) - (int) count; ++i)
+	for (i = from; i < units(coord) - (int) count; ++i)
 		adj_offset(coord, i, - header_delta - entry_delta);
 
 	cputod16((__u16) units(coord) - count, &formatted_at(coord)->num_of_entries);
 
-	if (*from == 0) {
+	if (from == 0) {
 		/* entries from head was removed - move remaining to right */
 		xmemmove((char *) item_body_by_coord(coord) +
 			 header_delta + entry_delta, item_body_by_coord(coord), (unsigned) size);
@@ -890,6 +899,16 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 	}
 
 	return header_delta + entry_delta;
+}
+
+reiser4_internal int
+kill_units_cde(coord_t * coord /* coord of item */ ,
+	       pos_in_node_t from /* start unit pos */ ,
+	       pos_in_node_t to /* stop unit pos */ ,
+	       struct carry_kill_data *kdata UNUSED_ARG, reiser4_key *smallest_removed,
+	       reiser4_key *new_first)
+{
+	return cut_units_cde(coord, from, to, 0, smallest_removed, new_first);
 }
 
 /* ->s.dir.extract_key() method for this item plugin. */
@@ -1026,14 +1045,7 @@ rem_entry_cde(struct inode *dir /* directory of item */ ,
 	   of @coord.
 	*/
 	coord_dup(&shadow, coord);
-	result = cut_node(coord,
-			  &shadow,
-			  NULL,
-			  NULL,
-			  NULL,
-			  DELETE_KILL,
-			  0/*locked left neighbor*/,
-			  0/*inode*/);
+	result = kill_node_content(coord, &shadow, NULL, NULL, NULL, 0, NULL, NULL);
 	if (result == 0) {
 		/* NOTE-NIKITA quota plugin? */
 		DQUOT_FREE_SPACE_NODIRTY(dir, length);
