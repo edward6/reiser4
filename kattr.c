@@ -255,6 +255,8 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 }
 #endif
 
+int init_prof_kobject(struct super_block *super);
+
 int reiser4_sysfs_init(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
@@ -292,6 +294,10 @@ int reiser4_sysfs_init(struct super_block *super)
 	}
 #else
 	result = reiser4_populate_kattr_dir(kobj);
+#endif
+
+#if REISER4_PROF
+	init_prof_kobject(super);
 #endif
 	return result;
 }
