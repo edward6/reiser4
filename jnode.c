@@ -887,6 +887,45 @@ jdrop(jnode * node)
 	jdrop_in_tree(node, jnode_get_tree(node));
 }
 
+void
+jput_final(jnode * node)
+{
+	int r_i_p;
+
+	assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
+
+	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
+	jnode_finish_io(node);
+	if (r_i_p) {
+		if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
+			/* node is removed from the tree. */
+			jdelete(node);
+		else
+			jnode_try_drop(node);
+	}
+	/* if !r_i_p some other thread is already killing it */
+}
+
+/* called from jput() to wait for io completion */
+void
+jnode_finish_io(jnode * node)
+{
+	struct page *page;
+
+	assert("nikita-2922", node != NULL);
+
+	spin_lock_jnode(node);
+	page = jnode_page(node);
+	if (page != NULL) {
+		page_cache_get(page);
+		spin_unlock_jnode(node);
+		wait_on_page_writeback(page);
+		wait_on_page_locked(page);
+		page_cache_release(page);
+	} else
+		spin_unlock_jnode(node);
+}
+
 int
 jwait_io(jnode * node, int rw)
 {
