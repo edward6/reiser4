@@ -788,7 +788,6 @@ static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 				       const reiser4_block_nr * b UNUSED_ARG,
 				       void                   * data)
 {
-	struct bnode * commit_list = data;
 	struct bnode * bnode;
 	struct super_block * sb = reiser4_get_current_sb ();
 
@@ -803,6 +802,8 @@ static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 	spin_lock_bnode(bnode);
 	reiser4_clear_bit(offset, bnode->wpage); 
 	spin_unlock_bnode(bnode);
+
+	return 0;
 }
 
 /** This function is called after write-back (writing blocks from OVERWRITE
