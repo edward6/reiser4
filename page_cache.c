@@ -188,7 +188,7 @@ int done_formatted_fake( struct super_block *super )
  * ->read_node method of page-cache based tree operations 
  *
  * read @block into page cache and bind it to the formatted fake inode of
- * @super. Kmap the page. Return pointer to the data in @data.
+ * @super. Kmap the page.
  */
 static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 {
@@ -204,9 +204,9 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 	 */
 	page = add_page( tree -> super, node );
 	if( page != NULL ) {
-		if( !PageUptodate( page ) ) {
-			int result;
+		int result;
 
+		if( !PageUptodate( page ) ) {
 			result = page -> mapping -> a_ops -> readpage( NULL,
 								       page );
 			if( result == 0 ) {
@@ -217,11 +217,14 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 					return -EIO;
 			} else
 				return result;
-		} else
+			result = 0;
+		} else {
 			unlock_page( page );
+			result = 1;
+		}
 		kmap_once( node, page );
 		/* return with jnode spin-locked */
-		return 0;
+		return result;
 	} else
 		return -ENOMEM;
 }

@@ -220,11 +220,6 @@ item_plugin *default_sd_plugin( const struct super_block *super );
 item_plugin *default_dir_item_plugin( const struct super_block *super );
 void print_fs_info (const char *prefix, const struct super_block *);
 
-int default_read_node (const reiser4_block_nr *addr, char **data,
-		       size_t blocksize);
-int default_allocate_node (znode *);
-void default_unread_node (znode *);
-
 #if REISER4_DEBUG
 extern void register_thread( void );
 extern void deregister_thread( void );
