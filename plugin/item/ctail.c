@@ -420,8 +420,6 @@ cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, i
  	count = to - from + 1;
 	item = item_body_by_coord(coord);
 
-	/* When we cut from the end of item - we have nothing to do */
-	assert("edward-73", count < nr_units_ctail(coord));
 	assert("edward-74", ergo(from != 0, to == coord_last_unit_pos(coord)));
 
 	if (smallest_removed) {
