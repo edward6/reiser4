@@ -138,6 +138,18 @@ errno_t reiserfs_key_build_entry_short(
 	build_entry_short, key->body, hash_plugin, name);
 }
 
+/* Builds full key by entry short key */
+errno_t reiserfs_key_build_by_entry(
+    reiserfs_key_t *key,	    /* key to be built */
+    void *data			    /* short entry key data pointer */
+) {
+    aal_assert("umka-1003", key != NULL, return -1);
+    aal_assert("umka-1004", data != NULL, return -1);
+    
+    return libreiser4_plugin_call(return -1, key->plugin->key_ops, 
+	build_by_entry, key->body, data);
+}
+
 /* Sets key type */
 errno_t reiserfs_key_set_type(
     reiserfs_key_t *key,	    /* key type will be updated in */

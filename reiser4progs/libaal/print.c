@@ -8,12 +8,11 @@
 #  include <config.h>
 #endif
 
-#include <stdarg.h>
 #include <aal/aal.h>
 
-#ifndef ENABLE_COMPACT
-#  include <stdio.h>
-#endif
+#ifdef ENABLE_COMPACT
+
+#include <stdarg.h>
 
 enum format_modifier {
     mod_empty,
@@ -210,4 +209,6 @@ int aal_snprintf(
 
     return len;
 }
+
+#endif
 

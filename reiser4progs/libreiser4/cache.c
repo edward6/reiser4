@@ -423,7 +423,7 @@ errno_t reiserfs_cache_insert(
 
     /* Check if we need to update ldkey in parent cache */
     if (reiserfs_node_count(cache->node) > 0 && cache->parent && 
-	pos->item == 0 && pos->unit == 0xffffffff) 
+	pos->item == 0 && (pos->unit == 0 || pos->unit == 0xffffffff)) 
     {
 	reiserfs_pos_t p;
 	
@@ -434,7 +434,15 @@ errno_t reiserfs_cache_insert(
 	    return -1;
     }
     
-    return reiserfs_node_insert(cache->node, pos, item);
+    if (reiserfs_node_insert(cache->node, pos, item))
+	return -1;
+
+    if (pos->item == 0 && pos->unit == 0) {
+	if (reiserfs_node_set_key(cache->node, pos, &item->key))
+	    return -1;
+    }
+    
+    return 0;
 }
 
 /* 
@@ -451,8 +459,9 @@ errno_t reiserfs_cache_remove(
     aal_assert("umka-993", cache != NULL, return -1);
     aal_assert("umka-994", pos != NULL, return -1);
 
-    do_update = (reiserfs_node_count(cache->node) > 0 && cache->parent &&
-	pos->item == 0 && pos->unit == 0xffffffff);
+    do_update = (reiserfs_node_count(cache->node) > 0 && 
+	cache->parent && pos->item == 0 && (pos->unit == 0 || 
+	pos->unit == 0xffffffff));
     
     if (do_update){
 	if (reiserfs_cache_pos(cache, &p))
@@ -462,9 +471,7 @@ errno_t reiserfs_cache_remove(
     if (reiserfs_node_remove(cache->node, pos))
 	return -1;
     
-    if (reiserfs_node_get_level(cache->node) > REISERFS_LEAF_LEVEL &&
-	pos->unit == 0xffffffff) 
-    {
+    if (reiserfs_node_get_level(cache->node) > REISERFS_LEAF_LEVEL) {
         reiserfs_key_t key;
         reiserfs_cache_t *child;
 

@@ -325,6 +325,70 @@ int reiserfs_tree_lookup(
 
 #ifndef ENABLE_COMPACT
 
+static errno_t reiserfs_tree_unit_move(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src) 
+{
+    void *body;
+	
+    reiserfs_plugin_t *plugin;
+    reiserfs_entry_hint_t entry;
+    reiserfs_direntry_hint_t direntry;
+    reiserfs_item_hint_t direntry_item;
+	
+    reiserfs_key_t item_key;
+    reiserfs_plugin_t *key_plugin;
+    	
+    if (!(body = reiserfs_node_item_body(src->cache->node, &src->pos)))
+        return -1;
+	
+    if (!(plugin = reiserfs_node_item_plugin(src->cache->node, &src->pos)))
+        return -1;
+    
+    if ((libreiser4_plugin_call(return -1, plugin->item_ops.specific.direntry, 
+	    get_entry, body, src->pos.unit, &entry)))
+        return -1;
+	
+    aal_memset(&direntry_item, 0, sizeof(direntry_item));
+	    
+    direntry.count = 1;
+    direntry_item.plugin = plugin;
+    direntry_item.type = DIRENTRY_ITEM;
+	
+    /* FIXME-UMKA: Here should be not hardcoded plugin id */
+    if (!(key_plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
+        return -1;
+
+    if (reiserfs_node_get_key(src->cache->node, &src->pos, &item_key))
+        return -1;
+	
+    reiserfs_key_init(&direntry_item.key, key_plugin, item_key.body);
+    reiserfs_key_build_by_entry(&direntry_item.key, &entry.entryid);
+	    
+    if (!(direntry.entry = aal_calloc(sizeof(entry), 0)))
+        return -1;
+	
+    direntry.entry[0] = entry;
+    direntry_item.hint = &direntry;
+    
+    if (reiserfs_node_item_estimate(dst->cache->node, &dst->pos, &direntry_item))
+	return -1;
+
+    if (direntry_item.len > reiserfs_node_get_space(dst->cache->node))
+	return -1;
+    
+    if (reiserfs_cache_insert(dst->cache, &dst->pos, &direntry_item))
+        return -1;
+    
+    /* 
+	FIXME-UMKA: Here should be updating first key in node in the case we are
+	going to remove first unit in item.
+    */
+    if (reiserfs_cache_remove(src->cache, &src->pos))
+        return -1;
+
+    return 0;
+}
+
 /* Pefroms left shifting of items */
 errno_t reiserfs_tree_lshift(
     reiserfs_tree_t *tree,	    /* tree pointer function operates on */
@@ -377,9 +441,29 @@ errno_t reiserfs_tree_lshift(
 	
 	/* Moving items until insertion point reach first position in node */
 	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(left->node) >= item_len &&
+//	    reiserfs_node_get_space(left->node) >= item_len &&
 	    reiserfs_node_get_space(new->cache->node) < needed)
 	{
+	    if (reiserfs_node_get_space(left->node) < item_len) {
+		reiserfs_pos_t p;
+		reiserfs_plugin_t *plugin;
+
+		reiserfs_pos_init(&p, 0, 0xffffffff);
+		if (!(plugin = reiserfs_node_item_plugin(old->cache->node, &p))) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			"Can't find item plugin.");
+		    return -1;
+		}
+		
+		/* We have a compound item (the item whcih is containg units) */
+		if (libreiser4_plugin_call(return -1, plugin->item_ops.common, 
+		    compound,))
+		{
+		    /* Moving unit into left neighbour */
+		}
+		break;
+	    }
+	    
 	    /* 
 		Checking if left neighbor node will have enough free space, after
 		insertion point will be shifted to it. If no, break left shifting.
@@ -473,9 +557,106 @@ errno_t reiserfs_tree_rshift(
 	    item_overhead;
 	    
 	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(right->node) >= item_len &&
+//	    reiserfs_node_get_space(right->node) >= item_len &&
 	    reiserfs_node_get_space(new->cache->node) < needed)
 	{
+	    if (reiserfs_node_get_space(right->node) < item_len) {
+		reiserfs_pos_t p;
+		reiserfs_plugin_t *lp;
+
+		reiserfs_pos_init(&p, reiserfs_node_count(old->cache->node) - 1, 0xffffffff);
+
+		if (!(lp = reiserfs_node_item_plugin(old->cache->node, &p))) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			"Can't find item plugin.");
+		    return -1;
+		}
+
+		if (libreiser4_plugin_call(return -1, lp->item_ops.common, compound,)) {
+		    void *lbody, *rbody;
+		    uint32_t lcount, rcount;
+		    reiserfs_entry_hint_t lentry, rentry;
+		    
+		    if (!(lbody = reiserfs_node_item_body(old->cache->node, &old->pos)))
+			return -1;
+		    
+		    if (!(lcount = libreiser4_plugin_call(return -1, lp->item_ops.common, 
+			count, lbody)))
+		    {
+			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			    "Invalid unit count has been detected.");
+			return -1;
+		    }
+		    
+		    if (libreiser4_plugin_call(return -1, lp->item_ops.specific.direntry,
+			get_entry, lbody, lcount - 1, &lentry))
+		    {
+			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			    "Can't get first unit from right neighbour item.");
+			return -1;
+		    }
+		    
+    		    reiserfs_coord_init(&src, old->cache, 
+			old->pos.item, lcount - 1);
+		    
+    		    reiserfs_coord_init(&dst, right, 0, 0xffffffff);
+		    
+		    {
+			reiserfs_plugin_t *rp;
+			
+			reiserfs_pos_init(&p, 0, 0xffffffff);
+			if (!(rp = reiserfs_node_item_plugin(right->node, &p))) {
+			    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+				"Can't find item plugin.");
+			    return -1;
+			}
+			
+			if (libreiser4_plugin_call(return -1, rp->item_ops.common, 
+			    compound,) && lp->h.id == rp->h.id)
+			{
+			    if (!(rbody = reiserfs_node_item_body(right->node, &dst.pos)))
+				return -1;
+		    
+			    if ((rcount = libreiser4_plugin_call(return -1, rp->item_ops.common, 
+				count, rbody)))
+			    {
+				if (libreiser4_plugin_call(return -1, rp->item_ops.specific.direntry,
+				    get_entry, rbody, 0, &rentry))
+				{
+				    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+					"Can't get first unit from right neighbour item.");
+				    return -1;
+				}
+
+				if (lentry.objid.locality == rentry.objid.locality)
+				    dst.pos.unit = 0;
+			    }
+			}
+		    }
+		    
+		    if (new->cache == old->cache) {
+			if (new->pos.unit == lcount - 1) {
+			    new->cache = right;
+			    new->pos.item = 0;
+			    new->pos.unit = 0;
+			}
+			if (new->pos.unit == lcount) {
+			    new->cache = right;
+			    new->pos.item = 0;
+			    new->pos.unit = 1;
+			}
+		    } else
+			new->pos.unit++;
+	   
+		    if (reiserfs_tree_unit_move(&dst, &src))
+		        break;
+
+		    continue;
+		    
+		} else
+		    break;
+	    }
+	    
 	    /* 
 		Checking for the case when insertion point is almost shifted 
 		into right neighbour or shifted already and if insertion node
@@ -487,16 +668,15 @@ errno_t reiserfs_tree_rshift(
 		if ((reiserfs_node_get_space(right->node) - item_len) < needed)
 		    break;
 	    }
-		
+	
 	    if (new->cache == old->cache) {
-		if (new->pos.item == reiserfs_node_count(new->cache->node) - 1) {
+		if (new->pos.item >= reiserfs_node_count(new->cache->node) - 1) {
 		    new->cache = right;
-		    new->pos.item = 0;
+		    new->pos.item = new->pos.item > reiserfs_node_count(new->cache->node) - 1;
 		}
 	    } else
-	        new->pos.item++;
+		new->pos.item++;
 	    
-	    /* Moving item */
 	    reiserfs_coord_init(&src, old->cache, 
 		reiserfs_node_count(old->cache->node) - 1, 0xffffffff);
 
@@ -651,77 +831,6 @@ error_free_cache:
     reiserfs_tree_dealloc(tree, tree->cache);
     tree->cache = cache;
     return -1;
-}
-
-static errno_t reiserfs_tree_relocate_unit(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src, reiserfs_key_t *owner) 
-{
-    void *body;
-	
-    reiserfs_plugin_t *plugin;
-    reiserfs_entry_hint_t entry;
-    reiserfs_direntry_hint_t direntry;
-    reiserfs_item_hint_t direntry_item;
-	
-    if (!(body = reiserfs_node_item_body(src->cache->node, &src->pos)))
-        return -1;
-	
-    if (!(plugin = reiserfs_node_item_plugin(src->cache->node, &src->pos)))
-        return -1;
-    
-    if ((libreiser4_plugin_call(return -1, plugin->item_ops.specific.direntry, 
-	    get_entry, body, src->pos.unit, &entry)))
-        return -1;
-	
-    aal_memset(&direntry_item, 0, sizeof(direntry_item));
-	    
-    direntry.count = 1;
-    direntry_item.plugin = plugin;
-    direntry_item.type = DIRENTRY_ITEM;
-	
-    /* FIXME-UMKA: Here should be not hardcoded plugin id */
-    if (!(direntry_item.key.plugin = 
-	    libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
-        return -1;
-	
-    /* 
-	FIXME-UMKA: Here should be built the key with right locality. To do 
-	this we probably need to pass objectid of object item belongs to.
-    */
-    {
-        oid_t locality, objectid;
-        reiserfs_plugin_t *hash_plugin;
-	    
-        hash_plugin = libreiser4_factory_find_by_id(HASH_PLUGIN_TYPE, HASH_R5_ID);
-	    
-        locality = reiserfs_key_get_locality(owner);
-        objectid = reiserfs_key_get_objectid(owner);
-	    
-        libreiser4_plugin_call(return -1, direntry_item.key.plugin->key_ops,
-	   build_entry_full, direntry_item.key.body, hash_plugin, locality, 
-	    objectid, entry.name);
-    }
-	
-    if (!(direntry.entry = aal_calloc(sizeof(entry), 0)))
-        return -1;
-	
-    direntry.entry[0] = entry;
-    direntry_item.hint = &direntry;
-	
-    /* 
-        Correction of unit pos in odrer to create new compound item, if passed
-        item pos doesn't pouint to one.
-    */
-    if (dst->pos.item >= reiserfs_node_count(dst->cache->node))
-        dst->pos.unit = 0xffffffff;
-	
-    if (reiserfs_cache_insert(dst->cache, &dst->pos, &direntry_item))
-        return -1;
-    
-    if (reiserfs_cache_remove(src->cache, &src->pos))
-        return -1;
-
-    return 0;
 }
 
 /* Inserts new item described by item hint into the tree */
@@ -989,56 +1098,9 @@ errno_t reiserfs_tree_insert(
 		    return -1;
 		}
 	    } else {
-		if (/*insert.pos.unit != 0xffffffff*/0) {
-		    void *body;
-		    uint32_t count;
+		coord->cache = cache;
+		coord->pos.item = 0;
 		    
-		    reiserfs_plugin_t *plugin;
-		    reiserfs_coord_t src, dst;
-		    
-		    if (!(plugin = reiserfs_node_item_plugin(insert.cache->node, &insert.pos)))
-		       return -1;
-			
-		    if (!(body = reiserfs_node_item_body(insert.cache->node, &insert.pos)))
-			return -1;
-
-		    *coord = insert;
-		    while (reiserfs_node_get_space(insert.cache->node) < needed) {
-
-			if (!(count = libreiser4_plugin_call(return -1, 
-				plugin->item_ops.common, count, body)))
-			    break;
-			
-			reiserfs_coord_init(&src, insert.cache, insert.pos.item, count - 1);
-			reiserfs_coord_init(&dst, cache, 0, 0);
-		    
-			if (coord->cache != cache) {
-			    if (coord->pos.unit >= count - 1) {
-				coord->cache = cache;
-				coord->pos.item = 0;
-				coord->pos.unit = (coord->pos.unit > count - 1);
-			    }
-			} else
-			    coord->pos.unit++;
-				
-			if (reiserfs_tree_relocate_unit(&dst, &src, &item->owner)) {
-			    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-				"Can't move unit.");
-				    
-			    reiserfs_tree_dealloc(tree, cache);
-			    return -1;
-			}
-		    }
-
-		    /* 
-			FIXME-UMKA: Here should be updating of the ldkey in 
-			parent node.
-		    */
-		} else {
-		    coord->cache = cache;
-		    coord->pos.item = 0;
-		}
-
 		if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 

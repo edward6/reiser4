@@ -276,10 +276,10 @@ struct reiserfs_item_hint {
     /* The key of item */
     reiserfs_key_t key;
 
-    /* The key of object item belong to */
-    reiserfs_key_t owner;
-    
+    /* Length of the item to inserted */
     uint16_t len;
+    
+    /* Plugin to be used for creating item */
     reiserfs_plugin_t *plugin;
 };
 

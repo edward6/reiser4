@@ -613,7 +613,7 @@ errno_t reiserfs_node_get_key(
 	    get_key, node->entity, pos, key)))
 	return res;
 
-    return ((key->plugin = reiserfs_key_guess(&key->body)) != NULL);
+    return -((key->plugin = reiserfs_key_guess(&key->body)) == NULL);
 }
 
 /* Returns item plugin id */
