@@ -7,13 +7,17 @@
 #define IF_STATEMENT
 
 
+#define  yyacc
+
+
+
                                  /* sizes defines      */
 #define WRDTABSIZE
-#define FREESPACESIZE
+#define FREESPACESIZE (4096 - sizeof(char*)*2 - sizeof(int) )
 #define VARTABSIZE
+/*
 #define 
-#define 
-
+*/
 
 
 #ifndef YYSTYPE
@@ -53,42 +57,58 @@ struct val_list
 } ;
 
 
+/* ok this is space for names, constants and tmp*/
 typedef struct freeSpace
 {
 	freeSpace * freeSpace_next;
+	char      * freeSpace;
 	int         freeSpaceSize;
-	char *      freeSpace;
 	char        freeSpaceBase[FREESPACESIZE];
 } freeSpace;
 
-typedef struct wrdtab
+
+
+
+
+/*
+struct qstr {
+	const unsigned char * name;
+	unsigned int len;
+	unsigned int hash;
+};
+*/
+
+get_new_wrd()
+{
+	
+}
+
+
+
+typedef struct wrdTab
 {
 	wrdtab  *  wrd_next;
-	int        wrdTabSize;
-	int        wrdTabLast;
-	int        wrdTab[WRDTABSIZE];
-} wrdtab;
+	struct qstr * wrd;
+} * wrdTab;
 
 typedef struct var             /* for list of variable */
 {
 	int vtype   ;   /* Type of name              */
 	int vSpace  ;   /* v4  space name or not     */
+	char * vextn   ;   /* index of names  to wrdTab */
 	int vextn   ;   /* index of names  to wrdTab */
 	int vlevel  ;   /* level                     */
-	union
-	{
-		struct inode *  v_inode;    /* inode for object not on r4-fs */
-		struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
-	} u;
+	struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
 } var;
 
-typedef struct Vartab
+
+typedef struct VarTab
 {
 	wrdtab * Var_next;
 	int      VarTabSize;
 	int      VarTabLast;
 	var      VarTabName[VARTABSIZE];
-} Vartab;
+} VarTab;
 
 
 
@@ -103,15 +123,82 @@ typedef struct streg            /* for compile time level information */
 } streg;
 
 
-typedef struct Strtab
+typedef struct StrTab
 {
 	wrdtab * Str_next;
 	int      StrTabSize;
 	int      StrTabLast;
 	strreg   StrTabName[STRTABSIZE];
-} Strtab;
+} StrTab;
 
 
+freeList(freeSpace * list)
+{
+	freeSpace * current,* next;
+	next = list;
+	while (next)
+		{
+			current = next;
+			next    = current->freeSpace_next;
+			kfree(current);
+		}
+}
+
+
+
+/*
+#define freeList(space,pferf) free##pref##List(space->pref)
+
+freeStrTabList(StrTab * list)
+{
+	StrTab * current,* next;
+	next = list;
+	while (next)
+		{
+			current= next;
+			next = current->Str_next;
+			kfree(current);
+		}
+}
+
+*/
+
+
+freeVarTabList(Strtab * list)
+{
+	artab * current,* next;
+	next = list;
+	while (next)
+		{
+			current= next;
+			next = current->Var_next;
+			kfree(current);
+		}
+}
+
+freewrdTabList(Strtab * list)
+{
+	wrdTab * current,* next;
+	next = list;
+	while (next)
+		{
+			current= next;
+			next = current->wrd_next;
+			kfree(current);
+		}
+}
+
+freefreeSpaceList(Strtab * list)
+{
+	freeSpace * current,* next;
+	next = list;
+	while (next)
+		{
+			current= next;
+			next = current->freeSpace_next;
+			kfree(current);
+		}
+}
 
 
 struct msglist
@@ -128,12 +215,14 @@ struct yy_r4_work_space
 	char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
 	char * ws_pline;     /*   of token, second (pline) walk to end to token                   */
 
+
+#ifdef yyacc
 	                     /* next field need for yacc */
 	int ws_yydebug;
 	int ws_yynerrs;
 	int ws_yyerrflag;
 	int ws_yychar;
-	short * ws_yyssp;
+	short * ws_yyssp;   /* state of automat */
 	YYSTYPE * ws_yyvsp;
 	YYSTYPE ws_yyval;
 	YYSTYPE ws_yylval;
@@ -141,7 +230,9 @@ struct yy_r4_work_space
 	YYSTYPE ws_yyvs[YYSTACKSIZE];           /* v stack size is ws_yystacksize*/
 	int  ws_yystacksize; /*500*/
 	int  ws_yymaxdepth ; /*500*/
-
+#else
+	/* declare for bison */
+#endif
 	int	ws_yyerrco;
 	int	ws_level;              /* current level            */
 	int	ws_labco;              /* current label            */
@@ -151,15 +242,15 @@ struct yy_r4_work_space
 	int	ws_varsol;             /* begin number of variables*/
 
 	                               /* working fields  */
-	struct nameidata * nd;
 	char * tmpWrdEnd; 
 	char * freeSpace;
+	char * yytext
 	                               /* space for   */
 	freeSpace * freeSpHead;
-	wrdtab    * WrdTabHead;
-	vartab    * VarTabHead;
+	wrdTab    * WrdTabHead;
+	varTab    * VarTabHead;
 	streg     * StrTabHead;
-	int       * Gencode;
+	/*	int       * Gencode;*/
 };
 
 
@@ -185,6 +276,18 @@ static struct
 	Code[] =
 {
 };
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -252,43 +355,43 @@ static struct
 }
 key [] =
 	{
-		"and"         ,    AND            ,
+		{ "and"         ,    AND            },
 		
-		"bytes"       ,    BYTES          ,
+		{ "bytes"       ,    BYTES          },
 		
-		"else"        ,    ELSE           ,
-		"eq"          ,    EQ             ,
-		"exist"       ,    EXIST          ,
+		{ "else"        ,    ELSE           },
+		{ "eq"          ,    EQ             },
+		{ "exist"       ,    EXIST          },
 		
-		"first"       ,    FIRST          ,
-		"first_byte"  ,    FIRST_BYTE     ,
+		{ "first"       ,    FIRST          },
+		{ "first_byte"  ,    FIRST_BYTE     },
 		
-		"ge"          ,    GE             ,
-		"gt"          ,    GT             ,
+		{ "ge"          ,    GE             },
+		{ "gt"          ,    GT             },
 		
-		"if"          ,    IF             ,
+		{ "if"          ,    IF             },
 		
-		"last"        ,    LAST           ,
-		"le"          ,    LE             ,
-		"lt"          ,    LT             ,
+		{ "last"        ,    LAST           },
+		{ "le"          ,    LE             },
+		{ "lt"          ,    LT             },
 		
-		"last_byte"   ,    LAST_BYTE      ,
+		{ "last_byte"   ,    LAST_BYTE      },
 		
-		"ne"          ,    NE             ,
-		"not"         ,    NOT            ,
+		{ "ne"          ,    NE             },
+		{ "not"         ,    NOT            },
 		
-		"offset"      ,    OFFSET         ,
-		"offset_back" ,    OFFSET_BACK    ,
-		"or"          ,    OR             ,
+		{ "offset"      ,    OFFSET         },
+		{ "offset_back" ,    OFFSET_BACK    },
+		{ "or"          ,    OR             },
 		
-		"process"     ,    PROCESS        ,
+		{ "/process"     ,    PROCESS        },
 		
-		"range"       ,    RANGE          ,
+		{ "/range"       ,    RANGE          },
 		
-		"stat"        ,    STAT           ,
+		{ "/stat"        ,    STAT           },
 		
-		"then"        ,    THEN           ,
-		"tw"          ,    TRANSCRASH     
+		{ "then"        ,    THEN           },
+		{ "tw/"          ,    TRANSCRASH     }
 	}
 
 
