@@ -8,6 +8,25 @@
 
 #include <linux/quotaops.h>
 
+static inline reiser4_extent *
+ext_by_offset(const znode *node, int offset)
+{
+	reiser4_extent *ext;
+
+	ext = (reiser4_extent *)(zdata(node) + offset);
+	return ext;
+}
+
+static inline reiser4_extent *
+ext_by_ext_coord(const uf_coord_t *uf_coord)
+{
+	reiser4_extent *ext;
+
+	ext = ext_by_offset(uf_coord->base_coord.node, uf_coord->extension.extent.ext_offset);
+	assert("vs-1650", extent_get_start(ext) == extent_get_start(&uf_coord->extension.extent.extent));
+	assert("vs-1651", extent_get_width(ext) == extent_get_width(&uf_coord->extension.extent.extent));
+	return ext;
+}
 
 #if REISER4_DEBUG
 static int
@@ -15,20 +34,22 @@ coord_extension_is_ok(const uf_coord_t *uf_coord)
 {	
 	const coord_t *coord;
 	const extent_coord_extension_t *ext_coord;
+	reiser4_extent *ext;
 
 	coord = &uf_coord->base_coord;
 	ext_coord = &uf_coord->extension.extent;
-	
+	ext = ext_by_ext_coord(uf_coord);
+
 	return WITH_DATA(coord->node, (uf_coord->valid == 1 &&
 				       coord_is_iplug_set(coord) &&
 				       item_is_extent(coord) &&
 				       ext_coord->nr_units == nr_units_extent(coord) &&
-				       ext_coord->ext == extent_by_coord(coord) &&
-				       ext_coord->width == extent_get_width(ext_coord->ext) &&
+				       ext == extent_by_coord(coord) &&
+				       ext_coord->width == extent_get_width(ext) &&
 				       coord->unit_pos < ext_coord->nr_units &&
 				       ext_coord->pos_in_unit < ext_coord->width &&
-				       extent_get_start(ext_coord->ext) == extent_get_start(&ext_coord->extent) &&
-				       extent_get_width(ext_coord->ext) == extent_get_width(&ext_coord->extent)));
+				       extent_get_start(ext) == extent_get_start(&ext_coord->extent) &&
+				       extent_get_width(ext) == extent_get_width(&ext_coord->extent)));
 }
 
 #endif
@@ -48,7 +69,7 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 	reiser4_item_data item;
 	reiser4_key hole_key;
 
-	coord_clear_iplug(coord);
+	/*coord_clear_iplug(coord);*/
 	result = zload(coord->node);
 	if (result)
 		return result;
@@ -165,9 +186,11 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 	reiser4_item_data unit;
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
+	reiser4_extent *ext;
 
 	coord = &uf_coord->base_coord;
 	ext_coord = &uf_coord->extension.extent;
+	ext = ext_by_ext_coord(uf_coord);
 
 	/* check correctness of position in the item */
 	assert("vs-228", coord->unit_pos == coord_last_unit_pos(coord));
@@ -179,9 +202,9 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 		       keyeq(key, append_key_extent(coord, &next));
 	       }));
 
-	switch (state_of_extent(ext_coord->ext)) {
+	switch (state_of_extent(ext)) {
 	case UNALLOCATED_EXTENT:
-		set_extent(ext_coord->ext, UNALLOCATED_EXTENT_START, extent_get_width(ext_coord->ext) + 1);
+		set_extent(ext, UNALLOCATED_EXTENT_START, extent_get_width(ext) + 1);
 		znode_make_dirty(coord->node);
 
 		/* update coord extension */
@@ -224,8 +247,8 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 
 	coord = &uf_coord->base_coord;
 	ext_coord = &uf_coord->extension.extent;
+	ext = ext_by_ext_coord(uf_coord);
 
-	ext = ext_coord->ext;
 	width = ext_coord->width;
 	pos_in_unit = ext_coord->pos_in_unit;
 
@@ -244,8 +267,8 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 				coord->unit_pos --;
 				ext_coord->width = extent_get_width(ext - 1);
 				ext_coord->pos_in_unit = ext_coord->width - 1;
-				ext_coord->ext --;
-				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
+				ext_coord->ext_offset -= sizeof(reiser4_extent);
+				ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
 				return 0;
 			}
 		}
@@ -265,8 +288,8 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 				coord->unit_pos ++;
 				ext_coord->width = extent_get_width(ext + 1);
 				ext_coord->pos_in_unit = 0;
-				ext_coord->ext ++;
-				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
+				ext_coord->ext_offset += sizeof(reiser4_extent);
+				ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
 				return 0;
 			}
 		}
@@ -299,15 +322,18 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 {
 	int result;
 	extent_coord_extension_t *ext_coord;
+	reiser4_extent *ext;
 
 	assert("vs-1312", uf_coord->base_coord.between == AT_UNIT);
 	
 	result = 0;
 	*created = 0;
 	ext_coord = &uf_coord->extension.extent;
-	switch (state_of_extent(ext_coord->ext)) {
+	ext = ext_by_ext_coord(uf_coord);
+
+	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
-		*block = extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit;
+		*block = extent_get_start(ext) + ext_coord->pos_in_unit;
 		break;
 
 	case HOLE_EXTENT:
@@ -436,8 +462,8 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		assert("vs-1340", coord->between == AFTER_UNIT);
 		assert("vs-1342", coord->unit_pos == ext_coord->nr_units - 1);
 		assert("vs-1343", ext_coord->pos_in_unit == ext_coord->width - 2);
-		assert("vs-1344", state_of_extent(ext_coord->ext) == UNALLOCATED_EXTENT);
-		ON_DEBUG(ext_coord->extent = *ext_coord->ext);
+		assert("vs-1344", state_of_extent(ext_by_ext_coord(uf_coord)) == UNALLOCATED_EXTENT);
+		ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
 		ext_coord->pos_in_unit ++;
 		if (!full_page)
 			coord->between = AT_UNIT;
@@ -456,9 +482,9 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		} else {
 			/* move to the next unit */
 			coord->unit_pos ++;
-			ext_coord->ext ++;
-			ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-			ext_coord->width = extent_get_width(ext_coord->ext);
+			ext_coord->ext_offset += sizeof(reiser4_extent);
+			ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
+			ext_coord->width = extent_get_width(ext_by_ext_coord(uf_coord));
 			ext_coord->pos_in_unit = 0;
 		}
 	} else
@@ -771,9 +797,9 @@ read_move_coord(coord_t *coord, extent_coord_extension_t *ext_coord)
 		} else {
 			/* move to the next unit */
 			coord->unit_pos ++;
-			ext_coord->ext ++;
-			ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-			ext_coord->width = extent_get_width(ext_coord->ext);
+			ext_coord->ext_offset += sizeof(reiser4_extent);
+			ON_DEBUG(ext_coord->extent = *ext_by_offset(coord->node, ext_coord->ext_offset));
+			ext_coord->width = extent_get_width(ext_by_offset(coord->node, ext_coord->ext_offset));
 			ext_coord->pos_in_unit = 0;
 		}
 	} else
@@ -803,13 +829,15 @@ print_ext_coord(const char *s, uf_coord_t *uf_coord)
 {
 	reiser4_key key;
 	extent_coord_extension_t *ext_coord;
+	reiser4_extent *ext;
 
 	item_key_by_coord(&uf_coord->base_coord, &key);
 	ext_coord = &uf_coord->extension.extent;
+	ext = ext_by_ext_coord(uf_coord);
 	printk("%s: item key [%llu, %llu], nr_units %d, cur extent [%llu, %llu], unit_pos %d, pos_in_unit %Lu\n",
 	       s, get_key_objectid(&key), get_key_offset(&key),
 	       ext_coord->nr_units,
-	       extent_get_start(ext_coord->ext), extent_get_width(ext_coord->ext),
+	       extent_get_start(ext), extent_get_width(ext),
 	       uf_coord->base_coord.unit_pos, ext_coord->pos_in_unit);
 }
 #endif
@@ -953,7 +981,11 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 static int
 move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned count)
 {
+	reiser4_extent *ext;
+
 	ext_coord->expected_page += count;
+
+	ext = ext_by_offset(coord->node, ext_coord->ext_offset);
 
 	do {
 		if (ext_coord->pos_in_unit + count < ext_coord->width) {
@@ -970,9 +1002,10 @@ move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned c
 		count -= (ext_coord->width - ext_coord->pos_in_unit);
 		coord->unit_pos ++;
 		ext_coord->pos_in_unit = 0;
-		ext_coord->ext ++;
-		ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-		ext_coord->width = extent_get_width(ext_coord->ext);
+		ext_coord->ext_offset += sizeof(reiser4_extent);
+		ext ++;
+		ON_DEBUG(ext_coord->extent = *ext);
+		ext_coord->width = extent_get_width(ext);
 	} while (1);
 
 	return 0;	
@@ -1100,7 +1133,7 @@ readahead_readpage_extent(void *vp, struct page *page)
 	}
 	
 	assert("vs-1281", page->index == ext_coord->expected_page);
-	result = do_readpage_extent(ext_coord->ext, ext_coord->pos_in_unit, page);
+	result = do_readpage_extent(ext_by_ext_coord(uf_coord), ext_coord->pos_in_unit, page);
 	if (!result)
 		move_coord_pages(coord, ext_coord, 1);
 	return result;
@@ -1144,7 +1177,7 @@ readpage_extent(void *vp, struct page *page)
 	assert("vs-1047", page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key)));
 	assert("vs-1320", coord_extension_is_ok(uf_coord));
 
-	return do_readpage_extent(uf_coord->extension.extent.ext, uf_coord->extension.extent.pos_in_unit, page);
+	return do_readpage_extent(ext_by_ext_coord(uf_coord), uf_coord->extension.extent.pos_in_unit, page);
 }
 
 /*
@@ -1266,7 +1299,6 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 	extent_coord_extension_t *ext_coord;
 	reiser4_key key;
 	loff_t offset;
-	pos_in_node_t i;
 
 	assert("vs-1295", uf_coord->valid == 0);
 
@@ -1279,34 +1311,28 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 
 	ext_coord = &uf_coord->extension.extent;
 	ext_coord->nr_units = nr_units_extent(coord);
+	ext_coord->ext_offset = (char *)extent_by_coord(coord) - zdata(coord->node);
+	ext_coord->width = extent_get_width(extent_by_coord(coord));
 
 	if (coord->between == AFTER_UNIT) {
 		assert("vs-1330", coord->unit_pos == nr_units_extent(coord) - 1);
-		ext_coord->ext = extent_by_coord(coord);
-		ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-		ext_coord->width = extent_get_width(ext_coord->ext);
+
 		ext_coord->pos_in_unit = ext_coord->width - 1;
 		uf_coord->valid = 1;
+		ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
 		return;
 	}
 
 	/* AT_UNIT */
-	item_key_by_coord(coord, &key);
+	unit_key_by_coord(coord, &key);
 	offset = get_key_offset(&key);
 
-	/* FIXME: it would not be necessary if pos_in_unit were in coord_t */
-	ext_coord->ext = extent_item(coord);
-
-	for (i = 0; i < coord->unit_pos; i++, ext_coord->ext ++)
-		offset += (extent_get_width(ext_coord->ext) * current_blocksize);
-	ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-	ext_coord->width = extent_get_width(ext_coord->ext);
-
 	assert("vs-1328", offset <= lookuped);
-	assert("vs-1329", lookuped < offset + extent_get_width(ext_coord->ext) * current_blocksize);
+	assert("vs-1329", lookuped < offset + ext_coord->width * current_blocksize);
 	ext_coord->pos_in_unit = ((lookuped - offset) >> current_blocksize_bits);
-
 	uf_coord->valid = 1;
+
+	ON_DEBUG(ext_coord->extent = *extent_by_coord(coord));
 }
 
 /*
