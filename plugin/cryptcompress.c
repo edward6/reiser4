@@ -2139,7 +2139,8 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
    . reserve disk space;
    . maybe read pages from disk and set the disk cluster dirty;
    . maybe write hole;
-   . maybe create 'unprepped' disk cluster (if parent item is absent)
+   . maybe create 'unprepped' disk cluster (if the disk cluster is fake (isn't represenred 
+     by any items on disk)
 */
 
 static int
