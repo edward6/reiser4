@@ -128,6 +128,12 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
 
 /**
+ * Default value of maximal atom size. Can be ovewritten by atom_max_size
+ * mount option.
+ */
+#define REISER4_ATOM_MAX_SIZE         (1000)
+
+/**
  * start complaining after that many restarts in coord_by_key().
  *
  * This either means incredibly heavy contention for this part of a tree, or

@@ -157,6 +157,9 @@ struct reiser4_super_info_data {
 	 * will return it */
 	tail_plugin * tplug;
 
+	struct {
+		int atom_max_size;
+	} txnmgr;
 
 	/* pointers to jnodes for journal header and footer */
 	jnode                 *journal_header;

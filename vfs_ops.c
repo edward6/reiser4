@@ -1425,8 +1425,33 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 				}
 			}
 		},
+		{
+			/*
+			 * atom_max_size=N
+			 *
+			 * Atoms containing more than N blocks will be forced
+			 * to commit. N is decimal.
+			 */
+			.name = "atom_max_size",
+			.type = OPT_FORMAT,
+			.u = {
+				.f = {
+					.format  = "%d",
+					.nr_args = 1,
+					/*
+					 * neat gcc feature: allow
+					 * non-constant initializers.
+					 */
+					.arg1 = &get_super_private (s) -> txnmgr.atom_max_size,
+					.arg2 = NULL,
+					.arg3 = NULL,
+					.arg4 = NULL
+				}
+			}
+		},
 	};
 
+	get_super_private (s) -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
 	return parse_options( opt_string, opts, sizeof_array( opts ) );
 }
 
