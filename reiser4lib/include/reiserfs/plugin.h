@@ -117,7 +117,7 @@ typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 struct reiserfs_internal_ops {
     blk_t (*down_link) (reiserfs_opaque_t *, int32_t);
     
-    /* check that given internal item contains given pointer. */
+    /* Check that given internal item contains given pointer. */
     int (*has_pointer_to) (reiserfs_opaque_t *, blk_t);
 };
 
@@ -126,10 +126,10 @@ typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
 struct reiserfs_item_plugin {
     reiserfs_plugin_header_t h;
 
-    /* methods common for all item types */
+    /* Methods common for all item types */
     reiserfs_common_item_plugin_t common;
 
-    /* methods specific to particular type of item */
+    /* Methods specific to particular type of item */
     union {
 	reiserfs_dir_entry_ops_t dir;
 	reiserfs_file_ops_t file;
@@ -194,7 +194,8 @@ struct reiserfs_format_plugin {
     reiserfs_plugin_header_t h;
 	
     reiserfs_opaque_t *(*open) (aal_device_t *);
-    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, reiserfs_opaque_t *, 
+	reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t);
     
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
@@ -227,6 +228,7 @@ typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
 
 struct reiserfs_alloc_plugin {
     reiserfs_plugin_header_t h;
+    
     reiserfs_opaque_t *(*open) (aal_device_t *, count_t);
     reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
     void (*close) (reiserfs_opaque_t *);
@@ -244,6 +246,7 @@ typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
 
 struct reiserfs_journal_plugin {
     reiserfs_plugin_header_t h;
+    
     reiserfs_opaque_t *(*open) (aal_device_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
     void (*close) (reiserfs_opaque_t *);
@@ -280,6 +283,7 @@ struct reiserfs_plugins_factory {
 typedef struct reiserfs_plugins_factory reiserfs_plugins_factory_t;
 
 typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_t *);
+typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #ifndef ENABLE_COMPACT
 #   define reiserfs_check_method(ops, method, action) \
@@ -321,6 +325,7 @@ extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t t
     reiserfs_plugin_id_t id);
 
 extern reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label);
+extern error_t reiserfs_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data);
 
 #endif
 
