@@ -1219,3 +1219,7 @@ reiser4progs/libaal/.deps/block.Plo
 reiser4progs/libaal/block.lo
 reiser4progs/libreiser4/.deps/item.Plo
 reiser4progs/libaal/.deps/block.P
+reiser4progs/libreiser4/.deps/factory.Plo
+reiser4progs/libreiser4/factory.lo
+reiser4progs/plugin/node40/.deps/node40_repair.Plo
+reiser4progs/plugin/node40/node40_repair.lo
