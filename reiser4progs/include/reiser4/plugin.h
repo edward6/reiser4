@@ -58,7 +58,7 @@ struct reiserfs_key_plugin {
     reiserfs_plugin_header_t h;
 
     /* Confirms key format */
-    int (*confirm) (void *);
+    int (*confirm) (const void *);
 
     /* Returns minimal key for this key-format */
     const void *(*minimal) (void);
@@ -71,26 +71,38 @@ struct reiserfs_key_plugin {
 
     /* Creates/destroys key by its components */
     void *(*create) (uint16_t, oid_t, oid_t, uint64_t);
+    void (*clean) (void *);
     void (*close) (void *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
-    void (*set_type) (void *, uint16_t);
-    uint16_t (*get_type) (void *);
+    void (*set_type) (void *, uint32_t);
+    uint32_t (*get_type) (const void *);
 
     /* Gets/sets key locality */
     void (*set_locality) (void *, oid_t);
-    oid_t (*get_locality) (void *);
+    oid_t (*get_locality) (const void *);
     
     /* Gets/sets key objectid */
     void (*set_objectid) (void *, oid_t);
-    oid_t (*get_objectid) (void *);
+    oid_t (*get_objectid) (const void *);
 
     /* Gets/sets key offset */
     void (*set_offset) (void *, uint64_t);
-    uint64_t (*get_offset) (void *);
+    uint64_t (*get_offset) (const void *);
 
-    uint16_t (*size) (void);
-    void (*clean) (void *);
+    /* Gets/sets directory key hash */
+    void (*set_hash) (void *, uint64_t);
+    uint64_t (*get_hash) (const void *);
+
+    /* Gets/sets directory key generation counter */
+    void (*set_counter) (void *, uint8_t);
+    uint8_t (*get_counter) (const void *);
+    
+    /* Get size of the key */
+    uint8_t (*size) (void);
+
+    void (*build_dir_key) (void *, oid_t, oid_t, char *, void *);
+    void (*build_file_key) (void *, uint32_t, oid_t, oid_t, uint64_t);
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
@@ -120,6 +132,8 @@ struct reiserfs_item_ops {
     error_t (*confirm) (void *);
     error_t (*check) (void *);
     void (*print) (void *, char *, uint16_t);
+    /* get the max key which could be stored in the item of this type */
+    error_t (*max_key_inside) (void *, void *);
     
     /* 
 	Unit-working routines. 	We need to create special opaque 
@@ -207,7 +221,7 @@ struct reiserfs_node_plugin {
     error_t (*check) (aal_block_t *, int);
     
     /* Makes lookup inside node by specified key */
-    int (*lookup) (aal_block_t *, void *, void *);
+    int (*lookup) (aal_block_t *, void *, void *, void *);
     
     /* Gets/sets node's free space */
     uint16_t (*get_free_space) (aal_block_t *);
@@ -502,16 +516,24 @@ struct reiserfs_stat_info {
 typedef struct reiserfs_stat_info reiserfs_stat_info_t;
 
 struct reiserfs_entry_info {
-    uint64_t parent_id;
-    uint64_t object_id;
+    uint64_t locality;
+    uint64_t objectid;
     char *name;
 };
 
 typedef struct reiserfs_entry_info reiserfs_entry_info_t;
 
 struct reiserfs_direntry_info {
+    uint64_t parent_id;
+    uint64_t object_id;
     uint16_t count;
     reiserfs_entry_info_t *entry;
+    /* 
+	FIXME_VITALY: key_plugin should be probably saved 
+	at plugin initializing time.
+    */
+    reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *hash_plugin;    
 };
 
 typedef struct reiserfs_direntry_info reiserfs_direntry_info_t;
