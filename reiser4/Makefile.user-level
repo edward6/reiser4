@@ -1,0 +1,233 @@
+# User level Makefile for Reiser4
+#
+
+###########################################################################
+#                                                                         #
+# ###########################################################################
+# #                                                                         #
+# # User-visible targets:                                                   #
+# #                                                                         #
+# #                                                                         #
+###                                                                         #
+  #                                                                         #
+  ###########################################################################
+
+
+default: all
+
+###########################################################################
+#                                                                         #
+# ###########################################################################
+# #                                                                         #
+# #  Compiler settings.                                                     #
+# #  Tune for your system.                                                  #
+###                                                                         #
+  #                                                                         #
+  ###########################################################################
+
+CC           = cc
+DEFINES      = -D_REENTRANT -DREISER4_USER_LEVEL_SIMULATION=1
+# -D_THREAD_SAFE -D__USE_REENTRANT -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 
+LIBS         = -lpthread \
+               -ldl \
+               -lbfd \
+               -liberty
+CFLAGS      := -g -pthread -pg \
+               -pipe \
+               -W \
+               -Wall \
+               -Wtraditional \
+               -Wshadow \
+               -Wid-clash-32 \
+               -Wpointer-arith \
+               -Wwrite-strings \
+               -Wconversion \
+               -Wnested-externs \
+               -Woverloaded-virtual \
+               -Winline -Wformat \
+               -Wsynth \
+               -Wundef \
+               -Wcast-align \
+               -Wno-comment \
+               -Wsign-compare \
+               -Wlarger-than-3000 \
+               -Wnon-virtual-dtor \
+               -Wreorder \
+               -Wsign-promo
+
+#              -pedantic, -ansi: don't allow macros with variable arguments
+#              -Wmissing-declarations: kernel headers don't comply
+#              -Wmissing-prototypes \
+#              -Wstrict-prototypes \
+#              -Wmissing-noreturn \
+#              -Wbad-function-cast \
+
+#-Weffc++ -Waggregate-return -Wcast-qual -Wredundant-decls 
+
+LDFLAGS=-pg
+
+DATE              := $(shell env LANG=C date -u "+%a %b %e %T %Z %Y")
+HOST              := $(shell hostname -s)
+USR               := $(shell id -un)
+
+BUILD_INFO_FILE   := build.h
+BUILD_TAG_FILE     = .build
+
+###########################################################################
+#                                                                         #
+# ###########################################################################
+# #                                                                         #
+# #  Source tree structure                                                  #
+###                                                                         #
+  #                                                                         #
+  ###########################################################################
+
+JUNK_FILES        := *.o *.so *.rpo core core.* *~ \\\#*\\\#
+FIND_NON_SCCS     := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\).*' -prune -o -true \) -name '*.[ch]'
+
+###########################################################################
+#                                                                         #
+# ###########################################################################
+# #                                                                         #
+# #   Make misc.                                                            #
+###                                                                         #
+  #                                                                         #
+  ###########################################################################
+
+.DONE:
+	@echo Top Makefile done!
+
+.FAILED:
+	@echo Top Makefile failed.
+
+.INIT:	
+	@echo Begin Top Makefile
+
+.SUFFIXES:
+.SUFFIXES:	.c .h $(SUFFIXES)
+
+###########################################################################
+#                                                                         #
+# ###########################################################################
+# #                                                                         #
+# #  Sources.                                                               #
+###                                                                         #
+  #                                                                         #
+  ###########################################################################
+
+INCS            := -I. -I../../slpc
+SRC             := \
+                   debug.c \
+                   znode.c \
+                   key.c \
+                   oid.c \
+                   slum_track.c \
+                   balance.c \
+                   pool.c \
+                   tree_mod.c \
+                   carry.c \
+                   carry_ops.c \
+                   lock.c \
+                   tree.c \
+                   coords.c \
+                   block_alloc.c \
+                   txnmgr.c \
+                   kassign.c \
+		   flush.c \
+		   wander.c \
+		   search.c \
+                   plugin/plugin.c \
+                   plugin/node/node.c \
+                   plugin/node/node40.c \
+                   plugin/object.c \
+                   plugin/item/static_stat.c \
+                   plugin/item/directory_entry.c \
+                   plugin/item/compressed_de.c \
+                   plugin/item/internal.c \
+                   plugin/hash.c \
+                   plugin/tail.c \
+                   plugin/item/item.c \
+                   plugin/dir/hashed_dir.c \
+                   plugin/dir/dir.c \
+                   super.c \
+                   tree_walk.c \
+                   inode.c \
+                   vfs_ops.c \
+                   plugin/item/extent.c \
+                   plugin/file/file.c \
+		   ulevel/uabend.c \
+		   ulevel/ulevel.c
+
+OBJ             := $(SRC:.c=.o)
+
+###########################################################################
+#                                                                         #
+# ###########################################################################
+# #                                                                         #
+# #  User-visible targets.                                                  #
+###                                                                         #
+  #                                                                         #
+  ###########################################################################
+
+all: $(OBJ)
+	$(CC) $(LDFLAGS) $(OBJ) $(LIBS)
+
+clean:
+	for dir in `find . -type d -exec echo {} \;` ;do ( cd $$dir ; rm -f $(JUNK_FILES) ; rm -fr $(JUNK_DIRS) ) ;done
+
+archive: 
+	LANG=C ; tar cf - . | gzip -9c > $$HOME/archive/reiser4-`date "+%Y-%m-%d-%H-%M"`.tar.gz
+
+World: clean dep build all
+
+dep .dependencies:
+	touch .dependencies
+	makedepend -Y -w 8000 $(INCS) $(SRC) $(DEFINES) -f .dependencies
+
+tags: 
+	etags `$(FIND_NON_SCCS)`
+
+gtags: 
+	gtags
+
+gprof:
+	gprof -C -p -q -c -z --function-ordering -A -I `find . -type d -printf "%p:"`> gprof.out
+	gprof -l > gprof.out.ll
+
+check-nikita:
+	python ../../scripts/uniqerrid.py nikita `$(FIND_NON_SCCS)`
+
+check-jmacd:
+	python ../../scripts/uniqerrid.py jmacd `$(FIND_NON_SCCS)`
+
+check-vs:
+	python ../../scripts/uniqerrid.py vs `$(FIND_NON_SCCS)`
+
+check-zam:
+	python ../../scripts/uniqerrid.py zam `$(FIND_NON_SCCS)`
+
+check-all:
+	$(MAKE) -f Makefile.user-level check-nikita
+	$(MAKE) -f Makefile.user-level check-jmacd
+	$(MAKE) -f Makefile.user-level check-vs
+	$(MAKE) -f Makefile.user-level check-zam
+
+build:
+	rm -f $(BUILD_INFO_FILE)
+	echo $$((`cat $(BUILD_TAG_FILE)`+1)) > $(BUILD_TAG_FILE)
+	echo '/* Automatically generated. Do not edit. */' >> $(BUILD_INFO_FILE)
+	echo '#define BUILD_DATE "$(DATE)"' >> $(BUILD_INFO_FILE)
+	echo '#define BUILD_HOST "$(HOST)"' >> $(BUILD_INFO_FILE)
+	echo '#define BUILDER    "$(USR)"'  >> $(BUILD_INFO_FILE)
+	echo '#define BUILD      ' $(shell cat $(BUILD_TAG_FILE))  >> $(BUILD_INFO_FILE)
+	echo >> $(BUILD_INFO_FILE)
+
+
+%.o: %.c
+	$(CC) $(INCS) $(CFLAGS) $(DEFINES) -c -o $@ $<
+
+#MAKEDEPEND
+# DO NOT DELETE THIS LINE
+
+include .dependencies
+

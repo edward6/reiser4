@@ -1,0 +1,1422 @@
+/*
+ * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ */
+
+/*
+ * Definitions of object tree operations declared and commented in tree.h
+ */
+
+/*
+ * For a discussion of trees, keys, and formatted vs. unformatted nodes, see our webpage.
+ *
+Add the below to our web page and remove it from here. -Hans
+ *   Each node in the tree spawns some interval in the key space. Key ranges
+ *   for all nodes in the tree are disjoint. Actually, this only holds in some
+ *   weak sense, because of the non-unique keys: intersection of key ranges
+ *   for different nodes is either empty, or consists of exactly one key.
+ *
+ *   A formatted node consists of a sequence of items. Each item spans some
+ *   interval in key space. Key ranges for all items in a tree are disjoint,
+ *   modulo non-unique keys again. Items within nodes are logically ordered in
+ *   the key order of the smallest key in a item.
+ *
+ *   Divisible items can be further split into units. A unit is a piece of an
+ *   item that can be cut from the item and moved into another item of the same
+ *   time. Units are used by balancing code to repack data during balancing.
+ *
+ *   Non-sparse items, such as tail items and extent items, contain a piece of data corresponding to each and every key
+ *   in the range that they span.  Sparse items do not.  For example, directory items, consisting of units corresponding to
+ *   directory entries and keyed by hashes of file names, only contain some directory entries in the range that they
+ *   span, and are considered sparse items.  
+ *
+ *   Each item always has a well-defined minimum key.  The (default) node40 plugin stores it in the item header for the item.  Also,
+ *   item plugins can optionally define a method max_key_inside() which returns the
+ *   maximal key that can _possibly_ be located within this item. This method
+ *   is used (mainly) to determine when a given piece of data should be merged
+ *   into an existing item, instead of creating a new one. 
+
+Say more about the sentence above.
+
+Because of this, even though ->max_key_inside() can be larger than any key actually located in
+ *   the item, the intervals
+ *
+ *   [ min_key( item ), ->max_key_inside( item ) ] 
+ *
+ *   are still disjoint for all items within the _same_ node.
+
+And they aren't disjoint for all items not in the same node?  Really?  Explain. -Hans
+ *
+ *   In memory formatted nodes have znodes. Znodes play several roles:
+ *
+ *    . something locks are taken on
+ *
+ *    . the transaction manager captures formatted blocks using the znode
+ *
+ *    . something used to access node data
+ *
+ *    . something used to maintain tree structure in memory: sibling and
+ *    parental linkage.
+ *
+ *    . something used to organize nodes into "slums"
+ *
+ *   For more on znodes see in znode.[ch]
+ *
+ * DELIMITING KEYS.
+ *
+
+Because we balance one level at a time, we need for each level to be able to change the delimiting keys of the nodes of
+that level independently of the levels above it.  This is a questionable design decision to start with.  Then we add to
+this the questionable design decision to replicate the delimiting keys in two places: each first key of an item in a
+node is present as the left key of the znode, and as the right key of the left neigboring node's znode.  This is
+arguably more efficient for some node layouts.  Maybe those as yet unwritten node layouts should be fixed.;-) This
+design needs to be justified in a seminar on Monday.
+
+ *   To simplify balancing, allow some flexibility in locking and speed up
+ *   important coord cache optimization, we keep delimiting keys of nodes in
+ *   memory. Depending on disk format (implemented by appropriate node plugin)
+ *   node on disk can record both left and right delimiting key, only one of
+ *   them, or none. Still, our balancing and tree traversal code keep both
+ *   delimiting keys for a node that is in memory stored in the znode. When node is first brought into memory during
+ *   tree traversal, its left delimiting key is taken from its parent, and its
+ *   right delimiting key is either next key in its parent, or is right
+ *   delimiting key of parent if node is the rightmost child of parent.
+ *
+ *   Physical consistency of delimiting key is protected by special dk spin
+ *   lock. That is, delimiting keys can only be inspected or modified under
+ *   this lock [FIXME-NIKITA it should be probably changed to read/write
+ *   lock.]. But dk lock is only sufficient for fast "pessimistic" check,
+ *   because to simplify code and to decrease lock contention, balancing
+ *   (carry) only updates delimiting keys right before unlocking all locked
+ *   nodes on the given tree level. For example, point cache scans LRU list of
+ *   recently accessed znodes. For each node it first does fast check under dk
+ *   spin lock. If key looked for is not between delimiting keys for this
+ *   node, next node is inspected and so on. If key is inside of the key
+ *   range, long term lock is taken on node and key range is rechecked.
+ *
+ * COORDINATES
+ *
+ *   To find something in the tree, you supply a key, and the key is resolved by coord_by_key() into a coord
+ *   (coordinate) that is valid as long as the node the coord points to remains locked.  As mentioned above trees
+ *   consist of nodes that consist of items that consist of units. A unit is the smallest and indivisible piece of tree
+ *   as far as balancing and tree search are concerned. Each node, item, and unit can be addressed by giving its level
+ *   in the tree and key occupied by this entity.  coord is a structure containing a pointer to the node, the ordinal
+ *   number of the item within this node (a sort of item offset), and the ordinal number of the unit within this item.
+ *
+ * TREE LOOKUP
+ *
+ *   There are two types of access to the tree: lookup and modification.
+ *
+ *   Lookup is a search for the key in the tree. Search can look for either
+ *   exactly the key given to it, or for the largest key that is not greater
+ *   than the key given to it. This distinction is determined by "bias"
+ *   parameter of search routine (coord_by_key()). coord_by_key() either
+ *   returns error (key is not in the tree, or some kind of external error
+ *   occurred), or successfully resolves key into coord.
+ *
+ *   This resolution is done by traversing tree top-to-bottom from root level
+ *   to the desired level. On levels above twig level (level one above the
+ *   leaf level) nodes consist exclusively of internal items. Internal item
+ *   is nothing more than pointer to the tree node on the child level. On
+ *   twig level nodes consist of internal items intermixed with extent
+ *   items. Internal items form normal search tree structure used by
+ *   traversal to descent through the tree.
+ *
+ * COORD CACHE
+ *
+ *   Tree lookup described above is expensive even if all nodes traversed are
+ *   already in the memory: for each node binary search within it has to be
+ *   performed and binary searches are CPU consuming and tend to destroy CPU
+ *   caches.
+ *
+ *   To work around this, a "coord by key cache", or cbk_cache as it is called in the code, was introduced.
+ *
+ *   The coord by key cache consists of small list of recently accessed nodes maintained
+ *   according to the LRU discipline. Before doing real top-to-down tree
+ *   traversal this cache is scanned for nodes that can contain key requested.
+ *
+ *   The efficiency of coord cache depends heavily on locality of reference for tree accesses. Our user level
+ *   simulations show reasonably good hit ratios for coord cache under most loads so far.
+ *
+ * TREE MODIFICATION
+ *
+ *   A tree modification is one of the following:
+ *
+ *    . increasing size of existing item (+)
+ *
+ *    . decreasing size of existing item (-)
+ *
+ *    . creation of new item             (+)
+ *
+ *    . removal of existing item         (-)
+ *
+ *   Modifications marked (+) add new data into the tree, and (-) ones remove
+ *   existing data from the tree.
+ *
+ *   (+) modifications are performed in three stages:
+ *
+ *     (1) obtain free space necessary to place new data into the tree
+ *
+ *     (2) place new data into the tree
+ *
+ *     (3) restore tree invariants that were broken on previous two steps
+
+ (4) after some delay, reoptimize the tree packing in response to memory pressure, or in response to requests to flush that portion of the tree to disk, or as a result of reiser_repackd repacking the whole tree at its scheduled time
+
+ *
+ *   For (-) modifications step (1) is not needed.
+
+It is questionable whether (1) needs to precede (3).  If (3) was performed first, do_carry would be less needed.
+ *
+ *   Step (1) is determined by chosen "insertion policy". Basically to obtain
+ *   free space one needs to move data from node where insertion is going into
+ *   to neighboring nodes and/or allocate new nodes. Decision about what
+ *   should be moved where is not trivial, because it influences performance
+ *   when multiple successive insertions occurs close to some point in the
+ *   tree (repetitive insertions) which is typical behavior for many kinds of
+ *   applications. Default insertion policy is implemented in the make_space()
+ *   function.
+ *
+ *   Step (2) is performed by the node and item plugins.
+ *
+ *   Step (3) restores following invariants (at least):
+ *
+ *    (T) tree is a tree, that is, each node save for the root is pointed to
+ *    from its parent, this in particular includes all newly allocated nodes.
+ *
+ *    (S) it's a search tree, that is, delimiting keys are consistent with
+ *    each other and with content of leaves.
+ *
+ *   Invariants are restored by so-called "carry" procedure that restores tree
+ *   invariants going upward to the tree root (and possibly even
+ *   farther). More information on carry is at the top of carry.c.
+ *
+ * SHORTCUT MODIFICATIONS
+ *
+ *  Step (1) is not always necessary even for (+) types of modifications, because
+ *  there can be already enough free space in the insertion node next to the item being inserted.
+ *
+ *  Step (2) can only break (S) invariant (if, for example, new leftmost item
+ *  is inserted into node) or (P) invariant (which is not mandatory in the
+ *  first place). It is moreover easy to predict/check when (2) will not break
+ *  any invariants. Particulars of this check depend on node plugin for
+ *  insertion node and are implemented in ->fast_{insert|paste|cut}() methods.
+ *
+ *  Thus, if no delimiting keys are modified, (step (3)) can also be omitted. This is an important optimization, because
+ *  carry needs to initialize data structures it uses for book keeping, and in practice a significant amount of all tree
+ *  modifications can be performed using this shortcut.
+ *
+ *
+ *
+ *
+ *
+ *
+ * To Be Continued.
+ *
+ */
+
+
+  /* item independent tree operations */
+
+#include "reiser4.h"
+
+#if YOU_CAN_COMPILE_PSEUDO_CODE
+
+/* if coord managed to move - left neighbor must get locked, node points
+   initially was set to must get unlocked */
+shift_result shift_left_of_and_including_insert_coord (reiser4_tree *tree,
+						       tree_coord *coord);
+
+shift_result shift_right_of_but_excluding_insert_coord (reiser4_tree *tree,
+							tree_coord *coord);
+
+
+add_entry ()
+{
+}
+
+remove_entry ()
+{
+}
+
+void * remove_empty_node()
+{
+}
+
+/* needs locking added */
+update_delimiting_key(node node, key old_key, key new_key, pos key_location_hint)
+{
+	if (is_delimiting_key(node, old_key))
+		update_delimiting_key(parent_of(node));
+	else
+		{
+			/* this next function could cause balancing if using
+			   compressed keys, but we do not do that in this version
+			   4.0 */
+			node->replace_key(old_key, new_key, key_location_hint);
+		}
+}
+
+/* 
+
+obsoleted by make_space, will be deleted soon after design is stable
+
+should resemble insert_unitype_flow, except item_data is not a
+   flow. 
+
+ item_handler->insert_new_item should usually be
+implemented to use copy_units to do its work. 
+
+   When append_item has filled its node, and the item being appended to has
+   become the rightmost item in the node, it should create another node (an
+   empty node) to hold the next item it creates (this node is in addition to
+   any node that was required to hold items that could not be shifted into the
+   right neighbor), so that the items that could not be shifted to the right
+   neighbor do not get endlessly shifted when repeated insertions occur.
+
+
+*/
+void *	insert_single_item(node, item_handler, item_data)
+{
+	space_needed = space_needed(item_data, node_layout, node, item_handler);
+	if (insert_coord->insertion_node->free_space > space_needed)
+		item_handler->insert_new_item(insert_coord, item_data);
+	else
+		{
+			/* shift everything possible to the left of and including insertion coord into the left neighbor */
+			shift_left_of_and_including_insert_coord(insert_coord);
+			space_needed = space_needed(item_data, node_layout, node, item_handler);
+			if (insert_coord->insertion_node->free_space > space_needed)
+				{
+					item_handler->insert_new_item(insert_coord, item_data);
+					return;
+				}
+			else
+				{
+					/* shift everything that you can to the right of the insertion coord into the right neighbor */
+					/* notice, the insert_coord itself may
+					   have been shifted into what was the
+					   left neighbor in the previous step,
+					   but this algorithm will (should)
+					   still work as shift_right will be a
+					   no_op.*/
+					right_shift_result = shift_right_of_but_excluding_insert_coord(insert_coord);
+					if (right_shift_result == SHIFTED_SOMETHING)
+						space_needed = space_needed(flow, node_layout, node, item_handler);
+					if (insert_coord->insertion_node->free_space > space_needed)
+						{
+							item_handler->insert_new_item(insert_coord, item_data);
+							return;
+						}
+					else
+						if (right_shift_result equals items still to the right of the insert coord in this node)
+							{
+								insert_new_node();
+								right_shift_result = shift_right_of_but_excluding_insertion_coord(insert_coord);
+							}
+					item_handler->insert_new_item(insert_coord, item_data);
+				}
+		}
+}
+
+
+void * insert_new_node(reiser4_tree * tree, reiser4_tree_coord * coord)
+{
+	node parent_node;
+
+	parent_node = parent_of(coord);
+	if (!parent_node)
+		add_new_root();
+	zn = create_empty_node();
+	insert_single_item(parent_node, pointer_item, zn);
+}
+
+				/* after this, node can probably be
+                                   inserted into, and if you run this
+                                   enough times, it is expected that
+                                   it will be possible to insert into
+                                   it eventually. */
+internal_node_split(node node, insert_coord)
+{
+  /* notice how it uses the average, which prevents us from super
+     balancing too often if we get real close to the maximum amount
+     that can fit into children of this node and stay at that level of
+     usage for a while */
+  if(average_child_free_space_too_high(node))
+    {
+      if (FREED_A_NODE = super_balance_children(node))
+	return;
+    }
+  if (node == root(tree))
+    insert_new_root_node(node);
+  insert_new_node(parent(node, insert_coord));
+  shift_coord = find_middle_item(node);
+  node_handler->shift_right(node, shift_coord);
+}
+
+/* YOU_CAN_COMPILE_PSEUDO_CODE */
+#endif
+
+/**
+ * number of leaf level of the tree
+ */
+const tree_level LEAF_LEVEL = 1;
+
+/**
+ * number of level one above leaf level of the tree
+ */
+const tree_level TWIG_LEVEL = 2;
+
+/**
+ * Disk address (block number) never ever used for any real tree node. This is
+ * used as block number of "fake" znode.
+ *
+ * Invalid block addresses are 0 by tradition.
+ *
+ */
+const reiser4_disk_addr FAKE_TREE_ADDR = { .blk = 0 };
+
+/* comment? */
+TS_LIST_DEFINE(context, reiser4_context, contexts_link);
+
+static spinlock_t        active_contexts_lock;
+static context_list_head active_contexts;
+
+/**
+ * release resources associated with @tree
+ *
+ */
+void reiser4_done_tree( reiser4_tree *tree /* tree to release */ )
+{
+	assert( "nikita-311", tree != NULL );
+
+	znodes_tree_done( tree );
+
+	if( tree -> cbk_cache != NULL )
+		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
+}
+
+void reiser4_insert_znode( tree_coord *coord, znode *node )
+{
+	assert( "nikita-314", coord != NULL );
+	assert( "nikita-315", node != NULL );
+
+	coord -> node = zref( node );
+}
+
+
+reiser4_node_plugin *node_plugin_by_coord ( const tree_coord *coord )
+{
+	assert( "vs-1", coord != NULL );
+	assert( "vs-2", coord -> node != NULL );
+	assert( "nikita-1024",
+		( coord -> node -> node_plugin == NULL ) ||
+		( coord -> node -> node_plugin -> h.type_id ==
+		  REISER4_NODE_PLUGIN_ID ) );
+
+	return &coord -> node -> node_plugin -> u.node;
+}
+
+
+
+/** insert item into tree. Fields of "coord" are updated so
+    that they can be used by consequent insert operation. */
+insert_result insert_by_key( reiser4_tree *tree,
+			     const reiser4_key *key,
+			     reiser4_item_data *data UNUSED_ARG,
+			     tree_coord *coord,
+			     reiser4_lock_handle * lh,
+			     /** level where to insert */
+			     tree_level stop_level,
+			     inter_syscall_ra_hint *ra UNUSED_ARG,
+			     intra_syscall_ra_hint ira UNUSED_ARG
+	)
+{
+	int result;
+
+	assert( "nikita-358", tree != NULL );
+	assert( "nikita-360", coord != NULL );
+	assert( "nikita-361", ra != NULL );
+
+	result = coord_by_key( tree, key, coord, lh, ZNODE_WRITE_LOCK, 
+			       FIND_EXACT, stop_level, stop_level );
+	switch( result ) {
+	default:
+		break;
+	case CBK_COORD_FOUND:
+		result = IBK_ALREADY_EXISTS;
+		break;
+	case CBK_IO_ERROR:
+		result = IBK_IO_ERROR;
+		break;
+	case CBK_OOM:
+		result = IBK_OOM;
+		break;
+	case CBK_COORD_NOTFOUND:
+		result = insert_by_coord( coord, data, key, lh, ra, ira );
+		break;
+	}
+	return result;
+}
+
+
+static insert_result insert_with_carry_by_coord( tree_coord  *coord,
+						 reiser4_lock_handle *lh,
+						 reiser4_item_data *data, 
+						 const reiser4_key *key )
+{
+	int result;
+	carry_pool  pool;
+	carry_level lowest_level;
+	carry_op * op;
+
+	reiser4_init_carry_pool( &pool );
+	reiser4_init_carry_level( &lowest_level, &pool );
+
+	op = reiser4_post_carry( &lowest_level, COP_INSERT, coord->node, 0 );
+	if( IS_ERR( op ) || ( op == NULL ) )
+		return op ? PTR_ERR (op) : -EIO;
+	op -> u.insert.coord = coord;
+	op -> u.insert.type = COPT_ITEM_DATA;
+	op -> u.insert.child = 0;
+	op -> u.insert.data = data;
+	op -> u.insert.key = key;
+	op -> node -> track = 1;
+	op -> node -> tracked = lh;
+
+	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
+	result = carry( &lowest_level, 0 );
+	reiser4_done_carry_pool( &pool );
+
+	return result;
+}
+
+/**
+ * form carry queue to perform paste of @data with @key at @coord, and launch
+ * its execution by calling carry().
+ *
+ * Instruct carry to update @lh it after balancing insertion coord moves into
+ * different block.
+ *
+ */
+static int paste_with_carry( tree_coord *coord,
+			     reiser4_lock_handle *lh,
+			     reiser4_item_data *data, const reiser4_key *key )
+{
+	int result;
+	carry_pool  pool;
+	carry_level lowest_level;
+	carry_op * op;
+
+	reiser4_init_carry_pool( &pool );
+	reiser4_init_carry_level( &lowest_level, &pool );
+
+	op = reiser4_post_carry( &lowest_level, COP_PASTE, coord -> node, 0 );
+	if( IS_ERR( op ) || ( op == NULL ) )
+		return op ? PTR_ERR (op) : -EIO;
+	op -> u.paste.coord = coord;
+	op -> u.paste.type  = COPT_ITEM_DATA;
+	op -> u.paste.data  = data;
+	op -> u.paste.key   = key;
+	op -> node -> track = 1;
+	op -> node -> tracked = lh;
+
+	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
+	result = carry( &lowest_level, 0 );
+	reiser4_done_carry_pool( &pool );
+
+	return result;
+}
+
+/**
+ * insert item at the given coord.
+ *
+ * First try to skip carry by directly calling ->create_item() method of node
+ * plugin. If this is impossible (there is not enough free space in the node,
+ * or leftmost item in the node is created), call insert_with_carry_by_coord()
+ * that will do full carry().
+ *
+ */
+insert_result insert_by_coord( tree_coord  *coord /* coord where to
+						    * insert. coord->node has
+						    * to be write locked by
+						    * caller */,
+			       reiser4_item_data *data /* data to be
+							* inserted */, 
+			       const reiser4_key *key /* key of new item */,
+			       reiser4_lock_handle *lh /* lock handle of write
+							* lock on node */,
+			       inter_syscall_ra_hint *ra UNUSED_ARG,
+			       intra_syscall_ra_hint ira UNUSED_ARG )
+{
+	assert( "vs-247", coord != NULL );
+	assert( "vs-248", data != NULL );
+	assert( "vs-249", data -> length > 0 );
+	assert( "nikita-1191", znode_is_write_locked( coord -> node ) );
+
+	/*
+	 * shortcut insertion without carry() overhead.
+	 *
+	 * Only possible if:
+	 *
+	 * - there is enough free space
+	 *
+	 * - insertion is not into the leftmost position in a node (otherwise
+	 * it would require updating of delimiting key in a parent)
+	 *
+	 * - node plugin agrees with this
+	 *
+	 */
+	if( ( space_needed( coord -> node, NULL, data, 1 ) <= 
+	      znode_free_space( coord -> node ) ) && 
+	    ( ( coord -> item_pos != 0 ) || 
+	      ( coord -> unit_pos != 0 ) || 
+	      ( coord -> between == AFTER_UNIT ) ) &&
+	    !coord_is_leftmost( coord ) && 
+	    ( node_plugin_by_coord( coord ) -> fast_insert != NULL ) &&
+	    node_plugin_by_coord( coord ) -> fast_insert( coord ) ) {
+		int result;
+
+		reiser4_stat_tree_add( fast_insert );
+		spin_lock_dk( current_tree );
+		result = node_plugin_by_node( coord -> node ) -> create_item
+			( coord, key, data, NULL );
+		spin_unlock_dk( current_tree );
+		return result;
+	} else {
+		/*
+		 * otherwise do full-fledged carry().
+		 */
+		return insert_with_carry_by_coord( coord, lh, data, key );
+	}
+}
+
+/**
+ * Paste in the item at the given coord.
+ *
+ * First try to skip carry by directly calling ->paste() method of item
+ * plugin. If this is impossible (there is not enough free space in the node,
+ * or we are pasting into leftmost position in the node), call
+ * paste_with_carry() that will do full carry().
+ *
+ */
+static int paste_into_item( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
+			    reiser4_lock_handle *lh,
+			    reiser4_key *key, reiser4_item_data *data )
+{
+	int result;
+	int size_change;
+	reiser4_node_plugin *node_plugin;
+	reiser4_plugin      *item_plugin;
+
+	item_plugin = item_plugin_by_coord( coord );
+	node_plugin = node_plugin_by_coord( coord );
+
+	assert( "nikita-1480", item_plugin == data -> plugin );
+
+	/*
+	 * shortcut paste without carry() overhead.
+	 *
+	 * Only possible if:
+	 *
+	 * - there is enough free space
+	 *
+	 * - paste is not into the leftmost position in a node (otherwise
+	 * it would require updating of delimiting key in a parent)
+	 *
+	 * - node plugin agrees with this
+	 *
+	 * - item plugin agrees with us
+	 */
+
+	size_change = space_needed( coord -> node, coord, data, 0 );
+	if( ( size_change <= ( int ) znode_free_space( coord -> node ) ) && 
+	    ( ( coord -> item_pos != 0 ) || 
+	      ( coord -> unit_pos != 0 ) ||
+	      ( coord -> between == AFTER_UNIT ) ) &&
+	    ( coord -> unit_pos != 0 ) &&
+	    ( node_plugin -> fast_paste != NULL ) &&
+	    node_plugin -> fast_paste( coord ) &&
+	    ( item_plugin -> u.item.b.fast_paste != NULL ) && 
+	    item_plugin -> u.item.b.fast_paste( coord ) ) {
+		reiser4_stat_tree_add( fast_paste );
+		if( size_change > 0 )
+			node_plugin -> change_item_size( coord, size_change );
+		/*
+		 * FIXME-NIKITA: huh? where @key is used?
+		 */
+		result = item_plugin -> u.item.b.paste( coord, data, NULL );
+		if( size_change < 0 )
+			node_plugin -> change_item_size( coord, size_change );
+	} else
+		/*
+		 * otherwise do full-fledged carry().
+		 */
+		result = paste_with_carry( coord, lh, data, key );
+	return result;
+}
+
+/** this either appends or truncates item @coord */
+resize_result resize_item( reiser4_tree *tree, tree_coord *coord,
+		     reiser4_lock_handle *lh,
+		     reiser4_key *key, reiser4_item_data *data )
+{
+	int result;
+	carry_pool  pool;
+	carry_level lowest_level;
+	carry_op * op;
+
+
+	assert( "nikita-362", coord != NULL );
+	assert( "nikita-363", data != NULL );
+	assert( "vs-245", data -> length != 0 );
+
+
+	reiser4_init_carry_pool( &pool );
+	reiser4_init_carry_level( &lowest_level, &pool );
+
+	/*
+	 * FIXME-NIKITA add shortcut versions here like one for insertion above.
+	 * use ->fast_*() methods of node layout plugin
+	 */
+
+	if( data -> length < 0 ) {
+		op = reiser4_post_carry( &lowest_level, COP_CUT, coord->node, 0 );
+		if( IS_ERR( op ) || ( op == NULL ) )
+			return op ? PTR_ERR (op) : -EIO;
+		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
+	} else
+		result = paste_into_item( tree, coord, lh, key, data );
+
+	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
+	result = carry (&lowest_level, 0);
+	reiser4_done_carry_pool( &pool );
+
+	return result;
+}
+
+/**
+ * Given a coord in parent node, obtain a znode for the corresponding child
+ */
+znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
+{
+	znode *child;
+	znode *parent;
+
+	assert( "nikita-1374", parent_coord != NULL );
+	assert( "nikita-1482", parent_coord -> node != NULL );
+	assert( "nikita-1384", spin_dk_is_locked( current_tree ) );
+
+	parent = parent_coord -> node;
+	if( znode_get_level( parent ) <= LEAF_LEVEL ) {		
+		/*
+		 * trying to get child of leaf node
+		 */
+		warning( "nikita-1217", "Child of maize?" );
+		print_znode( "node", parent );
+		child = ERR_PTR( -EIO );
+	}
+	if( item_type_by_coord( parent_coord ) == INTERNAL_ITEM_TYPE ) {
+		reiser4_disk_addr addr;
+
+		item_plugin_by_coord( parent_coord ) -> 
+			u.item.s.internal.down_link( parent_coord, NULL, &addr );
+		spin_unlock_dk( current_tree );
+		child = zget( current_tree, &addr, parent, 
+			      znode_get_level( parent ) - 1, GFP_KERNEL );
+		spin_lock_dk( current_tree );
+		if( !IS_ERR( child ) && setup_dkeys_p ) {
+			find_child_delimiting_keys( parent, parent_coord,
+						    znode_get_ld_key( child ),
+						    znode_get_rd_key( child ) );
+		}
+	} else {
+		warning( "nikita-1483", "Internal item expected" );
+		print_znode( "node", parent );
+		child = ERR_PTR( -EIO );
+	}
+	return child;
+}
+
+
+
+int is_empty_node (const znode * node)
+{
+	return node_plugin_by_node( node ) -> num_of_items (node) == 0;
+}
+
+
+/**
+ * debugging aid: magic constant we store in reiser4_context allocated at the
+ * stack. Used to catch accesses to staled or uninitialized contexts.
+ */
+static const __u32 context_magic = 0x4b1b5d0a;
+
+/**
+ * initialise context and bind it to the current thread
+ *
+ * This function should be called at the beginning of reiser4 part of
+ * syscall.
+ */
+int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
+						    * context being
+						    * initalised */, 
+			  struct super_block *super /* super block we are
+						     * going to work with */ )
+{
+	reiser4_tree *tree;
+	reiser4_super_info_data *sdata;
+	__u32 tid;
+
+	if (context == NULL || super == NULL) {
+		BUG ();
+	}
+
+	memset( context, 0, sizeof *context );
+
+	tid = set_current ();
+	sdata = ( reiser4_super_info_data* ) &super -> u.reiser4_sb;
+	tree  = & sdata -> tree;
+
+	memset( context, 0, sizeof *context );
+	reiser4_init_lock_stack( &context -> stack );
+
+	context -> super = super;
+	context -> tid   = tid;
+
+	if( REISER4_DEBUG ) 
+		context -> magic = context_magic;
+
+	current -> journal_info = context;
+
+	reiser4_init_lock_stack( &context -> stack );
+
+	txn_begin (context);
+
+	context_list_clean (context); /* to satisfy assertion */
+	spin_lock (& active_contexts_lock);
+	context_list_push_front (& active_contexts, context);
+	spin_unlock (& active_contexts_lock);
+
+	return 0;
+}
+
+/**
+ * release resources associated with context.
+ *
+ * This function should be called at the end of "session" with reiser4,
+ * typically just before leaving reiser4 driver back to VFS.
+ *
+ * This is good place to put some degugging consistency checks, like that
+ * thread released all locks and closed transcrash etc.
+ *
+ * Call to this function is optional.
+ *
+ */
+void reiser4_done_context( reiser4_context *context /* context being
+						     * released */ )
+{
+	assert( "nikita-860", context != NULL );
+	assert( "nikita-859", context -> magic == context_magic );
+	assert( "jmacd-673", context -> trans == NULL );
+	assert( "jmacd-1002", reiser4_lock_stack_isclean (& context->stack));
+	/* add more checks here */
+
+	/* remove from active contexts */
+	spin_lock (& active_contexts_lock);
+	context_list_remove (context);
+	spin_unlock (& active_contexts_lock);
+}
+
+void
+reiser4_init_context_mgr (void)
+{
+	spin_lock_init    (& active_contexts_lock);
+	context_list_init (& active_contexts);
+}
+
+void reiser4_show_context (int show_tree)
+{
+	reiser4_context *context;
+	reiser4_tree    *tree = NULL;
+
+	spin_lock (& active_contexts_lock);
+
+	for (context = context_list_front (& active_contexts);
+	             ! context_list_end   (& active_contexts, context);
+	     context = context_list_next  (context)) {
+
+		tree = &reiser4_get_super_data (context->super)->tree;
+
+		info ("context for thread %u", context->tid);
+		print_address ("; tree root", & tree->root_block);
+		info ("\n");
+
+		reiser4_show_lock_stack (context);
+
+		info ("\n");
+	}
+	
+	if (show_tree && (tree != NULL)) {
+		print_tree_rec ("", tree, REISER4_NODE_PRINT_HEADER);
+	}
+
+	spin_unlock (& active_contexts_lock);
+}
+
+/** return context associated with current thread */
+reiser4_context *reiser4_get_current_context()
+{
+	return reiser4_get_context( current );
+}
+
+/** return context associated with given thread */
+reiser4_context *reiser4_get_context( const struct task_struct *tsk )
+{
+	if (tsk == NULL) {
+		BUG ();
+	}
+	
+	return tsk -> journal_info;
+}
+
+/**
+ * This is called from reiser4_unlock_znode() when last lock is released from
+ * the node that has been removed from the tree. At this point node is removed
+ * from sibling list and its lock is invalidated.
+ */
+void forget_znode (reiser4_lock_handle *handle)
+{
+	znode *node;
+
+	node = handle -> node;
+	assert ("vs-164", znode_is_write_locked (node));
+	assert ("nikita-1280", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
+
+	reiser4_sibling_list_remove (node);
+	reiser4_invalidate_lock (handle);
+
+	/* make sure that we are the only owner of this znode FIXME-NIKITA huh? This is
+	   supposed to be called on the last _unlock_ rather than last zput().
+	   assert ("vs-145", atomic_read (&node->x_count) == 1);
+	*/
+}
+
+/**
+ * This is called from zput() when last reference is dropped to the znode that
+ * was removed from the tree. At this point we free corrsponding bit in bitmap.
+ *
+ * This is only stub for now.
+ *
+ */
+int deallocate_node( znode *node )
+{
+	assert ("nikita-1281", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
+	zdestroy( node );
+	return 0;
+}
+
+/**
+ * Check that internal item at @pointer really contains pointer to @child.
+ *
+ */
+int check_tree_pointer( tree_coord *pointer, znode *child )
+{
+	assert( "nikita-1016", pointer != NULL );
+	assert( "nikita-1017", child != NULL );
+	assert( "nikita-1018", pointer -> node != NULL );
+
+	assert( "nikita-1325", znode_is_any_locked( pointer -> node ) );
+	assert( "nikita-1326", znode_is_any_locked( child ) );
+
+	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
+		return NS_NOT_FOUND;
+
+	if( coord_of_unit( pointer ) ) {
+		reiser4_plugin    *plugin;
+		reiser4_disk_addr  addr;
+
+		plugin = item_plugin_by_coord( pointer );
+		if( ( plugin -> h.type_id == REISER4_ITEM_PLUGIN_ID ) &&
+		    ( plugin -> u.item.item_type == INTERNAL_ITEM_TYPE ) ) {
+			plugin -> u.item.s.internal.down_link( pointer,
+							       NULL, &addr );
+			/*
+			 * check that cached value is correct
+			 */
+			if( disk_addr_eq( &addr, znode_get_block( child ) ) ) {
+				reiser4_stat_tree_add( pos_in_parent_hit );
+				return NS_FOUND;
+			}
+		}
+	}
+	return NS_NOT_FOUND;
+}
+
+/**
+ * find coord of pointer to new @child in @parent.
+ *
+ * Find the &tree_coord in the @parent where pointer to a given @child will
+ * be in.
+ *
+ */
+int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
+			znode *child UNUSED_ARG /* child znode, passed locked */,
+			znode *left /* left brother of new node */,
+			tree_coord *result /* where result is stored in */ )
+{
+	int ret;
+
+	assert( "nikita-1486", parent != NULL );
+	assert( "nikita-1487", child != NULL );
+	assert( "nikita-1488", result != NULL );
+
+	ret = find_child_ptr( parent, left, result );
+	if( ret != NS_FOUND ) {
+		warning( "nikita-1489", "Cannot find brother position: %i",
+			 ret );
+		return -EIO;
+	} else {
+		result -> between = AFTER_UNIT;
+		return NS_NOT_FOUND;
+	}
+}
+
+
+/**
+ * find coord of pointer to @child in @parent.
+ *
+ * Find the &tree_coord in the @parent where pointer to a given @child is in.
+ *
+ */
+int find_child_ptr( znode *parent /* parent znode, passed locked */,
+		    znode *child /* child znode, passed locked */,
+		    tree_coord *result /* where result is stored in */ )
+{
+	int                lookup_res;
+	reiser4_plugin    *plugin;
+	/* left delimiting key of a child */
+	reiser4_key        ld;
+
+	assert( "nikita-934", parent != NULL );
+	assert( "nikita-935", child != NULL );
+	assert( "nikita-936", result != NULL );
+	assert( "zam-356", znode_is_loaded(parent)); 
+
+	reiser4_init_coord( result );
+	result -> node = parent;
+
+	plugin = parent -> node_plugin;
+	assert( "nikita-939", plugin != NULL );
+
+
+	/*
+	 * fast path. Try to use cached value. Lock tree to keep
+	 * node->pos_in_parent and pos->*_blocknr consistent.
+	 */
+	if( child -> ptr_in_parent_hint.item_pos + 1 != 0 ) {
+		reiser4_stat_tree_add( pos_in_parent_set );
+		spin_lock_tree( current_tree );
+		*result = child -> ptr_in_parent_hint;
+		spin_unlock_tree( current_tree );
+		if( check_tree_pointer( result, child ) == NS_FOUND )
+			return NS_FOUND;
+
+		reiser4_stat_tree_add( pos_in_parent_miss );
+		spin_lock_tree( current_tree );
+		child -> ptr_in_parent_hint.item_pos = ~0u;
+		spin_unlock_tree( current_tree );
+	}
+
+	/*
+	 * is above failed, find some key from @child. We are looking for the
+	 * least key in a child.
+	 */
+	spin_lock_dk( current_tree );
+	ld = *znode_get_ld_key( child );
+	/*
+	 * now, lookup parent with key just found.
+	 */
+	lookup_res = plugin -> u.node.lookup( parent, &ld, FIND_EXACT, result );
+	/* update cached pos_in_node */
+	if( lookup_res == NS_FOUND ) {
+		spin_lock_tree( current_tree );
+		child -> ptr_in_parent_hint = *result;
+		child -> ptr_in_parent_hint.between = AT_UNIT;
+		spin_unlock_tree( current_tree );
+		lookup_res = check_tree_pointer( result, child );
+	}
+	spin_unlock_dk( current_tree );
+	if( lookup_res == NS_NOT_FOUND )
+		lookup_res = find_child_by_addr( parent, child, result );
+	return lookup_res;
+}
+
+/**
+ * find coord of pointer to @child in @parent by scanning
+ *
+ * Find the &tree_coord in the @parent where pointer to a given @child
+ * is in by scanning all internal items in @parent and comparing block
+ * numbers in them with that of @child.
+ *
+ */
+int find_child_by_addr( znode *parent /* parent znode, passed locked */, 
+			znode *child /* child znode, passed locked */, 
+			tree_coord *result /* where result is stored in */ )
+{
+	int ret;
+
+	assert( "nikita-1320", parent != NULL );
+	assert( "nikita-1321", child != NULL );
+	assert( "nikita-1322", result != NULL );
+
+	result -> node = parent;
+	ret = NS_NOT_FOUND;
+	coord_first_unit( result );
+	for( coord_first_unit( result ) ; coord_of_unit( result ) ; ) {
+		if( check_tree_pointer( result, child ) == NS_FOUND ) {
+			spin_lock_tree( current_tree );
+			child -> ptr_in_parent_hint = *result;
+			spin_unlock_tree( current_tree );
+			ret = NS_FOUND;
+			break;
+		}
+		if( coord_next( result ) )
+			break;
+	}
+	return ret;
+}
+
+
+/* grab right neighbor of @insert_coord->node and shift as much as possible of
+   @insert_coord->node but not more than @insert_coord to that
+   neighbor. Delimiting key and whatever else has to be change along with this
+   shifting is changed. @insert_coord gets moved in accordance with amount of
+   data shifted */
+int shift_right_of_but_excluding_insert_coord (tree_coord * insert_coord)
+{
+	int result;
+	carry_pool  pool;
+	carry_level parent_level;
+	reiser4_node_plugin * np;
+	znode * right;
+
+
+	assert ("vs-233", 0);
+
+	reiser4_init_carry_pool (&pool);
+	reiser4_init_carry_level (&parent_level, &pool);
+
+	np = node_plugin_by_node (right);
+	result = np->shift (insert_coord, right, SHIFT_PREPEND,
+			    0 /* do not delete node if all contents of
+				 @insert_coord->node was shifted */,
+			    0 /* do not move @insert_coord to @right even if
+				 everything wanted was shifted */,
+			    &parent_level);
+	if (result >= 0)
+		result = carry (&parent_level, 0);
+
+	reiser4_done_carry_pool (&pool);
+	return result;
+}
+
+
+/* try to grab left neighbor of @insert_coord->node and shift as much as
+   possible of @insert_coord->node but not more than @insert_coord to that
+   neighbor. Delimiting key and whatever else has to be change along with this
+   shifting is changed. @insert_coord gets moved in accordance with amount of
+   data shifted. If everything desired is shifted - @insert_coord is moved to
+   node @left */
+int shift_left_of_and_including_insert_coord (tree_coord * insert_coord)
+{
+	int result;
+	carry_pool  pool;
+	carry_level parent_level;
+	reiser4_node_plugin * np;
+	znode * left;
+
+
+	assert ("vs-233", 0);
+
+	reiser4_init_carry_pool (&pool);
+	reiser4_init_carry_level (&parent_level, &pool);
+
+	np = node_plugin_by_node (left);
+	result = np->shift (insert_coord, left, SHIFT_APPEND,
+			    0 /* do not delete node if all contents of
+				 @insert_coord->node was shifted */,
+			    1 /* move @insert_coord to node @left if
+				 everything wanted was shifted */,
+			    &parent_level);
+	if (result >= 0)
+		result = carry (&parent_level, 0);
+
+	reiser4_done_carry_pool (&pool);
+	return result;
+}
+
+
+/* try to shift everything from @right to @left. If everything was shifted -
+   @right is removed from the tree */
+int shift_everything_left (znode * right, znode * left, carry_level *todo)
+{
+	int result;
+	tree_coord from;
+	reiser4_node_plugin * np;
+
+	from.node = right;
+	coord_last_unit (&from);
+
+	np = node_plugin_by_node (right);
+	result = np->shift (&from, left, SHIFT_APPEND,
+			    1/* delete node @right if all its contents was moved to @left */,
+			    1/* @from will be set to @left node */,
+			    todo);
+	return result;
+}
+
+
+/* allocate new node and insert a pointer to it into the tree such that new
+   node becomes a right neighbor of @insert_coord->node */
+znode *insert_new_node (tree_coord * insert_coord, reiser4_lock_handle *lh)
+{
+	int result;
+	carry_pool  pool;
+	carry_level this_level, parent_level;
+	carry_node * cn;
+	znode * new_znode;
+
+
+	reiser4_init_carry_pool (&pool);
+	reiser4_init_carry_level (&this_level, &pool);
+	reiser4_init_carry_level (&parent_level, &pool);
+
+	cn = add_new_znode (insert_coord->node, 0, &this_level, &parent_level);
+	if (!IS_ERR (cn)) {
+		result = reiser4_lock_znode (lh, cn->real_node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		if (!result) {
+			new_znode = cn->real_node;
+			result = carry (&parent_level, &this_level);
+		}
+		if (result)
+			new_znode = ERR_PTR (result);
+	} else
+		new_znode = ERR_PTR (PTR_ERR (cn));
+
+	reiser4_done_carry_pool (&pool);
+	return new_znode;
+}
+
+
+/**
+ * cut part of the node
+ * 
+ * Cut part or whole content of node.
+ *
+ * cut data between @from and @to of @from->node and call carry() to make
+ * corresponding changes in the tree. @from->node may become empty. If so -
+ * pointer to it will be removed. Neighboring nodes are not changed. Smallest
+ * removed key is stored in @smallest_removed 
+ *
+ */
+int cut_node (tree_coord * from /* coord of the first unit/item that will be
+				  * eliminated */, 
+	      tree_coord * to /* coord of the last unit/item that will be
+				* eliminated */,
+	      const reiser4_key * from_key /* first key to be removed */, 
+	      const reiser4_key * to_key /* last key to be removed */,
+	      reiser4_key * smallest_removed /* smallest key actually
+					      * removed */)
+{
+	int result;
+	carry_pool  pool;
+	carry_level lowest_level;
+	carry_op * op;
+
+
+	assert ("vs-316", !is_empty_node (from->node));
+
+	/* set @from and @to to first and last units which are to be removed
+	   (getting rid of betweenness) */
+	if (coord_set_to_right (from) || coord_set_to_left (to))
+		return -EIO;
+
+	/* make sure that @from and @to are set to existing units in the
+	   node */
+	assert ("vs-161", coord_of_unit (from));
+	assert ("vs-162", coord_of_unit (to));
+
+	reiser4_init_carry_pool( &pool );
+	reiser4_init_carry_level( &lowest_level, &pool );
+
+	op = reiser4_post_carry( &lowest_level, COP_CUT, from->node, 0 );
+	if( IS_ERR( op ) || ( op == NULL ) )
+		return op ? PTR_ERR (op) : -EIO;
+
+	op->u.cut.from = from;
+	op->u.cut.to = to;
+	op->u.cut.from_key = from_key;
+	op->u.cut.to_key = to_key;
+	op->u.cut.smallest_removed = smallest_removed;
+
+	result = carry (&lowest_level, 0);
+	reiser4_done_carry_pool( &pool );
+
+	return result;
+}
+
+
+/* there is a fundamental problem with optimizing deletes: VFS does it
+   one file at a time.  Another problem is that if an item can be
+   anything, then deleting items must be done one at a time.  It just
+   seems clean to writes this to specify a from and a to key, and cut
+   everything between them though.  */
+
+/* use this function with care if deleting more than what is part of a single file. */
+/* do not use this when cutting a single item, it is suboptimal for that */
+
+/* You are encouraged to write plugin specific versions of this.  It
+   cannot be optimal for all plugins because it works item at a time,
+   and some plugins could sometimes work node at a time. Regular files
+   however are not optimizable to work node at a time because of
+   extents needing to free the blocks they point to.
+
+   Optimizations compared to v3 code:
+
+   It does not balance (that task is left to memory pressure code).
+
+   Nodes are deleted only if empty.
+
+   Uses extents.
+
+   Performs read-ahead of formatted nodes whose contents are part of
+   the deletion.
+*/
+
+int cut_tree (reiser4_tree * tree, 
+	      const reiser4_key * from_key, const reiser4_key * to_key)
+{
+	tree_coord intranode_to, intranode_from;
+	reiser4_key smallest_removed;
+	reiser4_lock_handle lock_handle;
+	int result;
+
+
+	reiser4_init_coord (&intranode_to);
+	reiser4_init_lh(&lock_handle);
+
+#define WE_HAVE_READAHEAD (0)
+#if WE_HAVE_READAHEAD
+	request_read_ahead_key_range(from, to, LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
+	/* locking? */
+	spans_node = key_range_spans_node(from, to);
+#endif /* WE_HAVE_READAHEAD */
+
+	do {
+		/* look for @to_key in the tree or use @to_coord if it is set
+		   properly */
+		result = coord_by_hint_and_key (tree, to_key,
+						&intranode_to, /* was set as hint in previous loop iteration (if there was one) */
+						&lock_handle,
+						FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL);
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+			/* -EIO, or something like that */
+			break;
+
+		/* lookup for @from_key in current node */
+		intranode_from.node = intranode_to.node;
+		result = node_plugin_by_node (intranode_to.node)->lookup 
+			(intranode_to.node, from_key, FIND_EXACT, 
+			 &intranode_from);
+               
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+			/* -EIO, or something like that */
+			break;
+
+		/* cut data from one node */
+		smallest_removed = *min_key ();
+		result = cut_node (&intranode_from,
+				   &intranode_to, /* is used as an input and
+						     an output, with output
+						     being a hint used by next
+						     loop iteration */
+				   from_key, to_key, &smallest_removed);
+		if (result)
+			break;
+		assert ("vs-301",
+			keycmp (&smallest_removed, min_key ()) != EQUAL_TO);
+	} while (keycmp (&smallest_removed, from_key) == GREATER_THAN);
+
+	reiser4_done_coord (&intranode_to);
+	reiser4_done_lh(&lock_handle);
+
+	return result;
+}
+
+
+
+
+
+#if 0
+/* ??? shouldn't this start from bigger key? Then
+   reiser4_ordinary_file_truncate will be able to use it. Because if cut_tree
+   will not complete due to power failure or other error file will be left in
+   consistent state only if deleting from larger to smaller */
+cut_error cut_tree_original(key * from, key * to)
+{
+	request_read_ahead_key_range(from, to, LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
+	/* locking? */
+	spans_node = key_range_spans_node(from, to);
+
+	/* partial cut first item if cut
+	   starts from the middle of it */
+	if(key_cmp(from, key_of_item(from_item_header) == LESS_THAN )) {
+		handler(from_item_header)->cut(from_item_header, from, to, node);
+		from_coord = next_item(from_item_coord); /* need to check error conditions here.... */
+	}
+
+
+	while (from < to)
+		{
+			from_item_coord = item_coord_by_key(from);
+
+			/* need to check error conditions here in case there is no
+			   next item.... */
+			next_item = next_item(from_item_coord);
+
+			/* partial item cuts: invokes item
+			   handler directly, by contrast whole
+			   item cuts invoke node handlers
+			   (which call whole item delete
+			   handlers) */
+			if (key_by_item_coord (next_item) > to)
+				{
+					handler(from_item_header)->cut(from_item_header, from, to, node);
+					if(num_items(from_item_coord.node) == 0)
+						delete_node(from_item_coord.node);
+					break;
+				}
+			/* whole item deletes */
+			/* this indirectly calls the item handler delete method */
+			node->delete_item(from_item_coord);
+			/* if node is empty, delete it */
+			if (num_items(from_item_coord.node) == 0)
+				delete_node(from_item_coord.node);
+		}
+}
+#endif
+
+
+
+
+/*
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */
