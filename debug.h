@@ -726,6 +726,7 @@ typedef struct reiser4_statistics {
 		 */
 		stat_cnt find_next_item;
 		stat_cnt find_next_item_via_seal;
+		stat_cnt find_next_item_via_right_neighbor;
 		stat_cnt find_next_item_via_cbk;
 
 	} file;

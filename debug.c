@@ -236,6 +236,7 @@ void reiser4_print_stats()
 	      "\t extent2tail:\t %lu\n"
 	      "\t find_next_item:\t %lu\n"
 	      "\t\t via seal:\t%lu\n"
+	      "\t\t via getting right neighbor:\t%lu\n"
 	      "\t\t via cbk:\t%lu\n",
 
 	      s -> file.wait_on_page,
@@ -245,6 +246,7 @@ void reiser4_print_stats()
 	      s -> file.extent2tail,
 	      s -> file.find_next_item,
 	      s -> file.find_next_item_via_seal,
+	      s -> file.find_next_item_via_right_neighbor,
 	      s -> file.find_next_item_via_cbk );
 	info( "extent:\n"
 	      "\t read unformatted nodes:\t %lu\n"
