@@ -31,8 +31,7 @@ tail_max_key_inside(const coord_t * coord, reiser4_key * key)
  * plugin->u.item.b.can_contain_key
  */
 int
-tail_can_contain_key(const coord_t * coord, const reiser4_key * key,
-		     const reiser4_item_data * data)
+tail_can_contain_key(const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data)
 {
 	reiser4_key item_key;
 
@@ -41,29 +40,24 @@ tail_can_contain_key(const coord_t * coord, const reiser4_key * key,
 
 	item_key_by_coord(coord, &item_key);
 	if (get_key_locality(key) != get_key_locality(&item_key) ||
-	    get_key_objectid(key) != get_key_objectid(&item_key))
-		return 0;
+	    get_key_objectid(key) != get_key_objectid(&item_key)) return 0;
 
 	return 1;
 
 	assert("vs-459",
 	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
-	       (coord->unit_pos == coord_last_unit_pos(coord) &&
-		coord->between == AFTER_UNIT));
+	       (coord->unit_pos == coord_last_unit_pos(coord) && coord->between == AFTER_UNIT));
 
 	if (coord->between == BEFORE_UNIT) {
-		if (get_key_offset(key) + data->length !=
-		    get_key_offset(&item_key)) {
+		if (get_key_offset(key) + data->length != get_key_offset(&item_key)) {
 			info("could not merge tail items of one file\n");
 			return 0;
 		} else
 			return 1;
 
 	} else {
-		if (get_key_offset(key) != (get_key_offset(&item_key) +
-					    item_length_by_coord(coord))) {
-			info("could not append tail item with "
-			     "a tail item of the same file\n");
+		if (get_key_offset(key) != (get_key_offset(&item_key) + item_length_by_coord(coord))) {
+			info("could not append tail item with " "a tail item of the same file\n");
 			return 0;
 		} else
 			return 1;
@@ -93,8 +87,7 @@ tail_mergeable(const coord_t * p1, const coord_t * p2)
 	item_key_by_coord(p1, &key1);
 	item_key_by_coord(p2, &key2);
 	if (get_key_locality(&key1) != get_key_locality(&key2) ||
-	    get_key_objectid(&key1) != get_key_objectid(&key2) ||
-	    get_key_type(&key1) != get_key_type(&key2)) {
+	    get_key_objectid(&key1) != get_key_objectid(&key2) || get_key_type(&key1) != get_key_type(&key2)) {
 		/*
 		 * items of different objects
 		 */
@@ -126,8 +119,7 @@ tail_nr_units(const coord_t * coord)
 /*
  * plugin->u.item.b.lookup
  */
-lookup_result
-tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
+lookup_result tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 {
 	reiser4_key item_key;
 	__u64 lookuped, offset;
@@ -170,16 +162,14 @@ tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 	 */
 	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
-	return bias ==
-	    FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
+	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
 }
 
 /*
  * plugin->u.item.b.paste
  */
 int
-tail_paste(coord_t * coord, reiser4_item_data * data,
-	   carry_plugin_info * info UNUSED_ARG)
+tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
 	unsigned old_item_length;
 	char *item;
@@ -196,8 +186,7 @@ tail_paste(coord_t * coord, reiser4_item_data * data,
 	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
 	       (coord->unit_pos == old_item_length - 1 &&
 		coord->between == AFTER_UNIT) ||
-	       (coord->unit_pos == 0 && old_item_length == 0 &&
-		coord->between == AT_UNIT));
+	       (coord->unit_pos == 0 && old_item_length == 0 && coord->between == AT_UNIT));
 
 	item = item_body_by_coord(coord);
 	if (coord->unit_pos == 0)
@@ -213,17 +202,13 @@ tail_paste(coord_t * coord, reiser4_item_data * data,
 	if (data->data) {
 		assert("vs-554", data->user == 0 || data->user == 1);
 		if (data->user) {
-			ON_DEBUG_CONTEXT(assert("green-6",
-						lock_counters()->spin_locked ==
-						0));
+			ON_DEBUG_CONTEXT(assert("green-6", lock_counters()->spin_locked == 0));
 			/* AUDIT: return result is not checked! */
 			/* copy from user space */
-			__copy_from_user(item + coord->unit_pos, data->data,
-					 (unsigned) data->length);
+			__copy_from_user(item + coord->unit_pos, data->data, (unsigned) data->length);
 		} else
 			/* copy from kernel space */
-			xmemcpy(item + coord->unit_pos, data->data,
-				(unsigned) data->length);
+			xmemcpy(item + coord->unit_pos, data->data, (unsigned) data->length);
 	} else {
 		xmemset(item + coord->unit_pos, 0, (unsigned) data->length);
 	}
@@ -241,15 +226,12 @@ tail_paste(coord_t * coord, reiser4_item_data * data,
  */
 int
 tail_can_shift(unsigned free_space, coord_t * source UNUSED_ARG,
-	       znode * target UNUSED_ARG,
-	       shift_direction direction UNUSED_ARG,
-	       unsigned *size, unsigned want)
+	       znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
 	/*
 	 * make sure that that we do not want to shift more than we have
 	 */
-	assert("vs-364", want > 0 &&
-	       want <= (unsigned) item_length_by_coord(source));
+	assert("vs-364", want > 0 && want <= (unsigned) item_length_by_coord(source));
 
 	*size = min(want, free_space);
 	return *size;
@@ -260,9 +242,7 @@ tail_can_shift(unsigned free_space, coord_t * source UNUSED_ARG,
  */
 void
 tail_copy_units(coord_t * target, coord_t * source,
-		unsigned from, unsigned count,
-		shift_direction where_is_free_space,
-		unsigned free_space UNUSED_ARG)
+		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
 	/*
 	 * make sure that item @target is expanded already
@@ -277,19 +257,16 @@ tail_copy_units(coord_t * target, coord_t * source,
 		assert("vs-365", from == 0);
 
 		xmemcpy((char *) item_body_by_coord(target) +
-			item_length_by_coord(target) - count,
-			(char *) item_body_by_coord(source), count);
+			item_length_by_coord(target) - count, (char *) item_body_by_coord(source), count);
 	} else {
 		/*
 		 * target item is moved to right already
 		 */
 		reiser4_key key;
 
-		assert("vs-367",
-		       (unsigned) item_length_by_coord(source) == from + count);
+		assert("vs-367", (unsigned) item_length_by_coord(source) == from + count);
 
-		xmemcpy((char *) item_body_by_coord(target),
-			(char *) item_body_by_coord(source) + from, count);
+		xmemcpy((char *) item_body_by_coord(target), (char *) item_body_by_coord(source) + from, count);
 
 		/* new units are inserted before first unit in an item,
 		   therefore, we have to update item key */
@@ -314,8 +291,7 @@ tail_copy_units(coord_t * target, coord_t * source,
 int
 tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
-	       const reiser4_key * to_key UNUSED_ARG,
-	       reiser4_key * smallest_removed)
+	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed)
 {
 	reiser4_key key;
 	unsigned count;
@@ -325,8 +301,7 @@ tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	 * regarless to whether we cut from the beginning or from the end of
 	 * item - we have nothing to do
 	 */
-	assert("vs-374", count > 0 &&
-	       count <= (unsigned) item_length_by_coord(coord));
+	assert("vs-374", count > 0 && count <= (unsigned) item_length_by_coord(coord));
 	/*
 	 * tails items are never cut from the middle of an item
 	 */
@@ -337,8 +312,7 @@ tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 		 * store smallest key removed
 		 */
 		item_key_by_coord(coord, smallest_removed);
-		set_key_offset(smallest_removed,
-			       get_key_offset(smallest_removed) + *from);
+		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
 	}
 	if (*from == 0) {
 		/*
@@ -346,8 +320,7 @@ tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 		 */
 		item_key_by_coord(coord, &key);
 		set_key_offset(&key, get_key_offset(&key) + count);
-		node_plugin_by_node(coord->node)->update_item_key(coord, &key,
-								  0 /*info */ );
+		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
 	}
 
 	if (REISER4_DEBUG)
@@ -379,8 +352,7 @@ reiser4_key *
 tail_max_key(const coord_t * coord, reiser4_key * key)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key,
-		       get_key_offset(key) + item_length_by_coord(coord) - 1);
+	set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord) - 1);
 	return key;
 }
 
@@ -428,22 +400,14 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	/*
 	 * FIXME:NIKITA->VS this is called with f -> data == NULL during
 	 * unix_file_write->expand_file->write_flow->tail_write.
+	 * No, overwrite is not supposed to work for expanding. If it does - that is a bug
 	 */
-	if (__copy_from_user((char *) item_body_by_coord(coord) +
-			     coord->unit_pos, f->data, count))
+	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, f->data, count))
 		return -EFAULT;
 
 	znode_set_dirty(coord->node);
 
 	move_flow_forward(f, count);
-	/*
-	 * update coordinate to match flow's key. Soo that it can be sealed
-	 */
-	coord->unit_pos += count;
-	if (count == item_length_by_coord(coord)) {
-		coord->unit_pos--;
-		coord->between = AFTER_UNIT;
-	}
 	return 0;
 }
 
@@ -452,40 +416,24 @@ overwrite_tail(coord_t * coord, flow_t * f)
  * access to data stored in tails goes directly through formatted nodes
  */
 int
-tail_write(struct inode *inode, struct sealed_coord *hint, flow_t * f)
+tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 {
 	int result;
-	znode *loaded;
 	write_mode todo;
-	coord_t coord;
-	lock_handle lh;
+	znode *loaded;
 
-	assert("vs-967", hint);
-
-	init_lh(&lh);
-	result = hint_validate(hint, &f->key, &coord, &lh);
-	if (result) {
-		/*reiser4_stat_tail_add (broken_seals); */
-		return -EAGAIN;
-	}
-
+	result = 0;
 	while (f->length && !result) {
-		/*
-		 * coord->node may change as we loop here. So, we have to
-		 * remember node we zload and zrelse it
-		 */
-		todo = how_to_write(&coord, &lh, &f->key);
+		todo = how_to_write(coord, lh, &f->key);
 		if (unlikely(todo < 0))
 			return todo;
 
-		result = zload(coord.node);
-		if (result) {
-			unset_hint(hint);
-			done_lh(&lh);
+		/* zload is necessary because balancing may return coord->node moved to another possibly not loaded
+		 * node. Store what we loaded so that we will be able to zrelse it */
+		result = zload(coord->node);
+		if (result)
 			return result;
-		}
-		loaded = coord.node;
-
+		loaded = coord->node;
 		switch (todo) {
 		case FIRST_ITEM:
 		case APPEND_ITEM:
@@ -496,13 +444,13 @@ tail_write(struct inode *inode, struct sealed_coord *hint, flow_t * f)
 				result = -EDQUOT;
 				break;
 			}
-			result = insert_flow(&coord, &lh, f);
+			result = insert_flow(coord, lh, f);
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 			break;
 
 		case OVERWRITE_ITEM:
-			result = overwrite_tail(&coord, f);
+			result = overwrite_tail(coord, f);
 			break;
 
 		case RESEARCH:
@@ -520,8 +468,6 @@ tail_write(struct inode *inode, struct sealed_coord *hint, flow_t * f)
 		zrelse(loaded);
 	}
 
-	set_hint(hint, &f->key, &coord);
-	done_lh(&lh);
 	return result;
 }
 
@@ -529,61 +475,39 @@ tail_write(struct inode *inode, struct sealed_coord *hint, flow_t * f)
  * plugin->u.item.s.file.read
  */
 int
-tail_read(struct inode *inode UNUSED_ARG, struct sealed_coord *hint, flow_t * f)
+tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
 {
 	int result;
 	unsigned count;
-	coord_t coord;
-	lock_handle lh;
 
 	assert("vs-571", f->user == 1);
 	assert("vs-571", f->data);
-	assert("vs-967", hint);
+	assert("vs-967", coord && coord->node);
 	ON_DEBUG_CONTEXT(assert("green-8", lock_counters()->spin_locked == 0));
 
-	init_lh(&lh);
-	result = hint_validate(hint, &f->key, &coord, &lh);
+	result = zload(coord->node);
 	if (result)
-		return -EAGAIN;
-
-	result = zload(coord.node);
-	if (result) {
-		done_lh(&lh);
 		return result;
-	}
 
-	assert("vs-387", ( {
-			  reiser4_key key;
-			  keyeq(unit_key_by_coord(&coord, &key), &f->key);}
-	       ));
+	if (!tail_key_in_item(coord, &f->key)) {
+		zrelse(coord->node);
+		return -EAGAIN;
+	}
 
 	/*
 	 * calculate number of bytes to read off the item
 	 */
-	count = item_length_by_coord(&coord) - coord.unit_pos;
+	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > f->length)
 		count = f->length;
 
-	if (__copy_to_user(f->data, ((char *) item_body_by_coord(&coord) +
-				     coord.unit_pos), count)) {
-		zrelse(coord.node);
-		done_lh(&lh);
+	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count)) {
+		zrelse(coord->node);
 		return -EFAULT;
 	}
+	zrelse(coord->node);
 
 	move_flow_forward(f, count);
-	/*
-	 * update coordinate to match flow's key. Soo that it can be sealed
-	 */
-	coord.unit_pos += count;
-	if (coord.unit_pos == item_length_by_coord(&coord)) {
-		coord.unit_pos--;
-		coord.between = AFTER_UNIT;
-	}
-	zrelse(coord.node);
-
-	set_hint(hint, &f->key, &coord);
-	done_lh(&lh);
 
 	return 0;
 }
