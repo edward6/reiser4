@@ -62,20 +62,15 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 %type <wrd> WORD
 %type <wrd> P_RUNNER 
-%type <wrd> Unordered
 %type <wrd> STRING_CONSTANT
 
-%type <vnode> Object_Name next_name name  
-//type <> begin_from
+%type <vnode> Object_Name name  
 
 %type <expr> if_statement 
 %type <expr> Expression 
 %type <expr> reiser4
 %type <expr> if_statement if_Expression
 %type <expr> then_operation 
-%type <expr> Unordered_list
-%type <expr> tw_begin
-%type <expr> asyn_begin 
 
 %token TRANSCRASH
 %token EOF 
@@ -88,14 +83,15 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 %token PLUS               /* + */
 
-%token R_PARENT           /* ) */
-%token L_PARENT           /* ( */
+%token L_BRAKET R_BRAKET
+//%token R_PARENT           /* ) */
+//%token L_PARENT           /* ( */
 
-%token R_SKW_PARENT       /* ] */
-%token L_SKW_PARENT       /* [ */
+//%token R_SKW_PARENT       /* ] */
+//%token L_SKW_PARENT       /* [ */
 
-%token R_FLX_PARENT       /* } */
-%token L_FLX_PARENT       /* { */
+//%token R_FLX_PARENT       /* } */
+//%token L_FLX_PARENT       /* { */
 
 
 %token SLASH
@@ -111,7 +107,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %token EXIST
 %token NAME UNNAME
 %token WORD STRING_CONSTANT
-
+%token ROOT
 
 
 %left UNNAME
@@ -166,16 +162,16 @@ Expression
 
 | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
 | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
-| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $3 ); }
+//| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
 
 | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT ); }
 | NOT  Expression                                 { $$ = not_expression( ws, $2 ); } 
 | EXIST  Expression                               { $$ = check_exist( ws, $2 ); }
                                                                             /* the ASSIGNMENT operator return a value: bytes written */
-|  Expression  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
-|  Expression  L_APPEND        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
-|  Expression  L_ASSIGN  INV_L Expression INV_R   { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
-|  Expression  L_SYMLINK       Expression         { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
+|  Object_Name  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
+|  Object_Name  L_APPEND        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
+|  Object_Name  L_ASSIGN  INV_L Expression INV_R   { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
+|  Object_Name  L_SYMLINK       Expression         { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
 ;
 
 if_statement        
@@ -194,22 +190,42 @@ then_operation
 : THEN Expression                %prec PLUS       { goto_end( ws );}
 ;
 
+
+
+
+
+
 Object_Name 
-: begin_from name                                 { $$ = $1 ; }  /*$$=?????*/
-| Object_Name SLASH name                          { $$ = $3 ; }  /*$$=?????*/
+: name                                            { $$ = pars_path_walk( ws, BEGIN_FROM_CURRENT, $2 ) ; }
+| SLASH name                     %prec ROOT       { $$ = pars_path_walk( ws, BEGIN_FROM_ROOT   , $2 ) ; }
+| Object_Name SLASH name                          { $$ = pars_path_walk( ws, $1                , $3 ) ; }
 ;
 
-begin_from
-: SLASH                                           { set_curr_path_to( ws, BEGIN_FROM_ROOT ); }    /* lup */
-;                                                 { set_curr_path_to( ws, BEGIN_FROM_CURRENT ); } /* lup */
-
 name
-: WORD                                            { $$ = set_curr_path( ws, pars_path_walk( ws, $1 ) ); }    /* change current path to $1 */  /*$$=?????*/
-| level_up  Expression R_BRAKET                   { $$ = set_curr_path( ws, $2 );  /*$$=?????*/; level_down( ws, $1, $3 );}  /*$$=?????*/
+: WORD                                            { $$ = $1; }
+| level_up  Expression R_BRAKET                   { $$ = $2; level_down( ws, $1, $3 );}
 ;
 
 level_up
-: L_BRAKET                                        { $$=level_up( ws, $1 ); }
+: L_BRAKET                                        { $$=level_up( ws, $1 ); set_curr_path( ws ) }
+
+
+//Object_Name 
+//: begin_from name                                 { $$ = $2 ; }  /*$$=?????*/
+//| Object_Name SLASH name                          { $$ = $3 ; }  /*$$=?????*/
+//;
+
+//begin_from
+//: SLASH                                           { set_curr_path_to( ws, BEGIN_FROM_ROOT ); }    /* lup */
+//;                                                 { set_curr_path_to( ws, BEGIN_FROM_CURRENT ); } /* lup */
+
+//name
+//: WORD                                            { $$ = set_curr_path( ws, pars_path_walk( ws, $1 ) ); }    /* change current path to $1 */  /*$$=?????*/
+//| level_up  Expression R_BRAKET                   { $$ = set_curr_path( ws, $2 );  /*$$=?????*/; level_down( ws, $1, $3 );}  /*$$=?????*/
+//;
+
+//level_up
+//: L_BRAKET                                        { $$=level_up( ws, $1 ); }
 
 
 %%
@@ -221,12 +237,11 @@ level_up
 #include "pars.yacc.h"
 #include "lib.c"
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   End:
  */
