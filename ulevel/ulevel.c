@@ -117,12 +117,19 @@ void spinlock_bug (const char *msg)
 #define KMEM_CHECK 0
 #define KMEM_MAGIC 0x74932123U
 
+#define KMEM_FAILURES (1)
+#if KMEM_FAILURES
+static int kmalloc_failure_rate = 0;
+#endif
+
 __u64 total_allocations = 0ull;
 
 void *xxmalloc( size_t size )
 {
 	++ total_allocations;
 
+	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) )
+		return NULL;
 	if( total_allocations > MEMORY_PRESSURE_THRESHOLD )
 		declare_memory_pressure();
 	return malloc( size );
@@ -2849,10 +2856,10 @@ static int ls_lR (struct inode * inode, const char * path)
 
 				i = call_lookup (inode, info.name);
 				if( IS_ERR( i ) )
-					warning( "nikita-1767", "Not found: %s", 
+					warning( "nikita-2235", "Not found: %s", 
 						 info.name );
 				else if( ( int ) i -> i_ino != info.inum )
-					warning( "nikita-1768", 
+					warning( "nikita-2236", 
 						 "Wrong inode number: %i != %i",
 						 ( int ) info.inum, ( int ) i -> i_ino );
 				else {
@@ -4260,6 +4267,7 @@ int real_main( int argc, char **argv )
 	reiser4_context __context;
 	int blocksize;
 	pthread_t uswapper;
+	char *e;
 
 	printf("node size: %d\n", sizeof(node_header_40));
 	__prog_name = strrchr( argv[ 0 ], '/' );
@@ -4273,8 +4281,8 @@ int real_main( int argc, char **argv )
 	 * currently reiser4 supports only pagesize==blocksize, we have to make
 	 * sure that PAGE_CACHE_* are set correspondingly to blocksize
 	 */
-	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
-		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+	e = getenv( "REISER4_BLOCK_SIZE" );
+	blocksize = e ? atoi( e ) : 512;
 	for (PAGE_CACHE_SHIFT = 0; blocksize >>= 1; PAGE_CACHE_SHIFT ++);
 	
 	PAGE_CACHE_SIZE	= (1UL << PAGE_CACHE_SHIFT);
@@ -4287,13 +4295,17 @@ int real_main( int argc, char **argv )
 		trap_signal( SIGSEGV );
 	}
 
-	if( getenv( "REISER4_TRACE_FLAGS" ) != NULL ) {
+	e = getenv( "REISER4_TRACE_FLAGS" );
+	if( e != NULL ) {
 		reiser4_current_trace_flags = 
-			strtol( getenv( "REISER4_TRACE_FLAGS" ), NULL, 0 );
+			strtol( e, NULL, 0 );
 		/*rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
 		  get_current_trace_flags() );*/
 	}
 
+	e = getenv( "REISER4_KMALLOC_FAILURE_RATE" );
+	if( KMEM_FAILURES && ( e != NULL ) )
+		kmalloc_failure_rate = strtol( e, NULL, 0 );
 
 	INIT_LIST_HEAD( &inode_hash_list );
 	pc_hash_init( &page_htable, PAGE_HASH_TABLE_SIZE );
@@ -4304,14 +4316,14 @@ int real_main( int argc, char **argv )
 	if (argc == 2 && !strcmp (argv[1], "sh")) {
 		bash_test (argc, argv, 0);
 	}
-	if( getenv( "REISER4_MOUNT" ) == NULL ) {
+	e = getenv( "REISER4_MOUNT" );
+	if( e == NULL ) {
 		warning( "nikita-2175", "Set REISER4_MOUNT" );
 		return 0;
 	}
 	set_current ();
 	run_init_reiser4 ();
-	s = call_mount( getenv( "REISER4_MOUNT" ),
-			getenv( "REISER4_MOUNT_OPTS" ) ? : "" );
+	s = call_mount( e, getenv( "REISER4_MOUNT_OPTS" ) ? : "" );
 
 	s = &super_blocks[0];
 	tree = &get_super_private(s) -> tree;
