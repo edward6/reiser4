@@ -3132,7 +3132,7 @@ int real_main( int argc, char **argv )
 		/* initialize reiser4_super_info_data's oid plugin */
 		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].oid_allocator;
 		get_super_private( &super ) -> oid_plug ->
-			init_oid_allocator( get_oid_allocator( &super ), 0ull, 0ull );
+			init_oid_allocator( get_oid_allocator( &super ), 1ull, 10000ull );
 
 		s = &super;
 	}
