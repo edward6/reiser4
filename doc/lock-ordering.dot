@@ -1,3 +1,5 @@
+/* this is dot(1) input file for lock-ordering diagram */
+/* it should be passed through C preprocessor first */
 /* cpp -P -DFITPAGE lock-ordering.dot | tred | dot -Tps | gv -media a4 - */
 
 #define CATTR fontsize=14, fontname=Helvetica
