@@ -297,7 +297,7 @@ lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG, coord_t * co
 
 	assert("vs-1010", coord->unit_pos == 0);
 	ext = extent_item(coord);
-	coord->vp = ext;
+	coord->body = ext;
 	blocksize = current_blocksize;
 	blocksize_bits = current_blocksize_bits;
 
@@ -328,9 +328,8 @@ lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG, coord_t * co
 void
 init_coord_extent(coord_t *coord)
 {
-	coord->vp = extent_item(coord);
 	coord->nr_units = nr_units_extent(coord);
-	coord->width = extent_get_width((reiser4_extent *)coord->vp);
+	coord->width = extent_get_width(extent_item(coord));
 	coord->pos_in_unit = 0;
 }
 
@@ -1965,7 +1964,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 		   from */
 		assert("vs-1026", orig == lh->node);
 		coord->node = orig;
-		coord->item_pos = orig_item_pos;
+		coord_set_item_pos(coord, orig_item_pos);
+		
 
 		/* number of units in extent item might change */
 		num_units = coord_num_units(coord);
@@ -2624,7 +2624,7 @@ move_coord_page(coord_t *coord)
 			coord->between = AFTER_UNIT;
 		else {
 			coord->unit_pos ++;
-			coord->width = extent_get_width((reiser4_extent *)(coord->vp) + coord->unit_pos);
+			coord->width = extent_get_width(extent_item(coord) + coord->unit_pos);
 		}
 	} else
 		coord->pos_in_unit ++;
@@ -2771,7 +2771,7 @@ move_coord_pages(extent_coord_t *ext_coord, unsigned count)
 		count -= (coord->width - coord->pos_in_unit);
 		coord->pos_in_unit = 0;
 		coord->unit_pos ++;
-		coord->width = extent_get_width((reiser4_extent *)coord->vp + coord->unit_pos);
+		coord->width = extent_get_width(extent_item(coord) + coord->unit_pos);
 	} while (1);
 
 	return 0;	
@@ -2882,13 +2882,13 @@ readahead_readpage_extent(void * vp, struct page *page)
 			return RETERR(-EINVAL);
 		}
 
-		assert("vs-1274", offset_is_in_unit(coord, (reiser4_extent *)coord->vp + coord->unit_pos, 
+		assert("vs-1274", offset_is_in_unit(coord, extent_item(coord) + coord->unit_pos, 
 						    (loff_t)page->index << PAGE_CACHE_SHIFT, 0));
 		ext_coord->expected_page = page->index;
 	}
 	
 	assert("vs-1281", page->index == ext_coord->expected_page);
-	result = do_readpage_extent((reiser4_extent *)coord->vp + coord->unit_pos, coord->pos_in_unit, page);
+	result = do_readpage_extent(extent_item(coord) + coord->unit_pos, coord->pos_in_unit, page);
 	if (!result)
 		move_coord_pages(ext_coord, 1);
 	return result;
