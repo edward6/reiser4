@@ -13,6 +13,7 @@
 #include <linux/kobject.h>
 #include <linux/sched.h>
 #include <linux/writeback.h>
+#include <linux/suspend.h>
 
 #include <asm/atomic.h>
 
@@ -180,6 +181,10 @@ static int prepare_repacking_session (void * arg)
 	ret = end_work();
 	if (ret)
 		return ret;
+
+	if (current->flags & PF_FREEZE)
+		refrigerator(PF_IOTHREAD);
+
 	balance_dirty_pages_ratelimited(get_current_super_private()->fake->i_mapping);
 	begin_work();
 	cursor->count = get_current_super_private()->repacker->params.chunk_size;
