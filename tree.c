@@ -359,7 +359,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
  */
 static int paste_with_carry( tree_coord *coord, reiser4_lock_handle *lh,
 			     reiser4_item_data *data, const reiser4_key *key,
-			     cop_insert_flag flags )
+			     unsigned flags )
 {
 	int result;
 	carry_pool  pool;
@@ -411,7 +411,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 							* lock on node */,
 			       inter_syscall_ra_hint *ra UNUSED_ARG,
 			       intra_syscall_ra_hint ira UNUSED_ARG,
-			       cop_insert_flag flags  
+			       unsigned flags  
 			       )
 {
 	unsigned item_size;
@@ -504,7 +504,7 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
 static int paste_into_item( tree_coord *coord,
 			    reiser4_lock_handle *lh,
 			    reiser4_key *key, reiser4_item_data *data,
-			    cop_insert_flag flags )
+			    unsigned flags )
 {
 	int result;
 	int size_change;
@@ -1042,7 +1042,7 @@ void *unallocated_disk_addr_to_ptr( const reiser4_disk_addr *addr )
 
 
 /* try to shift everything from @right to @left. If everything was shifted -
-   @right is removed from the tree */
+ * @right is removed from the tree.  Result is the number of bytes shifted. FIXME: right? */
 int shift_everything_left (znode * right, znode * left, carry_level *todo)
 {
 	int result;
@@ -1110,7 +1110,8 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	      const reiser4_key * from_key /* first key to be removed */, 
 	      const reiser4_key * to_key /* last key to be removed */,
 	      reiser4_key * smallest_removed /* smallest key actually
-					      * removed */)
+					      * removed */,
+	      unsigned flags)
 {
 	int result;
 	carry_pool  pool;
@@ -1142,6 +1143,7 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	cdata.from_key = from_key;
 	cdata.to_key = to_key;
 	cdata.smallest_removed = smallest_removed;
+	cdata.flags = flags;
 	op->u.cut = &cdata;
 
 	result = carry (&lowest_level, 0);
@@ -1225,7 +1227,7 @@ int cut_tree (reiser4_tree * tree,
 						     an output, with output
 						     being a hint used by next
 						     loop iteration */
-				   from_key, to_key, &smallest_removed);
+				   from_key, to_key, &smallest_removed, 0/*flags*/);
 		if (result)
 			break;
 		assert ("vs-301",
