@@ -386,7 +386,7 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 				}
 			} else {
 				/* check if found coord is not owned by file. */
-				if (!reiser4_inode_data(inode)->pset->file->owns_item(inode, &coord)) {
+				if (!inode_file_plugin(inode)->owns_item(inode, &coord)) {
 					result = 0;
 					goto out_update_page;
 				}
