@@ -167,10 +167,10 @@ int build_readdir_stable_entry_key( const struct inode *dir /* directory where
 {
 	oid_t objectid;
 
-	assert( "nikita-1139", dir != NULL );
-	assert( "nikita-1140", name != NULL );
-	assert( "nikita-1141", name -> name != NULL );
-	assert( "nikita-1142", result != NULL );
+	assert( "nikita-2283", dir != NULL );
+	assert( "nikita-2284", name != NULL );
+	assert( "nikita-2285", name -> name != NULL );
+	assert( "nikita-2286", result != NULL );
 
 	key_init( result );
 	/*
@@ -191,10 +191,10 @@ int build_readdir_stable_entry_key( const struct inode *dir /* directory where
 		return 0;
 
 	/*
-	 * objectid of key is 32 lowest bits of hash.
+	 * objectid of key is 31 lowest bits of hash.
 	 */
-	objectid = ( __u32 ) inode_hash_plugin( dir ) -> 
-		hash( name -> name, ( int ) name -> len );
+	objectid = inode_hash_plugin( dir ) -> 
+		hash( name -> name, ( int ) name -> len ) & 0x7fffffff;
 
 	assert( "nikita-1405", !( objectid & ~KEY_OBJECTID_MASK ) );
 	set_key_objectid( result, objectid );

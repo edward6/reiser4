@@ -813,6 +813,22 @@ static int dir_adjust_to_parent( struct inode *object /* new object */,
 	return 0;
 }
 
+static loff_t dir_seek( struct file *file UNUSED_ARG, 
+			loff_t offset UNUSED_ARG, int origin UNUSED_ARG )
+{
+	loff_t result;
+
+	result = default_llseek( file, offset, origin );
+	if( result >= 0 ) {
+		reiser4_file_fsdata *fsdata;
+
+		fsdata = reiser4_get_file_fsdata( file );
+		fsdata -> dir.readdir_offset = ( __u64 ) 0;
+		fsdata -> dir.skip = ( __u64 ) 0;
+	}
+	return result;
+}
+
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
 		.file = {
@@ -846,7 +862,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
 			.single_link         = common_single_link,
-			.setattr             = inode_setattr
+			.setattr             = inode_setattr,
+			.seek                = NULL
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
@@ -881,7 +898,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = dir_can_rem_link,
 			.single_link         = dir_single_link,
-			.setattr             = inode_setattr
+			.setattr             = inode_setattr,
+			.seek                = dir_seek
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
@@ -919,7 +937,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
 			.single_link         = common_single_link,
-			.setattr             = inode_setattr
+			.setattr             = inode_setattr,
+			.seek                = NULL
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
@@ -954,7 +973,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
 			.single_link         = common_single_link,
-			.setattr             = inode_setattr
+			.setattr             = inode_setattr,
+			.seek                = NULL
 		}
 	}
 };

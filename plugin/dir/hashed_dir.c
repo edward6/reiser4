@@ -198,16 +198,6 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	assert( "nikita-1248", dentry != NULL );
 	assert( "nikita-1123", dentry -> d_name.name != NULL );
 
-#if 0
-	/*
-	 * we are trying to do finer grained locking than BKL. Lock inode in
-	 * question and release BKL. Hopefully BKL was only taken once by VFS.
-	 */
-/* FIXME-GREEN - this seems to be done by VFS? */
-	if( reiser4_lock_inode_interruptible( parent ) != 0 )
-		return -EINTR;
-#endif
-
 	if( perm_chk( parent, lookup, parent, dentry ) )
 		return -EPERM;
 	
@@ -238,7 +228,6 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 				    s.dir.extract_key( coord, &entry.key ) );
 	}
 	done_lh( &lh );
-
 	
 	if( result == 0 ) {
 		struct inode *inode;
@@ -262,11 +251,6 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 		} else
 			result = PTR_ERR(inode);
 	}
-
-#if 0
-/* FIXME-GREEN done for us by VFS? */
-	reiser4_unlock_inode( parent );
-#endif
 	return result;
 }
 
@@ -300,6 +284,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		  where -> d_name.name, object -> i_ino );
 
 	coord = &fsdata -> entry_coord;
+
 	/*
 	 * check for this entry in a directory. This is plugin method.
 	 */
@@ -311,6 +296,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		 */
 		assert( "nikita-1709", inode_dir_item_plugin( object ) );
 		assert( "nikita-2230", coord -> node == lh.node );
+		seal_done( &fsdata -> entry_seal );
 		result = inode_dir_item_plugin( object ) ->
 			s.dir.add_entry( object, coord, &lh, where, entry );
 	} else if( result == 0 ) {
@@ -333,9 +319,10 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 					    * removed */ )
 {
 	int                 result;
-	coord_t         *coord;
+	coord_t           *coord;
 	znode             *loaded;
 	lock_handle        lh;
+	reiser4_dentry_fsdata *fsdata;
 
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
@@ -346,7 +333,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	 * check for this entry in a directory. This is plugin method.
 	 */
 	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
-	coord = &reiser4_get_dentry_fsdata( where ) -> entry_coord;
+	fsdata = reiser4_get_dentry_fsdata( where );
+	coord = &fsdata -> entry_coord;
 	loaded = coord -> node;
 	if( result == 0 ) {
 		/*
@@ -354,6 +342,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 * plugin.
 		 */
 		assert( "vs-542", inode_dir_item_plugin( object ) );
+		seal_done( &fsdata -> entry_seal );
 		result = WITH_DATA( loaded, inode_dir_item_plugin( object ) ->
 				    s.dir.rem_entry( object, 
 						     coord, &lh, entry ) );

@@ -71,8 +71,7 @@ void seal_init( seal_t      *seal /* seal to initialise */,
 void seal_done( seal_t *seal )
 {
 	assert( "nikita-1887", seal != NULL );
-	if( REISER4_DEBUG )
-		seal -> version = 0;
+	seal -> version = 0;
 }
 
 /** true if seal was initialised */

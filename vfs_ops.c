@@ -650,6 +650,21 @@ static int reiser4_link( struct dentry *existing /* dentry of existing
 	REISER4_EXIT( result );
 }
 
+static loff_t reiser4_llseek( struct file *file, loff_t off, int origin )
+{
+	loff_t        result;
+	file_plugin  *fplug;
+	struct inode *inode = file -> f_dentry -> d_inode;
+	loff_t     ( *seek_fn )( struct file *, loff_t, int );
+	REISER4_ENTRY( inode -> i_sb );
+	
+	fplug = inode_file_plugin( inode );
+	assert( "nikita-2291", fplug != NULL );
+	seek_fn = fplug -> seek ? : default_llseek;
+	result = seek_fn( file, off, origin );
+	REISER4_EXIT( result );
+}
+
 typedef struct readdir_actor_args {
 	void        *dirent;
 	filldir_t    filldir;
@@ -696,7 +711,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 {
 	int                 result;
 	struct inode       *inode;
-	coord_t          coord;
+	coord_t             coord;
 	readdir_actor_args  arg;
 	lock_handle lh;
 
@@ -713,11 +728,11 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	coord_init_zero( &coord );
 	init_lh( &lh );
 
-	result = build_readdir_key( f, &arg.key );
+	result = inode_dir_plugin( inode ) -> readdir_key( f, &arg.key );
 
 	trace_on( TRACE_DIR | TRACE_VFS_OPS, 
 		  "readdir: inode: %lli offset: %lli\n", 
-		  (__u64) f -> f_dentry -> d_inode -> i_ino, f -> f_pos );
+		  (__u64) inode -> i_ino, f -> f_pos );
 	trace_if( TRACE_DIR | TRACE_VFS_OPS, print_key( "readdir", &arg.key ) );
 
 	if( result == 0 ) {
@@ -780,46 +795,27 @@ static int unlink_file( struct inode *parent /* parent directory */,
 			struct dentry *victim /* name of object being
 					       * unlinked */ )
 {
-	int result;
+	int         result;
+	dir_plugin *dplug;
 	REISER4_ENTRY( parent -> i_sb );
 
 	assert( "nikita-1435", parent != NULL );
 	assert( "nikita-1436", victim != NULL );
 
-	/* is this dead-lock safe? FIXME-NIKITA */
-#if 0
-	/* FIXME-GREEN: this is done by VFS itself */
-	if( ! reiser4_lock_inode_interruptible( parent ) ) {
-		if( ! reiser4_lock_inode_interruptible( victim -> d_inode ) ) {
-#else
-		{
-#endif
-		
-			dir_plugin *dplug;
+	trace_on( TRACE_DIR | TRACE_VFS_OPS, "unlink: %li/%s\n",
+		  ( long ) parent -> i_ino, victim -> d_name.name );
 
-			dplug = inode_dir_plugin( parent );
-			assert( "nikita-1429", dplug != NULL );
-			if( dplug -> unlink != NULL )
-				result = dplug -> unlink( parent, victim );
-			else
-				result = -EPERM;
-			/* 
-			 * @victim can be already removed from the disk by
-			 * this time. Inode is then marked so that iput()
-			 * wouldn't try to remove stat data. But inode
-			 * itself is still there.
-			 */
-#if 0
-		/* FIXME-GREEN done by VFS */
-			reiser4_unlock_inode( victim -> d_inode );
-		} else
-			result = -EINTR;
-		reiser4_unlock_inode( parent );
-	} else
-		result = -EINTR;
-#else
-		}
-#endif
+	dplug = inode_dir_plugin( parent );
+	assert( "nikita-1429", dplug != NULL );
+	if( dplug -> unlink != NULL )
+		result = dplug -> unlink( parent, victim );
+	else
+		result = -EPERM;
+	/* 
+	 * @victim can be already removed from the disk by this time. Inode is
+	 * then marked so that iput() wouldn't try to remove stat data. But
+	 * inode itself is still there.
+	 */
 	REISER4_EXIT( result );
 }
 
@@ -1874,7 +1870,7 @@ struct inode_operations reiser4_inode_operations = {
 };
 
 struct file_operations reiser4_file_operations = {
-/* 	.llseek            = reiser4_llseek, */
+ 	.llseek            = reiser4_llseek, /* d */
 	.read              = reiser4_read, /* d */
 	.write             = reiser4_write, /* d */
  	.readdir           = reiser4_readdir, /* d */

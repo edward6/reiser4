@@ -226,6 +226,8 @@ typedef struct file_plugin {
 	 * change inode attributes.
 	 */
 	int ( *setattr )( struct inode * inode, struct iattr * attr );
+
+	loff_t ( *seek )( struct file *, loff_t, int );
 } file_plugin;
 
 
@@ -268,6 +270,7 @@ typedef struct dir_plugin {
 						     * by this entry */,
 			    reiser4_key *result /* resulting key of directory
 						 * entry */ );
+	int ( *readdir_key )( struct file *dir, reiser4_key *result );
 	int ( *add_entry )( struct inode *object, struct dentry *where, 
 			    reiser4_object_create_data *data, 
 			    reiser4_dir_entry_desc *entry );
