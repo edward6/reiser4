@@ -30,5 +30,7 @@
 #include "math.h"
 #include "endian.h"
 
+typedef int error_t;
+
 #endif
 

@@ -7,20 +7,18 @@
 #include <reiserfs/debug.h>
 #include "node40.h"
 
-static reiserfs_node40_t *reiserfs_node40_open(aal_device_block_t *block);
-static reiserfs_node40_t *reiserfs_node40_create(aal_device_block_t *block, uint8_t level);
-static int reiserfs_node40_check(reiserfs_node40_t *node, int flags);
-static void reiserfs_node40_close(reiserfs_node40_t *node, int sync);
-static int reiserfs_node40_sync(reiserfs_node40_t *node);
-static uint32_t reiserfs_node40_max_item_size(reiserfs_node40_t *node); 
-static uint32_t reiserfs_node40_max_item_num(reiserfs_node40_t *node); 
-static uint32_t reiserfs_node40_count(reiserfs_node40_t *node);
-static uint8_t reiserfs_node40_level(reiserfs_node40_t *node);
-static uint32_t reiserfs_node40_free_space(reiserfs_node40_t *node); 
-static uint32_t reiserfs_node40_set_free_space(reiserfs_node40_t *node); 
-static void reiserfs_node40_get_free_space(reiserfs_node40_t *node, uint32_t free_space); 
-static aal_device_block_t *reiserfs_node40_block(reiserfs_node40_t *node); 
-static void reiserfs_node40_print (reiserfs_node40_t *node);
+static error_t reiserfs_node40_confirm (aal_device_block_t *block);
+static error_t reiserfs_node40_create(aal_device_block_t *block, uint8_t level);
+static error_t reiserfs_node40_check(aal_device_block_t *block, int flags);
+static error_t reiserfs_node40_sync(aal_device_block_t *block);
+static uint32_t reiserfs_node40_max_item_size(aal_device_block_t *block); 
+static uint32_t reiserfs_node40_max_item_num(aal_device_block_t *block); 
+static uint32_t reiserfs_node40_count(aal_device_block_t *block);
+static uint8_t reiserfs_node40_level(aal_device_block_t *block);
+static uint32_t reiserfs_node40_free_space(aal_device_block_t *block); 
+static uint32_t reiserfs_node40_get_free_space(aal_device_block_t *block); 
+static void reiserfs_node40_set_free_space(aal_device_block_t *block, uint32_t free_space); 
+static void reiserfs_node40_print (aal_device_block_t *block);
 
 static reiserfs_plugin_t node40_plugin = {
     .node = {
@@ -33,111 +31,118 @@ static reiserfs_plugin_t node40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 
-	.open =   (reiserfs_node_opaque_t *(*)(aal_device_block_t *))reiserfs_node40_open,
-	.create = (reiserfs_node_opaque_t *(*)(aal_device_block_t *, uint8_t))reiserfs_node40_create,
-	.close =  (void (*)(reiserfs_node_opaque_t *, int))reiserfs_node40_close,
-	.check =  (int (*)(reiserfs_node_opaque_t *, int))reiserfs_node40_check,
-	.sync  =  (int (*)(reiserfs_node_opaque_t *))reiserfs_node40_sync,
-	.max_item_size = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_max_item_size,
-	.max_item_num =  (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_max_item_num,
-	.count = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_count,
-	.level = (uint8_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_level,
-	.block = (aal_device_block_t *(*)(reiserfs_node_opaque_t *))reiserfs_node40_block,
-	.get_free_space = (uint32_t(*)(reiserfs_node_opaque_t *))reiserfs_node40_get_free_space,
-	.set_free_space = (void (*)(reiserfs_node_opaque_t *, uint32_t))reiserfs_node40_set_free_space,
-	.print = (void (*)(reiserfs_node_opaque_t *))reiserfs_node40_print
+	.confirm_format = (error_t (*)(aal_device_block_t *))reiserfs_node40_confirm,
+	.create = (error_t (*)(aal_device_block_t *, uint8_t))reiserfs_node40_create,
+	.check =  (error_t (*)(aal_device_block_t *, int))reiserfs_node40_check,
+	.sync  =  (error_t (*)(aal_device_block_t *))reiserfs_node40_sync,
+	.max_item_size = (uint32_t (*)(aal_device_block_t *))reiserfs_node40_max_item_size,
+	.max_item_num =  (uint32_t (*)(aal_device_block_t *))reiserfs_node40_max_item_num,
+	.count = (uint32_t (*)(aal_device_block_t *))reiserfs_node40_count,
+	.level = (uint8_t (*)(aal_device_block_t *))reiserfs_node40_level,
+	.get_free_space = (uint32_t(*)(aal_device_block_t *))reiserfs_node40_get_free_space,
+	.set_free_space = (void (*)(aal_device_block_t *, uint32_t))reiserfs_node40_set_free_space,
+	.print = (void (*)(aal_device_block_t *))reiserfs_node40_print
     }
 };
 
-static reiserfs_node40_t *reiserfs_node40_open(aal_device_block_t *block) {
-    reiserfs_node40_t * node;
+static error_t reiserfs_node40_confirm (aal_device_block_t *block) {
+    ASSERT(block != NULL, return -1);
+    ASSERT(block->data != NULL, return -1);
     
-    ASSERT(block != NULL, return NULL);
-    
-    if (!(node = aal_calloc(sizeof(*node), 0)))
-	return NULL;
-
-    node->block = block;
-
-    return node;
+    if (get_nh40_magic(node_header(block)) != reiser4_node_magic) 
+	return 1;    
+ 
+    return 0;
 }
 
-static reiserfs_node40_t *reiserfs_node40_create(aal_device_block_t *block, uint8_t level) {
-    reiserfs_node40_t * node;
-    reiserfs_node40_header_t * node_header;
+static error_t reiserfs_node40_create(aal_device_block_t *block, uint8_t level) {
+    ASSERT(block != NULL, return -1);
+    ASSERT(block->data != NULL, return -1);
     
-    /* untill open does not do any special check, we can just open the node 
-     * and set default values there */
-    if ((node = reiserfs_node40_open (block)) == NULL)
-	return NULL;
-    
-    node_header = (reiserfs_node40_header_t *)block->data;
-    
-    aal_memset (node_header, 0, sizeof (*node_header));
+    aal_memset (node_header(block), 0, sizeof (reiserfs_node40_header_t));
     reiserfs_node_set_plugin_id (block, node40_plugin.h.id);
-    set_node_level (node_header, level);
-    set_node_magic (node_header, reiser4_node_magic);
-    set_node_free_space_start (node_header, aal_block_get_size (block));
+    set_nh40_free_space (node_header(block), aal_block_get_size (block)-sizeof(reiserfs_node40_header_t));
+    set_nh40_free_space_start (node_header(block), aal_block_get_size (block));
+    set_nh40_level (node_header(block), level);
+    set_nh40_magic (node_header(block), reiser4_node_magic);
      
-    return node;
+    return 0;
 }
 
-static int reiserfs_node40_check(reiserfs_node40_t *node, int flags) {
-    reiserfs_node40_header_t * node_header;
+static error_t reiserfs_node40_check(aal_device_block_t *block, int flags) {
+    ASSERT(block != NULL, return -1);
+    ASSERT(block->data != NULL, return -1);
+ 
+    if (get_nh40_magic(node_header(block)) != reiser4_node_magic) 
+	return -1;    
+ 
+    return 0;
+}
 
-    node_header = (reiserfs_node40_header_t *)node->block->data;
-
-    if (get_node_magic(node_header) != reiser4_node_magic) 
-	return 0;    
+static error_t reiserfs_node40_sync(aal_device_block_t *block) {
+    ASSERT(block != NULL, return -1);
+    ASSERT(block->data != NULL, return -1);
     
-    return 1;
+    return aal_device_write_block (block->device, block);
 }
 
-static void reiserfs_node40_close(reiserfs_node40_t *node, int sync) {
-}
-
-static int reiserfs_node40_sync(reiserfs_node40_t *node) {
-    return 0;
-
-}
-
-static uint32_t reiserfs_node40_max_item_size(reiserfs_node40_t *node) {
-    return 0;
-
-}
-
-static uint32_t reiserfs_node40_max_item_num(reiserfs_node40_t *node) {
-    return 0;
-
-}
-
-static uint32_t reiserfs_node40_count(reiserfs_node40_t *node) {
-    return 0;
-
-}
-
-static uint8_t reiserfs_node40_level(reiserfs_node40_t *node) {
-    return 0;
-
-}
-
-static uint32_t reiserfs_node40_free_space(reiserfs_node40_t *node) {
-    return 0;
-
-}
-
-static uint32_t reiserfs_node40_set_free_space(reiserfs_node40_t *node) {
+static uint32_t reiserfs_node40_max_item_size(aal_device_block_t *block) {
+    ASSERT(block != NULL, return 0);
+    ASSERT(block->data != NULL, return 0);
+ 
     return 0;
 }
 
-static void reiserfs_node40_get_free_space(reiserfs_node40_t *node, uint32_t free_space) {
+static uint32_t reiserfs_node40_max_item_num(aal_device_block_t *block) {
+    ASSERT(block != NULL, return 0);
+    ASSERT(block->data != NULL, return 0);
+    return 0;
 }
 
-static aal_device_block_t *reiserfs_node40_block(reiserfs_node40_t *node) {
+static uint32_t reiserfs_node40_count(aal_device_block_t *block) {
+    ASSERT(block != NULL, return 0);
+    ASSERT(block->data != NULL, return 0);
+
+    return get_nh40_num_items (node_header(block));
+}
+
+static uint8_t reiserfs_node40_level(aal_device_block_t *block) {
+    ASSERT(block != NULL, return 0);
+    ASSERT(block->data != NULL, return 0);
+
+    return get_nh40_level (node_header(block));
+}
+
+static uint32_t reiserfs_node40_free_space(aal_device_block_t *block) {
+    ASSERT(block != NULL, return 0);
+    ASSERT(block->data != NULL, return 0);
+
+    return get_nh40_level (node_header(block));
+}
+
+static uint32_t reiserfs_node40_get_free_space(aal_device_block_t *block) {
+    ASSERT(block != NULL, return 0);
+    ASSERT(block->data != NULL, return 0);
+
+    return get_nh40_free_space (node_header(block));
+}
+
+static void reiserfs_node40_set_free_space(aal_device_block_t *block, uint32_t free_space) {
+    ASSERT(block != NULL, return);
+    ASSERT(block->data != NULL, return);
+
+    set_nh40_free_space (node_header(block), free_space);
+}
+
+static aal_device_block_t *reiserfs_node40_block(aal_device_block_t *block) {
+    ASSERT(block != NULL, return NULL);
+    ASSERT(block->data != NULL, return NULL);
     return NULL;
 }
 
-static void reiserfs_node40_print (reiserfs_node40_t *node) {
+static void reiserfs_node40_print (aal_device_block_t *block) {
+    ASSERT(block != NULL, return);
+    ASSERT(block->data != NULL, return);
 }
 
 reiserfs_plugin_register (node40_plugin);

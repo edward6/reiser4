@@ -26,24 +26,25 @@ struct reiserfs_node40_header {
 
 typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
 
-#define get_node_free_space(node)		get_le16(node, free_space)
-#define set_node_free_space(node, val)		set_le16(node, free_space, val)
+#define node_header(block)			((reiserfs_node40_header_t *)(block->data))
 
-#define get_node_free_space_start(node)		get_le16(node, free_space_start)
-#define set_node_free_space_start(node, val)	set_le16(node, free_space_start, val)
+#define get_nh40_free_space(header)		get_le16(header, free_space)
+#define set_nh40_free_space(header, val)	set_le16(header, free_space, val)
 
-#define get_node_level(node)			node->level 
-#define set_node_level(node, val)		node->level = val
+#define get_nh40_free_space_start(header)	get_le16(header, free_space_start)
+#define set_nh40_free_space_start(header, val)	set_le16(header, free_space_start, val)
 
-#define get_node_magic(node)			get_le32(node, magic)
-#define set_node_magic(node, val)		set_le32(node, magic, val)
+#define get_nh40_level(header)			header->level 
+#define set_nh40_level(header, val)		header->level = val
 
-#define get_node_num_items(node)		get_le16(node, num_items)
-#define set_node_num_items(node, val)		set_le16(node, num_items, val)
+#define get_nh40_magic(header)			get_le32(header, magic)
+#define set_nh40_magic(header, val)		set_le32(header, magic, val)
 
-#define get_node_flush_time(node)		get_le32(node, flush_time)
-#define set_node_flush_time(node, val)		set_le32(node, flush_time, val)
+#define get_nh40_num_items(header)		get_le16(header, num_items)
+#define set_nh40_num_items(header, val)		set_le16(header, num_items, val)
 
+#define get_nh40_flush_time(header)		get_le32(header, flush_time)
+#define set_nh40_flush_time(header, val)	set_le32(header, flush_time, val)
 
 
 /* Node object which plugin works with */

@@ -185,6 +185,13 @@ aal_device_block_t *aal_device_read_block(aal_device_t *device, blk_t blk) {
     return block;
 }
 
+/*
+    FIXME: as far as the block structure contains a device in it, we should 
+    just pass the block here. If we want to write the block not into another 
+    block, but on the another device, we should use the device method 
+    aal_device_write. 
+ */
+
 int aal_device_write_block(aal_device_t *device, aal_device_block_t *block) {
     if (!device || !block)
 	return 0;
