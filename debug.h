@@ -125,6 +125,13 @@
 #define REISER4_USE_EFLUSH (0)
 #endif
 
+#if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
+/* enable copy on capture */
+#define REISER4_COPY_ON_CAPTURE (1)
+#else
+#define REISER4_COPY_ON_CAPTURE (0)
+#endif
+
 #if defined(CONFIG_REISER4_LOCKPROF)
 #define REISER4_LOCKPROF (1)
 #else
@@ -154,7 +161,7 @@
 ({									\
 	BUG_ON(preempt_count() < 0);					\
 	if (unlikely(!(cond)))						\
-		reiser4_panic(label, "assertion failed: " #cond);	\
+		reiser4_panic(label, "assertion failed: %s", #cond);	\
 })
 
 /* like assertion, but @expr is evaluated even if REISER4_DEBUG is off. */
@@ -344,6 +351,9 @@ typedef enum {
 	TRACE_CTAIL = (1 << 24),       /* 0x01000000 */   
 
 	TRACE_PARSE = (1 << 25),       /* 0x02000000 */
+
+	TRACE_CAPTURE_COPY = (1 << 26), /* 0x04000000 */
+
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
 	TRACE_BUG = (1 << 31),	/* 0x80000000 */
@@ -454,6 +464,11 @@ typedef struct err_site {} err_site;
 #else
 #define ON_LARGE_KEY(...)
 #endif
+
+const char *jnode_tostring(jnode *);
+void jnode_tostring_internal(jnode * node, char *buf);
+const char *znode_tostring(znode *);
+const char *flags_tostring(int flags);
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif
