@@ -187,22 +187,6 @@ reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr)
 	get_super_private(super)->blocks_free_committed = nr;
 }
 
-/* increment reiser4_super_info_data's counter of free committed blocks */
-void
-reiser4_inc_free_committed_blocks(const struct super_block *super)
-{
-	assert("vs-499", reiser4_free_committed_blocks(super) < reiser4_block_count(super));
-	get_super_private(super)->blocks_free_committed++;
-}
-
-/* decrement reiser4_super_info_data's counter of free committed blocks */
-void
-reiser4_dec_free_committed_blocks(const struct super_block *super)
-{
-	assert("vs-500", reiser4_free_committed_blocks(super) > 0);
-	get_super_private(super)->blocks_free_committed--;
-}
-
 /* amount of blocks in the file system reserved for @uid and @gid */
 long
 reiser4_reserved_blocks(const struct super_block *super	/* super block

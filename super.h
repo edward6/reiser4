@@ -235,8 +235,6 @@ extern void reiser4_set_mkfs_id(const struct super_block *super, __u32 id);
 
 extern __u64 reiser4_free_committed_blocks(const struct super_block *super);
 extern void reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr);
-extern void reiser4_inc_free_committed_blocks(const struct super_block *super);
-extern void reiser4_dec_free_committed_blocks(const struct super_block *super);
 
 extern __u64 reiser4_grabbed_blocks(const struct super_block *);
 extern void reiser4_set_grabbed_blocks(const struct super_block *, __u64 nr);
