@@ -76,6 +76,7 @@ typedef struct parent_coord {
       [znode-refs]
       [jnode-refs]
       [jnode-queued]
+      [znode-modify]
 
     For this to be made into a clustering or NUMA filesystem, we would want to eliminate all of the global locks.
     Suggestions for how to do that are desired.*/
@@ -142,6 +143,7 @@ struct znode {
 #if REISER4_DEBUG_MODIFY
 	/* In debugging mode, used to detect loss of znode_set_dirty()
 	   notification. */
+	spinlock_t cksum_lock;
 	__u32 cksum;
 #endif
 
@@ -240,6 +242,12 @@ extern void zfree(znode * node);
 extern void znode_pre_write(znode * node);
 extern void znode_post_write(znode * node);
 extern void znode_set_checksum(jnode * node, int locked_p);
+extern int  znode_at_read(const znode * node);
+#else
+#define znode_pre_write(n) noop
+#define znode_post_write(n) noop
+#define znode_set_checksum(n, l) noop
+#define znode_at_read(n) (1)
 #endif
 
 #if REISER4_DEBUG_OUTPUT
@@ -297,6 +305,7 @@ zref(znode * node)
 static inline void
 zput(znode * node)
 {
+	assert("nikita-3564", znode_invariant(node));
 	jput(ZJNODE(node));
 }
 

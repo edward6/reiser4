@@ -159,8 +159,10 @@ const char *jnode_tostring(jnode * node);
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
 
+extern void check_pos(flush_pos_t *pos);
 #else
-#define check_preceder( b ) noop
+#define check_preceder(b) noop
+#define check_pos(pos) noop
 #endif
 
 /* __REISER4_FLUSH_H__ */
