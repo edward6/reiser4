@@ -1278,7 +1278,7 @@ wanted_units(coord_t * source, coord_t * stop_coord, shift_direction pend)
 /* this calculates what can be copied from @shift->wish_stop.node to
    @shift->target */
 static void
-estimate_shift(struct shift_params *shift)
+estimate_shift(struct shift_params *shift, const reiser4_context *ctx)
 {
 	unsigned target_free_space, size;
 	pos_in_node_t stop_item;	/* item which estimating should not consider */
@@ -2186,7 +2186,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	/* shift->stop_coord is updated to last unit which really will be
 	   shifted */
-	estimate_shift(&shift);
+	estimate_shift(&shift, get_current_context());
 	if (!shift.shift_bytes) {
 		/* we could not shift anything */
 		assert("nikita-2079", coord_check(from));
@@ -2201,12 +2201,18 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	if (result < 0)
 		return result;
 
+	assert("vs-1471", ((reiser4_context *) current->fs_context)->magic == context_magic);
+
 	/* item which has been moved from one node to another might want to do
 	   something on that event. This can be done by item's shift_hook
 	   method, which will be now called for every moved items */
 	call_shift_hooks(&shift);
 
+	assert("vs-1472", ((reiser4_context *) current->fs_context)->magic == context_magic);
+
 	update_taps(&shift);
+
+	assert("vs-1473", ((reiser4_context *) current->fs_context)->magic == context_magic);
 
 	/* adjust @from pointer in accordance with @including_stop_coord flag
 	   and amount of data which was really shifted */
