@@ -92,7 +92,7 @@ static reiserfs_plugin_t stat40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = REISERFS_STAT_ITEM,
+	    .type = REISERFS_STATDATA_ITEM,
 
 #ifndef ENABLE_COMPACT
 	    .create = (error_t (*)(void *, void *))stat40_create,

@@ -62,7 +62,7 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
 	goto error_free_hint;
     
     /* Initializing stat data hint */
-    hint->item[0].type = REISERFS_STAT_ITEM; 
+    hint->item[0].type = REISERFS_STATDATA_ITEM; 
     
     if (!(hint->item[0].plugin = 
 	factory->find(REISERFS_ITEM_PLUGIN, stat_plugin_id)))

@@ -31,14 +31,24 @@ enum reiserfs_plugin_type {
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
-enum reiserfs_item_type_id {
-    REISERFS_STAT_ITEM,
+enum reiserfs_item_type {
+    REISERFS_STATDATA_ITEM,
     REISERFS_DIRENTRY_ITEM,
     REISERFS_INTERNAL_ITEM,
-    REISERFS_FILE_ITEM
+    REISERFS_FILENTRY_ITEM
 };
 
-typedef enum reiserfs_item_type_id reiserfs_item_type_id_t;
+typedef enum reiserfs_item_type reiserfs_item_type_t;
+
+enum reiserfs_tail_policy {
+    REISERFS_NEVER_TAIL,
+    REISERFS_SUPPOLD_TAIL,
+    REISERFS_FOURK_TAIL,
+    REISERFS_ALWAYS_TAIL,
+    REISERFS_SMART_TAIL
+};
+
+typedef enum reiserfs_tail_policy reiserfs_tail_policy_t;
 
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256
@@ -133,7 +143,7 @@ struct reiserfs_dir_ops {
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 
 struct reiserfs_item_common_ops {
-    reiserfs_item_type_id_t type;
+    reiserfs_item_type_t type;
 
     error_t (*create) (void *, void *);
     int (*lookup) (void *, void *, void *);
@@ -532,7 +542,7 @@ typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
     "data" is a pointer to data to be copied. 
 */ 
 struct reiserfs_item_hint {
-    reiserfs_item_type_id_t type;
+    reiserfs_item_type_t type;
     /*
 	This is pointer to already formated item body. It 
 	is useful for item copying, replacing, etc. This
