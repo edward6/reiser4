@@ -221,6 +221,7 @@ scan_mgr(txn_mgr * mgr)
 
 		/* Count a spinlock taken without context */
 		spin_ktxnmgrd_inc();
+		PROFREGION_IN(&pregion_spin_ktxnmgrd_held);
 
 		ret = commit_some_atoms(mgr);
 
