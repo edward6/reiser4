@@ -44,9 +44,8 @@ typedef enum {
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
-	   name of symlink */
-	/* NIKITA-FIXME-HANS: VP stands for what? */
-	REISER4_GENERIC_VP_USED = 4,
+	   name of symlink. */
+	REISER4_GENERIC_PTR_USED = 4,
 /*	REISER4_EXCLUSIVE_USE = 5,*/
 	REISER4_SDLEN_KNOWN   = 6,
 	/* reiser4_inode->crypt points to the crypto stat */
@@ -104,62 +103,61 @@ reiser4_inode_data(const struct inode * inode /* inode queried */);
 #include "plugin/file/file.h"
 
 struct reiser4_inode {
-	/* NIKITA-FIXME-HANS: improve commenting */
-	/* */ reiser4_spin_data guard;
+	/* spin lock protecting fields of this structure. */
+	reiser4_spin_data guard;
 	/* object plugins */
-	/*   0 */ plugin_set *pset;
+	plugin_set *pset;
 	/* high 32 bits of object id */
-	/*   4 */ oid_hi_t oid_hi;
+	oid_hi_t oid_hi;
 	/* seal for stat-data */
-	/*   8 */ seal_t sd_seal;
+	seal_t sd_seal;
 	/* locality id for this file */
-	/*  24 */ oid_t locality_id;
+	oid_t locality_id;
 	/* coord of stat-data in sealed node */
-	/*  28 */ coord_t sd_coord;
-	/* truncate, tail2extent and extent2tail use down_write, read, write,
-	 * readpage - down_read */
-	/* NIKITA-FIXME-HANS: improve commenting */
-	/* 88 */ scint_t extmask;
-	/* NIKITA-FIXME-HANS: improve commenting */
-	/* 92 */ int eflushed;
-	/* NIKITA-FIXME-HANS: improve commenting */
+	coord_t sd_coord;
+	/* bit-mask of stat-data extentions used by this file */
+	scint_t extmask;
+	/* number of unformatted nodes, dirtied from mmap and eflushed from
+	 * this object. */
 	int eflushed_anon;
-	/* NIKITA-FIXME-HANS: improve commenting */
 	/* bitmask of non-default plugins for this inode */
-	/* 96 */ __u16 plugin_mask;
-	/* NIKITA-FIXME-HANS: improve commenting */
-	/* 98 */ inter_syscall_rap ra;
-	/* 98 */ __u16 padding;
-	/* NIKITA-FIXME-HANS: improve commenting */
+	__u16 plugin_mask;
 	/* cluster parameter for crypto and compression */
-	/* 100 */__u8 cluster_shift;
+	__u8 cluster_shift;
 	/* secret key parameter for crypto */
-	/* 101 */crypto_stat_t *crypt;
-	/* NIKITA-FIXME-HANS: improve commenting */
-	/* 105 */
+	crypto_stat_t *crypt;
+	/* list of pages dirtied through mmap */
 	struct list_head  moved_pages;
 	union {
 		readdir_list_head readdir_list;
 		struct list_head mmaped;
 	} lists;
-	/* NIKITA-FIXME-HANS: improve commenting */
+	/* per-inode flags. Filled by values of reiser4_file_plugin_flags */
 	unsigned long flags;
 	union {
+		/* fields specific to unix_file plugin */
 		unix_file_info_t unix_file_info;
+		/* fields specific to cryptcompress plugin */
 		cryptcompress_info_t cryptcompress_info;
+		/* fields specific to pseudo file plugin */
 		pseudo_info_t pseudo_info;
 	} file_plugin_data;
 
+	/* list of unformatted jnodes eflushed from this object */
 	struct list_head eflushed_jnodes;
 
 	jnode inode_jnode; /* this is to capture inode */
 
 	/* currently operations on this tree are protected by tree's spin lock */
-	struct radix_tree_root jnode_tree;	
+	struct radix_tree_root jnode_tree;
+	/* block number of virtual root for this object. See comment above
+	 * fs/reiser4/search.c:handle_vroot() */
 	reiser4_block_nr vroot;
 #if REISER4_DEBUG
 	/* number of jnodes in jnode tree */
 	int jnodes;
+	/* number of unformatted nodes eflushed from this object */
+	int eflushed;
 #endif
 };
 
@@ -242,7 +240,6 @@ extern void   inode_clean_vroot(struct inode *inode);
 
 extern int reiser4_max_filename_len(const struct inode *inode);
 extern int max_hash_collisions(const struct inode *dir);
-extern inter_syscall_rap *inter_syscall_ra(const struct inode *inode);
 extern void reiser4_unlock_inode(struct inode *inode);
 extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
