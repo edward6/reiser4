@@ -4352,6 +4352,7 @@ int real_main( int argc, char **argv )
 	int blocksize;
 	pthread_t uswapper;
 
+	printf("node size: %d\n", sizeof(node_header_40));
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
 		__prog_name = argv[ 0 ];
