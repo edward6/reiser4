@@ -295,7 +295,7 @@ static int paste_entry( const coord_t *coord /* coord of item */,
 	   Also a more major thing is that there should be a way to figure out
 	   amount of space in dent -> name and be able to check that we are
 	   not going to overwrite more than we supposed to */
-	strcpy( ( char * ) dent -> name, entry -> name -> name );
+	strcpy( ( unsigned char * ) dent -> name, entry -> name -> name );
 	cputod8( 0, &dent -> name[ entry -> name -> len ] );
 	return 0;
 }

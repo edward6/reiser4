@@ -105,7 +105,7 @@ int de_add_entry( const struct inode *dir /* directory of item */,
 		strlen( name -> d_name.name ) == name -> d_name.len );
 	/* AUDIT: The lenght of source is known, so using of memcpy
 	   would be much cheaper here */
-	strcpy( ( char * ) dent -> name, name -> d_name.name );
+	strcpy( ( unsigned char * ) dent -> name, name -> d_name.name );
 	cputod8( 0, &dent -> name[ name -> d_name.len ] );
 	return 0;
 }
