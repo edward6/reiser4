@@ -2964,7 +2964,7 @@ filler(void *vp, struct page *page)
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 int
-extent_read(struct inode *inode, coord_t *coord, flow_t * f)
+extent_read(struct file *file, coord_t *coord, flow_t * f)
 {
 	int result;
 	struct page *page;
@@ -2972,14 +2972,26 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	unsigned page_off, count;
 	char *kaddr;
 	jnode *j;
+	struct inode *inode;
+	reiser4_file_fsdata *fsdata;
 
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 
-	if (!extent_key_in_item(coord, &f->key))
+	if (!extent_key_in_item(coord, &f->key)) {
+		info("does");
+		return -EAGAIN;
+	}
+	if (coord->between != AT_UNIT)
 		return -EAGAIN;
 
+	inode = file->f_dentry->d_inode;
 	page_nr = (get_key_offset(&f->key) >> PAGE_CACHE_SHIFT);
+
+	fsdata = reiser4_get_file_fsdata(file);
+	fsdata->reg.coord = coord;
+	page_cache_readahead(inode->i_mapping, &file->f_ra, file, page_nr);
+
 
 	/* this will return page if it exists and is uptodate, otherwise it
 	   will allocate page and call extent_readpage to fill it */
@@ -3168,6 +3180,13 @@ int extent_get_block_address(const coord_t *coord, sector_t block, struct buffer
 		bh->b_blocknr = blocknr_by_coord_in_extent(coord, block * current_blocksize);
 	return 0;
 }
+
+void
+extent_readpages(coord_t *coord, struct address_space *mapping, struct list_head *pages)
+{
+	read_cache_pages(mapping, pages, filler, coord);
+}
+
 /*
    Local variables:
    c-indentation-style: "K&R"
