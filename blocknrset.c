@@ -23,15 +23,10 @@
   
    When current blocknr_set_entry is full, allocate a new one. */
 
-/* Auditor comments (green): It appeared that block number pair can represent
-   two things. It can represent extents, then first number in a pair represents
-   starting block number of extent and second number is lenght of extent.
-   Extents cannot be less then 2 blocks in length. Second meaning of block
-   number pair is used and wandered sets (and the likes?) where the first block
-   represent original data location and second block represents new data
-   location (and/or vice versa?). 
-
-ZAM-FIXME-HANS: make the language here more definite.  Define the handling of extents and mention why their representation is different from that used in a tree (why we chose to not record a length instead of an end block). */
+/* Usage examples: blocknr sets are used in reiser4 for storing atom's delete
+ * set (single blocks and block extents), in that case blocknr pair represent an
+ * extent; atom's wandered map is also stored as a blocknr set, blocknr pairs
+ * there represent a (real block) -> (wandered block) mapping. */
 
 typedef struct blocknr_pair blocknr_pair;
 
@@ -111,7 +106,7 @@ bse_free(blocknr_set_entry * bse)
 
 /* Add a block number to a blocknr_set_entry */
 /* Audited by: green(2002.06.11) */
-static void			/* ZAM-FIXME-HANS: should this be inlined? */
+static void
 bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 {
 	assert("jmacd-5099", bse_avail(bse) >= 1);

@@ -228,8 +228,7 @@ typedef enum {
 
 /* A block number set consists of only the list head. */
 struct blocknr_set {
-/* ZAM-FIXME-HANS: this is defined where? */
-	blocknr_set_list_head entries;
+	blocknr_set_list_head entries; /* blocknr_set_list_head defined from a template from tslist.h */
 };
 
 /* An atomic transaction: this is the underlying system representation
@@ -332,8 +331,8 @@ struct txn_atom {
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
 	   are submitted to disk by the write_fq() routine. */
 	int nr_running_queues;
-/* ZAM-FIXME-HANS: mention where space reservation is described in detail. */
-	/* A counter of grabbed unformatted nodes. */
+	/* A counter of grabbed unformatted nodes, see a description of the
+	 * reiser4 space reservation scheme at block_alloc.c */
 	reiser4_block_nr flush_reserved;
 };
 
@@ -437,8 +436,6 @@ extern int try_capture_args(jnode * node,
 			    int non_blocking, txn_capture cap_mode);
 
 extern int try_capture_page(struct page *pg, znode_lock_mode mode, int non_blocking);
-
-extern int attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags);
 
 extern void uncapture_page(struct page *pg);
 extern void uncapture_block(jnode *);

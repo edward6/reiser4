@@ -646,17 +646,14 @@ get_overwrite_set(struct commit_handle *ch)
 	return ch->overwrite_set_size;
 }
 
-/* Submit a write request for @nr jnodes beginning from the @first, other
-   jnodes are after the @first on the double-linked "capture" list.  All
-   jnodes will be written to the disk region of @nr blocks starting with
-   @block_p block number.  If @fq is not NULL it means that waiting for i/o
-   completion will be done more efficiently by using flush_queue_t objects 
+/* Submit a write request for @nr jnodes beginning from the @first, other jnodes
+   are after the @first on the double-linked "capture" list.  All jnodes will be
+   written to the disk region of @nr blocks starting with @block_p block number.
+   If @fq is not NULL it means that waiting for i/o completion will be done more
+   efficiently by using flush_queue_t objects.
 
-ZAM-FIXME-HANS: brief me on why this function exists, and why bios are
-aggregated in this function instead of being left to the layers below
-
-FXIME: ZAM->HANS: What layer are you talking about? Can you point me to that?
-Why that layer needed? Why BIOs cannot be constructed here?
+   This function is the one which writes list of jnodes in batch mode. It does
+   all low-level things as bio construction and page states manipulation.
 */
 static int
 jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
@@ -1033,9 +1030,11 @@ int reiser4_write_logs(long * nr_submitted)
 	pre_commit_hook();
 
 	trace_mark(wander);
-/* ZAM-FIXME-HANS: are these next two lines optimal? */
-	atom = get_current_atom_locked();
-	UNLOCK_ATOM(atom);
+
+	/* No locks are required if we take atom which stage >=
+	 * ASTAGE_PRE_COMMIT */
+	atom = get_current_context()->trans->atom;
+	assert("zam-965", atom != NULL);
 	
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
 	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
