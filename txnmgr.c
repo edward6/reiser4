@@ -1059,17 +1059,17 @@ again:
 		spin_unlock_atom(atom);
 	}
 
-	spin_unlock_txnmgr(mgr);
-
 #if REISER4_DEBUG
 	{
 		reiser4_super_info_data * p = get_super_private(super);
 		reiser4_spin_lock_sb(super);
-		assert("zam-812", p->blocks_fake_allocated == 0);
 		assert("zam-813", p->blocks_fake_allocated_unformatted == 0);
+		assert("zam-812", p->blocks_fake_allocated == 0);
 		reiser4_spin_unlock_sb(super);
 	}
 #endif
+
+	spin_unlock_txnmgr(mgr);
 
 	return 0;
 }
