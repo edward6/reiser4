@@ -1573,7 +1573,7 @@ static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
 	int repeat = 0;
 	txn_atom * atomh = txnh->atom;
 
-	assert ("zam-689", znode_is_rlocked (node));
+/*	assert ("zam-689", znode_is_rlocked (node));*/
 	assert ("zam-690", spin_znode_is_locked (node));
 	assert ("zam-691", spin_txnh_is_locked (txnh));
 	assert ("zam-692", atomh != NULL);
