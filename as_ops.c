@@ -51,11 +51,13 @@
 /* address space operations */
 
 static int reiser4_readpage(struct file *, struct page *);
-/* static int reiser4_prepare_write(struct file *,
+
+static int reiser4_prepare_write(struct file *,
 				 struct page *, unsigned, unsigned);
+
 static int reiser4_commit_write(struct file *,
 				struct page *, unsigned, unsigned);
-*/
+
 static int reiser4_set_page_dirty (struct page *);
 static sector_t reiser4_bmap(struct address_space *, sector_t);
 /* static int reiser4_direct_IO(int, struct inode *,
@@ -189,6 +191,79 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 		page_cache_release(page);
 	}
 	return 0;
+}
+
+/* prepares @page to be written. This means, that if we want to modify only some
+   part of page, page should be read first and than modified. Actually this function
+   almost the same as reiser4_readpage(). The differentce is only that, it does not
+   unlock the page in teh case of error. This is needed because loop back device
+   driver expects it locked. */
+static int reiser4_prepare_write(struct file *file, struct page *page,
+				 unsigned from, unsigned to)
+{
+	int result;
+	file_plugin *fplug;
+	struct inode *inode;
+	reiser4_context ctx;
+
+	assert("umka-3099", file != NULL);
+	assert("umka-3100", page != NULL);
+	assert("umka-3095", PageLocked(page));
+
+	inode = page->mapping->host;
+	init_context(&ctx, inode->i_sb);
+	fplug = inode_file_plugin(inode);
+	
+	if (fplug->readpage != NULL)
+		result = fplug->readpage(file, page);
+	else
+		result = RETERR(-EINVAL);
+	
+	if (result != 0) {
+		SetPageError(page);
+		/* here we do not unlock the page, as loop back device driver
+		   expects it will be locked after ->prepare_write() finish. */
+	} else {
+		/* fplug->readpage() might unlock @page, as it got uptodate.
+		   Check if it is uptodate, we lock it back, because loop back
+		   driver expects it to be locked. */
+		if (PageUptodate(page)) {
+			assert("umka-3098", !PageLocked(page));
+			lock_page(page);
+		}
+	}
+	
+	reiser4_exit_context(&ctx);
+	return 0;
+}
+
+/* captures jnode of @page to current atom. */
+static int reiser4_commit_write(struct file *file, struct page *page,
+				unsigned from, unsigned to)
+{
+	int result;
+	file_plugin *fplug;
+	struct inode *inode;
+	reiser4_context ctx;
+
+	assert("umka-3101", file != NULL);
+	assert("umka-3102", page != NULL);
+	assert("umka-3093", PageLocked(page));
+
+	inode = page->mapping->host;
+	init_context(&ctx, inode->i_sb);
+	fplug = inode_file_plugin(inode);
+
+	if (fplug->capturepage)
+		result = fplug->capturepage(page);
+	else
+		result = RETERR(-EINVAL);
+
+	/* here page is return locked. */
+	assert("umka-3103", PageLocked(page));
+	
+	reiser4_exit_context(&ctx);
+	return result;
 }
 
 /* ->writepages()
@@ -544,8 +619,8 @@ struct address_space_operations reiser4_as_operations = {
 	.set_page_dirty = reiser4_set_page_dirty,
 	/* called during read-ahead */
 	.readpages = reiser4_readpages,
-	.prepare_write = NULL, /* generic_file_write() call-back */
-	.commit_write = NULL,  /* generic_file_write() call-back */
+	.prepare_write = reiser4_prepare_write, /* loop back device driver and generic_file_write() call-back */
+	.commit_write = reiser4_commit_write,  /* loop back device driver and generic_file_write() call-back */
 	/* map logical block number to disk block number. Used by FIBMAP ioctl
 	 * and ..bmap pseudo file. */
 	.bmap = reiser4_bmap,
