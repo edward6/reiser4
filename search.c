@@ -709,8 +709,9 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 /*
  * look to the right of @coord. If it is an item of internal type - 1 is
- * returned. If that item is in another node - @coord and @lh are switched to
- * that node
+ * returned. If that item is in right neighbor and it is internal - @coord and
+ * @lh are switched to that node: move lock handle, zload right neighbor and
+ * zrelse znode coord was set to at the beginning
  */
 /* Audited by: green(2002.06.15) */
 static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
@@ -722,10 +723,14 @@ static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
 		/*
 		 * next item is in the same node
 		 */
-		coord -> item_pos ++;
-		if( item_is_internal( coord ) )
+		coord_t right;
+
+		coord_dup (&right, coord);
+		check_me ("vs-742", coord_next_item (&right) == 0);
+		if( item_is_internal( &right ) ) {
+			coord_dup (coord, &right);
 			return 1;
-		coord -> item_pos --;
+		}
 		return 0;
 	} else {
 		/*
@@ -742,15 +747,20 @@ static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
 						     GN_DO_READ);
 		if( result && result != -ENAVAIL ) {
 			/* error occured */
+			/*
+			 * FIXME-VS: error code is not returned. Just that
+			 * there is no right neighbor
+			 */
 			done_lh( &right_lh );
-			return result;
+			return 0;
 		}
-		if( !result ) {
+		if( !result && ( result = zload( right_lh.node ) ) == 0 ) {
 			coord_init_first_unit( &right, right_lh.node );
 			if( item_is_internal( &right ) ) {
 				/*
 				 * switch to right neighbor
 				 */
+				zrelse( coord -> node );
 				done_lh( lh );
 
 				coord_init_zero( coord );
@@ -759,6 +769,8 @@ static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
 
 				return 1;
 			}
+			/* zrelse right neighbor */
+			zrelse( right_lh.node );
 		}
 		/* item to the right of @coord either does not exist or is not
 		   of internal type */
@@ -1017,6 +1029,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			h -> flags &= ~CBK_TRUST_DK;
 		}
 		assert( "vs-362", item_is_internal( h -> coord ) );
+				   
 		iplug = item_plugin_by_coord( h -> coord );
 	} else {
 		iplug = item_plugin_by_coord( h -> coord );
