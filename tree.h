@@ -442,6 +442,8 @@ extern void show_context     (int show_tree);
 
 /* Hans, is this too expensive? */
 #define current_tree (&get_super_private (reiser4_get_current_sb ())->tree)
+#define current_blocksize current_tree->super->s_blocksize
+#define current_blocksize_bits current_tree->super->s_blocksize_bits
 
 extern int  init_context( reiser4_context *context,
 				  struct super_block *super );
