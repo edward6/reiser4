@@ -597,8 +597,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	init_zh (& parent_load);
 	init_zh (& node_load);
 
-	/* FIXME: This can fail after running ibk 3 times. */
-	assert ("jmacd-9925", znode_is_allocated (node));
+	/* Originally the idea was to assert that a node is always allocated before the
+	 * upward recursion here, but its not always true.  We are allocating in the
+	 * rightward direction and there is no reason the ancestor must be allocated. */
+	/*assert ("jmacd-9925", znode_is_allocated (node));*/
 
 	if ((ret = load_zh (& node_load, node))) {
 		goto exit;
@@ -702,12 +704,6 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 			goto exit;
 		}
 
-		/* As long as parent is allocated, that is... */
-		if (! znode_is_allocated (parent_lock.node)) {
-			ret = 0;
-			goto exit;
-		}
-
 		if ((ret = flush_squalloc_one_changed_ancestor (parent_lock.node, call_depth + 1, pos))) {
 			goto exit;
 		}
@@ -720,7 +716,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to enqueue: %s\n", call_depth, flush_pos_tostring (pos));
 
 	/* Now finished with node. */
-	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+	if (znode_is_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 		goto exit;
 	}
 
@@ -847,9 +843,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				 * right, reaching this point, it is possible that the
 				 * parent needs to be allocated.  But then, why do it? */
 				if (! znode_is_allocated (node)) {
-					trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (right twig dirty not allocated): %s\n", flush_pos_tostring (pos));
+					/* FIXME: WHAT? */
+					/*trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (right twig dirty not allocated): %s\n", flush_pos_tostring (pos));
 					ret = flush_pos_stop (pos);
-					goto exit;
+					goto exit;*/
 				}
 				goto repeat;
 			} else {
