@@ -416,6 +416,10 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	*/
 	/* we cannot release directory semaphore here, because name has
 	 * already been deleted, but dentry (@victim) still exists. */
+	/* prevent balance_dirty_pages() from being called: we don't want to
+	 * do this under directory i_sem. */
+	ctx.nobalance = 1;
+	ctx.trans->flags |= TXNH_DONT_COMMIT;
 	reiser4_exit_context(&ctx); 
 	return result;
 }
