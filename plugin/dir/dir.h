@@ -32,6 +32,8 @@ typedef struct {
 } dir_pos;
 
 typedef struct {
+	/* f_pos corresponding to this readdir position */
+	__u64 fpos;
 	/* logical position within directory */
 	dir_pos position;
 	/* logical number of directory entry within
@@ -41,7 +43,7 @@ typedef struct {
 
 extern void adjust_dir_file(struct inode *dir, const struct dentry *de,
 			    int offset, int adj);
-extern int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos);
+extern loff_t seek_dir(struct file *file, loff_t off, int origin);
 
 /* description of directory entry being created/destroyed/sought for
 

@@ -573,7 +573,6 @@ reiser4_internal cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 	return result;
 }
 
-
 #if REISER4_DEBUG_OUTPUT && REISER4_TRACE
 static char filter(const d8 *dch)
 {
@@ -819,32 +818,36 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
  * "rewind" directory to @offset, i.e., set @pos and @tap correspondingly.
  */
 static int
-dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
+dir_rewind(struct file *dir, readdir_pos * pos, long long shift, tap_t * tap)
 {
 	__u64 destination;
-	int shift;
 	int result;
+	struct inode *inode;
 
 	assert("nikita-2553", dir != NULL);
 	assert("nikita-2548", pos != NULL);
 	assert("nikita-2551", tap->coord != NULL);
 	assert("nikita-2552", tap->lh != NULL);
 
-	if (offset < 0)
+	/* this is logical directory entry within @dir which we are rewinding
+	 * to */
+	destination = pos->entry_no + shift;
+
+	inode = dir->f_dentry->d_inode;
+	if (dir->f_pos < 0)
 		return RETERR(-EINVAL);
-	else if (offset >= dir->f_dentry->d_inode->i_size)
+	else if (destination >= inode->i_size)
 		return RETERR(-ENOENT);
-	else if (offset == 0ll) {
+	else if (destination == 0ll || dir->f_pos == 0) {
 		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
 		reiser4_stat_inc(dir.readdir.reset);
 		return dir_go_to(dir, pos, tap);
 	}
 
-	destination = (__u64) offset;
-
-	shift = pos->entry_no - destination;
-	if (shift >= 0) {
+	if (shift < 0) {
+		/* I am afraid of negative numbers */
+		shift = -shift;
 		/* rewinding to the left */
 		reiser4_stat_inc(dir.readdir.rewind_left);
 		if (shift <= (int) pos->position.pos) {
@@ -874,13 +877,15 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 		reiser4_stat_inc(dir.readdir.rewind_right);
 		result = dir_go_to(dir, pos, tap);
 		if (result == 0)
-			result = rewind_right(tap, -shift);
+			result = rewind_right(tap, shift);
 	}
 	if (result == 0) {
-		result = set_pos(dir->f_dentry->d_inode, pos, tap);
-		if (result == 0)
+		result = set_pos(inode, pos, tap);
+		if (result == 0) {
 			/* update pos->position.pos */
 			pos->entry_no = destination;
+			pos->fpos += shift;
+		}
 	}
 	return result;
 }
@@ -994,9 +999,10 @@ move_entry(readdir_pos * pos, coord_t * coord)
 		pos->position.pos = 0;
 		build_de_id_by_key(&de_key, did);
 	}
+	++pos->fpos;
 }
 
-reiser4_internal int
+static int
 dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 {
 	struct inode *inode;
@@ -1024,7 +1030,7 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	ON_TRACE(TRACE_DIR, " entry_no: %llu\n", (*pos)->entry_no);
 
 	/* move @tap to the current position */
-	return dir_rewind(f, *pos, f->f_pos, tap);
+	return dir_rewind(f, *pos, f->f_pos - (*pos)->fpos, tap);
 }
 
 /*
@@ -1086,13 +1092,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 	init_lh(&lh);
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-	/* initialize readdir readahead information: include into readahead
-	 * stat data of all files of the directory */
-	set_key_locality(&tap.ra_info.key_to_stop, get_inode_oid(inode));
-	set_key_type(&tap.ra_info.key_to_stop, KEY_SD_MINOR);
-	set_key_ordering(&tap.ra_info.key_to_stop, get_key_ordering(max_key()));
-	set_key_objectid(&tap.ra_info.key_to_stop, get_key_objectid(max_key()));
-	set_key_offset(&tap.ra_info.key_to_stop, get_key_offset(max_key()));
+	reiser4_readdir_readahead_init(inode, &tap);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 		 "readdir: inode: %llu offset: %lli\n",
@@ -1134,7 +1134,9 @@ readdir_common(struct file *f /* directory file being read */ ,
 				tap_relse(&tap);
 				goto repeat;
 			} else
-				warning("vs-1617", "readdir_common: unexpected error %d", result);
+				warning("vs-1617",
+					"readdir_common: unexpected error %d",
+					result);
 		}
 		tap_relse(&tap);
 
@@ -1146,6 +1148,43 @@ readdir_common(struct file *f /* directory file being read */ ,
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 		 "readdir_exit: offset: %lli\n", f->f_pos);
 	return (result <= 0) ? result : 0;
+}
+
+/*
+ * seek method for directory. See comment before readdir_common() for
+ * explanation.
+ */
+loff_t
+seek_dir(struct file *file, loff_t off, int origin)
+{
+	loff_t result;
+	struct inode *inode;
+
+	inode = file->f_dentry->d_inode;
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "seek_dir: %s: %lli -> %lli/%i\n",
+		 file->f_dentry->d_name.name, file->f_pos, off, origin);
+	down(&inode->i_sem);
+
+	/* update ->f_pos */
+	result = default_llseek(file, off, origin);
+	if (result >= 0) {
+		int ff;
+		coord_t coord;
+		lock_handle lh;
+		tap_t tap;
+		readdir_pos *pos;
+
+		coord_init_zero(&coord);
+		init_lh(&lh);
+		tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
+
+		ff = dir_readdir_init(file, &tap, &pos);
+		if (ff != 0)
+			result = (loff_t) ff;
+		tap_done(&tap);
+	}
+	up(&inode->i_sem);
+	return result;
 }
 
 /* ->attach method of directory plugin */

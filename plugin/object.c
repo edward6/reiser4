@@ -861,43 +861,6 @@ release_dir(struct inode *inode, struct file *file)
 	return 0;
 }
 
-/*
- * seek method for directory. See comment before readdir_common() for
- * explanation.
- */
-static loff_t
-seek_dir(struct file *file, loff_t off, int origin)
-{
-	loff_t result;
-	struct inode *inode;
-
-	inode = file->f_dentry->d_inode;
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "seek_dir: %s: %lli -> %lli/%i\n",
-		 file->f_dentry->d_name.name, file->f_pos, off, origin);
-	down(&inode->i_sem);
-
-	/* update ->f_pos */
-	result = default_llseek(file, off, origin);
-	if (result >= 0) {
-		int ff;
-		coord_t coord;
-		lock_handle lh;
-		tap_t tap;
-		readdir_pos *pos;
-
-		coord_init_zero(&coord);
-		init_lh(&lh);
-		tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
-
-		ff = dir_readdir_init(file, &tap, &pos);
-		if (ff != 0)
-			result = (loff_t) ff;
-		tap_done(&tap);
-	}
-	up(&inode->i_sem);
-	return result;
-}
-
 /* default implementation of ->bind() method of file plugin */
 static int
 bind_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)

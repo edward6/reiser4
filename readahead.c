@@ -158,7 +158,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 
 	/* Stop on twig level */
 	result = coord_by_key(
-		current_tree, &start_key, &coord, &lock, ZNODE_READ_LOCK, 
+		current_tree, &start_key, &coord, &lock, ZNODE_READ_LOCK,
 		FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
 	if (result < 0)
 		goto error;
@@ -226,7 +226,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 
 			result = jstartio(ZJNODE(next_lock.node));
 			if (result)
-				break; 
+				break;
 
 			read_lock_dk(tree);
 			end_offset = get_key_offset(znode_get_ld_key(next_lock.node));
@@ -234,7 +234,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 
 			result = end_offset - offset;
 			break;
-		}					  
+		}					
 
 		result = tap_move(&tap, &next_lock);
 		if (result)
@@ -255,7 +255,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 }
 
 typedef unsigned long long int ull_t;
-#define PRINTK(...) noop 
+#define PRINTK(...) noop
 /* This is derived from the linux original read-ahead code (mm/readahead.c), and
  * cannot be licensed from Namesys in its current state.  */
 int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
@@ -301,7 +301,7 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 		 * by 2 * size of read request.  This makes r/a window smaller
 		 * for small unordered requests and larger for big read
 		 * requests.  */
-		ra->next_size += -2 * PAGE_CACHE_SIZE + 2 * size ; 
+		ra->next_size += -2 * PAGE_CACHE_SIZE + 2 * size ;
 		if (ra->next_size < 0)
 			ra->next_size = 0;
 do_io:
@@ -354,7 +354,23 @@ out:
 	return 0;
 }
 
+reiser4_internal void
+reiser4_readdir_readahead_init(struct inode *dir, tap_t *tap)
+{
+	reiser4_key *stop_key;
 
+	assert("nikita-3542", dir != NULL);
+	assert("nikita-3543", tap != NULL);
+
+	stop_key = &tap->ra_info.key_to_stop;
+	/* initialize readdir readahead information: include into readahead
+	 * stat data of all files of the directory */
+	set_key_locality(stop_key, get_inode_oid(dir));
+	set_key_type(stop_key, KEY_SD_MINOR);
+	set_key_ordering(stop_key, get_key_ordering(max_key()));
+	set_key_objectid(stop_key, get_key_objectid(max_key()));
+	set_key_offset(stop_key, get_key_offset(max_key()));
+}
 
 /*
    Local variables:
