@@ -141,9 +141,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 				tree -> root_block = *znode_get_block( new_root );
 				/* new root is a child on "fake" node */
 				spin_lock_tree( tree );
-				new_root -> ptr_in_parent_hint.node = fake;
-				new_root -> ptr_in_parent_hint.item_pos = ~0u;
-				new_root -> ptr_in_parent_hint.between = AT_UNIT;
+				coord_init_invalid( &new_root -> ptr_in_parent_hint, fake);
 				spin_unlock_tree( tree );
 			
 				/*
@@ -272,9 +270,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			spin_lock_tree( tree );
 
 			/* new root is child on "fake" node */
-			new_root -> ptr_in_parent_hint.node = fake;
-			new_root -> ptr_in_parent_hint.item_pos = ~0u;
-			new_root -> ptr_in_parent_hint.between = AT_UNIT;
+			coord_init_invalid( &new_root -> ptr_in_parent_hint, fake);
 
 			sibling_list_insert_nolock( new_root, NULL );
 			spin_unlock_tree( tree );

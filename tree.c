@@ -474,9 +474,10 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 	 *
 	 */
 	if( ( item_size <= znode_free_space( coord -> node ) ) &&
-	    ( ( coord -> item_pos != 0 ) || 
-	      ( coord -> unit_pos != 0 ) || 
-	      ( coord -> between == AFTER_UNIT ) ) &&
+	    /* FIXME_COORD: Is this captured by !coord_is_leftmost_unit?
+	       ( ( coord -> item_pos != 0 ) || 
+	       ( coord -> unit_pos != 0 ) || 
+	       ( coord -> between == AFTER_UNIT ) ) && */
 	    !coord_is_leftmost_unit( coord ) && 
 	    ( node_plugin_by_coord( coord ) -> fast_insert != NULL ) &&
 	    node_plugin_by_coord( coord ) -> fast_insert( coord ) ) {
@@ -574,11 +575,13 @@ static int paste_into_item( tree_coord *coord /* coord of pasting */,
 	 *
 	 * - item plugin agrees with us
 	 */
-	if( ( size_change <= ( int ) znode_free_space( coord -> node ) ) && 
-	    ( ( coord -> item_pos != 0 ) || 
-	      ( coord -> unit_pos != 0 ) ||
-	      ( coord -> between == AFTER_UNIT ) ) &&
-	    ( coord -> unit_pos != 0 ) &&
+	if( ( size_change <= ( int ) znode_free_space( coord -> node ) ) &&
+	    !coord_is_leftmost_unit( coord ) &&
+	    /* FIXME_COORD: Is this captured by !coord_is_leftmost_unit?
+	       ( ( coord -> item_pos != 0 ) || 
+	       ( coord -> unit_pos != 0 ) ||
+	       ( coord -> between == AFTER_UNIT ) ) && 
+	       ( coord -> unit_pos != 0 ) && */
 	    ( nplug -> fast_paste != NULL ) &&
 	    nplug -> fast_paste( coord ) &&
 	    ( iplug -> common.fast_paste != NULL ) && 
@@ -938,7 +941,8 @@ int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
 			 ret );
 		return -EIO;
 	} else {
-		result -> between = AFTER_UNIT;
+		/* FIXME_COORD: what does this accomplish?
+		   result -> between = AFTER_UNIT; */
 		return NS_NOT_FOUND;
 	}
 }
@@ -974,17 +978,17 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	 * fast path. Try to use cached value. Lock tree to keep
 	 * node->pos_in_parent and pos->*_blocknr consistent.
 	 */
-	if( child -> ptr_in_parent_hint.item_pos + 1 != 0 ) {
+	if( coord_is_invalid( &child -> ptr_in_parent_hint ) ) {
 		reiser4_stat_tree_add( pos_in_parent_set );
 		spin_lock_tree( current_tree );
-		*result = child -> ptr_in_parent_hint;
+		coord_dup (result, &child -> ptr_in_parent_hint);
 		spin_unlock_tree( current_tree );
 		if( check_tree_pointer( result, child ) == NS_FOUND )
 			return NS_FOUND;
 
 		reiser4_stat_tree_add( pos_in_parent_miss );
 		spin_lock_tree( current_tree );
-		child -> ptr_in_parent_hint.item_pos = ~0u;
+		coord_init_invalid( &child -> ptr_in_parent_hint, child -> ptr_in_parent_hint.node );
 		spin_unlock_tree( current_tree );
 	}
 
@@ -1001,8 +1005,11 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	/* update cached pos_in_node */
 	if( lookup_res == NS_FOUND ) {
 		spin_lock_tree( current_tree );
-		child -> ptr_in_parent_hint = *result;
-		child -> ptr_in_parent_hint.between = AT_UNIT;
+		coord_dup( &child -> ptr_in_parent_hint, result );
+		/* FIXME_COORD: Why would lookup_exact not return AT_UNIT?
+		   child -> ptr_in_parent_hint.between = AT_UNIT;
+		*/
+		assert ("jmacd-7178", child -> ptr_in_parent_hint.between == AT_UNIT);
 		spin_unlock_tree( current_tree );
 		lookup_res = check_tree_pointer( result, child );
 	}
@@ -1032,21 +1039,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 
 	ret = NS_NOT_FOUND;
 
-	/* FIXME_NIKITA: The following loop is awkward.  It looks as if it
-	 * ALWAYS will return NS_NOT_FOUND.  When else is ret set?
-	 *
-	 * Also, why not write this as:
-	 *
-	 * coord_first_unit();
-	 * do {
-	 *   ...
-	 * } while (! coord_next_unit ());
-	 *
-	 * The for-loop test (coord_of_unit) is only useful the first time
-	 * through... every other time it is redundent.
-	 */
-	
-	for( coord_init_first_unit( result, parent ) ;
+	for( coord_init_before_first_item( result, parent ) ;
 	     coord_next_unit( result ) == 0 ; ) {
 
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
@@ -1189,6 +1182,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 
 	/* for one extent item only yet */
 	assert ("vs-591", item_is_extent (from));
+	/* FIXME_COORD: coord_eq? */
 	assert ("vs-592", from->item_pos == to->item_pos);
 
 
@@ -1198,6 +1192,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 		return 0;
 	}
 
+	/* FIXME_COORD: ?? */
 	assert ("vs-593", from->unit_pos == 0);
 
 	coord_dup (&left_coord, from);
@@ -1255,6 +1250,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 		lock_handle right_lh;
 
 
+		/* FIXME_COORD: ?? */
 		assert ("vs-607", to->unit_pos == coord_last_unit_pos (to));
 		coord_dup (&right_coord, to);
 		init_lh (&right_lh);

@@ -443,8 +443,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 		 * move further 
 		 */
 		if( ( through_units_p && coord_is_rightmost_unit( coord ) ) || 
-		    ( !through_units_p && ( coord -> item_pos + 1u == 
-					    node_num_items( coord -> node ) ) ) ) {
+		    ( !through_units_p && coord_is_rightmost_item( coord ) ) ) {
 			do {
 				lock_handle couple;
 
@@ -467,10 +466,12 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 				} else
 					return result;
 			} while( node_is_empty( coord -> node ) );
-		} else if( through_units_p )
+		} else if( through_units_p ) {
 			coord_next_unit( coord );
-		else
+		} else {
 			coord_next_item( coord );
+		}
+		/* FIXME_COORD: this looks suspicious */
 		assert( "nikita-1149", coord_is_existing_unit( coord ) );
 	}
 	zrelse( coord -> node );
@@ -618,7 +619,8 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 * FIXME-NIKITA this is ugly kludge. To get rid of it, get rid of
 	 * tree_coord.between field first.
 	 */
-	h->coord->between = AT_UNIT;
+	/*h->coord->between = AT_UNIT;*/
+	coord_set_to_unit( h -> coord );
 
 	spin_lock_tree (h->tree);
 	if (!znode_is_loaded(active) && (h->coord->node != NULL))
@@ -696,14 +698,14 @@ static int is_next_item_internal( tree_coord *coord,  lock_handle *lh )
 	int result;
 
 
-	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
+	if( !coord_is_rightmost_item (coord) ) {
 		/*
 		 * next item is in the same node
 		 */
-		coord -> item_pos ++;
+		coord_next_item (coord);
 		if( item_is_internal( coord ) )
 			return 1;
-		coord -> item_pos --;
+		coord_prev_item (coord);
 		return 0;
 	} else {
 		/*
@@ -751,14 +753,14 @@ static int is_next_item_internal( tree_coord *coord,  lock_handle *lh )
  */
 static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
 {
-	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
+	if( !coord_is_rightmost_item( coord ) ) {
 		/*
 		 * get right delimiting key from an item to the right of @coord
 		 */
 		tree_coord tmp;
 
 		coord_dup( &tmp, coord );
-		tmp.item_pos ++;
+		coord_next_item( &tmp );
 		item_key_by_coord( &tmp, key );
 
 	} else {
@@ -1184,9 +1186,9 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	
 	coord_dup( &neighbor, parent_coord );
 
-	if( neighbor.between == AT_UNIT )
-		/* imitate item ->lookup() behavior. */
-		neighbor.between = AFTER_UNIT;
+	/* imitate item ->lookup() behavior. */
+	/* FIXME_COORD: is it right? */
+	coord_set_after_unit( &neighbor );
 
 	if( coord_is_existing_unit( &neighbor ) || 
 	    ( coord_set_to_left( &neighbor ) == 0 ) )
@@ -1195,8 +1197,8 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 		*ld = *znode_get_ld_key( parent );
 
 	coord_dup( &neighbor, parent_coord );
-	if( neighbor.between == AT_UNIT )
-		neighbor.between = AFTER_UNIT;
+	coord_set_after_unit( &neighbor );
+	/* FIXME_COORD: is it right? */
 	if( coord_set_to_right( &neighbor ) == 0 )
 		unit_key_by_coord( &neighbor, rd );
 	else

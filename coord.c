@@ -2,9 +2,8 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#define DONTUSE_COORD_FIELDS
 #include "reiser4.h"
-
-#if 0
 
 #if 1
 
@@ -43,9 +42,9 @@ void coord_dup (tree_coord *new_coord, const tree_coord *old_coord)
 }
 
 /* Initialize an invalid coordinate. */
-void coord_init (tree_coord *coord)
+void coord_init_invalid (tree_coord *coord, znode *node)
 {
-	coord_init_values (coord, NULL, 0, 0, EMPTY_NODE);
+	coord_init_values (coord, node, ~0U, 0, AT_UNIT);
 }
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
@@ -114,28 +113,6 @@ unsigned coord_last_unit_pos (const tree_coord * coord)
 	return coord_num_units (coord) - 1;
 }
 
-/* This is used to test whether the item position is valid for the current node.  If this
- * is true you can call methods of the item plugin.  This is not true for the
- * EMPTY_NODE.  */
-int coord_is_item_plugin_valid (const tree_coord * coord)
-{
-	switch (coord->between) {
-	case EMPTY_NODE:
-		assert ("jmacd-9807", coord_empty_check (coord));
-		return 0;
-
-	case BEFORE_UNIT:
-	case AT_UNIT:
-	case AFTER_UNIT:
-		return coord->item_pos < coord_num_items (coord);
-	case BEFORE_ITEM:
-	case AFTER_ITEM:
-		return 0;
-	}
-
-	impossible ("jmacd-9901", "unreachable");
-}
-
 /* Returns true if the coordinate is positioned at an existing item, not before or after
  * an item.  It may be placed at, before, or after any unit within the item, whether
  * existing or not. */
@@ -186,7 +163,7 @@ int coord_is_existing_unit (const tree_coord *coord)
  * true for empty nodes nor coordinates positioned before the first item. */
 int coord_is_leftmost_unit (const tree_coord *coord)
 {
-	assert ("jmacd-9808", coord_is_item_plugin_valid (coord));
+	assert ("jmacd-9808", coord_is_existing_item (coord));
 	return (coord->between == AT_UNIT &&
 		coord->item_pos == 0 &&
 		coord->unit_pos == 0);
@@ -196,7 +173,7 @@ int coord_is_leftmost_unit (const tree_coord *coord)
  * true for empty nodes nor coordinates positioned after the last item. */
 int coord_is_rightmost_unit (const tree_coord *coord)
 {
-	assert ("jmacd-9809", coord_is_item_plugin_valid (coord));
+	assert ("jmacd-9809", coord_is_existing_item (coord));
 	return (coord->between == AT_UNIT &&
 		coord->item_pos == coord_num_units (coord) - 1 &&
 		coord->unit_pos == coord_last_unit_pos (coord));
@@ -896,8 +873,6 @@ void coord_print (const char * mes, const tree_coord * coord, int node)
 	if (node)
 		print_znode( "\tnode", coord -> node );
 }
-
-#endif
 
 /* 
  * Local variables:
