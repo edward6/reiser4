@@ -1148,6 +1148,7 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
 	}
 }
 
+/* update i_size by window */
 static void
 inode_set_new_size(reiser4_cluster_t * clust, struct inode * inode)
 {
@@ -1184,14 +1185,12 @@ inode_set_new_size(reiser4_cluster_t * clust, struct inode * inode)
    . update jnode's counter of referenced pages (excluding first one)
 */
 static void
-make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust,
-				jnode * node, struct inode * inode)
+make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
+				loff_t * old_isize, struct inode * inode)
 {
 	int i;
 	int old_refcnt;
 	int new_refcnt;
-	
-	reiser4_slide_t * win = clust->win;
 	
 	assert("edward-221", node != NULL);
 	assert("edward-971", clust->reserved == 1);
@@ -1200,8 +1199,8 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust,
 	
 	if (jnode_is_dirty(node)) {
 		/* there are >= 1 pages already referenced by this jnode */
-		assert("edward-973", count_to_nrpages(fsize_to_count(clust, inode)));
-		old_refcnt = count_to_nrpages(fsize_to_count(clust, inode)) - 1;
+		assert("edward-973", count_to_nrpages(off_to_count(*old_isize, clust->index, inode)));
+		old_refcnt = count_to_nrpages(off_to_count(*old_isize, clust->index, inode)) - 1;
 		/* space for the disk cluster is already reserved */
 		free_reserved4cluster(inode, clust);
 	}
@@ -1212,9 +1211,6 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust,
 		jnode_make_dirty_locked(node);
 		clust->reserved = 0;
 	}
-	if (win)
-		inode_set_new_size(clust, inode);
-	
 	new_refcnt = cluster_nrpages_to_capture(clust) - 1;
 	
 	/* get rid of duplicated references */
@@ -1240,7 +1236,6 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust,
 #if REISER4_DEBUG
 	node->page_count = new_refcnt;
 #endif
-	jput(node);
 	return;
 }
 
@@ -1251,6 +1246,7 @@ static int
 try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
 	int result = 0;
+	loff_t old_size = inode->i_size;
 	jnode * node;
 	
 	assert("edward-1029", clust != NULL);
@@ -1263,6 +1259,9 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	
 	assert("edward-1035", node != NULL);
 
+	if (clust->win)
+		inode_set_new_size(clust, inode);
+	
 	LOCK_JNODE(node);
 	result = try_capture(node, ZNODE_WRITE_LOCK, 0, 0);
 	if (result) {
@@ -1270,9 +1269,9 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		UNLOCK_JNODE(node);
 		return result;
 	}
-	make_cluster_jnode_dirty_locked(clust, node, inode);
+	make_cluster_jnode_dirty_locked(clust, node, &old_size, inode);
 	UNLOCK_JNODE(node);
-	
+	jput(node);
 	return 0;
 }
 
@@ -1590,8 +1589,8 @@ struct inode * inode)
 	cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
 	uncapture_cluster_jnode(node);
 	
-	UNLOCK_JNODE(node);
-	
+	assert("edward-1224", schedulable());
+
 	result = grab_tfm_stream(inode, tc, TFM_WRITE, INPUT_STREAM);
 	if (result)
 		return result;
