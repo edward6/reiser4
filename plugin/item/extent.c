@@ -84,6 +84,8 @@ int extent_can_contain_key (const coord_t * coord, const reiser4_key * key,
 	    get_key_objectid (key) != get_key_objectid (&item_key))
 		return 0;
 
+	return 1;
+
 	assert ("vs-458", coord->between == AFTER_UNIT);
 	set_key_offset (&item_key,
 			get_key_offset (&item_key) +
@@ -451,7 +453,13 @@ void extent_copy_units (coord_t * target, coord_t * source,
 	if (where_is_free_space == SHIFT_LEFT) {
 		assert ("vs-215", from == 0);
 
-		to_ext += (extent_nr_units (target) - count);
+		/*
+		 * At this moment, item length was already updated in the item
+		 * header by shifting code, hence extent_nr_units() will
+		 * return "new" number of units---one we obtain after copying
+		 * units.
+		 */
+		to_ext += (extent_nr_units (target) - count) * sizeof (reiser4_extent);
 	} else {
 		reiser4_key key;
 		coord_t coord;
@@ -547,6 +555,44 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 		/* "defer" parameter is set to 1 because blocks which get freed
 		 * are not safe to be freed immediately */
 		reiser4_dealloc_blocks (&start, &length, 1 /* defer */, BLOCK_NOT_COUNTED);
+	}
+	return 0;
+}
+
+/**
+ * extent_check ->check() method for extent items
+ *
+ * used for debugging, every item should have here the most complete
+ * possible check of the consistency of the item that the inventor can
+ * construct 
+ */
+int extent_check (coord_t *coord /* coord of item to check */, 
+		  const char **error /* where to store error message */)
+{
+ 	reiser4_extent * ext;
+	unsigned i;
+	reiser4_block_nr start, width, blk_cnt;
+
+	if (item_length_by_coord (coord) % sizeof (reiser4_extent) != 0) {
+		*error = "Wrong item size";
+		return -1;
+	}
+	ext = extent_item (coord);
+	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
+	for (i = 0 ; i < coord_num_units (coord) ; ++ i, ++ ext) {
+
+		start = extent_get_start (ext);
+		if (start < 2)
+			continue;
+		width = extent_get_width (ext);
+		if (start >= blk_cnt) {
+			*error = "Start too large";
+			return -1;
+		}
+		if (start + width >= blk_cnt) {
+			*error = "End too large";
+			return -1;
+		}
 	}
 	return 0;
 }
