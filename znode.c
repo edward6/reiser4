@@ -1182,6 +1182,7 @@ static int check_dk_called = 0;
 static int check_dk_start = 200000;
 static int check_dk_log = 300000;
 static int check_dk_step = 100;
+static int check_dk_trace = 0;
 
 void
 znodes_check_dk(reiser4_tree * tree)
@@ -1190,7 +1191,7 @@ znodes_check_dk(reiser4_tree * tree)
 	znode *next;
 	z_hash_table *htable;
 
-	return 0;
+	return;
 
 	++ check_dk_called;
 
