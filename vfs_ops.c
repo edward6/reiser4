@@ -1980,6 +1980,12 @@ static void reiser4_kill_super (struct super_block *s)
 
 	trace_on (TRACE_VFS_OPS, "kill_super\n");
 
+	/*
+	 * FIXME-VS: the problem is that there still might be dirty pages which
+	 * became dirty via mapping. Have them to go through writepage
+	 */
+	fsync_super (s);
+
 	if (reiser4_is_debugged (s, REISER4_VERBOSE_UMOUNT)) {
 		get_current_context() -> trace_flags |= (TRACE_PCACHE|
 							 TRACE_TXN|
