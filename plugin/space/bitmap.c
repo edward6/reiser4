@@ -1099,7 +1099,7 @@ bitmap_pre_commit_hook(void)
 				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
 					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
 
-				assert ("zam-779", atom->satge == ASTAGE_PRE_COMMIT);
+				assert ("zam-779", atom->stage == ASTAGE_PRE_COMMIT);
 				spin_unlock_atom (atom);
 
 				check_bnode_loaded(bn);
