@@ -365,14 +365,26 @@ check_make_extent_result(int result, reiser4_key *key, lock_handle *lh, reiser4_
 {
 	coord_t coord;
 
-	if (result != 0) {
+	if (result != 0)
 		return;
-	}
 	
 	assert("vs-960", znode_is_write_locked(lh->node));
 	zload(lh->node);
 	result = lh->node->nplug->lookup(lh->node, key, FIND_EXACT, &coord);
 	assert("vs-1502", result == NS_FOUND);
+	assert("vs-1656", coord_is_existing_unit(&coord));
+
+	if (blocknr_is_fake(&block)) {
+		assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
+	} else {
+		reiser4_key tmp;
+		reiser4_block_nr pos_in_unit;
+
+		assert("vs-1658", state_of_extent(extent_by_coord(&coord)) == ALLOCATED_EXTENT);
+		unit_key_by_coord(&coord, &tmp);
+		pos_in_unit = (get_key_offset(key) - get_key_offset(&tmp)) >> current_blocksize_bits;
+		assert("vs-1659", block == extent_get_start(extent_by_coord(&coord)) +pos_in_unit);
+	}
 	zrelse(lh->node);
 }
 
