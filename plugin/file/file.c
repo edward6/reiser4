@@ -769,7 +769,7 @@ unix_file_readpage(struct file *file, struct page *page)
 	}
 
 	if (PageUptodate(page)) {
-		info("unix_file_readpage: " "page became already uptodate\n");
+		info("unix_file_readpage: page became already uptodate\n");
 		done_lh(&lh);
 		unlock_page(page);
 		return 0;
@@ -1529,11 +1529,39 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 /* plugin->u.file.get_block */
 int
-unix_file_get_block(struct inode *inode UNUSED_ARG,
-		    sector_t block UNUSED_ARG, struct buffer_head *bh_result UNUSED_ARG, int create UNUSED_ARG)
+unix_file_get_block(struct inode *inode,
+		    sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
 {
-	/* FIXME-VS: not ready */
-	return -EINVAL;
+	int result;
+	reiser4_key key;
+	coord_t coord;
+	lock_handle lh;
+	item_plugin *iplug;
+	     
+	assert("vs-1091", create == 0);
+	unix_file_key_by_inode(inode, (loff_t) block * current_blocksize, &key);
+
+	coord_init_zero(&coord);
+	init_lh(&lh);
+	result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+	if (result != CBK_COORD_FOUND || coord.between != AT_UNIT) {
+		done_lh(&lh);
+		return result;
+	}
+	result = zload(coord.node);
+	if (result) {
+		done_lh(&lh);
+		return result;
+	}
+	iplug = item_plugin_by_coord(&coord);
+	if (iplug->s.file.get_block)
+		result = iplug->s.file.get_block(&coord, block, bh_result);
+	else
+		result = -EINVAL;
+
+	zrelse(coord.node);
+	done_lh(&lh);
+	return result;
 }
 
 /* plugin->u.file.flow_by_inode  = common_build_flow */
@@ -1541,7 +1569,7 @@ unix_file_get_block(struct inode *inode UNUSED_ARG,
 /* plugin->u.file.key_by_inode */
 /* Audited by: green(2002.06.15) */
 int
-unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
+unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	build_sd_key(inode, key);
 	set_key_type(key, KEY_BODY_MINOR);
