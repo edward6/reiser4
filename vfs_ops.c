@@ -520,7 +520,14 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	buf->f_type = statfs_type(super);
 	buf->f_bsize = super->s_blocksize;
 	buf->f_blocks = reiser4_block_count(super);
-	buf->f_bfree = reiser4_free_blocks(super);
+
+	/* UMKA: We should do not show the reserved space */
+	{
+	    reiser4_block_nr bfree = reiser4_free_blocks(super) > reiser4_fs_reserved_space(super) ?
+		    reiser4_free_blocks(super) - reiser4_fs_reserved_space(super) : 0;
+	    buf->f_bfree = bfree;
+	}
+	
 	buf->f_bavail = buf->f_bfree - reiser4_reserved_blocks(super, 0, 0);
 	buf->f_files = oids_used(super);
 	buf->f_ffree = oids_free(super);

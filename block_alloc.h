@@ -61,6 +61,7 @@ extern int reiser4_grab_space(reiser4_block_nr *, __u64, __u64, int);
 extern int reiser4_grab_space_exact(__u64, int);
 extern int reiser4_grab_space_force(__u64 count, int reserved);
 
+extern reiser4_block_nr reiser4_fs_reserved_space(struct super_block * super);
 extern void reiser4_grab_space_enable(void);
 extern void reiser4_grab_space_disable(void);
 

@@ -265,7 +265,7 @@ check_block_counters(const struct super_block *super)
 }
 
 /* Get the amount of blocks of 5% of disk. */
-static int reiser4_fs_reserved_space(struct super_block * super) 
+reiser4_block_nr reiser4_fs_reserved_space(struct super_block * super) 
 {
     return reiser4_block_count (super) / 20;
 }
