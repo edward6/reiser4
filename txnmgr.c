@@ -912,7 +912,7 @@ atom_try_commit_locked (txn_atom *atom)
 	if (WRITE_LOG) {
 		ret = reiser4_write_logs();
 		if (ret) {
-			warning ("zam-597", "write log failed"); 
+			warning ("zam-597", "write log failed (%d)\n", ret); 
 			return ret;
 		}
 	}
