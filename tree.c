@@ -638,10 +638,10 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
 	tree  = & sdata -> tree;
 
-	init_lock_stack( &context -> stack );
-
 	context -> super = super;
 	context -> tid   = tid;
+
+	assert("green-7", super->s_op == NULL || super->s_op == &reiser4_super_operations );
 
 	if( REISER4_DEBUG ) 
 		context -> magic = context_magic;
