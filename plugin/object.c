@@ -135,40 +135,31 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	  znode_lock_mode lock_mode /* lock mode */ ,
 	  coord_t * coord /* resulting coord */ ,
 	  lock_handle * lh /* resulting lock handle */ ,
-	  reiser4_key * key /* resulting key */ )
-{
-	assert("nikita-1692", inode != NULL);
-	assert("nikita-1693", coord != NULL);
-	assert("nikita-1694", key != NULL);
-
-	build_sd_key(inode, key);
-	return lookup_sd_by_key(tree_by_inode(inode), lock_mode, coord, lh, key);
-}
-
-/* find sd of inode in a tree, deal with errors */
-int
-lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
-		 znode_lock_mode lock_mode /* lock mode */ ,
-		 coord_t * coord /* resulting coord */ ,
-		 lock_handle * lh /* resulting lock handle */ ,
-		 const reiser4_key * key /* resulting key */ )
+	  const reiser4_key * key /* resulting key */ )
 {
 	int result;
 	__u32 flags;
 
-	assert("nikita-718", tree != NULL);
-	assert("nikita-719", coord != NULL);
-	assert("nikita-720", key != NULL);
+	assert("nikita-1692", inode != NULL);
+	assert("nikita-1693", coord != NULL);
+	assert("nikita-1694", key != NULL);
 
-	result = 0;
 	/* look for the object's stat data in a tree.
 	   This returns in "node" pointer to a locked znode and in "pos"
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = coord_by_key(tree, key, coord, lh, lock_mode,
-			      FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags, 0/*ra_info*/);
+	result = coord_by_key(tree_by_inode(inode),
+			      key,
+			      coord,
+			      lh,
+			      lock_mode,
+			      FIND_EXACT,
+			      LEAF_LEVEL,
+			      LEAF_LEVEL,
+			      flags,
+			      0);
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
 
@@ -440,9 +431,9 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	seal = state->sd_seal;
 	spin_unlock_inode(inode);
 
+	build_sd_key(inode, &key);
 	if (seal_is_set(&seal)) {
 		/* first, try to use seal */
-		build_sd_key(inode, &key);
 		result = seal_validate(&seal,
 				       &coord,
 				       &key,

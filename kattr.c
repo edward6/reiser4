@@ -190,44 +190,6 @@ static reiser4_kattr bugme = {
 /* REISER4_DEBUG */
 #endif
 
-#if REISER4_STATS
-
-TS_LIST_DEFINE(atom, txn_atom, atom_link);
-
-static ssize_t
-show_atoms(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
-{
-	char     *p;
-	txn_mgr  *tmgr;
-	txn_atom *atom;
-
-	(void)o;
-	p = buf;
-
-	tmgr = &get_super_private(s)->tmgr;
-
-	spin_lock_txnmgr(tmgr);
-	/* traverse the list of all atoms */
-	for_all_tslist(atom, &tmgr->atoms_list, atom) {
-		LOCK_ATOM(atom);
-		p = show_atom(p, buf, atom);
-		UNLOCK_ATOM(atom);
-	}
-	spin_unlock_txnmgr(tmgr);
-
-	return (p - buf);
-}
-
-static reiser4_kattr atoms = {
-	.attr = {
-		.name = (char *) "tmgr.atoms",
-		.mode = 0444   /* r--r--r-- */
-	},
-	.cookie = NULL,
-	.show = show_atoms
-};
-#endif
-
 DEFINE_SUPER_RO(01, mkfs_id, "%llx", 32);
 DEFINE_SUPER_RO(02, block_count, "%llu", 64);
 DEFINE_SUPER_RO(03, blocks_used, "%llu", 64);

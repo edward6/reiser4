@@ -532,99 +532,15 @@ is_valid_dir_coord(struct inode * inode, coord_t * coord)
 		inode_file_plugin(inode)->owns_item(inode, coord);
 }
 
-/* actor function looking for any entry different from dot or dotdot. */
-static int
-is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
-	       coord_t * coord /* current coord */ ,
-	       lock_handle * lh UNUSED_ARG	/* current lock
-						 * handle */ ,
-	       void *arg /* readdir arguments */ )
-{
-	struct inode *dir;
-	item_plugin *iplug;
-	char *name;
-	char buf[DE_NAME_BUF_LEN];
-
-	assert("nikita-2004", tree != NULL);
-	assert("nikita-2005", coord != NULL);
-	assert("nikita-2006", arg != NULL);
-
-	dir = arg;
-	assert("nikita-2003", dir != NULL);
-
-	if (!is_valid_dir_coord(dir, coord))
-		return 0;
-
-	iplug = item_plugin_by_coord(coord);
-	name = iplug->s.dir.extract_name(coord, buf);
-	assert("nikita-2162", name != NULL);
-
-	if ((name[0] != '.') || ((name[1] != '.') && (name[1] != '\0')))
-		return RETERR(-ENOTEMPTY);
-	else
-		return 1;
-}
-
 /* true if directory is empty (only contains dot and dotdot) */
 int
 is_dir_empty(const struct inode *dir)
 {
-	reiser4_key de_key;
-	int result;
-	struct qstr dot;
-	coord_t coord;
-	lock_handle lh;
-
 	assert("nikita-1976", dir != NULL);
 
 	/* rely on our method to maintain directory i_size being equal to the
 	   number of entries. */
 	return dir->i_size <= 2 ? 0 : RETERR(-ENOTEMPTY);
-
-	/* NOTE-NIKITA this is not correct if hard links on directories are
-	   supported in this fs (if REISER4_ADG is not set in dir ->
-	   i_sb). But then, how to determine that last "outer" link is
-	   removed?
-	*/
-
-	dot.name = ".";
-	dot.len = 1;
-
-	result = inode_dir_plugin(dir)->build_entry_key(dir, &dot, &de_key);
-	if (result != 0)
-		return result;
-
-	coord_init_zero(&coord);
-	init_lh(&lh);
-
-	result = coord_by_key(tree_by_inode(dir), &de_key, &coord, &lh,
-			      ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, 0/*ra_info*/);
-	switch (result) {
-	case CBK_COORD_FOUND:
-		result = iterate_tree(tree_by_inode(dir), &coord, &lh,
-				      is_empty_actor, (void *) dir, ZNODE_READ_LOCK, 1);
-		switch (result) {
-		default:
-		case -ENOTEMPTY:
-			break;
-		case 0:
-		case -E_NO_NEIGHBOR:
-			result = 0;
-			break;
-		}
-		break;
-	case CBK_COORD_NOTFOUND:
-		/* no entries?! */
-		warning("nikita-2002", "Directory %lli is TOO empty", get_inode_oid(dir));
-		result = 0;
-		break;
-	default:
-		/* some other error */
-		break;
-	}
-	done_lh(&lh);
-
-	return result;
 }
 
 /* compare two logical positions within the same directory */
@@ -792,16 +708,16 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
-	result = coord_by_key(tree_by_inode(inode),
-			      &key,
-			      tap->coord,
-			      tap->lh,
-			      tap->mode,
-			      FIND_EXACT,
-			      LEAF_LEVEL,
-			      LEAF_LEVEL,
-			      0,
-			      &tap->ra_info);
+	result = object_lookup(inode,
+			       &key,
+			       tap->coord,
+			       tap->lh,
+			       tap->mode,
+			       FIND_EXACT,
+			       LEAF_LEVEL,
+			       LEAF_LEVEL,
+			       0,
+			       &tap->ra_info);
 	if (result == CBK_COORD_FOUND)
 		result = rewind_right(tap, (int) pos->position.pos);
 	else {
