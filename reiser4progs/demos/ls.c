@@ -65,14 +65,14 @@ int main(int argc, char *argv[]) {
 	reiserfs_plugin_t *dir_plugin;
 	reiserfs_object_hint_t dir_hint;
 	
-	if (!(dir_plugin = libreiser4_factory_find_by_id(REISERFS_DIR_PLUGIN, 0x0)))
-	    libreiser4_factory_failed(goto error_free_object, find, dir, 0x0);
+	if (!(dir_plugin = libreiser4_factory_find_by_id(DIRECTORY_FILE, FILE_DIR40_ID)))
+	    libreiser4_factory_failed(goto error_free_object, find, dir, FILE_DIR40_ID);
 	
-	dir_hint.statdata_pid = REISERFS_STATDATA_ITEM;
-	dir_hint.sdext = REISERFS_UNIX_SDEXT;
+	dir_hint.statdata_pid = ITEM_STATDATA40_ID;
+	dir_hint.sdext = SDEXT_UNIX_ID;
 
-	dir_hint.direntry_pid = REISERFS_CDE_ITEM;
-	dir_hint.hash_pid = REISERFS_R5_HASH;
+	dir_hint.direntry_pid = ITEM_CDE40_ID;
+	dir_hint.hash_pid = HASH_R5_ID;
 	
 	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir");
 	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir1");
