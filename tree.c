@@ -784,13 +784,13 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
 		BUG ();
 	}
 
-	memset( context, 0, sizeof *context );
+	xmemset( context, 0, sizeof *context );
 
 	tid = set_current ();
 	sdata = ( reiser4_super_info_data* ) &super -> u.reiser4_sb;
 	tree  = & sdata -> tree;
 
-	memset( context, 0, sizeof *context );
+	xmemset( context, 0, sizeof *context );
 	reiser4_init_lock_stack( &context -> stack );
 
 	context -> super = super;
@@ -877,22 +877,6 @@ void reiser4_show_context (int show_tree)
 	spin_unlock (& active_contexts_lock);
 }
 #endif
-
-/** return context associated with current thread */
-reiser4_context *reiser4_get_current_context()
-{
-	return reiser4_get_context( current );
-}
-
-/** return context associated with given thread */
-reiser4_context *reiser4_get_context( const struct task_struct *tsk )
-{
-	if (tsk == NULL) {
-		BUG ();
-	}
-	
-	return tsk -> journal_info;
-}
 
 /**
  * This is called from reiser4_unlock_znode() when last lock is released from
