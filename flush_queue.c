@@ -493,7 +493,7 @@ static void release_prepped_list(flush_queue_t * fq)
 
 	if (-- atom->nr_running_queues == 0)
 		atom_send_event(atom);
-	
+
 	UNLOCK_ATOM(atom);
 }
 

@@ -752,6 +752,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			return RETERR(-ENOMEM);
 
 		bio->bi_bdev = super->s_bdev;
+		bio->bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 			ON_DEBUG(int jnode_is_releasable(jnode *));
@@ -820,7 +821,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			spin_unlock(&scan_lock);
 		}
 		if (nr_used > 0) {
-			bio->bi_sector = block * (super->s_blocksize >> 9);
 			assert("nikita-3455",
 			       bio->bi_size == super->s_blocksize * nr_used);
 			assert("nikita-3456", bio->bi_vcnt == nr_used);
@@ -1171,6 +1171,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			return RETERR(-ENOMEM);
 
 		bio->bi_bdev = super->s_bdev;
+		bio->bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 			ON_DEBUG(int jnode_is_releasable(jnode *));
@@ -1221,7 +1222,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			nr_used ++;
 		}
 		if (nr_used > 0) {
-			bio->bi_sector = block * (super->s_blocksize >> 9);
 			assert("nikita-3453",
 			       bio->bi_size == super->s_blocksize * nr_used);
 			assert("nikita-3454", bio->bi_vcnt == nr_used);
