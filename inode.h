@@ -167,6 +167,11 @@ typedef union reiser4_file_fsdata {
 		 * traversals.
 		 */
 		seal_t last_access;
+		/*
+		 * FIXME-VS: without coord seal is more or less
+		 * useless. Shouldn't therefore coord be included into seal?
+		 */
+		coord_t coord;
 	} reg;
 } reiser4_file_fsdata;
 
