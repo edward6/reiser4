@@ -763,7 +763,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 {
 	int result;
 	loff_t file_size;
-	reiser4_block_nr reserved, needed;
+	reiser4_block_nr needed;
 
 	inode->i_size = size;
 

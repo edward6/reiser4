@@ -252,7 +252,7 @@ static int reiser4_fs_reserved_space(struct super_block * super)
     return reiser4_block_count (super) / 20;
 }
 
-static void reiser4_grab_space_enable(void) 
+void reiser4_grab_space_enable(void) 
 {
 	get_current_context()->grab_enabled = 1;
 }
@@ -470,7 +470,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
-		reiser4_grab_space_enabled();
+		reiser4_grab_space_enable();
 		warning("vpf-337", "SPACE: grab for not counted %llu blocks.", *len);
 		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, 
 			from_reserved_space);
