@@ -33,8 +33,9 @@
     each case. This is parameterized by dir argument, which ?word missing here? byte offset for
     neighbor pointer field within znode structure. This function should be
     called with the tree lock held */
-static int lock_neighbor (reiser4_lock_handle * result, 
-			  znode * node, /* source node? */
+static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
+							* handle*/, 
+			  znode * node /* node to lock */,
 			  int dir, /* I have no understanding of why this is named this, and it seems like it should be more strongly typed. -Hans */
 			           /* I don't have strong objections to the lack of strong types, but I agree that the
 				    * name is very bad.  Reame "dir" to "field_offset", perhaps?  You could do it w/
@@ -42,7 +43,15 @@ static int lock_neighbor (reiser4_lock_handle * result,
 				    * value, then using a switch() to select the field based on that. -josh */
 			  znode_lock_mode mode,
 			  znode_lock_request req,
-			  int only_connected_p)
+			  int only_connected_p /* if this is true, neighbor is
+						* only returned when it is
+						* connected. If neighbor is
+						* unconnected, -ENAVAIL is
+						* returned. Normal users
+						* should pass 1 here. Only
+						* during carry we want to
+						* access still unconnected
+						* neighbors. */ )
 {
 	reiser4_tree * tree = current_tree;
 	znode * neighbor;
@@ -91,7 +100,17 @@ static int lock_neighbor (reiser4_lock_handle * result,
 }
 
 /* description is in tree_walk.h */
-int reiser4_get_parent (reiser4_lock_handle * result, znode * node, int mode, int only_connected_p)
+int reiser4_get_parent (reiser4_lock_handle * result /* resulting lock
+						      * handle */, 
+			znode * node /* child node */, int mode /* ??? */, 
+			int only_connected_p /* if this is true, parent is
+					      * only returned when it is
+					      * connected. If parent is
+					      * unconnected, -ENAVAIL is
+					      * returned. Normal users should
+					      * pass 1 here. Only during carry
+					      * we want to access still
+					      * unconnected parents. */ )
 {
 	reiser4_tree * tree = current_tree;
 	int ret;
@@ -445,8 +464,16 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
  * locked.
  */
 
-int reiser4_get_neighbor (reiser4_lock_handle * neighbor,
-			  znode * node, znode_lock_mode lock_mode, int flags)
+int reiser4_get_neighbor (reiser4_lock_handle * result /* lock handle that
+							* points to origin
+							* node we go to
+							* left/right/upward
+							* from */,
+			  znode * node,
+			  znode_lock_mode lock_mode /* lock mode {LM_READ,
+						     * LM_WRITE}.*/, 
+			  int flags /* logical OR of {GN_*} (see description
+				     * above) subset. */ )
 {
 	reiser4_tree * tree = current_tree;
 	reiser4_lock_handle path[REISER4_MAX_ZTREE_HEIGHT - 1];

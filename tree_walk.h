@@ -36,16 +36,8 @@ int reiser4_connect_znode (tree_coord *coord, znode * node);
 
 */
 
-/** 
-    locks parent of specified node (if parent available) 
- **/
-int reiser4_get_parent (reiser4_lock_handle * result /* empty (uninitialized)
-						      * lock handle which will
-						      * point to locked */,
-			znode * node /* original node we start locking from */,
-			int mode /* lock mode {ZNODE_READ_LOCK,
-				  * ZNODE_WRITE_LOCK}. */, 
-			int only_connected_p /* FIXME_ZAM/NIKITA: docuemnt me!  Please! */);
+int reiser4_get_parent (reiser4_lock_handle * result, znode * node,
+			int mode, int only_connected_p );
 
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */
@@ -61,20 +53,8 @@ typedef enum {
 				 * cache */
 } znode_get_neigbor_flags;
 
-/** 
- *  generic function for reiser4 tree traversal
- *
- **/
-int reiser4_get_neighbor (reiser4_lock_handle * result /* lock handle that
-							* points to origin
-							* node we go to
-							* left/right/upward
-							* from */,
-			  znode * node,
-			  znode_lock_mode lock_mode /* lock mode {LM_READ,
-						     * LM_WRITE}.*/, 
-			  int flags /* logical OR of {GN_*} (see description
-				     * above) subset. */ );
+int reiser4_get_neighbor (reiser4_lock_handle * result,
+			  znode * node, znode_lock_mode lock_mode, int flags);
 
 /* there are wrappers for most common usages of reiser4_get_neighbor() */
 static inline
