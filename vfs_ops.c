@@ -349,7 +349,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		}
 		spin_unlock_inode(inode);
 		if (fsdata != NULL)
-			/* other thread initialised ->fsdata */
+			/* other thread initialized ->fsdata */
 			kmem_cache_free(file_fsdata_slab, fsdata);
 	}
 	assert("nikita-2665", f->private_data != NULL);
@@ -372,7 +372,7 @@ noop_read_inode(struct inode *inode UNUSED_ARG)
 {
 }
 
-/* initialisation and shutdown */
+/* initialization and shutdown */
 
 /* slab cache for inodes */
 static kmem_cache_t *inode_cache;
@@ -389,7 +389,7 @@ init_once(void *obj /* pointer to new inode */ ,
 	info = obj;
 
 	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) == SLAB_CTOR_CONSTRUCTOR) {
-		/* NOTE-NIKITA add here initialisations for locks, list heads,
+		/* NOTE-NIKITA add here initializations for locks, list heads,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
 		info->p.eflushed_anon = 0;
@@ -409,7 +409,7 @@ init_once(void *obj /* pointer to new inode */ ,
 	}
 }
 
-/* initialise slab cache where reiser4 inodes will live */
+/* initialize slab cache where reiser4 inodes will live */
 reiser4_internal int
 init_inodecache(void)
 {
@@ -422,7 +422,7 @@ init_inodecache(void)
 	return (inode_cache != NULL) ? 0 : RETERR(-ENOMEM);
 }
 
-/* initialise slab cache where reiser4 inodes lived */
+/* initialize slab cache where reiser4 inodes lived */
 static void
 destroy_inodecache(void)
 {
@@ -1462,7 +1462,7 @@ shutdown_reiser4(void)
 #undef DONE_IF
 }
 
-/* initialise reiser4: this is called either at bootup or at module load. */
+/* initialize reiser4: this is called either at bootup or at module load. */
 static int __init
 init_reiser4(void)
 {
