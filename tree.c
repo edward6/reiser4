@@ -702,8 +702,6 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	spin_unlock (& active_contexts_lock);
 	context -> task  = current;
 #endif
-	reiser4_check_mem (context);
-
 	return 0;
 }
 
@@ -1828,7 +1826,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 			      znode_get_level( node ),
 			      znode_check_dirty( node ),
 			      ZF_ISSET( node, JNODE_CREATED ),
-			      ZF_ISSET( node, JNODE_RELOC ) || ZF_ISSET( node, JNODE_WANDER ) );
+			      ZF_ISSET( node, JNODE_RELOC ) || ZF_ISSET( node, JNODE_OVRWR ) );
 		} else {
 			print_node_content( "", node, flags );
 		}
