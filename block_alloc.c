@@ -308,19 +308,21 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 
 	ON_TRACE(TRACE_ALLOC, "reiser4_grab: free_blocks %llu\n", free_blocks);
 
-	if ((use_reserved && free_blocks < count) ||
-	    (!use_reserved && free_blocks < count + sbinfo->blocks_reserved)) {
-		ret = RETERR(-ENOSPC);
+	if (count) {
+		if ((use_reserved && free_blocks < count) ||
+		    (!use_reserved && free_blocks < count + sbinfo->blocks_reserved)) {
+			ret = RETERR(-ENOSPC);
 
-		ON_TRACE(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
+			ON_TRACE(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
 
-		goto unlock_and_ret;
+			goto unlock_and_ret;
+		}
+
+		ctx->grabbed_blocks += count;
+
+		sbinfo->blocks_grabbed += count;
+		sbinfo->blocks_free -= count;
 	}
-
-	ctx->grabbed_blocks += count;
-
-	sbinfo->blocks_grabbed += count;
-	sbinfo->blocks_free -= count;
 
 #if REISER4_DEBUG
 	ctx->grabbed_initially = count;
