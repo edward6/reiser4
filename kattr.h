@@ -14,6 +14,8 @@
 /* fixme: access to sysfs files may cause deadlock. Do not turn for now */
 #define REISER4_USE_SYSFS (0)
 
+#if REISER4_USE_SYSFS
+
 /* helper macros used by kattr code to output information into buffer without
  * caring about overflow checking. */
 #define KATTR_LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
@@ -36,13 +38,21 @@ struct reiser4_kattr {
 			       * kattr.c for explanation. */
 };
 
+extern struct kobj_type ktype_reiser4;
+
+#else
+
+struct reiser4_kattr {
+};
+
+typedef struct reiser4_kattr reiser4_kattr;
+#endif /* REISER4_USE_SYSFS */
+
 extern int reiser4_sysfs_init_once(void);
 extern void reiser4_sysfs_done_once(void);
 
 extern int  reiser4_sysfs_init(struct super_block *super);
 extern void reiser4_sysfs_done(struct super_block *super);
-
-extern struct kobj_type ktype_reiser4;
 
 /* __REISER4_KATTR_H__ */
 #endif
