@@ -610,6 +610,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 
 	clog_op(EXTENT_WRITE_IN, (void *)(unsigned long)oid, (void *)(unsigned long)file_off);
+	clog_op(EXTENT_WRITE_IN2, get_current_lock_stack()->nr_locks, 0);
 
 	/* key of first byte of page */
 	page_key = flow->key;
@@ -696,6 +697,9 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		assert("vs-1503", UNDER_SPIN(jnode, j, (!JF_ISSET(j, JNODE_EFLUSH) && jnode_page(j) == page)));
 		assert("nikita-3033", schedulable());
+		if (!lock_stack_isclean(get_current_lock_stack()))
+			print_clog();
+		assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 		/* copy user data into page */
 		result = __copy_from_user((char *)kmap(page) + page_off, flow->data - count, count);

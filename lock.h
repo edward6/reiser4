@@ -121,6 +121,7 @@ struct lock_stack {
 	 * this list only by the current thread. ->node pointers in this list
 	 * can be only changed by the current thread. */
 	locks_list_head locks;
+	int nr_locks; /* number of lock handles in the above list */
 	/* When lock_stack waits for the lock, it puts itself on double-linked
 	   requestors list of that lock */
 	requestors_list_link requestors_link;

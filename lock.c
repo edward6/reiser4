@@ -269,7 +269,12 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 
 	handle->owner = owner;
 	handle->node = node;
+
+	assert("reiser4-4", ergo(lock_stack_isclean(owner), owner->nr_locks == 0));
 	locks_list_push_back(&owner->locks, handle);
+	owner->nr_locks ++;
+	clog_op(LINK_OBJECT, node, (void *)owner->nr_locks);
+
 	owners_list_push_front(&node->lock.owners, handle);
 	handle->signaled = 0;
 }
@@ -283,7 +288,12 @@ unlink_object(lock_handle * handle)
 	assert("nikita-1633", rw_zlock_is_locked(&handle->node->lock));
 	assert("nikita-1829", handle->owner == get_current_lock_stack());
 
+	assert("reiser4-5", handle->owner->nr_locks > 0);
 	locks_list_remove_clean(handle);
+	handle->owner->nr_locks --;
+	assert("reiser4-6", ergo(lock_stack_isclean(handle->owner), handle->owner->nr_locks == 0));
+	clog_op(UNLINK_OBJECT, handle->node, (void *)handle->owner->nr_locks);
+
 	owners_list_remove_clean(handle);
 
 	/* indicates that lock handle is free now */

@@ -686,7 +686,10 @@ op2str(int op)
 		"readp-error",
 		"releasep-in",
 		"releasep-1",
-		"releasep-0"
+		"releasep-0",
+		"ex-write-in-nr-locks",
+		"link-object",
+		"unlink-object"
 	};
 	assert("vs-1673", op < OP_NUM);
 	return op_names[op];

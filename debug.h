@@ -541,8 +541,11 @@ typedef struct err_site {} err_site;
 #define RELEASEPAGE_IN 9
 #define RELEASEPAGE_0 10
 #define RELEASEPAGE_1 11
+#define EXTENT_WRITE_IN2 12
+#define LINK_OBJECT 13
+#define UNLINK_OBJECT 14
 
-#define OP_NUM 12
+#define OP_NUM 15
 
 void clog_op(int op, void *, void *);
 void print_clog(void);
