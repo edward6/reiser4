@@ -329,6 +329,7 @@ typedef enum {
 	/* trace ctails */
 	TRACE_CTAIL = (1 << 24),       /* 0x01000000 */   
 
+	TRACE_PARSE = (1 << 25),       /* 0x02000000 */
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
 	TRACE_BUG = (1 << 31),	/* 0x80000000 */

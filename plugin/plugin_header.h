@@ -35,9 +35,6 @@ struct reiser4_plugin_ops;
     plugin type. */
 typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 
-struct reiser4_plugin_ref;
-typedef struct reiser4_plugin_ref reiser4_plugin_ref;
-
 TS_LIST_DECLARE(plugin);
 
 /* common part of each plugin instance. */

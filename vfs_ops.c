@@ -1525,6 +1525,7 @@ typedef enum {
 	INIT_SCINT,
 	INIT_SPINPROF,
 	INIT_SYSFS,
+	INIT_LNODES,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -1541,6 +1542,7 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
+	DONE_IF(INIT_LNODES, lnodes_done());
 	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_once());
 	DONE_IF(INIT_SPINPROF, unregister_profregions());
 	DONE_IF(INIT_SCINT, scint_done_once());
@@ -1594,6 +1596,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(scint_init_once());
 	CHECK_INIT_RESULT(register_profregions());
 	CHECK_INIT_RESULT(reiser4_sysfs_init_once());
+	CHECK_INIT_RESULT(lnodes_init());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	calibrate_prof();
