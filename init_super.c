@@ -289,13 +289,7 @@ _DONE_(disk_format);
 
 _INIT_(disk_format)
 {
-	int res;
-
-	res = get_super_private(s)->df_plug->get_ready(s, data);
-	if (res != 0)
-		return res;
-
-	return get_super_private(s)->df_plug->check_mount(s);
+	return get_super_private(s)->df_plug->get_ready(s, data);
 }
 
 _DONE_(disk_format)

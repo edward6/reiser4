@@ -709,6 +709,36 @@ prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 }
 
+	static int
+check_adler32_jnode(jnode *jnode, unsigned long size) {
+	return (adler32(jdata(jnode) + CHECKSUM_SIZE, size) != *(__u32 *)jdata(jnode));
+}
+
+/* Check the bnode data on read. */
+static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
+	void *data;
+	
+	/* Check CRC */
+	if (check_adler32_jnode(bnode->cjnode, bmap_size(blksize))) {
+		warning("vpf-1361", "Checksum for the bitmap block %llu "
+			"is incorrect", bnode->cjnode->blocknr);
+
+		return -EINVAL;
+	}
+
+	data = jdata(bnode->cjnode) + CHECKSUM_SIZE;
+
+	/* Check the very first bit -- it must be busy. */
+	if (!reiser4_test_bit(0, data)) {
+		warning("vpf-1362", "The allocator block %llu is not marked as used.",
+			bnode->cjnode->blocknr);
+
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 /* load bitmap blocks "on-demand" */
 static int
 load_and_lock_bnode(struct bitmap_node *bnode)
@@ -719,6 +749,7 @@ load_and_lock_bnode(struct bitmap_node *bnode)
 	jnode *wjnode;
 
 	assert("nikita-3040", schedulable());
+	
 /* ZAM-FIXME-HANS: since bitmaps are never unloaded, this does not
  * need to be atomic, right? Just leave a comment that if bitmaps were
  * unloadable, this would need to be atomic.  */
@@ -743,13 +774,19 @@ load_and_lock_bnode(struct bitmap_node *bnode)
 			bnode->wjnode = wjnode;
 			bnode->cjnode = cjnode;
 
-			cjnode = wjnode = NULL;
-			atomic_set(&bnode->loaded, 1);
-			/* working bitmap is initialized by on-disk commit
-			 * bitmap. This should be performed under
-			 * semaphore. */
-			xmemcpy(bnode_working_data(bnode),
-				bnode_commit_data(bnode), bmap_size(current_blocksize));
+			ret = check_struct_bnode(bnode, current_blocksize);
+			if (!ret) {
+				cjnode = wjnode = NULL;
+				atomic_set(&bnode->loaded, 1);
+				/* working bitmap is initialized by on-disk 
+				 * commit bitmap. This should be performed 
+				 * under semaphore. */
+				xmemcpy(bnode_working_data(bnode),
+					bnode_commit_data(bnode), 
+					bmap_size(current_blocksize));
+			} else {
+				up(&bnode->sema);
+			}
 		} else
 			/* race: someone already loaded bitmap while we were
 			 * busy initializing data. */
@@ -1444,6 +1481,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	bmap_nr_t i;
 
 	assert("nikita-3039", schedulable());
+
 	/* getting memory for bitmap allocator private data holder */
 	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
 
@@ -1548,63 +1586,6 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 	reiser4_kfree(data);
 
 	allocator->u.generic = NULL;
-
-	return 0;
-}
-
-static int
-check_adler32_jnode(jnode *jnode, unsigned long size)
-{
-	return (adler32(jdata(jnode) + CHECKSUM_SIZE, size) != *(__u32 *)jdata(jnode));
-}
-
-reiser4_internal int
-check_struct_allocator_bitmap(reiser4_space_allocator * allocator,
-			      const struct super_block *super)
-{
-	struct bitmap_allocator_data *ba;
-	struct bitmap_node *bnode;
-	bmap_nr_t count, i;
-	int res;
-
-	/* Get the bitmap allocator. */
-	ba = (struct bitmap_allocator_data *)allocator->u.generic;
-
-	/* get the count of bitmap bnodes */
-	count = get_nr_bmap(super);
-
-	/* Check the checksum of every bitmap block. */
-	for (i = 0; i < count; i++) {
-		void *data;
-		
-		bnode = ba->bitmap + i;
-
-		/* Get the allocator bnode loaded&locked. */
-		if ((res = load_and_lock_bnode(bnode)))
-			return res;
-
-		/* Check CRC */
-		if (check_adler32_jnode(bnode->cjnode, bmap_size(super->s_blocksize))) {
-			warning("vpf-1361", "Checksum for the bitmap block %llu "
-				"is incorrect", bnode->cjnode->blocknr);
-
-			release_and_unlock_bnode(bnode);
-			return -EINVAL;
-		}
-
-		data = jdata(bnode->cjnode) + CHECKSUM_SIZE;
-		
-		/* Check the very first bit -- it must be busy. */
-		if (!reiser4_test_bit(0, data)) {
-			warning("vpf-1362", "The allocator block %llu is not marked as used.",
-				bnode->cjnode->blocknr);
-
-			release_and_unlock_bnode(bnode);
-			return -EINVAL;
-		}
-
-		release_and_unlock_bnode(bnode);
-	}
 
 	return 0;
 }

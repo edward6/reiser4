@@ -508,18 +508,6 @@ print_info_format40(const struct super_block *s)
 #endif
 }
 
-reiser4_internal int
-check_mount_format40(const struct super_block *s) {
-	int res;
-
-	/* Check the structure of allocator. Namely, the CRC. */
-	if ((res = sa_check_struct(get_space_allocator(s), s)))
-		return res;
-
-	/* Some other checks? Like the root block must be used, etc */
-	return 0;	
-}
-
 /* plugin->u.format.check_open.
    Check the opened object for validness. For now it checks for the valid oid &
    locality only, can be improved later and it its work may depend on the mount

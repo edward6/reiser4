@@ -15,7 +15,6 @@ extern int init_allocator_bitmap(reiser4_space_allocator *, struct super_block *
 extern int destroy_allocator_bitmap(reiser4_space_allocator *, struct super_block *);
 extern int alloc_blocks_bitmap(reiser4_space_allocator *,
 			       reiser4_blocknr_hint *, int needed, reiser4_block_nr * start, reiser4_block_nr * len);
-extern int check_struct_allocator_bitmap(reiser4_space_allocator *, const struct super_block *);
 extern void check_blocks_bitmap(const reiser4_block_nr *, const reiser4_block_nr *, int);
 
 extern void dealloc_blocks_bitmap(reiser4_space_allocator *, reiser4_block_nr, reiser4_block_nr);

@@ -502,7 +502,6 @@ typedef struct disk_format_plugin {
 	int (*release) (struct super_block *);
 	jnode *(*log_super) (struct super_block *);
 	void (*print_info) (const struct super_block *);
-	int (*check_mount) (const struct super_block *);
 	int (*check_open) (const struct inode *object);
 } disk_format_plugin;
 

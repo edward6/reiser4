@@ -22,7 +22,6 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 		.release = release_format40,
 		.log_super = log_super_format40,
 		.print_info = print_info_format40,
-		.check_mount = check_mount_format40,
 		.check_open = check_open_format40
 	}
 };
