@@ -228,20 +228,8 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 		atomic_inc( &item -> node -> c_count );
 		child -> ptr_in_parent_hint = *item;
 		child -> ptr_in_parent_hint.between = AT_UNIT;
-		if( arg != NULL ) {
-			reiser4_key *rd;
-
+		if( arg != NULL )
 			sibling_list_insert_nolock( child, arg );
-			rd = znode_get_rd_key( arg );
-			if( !keyeq( rd, znode_get_ld_key( child ) ) ) {
-				assert( "nikita-1806", 
-					keygt( rd, znode_get_ld_key( child ) ) );
-				reiser4_stat_add_at_level
-					( znode_get_level( child ), 
-					  dk_vs_create_race );
-				*znode_get_ld_key( child ) = *rd;
-			}
-		}
 
 		ZF_CLR( child, ZNODE_ORPHAN );
 

@@ -242,7 +242,7 @@ void print_seal( const char *prefix, const seal_t *seal )
 		info( "%s: version: %llu, block: %llu\n",
 		      prefix, seal -> version, seal -> block );
 		print_key( "seal key", &seal -> key );
-		coord_print( "seal coord", &seal -> coord, 0 );
+		print_coord( "seal coord", &seal -> coord, 0 );
 	}
 }
 #endif

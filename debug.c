@@ -39,9 +39,13 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 	/* do something more impressive here, print content of
 	   get_current_context() */
 	if( get_current_context() != NULL ) {
+		struct super_block *super;
+
 		print_lock_counters( "pins held", lock_counters() );
 		show_context( 0 );
-		if( get_super_private( get_current_context() -> super ) != NULL )
+		super = get_current_context() -> super;
+		if( ( get_super_private( super ) != NULL ) &&
+		    reiser4_is_debugged( super, REISER4_VERBOSE_PANIC ) )
 			print_znodes( "znodes", current_tree );
 	}
 	panic( "reiser4 panicked cowardly: %s", panic_buf );
@@ -115,6 +119,17 @@ void check_stack( void )
 		reiser4_stat_stack_check_max( gap );
 	}
 }
+
+int reiser4_is_debugged( struct super_block *super, __u32 flag )
+{
+	return get_super_private( super ) -> debug_flags & flag;
+}
+
+int reiser4_are_all_debugged( struct super_block *super, __u32 flags )
+{
+	return ( get_super_private( super ) -> debug_flags & flags ) == flags;
+}
+
 #endif
 
 #if REISER4_STATS

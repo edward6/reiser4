@@ -521,14 +521,14 @@ static int check_item( const struct inode *dir,
 	iplug = item_plugin_by_coord( coord );
 	if( iplug == NULL ) {
 		warning( "nikita-1135", "Cannot get item plugin" );
-		coord_print( "coord", coord, 1 );
+		print_coord( "coord", coord, 1 );
 		return -EIO;
 	} else if( item_id_by_coord( coord ) !=
 		   item_id_by_plugin( inode_dir_item_plugin( dir ) ) ) {
 		/* item id of current item does not match to id of items a
 		 * directory is built of */
 		warning( "nikita-1136", "Wrong item plugin" );
-		coord_print( "coord", coord, 1 );
+		print_coord( "coord", coord, 1 );
 		print_plugin( "plugin", item_plugin_to_plugin (iplug) );
 		return -EIO;
 	}

@@ -140,7 +140,7 @@ extern int  coord_check (const coord_t *coord);
 extern int coord_eq (const coord_t *c1, const coord_t *c2);
 
 /* For debugging, error messages. */
-extern void coord_print (const char * mes, const coord_t * coord, int print_node);
+extern void print_coord (const char * mes, const coord_t * coord, int print_node);
 
 /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost
  * return NCOORD_ON_THE_LEFT, otherwise return NCOORD_INSIDE. */

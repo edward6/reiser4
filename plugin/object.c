@@ -323,7 +323,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 				warning( "nikita-1901", "Conspicuous seal" );
 				/*print_inode( "inode", inode );*/
 				print_key( "key", &key );
-				coord_print( "coord", &coord, 1 );
+				print_coord( "coord", &coord, 1 );
 				result = -EIO;
 			}
 			zrelse( coord.node );
