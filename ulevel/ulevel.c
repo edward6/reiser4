@@ -1403,6 +1403,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			cputod64( 0x283746ull + i, &sd.un.bytes );
 
 			data.data = ( char * ) &sd;
+			data.user = 0;
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
@@ -1458,6 +1459,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			/* this inserts stat data */
 			data.data = ( char * ) &sd;
+			data.user = 0;
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 			coord_first_unit( &coord, NULL );
@@ -1532,6 +1534,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			cputod64( 0x283746ull + i, &sd.un.bytes );
 
 			data.data = ( char * ) &sd;
+			data.user = 0;
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
@@ -1651,6 +1654,7 @@ static struct inode * create_root_dir (znode * root)
 
 	/* this inserts stat data */
 	data.data = ( char * ) &sd;
+	data.user = 0;
 	data.length = sizeof sd.base;
 	data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 	coord_first_unit( &coord, NULL );
@@ -2765,6 +2769,7 @@ void jmacd_key_no (reiser4_key *key, reiser4_key *next_key, jmacd_sd *sd, reiser
 	cputod64( 0ULL, &sd->un.bytes );
 	
 	id->data = ( char * ) sd;
+	id->user = 0;
 	id->length = sizeof (sd->base);
 	id->iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
 }
