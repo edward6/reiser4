@@ -283,6 +283,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 		result = fplug->write(file, buf, size, off);
 	}
 	write_syscall_trace("ex");
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
 }
