@@ -306,8 +306,7 @@ void
 reiser4_lock_page(struct page *page)
 {
 	assert("nikita-2408", page != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-2409",
-				lock_counters()->spin_locked == 0));
+	ON_DEBUG_CONTEXT(assert("nikita-2409", lock_counters()->spin_locked == 0));
 	lock_page(page);
 }
 
@@ -392,8 +391,7 @@ xmemset(void *s, int c, size_t n)
  *
  */
 static int
-end_bio_single_page_read(struct bio *bio,
-			 unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
+end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
 	struct page *page;
 
@@ -420,9 +418,7 @@ end_bio_single_page_read(struct bio *bio,
  *
  */
 static int
-end_bio_single_page_write(struct bio *bio,
-			  unsigned int bytes_done UNUSED_ARG,
-			  int err UNUSED_ARG)
+end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
 	struct page *page;
 
@@ -440,8 +436,7 @@ end_bio_single_page_write(struct bio *bio,
 
 /** ->readpage() method for formatted nodes */
 static int
-formatted_readpage(struct file *f UNUSED_ARG,
-		   struct page *page /* page to read */ )
+formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
 	return page_io(page, jprivate(page), READ, GFP_KERNEL);
@@ -463,8 +458,7 @@ formatted_writepage(struct page *page /* page to write */ )
 	 * clean page. An extra reference should protect this page from
 	 * removing from memory */
 	page_cache_get(page);
-	result = page_common_writeback(page, &wbc,
-				       JNODE_FLUSH_MEMORY_FORMATTED);
+	result = page_common_writeback(page, &wbc, JNODE_FLUSH_MEMORY_FORMATTED);
 	page_cache_release(page);
 	return result;
 }
@@ -482,7 +476,7 @@ page_io(struct page *page /* page to perform io for */ ,
 	assert("nikita-2226", PageLocked(page));
 	assert("nikita-2634", node != NULL);
 
-	jnode_ops(node)->io_hook(node, page, rw);
+	jnode_io_hook(node, page, rw);
 
 	bio = page_bio(page, node, rw, gfp);
 	if (!IS_ERR(bio)) {
@@ -546,8 +540,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		/* bio -> bi_idx is filled by bio_init() */
 		bio->bi_size = blksz;
 
-		bio->bi_end_io = (rw == READ) ?
-		    end_bio_single_page_read : end_bio_single_page_write;
+		bio->bi_end_io = (rw == READ) ? end_bio_single_page_read : end_bio_single_page_write;
 
 		return bio;
 	} else
@@ -722,8 +715,7 @@ print_page(const char *prefix, struct page *page)
 		return;
 	}
 	info("%s: page index: %lu mapping: %p count: %i private: %lx\n",
-	     prefix, page->index, page->mapping,
-	     atomic_read(&page->count), page->private);
+	     prefix, page->index, page->mapping, atomic_read(&page->count), page->private);
 	info("\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	     page_flag_name(page, PG_locked),
 	     page_flag_name(page, PG_error),
@@ -737,9 +729,7 @@ print_page(const char *prefix, struct page *page)
 	     page_flag_name(page, PG_checked),
 	     page_flag_name(page, PG_arch_1),
 	     page_flag_name(page, PG_reserved),
-	     page_flag_name(page, PG_private),
-	     page_flag_name(page, PG_writeback),
-	     page_flag_name(page, PG_nosave));
+	     page_flag_name(page, PG_private), page_flag_name(page, PG_writeback), page_flag_name(page, PG_nosave));
 	if (jprivate(page) != NULL) {
 		info_znode("\tpage jnode", (znode *) jprivate(page));
 		info("\n");
