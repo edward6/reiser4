@@ -191,6 +191,8 @@ reiser4_internal int process_safelinks(struct super_block *super)
 	safe_link_context ctx;
 	int result;
 	
+	if (rofs_super(super))
+		return 0;
 	safe_link_iter_begin(&get_super_private(super)->tree, &ctx);
 	result = 0;
 	do {
