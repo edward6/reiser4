@@ -270,7 +270,11 @@ jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock
 			return ret;
 		}
 
-		/* Get the parent read locked. */
+		/* Get the parent read locked.  
+		 *
+		 * FIXME_JMACD: if node is root, reiser4_get_parent() returns
+		 * error.
+		 */
 		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
 			return ret;
 		}
