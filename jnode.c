@@ -568,7 +568,7 @@ static void check_jload(jnode * node, struct page * page)
 	}
 }
 #else
-#define check_jload(node) noop
+#define check_jload(node, page) noop
 #endif
 
 
