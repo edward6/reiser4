@@ -582,7 +582,7 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 	if (*new_fq == NULL)
 		return RETERR(-ENOMEM);
 
-	return -E_REPEAT;
+	return RETERR(-E_REPEAT);
 }
 
 /* A wrapper around fq_by_atom for getting a flush queue object for current
@@ -597,7 +597,6 @@ get_fq_for_current_atom(void)
 	do {
 		atom = get_current_atom_locked();
 		ret = fq_by_atom(atom, &fq);
-/* VS-FIXME-HANS: improper return code */
 	} while (ret == -E_REPEAT);
 
 	if (ret)
