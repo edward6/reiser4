@@ -47,6 +47,7 @@ reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);
 int scan_ctail(flush_scan *, const coord_t *);
+int squeeze_ctail(flush_pos_t *, int child);
 
 
 __u8 inode_cluster_shift (struct inode *);
