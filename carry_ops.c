@@ -1110,16 +1110,8 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 
 	while (f->length) {
 		result = make_space_for_flow_insertion(op, doing, todo);
-		if (result) {
-			if (something_written) {
-				/* make_space failed, but part of flow was
-				   written already, so return 0 here to have
-				   carry to perform necessary modification in
-				   the tree */
-				result = 0;
-			}
+		if (result)
 			break;
-		}
 
 		insert_point = flow_insert_point(op);
 		nplug = node_plugin_by_node(insert_point->node);
