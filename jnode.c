@@ -799,6 +799,8 @@ int jnode_try_drop( jnode *node )
 	/*
 	 * FIXME-NIKITA not finished
 	 */
+
+	return -ENOSYS;
 }
 
 /**
