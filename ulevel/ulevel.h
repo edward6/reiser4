@@ -774,7 +774,7 @@ void page_cache_release (struct page * page);
 #define READ 0
 #define WRITE 1
 struct buffer_head {
-	unsigned b_size;
+	size_t b_size;
 	unsigned long long b_blocknr;
 	int b_state;
 	int b_dev;
@@ -848,8 +848,9 @@ struct page *read_cache_page(struct address_space *mapping, unsigned long idx,
 			     int (*filler)(void *,struct page*), void *data);
 
 /* fs/buffer.c */
-struct buffer_head * sb_bread(struct super_block *sb, int block);
-void brelse (struct buffer_head *);
+int reiser4_sb_bread (struct super_block * sb, struct buffer_head * bh);
+void reiser4_sb_bwrite (struct buffer_head *);
+void reiser4_sb_brelse (struct buffer_head *);
 
 /* include/linux/dcache.h */
 struct dentry * d_alloc_root(struct inode *);
@@ -1012,6 +1013,9 @@ enum bh_state_bits {
 			 * for private allocation by other entities
 			 */
 };
+
+int ulevel_read_node( );
+
 
 /* __REISER4_ULEVEL_H__ */
 #endif
