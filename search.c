@@ -1006,18 +1006,25 @@ int lookup_couple( reiser4_tree *tree /* tree to perform search in */,
 }
 #endif
 
-/** true if @key is one of delimiting keys in @node */
+/** 
+ * true if @key is strictly within @node
+ *
+ * we are looking for possibly non-unique key and it is item is at the edge of
+ * @node. May be it is in the neighbor.
+ */
 /* Audited by: green(2002.06.15) */
-static int key_is_delimiting( znode *node /* node to check key against */, 
-			      const reiser4_key *key /* key to check */ )
+static int znode_contains_key_strict( znode *node /* node to check key
+						   * against */, 
+				      const reiser4_key *key /* key to check */ )
 {
 	assert( "nikita-1760", node != NULL );
 	assert( "nikita-1722", key != NULL );
 
 	return UNDER_SPIN( dk, current_tree, 
-			   keyeq( znode_get_ld_key( node ), key ) ||
-			   keyeq( znode_get_rd_key( node ), key ) );
+			   keylt( znode_get_ld_key( node ), key ) &&
+			   keylt( key, znode_get_rd_key( node ) ) );
 }
+
 
 /* Audited by: green(2002.06.15) */
 static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
@@ -1028,8 +1035,6 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	cbk_cache_slot     *slot;
 	cbk_cache          *cache;
 	tree_level          level;
-	tree_level          stop_level;
-	tree_level          lock_level;
 	const reiser4_key  *key;
 	int                 result;
 
@@ -1047,11 +1052,8 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 
 	assert( "nikita-2474", cbk_cache_invariant( cache ) );
 	node  = NULL; /* to keep gcc happy */
-	level = LEAF_LEVEL; /* to keep gcc happy */
-
-	stop_level = h -> stop_level;
-	lock_level = h -> lock_level;
-	key = h -> key;
+	level = h -> level;
+	key   = h -> key;
 
 	cbk_cache_lock( cache );
 	slot = cbk_cache_list_front( &cache -> lru );
@@ -1083,10 +1085,9 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		if( node == NULL )
 			break;
 
-		level = znode_get_level( node );
-		if( h -> stop_level <= level && level <= h -> lock_level &&
-		    /* min_key <= key <= max_key */
-		    znode_contains_key_lock( node, h -> key ) )
+		if( ( znode_get_level( node ) == level ) &&
+		    /* min_key < key < max_key */
+		    znode_contains_key_strict( node, key ) )
 			break;
 
 		zput( node );
@@ -1110,17 +1111,22 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result = znode_contains_key_lock( node, h -> key ) && 
+	spin_lock_dk( tree );
+	result = 
+		znode_contains_key_strict( node, key ) &&
 		! ZF_ISSET( node, JNODE_HEARD_BANSHEE );
+	spin_unlock_dk( tree );
+
 	if( result ) {
+		/* disallow drilling of new nodes due to extent handling */
+		h -> flags &= ~CBK_FOR_INSERT;
 		/* do lookup inside node */
-		h -> level = level;
 		llr = cbk_node_lookup( h );
 		/*
 		 * if cbk_node_lookup() wandered to another node (due to eottl
 		 * or non-unique keys), adjust @node
 		 */
-		node = h -> active_lh -> node;
+		assert( "nikita-2672", node == h -> active_lh -> node );
 
 		if( llr != LOOKUP_DONE ) {
 			/* restart of continue on the next level */
@@ -1130,17 +1136,16 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 			   ( h -> result != CBK_COORD_FOUND ) )
 			/* io or oom */
 			result = -ENOENT;
-		else if( key_is_delimiting( node, h -> key ) ) {
-			/*
-			 * we are looking for possibly non-unique key
-			 * and it is item is at the edge of @node. May
-			 * be it is in the neighbor.
-			 */
-			reiser4_stat_tree_add( cbk_cache_utmost );
-			result = -ENOENT;
-		} else 
+		else {
 			/* good. Either item found or definitely not found. */
 			result = 0;
+
+			/* move found entry to the head of the LRU list. */
+			cbk_cache_lock( cache );
+			cbk_cache_list_remove( slot );
+			cbk_cache_list_push_front( &cache -> lru, slot );
+			cbk_cache_unlock( cache );
+		}
 	} else {
 		/*
 		 * race. While this thread was waiting for the lock, node was
@@ -1181,16 +1186,20 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 {
 	int result;
 
-	result = cbk_cache_scan_slots( h );
-	if( result != 0 ) {
-		done_lh( h -> active_lh );
-		done_lh( h -> parent_lh );
-		reiser4_stat_tree_add( cbk_cache_miss );
-	} else {
-		assert( "nikita-1319", 
-			( h -> result == CBK_COORD_NOTFOUND ) || 
-			( h -> result == CBK_COORD_FOUND ) );
-		reiser4_stat_tree_add( cbk_cache_hit );
+	for( h -> level = h -> stop_level ; h -> level <= h -> lock_level ;
+	     ++ h -> level ) {
+		result = cbk_cache_scan_slots( h );
+		if( result != 0 ) {
+			done_lh( h -> active_lh );
+			done_lh( h -> parent_lh );
+			reiser4_stat_tree_add( cbk_cache_miss );
+		} else {
+			assert( "nikita-1319", 
+				( h -> result == CBK_COORD_NOTFOUND ) || 
+				( h -> result == CBK_COORD_FOUND ) );
+			reiser4_stat_tree_add( cbk_cache_hit );
+			break;
+		}
 	}
 	return result;
 }
