@@ -243,8 +243,8 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
 
-	assert("vs-1426", ergo(PagePrivate(page), ((page->mapping->host->i_state & I_JNODES) && 
-						   (reiser4_inode_data(page->mapping->host)->jnodes > 0))));
+	assert("vs-1426", ergo(PagePrivate(page) && get_super_fake(page->mapping->host->i_sb) != page->mapping->host, ((page->mapping->host->i_state & I_JNODES) && 
+														       (reiser4_inode_data(page->mapping->host)->jnodes > 0))));
 	assert("vs-1427", ergo(PagePrivate(page), page->mapping == jnode_get_mapping(jnode_by_page(page))));
 
 	init_context(&ctx, page->mapping->host->i_sb);
