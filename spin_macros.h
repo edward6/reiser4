@@ -10,7 +10,7 @@
 #if REISER4_USER_LEVEL_SIMULATION
 #    define check_spin_is_locked(s)     spin_is_locked(s)
 #    define check_spin_is_not_locked(s) spin_is_not_locked(s)
-#elif defined( CONFIG_DEBUG_SPINLOCK ) && defined( CONFIG_SMP )
+#elif defined(CONFIG_DEBUG_SPINLOCK) && defined(CONFIG_SMP) && 0
 #    define check_spin_is_not_locked(s) ( ( s ) -> owner != get_current() )
 #    define spin_is_not_locked(s)       ( ( s ) -> owner == NULL )
 #    define check_spin_is_locked(s)     ( ( s ) -> owner == get_current() )
