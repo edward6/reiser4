@@ -35,7 +35,7 @@ Reiser4 introduces following locks:
 
 8.  Per-transaction-manager spin lock                           (txnmgr_lock*)
 
-9.  Per-lock-stack spin-lock                                    (stack_lock*+)
+9.  Per-lock-stack spin-lock                                    (stack_lock*)
 
 10. Per-inode read-write lock                                   (inode_rw_lock)
 
@@ -276,6 +276,7 @@ i_sem
 ....................txnmgr_lock
 ......................atom_lock
 ........................jnode_lock            [->vm_writeback()->jget()]
+..........................stack_lock
 ..........................txnh_lock
 ..................dk_lock
 ..............................tree_lock
@@ -445,6 +446,9 @@ tree_lock->epoch_lock
 
     zget() calls znode_build_version()
 
+jnode_lock->stack_lock
+
+    longterm_lock_znode(), longterm_unlock_znode(), wake_up_all_lopri_owners()
 ----------------------------------DEADLOCKS-------------------------------------
 
 Big section describing found/possible/already-worked-around deadlocks.
