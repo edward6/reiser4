@@ -229,6 +229,8 @@ is_longname_key(const reiser4_key *key)
 	__u64 highpart;
 
 	assert("nikita-2863", key != NULL);
+	if (get_key_type(key) != KEY_FILE_NAME_MINOR)
+		print_key("oops", key);
 	assert("nikita-2864", get_key_type(key) == KEY_FILE_NAME_MINOR);
 
 	if (REISER4_LARGE_KEY)
