@@ -112,6 +112,7 @@ static int readdir_actor( reiser4_tree *tree,
  *
  * This is installed in ->lookup() in reiser4_inode_operations.
  */
+/* Audited by: umka (2002.06.12) */
 static struct dentry *reiser4_lookup( struct inode *parent, /* directory within which we are to look for the name
 							     * specified in dentry */
 				      struct dentry *dentry /* this contains the name that is to be looked for on entry,
@@ -152,6 +153,7 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 }
 
 /** ->create() VFS method in reiser4 inode_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_create( struct inode *parent /* inode of parent
 						 * directory */, 
 			   struct dentry *dentry /* dentry of new object to
@@ -166,6 +168,7 @@ static int reiser4_create( struct inode *parent /* inode of parent
 }
 
 /** ->mkdir() VFS method in reiser4 inode_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_mkdir( struct inode *parent /* inode of parent
 						* directory */, 
 			  struct dentry *dentry /* dentry of new object to
@@ -180,6 +183,7 @@ static int reiser4_mkdir( struct inode *parent /* inode of parent
 }
 
 /** ->symlink() VFS method in reiser4 inode_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_symlink( struct inode *parent /* inode of parent
 						  * directory */, 
 			    struct dentry *dentry /* dentry of new object to
@@ -196,6 +200,7 @@ static int reiser4_symlink( struct inode *parent /* inode of parent
 }
 
 /** ->mknod() VFS method in reiser4 inode_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_mknod( struct inode *parent /* inode of parent directory */, 
 			  struct dentry *dentry /* dentry of new object to
 						 * create */, 
@@ -211,6 +216,7 @@ static int reiser4_mknod( struct inode *parent /* inode of parent directory */,
 }
 
 /** ->read() VFS method in reiser4 file_operations */
+/* Audited by: umka (2002.06.12) */
 static ssize_t reiser4_read( struct file *file /* file to read from */,
 			     char *buf /* user-space buffer to put data read
 					* from the file */, 
@@ -221,8 +227,13 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 {
 	file_plugin *fplug;
 	ssize_t result;
-	
+
 	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
+	
+	assert( "umka-072", file != NULL );
+	assert( "umka-073", buf != NULL );
+	assert( "umka-074", off != NULL );
+	
 	fplug = inode_file_plugin( file -> f_dentry -> d_inode );
 	assert( "nikita-417", fplug != NULL );
 
@@ -236,6 +247,7 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 }
 
 /** ->write() VFS method in reiser4 file_operations */
+/* Audited by: umka (2002.06.12) */
 static ssize_t reiser4_write( struct file *file /* file to write on */,
 			      char *buf /* user-space buffer to get data to
 					 * write on the file */, 
@@ -264,9 +276,13 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 }
 
 /** ->truncate() VFS method in reiser4 inode_operations */
+/* Audited by: umka (2002.06.12) */
 static void reiser4_truncate( struct inode *inode /* inode to truncate */)
 {
 	__REISER4_ENTRY( inode -> i_sb, );
+	
+	assert( "umka-075", inode != NULL );
+	
 	truncate_object( inode, inode -> i_size );
 	/* 
 	 * for mysterious reasons ->truncate() VFS call doesn't return
@@ -274,19 +290,18 @@ static void reiser4_truncate( struct inode *inode /* inode to truncate */)
 	 */
 
 	__REISER4_EXIT( &__context );
-	return;
 }
-
 
 /** return number of files in a filesystem. It is used in reiser4_statfs to
  * fill ->f_ffiles */
+/* Audited by: umka (2002.06.12) */
 static long oids_used( struct super_block *s /* super block of file system in
 					      * queried */ )
 {
 	oid_allocator_plugin *oplug;
 	__u64 used;
 
-
+	assert( "umka-076", s != NULL );
 	assert( "vs-484", get_super_private( s ) );
 
 	oplug = get_super_private( s ) -> oid_plug;
@@ -303,6 +318,7 @@ static long oids_used( struct super_block *s /* super block of file system in
 
 /** number of oids available for use by users. It is used in reiser4_statfs to
  * fill ->f_ffree */
+/* Audited by: umka (2002.06.12) */
 static long oids_free( struct super_block *s /* super block of file system in
 					      * queried */ )
 {
@@ -310,6 +326,7 @@ static long oids_free( struct super_block *s /* super block of file system in
 	__u64 used;
 
 
+	assert( "umka-077", s != NULL );
 	assert( "vs-485", get_super_private( s ) );
 
 	oplug = get_super_private( s ) -> oid_plug;
@@ -324,6 +341,7 @@ static long oids_free( struct super_block *s /* super block of file system in
 }
 
 /** ->statfs() VFS method in reiser4 super_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_statfs( struct super_block *super /* super block of file
 						      * system in queried */, 
 			   struct statfs *buf /* buffer to fill with
@@ -364,6 +382,7 @@ static int reiser4_statfs( struct super_block *super /* super block of file
  */
 
 /** ->writepage() VFS method in reiser4 address_space_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_writepage( struct page *page UNUSED_ARG /* page used as a
 							    * hint. This page
 							    * belongs to
@@ -379,13 +398,17 @@ static int reiser4_writepage( struct page *page UNUSED_ARG /* page used as a
 }
 
 /** ->readpage() VFS method in reiser4 address_space_operations */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_readpage( struct file *f /* file to read from */, 
 			     struct page *page /* page where to read data
 						* into */ )
 {
 	struct inode *inode;
 	file_plugin *fplug;
-
+	
+	assert( "umka-078", f != NULL );
+	assert( "umka-079", page != NULL );
+	
 	assert( "vs-318", page -> mapping && page -> mapping -> host );
 	assert( "nikita-1352", 
 		f -> f_dentry -> d_inode == page -> mapping -> host );
@@ -407,6 +430,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
  * This is installed as ->link inode operation for reiser4
  * inodes. Delegates all work to object plugin
  */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_link( struct dentry *existing /* dentry of existing
 						  * object */, 
 			 struct inode *parent /* parent directory */, 
@@ -415,7 +439,8 @@ static int reiser4_link( struct dentry *existing /* dentry of existing
 	int result;
 	dir_plugin *dplug;
 	REISER4_ENTRY( parent -> i_sb );
-
+	
+	assert( "umka-080", existing != NULL );
 	assert( "nikita-1031", parent != NULL );
 	
 	/* is this dead-lock safe? FIXME-NIKITA */
@@ -481,6 +506,7 @@ typedef struct readdir_actor_args {
  * tbd). Next ->readdir() will proceed from "roughly" the same point.
  *
  */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_readdir( struct file *f /* directory file being read */, 
 			    void *dirent /* opaque data passed to us by VFS */, 
 			    filldir_t filldir /* filler function passed to us
@@ -493,7 +519,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	lock_handle lh;
 
 	REISER4_ENTRY( f -> f_dentry -> d_inode -> i_sb );
-
+	
 	assert( "nikita-1359", f != NULL );
 	inode = f -> f_dentry -> d_inode;
 	assert( "nikita-1360", inode != NULL );
@@ -544,6 +570,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	REISER4_EXIT( result );
 }
 
+/* Audited by: umka (2002.06.12) */
 static int unlink_file( struct inode *parent /* parent directory */, 
 			struct dentry *victim /* name of object being
 					       * unlinked */ )
@@ -586,6 +613,7 @@ static int unlink_file( struct inode *parent /* parent directory */,
  * remove link from @parent directory to @victim object: delegate work
  * to object plugin
  */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_unlink( struct inode *parent /* parent directory */, 
 			   struct dentry *victim /* name of object being
 						  * unlinked */ )
@@ -605,6 +633,7 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
  * The same as unlink, but only for directories.
  *
  */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_rmdir( struct inode *parent /* parent directory */, 
 			  struct dentry *victim /* name of directory being
 						 * unlinked */ )
@@ -622,6 +651,7 @@ static int reiser4_rmdir( struct inode *parent /* parent directory */,
 }
 
 /** ->permission() method in reiser4_inode_operations. */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_permission( struct inode *inode /* object */, 
 			       int mask /* mode bits to check permissions
 					 * for */ )
@@ -637,6 +667,7 @@ static int reiser4_permission( struct inode *inode /* object */,
  *
  * Used by link/create and during creation of dot and dotdot in mkdir
  */
+/* Audited by: umka (2002.06.12) */
 int reiser4_add_nlink( struct inode *object /* object to which link is added */ )
 {
 	file_plugin *fplug;
@@ -669,6 +700,7 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */ 
  *
  * Used by unlink/create
  */
+/* Audited by: umka (2002.06.12) */
 int reiser4_del_nlink( struct inode *object /* object from which link is
 					     * removed */ )
 {
@@ -693,6 +725,7 @@ int reiser4_del_nlink( struct inode *object /* object from which link is
 }
 
 /** call ->create() directory plugin method. */
+/* Audited by: umka (2002.06.12) */
 static int invoke_create_method( struct inode *parent /* parent directory */, 
 				 struct dentry *dentry /* dentry of new
 							* object */, 
@@ -721,6 +754,7 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 }
 
 /** helper function: call object plugin to truncate file to @size */
+/* Audited by: umka (2002.06.12) */
 int truncate_object( struct inode *inode /* object to truncate */, 
 		     loff_t size /* size to truncate object to */ )
 {
@@ -767,6 +801,7 @@ static const char PSEUDO_FILES_PREFIX[] = "..";
  * Return and lazily allocate if necessary per-dentry data that we
  * attach to each dentry.
  */
+/* Audited by: umka (2002.06.12) */
 reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry /* dentry
 									 * queried */ )
 {
@@ -785,6 +820,7 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry /* dentr
 }
 
 /** Release reiser4 dentry. This is d_op->d_delease() method. */
+/* Audited by: umka (2002.06.12) */
 static void reiser4_d_release( struct dentry *dentry /* dentry released */ )
 {
 	assert( "nikita-1366", dentry != NULL );
@@ -797,6 +833,7 @@ static void reiser4_d_release( struct dentry *dentry /* dentry released */ )
  * Return and lazily allocate if necessary per-file data that we attach
  * to each struct file.
  */
+/* Audited by: umka (2002.06.12) */
 reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 							      * queried */ )
 {
@@ -816,17 +853,21 @@ reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 
 /** Release reiser4 file. This is f_op->release() method. Called when last
  * holder closes a file */
+/* Audited by: umka (2002.06.12) */
 static int reiser4_release( struct inode *i /* inode released */,
 			    struct file *f /* file released */ )
 {
 	file_plugin *fplug;
-
+	
+	assert( "umka-081", i != NULL );
 	assert( "nikita-1447", f != NULL );
 
 	if( f -> private_data != NULL )
 		reiser4_kfree( f -> private_data, 
 			       sizeof( reiser4_file_fsdata ) );
 	fplug = inode_file_plugin( i );
+	assert( "umka-082", fplug != NULL );
+	
 	if( fplug -> release )
 		return fplug -> release( f );
 	return 0;
@@ -836,6 +877,7 @@ static int reiser4_release( struct inode *i /* inode released */,
  * Function that is called by reiser4_readdir() on each directory item
  * while doing readdir.
  */
+/* Audited by: umka (2002.06.12) */
 static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 			  new_coord *coord /* current coord */,
 			  lock_handle *lh UNUSED_ARG /* current lock
@@ -864,11 +906,15 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 		return 0;
 
 	fplug = inode_file_plugin( inode );
+	assert( "umka-083", fplug != NULL );
+	
 	if( ! fplug -> owns_item( inode, coord ) ) {
 		return 0;
 	}
 
 	iplug = item_plugin_by_coord( coord );
+	assert( "umka-084", iplug != NULL );
+	
 	name = iplug -> s.dir.extract_name( coord );
 	assert( "nikita-1371", name != NULL );
 	if( iplug -> s.dir.extract_key( coord, &sd_key ) != 0 ) {
@@ -938,6 +984,7 @@ static kmem_cache_t *inode_cache;
  * initalisation function passed to the kmem_cache_create() to init new pages
  * grabbed by our inodecache.
  */
+/* Audited by: umka (2002.06.12) */
 static void init_once( void *obj /* pointer to new inode */, 
 		       kmem_cache_t *cache UNUSED_ARG /* slab cache */,
 		       unsigned long flags /* cache flags */ )
@@ -960,6 +1007,7 @@ static void init_once( void *obj /* pointer to new inode */,
 }
 
 /** initialise slab cache where reiser4 inodes will live */
+/* Audited by: umka (2002.06.12) */
 int init_inodecache( void )
 {
 	inode_cache = kmem_cache_create( "reiser4_inode_cache", 
@@ -969,6 +1017,7 @@ int init_inodecache( void )
 }
 
 /** initialise slab cache where reiser4 inodes lived */
+/* Audited by: umka (2002.06.12) */
 static void destroy_inodecache(void)
 {
 	if( kmem_cache_destroy( inode_cache ) != 0 )
@@ -976,6 +1025,7 @@ static void destroy_inodecache(void)
 }
 
 /** ->alloc_inode() super operation: allocate new inode */
+/* Audited by: umka (2002.06.12) */
 static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super
 										* block
 										* new
@@ -992,6 +1042,7 @@ static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /
 }
 
 /** ->destroy_inode() super operation: recycle inode */
+/* Audited by: umka (2002.06.12) */
 static void reiser4_destroy_inode( struct inode *inode /* inode being
 							* destroyed */ )
 {
@@ -1005,6 +1056,7 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
  *
  * This is read_super() of the past.  
  */
+/* Audited by: umka (2002.06.12) */
 const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
 					     * beginning of device */
@@ -1020,6 +1072,8 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	int result;
 	REISER4_ENTRY (s);
 
+	assert( "umka-085", s != NULL );
+	
  read_super_block:
 	/* look for reiser4 magic at hardcoded place */
 	super_bh.b_blocknr = (int)(REISER4_MAGIC_OFFSET / s->s_blocksize);
@@ -1050,6 +1104,10 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		/* no standard reiser4 super block found */
 		reiser4_sb_brelse (&super_bh);
 		/* FIXME-VS: call guess method for all available layout plugins */
+		/* 
+		 * umka (2002.06.12) 
+		 * Is it possible when format-specific super block exists but there no master super block? 
+		 */
 		REISER4_EXIT (-EINVAL);
 	}
 
@@ -1127,10 +1185,14 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 }
 
 
+/* Audited by: umka (2002.06.12) */
 static int put_super (struct super_block * s)
 {
 	int ret;
-
+	
+	assert( "umka-086", s != NULL );
+	assert( "umka-087", get_super_private (s) != NULL );
+	
 	if ((ret = txn_mgr_force_commit (s))) {
 		warning ("jmacd-7711", "txn_force failed in put_super: %u", ret);
 	}
@@ -1148,6 +1210,7 @@ static int put_super (struct super_block * s)
 	}
 }
 
+/* Audited by: umka (2002.06.12) */
 static void reiser4_put_super (struct super_block * s)
 {
 	int result;
@@ -1159,6 +1222,7 @@ static void reiser4_put_super (struct super_block * s)
 
 
 /** ->get_sb() method of file_system operations. */
+/* Audited by: umka (2002.06.12) */
 static struct super_block *reiser4_get_sb( struct file_system_type *fs_type /* file
 									     * system
 									     * type */,
@@ -1188,6 +1252,7 @@ static struct file_system_type reiser4_fs_type = {
 /**
  * initialise reiser4: this is called either at bootup or at module load.
  */
+/* Audited by: umka (2002.06.12) I'd reorganize this function in more simple maner. */
 static int __init init_reiser4()
 {
 	int result;
@@ -1225,6 +1290,7 @@ static int __init init_reiser4()
 /**
  * finish with reiser4: this is called either at shutdown or at module unload.
  */
+/* Audited by: umka (2002.06.12) */
 static void __exit done_reiser4(void)
 {
         unregister_filesystem( &reiser4_fs_type );
