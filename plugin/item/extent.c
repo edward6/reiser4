@@ -156,6 +156,17 @@ unsigned extent_nr_units (const tree_coord * coord)
 
 
 /*
+ * max possible key extent @coord may have
+ */
+static reiser4_key * max_key_inside (const tree_coord * coord, 
+				     reiser4_key * key)
+{
+	item_key_by_coord (coord, key);
+	set_key_offset (key, get_key_offset (max_key ()));
+	return key;
+}
+
+/*
  * plugin->u.item.b.lookup
  */
 lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
@@ -163,39 +174,51 @@ lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 						    set to an extent item to
 						    look through */
 {
-	int i, nr;
-	__u64 byte_off,
-		block_off, /* offset of first byte of a block which contains
-			      desired offset */
-		cur,
+	reiser4_key item_key;
+	__u64 lookuped,
+		offset,
 		width;
+	unsigned i, nr_units;
  	reiser4_extent * ext;
 	size_t blocksize;
-	reiser4_key item_key;
 
 
 	item_key_by_coord (coord, &item_key);
+	offset = get_key_offset (&item_key);
+	nr_units = extent_nr_units (coord);
+
+	/*
+	 * key we are looking for must be greater than key of item @coord
+	 */
+	assert ("vs-414", keycmp (key, &item_key) == GREATER_THAN);
+
+	if (keycmp (key, extent_max_key_inside (coord, &item_key)) ==
+	    GREATER_THAN) {
+		/*
+		 * @key is key of another file
+		 */
+		coord->unit_pos = nr_units - 1;
+		coord->between = AFTER_UNIT;
+		return CBK_COORD_NOTFOUND;
+	}
+
 	assert ("vs-11", get_key_objectid (key) == get_key_objectid (&item_key));
 
-	nr = extent_nr_units (coord);
 	ext = extent_by_coord (coord);
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
  
-	byte_off = get_key_offset (key);
-	block_off = get_key_offset (key) & ~(blocksize - 1);
+	/*
+	 * offset we are looking for
+	 */
+	lookuped = get_key_offset (key);
 
-	cur = get_key_offset (&item_key);
-
-	if (cur > byte_off) {
-		coord->unit_pos = 0;
-		coord->between = BEFORE_UNIT;
-		return CBK_COORD_NOTFOUND;
-	}
-	/* go through all extents until the one which address given offset */
-	for (i = 0; i < nr; i ++, ext ++) {
+	/*
+	 * go through all extents until the one which address given offset
+	 */
+	for (i = 0; i < nr_units; i ++, ext ++) {
 		width = extent_get_width (ext);
-		cur += (blocksize * width);
-		if (cur > byte_off) {
+		offset += (blocksize * width);
+		if (offset > lookuped) {
 			/* desired byte is somewhere in this extent */
 			coord->unit_pos = i;
 			coord->between = AT_UNIT;
@@ -203,14 +226,12 @@ lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 		}
 	}
 
-	/* set coord after last unit */
-	coord->unit_pos = nr - 1;
-	coord->between = AFTER_UNIT;
-	return CBK_COORD_FOUND;
-	/*
-	 * FIXME-VS: find better solution on monday
+	/* 
+	 * set coord after last unit
 	 */
-	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
+	coord->unit_pos = nr_units - 1;
+	coord->between = AFTER_UNIT;
+	return  bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
 }
 
 
@@ -817,6 +838,7 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 	unit.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 	unit.arg = 0;
 
+#if 0
 	/*
 	 * when inserting item into twig level we also have to update right
 	 * delimiting key of left neighboring znode on leaf level and to break
@@ -838,6 +860,7 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 			return PTR_ERR (unit.arg);
 		}
 	}
+#endif
 	result = insert_extent_by_coord (coord, &unit, &first_key, lh);
 	if (result) {
 		return result;
@@ -1099,6 +1122,9 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 
 		hole_key = *key;
 		set_key_offset (&hole_key, 0ull);
+
+		result = insert_extent_by_coord (coord, &item, &hole_key, lh);
+#if 0
 		/*
 		 * when inserting item into twig level we also have to update
 		 * right delimiting key of left neighboring znode on leaf level
@@ -1127,6 +1153,7 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 		result = insert_extent_by_coord (coord, &item, &hole_key, lh);
 		if (item.arg)
 			zput (item.arg);
+#endif
 	} else {
  		/* @coord points to last extent of the item and to its last block */
 		assert ("vs-29",
@@ -1212,6 +1239,15 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 	if (coord_between_items (coord)) {
 		__u64 fbb_offset; /* offset of First Byte of Block */
 
+
+		fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
+		if (is_empty_node (coord->node)) {
+			if (fbb_offset == 0)
+				return FIRST_BLOCK;
+			else
+				return CREATE_HOLE;
+		}
+
 		right = *coord;
 		if (coord_set_to_right (&right) == 0) {
 			/* there is an item to the right of @coord */
@@ -1242,8 +1278,6 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 			      "no item to the left of insertion coord\n");
 			return RESEARCH;
 		}
-
-		fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 
 		item_key_by_coord (&left, &coord_key);
 		if (get_key_objectid (key) != get_key_objectid (&coord_key) ||
@@ -2171,7 +2205,7 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 /* 
  * Local variables:
  * c-indentation-style: "K&R"
- * mode-name: "LC"
+ * mode: linux-c
  * c-basic-offset: 8
  * tab-width: 8
  * fill-column: 120
