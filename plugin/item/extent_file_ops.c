@@ -799,8 +799,10 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		   to dirty list */
 		LOCK_JNODE(j);
 		result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
-		if (result)
+		if (result) {
+			UNLOCK_JNODE(j);
 			goto exit2;
+		}
 		jnode_make_dirty_locked(j);
 		UNLOCK_JNODE(j);
 
