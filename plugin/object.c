@@ -703,7 +703,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	int                        result;
 	struct inode              *object;
 	file_plugin               *fplug;
-	file_plugin               *parent_fplug;
+	dir_plugin                *parent_dplug;
 	reiser4_entry              entry;
 	unlink_f_type              uf_type;
 
@@ -723,7 +723,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	if( perm_chk( parent, unlink, parent, victim ) )
 		return -EPERM;
 
-	parent_fplug = reiser4_get_file_plugin( parent );
+	parent_dplug = reiser4_get_dir_plugin( parent );
 
 	memset( &entry, 0, sizeof entry );
 
@@ -754,7 +754,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	}
 
 	/* first, delete directory entry */
-	result = parent_fplug -> rem_entry( parent, victim, &entry );
+	result = parent_dplug -> rem_entry( parent, victim, &entry );
 	if( result == 0 ) {
 		switch( uf_type ) {
 		case UNLINK_BY_DELETE:
@@ -794,7 +794,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	int                        result;
 	struct inode              *object;
 	file_plugin               *fplug;
-	file_plugin               *parent_fplug;
+	dir_plugin                *parent_dplug;
 	reiser4_entry              entry;
 	reiser4_object_create_data data;
 
@@ -820,7 +820,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	if( perm_chk( parent, link, existing, parent, where ) )
 		return -EPERM;
 
-	parent_fplug = reiser4_get_file_plugin( parent );
+	parent_dplug = reiser4_get_dir_plugin( parent );
 
 	memset( &entry, 0, sizeof entry );
 
@@ -830,8 +830,8 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
 		/* add entry to the parent */
-		result = parent_fplug -> add_entry( parent, 
-						     where, &data, &entry );
+		result = parent_dplug -> add_entry( parent, 
+						    where, &data, &entry );
 		if( result != 0 ) {
 			/* failure to add entry to the parent, remove
 			   link from "existing" */
