@@ -608,7 +608,6 @@ extern void jnode_make_dirty_locked(jnode * node);
 
 #if REISER4_DEBUG
 extern int atom_fq_parts_are_clean (txn_atom *);
-extern int atom_isopen(const txn_atom * atom);
 #endif
 
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);

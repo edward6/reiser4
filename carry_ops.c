@@ -360,9 +360,9 @@ sync_op(carry_op * op, carry_node * target)
 static int
 get_split_point(carry_op * op, sideof dir)
 {
-	return 0;
-
 	coord_t *coord;
+
+	return 0;
 
 	assert("nikita-2619", op->op == COP_INSERT || op->op == COP_PASTE || op->op == COP_EXTENT);
 
@@ -385,7 +385,7 @@ get_split_point(carry_op * op, sideof dir)
 static void
 put_split_point(carry_op * op, int adj, __u32 flags)
 {
-	return 0;
+	return;
 
 	assert("nikita-2621", op->op == COP_INSERT || op->op == COP_PASTE || op->op == COP_EXTENT);
 

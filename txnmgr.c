@@ -809,6 +809,16 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	return atom;
 }
 
+#if REISER4_DEBUG
+/* Return true if an atom is currently "open". */
+static int atom_isopen(const txn_atom * atom)
+{
+	assert("umka-185", atom != NULL);
+
+	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
+}
+#endif
+
 /* Return the number of pointers to this atom that must be updated during fusion.  This
    approximates the amount of work to be done.  Fusion chooses the atom with fewer
    pointers to fuse into the atom with more pointers. */
@@ -817,9 +827,8 @@ atom_pointer_count(const txn_atom * atom)
 {
 	assert("umka-187", atom != NULL);
 
-	assert("jmacd-28", atom_isopen(atom));
-
-	/* This is a measure of the amount of work needed to fuse this atom into another. */
+	/* This is a measure of the amount of work needed to fuse this atom
+	 * into another. */
 	return atom->txnh_count + atom->capture_count;
 }
 
@@ -1368,6 +1377,16 @@ again:
 	return 0;
 }
 
+/* check whether commit_some_atoms() can commit @atom. Locking is up to the
+ * caller */
+static int atom_is_committable(txn_atom *atom)
+{
+	return
+		atom->stage < ASTAGE_PRE_COMMIT &&
+		atom->txnh_count == atom->nr_waiters &&
+		atom_should_commit(atom);
+}
+
 /* called periodically from ktxnmgrd to commit old atoms. Releases ktxnmgrd spin
  * lock at exit */
 reiser4_internal int
@@ -1387,13 +1406,13 @@ commit_some_atoms(txn_mgr * mgr)
 
 	/* look for atom to commit */
 	for_all_type_safe_list_safe(atom, &mgr->atoms_list, atom, next_atom) {
-		LOCK_ATOM(atom);
-
-		if (atom->stage < ASTAGE_PRE_COMMIT &&
-		    (atom->txnh_count == atom->nr_waiters) && atom_should_commit(atom))
-			break;
-
-		UNLOCK_ATOM(atom);
+		/* first test without taking atom spin lock, whether it is
+		 * eligible for committing at all */
+		if (atom_is_committable(atom)) {
+			/* now, take spin lock and re-check */
+			if (UNDER_SPIN(atom, atom, atom_is_committable(atom)))
+				break;
+		}
 	}
 
 	ret = atom_list_end(&mgr->atoms_list, atom);

@@ -464,14 +464,6 @@ void call_on_each_assert(void)
 	}
 }
 
-/* Return true if an atom is currently "open". */
-int atom_isopen(const txn_atom * atom)
-{
-	assert("umka-185", atom != NULL);
-
-	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
-}
-
 #endif
 
 #if REISER4_DEBUG_OUTPUT
