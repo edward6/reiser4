@@ -1870,6 +1870,11 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			goto exit;
 		}
 
+		if (child == NULL) {
+			scan->stop = 1;
+			break;
+		}
+
 		/* See if it is dirty, part of the same atom. */
 		if (! flush_scan_goto (scan, child)) {
 			break;
