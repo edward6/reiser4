@@ -1961,8 +1961,10 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 {
 	struct page *page;
 	struct inode *inode;
-
+	reiser4_context ctx;
+	
 	inode = area->vm_file->f_dentry->d_inode;
+	init_context(&ctx, inode->i_sb);
 
 	/* block filemap_nopage if copy on capture is processing with a node of this file */
 	down_read(&reiser4_inode_data(inode)->coc_sem);
@@ -1972,6 +1974,8 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 
 	drop_nonexclusive_access(unix_file_inode_data(inode));
 	up_read(&reiser4_inode_data(inode)->coc_sem);
+
+	reiser4_exit_context(&ctx);
 	return page;
 }
 
