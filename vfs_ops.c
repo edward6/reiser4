@@ -552,6 +552,12 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		( f == NULL ) ||
 		( f -> f_dentry -> d_inode == page -> mapping -> host ) );
 
+	/*
+	 * ->readpage can be called from page fault service routine
+	 */
+	ON_DEBUG_CONTEXT( assert( "nikita-2661", 
+				  !lock_counters() -> spin_locked ) );
+
 	inode = page -> mapping -> host;
 	fplug = inode_file_plugin( inode );
 	if( fplug -> readpage != NULL )
