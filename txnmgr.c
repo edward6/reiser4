@@ -1397,6 +1397,9 @@ capture_assign_block_nolock (txn_atom *atom,
 	}
 
 	atom->capture_count += 1;
+	/*
+	 * reference to jnode is acquired by atom.
+	 */
 	jref (node);
 	ON_DEBUG (++ lock_counters() -> t_refs);
 
