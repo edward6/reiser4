@@ -805,8 +805,7 @@ sync_dkeys(znode *spot /* node to update */)
 	WUNLOCK_DK(tree);
 }
 
-void
-check_dkeys(const znode *node);
+ON_DEBUG(void check_dkeys(const znode *);)
 
 /* unlock all carry nodes in @level */
 static void
