@@ -450,14 +450,16 @@ get_jnode_enhash(const jnode *node)
 }
 
 static inline __u32
-jnode_hfn(jnode * const * j)
+jnode_hfn(ef_hash_table *table, jnode * const * j)
 {
 	__u32 val;
 
 	assert("nikita-2735", j != NULL);
+	assert("nikita-3346", IS_POW(table->_buckets));
+
 	val = (unsigned long)*j;
 	val /= sizeof(**j);
-	return val % (get_jnode_enhash(*j)->_buckets);
+	return val & (table->_buckets - 1);
 }
 
 
@@ -488,9 +490,17 @@ eflush_done(void)
 int
 eflush_init_at(struct super_block *super)
 {
-	return ef_hash_init(&get_super_private(super)->efhash_table,
-			    nr_free_pagecache_pages() >> 2,
-			    reiser4_stat(super, hashes.eflush));
+	int buckets;
+	int result;
+
+	buckets = 1 << fls(nr_free_pagecache_pages() >> 2);
+	do {
+		result = ef_hash_init(&get_super_private(super)->efhash_table,
+				      buckets,
+				      reiser4_stat(super, hashes.eflush));
+		buckets >>= 1;
+	} while(result == -ENOMEM);
+	return result;
 }
 
 void
