@@ -1296,8 +1296,15 @@ reiser4_write_super(struct super_block *s)
 	int ret;
 	reiser4_context ctx;
 
+	assert("vs-1700", !rofs_super(s));
+
 	init_context(&ctx, s);
 	reiser4_stat_inc(vfs_calls.write_super);
+
+	ret = capture_super_block(s);
+	if (ret != 0)
+		warning("vs-1701",
+			"capture_super_block failed in write_super: %d", ret);
 	ret = txnmgr_force_commit_all(s, 1);
 	if (ret != 0)
 		warning("jmacd-77113",
@@ -1306,6 +1313,46 @@ reiser4_write_super(struct super_block *s)
 	s->s_dirt = 0;
 
 	reiser4_exit_context(&ctx);
+}
+
+static void
+reiser4_put_super(struct super_block *s)
+{
+	reiser4_super_info_data *sbinfo;
+	reiser4_context context;
+
+	sbinfo = get_super_private(s);
+	assert("vs-1699", sbinfo);
+
+	init_context(&context, s);
+	stop_ktxnmgrd(&sbinfo->tmgr);
+	reiser4_sysfs_done(s);
+
+	/* have disk format plugin to free its resources */
+	if (get_super_private(s)->df_plug->release)
+		get_super_private(s)->df_plug->release(s);
+
+	done_ktxnmgrd_context(&sbinfo->tmgr);
+	done_entd_context(s);
+
+	check_block_counters(s);
+
+	rcu_barrier();
+	/* done_formatted_fake just has finished with last jnodes (bitmap
+	 * ones) */
+	done_tree(&sbinfo->tree);
+	/* call finish_rcu(), because some znode were "released" in
+	 * done_tree(). */
+	rcu_barrier();
+	done_formatted_fake(s);
+
+	/* no assertions below this line */
+	reiser4_exit_context(&context);
+
+	reiser4_stat_done(&sbinfo->stats);
+
+	kfree(sbinfo);
+	s->s_fs_info = NULL;
 }
 
 /* ->get_sb() method of file_system operations. */
@@ -1486,7 +1533,7 @@ struct file_system_type reiser4_fs_type = {
 	.name = "reiser4",
 	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = reiser4_get_sb,
-	.kill_sb = reiser4_kill_super,
+	.kill_sb = kill_block_super,/*reiser4_kill_super,*/
 	.next = NULL
 };
 
@@ -1499,7 +1546,7 @@ struct super_operations reiser4_super_operations = {
  	.put_inode = NULL,
 	.drop_inode = reiser4_drop_inode,
 	.delete_inode = reiser4_delete_inode,
-	.put_super = NULL,
+	.put_super = reiser4_put_super,
 	.write_super = reiser4_write_super,
 	.sync_fs = NULL,
  	.write_super_lockfs = NULL, 
