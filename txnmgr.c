@@ -594,36 +594,6 @@ txn_same_atom_dirty (jnode *node, jnode *check)
 	return compat;
 }
 
-/* Add a jnode to the atom's delete set.  Handles the EAGAIN result, which is
- * returned by blocknr_set_add when it releases the atom lock to perform an
- * allocation.  The atom could fuse while this lock is held, which is why the
- * EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.
- * The second call is guaranteed to provide a pre-allocated blocknr_entry so
- * it can only "repeat" once.  */
-/* Audited by: umka (2002.06.13) */
-static int atom_add_to_delete_set (jnode *node)
-{
-	blocknr_set_entry *blocknr_entry = NULL;
-	txn_atom *atom;
-	int ret;
-
-	assert("umka-184", node != NULL);
-	
- repeat:
-	atom = atom_get_locked_by_jnode (node);
-
-	ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
-
-	if (ret == EAGAIN) {
-		/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
-		goto repeat;
-	}
-
-	assert ("jmacd-5177", blocknr_entry == NULL);
-
-	return ret;
-}
-
 /* Return true if an atom is currently "open". */
 /* Audited by: umka (2002.06.13) */
 static int
@@ -1296,28 +1266,41 @@ txn_try_capture_page  (struct page        *pg,
 	return ret;
 }
 
-/* This informs the transaction manager when an unformatted node is deleted. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
+/* This informs the transaction manager when an unformatted node is deleted.  Add a jnode
+ * to the atom's delete set.  Handles the EAGAIN result, which is returned by
+ * blocknr_set_add when it releases the atom lock to perform an allocation.  The atom
+ * could fuse while this lock is held, which is why the EAGAIN must be handled by
+ * repeating the call to atom_get_locked_by_jnode.  The second call is guaranteed to
+ * provide a pre-allocated blocknr_entry so it can only "repeat" once.  */
 void txn_delete_page (struct page *pg)
 {
+	int ret;
 	jnode *node;
 	txn_atom *atom;
+	blocknr_set_entry *blocknr_entry = NULL;
 	
 	assert("umka-199", pg != NULL);
 	
-	if ((node = page_detach_jnode (pg)) == NULL) {
-		return;
-	}
-
 	spin_lock_jnode (node);
 
+ repeat:
 	atom = atom_get_locked_by_jnode (node);
 
-	spin_unlock_jnode (node);
-
 	if (atom == NULL) {
+		assert ("jmacd-7111", ! jnode_check_dirty (node));
 		return;
 	}
+
+	ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
+
+	if (ret == EAGAIN) {
+		/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
+		goto repeat;
+	}
+
+	assert ("jmacd-5177", blocknr_entry == NULL);
+
+	spin_unlock_jnode (node);
 
 	uncapture_block (atom, node);
 
