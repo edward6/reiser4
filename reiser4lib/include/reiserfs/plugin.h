@@ -72,17 +72,16 @@ typedef void reiserfs_node_opaque_t;
 struct reiserfs_node_plugin {
     reiserfs_plugin_header_t h;
 
-    error_t (*confirm_format) (aal_device_block_t *);
-    error_t (*create) (aal_device_block_t *, uint8_t);
-    error_t (*check) (aal_device_block_t *, int);
-    error_t (*sync) (aal_device_block_t *);
-    uint32_t (*max_item_size) (aal_device_block_t *);
-    uint32_t (*max_item_num) (aal_device_block_t *);
-    uint32_t (*count) (aal_device_block_t *);
-    uint8_t (*level) (aal_device_block_t *);
-    uint32_t (*get_free_space) (aal_device_block_t *);
-    void (*set_free_space) (aal_device_block_t *, uint32_t);
-    void (*print) (aal_device_block_t *);
+    error_t (*confirm_format) (aal_block_t *);
+    error_t (*create) (aal_block_t *, uint8_t);
+    error_t (*check) (aal_block_t *, int);
+    uint32_t (*max_item_size) (aal_block_t *);
+    uint32_t (*max_item_num) (aal_block_t *);
+    uint32_t (*count) (aal_block_t *);
+    uint8_t (*level) (aal_block_t *);
+    uint32_t (*get_free_space) (aal_block_t *);
+    void (*set_free_space) (aal_block_t *, uint32_t);
+    void (*print) (aal_block_t *);
 };
 
 typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
@@ -127,8 +126,8 @@ struct reiserfs_format_plugin {
     reiserfs_format_opaque_t *(*open) (aal_device_t *);
     reiserfs_format_opaque_t *(*create) (aal_device_t *, count_t);
     void (*close) (reiserfs_format_opaque_t *, int);
-    int (*sync) (reiserfs_format_opaque_t *);
-    int (*check) (reiserfs_format_opaque_t *);
+    error_t (*sync) (reiserfs_format_opaque_t *);
+    error_t (*check) (reiserfs_format_opaque_t *);
     int (*probe) (aal_device_t *device);
     const char *(*format) (reiserfs_format_opaque_t *);
 
@@ -156,7 +155,7 @@ struct reiserfs_alloc_plugin {
     reiserfs_alloc_opaque_t *(*open) (aal_device_t *);
     reiserfs_alloc_opaque_t *(*create) (aal_device_t *);
     void (*close) (reiserfs_alloc_opaque_t *, int);
-    int (*sync) (reiserfs_alloc_opaque_t *);
+    error_t (*sync) (reiserfs_alloc_opaque_t *);
 };
 
 typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
@@ -168,8 +167,8 @@ struct reiserfs_journal_plugin {
     reiserfs_journal_opaque_t *(*open) (aal_device_t *);
     reiserfs_journal_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
     void (*close) (reiserfs_journal_opaque_t *, int);
-    int (*sync) (reiserfs_journal_opaque_t *);
-    int (*replay) (reiserfs_journal_opaque_t *);
+    error_t (*sync) (reiserfs_journal_opaque_t *);
+    error_t (*replay) (reiserfs_journal_opaque_t *);
 };
 
 typedef struct reiserfs_journal_plugin reiserfs_journal_plugin_t;
@@ -196,7 +195,7 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 #define reiserfs_plugin_check_routine(plugin, routine, action) \
     do { \
 	if (!plugin.##routine##) { \
-	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, "", \
+	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, \
 		"Routine \"" #routine "\" isn't implemented in plugin %s.", \
 		plugin.h.label); \
 	    action; \
@@ -213,7 +212,8 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 #   define reiserfs_plugin_register(plugin) \
 	reiserfs_plugin_t *reiserfs_plugin_entry = &plugin
 #else
-#   define reiserfs_plugin_register(plugin, name)
+#   define reiserfs_plugin_register(plugin, name) \
+	while(0) {}
 #endif
 
 extern reiserfs_plugin_t *reiserfs_plugin_load(const char *filename);

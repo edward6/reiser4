@@ -20,6 +20,8 @@
 #  include <stdint.h>
 #endif
 
+typedef int error_t;
+
 #include "device.h"
 #include "file.h"
 #include "exception.h"
@@ -29,8 +31,7 @@
 #include "string.h"
 #include "math.h"
 #include "endian.h"
-
-typedef int error_t;
+#include "debug.h"
 
 #endif
 

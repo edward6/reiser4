@@ -4,17 +4,15 @@
     Author Yury Umanets.
 */
 
-#include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
-#include <reiserfs/debug.h>
 
-static int reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
+static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
     unsigned int blocksize, const char *uuid, const char *label) 
 {
-    ASSERT(fs != NULL, return 0);
+    aal_assert("umka-142", fs != NULL, return -1);
     
     if (!(fs->master = aal_calloc(REISERFS_DEFAULT_BLOCKSIZE, 0)))
-	return 0;
+	return -1;
     
     aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, strlen(REISERFS_MASTER_MAGIC));
     aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
@@ -23,23 +21,23 @@ static int reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format
     set_mr_format_id(fs->master, format_plugin_id);
     set_mr_block_size(fs->master, blocksize);
 	
-    return 1;
+    return 0;
 }
 
-static int reiserfs_master_open(reiserfs_fs_t *fs) {
+static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
     blk_t master_offset;
-    aal_device_block_t *block;
+    aal_block_t *block;
     reiserfs_master_t *master;
     
-    ASSERT(fs != NULL, return 0);
+    aal_assert("umka-143", fs != NULL, return -1);
     
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
     aal_device_set_blocksize(fs->device, REISERFS_DEFAULT_BLOCKSIZE);
 	
     if (!(block = aal_device_read_block(fs->device, master_offset))) {
-	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-006", 
+	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't read master super block at %d.", master_offset);
-	return 0;
+	return -1;
     }
     
     master = (reiserfs_master_t *)block->data;
@@ -47,7 +45,7 @@ static int reiserfs_master_open(reiserfs_fs_t *fs) {
     /* Checking for reiser3 disk-format */
     if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
 	reiserfs_plugin_t *format36;
-		
+	
 	if (!(format36 = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
 	    goto error_free_block;
 		
@@ -56,9 +54,9 @@ static int reiserfs_master_open(reiserfs_fs_t *fs) {
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	if (!reiserfs_master_create(fs, 0x2, aal_device_get_blocksize(fs->device), "", "")) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-070", 
-		"Can't create in-memory master super block in order to open reiser3 filesystem.");
+	if (reiserfs_master_create(fs, 0x2, aal_device_get_blocksize(fs->device), "", "")) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
+		"master super block in order to open reiser3 filesystem.");
 	    goto error_free_block;
 	}
     } else {
@@ -67,46 +65,49 @@ static int reiserfs_master_open(reiserfs_fs_t *fs) {
 	
 	aal_memcpy(fs->master, master, sizeof(*master));
 	
-	if (!aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
-	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-007",
+	if (aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
+	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 		"Invalid block size detected %d. It must be power of two.", 
 		get_mr_block_size(master));
+	    
 	    aal_free(fs->master);
 	    goto error_free_block;
 	}
     }
-    return 1;
+    
+    return 0;
     
 error_free_block:
     aal_device_free_block(block);
 error:
-    return 0;    
+    return -1;    
 }
 
-static int reiserfs_master_sync(reiserfs_fs_t *fs) {
+static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     blk_t master_offset;	
-    aal_device_block_t *block;
+    aal_block_t *block;
 	
-    ASSERT(fs != NULL, return 0);
-    ASSERT(fs->master != NULL, return 0);
+    aal_assert("umka-144", fs != NULL, return -1);
+    aal_assert("umka-145", fs->master != NULL, return -1);
 
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
     if (!(block = aal_device_alloc_block(fs->device, master_offset, 0)))
-	return 0;
+	return -1;
     
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
-    if (!aal_device_write_block(fs->device, block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-071", 
-	    "Can't synchronize master super block at %d.", master_offset);
-	return 0;
+    if (aal_device_write_block(fs->device, block)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't synchronize master super block at %d.", 
+	    master_offset);
+	return -1;
     }
 
-    return 1;
+    return 0;
 }
 
 static void reiserfs_master_close(reiserfs_fs_t *fs, int sync) {
-    ASSERT(fs != NULL, return);
-    ASSERT(fs->master != NULL, return);
+    aal_assert("umka-146", fs != NULL, return);
+    aal_assert("umka-147", fs->master != NULL, return);
     
     if (sync)
 	reiserfs_master_sync(fs);
@@ -119,30 +120,30 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 {
     reiserfs_fs_t *fs;
 	
-    ASSERT(host_device != NULL, return NULL);
+    aal_assert("umka-148", host_device != NULL, return NULL);
 
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 
     fs->device = host_device;
     
-    if (!reiserfs_master_open(fs))
+    if (reiserfs_master_open(fs))
 	goto error_free_fs;
 	    
-    if (!reiserfs_super_open(fs))
+    if (reiserfs_super_open(fs))
 	goto error_free_master;
 
     if (journal_device)
 	aal_device_set_blocksize(journal_device, reiserfs_fs_blocksize(fs));
 
     if (reiserfs_super_journal_plugin(fs) != -1 && journal_device && 
-	    !reiserfs_journal_open(fs, journal_device, replay))
+	    reiserfs_journal_open(fs, journal_device, replay))
 	goto error_free_super;
 	
-    if (reiserfs_super_alloc_plugin(fs) != -1 && !reiserfs_alloc_open(fs))
+    if (reiserfs_super_alloc_plugin(fs) != -1 && reiserfs_alloc_open(fs))
 	goto error_free_journal;
 	
-    if (!reiserfs_tree_open(fs))
+    if (reiserfs_tree_open(fs))
 	goto error_free_alloc;
 	
     return fs;
@@ -169,12 +170,13 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 {
     reiserfs_fs_t *fs;
 
-    ASSERT(host_device != NULL, return NULL);
-    ASSERT(journal_device != NULL, return NULL);
+    aal_assert("umka-149", host_device != NULL, return NULL);
+    aal_assert("umka-150", journal_device != NULL, return NULL);
 
     if (!aal_pow_of_two(blocksize)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-025", 
-	    "Invalid block size %d. It must be power of two.", blocksize);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Invalid block size %d. It must be power of two.", 
+	    blocksize);
 	return NULL;
     }
 	
@@ -183,19 +185,19 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	
     fs->device = host_device;
     
-    if (!reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
+    if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
 	goto error_free_fs;
 	    
-    if (!reiserfs_super_create(fs, format_plugin_id, len))
+    if (reiserfs_super_create(fs, format_plugin_id, len))
 	goto error_free_master;
 	
-    if (!reiserfs_journal_create(fs, journal_device, journal_params))
+    if (reiserfs_journal_create(fs, journal_device, journal_params))
 	goto error_free_super;
 	
-    if (!reiserfs_alloc_create(fs))
+    if (reiserfs_alloc_create(fs))
 	goto error_free_journal;
 	
-    if (!reiserfs_tree_create(fs, node_plugin_id))
+    if (reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_alloc;
 	
     return fs;
@@ -214,10 +216,10 @@ error:
     return NULL;
 }
 
-int reiserfs_fs_sync(reiserfs_fs_t *fs) {
-    return reiserfs_master_sync(fs) && reiserfs_super_sync(fs) && 
-	((fs->journal && reiserfs_journal_sync(fs)) || !fs->journal) && 
-	reiserfs_alloc_sync(fs) && reiserfs_tree_sync(fs);
+error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
+    return !reiserfs_master_sync(fs) && !reiserfs_super_sync(fs) && 
+	((fs->journal && !reiserfs_journal_sync(fs)) || !fs->journal) && 
+	!reiserfs_alloc_sync(fs) && !reiserfs_tree_sync(fs);
 }
 
 /* 
@@ -226,8 +228,8 @@ int reiserfs_fs_sync(reiserfs_fs_t *fs) {
 */
 void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
     reiserfs_tree_close(fs, sync);
-	
     reiserfs_alloc_close(fs, sync);
+    
     if (fs->journal)
 	reiserfs_journal_close(fs, sync);
 	
@@ -241,15 +243,15 @@ const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
 }
 
 reiserfs_plugin_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {
-    ASSERT(fs != NULL, return -1);
-    ASSERT(fs->master != NULL, return -1);
+    aal_assert("umka-151", fs != NULL, return -1);
+    aal_assert("umka-152", fs->master != NULL, return -1);
 
     return get_mr_format_id(fs->master);
 }
 
-size_t reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
-    ASSERT(fs != NULL, return 0);
-    ASSERT(fs->master != NULL, return 0);
+uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
+    aal_assert("umka-153", fs != NULL, return 0);
+    aal_assert("umka-154", fs->master != NULL, return 0);
     
     return get_mr_block_size(fs->master);
 }

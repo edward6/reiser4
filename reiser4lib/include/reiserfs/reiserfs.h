@@ -23,6 +23,8 @@ extern "C" {
 #  include <stdint.h>
 #endif
 
+#include <aal/aal.h>
+	
 #include "filesystem.h"
 #include "super.h"
 #include "journal.h"
@@ -37,7 +39,7 @@ extern int libreiserfs_get_max_interface_version(void);
 extern int libreiserfs_get_min_interface_version(void);
 extern const char *libreiserfs_get_version(void);
 
-extern int libreiserfs_init(void);
+extern error_t libreiserfs_init(void);
 extern void libreiserfs_done(void);
 
 #ifdef __cplusplus

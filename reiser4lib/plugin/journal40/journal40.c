@@ -9,10 +9,10 @@
 
 #include "journal40.h"
 
-static int reiserfs_journal40_header_check(reiserfs_journal40_header_t *header, 
+static error_t reiserfs_journal40_header_check(reiserfs_journal40_header_t *header, 
     aal_device_t *device) 
 {
-    return 1;
+    return 0;
 }
 
 static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
@@ -24,7 +24,7 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
     if (!(journal->header = aal_device_read_block(device, 
 	(blk_t)(REISERFS_JOURNAL40_OFFSET / aal_device_get_blocksize(device)))))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-026", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't read journal header.");
 	goto error_free_journal;
     }
@@ -44,13 +44,13 @@ error:
     return NULL;
 }
 
-static int reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
+static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
     if (!aal_device_write_block(journal->device, journal->header)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-027", 
+	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't synchronize journal header.");
-	return 0;
+	return -1;
     }
-    return 1;
+    return 0;
 }
 
 static void reiserfs_journal40_close(reiserfs_journal40_t *journal, int sync) {
@@ -60,9 +60,9 @@ static void reiserfs_journal40_close(reiserfs_journal40_t *journal, int sync) {
     aal_free(journal);
 }
 
-static int reiserfs_journal40_replay(reiserfs_journal40_t *journal) {
+static error_t reiserfs_journal40_replay(reiserfs_journal40_t *journal) {
     /* Journal replaying must be here. */
-    return 1;
+    return 0;
 }
 
 static reiserfs_plugin_t journal40_plugin = {
@@ -78,8 +78,8 @@ static reiserfs_plugin_t journal40_plugin = {
 	.open = (reiserfs_journal_opaque_t *(*)(aal_device_t *))reiserfs_journal40_open,
 	.create = NULL,
 	.close = (void (*)(reiserfs_journal_opaque_t *, int))reiserfs_journal40_close,
-	.sync = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_sync,
-	.replay = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_replay
+	.sync = (error_t (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_sync,
+	.replay = (error_t (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_replay
     }
 };
 

@@ -29,19 +29,20 @@ const char *libreiserfs_get_version(void) {
     return VERSION;
 }
 
-int libreiserfs_init(void) {
+error_t libreiserfs_init(void) {
 #ifndef ENABLE_ALONE
     DIR *dir;
     struct dirent *ent;
 #endif	
 
+    aal_assert("umka-159", plugins == NULL, return -1);
+    
     plugins = aal_list_create(10);
-	
 #ifndef ENABLE_ALONE
     if (!(dir = opendir(PLUGIN_DIR))) {
-    	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-003", 
+    	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't open directory %s.", PLUGIN_DIR);
-	return 0;
+	return -1;
     }
 	
     while ((ent = readdir(dir))) {
@@ -62,7 +63,7 @@ int libreiserfs_init(void) {
 	aal_memset(plug_name, 0, sizeof(plug_name));
 	aal_snprintf(plug_name, sizeof(plug_name), "%s/%s", PLUGIN_DIR, ent->d_name);
 	if (!(plugin = reiserfs_plugin_load(plug_name))) {
-	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-004", 
+	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 		"Plugin %s was not loaded.", plug_name);
 	    continue;
 	}
@@ -75,7 +76,7 @@ int libreiserfs_init(void) {
 	builtin plugins. 
     */
 #endif
-    return aal_list_count(plugins) > 0;
+    return -(aal_list_count(plugins) == 0);
 }
 
 void libreiserfs_done(void) {

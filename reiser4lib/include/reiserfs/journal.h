@@ -10,13 +10,13 @@
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
-extern int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay);
+extern error_t reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay);
 
-extern int reiserfs_journal_create(reiserfs_fs_t *fs, aal_device_t *device, 
+extern error_t reiserfs_journal_create(reiserfs_fs_t *fs, aal_device_t *device, 
     reiserfs_params_opaque_t *journal_params);
 
-extern int reiserfs_journal_sync(reiserfs_fs_t *fs);
-extern int reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay);
+extern error_t reiserfs_journal_sync(reiserfs_fs_t *fs);
+extern error_t reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay);
 extern void reiserfs_journal_close(reiserfs_fs_t *fs, int sync);
 
 #endif

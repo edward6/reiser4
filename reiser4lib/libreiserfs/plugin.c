@@ -8,9 +8,7 @@
 #  include <dlfcn.h>
 #endif
 
-#include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
-#include <reiserfs/debug.h>
 
 extern aal_list_t *plugins;
 
@@ -31,9 +29,8 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
 {
     struct walk_desc desc;
     reiserfs_plugin_t *plugin;
-	
-    if (!plugins) 
-	return NULL;
+
+    aal_assert("umka-155", plugins != NULL, return NULL);    
 	
     desc.type = type;
     desc.id = id;
@@ -51,20 +48,18 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *filename) {
     void *handle, *entry;
     reiserfs_plugin_t *plugin;
 	
-    ASSERT(filename != NULL, return NULL);
-
-    if (!plugins) 
-	return NULL;
+    aal_assert("umka-156", filename != NULL, return NULL);
+    aal_assert("umka-157", plugins != NULL, return NULL); 
 	
     if (!(handle = dlopen(filename, RTLD_NOW))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-001", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't load plugin %s.", filename);
 	return NULL;
     }
     
     entry = dlsym(handle, PLUGIN_ENTRY);
     if ((error = dlerror()) != NULL || entry == NULL) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find symbol \"%s\" in plugin %s.", PLUGIN_ENTRY, filename);
 	goto error_free_handle;
     }
@@ -81,13 +76,12 @@ error:
     return NULL;
 #else
     return NULL;
-#endif	
+#endif
 }
 
 void reiserfs_plugin_unload(reiserfs_plugin_t *plugin) {
+    aal_assert("umka-158", plugin != NULL, return);
 #ifndef ENABLE_ALONE	
-    ASSERT(plugin != NULL, return);
-
     if (!plugins)
 	return;
 	

@@ -9,25 +9,25 @@
 
 #include "format40.h"
 
-static int reiserfs_format40_super_check(reiserfs_format40_super_t *super, 
+static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super, 
     aal_device_t *device) 
 {
     blk_t dev_len = aal_device_len(device);
     if (get_sb_block_count(super) > dev_len) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-	    "umka-023", "Superblock has an invalid block count %d for device "
+	    "Superblock has an invalid block count %d for device "
 	    "length %d blocks.", get_sb_block_count(super), dev_len);
-	return 0;
+	return -1;
     }
-    return 1;
+    return 0;
 }
 
 static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
     return aal_strncmp(super->sb_magic, REISERFS_FORMAT40_MAGIC, 16) == 0;
 }
 
-static aal_device_block_t *reiserfs_format40_super_open(aal_device_t *device) {
-    aal_device_block_t *block;
+static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
+    aal_block_t *block;
     reiserfs_format40_super_t *super;
     int i, super_offset[] = {17, -1};
 	
@@ -36,7 +36,7 @@ static aal_device_block_t *reiserfs_format40_super_open(aal_device_t *device) {
 	    super = (reiserfs_format40_super_t *)block->data;
 		
 	    if (reiserfs_format40_signature(super)) {
-		if (!reiserfs_format40_super_check(super, device)) {
+		if (reiserfs_format40_super_check(super, device)) {
 		    aal_device_free_block(block);
 		    continue;
 		}	
@@ -70,16 +70,17 @@ error:
     return NULL;
 }
 
-static int reiserfs_format40_sync(reiserfs_format40_t *format) {
+static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     if (!format || !format->super)
-	return 0;
+	return -1;
     
     if (!aal_device_write_block(format->device, format->super)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-044", 
-	    "Can't write superblock to %d.", aal_device_get_block_location(format->super));
-	return 0;
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't write superblock to %d.", 
+	    aal_device_get_block_location(format->device, format->super));
+	return -1;
     }
-    return 1;
+    return 0;
 }
 
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, count_t blocks) {
@@ -95,7 +96,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, count
     format->device = device;
     
     if (!(format->super = aal_device_alloc_block(device, REISERFS_FORMAT40_OFFSET, 0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-043", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't allocate superblock.");
 	goto error_free_format;
     }
@@ -117,9 +118,9 @@ error:
     return NULL;
 }
 
-static int reiserfs_format40_check(reiserfs_format40_t *format) {
+static error_t reiserfs_format40_check(reiserfs_format40_t *format) {
     return reiserfs_format40_super_check((reiserfs_format40_super_t *)format->super->data, 
-	format->super->device);
+	format->device);
 }
 
 static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
@@ -131,7 +132,7 @@ static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
 }
 
 static int reiserfs_format40_probe(aal_device_t *device) {
-    aal_device_block_t *block;
+    aal_block_t *block;
 
     if (!(block = reiserfs_format40_super_open(device)))
 	return 0;
@@ -175,8 +176,8 @@ static reiserfs_plugin_t format40_plugin = {
 	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
 	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *, count_t))reiserfs_format40_create,
 	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format40_close,
-	.sync = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_sync,
-	.check = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_check,
+	.sync = (error_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_sync,
+	.check = (error_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_check,
 	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
 	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format40_format,
 	

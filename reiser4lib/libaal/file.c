@@ -20,56 +20,56 @@
 
 #include <aal/aal.h>
 
-static int file_read(aal_device_t *device, void *buff, blk_t block, count_t count) {
+static error_t file_read(aal_device_t *device, void *buff, blk_t block, count_t count) {
     loff_t off, blocklen;
 	
     if (!device || !buff)
-    	return 0;
+    	return -1;
 	
     off = (loff_t)block * (loff_t)device->blocksize;
 	
     if (lseek64(*((int *)device->entity), off, SEEK_SET) == -1)
-	return 0;
+	return -1;
 
     blocklen = (loff_t)count * (loff_t)device->blocksize;
 	
     if (read(*((int *)device->entity), buff, blocklen) <= 0)
-	return 0;
+	return -1;
 	
-    return 1;
+    return 0;
 }
 
-static int file_write(aal_device_t *device, void *buff, blk_t block, count_t count) {
+static error_t file_write(aal_device_t *device, void *buff, blk_t block, count_t count) {
     loff_t off, blocklen;
 	
     if (!device || !buff)
-	return 0;
+	return -1;
 	
     off = (loff_t)block * (loff_t)device->blocksize;
 	
     if (lseek64(*((int *)device->entity), off, SEEK_SET) == -1)
-	return 0;
+	return -1;
 
     blocklen = (loff_t)count * (loff_t)device->blocksize;
 
     if (write((*(int *)device->entity), buff, blocklen) <= 0)
-	return 0;
+	return -1;
 	
-    return 1;
+    return 0;
 }
 
-static int file_sync(aal_device_t *device) {
+static error_t file_sync(aal_device_t *device) {
 
     if (!device) 
-	return 0;
+	return -1;
 	
-    return !fsync(*((int *)device->entity));
+    return fsync(*((int *)device->entity));
 }
 
 static int file_flags(aal_device_t *device) {
 
     if (!device) 
-	return 0;
+	return -1;
 		
     return device->flags;
 }
@@ -142,21 +142,21 @@ error:
     return NULL;    
 }
 
-int aal_file_reopen(aal_device_t *device, int flags) {
+error_t aal_file_reopen(aal_device_t *device, int flags) {
     int fd;
 	
     if (!device) 
-	return 0;
+	return -1;
 
     close(*((int *)device->entity));
 	
     if ((fd = open((char *)device->data, flags | O_LARGEFILE)) == -1)
-	return 0;
+	return -1;
 	
     *((int *)device->entity) = fd;
     device->flags = flags;
 	
-    return 1;
+    return 0;
 }
 
 void aal_file_close(aal_device_t *device) {

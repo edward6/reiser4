@@ -5,118 +5,69 @@
 */
 
 #include <reiserfs/reiserfs.h>
-#include <reiserfs/debug.h>
 
-int reiserfs_tree_open(reiserfs_fs_t *fs) {
-    blk_t root_block;
-    aal_device_block_t *block;
-    reiserfs_plugin_t *plugin;
+error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
+    blk_t root_blk;
 
-    ASSERT(fs != NULL, return 0);
-    ASSERT(fs->super != NULL, return 0);
+    aal_assert("umka-127", fs != NULL, return -1);
+    aal_assert("umka-128", fs->super != NULL, return -1);
 
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
-	return 0;
+	return -1;
 
-    if (!(root_block = reiserfs_super_root_block(fs)) || 
-	root_block > aal_device_len(fs->device)) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-032", 
-	    "Invalid root block %d has been detected.", root_block);
-	goto error_free_tree;
-    }
+    root_blk = reiserfs_super_root_block(fs);
+    
+    if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk)))
+        goto error_free_tree;
+    
+    return 0;
 
-    if (!(block = aal_device_read_block(fs->device, root_block))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-033", 
-	    "Can't read root block %d.", block);
-	goto error_free_tree;
-    }
-
-    /*
-    if (!(fs->tree->root = reiserfs_node_open(block)))
-	goto error_free_block;
-    */
-    return 1;
-
-error_free_root:
-//    reiserfs_node_close(fs->tree->root, 0);
-error_free_block:
-    aal_device_free_block(block);
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
 error:
-    return 0;
+    return -1;
 }
 
-int reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
-    blk_t root_block;
-    aal_device_block_t *block;
-    reiserfs_plugin_t *plugin;
+error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
+    blk_t root_blk;
     
-    ASSERT(fs != NULL, return 0);
-    ASSERT(fs->super != NULL, return 0);
+    aal_assert("umka-129", fs != NULL, return -1);
+    aal_assert("umka-130", fs->super != NULL, return -1);
 
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
-	return 0;
+	return -1;
 	
-    if (!(root_block = reiserfs_super_root_block(fs)) || 
-	root_block > aal_device_len(fs->device)) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-036", 
-	    "Invalid root block %d has been detected.", root_block);
+    root_blk = reiserfs_super_root_block(fs);
+    if (!(fs->tree->root = reiserfs_node_create(fs->device, root_blk, 
+	    node_plugin_id, REISERFS_ROOT_LEVEL))) 
 	goto error_free_tree;
-    }
     
-    if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, 0x01))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-037", 
-	    "Can't find node plugin by its identifier %x.", 0x01);
-	goto error_free_tree;
-    }
-    
-    if (!(block = aal_device_alloc_block(fs->device, root_block, 0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-046", 
-	    "Can't allocate root block.");
-	goto error_free_tree;
-    }
-    
-    if (!(fs->tree->root = reiserfs_node_create(block, node_plugin_id, 
-	    REISERFS_ROOT_LEVEL)))
-	goto error_free_block;
-    
-    if (reiserfs_node_sync(fs->tree->root))
-	goto error_free_root;
-    
-    return 1;
+    return 0;
 
-error_free_root:
-//    reiserfs_node_close(fs->tree->root, 0);
-error_free_block:
-    aal_device_free_block(block);
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
 error:
-    return 0;
+    return -1;
 }
 
-int reiserfs_tree_sync(reiserfs_fs_t *fs) {
-    reiserfs_node_t *root;
-	
-    ASSERT(fs != NULL, return 0);
-    ASSERT(fs->tree != NULL, return 0);
-    ASSERT(fs->tree->root != NULL, return 0);
-
-    root = fs->tree->root;
-    reiserfs_plugin_check_routine(root->plugin->node, sync, return 0);
-    return root->plugin->node.sync(root->entity);
+error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
+    aal_assert("umka-131", fs != NULL, return -1);
+    aal_assert("umka-132", fs->tree != NULL, return -1);
+    
+    return reiserfs_node_sync(fs->tree->root);
 }
 
 void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
-    ASSERT(fs != NULL, return);
-    ASSERT(fs->tree != NULL, return);
+    aal_assert("umka-133", fs != NULL, return);
+    aal_assert("umka-134", fs->tree != NULL, return);
     
-    reiserfs_node_close(fs->tree->root, sync);
+    if (sync)
+	reiserfs_tree_sync(fs);
+    
+    reiserfs_node_close(fs->tree->root);
+    
     aal_free(fs->tree);
     fs->tree = NULL;
 }

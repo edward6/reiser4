@@ -49,9 +49,9 @@ error:
     return NULL;
 }
 
-static int reiserfs_alloc36_sync(reiserfs_alloc36_t *alloc) {
+static error_t reiserfs_alloc36_sync(reiserfs_alloc36_t *alloc) {
     /* Synchronizing code must be here */
-    return 0;
+    return -1;
 }
 
 static void reiserfs_alloc36_close(reiserfs_alloc36_t *alloc, int sync) {
@@ -74,7 +74,7 @@ static reiserfs_plugin_t alloc36_plugin = {
 	.open = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc36_open,
 	.create = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc36_create,
 	.close = (void (*)(reiserfs_alloc_opaque_t *, int))reiserfs_alloc36_close,
-	.sync = (int (*)(reiserfs_alloc_opaque_t *))reiserfs_alloc36_sync
+	.sync = (error_t (*)(reiserfs_alloc_opaque_t *))reiserfs_alloc36_sync
     }
 };
 

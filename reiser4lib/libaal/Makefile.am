@@ -6,7 +6,7 @@ libaal_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) \
 			  -release $(LT_RELEASE)
 
 libaal_la_SOURCES  	= device.c file.c exception.c list.c malloc.c \
-			  print.c string.c math.c endian.c
+			  print.c string.c math.c endian.c debug.c
 
 INCLUDES = $(includedir)
 

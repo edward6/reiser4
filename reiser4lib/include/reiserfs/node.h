@@ -17,25 +17,23 @@ struct reiserfs_node_common_header {
 typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
 
 struct reiserfs_node {
-    reiserfs_node_opaque_t *entity; 
+    aal_device_t *device;
+    aal_block_t *block;
+    
     reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_node reiserfs_node_t;
 
-#define reiserfs_node_get_plugin_id(block) \
-    get_le16((reiserfs_node_common_header_t *)block->data, plugin_id)
+extern reiserfs_plugin_id_t reiserfs_node_get_plugin_id(aal_block_t *block);
+extern void reiserfs_node_set_plugin_id(aal_block_t *block, reiserfs_plugin_id_t id);
 
-#define reiserfs_node_set_plugin_id(block, id) \
-    set_le16((reiserfs_node_common_header_t *)block->data, plugin_id, id)
+extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk);
 
-//extern error_t reiserfs_node_confirm_format(aal_device_block_t *block);
-extern reiserfs_node_t *reiserfs_node_open(aal_device_block_t *block);
-
-extern reiserfs_node_t *reiserfs_node_create(aal_device_block_t *block, 
+extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, 
     reiserfs_plugin_id_t plugin_id, uint8_t level);
 
-void reiserfs_node_close(reiserfs_node_t *node, int sync);
+void reiserfs_node_close(reiserfs_node_t *node);
     
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 extern error_t reiserfs_node_sync(reiserfs_node_t *node);

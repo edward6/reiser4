@@ -11,10 +11,9 @@
 #include <reiserfs/plugin.h>
 #include <reiserfs/node.h>
 
-#define REISERFS_MASTER_MAGIC		"R4Sb"
-
 #define REISERFS_MASTER_OFFSET		65536
 #define REISERFS_DEFAULT_BLOCKSIZE	4096
+#define REISERFS_MASTER_MAGIC		"R4Sb"
 
 struct reiserfs_master {
     char mr_magic[4];
@@ -78,7 +77,7 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     aal_device_t *journal_device, int replay);
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs, int sync);
-extern int reiserfs_fs_sync(reiserfs_fs_t *fs);
+extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 	
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
     reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id,
@@ -86,7 +85,7 @@ extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
-extern size_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
+extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
 extern reiserfs_plugin_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs);
 
 #endif

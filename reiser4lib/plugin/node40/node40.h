@@ -10,7 +10,8 @@
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
-static uint32_t reiser4_node_magic = 0x52344653; /* (*(__u32 *)"R4FS"); */
+/* (*(__u32 *)"R4FS"); */
+static uint32_t reiser4_node_magic = 0x52344653;
 
 /* Format of node header for node40. */
 struct reiserfs_node40_header {
@@ -49,7 +50,7 @@ typedef struct reiserfs_node40_header reiserfs_node40_header_t;
 
 /* Node object which plugin works with */
 struct reiserfs_node40 {
-    aal_device_block_t  *block;
+    aal_block_t  *block;
 };
 
 typedef struct reiserfs_node40 reiserfs_node40_t;
