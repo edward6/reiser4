@@ -29,6 +29,7 @@ endif
 
 reiser4-objs := \
 		   debug.o \
+		   stats.o \
 		   jnode.o \
 		   znode.o \
 		   key.o \
@@ -73,7 +74,7 @@ reiser4-objs := \
 		   spinprof.o\
 		   entd.o\
 		   readahead.o \
-	           crypt.o \
+		   crypt.o \
 		   compress.o\
 		   diskmap.o \
 		   prof.o \
@@ -108,16 +109,16 @@ reiser4-objs := \
            \
 		   plugin/pseudo/pseudo.o \
            \
-           	   plugin/space/bitmap.o \
-           	   plugin/space/test.o \
+		   plugin/space/bitmap.o \
+		   plugin/space/test.o \
 		   plugin/space/space_allocator.o \
            \
-           	   plugin/disk_format/disk_format40.o \
-           	   plugin/disk_format/test.o \
-           	   plugin/disk_format/disk_format.o \
+		   plugin/disk_format/disk_format40.o \
+		   plugin/disk_format/test.o \
+		   plugin/disk_format/disk_format.o \
            \
 		   plugin/file/file.o \
-           	   plugin/file/tail_conversion.o
+		   plugin/file/tail_conversion.o
 
 reiser4-objs += sys_reiser4.o 
 ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
