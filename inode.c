@@ -495,6 +495,20 @@ inode_hash_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->hash;
 }
 
+crypto_plugin *
+inode_crypto_plugin(const struct inode * inode)
+{
+	assert("edward-36", inode != NULL);
+	return reiser4_inode_data(inode)->crypto;
+}
+
+compression_plugin *
+inode_compression_plugin(const struct inode * inode)
+{
+	assert("edward-37", inode != NULL);
+	return reiser4_inode_data(inode)->compression;
+}
+
 /* Audited by: green(2002.06.17) */
 item_plugin *
 inode_sd_plugin(const struct inode * inode)
