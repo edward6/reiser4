@@ -400,9 +400,18 @@ int reiser4_dealloc_blocks (
 {
 	txn_atom          * atom = NULL; 
 	int                 ret;
-	
-	assert ("zam-431", *len != 0);
-	assert ("zam-432", *start != 0);
+
+	if (REISER4_DEBUG) {
+		struct super_block * s = reiser4_get_current_sb();
+
+		assert ("zam-431", *len != 0);
+		assert ("zam-432", *start != 0);
+		assert ("zam-558", !blocknr_is_fake(start));
+
+		reiser4_spin_lock_sb(s);
+		assert ("zam-562", *start < reiser4_block_count(s));
+		reiser4_spin_unlock_sb(s);
+	}
 
 	if (defer) {
 		blocknr_set_entry * bsep = NULL;
@@ -472,7 +481,7 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 	int ret;
 	reiser4_block_nr not_used;
 
-#if 0
+#if 1
 	ret = reiser4_grab_space (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
 
 	if (ret != 0) return ret;
@@ -527,10 +536,63 @@ extern void pre_commit_hook (void)
 	if (splug->pre_commit_hook != NULL) 
 		splug->pre_commit_hook();
 }
-
-extern void post_commit_hook (void)
+/** an actor which applies delete set to block allocator data */
+static int apply_dset (txn_atom               * atom UNUSED_ARG,
+		       const reiser4_block_nr * a,
+		       const reiser4_block_nr * b,
+		       void                   * data UNUSED_ARG)
 {
 	space_allocator_plugin * splug;
+	struct super_block * s = reiser4_get_current_sb(); 
+	reiser4_super_info_data * private = get_super_private(s);
+
+	__u64 len = 1;
+
+
+	if (b != NULL) len = *b;
+
+	if (REISER4_DEBUG) {
+		reiser4_spin_lock_sb(s);
+
+		assert ("zam-554", *a < reiser4_block_count(s));
+		assert ("zam-555", *a + len <= reiser4_block_count(s));
+
+		reiser4_spin_unlock_sb(s);
+	}
+
+	assert ("zam-552", get_current_super_private () != NULL);
+	splug = get_current_super_private() -> space_plug;
+	assert ("zam-553", splug != NULL);
+
+	/* it should be safe because of atom stage */
+	spin_unlock_atom (atom);
+
+	if (splug->dealloc_blocks != NULL)
+		splug->dealloc_blocks(&private->space_allocator, *a, len);
+
+	spin_lock_atom (atom);
+
+	/* adjust sb block counters */
+
+	reiser4_count_real_deallocation (len);
+	reiser4_release_grabbed_space (len);
+
+	return 0;
+}
+
+void post_commit_hook (void)
+{
+	space_allocator_plugin * splug;
+	txn_atom   * atom;
+
+	atom = get_current_atom_locked ();
+	assert ("zam-452", atom != NULL);
+
+	/* do the block deallocation which was deferred 
+	 * until commit is done */
+	blocknr_set_iterator (atom, &atom->delete_set, apply_dset, NULL, 1);
+
+	spin_unlock_atom (atom);
 
 	assert ("zam-504", get_current_super_private () != NULL);
 	splug = get_current_super_private() -> space_plug;
@@ -540,7 +602,7 @@ extern void post_commit_hook (void)
 		splug->post_commit_hook();
 }
 
-extern void post_write_back_hook (void)
+void post_write_back_hook (void)
 {
 	space_allocator_plugin * splug;
 

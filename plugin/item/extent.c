@@ -1467,9 +1467,18 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		break;
 		
 	case HOLE_EXTENT:
-		result = plug_hole (coord, lh, off);
+		result = reiser4_grab_space1((__u64)1);
 		if (result)
 			return result;
+
+		result = plug_hole (coord, lh, off);
+		if (result) {
+			reiser4_release_grabbed_space((__u64)1);
+			return result;
+		}
+
+		reiser4_count_fake_allocation((__u64)1);
+
 		jnode_set_mapped (j);
 		jnode_set_created (j);
 		break;
@@ -1799,15 +1808,30 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 
 	case EXTENT_FIRST_BLOCK:
 		/* create first item of the file */
+		result = reiser4_grab_space1((__u64)1);
+
+		if (result) return result;
+
 		reiser4_stat_file_add (pointers);
-		return insert_first_block (coord, lh, j, key);
-		
+
+		result = insert_first_block (coord, lh, j, key);
+
+		goto count_allocation;
+
 	case EXTENT_APPEND_BLOCK:
+		result = reiser4_grab_space1((__u64)1);
+
+		if (result) return result;
+
 		reiser4_stat_file_add (pointers);
-		return append_one_block (coord, lh, j);
+
+		result = append_one_block (coord, lh, j);
+
+		goto count_allocation;
 
 	case EXTENT_OVERWRITE_BLOCK:
 		/* there is found extent (possibly hole one) */
+		/* block counting is in overwrite_one_block */
 		return overwrite_one_block (coord, lh, j, get_key_offset (key));
 		
 	case EXTENT_CANT_CONTINUE:
@@ -1826,6 +1850,16 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 			    "in what_todo");
 	}
 	return -EIO;
+
+ count_allocation:
+	if (result) {
+		reiser4_release_grabbed_space((__u64)1);
+		return result;
+	}
+
+	reiser4_count_fake_allocation((__u64)1);
+
+	return 0;
 }
 
 
@@ -2770,7 +2804,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					});
 
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
-								0 /* defer */, BLOCK_GRABBED);
+								0 /* defer */, BLOCK_UNALLOCATED);
 					result = SQUEEZE_TARGET_FULL;
 					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 					/**/
@@ -2901,6 +2935,10 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 		 * *preceder
 		 */
 		initial_width = extent_get_width (ext);
+
+		/* inform block allocator that those blocks were in
+		 * UNALLOCATED stage */
+		flush_pos_hint (flush_pos) -> block_stage = BLOCK_UNALLOCATED;
 		result = extent_allocate_blocks (flush_pos_hint (flush_pos), initial_width,
 						 &first_allocated, &allocated);
 		if (result)

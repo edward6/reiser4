@@ -718,10 +718,6 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	adjust_first_zero_bit (bnode, offset);
 
 	release_and_unlock_bnode (bnode);
-
-	reiser4_spin_lock_sb(super);
-	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + len);
-	reiser4_spin_unlock_sb(super);
 }
 
 int bitmap_is_allocated (reiser4_block_nr *start)
@@ -765,9 +761,10 @@ static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
 
 	spin_lock_jnode (node);
 
-	if (node->atom != NULL) {
-		assert ("zam-549", node->atom == atom);
+	if (node->atom == NULL) {
 		txn_insert_into_clean_list (atom, node);
+	} else {
+		assert ("zam-549", node->atom == atom);
 	}
 
 	spin_unlock_jnode (node);
@@ -780,11 +777,13 @@ static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
 static int apply_dset_to_commit_bmap (txn_atom               * atom,
 				      const reiser4_block_nr * start,
 				      const reiser4_block_nr * len,
-				      void                   * data UNUSED_ARG)
+				      void                   * data)
 {
 	
 	bmap_nr_t bmap;
 	bmap_off_t offset;
+
+	long long * blocks_freed_p = data;
 
 	struct bnode       * bnode;
 
@@ -814,18 +813,14 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom,
 		/* FIXME-ZAM: a check that all bits are set should be there */
 		assert ("zam-443", offset + *len <= (sb->s_blocksize << 3));
 		reiser4_clear_bits (data, offset, (bmap_off_t)(offset + *len));
+
+		(*blocks_freed_p) += *len;
 	} else {
 		reiser4_clear_bit (offset, data);
+		(*blocks_freed_p) ++;
 	}
 
 	release_and_unlock_bnode (bnode);
-
-	reiser4_spin_lock_sb(sb);
-
-	if (len == NULL) reiser4_inc_free_committed_blocks(sb);
-	else reiser4_set_free_committed_blocks (sb, reiser4_free_committed_blocks(sb) + *len);
-
-	reiser4_spin_unlock_sb(sb);
 
 	return 0;
 }
@@ -843,6 +838,8 @@ void bitmap_pre_commit_hook (void)
 	txn_handle      * tx;
 	txn_atom        * atom;
 
+	long long       blocks_freed = 0;
+
 	assert ("zam-433", ctx != NULL);
 
 	tx = ctx->trans;
@@ -852,113 +849,63 @@ void bitmap_pre_commit_hook (void)
 	assert ("zam-435", atom != 0);
 	spin_unlock_txnh(tx);
 
-	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, NULL, 0);
+	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
 
 	{ /* scan atom's captured list and find all freshly allocated nodes,
 	   * mark corresponded bits in COMMIT BITMAP as used */
-		int level;
+		capture_list_head * head = &atom->clean_nodes;
+		jnode * node = capture_list_front (head);
 
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level ++) {
-			capture_list_head * head = &atom->dirty_nodes[level];
-			jnode * node = capture_list_front (head);
+		while (!capture_list_end (head, node)) {
+			/* we detect freshly allocated jnodes */
+			if (JF_ISSET(node, ZNODE_RELOC))
+			{
+				bmap_nr_t  bmap;
+				bmap_off_t offset;
+				struct bnode * bn;
 
-			while (!capture_list_end (head, node)) {
-				/* we detect freshly allocated jnodes */
-				if (JF_ISSET(node, ZNODE_RELOC))
-				{
-					bmap_nr_t  bmap;
-					bmap_off_t offset;
-					struct bnode * bn;
+				assert ("zam-559", !JF_ISSET(node, ZNODE_WANDER));
+				assert ("zam-460", !blocknr_is_fake(& node->blocknr));
 
-					assert ("zam-460", !blocknr_is_fake(& node->blocknr));
+				parse_blocknr(& node->blocknr, &bmap, &offset);
 
-					parse_blocknr(& node->blocknr, &bmap, &offset);
+				bn = get_bnode (ctx->super, bmap);
 
-					bn = get_bnode (ctx->super, bmap);
-
-					check_bnode_loaded (bn);
+				check_bnode_loaded (bn);
 					
-					load_and_lock_bnode (bn);
-					reiser4_set_bit (offset, bnode_commit_data(bn));
-					release_and_unlock_bnode (bn);
+				load_and_lock_bnode (bn);
+				reiser4_set_bit (offset, bnode_commit_data(bn));
+				release_and_unlock_bnode (bn);
 
-					reiser4_spin_lock_sb (ctx->super);
-					reiser4_inc_free_committed_blocks (ctx->super);
-					reiser4_spin_unlock_sb (ctx->super);
+				blocks_freed --;
 
-					/* we use the same commit list to
-					 * store bnodes we will capture */
-					cond_add_to_clean_list (atom, &bn->cjnode);
-				}
-
-				node = capture_list_next(node);
+				/* working of this depends on how it inserts
+				 * new j-node into clean list, because we are
+				 * scanning the same list now. It is OK, if
+				 * insertion is done to the list front */
+				cond_add_to_clean_list(atom, &bn->cjnode);
 			}
+
+			node = capture_list_next(node);
 		}
 	}
 
 	spin_unlock_atom (atom);
-}
 
-/* FIXME: it probably needs to be changed when I get understanding what
- * wandered map format Josh proposed. I assume for now that wandered set
- * contains pairs (original location, target location). */
-/** an actor which applies delete set to WORKING BITMAP pages */
-static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
-				       const reiser4_block_nr * start,
-				       const reiser4_block_nr * len,
-				       void                   * data UNUSED_ARG)
-{
-	struct super_block * sb = reiser4_get_current_sb ();
+	{
+		__u64 free_committed_blocks;
 
-	struct bnode * bnode;
+		reiser4_spin_lock_sb (ctx->super);
 
-	bmap_nr_t bmap;
-	bmap_off_t offset;
+		free_committed_blocks = reiser4_free_committed_blocks (ctx->super);
 
-	check_block_range (start, len);
+		free_committed_blocks += blocks_freed;
+		reiser4_set_free_committed_blocks (ctx->super, free_committed_blocks);
 
-	parse_blocknr (start, &bmap, &offset);
-
-	bnode = get_bnode (sb, bmap);
-
-	check_bnode_loaded (bnode);
-
-	load_and_lock_bnode (bnode);
-
-	if (len != NULL) {
-		assert ("zam-449", offset + *len <= (sb->s_blocksize << 3));
-		reiser4_clear_bits(bnode_working_data(bnode), offset, (bmap_off_t)(offset + *len));
-	} else {
-		reiser4_clear_bit (offset, data);
+		reiser4_spin_unlock_sb (ctx->super);
 	}
-
-	adjust_first_zero_bit (bnode, offset);
-
-	release_and_unlock_bnode(bnode);
-
-	reiser4_spin_lock_sb (sb);
-
-	if (len == NULL) reiser4_inc_free_blocks (sb);
-	else reiser4_set_free_blocks (sb, reiser4_free_blocks (sb) + *len);
-
-	reiser4_spin_unlock_sb (sb);
-
-	return 0;
 }
 
-/** called after transaction commit, apply DELETE SET to WORKING BITMAP */
-/* Audited by: green(2002.06.12) */
-void bitmap_post_commit_hook (void) 
-{
-	txn_atom   * atom;
-
-	atom = get_current_atom_locked ();
-	assert ("zam-452", atom != NULL);
-
-	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_working_bmap, NULL, 1);
-
-	spin_unlock_atom (atom);
-}
 
 /* 
  * Local variables:
