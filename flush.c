@@ -2707,9 +2707,10 @@ static int flush_empty_queue (flush_position *pos)
 			trace_on (TRACE_FLUSH_VERB, "\n");
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
-			/* FIXME(B): JMACD->ZAM: 'check' is not the last written location,
-			 * bio->bi_vec[i] is? */
-			reiser4_update_last_written_location (super, jnode_get_block (check));
+			{
+				reiser4_block_nr block = *jnode_get_block (check) + nr - 1;
+				reiser4_update_last_written_location (super, &block);
+			}
 
 			ret = current_atom_add_bio(bio);
 

@@ -698,9 +698,10 @@ static int submit_write (jnode * first, int nr,
 		submit_bio(WRITE, bio);
 
 		nr -= nr_blocks;
-		block += nr_blocks;
 
+		block += nr_blocks - 1;
 		reiser4_update_last_written_location(super, &block);
+		block += 1;
 	}
 
 	return 0;
