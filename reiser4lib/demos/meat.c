@@ -76,13 +76,14 @@ int main(int argc, char *argv[]) {
 	}
 	
 	reiserfs_fs_close(fs, 1);
+	aal_device_sync(device);
 	
 	aal_printf("Filesystem on %s successfully created.\n", argv[2]);
     }
     
     libreiserfs_fini();
-    
     aal_file_close(device);
+
     return 0;
 
 error_free_libreiserfs:

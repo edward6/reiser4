@@ -47,7 +47,7 @@ error:
 }
 
 static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
-    if (!aal_device_write_block(journal->device, journal->header)) {
+    if (aal_device_write_block(journal->device, journal->header)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't synchronize journal header.");
 	return -1;

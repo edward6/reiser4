@@ -8,7 +8,7 @@
 #define MATH_H
 
 extern int aal_pow_of_two(unsigned long n);
-extern int aal_log2(int n);
+extern int aal_log2(unsigned long n);
 
 #endif
 

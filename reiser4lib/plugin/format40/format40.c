@@ -76,8 +76,8 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     
     if (!format || !format->super)
 	return -1;
-    
-    if (!aal_device_write_block(format->device, format->super)) {
+   
+    if (aal_device_write_block(format->device, format->super)) {
 	offset = aal_device_get_block_location(format->device, format->super);
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't write superblock to %d.", offset);
@@ -108,6 +108,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
 	goto error_free_format;
     }
     super = (reiserfs_format40_super_t *)format->super->data;
+    aal_memcpy(super->sb_magic, REISERFS_FORMAT40_MAGIC, strlen(REISERFS_FORMAT40_MAGIC));
 
     /* Super block forming code */
     set_sb_block_count(super, blocks);

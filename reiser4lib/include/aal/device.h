@@ -73,7 +73,7 @@ extern void aal_device_free_block(aal_block_t *block);
 
 #define aal_block_dirty(block)         ( block->flags &   (1 << B_DIRTY))	
 #define aal_block_mark_dirty(block) do { block->flags |=  (1 << B_DIRTY); } while (0)
-#define aal_block_makr_clean(block) do { block->flags &= ~(1 << B_DIRTY); } while (0)
+#define aal_block_mark_clean(block) do { block->flags &= ~(1 << B_DIRTY); } while (0)
 
 #endif
 

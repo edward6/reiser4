@@ -156,6 +156,7 @@ aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c) {
 	goto error_free_block;
 	
     block->offset = (aal_device_get_blocksize(device) * blk);
+    aal_block_mark_dirty(block);
 	
     return block;
 	
@@ -181,25 +182,32 @@ aal_block_t *aal_device_read_block(aal_device_t *device, blk_t blk) {
 	aal_device_free_block(block);
 	return NULL;
     }
-	
+    
+    aal_block_mark_clean(block);
+    
     return block;
 }
 
 error_t aal_device_write_block(aal_device_t *device, aal_block_t *block) {
+    error_t error;
+    
     if (!device || !block)
 	return -1;
 
     if (!aal_block_dirty(block))
 	return 0;
-	
-    return aal_device_write(device, block->data, 
-	aal_device_get_block_location(device, block), 1);
+
+    if((error = aal_device_write(device, block->data, 
+	    aal_device_get_block_location(device, block), 1)))
+	aal_block_mark_clean(block);
+    
+    return error;
 }
 
 blk_t aal_device_get_block_location(aal_device_t *device, aal_block_t *block) {
     if (!block || !device)
 	return 0;
-
+    
 //    return (blk_t)(block->offset << aal_log2(aal_device_get_blocksize(device)));
     return (blk_t)(block->offset / aal_device_get_blocksize(device));
 }

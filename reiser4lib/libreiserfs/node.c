@@ -124,7 +124,7 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
 error_t reiserfs_node_sync(reiserfs_node_t *node) {
     aal_assert("umka-124", node != NULL, return 0);
     
-    if (!aal_device_write_block(node->device, node->block)) {
+    if (aal_device_write_block(node->device, node->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize block %d to device.", 
 	    aal_device_get_block_location(node->device, node->block));
