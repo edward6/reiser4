@@ -580,6 +580,8 @@ get_overwrite_set(struct commit_handle *ch)
 
 					spin_unlock_jnode(sj);
 
+				trace_on(TRACE_RESERVE1,
+					 "get_overwrite_set: moving SB to overwrite set\n");
 					ch->overwrite_set_size++;
 				} else {
 					/* the fake znode was removed from
@@ -601,6 +603,8 @@ get_overwrite_set(struct commit_handle *ch)
 			} else {
 				capture_list_push_back(&ch->overwrite_set, cur);
 				ch->overwrite_set_size++;
+				trace_on(TRACE_RESERVE1,
+					 "get_overwrite_set: moving to overwrite set. Atom %u: block %llu\n", ch->atom->atom_id, cur->blocknr);
 			}
 		}
 
