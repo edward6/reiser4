@@ -81,13 +81,19 @@ set_flush_scan_nstat(flush_scan * scan, flush_scan_node_stat_t nstat)
 	scan->nstat = nstat;
 }
 
-typedef struct flush_squeeze_item_data {
-	item_plugin * iplug;
+typedef struct squeeze_item_info {
 	int mergeable;
 	union {
 		ctail_squeeze_info_t ctail_info;
 	} u;
-} flush_squeeze_item_data_t;
+} squeeze_item_info_t;
+
+typedef struct squeeze_info {
+	int count;                    /* for squalloc terminating */
+	tfm_info_t  * tfm;           /* transform info */
+	item_plugin * iplug;         /* current item plugin */
+	squeeze_item_info_t * itm;   /* current item info */
+} squeeze_info_t;
 
 typedef enum flush_position_state {
 	POS_INVALID,		/* Invalid or stopped pos, do not continue slum
@@ -132,13 +138,67 @@ struct flush_position {
 
 	znode * prev_twig;	/* previous parent pointer value, used to catch
 				 * processing of new twig node */
-	flush_squeeze_item_data_t * idata; /* squeeze item data handle */
+	squeeze_info_t * sq;    /* squeeze info */
 
 	unsigned long pos_in_unit; /* for extents only. Position
 				      within an extent unit of first
 				      jnode of slum */
 };
 
+static inline int
+item_squeeze_count (flush_pos_t * pos)
+{
+	return pos->sq->count;
+}
+static inline void
+inc_item_squeeze_count (flush_pos_t * pos)
+{
+	pos->sq->count++;	
+}
+static inline void
+set_item_squeeze_count (flush_pos_t * pos, int count)
+{
+	pos->sq->count = count;	
+}
+static inline item_plugin *
+item_squeeze_plug (flush_pos_t * pos)
+{
+	return pos->sq->iplug;
+}
+
+static inline squeeze_item_info_t * 
+item_squeeze_data (flush_pos_t * pos)
+{
+	return pos->sq->itm;
+}
+
+static inline tfm_info_t *
+tfm_squeeze_data (flush_pos_t * pos)
+{
+	return pos->sq->tfm;
+}
+
+static inline tfm_info_t *
+tfm_squeeze_idx (flush_pos_t * pos, reiser4_compression_id idx)
+{
+	return &pos->sq->tfm[idx];
+}
+
+static inline tfm_info_t
+tfm_squeeze_pos (flush_pos_t * pos, reiser4_compression_id idx)
+{
+	return (tfm_squeeze_data(pos) ? *tfm_squeeze_idx(pos, idx) : 0);
+}
+
+#define SQUALLOC_THRESHOLD 256  /* meaningful for ctails */
+
+static inline int
+should_terminate_squalloc(flush_pos_t * pos)
+{
+	return pos->sq && !item_squeeze_data(pos) && pos->sq->count >= SQUALLOC_THRESHOLD;
+}
+
+void free_squeeze_data(flush_pos_t * pos);
 /* used in extent.c */
 int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const coord_t * parent);
 int scan_finished(flush_scan * scan);
@@ -167,3 +227,14 @@ extern void check_pos(flush_pos_t *pos);
 
 /* __REISER4_FLUSH_H__ */
 #endif
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 90
+   LocalWords:  preceder
+   End:
+*/
