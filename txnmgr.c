@@ -1135,7 +1135,7 @@ void txn_delete_page (struct page *pg)
 
 	spin_lock (& _jnode_ptr_lock);
 	node = (jnode*) pg->private;
-	pg->private = NULL;
+	pg->private = 0;
 	spin_unlock (& _jnode_ptr_lock);
 	
 	if (node == NULL) {
@@ -1242,6 +1242,8 @@ void jnode_set_dirty( jnode *node )
 		 * captured.  Perhaps that is no longer true. */
 		/*assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));*/
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
+	} else {
+		info ("dirty unformatted page %lu\n", node->pg->index);
 	}
 
 	spin_unlock_jnode (node);

@@ -627,6 +627,15 @@ static int tail2extent (struct inode * inode)
 				result = -ENOMEM;
 				break;
 			}
+
+			/* Capture the page. FIXME: right?  why no page_cache_release elsewhere? */
+			result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+			if (result != 0) {
+				page_cache_release (page);
+				break;
+			}
+			jnode_set_dirty (jnode_of_page (page));
+			
 			assert ("vs-603", !page->buffers);
 			create_empty_buffers (page, inode->i_sb->s_blocksize);
 			page_off = 0;

@@ -776,6 +776,7 @@ int check_tree_pointer( const tree_coord *pointer /* would-be pointer to
 			}
 		}
 	}
+	warning ("jmacd-1002", "tree pointer incorrect");
 	return NS_NOT_FOUND;
 }
 

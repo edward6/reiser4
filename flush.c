@@ -174,8 +174,7 @@ int jnode_flush (jnode *node, int flags)
 		 * though since we don't go through the squalloc pass. */
 		flush_pos_set_point (& flush_pos, node);
 
-		if ((ret = flush_allocate_point (& flush_pos)) ||
-		    (ret = flush_enqueue_point (& flush_pos))) {
+		if ((ret = flush_enqueue_point (& flush_pos))) {
 			goto failed;
 		}
 	} else {
@@ -1068,6 +1067,8 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, n
 	}
 
 	assert ("jmacd-8122", child == JZNODE (pos->point));
+	/* FIXME: This can be violated: I thought I fixed it once, but this code is more
+	 * broken than that. */
 	assert ("jmacd-8123", ! znode_is_root (JZNODE (pos->point)));
 
 	/* Lock the parent. */
@@ -1077,11 +1078,6 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, n
 		init_lh (& save_lock);
 		move_lh (& save_lock, & pos->point_lock);
 
-		/* FIXME: Is it possible that when ascending to the parent here, we reach
-		 * a newly-created parent node that has not been allocated?  If so, have
-		 * to allocate it before reaching (or inside) flush_enqueue_point.  Should
-		 * we detect this and call flush_parent_first_broken? */
-		/* FIXME: returning ENAVAIL here in the root case? */
 		ret = jnode_lock_parent_coord (pos->point, coord, & pos->point_lock, ZNODE_WRITE_LOCK);
 
 		done_lh (& save_lock);
@@ -1372,7 +1368,8 @@ static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node UNUSED
 		return ret;
 	}
 
-	/* FIXME: update node->block? free old location if not fake? */
+	node->blocknr = blk;
+	/* FIXME: free old location if not fake? */
 	return 0;
 }
 
@@ -1758,57 +1755,64 @@ static int flush_scan_extent_coord (flush_scan *scan, new_coord *coord)
 		/* If the extent is allocated we have to check each of its blocks.  In the
 		 * debugging case: verify that all unallocated nodes are present and in
 		 * the proper atom. */
-		if (allocated || REISER4_DEBUG) {
+		if (scan_max != scan_index) {
+			if (allocated || REISER4_DEBUG) {
 
-			while (scan_max != scan_index) {
+				do {
+					pg = find_get_page (ino->i_mapping, scan_index + incr);
 
-				pg = find_get_page (ino->i_mapping, scan_index + incr);
+					if (pg == NULL) {
+						assert ("jmacd-3550", allocated);
+						break;
+					}
+
+					neighbor = jnode_of_page (pg);
+
+					page_cache_release (pg);
+
+					info ("scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u) neighbor %p(atom=%p,dirty=%u,allocated=%u)\n",
+					      scan_index+incr,
+					      scan->node, scan->node->atom, jnode_check_dirty (scan->node), jnode_is_allocated (scan->node),
+					      neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_is_allocated (neighbor));
+
+					assert ("jmacd-3551", allocated || (! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node)));
+
+					if (! flush_scan_goto (scan, neighbor)) {
+						break;
+					}
+
+					flush_scan_set_current (scan, neighbor, 1);
+
+					scan_index += incr;
+				} while (scan_max != scan_index);
+
+			} else {
+
+				/* Optimized case for unallocated extents, skip to the end. */
+				pg = find_get_page (ino->i_mapping, scan_max);
 
 				if (pg == NULL) {
-					assert ("jmacd-3550", allocated);
-					break;
+					warning ("jmacd-8337", "unallocated node not in memory!");
+					ret = -EIO;
+					goto exit;
 				}
 
 				neighbor = jnode_of_page (pg);
 
 				page_cache_release (pg);
 
-				assert ("jmacd-3551", allocated || (! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node)));
-
-				if (! flush_scan_goto (scan, neighbor)) {
-					break;
-				}
-
-				flush_scan_set_current (scan, neighbor, 1);
-
-				scan_index += incr;
-			}
-
-		} else {
-
-			/* Optimized case for unallocated extents, skip to the end. */
-			pg = find_get_page (ino->i_mapping, scan_max);
-
-			if (pg == NULL) {
-				warning ("jmacd-8337", "unallocated node not in memory!");
-				ret = -EIO;
-				goto exit;
-			}
-
-			neighbor = jnode_of_page (pg);
-
-			page_cache_release (pg);
-
-			assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
+				assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
 				
-			flush_scan_set_current (scan, neighbor, scan_dist);
+				flush_scan_set_current (scan, neighbor, scan_dist);
 
-			scan_index  = scan_max;
+				scan_index  = scan_max;
+			}
 		}
 
 		/* Continue as long as there are more extent units. */
 	} while (ncoord_sideof_unit (coord, scan->direction) == 0 && item_is_extent_n (coord));
 
+	ret = 0;
  exit:
 	if (ino != NULL) { iput (ino); }
 	return ret;
@@ -1892,6 +1896,8 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			break;
 		}
 	}
+
+	done_lh (& scan->parent_lock);
 
 	return 0;
 }
