@@ -48,7 +48,7 @@ struct pregactivation {
 };
 
 struct profregionstack {
-	int top;
+	atomic_t top;
 	struct pregactivation stack[PROFREGION_MAX_DEPTH];
 };
 
@@ -70,29 +70,30 @@ static inline void profregion_in(int cpu, struct profregion *pregion,
 				 void *objloc, locksite *codeloc)
 {
 	struct profregionstack *stack;
+	int ntop;
 
 	preempt_disable();
 	stack = &per_cpu(inregion, cpu);
-	BUG_ON(stack->top == PROFREGION_MAX_DEPTH);
-	profregfill(&stack->stack[stack->top], pregion, objloc, codeloc);
-	stack->top++;
+	ntop = atomic_read(&stack->top);
+	BUG_ON(ntop == PROFREGION_MAX_DEPTH);
+	profregfill(&stack->stack[ntop], pregion, objloc, codeloc);
+	atomic_inc(&stack->top);
 }
 
 static inline void profregion_ex(int cpu, struct profregion *pregion)
 {
 	struct profregionstack *stack;
+	int ntop;
 
 	stack = &per_cpu(inregion, cpu);
-	BUG_ON(stack->top == 0);
-	if(likely(stack->stack[stack->top - 1].preg == pregion)) {
-		int ntop;
-
-		ntop = stack->top;
+	ntop = atomic_read(&stack->top);
+	BUG_ON(ntop == 0);
+	if(likely(stack->stack[ntop - 1].preg == pregion)) {
 		do {
 			-- ntop;
 		} while (ntop > 0 &&
 			 stack->stack[ntop - 1].preg == NULL);
-		stack->top = ntop;
+		atomic_set(&stack->top, ntop);
 	} else
 		stack->stack[profregion_find(stack, pregion)].preg = NULL;
 	preempt_enable();
@@ -103,10 +104,12 @@ static inline void profregion_replace(int cpu, struct profregion *pregion,
 				      void *objloc, void *codeloc)
 {
 	struct profregionstack *stack;
+	int ntop;
 
 	stack = &per_cpu(inregion, cpu);
-	BUG_ON(stack->top == 0);
-	profregfill(&stack->stack[stack->top - 1], pregion, objloc, codeloc);
+	ntop = atomic_read(&stack->top);
+	BUG_ON(ntop == 0);
+	profregfill(&stack->stack[ntop - 1], pregion, objloc, codeloc);
 }
 
 extern int  profregion_register(struct profregion *pregion);

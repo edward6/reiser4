@@ -68,14 +68,16 @@ extern struct profregion pregion_spin_jnode_trying;
 static int callback(struct notifier_block *self, unsigned long val, void *p)
 {
 	struct profregionstack *stack;
+	int ntop;
 
 	stack = &get_cpu_var(inregion);
-	if (stack->top != 0) {
+	ntop = atomic_read(&stack->top);
+	if (ntop != 0) {
 		struct pregactivation *act;
 		struct profregion *preg;
 		int hits;
 
-		act = &stack->stack[stack->top - 1];
+		act = &stack->stack[ntop - 1];
 		preg = act->preg;
 		preg->hits ++;
 
@@ -145,7 +147,7 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 {
 	int i;
 
-	for (i = stack->top - 2 ; i >= 0 ; -- i) {
+	for (i = atomic_read(&stack->top) - 2 ; i >= 0 ; -- i) {
 		if (stack->stack[i].preg == pregion) {
 			return i;
 		}
