@@ -11,18 +11,49 @@ import re
 
 n = 1
 marks={}
+file_name_base="tmpfile"
 
 mark_cp = re.compile("mark=")
 bio_cp = re.compile("\.\.\.\.\.\.bio")
 
+files={}
+
+def get_file_name(rw, mark):
+    global file_name_base
+    if mark != "":
+        return file_name_base + "[" + rw + "," + mark + "]"
+    else:
+        return file_name_base + "[" + rw + "]"
+
+def get_file(rw, mark):
+    global files
+    name = get_file_name(rw, mark)
+    if files.has_key(name):
+        return files[name]
+    else:
+        file = open(name, "w")
+        files[name] = file
+        return file
+
+def close_all_files():
+    global files
+    for file in files.keys():
+        file.close()
+
+def dispatch_bio(n, block, rw, mark=""):
+    file = get_file(rw, mark)
+    file.write(str(n) + " " + str(block) + "\n")
+
 def out_bio(first, len):
     global n
     block = first
-    mrk = ""
-    if marks.has_key(pid):
-        mrk = " " + marks[pid]
     for i in xrange(1, len + 1):
-        print str(n) + " " + str(block) + " " + rw + mrk
+        if marks.has_key(pid):
+            print str(n) + " " + str(block) + " " + rw + " " + marks[pid]
+            dispatch_bio(n, block, rw, marks[pid])
+        else:
+            print str(n) + " " + str(block) + " " + rw
+            dispatch_bio(n, block, rw)
         n = n + 1
 
 for line in sys.stdin:
@@ -41,5 +72,6 @@ for line in sys.stdin:
     except ValueError:
         pass
 
+close_all_files()
 
 
