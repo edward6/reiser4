@@ -59,6 +59,7 @@ int delta = 1;
 int max_sleep = 0;
 int max_buf_size = 4096 * 100;
 int max_size = 4096 * 100 * 1000;
+int verbose = 0;
 
 #define RND( n ) \
  ( ( int ) ( ( ( double ) ( n ) ) * rand() / ( RAND_MAX + 1.0 ) ) )
@@ -66,7 +67,7 @@ int max_size = 4096 * 100 * 1000;
 #define STEX( e ) \
  pthread_mutex_lock( &stats.lock ) ; e ; pthread_mutex_unlock( &stats.lock )
 
-const char optstring[] = "p:f:d:i:s:b:M:B";
+const char optstring[] = "p:f:d:i:s:b:M:B:v";
 
 static double rate( unsigned long events, int secs )
 {
@@ -132,6 +133,8 @@ int main( int argc , char **argv )
 		case 'B':
 		  benchmark = 1;
 		  break;
+		case 'v':
+		  ++ verbose;
 		case -1:
 		  break;
 		}
@@ -284,6 +287,10 @@ static void read_file( char *fileName )
 	  return;
 	}
   STEX( ++stats.reads );
+  if( verbose )
+	{
+	  printf( "[%li] R: %s\n", pthread_self(), fileName );
+	}
   close( fd );
 }
 
@@ -327,6 +334,10 @@ static void write_file( char *fileName )
 	  return;
 	}
   STEX( ++stats.writes );
+  if( verbose )
+	{
+	  printf( "[%li] W: %s\n", pthread_self(), fileName );
+	}
   close( fd );
 }
 
@@ -352,6 +363,10 @@ static void rename_file( int files, char *fileName )
 	}
   else
 	{
+	  if( verbose )
+		{
+		  printf( "[%li] %s -> %s\n", pthread_self(), fileName, target );
+		}
 	  STEX( ++stats.renames );
 	}
 }
@@ -375,6 +390,10 @@ static void unlink_file( char *fileName )
 	}
   else
 	{
+	  if( verbose )
+		{
+		  printf( "[%li] U: %s\n", pthread_self(), fileName );
+		}
 	  STEX( ++stats.unlinks );
 	}
 }
@@ -398,6 +417,10 @@ static void truncate_file( char *fileName )
 	}
   else
 	{
+	  if( verbose )
+		{
+		  printf( "[%li] T: %s\n", pthread_self(), fileName );
+		}
 	  STEX( ++stats.truncates );
 	}
 }
