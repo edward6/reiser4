@@ -512,7 +512,7 @@ load_page(struct page *page, jnode *node)
 	if (!is_writeout_mode())
 		mark_page_accessed(page);
 	kmap(page);
-	if (REISER4_USE_EFLUSH)
+	if (REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH))
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
 	PROF_END(load_page, load_page);
 }
