@@ -381,9 +381,9 @@ typedef struct compression_plugin {
 	/* working memory size, bytes */
 	unsigned mem_req;
 	/* main text processing procedures */
-	void (*compress) (__u8 *buf, __u8 *src_first, unsigned *src_len,
+	void (*compress) (__u8 *buf, __u8 *src_first, unsigned src_len,
 			  __u8 *dst_first, unsigned *dst_len);
-	void (*decompress) (__u8 *buf, __u8 *src_first, unsigned *src_len,
+	void (*decompress) (__u8 *buf, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
 }compression_plugin;
 
