@@ -40,6 +40,13 @@ void panic( const char *format, ... )
 	}
 }
 
+#if REISER4_SILENT
+int printf( const char *format UNUSED_ARG, ... )
+{
+	return 0;
+}
+#endif
+
 int sema_init( semaphore *sem, int value )
 {
 	pthread_mutex_init( &sem -> mutex, NULL );
