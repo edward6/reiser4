@@ -232,8 +232,8 @@ extern int znode_just_created(const znode * node);
 extern void zfree(znode * node);
 
 #if REISER4_DEBUG_MODIFY
-extern int znode_pre_write(znode * node);
-extern int znode_post_write(znode * node);
+extern void znode_pre_write(znode * node);
+extern void znode_post_write(znode * node);
 extern void znode_set_checksum(jnode * node, int locked_p);
 #endif
 

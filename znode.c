@@ -1177,7 +1177,7 @@ void znode_set_checksum(jnode * node, int locked_p)
 	}
 }
 
-int
+void
 znode_pre_write(znode * node)
 {
 	assert("umka-066", node != NULL);
@@ -1188,10 +1188,9 @@ znode_pre_write(znode * node)
 			node->cksum = znode_checksum(node);
 	}
 	spin_unlock_znode(node);
-	return 0;
 }
 
-int
+void
 znode_post_write(znode * node)
 {
 	__u32 cksum;
@@ -1210,7 +1209,6 @@ znode_post_write(znode * node)
 				      node->zjnode.blocknr);
 	}
 	spin_unlock_znode(node);
-	return 0;
 }
 #endif
 

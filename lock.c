@@ -865,7 +865,6 @@ longterm_unlock_znode(lock_handle * handle)
 		UNLOCK_ZLOCK(&node->lock);
 
 	assert("nikita-3182", spin_zlock_is_not_locked(&node->lock));
-	ON_DEBUG_MODIFY(znode_post_write(node));
 	/* minus one reference from handle->node */
 	handle->node = NULL;
 	assert("nikita-2190", znode_invariant(node));
