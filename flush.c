@@ -1153,7 +1153,8 @@ static int squalloc_right_twig (znode    *left,
 				flush_position *pos)
 {
 	int ret = 0;
-	coord_t coord;
+	coord_t coord, /* used to iterate over items */
+		stop_coord; /* used to call twig_cut properly */
 	reiser4_key stop_key;
 
 	assert ("jmacd-2008", ! node_is_empty (right));
@@ -1175,6 +1176,10 @@ static int squalloc_right_twig (znode    *left,
 		if ((ret = allocate_and_copy_extent (left, &coord, pos, &stop_key)) < 0) {
 			return ret;
 		}
+
+		/* we will cut from the beginning of node upto @stop_coord (and
+		 * @stop_key) */
+		coord_dup (&stop_coord, &coord);
 
 		if (ret == SQUEEZE_TARGET_FULL) {
 			/* Could not complete with current extent item. */
@@ -1216,7 +1221,7 @@ static int squalloc_right_twig (znode    *left,
 		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut2:", & coord, 0));
 
 		/* Helper function to do the cutting. */
-		if ((cut_ret = squalloc_right_twig_cut (&coord, &stop_key, left))) {
+		if ((cut_ret = squalloc_right_twig_cut (&stop_coord, &stop_key, left))) {
 			warning ("jmacd-87113", "cut_node failed: %d", cut_ret);
 			assert ("jmacd-6443", cut_ret < 0);
 			return cut_ret;
