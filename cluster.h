@@ -168,6 +168,7 @@ int find_cluster_item(hint_t * hint, const reiser4_key *key, int check_key,
 		      lookup_bias bias);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
+void forget_cluster_pages(reiser4_cluster_t *);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_cluster(struct inode * inode, pgoff_t start, long count);
