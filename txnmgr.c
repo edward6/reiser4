@@ -1084,6 +1084,8 @@ static int submit_wb_list (void)
 	return ret;
 }
 
+#if 0
+
 /* when during system call inode is "captured" (by reiser4_mark_inode_dirty) - blocks grabbed for stat data update are
    moved to atom's flush_reserved bucket. On commit time (right before updating stat datas of all captured inodes) those
    blocks are moved to grabbed. This function is used to calculate number of blocks reserved for stat data update when
@@ -1093,7 +1095,6 @@ static reiser4_block_nr reserved_for_sd_update(struct inode *inode)
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
 
-#if 0
 static void atom_update_stat_data(txn_atom **atom)
 {
 	jnode *j;
@@ -1187,7 +1188,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 		 (*atom)->atom_id, current->pid);
 
 	/* call reiser4_update_sd for all atom's inodes */
-	atom_update_stat_data(atom);
+	/*atom_update_stat_data(atom);*/
 
 	for (flushiters = 0 ;; ++ flushiters) {
 		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS | JNODE_FLUSH_COMMIT, nr_submitted, atom);
