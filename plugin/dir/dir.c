@@ -1,5 +1,4 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
- * reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Methods of directory plugin. */
 
@@ -10,7 +9,7 @@
 #include "../../key.h"
 #include "../../kassign.h"
 #include "../../coord.h"
-#include "../../type_safe_list.h"
+#include "../../tslist.h"
 #include "../plugin.h"
 #include "dir.h"
 #include "../item/item.h"
@@ -34,7 +33,10 @@
 /* Directory read-ahead control.
 
    NOTE-NIKITA this is just stub. This function is supposed to be
-   called during lookup, readdir, and may be creation.
+   called during lookup, readdir, and maybe creation.
+
+NIKITA-FIXME-HANS: explain "supposed to be" and "maybe creation"
+
 */
 void
 directory_readahead(struct inode *dir /* directory being accessed */ ,
@@ -56,11 +58,11 @@ reiser4_update_dir(struct inode *dir)
 	assert("nikita-2525", dir != NULL);
 
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
+	/* VS-FIXME-HANS: explain comment below or remove it */
 	/* "capture" inode */
 	return reiser4_mark_inode_dirty(dir);
 }
-
-/* estimate disk space necessary to add a link from @parent to @object. */
+/* NIKITA-FIXME-HANS: can we somehow optimize this to a constant for the case where exotic directory plugins are not used (which is all cases for current reiser4)? */
 static reiser4_block_nr common_estimate_link(
 	struct inode *parent /* parent directory */,
 	struct inode *object /* object to which new link is being cerated */)
@@ -103,6 +105,7 @@ link_common(struct inode *parent /* parent directory */ ,
 	    struct dentry *existing	/* dentry of object to which
 					 * new link is being
 					 * cerated */ ,
+	    /* NIKITA-FIXME-HANS: how about new_name instead of where? */
 	    struct dentry *where /* new name */ )
 {
 	int result;
@@ -125,7 +128,7 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
-	if (reiser4_is_set(parent->i_sb, REISER4_ADG) && S_ISDIR(object->i_mode))
+	if ( S_ISDIR(object->i_mode) && reiser4_is_set(parent->i_sb, REISER4_ADG))
 		return RETERR(-EISDIR);
 
 	/* check permissions */
@@ -144,7 +147,7 @@ link_common(struct inode *parent /* parent directory */ ,
 	if ((__s64)reserve < 0)
 	    return reserve;
 
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_link"))
 	    return RETERR(-ENOSPC);
 
 	result = reiser4_add_nlink(object, parent, 1);
@@ -162,6 +165,7 @@ link_common(struct inode *parent /* parent directory */ ,
 			   if addition of link to parent and update of
 			   object's stat data both failed, chances are
 			   that something is going really wrong */
+			/* NIKITA-FIXME-HANS: print a warning here, yes? */
 		}
 	}
 	if (result == 0) {
@@ -176,8 +180,6 @@ link_common(struct inode *parent /* parent directory */ ,
 	return result;
 }
 
-/* estimate disk space necessary to remove a link between @parent and
- * @object. */
 static reiser4_block_nr common_estimate_unlink (
 	struct inode *parent /* parent directory */,
 	struct inode *object /* object to which new link is being cerated */)
@@ -204,7 +206,6 @@ static reiser4_block_nr common_estimate_unlink (
 	return res;
 }
 
-/* grab space for unlink. */
 static int
 unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 {
@@ -219,7 +220,7 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	/* check for race with create_object() */
 	if (inode_get_flag(child, REISER4_IMMUTABLE))
 		return RETERR(-E_REPEAT);
-
+	/* NIKITA-FIXME-HANS: victim refers to? */
 	/* victim should have stat data */
 	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
 
@@ -238,7 +239,8 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	if (result < 0)
 		return result;
 
-	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT);
+	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT,
+				     __FUNCTION__);
 }
 
 /* remove link from @parent directory to @victim object.
@@ -358,10 +360,9 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 
 	/* check, that name is acceptable for parent */
 	if (par_dir->is_name_acceptable &&
-	    !par_dir->is_name_acceptable(parent,
-					 dentry->d_name.name,
-					 (int) dentry->d_name.len))
+	    !par_dir->is_name_acceptable(parent, dentry->d_name.name, (int) dentry->d_name.len)) {
 		return RETERR(-ENAMETOOLONG);
+	}
 
 	result = 0;
 	obj_plug = file_plugin_by_id((int) data->id);
@@ -410,17 +411,13 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	   directory
 	*/
 	assert("nikita-2070", obj_plug->adjust_to_parent != NULL);
-	result = obj_plug->adjust_to_parent(object,
-					    parent,
-					    object->i_sb->s_root->d_inode);
+	result = obj_plug->adjust_to_parent(object, parent, object->i_sb->s_root->d_inode);
 	if (result != 0) {
-		warning("nikita-432", "Cannot inherit from %llx to %llx",
-			get_inode_oid(parent), get_inode_oid(object));
+		warning("nikita-432", "Cannot inherit from %llx to %llx", get_inode_oid(parent), get_inode_oid(object));
 		return result;
 	}
 
-	/* call file plugin's method to initialize plugin specific part of
-	 * inode */
+	/* call file plugin's method to initialize plugin specific part of inode */
 	if (obj_plug->init_inode_data)
 		obj_plug->init_inode_data(object, data, 1/*create*/);
 
@@ -432,7 +429,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
 	reserve = common_estimate_create_child(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
 		return RETERR(-ENOSPC);
 
 	/* mark inode `immutable'. We disable changes to the file being
@@ -496,8 +493,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 			if (obj_dir != NULL)
 				obj_dir->done(object);
 	} else
-		warning("nikita-2219", "Failed to initialize dir for %llu: %i",
-			get_inode_oid(object), result);
+		warning("nikita-2219", "Failed to initialize dir for %llu: %i", get_inode_oid(object), result);
 
 	if (result != 0)
 		/* failure to create entry, remove object */
@@ -619,8 +615,6 @@ print_dir_pos(const char *prefix, const dir_pos *pos)
 #define print_dir_pos(prefix, pos) noop
 #endif
 
-/* see comment before readdir_common() for overview of why "adjustment" is
- * necessary. */
 static void
 adjust_dir_pos(struct file   * dir,
 	       readdir_pos   * readdir_spot,
@@ -628,13 +622,6 @@ adjust_dir_pos(struct file   * dir,
 	       int             adj)
 {
 	dir_pos *pos;
-
-	/*
-	 * new directory entry was added (adj == +1) or removed (adj == -1) at
-	 * the @mod_point. Directory file descriptor @dir is doing readdir and
-	 * is currently positioned at @readdir_spot. Latter has to be updated
-	 * to maintain stable readdir.
-	 */
 
 	ON_TRACE(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
 	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
@@ -651,21 +638,11 @@ adjust_dir_pos(struct file   * dir,
 	pos = &readdir_spot->position;
 	switch (dir_pos_cmp(mod_point, pos)) {
 	case LESS_THAN:
-		/* @mod_pos is _before_ @readdir_spot, that is, entry was
-		 * added/removed on the left (in key order) of current
-		 * position. */
 		readdir_spot->entry_no += adj;
 		assert("nikita-2577", dir->f_pos + adj >= 0);
-		/* logical number of directory entry readdir is "looking" at
-		 * changes */
 		dir->f_pos += adj;
 		if (de_id_cmp(&pos->dir_entry_key, &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
-			/*
-			 * if entry added/removed has the same key as current
-			 * for readdir, update counter of duplicate keys in
-			 * @readdir_spot.
-			 */
 			pos->pos += adj;
 		}
 		reiser4_stat_inc(dir.readdir.adjust_lt);
@@ -712,13 +689,7 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 
 	spin_lock_inode(dir);
 
-	/*
-	 * new entry was added/removed in directory @dir. Scan all file
-	 * descriptors for @dir that are currently involved into @readdir and
-	 * update them.
-	 */
-
-	for_all_type_safe_list(readdir, get_readdir_list(dir), scan)
+	for_all_tslist(readdir, get_readdir_list(dir), scan)
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
 
 	spin_unlock_inode(dir);
@@ -752,6 +723,9 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	else {
 		tap->coord->node = NULL;
 		done_lh(tap->lh);
+		/* NIKITA-FIXME-HANS: why is this assignment done in this function rather than the child close to where
+		 * an IO error is detected? And if this means something other than an IO error under any circumstance,
+		 * fix it.  */
 		result = RETERR(-EIO);
 	}
 	return result;
@@ -1121,12 +1095,7 @@ _noop(void)
 
 #define enoop ((void *)_noop)
 
-/*
- * definition of directory plugins
- */
-
 dir_plugin dir_plugins[LAST_DIR_ID] = {
-	/* standard hashed directory plugin */
 	[HASHED_DIR_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
@@ -1134,7 +1103,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = NULL,
 			.label = "dir",
 			.desc = "hashed directory",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = TS_LIST_LINK_ZERO
 		},
 		.lookup = lookup_hashed,
 		.unlink = unlink_common,
@@ -1157,8 +1126,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.unlink    = estimate_unlink_hashed
 		}
 	},
-	/* hashed directory for which seekdir/telldir are guaranteed to
-	 * work. Brain-damage. */
 	[SEEKABLE_HASHED_DIR_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
@@ -1166,7 +1133,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = NULL,
 			.label = "dir",
 			.desc = "hashed directory",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = TS_LIST_LINK_ZERO
 		},
 		.lookup = lookup_pseudo,
 		.unlink = unlink_common,
@@ -1189,7 +1156,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.unlink    = estimate_unlink_hashed
 		}
 	},
-	/* pseudo directory. */
 	[PSEUDO_DIR_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
@@ -1197,7 +1163,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = NULL,
 			.label = "pseudo",
 			.desc = "pseudo directory",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = TS_LIST_LINK_ZERO
 		},
 		.lookup = lookup_pseudo,
 		.unlink = eperm,
