@@ -584,7 +584,7 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 
 	/* there is only one bitmap search if max_dist was specified or first
 	 * pass was from the beginning of the bitmap */
-	if (actual_len != 0 || hint -> max_dist == 0 || search_start == 0) goto out;
+	if (actual_len != 0 || hint -> max_dist != 0 || search_start == 0) goto out;
 
 	/* next step is a scanning from 0 to search_start */
 	search_end = search_start;
