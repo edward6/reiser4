@@ -1,13 +1,14 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-#if !defined( __IOCTL_H__ )
-#define __IOCTL_H__
+#if !defined( __REISER4_IOCTL_H__ )
+#define __REISER4_IOCTL_H__
 
 #include <linux/fs.h>
 
 #define REISER4_IOC_UNPACK _IOW(0xCD,1,long)
 
-#endif				/* __IOCTL_H__ */
+/* __REISER4_IOCTL_H__ */
+#endif
 
 /* Make Linus happy.
    Local variables:
