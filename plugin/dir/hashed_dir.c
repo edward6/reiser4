@@ -33,15 +33,6 @@ static int find_entry(struct inode *dir, struct dentry *name,
 static int check_item(const struct inode *dir,
 		      const coord_t * coord, const char *name);
 
-#define WITH_COORD(coord, exp)			\
-({						\
-	coord_t *__coord;			\
-						\
-	__coord = (coord);			\
-	coord_clear_iplug(__coord);		\
-	WITH_DATA(__coord->node, exp);		\
-})
-
 reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object)
 {
 	reiser4_block_nr res = 0;
@@ -350,8 +341,7 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 			}
 			/* success */
 			d_add(dentry, inode);
-			if (!is_inode_loaded(inode))
-				reiser4_iget_complete(inode);
+			reiser4_iget_complete(inode);
 		} else
 			result = PTR_ERR(inode);
 	} else if (result == -ENOENT) {

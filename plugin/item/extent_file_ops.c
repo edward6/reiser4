@@ -339,11 +339,13 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 		break;
 
 	case APPEND_ITEM:
+		item_plugin_by_coord(&uf_coord->base_coord);
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = append_one_block(uf_coord, key, block);
 		break;
 
 	case OVERWRITE_ITEM:
+		item_plugin_by_coord(&uf_coord->base_coord);
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = overwrite_one_block(uf_coord, key, block);
 		break;

@@ -57,7 +57,8 @@ typedef enum {
 	/* cryptcompress_inode_data points to the secret key */
 	REISER4_SECRET_KEY_INSTALLED = 9,
 	/* file is mapped for read only and it contains of tails. */
-	REISER4_TAILS_FILE_MMAPED = 10
+	REISER4_TAILS_FILE_MMAPED = 10,
+	REISER4_PART_CONV = 11
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
