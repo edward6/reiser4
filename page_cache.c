@@ -194,6 +194,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
 static struct address_space_operations formatted_fake_as_ops;
 
 static const oid_t fake_ino = 0x1;
+static const oid_t bitmap_ino = 0x2;
 
 /* one-time initialization of fake inodes handling functions. */
 int
@@ -207,12 +208,15 @@ int
 init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
+	struct inode *bitmap;
+	reiser4_super_info_data *sinfo;
 
 	assert("nikita-1703", super != NULL);
 
+	sinfo = get_super_private_nocheck(super);
 	fake = iget_locked(super, oid_to_ino(fake_ino));
 
-	if (fake) {
+	if (fake != NULL) {
 		assert("nikita-2168", fake->i_state & I_NEW);
 		fake->i_mapping->a_ops = &formatted_fake_as_ops;
 		fake->i_blkbits = super->s_blocksize_bits;
@@ -222,20 +226,45 @@ init_formatted_fake(struct super_block *super)
 		get_super_private(super)->fake = fake;
 		/* NOTE-NIKITA something else? */
 		unlock_new_inode(fake);
-		return 0;
-	} else
-		return RETERR(-ENOMEM);
+
+		bitmap = iget_locked(super, oid_to_ino(bitmap_ino));
+
+		if (bitmap != NULL) {
+			assert("nikita-2168", bitmap->i_state & I_NEW);
+			bitmap->i_mapping->a_ops = &formatted_fake_as_ops;
+			bitmap->i_blkbits = super->s_blocksize_bits;
+			bitmap->i_size = ~0ull;
+			bitmap->i_rdev = to_kdev_t(super->s_bdev->bd_dev);
+			bitmap->i_bdev = super->s_bdev;
+			sinfo->bitmap = bitmap;
+			unlock_new_inode(bitmap);
+			return 0;
+		} else {
+			iput(sinfo->fake);
+			sinfo->fake = NULL;
+		}
+	}
+	return RETERR(-ENOMEM);
 }
 
 /* release fake inode for @super */
 int
 done_formatted_fake(struct super_block *super)
 {
-	struct inode *fake;
+	reiser4_super_info_data *sinfo;
 
-	fake = get_super_private_nocheck(super)->fake;
-	iput(fake);
-	get_super_private_nocheck(super)->fake = NULL;
+	sinfo = get_super_private_nocheck(super);
+
+	if (sinfo->fake != NULL) {
+		iput(sinfo->fake);
+		sinfo->fake = NULL;
+	}
+
+	if (sinfo->bitmap != NULL) {
+		iput(sinfo->bitmap);
+		sinfo->bitmap = NULL;
+	}
+
 	return 0;
 }
 
@@ -528,7 +557,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	   writeback_queued_jnodes to get its atom. As newly created jnode has
 	   no atom - there is no reason to call jfind, jlook (or zlook if page
 	   is of fake inode) is enough */
-	if (page->mapping->host != get_super_private(s)->fake) {
+	if (page->mapping->host != get_super_fake(s)) {
 		reiser4_stat_inc(pcwb_unformatted);
 		
 		node = jnode_by_page(page);

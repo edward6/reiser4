@@ -222,6 +222,8 @@ struct reiser4_super_info_data {
 
 	/* fake inode used to bind formatted nodes */
 	struct inode *fake;
+	/* inode used to bind bitmaps (and journal heads) */
+	struct inode *bitmap;
 
 	/* disk layout plugin */
 	disk_format_plugin *df_plug;
