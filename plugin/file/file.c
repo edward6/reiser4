@@ -1696,70 +1696,32 @@ write_file(struct file *file, /* file to write to */
 	   const char *buf, /* address of user-space buffer */
 	   size_t count, /* number of bytes to write */
 	   loff_t *off /* position in file to write to */,
-	   int exclusive)
+	   unix_file_info_t *uf_info)
 {
 	struct inode *inode;
 	ssize_t written;	/* amount actually written so far */
 	loff_t pos;		/* current location in the file */
-	unix_file_info_t *uf_info;
-	int gotaccess;
-
-	if (unlikely(count == 0))
-		return 0;
 
 	inode = file->f_dentry->d_inode;
-	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 
-	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
-	current->backing_dev_info = inode->i_mapping->backing_dev_info;
-
-	down(&inode->i_sem);
-
-	/* Checking for mapped pages, converting to something (tails, extents) */
-	written = check_pages_unix_file(file, 0, 1, 0, &gotaccess);
-
-	uf_info = unix_file_inode_data(inode);
-	if (!gotaccess) {
-		if (inode->i_size == 0 || exclusive)
-			get_exclusive_access(uf_info);
-		else
-			get_nonexclusive_access(uf_info);
+	/* estimation for write is entrusted to write item plugins */	
+	pos = *off;
+	
+	if (inode->i_size < pos) {
+		/* pos is set past real end of file */
+		written = append_hole(uf_info, pos);
+		assert("vs-1081", ergo(written == 0,
+				       pos == inode->i_size));
 	}
 
-	if (written == 0) {
-		assert("nikita-3032", schedulable());
+	if (written == 0)
+		/* write user data to the file */
+		written = write_flow(file,
+				     uf_info, buf, count, pos);
+	if (written > 0)
+		/* update position in a file */
+		*off = pos + written;
 
-		written = generic_write_checks(inode, file, off, &count, 0);
-		if (likely(written == 0)) {
-
-			/* UNIX behavior: clear suid bit on file modification */
-			remove_suid(file->f_dentry);
-
-			/* estimation for write is entrusted to write item
-			 * plugins */
-
-			pos = *off;
-
-			if (inode->i_size < pos) {
-				/* pos is set past real end of file */
-				written = append_hole(uf_info, pos);
-				assert("vs-1081", ergo(written == 0,
-						       pos == inode->i_size));
-			}
-
-			if (written == 0)
-				/* write user data to the file */
-				written = write_flow(file,
-						     uf_info, buf, count, pos);
-			if (written > 0)
-				/* update position in a file */
-				*off = pos + written;
-		}
-	}
-	drop_access(uf_info);
-	up(&inode->i_sem);
-	current->backing_dev_info = 0;
-	assert("vs-43196", written != -EEXIST);
 	/* return number of written bytes, or error code */
 	return written;
 }
@@ -1771,22 +1733,67 @@ write_unix_file(struct file *file, /* file to write to */
 		size_t count, /* number of bytes to write */
 		loff_t *off /* position in file to write to */)
 {
-	ssize_t written;
-	int rep;
+	struct inode *inode;
+	ssize_t written;	/* amount actually written so far */
 
-	for (rep = 0;; ++ rep) {
-		written = write_file(file, buf, count, off, rep);
-		if (written == -E_REPEAT) {
-			reiser4_context * ctx;
+	if (unlikely(count == 0))
+		return 0;
 
-			ctx = get_current_context();
-			written = txn_end(ctx);
-			if (written < 0)
-				break;
-			txn_begin(ctx);
-		} else
-			break;
+	inode = file->f_dentry->d_inode;
+	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
+
+	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
+	current->backing_dev_info = inode->i_mapping->backing_dev_info;
+
+	down(&inode->i_sem);
+	written = generic_write_checks(inode, file, off, &count, 0);
+
+	if (written == 0) {
+		int gotaccess;
+
+		/* UNIX behavior: clear suid bit on file modification */
+		remove_suid(file->f_dentry);
+		grab_space_enable();
+
+		/* Checking for mapped pages, converting to something (tails, extents) */
+		written = check_pages_unix_file(file, 0, 1, 0, &gotaccess);
+		if (written == 0) {
+			unix_file_info_t *uf_info;
+			int rep;
+
+			uf_info = unix_file_inode_data(inode);
+
+			for (rep = 0;; ++ rep) {
+				if (!gotaccess) {
+					/* check_pages_unix_file returned without taking any access. We need to take access. We
+					   take excluse if inode size is 0 */
+					if (inode->i_size == 0 || rep)
+						get_exclusive_access(uf_info);
+					else
+						get_nonexclusive_access(uf_info);
+				}
+				written = write_file(file, buf, count, off, uf_info);
+				drop_access(uf_info);
+				gotaccess = 0;
+
+				if (written == -E_REPEAT) {
+					/* write_file required exclusive access (for tail2extent). It returned E_REPEAT
+					 * so that we restart it with exclusive access */
+					reiser4_context * ctx;
+					
+					ctx = get_current_context();
+					written = txn_end(ctx);
+					if (written < 0)
+						break;
+					txn_begin(ctx);
+				} else
+					break;
+			}
+		}
 	}
+
+	up(&inode->i_sem);
+	current->backing_dev_info = 0;
 	return written;
 }
 
