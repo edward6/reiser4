@@ -59,7 +59,7 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
 
 /* get lock on atom from locked flush queue object */
-static txn_atom *
+txn_atom *
 atom_get_locked_by_fq(flush_queue_t * fq)
 {
 	/* This code is similar to atom_locked_by_jnode(), look at it for the
@@ -92,6 +92,12 @@ atom_get_locked_by_fq(flush_queue_t * fq)
 	}
 
 	return atom;
+}
+
+txn_atom *
+atom_locked_by_fq(flush_queue_t * fq)
+{
+	return UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 }
 
 static void
