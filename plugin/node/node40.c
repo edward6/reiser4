@@ -2075,7 +2075,7 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	source = from->node;
 	/* if source or target node are "immovable"---shift nothing. */
-	if (JF_ISSET(source, JNODE_IMMOVABLE) || JF_ISSET(to, JNODE_IMMOVABLE))
+	if (ZF_ISSET(source, JNODE_IMMOVABLE) || ZF_ISSET(to, JNODE_IMMOVABLE))
 		return 0;
 
 	/* set @shift.wish_stop to rightmost/leftmost unit among units we want
