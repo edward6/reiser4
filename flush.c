@@ -2894,7 +2894,7 @@ flush_scanning_left(flush_scan * scan)
 static int
 flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
 {
-	int ret;
+	int ret = 0;
 
 	scan->max_count = limit;
 	scan->direction = LEFT_SIDE;
@@ -2909,16 +2909,15 @@ flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned li
 
 	/* Before rapid scanning, we need a lock on scan->node so that we can get its
 	   parent, only if formatted. */
-	if (jnode_is_znode(scan->node) &&
-	    (ret = longterm_lock_znode(&scan->node_lock, JZNODE(scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
-		/* EINVAL means the node was deleted, DEADLK should be impossible here
-		   because we've asserted that the lockstack is clean. */
-		assert("jmacd-34113", ret != -EDEADLK);
-		return ret;
+	if (jnode_is_znode(scan->node)) {
+		ret = longterm_lock_znode(&scan->node_lock, JZNODE(scan->node), 
+					  ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		if (ret == -EDEADLK)
+			warning("nikita-2813", "Flush collided");
 	}
 
 	/* Rapid_scan would go here (with limit set to FLUSH_RELOCATE_THRESHOLD). */
-	return 0;
+	return ret;
 }
 
 /* Performs rightward scanning... Does not count the starting node.  The limit parameter
