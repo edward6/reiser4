@@ -381,7 +381,7 @@ static void hput( cbk_handle *h );
 
 static void setup_delimiting_keys( cbk_handle *h );
 static int prepare_delimiting_keys( cbk_handle *h );
-static lookup_result search_to_left( cbk_handle *h );
+static level_lookup_result search_to_left( cbk_handle *h );
 
 /**
  * main tree lookup procedure
@@ -1259,9 +1259,9 @@ static int prepare_delimiting_keys( cbk_handle *h )
 
 static level_lookup_result search_to_left( cbk_handle *h )
 {
-	level_lookup result;
-	tree_coord  *coord;
-	znode       *node;
+	level_lookup_result result;
+	tree_coord         *coord;
+	znode              *node;
 
 	reiser4_lock_handle lh;
 
@@ -1281,8 +1281,8 @@ static level_lookup_result search_to_left( cbk_handle *h )
 		break;
 	case 0: {
 		znode               *neighbor;
-		reiser4_node_plugin *nplug;
-		tree_coord           coord;
+		node_plugin         *nplug;
+		tree_coord           crd;
 		
 		neighbor = lh.node;
 		h -> result = zload( neighbor );
@@ -1293,10 +1293,10 @@ static level_lookup_result search_to_left( cbk_handle *h )
 
 		nplug = neighbor -> nplug;
 
-		reiser4_init_coord( &coord );
+		reiser4_init_coord( &crd );
 		h -> result = nplug -> lookup( neighbor, h -> key,
-					       h -> bias, &coord );
-		reiser4_done_coord( &coord );
+					       h -> bias, &crd );
+		reiser4_done_coord( &crd );
 
 		if( h -> result == NS_NOT_FOUND ) {
 	case -ENAVAIL:
@@ -1307,10 +1307,10 @@ static level_lookup_result search_to_left( cbk_handle *h )
 			result = LLR_DONE;
 		} else if( h -> result == NS_FOUND ) {
 			spin_lock_dk( current_tree );
-			h -> rd_key = znode_get_ld_key( node );
+			h -> rd_key = *znode_get_ld_key( node );
 			leftmost_key_in_node( neighbor, &h -> ld_key );
 			spin_unlock_dk( current_tree );
-			h -> block = znode_get_block( neighbor );
+			h -> block = *znode_get_block( neighbor );
 			result = LLR_CONT;
 		} else {
 			result = LLR_DONE;

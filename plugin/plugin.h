@@ -76,7 +76,7 @@ typedef enum {
 
 typedef ssize_t ( *rw_f_type )( struct file *file, flow *a_flow, loff_t *off );
 
-struct reg_file_builtins
+typedef struct reg_file_builtins
 {
 	int (*body_write_flow)();
 	int (*sd_write_flow)();
@@ -91,7 +91,7 @@ struct reg_file_builtins
 	int (*body_read_flow)();
 	int (*sd_read_flow)();
 	int (*attr_read_flow)();
-};
+} reg_file_builtins;
 /**
  * File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
  * includes all of the file related VFS operations.
@@ -133,6 +133,7 @@ struct reg_file_builtins
  resolving the name and performing the IO are separate syscalls.
 
  */
+
 typedef struct file_plugin {
 	/* each individual plugin will have some special methods (builtins) that are accessed by performing IO using
 	   some special names (builtin names). */
@@ -174,7 +175,7 @@ typedef struct file_plugin {
 	*/
 	int (*is_flow_built_in)(char * name, int length);
 
-	int (*select_method_and_key)(char *builtin_name, int length, int (*builtin_method), key * key )
+	int (*select_method_and_key)(char *builtin_name, int length, int (*builtin_method), reiser4_key * key );
 
 	/**
 	 * Construct flow into @flow according to user-supplied data.
