@@ -48,7 +48,7 @@ static reiser4_block_nr extent_size (const coord_t * coord, unsigned nr)
 		blocks += extent_get_width (ext);
 	}
 
-	return blocks * reiser4_get_current_sb ()->s_blocksize;
+	return blocks * current_blocksize;
 }
 
 
@@ -258,7 +258,7 @@ lookup_result extent_lookup (const reiser4_key * key,
 	assert ("vs-11", get_key_objectid (key) == get_key_objectid (&item_key));
 
 	ext = extent_by_coord (coord);
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize = current_blocksize;
  
 	/*
 	 * offset we are looking for
@@ -583,8 +583,8 @@ static int cut_or_kill_units (coord_t * coord,
 
 	count = *to - *from + 1;
 
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	blocksize_bits = reiser4_get_current_sb ()->s_blocksize_bits;
+	blocksize = current_blocksize;
+	blocksize_bits = current_blocksize_bits;
 
 	/*
 	 * make sure that we cut something but not more than all units
@@ -790,6 +790,10 @@ static void optimize_extent (coord_t * item)
 	old_num = extent_nr_units (item);
 	prev = NULL;
 	new_num = 0;
+	assert ("vs-765", coord_is_existing_item (item));
+	assert ("vs-763", item_is_extent (item));
+	item->unit_pos = 0;
+	item->between = AT_UNIT;
 	for (i = 0; i < old_num; i ++, ext ++) {
 		width = extent_get_width (ext);
 		if (!width)
@@ -954,7 +958,7 @@ static int add_extents (coord_t * coord,
 		coord->unit_pos += delta;
 		for (i = 0; i < delta; i ++)			
 			set_key_offset (key, get_key_offset (key) +
-					reiser4_get_current_sb ()->s_blocksize *
+					current_blocksize *
 					extent_get_width ((reiser4_extent *)data->data + i));
 		data->data += delta * sizeof (reiser4_extent);
 
@@ -1017,8 +1021,8 @@ static reiser4_block_nr in_extent (const coord_t * coord,
 	assert ("vs-390", 
 		off >= cur && 
 		off < (cur + extent_get_width (ext) * 
-		       reiser4_get_current_sb ()->s_blocksize));
-        return (off - cur) >> reiser4_get_current_sb ()->s_blocksize_bits;
+		       current_blocksize));
+        return (off - cur) >> current_blocksize_bits;
 }
 
 #if 0
@@ -1279,7 +1283,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 			return 0;
 		}
 
-		offset = get_key_offset (&key) + pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
+		offset = get_key_offset (&key) + pos_in_unit * current_blocksize;
 
 		assert ("vs-544", offset >> PAGE_CACHE_SHIFT < ~0ul);
 
@@ -1546,7 +1550,7 @@ static int key_in_extent (const coord_t * coord, const reiser4_key * key)
 
 	return get_key_offset (key) >= get_key_offset (&ext_key) &&
 		get_key_offset (key) < get_key_offset (&ext_key) +
-		extent_get_width (ext) * reiser4_get_current_sb ()->s_blocksize;
+		extent_get_width (ext) * current_blocksize;
 }
 
 
@@ -2004,7 +2008,7 @@ static void start_page_read (struct page * page)
 
 	assert ("vs-657", PageLocked (page));
 	data = kmap (page);
-	blocks = PAGE_CACHE_SIZE / reiser4_get_current_sb ()->s_blocksize;
+	blocks = PAGE_CACHE_SIZE / current_blocksize;
 
 	j = jnode_of_page (page);
 	for (i = 0, nr = 0; i < blocks; i ++, j = next_jnode (j)) {
@@ -2800,7 +2804,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 	unsigned long blocksize;
 
 
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize = current_blocksize;
 
 	assert ("vs-451", item->unit_pos == 0 && coord_is_existing_unit (item));
 
@@ -2942,7 +2946,7 @@ __u64 extent_unit_index (const coord_t * item)
 
 	assert ("vs-648", coord_is_existing_unit (item));
 	unit_key_by_coord (item, &key);
-	return get_key_offset (&key) >> reiser4_get_current_sb ()->s_blocksize_bits;
+	return get_key_offset (&key) >> current_blocksize_bits;
 }
 
 
