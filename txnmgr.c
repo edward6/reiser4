@@ -269,6 +269,8 @@ struct _txn_wait_links {
 	lock_stack *_lock_stack;
 	fwaitfor_list_link _fwaitfor_link;
 	fwaiting_list_link _fwaiting_link;
+	int (*waitfor_cb)(txn_atom *atom, struct _txn_wait_links *wlinks);
+	int (*waiting_cb)(txn_atom *atom, struct _txn_wait_links *wlinks);
 };
 
 TS_LIST_DEFINE(atom, txn_atom, atom_link);
@@ -1087,6 +1089,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 			warning("nikita-3176",
 				"Flushing like mad: %i", flushiters);
 			info_atom("atom", *atom);
+			DEBUGON(flushiters > (1 << 20));
 		}
 	}
 
@@ -1451,6 +1454,8 @@ init_wlinks(txn_wait_links * wlinks)
 	wlinks->_lock_stack = get_current_lock_stack();
 	fwaitfor_list_clean(wlinks);
 	fwaiting_list_clean(wlinks);
+	wlinks->waitfor_cb = NULL;
+	wlinks->waiting_cb = NULL;
 }
 
 /* Add atom to the atom's waitfor list and wait for somebody to wake us up; */
@@ -2824,8 +2829,10 @@ wakeup_atom_waitfor_list(txn_atom * atom)
 
 	/* atom is locked */
 	for_all_tslist(fwaitfor, &atom->fwaitfor_list, wlinks) {
-		/* Wake up. */
-		reiser4_wake_up(wlinks->_lock_stack);
+		if (wlinks->waitfor_cb == NULL ||
+		    wlinks->waitfor_cb(atom, wlinks))
+			/* Wake up. */
+			reiser4_wake_up(wlinks->_lock_stack);
 	}
 }
 
@@ -2840,9 +2847,19 @@ wakeup_atom_waiting_list(txn_atom * atom)
 
 	/* atom is locked */
 	for_all_tslist(fwaiting, &atom->fwaiting_list, wlinks) {
-		/* Wake up. */
-		reiser4_wake_up(wlinks->_lock_stack);
+		if (wlinks->waiting_cb == NULL ||
+		    wlinks->waiting_cb(atom, wlinks))
+			/* Wake up. */
+			reiser4_wake_up(wlinks->_lock_stack);
 	}
+}
+
+static int wait_for_fusion(txn_atom * atom, txn_wait_links * wlinks)
+{
+	assert("nikita-3330", atom != NULL);
+	assert("nikita-3331", spin_atom_is_locked(atom));
+
+	return atom->stage != ASTAGE_CAPTURE_WAIT;
 }
 
 /* The general purpose of this function is to wait on the first of two possible events.
@@ -2895,6 +2912,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
 	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
+	wlinks.waitfor_cb = wait_for_fusion;
 	atomic_inc(&atomf->refcount);
 	UNLOCK_ATOM(atomf);
 
@@ -2916,7 +2934,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		ON_TRACE(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
 		go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
-
+		
 		reiser4_stat_inc(txnmgr.restart.fuse_wait_slept);
 		ret = RETERR(-E_REPEAT);
 		ON_TRACE(TRACE_TXN, "thread %u wakeup %u waiting %u\n",
@@ -3177,11 +3195,6 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	large->flush_reserved += small->flush_reserved;
 	small->flush_reserved = 0;
 
-	/* Notify any waiters--small needs to unload its wait lists.  Waiters actually remove
-	   themselves from the list before returning from the fuse_wait function. */
-	wakeup_atom_waitfor_list(small);
-	wakeup_atom_waiting_list(small);
-
 	if (large->stage < small->stage) {
 		/* Large only needs to notify if it has changed state. */
 		large->stage = small->stage;
@@ -3190,6 +3203,12 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	}
 
 	small->stage = ASTAGE_INVALID;
+
+	/* Notify any waiters--small needs to unload its wait lists.  Waiters
+	   actually remove themselves from the list before returning from the
+	   fuse_wait function. */
+	wakeup_atom_waitfor_list(small);
+	wakeup_atom_waiting_list(small);
 
 	/* Unlock atoms */
 	UNLOCK_ATOM(large);
