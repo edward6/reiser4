@@ -964,12 +964,16 @@ static int __init init_reiser4()
 			result = init_plugins();
 			if( result == 0 ) {
 				result = txn_init_static();
-				/*
-				 * FIXME-NIKITA more initialisations here
-				 */
 				if( result == 0 ) {
-					result = register_filesystem
-						( &reiser4_fs_type );
+					result = init_fakes();
+					/*
+					 * FIXME-NIKITA more initialisations
+					 * here
+					 */
+					if( result == 0 ) {
+						result = register_filesystem
+							( &reiser4_fs_type );
+					}
 				}
 			}
 			if( result != 0 )
