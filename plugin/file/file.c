@@ -1918,14 +1918,14 @@ write_unix_file(struct file *file, /* file to write to */
 		uf_info = unix_file_inode_data(inode);
 
 		if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
-			/* file has been mmaped before. If it is built of tails - invalidate pages created so far and
-			   convert to extents */
+			/* file has been mmaped before. If it is built of
+			   tails - invalidate pages created so far and convert
+			   to extents */
 			get_exclusive_access(uf_info);
 			written = find_file_state(uf_info);
 			if (written == 0) {
-				if (uf_info->container == UF_CONTAINER_TAILS) {
+				if (uf_info->container == UF_CONTAINER_TAILS)
 					written = check_pages_unix_file(inode);
-				}
 			}
 			drop_exclusive_access(uf_info);
 		}
@@ -2395,10 +2395,19 @@ reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, siz
 					    read_actor_t actor, void __user *target)
 {
 	ssize_t ret;
+	struct inode *inode;
+	unix_file_info_t *ufo;
 
-	get_nonexclusive_access(unix_file_inode_data(file->f_dentry->d_inode));
+	inode = file->f_dentry->d_inode;
+	ufo = unix_file_inode_data(inode);
+
+	down(&inode->i_sem);
+	inode_set_flag(inode, REISER4_HAS_MMAP);
+	up(&inode->i_sem);
+
+	get_nonexclusive_access(ufo);
 	ret = sendfile_common(file, ppos, count, actor, target);
-	drop_nonexclusive_access(unix_file_inode_data(file->f_dentry->d_inode));
+	drop_nonexclusive_access(ufo);
 	return ret;
 }
 
