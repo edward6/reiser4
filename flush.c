@@ -1359,7 +1359,7 @@ static int flush_finish (flush_position *pos)
 			 * relocate. If the root node is dirty, relocate. */
 			JF_SET (node, ZNODE_RELOC);
 		} else {
-			/* Need to re-aquire the parent-lock here to query for relocation.  I think that
+			/* Need to re-acquire the parent-lock here to query for relocation.  I think that
 			 * this will be a lot of overhead, but just say no to premature optimization. */
 			if (jnode_is_formatted (node) &&
 			    (ret = longterm_lock_znode (& child_lock, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
