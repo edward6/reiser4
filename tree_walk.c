@@ -945,6 +945,12 @@ int tree_walk (const reiser4_key *start_key, struct tree_walk_actor * actor, voi
 	init_lh(&lock);
 
 	if (start_key == NULL) {
+		if (actor->before) {
+			ret = actor->before(opaque);
+			if (ret)
+				return ret;
+		}
+
 		ret = lock_tree_root(&lock, ZNODE_WRITE_LOCK);
 		if (ret)
 			return ret;
@@ -956,6 +962,12 @@ int tree_walk (const reiser4_key *start_key, struct tree_walk_actor * actor, voi
 	}
 
 	do {
+		if (actor->before) {
+			ret = actor->before(opaque);
+			if (ret)
+				return ret;
+		}
+
 		ret = coord_by_key(current_tree, &handle.start_key, &coord, &lock, ZNODE_WRITE_LOCK,
 				   FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 0, NULL);
 		if (ret != CBK_COORD_FOUND)

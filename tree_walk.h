@@ -90,6 +90,7 @@ extern void link_left_and_right(znode * left, znode * right);
 struct tree_walk_actor {
 	int (*process_znode)(znode* , void*);
 	int (*process_extent)(const coord_t *, void *);
+	int (*before)(void *);
 };
 extern int tree_walk(const reiser4_key *, struct tree_walk_actor *, void *opaque);
 

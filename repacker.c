@@ -29,35 +29,39 @@ struct repacker {
 };
 
 struct repacker_stats {
+	int count;
 	long blocks_dirtied;
 };
+
+static int restart_transaction (void)
+{
+	reiser4_context * ctx = get_current_context();
+	long _ret;
+
+	_ret = txn_end(ctx);
+	txn_begin(ctx);
+
+	if (_ret < 0)
+		return (int)_ret;
+	return 0;
+}
 
 static int dirtying_znode (znode * node, void * arg)
 {
 	struct repacker_stats * stats = arg;
-	int ret;
 
-	if (!znode_is_dirty(node))
+	assert("zam-954", stats->count > 0);
+
+	if (znode_is_dirty(node))
 		return 0;
 
-	ret = reiser4_grab_space((__u64)1, BA_CAN_COMMIT | BA_FORMATTED, "repacker");
-	if (ret)
-		return ret;
-
 	znode_make_dirty(node);
-	
-	{
-		reiser4_context * ctx = get_current_context();
-		long _ret;
-
-		_ret = txn_end(ctx);
-		if (_ret < 0)
-			ret = (int)_ret;
-		txn_begin(ctx);
-	}
 
 	stats->blocks_dirtied ++;
-	return ret;
+
+	if (-- stats->count <= 0)
+		return -EAGAIN;
+	return 0;
 }
 
 static int dirtying_extent (const coord_t * coord, void * stats)
@@ -65,9 +69,30 @@ static int dirtying_extent (const coord_t * coord, void * stats)
 	return 0;
 }
 
+/* The reiser4 repacker process nodes by chunks of REPACKER_CHUNK_SIZE
+ * size. */
+#define REPACKER_CHUNK_SIZE 100
+
+static int prepare_repacking_session (void * arg)
+{
+	struct repacker_stats * stats = arg;
+	int ret;
+
+	assert("zam-951", schedulable());
+
+	all_grabbed2free(__FUNCTION__);
+	ret = restart_transaction();
+	if (ret)
+		return ret;
+
+	stats->count = REPACKER_CHUNK_SIZE;
+	return  reiser4_grab_space((__u64)REPACKER_CHUNK_SIZE, BA_CAN_COMMIT | BA_FORCE, __FUNCTION__);
+}
+
 static struct tree_walk_actor repacker_actor = {
-	.process_znode = dirtying_znode,
-	.process_extent = dirtying_extent
+	.process_znode  = dirtying_znode,
+	.process_extent = dirtying_extent,
+	.before         = prepare_repacking_session
 };
 
 static int repacker_d(void *arg)
