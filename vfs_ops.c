@@ -1569,7 +1569,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 		}
 		break;
 	case OPT_ONEOF:
-		not_implemented("nikita-2099", "Oneof");
+		not_yet("nikita-2099", "Oneof");
 		break;
 	case OPT_PLUGIN:{
 			reiser4_plugin *plug;
