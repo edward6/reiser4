@@ -419,14 +419,19 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
 			data->id, get_inode_oid(object));
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
 	/* reget plugin after installation */
 	obj_plug = inode_file_plugin(object);
 
-	if (obj_plug->create == NULL)
+	if (obj_plug->create == NULL) {
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		return RETERR(-EPERM);
+	}
 
 	/* if any of hash, tail, sd or permission plugins for newly created
 	   object are not set yet set them here inheriting them from parent
@@ -439,6 +444,8 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	if (result != 0) {
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
 			get_inode_oid(parent), get_inode_oid(object));
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -449,14 +456,20 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);
-	if (obj_dir != NULL && obj_dir->init == NULL)
+	if (obj_dir != NULL && obj_dir->init == NULL) {
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		return RETERR(-EPERM);
+	}
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
 	reserve = common_estimate_create_child(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		return RETERR(-ENOSPC);
+	}
 
 	/* mark inode `immutable'. We disable changes to the file being
 	   created until valid directory entry for it is inserted. Otherwise,
@@ -484,6 +497,8 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 			warning("nikita-2219",
 				"Failed to create sd for %llu",
 				get_inode_oid(object));
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -524,6 +539,8 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	 */
 	reiser4_update_sd(object);
 	if (result != 0) {
+		DQUOT_FREE_INODE(object);
+		object->i_flags |= S_NOQUOTA;
 		/* if everything was ok (result == 0), parent stat-data is
 		 * already updated above (update_parent_dir()) */
 		reiser4_update_sd(parent);
