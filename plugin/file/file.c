@@ -399,7 +399,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	/* this should now be called userspace_sink_build, now that we have
 	 * both sinks and flows.  See discussion of sinks and flows in
 	 * www.namesys.com/v4/v4.html */
-#ifdef NEW_READ_IS_READ
+#ifdef NEW_READ_IS_READY
 	result = userspace_sink_build (inode, buf, 1/* user space */, read_amount,
 				    *off, READ_OP, &f);
 #else
@@ -412,7 +412,36 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	get_nonexclusive_access (inode);
 	
 #ifdef NEW_READ_IS_READY
-	intrafile_readahead_amount = unix_file_readahead(struct file * file, off, read_amount);
+	/* have generic_readahead to return number of pages to
+	 * readahead. generic_readahead must not do readahead, but return
+	 * number of pages to readahead */
+	intrafile_readahead_amount = wrapper_for_generic_readahead(struct file * file, off, read_amount);
+
+	while (intrafile_readahead_amount) {
+		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;		/* coord will point to current item on entry and next item on exit */
+		readahead_result = find_next_item (file, &f.key, &coord, &lh,
+					 ZNODE_READ_LOCK);
+		if (readahead_result != CBK_COORD_FOUND)
+			/* item had to be found, as it was not - we have
+			 * -EIO */
+			break;
+		
+		/* call readahead method of found item */
+		iplug = item_plugin_by_coord (&coord);
+		if (!iplug->s.file.readahead) {
+			readahead_result = -EINVAL;
+			break;
+		}
+		
+		readahead_result = iplug->s.file.readahead (inode, &coord, &lh, &intrafile_readahead_amount);
+		if (readahead_result)
+			break;
+	}
+
+	unix_file_interfile_readahead(struct file * file, off, read_amount, coord);
+
 #endif /* NEW_READ_IS_READY */
 
 	coord_init_zero (&coord);
@@ -452,32 +481,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		}
 	}
 
-#ifdef NEW_READ_IS_READY
-	while (intrafile_readahead_amount) {
-			if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;		/* coord will point to current item on entry and next item on exit */
-		readahead_result = find_next_item (file, &f.key, &coord, &lh,
-					 ZNODE_READ_LOCK);
-		if (readahead_result != CBK_COORD_FOUND)
-			/* item had to be found, as it was not - we have
-			 * -EIO */
-			break;
-
-		/* call readahead method of found item */
-		iplug = item_plugin_by_coord (&coord);
-		if (!iplug->s.file.readahead) {
-			readahead_result = -EINVAL;
-			break;
-		}
-		
-		readahead_result = iplug->s.file.readahead (inode, &coord, &lh, &intrafile_readahead_amount);
-		if (readahead_result)
-			break;
-	}
-
-	unix_file_interfile_readahead(struct file * file, off, read_amount, coord);
-#endif /* NEW_READ_IS_READY */
 
 	done_lh (&lh);
 	if( to_read - f.length ) {
