@@ -3326,6 +3326,7 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 }
 
 
+#if REISER4_DEBUG_OUTPUT
 void
 print_atom(const char *prefix, txn_atom * atom)
 {
@@ -3356,6 +3357,7 @@ print_atom(const char *prefix, txn_atom * atom)
 		printk("\n");
 	}
 }
+#endif
 
 /* Make Linus happy.
    Local variables:
