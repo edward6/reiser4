@@ -461,10 +461,13 @@ reiser4_drop_inode(struct inode *object)
 		generic_forget_inode(object);
 }
 
+#define DEBUG_WRITEOUT (0)
+
 static void
 writeout(struct super_block *sb, struct writeback_control *wbc)
 {
-	/*XXXX*/long written, to_write;
+	long written = 0;
+	long to_write = wbc->nr_to_write;
 
 	/* reiser4 has its own means of periodical write-out */
 	if (wbc->for_kupdate)
@@ -478,30 +481,36 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 	if (wbc->sync_mode != WB_SYNC_NONE)
 		txnmgr_force_commit_all(sb, 0);
 
-	/*XXXX*/written = 0;
-	/*XXXX*/to_write = wbc->nr_to_write;
 	do {
 		long nr_submitted = 0;
+		struct inode *fake;
 
-#if 0
-		/* do not put more requests to overload write queue */
-		if (wbc->nonblocking && 
-		    bdi_write_congested(mapping->backing_dev_info)) {
-			blk_run_queues();
-			wbc->encountered_congestion = 1;
-			break;
+		fake = get_super_fake(sb);
+		if (fake != NULL) {
+			struct address_space *mapping;
+
+			mapping = fake->i_mapping;
+			/* do not put more requests to overload write queue */
+			if (wbc->nonblocking && 
+			    bdi_write_congested(mapping->backing_dev_info)) {
+				blk_run_queues();
+				wbc->encountered_congestion = 1;
+				break;
+			}
 		}
-#endif
 		flush_some_atom(&nr_submitted, wbc, JNODE_FLUSH_WRITE_BLOCKS);
 		if (!nr_submitted)
 			break;
 
 		wbc->nr_to_write -= nr_submitted;
 
-		/*XXXX*/written += nr_submitted;
+		if (DEBUG_WRITEOUT)
+			written += nr_submitted;
 	} while (wbc->nr_to_write > 0);
 
-	/*XXXX*//*printk("%s: to write %ld, written %ld\n", current->comm, to_write, written);*/
+	if (DEBUG_WRITEOUT)
+		printk("%s: to write %ld, written %ld\n", 
+		       current->comm, to_write, written);
 }
 
 static void
