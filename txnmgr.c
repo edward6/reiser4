@@ -2118,7 +2118,7 @@ jnode_set_dirty(jnode * node)
 		assert("jmacd-3981", jnode_is_dirty(node));
 
 		/* Make if flush_reserved if either leaf or unformatted for not FAKE_BLOCKNR. */
-		if (!JF_ISSET(node, JNODE_CREATED) && !is_flush_mode()) {
+		if (!JF_ISSET(node, JNODE_CREATED)/* && !is_flush_mode()*/) {
 		    warning("vpf-297", "SPACE: set_dirty moves 1 grabbed to flush_resererved.");
 		    grabbed2flush_reserved(1);
 		}

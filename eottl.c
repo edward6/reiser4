@@ -241,6 +241,9 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh,
 
 	grabbed = get_current_context() -> grabbed_blocks;
 	/* VITALY: Grab block for the balancing needs. */
+
+	/* UMKA: Should we grab any way here? What if grab_enabled is false?
+	 Is this function used in hierarchical context creation code pathes? */
 	result = reiser4_grab_space_exact( (__u64)1 , 0);
 	if( result != 0 )
 		return result;

@@ -18,6 +18,7 @@
 #include "../inode.h"
 #include "object.h"
 #include "plugin.h"
+#include "node/node.h"
 #include "plugin_header.h"
 
 #include <linux/pagemap.h>
@@ -48,11 +49,12 @@ reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
 	     * only overhead for one balancing */
 	    estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
 
-	    return amount;
+	    return inode_file_plugin(inode)->estimate.update(inode) + amount;
 	} else {
 	    /* Here we are counting the number of blocks needed for creating of the
 	     * real allocated extent(s) */
-	    return ((size + (current_blocksize - 1)) / current_blocksize);
+	    return ((size + (current_blocksize - 1)) / current_blocksize) + 
+		inode_file_plugin(inode)->estimate.update(inode);
 	}
 }
 
@@ -70,6 +72,7 @@ reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_fake) 
 {
 	__u32 max_item_size;
+	reiser4_block_nr amount;
 	
 	assert("umka-1244", inode != NULL);
 
@@ -77,7 +80,8 @@ reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	
 	/* Write 4000 bytes: 2000 into one block and 2000 into the neighbour - 
 	 * 2 blocks are ditry */
-        return (size / max_item_size) + 2;
+	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+        return ((size + (max_item_size - 1)) / max_item_size) * amount + + 2;
 }
 
 /** store tails only Always store file's tail as direct item */

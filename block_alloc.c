@@ -275,7 +275,7 @@ void reiser4_grab_space_enable(void)
 	get_current_context()->grab_enabled = 1;
 }
 
-static void reiser4_grab_space_disable(void) 
+void reiser4_grab_space_disable(void) 
 {
 	get_current_context()->grab_enabled = 0;
 }
@@ -284,6 +284,7 @@ static int reiser4_is_grab_enabled(void)
 {
 	return get_current_context()->grab_enabled;
 }
+
 /* Adjust "working" free blocks counter for number of blocks we are going to
  * allocate.  Record number of grabbed blocks in fs-wide and per-thread
  * counters.  This function should be called before bitmap scanning or
@@ -355,7 +356,7 @@ unlock_and_ret:
 	return ret;
 }
 
-/**
+/*
  * A simple wrapper for reiser4_grab_space, suitable for most places when we
  * are going to allocate exact number of blocks .
  * Reserved means that allocated from 5% of disk space.
@@ -365,6 +366,24 @@ reiser4_grab_space_exact(__u64 count, int reserved)
 {
 	__u64 not_used;
 	return reiser4_grab_space(&not_used, count, count, reserved);
+}
+
+/* Grabs space any way and restores grab_enabled flag back */
+int
+reiser4_grab_space_force(__u64 count, int reserved)
+{
+    int ret;
+    int save;
+   
+    save = reiser4_is_grab_enabled();
+    reiser4_grab_space_enable();
+    
+    ret = reiser4_grab_space_exact(count, reserved);
+    
+    if (!save)
+	    reiser4_grab_space_disable();
+
+    return ret;
 }
 
 /**

@@ -1187,6 +1187,10 @@ flush_reverse_relocate_check_dirty_parent(jnode * node,
 		}
 
 		if (ret == 1) {
+
+			if (reiser4_grab_space_force(1, 0) != 0)
+			    rpanic("umka-1250", "No space left durring flush.");
+			
 			assert("jmacd-18923",
 			       znode_is_write_locked(parent_coord->node));
 			znode_set_dirty(parent_coord->node);
@@ -2319,10 +2323,23 @@ squeeze_right_non_twig(znode * left, znode * right)
 			update_znode_dkeys(left, right));
 
 	if (ret > 0) {
+		reiser4_block_nr amount;
+		
 		/* Carry is called to update delimiting key or to remove empty
 		 * node. */
 		//info ("shifted %u bytes %p <- %p\n", ret, left, right);
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
+		
+		estimate_internal_amount(2, 
+			get_current_super_private()->tree.height, &amount);
+
+		if ((ret = reiser4_grab_space_force(amount, 0)) != 0) {
+			done_carry_pool(&pool);
+			return ret;
+		}
+		
+		warning("umka-1240", "SPACE: squeeze_right_non_twig grabs %llu blocks.", amount);
+		
 		ret = carry(&todo, NULL /* previous level */ );
 	}
 
@@ -2539,6 +2556,10 @@ shift_one_internal_unit(znode * left, znode * right)
 	moved = (ret > 0);
 
 	if (moved) {
+		/* Grabbing two blocks for left and right neighbours */
+		if ((ret = reiser4_grab_space_force(2, 0)) != 0)
+			return ret;
+		
 		znode_set_dirty(left);
 		znode_set_dirty(right);
 		UNDER_SPIN_VOID(dk, znode_get_tree(left),
@@ -2668,6 +2689,7 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
+
 				pos->preceder.max_dist = 0;
 				if (
 				    (ret =
@@ -2724,8 +2746,17 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord,
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
 
-	pos->preceder.block_stage = ZF_ISSET(node, JNODE_CREATED) ? BLOCK_UNALLOCATED : BLOCK_NOT_COUNTED ;
+	/* for a node and its parent */
+	ret = reiser4_grab_space_force(2, 0);
+	
+	if (ret != 0)
+		return ret;
 
+	pos->preceder.block_stage = BLOCK_GRABBED;
+
+	if (ZF_ISSET(node, JNODE_CREATED)) {    
+	    pos->preceder.block_stage = BLOCK_UNALLOCATED;
+	}
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         if ((ret = reiser4_alloc_blocks(
 		&pos->preceder, &blk, &len, 1/*formatted*/, 0/* do not use 5% */)))

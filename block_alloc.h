@@ -59,6 +59,11 @@ extern void blocknr_hint_done(reiser4_blocknr_hint * hint);
 /* free -> grabbed -> fake_allocated -> used */
 extern int reiser4_grab_space(reiser4_block_nr *, __u64, __u64, int);
 extern int reiser4_grab_space_exact(__u64, int);
+extern int reiser4_grab_space_force(__u64 count, int reserved);
+
+extern void reiser4_grab_space_enable(void);
+extern void reiser4_grab_space_disable(void);
+
 /* grabbed -> fake_allocated */
 extern int assign_fake_blocknr(reiser4_block_nr *, int formatted);
 /* fake_allocated -> used */
@@ -78,7 +83,6 @@ extern int  sub_from_atom_flush_reserved(__u32);
 extern void grabbed2flush_reserved (__u64);
 extern int  check_atom_reserved_blocks(struct txn_atom *, __u64);
 extern __u64 reiser4_atom_flush_reserved(void);
-extern void reiser4_grab_space_enable(void);
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_dealloc_blocks(const reiser4_block_nr *,

@@ -725,6 +725,10 @@ expand_file(struct inode *inode, loff_t cur_size, loff_t new_size)
 	return 0;
 }
 
+#ifndef ABS
+#  define ABS(val) ((val > 0 ? val : -val))
+#endif
+
 /* Performs estimate of reserved blocks for truncate operation. Note,
  * that all estimate fundctions do not count the amount of blocks should
  * be reserved for internal blocks */
@@ -743,16 +747,7 @@ reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count) 
     
     assert("umka-1234", tail_plugin != NULL);
     
-    /* The case when truncate will increase file size */
-    if (count > file_size) {
-	    /* Requesting the tail_policy plugin for count the amount of
-	     * blocks needed for truncate operation */
-	    return tail_plugin->estimate(inode, count, 1) + 1;
-    } else {
-	/* The file is going to decrease itself size, so, we are reserving
-	 * only one block for stat data updating */
-	return inode_file_plugin(inode)->estimate.update(inode) + 1;
-    }
+    return tail_plugin->estimate(inode, ABS(file_size - count), 1) + 1;
 }
 
 /* plugin->u.file.truncate
@@ -1783,7 +1778,7 @@ reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count,
     new_file_size = *off + count > file_size ? *off + count : file_size;
     
     return tail_plugin->estimate(inode, new_file_size - file_size, 0/*is_fake*/) + 
-	    inode_file_plugin(inode)->estimate.update(inode) + 1;
+	    /*inode_file_plugin(inode)->estimate.update(inode) + */1;
 }
 
 /* plugin->u.file.write */
@@ -1820,7 +1815,8 @@ unix_file_write(struct file * file,	/* file to write to */
 		return -ENOSPC;
 	}
 	
-	warning("vpf-301", "SPACE: file write grabs %llu blocks.", needed);
+	warning("vpf-301", "SPACE: file write grabs %llu blocks "
+		"for %llu bytes long data.", needed, count);
 	
 	pos = *off;
 	if (file->f_flags & O_APPEND)
