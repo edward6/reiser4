@@ -206,6 +206,24 @@ error:
 
 #endif
 
+static reiserfs_opaque_t *dir40_open(reiserfs_coord_t *coord) {
+    reiserfs_dir40_t *dir;
+    
+    aal_assert("umka-674", coord != NULL, return NULL);
+
+    if (!(dir = aal_calloc(sizeof(*dir), 0)))
+	return NULL;
+    
+    aal_memcpy(&dir->coord, coord, sizeof(*coord));
+
+    /* 
+	Here will be also initializing of the stat data of 
+	this directory.
+    */
+    
+    return dir;
+}
+
 static void dir40_close(reiserfs_dir40_t *dir) {
     aal_assert("umka-673", dir != NULL, return);
     aal_free(dir);
@@ -227,9 +245,8 @@ static reiserfs_plugin_t dir40_plugin = {
 #else
 	.create = NULL,
 #endif
-	.close = (void (*)(reiserfs_opaque_t *))dir40_close,
-	
-	.open = NULL
+	.open = (reiserfs_opaque_t *(*)(void *))dir40_open,
+	.close = (void (*)(reiserfs_opaque_t *))dir40_close
     }
 };
 

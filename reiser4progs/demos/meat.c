@@ -21,7 +21,7 @@ static void meat_print_usage(void) {
 }
 
 static void meat_print_plugin(reiserfs_plugin_t *plugin) {
-    aal_printf("%x:%x:%s\n(%s)\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
+    aal_printf("%x:%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
 }
 
 static void meat_print_fs(reiserfs_fs_t *fs) {
@@ -51,10 +51,8 @@ static void meat_print_fs(reiserfs_fs_t *fs) {
     aal_printf("(5) ");
     meat_print_plugin(fs->tree->root_node->plugin);
     
-    if (fs->tree->dir_plugin) {
-	aal_printf("(6) ");
-	meat_print_plugin(fs->tree->dir_plugin);
-    }
+    aal_printf("(6) ");
+    meat_print_plugin(fs->tree->dir_plugin);
 }
 
 int main(int argc, char *argv[]) {

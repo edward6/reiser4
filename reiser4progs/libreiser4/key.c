@@ -6,6 +6,13 @@
 
 #include <reiser4/reiser4.h>
 
+void reiserfs_key_clean(reiserfs_key_t *key, reiserfs_plugin_t *key_plugin) {
+    aal_assert("umka-675", key != NULL, return);
+    aal_assert("umka-676", key_plugin != NULL, return);
+    
+    libreiser4_plugin_call(return, key_plugin->key, clean, &key);
+} 
+
 error_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
     reiserfs_plugin_t *key_plugin, uint32_t type, oid_t locality, 
     oid_t objectid, uint64_t offset) 
