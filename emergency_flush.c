@@ -729,7 +729,7 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 			UNLOCK_JNODE(node);
 		} else {
 			reiser4_context * ctx = get_current_context();
-			grabbed2free(ctx, get_super_private(ctx->super), __FUNCTION__);
+			grabbed2free(ctx, get_super_private(ctx->super), (__u64)1, __FUNCTION__);
 		}
 	}
 	return result;
