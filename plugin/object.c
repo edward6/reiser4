@@ -866,7 +866,7 @@ release_dir(struct inode *inode, struct file *file)
 	/* remove directory from readddir list. See comment before
 	 * readdir_common() for details. */
 	if (file->private_data != NULL)
-		readdir_list_remove(reiser4_get_file_fsdata(file));
+		readdir_list_remove_clean(reiser4_get_file_fsdata(file));
 	spin_unlock_inode(inode);
 	return 0;
 }
@@ -987,6 +987,7 @@ static void delete_inode_common(struct inode *object)
 	init_context(&ctx, object->i_sb);
 
 	uncapture_inode(object);
+	kill_cursors(object);
 
 	if (!is_bad_inode(object)) {
 		file_plugin *fplug;
@@ -1239,8 +1240,6 @@ wire_get_common(struct super_block *sb, reiser4_object_on_wire *obj)
 	extract_key_from_id(&obj->u.std.key_id, &key);
 	inode = reiser4_iget(sb, &key, 1);
 	if (!IS_ERR(inode)) {
-		/* mark inode as created through NFS */
-		inode_set_flag(inode, REISER4_STATELESS);
 		reiser4_iget_complete(inode);
 		dentry = d_alloc_anon(inode);
 		if (dentry == NULL) {

@@ -100,10 +100,14 @@ typedef struct reiser4_dentry_fsdata {
 	   of stat-data.
 	*/
 	de_location dec;
+	int stateless; /* created through reiser4_decode_fh, needs special
+			* treatment in readdir. */
 } reiser4_dentry_fsdata;
 
 /* declare data types and manipulation functions for readdir list. */
 TYPE_SAFE_LIST_DECLARE(readdir);
+
+struct dir_cursor;
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
 
@@ -112,6 +116,8 @@ struct reiser4_file_fsdata {
 	/* pointer back to the struct file which this reiser4_file_fsdata is
 	 * part of */
 	struct file *back;
+	/* detached cursor for stateless readdir. */
+	struct dir_cursor *cursor;
 	/* We need both directory and regular file parts here, because there
 	   are file system objects that are files and directories. */
 	struct {
@@ -134,6 +140,9 @@ extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 extern void reiser4_free_file_fsdata(struct file *f);
+extern void reiser4_free_fsdata(reiser4_file_fsdata *fsdata);
+
+extern reiser4_file_fsdata *create_fsdata(struct file *file, int gfp);
 
 extern void reiser4_handle_error(void);
 extern int reiser4_parse_options (struct super_block *, char *);
