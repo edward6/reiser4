@@ -10,7 +10,6 @@
 #include "sde.h"
 #include "tail.h"
 #include "../cryptcompress.h"
-#include "ctail.h"
 #include "internal.h"
 #include "item.h"
 #include "extent.h"
@@ -18,6 +17,7 @@
 #include "../plugin.h"
 #include "../../znode.h"
 #include "../../tree.h"
+#include "ctail.h"
 
 /* return pointer to item body */
 /* Audited by: green(2002.06.15) */
