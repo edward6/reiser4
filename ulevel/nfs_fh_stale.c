@@ -639,7 +639,10 @@ _nap(int secs, int nanos)
 	}
 }
 
-/* this is a little puzzle */
+/* 
+ * When renaming or linking file (through link, rename, or symlink), maintain
+ * certain order, so that infinite loops of symlinks are avoided.
+ */
 static void orderedname(params_t *params, char *name)
 {
 	int targetno;
