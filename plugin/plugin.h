@@ -320,9 +320,6 @@ typedef struct space_allocator_plugin {
 	int ( *alloc_blocks )( reiser4_blocknr_hint *, int needed,
 			       reiser4_block_nr *start, int *len );
 	void ( *dealloc_blocks )( reiser4_block_nr start, int len );
-reiser4_blocknr_hint *, int needed,
-			       reiser4_block_nr *start, int *len );
-	void ( *dealloc_blocks )( reiser4_block_nr start, int len );
 
 	/* program hooks from journal code */
 	void ( *pre_commit_hook      )( txn_atom * );
