@@ -1967,6 +1967,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 					result = -EIO;
 					break;
 				}
+				lock_page (page);
 			}
 			
 			if (jnode_created (j)) {
@@ -2191,9 +2192,9 @@ int extent_read (struct inode * inode, coord_t * coord,
 
 /* list of such structures (linked via field @next) is created during extent
  * scanning. Every element has a list of pages (attached to field
- * @pages). Number of pages in that list is stored in field @nr_pages. It can
- * not be bigger than max number of pages in bio. Those pages are freshly
- * created and contiguous (belong to the same extent unit (@unit_pos)). */
+ * @pages). Number of pages in that list is stored in field @nr_pages. Those
+ * pages are freshly created and contiguous (belong to the same extent unit
+ * (@unit_pos)). Field @sector is block number of first page in the range */
 /*
  * FIXME-VS: why we do not create bio during scanning of extent? The reason is
  * that we want (similar to sequence of these actions in the path
