@@ -139,7 +139,7 @@ int reiser4_assign( lnode *dst, lnode *src )
     /* get plugins */
 
     src_fplug = lnode_get_file_plugin( src );
-    dst_fplug = lnode_get_file_plugin( src );
+    dst_fplug = lnode_get_file_plugin( dst );
 
     /* build source flow */
     ret_code = src_fplug -> build_flow( src, &source, 0 /* offset */ );
@@ -161,6 +161,10 @@ int reiser4_assign( lnode *dst, lnode *src )
     return connection( &target, &source );
 }
 
+
+/* look to chain conversion of (lnode * dst) -> (sink_t target) -> (lnode * dst) 
+ I think, functions build_sink(...) and  sink_object(...) - superfluous */
+
 int common_transfer( sink_t *target, flow_t *source )
 {
     lnode  *dst;
@@ -177,11 +181,12 @@ int common_transfer( sink_t *target, flow_t *source )
         ret_code = lnode_get_body_plugin( dst ) -> prepare_append( dst, 
                                                                    &area, 
                                                                    &length );
+                                            /* why @length not depended from source? */
         /*
          * put data from flow into newly alloted space. This also updates
          * @flow.
          */
-        flow_place( flow, area, length );
+        flow_place( source, area, length );
         /*
          * perform necessary post-write activity required by @dst plugin, like
          * encryption, compression, etc. Release pages.
