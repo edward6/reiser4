@@ -2483,7 +2483,8 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 
 		capture_list_push_back(&atom->inodes, node);
 		inode = inode_by_reiser4_inode(container_of(node, reiser4_inode, inode_jnode));
-		grabbed2flush_reserved_nolock(atom, reserved_for_sd_update(inode), "capture_inode");
+		grabbed2flush_reserved_nolock(atom,
+					      reserved_for_sd_update(inode));
 		/*printk("capture inode %p, atom %p (reserved %llu)\n", inode, atom, atom->flush_reserved);*/
 		
 	} else if (jnode_is_dirty(node)) {
@@ -2522,7 +2523,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node))
 	{
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
-		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
+		grabbed2flush_reserved_nolock(atom, (__u64)1);
 	}
 
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
@@ -2941,7 +2942,8 @@ capture_super_block(struct super_block *s)
 
 	uber = lh.node;
 	/* Grabbing one block for superblock */
-	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED, "capture_super_block")) != 0)
+	result = reiser4_grab_space_force((__u64)1, BA_RESERVED);
+	if (result != 0)
 		return result;
 	
 	znode_make_dirty(uber);

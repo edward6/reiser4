@@ -75,6 +75,8 @@ pack_string(const char *name /* string to encode */ ,
 #if !REISER4_DEBUG_OUTPUT
 static
 #endif
+/* opposite to pack_string(). Takes value produced by pack_string(), restores
+ * string encoded in it and stores result in @buf */
 char *
 unpack_string(__u64 value, char *buf)
 {
@@ -88,6 +90,7 @@ unpack_string(__u64 value, char *buf)
 	return buf;
 }
 
+/* obtain name encoded in @key and store it in @buf */
 char *
 extract_name_from_key(const reiser4_key *key, char *buf)
 {

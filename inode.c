@@ -31,6 +31,7 @@ tree_by_inode(const struct inode * inode /* inode queried */ )
 	return get_tree(inode->i_sb);
 }
 
+/* return reiser4-specific inode flags */
 static inline unsigned long *
 inode_flags(const struct inode * const inode)
 {
@@ -38,6 +39,7 @@ inode_flags(const struct inode * const inode)
 	return &reiser4_inode_data(inode)->flags;
 }
 
+/* set reiser4-specific flag @f in @inode */
 void
 inode_set_flag(struct inode * inode, reiser4_file_plugin_flags f)
 {
@@ -45,6 +47,7 @@ inode_set_flag(struct inode * inode, reiser4_file_plugin_flags f)
 	set_bit((int) f, inode_flags(inode));
 }
 
+/* clear reiser4-specific flag @f in @inode */
 void
 inode_clr_flag(struct inode * inode, reiser4_file_plugin_flags f)
 {
@@ -52,6 +55,7 @@ inode_clr_flag(struct inode * inode, reiser4_file_plugin_flags f)
 	clear_bit((int) f, inode_flags(inode));
 }
 
+/* true if reiser4-specific flag @f is set in @inode */
 int
 inode_get_flag(const struct inode * inode, reiser4_file_plugin_flags f)
 {
@@ -92,18 +96,19 @@ ino_t oid_to_uino(oid_t oid)
 }
 
 /* check that "inode" is on reiser4 file-system */
-/* Audited by: green(2002.06.17) */
 int
 is_reiser4_inode(const struct inode *inode /* inode queried */ )
 {
-	return ((inode != NULL) && (is_reiser4_super(inode->i_sb) || (inode->i_op == &reiser4_inode_operations)));
+	return
+		inode != NULL &&
+		(is_reiser4_super(inode->i_sb) ||
+		 inode->i_op == &reiser4_inode_operations);
 
 }
 
 /* Maximal length of a name that can be stored in directory @inode.
 
    This is used in check during file creation and lookup. */
-/* Audited by: green(2002.06.17) */
 int
 reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
 {
@@ -116,7 +121,6 @@ reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
 }
 
 /* Maximal number of hash collisions for this directory. */
-/* Audited by: green(2002.06.17) */
 int
 max_hash_collisions(const struct inode *dir /* inode queried */ )
 {
@@ -131,7 +135,6 @@ max_hash_collisions(const struct inode *dir /* inode queried */ )
 
 /* Install file, inode, and address_space operation on @inode, depending on
    its mode. */
-/* Audited by: green(2002.06.17) */
 int
 setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 		reiser4_object_create_data * data	/* parameters to create
@@ -184,7 +187,6 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 
 /* initialise inode from disk data. Called with inode locked.
     Return inode locked. */
-/* Audited by: green(2002.06.17) */
 int
 init_inode(struct inode *inode /* inode to intialise */ ,
 	   coord_t * coord /* coord of stat data */ )
@@ -218,7 +220,8 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 	plugin_set_sd(&state->pset, iplug);
 	if (result == 0) {
 		result = setup_inode_ops(inode, NULL);
-		if ((result == 0) && (inode->i_sb->s_root) && (inode->i_sb->s_root->d_inode)) {
+		if (result == 0 &&
+		    inode->i_sb->s_root && inode->i_sb->s_root->d_inode) {
 			reiser4_inode *self;
 			reiser4_inode *root;
 
@@ -242,7 +245,6 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 
    Must be called with inode locked. Return inode still locked.
 */
-/* Audited by: green(2002.06.17) */
 static void
 read_inode(struct inode *inode /* inode to read from disk */ ,
 	   const reiser4_key * key /* key of stat data */ )
@@ -273,9 +275,12 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 			info->sd_coord = coord;
 			spin_unlock_inode(inode);
 
-			/* call file plugin's method to initialize plugin specific part of inode */
+			/* call file plugin's method to initialize plugin
+			 * specific part of inode */
 			if (inode_file_plugin(inode)->init_inode_data)
-				inode_file_plugin(inode)->init_inode_data(inode, NULL, 0/*not create*/);
+				inode_file_plugin(inode)->init_inode_data(inode,
+									  NULL,
+									  0);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
@@ -288,7 +293,6 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 }
 
 /* initialise new reiser4 inode being inserted into hash table. */
-/* Audited by: green(2002.06.17) */
 static int
 init_locked_inode(struct inode *inode /* new inode */ ,
 		  void *opaque	/* key of stat data passed to the
@@ -323,18 +327,17 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 
 	key = opaque;
 	return
-	    /* oid is unique, so first term is enough, actually. */
-	    (get_inode_oid(inode) == get_key_objectid(key)) &&
-            (!is_inode_loaded(inode) ||
-		 (reiser4_inode_data(inode)->locality_id == get_key_locality(key)));
+		/* oid is unique, so first term is enough, actually. */
+		get_inode_oid(inode) == get_key_objectid(key) &&
+		(!is_inode_loaded(inode) ||
+		(reiser4_inode_data(inode)->locality_id == get_key_locality(key)));
 }
 
-/* this is our helper function a la iget().
-    Probably we also need function taking locality_id as the second argument. ???
-    This will be called by reiser4_lookup() and reiser4_read_super().
-    Return inode locked or error encountered.
-*/
-/* Audited by: green(2002.06.17) */
+/*
+ * this is our helper function a la iget(). This is be called by
+ * reiser4_lookup() and reiser4_read_super(). Return inode locked or error
+ * encountered.
+ */
 struct inode *
 reiser4_iget(struct super_block *super /* super block  */ ,
 	     const reiser4_key * key	/* key of inode's
@@ -375,8 +378,9 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 		if (!is_inode_loaded(inode)) {
 			/* locking: iget5_locked returns locked inode */
 			assert("nikita-1941", !is_inode_loaded(inode));
-			assert("nikita-1949", reiser4_inode_find_actor(inode, (reiser4_key *)
-								       key));
+			assert("nikita-1949",
+			       reiser4_inode_find_actor(inode,
+							(reiser4_key *) key));
 			/* now, inode has objectid as -> i_ino and locality in
 			   reiser4-specific part. This data is enough for
 			   read_inode() to read stat data from the disk */
@@ -414,7 +418,6 @@ void reiser4_iget_complete (struct inode * inode)
 	up(&inode->i_sem);
 }
 
-/* Audited by: green(2002.06.17) */
 void
 reiser4_make_bad_inode(struct inode *inode)
 {
@@ -426,7 +429,6 @@ reiser4_make_bad_inode(struct inode *inode)
 	return;
 }
 
-/* Audited by: green(2002.06.17) */
 file_plugin *
 inode_file_plugin(const struct inode * inode)
 {
@@ -434,7 +436,6 @@ inode_file_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->file;
 }
 
-/* Audited by: green(2002.06.17) */
 dir_plugin *
 inode_dir_plugin(const struct inode * inode)
 {
@@ -442,7 +443,6 @@ inode_dir_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->dir;
 }
 
-/* Audited by: green(2002.06.17) */
 perm_plugin *
 inode_perm_plugin(const struct inode * inode)
 {
@@ -450,7 +450,6 @@ inode_perm_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->perm;
 }
 
-/* Audited by: green(2002.06.17) */
 tail_plugin *
 inode_tail_plugin(const struct inode * inode)
 {
@@ -458,7 +457,6 @@ inode_tail_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->tail;
 }
 
-/* Audited by: green(2002.06.17) */
 hash_plugin *
 inode_hash_plugin(const struct inode * inode)
 {

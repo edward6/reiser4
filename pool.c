@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Fast pool allocation.
 
@@ -51,7 +52,6 @@
 #include <linux/err.h>
 
 /* initialise new pool object */
-/* Audited by: green(2002.06.15) */
 static void
 reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
 						 * initialise */ )
@@ -62,7 +62,6 @@ reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
 }
 
 /* initialise new pool */
-/* Audited by: green(2002.06.15) */
 void
 reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 		  size_t obj_size /* size of objects in @pool */ ,
@@ -97,7 +96,6 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
    allocated objects.
 
 */
-/* Audited by: green(2002.06.15) */
 void
 reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
@@ -109,7 +107,6 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
    allocation.
 
 */
-/* Audited by: green(2002.06.15) */
 void *
 reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 					 * from */ )
@@ -143,7 +140,6 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 }
 
 /* return object back to the pool */
-/* Audited by: green(2002.06.15) */
 void
 reiser4_pool_free(reiser4_pool * pool,
 		  reiser4_pool_header * h	/* pool to return object back
@@ -182,7 +178,6 @@ reiser4_pool_free(reiser4_pool * pool,
    (that is "right" node).
 
 */
-/* Audited by: green(2002.06.15) */
 reiser4_pool_header *
 add_obj(reiser4_pool * pool	/* pool from which to
 				 * allocate new object */ ,

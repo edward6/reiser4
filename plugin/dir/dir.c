@@ -148,7 +148,7 @@ link_common(struct inode *parent /* parent directory */ ,
 	if ((__s64)reserve < 0)
 	    return reserve;
 
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_link"))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 	    return RETERR(-ENOSPC);
 
 	result = reiser4_add_nlink(object, parent, 1);
@@ -239,8 +239,7 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	if (result < 0)
 		return result;
 
-	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT,
-				     __FUNCTION__);
+	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT);
 }
 
 /* remove link from @parent directory to @victim object.
@@ -429,7 +428,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
 	reserve = common_estimate_create_child(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
 
 	/* mark inode `immutable'. We disable changes to the file being

@@ -437,7 +437,7 @@ reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 				       inode_file_plugin(inode)->estimate.update(inode)
 				    */
 				    estimate_update_common(inode),
-				    0/* flags */, "extent_write");
+				    0/* flags */);
 	return result;
 }
 
@@ -665,7 +665,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		/* throttle the writer */
 		result = extent_balance_dirty_pages(inode->i_mapping, flow, hint);
 		if (!grabbed)
-			all_grabbed2free("extent_write_flow");
+			all_grabbed2free();
 		if (result) {
 			reiser4_stat_inc(extent.bdp_caused_repeats);
 			break;
@@ -684,7 +684,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		jput(j);
 	exit1:
 		if (!grabbed)
-			all_grabbed2free("extent_write_flow on error");
+			all_grabbed2free();
 		break;
 
 		/* hint is unset by make_page_extent when first extent of a
@@ -706,7 +706,7 @@ extent_hole_reserve(reiser4_tree *tree)
 {
 	/* adding hole may require adding a hole unit into extent item and stat data update */
 	grab_space_enable();
-	return reiser4_grab_space(estimate_one_insert_into_item(tree) * 2, 0, "extent_hole_reserve");
+	return reiser4_grab_space(estimate_one_insert_into_item(tree) * 2, 0);
 }
 
 static int
@@ -733,7 +733,7 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
 		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/, 1/*update times*/, 1/* update stat data */);
 	}
 	if (!grabbed)
-		all_grabbed2free("extent_write_hole");
+		all_grabbed2free();
 	return result;
 }
 

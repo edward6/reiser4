@@ -85,9 +85,6 @@ struct reiser4_context {
 	unsigned long io_started;
 
 #if REISER4_DEBUG
-	/* thread ID */
-	__u32 tid;
-
 	/* A link of all active contexts. */
 	context_list_link contexts_link;
 	lock_counters_info locks;
@@ -130,12 +127,9 @@ extern void print_contexts(void);
 #define print_contexts() noop
 #endif
 
-/* Hans, is this too expensive? */
 #define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
-
-
 
 extern int init_context(reiser4_context * context, struct super_block *super);
 extern void done_context(reiser4_context * context);
@@ -229,11 +223,9 @@ extern int write_in_trace(const char *func, const char *mes);
  * flush would be performed when it is closed. This is necessary when handle
  * has to be closed under some coarse semaphore, like i_sem of
  * directory. Commit will be performed by ktxnmgrd. */
-static inline void context_set_commit_async(reiser4_context * ctx)
+static inline void context_set_commit_async(reiser4_context * context)
 {
-	reiser4_context *context;
-
-	context = ctx->parent;
+	context = context->parent;
 	context->nobalance = 1;
 	context->trans->flags |= TXNH_DONT_COMMIT;
 }

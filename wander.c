@@ -470,7 +470,7 @@ dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = capture_list_pop_front(&ch->tx_list);
 
 		ON_DEBUG(capture_list_clean(cur));
-		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, 0, "dealloc_tx_list");
+		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, 0);
 
 		unpin_jnode_data(cur);
 		drop_io_head(cur);
@@ -488,7 +488,7 @@ dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 	assert("zam-500", *b != 0);
 	assert("zam-501", !blocknr_is_fake(b));
 
-	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0, "dealloc_wmap_actor");
+	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0);
 	return 0;
 }
 
@@ -519,7 +519,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	hint.block_stage = BLOCK_GRABBED;
 	
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len,
-		BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START, "get_more_wandered_blocks");
+		BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
 
 	*len = (int) wide_len;
 
@@ -667,8 +667,7 @@ get_overwrite_set(struct commit_handle *ch)
 
 	/* Grab space for writing (wandered blocks) of not leaves found in
 	 * overwrite set. */
-	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED,
-				       "get_overwrite_set: grab space for not leaves.");
+	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED);
 	if (ret)
 		return ret;
 
@@ -900,7 +899,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			reiser4_block_nr wide_len = len;
 
 			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
+				BA_FORMATTED/* formatted, without defer */);
 			
 			if (!first)
 				JF_CLR(cur, JNODE_SCANNED);
@@ -1377,7 +1376,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		/* We assume that disk space for wandered record blocks can be
 		 * taken from reserved area. */
 		ret = reiser4_alloc_blocks (&hint, &first, &len,
-			BA_FORMATTED | BA_RESERVED | BA_USE_DEFAULT_SEARCH_START, "alloc_tx");
+			BA_FORMATTED | BA_RESERVED | BA_USE_DEFAULT_SEARCH_START);
 
 		blocknr_hint_done(&hint);
 
@@ -1453,7 +1452,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	   caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, BA_FORMATTED, "alloc_tx: free not assigned");
+	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, BA_FORMATTED);
 
 	return ret;
 }
@@ -1529,7 +1528,7 @@ int reiser4_write_logs(long * nr_submitted)
 	get_tx_size(&ch);
 	
 	/* Grab more space for wandered records. */
-	ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED, "reiser4_write_logs: for wandered records");
+	ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED);
 	if (ret)
 		goto up_and_ret;
 
@@ -1558,7 +1557,7 @@ int reiser4_write_logs(long * nr_submitted)
 
 		/* Release all grabbed space if it was not fully used for
 		 * wandered blocks/records allocation. */
-		all_grabbed2free("reiser4_write_logs: release grabbed blocks");
+		all_grabbed2free();
 
 		fq_put(fq);
 		if (ret)

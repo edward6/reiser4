@@ -21,7 +21,8 @@
 #include "jnode.h"
 
 #include <linux/types.h>	/* for __u?? , ino_t */
-#include <linux/fs.h>		/* for struct super_block, struct rw_semaphore, etc  */
+#include <linux/fs.h>		/* for struct super_block, struct
+				 * rw_semaphore, etc  */
 #include <linux/spinlock.h>
 #include <asm/types.h>
 
@@ -46,10 +47,10 @@ typedef enum {
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink. */
 	REISER4_GENERIC_PTR_USED = 4,
-/*	REISER4_EXCLUSIVE_USE = 5,*/
+	/* set if size of stat-data item for this inode is known. If this is
+	 * set we can avoid recalculating size of stat-data on each update. */
 	REISER4_SDLEN_KNOWN   = 6,
 	/* reiser4_inode->crypt points to the crypto stat */
-	/* NIKITA-FIXME-HANS: perhaps just see if reiser4_inode->crypt != 0 ....? */
 	REISER4_CRYPTO_STAT_LOADED = 7,
 	/* reiser4_inode->cluster_shift makes sense */
 	REISER4_CLUSTER_KNOWN = 8,
@@ -58,27 +59,6 @@ typedef enum {
 	/* file is mapped for read only and it contains of tails. */
 	REISER4_TAILS_FILE_MMAPED = 10
 } reiser4_file_plugin_flags;
-
-#if BITS_PER_LONG == 64
-#define REISER4_INO_IS_OID (1)
-typedef struct {;
-} oid_hi_t;
-#define set_inode_oid(inode, oid) do { inode->i_ino = oid; } while(0)
-#define get_inode_oid(inode) (inode->i_ino)
-#else
-#define REISER4_INO_IS_OID (0)
-typedef __u32 oid_hi_t;
-#define set_inode_oid(inode, oid) do { \
-	assert("nikita-2519", inode != NULL); \
-	inode->i_ino = (ino_t)(oid); \
-	reiser4_inode_data(inode)->oid_hi = (oid) >> OID_HI_SHIFT; \
-	assert("nikita-2521", get_inode_oid(inode) == (oid)); \
-	} while (0)
-#define get_inode_oid(inode) (((__u64)reiser4_inode_data(inode)->oid_hi << OID_HI_SHIFT) | inode->i_ino)
-#endif
-
-#define OID_HI_SHIFT (sizeof(ino_t) * 8)
-
 
 /* state associated with each inode.
    reiser4 inode.
@@ -101,6 +81,21 @@ static inline reiser4_inode *
 reiser4_inode_data(const struct inode * inode /* inode queried */);
 
 #include "plugin/file/file.h"
+
+#if BITS_PER_LONG == 64
+
+#define REISER4_INO_IS_OID (1)
+typedef struct {;
+} oid_hi_t;
+
+/* BITS_PER_LONG == 64 */
+#else
+
+#define REISER4_INO_IS_OID (0)
+typedef __u32 oid_hi_t;
+
+/* BITS_PER_LONG == 64 */
+#endif
 
 struct reiser4_inode {
 	/* spin lock protecting fields of this structure. */
@@ -172,6 +167,7 @@ typedef struct reiser4_inode_object {
 	struct inode vfs_inode;
 } reiser4_inode_object;
 
+/* return pointer to the reiser4 specific portion of @inode */
 static inline reiser4_inode *
 reiser4_inode_data(const struct inode * inode /* inode queried */)
 {
@@ -185,12 +181,68 @@ inode_by_reiser4_inode(const reiser4_inode *r4_inode /* inode queried */)
        return &container_of(r4_inode, reiser4_inode_object, p)->vfs_inode;
 }
 
+/*
+ * reiser4 inodes are identified by 64bit object-id (oid_t), but in struct
+ * inode ->i_ino field is of type ino_t (long) that can be either 32 or 64
+ * bits.
+ *
+ * If ->i_ino is 32 bits we store remaining 32 bits in reiser4 specific part
+ * of inode, otherwise whole oid is stored in i_ino.
+ *
+ * Wrappers below ([sg]et_inode_oid()) are used to hide this difference.
+ */
+
+#define OID_HI_SHIFT (sizeof(ino_t) * 8)
+
+#if REISER4_INO_IS_OID
+
+static inline oid_t
+get_inode_oid(const struct inode *inode)
+{
+	return inode->i_ino;
+}
+
+static inline void
+set_inode_oid(struct inode *inode, oid_t oid)
+{
+	inode->i_ino = oid;
+}
+
+/* REISER4_INO_IS_OID */
+#else
+
+static inline oid_t
+get_inode_oid(const struct inode *inode)
+{
+	return
+		((__u64)reiser4_inode_data(inode)->oid_hi << OID_HI_SHIFT) |
+		inode->i_ino;
+}
+
+static inline void
+set_inode_oid(struct inode *inode, oid_t oid)
+{
+	assert("nikita-2519", inode != NULL);
+	inode->i_ino = (ino_t)(oid);
+	reiser4_inode_data(inode)->oid_hi = (oid) >> OID_HI_SHIFT;
+	assert("nikita-2521", get_inode_oid(inode) == (oid));
+}
+
+/* REISER4_INO_IS_OID */
+#endif
+
+/*
+ * each reiser4 inode maintain a list of pages dirtied through mmap. This is
+ * needed, because we need effective was to find all such pages and capture
+ * them. This function returns a head of this list.
+ */
 static inline struct list_head *
 get_moved_pages(struct address_space *mapping)
 {
 	return &reiser4_inode_data(mapping->host)->moved_pages;
 }
 
+/* return inode in which @uf_info is embedded */
 static inline struct inode *
 unix_file_info_to_inode(const unix_file_info_t *uf_info)
 {
@@ -253,7 +305,6 @@ extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern int inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f);
 
 /*  has inode been initialized? */
-/* Audited by: green(2002.06.17) */
 static inline int
 is_inode_loaded(const struct inode *inode /* inode queried */ )
 {
@@ -278,6 +329,9 @@ extern void reiser4_make_bad_inode(struct inode *inode);
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 
+/*
+ * update field @field in inode @i to contain value @value.
+ */
 #define INODE_SET_FIELD(i, field, value)		\
 ({							\
 	struct inode *__i;				\
@@ -307,6 +361,7 @@ extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 	-- __i->field;						\
 })
 
+/* See comment before readdir_common() for description. */
 static inline readdir_list_head *
 get_readdir_list(const struct inode *inode)
 {

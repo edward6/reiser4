@@ -56,7 +56,7 @@ struct repacker {
 	struct kobject kobj;
 #endif
 	struct {
-		reiser4_block_nr chunk_size; 
+		reiser4_block_nr chunk_size;
 	} params;
 };
 
@@ -171,14 +171,15 @@ static int prepare_repacking_session (void * arg)
 
 	assert("zam-951", schedulable());
 
-	all_grabbed2free(__FUNCTION__);
+	all_grabbed2free();
 	ret = renew_transaction();
 	if (ret)
 		return ret;
 
 	cursor->count = get_current_super_private()->repacker->params.chunk_size;
 
-	return  reiser4_grab_space((__u64)cursor->count, BA_CAN_COMMIT | BA_FORCE, __FUNCTION__);
+	return  reiser4_grab_space((__u64)cursor->count,
+				   BA_CAN_COMMIT | BA_FORCE);
 }
 
 /* When the repacker goes backward (from the rightmost key to the leftmost
@@ -219,7 +220,11 @@ static int process_znode_backward (tap_t * tap, void * arg)
 		if (znode_get_level(child) == LEAF_LEVEL)
 			cursor->hint.block_stage = BLOCK_FLUSH_RESERVED;
 		else {
-			ret = reiser4_grab_space((__u64)1, BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+			ret = reiser4_grab_space((__u64)1,
+						 BA_FORCE |
+						 BA_RESERVED |
+						 BA_PERMANENT |
+						 BA_FORMATTED);
 			if (ret)
 				goto out;
 
@@ -231,7 +236,7 @@ static int process_znode_backward (tap_t * tap, void * arg)
 		__u64 len = 1UL;
 
 		ret = reiser4_alloc_blocks(&cursor->hint, &new_blocknr, &len,
-					   BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+					   BA_PERMANENT | BA_FORMATTED);
 		if (ret)
 			goto out;
 
@@ -240,7 +245,7 @@ static int process_znode_backward (tap_t * tap, void * arg)
 
 	if (!ZF_ISSET(child, JNODE_CREATED)) {
 		ret = reiser4_dealloc_block(znode_get_block(child), 0,
-				    BA_DEFER | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+				    BA_DEFER | BA_PERMANENT | BA_FORMATTED);
 		if (ret)
 			goto out;
 	}

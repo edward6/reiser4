@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Memory pressure hooks. Fake inodes handling. */
 /* We store all file system meta data (and data, of course) in the page cache.
@@ -42,7 +43,8 @@
    5. kmapping/kunmapping of unformatted pages is done by read/write methods.
 
 
-   DEADLOCKS RELATED TO MEMORY PRESSURE.
+   DEADLOCKS RELATED TO MEMORY PRESSURE. [OUTDATED. Only interesting
+   historically.]
 
    [In the following discussion, `lock' invariably means long term lock on
    znode.] (What about page locks?)
@@ -603,6 +605,8 @@ formatted_set_page_dirty(struct page *page	/* page to mark
 
 /* address space operations for the fake inode */
 static struct address_space_operations formatted_fake_as_ops = {
+	/* Perform a writeback of a single page as a memory-freeing
+	 * operation. */
 	.writepage = reiser4_writepage,
 	/* this is called to read formatted node */
 	.readpage = formatted_readpage,
@@ -613,12 +617,10 @@ static struct address_space_operations formatted_fake_as_ops = {
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
 	*/
-	.sync_page = reiser4_sync_page,
+	.sync_page = reiser4_start_up_io,
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
 	.writepages = reiser4_writepages,
-	/* Perform a writeback as a memory-freeing operation. */
-//	.vm_writeback = formatted_vm_writeback,
 	/* Set a page dirty */
 	.set_page_dirty = formatted_set_page_dirty,
 	/* used for read-ahead. Not applicable */

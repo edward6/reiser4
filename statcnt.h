@@ -2,6 +2,14 @@
 
 /* Efficient counter for statistics collection. */
 
+/*
+ * This is write-optimized statistical counter. There is stock counter of such
+ * kind (include/linux/percpu_counter.h), but it is read-optimized, that is
+ * reads are cheap, updates are relatively expensive. We need data-structure
+ * for our statistical counters (stats.[ch]) that are write-mostly, that is,
+ * they are updated much more frequently than read.
+ */
+
 #ifndef __STATCNT_H__
 #define __STATCNT_H__
 
@@ -17,6 +25,20 @@ struct __statcnt_slot {
 	long count;
 } ____cacheline_aligned;
 
+/*
+ * counter.
+ *
+ * This is an array of integer counters, one per each processor. Each
+ * individual counter is cacheline aligned, so that processor don't fight for
+ * cache-lines when accessing this. Such alignment makes this counter _huge_.
+ *
+ * To update counter, thread just modifies an element in array corresponding
+ * to its current processor.
+ *
+ * To read value of counter array is scanned and all elements are summed
+ * up. This means that read value can be slightly inaccurate, because scan is
+ * not protected by any lock, but that is it.
+ */
 typedef struct statcnt {
 	struct __statcnt_slot counters[NR_CPUS];
 } statcnt_t;

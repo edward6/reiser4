@@ -9,11 +9,10 @@
 #include <linux/writeback.h> /* balance_dirty_pages() */
 
 #if REISER4_DEBUG
-/* This list and the two fields that follow maintain the currently active
-   contexts, used for debugging purposes.  */
-
-spinlock_t active_contexts_lock;
+/* List of all currently active contexts, used for debugging purposes.  */
 context_list_head active_contexts;
+/* lock protecting access to active_contexts. */
+spinlock_t active_contexts_lock;
 #endif
 
 /* initialise context and bind it to the current thread
@@ -28,16 +27,12 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 					 * work with */)
 {
 	assert("nikita-2662", !in_interrupt() && !in_irq());
-
-	if (context == NULL || super == NULL) {
-		BUG();
-	}
-
-	if (super->s_op != NULL && super->s_op != &reiser4_super_operations)
-		BUG();
+	assert("nikita-3356", context != NULL);
+	assert("nikita-3357", super != NULL);
+	assert("nikita-3358",
+	       super->s_op == NULL || super->s_op == &reiser4_super_operations);
 
 	xmemset(context, 0, sizeof *context);
-
 
 	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
@@ -50,15 +45,13 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 			++context->parent->nr_children;
 #endif
 			return 0;
+		} else {
+			warning("nikita-3359", "Cross-fs deadlock is possible");
+			dump_stack();
 		}
 	}
 
 	context->super = super;
-#if (REISER4_DEBUG)
-	context->tid = current->pid;
-#endif
-	assert("green-7", super->s_op == NULL || super->s_op == &reiser4_super_operations);
-
 	context->magic = context_magic;
 	context->outer = current->fs_context;
 	current->fs_context = (struct fs_activation *) context;
@@ -93,8 +86,9 @@ get_context_by_lock_stack(lock_stack * owner)
 int
 is_in_reiser4_context(void)
 {
-	return current->fs_context != NULL &&
-		( (unsigned long) current->fs_context->owner) == context_magic;
+	return
+		current->fs_context != NULL &&
+		((unsigned long) current->fs_context->owner) == context_magic;
 }
 
 static void
@@ -115,7 +109,7 @@ int reiser4_exit_context(reiser4_context * context)
 	assert("nikita-3021", schedulable());
 
 	if (context == context->parent) {
-		if (!(context->nobalance))
+		if (!context->nobalance)
 			balance_dirty_pages_at(context);
 		result = txn_end(context);
 	}
@@ -132,12 +126,12 @@ int reiser4_exit_context(reiser4_context * context)
    thread released all locks and closed transcrash etc.
 
 */
-/* Audited by: umka (2002.06.16) */
 void
 done_context(reiser4_context * context /* context being released */)
 {
 	reiser4_context *parent;
 	assert("nikita-860", context != NULL);
+
 	parent = context->parent;
 	assert("nikita-2174", parent != NULL);
 	assert("nikita-2093", parent == parent->parent);
@@ -155,7 +149,7 @@ done_context(reiser4_context * context /* context being released */)
 		log_entry(context->super, ":ex");
 
 		if (context->grabbed_blocks != 0)
-			all_grabbed2free("done_context: free grabbed blocks");
+			all_grabbed2free();
 		
 		/*
 		 * synchronize against longterm_unlock_znode():
@@ -213,7 +207,6 @@ print_context(const char *prefix, reiser4_context * context)
 	printk("%s: trace_flags: %x\n", prefix, context->trace_flags);
 #endif
 #if REISER4_DEBUG
-	printk("\ttid: %i\n", context->tid);
 	print_lock_counters("\tlocks", &context->locks);
 	printk("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
 #endif

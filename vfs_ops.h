@@ -43,7 +43,7 @@ static inline int set_page_dirty_internal (struct page * page)
 extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
 extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
-extern int reiser4_sync_page(struct page *page);
+extern int reiser4_start_up_io(struct page *page);
 
 /*
  * this is used to speed up lookups for directory entry: on initial call to

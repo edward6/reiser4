@@ -1,7 +1,34 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* spin lock profiling */
 
+/*
+ * Spin-lock profiling code.
+ *
+ * Basic notion in our profiling code is "profiling region" (struct
+ * profregion). Profiling region is entered and left by calling
+ * profregion_in() and profregion_ex() function correspondingly. It is invalid
+ * to be preempted (voluntary or not) while inside profiling region. Profiling
+ * regions can be entered recursively, and it is not necessary nest then
+ * properly, that is
+ *
+ *     profregion_in(&A);
+ *     profregion_in(&B);
+ *     profregion_ex(&A);
+ *     profregion_ex(&B))
+ *
+ * is valid sequence of operations. Each CPU maintains an array of currently
+ * active profiling regions. This array is consulted by clock interrupt
+ * handler, and counters in the profiling regions found active by handler are
+ * incremented. This allows one to estimate for how long region has been
+ * active on average. Spin-locking code in spin_macros.h uses this to measure
+ * spin-lock contention. Specifically two profiling regions are defined for
+ * each spin-lock type: one is activate while thread is trying to acquire
+ * lock, and another when it holds the lock. Profiling regions export their
+ * statistics in the sysfs.
+ *
+ */
 
 #include "kattr.h"
 #include "spinprof.h"

@@ -20,7 +20,16 @@
    is checked by first comparing this key with delimiting keys of node and, if
    key is ok, doing intra-node lookup.
 
+   Znode version is maintained in the following way:
 
+   there is reiser4_tree.znode_epoch counter. Whenever new znode is created,
+   znode_epoch is incremented and its new value is stored in ->version field
+   of new znode. Whenever znode is dirtied (which means it was probably
+   modified), znode_epoch is also incremented and its new value is stored in
+   znode->version. This is done so, because just incrementing znode->version
+   on each update is not enough: it may so happen, that znode get deleted, new
+   znode is allocated for the same disk block and gets the same version
+   counter, tricking seal code into false positive.
 */
 
 #include "forward.h"
@@ -39,7 +48,6 @@ static int seal_matches(const seal_t * seal, znode * node);
 
 /* initialise seal. This can be called several times on the same seal. @coord
    and @key can be NULL.  */
-/* Audited by: green(2002.06.17) */
 void
 seal_init(seal_t * seal /* seal to initialise */ ,
 	  const coord_t * coord /* coord @seal will be attached to */ ,
@@ -67,16 +75,14 @@ seal_init(seal_t * seal /* seal to initialise */ ,
 }
 
 /* finish with seal */
-/* Audited by: green(2002.06.17) */
 void
-seal_done(seal_t * seal)
+seal_done(seal_t * seal /* seal to clear */)
 {
 	assert("nikita-1887", seal != NULL);
 	seal->version = 0;
 }
 
 /* true if seal was initialised */
-/* Audited by: green(2002.06.17) */
 int
 seal_is_set(const seal_t * seal /* seal to query */ )
 {
@@ -85,9 +91,12 @@ seal_is_set(const seal_t * seal /* seal to query */ )
 }
 
 #if REISER4_DEBUG
-/* helper function for seal_validate() */
+/* helper function for seal_validate(). It checks that item at @coord has
+ * expected key. This is to detect cases where node was modified but wasn't
+ * marked dirty. */
 static inline int
-check_seal_match(const coord_t * coord, const reiser4_key * k)
+check_seal_match(const coord_t * coord /* coord to check */,
+		 const reiser4_key * k /* expected key */)
 {
 	reiser4_key ukey;
 
@@ -99,14 +108,16 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
 #endif
 
 
-/* this is used by seal_validate. It accepts return value of longterm_lock_znode and returns 1 if it can be interpreted
-   as seal validation failure. For instance, when longterm_lock_znode returns -EINVAL, seal_validate returns -E_REPEAT and
-   caller will call tre search
-   FIXME: longterm_lock_znode could probably do that itself */
+/* this is used by seal_validate. It accepts return value of
+ * longterm_lock_znode and returns 1 if it can be interpreted as seal
+ * validation failure. For instance, when longterm_lock_znode returns -EINVAL,
+ * seal_validate returns -E_REPEAT and caller will call tre search. We cannot
+ * do this in longterm_lock_znode(), because sometimes we want to distinguish
+ * between -EINVAL and -E_REPEAT. */
 static int
-should_repeat(int ltlz_result)
+should_repeat(int return_code)
 {
-	return ltlz_result == -EINVAL;
+	return return_code == -EINVAL;
 }
 
 /* (re-)validate seal.
@@ -121,7 +132,6 @@ should_repeat(int ltlz_result)
    case, but this would complicate callers logic.
 
 */
-/* Audited by: green(2002.06.17) */
 int
 seal_validate(seal_t * seal /* seal to validate */ ,
 	      coord_t * coord /* coord to validate against */ ,
@@ -176,7 +186,6 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 /* helpers functions */
 
 /* obtain reference to znode seal points to, if in cache */
-/* Audited by: green(2002.06.17) */
 static znode *
 seal_node(const seal_t * seal /* seal to query */ )
 {
@@ -185,7 +194,6 @@ seal_node(const seal_t * seal /* seal to query */ )
 }
 
 /* true if @seal version and @node version coincide */
-/* Audited by: green(2002.06.17) */
 static int
 seal_matches(const seal_t * seal /* seal to check */ ,
 	     znode * node /* node to check */ )
@@ -197,6 +205,7 @@ seal_matches(const seal_t * seal /* seal to check */ ,
 }
 
 #if REISER4_DEBUG_OUTPUT
+/* debugging function: print human readable form of @seal. */
 void
 print_seal(const char *prefix, const seal_t * seal)
 {

@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Interface to sysfs' attributes. See kattr.c for comments */
 
@@ -8,9 +9,10 @@
 #include <linux/types.h>
 #include <linux/sysfs.h>
 
-/* XXX make this CONFIG option */
 #define REISER4_USE_SYSFS (1)
 
+/* helper macros used by kattr code to output information into buffer without
+ * caring about overflow checking. */
 #define KATTR_LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
 #define KATTR_PRINT(p, buf, ...)				\
 ({ 								\

@@ -191,11 +191,14 @@ reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir,
    This is installed in ->lookup() in reiser4_inode_operations.
 */
 static struct dentry *
-reiser4_lookup(struct inode *parent,	/* directory within which we are to look for the name
-					 * specified in dentry */
-	       struct dentry *dentry,	/* this contains the name that is to be looked for on entry,
-					   and on exit contains a filled in dentry with a pointer to
-					   the inode (unless name not found) */
+reiser4_lookup(struct inode *parent,	/* directory within which we are to
+					 * look for the name specified in
+					 * dentry */
+	       struct dentry *dentry,	/* this contains the name that is to
+					   be looked for on entry, and on exit
+					   contains a filled in dentry with a
+					   pointer to the inode (unless name
+					   not found) */
 	       struct nameidata *nameidata)
 {
 	dir_plugin *dplug;
@@ -214,9 +217,16 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	   method */
 	dplug = inode_dir_plugin(parent);
 	if (dplug != NULL && dplug->lookup != NULL)
+		/* if parent directory has directory plugin with ->lookup
+		 * method, use the latter to do lookup */
 		lookup = dplug->lookup;
-	else if (1)
+	else if (!reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
+		/* even if there is no ->lookup method, pseudo file lookup
+		 * should still be performed, but only unless we are in
+		 * "no-pseudo" mode */
 		lookup = lookup_pseudo_file;
+	else
+		lookup = NULL;
 	if (lookup != NULL) {
 		/* call its lookup method */
 		retval = lookup(parent, dentry);
@@ -296,7 +306,7 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 			assert("nikita-2296", fplug->setattr != NULL);
 			result = fplug->setattr(inode, attr);
 		} else
-			result = -E_REPEAT;
+			result = RETERR(-E_REPEAT);
 	}
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
@@ -366,9 +376,9 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 	ON_TRACE(TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n", inode->i_ino, inode->i_size);
 
 	truncate_object(inode, inode->i_size);
+
 	/* for mysterious reasons ->truncate() VFS call doesn't return
 	   value  */
-
 	(void)reiser4_exit_context(&ctx);
 }
 
@@ -379,20 +389,16 @@ reiser4_permission(struct inode *inode /* object */ ,
 				 * for */
 		   struct nameidata *nameidata)
 {
-	int result;
 	/* reiser4_context creation/destruction removed from here,
 	   because permission checks currently don't require this.
 	
-	   Permission plugin have to create context itself if necessary.
-	*/
-	/* REISER4_ENTRY( inode -> i_sb ); */
+	   Permission plugin have to create context itself if necessary. */
 	assert("nikita-1687", inode != NULL);
 
-	result = perm_chk(inode, mask, inode, mask) ? -EACCES : 0;
-	/* REISER4_EXIT( result ); */
-	return result;
+	return perm_chk(inode, mask, inode, mask) ? -EACCES : 0;;
 }
 
+/* common part of both unlink and rmdir. */
 static int
 unlink_file(struct inode *parent /* parent directory */ ,
 	    struct dentry *victim	/* name of object being
@@ -449,7 +455,7 @@ reiser4_unlink(struct inode *parent /* parent directory */ ,
 	if (inode_dir_plugin(victim->d_inode) == NULL)
 		return unlink_file(parent, victim);
 	else
-		return -EISDIR;
+		return RETERR(-EISDIR);
 }
 
 /* ->rmdir() VFS method in reiser4 inode_operations
@@ -473,7 +479,7 @@ reiser4_rmdir(struct inode *parent /* parent directory */ ,
 		   reiser4 */
 		return unlink_file(parent, victim);
 	else
-		return -ENOTDIR;
+		return RETERR(-ENOTDIR);
 }
 
 /* ->link() VFS method in reiser4 inode_operations
@@ -505,9 +511,8 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 	assert("nikita-1430", dplug != NULL);
 	if (dplug->link != NULL) {
 		result = dplug->link(parent, existing, where);
-		if (result == 0) {
+		if (result == 0)
 			d_instantiate(where, existing->d_inode);
-		}
 	} else {
 		result = RETERR(-EPERM);
 	}
@@ -544,7 +549,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 
 	dplug = inode_dir_plugin(parent);
 	if (dplug == NULL)
-		result = -ENOTDIR;
+		result = RETERR(-ENOTDIR);
 	else if (dplug->create_child != NULL) {
 		struct inode *child;
 

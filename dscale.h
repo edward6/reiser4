@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/* Scalable on-disk integers */
+/* Scalable on-disk integers. See dscale.h for details. */
 
 #if !defined( __FS_REISER4_DSCALE_H__ )
 #define __FS_REISER4_DSCALE_H__

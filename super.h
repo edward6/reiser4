@@ -167,7 +167,7 @@ struct reiser4_super_info_data {
 	__u64 block_count;
 
 	/* inviolable reserve */
-	reiser4_block_nr blocks_reserved;
+	__u64 blocks_reserved;
 
 	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
@@ -250,6 +250,7 @@ struct reiser4_super_info_data {
 
 	flush_params flush;
 
+	/* see emergency_flush.c for details */
 	reiser4_spin_data eflush_guard;
 	int               eflushed;
 	ef_hash_table     efhash_table;
@@ -270,10 +271,11 @@ struct reiser4_super_info_data {
 
 	ra_params_t ra_params;
 
-	/* A semaphore for serializing cut tree operation if out-of-free-space: the only
-	   one cut_tree tread is allowed to grab space from reserved area (it is 5% of
-	   disk space(2002.11.09)) */
+	/* A semaphore for serializing cut tree operation if
+	   out-of-free-space: the only one cut_tree tread is allowed to grab
+	   space from reserved area (it is 5% of disk space) */
 	struct semaphore delete_sema;
+	/* task owning ->delete_sema */
 	struct task_struct *delete_sema_owner;
 
 	/* serialize semaphore */
@@ -288,28 +290,31 @@ struct reiser4_super_info_data {
 	/* operations for objects on this file system */
 	object_ops ops;
 
-	struct list_head mmapped_files;
-	spinlock_t mmaped_lock;
-
 #if REISER4_USE_SYSFS
+	/* kobject representing this file system. It is visible as
+	 * /sys/fs/reiser4/<devname>. All other kobjects for this file system
+	 * (statistical counters, tunables, etc.) are below it in sysfs
+	 * hierarchy. */
 	struct kobject kobj;
 #endif
 #if REISER4_STATS
 	/* Statistical counters. reiser4_stat is empty data-type unless
-	   REISER4_STATS is set. */
+	   REISER4_STATS is set. See stats.[ch] for details. */
 	reiser4_stat *stats;
+	/* kobject for statistical counters. Visible as
+	 * /sys/fs/reiser4/<devname>/stats */
 	struct kobject stats_kobj;
+	/* kobjects for per-level statistical counters. Each level is visible
+	   as /sys/fs/reiser4/<devname>/stats-NN */
 	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];
 #endif
-#if REISER4_PROF
-	struct kobject prof_kobj;
-#endif
-
 #ifdef CONFIG_REISER4_BADBLOCKS
 	/* Alternative master superblock offset (in bytes) */
 	unsigned long altsuper;
 #endif
 #if REISER4_TRACE_TREE
+	/* last disk block IO was performed against by this file system. Used
+	 * by tree tracing code to track seeks. */
 	reiser4_block_nr last_touched;
 #endif
 #if REISER4_DEBUG
@@ -319,11 +324,43 @@ struct reiser4_super_info_data {
 	/* amount of space allocated by kmalloc. For debugging. */
 	int kmalloc_allocated;
 
-	kcond_t rcu_done;
+	/*
+	 * when debugging is on, all jnodes (including znodes, bitmaps, etc.)
+	 * are kept on a list anchored at sbinfo->all_jnodes. This list is
+	 * protected by sbinfo->all_guard spin lock. This lock should be taken
+	 * with _irq modifier, because it is also modified from interrupt
+	 * contexts (by RCU ).
+	 */
 
 	spinlock_t all_guard;
 	/* list of all jnodes */
 	struct list_head all_jnodes;
+
+	/*
+	 * RCU is used to handle jnode deallocation. This interferes in
+	 * certain ways with ->all_jnodes list above. Specifically, jnode is
+	 * removed from ->all_jnodes list in jnode_free_actor()->jnode_done()
+	 * which is called by RCU. This means that during umount, super block
+	 * (containing ->all_jnodes anchor) cannot be freed until all RCU
+	 * call-backs for jnodes have ran to completion. To wait for this
+	 * event, ->rcu_done condition and ->jnodes_in_flight counter variable
+	 * are used:
+	 *
+	 *     . ->jnodes_in_flight is increased in jnode_free() before
+	 *     posting RCU call-back through call_rcu().
+	 *
+	 *     . it is decreased by jnode_done() after jnode is removed from
+	 *     ->all_jnodes.
+	 *
+	 *     . at this moment ->rcu_done is signaled.
+	 *
+	 *     . umount uses finish_rcu() that waits on ->rcu_done until
+	 *     ->jnodes_in_flight becomes 0, to wait for the moment when it is
+	 *     safe to free super block.
+	 *
+	 */
+
+	kcond_t rcu_done;
 	atomic_t jnodes_in_flight;
 #endif
 	struct repacker * repacker;

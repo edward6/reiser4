@@ -1,5 +1,6 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-/* Memory pressure hooks. Fake inodes handling. See memory.c. */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
+/* Memory pressure hooks. Fake inodes handling. See page_cache.c. */
 
 #if !defined( __REISER4_PAGE_CACHE_H__ )
 #define __REISER4_PAGE_CACHE_H__

@@ -1,11 +1,12 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
+
+/* profiling. This is i386, rdtsc-based profiling. See prof.c for comments. */
 
 #if !defined( __REISER4_PROF_H__ )
 #define __REISER4_PROF_H__
 
 #include "kattr.h"
-
-/* profiling. This is i386, rdtsc-based profiling. */
 
 #if (defined(__i386__) || defined(CONFIG_USERMODE)) && defined(CONFIG_REISER4_PROF)
 #define REISER4_PROF (1)
@@ -19,24 +20,41 @@
 
 #define REISER4_PROF_TRACE_NUM (30)
 
+/* data structure to keep call trace */
 typedef struct {
+	/* hash of trace---used for fast comparison */
 	unsigned long hash;
+	/* call trace proper---return addresses collected by
+	 * __builtin_return_address() */
 	backtrace_path path;
+	/* number of times profiled code was entered through this call
+	 * chain */
 	__u64 hits;
 } reiser4_trace;
 
+/* statistics for profiled region of code */
 typedef struct {
+	/* number of times region was entered */
 	__u64 nr;
+	/* total time spent in this region */
 	__u64 total;
+	/* maximal time per enter */
 	__u64 max;
+	/* number of times region was executed without context switch */
 	__u64 noswtch_nr;
+	/* total time spent in executions without context switch */
 	__u64 noswtch_total;
+	/* maximal time of execution without context switch */
 	__u64 noswtch_max;
+	/* array of back traces */
 	reiser4_trace bt[REISER4_PROF_TRACE_NUM];
 } reiser4_prof_cnt;
 
+/* profiler entry. */
 typedef struct {
+	/* sysfs placeholder */
 	struct kobject kobj;
+	/* statistics, see above */
 	reiser4_prof_cnt cnt;
 } reiser4_prof_entry;
 

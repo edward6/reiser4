@@ -228,7 +228,7 @@ prepare_tail2extent(struct inode *inode)
 	 * removed BA_CAN_COMMIT from garbbing flags.
 	 */
 	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(tree) + unformatted_nodes +
-					  unformatted_nodes * estimate_one_insert_into_item(tree), 0, "tail2extent");
+					  unformatted_nodes * estimate_one_insert_into_item(tree), 0);
 	if (result) {
 		done_lh(&first_lh);
 		return result;
@@ -499,7 +499,7 @@ tail2extent(unix_file_info_t *uf_info)
 	   have neither NEA nor EA to the file */
 	assert("vs-830", uf_info->container == UF_CONTAINER_EXTENTS);
 	assert("vs-1083", result == 0);
-	all_grabbed2free("tail2extent");
+	all_grabbed2free();
 	return 0;
 
 error:
@@ -507,7 +507,7 @@ error:
 exit:
 	if (access_switched)
 		ea2nea(uf_info);
-	all_grabbed2free("tail2exten failed");
+	all_grabbed2free();
 	return result;
 }
 
@@ -608,7 +608,7 @@ static int prepare_extent2tail(struct inode *inode)
 	 */
 	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(tree) +
 				    flow_insertions * estimate_insert_flow(tree->height) +
-				    1 + estimate_one_insert_item(tree), 0, "extent2tail");
+				    1 + estimate_one_insert_item(tree), 0);
 	if (result) {
 		done_lh(&first_lh);
 		return result;
@@ -711,7 +711,7 @@ extent2tail(unix_file_info_t *uf_info)
 			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
 	}
-	all_grabbed2free("extent2tail");
+	all_grabbed2free();
 	return result;
 }
 

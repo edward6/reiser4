@@ -13,7 +13,7 @@
 #include "../../super.h"
 #include "../../wander.h"
 #include "../../diskmap.h"
-#include "../../reiser4_status_flags.h"
+#include "../../status_flags.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -353,7 +353,7 @@ release_format40(struct super_block *s)
 
 	/* FIXME-UMKA: Should we tell block transaction manager to commit all if
 	 * we will have no space left? */
-	if (reiser4_grab_space(1, BA_RESERVED, "format40_release"))
+	if (reiser4_grab_space(1, BA_RESERVED))
 		return RETERR(-ENOSPC);
 	
 	if ((ret = capture_super_block(s))) {

@@ -1072,13 +1072,8 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 	}
 }
 
-#if REISER4_TRACE
-static int
-__reserve4cluster(struct inode * inode, reiser4_cluster_t * clust, const char * msg)
-#else
 static int
 __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
-#endif
 {
 	int result = 0;
 	jnode * j;
@@ -1096,7 +1091,7 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 		UNLOCK_JNODE(j);
 		return 0;
 	}
-	result = reiser4_grab_space_force(estimate_insert_flow(current_tree->height) + estimate_one_insert_into_item(current_tree), 0, msg);
+	result = reiser4_grab_space_force(estimate_insert_flow(current_tree->height) + estimate_one_insert_into_item(current_tree), 0);
 	if (result)
 		return result;
 	JF_SET(j, JNODE_MAPPED);
@@ -1749,14 +1744,14 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 			if (result)
 				break;
 
-			all_grabbed2free(__FUNCTION__);
+			all_grabbed2free();
 			reiser4_release_reserved(inode->i_sb);
 
 			continue;
 		}
 		break;
 	}
-	all_grabbed2free(__FUNCTION__);
+	all_grabbed2free();
 	reiser4_release_reserved(inode->i_sb);
 	return result;
 }
@@ -1878,7 +1873,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 			result = setattr_reserve(tree_by_inode(inode));
 			if (!result)
 				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
-			all_grabbed2free(__FUNCTION__);	
+			all_grabbed2free();	
 		}
 		return result;
 	}
@@ -2088,7 +2083,7 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 			if (!result)
 				/* "capture" inode */
 				result = reiser4_mark_inode_dirty(inode);
-			all_grabbed2free(__FUNCTION__);
+			all_grabbed2free();
 		}
 	}
 	return result;	

@@ -300,7 +300,8 @@ extent_allocate_blocks(reiser4_blocknr_hint *preceder,
 	/* that number of blocks (wanted_count) must be in UNALLOCATED stage */
 	preceder->block_stage = BLOCK_UNALLOCATED;
 	
-	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT, "extent_allocate");
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated,
+				       BA_PERMANENT);
 
 	if (result)
 		/* no free space
@@ -325,7 +326,7 @@ reserve_replace(void)
 
 	grabbed = get_current_context()->grabbed_blocks;
 	needed = estimate_one_insert_into_item(current_tree);
-	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED, "reserve_replace"));
+	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED));
 	return grabbed;
 }
 
@@ -335,7 +336,8 @@ free_replace_reserved(reiser4_block_nr grabbed)
 	reiser4_context *ctx;
 
 	ctx = get_current_context();
-	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks - grabbed, "free_replace_reserved");
+	grabbed2free(ctx, get_super_private(ctx->super),
+		     ctx->grabbed_blocks - grabbed);
 }
 
 /* if @key is glueable to the item @coord is set to */
@@ -828,7 +830,14 @@ try_to_merge_with_left(coord_t *coord, reiser4_extent *ext, reiser4_extent *repl
 		/* wipe part of item which is going to be cut, so that node_check will not be confused by extent
 		   overlapping */
 		ON_DEBUG(xmemset(extent_item(coord) + from.unit_pos, 0, sizeof (reiser4_extent)));
-		cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0, 0/*inode*/);
+		cut_node(&from,
+			 &to,
+			 0,
+			 0,
+			 0,
+			 0,
+			 0,
+			 0/*inode*/);
 		coord->unit_pos --;
 		return 1;
 	}
@@ -950,7 +959,8 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 		/* assign fake block numbers to all jnodes */
 		assign_fake_blocknrs(oid, index, protected);
 
-		reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER, "");
+		reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED,
+				       BA_DEFER);
 	}
 
 	extent_slum_size = protected;
@@ -1170,15 +1180,15 @@ extent_handle_relocate_and_copy(znode *left, coord_t *right, flush_pos_t *flush_
 								   protected, &first_allocated, &allocated) == 0);
 			if (try_copy(left, oid, first_allocated, allocated, &key) == SQUEEZE_TARGET_FULL) {
 				if (state == ALLOCATED_EXTENT)
-					grabbed2flush_reserved(extent_slum_size, "relocation allocated extents: left is full");
+					grabbed2flush_reserved(extent_slum_size);
 				unprotect_extent_nodes(oid, index, protected);
-				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_ALLOCATED, 0, "free blocks allocated for relocation");
+				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_ALLOCATED, 0);
 				return SQUEEZE_TARGET_FULL;
 			}
 
 			/* FIXME: add error handling */
 			check_me("vs-1400", reiser4_dealloc_blocks(&start, &allocated,
-								   BLOCK_ALLOCATED, BA_DEFER, "freed blocks which were relocated") == 0);
+								   BLOCK_ALLOCATED, BA_DEFER) == 0);
 			change_jnode_blocknrs(oid, index, first_allocated, allocated, flush_pos);
 			index += allocated;
 			protected -= allocated;

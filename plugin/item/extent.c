@@ -192,7 +192,7 @@ static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 	/* We do not need to read reiser4 inode from disk and initialize all
 	 * reiser4 inode fields. */
 	inode = iget(super, (unsigned long)get_key_objectid(&ext_key));
-	if (inode == NULL) 
+	if (inode == NULL)
 		return -ENOMEM;
 	if (is_bad_inode(inode)) {
 		iput(inode);
@@ -246,7 +246,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	if (ret)
 		return ret;
 
-	for (nr_marked = 0, pos_in_extent = 0; 
+	for (nr_marked = 0, pos_in_extent = 0;
 	     nr_marked < max_nr_marked && pos_in_extent < width; pos_in_extent ++)
 	{
 		jnode * node;
@@ -349,7 +349,8 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 
 		/* grab space for operations on internal levels. */
 		ret = reiser4_grab_space(
-			estimated, BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+			estimated,
+			BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED);
 		if (ret)
 			return ret;
 
@@ -359,7 +360,7 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 
 		/* release grabbed space if it was not used. */
 		assert ("zam-988", ctx->grabbed_blocks >= were_grabbed);
-		grabbed2free(ctx, sinfo, ctx->grabbed_blocks - were_grabbed, __FUNCTION__);
+		grabbed2free(ctx, sinfo, ctx->grabbed_blocks - were_grabbed);
 	}
 
 	return ret;
@@ -448,7 +449,8 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 	hint->block_stage = unallocated_flg ? BLOCK_UNALLOCATED : BLOCK_FLUSH_RESERVED;
 		
 	new_ext_width = *len;
-	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width, BA_PERMANENT, __FUNCTION__);
+	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width,
+				   BA_PERMANENT);
 	if (ret)
 		return ret;
 
@@ -457,8 +459,9 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 		reiser4_block_nr dealloc_ext_start;
 
 		dealloc_ext_start = ext_start + ext_width - new_ext_width;
-		ret = reiser4_dealloc_blocks(&dealloc_ext_start, &new_ext_width, 0,
-					     BA_DEFER | BA_PERMANENT, __FUNCTION__);
+		ret = reiser4_dealloc_blocks(&dealloc_ext_start, &new_ext_width,
+					     0,
+					     BA_DEFER | BA_PERMANENT);
 		if (ret)
 			return ret;
 	}
@@ -537,7 +540,7 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 }
 
 static int find_and_relocate_end_of_extent (struct inode * inode, coord_t * coord,
-					    int * nr_reserved, reiser4_blocknr_hint *hint, 
+					    int * nr_reserved, reiser4_blocknr_hint *hint,
 					    int * done, long * nr_processed)
 {
 	reiser4_block_nr len;

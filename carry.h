@@ -89,6 +89,7 @@ typedef enum {
 	/* update parent to reflect changes in the child. 3.x format
 	   emulation uses this to update "child size" in parent. */
 	COP_MODIFY,
+	/* insert flow */
 	COP_INSERT_FLOW,
 	COP_LAST_OP,
 } carry_opcode;
@@ -115,13 +116,31 @@ typedef enum {
 
 /* flags to cut and delete */
 typedef enum {
+	/* don't kill node even if it became completely empty as results of
+	 * cut. This is needed for eottl handling. See carry_extent() for
+	 * details. */
 	DELETE_RETAIN_EMPTY = (1 << 0),
-	DELETE_DONT_COMPACT = (1 << 1),
-	DELETE_KILL = (1 << 2)
+	/* kill items as opposed to just cut them. Killing implies that items
+	 * are really removed from the tree, ->kill_hook method is called. */
+	DELETE_KILL = (1 << 1)
 } cop_delete_flag;
 
+/*
+ * carry() implements "lock handle tracking" feature.
+ *
+ * Callers supply carry with node where to perform initial operation and lock
+ * handle on this node. Trying to optimize node utilization carry may actually
+ * move insertion point to different node. Callers expect that lock handle
+ * will be transferred to the new node also.
+ *
+ */
 typedef enum {
+	/* transfer lock handle along with insertion point */
 	CARRY_TRACK_CHANGE = 1,
+	/* acquire new lock handle to the node where insertion point is. This
+	 * is used when carry() client doesn't initially possess lock handle
+	 * on the insertion point node, for example, by extent insertion
+	 * code. See carry_extent(). */
 	CARRY_TRACK_NODE   = 2
 } carry_track_type;
 
@@ -137,14 +156,37 @@ typedef struct carry_insert_data {
 
 /* data supplied to COP_CUT by callers */
 typedef struct carry_cut_data {
+	/* coord where cut starts (inclusive) */
 	coord_t *from;
+	/* coord where cut stops (inclusive, this item/unit will also be
+	 * cut) */
 	coord_t *to;
+	/* starting key. This is necessary when item and unit pos don't
+	 * uniquely identify what portion or tree to remove. For example, this
+	 * indicates what portion of extent unit will be affected. */
 	const reiser4_key *from_key;
+	/* exclusive stop key */
 	const reiser4_key *to_key;
+	/* if this is not NULL, smallest actually removed key is stored
+	 * here. */
 	reiser4_key *smallest_removed;
+	/* flags modifying behavior of cut. From cop_delete_flag. */
 	unsigned flags;
+	/* parameter to be passed to the ->kill_hook() method of item
+	 * plugin */
 	void *iplug_params;
+	/* if not NULL---inode whose items are being removed. This is needed
+	 * for ->kill_hook() of extent item to update VM structures when
+	 * removing pages. */
 	struct inode *inode;
+	/* sibling list maintenance is complicated by existence of eottl. When
+	 * eottl whose left and right neighbors are formatted leaves is
+	 * removed, one has to connect said leaves in the sibling list. This
+	 * cannot be done when extent removal is just started as locking rules
+	 * require sibling list update to happen atomically with removal of
+	 * extent item. Therefore: 1. pointers to left and right neighbors
+	 * have to be passed down to the ->kill_hook() of extent item, and
+	 * 2. said neighbors have to be locked. */
 	lock_handle *left;
 	lock_handle *right;
 } carry_cut_data;

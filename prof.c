@@ -1,6 +1,30 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* profiling facilities. */
+
+/*
+ * This code is used to collect statistics about how many times particular
+ * function (or part of function) was called, and how long average call
+ * took. In addition (or, in the first place, depending on one's needs), it
+ * also keep track of through what call-chain profiled piece of code was
+ * entered. Latter is done by having a list of call-chains. Call-chains are
+ * obtained by series of calls to __builtin_return_address() (hence, this
+ * functionality requires kernel to be compiled with frame pointers). Whenever
+ * profiled region is just about to be left, call-chain is constructed and
+ * then compared against all chains already in the list. If match is found
+ * (cache hit!), its statistics are updated, otherwise (cache miss), entry
+ * with smallest hit count is selected and re-used to new call-chain.
+ *
+ * NOTE: this replacement policy has obvious deficiencies: after some time
+ * entries in the list accumulate high hit counts and will effectively prevent
+ * any new call-chain from finding a place in the list, even is this
+ * call-chain is frequently activated. Probably LRU should be used instead
+ * (this is not that hard, /proc/<pid>/sleep patch does this), but nobody
+ * complained so far.
+ *
+ */
+
 
 #include "kattr.h"
 #include "reiser4.h"

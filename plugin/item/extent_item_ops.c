@@ -511,7 +511,8 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 			/* some jnodes corresponding to this unallocated extent */
 
 			/* FIXME-VITALY: this is necessary??? */
-			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */, "extent_kill_item_hook: unallocated extent removed");
+			fake_allocated2free(extent_get_width(ext),
+					    0 /* unformatted */);
 			continue;
 		}
 
@@ -522,7 +523,7 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 		   are not safe to be freed immediately */
 		
 		reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
-			BA_DEFER/* unformatted with defer */, "extent_kill_item_hook");
+			BA_DEFER/* unformatted with defer */);
 	}
 	return 0;
 }
@@ -627,8 +628,7 @@ cut_or_kill_units(coord_t *coord,
 				/* FIXME-VS: debugging zam-528 */
 				if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
 					/* FIXME-VITALY: this is necessary??? */
-					fake_allocated2free(old_width - new_width, 0 /* unformatted */,
-							    "cut_or_kill_units: unallocated extent shortened fron its end");
+					fake_allocated2free(old_width - new_width, 0 /* unformatted */);
 				}
 
 				if (state_of_extent(ext) == ALLOCATED_EXTENT && !cut) {
@@ -643,7 +643,7 @@ cut_or_kill_units(coord_t *coord,
 					length = old_width - new_width;
 
 					reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
-						BA_DEFER /* unformatted with defer */, "cut_or_kill_units: from");
+						BA_DEFER /* unformatted with defer */);
 				}
 				extent_set_width(ext, new_width);
 				znode_make_dirty(coord->node);
@@ -682,8 +682,7 @@ cut_or_kill_units(coord_t *coord,
 			/* FIXME-VS: debugging zam-528 */
 			if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
 				/* FIXME-VITALY: this is necessary??? */
-				fake_allocated2free(old_width - new_width, 0 /* unformatted */,
-						    "cut_or_kill_units: unallocated extent shortened from its head");
+				fake_allocated2free(old_width - new_width, 0 /* unformatted */);
 			}
 
 			if (state_of_extent(ext) == ALLOCATED_EXTENT && !cut) {
@@ -696,7 +695,7 @@ cut_or_kill_units(coord_t *coord,
 				start = extent_get_start(ext);
 				length = old_width - new_width;
 				reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
-					BA_DEFER/* unformatted with defer */, "cut_or_kill_units: to");
+					BA_DEFER/* unformatted with defer */);
 			}
 
 			/* (old_width - new_width) blocks of this extent were

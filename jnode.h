@@ -286,26 +286,26 @@ typedef enum {
 static inline void
 JF_CLR(jnode * j, int f)
 {
-	assert("", j->magic == JMAGIC);
+	assert("unknown-1", j->magic == JMAGIC);
 	clear_bit(f, &j->state);
 }
 static inline int
 JF_ISSET(const jnode * j, int f)
 {
-	assert("", j->magic == JMAGIC);
+	assert("unknown-2", j->magic == JMAGIC);
 	return test_bit(f, &((jnode *) j)->state);
 }
 static inline void
 JF_SET(jnode * j, int f)
 {
-	assert("", j->magic == JMAGIC);
+	assert("unknown-3", j->magic == JMAGIC);
 	set_bit(f, &j->state);
 }
 
 static inline int
 JF_TEST_AND_SET(jnode * j, int f)
 {
-	assert("", j->magic == JMAGIC);
+	assert("unknown-4", j->magic == JMAGIC);
 	return test_and_set_bit(f, &j->state);
 }
 
@@ -376,6 +376,9 @@ jnode_get_block(const jnode * node /* jnode to query */)
 	return &node->blocknr;
 }
 
+/* block number for IO. Usually this is the same as jnode_get_block(), unless
+ * jnode was emergency flushed---then block number chosen by eflush is
+ * used. */
 static inline const reiser4_block_nr *
 jnode_get_io_block(const jnode * node)
 {
@@ -403,8 +406,8 @@ extern flush_queue_t * pos_fq(flush_pos_t * pos);
 #define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
 #define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
 
-/* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
-   doesn't allow overloading of const prototypes. */
+/* Macros to convert from jnode to znode, znode to jnode.  These are macros
+   because C doesn't allow overloading of const prototypes. */
 #define ZJNODE(x) (& (x) -> zjnode)
 #define JZNODE(x)						\
 ({								\

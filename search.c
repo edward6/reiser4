@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 #include "forward.h"
 #include "debug.h"
@@ -23,18 +24,12 @@
 
 #include <linux/slab.h>
 
-/* rules for locking during searches: never insert before the first
-   item in a node without locking the left neighbor and the patch to
-   the common parent from the node and left neighbor.  This ensures
-   that searching works. */
-
 /* tree searching algorithm, intranode searching algorithms are in
    plugin/node/ */
 
 /* tree lookup cache */
 
 /* Initialise coord cache slot */
-/* Audited by: green(2002.06.15) */
 static void
 cbk_cache_init_slot(cbk_cache_slot * slot)
 {
@@ -236,6 +231,8 @@ static void hput(cbk_handle * h);
 
 static level_lookup_result search_to_left(cbk_handle * h);
 
+/* pack numerous (numberous I should say) arguments of coord_by_key() into
+ * cbk_handle */
 cbk_handle *cbk_pack(cbk_handle *handle,
 		     reiser4_tree * tree,
 		     const reiser4_key * key,
@@ -348,6 +345,8 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	return result;
 }
 
+/* like coord_by_key(), but starts traversal from vroot of @object rather than
+ * from tree root. */
 lookup_result
 object_lookup(struct inode *object,
 	      const reiser4_key * key,
@@ -396,9 +395,15 @@ object_lookup(struct inode *object,
 	return result;
 }
 
+/* lookup by cbk_handle. Common part of coord_by_key() and object_lookup(). */
 static lookup_result
 coord_by_handle(cbk_handle * handle)
 {
+	/*
+	 * first check cbk_cache (which is look-aside cache for our tree) and
+	 * of this fails, start traversal.
+	 */
+
 	write_tree_trace(handle->tree, tree_lookup, handle->key);
 
 	/* first check whether "key" is in cache of recent lookups. */
@@ -407,6 +412,7 @@ coord_by_handle(cbk_handle * handle)
 	else
 		return traverse_tree(handle);
 }
+
 /* Execute actor for each item (or unit, depending on @through_units_p),
    starting from @coord, right-ward, until either:
 
@@ -448,13 +454,17 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	}
 	while ((result = actor(tree, coord, lh, arg)) > 0) {
 		/* move further  */
-		if ((through_units_p && coord_next_unit(coord)) || (!through_units_p && coord_next_item(coord))) {
+		if ((through_units_p && coord_next_unit(coord)) ||
+		    (!through_units_p && coord_next_item(coord))) {
 			do {
 				lock_handle couple;
 
 				/* move to the next node  */
 				init_lh(&couple);
-				result = reiser4_get_right_neighbor(&couple, coord->node, (int) mode, GN_DO_READ);
+				result = reiser4_get_right_neighbor(&couple,
+								    coord->node,
+								    (int) mode,
+								    GN_DO_READ);
 				zrelse(coord->node);
 				if (result == 0) {
 
@@ -1048,6 +1058,7 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	return LOOKUP_CONT;	/* continue */
 }
 
+/* scan cbk_cache slots looking for a match for @h */
 static int
 cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 {
@@ -1223,6 +1234,9 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 	int result = 0;
 	tree_level level;
 
+	/* add CBK_IN_CACHE to the handle flags. This means that
+	 * cbk_node_lookup() assumes that cbk_cache is scanned and would add
+	 * found node to the cache. */
 	h->flags |= CBK_IN_CACHE;
 	for (level = h->stop_level; level <= h->lock_level; ++level) {
 		h->level = level;
@@ -1302,6 +1316,15 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 	return result;
 }
 
+/*
+ * setup delimiting keys for a child
+ *
+ * @parent parent node
+ *
+ * @coord location in @parent where pointer to @child is
+ *
+ * @child child node
+ */
 int
 set_child_delimiting_keys(znode * parent,
 			  const coord_t * coord, znode * child)
@@ -1330,6 +1353,7 @@ set_child_delimiting_keys(znode * parent,
 	return result;
 }
 
+/* update outdated delimiting keys */
 static void stale_dk(reiser4_tree *tree, znode *node)
 {
 	znode *right;
@@ -1346,6 +1370,8 @@ static void stale_dk(reiser4_tree *tree, znode *node)
 	WUNLOCK_DK(tree);
 }
 
+/* check for possibly outdated delimiting keys, and update them if
+ * necessary. */
 static void update_stale_dk(reiser4_tree *tree, znode *node)
 {
 	znode *right;
@@ -1366,6 +1392,28 @@ static void update_stale_dk(reiser4_tree *tree, znode *node)
 	RUNLOCK_DK(tree);
 }
 
+/*
+ * handle searches a the non-unique key.
+ *
+ * Suppose that we are looking for an item with possibly non-unique key 100.
+ *
+ * Root node contains two pointers: one to a node with left delimiting key 0,
+ * and another to a node with left delimiting key 100. Item we interested in
+ * may well happen in the sub-tree rooted at the first pointer.
+ *
+ * To handle this search_to_left() is called when search reaches stop
+ * level. This function checks it is _possible_ that item we are looking for
+ * is in the left neighbor (this can be done by comparing delimiting keys) and
+ * if so, tries to lock left neighbor (this is low priority lock, so it can
+ * deadlock, tree traversal is just restarted if it did) and then checks
+ * whether left neighbor actually contains items with our key.
+ *
+ * Note that this is done on the stop level only. It is possible to try such
+ * left-check on each level, but as duplicate keys are supposed to be rare
+ * (very unlikely that more than one node is completely filled with items with
+ * duplicate keys), it sis cheaper to scan to the left on the stop level once.
+ *
+ */
 static level_lookup_result
 search_to_left(cbk_handle * h /* search handle */ )
 {

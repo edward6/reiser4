@@ -608,7 +608,8 @@ forget_znode(lock_handle * handle)
 		int ret;
 
 		/* An already allocated block goes right to the atom's delete set. */
-		ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER | BA_FORMATTED, __FUNCTION__);
+		ret = reiser4_dealloc_block(znode_get_block(node), 0,
+					    BA_DEFER | BA_FORMATTED);
 		if (ret)
 			warning("zam-942", "can\'t add a block (%llu) number to atom's delete set\n",
 					(unsigned long long)(*znode_get_block(node)));
@@ -633,7 +634,7 @@ forget_znode(lock_handle * handle)
 	} else {
 		/* znode has assigned block which is counted as "fake
 		   allocated". Return it back to "free blocks") */
-		fake_allocated2free((__u64) 1, BA_FORMATTED, "forget_znode: formatted fake allocated node");
+		fake_allocated2free((__u64) 1, BA_FORMATTED);
 	}
 
 	/*

@@ -467,7 +467,7 @@ static int
 insert_flow_reserve(reiser4_tree *tree)
 {
 	grab_space_enable();
-	return reiser4_grab_space(estimate_insert_flow(tree->height) + estimate_one_insert_into_item(tree), 0, "for insert_flow");
+	return reiser4_grab_space(estimate_insert_flow(tree->height) + estimate_one_insert_into_item(tree), 0);
 }
 
 /* one block gets overwritten and stat data may get updated */
@@ -475,7 +475,7 @@ static int
 overwrite_reserve(reiser4_tree *tree)
 {
 	grab_space_enable();
-	return reiser4_grab_space(1 + estimate_one_insert_into_item(tree), 0, "overwrite_reserve");
+	return reiser4_grab_space(1 + estimate_one_insert_into_item(tree), 0);
 }
 
 /* plugin->u.item.s.file.write
@@ -529,7 +529,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 
 		if (result) {
 			if (!grabbed)
-				all_grabbed2free("tail_write: on error");
+				all_grabbed2free();
 			break;
 		}
 		
@@ -539,7 +539,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
-			all_grabbed2free("tail_write");
+			all_grabbed2free();
 		if (result) {
 			// reiser4_stat_tail_add(bdp_caused_repeats);
 			break;

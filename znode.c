@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 /* Znode manipulation functions. */
 /* Znode is the in-memory header for a tree node. It is stored
    separately from the node itself so that it does not get written to
@@ -841,8 +842,7 @@ relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
 
 		grabbed = get_current_context()->grabbed_blocks;
 		/* for a node and its parent */
-		result = reiser4_grab_space_force((__u64)2, BA_RESERVED,
-						  __FUNCTION__);
+		result = reiser4_grab_space_force((__u64)2, BA_RESERVED);
 		if (result == 0) {
 			item_plugin *iplug;
 

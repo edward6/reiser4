@@ -1,6 +1,27 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* Transaction manager daemon. */
 
+/*
+ * ktxnmgrd is a kernel daemon responsible for committing transactions. It is
+ * needed/important for the following reasons:
+ *
+ *     1. in reiser4 atom is not committed immediately when last transaction
+ *     handle closes, unless atom is either too old or too large (see
+ *     atom_should_commit()). This is done to avoid committing too frequently.
+ *     because:
+ *
+ *     2. sometimes we don't want to commit atom when closing last transaction
+ *     handle even if it is old and fat enough. For example, because we are at
+ *     this point under directory semaphore, and committing would stall all
+ *     accesses to this directory.
+ *
+ * ktxnmgrd binds its time sleeping on condition variable. When is awakes
+ * either due to (tunable) timeout or because it was explicitly woken up by
+ * call to ktxnmgrd_kick(), it scans list of all atoms and commits ones
+ * eligible.
+ *
+ */
+
 #include "debug.h"
 #include "kcond.h"
 #include "txnmgr.h"
@@ -124,7 +145,6 @@ init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 	spin_lock_init(&ctx->guard);
 	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
 	txn_mgrs_list_init(&ctx->queue);
-	atomic_set(&ctx->pressure, 0);
 }
 
 int

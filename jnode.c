@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 /* Jnode manipulation functions. */
 /* Jnode is entity used to track blocks with data and meta-data in reiser4.
 
@@ -6,8 +7,98 @@
    associated with each block. Each znode contains jnode as ->zjnode field.
 
    Jnode stands for either Josh or Journal node.
-
 */
+
+/*
+ * Taxonomy.
+ *
+ *     Jnode represents block containing data or meta-data. There are jnodes
+ *     for:
+ *
+ *         unformatted blocks (jnodes proper). There are plans, however to
+ *         have a handle per extent unit rather than per each unformatted
+ *         block, because there are so many of them.
+ *
+ *         For bitmaps. Each bitmap is actually represented by two jnodes--one
+ *         for working and another for "commit" data, together forming bnode.
+ *
+ *         For io-heads. These are used by log writer.
+ *
+ *         For formatted nodes (znode). See comment at the top of znode.c for
+ *         details specific to the formatted nodes (znodes).
+ *
+ * Node data.
+ *
+ *     Jnode provides access to the data of node it represents. Data are
+ *     stored in a page. Page is kept in a page cache. This means, that jnodes
+ *     are highly interconnected with page cache and VM internals.
+ *
+ *     jnode has a pointer to page (->pg) containing its data. Pointer to data
+ *     themselves is cached in ->data field to avoid frequent calls to
+ *     page_address().
+ *
+ *     jnode and page are attached to each other by jnode_attach_page(). This
+ *     function places pointer to jnode in page->private, sets PG_private flag
+ *     and increments page counter.
+ *
+ *     Opposite operation is performed by page_clear_jnode().
+ *
+ *     jnode->pg is protected by jnode spin lock, and page->private is
+ *     protected by page lock. See comment at the top of page_cache.c for
+ *     more.
+ *
+ *     page can be detached from jnode for two reasons:
+ *
+ *         . jnode is removed from a tree (file is truncated, of formatted
+ *         node is removed by balancing).
+ *
+ *         . during memory pressure, VM calls ->releasepage() method
+ *         (reiser4_releasepage()) to evict page from memory.
+ *
+ *    (there, of course, is also umount, but this is special case we are not
+ *    concerned with here).
+ *
+ *    To protect jnode page from eviction, one calls jload() function that
+ *    "pins" page in memory (loading it if necessary), increments
+ *    jnode->d_count, and kmap()s page. Page is unpinned through call to
+ *    jrelse().
+ *
+ * Jnode life cycle.
+ *
+ *    jnode is created, placed in hash table, and, optionally, in per-inode
+ *    radix tree. Page can be attached to jnode, pinned, released, etc.
+ *
+ *    When jnode is captured into atom its reference counter is
+ *    increased. While being part of an atom, jnode can be "early
+ *    flushed". This means that as part of flush procedure, jnode is placed
+ *    into "relocate set", and its page is submitted to the disk. After io
+ *    completes, page can be detached, then loaded again, re-dirtied, etc.
+ *
+ *    Thread acquired reference to jnode by calling jref() and releases it by
+ *    jput(). When last reference is removed, jnode is still retained in
+ *    memory (cached) if it has page attached, _unless_ it is scheduled for
+ *    destruction (has JNODE_HEARD_BANSHEE bit set).
+ *
+ *    Tree read-write lock was used as "existential" lock for jnodes. That is,
+ *    jnode->x_count could be changed from 0 to 1 only under tree write lock,
+ *    that is, tree lock protected unreferenced jnodes stored in the hash
+ *    table, from recycling.
+ *
+ *    This resulted in high contention on tree lock, because jref()/jput() is
+ *    frequent operation. To ameliorate this problem, RCU is used: when jput()
+ *    is just about to release last reference on jnode it sets JNODE_RIP bit
+ *    on it, and then proceed with jnode destruction (removing jnode from hash
+ *    table, cbk_cache, detaching page, etc.). All places that change jnode
+ *    reference counter from 0 to 1 (jlookup(), zlook(), and
+ *    cbk_cache_scan_slots()) check for JNODE_RIP bit (this is done by
+ *    jnode_rip_check() function), and pretend that nothing was found in hash
+ *    table if bit is set.
+ *
+ *    jput defers actual return of jnode into slab cache to some later time
+ *    (by call_rcu()), this guarantees that other threads can safely continue
+ *    working with JNODE_RIP-ped jnode.
+ *
+ */
 
 #include "reiser4.h"
 #include "debug.h"
@@ -36,6 +127,7 @@
 
 static kmem_cache_t *_jnode_slab = NULL;
 
+/* true if valid page is attached to jnode */
 static inline int jnode_is_parsed (jnode * node)
 {
 	return JF_ISSET(node, JNODE_PARSED);
@@ -60,6 +152,7 @@ jnode_key_hashfn(j_hash_table *table, const jnode_key_t * key)
 	assert("nikita-2352", key != NULL);
 	assert("nikita-3346", IS_POW(table->_buckets));
 
+	/* yes, this is remarkable simply (where not stupid) hash function. */
 	return (key->objectid + key->index) & (table->_buckets - 1);
 }
 
@@ -79,6 +172,11 @@ jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 
 	assert("nikita-2359", tree != NULL);
 
+	/*
+	 * number of hash buckets in hash table depends on amount of memory
+	 * available. If we cannot allocate that much, number of buckets is
+	 * halved until allocation succeeds.
+	 */
 	buckets = 1 << fls(nr_free_pagecache_pages());
 	do {
 		result = j_hash_init(&tree->jhash_table, buckets,
@@ -88,7 +186,7 @@ jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 	return result;
 }
 
-/* call this to destroy jnode hash table */
+/* call this to destroy jnode hash table. This is called during umount. */
 int
 jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 {
@@ -97,6 +195,10 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 	jnode *next;
 
 	assert("nikita-2360", tree != NULL);
+
+	/*
+	 * Scan hash table and free all jnodes.
+	 */
 
 	IF_TRACE(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
 					   print_jnodes("umount", tree)));
@@ -179,6 +281,9 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 }
 
 #if REISER4_DEBUG
+/*
+ * Remove jnode from ->all_jnodes list. See comment for this field in super.h
+ */
 void
 jnode_done(jnode * node, reiser4_tree * tree)
 {
@@ -215,6 +320,7 @@ jalloc(void)
 	return jal;
 }
 
+/* return jnode back to the slab allocator */
 inline void
 jfree(jnode * node)
 {
@@ -232,6 +338,7 @@ jfree(jnode * node)
 	kmem_cache_free(_jnode_slab, node);
 }
 
+/* allocate new unformatted jnode */
 jnode *
 jnew_unformatted(void)
 {

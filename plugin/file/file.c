@@ -495,11 +495,11 @@ static int reserve_partial_page(reiser4_tree *tree)
 	return reiser4_grab_reserved(reiser4_get_current_sb(),
 				     1 +
 				     2 * estimate_one_insert_into_item(tree),
-				     BA_CAN_COMMIT, __FUNCTION__);
+				     BA_CAN_COMMIT);
 }
 
 /* estimate and reserve space needed to cut one item and update one stat data */
-int reserve_cut_iteration(reiser4_tree *tree, const char * message)
+int reserve_cut_iteration(reiser4_tree *tree)
 {
 	__u64 estimate = estimate_one_item_removal(tree)
 		+ estimate_one_insert_into_item(tree);
@@ -509,7 +509,8 @@ int reserve_cut_iteration(reiser4_tree *tree, const char * message)
 	grab_space_enable();
 	/* We need to double our estimate now that we can delete more than one
 	   node. */
-	return reiser4_grab_reserved(reiser4_get_current_sb(), estimate*2, BA_CAN_COMMIT, message);
+	return reiser4_grab_reserved(reiser4_get_current_sb(), estimate*2,
+				     BA_CAN_COMMIT);
 }
 
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
@@ -527,7 +528,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	set_key_offset(&to_key, cur_size - 1/*get_key_offset(max_key())*/);
 
 	while (1) {
-		result = reserve_cut_iteration(tree_by_inode(inode), __FUNCTION__);
+		result = reserve_cut_iteration(tree_by_inode(inode));
 		if (result)
 			break;
 
@@ -541,7 +542,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			if (result)
 				break;
 
-			all_grabbed2free(__FUNCTION__);
+			all_grabbed2free();
 			reiser4_release_reserved(inode->i_sb);
 
 			continue;
@@ -554,7 +555,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		break;
 	}
 
-	all_grabbed2free(__FUNCTION__);
+	all_grabbed2free();
 	reiser4_release_reserved(inode->i_sb);
 
 	return result;
@@ -605,7 +606,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
 	page = read_cache_page(inode->i_mapping, index, readpage_unix_file/*filler*/, 0);
 	if (IS_ERR(page)) {
-		all_grabbed2free("shorten_file: read_cache_page failed");
+		all_grabbed2free();
 		reiser4_release_reserved(inode->i_sb);
 		if (likely(PTR_ERR(page) == -EINVAL)) {
 			/* looks like file is built of tail items */
@@ -615,7 +616,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
-		all_grabbed2free("shorten_file: page !uptodate");
+		all_grabbed2free();
 		page_cache_release(page);
 		reiser4_release_reserved(inode->i_sb);
 		return RETERR(-EIO);
@@ -624,7 +625,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 
 	/* FIXME: cut_file_items has already updated inode. Probably it would be better to update it here when file is
 	   really truncated */
-	all_grabbed2free("shorten_file");
+	all_grabbed2free();
 	if (result) {
 		page_cache_release(page);
 		reiser4_release_reserved(inode->i_sb);
@@ -678,7 +679,8 @@ int
 setattr_reserve(reiser4_tree *tree)
 {
 	assert("vs-1096", is_grab_enabled(get_current_context()));
-	return reiser4_grab_space(estimate_one_insert_into_item(tree), BA_CAN_COMMIT, "setattr_reserve");
+	return reiser4_grab_space(estimate_one_insert_into_item(tree),
+				  BA_CAN_COMMIT);
 }
 
 /* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
@@ -713,7 +715,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 				result = setattr_reserve(tree_by_inode(inode));
 				if (!result)
 					result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
-				all_grabbed2free(__FUNCTION__);
+				all_grabbed2free();
 			}
 		}
 	}
@@ -886,11 +888,11 @@ capture_unix_file_page(struct page *page)
 	uf_info = unix_file_inode_data(inode);
 
 	/* writepage may involve insertion of one unit into tree */
-	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT, "unix_file_writepage");
+	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT);
 	if (likely(!result)) {
 		result = unix_file_writepage_nolock(page);
 	}
-	all_grabbed2free("unix_file_writepage");
+	all_grabbed2free();
 	return result;
 }
 
@@ -1386,7 +1388,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 		read_amount = inode->i_size - *off;
 
 	needed = unix_file_estimate_read(inode, read_amount); /* FIXME: tree_by_inode(inode)->estimate_one_insert */
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
 	if (result != 0) {
 		drop_nonexclusive_access(uf_info);
 		return RETERR(-ENOSPC);
@@ -1524,14 +1526,13 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			   node between two extent items) */
-			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(unix_file_info_to_inode(uf_info))), 0,
-							  "append_and_or_overwrite: for cbk and eottl");
+			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(unix_file_info_to_inode(uf_info))), 0);
 			if (result)
 				return result;
 		}
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
 		result = find_file_item(&hint, &flow->key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, uf_info);
-		all_grabbed2free("append_and_or_overwrite after cbk");
+		all_grabbed2free();
 		if (IS_CBKERR(result)) {
 			/* error occurred */
 			done_lh(&lh);
@@ -1893,7 +1894,7 @@ unpack(struct inode *inode, int forever)
 
 		grab_space_enable();
 		tograb = inode_file_plugin(inode)->estimate.update(inode);
-		result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
+		result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
 		if (result == 0)
 			update_atime(inode);
 	}
@@ -2079,7 +2080,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 			if (!result)
 				/* "capture" inode */
 				result = reiser4_mark_inode_dirty(inode);
-			all_grabbed2free(__FUNCTION__);
+			all_grabbed2free();
 		}
 	}
 	return result;

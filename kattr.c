@@ -1,6 +1,38 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Interface to sysfs' attributes */
+
+/*
+ * Reiser4 exports some of its internal data through sysfs.
+ *
+ * For details on sysfs see fs/sysfs, include/linux/sysfs.h,
+ * include/linux/kobject.h. Roughly speaking, one embeds struct kobject into
+ * some kernel data type. Objects of this type will be represented as
+ * _directories_ somewhere below /sys. Attributes can be registered for
+ * kobject and they will be visible as files within corresponding
+ * directory. Each attribute is represented by struct kattr. How given
+ * attribute reacts to read and write is determined by ->show and ->store
+ * operations that are properties of its parent kobject.
+ *
+ * Reiser4 exports following stuff through sysfs:
+ *
+ *    path                                              kobject or attribute
+ *
+ * /sys/fs/reiser4/
+ *                 <dev>/                               sbinfo->kobj
+ *                       sb-fields                      def_attrs[]
+ *                       stats/                         sbinfo->stats_kobj
+ *                             stat-cnts                reiser4_stat_defs[]
+ *                             level-NN/                sbinfo->level[].kobj
+ *                                      stat-cnts       reiser4_stat_level_defs[]
+ *
+ * (For some reasons we also add /sys/fs and /sys/fs/reiser4 manually, but
+ * this is supposed to be done by core.)
+ *
+ * Shouldn't struct kobject be renamed to struct knobject?
+ *
+ */
 
 #include "debug.h"
 #include "super.h"
@@ -12,12 +44,14 @@
 
 #if REISER4_USE_SYSFS
 
+/* convert @attr to reiser4_kattr object it is embedded in */
 static inline reiser4_kattr *
 to_kattr(struct attribute *attr)
 {
 	return container_of(attr, reiser4_kattr, attr);
 }
 
+/* convert @kobj to super block it is embedded it */
 static inline struct super_block *
 to_super(struct kobject *kobj)
 {

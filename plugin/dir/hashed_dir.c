@@ -84,7 +84,7 @@ init_hashed(struct inode *object /* new directory */ ,
 	trace_stamp(TRACE_DIR);
 
 	reserve = hashed_estimate_init(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
 	
 	return create_dot_dotdot(object, parent);
@@ -138,7 +138,7 @@ done_hashed(struct inode *object /* object being deleted */)
 
 	reserve = hashed_estimate_done(object);
 	if (reiser4_grab_space(reserve,
-			       BA_CAN_COMMIT | BA_RESERVED, "hashed_done"))
+			       BA_CAN_COMMIT | BA_RESERVED))
 		return RETERR(-ENOSPC);
 				
 	xmemset(&goodby_dots, 0, sizeof goodby_dots);
@@ -575,7 +575,7 @@ hashed_rename_estimate_and_grab(
 
 	reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name);
 	
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_rename"))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
 
 	return 0;
@@ -860,7 +860,7 @@ add_entry_hashed(struct inode *object	/* directory to add new name
 		return PTR_ERR(fsdata);
 		
 	reserve = inode_dir_plugin(object)->estimate.add_entry(object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_add_entry"))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
 
 	init_lh(&lh);
@@ -908,7 +908,7 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
-	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED, __FUNCTION__))
+	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED))
 		return RETERR(-ENOSPC);
 	
 	init_lh(&lh);

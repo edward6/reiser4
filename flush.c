@@ -1163,8 +1163,9 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, 
 			int grabbed;
 
 			grabbed = get_current_context()->grabbed_blocks;
-			if (reiser4_grab_space_force((__u64)1, BA_RESERVED, "reverse_relocate_check_dirty_parent") != 0)
-			    reiser4_panic("umka-1250", "No space left during flush.");
+			if (reiser4_grab_space_force((__u64)1, BA_RESERVED) != 0)
+			    reiser4_panic("umka-1250",
+					  "No space left during flush.");
 
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
 			znode_make_dirty(parent_coord->node);
@@ -1436,8 +1437,14 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
 	coord_init_first_unit(&from, to->node);
 	item_key_by_coord(&from, &from_key);
 
-	return cut_node(&from, to, &from_key, to_key, NULL /* smallest_removed */ , DELETE_DONT_COMPACT,
-			left, 0);
+	return cut_node(&from,
+			to,
+			&from_key,
+			to_key,
+			NULL /* smallest_removed */,
+			0,
+			left,
+			0);
 }
 
 
@@ -2413,7 +2420,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 #endif
 		amount = left->zjnode.tree->height;
 		grabbed = get_current_context()->grabbed_blocks;
-		ret = reiser4_grab_space_force(amount, BA_RESERVED, __FUNCTION__);
+		ret = reiser4_grab_space_force(amount, BA_RESERVED);
 		if (ret != 0) {
 			reiser4_panic("nikita-3003",
 				      "Reserved space is exhausted. Ask Hans.");
@@ -2495,7 +2502,7 @@ shift_one_internal_unit(znode * left, znode * right)
 		 * updating delimiting keys after shifting
 		 */
 		grabbed = get_current_context()->grabbed_blocks;
-		ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED, __FUNCTION__);
+		ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED);
 		if (ret != 0)
 			return ret;
 
@@ -2655,7 +2662,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 			spin_unlock_atom(atom);
 			flush_reserved_used = 1;
 		} else {
-			ret = reiser4_grab_space_force((__u64)1, BA_RESERVED, "allocate_znode_update");
+			ret = reiser4_grab_space_force((__u64)1, BA_RESERVED);
 			if (ret != 0)
 				goto exit;
 		}
@@ -2666,19 +2673,19 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	if (ret)
 		goto exit;
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
-        ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT, "allocate_znode_update");
+        ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len,
+				   BA_FORMATTED | BA_PERMANENT);
 	zrelse(node);
 	if(ret) {
 		/* Get flush reserved block back if allocation fails. */
 		if (flush_reserved_used)
-			grabbed2flush_reserved((__u64)1, "allocate_znode_update: "
-					       "get flush reserved block back if allocation fails");
+			grabbed2flush_reserved((__u64)1);
 		goto exit;
 	}
 
 
 	if (!ZF_ISSET(node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER, "allocate_znode_update")))
+	    (ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER)))
 		goto exit;
 
 	if (likely(!znode_is_root(node))) {

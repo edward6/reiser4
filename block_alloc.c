@@ -287,24 +287,6 @@ print_block_counters(const char *prefix,
 }
 #endif
 
-/* Get the amount of blocks of 5% of disk. */
-/* FIXME: moved to reiser4_set_block_count */
-#if 0
-reiser4_block_nr
-reiser4_fs_reserved_space(struct super_block * super)
-{
-	reiser4_block_nr b;
-
-	b = reiser4_block_count(super);
-	/* The proper calculation of the reserved space counter (%5 of device
-	   block counter) we need a 64 bit division which is missing in Linux on
-	   i386 platform. Because we do not need a precise calculation here we
-	   can replace a div64 operation by this combination of multiplication
-	   and shift: 51. / (2^10) == .0498 .*/
-	return (b * 51) >> 10;
-}
-#endif
-
 /* Adjust "working" free blocks counter for number of blocks we are going to
    allocate.  Record number of grabbed blocks in fs-wide and per-thread
    counters.  This function should be called before bitmap scanning or
@@ -334,9 +316,9 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 
 	ON_TRACE(TRACE_ALLOC, "reiser4_grab: free_blocks %llu\n", free_blocks);
 
-	if ((use_reserved && (free_blocks < count)) ||
-	    (!use_reserved && (free_blocks < count + sbinfo->blocks_reserved))) {
-		ret = -ENOSPC;
+	if ((use_reserved && free_blocks < count) ||
+	    (!use_reserved && free_blocks < count + sbinfo->blocks_reserved)) {
+		ret = RETERR(-ENOSPC);
 		
 		ON_TRACE(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
 
@@ -364,23 +346,18 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 unlock_and_ret:
 	reiser4_spin_unlock_sb(sbinfo);
 
-	return RETERR(ret);
+	return ret;
 }
 
-#if REISER4_TRACE
 int
-__reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags, const char *message)
-#else
-int
-__reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
-#endif
+reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 {
 	int ret;
 	reiser4_context *ctx;
 
 	assert("nikita-2964", ergo(flags & BA_CAN_COMMIT,
 				   lock_stack_isclean(get_current_lock_stack())));
-	ON_TRACE(TRACE_RESERVE2, "grab_space: %llu for: %s..", count, message);
+	ON_TRACE(TRACE_RESERVE2, "grab_space: %llu for: %s..", count);
 
 	ctx = get_current_context();
 	if (!(flags & BA_FORCE) && !is_grab_enabled(ctx)) {
@@ -396,9 +373,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 
 			ON_TRACE(TRACE_RESERVE2, "force commit!..");
 
-			ret = txnmgr_force_commit_all(ctx->super, 0);
-			if (ret != 0)
-				reiser4_panic("umka-1272", "Can't commit transactions during block allocation\n");
+			txnmgr_force_commit_all(ctx->super, 0);
 
 			ctx->grab_enabled = 1;
 			ret = reiser4_grab(ctx, count, flags);
@@ -430,11 +405,11 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
  */
 
 int reiser4_grab_reserved(struct super_block *super,
-			    __u64 count, reiser4_ba_flags_t flags, const char *message)
+			    __u64 count, reiser4_ba_flags_t flags)
 {
 	assert("nikita-3175", flags & BA_CAN_COMMIT);
 
-	if (reiser4_grab_space(count, flags, message)) {
+	if (reiser4_grab_space(count, flags)) {
 		reiser4_super_info_data *sbinfo;
 
 		sbinfo = get_super_private(super);
@@ -442,10 +417,9 @@ int reiser4_grab_reserved(struct super_block *super,
 		assert("nikita-2929", sbinfo->delete_sema_owner == NULL);
 		sbinfo->delete_sema_owner = current;
 
-		if (reiser4_grab_space(count, flags | BA_RESERVED, message)) {
+		if (reiser4_grab_space(count, flags | BA_RESERVED)) {
 			warning("zam-833",
-				"reserved space is not enough (%llu, %s)",
-				count, message);
+				"reserved space is not enough (%llu)", count);
 			return RETERR(-ENOSPC);
 		}
 	}
@@ -578,14 +552,7 @@ static inline void assign_fake_blocknr(reiser4_block_nr *blocknr)
 
 	*blocknr &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
 	*blocknr |= REISER4_UNALLOCATED_STATUS_VALUE;
-#if REISER4_DEBUG
-	{
-		znode *node;
-
-		node = zlook(current_tree, blocknr);
-		assert("zam-394", node == NULL);
-	}
-#endif
+	assert("zam-394", zlook(current_tree, blocknr) == NULL);
 }
 
 int
@@ -697,17 +664,12 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
  *          blocks, after block allocation completes, it contains the length of
  *          allocated disk region.
  * @flags -- see reiser4_ba_flags_t description.
- * @message -- if REISER4_TRACE enable, it is a trace message.
  *
  * @return -- 0 if success, error code otherwise.
  */
 int
-__reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
-		       reiser4_block_nr * len, reiser4_ba_flags_t flags
-#if REISER4_TRACE
-		       , const char *message
-#endif
-	)
+reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
+		     reiser4_block_nr * len, reiser4_ba_flags_t flags)
 {
 	__u64 needed = *len;
 	reiser4_context *ctx;
@@ -719,7 +681,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 	
-	ON_TRACE(TRACE_RESERVE2, "reiser4_alloc_blocks: needed %llu for %s..", needed, message);
+	ON_TRACE(TRACE_RESERVE2, "reiser4_alloc_blocks: needed %llu..", needed);
 
 	assert("vpf-339", hint != NULL);
 
@@ -741,7 +703,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 /* VS-FIXME-HANS: why is this comment above addressed to vitaly (from vitaly)? */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
-		ret = reiser4_grab_space_force(*len, flags, "ALLOC_BLOCKS for not counted");
+		ret = reiser4_grab_space_force(*len, flags);
 		if (ret != 0)
 			return ret;
 	}
@@ -783,7 +745,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	} else {
 		assert ("zam-821", ergo(hint->max_dist == 0 && !hint->backward, ret != -ENOSPC));
 		if (hint->block_stage == BLOCK_NOT_COUNTED)
-			grabbed2free(ctx, sbinfo, needed, "reiser4_alloc_blocks: failed for BLOCK_NOT_COUNTED");
+			grabbed2free(ctx, sbinfo, needed);
 	}
 
 	return ret;
@@ -846,11 +808,7 @@ fake_allocated2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __
 }
 
 void
-#if REISER4_TRACE
-__fake_allocated2free(__u64 count, reiser4_ba_flags_t flags, const char *message)
-#else
-__fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
-#endif
+fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -858,14 +816,10 @@ __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 
-	ON_TRACE(TRACE_RESERVE2, "fake_allocated2free %llu blocks for %s\n", count, message);
+	ON_TRACE(TRACE_RESERVE2, "fake_allocated2free %llu blocks\n", count);
 
 	fake_allocated2grabbed(ctx, sbinfo, count, flags);
-#if REISER4_TRACE
-	__grabbed2free(ctx, sbinfo, count, message);
-#else
-	__grabbed2free(ctx, sbinfo, count);
-#endif
+	grabbed2free(ctx, sbinfo, count);
 }
 
 void grabbed2free_mark(int mark)
@@ -879,18 +833,15 @@ void grabbed2free_mark(int mark)
 	assert("nikita-3007", mark >= 0);
 	assert("nikita-3006",
 	       ctx->grabbed_blocks >= (__u64)mark);
-	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - mark, __FUNCTION__);
+	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - mark);
 }
 
 /* Adjust free blocks count for blocks which were reserved but were not used. */
 void
-#if REISER4_TRACE
-__grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count, const char *message)
-#else
-__grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count)
-#endif
+grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
+	       __u64 count)
 {
-	ON_TRACE(TRACE_RESERVE2, "grabbed2free: %llu for %s\n", count, message);
+	ON_TRACE(TRACE_RESERVE2, "grabbed2free: %llu\n", count);
 
 	sub_from_ctx_grabbed(ctx, count);
 
@@ -912,11 +863,7 @@ int check_atom_reserved_blocks(struct txn_atom *atom, __u64 overwrite_set)
 }
 
 void
-#if REISER4_TRACE
-__grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count, const char *message)
-#else
-__grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
-#endif
+grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -937,24 +884,20 @@ __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 
 	assert ("vpf-292", check_block_counters(ctx->super));
 
-	ON_TRACE(TRACE_RESERVE2, "__grabbed2flush_reserved_nolock %llu blocks for %s: atom %u has %llu flush reserved blocks\n",
-		 count, message, atom->atom_id, atom->flush_reserved);
+	ON_TRACE(TRACE_RESERVE2, "__grabbed2flush_reserved_nolock %llu blocks: atom %u has %llu flush reserved blocks\n",
+		 count, atom->atom_id, atom->flush_reserved);
 
 	reiser4_spin_unlock_sb(sbinfo);	
 }
 
 void
-#if REISER4_TRACE
-__grabbed2flush_reserved(__u64 count, const char *message)
-#else
-__grabbed2flush_reserved(__u64 count)
-#endif
+grabbed2flush_reserved(__u64 count)
 {
 	txn_atom * atom = get_current_atom_locked ();
 
-	ON_TRACE(TRACE_RESERVE2, "__grabbed2flush_reserved for %s\n", message);
+	ON_TRACE(TRACE_RESERVE2, "__grabbed2flush_reserved\n");
 
-	grabbed2flush_reserved_nolock (atom, count, "__grabbed2flush_reserved");
+	grabbed2flush_reserved_nolock (atom, count);
 
 	UNLOCK_ATOM (atom);
 }
@@ -1019,11 +962,7 @@ __u64 atom_flush_reserved(void)
 }
 
 void
-#if REISER4_TRACE
-__flush_reserved2free_all(const char *message)
-#else
-__flush_reserved2free_all(void)
-#endif
+flush_reserved2free_all(void)
 {
 	reiser4_super_info_data *sbinfo;
 	txn_atom * atom = get_current_atom_locked_nocheck ();
@@ -1046,22 +985,18 @@ __flush_reserved2free_all(void)
 
 	reiser4_spin_unlock_sb(sbinfo);
 	
-	ON_TRACE(TRACE_RESERVE2, "flush_reserved2free_all moved %llu flush reserved blocks to free for %s\n", count, message);
+	ON_TRACE(TRACE_RESERVE2, "flush_reserved2free_all moved %llu flush reserved blocks to free\n", count);
 
 	UNLOCK_ATOM (atom);
 }
 
 /* release all blocks grabbed in context which where not used. */
 void
-#if REISER4_TRACE
-__all_grabbed2free(const char *message)
-#else
-__all_grabbed2free(void)
-#endif
+all_grabbed2free(void)
 {
 	reiser4_context *ctx = get_current_context();
 
-	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks, message);
+	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks);
 }
 
 /* adjust sb block counters if real (on-disk) blocks do not become unallocated
@@ -1128,20 +1063,16 @@ reiser4_check_block(const reiser4_block_nr * block, int desired)
    distinguish blocks allocated for unformatted and formatted nodes */
 
 int
-#if REISER4_TRACE
-__reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
-			 block_stage_t target_stage, reiser4_ba_flags_t flags, const char *message)
-#else
-__reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
-			 block_stage_t target_stage, reiser4_ba_flags_t flags)
-#endif
+reiser4_dealloc_blocks(const reiser4_block_nr * start,
+		       const reiser4_block_nr * len,
+		       block_stage_t target_stage, reiser4_ba_flags_t flags)
 {
 	txn_atom *atom = NULL;
 	int ret;
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
 
-	ON_TRACE(TRACE_RESERVE2, "reiser4_dealloc_blocks: %llu blocks for %s..", *len, message);
+	ON_TRACE(TRACE_RESERVE2, "reiser4_dealloc_blocks: %llu blocks", *len);
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
@@ -1235,14 +1166,11 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 }
 
 int
-#if REISER4_TRACE
-__reiser4_dealloc_block(const reiser4_block_nr * block, block_stage_t stage, reiser4_ba_flags_t flags, const char *message)
-#else
-__reiser4_dealloc_block(const reiser4_block_nr * block, block_stage_t stage, reiser4_ba_flags_t flags)
-#endif
+reiser4_dealloc_block(const reiser4_block_nr * block,
+		      block_stage_t stage, reiser4_ba_flags_t flags)
 {
 	const reiser4_block_nr one = 1;
-	return reiser4_dealloc_blocks(block, &one, stage, flags | BA_FORMATTED, message);
+	return reiser4_dealloc_blocks(block, &one, stage, flags | BA_FORMATTED);
 }
 
 /* wrappers for block allocator plugin methods */

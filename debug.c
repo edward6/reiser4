@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Debugging/logging/tracing/profiling facilities. */
+/* Debugging facilities. */
 
 #include "kattr.h"
 #include "reiser4.h"
@@ -53,7 +54,8 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 			print_contexts();
 			ctx = get_current_context();
 			super = ctx->super;
-			if ((get_super_private(super) != NULL) && reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
+			if (get_super_private(super) != NULL &&
+			    reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
 				print_znodes("znodes", current_tree);
 #if REISER4_DEBUG
 			{
@@ -67,10 +69,9 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 			}
 #endif
 		}
-
-		BUG();
-		/* to make gcc happy about noreturn attribute */
 	}
+	BUG();
+	/* to make gcc happy about noreturn attribute */
 	panic("%s", panic_buf);
 }
 
@@ -446,11 +447,6 @@ int atom_isopen(const txn_atom * atom)
 	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
 }
 
-/* ZAM-FIXME-HANS: this is classic josh working independently without concern
- * for how others on the team code things.  Put this in debug.c, and teach it to
- * use the reiserfs warning/panic infrastructure, or cut it entirely. */
-/* ANSWER(ZAM): Hans, this is not panic, this is not warning, it is a debug
- * output, printk is OK for this. */
 #endif
 
 #if REISER4_DEBUG_OUTPUT

@@ -501,7 +501,7 @@ delete_file_common(struct inode *inode /* object to remove */ )
 		/* grab space which is needed to remove one item from the tree */
 		reserve = estimate_one_item_removal(tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
-					     BA_RESERVED | BA_CAN_COMMIT, "common_file_delete")) {
+					     BA_RESERVED | BA_CAN_COMMIT)) {
 			warning("nikita-2847",
 				"Cannot delete unnamed sd of %lli. Run fsck",
 				get_inode_oid(inode));
@@ -523,13 +523,13 @@ static int delete_directory_common(struct inode *inode)
 	assert("vs-1101", dplug && dplug->done);
 
 	/* grab space enough for removing two items */
-	if (reiser4_grab_space(2 * estimate_one_item_removal(tree_by_inode(inode)), BA_RESERVED | BA_CAN_COMMIT, "common_delete_directory"))
+	if (reiser4_grab_space(2 * estimate_one_item_removal(tree_by_inode(inode)), BA_RESERVED | BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
 
 	result = dplug->done(inode);
 	if (!result)
 		result = common_file_delete_no_reserve(inode);
-	all_grabbed2free("common_delete_directory");
+	all_grabbed2free();
 	return result;
 }
 
@@ -648,10 +648,9 @@ create_common(struct inode *object, struct inode *parent UNUSED_ARG,
 	assert("nikita-747", data != NULL);
 	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
-	if (reiser4_grab_space(reserve =
-			       estimate_create_file_common(object), BA_CAN_COMMIT, "common_file_create")) {
+	reserve = estimate_create_file_common(object);
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
-	}
 	return write_sd_by_inode_common(object);
 }
 
@@ -916,13 +915,13 @@ setattr_common(struct inode *inode /* Object to change attributes */,
 	assert("nikita-3119", !(attr->ia_valid & ATTR_SIZE));
 
 	tograb = estimate_one_insert_into_item(tree_by_inode(inode));
-	result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
+	result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
 	if (!result) {
 		result = inode_setattr(inode, attr);
 		if (!result)
 			/* "capture" inode */
 			result = reiser4_mark_inode_dirty(inode);
-		all_grabbed2free(__FUNCTION__);
+		all_grabbed2free();
 	}
 	return result;
 }

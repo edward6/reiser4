@@ -383,8 +383,6 @@ make_space_tail(carry_op * op, carry_level * doing, znode * orig_node)
    neighbors of insertion coord and allocates new nodes until there is enough
    free space to complete @op.
 
-   Follows logic of fs/reiser4/tree.c:insert_single_item()
-
    See comments in the body.
 
    Assumes that the node format favors insertions at the right end of the node
@@ -980,8 +978,6 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 	node = flow_insert_point(op)->node;
 
 	if (op->u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT)
-		/* FIXME-VS: this is confusing because it is limit reaches, not
-		   that we are running out of disk space */
 		return RETERR(-E_NODE_FULL);
 	/* add new node after insert point node */
 	new = add_new_znode(node, op->node, doing, todo);

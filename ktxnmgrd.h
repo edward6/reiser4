@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Transaction manager daemon. */
+/* Transaction manager daemon. See ktxnmgrd.c for comments. */
 
 #ifndef __KTXNMGRD_H__
 #define __KTXNMGRD_H__
@@ -15,19 +16,29 @@
 #include <asm/atomic.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
+/* in this structure all data necessary to start up, shut down and communicate
+ * with ktxnmgrd are kept. */
 struct ktxnmgrd_context {
+	/* conditional variable used to synchronize start up of ktxnmgrd */
 	kcond_t startup;
+	/* completion used to synchronize shut down of ktxnmgrd */
 	struct completion finish;
+	/* condition variable on which ktxnmgrd sleeps */
 	kcond_t wait;
+	/* spin lock protecting all fields of this structure */
 	spinlock_t guard;
+	/* timeout of sleeping on ->wait */
 	signed long timeout;
+	/* kernel thread running ktxnmgrd */
 	struct task_struct *tsk;
+	/* list of all file systems served by this ktxnmgrd */
 	txn_mgrs_list_head queue;
+	/* is ktxnmgrd already started? */
 	int started:1;
+	/* is ktxnmgrd being shut down? */
 	int done:1;
+	/* should ktxnmgrd repeat scanning of atoms? */
 	int rescan:1;
-	__u32 duties;
-	atomic_t pressure;
 };
 
 extern void init_ktxnmgrd_context(ktxnmgrd_context * context);

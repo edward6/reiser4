@@ -33,7 +33,7 @@
 #include "prof.h"
 #include "repacker.h"
 #include "init_super.h"
-#include "reiser4_status_flags.h"
+#include "status_flags.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
