@@ -89,6 +89,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
 
+static reiser4_key *lnode_dentry_key(const lnode * node, reiser4_key * result);
 static reiser4_key *lnode_inode_key(const lnode * node, reiser4_key * result);
 static reiser4_key *lnode_lw_key(const lnode * node, reiser4_key * result);
 static int lnode_inode_eq(const lnode * node1, const lnode * node2);
@@ -112,7 +113,7 @@ static struct {
 	int (*eq) (const lnode * node1, const lnode * node2);
 } lnode_ops[LNODE_NR_TYPES] = {
 	[LNODE_DENTRY] = {
-		.key = NULL,
+		.key = lnode_dentry_key,
 		.get_plugins = NULL,
 		.set_plugins = NULL,
 		.eq = NULL
@@ -123,12 +124,14 @@ static struct {
 		.set_plugins = NULL,
 		.eq = lnode_inode_eq
 	},
+	/*
 	[LNODE_PSEUDO] = {
 		.key = NULL,
 		.get_plugins = NULL,
 		.set_plugins = NULL,
 		.eq = NULL
 	},
+	*/
 	[LNODE_LW] = {
 		.key = lnode_lw_key,
 		.get_plugins = NULL,
@@ -217,12 +220,12 @@ lnodes_done(void)
 */
 /* Audited by: green(2002.06.15) */
 reiser4_internal lnode *
-lget(lnode * node /* lnode to add to the hash table */ ,
+lget(                 /*lnode * node ,  lnode to add to the hash table */ 
      lnode_type type /* lnode type */ , oid_t oid /* objectid */ )
 {
 	lnode *result;
 
-	assert("nikita-1862", node != NULL);
+	//	assert("nikita-1862", node != NULL);
 	assert("nikita-1866", lnode_valid_type(type));
 
 	spin_lock(&lnode_guard);
@@ -252,13 +255,13 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 	if (result == NULL) {
 		/* lnode wasn't found in the hash table, initialise @node and
 		   add it into hash table. */
-		xmemset(node, 0, sizeof *node);
-		node->h.type = type;
-		node->h.oid = oid;
-		kcond_init(&node->h.cvar);
-		node->h.ref = 1;
-		ln_hash_insert(&lnode_htable, node);
-		result = node;
+		result = ( lnode * ) kmalloc( sizeof( lnode ), GFP_KERNEL);
+		xmemset(result, 0, sizeof( lnode ));
+		result->h.type = type;
+		result->h.oid = oid;
+		kcond_init(&result->h.cvar);
+		result->h.ref = 1;
+		ln_hash_insert(&lnode_htable, result);
 	}
 	spin_unlock(&lnode_guard);
 	return result;
@@ -278,6 +281,7 @@ lput(lnode * node /* lnode to release */ )
 	if (--node->h.ref == 0) {
 		ln_hash_remove(&lnode_htable, node);
 		kcond_broadcast(&node->h.cvar);
+		kfree(node);
 	}
 	spin_unlock(&lnode_guard);
 }
@@ -353,6 +357,16 @@ lnode_valid_type(lnode_type type /* would-be lnode type */ )
 	return type < LNODE_NR_TYPES;
 }
 #endif
+
+/* return key of object behind dentry-based @node */
+reiser4_internal reiser4_key *
+lnode_dentry_key(const lnode * node /* lnode to query */ ,
+		reiser4_key * result /* result */ )
+{
+	return build_sd_key(node->dentry.dentry->d_inode, result);
+}
+
+
 
 /* return key of object behind inode-based @node */
 /* Audited by: green(2002.06.15) */
