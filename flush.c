@@ -2498,7 +2498,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node) || znode_is_root(node) ||
 	    /* We have enough nodes to relocate no matter what. */
-	    pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL ) 
+	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL)) 
 	{
 		/* No need to decide with new nodes, they are treated the same as
 		   relocate. If the root node is dirty, relocate. */
