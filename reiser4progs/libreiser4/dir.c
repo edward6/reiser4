@@ -77,9 +77,6 @@ reiser4_object_t *reiser4_dir_create(
     
     reiser4_object_t *object;
 
-    if (!(object = reiser4_object_create(fs)))
-	return NULL;
-    
     /* 
 	This is a special case. In the case parent is NULL, we are trying to
 	create root directory.
@@ -106,8 +103,8 @@ reiser4_object_t *reiser4_dir_create(
     reiser4_key_build_generic(&object_key, KEY_STATDATA_TYPE,
         locality, objectid, 0);
     
-    /* Updating object key */
-    reiser4_key_init(&object->key, object_key.plugin, object_key.body);
+    if (!(object = reiser4_object_create(fs, &object_key)))
+	return NULL;
     
     if (parent) {   
 	reiser4_entry_hint_t entry;

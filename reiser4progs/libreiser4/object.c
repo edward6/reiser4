@@ -135,8 +135,11 @@ static errno_t reiser4_object_lookup(
 	}
 
 	/* It will be useful when symlinks ready */
-	reiser4_key_set_locality(parent, reiser4_key_get_locality(&object->key));
-	reiser4_key_set_objectid(parent, reiser4_key_get_objectid(&object->key));
+	reiser4_key_set_locality(parent, 
+	    reiser4_key_get_locality(&object->key));
+	
+	reiser4_key_set_objectid(parent, 
+	    reiser4_key_get_objectid(&object->key));
 
 	if (!(dirname = aal_strsep(&pointer, "/")))
 	    break;
@@ -240,11 +243,13 @@ error_free_object:
 
 /* Creates new object on specified filesystem */
 reiser4_object_t *reiser4_object_create(
-    reiser4_fs_t *fs		    /* filesystem new object will be created on */
+    reiser4_fs_t *fs,		    /* filesystem new object will be created on */
+    reiser4_key_t *key		    /* object key */
 ) {
     reiser4_object_t *object;
     
     aal_assert("umka-790", fs != NULL, return NULL);
+    aal_assert("umka-1128", key != NULL, return NULL);
     
     /* Allocating the memory for obejct instance */
     if (!(object = aal_calloc(sizeof(*object), 0)))
@@ -252,7 +257,8 @@ reiser4_object_t *reiser4_object_create(
 
     /* Initializing fileds */
     object->fs = fs;
-
+    reiser4_key_init(&object->key, key->plugin, key->body);
+    
     return object;
 
 error_free_object:
