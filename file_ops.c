@@ -224,7 +224,6 @@ reiser4_read(struct file *file /* file to read from */ ,
 	reiser4_context ctx;
 
 	assert("umka-072", file != NULL);
-	assert("umka-073", buf != NULL);
 	assert("umka-074", off != NULL);
 
 	inode = file->f_dentry->d_inode;
@@ -267,7 +266,6 @@ reiser4_write(struct file *file /* file to write on */ ,
 	reiser4_context ctx;
 
 	assert("nikita-1421", file != NULL);
-	assert("nikita-1422", buf != NULL);
 	assert("nikita-1424", off != NULL);
 
 	inode = file->f_dentry->d_inode;

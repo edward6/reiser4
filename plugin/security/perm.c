@@ -9,6 +9,7 @@
 #include <linux/fs.h>
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/quotaops.h>
+#include <asm/uaccess.h>
 
 static int
 mask_ok_common(struct inode *inode, int mask)
@@ -40,6 +41,20 @@ setattr_ok_common(struct dentry *dentry, struct iattr *attr)
 	return result;
 }
 
+static int
+read_ok_common(
+	struct file * file, const char *buf, size_t size, loff_t *off)
+{
+	return access_ok(VERIFY_WRITE, buf, size) ? 0 : -EFAULT;
+}
+
+static int 
+write_ok_common(
+	struct file * file, const char *buf, size_t size, loff_t *off)
+{
+	return access_ok(VERIFY_READ, buf, size) ? 0 : -EFAULT;
+}
+
 perm_plugin perm_plugins[LAST_PERM_ID] = {
 /* NIKITA-FIXME-HANS: what file contains rwx permissions methods code? */
 	[RWX_PERM_ID] = {
@@ -51,8 +66,8 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			       .desc = "standard UNIX permissions",
 			       .linkage = TYPE_SAFE_LIST_LINK_ZERO
 			 },
-			 .read_ok = NULL,
-			 .write_ok = NULL,
+			 .read_ok = read_ok_common,
+			 .write_ok = write_ok_common,
 			 .lookup_ok = NULL,
 			 .create_ok = NULL,
 			 .link_ok = NULL,
