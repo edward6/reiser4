@@ -1233,7 +1233,7 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	return 0;
 }
 
-static int readdir( const char *prefix, struct file *dir, __u32 flags )
+static int readdir2( const char *prefix, struct file *dir, __u32 flags )
 {
 	echo_filldir_info info;
 	int result;
@@ -2345,7 +2345,7 @@ static int call_readdir_common (struct inode * dir, const char *prefix,
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
-	readdir (prefix, &file, flags);
+	readdir2 (prefix, &file, flags);
 
 	return 0;
 }
@@ -2614,6 +2614,67 @@ static int copy_dir (struct inode * dir)
 	info ("DONE: %d dirs, %d files\n", dirs, files);
 
 	return 0;
+}
+
+
+#include <dirent.h>
+
+static int bash_cp (char * real_file, struct inode * cwd, const char * name);
+static int copy_dir2 (struct inode * dir, const char * source)
+{
+	int result;
+	DIR * d;
+	struct dirent * dirent;
+	struct stat st;
+	struct inode * subdir;
+	char * cwd;
+
+	cwd = getcwd (0, 0);
+	if (!cwd)
+		return errno;
+	
+	result = chdir (source);
+	if (result == -1)
+		return errno;
+
+	d = opendir (source);
+	if (d == 0)
+		return errno;
+
+	result = 0;
+	while ((dirent = readdir (d)) != 0) {
+		if (!strcmp (dirent->d_name, ".") ||
+		    !strcmp (dirent->d_name, ".."))
+			continue;
+		if (stat (dirent->d_name, &st) == -1) {
+			result = errno;
+			break;
+		}
+		if (S_ISDIR (st.st_mode)) {
+			result = call_mkdir (dir, dirent->d_name);
+			if (result)
+				break;
+			subdir = call_lookup (dir, dirent->d_name);
+			if (IS_ERR (subdir)) {
+				result = PTR_ERR (subdir);
+				break;
+			}
+			result = copy_dir2 (subdir, dirent->d_name);
+			if (result) {
+				closedir (d);
+				return result;
+			}
+			continue;
+		}
+		if (S_ISREG (st.st_mode)) {
+			bash_cp (dirent->d_name, dir, dirent->d_name);
+			continue;
+		}
+	}
+	closedir (d);
+	chdir (cwd);
+	free (cwd);
+	return result;
 }
 
 
