@@ -448,6 +448,14 @@ int main (int argc, char *argv[]) {
 		 goto error_free_dal;
 	}
 
+	printf("Detected %s\n", reiserfs_fs_format(fs));
+	
+	reiserfs_fs_close(fs);
+	file_dal_close(dal);
+	
+	return 0;
+error_free_dal:
+	file_dal_close(dal);
 error:
 	return 0xff;
 }
@@ -781,11 +789,12 @@ from corresponding libc.</p>
 
 <b>libreiserfs_malloc_handler_t libreiserfs_malloc_handler(void)</b>
 
-<p>Gets current memory allocation function.</p>
+<p>Gets current memory allocation handler.</p>
 
 <b>void *libreiserfs_malloc(size_t size)</b>
 
-<p>Allocates memory chunk of specified size and returns its pointer to caller.</p>
+<p>Allocates memory chunk of specified size and returns its pointer to caller.
+For memory allocating is using current memory allocation handler.</p>
 
 <b>void *libreiserfs_calloc(size_t size, char c)</b>
 
@@ -803,7 +812,7 @@ from corresponding libc.</p>
 
 <b>int libreiserfs_realloc(void** old, size_t size)</b>
 
-<p>Reallocates specified memory chunk for given size.</p>
+<p>Reallocates specified memory chunk for given size, using current reallocation handler.</p>
 
 <b>void libreiserfs_free_set_handler(libreiserfs_free_handler_t handler)</b>
 
@@ -816,7 +825,7 @@ corresponding libc.</p>
 
 <b>void libreiserfs_free(void* ptr)</b>
 
-<p>Frees specified memory chunk.</p>
+<p>Frees specified memory chunk using current freeing handler.</p>
 
 <p>For example, Milo bootloader may be using libreiserfs' memory allocation factory 
 roughly like this:</p>
@@ -853,13 +862,13 @@ void milo_libreiserfs_init() {
 <h3>String-working functions. Memory-working functions.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>As libreiserfs will be using by bootloaders or any other applications which are working
-alone (without libc), we need to reimplement in libreiserfs some string-working functions and
-memory-working functions which are used by libreiserfs.</p>
+<p>As libreiserfs will be used by bootloaders or any other applications which 
+are working alone (without libc), we need to reimplement in libreiserfs some 
+string-working functions and memory-working functions which are used by libreiserfs.</p>
 
 <p>Using of our own memory-working functions and string-working functions will be 
-activating by some additional parameter in standard <b>configure</b> script. By default,
-will be using standard functions.</p>
+activating by including "-nostdlib" option into linking parameters. By default, will 
+be using standard functions.</p>
 
 <p>Memory working functions will be using memory allocation factory and will be following:<br>
 memcpy(), memset(), memcmp(), memmove()</p>
@@ -881,8 +890,26 @@ void *memcpy(void *dest, const void *src, size_t n) {
 strlen(), strcmp(), strncmp(), strncat(), strchr().
 </p>
 
+<p>Or we may follow yet another way. This way is to delegate these functions (see above) to be
+implemented by the "master" project.</p>
+
+<p>We have to discuss this issue.</p>
+
 </td</tr></table>
 	
+<h3>Compact building.</h3>
+
+<table width=70%><tr><td align=justify>
+<p>As libreiserfs will be used by "alone" applications (some bootloaders), 
+we need a mechanism for building libreiserfs in "compact" maner needed by bootloadeds. 
+The acceptable size of reiserfs code with -nostdlib options is about 10K.</p>
+
+<p>Compact building will be turned on by an option in configure time. Libreiserfs 
+built in compact maner will contain filesystem opening code, file and directory 
+access code. All modifying code (resizing, copying, tree modifying, etc), block 
+allocator code, oid allocator code will be skiped.</p>
+</td></tr></table>
+
 <h3>Filesystem API.</h3>
 
 <table width=70%><tr><td align=justify>
@@ -1568,6 +1595,11 @@ loaded plugin in the cache.</p>
 <p>Unloads plugin, unregisters it from cache if "plugin_nlink" field reaches zero.</p>
 
 <p>In the finalization time, plugin factory will release all plugins.</p>
+
+<h3>Builtin plugins.</h3>
+<table width=70%><tr><td align=justify>
+<p>Not implemented yet!</p>
+</td></tr></table>
 
 <hr>
 
