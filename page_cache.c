@@ -549,10 +549,6 @@ static int write_page_by_ent (struct page *page)
 	check_me("zam-1036", (inode = page->mapping->host) != NULL);
 	check_me("zam-1035", (super = inode->i_sb) != NULL);
 
-	if (current->flags & PF_KSWAPD)
-		/* fall to emergency_flush() */
-		return -E_REPEAT;
-
 	while (1) {
 		if (page->mapping == NULL || page->mapping->host->i_sb != super)
 			break;
@@ -597,9 +593,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	/* Throttle memory allocations if we were not in reiser4 */
 	if (ctx.parent == &ctx) {
 		result = write_page_by_ent(page);
-		if (result != -E_REPEAT)
-			goto out;
-		result = 0;
+		goto out;
 	}
 #endif /* REISER4_USE_ENTD */
 
