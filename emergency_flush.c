@@ -329,11 +329,6 @@ emergency_flush(struct page *page)
 						 GFP_NOFS | __GFP_HIGH);
 				INC_STAT(node, vm.eflush.ok);
 			} else {
-				if (result == 0 && jnode_is_unformatted(node))
-					/* ef_prepare returned 0, therefore, it did radix_tree_preload. Do preload_end
-					   here */
-					radix_tree_preload_end();
-
 				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
@@ -573,30 +568,26 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		struct inode  *inode;
 		reiser4_inode *info;
 
-		spin_lock_eflush(tree->super);
+		WLOCK_TREE(tree);
 
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
 
-		check_me("vs-1677",
-			 radix_tree_insert(ef_jnode_tree_by_reiser4_inode(info),
-					   index_jnode(node), node) == 0);
 		if (!ef->hadatom) {
-			radix_tree_tag_set(ef_jnode_tree_by_reiser4_inode(info),
+			radix_tree_tag_set(jnode_tree_by_reiser4_inode(info),
 					   index_jnode(node), EFLUSH_TAG_ANONYMOUS);
 			ON_DEBUG(info->anonymous_eflushed ++);
 		} else {			
-			radix_tree_tag_set(ef_jnode_tree_by_reiser4_inode(info),
+			radix_tree_tag_set(jnode_tree_by_reiser4_inode(info),
 					   index_jnode(node), EFLUSH_TAG_CAPTURED);
 			ON_DEBUG(info->captured_eflushed ++);
 		}
-		radix_tree_preload_end();
-
-		spin_unlock_eflush(tree->super);
+		WUNLOCK_TREE(tree);
 		/*XXXX*/
 		inc_unfm_ef();
 	}
 
+	/* FIXME: do we need it here, if eflush add/del are protected by page lock? */
 	UNLOCK_JLOAD(node);
 
 	/*
@@ -679,19 +670,21 @@ static void eflush_free (jnode * node)
 	if (jnode_is_unformatted(node)) {
 		reiser4_inode *info;
 
-		spin_lock_eflush(tree->super);
+		WLOCK_TREE(tree);
 
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
 
-		/* removed eflushed jnode to reiser4_inode's radix tree */
-		radix_tree_delete(ef_jnode_tree_by_reiser4_inode(info), index_jnode(node));
+		/* clear e-flush specific tags from node's radix tree slot */
+		radix_tree_tag_clear(
+			jnode_tree_by_reiser4_inode(info), index_jnode(node),
+			ef->hadatom ? EFLUSH_TAG_CAPTURED : EFLUSH_TAG_ANONYMOUS);
 		ON_DEBUG(ef->hadatom ? (info->captured_eflushed --) : (info->anonymous_eflushed --));
 
-		assert("nikita-3355", ergo(ef_jnode_tree_by_reiser4_inode(info)->rnode == NULL,
+		assert("nikita-3355", ergo(jnode_tree_by_reiser4_inode(info)->rnode == NULL,
 					   (info->captured_eflushed == 0 && info->anonymous_eflushed == 0)));
 
-		spin_unlock_eflush(tree->super);
+		WUNLOCK_TREE(tree);
 
 		/*XXXX*/
 		dec_unfm_ef();
@@ -907,11 +900,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	(*efnode)->reserve = usedreserve;
 
 	result = reiser4_alloc_block(hint, blk, ef_block_flags(node));
-	if (result == 0 ) {
-		/* prepare for jnode insertion to radix tree of eflushed jnodes */
-		if (jnode_is_unformatted(node))
-			result = radix_tree_preload(GFP_NOFS | __GFP_HIGH);
-	} else 
+	if (!result)
 		kmem_cache_free(eflush_slab, *efnode);
  out:
 	LOCK_JNODE(node);

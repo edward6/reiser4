@@ -49,7 +49,7 @@ reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
 int setattr_reserve(reiser4_tree *);
 int reserve_cut_iteration(reiser4_tree *);
 int writepage_ctail(struct page *);
-int truncate_eflushed_jnodes_range(struct inode *inode, unsigned long from, int count);
+int truncate_jnodes_range(struct inode *inode, unsigned long from, int count);
 int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size, int mode);
 int delete_object(struct inode *inode, int mode);
 __u8 cluster_shift_by_coord(const coord_t * coord);
@@ -2564,7 +2564,7 @@ reiser4_internal void
 truncate_cluster(struct inode * inode, pgoff_t start, long count)
 {
 	truncate_mapping_pages_range(inode->i_mapping, start, count);
-	truncate_eflushed_jnodes_range(inode, start, count);
+	truncate_jnodes_range(inode, start, count);
 }
 
 static int

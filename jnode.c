@@ -458,9 +458,54 @@ jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
-/* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
-   (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
-   fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is created */
+static void inode_attach_jnode(jnode * node)
+{
+	struct inode * inode;
+	reiser4_inode * info;
+	struct radix_tree_root * rtree;
+
+	assert ("zam-1043", node->key.j.mapping != NULL);
+	inode = node->key.j.mapping->host;
+	info = reiser4_inode_data(inode);
+	rtree = jnode_tree_by_reiser4_inode(info);
+
+	spin_lock(&inode_lock);
+	assert("zam-1049", equi(rtree->rnode !=NULL, info->nr_jnodes != 0));
+	check_me("zam-1045", radix_tree_insert(rtree, node->key.j.index, node));
+	ON_DEBUG(info->nr_jnodes ++);
+	inode->i_state |= I_JNODES;
+	spin_unlock(&inode_lock);
+	clog_op(HASH_JNODE, inode);
+}
+
+static void inode_detach_jnode(jnode * node)
+{
+	struct inode * inode;
+	reiser4_inode * info;
+	struct radix_tree_root * rtree;
+
+	assert ("zam-1044", node->key.j.mapping != NULL);
+	inode = node->key.j.mapping->host;
+	info = reiser4_inode_data(inode);
+	rtree = jnode_tree_by_reiser4_inode(info);
+
+	spin_lock(&inode_lock);
+	assert("zam-1051", info->nr_jnodes != 0);
+	assert("zam-1052", rtree->rnode != NULL);
+	ON_DEBUG(info->nr_jnodes --);
+	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
+	if (rtree->rnode == NULL) {
+		inode->i_state &= I_JNODES;
+	}
+	spin_unlock(&inode_lock);
+	clog_op(UNHASH_JNODE, inode);
+}
+
+/* put jnode into hash table (where they can be found by flush who does not know
+   mapping) and to inode's tree of jnodes (where they can be found (hopefully
+   faster) in places where mapping is known). Currently it is used by
+   fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is
+   created */
 static void
 hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long index)
 {
@@ -486,26 +531,7 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	 */
 	/* assert("nikita-3211", j_hash_find(jtable, &node->key.j) == NULL); */
 	j_hash_insert_rcu(jtable, node);
-
-	{
-		/* protect inode from being pruned by setting I_JNODES state bit */
-		struct inode *inode;
-		reiser4_inode *r4_inode;
-
-		inode = mapping->host;
-		r4_inode = reiser4_inode_data(inode);
-
-		spin_lock(&inode_lock);
-		assert("vs-1432", ergo((inode->i_state & I_JNODES), (r4_inode->jnodes > 0)));
-		if ((inode->i_state & I_JNODES) == 0 && (r4_inode->jnodes != 0))
-			print_clog();
-		assert("vs-1685", ergo((inode->i_state & I_JNODES) == 0, (r4_inode->jnodes == 0)));
-		r4_inode->jnodes ++;
-		ON_DEBUG(inode_jnodes_list_push_back(&r4_inode->jnodes_list, node));
-		inode->i_state |= I_JNODES;
-		spin_unlock(&inode_lock);
-		clog_op(HASH_JNODE, inode);
-	}
+	inode_attach_jnode(node);
 }
 
 static void
@@ -516,34 +542,16 @@ unhash_unformatted_node_nolock(jnode *node)
 
 	/* remove jnode from hash-table */	
 	j_hash_remove_rcu(&node->tree->jhash_table, node);
-
-	{
-		/* if last jnode of inode is removed from hash table - clear I_JNODES bit so that it can be pruned */
-		struct inode *inode;
-		reiser4_inode *r4_inode;
-
-		inode = node->key.j.mapping->host;
-		r4_inode = reiser4_inode_data(inode);
-
-		spin_lock(&inode_lock);
-		assert("vs-1682", (inode->i_state & I_JNODES) && (r4_inode->jnodes > 0));
-		ON_DEBUG(inode_jnodes_list_remove_clean(node));
-		r4_inode->jnodes --;
-		if (r4_inode->jnodes == 0) {
-			inode->i_state &= ~I_JNODES;
-			assert("vs-1686", inode_jnodes_list_empty(&r4_inode->jnodes_list));
-		}
-		spin_unlock(&inode_lock);
-		clog_op(UNHASH_JNODE, inode);
-	}
-
+	inode_detach_jnode(node);
 	node->key.j.mapping = 0;
 	node->key.j.index = (unsigned long)-1;
 	node->key.j.objectid = 0;
+
 }
 
-/* remove jnode from hash table and from inode's tree of jnodes. This is used in reiser4_invalidatepage and in
-   kill_hook_extent->truncate_inode_jnodes->uncapture_jnode */
+/* remove jnode from hash table and from inode's tree of jnodes. This is used in
+   reiser4_invalidatepage and in kill_hook_extent -> truncate_inode_jnodes ->
+   uncapture_jnode */
 reiser4_internal void
 unhash_unformatted_jnode(jnode *node)
 {
@@ -2101,6 +2109,6 @@ reiser4_internal jnode *jclone(jnode *node)
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    End:
 */

@@ -737,10 +737,11 @@ drop_page(struct page *page)
 }
 
 
-/* this is called by truncate_eflushed_jnodes_range which in its turn is always called after
-   truncate_mapping_pages_range. Therefore, here jnode can not have page. New pages can not be created because
-   truncate_jnodes_range goes under exclusive access on file obtained, where as new page creation requires non-exclusive
-   access obtained */
+/* this is called by truncate_jnodes_range which in its turn is always called
+   after truncate_mapping_pages_range. Therefore, here jnode can not have
+   page. New pages can not be created because truncate_jnodes_range goes under
+   exclusive access on file obtained, where as new page creation requires
+   non-exclusive access obtained */
 static void
 invalidate_unformatted(jnode *node)
 {
@@ -749,8 +750,8 @@ invalidate_unformatted(jnode *node)
 	LOCK_JNODE(node);
 	page = node->pg;
 	if (page) {
-		assert("", 0);
-/*
+		assert("zam-1053", 0);
+#if 0
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
 
@@ -760,7 +761,7 @@ invalidate_unformatted(jnode *node)
 		unlock_page(page);
 
 		page_cache_release(page);
-*/
+#endif
 	} else {
 		JF_SET(node, JNODE_HEARD_BANSHEE);		
 		uncapture_jnode(node);
@@ -772,7 +773,7 @@ invalidate_unformatted(jnode *node)
 
 /* find all eflushed jnodes from range specified and invalidate them */
 reiser4_internal int
-truncate_eflushed_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
+truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 {
 	reiser4_inode *info;
 	int truncated_jnodes;
@@ -797,7 +798,7 @@ truncate_eflushed_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 		assert("nikita-3466", index <= end);
 
 		RLOCK_TREE(tree);
-		taken = radix_tree_gang_lookup(ef_jnode_tree_by_reiser4_inode(info), (void **)gang,
+		taken = radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info), (void **)gang,
 					       index, JNODE_GANG_SIZE);
 		for (i = 0; i < taken; ++i) {
 			node = gang[i];
@@ -838,7 +839,7 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 	/*invalidate_mmap_range(mapping, from_bytes, count_bytes);*/
 	unmap_mapping_range(mapping, from_bytes, count_bytes, 1/*even cows*/);
 	truncate_mapping_pages_range(mapping, from, count);
-	truncate_eflushed_jnodes_range(mapping->host, from, count);
+	truncate_jnodes_range(mapping->host, from, count);
 } 
 
 

@@ -567,18 +567,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		page_clear_jnode(page, node);
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
-#if 0 /*XXXX*/
-		if (!JF_ISSET(node, JNODE_EFLUSH) && jnode_is_unformatted(node)) {
-			/* unformatted jnodes have pointer to inode's address space. Jnodes are stored in per filesystem
-			   hash table. */
-			uncapture_page(page);
-			UNDER_SPIN_VOID(jnode,
-					node,
-					page_clear_jnode(page, node));
-			/* remove jnode from hash table */
-			unhash_unformatted_jnode(node);
-		}
-#endif
+
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
 
@@ -590,13 +579,11 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		}
 		write_unlock_irq(&mapping->tree_lock);
 		
-		/*reiser4_exit_context(&ctx);*/
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
-		/*reiser4_exit_context(&ctx);*/
 		return 0;
 	}
 }

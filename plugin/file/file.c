@@ -904,13 +904,29 @@ find_or_create_extent(struct page *page)
 	return result;
 }
 
+#if REISER4_USE_EFLUSH
+static int inode_has_eflushed_jnodes(struct inode * inode)
+{
+	reiser4_tree * tree = current_tree;
+	int ret;
+
+	RLOCK_TREE(tree);
+	ret = (radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_ANONYMOUS) ||
+	       radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_CAPTURED));
+	RUNLOCK_TREE(tree);
+	return ret;
+}
+# else
+#define inode_has_eflushed_jnodes(inode) (0)
+#endif
+
 /* Check mapping for existence of not captured dirty pages. This returns !0 if either page tree contains pages tagged
    PAGECACHE_TAG_REISER4_MOVED or if eflushed jnode tree is not empty */
 static int
 inode_has_anonymous_pages(struct inode *inode)
 {
 	return (mapping_tagged(inode->i_mapping, PAGECACHE_TAG_REISER4_MOVED) ||
-		(ef_jnode_tree_by_inode(inode)->rnode != NULL));
+		inode_has_eflushed_jnodes(inode));
 }
 
 static int
@@ -1045,6 +1061,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 	unsigned found_jnodes;
 	pgoff_t cur, end;
 	unsigned count;
+	reiser4_tree * tree;
 	unsigned i;
 
 	result = 0;
@@ -1055,6 +1072,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 
 	to_capture = CAPTURE_APAGE_BURST;
 	found_jnodes = 0;
+	tree = &get_super_private(mapping->host->i_sb)->tree;
 
 	do {
 		pagevec_init(&pvec, 0);
@@ -1103,9 +1121,10 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 
 			nr_jnodes = min(to_capture, (unsigned)PAGEVEC_SIZE);
 
-			spin_lock_eflush(mapping->host->i_sb);
+			/* spin_lock_eflush(mapping->host->i_sb); */
+			RLOCK_TREE(tree);
 		
-			found_jnodes = radix_tree_gang_lookup_tag(ef_jnode_tree_by_inode(mapping->host),
+			found_jnodes = radix_tree_gang_lookup_tag(jnode_tree_by_inode(mapping->host),
 								  (void **)&jvec, cur, nr_jnodes,
 								  EFLUSH_TAG_ANONYMOUS);
 			if (found_jnodes != 0) {				
@@ -1121,7 +1140,8 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 
 				if (found_jnodes != 0) {
 					/* there are anonymous jnodes from given range */
-					spin_unlock_eflush(mapping->host->i_sb);
+					/* spin_unlock_eflush(mapping->host->i_sb); */
+					RUNLOCK_TREE(tree);
 
 					ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
 						 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
@@ -1163,7 +1183,8 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 					continue;
 				}
 			}
-			spin_unlock_eflush(mapping->host->i_sb);
+			RUNLOCK_TREE(tree);
+			/* spin_unlock_eflush(mapping->host->i_sb);*/
 			ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
 				 "oid %llu: no anonymous jnodes are found\n", get_inode_oid(mapping->host));
 			break;

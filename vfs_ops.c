@@ -434,8 +434,8 @@ init_once(void *obj /* pointer to new inode */ ,
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		init_rwsem(&info->p.coc_sem);
 		sema_init(&info->p.loading, 1);
-		info->p.jnodes = 0;
-		INIT_RADIX_TREE(ef_jnode_tree_by_reiser4_inode(&info->p), GFP_ATOMIC);
+		ON_DEBUG(info->p.nr_jnodes = 0);
+		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p), GFP_ATOMIC);
 		ON_DEBUG(info->p.captured_eflushed = 0);
 		ON_DEBUG(info->p.anonymous_eflushed = 0);
 		ON_DEBUG(inode_jnodes_list_init(&info->p.jnodes_list));
@@ -512,9 +512,10 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 
 	info = reiser4_inode_data(inode);
 
-	assert("vs-1220", ef_jnode_tree_by_reiser4_inode(info)->rnode == NULL);
+	assert("vs-1220", jnode_tree_by_reiser4_inode(info)->rnode == NULL);
 	assert("vs-1222", info->captured_eflushed == 0);
 	assert("vs-1428", info->anonymous_eflushed == 0);
+	assert("zam-1050", info->nr_jnodes == 0);
 
 #if 0
 	{
@@ -705,7 +706,7 @@ reiser4_clear_inode(struct inode *object)
 	r4_inode = reiser4_inode_data(object);
 	assert("vs-1688", (r4_inode->anonymous_eflushed == 0 &&
 			   r4_inode->captured_eflushed == 0 &&
-			   r4_inode->jnodes == 0));
+			   r4_inode->nr_jnodes == 0));
 }
 
 const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";

@@ -145,13 +145,9 @@ struct reiser4_inode {
 	struct rw_semaphore coc_sem; /* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
 			       tries to unmap page for which it is called. This prevents process from using page which
 			       was copied on capture */
-
-	/* number of unformatted node jnodes of this file in jnode hash table */
-	unsigned long jnodes;
-	
-	/* tree of eflushed jnodes. Eflushed jnode may be "anonymous" (having no atom) and "captured". Jnodes in this
-	   tree are distinguished by radix tree tags */
-	struct radix_tree_root ef_nodes;
+	/* tree of jnodes. Jnodes in this tree are distinguished by radix tree
+	   tags */
+	struct radix_tree_root jnodes_tree;
 #if REISER4_DEBUG
 	/* list of jnodes. Number of jnodes in this list is the above jnodes field */
 	inode_jnodes_list_head jnodes_list;
@@ -159,6 +155,8 @@ struct reiser4_inode {
 	/* numbers of eflushed jnodes of each type in the above tree */
 	int anonymous_eflushed;
 	int captured_eflushed;
+	/* number of unformatted node jnodes of this file in jnode hash table */
+	unsigned long nr_jnodes;
 #endif
 
 	/* block number of virtual root for this object. See comment above
@@ -399,15 +397,15 @@ extern void init_inode_ordering(struct inode *inode,
 				reiser4_object_create_data *crd, int create);
 
 static inline struct radix_tree_root *
-ef_jnode_tree_by_inode(struct inode *inode)
+jnode_tree_by_inode(struct inode *inode)
 {
-	return &reiser4_inode_data(inode)->ef_nodes;
+	return &reiser4_inode_data(inode)->jnodes_tree;
 }
 
 static inline struct radix_tree_root *
-ef_jnode_tree_by_reiser4_inode(reiser4_inode *r4_inode)
+jnode_tree_by_reiser4_inode(reiser4_inode *r4_inode)
 {
-	return &r4_inode->ef_nodes;
+	return &r4_inode->jnodes_tree;
 }
 
 #if REISER4_DEBUG_OUTPUT
