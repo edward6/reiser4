@@ -2009,7 +2009,7 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	atom->txnh_count += 1;
 	
 	/* VITALY: set atom->flush_reserve from context->flush_reserve.*/
-	flush_reserved2atom_all();
+	flush_reserved2atom_all_nolock(atom);
 	trace_on(TRACE_RESERVE, "move reserved from context to atom, "
 	    "reserved in atom %llu.\n", reiser4_atom_flush_reserved());
 }

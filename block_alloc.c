@@ -204,35 +204,21 @@ sub_from_sb_used(const struct super_block *super, __u64 count)
 /*
  * Increase the counter of block reserved for flush in atom.
  */
-static int add_to_atom_flush_reserved(__u32 count)
+static void add_to_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
 {
-	txn_atom * atom = get_current_atom_locked_nocheck ();
-
-	if (!atom)
-	    return 1;
-	
+	assert ("zam-772", atom != NULL);
+	assert ("zam-773", spin_atom_is_locked (atom));
 	atom->flush_reserved += count;
-
-	spin_unlock_atom (atom);
-
-	return 0;
 }
 
 /*
  * Decrease the counter of block reserved for flush in atom.
  */
-int sub_from_atom_flush_reserved(__u32 count)
+void sub_from_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
 {
-	txn_atom * atom = get_current_atom_locked_nocheck ();
-
-	if (!atom)
-	    return 1;
-	
+	assert ("zam-774", atom != NULL);
+	assert ("zam-775", spin_atom_is_locked (atom));
 	atom->flush_reserved -= count;
-
-	spin_unlock_atom (atom);
-
-	return 0;
 }
 /*
  * super block has 4 counters: free, used, grabbed, unallocated. Their sum
@@ -541,7 +527,11 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			break;
 		case BLOCK_FLUSH_RESERVED:
 		    	trace_on(TRACE_RESERVE, "get wandered %llu blocks.\n", *len);
-			assert("vpf-294", !sub_from_atom_flush_reserved(*len));
+			{
+				txn_atom * atom = get_current_atom_locked ();
+				sub_from_atom_flush_reserved_nolock (atom, *len);
+				spin_unlock_atom (atom);
+			}
 			break;
 		default:
 			impossible("zam-531", "wrong block stage");
@@ -679,7 +669,7 @@ void flush_reserved2free_all ()
 
 	count = atom->flush_reserved;
 	
-	sub_from_atom_flush_reserved(count);
+	sub_from_atom_flush_reserved_nolock(atom, count);
 
 	reiser4_spin_lock_sb (super);
 	
@@ -693,18 +683,15 @@ void flush_reserved2free_all ()
 	spin_unlock_atom (atom);
 }
 
-void flush_reserved2atom_all() 
+void flush_reserved2atom_all_nolock(txn_atom * atom) 
 {
-	txn_atom * atom = get_current_atom_locked_nocheck ();
-	__u64 count = get_current_context() -> flush_reserved;
+	__u32 count = get_current_context()->flush_reserved;
+
+	assert ("zam-771", atom != NULL);
+	assert ("zam-770", spin_atom_is_locked (atom));
 	
 	sub_from_ctx_flush_reserved(count);
-	
-	if (atom) {
-	    add_to_atom_flush_reserved(count);
-	    spin_unlock_atom (atom);	
-	} else
-	    panic("No atom was created for dirty nodes.");
+	add_to_atom_flush_reserved_nolock(atom, count);
 }
 
 /**
