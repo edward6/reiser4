@@ -32,7 +32,7 @@
 })
 
 #define reiser4_panic(mid, format, ...)				\
-	DCALL(KERN_EMERG, reiser4_do_panic, mid, format , ## __VA_ARGS__)
+	DCALL("", reiser4_do_panic, mid, format , ## __VA_ARGS__)
 
 /* print message with indication of current process, file, line and
     function */
