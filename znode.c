@@ -686,6 +686,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 	result = current_tree -> allocate_node( node );
 	if( result == 0 ) {
 		ZF_SET( node, ZNODE_LOADED );
+		ZF_SET( node, ZNODE_ALLOC );
 		add_d_ref( node );
 		assert( "nikita-1235", znode_is_loaded( node ) );
 		assert( "nikita-1236", node_plugin_by_node( node ) != NULL );

@@ -187,7 +187,8 @@ int jnode_flush (jnode *node, int flags)
 			/* FIXME: Problem: The batch_relocate condition is not set early
 			 * enough to relocate the leaf-level parent, for example.  This is
 			 * not really a special case, but it maybe it should be handled? */
-			if ((ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count,
+			/* FIXME: this doesn't work because of the leftpoint is already locked. */
+			if (0 && (ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count,
 							  FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
 				goto failed;
 			}
@@ -1458,7 +1459,7 @@ static int flush_enqueue_point (flush_position *pos)
 	struct bio_vec *bvec;
 
 	assert ("jmacd-1771", jnode_is_allocated (pos->point));
-	assert ("jmacd-1772", jnode_is_dirty (pos->point));
+	assert ("jmacd-1772", jnode_check_dirty (pos->point));
 
 	/* If we reach the threshold, flush a batch immediately. */
 	if (pos->bio->bi_vcnt == FLUSH_RELOCATE_THRESHOLD) {
@@ -1476,10 +1477,11 @@ static int flush_enqueue_point (flush_position *pos)
 
 	bvec = & pos->bio->bi_io_vec[pos->bio->bi_vcnt++];
 
-	/* Unsavory casting here... */
 	bvec->bv_page   = pos->point->pg;
 	bvec->bv_len    = 0;
 	bvec->bv_offset = 0;
+
+	jnode_set_clean (pos->point);
 
 	return 0;
 }
