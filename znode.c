@@ -618,15 +618,17 @@ zparse(znode * node /* znode to parse */ )
 	assert("nikita-1233", node != NULL);
 	assert("nikita-2370", zdata(node) != NULL);
 
+	/* This function is called from jload_gfp() without any kind of
+	 * synchronization and has to be "idempotent". */
+
 	if (node->nplug == NULL) {
 		node_plugin *nplug;
 
 		nplug = znode_guess_plugin(node);
 		if (nplug != NULL) {
-			node->nplug = nplug;
 			result = nplug->parse(node);
-			if (unlikely(result != 0))
-				node->nplug = NULL;
+			if (likely(result == 0))
+				node->nplug = nplug;
 		} else {
 			result = RETERR(-EIO);
 		}
