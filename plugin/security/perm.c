@@ -1,5 +1,5 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-
+/* NIKITA-FIXME-HANS: this comment describes what code? */
 /* definition of item plugins. */
 
 #include "../plugin.h"
@@ -43,6 +43,7 @@ setattr_ok_common(struct dentry *dentry, struct iattr *attr)
 }
 
 perm_plugin perm_plugins[LAST_PERM_ID] = {
+/* NIKITA-FIXME-HANS: what file contains rwx permissions methods code? */
 	[RWX_PERM_ID] = {
 			 .h = {
 			       .type_id = REISER4_PERM_PLUGIN_TYPE,

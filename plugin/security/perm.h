@@ -26,8 +26,9 @@
    secutiry contexts, etc.
 
 */
+/* NIKITA-FIXME-HANS: define what this is targeted for.  It does not seem to be intended for use with sys_reiser4.  Explain. */
 typedef struct perm_plugin {
-	/* generic fields */
+	/* generic plugin fields */
 	plugin_header h;
 
 	/* check permissions for read/write */
@@ -62,7 +63,7 @@ typedef struct perm_plugin {
 	 * reiser4_clear_inode()->clear_inode_common() */
 	void (*clear) (struct inode * inode);
 } perm_plugin;
-
+/* NIKITA-FIXME-HANS: I really hate things like this that kill the ability of Meta-. to work.  Please eliminate this macro, exce */
 /* call ->check_ok method of perm plugin for inode */
 #define perm_chk(inode, check, ...)			\
 ({							\
