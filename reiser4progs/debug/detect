@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 #  reiserfs probing script
-#  Copyright (C) 1996 - 2002 Hans Reiser.
-#
+#  Copyright (C) 1996-2002 Hans Reiser.
+
 
 reiserfs_probe() {
     dev=$1
@@ -13,10 +13,16 @@ reiserfs_probe() {
 	magic_off=$(expr $super_off + 52)
 	
 	magic=$(dd if=$dev bs=1 count=10 skip=$magic_off 2> /dev/null)
+	[ ! $? -eq 0 ] && {
+	    echo "Can't read $1. Probably permissions denied."
+	    return 1
+	}
+	
+	magic=$(echo $magic | strings)
 	
 	if [ ! $? -eq 0 ]; then
-		echo "Couldn't open device $dev"
-		return 0
+	    echo "Couldn't open device $dev"
+	    return 0
 	fi
 	
 	test x$magic = xReIsErFs && {
@@ -33,6 +39,9 @@ reiserfs_probe() {
 	    echo "reiserfs 3.6 (relocated journal)"
 	    return 0
 	}
+	
+	magic=$(dd if=$dev bs=1 count=10 skip=$super_off 2> /dev/null)
+	magic=$(echo $magic | strings)
 	
 	test x$magic = xR4Sb && {
 	    echo "reiserfs 4.0"
@@ -60,4 +69,3 @@ fi
 reiserfs_probe $1
 
 exit 0
-
