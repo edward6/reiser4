@@ -93,7 +93,7 @@ typedef struct reiser4_inode {
 	/* 20 */ item_plugin *sd;
 	/* plugin of items a directory is built of */
 	/* 24 */ item_plugin *dir_item;
-	/* 28 */ struct inode *parent;
+	/* OFFSETS ARE WRONG BELOW THIS POINT */
 	/* seal for stat-data */
 	/* 32 */ seal_t sd_seal;
 	/* locality id for this file */
