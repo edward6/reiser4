@@ -234,7 +234,7 @@
 #define REISER4_DEBUG_NODE_INVARIANT (0)
 #endif
 
-#if defined(CONFIG_REISER4_DEBUG_SPIN_LOCKS)
+#if defined(CONFIG_REISER4_DEBUG_SPIN_LOCKS) && defined(CONFIG_REISER4_DEBUG)
 /*
  * Turns on spin-lock debugging. Many (but not all) spin-locks used by reiser4
  * are accessed through special wrapper macros defined in spin_macros.h. These
@@ -253,7 +253,7 @@
 #endif
 
 #define CONFIG_REISER4_DEBUG_CONTEXTS y
-#if defined(CONFIG_REISER4_DEBUG_CONTEXTS)
+#if defined(CONFIG_REISER4_DEBUG_CONTEXTS) && defined(CONFIG_REISER4_DEBUG)
 /*
  * In this mode reiser4_context debugging is activated. reiser4_context is a
  * data-structure created on stack at the beginning of reiser4 entry. In this
@@ -268,7 +268,7 @@
 #define REISER4_DEBUG_CONTEXTS (0)
 #endif
 
-#if defined(CONFIG_REISER4_DEBUG_SIBLING_LIST)
+#if defined(CONFIG_REISER4_DEBUG_SIBLING_LIST) && defined(CONFIG_REISER4_DEBUG)
 /*
  * Turn on sibling-list debugging. In this mode consistency of sibling lists
  * of reiser4 internal tree is checked.
