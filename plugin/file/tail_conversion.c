@@ -200,8 +200,13 @@ prepare_tail2extent(struct inode *inode)
 
 	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
 	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
+	/*
+	 * FIXME-NIKITA if grab_space would try to commit current transaction
+	 * at this point we are stymied, because long term lock is held in
+	 * @first_lh. I removed BA_CAN_COMMIT from garbbing flags.
+	 */
 	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
-					  unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT, "tail2extent");
+					  unformatted_nodes * estimate_one_insert_into_item(height), 0, "tail2extent");
 	if (result) {
 		done_lh(&first_lh);
 		return result;
