@@ -437,9 +437,11 @@ int atom_isopen(const txn_atom * atom)
  * use the reiserfs warning/panic infrastructure, or cut it entirely. */
 /* ANSWER(ZAM): Hans, this is not panic, this is not warning, it is a debug
  * output, printk is OK for this. */
+#endif 
+
 #if REISER4_DEBUG_OUTPUT
 void
-info_atom(const char *prefix, txn_atom * atom)
+info_atom(const char *prefix, const txn_atom * atom)
 {
 	if (atom == NULL) {
 		printk("%s: no atom\n", prefix);
@@ -447,14 +449,13 @@ info_atom(const char *prefix, txn_atom * atom)
 	}
 
 	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	       " capture_count: %i stage: %x start: %lu\n", prefix,
+	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
 	       atomic_read(&atom->refcount), atom->atom_id, atom->flags, atom->txnh_count,
-	       atom->capture_count, atom->stage, atom->start_time);
+	       atom->capture_count, atom->stage, atom->start_time, atom->flushed);
 }
 
 #endif
 
-#endif 
 
 /* Make Linus happy.
    Local variables:
