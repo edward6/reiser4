@@ -177,8 +177,8 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 
 	trace_if (TRACE_FLUSH, info ("flush jnode %p\n", node));
 	
-	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR));
-	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));*/
+	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));
+	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
 
@@ -260,10 +260,10 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 	/* Perform batch write. FIXME: Not here, somewhere in the caller... */
 	ret = flush_finish (& flush_pos);
 
-	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));*/
+	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
    failed:
 
-	//print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
+	//print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF);
 
 	flush_pos_done (& flush_pos);
 	flush_scan_done (& left_scan);
@@ -1277,6 +1277,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	carry_level todo;
 	coord_t coord;
 	int size, moved;
+	carry_plugin_info info;
 
 	coord_init_first_unit (&coord, right);
 
@@ -1286,10 +1287,12 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	init_carry_level (&todo, &pool);
 
 	size = item_length_by_coord (&coord);
+	info.todo  = &todo;
+	info.doing = NULL;
 	ret  = node_plugin_by_node (left)->shift (&coord, left, SHIFT_LEFT,
 						  1/* delete @right if it becomes empty*/,
 						  0/* move coord */,
-						  &todo);
+						  &info);
 
 	/* If shift returns positive, then we shifted the item. */
 	assert ("vs-423", ret <= 0 || size == ret);
