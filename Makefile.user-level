@@ -177,7 +177,9 @@ SRC		:= \
 		   trace.c \
 		   ktxnmgrd.c
 
-OBJ		:= $(SRC:.c=.o)
+OBJ_DIR     := obj
+OBJ_FILES	:= $(SRC:.c=.o)
+OBJ         := $(OBJ_FILES:%=$(OBJ_DIR)/%)
 
 ###########################################################################
 #									  #
@@ -202,11 +204,14 @@ clean:
 archive: 
 	LANG=C ; tar cf - . | gzip -9c > $$HOME/archive/reiser4-`date "+%Y-%m-%d-%H-%M"`.tar.gz
 
-World: clean dep build all
+World: clean obj-dirs dep build all
+
+obj-dirs:
+	for f in $(SRC) ;do mkdir -p $(OBJ_DIR)/`dirname $$f` ;done
 
 dep .dependencies:
 	touch .dependencies
-	makedepend -Y -w 8000 $(INCS) $(SRC) $(DEFINES) -f .dependencies
+	makedepend -p$(OBJ_DIR)/ -Y -w 8000 $(INCS) $(SRC) $(DEFINES) -f .dependencies
 
 tags: 
 	etags --declarations -I `$(FIND_NON_SCCS)`
@@ -247,7 +252,7 @@ build:
 	echo >> $(BUILD_INFO_FILE)
 
 
-%.o: %.c
+$(OBJ_DIR)/%.o: %.c
 	$(CC) $(INCS) $(CFLAGS) $(DEFINES) -c -o $@ $<
 
 #MAKEDEPEND
