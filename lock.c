@@ -222,56 +222,81 @@
   
    The following data structures are used in reiser4 locking
    implementation:
+
+   Lock object is a znode. All fields related to long-term locking are grouped
+   into znode->lock embedded object.
   
-   Lock owner (lock_stack) is an lock objects accumulator. It
-   has a list of special link objects (lock_handle) each one
-   has a pointer to lock object this lock owner owns.  Reiser4 lock
-   object (reiser4_lock) has list of link objects of same type each
-   one points to lock owner object -- this lock object owner.  This
-   more complex structure (comparing with older design) is used
-   because we have to implement n<->m relationship between lock owners
-   and lock objects -- one lock owner may own several lock objects and
-   one lock object may belong to several lock owners (in case of
-   `read' or `shared' locks).  Yet another relation may exist between
-   one lock object and lock owners.  If lock procedure cannot
-   immediately take lock on an object it adds the lock owner on
-   special `requestors' list belongs to lock object.  That list
-   represents a queue of pending lock requests.  Because one lock
-   owner may request only only one lock object in a time, it is a 1>n
-   relation between lock objects and a lock owner implemented as it
-   written above. Full information (priority, pointers to lock and
-   link objects) about each lock request is stored in lock owner
-   structure in `request' field.
+   Lock stack is a per thread object.  It owns all znodes locked by the
+   thread. One znode may be locked by several threads in case of read lock or
+   one znode may be write locked by one thread several times. The special link
+   objects (lock handles) support n<->m relation between znodes and lock
+   owners.
+
+   <Thread 1>                       <Thread 2>
+
+   +---------+                     +---------+ 
+   |  LS1    |		           |  LS2    |
+   +---------+			   +---------+
+       ^                                ^
+       |---------------+                +----------+
+       v               v                v          v
+   +---------+      +---------+    +---------+   +---------+
+   |  LH1    |      |   LH2   |	   |  LH3    |   |   LH4   |
+   +---------+	    +---------+	   +---------+   +---------+
+       ^                   ^            ^           ^
+       |                   +------------+           |
+       v                   v                        v
+   +---------+      +---------+                  +---------+
+   |  Z1     |	    |	Z2    |                  |  Z3     |
+   +---------+	    +---------+                  +---------+ 
+
+   Thread 1 locked znodes Z1 and Z2, thread 2 locked znodes Z2 and Z3. The
+   picture above shows that lock stack LS1 has a list of 2 lock handles LH1
+   and LH2, lock stack LS2 has a list with lock handles LH3 and LH4 on it.
+   Znode Z1 is locked by only one thread, znode has only one lock handle LH1
+   on its list, similar situation is for Z3 which is locked by the thread 2
+   only. Z2 is locked (for read) twice by different threads and two lock
+   handles are on its list. Each lock handle represents a single relation of a
+   locking of a znode by a thread. Locking of a znode is an establishing of a
+   locking relation between the lock stack and the znode by adding of a new
+   lock handle to lists of lock handles: one that list is owned by lock stack
+   and it links all lock handles for all znodes locked by the lock stack,
+   another list groups all lock handles for all locks stacks which locked the
+   znode.
+
+   Yet another relation may exist between znode and lock owners.  If lock
+   procedure cannot immediately take lock on an object it adds the lock owner
+   on special `requestors' list belongs to znode.  That list represents a
+   queue of pending lock requests.  Because one lock owner may request only
+   only one lock object in a time, it is a 1->n relation between lock objects
+   and a lock owner implemented as it written above. Full information
+   (priority, pointers to lock and link objects) about each lock request is
+   stored in lock owner structure in `request' field.
   
    SHORT_TERM LOCKING
   
-   We use following scheme for protection of shared objects in smp
-   environment: locks (zlock objects) and lock owners
-   (lock_stack objects) have own spinlocks. The spinlock at
-   lock object protects all lock object fields and double-linked lists
-   of requesters and owner_links. The spinlock in lock_stack structure
-   protects only owner->nr_hipri_requests flag. There is simple rule to avoid
-   deadlocks: lock reiser4 lock object first, no more then one in a
-   time, then lock lock_stack object for owner->nr_hipri_requests flag
-   analysis/modification.
-  
-   Actually, lock object spinlocks do all we need. There are several cases of
-   concurrent access all protected by that spinlocks: putting/removing of
-   owner on/from requesters list at given lock object and linking/unlinking of
-   lock object and owner.
-  
-   The lock_handles lists don't need additional spinlocks for protection.
-   We can safely scan that lists when lock owner is not connected to
-   some `requesters' list because it means noone can pass new lock to us
-   and modify our lock_handles list. When lock owner is connected (and
-   while connecting/disconnecting) to requesters list, it is protected
-   by lock object (that owns req. list) spinlock.
-  
-   Only one case when lock object's spinlocks are not enough is protection of
-   owner object from concurrent access when we are passing signal to lock
-   owners.  The operations of sleep (with check for `nr_hipri_requests' flag) and
-   waking process up must serialized, which is currently done by taking
-   owner->guard spinlock.
+   This is a list of primitive operations over lock stacks / lock handles /
+   znodes and locking descriptions for them.
+
+   1. locking / unlocking which is done by two list insertion/deletion is
+      protected by znode spinlock.  A simultaneous access to the list owned by
+      znode is impossible because the only one spinlock embedded into the
+      znode should be taken.  The list owned by lock stack can be modified
+      only by thread who owns the lock stack and nobody else can modify/read
+      it. There is nothing to be protected by a spinlock or something else.
+
+   2. adding/removing a lock request to/from znode requesters list. The rule
+      is that znode spinlock should be taken for this.
+
+   3. accessing a set of lock stacks who locked given znode is done with znode
+      spinlock taken. Nobody can lock/unlock znode at this time and modify
+      list of lock handles, and, thereby, the set of lock stacks.
+
+   4. Lock stacks can be accessed by from different ways: The thread a lock
+      stack belongs to may change lock stack state, lock or unlock
+      znodes. Another way is when somebody who keep znode spin-locked accesses
+      its lock owners. The parallel access conflicts are solved by using
+      atomic variables for lock stack fields and lock stack spinlock.
 */
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
