@@ -13,7 +13,69 @@
 context_list_head active_contexts;
 /* lock protecting access to active_contexts. */
 spinlock_t active_contexts_lock;
+
+static void
+check_contexts(void)
+{
+	reiser4_context *ctx;
+
+	for_all_type_safe_list(context, &active_contexts, ctx) {
+		assert("", ctx->magic == context_magic);
+	}
+}
+
 #endif
+
+struct {
+	void *task;
+	void *context;
+	void *path[16];
+} context_ok;
+
+
+
+void get_context_ok(reiser4_context *ctx)
+{
+	int i;
+	void *addr, *frame;
+
+#define FRAME(nr)						\
+	case (nr):						\
+		addr  = __builtin_return_address((nr));	 	\
+                frame = __builtin_frame_address(nr);		\
+		break
+
+	memset(&context_ok, 0, sizeof(context_ok));
+
+	context_ok.task = current;
+	context_ok.context = ctx;
+	for (i = 0; i < 16; i ++) {
+		switch(i) {
+			FRAME(0);
+			FRAME(1);
+			FRAME(2);
+			FRAME(3);
+			FRAME(4);
+			FRAME(5);
+			FRAME(6);
+			FRAME(7);
+			FRAME(8);
+			FRAME(9);
+			FRAME(10);
+			FRAME(11);
+			FRAME(12);
+			FRAME(13);
+			FRAME(14);
+			FRAME(15);
+		default:
+			impossible("", "");
+		}
+		if (frame > (void *)ctx)
+			break;
+		context_ok.path[i] = addr;
+	}
+}
+
 
 /* initialise context and bind it to the current thread
 
@@ -67,6 +129,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	spin_lock(&active_contexts_lock);
 	context_list_check(&active_contexts);
 	context_list_push_front(&active_contexts, context);
+	/*check_contexts();*/
 	spin_unlock(&active_contexts_lock);
 	context->task = current;
 #endif
@@ -170,6 +233,7 @@ done_context(reiser4_context * context /* context being released */)
 #if REISER4_DEBUG
 		/* remove from active contexts */
 		spin_lock(&active_contexts_lock);
+		/*check_contexts();*/
 		context_list_remove(parent);
 		spin_unlock(&active_contexts_lock);
 
