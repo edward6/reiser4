@@ -388,6 +388,9 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			   get_super_private (s)->space_plug &&
 			   get_super_private (s)->space_plug->alloc_blocks));
 
+	trace_on (TRACE_ALLOC, "alloc_blocks: requested %llu, search from %llu\n",
+		  (unsigned long long)*len, (unsigned long long)(hint ? hint->blk : -1));
+
 	if (hint != NULL) {
 		stage = hint->block_stage;
 
