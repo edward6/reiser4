@@ -63,10 +63,6 @@
 #  define LE64_TO_CPU(x)		aal_swap64(x)
 #  define BE64_TO_CPU(x)		(x)
 
-inline int aal_be_set_bit (int nr, void *addr);
-inline int aal_be_clear_bit (int nr, void *addr);
-inline int aal_be_test_bit(int nr, const void *addr);
-
 #else
 
 #  define CPU_TO_LE16(x)		(x)
@@ -83,10 +79,6 @@ inline int aal_be_test_bit(int nr, const void *addr);
 #  define LE64_TO_CPU(x)		(x)
 #  define BE64_TO_CPU(x)		aal_swap64(x)
 
-inline int aal_le_set_bit (int nr, void *addr);
-inline int aal_le_clear_bit (int nr, void *addr);
-inline int aal_le_test_bit(int nr, const void *addr);
-
 #endif
 
 #define aal_get_leXX(xx, p, field)	(LE##xx##_TO_CPU ((p)->field))
@@ -102,4 +94,3 @@ inline int aal_le_test_bit(int nr, const void *addr);
 #define aal_set_le64(p, field, val) 	aal_set_leXX(64, p, field, val)
 
 #endif
-

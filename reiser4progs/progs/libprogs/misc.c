@@ -305,6 +305,7 @@ static aal_exception_option_t __progs_exception_option_by_name(char *name) {
     return EXCEPTION_UNHANDLED;
 }
 
+/* This function gets user enter */
 static aal_exception_option_t __progs_exception_selected_option(void) {
     char str[256];
     

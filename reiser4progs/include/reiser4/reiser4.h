@@ -32,7 +32,6 @@ extern "C" {
 #include "oid.h"
 #include "plugin.h"
 #include "tree.h"
-#include "tools.h"
 #include "node.h"
 #include "key.h"
 #include "object.h"

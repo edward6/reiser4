@@ -6,10 +6,8 @@
     Author Yury Umanets.
 */
 
-#include <misc/bitops.h>
 #include <misc/bitmap.h>
-
-#include <aal/debug.h>
+#include <aal/aal.h>
 
 /* 
     This macros is used for checking whether given block is inside of allowed 
@@ -35,10 +33,10 @@ void reiserfs_bitmap_use(
     aal_assert("umka-336", bitmap != NULL, return);
 
     reiserfs_bitmap_range_check(bitmap, blk, return);
-    if (reiserfs_misc_test_bit(blk, bitmap->map))
+    if (aal_test_bit(blk, bitmap->map))
 	return;
 	
-    reiserfs_misc_set_bit(blk, bitmap->map);
+    aal_set_bit(blk, bitmap->map);
     bitmap->used_blocks++;
 }
 
@@ -53,10 +51,10 @@ void reiserfs_bitmap_unuse(
     aal_assert("umka-337", bitmap != NULL, return);
 
     reiserfs_bitmap_range_check(bitmap, blk, return);
-    if (!reiserfs_misc_test_bit(blk, bitmap->map))
+    if (!aal_test_bit(blk, bitmap->map))
 	return;
 	
-    reiserfs_misc_clear_bit(blk, bitmap->map);
+    aal_clear_bit(blk, bitmap->map);
     bitmap->used_blocks--;
 }
 
@@ -70,7 +68,7 @@ int reiserfs_bitmap_test(
 ) {
     aal_assert("umka-338", bitmap != NULL, return 0);
     reiserfs_bitmap_range_check(bitmap, blk, return 0);
-    return reiserfs_misc_test_bit(blk, bitmap->map);
+    return aal_test_bit(blk, bitmap->map);
 }
 
 /* Finds first unused in bitmap block, starting from passed "start" */
@@ -83,7 +81,7 @@ blk_t reiserfs_bitmap_find(
     aal_assert("umka-339", bitmap != NULL, return 0);
 	
     reiserfs_bitmap_range_check(bitmap, start, return 0);
-    if ((blk = reiserfs_misc_find_next_zero_bit(bitmap->map, 
+    if ((blk = aal_find_next_zero_bit(bitmap->map, 
 	    bitmap->total_blocks, start)) >= bitmap->total_blocks)
 	return 0;
 
@@ -439,16 +437,16 @@ static uint32_t reiserfs_bitmap_resize_map(
     if (start < 0) {
 	/* The case when start is less than zero */
 	for (i = right - 1; i >= 0; i--) {
-	    if (reiserfs_misc_test_bit(i, bitmap->map)) {
+	    if (aal_test_bit(i, bitmap->map)) {
 		if (i + start >= 0)
-		    reiserfs_misc_set_bit(i + start, map);
+		    aal_set_bit(i + start, map);
 	    }
 	}
     } else {
 	/* Another one case */
 	for (i = start; i < right; i++) {
-	    if (reiserfs_misc_test_bit(i, bitmap->map))
-		reiserfs_misc_set_bit(i, map);
+	    if (aal_test_bit(i, bitmap->map))
+		aal_set_bit(i, map);
 	}
     }
 	

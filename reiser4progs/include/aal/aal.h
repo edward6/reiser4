@@ -76,6 +76,7 @@ typedef int (*foreach_func_t) (const void *, const void *);
 #include "print.h"
 #include "string.h"
 #include "math.h"
+#include "bitops.h"
 #include "endian.h"
 #include "debug.h"
 
