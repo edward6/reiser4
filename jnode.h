@@ -366,10 +366,10 @@ extern int jnode_done_static(void);
 /* Jnode routines */
 extern jnode *jalloc(void);
 extern void jfree(jnode * node) NONNULL;
-extern jnode *jnew_unformatted(void);
 extern jnode *jclone(jnode *);
 extern jnode *jlookup(reiser4_tree * tree,
-			 oid_t objectid, unsigned long ind) NONNULL;
+		      oid_t objectid, unsigned long ind) NONNULL;
+extern jnode *jfind(struct address_space *, unsigned long index) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg) NONNULL;
 void jnode_attach_page(jnode * node, struct page *pg);

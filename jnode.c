@@ -389,7 +389,7 @@ jnode_free(jnode * node, jnode_type jtype)
 }
 
 /* allocate new unformatted jnode */
-reiser4_internal jnode *
+static jnode *
 jnew_unformatted(void)
 {
 	jnode *jal;
@@ -458,15 +458,30 @@ jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
+/* per inode radix tree of jnodes is protected by tree's read write spin lock */
+static jnode *
+jfind_nolock(struct address_space *mapping, unsigned long index)
+{
+	assert("vs-1694", mapping->host != NULL);
+
+	return radix_tree_lookup(jnode_tree_by_inode(mapping->host), index);
+}
+
 reiser4_internal jnode *
 jfind(struct address_space *mapping, unsigned long index)
 {
+	reiser4_tree *tree;
 	jnode *node;
 
-	WLOCK_TREE(current_tree);
-/*	radix_tree_lookup();*/
-	WUNLOCK_TREE(current_tree);
-	return NULL;
+	assert("vs-1694", mapping->host != NULL);
+	tree = tree_by_inode(mapping->host);
+
+	RLOCK_TREE(tree);
+	node = jfind_nolock(mapping, index);	
+	if (node != NULL)
+		jref(node);
+	RUNLOCK_TREE(tree);
+	return node;
 }
 
 static void inode_attach_jnode(jnode * node)
@@ -595,20 +610,17 @@ find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 		return ERR_PTR(preload);
 
 	WLOCK_TREE(tree);
-	shadow = jlookup_locked(tree, oid, index);
+	shadow = jfind_nolock(mapping, index);
 	if (likely(shadow == NULL)) {
 		jref(result);
-		hash_unformatted_jnode(result, mapping, index);
-		
+		hash_unformatted_jnode(result, mapping, index);		
 	} else {
 		jnode_free(result, JNODE_UNFORMATTED_BLOCK);
 		assert("vs-1498", shadow->key.j.mapping == mapping);
-		/*shadow->key.j.mapping = mapping;*/
 		result = shadow;
 	}
-
-
 	WUNLOCK_TREE(tree);
+
 	assert("nikita-2955", ergo(result != NULL, jnode_invariant(result, 0, 0)));
 	radix_tree_preload_end();
 	return result;
@@ -622,7 +634,7 @@ static jnode *
 do_jget(reiser4_tree * tree, struct page * pg)
 {
 	/*
-	 * There are two ways create jnode: starting with pre-existing page
+	 * There are two ways to create jnode: starting with pre-existing page
 	 * and without page.
 	 *
 	 * When page already exists, jnode is created
@@ -647,7 +659,7 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	tree = tree_by_page(pg);
 
 	/* check hash-table first */
-	result = jlookup(tree, oid, pg->index);
+	result = jfind(pg->mapping, pg->index);
 	if (unlikely(result != NULL)) {
 		UNDER_SPIN_VOID(jnode, result, jnode_attach_page(result, pg));
 		result->key.j.mapping = pg->mapping;
