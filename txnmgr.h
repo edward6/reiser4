@@ -315,6 +315,10 @@ struct txn_mgr {
 
 	/* description of daemon for this txnmgr */
 	ktxnmgrd_context *daemon;
+
+	/* parameters. Adjustable through mount options. */
+	unsigned int atom_max_size;
+	unsigned int atom_max_age;
 };
 
 TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
@@ -503,6 +507,8 @@ extern void queue_jnode(flush_queue_t *, jnode *);
 extern int write_fq(flush_queue_t *);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
+
+extern unsigned int txnmgr_get_max_atom_size(struct super_block *super);
 
 #if REISER4_DEBUG
 extern int atom_fq_parts_are_clean (txn_atom *);

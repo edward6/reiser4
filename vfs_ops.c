@@ -829,13 +829,13 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		   Atoms containing more than N blocks will be forced to
 		   commit. N is decimal.
 		*/
-		SB_FIELD_OPT(txnmgr.atom_max_size, "%u"),
+		SB_FIELD_OPT(tmgr.atom_max_size, "%u"),
 		/* txnmgr.atom_max_age=N
 		  
 		   Atoms older than N seconds will be forced to commit. N is
 		   decimal.
 		*/
-		SB_FIELD_OPT(txnmgr.atom_max_age, "%u"),
+		SB_FIELD_OPT(tmgr.atom_max_age, "%u"),
 		/* tree.cbk_cache_slots=N
 		  
 		   Number of slots in the cbk cache.
@@ -967,8 +967,8 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 #endif
 	};
 
-	sbinfo->txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
-	sbinfo->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
+	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
 
 	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 
@@ -1017,10 +1017,10 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	if (sbinfo->ra_params.max == -1UL)
 		sbinfo->ra_params.max = max_sane_readahead(sbinfo->ra_params.max);
 
-	sbinfo->txnmgr.atom_max_age *= HZ;
-	if (sbinfo->txnmgr.atom_max_age <= 0)
+	sbinfo->tmgr.atom_max_age *= HZ;
+	if (sbinfo->tmgr.atom_max_age <= 0)
 		/* overflow */
-		sbinfo->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
+		sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
 
 	/* NOTE add check for sane maximal value. After tuning. */
 	if (sbinfo->entd.timeout <= 0)
@@ -1056,7 +1056,7 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 
 	seq_printf(m, ",trace=0x%x", sbinfo->trace_flags);
 	seq_printf(m, ",debug=0x%x", sbinfo->debug_flags);
-	seq_printf(m, ",atom_max_size=0x%x", sbinfo->txnmgr.atom_max_size);
+	seq_printf(m, ",atom_max_size=0x%x", sbinfo->tmgr.atom_max_size);
 
 	return 0;
 }

@@ -200,6 +200,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <linux/swap.h>        /* for nr_free_pagecache_pages() */
 
 static void atom_free(txn_atom * atom);
 
@@ -813,7 +814,8 @@ atom_free(txn_atom * atom)
 static int
 atom_is_dotard(const txn_atom * atom)
 {
-	return time_after(jiffies, atom->start_time + get_current_super_private()->txnmgr.atom_max_age);
+	return time_after(jiffies, atom->start_time + 
+			  get_current_super_private()->tmgr.atom_max_age);
 }
 
 static int atom_can_be_committed (txn_atom * atom)
@@ -830,9 +832,10 @@ static int
 atom_should_commit(const txn_atom * atom)
 {
 	assert("umka-189", atom != NULL);
-	return (atom->flags & ATOM_FORCE_COMMIT)
-		|| ((unsigned) atom_pointer_count(atom) > get_current_super_private()->txnmgr.atom_max_size)
-		|| atom_is_dotard(atom);
+	return 
+		(atom->flags & ATOM_FORCE_COMMIT) ||
+		((unsigned) atom_pointer_count(atom) > get_current_super_private()->tmgr.atom_max_size) ||
+		atom_is_dotard(atom);
 }
 
 #if 0
@@ -3107,6 +3110,12 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 	} while (!finish);
 
 	return ret;
+}
+
+unsigned int
+txnmgr_get_max_atom_size(struct super_block *super)
+{
+	return nr_free_pagecache_pages() / 2;
 }
 
 /* DEBUG HELP */

@@ -236,11 +236,6 @@ struct reiser4_super_info_data {
 		hash_plugin *h;
 	} plug;
 
-	struct {
-		unsigned atom_max_size;
-		unsigned atom_max_age;
-	} txnmgr;
-
 	flush_params flush;
 
 	reiser4_spin_data eflush_guard;

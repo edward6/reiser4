@@ -116,22 +116,29 @@ DEFINE_SUPER_RO(11, blocknr_hint_default, "%lli", 64);
 DEFINE_SUPER_RO(12, nr_files_committed, "%llu", 64);
 DEFINE_SUPER_RO(13, tmgr.atom_count, "%llu", 32);
 DEFINE_SUPER_RO(14, tmgr.id_count, "%llu", 32);
+DEFINE_SUPER_RO(15, tmgr.atom_max_size, "%llu", 32);
+DEFINE_SUPER_RO(16, tmgr.atom_max_age, "%llu", 32);
 
 /* tree fields */
-DEFINE_SUPER_RO(15, tree.root_block, "%llu", 64);
-DEFINE_SUPER_RO(16, tree.height, "%llu", 32);
-DEFINE_SUPER_RO(17, tree.znode_epoch, "%llu", 64);
-DEFINE_SUPER_RO(18, tree.carry.new_node_flags, "%llx", 32);
-DEFINE_SUPER_RO(19, tree.carry.new_extent_flags, "%llx", 32);
-DEFINE_SUPER_RO(20, tree.carry.paste_flags, "%llx", 32);
-DEFINE_SUPER_RO(21, tree.carry.insert_flags, "%llx", 32);
+DEFINE_SUPER_RO(17, tree.root_block, "%llu", 64);
+DEFINE_SUPER_RO(18, tree.height, "%llu", 32);
+DEFINE_SUPER_RO(19, tree.znode_epoch, "%llu", 64);
+DEFINE_SUPER_RO(20, tree.carry.new_node_flags, "%llx", 32);
+DEFINE_SUPER_RO(21, tree.carry.new_extent_flags, "%llx", 32);
+DEFINE_SUPER_RO(22, tree.carry.paste_flags, "%llx", 32);
+DEFINE_SUPER_RO(23, tree.carry.insert_flags, "%llx", 32);
 
 /* not very good. Should be done by the plugin in stead */
-DEFINE_SUPER_RO(22, next_to_use, "%llu", 64);
-DEFINE_SUPER_RO(23, oids_in_use, "%llu", 64);
+DEFINE_SUPER_RO(24, next_to_use, "%llu", 64);
+DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 
-DEFINE_SUPER_RO(24, entd.flushers, "%llu", 32);
-DEFINE_SUPER_RO(25, entd.timeout, "%llu", 32);
+DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
+DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
+
+	struct {
+		unsigned atom_max_size;
+		unsigned atom_max_age;
+	} txnmgr;
 
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
@@ -159,6 +166,8 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_23.attr,
 	&kattr_super_ro_24.attr,
 	&kattr_super_ro_25.attr,
+	&kattr_super_ro_26.attr,
+	&kattr_super_ro_27.attr,
 	NULL
 };
 
