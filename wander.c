@@ -884,7 +884,7 @@ static int replay_oldest_transaction(struct super_block * s)
 		return 0;
 	}
 
-	/* */
+	/* FIXME: journal replaying is not ready yet */
 	warning ("zam-602", "not flushed transactions found");
 	return 0;
 
