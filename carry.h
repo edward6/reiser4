@@ -126,10 +126,26 @@ typedef enum {
 	COPT_PASTE_RESTARTED,
 } cop_insert_pos_type;
 
-/* comment this Nikita -Hans */
+/** 
+ * Flags to insert/paste carry operations. Currently they only used in
+ * flushing code, but in future, they can be used to optimize for repetitive
+ * accesses. 
+ */
 typedef enum {
+	/** 
+	 * carry is not allowed to shift data to the left when trying to find
+	 * free space 
+	 */
 	COPI_DONT_SHIFT_LEFT     = ( 1 << 0 ),
+	/** 
+	 * carry is not allowed to shift data to the right when trying to find
+	 * free space 
+	 */
 	COPI_DONT_SHIFT_RIGHT    = ( 1 << 1 ),
+	/** 
+	 * carry is not allowed to allocate new node(s) when trying to find
+	 * free space
+	 */
 	COPI_DONT_ALLOCATE       = ( 1 << 2 )
 } cop_insert_flag;
 

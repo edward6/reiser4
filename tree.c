@@ -325,7 +325,11 @@ insert_result insert_by_coord( new_coord  *coord /* coord where to
 	    ( flags & COPI_DONT_ALLOCATE ) ) {
 		/*
 		 * we are forced to use free space of coord->node and new item
-		 * does not fit into it
+		 * does not fit into it.
+		 *
+		 * This is used during flushing when we try to pack as many
+		 * item into node as possible, but don't shift data from this
+		 * node elsewhere. Returning -ENOSPC is "normal" here.
 		 */
 		return -ENOSPC;
 	}
@@ -425,10 +429,8 @@ static int insert_into_item( new_coord *coord /* coord of pasting */,
 	    ( flags & COPI_DONT_ALLOCATE ) ) {
 		/*
 		 * we are forced to use free space of coord->node and new data
-		 * does not fit into it
+		 * does not fit into it.
 		 */
-/* this is something strange.  How about a warning if debug is on?  Or else explain to me what situation gets us into
- * this state. -Hans */
 		return -ENOSPC;
 	}
 
@@ -501,7 +503,10 @@ resize_result resize_item( new_coord *coord /* coord of item being resized */,
 	 */
 
 	if( data -> length < 0 ) {
-/* comment this. -Hans */
+		/*
+		 * if we are trying to shrink item (@data->length < 0), call
+		 * COP_CUT operation.
+		 */
 		op = post_carry( &lowest_level, COP_CUT, coord->node, 0 );
 		if( IS_ERR( op ) || ( op == NULL ) )
 			return op ? PTR_ERR (op) : -EIO;
