@@ -194,7 +194,14 @@ union reiserfs_plugin {
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
-typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (void);
+struct reiserfs_plugins_factory {
+    reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_type_t, reiserfs_plugin_id_t);
+    reiserfs_plugin_t *(*find_by_label)(const char *);
+};
+
+typedef struct reiserfs_plugins_factory reiserfs_plugins_factory_t;
+
+typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_t *);
 
 #ifndef ENABLE_COMPACT
 #   define reiserfs_plugin_check_routine(plugin, routine, action) \
@@ -207,25 +214,17 @@ typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (void);
 	} \
     } while(0)
 #else
-#   define reiserfs_plugin_check_routine(plugin, routine, action)i \
+#   define reiserfs_plugin_check_routine(plugin, routine, action) \
 	while(0) {}
 #endif
 
 #ifndef ENABLE_COMPACT
-#   define reiserfs_plugin_register(plugin) \
-    static reiserfs_plugin_t *reiserfs_plugin_main(void) { \
-        return &plugin; \
-    } \
-      \
-    reiserfs_plugin_entry_t __plugin_entry = reiserfs_plugin_main
+#   define reiserfs_plugin_register(entry) \
+	reiserfs_plugin_entry_t __plugin_entry = entry
 #else
-#   define reiserfs_plugin_register(plugin) \
-    static reiserfs_plugin_t *reiserfs_plugin_main(void) { \
-        return &plugin; \
-    } \
-      \
-    static reiserfs_plugin_entry_t __plugin_entry \
-	__attribute__((__section__(".plugins"))) = reiserfs_plugin_main
+#   define reiserfs_plugin_register(entry) \
+	static reiserfs_plugin_entry_t __plugin_entry \
+	    __attribute__((__section__(".plugins"))) = entry
 #endif
 
 #define REISERFS_GUESS_PLUGIN_ID -1

@@ -9,6 +9,8 @@
 
 #include "journal36.h"
 
+static reiserfs_plugins_factory_t *factory = NULL;
+
 static error_t reiserfs_journal36_header_check(reiserfs_journal36_header_t *header, 
     aal_device_t *device) 
 {
@@ -67,5 +69,10 @@ static reiserfs_plugin_t journal36_plugin = {
     }
 };
 
-reiserfs_plugin_register(journal36_plugin);
+reiserfs_plugin_t *reiserfs_journal36_entry(reiserfs_plugins_factory_t *f) {
+    factory = f;
+    return &journal36_plugin;
+}
+
+reiserfs_plugin_register(reiserfs_journal36_entry);
 

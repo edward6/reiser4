@@ -9,6 +9,8 @@
 
 #include "alloc40.h"
 
+static reiserfs_plugins_factory_t *factory = NULL;
+
 static reiserfs_alloc40_t *reiserfs_alloc40_open(aal_device_t *device) {
     reiserfs_alloc40_t *alloc;
 	
@@ -78,5 +80,10 @@ static reiserfs_plugin_t alloc40_plugin = {
     }
 };
 
-reiserfs_plugin_register(alloc40_plugin);
+reiserfs_plugin_t *reiserfs_alloc40_entry(reiserfs_plugins_factory_t *f) {
+    factory = f;
+    return &alloc40_plugin;
+}
+
+reiserfs_plugin_register(reiserfs_alloc40_entry);
 

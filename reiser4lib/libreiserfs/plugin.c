@@ -16,14 +16,21 @@
 
 #include <reiserfs/reiserfs.h>
 
-aal_list_t *plugins = NULL;
-
 struct walk_desc {
     reiserfs_plugin_type_t type;
     reiserfs_plugin_id_t id;
 };
 
-static int callback_match_coords(reiserfs_plugin_t *plugin, struct walk_desc *desc) {
+typedef struct walk_desc walk_desc_t;
+
+aal_list_t *plugins = NULL;
+
+reiserfs_plugins_factory_t factory = {
+    reiserfs_plugins_find_by_coords,
+    reiserfs_plugins_find_by_label
+};
+
+static int callback_match_coords(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
     return (plugin->h.type == desc->type && plugin->h.id == desc->id);
 }
 
@@ -49,7 +56,7 @@ reiserfs_plugin_t *reiserfs_plugins_load_by_name(const char *name) {
     addr = dlsym(handle, "__plugin_entry");
     if (dlerror() != NULL || entry == NULL) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't find symbol \"%s\" in plugin %s.", "__plugin_entry", name);
+	   "Can't find entry point in plugin %s.", name);
 	goto error_free_handle;
     }
     
@@ -73,7 +80,7 @@ reiserfs_plugin_t *reiserfs_plugins_load_by_entry(reiserfs_plugin_entry_t entry)
     
     aal_assert("umka-259", entry != NULL, return NULL);
     
-    if (!(plugin = entry())) {
+    if (!(plugin = entry(&factory))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't initialiaze plugin.");
 	return NULL;
@@ -167,7 +174,7 @@ reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_type_t type,
     reiserfs_plugin_id_t id) 
 {
     aal_list_t *found;
-    struct walk_desc desc;
+    walk_desc_t desc;
 
     aal_assert("umka-155", plugins != NULL, return NULL);    
 	

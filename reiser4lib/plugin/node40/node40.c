@@ -6,6 +6,8 @@
 
 #include "node40.h"
 
+static reiserfs_plugins_factory_t *factory = NULL;
+
 static error_t reiserfs_node40_insert(reiserfs_coord_t *insert_into, 
     reiserfs_item_data_t *item_data) 
 {
@@ -234,5 +236,10 @@ static reiserfs_plugin_t node40_plugin = {
     }
 };
 
-reiserfs_plugin_register(node40_plugin);
+reiserfs_plugin_t *reiserfs_node40_entry(reiserfs_plugins_factory_t *f) {
+    factory = f;
+    return &node40_plugin;
+}
+
+reiserfs_plugin_register(reiserfs_node40_entry);
 

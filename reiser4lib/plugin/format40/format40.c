@@ -9,6 +9,8 @@
 
 #include "format40.h"
 
+static reiserfs_plugins_factory_t *factory = NULL;
+
 static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super, 
     aal_device_t *device) 
 {
@@ -194,5 +196,10 @@ static reiserfs_plugin_t format40_plugin = {
     }
 };
 
-reiserfs_plugin_register(format40_plugin);
+reiserfs_plugin_t *reiserfs_format40_entry(reiserfs_plugins_factory_t *f) {
+    factory = f;
+    return &format40_plugin;
+}
+
+reiserfs_plugin_register(reiserfs_format40_entry);
 
