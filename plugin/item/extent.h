@@ -22,6 +22,12 @@ typedef struct {
 #define width_by_coord(coord) extent_width (extent_by_coord(coord))
 
 
+#define item_is_extent(item) \
+(item_plugin_id (item_plugin_by_coord (item)) == EXTENT_ITEM_ID)
+
+#define extent_item_is_dirty(item) 1
+
+
 /*
  * plugin->u.item.b.*
  */
@@ -70,6 +76,12 @@ int extent_read     (struct inode *, tree_coord *, reiser4_lock_handle *,
 		     flow *);
 int extent_readpage (void * arg, struct page * page);
 
+
+
+int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder);
+squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
+					 block_nr * preceder,
+					 reiser4_key * stop_key);
 
 
 /* 
