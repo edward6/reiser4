@@ -17,10 +17,10 @@
     Defining types for disk structures. All types like f32_t are fake types needed
     to avoid gcc-2.95.x bug with typedef of aligned types.
 */
-typedef uint8_t f8_t; typedef f8_t d8_t/* __attribute__((aligned(1)))*/;
-typedef uint16_t f16_t; typedef f16_t d16_t/* __attribute__((aligned(2)))*/;
-typedef uint32_t f32_t; typedef f32_t d32_t/* __attribute__((aligned(4)))*/;
-typedef uint64_t f64_t; typedef f64_t d64_t/* __attribute__((aligned(8)))*/;
+typedef uint8_t f8_t; typedef f8_t d8_t __attribute__((aligned(1)));
+typedef uint16_t f16_t; typedef f16_t d16_t __attribute__((aligned(2)));
+typedef uint32_t f32_t; typedef f32_t d32_t __attribute__((aligned(4)));
+typedef uint64_t f64_t; typedef f64_t d64_t __attribute__((aligned(8)));
 
 typedef uint64_t roid_t;
 typedef uint16_t rpid_t;

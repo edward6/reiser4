@@ -24,6 +24,7 @@ struct format40_super {
     d64_t sb_oid;
     d64_t sb_file_count;
     d64_t sb_flushes;
+    
     d32_t sb_mkfs_id;
     char sb_magic[16];
 
