@@ -394,7 +394,7 @@ static void wander_end_io (struct bio * bio)
 		page_cache_release (pg);
 	}
 
-	if (io_hdl && !atomic_sub_and_test(bio->bi_vcnt, &io_hdl->nr_submitted)) {
+	if (io_hdl && atomic_sub_and_test(bio->bi_vcnt, &io_hdl->nr_submitted)) {
 		up (&io_hdl->io_sema);
 	}
 
