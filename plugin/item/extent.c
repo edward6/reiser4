@@ -614,18 +614,25 @@ cut_or_kill_units(coord_t *coord,
 
 		if (!cut && inode != NULL) {
 			loff_t start;
-			loff_t bytes;
+			loff_t end;
 			long nr_pages;
 			unsigned long index;
 
-			start = get_key_offset(from_key);
-			bytes = get_key_offset(to_key) - start;
-			nr_pages = (bytes + PAGE_CACHE_SHIFT - 1) >> PAGE_CACHE_SHIFT;
+			/* round @start upward */
+			start = round_up(get_key_offset(from_key), 
+					 PAGE_CACHE_SIZE);
+			/* convert to page index */
+			start >>= PAGE_CACHE_SHIFT;
+			/* round @end downward */
+			end   = get_key_offset(to_key) & PAGE_CACHE_MASK;
+			/* convert to page index */
+			end   >>= PAGE_CACHE_SHIFT;
+			/* number of completely removed pages */
+			nr_pages = end - start + 1;
 			truncate_mapping_pages_range(inode->i_mapping, 
-						     start >> PAGE_CACHE_SHIFT,
-						     nr_pages);
+						     start, nr_pages);
 			index = start >> PAGE_CACHE_SHIFT;
-			drop_eflushed_nodes(inode, index, index + nr_pages);
+			drop_eflushed_nodes(inode, start, start + nr_pages);
 		}
 
 		/* when @from_key (and @to_key) are specified things become
