@@ -86,7 +86,7 @@ typedef enum {
 
 static void          flush_scan_init              (flush_scan *scan);
 static void          flush_scan_done              (flush_scan *scan);
-static int           flush_scan_set_current       (flush_scan *scan, jnode *node, unsigned add_size);
+static int           flush_scan_set_current       (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent);
 static int           flush_scan_common            (flush_scan *scan, flush_scan *other);
 static int           flush_scan_finished          (flush_scan *scan);
 static int           flush_scan_extent            (flush_scan *scan, int skip_first);
@@ -1693,7 +1693,7 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 }
 
 /* Set the current scan->node, refcount it, increment size, and deref previous current. */
-static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size)
+static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent)
 {
 	int ret;
 	
@@ -1708,6 +1708,11 @@ static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_s
 	scan->node  = node;
 	scan->size += add_size;
 
+	/* FIXME: This is a little inefficient. */
+	if (parent != NULL) {
+		coord_dup (& scan->parent_coord, parent);
+	}
+
 	return 0;
 }
 
@@ -1718,8 +1723,9 @@ static int flush_scanning_left (flush_scan *scan)
 }
 
 /* Performs leftward scanning starting from an unformatted node and its parent coordinate */
-static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
+static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 {
+	coord_t coord;
 	jnode *neighbor;
 	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist; /* FIXME: is u64 right? */
 	reiser4_block_nr unit_start;
@@ -1727,13 +1733,15 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 	struct page *pg;
 	int ret = 0, allocated, incr;
 
+	coord_dup (& coord, in_coord);
+
 	assert ("jmacd-1404", ! flush_scan_finished (scan));
 	assert ("jmacd-1405", jnode_get_level (scan->node) == LEAF_LEVEL);
 	assert ("jmacd-1406", jnode_is_unformatted (scan->node));
 
 	scan_index = jnode_get_index (scan->node);
 
-	assert ("jmacd-7889", item_is_extent (coord));
+	assert ("jmacd-7889", item_is_extent (& coord));
 
 	trace_if (TRACE_FLUSH, info ("%s scan starts %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
 				     (flush_scanning_left (scan) ? "left" : "right"),
@@ -1742,25 +1750,24 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 
  repeat:
 	/* If the get_inode call is expensive we can be a bit more clever... */
-	extent_get_inode (coord, & ino);
+	extent_get_inode (& coord, & ino);
 
 	if (ino == NULL) {
 		goto stop_same_parent;
 	}
 
-	trace_if (TRACE_FLUSH, info ("%s scan index %lu: inode %lu\n",
+	trace_if (TRACE_FLUSH, info ("%s scan index %lu: parent %p inode %lu\n",
 				     (flush_scanning_left (scan) ? "left" : "right"),
-				     scan_index,
-				     ino->i_ino));
+				     scan_index, coord.node, ino->i_ino));
 
 	/* If not allocated, the entire extent must be dirty and in the same atom.
 	 * (Actually, I'm not sure this is properly enforced, but it should be the
 	 * case since one atom must write the parent and the others must read
 	 * it). */
-	allocated  = ! extent_is_unallocated (coord);
-	unit_index = extent_unit_index (coord);
-	unit_width = extent_unit_width (coord);
-	unit_start = extent_unit_start (coord);
+	allocated  = ! extent_is_unallocated (& coord);
+	unit_index = extent_unit_index (& coord);
+	unit_width = extent_unit_width (& coord);
+	unit_start = extent_unit_start (& coord);
 
 	assert ("jmacd-7187", unit_width > 0);
 	assert ("jmacd-7188", scan_index >= unit_index);
@@ -1786,7 +1793,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 			pg = find_get_page (ino->i_mapping, scan_index);
 
 			if (pg == NULL) {
-				goto setup_preceder;
+				goto stop_same_parent;
 			}
 
 			neighbor = jnode_of_page (pg);
@@ -1798,22 +1805,14 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 				goto exit;
 			}
 
-			trace_on (TRACE_FLUSH, "scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
+			trace_on (TRACE_FLUSH, "alloc scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
 				  scan_index, neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_check_allocated (neighbor));
 
 			if (scan->node != neighbor && ! flush_scan_goto (scan, neighbor)) {
-			setup_preceder:
-				/* If we are scanning left and we stop in
-				 * the middle of an allocated extent, we
-				 * know the preceder immediately. */
-				if (flush_scanning_left (scan)) {
-					scan->preceder_blk = unit_start + scan_index;
-				}
-
 				goto stop_same_parent;
 			}
 
-			if ((ret = flush_scan_set_current (scan, neighbor, 1))) {
+			if ((ret = flush_scan_set_current (scan, neighbor, 1, & coord))) {
 				goto exit;
 			}
 
@@ -1840,34 +1839,40 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 			goto exit;
 		}
 
+		trace_on (TRACE_FLUSH, "unalloc scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
+			  scan_index, neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_check_allocated (neighbor));
+
 		assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
 
-		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist))) {
+		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist, & coord))) {
 			goto exit;
 		}
 	}
 
-	if (coord_sideof_unit (coord, scan->direction) == 0 && item_is_extent (coord)) {
+	if (coord_sideof_unit (& coord, scan->direction) == 0 && item_is_extent (& coord)) {
 		/* Continue as long as there are more extent units. */
 
-		scan_index = extent_unit_index (coord) + (flush_scanning_left (scan) ? extent_unit_width (coord) - 1 : 0);
+		scan_index = extent_unit_index (& coord) + (flush_scanning_left (scan) ? extent_unit_width (& coord) - 1 : 0);
 		goto repeat;
 	}
 
 	if (0) {
 	stop_same_parent:
 
-		/* In this case, we leave *coord set to the parent of scan->node. */
+		/* If we are scanning left and we stop in the middle of an allocated
+		 * extent, we know the preceder immediately. */
+		if (flush_scanning_left (scan)) {
+			scan->preceder_blk = unit_start + scan_index;
+		}
+
+		/* In this case, we leave coord set to the parent of scan->node. */
 		scan->stop = 1;
 
 	} else {
-		/* In this case, we are still scanning, *coord is set to the next item which is
+		/* In this case, we are still scanning, coord is set to the next item which is
 		 * either off-the-end of the node or not an extent. */
 		assert ("jmacd-8912", scan->stop == 0);
-		assert ("jmacd-7812", (coord_is_after_sideof_unit (coord, scan->direction) || ! item_is_extent (coord)));
-
-		/* Go back to the parent coordinate (want this invariant). */
-		coord_sideof_unit (coord, sideof_reverse (scan->direction));
+		assert ("jmacd-7812", (coord_is_after_sideof_unit (& coord, scan->direction) || ! item_is_extent (& coord)));
 	}
 
 	/* This asserts the invariant. */
@@ -1955,15 +1960,13 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		}
 
 		/* If so, make it current. */
-		if ((ret = flush_scan_set_current (scan, child, 1))) {
+		if ((ret = flush_scan_set_current (scan, child, 1, & next_coord))) {
 			goto exit;
 		}
 
 		/* Now continue.  If formatted we release the parent lock and return, then
 		 * proceed. */
 		if (jnode_is_formatted (child)) {
-			done_lh (& scan->parent_lock);
-			done_zh (& scan->parent_load);
 			break;
 		}
 
@@ -1981,6 +1984,11 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 
 	assert ("jmacd-6233", flush_scan_finished (scan) || jnode_is_formatted (scan->node));
  exit:
+	if (jnode_is_formatted (scan->node)) {
+		done_lh (& scan->parent_lock);
+		done_zh (& scan->parent_load);
+	}
+	
 	done_zh (& next_load);
 	done_lh (& next_lock);
 	return ret;
@@ -2031,7 +2039,7 @@ static int flush_scan_formatted (flush_scan *scan)
 		}
 
 		/* Advance the flush_scan state to the left. */
-		if ((ret = flush_scan_set_current (scan, ZJNODE (neighbor), 1))) {
+		if ((ret = flush_scan_set_current (scan, ZJNODE (neighbor), 1, NULL))) {
 			return ret;
 		}
 
@@ -2075,7 +2083,7 @@ static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __
 	scan->max_size  = limit;
 	scan->direction = LEFT_SIDE;
 
-	if ((ret = flush_scan_set_current (scan, jref (node), 1))) {
+	if ((ret = flush_scan_set_current (scan, jref (node), 1, NULL))) {
 		return ret;
 	}
 
@@ -2090,7 +2098,7 @@ static int flush_scan_right (flush_scan *scan, jnode *node, __u32 limit)
 	scan->max_size  = limit;
 	scan->direction = RIGHT_SIDE;
 
-	if ((ret = flush_scan_set_current (scan, jref (node), 0))) {
+	if ((ret = flush_scan_set_current (scan, jref (node), 0, NULL))) {
 		return ret;
 	}
 

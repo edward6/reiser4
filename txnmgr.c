@@ -1822,15 +1822,16 @@ capture_fuse_into (txn_atom  *small,
  */
 /* Audited by: umka (2002.06.13) */
 static int
-capture_copy (jnode        *node,
-	      txn_handle   *txnh,
-	      txn_atom     *atomf,
-	      txn_atom     *atomh)
+capture_copy (jnode        *node UNUSED_ARG,
+	      txn_handle   *txnh UNUSED_ARG,
+	      txn_atom     *atomf UNUSED_ARG,
+	      txn_atom     *atomh UNUSED_ARG)
 {
+	impossible ("jmacd-1060", "can't happen yet");
+#if 0
 	/* The txnh and its (possibly NULL) atom's locks are not needed at this
 	 * point. */
 
-	impossible ("jmacd-1060", "can't happen yet");
 	
 	spin_unlock_txnh (txnh);
 
@@ -1844,8 +1845,8 @@ capture_copy (jnode        *node,
 
 	/* EAGAIN implies all locks are released. */
 	spin_unlock_atom  (atomf);
-
-	return -EAGAIN;
+#endif
+	return -EIO;
 }
 
 /* Release a block from the atom, reversing the effects of being captured.
