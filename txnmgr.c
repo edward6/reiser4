@@ -662,7 +662,6 @@ atom_try_commit_locked (txn_atom *atom)
 		if ((ret = jnode_flush (scan, JNODE_FLUSH_COMMIT)) != 0) {
 			return ret;
 		}
-		print_tree_rec ("jnode_flush", current_tree, REISER4_NODE_CHECK);
 
 		/* Atom may be deleted at this point -- don't use it. */
 		return -EAGAIN;

@@ -118,6 +118,9 @@ static int           flush_pos_to_parent          (flush_position *pos);
 static void          flush_pos_set_point          (flush_position *pos, jnode *node);
 static void          flush_pos_release_point      (flush_position *pos);
 
+#define FLUSH_IS_BROKEN 0
+#define FLUSH_DEBUG     1
+
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
  * early-flush dirty blocks).
@@ -143,6 +146,12 @@ int jnode_flush (jnode *node, int flags)
 	flush_scan_config scan_config = flush_scan_get_config (node, flags);
 	flush_scan right_scan;
 
+	if (FLUSH_IS_BROKEN) {
+		jnode_set_clean (node);
+		return 0;
+	}
+
+	if (FLUSH_DEBUG) print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK);
 	assert ("jmacd-5012", jnode_check_dirty (node));
 
 	flush_scan_init (& right_scan);
@@ -211,6 +220,7 @@ int jnode_flush (jnode *node, int flags)
 	/* Perform batch write. */
 	ret = flush_finish (& flush_pos);
 
+	if (FLUSH_DEBUG) print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK);
    failed:
 
 	flush_pos_done (& flush_pos);
@@ -855,6 +865,8 @@ static int squalloc_parent_first (flush_position *pos)
 	assert ("jmacd-1051", znode_is_write_locked (JZNODE (pos->point)));
 	assert ("jmacd-1052", ! flush_pos_unformatted (pos));
 
+	if (FLUSH_DEBUG) print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK);
+
         /* Stop recursion if its not dirty, meaning don't allocate children either.
          * Children might be dirty but there is an overwrite below this level or else this
          * node would be dirty.  Stop recursion if the node is not yet allocated. */
@@ -955,6 +967,8 @@ static int squalloc_parent_first (flush_position *pos)
 	if (ret == 0) {
 		ret = flush_enqueue_point (pos);
 	}
+
+	if (FLUSH_DEBUG) print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK);
  cleanup:
 	done_lh (& right_lock);
 	return ret;
