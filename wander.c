@@ -5,44 +5,46 @@
  */
 
 /*
+ * You should read www.namesys.com/txn-mgr.html before trying to read this
+ * file.
 
-You should read www.namesys.com/txn-mgr.html before trying to read this file.
+ * That describes how filesystem operations are performed as atomic
+ * transactions, and how we try to arrange it so that we can write most of the
+ * data only once while performing the operation atomically.
 
-That describes how filesystem operations are performed as atomic transactions,
-and how we try to arrange it so that we can write most of the data only once
-while performing the operation atomically.
+ * For the purposes of this code, it is enough for it to understand that it
+ * has been told a given block should be written once, or that it should be
+ * written twice (once to the wandered location and once to the real
+ * location).
 
-For the purposes of this code, it is enough for it to understand that it has
-been told a given block should be written once, or that it should be written
-twice (once to the wandered location and once to the real location).
+ * This code guarantees that those blocks that are defined to be part of an
+ * atom either all take effect or none of them take effect.
 
-This code guarantees that those blocks that are defined to be part of an atom
-either all take effect or none of them take effect.
-
- * This gives a possibility to accept all modified blocks or discard all
- * modified blocks also.  The log writer allocates and writes "wandered"
+ * The nodes which should be written (they compose the atom's relocate set)
+ * once are submitted to write by the jnode_flush() routine.  The log writer
+ * processes the atom's overwrite set.  It allocates and writes "wandered"
  * blocks and maintains additional atom's on-disk structures as log records
  * (each log record occupies one block) for storing of "wandered" map (a table
  * which contains a relation between wandered and real block numbers) and
  * other information might be needed at transaction recovery time.
- * 
+
  * The log records are unidirectionally linked into a circle: each log record
  * contains a block number of the next log record, the last log records points
  * to the first one.
- *
+
  * One log record (named "tx head" in this file) has a format which is
  * different from the other log records. The "tx head" has a reference to the
  * "tx head" block of the previously committed atom.  Also, "tx head" contains
  * fs information (the free blocks counter, and the oid allocator state) which
  * is logged in a special way .
- * 
+
  * There are two journal control blocks, named journal header and journal
  * footer which have fixed on-disk locations.  The journal header has a
  * reference to the "tx head" block of the last committed atom.  The journal
  * footer points to the "tx head" of the last flushed atom.  The atom is
  * "played" when all blocks from its overwrite set are written to disk the
  * second time (i.e. written to their real locations).
- *
+
  * The atom commit process is the following: 
  *
  * 1. The overwrite set is taken from atom's clean list, and its size is counted.
@@ -59,15 +61,15 @@ either all take effect or none of them take effect.
  * 6. update journal header: change the pointer to the block number of just
  * written tx head, submit an i/o for modified journal header block and wait
  * i/o completion.
- *
+
  * NOTE: The special logging for bitmap blocks and some reiser4 super block
  * fields makes processes of atom commit, flush and recovering a bit more
  * complex (see comments in the source code for details).
- *
+
  * The atom flush process (the term "flush" is used here in a different
  * meaning than in flush.c, it means writing block of atom's overwrite set
  * in-place, i.e. to their real locations) follows atom commit.
- *
+
  * Atom flush:
  *
  * 1. Write atom's overwrite set in-place
