@@ -315,7 +315,14 @@ extern int          blocknr_set_iterator   (txn_atom                *atom,
 					    blocknr_set             *bset,
 					    blocknr_set_actor_f     actor,
 					    void                    *data,
-					    int                     delete);
+					    int                      delete);
+
+/*
+ * these are needed to move to PAGE_CACHE_SIZE > blocksize
+ */
+jnode *             nth_jnode              (struct page *           page, int block);
+jnode *             next_jnode             (jnode *                 node);
+
 
 /*****************************************************************************************
 				     INLINE FUNCTIONS
