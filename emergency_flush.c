@@ -923,13 +923,6 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 		goto out;
 	}
 
-	/* prepare for jnode insertion to radix tree of eflushed jnodes */
-	if (jnode_is_unformatted(node)) {
-		result = radix_tree_preload(GFP_NOFS | __GFP_HIGH);
-		if (result)
-			goto out;
-	}
-
 #if REISER4_DEBUG
 	(*efnode)->initial_stage = hint->block_stage;
 #endif
@@ -937,7 +930,11 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 
 	one = 1ull;
 	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node));
-	if (result != 0)
+	if (result == 0 ) {
+		/* prepare for jnode insertion to radix tree of eflushed jnodes */
+		if (jnode_is_unformatted(node))
+			result = radix_tree_preload(GFP_NOFS | __GFP_HIGH);
+	} else 
 		kmem_cache_free(eflush_slab, *efnode);
  out:
 	LOCK_JNODE(node);
