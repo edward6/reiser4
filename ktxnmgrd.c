@@ -10,7 +10,7 @@
 static int scan_mgr( txn_mgr *mgr );
 
 #if (1)
-#define ktxnmgrd_trace info
+#define ktxnmgrd_trace( args... ) info( "ktxnmgrd: " ##args )
 #else
 #define ktxnmgrd_trace noop
 #endif
@@ -48,7 +48,7 @@ int ktxnmgrd( void *arg )
 	spin_lock( &ctx -> guard );
 	ctx -> tsk = me;
 	kcond_broadcast( &ctx -> startup );
-	ktxnmgrd_trace( "%s started\n", __FUNCTION__ );
+	ktxnmgrd_trace( "started\n" );
 	while( 1 ) {
 		int      result;
 		txn_mgr *mgr;
@@ -76,7 +76,7 @@ int ktxnmgrd( void *arg )
 		if( ctx -> done )
 			break;
 
-		ktxnmgrd_trace( "%s woke up\n", __FUNCTION__ );
+		ktxnmgrd_trace( "woke up\n" );
 
 		/*
 		 * wait timed out or ktxnmgrd was woken up by explicit request
@@ -89,7 +89,9 @@ int ktxnmgrd( void *arg )
 			     !txn_mgrs_list_end( &ctx -> queue, mgr ) ;
 			     mgr = txn_mgrs_list_next( mgr ) ) {
 				scan_mgr( mgr );
+				ktxnmgrd_trace( "\tscan mgr\n" );
 			}
+			ktxnmgrd_trace( "scan finished\n" );
 		} while( ctx -> rescan );
 	}
 	
@@ -104,7 +106,7 @@ int ktxnmgrd( void *arg )
 	 */
 	lock_kernel();
 	kcond_broadcast( &ctx -> finish );
-	ktxnmgrd_trace( "%s exiting\n", __FUNCTION__ );
+	ktxnmgrd_trace( "exiting\n" );
 	return 0;
 }
 
@@ -198,6 +200,25 @@ void ktxnmgrd_detach( txn_mgr *mgr )
 		lock_kernel();
 		kcond_wait( &ctx -> finish, &ctx -> guard, 0 );
 		unlock_kernel();
+	}
+	spin_unlock( &ctx -> guard );
+}
+
+/**
+ * wake up ktxnmgrd thread
+ */
+void ktxnmgrd_kick( void )
+{
+	ktxnmgrd_context *ctx;
+
+	assert( "nikita-2459", get_current_super_private() != NULL );
+
+	ctx = get_current_super_private() -> tmgr.daemon;
+	assert( "nikita-2460", ctx != NULL );
+	spin_lock( &ctx -> guard );
+	if( ctx -> tsk != NULL ) {
+		trace_on( TRACE_TXN, "Waking ktxnmgrd %i", ctx -> tsk -> pid );
+		kcond_signal( &ctx -> wait );
 	}
 	spin_unlock( &ctx -> guard );
 }

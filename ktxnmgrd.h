@@ -27,6 +27,8 @@ extern int  ktxnmgrd( void *context );
 extern int ktxnmgrd_attach( ktxnmgrd_context *ctx, txn_mgr *mgr );
 extern void ktxnmgrd_detach( txn_mgr *mgr );
 
+extern void ktxnmgrd_kick( void );
+
 /* __KTXNMGRD_H__ */
 #endif
 
