@@ -16,13 +16,11 @@ typedef void reiserfs_entity_t;
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
 enum reiserfs_plugin_type {
-    REISERFS_FILE_PLUGIN,
-    REISERFS_DIR_PLUGIN,
+    REISERFS_OBJECT_PLUGIN,
     REISERFS_ITEM_PLUGIN,
     REISERFS_NODE_PLUGIN,
     REISERFS_HASH_PLUGIN,
-    REISERFS_TAIL_PLUGIN,
-    REISERFS_HOOK_PLUGIN,
+    REISERFS_TAIL_POLICY_PLUGIN,
     REISERFS_PERM_PLUGIN,
     REISERFS_SD_EXT_PLUGIN,
     REISERFS_FORMAT_PLUGIN,
@@ -34,38 +32,93 @@ enum reiserfs_plugin_type {
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
+/* 
+    These 2 enums should not be used anymode in the library cade as common.item_type was 
+    eliminated. Although it will be used by reiser4 programs for overriding default 
+    plugins. 
+*/
 enum reiserfs_item_type {
     REISERFS_STATDATA_ITEM,
-    REISERFS_SDE_ITEM,
-    REISERFS_CDE_ITEM,
+    REISERFS_DIR_ENTRY_ITEM,
     REISERFS_INTERNAL_ITEM,
+    REISERFS_FILE_BODY_ITEM,
     REISERFS_ACL_ITEM,
-    REISERFS_EXTENT_ITEM,
-    REISERFS_TAIL_ITEM
 };
 
 typedef enum reiserfs_item_type reiserfs_item_type_t;
 
+enum reiserfs_object_type {
+    REISERFS_REGULAR_FILE,
+    REISERFS_DIRECTORY_FILE,
+    REISERFS_SYMLINK_FILE,
+    REISERFS_SPECIAL_FILE,
+};
+
+enum reiserfs_object_plugin_id {
+    REISERFS_FILE40_ID		    = 0x0,
+    REISERFS_DIR40_ID		    = 0x1,
+    REISERFS_SYMLINK40_ID	    = 0x2,
+    REISERFS_SPECIAL40_ID	    = 0x3,
+};
+
+enum reiserfs_item_plugin_id {
+    REISERFS_STATDATA40_ID	    = 0x0,
+    REISERFS_SDE40_ID		    = 0x1,
+    REISERFS_CDE40_ID		    = 0x2,
+    REISERFS_INTERNAL40_ID	    = 0x3,
+    REISERFS_ACL40_ID		    = 0x4,
+    REISERFS_EXTENT40_ID	    = 0x5,
+    REISERFS_TAIL40_ID		    = 0x6,
+};
+enum reiserfs_node_plugin_id {
+    REISERFS_NODE40_ID		    = 0x0,
+};
+enum reiserfs_hash_plugin_id {
+    REISERFS_RUPASOV_HASH_ID	    = 0x0,
+    REISERFS_R5_HASH_ID		    = 0x1,
+    REISERFS_TEA_HASH_ID	    = 0x2,
+    REISERFS_FNV1_HASH_ID	    = 0x3,
+    REISERFS_DEGENERATE_HASH_ID	    = 0x4,
+};
+enum reiserfs_tail_policy_plugin_id {
+    REISERFS_NEVER_TAIL_ID	    = 0x0,
+    REISERFS_SUPPRESS_OLD_ID	    = 0x1,
+    REISERFS_FOURK_TAIL_ID	    = 0x2,
+    REISERFS_ALWAYS_TAIL_ID	    = 0x3,
+    REISERFS_SMART_TAIL_ID	    = 0x4,
+};
+enum reiserfs_perm_plugin_id {
+    REISERFS_RWX_PERM_ID	    = 0x0,
+};
+enum reiserfs_sd_ext_plugin_id {
+    REISERFS_UNIX_STAT_ID	    = 0x0,
+    REISERFS_SYMLINK_STAT_ID	    = 0x1,
+    REISERFS_PLUGIN_STAT_ID	    = 0x2,
+    REISERFS_GEN_AND_FLAGS_STAT_ID  = 0x3,
+    REISERFS_CAPABILITIES_STAT_ID   = 0x4,
+    REISERFS_LARGE_TIMES_STAT_ID    = 0x5,
+};
+enum reiserfs_format_plugin_id {
+    REISERFS_FORMAT40_ID	    = 0x0,
+    REISERFS_FORMAT36_ID	    = 0x1,
+};
+enum reiserfs_oid_plugin_id {
+    REISERFS_OID40_ID		    = 0x0,
+    REISERFS_OID36_ID		    = 0x1,
+};
+enum reiserfs_alloc_plugin_id {
+    REISERFS_ALLOC40_ID		    = 0x0,
+    REISERFS_ALLOC36_ID		    = 0x1,
+};
+enum reiserfs_journal_plugin_id {
+    REISERFS_JOURNAL40_ID	    = 0x0,
+    REISERFS_JOURNAL36_ID	    = 0x1,
+};
+enum reiserfs_key_plugin_id {
+    REISERFS_KEY40_ID = 0x0,
+    REISERFS_KEY36_ID = 0x1,
+};
 extern char *reiserfs_item_name[];
-
-enum reiserfs_tail_policy {
-    REISERFS_NEVER_TAIL,
-    REISERFS_SUPPOLD_TAIL,
-    REISERFS_FOURK_TAIL,
-    REISERFS_ALWAYS_TAIL,
-    REISERFS_SMART_TAIL
-};
-
-typedef enum reiserfs_tail_policy reiserfs_tail_policy_t;
-
-enum reiserfs_hash {
-    REISERFS_RUPASOV_HASH,
-    REISERFS_R5_HASH,
-    REISERFS_TEA_HASH,
-    REISERFS_FNV1_HASH
-};
-
-typedef enum reiserfs_hash reiserfs_hash_t;
 
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
@@ -344,7 +397,6 @@ struct reiserfs_dir_ops {
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 
 struct reiserfs_item_common_ops {
-    
     /* Forms item structures based on passed hint in passed memory area */
     errno_t (*create) (const void *, reiserfs_item_hint_t *);
 
@@ -776,7 +828,7 @@ typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 #define libreiser4_plugin_call(action, ops, method, args...)	    \
     ({								    \
 	if (!ops.method) {					    \
-	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,	    \
+	    aal_throw_fatal(EO_OK,				    \
 		"Method \"" #method "\" isn't implemented in %s.",  \
 		#ops);						    \
 	    action;						    \
@@ -822,13 +874,18 @@ extern void libreiser4_factory_done(void);
 
 #define libreiser4_factory_failed(action, oper, type, id)	    \
     do {							    \
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,	    \
+	aal_throw_error(EO_OK,					    \
 	    "Can't " #oper " " #type " plugin by its id %x.", id);  \
 	action;							    \
     } while (0)
 
-extern reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_type_t type,
+extern reiserfs_plugin_t *libreiser4_factory_get_next(reiserfs_plugin_t *start_plugin);
+
+extern reiserfs_plugin_t *libreiser4_factory_find_by_id(reiserfs_plugin_type_t type,
     reiserfs_id_t id);
+
+extern reiserfs_plugin_t *libreiser4_factory_find_by_name(reiserfs_plugin_type_t type,
+    const char *name);
 
 extern errno_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, 
     void *data);
