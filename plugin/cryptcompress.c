@@ -913,14 +913,15 @@ static void set_compression_magic(__u8 * magic)
 }
 
 reiser4_internal int
-grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_stream_id id)
+grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, 
+		tfm_action act, tfm_stream_id id)
 {
 	size_t size = inode_scaled_cluster_size(inode);
-	compression_plugin * cplug = inode_compression_plugin(inode);
 	
 	assert("edward-901", tc != NULL);
+	assert("edward-1027", inode_compression_plugin(inode) != NULL);
 	
-	if (cplug)
+	if (act == TFM_WRITE)
 		size += compress_overhead(inode, inode_cluster_size(inode));
 
 	if (!tfm_stream(tc, id) && id == INPUT_STREAM)
@@ -957,7 +958,7 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		
 		assert("edward-602", cplug != NULL);
 		
-		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
+		result = grab_tfm_stream(inode, tc, TFM_WRITE, OUTPUT_STREAM);
 		if (result)
 			return result;
 		dst_len = tfm_stream_size(tc, OUTPUT_STREAM);
@@ -986,7 +987,7 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		cplug = inode_crypto_plugin(inode);
 		if (transformed)
 			alternate_streams(tc);
-		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
+		result = grab_tfm_stream(inode, tc, TFM_WRITE, OUTPUT_STREAM);
 		if (result)
 			return result;
 		/* FIXME: set src_len, dst_len, encrypt */
@@ -1020,7 +1021,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		cplug = inode_crypto_plugin(inode);
 		assert("edward-617", cplug != NULL);
 		
-		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
+		result = grab_tfm_stream(inode, tc, TFM_READ, OUTPUT_STREAM);
 		if (result)
 			return result;
 		assert("edward-909", tfm_cluster_is_set(tc));
@@ -1038,7 +1039,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		if(transformed)
 			alternate_streams(tc);
 		
-		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
+		result = grab_tfm_stream(inode, tc, TFM_READ, OUTPUT_STREAM);
 		if (result)
 			return result;
 		assert("edward-910", tfm_cluster_is_set(tc));
@@ -1168,49 +1169,20 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
 	}
 }
 
-/* This is the interface to capture cluster nodes via their struct page reference.
-   Any two blocks of the same cluster contain dependent modification and should
-   commit at the same time */
-static int
-try_capture_cluster(reiser4_cluster_t * clust)
-{
-	int result = 0;
-	jnode * node;
-
-	assert("edward-911", clust != NULL);
-	assert("edward-969", clust->reserved == 1);
-	assert("edward-912", clust->nr_pages != 0);
-	assert("edward-913", clust->pages != NULL);
-	assert("edward-914", clust->pages[0] != NULL);
-	
-	node = jprivate(clust->pages[0]);
-
-	assert("edward-915", node != NULL);
-
-	LOCK_JNODE(node);
-	result = try_capture(node, ZNODE_WRITE_LOCK, 0/* not non-blocking */, 0 /* no can_coc */);
-	UNLOCK_JNODE(node);
-	
-	assert("edward-970", !result);
-	return result;
-}
-
 /* . reserve space for a disk cluster if its jnode is not dirty;
    . update set of pages referenced by this jnode
    . update jnode's counter of referenced pages (excluding first one)
 */
 static void
-make_cluster_jnode_dirty(reiser4_cluster_t * clust, struct inode * inode)
+make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust,
+				jnode * node, struct inode * inode)
 {
 	int i;
 	int count;
-	jnode * node = jprivate(clust->pages[0]);
 	
 	assert("edward-221", node != NULL);
 	assert("edward-971", clust->reserved == 1);
-	
-	LOCK_JNODE(node);
-
+	assert("edward-1028", spin_jnode_is_locked(node));
 	assert("edward-972", node->page_count < inode_cluster_pages(inode));
 	
 	if (jnode_is_dirty(node)) {
@@ -1243,9 +1215,40 @@ make_cluster_jnode_dirty(reiser4_cluster_t * clust, struct inode * inode)
 #if REISER4_DEBUG
 	node->page_count = max_count(node->page_count, clust->nr_pages - 1);
 #endif
-	UNLOCK_JNODE(node);
 	jput(node);
 	return;
+}
+
+/* This is the interface to capture cluster nodes via their struct page reference.
+   Any two blocks of the same cluster contain dependent modification and should
+   commit at the same time */
+static int
+try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
+{
+	int result = 0;
+	jnode * node;
+	
+	assert("edward-1029", clust != NULL);
+	assert("edward-1030", clust->reserved == 1);
+	assert("edward-1031", clust->nr_pages != 0);
+	assert("edward-1032", clust->pages != NULL);
+	assert("edward-1033", clust->pages[0] != NULL);
+	
+	node = jprivate(clust->pages[0]);
+	
+	assert("edward-1035", node != NULL);
+
+	LOCK_JNODE(node);
+	result = try_capture(node, ZNODE_WRITE_LOCK, 0/* not non-blocking */, 0 /* no can_coc */);
+	if (result) {
+		assert("edward-1034", 0);
+		UNLOCK_JNODE(node);
+		return result;
+	}
+	make_cluster_jnode_dirty_locked(clust, node, inode);
+	UNLOCK_JNODE(node);
+	
+	return 0;
 }
 
 reiser4_internal jnode *
@@ -1541,7 +1544,7 @@ struct inode * inode)
 	
 	UNLOCK_JNODE(node);
 	
-	result = grab_tfm_stream(inode, tc, INPUT_STREAM);
+	result = grab_tfm_stream(inode, tc, TFM_WRITE, INPUT_STREAM);
 	if (result)
 		return result;
 	
@@ -1675,11 +1678,9 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		/* only zeroes, try to flush */
 
 		set_cluster_pages_dirty(clust);
-		result = try_capture_cluster(clust);
+		result = try_capture_cluster(clust, inode);
 		if (result)
 			return result;
-		make_cluster_jnode_dirty(clust, inode);
-		/* hint for updated cluster will be set here */
 		result = balance_dirty_page_cluster(clust, file_off, to_file);
 	}
 	else 
@@ -2119,7 +2120,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		
 		assert("edward-750", schedulable());
 		
-		result = prepare_cluster(inode, file_off, f.length, NULL, &clust, "write cryptcompress flow");  /* j+p+ */
+		result = prepare_cluster(inode, file_off, f.length, NULL, &clust, "write cryptcompress flow");
 		if (result)
 			goto out;
 		
@@ -2133,7 +2134,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
                 /* copy user's data to cluster pages */
 		for (i = off_to_pg(clust.off), src = f.data; i < count_to_nrpages(clust.off + clust.count); i++, src += page_count) {
 			page_count = min_count(PAGE_CACHE_SIZE - page_off, off_to_pgcount(clust.off + clust.count, i));
-			//page_count = off_to_pgcount(clust.off + clust.count, i);
+			
 			assert("edward-287", clust.pages[i] != NULL);
 			
 			lock_page(clust.pages[i]);
@@ -2151,7 +2152,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		
 		set_cluster_pages_dirty(&clust);
 		
-		result = try_capture_cluster(&clust);
+		result = try_capture_cluster(&clust, inode);
 		if (result)
 			goto err2;
 		
@@ -2160,7 +2161,6 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		move_flow_forward(&f, clust.count);
 		
 		/* disk cluster may be already clean at this point */
-		make_cluster_jnode_dirty(&clust, inode);
 		
 		/* . update cluster
 		   . set hint for new offset
@@ -2176,7 +2176,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	err3:
 		page_cache_release(clust.pages[0]);
 	err2:
-		release_cluster_pages_and_jnode(&clust);                            /* j-p- */
+		release_cluster_pages_and_jnode(&clust);
 	err1:
 		if (clust.reserved)
 			free_reserved4cluster(inode, &clust);
@@ -2451,10 +2451,9 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	unlock_page(clust.pages[clust.nr_pages - 1]);
 	
 	set_cluster_pages_dirty(&clust);
-	result = try_capture_cluster(&clust);
+	result = try_capture_cluster(&clust, inode);
 	if (result)
 		goto err2;
-	make_cluster_jnode_dirty(&clust, inode);
 	
 	/* FIXME-EDWARD: Update this using balance dirty cluster pages */
 	assert("edward-757", 0 /* don't free reserved4cluster when success */);
@@ -2547,20 +2546,17 @@ cryptcompress_writepage(struct page * page, reiser4_cluster_t * clust)
 	clust.count = PAGE_CACHE_SIZE;
 	nrpages = count_to_nrpages(fsize_to_count(&clust, inode));
 
-	result = prepare_cluster(page->mapping->host, 0, 0, &nrpages, &clust, "cryptcompress_writepage");  /* jp+ */
+	result = prepare_cluster(page->mapping->host, 0, 0, &nrpages, &clust, "cryptcompress_writepage");
 	if(result)
 		goto exit;
 
 	set_cluster_pages_dirty(&clust); 
-	result = try_capture_cluster(&clust);
+	result = try_capture_cluster(&clust, inode);
 	if (result) {
 		free_reserved4cluster(inode, &clust);
-		put_cluster_jnode(&clust);                                     /* j- */
 		goto exit;
 	}
 	lock_page(page);
-	make_cluster_jnodes_dirty(&clust);
-	put_cluster_jnode(&clust);                                             /* j- */
  exit:
 	reiser4_kfree(clust.pages);
 	return result;
