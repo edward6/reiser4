@@ -1343,13 +1343,10 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 	tap_init (&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
 	tap_monitor (&watch);
 
-	set_extent (extent_by_coord (&coord_after), 
-		    state_after, width_after);
-
 	ret = add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));
 	if (!ret)
-		;
-
+		set_extent (extent_by_coord (&coord_after), 
+			    state_after, width_after);
 	tap_done (&watch);
 	return ret;
 }
