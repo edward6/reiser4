@@ -20,10 +20,10 @@
 #include "znode.h"
 #include "tap.h"
 
-#include <linux/types.h> /* for __u??  */
-#include <linux/fs.h> /* for struct super_block  */
+#include <linux/types.h>	/* for __u??  */
+#include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
-#include <linux/sched.h> /* for struct task_struct */
+#include <linux/sched.h>	/* for struct task_struct */
 
 /** fictive block number never actually used */
 extern const reiser4_block_nr FAKE_TREE_ADDR;
@@ -31,7 +31,7 @@ extern const reiser4_block_nr FAKE_TREE_ADDR;
 /*
  * define typed list for cbk_cache lru
  */
-TS_LIST_DECLARE( cbk_cache );
+TS_LIST_DECLARE(cbk_cache);
 
 /**
  * &cbk_cache_slot - entry in a coord cache.
@@ -42,7 +42,7 @@ TS_LIST_DECLARE( cbk_cache );
  */
 typedef struct cbk_cache_slot {
 	/** cached node */
-	znode              *node;
+	znode *node;
 	/** linkage to the next cbk cache slot in a LRU order */
 	cbk_cache_list_link lru;
 } cbk_cache_slot;
@@ -67,16 +67,16 @@ typedef struct cbk_cache_slot {
  *
  */
 typedef struct cbk_cache {
-	int                 nr_slots;
+	int nr_slots;
 	/** head of LRU list of cache slots */
 	cbk_cache_list_head lru;
 	/** actual array of slots */
-	cbk_cache_slot     *slot;
+	cbk_cache_slot *slot;
 	/** serializator */
-	spinlock_t          guard;
+	spinlock_t guard;
 } cbk_cache;
 
-TS_LIST_DEFINE( cbk_cache, cbk_cache_slot, lru );
+TS_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
 /**
  * level_lookup_result - possible outcome of looking up key at some level.
@@ -113,20 +113,20 @@ struct reiser4_tree {
 	/* block_nr == 0 is fake znode. Write lock it, while changing
 	   tree height. */
 	/** disk address of root node of a tree */
-	reiser4_block_nr     root_block;
+	reiser4_block_nr root_block;
 
 	/** level of the root node. If this is 1, tree consists of root
 	    node only */
-	tree_level           height;
+	tree_level height;
 
 	/** cache of recent tree lookup results */
-	cbk_cache            cbk_cache;
+	cbk_cache cbk_cache;
 
 	/** hash table to look up znodes by block number. */
-	z_hash_table         zhash_table;
+	z_hash_table zhash_table;
 	/** hash table to look up jnodes by inode and offset. */
-	j_hash_table         jhash_table;
-	__u64                znode_epoch;
+	j_hash_table jhash_table;
+	__u64 znode_epoch;
 
 	/** lock protecting:
 	 *  - parent pointers,
@@ -134,35 +134,35 @@ struct reiser4_tree {
 	 *  - znode hash table
 	 *  - coord cache
 	 */
-	spinlock_t         tree_lock;
+	spinlock_t tree_lock;
 
 	/**
 	 * lock protecting delimiting keys
 	 *
 	 */
-	spinlock_t         dk_lock;
+	spinlock_t dk_lock;
 
 	/** default plugin used to create new nodes in a tree. */
-	node_plugin         *nplug;
-	struct super_block  *super;
+	node_plugin *nplug;
+	struct super_block *super;
 	struct {
 		/** carry flags used for insertion of new nodes */
-		__u32        new_node_flags;
+		__u32 new_node_flags;
 		/** carry flags used for insertion of new extents */
-		__u32        new_extent_flags;
+		__u32 new_extent_flags;
 		/** carry flags used for paste operations */
-		__u32        paste_flags;
+		__u32 paste_flags;
 		/** carry flags used for insert operations */
-		__u32        insert_flags;
+		__u32 insert_flags;
 	} carry;
 };
 
-extern void init_tree_0( reiser4_tree * );
+extern void init_tree_0(reiser4_tree *);
 
-extern int init_tree( reiser4_tree *tree,
-		      const reiser4_block_nr *root_block,
-		      tree_level height, node_plugin *default_plugin);
-extern void done_tree( reiser4_tree *tree );
+extern int init_tree(reiser4_tree * tree,
+		     const reiser4_block_nr * root_block,
+		     tree_level height, node_plugin * default_plugin);
+extern void done_tree(reiser4_tree * tree);
 
 /**
  * &reiser4_item_data - description of data to be inserted or pasted
@@ -182,17 +182,17 @@ struct reiser4_item_data {
 	 * during insertion of stat data.
 	 *
 	 */
-	char           *data;
+	char *data;
 	/* 1 if 'char * data' contains pointer to user space and 0 if it is
 	 * kernel space 
 
-	could be a char not an int?
-	*/
-	int             user;
+	 could be a char not an int?
+	 */
+	int user;
 	/**
 	 * amount of data we are going to insert or paste
 	 */
-	int             length;
+	int length;
 	/**
 	 *  "Arg" is opaque data that is passed down to the
 	 *  ->create_item() method of node layout, which in turn
@@ -216,11 +216,11 @@ struct reiser4_item_data {
 	 *
 	 */
 /* arg is a bad name. */
-	void           *arg;
+	void *arg;
 	/**
 	 * plugin of item we are inserting
 	 */
-	item_plugin   *iplug;
+	item_plugin *iplug;
 };
 
 /** cbk flags: options for coord_by_key() */
@@ -230,9 +230,9 @@ typedef enum {
 	 * of extents being located at the twig level. For explanation, see
 	 * comment just above is_next_item_internal(). 
 	 */
-	CBK_FOR_INSERT =    ( 1 << 0 ),
+	CBK_FOR_INSERT = (1 << 0),
 	/** coord_by_key() is called with key that is known to be unique */
-	CBK_UNIQUE     =    ( 1 << 1 ),
+	CBK_UNIQUE = (1 << 1),
 	/** 
 	 * coord_by_key() can trust delimiting keys. This options is not user
 	 * accessible. coord_by_key() will set it automatically. It will be
@@ -242,45 +242,45 @@ typedef enum {
 	 * located at the twig level. For explanation, see comment just above
 	 * is_next_item_internal().
 	 */
-	CBK_TRUST_DK   =    ( 1 << 2 )
+	CBK_TRUST_DK = (1 << 2)
 } cbk_flags;
 
 /** insertion outcome. IBK = insert by key */
-typedef enum { IBK_INSERT_OK        = 0,
-	       IBK_ALREADY_EXISTS   = -EEXIST,
-	       IBK_IO_ERROR         = -EIO,
-	       IBK_NO_SPACE         = -ENOSPC,
-	       IBK_OOM              = -ENOMEM
+typedef enum { IBK_INSERT_OK = 0,
+	IBK_ALREADY_EXISTS = -EEXIST,
+	IBK_IO_ERROR = -EIO,
+	IBK_NO_SPACE = -ENOSPC,
+	IBK_OOM = -ENOMEM
 } insert_result;
 
-typedef enum { RESIZE_OK           = 0,
-	       RESIZE_NO_SPACE     = -ENOSPC,
-	       RESIZE_IO_ERROR     = -EIO,
-	       RESIZE_OOM          = -ENOMEM
+typedef enum { RESIZE_OK = 0,
+	RESIZE_NO_SPACE = -ENOSPC,
+	RESIZE_IO_ERROR = -EIO,
+	RESIZE_OOM = -ENOMEM
 } resize_result;
 
-typedef int ( *tree_iterate_actor_t )( reiser4_tree *tree, 
-				       coord_t *coord,
-				       lock_handle *lh,
-				       void *arg );
-extern int iterate_tree( reiser4_tree *tree, coord_t *coord, lock_handle *lh, 
-			 tree_iterate_actor_t actor, void *arg,
-			 znode_lock_mode mode, int through_units_p );
+typedef int (*tree_iterate_actor_t) (reiser4_tree * tree,
+				     coord_t * coord,
+				     lock_handle * lh, void *arg);
+extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
+			tree_iterate_actor_t actor, void *arg,
+			znode_lock_mode mode, int through_units_p);
 
 /** return node plugin of @node */
 static inline node_plugin *
-node_plugin_by_node( const znode *node /* node to query */ )
+node_plugin_by_node(const znode * node /* node to query */ )
 {
-	assert( "vs-213", node != NULL );
-	assert( "vs-214", znode_is_loaded( node ) );
+	assert("vs-213", node != NULL);
+	assert("vs-214", znode_is_loaded(node));
 
 	return node->nplug;
 }
 
-static inline unsigned node_num_items (const znode * node)
+static inline unsigned
+node_num_items(const znode * node)
 {
-	assert ("nikita-2468",
-		node_plugin_by_node (node)->num_of_items (node) == node->nr_items);
+	assert("nikita-2468",
+	       node_plugin_by_node(node)->num_of_items(node) == node->nr_items);
 	return node->nr_items;
 }
 
@@ -300,18 +300,17 @@ static inline int node_is_empty (const znode * node)
 	return node_num_items (node) == 0;
 }
 
-
-typedef enum { SHIFTED_SOMETHING  = 0,
-	       SHIFT_NO_SPACE     = -ENOSPC,
-	       SHIFT_IO_ERROR     = -EIO,
-	       SHIFT_OOM          = -ENOMEM,
+typedef enum { SHIFTED_SOMETHING = 0,
+	SHIFT_NO_SPACE = -ENOSPC,
+	SHIFT_IO_ERROR = -EIO,
+	SHIFT_OOM = -ENOMEM,
 } shift_result;
 
-extern node_plugin *node_plugin_by_coord ( const coord_t *coord );
-extern int is_coord_in_node( const coord_t *coord );
-extern int key_in_node( const reiser4_key *, const coord_t * );
-extern void coord_item_move_to( coord_t *coord, int items );
-extern void coord_unit_move_to( coord_t *coord, int units );
+extern node_plugin *node_plugin_by_coord(const coord_t * coord);
+extern int is_coord_in_node(const coord_t * coord);
+extern int key_in_node(const reiser4_key *, const coord_t *);
+extern void coord_item_move_to(coord_t * coord, int items);
+extern void coord_unit_move_to(coord_t * coord, int units);
 
 /* there are two types of repetitive accesses (ra): intra-syscall
    (local) and inter-syscall (global). Local ra is used when
@@ -340,84 +339,80 @@ extern void coord_unit_move_to( coord_t *coord, int units );
    cache.
  */
 
-lookup_result coord_by_key( reiser4_tree *tree, const reiser4_key *key,
-			    coord_t *coord, lock_handle * handle,
-			    znode_lock_mode lock, lookup_bias bias, 
-			    tree_level lock_level, tree_level stop_level, 
-			    __u32 flags );
-lookup_result coord_by_hint_and_key (reiser4_tree * tree, 
-				     const reiser4_key * key,
-				     coord_t * coord, lock_handle * handle,
-				     lookup_bias bias, tree_level lock_level,
-				     tree_level stop_level);
-insert_result insert_by_key( reiser4_tree *tree, const reiser4_key *key,
-			     reiser4_item_data *data, coord_t *coord,
-			     lock_handle *lh,
-			     tree_level stop_level,
-			     inter_syscall_rap *ra,
-			     intra_syscall_rap ira, __u32 flags );
-insert_result insert_by_coord( coord_t  *coord,
-			       reiser4_item_data *data, const reiser4_key *key,
-			       lock_handle *lh,
-			       inter_syscall_rap *ra UNUSED_ARG,
-			       intra_syscall_rap ira UNUSED_ARG,
-			       cop_insert_flag );
-insert_result insert_extent_by_coord( coord_t  *coord,
-				      reiser4_item_data *data,
-				      const reiser4_key *key,
-				      lock_handle *lh );
-int cut_node (coord_t * from, coord_t * to,
-	      const reiser4_key * from_key,
-	      const reiser4_key * to_key,
-	      reiser4_key * smallest_removed, unsigned flags,
-	      znode * left);
+lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
+			   coord_t * coord, lock_handle * handle,
+			   znode_lock_mode lock, lookup_bias bias,
+			   tree_level lock_level, tree_level stop_level,
+			   __u32 flags);
+lookup_result coord_by_hint_and_key(reiser4_tree * tree,
+				    const reiser4_key * key,
+				    coord_t * coord, lock_handle * handle,
+				    lookup_bias bias, tree_level lock_level,
+				    tree_level stop_level);
+insert_result insert_by_key(reiser4_tree * tree, const reiser4_key * key,
+			    reiser4_item_data * data, coord_t * coord,
+			    lock_handle * lh,
+			    tree_level stop_level,
+			    inter_syscall_rap * ra,
+			    intra_syscall_rap ira, __u32 flags);
+insert_result insert_by_coord(coord_t * coord,
+			      reiser4_item_data * data, const reiser4_key * key,
+			      lock_handle * lh,
+			      inter_syscall_rap * ra UNUSED_ARG,
+			      intra_syscall_rap ira UNUSED_ARG,
+			      cop_insert_flag);
+insert_result insert_extent_by_coord(coord_t * coord,
+				     reiser4_item_data * data,
+				     const reiser4_key * key, lock_handle * lh);
+int cut_node(coord_t * from, coord_t * to,
+	     const reiser4_key * from_key,
+	     const reiser4_key * to_key,
+	     reiser4_key * smallest_removed, unsigned flags, znode * left);
 
-resize_result resize_item( coord_t *coord, reiser4_item_data *data,
-			   reiser4_key *key, lock_handle *lh,
-			   cop_insert_flag );
-int insert_into_item( coord_t *coord, lock_handle *lh, reiser4_key *key, 
-		      reiser4_item_data *data,
-		      cop_insert_flag );
-int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f);
-int find_new_child_ptr( znode *parent, znode *child, znode *left, 
-			coord_t *result );
+resize_result resize_item(coord_t * coord, reiser4_item_data * data,
+			  reiser4_key * key, lock_handle * lh, cop_insert_flag);
+int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key,
+		     reiser4_item_data * data, cop_insert_flag);
+int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
+int find_new_child_ptr(znode * parent, znode * child, znode * left,
+		       coord_t * result);
 
-int shift_right_of_but_excluding_insert_coord (coord_t * insert_coord);
-int shift_left_of_and_including_insert_coord (coord_t * insert_coord);
-int shift_everything_left (znode * right, znode * left, carry_level *todo);
-znode *insert_new_node (coord_t * insert_coord, lock_handle * lh);
-int cut_tree (reiser4_tree * tree, 
-	      const reiser4_key * from_key, const reiser4_key * to_key);
+int shift_right_of_but_excluding_insert_coord(coord_t * insert_coord);
+int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
+int shift_everything_left(znode * right, znode * left, carry_level * todo);
+znode *insert_new_node(coord_t * insert_coord, lock_handle * lh);
+int cut_tree(reiser4_tree * tree,
+	     const reiser4_key * from_key, const reiser4_key * to_key);
 
-extern int check_tree_pointer( const coord_t *pointer, const znode *child );
-extern int find_new_child_ptr( znode *parent, znode *child UNUSED_ARG,
-			       znode *left, coord_t *result );
-extern int find_child_ptr( znode *parent, znode *child, coord_t *result );
-extern int find_child_by_addr( znode *parent, znode *child, 
-			       coord_t *result );
-extern int find_child_delimiting_keys( znode *parent, 
-				       const coord_t *in_parent, 
-				       reiser4_key *ld, reiser4_key *rd );
-extern znode *child_znode( const coord_t *in_parent, znode *parent, int incore_p,
-			   int setup_dkeys_p );
+extern int check_tree_pointer(const coord_t * pointer, const znode * child);
+extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG,
+			      znode * left, coord_t * result);
+extern int find_child_ptr(znode * parent, znode * child, coord_t * result);
+extern int find_child_by_addr(znode * parent, znode * child, coord_t * result);
+extern int find_child_delimiting_keys(znode * parent,
+				      const coord_t * in_parent,
+				      reiser4_key * ld, reiser4_key * rd);
+extern znode *child_znode(const coord_t * in_parent, znode * parent,
+			  int incore_p, int setup_dkeys_p);
 
-extern int  cbk_cache_init( cbk_cache *cache );
-extern void cbk_cache_done( cbk_cache *cache );
-extern void cbk_cache_invalidate( const znode *node, reiser4_tree *tree );
-extern void cbk_cache_add( const znode *node );
+extern int cbk_cache_init(cbk_cache * cache);
+extern void cbk_cache_done(cbk_cache * cache);
+extern void cbk_cache_invalidate(const znode * node, reiser4_tree * tree);
+extern void cbk_cache_add(const znode * node);
 
-extern int check_jnode_for_unallocated (jnode * node);
-extern int check_jnode_for_unallocated_in_core (znode * z);
+extern int check_jnode_for_unallocated(jnode * node);
+extern int check_jnode_for_unallocated_in_core(znode * z);
 
-extern const char *bias_name( lookup_bias bias );
-extern char *sprint_address( const reiser4_block_nr *block );
+extern const char *bias_name(lookup_bias bias);
+extern char *sprint_address(const reiser4_block_nr * block);
 
 #if REISER4_DEBUG_OUTPUT
-extern void print_coord_content( const char *prefix, coord_t *p );
-extern void print_address( const char *prefix, const reiser4_block_nr *block );
-extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
-extern void print_cbk_slot( const char *prefix, const cbk_cache_slot *slot );
-extern void print_cbk_cache( const char *prefix, const cbk_cache  *cache );
+extern void print_coord_content(const char *prefix, coord_t * p);
+extern void print_address(const char *prefix, const reiser4_block_nr * block);
+extern void print_tree_rec(const char *prefix, reiser4_tree * tree,
+			   __u32 flags);
+extern void print_cbk_slot(const char *prefix, const cbk_cache_slot * slot);
+extern void print_cbk_cache(const char *prefix, const cbk_cache * cache);
 #else
 #define print_coord_content( p, c ) noop
 #define print_address( p, b ) noop
@@ -426,69 +421,69 @@ extern void print_cbk_cache( const char *prefix, const cbk_cache  *cache );
 #define print_cbk_cache( p, c ) noop
 #endif
 
-extern void forget_znode (lock_handle *handle);
-extern int deallocate_znode( znode *node );
+extern void forget_znode(lock_handle * handle);
+extern int deallocate_znode(znode * node);
 
-extern int is_disk_addr_unallocated( const reiser4_block_nr *addr );
-extern void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr );
+extern int is_disk_addr_unallocated(const reiser4_block_nr * addr);
+extern void *unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr);
 
 /** struct used internally to pack all numerous arguments of tree lookup.
     Used to avoid passing a lot of arguments to helper functions. */
 typedef struct cbk_handle {
 	/** tree we are in */
-	reiser4_tree        *tree;
+	reiser4_tree *tree;
 	/** key we are going after */
-	const reiser4_key   *key;
+	const reiser4_key *key;
 	/** coord we will store result in */
-	coord_t  	    *coord;
+	coord_t *coord;
 	/** type of lock to take on target node */
-	znode_lock_mode      lock_mode;
+	znode_lock_mode lock_mode;
 	/** lookup bias. See comments at the declaration of lookup_bias */
-	lookup_bias          bias;
+	lookup_bias bias;
 	/** lock level */
-	tree_level           lock_level;
+	tree_level lock_level;
 	/** 
 	 * level where search will stop. Either item will be found between
 	 * lock_level and stop_level, or CBK_COORD_NOTFOUND will be
 	 * returned. 
 	 */
-	tree_level           stop_level;
+	tree_level stop_level;
 	/** level we are currently at */
-	tree_level           level;
+	tree_level level;
 	/** 
 	 * block number of @active node. Tree traversal operates on two
 	 * nodes: active and parent. 
 	 */
-	reiser4_block_nr     block;
+	reiser4_block_nr block;
 	/** put here error message to be printed by caller */
-	const char          *error;
+	const char *error;
 	/** result passed back to caller */
-	lookup_result        result;
+	lookup_result result;
 	/** lock handles for active and parent */
-	lock_handle         *parent_lh;
-	lock_handle         *active_lh;
-	reiser4_key          ld_key;
-	reiser4_key          rd_key;
+	lock_handle *parent_lh;
+	lock_handle *active_lh;
+	reiser4_key ld_key;
+	reiser4_key rd_key;
 	/**
 	 * flags, passed to the cbk routine. Bits of this bitmask are defined
 	 * in tree.h:cbk_flags enum.
 	 */
-	__u32                flags;
+	__u32 flags;
 } cbk_handle;
 
-extern znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h );
+extern znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h);
 
 /* eottl.c */
-extern int handle_eottl( cbk_handle *h, int *outcome );
+extern int handle_eottl(cbk_handle * h, int *outcome);
 
-int lookup_multikey( cbk_handle *handle, int nr_keys );
-int lookup_couple( reiser4_tree *tree,
-		   const reiser4_key *key1, const reiser4_key *key2,
-		   coord_t *coord1, coord_t *coord2,
-		   lock_handle *lh1, lock_handle *lh2,
-		   znode_lock_mode lock_mode, lookup_bias bias,
-		   tree_level lock_level, tree_level stop_level,
-		   __u32 flags, int *result1, int *result2 );
+int lookup_multikey(cbk_handle * handle, int nr_keys);
+int lookup_couple(reiser4_tree * tree,
+		  const reiser4_key * key1, const reiser4_key * key2,
+		  coord_t * coord1, coord_t * coord2,
+		  lock_handle * lh1, lock_handle * lh2,
+		  znode_lock_mode lock_mode, lookup_bias bias,
+		  tree_level lock_level, tree_level stop_level,
+		  __u32 flags, int *result1, int *result2);
 
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);
@@ -507,22 +502,22 @@ TS_LIST_DECLARE(context);
  */
 struct reiser4_context {
 	/** magic constant. For debugging */
-	__u32                 magic;
+	__u32 magic;
 
 	/** current lock stack. See lock.[ch]. This is where list of all
 	 * locks taken by current thread is kept. This is also used in
 	 * deadlock detection.
 	 */
-	lock_stack            stack;
+	lock_stack stack;
 
 	/** current transcrash. */
-	txn_handle           *trans;
-	txn_handle            trans_in_ctx;
+	txn_handle *trans;
+	txn_handle trans_in_ctx;
 
 	/** super block we are working with.  To get the current tree
 	 * use &get_super_private (reiser4_get_current_sb ())->tree.
 	 */
-	struct super_block   *super;
+	struct super_block *super;
 
 	/**
 	 * parent fs activation
@@ -532,58 +527,56 @@ struct reiser4_context {
 	/**
 	 * per-thread grabbed (for further allocation) blocks counter
 	 */
-	reiser4_block_nr      grabbed_blocks;
+	reiser4_block_nr grabbed_blocks;
 
 	/**
 	 * per-thread tracing flags. Use reiser4_trace_flags enum to set
 	 * bits in it.
 	 */
-	__u32                 trace_flags;
+	__u32 trace_flags;
 
 	/** thread ID */
-	__u32                 tid;
+	__u32 tid;
 
 	/**
 	 * A link of all active contexts. */
-	context_list_link     contexts_link;
+	context_list_link contexts_link;
 	/** parent context */
-	reiser4_context      *parent;
-	tap_list_head         taps;
+	reiser4_context *parent;
+	tap_list_head taps;
 #if REISER4_DEBUG
-	lock_counters_info    locks;
-	int                   nr_children; /* number of child contexts */
-	struct task_struct    *task; /* so we can easily find owner of the stack */
+	lock_counters_info locks;
+	int nr_children;	/* number of child contexts */
+	struct task_struct *task;	/* so we can easily find owner of the stack */
 #endif
 #if REISER4_DEBUG_NODE
 	int disable_node_check;
 #endif
 };
 
-extern reiser4_context * get_context_by_lock_stack (lock_stack*);
+extern reiser4_context *get_context_by_lock_stack(lock_stack *);
 
 /* Debugging helps. */
-extern int  init_context_mgr (void);
+extern int init_context_mgr(void);
 #if REISER4_DEBUG_OUTPUT
-extern void print_context    (const char *prefix, reiser4_context *ctx);
+extern void print_context(const char *prefix, reiser4_context * ctx);
 #else
 #define print_context(p,c) noop
 #endif
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
-extern void print_contexts   (void);
+extern void print_contexts(void);
 #else
 #define print_contexts() noop
 #endif
-
 
 /* Hans, is this too expensive? */
 #define current_tree (&(get_super_private (reiser4_get_current_sb ())->tree))
 #define current_blocksize reiser4_get_current_sb ()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb ()->s_blocksize_bits
 
-extern int  init_context( reiser4_context *context,
-				  struct super_block *super );
-extern void done_context( reiser4_context *context );
+extern int init_context(reiser4_context * context, struct super_block *super);
+extern void done_context(reiser4_context * context);
 
 /**
  * magic constant we store in reiser4_context allocated at the stack. Used to
@@ -591,35 +584,37 @@ extern void done_context( reiser4_context *context );
  */
 #define context_magic ( ( __u32 ) 0x4b1b5d0b )
 
-static inline int is_in_reiser4_context( void )
+static inline int
+is_in_reiser4_context(void)
 {
 	return
-		current -> fs_context != NULL && 
-		( ( __u32 ) current -> fs_context -> owner ) == context_magic;
+	    current->fs_context != NULL &&
+	    ((__u32) current->fs_context->owner) == context_magic;
 }
 
 /** return context associated with given thread */
-static inline reiser4_context *get_context( const struct task_struct *tsk )
+static inline reiser4_context *
+get_context(const struct task_struct *tsk)
 {
 	if (tsk == NULL) {
-		BUG ();
+		BUG();
 	}
-	
-	return ( reiser4_context * ) tsk -> fs_context;
+
+	return (reiser4_context *) tsk->fs_context;
 }
 
 /** return context associated with current thread */
-static inline reiser4_context *get_current_context(void)
+static inline reiser4_context *
+get_current_context(void)
 {
 	reiser4_context *context;
 
-	context = get_context( current );
-	if( context != NULL )
-		return context -> parent;
+	context = get_context(current);
+	if (context != NULL)
+		return context->parent;
 	else
 		return NULL;
 }
-
 
 /* comment me.  Say something clever, like I am called at every reiser4 entry point, and I create a struct that is used
    to allow functions to efficiently pass large amounts of parameters around by moving a pointer to the parameters
@@ -664,9 +659,8 @@ static inline reiser4_context *get_current_context(void)
 #define spin_ordering_pred_tree( tree ) ( 1 )
 
 /* Define spin_lock_tree, spin_unlock_tree, and spin_tree_is_locked:
- * spin lock protecting znode hash, and parent and sibling pointers. */   
-SPIN_LOCK_FUNCTIONS( tree, reiser4_tree, tree_lock );
-
+ * spin lock protecting znode hash, and parent and sibling pointers. */
+SPIN_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
 /*
  * ordering constraint for delimiting key spin lock: dk lock is weaker than 
@@ -678,11 +672,11 @@ SPIN_LOCK_FUNCTIONS( tree, reiser4_tree, tree_lock );
  * Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting
  * keys.
  */
-SPIN_LOCK_FUNCTIONS( dk, reiser4_tree, dk_lock );
+SPIN_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 
 #if REISER4_DEBUG
 #define check_tree() print_tree_rec( "", current_tree, REISER4_TREE_CHECK )
-TS_LIST_DEFINE( context, reiser4_context, contexts_link );
+TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 #else
 #define check_tree() noop
 #endif
