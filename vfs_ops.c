@@ -30,6 +30,7 @@
 #include "emergency_flush.h"
 
 #include <linux/types.h>
+#include <linux/mount.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/buffer_head.h>
