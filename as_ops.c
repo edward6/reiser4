@@ -447,7 +447,25 @@ reiser4_writepages(struct address_space *mapping,
 			       lock_stack_isclean(get_current_lock_stack())));
 
 	if (mapping_has_anonymous_pages(mapping)) {
-		ret = capture_anonymous_pages (mapping);
+		if (inode_file_plugin(mapping->host)->h.id != UNIX_FILE_PLUGIN_ID) {
+			ret = RETERR(-EINVAL);
+		} else {
+			unix_file_info_t *uf_info;
+
+			uf_info = unix_file_inode_data(mapping->host);
+			if (rw_latch_try_read(&uf_info->latch) != 0) {
+				ret = RETERR(-EBUSY);
+			} else {
+				if (REISER4_DEBUG)
+					lock_counters()->inode_sem_r ++;
+
+				ret = capture_anonymous_pages (mapping);
+
+				rw_latch_up_read(&uf_info->latch);
+				if (REISER4_DEBUG)
+					lock_counters()->inode_sem_r --;
+			}
+		}
 
 		if (ret) {
 			reiser4_exit_context(&ctx);
