@@ -39,7 +39,7 @@ void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
 	if (io) atomic_add(bio->bi_vcnt, &io->nr_submitted);
 }
 
-void io_handle_end_io (const struct bio * bio)
+void io_handle_end_io (struct bio * bio)
 {
 	struct reiser4_io_handle * io = bio->bi_private;
 
