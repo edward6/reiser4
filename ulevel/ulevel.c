@@ -2350,7 +2350,9 @@ static struct inode * create_root_dir (znode * root)
 		data.user = 0;
 		data.length = sizeof sd.base;
 		data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
+		zload( coord.node );
 		ncoord_init_first_unit( &coord, root );
+		zrelse( coord.node );
 	
 		ret = carry( &lowest_level, NULL );
 		printf( "result: %i\n", ret );
@@ -3139,6 +3141,7 @@ static int bash_mkfs (const char * file_name)
 
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
+		init_formatted_fake( &super );
 		result = init_tree( tree, &super, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
 				    &mkfs_tops );
