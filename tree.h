@@ -144,6 +144,9 @@ struct reiser4_tree {
 	*/
 /* DEMIDOV-FIXME-HANS: I don't like this giant lock, do you have any ideas for how to replace it? If you can do it for sibling pointers, the rest is not as hard. 
 
+NIKITA: tree is not most highly contended. It doesn't worth complexity of
+optimization.
+
 ZAM-FIXME-HANS: for sibling pointers, am I right that the only operations that change them are insert node and delete
 node from tree (jload and jput)?  remind me why we can't write lock the left neighbor pointer, then the right neighbor
 pointer, and then alter the pointers?  there was some reason it was not simple, but I forget it.  */
