@@ -1,4 +1,4 @@
-/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../debug.h"
 #include "../../dformat.h"

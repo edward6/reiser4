@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* The design document for this file is at http://www.namesys.com/v4/v4.html. */
 

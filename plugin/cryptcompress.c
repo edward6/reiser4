@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* The object plugin of reiser4 crypto-compressed (crc-)files (see
    http://www.namesys.com/cryptcompress_design.txt for details). */

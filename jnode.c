@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* Jnode manipulation functions. */
 /* Jnode is entity used to track blocks with data and meta-data in reiser4.
 

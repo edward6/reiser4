@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Suppose you want to conveniently read and write a large variety of
    small files conveniently within a single emacs buffer, without

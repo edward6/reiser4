@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* Znode manipulation functions. */
 /* Znode is the in-memory header for a tree node. It is stored
    separately from the node itself so that it does not get written to

@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Traditional deadlock avoidance is achieved by acquiring all locks in a single order.  V4 balances the tree from the bottom up, and searches the tree from the top down, and that is really the way we want it, so tradition won't work for us.
 

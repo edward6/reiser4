@@ -1,4 +1,4 @@
-/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../debug.h"
 #include "../plugin_header.h"

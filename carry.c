@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* Functions to "carry" tree modification(s) upward. */
 /* Tree is modified one level at a time. As we modify a level we accumulate a
    set of changes that need to be propagated to the next level.  We manage
