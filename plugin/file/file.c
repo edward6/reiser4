@@ -2031,32 +2031,23 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			left = size - *off;
 
 		if (user_space) {
-			/* lock user pages into memory */
-			int i;
-			
 			to_read = get_nr_pages_nr_bytes(addr, left, &nr_pages);
-			result = sys_mlock(addr, to_read);
-			if (result)
-				return result;
 			nr_pages = reiser4_get_user_pages(pages, addr, nr_pages, READ);
 			if (nr_pages < 0) {
-				sys_munlock(addr, to_read);
-				return nr_pages;
+				result = nr_pages;
+				break;
 			}
-			for (i = 0; i < nr_pages; i ++)
-				assert("vs-1735", page_mapped(pages[i]));
 			to_read = adjust_nr_bytes(addr, to_read, nr_pages);
 		} else
 			to_read = left;
 
-		get_nonexclusive_access(uf_info);
+		get_nonexclusive_access(uf_info, 0);
 
 		/* define more precisely read size now when filesize can not change */
 		if (*off >= inode->i_size) {
-			if (user_space) {
+			if (user_space)
 				reiser4_put_user_pages(pages, nr_pages);
-				sys_munlock(addr, to_read);
-			}
+
 			/* position to read from is past the end of file */
 			drop_nonexclusive_access(uf_info);
 			break;
@@ -2069,12 +2060,10 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		assert("vs-1706", to_read <= left);
 		read = read_file(&hint, uf_info->container, file, buf, to_read, off);
 
-		if (user_space) {
+		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
-			sys_munlock(addr, to_read);
-		}
+
 		drop_nonexclusive_access(uf_info);
-		/*txn_restart_current();*/
 
 		if (read < 0) {
 			result = read;
@@ -2177,7 +2166,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 				if (!exclusive) {
 					drop_exclusive_access(uf_info);
 					txn_restart_current();
-					get_nonexclusive_access(uf_info);
+					get_nonexclusive_access(uf_info, 0);
 				}
 				if (result)
 					return result;
@@ -2272,7 +2261,8 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 
 	/* block filemap_nopage if copy on capture is processing with a node of this file */
 	down_read(&reiser4_inode_data(inode)->coc_sem);
-	get_nonexclusive_access(unix_file_inode_data(inode));
+	/* second argument is to note that current atom may exist */
+	get_nonexclusive_access(unix_file_inode_data(inode), 1);
 
 	page = filemap_nopage(area, address, 0);
 
@@ -2515,40 +2505,31 @@ write_unix_file(struct file *file, /* file to write to */
 		txn_restart_current();
 
 		if (user_space) {
-			int i;
-
 			to_write = get_nr_pages_nr_bytes(addr, left, &nr_pages);
-			result = sys_mlock(addr, to_write);
-			if (result)
-				break;
-
 			nr_pages = reiser4_get_user_pages(pages, addr, nr_pages, WRITE);
 			if (nr_pages < 0) {
-				sys_munlock(addr, to_write);
 				result = nr_pages;
 				break;
 			}
-			for (i = 0; i < nr_pages; i ++)
-				assert("vs-1736", page_mapped(pages[i]));
-
 			to_write = adjust_nr_bytes(addr, to_write, nr_pages);
 		} else
 			to_write = left;
+
+		txn_restart_current();
 
 		if (inode->i_size == 0) {
 			get_exclusive_access(uf_info);
 			excl = 1;
 		} else {
-			get_nonexclusive_access(uf_info);
+			get_nonexclusive_access(uf_info, 0);
 			excl = 0;
 		}
 
 		all_grabbed2free();
 		written = write_file(&hint, file, buf, to_write, off, excl);
-		if (user_space) {
+		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
-			sys_munlock(addr, to_write);
-		}
+
 		if (excl)
 			drop_exclusive_access(uf_info);
 		else
@@ -3019,7 +3000,7 @@ reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, siz
 	inode_set_flag(inode, REISER4_HAS_MMAP);
 	up(&inode->i_sem);
 
-	get_nonexclusive_access(ufo);
+	get_nonexclusive_access(ufo, 0);
 	ret = sendfile_common(file, ppos, count, actor, target);
 	drop_nonexclusive_access(ufo);
 	return ret;
