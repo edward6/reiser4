@@ -2143,6 +2143,8 @@ static int unit_moved_right (const struct shift_params * shift,
 static coord_t * adjust_coord2 (const struct shift_params * shift,
 				const coord_t * old, coord_t * new)
 {
+	new->iplug = 0;
+	new->between = old->between;
 	if (shift->pend == SHIFT_LEFT) {
 		if (unit_moved_left (shift, old)) {
 			/*
@@ -2160,7 +2162,8 @@ static coord_t * adjust_coord2 (const struct shift_params * shift,
 					 * unit_pos only changes if item got
 					 * merged
 					 */
-					new->unit_pos = coord_num_units (new) - old->unit_pos;
+					new->unit_pos = coord_num_units (new) - 
+						(shift->merging_units - old->unit_pos);
 				}
 			}
 		} else {
@@ -2195,6 +2198,7 @@ static coord_t * adjust_coord2 (const struct shift_params * shift,
 			coord_dup (new, old);
 		}
 	}
+	new->iplug = item_plugin_by_coord (new);
 	return new;
 }
 
