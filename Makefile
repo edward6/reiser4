@@ -80,6 +80,7 @@ reiser4-objs := \
 		   repacker.o \
 		   reiser4_status_flags.o \
 		   init_super.o \
+		   crab_lock.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \

@@ -140,6 +140,7 @@ SRC		:= \
 		   eottl.c \
 		   search.c \
 		   blocknrset.c \
+		   crab_lock.c \
 		   plugin/plugin.c \
 		   plugin/plugin_set.c \
 		   plugin/plugin_hash.c \

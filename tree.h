@@ -254,7 +254,9 @@ typedef enum {
 	CBK_READDIR_RA = (1 << 4), /* readdir: readahead whole directory and all its stat datas */
 	CBK_DKSET    = (1 << 5),
 	CBK_EXTENDED_COORD = (1 << 6), /* coord_t is actually */
-	CBK_IN_CACHE = (1 << 7) /* node is already in cache */
+	CBK_IN_CACHE = (1 << 7), /* node is already in cache */
+	CBK_USE_CRABLOCK = (1 << 8) /* use crab_lock in stead of long term
+				     * lock */
 } cbk_flags;
 
 /* insertion outcome. IBK = insert by key */

@@ -18,6 +18,7 @@
 #include "reiser4.h"
 #include "super.h"
 #include "prof.h"
+#include "crab_lock.h"
 
 #include <linux/slab.h>
 
@@ -300,7 +301,7 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	handle.stop_level = stop_level;
 	handle.coord = coord;
 	/* set flags. See comment in tree.h:cbk_flags */
-	handle.flags = flags | CBK_TRUST_DK;
+	handle.flags = flags | CBK_TRUST_DK | CBK_USE_CRABLOCK;
 
 	handle.active_lh = lh;
 	handle.parent_lh = &parent_lh;
@@ -399,13 +400,9 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 		   znode_lock_request pri, lock_handle *lh)
 {
-	znode *uber;
 	int result;
 
-	uber = zref(tree->uber);
-
-	result = longterm_lock_znode(lh, uber, mode, pri);
-	zput(uber);
+	result = longterm_lock_znode(lh, tree->uber, mode, pri);
 	return result;
 }
 
@@ -438,16 +435,7 @@ restart:
 
 	h->result = CBK_COORD_FOUND;
 
-	done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
-			      h->parent_lh);
-
-	assert("nikita-1637", done != -E_DEADLOCK);
-
-	if (done)
-		return done;
-
 	/* connect_znode() needs it */
-	h->coord->node = h->parent_lh->node;
 	h->ld_key = *min_key();
 	h->rd_key = *max_key();
 	h->flags |= CBK_DKSET;
@@ -455,6 +443,14 @@ restart:
 	h->block = h->tree->root_block;
 	h->level = h->tree->height;
 	h->error = NULL;
+
+	done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
+			      h->parent_lh);
+	assert("nikita-1637", done != -E_DEADLOCK);
+	if (done != 0)
+		return done;
+
+	h->coord->node = h->parent_lh->node;
 
 	/* loop descending a tree */
 	while (!done) {
@@ -541,13 +537,16 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	}
 
 	/* lock @active */
-	h->result = longterm_lock_znode(h->active_lh, active, cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
+	h->result = longterm_lock_znode(h->active_lh,
+					active,
+					cbk_lock_mode(h->level, h),
+					ZNODE_LOCK_LOPRI);
 	/* longterm_lock_znode() acquires additional reference to znode (which
 	   will be later released by longterm_unlock_znode()). Release
 	   reference acquired by zget().
 	*/
 	zput(active);
-	if (h->result)
+	if (unlikely(h->result != 0))
 		goto fail_or_restart;
 
 	setdk = 0;
@@ -563,7 +562,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 		parent = h->parent_lh->node;
 		h->result = zload(parent);
-		if (h->result)
+		if (unlikely(h->result != 0))
 			goto fail_or_restart;
 
 		setdk = set_child_delimiting_keys(parent, h->coord, active);
@@ -592,7 +591,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	 * state. */
 	if (!znode_is_connected(active)) {
 		h->result = connect_znode(h->coord, active);
-		if (h->result) {
+		if (unlikely(h->result != 0)) {
 			put_parent(h);
 			goto fail_or_restart;
 		}
