@@ -3,6 +3,7 @@
 #ifndef __READAHEAD_H__
 #define __READAHEAD_H__
 
+#include "key.h"
 
 typedef enum {
 	RA_ADJACENT_ONLY = 1,       /* only requests nodes which are adjacent. Default is NO (not only adjacent) */
