@@ -368,7 +368,7 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 %token STAT
 %token L_PAREN R_PAREN INV_L INV_R
 %token RANGE OFFSET OFFSET_BACK FIRST_BYTE LAST_BYTE P_BYTES_WRITTEN P_BYTES_READ LAST BYTES FIRST
-%token WORD N_WORD P_WORD PATTERN Constant
+%token WORD N_WORD P_WORD PATTERN 
 %token EQ NE  LE GE   LT  GT   
 %token IS
 %token AND
@@ -489,12 +489,19 @@ Expression
 | Expression GE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression LT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression GT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
-/*                    | Expression IS pattern   */
 | Expression OR  Expression                             { $$ = compare_expression( $1, $2, $3 ); }
 | Expression AND Expression                             { $$ = compare_expression( $1, $2, $3 ); }
 | NOT_head Expression ')'                                { $$ = not_expression( $3 ); level_down( NOT_HEAD );}
 | op_level Expression ')'                               { $$ = $2; level_down( OP_LEVEL ); }
 | EXIST Object_Name                                     { $$ = check_exist( $2 ); }
+;
+
+Constant
+: WORD
+| B_word
+
+B_word
+: '(' BINARY ':' WORD ':' B_WORD ')'
 ;
 
 NOT_head
@@ -522,19 +529,27 @@ else
 
 /* Object name begin */
 Object_Name
-: Object_Path_Name                                      {}
-| Object_Path_Name SLASH3 range_type                    {}
+: Object_Path_Name                                      {varco++?}
+| Object_Path_Name SLASH3 range_type                    {varco++?}
 | '[' Unordered_list ']'                                {}                            /* gruping: [name1 name2 [name3]]  */
 | Object_Name ORDERED Object_Name {} /* ordered  rule (Hans want ORDERED is "/", but this is not posible, I keep define it for later ) */
 ;
 
 
-
 Unordered_list
-: Object_Name                                           {???? }
-| P_RUNNER                                              {}
-| Unordered_list SPACE Unordered_list                   {}
+: P_RUNNER                                              {}
+| pair_list
 ;
+
+pair_list
+: pair
+| pair_list ',' pair
+;
+
+pair
+: Object_Name SPACE Object_Name
+| Expression
+
 
 Object_Path_Name
 : sl Object_relative_Name                               {}               /* /foo */
@@ -613,12 +628,6 @@ char *shell_break_chars = "()<>;&| \t\n";
 
 
 
-static struct
-{
-	struct inode *inode;
-	int Name_type;
-
-};
 
 
 #define version "0"
@@ -633,35 +642,22 @@ static struct
 int 	yychar;			/* current input token number */
 
 
-static int warproc;
-struct msglist
-{
-	int  msgnum;
-	long fileoff;
-	struct msglist * nextmsg;
-} ;
-static struct msglist *Fistmsg;
-
 
 
 allocate()
 {
 }
 
-reinitial(struct yy_r4_work_spaces * ws)
+reinitial( struct yy_r4_work_spaces * ws)
 {
 	int i;
-	i=(sizeof(struct var)   * NVAR + sizeof(struct streg) * MAXNEST);
 
-	memset((char*) Var     , 0,  i );
+	ws->Str              =   (struct streg *) kmallok();
+	ws->ws_freeSpace     =   
+	ws->ws_freeSpaceBase = kmallok();
+	ws->ws_pline         =
+	ws->ws_inline        = kmallok();
 
-	Str     =   (struct streg *) (Var+(NVAR));
-	freeSpace =   (        char *) (Str+(MAXNEST));
-	maxtab  =                     freeSpace+(MAXTAB);
-	inline  =                     maxtab;
-	maxbuf  =                     maxtab+(MAXBUF);
-
-	ws->ws_pline   = ws->ws_inline;
 
 
 	yyerrco =  0;
@@ -670,11 +666,11 @@ reinitial(struct yy_r4_work_spaces * ws)
 	isflg   =  0;
 	level   =  0;
 	varco   = -1;
-	strco   =  9;
+	strco   =  0;
 	newvar(0);
 }
 
-initial(struct yy_r4_work_spaces * ws)
+initial( struct yy_r4_work_spaces * ws)
 {
 	int i;
 	reinitial();
@@ -690,7 +686,7 @@ char * insymbol( struct yy_r4_work_spaces * ws )
 }
 
 
-lexem(struct yy_r4_work_spaces * ws )
+lexem( struct yy_r4_work_spaces * ws )
 {
 	unsigned char term,n,i;
 	int l,m;

@@ -19,7 +19,9 @@ It seems most issues of consistency can be resolved by locking the parent direct
 
 //#include "y.tab.c"
 
+#include "parser/parser.h"
 
+struct yy_r4_work_space * work_space;
 
 int yywrap()
 {
@@ -29,10 +31,26 @@ int yywrap()
 int sys_reiser4(char * str)
 {
 
-  inline = str;
+  work_space = kmalloc();
+  
+  work_space->pline  =  work_space->inline = str;
+  
 
 
-    i=yyparse();
+
+
+    i=yyparse(work_space);
 
     return 0;
 }
+
+
+/* 
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * End:
+ */
