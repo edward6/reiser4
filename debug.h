@@ -154,7 +154,11 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #define ON_DEBUG_MODIFY( exp )
 #endif
 
+#ifndef __KERNEL__
 #define wprint( args... ) ( fprintf( stderr , ##args ) )
+#else
+#define wprint( args... ) ( printk( ##args ) )
+#endif
 
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
