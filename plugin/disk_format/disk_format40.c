@@ -214,9 +214,12 @@ int format40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->fsuid = 0;
 	/* FIXME-VS: this is should be taken from mount data? */
 	private->trace_flags = 0;
-	private->adg = 1; /* hard links for directories are not supported */
-	private->one_node_plugin = 1; /* all nodes in layout 40 are of one
-				       * plugin */
+	private->fs_flags |= (1 << REISER4_ADG); /* hard links for directories
+						  * are not supported */
+	private->fs_flags |= (1 << REISER4_ONE_NODE_PLUGIN); /* all nodes in
+							      * layout 40 are
+							      * of one
+							      * plugin */
 
 	/* FIXME-VS: maybe this should be dealt with in common code */
 	xmemset(&private->stats, 0, sizeof (reiser4_stat));

@@ -60,6 +60,8 @@ typedef struct cbk_cache {
 	spinlock_t          guard;
 } cbk_cache;
 
+TS_LIST_DEFINE( cbk_cache, cbk_cache_slot, lru );
+
 /**
  * level_lookup_result - possible outcome of looking up key at some level.
  * This is used by coord_by_key when traversing tree downward.

@@ -1621,6 +1621,8 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 
 	tree -> znode_epoch = 1ull;
 
+	cbk_cache_list_init( &tree -> cbk_cache.lru );
+
 	result = znodes_tree_init( tree );
 	if( result == 0 )
 		result = jnodes_tree_init( tree );

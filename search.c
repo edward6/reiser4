@@ -14,8 +14,6 @@
 
 /* tree lookup cache */
 
-TS_LIST_DEFINE( cbk_cache, cbk_cache_slot, lru );
-
 /** Initialise coord cache slot */
 /* Audited by: green(2002.06.15) */
 static void cbk_cache_init_slot( cbk_cache_slot *slot )
