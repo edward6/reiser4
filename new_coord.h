@@ -157,6 +157,9 @@ void ncoord_normalize (new_coord * coord);
 /* Copy a coordinate. */
 extern void ncoord_dup (new_coord *coord, const new_coord *old_coord);
 
+/* Copy a coordinate without check. */
+void ncoord_dup_nocheck (new_coord *coord, const new_coord *old_coord);
+
 /* Return the number of items at the present node.  Asserts coord->node != NULL. */
 extern unsigned ncoord_num_items (const new_coord *coord);
 

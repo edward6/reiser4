@@ -48,11 +48,19 @@ void ncoord_normalize (new_coord * coord)
 void ncoord_dup (new_coord *coord, const new_coord *old_coord)
 {
 	assert ("jmacd-9800", ncoord_check (old_coord));
+	ncoord_dup_nocheck (coord, old_coord);
+}
+
+/* Copy a coordinate without check. Useful when old_coord->node is not
+ * loaded. As in cbk_tree_lookup -> connect_znode -> connect_one_side */
+void ncoord_dup_nocheck (new_coord *coord, const new_coord *old_coord)
+{
 	coord->node     = old_coord->node;
 	coord->item_pos = old_coord->item_pos;
 	coord->unit_pos = old_coord->unit_pos;
 	coord->between  = old_coord->between;
 }
+
 
 /* Initialize an invalid coordinate. */
 void ncoord_init_invalid (new_coord *coord, znode *node)
