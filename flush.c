@@ -966,32 +966,30 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	assert ("zam-890", spin_atom_is_locked(*atom));
 	assert ("zam-892", get_current_context()->trans->atom == *atom);
 
-	/* parallel flushers limit */
-	if (sinfo->tmgr.atom_max_flushers != 0) {
-		while ((*atom)->nr_flushers >= sinfo->tmgr.atom_max_flushers) {
-			(*atom)->nr_waiters ++;
-			atom_wait_event(*atom);
-			*atom = get_current_atom_locked();
-			(*atom)->nr_waiters --;
-		}
-	}
-
-	/* count ourself as a flusher */
-	(*atom)->nr_flushers++;
-
 	while(1) {
 		ret = fq_by_atom(*atom, &fq);
 		if (ret != -E_REPEAT)
 			break;
 		*atom = get_current_atom_locked();
 	}
-
-        if (ret) {
-		(*atom)->nr_flushers --;
+        if (ret)
 		return ret;
-	}
 
 	assert ("zam-891", spin_atom_is_locked(*atom));
+
+	/* parallel flushers limit */
+	if (sinfo->tmgr.atom_max_flushers != 0) {
+		while ((*atom)->nr_flushers >= sinfo->tmgr.atom_max_flushers) {
+			/* An atom_send_event() call is inside fq_put_nolock() which is
+			   called when flush is finished and nr_flushers is
+			   decremented. */
+			atom_wait_event(*atom);
+			*atom = get_current_atom_locked();
+		}
+	}
+
+	/* count ourself as a flusher */
+	(*atom)->nr_flushers++;
 
 	if (REISER4_TRACE_TREE) {
 		UNLOCK_ATOM(*atom);
