@@ -27,7 +27,7 @@ extern int common_file_save(struct inode *inode);
   FIXME-EDWARD: Cipher and hash key-id by the secret key
   (open method requires armored identification of the key */
 
-static int crc_file_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
+ __attribute__((unused)) static int crc_file_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
 {
 	int result;
 	scint_t *extmask;
