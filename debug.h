@@ -907,7 +907,7 @@ extern int no_counters_are_held(void);
 extern void check_stack( void );
 #endif
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
 extern void print_lock_counters( const char *prefix, 
 				 const lock_counters_info *info );
 #else

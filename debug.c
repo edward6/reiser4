@@ -77,7 +77,7 @@ lock_counters_info *lock_counters()
 }
 #endif
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
 void print_lock_counters( const char *prefix, const lock_counters_info *info )
 {
 	info( "%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i "
