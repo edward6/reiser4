@@ -1252,7 +1252,7 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 	assert( "nikita-1697", inode != NULL );
 	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
 		assert( "vs-839", S_ISLNK( inode -> i_mode ) );
-		kfree( inode -> u.generic_ip );
+		reiser4_kfree( inode -> u.generic_ip, inode -> i_size + 1 );
 		inode -> u.generic_ip = 0;
 		inode_clr_flag( inode, REISER4_GENERIC_VP_USED );
 	}
@@ -1815,7 +1815,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
 		/* only two plugins are available for now */
-		assert ("vs-476", (plugin_id == FORMAT_40_ID ||
+		assert ("vs-476", (plugin_id == FORMAT40_ID ||
 				   plugin_id == TEST_FORMAT_ID));
 		df_plug = disk_format_plugin_by_id (plugin_id);
 		brelse (super_bh);
