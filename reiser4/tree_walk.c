@@ -104,7 +104,10 @@ int reiser4_get_parent (reiser4_lock_handle * result, znode * node, int mode, in
 	return ret;
 }
 
-/** wrapper function to lock right or left neighbor depending on @to_left parameter */
+/** 
+ * wrapper function to lock right or left neighbor depending on GN_GO_LEFT
+ * bit in @flags parameter 
+ */
 static inline
 int lock_side_neighbor( reiser4_lock_handle * result,
 			znode * node,
