@@ -1311,3 +1311,4 @@ znode.bbg
 .entd.o.cmd
 remove
 .diskmap.o.cmd
+plugin/item/.ctail.o.cmd
