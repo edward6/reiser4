@@ -4064,6 +4064,39 @@ print_atom(const char *prefix, txn_atom * atom)
 }
 #endif
 
+static int count_deleted_blocks_actor (
+	txn_atom *atom, const reiser4_block_nr * a, const reiser4_block_nr *b, void * data)
+{
+	reiser4_block_nr *counter = data;
+
+	assert ("zam-995", data != NULL);
+	assert ("zam-996", a != NULL);
+	if (b == NULL)
+		*counter += 1;
+	else
+		*counter += *b;
+	return 0;
+}
+reiser4_internal reiser4_block_nr txnmgr_count_deleted_blocks (void)
+{
+	reiser4_block_nr result;
+	txn_mgr *tmgr = &get_super_private(reiser4_get_current_sb())->tmgr;
+	txn_atom * atom;
+
+	result = 0;
+
+	spin_lock_txnmgr(tmgr);
+	for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
+		LOCK_ATOM(atom);
+		blocknr_set_iterator(atom, &atom->delete_set, 
+				     count_deleted_blocks_actor, &result, 0);
+		UNLOCK_ATOM(atom);
+	}
+	spin_unlock_txnmgr(tmgr);
+
+	return result;
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

@@ -602,6 +602,7 @@ extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
 
 extern unsigned int txnmgr_get_max_atom_size(struct super_block *super);
+extern reiser4_block_nr txnmgr_count_deleted_blocks (void);
 
 extern void znode_make_dirty(znode * node);
 extern void jnode_make_dirty_locked(jnode * node);

@@ -85,6 +85,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	sector_t reserved;
 	sector_t free;
 	sector_t forroot;
+	sector_t deleted;
 	reiser4_context ctx;
 
 	assert("nikita-408", super != NULL);
@@ -111,7 +112,8 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	 */
 	total    = reiser4_block_count(super);
 	reserved = get_super_private(super)->blocks_reserved;
-	free     = reiser4_free_blocks(super);
+	deleted  = txnmgr_count_deleted_blocks();
+	free     = reiser4_free_blocks(super) + deleted;
 	forroot  = reiser4_reserved_blocks(super, 0, 0);
 
 	statfs->f_blocks = total - reserved;
