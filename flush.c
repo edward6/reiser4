@@ -206,6 +206,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		flush_pos.hio = NULL;
 	}
 
+	/* temporary debugging code */
 	atomic_inc (& flush_cnt);
 	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
 	if (FLUSH_SERIALIZE) {
@@ -218,6 +219,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	spin_lock_jnode (node);
 
 	/* a special case for znode-above-root */
+	/* JMACD-FIXME-HANS: comment? */
 	if (jnode_is_formatted(node) && znode_above_root(JZNODE(node))) {
 		/* just pass dirty znode-above-root to overwrite set */
 		JF_SET(node, ZNODE_WANDER);
@@ -228,6 +230,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	}
 
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
+	/* JMACD-FIXME-HANS: comment? */
 	if (! jnode_is_dirty (node) ||
 	    (jnode_is_formatted (node) && !znode_is_connected (JZNODE (node))) ||
 	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
@@ -240,6 +243,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
+	/* JMACD-FIXME-HANS: comment? */
 	if (jnode_is_allocated (node)) {
 		/* Already has been assigned a block number, just write it again? */
 		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
@@ -258,6 +262,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
+	/* JMACD-FIXME-HANS: comment? */
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		goto clean_out;
 	}
@@ -369,6 +374,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 
+/* JMACD-FIXME-HANS: comment? */
  clean_out:
 
 	/* wait for io completion */
@@ -1869,6 +1875,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				jnode_set_clean (node);
 
 				/* FIXME: Use TestClearPageDirty? */
+				
 				assert ("jmacd-74233", !PageWriteback (pg));
 				assert ("jmacd-74234", PageDirty (pg));
 				ClearPageDirty (pg);
@@ -1878,7 +1885,12 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				bio->bi_io_vec[c].bv_page   = pg;
 				bio->bi_io_vec[c].bv_len    = blksz;
 				bio->bi_io_vec[c].bv_offset = 0;
-
+				/*
+				* FIXME-VS: page can be not dirty: do_writepages clears dirty bit
+				*/
+				/*assert ("jmacd-74234", PageDirty (pg));*/
+				assert ("jmacd-74234", PageDirty (pg));
+	
 				/* The page cannot be purged while it is in writeback,
 				 * release last reference. */
 				jput (node);
@@ -1911,7 +1923,7 @@ static int flush_rewrite_jnode (jnode *node)
 	struct page *pg;
 	int ret;
 
-	/* FIXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
+	/* IXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
 	 * otherwise if the page was a fresh allocation the dealloc of that block might
 	 * have been non-deferred, and then we could trash otherwise-allocated data? */
 	ON_SMP (assert ("jmacd-53312", spin_jnode_is_locked (node)));
@@ -2261,8 +2273,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 			page_cache_release (pg);
 
-			if (neighbor == NULL) {
-				ret = -ENOMEM;
+			if (IS_ERR(neighbor)) {
+				ret = PTR_ERR(neighbor);
 				goto exit;
 			}
 
@@ -2294,8 +2306,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		page_cache_release (pg);
 
-		if (neighbor == NULL) {
-			ret = -ENOMEM;
+		if (IS_ERR(neighbor)) {
+			ret = PTR_ERR(neighbor);
 			goto exit;
 		}
 
