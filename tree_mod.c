@@ -22,6 +22,7 @@ static int add_child_ptr( znode *parent, znode *child );
  * allocate new node on the @level and immediately on the right of @brother.
  *
  */
+/* Audited by: umka (2002.06.15) */
 znode *new_node( znode *brother /* existing left neighbor of new node */, 
 		 tree_level level /* tree level at which new node is to
 				   * be allocated */ )
@@ -31,6 +32,9 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	reiser4_block_nr blocknr;
 
 	assert( "nikita-930", brother != NULL );
+	
+	/* AUDIT: In this point passed "level" should be cheked for validness */
+	assert( "umka-264", level < REAL_MAX_ZTREE_HEIGHT );
 
 	/*
 	 * interface to block allocator is non-existent as of now.
@@ -85,6 +89,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
  * This helper function is called by add_new_root().
  *
  */
+/* Audited by: umka (2002.06.15) */
 znode *add_tree_root( znode *old_root /* existing tree root */, 
 		      znode *fake /* "fake" znode */ )
 {
@@ -93,6 +98,8 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 	int           result;
 
 	assert( "nikita-1069", old_root != NULL );
+	assetr( "umka-262", fake != NULL );
+	assetr( "umka-263", tree != NULL );
 
 	/*
 	 * "fake" znode---one always hanging just above current root. This
@@ -177,6 +184,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
  * in its parent.
  *
  */
+/* Audited by: umka (2002.06.15) */
 void build_child_ptr_data( znode *child /* node pointer to which will be
 					 * inserted */, 
 			   reiser4_item_data *data /* where to store result */ )
@@ -190,6 +198,8 @@ void build_child_ptr_data( znode *child /* node pointer to which will be
 	data -> user = 0;
 	data -> length = sizeof( reiser4_block_nr );
 	/* FIXME-VS: hardcoded internal item? */
+
+	/* AUDIT: Is it possible that "item_plugin_by_id" may find nothing? */
 	data -> iplug = item_plugin_by_id( NODE_POINTER_ID );
 }
 
@@ -199,6 +209,7 @@ void build_child_ptr_data( znode *child /* node pointer to which will be
  * This is used when pointer to old root is inserted into new root which is
  * empty.
  */
+/* Audited by: umka (2002.06.15) */
 static int add_child_ptr( znode *parent, znode *child )
 {
 	new_coord       coord;
@@ -232,6 +243,7 @@ static int add_child_ptr( znode *parent, znode *child )
 /**
  * actually remove tree root
  */
+/* Audited by: umka (2002.06.15) */
 static int kill_root( reiser4_tree *tree /* tree from which root is being
 					  * removed */, 
 		      znode *old_root /* root node that is being removed */, 
@@ -243,6 +255,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 	znode *fake;
 	int    result;
 
+	assert( "umka-265", tree != NULL );
 	assert( "nikita-1198", new_root != NULL );
 	assert( "nikita-1199", znode_get_level( new_root ) + 1 == znode_get_level( old_root ) );
 
@@ -315,12 +328,14 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
  * to do the actual job.
  *
  */
+/* Audited by: umka (2002.06.15) */
 int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 {
 	int           result;
 	new_coord   down_link;
 	znode        *new_root;
-
+	
+	assert( "umka-266", current_tree != NULL );
 	assert( "nikita-1194", old_root != NULL );
 	assert( "nikita-1196", znode_is_root( old_root ) );
 	assert( "nikita-1200", node_num_items( old_root ) == 1 );
