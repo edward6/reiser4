@@ -72,6 +72,29 @@ error_free_node:
     return NULL;
 }
 
+errno_t reiserfs_node_sync(reiserfs_node_t *node) {
+    aal_assert("umka-798", node != NULL, return -1);
+    return aal_block_write(node->block);
+}
+
+errno_t reiserfs_node_embed_key(reiserfs_node_t *node, uint32_t pos, 
+    reiserfs_key_t *key)
+{
+    void *ptr;
+    
+    aal_assert("umka-804", node != NULL, return -1);
+    aal_assert("umka-805", key != NULL, return -1);
+
+    if (!(ptr = libreiser4_plugin_call(return -1, node->node_plugin->node, 
+	    item_key, node->block, pos)))
+	return -1;
+    
+    aal_memcpy(ptr, key->body, libreiser4_plugin_call(return -1, 
+	node->key_plugin->key, size,));
+    
+    return 0;
+}
+
 #endif
 
 reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
@@ -378,11 +401,6 @@ errno_t reiserfs_node_insert(reiserfs_node_t *node,
 
 #ifndef ENABLE_COMPACT
 
-errno_t reiserfs_node_sync(reiserfs_node_t *node) {
-    aal_assert("umka-798", node != NULL, return -1);
-    return aal_block_write(node->block);
-}
-
 void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level) {
     aal_assert("umka-454", node != NULL, return);
 
@@ -475,6 +493,7 @@ reiserfs_id_t reiserfs_node_item_get_pid(reiserfs_node_t *node,
     uint32_t pos)
 {
     aal_assert("vpf-047", node != NULL, return 0);
+
     return libreiser4_plugin_call(return 0, node->node_plugin->node, 
 	item_get_pid, node->block, pos);
 }
@@ -549,24 +568,6 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
 }
 
 #ifndef ENABLE_COMPACT
-
-errno_t reiserfs_node_embed_key(reiserfs_node_t *node, uint32_t pos, 
-    reiserfs_key_t *key)
-{
-    void *ptr;
-    
-    aal_assert("umka-804", node != NULL, return -1);
-    aal_assert("umka-805", key != NULL, return -1);
-
-    if (!(ptr = libreiser4_plugin_call(return -1, node->node_plugin->node, 
-	    item_key, node->block, pos)))
-	return -1;
-    
-    aal_memcpy(ptr, key->body, libreiser4_plugin_call(return -1, 
-	node->key_plugin->key, size,));
-    
-    return 0;
-}
 
 errno_t reiserfs_node_set_pointer(reiserfs_node_t *node, 
     uint32_t pos, blk_t blk) 

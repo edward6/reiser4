@@ -40,6 +40,7 @@ static uint16_t node40_item_overhead(aal_block_t *block) {
 
 static uint16_t node40_item_maxsize(aal_block_t *block) {
     aal_assert("vpf-016", block != NULL, return 0);
+
     return block->size - sizeof(reiserfs_nh40_t) - 
 	sizeof(reiserfs_ih40_t);
 }
