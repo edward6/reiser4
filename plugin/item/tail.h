@@ -29,6 +29,9 @@ int           tail_cut_units       (coord_t * item, unsigned *from,
 				    reiser4_key * smallest_removed);
 reiser4_key * tail_unit_key        (const coord_t * coord,
 				    reiser4_key * key);
+reiser4_key * tail_max_key         (const coord_t * coord,
+				    reiser4_key * key);
+int           tail_key_in_item     (coord_t * coord, const reiser4_key * key);
 
 /*
  * plugin->u.item.s.*

@@ -422,8 +422,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL,
-				.key_in_item             = NULL,
+				.real_max_key_inside     = tail_max_key,
+				.key_in_item             = tail_key_in_item,
 				.key_in_unit             = NULL
 			},
 			.s = {

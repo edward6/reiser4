@@ -378,6 +378,42 @@ reiser4_key * tail_unit_key (const coord_t * coord, reiser4_key * key)
  * plugin->u.item.b.item_data_by_flow
  */
 
+/* item_plugin->common.real_max_key_inside */
+reiser4_key * tail_max_key (const coord_t * coord, reiser4_key * key)
+{
+	item_key_by_coord (coord, key);
+	set_key_offset (key, get_key_offset (key) + item_length_by_coord (coord) - 1);
+	return key;
+}
+
+
+/* item_plugin->common.key_in_item */
+int tail_key_in_item (coord_t * coord, const reiser4_key * key)
+{
+	reiser4_key item_key;
+	unsigned i, nr_units;
+	__u64 offset;
+	reiser4_extent * ext;
+
+
+	assert ("vs-778", coord_is_existing_item (coord));
+
+	if (keygt (key, tail_max_key (coord, &item_key)))
+		/* key > max key of item */
+		return 0;
+
+	/* key of first byte pointed by item */
+	item_key_by_coord (coord, &item_key);
+	if (keylt (key, &item_key))
+		/* key < min key of item */
+		return 0;
+
+	coord->unit_pos = get_key_offset (key) - get_key_offset (&item_key);
+	coord->between = AT_UNIT;
+	return 1;
+}
+
+
 
 typedef enum {
 	TAIL_CREATE_HOLE,
