@@ -2122,17 +2122,20 @@ static void
 reiser4_kill_super(struct super_block *s)
 {
 	reiser4_super_info_data *info;
-	__REISER4_ENTRY(s,);
+	reiser4_context context;
 
 	info = (reiser4_super_info_data *) s->s_fs_info;
 	if (!info) {
 		/* mount failed */
 		s->s_op = 0;
 		kill_block_super(s);
-		__REISER4_EXIT(&__context);
 		return;
 	}
 
+	if (init_context(&context, s)) {
+		warning("nikita-2728", "Cannot initialize context.");
+		return;
+	}
 	trace_on(TRACE_VFS_OPS, "kill_super\n");
 
 	/*
@@ -2189,7 +2192,7 @@ reiser4_kill_super(struct super_block *s)
 		reiser4_print_stats();
 
 	/* no assertions below this line */
-	__REISER4_EXIT(&__context);
+	__REISER4_EXIT(&context);
 
 	kfree(info);
 	s->s_fs_info = NULL;

@@ -704,7 +704,8 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 			return 0;
 		}
 	}
-	sdata = (reiser4_super_info_data *) super->s_fs_info;
+	sdata = get_super_private(super);
+	assert("nikita-2727", sdata != NULL);
 	tree = &sdata->tree;
 
 	context->super = super;
