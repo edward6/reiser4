@@ -426,11 +426,11 @@ struct __reiser4_lock_stack {
  * User-visible znode locking functions
 \*****************************************************************************/
 
-extern int reiser4_lock_znode     (reiser4_lock_handle *handle,
+extern int longterm_lock_znode     (reiser4_lock_handle *handle,
 				   znode               *node,
 				   znode_lock_mode      mode,
 				   znode_lock_request   request);
-extern void reiser4_unlock_znode  (reiser4_lock_handle *handle);
+extern void longterm_unlock_znode  (reiser4_lock_handle *handle);
 
 extern int reiser4_check_deadlock ( void );
 

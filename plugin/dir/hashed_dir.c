@@ -481,7 +481,7 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 
 		reiser4_done_lh( &args -> last_lh );
 		assert( "", znode_is_any_locked( lh -> node ) );
-		lock_result = reiser4_lock_znode( &args -> last_lh, lh -> node,
+		lock_result = longterm_lock_znode( &args -> last_lh, lh -> node,
 						  args -> mode, 
 						  ZNODE_LOCK_HIPRI );
 		if( lock_result != 0 )
