@@ -7,6 +7,7 @@
 #include "../../page_cache.h"
 #include "../../ioctl.h"
 #include "../object.h"
+#include "../../prof.h"
 
 #include <linux/writeback.h>
 
@@ -386,7 +387,8 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	lock_handle lh;
 	item_plugin *iplug;
 
-	inode_file_plugin(inode)->key_by_inode(inode, get_key_offset(max_key()), &key);
+	assert("vs-1247", inode_file_plugin(inode)->key_by_inode == unix_file_key_by_inode);
+	unix_file_key_by_inode(inode, get_key_offset(max_key()), &key);
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
@@ -458,7 +460,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 	int result;
 	znode *loaded;
 
-	inode_file_plugin(inode)->key_by_inode(inode, new_size, &from_key);
+	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == unix_file_key_by_inode);
+	unix_file_key_by_inode(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
 
@@ -1004,12 +1007,13 @@ should_have_notail(struct inode *inode, loff_t new_size)
 
 }
 
-reiser4_block_nr unix_file_estimate_read(struct inode *inode, 
-					 loff_t count UNUSED_ARG) 
+static reiser4_block_nr unix_file_estimate_read(struct inode *inode, 
+						loff_t count UNUSED_ARG) 
 {
-    	/* We should reserve the one block, because of updating of the stat data
+    	/* We should reserve one block, because of updating of the stat data
 	   item */
-	return inode_file_plugin(inode)->estimate.update(inode);
+	assert("vs-1249", inode_file_plugin(inode)->estimate.update == common_estimate_update);
+	return common_estimate_update(inode);
 }
 
 #define FIND \
@@ -1023,12 +1027,20 @@ reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 {\
 	PROF_BEGIN(zload);\
 	result = zload_ra(coord.node, &ra_info);\
+	if (unlikely(result)) {\
+		done_lh(&lh);\
+		return result;\
+	}\
 	PROF_END(zload, zload);\
 }
 
 #define ITEM_READ \
 {\
 	PROF_BEGIN(item_read);\
+	if (file_is_built_of_extents(inode))\
+		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;\
+	else\
+		read_f = item_plugin_by_id(TAIL_ID)->s.file.read;\
 	result = read_f(file, &coord, &f);\
 	PROF_END(item_read, item_read);\
 }
@@ -1055,42 +1067,51 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	if (unlikely(!read_amount))
 		return 0;
 
-	inode = file->f_dentry->d_inode;
+	{
+		PROF_BEGIN(prep);
 
-	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
+		inode = file->f_dentry->d_inode;
 
-	get_nonexclusive_access(inode);
+		assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
-	needed = unix_file_estimate_read(inode, read_amount);
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
-	if (result != 0) {
-		drop_nonexclusive_access(inode);
-		return RETERR(-ENOSPC);
+		get_nonexclusive_access(inode);
+
+		needed = unix_file_estimate_read(inode, read_amount);
+		result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
+		if (result != 0) {
+			drop_nonexclusive_access(inode);
+			return RETERR(-ENOSPC);
+		}
+
+		/* build flow */
+		assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == common_build_flow);
+		result = common_build_flow(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
+		if (unlikely(result)) {
+			drop_nonexclusive_access(inode);
+			return result;
+		}
+
+		/* get seal and coord sealed with it from reiser4 private data of
+		   struct file.  The coord will tell us where our last read of this
+		   file finished, and the seal will help us determine if that location
+		   is still valid.
+		*/
+		{
+			PROF_BEGIN(load_hint);
+			result = load_file_hint(file, &hint);
+			if (unlikely(result)) {
+				drop_nonexclusive_access(inode);
+				return result;
+			}
+			PROF_END(load_hint, load_hint);
+		}
+
+		/* initialize readahead info */
+		ra_info.key_to_stop = f.key;
+		set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+
+		PROF_END(prep, prep);
 	}
-
-	/* build flow */
-	result = inode_file_plugin(inode)->flow_by_inode(inode, buf, 1 /* user space */ ,
-							 read_amount, *off, READ_OP, &f);
-	if (unlikely(result)) {
-		drop_nonexclusive_access(inode);
-		return result;
-	}
-
-	/* get seal and coord sealed with it from reiser4 private data of
-	   struct file.  The coord will tell us where our last read of this
-	   file finished, and the seal will help us determine if that location
-	   is still valid.
-	*/
-	result = load_file_hint(file, &hint);
-	if (unlikely(result)) {
-		drop_nonexclusive_access(inode);
-		return result;
-	}
-
-	/* initialize readahead info */
-	ra_info.key_to_stop = f.key;
-	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
-
 	read_amount = f.length;
 	while (f.length) {
 		loff_t cur_offset;
@@ -1120,17 +1141,9 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		}
 
 		ZLOAD;
-		if (unlikely(result)) {
-			done_lh(&lh);
-			return result;
-		}
-
-		if (file_is_built_of_extents(inode))
-			read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
-		else
-			read_f = item_plugin_by_id(TAIL_ID)->s.file.read;
 
 		ITEM_READ;
+
 		zrelse(coord.node);
 		if (result == -EAGAIN) {
 			printk("zam-830: unix_file_read: key was not found in item, repeat search\n");
@@ -1142,13 +1155,19 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			done_lh(&lh);
 			break;
 		}
-
-		set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
+		{
+			PROF_BEGIN(set_hint);
+			set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
+			PROF_END(set_hint, set_hint);
+		}
 		done_lh(&lh);
 	}
 
-	save_file_hint(file, &hint);
-
+	{
+		PROF_BEGIN(save_hint);
+		save_file_hint(file, &hint);
+		PROF_END(save_hint, save_hint);
+	}
 	read = read_amount - f.length;
 	if (read) {
 		/* something was read. Update stat data */
@@ -1267,12 +1286,11 @@ static loff_t
 write_flow(struct file *file, struct inode *inode, const char *buf, size_t count, loff_t pos)
 {
 	int result;
-	file_plugin *fplug;
 	flow_t f;
 
-	fplug = inode_file_plugin(inode);
-	result = fplug->flow_by_inode(inode, (char *)buf, 1 /* user space */,
-				      count, pos, WRITE_OP, &f);
+	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == common_build_flow);
+	
+	result = common_build_flow(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
 	if (result)
 		return result;
 
