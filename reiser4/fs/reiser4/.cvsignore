@@ -1,0 +1,15 @@
+.build
+build.h
+*.out*
+gmon.out
+dead.code
+*.o.flags
+GRTAGS
+GPATH
+GTAGS
+GSYMS
+.depend
+.gdbinit
+.ctypes
+*.flc
+.dependencies
