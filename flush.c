@@ -1675,9 +1675,7 @@ static int squeeze_right_non_twig (znode *left, znode *right)
 	}
 
 
-	spin_lock_dk (current_tree);
-	update_znode_dkeys (left, right);
-	spin_unlock_dk (current_tree);
+	UNDER_SPIN_VOID (dk, current_tree, update_znode_dkeys (left, right));
 
 	if (ret > 0) {
 		/* Carry is called to update delimiting key or to remove empty
@@ -1872,9 +1870,8 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	if (moved) {
 		znode_set_dirty (left);
 		znode_set_dirty (right);
-		spin_lock_dk (current_tree);
-		update_znode_dkeys (left, right);
-		spin_unlock_dk (current_tree);
+		UNDER_SPIN_VOID (dk, current_tree,
+				 update_znode_dkeys (left, right));
 
 		ON_STATS (todo.level_no = znode_get_level (left) + 1);
 		ret = carry (&todo, NULL /* previous level */);
@@ -1905,12 +1902,8 @@ static int shift_one_internal_unit (znode * left, znode * right)
 int jnode_check_flushprepped (jnode *node)
 {
 	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
-	int ret;
 	assert ("jmacd-71275", spin_jnode_is_not_locked (node));
-	spin_lock_jnode (node);
-	ret = jnode_is_flushprepped (node);
-	spin_unlock_jnode (node);
-	return ret;
+	return UNDER_SPIN (jnode, node, jnode_is_flushprepped (node));
 }
 
 int znode_check_flushprepped (znode *node)
@@ -1972,9 +1965,8 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 			goto exit;
 		}
 
-		spin_lock_tree (current_tree);
-		current_tree->root_block = blk;
-		spin_unlock_tree (current_tree);
+		UNDER_SPIN_VOID (tree, current_tree,
+				 current_tree->root_block = blk);
 
 		znode_set_dirty(fake);
 
@@ -2603,15 +2595,11 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
  * write-locked (for squeezing) so no tree lock is needed. */
 static int znode_same_parents (znode *a, znode *b)
 {
-	int x;
-
 	assert ("jmacd-7011", znode_is_write_locked (a));
 	assert ("jmacd-7012", znode_is_write_locked (b));
 
-	spin_lock_tree (current_tree);
-	x = (a->in_parent.node == b->in_parent.node);
-	spin_unlock_tree (current_tree);
-	return x;
+	return UNDER_SPIN (tree, current_tree, 
+			   (znode_parent_nolock (a) == znode_parent_nolock (b)));
 }
 
 /********************************************************************************
@@ -3519,9 +3507,7 @@ void flush_fuse_queues (txn_atom *large, txn_atom *small)
 		for (scan = capture_list_front (&pos->queue);
 		     /**/ ! capture_list_end   (&pos->queue, scan);
 		     scan = capture_list_next (scan)) {
-			spin_lock_jnode (scan);
-			scan->atom = large;
-			spin_unlock_jnode (scan);
+			UNDER_SPIN_VOID (jnode, scan, scan->atom = large);
 		}
 	}
 

@@ -1661,10 +1661,12 @@ void jnode_set_dirty( jnode *node )
 	}
 
 	if (jnode_is_znode (node)) {
+		reiser4_tree *tree;
+
+		tree = current_tree;
 		/* bump version counter in znode */
-		spin_lock_tree (current_tree);
-		JZNODE (node)->version = ++ current_tree->znode_epoch;
-		spin_unlock_tree (current_tree);
+		JZNODE (node)->version = 
+			UNDER_SPIN (tree, tree, ++ tree->znode_epoch);
 		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
 		 *
 		 * the flush code sets a node dirty even though it is read locked... but
@@ -2090,9 +2092,7 @@ capture_fuse_jnode_lists (txn_atom *large, capture_list_head *large_head, captur
 		count += 1;
 		
 		/* With the jnode lock held, update atom pointer. */
-		spin_lock_jnode (node);
-		node->atom = large;
-		spin_unlock_jnode (node);
+		UNDER_SPIN_VOID (jnode, node, node->atom = large);
 	}
 	
 	/* Splice the lists. */

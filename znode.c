@@ -260,12 +260,9 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 
 	assert( "nikita-795", tree != NULL );
 
-	trace_if( TRACE_ZWEB, 
-		  ({
-			  spin_lock_tree( tree );
-			  print_znodes( "umount", tree );
-			  spin_unlock_tree( tree );
-		  }) );
+	trace_if( TRACE_ZWEB,
+		  UNDER_SPIN_VOID( tree, tree, 
+				   print_znodes( "umount", tree ) ) );
 
 	ztable = &tree -> zhash_table;
 
@@ -720,9 +717,7 @@ void zrelse( znode *node /* znode to release references to */ )
 	assert( "nikita-2233", atomic_read( &ZJNODE(node) -> d_count ) > 0 );
 	assert( "nikita-1381", znode_invariant( node ) );
 
-	spin_lock_znode(node);
-	jrelse_nolock( ZJNODE(node) );
-	spin_unlock_znode(node);
+	UNDER_SPIN_VOID( znode, node, jrelse_nolock( ZJNODE(node) ) );
 
 	assert( "nikita-1382", znode_invariant( node ) );
 }
@@ -791,18 +786,11 @@ int znode_contains_key( znode *node /* znode to look in */,
 int znode_contains_key_lock( znode *node /* znode to look in */, 
 			     const reiser4_key *key /* key to look for */ )
 {
-	int result;
-
 	assert( "umka-056", node != NULL );
 	assert( "umka-057", key != NULL );
 	assert( "umka-058", current_tree != NULL );
 
-	/* AUDIT: Here should be a check whether tree's "dk_lock" isn't locked */
-	
-	spin_lock_dk( current_tree );
-	result = znode_contains_key( node, key );
-	spin_unlock_dk( current_tree );
-	return result;
+	return UNDER_SPIN( dk, current_tree, znode_contains_key( node, key ) );
 }
 
 /** get parent pointer, assuming tree is not locked */
@@ -855,13 +843,16 @@ int znode_is_root( const znode *node /* znode to query */ )
 	assert( "umka-062", current_tree != NULL );
 	
 	result = znode_get_level (node) == current_tree -> height;
-	spin_lock_tree( current_tree );
-	assert( "nikita-1208", !result || znode_is_true_root( node ) );
-	assert( "nikita-1209", !result ||
-		znode_get_level( znode_parent( node ) ) == 0 );
-	assert( "nikita-1212", !result ||
-		( ( node -> left == NULL ) && ( node -> right == NULL ) ) );
-	spin_unlock_tree( current_tree );
+	if( REISER4_DEBUG ) {
+		spin_lock_tree( current_tree );
+		assert( "nikita-1208", !result || znode_is_true_root( node ) );
+		assert( "nikita-1209", !result ||
+			znode_get_level( znode_parent( node ) ) == 0 );
+		assert( "nikita-1212", !result ||
+			( ( node -> left == NULL ) && 
+			  ( node -> right == NULL ) ) );
+		spin_unlock_tree( current_tree );
+	}
 	return result;
 }
 

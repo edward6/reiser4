@@ -240,9 +240,7 @@ static int add_child_ptr( znode *parent, znode *child )
 	build_child_ptr_data( child, &data );
 	data.arg = NULL;
 
-	spin_lock_dk( current_tree );
-	key = znode_get_ld_key( child );
-	spin_unlock_dk( current_tree );
+	key = UNDER_SPIN( dk, current_tree, znode_get_ld_key( child ) );
 	result = node_plugin_by_node( parent ) -> create_item( &coord, key, 
 							       &data, NULL );
 	znode_set_dirty( parent );
@@ -356,9 +354,8 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 
 	coord_init_first_unit( &down_link, old_root );
 
-	spin_lock_dk( current_tree );
-	new_root = child_znode( &down_link, old_root, 0, 1 );
-	spin_unlock_dk( current_tree );
+	new_root = UNDER_SPIN( dk, current_tree,
+			       child_znode( &down_link, old_root, 0, 1 ) );
 	if( !IS_ERR( new_root ) ) {
 		result = kill_root( current_tree, old_root, new_root, 
 				    znode_get_block( new_root ) );

@@ -995,9 +995,9 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 		 * and thus, their sibling linkage cannot change.
 		 *
 		 */
-		spin_lock_tree( current_tree );
-		reference_point = find_begetting_brother( node, level ) -> node;
-		spin_unlock_tree( current_tree );
+		reference_point = UNDER_SPIN
+			( tree, current_tree,
+			  find_begetting_brother( node, level ) -> node );
 		assert( "nikita-1186", reference_point != NULL );
 	}
 	if( node -> parent && ( result == 0 ) ) {

@@ -179,15 +179,10 @@ static znode *seal_node( const seal_t *seal /* seal to query */ )
 static int seal_matches( const seal_t *seal /* seal to check */, 
 			 znode *node /* node to check */ )
 {
-	int result;
-
 	assert( "nikita-1991", seal != NULL );
 	assert( "nikita-1993", node != NULL );
 
-	spin_lock_znode( node );
-	result = ( seal -> version == node -> version );
-	spin_unlock_znode( node );
-	return result;
+	return UNDER_SPIN( znode, node, ( seal -> version == node -> version ) );
 }
 
 /** intranode search */

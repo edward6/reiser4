@@ -127,17 +127,12 @@ int reiser4_get_parent (lock_handle * result /* resulting lock
 					      * we want to access still
 					      * unconnected parents. */ )
 {
-	reiser4_tree * tree = current_tree;
-	int ret;
-	
-	assert("umka-238", tree != NULL);
-	
-	spin_lock_tree(tree);
-	ret = lock_neighbor(result, node, PARENT_PTR_OFFSET, mode, ZNODE_LOCK_HIPRI, 
-			    only_connected_p ? 0: GN_ALLOW_NOT_CONNECTED);
-	spin_unlock_tree(tree);
+	assert("umka-238", current_tree != NULL);
 
-	return ret;
+	return UNDER_SPIN(tree, current_tree,
+			  lock_neighbor(result, node, PARENT_PTR_OFFSET, mode, 
+					ZNODE_LOCK_HIPRI, 
+					only_connected_p ? 0: GN_ALLOW_NOT_CONNECTED));
 }
 
 /** 
@@ -331,11 +326,10 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 
 		if(neighbor) {
 			/* update delimiting keys */
-			spin_lock_dk(tree);
-			find_child_delimiting_keys(coord->node, coord,
-						   znode_get_ld_key(neighbor),
-						   znode_get_rd_key(neighbor));
-			spin_unlock_dk(tree);
+			UNDER_SPIN_VOID(dk,tree, find_child_delimiting_keys
+					(coord->node, coord,
+					 znode_get_ld_key(neighbor),
+					 znode_get_rd_key(neighbor)));
 		}
 
 		spin_lock_tree(tree);
@@ -479,9 +473,7 @@ static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int 
 	 * and reference to neighbor znode incremented */
 	neighbor = (flags & GN_GO_LEFT) ? node->left : node->right;
 	
-	spin_lock_tree(tree);
-	ret = znode_is_connected(neighbor);
-	spin_unlock_tree(tree);
+	ret = UNDER_SPIN(tree, tree, znode_is_connected(neighbor));
 
 	if (ret) {
 		ret = 0;
@@ -558,9 +550,8 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	 * link existence */
 	
-	spin_lock_tree(tree);
-	ret = lock_side_neighbor(neighbor, node, lock_mode, flags);
-	spin_unlock_tree(tree);
+	ret = UNDER_SPIN(tree, tree,
+			 lock_side_neighbor(neighbor, node, lock_mode, flags));
 
 	if (!ret) {
 		/* load znode content if it was specified */
@@ -734,9 +725,8 @@ void sibling_list_insert (znode *new, znode *before)
 	assert("umka-256", new != NULL);
 	assert("umka-257", current_tree != NULL);
 	
-	spin_lock_tree(current_tree);
-	sibling_list_insert_nolock(new, before);
-	spin_unlock_tree(current_tree);
+	UNDER_SPIN_VOID(tree, current_tree,
+			sibling_list_insert_nolock(new, before));
 }
 
 /*

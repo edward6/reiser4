@@ -149,7 +149,7 @@ static inline void JF_SET (jnode *j, int f) { set_bit (f, &j->state); }
 	  ( lock_counters() -> spin_locked_jnode == 0 ) )
 
 /** 
- * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
+ * Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
  * Take and release short-term spinlocks.  Don't hold these across
  * io. 
  */
@@ -308,13 +308,9 @@ extern void jnode_detach_page( jnode *node );
 /** return true if "node" is dirty, node is unlocked */
 static inline int jnode_check_dirty( jnode *node )
 {
-	int is_dirty;
 	assert( "jmacd-7798", node != NULL );
 	assert( "jmacd-7799", spin_jnode_is_not_locked (node) );
-	spin_lock_jnode (node);
-	is_dirty = jnode_is_dirty (node);
-	spin_unlock_jnode (node);
-	return is_dirty;
+	return UNDER_SPIN (jnode, node, jnode_is_dirty (node));
 }
 
 static inline int jnode_is_flushprepped (const jnode *node)
@@ -371,9 +367,7 @@ static inline void jrelse(jnode *node)
 	assert( "zam-507", node != NULL );
 	assert( "zam-508", atomic_read( &node -> d_count ) > 0 );
 
-	spin_lock_jnode (node);
-	jrelse_nolock(node);
-	spin_unlock_jnode( node );
+	UNDER_SPIN_VOID (jnode, node, jrelse_nolock(node));
 }
 
 extern void pin_jnode_data (jnode*);

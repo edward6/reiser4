@@ -385,9 +385,7 @@ static void invalidate_jnode(jnode * node)
 		}
 		spin_unlock_jnode(node);
 
-		spin_lock_tree (tree);
-		jdrop(node);
-		spin_unlock_tree (tree);
+		UNDER_SPIN_VOID (tree, tree, jdrop(node));
 	}
 }
 

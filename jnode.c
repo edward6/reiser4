@@ -74,11 +74,7 @@ int jnodes_tree_done( reiser4_tree *tree /* tree to destroy jnodes for */ )
 	assert( "nikita-2360", tree != NULL );
 
 	trace_if( TRACE_ZWEB, 
-		  ({
-			  spin_lock_tree( tree );
-			  print_jnodes( "umount", tree );
-			  spin_unlock_tree( tree );
-		  }) );
+		  UNDER_SPIN_VOID( tree, tree, print_jnodes( "umount", tree ) ) );
 
 	jtable = &tree -> jhash_table;
 	spin_lock_tree( tree );
@@ -149,9 +145,9 @@ jnode_init (jnode *node)
 	capture_list_clean (node);
 
 #if REISER4_DEBUG
-	spin_lock_tree (current_tree);
-	list_add (&node->jnodes, &get_current_super_private()->all_jnodes);
-	spin_unlock_tree (current_tree);
+	UNDER_SPIN_VOID (tree, current_tree,
+			 list_add (&node->jnodes, 
+				   &get_current_super_private()->all_jnodes));
 #endif
 }
 
@@ -256,9 +252,8 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 		if (in_hash != NULL) {
 			assert ("nikita-2358", jnode_page (in_hash) == NULL);
 			spin_unlock_tree (tree);
-			spin_lock_jnode (in_hash);
-			jnode_attach_page_nolock (in_hash, pg);
-			spin_unlock_jnode (in_hash);
+			UNDER_SPIN_VOID (jnode, in_hash,
+					 jnode_attach_page_nolock (in_hash, pg));
 			assert ("nikita-2356", 
 				jnode_get_type (in_hash) == JNODE_UNFORMATTED_BLOCK);
 		} else {
@@ -287,9 +282,8 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 			j_hash_insert (jtable, jal);
 			spin_unlock_tree (tree);
 
-			spin_lock_jnode (jal);
-			jnode_attach_page_nolock (jal, pg);
-			spin_unlock_jnode (jal);
+			UNDER_SPIN_VOID (jnode, jal,
+					 jnode_attach_page_nolock (jal, pg));
 			jal = NULL;
 		}
 	} else
@@ -442,9 +436,8 @@ void page_clear_jnode( struct page *page )
 		jnode *node;
 
 		node = jnode_by_page( page );
-		spin_lock_jnode( node );
-		page_clear_jnode_nolock( page, node );
-		spin_unlock_jnode( node );
+		UNDER_SPIN_VOID( jnode, node,
+				 page_clear_jnode_nolock( page, node ) );
 		page_cache_release( page );
 	}
 }
@@ -577,9 +570,8 @@ static int page_filler( void *arg, struct page *page )
 	 * 
 	 * We are under page lock now, so it can be used as synchronization.
 	 */
-	spin_lock_jnode( node );
-	jnode_attach_page_nolock( node, page );
-	spin_unlock_jnode( node );
+	UNDER_SPIN_VOID( jnode, node,
+			 jnode_attach_page_nolock( node, page ) );
 	result = page -> mapping -> a_ops -> readpage( NULL, page );
 	/*
 	 * on error, detach jnode from page
@@ -667,9 +659,7 @@ int jload( jnode *node )
 		 *  smaller (not yet implemented). Pointer to atom?
 		 *
 		 */
-		spin_lock_jnode( node );
-		page = node -> pg;
-		spin_unlock_jnode( node );
+		page = UNDER_SPIN( jnode, node, node -> pg );
 		/*
 		 * subtle locking point: ->pg pointer is protected by jnode
 		 * spin lock, but it is safe to release spin lock here,
@@ -743,9 +733,8 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 				jplug -> index( node ) );
 	if( page != NULL ) {
 		SetPageUptodate( page );
-		spin_lock_jnode( node );
-		jnode_attach_page_nolock( node, page );
-		spin_unlock_jnode( node );
+		UNDER_SPIN_VOID( jnode, node,
+				 jnode_attach_page_nolock( node, page ) );
 		unlock_page( page );
 		kmap( page );
 		result = 0;
@@ -798,6 +787,16 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 		JF_CLR( node, JNODE_LOADED );
 }
 
+int jnode_try_drop( jnode *node )
+{
+	assert( "nikita-2491", node != NULL );
+
+	if( atomic_read( &node -> x_count ) > 0 )
+		return -EBUSY;
+	if( jnode_is_znode( node ) && 
+	    atomic_read( &JZNODE( node ) -> c_count ) > 0 )
+		return -ENOTEMPTY;
+}
 
 /**
  * jput() - decrement x_count reference counter on znode.
@@ -1288,9 +1287,7 @@ void drop_io_head (jnode * node)
 
 	assert ("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
 
-	spin_lock_tree (tree);
-	jdrop(node);
-	spin_unlock_tree (tree);
+	UNDER_SPIN_VOID (tree, tree, jdrop(node));
 }
 
 /* protect keep jnode data from reiser4_releasepage()  */

@@ -39,9 +39,8 @@ static reiser4_key * get_next_item_key (const coord_t * coord,
 {
 	if (coord->item_pos == node_num_items (coord->node) - 1) {
 		/* get key of next item if it is in right neighbor */
-		spin_lock_dk (current_tree);
-		*next_key = *znode_get_rd_key (coord->node);
-		spin_unlock_dk (current_tree);
+		UNDER_SPIN_VOID (dk, current_tree,
+				 *next_key = *znode_get_rd_key (coord->node));
 	} else {
 		/* get key of next item if it is in the same node */
 		coord_t next;
@@ -75,10 +74,9 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	 * does: left delimiting key <= key <= right delimiting key. We need
 	 * here: left_delimiting key <= key < right delimiting key
 	 */
-	spin_lock_dk (current_tree);
-	result = (keyle (znode_get_ld_key (coord->node), key) &&
-		  keylt (key, znode_get_rd_key (coord->node)));
-	spin_unlock_dk (current_tree);
+	result = UNDER_SPIN (dk, current_tree,
+			     keyle (znode_get_ld_key (coord->node), key) &&
+			     keylt (key, znode_get_rd_key (coord->node)));
 	
 	if (!result) {
 		/* node does not contain @key */

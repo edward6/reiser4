@@ -5016,9 +5016,9 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		if( item_is_internal( &coord ) ) {
 			znode *child;
 
-			spin_lock_dk( current_tree );
-			child = child_znode( &coord, coord.node, 0, 0 );
-			spin_unlock_dk( current_tree );
+			child = UNDER_SPIN( dk, current_tree,
+					    child_znode( &coord, 
+							 coord.node, 0, 0 ) );
 			if( !IS_ERR( child ) ) {
 				tree_rec_dot( tree, child, flags, dot );
 				fprintf( dot, "B%lli -> B%lli ;\n", 

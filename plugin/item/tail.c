@@ -438,15 +438,9 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 			/*
 			 * we are in leaf node. Its left neighbor is unformatted node.
 			 */
-			assert ("vs-684",
-				({
-					int result;
-					spin_lock_tree (current_tree);
-					result = (znode_is_left_connected (coord->node) &&
-						  coord->node->left == 0);
-					spin_unlock_tree (current_tree);
-					result;
-				}));
+			assert ("vs-684", UNDER_SPIN 
+				(tree, current_tree,
+				 znode_is_left_connected (coord->node) && coord->node->left == 0));
 			if (get_key_offset (key) == 0)
 				return TAIL_FIRST_ITEM;
 			else

@@ -74,13 +74,9 @@ static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
 static znode *znode_at( const coord_t *item /* coord of item */, 
 			znode *parent /* parent node */, int incore_p )
 {
-	znode *result;
-
 	/* Take DK lock, as required by child_znode. */
-	spin_lock_dk( current_tree );
-	result = child_znode( item, parent, incore_p, 0 );
-	spin_unlock_dk( current_tree );
-	return result;
+	return UNDER_SPIN( dk, current_tree, 
+			   child_znode( item, parent, incore_p, 0 ) );
 }
 
 /** store pointer from internal item into "block". Implementation of
@@ -283,9 +279,8 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		assert( "nikita-1398", atomic_read( &child -> c_count ) == 0 );
 		/* fare thee well */
 		ZF_SET( child, JNODE_HEARD_BANSHEE );
-		spin_lock_tree( current_tree );
-		coord_init_zero( &child -> in_parent );
-		spin_unlock_tree( current_tree );
+		UNDER_SPIN_VOID( tree, current_tree,
+				 coord_init_zero( &child -> in_parent ) );
 		del_c_ref( item -> node );
 		trace_on( TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
 			  *znode_get_block( item -> node ),
@@ -329,9 +324,7 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 	new_node = item -> node;
 	assert( "nikita-2132", new_node != old_node );
 	tree = current_tree;
-	spin_lock_dk( tree );
-	child = child_znode( item, old_node, 1, 1 );
-	spin_unlock_dk( tree );
+	child = UNDER_SPIN( dk, tree, child_znode( item, old_node, 1, 1 ) );
 	if( child == NULL )
 		return 0;
 	if( !IS_ERR( child ) ) {

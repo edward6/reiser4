@@ -941,9 +941,8 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 
 	for_all_units( result, parent ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
-			spin_lock_tree( current_tree );
-			child -> in_parent = *result;
-			spin_unlock_tree( current_tree );
+			UNDER_SPIN_VOID( tree, current_tree,
+					 child -> in_parent = *result );
 			ret = NS_FOUND;
 			break;
 		}
@@ -1161,11 +1160,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		return 0;
 	}
 
-	spin_lock_dk (current_tree);
-	left_child = child_znode (&left_coord, left_coord.node, 0,
-				  1/* update delimiting keys*/);
-	spin_unlock_dk (current_tree);
-
+	left_child = UNDER_SPIN (dk, current_tree,
+				 child_znode (&left_coord, left_coord.node, 0,
+					      1/* update delimiting keys*/));
 	if (IS_ERR (left_child)) {
 		if (left_zloaded_here)
 			zrelse (left_lh.node);
@@ -1208,9 +1205,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			case -ENAVAIL:
 				/* there is no formatted node to the right of
 				 * from->node */
-				spin_lock_dk (current_tree);
-				key = *znode_get_rd_key (from->node);
-				spin_unlock_dk (current_tree);
+				UNDER_SPIN_VOID (dk, current_tree,
+						 key = *znode_get_rd_key (from->node));
 				right_coord.node = 0;
 				break;
 			default:
@@ -1229,11 +1225,11 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		/* try to get right child of @from */
 		if (right_coord.node && /* there is right neighbor of @from */
 		    item_is_internal (&right_coord)) { /* it is internal item */
-			spin_lock_dk (current_tree);
-			right_child = child_znode (&right_coord, 
-						   right_coord.node, 0,
-						   1/* update delimiting keys*/);
-			spin_unlock_dk (current_tree);
+			right_child = UNDER_SPIN 
+				(dk, current_tree,
+				 child_znode (&right_coord, 
+					      right_coord.node, 0,
+					      1/* update delimiting keys*/));
 
 			if (IS_ERR (right_child)) {
 				if (right_zloaded_here)
@@ -1246,10 +1242,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			}
 
 			/* link left_child and right_child */
-			spin_lock_tree (current_tree);
-			link_left_and_right (left_child, right_child);
-			spin_unlock_tree (current_tree);
-
+			UNDER_SPIN_VOID (tree, current_tree,
+					 link_left_and_right (left_child, 
+							      right_child));
 			zput (right_child);
 		}
 		if (right_zloaded_here)
@@ -1267,9 +1262,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 
 	/* update right delimiting key of left_child */
 
-	spin_lock_dk (current_tree);	
-	*znode_get_rd_key (left_child) = key;
-	spin_unlock_dk (current_tree);	
+	UNDER_SPIN_VOID (dk, current_tree,
+			 *znode_get_rd_key (left_child) = key);
 
 	zput (left_child);
 	if (left_zloaded_here)
@@ -1653,11 +1647,11 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		if( item_is_internal(&coord ) ) {
 			znode *child;
 
-			spin_lock_dk( current_tree );
-			child = child_znode( &coord, coord.node, 
-					     ( int )( flags & REISER4_NODE_ONLY_INCORE ),
-					     0 );
-			spin_unlock_dk( current_tree );
+			child = UNDER_SPIN
+				( dk, current_tree,
+				  child_znode( &coord, coord.node, 
+					       ( int )( flags & REISER4_NODE_ONLY_INCORE ),
+					       0 ) );
 			if( child == NULL )
 				;
 			else if( !IS_ERR( child ) ) {

@@ -1101,17 +1101,12 @@ int lookup_couple( reiser4_tree *tree /* tree to perform search in */,
 static int key_is_delimiting( znode *node /* node to check key against */, 
 			      const reiser4_key *key /* key to check */ )
 {
-	int result;
-
 	assert( "nikita-1760", node != NULL );
 	assert( "nikita-1722", key != NULL );
 
-	spin_lock_dk( current_tree );
-	result = 
-		keyeq( znode_get_ld_key( node ), key ) ||
-		keyeq( znode_get_rd_key( node ), key );
-	spin_unlock_dk( current_tree );
-	return result;
+	return UNDER_SPIN( dk, current_tree, 
+			   keyeq( znode_get_ld_key( node ), key ) ||
+			   keyeq( znode_get_rd_key( node ), key ) );
 }
 
 /* Audited by: green(2002.06.15) */
@@ -1326,14 +1321,13 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 /* Audited by: green(2002.06.15) */
 static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 {
-	int result;
 	assert( "nikita-1095", h != NULL );
 
-	spin_lock_dk( current_tree );
-	result = find_child_delimiting_keys( h -> active_lh -> node, h -> coord, 
-					     &h -> ld_key, &h -> rd_key );
-	spin_unlock_dk( current_tree );
-	return result;
+	return UNDER_SPIN( dk, current_tree, 
+			   find_child_delimiting_keys( h -> active_lh -> node, 
+						       h -> coord, 
+						       &h -> ld_key, 
+						       &h -> rd_key ) );
 }
 
 /* Audited by: green(2002.06.15) */
@@ -1398,7 +1392,6 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			leftmost_key_in_node( neighbor, &h -> ld_key );
 			spin_unlock_dk( current_tree );
 			h -> block = *znode_get_block( neighbor );
-			spin_lock_tree( current_tree );
 			/* 
 			 * clear coord -> node so that cbk_level_lookup()
 			 * wouldn't overwrite parent hint in neighbor.
@@ -1406,8 +1399,8 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			 * Parent hint was set up by
 			 * reiser4_get_left_neighbor()
 			 */
-			h -> coord -> node = NULL;
-			spin_unlock_tree( current_tree );
+			UNDER_SPIN_VOID( tree, current_tree,
+					 h -> coord -> node = NULL );
 			result = LOOKUP_CONT;
 		} else {
 			result = LOOKUP_DONE;

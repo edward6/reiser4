@@ -365,6 +365,30 @@ static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
 
+#define UNDER_SPIN( obj_type, obj, exp )	\
+({						\
+	typeof ( obj ) __obj;			\
+	typeof ( exp ) __result;		\
+						\
+	__obj = ( obj );			\
+	assert( "nikita-2492", __obj != NULL );	\
+	spin_lock_ ## obj_type ( __obj );	\
+	__result = exp;				\
+	spin_unlock_ ## obj_type ( __obj );	\
+	__result;				\
+})
+
+#define UNDER_SPIN_VOID( obj_type, obj, exp )	\
+({						\
+	typeof ( obj ) __obj;			\
+						\
+	__obj = ( obj );			\
+	assert( "nikita-2492", __obj != NULL );	\
+	spin_lock_ ## obj_type ( __obj );	\
+	exp;					\
+	spin_unlock_ ## obj_type ( __obj );	\
+})
+
 #include "kcond.h"
 #include "dformat.h"
 #include "key.h"
