@@ -2975,7 +2975,14 @@ extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 static int
 filler(void *vp, struct page *page)
 {
-	return extent_readpage(vp, page);
+	int result;
+
+	result = extent_readpage(vp, page);
+	if (result) {
+		SetPageError(page);
+		reiser4_unlock_page(page);
+	}
+	return result;
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
@@ -3121,10 +3128,9 @@ extent_readpage(coord_t * coord, struct page *page)
 
 	case ALLOCATED_EXTENT:
 		j = jnode_of_page(page);
-		if (IS_ERR(j)) {
-			reiser4_unlock_page(page);
+		if (IS_ERR(j))
 			return PTR_ERR(j);
-		}
+
 		init_allocated_jnode(j, extent_get_start(extent_by_coord(coord)) + pos);
 		reiser4_stat_inc(extent.unfm_block_reads);
 
