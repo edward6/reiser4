@@ -20,9 +20,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /** number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
 /** how many elementary tree operation to carry on the next level */
-#define CARRIES_POOL_SIZE        (10)
+#define CARRIES_POOL_SIZE        (5)
 /** size of pool of preallocated nodes for carry process. */
-#define NODES_LOCKED_POOL_SIZE   (10)
+#define NODES_LOCKED_POOL_SIZE   (5)
 
 /** we are supporting reservation of disk space on uid basis */
 #define REISER4_SUPPORT_UID_SPACE_RESERVATION (0)
@@ -53,7 +53,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /** some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
-#define REISER4_MAX_ZTREE_HEIGHT     (20)
+#define REISER4_MAX_ZTREE_HEIGHT     (10)
 
 /** if this is non-zero, clear content of new node, otherwise leave
     whatever may happen to be here */

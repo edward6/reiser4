@@ -1526,11 +1526,11 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 
 #if REISER4_USER_LEVEL_SIMULATION
 	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
-		char path[ 1024 ];
+		char path[ 100 ];
 		FILE *dot;
 		extern void tree_rec_dot( reiser4_tree *, znode *, __u32, FILE * );
 
-		sprintf( path, "/tmp/%s.dot", prefix );
+		snprintf( path, sizeof path, "/tmp/%s.dot", prefix );
 		dot = fopen( path, "w+" );
 		if( dot != NULL ) {
 			fprintf( dot,
