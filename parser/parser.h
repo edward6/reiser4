@@ -115,7 +115,7 @@ typedef struct path_walk_name
 {
 	struct qstr  rest_path;     /**/
 	struct qstr  sub_name;
-}path_walk_name;
+} path_walk_name;
 
 typedef struct tube tube_t;
 
@@ -171,10 +171,26 @@ struct pars_var
 
 typedef union expr_v4  expr_v4_t;
 
+typedef enum
+{
+	CONNECT,
+	COMPARE_EQ,
+	COMPARE_NE,
+	COMPARE_LE,
+	COMPARE_GE,
+	COMPARE_LT,
+	COMPARE_GT,
+	COMPARE_OR,
+	COMPARE_AND,
+	COMPARE_NOT
+} expr_code_type;
+
+//#typedef __u8 op2_t;
+
 typedef struct expr_common
 {
 	__u8          type;
-	__u8          exp_type;
+	__u8          exp_code;
 } expr_common_t;
 
 typedef struct expr_lnode
@@ -228,7 +244,7 @@ typedef struct expr_assign
 	expr_common_t   h;
 	pars_var_t       *  target;
 	expr_v4_t       *  source;
-	expr_v4_t       *  (* construct)( lnode *, expr_v4_t *  );
+//	expr_v4_t       *  (* construct)( lnode *, expr_v4_t *  );
 } expr_assign_t;
 
 typedef struct expr_list expr_list_t;
@@ -263,7 +279,7 @@ union expr_v4
 
 	expr_lnode_t    lnode;
 	expr_flow_t     flow;
-	expr_op3_t      op3;
+//	expr_op3_t      op3;
 	expr_op2_t      op2;
 	expr_op_t       op;
 };
@@ -322,7 +338,6 @@ struct msglist
 	struct msglist * nextmsg;
 } ;
 
-static struct msglist *Fistmsg;
 
 
 
