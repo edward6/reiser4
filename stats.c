@@ -355,33 +355,15 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(hashes.eflush.remove),
 	DEFINE_STATCNT(hashes.eflush.scanned),
 
-	/* wff - wait for flush */
-	DEFINE_STATCNT(wff.asked),
-	DEFINE_STATCNT(wff.iteration),
-	DEFINE_STATCNT(wff.wait_flush),
-	DEFINE_STATCNT(wff.kicked),
-	DEFINE_STATCNT(wff.cleaned),
-	DEFINE_STATCNT(wff.skipped_ent),
-	DEFINE_STATCNT(wff.skipped_last),
-	DEFINE_STATCNT(wff.skipped_congested),
-	DEFINE_STATCNT(wff.low_priority),
-	DEFINE_STATCNT(wff.removed),
-	DEFINE_STATCNT(wff.toolong),
-
 	DEFINE_STATCNT(block_alloc.nohint),
 
 	DEFINE_STATCNT(non_uniq),
 
 	/* pcwb - page common write back */
 	DEFINE_STATCNT(pcwb.calls),
-	DEFINE_STATCNT(pcwb.formatted),
-	DEFINE_STATCNT(pcwb.unformatted),
 	DEFINE_STATCNT(pcwb.no_jnode),
-	DEFINE_STATCNT(pcwb.ented),
-	DEFINE_STATCNT(pcwb.not_written),
 	DEFINE_STATCNT(pcwb.written),
-	DEFINE_STATCNT(pcwb.ent_written),
-	DEFINE_STATCNT(pcwb.ent_repeat),
+	DEFINE_STATCNT(pcwb.not_written),
 
 	/* cop on capture stats */
 	DEFINE_STATCNT(coc.calls),
