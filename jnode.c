@@ -162,9 +162,9 @@ jnode_init(jnode * node, reiser4_tree * tree)
 		reiser4_super_info_data *sbinfo;
 
 		sbinfo = get_super_private(tree->super);
-		reiser4_spin_lock_sb(sbinfo);
+		spin_lock_irq(&sbinfo->all_guard);
 		list_add(&node->jnodes, &sbinfo->all_jnodes);
-		reiser4_spin_unlock_sb(sbinfo);
+		spin_unlock_irq(&sbinfo->all_guard);
 	}
 #endif
 }
@@ -176,15 +176,13 @@ jnode_done(jnode * node, reiser4_tree * tree)
 	reiser4_super_info_data *sbinfo;
 
 	sbinfo = get_super_private(tree->super);
-	reiser4_spin_lock_sb(sbinfo);
 
+	spin_lock_irq(&sbinfo->all_guard);
 	assert("nikita-2422", !list_empty(&node->jnodes));
-
 	list_del_init(&node->jnodes);
-	kcond_signal(&sbinfo->rcu_done);
 	atomic_dec(&sbinfo->jnodes_in_flight);
-	reiser4_spin_unlock_sb(sbinfo);
-
+	kcond_signal(&sbinfo->rcu_done);
+	spin_unlock_irq(&sbinfo->all_guard);
 }
 #endif
 
@@ -990,18 +988,6 @@ io_hook_no_hook(jnode * node UNUSED_ARG, struct page *page UNUSED_ARG, int rw UN
 	return 1;
 }
 
-static inline void
-free_jnode(jnode * node)
-{
-	jfree(node);
-}
-
-static inline void
-free_znode(jnode * node)
-{
-	zfree(JZNODE(node));
-}
-
 extern int io_hook_znode(jnode * node, struct page *page, int rw);
 
 jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
@@ -1146,10 +1132,10 @@ jnode_free_actor(void *arg)
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
 	case JNODE_UNFORMATTED_BLOCK:
-		free_jnode(node);
+		jfree(node);
 		break;
 	case JNODE_FORMATTED_BLOCK:
-		free_znode(node);
+		zfree(JZNODE(node));
 	case JNODE_INODE:
 		break;
 	default:
@@ -1160,8 +1146,6 @@ jnode_free_actor(void *arg)
 static inline void
 jnode_free(jnode * node, jnode_type jtype)
 {
-	if (jtype != JNODE_INODE)
-		call_rcu(&node->rcu, jnode_free_actor, node);
 #if REISER4_DEBUG
 	{
 		reiser4_super_info_data *sbinfo;
@@ -1170,6 +1154,8 @@ jnode_free(jnode * node, jnode_type jtype)
 		atomic_inc(&sbinfo->jnodes_in_flight);
 	}
 #endif
+	if (jtype != JNODE_INODE)
+		call_rcu(&node->rcu, jnode_free_actor, node);
 }
 
 int

@@ -272,6 +272,7 @@ struct reiser4_super_info_data {
 
 	kcond_t rcu_done;
 
+	spinlock_t all_guard;
 	/* list of all jnodes */
 	struct list_head all_jnodes;
 	atomic_t jnodes_in_flight;

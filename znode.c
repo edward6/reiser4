@@ -1292,14 +1292,6 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 #endif
 
 #if REISER4_DEBUG
-/* helper function used to implement assertion in zref():
-   change of x_count from 0 to 1 is protected by tree spin-lock  */
-int
-znode_x_count_is_protected(const znode * node)
-{
-	assert("nikita-2518", node != NULL);
-	return ergo(atomic_read(&ZJNODE(node)->x_count) == 0, rw_tree_is_locked(znode_get_tree(node)));
-}
 
 static int check_dk_called = 0;
 static int check_dk_start = 200000;

@@ -1190,6 +1190,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 	ON_DEBUG(kcond_init(&sbinfo->rcu_done));
 	ON_DEBUG(atomic_set(&sbinfo->jnodes_in_flight, 0));
+	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
 
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
@@ -1424,10 +1425,10 @@ reiser4_kill_super(struct super_block *s)
 	kill_block_super(s);
 
 #if REISER4_DEBUG
-	reiser4_spin_lock_sb(sbinfo);
+	spin_lock_irq(&sbinfo->all_guard);
 	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
-		kcond_wait(&sbinfo->rcu_done, &sbinfo->guard.lock, 0);
-	reiser4_spin_unlock_sb(sbinfo);
+		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
+	spin_unlock_irq(&sbinfo->all_guard);
 
 	{
 		struct list_head *scan;

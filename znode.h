@@ -277,7 +277,6 @@ static inline znode *
 zref(znode * node)
 {
 	/* change of x_count from 0 to 1 is protected by tree spin-lock */
-	assert("nikita-2517", znode_x_count_is_protected(node));
 	return JZNODE(jref(ZJNODE(node)));
 }
 
