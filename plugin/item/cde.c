@@ -32,9 +32,7 @@
  * space efficiency again.
  *
  * In should be noted, that storing keys unaligned increases CPU consumption,
- * at least on some architectures. [FIXME-NIKITA currently key is copied to
- * the properly aligned location regardless, see extract_key_from_id() and
- * extract_key_from_de_id().]
+ * at least on some architectures.
  *
  * Internal on-disk structure of the compound directory item is the following:
  *
