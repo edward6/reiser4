@@ -1815,7 +1815,7 @@ static int full_squeeze_right_twig (flush_pos_t * pos, znode * right)
 	assert ("zam-863", znode_is_write_locked(right));
 	assert ("zam-864", znode_is_loaded(right));
 
-	while(1) {
+	while(!node_is_empty(right)) {
 		assert ("zam-865", coord_is_after_rightmost(&pos->coord));
 
 		ret = squeeze_right_twig(pos, pos->lock.node, right);
@@ -1833,7 +1833,7 @@ static int full_squeeze_right_twig (flush_pos_t * pos, znode * right)
 		coord_next_item(&pos->coord);
 	}
 
-	return 0;
+	return SQUEEZE_SOURCE_EMPTY;
 }
 
 /* When we about to return flush position from twig to leaf level we can process
