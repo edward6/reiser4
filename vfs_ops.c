@@ -2422,7 +2422,12 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 			return ret;
 	}
 
-	if (wbc->sync_mode == WB_SYNC_ALL || called_for_sync()) 
+	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
+	   sys_fsync(). */
+	/* FIXME: This way to support fsync is too expansive. Proper solution
+	   support is to commit only atoms which contain dirty pages from given
+	   address space. */
+	if (wbc->sync_mode == WB_SYNC_HOLD || called_for_sync())
 		return txnmgr_force_commit_all(s);
 
 	while (wbc->nr_to_write > 0) {
