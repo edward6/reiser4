@@ -1035,8 +1035,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 			 */
 			h -> flags &= ~CBK_TRUST_DK;
 		}
-		assert( "vs-362", item_type_by_coord( h -> coord ) ==
-                        NODE_POINTER_ITE );
+		assert( "vs-362", item_is_internal( h -> coord ) );
 		iplug = item_plugin_by_coord( h -> coord );
 	}
 	/*
@@ -1047,13 +1046,6 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		h -> result = CBK_IO_ERROR;
 		return LLR_DONE;
 	}
-	/* FIXME-VS: remove this after debuggin is done */
-
-	if (item_plugin_id (iplug) != INTERNAL_ITEM_ID) {
-		*(int *)0 = 0;
-	}
-	/* FIXME-VS: remove this after debuggin is done */
-
 
 	/* go down to next level */
 	iplug -> s.internal.down_link( h -> coord, h -> key,
