@@ -78,27 +78,41 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 			   tree_coord * coord)
 {
 	reiser4_key item_key;
-	unsigned long long lookuped, item_offset;
+	__u64 lookuped, offset;
+	unsigned nr_units;
 
+
+	item_key_by_coord (coord, &item_key);
+	offset = get_key_offset (item_key_by_coord (coord, &item_key));
+	nr_units = tail_nr_units (coord);
+
+	/*
+	 * key we are looking for must be greater than key of item @coord
+	 */
+	assert ("vs-416", keycmp (key, &item_key) == GREATER_THAN);
+
+	if (keycmp (key, tail_max_key_inside (coord, &item_key)) ==
+	    GREATER_THAN) {
+		/*
+		 * @key is key of another file
+		 */
+		coord->unit_pos = nr_units - 1;
+		coord->between = AFTER_UNIT;
+		return CBK_COORD_NOTFOUND;
+	}
 
 	/*
 	 * offset we are looking for
 	 */
 	lookuped = get_key_offset (key);
-	item_offset = get_key_offset (item_key_by_coord (coord, &item_key));
 
-	if (lookuped < item_offset) {
-		coord->unit_pos = 0;
-		coord->between = BEFORE_UNIT;
-		return CBK_COORD_NOTFOUND;
-	}
 
-	if (lookuped >= item_offset &&
-	    lookuped < item_offset + tail_nr_units (coord)) {
+	if (lookuped >= offset &&
+	    lookuped < offset + nr_units) {
 		/*
 		 * byte we are looking for is in this item
 		 */
-		coord->unit_pos = lookuped - item_offset;
+		coord->unit_pos = lookuped - offset;
 		coord->between = AT_UNIT;
 		return CBK_COORD_FOUND;
 	}
@@ -106,7 +120,7 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 	/*
 	 * set coord after last unit
 	 */
-	coord->unit_pos = tail_nr_units (coord) - 1;
+	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
 	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
 }
