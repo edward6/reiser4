@@ -348,11 +348,11 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 
 	link_znodes(child, neighbor, flags & GN_GO_LEFT);
 
+	spin_unlock_tree(tree);
+
 	/* if GN_NO_ALLOC isn't set we keep reference to neighbor znode */
 	if (neighbor != NULL && (flags & GN_NO_ALLOC))
 		zput(neighbor);
-
-	spin_unlock_tree(tree);
 
 	return ret;
 }
