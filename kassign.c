@@ -150,6 +150,18 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 }
 
 /**
+ * true, if @key is the key of "."
+ */
+int is_dot_key( const reiser4_key *key )
+{
+	assert( "nikita-1717", key != NULL );
+	assert( "nikita-1718", get_key_type( key ) == KEY_FILE_NAME_MINOR );
+	return 
+		( get_key_objectid( key ) == 0ull ) && 
+		( get_key_offset( key ) == 0ull );
+}
+
+/**
  * build key for stat-data.
  *
  * return key of stat-data of this object. This should became sd plugin

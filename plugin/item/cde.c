@@ -944,7 +944,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	data.arg = dir_entry;
 	assert( "nikita-1302", data.iplug != NULL );
 
-	if( ! try_to_glue_to( coord, dir, item_plugin_to_plugin (data.iplug) ) ) {
+	if( is_dot_key( &dir_entry -> key ) ) {
 		data.length = cde_estimate( NULL, &data );
 		result = insert_by_coord( coord, &data, &dir_entry -> key, lh,
 					  reiser4_inter_syscall_ra( dir ), 
