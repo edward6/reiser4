@@ -1106,7 +1106,7 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	spin_lock (&mapping->page_lock);
 
 	mpages = get_moved_pages(mapping);
-	while ((result == 0 || result == 1) && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
+	while (result == 0 && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
 		struct page *pg = list_entry(mpages->prev, struct page, list);
 
 		assert("vs-1455", PageDirty(pg));
