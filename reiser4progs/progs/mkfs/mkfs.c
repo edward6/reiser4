@@ -347,6 +347,11 @@ int main(int argc, char *argv[]) {
 	    goto error_free_fs;
 	}
 
+	aal_gauge_done();
+	
+	aal_gauge_rename("Synchronizing \"%s\"", host_dev);
+	aal_gauge_start();
+	
 	/* Synchronizing device */
 	if (aal_device_sync(device)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -359,11 +364,17 @@ int main(int argc, char *argv[]) {
 	    next device form built device list.
 	*/
 	aal_memset(uuid, 0, sizeof(uuid));
-	
-	reiser4_fs_close(fs);
-	aal_file_close(device);
+
+	/* 
+	    Zeroing fs_len in order to force mkfs on next turn to calc its size
+	    from actual device length.
+	*/
+	fs_len = 0;
 	
 	aal_gauge_done();
+
+	reiser4_fs_close(fs);
+	aal_file_close(device);
     }
     
     /* Freeing the all used objects */
