@@ -710,7 +710,6 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 
 int jnode_try_drop( jnode *node )
 {
-	struct page  *page;
 	int           result;
 	reiser4_tree *tree;
 	jnode_plugin *jplug;
@@ -722,19 +721,22 @@ int jnode_try_drop( jnode *node )
 
 	trace_on( TRACE_PCACHE, "trying to drop node: %p\n", node );
 
+	tree = current_tree;
 	jplug = jnode_ops( node );
 
-	page = jnode_lock_page( node );
-	assert( "nikita-2584", spin_jnode_is_locked( node ) );
-
-	tree = current_tree;
-
+	spin_lock_jnode( node );
 	spin_lock_tree( tree );
+	if( jnode_page( node ) != NULL ) {
+		JF_CLR( node, JNODE_RIP );
+		spin_unlock_jnode( node );
+		spin_unlock_tree( tree );
+		return -EBUSY;
+	}
 
 	/*
 	 * FIXME-NIKITA znode releasing is not yet fully supported
 	 */
-	result = page || jnode_is_znode( node ) || jplug -> is_busy( node );
+	result = jnode_is_znode( node ) || jplug -> is_busy( node );
 	spin_unlock_jnode( node );
 	if( result == 0 )
 		/*
@@ -744,8 +746,6 @@ int jnode_try_drop( jnode *node )
 	else
 		JF_CLR( node, JNODE_RIP );
 	spin_unlock_tree( tree );
-	if( page != NULL )
-		unlock_page( page );
 	return result;
 }
 
@@ -1234,7 +1234,7 @@ void unpin_jnode_data (jnode * node)
 	page_cache_release (jnode_page (node));
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 
 const char *jnode_type_name( jnode_type type )
 {
