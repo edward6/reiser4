@@ -74,10 +74,11 @@ int main(int argc, char *argv[]) {
 	dir_hint.direntry_pid = ITEM_CDE40_ID;
 	dir_hint.hash_pid = HASH_R5_ID;
 	
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir");
 	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir1");
 	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir2");
 	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir3");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir4");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir5");
     }
     
     if (reiserfs_dir_rewind(object)) {

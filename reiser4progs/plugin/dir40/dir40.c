@@ -97,7 +97,7 @@ static errno_t dir40_read(reiserfs_dir40_t *dir,
     if ((count = libreiser4_plugin_call(return -1, 
 	    item_ops->common, count, dir->direntry)) == 0)
 	return -1;
-    
+
     if (dir->place.pos.unit >= count) {
 	reiserfs_entry_hint_t prev_entry;
 	reiserfs_entry_hint_t next_entry;

@@ -362,13 +362,13 @@ void progs_gauge_handler(aal_gauge_t *gauge) {
     fflush(stderr);
 }
 
-/*void progs_misc_factory_print(void) {
-    reiserfs_plugin_t *plugin = NULL;
+errno_t callback_print_plugin(reiserfs_plugin_t *plugin, void *data) {
+    printf("%s: %s.\n", plugin->h.label, plugin->h.desc);
+    return 0;
+}
 
+void progs_misc_factory_print(void) {
     printf("\nKnown plugins are:\n");
-    while ((plugin = libreiser4_factory_get_next(plugin)) != NULL)
-	printf("%s: %s.\n", plugin->h.label, plugin->h.desc);
-    
-    printf("\n");
-}*/
+    libreiser4_factory_foreach(callback_print_plugin, NULL);
+}
 

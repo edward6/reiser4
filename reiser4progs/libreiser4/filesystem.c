@@ -131,7 +131,7 @@ reiserfs_fs_t *reiserfs_fs_open(
 	Initilaizes root directory key.
 	FIXME-UMKA: Here should be not hardcoded key id.
     */
-    if (reiserfs_fs_build_root_key(fs, 0x0))
+    if (reiserfs_fs_build_root_key(fs, KEY_REISER40_ID))
 	goto error_free_oid;
     
     /* Opens the tree starting from root block */

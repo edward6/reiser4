@@ -227,47 +227,6 @@ reiserfs_plugin_t *libreiser4_factory_find_by_name(reiserfs_plugin_type_t type,
 	(comp_func_t)callback_match_name, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
 }
 
-/* 
-    Will be useful when we will have a well defined hierarchy of plugin classes when e.g.
-    printing all plugins of one partitcular type.
-*/
-reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_t *start_plugin, 
-    reiserfs_plugin_type_t type)
-{
-    aal_list_t *found, *curr;
-    walk_desc_t desc;
-
-    if (start_plugin) {
-	if ((curr = aal_list_find(aal_list_first(plugins), start_plugin)) == NULL)
-	    return NULL;
-	curr = curr->next;
-    } else {
-	curr = aal_list_first(plugins); 
-    }
-
-    desc.type = type;
-
-    return (found = aal_list_find_custom(curr, (void *)&desc,
-	(comp_func_t)callback_match_coord, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
-}
-
-reiserfs_plugin_t *libreiser4_factory_get_next(reiserfs_plugin_t *start_plugin)
-{
-    aal_list_t *found, *curr;
-    walk_desc_t desc;
-
-    if (start_plugin) {
-	if ((curr = aal_list_find(aal_list_first(plugins), start_plugin)) == NULL)
-	    return NULL;
-	if (curr) 
-	    curr = curr->next;
-    } else {
-	curr = aal_list_first(plugins); 
-    }
-    
-    return curr ? curr->item : NULL;
-}
-
 /* Finds plugins by its type and id */
 reiserfs_plugin_t *libreiser4_factory_suitable(
     reiserfs_plugin_func_t func,	    /* per plugin function */

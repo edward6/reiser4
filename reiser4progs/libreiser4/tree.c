@@ -648,9 +648,7 @@ errno_t reiserfs_tree_insert(
     key = (reiserfs_key_t *)&item->key;
 
     /* Looking up for target leaf */
-    if ((lookup = reiserfs_tree_lookup(tree, REISERFS_LEAF_LEVEL + 
-	(item->type == INTERNAL_ITEM), key, &coord)) == 1)
-    {
+    if ((lookup = reiserfs_tree_lookup(tree, REISERFS_LEAF_LEVEL, key, &coord)) == 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Key (%llx:%x:%llx:%llx) already exists in block %llu.", 
 	    reiserfs_key_get_locality(key), reiserfs_key_get_type(key),
