@@ -8,6 +8,8 @@
 
 /* JMACD-FIXME: Comments are out of date and missing in this file. */
 
+#define USE_RAPID_SCAN 0
+
 /* JMACD-FIXME-HANS: Please describe how you plan to implement a repacker and resizer using this flush code (1-2
  * paragraphs)
  *
@@ -39,10 +41,6 @@ struct flush_scan {
 	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
 	sideof direction;
 
-	/* The number of nodes after which rapid scanning takes place, if non-zero. See
-	 * comment in flush_scan_left. */
-	int rapid_after;
-
 	/* True if some condition stops the search (e.g., we found a clean
 	 * node before reaching max size, we found a node belonging to another
 	 * atom). */
@@ -59,6 +57,9 @@ struct flush_scan {
 	lock_handle parent_lock;
 	coord_t     parent_coord;
 	data_handle parent_load;
+
+	/* When the final position is formatted, the node is locked here. */
+	lock_handle point_lock;
 
 	/* The block allocation hint. */
 	reiser4_block_nr preceder_blk;
@@ -99,7 +100,7 @@ struct flush_position {
 	 * commits, causing the internal node to be re-written.  This is how it will be
 	 * fixed:
 	 *
-	 * 1. In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
+	 * 1. (FINISHED ALREADY: flush_scan_rapid()) In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
 	 * nodes, flush begins an accelerated scan-left trying to find a node which is the
 	 * leftmost child of its parent with a left-neighbor that is clean.  The scan
 	 * end-point skips past non-rightmost, non-leftmost children of the parent because
@@ -145,13 +146,14 @@ static int           flush_scan_finished          (flush_scan *scan);
 static int           flush_scanning_left          (flush_scan *scan);
 
 /* Flush-scan algorithm. */
-static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit, __u32 rapid_after);
-static int           flush_scan_right             (flush_scan *scan, jnode *node, __u32 limit);
+static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, unsigned limit);
+static int           flush_scan_right             (flush_scan *scan, jnode *node, unsigned limit);
 static int           flush_scan_common            (flush_scan *scan, flush_scan *other);
 static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_extent            (flush_scan *scan, int skip_first);
 static int           flush_scan_extent_coord      (flush_scan *scan, const coord_t *in_coord);
-
+static int           flush_scan_rapid             (flush_scan *scan);
+static int           flush_scan_leftmost_dirty_unit (flush_scan *scan);
 
 static int           flush_query_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
@@ -222,6 +224,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan right_scan;
 	flush_scan left_scan;
 	struct reiser4_io_handle hio;
+
+	assert ("jmacd-76619", lock_stack_isclean (get_current_lock_stack ()));
 
 	if (flags & JNODE_FLUSH_COMMIT) {
 		init_io_handle (&hio);
@@ -314,7 +318,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
 	 * position is unformatted we remember its parent_coord. */
-	if ((ret = flush_scan_left (& left_scan, & right_scan, node, REISER4_FLUSH_SCAN_MAXNODES, FLUSH_RELOCATE_THRESHOLD))) {
+	if ((ret = flush_scan_left (& left_scan, & right_scan, node, FLUSH_RELOCATE_THRESHOLD))) {
 		goto failed;
 	}
 
@@ -354,16 +358,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		move_lh (& flush_pos.parent_lock, & left_scan.parent_lock);
 		move_dh (& flush_pos.parent_load, & left_scan.parent_load);
 	} else {
-		assert ("jmacd-76619", lock_stack_isclean (get_current_lock_stack ()));
-
-		if ((ret = longterm_lock_znode (& flush_pos.point_lock, JZNODE (left_scan.node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
-			/* EINVAL means the node was deleted, DEADLK should be impossible here. */
-			assert ("jmacd-34113", ret != -EDEADLK);
-			if (ret == -EINVAL) {
-				ret = 0;
-			}
-			goto failed;
-		}
+		move_lh (& flush_pos.point_lock, & left_scan.point_lock);
 	}
 
 	/* In some cases, we discover the parent-first preceder during the
@@ -514,6 +509,7 @@ static int flush_query_relocate_dirty (jnode *node, const coord_t *parent_coord,
 		}
 
 		if (ret == 1) {
+			assert ("jmacd-18923", znode_is_write_locked (parent_coord->node));
 			znode_set_dirty (parent_coord->node);
 		}
 	}
@@ -2073,10 +2069,7 @@ static int flush_rewrite_jnode (jnode *node)
 	pg = jnode_lock_page (node);
 	spin_unlock_jnode (node);
 	if (pg == NULL) {
-		/*
-		 * FIXME:NIKITA->JMACD -ENOMEM? Why?
-		 */
-		return -ENOMEM;
+		return 0;
 	}
 
 	jnode_set_clean (node);
@@ -2244,6 +2237,7 @@ static int znode_same_parents (znode *a, znode *b)
 static void flush_scan_init (flush_scan *scan)
 {
 	memset (scan, 0, sizeof (*scan));
+	init_lh (& scan->point_lock);
 	init_lh (& scan->parent_lock);
 	init_dh (& scan->parent_load);
 	init_dh (& scan->node_load);
@@ -2260,6 +2254,7 @@ static void flush_scan_done (flush_scan *scan)
 	}
 	done_dh (& scan->parent_load);
 	done_lh (& scan->parent_lock);
+	done_lh (& scan->point_lock);
 }
 
 /* Returns true if flush scanning is finished. */
@@ -2324,11 +2319,7 @@ static int flush_scanning_left (flush_scan *scan)
  * node.  The right-scan object is passed in for the left-scan in order to copy the parent
  * of an unformatted starting position.  This way we avoid searching for the unformatted
  * node's parent when scanning in each direction.  If we search for the parent once it is
- * set in both scan objects.  The limit parameter tells flush-scan when to stop, and the
- * rapid_after parameter (if non-zero) tells flush to perform a rapid scan after that many
- * nodes have been counted.  The rapid scan skips past the interior children of any node
- * with at least one dirty children and only scans through dirty children at the boundary
- * between two parents.
+ * set in both scan objects.  The limit parameter tells flush-scan when to stop.
  *
  * Rapid scanning is used only during scan_left, where we are interested in finding the
  * 'leftpoint' where we begin flushing.  We are interested in stopping at the left child
@@ -2358,19 +2349,33 @@ static int flush_scanning_left (flush_scan *scan)
  *
  * For now we implement the first policy.
  */
-static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit, __u32 rapid_after)
+static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, unsigned limit)
 {
 	int ret;
 
-	scan->max_size    = limit;
-	scan->rapid_after = rapid_after;
-	scan->direction   = LEFT_SIDE;
+	scan->max_size  = limit;
+	scan->direction = LEFT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 1 /* count starting node */, NULL /* no parent coord */))) {
 		return ret;
 	}
 
-	return flush_scan_common (scan, right);
+	if ((ret = flush_scan_common (scan, right))) {
+		return ret;
+	}
+
+	/* Before rapid scanning, we need a lock on scan->node so that we can get its
+	 * parent, only if formatted. */
+	if (jnode_is_znode (scan->node) &&
+	    (ret = longterm_lock_znode (& scan->point_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
+		/* EINVAL means the node was deleted, DEADLK should be impossible here
+		 * because we've asserted that the lockstack is clean. */
+		assert ("jmacd-34113", ret != -EDEADLK);
+		return ret;
+	}
+
+	/* Now continue with rapid scan. */
+	return flush_scan_rapid (scan);
 }
 
 /* Performs rightward scanning... Does not count the starting node.  The limit parameter
@@ -2382,15 +2387,14 @@ static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __
  * FLUSH_RELOCATE_THRESHOLD nodes for flushing.  Otherwise, the limit parameter is set to
  * the difference between scan-left's count and FLUSH_RELOCATE_THRESHOLD, meaning
  * scan-right counts as high as FLUSH_RELOCATE_THRESHOLD and then stops. */
-static int flush_scan_right (flush_scan *scan, jnode *node, __u32 limit)
+static int flush_scan_right (flush_scan *scan, jnode *node, unsigned limit)
 {
 	int ret;
 
-	scan->max_size    = limit;
-	scan->rapid_after = 0;
-	scan->direction   = RIGHT_SIDE;
+	scan->max_size  = limit;
+	scan->direction = RIGHT_SIDE;
 
-	if ((ret = flush_scan_set_current (scan, jref (node), 0 /* do not count */, NULL /* no parent coord */))) {
+	if ((ret = flush_scan_set_current (scan, jref (node), 0 /* do not count starting node */, NULL /* no parent coord */))) {
 		return ret;
 	}
 
@@ -2468,19 +2472,20 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 static int flush_scan_formatted (flush_scan *scan)
 {
 	int ret;
-	znode *neighbor;
+	znode *neighbor = NULL;
 
 	assert ("jmacd-1401", ! flush_scan_finished (scan));
 
 	do {
-		/* Node should be connected. */
 		znode *node = JZNODE (scan->node);
 
-		/* FIXME: This assertion is bogus, should stop the scan at an unconnected
-		 * node, right? */
-		assert ("jmacd-1402", znode_is_connected (node));
+		/* Node should be connected, but if not stop the scan. */
+		if (! znode_is_connected (node)) {
+			scan->stop = 1;
+			break;
+		}
 
-		/* Lock the tree, check & reference left sibling. */
+		/* Lock the tree, check-for and reference the next sibling. */
 		spin_lock_tree (current_tree);
 
 		/* It may be that a node is inserted or removed between a node and its
@@ -2493,8 +2498,8 @@ static int flush_scan_formatted (flush_scan *scan)
 
 		spin_unlock_tree (current_tree);
 
-		/* If left is NULL at the leaf level, need to check for an unformatted
-		 * sibling using the parent--break. */
+		/* If neighbor is NULL at the leaf level, need to check for an unformatted
+		 * sibling using the parent--break in any case. */
 		if (neighbor == NULL) {
 			break;
 		}
@@ -2573,7 +2578,12 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 	init_dh (& next_load);
 
 	for (; ! flush_scan_finished (scan); skip_first = 0) {
-		/* Either skip the first item (formatted) or scan the first extent. */
+
+		/* If not skipping the first item (only true the first iteration of this
+		 * loop when called from flush_scan_formatted), then we call
+		 * flush_scan_extent_coord, which scans as many extent units as it can
+		 * until either finding a non-dirty jnode, a formatted node (internal
+		 * unit), or reaching the end of node. */
 		if (skip_first == 0) {
 		
 			assert ("jmacd-1230", item_is_extent (& scan->parent_coord));
@@ -2586,6 +2596,8 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 				break;
 			}
 		} else {
+			/* In this case, apply the same end-of-node logic but don't scan
+			 * the first coordinate. */
 			assert ("jmacd-1231", item_is_internal (& scan->parent_coord));
 		}
 
@@ -2594,10 +2606,11 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		coord_dup (& next_coord, & scan->parent_coord);
 		coord_sideof_unit (& next_coord, scan->direction);
 
-		/* If off-the-end, try the next twig. */
+		/* If off-the-end of the twig, try the next twig. */
 		if (coord_is_after_sideof_unit (& next_coord, scan->direction)) {
 
-			ret = znode_get_utmost_if_dirty (next_coord.node, & next_lock, scan->direction, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/);
+			/* We take the write lock because we may start flushing from this coordinate. */
+			ret = znode_get_utmost_if_dirty (next_coord.node, & next_lock, scan->direction, ZNODE_WRITE_LOCK);
 
 			if (ret == -ENAVAIL) { scan->stop = 1; ret = 0; break; }
 
@@ -2611,9 +2624,10 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		}
 
 		/* If skip_first was set, then we are only interested in continuing if the
-		 * next item is an extent.  If this is not the case, stop now.
-		 * (Otherwise, if the next item is an extent we will return and the next
-		 * call will be to scan_formatted()). */
+		 * next item is an extent.  If this is not the case, stop now.  Otherwise,
+		 * if the next item is an extent we will return to the flush_scan_common
+		 * loop and the next call will be to scan_formatted() to handle this
+		 * case. */
 		if (! item_is_extent (& next_coord) && skip_first) {
 			scan->stop = 1;
 			break;
@@ -2624,6 +2638,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			goto exit;
 		}
 
+		/* If the next child is not in memory, stop here. */
 		if (child == NULL) {
 			scan->stop = 1;
 			break;
@@ -2671,12 +2686,24 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 }
 
 
-/* Performs leftward scanning starting from an unformatted node and its parent coordinate */
+/* Performs leftward scanning starting from an unformatted node and its parent coordinate.
+ * This scan continues, advancing the parent coordinate, until either it encounters a
+ * formatted child or it finishes scanning this node.
+ *
+ * If unallocated, the entire extent must be dirty and in the same atom.  (Actually, I'm
+ * not sure this is last property (same atom) is enforced, but it should be the case since
+ * one atom must write the parent and the others must read the parent, thus fusing?).  In
+ * any case, the code below asserts this case for unallocated extents.  Unallocated
+ * extents are thus optimized because we can skip to the endpoint when scanning.
+ *
+ * It returns control to flush_scan_extent, handles these terminating conditions, e.g., by
+ * loading the next twig.
+ */
 static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 {
 	coord_t coord;
 	jnode *neighbor;
-	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist; /* FIXME: is u64 right? */
+	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist;
 	reiser4_block_nr unit_start;
 	struct inode *ino = NULL;
 	struct page *pg;
@@ -2688,6 +2715,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	assert ("jmacd-1405", jnode_get_level (scan->node) == LEAF_LEVEL);
 	assert ("jmacd-1406", jnode_is_unformatted (scan->node));
 
+	/* The scan_index variable corresponds to the current page index of the
+	 * unformatted block scan position. */
 	scan_index = jnode_get_index (scan->node);
 
 	assert ("jmacd-7889", item_is_extent (& coord));
@@ -2698,7 +2727,10 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		  flush_jnode_tostring (scan->node));
 
  repeat:
-	/* If the get_inode call is expensive we can be a bit more clever... */
+	/* If the get_inode call is expensive we can be a bit more clever and only call
+	 * get_inode when the extent item changes, not just the extent unit.  As it is,
+	 * this repeats the get_inode call for every unit even when the OID doesn't
+	 * change. */
 	extent_get_inode (& coord, & ino);
 
 	if (ino == NULL) {
@@ -2710,10 +2742,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		  (flush_scanning_left (scan) ? "left" : "right"),
 		  scan_index, coord.node, ino->i_ino);
 
-	/* If not allocated, the entire extent must be dirty and in the same atom.
-	 * (Actually, I'm not sure this is properly enforced, but it should be the
-	 * case since one atom must write the parent and the others must read
-	 * it). */
+	/* Get the values of this extent unit: */
 	allocated  = ! extent_is_unallocated (& coord);
 	unit_index = extent_unit_index (& coord);
 	unit_width = extent_unit_width (& coord);
@@ -2723,6 +2752,10 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	assert ("jmacd-7188", scan_index >= unit_index);
 	assert ("jmacd-7189", scan_index <= unit_index + unit_width - 1);
 
+	/* Depending on the scan direction, we set different maximum values for scan_index
+	 * (scan_max) and the number of nodes that would be passed if the scan goes the
+	 * entire way (scan_dist).  Incr is an integer reflecting the incremental
+	 * direction of scan_index. */
 	if (flush_scanning_left (scan)) {
 		scan_max  = unit_index;
 		scan_dist = scan_index - unit_index;
@@ -2738,8 +2771,10 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	if (allocated) {
 
 		do {
-			/* Note: On the very first pass through this block we test
-			 * the current position. */
+			/* Note: On the very first pass through this block we test the
+			 * current position (pg of the starting scan_index, which we know
+			 * is dirty/same atom by pre-condition).  Its redundent but it
+			 * makes this code simpler. */
 			pg = reiser4_lock_page (ino->i_mapping, scan_index);
 
 			if (pg == NULL) {
@@ -2812,10 +2847,11 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	stop_same_parent:
 
 		/* If we are scanning left and we stop in the middle of an allocated
-		 * extent, we know the preceder immediately. */
-		if (flush_scanning_left (scan)) {
-			if (unit_start)
-				scan->preceder_blk = unit_start + scan_index;
+		 * extent, we know the preceder immediately.. */
+		if (flush_scanning_left (scan) && unit_start != 0) {
+			/* FIXME: Someone should step-through and verify that this
+			 * calculation is indeed correct. */
+			scan->preceder_blk = unit_start + scan_index;
 		}
 
 		/* In this case, we leave coord set to the parent of scan->node. */
@@ -2828,13 +2864,146 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		assert ("jmacd-7812", (coord_is_after_sideof_unit (& coord, scan->direction) || ! item_is_extent (& coord)));
 	}
 
-	/* This asserts the invariant. */
-	/*jnode_check_parent_coord (scan->node, & scan->parent_coord);*/
-
 	ret = 0;
  exit:
 	if (ino != NULL) { iput (ino); }
 	return ret;
+}
+
+/* After performing the block-by-block scan, we continue skipping past the non-leftmost,
+ * non-rightmost interior children of the parent.  This is only called in the left-scan
+ * direction, and the code assumes that direction.  It will be easy to change if necessary
+ * so that rapid scan can go in either direction, but it is currently not necessary.
+ */
+static int flush_scan_rapid (flush_scan *scan)
+{
+	data_handle lt_data;	/* lt == left twig */
+	lock_handle lt_lock;
+	coord_t     lt_coord;
+	int         is_dirty;
+	int         ret;
+
+	if (/* FIXME: until testing */! USE_RAPID_SCAN) {
+		return 0;
+	}
+
+	/* If the current scan position is formatted, get the parent coordinate so we can
+	 * test leftmost/rightmost.  Otherwise, we're already set.  Also, if we are at a
+	 * formatted position we already have scan->point_lock holding a lock on
+	 * scan->node.  We have to maintain that lock in addition to the parent locks as
+	 * we continue with the rapid scan. */
+	if (jnode_is_znode (scan->node)) {
+		if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK))) {
+			return ret;
+		}
+
+		/* We release point_lock and reacquire it later. */
+		done_lh (& scan->point_lock);
+	}
+
+	/* If the current node is not the leftmost child, set parent_coord to the leftmost
+	 * dirty child of its parent. */
+	if (! coord_is_leftmost_unit (& scan->parent_coord)) {
+
+		/* The call to flush_scan_leftmost_dirty_unit re-initializes
+		 * scan->parent_coord to the leftmost _unit_ that has dirty children.
+		 * This also resets the scan->node properly.
+		 */
+		if ((ret = flush_scan_leftmost_dirty_unit (scan))) {
+			return ret;
+		}
+	}
+
+	init_lh (& lt_lock);
+	init_dh (& lt_data);
+
+	/* Now we loop as long as we are positioned at the leftmost child of the parent.
+	 * In this case, we check the left neighbor to see if it is dirty.  If the left
+	 * neighbor is dirty then we repeat: set parent_coord to the leftmost unit that
+	 * has dirty children... */
+	while (coord_is_leftmost_unit (& scan->parent_coord)) {
+
+		/* There is an optimization possible here because there are two ways to
+		 * obtain the left neighbor.  If scan->node is a znode we can go left by
+		 * checking its ->left sibling pointer, but this is not general in case of
+		 * unformatted nodes.  Only the general case is implemented: get the left
+		 * twig and access its rightmost child.  Check if the rightmost child is
+		 * dirty.  If not, stop here.
+		 *
+		 * If the rightmost child of the left twig is dirty, then set
+		 * scan->parent_coord to the left twig and again find the leftmost unit
+		 * with a dirty child.
+		 *
+		 * Finally, repeat this loop.
+		 */
+		if ((ret = reiser4_get_left_neighbor (& lt_lock, scan->parent_coord.node, ZNODE_WRITE_LOCK, 0))) {
+			/* We get NAVAIL or NOENT if the left twig is not in memory, in
+			 * which case stop the rapid scan. */
+			if (ret == -ENAVAIL || ret == -ENOENT) {
+				ret = 0;
+			}
+			goto fail;
+		}
+
+		/* Load the left twig, check if its rightmost child is dirty. */
+		if ((ret = load_dh_znode (& lt_data, lt_lock.node))) {
+			goto fail;
+		}
+
+		coord_init_last_unit (& lt_coord, lt_lock.node);
+
+		if ((ret = item_utmost_child_dirty (& lt_coord, RIGHT_SIDE, & is_dirty))) {
+			goto fail;
+		}
+
+		/* If the rightmost child is not dirty, stop where we are. */
+		if (! is_dirty) {
+			break;
+		}
+
+		/* Rightmost child of left twig is dirty, now continue at that twig. */
+		move_dh (& scan->parent_load, & lt_data);
+		move_lh (& scan->parent_lock, & lt_lock);
+
+		/* Set coordinate to the leftmost dirty unit.  This also resets scan->node
+		 * properly. */
+		if ((ret = flush_scan_leftmost_dirty_unit (scan))) {
+			goto fail;
+		}
+	}
+
+	ret = 0;
+ fail:
+	done_dh (& lt_data);
+	done_lh (& lt_lock);
+
+	/* Finally, if we are returning success and the position is formatted then we
+	 * should reacquire the scan->point_lock, which gets moved into
+	 * flush_pos.point_lock. */
+	if (ret == 0 && jnode_is_znode (scan->node)) {
+
+		assert ("jmacd-76620", lock_stack_isclean (get_current_lock_stack ()));
+
+		ret = longterm_lock_znode (& scan->point_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+	}
+
+	return ret;
+}
+
+/* During flush_scan_rapid we need to find the leftmost dirty child/unit of a parent.
+ * This routine finds that node and sets scan->node, scan->parent_coord appropriately.
+ * The structure of this code resembles the flush_scan_formatted and
+ * flush_scan_extent_coord functions, except the logic is inverted: we want to scan past
+ * clean/not-same-atom nodes and stop at the first dirty node in this pass.  Should we
+ * fuse atoms if we find a dirty not same atom node?  Probabaly yes. */
+static int flush_scan_leftmost_dirty_unit (flush_scan *scan)
+{
+	/* Starting from the leftmost unit... */
+	coord_init_first_unit (& scan->parent_coord, scan->parent_coord.node);
+
+	/* FIXME: NOT FINISHED HERE. */
+
+	return 0;
 }
 
 /********************************************************************************
