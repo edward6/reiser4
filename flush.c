@@ -557,7 +557,6 @@ static int write_prepped_nodes (flush_pos_t * pos, int scan)
 	if (!(pos->flags & JNODE_FLUSH_WRITE_BLOCKS))
 		return 0;
 	ret = scan ? scan_and_write_fq(pos->fq, 0) : write_fq(pos->fq, 0);
-
 	if (ret > 0) {
 		pos->nr_written += ret;
 		ret = 0;
@@ -1592,7 +1591,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 		return ret;
 	}
 
-	if (znode_check_flushprepped(pos->lock.node))
+	if (znode_check_flushprepped(right_lock.node))
 		goto stop;
 
 	ret = incr_load_count_znode(&right_load, right_lock.node);
