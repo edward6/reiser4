@@ -26,3 +26,6 @@ void libreiserfs_fini(void) {
     reiserfs_plugins_fini();
 }
 
+char __plugin_start __attribute__((__section__(".plugins"))) = 0;
+char __plugin_end __attribute__((__section__(".plugins"))) = 0;
+

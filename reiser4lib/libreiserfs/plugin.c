@@ -16,7 +16,10 @@
 
 #include <reiserfs/reiserfs.h>
 
-#define ENTRY "reiserfs_plugin_entry"
+/*#ifdef ENABLE_COMPACT
+extern char __plugin_start;
+extern char __plugin_end;
+#endif*/
 
 aal_list_t *plugins = NULL;
 
@@ -25,14 +28,25 @@ struct walk_desc {
     reiserfs_plugin_id_t id;
 };
 
-static int callback_match_plugin(reiserfs_plugin_t *plugin, struct walk_desc *desc) {
+static int callback_match_coords(reiserfs_plugin_t *plugin, struct walk_desc *desc) {
     return (plugin->h.type == desc->type && plugin->h.id == desc->id);
+}
+
+static int callback_match_label(reiserfs_plugin_t *plugin, const char *label) {
+    return aal_strncmp(plugin->h.label, label, aal_strlen(plugin->h.label));
 }
 
 error_t reiserfs_plugins_init(void) {
 #ifndef ENABLE_COMPACT
     DIR *dir;
     struct dirent *ent;
+#else    
+    uint32_t *addr;
+    reiserfs_plugin_t *plugin;
+    reiserfs_plugin_t *(*get_plugin_entry) (void);
+
+    extern uint32_t __plugin_start;
+    extern uint32_t __plugin_end;
 #endif	
 
     aal_assert("umka-159", plugins == NULL, return -1);
@@ -68,10 +82,19 @@ error_t reiserfs_plugins_init(void) {
     }
     closedir(dir);
 #else
-    /* 
-	Here must be initialization code for 
-	builtin plugins. 
-    */
+    /* FIXME-umka: Is the following code 64-bit safe? */
+    
+    for (addr = (uint32_t *)(&__plugin_start); addr < (uint32_t *)(&__plugin_end); addr++) {
+	if (addr) {
+	    get_plugin_entry = (reiserfs_plugin_t *(*)(void))*addr;
+	    
+	    if (!(plugin = get_plugin_entry())) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Invalid plugin has been detected.");
+	    }
+	    plugins = aal_list_append(plugins, plugin);
+	}
+    }
 #endif
     return -(aal_list_length(plugins) == 0);
 }
@@ -89,7 +112,17 @@ void reiserfs_plugins_fini(void) {
     aal_list_free(plugins);
 }
 
-reiserfs_plugin_t *reiserfs_plugins_find(reiserfs_plugin_type_t type, 
+reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label) {
+    aal_list_t *found;
+
+    aal_assert("umka-155", plugins != NULL, return NULL);
+    aal_assert("umka-258", label != NULL, return NULL);
+	
+    return (found = aal_list_find_custom(aal_list_first(plugins), (void *)label, 
+	(comp_func_t)callback_match_label)) ? (reiserfs_plugin_t *)found->data : NULL;
+}
+
+reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_type_t type, 
     reiserfs_plugin_id_t id) 
 {
     aal_list_t *found;
@@ -101,7 +134,7 @@ reiserfs_plugin_t *reiserfs_plugins_find(reiserfs_plugin_type_t type,
     desc.id = id;
 	
     return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
-	(comp_func_t)callback_match_plugin)) ? (reiserfs_plugin_t *)found->data : NULL;
+	(comp_func_t)callback_match_coords)) ? (reiserfs_plugin_t *)found->data : NULL;
 }
 
 reiserfs_plugin_t *reiserfs_plugins_load(const char *name) {
@@ -120,17 +153,21 @@ reiserfs_plugin_t *reiserfs_plugins_load(const char *name) {
 	return NULL;
     }
 
-    entry = dlsym(handle, ENTRY);
+    entry = dlsym(handle, "__plugin_entry");
     if (dlerror() != NULL || entry == NULL) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find symbol \"%s\" in plugin %s.", ENTRY, name);
+	    "Can't find symbol \"%s\" in plugin %s.", "__plugin_entry", name);
 	goto error_free_handle;
     }
    
     get_plugin_entry = (reiserfs_plugin_t *(*)(void))entry;
-    plugin = get_plugin_entry();
+    if (!(plugin = get_plugin_entry())) {
+	aal_exception+_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid plugin has been detected.");
+	goto error_free_handle;
+    }
+    
     plugin->h.handle = handle;
-
     plugins = aal_list_append(plugins, plugin);
 	
     return plugin;

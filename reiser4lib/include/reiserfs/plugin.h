@@ -208,24 +208,20 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 #   define reiserfs_plugin_check_routine(plugin, routine, action)
 #endif
 
-/* 
-    Here will be some plugin entry point 
-    initialization for alone mode too.
-*/
 #ifndef ENABLE_COMPACT
 #   define reiserfs_plugin_register(plugin) \
     static reiserfs_plugin_t *reiserfs_plugin_main(void) { \
         return &plugin; \
     } \
       \
-    reiserfs_plugin_t *(*reiserfs_plugin_entry)(void) = reiserfs_plugin_main
+    reiserfs_plugin_t *(*__plugin_entry)(void) = reiserfs_plugin_main
 #else
 #   define reiserfs_plugin_register(plugin) \
     static reiserfs_plugin_t *reiserfs_plugin_main(void) { \
         return &plugin; \
     } \
       \
-    static reiserfs_plugin_t *(*reiserfs_plugin_entry)(void) \
+    static reiserfs_plugin_t *(*__plugin_entry)(void) \
 	__attribute__((__section__(".plugins"))) = reiserfs_plugin_main
 #endif
 
@@ -237,8 +233,10 @@ extern void reiserfs_plugins_fini(void);
 extern reiserfs_plugin_t *reiserfs_plugins_load(const char *filename);
 extern void reiserfs_plugins_unload(reiserfs_plugin_t *plugin);
 
-extern reiserfs_plugin_t *reiserfs_plugins_find(reiserfs_plugin_type_t type, 
+extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_type_t type, 
     reiserfs_plugin_id_t id);
+
+extern reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label);
 
 #endif
 

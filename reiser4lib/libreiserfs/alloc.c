@@ -27,7 +27,7 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
 	return -1;
 	
     id = reiserfs_super_alloc_plugin(fs);
-    if (!(plugin = reiserfs_plugins_find(REISERFS_ALLOC_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find block allocator plugin by its identifier %x.", id);
 	goto error_free_alloc;
@@ -69,7 +69,7 @@ error_t reiserfs_alloc_create(reiserfs_fs_t *fs) {
 	return -1;
 	
     id = reiserfs_super_alloc_plugin(fs);
-    if (!(plugin = reiserfs_plugins_find(REISERFS_ALLOC_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find block allocator plugin by its identifier %x.", id);
 	goto error_free_alloc;

@@ -31,7 +31,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     if (plugin_id == REISERFS_GUESS_PLUGIN_ID) 
 	plugin_id = reiserfs_node_get_plugin_id(node);
     
-    if (!(node->plugin = reiserfs_plugins_find(REISERFS_NODE_PLUGIN, plugin_id))) {
+    if (!(node->plugin = reiserfs_plugins_find_by_coords(REISERFS_NODE_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Node plugin cannot be find by its identifier %x.", plugin_id);
 	goto error_free_block;
@@ -80,7 +80,7 @@ reiserfs_node_t *reiserfs_node_create(
     }
 	    
     set_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id, plugin_id);
-    if (!(node->plugin = reiserfs_plugins_find(REISERFS_NODE_PLUGIN, plugin_id))) {
+    if (!(node->plugin = reiserfs_plugins_find_by_coords(REISERFS_NODE_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find node plugin by its identifier %x.", plugin_id);
 	goto error_free_node;
@@ -161,8 +161,7 @@ uint32_t reiserfs_node_count(reiserfs_node_t *node) {
 }
 
 uint8_t reiserfs_node_level(reiserfs_node_t *node) {
-    reiserfs_plugin_check_routine(node->plugin->node, level, return 0);
-    return node->plugin->node.level(node->entity);
+    return 0;
 }
 
 uint32_t reiserfs_node_free_space(reiserfs_node_t *node) {

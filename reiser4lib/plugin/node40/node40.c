@@ -15,11 +15,14 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *insert_into,
     return 0;
 }
 
-#define node40_data(node) node->block->data
-#define node40_block(node) node->block
-#define node40_size(node)  node->block->size
+#define node40_data(node) (node->block->data)
+#define node40_block(node) (node->block)
+#define node40_size(node) (node->block->size)
+
 #define node40_ih_at(node, pos) \
-    ((reiserfs_item_header40_t *)(node40_data(node) + node40_size(node)) - pos - 1)
+    ((reiserfs_item_header40_t *) \
+    (node40_data(node) + node40_size(node)) - pos - 1)
+	
 #define node40_item_plugin_id_at(node, pos) \
     node40_ih_at(node, pos)->plugin_id
     
@@ -188,7 +191,7 @@ static reiserfs_coord_t *lookup (reiserfs_node40_t *node, reiserfs_key_t *key) {
     if (!ret) {
 	/* we need to search whithin the found item */
 	plugin_id = node40_item_plugin_id_at(node, pos);
-	if (!(plugin = reiserfs_plugins_find(REISERFS_NODE_PLUGIN, plugin_id))) {
+	if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_NODE_PLUGIN, plugin_id))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Node plugin cannot be find by its identifier %x.", plugin_id);
 	    goto error_free_coord;
@@ -225,8 +228,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.max_item_size = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_max_item_size,
 	.max_item_num =  (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_max_item_num,
 	.count = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_count,
-	.level = (uint8_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_level,
-	.get_free_space = (uint32_t(*)(reiserfs_node_opaque_t *))reiserfs_node40_get_free_space,
+	.get_free_space = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_get_free_space,
 	.set_free_space = (void (*)(reiserfs_node_opaque_t *, uint32_t))reiserfs_node40_set_free_space,
 	.print = (void (*)(reiserfs_node_opaque_t *))reiserfs_node40_print
     }
