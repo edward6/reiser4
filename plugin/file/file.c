@@ -519,7 +519,8 @@ cut_file_items(struct inode *inode, loff_t new_size)
 									   being a hint used by next
 									   loop iteration */
 				  &from_key, &to_key, &smallest_removed, DELETE_KILL,	/*flags */
-				  0/* left neighbor is not known */);
+				  0/* left neighbor is not known */,
+				  inode);
 		zrelse(loaded);
 		done_lh(&lh);
 
@@ -1207,7 +1208,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 			break;
 		preempt_point();
 	}
-
+	if (result == -EEXIST)
+		printk("write returns EEXIST!\n");
 	save_file_hint(file, &hint);
 
 	/* if nothing were written - there must be an error */
