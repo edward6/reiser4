@@ -481,9 +481,6 @@ int reiser4_bitmap_done_commit (txn_atom * atom) {
 		int bmap, offset;
 		struct reiser4_bnode * bnode;
 
-		/*
-		 * FIXME-NIKITA was JF_SET
-		 */
 		if (!JF_ISSET(node, ZNODE_DELETESET))
 			continue;
 
