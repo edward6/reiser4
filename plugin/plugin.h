@@ -133,10 +133,11 @@ typedef struct file_plugin {
 	 * builtins */
 	ssize_t ( *read )( struct file *file, char *buf, size_t size, 
 			 loff_t *off );
-	ssize_t ( *write )( struct file *file, char *buf, size_t size, 
+	ssize_t ( *write )( struct file *file, const char *buf, size_t size, 
 			 loff_t *off );
 
 	int ( *release )( struct file *file );
+	int ( *mmap )( struct file *file, struct vm_area_struct *vma);
 /*
  * private methods: These are optional.  If used they will allow you to
  * minimize the amount of code needed to implement a deviation from some other
