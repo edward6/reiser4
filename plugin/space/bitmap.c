@@ -524,11 +524,6 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 		bnode->loaded = 1;
 	} else {
-		/*
-		 * FIXME:NIKITA->ZAM I am seeing at this point bnode->wjnode
-		 * having fake block number (0x9000000000000000) and
-		 * jload->...->readpage failing.
-		 */
 		if ((ret = jload(bnode->wjnode)) < 0) goto fail;
 		if ((ret = jload(bnode->cjnode)) < 0) goto fail;
 	}
