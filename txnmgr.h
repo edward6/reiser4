@@ -263,6 +263,10 @@ extern int          txn_try_capture       (jnode              *node,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);
 
+extern int          txn_try_capture_page  (struct page        *pg,
+					   znode_lock_mode     mode,
+					   int                 non_blocking);
+
 
 /*****************************************************************************************
 				     INLINE FUNCTIONS
