@@ -299,6 +299,12 @@ typedef struct semaphore {
 	pthread_mutex_t  mutex;
 } semaphore;
 
+struct rw_semaphore {
+	semaphore sem;
+};
+
+
+
 typedef struct kmem_cache_t {
 	size_t      size;
 	const char* name;
@@ -585,6 +591,26 @@ extern int down_interruptible( semaphore *sem );
 extern void down( semaphore *sem );
 extern void up( semaphore *sem );
 
+static inline void down_read (struct rw_semaphore * rwsem)
+{
+	down (&rwsem->sem);
+}
+
+static inline void up_read (struct rw_semaphore * rwsem)
+{
+	up (&rwsem->sem);
+}
+
+static inline void down_write (struct rw_semaphore * rwsem)
+{
+	down (&rwsem->sem);
+}
+
+static inline void up_write (struct rw_semaphore * rwsem)
+{
+	up (&rwsem->sem);
+}
+
 extern void lock_kernel();
 extern void unlock_kernel();
 
@@ -703,6 +729,7 @@ struct page {
 #define PG_locked 2
 #define Page_Uptodate(page) ((page)->flags & PG_uptodate)
 #define PageLocked(page) ((page)->flags & PG_locked)
+/*
 #define UnlockPage(p) \
 {\
 	assert ("vs-286", PageLocked (p));\
@@ -713,15 +740,21 @@ struct page {
 	assert ("vs-287", !PageLocked (p));\
 	(p)->flags |= PG_locked;\
 }
+*/
 #define SetPageUptodate(page) (page)->flags |= PG_uptodate
 #define page_address(page)   ((page)->virtual)
-
+void remove_inode_page(struct page *);
 
 /* include/linux/pagemap.h */
 struct page * find_get_page (struct address_space *, unsigned long);
 struct page * find_lock_page (struct address_space *, unsigned long);
 void wait_on_page(struct page * page);
 typedef int filler_t(void *, struct page*);
+void lock_page(struct page *page);
+void unlock_page(struct page *page);
+
+/* include/linux/swap.h */
+void lru_cache_del(struct page *);
 
 /* mm/page_alloc.c */
 void page_cache_release (struct page * page);
