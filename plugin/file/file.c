@@ -1156,16 +1156,16 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 
 	to_write = f->length;
 
-	assert("vs-1123", get_current_context()->grabbed_blocks == 0);
-
-	/* it may happend that find_next_item will have to insert empty node to
-	 * the tree (empty leaf node between two extent items) */
-	result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0,
-							  "append_and_or_overwrite: for cbk and eottl");
-	if (result)
-		return result;
-
 	while (f->length) {
+		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
+		if (to_write == f->length) {
+			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
+			   node between two extent items) */
+			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0,
+							  "append_and_or_overwrite: for cbk and eottl");
+			if (result)
+				return result;
+		}
 		/* look for file's metadata (extent or tail item) corresponding
 		   to position we write to */
 		init_lh(&lh);
@@ -1213,17 +1213,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		done_lh(&lh);
 		if (result && result != -EAGAIN)
 			break;
-#if 0
-		if (result) {
-			unset_hint(&hint);
-			done_lh(&lh);
-			if (result != -EAGAIN)
-				break;
-		} else {
-			set_hint(&hint, &f->key, &coord);
-			done_lh(&lh);
-		}
-#endif
 		preempt_point();
 	}
 
