@@ -86,7 +86,7 @@ reiserfs_object_t *reiserfs_dir_create(
     reiserfs_object_t *parent,	    /* parent object */
     const char *name		    /* name of entry */
 ) {
-    oid_t objectid, parent_objectid;
+    oid_t objectid, locality;
     reiserfs_key_t parent_key, object_key;
     
     reiserfs_object_t *object;
@@ -108,19 +108,17 @@ reiserfs_object_t *reiserfs_dir_create(
 
 	objectid = reiserfs_oid_root_objectid(fs->oid);
     }
-    parent_objectid = reiserfs_key_get_objectid(&parent_key);
+    locality = reiserfs_key_get_objectid(&parent_key);
     
     object_key.plugin = parent_key.plugin;
     reiserfs_key_build_generic_full(&object_key, KEY40_STATDATA_MINOR,
-        parent_objectid, objectid, 0);
+        locality, objectid, 0);
     
     /* Updating object key */
     {
 	uint32_t key_size = libreiser4_plugin_call(goto error_free_object, 
 	    object_key.plugin->key_ops, size,);
-	
-	object->key.plugin = object_key.plugin;
-	aal_memcpy(object->key.body, object_key.body, key_size);
+	reiserfs_key_init(&object->key, object_key.plugin, object_key.body);
     }
     
     if (parent) {   

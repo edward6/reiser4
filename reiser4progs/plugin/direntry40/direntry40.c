@@ -155,9 +155,11 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
     }
     
     /* Moving unit headers headers */
-    aal_memmove(&direntry->entry[pos] + direntry_hint->count, 
-        &direntry->entry[pos], len_before);
-	
+    if (len_before) {
+	aal_memmove(&direntry->entry[pos] + direntry_hint->count, 
+	    &direntry->entry[pos], len_before);
+    }
+    
     /* Creating new entries */
     for (i = 0; i < direntry_hint->count; i++) {
 	en40_set_offset(&direntry->entry[pos + i], offset);

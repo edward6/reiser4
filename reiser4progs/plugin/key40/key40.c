@@ -25,7 +25,7 @@ static uint64_t key40_pack_string(const char *name, int start) {
     aal_assert("vpf-134", name != NULL, return 0);
     
     str = 0;
-    for (i = 0 ; (i < sizeof(str) - start) && name[i] ; ++ i) {
+    for (i = 0; (i < sizeof(str) - start) && name[i]; ++i) {
         str <<= 8;
         str |= (unsigned char)name[i];
     }
@@ -195,21 +195,6 @@ static errno_t key40_build_entry_full(reiserfs_key40_t *key,
     return 0;
 }
 
-static errno_t key40_build_generic_full(reiserfs_key40_t *key, 
-    uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
-{
-    aal_assert("vpf-141", key != NULL, return -1);
-
-    key40_clean(key);
-
-    set_key40_locality(key, locality);
-    set_key40_type(key, (reiserfs_key40_minor_t)type);
-    set_key40_objectid(key, objectid);
-    set_key40_offset(key, offset);
-
-    return 0;
-}
-
 static errno_t key40_build_entry_short(void *ptr, 
     reiserfs_plugin_t *hash_plugin, const char *name) 
 {
@@ -222,6 +207,21 @@ static errno_t key40_build_entry_short(void *ptr,
     
     aal_memset(ptr, 0, 2 * sizeof(uint64_t));
     aal_memcpy(ptr, &key.el[1], 2 * sizeof(uint64_t));
+
+    return 0;
+}
+
+static errno_t key40_build_generic_full(reiserfs_key40_t *key, 
+    uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
+{
+    aal_assert("vpf-141", key != NULL, return -1);
+
+    key40_clean(key);
+
+    set_key40_locality(key, locality);
+    set_key40_type(key, (reiserfs_key40_minor_t)type);
+    set_key40_objectid(key, objectid);
+    set_key40_offset(key, offset);
 
     return 0;
 }
@@ -308,7 +308,7 @@ static reiserfs_plugin_t key40_plugin = {
 	    key40_build_entry_short,
 
 	.build_by_entry = (errno_t (*)(const void *, void *))
-	    key40_build_by_entry,
+	    key40_build_by_entry
     }
 };
 

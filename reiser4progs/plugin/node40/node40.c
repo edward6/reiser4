@@ -206,7 +206,9 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 	    ih40_set_offset(ih, ih40_get_offset(ih) + item->len);
 
     	if (is_new_item) {
-	    aal_memmove(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
+	    ih = node40_ih_at(node->block, item_pos);
+	    
+	    aal_memmove(ih - 1, ih, sizeof(reiserfs_ih40_t) * 
 		(node40_count(node) - item_pos));
 	}
     } else
@@ -224,8 +226,7 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 	return 0;
     }
     
-    aal_memmove(&ih->key, item->key.body, libreiser4_plugin_call(return -1, 
-	item->key.plugin->key_ops, size,));
+    aal_memcpy(&ih->key, item->key.body, sizeof(ih->key));
     
     ih40_set_offset(ih, offset);
     ih40_set_pid(ih, item->plugin->h.id);
@@ -241,7 +242,8 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     reiserfs_nh40_t *nh;
     
     aal_assert("umka-818", node != NULL, return -1);
-    aal_assert("vpf-119", pos != NULL && pos->unit == 0xffff, return -1);
+    aal_assert("vpf-119", pos != NULL, return -1);
+    aal_assert("umka-908", pos->unit == 0xffff, return -1);
     
     if (node40_prepare(node, pos, item))
 	return -1;
@@ -250,9 +252,8 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
     if (item->data) {
-	aal_memmove(node40_ib_at(node->block, pos->item), 
+	aal_memcpy(node40_ib_at(node->block, pos->item), 
 	    item->data, item->len);
-
 	return 0;
     } else {
 	return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,

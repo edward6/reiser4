@@ -251,7 +251,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     reiserfs_sdext_unix_hint_t unix_ext;
     
     oid_t objectid;
-    oid_t parent_objectid;
+    oid_t locality;
     oid_t parent_locality;
 
     aal_assert("umka-743", parent != NULL, return NULL);
@@ -267,14 +267,14 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     if (!(dir->hash_plugin = core->factory_ops.plugin_find(HASH_PLUGIN_TYPE, hint->hash_pid)))
 	libreiser4_factory_failed(goto error_free_dir, find, hash, hint->hash_pid);
     
-    parent_objectid = libreiser4_plugin_call(return NULL, 
+    locality = libreiser4_plugin_call(return NULL, 
 	object->plugin->key_ops, get_objectid, parent->body);
-    
-    parent_locality = libreiser4_plugin_call(return NULL, 
-	object->plugin->key_ops, get_locality, parent->body);
     
     objectid = libreiser4_plugin_call(return NULL, 
 	object->plugin->key_ops, get_objectid, object->body);
+    
+    parent_locality = libreiser4_plugin_call(return NULL, 
+	object->plugin->key_ops, get_locality, parent->body);
     
     if (!(dir->statdata_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
 	hint->statdata_pid)))
@@ -294,24 +294,22 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	object->plugin->key_ops, size,);
     
     /* 
-	Initializing direntry item hint. This should done earlier than initializing 
+	Initializing direntry item hint. This should be done earlier than initializing 
 	of the stat data item hint, because we will need size of direntry item durring
 	stat data initialization.
     */
     aal_memset(&direntry_item, 0, sizeof(direntry_item));
 
+    direntry.count = 2;
+    direntry_item.type = DIRENTRY_ITEM;
     direntry_item.plugin = dir->direntry_plugin;
-    direntry_item.type = direntry_item.plugin->h.id; 
     
     direntry_item.key.plugin = object->plugin; 
-    aal_memcpy(direntry_item.key.body, parent, key_size);
-    
-    direntry.count = 2;
    
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_entry_full, direntry_item.key.body, dir->hash_plugin, 
-	parent_objectid, objectid, ".");
-    
+	locality, objectid, ".");
+
     if (!(direntry.entry = aal_calloc(direntry.count*sizeof(*direntry.entry), 0)))
 	goto error_free_dir;
     
@@ -320,7 +318,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_generic_short, &direntry.entry[0].objid, KEY40_STATDATA_MINOR, 
-	parent_objectid, objectid);
+	locality, objectid);
 	
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_entry_short, &direntry.entry[0].entryid, dir->hash_plugin, 
@@ -331,7 +329,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_generic_short, &direntry.entry[1].objid, KEY40_STATDATA_MINOR, 
-	parent_locality, parent_objectid);
+	parent_locality, locality);
 	
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_entry_short, &direntry.entry[1].entryid, dir->hash_plugin, 
@@ -342,8 +340,8 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     /* Initializing stat data hint */
     aal_memset(&stat_item, 0, sizeof(stat_item));
     
+    stat_item.type = STATDATA_ITEM;
     stat_item.plugin = dir->statdata_plugin;
-    stat_item.type = stat_item.plugin->h.id; 
 
     stat_item.key.plugin = object->plugin;
     aal_memcpy(stat_item.key.body, object->body, key_size);

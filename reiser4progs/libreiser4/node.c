@@ -428,6 +428,8 @@ errno_t reiserfs_node_remove(
 	remove, node->entity, pos);
 }
 
+#include <stdio.h>
+
 /* Inserts item described by item hint into specified node at specified pos */
 errno_t reiserfs_node_insert(
     reiserfs_node_t *node,	/* node new item will be inserted in */
@@ -473,6 +475,7 @@ errno_t reiserfs_node_insert(
         if ((ret = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
 		insert, node->entity, pos, item)) != 0)
 	    return ret;
+	printf("block: %llu\n", aal_block_get_nr(node->block));
     } else {
 	if ((ret = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
 		paste, node->entity, pos, item)) != 0)

@@ -74,11 +74,36 @@ int main(int argc, char *argv[]) {
 	dir_hint.direntry_pid = ITEM_CDE40_ID;
 	dir_hint.hash_pid = HASH_R5_ID;
 	
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir1");
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir2");
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir3");
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir4");
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir5");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir1");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir2");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir3");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir4");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir5");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir6");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir7");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir8");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir9");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir10");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir11");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir12");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir13");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir14");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir15");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir16");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir17");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir18");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir19");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir20");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir21");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir22");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir23");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir24");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir25");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir26");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir27");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir28");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir29");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, object, "testdir30");
     }
     
     if (reiserfs_dir_rewind(object)) {
