@@ -1198,7 +1198,9 @@ znode_post_write(znode * node)
 
 	assert("umka-067", node != NULL);
 
-	spin_lock_znode(node);
+	if (!znode_is_wlocked_once(node))
+		return;
+
 	if (znode_page(node) != NULL) {
 		cksum = znode_checksum(node);
 
@@ -1209,7 +1211,6 @@ znode_post_write(znode * node)
 				      "changed znode is not dirty: %llu",
 				      node->zjnode.blocknr);
 	}
-	spin_unlock_znode(node);
 }
 #endif
 

@@ -692,6 +692,8 @@ longterm_unlock_znode(lock_handle * handle)
 		return;
 	}
 
+	ON_DEBUG_MODIFY(znode_post_write(node));
+
 	if (handle->signaled)
 		atomic_dec(&oldowner->nr_signaled);
 
