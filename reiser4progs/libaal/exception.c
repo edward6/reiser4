@@ -85,6 +85,13 @@ static aal_exception_option_t __default_exception_handler(
     aal_exception_t *exception		/* exception to be processed */
 ) {
 
+    if (exception->type == EXCEPTION_ERROR || 
+	exception->type == EXCEPTION_FATAL ||
+	exception->type == EXCEPTION_BUG)
+        aal_gauge_failed(); 
+    else
+	aal_gauge_pause();
+
     /* Printing exception type */
     if (exception->type != EXCEPTION_BUG)
 	aal_printf(ERR, "%s: ", aal_exception_type_string(exception->type));
@@ -96,9 +103,16 @@ static aal_exception_option_t __default_exception_handler(
         case EXCEPTION_OK:
         case EXCEPTION_CANCEL:
 	case EXCEPTION_IGNORE:
+	    if (exception->type == EXCEPTION_WARNING || 
+		    exception->type == EXCEPTION_INFORMATION)
+		aal_gauge_resume();
+	    
             return exception->options;
 	    
         default:
+	    if (exception->type == EXCEPTION_WARNING || 
+		    exception->type == EXCEPTION_INFORMATION)
+		aal_gauge_resume();
             return EXCEPTION_UNHANDLED;
     }
 }
