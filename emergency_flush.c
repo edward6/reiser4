@@ -79,14 +79,14 @@
 
      Basically eflushed node has following distinctive characteristics:
 
-      (1) JNODE_EFLUSH bit is set
+          (1) JNODE_EFLUSH bit is set
 
-      (2) no page
+          (2) no page
 
-      (3) there is an element in hash table, for this node
+          (3) there is an element in hash table, for this node
 
-      (4) node content is stored on disk in block whose number is stored in
-      the hash table element
+          (4) node content is stored on disk in block whose number is stored
+          in the hash table element
 
   UNFLUSH
 
@@ -114,11 +114,11 @@
       wiped out of memory by the memory pressure (prune_icache()). This leads
       to the number of complications:
 
-       (1) jload_gfp() has to attach jnode tho the address space's radix
-       tree. This requires existence if inode.
+           (1) jload_gfp() has to attach jnode tho the address space's radix
+           tree. This requires existence if inode.
 
-       (2) normal flush needs jnode's inode to start slum collection from
-       unformatted jnode.
+           (2) normal flush needs jnode's inode to start slum collection from
+           unformatted jnode.
 
       (1) is really a problem, because it is too late to load inode (which
       would lead to loading of stat data, etc.) within jload_gfp().
@@ -136,6 +136,8 @@
       nodes. In this case, last iput() that leads to the removal of file is
       iput() made by unflushing from within jload_gfp(). Obviously, calling
       truncate, and tree traversals from jload_gfp() is not a good idea.
+
+      Not finished.
 
   DISK SPACE ALLOCATION
 
