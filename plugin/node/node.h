@@ -129,7 +129,7 @@ typedef enum {
 #define REISER4_TREE_BRIEF ( REISER4_NODE_PRINT_BRIEF )
 #define REISER4_TREE_CHECK_ALL ( REISER4_TREE_CHECK & ~REISER4_NODE_ONLY_INCORE )
 
-/* cut and cut_and_kill have to long list of parameters. This structure is just to safe some space on stack */
+/* cut and cut_and_kill have too long list of parameters. This structure is just to safe some space on stack */
 struct cut_list {
 	coord_t * from;
 	coord_t * to;
