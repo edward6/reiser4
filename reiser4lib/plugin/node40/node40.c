@@ -19,7 +19,7 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *insert_into, reiserfs_it
 #define node40_size(node)  node->block->size
 #define node40_ih_at(node, pos) \
     ((reiserfs_item_header40_t *)(node40_data(node) + node40_size(node)) - pos - 1)
-#define node40_item_id_at(node, pos) \
+#define node40_item_plugin_id_at(node, pos) \
     node40_ih_at(node, pos)->plugin_id
     
 typedef void reiserfs_opaque_t; 
@@ -220,8 +220,10 @@ static void reiserfs_node40_print(reiserfs_node40_t *node) {
 static reiserfs_coord_t *lookup (reiserfs_node40_t *node, reiserfs_key_t *key) {
     int64_t pos;
     int ret;
+    reiserfs_plugin_id_t plugin_id;
     reiserfs_coord_t *coord;
-    reiserfs_item_plugin_t *plugin;
+
+    reiserfs_plugin_t *plugin;
     
     if (!node || !node->block || !key)
 	return NULL;
@@ -234,16 +236,15 @@ static reiserfs_coord_t *lookup (reiserfs_node40_t *node, reiserfs_key_t *key) {
     ret = reiserfs_bin_search (key, &pos, reiserfs_node40_count(node), 
 	node, node40_key_at, comp_keys40);
 
-    coord->item_num = pos;
-    coord->unit_num = 0;
+    coord->item_pos = pos;
+    coord->unit_pos = 0;
     
     if (pos < 0 || pos >= reiserfs_node40_count (node))
 	return coord;
 	
     if (!ret) {
 	/* we need to search whithin the found item */
-	
-	plugin_id = node40_id_at(node, pos);
+	plugin_id = node40_item_plugin_id_at(node, pos);
 	if (!(plugin = reiserfs_plugins_find(REISERFS_NODE_PLUGIN, plugin_id))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Node plugin cannot be find by its identifier %x.", plugin_id);
@@ -251,8 +252,8 @@ static reiserfs_coord_t *lookup (reiserfs_node40_t *node, reiserfs_key_t *key) {
 	}
 
 
-    reiserfs_plugin_check_routine(node->plugin->node, open, return NULL);
-	plugin->common.lookup (key, coord);
+//	reiserfs_plugin_check_routine(plugin->item, lookup, return NULL);
+//	plugin->item->common.lookup (key, coord);
     }
     
     return coord;

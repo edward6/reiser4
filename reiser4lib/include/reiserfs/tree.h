@@ -21,8 +21,8 @@ extern void reiserfs_tree_close(reiserfs_fs_t *fs, int sync);
 
 struct reiserfs_coord {
     reiserfs_node_opaque_t *node;
-    uint16_t item_pos;
-    uint16_t unit_pos; 
+    int16_t item_pos;
+    int16_t unit_pos; 
 };
 
 typedef struct reiserfs_coord reiserfs_coord_t;
