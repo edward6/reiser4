@@ -982,6 +982,7 @@ extern void report_err(void);
 #else
 typedef struct err_site {} err_site;
 #define RETERR(code) code
+#define report_err() noop
 #endif
 
 /* __FS_REISER4_DEBUG_H__ */
