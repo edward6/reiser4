@@ -471,6 +471,14 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
 	znode_set_dirty (coord->node);
 
 	move_flow_forward (f, count);
+	coord->unit_pos += count;
+	/*
+	 * update coordinate to match flow's key. Soo that it can be sealed
+	 */
+	if (count == item_length_by_coord (coord)) {
+		coord->unit_pos --;
+		coord->between = AFTER_UNIT;
+	}
 	return 0;
 }
 
