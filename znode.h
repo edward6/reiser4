@@ -21,7 +21,7 @@
 
 #include <linux/types.h>
 #include <linux/spinlock.h>
-#include <linux/pagemap.h> /* for PAGE_CACHE_SIZE */
+#include <linux/pagemap.h>	/* for PAGE_CACHE_SIZE */
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
 
@@ -325,10 +325,7 @@ TS_LIST_DEFINE(locks, lock_handle, locks_link);
  * User-visible znode locking functions
 \*****************************************************************************/
 
-extern int longterm_lock_znode(lock_handle * handle,
-			       znode * node,
-			       znode_lock_mode mode,
-			       znode_lock_request request);
+extern int longterm_lock_znode(lock_handle * handle, znode * node, znode_lock_mode mode, znode_lock_request request);
 extern void longterm_unlock_znode(lock_handle * handle);
 
 extern int check_deadlock(void);
@@ -369,32 +366,29 @@ reiser4_wake_up(lock_stack * owner)
 	spin_unlock_stack(owner);
 }
 
-extern void add_x_ref(jnode *node);
 extern void del_c_ref(znode *node);
-
-extern znode *zget(reiser4_tree *tree, const reiser4_block_nr *const block,
-		    znode *parent, tree_level level, int gfp_flag);
-extern znode *zlook(reiser4_tree *tree, const reiser4_block_nr *const block);
-extern int zload(znode *node);
-extern int zinit_new(znode *node);
-extern void zrelse(znode *node);
-extern void znode_change_parent(znode *new_parent, reiser4_block_nr *block);
+extern znode *zget(reiser4_tree * tree, const reiser4_block_nr * const block,
+		   znode * parent, tree_level level, int gfp_flag);
+extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
+extern int zload(znode * node);
+extern int zinit_new(znode * node);
+extern void zrelse(znode * node);
+extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
 
 /** size of data in znode */
 static inline unsigned
-znode_size(const znode * node UNUSED_ARG /* znode to query */)
+znode_size(const znode * node UNUSED_ARG /* znode to query */ )
 {
 	assert("nikita-1416", node != NULL);
 	return PAGE_CACHE_SIZE;
 }
 
+extern unsigned znode_free_space(znode * node);
+extern int znode_is_loaded(const znode * node);
+extern int znode_is_loaded_nolock(const znode * node);
 
-extern unsigned znode_free_space(znode *node);
-extern int znode_is_loaded(const znode *node);
-extern int znode_is_loaded_nolock(const znode *node);
-
-extern reiser4_key *znode_get_rd_key(znode *node);
-extern reiser4_key *znode_get_ld_key(znode *node);
+extern reiser4_key *znode_get_rd_key(znode * node);
+extern reiser4_key *znode_get_ld_key(znode * node);
 
 /** `connected' state checks */
 static inline int
