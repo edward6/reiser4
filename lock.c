@@ -672,12 +672,15 @@ wake_up_requestor(znode *node)
 
 #undef MAX_CONVOY_SIZE
 
-/* unlock a znode long term lock */
 void
 longterm_unlock_znode(lock_handle * handle)
 {
 	znode *node = handle->node;
 	lock_stack *oldowner = handle->owner;
+	int hipri;
+	int readers;
+	int rdelta;
+	int youdie;
 
 	assert("jmacd-1021", handle != NULL);
 	assert("jmacd-1022", handle->owner != NULL);
@@ -689,21 +692,29 @@ longterm_unlock_znode(lock_handle * handle)
 
 	ADDSTAT(node, unlock);
 
+	hipri   = oldowner->curpri ? -1 : 0;
+	readers = node->lock.nr_readers;
+	rdelta  = (readers > 0) ? -1 : +1;
+	youdie  = ZF_ISSET(node, JNODE_HEARD_BANSHEE) && (readers < 0);
+
 	WLOCK_ZLOCK(&node->lock);
 
 	assert("zam-101", znode_is_locked(node));
 
 	/* Adjust a number of high priority owners of this lock */
-	if (oldowner->curpri) {
-		assert("nikita-1836", node->lock.nr_hipri_owners > 0);
-		node->lock.nr_hipri_owners--;
-	}
+	node->lock.nr_hipri_owners += hipri;
+	assert("nikita-1836", node->lock.nr_hipri_owners >= 0);
+
 	ON_TRACE(TRACE_LOCKS,
 		 "%spri unlock: %p node: %p: hipri_owners: %u nr_readers %d\n",
-		 oldowner->curpri ? "hi" : "lo", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
+		 oldowner->curpri ? "hi" : "lo",
+		 handle,
+		 node,
+		 node->lock.nr_hipri_owners,
+		 node->lock.nr_readers);
 
 	/* Handle znode deallocation on last write-lock release. */
-	if (ZF_ISSET(node, JNODE_HEARD_BANSHEE) && znode_is_wlocked_once(node)) {
+	if (youdie && znode_is_wlocked_once(node)) {
 		forget_znode(handle);
 		assert("nikita-2191", znode_invariant(node));
 		zput(node);
@@ -718,13 +729,10 @@ longterm_unlock_znode(lock_handle * handle)
 
 	/* This is enough to be sure whether an object is completely
 	   unlocked. */
-	if (znode_is_rlocked(node))
-		node->lock.nr_readers--;
-	else
-		node->lock.nr_readers++;
+	node->lock.nr_readers += rdelta;
 
-	/* If the node is locked it must have an owners list.  Likewise, if the node is
-	   unlocked it must have an empty owners list. */
+	/* If the node is locked it must have an owners list.  Likewise, if
+	   the node is unlocked it must have an empty owners list. */
 	assert("zam-319", equi(znode_is_locked(node),
 			       !owners_list_empty(&node->lock.owners)));
 
