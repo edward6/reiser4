@@ -2669,11 +2669,11 @@ jnode_lock_parent_coord(jnode         * node,
 				 * FIXME-EDWARD Process one cluster and insert appropriate items 
  				 * by (ino, coord, parent_lh, get_key_offset(&key)))
 				 */
-			} else {
+			} else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
-				return ret;
 			}
+			return ret;
 		case CBK_COORD_FOUND:
 			if (coord->between != AT_UNIT) {
 				/* FIXME: comment needed */
