@@ -33,6 +33,17 @@ struct tree_coord {
 	between_enum  between;
 };
 
+/*
+ * this structure is used to pass both coord and lock handle from extent_read
+ * down to extent_readpage via read_cache_page which can deliver to filler only
+ * one parameter specified by its caller
+ */
+struct readpage_arg {
+	tree_coord * coord;
+	reiser4_lock_handle * lh;
+};
+
+
 int coord_correct (const tree_coord * coord);
 int coord_of_item (const tree_coord * coord);
 int coord_of_unit (const tree_coord * coord);
