@@ -19,18 +19,6 @@ static inline int ra_adjacent_only(int flags)
 	return flags & RA_ADJACENT_ONLY;
 }
 
-/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:2 */
-static inline int ra_all_levels(int flags)
-{
-	return flags & RA_ALL_LEVELS;
-}
-
-/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:8 */
-static inline int ra_get_rn_hard(int flags)
-{
-	return flags & RA_READ_ON_GRN;
-}
-
 /* this is used by formatted_readahead to decide whether read for right neighbor of node is to be issued. It returns 1
    if right neighbor's first key is less or equal to readahead's stop key */
 static int
@@ -51,7 +39,7 @@ low_on_memory(void)
 	return freepages < (totalram_pages * LOW_MEM_PERCENTAGE / 100);
 }
 
-/* start read for @node and for few of its right neighbors */
+/* start read for @node and for a few of its right neighbors */
 void
 formatted_readahead(znode *node, ra_info_t *info)
 {
@@ -61,11 +49,8 @@ formatted_readahead(znode *node, ra_info_t *info)
 	int grn_flags;
 	lock_handle next_lh;
 
+	/* do nothing if node block number has not been assigned to node (which means it is still in cache). */
 	if (blocknr_is_fake(znode_get_block(node)))
-		/*
-		 * it is possible that @node has been eflushed, and, thus, has
-		 * no page. Don't do read-ahead at all.
-		 */
 		return;
 
 	ra_params = get_current_super_ra_params();
@@ -73,7 +58,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 	if (znode_page(node) == NULL)
 		jstartio(ZJNODE(node));
 
-	if (!ra_all_levels(ra_params->flags) && znode_get_level(node) != LEAF_LEVEL)
+	if (znode_get_level(node) != LEAF_LEVEL)
 		return;
 
 	/* don't waste memory for read-ahead when low on memory */
@@ -82,17 +67,10 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 	write_current_tracef("...readahead\n");
 
-	grn_flags = (ra_get_rn_hard(ra_params->flags) ? GN_CAN_USE_UPPER_LEVELS : 0);
-
-	/*
-	 * FIXME-ZAM: GN_CAN_USE_UPPER_LEVELS seems to not work these days
-	 */
-	grn_flags |= GN_CAN_USE_UPPER_LEVELS;
-
 	/* We can have locked nodes on upper tree levels, in this situation lock
 	   priorities do not help to resolve deadlocks, we have to use TRY_LOCK
 	   here. */
-	grn_flags |= GN_TRY_LOCK;
+	grn_flags = (GN_CAN_USE_UPPER_LEVELS | GN_TRY_LOCK);
 
 	i = 0;
 	cur = zref(node);
