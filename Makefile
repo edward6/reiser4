@@ -32,7 +32,11 @@ CFLAGS_lnode.o += -O0
 CFLAGS_kcond.o += -O0
 CFLAGS_seal.o += -O0
 CFLAGS_io_handle.o += -O0
+CFLAGS_all-reiser4.o += -O0
 endif
+ifdef CONFIG_REISER4_ALL_IN_ONE
+reiser4-objs := all-reiser4.o
+else
 reiser4-objs := \
 	   debug.o \
 	   jnode.o \
@@ -49,6 +53,7 @@ reiser4-objs := \
 	   txnmgr.o \
 	   kassign.o \
 	   flush.o \
+	   eottl.o \
 	   wander.o \
 	   search.o \
 	   blocknrset.o \
@@ -63,5 +68,6 @@ reiser4-objs := \
 	   io_handle.o
 
 obj-$(CONFIG_REISER4_FS) += plugin/
+endif
 
 include $(TOPDIR)/Rules.make

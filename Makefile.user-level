@@ -134,6 +134,7 @@ SRC		:= \
 		   kassign.c \
 		   flush.c \
 		   wander.c \
+		   eottl.c \
 		   search.c \
 		   blocknrset.c \
 		   plugin/plugin.c \

@@ -3,7 +3,6 @@
  */
 
 #include "reiser4.h"
-#include "eottl.c"
 /* rules for locking during searches: never insert before the first
    item in a node without locking the left neighbor and the patch to
    the common parent from the node and left neighbor.  This ensures
