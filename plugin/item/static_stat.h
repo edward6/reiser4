@@ -70,9 +70,10 @@ typedef enum {
 	    plugin (that is, plugin that cannot be deduced from file
 	    mode bits), for example, aggregation, interpolation etc. */
 	PLUGIN_STAT,
-	/* this extension contains inode generation and persistent inode
-	    flags. Layout is in reiser4_gen_and_flags_stat */
-	GEN_AND_FLAGS_STAT,
+	/* this extension contains persistent inode flags. These flags are
+	   single bits: immutable, append, only, etc. Layout is in
+	   reiser4_flags_stat. */
+	FLAGS_STAT,
 	/* this extension contains capabilities sets, associated with this
 	    file. Layout is in reiser4_capabilities_stat */
 	CAPABILITIES_STAT,
@@ -83,6 +84,18 @@ typedef enum {
 	   Layout is in reiser4_crypto_stat */
 	CRYPTO_STAT,
 	LAST_SD_EXTENSION,
+	/*
+	 * init_inode_static_sd() iterates over extension mask until all
+	 * non-zero bits are processed. This means, that neither ->present(),
+	 * nor ->absent() methods will be called for stat-data extensions that
+	 * go after last present extension. But some basic extensions, we want
+	 * either ->absent() or ->present() method to be called, because these
+	 * extensions set up something in inode even when they are not
+	 * present. This is what LAST_IMPORTANT_SD_EXTENSION is for: for all
+	 * extensions before and including LAST_IMPORTANT_SD_EXTENSION either
+	 * ->present(), or ->absent() method will be called, independently of
+	 * what other extensions are present.
+	 */
 	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
 } sd_ext_bits;
 
@@ -149,11 +162,13 @@ typedef struct reiser4_plugin_stat {
 	/*  2 */
 } PACKED reiser4_plugin_stat;
 
-typedef struct reiser4_gen_and_flags_stat {
-	/*  0 */ d32 generation;
-	/*  4 */ d32 flags;
-	/*  8 */
-} PACKED reiser4_gen_and_flags_stat;
+/* stat-data extension for inode flags. Currently it is just fixed-width 32
+ * bit mask. If need arise, this can be replaced with variable width
+ * bitmask. */
+typedef struct reiser4_flags_stat {
+	/*  0 */ d32 flags;
+	/*  4 */
+} PACKED reiser4_flags_stat;
 
 typedef struct reiser4_capabilities_stat {
 	/*  0 */ d32 effective;

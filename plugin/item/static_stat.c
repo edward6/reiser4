@@ -67,7 +67,7 @@ print_sd(const char *prefix /* prefix to print */ ,
 
 	next_stat(&len, &sd, sizeof *sd_base);
 
-	for (bit = 0, chunk = 0; (mask != 0); ++bit, mask >>= 1) {
+	for (bit = 0, chunk = 0; mask != 0; ++bit, mask >>= 1) {
 		if (((bit + 1) % 16) != 0) {
 			/* handle extension */
 			sd_ext_plugin *sdplug;
@@ -76,7 +76,7 @@ print_sd(const char *prefix /* prefix to print */ ,
 			if (sdplug == NULL) {
 				continue;
 			}
-			if ((mask & 1) && (sdplug->print != NULL)) {
+			if ((mask & 1) && sdplug->print != NULL) {
 				/* alignment is not supported in node layout
 				   plugin yet.
 				 result = align( inode, &len, &sd,
@@ -210,7 +210,7 @@ init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 
 	next_stat(&len, &sd, sizeof *sd_base);
-	for (bit = 0, chunk = 0; (mask != 0) || (bit <= LAST_IMPORTANT_SD_EXTENSION); ++bit, mask >>= 1) {
+	for (bit = 0, chunk = 0; mask != 0 || bit <= LAST_IMPORTANT_SD_EXTENSION; ++bit, mask >>= 1) {
 		if (((bit + 1) % 16) != 0) {
 			/* handle extension */
 			sd_ext_plugin *sdplug;
@@ -673,7 +673,7 @@ print_symlink_sd(const char *prefix, char **area /* position in stat-data */ ,
 #endif
 
 static int
-present_gaf_sd(struct inode *inode /* object being processed */ ,
+present_flags_sd(struct inode *inode /* object being processed */ ,
 	       char **area /* position in stat-data */ ,
 	       int *len /* remaining length */ )
 {
@@ -683,14 +683,11 @@ present_gaf_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-648", len != NULL);
 	assert("nikita-649", *len > 0);
 
-	if (*len >= (int) sizeof (reiser4_gen_and_flags_stat)) {
-		reiser4_gen_and_flags_stat *sd;
+	if (*len >= (int) sizeof (reiser4_flags_stat)) {
+		reiser4_flags_stat *sd;
 
-		sd = (reiser4_gen_and_flags_stat *) * area;
-
+		sd = (reiser4_flags_stat *) * area;
 		inode->i_flags = d32tocpu(&sd->flags);
-		inode->i_generation = d32tocpu(&sd->generation);
-
 		next_stat(len, area, sizeof *sd);
 		return 0;
 	} else
@@ -699,25 +696,24 @@ present_gaf_sd(struct inode *inode /* object being processed */ ,
 
 /* Audited by: green(2002.06.14) */
 static int
-save_len_gaf_sd(struct inode *inode UNUSED_ARG	/* object being
+save_len_flags_sd(struct inode *inode UNUSED_ARG	/* object being
 						 * processed */ )
 {
-	return sizeof (reiser4_gen_and_flags_stat);
+	return sizeof (reiser4_flags_stat);
 }
 
 /* Audited by: green(2002.06.14) */
 static int
-save_gaf_sd(struct inode *inode /* object being processed */ ,
+save_flags_sd(struct inode *inode /* object being processed */ ,
 	    char **area /* position in stat-data */ )
 {
-	reiser4_gen_and_flags_stat *sd;
+	reiser4_flags_stat *sd;
 
 	assert("nikita-650", inode != NULL);
 	assert("nikita-651", area != NULL);
 	assert("nikita-652", *area != NULL);
 
-	sd = (reiser4_gen_and_flags_stat *) * area;
-	cputod32(inode->i_generation, &sd->generation);
+	sd = (reiser4_flags_stat *) * area;
 	cputod32(inode->i_flags, &sd->flags);
 	*area += sizeof *sd;
 	return 0;
@@ -1232,19 +1228,19 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #endif
 			 .alignment = 8
 	},
-	[GEN_AND_FLAGS_STAT] = {
+	[FLAGS_STAT] = {
 				.h = {
 				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-				      .id = GEN_AND_FLAGS_STAT,
+				      .id = FLAGS_STAT,
 				      .pops = NULL,
-				      .label = "gaf-sd",
-				      .desc = "generation and attrs fields",
+				      .label = "flags-sd",
+				      .desc = "inode bit flags",
 				      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				,
-				.present = present_gaf_sd,
+				.present = present_flags_sd,
 				.absent = NULL,
-				.save_len = save_len_gaf_sd,
-				.save = save_gaf_sd,
+				.save_len = save_len_flags_sd,
+				.save = save_flags_sd,
 #if REISER4_DEBUG_OUTPUT
 				.print = NULL,
 #endif
