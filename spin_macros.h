@@ -457,6 +457,7 @@ static inline int  write_trylock_ ## NAME (TYPE *x)				\
 										\
 typedef struct { int foo; } NAME ## _rw_dummy
 
+/* this does what?  comment this whole file.... NIKITA-FIXME-HANS */
 #define UNDER_RW(obj_type, obj, rw, exp)	\
 ({						\
 	typeof (obj) __obj;			\
