@@ -163,14 +163,15 @@ typedef struct reiser4_capabilities_stat {
 
 typedef struct reiser4_cluster_stat {
 	/* 0 */ d8 cluster_shift;
-	/* 8 */
+	/* 1 */
 } PACKED reiser4_cluster_stat;
 
 typedef struct reiser4_crypto_stat {
 	/* secret key size, bits */
 	/*  0 */ d16 keysize;
 	/* secret key id */
-	/*  8 */ d8 keyid[0];
+	/*  2 */ d8 keyid[0];
+	/* 2 */
 } PACKED reiser4_crypto_stat;
 
 typedef struct reiser4_large_times_stat {
