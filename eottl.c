@@ -274,7 +274,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			  coord_t lcoord;
 			  coord_dup(&lcoord, coord);
 			  check_me("vs-733", coord_set_to_left(&lcoord) == 0);
-			  item_id_by_coord(&lcoord) == EXTENT_POINTER_ID || item_id_by_coord(&lcoord) == FROZEN_EXTENT_POINTER_ID;}
+			  item_is_extent(&lcoord);}
 	       ));
 
 	if (*outcome == NS_FOUND) {
