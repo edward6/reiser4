@@ -1745,6 +1745,7 @@ static void flush_bio_write (struct bio *bio)
  */
 static int flush_empty_queue (flush_position *pos, int finish)
 {
+	int flushed = 0; /* Track number of jnodes we've flushed already */
 	int refill = 0;
 	int ret = 0;
 
@@ -1783,16 +1784,27 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		if (JF_ISSET (check, ZNODE_FLUSH_BUSY)) {
 
 			if (finish == 0) {
-				capture_list_remove (node);
+				if ( flushed >= FLUSH_WRITTEN_THRESHOLD ) {
+					/* If we have already flushed some
+					   amount of jnodes, we return now
+					   in hope that this jnode will be
+					   cleaned next time we are called */
+					break;
+				}
+					
+/*				capture_list_remove (node);
 				capture_list_push_front (&pos->queue, node);
-
-				++ refill;
+*/
+				refill++;
 
 				trace_on (TRACE_FLUSH, "flush_empty_queue refills busy %s\n", flush_jnode_tostring (check));
 				continue;
 			}
 
 			JF_CLR (check, ZNODE_FLUSH_BUSY);
+		} else {
+			/* Increase number of flushed jnodes */
+			flushed ++;
 		}
 
 		/*
