@@ -33,8 +33,8 @@ typedef struct cde_entry_data {
 	cde_entry *entry;
 } cde_entry_data;
 
-/* plugin->item.common.* */
-reiser4_key *cde_max_key_inside(const coord_t * coord, reiser4_key * result);
+/* plugin->item.b.* */
+reiser4_key *cde_max_key_inside(const coord_t * coord, reiser4_key * result, void *);
 int cde_can_contain_key(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int cde_mergeable(const coord_t * p1, const coord_t * p2);
 unsigned cde_nr_units(const coord_t * coord);

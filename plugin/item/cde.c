@@ -392,7 +392,8 @@ cde_mergeable(const coord_t * p1 /* coord of first item */ ,
 /* ->max_key_inside() method for this item plugin. */
 reiser4_key *
 cde_max_key_inside(const coord_t * coord /* coord of item */ ,
-		   reiser4_key * result /* resulting key */ )
+		   reiser4_key * result /* resulting key */,
+		   void *p UNUSED_ARG)
 {
 	assert("nikita-1342", coord != NULL);
 
@@ -556,7 +557,7 @@ lookup_result cde_lookup(const reiser4_key * key /* key to search for */ ,
 
 	CHECKME(coord);
 
-	if (keygt(key, cde_max_key_inside(coord, &utmost_key))) {
+	if (keygt(key, cde_max_key_inside(coord, &utmost_key, 0))) {
 		/* @key is from another directory item */
 		coord->unit_pos = units(coord) - 1;
 		coord->between = AFTER_UNIT;
