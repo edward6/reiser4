@@ -463,8 +463,8 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			crypto_plugin *cplug = inode_crypto_plugin(inode);
 			assert("edward-35", cplug != NULL);
 			assert("edward-37", cryptcompress_inode_data(inode)->expkey != NULL);
-			xmemset(cryptcompress_inode_data(inode)->expkey, 0, (cplug->keysize)*sizeof(__u32));
-			reiser4_kfree_in_sb(cryptcompress_inode_data(inode)->expkey, (cplug->keysize)*sizeof(__u32), inode->i_sb);
+			xmemset(cryptcompress_inode_data(inode)->expkey, 0, (cplug->nr_keywords)*sizeof(__u32));
+			reiser4_kfree_in_sb(cryptcompress_inode_data(inode)->expkey, (cplug->nr_keywords)*sizeof(__u32), inode->i_sb);
 			inode_clr_flag(inode, REISER4_SECRET_KEY_INSTALLED);
 		}
 		if (inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
