@@ -1088,3 +1088,17 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
+reiser4progs/demos/.libs/lt-info
+reiser4progs/include/progs/.misc.h.swp
+reiser4progs/libaal/.deps/bitops.P
+reiser4progs/libaal/bitops.lo
+reiser4progs/progs/fsck/.deps/fsck.P
+reiser4progs/progs/fsck/.fsck.c.swp
+reiser4progs/progs/fsck/.libs/fsck.reiser4
+reiser4progs/progs/fsck/.libs/lt-fsck.reiser4
+reiser4progs/progs/fsck/Makefile
+reiser4progs/progs/fsck/Makefile.in
+reiser4progs/progs/fsck/fsck.reiser4
+reiser4progs/progs/libprogs/.deps/misc.P
+reiser4progs/progs/libprogs/Makefile
+reiser4progs/progs/libprogs/Makefile.in
