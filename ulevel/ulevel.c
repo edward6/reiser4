@@ -4960,12 +4960,14 @@ int real_main( int argc, char **argv )
 	declare_memory_pressure();
 	check_me( "nikita-2254", pthread_join( uswapper, NULL ) == 0 );
 
+	check_me( "nikita-2514", txn_end( &__context ) == 0 );
+	done_context( &__context );
 	/*sb = reiser4_get_current_sb ();*/
 	{
 		int fd;
 
-		fd = reiser4_get_current_sb ()->s_bdev->bd_dev;
-		call_umount (reiser4_get_current_sb ());
+		fd = s->s_bdev->bd_dev;
+		call_umount (s);
 		
 		close (fd);
 		

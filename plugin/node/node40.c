@@ -520,6 +520,10 @@ int node40_check( const znode *node /* node to check */,
 		prev = node -> ld_key;
 	else
 		prev = *min_key();
+
+	if( zload( node ) != 0 )
+		return 0;
+
 	old_offset = 0;
 	coord_init_zero( &coord );
 	coord.node = ( znode * ) node;
@@ -651,6 +655,7 @@ int node40_check( const znode *node /* node to check */,
 		spin_unlock_dk( current_tree );
 	}
 
+	zrelse( node );
 	return 0;
 }
 

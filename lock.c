@@ -665,7 +665,6 @@ void longterm_unlock_znode (lock_handle *handle)
 	if (znode_is_wlocked_once(node)) {
 
 		ON_DEBUG_MODIFY (WITH_DATA (node, znode_post_write (node)));
-		ON_DEBUG (node_check (node, REISER4_NODE_PANIC));
 
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
@@ -683,6 +682,7 @@ void longterm_unlock_znode (lock_handle *handle)
 			spin_unlock_znode(node);
 			ON_DEBUG(check_lock_data());
 			ON_DEBUG(check_lock_node_data(node));
+			ON_DEBUG(node_check (node, REISER4_NODE_PANIC));
 			forget_znode(handle);
 			assert( "nikita-2191", znode_invariant( node ) );
 			zput(node);

@@ -683,7 +683,7 @@ void done_context( reiser4_context *context /* context being released */ )
 	assert( "nikita-2093", parent == parent -> parent );
 	assert( "nikita-859", parent -> magic == context_magic );
 	assert( "vs-646", current -> journal_info == parent );
-	assert( "zam-686", !in_interrupt());
+	assert( "zam-686", !no_context);
 
 	if (context->grabbed_blocks != 0) {
 		warning( "zam-520", "%llu grabbed blocks were not freed, free them now",
