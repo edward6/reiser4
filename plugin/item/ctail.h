@@ -5,6 +5,9 @@
 
 /* cryptcompress object item. See ctail.c for description. */
 
+#define UCTAIL_NR_UNITS 1
+#define UCTAIL_SHIFT 0xff
+
 typedef struct ctail_item_format {
 	/* cluster shift */
 	d8 cluster_shift;
@@ -23,10 +26,9 @@ typedef enum {
 } dc_item_stat;
 
 typedef struct {
-	dc_item_stat stat;
+	int shift; /* we keep here a cpu value of cluster_shift field
+		      of ctail_item_format (see above) */
 } ctail_coord_extension_t;
-
-#define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE
 
 struct cut_list;
 
@@ -48,8 +50,9 @@ int cut_units_ctail(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
 		    carry_cut_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
 int kill_units_ctail(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		     carry_kill_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
-
+int ctail_ok(const coord_t * coord);
 int check_ctail(const coord_t * coord, const char **error);
+int coord_is_unprepped_ctail(const coord_t * coord);
 
 /* plugin->u.item.s.* */
 int read_ctail(struct file *, flow_t *, hint_t *);
@@ -65,6 +68,7 @@ int utmost_child_ctail(const coord_t *, sideof, jnode **);
 int scan_ctail(flush_scan *);
 int convert_ctail(flush_pos_t *);
 size_t inode_scaled_cluster_size(struct inode *);
+int cluster_shift_by_coord(const coord_t * coord);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 
