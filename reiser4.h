@@ -101,6 +101,11 @@
 
 #define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
+/**
+ * read all blocks when one block on the page is read
+ */
+#define REISER4_FORMATTED_CLUSTER_READ (0)
+
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )
 
@@ -208,6 +213,8 @@ typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "inode.h"
 #include "super.h"
+
+#include "memory.h"
 
 #endif /* __REISER4_H__ */
 
