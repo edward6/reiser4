@@ -220,8 +220,11 @@ error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
     if (lookup == -1)
 	return -1;
   
-    if (aal_block_get_nr(coord.node->block) == 
-	aal_block_get_nr(tree->root_node->block)) 
+    if (reiserfs_node_item_estimate(coord.node, hint, &coord.pos))
+        return -1;
+ 
+    if (reiserfs_node_get_level(coord.node) > REISERFS_LEAF_LEVEL ||
+	reiserfs_node_get_free_space(coord.node) < hint->length) 
     {
 	blk_t block_nr;
 	reiserfs_node_t *leaf;
@@ -262,15 +265,6 @@ error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
 	}
 	
     } else {
-	if (reiserfs_node_item_estimate(coord.node, hint, &coord.pos))
-	    return -1;
- 
-	if (reiserfs_node_get_free_space(coord.node) < hint->length) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Sorry, repacking is not supported yet!");
-	    return -1;
-	}
-    
 	if (reiserfs_node_item_insert(coord.node, &coord.pos, key, hint)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an internal item into the node %llu.", 

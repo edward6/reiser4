@@ -76,7 +76,7 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
 #define ih40_set_plugin_id(ih, val)		set_le16(ih, plugin_id, val)
 
 inline reiserfs_ih40_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
-    return (reiserfs_ih40_t *)((block->data + block->size) - pos - 1);
+    return ((reiserfs_ih40_t *)(block->data + block->size)) - pos - 1;
 }
 
 inline void *node40_item_at_pos(aal_block_t *block, uint32_t pos) {

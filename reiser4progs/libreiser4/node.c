@@ -164,7 +164,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     if (lookup == 1)
 	return 1;
    
-    if (!(item_plugin = reiserfs_node_item_get_plugin(node, pos->item))) {
+    if (!(item_plugin = reiserfs_node_item_get_plugin(node, pos->item - 1))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
 	    aal_block_get_nr(node->block), pos->item);
