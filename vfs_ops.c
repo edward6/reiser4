@@ -1555,6 +1555,8 @@ static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
 
 static int reiser4_parse_options( struct super_block * s, char *opt_string )
 {
+	int result;
+
 	opt_desc_t opts[] = {
 		{
 			/*
@@ -1623,11 +1625,34 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 					.arg4 = NULL
 				}
 			}
+		},
+		{
+			/*
+			 * atom_max_age=N
+			 *
+			 * Atoms older than N seconds will be forced
+			 * to commit. N is decimal.
+			 */
+			.name = "atom_max_age",
+			.type = OPT_FORMAT,
+			.u = {
+				.f = {
+					.format  = "%ld",
+					.nr_args = 1,
+					.arg1 = &get_super_private (s) -> txnmgr.atom_max_age,
+					.arg2 = NULL,
+					.arg3 = NULL,
+					.arg4 = NULL
+				}
+			}
 		}
 	};
 
 	get_super_private (s) -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
-	return parse_options( opt_string, opts, sizeof_array( opts ) );
+	get_super_private (s) -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	result = parse_options( opt_string, opts, sizeof_array( opts ) );
+	get_super_private (s) -> txnmgr.atom_max_age *= HZ;
+	return result;
 }
 
 static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
@@ -1658,6 +1683,8 @@ static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
 		    default_sd_plugin( super ) -> h.label );
 	return 0;
 }
+
+extern ktxnmgrd_context kdaemon;
 
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
@@ -1751,6 +1778,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	info->lplug = lplug;
 
 	txn_mgr_init (&info->tmgr);
+
+	result = ktxnmgrd_attach (& kdaemon, &info->tmgr);
+	if (result) {
+		goto error2;
+	}
 
 	/* initialize fake inode, formatted nodes will be read/written through
 	 * it */
@@ -1859,6 +1891,8 @@ static void reiser4_kill_super (struct super_block *s)
 
 	/* flushes transactions, etc. */
 	get_super_private (s)->lplug->release (s);
+
+	ktxnmgrd_detach (&info->tmgr);
 
 	done_formatted_fake (s);
 

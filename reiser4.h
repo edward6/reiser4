@@ -137,6 +137,18 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #define REISER4_ATOM_MAX_SIZE         (1000)
 
 /**
+ * Default value of maximal atom age (in jiffies). After reaching this age
+ * atom will be forced to commit, either synchronously or asynchronously. Can
+ * be overwritten by atom_max_age mount option.
+ */
+#define REISER4_ATOM_MAX_AGE          (30 * HZ)
+
+/*
+ * sleeping period for ktxnmrgd
+ */
+#define REISER4_TXNMGR_TIMEOUT  (5 * HZ)
+
+/**
  * start complaining after that many restarts in coord_by_key().
  *
  * This either means incredibly heavy contention for this part of a tree, or
@@ -277,6 +289,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <linux/seq_file.h>
 /* for balance_dirty_pages() */
 #include <linux/writeback.h>
+/* for suspend callback in ktxnmgrd.c */
+#include <linux/suspend.h>
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
@@ -407,6 +421,8 @@ typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "wander.h"
 #include "io_handle.h"
+
+#include "ktxnmgrd.h"
 
 #endif /* __REISER4_H__ */
 

@@ -113,8 +113,9 @@ ON_DEBUG (extern atomic_t flush_cnt;)
 				       TXN_INIT
 *****************************************************************************************/
 
+ktxnmgrd_context kdaemon;
+
 /* Initialize static variables in this file. */
-/* Audited by: umka (2002.06.13) */
 int
 txn_init_static (void)
 {
@@ -137,6 +138,8 @@ txn_init_static (void)
 		goto error;
 	}
 	
+	init_ktxnmgrd_context (& kdaemon);
+
 	return 0;
 
  error:
@@ -169,7 +172,6 @@ txn_done_static (void)
 }
 
 /* Initialize a new transaction manager.  Called when the super_block is initialized. */
-/* Audited by: umka (2002.06.13) */
 void
 txn_mgr_init (txn_mgr *mgr)
 {
@@ -184,8 +186,7 @@ txn_mgr_init (txn_mgr *mgr)
 	sema_init (&mgr->commit_semaphore, 1);
 }
 
-/* Free a new transaction manager. */
-/* Audited by: umka (2002.06.13) */
+/* Free transaction manager. */
 int
 txn_mgr_done (txn_mgr* mgr UNUSED_ARG)
 {
@@ -314,6 +315,7 @@ txn_end (reiser4_context *context)
 	txn_handle *txnh;
 	
 	assert("umka-283", context != NULL);
+	assert("nikita-2446", lock_counters()->spin_locked == 0);
 	
 	/* closing non top-level context---nothing to do */
 	if (context != context -> parent)
@@ -478,7 +480,7 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 /* Return true if an atom is currently "open". */
 /* Audited by: umka (2002.06.13) */
 static int
-atom_isopen (txn_atom *atom)
+atom_isopen (const txn_atom *atom)
 {
 	assert("umka-185", atom != NULL);
 	
@@ -569,7 +571,7 @@ atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
  * pointers to fuse into the atom with more pointers. */
 /* Audited by: umka (2002.06.13), umka (2002.16.15) */
 static int
-atom_pointer_count (txn_atom *atom)
+atom_pointer_count (const txn_atom *atom)
 {
 	assert("umka-187", atom != NULL);
 
@@ -614,18 +616,25 @@ atom_free (txn_atom *atom)
 	kmem_cache_free (_atom_slab, atom);
 }
 
+static int atom_is_dotard (const txn_atom *atom)
+{
+	return time_after (jiffies, 
+			   atom->start_time + 
+			   get_current_super_private ()->txnmgr.atom_max_age);
+}
+
 /* Return true if an atom should commit now.  This will be determined by aging.  For now
  * this says to commit after the atom has 20 captured nodes.  The routine is only called
  * when the txnh_count drops to 0.
  */
 /* Audited by: umka (2002.06.13) */
 static int
-atom_should_commit (txn_atom *atom)
+atom_should_commit (const txn_atom *atom)
 {
 	assert("umka-189", atom != NULL);
 	return 
 		(atom_pointer_count (atom) > get_current_super_private ()->txnmgr.atom_max_size) || 
-		(atom->flags & ATOM_FORCE_COMMIT);
+		atom_is_dotard (atom) || (atom->flags & ATOM_FORCE_COMMIT);
 }
 
 /* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
@@ -800,7 +809,7 @@ txn_mgr_force_commit (struct super_block *super)
 			spin_lock_txnh (txnh);
 
 			/* Set the atom to force committing */
-			atom->flags = ATOM_FORCE_COMMIT;
+			atom->flags |= ATOM_FORCE_COMMIT;
 
 			/* Add force-context txnh */
 			capture_assign_txnh_nolock (atom, txnh);
@@ -829,6 +838,77 @@ txn_mgr_force_commit (struct super_block *super)
 	__REISER4_EXIT (& local_context);
 	init_context (host_context, super);
 	return 0;
+}
+
+/**
+ * called periodically from ktxnmgrd to commit old atoms.
+ */
+int txn_commit_some (txn_mgr *mgr)
+{
+	int ret = 0;
+	txn_atom   *atom;
+	txn_handle *txnh;
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	assert ("nikita-2444", ctx != NULL);
+	assert ("nikita-2445", check_spin_is_locked (&mgr->daemon->guard));
+
+	txnh = ctx->trans;
+	spin_lock_txnmgr (mgr);
+
+	while (ret == 0) {
+
+		/* look for atom to commit */
+		for (atom = atom_list_front (& mgr->atoms_list);
+		     /**/ ! atom_list_end   (& mgr->atoms_list, atom);
+		     atom = atom_list_next  (atom)) {
+
+			spin_lock_atom (atom);
+
+			if ((atom->stage < ASTAGE_PRE_COMMIT) &&
+			    (atom->txnh_count == 0) &&
+			    atom_should_commit (atom))
+				break;
+
+			spin_unlock_atom (atom);
+		}
+
+		if (atom_list_end (& mgr->atoms_list, atom))
+			/* nothing found */
+			break;
+
+		spin_unlock_txnmgr (mgr);
+		spin_lock_txnh (txnh);
+
+		/* Set the atom to force committing */
+		atom->flags |= ATOM_FORCE_COMMIT;
+
+		/* Add force-context txnh */
+		capture_assign_txnh_nolock (atom, txnh);
+
+		spin_unlock_txnh (txnh);
+		spin_unlock_atom (atom);
+
+		/* we are about to release daemon spin lock, notify daemon it
+		 * has to rescan atoms */
+		++ mgr->daemon->rescan;
+		spin_unlock (&mgr->daemon->guard);
+		ret = txn_end (ctx);
+
+		if (ret == 0)
+			txn_begin (ctx);
+
+		spin_lock (&mgr->daemon->guard);
+		spin_lock_txnmgr (mgr);
+		/* repeat search again */
+	}
+
+	spin_unlock_txnmgr (mgr);
+
+	assert ("nikita-2447", check_spin_is_locked (&mgr->daemon->guard));
+
+	return ret;
 }
 
 /* FIXME: comment */
