@@ -609,9 +609,13 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	coord_init_zero( &coord );
 	init_lh( &lh );
 
-	info( "readdir: offset: %lli\n", f -> f_pos );
 	result = build_readdir_key( f, &arg.key );
-	print_key( "readdir", &arg.key );
+
+	trace_on( TRACE_DIR | TRACE_VFS_OPS, 
+		  "readdir: inode: %lli offset: %lli\n", 
+		  (__u64) f -> f_dentry -> d_inode -> i_ino, f -> f_pos );
+	trace_if( TRACE_DIR | TRACE_VFS_OPS, print_key( "readdir", &arg.key ) );
+
 	if( result == 0 ) {
 		result = coord_by_key( tree_by_inode( inode ), &arg.key, 
 				       &coord, &lh, 
@@ -1055,7 +1059,10 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 		args -> key = de_key;
 	}
 
-	info( "readdir: %s\n", name );
+	trace_on( TRACE_DIR | TRACE_VFS_OPS,
+		  "readdir_actor: %lli: name: %s, off: 0x%llx, ino: %lli\n",
+		  ( __u64 ) inode -> i_ino, name, get_key_objectid( &de_key ),
+		  get_key_objectid( &sd_key ) );
 
 	/*
 	 * send information about directory entry to the ->filldir() filler
@@ -1200,6 +1207,146 @@ const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
 					     * beginning of device */
 
+typedef enum {
+	OPT_STRING,
+	OPT_BIT,
+	OPT_FORMAT,
+	OPT_ONEOF
+} opt_type_t;
+
+typedef struct opt_desc {
+	const char *name;
+	opt_type_t type;
+	union {
+		char *string;
+		struct {
+			int   nr;
+			void *addr;
+		} bit;
+		struct {
+			const char *format;
+			int   nr_args;
+			void *arg1;
+			void *arg2;
+			void *arg3;
+			void *arg4;
+		} f;
+		struct {
+		} oneof;
+	} u;
+} opt_desc_t;
+
+static int parse_option( char *opt_string, opt_desc_t *opt )
+{
+	/* 
+	 * foo=bar, 
+	 * ^   ^  ^
+	 * |   |  +-- replaced to '\0'
+	 * |   +-- val_start
+	 * +-- opt_string
+	 */
+	char *val_start;
+
+	val_start = strchr( opt_string, '=' );
+	if( val_start != NULL ) {
+		*val_start = '\0';
+		++ val_start;
+	}
+
+	switch( opt -> type ) {
+	case OPT_STRING:
+		if( val_start == NULL ) {
+			warning( "nikita-2101", "Arg missing for \"%s\"",
+				 opt -> name );
+			return -EINVAL;
+		}
+		opt -> u.string = val_start;
+		break;
+	case OPT_BIT:
+		if( val_start != NULL )
+			warning( "nikita-2097", "Value ignored for \"%s\"",
+				 opt -> name );
+		set_bit( opt -> u.bit.nr, opt -> u.bit.addr );
+		break;
+	case OPT_FORMAT:
+		if( sscanf( val_start, opt -> u.f.format, 
+			    opt -> u.f.arg1,
+			    opt -> u.f.arg2,
+			    opt -> u.f.arg3,
+			    opt -> u.f.arg4 ) != opt -> u.f.nr_args ) {
+			warning( "nikita-2098", "Wrong conversion for \"%s\"",
+				 opt -> name );
+			return -EINVAL;
+		}
+		break;
+	case OPT_ONEOF:
+		not_implemented( "nikita-2099", "Oneof" );
+		break;
+	default:
+		wrong_return_value( "nikita-2100", "opt -> type" );
+		break;
+	}
+	return 0;
+}
+
+static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
+{
+	int result;
+	
+	result = 0;
+	while( ( result == 0 ) && opt_string && *opt_string ) {
+		int j;
+		char *next;
+
+		next = strchr( opt_string, ',' );
+		if( next != NULL ) {
+			*next = '\0';
+			++ next;
+		}
+		for( j = 0 ; j < nr_opts ; ++ j ) {
+			if( !strncmp( opt_string, opts[ j ].name, 
+				      strlen( opts[ j ].name ) ) )
+				result = parse_option( opt_string, &opts[ j ] );
+		}
+		opt_string = next;
+	}
+	return result;
+}
+
+static int reiser4_parse_options( struct super_block * s, char *opt_string )
+{
+	opt_desc_t opts[] = {
+		{
+			/*
+			 * trace=N
+			 *
+			 * set trace flags to be N for this mount. N can be C
+			 * numeric literal recognized by %i scanf specifier.
+			 * It is treated as bitfield filled by values of
+			 * debug.c:reiser4_trace_flags enum
+			 */
+			.name = "trace",
+			.type = OPT_FORMAT,
+			.u = {
+				.f = {
+					.format  = "%i",
+					.nr_args = 1,
+					/*
+					 * neat gcc feature: allow
+					 * non-constant initializers.
+					 */
+					.arg1 = &get_super_private (s) -> trace_flags,
+					.arg2 = NULL,
+					.arg3 = NULL,
+					.arg4 = NULL
+				}
+			}
+		},
+	};
+
+	return parse_options( opt_string, opts, sizeof_array( opts ) );
+}
+
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
@@ -1274,6 +1421,13 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	 * journal replay, reiser4_super_info_data initialization, read oid
 	 * allocator, etc */
 	result = lplug->get_ready (s, data);
+	if (result)
+		REISER4_EXIT (result);
+
+	/*
+	 * FIXME-NIKITA actually, options should be parsed by plugins also.
+	 */
+	result = reiser4_parse_options (s, data);
 	if (result)
 		REISER4_EXIT (result);
 
