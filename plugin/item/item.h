@@ -170,6 +170,8 @@ typedef struct {
 	/* converts flow @f to item data. @coord == 0 on insert */
 	int (*item_data_by_flow) (const coord_t *, const flow_t *, reiser4_item_data *);
 
+	void (*show) (struct seq_file *, coord_t *);
+
 #if REISER4_DEBUG_OUTPUT
 	/* used for debugging only, prints an ascii description of the
 	   item contents */
