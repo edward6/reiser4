@@ -915,6 +915,8 @@ typedef struct mkdir_thread_info {
 	int           max;
 	int           num;
 	struct inode *dir;
+	int           mkdir;
+	int           sleep;
 } mkdir_thread_info;
 
 void *mkdir_thread( void *arg )
@@ -937,8 +939,12 @@ void *mkdir_thread( void *arg )
 	dentry.d_name.name = dir_name;
 	dentry.d_name.len = strlen( dir_name );
 	SUSPEND_CONTEXT( old_context );
-	ret = info -> dir -> i_op -> mkdir( info -> dir, 
-					    &dentry, S_IFDIR | 0777 );
+	if( info -> mkdir )
+		ret = info -> dir -> i_op -> mkdir( info -> dir, 
+						    &dentry, S_IFDIR | 0777 );
+	else
+		ret = info -> dir -> i_op -> create( info -> dir, 
+						     &dentry, S_IFREG | 0777 );
 	rlog( "nikita-1638", "In directory: %s", dir_name );
 	reiser4_init_context( old_context, info -> dir -> i_sb );
 
@@ -953,7 +959,8 @@ void *mkdir_thread( void *arg )
 
 		fno = lc_rand_max( ( __u64 ) info -> max );
 		
-		sprintf( name, "!@#$%%-%lli-хлоп-Zzzz.", fno );
+		sprintf( name, "%i", i );
+//		sprintf( name, "%lli-хлоп-Zzzz.", fno );
 		dentry.d_name.name = name;
 		dentry.d_name.len = strlen( name );
 		SUSPEND_CONTEXT( old_context );
@@ -966,7 +973,7 @@ void *mkdir_thread( void *arg )
 		/* print_tree_rec( "tree", tree, 
 		   REISER4_NODE_PRINT_ZNODE ); */
 	  
-		if( lc_rand_max( 10ull ) < 2 ) {
+		if( info -> sleep && ( lc_rand_max( 10ull ) < 2 ) ) {
 			delay.tv_sec  = 0;
 			delay.tv_nsec = lc_rand_max( 1000000000ull );
 			nanosleep( &delay, NULL );
@@ -1019,7 +1026,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	} else if( !strcmp( argv[ 2 ], "print" ) ) {
 		print_tree_rec( "tree", tree, (unsigned) atoi( argv[ 3 ] ) );
 	} else if( !strcmp( argv[ 2 ], "load" ) ) {
-	} else if( !strcmp( argv[ 2 ], "dir" ) ) {
+	} else if( !strcmp( argv[ 2 ], "dir" ) || 
+		   !strcmp( argv[ 2 ], "mongo" ) ) {
 		reiser4_context *old_context;
 		int threads;
 		pthread_t *tid;
@@ -1142,6 +1150,11 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info.dir = f;
 		info.num = atoi( argv[ 4 ] );
 		info.max = info.num;
+		info.sleep = 0;
+		if( !strcmp( argv[ 2 ], "dir" ) )
+			info.mkdir = 1;
+		else
+			info.mkdir = 0;
 		if( threads > 1 ) {
 			for( i = 0 ; i < threads ; ++ i )
 				pthread_create( &tid[ i ], 
