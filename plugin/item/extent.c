@@ -3742,7 +3742,7 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 	coord_t * coord = tap->coord;
 	reiser4_extent *ext;
 	int nr_reserved = max_nr_processed;
-	struct inode * inode;
+	struct inode * inode = NULL;
 	int ret;
 	reiser4_block_nr start, len = 0;
 	int done = 0;
@@ -3772,7 +3772,8 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 		/* Discard not used block allocation. */
 		ret = reiser4_dealloc_blocks(&start, &len, BLOCK_GRABBED, 0, __FUNCTION__);
 	
-	iput(inode);
+	if (inode)
+		iput(inode);
 	if (ret)
 		return ret;
 	return (max_nr_processed - nr_reserved);

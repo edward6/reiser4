@@ -80,6 +80,8 @@ static void repacker_cursor_init (struct repacker_cursor * cursor, struct repack
 {
 	int backward = check_repacker_state_bit(repacker, REPACKER_GOES_BACKWARD);
 
+	xmemset(cursor, 0, sizeof (struct repacker_cursor));
+
 	blocknr_hint_init(&cursor->hint);
 	cursor->hint.backward = backward;
 

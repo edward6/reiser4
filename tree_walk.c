@@ -1073,6 +1073,7 @@ int tree_walk (const reiser4_key *start_key, int go_left, struct tree_walk_actor
 	handle.opaque = opaque;
 	handle.go_left = !!go_left;
 	handle.done = 0;
+	handle.node_completed = 0;
 
 	init_lh(&lock);
 
