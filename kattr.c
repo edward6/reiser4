@@ -118,6 +118,15 @@ DEFINE_SUPER_RO(12, nr_files_committed, "%llu", 64);
 DEFINE_SUPER_RO(13, tmgr.atom_count, "%llu", 32);
 DEFINE_SUPER_RO(14, tmgr.id_count, "%llu", 32);
 
+/* tree fields */
+DEFINE_SUPER_RO(15, tree.root_block, "%llu", 64);
+DEFINE_SUPER_RO(16, tree.height, "%llu", 32);
+DEFINE_SUPER_RO(17, tree.znode_epoch, "%llu", 64);
+DEFINE_SUPER_RO(18, tree.carry.new_node_flags, "%llx", 32);
+DEFINE_SUPER_RO(19, tree.carry.new_extent_flags, "%llx", 32);
+DEFINE_SUPER_RO(20, tree.carry.paste_flags, "%llx", 32);
+DEFINE_SUPER_RO(21, tree.carry.insert_flags, "%llx", 32);
+
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
@@ -133,6 +142,13 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_12.attr,
 	&kattr_super_ro_13.attr,
 	&kattr_super_ro_14.attr,
+	&kattr_super_ro_15.attr,
+	&kattr_super_ro_16.attr,
+	&kattr_super_ro_17.attr,
+	&kattr_super_ro_18.attr,
+	&kattr_super_ro_19.attr,
+	&kattr_super_ro_20.attr,
+	&kattr_super_ro_21.attr,
 	NULL
 };
 
