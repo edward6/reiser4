@@ -473,8 +473,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 
 #endif /* NEW_READ_IS_READY */
 
-	coord_init_zero (&coord);
-	init_lh (&lh);
 
 	to_read = f.length;
 	while (f.length) {
@@ -485,23 +483,29 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
                 page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
 
 		/* coord will point to current item on entry and next item on exit */
+		coord_init_zero (&coord);
+		init_lh (&lh);
 		result = find_next_item (file, &f.key, &coord, &lh,
 					 ZNODE_READ_LOCK);
-		if (result != CBK_COORD_FOUND)
+		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			 * -EIO */
+			done_lh (&lh);
 			break;
+		}
 
 		result = zload (coord.node);
 		if (result) {
+			done_lh (&lh);
 			break;
 		}
-		
+
 		iplug = item_plugin_by_coord (&coord);
 		id = item_plugin_id (iplug);
 		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
 			result = -EIO;
 			zrelse (coord.node);
+			done_lh (&lh);
 			break;
 		}
 
@@ -525,13 +529,12 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		/* call read method of found item */
 		result = iplug->s.file.read (inode, &coord, &lh, &f);
 		zrelse (coord.node);
+		done_lh (&lh);
 		if (result) {
 			break;
 		}
 	}
 
-
-	done_lh (&lh);
 	if( to_read - f.length ) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME (inode);
