@@ -31,7 +31,7 @@ typedef enum {
  * of specifying the sense of betweenness.
  */
 typedef enum {
-	EMPTY_UNIT,
+	EMPTY_NODE,
 	BEFORE_UNIT,
 	AT_UNIT,
 	AFTER_UNIT,
@@ -42,15 +42,16 @@ typedef enum {
 struct tree_coord {
 	/* node in a tree */
 	znode *node;
+
 	/* position of item within node */
-	//pos_in_node  item_pos;
+	pos_in_node  item_pos;
 	/* position of unit within item */
-	//pos_in_item  unit_pos;
+	pos_in_item  unit_pos;
 	/** 
 	 * position of coord w.r.t. to neighboring items and/or units. 
 	 * Values are taken from &between_enum above.
 	 */
-	//between_enum  between;
+	between_enum  between;
 	/*
 	 * FIXME-NIKITA possible future optimization: store plugin id of item
 	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
@@ -90,19 +91,19 @@ static inline sideof sideof_reverse (sideof side)
 extern void coord_init  (tree_coord *coord);
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
- * empty, it is positioned at the EMPTY_UNIT. */
+ * empty, it is positioned at the EMPTY_NODE. */
 extern void coord_init_first_unit (tree_coord *coord, znode *node);
 
 /* Initialize a coordinate to point at the last unit of the last item.  If the node is
- * empty, it is positioned at the EMPTY_UNIT. */
+ * empty, it is positioned at the EMPTY_NODE. */
 extern void coord_init_last_unit (tree_coord *coord, znode *node);
 
 /* Initialize a coordinate to before the first item.  If the node is empty, it is
- * positioned at the EMPTY_UNIT. */
+ * positioned at the EMPTY_NODE. */
 extern void coord_init_before_first_item (tree_coord *coord, znode *node);
 
 /* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
- * at the EMPTY_UNIT. */
+ * at the EMPTY_NODE. */
 extern void coord_init_after_last_item (tree_coord *coord, znode *node);
 
 /* Copy a coordinate. */
@@ -122,11 +123,10 @@ extern unsigned coord_num_units (const tree_coord *coord);
 /* Return the last valid unit number at the present item (i.e., coord_num_units() - 1). */
 extern unsigned coord_last_unit_pos (const tree_coord *coord);
 
-/* This is used to test whether the item position is valid for the current node.  If the
- * node is empty the coord must be set to EMPTY_UNIT and the item/unit positions must be 0.
- * Otherwise, the item position may be anywhere from before the first item to after the
- * last item, but its item position must be less than the number of items in the node. */
-extern int coord_is_item_pos_valid (const tree_coord *coord);
+/* This is used to test whether the item position is valid for the current node.  If this
+ * is true you can call methods of the item plugin.  This is not true for the
+ * EMPTY_NODE.  */
+extern int coord_is_item_plugin_valid (const tree_coord *coord);
 
 /* Returns true if the coordinate is positioned at an existing item, not before or after
  * an item.  It may be placed at, before, or after any unit within the item, whether
@@ -185,10 +185,16 @@ extern int coord_set_to_left (tree_coord *coord);
 extern int coord_sideof_unit (tree_coord *coord, sideof dir);
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-extern int coord_init_sideof_unit (tree_coord *coord, znode *node, sideof dir);
+extern void coord_init_sideof_unit (tree_coord *coord, znode *node, sideof dir);
 
-/* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-extern int coord_after_sideof_unit (tree_coord *coord, sideof dir);
+/* Calls either coord_is_before_first_unit or coord_is_after_last_unit depending on sideof argument. */
+extern int coord_is_after_sideof_unit (tree_coord *coord, sideof dir);
+
+/* Returns true if coord is set to before the Nth (existing) unit of an item. */
+extern int coord_is_before_nth_unit (tree_coord *coord, sideof dir);
+
+/* Returns true if coord is set to after the Nth (existing) unit of an item. */
+extern int coord_is_after_nth_unit (tree_coord *coord, sideof dir);
 
 
 

@@ -361,14 +361,14 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 			  __u32 flags /* print flags */, 
 			  FILE *dot /* dot-output */ )
 {
-	int i;
+	int ret;
 	tree_coord coord;
 	char buffer_l[ 100 ];
 	char buffer_r[ 100 ];
 
-	i = zload( node );
-	if( i != 0 ) {
-		info( "Cannot load/parse node: %i", i );
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
 		return;
 	}
 
@@ -378,9 +378,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		 sprintf_key( buffer_l, &node -> ld_key ),
 		 sprintf_key( buffer_r, &node -> rd_key ) );
 
-	coord_init_first_unit( &coord, node );
-	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
-		coord.item_pos = i;
+	for( coord_init_first_unit( &coord, node ); coord_next_item( &coord ) == 0; ) {
 
 		if( item_is_internal( &coord ) ) {
 			znode *child;
@@ -411,12 +409,12 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		      znode *node /* node to print */, 
 		      __u32 flags /* print flags */ )
 {
-	int i;
+	int ret;
 	tree_coord coord;
 
-	i = zload( node );
-	if( i != 0 ) {
-		info( "Cannot load/parse node: %i", i );
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
 		return;
 	}
 
@@ -433,12 +431,12 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_CHECK )
 		node_check( node, flags );
 
-	coord_init_first_unit( &coord, node );
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "children of node", znode_get_block( node ) );
 	}
-	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
-		coord.item_pos = i;
+
+	for( coord_init_first_unit( &coord, node ); coord_next_item( &coord ) == 0; ) {
+
 		if( item_is_internal(&coord ) ) {
 			znode *child;
 

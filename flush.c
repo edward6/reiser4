@@ -1864,7 +1864,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			break;
 		}
 
-		if (coord_after_sideof_unit (& scan->parent_coord, scan->direction)) {
+		if (coord_is_after_sideof_unit (& scan->parent_coord, scan->direction)) {
 
 			lock_handle save_lock;
 

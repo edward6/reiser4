@@ -473,7 +473,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 	 * - node plugin agrees with this
 	 *
 	 */
-	if( ( item_size <= znode_free_space( coord -> node ) ) && 
+	if( ( item_size <= znode_free_space( coord -> node ) ) &&
 	    ( ( coord -> item_pos != 0 ) || 
 	      ( coord -> unit_pos != 0 ) || 
 	      ( coord -> between == AFTER_UNIT ) ) &&

@@ -854,7 +854,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	if (coord_is_item_pos_valid( op -> u.insert.d -> coord )) {
+	if (coord_is_item_plugin_valid( op -> u.insert.d -> coord )) {
 		iplug = item_plugin_by_coord( op -> u.insert.d -> coord );
 		can_paste_here = iplug == op -> u.insert.d -> data -> iplug;
 	} else {
@@ -882,7 +882,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	assert( "nikita-987",
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
-	assert( "nikita-1286", coord_is_item_pos_valid( op -> u.insert.d -> coord ) );
+	assert( "nikita-1286", coord_is_item_plugin_valid( op -> u.insert.d -> coord ) );
 
 	assert( "nikita-992", iplug != NULL );
 	real_size = space_needed_for_op( node, op );
@@ -900,6 +900,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 					  real_size );
 	}
 	/* if we pasted at the beginning of the item, update item's key. */
+	/* FIXME: okay to replace with coord_is_leftmost_unit? */
 	if( ( op -> u.insert.d -> coord -> unit_pos == 0 ) &&
 	    ( op -> u.insert.d -> coord -> between != AFTER_UNIT ) ) {
 		reiser4_key item_key;

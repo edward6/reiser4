@@ -9,11 +9,11 @@
 #if 1
 
 #if REISER4_DEBUG
-/* Checks that EMPTY_UNIT settings are correct. */
+/* Checks that EMPTY_NODE settings are correct. */
 static int coord_empty_check (const tree_coord *coord)
 {
 	return (coord->node != NULL &&
-		coord->between == EMPTY_UNIT &&
+		coord->between == EMPTY_NODE &&
 		coord->item_pos == 0 &&
 		coord->unit_pos == 0);
 }
@@ -45,49 +45,49 @@ void coord_dup (tree_coord *new_coord, const tree_coord *old_coord)
 /* Initialize an invalid coordinate. */
 void coord_init (tree_coord *coord)
 {
-	coord_init_values (coord, NULL, 0, 0, EMPTY_UNIT);
+	coord_init_values (coord, NULL, 0, 0, EMPTY_NODE);
 }
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
- * empty, it is positioned at the EMPTY_UNIT. */
+ * empty, it is positioned at the EMPTY_NODE. */
 void coord_init_first_unit (tree_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	coord_init_values (coord, node, 0, 0, (is_empty ? EMPTY_UNIT : AT_UNIT));
+	coord_init_values (coord, node, 0, 0, (is_empty ? EMPTY_NODE : AT_UNIT));
 
 	assert ("jmacd-9801", coord_check (coord));
 }
 
 /* Initialize a coordinate to point at the last unit of the last item.  If the node is
- * empty, it is positioned at the EMPTY_UNIT. */
+ * empty, it is positioned at the EMPTY_NODE. */
 void coord_init_last_unit  (tree_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	coord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_UNIT : AT_UNIT));
+	coord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_NODE : AT_UNIT));
 
 	assert ("jmacd-9802", coord_check (coord));
 }
 
 /* Initialize a coordinate to before the first item.  If the node is empty, it is
- * positioned at the EMPTY_UNIT. */
+ * positioned at the EMPTY_NODE. */
 void coord_init_before_first_item (tree_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	coord_init_values (coord, node, 0, 0, (is_empty ? EMPTY_UNIT : BEFORE_UNIT));
+	coord_init_values (coord, node, 0, 0, (is_empty ? EMPTY_NODE : BEFORE_UNIT));
 
 	assert ("jmacd-9803", coord_check (coord));
 }
 
 /* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
- * at the EMPTY_UNIT. */
+ * at the EMPTY_NODE. */
 void coord_init_after_last_item (tree_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	coord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_UNIT : AFTER_UNIT));
+	coord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_NODE : AFTER_UNIT));
 
 	assert ("jmacd-9804", coord_check (coord));
 }
@@ -114,23 +114,23 @@ unsigned coord_last_unit_pos (const tree_coord * coord)
 	return coord_num_units (coord) - 1;
 }
 
-/* This is used to test whether the item position is valid for the current node.  If the
- * node is empty the coord must be set to EMPTY_UNIT and the item/unit positions must be 0.
- * Otherwise, the item position may be anywhere from before the first item to after the
- * last item, but its item position must be less than the number of items in the node. */
-int coord_is_item_pos_valid (const tree_coord * coord)
+/* This is used to test whether the item position is valid for the current node.  If this
+ * is true you can call methods of the item plugin.  This is not true for the
+ * EMPTY_NODE.  */
+int coord_is_item_plugin_valid (const tree_coord * coord)
 {
 	switch (coord->between) {
-	case EMPTY_UNIT:
+	case EMPTY_NODE:
 		assert ("jmacd-9807", coord_empty_check (coord));
-		return 1;
+		return 0;
 
 	case BEFORE_UNIT:
 	case AT_UNIT:
 	case AFTER_UNIT:
+		return coord->item_pos < coord_num_items (coord);
 	case BEFORE_ITEM:
 	case AFTER_ITEM:
-		return coord->item_pos < coord_num_items (coord);
+		return 0;
 	}
 
 	impossible ("jmacd-9901", "unreachable");
@@ -142,7 +142,7 @@ int coord_is_item_pos_valid (const tree_coord * coord)
 int coord_is_existing_item (const tree_coord * coord)
 {
 	switch (coord->between) {
-	case EMPTY_UNIT:
+	case EMPTY_NODE:
 		assert ("jmacd-9807", coord_empty_check (coord));
 		return 0;
 
@@ -164,7 +164,7 @@ int coord_is_existing_item (const tree_coord * coord)
 int coord_is_existing_unit (const tree_coord *coord)
 {
 	switch (coord->between) {
-	case EMPTY_UNIT:
+	case EMPTY_NODE:
 		assert ("jmacd-9807", coord_empty_check (coord));
 		return 0;
 
@@ -186,7 +186,7 @@ int coord_is_existing_unit (const tree_coord *coord)
  * true for empty nodes nor coordinates positioned before the first item. */
 int coord_is_leftmost_unit (const tree_coord *coord)
 {
-	assert ("jmacd-9808", coord_is_item_pos_valid (coord));
+	assert ("jmacd-9808", coord_is_item_plugin_valid (coord));
 	return (coord->between == AT_UNIT &&
 		coord->item_pos == 0 &&
 		coord->unit_pos == 0);
@@ -196,7 +196,7 @@ int coord_is_leftmost_unit (const tree_coord *coord)
  * true for empty nodes nor coordinates positioned after the last item. */
 int coord_is_rightmost_unit (const tree_coord *coord)
 {
-	assert ("jmacd-9809", coord_is_item_pos_valid (coord));
+	assert ("jmacd-9809", coord_is_item_plugin_valid (coord));
 	return (coord->between == AT_UNIT &&
 		coord->item_pos == coord_num_units (coord) - 1 &&
 		coord->unit_pos == coord_last_unit_pos (coord));
@@ -211,7 +211,7 @@ int coord_next_unit (tree_coord *coord)
 
 	/* If the node is empty, set it appropriately. */
 	if (items == 0) {
-		coord->between  = EMPTY_UNIT;
+		coord->between  = EMPTY_NODE;
 		coord->item_pos = 0;
 		coord->unit_pos = 0;
 		return 1;
@@ -226,7 +226,7 @@ int coord_next_unit (tree_coord *coord)
 	}
 
 	switch (coord->between) {
-	case EMPTY_UNIT:
+	case EMPTY_NODE:
 		/* The node has changed, change state as if it was before the first unit. */
 		assert ("jmacd-9810", coord_empty_check (coord));
 	case BEFORE_UNIT:
