@@ -1870,7 +1870,8 @@ uncapture_page(struct page *pg)
 repeat:
 	LOCK_JNODE(node);
 
-	assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));
+	eflush_del(node, 1/* page is locked */);
+	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));*/
 
 	atom = atom_locked_by_jnode(node);
 	UNLOCK_JNODE (node);
