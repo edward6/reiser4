@@ -61,6 +61,11 @@ static int key40_confirm(reiserfs_key40_t *key) {
     return 1;
 }
 
+static errno_t key40_check(reiserfs_key40_t *key, int flags) {
+    aal_assert("vpf-137", key != NULL, return -1);
+    return -1;
+}
+
 static void key40_set_type(reiserfs_key40_t *key, uint32_t type) {
     aal_assert("umka-634", key != NULL, return);
     set_key40_type(key, (reiserfs_key40_minor_t)type);
@@ -244,6 +249,7 @@ static reiserfs_plugin_t key40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.confirm = (int (*)(const void *))key40_confirm,
+	.check = (errno_t (*)(const void *, int))key40_check,
 	.minimal = (const void *(*)(void))key40_minimal,
 	.maximal = (const void *(*)(void))key40_maximal,
 	.compare = (int (*)(const void *, const void *))key40_compare,

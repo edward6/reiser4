@@ -115,12 +115,15 @@ static reiserfs_plugin_t oid40_plugin = {
 	.alloc = (oid_t (*)(reiserfs_entity_t *))oid40_alloc,
 	.dealloc = (void (*)(reiserfs_entity_t *, oid_t))oid40_dealloc,
 	.sync = (errno_t (*)(reiserfs_entity_t *))oid40_sync,
+	.check = NULL,
 #else
 	.create = NULL,
 	.alloc = NULL,
 	.dealloc = NULL,
 	.sync = NULL,
+	.check = NULL, 
 #endif
+	.confirm = NULL,
 	.next = (oid_t (*)(reiserfs_entity_t *))oid40_next,
 	.used = (oid_t (*)(reiserfs_entity_t *))oid40_used,
 	
