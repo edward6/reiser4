@@ -323,7 +323,7 @@ inline int handle_eottl( cbk_handle *h /* cbk handle */,
 		return 1;
 	}
 
-	if( !h -> flags & CBK_FOR_INSERT ) {
+	if( !( h -> flags & CBK_FOR_INSERT ) ) {
 		/*
 		 * tree traversal is not for insertion. Just return
 		 * CBK_COORD_NOTFOUND.
