@@ -1033,6 +1033,9 @@ again:
 			spin_unlock_txnmgr(mgr);
 			spin_lock_txnh(txnh);
 
+			/* Add force-context txnh */
+			capture_assign_txnh_nolock(atom, txnh);
+
 			ret = force_commit_atom_nolock(txnh);
 
 			if(ret)
