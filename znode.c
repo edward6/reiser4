@@ -675,6 +675,10 @@ zget (reiser4_tree *tree,
 
 	assert ("jmacd-503", (result != NULL) && ! IS_ERR (result));
 
+#if REISER4_DEBUG
+	if (!blocknr_is_fake(blocknr) && *blocknr != 0) reiser4_check_block(blocknr, 1); 
+#endif
+
 	/* Check for invalid tree level, return -EIO */
 	if (znode_get_level (result) != level) {
 		warning ("jmacd-504",
