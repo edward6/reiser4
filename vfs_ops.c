@@ -1132,8 +1132,10 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 void
 reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 {
-	if (dentry->d_fsdata != NULL)
+	if (dentry->d_fsdata != NULL) {
 		reiser4_kfree(dentry->d_fsdata, sizeof (reiser4_dentry_fsdata));
+		dentry->d_fsdata = NULL;
+	}
 }
 
 /* Release reiser4 dentry. This is d_op->d_delease() method. */
@@ -1749,26 +1751,38 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		PLUG_OPT("plugin.dir", dir, &info->plug.d),
 		PLUG_OPT("plugin.hash", hash, &info->plug.h),
 
-#if REISER4_BSD_PORT
 		{
-		 /* turn on BSD-style gid assignment */
-		 .name = "bsdgroups",
-		 .type = OPT_BIT,
-		 .u = {
-		       .bit = {
-			       .nr = REISER4_BSD_GID,
-			       .addr = &info->fs_flags}
-		       }
-		 },
-#endif
+			/* turn on BSD-style gid assignment */
+			.name = "bsdgroups",
+			.type = OPT_BIT,
+			.u = {
+				.bit = {
+					.nr = REISER4_BSD_GID,
+					.addr = &info->fs_flags
+				}
+			}
+		},
+
+		{
+			/* turn on 32 bit times */
+			.name = "32bittimes",
+			.type = OPT_BIT,
+			.u = {
+				.bit = {
+					.nr = REISER4_32_BIT_TIMES,
+					.addr = &info->fs_flags
+				}
+			}
+		},
 
 #if REISER4_TRACE_TREE
 		{
-		 .name = "trace_file",
-		 .type = OPT_STRING,
-		 .u = {
-		       .string = &trace_file_name}
-		 }
+			.name = "trace_file",
+			.type = OPT_STRING,
+			.u = {
+				.string = &trace_file_name
+			}
+		}
 #endif
 	};
 
