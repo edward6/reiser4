@@ -446,11 +446,11 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 				jrelse(cj);
 			}
 
-			jput (wj);
+			jput (cj);
 			jdrop(cj);
 
 			jput (wj);
-			jdrop(cj);
+			jdrop(wj);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
@@ -647,7 +647,6 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 		start = end + 1;
 	}
 
- out:
 	release_and_unlock_bnode (bnode);
 
 	return ret;
