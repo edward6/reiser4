@@ -24,21 +24,20 @@
 #include <linux/fs.h> /* for struct super_block  */
 
 /* ondisk super block for format 40. It is 512 bytes long */
-typedef struct format40_disk_super_block {	
-	/*   0 */ d64 block_count; /* number of block in a filesystem */
-	/*   8 */ d64 free_blocks; /* number of free blocks */
-	/*  16 */ d64 root_block;  /* filesystem tree root block */
-		  d16 tail_policy;
-	/*  32 */ d64 oid;	   /* smallest free objectid */
-	/*  40 */ d64 file_count;  /* number of files in a filesystem */
-	/*  48 */ d64 flushes;	   /* number of times super block was
+typedef struct format40_disk_super_block {
+	/*   0 */ d32 mkfs_id;     /* unique identifier of fs */
+	/*   4 */ d64 block_count; /* number of block in a filesystem */
+	/*  12 */ d64 free_blocks; /* number of free blocks */
+	/*  20 */ d64 root_block;  /* filesystem tree root block */
+	/*  28 */ d16 tail_policy;
+	/*  36 */ d64 oid;	   /* smallest free objectid */
+	/*  44 */ d64 file_count;  /* number of files in a filesystem */
+	/*  52 */ d64 flushes;	   /* number of times super block was
 				    * flushed. Needed if format 40
 				    * will have few super blocks */
-	/*  56 */ char magic[16];  /* magic string R4Sb-Default */
-	/*  72 */ d16 tree_height; /* height of filesystem tree */
-	
-	/*  74 */ d16 padd [3];
-	/*  80 */ char not_used [420];
+	/*  60 */ char magic[16];  /* magic string R4Sb-Default */
+	/*  76 */ d16 tree_height; /* height of filesystem tree */
+	/*  84 */ char not_used [428];
 } format40_disk_super_block;
 
 
