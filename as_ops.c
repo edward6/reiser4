@@ -224,7 +224,7 @@ static int reiser4_prepare_write(struct file *file, struct page *page,
 	
 	if (result != 0) {
 		SetPageError(page);
-		ClearUpTodate(page);
+		ClearPageUptodate(page);
 		/* here we do not unlock the page, as loop back device driver
 		   expects it will be locked after ->prepare_write()
 		   finish. */
