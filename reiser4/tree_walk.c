@@ -254,7 +254,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			if (handle->owner != NULL)
 				reiser4_unlock_znode(handle);
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
-			return 0;
+			return -ENOENT;
 		}
 
 		if (handle->owner != NULL) {
