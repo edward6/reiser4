@@ -733,6 +733,8 @@ int zload( znode *node /* znode to load */ )
 	if( ! ZF_ISSET( node, ZNODE_LOADED ) ) {
 		reiser4_tree *tree;
 
+		add_d_ref( node );
+
 		spin_unlock_znode( node );
 		
 		tree = current_tree;
@@ -749,15 +751,19 @@ int zload( znode *node /* znode to load */ )
 		 */
 		result = tree -> ops -> read_node( tree, ZJNODE( node ) );
 		reiser4_stat_znode_add( zload_read );
-		spin_lock_znode( node );
 
-		if( likely( ( result == 0 ) && !znode_is_loaded( node ) ) ) {
-			ZF_SET( node, ZNODE_LOADED );
-			add_d_ref( node );
-			result = zparse( node );
-			if( unlikely( result != 0 ) ) {
-				zrelse_nolock( node );
+		if( likely( result == 0 ) ) {
+			assert( "nikita-2075", spin_znode_is_locked( node ) );
+			if( likely( !znode_is_loaded( node ) ) ) {
+				ZF_SET( node, ZNODE_LOADED );
+				result = zparse( node );
+				if( unlikely( result != 0 ) ) {
+					zrelse_nolock( node );
+				}
 			}
+		} else {
+			spin_lock_znode( node );
+			zrelse_nolock( node );
 		}
 	} else
 		add_d_ref( node );
@@ -771,21 +777,29 @@ int zload( znode *node /* znode to load */ )
 int zinit_new( znode *node /* znode to initialise */ )
 {
 	int   result;
+	reiser4_tree *tree;
 
 	assert( "nikita-1234", node != NULL );
-	assert( "umka-274", current_tree != NULL );
-	assert( "nikita-1908", current_tree -> ops -> allocate_node != NULL );
+	tree = current_tree;
+	assert( "umka-274", tree != NULL );
+	assert( "nikita-1908", tree -> ops -> allocate_node != NULL );
 
-	result = current_tree -> ops -> 
-		allocate_node( current_tree, ZJNODE( node ) );
-	spin_lock_znode( node );
-	if( likely( ( result == 0 ) && !znode_is_loaded( node ) ) ) {
-		ZF_SET( node, ZNODE_LOADED );
-		ZF_SET( node, ZNODE_ALLOC );
-		add_d_ref( node );
-		assert( "nikita-1235", znode_is_loaded( node ) );
-		assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
-		result = node_plugin_by_node( node ) -> init( node );
+	add_d_ref( node );
+	result = tree -> ops -> allocate_node( tree, ZJNODE( node ) );
+	if( likely( result == 0 ) ) {
+		assert( "nikita-2076", spin_znode_is_locked( node ) );
+		if( likely( !znode_is_loaded( node ) ) ) {
+			ZF_SET( node, ZNODE_LOADED );
+			ZF_SET( node, ZNODE_ALLOC );
+			assert( "nikita-1235", znode_is_loaded( node ) );
+			assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
+			result = node_plugin_by_node( node ) -> init( node );
+			if( result != 0 )
+				zrelse_nolock( node );
+		}
+	} else {
+		spin_lock_znode( node );
+		zrelse_nolock( node );
 	}
 	spin_unlock_znode( node );
 	return result;
@@ -1134,11 +1148,6 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		/*
 		 * Condition 7+: Flags
 		 */
-		_ergo( ZF_ISSET( node, ZNODE_LOADED ), zdata( node ) != NULL ) &&
-
-		_ergo( atomic_read( &node -> d_count ) > 0, 
-		      ZF_ISSET( node, ZNODE_LOADED ) ) &&
-
 		_ergo( !znode_above_root( node ) && 
 		      ZF_ISSET( node, ZNODE_LOADED ), 
 		      !disk_addr_eq( znode_get_block( node ), 
