@@ -2269,7 +2269,7 @@ static int flush_empty_queue (flush_position *pos)
 	}
 
 	blk_run_queues ();
-	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue length %u\n", pos->queue_len); });
+	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue length %u\n", pos->queue_num); });
 
 	return ret;
 }
