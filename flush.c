@@ -134,6 +134,8 @@ static int           flush_pos_set_point          (flush_position *pos, jnode *n
 static void          flush_pos_release_point      (flush_position *pos);
 static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_handle *parent_load, znode_lock_mode mode);
 
+static const char*   flush_pos_tostring           (flush_position *pos);
+
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
  * early-flush dirty blocks).
@@ -376,7 +378,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 		goto exit;
 	}
 
-	if (child == NULL || ! jnode_is_dirty (child)) {
+	if (child == NULL || ! jnode_check_dirty (child)) {
 		ret = 0;
 		goto exit;
 	}
@@ -634,17 +636,18 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		/* Emptied the right node, repeat. */
 		done_zh (& right_load);
 		done_lh (& right_lock);
-		any_shifted = 1;
+		any_shifted |= 1;
 		goto RIGHT_AGAIN;
 
 	case SQUEEZE_TARGET_FULL:
 		/* Fully squeezed this node.  Keep right lock. */
+		any_shifted |= ! coord_is_after_rightmost (& at_right);
 		break;
 	}
 
 	/* If anything is shifted at an upper level, we should not allocate any further
 	 * because the child is no longer rightmost. */
-	if (call_depth > 0 && (any_shifted || ! coord_is_after_rightmost (& at_right))) {
+	if (any_shifted && znode_get_level (node) != LEAF_LEVEL) {
 		ret = 0;
 		goto exit;
 	}
@@ -840,6 +843,8 @@ static int flush_squalloc_right (flush_position *pos)
 
 	/* Step 1: Re-allocate all the ancestors as long as the position is a leftmost
 	 * child. */
+	trace_on (TRACE_FLUSH, "squalloc_right alloc ancestors: %s\n", flush_pos_tostring (pos));
+
 	if ((ret = flush_alloc_ancestors (pos))) {
 		goto exit;
 	}
@@ -850,6 +855,10 @@ static int flush_squalloc_right (flush_position *pos)
 	if (flush_pos_unformatted (pos)) {
 
 		int is_dirty;
+
+		trace_on (TRACE_FLUSH, "squalloc_right unformatted: %s\n", flush_pos_tostring (pos));
+
+		assert ("jmacd-8712", item_is_extent (& pos->parent_coord));
 
 		/* This allocates extents up to the end of the current twig and returns
 		 * pos->parent_coord set to the next item. */
@@ -871,9 +880,13 @@ static int flush_squalloc_right (flush_position *pos)
 				/* If the parent_coord is not positioned over an extent
 				 * (at this twig level), we should descend to the
 				 * formatted child. */
+				trace_on (TRACE_FLUSH, "squalloc_right unformatted_right_is_dirty: %s\n", flush_pos_tostring (pos));
+				
 				if (! item_is_extent (& pos->parent_coord) && (ret = flush_pos_to_child_and_alloc (pos))) {
 					goto exit;
 				}
+
+				trace_on (TRACE_FLUSH, "squalloc_right unformatted_goto_step2: %s\n", flush_pos_tostring (pos));
 				goto STEP_2;
 			} else {
 				/* We are finished at this level. */
@@ -897,6 +910,8 @@ static int flush_squalloc_right (flush_position *pos)
 
 	if (flush_pos_valid (pos)) {
 		/* Step 3: Formatted and unformatted cases. */
+		trace_on (TRACE_FLUSH, "squalloc_right changed ancestors: %s\n", flush_pos_tostring (pos));
+
 		if ((ret = flush_squalloc_changed_ancestors (pos))) {
 			goto exit;
 		}
@@ -904,6 +919,7 @@ static int flush_squalloc_right (flush_position *pos)
 
 	if (flush_pos_valid (pos)) {
 		/* Repeat. */
+		trace_on (TRACE_FLUSH, "squalloc_right repeat: %s\n", flush_pos_tostring (pos));
 		goto STEP_2;
 	}
 
@@ -2154,6 +2170,38 @@ reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
 {
 	return & pos->preceder;
 }
+
+#if REISER4_DEBUG
+static const char* flush_pos_tostring (flush_position *pos)
+{
+	static char fmtbuf[256];
+	fmtbuf[0] = 0;
+
+	if (pos->point != NULL) {
+		sprintf (fmtbuf+strlen(fmtbuf), "pt: %p ", pos->point);
+	}
+
+	if (pos->parent_lock.node != NULL) {
+		sprintf (fmtbuf+strlen(fmtbuf), "par: %p", pos->parent_lock.node);
+
+		if (coord_is_before_leftmost (& pos->parent_coord)) {
+			sprintf (fmtbuf+strlen(fmtbuf), "[left]");
+		} else if (coord_is_after_rightmost (& pos->parent_coord)) {
+			sprintf (fmtbuf+strlen(fmtbuf), "[right]");
+		} else {
+			sprintf (fmtbuf+strlen(fmtbuf), "[%s %u,%u/%u %s]",
+				 coord_tween_tostring (pos->parent_coord.between),
+				 pos->parent_coord.item_pos,
+				 pos->parent_coord.unit_pos,
+				 coord_num_units (& pos->parent_coord),
+				 item_is_extent (& pos->parent_coord) ? "ext" : (item_is_internal (& pos->parent_coord) ? "int" : "other"));
+		}
+			
+	}
+
+	return fmtbuf;
+}
+#endif
 
 /*
  * Make Linus happy.

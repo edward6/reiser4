@@ -266,6 +266,10 @@ extern int coord_sideof_unit (coord_t *coord, sideof dir);
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_item( coord ) == 0 ; )
 
+#if REISER4_DEBUG
+extern const char * coord_tween_tostring (between_enum n);
+#endif
+
 /*****************************************************************************************/
 /* 				     COORD/ITEM METHODS                                  */
 /*****************************************************************************************/

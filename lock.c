@@ -719,7 +719,8 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	spin_unlock_znode(node);
 
-	/* minus one reference from lh->node */
+	/* minus one reference from handle->node */
+	handle->node = NULL;
 	zput(node);
 	ON_DEBUG( check_lock_data() );
 	ON_DEBUG( check_lock_node_data( node ) );

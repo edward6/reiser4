@@ -974,7 +974,7 @@ int coord_is_after_last_unit (coord_t *coord)
 }
 
 /* Audited by: green(2002.06.15) */
-static const char * coord_tween (between_enum n)
+const char * coord_tween_tostring (between_enum n)
 {
 	switch (n) {
 	case BEFORE_UNIT: return "before unit";
@@ -998,7 +998,7 @@ void coord_print (const char * mes, const coord_t * coord, int node)
 	}
 	info ("%s: item_pos = %d, unit_pos %d, tween=%s\n",
 	      mes, coord->item_pos, coord->unit_pos, 
-	      coord_tween (coord->between));
+	      coord_tween_tostring (coord->between));
 	if (node)
 		print_znode( "\tnode", coord -> node );
 }
