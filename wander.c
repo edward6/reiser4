@@ -93,19 +93,16 @@ static const d64 *get_last_flushed_tx (struct super_block * s)
 	return &h->last_flushed_tx;
 }
 
-static void format_journal_footer (struct super_block *s, capture_list_head * tx)
+static void format_journal_footer (struct super_block *s, jnode * txhead)
 {
 	struct reiser4_super_info_data * private;
 	struct journal_footer * h;
-	jnode * txhead;
 
 	private = get_super_private(s);
 
-	assert ("zam-581", tx != NULL);
+	assert ("zam-581", txhead != NULL);
 	assert ("zam-493", private != NULL);
 	assert ("zam-494", private->journal_header != NULL);
-
-	txhead = capture_list_front (tx);
 
 	jload_and_lock (private->journal_footer);
 
@@ -271,7 +268,7 @@ static int update_journal_header (capture_list_head * tx_list)
 /* This function is called after write-back is finished. We update journal
  * footer block and free blocks which were occupied by wandered blocks and
  * transaction log records */
-static int update_journal_footer (capture_list_head * tx_list)
+static int update_journal_footer (jnode * txhead)
 {
 	struct super_block * s = reiser4_get_current_sb();
 	reiser4_super_info_data * private = get_super_private(s);
@@ -280,7 +277,7 @@ static int update_journal_footer (capture_list_head * tx_list)
 
 	int ret;
 
-	format_journal_footer (s, tx_list);
+	format_journal_footer (s, txhead);
 
 	ret = submit_write (jf, 1, jnode_get_block(jf), NULL);
 	if (ret) return ret;
@@ -828,7 +825,7 @@ int reiser4_write_logs (void)
 	ret = done_io_handle(&io_hdl);
 	if (ret) goto up_and_ret;
 
-	if ((ret = update_journal_footer(&tx_list)))
+	if ((ret = update_journal_footer(capture_list_front(&tx_list))))
 		goto up_and_ret;
 
 	post_write_back_hook();
@@ -848,6 +845,88 @@ int reiser4_write_logs (void)
 	return ret;
 }
 
+/** replay one transaction: restore and write overwrite set in place */
+static int replay_transaction (const reiser4_block_nr * log_rec_block_p, 
+			       const reiser4_block_nr * end_block)
+{
+	capture_list_head overwrite;
+	reiser4_block_nr log_rec_block = *log_rec_block_p;
+	jnode * log;
+	int ret;
+
+	log = jnew();
+	if (log == NULL) return -ENOMEM; 
+
+	capture_list_init(&overwrite);
+
+	while (log_rec_block != *end_block) {
+		struct log_record_header * LH;
+		struct log_entry * LE;
+
+		jnode_set_block(log, &log_rec_block);
+
+		ret = jload(log);
+		if (ret < 0) { jfree(log); return ret; }
+
+		LH = (struct log_record_header *)jdata(log);
+		log_rec_block = d64tocpu(&LH->next_block);
+
+		LE = (struct log_entry *)(LH + 1);
+
+		/* restore overwrite set from log record content */
+		while (1) {
+			reiser4_block_nr block;
+			jnode * node;
+
+			node = jnew();
+			if (node == NULL) { ret = -ENOMEM; goto free_ow_set; }
+
+			block = d64tocpu(&LE->wandered);
+			if (block == 0) break;
+
+			jnode_set_block(node, &block);
+			ret = jload(node);
+
+			if (ret < 0) { jfree (node); goto free_ow_set; }
+
+			block = d64tocpu(&LE->original);
+
+			assert ("zam-603", block != 0);
+
+			jnode_set_block(node, &block);
+
+			capture_list_push_back (&overwrite, node);
+
+			++ LE;
+		}
+
+		jrelse(log);
+		jdrop(log);
+	}
+
+	{       /* write wandered set in place */
+		struct io_handle io;
+
+		init_io_handle(&io);
+		submit_batched_write(&overwrite, &io);
+		ret = done_io_handle(&io);
+
+		if (ret) goto free_ow_set;
+	}
+
+	ret = -EAGAIN;
+
+ free_ow_set:
+	while (!capture_list_empty) {
+		jnode * cur = capture_list_pop_front(&overwrite);
+		jrelse(cur);
+		jdrop(cur);
+		jfree(cur);
+	}
+
+	return ret;
+}
+
 
 /* find oldest not flushed transaction and flush it */
 static int replay_oldest_transaction(struct super_block * s)
@@ -862,6 +941,7 @@ static int replay_oldest_transaction(struct super_block * s)
 
 	reiser4_block_nr prev_tx;
 	reiser4_block_nr last_flushed_tx;
+	reiser4_block_nr log_rec_block = 0;
 
 	jnode * tx_head;
 
@@ -884,17 +964,15 @@ static int replay_oldest_transaction(struct super_block * s)
 		return 0;
 	}
 
-	/* FIXME: journal replaying is not ready yet */
-	warning ("zam-602", "not flushed transactions found");
+	/* FIXME: journal replaying is not read yet */
+	trace_on(TRACE_REPLAY, "not flushed transactions found.");
 	return 0;
-
 
 	if ((tx_head = jnew()) == NULL) return -ENOMEM;
 
 	/* searching for oldest not flushed transaction */
 	while (1) {
 		struct tx_header * T;
-		reiser4_block_nr log_rec_block;
 
 		jnode_set_block(tx_head, &prev_tx);
 
@@ -906,19 +984,35 @@ static int replay_oldest_transaction(struct super_block * s)
 		prev_tx = d64tocpu(&T->prev_tx);
 		log_rec_block = d64tocpu(&T->next_block);
 
-		if (prev_tx == last_flushed_tx) break;
+		if (prev_tx == last_flushed_tx) {
+			/* get free block count from committed transaction
+			 * head and set per-fs free block counter, it will be
+			 * used in journal footer update also */
+			reiser4_set_free_blocks(s, d64tocpu(&T->free_blocks));
+			break;
+		}
 
+		jrelse(tx_head);
 		jdrop(tx_head);
 	}
 
-	/* flushing transaction which we found */
+	trace_on(TRACE_REPLAY, "not flushed transaction found at block %llX", 
+		 (unsigned long long)(*jnode_get_block(tx_head)));
 
+	jref(tx_head);
+	jrelse(tx_head);
 
+	ret = replay_transaction(&log_rec_block, jnode_get_block(tx_head));
+	if (ret) goto out;
+
+	ret = update_journal_footer(tx_head);
+ out:
+	jput(tx_head);
+	jdrop(tx_head);
 	jfree(tx_head);
 
-	return -EAGAIN;
+	return ret;
 }
-
 
 /* reiser4 replay journal procedure */
 int reiser4_replay_journal (struct super_block * s)
