@@ -256,6 +256,7 @@ done_formatted_fake(struct super_block *super)
 	sinfo = get_super_private_nocheck(super);
 
 	if (sinfo->fake != NULL) {
+		assert("vs-1426", sinfo->fake->i_data.nrpages == 0);
 		iput(sinfo->fake);
 		sinfo->fake = NULL;
 	}
