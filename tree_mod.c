@@ -143,6 +143,10 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 			if (result == 0) {
 				coord_t *in_parent;
 				++tree->height;
+
+				/* recalculate max balance overhead */
+				tree->estimate_one_insert = estimate_one_insert_item(tree);
+
 				tree->root_block = *znode_get_block(new_root);
 				znode_make_dirty(fake);
 				/* new root is a child of "fake" node */
@@ -262,6 +266,10 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		fake = handle_for_fake.node;
 		tree->root_block = *new_root_blk;
 		--tree->height;
+
+		/* recalculate max balance overhead */
+		tree->estimate_one_insert = estimate_one_insert_item(tree);
+
 		assert("nikita-1202", tree->height = znode_get_level(new_root));
 
 		znode_make_dirty(fake);

@@ -112,6 +112,11 @@ struct reiser4_tree {
 	/* disk address of root node of a tree */
 	reiser4_block_nr root_block;
 
+	/* insert item maximal balance overhead: number of nodes which may get dirty during one item insertion into tree
+	   of current height. This field is added because calculation of balance overhead in estimations appeared to be
+	   a significant cpu consumer */
+	reiser4_block_nr estimate_one_insert;
+
 	/* level of the root node. If this is 1, tree consists of root
 	    node only */
 	tree_level height;
@@ -495,10 +500,11 @@ RW_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 
 /* estimate api. Implementation is in estimate.c */
 reiser4_block_nr estimate_internal_amount(reiser4_block_nr childen, tree_level);
-reiser4_block_nr estimate_one_insert_item(tree_level);
-reiser4_block_nr estimate_one_insert_into_item(tree_level);
+reiser4_block_nr estimate_one_insert_item(reiser4_tree *);
+reiser4_block_nr estimate_one_insert_into_item(reiser4_tree *);
 reiser4_block_nr estimate_insert_flow(tree_level);
-reiser4_block_nr estimate_one_item_removal(tree_level);
+reiser4_block_nr estimate_one_item_removal(reiser4_tree *);
+reiser4_block_nr calc_estimate_one_insert(tree_level);
 
 #define XLOCK_TREE(tree, takeread)				\
 	(takeread ? RLOCK_TREE(tree) : WLOCK_TREE(tree))

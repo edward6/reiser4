@@ -1511,6 +1511,7 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 
 	tree->root_block = *root_block;
 	tree->height = height;
+	tree->estimate_one_insert = calc_estimate_one_insert(height);
 	tree->nplug = nplug;
 
 	tree->znode_epoch = 1ull;

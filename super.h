@@ -153,6 +153,9 @@ struct reiser4_super_info_data {
 	/* amount of blocks in a file system */
 	__u64 block_count;
 
+	/* inviolable reserve */
+	reiser4_block_nr blocks_reserved;
+
 	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
 

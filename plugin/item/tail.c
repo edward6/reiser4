@@ -343,18 +343,18 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
    FIXME-VS: we may want to call grab_space with BA_CAN_COMMIT flag but that would require all that complexity with
    sealing coord, releasing long term lock and validating seal later */
 static int
-insert_flow_reserve(tree_level height)
+insert_flow_reserve(reiser4_tree *tree)
 {
 	grab_space_enable();
-	return reiser4_grab_space(estimate_insert_flow(height) + estimate_one_insert_into_item(height), 0, "for insert_flow");
+	return reiser4_grab_space(estimate_insert_flow(tree->height) + estimate_one_insert_into_item(tree), 0, "for insert_flow");
 }
 
 /* one block gets overwritten and stat data may get updated */
 static int
-overwrite_reserve(tree_level height)
+overwrite_reserve(reiser4_tree *tree)
 {
 	grab_space_enable();
-	return reiser4_grab_space(1 + estimate_one_insert_into_item(height), 0, "overwrite_reserve");
+	return reiser4_grab_space(1 + estimate_one_insert_into_item(tree), 0, "overwrite_reserve");
 }
 
 /* plugin->u.item.s.file.write
@@ -392,7 +392,7 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 			}
 
 			if (!grabbed)
-				result = insert_flow_reserve(znode_get_tree(loaded)->height);
+				result = insert_flow_reserve(znode_get_tree(loaded));
 			if (!result)
 				result = insert_flow(coord, lh, f);
 			if (f->length)
@@ -401,7 +401,7 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 
 		case OVERWRITE_ITEM:
 			if (!grabbed)
-				result = overwrite_reserve(znode_get_tree(loaded)->height);
+				result = overwrite_reserve(znode_get_tree(loaded));
 			if (!result)
 				result = overwrite_tail(coord, f);
 			break;
