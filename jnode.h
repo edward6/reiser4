@@ -131,7 +131,10 @@ typedef enum {
 
        /** znode was not captured during locking (it might so be because
 	* ->level != LEAF_LEVEL and lock_mode == READ_LOCK) */
-       JNODE_MISSED_IN_CAPTURE = 17
+       JNODE_MISSED_IN_CAPTURE = 17,
+
+       /* write is in progress */
+       JNODE_WRITEBACK         = 18
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -191,6 +194,7 @@ extern jnode* jnode_of_page   (struct page* pg);
 extern jnode* page_next_jnode (jnode *node);
 extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
+extern void   jnode_set_clean_nolock (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
 extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
