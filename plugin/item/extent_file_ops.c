@@ -1093,7 +1093,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		 * it is possible to have hole page with jnode, if page was
 		 * eflushed previously.
 		 */
-		j = jlookup(current_tree, oid, index);
+		j = jfind(mapping, index);
 		if (j == NULL) {
 			zero_page(page);
 			return 0;
@@ -1123,7 +1123,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		break;
 		
 	case UNALLOCATED_EXTENT:
-		j = jlookup(current_tree, oid, index);
+		j = jfind(mapping, index);
 		assert("nikita-2688", j);
 		assert("vs-1426", jnode_page(j) == NULL);
 
