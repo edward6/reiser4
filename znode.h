@@ -137,14 +137,10 @@ struct jnode
 	/* the real blocknr (as far as the parent node is concerned) */
 	reiser4_block_nr blocknr;
 
-	/* the struct page pointer
-	 *
-	 * FIXME-NIKITA pointer to page is not enough when block size is
-	 * smaller than page size.
-	 *
-	 * FIXME_JMACD yes, this needs thinking
+	/* 
+	 * pointer to jnode data.
 	 */
-	struct page *pg;
+	void        *data;
 
 	/* atom the block is in, if any */
 	txn_atom    *atom;
@@ -234,8 +230,6 @@ struct znode {
 	/** plugin of node attached to this znode. NULL if znode is not
 	    loaded. */
 	node_plugin           *nplug;
-	/** pointer to node content */
-	char                  *data;
 
 	/** version of znode data. This is increased on each modification. */
 	__u64                  version;
@@ -496,7 +490,6 @@ extern int zunload( znode *node );
 extern int zrelse( znode *node );
 extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
 
-extern char *zdata( const znode *node );
 extern unsigned znode_size( const znode *node );
 extern unsigned znode_free_space( znode *node );
 extern int znode_is_loaded( const znode *node );
@@ -608,6 +601,8 @@ extern void   jput( jnode *node );
 
 /* Make it look like various znode functions exist instead of treating znodes as
  * jnodes in znode-specific code. */
+#define znode_page(x)               jnode_page ( ZJNODE(x) )
+#define zdata(x)                    jdata ( ZJNODE(x) )
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
@@ -623,6 +618,19 @@ extern void   jput( jnode *node );
 #define spin_trylock_znode(x)       spin_trylock_jnode ( ZJNODE(x) )
 #define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
+
+/** get the page of jnode */
+static inline char *jdata (const jnode *node)
+{
+	assert( "nikita-1415", node != NULL );
+	return node -> data;
+}
+
+/** get the page of jnode */
+static inline struct page *jnode_page (const jnode *node)
+{
+	return virt_to_page (jdata (node));
+}
 
 /** get the level field for a jnode */
 static inline tree_level jnode_get_level (const jnode *node)
@@ -641,7 +649,7 @@ static inline void jnode_set_level (jnode      *node,
 /* Get the index of a block. */
 static inline unsigned long jnode_get_index (jnode *node)
 {
-	return node->pg->index;
+	return jnode_page (node)->index;
 }
 
 /* returns true if node is formatted, i.e, it's not a znode */

@@ -1539,9 +1539,9 @@ static int flush_enqueue_point (flush_position *pos)
 		pos->point->pg->virtual = zdata (JZNODE (pos->point));
 	}
 */
-	assert ("jmacd-9921", pos->point->pg != NULL);
+	assert ("jmacd-9921", jnode_page (pos->point) != NULL);
 
-	bvec->bv_page   = pos->point->pg;
+	bvec->bv_page   = jnode_page (pos->point);
 	bvec->bv_len    = PAGE_SIZE;
 	bvec->bv_offset = PAGE_SIZE * (*jnode_get_block (pos->point));
 
@@ -1602,10 +1602,10 @@ static int jnode_lock_parent_coord (jnode *node,
 		/* Unformatted node case: Generate a key for the extent entry,
 		 * search in the tree using ncoord_by_key, which handles
 		 * locking for us. */
-		struct inode *ino = node->pg->mapping->host;
+		struct inode *ino = jnode_page (node)->mapping->host;
 		reiser4_key   key;
 		file_plugin  *fplug = inode_file_plugin (ino);
-		loff_t        loff = node->pg->index << PAGE_CACHE_SHIFT;
+		loff_t        loff = jnode_get_index (node) << PAGE_CACHE_SHIFT;
 
 		assert ("jmacd-1812", coord != NULL);
 
