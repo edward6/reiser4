@@ -173,6 +173,7 @@ SRC		:= \
 		   kcond.c \
 		   seal.c \
 		   io_handle.c \
+		   trace.c \
 		   ktxnmgrd.c
 
 OBJ		:= $(SRC:.c=.o)

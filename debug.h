@@ -193,6 +193,9 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #define REISER4_TRACE (1)
 #endif
 
+/** collect tree traces */
+#define REISER4_TRACE_TREE (1)
+
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
 #define trace_if( flags, e ) 							\

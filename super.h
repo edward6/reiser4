@@ -108,6 +108,11 @@ struct reiser4_super_info_data {
 	__u32    trace_flags;
 
 	/**
+	 * file where tracing goes (if enabled).
+	 */
+	reiser4_trace_file trace_file;
+
+	/**
 	 * per-fs debugging flags. This is bitmask populated from 
 	 * reiser4_debug_flags enum.
 	 */
@@ -160,6 +165,8 @@ struct reiser4_super_info_data {
 		format_40_super_info   format_40;
 		test_layout_super_info test_layout;
 	} u;
+
+	unsigned long optimal_io_size;
 
 	struct {
 		tail_plugin * t;

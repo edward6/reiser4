@@ -416,6 +416,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 
 static lookup_result coord_by_handle( cbk_handle *handle )
 {
+	write_trace_stamp( handle -> tree, tree_lookup, handle -> key );
 	/* first check whether "key" is in cache of recent lookups. */
 	if( cbk_cache_search( handle ) == 0 )
 		return handle -> result;

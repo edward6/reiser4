@@ -33,6 +33,7 @@ CFLAGS_kcond.o += -O0
 CFLAGS_seal.o += -O0
 CFLAGS_io_handle.o += -O0
 CFLAGS_ktxnmgrd.o += -O0
+CFLAGS_trace.o += -O0
 CFLAGS_all-reiser4.o += -O0
 endif
 ifdef CONFIG_REISER4_ALL_IN_ONE
@@ -67,6 +68,7 @@ reiser4-objs := \
 	   kcond.o \
 	   seal.o \
 	   io_handle.o \
+	   trace.o \
 	   ktxnmgrd.o
 
 obj-$(CONFIG_REISER4_FS) += plugin/
