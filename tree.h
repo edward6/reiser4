@@ -62,18 +62,19 @@ typedef struct cbk_cache_slot {
       [cbk-cache-invariant]
 */
 typedef struct cbk_cache {
+	/* serializator */
+	reiser4_rw_data guard;
 	int nr_slots;
 	/* head of LRU list of cache slots */
 	cbk_cache_list_head lru;
 	/* actual array of slots */
 	cbk_cache_slot *slot;
-	/* serializator */
-	reiser4_spin_data guard;
 } cbk_cache;
 
-#define spin_ordering_pred_cbk_cache(cache) (1)
+#define rw_ordering_pred_cbk_cache(cache) (1)
 
-SPIN_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
+RW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
+
 
 TS_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
@@ -252,7 +253,8 @@ typedef enum {
 	CBK_READA    = (1 << 3),  /* original: readahead leaves which contain items of certain file */
 	CBK_READDIR_RA = (1 << 4), /* readdir: readahead whole directory and all its stat datas */
 	CBK_DKSET    = (1 << 5),
-	CBK_EXTENDED_COORD = (1 << 6) /* coord_t is actually */
+	CBK_EXTENDED_COORD = (1 << 6), /* coord_t is actually */
+	CBK_IN_CACHE = (1 << 7) /* node is already in cache */
 } cbk_flags;
 
 /* insertion outcome. IBK = insert by key */
