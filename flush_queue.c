@@ -568,6 +568,7 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 		 * freed. (as in mpage_writepages()) */
 		if ((current->flags & PF_MEMALLOC) &&
 		    !PageActive(pg) && PageLRU(pg)) {
+			page_cache_get (pg);
 			if (!pagevec_add(&pvec, pg))
 				pagevec_deactivate_inactive(&pvec);
 		}
