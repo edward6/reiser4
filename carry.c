@@ -324,6 +324,11 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *
  */
 
+/* AUDIT: Above long comment (20% of a file) is outdated, pools are now living
+   in separate file, some functions it refers to (eg make_space) do not
+   live in this file, too. 
+   In short: Somebody knowledgeable should revise that comment */
+
 #include "reiser4.h"
 
 /* level locking/unlocking */
@@ -356,6 +361,7 @@ static int add_new_root( carry_level *level, carry_node *node, znode *fake );
  * For usage, see comment at the top of fs/reiser4/carry.c
  *
  **/
+/* Audited by: green(2002.06.17) */
 int carry( carry_level *doing /* set of carry operations to be performed */, 
 	   carry_level *done  /* set of nodes, already performed at the
 			       * previous level. NULL in most cases */ )
@@ -510,6 +516,7 @@ for( node = ( carry_node * ) pool_level_list_back( &level -> nodes ),		\
  * node and counter and operations carried upward from this node.
  *
  **/
+/* Audited by: green(2002.06.17) */
 static int carry_on_level( carry_level *doing /* queue of carry operations to
 					       * do on this level */, 
 			   carry_level *todo  /* queue where new carry
@@ -594,6 +601,7 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
  * manages all its locks by itself, don't worry about this.
  * 
  */
+/* Audited by: green(2002.06.17) */
 carry_op *post_carry( carry_level *level    /* queue where new operation is to
 					     * be posted at */, 
 		      carry_opcode op       /* opcode of operation */,
@@ -632,11 +640,12 @@ carry_op *post_carry( carry_level *level    /* queue where new operation is to
  * Allocate new carry node from pool and add it to the @queue.  Normal carry
  * users should use post_carry() instead. This function is only useful
  * for batching, nodes on the "base" level have to kept locked while
- * operations sre batched for the parent level. Such nodes are supplied to
+ * operations are batched for the parent level. Such nodes are supplied to
  * reiser4_add_to_carry() so that carry will unlock all these nodes after
  * batched operations performed.
  *
  */
+/* Audited by: green(2002.06.17) */
 carry_node *add_to_carry( znode *node         /* node to be added */, 
 			  carry_level *queue  /* queue where node to be added
 					       * to */ )
@@ -658,18 +667,21 @@ carry_node *add_to_carry( znode *node         /* node to be added */,
 }
 
 /* number of carry operations in a @level */
+/* Audited by: green(2002.06.17) */
 int carry_op_num( const carry_level *level )
 {
 	return level -> ops_num;
 }
 
 /* number of carry nodes in a @level */
+/* Audited by: green(2002.06.17) */
 int carry_node_num( const carry_level *level )
 {
 	return level -> nodes_num;
 }
 
 /* initialise carry queue */
+/* Audited by: green(2002.06.17) */
 void init_carry_level( carry_level *level /* level to initialise */, 
 		       carry_pool *pool /* pool @level will allocate objects
 					 * from */ )
@@ -685,6 +697,7 @@ void init_carry_level( carry_level *level /* level to initialise */,
 }
 
 /* initialise pools within queue */
+/* Audited by: green(2002.06.17) */
 void init_carry_pool( carry_pool *pool /* pool to initialise */ )
 {
 	assert( "nikita-945", pool != NULL );
@@ -696,6 +709,7 @@ void init_carry_pool( carry_pool *pool /* pool to initialise */ )
 }
 
 /* finish with queue pools */
+/* Audited by: green(2002.06.17) */
 void done_carry_pool( carry_pool *pool UNUSED_ARG /* pool to destroy */ )
 {
 	reiser4_done_pool( &pool -> op_pool );
@@ -712,6 +726,7 @@ void done_carry_pool( carry_pool *pool UNUSED_ARG /* pool to destroy */ )
  * automatically. To control ordering use @order and @reference parameters.
  *
  */
+/* Audited by: green(2002.06.17) */
 carry_node *add_carry( carry_level *level     /* &carry_level to add node
 					       * to */, 
 		       pool_ordering order    /* where to insert: at the
@@ -741,6 +756,7 @@ carry_node *add_carry( carry_level *level     /* &carry_level to add node
  * @order and @reference parameters.
  *
  */
+/* Audited by: green(2002.06.17) */
 carry_op *add_op( carry_level *level  /* &carry_level to add node to */, 
 		  pool_ordering order /* where to insert: at the beginning of
 				       * @level, before @reference, after
@@ -770,6 +786,7 @@ carry_op *add_op( carry_level *level  /* &carry_level to add node to */,
  * parent, it has corresponding bit (ZNODE_NEW) set in zstate.
  *
  */
+/* Audited by: green(2002.06.17) */
 carry_node *find_begetting_brother( carry_node *node /* node to start search
 						      * from */, 
 				    carry_level *kin UNUSED_ARG /* level to
@@ -797,6 +814,7 @@ carry_node *find_begetting_brother( carry_node *node /* node to start search
 }
 
 /* lock all carry nodes in @level */
+/* Audited by: green(2002.06.17) */
 static int lock_carry_level( carry_level *level /* level to lock */ )
 {
 	int         result;
@@ -828,6 +846,7 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
  * neighbor's right delimiting key to conincide with least key in @node.
  *
  */
+/* Audited by: green(2002.06.17) */
 static void sync_dkeys( carry_node *node /* node to update */, 
 			carry_level *doing UNUSED_ARG /* level @node is in */ )
 {
@@ -867,6 +886,7 @@ static void sync_dkeys( carry_node *node /* node to update */,
 }
 
 /* unlock all carry nodes in @level */
+/* Audited by: green(2002.06.17) */
 static void unlock_carry_level( carry_level *level /* level to unlock */, 
 				int failure /* true if unlocking owing to
 					     * failure */ )
@@ -911,6 +931,7 @@ static void unlock_carry_level( carry_level *level /* level to unlock */,
  *
  * Unlock nodes and release all allocated resources
  */
+/* Audited by: green(2002.06.17) */
 static void done_carry_level( carry_level *level /* level to finish */ )
 {
 	carry_node *node;
@@ -940,6 +961,7 @@ static void done_carry_level( carry_level *level /* level to finish */ )
  * fills ->real_node from this lock handle.
  *
  */
+/* Audited by: green(2002.06.17) */
 int lock_carry_node_tail( carry_node *node /* node to complete locking of */ )
 {
 	assert( "nikita-1052", node != NULL );
@@ -978,6 +1000,7 @@ int lock_carry_node_tail( carry_node *node /* node to complete locking of */ )
  * operation (->real_node field of carry_node) from base.
  *
  **/
+/* Audited by: green(2002.06.17) */
 int lock_carry_node( carry_level *level /* level @node is in */, 
 		     carry_node  *node  /* node to lock */ )
 {
@@ -1085,6 +1108,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
  * same node.
  *
  **/
+/* Audited by: green(2002.06.17) */
 static void unlock_carry_node( carry_node *node /* node to be released */, 
 			       int failure      /* 0 if node is unlocked due
 						 * to some error */ )
@@ -1162,6 +1186,7 @@ followed by remount, but this can wait for later versions.
 it more before deciding if it should be done.  -Hans
  *
  */
+/* Audited by: green(2002.06.17) */
 static void fatal_carry_error( carry_level *doing UNUSED_ARG /* carry level
 							      * where
 							      * unrecoverable
@@ -1186,6 +1211,7 @@ static void fatal_carry_error( carry_level *doing UNUSED_ARG /* carry level
  * locked.
  *
  */
+/* Audited by: green(2002.06.17) */
 static int add_new_root( carry_level *level /* carry level in context of which
 					     * operation is performed */, 
 			 carry_node *node   /* carry node for existing root */, 
@@ -1233,6 +1259,7 @@ static int add_new_root( carry_level *level /* carry level in context of which
  * This is carry related routing that calls new_node() to allocate new
  * node.
  */
+/* Audited by: green(2002.06.17) */
 carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 					      * node */, 
 			   carry_node *ref   /* carry node after which new
