@@ -17,6 +17,7 @@ typedef enum {
 struct reiser4_space_allocator {
 	union {
 		test_space_allocator test;
+/* ZAM-FIXME-HANS: comment this */
 		void *generic;
 	} u;
 };

@@ -13,6 +13,8 @@
 /* this file contains:
    - dummy implementation of space allocation plugin, it is for debugging only */
 
+/* ZAM-FIXME-HANS: write one paragraph describing how this works, particularly the concepts surrounding P */
+
 /* plugin->u.space_allocator.init_allocator */
 int
 init_allocator_test(reiser4_space_allocator * allocator, struct super_block *super UNUSED_ARG, void *arg)
@@ -29,6 +31,7 @@ init_allocator_test(reiser4_space_allocator * allocator, struct super_block *sup
 	spin_unlock(&allocator->u.test.guard);
 
 #if 0
+/* ZAM-FIXME-HANS: remove this or not */
 	/* FIXME-GREEN This should be done by disk-layout */
 	get_super_private(super)->blocks_free = ~(__u64) 0;
 #endif
@@ -58,6 +61,7 @@ alloc_blocks_test(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 	min_free = allocator->u.test.new_block_nr;
 
 	if (hint->blk < min_free) {
+/* ZAM-FIXME-HANS: comment below is unclear */
 		/* hint is set such that we can not return
 		   desired, return at least desired amount */
 		hint->blk = min_free;
