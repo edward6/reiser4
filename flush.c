@@ -212,6 +212,10 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 			}
 		}
 
+		/* FIXME: Funny business here.  We set an unformatted point at the
+		 * left-end of the scan, but after that an unformatted flush position sets
+		 * pos->point to NULL.  This is awkward and may cause problems later.
+		 * Think about it. */
 		if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
 			goto failed;
 		}
