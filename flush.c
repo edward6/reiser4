@@ -960,9 +960,12 @@ skip_jnode(const jnode *node)
 
 		inode = jnode_mapping(node)->host;
 		info = reiser4_inode_data(inode);
-		spin_lock_inode(inode);
+		/*
+		 * taking inode spin lock here would violate lock ordering
+		 * (jnode spin lock is already held). But this is not strictly
+		 * necessary, because whole this check is but an optimization.
+		 */
 		ghost = (inode->i_state & I_GHOST);
-		spin_unlock_inode(inode);
 		if (ghost)
 			return 1;
 	}
