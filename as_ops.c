@@ -161,8 +161,8 @@ handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround
 In first case coord is set by reiser4 read code. This case is detected by  if
 (is_in_reiser4_context()).
 
-In second case, coord is not set and currently, reiser4_readpages does not do
-anything.
+In second case, coord is not set and currently, reiser4_readpages does
+nothing.
 */
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
