@@ -60,9 +60,15 @@ extent_size(const coord_t * coord, unsigned nr)
 
 /* plugin->u.item.b.max_key_inside */
 reiser4_key *
-extent_max_key_inside(const coord_t * coord, reiser4_key * key)
+extent_max_key_inside(const coord_t * coord, reiser4_key * key, void *p)
 {
 	item_key_by_coord(coord, key);
+	if (p) {
+		struct coord_item_info *info;
+
+		info = (struct coord_item_info *)p;
+		info->key = *key;
+	}
 	set_key_offset(key, get_key_offset(max_key()));
 	return key;
 }
@@ -245,9 +251,10 @@ unsigned
 extent_nr_units(const coord_t * coord)
 {
 	/* length of extent item has to be multiple of extent size */
+#if REISER4_DEBUG
 	if ((item_length_by_coord(coord) % sizeof (reiser4_extent)) != 0)
-		impossible("vs-10", "Wrong extent item size: %i, %i",
-			   item_length_by_coord(coord), sizeof (reiser4_extent));
+		reiser4_panic("vs-10", "assertion failed: (item_length_by_coord(coord) %% sizeof (reiser4_extent)) != 0");
+#endif
 	return item_length_by_coord(coord) / sizeof (reiser4_extent);
 }
 
@@ -269,7 +276,7 @@ lookup_result extent_lookup(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-414", keygt(key, &item_key));
 
-	if (keygt(key, extent_max_key_inside(coord, &item_key))) {
+	if (keygt(key, extent_max_key_inside(coord, &item_key, 0))) {
 		/* @key is key of another file */
 		coord->unit_pos = nr_units - 1;
 		coord->between = AFTER_UNIT;
@@ -430,8 +437,7 @@ extent_copy_units(coord_t * target, coord_t * source,
 		coord.unit_pos = from;
 		extent_unit_key(&coord, &key);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, 0	/*info */
-		    );
+		node_plugin_by_node(target->node)->update_item_key(target, &key, 0/*info */);
 	}
 
 	xmemcpy(to_ext, from_ext, free_space);
@@ -489,13 +495,11 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 	reiser4_extent *ext;
 	unsigned i;
 	reiser4_block_nr start, length;
-	oid_t oid;
 	reiser4_key key;
 
 	assert ("zam-811", znode_is_write_locked(coord->node));
 	
 	item_key_by_coord(coord, &key);
-	oid = get_key_objectid(&key);
 
 	ext = extent_item(coord) + from;
 	for (i = 0; i < count; i++, ext++) {
@@ -532,7 +536,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 	}
 	return 0;
 }
-
+#if 0
 static reiser4_key *
 last_key_in_extent(const coord_t * coord, reiser4_key * key)
 {
@@ -542,6 +546,7 @@ last_key_in_extent(const coord_t * coord, reiser4_key * key)
 	set_key_offset(key, get_key_offset(key) + extent_size(coord, extent_nr_units(coord)));
 	return key;
 }
+#endif
 
 static int
 cut_or_kill_units(coord_t * coord,
@@ -599,9 +604,15 @@ cut_or_kill_units(coord_t * coord,
 			/* cut from the middle of extent item is not allowed,
 			   make sure that the rest of item gets cut
 			   completely */
-			assert("vs-612", *to == coord_last_unit_pos(coord));
-			assert("vs-613", keyge(to_key, extent_max_key(coord, &key_inside)));
-
+#if REISER4_DEBUG
+			{
+				reiser4_key tmp;
+				assert("vs-612", *to == coord_last_unit_pos(coord));
+				extent_append_key(coord, &tmp, 0);
+				set_key_offset(&tmp, get_key_offset(&tmp) - 1);
+				assert("vs-613", keyge(to_key, &tmp));
+			}
+#endif
 			ext = extent_item(coord) + *from;
 			first = offset + extent_size(coord, *from);
 			old_width = extent_get_width(ext);
@@ -947,14 +958,14 @@ extent_utmost_child(const coord_t * coord, sideof side, jnode ** childp)
 			/* get key of first byte addressed by the extent */
 			item_key_by_coord(coord, &key);
 		} else {
-			/* get key of last byte addressed by the extent */
-			extent_max_key(coord, &key);
+			/* get key of byte which next after last byte addressed by the extent */
+			extent_append_key(coord, &key, 0);
 		}
 
 		assert("vs-544", (get_key_offset(&key) >> PAGE_CACHE_SHIFT) < ~0ul);
 		/* index of first or last (depending on @side) page addressed
 		   by the extent */
-		index = (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT);
+		index = (unsigned long) ((get_key_offset(&key) >> PAGE_CACHE_SHIFT) - 1);
 		tree = current_tree;
 		*childp = jlook_lock(tree, get_key_objectid(&key), index);
 	}
@@ -982,87 +993,6 @@ extent_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block
 	}
 
 	return 0;
-}
-
-/* plugin->u.item.b.real_max_key_inside */
-reiser4_key *
-extent_max_key(const coord_t * coord, reiser4_key * key)
-{
-	last_key_in_extent(coord, key);
-	assert("vs-610", get_key_offset(key) && (get_key_offset(key) & (current_blocksize - 1)) == 0);
-	set_key_offset(key, get_key_offset(key) - 1);
-	return key;
-}
-
-/* plugin->u.item.b.key_in_item
-   return true if unit pointed by @coord addresses byte of file @key refers
-   to */
-int
-extent_key_in_item(coord_t * coord, const reiser4_key * key)
-{
-	reiser4_key item_key;
-	unsigned i, nr_units;
-	__u64 offset;
-	reiser4_extent *ext;
-
-	assert("vs-771", coord_is_existing_item(coord));
-
-	if (keygt(key, extent_max_key(coord, &item_key))) {
-		/* key > max key of item */
-		if (get_key_offset(key) == get_key_offset(&item_key) + 1) {
-			coord->unit_pos = extent_nr_units(coord) - 1;
-			coord->between = AFTER_UNIT;
-			return 1;
-		}
-		return 0;
-	}
-
-	/* key of first byte pointed by item */
-	item_key_by_coord(coord, &item_key);
-	if (keylt(key, &item_key))
-		/* key < min key of item */
-		return 0;
-
-	/* maybe coord is set already to needed unit */
-	if (coord_is_existing_unit(coord) && extent_key_in_unit(coord, key))
-		return 1;
-
-	/* calculate position of unit containing key */
-	ext = extent_item(coord);
-	nr_units = extent_nr_units(coord);
-	offset = get_key_offset(&item_key);
-	for (i = 0; i < nr_units; i++, ext++) {
-		offset += (current_blocksize * extent_get_width(ext));
-		if (offset > get_key_offset(key)) {
-			coord->unit_pos = i;
-			coord->between = AT_UNIT;
-			return 1;
-		}
-	}
-       	impossible("vs-772", "key must be in item");
-	return 0;
-}
-
-/* plugin->u.item.b.key_in_unit
-   return true if unit pointed by @coord addresses byte of file @key refers
-   to */
-int
-extent_key_in_unit(const coord_t * coord, const reiser4_key * key)
-{
-	reiser4_extent *ext;
-	reiser4_key ext_key;
-
-	assert("vs-770", coord_is_existing_unit(coord));
-
-	/* key of first byte pointed by unit */
-	unit_key_by_coord(coord, &ext_key);
-	if (keylt(key, &ext_key))
-		return 0;
-
-	/* key of a byte next to the last byte pointed by unit */
-	ext = extent_by_coord(coord);
-	set_key_offset(&ext_key, get_key_offset(&ext_key) + extent_get_width(ext) * current_blocksize);
-	return keylt(key, &ext_key);
 }
 
 /* plugin->u.item.b.item_stat */
@@ -1143,10 +1073,10 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 	assert("vs-714", item_id_by_coord(coord) == EXTENT_POINTER_ID);
 
 	/* make sure we are at proper item */
-	assert("vs-918", keylt(key, extent_max_key_inside(coord, &hole_key)));
+	assert("vs-918", keylt(key, extent_max_key_inside(coord, &hole_key, 0)));
 
 	/* key of first byte which is not addressed by this extent */
-	last_key_in_extent(coord, &hole_key);
+	extent_append_key(coord, &hole_key, 0);
 
 	if (keyle(key, &hole_key)) {
 		/* there is already extent unit which contains position
@@ -1186,323 +1116,6 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 	zrelse(loaded);
 	return result;
 }
-
-#if 0
-
-/* list of such structures (linked via field @next) is created during extent
-   scanning. Every element has a list of pages (attached to field
-   @pages). Number of pages in that list is stored in field @nr_pages. Those
-   pages are freshly created and contiguous (belong to the same extent unit
-   (@unit_pos)). Field @sector is block number of first page in the range */
-/* FIXME-VS: why we do not create bio during scanning of extent? The reason is
-   that we want (similar to sequence of these actions in the path
-   page_cache_readahead -> do_page_cache_readahead -> read_pages) to allocate
-   all readahead pages and to insert them into mapping's tree separately. Bio-s
-   are created when pages get inserted into mapping's page tree by ourself. If
-   we created bio-s during extent scanning we would have to split bio-s when we
-   were not able to insert page into mapping's tree of pages
-*/
-struct page_range {
-	struct list_head next;
-	struct list_head pages;
-	sector_t sector;
-	int nr_pages;
-};
-
-#if REISER4_DEBUG_OUTPUT
-static void
-print_range_list(struct list_head *list)
-{
-	struct list_head *cur;
-	struct page_range *range;
-	unsigned long long sector;
-
-	list_for_each(cur, list) {
-		range = list_entry(cur, struct page_range, next);
-		sector = range->sector;
-		printk("range: sector %llu, nr_pages %d\n", sector, range->nr_pages);
-	}
-}
-#else
-#define print_range_list(l) noop
-#endif
-
-static int
-extent_end_io_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
-{
-	int uptodate;
-	struct bio_vec *bvec;
-	struct page *page;
-	int i;
-
-	if (bio->bi_size != 0)
-		return 1;
-
-	uptodate = test_bit(BIO_UPTODATE, &bio->bi_flags);
-	bvec = &bio->bi_io_vec[0];
-	for (i = 0; i < bio->bi_vcnt; i++, bvec++) {
-		page = bvec->bv_page;
-		if (uptodate) {
-			SetPageUptodate(page);
-		} else {
-			ClearPageUptodate(page);
-			SetPageError(page);
-		}
-		reiser4_unlock_page(page);
-	}
-	bio_put(bio);
-	return 0;
-}
-
-/* Implements plugin->u.item.s.file.readahead operation for extent items.
-  
-   scan extent item @coord starting from position addressing @start_page and
-   create list of page ranges. Page range is a list of contiguous pages
-   addressed by the same extent. Page gets into page range only if it is not
-   yet attached to address space (this is checked by radix_tree_lookup). When
-   page is found in address space - it is skipped and all the next pages get
-   into different page range (even pages addressed by the same
-   extent). Scanning stops either at the end of item or if number of pages for
-   readahead @intrafile_readahead_amount is over.
-  
-   For every page range of the list: for every page from a range: add page into
-   page cache, create bio and submit i/o. Note, that page range can be split
-   into several bio-s as well when adding page into address space fails
-   (because page is there already)
-  
-*/
-int
-extent_page_cache_readahead(struct file *file, coord_t * coord,
-			    lock_handle * lh UNUSED_ARG,
-			    unsigned long start_page, unsigned long intrafile_readahead_amount)
-{
-	struct address_space *mapping;
-	reiser4_extent *ext;
-	unsigned i, j, nr_units;
-	__u64 pos_in_unit;
-	LIST_HEAD(range_list);
-	struct page_range *range;
-	struct page *page;
-	unsigned long left;
-	__u64 pages;
-	int sectors_per_block;
-
-	sectors_per_block = (current_blocksize >> 9);
-
-	page = 0;
-	assert("vs-789", file && file->f_dentry && file->f_dentry->d_inode && file->f_dentry->d_inode->i_mapping);
-	mapping = file->f_dentry->d_inode->i_mapping;
-
-	assert("vs-779", current_blocksize == PAGE_CACHE_SIZE);
-	assert("vs-782", intrafile_readahead_amount);
-	/* make sure that unit, @coord is set to, addresses @start page */
-	assert("vs-795", inode_file_plugin(mapping->host));
-	assert("vs-796", inode_file_plugin(mapping->host)->key_by_inode);
-	assert("vs-786", ( {
-			  reiser4_key key;
-			  inode_file_plugin(mapping->host)->key_by_inode(mapping->host,
-									 (loff_t) start_page << PAGE_CACHE_SHIFT,
-									 &key); extent_key_in_unit(coord, &key);
-			  }));
-
-	sectors_per_block = (current_blocksize >> 9);
-
-	nr_units = extent_nr_units(coord);
-	/* position in item matching to @start_page */
-	ext = extent_by_coord(coord);
-	pos_in_unit = in_extent(coord, (__u64) start_page << PAGE_CACHE_SHIFT);
-
-	/* number of pages to readahead */
-	left = intrafile_readahead_amount;
-
-	/* while not all pages are allocated and item is not over */
-	for (i = 0; left && (coord->unit_pos + i < nr_units); i++, pos_in_unit = 0) {
-		extent_state state;
-
-		/* how many pages from current extent to read ahead */
-		pages = extent_get_width(&ext[i]) - pos_in_unit;
-		if (pages > left)
-			pages = left;
-
-		state = state_of_extent(&ext[i]);
-		if (state == UNALLOCATED_EXTENT) {
-			/* these pages are in memory */
-			start_page += pages;
-			left -= pages;
-			continue;
-		}
-
-		range = 0;
-		read_lock(&mapping->page_lock);
-		for (j = 0; j < pages; j++) {
-			page = radix_tree_lookup(&mapping->page_tree, start_page + j);
-			if (page) {
-				/* page is already in address space */
-				if (range) {
-					/* contiguousness is broken */
-					range = 0;
-				}
-				continue;
-			}
-			if (!range) {
-				/* create new range of contiguous pages
-				   belonging to one extent */
-				/* FIXME-VS: maybe this should be after
-				   read_unlock (&mapping->page_lock) */
-				range = kmalloc(sizeof (struct page_range), GFP_KERNEL);
-				if (!range)
-					break;
-				memset(range, 0, sizeof (struct page_range));
-				range->nr_pages = 0;
-				if (state == HOLE_EXTENT)
-					range->sector = 0;
-				else
-					/* convert block number to sector
-					   number (512) */
-					range->sector = (extent_get_start(&ext[i]) + pos_in_unit) * sectors_per_block;
-				INIT_LIST_HEAD(&range->pages);
-				list_add_tail(&range->next, &range_list);
-			}
-
-			read_unlock(&mapping->page_lock);
-			page = page_cache_alloc(mapping);
-			read_lock(&mapping->page_lock);
-			if (!page)
-				break;
-			page->index = start_page + j;
-			list_add_tail(&page->list, &range->pages);
-			range->nr_pages++;
-			pos_in_unit++;
-		}
-		read_unlock(&mapping->page_lock);
-
-		left -= pages;
-		start_page += j;
-	}
-
-	/* submit bio for all ranges */
-	{
-		struct list_head *cur, *tmp;
-		struct bio *bio;
-		struct bio_vec *bvec;
-
-		list_for_each_safe(cur, tmp, &range_list) {
-			unsigned long prev;
-
-			range = list_entry(cur, struct page_range, next);
-
-			/* remove range from the list of ranges */
-			list_del(&range->next);
-
-			bio = NULL;
-
-			/* FIXME-VS: if some of pages from the range are added
-			   into mapping's tree already or number of pages is
-			   too big for one bio - we will have to spilt the
-			   range into several bio-s
-			*/
-			prev = ~0l u;
-			while (range->nr_pages) {
-				/* list of pages should contain at least one
-				   page in it */
-				assert("vs-798", !list_empty(&range->pages));
-
-				if (range->sector != 0 && !bio) {
-					/* create bio if it is not created yet
-					   and if pages in this range are not
-					   of hole */
-					int vcnt;
-
-					vcnt = BIO_MAX_SIZE / PAGE_CACHE_SIZE;
-					if (vcnt > range->nr_pages)
-						vcnt = range->nr_pages;
-					bio = bio_alloc(GFP_KERNEL, vcnt);
-					if (!bio) {
-						/* FIXME-VS: drop all allocated pages? */
-						continue;
-					}
-					bio->bi_bdev = mapping->host->i_sb->s_bdev;
-					bio->bi_vcnt = vcnt;
-					bio->bi_idx = 0;
-					bio->bi_size = 0;
-					bio->bi_end_io = extent_end_io_read;
-					bio->bi_sector = range->sector;
-					bio->bi_io_vec[0].bv_page = NULL;
-				}
-
-				/* take first page off the list */
-				page = list_entry(range->pages.next, struct page, list);
-				list_del(&page->list);
-				range->nr_pages--;
-
-				/* make sure that pages are in right order */
-				assert("vs-800", ergo(prev != ~0l u, prev + 1 == page->index));
-				prev = page->index;
-
-				if (add_to_page_cache(page, mapping, page->index)) {
-					/* someone else added this page */
-					page_cache_release(page);
-					if (bio) {
-						bio->bi_vcnt = bio->bi_idx;
-						if (bio->bi_idx) {
-							/* only submit not
-							   empty bio */
-							reiser4_submit_bio(READ, bio);
-							bio = 0;
-						} else {
-							;	/* use the same bio */
-						}
-					}
-					continue;
-				}
-
-				/* page is added into mapping's tree of pages */
-
-				if (range->sector == 0) {
-					char *kaddr;
-					/* this range matches to hole
-					   extent. no bio is created */
-					assert("vs-799", bio == 0);
-					kaddr = kmap_atomic(page, KM_USER0);
-					memset(kaddr, 0, PAGE_CACHE_SIZE);
-					flush_dcache_page(page);
-					kunmap_atomic(kaddr, KM_USER0);
-					SetPageUptodate(page);
-					reiser4_unlock_page(page);
-					page_cache_release(page);
-					continue;
-				} else {
-					assert("vs-814", bio);
-					/* put this page into bio */
-					bvec = &bio->bi_io_vec[bio->bi_idx];
-					bvec->bv_page = page;
-					bvec->bv_len = current_blocksize;
-					bvec->bv_offset = 0;
-					bio->bi_size += bvec->bv_len;
-					bio->bi_idx++;
-					page_cache_release(page);
-					if (bio->bi_idx == BIO_MAX_SIZE / PAGE_CACHE_SIZE || !range->nr_pages) {
-						/* bio is full or there are no
-						   pages anymore */
-						reiser4_submit_bio(READ, bio);
-						bio = 0;
-					}
-				}
-
-			}
-			assert("vs-783", list_empty(&range->pages));
-			assert("vs-788", !range->nr_pages);
-			kfree(range);
-		}
-		assert("vs-785", list_empty(&range_list));
-	}
-	/* return number of pages readahead was performed for. It is not
-	   necessary pages i/o was submitted for. Pages from readahead range
-	   which were in cache are skipped here but they are included into
-	   returned value */
-	return intrafile_readahead_amount - left;
-}
-#endif
 
 /* ask block allocator for some blocks */
 static int
@@ -1586,6 +1199,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 	case HOLE_EXTENT:
 		return 0;
 	default:
+		break;
 	}
 	assert("jmacd-83112", st == ALLOCATED_EXTENT);
 
@@ -1839,7 +1453,7 @@ must_insert(coord_t * coord, reiser4_key * key)
 {
 	reiser4_key last;
 
-	if (item_id_by_coord(coord) == EXTENT_POINTER_ID && keyeq(last_key_in_extent(coord, &last), key))
+	if (item_id_by_coord(coord) == EXTENT_POINTER_ID && keyeq(extent_append_key(coord, &last, 0), key))
 		return 0;
 	return 1;
 }
@@ -1873,41 +1487,6 @@ put_unit_to_end(znode * node, reiser4_key * key, reiser4_item_data * data)
 
 	assert("vs-438", result == 0 || result == -E_NODE_FULL);
 	return result;
-}
-
-/* if last item of node @left is extent item and if its last unit is allocated
-   extent and if @key is adjacent to that item and if @first_allocated is
-   adjacent to last block pointed by that last extent - expand that extent by
-   @allocated and return 1, 0 - otherwise
-*/
-static int
-try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr allocated, const reiser4_key * key)
-{
-	coord_t last;
-	reiser4_key last_key;
-	reiser4_extent *ext;
-
-	assert("vs-463", !node_is_empty(left));
-
-	coord_init_last_unit(&last, left);
-	if (!item_is_extent(&last))
-		return 0;
-
-	if (!keyeq(last_key_in_extent(&last, &last_key), key))
-		return 0;
-
-	ext = extent_by_coord(&last);
-	if (state_of_extent(ext) != ALLOCATED_EXTENT) {
-		assert("vs-971", state_of_extent(ext) == HOLE_EXTENT);
-		return 0;
-	}
-
-	if (extent_get_start(ext) + extent_get_width(ext) != first_allocated)
-		return 0;
-
-	extent_set_width(ext, extent_get_width(ext) + allocated);
-	znode_set_dirty(left);
-	return 1;
 }
 
 /* before allocating unallocated extent we have to protect from eflushing those jnodes which are not eflushed yet and
@@ -2506,9 +2085,11 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * key
 	reiser4_item_data unit;
 
 	assert("vs-228", (coord->unit_pos == coord_last_unit_pos(coord) && coord->between == AFTER_UNIT));
-	assert("vs-883", ( {
-			  reiser4_key next; keyeq(key, last_key_in_extent(coord, &next));
-			  }));
+	assert("vs-883", 
+	       ( {
+		       reiser4_key next;
+		       keyeq(key, extent_append_key(coord, &next, 0));
+	       }));
 
 	assert("zam-810", znode_is_write_locked(coord->node));
 
@@ -2755,13 +2336,13 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
-static int extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh)
+static int extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
+				      struct sealed_coord *hint)
 {
 	int result;
-	struct sealed_coord hint;
 	loff_t new_size;
 
-	set_hint(&hint, &f->key, coord);
+	set_hint(hint, &f->key, coord);
 	done_lh(lh);
 	coord->node = 0;
 	new_size = get_key_offset(&f->key);
@@ -2771,7 +2352,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 
 	/* balance dirty pages periodically */
 	balance_dirty_pages_ratelimited(mapping);
-	return hint_validate(&hint, &f->key, coord, lh);
+	return hint_validate(hint, &f->key, coord, lh);
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
@@ -2786,7 +2367,7 @@ reserve_extent_write_iteration(tree_level height)
 
 /* write flow's data into file by pages */
 static int
-extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
+extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint)
 {
 	int result;
 	loff_t file_off;
@@ -2891,7 +2472,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		move_flow_forward(f, to_page);
 
 		/* throttle the writer */
-		result = extent_balance_dirty_pages(page->mapping, f, coord, lh);
+		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint);
 		all_grabbed2free("extent_write_flow");
 		if (result) {
 			reiser4_stat_inc(extent.bdp_caused_repeats);
@@ -2960,11 +2541,11 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
   2. expanding truncate (@f->data == 0)
 */
 int
-extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
+extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint)
 {
 	if (f->data)
 		/* real write */
-		return extent_write_flow(inode, coord, lh, f);
+		return extent_write_flow(inode, coord, lh, f, hint);
 
 	/* expanding truncate. add_hole requires f->key to be set to new end of file */
 	return extent_write_hole(inode, coord, lh, f);
@@ -3000,7 +2581,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 
-	if (!extent_key_in_item(coord, &f->key)) {
+	if (!extent_key_in_item(coord, &f->key, 0)) {
 		printk("does");
 		return -EAGAIN;
 	}
@@ -3203,7 +2784,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 }
 
 /*
-  plugin->s.file.get_block
+  plugin->u.item.s.file.get_block
 */
 int extent_get_block_address(const coord_t *coord, sector_t block, struct buffer_head *bh)
 {
@@ -3214,10 +2795,90 @@ int extent_get_block_address(const coord_t *coord, sector_t block, struct buffer
 	return 0;
 }
 
+/*
+  plugin->u.item.s.file.readpages
+*/
 void
 extent_readpages(coord_t *coord, struct address_space *mapping, struct list_head *pages)
 {
 	read_cache_pages(mapping, pages, filler, coord);
+}
+
+/*
+  plugin->u.item.s.file.append_key
+  key of first byte which is the next to last byte by addressed by this extent
+*/ 
+reiser4_key *
+extent_append_key(const coord_t * coord, reiser4_key * key, void *p)
+{
+
+	if (p) {
+		struct coord_item_info *pinfo = p;
+
+		/* item key must be already set  */
+		assert("vs-1206", keyeq(&pinfo->key, item_key_by_coord(coord, key)));
+		*key = pinfo->key;
+		pinfo->nr_units = extent_nr_units(coord);
+		set_key_offset(key, get_key_offset(key) + extent_size(coord, pinfo->nr_units));
+	} else {
+		item_key_by_coord(coord, key);
+		set_key_offset(key, get_key_offset(key) + extent_size(coord, extent_nr_units(coord)));
+	}
+	assert("vs-610", get_key_offset(key) && (get_key_offset(key) & (current_blocksize - 1)) == 0);
+	return key;
+}
+
+/*
+  plugin->u.item.s.file.key_in_item
+  return true @coord is set inside of item to key @key
+*/
+int
+extent_key_in_item(coord_t * coord, const reiser4_key * key, void *p)
+{
+	unsigned i;
+	__u64 offset;
+	reiser4_extent *ext;
+	struct coord_item_info info, *pinfo;
+	reiser4_key append_key;
+
+
+	assert("vs-771", coord_is_existing_item(coord));
+
+	if (!p) {
+		pinfo = &info;
+		item_key_by_coord(coord, &pinfo->key);		
+	} else
+		pinfo = p;
+
+	if (keyge(key, extent_append_key(coord, &append_key, pinfo))) {
+		/* key >= append key */
+		if (get_key_offset(key) == get_key_offset(&append_key)) {
+			/* key == append key */
+			coord->unit_pos = pinfo->nr_units - 1;
+			coord->between = AFTER_UNIT;
+			return 1;
+		}
+		/* hole is necessary */
+		return 0;
+	}
+
+	if (keylt(key, &pinfo->key))
+		/* key < min key of item */
+		return 0;
+
+	/* calculate position of unit containing key */
+	ext = extent_item(coord);
+	offset = get_key_offset(&pinfo->key);
+	for (i = 0; i < pinfo->nr_units; i++, ext++) {
+		offset += (current_blocksize * extent_get_width(ext));
+		if (offset > get_key_offset(key)) {
+			coord->unit_pos = i;
+			coord->between = AT_UNIT;
+			return 1;
+		}
+	}
+       	impossible("vs-772", "key must be in item");
+	return 0;
 }
 
 /*
