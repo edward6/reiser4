@@ -542,7 +542,7 @@ get_overwrite_set(struct commit_handle *ch)
 
 		assert("nikita-2591", !jnode_check_dirty(cur));
 		if (0 && jnode_page(cur) && PageDirty(jnode_page(cur)) && !JF_ISSET(cur, JNODE_OVRWR))
-			rpanic("nikita-2590", "Wow!");
+			reiser4_panic("nikita-2590", "Wow!");
 
 		if (JF_ISSET(cur, JNODE_OVRWR)) {
 			capture_list_remove_clean(cur);
@@ -668,7 +668,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 			/* jload() helps if node was emergency flushed */
 			ret = jload(cur);
 			if (ret) 
-				rpanic ("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
+				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
@@ -990,7 +990,7 @@ reiser4_write_logs(void)
 
 	/* Grab space for modified bitmaps from 100% of disk space. */
 	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED))
-		rpanic("vpf-341", "No space left from reserved area.");
+		reiser4_panic("vpf-341", "No space left from reserved area.");
 	
 	grabbed2flush_reserved(ch.nr_bitmap);
 	/* count all records needed for storing of the wandered set */

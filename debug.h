@@ -22,31 +22,25 @@
 /* basic debug/logging output macro. "label" is unfamous "maintainer-id" */
 
 /* generic function to produce formatted output, decorating it with
-    whatever standard prefixes/postfixes we want. "Fun" is a function
-    that will be actually called, can be printk, panic etc.
-    This is for use by other debugging macros, not by users. */
-#define DCALL(lev, fun, label, format, ...)				\
-	fun(lev "reiser4[%s]: " format "\n", label , ## __VA_ARGS__)
+   whatever standard prefixes/postfixes we want. "Fun" is a function
+   that will be actually called, can be printk, panic etc.
+   This is for use by other debugging macros, not by users. */
+#define DCALL(lev, fun, label, format, ...)					\
+({										\
+	reiser4_print_prefix(lev, label, __FUNCTION__, __FILE__, __LINE__);	\
+	fun(lev format "\n" , ## __VA_ARGS__);					\
+})
 
-#if 0
-#define DCALL( lev, fun, label, format, ... )				\
-	fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
-	     no_context ? "interrupt" : current_pname,			\
-	     no_context ? -1 : current_pid,				\
-	     __FUNCTION__,						\
-	     __FILE__, __LINE__, label , ## __VA_ARGS__ );
-#endif
+#define reiser4_panic(mid, format, ...)				\
+	DCALL(KERN_EMERG, reiser4_do_panic, mid, format , ## __VA_ARGS__)
 
-/* panic. Print backtrace and die */
-#define rpanic( label, format, ... )		\
-	DCALL( KERN_EMERG, reiser4_panic, label, format , ## __VA_ARGS__ )
 /* print message with indication of current process, file, line and
     function */
-#define rlog( label, format, ... ) 				\
-	DCALL( KERN_DEBUG, printk, label, format , ## __VA_ARGS__ )
+#define reiser4_log( label, format, ... ) 				\
+	DCALL( KERN_DEBUG, printk, label, format , ## __VA_ARGS__)
 /* use info() for output without any kind of prefix like
     when doing output in several chunks. */
-#define info( format, ... ) printk( format , ## __VA_ARGS__ )
+#define info( format, ... ) printk( format , ## __VA_ARGS__)
 
 /* Assertion checked during compilation. 
     If "cond" is false (0) we get duplicate case label in switch.
@@ -144,18 +138,18 @@
 /* macro to catch logical errors. Put it into `default' clause of
     switch() statement. */
 #define impossible( label, format, ... ) 			\
-         rpanic( label, "impossible: " format , ## __VA_ARGS__ )
+         reiser4_panic( label, "impossible: " format , ## __VA_ARGS__ )
 /* stub for something you are planning to implement in a future */
 #define not_implemented( label, format, ... )	\
-         rpanic( label, "not implemented: " format , ## __VA_ARGS__ )
-/* assert assures that @cond is true. If it is not, rpanic() is
+         reiser4_panic( label, "not implemented: " format , ## __VA_ARGS__ )
+/* assert assures that @cond is true. If it is not, reiser4_panic() is
    called. Use this for checking logical consistency and _never_ call
    this to check correctness of external data: disk blocks and user-input . */
-#define assert(label, cond)					\
-({								\
-/*	check_stack();	*/					\
-	if(unlikely(!(cond)))					\
-		rpanic(label, "assertion failed: " #cond);	\
+#define assert(label, cond)						\
+({									\
+	check_stack();							\
+	if(unlikely(!(cond)))						\
+		reiser4_panic(label, "assertion failed: " #cond);	\
 })
 
 /* like assertion, but @expr is evaluated even if REISER4_DEBUG is off. */
@@ -236,7 +230,7 @@ extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 #define warning( label, format, ... )					\
 	DCALL( KERN_WARNING, printk, label, "WARNING: " format , ## __VA_ARGS__ )
 #define not_yet( label, format, ... )				\
-	rpanic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
+	reiser4_panic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
@@ -318,10 +312,10 @@ typedef enum {
 extern __u32 reiser4_current_trace_flags;
 
 /* just print where we are: file, function, line */
-#define trace_stamp( f )   trace_if( f, rlog( "trace", "" ) )
+#define trace_stamp( f )   trace_if( f, reiser4_log( "trace", "" ) )
 /* print value of "var" */
 #define trace_var( f, format, var ) 				\
-        trace_if( f, rlog( "trace", #var ": " format, var ) )
+        trace_if( f, reiser4_log( "trace", #var ": " format, var ) )
 /* print output only if appropriate trace flag(s) is on */
 #define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
 
@@ -691,8 +685,12 @@ typedef struct {
 
 #endif
 
-extern void reiser4_panic(const char *format, ...)
-    __attribute__ ((noreturn, format(printf, 1, 2)));
+extern void reiser4_do_panic(const char *format, ...)
+__attribute__ ((noreturn, format(printf, 1, 2)));
+
+extern void reiser4_print_prefix(const char *level, const char *mid,
+				 const char *function, 
+				 const char *file, int lineno);
 
 extern int preempt_point(void);
 extern void reiser4_print_stats(void);

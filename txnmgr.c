@@ -839,7 +839,7 @@ atom_try_commit_locked(txn_atom * atom)
 	assert("jmacd-150", atom->txnh_count == atom->nr_waiters + 1);
 	assert("jmacd-151", atom_isopen(atom));
 
-	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current_pid);
+	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current->pid);
 
 	/* FIXME_NFQUCMPD: Read the comment at the end of jnode_flush() about only calling
 	   jnode_flush() on the leaf level. */
@@ -914,7 +914,7 @@ atom_try_commit_locked(txn_atom * atom)
 
 		ret = reiser4_write_logs();
 		if (ret < 0) {
-			rpanic("zam-597", "write log failed (%ld)\n", ret);
+			reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 		}
 	}
 
@@ -1615,7 +1615,7 @@ try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 	int non_blocking = flags & TXN_CAPTURE_NONBLOCKING;
 
 	if ((txnh = get_current_context()->trans) == NULL) {
-		rpanic("jmacd-492", "invalid transaction txnh");
+		reiser4_panic("jmacd-492", "invalid transaction txnh");
 	}
 
 	/* FIXME_JMACD No way to set TXN_CAPTURE_READ_MODIFY yet. */
@@ -2345,7 +2345,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 			spin_unlock_atom(atomh);
 		}
 
-		trace_on(TRACE_TXN, "thread %u nonblocking on atom %u\n", current_pid, atomf->atom_id);
+		trace_on(TRACE_TXN, "thread %u nonblocking on atom %u\n", current->pid, atomf->atom_id);
 
 		return -EAGAIN;
 	}
@@ -2367,14 +2367,14 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		spin_unlock_atom(atomh);
 	}
 
-	trace_on(TRACE_TXN, "thread %u waitfor %u waiting %u\n", current_pid,
+	trace_on(TRACE_TXN, "thread %u waitfor %u waiting %u\n", current->pid,
 		 atomf->atom_id, atomh ? atomh->atom_id : 0);
 
 	/* Go to sleep. */
 	spin_unlock_txnh(txnh);
 
 	if ((ret = prepare_to_sleep(wlinks._lock_stack)) != 0) {
-		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current_pid, atomf->atom_id);
+		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
 		ret = go_to_sleep(wlinks._lock_stack);
 
@@ -2383,7 +2383,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		}
 
 		trace_on(TRACE_TXN, "thread %u wakeup %u waiting %u\n",
-			 current_pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
+			 current->pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 	}
 
 	/* Remove from the waitfor list. */
