@@ -931,7 +931,8 @@ static void redirty_inode(struct inode *inode)
 	spin_unlock(&inode_lock);
 }
 
-static int capture_anonymous_page(struct page *pg)
+/* this returns 1 if it captured page */
+static int capture_anonymous_page(struct page *pg, int keepme)
 {
 	struct address_space *mapping;
 	int result;
@@ -943,9 +944,9 @@ static int capture_anonymous_page(struct page *pg)
 			list_move(&pg->list, &mapping->dirty_pages);
 		else
 			list_move(&pg->list, &mapping->locked_pages);
-	} else if (!PageDirty(pg))
+	} else if (!PageDirty(pg) && !keepme) {
 		list_move(&pg->list, &mapping->clean_pages);
-	else {
+	} else {
 		jnode *node;
 
 		list_move(&pg->list, &mapping->io_pages);
@@ -968,6 +969,7 @@ static int capture_anonymous_page(struct page *pg)
 				assert("nikita-3326", jnode_check_dirty(node));
 				assert("nikita-3327", node->atom != NULL);
 				JF_CLR(node, JNODE_KEEPME);
+				result = 1;
 			} else
 				warning("nikita-3329",
 					"Cannot capture anon page: %i", result);
@@ -990,17 +992,21 @@ static int capture_anonymous_jnodes(struct inode *inode)
 	reiser4_inode *info;
 	reiser4_tree *tree;
 	int nr;
-	int found;
 	int result;
+	int too_many;
+	int scan_over;
+	int keepme;
 
 	tree = tree_by_inode(inode);
 
 	info = reiser4_inode_data(inode);
 	result = 0;
 	nr = 0;
+	too_many = 0;
 	do {
-		found = 0;
 		spin_lock_eflush(tree->super);
+
+		scan_over = 1;
 
 		list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
 			eflush_node_t *ef;
@@ -1016,27 +1022,42 @@ static int capture_anonymous_jnodes(struct inode *inode)
 			 */
 			if (node->atom != NULL)
 				continue;
+
 			jref(node);
+			keepme = JF_ISSET(node, JNODE_KEEPME);
+
 			spin_unlock_eflush(tree->super);
 			result = jload(node);
 			jput(node);
 			if (result != 0)
 				return result;
+
 			spin_lock(&inode->i_mapping->page_lock);
-			result = capture_anonymous_page(jnode_page(node));
+			result = capture_anonymous_page(jnode_page(node), keepme);
 			spin_unlock(&inode->i_mapping->page_lock);
 			jrelse(node);
-			found ++;
-			nr ++;
-			if (nr >= CAPTURE_AJNODE_BURST) {
-				found = 0;
-				redirty_inode(inode);
-			}
 			spin_lock_eflush(tree->super);
-			break;
+
+			if (result == 1) {
+				/* jnode is captured */
+				nr ++;
+				result = 0;
+				if (nr >= CAPTURE_AJNODE_BURST) {
+					too_many = 1;
+					redirty_inode(inode);
+				}
+				
+				scan_over = 0;
+				break;
+			}
 		}
 		spin_unlock_eflush(tree->super);
-	} while (found > 0 && result == 0);
+		if (too_many)
+			break;
+		if (scan_over)
+			break;
+	} while (result == 0);
+
 	return result;
 }
 
@@ -1045,6 +1066,7 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	struct list_head *mpages;
 	int result;
 	int nr;
+	int captured = 0, clean = 0, writeback = 0;
 
 	result = 0;
 	nr = 0;
@@ -1052,14 +1074,23 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	spin_lock (&mapping->page_lock);
 
 	mpages = get_moved_pages(mapping);
-	while (result == 0 && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
+	while ((result == 0 || result == 1) && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
 		struct page *pg = list_entry(mpages->prev, struct page, list);
 
-		result = capture_anonymous_page(pg);
-		++ nr;
+		assert("vs-1455", PageDirty(pg));
+		result = capture_anonymous_page(pg, 0);
+		if (result == 1) {
+			++ nr;
+			result = 0;
+		}
+	}
+	spin_unlock(&mapping->page_lock);
+
+	if (result) {
+		warning("vs-1454", "Cannot capture anon pages: %i (%d %d %d)\n", result, captured, clean, writeback);
+		return result;
 	}
 
-	spin_unlock(&mapping->page_lock);
 
 	if (nr >= CAPTURE_APAGE_BURST)
 		redirty_inode(mapping->host);
@@ -1068,7 +1099,7 @@ static int capture_anonymous_pages(struct address_space * mapping)
 		result = capture_anonymous_jnodes(mapping->host);
 
 	if (result != 0)
-		warning("nikita-3328", "Cannot capture anon pages: %i", result);
+		warning("nikita-3328", "Cannot capture anon pages: %i\n", result);
 	return result;
 }
 
@@ -2063,6 +2094,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 
 			get_exclusive_access(unix_file_inode_data(inode));
 			/* VS-FIXME-HANS: explain why setattr calls truncate file */
+			/*  */
 			result = truncate_file(inode, attr->ia_size, 1/* update stat data */);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
