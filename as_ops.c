@@ -214,6 +214,7 @@ static int reiser4_prepare_write(struct file *file, struct page *page,
 		result = fplug->prepare_write(file, page, from, to);
 	else
 		result = RETERR(-EINVAL);
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 
 	return result;
