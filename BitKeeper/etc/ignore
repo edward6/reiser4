@@ -1300,3 +1300,4 @@ plugin/.crypo_compressed.o.cmd
 ulevel/loid
 plugin/.plugin_set.o.cmd
 .kattr.o.d
+plugin/.plugin_hash.o.cmd
