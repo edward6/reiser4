@@ -153,6 +153,8 @@ done_hashed(struct inode *object /* object being deleted */)
 	   cut_tree(). */
 	xmemset(&entry, 0, sizeof entry);
 
+	/* FIXME: this done method is called from delete_directory_common which
+	 * reserved space already */
 	reserve = hashed_estimate_done(object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED))
 		return RETERR(-ENOSPC);
