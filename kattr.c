@@ -153,7 +153,7 @@ static reiser4_kattr device = {
 	.show = show_device
 };
 
-#if REISER4_STATS
+#if REISER4_DEBUG || REISER4_STATS
 static const char *txn_stage_name(txn_stage stage)
 {
 	const char *name;
@@ -177,6 +177,135 @@ static const char *txn_stage_name(txn_stage stage)
 	return name;
 }
 
+static char *show_atom(char *p, char *buf, const txn_atom *atom)
+{
+	KATTR_PRINT(p, buf, 
+		    "refcount: %i id: %i flags: %#x txnh_count: %i"
+		    " capture_count: %i stage: %s (%#x) start: %lu"
+		    " objects_deleted: %i objects_created: %i"
+		    " blocks_allocated: %llu queued: %i waiters: %i"
+		    " flushers: %i running_queues: %i"
+		    " flush_reserved: %llu flushed: %i"
+		    "\n",
+		    atomic_read(&atom->refcount), 
+		    atom->atom_id, 
+		    atom->flags, 
+		    atom->txnh_count,
+		    atom->capture_count, 
+		    txn_stage_name(atom->stage), atom->stage,
+		    atom->start_time,
+		    atom->nr_objects_deleted,
+		    atom->nr_objects_created,
+		    atom->nr_blocks_allocated,
+		    atom->num_queued,
+		    atom->nr_waiters,
+		    atom->nr_flushers,
+		    atom->nr_running_queues,
+		    atom->flush_reserved,
+		    atom->flushed);
+	return p;
+}
+#endif
+
+#if REISER4_DEBUG
+extern spinlock_t active_contexts_lock;
+extern context_list_head active_contexts;
+
+static ssize_t 
+show_contexts(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+{
+	char *p;
+	reiser4_context *context;
+
+	(void)o;
+	p = buf;
+
+	spin_lock(&active_contexts_lock);
+
+	for_all_tslist(context, &active_contexts, context) {
+		txn_atom    *atom;
+		lock_counters_info *lcinfo;
+
+		KATTR_PRINT(p, buf, "[%.16s(%i)]: "
+			    "grabbed: %llu "
+			    "grab_enabled: %i "
+			    "writeout_mode: %i "
+			    "nobalance: %i "
+			    "marked_dirty: %llu "
+			    "flush_started: %lu "
+			    "io_started: %lu"
+			    "\n",
+			    context->task->comm, context->task->pid,
+			    context->grabbed_blocks,
+			    context->grab_enabled,
+			    context->writeout_mode,
+			    context->nobalance,
+			    context->nr_marked_dirty,
+			    context->flush_started,
+			    context->io_started);
+		lcinfo = &context->locks;
+
+		KATTR_PRINT(p, buf,
+			    "    jnode: %i, tree: %i (r:%i,w:%i), "
+			    "dk: %i (r:%i,w:%i)\n"
+			    "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
+			    "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
+			    "inode: %i, cbk_cache: %i, epoch: %i, eflush: %i, "
+			    "zlock: %i\n"
+			    "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
+			    "d: %i, x: %i, t: %i\n",
+			    lcinfo->spin_locked_jnode,
+			    lcinfo->rw_locked_tree, 
+			    lcinfo->read_locked_tree, 
+			    lcinfo->write_locked_tree,
+			    lcinfo->rw_locked_dk, 
+			    lcinfo->read_locked_dk, 
+			    lcinfo->write_locked_dk,
+			    lcinfo->spin_locked_txnh,
+			    lcinfo->spin_locked_atom, 
+			    lcinfo->spin_locked_stack,
+			    lcinfo->spin_locked_txnmgr, 
+			    lcinfo->spin_locked_ktxnmgrd,
+			    lcinfo->spin_locked_fq, 
+			    lcinfo->spin_locked_super,
+			    lcinfo->spin_locked_inode_object, 
+			    lcinfo->spin_locked_cbk_cache,
+			    lcinfo->spin_locked_epoch,
+			    lcinfo->spin_locked_super_eflush,
+			    lcinfo->spin_locked_zlock,
+			    lcinfo->spin_locked,
+			    lcinfo->long_term_locked_znode,
+			    lcinfo->inode_sem_r, 
+			    lcinfo->inode_sem_w,
+			    lcinfo->d_refs, 
+			    lcinfo->x_refs,
+			    lcinfo->t_refs);
+
+		atom = context->trans_in_ctx.atom;
+		if (atom != NULL) {
+			LOCK_ATOM(atom);
+			p = show_atom(p, buf, atom);
+			UNLOCK_ATOM(atom);
+		}
+	}
+
+	spin_unlock(&active_contexts_lock);
+
+	return (p - buf);
+}
+
+static reiser4_kattr contexts = {
+	.attr = {
+		.name = (char *) "contexts",
+		.mode = 0444   /* r--r--r-- */
+	},
+	.cookie = NULL,
+	.show = show_contexts
+};
+#endif
+
+#if REISER4_STATS
+
 TS_LIST_DEFINE(atom, txn_atom, atom_link);
 
 static ssize_t 
@@ -195,30 +324,7 @@ show_atoms(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 	/* traverse the list of all atoms */
 	for_all_tslist(atom, &tmgr->atoms_list, atom) {
 		LOCK_ATOM(atom);
-		KATTR_PRINT(p, buf, 
-			    "refcount: %i id: %i flags: %#x txnh_count: %i"
-			    " capture_count: %i stage: %s (%#x) start: %lu"
-			    " objects_deleted: %i objects_created: %i"
-			    " blocks_allocated: %llu queued: %i waiters: %i"
-			    " flushers: %i running_queues: %i"
-			    " flush_reserved: %llu flushed: %i"
-			    "\n",
-			    atomic_read(&atom->refcount), 
-			    atom->atom_id, 
-			    atom->flags, 
-			    atom->txnh_count,
-			    atom->capture_count, 
-			    txn_stage_name(atom->stage), atom->stage,
-			    atom->start_time,
-			    atom->nr_objects_deleted,
-			    atom->nr_objects_created,
-			    atom->nr_blocks_allocated,
-			    atom->num_queued,
-			    atom->nr_waiters,
-			    atom->nr_flushers,
-			    atom->nr_running_queues,
-			    atom->flush_reserved,
-			    atom->flushed);
+		p = show_atom(p, buf, atom);
 		UNLOCK_ATOM(atom);
 	}
 	spin_unlock_txnmgr(tmgr);
@@ -301,6 +407,9 @@ static struct attribute * def_attrs[] = {
 	&device.attr,
 #if REISER4_STATS
 	&atoms.attr,
+#endif
+#if REISER4_DEBUG
+	&contexts.attr,
 #endif
 	NULL
 };
