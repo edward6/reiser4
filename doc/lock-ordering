@@ -203,7 +203,7 @@ LABEL AND DESCRIPTION                                 LOCKS
 [jnode-refs]                                          jnode_lock, tree_lock
 
     /* only referenced jnode can be loaded */
-    node->d_count > 0 => atomic_read(&node->x_count) > 0
+    atomic_read(&node->x_count) >= node->d_count
 
     (Checked by jnode_invariant_f().)
 
