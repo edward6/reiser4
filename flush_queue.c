@@ -245,7 +245,7 @@ static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
 }
 
 /* repeatable process for waiting io completion on a flush queue object */
-static int fq_wait_io (flush_queue_t * fq)
+static int fq_wait_io (flush_queue_t * fq, int * nr_io_errors)
 {
 	assert ("zam-737", spin_fq_is_locked (fq));
 	assert ("zam-738", fq->atom != NULL);
@@ -267,13 +267,7 @@ static int fq_wait_io (flush_queue_t * fq)
 		return -EAGAIN;
 	}
 
-	if (atomic_read (&fq->nr_errors)) {
-		spin_unlock_fq (fq);
-		spin_unlock_atom (fq->atom);
-
-		return -EIO;
-	}
-
+	* nr_io_errors += atomic_read (&fq->nr_errors);
 	return 0;
 }
 
@@ -311,14 +305,14 @@ static void fq_scan_io_list (flush_queue_t * fq)
 }
 
 /* wait on I/O completion, re-submit dirty nodes to write */
-static int fq_finish (flush_queue_t * fq)
+static int fq_finish (flush_queue_t * fq, int * nr_io_errors)
 {
 	int ret;
 
 	assert ("zam-743", spin_fq_is_locked (fq));
 	assert ("zam-744", spin_atom_is_locked (fq->atom));
 
-	ret = fq_wait_io (fq);
+	ret = fq_wait_io (fq, nr_io_errors);
 	if (ret)
 		return ret;
 
@@ -347,7 +341,7 @@ static int fq_finish (flush_queue_t * fq)
 
 /* wait for all i/o for given atom to be completed, actually do one iteration
  * on that and return -EAGAIN if there more iterations needed */
-int finish_all_fq (txn_atom * atom)
+int finish_all_fq (txn_atom * atom, int * nr_io_errors)
 {
 	flush_queue_t * fq;
 	assert ("zam-730", spin_atom_is_locked (atom));
@@ -364,7 +358,7 @@ int finish_all_fq (txn_atom * atom)
 		if (fq_ready(fq)) {
 			int ret;
 
-			ret = fq_finish (fq);
+			ret = fq_finish (fq, nr_io_errors);
 
 			if (ret) return ret;
 
@@ -376,9 +370,36 @@ int finish_all_fq (txn_atom * atom)
 		spin_unlock_fq (fq);
 	}
 
-	/* All flush queues are use; atom remains locked */
+	/* All flush queues are in use; atom remains locked */
 	return -EBUSY;
 }
+
+/* wait all i/o for current atom */
+int current_atom_finish_all_fq (void)
+{
+	txn_atom * atom;
+	int nr_io_errors = 0;
+	int ret;
+
+	do {
+		txn_atom * cur_atom;
+
+		cur_atom = get_current_atom_locked ();
+		ret = finish_all_fq (cur_atom, &nr_io_errors);
+
+	} while (ret == -EAGAIN);
+
+	if (ret) 
+		return ret;
+
+	spin_unlock_atom (atom);
+
+	if (nr_io_errors) 
+		return -EIO;
+
+	return 0;
+}
+
 
 /* change node->atom field for all jnode from given list */
 static void fq_queue_change_atom (capture_list_head * list, txn_atom * atom)

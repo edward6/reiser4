@@ -509,9 +509,9 @@ extern void fq_put         (flush_queue_t *);
 extern void fq_fuse        (txn_atom * to, txn_atom *from);
 extern void fq_queue_node  (flush_queue_t *, jnode *);
 extern int  fq_write       (flush_queue_t *, int);
-extern int  finish_all_fq  (txn_atom *);
+extern int  finish_all_fq  (txn_atom *, int *);
+extern int  current_atom_finish_all_fq (void);
 extern void fq_init_atom   (txn_atom *);
-
 extern int  fq_mem_pressure (struct super_block *, jnode *, int);
 
 /* Debugging */

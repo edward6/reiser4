@@ -935,18 +935,10 @@ atom_try_commit_locked (txn_atom *atom)
 
 	spin_unlock_atom (atom);
 
-	do {
-		txn_atom * cur_atom;
-
-		cur_atom = get_current_atom_locked ();
-		ret = finish_all_fq (cur_atom);
-
-	} while (ret == -EAGAIN);
+	ret = current_atom_finish_all_fq ();
 
 	if (ret)
 		return ret;
-
-	spin_unlock_atom (atom);
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
@@ -1179,6 +1171,8 @@ static txn_atom * atom_wait_event (txn_handle * h)
 
 	fwaitfor_list_remove (&_wlinks);
 	spin_unlock_txnh (h);
+
+	return atom;
 }
 
 /* wake all threads which wait for an event */
