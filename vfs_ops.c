@@ -274,6 +274,11 @@ static void reiser4_truncate( struct inode *inode /* inode to truncate */)
 	 * for mysterious reasons ->truncate() VFS call doesn't return
 	 * value 
 	 */
+	if( inode_file_plugin( inode ) -> write_sd_by_inode )
+		if( inode_file_plugin( inode ) -> write_sd_by_inode( inode ) )
+			info( "reiser4_truncate: updating stat "
+			      "data failed\n" );
+
 	__REISER4_EXIT( &__context );
 	return;
 }
