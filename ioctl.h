@@ -7,10 +7,6 @@
 
 #define REISER4_IOC_UNPACK _IOW(0xCD,1,long)
 
-extern int reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg);
-
-extern int reiser4_unpack(struct inode *inode, struct file *filp);
-
 #endif				/* __IOCTL_H__ */
 
 /* Make Linus happy.

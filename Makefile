@@ -45,7 +45,6 @@ reiser4-objs := \
 		   tree_walk.o \
 		   inode.o \
 		   vfs_ops.o \
-		   ioctl.o \
 		   emergency_flush.o \
 		   readahead.o \
            crypt.o \
