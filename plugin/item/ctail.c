@@ -675,7 +675,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	carry_op *op;
 	reiser4_item_data data;
 	__u8 cluster_shift = inode_cluster_shift(inode);
-
+	
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
 
@@ -695,7 +695,8 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 
 	data.length = 0;
 	data.data = 0;
-
+	
+	op->u.insert_flow.flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT;
 	op->u.insert_flow.insert_point = coord;
 	op->u.insert_flow.flow = f;
 	op->u.insert_flow.data = &data;
