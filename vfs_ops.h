@@ -77,6 +77,9 @@ typedef struct reiser4_file_fsdata {
 	} dir;
 	struct {
 		struct sealed_coord hint;
+		/* this is set by extent_read before calling page_cache_readahead so that reiser4_readpages could use
+		   it */
+		coord_t *coord;
 	} reg;
 } reiser4_file_fsdata;
 
