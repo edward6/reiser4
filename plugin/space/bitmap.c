@@ -254,7 +254,10 @@ static int
 find_last_set_bit_in_byte (unsigned byte, int start)
 {
 	unsigned bit_mask = 0x80;
-	int nr = 7;
+	int nr = start;
+
+	assert ("zam-965", start < 8);
+	assert ("zam-966", start >= 0);
 
 	while (nr > 0 ) {
 		if (bit_mask & byte)
@@ -267,8 +270,8 @@ find_last_set_bit_in_byte (unsigned byte, int start)
 
 /* Search bitmap for a set bit in backward direction from the end to the
  * beginning of given region */
-static bmap_off_t
-reiser4_find_last_set_bit (void * addr, bmap_off_t beg, bmap_off_t end)
+static int
+reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
 {
 	unsigned char * base = addr;
 	int last_byte;
@@ -276,30 +279,37 @@ reiser4_find_last_set_bit (void * addr, bmap_off_t beg, bmap_off_t end)
 	int last_bit;
 	int nr;
 
-	last_byte = end >> 3;
-	last_bit = end & 0x7;
-	first_byte = beg >> 3;
+	assert ("zam-961", high_off > 0);
+	assert ("zam-962", high_off > low_off);
+
+	last_byte = high_off >> 3;
+	last_bit = high_off & 0x7;
+	first_byte = low_off >> 3;
 
 	if (last_bit != 0) {
 		nr = find_last_set_bit_in_byte(base[last_byte], last_bit);
-		if (nr < 8) 
-			return (last_byte << 3) + nr;
+		if (nr < 8) {
+			*result = (last_byte << 3) + nr;
+			return 0;
+		}
 		-- last_byte;
 	}
 	while (last_byte > first_byte) {
-		if (base[last_byte] != 0xFF)
-			return (last_byte << 3) + 
+		if (base[last_byte] != 0x0) {
+			*result = (last_byte << 3) + 
 				find_last_set_bit_in_byte((unsigned)base[last_byte], 7);
+			return 0;
+		}
 		-- last_byte;
 	}
 
-	return beg - 1;
+	return -1;		/* set bit not found */
 }
 
 /* Search bitmap for a clear bit in backward direction from the end to the
  * beginning of given region */
-static bmap_off_t
-reiser4_find_last_zero_bit (void * addr, bmap_off_t beg, bmap_off_t end)
+static int
+reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
 {
 	unsigned char * base = addr;
 	int last_byte;
@@ -307,24 +317,28 @@ reiser4_find_last_zero_bit (void * addr, bmap_off_t beg, bmap_off_t end)
 	int last_bit;
 	int nr;
 
-	last_byte = end >> 3;
-	last_bit = end & 0x7;
-	first_byte = beg >> 3;
+	last_byte = high_off >> 3;
+	last_bit = high_off & 0x7;
+	first_byte = low_off >> 3;
 
 	if (last_bit != 0) {
-		nr = find_last_set_bit_in_byte(base[last_byte], last_bit);
-		if (nr < 8) 
-			return (last_byte << 3) + nr;
+		nr = find_last_set_bit_in_byte(~(unsigned)base[last_byte], last_bit);
+		if (nr < 8) {
+			 *result = (last_byte << 3) + nr;
+			 return 0;
+		}
 		-- last_byte;
 	}
 	while (last_byte > first_byte) {
-		if (base[last_byte] != 0)
-			return (last_byte << 3) + 
+		if (base[last_byte] != 0xFF) {
+			*result =  (last_byte << 3) + 
 				find_last_set_bit_in_byte(~(unsigned)base[last_byte], 7);
+			return 0;
+		}
 		-- last_byte;    
 	}
 
-	return beg - 1;
+	return -1;	/* zero bit not found */
 }
 
 /* Audited by: green(2002.06.12) */
@@ -792,18 +806,15 @@ search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset,
 	while (start + min_len < max_offset) {
 
 		start = reiser4_find_next_zero_bit((long *) data, max_offset, start);
-
 		if (set_first_zero_bit) {
 			bnode->first_zero_bit = start;
 			set_first_zero_bit = 0;
 		}
-
 		if (start >= max_offset)
 			break;
 
 		search_end = LIMIT(start + max_len, max_offset);
 		end = reiser4_find_next_set_bit((long *) data, search_end, start);
-
 		if (end >= start + min_len) {
 			/* we can't trust find_next_set_bit result if set bit
 			   was not fount, result may be bigger than
@@ -856,15 +867,14 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 	start = *start_offset;
 
 	while (1) {
-		start = reiser4_find_last_zero_bit(data, end_offset, start);
-
+		if (reiser4_find_last_zero_bit(&start, data, end_offset, start))
+			break;
 		if (start < end_offset + min_len)
 			break;
 
-		end = reiser4_find_last_set_bit(data, end_offset, start);
-
-		if (end >= start + min_len) {
-			if (end > end_offset)
+		if (!reiser4_find_last_set_bit(&end, data, end_offset, start)
+		    && end + min_len <= start) {
+			if (end < end_offset)
 				end = end_offset;
 			ret = end - start;
 			*start_offset = start;
@@ -878,9 +888,7 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 	return ret;
 }
 
-
 /* allocate contiguous range of blocks in bitmap */
-
 static int
 bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len, int max_len, int backward)
 {
