@@ -151,7 +151,7 @@ oid_eq(const oid_t * o1 /* first oid to compare */ ,
 /* Hash znode by block number. Used by hash-table macros */
 /* Audited by: green(2002.06.15) */
 static inline __u32
-oid_hash(const oid_t * o /* oid to hash */ )
+oid_hash(ln_hash_table *table, const oid_t * o /* oid to hash */ )
 {
 	return *o & (LNODE_HTABLE_BUCKETS - 1);
 }
