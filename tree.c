@@ -1465,7 +1465,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_ZNODE )
 		print_znode( "", node );
 
-	if( 0 && flags & REISER4_NODE_PRINT_ZADDR ) {
+	if( flags == REISER4_NODE_PRINT_ZADDR ) {
 		info( "[node %p block %llu level %u]\n", node, *znode_get_block( node ), znode_get_level( node ) );
 	} else {
 		print_znode_content( node, flags );
