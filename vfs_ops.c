@@ -562,39 +562,6 @@ static int reiser4_set_page_dirty (struct page * page)
 	return ret;
 }
 
-#if 0
-/* ->writepage() VFS method in reiser4 address_space_operations */
-static int
-reiser4_writepage(struct page *page, struct writeback_control *wbc)
-{
-	int result;
-	file_plugin *fplug;
-	REISER4_ENTRY(page->mapping->host->i_sb);
-
-	impossible("vs-1099", "this is not to be called");
-
-	trace_on(TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n", page->mapping->host->i_ino, page->index);
-
-	fplug = inode_file_plugin(page->mapping->host);
-	if (fplug->writepage != NULL)
-		result = fplug->writepage(page, wbc);
-	else
-		result = -EINVAL;
-	if (result != 0) {
-		SetPageError(page);
-		reiser4_unlock_page(page);
-		REISER4_EXIT(result);
-	}
-
-	/* The mpage_writepages() calls reiser4_writepage with a locked, but
-	   clean page.  An extra reference should protect this page from
-	   removing from memory */
-	page_cache_get(page);
-	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
-	page_cache_release(page);
-	REISER4_EXIT(result);
-}
-#endif
 
 /* ->readpage() VFS method in reiser4 address_space_operations */
 static int
@@ -1741,6 +1708,17 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 				}
 			}
 		},
+		{
+			/* turn on concurrent flushing */
+			.name = "mtflush",
+			.type = OPT_BIT,
+			.u = {
+				.bit = {
+					.nr = REISER4_MTFLUSH,
+					.addr = &info->fs_flags
+				}
+			}
+		},
 
 #if REISER4_TRACE_TREE
 		{
@@ -1887,7 +1865,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	ON_DEBUG(INIT_LIST_HEAD(&info->all_jnodes));
 
 	sema_init(&info->delete_sema, 1);
-
+	sema_init(&info->flush_sema, 1);
 	s->s_op = &reiser4_super_operations;
 
 	result = init_context(&__context, s);
@@ -2314,10 +2292,11 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 #endif
 
 	/* is_page_cache_freeable() check 
-	  
+
 	   (mapping + private + page_cache_get() by shrink_cache()) */
 	if (page_count(page) > 3)
 		return 0;
+
 	if (PageDirty(page))
 		return 0;
 
