@@ -626,8 +626,8 @@ atom_dec_and_unlock(txn_atom * atom)
 	if (--atom->refcount == 0) {
 		/* take txnmgr lock and atom lock in proper order. */
 		if (!spin_trylock_txnmgr(mgr)) {
-			/* This atom should not be kfree'd by another thread
-			 * after releasing its spinlock  */
+			/* This atom should exist after we re-aquire its
+			 * spinlock, so we increment its reference counter. */
 			++ atom->refcount;
 			spin_unlock_atom(atom);
 			spin_lock_txnmgr(mgr);
