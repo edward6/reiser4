@@ -49,7 +49,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	
     if (!(block = aal_device_read_block(fs->device, master_offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-	    "Can't read master super block at %d.", master_offset);
+	    "Can't read master super block at %llu.", master_offset);
 	return -1;
     }
     
@@ -60,7 +60,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 #ifndef ENABLE_COMPACT    
 	reiserfs_plugin_t *format36;
 	
-	if (!(format36 = reiserfs_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, 0x2)))
+	if (!(format36 = reiserfs_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, 0x1)))
 	    goto error_free_block;
 		
 	reiserfs_check_method(format36->format, probe, goto error_free_block);
@@ -68,7 +68,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	if (reiserfs_master_create(fs, 0x2, aal_device_get_blocksize(fs->device), "", "")) {
+	if (reiserfs_master_create(fs, 0x1, aal_device_get_blocksize(fs->device), "", "")) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
 		"master super block in order to open reiser3 filesystem.");
 	    goto error_free_block;
@@ -82,7 +82,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	
 	if (aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-		"Invalid block size detected %d. It must be power of two.", 
+		"Invalid block size detected %u. It must be power of two.", 
 		get_mr_block_size(master));
 	    
 	    aal_free(fs->master);
@@ -114,7 +114,7 @@ static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
     if (aal_device_write_block(fs->device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize master super block at %d.", 
+	    "Can't synchronize master super block at %llu.", 
 	    master_offset);
 	return -1;
     }
@@ -142,7 +142,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	return NULL;
 
     fs->device = host_device;
-    
+
     if (reiserfs_master_open(fs))
 	goto error_free_fs;
 	    
@@ -202,11 +202,11 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 
     if (!aal_pow_of_two(blocksize)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Invalid block size %d. It must be power of two.", 
+	    "Invalid block size %u. It must be power of two.", 
 	    blocksize);
 	return NULL;
     }
-	
+
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 	
@@ -219,7 +219,7 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	goto error_free_master;
 
     if (reiserfs_super_create(fs, format_plugin_id, journal_plugin_id, 
-	    alloc_plugin_id, oid_plugin_id, node_plugin_id, len))
+	    alloc_plugin_id, oid_plugin_id, len))
 	goto error_free_alloc;
 
     if (reiserfs_journal_create(fs, journal_device, journal_params))

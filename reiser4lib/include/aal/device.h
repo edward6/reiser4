@@ -9,8 +9,8 @@
 
 #include <aal/aal.h>
 
-typedef unsigned long blk_t;
-typedef unsigned long count_t;
+typedef uint64_t blk_t;
+typedef uint64_t count_t;
 
 struct aal_device_ops;
 
@@ -65,8 +65,8 @@ extern char *aal_device_name(aal_device_t *device);
 extern aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c);
 extern aal_block_t *aal_device_read_block(aal_device_t *device, blk_t blk);
 extern error_t aal_device_write_block(aal_device_t *device, aal_block_t *block);
-extern blk_t aal_device_get_block_location(aal_device_t *device, aal_block_t *block);
-extern void aal_device_set_block_location(aal_device_t *device, aal_block_t *block, blk_t blk);
+extern blk_t aal_device_get_block_nr(aal_device_t *device, aal_block_t *block);
+extern void aal_device_set_block_nr(aal_device_t *device, aal_block_t *block, blk_t blk);
 extern void aal_device_free_block(aal_block_t *block);
 
 #define B_DIRTY 0 

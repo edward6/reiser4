@@ -21,8 +21,11 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    if (!(root_blk = reiserfs_super_get_root(fs)))
+    if (!(root_blk = reiserfs_super_get_root(fs))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid root block has been detected.");
 	goto error_free_tree;
+    }
 
 /*    if (reiserfs_fs_format_plugin_id(fs) == 0x2) {
 	if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk, 0x2)))
@@ -54,7 +57,11 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    root_blk = hack_create_tree(fs, node_plugin_id);
+    if (!(root_blk = hack_create_tree(fs, node_plugin_id))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create b*tree.");
+	goto error_free_tree;
+    }	
 
 /*    if (!(root_blk = reiserfs_alloc_find(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -120,7 +127,7 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
     while (1) {
 	if (!(node = reiserfs_node_open(fs->device, from, REISERFS_GUESS_PLUGIN_ID))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open node %d.", from);
+		"Can't open node %llu.", from);
 	    return 0;
 	}
 	
@@ -141,7 +148,7 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	
 	if (!(from = reiserfs_item_down_link (item_link))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get node in block %d.", from);
+		"Can't get node in block %lu.", from);
 	    return 1;
 	}*/
     }

@@ -16,43 +16,38 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 #include <aal/aal.h>
 
 static error_t file_read(aal_device_t *device, void *buff, blk_t block, count_t count) {
-    loff_t off, blocklen;
+    loff_t off, len;
 	
     if (!device || !buff)
     	return -1;
 	
-    off = (loff_t)block * (loff_t)device->blocksize;
-	
+    off = (loff_t)(block * device->blocksize);
     if (lseek64(*((int *)device->entity), off, SEEK_SET) == -1)
 	return -1;
 
-    blocklen = (loff_t)count * (loff_t)device->blocksize;
-	
-    if (read(*((int *)device->entity), buff, blocklen) <= 0)
+    len = (loff_t)(count * device->blocksize);
+    if (read(*((int *)device->entity), buff, len) <= 0)
 	return -1;
 	
     return 0;
 }
 
 static error_t file_write(aal_device_t *device, void *buff, blk_t block, count_t count) {
-    loff_t off, blocklen;
+    loff_t off, len;
 	
     if (!device || !buff)
 	return -1;
 	
-    off = (loff_t)block * (loff_t)device->blocksize;
-	
+    off = (loff_t)(block * device->blocksize);
     if (lseek64(*((int *)device->entity), off, SEEK_SET) == -1)
 	return -1;
-
-    blocklen = (loff_t)count * (loff_t)device->blocksize;
-
-    if (write((*(int *)device->entity), buff, blocklen) <= 0)
+    
+    len = (loff_t)(count * device->blocksize);
+    if (write((*(int *)device->entity), buff, len) <= 0)
 	return -1;
 	
     return 0;
@@ -103,7 +98,7 @@ static count_t file_len(aal_device_t *device) {
     if ((max_off = lseek64(*((int *)device->entity), 0, SEEK_END)) == (loff_t)-1)
 	return 0;
 	
-    return max_off / device->blocksize;
+    return (count_t)(max_off / device->blocksize);
 }
 
 static struct aal_device_ops ops = {
@@ -116,7 +111,7 @@ static struct aal_device_ops ops = {
     file_len
 };
 
-aal_device_t *aal_file_open(const char *file, uint32_t blocksize, int flags) {
+aal_device_t *aal_file_open(const char *file, uint16_t blocksize, int flags) {
     int fd;
     aal_device_t *device;
 	

@@ -25,11 +25,10 @@ struct reiserfs_format40_super {
     uint16_t sb_journal_plugin_id;
     uint16_t sb_alloc_plugin_id;
     uint16_t sb_oid_plugin_id;
-    uint16_t sb_node_plugin_id;
 
     uint16_t sb_padd[3];
     char sb_unused[426];
-};
+} __attribute__((__packed__));
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
@@ -62,9 +61,6 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
 #define get_sb_oid_plugin_id(sb)			get_le16(sb, sb_oid_plugin_id)
 #define set_sb_oid_plugin_id(sb, val)			set_le16(sb, sb_oid_plugin_id, val)
-
-#define get_sb_node_plugin_id(sb)			get_le16(sb, sb_node_plugin_id)
-#define set_sb_node_plugin_id(sb, val)			set_le16(sb, sb_node_plugin_id, val)
 
 struct reiserfs_format40 {
     aal_device_t *device;

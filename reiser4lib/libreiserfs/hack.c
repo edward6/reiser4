@@ -92,7 +92,10 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     reiserfs_alloc_use(fs, blk);
     internal_body->block_nr = blk;
     
-    if (!aal_device_write_block(fs->device, block)) {
+    if (aal_device_write_block(fs->device, block)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't write block %llu on device.", 
+	    aal_device_get_block_nr(fs->device, block));
 	aal_device_free_block(block);
 	return 0;
     }
@@ -190,7 +193,13 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     dot_key->locality[0] = 41 - 3;
     dot_key->objectid[0] = 41;
 
-    aal_device_write_block(fs->device, block);
+    if (aal_device_write_block(fs->device, block)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't write block %llu on device.", 
+	    aal_device_get_block_nr(fs->device, block));
+	aal_device_free_block(block);
+	return 0;
+    }
     aal_device_free_block(block);
 
     return root_blk;

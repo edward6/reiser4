@@ -29,7 +29,7 @@ static void print_plugin(reiserfs_plugin_t *plugin, char *kind) {
 static void print_fs(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 
-    aal_printf("reiserfs %s, block size %d, blocks: %d, used: %d, free: %d.\n\n", 
+    aal_printf("reiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
 	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
 	reiserfs_super_get_blocks(fs), reiserfs_alloc_used(fs), 
 	reiserfs_alloc_free(fs));

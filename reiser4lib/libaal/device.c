@@ -24,7 +24,7 @@ aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize,
     
     if (!aal_pow_of_two(blocksize)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Block size %d isn't power of two.", blocksize);
+	    "Block size %u isn't power of two.", blocksize);
 	return NULL;
     }	
 	
@@ -55,7 +55,7 @@ error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize) {
 	
     if (!aal_pow_of_two(blocksize)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Block size %d isn't power of two.", blocksize);
+	    "Block size %u isn't power of two.", blocksize);
 	return -1;
     }	
     device->blocksize = blocksize;
@@ -183,21 +183,21 @@ error_t aal_device_write_block(aal_device_t *device, aal_block_t *block) {
 	return 0;
 
     if((error = aal_device_write(device, block->data, 
-	aal_device_get_block_location(device, block), 1)))
+	aal_device_get_block_nr(device, block), 1)))
 
     aal_block_mark_clean(block);
     
     return error;
 }
 
-blk_t aal_device_get_block_location(aal_device_t *device, aal_block_t *block) {
+blk_t aal_device_get_block_nr(aal_device_t *device, aal_block_t *block) {
     aal_assert("umka-447", device != NULL, return 0);
     aal_assert("umka-448", block != NULL, return 0);
    
     return (blk_t)(block->offset >> aal_log2(aal_device_get_blocksize(device)));
 }
 
-void aal_device_set_block_location(aal_device_t *device, aal_block_t *block, blk_t blk) {
+void aal_device_set_block_nr(aal_device_t *device, aal_block_t *block, blk_t blk) {
     aal_assert("umka-449", device != NULL, return);
     aal_assert("umka-450", block != NULL, return);
 

@@ -14,11 +14,21 @@
 #  define NULL ((void *)0)
 #endif
 
+#undef __check_format__
+#ifdef __GNUC__
+#  define __check_format__(style, format, start) \
+       __attribute__((__format__(style, format, start)))
+#else
+#  define __check_format__(style, format, start)
+#endif
+
 #if defined(__sparc__) || defined(__sparcv9)
 #  include <sys/int_types.h>
 #else
 #  include <stdint.h>
 #endif
+
+#include <stdarg.h>
 
 typedef int error_t;
 

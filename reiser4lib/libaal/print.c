@@ -45,48 +45,94 @@ void aal_printf(const char *format, ...) {
     printf_handler(buff);
 }
 
+#define MOD_EMPTY 0x0
+#define MOD_LONG 0x1
+#define MOD_LONG_LONG 0x2
+
+#include <stdio.h>
 int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
+    int i;
+    long int li;
+    long long int lli;
+			
+    unsigned int u;
+    unsigned long int lu;
+    unsigned long long llu;
+    
+    int modifier = MOD_EMPTY;
     const char *old = format;
     const char *fmt = format;
-	
+    
     aal_memset(buff, 0, n);
 	
     while (*fmt) {
 	if (fmt - format + 1 >= (int)n)
 	    break;
-		
+
+	modifier = MOD_EMPTY;	
 	switch (*fmt) {
 	    case '%': {
-		char c = *(fmt + 1);
-		
+		if (aal_strlen(fmt) < 2)
+		    break;
+			
 		if (fmt - format > 0)
 		    aal_memcpy(buff + aal_strlen(buff), old, fmt - old);
-				
-		switch (c) {
+repeat:		
+		fmt++;
+		switch (*fmt) {
 		    case 's': {
-			char *s = va_arg(arg_list, char *);
+			char *s;
+			
+			if (modifier != MOD_EMPTY)
+			    break;
+			
+			s = va_arg(arg_list, char *);
 			aal_strncat(buff, s, n - aal_strlen(buff));
+			fmt++;
 			break;
 		    }
-		    case 'l':
+		    case 'l': {
+			modifier = (modifier == MOD_LONG ? MOD_LONG_LONG : MOD_LONG);
+			old++;
+			goto repeat;
+		    }
 		    case 'd':
+		    case 'i':
+		    case 'u':
+		    case 'X':
 		    case 'x': {
-			int d;
-			char s[11];
-
-			if (c == 'l' && aal_strlen(fmt + 1) > 1 && *(fmt + 2) != 'u')
-			    break; 
+			char s[32];
 			
 			aal_memset(s, 0, sizeof(s));
 			
-			d = va_arg(arg_list, int);
-			aal_ltos(d, sizeof(s), s, (c == 'd' || c == 'l') ? 10 : 16);
-			aal_strncat(buff, s, n - aal_strlen(buff));
-
-			if (c == 'l') fmt += 1;
+			if (*fmt == 'd' || *fmt == 'i') {
+			    if (modifier == MOD_EMPTY) {
+				i = va_arg(arg_list, int);
+				aal_stos(i, sizeof(s), s, 10);
+			    } else if (modifier == MOD_LONG) {
+				li = va_arg(arg_list, long int);
+				aal_lstos(li, sizeof(s), s, 10);
+			    } else {
+				lli = va_arg(arg_list, long long int);
+				aal_llstos(lli, sizeof(s), s, 10);
+			    }
+			    aal_strncat(buff, s, n - aal_strlen(buff));
+			} else {
+			    if (modifier == MOD_EMPTY) {
+				u = va_arg(arg_list, unsigned int);
+				aal_utos(u, sizeof(s), s, (*fmt == 'u' ? 10 : 16));
+			    } else if (modifier == MOD_LONG) {
+				lu = va_arg(arg_list, unsigned long int);
+				aal_lutos(lu, sizeof(s), s, (*fmt == 'u' ? 10 : 16));
+			    } else {
+				llu = va_arg(arg_list, unsigned long long);
+				aal_llutos(llu, sizeof(s), s, (*fmt == 'u' ? 10 : 16));
+			    }
+			    aal_strncat(buff, s, n - aal_strlen(buff));
+			}
+			fmt++;
 		    }
 		}
-		fmt += 2;
 		old = fmt;
 		break;
 	    }

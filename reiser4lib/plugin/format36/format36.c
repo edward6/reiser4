@@ -48,15 +48,15 @@ static error_t reiserfs_format36_super_check(reiserfs_format36_super_t *super,
 
     if (is_journal_dev != is_journal_magic) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "umka-020", "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
+	    "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
 	    get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
     }
 
     dev_len = aal_device_len(device);
     if (get_sb_block_count(super) > dev_len) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-	    "umka-021", "Superblock has an invalid block count %d for device "
-	    "length %d blocks.", get_sb_block_count(super), dev_len);
+	    "Superblock has an invalid block count %llu for device "
+	    "length %llu blocks.", (blk_t)get_sb_block_count(super), dev_len);
 	return -1;
     }
 
@@ -123,8 +123,8 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
 
     if (aal_device_write_block(format->device, format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Can't write superblock to %d.", 
-	    aal_device_get_block_location(format->device, format->super));
+	    "Can't write superblock to block %llu.", 
+	    aal_device_get_block_nr(format->device, format->super));
 	return -1;
     }
     return 0;
@@ -132,8 +132,7 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
 
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
     count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id_t, reiserfs_plugin_id_t oid_plugin_id, 
-    reiserfs_plugin_id_t node_plugin_id)
+    reiserfs_plugin_id_t alloc_plugin_id_t, reiserfs_plugin_id_t oid_plugin_id)
 {
     return NULL;
 }
@@ -186,10 +185,6 @@ static reiserfs_plugin_id_t reiserfs_format36_oid_plugin(reiserfs_format36_t *fo
     return 0x1;
 }
 
-static reiserfs_plugin_id_t reiserfs_format36_node_plugin(reiserfs_format36_t *format) {
-    return 0x1;
-}
-
 static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
     aal_assert("umka-386", format != NULL, return 0);
     return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device));
@@ -238,7 +233,7 @@ static reiserfs_plugin_t format36_plugin = {
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
-	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))
+	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))
 	    reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format36_close,
@@ -265,9 +260,6 @@ static reiserfs_plugin_t format36_plugin = {
 	
 	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_oid_plugin,
-	
-	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
-	    reiserfs_format36_node_plugin,
     }
 };
 

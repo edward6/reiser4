@@ -143,7 +143,7 @@ if test x$enable_compact = xyes; then
     CFLAGS="$CFLAGS -O9 -fno-builtin"
 fi
 
-CFLAGS="$CFLAGS -W -Wall -Wno-unused -Wno-switch -Wno-format"
+CFLAGS="$CFLAGS -W -Wall -Wno-unused"
 if test x$enable_Werror = xyes; then
     CFLAGS="$CFLAGS -Werror"
 fi

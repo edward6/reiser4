@@ -191,8 +191,7 @@ struct reiserfs_format_plugin {
 	
     reiserfs_opaque_t *(*open) (aal_device_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *, count_t, reiserfs_opaque_t *, 
-	reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t, 
-	reiserfs_plugin_id_t);
+	reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t);
     
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
@@ -213,7 +212,6 @@ struct reiserfs_format_plugin {
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
-    reiserfs_plugin_id_t (*node_plugin_id) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;

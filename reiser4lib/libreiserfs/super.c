@@ -56,7 +56,7 @@ error:
 
 error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
     reiserfs_plugin_id_t journal_plugin_id, reiserfs_plugin_id_t alloc_plugin_id, 
-    reiserfs_plugin_id_t oid_plugin_id, reiserfs_plugin_id_t node_plugin_id, count_t len) 
+    reiserfs_plugin_id_t oid_plugin_id, count_t len) 
 {
     aal_block_t *block;
     reiserfs_plugin_t *plugin;
@@ -75,7 +75,7 @@ error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plu
     /* Creating specified disk-format and format-specific superblock */
     reiserfs_check_method(plugin->format, create, goto error_free_super);
     if (!(fs->super->entity = plugin->format.create(fs->device, len, fs->alloc->entity, 
-	journal_plugin_id, alloc_plugin_id, oid_plugin_id, node_plugin_id))) 
+	journal_plugin_id, alloc_plugin_id, oid_plugin_id))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create disk-format for %s format.", plugin->h.label);
@@ -204,12 +204,12 @@ reiserfs_plugin_id_t reiserfs_super_alloc_plugin_id(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.alloc_plugin_id(fs->super->entity);
 }
 
-reiserfs_plugin_id_t reiserfs_super_node_plugin_id(reiserfs_fs_t *fs) {
-    aal_assert("umka-118", fs != NULL, return -1);
-    aal_assert("umka-119", fs->super != NULL, return -1);
+reiserfs_plugin_id_t reiserfs_super_oid_plugin_id(reiserfs_fs_t *fs) {
+    aal_assert("umka-116", fs != NULL, return -1);
+    aal_assert("umka-117", fs->super != NULL, return -1);
 	
     reiserfs_check_method(fs->super->plugin->format, 
-	node_plugin_id, return -1);
-    return fs->super->plugin->format.node_plugin_id(fs->super->entity);
+	oid_plugin_id, return -1);
+    return fs->super->plugin->format.oid_plugin_id(fs->super->entity);
 }
 

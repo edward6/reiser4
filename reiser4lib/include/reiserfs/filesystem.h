@@ -119,7 +119,7 @@ extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 	
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
     reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t oid_plugin_id, 
+    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t oid_plugin_id,
     reiserfs_plugin_id_t node_plugin_id, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
     reiserfs_params_opaque_t *journal_params);

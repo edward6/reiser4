@@ -14,7 +14,7 @@
     do { \
 	if (blk >= bitmap->total_blocks) { \
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
-		"Block %d is out of range (0-%d)", blk, bitmap->total_blocks); \
+		"Block %llu is out of range (0-%llu)", blk, bitmap->total_blocks); \
 	    action; \
 	} \
     } while (0); \
@@ -178,7 +178,7 @@ static error_t callback_bitmap_flush(aal_device_t *device,
 		
     if (aal_device_write_block(device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't write bitmap block to %d.", blk);
+	    "Can't write bitmap block to %llu.", blk);
 	goto error_free_block;
     }
     aal_device_free_block(block);
@@ -198,7 +198,7 @@ static error_t callback_bitmap_fetch(aal_device_t *device,
 	
     if (!(block = aal_device_read_block(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't read bitmap block %d.", blk);
+	    "Can't read bitmap block %llu.", blk);
 	return -1;
     }	
     memcpy(map, block->data, chunk);

@@ -183,8 +183,8 @@ static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key,
 	reiserfs_node40_key_at, reiserfs_misc_comp_keys, &pos)) == -1)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Search within the node %d failed.", 
-	    aal_device_get_block_location(node->device, node->block));
+	    "Search within the node %llu failed.", 
+	    aal_device_get_block_nr(node->device, node->block));
 	return 0;
     }
 

@@ -24,7 +24,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     
     if (!(node->block = aal_device_read_block(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't read block %d.", blk);
+	    "Can't read block %llu.", blk);
 	goto error_free_node;
     }
     
@@ -41,8 +41,8 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     
     if (!(node->entity = node->plugin->node.open (node->device, node->block))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,		
-	    "Node plugin hasn't been able to open a node %d.", 
-            aal_device_get_block_location (node->device, node->block));
+	    "Node plugin hasn't been able to open a node %llu.", 
+            aal_device_get_block_nr(node->device, node->block));
        goto error_free_node;
     }    
     
@@ -75,7 +75,7 @@ reiserfs_node_t *reiserfs_node_create(
     
     if (!(node->block = aal_device_alloc_block(device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't allocate block %d.", blk);
+	    "Can't allocate block %llu.", blk);
 	goto error_free_node;
     }
 	    
@@ -89,7 +89,7 @@ reiserfs_node_t *reiserfs_node_create(
     reiserfs_check_method(node->plugin->node, create, goto error_free_node);
     if (!(node->entity = node->plugin->node.create(node->device, node->block, level))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Node plugin hasn't been able to create a node on block %d.", blk);
+	    "Node plugin hasn't been able to create a node on block %llu.", blk);
 	goto error_free_node;
     }
 
@@ -147,8 +147,8 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
     
     if (aal_device_write_block(node->device, node->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize block %d to device.", 
-	    aal_device_get_block_location(node->device, node->block));
+	    "Can't synchronize block %llu to device.", 
+	    aal_device_get_block_nr(node->device, node->block));
 	return -1;
     }
     return 0;
@@ -218,16 +218,16 @@ reiserfs_item_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos) {
     reiserfs_check_method(node->plugin->node, item_min_key, return 0); 
     if (!(info->key = node->plugin->node.item_min_key(node->entity, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't get key of the item (%d) in node (%d).",
-	    pos, aal_device_get_block_location (node->device, node->block));
+	    "Can't get key of the item (%u) in node (%llu).",
+	    pos, aal_device_get_block_nr(node->device, node->block));
 	goto free_info;
     }
 
 /*    reiserfs_check_method(node->plugin->node, item, return 0); 
     if (!(info->data = node->plugin->node.item(node->entity, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't get item (%d) in node (%d).",
-	    pos, aal_device_get_block_location (node->device, node->block));
+	    "Can't get item (%lu) in node (%llu).",
+	    pos, aal_device_get_block_nr(node->device, node->block));
 	goto free_info;
     }
 
