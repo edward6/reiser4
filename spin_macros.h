@@ -38,10 +38,10 @@
 
 /* Checks that read write lock @s is locked (or not) by the -current-
  * thread. not yet implemented */
-#define check_is_write_locked(s)     (1)
-#define check_is_read_locked(s)      (1)
-#define check_is_not_read_locked(s)  (1)
-#define check_is_not_write_locked(s) (1)
+#define check_is_write_locked(s)     ((void)(s), 1)
+#define check_is_read_locked(s)      ((void)(s), 1)
+#define check_is_not_read_locked(s)  ((void)(s), 1)
+#define check_is_not_write_locked(s) ((void)(s), 1)
 
 /* Checks that spin lock @s is locked (or not) by the -current- thread. */
 #if REISER4_USER_LEVEL_SIMULATION
@@ -55,12 +55,12 @@
 #    define spin_is_not_locked(s)       ((s)->owner == NULL)
 #    define check_spin_is_locked(s)     ((s)->owner == get_current())
 #else
-#    define check_spin_is_not_locked(s) (1)
-#    define spin_is_not_locked(s)       (1)
+#    define check_spin_is_not_locked(s) ((void)(s), 1)
+#    define spin_is_not_locked(s)       ((void)(s), 1)
 #    if defined(CONFIG_SMP)
 #        define check_spin_is_locked(s)     spin_is_locked(s)
 #    else
-#        define check_spin_is_locked(s)     (1)
+#        define check_spin_is_locked(s)     ((void)(s), 1)
 #    endif
 #endif
 
