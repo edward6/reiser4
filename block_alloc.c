@@ -43,7 +43,7 @@ void blocknr_hint_done (reiser4_blocknr_hint *hint UNUSED_ARG)
 
 int blocknr_is_fake(const reiser4_block_nr * da)
 {
-	return *da & REISER4_FAKE_BLOCKNR_BIT_MASK;
+	return (*da & REISER4_FAKE_BLOCKNR_BIT_MASK) ? 1 : 0;
 }
 
 /** a generator for tree nodes fake block numbers */
