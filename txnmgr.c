@@ -453,7 +453,7 @@ txn_end(reiser4_context * context)
 	txn_handle *txnh;
 
 	assert("umka-283", context != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-2446", lock_counters()->spin_locked == 0));
+	schedulable();
 
 	/* closing non top-level context---nothing to do */
 	if (context != context->parent)
