@@ -503,6 +503,9 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		spin_lock(&eflushed_guard);
 		++ info->eflushed;
 		spin_unlock(&eflushed_guard);
+
+		/* this is to make inode not freeable */
+		inode->i_state |= I_EFLUSH;
 	}
 
 	ef->node = node;
@@ -601,6 +604,7 @@ eflush_del(jnode *node, int page_locked)
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_eflush(tree->super);
 
+		assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
 		JF_CLR(node, JNODE_EFLUSH);
 		UNLOCK_JNODE(node);
 
@@ -613,8 +617,13 @@ eflush_del(jnode *node, int page_locked)
 			spin_lock(&eflushed_guard);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
-			if (info->eflushed == 0 && (inode->i_state & I_GHOST))
-				despatchhim = 1;
+			if (info->eflushed == 0) {
+				if (inode->i_state & I_GHOST)
+					despatchhim = 1;
+				if (inode->i_state & I_EFLUSH)
+					inode->i_state &= ~I_EFLUSH;
+			}
+
 			spin_unlock(&eflushed_guard);
 			if (despatchhim)
 				inode->i_sb->s_op->destroy_inode(inode);
