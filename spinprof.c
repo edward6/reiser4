@@ -367,7 +367,7 @@ void profregion_functions_end_here(void) { }
 
 locksite __hits;
 locksite __hits_held;
-locksite __fits_trying;
+locksite __hits_trying;
 
 #endif /* CONFIG_REISER4_NOOPT */
 
