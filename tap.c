@@ -37,7 +37,7 @@ tap_load(tap_t * tap)
 	if (tap->loaded == 0) {
 		int result;
 
-		result = zload_ra(tap->lh->node, &tap->ra_info);
+		result = zload_ra(tap->coord->node, &tap->ra_info);
 		if (result != 0)
 			return result;
 		coord_clear_iplug(tap->coord);
@@ -52,9 +52,11 @@ void
 tap_relse(tap_t * tap)
 {
 	tap_check(tap);
-	--tap->loaded;
-	if (tap->loaded == 0) {
-		zrelse(tap->lh->node);
+	if (tap->loaded > 0) {
+		--tap->loaded;
+		if (tap->loaded == 0) {
+			zrelse(tap->coord->node);
+		}
 	}
 	tap_check(tap);
 }
@@ -106,7 +108,7 @@ tap_done(tap_t * tap)
 	assert("nikita-2565", tap != NULL);
 	tap_check(tap);
 	if (tap->loaded > 0)
-		zrelse(tap->lh->node);
+		zrelse(tap->coord->node);
 	done_lh(tap->lh);
 	tap->loaded = 0;
 	tap_list_remove_clean(tap);
