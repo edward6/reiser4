@@ -1202,7 +1202,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	} else {
 		if (!znode_is_root(pos->lock.node)) {
 			/* all formatted nodes except tree root */
-			ret = reiser4_get_parent(&plock, pos->lock.node, ZNODE_WRITE_LOCK, 1);
+			ret = reiser4_get_parent(&plock, pos->lock.node, ZNODE_WRITE_LOCK, 0);
 			if (ret)
 				goto exit;
 
@@ -1451,11 +1451,11 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	init_load_count(&left_parent_load);
 	init_load_count(&right_parent_load);
 
-	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK, 1);
+ 	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK, 0);
 	if (ret)
 		goto out;
 
-	ret = reiser4_get_parent(&right_parent_lock, right, ZNODE_WRITE_LOCK, 1);
+	ret = reiser4_get_parent(&right_parent_lock, right, ZNODE_WRITE_LOCK, 0);
 	if (ret)
 		goto out;
 
@@ -1547,7 +1547,7 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 	
-	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK, 1);
+	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK, 0);
 	if (ret)
 		goto out;
 
@@ -1583,7 +1583,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 
 	ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 	if (ret) {
-		if (ret == -EINVAL) {
+		if (ret == -ENAVAIL) {
 			/* cannot get right neighbor, go process extents. */
 			pos->state = POS_TO_TWIG;
 			return 0;
@@ -1655,8 +1655,15 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 
 	/* pos->child is a jnode handle_pos_on_extent() should start with in
 	 * stead of the first child of the first extent unit. */
-	if (pos->child)
-		return jnode_check_flushprepped(pos->child);
+	if (pos->child) {
+		int prepped;
+
+		prepped = jnode_check_flushprepped(pos->child);
+		jput(pos->child);
+		pos->child = NULL;
+
+		return prepped;
+	}
 
 	if (extent_is_unallocated(&pos->coord))
 		return 0;
@@ -1903,7 +1910,11 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 
-	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK, 1);
+	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK, 0);
+	if (ret)
+		goto out;
+
+	ret = incr_load_count_znode(&parent_load, parent_lock.node);
 	if (ret)
 		goto out;
 
@@ -1911,7 +1922,21 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	if (ret)
 		goto out;
 
-	pos->state = coord_is_after_rightmost(&pos->coord) ? POS_END_OF_TWIG : POS_ON_TWIG;
+	assert ("zam-870", item_is_internal(&pcoord));
+	coord_next_item(&pcoord);
+
+	if (coord_is_after_rightmost(&pcoord)) 
+		pos->state = POS_END_OF_TWIG;
+	else if (item_is_extent(&pcoord))
+		pos->state = POS_ON_TWIG;
+	else {
+		/* Here we understand that getting -ENAVAIL in
+		 * handle_pos_on_leaf() was because of just a reaching edge of
+		 * slum */
+		pos_stop(pos);
+		goto out;
+	}
+
 	move_flush_pos(pos, &parent_lock, &parent_load, &pcoord);
 
  out:
