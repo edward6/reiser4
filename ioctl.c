@@ -6,6 +6,7 @@
 #include "reiser4.h"
 #include "ioctl.h"
 #include "tree.h"
+#include "inode.h"
 
 /*
  * reiser4_ioctl - handler for ioctl for inode supported commands:
@@ -16,41 +17,58 @@
 int reiser4_ioctl(struct inode *inode, struct file *filp, 
     unsigned int cmd, unsigned long arg)
 {
-    int result;
+	int result;
 
-    REISER4_ENTRY(filp->f_dentry->d_inode->i_sb);
+	REISER4_ENTRY(filp->f_dentry->d_inode->i_sb);
     
-    switch (cmd) {
+	switch (cmd) {
         case REISER4_IOC_UNPACK:
 		
-	    if (arg) {
-	        result = reiser4_unpack(inode, filp);
-		break;
-	    }
+		if (arg) {
+			result = reiser4_unpack(inode, filp);
+			break;
+		}
 	    
 	default:
-	    result = -ENOTTY;
-	    break;
-    }
+		result = -ENOTTY;
+		break;
+	}
     
-    REISER4_EXIT(result);
+	REISER4_EXIT(result);
 }
 
 /*
  * reiser4_unpack -- function try to convert tail into extent by means of using
  * tail2extent function.
  */
-int reiser4_unpack(struct inode *inode, struct file *filp) {
-    int result;
+int reiser4_unpack(struct inode *inode, struct file *filp) 
+{
+	int result;
     
-    if (inode->i_size == 0)
-        return -EINVAL;
-    
-    get_nonexclusive_access(inode);
-    
-    if ((result = tail2extent(inode) != 0))
-	return result;
+	get_nonexclusive_access(inode);
+	result = tail2extent(inode);
+	drop_nonexclusive_access (inode);
 
-    return 0;
+	if (result == 0) {
+		reiser4_inode *state;
+
+		state = reiser4_inode_data (inode);
+		state->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+		inode_set_plugin (inode, tail_plugin_to_plugin (state->tail));
+		result = reiser4_write_sd (inode);
+	}
+
+	return result;
 }
 
+/*
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */
