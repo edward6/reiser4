@@ -2086,6 +2086,86 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
 	return 1;
 }
 
+#if REISER4_USE_EFLUSH
+static void
+unflush_finish(coord_t *coord, __u64 done)
+{
+	reiser4_extent *ext;
+	reiser4_key     key;
+	oid_t           oid;
+	__u64           i;
+	unsigned long   ind;
+	int             result;
+
+	assert("nikita-2793", item_is_extent(coord));
+
+	result = 0;
+
+	ext = extent_by_coord(coord);
+
+	unit_key_by_coord(coord, &key);
+
+	oid   = get_key_objectid(&key);
+	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
+	
+	for (result = 0, i = 0 ; i < done ; ++ i, ++ ind) {
+		jnode  *node;
+		reiser4_tree *tree;
+
+		tree = current_tree;
+		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (node == NULL)
+			continue;
+		jrelse(node);
+		jput(node);
+	}
+}
+
+static int
+unflush(coord_t *coord)
+{
+	reiser4_extent *ext;
+	reiser4_key     key;
+	oid_t           oid;
+	__u64           width;
+	__u64           i;
+	unsigned long   ind;
+	int             result;
+
+	assert("nikita-2793", item_is_extent(coord));
+
+	result = 0;
+
+	ext = extent_by_coord(coord);
+
+	unit_key_by_coord(coord, &key);
+
+	width = extent_get_width(ext);
+	oid   = get_key_objectid(&key);
+	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
+	
+	for (result = 0, i = 0 ; i < width ; ++ i, ++ ind) {
+		jnode  *node;
+		reiser4_tree *tree;
+
+		tree = current_tree;
+		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (node == NULL)
+			continue;
+		result = jload(node);
+		jput(node);
+		if (result != 0) {
+			unflush_finish(coord, i);
+			break;
+		}
+	}
+	return result;
+}
+#else
+#define unflush_finish(coord, done) noop
+#define unflush(coord) (0)
+#endif
+
 /* @right is extent item. @left is left neighbor of @right->node. Copy item
    @right to @left unit by unit. Units which do not require allocation are
    copied as they are. Units requiring allocation are copied after destinating
@@ -2156,6 +2236,9 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 
 		assert("vs-959", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
+		if((result = unflush(right)))
+			goto done;
+
 		/* extent must be allocated */
 		to_allocate = width;
 		/* until whole extent is allocated and there is space in left
@@ -2164,9 +2247,8 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 			result =
 			    extent_allocate_blocks(flush_pos_hint(flush_pos),
 						   to_allocate, &first_allocated, &allocated);
-			if (result) {
-				return result;
-			}
+			if (result)
+				goto finish_unflush;
 
 			trace_on(TRACE_EXTENTS,
 				 "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
@@ -2219,22 +2301,28 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 						   squalloc_right_twig_cut */
 					}
 
-					goto done;
+					goto finish_unflush;
 				}
 			}
 			/* find all pages for which blocks were allocated and
 			   assign block numbers to jnodes of those pages */
-			if ((result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos))) {
-				goto done;
-			}
+			result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos);
+			if (result)
+				goto finish_unflush;
+
 			/* update stop key */
 			set_key_offset(&key, get_key_offset(&key) + allocated * blocksize);
 			*stop_key = key;
 			set_key_offset(stop_key, get_key_offset(&key) - 1);
 			result = SQUEEZE_CONTINUE;
 		}
+	finish_unflush:
+		unflush_finish(right, width);
+
+		if (result < 0)
+			break;
 	}
-done:
+ done:
 
 	assert("vs-421", result < 0 || result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
 
@@ -2324,86 +2412,6 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	tap_done(&watch);
 	return result;
 }
-
-#if REISER4_USE_EFLUSH
-static void
-unflush_finish(coord_t *coord, __u64 done)
-{
-	reiser4_extent *ext;
-	reiser4_key     key;
-	oid_t           oid;
-	__u64           i;
-	unsigned long   ind;
-	int             result;
-
-	assert("nikita-2793", item_is_extent(coord));
-
-	result = 0;
-
-	ext = extent_by_coord(coord);
-
-	unit_key_by_coord(coord, &key);
-
-	oid   = get_key_objectid(&key);
-	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
-	
-	for (result = 0, i = 0 ; i < done ; ++ i, ++ ind) {
-		jnode  *node;
-		reiser4_tree *tree;
-
-		tree = current_tree;
-		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
-		if (node == NULL)
-			continue;
-		jrelse(node);
-		jput(node);
-	}
-}
-
-static int
-unflush(coord_t *coord)
-{
-	reiser4_extent *ext;
-	reiser4_key     key;
-	oid_t           oid;
-	__u64           width;
-	__u64           i;
-	unsigned long   ind;
-	int             result;
-
-	assert("nikita-2793", item_is_extent(coord));
-
-	result = 0;
-
-	ext = extent_by_coord(coord);
-
-	unit_key_by_coord(coord, &key);
-
-	width = extent_get_width(ext);
-	oid   = get_key_objectid(&key);
-	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
-	
-	for (result = 0, i = 0 ; i < width ; ++ i, ++ ind) {
-		jnode  *node;
-		reiser4_tree *tree;
-
-		tree = current_tree;
-		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
-		if (node == NULL)
-			continue;
-		result = jload(node);
-		jput(node);
-		if (result != 0) {
-			unflush_finish(coord, i);
-			break;
-		}
-	}
-	return result;
-}
-#else
-#define unflush_finish(coord, done) noop
-#define unflush(coord) (0)
-#endif
 
 /* find all units of extent item which require allocation. Allocate free blocks
    for them and replace those extents with new ones. As result of this item may
