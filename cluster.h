@@ -169,7 +169,7 @@ static inline void
 reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 	assert("edward-84", clust != NULL);
 	xmemset(clust, 0, sizeof *clust);
-	clust->stat = DATA_CLUSTER;
+	clust->dstat = INVAL_DISK_CLUSTER;
 	clust->win = window;
 }
 
