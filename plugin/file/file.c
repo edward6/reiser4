@@ -526,7 +526,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	key_by_inode_unix_file(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1/*get_key_offset(max_key())*/);
-
+	/* VS-FIXME-HANS: does this loop normally run just once? */
 	while (1) {
 		result = reserve_cut_iteration(tree_by_inode(inode));
 		if (result)
@@ -537,6 +537,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			/* FIXME(Zam) cut_tree does not support that signaling.*/
+			/* VS-FIXME-HANS: comment this out until it does */
 			result = update_inode_and_sd_if_necessary
 				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
 			if (result)
@@ -1540,6 +1541,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 	write_f_t write_f;
 	file_container_t cur_container, new_container;
 	znode *loaded;
+	loff_t off;
 
 	assert("nikita-3031", schedulable());
 	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
@@ -1553,6 +1555,9 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 	to_write = flow->length;
 
 	while (flow->length) {
+		off = get_key_offset(&flow->key);
+		/*XXX*//*printk("write (oid %llu, size %llu, offset %llu)\n", 
+		  get_inode_oid(uf_info->inode), uf_info->inode->i_size, off);*/
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
 		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
@@ -1634,6 +1639,8 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		done_lh(&lh);
 		if (result && result != -E_REPEAT)
 			break;
+		/*XXX*//*printk("write (oid %llu, size %llu, offset %llu) - done\n",
+			 get_inode_oid(uf_info->inode), uf_info->inode->i_size, off);*/
 		preempt_point();
 	}
 	if (result == -EEXIST)
@@ -1774,12 +1781,12 @@ ssize_t
 write_unix_file(struct file *file, /* file to write to */
 		const char *buf, /* address of user-space buffer */
 		size_t count, /* number of bytes to write */
-		loff_t *off /* position to write which */)
+		loff_t *off /* position in file to write to */)
 {
 	struct inode *inode;
 	int result;
-	ssize_t written;
-	loff_t pos;
+	ssize_t written;	/* amount actually written so far */
+	loff_t pos;		/* current location in the file */
 	unix_file_info_t *uf_info;
 
 	/* Checking for mapped pages, converting to something (tails, extents) */
@@ -1945,7 +1952,7 @@ ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int 
 		break;
 
 	default:
-		result = RETERR(-ENOTTY);
+		result = RETERR(-ENOSYS);
 		break;
 	}
 	return result;
