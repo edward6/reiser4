@@ -125,7 +125,8 @@ write_log(reiser4_log_file * file, const char *format, ...)
 	int result;
 	va_list args;
 
-	if ((file == NULL) || (file->type == log_to_bucket) || (file->buf == NULL) || (file->disabled > 0))
+	if (file == NULL || file->type == log_to_bucket ||
+	    file->buf == NULL || file->disabled > 0)
 		return 0;
 
 	va_start(args, format);
@@ -136,7 +137,8 @@ write_log(reiser4_log_file * file, const char *format, ...)
 	result = free_space(file, &len);
 	if (result == 0) {
 		va_start(args, format);
-		file->used += vsnprintf(file->buf + file->used, file->size - file->used, format, args);
+		file->used += vsnprintf(file->buf + file->used,
+					file->size - file->used, format, args);
 		va_end(args);
 	}
 	unlock_log(file);
@@ -269,6 +271,9 @@ static void convert_to_shortterm (reiser4_log_file * log)
 	}
 }
 
+/*
+ * flush content of the file->buf to the logging target. Free space in buffer.
+ */
 static int
 log_flush(reiser4_log_file * file)
 {
@@ -281,6 +286,11 @@ log_flush(reiser4_log_file * file)
 
 		convert_to_longterm(file);
 
+		/*
+		 * if logging to the file, call vfs_write() until all data are
+		 * written
+		 */
+
 		fd = file->fd;
 		if (fd && fd->f_op != NULL && fd->f_op->write != NULL) {
 			int written;
@@ -288,7 +298,8 @@ log_flush(reiser4_log_file * file)
 			written = 0;
 			START_KERNEL_IO;
 			while (file->used > 0) {
-				result = vfs_write(fd, file->buf + written, file->used, &fd->f_pos);
+				result = vfs_write(fd, file->buf + written,
+						   file->used, &fd->f_pos);
 				if (result > 0) {
 					file->used -= result;
 					written += result;
@@ -296,7 +307,9 @@ log_flush(reiser4_log_file * file)
 					static int log_io_failed = 0;
 					
 					if (IS_POW(log_io_failed))
-						warning("nikita-2502", "Error writing log: %i", result);
+						warning("nikita-2502",
+							"Error writing log: %i",
+							result);
 					++ log_io_failed;
 					break;
 				}
@@ -312,7 +325,9 @@ log_flush(reiser4_log_file * file)
 		break;
 	}
 	default:
-		warning("nikita-2505", "unknown log-file type: %i. Dumping to console", file->type);
+		warning("nikita-2505",
+			"unknown log-file type: %i. Dumping to console",
+			file->type);
 	case log_to_console:
 		if (file->buf != NULL)
 			printk(file->buf);
@@ -324,11 +339,16 @@ log_flush(reiser4_log_file * file)
 	return result;
 }
 
+/*
+ * free *@len bytes in the file->buf
+ */
 static int
 free_space(reiser4_log_file * file, size_t * len)
 {
 	if (*len > file->size) {
-		warning("nikita-2503", "log record too large: %i > %i. Truncating", *len, file->size);
+		warning("nikita-2503",
+			"log record too large: %i > %i. Truncating",
+			*len, file->size);
 		*len = file->size;
 	}
 	while (*len > file->size - file->used) {
@@ -342,6 +362,9 @@ free_space(reiser4_log_file * file, size_t * len)
 	return 0;
 }
 
+/*
+ * log tree operation @op on the @tree.
+ */
 void
 write_tree_log(reiser4_tree * tree, reiser4_log_op op, ...)
 {
@@ -355,6 +378,26 @@ write_tree_log(reiser4_tree * tree, reiser4_log_op op, ...)
 		return;
 	}
 
+	/*
+	 * For each operation arguments are provided by the caller. Number and
+	 * type of arguments depends on operation type. Use va_args to extract
+	 * them.
+	 */
+
+	/*
+	 * tree_cut:    opcode, key_from, key_to
+	 *
+	 * tree_lookup: opcode, key
+	 *
+	 * tree_insert: opcode, item_data, coord, flags
+	 *
+	 * tree_paste:  opcode, item_data, coord, flags
+	 *
+	 * tree_cached: opcode
+	 *
+	 * tree_exit:   opcode
+	 *
+	 */
 	va_start(args, op);
 
 	rest = buf;
@@ -397,6 +440,7 @@ write_tree_log(reiser4_tree * tree, reiser4_log_op op, ...)
 	write_current_logf(WRITE_TREE_LOG, "%s", buf);
 }
 
+/* construct in @buf jnode description to be output in the log */
 char *
 jnode_short_info(const jnode *j, char *buf)
 {
@@ -415,6 +459,7 @@ jnode_short_info(const jnode *j, char *buf)
 }
 
 
+/* write jnode description in the log */
 void
 write_node_log(const jnode *node)
 {
@@ -425,6 +470,7 @@ write_node_log(const jnode *node)
 			   sprint_address(jnode_get_block(node)), jbuf);
 }
 
+/* write page description in the log */
 void
 write_page_log(const struct address_space *mapping, unsigned long index)
 {
@@ -432,6 +478,7 @@ write_page_log(const struct address_space *mapping, unsigned long index)
 			   index);
 }
 
+/* write block IO request description in the log */
 void
 write_io_log(const char *moniker, int rw, struct bio *bio)
 {
@@ -439,6 +486,11 @@ write_io_log(const char *moniker, int rw, struct bio *bio)
 	reiser4_super_info_data *sbinfo;
 	reiser4_block_nr start;
 	char jbuf[100];
+
+	/*
+	 * sbinfo->last_touched is last block where IO was issued to. It is
+	 * used to output seek distance into log.
+	 */
 
 	super = reiser4_get_current_sb();
 	sbinfo = get_super_private(super);

@@ -263,7 +263,7 @@ init_inode_static_sd(struct inode *inode /* object being processed */ ,
 			/* bitmask exhausted */
 			break;
 	}
-	scint_pack(&state->extmask, bigmask, GFP_ATOMIC);
+	state->extmask = bigmask;
 	/* common initialisations */
 	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
 	if (len - (sizeof (d16) * bit / 16) > 0)
@@ -287,7 +287,7 @@ save_len_static_sd(struct inode *inode /* object being processed */ )
 	assert("nikita-632", inode != NULL);
 
 	result = sizeof (reiser4_stat_data_base);
-	mask = scint_unpack(&reiser4_inode_data(inode)->extmask);
+	mask = reiser4_inode_data(inode)->extmask;
 	for (bit = 0; mask != 0; ++bit, mask >>= 1) {
 		if (mask & 1) {
 			sd_ext_plugin *sdplug;
@@ -322,7 +322,7 @@ save_static_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-635", area != NULL);
 
 	result = 0;
-	emask = scint_unpack(&reiser4_inode_data(inode)->extmask);
+	emask = reiser4_inode_data(inode)->extmask;
 	sd_base = (reiser4_stat_data_base *) * area;
 	cputod16((unsigned) (emask & 0xffff), &sd_base->extmask);
 

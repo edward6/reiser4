@@ -215,6 +215,10 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		if (result == 0) {
 			lock_handle lh;
 
+			/*
+			 * pin node in memory. This is necessary for
+			 * znode_make_dirty() below.
+			 */
 			result = zload(node);
 			if (result == 0) {
 				/*

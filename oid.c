@@ -9,6 +9,11 @@
    ever will find it useful - look at yet_unneeded_abstractions/oid
 */
 
+/*
+ * initialize in-memory data for oid allocator at @super. @nr_files and @next
+ * are provided by disk format plugin that reads them from the disk during
+ * mount.
+ */
 reiser4_internal int
 oid_init_allocator(struct super_block *super, oid_t nr_files, oid_t next)
 {
@@ -21,6 +26,10 @@ oid_init_allocator(struct super_block *super, oid_t nr_files, oid_t next)
 	return 0;
 }
 
+/*
+ * allocate oid and return it. ABSOLUTE_MAX_OID is returned when allocator
+ * runs out of oids.
+ */
 reiser4_internal oid_t
 oid_allocate(struct super_block *super)
 {
@@ -39,6 +48,9 @@ oid_allocate(struct super_block *super)
 	return oid;
 }
 
+/*
+ * Tell oid allocator that @oid is now free.
+ */
 reiser4_internal int
 oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
 {
@@ -52,6 +64,11 @@ oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
 	return 0;
 }
 
+/*
+ * return next @oid that would be allocated (i.e., returned by oid_allocate())
+ * without actually allocating it. This is used by disk format plugin to save
+ * oid allocator state on the disk.
+ */
 reiser4_internal oid_t oid_next(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
@@ -65,6 +82,11 @@ reiser4_internal oid_t oid_next(const struct super_block *super)
 	return oid;
 }
 
+/*
+ * returns number of currently used oids. This is used by statfs(2) to report
+ * number of "inodes" and by disk format plugin to save oid allocator state on
+ * the disk.
+ */
 reiser4_internal long oids_used(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
@@ -81,7 +103,10 @@ reiser4_internal long oids_used(const struct super_block *super)
 		return (long) -1;
 }
 
-
+/*
+ * return number of "free" oids. This is used by statfs(2) to report "free"
+ * inodes.
+ */
 reiser4_internal long oids_free(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
@@ -98,6 +123,12 @@ reiser4_internal long oids_free(const struct super_block *super)
 		return (long) -1;
 }
 
+/*
+ * Count oid as allocated in atom. This is done after call to oid_allocate()
+ * at the point when we are irrevocably committed to creation of the new file
+ * (i.e., when oid allocation cannot be any longer rolled back due to some
+ * error).
+ */
 reiser4_internal void
 oid_count_allocated(void)
 {
@@ -108,7 +139,11 @@ oid_count_allocated(void)
 	UNLOCK_ATOM(atom);
 }
 
-/* count an object deletion in atom's nr_objects_deleted */
+/*
+ * Count oid as free in atom. This is done after call to oid_release() at the
+ * point when we are irrevocably committed to the deletion of the file (i.e.,
+ * when oid release cannot be any longer rolled back due to some error).
+ */
 reiser4_internal void
 oid_count_released(void)
 {

@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 /* Jnode manipulation functions. */
 /* Jnode is entity used to track blocks with data and meta-data in reiser4.
@@ -89,7 +89,7 @@
  *    is just about to release last reference on jnode it sets JNODE_RIP bit
  *    on it, and then proceed with jnode destruction (removing jnode from hash
  *    table, cbk_cache, detaching page, etc.). All places that change jnode
- *    reference counter from 0 to 1 (jlookup(), zlook(), and
+ *    reference counter from 0 to 1 (jlookup(), zlook(), zget(), and
  *    cbk_cache_scan_slots()) check for JNODE_RIP bit (this is done by
  *    jnode_rip_check() function), and pretend that nothing was found in hash
  *    table if bit is set.
@@ -225,20 +225,20 @@ jnode_init_static(void)
 					SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
 					NULL, NULL);
 
-	if (_jnode_slab == NULL) {
+	if (_jnode_slab == NULL)
 		goto error;
-	}
 
 	return 0;
 
 error:
 
-	if (_jnode_slab != NULL) {
+	if (_jnode_slab != NULL)
 		kmem_cache_destroy(_jnode_slab);
-	}
+
 	return RETERR(-ENOMEM);
 }
 
+/* Dual to jnode_init_static */
 reiser4_internal int
 jnode_done_static(void)
 {
@@ -340,6 +340,10 @@ jfree(jnode * node)
 	kmem_cache_free(_jnode_slab, node);
 }
 
+/*
+ * This function is supplied as RCU callback. It actually frees jnode when
+ * last reference to it is gone.
+ */
 static void
 jnode_free_actor(void *arg)
 {
@@ -366,6 +370,10 @@ jnode_free_actor(void *arg)
 	}
 }
 
+/*
+ * Free a jnode. Post a callback to be executed later through RCU when all
+ * references to @node are released.
+ */
 static inline void
 jnode_free(jnode * node, jnode_type jtype)
 {
@@ -404,6 +412,11 @@ jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 
 	jkey.objectid = objectid;
 	jkey.index = index;
+
+	/*
+	 * hash table is _not_ protected by any lock during lookups. All we
+	 * have to do is to disable preemption to keep RCU happy.
+	 */
 
 	rcu_read_lock();
 	node = j_hash_find(&tree->jhash_table, &jkey);
@@ -562,7 +575,12 @@ unhash_unformatted_jnode(jnode *node)
 	WUNLOCK_TREE(node->tree);
 }
 
-jnode *
+/*
+ * search hash table for a jnode with given oid and index. If not found,
+ * allocate new jnode, insert it, and also insert into radix tree for the
+ * given inode/mapping.
+ */
+reiser4_internal jnode *
 find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 	       unsigned long index)
 {
@@ -647,6 +665,9 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	return result;
 }
 
+/*
+ * return jnode for @pg, creating it if necessary.
+ */
 reiser4_internal jnode *
 jnode_of_page(struct page * pg)
 {
@@ -675,6 +696,8 @@ jnode_of_page(struct page * pg)
 	return result;
 }
 
+/* attach page to jnode: set ->pg pointer in jnode, and ->private one in the
+ * page.*/
 reiser4_internal void
 jnode_attach_page(jnode * node, struct page *pg)
 {
@@ -693,6 +716,7 @@ jnode_attach_page(jnode * node, struct page *pg)
 	SetPagePrivate(pg);
 }
 
+/* Dual to jnode_attach_page: break a binding between page and jnode */
 reiser4_internal void
 page_clear_jnode(struct page *page, jnode * node)
 {
@@ -777,6 +801,11 @@ jnode_lock_page(jnode * node)
 	}
 	return page;
 }
+
+/*
+ * is JNODE_PARSED bit is not set, call ->parse() method of jnode, to verify
+ * validness of jnode content.
+ */
 static inline int
 jparse(jnode * node)
 {
@@ -795,7 +824,8 @@ jparse(jnode * node)
 	return result;
 }
 
-/* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
+/* Lock a page attached to jnode, create and attach page to jnode if it had no
+ * one. */
 reiser4_internal struct page *
 jnode_get_page_locked(jnode * node, int gfp_flags)
 {
@@ -866,6 +896,9 @@ static void check_jload(jnode * node, struct page * page)
 #define check_jload(node, page) noop
 #endif
 
+/* prefetch jnode to speed up next call to jload. Call this when you are going
+ * to call jload() shortly. This will bring appropriate portion of jnode into
+ * CPU cache. */
 reiser4_internal void jload_prefetch(const jnode * node)
 {
 	prefetchw(&node->x_count);
@@ -875,7 +908,7 @@ reiser4_internal void jload_prefetch(const jnode * node)
 reiser4_internal int
 jload_gfp (jnode * node /* node to load */,
 	   int gfp_flags /* allocation flags*/,
-	   int do_kmap)
+	   int do_kmap /* true if page should be kmapped */)
 {
 	struct page * page;
 	int result = 0;
@@ -1009,6 +1042,7 @@ reiser4_internal int jinit_new (jnode * node, int gfp_flags)
 	return result;
 }
 
+/* release a reference to jnode acquired by jload(), decrement ->d_count */
 reiser4_internal void
 jrelse_tail(jnode * node /* jnode to release references to */)
 {
@@ -1123,6 +1157,19 @@ jwait_io(jnode * node, int rw)
 	return result;
 }
 
+/*
+ * jnode types and plugins.
+ *
+ * jnode by itself is a "base type". There are several different jnode
+ * flavors, called "jnode types" (see jnode_type for a list). Sometimes code
+ * has to do different things based on jnode type. In the standard reiser4 way
+ * this is done by having jnode plugin (see fs/reiser4/plugin.h:jnode_plugin).
+ *
+ * Functions below deal with jnode types and define methods of jnode plugin.
+ *
+ */
+
+/* set jnode type. This is done during jnode initialization. */
 static void
 jnode_set_type(jnode * node, jnode_type type)
 {
@@ -1141,24 +1188,32 @@ jnode_set_type(jnode * node, jnode_type type)
 	node->state |= (type_to_mask[type] << JNODE_TYPE_1);
 }
 
+/* ->init() method of jnode plugin for jnodes that don't require plugin
+ * specific initialization. */
 static int
 init_noinit(jnode * node UNUSED_ARG)
 {
 	return 0;
 }
 
+/* ->parse() method of jnode plugin for jnodes that don't require plugin
+ * specific pasring. */
 static int
 parse_noparse(jnode * node UNUSED_ARG)
 {
 	return 0;
 }
 
+/* ->mapping() method for unformatted jnode */
 reiser4_internal struct address_space *
 mapping_jnode(const jnode * node)
 {
 	struct address_space *map;
 
 	assert("nikita-2713", node != NULL);
+
+	/* mapping is stored in jnode */
+
 	map = node->key.j.mapping;
 	assert("nikita-2714", map != NULL);
 	assert("nikita-2897", is_reiser4_inode(map->host));
@@ -1167,44 +1222,55 @@ mapping_jnode(const jnode * node)
 	return map;
 }
 
+/* ->index() method for unformatted jnodes */
 reiser4_internal unsigned long
 index_jnode(const jnode * node)
 {
 	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
+	/* index is stored in jnode */
 	return node->key.j.index;
 }
 
+/* ->remove() method for unformatted jnodes */
 static inline void
 remove_jnode(jnode * node, reiser4_tree * tree)
 {
+	/* remove jnode from hash table and radix tree */
 	if (node->key.j.mapping)
 		unhash_unformatted_node_nolock(node);
 }
 
+/* ->mapping() method for znodes */
 static struct address_space *
 mapping_znode(const jnode * node)
 {
 	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
+	/* all znodes belong to fake inode */
 	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
 
 extern int znode_shift_order;
+/* ->index() method for znodes */
 static unsigned long
 index_znode(const jnode * node)
 {
 	unsigned long addr;
 	assert("nikita-3317", (1 << znode_shift_order) < sizeof(znode));
 
+	/* index of znode is just its address (shifted) */
 	addr = (unsigned long)node;
 	return (addr - PAGE_OFFSET) >> znode_shift_order;
 }
 
+/* ->mapping() method for bitmap jnode */
 static struct address_space *
 mapping_bitmap(const jnode * node)
 {
+	/* all bitmap blocks belong to special bitmap inode */
 	return get_super_private(jnode_get_tree(node)->super)->bitmap->i_mapping;
 }
 
+/* ->index() method for jnodes that are indexed by address */
 static unsigned long
 index_is_address(const jnode * node)
 {
@@ -1218,6 +1284,26 @@ index_is_address(const jnode * node)
 reiser4_internal jnode *
 jnode_rip_sync(reiser4_tree *t, jnode * node)
 {
+	/*
+	 * This is used as part of RCU-based jnode handling.
+	 *
+	 * jlookup(), zlook(), zget(), and cbk_cache_scan_slots() have to work
+	 * with unreferenced jnodes (ones with ->x_count == 0). Hash table is
+	 * not protected during this, so concurrent thread may execute
+	 * zget-set-HEARD_BANSHEE-zput, or somehow else cause jnode to be
+	 * freed in jput_final(). To avoid such races, jput_final() sets
+	 * JNODE_RIP on jnode (under tree lock). All places that work with
+	 * unreferenced jnodes call this function. It checks for JNODE_RIP bit
+	 * (first without taking tree lock), and if this bit is set, released
+	 * reference acquired by the current thread and returns NULL.
+	 *
+	 * As a result, if jnode is being concurrently freed, NULL is returned
+	 * and caller should pretend that jnode wasn't found in the first
+	 * place.
+	 *
+	 * Otherwise it's safe to release "rcu-read-lock" and continue with
+	 * jnode.
+	 */
 	if (unlikely(JF_ISSET(node, JNODE_RIP))) {
 		RLOCK_TREE(t);
 		if (JF_ISSET(node, JNODE_RIP)) {
@@ -1267,12 +1353,14 @@ jnode_build_key(const jnode * node, reiser4_key * key)
 
 extern int zparse(znode * node);
 
+/* ->parse() method for formatted nodes */
 static int
 parse_znode(jnode * node)
 {
 	return zparse(JZNODE(node));
 }
 
+/* ->delete() method for formatted nodes */
 static void
 delete_znode(jnode * node, reiser4_tree * tree)
 {
@@ -1290,6 +1378,7 @@ delete_znode(jnode * node, reiser4_tree * tree)
 	znode_remove(z, tree);
 }
 
+/* ->remove() method for formatted nodes */
 static int
 remove_znode(jnode * node, reiser4_tree * tree)
 {
@@ -1309,18 +1398,22 @@ remove_znode(jnode * node, reiser4_tree * tree)
 	return RETERR(-EBUSY);
 }
 
+/* ->init() method for formatted nodes */
 static int
 init_znode(jnode * node)
 {
 	znode *z;
 
 	z = JZNODE(node);
+	/* call node plugin to do actual initialization */
 	return z->nplug->init(z);
 }
 
 /* jplug->clone for formatted nodes (znodes) */
 znode *zalloc(int gfp_flag);
 void zinit(znode *, const znode * parent, reiser4_tree *);
+
+/* ->clone() method for formatted nodes */
 reiser4_internal jnode *
 clone_formatted(jnode *node)
 {
@@ -1355,6 +1448,10 @@ clone_unformatted(jnode *node)
 	return clone;
 	
 }
+
+/*
+ * Setup jnode plugin methods for various jnode types.
+ */
 
 jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 	[JNODE_UNFORMATTED_BLOCK] = {
@@ -1434,18 +1531,57 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 	}
 };
 
+/*
+ * jnode destruction.
+ *
+ * Thread may use a jnode after it acquired a reference to it. References are
+ * counted in ->x_count field. Reference protects jnode from being
+ * recycled. This is different from protecting jnode data (that are stored in
+ * jnode page) from being evicted from memory. Data are protected by jload()
+ * and released by jrelse().
+ *
+ * If thread already possesses a reference to the jnode it can acquire another
+ * one through jref(). Initial reference is obtained (usually) by locating
+ * jnode in some indexing structure that depends on jnode type: formatted
+ * nodes are kept in global hash table, where they are indexed by block
+ * number, and also in the cbk cache. Unformatted jnodes are also kept in hash
+ * table, which is indexed by oid and offset within file, and in per-inode
+ * radix tree.
+ *
+ * Reference to jnode is released by jput(). If last reference is released,
+ * jput_final() is called. This function determines whether jnode has to be
+ * deleted (this happens when corresponding node is removed from the file
+ * system, jnode is marked with JNODE_HEARD_BANSHEE bit in this case), or it
+ * should be just "removed" (deleted from memory).
+ *
+ * Jnode destruction is signally delicate dance because of locking and RCU.
+ */
+
+/*
+ * Returns true if jnode cannot be removed right now. This check is called
+ * under tree lock. If it returns true, jnode is irrevocably committed to be
+ * deleted/removed.
+ */
 static inline int
 jnode_is_busy(const jnode * node, jnode_type jtype)
 {
+	/* if other thread managed to acquire a reference to this jnode, don't
+	 * free it. */
 	if (atomic_read(&node->x_count) > 0)
 		return 1;
+	/* also, don't free znode that has children in memory */
 	if (jtype == JNODE_FORMATTED_BLOCK && JZNODE(node)->c_count > 0)
 		return 1;
 	return 0;
 }
 
+/*
+ * this is called as part of removing jnode. Based on jnode type, call
+ * corresponding function that removes jnode from indices and returns it back
+ * to the appropriate slab (through RCU).
+ */
 static inline void
-jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
+jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree)
 {
 	switch (jtype) {
 	case JNODE_UNFORMATTED_BLOCK:
@@ -1464,6 +1600,14 @@ jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 	}
 }
 
+/*
+ * this is called as part of deleting jnode. Based on jnode type, call
+ * corresponding function that removes jnode from indices and returns it back
+ * to the appropriate slab (through RCU).
+ *
+ * This differs from jnode_remove() only for formatted nodes---for them
+ * sibling list handling is different for removal and deletion.
+ */
 static inline void
 jnode_delete(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 {
@@ -1484,6 +1628,9 @@ jnode_delete(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 }
 
 #if REISER4_DEBUG
+/*
+ * remove jnode from the debugging list of all jnodes hanging off super-block.
+ */
 void jnode_list_remove(jnode * node)
 {
 	reiser4_super_info_data *sbinfo;
@@ -1497,6 +1644,10 @@ void jnode_list_remove(jnode * node)
 }
 #endif
 
+/*
+ * this is called by jput_final() to remove jnode when last reference to it is
+ * released.
+ */
 reiser4_internal int
 jnode_try_drop(jnode * node)
 {
@@ -1515,6 +1666,10 @@ jnode_try_drop(jnode * node)
 
 	LOCK_JNODE(node);
 	WLOCK_TREE(tree);
+	/*
+	 * if jnode has a page---leave it alone. Memory pressure will
+	 * eventually kill page and jnode.
+	 */
 	if (jnode_page(node) != NULL) {
 		UNLOCK_JNODE(node);
 		WUNLOCK_TREE(tree);
@@ -1522,6 +1677,7 @@ jnode_try_drop(jnode * node)
 		return RETERR(-EBUSY);
 	}
 
+	/* re-check ->x_count under tree lock. */
 	result = jnode_is_busy(node, jtype);
 	if (result == 0) {
 		assert("nikita-2582", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
@@ -1534,6 +1690,8 @@ jnode_try_drop(jnode * node)
 		WUNLOCK_TREE(tree);
 		jnode_free(node, jtype);
 	} else {
+		/* busy check failed: reference was acquired by concurrent
+		 * thread. */
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);
 		JF_CLR(node, JNODE_RIP);
@@ -1541,7 +1699,7 @@ jnode_try_drop(jnode * node)
 	return result;
 }
 
-/* jdelete() -- Remove jnode from the tree */
+/* jdelete() -- Delete jnode from the tree and file system */
 reiser4_internal int
 jdelete(jnode * node /* jnode to finish with */)
 {
@@ -1567,6 +1725,7 @@ jdelete(jnode * node /* jnode to finish with */)
 	tree = jnode_get_tree(node);
 
 	WLOCK_TREE(tree);
+	/* re-check ->x_count under tree lock. */
 	result = jnode_is_busy(node, jtype);
 	if (likely(!result)) {
 		assert("nikita-2123", JF_ISSET(node, JNODE_HEARD_BANSHEE));
@@ -1588,6 +1747,8 @@ jdelete(jnode * node /* jnode to finish with */)
 		if (page != NULL)
 			drop_page(page);
 	} else {
+		/* busy check failed: reference was acquired by concurrent
+		 * thread. */
 		JF_CLR(node, JNODE_RIP);
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);
@@ -1627,6 +1788,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 
 	WLOCK_TREE(tree);
 
+	/* re-check ->x_count under tree lock. */
 	result = jnode_is_busy(node, jtype);
 	if (!result) {
 		assert("nikita-2488", page == jnode_page(node));
@@ -1645,6 +1807,8 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 			drop_page(page);
 		}
 	} else {
+		/* busy check failed: reference was acquired by concurrent
+		 * thread. */
 		JF_CLR(node, JNODE_RIP);
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);

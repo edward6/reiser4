@@ -155,7 +155,6 @@ reiser4_internal int
 create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
 {
 	int result;
-	scint_t *extmask;
 	reiser4_inode * info;
 	digest_plugin * dplug = NULL;
 	crypto_plugin * cplug = NULL;
@@ -173,8 +172,6 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 	assert("edward-85", info->pset->digest == NULL);
 	assert("edward-31", info->pset->compression == NULL);
 
-	extmask = &info->extmask;
-	
 	if (data->crypto) {
 		/* set plugins and crypto stat */
 		cplug = crypto_plugin_by_id(data->crypto->cra);
@@ -182,10 +179,7 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 		result = inode_set_crypto(object, data->crypto);
 		if (result)
 			return result;
-		result = scint_pack(extmask, scint_unpack(extmask) |
-				    (1 << CRYPTO_STAT), GFP_ATOMIC);
-		if (result)
-			goto exit;
+		info->extmask |= (1 << CRYPTO_STAT);
 	}
 	plugin_set_crypto(&info->pset, cplug);
 	plugin_set_digest(&info->pset, dplug);
@@ -202,11 +196,7 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 	}
 	else
 		info->cluster_shift = *data->cluster;
-	result = scint_pack(extmask, scint_unpack(extmask) |
-			    (1 << PLUGIN_STAT) |
-			    (1 << CLUSTER_STAT), GFP_ATOMIC);
-	if (result)
-		goto exit;
+	info->extmask |= (1 << PLUGIN_STAT) | (1 << CLUSTER_STAT);
         /* set bits */
 	info->plugin_mask |=
 		(1 << PSET_FILE) |
@@ -222,7 +212,6 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 	inode_clr_flag(object, REISER4_CRYPTO_STAT_LOADED);
 	inode_clr_flag(object, REISER4_CLUSTER_KNOWN);
 	
- exit:
 	if (info->crypt) {
 		destroy_key(cryptcompress_inode_data(object)->expkey, cplug);
 		inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);

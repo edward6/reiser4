@@ -2,7 +2,7 @@
  * reiser4/README */
 
 /*
-   Tree Access Pointers (taps).
+   Tree Access Pointer (tap).
 
    tap is data structure combining coord and lock handle (mostly). It is
    useful when one has to scan tree nodes (for example, in readdir, or flush),
@@ -86,6 +86,8 @@ tap_monitor(tap_t * tap)
 	tap_check(tap);
 }
 
+/* duplicate @src into @dst. Copy lock handle. @dst is not initially
+ * loaded. */
 reiser4_internal void
 tap_copy(tap_t * dst, tap_t * src)
 {
@@ -163,7 +165,8 @@ tap_to(tap_t * tap, znode * target)
 		lock_handle here;
 
 		init_lh(&here);
-		result = longterm_lock_znode(&here, target, tap->mode, ZNODE_LOCK_HIPRI);
+		result = longterm_lock_znode(&here, target,
+					     tap->mode, ZNODE_LOCK_HIPRI);
 		if (result == 0) {
 			result = tap_move(tap, &here);
 			done_lh(&here);

@@ -555,9 +555,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	       spin_inode_object_is_locked(reiser4_inode_data(inode)));
 
 	state = reiser4_inode_data(inode);
-	/* FIXME: return value of scint_pack is not checked. */
-	scint_pack(&state->extmask,
-		   scint_unpack(&state->extmask) | (1 << ext), GFP_ATOMIC);
+	state->extmask |= 1 << ext;
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
 	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
@@ -726,8 +724,8 @@ print_inode(const char *prefix /* prefix to print */ ,
 	/* FIXME-VS: this segfaults trying to print seal's coord */
 	print_seal("\tsd_seal", &ref->sd_seal);
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
-	printk("\tflags: %lx, extmask: %llu, pmask: %i, locality: %llu\n",
-	       *inode_flags(i), scint_unpack(&ref->extmask),
+	printk("\tflags: %#lx, extmask: %#llx, pmask: %i, locality: %llu\n",
+	       *inode_flags(i), ref->extmask,
 	       ref->plugin_mask, ref->locality_id);
 }
 #endif

@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Declaration of jnode. */
+/* Declaration of jnode. See jnode.c for details. */
 
 #ifndef __JNODE_H__
 #define __JNODE_H__
@@ -84,9 +85,7 @@ typedef struct {
     on passing of block address.
 
    If you ever need to spin lock two nodes at once, do this in "natural"
-   memory order: lock znode with lower address first. (See
-   spin_lock_znode_pair() and spin_lock_znode_triple() functions, NOTE-NIKITA
-   TDB)
+   memory order: lock znode with lower address first. (See lock_two_nodes().)
 
    Invariants involving this data-type:
 
@@ -148,7 +147,7 @@ struct jnode {
 
 	/*   44 */ reiser4_tree *tree;
 
-	/* FORTH CACHE LINE: atom related fields */
+	/* FOURTH CACHE LINE: atom related fields */
 
 	/*   48 */ reiser4_spin_data guard;
 
@@ -180,17 +179,22 @@ struct jnode {
 #endif
 } __attribute__((aligned(16)));
 
+/*
+ * jnode types. Enumeration of existing jnode types.
+ */
 typedef enum {
-	JNODE_UNFORMATTED_BLOCK,
-	JNODE_FORMATTED_BLOCK,
-	JNODE_BITMAP,
-	JNODE_IO_HEAD,
-	JNODE_INODE,
+	JNODE_UNFORMATTED_BLOCK, /* unformatted block */
+	JNODE_FORMATTED_BLOCK,   /* formatted block, znode */
+	JNODE_BITMAP,            /* bitmap */
+	JNODE_IO_HEAD,           /* jnode representing a block in the
+				  * wandering log */
+	JNODE_INODE,             /* jnode embedded into inode */
 	LAST_JNODE_TYPE
 } jnode_type;
 
 TYPE_SAFE_LIST_DEFINE(capture, jnode, capture_link);
 
+/* jnode states */
 typedef enum {
 	/* jnode's page is loaded and data checked */
 	JNODE_PARSED = 0,
@@ -247,6 +251,7 @@ typedef enum {
 	/* FIXME: now it is used by crypto-compress plugin only */
 	JNODE_NEW = 19,
 
+	/* delimiting keys are already set for this znode. */
 	JNODE_DKSET = 20,
 	/* if page was dirtied through mmap, we don't want to lose data, even
 	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
@@ -292,6 +297,7 @@ typedef enum {
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
+
 static inline void
 JF_CLR(jnode * j, int f)
 {

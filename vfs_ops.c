@@ -460,7 +460,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info = &obj->p;
 
 		info->hset = info->pset = plugin_set_get_empty();
-		scint_init(&info->extmask);
+		info->extmask = 0;
 		info->locality_id = 0ull;
 		info->plugin_mask = 0;
 #if !REISER4_INO_IS_OID
@@ -1418,7 +1418,6 @@ typedef enum {
 	INIT_FAKES,
 	INIT_JNODES,
 	INIT_EFLUSH,
-	INIT_SCINT,
 	INIT_SPINPROF,
 	INIT_SYSFS,
 	INIT_LNODES,
@@ -1449,7 +1448,6 @@ shutdown_reiser4(void)
 	DONE_IF(INIT_LNODES, lnodes_done());
 	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_once());
 	DONE_IF(INIT_SPINPROF, unregister_profregions());
-	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_JNODES, jnode_done_static());
 	DONE_IF(INIT_FAKES,;);
@@ -1496,7 +1494,6 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_fakes());
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
-	CHECK_INIT_RESULT(scint_init_once());
 	CHECK_INIT_RESULT(register_profregions());
 	CHECK_INIT_RESULT(reiser4_sysfs_init_once());
 	CHECK_INIT_RESULT(lnodes_init());

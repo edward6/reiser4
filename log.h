@@ -14,22 +14,38 @@
 #include <linux/fs.h>		/* for struct super_block, etc  */
 #include <asm/semaphore.h>
 
-typedef enum { log_to_file, log_to_console, log_to_bucket } log_file_type;
+/*
+ * Log targets
+ */
+typedef enum {
+	log_to_file,    /* file */
+	log_to_console  /* printk */,
+	log_to_bucket   /* nowhere */
+} log_file_type;
 
 #if REISER4_LOG
 
+/*
+ * data structure describing log file.
+ */
 typedef struct {
-	log_file_type type;
-	struct file *fd;
-	char *buf;
-	size_t size;
-	size_t used;
-	spinlock_t lock;
-	struct list_head wait;
-	int disabled;
-	int long_term;
+	log_file_type type;      /* type of log file */
+	struct file *fd;         /* actual file */
+	char *buf;               /* logging buffer where records are
+				  * accumulated */
+	size_t size;             /* buffer size */
+	size_t used;             /* bytes used in the buffer */
+	spinlock_t lock;         /* spinlock protecting this structure */
+	struct list_head wait;   /* threads waiting for the free space in the
+				  * buffer */
+	int disabled;            /* if > 0, logging is temporarily disabled */
+	int long_term;           /* if != 0, then ->wait is used for
+				  * synchronization, otherwise--- ->lock.*/
 } reiser4_log_file;
 
+/*
+ * markers for tree operations logged. Self-describing.
+ */
 typedef enum {
 	tree_cut = 'c',
 	tree_lookup = 'l',

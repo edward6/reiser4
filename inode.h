@@ -11,7 +11,6 @@
 #include "key.h"
 #include "kcond.h"
 #include "seal.h"
-#include "scint.h"
 #include "plugin/plugin.h"
 #include "plugin/cryptcompress.h"
 #include "plugin/plugin_set.h"
@@ -121,7 +120,7 @@ struct reiser4_inode {
 	/* coord of stat-data in sealed node */
 	coord_t sd_coord;
 	/* bit-mask of stat-data extentions used by this file */
-	scint_t extmask;
+	__u64 extmask;
 	/* number of unformatted nodes, dirtied from mmap and eflushed from
 	 * this object. */
 	int eflushed_anon;

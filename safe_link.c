@@ -1,7 +1,50 @@
-/* Copyright 2003 by Hans Reiser, licensing governed by
+/* Copyright 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
 /* Safe-links. */
+
+/*
+ * Safe-links are used to maintain file system consistency during operations
+ * that spawns multiple transactions. For example:
+ *
+ *     1. Unlink. UNIX supports "open-but-unlinked" files, that is files
+ *     without user-visible names in the file system, but still opened by some
+ *     active process. What happens here is that unlink proper (i.e., removal
+ *     of the last file name) and file deletion (truncate of file body to zero
+ *     and deletion of stat-data, that happens when last file descriptor is
+ *     closed), may belong to different transactions T1 and T2. If a crash
+ *     happens after T2 commit, but before T2 commit, on-disk file system has
+ *     a file without name, that is, disk space leak.
+ *
+ *     2. Truncate. Truncate of large file may spawn multiple transactions. If
+ *     system crashes while truncate was in-progress, file is left partially
+ *     truncated, which violates "atomicity guarantees" of reiser4, viz. that
+ *     every system is atomic.
+ *
+ * Safe-links address both above cases. Basically, safe-link is a way post
+ * some operation to be executed during commit of some other transaction than
+ * current one. (Another way to look at the safe-link is to interpret it as a
+ * logical logging.)
+ *
+ * Specifically, at the beginning of unlink safe-link in inserted in the
+ * tree. This safe-link is normally removed by file deletion code (during
+ * transaction T2 in the above terms). Truncate also inserts safe-link that is
+ * normally removed when truncate operation is finished.
+ *
+ * This means, that in the case of "clean umount" there are no safe-links in
+ * the tree. If safe-links are observed during mount, it means that (a) system
+ * was terminated abnormally, and (b) safe-link correspond to the "pending"
+ * (i.e., not finished) operations that were in-progress during system
+ * termination. Each safe-link record enough information to complete
+ * corresponding operation, and mount simply "replays" them (hence, the
+ * analogy with the logical logging).
+ *
+ * Safe-links are implemented as blackbox items (see
+ * plugin/item/blackbox.[ch]).
+ *
+ * For the reference: ext3 also has similar mechanism, it's called "an orphan
+ * list" there.
+ */
 
 #include "safe_link.h"
 #include "debug.h"
@@ -11,17 +54,42 @@
 
 #include <linux/fs.h>
 
+/*
+ * On-disk format of safe-link.
+ */
 typedef struct safelink {
-	reiser4_key sdkey;
-	d64 size;
+	reiser4_key sdkey; /* key of stat-data for the file safe-link is
+			    * for */
+	d64 size;          /* size to which file should be truncated */
 } safelink_t;
 
+/*
+ * locality where safe-link items are stored. Next to the locality of root
+ * directory.
+ */
 static oid_t
 safe_link_locality(reiser4_tree *tree)
 {
 	return get_inode_oid(tree->super->s_root->d_inode) + 1;
 }
 
+/*
+  Construct a key for the safe-link. Key has the following format:
+
+|        60     | 4 |        64        | 4 |      60       |         64       |
++---------------+---+------------------+---+---------------+------------------+
+|   locality    | 0 |        0         | 0 |   objectid    |     link type    |
++---------------+---+------------------+---+---------------+------------------+
+|                   |                  |                   |                  |
+|     8 bytes       |     8 bytes      |      8 bytes      |      8 bytes     |
+
+   This is in large keys format. In small keys format second 8 byte chunk is
+   out. Locality is a constant returned by safe_link_locality(). objectid is
+   an oid of a file on which operation protected by this safe-link is
+   performed. link-type is used to distinguish safe-links for different
+   operations.
+
+ */
 static reiser4_key *
 build_link_key(struct inode *inode, reiser4_safe_link_t link, reiser4_key *key)
 {
@@ -32,6 +100,10 @@ build_link_key(struct inode *inode, reiser4_safe_link_t link, reiser4_key *key)
 	return key;
 }
 
+/*
+ * how much disk space is necessary to insert and remove (in the
+ * error-handling path) safe-link.
+ */
 reiser4_internal __u64 safe_link_tograb(reiser4_tree *tree)
 {
 	return
@@ -50,6 +122,10 @@ reiser4_internal __u64 safe_link_tograb(reiser4_tree *tree)
 		1;
 }
 
+/*
+ * grab enough disk space to insert and remove (in the error-handling path)
+ * safe-link.
+ */
 reiser4_internal int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags)
 {
 	int   result;
@@ -63,11 +139,17 @@ reiser4_internal int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags
 	return result;
 }
 
+/*
+ * release unused disk space reserved by safe_link_grab().
+ */
 reiser4_internal void safe_link_release(reiser4_tree * tree)
 {
 	reiser4_release_reserved(tree->super);
 }
 
+/*
+ * insert into tree safe-link for operation @link on inode @inode.
+ */
 reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 {
 	reiser4_key key;
@@ -80,6 +162,10 @@ reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link
 	length = sizeof sl.sdkey;
 
 	if (link == SAFE_TRUNCATE) {
+		/*
+		 * for truncate we have to store final file length also,
+		 * expand item.
+		 */
 		length += sizeof(sl.size);
 		cputod64(inode->i_size, &sl.size);
 	}
@@ -92,6 +178,10 @@ reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link
 	return result;
 }
 
+/*
+ * remove safe-link corresponding to the operation @link on inode @inode from
+ * the tree.
+ */
 reiser4_internal int safe_link_del(struct inode *inode, reiser4_safe_link_t link)
 {
 	reiser4_key key;
@@ -100,15 +190,22 @@ reiser4_internal int safe_link_del(struct inode *inode, reiser4_safe_link_t link
 			      build_link_key(inode, link, &key));
 }
 
+/*
+ * in-memory structure to keep information extracted from safe-link. This is
+ * used to iterate over all safe-links.
+ */
 typedef struct {
-	reiser4_tree       *tree;
-	reiser4_key         key;
-	reiser4_key         sdkey;
-	reiser4_safe_link_t link;
-	oid_t               oid;
-	__u64               size;
+	reiser4_tree       *tree;   /* internal tree */
+	reiser4_key         key;    /* safe-link key*/
+	reiser4_key         sdkey;  /* key of object stat-data */
+	reiser4_safe_link_t link;   /* safe-link type */
+	oid_t               oid;    /* object oid */
+	__u64               size;   /* final size for truncate */
 } safe_link_context;
 
+/*
+ * start iterating over all safe-links.
+ */
 static void safe_link_iter_begin(reiser4_tree *tree, safe_link_context *ctx)
 {
 	ctx->tree = tree;
@@ -118,6 +215,9 @@ static void safe_link_iter_begin(reiser4_tree *tree, safe_link_context *ctx)
 	set_key_offset(&ctx->key, get_key_offset(max_key()));
 }
 
+/*
+ * return next safe-link.
+ */
 static int safe_link_iter_next(safe_link_context *ctx)
 {
 	int result;
@@ -135,22 +235,37 @@ static int safe_link_iter_next(safe_link_context *ctx)
 	return result;
 }
 
+/*
+ * check are there any more safe-links left in the tree.
+ */
 static int safe_link_iter_finished(safe_link_context *ctx)
 {
 	return get_key_locality(&ctx->key) != safe_link_locality(ctx->tree);
 }
 
 
+/*
+ * finish safe-link iteration.
+ */
 static void safe_link_iter_end(safe_link_context *ctx)
 {
 	/* nothing special */
 }
 
+/*
+ * process single safe-link.
+ */
 static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 			    reiser4_key *sdkey, oid_t oid, __u64 size)
 {
 	struct inode *inode;
 	int result;
+
+	/*
+	 * obtain object inode by reiser4_iget(), then call object plugin
+	 * ->safelink() method to do actual work, then delete safe-link on
+	 * success.
+	 */
 
 	inode = reiser4_iget(super, sdkey, 1);
 	if (!IS_ERR(inode)) {
@@ -180,6 +295,11 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 			if (result == 0)
 				result = safe_link_del(inode, link);
 			safe_link_release(tree_by_inode(inode));
+			/*
+			 * restart transaction: if there was large number of
+			 * safe-links, their processing may fail to fit into
+			 * single transaction.
+			 */
 			if (result == 0)
 				txn_restart_current();
 		}
@@ -188,12 +308,16 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 	return result;
 }
 
+/*
+ * iterate over all safe-links in the file-system processing them one by one.
+ */
 reiser4_internal int process_safelinks(struct super_block *super)
 {
 	safe_link_context ctx;
 	int result;
 	
 	if (rofs_super(super))
+		/* do nothing on the read-only file system */
 		return 0;
 	safe_link_iter_begin(&get_super_private(super)->tree, &ctx);
 	result = 0;

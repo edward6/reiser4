@@ -615,7 +615,7 @@ set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
 		mask |= (1 << LARGE_TIMES_STAT);
 
-	scint_pack(&reiser4_inode_data(object)->extmask, mask, GFP_ATOMIC);
+	reiser4_inode_data(object)->extmask = mask;
 	return 0;
 }
 
