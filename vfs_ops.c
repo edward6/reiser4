@@ -2440,10 +2440,13 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 
 		// current->flags & PF_MEMALLOC
 
-		/* Here we can call synchronously. We can be called from
-		 * balance_dirty_pages() Reiser4 code is supposed to call
-		 * balance_dirty_pages at paces where no locks are hold it means we can
-		 * call begin jnode_flush right from there having no deadlocks between the
+		/* Here we can call synchronously. 
+call or be called?
+
+We can be called from
+		 * balance_dirty_pages().  Reiser4 code is supposed to call
+		 * balance_dirty_pages at places where no locks are held.  This means we can
+		 * call begin jnode_flush right from there, and have no deadlocks between the
 		 * caller of balance_dirty_pages() and jnode_flush(). */
 
 		while (wbc->nr_to_write > 0) {
