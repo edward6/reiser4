@@ -624,7 +624,7 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 	get_bitmap_blocknr(super, bmap, &cjnode->blocknr);
 
 	/* load commit bitmap */
-	ret = jload(cjnode);
+	ret = jload_gfp(cjnode, GFP_NOFS);
 	if (ret != 0)
 		return ret;
 

@@ -431,7 +431,13 @@ extern void add_d_ref(jnode * node);
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-extern int jload(jnode * node);
+extern int jload_gfp(jnode * node, int gfp);
+
+static inline int jload(jnode * node)
+{
+	return jload_gfp(node, GFP_KERNEL);
+}
+
 extern int jinit_new(jnode * node);
 extern int jstartio(jnode * node);
 
