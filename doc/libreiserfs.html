@@ -2,20 +2,20 @@
 <head><title>Reiser4 Libreiserfs Architecture Document.</title></head>
 <body>
 
-<table width=70%><tr><td align=center>
+<table width=100%><tr><td align=center>
 <h1>Reiser4 Libreiserfs Architercure Document.</h1>
 <h3>24 May 2002</h2>
 </td></tr></table>
 
 <h2>Introduction</h2>
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 This document consists of two parts. First part describes DAL as the way of communication 
 with any device through unified interface.  Second  part describes libreiserfs that works 
 over DAL.
 </td></tr></table>
 
 <h2>DAL (Device Abstraction Layer)</h2>
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 DAL is a layer between the device abstract object in "master" software package that uses
 libreiserfs and libreiserfs. DAL layer handles all I/O requests from libreiserfs to that 
 device.
@@ -23,7 +23,7 @@ device.
 
 <h3>Abstract</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Following is not complete list of projects that are interested in using libreiserfs:<br>
 GNU Parted, EVMS, GNU GRUB, Yaboot, Partimage, Reiserfsprogs.</p>
 
@@ -123,7 +123,7 @@ of device (drive) (/dev/hda, /dev/hdb, etc).</p>
 does all work on device.</p>
 </td></tr></table>
 	
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 	
 <pre>
 ENTRY(biosdsik)
@@ -225,7 +225,7 @@ it as "stable", because it remains unchanged from one project to another.</p>
 
 <h3>Implementation.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Following is complete list of I/O operations that have  to be implemented 
 by any DAL implementation.  Notice that not all of them have to do real 
 work. For example, "stat" call is  only  required  just  for  proper stating 
@@ -481,7 +481,7 @@ opening process.
 
 <h2>libreiserfs</h2>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Libreiserfs will consists of set of APIs. There are following:<br>
 plugins API (plugin factory), filesystem API, gauge API, tree API, 
 memory allocation functions, string working functions.</p>
@@ -557,7 +557,7 @@ are following: report about exception and going to finalization.</p>
 
 <h3>Exceptions in libreiserfs.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Exceptions in libreiserfs are uniform way to handle errors. Contrary to 
 some similarity in naming, they have nothing to with non-local exits in 
 languages like C++. When using exceptions, control flow is still based 
@@ -702,7 +702,7 @@ int main (int argc, char *argv[]) {
 
 <h3>Gauge API.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>libreiserfs includes so called gauge API. It is the mechanism to handle 
 progress activities by "master" project. This mechanism is based on "gauge_handler" 
 callback function that may be installed by "master" project. So, progress 
@@ -824,7 +824,7 @@ progress information will looks like this:</p>
 </td></tr></table>
 
 <h3>Memory allocation.</h3>
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>In order to using libreiserfs in boot-loaders (Yaboot, GNU GRUB, etc), which 
 are working without libc and kernel, and can't use standard memory allocation factory,
 libreiserfs should have a mechanism for using memory allocation functions which 
@@ -929,7 +929,7 @@ void milo_libreiserfs_init() {
 
 <h3>String-working functions. Memory-working functions.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>As libreiserfs will be used by boot-loaders or any other applications which 
 are working alone (without libc), we need to reimplement in libreiserfs some 
 string-working functions and memory-working functions which are used by libreiserfs.</p>
@@ -984,7 +984,7 @@ functions to the "master" project.</p>
 	
 <h3>Filesystem API.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Filesystem API will be containing all public functions.</p>
 
 <p>There are general functions:<br>
@@ -1111,7 +1111,7 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
 
 <h3>Journal plugin. Journal API.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Reiser4 will support several formats of the journal. In
 order to support format-variable journal we need the journal 
 plugin.</p>
@@ -1282,7 +1282,7 @@ void reiserfs_journal_close(reiserfs_journal_t *journal) {
 
 <h3>Disk-Format (Disk-Layout) plugin. Superblock API.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Disk-Format plugin defines following components of the filesystem:</p>
 		
 <ul>
@@ -1476,7 +1476,7 @@ void reiserfs_super_close(reiserfs_super_t *super) {
 
 <h3>Allocator plugin. Allocator API.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>A replica of bitmap in reiser3. Allocator plugin will roughly look:</p>
 
 <pre>
@@ -1525,7 +1525,7 @@ of allocated region and its end and returns result of operation to caller.</p>
 
 <h3>Balanced Tree API.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>There functions for working with b*tree. There following:</p>
 
 <b>reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs)</b>
@@ -1601,14 +1601,14 @@ or "false" on failure.</p>
 
 <h3>Plugins map.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Plugins map keeps correspondence between plugin's cords (KIND, ID) and library for 
 this plugin.</p>
 </td></tr></table>
 
 <h3>Plugins factory.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>In the initialization time libreiserfs will initialize plugins factory 
 with plugins cache that will store loaded plugins. Plugins cache keeps 
 track of loaded plugins and allows to avoid duplicate loading of the 
@@ -1802,7 +1802,7 @@ loaded plugin in the cache.</p>
 
 <h3>Compact building.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>As libreiserfs will be used by "alone" applications (some boot-loaders), 
 we need a mechanism for building libreiserfs in "compact" maner needed by 
 bootloadeds.</p>
@@ -1822,7 +1822,7 @@ will be using it.</p>
 
 <h3>Builtin plugins.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>In order to be used by bootloaders or other "alone" applications, libreiserfs 
 need a mechanism for building plugins in it staticaly. This ability also will be 
 useful for creating the repair reiserfs tools, which should be linked staticaty 
@@ -1843,7 +1843,7 @@ make install</i></p>
 
 <h3>Builtin plugins implementation.</h3>
 
-<table width=70%><tr><td align=justify>
+<table width=100%><tr><td align=justify>
 <p>Not implemented yet!</p>
 </td></tr></table>
 
