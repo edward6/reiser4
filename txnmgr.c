@@ -3592,6 +3592,7 @@ fake_jload(jnode *node)
 
 /* for now - refuse to copy-on-capture any suspicious nodes (WRITEBACK, DIRTY, FLUSH_QUEUED) */
 static int
+
 capturable(const jnode *node, const txn_atom *atom)
 {
 	assert("vs-1429", spin_jnode_is_locked(node));
@@ -3868,14 +3869,6 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	/* measure how often suspicious (WRITEBACK, DIRTY, FLUSH_QUEUED) appear
 	   here. For most often case we can return EAGAIN right here and avoid
 	   all the preparations made for copy on capture */
-/*
-	if (JF_ISSET(node, JNODE_WRITEBACK)) {
-		UNLOCK_JNODE(node);
-		reiser4_stat_inc(coc.writeback);
-		return RETERR(-E_REPEAT);	
-	}
-*/
-
 	ON_TRACE(TRACE_CAPTURE_COPY, "copy_on_capture: node %p, atom %p..", node, atom);
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		UNLOCK_JNODE(node);
