@@ -499,7 +499,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	reiser4_tree *tree;
 	int result;
 
-	REISER4_ENTRY(s, WRITEBACK_OP);
+	REISER4_ENTRY(s);
 	assert("vs-828", PageLocked(page));
 
 	tree = &get_super_private(s)->tree;

@@ -159,7 +159,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	dir_plugin *dplug;
 	int retval;
 	struct dentry *result;
-	REISER4_ENTRY_PTR(parent->i_sb, LOOKUP_OP);
+	REISER4_ENTRY_PTR(parent->i_sb);
 
 	assert("nikita-403", parent != NULL);
 	assert("nikita-404", dentry != NULL);
@@ -273,7 +273,7 @@ static int
 reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir, struct dentry *new)
 {
 	int result;
-	REISER4_ENTRY(old_dir->i_sb, RENAME_OP);
+	REISER4_ENTRY(old_dir->i_sb);
 
 	assert("nikita-2314", old_dir != NULL);
 	assert("nikita-2315", old != NULL);
@@ -325,7 +325,7 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 {
 	struct inode *inode = dentry->d_inode;
 	int result;
-	REISER4_ENTRY(inode->i_sb, SETATTR_OP);
+	REISER4_ENTRY(inode->i_sb);
 
 	assert("nikita-2269", attr != NULL);
 	assert("vs-1108", inode);
@@ -352,7 +352,7 @@ reiser4_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct k
 {
 	struct inode *inode = dentry->d_inode;
 	int result;
-	REISER4_ENTRY(inode->i_sb, GETATTR_OP);
+	REISER4_ENTRY(inode->i_sb);
 
 	reiser4_stat_inc(vfs_calls.getattr);
 	result = perm_chk(inode, getattr, mnt, dentry, stat);
@@ -385,7 +385,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 {
 	ssize_t result;
 	struct inode *inode = file->f_dentry->d_inode;
-	REISER4_ENTRY(inode->i_sb, SYSREAD_OP);
+	REISER4_ENTRY(inode->i_sb);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("umka-072", file != NULL);
@@ -426,7 +426,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	struct inode *inode;
 	ssize_t result;
 
-	REISER4_ENTRY((inode = file->f_dentry->d_inode)->i_sb, SYSWRITE_OP);
+	REISER4_ENTRY((inode = file->f_dentry->d_inode)->i_sb);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("nikita-1421", file != NULL);
@@ -487,7 +487,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 static void
 reiser4_truncate(struct inode *inode /* inode to truncate */ )
 {
-	__REISER4_ENTRY(inode->i_sb, TRUNCATE_OP,);
+	__REISER4_ENTRY(inode->i_sb,);
 
 	assert("umka-075", inode != NULL);
 
@@ -559,7 +559,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 {
 	long bfree;
 	
-	REISER4_ENTRY(super, STATFS_OP);
+	REISER4_ENTRY(super);
 
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", buf != NULL);
@@ -646,7 +646,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	struct inode *inode;
 	file_plugin *fplug;
 	int result;
-	REISER4_ENTRY(f->f_dentry->d_inode->i_sb, READPAGE_OP);
+	REISER4_ENTRY(f->f_dentry->d_inode->i_sb);
 
 	assert("umka-078", f != NULL);
 	assert("umka-079", page != NULL);
@@ -729,7 +729,7 @@ static sector_t
 reiser4_bmap(struct address_space *mapping, sector_t block)
 {
 	file_plugin *fplug;
-	REISER4_ENTRY(mapping->host->i_sb, BMAP_OP);
+	REISER4_ENTRY(mapping->host->i_sb);
 
 	reiser4_stat_inc(vfs_calls.bmap);
 
@@ -846,7 +846,7 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 {
 	int result;
 	dir_plugin *dplug;
-	REISER4_ENTRY(parent->i_sb, LINK_OP);
+	REISER4_ENTRY(parent->i_sb);
 
 	assert("umka-080", existing != NULL);
 	assert("nikita-1031", parent != NULL);
@@ -873,7 +873,7 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 	file_plugin *fplug;
 	struct inode *inode = file->f_dentry->d_inode;
 	loff_t(*seek_fn) (struct file *, loff_t, int);
-	REISER4_ENTRY(inode->i_sb, LSEEK_OP);
+	REISER4_ENTRY(inode->i_sb);
 
 	reiser4_stat_inc(vfs_calls.llseek);
 
@@ -922,7 +922,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	int result;
 	struct inode *inode = f->f_dentry->d_inode;
 
-	REISER4_ENTRY(inode->i_sb, READDIR_OP);
+	REISER4_ENTRY(inode->i_sb);
 	write_syscall_trace("%s", f->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.readdir);
 
@@ -947,7 +947,7 @@ static int
 reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int result;
-	REISER4_ENTRY(inode->i_sb, IOCTL_OP);
+	REISER4_ENTRY(inode->i_sb);
 	write_syscall_trace("%s", filp->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.ioctl);
 
@@ -966,7 +966,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode;
 	int result;
-	REISER4_ENTRY(file->f_dentry->d_inode->i_sb, MMAP_OP);
+	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.mmap);
 
@@ -988,7 +988,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 {
 	int result;
 	dir_plugin *dplug;
-	REISER4_ENTRY(parent->i_sb, UNLINK_OP);
+	REISER4_ENTRY(parent->i_sb);
 	write_syscall_trace("%s", victim->d_name.name);
 
 	assert("nikita-1435", parent != NULL);
@@ -1167,7 +1167,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 {
 	int result;
 	dir_plugin *dplug;
-	REISER4_ENTRY(parent->i_sb, CREATE_OP);
+	REISER4_ENTRY(parent->i_sb);
 	write_syscall_trace("%s %o", dentry->d_name.name, data->mode);
 
 	assert("nikita-426", parent != NULL);
@@ -1244,7 +1244,7 @@ reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 static void
 reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
-	__REISER4_ENTRY(dentry->d_sb, DRELEASE_OP, );
+	__REISER4_ENTRY(dentry->d_sb, );
 	reiser4_free_dentry_fsdata(dentry);
 	(void)reiser4_exit_context(&__context);
 }
@@ -1307,7 +1307,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 {
 	file_plugin *fplug;
 	int result;
-	REISER4_ENTRY(i->i_sb, RELEASE_OP);
+	REISER4_ENTRY(i->i_sb);
 
 	assert("umka-081", i != NULL);
 	assert("nikita-1447", f != NULL);
@@ -1335,7 +1335,7 @@ static int
 reiser4_fsync(struct file *file UNUSED_ARG, 
 	      struct dentry *dentry, int datasync UNUSED_ARG)
 {
-	REISER4_ENTRY(dentry->d_inode->i_sb, FSYNC_OP);
+	REISER4_ENTRY(dentry->d_inode->i_sb);
 	REISER4_EXIT(txnmgr_force_commit_all(dentry->d_inode->i_sb));
 }
 
@@ -1521,7 +1521,7 @@ reiser4_drop_inode(struct inode *object)
 		   atom. Otherwise, it may so happen, that twig node with
 		   unallocated extent will be flushed to the disk.
 		*/
-		__REISER4_ENTRY(object->i_sb, DROPINODE_OP, );
+		__REISER4_ENTRY(object->i_sb, );
 
 		/*
 		 * FIXME: the code below resembles to generic_delete_inode, except that it calls truncate_inode_pages
@@ -1556,7 +1556,7 @@ reiser4_drop_inode(struct inode *object)
 static void
 reiser4_delete_inode(struct inode *object)
 {
-	__REISER4_ENTRY(object->i_sb, DELETEINODE_OP, );
+	__REISER4_ENTRY(object->i_sb, );
 
 	reiser4_stat_inc(vfs_calls.delete_inode);
 	if (inode_get_flag(object, REISER4_LOADED)) {
@@ -2081,7 +2081,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	sema_init(&info->flush_sema, 1);
 	s->s_op = &reiser4_super_operations;
 
-	result = init_context(&__context, s, FILLSUPER_OP);
+	result = init_context(&__context, s);
 	if (result) {
 		kfree(info);
 		s->s_fs_info = NULL;
@@ -2251,7 +2251,7 @@ reiser4_kill_super(struct super_block *s)
 		return;
 	}
 
-	if (init_context(&context, s, KILLSUPER_OP)) {
+	if (init_context(&context, s)) {
 		warning("nikita-2728", "Cannot initialize context.");
 		return;
 	}
@@ -2323,7 +2323,7 @@ static void
 reiser4_write_super(struct super_block *s)
 {
 	int ret;
-	__REISER4_ENTRY(s, WRITESUPER_OP, );
+	__REISER4_ENTRY(s, );
 
 	reiser4_stat_inc(vfs_calls.write_super);
 	if ((ret = txnmgr_force_commit_all(s))) {
@@ -2354,7 +2354,7 @@ int
 reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
-	REISER4_ENTRY(page->mapping->host->i_sb, INVPAGE_OP);
+	REISER4_ENTRY(page->mapping->host->i_sb);
 
 	if (offset == 0) {
 		jnode *node;
@@ -2535,7 +2535,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	spin_lock_jnode(node);
 	if (releasable(node)) {
 		reiser4_tree *tree = tree_by_page(page);
-		REISER4_ENTRY(tree->super, RELEASEPAGE_OP);
+		REISER4_ENTRY(tree->super);
 
 		/* account for spin_lock_jnode() above */
 		if (REISER4_DEBUG && get_current_context() == &__context)
@@ -2631,7 +2631,7 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	struct super_block *s = mapping->host->i_sb;
 	struct backing_dev_info *bdi = mapping->backing_dev_info;
 
-	REISER4_ENTRY(s, WRITEPAGES_OP);
+	REISER4_ENTRY(s);
 
 	/* Here we can call synchronously. We can be called from balance_dirty_pages()
 	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks

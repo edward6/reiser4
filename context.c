@@ -25,8 +25,7 @@ int
 init_context(reiser4_context * context	/* pointer to the reiser4 context
 					 * being initalised */ ,
 	     struct super_block *super	/* super block we are going to
-					 * work with */,
-	     op_t op)
+					 * work with */)
 {
 	reiser4_tree *tree;
 	reiser4_super_info_data *sdata;
