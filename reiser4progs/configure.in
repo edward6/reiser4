@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT(include/reiserfs/reiserfs.h)
+AC_INIT(libreiser4/libreiser4.c)
 AC_CANONICAL_HOST
 
 LIBREISERFS_MAJOR_VERSION=0
@@ -71,14 +71,14 @@ AC_ARG_WITH(plugin-dir,
     [  --with-plugin-dir=PATH where plugins will be placed]
 )
 if test x$with_plugin_dir = x; then
-    with_plugin_dir="$libdir/reiserfs"
+    with_plugin_dir="$libdir/reiser4"
 fi
 
 plugindir=$with_plugin_dir
 AC_SUBST(plugindir)
 
 dnl make libc threadsafe (not required for us, but useful other users of
-dnl libreiserfs)
+dnl libreiser4)
 if test x$enable_compact = xno; then
     CFLAGS="$CFLAGS -D_REENTRANT"
 fi
@@ -155,12 +155,12 @@ AC_OUTPUT([
     Makefile
     include/Makefile
     include/aal/Makefile
-    include/reiserfs/Makefile
     include/misc/Makefile
-    include/progs/Makefile
+    include/reiser4/Makefile
+    include/reiser4progs/Makefile
     libaal/Makefile
     libmisc/Makefile
-    libreiserfs/Makefile
+    libreiser4/Makefile
     plugin/Makefile
     plugin/format36/Makefile
     plugin/format40/Makefile
@@ -175,8 +175,8 @@ AC_OUTPUT([
     plugin/direntry40/Makefile
     plugin/oid40/Makefile
     demos/Makefile
-    progs/Makefile
-    progs/mkreiserfs/Makefile
+    reiser4progs/Makefile
+    reiser4progs/mkfs/Makefile
     debug/Makefile
     doc/Makefile
     reiser4progs.spec

@@ -1,11 +1,11 @@
-SUBDIRS		= libaal libmisc plugin libreiserfs progs demos include doc debug
+SUBDIRS		= libaal libmisc plugin libreiser4 reiser4progs demos include doc debug
 
 EXTRA_DIST	= ABOUT-NLS AUTHORS BUGS COPYING TODO NEWS THANKS README \
-		  libreiserfs.spec.in libreiserfs.m4
+		  reiser4progs.spec.in libreiser4.m4
 	
 aclocaldir 	= $(datadir)/aclocal
-aclocal_DATA	= libreiserfs.m4
+aclocal_DATA	= libreiser4.m4
 
-dist-hook: libreiserfs.spec
-	cp libreiserfs.spec $(distdir)
+dist-hook: reiser4progs.spec
+	cp reiser4progs.spec $(distdir)
 

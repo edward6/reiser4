@@ -7,7 +7,7 @@
 #ifndef DIRENTRY40_H
 #define DIRENTRY40_H
 
-#include <reiserfs/key.h>
+#include <reiser4/key.h>
 
 struct reiserfs_objid {
     uint8_t locality[sizeof(uint64_t)];

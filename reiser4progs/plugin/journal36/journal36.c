@@ -5,7 +5,7 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "journal36.h"
 
@@ -17,7 +17,7 @@ static error_t reiserfs_journal36_header_check(reiserfs_journal36_header_t *head
     return 0;
 }
 
-static reiserfs_journal36_t *reiserfs_journal36_open(aal_device_t *device) {
+static reiserfs_journal36_t *reiserfs_journal36_init(aal_device_t *device) {
     reiserfs_journal36_t *journal;
 
     aal_assert("umka-406", device != NULL, return NULL);
@@ -44,7 +44,7 @@ static error_t reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
     return 0;
 }
 
-static void reiserfs_journal36_close(reiserfs_journal36_t *journal) {
+static void reiserfs_journal36_fini(reiserfs_journal36_t *journal) {
     aal_assert("umka-408", journal != NULL, return);
     
     aal_free(journal);
@@ -64,9 +64,9 @@ static reiserfs_plugin_t journal36_plugin = {
 	    .desc = "Default journal for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_journal36_open,
+	.init = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_journal36_init,
 	.create = NULL, 
-	.close = (void (*)(reiserfs_opaque_t *))reiserfs_journal36_close,
+	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_journal36_fini,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal36_sync,
 	.replay = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal36_replay
     }

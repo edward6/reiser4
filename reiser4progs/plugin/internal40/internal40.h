@@ -8,7 +8,6 @@
 #define INTERNAL40_H
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
 
 struct reiserfs_internal40 {
     blk_t block_nr;

@@ -5,13 +5,13 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "alloc36.h"
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-static reiserfs_alloc36_t *reiserfs_alloc36_open(aal_device_t *device, count_t len) {
+static reiserfs_alloc36_t *reiserfs_alloc36_init(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
 
     aal_assert("umka-413", device != NULL, return NULL);
@@ -55,7 +55,7 @@ static error_t reiserfs_alloc36_sync(reiserfs_alloc36_t *alloc) {
     return -1;
 }
 
-static void reiserfs_alloc36_close(reiserfs_alloc36_t *alloc) {
+static void reiserfs_alloc36_fini(reiserfs_alloc36_t *alloc) {
     aal_assert("umka-416", alloc != NULL, return);
     aal_free(alloc);
 }
@@ -70,9 +70,9 @@ static reiserfs_plugin_t alloc36_plugin = {
 	    .desc = "Space allocator for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_open,
+	.init = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_init,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_create,
-	.close = (void (*)(reiserfs_opaque_t *))reiserfs_alloc36_close,
+	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_alloc36_fini,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc36_sync,
 
 	.mark = NULL,

@@ -4,10 +4,9 @@
     Author Yury Umanets.
 */
 
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "oid40.h"
-
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
@@ -23,7 +22,7 @@ static reiserfs_opaque_t *reiserfs_oid40_init(uint64_t next, uint64_t used) {
     return oid;
 }
 
-static void reiserfs_oid40_close(reiserfs_oid40_t *oid) {
+static void reiserfs_oid40_fini(reiserfs_oid40_t *oid) {
     aal_assert("umka-510", oid != NULL, return);
     aal_free(oid);
 }
@@ -54,12 +53,12 @@ uint64_t reiserfs_oid40_root_parent_locality(reiserfs_oid40_t *oid) {
     return REISERFS_OID40_ROOT_PARENT_LOCALITY;
 }
 
-uint64_t reiserfs_oid40_root_self_locality(reiserfs_oid40_t *oid) {
-    return REISERFS_OID40_ROOT_SELF_LOCALITY;
+uint64_t reiserfs_oid40_root_parent_objectid(reiserfs_oid40_t *oid) {
+    return REISERFS_OID40_ROOT_PARENT_OBJECTID;
 }
 
-uint64_t reiserfs_oid40_root(reiserfs_oid40_t *oid) {
-    return REISERFS_OID40_ROOT;
+uint64_t reiserfs_oid40_root_objectid(reiserfs_oid40_t *oid) {
+    return REISERFS_OID40_ROOT_OBJECTID;
 }
 
 static reiserfs_plugin_t oid40_plugin = {
@@ -73,7 +72,7 @@ static reiserfs_plugin_t oid40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.init = (reiserfs_opaque_t *(*)(uint64_t, uint64_t))reiserfs_oid40_init,
-	.close = (void (*)(reiserfs_opaque_t *))reiserfs_oid40_close,
+	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_oid40_fini,
 	
 	.alloc = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_alloc,
 	.dealloc = (void (*)(reiserfs_opaque_t *, uint64_t))reiserfs_oid40_dealloc,
@@ -82,8 +81,9 @@ static reiserfs_plugin_t oid40_plugin = {
 	.used = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_used,
 	
 	.root_parent_locality = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root_parent_locality,
-	.root_self_locality = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root_self_locality,
-	.root = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root,
+	.root_parent_objectid = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root_parent_objectid,
+	
+	.root_objectid = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root_objectid,
     }
 };
 

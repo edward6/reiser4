@@ -8,8 +8,8 @@
 #define NODE40_H
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
 #include <misc/misc.h>
+#include <reiser4/reiser4.h>
 
 /* (*(__u32 *)"R4FS"); */
 #define REISERFS_NODE40_MAGIC 0x52344653
@@ -32,7 +32,7 @@ struct reiserfs_nh40 {
 
 typedef struct reiserfs_nh40 reiserfs_nh40_t;  
 
-#define reiserfs_nh40(node)			((reiserfs_nh40_t *)reiserfs_node_data(node))
+#define reiserfs_nh40(block)			((reiserfs_nh40_t *)block->data)
 
 #define nh40_get_free_space(header)		get_le16(header, free_space)
 #define nh40_set_free_space(header, val)	set_le16(header, free_space, val)
@@ -62,21 +62,20 @@ struct reiserfs_ih40 {
 
 typedef struct reiserfs_ih40 reiserfs_ih40_t;
 
-#define reiserfs_node40_ih_at(node, pos) \
-    ((reiserfs_ih40_t *) (reiserfs_node_data(node) + reiserfs_node_block(node)->size) \
-     - pos - 1)
+#define node40_ih_at(block, pos) \
+    ((reiserfs_ih40_t *) (block->data + block->size) - pos - 1)
 
-#define reiserfs_node40_item_at(node, pos) \
-    reiserfs_node_data(node) + ih40_get_offset(reiserfs_node40_ih_at(node, pos))
+#define node40_item_at(block, pos) \
+    (block->data + ih40_get_offset(node40_ih_at(block, pos)))
     
-#define ih40_get_offset(ih)        get_le16(ih, offset)
-#define ih40_set_offset(ih,val)    set_le16(ih, offset, val)
+#define ih40_get_offset(ih)			get_le16(ih, offset)
+#define ih40_set_offset(ih, val)		set_le16(ih, offset, val)
 
-#define ih40_get_length(ih)        get_le16(ih, length)
-#define ih40_set_length(ih,val)    set_le16(ih, length, val)
+#define ih40_get_length(ih)			get_le16(ih, length)
+#define ih40_set_length(ih, val)		set_le16(ih, length, val)
 
-#define ih40_get_plugin_id(ih)     get_le16(ih, plugin_id)
-#define ih40_set_plugin_id(ih,val) set_le16(ih, plugin_id, val)
+#define ih40_get_plugin_id(ih)			get_le16(ih, plugin_id)
+#define ih40_set_plugin_id(ih, val)		set_le16(ih, plugin_id, val)
 
 #endif
 

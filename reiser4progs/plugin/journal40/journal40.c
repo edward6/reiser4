@@ -5,7 +5,7 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "journal40.h"
 
@@ -41,7 +41,7 @@ static error_t reiserfs_journal40_check_footer(reiserfs_journal40_footer_t *foot
     return 0;
 }
 
-static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
+static reiserfs_journal40_t *reiserfs_journal40_init(aal_device_t *device) {
     reiserfs_journal40_t *journal;
 
     aal_assert("umka-409", device != NULL, return NULL);
@@ -141,7 +141,7 @@ static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
     return 0;
 }
 
-static void reiserfs_journal40_close(reiserfs_journal40_t *journal) {
+static void reiserfs_journal40_fini(reiserfs_journal40_t *journal) {
     aal_assert("umka-411", journal != NULL, return);
 
     aal_device_free_block(journal->header);
@@ -164,12 +164,13 @@ static reiserfs_plugin_t journal40_plugin = {
 	    .desc = "Default journal for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_journal40_open,
+	.init = (reiserfs_opaque_t *(*)(aal_device_t *))
+	    reiserfs_journal40_init,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, reiserfs_params_opaque_t *))
 	    reiserfs_journal40_create,
 	
-	.close = (void (*)(reiserfs_opaque_t *))reiserfs_journal40_close,
+	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_journal40_fini,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal40_sync,
 	.replay = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal40_replay
     }

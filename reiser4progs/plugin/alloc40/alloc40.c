@@ -5,13 +5,13 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "alloc40.h"
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-static reiserfs_alloc40_t *reiserfs_alloc40_open(aal_device_t *device, count_t len) {
+static reiserfs_alloc40_t *reiserfs_alloc40_init(aal_device_t *device, count_t len) {
     blk_t offset;
     reiserfs_alloc40_t *alloc;
     
@@ -23,8 +23,9 @@ static reiserfs_alloc40_t *reiserfs_alloc40_open(aal_device_t *device, count_t l
     offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_blocksize(device))) / 
 	aal_device_get_blocksize(device);
     
-    if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't open bitmap.");
+    if (!(alloc->bitmap = reiserfs_bitmap_init(device, offset, len))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't initialize bitmap.");
 	goto error_free_alloc;
     }
   
@@ -74,12 +75,12 @@ static error_t reiserfs_alloc40_sync(reiserfs_alloc40_t *alloc) {
     return reiserfs_bitmap_sync(alloc->bitmap);
 }
 
-static void reiserfs_alloc40_close(reiserfs_alloc40_t *alloc) {
+static void reiserfs_alloc40_fini(reiserfs_alloc40_t *alloc) {
     
     aal_assert("umka-368", alloc != NULL, return);
     aal_assert("umka-369", alloc->bitmap != NULL, return);
 
-    reiserfs_bitmap_close(alloc->bitmap);
+    reiserfs_bitmap_fini(alloc->bitmap);
     aal_free(alloc);
 }
 
@@ -139,9 +140,9 @@ static reiserfs_plugin_t alloc40_plugin = {
 	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc40_open,
+	.init = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc40_init,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc40_create,
-	.close = (void (*)(reiserfs_opaque_t *))reiserfs_alloc40_close,
+	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_alloc40_fini,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_sync,
 
 	.mark = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_alloc40_mark,

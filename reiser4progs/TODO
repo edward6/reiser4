@@ -1,0 +1,4 @@
+* block allocator API probably chould give allocated aal_block_t at request
+* created nodes chould be added into tree.
+* aal_device_alloc_block method should check whether allocated node lies
+  inside device.

@@ -4,7 +4,7 @@
     Author Vitaly Fertman.
 */
 
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "stat40.h"
 
@@ -12,24 +12,21 @@
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-static error_t reiserfs_stat40_confirm(reiserfs_coord_t *coord) {
+static error_t reiserfs_stat40_confirm(void *body) {
     return 0;
 }
 
-static error_t reiserfs_stat40_create(reiserfs_coord_t *coord, 
-    reiserfs_item_info_t *item_info) 
-{
+static error_t reiserfs_stat40_create(void *body, reiserfs_item_info_t *item_info) {
     reiserfs_stat40_base_t *stat;
     reiserfs_stat_info_t *stat_info;
-	
+    
+    aal_assert("vpf-076", body != NULL, return -1); 
     aal_assert("vpf-075", item_info != NULL, return -1);
-    aal_assert("vpf-076", coord != NULL, return -1); 
-    aal_assert("vpf-077", coord->node != NULL, return -1);
     aal_assert("vpf-078", item_info->info != NULL, return -1);
     
     stat_info = item_info->info;
-	
-    stat = coord->node->plugin->node.item(coord->node, coord->item_pos);
+    stat = (reiserfs_stat40_base_t *)body;
+    
     stat40_set_mode(stat, stat_info->mode);
     stat40_set_extmask(stat, stat_info->extmask);
     stat40_set_nlink(stat, stat_info->nlink);
@@ -40,24 +37,25 @@ static error_t reiserfs_stat40_create(reiserfs_coord_t *coord,
     return 0;
 }
 
-static error_t reiserfs_stat40_estimate(reiserfs_coord_t *coord, 
-    reiserfs_item_info_t *item_info) 
-{
-    aal_assert("vpf-074", item_info != NULL, return -1);
-    /* coord cannot be not NULL, because we cannot paste into internal40 */
-    aal_assert("vpf-117", coord == NULL, return -1);
-    
-    /* should calculate extentions size also */
+static void reiserfs_stat40_estimate(void *body, 
+    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord) {
+    aal_assert("vpf-074", item_info != NULL, return);
+
+    /* Should calculate extentions size also */
     item_info->length = sizeof(reiserfs_stat40_base_t);
+}
 
+static error_t reiserfs_stat40_check(void *body) {
     return 0;
 }
 
-static error_t reiserfs_stat40_check(reiserfs_coord_t *coord) {
-    return 0;
+static void reiserfs_stat40_print(void *body, char *buff, uint16_t n) {
+    aal_assert("umka-546", body != NULL, return);
+    aal_assert("umka-547", buff != NULL, return);
 }
 
-static void reiserfs_stat40_print(reiserfs_coord_t *coord, char *buff) {
+static uint32_t reiserfs_stat40_minsize(void *body) {
+    return sizeof(reiserfs_stat40_base_t);
 }
 
 static reiserfs_plugin_t stat40_plugin = {
@@ -71,20 +69,20 @@ static reiserfs_plugin_t stat40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .item_type = STAT_DATA_ITEM,
-	    .create = (error_t (*)(reiserfs_opaque_t *coord, reiserfs_opaque_t *))
-		reiserfs_stat40_create,
-	    .open = NULL,
-	    .close = NULL,
+	    .type = STAT_DATA_ITEM,
+	    
+	    .create = (error_t (*)(void *, void *))reiserfs_stat40_create,
+	    .confirm = (error_t (*)(void *))reiserfs_stat40_confirm,
+	    .check = (error_t (*)(void *))reiserfs_stat40_check,
+	    .print = (void (*)(void *, char *, uint16_t))reiserfs_stat40_print,
+	    .estimate = (void (*)(void *, void *, reiserfs_item_coord_t *))reiserfs_stat40_estimate,
+	    .minsize = (uint32_t (*)(void *))reiserfs_stat40_minsize,
+
 	    .lookup = NULL,
-	    .add_unit = NULL,
-	    .confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,
-	    .check = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_check,
-	    .print = (void (*)(reiserfs_opaque_t *, char *))reiserfs_stat40_print,
-	    .units_count = NULL,
-	    .remove_units = NULL,
-	    .estimate = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *))
-		reiserfs_stat40_estimate,
+	    .unit_add = NULL,
+	    .unit_count = NULL,
+	    .unit_remove = NULL,
+
 	    .is_internal = NULL
 	},
 	.specific = {

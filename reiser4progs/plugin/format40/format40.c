@@ -5,7 +5,7 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
+#include <reiser4/reiser4.h>
 
 #include "format40.h"
 
@@ -39,7 +39,7 @@ static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
 	REISERFS_FORMAT40_MAGIC, aal_strlen(REISERFS_FORMAT40_MAGIC)) == 0;
 }
 
-static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
+static aal_block_t *reiserfs_format40_super_init(aal_device_t *device) {
     blk_t offset;
     aal_block_t *block;
     reiserfs_format40_super_t *super;
@@ -65,7 +65,7 @@ static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
 }
 
 /* This function should find most recent copy of the super block */
-static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device, 
+static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device, 
     aal_device_t *journal_device) 
 {
     reiserfs_format40_t *format;
@@ -74,13 +74,13 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
     reiserfs_plugin_t *oid_plugin;
 
     aal_assert("umka-393", host_device != NULL, return NULL);
-	
+
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
 
     format->device = host_device;
     
-    if (!(format->super = reiserfs_format40_super_open(host_device)))
+    if (!(format->super = reiserfs_format40_super_init(host_device)))
 	goto error_free_format;
 		
     if (!(alloc_plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
@@ -92,15 +92,15 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
 	goto error_free_super;
     }
     
-    reiserfs_check_method(alloc_plugin->alloc, open, goto error_free_super);
-    if (!(format->alloc = alloc_plugin->alloc.open(host_device, 
+    reiserfs_check_method(alloc_plugin->alloc, init, goto error_free_super);
+    if (!(format->alloc = alloc_plugin->alloc.init(host_device, 
 	get_sb_block_count((reiserfs_format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open allocator \"%s\".", alloc_plugin->h.label);
+	    "Can't initialize allocator \"%s\".", alloc_plugin->h.label);
 	goto error_free_super;
     }
-    
+
     if (journal_device) {
 	if (!(journal_plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
 	    REISERFS_FORMAT40_JOURNAL))) 
@@ -111,10 +111,10 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
 	    goto error_free_alloc;
 	}
     
-	reiserfs_check_method(journal_plugin->journal, open, goto error_free_alloc);
-	if (!(format->journal = journal_plugin->journal.open(journal_device))) {
+	reiserfs_check_method(journal_plugin->journal, init, goto error_free_alloc);
+	if (!(format->journal = journal_plugin->journal.init(journal_device))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open journal \"%s\".", journal_plugin->h.label);
+		"Can't initialize journal \"%s\".", journal_plugin->h.label);
 	    goto error_free_alloc;
 	}
     }
@@ -143,12 +143,12 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
 
 error_free_journal:
     if (format->journal) {
-	reiserfs_check_method(journal_plugin->journal, close, goto error_free_super);
-	journal_plugin->journal.close(format->journal);
-    }	
+	reiserfs_check_method(journal_plugin->journal, fini, goto error_free_super);
+	journal_plugin->journal.fini(format->journal);
+    }
 error_free_alloc:
-    reiserfs_check_method(alloc_plugin->alloc, close, goto error_free_journal);
-    alloc_plugin->alloc.close(format->alloc);
+    reiserfs_check_method(alloc_plugin->alloc, fini, goto error_free_journal);
+    alloc_plugin->alloc.fini(format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -276,14 +276,14 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     return format;
 
 error_free_oid:
-    reiserfs_check_method(oid_plugin->oid, close, goto error_free_journal);
-    oid_plugin->oid.close(format->oid);
+    reiserfs_check_method(oid_plugin->oid, fini, goto error_free_journal);
+    oid_plugin->oid.fini(format->oid);
 error_free_journal:
-    reiserfs_check_method(journal_plugin->journal, close, goto error_free_super);
-    journal_plugin->journal.close(format->journal);
+    reiserfs_check_method(journal_plugin->journal, fini, goto error_free_super);
+    journal_plugin->journal.fini(format->journal);
 error_free_alloc:
-    reiserfs_check_method(alloc_plugin->alloc, close, goto error_free_journal);
-    alloc_plugin->alloc.close(format->alloc);
+    reiserfs_check_method(alloc_plugin->alloc, fini, goto error_free_journal);
+    alloc_plugin->alloc.fini(format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -354,7 +354,7 @@ static error_t reiserfs_format40_check(reiserfs_format40_t *format) {
 	format->device);
 }
 
-static void reiserfs_format40_close(reiserfs_format40_t *format) {
+static void reiserfs_format40_fini(reiserfs_format40_t *format) {
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-398", format != NULL, return);
@@ -367,8 +367,8 @@ static void reiserfs_format40_close(reiserfs_format40_t *format) {
 	    REISERFS_FORMAT40_ALLOC);
     }
     
-    reiserfs_check_method(plugin->alloc, close, return);
-    plugin->alloc.close(format->alloc);
+    reiserfs_check_method(plugin->alloc, fini, return);
+    plugin->alloc.fini(format->alloc);
 
     if (format->journal) {
 	if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
@@ -379,8 +379,8 @@ static void reiserfs_format40_close(reiserfs_format40_t *format) {
 		REISERFS_FORMAT40_JOURNAL);
 	}
     
-	reiserfs_check_method(plugin->journal, close, return);
-	plugin->journal.close(format->journal);
+	reiserfs_check_method(plugin->journal, fini, return);
+	plugin->journal.fini(format->journal);
     }
     
     if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
@@ -391,8 +391,8 @@ static void reiserfs_format40_close(reiserfs_format40_t *format) {
 	    REISERFS_FORMAT40_OID);
     }
     
-    reiserfs_check_method(plugin->oid, close, return);
-    plugin->journal.close(format->oid);
+    reiserfs_check_method(plugin->oid, fini, return);
+    plugin->journal.fini(format->oid);
     
     aal_device_free_block(format->super);
     aal_free(format);
@@ -401,7 +401,7 @@ static void reiserfs_format40_close(reiserfs_format40_t *format) {
 static int reiserfs_format40_probe(aal_device_t *device) {
     aal_block_t *block;
 
-    if (!(block = reiserfs_format40_super_open(device)))
+    if (!(block = reiserfs_format40_super_init(device)))
 	return 0;
 	
     aal_device_free_block(block);
@@ -461,6 +461,11 @@ static count_t reiserfs_format40_get_free(reiserfs_format40_t *format) {
     return get_sb_free_blocks((reiserfs_format40_super_t *)format->super->data);
 }
 
+static uint16_t reiserfs_format40_get_height(reiserfs_format40_t *format) {
+    aal_assert("umka-555", format != NULL, return 0);
+    return get_sb_tree_height((reiserfs_format40_super_t *)format->super->data);
+}
+
 static void reiserfs_format40_set_root(reiserfs_format40_t *format, blk_t root) {
     aal_assert("umka-403", format != NULL, return);
     set_sb_root_block((reiserfs_format40_super_t *)format->super->data, root);
@@ -476,6 +481,11 @@ static void reiserfs_format40_set_free(reiserfs_format40_t *format, count_t bloc
     set_sb_free_blocks((reiserfs_format40_super_t *)format->super->data, blocks);
 }
 
+static void reiserfs_format40_set_height(reiserfs_format40_t *format, uint16_t height) {
+    aal_assert("umka-555", format != NULL, return);
+    set_sb_tree_height((reiserfs_format40_super_t *)format->super->data, height);
+}
+
 static reiserfs_plugin_t format40_plugin = {
     .format = {
 	.h = {
@@ -486,13 +496,13 @@ static reiserfs_plugin_t format40_plugin = {
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
-	    reiserfs_format40_open,
+	.init = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
+	    reiserfs_format40_init,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, 
 	    aal_device_t *, reiserfs_params_opaque_t *))reiserfs_format40_create,
 
-	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format40_close,
+	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_format40_fini,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,
 	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
@@ -508,6 +518,9 @@ static reiserfs_plugin_t format40_plugin = {
 	
 	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_free,
 	.set_free = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format40_set_free,
+	
+	.get_height = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_height,
+	.set_height = (void (*)(reiserfs_opaque_t *, uint16_t))reiserfs_format40_set_height,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_journal_plugin,

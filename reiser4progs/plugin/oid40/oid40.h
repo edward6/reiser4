@@ -9,11 +9,12 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_OID40_RESERVED		    (1 << 16)
-
 #define REISERFS_OID40_ROOT_PARENT_LOCALITY 0x26
-#define REISERFS_OID40_ROOT_SELF_LOCALITY   0x29
-#define REISERFS_OID40_ROOT		    0x2a
+#define REISERFS_OID40_ROOT_PARENT_OBJECTID 0x29
+
+#define REISERFS_OID40_ROOT_OBJECTID	    0x2a
+
+#define REISERFS_OID40_RESERVED		    (1 << 16)
 
 struct reiserfs_oid40 {
     uint64_t used;

@@ -1,1 +1,1 @@
-EXTRA_DIST = libreiserfs.html
+EXTRA_DIST = libreiser4.html
