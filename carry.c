@@ -155,6 +155,9 @@ static int carry_on_level( carry_level *doing, carry_level *todo );
 static void fatal_carry_error( carry_level *doing, int ecode );
 static int add_new_root( carry_level *level, carry_node *node, znode *fake );
 
+ON_DEBUG( TS_LIST_DEFINE( owners, lock_handle, owners_link ) );
+ON_DEBUG( TS_LIST_DEFINE( locks, lock_handle, locks_link ) );
+
 
 /**
  * main entry point for tree balancing.
@@ -757,8 +760,13 @@ static void done_carry_level( carry_level *level /* level to finish */ )
 	trace_stamp( TRACE_CARRY );
 
 	unlock_carry_level( level, 0 );
-	for_all_nodes( level, node, tmp_node )
+	for_all_nodes( level, node, tmp_node ) {
+		assert( "nikita-2113", 
+			locks_list_is_clean( &node -> lock_handle ) );
+		assert( "nikita-2114", 
+			owners_list_is_clean( &node -> lock_handle ) );
 		reiser4_pool_free( &node -> header );
+	}
 	for_all_ops( level, op, tmp_op )
 		reiser4_pool_free( &op -> header );
 }
@@ -955,8 +963,13 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			 */
 			deallocate_znode( real_node );
 		}
-		if( node -> free )
+		if( node -> free ) {
+			assert( "nikita-2111", 
+				locks_list_is_clean( &node -> lock_handle ) );
+			assert( "nikita-2112", 
+				owners_list_is_clean( &node -> lock_handle ) );
 			reiser4_pool_free( &node -> header );
+		}
 	}
 }
 

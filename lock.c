@@ -406,8 +406,13 @@ static inline void unlink_object (lock_handle *handle)
 	assert ("nikita-1633", spin_znode_is_locked(handle->node));
 	assert ("nikita-1829", handle->owner == get_current_lock_stack());
 
-	locks_list_remove(handle);
-	owners_list_remove(handle);
+	if(REISER4_DEBUG) {
+		locks_list_remove_clean(handle);
+		owners_list_remove_clean(handle);
+	} else {
+		locks_list_remove(handle);
+		owners_list_remove(handle);
+	}
 		
 	/* indicates that lock handle is free now */
 	handle->owner = NULL;
@@ -1151,6 +1156,28 @@ void show_lock_stack (reiser4_context *context)
 
 	spin_unlock_stack (owner);
 }
+
+#if REISER4_DEBUG && 0
+void check_lock_stack( lock_stack *stack )
+{
+}
+
+extern spinlock_t active_contexts_lock;
+
+void check_lock_data()
+{
+	reiser4_context *context;
+
+	spin_lock (& active_contexts_lock);
+	for( context = context_list_from( &active_contexts ) ;
+	     ! context_list_end( &active_contexts, context ) ;
+	     context = context_list_next( context ) ) {
+		check_lock_stack( &context -> stack );
+	}
+	spin_unlock (& active_contexts_lock);
+
+}
+#endif
 
 /*
  * Make Linus happy.
