@@ -1564,9 +1564,6 @@ static void flush_bio_write (struct bio *bio)
 
 		node = jnode_by_page (pg);
 
-		/* FIXME: Now that it has a place on disk... */
-		/*JF_CLR (pg, ZNODE_CREATED);*/
-
 		jput (node);
 	}
 	

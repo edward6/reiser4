@@ -1427,7 +1427,8 @@ void jnode_set_clean( jnode *node )
 	spin_unlock_jnode (node);
 
 	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
-		WITH_DATA (JZNODE (node), current_tree->ops->clean_node (current_tree, node));
+		/*WITH_DATA (JZNODE (node), */
+		current_tree->ops->clean_node (current_tree, node) /*)*/;
 	}
 }
 
