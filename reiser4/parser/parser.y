@@ -354,7 +354,7 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 %token DOTDOT
 %token EOL
 %token PROCESS
-%token SLASH SLASH_DOTDOT
+%token SLASH SLASH_DOTDOT SLASH2 SLASH3
 %token STAT
 %token L_PAREN R_PAREN INV_L INV_R
 %token RANGE OFFSET OFFSET_BACK FIRST_BYTE LAST_BYTE P_BYTES_WRITTEN P_BYTES_READ LAST BYTES FIRST
@@ -422,7 +422,7 @@ operation           : TRANSCRASH SLASH '[' operation_list ']'             /*   .
                     | '(' operation_list ')'
                     | assignment
                     | if_statement
-                    | Object_Name SLASH '(' operation_list ')'              /*   path_name/(a<-b;b<-c) */ 
+                    | Object_Name SLASH2 '(' operation_list ')'              /*   path_name/(a<-b;b<-c) */ 
 ;
 
                                                /* list of operations that will be performed "simultaneously" */
@@ -456,7 +456,7 @@ Expression          : Object_Name
                     | Expression IS pattern
                     | Expression OR  Expression
                     | Expression AND Expression
-                    | NOT Expression
+                    | NOT '(' Expression ')'
                     | '(' Expression ')'
                     | EXIST Object_Name 
 ;
@@ -468,13 +468,13 @@ Then_Else           : THEN operation
 
 /* Object name begin */
 Object_Name         : Object_Path_Name 
-/*                    | Ordering                                                                         /* name eq vova  */
+                    | Object_Path_Name SLASH3 range_type
                     | '[' Unordered_list ']'                                                            /* gruping: [name1 name2 [name3]]  */
 ;
 
 Unordered_list      : Object_Name
                     | P_RUNNER
-                    | Unordered_list Unordered_list
+                    | Unordered_list ' ' Unordered_list
 ;
 
 Object_Path_Name    : SLASH Object_relative_Name                                           /* /foo */
@@ -483,9 +483,7 @@ Object_Path_Name    : SLASH Object_relative_Name                                
 ;
 
 Object_relative_Name : Object_sub_Name
-                     | range_type
-                     | Object_sub_Name  SLASH Object_relative_Name
-                          /* foo/bar/baz */
+                     | Object_relative_Name  SLASH Object_sub_Name                        /* foo/bar/baz */
 ;
 
 Object_sub_Name     :  WORD                                                              /* foo */
@@ -508,12 +506,6 @@ range               : OFFSET  L_ASSIGN N_WORD                                   
                     | BYTES                                                                       /*p_units<-bytes*/
 /*                    | LINES                                                                       /*p_units<-lines*/
 ;
-
-/* 
-Ordering            : Expression SLASH Expression
-*/
-
-
 
 
 pattern             : pattern '~' pattern               {}
