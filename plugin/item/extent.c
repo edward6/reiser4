@@ -2626,7 +2626,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	item_key_by_coord (right, &key);
 
 	ext = extent_item (right);
-	partial = 0;
 	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
 		trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units (right));
 		if (!extent_needs_allocation (ext, flush_pos_hint (flush_pos))) {
