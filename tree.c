@@ -1532,7 +1532,11 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_ZNODE )
 		print_znode( "", node );
 
-	if( flags & REISER4_NODE_PRINT_ZADDR ) {
+	if( flags == REISER4_NODE_PRINT_ZADDR ) {
+		/* Josh accepts no responsibility for the PRINT_ZADDR flag unless the
+		 * above expression reads (flags == REISER4_NODE_PRINT_ZADDR).  It is not
+		 * intended for use in the bitwise-OR flags, period.  All this does is
+		 * print the parent-first znode order. */
 		info( "[node %p block %llu level %u dirty %u xcnt %u]\n", node, *znode_get_block( node ), znode_get_level( node ), znode_check_dirty( node ), atomic_read( &node -> x_count ) );
 	} else {
 		print_znode_content( node, flags );

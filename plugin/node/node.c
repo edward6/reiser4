@@ -131,9 +131,7 @@ void print_znode_content( const znode *node /* node to print */,
 		print_key ("RDKEY", &node->rd_key);
 	}
 
-	if( flags & REISER4_NODE_SILENT ) {
-		return;
-	}
+	/*if( flags & REISER4_NODE_SILENT ) {return;}*/
 
 	coord.node = ( znode * ) node;
 	coord.unit_pos = 0;
