@@ -127,7 +127,7 @@ update_black_box(reiser4_tree *tree,
 
 reiser4_internal int kill_black_box(reiser4_tree *tree, const reiser4_key *key)
 {
-	return cut_tree(tree, key, key, NULL);
+	return cut_tree(tree, key, key, NULL, 1);
 }
 
 

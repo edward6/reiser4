@@ -159,6 +159,8 @@ struct cut_kill_params {
 	/* if this is not NULL, smallest actually removed key is stored
 	 * here. */
 	reiser4_key *smallest_removed;
+	/* kill_node_content()  is called for file truncate */
+	int truncate;
 };
 
 struct carry_cut_data {

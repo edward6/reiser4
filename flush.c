@@ -510,7 +510,7 @@ static int delete_empty_node (znode * node)
 	assert("zam-1020", node_is_empty(node));
 	assert("zam-1023", znode_is_wlocked(node));
 
-	return delete_node(node, &smallest_removed, NULL);
+	return delete_node(node, &smallest_removed, NULL, 1);
 }
 
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */

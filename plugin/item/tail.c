@@ -221,7 +221,7 @@ kill_hook_tail(const coord_t *coord, pos_in_node_t from,
 	item_key_by_coord(coord, &key);
 	start = get_key_offset(&key) + from;
 	end = start + count;
-	fake_kill_hook_tail(kdata->inode, start, end);
+	fake_kill_hook_tail(kdata->inode, start, end, kdata->params.truncate);
 	return 0;
 }
 

@@ -502,7 +502,7 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */)
 		DQUOT_DROP(inode);
 
 		build_sd_key(inode, &sd_key);
-		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL);
+		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL, 0);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(inode->i_sb, get_inode_oid(inode));
