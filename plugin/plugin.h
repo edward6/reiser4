@@ -129,6 +129,7 @@ typedef struct file_plugin {
 	    reiserfs_update_sd() in 3.x */
 	int ( *write_sd_by_inode)( struct inode *inode );
 	int ( *readpage )( struct file *file, struct page * );
+	int ( *writepage )( struct page * );
 	/* these should be implemented using body_read_flow and body_write_flow
 	 * builtins */
 	ssize_t ( *read )( struct file *file, char *buf, size_t size, 

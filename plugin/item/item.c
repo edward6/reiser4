@@ -382,9 +382,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			},
 			.s = {
 				.file = {
-					.write    = extent_write,
-					.read     = extent_read,
-					.readpage = extent_readpage,
+					.write     = extent_write,
+					.read      = extent_read,
+					.readpage  = extent_readpage,
+					.writepage = extent_writepage,
 					.page_cache_readahead = extent_page_cache_readahead,
 				}
 			}
@@ -431,9 +432,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			},
 			.s = {
 				.file = {
-					.write    = tail_write,
-					.read     = tail_read,
-					.readpage = NULL,
+					.write     = tail_write,
+					.read      = tail_read,
+					.readpage  = NULL,
+					.writepage = NULL,
 					.page_cache_readahead = NULL
 				}
 			}

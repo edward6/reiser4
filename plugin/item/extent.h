@@ -104,6 +104,7 @@ int extent_write    (struct inode *, coord_t *, lock_handle *,
 int extent_read     (struct inode *, coord_t *, lock_handle *,
 		     flow_t *);
 int extent_readpage (void *, struct page * page);
+int extent_writepage (coord_t *, lock_handle *, struct page *);
 int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				 lock_handle * lh UNUSED_ARG,
 				 unsigned long start_page,
