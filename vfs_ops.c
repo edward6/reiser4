@@ -907,7 +907,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		   decimal.
 		*/
 		SB_FIELD_OPT(tmgr.atom_max_age, "%u"),
-		/* txnmgr.atom_mar_flushers=N
+		/* txnmgr.atom_max_flushers=N
 
 		   limit of concurrent flushers for one atom. 0 means no limit.
 		 */
