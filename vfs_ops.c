@@ -1477,7 +1477,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
 	assert("nikita-2895", list_empty(&inode->i_dentry));
-	assert("nikita-2896", list_empty(&inode->i_hash));
+	assert("nikita-2896", hlist_unhashed(&inode->i_hash));
 	assert("nikita-2898", readdir_list_empty(get_readdir_list(inode)));
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
@@ -1533,7 +1533,7 @@ reiser4_drop_inode(struct inode *object)
 		 * FIXME: the code below resembles to generic_delete_inode, except that it calls truncate_inode_pages
 		 * after reiser4_delete_inode
 		 */
-		list_del_init(&object->i_hash);
+		hlist_del_init(&object->i_hash);
 		list_del_init(&object->i_list);
 		object->i_state|=I_FREEING;
 		inodes_stat.nr_inodes--;
