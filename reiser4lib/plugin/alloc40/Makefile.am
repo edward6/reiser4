@@ -1,19 +1,17 @@
-includedir              = -I$(top_srcdir)/include
-alloc40_sources		= alloc40.c alloc40.h
+includedir		     = -I$(top_srcdir)/include
+libdir			     = $(plugindir)
 
-alloc40_lib		= liballoc40.la
-alloc40_lib_static	= liballoc40-static.la
+alloc40_sources		     = alloc40.c alloc40.h
 
-if ENABLE_MONOLITIC
-noinst_LTLIBRARIES      = $(alloc40_lib)
-else
-libdir			= $(plugindir)
-lib_LTLIBRARIES		= $(alloc40_lib_static)
-liballoc40_la_LIBADD	= $(top_builddir)/libaal/libaal.la
-endif
+lib_LTLIBRARIES		     = liballoc40.la
+noinst_LTLIBRARIES	     = liballoc40-static.la
 
-liballoc40_la_LDFLAGS	= $(PLUGIN_LDFLAGS)
-liballoc40_la_SOURCES	= $(alloc40_sources)
+liballoc40_la_LIBADD	     = $(top_builddir)/libaal/libaal.la
+liballoc40_la_LDFLAGS	     = $(PLUGIN_LDFLAGS)
+liballoc40_la_SOURCES	     = $(alloc40_sources)
+
+liballoc40_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+liballoc40_static_la_SOURCES = $(alloc40_sources)
 
 INCLUDES = $(includedir)
 

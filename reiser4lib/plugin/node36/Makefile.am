@@ -1,18 +1,16 @@
-includedir              = -I$(top_srcdir)/include
-node36_sources		= 
+includedir		    = -I$(top_srcdir)/include
+libdir			    = $(plugindir)
 
-node36_lib		= libnode36.la
-node36_lib_static	= libnode36-static.la
+node36_sources		    = 
 
-if ENABLE_MONOLITIC
-noinst_LTLIBRARIES      = $(node36_lib)
-else
-libdir			= $(plugindir)
-lib_LTLIBRARIES		= $(node36_lib_static)
-libnode36_la_LIBADD	= $(top_builddir)/libaal/libaal.la
-endif
+lib_LTLIBRARIES		    = libnode36.la
+noinst_LTLIBRARIES	    = libnode36-static.la
 
-libnode36_la_LDFLAGS	= $(PLUGIN_LDFLAGS)
-libnode36_la_SOURCES	= $(node36_sources)
+libnode36_la_LIBADD	    = $(top_builddir)/libaal/libaal.la
+libnode36_la_LDFLAGS	    = $(PLUGIN_LDFLAGS)
+libnode36_la_SOURCES	    = $(node36_sources)
+
+libnode36_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+libnode36_static_la_SOURCES = $(node36_sources)
 
 INCLUDES = $(includedir)

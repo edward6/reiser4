@@ -8,10 +8,13 @@ libreiserfs_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) -
 
 if ENABLE_MONOLITIC
 libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la \
-			  $(top_builddir)/plugin/format40/libformat40.la \
-			  $(top_builddir)/plugin/journal40/libjournal40.la \
-			  $(top_builddir)/plugin/alloc40/liballoc40.la \
-			  $(top_builddir)/plugin/node40/libnode40.la
+			  $(top_builddir)/plugin/format36/libformat36-static.la \
+			  $(top_builddir)/plugin/format40/libformat40-static.la \
+			  $(top_builddir)/plugin/journal36/libjournal36-static.la \
+			  $(top_builddir)/plugin/journal40/libjournal40-static.la \
+			  $(top_builddir)/plugin/alloc36/liballoc36-static.la \
+			  $(top_builddir)/plugin/alloc40/liballoc40-static.la \
+			  $(top_builddir)/plugin/node40/libnode40-static.la
 else
 libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la @LIBREISERFS_LIBS@
 endif

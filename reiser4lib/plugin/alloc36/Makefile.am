@@ -1,19 +1,17 @@
-includedir              = -I$(top_srcdir)/include
-alloc36_sources		= alloc36.c alloc36.h
+includedir		     = -I$(top_srcdir)/include
+libdir			     = $(plugindir)
 
-alloc36_lib		= liballoc36.la
-alloc36_lib_static	= liballoc36-static.la
+alloc36_sources		     = alloc36.c alloc36.h
 
-if ENABLE_MONOLITIC
-noinst_LTLIBRARIES      = $(alloc36_lib)
-else
-libdir			= $(plugindir)
-lib_LTLIBRARIES		= $(alloc36_lib_static)
-liballoc36_la_LIBADD	= $(top_builddir)/libaal/libaal.la
-endif
+lib_LTLIBRARIES		     = liballoc36.la
+noinst_LTLIBRARIES	     = liballoc36-static.la
 
-liballoc36_la_LDFLAGS	= $(PLUGIN_LDFLAGS)
-liballoc36_la_SOURCES	= $(alloc36_sources)
+liballoc36_la_LIBADD	     = $(top_builddir)/libaal/libaal.la
+liballoc36_la_LDFLAGS	     = $(PLUGIN_LDFLAGS)
+liballoc36_la_SOURCES	     = $(alloc36_sources)
+
+liballoc36_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+liballoc36_static_la_SOURCES = $(alloc36_sources)
 
 INCLUDES = $(includedir)
 

@@ -218,7 +218,7 @@ static reiserfs_plugin_t node40_plugin = {
 	    .handle = NULL,
 	    .id = 0x1,
 	    .type = REISERFS_NODE_PLUGIN,
-	    .label = "Node40",
+	    .label = "node40",
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},

@@ -1,19 +1,17 @@
-includedir              = -I$(top_srcdir)/include
-journal36_sources	= journal36.c journal36.h
+includedir			= -I$(top_srcdir)/include
+libdir				= $(plugindir)
 
-journal36_lib		= libjournal36.la
-journal36_lib_static	= libjournal36-static.la
+journal36_sources		= journal36.c journal36.h
 
-if ENABLE_MONOLITIC
-noinst_LTLIBRARIES      = $(journal36_lib)
-else
-libdir			= $(plugindir)
-lib_LTLIBRARIES		= $(journal36_lib_static)
-libjournal36_la_LIBADD   = $(top_builddir)/libaal/libaal.la
-endif
+lib_LTLIBRARIES			= libjournal36.la
+noinst_LTLIBRARIES		= libjournal36-static.la
 
-libjournal36_la_LDFLAGS  = $(PLUGIN_LDFLAGS)
-libjournal36_la_SOURCES  = $(journal36_sources)
+libjournal36_la_LIBADD		= $(top_builddir)/libaal/libaal.la
+libjournal36_la_LDFLAGS		= $(PLUGIN_LDFLAGS)
+libjournal36_la_SOURCES		= $(journal36_sources)
+
+libjournal36_static_la_LDFLAGS	= $(PLUGIN_LDFLAGS)
+libjournal36_static_la_SOURCES	= $(journal36_sources)
 
 INCLUDES = $(includedir)
 

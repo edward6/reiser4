@@ -57,7 +57,7 @@ static reiserfs_plugin_t journal36_plugin = {
 	    .handle = NULL,
 	    .id = 0x2,
 	    .type = REISERFS_JOURNAL_PLUGIN,
-	    .label = "Journal36",
+	    .label = "journal36",
 	    .desc = "Default journal for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},

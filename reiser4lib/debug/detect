@@ -34,7 +34,7 @@ reiserfs_probe() {
 	    return 0
 	}
 	
-	test x$magic = xReIsEr4Fs && {
+	test x$magic = xR4Sb && {
 	    echo "reiserfs 4.0"
 	    return 0
 	}

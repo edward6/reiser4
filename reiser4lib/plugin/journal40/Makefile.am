@@ -1,19 +1,17 @@
-includedir              = -I$(top_srcdir)/include
-journal40_sources	= journal40.c journal40.h
+includedir			= -I$(top_srcdir)/include
+libdir				= $(plugindir)
 
-journal40_lib		= libjournal40.la
-journal40_lib_static	= libjournal40-static.la
+journal40_sources		= journal40.c journal40.h
 
-if ENABLE_MONOLITIC
-noinst_LTLIBRARIES      = $(journal40_lib)
-else
-libdir			= $(plugindir)
-lib_LTLIBRARIES		= $(journal40_lib_static)
-libjournal40_la_LIBADD  = $(top_builddir)/libaal/libaal.la
-endif
+lib_LTLIBRARIES			= libjournal40.la
+noinst_LTLIBRARIES		= libjournal40-static.la
 
-libjournal40_la_LDFLAGS = $(PLUGIN_LDFLAGS)
-libjournal40_la_SOURCES = $(journal40_sources)
+libjournal40_la_LIBADD		= $(top_builddir)/libaal/libaal.la
+libjournal40_la_LDFLAGS		= $(PLUGIN_LDFLAGS)
+libjournal40_la_SOURCES		= $(journal40_sources)
+
+libjournal40_static_la_LDFLAGS	= $(PLUGIN_LDFLAGS)
+libjournal40_static_la_SOURCES	= $(journal40_sources)
 
 INCLUDES = $(includedir)
 
