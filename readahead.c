@@ -9,8 +9,7 @@
 #include "key.h"
 #include "znode.h"
 
-/* for nr_free_pagecache_pages(), totalram_pages */
-#include <linux/swap.h>
+#include <linux/swap.h>	/* for totalram_pages */
 
 reiser4_internal void init_ra_info(ra_info_t * rai)
 {
@@ -39,7 +38,7 @@ low_on_memory(void)
 {
 	unsigned int freepages;
 
-	freepages = nr_free_pagecache_pages();
+	freepages = nr_free_pages();
 	return freepages < (totalram_pages * LOW_MEM_PERCENTAGE / 100);
 }
 

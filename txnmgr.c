@@ -242,7 +242,7 @@ year old --- define all technical terms used.
 #include <linux/slab.h>
 #include <linux/pagemap.h>
 #include <linux/writeback.h>
-#include <linux/swap.h>        /* for nr_free_pagecache_pages() */
+#include <linux/swap.h>        /* for totalram_pages */
 
 static void atom_free(txn_atom * atom);
 
@@ -4272,7 +4272,7 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 reiser4_internal unsigned int
 txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 {
-	return nr_free_pagecache_pages() / 2;
+	return totalram_pages / 4;
 }
 
 
