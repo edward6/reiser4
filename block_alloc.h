@@ -77,8 +77,6 @@ extern void flush_reserved2atom_all (void);
 extern int  sub_from_atom_flush_reserved(__u32);
 extern void grabbed2flush_reserved (__u64);
 extern int check_atom_reserved_blocks(struct txn_atom *, __u64);
-extern void reiser4_grab_space_enable(void);
-extern int  reiser4_is_grab_space_enabled(void);
 extern __u64 reiser4_atom_flush_reserved(void);
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
