@@ -287,7 +287,8 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name
 	assert("nikita-1247", parent != NULL);
 	assert("nikita-1248", dentry != NULL);
 	assert("nikita-1123", dentry->d_name.name != NULL);
-	assert("vs-1486", dentry->d_op == &reiser4_dentry_operations);
+	assert("vs-1486",
+	       dentry->d_op == &get_super_private(parent->i_sb)->ops.dentry);
 
 	result = perm_chk(parent, lookup, parent, dentry);
 	if (result != 0)
@@ -328,7 +329,7 @@ lookup_hashed(struct inode * parent	/* inode of directory to
 	reiser4_dir_entry_desc entry;
 
 	/* set up operations on dentry. */
-	dentry->d_op = &reiser4_dentry_operations;
+	dentry->d_op = &get_super_private(parent->i_sb)->ops.dentry;
 
 	result = lookup_name_hashed(parent, dentry, &entry.key);
 	if (result == 0) {
