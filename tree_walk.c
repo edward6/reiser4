@@ -84,7 +84,7 @@ lock_neighbor(
 
 		if (neighbor == NULL || !((flags & GN_ALLOW_NOT_CONNECTED)
 					  || znode_is_connected(neighbor))) {
-			return -ENAVAIL;
+			return -E_NO_NEIGHBOR;
 		}
 
 		/* protect it from deletion. */
@@ -140,7 +140,7 @@ reiser4_get_parent(lock_handle * result	/* resulting lock
 		   int only_connected_p	/* if this is true, parent is
 					 * only returned when it is
 					 * connected. If parent is
-					 * unconnected, -ENAVAIL is
+					 * unconnected, -E_NO_NEIGHBOR is
 					 * returned. Normal users should
 					 * pass 1 here. Only during carry
 					 * we want to access still
@@ -172,7 +172,7 @@ lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int
 
 	ret = lock_neighbor(result, node, ptr_offset, mode, req, flags);
 
-	if (ret == -ENAVAIL)	/* if we walk left or right -ENAVAIL does not
+	if (ret == -E_NO_NEIGHBOR)	/* if we walk left or right -E_NO_NEIGHBOR does not
 				   * guarantee that neighbor is absent in the
 				   * tree; in this case we return -ENOENT --
 				   * means neighbor at least not found in
@@ -321,12 +321,12 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 
 		/* does coord object points to internal item? We do not
 		   support sibling pointers between znode for formatted and
-		   unformatted nodes and return -ENAVAIL in that case. */
+		   unformatted nodes and return -E_NO_NEIGHBOR in that case. */
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal(coord)) {
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
 			/* we know there can't be formatted neighbor */
-			return -ENAVAIL;
+			return -E_NO_NEIGHBOR;
 		}
 
 		iplug->s.internal.down_link(coord, NULL, &da);
@@ -388,7 +388,7 @@ connect_one_side(coord_t * coord, znode * node, int flags)
 
 	/* we catch error codes which are not interesting for us because we
 	   run renew_sibling_link() only for znode connection. */
-	if (ret == -ENOENT || ret == -ENAVAIL)
+	if (ret == -ENOENT || ret == -E_NO_NEIGHBOR)
 		return 0;
 
 	return ret;
@@ -498,7 +498,7 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 	ret = renew_sibling_link(&local, &empty[nr_locked], neighbor, level, flags | GN_NO_ALLOC, &nr_locked);
 	/* second renew_sibling_link() call is used for znode connection only,
 	   so we can live with these errors */
-	if (-ENOENT == ret || -ENAVAIL == ret)
+	if (-ENOENT == ret || -E_NO_NEIGHBOR == ret)
 		ret = 0;
 
 out:
@@ -527,7 +527,7 @@ out:
    That locking could be done by using sibling link and lock_neighbor()
    function, if sibling link exists. In another case we have to go level up
    again until we find common parent or valid sibling link. Then go down
-   allocating/connecting/locking/reading nodes until neigbor of first one is
+   allocating/connecting/locking/reading nodes until neighbor of first one is
    locked.
 */
 
@@ -565,7 +565,6 @@ reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
 again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	   link existence */
-
 	ret = UNDER_RW(tree, tree, write,
 		       lock_side_neighbor(neighbor, node, lock_mode, flags));
 
@@ -592,7 +591,7 @@ again:
 		return ret;
 	if (znode_above_root(path[0].node)) {
 		longterm_unlock_znode(&path[0]);
-		return -ENAVAIL;
+		return -E_NO_NEIGHBOR;
 	}
 
 	while (1) {
@@ -641,7 +640,7 @@ again:
 				goto fail;
 			++h;
 			if (znode_above_root(path[h].node)) {
-				ret = -ENAVAIL;
+				ret = -E_NO_NEIGHBOR;
 				goto fail;
 			}
 			break;
