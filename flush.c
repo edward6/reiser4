@@ -195,8 +195,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan left_scan;
 	struct reiser4_io_handle hio;
 
-	init_io_handle (&hio);
-	flush_pos.hio = &hio;
+	if (flags & JNODE_FLUSH_COMMIT) {
+		init_io_handle (&hio);
+		flush_pos.hio = &hio;
+	} else {
+		flush_pos.hio = NULL;
+	}
 
 	atomic_inc (& flush_cnt);
 	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
@@ -364,7 +368,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
  clean_out:
 
 	/* wait for io completion */
-	{
+	if (flags & JNODE_FLUSH_COMMIT) {
 		int rc = done_io_handle(&hio);
 		if (rc && ret == 0) ret = rc;
 	}
