@@ -1591,7 +1591,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			if (mode & TXN_CAPTURE_DONT_FUSE) {
 				spin_unlock_txnh(txnh);
 				UNLOCK_JNODE(node);
-				return -ENAVAIL;
+				return -E_NO_NEIGHBOR;
 			}
 
 			/* In this case, both txnh and node belong to different atoms.  This function

@@ -940,7 +940,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			switch (result) {
 			case 0:
 				break;
-			case -ENAVAIL:
+			case -E_NO_NEIGHBOR:
 				/* there is no formatted node to the left of
 				   from->node */
 				warning("vs-605",
@@ -1019,7 +1019,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				item_key_by_coord(&right_coord, &key);
 				break;
 
-			case -ENAVAIL:
+			case -E_NO_NEIGHBOR:
 				/* there is no formatted node to the right of
 				   from->node */
 				UNDER_SPIN_VOID(dk, tree, key = *znode_get_rd_key(from->node));
