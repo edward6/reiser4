@@ -397,7 +397,9 @@ extern void reiser4_done_context( reiser4_context *context );
 extern reiser4_context *reiser4_get_current_context( void );
 extern reiser4_context *reiser4_get_context( const struct task_struct *tsk );
 
-
+/* comment me.  Say something clever, like I am called at every reiser4 entry point, and I create a struct that is used
+   to allow functions to efficiently pass large amounts of parameters around by moving a pointer to the parameters
+   called "context". */
 #define __REISER4_ENTRY( super, errret )   		               \
 	reiser4_context __context;			               \
 	do {                                                           \

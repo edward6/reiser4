@@ -558,7 +558,7 @@ atom_try_commit_locked (txn_atom *atom)
 *****************************************************************************************/
 
 /* Called to force commit of any outstanding atoms.  Later this should be improved to: (1)
- * wait for atoms with open txnhs to commit and (2) not wait indefinetly if new atoms are
+ * wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
  * created. */
 int
 txn_mgr_force_commit (struct super_block *super)

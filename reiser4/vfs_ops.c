@@ -274,8 +274,21 @@ static int reiser4_mknod( struct inode *parent, struct dentry *dentry,
 static ssize_t reiser4_read( struct file *file, 
 			     char *buf, size_t size, loff_t *off )
 {
+
 	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
-	REISER4_EXIT( io_to_object( file, buf, size, off, READ_OP ) );
+	plugin = reiser4_get_file_plugin( inode );
+	assert( "nikita-417", plugin != NULL );
+	if( result == 0 ) {
+		rw_f_type fun;
+
+		fun = plugin -> rw_f[ op ];
+		if( fun == NULL )
+			result = -EPERM;
+		else
+			/* dispatch control to the appropriate plugin method */
+			result = fun( file, &aflow, off );
+	}
+	REISER4_EXIT( );
 }
 
 /**

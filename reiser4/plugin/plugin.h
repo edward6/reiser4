@@ -85,10 +85,9 @@ struct reiser4_entry {
 	struct inode *obj;
 };
 
-/** file (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This includes all of the file related VFS operations. 
-
-separate file and directory plugins
- 
+/*
+    File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
+    includes all of the file related VFS operations.
 */
 
 typedef struct fplug {
