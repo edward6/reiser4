@@ -878,6 +878,107 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 	return result < 0 ? : 0 ;
 }
 
+/** 
+ * helper function for carry_paste(): returns true if @op can be continued as
+ * paste 
+ */
+static int can_paste( carry_op *op /* carry operation to check */ )
+{
+	coord_t *icoord;
+	coord_t  circa;
+	item_plugin *new_iplug;
+	item_plugin *old_iplug;
+	const reiser4_key *key;
+	reiser4_item_data *data;
+	int result;
+
+	icoord = op -> u.insert.d -> coord;
+	assert( "nikita-2512", icoord -> between != AT_UNIT );
+
+	/*
+	 * obviously, one cannot paste when node is empty---there is nothing
+	 * to paste into.
+	 */
+	if( node_is_empty( icoord -> node ) )
+		return 0;
+	/*
+	 * if insertion point is at the middle of the item, then paste
+	 */
+	if( !coord_is_between_items( icoord ) )
+		return 1;
+	coord_dup( &circa, icoord );
+	circa.between = AT_UNIT;
+
+	key = op -> u.insert.d -> key;
+	data = op -> u.insert.d -> data;
+	old_iplug = item_plugin_by_coord( &circa );
+	new_iplug  = data -> iplug;
+
+	/*
+	 * check whether we can paste to the item @icoord is "at" when we
+	 * ignore ->between field
+	 */
+	if( ( old_iplug == new_iplug ) && 
+	    item_can_contain_key( &circa, key, data ) ) {
+		result = 1;
+	} else if( ( icoord -> between == BEFORE_UNIT ) ||
+		   ( icoord -> between == BEFORE_ITEM ) ) {
+		/*
+		 * otherwise, try to glue to the item at the left, if any
+		 */
+		coord_dup( &circa, icoord );
+		if( coord_set_to_left( &circa ) )
+			result = 0;
+		else {
+			old_iplug = item_plugin_by_coord( &circa );
+			result = ( old_iplug == new_iplug ) &&
+				item_can_contain_key( icoord, key, data );
+			if( result ) {
+				coord_dup( icoord, &circa );
+				icoord -> between = AFTER_UNIT;
+			}
+		}
+	} else if( ( icoord -> between == AFTER_UNIT ) ||
+		   ( icoord -> between == AFTER_ITEM ) ) {
+		coord_dup( &circa, icoord );
+		/*
+		 * otherwise, try to glue to the item at the right, if any
+		 */
+		if( coord_set_to_right( &circa ) )
+			result = 0;
+		else {
+			int ( *cck )( const coord_t *, const reiser4_key *,
+				      const reiser4_item_data * );
+
+			old_iplug = item_plugin_by_coord( &circa );
+
+			cck = old_iplug -> common.can_contain_key;
+			if( cck == NULL )
+				/*
+				 * item doesn't define ->can_contain_key
+				 * method? So it is not expandable.
+				 */
+				result = 0;
+			else {
+				result = ( old_iplug == new_iplug ) &&
+					cck( icoord, key, data );
+				if( result ) {
+					coord_dup( icoord, &circa );
+					icoord -> between = BEFORE_UNIT;
+				}
+			}
+		}
+	} else
+		impossible( "nikita-2513", "Nothing works" );
+	if( result ) {
+		if( icoord -> between == BEFORE_ITEM )
+			icoord -> between = BEFORE_UNIT;
+		else if( icoord -> between == AFTER_ITEM )
+			icoord -> between = AFTER_UNIT;
+	}
+	return result;
+}
+
 /**
  * implements COP_PASTE operation
  *
@@ -895,12 +996,11 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 {
 	znode               *node;
 	carry_insert_data    cdata;
-	coord_t           coord;
+	coord_t              coord;
 	reiser4_item_data    data;
 	int                  result;
 	int                  real_size;
 	item_plugin         *iplug;
-	int                  can_paste_here;
 	carry_plugin_info    info;
 
 	assert( "nikita-982", op != NULL );
@@ -920,17 +1020,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	iplug = coord_is_existing_item( op -> u.insert.d -> coord ) ? 
-		item_plugin_by_coord( op -> u.insert.d -> coord ) : NULL;
-	can_paste_here = 
-		coord_is_existing_item( op -> u.insert.d -> coord ) &&
-		( iplug == op -> u.insert.d -> data -> iplug );
-
-	if( !can_paste_here || 
-	    ( can_paste_here &&
-	      !item_can_contain_key( op -> u.insert.d -> coord, 
-				     op -> u.insert.d -> key,
-				     op -> u.insert.d -> data ) ) ) {
+	if( !can_paste( op ) ) {
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
@@ -941,6 +1031,9 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	}
 
 	node = op -> u.insert.d -> coord -> node;
+	iplug = item_plugin_by_coord( op -> u.insert.d -> coord );
+	assert( "nikita-992", iplug != NULL );
+
 	assert( "nikita-985", node != NULL );
 	assert( "nikita-986", node_plugin_by_node( node ) != NULL );
 
@@ -949,7 +1042,6 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 
 	assert( "nikita-1286", coord_is_existing_item( op -> u.insert.d -> coord ) );
 
-	assert( "nikita-992", iplug != NULL );
 	real_size = space_needed_for_op( node, op );
 	if( real_size > 0 ) {
 		node -> nplug ->
