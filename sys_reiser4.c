@@ -6,46 +6,10 @@
 
 /* Please read parser.c and return. */
 
-/* Mr. Demidov, please implement by the end of March. */
-/* But it is June. */
 
+#include "reiser4.h"
 
-/*#include "parser/parser.h"*/
-#include "parser/y.tab.c"
-
-#include <linux/slab.h>
-
-
-int yywrap()
-{
-    return 1;
-}
-
-freeSpace_t * freeSpaceAlloc()
-{
-	freeSpace_t * fs;
-	if ( ( fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ) ) ) != 0 )
-		{
-			fs->freeSpace_next = NULL;
-			fs->freeSpaceSize  = FREESPACESIZE;
-			fs->freeSpace      = fs->freeSpaceBase;
-		}
-	return fs;
-}
-
-
-strtab * StrTabAlloc()
-{
-	strtab * str;
-	if ( ( str = ( strtab  *   ) kmalloc( sizeof( strtab   ) ) ) != 0 )
-		{
-			str->Str_next   = NULL;
-			str->StrTabSize = STRTABSIZE;
-			str->StrTabLast = 0;
-		}
-	return str;
-}
-
+#include "parser/parser.c"
 
 /* @str is a command string for parsing  
 this function allocates work area for yacc, 
@@ -60,60 +24,20 @@ asmlinkage long  sys_reiser4(char * str)
 
                                                             /* allocate work space for parser 
 							       working variables, attached to this call */
-	if ( ( work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 ) )==0 )
+	if ( ( work_space =  sys_reiser4_init()) == -ENOMEM)
 		{
 			return -ENOMEM;
 		}
-	work_space->ws_yystacksize = MAXLEVELCO; /* must be 500 by default */
-	work_space->ws_yymaxdepth  = MAXLEVELCO; /* must be 500 by default */
-	
 	                                                    /* initialize fields */
 	                                                    /* this two field used for parsing string, one (inline) stay on begin */
 	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                    */
 
-
-
-
-
-	                                                    /* allocate first part of working tables and assign to headers */
-	work_space->freeSpHead = freeSpaceAlloc();
-	work_space->WrdHead    = NULL;
-
-	/*	work_space->VarTabHead = StrTabAlloc();*/
-
-
-
-	if (work_space->freeSpHead /*&& work_space->StrTabHead*/)
-		{
-			ret = yyparse(work_space);                 /* parse command */
-			Gencode = getGeneratedCode(work_space);
-		}
-	else
-		{
-			ret= -ENOMEM;
-		}
-	if (work_space->freeSpHead)
-		{
-			freeList(work_space, freeSp);
-		}
-
-	/*
-	if (work_space->StrTabHead)
-		{
-			freeList(work_space, StrTab);
-		}
-	*/
-
-
-	free(work_space);
-
-	                      			                                     /* execute list of commands 
-					                                              of course, we can return address of this generated code 
-										      or execute it by next one system call */
+	ret = yyparse(work_space);                 /* parse command */
 	if ( ret != -ENOEM )
 		{
-			ret = execut_this_code(Gencode);
+			ret = execut_this_code(work_space);
 		}	
+	sys_reiser4_free(work_space);
 	return ret;
 }
 
