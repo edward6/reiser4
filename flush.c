@@ -1002,6 +1002,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			capture_list_remove_clean(node);
 			capture_list_push_back(&(*atom)->writeback_nodes, node);
+			ON_DEBUG(node->list = WB_LIST);
 		} else if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 			/* A special case for znode-above-root.  The above-root (fake)
 			   znode is captured and dirtied when the tree height changes or
@@ -3306,32 +3307,22 @@ scan_by_coord(flush_scan * scan)
 	else
 		iplug = item_plugin_by_coord(&scan->parent_coord);
 	
-	if (iplug->f.scan == NULL) {
-		scan->stop = 1;
-		ret = 0;
-		goto exit;
-	}
-
 	for (; !scan_finished(scan); scan_this_coord = 1) {
-
 		if (scan_this_coord) {
-			if (get_flush_scan_istat(scan) == EXISTING_ITEM &&
-			    item_plugin_by_coord(&scan->parent_coord) != iplug) {
-				/* we raced again extent->tail conversion and
-				   lost. */
-				ON_TRACE(TRACE_FLUSH,
-					 "Flush raced against extent->tail\n");
+			/* Here we expect that unit is scannable. it would not be so due
+			 * to race with extent->tail conversion.  */
+			if (iplug->f.scan == NULL) {
 				scan->stop = 1;
 				ret = 0;
 				goto exit;
 			}
+
 			ret = iplug->f.scan(scan, &scan->parent_coord);
-			if (ret != 0) {
+			if (ret != 0)
 				goto exit;
-			}
-			if (scan_finished(scan)) {
+
+			if (scan_finished(scan))
 				break;
-			}
 		} else {
 			/* FIXME:NIKITA->* the same race against truncate as
 			 * above is possible here, it seems */
@@ -3356,8 +3347,8 @@ scan_by_coord(flush_scan * scan)
 
 		/* If off-the-end of the twig, try the next twig. */
 		if (coord_is_after_sideof_unit(&next_coord, scan->direction)) {
-
-			/* We take the write lock because we may start flushing from this coordinate. */
+			/* We take the write lock because we may start flushing from this
+			 * coordinate. */
 			ret = neighbor_in_slum(next_coord.node, &next_lock, scan->direction, ZNODE_WRITE_LOCK);
 
 			if (ret == -E_NO_NEIGHBOR) {
@@ -3378,13 +3369,7 @@ scan_by_coord(flush_scan * scan)
 			coord_init_sideof_unit(&next_coord, next_lock.node, sideof_reverse(scan->direction));
 		}
 
-		/* We are only interested in continuing if the next item has the same id.
-		   If so we will return to the scan_common loop and the next call will be
-		   to scan_formatted() to handle this case. */
-		if (item_plugin_by_coord(&next_coord) != iplug) {
-			scan->stop = 1;
-			break;
-		}
+		iplug = item_plugin_by_coord(&next_coord);
 
 		/* Get the next child. */
 		ret = iplug->f.utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
@@ -3401,21 +3386,18 @@ scan_by_coord(flush_scan * scan)
 		assert("nikita-2374", jnode_is_unformatted(child) || jnode_is_znode(child));
 
 		/* See if it is dirty, part of the same atom. */
-		if (!scan_goto(scan, child)) {
+		if (!scan_goto(scan, child))
 			break;
-		}
 
 		/* If so, make this child current. */
 		ret = scan_set_current(scan, child, 1, &next_coord);
-		if (ret != 0) {
+		if (ret != 0)
 			goto exit;
-		}
 
 		/* Now continue.  If formatted we release the parent lock and return, then
 		   proceed. */
-		if (jnode_is_znode(child)) {
+		if (jnode_is_znode(child))
 			break;
-		}
 
 		/* Otherwise, repeat the above loop with next_coord. */
 		if (next_load.node != NULL) {
