@@ -38,7 +38,7 @@ unsigned int aal_adler32(char *buff, unsigned int n) {
     	n -= k;
 	
 	while (k--) {
-	    s1 += *buff++; 
+	    s1 += *t++; 
 	    s2 += s1;
 	}
 	

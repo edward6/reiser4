@@ -17,9 +17,9 @@
 #include <linux/fs.h> /* for struct super_block  */
 #include <asm/semaphore.h>
 
-#define CRC_SIZE    4
+#define CHECKSUM_SIZE    4
 
-#define bmap_size(blocksize)	    (blocksize - CRC_SIZE)
+#define bmap_size(blocksize)	    (blocksize - CHECKSUM_SIZE)
 #define bmap_bit_count(blocksize)   (bmap_size(blocksize) << 3)
 
 /* Block allocation/deallocation are done through special bitmap objects which
@@ -48,12 +48,20 @@ static inline char * bnode_working_data (struct bnode * bnode) {
 static inline char * bnode_commit_data (struct bnode * bnode) {
 	char * data;
 
-	data = jdata(bnode->cjnode) + CRC_SIZE;
+	data = jdata(bnode->cjnode);
 	assert ("zam-430", data != NULL);
 
-	return data;
+	return data + CHECKSUM_SIZE;
 }
 
+static inline __u32 * bnode_commit_crc (struct bnode * bnode) {
+	char * data;
+
+	data = jdata(bnode->cjnode);
+	assert ("vpf-261", data != NULL);
+
+	return (__u32 *)data;
+}
 
 struct bitmap_allocator_data {
 	/** an array for bitmap blocks direct access */
@@ -241,7 +249,7 @@ static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 
 	if (last_byte > first_byte + 1) 
 		xmemset (addr + first_byte + 1, 0xFF,
-			 (size_t)(last_byte - first_byte - 1));
+			(size_t)(last_byte - first_byte - 1));
 
 	first_byte_mask <<= start & 0x7;
 	last_byte_mask  >>= 7 - ((end - 1)& 0x7);
@@ -254,52 +262,129 @@ static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 	}
 }
 
+/* These 2 functions of 64 bit numbers division were taken from 
+ * include/sound/pcm.h */
+
 /* Helper function for 64 bits numbers division. */
 static inline void divl(__u32 high, __u32 low, __u32 div, __u32 *q, __u32 *r) {
-        __u64 n = (__u64)high << 32 | low;
-        __u64 d = (__u64)div << 31;
-        __u32 q1 = 0;
-        int c = 32;
-        while (n > 0xffffffffU) {
-                q1 <<= 1;
-                if (n >= d) {
-                        n -= d;
-                        q1 |= 1;
-                }
-                d >>= 1;
-                c--;
-        }
-        q1 <<= c;
-        if (n) {
-                low = n;
-                *q = q1 | (low / div);
-                if (r) *r = low % div;
-        } else {
-                if (r) *r = 0;
-                *q = q1;
-        }
-        return;
+	__u64 n = (__u64)high << 32 | low;
+	__u64 d = (__u64)div << 31;
+	__u32 q1 = 0;
+	int c = 32;
+	
+	while (n > 0xffffffffU) {
+		q1 <<= 1;
+		if (n >= d) {
+			n -= d;
+			q1 |= 1;
+		}
+		d >>= 1;
+		c--;
+	}
+	q1 <<= c;
+	if (n) {
+		low = n;
+		*q = q1 | (low / div);
+		if (r) *r = low % div;
+	} else {
+		if (r) *r = 0;
+		*q = q1;
+	}
+	return;
 }
 
 /* Function for 64 bits numbers division. */
 static inline __u64 div64_32(__u64 n, __u32 div, __u32 *rem) {
-        __u32 low, high;
-        low = n & 0xffffffff;
-        high = n >> 32;
-        if (high) {
-                __u32 high1 = high % div;
-                __u32 low1 = low;
-                high /= div;
-                divl(high1, low1, div, &low, rem);
-                return (__u64)high << 32 | low;
-        } else {
+	__u32 low, high;
+	
+	low = n & 0xffffffff;
+	high = n >> 32;        
+	if (high) {
+		__u32 high1 = high % div;
+		__u32 low1 = low;
+		high /= div;
+		divl(high1, low1, div, &low, rem);
+		return (__u64)high << 32 | low;
+	} else {
 		if (rem) *rem = low % div;
-                return low / div;
-        }
+		return low / div;
+	}
 
 	return 0;
 }
 
+#define ADLER_BASE    65521
+#define ADLER_NMAX    5552
+
+/* 
+    Calculates the adler32 checksum for the data pointed by `data` of the 
+    length `len`. This function was originally taken from zlib, version 1.1.3, 
+    July 9th, 1998. 
+
+    Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler
+    
+    This software is provided 'as-is', without any express or implied
+    warranty.  In no event will the authors be held liable for any damages
+    arising from the use of this software.
+    
+    Permission is granted to anyone to use this software for any purpose,
+    including commercial applications, and to alter it and redistribute it
+    freely, subject to the following restrictions:
+    
+    1. The origin of this software must not be misrepresented; you must not
+	claim that you wrote the original software. If you use this software
+	in a product, an acknowledgment in the product documentation would be
+	appreciated but is not required.
+    2. Altered source versions must be plainly marked as such, and must not be
+	misrepresented as being the original software.
+    3. This notice may not be removed or altered from any source distribution.
+    
+    Jean-loup Gailly        Mark Adler
+    jloup@gzip.org          madler@alumni.caltech.edu
+
+    The above comment is applyed to the only alder32 function.
+*/
+
+static __u32 adler32(char *data, __u32 len) {
+	unsigned char *t = data;
+	__u32 s1 = 1;
+	__u32 s2 = 0;
+	int k;
+
+	while (len > 0) {
+		k = len < ADLER_NMAX ? len : ADLER_NMAX;
+		len -= k;
+
+		while (k--) {
+		    s1 += *t++; 
+		    s2 += s1;
+		}
+
+		s1 %= ADLER_BASE;
+		s2 %= ADLER_BASE;
+	}
+	return (s2 << 16) | s1;
+}
+
+/* 
+    Recalculates the adler32 checksum for only 1 byte change.
+    adler - previous adler checksum
+    old_data, data - old, new byte values.
+    tail == chunk length, checksum was calculated for, - offset of the changed 
+    byte within this chunk.
+    This function could be used for checksum calculation optimisation, but not 
+    used for now. -Vitaly.
+*/
+static inline __u32 checksum_recalc(__u32 adler, char old_data, char data, __u32 tail) {
+	long long int delta = (unsigned char) data - old_data;
+	__u32 s1 = adler & 0xffff;
+	__u32 s2 = (adler >> 16) & 0xffff;
+
+	s1 = (delta + s1) % ADLER_BASE;
+	s2 = (delta * tail + s2) % ADLER_BASE;
+		
+	return (s2 << 16) | s1;
+}
 
 /* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
  * blocks loading/unloading which is different from v3.x where all bitmap
@@ -961,6 +1046,11 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom,
 
 	data = bnode_commit_data(bnode);
 
+	if (*bnode_commit_crc(bnode) != adler32(bnode_commit_data(bnode), 
+	    bmap_size(sb->s_blocksize)))	
+	    warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", 
+		bmap);
+	
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
 		assert ("zam-443", offset + *len <= bmap_bit_count(sb->s_blocksize));
@@ -972,6 +1062,9 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom,
 		(*blocks_freed_p) ++;
 	}
 
+	*bnode_commit_crc(bnode) = adler32(bnode_commit_data(bnode), 
+	    bmap_size(sb->s_blocksize));
+	
 	release_and_unlock_bnode (bnode);
 
 	return 0;
@@ -1013,20 +1106,28 @@ void bitmap_pre_commit_hook (void)
 			if (JF_ISSET(node, JNODE_RELOC))
 			{
 				bmap_nr_t  bmap;
+				
 				bmap_off_t offset;
 				struct bnode * bn;
+				__u32 size = bmap_size(get_current_context()->super->s_blocksize);
 
 				assert ("zam-559", !JF_ISSET(node, JNODE_OVRWR));
 				assert ("zam-460", !blocknr_is_fake(& node->blocknr));
 
 				parse_blocknr(& node->blocknr, &bmap, &offset);
-
 				bn = get_bnode (ctx->super, bmap);
 
+				if (*bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				    warning("vpf-262", "Checksum for the bitmap block %llu is incorrect",
+					bmap);
+				
 				check_bnode_loaded (bn);
 					
 				load_and_lock_bnode (bn);
 				reiser4_set_bit (offset, bnode_commit_data(bn));
+				
+				*bnode_commit_crc(bn) = adler32(bnode_commit_data(bn), size); 
+					
 				release_and_unlock_bnode (bn);
 
 				blocks_freed --;
