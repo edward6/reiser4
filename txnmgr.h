@@ -351,7 +351,6 @@ struct txn_atom {
 	 * reiser4 space reservation scheme at block_alloc.c */
 	reiser4_block_nr flush_reserved;
 #if REISER4_DEBUG
-	/* number of flush queues for this atom. */
 	void *committer;
 	int coc_reloc;
 	int coc_ovrwr;
