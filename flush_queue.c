@@ -114,7 +114,6 @@ static void fq_detach_nolock (flush_queue_t * fq)
 {
 	assert ("zam-732", spin_fq_is_locked (fq));
 	assert ("zam-731", spin_atom_is_locked (fq->atom));
-	assert ("zam-733", fq_ready(fq));
 
 	fq_list_remove_clean (fq);
 	fq->atom = NULL;
@@ -149,7 +148,7 @@ void fq_done (flush_queue_t * fq)
 static void uncapture_queued_node (flush_queue_t *fq, jnode *node)
 {
 	assert ("zam-737", spin_jnode_is_locked (node));
-	assert ("zam-738", spin_fq_is_locked (fq));
+	assert ("zam-738", fq_in_use (fq));
 	assert ("zam-739", fq->atom);
 	assert ("zam-740", spin_atom_is_locked (fq->atom));
 
@@ -230,6 +229,7 @@ static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
 	assert ("zam-725", fq->atom != NULL);
 	assert ("zam-726", spin_atom_is_locked (fq->atom));
 	assert ("zam-741", !jnode_is_dirty(node));
+	assert ("zam-754", fq_in_use (fq));
 
 	if (try_uncapture_node (fq, node))
 		return 0;
@@ -280,7 +280,6 @@ static void fq_scan_io_list (flush_queue_t * fq)
 	jnode * cur;
 	txn_atom * atom;
 
-	assert ("zam-740", spin_fq_is_locked (fq));
 	assert ("nikita-2704", fq_in_use (fq));
 	atom = fq->atom;
 	assert ("zam-741", atom != NULL);
@@ -320,6 +319,8 @@ static int fq_finish (flush_queue_t * fq, int * nr_io_errors)
 	if (ret)
 		return ret;
 
+	mark_fq_in_use (fq);
+
 	fq_scan_io_list (fq);
 
 	/* check can we release this fq object */
@@ -329,6 +330,8 @@ static int fq_finish (flush_queue_t * fq, int * nr_io_errors)
 		
 		/* re-submit nodes to write*/
 		ret = fq_write (fq, 0);
+
+		fq_put (fq);
 
 		if (ret)
 			return ret;
@@ -828,11 +831,11 @@ static long write_list_fq (flush_queue_t * first, long how_many)
 
 			spin_lock_fq (cur);
 			atom = atom_get_locked_by_fq (cur);
+			spin_unlock_fq (cur);
 
 			fq_scan_io_list (cur);
 
 			spin_unlock_atom (atom);
-			spin_unlock_fq (cur);
 		}
 
 		if (nr_submitted < how_many) {
