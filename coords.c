@@ -459,7 +459,6 @@ int coord_is_before_item (const tree_coord * coord, unsigned item_pos UNUSED_ARG
 	 * it is not ready yet for other item_pos than 0
 	 */
 	assert ("vs-446", item_pos == 0);
-	assert ("vs-447", node_is_empty (coord->node));
 
 	if (coord->item_pos == 0 && coord->between == BEFORE_ITEM)
 		return 1;
