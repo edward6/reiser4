@@ -59,6 +59,7 @@ typedef struct format40_super_info {
 
 #define FORMAT40_JOURNAL_HEADER_BLOCKNR 19
 #define FORMAT40_JOURNAL_FOOTER_BLOCKNR 20
+#define FORMAT40_STATUS_BLOCK 21
 
 /* Diskmap declarations */
 #define FORMAT40_PLUGIN_DISKMAP_ID ((REISER4_FORMAT_PLUGIN_TYPE<<16) | (FORMAT40_ID))
