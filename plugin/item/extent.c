@@ -2760,6 +2760,11 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 	assert ("vs-678", item_is_extent (right));
 
+	if (right->unit_pos == coord_num_units (right)) {
+		/* whole item was allocated and copied, set coord after item */
+		right->unit_pos = 0;
+		right->between = AFTER_ITEM;
+	}
 	return result;
 }
 
