@@ -943,6 +943,7 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = noparse,
 			.parse   = noparse,
 			.remove  = noparse,
+			.delete  = noparse,
 			.mapping = znode_mapping,
 			.index   = znode_index
 		}
@@ -960,6 +961,7 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = noparse,
 			.parse   = noparse,
 			.remove  = noparse,
+			.delete  = noparse,
 			.mapping = NULL,
 			.index   = NULL
 		}
@@ -977,6 +979,7 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = noparse,
 			.parse   = noparse,
 			.remove  = noparse,
+			.delete  = noparse,
 			.mapping = znode_mapping,
 			.index   = znode_index
 		}
