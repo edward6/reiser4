@@ -50,7 +50,7 @@ static inline void reiser4_clear_bit (int nr, void * addr)
 
 static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
 {
-	unsigned char * p = addr;
+	unsigned char * base = addr;
 	int byte_nr = start_offset >> 3;
 	int bit_nr  = start_offset & 0x7;
 	int max_byte_nr = (size - 1) >> 3;
@@ -60,7 +60,7 @@ static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
 	if (bit_nr != 0) {
 		int nr;
 
-		nr = find_next_zero_bit_in_byte(*p, bit_nr);
+		nr = find_next_zero_bit_in_byte(*base, bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
 
@@ -68,8 +68,9 @@ static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
 	}
 
 	while (byte_nr < max_byte_nr) {
-		if (*(++p) != 0xFF) {
-			return (byte_nr << 3) + find_next_zero_bit_in_byte(*p, 0);
+		if (base[byte_nr] != 0xFF) {
+			return (byte_nr << 3) 
+				+ find_next_zero_bit_in_byte(base[byte_nr + 1], 0);
 		}
 
 		++ byte_nr;
@@ -82,7 +83,7 @@ static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
 
 static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
 {
-	unsigned char * p = addr;
+	unsigned char * base = addr;
 	int byte_nr = start_offset >> 3;
 	int bit_nr  = start_offset & 0x7;
 	int max_byte_nr = (size - 1) >> 3;
@@ -92,7 +93,7 @@ static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
 	if (bit_nr != 0) {
 		int nr;
 
-		nr = find_next_zero_bit_in_byte(~ (unsigned int) (*p), bit_nr);
+		nr = find_next_zero_bit_in_byte(~ (unsigned int) (*base), bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
 
@@ -100,8 +101,10 @@ static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
 	}
 
 	while (byte_nr < max_byte_nr) {
-		if (*(++p) != 0) {
-			return (byte_nr << 3) + find_next_zero_bit_in_byte(~ (unsigned int) (*p), 0);
+		if (base[byte_nr] != 0) {
+			return (byte_nr << 3) 
+				+ find_next_zero_bit_in_byte(
+					~ (unsigned int) (base[byte_nr + 1]), 0);
 		}
 
 		++ byte_nr;
