@@ -835,7 +835,6 @@ static void txn_wait_on_io (txn_atom *atom)
  * long as we hold the atom lock none of the jnodes can be captured and/or
  * locked.
  */
-/* Audited by: umka (2002.06.13) */
 static int
 atom_try_commit_locked (txn_atom *atom)
 {
