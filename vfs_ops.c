@@ -137,15 +137,14 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 
 	/* call its lookup method */
 	retval = dplug -> resolve_into_inode( parent, dentry );
+	result = NULL;
 	if( retval == 0 ) {
 		assert( "nikita-1943", dentry -> d_inode != NULL );
 		if( dentry -> d_inode -> i_state & I_NEW )
 			unlock_new_inode( dentry -> d_inode );
-		result = NULL;
 	} else if( retval == -ENOENT ) {
 		/* object not found */
 		d_add( dentry, NULL );
-		result = NULL;
 	} else
 		result = ERR_PTR( retval );
 	/* success */
