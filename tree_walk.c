@@ -498,7 +498,16 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 	ret = lock_side_neighbor(neighbor, node, lock_mode, flags);
 	spin_unlock_tree(tree);
 
-	if (!ret || !(flags & GN_DO_READ)) return ret;
+	if (!ret) {
+		/* load znode content if it was specified */
+		if (flags & GN_LOAD_NEIGHBOR) {
+			ret = zload (node);
+			if (ret) reiser4_unlock_znode(neighbor);
+		}
+		return ret;
+	}
+				
+	if (!(flags & GN_DO_READ)) return ret;
 
 	/* before establishing of sibling link we lock parent node; it is
 	 * required by renew_neighbor() to work.  */
@@ -579,6 +588,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 		reiser4_unlock_znode(&path[h]);
 		-- h;
 	} while (h + 1 != 0);
+
 	return ret;
 }
 
