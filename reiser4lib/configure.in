@@ -69,7 +69,9 @@ AC_SUBST(plugindir)
 
 dnl make libc threadsafe (not required for us, but useful other users of
 dnl libreiserfs)
-CFLAGS="$CFLAGS -D_REENTRANT"
+if test x$enable_compact = xno; then
+    CFLAGS="$CFLAGS -D_REENTRANT"
+fi
 
 # Checks for programs.
 AC_PROG_CC
@@ -112,6 +114,10 @@ AC_SUBST(LIBREISERFS_LIBS)
 
 if test x$enable_debug = xyes; then
     CFLAGS="$CFLAGS -g"
+fi
+
+if test x$enable_compact = xyes; then
+    CFLAGS="$CFLAGS -O9 -fno-builtin"
 fi
 
 CFLAGS="$CFLAGS -W -Wall -Wno-unused -Wno-switch -Wno-format"
