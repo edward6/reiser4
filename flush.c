@@ -47,6 +47,8 @@ struct flush_position {
 	unsigned              left_scan_count;
 	unsigned              right_scan_count;
 	int                   batch_relocate;
+	int                   parent_first_broken;
+	int                   squalloc_count;
 	struct bio           *bio;
 };
 
@@ -67,11 +69,12 @@ static int           flush_scan_left              (flush_scan *scan, jnode *node
 static int           flush_scan_right_upto        (flush_scan *scan, jnode *node, __u32 *res_count, __u32 limit);
 
 static int           flush_left_relocate          (jnode *node, const tree_coord *parent_coord);
-static int           flush_right_relocate         (jnode *node, const tree_coord *parent_coord);
 
 static int           flush_extents                (flush_position *pos);
 static int           flush_enqueue_point          (flush_position *pos);
+static int           flush_allocate_point         (flush_position *pos);
 static int           flush_finish                 (flush_position *pos);
+static void          flush_parent_first_broken    (flush_position *pos);
 
 static int           flush_lock_leftpoint         (jnode                  *start_node,
 						   lock_handle            *start_lock,
@@ -158,7 +161,8 @@ int jnode_flush (jnode *node, int flags)
 		 * though since we don't go through the squalloc pass. */
 		flush_pos_set_point (& flush_pos, node);
 
-		if ((ret = flush_enqueue_point (& flush_pos))) {
+		if ((ret = flush_allocate_point (& flush_pos)) ||
+		    (ret = flush_enqueue_point (& flush_pos))) {
 			goto failed;
 		}
 	} else {
@@ -178,10 +182,18 @@ int jnode_flush (jnode *node, int flags)
 		 * first.  The alternative would be to run squalloc_leftpoint with a "just
 		 * count up-to" argument, but I think this would be more costly and not
 		 * less effective in almost all cases. */
-		if (0 /* @@@ */ && flush_pos.left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
-			if ((ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count, FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
+		if (flush_pos.left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
+
+			/* FIXME: Problem: The batch_relocate condition is not set early
+			 * enough to relocate the leaf-level parent, for example.  This is
+			 * not really a special case, but it maybe it should be handled? */
+			if ((ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count,
+							  FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
 				goto failed;
 			}
+
+			flush_pos.batch_relocate = (flush_pos.right_scan_count +
+						    flush_pos.left_scan_count) >= FLUSH_RELOCATE_THRESHOLD;
 		} else {
 			flush_pos.batch_relocate = 1;
 		}
@@ -333,7 +345,9 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	/* If relocating the child, artificially dirty the parent right now. */
 	if (ret == 1) {
 
-		/* The parent may need to be captured, as well. */
+		/* The parent may need to be captured, as well.  Probably should break
+		 * these two statments into a subroutine, because it might want to be used
+		 * in flush_extents. */
 		if (! txn_same_atom_dirty (end_node, ZJNODE (parent_node))) {
 			done_lh (& parent_lock);
 
@@ -404,18 +418,38 @@ static int flush_lock_leftpoint (jnode                  *start_node,
  * (RE-) LOCATION POLICIES
  ********************************************************************************/
 
-/* This implements the leftward and rightward should_relocate() policy, which is described
- * in flush-alg.html.  This is either called at the end of each scan-left on a level while
- * searching for the leftpoint node or during the parent-first allocate and squeeze pass.
- * This implements the is-it-close-enough-to-its-preceder? test for relocation and if
- * going_right is true it also implements the is-there-a-closer-block? policy. */
-static int flush_should_relocate (jnode *node, const tree_coord *parent_coord, int going_right)
+/* This implements the leftward should_relocate() policy, which is described in
+ * flush-alg.html.  This is called at the end of each scan-left on a level while searching
+ * for the leftpoint node.  This implements the is-it-close-enough-to-its-preceder? test
+ * for relocation. */
+static int flush_should_relocate (const reiser4_block_nr *pblk,
+				  const reiser4_block_nr *nblk)
+{
+	reiser4_block_nr dist;
+
+	assert ("jmacd-7710", *pblk != 0 && *nblk != 0);
+	assert ("jmacd-7711", ! blocknr_is_fake (pblk));
+	assert ("jmacd-7712", ! blocknr_is_fake (nblk));
+
+	/* Distance is the absolute value. */
+	dist = (*pblk > *nblk) ? (*pblk - *nblk) : (*nblk - *pblk);
+
+	/* First rule: If the block is less than 64 blocks away from its preceder block,
+	 * do not relocate. */
+	if (dist <= FLUSH_RELOCATE_DISTANCE) {
+		return 0;
+	}
+
+	return 1;
+}
+
+/* FIXME: comment */
+static int flush_left_relocate  (jnode *node, const tree_coord *parent_coord)
 {
 	int ret;
 	tree_coord coord;
 	reiser4_block_nr pblk = 0;
 	reiser4_block_nr nblk = 0;
-	reiser4_block_nr dist;
 
 	assert ("jmacd-8989", ! jnode_is_root (node));
 
@@ -438,28 +472,8 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord, i
 
 	nblk = *jnode_get_block (node);
 
-	assert ("jmacd-7711", ! blocknr_is_fake (& pblk));
-	assert ("jmacd-7711", ! blocknr_is_fake (& nblk));
-
-	/* Distance is the absolute value. */
-	dist = (pblk > nblk) ? (pblk - nblk) : (nblk - pblk);
-
-	/* First rule: If going right and there is a block closer than dist, take it. */
-	if (going_right) {
-		/* FIXME: Need a new block-alloc primitive. */
-	}
-
-	/* Second rule: If the block is less than 64 blocks away from its preceder block,
-	 * do not relocate. */
-	if (dist <= FLUSH_RELOCATE_DISTANCE) {
-		return 0;
-	}
-
-	return 1;
+	return flush_should_relocate (& pblk, & nblk);
 }
-
-static int flush_left_relocate  (jnode *node, const tree_coord *parent_coord) { return flush_should_relocate (node, parent_coord, 0); }
-static int flush_right_relocate (jnode *node, const tree_coord *parent_coord) { return flush_should_relocate (node, parent_coord, 1); }
 
 /* Find the block number of the parent-first preceder of a node.  If the node is a
  * leftmost child, then return its parent's block.  If the node is a leaf, return its left
@@ -625,6 +639,9 @@ static int squalloc_leftpoint (flush_position *pos)
 			}
 
 		} else {
+
+			/* Reset the counter. */
+			pos->squalloc_count = 0;
 
 			/* Formatted node case.  Squeeze and allocate this node. */
 			if ((ret = squalloc_parent_first (pos))) {
@@ -804,6 +821,9 @@ static int squalloc_update_leftpoint (flush_position *pos)
 		return ret;
 	}
 
+	/* FIXME: Need to decide to dirty the parent of the new leftpoint here?  Or set
+	 * parent_first_broken? */
+
 	assert ("jmacd-8552", ! flush_pos_unformatted (pos));
 
 	return 0;
@@ -838,11 +858,12 @@ static int squalloc_parent_first (flush_position *pos)
          * Children might be dirty but there is an overwrite below this level or else this
          * node would be dirty.  Stop recursion if the node is not yet allocated. */
         if (! jnode_is_dirty (pos->point) || jnode_is_allocated (pos->point)) {
+		flush_parent_first_broken (pos);
                 return 0;
         }
 
 	/* Allocate it now (parent first). */
-	if ((ret = flush_enqueue_point (pos))) {
+	if ((ret = flush_allocate_point (pos))) {
 		return ret;
 	}
 
@@ -900,6 +921,7 @@ static int squalloc_parent_first (flush_position *pos)
 		 * squeeze and allocate any of its dirty grand-children.  Oh
 		 * well! */
 		if (! znode_is_dirty (child)) {
+			flush_parent_first_broken (pos);
 			goto squeeze_again;
 		}
 
@@ -926,6 +948,9 @@ static int squalloc_parent_first (flush_position *pos)
 		ret = ((squeeze < 0) ? squeeze : 0);
 	}
 
+	if (ret == 0) {
+		ret = flush_enqueue_point (pos);
+	}
  cleanup:
 	done_lh (& right_lock);
 	return ret;
@@ -968,7 +993,10 @@ static int squalloc_children (flush_position *pos)
 
 			if (IS_ERR (child)) { return PTR_ERR (child); }
 
-			if (! znode_check_dirty (child)) { continue; }
+			if (! znode_check_dirty (child)) {
+				flush_parent_first_broken (pos);
+				continue;
+			}
 
 			/* Recursive call: since we release the lock on this node it is
 			 * possible that the coordinate will change, therefore pass the
@@ -1036,6 +1064,10 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 		init_lh (& save_lock);
 		move_lh (& save_lock, & pos->point_lock);
 
+		/* FIXME: Is it possible that when ascending to the parent here, we reach
+		 * a newly-created parent node that has not been allocated?  If so, have
+		 * to allocate it before reaching (or inside) flush_enqueue_point.  Should
+		 * we detect this and call flush_parent_first_broken? */
 		ret = jnode_lock_parent_coord (pos->point, coord, & pos->point_lock, ZNODE_WRITE_LOCK);
 
 		done_lh (& save_lock);
@@ -1296,16 +1328,136 @@ static int jnode_is_allocated (jnode *node)
 	       JF_ISSET (node, ZNODE_WANDER);
 }
 
-/* This enqueues the current flush point into the developing "struct bio" queue.  The bio
- * is used as a staging area to accumulate up to FLUSH_RELOCATE_THRESHOLD nodes before
- * deciding whether to relocate or overwrite.  Therefore, we are filling the "struct page"
- * pointer in bio->bi_io_vec with jnodes, a deliberate type-unsafety. */
+/* This is called when the parent-first flush traversal skips a node in parent-first
+ * order, signifying that flush_allocate() must re-find the parent-first preceder.  If we
+ * have decided to batch-relocate, however, we ignore this setting because we will
+ * relocate anyway. */
+static void flush_parent_first_broken (flush_position *pos)
+{
+	pos->parent_first_broken = 1;
+}
+
+/* FIXME: comment */
+static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node UNUSED_ARG, reiser4_block_nr max_dist)
+{
+	int ret;
+	reiser4_block_nr blk;
+	reiser4_block_nr len = 1;
+
+	preceder->max_dist = max_dist;
+
+	if ((ret = reiser4_alloc_blocks (preceder, & blk, & len))) {
+		return ret;
+	}
+
+	/* FIXME: update node->block? free old location if not fake? */
+	return 0;
+}
+
+/* FIXME: comment */
+static int flush_allocate_point (flush_position *pos)
+{
+	jnode *node = pos->point;
+	int ret;
+
+	if (JF_ISSET (node, ZNODE_ALLOC) || jnode_is_root (node)) {
+		/* No need to decide with new nodes, they are treated the same as
+		 * relocate. If the root node is dirty, relocate. */
+		JF_SET (node, ZNODE_RELOC);
+
+	} else if (pos->squalloc_count == 0) {
+
+		/* This indicates the node has a clean parent, as it is the root of a
+		 * parent-first traversal. */
+		JF_SET (node, ZNODE_WANDER);
+
+	} else if (pos->batch_relocate != 0) {
+
+		/* We have enough nodes to relocate no matter what. */
+		JF_SET (node, ZNODE_RELOC);
+	}
+
+	/* An actual decision may need to be made.  Update the preceder first, if
+	 * necessary. */
+	if (! JF_ISSET (node, ZNODE_WANDER) && pos->parent_first_broken) {
+		lock_handle parent_lock;
+		tree_coord parent_coord;
+		reiser4_block_nr pblk;
+
+		init_lh (& parent_lock);
+
+		assert ("jmacd-7988", jnode_is_unformatted (node) || znode_is_any_locked (JZNODE (node)));
+			
+		if ((ret = jnode_lock_parent_coord (node, & parent_coord, & parent_lock, ZNODE_READ_LOCK)) ||
+		    (ret = flush_find_preceder (node, & parent_coord, & pblk))) {
+		}
+			
+		done_lh (& parent_lock);
+
+		if (ret != 0) { return ret; }
+
+		pos->preceder.blk = pblk;
+	}
+
+	/* Assume successive allocations will be in parent-first order, unless "broken" is
+	 * set again. */
+	pos->parent_first_broken = 0;
+
+	/* The decision may still need to be made, but now the preceder is correct. */
+	if (! JF_ISSET (node, ZNODE_RELOC) && ! JF_ISSET (node, ZNODE_WANDER)) {
+
+		reiser4_block_nr dist;
+		reiser4_block_nr nblk = *jnode_get_block (node);
+
+		assert ("jmacd-6172", blocknr_is_fake (! & nblk));
+		assert ("jmacd-6173", blocknr_is_fake (& pos->preceder.blk));
+		assert ("jmacd-6174", pos->preceder.blk != 0);
+
+		dist = nblk < pos->preceder.blk ? nblk : pos->preceder.blk;
+
+		if (dist <= 1) {
+			/* Can't get any closer than this. */
+			JF_SET (node, ZNODE_WANDER);
+		} else {
+			/* See if we can find a closer block (forward direction only). */ 
+			if ((ret = flush_alloc_block (& pos->preceder, node, dist)) && (ret != -ENOSPC)) {
+				return ret;
+			}
+
+			if (ret == 0) {
+				/* Got a better allocation. */
+				JF_SET (node, ZNODE_RELOC);
+			} else if (dist < FLUSH_RELOCATE_DISTANCE) {
+				/* The present allocation is good enough. */
+				JF_SET (node, ZNODE_WANDER);
+			} else {
+				/* Otherwise, try to relocate to the best position. */
+				goto best_reloc;
+			}
+		}
+	} else if (JF_ISSET (node, ZNODE_RELOC)) {
+		/* Just do the best relocation we can. */
+	best_reloc:
+
+		if ((ret = flush_alloc_block (& pos->preceder, node, 0ULL))) {
+			return ret;
+		}
+
+	} else {
+		/* Else this is the new preceder. */
+		pos->preceder.blk = *jnode_get_block (node);
+	}
+
+	return 0;
+}
+
+/* This enqueues the current flush point into the developing "struct bio" queue. */
 static int flush_enqueue_point (flush_position *pos)
 {
 	int ret;
 	struct bio_vec *bvec;
 
-	assert ("jmacd-1771", ! jnode_is_allocated (pos->point));
+	assert ("jmacd-1771", jnode_is_allocated (pos->point));
 	assert ("jmacd-1772", jnode_is_dirty (pos->point));
 
 	/* If we reach the threshold, flush a batch immediately. */
@@ -1325,7 +1477,7 @@ static int flush_enqueue_point (flush_position *pos)
 	bvec = & pos->bio->bi_io_vec[pos->bio->bi_vcnt++];
 
 	/* Unsavory casting here... */
-	bvec->bv_page   = (struct page*) pos->point;
+	bvec->bv_page   = pos->point->pg;
 	bvec->bv_len    = 0;
 	bvec->bv_offset = 0;
 
@@ -1335,82 +1487,12 @@ static int flush_enqueue_point (flush_position *pos)
 /* FIXME: comment */
 static int flush_finish (flush_position *pos)
 {
-	int ret, i;
-	tree_coord parent_coord;
-	lock_handle parent_lock;
-	lock_handle child_lock;
-	int batch_relocate;
-
-	init_lh (& parent_lock);
-	init_lh (& child_lock);
-
 	assert ("jmacd-7711", pos->bio != NULL && pos->bio->bi_vcnt != 0);
-
-	/* FIXME: Not fully implemented yet. */
-	batch_relocate = pos->bio->bi_vcnt >= FLUSH_RELOCATE_THRESHOLD;
-
-	for (i = 0; i < pos->bio->bi_vcnt; i += 1) {
-
-		struct bio_vec *bvec = & pos->bio->bi_io_vec[i];
-		jnode          *node = (jnode*) bvec->bv_page;
-
-		if (JF_ISSET (node, ZNODE_ALLOC) || jnode_is_root (node)) {
-			/* No need to decide with new nodes, they are treated the same as
-			 * relocate. If the root node is dirty, relocate. */
-			JF_SET (node, ZNODE_RELOC);
-		} else {
-			/* Need to re-acquire the parent-lock here to query for relocation.  I think that
-			 * this will be a lot of overhead, but just say no to premature optimization. */
-			if (jnode_is_formatted (node) &&
-			    (ret = longterm_lock_znode (& child_lock, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
-				goto exit;
-			}
-			
-			if ((ret = jnode_lock_parent_coord (node, & parent_coord, & parent_lock, ZNODE_READ_LOCK))) {
-				goto exit;
-			}
-
-			if ((ret = flush_right_relocate (node, & parent_coord)) < 0) {
-				goto exit;
-			}
-
-			/* Set the appropriate bits. */
-			if (ret == 0) {
-				JF_SET (node, ZNODE_WANDER);
-			} else {
-				JF_SET (node, ZNODE_RELOC);
-			}
-		}
-
-		/* And for RELOC blocks, allocate a block number now. */
-		if (JF_ISSET (node, ZNODE_RELOC)) {
-
-			/* Allocate 1 block using pos->preceder as a hint */
-			reiser4_block_nr len = 1;
-			reiser4_block_nr blk;
-
-			if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
-				goto exit;
-			}
-
-			info ("allocated block %llu\n", blk);
-		}
-
-		/* Set it clean. */
-		jnode_set_clean (node);
-
-		done_lh (& child_lock);
-		done_lh (& parent_lock);
-	}
 
 	/* FIXME: finish this struct bio. */
 	bio_put (pos->bio);
 	pos->bio = NULL;
-	ret = 0;
- exit:
-	done_lh (& parent_lock);
-	done_lh (& child_lock);
-	return ret;
+	return 0;
 }
 
 /* Called with @coord set to an extent that _may_ need to be flushed.  The parent is
@@ -1422,6 +1504,8 @@ static int flush_finish (flush_position *pos)
 static int flush_extents (flush_position *pos UNUSED_ARG)
 {
 	/* FIXME: */
+	/* call flush_parent_first_broken in here? */
+
 	return 0;
 }
 
@@ -1923,6 +2007,8 @@ static int flush_pos_init (flush_position *pos)
 	pos->left_scan_count = 0;
 	pos->right_scan_count = 0;
 	pos->batch_relocate = 0;
+	pos->parent_first_broken = 0;
+	pos->squalloc_count = 0;
 
 	blocknr_hint_init (& pos->preceder);
 	init_lh (& pos->point_lock);

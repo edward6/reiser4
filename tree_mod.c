@@ -35,6 +35,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	/*
 	 * interface to block allocator is non-existent as of now.
 	 */
+	/* FIXME: Wrong, bad, get a fake block number here. */
 	retcode = reiser4_alloc_block( brother, &blocknr );
 	if( retcode == 0 ) {
 		result = zget( current_tree, &blocknr, NULL, level,

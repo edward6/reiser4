@@ -17,6 +17,7 @@ struct reiser4_blocknr_hint {
 	 * is to prevent jnode_flush() calls from interleaving allocations on the same
 	 * bitmap, once a hint is established. */
 	reiser4_block_nr blk;
+	reiser4_block_nr max_dist;
 };
 
 extern void blocknr_hint_init (reiser4_blocknr_hint *hint);

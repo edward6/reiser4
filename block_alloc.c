@@ -87,6 +87,8 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 				    preceder, needed, blk, len);
 }
 
+#if 0
+/* FIXME: Josh says: this is wrong.  See flush.c: flush_alloc_block(). */
 /* this wrapper is used by new_node only
  * FIXME-VS: shouldn't this return "fake "block number?
  */
@@ -105,7 +107,7 @@ int reiser4_alloc_block( znode *neighbor, reiser4_block_nr *blocknr )
 	return splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
 				    &preceder, 1, blocknr, &one);
 }
-
+#endif
 
 /* 
  * Local variables:
