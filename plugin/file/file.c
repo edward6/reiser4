@@ -709,9 +709,6 @@ unix_file_writepage(struct page *page)
 	trace_on(TRACE_RESERVE, " write page grabbed %llu blocks\n", 
 		needed);
 	
-	if ((result = reiser4_grab_space_exact(needed, 0)) != 0)
-		return result;
-	
 	/* to keep order of locks right we have to unlock page before
 	 * call to get_nonexclusive_access */
 	page_cache_get(page);
@@ -726,10 +723,15 @@ unix_file_writepage(struct page *page)
 		return -EIO;
 	}
 
+	if ((result = reiser4_grab_space_exact(needed, 0)) != 0)
+		goto out;
+
 	result = unix_file_writepage_nolock(page);
 
 	assert("vs-1068", PageLocked(page));
 
+	all_grabbed2free();
+ out:
 	drop_nonexclusive_access(inode);
 	page_cache_release(page);
 	return result;
