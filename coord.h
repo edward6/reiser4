@@ -51,7 +51,11 @@ struct coord {
 	   Values are taken from &between_enum above.
 	*/
 	/*  9 */ char between;
-	/* 10 */ __u16 pad; /* padding */
+	/* padding. It will be added by the compiler anyway to conform to the
+	 * C language alignment requirements. We keep it here to be on the
+	 * safe side and to have a clear picture of the memory layout of this
+	 * structure. */
+	/* 10 */ __u16 pad;
 	/* 12 */
 };
 
