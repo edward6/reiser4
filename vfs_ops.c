@@ -1293,7 +1293,7 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 	       const char *dev_name /* device name */ ,
 	       void *data /* mount options */ )
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_init_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
 }
 
 typedef enum {

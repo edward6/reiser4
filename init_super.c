@@ -394,7 +394,7 @@ static void done_super (struct super_block * s, int last_done)
 		subsys_array[i].done(s);
 }
 
-int reiser4_init_super (struct super_block * s, void * data, int silent)
+int reiser4_fill_super (struct super_block * s, void * data, int silent)
 {
 	reiser4_context ctx;
 	int i;
