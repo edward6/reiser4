@@ -54,13 +54,15 @@
 
 #define CHECKSUM_SIZE    4
 
+#define BYTES_PER_LONG   (sizeof(long))
+
 #if BITS_PER_LONG == 64
 #  define LONG_INT_SHIFT (6)
 #else
 #  define LONG_INT_SHIFT (5)
 #endif
 
-#define LONG_INT_MASK (BITS_PER_LONG - 1)
+#define LONG_INT_MASK (BITS_PER_LONG - 1UL)
 
 typedef unsigned long ulong_t;
 
@@ -179,17 +181,46 @@ find_next_zero_bit_in_word(ulong_t word, int start_bit)
 
 #include <asm/bitops.h>
 
+#if BITS_PER_LONG == 64
+
+#define OFF(addr)  (((ulong_t)(addr) & (BYTES_PER_LONG - 1)) << 3)
+#define BASE(addr) ((ulong_t*) ((ulong_t)(addr) & ~(BYTES_PER_LONG - 1)))
+
+static inline void reiser4_set_bit(int nr, void * addr)
+{
+	ext2_set_bit(nr + OFF(addr), BASE(addr));
+}
+
+static inline void reiser4_clear_bit(int nr, void * addr)
+{
+	ext2_clear_bit(nr + OFF(addr), BASE(addr));
+}
+
+static inline int reiser4_test_bit(int nr, void * addr)
+{
+	return ext2_test_bit(nr + OFF(addr), BASE(addr));
+}
+static inline int reiser4_find_next_zero_bit(void * addr, int maxoffset, int offset) 
+{
+	int off = OFF(addr);
+
+	return ext2_find_next_zero_bit(BASE(addr), maxoffset + off, offset + off) - off;
+}
+
+#else
+
 #define reiser4_set_bit(nr, addr)    ext2_set_bit(nr, addr)
 #define reiser4_clear_bit(nr, addr)  ext2_clear_bit(nr, addr)
 #define reiser4_test_bit(nr, addr)  ext2_test_bit(nr, addr)
 
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
 ext2_find_next_zero_bit(addr, maxoffset, offset)
+#endif
 
 /* Search for a set bit in the bit array [@start_offset, @max_offset[, offsets
  * are counted from @addr, return the offset of the first bit if it is found,
  * @maxoffset otherwise. */
-static bmap_off_t reiser4_find_next_set_bit(
+static bmap_off_t __reiser4_find_next_set_bit(
 	void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
 {
 	ulong_t *base = addr;
@@ -225,6 +256,21 @@ static bmap_off_t reiser4_find_next_set_bit(
 
 	return max_offset;
 }
+
+#if BITS_PER_LONG == 64 
+
+static bmap_off_t reiser4_find_next_set_bit(
+	void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
+{
+	bmap_off_t off = OFF(addr);
+
+	return __reiser4_find_next_set_bit(BASE(addr), max_offset + off, start_offset + off) - off;
+}
+
+#else
+#define reiser4_find_next_set_bit(addr, max_offset, start_offset) \
+  __reiser4_find_next_set_bit(addr, max_offset, start_offset) 
+#endif
 
 /* search for the first set bit in single word. */
 static int find_last_set_bit_in_word (ulong_t word, int start_bit)
