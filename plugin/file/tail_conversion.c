@@ -403,6 +403,8 @@ int tail2extent (struct inode * inode)
 		if ((done = file_is_over (inode, &key, &coord)) ||
 		    all_pages_are_full (nr_pages, page_off)) {
 		done:
+			memset (kmap (page) + page_off, 0, PAGE_CACHE_SIZE - page_off);
+			kunmap (page);
 			zrelse (coord.node);
 			done_lh (&lh);
 			/* replace tail items with extent */
