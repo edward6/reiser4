@@ -127,7 +127,7 @@ static int reiser4_prepare_write(struct file *,
 static int reiser4_commit_write(struct file *, 
 				struct page *, unsigned, unsigned);
 */
-static int reiser4_bmap(struct address_space *, long);
+static sector_t reiser4_bmap(struct address_space *, sector_t);
 /*
 static int reiser4_direct_IO(int, struct inode *, 
 			     struct kiobuf *, unsigned long, int);
@@ -532,7 +532,6 @@ static int reiser4_writepage( struct page *page )
 {	
 	int result;
 	file_plugin * fplug;
-	jnode * j;
 	struct writeback_control wbc;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
@@ -541,32 +540,26 @@ static int reiser4_writepage( struct page *page )
 		  page -> mapping -> host -> i_ino, page -> index );
 
 	fplug = inode_file_plugin( page -> mapping -> host );
-	if( !PagePrivate( page ) ) {
-		/* there is no jnode */
+	if( fplug -> writepage != NULL )
 		result = fplug -> writepage( page );
-		j = NULL;
-	} else {
-		/* there is jnode. Call writepage if it has no disk mapping */
-		j = jnode_of_page( page );
-		if( !jnode_mapped( j ) )
-			result = fplug -> writepage( page );
+	else
+		result = -EINVAL;
+	if( result != 0 ) {
+		SetPageError( page );
+		reiser4_unlock_page( page );
+		REISER4_EXIT( result );
 	}
 
-	if( result == 0 ) {
-		xmemset( &wbc, 0, sizeof wbc );
-		wbc.nr_to_write = 1;
+	xmemset( &wbc, 0, sizeof wbc );
+	wbc.nr_to_write = 1;
 
-		/* The mpage_writepages() calls reiser4_writepage with a
-		 * locked, but clean page.  An extra reference should protect
-		 * this page from removing from memory */
-		page_cache_get( page );
-		result = page_common_writeback( page, &wbc,
-						JNODE_FLUSH_MEMORY_UNFORMATTED );
-		page_cache_release( page );
-	} else
-		reiser4_unlock_page( page );
-	if( j != NULL )
-		jput( j );
+	/* The mpage_writepages() calls reiser4_writepage with a locked, but
+	 * clean page.  An extra reference should protect this page from
+	 * removing from memory */
+	page_cache_get (page);
+	result = page_common_writeback( page, &wbc, 
+					JNODE_FLUSH_MEMORY_UNFORMATTED );
+	page_cache_release (page);
 	REISER4_EXIT( result );
 }
 
@@ -626,7 +619,7 @@ static int reiser4_vm_writeback( struct page *page,
 */   
 
 /* ->bmap() VFS method in reiser4 address_space_operations */
-static int reiser4_bmap(struct address_space * mapping, long block)
+static sector_t reiser4_bmap(struct address_space * mapping, sector_t block)
 {
 	file_plugin * fplug;
 
