@@ -106,7 +106,7 @@ static super_field_cookie __cookie_ ## aname = {		\
 static reiser4_kattr kattr_super_ro_ ## aname = {		\
 	.attr = {						\
 		.name = (char *) #afield,			\
-		.mode = 0444   /* r--r--r-- */			\
+		.mode = 0440   /* r--r----- */			\
 	},							\
 	.cookie = &__cookie_ ## aname,				\
 	.show = show_ro_ ## asize				\
