@@ -102,7 +102,7 @@ entd(void *arg)
 	struct task_struct *me;
 	entd_context       *ent;
 
-	assert("vs-1655", list_empty(&current_thread_info()->generic.private_pages));
+	assert("vs-1655", list_empty(&current->private_pages));
 
 	super = arg;
 	/* standard kernel thread prologue */

@@ -2618,7 +2618,7 @@ cryptcompress_append_hole(struct inode * inode, loff_t new_size)
 reiser4_internal void
 truncate_cluster(struct inode * inode, pgoff_t start, long count)
 {
-	truncate_mapping_pages_range(inode->i_mapping, start, count);
+	truncate_inode_pages_range(inode->i_mapping, start, count);
 	truncate_jnodes_range(inode, start, count);
 }
 

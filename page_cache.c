@@ -784,7 +784,7 @@ invalidate_unformatted(jnode *node)
 	if (page) {
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
-		truncate_mapping_pages_range(page->mapping, page->index, 1);
+		truncate_inode_pages_range(page->mapping, page->index, 1);
 		page_cache_release(page);
 	} else {
 		JF_SET(node, JNODE_HEARD_BANSHEE);		
@@ -862,7 +862,7 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 
 	/*invalidate_mmap_range(mapping, from_bytes, count_bytes);*/
 	unmap_mapping_range(mapping, from_bytes, count_bytes, 1/*even cows*/);
-	truncate_mapping_pages_range(mapping, from, count);
+	truncate_inode_pages_range(mapping, from, count);
 	truncate_jnodes_range(mapping->host, from, count);
 } 
 

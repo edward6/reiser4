@@ -349,12 +349,12 @@ jfree(jnode * node)
  * last reference to it is gone.
  */
 static void
-jnode_free_actor(void *arg)
+jnode_free_actor(struct rcu_head *head)
 {
 	jnode * node;
 	jnode_type jtype;
 
-	node = arg;
+	node = container_of(head, jnode, rcu);
 	jtype = jnode_get_type(node);
 
 	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
@@ -382,8 +382,8 @@ static inline void
 jnode_free(jnode * node, jnode_type jtype)
 {
 	if (jtype != JNODE_INODE) {
-		assert("nikita-3219", list_empty(&node->rcu.list));
-		call_rcu(&node->rcu, jnode_free_actor, node);
+		/*assert("nikita-3219", list_empty(&node->rcu.list));*/
+		call_rcu(&node->rcu, jnode_free_actor);
 	} else
 		jnode_list_remove(node);
 }
