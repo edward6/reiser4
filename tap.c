@@ -1,6 +1,16 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Tree Access Pointers. */
+/* 
+   Tree Access Pointers (taps).
+
+   tap is data structure combining coord and lock handle (mostly). It is
+   useful when one has to scan tree nodes (for example, in readdir, or flush),
+   for tap functions allow to move tap in either direction transparently
+   crossing unit/item/node borders.
+
+   Tap doesn't provide automatic synchronization of its fields as it is
+   supposed to be per-thread object.
+*/
 
 #include "forward.h"
 #include "debug.h"
@@ -18,6 +28,7 @@ static void tap_check(const tap_t * tap);
 #define tap_check(tap) noop
 #endif
 
+/** load node tap is pointing to, if not loaded already */
 int
 tap_load(tap_t * tap)
 {
@@ -34,6 +45,7 @@ tap_load(tap_t * tap)
 	return 0;
 }
 
+/** release node tap is pointing to. Dual to tap_load() */
 void
 tap_relse(tap_t * tap)
 {
@@ -44,6 +56,10 @@ tap_relse(tap_t * tap)
 	tap_check(tap);
 }
 
+/** 
+ * init tap to consist of @coord and @lh. Locks on nodes will be acquired with
+ * @mode 
+ */
 void
 tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
 {
@@ -54,6 +70,7 @@ tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
 	tap_list_clean(tap);
 }
 
+/** add @tap to the per-thread list of all taps */
 void
 tap_monitor(tap_t * tap)
 {
@@ -63,6 +80,7 @@ tap_monitor(tap_t * tap)
 	tap_check(tap);
 }
 
+/** finish with @tap */
 void
 tap_done(tap_t * tap)
 {
@@ -77,6 +95,10 @@ tap_done(tap_t * tap)
 	tap->coord->node = NULL;
 }
 
+/** 
+ * move @tap to the new node, locked with @target. Load @target, if @tap was
+ * already loaded. 
+ */
 int
 tap_move(tap_t * tap, lock_handle * target)
 {
@@ -102,6 +124,10 @@ tap_move(tap_t * tap, lock_handle * target)
 	return result;
 }
 
+/** 
+ * move @tap to @target. Acquire lock on @target, if @tap was already
+ * loaded. 
+ */
 int
 tap_to(tap_t * tap, znode * target)
 {
@@ -126,6 +152,10 @@ tap_to(tap_t * tap, znode * target)
 	return result;
 }
 
+/** 
+ * move @tap to given @target, loading and locking @target->node if
+ * necessary 
+ */
 int
 tap_to_coord(tap_t * tap, coord_t * target)
 {
@@ -139,12 +169,14 @@ tap_to_coord(tap_t * tap, coord_t * target)
 	return result;
 }
 
+/** return list of all taps */
 tap_list_head *
 taps_list()
 {
 	return &get_current_context()->taps;
 }
 
+/** helper function for go_{next,prev}_{item,unit,node}() */
 int
 go_dir_el(tap_t * tap, sideof dir, int units_p)
 {
@@ -201,18 +233,30 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
 	return result;
 }
 
+/** 
+ * move @tap to the next unit, transparently crossing item and node
+ * boundaries 
+ */
 int
 go_next_unit(tap_t * tap)
 {
 	return go_dir_el(tap, RIGHT_SIDE, 1);
 }
 
+/** 
+ * move @tap to the previous unit, transparently crossing item and node
+ * boundaries
+ */
 int
 go_prev_unit(tap_t * tap)
 {
 	return go_dir_el(tap, LEFT_SIDE, 1);
 }
 
+/** 
+ * @shift times apply @actor to the @tap. This is used to move @tap to the
+ * @shift units (or items, or nodes) in either direction.
+ */
 int
 rewind_to(tap_t * tap, go_actor_t actor, int shift)
 {
@@ -237,12 +281,14 @@ rewind_to(tap_t * tap, go_actor_t actor, int shift)
 	return result;
 }
 
+/** move @tap @shift units rightward */
 int
 rewind_right(tap_t * tap, int shift)
 {
 	return rewind_to(tap, go_next_unit, shift);
 }
 
+/** move @tap @shift units leftward */
 int
 rewind_left(tap_t * tap, int shift)
 {
@@ -250,6 +296,7 @@ rewind_left(tap_t * tap, int shift)
 }
 
 #if REISER4_DEBUG_OUTPUT
+/** debugging function: print @tap content in human readable form */
 void print_tap(const char * prefix, const tap_t * tap)
 {
 	if (tap == NULL) {
@@ -266,24 +313,36 @@ void print_tap(const char * prefix, const tap_t * tap)
 #endif
 
 #if REISER4_DEBUG
+/** check [tap-sane] invariant */
 static int tap_invariant(const tap_t * tap)
 {
+	/* [tap-sane] invariant */
+
 	if (tap == NULL)
 		return 1;
+	/* tap->mode is one of 
+	 * 
+	 * {ZNODE_NO_LOCK, ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}, and
+	 */
 	if (tap->mode != ZNODE_NO_LOCK && 
 	    tap->mode != ZNODE_READ_LOCK && tap->mode != ZNODE_WRITE_LOCK)
 		return 2;
+	/* tap->coord != NULL, and */
 	if (tap->coord == NULL)
 		return 3;
+	/* tap->lh != NULL, and */
 	if (tap->lh == NULL)
 		return 4;
+	/* tap->loaded > 0 => znode_is_loaded(tap->coord->node), and */
 	if (!ergo(tap->loaded, znode_is_loaded(tap->coord->node)))
 		return 5;
+	/* tap->coord->node == tap->lh->node */
 	if (tap->coord->node != tap->lh->node)
 		return 6;
 	return 0;
 }
 
+/** debugging function: check internal @tap consistency */
 static void tap_check(const tap_t * tap)
 {
 	int result;

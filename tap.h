@@ -1,6 +1,6 @@
 /* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Tree Access Pointers. */
+/* Tree Access Pointers. See tap.c for more details. */
 
 #if !defined( __REISER4_TAP_H__ )
 #define __REISER4_TAP_H__
@@ -11,12 +11,26 @@
 
 TS_LIST_DECLARE(tap);
 
+/** 
+    tree_access_pointer aka tap. Data structure combining coord_t and lock
+    handle.
+
+    Invariants involving this data-type:
+
+      [tap-sane]
+ */
 struct tree_access_pointer {
+	/* coord tap is at */
 	coord_t *coord;
+	/* lock handle on ->coord->node */
 	lock_handle *lh;
+	/* mode of lock acquired by this tap */
 	znode_lock_mode mode;
+	/* incremented by tap_load(). Decremented by tap_relse(). */
 	int loaded;
+	/* list of taps */
 	tap_list_link linkage;
+	/* read-ahead hint */
 	ra_info_t ra_info;
 };
 
