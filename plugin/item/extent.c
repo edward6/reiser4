@@ -488,7 +488,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 {
 	reiser4_extent *ext;
 	unsigned i;
-	reiser4_block_nr start, length, j;
+	reiser4_block_nr start, length;
 	oid_t oid;
 	reiser4_key key;
 
@@ -514,28 +514,6 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 		twin.between = AT_UNIT;
 		tree = current_tree;
 
-#if 0
-		/* kill all jnodes of extent being removed */
-
-		/* Usually jnode is un-captured and destroyed in
-		 * ->invalidatepage() as part of truncate_inode_pages(). But
-		 * it is possible that after jnode has been flushed and its
-		 * dirty bit cleared, it was detached from page by
-		 * ->releasepage() and hence missed by ->invalidatepage(). */
-
-		for (j = 0; j < length; j ++) {
-			jnode *node;
-
-			node = jlook_lock(tree, oid, extent_unit_index(&twin) + j);
-			if (node != NULL) {
-				assert("vs-1095", 
-				       UNDER_SPIN(jnode, node, 
-						  jnode_page(node) == NULL));
-				JF_SET(node, JNODE_HEARD_BANSHEE);
-				jput(node);
-			}
-		}
-#endif
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* FIXME-VITALY: this is necessary??? */
 			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */, "extent_kill_item_hook: unallocated extent removed");

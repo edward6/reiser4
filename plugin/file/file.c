@@ -83,21 +83,6 @@ void set_file_state_empty(struct inode *inode)
 	inode_set_flag(inode, REISER4_FILE_EMPTY);
 }
 
-static char *file_state(const struct inode *inode)
-{
-	if (file_state_is_known(inode)) {
-		if (file_is_empty(inode))
-			return "empty";
-		else if (file_is_built_of_tails(inode))
-			return "tails";
-		else if (file_is_built_of_extents(inode))
-			return "extent";
-		else
-			return "weird";
-	} else
-		return "unknown";
-}
-
 /* this is to be used after find_file_item to determine real state of file */
 void set_file_state(struct inode *inode, int cbk_result, tree_level level)
 {
