@@ -626,7 +626,7 @@ eq_to_ldk(znode *node, const reiser4_key *key)
 #endif
 
 /* The core search procedure.
-   If result is not cbk_errored current znode is locked */
+   If returned value is not cbk_errored, current znode is locked */
 static int
 find_cluster_item(hint_t * hint,
 		  const reiser4_key *key,   /* key of the item we are
@@ -1359,20 +1359,6 @@ grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		while(i) 
 			page_cache_release(clust->pages[--i]);
 	return result;
-}
-
-UNUSED_ARG static void
-set_cluster_unlinked(reiser4_cluster_t * clust, struct inode * inode)
-{
-	jnode * node;
-
-	node = jprivate(clust->pages[0]);
-
-	assert("edward-640", node);
-
-	LOCK_JNODE(node);
-	JF_SET(node, JNODE_NEW);
-	UNLOCK_JNODE(node);
 }
 
 /* put cluster pages */
@@ -2214,16 +2200,16 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 	return;
 }
 
-/* Prepare cluster handle before write. Called by all the clients which
-   age going to modify the page cluster and put it into a transaction
-   (file_write, truncate, writepages, etc..)
+/* Prepare cluster handle before write and(or) capture. This function
+   is called by all the clients which modify page cluster and(or) put
+   it into a transaction (file_write, truncate, writepages, etc..)
    
    . grab cluster pages;
    . reserve disk space;
    . maybe read pages from disk and set the disk cluster dirty;
    . maybe write hole;
-   . maybe create 'unprepped' disk cluster (if the disk cluster is fake (isn't represenred 
-     by any items on disk)
+   . maybe create 'unprepped' disk cluster if the last one is fake
+     (isn't represenred by any items on disk)
 */
 
 static int
@@ -3151,12 +3137,14 @@ redirty_inode(struct inode *inode)
 
 #define CAPTURE_APAGE_BURST      (1024)
 
+/* read lock should be acquired */
 static int
 capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 {
 	int result = 0;
 	int to_capture;
 	int found;
+	int progress = 0;
 	struct page * page = NULL;
 	hint_t hint;
 	lock_handle lh;
@@ -3181,21 +3169,16 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 		if (!found)
 			break;
 		assert("edward-1109", page != NULL);
-
-		clust.index = pg_to_clust(*index, mapping->host);
+		assert("edward-1296", 
+		       ergo(progress, clust.index != pg_to_clust(page->index, mapping->host)));
 		
+		move_cluster_forward(&clust, mapping->host, page->index, &progress);
 		result = capture_anonymous_cluster(&clust, mapping->host);
-		if (result) {
-			page_cache_release(page);
-			break;
-		}
 		page_cache_release(page);
+		if (result)
+			break;
 		to_capture --;
 		
-		assert("edward-1076", clust.index <= pg_to_clust(*index, mapping->host));
-		/* index of the next cluster to capture */
-		if (clust.index == pg_to_clust(*index, mapping->host))
-			*index = clust_to_pg(clust.index + 1, mapping->host);
 	} while (to_capture);
 	
 	if (result) {
