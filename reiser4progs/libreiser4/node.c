@@ -129,7 +129,7 @@ error_t reiserfs_node_close(reiserfs_node_t *node) {
     if (node->plugin->node.close != NULL) {
         if (node->plugin->node.close (node->block)) {
             aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-                "Can't close node (%llu).", aal_device_get_block_nr(node->block));
+                "Can't close node (%llu).", aal_block_get_nr(node->block));
             return -1;
         }
     }
