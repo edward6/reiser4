@@ -1,5 +1,5 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+ /*
+ * Copyright, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -163,7 +163,7 @@ struct wrd {
 
 
 struct path_walk {
-	struct dentry *dentry;
+	struct dentry *de;
 	struct vfsmount *mnt;
 };
 
@@ -173,7 +173,7 @@ typedef enum {
 	VAR_EMPTY,
 	VAR_LNODE,
 	VAR_TMP
-};
+} VAR_TYPE;
 
 typedef struct pars_var_value pars_var_value_t;
 
@@ -185,18 +185,19 @@ struct pars_var {
 };
 
 struct pars_var_value {
-	pars_var_value_t * prev;
-	pars_var_value_t * next_level;
-	pars_var_t * host;
-	pars_var_t * associated;
+	pars_var_value_t * prev;    /* previous value in stack for variable */
+	pars_var_value_t * next_level; /* next tmp value  in this level */
+	pars_var_t * host;          /* host variable structure for this value */
+	pars_var_t * associated;    /*  */
 	int vtype;                  /* Type of value                       */
 	union {
-	lnode * ln;         /* file/dir name lnode                 */
-	char *data;         /*  ptr to data in mem (for result of assign) */
+	lnode * ln;                 /* file/dir name lnode                 */
+	char *data;                 /*  ptr to data in mem (for result of assign) */
 	} u;
 	int count;                  /* ref counter                         */
 	size_t off;	            /* current offset read/write of object */
-	size_t len;		    /* length of sequence of bytes for read/write (-1 no limit) */
+	size_t len;		    /* length of sequence of units for read/write (-1 no limit) */
+	int units_type;             /* for byte = 0 for records =1 for delimiter = 3 (delimiter mast be specified)*/
 	int vSpace  ;               /* v4  space name or not ???           */
 	int vlevel  ;               /* level :     lives of the name       */
 } ;
