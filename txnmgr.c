@@ -1468,6 +1468,10 @@ void jnode_set_dirty( jnode *node )
 	if (jnode_page (node) != NULL)
 		set_page_dirty (jnode_page (node));
 	else
+		/*
+		 * FIXME-NIKITA dubious. What if jnode doesn't have page,
+		 * because it was early flushed, or ->releasepaged?
+		 */
 		assert ("zam-596", znode_above_root(JZNODE(node)));
 
 	spin_unlock_jnode (node);
