@@ -3,16 +3,16 @@
 	lex -v $< 
 
 %c:%y
-	yacc  $< 
+	./yacc  $< 
 
 tmp:  tmp.o
 	cc tmp.o -o tmp
 
-tmp.o: tmp.c  lex.yy.c y.tab.c
+tmp.o: tmp.c y.t.c
 	cc -c -O tmp.c
 
-y.tab.c: parser.y
-	./yacc -v parser.y
+y.t.c: parser.y
+	./yacc -v -d parser.y
 
 lex.yy.c: lex.l
 	lex -v lex.l
