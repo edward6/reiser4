@@ -355,7 +355,8 @@ typedef struct crypto_plugin {
 	   Offset translation allows to keep consistency in key space when
 	   crypto algorithm inflate data. */
 	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);	
-	/* align manager */
+	/* Align manager which aligns flow up to crypto block size before
+	   passing it to crypto algorithm */
 	int (*align_cluster)(__u8 *tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
 	int (*set_key) (__u32 *expkey, const __u8 *key);
