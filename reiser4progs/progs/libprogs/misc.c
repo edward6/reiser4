@@ -182,12 +182,12 @@ int progs_misc_size_check(
 /* 
     Checking if specified partition is mounted. It is possible devfs is used, and 
     all devices are links like /dev/hda1 -> ide/host0/bus0/target0/lun0/part1. 
-    Therefore, we are use stat function, not lstat. As you know stat funtion follows 
-    links and returns stat information for link target. In this case it will return 
+    Therefore we use stat function, rather than lstat: stat(2) follows 
+    links and return stat information for link target. In this case it will return 
     stat information for /dev/ide/host0/bus0/target0/lun0/part1 file. Then we just 
     compare its st_rdev field with st_rdev filed of every device from /etc/mtab. If 
-    match occurs then we have passed device existent in /etc/mtab file and therefore 
-    it is mounted at the moment.
+    match occurs then we have device existing in /etc/mtab file, which is therefore 
+    mounted at the moment.
 
     Also this function checks whether passed device mounted with specified options.
     Options string may look like "ro,noatime".
