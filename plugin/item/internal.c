@@ -144,32 +144,31 @@ utmost_child_internal(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 	return 0;
 }
 
-static void check_link(const znode *left, const znode *right)
+static void check_link(znode *left, znode *right)
 {
 	znode *scan;
 
-	RLOCK_TREE(znode_get_tree(left));
-	if (znode_is_right_connected(left)) {
-		assert("nikita-3258", znode_is_left_connected(right));
-		for (scan = left->right; scan != right; scan = scan->right)
+	for (scan = left; scan != right; scan = scan->right) {
+		if (ZF_ISSET(scan, JNODE_RIP))
+			break;
+		if (znode_is_right_connected(scan) && scan->right != NULL) {
+			if (ZF_ISSET(scan->right, JNODE_RIP))
+				break;
+			assert("nikita-3285", 
+			       znode_is_left_connected(scan->right));
 			assert("nikita-3265", 
-			       ZF_ISSET(scan, JNODE_HEARD_BANSHEE));
+			       ergo(scan != left, 
+				    ZF_ISSET(scan, JNODE_HEARD_BANSHEE)));
+			assert("nikita-3284", scan->right->left == scan);
+		} else
+			break;
 	}
-	if (znode_is_left_connected(right)) {
-		assert("nikita-3261", znode_is_right_connected(left));
-		for (scan = right->left; scan != left; scan = scan->left)
-			assert("nikita-3266", 
-			       ZF_ISSET(scan, JNODE_HEARD_BANSHEE));
-	}
-	RUNLOCK_TREE(znode_get_tree(left));
 }
 
 int check__internal(const coord_t * coord, const char **error)
 {
 	reiser4_block_nr blk;
 	znode *child;
-	znode *left_child;
-	znode *right_child;
 	coord_t cpy;
 
 	blk = pointer_at(coord);
@@ -180,25 +179,30 @@ int check__internal(const coord_t * coord, const char **error)
 	coord_dup(&cpy, coord);
 	child = znode_at(&cpy, cpy.node);
 	if (child != NULL) {
+		znode *left_child;
+		znode *right_child;
+
+		left_child = right_child = NULL;
+
 		assert("nikita-3256", znode_invariant(child));
 		if (coord_prev_item(&cpy) == 0 && item_is_internal(&cpy)) {
 			left_child = znode_at(&cpy, cpy.node);
-			if (left_child != NULL) {
+			RLOCK_TREE(znode_get_tree(child));
+			if (left_child != NULL)
 				check_link(left_child, child);
+			RUNLOCK_TREE(znode_get_tree(child));
+			if (left_child != NULL)
 				zput(left_child);
-			} else {
-				assert("nikita-3257", child->left == NULL);
-			}
 		}
 		coord_dup(&cpy, coord);
 		if (coord_next_item(&cpy) == 0 && item_is_internal(&cpy)) {
 			right_child = znode_at(&cpy, cpy.node);
-			if (right_child != NULL) {
+			RLOCK_TREE(znode_get_tree(child));
+			if (right_child != NULL)
 				check_link(child, right_child);
+			RUNLOCK_TREE(znode_get_tree(child));
+			if (right_child != NULL)
 				zput(right_child);
-			} else {
-				assert("nikita-3264", child->right == NULL);
-			}
 		}
 		zput(child);
 	}

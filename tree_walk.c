@@ -182,6 +182,44 @@ lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int
 	return ret;
 }
 
+#if REISER4_DEBUG
+int check_sibling_list(znode * node)
+{
+	znode *scan;
+	znode *next;
+
+	ON_DEBUG_CONTEXT(assert("nikita-3283", 
+				lock_counters()->write_locked_tree > 0));
+
+	if (node == NULL)
+		return 1;
+
+	if (ZF_ISSET(node, JNODE_RIP))
+		return 1;
+
+	assert("nikita-3270", node != NULL);
+	assert("nikita-3269", rw_tree_is_write_locked(znode_get_tree(node)));
+
+	for (scan = node; znode_is_left_connected(scan); scan = next) {
+		next = scan->left;
+		if (next != NULL && !ZF_ISSET(next, JNODE_RIP)) {
+			assert("nikita-3271", znode_is_right_connected(next));
+			assert("nikita-3272", next->right == scan);
+		} else
+			break;
+	}
+	for (scan = node; znode_is_right_connected(scan); scan = next) {
+		next = scan->right;
+		if (next != NULL && !ZF_ISSET(next, JNODE_RIP)) {
+			assert("nikita-3273", znode_is_left_connected(next));
+			assert("nikita-3274", next->left == scan);
+		} else
+			break;
+	}
+	return 1;
+}
+#endif
+
 /* znode sibling pointers maintaining. */
 
 /* After getting new znode we have to establish sibling pointers. Znode web
@@ -209,6 +247,8 @@ lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int
 /*static*//*inline */ void
 link_left_and_right(znode * left, znode * right)
 {
+	assert("nikita-3275", check_sibling_list(left));
+	assert("nikita-3275", check_sibling_list(right));
 	if (left != NULL) {
 		left->right = right;
 		ZF_SET(left, JNODE_RIGHT_CONNECTED);
@@ -218,6 +258,8 @@ link_left_and_right(znode * left, znode * right)
 		right->left = left;
 		ZF_SET(right, JNODE_LEFT_CONNECTED);
 	}
+	assert("nikita-3275", check_sibling_list(left));
+	assert("nikita-3275", check_sibling_list(right));
 }
 
 /* Audited by: umka (2002.06.14) */
@@ -313,7 +355,6 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	} else {
 		item_plugin *iplug;
 
-		WUNLOCK_TREE(tree);
 		if (handle->owner != NULL) {
 			(*nr_locked)++;
 			side_parent = handle->node;
@@ -325,9 +366,11 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal(coord)) {
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
+			WUNLOCK_TREE(tree);
 			/* we know there can't be formatted neighbor */
 			return RETERR(-E_NO_NEIGHBOR);
 		}
+		WUNLOCK_TREE(tree);
 
 		iplug->s.internal.down_link(coord, NULL, &da);
 
@@ -355,6 +398,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 
 	/* if GN_NO_ALLOC isn't set we keep reference to neighbor znode */
 	if (neighbor != NULL && (flags & GN_NO_ALLOC))
+		/* atomic_dec(&ZJNODE(neighbor)->x_count); */
 		zput(neighbor);
 
 	return ret;
@@ -682,6 +726,7 @@ sibling_list_remove(znode * node)
 {
 	assert("umka-255", node != NULL);
 	assert("zam-878", rw_tree_is_write_locked(znode_get_tree(node)));
+	assert("nikita-3275", check_sibling_list(node));
 
 	if (znode_is_right_connected(node) && node->right != NULL) {
 		assert("zam-322", znode_is_left_connected(node->right));
@@ -694,6 +739,7 @@ sibling_list_remove(znode * node)
 	ZF_CLR(node, JNODE_LEFT_CONNECTED);
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
 	ON_DEBUG(node->left = node->right = NULL);
+	assert("nikita-3276", check_sibling_list(node));
 }
 
 /* disconnect node from sibling list */
@@ -704,6 +750,7 @@ sibling_list_drop(znode * node)
 	znode *left;
 
 	assert("nikita-2464", node != NULL);
+	assert("nikita-3277", check_sibling_list(node));
 
 	right = node->right;
 	if (right != NULL) {
@@ -717,6 +764,7 @@ sibling_list_drop(znode * node)
 	}
 	ZF_CLR(node, JNODE_LEFT_CONNECTED);
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
+	ON_DEBUG(node->left = node->right = NULL);
 }
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
@@ -724,6 +772,8 @@ void
 sibling_list_insert_nolock(znode * new, znode * before)
 {
 	assert("zam-334", new != NULL);
+	assert("nikita-3278", check_sibling_list(new));
+	assert("nikita-3279", check_sibling_list(before));
 
 	if (before != NULL) {
 		assert("zam-333", znode_is_connected(before));
@@ -738,6 +788,8 @@ sibling_list_insert_nolock(znode * new, znode * before)
 	}
 	ZF_SET(new, JNODE_LEFT_CONNECTED);
 	ZF_SET(new, JNODE_RIGHT_CONNECTED);
+	assert("nikita-3280", check_sibling_list(new));
+	assert("nikita-3281", check_sibling_list(before));
 }
 
 /* Insert new node into sibling list. Regular balancing inserts new node
