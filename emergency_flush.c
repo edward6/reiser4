@@ -161,7 +161,7 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 
 		sendit = 0;
 		if (JF_ISSET(node, JNODE_RELOC)) {
-			if (blocknr_is_fake(jnode_get_block(node))) {
+			if (!blocknr_is_fake(jnode_get_block(node))) {
 				/*
 				 * not very likely case: @node is in relocate
 				 * set, block number is already assigned, but
