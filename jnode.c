@@ -637,7 +637,7 @@ int jload( jnode *node )
 		load_page( page );
 	}
 	if( result == 0 && jnode_is_znode( node ) )
-		assert( "", JZNODE( node ) -> nplug );
+		assert( "nikita-2678", JZNODE( node ) -> nplug );
 	return result;
 }
 
