@@ -464,7 +464,6 @@ void reiser4_make_bad_inode( struct inode *inode )
 	
 	/* clear LOADED bit */
 	inode_clr_flag( inode, REISER4_LOADED );
-	/*reiser4_inode_data( inode ) -> flags &= ~REISER4_LOADED;*/
 	make_bad_inode( inode );
 	return;
 }
