@@ -186,6 +186,7 @@ queue_jnode(flush_queue_t * fq, jnode * node)
 	JF_SET(node, JNODE_FLUSH_QUEUED);
 	capture_list_remove_clean(node);
 	capture_list_push_back(&fq->prepped, node);
+	ON_DEBUG(node->list = FQ_LIST);
 	count_enqueued_node(fq);
 }
 
@@ -443,10 +444,13 @@ static void release_prepped_list(flush_queue_t * fq)
 		assert("nikita-3154", !JF_ISSET(cur, JNODE_OVRWR));
 		JF_CLR(cur, JNODE_FLUSH_QUEUED);
 
-		if (JF_ISSET(cur, JNODE_DIRTY))
+		if (JF_ISSET(cur, JNODE_DIRTY)) {
 			capture_list_push_back(&atom->dirty_nodes[jnode_get_level(cur)], cur);
-		else
+			ON_DEBUG(cur->list = DIRTY_LIST);
+		} else {
 			capture_list_push_back(&atom->clean_nodes, cur);
+			ON_DEBUG(cur->list = CLEAN_LIST);
+		}
 
 		UNLOCK_JNODE(cur);
 	}
