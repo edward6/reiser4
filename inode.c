@@ -106,7 +106,7 @@ ino_t oid_to_uino( oid_t oid )
 		 * living objects with which we don't want to collide.
 		 */
 		return REISER4_UINO_SHIFT + 
-			( oid - max_ino ) % ( max_ino - REISER4_UINO_SHIFT );
+			(( oid - max_ino ) & ( max_ino >> 1));
 }
 
 /** lock inode. We lock file-system wide spinlock, because we have to lock
