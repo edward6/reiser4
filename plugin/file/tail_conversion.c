@@ -292,7 +292,9 @@ for_all_pages(struct page **pages, unsigned nr_pages, page_action action)
 		case DROP:
 			reiser4_unlock_page(pages[i]);
 		case RELEASE:
-			assert("vs-1082", !PageLocked(pages[i]));
+			/* Cannot assert that page is not locked here, because
+			 * other thread can lock it. */
+			/* assert("vs-1082", !PageLocked(pages[i])); */
 			page_cache_release(pages[i]);
 			pages[i] = NULL;
 			break;
