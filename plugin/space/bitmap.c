@@ -550,16 +550,15 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 
 		start = reiser4_find_next_zero_bit((long*) data, max_offset, start);
 
+		if (set_first_zero_bit) {
+			bnode->first_zero_bit = start;
+			set_first_zero_bit = 0;
+		}
+
 		if (start >= max_offset) break;
 
 		search_end = LIMIT(start + max_len, max_offset);
 		end = reiser4_find_next_set_bit((long*) data, search_end, start);
-
-		if (set_first_zero_bit &&
-		    (end < max_offset || max_offset >= super->s_blocksize)) {
-			bnode->first_zero_bit = end;
-			set_first_zero_bit = 0;
-		}
 
 		if (end >= start + min_len) {
 			ret = end - start;
@@ -692,7 +691,7 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 
 	parse_blocknr (&start, &bmap, &offset);
 
-	assert ("zam-469", offset + len <= super->s_blocksize);
+	assert ("zam-469", offset + len <= (super->s_blocksize << 3));
 
 	bnode = get_bnode (super, bmap);
 
@@ -766,7 +765,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
-		assert ("zam-443", offset + *len <= sb->s_blocksize);
+		assert ("zam-443", offset + *len <= (sb->s_blocksize << 3));
 		reiser4_clear_bits (data, offset, (bmap_off_t)(offset + *len));
 	} else {
 		reiser4_clear_bit (offset, data);
@@ -898,7 +897,7 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 	load_and_lock_bnode (bnode);
 
 	if (len != NULL) {
-		assert ("zam-449", offset + *len <= sb->s_blocksize);
+		assert ("zam-449", offset + *len <= (sb->s_blocksize << 3));
 		reiser4_clear_bits(bnode_working_data(bnode), offset, (bmap_off_t)(offset + *len));
 	} else {
 		reiser4_clear_bit (offset, data);
