@@ -1695,6 +1695,16 @@ set_hint_cluster(struct inode * inode, hint_t * hint,
 	hint->mode = mode;
 }
 
+reiser4_internal void
+invalidate_hint_cluster(reiser4_cluster_t * clust)
+{
+	assert("edward-1291", clust != NULL);
+	assert("edward-1292", clust->hint != NULL);
+	
+	longterm_unlock_znode(clust->hint->coord.lh);
+	clust->hint->coord.valid = 0;
+}
+
 static void
 put_hint_cluster(reiser4_cluster_t * clust, struct inode * inode,
 		 znode_lock_mode mode)
@@ -1703,8 +1713,7 @@ put_hint_cluster(reiser4_cluster_t * clust, struct inode * inode,
 	assert("edward-1287", clust->hint != NULL);
 	
 	set_hint_cluster(inode, clust->hint, clust->index + 1, mode);
-	longterm_unlock_znode(clust->hint->coord.lh);
-	clust->hint->coord.valid = 0;
+	invalidate_hint_cluster(clust);
 }
 
 static int
@@ -3262,7 +3271,7 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 reiser4_internal int
 mmap_cryptcompress(struct file * file, struct vm_area_struct * vma)
 {
-	assert("edward-1289", 0);
+	assert("edward-1289", !(vma->vm_flags & VM_WRITE));
 	return generic_file_mmap(file, vma);
 }
 
