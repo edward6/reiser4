@@ -29,6 +29,9 @@ void de_print( const char *prefix, tree_coord *coord )
 	}
 }
 
+/**
+ * ->extract_key() method of simple directory item plugin.
+ */
 int de_extract_key( const tree_coord *coord, reiser4_key *key )
 {
 	directory_entry_format *dent;
@@ -42,6 +45,9 @@ int de_extract_key( const tree_coord *coord, reiser4_key *key )
 	return extract_key_from_id( &dent -> id, key );
 }
 
+/**
+ * ->extract_name() method of simple directory item plugin.
+ */
 char *de_extract_name( const tree_coord *coord )
 {
 	directory_entry_format *dent;
@@ -52,6 +58,20 @@ char *de_extract_name( const tree_coord *coord )
 	assert( "nikita-1160", item_length_by_coord( coord ) >= 
 		( int ) sizeof *dent );
 	return ( char * ) dent -> name;
+}
+
+/**
+ * ->extract_file_type() method of simple directory item plugin.
+ */
+unsigned de_extract_file_type( const tree_coord *coord )
+{
+	assert( "nikita-1722", coord != NULL );
+	/*
+	 * we don't store file type in the directory entry yet.
+	 *
+	 * But see comments at kassign.h:obj_key_id
+	 */
+	return DT_UNKNOWN;
 }
 
 int de_add_entry( const struct inode *dir, tree_coord *coord, 

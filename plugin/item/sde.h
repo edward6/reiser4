@@ -9,9 +9,24 @@
 #if !defined( __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ )
 #define __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__
 
+/**
+ * methods specific to the directory item
+ */
 typedef struct dir_entry_ops {
+	/**
+	 * extract stat-data key from directory entry at @coord and place it
+	 * into @key.
+	 */
 	int ( *extract_key )( const tree_coord *coord, reiser4_key *key );
+	/**
+	 * extract name from directory entry at @coord and return it
+	 */
 	char *( *extract_name )( const tree_coord *coord );
+	/**
+	 * extract file type (DT_* stuff) from directory entry at @coord and
+	 * return it
+	 */
+	unsigned ( *extract_file_type )( const tree_coord *coord );
 	int ( *add_entry )( const struct inode *dir,
 			    tree_coord *coord, reiser4_lock_handle *lh,
 			    const struct dentry *name, reiser4_dir_entry_desc *entry );
@@ -42,6 +57,7 @@ typedef struct directory_entry_format {
 void  de_print        ( const char *prefix, tree_coord *coord );
 int   de_extract_key  ( const tree_coord *coord, reiser4_key *key );
 char *de_extract_name ( const tree_coord *coord );
+unsigned de_extract_file_type( const tree_coord *coord );
 int   de_add_entry    ( const struct inode *dir, tree_coord *coord, 
 			reiser4_lock_handle *lh, const struct dentry *name, 
 			reiser4_dir_entry_desc *entry );
