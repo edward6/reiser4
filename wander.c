@@ -941,10 +941,6 @@ reiser4_write_logs(void)
 
 	int ret;
 
-	/* isolate critical code path which should be executed by only one
-	   thread using tmgr semaphore */
-	down(&private->tmgr.commit_semaphore);
-
 	/* block allocator may add j-nodes to the clean_list */
 	pre_commit_hook();
 
@@ -1069,8 +1065,6 @@ up_and_ret:
 		   remove them is: */
 		current_atom_finish_all_fq();
 	}
-
-	up(&private->tmgr.commit_semaphore);
 
 	/* free blocks of flushed transaction */
 

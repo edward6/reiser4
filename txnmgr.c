@@ -831,6 +831,7 @@ find_first_dirty(txn_atom * atom)
 static long
 atom_try_commit_locked(txn_atom * atom)
 {
+	reiser4_super_info_data * private = get_current_super_private ();
 	long ret = 0;
 	jnode *first_dirty;	/* a variable for atom's dirty lists scanning */
 
@@ -908,16 +909,21 @@ atom_try_commit_locked(txn_atom * atom)
 	trace_on(TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
 	if (WRITE_LOG) {
+		/* isolate critical code path which should be executed by only one thread using tmgr semaphore */
+		down(&private->tmgr.commit_semaphore);
+
 		ret = reiser4_write_logs();
 		if (ret < 0) {
-			warning("zam-597", "write log failed (%ld)\n", ret);
-			return ret;
+			rpanic("zam-597", "write log failed (%ld)\n", ret);
 		}
 	}
 
 	spin_lock_atom(atom);
 
 	invalidate_clean_list(atom);
+
+	if (WRITE_LOG)
+		up(&private->tmgr.commit_semaphore);
 
 	atom->stage = ASTAGE_DONE;
 
