@@ -35,6 +35,12 @@ void reiser4_dup_coord (tree_coord * new, const tree_coord * old)
 }
 
 /** release all resources associated with "coord": zput coord's znode. */
+/** FIXME: JMACD says: we shouldn't reference coord->node, the caller should
+ * just ensure that the node is otherwise referenced.  This done_coord isn't
+ * being used consistently now because it is not properly enforced yet.  If
+ * there is a good reason to ref coord->node (i.e., dcount), then implement it
+ * NOW.  My code doesn't call done_coord because I didn't know there was such
+ * a method. */
 int reiser4_done_coord( tree_coord *coord UNUSED_ARG )
 {
 	assert( "nikita-313", coord != NULL );
@@ -468,7 +474,7 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 		 */
 		if( ( through_units_p && coord_is_rightmost( coord ) ) || 
 		    ( !through_units_p && ( coord -> item_pos + 1u == 
-					    num_items( coord -> node ) ) ) ) {
+					    node_num_items( coord -> node ) ) ) ) {
 			do {
 				reiser4_lock_handle couple;
 
@@ -483,8 +489,8 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 					reiser4_done_lh( lh );
 					reiser4_done_coord( coord );
 					reiser4_init_coord( coord );
-					coord -> node = couple.node;
-					coord_first_unit( coord );
+
+					coord_first_unit( coord, couple.node );
 					reiser4_move_lh( lh, &couple );
 				} else
 					return result;
@@ -718,7 +724,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 	int result;
 
 
-	if( coord -> item_pos != num_items( coord -> node ) - 1 ) {
+	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
 		/*
 		 * next item is in the same node
 		 */
@@ -748,8 +754,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		}
 		if( !result ) {
 			reiser4_init_coord( &right );
-			right.node = right_lh.node;
-			coord_first_unit( &right );
+			coord_first_unit( &right, right_lh.node );
 			iplug = item_plugin_by_coord( &right );
 			if( iplug -> item_type == INTERNAL_ITEM_TYPE ) {
 				/*
@@ -781,7 +786,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
  */
 static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
 {
-	if( coord -> item_pos != num_items( coord -> node ) - 1 ) {
+	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
 		/*
 		 * get right delimiting key from an item to the right of @coord
 		 */
