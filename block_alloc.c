@@ -529,11 +529,11 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
-			trace_on(TRACE_RESERVE, info("allocate %llu blocks.\n", *len));
+			trace_on(TRACE_RESERVE, "allocate %llu blocks.\n", *len);
 			fake_allocated2used(*len, flags);
 			break;
 		case BLOCK_FLUSH_RESERVED:
-		    	trace_on(TRACE_RESERVE, info("get wandered %llu blocks.\n", *len));
+		    	trace_on(TRACE_RESERVE, "get wandered %llu blocks.\n", *len);
 			{
 				txn_atom * atom = get_current_atom_locked ();
 				sub_from_atom_flush_reserved_nolock (atom, *len);
@@ -836,7 +836,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * 
 		case BLOCK_NOT_COUNTED:
 			assert("vs-960", flags & BA_FORMATTED);
 
-			trace_on(TRACE_RESERVE, info("moving %llu used blocks to free\n", *len));
+			trace_on(TRACE_RESERVE, "moving %llu used blocks to free\n", *len);
 			used2grabbed(*len);
 			
 			/* VITALY: This is what was grabbed for internal/tx-lists/similar only */
@@ -845,12 +845,12 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * 
 		case BLOCK_GRABBED:
 			assert("vs-961", flags & BA_FORMATTED);
 			
-			trace_on(TRACE_RESERVE, info("moving %llu used blocks to grabbed\n", *len));
+			trace_on(TRACE_RESERVE, "moving %llu used blocks to grabbed\n", *len);
 			used2grabbed(*len);
 			break;
 		case BLOCK_UNALLOCATED:
 			assert("vs-962", !(flags & BA_FORMATTED));
-			trace_on(TRACE_RESERVE, info("moving %llu used blocks to fake allocated\n", *len));
+			trace_on(TRACE_RESERVE, "moving %llu used blocks to fake allocated\n", *len);
 			used2fake_allocated(*len, flags & BA_FORMATTED);
 			break;
 		default:
