@@ -2280,7 +2280,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	}
 
 	grabbed = get_current_context()->grabbed_blocks;
-	estimate_internal_amount(1, znode_get_tree(orig_znode)->height, &needed);
+	needed = estimate_internal_amount(1, znode_get_tree(orig_znode)->height);
 	/* Grab from 100% of disk space, not 95% as usual. */
 	if (reiser4_grab_space_force(needed, BA_RESERVED))
 		reiser4_panic("vpf-340", "No space left in reserved area.");
