@@ -118,8 +118,12 @@ typedef enum
 	/* Post-commit overwrite I/O.  Steal-on-capture. */
 	ASTAGE_POST_COMMIT     = 4,
 
+	/* Atom which waits removing of last reference to de deleted from memory  */
+	ASTAGE_DONE            = 5,
+
 	/* Post-fusion, invalid atom. */
-	ASTAGE_FUSED           = 5,
+	ASTAGE_FUSED           = 6,
+
 } txn_stage;
 
 /* Certain flags may be set in the txn_atom->flags field. */
@@ -174,6 +178,7 @@ struct blocknr_set {
 
 TS_LIST_DECLARE (io_handles);
 TS_LIST_DECLARE (fq);
+TS_LIST_DECLARE (fq_prepared);
 
 /* An atomic transaction: this is the underlying system representation
  * of a transaction, not the one seen by clients. */
@@ -248,6 +253,9 @@ struct txn_atom
 
 	/* active i/o requests accounting */
 	io_handles_list_head        io_handles;
+
+	/* number of threads who does jnode_flush() over this atom */
+	int nr_flushers;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
@@ -336,6 +344,8 @@ extern void         txn_delete_page       (struct page        *pg);
 extern txn_atom*    atom_get_locked_with_txnh_locked (txn_handle       *txnh);
 extern txn_atom*    get_current_atom_locked (void);
 extern txn_atom*    atom_get_locked_by_jnode (jnode *);
+
+extern void         atom_send_event       (txn_atom *);
 
 extern void         txn_insert_into_clean_list (txn_atom * atom, jnode * node);
 extern int          capture_super_block   (struct super_block * s);
@@ -442,11 +452,12 @@ SPIN_LOCK_FUNCTIONS(txnmgr,txn_mgr,tmgr_lock);
 
 extern spinlock_t _jnode_ptr_lock;
 
-
 typedef enum { 
-	 FQ_READY = 0, 
-	 FQ_IN_USE
+	FQ_IN_USE    = 0x1,
+	FQ_CONNECTED = 0x2
 } flush_queue_state_t;
+
+typedef struct flush_queue flush_queue_t;
 
 /* This is an accumulator for jnodes prepared for writing to disk. A flush queue is filled by the jnode_flush()
  * routine, and written to disk under memory pressure or at atom commit time. */
@@ -454,7 +465,9 @@ struct flush_queue {
 	/* 
 	 * linkage element is the first in this structure to make debugging
 	 * easier.  See field in atom struct for description of list. */
-	fq_list_link  link;
+	fq_list_link        alink;
+
+	fq_prepared_list_link mlink;
 	/*
 	 * A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
 	 * fields. */
@@ -463,11 +476,12 @@ struct flush_queue {
 	 * flush_handle state: empty, active, */
 	flush_queue_state_t state;
 	/*
-	 * lists for jnodes in different states */
-	capture_list_head   prepped; /* list of not yet submitted to disk nodes */
-	capture_list_head   sent;	   /* list of already submitted to disk nodes (more precisely, sent or just
-					    * about to be sent, see fq_prepare_node_for_write() details */
-
+	 * list of not yet submitted to disk nodes */
+	capture_list_head   prepped;
+	/* 
+	 * list of already submitted to disk nodes (more precisely, sent or just about to be sent, see
+	 * fq_prepare_node_for_write() details */
+	capture_list_head   sent;
 	/*
 	 * total number of queued nodes */
 	int                 nr_queued;
@@ -481,27 +495,14 @@ struct flush_queue {
 	 * An atom this flush handle is attached to */
 	txn_atom          * atom;
 	/*
-	  A semaphore for waiting on i/o completion
-	 */
+	 * A semaphore for waiting on i/o completion */
 	struct semaphore    sema;
+
+	/*
+	 * A link field for single-linked list of fq which are collected for
+	 * writing to disk */
+	flush_queue_t     * next_to_write;
 };
-
-typedef struct flush_queue flush_queue_t;
-
-#if 0
-
-/*
- * Flush manager is an object which manages all flush queues and maintain a
- * balance between queued, dirty and clean nodes.
- */
-
-struct flush_mgr {
-	int                     nr_queues;
-	fq_list_head  flush_queues;
-};
-
-typedef struct flush_mgr flush_mgr_t;
-#endif /* 0 */
 
 extern int  fq_get         (txn_atom *, flush_queue_t **);
 extern void fq_put         (flush_queue_t *);
@@ -510,6 +511,8 @@ extern void fq_queue_node  (flush_queue_t *, jnode *);
 extern int  fq_write       (flush_queue_t *, int);
 extern int  finish_all_fq  (txn_atom *);
 extern void fq_init_atom   (txn_atom *);
+
+extern int  fq_mem_pressure (struct super_block *, jnode *, int);
 
 /* Debugging */
 #if REISER4_DEBUG_OUTPUT
