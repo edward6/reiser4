@@ -164,22 +164,25 @@ mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks, coord_t 
 	id =  znode_get_level(twin.node) == LEAF_LEVEL ? FROZEN_TAIL_ID : FROZEN_EXTENT_POINTER_ID;
 	blocks = 1;
 
+	result = 0;
 	while (1) {
-		twin.node->nplug->set_item_plugin(&twin, id);
+		result = WITH_DATA(twin.node, twin.node->nplug->set_item_plugin(&twin, id));
+		if (result)
+			break;
+
 		znode_set_dirty(twin.node);
 		assert("vs-1124", blocks <= spanned_blocks);
 		if (!file_continues_in_right_neighbor(inode, twin.node))
 			break;
 		result = goto_right_neighbor(&twin, lh);
-		if (result) {
-			warning("vs-1125", "tail conversion not completed. File (ino=%llu) may be unreachable\n", get_inode_oid(inode));
-			done_lh(lh);
-			return result;
-		}
+		if (result)
+			break;
 		blocks ++;
 	}
+	if (result)
+		warning("vs-1126", "tail conversion not completed. File (ino=%llu) may be unreachable\n", get_inode_oid(inode));
 	done_lh(lh);
-	return 0;
+	return result;
 }
 
 static int
