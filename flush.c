@@ -559,7 +559,7 @@ static int check_write_congestion (void)
 #endif /* FLUSH_CHECKS_CONGESTION */
 
 /* conditionally write flush queue */
-static int write_prepped_nodes (flush_pos_t * pos, int dont_check_congestion)
+static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 {
 	int ret;
 
@@ -570,7 +570,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int dont_check_congestion)
 		return 0;
 
 #if defined (FLUSH_CHECKS_CONGESTION)
-	if (!dont_check_congestion && check_write_congestion())
+	if (check_congestion && check_write_congestion())
 		return 0;
 #endif /* FLUSH_CHECKS_CONGESTION */
 	trace_mark(flush);
@@ -847,6 +847,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
 	ret = squalloc(&flush_pos);
+	pos_stop(&flush_pos);
 	if (ret)
 		goto failed;
 
@@ -921,7 +922,7 @@ failed:
 	{
 		int ret1;
 		/* Write anything left in the queue, if specified by flags */
-		ret1 = write_prepped_nodes(&flush_pos, 1);
+		ret1 = write_prepped_nodes(&flush_pos, 0);
 
 		if (ret)
 			warning("jmacd-16739", "flush failed: %ld", ret);
@@ -967,7 +968,7 @@ static int rapid_flush (flush_pos_t * pos)
 	if (!atomic_read(&rapid_flush_mode_flg))
 		return 0;
 
-	return write_prepped_nodes(pos, 0);
+	return write_prepped_nodes(pos, 1);
 }
 
 /**
@@ -1640,7 +1641,7 @@ out:
 		 * will not be modified again during this jnode_flush() call. */
 		int ret1;
 
-		ret1 = write_prepped_nodes(pos, 0);
+		ret1 = write_prepped_nodes(pos, 1);
 		if (ret1 < 0)
 			return ret1;
 	}
