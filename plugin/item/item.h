@@ -57,6 +57,10 @@ typedef struct {
 	 */
 	reiser4_key *( *max_key_inside )( const coord_t *coord, 
 					  reiser4_key *area );
+
+	reiser4_key *( *real_max_key_inside )( const coord_t *coord, 
+					       reiser4_key * );
+
 	/**
 	 * true if item @coord can merge data at @key.
 	 */
@@ -198,16 +202,6 @@ typedef struct {
 				    const flow_t *f,
 				    reiser4_item_data *data );
 
-	/* return the right or left child of @coord, only if it is in memory */
-	int ( *utmost_child )( const coord_t *coord, sideof side,
-			       jnode **child );
-	
-	/* return whether the right or left child of @coord has a non-fake block number. */
-	int ( *utmost_child_real_block )( const coord_t *coord, sideof side,
-					  reiser4_block_nr *block );
-
-	reiser4_key *( *real_max_key_inside )( const coord_t *coord, reiser4_key * );
-
 	/* return true if item contains key in it, coord is adjusted
 	 * correspondingly */
 	int ( *key_in_item )( coord_t *coord, const reiser4_key *key );
@@ -216,8 +210,19 @@ typedef struct {
 	int ( *key_in_unit )( const coord_t *coord, const reiser4_key *key );
 
 	void ( *item_stat )( const coord_t *coord, void * );
-} common_item_plugin;
+} balance_ops;
 
+typedef struct {
+	/* return the right or left child of @coord, only if it is in memory */
+	int ( *utmost_child )( const coord_t *coord, sideof side,
+			       jnode **child );
+	
+	/* return whether the right or left child of @coord has a non-fake
+	 * block number. */
+	int ( *utmost_child_real_block )( const coord_t *coord, sideof side,
+					  reiser4_block_nr *block );
+
+} flush_ops;
 
 /* operations specific to the directory item */
 typedef struct {
@@ -292,7 +297,10 @@ struct item_plugin {
 	plugin_header h;
 	
 	/* methods common for all item types */
-	common_item_plugin common;
+	balance_ops   b;
+	/* methods used during flush */
+	flush_ops     f;
+
 	/* methods specific to particular type of item */
 	union {
 		dir_entry_ops     dir;

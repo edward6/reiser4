@@ -177,7 +177,7 @@ unsigned coord_num_units (const coord_t * coord)
 {
 	assert ("jmacd-9806", coord_is_existing_item (coord));
 
-	return item_plugin_by_coord (coord)->common.nr_units (coord);
+	return item_plugin_by_coord (coord)->b.nr_units (coord);
 }
 
 /* Return the last valid unit number at the present item (i.e., coord_num_units() - 1). */
@@ -330,7 +330,7 @@ int coord_check (const coord_t *coord)
 		return 1;
 
 	if (coord->unit_pos > 
-	    item_plugin_by_coord (coord)->common.nr_units (coord) - 1) {
+	    item_plugin_by_coord (coord)->b.nr_units (coord) - 1) {
 		return 0;
 	}
 
@@ -1030,12 +1030,12 @@ void print_coord (const char * mes, const coord_t * coord, int node)
 
 int item_utmost_child_real_block (const coord_t *coord, sideof side, reiser4_block_nr *blk)
 {
-	return item_plugin_by_coord (coord)->common.utmost_child_real_block (coord, side, blk);
+	return item_plugin_by_coord (coord)->f.utmost_child_real_block (coord, side, blk);
 }
 
 int item_utmost_child (const coord_t *coord, sideof side, jnode **child)
 {
-	return item_plugin_by_coord (coord)->common.utmost_child (coord, side, child);
+	return item_plugin_by_coord (coord)->f.utmost_child (coord, side, child);
 }
 
 /* 

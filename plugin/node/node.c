@@ -153,11 +153,11 @@ void print_node_content( const char *prefix /* output prefix */,
 		}
 
 		if( ( flags & REISER4_NODE_PRINT_ITEMS ) &&
-		    ( iplug -> common.print ) ) {
+		    ( iplug -> b.print ) ) {
 			indent_znode (node);
 			info ("\tlength %d\n", item_length_by_coord( &coord ) );
 			indent_znode (node); 
-			iplug -> common.print( "\titem", &coord );
+			iplug -> b.print( "\titem", &coord );
 		}
 		if( flags & REISER4_NODE_PRINT_DATA ) {
 			int   j;

@@ -527,6 +527,8 @@ static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype /* plugin
 	return NULL;
 }
 
+/* defined in fs/reiser4/plugin/file.c */
+extern file_plugin file_plugins[ LAST_FILE_PLUGIN_ID ];
 /* defined in fs/reiser4/plugin/dir.c */
 extern dir_plugin dir_plugins[ LAST_DIR_ID ];
 /* defined in fs/reiser4/plugin/item/static_stat.c */

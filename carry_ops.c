@@ -224,12 +224,12 @@ unsigned int space_needed( const znode *node /* node data are inserted or
 
 	result = 0;
 	iplug = data -> iplug;
-	if( iplug -> common.estimate != NULL ) {
+	if( iplug -> b.estimate != NULL ) {
 		/*
 		 * ask item plugin how much space is needed to insert this
 		 * item
 		 */
-		result += iplug -> common.estimate ( insertion ? NULL : coord, data );
+		result += iplug -> b.estimate ( insertion ? NULL : coord, data );
 	} else {
 		/* reasonable default */
 		result += data -> length;
@@ -1199,7 +1199,7 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 			/* insert point is set to item of file we are writing to and we have to append to it */
 			assert( "vs-903", insert_point -> between == AFTER_UNIT );
 			nplug -> change_item_size( insert_point, flow_insert_data( op ) -> length );
-			flow_insert_data( op ) -> iplug -> common.paste(
+			flow_insert_data( op ) -> iplug -> b.paste(
 				insert_point, flow_insert_data( op ), &info );
 			coord_init_after_item_end( insert_point );
 		} else {
@@ -1465,7 +1465,7 @@ static int can_paste( coord_t *icoord, const reiser4_key *key,
 
 			old_iplug = item_plugin_by_coord( &circa );
 
-			cck = old_iplug -> common.can_contain_key;
+			cck = old_iplug -> b.can_contain_key;
 			if( cck == NULL )
 				/*
 				 * item doesn't define ->can_contain_key
@@ -1568,7 +1568,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	doing -> restartable = 0;
 	info.doing  = doing;
 	info.todo   = todo;
-	result = iplug -> common.paste( coord, op -> u.insert.d -> data, &info );
+	result = iplug -> b.paste( coord, op -> u.insert.d -> data, &info );
 	znode_set_dirty( node );
 	if( real_size < 0 ) {
 		node -> nplug -> change_item_size( coord, real_size );

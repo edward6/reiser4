@@ -120,9 +120,9 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		item_plugin * iplug;
 
 		iplug = item_plugin_by_coord (coord);
-		assert ("vs-716", iplug && iplug->common.key_in_item);
+		assert ("vs-716", iplug && iplug->b.key_in_item);
 
-		if (iplug->common.key_in_item (coord, key)) {
+		if (iplug->b.key_in_item (coord, key)) {
 			/*
 			 * FIXME-VS: should coord be updated?
 			 */
@@ -131,7 +131,7 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		}
 	}
 	assert ("vs-769", ergo (coord_is_existing_item (coord), 
-				keylt (item_plugin_by_coord (coord)->common.real_max_key_inside (coord, &max_key), key)));
+				keylt (item_plugin_by_coord (coord)->b.real_max_key_inside (coord, &max_key), key)));
 
 	/* get key of item after which coord is set */
 	coord->unit_pos = 0;
@@ -141,14 +141,14 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 
 
 	/* max key stored in item */
-	if (iplug->common.real_max_key_inside)
-		iplug->common.real_max_key_inside (coord, &max_key);
+	if (iplug->b.real_max_key_inside)
+		iplug->b.real_max_key_inside (coord, &max_key);
 	else
 		max_key = item_key;
 
 	/* max possible key which can be in item */
-	if (iplug->common.max_key_inside)
-		iplug->common.max_key_inside (coord, &max_possible_key);
+	if (iplug->b.max_key_inside)
+		iplug->b.max_key_inside (coord, &max_possible_key);
 	else
 		max_possible_key = item_key;
 
@@ -324,8 +324,8 @@ static loff_t find_file_size (struct inode * inode)
 	}
 	iplug = item_plugin_by_coord (&coord);
 
-	assert ("vs-853", iplug->common.real_max_key_inside);
-	iplug->common.real_max_key_inside (&coord, &key);
+	assert ("vs-853", iplug->b.real_max_key_inside);
+	iplug->b.real_max_key_inside (&coord, &key);
 
 	file_size = get_key_offset (&key) + 1;
 

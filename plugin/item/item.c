@@ -59,7 +59,7 @@ item_type_id item_type_by_coord( const coord_t *coord /* coord to query */ )
 
 	trace_stamp( TRACE_TREE );
 
-	return item_plugin_by_coord( coord ) -> common.item_type;
+	return item_plugin_by_coord( coord ) -> b.item_type;
 }
 
 /* return id of item */
@@ -101,8 +101,8 @@ reiser4_key *unit_key_by_coord( const coord_t *coord /* coord to query */,
 	assert( "nikita-775", znode_is_loaded( coord -> node ) );
 	trace_stamp( TRACE_TREE );
 
-	if( item_plugin_by_coord( coord )->common.unit_key != NULL )
-		return item_plugin_by_coord( coord )->common.unit_key
+	if( item_plugin_by_coord( coord )->b.unit_key != NULL )
+		return item_plugin_by_coord( coord )->b.unit_key
 			( coord, key );
 	else
 		return item_key_by_coord( coord, key );
@@ -151,12 +151,12 @@ int item_can_contain_key( const coord_t *item /* coord of item */,
 	assert( "nikita-1659", key != NULL );
 
 	iplug = item_plugin_by_coord( item );
-	if( iplug -> common.can_contain_key != NULL )
-		return iplug -> common.can_contain_key( item, key, data );
+	if( iplug -> b.can_contain_key != NULL )
+		return iplug -> b.can_contain_key( item, key, data );
 	else {
-		assert( "nikita-1681", iplug -> common.max_key_inside != NULL );
+		assert( "nikita-1681", iplug -> b.max_key_inside != NULL );
 		item_key_by_coord( item, &min_key_in_item );
-		iplug -> common.max_key_inside( item, &max_key_in_item );
+		iplug -> b.max_key_inside( item, &max_key_in_item );
 	
 		/*
 		 * can contain key if 
@@ -195,16 +195,16 @@ int are_items_mergeable( const coord_t *i1 /* coord of first item */,
 		keyle( item_key_by_coord( i1, &k1 ), 
 		       item_key_by_coord( i2, &k2 ) ) );
 
-	if( iplug -> common.mergeable != NULL ) {
-		return iplug -> common.mergeable( i1, i2 );
-	} else if( iplug -> common.max_key_inside != NULL ) {
-		iplug -> common.max_key_inside( i1, &k1 );
+	if( iplug -> b.mergeable != NULL ) {
+		return iplug -> b.mergeable( i1, i2 );
+	} else if( iplug -> b.max_key_inside != NULL ) {
+		iplug -> b.max_key_inside( i1, &k1 );
 		item_key_by_coord( i2, &k2 );
 
 		/*
 		 * mergeable if ->max_key_inside() >= key of i2;
 		 */
-		return keyge( iplug -> common.max_key_inside( i1, &k1 ), 
+		return keyge( iplug -> b.max_key_inside( i1, &k1 ), 
 			      item_key_by_coord( i2, &k2 ) );
 	} else {
 		item_key_by_coord( i1, &k1 );
@@ -250,9 +250,10 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.desc      = "stat-data",
 			.linkage   = TS_LIST_LINK_ZERO
 		},
-		.common = {
+		.b = {
 			.item_type               = STAT_DATA_ITEM_TYPE,
 			.max_key_inside          = single_key,
+			.real_max_key_inside     = NULL,
 			.can_contain_key         = NULL,
 			.mergeable               = NULL,
 			.print                   = sd_print,
@@ -273,12 +274,13 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.unit_key                = NULL,
 			.estimate                = NULL,
 			.item_data_by_flow       = NULL,
-			.utmost_child            = NULL,
-			.utmost_child_real_block = NULL,
-			.real_max_key_inside     = NULL,
 			.key_in_item             = NULL,
 			.key_in_unit             = NULL,
 			.item_stat               = sd_item_stat
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
 		},
 		.s = {
 			.sd = {
@@ -297,9 +299,10 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.desc    = "directory entry",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.common = {
+		.b = {
 			.item_type               = DIR_ENTRY_ITEM_TYPE,
 			.max_key_inside          = single_key,
+			.real_max_key_inside     = NULL,
 			.can_contain_key         = NULL,
 			.mergeable               = NULL,
 			.print                   = de_print,
@@ -320,12 +323,13 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.unit_key                = NULL,
 			.estimate                = NULL,
 			.item_data_by_flow       = NULL,
-			.utmost_child            = NULL,
-			.utmost_child_real_block = NULL,
-			.real_max_key_inside     = NULL,
 			.key_in_item             = NULL,
 			.key_in_unit             = NULL,
 			.item_stat               = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
 		},
 		.s = {
 			.dir = {
@@ -348,9 +352,10 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.desc    = "compressed directory entry",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.common = {
+		.b = {
 			.item_type               = DIR_ENTRY_ITEM_TYPE,
 			.max_key_inside          = cde_max_key_inside,
+			.real_max_key_inside     = NULL,
 			.can_contain_key         = cde_can_contain_key,
 			.mergeable               = cde_mergeable,
 			.print                   = cde_print,
@@ -370,12 +375,13 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.unit_key                = cde_unit_key,
 			.estimate                = cde_estimate,
 			.item_data_by_flow       = NULL,
-			.utmost_child            = NULL,
-			.utmost_child_real_block = NULL,
-			.real_max_key_inside     = NULL,
 			.key_in_item             = NULL,
 			.key_in_unit             = NULL,
 			.item_stat               = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
 		},
 		.s = {
 			.dir = {
@@ -398,9 +404,10 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.desc    = "internal item",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.common = {
+		.b = {
 			.item_type               = INTERNAL_ITEM_TYPE,
 			.max_key_inside          = NULL,
+			.real_max_key_inside     = NULL,
 			.can_contain_key         = NULL,
 			.mergeable               = internal_mergeable,
 			.print                   = internal_print,
@@ -420,12 +427,13 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.unit_key                = NULL,
 			.estimate                = NULL,
 			.item_data_by_flow       = NULL,
-			.utmost_child            = internal_utmost_child,
-			.utmost_child_real_block = internal_utmost_child_real_block,
-			.real_max_key_inside     = NULL,
 			.key_in_item             = NULL,
 			.key_in_unit             = NULL,
 			.item_stat               = NULL
+		},
+		.f = {
+			.utmost_child            = internal_utmost_child,
+			.utmost_child_real_block = internal_utmost_child_real_block,
 		},
 		.s = {
 			.internal = {
@@ -443,9 +451,10 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.desc    = "extent item",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.common = {
+		.b = {
 			.item_type               = ORDINARY_FILE_METADATA_TYPE,
 			.max_key_inside          = extent_max_key_inside,
+			.real_max_key_inside     = extent_max_key,
 			.can_contain_key         = extent_can_contain_key,
 			.mergeable               = extent_mergeable,
 			.print                   = extent_print,
@@ -465,13 +474,14 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.unit_key                = extent_unit_key,
 			.estimate                = NULL,
 			.item_data_by_flow       = NULL,
-			.utmost_child            = extent_utmost_child,
-			.utmost_child_real_block = extent_utmost_child_real_block,
-			.real_max_key_inside     = extent_max_key,
 			.key_in_item             = extent_key_in_item,
 			.key_in_unit             = extent_key_in_unit,
 			.item_stat               = extent_item_stat
 
+		},
+		.f = {
+			.utmost_child            = extent_utmost_child,
+			.utmost_child_real_block = extent_utmost_child_real_block,
 		},
 		.s = {
 			.file = {
@@ -492,9 +502,10 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.desc    = "body (or tail?) item",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.common = {
+		.b = {
 			.item_type               = ORDINARY_FILE_METADATA_TYPE,
 			.max_key_inside          = tail_max_key_inside,
+			.real_max_key_inside     = NULL,
 			.can_contain_key         = tail_can_contain_key,
 			.mergeable               = tail_mergeable,
 			.print                   = NULL,
@@ -514,12 +525,13 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.unit_key                = tail_unit_key,
 			.estimate                = NULL,
 			.item_data_by_flow       = NULL,
-			.utmost_child            = NULL,
-			.utmost_child_real_block = NULL,
-			.real_max_key_inside     = tail_max_key,
 			.key_in_item             = tail_key_in_item,
 			.key_in_unit             = NULL,
 			.item_stat               = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
 		},
 		.s = {
 			.file = {

@@ -466,15 +466,15 @@ int insert_into_item( coord_t *coord /* coord of pasting */,
 	    ( coord -> unit_pos != 0 ) &&
 	    ( nplug -> fast_paste != NULL ) &&
 	    nplug -> fast_paste( coord ) &&
-	    ( iplug -> common.fast_paste != NULL ) && 
-	    iplug -> common.fast_paste( coord ) ) {
+	    ( iplug -> b.fast_paste != NULL ) && 
+	    iplug -> b.fast_paste( coord ) ) {
 		reiser4_stat_tree_add( fast_paste );
 		if( size_change > 0 )
 			nplug -> change_item_size( coord, size_change );
 		/*
 		 * FIXME-NIKITA: huh? where @key is used?
 		 */
-		result = iplug -> common.paste( coord, data, NULL );
+		result = iplug -> b.paste( coord, data, NULL );
 		znode_set_dirty( coord -> node );
 		if( size_change < 0 )
 			nplug -> change_item_size( coord, size_change );
@@ -1115,9 +1115,9 @@ static int item_removed_completely (coord_t * from,
 
 	/* check last key */
 	iplug = item_plugin_by_coord (from);
-	assert ("vs-611", iplug && iplug->common.real_max_key_inside);
+	assert ("vs-611", iplug && iplug->b.real_max_key_inside);
 
-	iplug->common.real_max_key_inside (from, &key_in_item);
+	iplug->b.real_max_key_inside (from, &key_in_item);
 
 	if (keylt (to_key, &key_in_item))
 		/* last byte is not removed */
@@ -1728,7 +1728,7 @@ static void collect_tree_stat( reiser4_tree *tree, znode *node )
 		case STATIC_STAT_DATA_ID:
 			tree_stat.stat_data ++;
 			item_plugin_by_id( STATIC_STAT_DATA_ID ) -> 
-				common.item_stat( &coord, &tree_stat.sd_stat );
+				b.item_stat( &coord, &tree_stat.sd_stat );
 			break;
 		case COMPOUND_DIR_ID:
 			tree_stat.cde ++;
@@ -1740,7 +1740,7 @@ static void collect_tree_stat( reiser4_tree *tree, znode *node )
 		case EXTENT_POINTER_ID:
 			tree_stat.extents ++;
 			item_plugin_by_id( EXTENT_POINTER_ID ) ->
-				common.item_stat( &coord, &tree_stat.ex_stat );
+				b.item_stat( &coord, &tree_stat.ex_stat );
 			break;
 		case TAIL_ID:
 			tree_stat.tails ++;
