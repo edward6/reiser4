@@ -368,6 +368,44 @@ int is_name_acceptable( const struct inode *inode /* directory to check */,
 	return len <= reiser4_max_filename_len( inode );
 }
 
+/** actor function looking for any entry different from dot or dotdot. */
+static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
+			   coord_t *coord /* current coord */,
+			   lock_handle *lh UNUSED_ARG /* current lock
+						       * handle */, 
+			   void *arg /* readdir arguments */ )
+{
+	struct inode *dir;
+	file_plugin  *fplug;
+	item_plugin  *iplug;
+	char         *name;
+
+	assert( "nikita-2004", tree != NULL );
+	assert( "nikita-2005", coord != NULL );
+	assert( "nikita-2006", arg != NULL );
+
+	dir = arg;
+	assert( "nikita-2003", dir != NULL );
+
+	if( item_id_by_coord( coord ) !=
+	    item_id_by_plugin( inode_dir_item_plugin( dir ) ) )
+		return 0;
+
+	fplug = inode_file_plugin( dir );
+	if( ! fplug -> owns_item( dir, coord ) )
+		return 0;
+
+	iplug = item_plugin_by_coord( coord );
+	name = iplug -> s.dir.extract_name( coord );
+	assert( "nikita-2162", name != NULL );
+
+	if( ( name[ 0 ] != '.' ) ||
+	    ( ( name[ 1 ] != '.' ) && ( name[ 1 ] != '\0' ) ) )
+		return -ENOTEMPTY;
+	else
+		return 1;
+}
+
 /** true if directory is empty (only contains dot and dotdot) */
 int is_dir_empty( const struct inode *dir )
 {
