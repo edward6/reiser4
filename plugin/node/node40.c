@@ -547,7 +547,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 		if( ZF_ISSET( node, ZNODE_LEFT_CONNECTED ) && 
 		    ( node -> left != NULL ) && 
 		    ! ZF_ISSET( node -> left, ZNODE_HEARD_BANSHEE )  &&
-		    ! is_empty_node( node -> left ) && 
+		    ! node_is_empty( node -> left ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  ( keycmp( &node -> left -> rd_key, 
 				    &node -> ld_key ) != EQUAL_TO ) ) &&
@@ -561,7 +561,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 		if( ZF_ISSET( node, ZNODE_RIGHT_CONNECTED ) && 
 		    ( node -> right != NULL ) && 
 		    ! ZF_ISSET( node -> right, ZNODE_HEARD_BANSHEE )  &&
-		    ! is_empty_node( node -> right ) && 
+		    ! node_is_empty( node -> right ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  ( keycmp( &node -> rd_key, 
 				    &node -> right -> ld_key ) != EQUAL_TO ) ) &&
@@ -889,7 +889,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	assert ("vs-184", from->node == to->node);
 	assert ("vs-297", ergo (from->item_pos == to->item_pos,
 				from->unit_pos <= to->unit_pos));
-	assert ("vs-312", !is_empty_node (from->node));
+	assert ("vs-312", !node_is_empty (from->node));
 
 	node = from->node;
 	nh = node40_node_header (node);
@@ -1064,7 +1064,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	if (todo) {
 		/* it is not called by node40_shift, so we have to take care
 		   of changes on upper levels */
-		if (is_empty_node (node) && !(flags & DELETE_RETAIN_EMPTY))
+		if (node_is_empty (node) && !(flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
 			prepare_for_removal (node, todo);
 		else if (keycmp (&node40_ih_at (node, 0)->key,
@@ -1190,7 +1190,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 
 
 	shift->everything = 0;
-	if (!is_empty_node (shift->target)) {
+	if (!node_is_empty (shift->target)) {
 		/* target node is not empty, check for boundary items
 		   mergeability */
 		tree_coord to;
@@ -1459,7 +1459,7 @@ void node40_copy (struct shift_params * shift)
 		to_ih = node40_ih_at (to.node, 0);
 		/* first item gets @merging_bytes longer. free space appears
 		   at its beginning */
-		if (!is_empty_node (to.node))
+		if (!node_is_empty (to.node))
 			ih_40_set_offset (to_ih, ih_40_get_offset (to_ih) +
 					  shift->shift_bytes -
 					  shift->merging_bytes);
@@ -1576,17 +1576,17 @@ void update_znode_dkeys (znode * left, znode * right)
 
 	leftmost_key_in_node (right, &key );
 
-	if (!is_empty_node (left) && !is_empty_node (right)) {
+	if (!node_is_empty (left) && !node_is_empty (right)) {
 		/* update right delimiting key of @left */
 		*znode_get_rd_key (left) = key;
 		/* update left delimiting key of @right */
 		*znode_get_ld_key (right) = key;
 		return;
-	} else if (is_empty_node (left) && is_empty_node (right))
+	} else if (node_is_empty (left) && node_is_empty (right))
 		return;
 
-	if (is_empty_node (left)) {
-		assert ("vs-186", !is_empty_node (right));
+	if (node_is_empty (left)) {
+		assert ("vs-186", !node_is_empty (right));
 
 		/* update right delimiting key of @left */
 		*znode_get_rd_key (left) = *znode_get_ld_key (left);
@@ -1600,8 +1600,8 @@ void update_znode_dkeys (znode * left, znode * right)
 		return;
 	}
 
-	if (is_empty_node (right)) {
-		assert ("vs-187", !is_empty_node (left));
+	if (node_is_empty (right)) {
+		assert ("vs-187", !node_is_empty (left));
 
 		/* update right delimiting key of @left */
 		*znode_get_rd_key (left) = *znode_get_rd_key (right);
@@ -1672,7 +1672,7 @@ static void adjust_coord (tree_coord * insert_coord,
 			  struct shift_params * shift,
 			  int removed, int including_insert_coord)
 {
-	if (is_empty_node (shift->wish_stop.node)) {
+	if (node_is_empty (shift->wish_stop.node)) {
 		assert ("vs-242", shift->everything);
 		if (including_insert_coord) {
 			if (shift->pend == SHIFT_RIGHT) {
@@ -1765,7 +1765,7 @@ static int call_shift_hooks (struct shift_params * shift)
 	item_plugin *iplug;
 
 
-	assert ("vs-275", !is_empty_node (shift->target));
+	assert ("vs-275", !node_is_empty (shift->target));
 
 	/* number of items shift touches */
 	shifted = shift->entire + (shift->merging_units ? 1 : 0) +
@@ -1865,7 +1865,7 @@ int node40_shift (tree_coord * from, znode * to,
 	source = from -> node;
 	/* set @shift.wish_stop to rightmost/leftmost unit among units we want
 	   shifted */
-	if (is_empty_node (shift.wish_stop.node))
+	if (node_is_empty (shift.wish_stop.node))
 		result = 1;
 	if (pend == SHIFT_LEFT) {
 		result = coord_set_to_left (&shift.wish_stop);
@@ -1923,7 +1923,7 @@ int node40_shift (tree_coord * from, znode * to,
 	/* add update operation to @todo, which is the list of operations to
 	   be performed on a higher level */
 	result = prepare_for_update (left, right, parent_todo);
-	if (!result && is_empty_node (source) && delete_child) {
+	if (!result && node_is_empty (source) && delete_child) {
 		/* all contents of @from->node is moved to @to and @from->node
 		   has to be removed from the tree, so, on higher level we
 		   will be removing the pointer to node @from->node */
