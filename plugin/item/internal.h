@@ -10,6 +10,9 @@
 #if !defined( __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__ )
 #define __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__
 
+#include "../../forward.h"
+#include "../../dformat.h"
+
 #if 0
 #endif
 

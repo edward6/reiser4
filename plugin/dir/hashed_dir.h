@@ -10,6 +10,11 @@
 #if !defined( __HASHED_DIR_H__ )
 #define __HASHED_DIR_H__
 
+#include "../../forward.h"
+
+#include <linux/fs.h> /* for struct inode */
+#include <linux/dcache.h> /* for struct dentry */
+
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
 extern int                hashed_init      ( struct inode *object, 
 					     struct inode *parent,

@@ -6,7 +6,20 @@
  * definition of item plugins.
  */
 
-#include "../../reiser4.h"
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "../plugin_header.h"
+#include "sde.h"
+#include "tail.h"
+#include "internal.h"
+#include "item.h"
+#include "extent.h"
+#include "static_stat.h"
+#include "../plugin.h"
+#include "../../znode.h"
+#include "../../tree.h"
 
 /* return pointer to item body */
 /* Audited by: green(2002.06.15) */

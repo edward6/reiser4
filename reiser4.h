@@ -10,6 +10,11 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
+#include "forward.h"
+#include "debug.h"
+
+#include <asm/param.h> /* for HZ */
+ 
 extern const char *REISER4_SUPER_MAGIC_STRING;
 extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 					* beginning of device */
@@ -256,51 +261,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 
 #else
 
-/* kernel includes/defines */
-
-/* for error codes in enums */
-#include <asm/errno.h>
-/* for size_t */
-#include <linux/types.h>
-/* for __u?? */
-#include <asm/types.h>
-#include <asm/semaphore.h>
-#include <asm/page.h>
-#include <linux/list.h>
-#include <linux/pagemap.h>
-#include <linux/slab.h>
-#include <linux/fs.h>
-#include <linux/buffer_head.h>
-/* for kernel_locked(), lock_kernel() etc. */
-#include <linux/smp_lock.h>
-#include <linux/spinlock.h>
-
-#include <linux/spinlock.h>
-/* following for includes are used in debug.h */
-#include <linux/config.h>
-#include <asm/hardirq.h>
-#include <asm/current.h>
-#include <asm/uaccess.h>
-#include <linux/sched.h>
-#include <linux/module.h>
-/* for {get|put}_unaligned() in dformat.h */
-#include <asm/unaligned.h>
-/* For __init definitions */
-#include <linux/init.h>
-/* For BIO stuff */
-#include <linux/bio.h>
-/* for blk_getqueue */
-#include <linux/blkdev.h>
-/* for DQUOT_TRANSFER in plugin/perm/perm.c */
-#include <linux/quotaops.h>
-#include <linux/seq_file.h>
-/* for balance_dirty_pages() */
-#include <linux/writeback.h>
-/* for suspend callback in ktxnmgrd.c */
-#include <linux/suspend.h>
-/* for completion stuff */
-#include <linux/completion.h>
-
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
 #define current_pid     ( current -> pid )
@@ -310,161 +270,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 
 #endif
 
-#include "forward.h"
-
 #ifndef __KERNEL__
 #include "build.h"
 #endif
-#include "debug.h"
-
-#if REISER4_USER_LEVEL_SIMULATION
-#    define check_spin_is_locked(s)     spin_is_locked(s)
-#    define check_spin_is_not_locked(s) spin_is_not_locked(s)
-#else
-#    define check_spin_is_not_locked(s) (1)
-#    define spin_is_not_locked(s)       (1)
-#    if defined( CONFIG_SMP )
-#        define check_spin_is_locked(s)     spin_is_locked(s)
-#    else
-#        define check_spin_is_locked(s)     (1)
-#    endif
-#endif
-
-/** Define several inline functions for each type of spinlock. */
-#define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
-										\
-static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x)			\
-{										\
-	spin_lock( &x -> FIELD );						\
-	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
-}										\
-										\
-static inline void spin_lock_ ## NAME (TYPE *x)					\
-{										\
-	ON_DEBUG_CONTEXT( assert( "nikita-1383",                                \
-				  spin_ordering_pred_ ## NAME( x ) ) );		\
-	spin_lock_ ## NAME ## _no_ord( x );                                     \
-}										\
-										\
-static inline int  spin_trylock_ ## NAME (TYPE *x)				\
-{										\
-	if (spin_trylock (& x->FIELD)) {					\
-		ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );	\
-		ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );		\
-		return 1;							\
-	}									\
-	return 0;								\
-}										\
-										\
-static inline void spin_unlock_ ## NAME (TYPE *x)				\
-{										\
-	ON_DEBUG_CONTEXT( assert( "nikita-1375",				\
-		lock_counters() -> spin_locked_ ## NAME > 0 ) );		\
-	ON_DEBUG_CONTEXT( assert( "nikita-1376",				\
-		lock_counters() -> spin_locked > 0 ) );				\
-	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked );			\
-	spin_unlock (& x->FIELD);						\
-}										\
-										\
-static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
-{										\
-	return check_spin_is_locked (& x->FIELD);				\
-}										\
-										\
-static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
-{										\
-	return check_spin_is_not_locked (& x->FIELD);				\
-}										\
-										\
-typedef struct { int foo; } NAME ## _spin_dummy
-
-#define UNDER_SPIN( obj_type, obj, exp )	\
-({						\
-	typeof ( obj ) __obj;			\
-	typeof ( exp ) __result;		\
-						\
-	__obj = ( obj );			\
-	assert( "nikita-2492", __obj != NULL );	\
-	spin_lock_ ## obj_type ( __obj );	\
-	__result = exp;				\
-	spin_unlock_ ## obj_type ( __obj );	\
-	__result;				\
-})
-
-#define UNDER_SPIN_VOID( obj_type, obj, exp )	\
-({						\
-	typeof ( obj ) __obj;			\
-						\
-	__obj = ( obj );			\
-	assert( "nikita-2492", __obj != NULL );	\
-	spin_lock_ ## obj_type ( __obj );	\
-	exp;					\
-	spin_unlock_ ## obj_type ( __obj );	\
-})
-
-#include "kcond.h"
-#include "dformat.h"
-#include "key.h"
-#include "kassign.h"
-#include "coord.h"
-#include "seal.h"
-#include "tshash.h"
-#include "tslist.h"
-#include "plugin/plugin_header.h"
-#include "plugin/item/static_stat.h"
-#include "plugin/item/internal.h"
-#include "plugin/item/sde.h"
-#include "plugin/item/cde.h"
-#include "plugin/item/extent.h"
-#include "plugin/item/tail.h"
-#include "plugin/file/file.h"
-#include "plugin/symlink.h"
-#include "plugin/dir/hashed_dir.h"
-#include "plugin/dir/dir.h"
-#include "plugin/item/item.h"
-#include "plugin/node/node.h"
-#include "plugin/node/node40.h"
-#include "plugin/security/perm.h"
-
-#include "plugin/oid/oid40.h"
-#include "plugin/oid/oid.h"
-
-#include "plugin/space/bitmap.h"
-#include "plugin/space/test.h"
-#include "plugin/space/space_allocator.h"
-
-#include "plugin/disk_format/disk_format40.h"
-#include "plugin/disk_format/test.h"
-#include "plugin/disk_format/disk_format.h"
-
-#include "plugin/plugin.h"
-#include "plugin/object.h"
-
-#include "txnmgr.h"
-#include "jnode.h"
-#include "znode.h"
-#include "block_alloc.h"
-#include "tree_walk.h"
-#include "pool.h"
-#include "tree_mod.h"
-#include "carry.h"
-#include "carry_ops.h"
-#include "tap.h"
-#include "tree.h"
-
-#include "trace.h"
-
-#include "vfs_ops.h"
-#include "inode.h"
-#include "lnode.h"
-#include "super.h"
-#include "page_cache.h"
-
-#include "wander.h"
-
-#include "ktxnmgrd.h"
 
 #endif /* __REISER4_H__ */
 

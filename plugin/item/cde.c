@@ -60,7 +60,25 @@
  *
  */
 
-#include "../../reiser4.h"
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "../../kassign.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "sde.h"
+#include "cde.h"
+#include "item.h"
+#include "../node/node.h"
+#include "../plugin.h"
+#include "../../znode.h"
+#include "../../carry.h"
+#include "../../tree.h"
+#include "../../inode.h"
+
+#include <linux/fs.h> /* for struct inode */
+#include <linux/dcache.h> /* for struct dentry */
+#include <linux/quotaops.h>
 
 /** return body of compound directory item at @coord */
 /* Audited by: green(2002.06.13) */

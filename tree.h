@@ -9,6 +9,22 @@
 #if !defined( __REISER4_TREE_H__ )
 #define __REISER4_TREE_H__
 
+#include "forward.h"
+#include "debug.h"
+#include "spin_macros.h"
+#include "dformat.h"
+#include "tslist.h"
+#include "plugin/node/node.h"
+#include "plugin/plugin.h"
+#include "jnode.h"
+#include "znode.h"
+#include "tap.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/spinlock.h>
+#include <linux/sched.h> /* for struct task_struct */
+
 /** fictive block number never actually used */
 extern const reiser4_block_nr FAKE_TREE_ADDR;
 

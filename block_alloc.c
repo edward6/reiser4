@@ -2,7 +2,18 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "dformat.h"
+#include "plugin/plugin.h"
+#include "txnmgr.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree.h"
+#include "super.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/spinlock.h>
 
 /*
  *  Block number allocation and free space counting in reiser4 are done in two

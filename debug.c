@@ -6,7 +6,16 @@
  * Debugging/logging/tracing/profiling/statistical facilities.
  */
 
+#include "debug.h"
+#include "znode.h"
+#include "tree.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/slab.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/spinlock.h>
 
 __u32 reiser4_current_trace_flags = 0;
 

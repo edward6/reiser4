@@ -17,7 +17,12 @@
  * could happen at each wait_on_page*() call.
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "tslist.h"
+#include "txnmgr.h"
+
+#include <asm/atomic.h>
+#include <linux/bio.h>
 
 TS_LIST_DEFINE (io_handles, struct reiser4_io_handle, linkage);
 

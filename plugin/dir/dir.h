@@ -9,6 +9,12 @@
 #if !defined( __REISER4_DIR_H__ )
 #define __REISER4_DIR_H__
 
+#include "../../forward.h"
+#include "../../kassign.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct file  */
+
 extern void directory_readahead( struct inode *dir, coord_t *coord );
 
 /** logical position within directory */

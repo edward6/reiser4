@@ -4,7 +4,9 @@
 
 DO NOT COMPILE THIS
 
-#include "reiser4.h"
+#include "debug.h"
+#include <linux/fs.h>
+
 #define REISER4_FIRST_BITMAP_BLOCK 100
 
 

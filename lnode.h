@@ -9,6 +9,16 @@
 #ifndef __LNODE_H__
 #define __LNODE_H__
 
+#include "forward.h"
+#include "dformat.h"
+#include "kcond.h"
+#include "tshash.h"
+#include "plugin/plugin_header.h"
+#include "key.h"
+
+#include <linux/types.h> /* for __u??  */ 
+#include <linux/fs.h> /* for struct super_block, etc.  */
+
 typedef enum {
 	LNODE_INODE,
 	LNODE_PSEUDO,

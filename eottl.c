@@ -2,7 +2,21 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "forward.h"
+#include "debug.h"
+#include "key.h"
+#include "coord.h"
+#include "plugin/item/item.h"
+#include "plugin/node/node.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree_walk.h"
+#include "tree_mod.h"
+#include "carry.h"
+#include "tree.h"
+#include "super.h"
+
+#include <linux/types.h> /* for __u??  */
 
 /*
  * Extents on the twig level (EOTTL) handling.

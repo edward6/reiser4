@@ -9,6 +9,8 @@
 #if !defined( __REISER4_TREE_MOD_H__ )
 #define __REISER4_TREE_MOD_H__
 
+#include "forward.h"
+
 znode *new_node( znode *brother, tree_level level );
 znode *add_tree_root( znode *old_root, znode *fake );
 int kill_tree_root( znode *old_root );

@@ -2,8 +2,18 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../reiser4.h"
+#include "../forward.h"
+#include "../debug.h"
+#include "item/static_stat.h"
+#include "plugin.h"
+#include "../tree.h"
+#include "../vfs_ops.h"
+#include "../inode.h"
 
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct inode */
+
+extern int common_file_save     ( struct inode *inode );
 /*
  * symlink plugin's specific functions
  */

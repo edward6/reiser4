@@ -6,7 +6,20 @@
  * Super-block manipulations.
  */
 
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "plugin/security/perm.h"
+#include "plugin/oid/oid.h"
+#include "plugin/space/space_allocator.h"
+#include "plugin/plugin.h"
+#include "tree.h"
+#include "vfs_ops.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
 
 const __u32 REISER4_SUPER_MAGIC = 0x52345362; /* (*(__u32 *)"R4Sb"); */
 

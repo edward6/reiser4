@@ -79,7 +79,35 @@ design needs to be justified in a seminar on Monday.
  *
 
 */
+
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "coord.h"
+#include "plugin/item/static_stat.h"
+#include "plugin/item/extent.h"
+#include "plugin/file/file.h"
+#include "plugin/item/item.h"
+#include "plugin/node/node.h"
+#include "plugin/plugin.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree_walk.h"
+#include "carry.h"
+#include "carry_ops.h"
+#include "tap.h"
+#include "tree.h"
+#include "trace.h"
+#include "vfs_ops.h"
+#include "page_cache.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/spinlock.h>
 
 /* Long-dead pseudo-code removed Tue Apr 23 17:55:24 MSD 2002. */
 				/* email me the removed pseudo-code -Hans */

@@ -9,6 +9,9 @@
 #if !defined( __REISER4_TAP_H__ )
 #define __REISER4_TAP_H__
 
+#include "forward.h"
+#include "tslist.h"
+
 TS_LIST_DECLARE( tap );
 
 struct tree_access_pointer {

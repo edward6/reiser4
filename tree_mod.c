@@ -6,7 +6,21 @@
  * Functions to add/delete new nodes to/from the tree
  */
 
-#include "reiser4.h"
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "coord.h"
+#include "plugin/plugin.h"
+#include "jnode.h"
+#include "znode.h"
+#include "tree_mod.h"
+#include "block_alloc.h"
+#include "tree_walk.h"
+#include "tree.h"
+#include "super.h"
+
+#include <linux/err.h>
 
 static int add_child_ptr( znode *parent, znode *child );
 

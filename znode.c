@@ -156,7 +156,25 @@
  *
  */
 
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "coord.h"
+#include "plugin/plugin_header.h"
+#include "plugin/node/node.h"
+#include "plugin/plugin.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/pagemap.h>
+#include <linux/spinlock.h>
+#include <linux/slab.h>
+#include <linux/err.h>
 
 /* hash table support */
 

@@ -14,7 +14,22 @@
  *
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "dformat.h"
+#include "plugin/plugin_header.h"
+#include "plugin/plugin.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "tree.h"
+#include "tree_walk.h"
+#include "super.h"
+#include "page_cache.h"
+
+#include <linux/types.h>
+#include <linux/slab.h>
+#include <linux/pagemap.h>
+#include <linux/fs.h> /* for struct address_space  */
 
 static kmem_cache_t *_jnode_slab = NULL;
 

@@ -11,6 +11,8 @@
 
 /* plugin data-types and constants */
 
+#include "../tslist.h"
+
 typedef enum {
 	REISER4_FILE_PLUGIN_TYPE,
 	REISER4_DIR_PLUGIN_TYPE,

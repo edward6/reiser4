@@ -6,7 +6,21 @@
  * stat data manipulation.
  */
 
-#include "../../reiser4.h"
+#include "../../forward.h"
+#include "../plugin.h"
+#include "../plugin_header.h"
+#include "static_stat.h"
+#include "../../super.h"
+#include "../../vfs_ops.h"
+#include "../../inode.h"
+#include "../object.h"
+#include "../../debug.h"
+#include "item.h"
+#include "static_stat.h"
+#include "../../dformat.h"
+
+#include <linux/types.h>
+#include <linux/fs.h>
 
 /* see static_stat.h for explanation */
 

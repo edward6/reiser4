@@ -7,7 +7,16 @@
  * Tracing facility. Copied from reiserfs v3.x patch, never released
  */
 
-#include "reiser4.h"
+#include "forward.h"
+#include "debug.h"
+#include "key.h"
+#include "trace.h"
+#include "super.h"
+
+#include <asm/uaccess.h>
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/slab.h>
 
 #if REISER4_TRACE_TREE
 

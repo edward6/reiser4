@@ -2,7 +2,29 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+
+#include "../../forward.h"
+#include "../../debug.h"
+
+#include "../../dformat.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "../plugin_header.h"
+#include "../item/item.h"
+#include "node.h"
+#include "node40.h"
+#include "../plugin.h"
+#include "../../jnode.h"
+#include "../../znode.h"
+#include "../../pool.h"
+#include "../../carry.h"
+#include "../../tap.h"
+#include "../../tree.h"
+#include "../../super.h"
 #include "../../reiser4.h"
+
+#include <asm/uaccess.h>
+#include <linux/types.h>
 
 /*
   leaf 40 format:

@@ -12,9 +12,16 @@
  * - declarations of functions used to get/set fields in layout 40 super block
  */
 
+#ifndef __DISK_FORMAT40_H__
+#define __DISK_FORMAT40_H__
+
 /* magic for default reiser4 layout */
 #define FORMAT40_MAGIC "R4Sb-Default"
 #define FORMAT40_OFFSET (65536 + 4096)
+
+#include "../../dformat.h"
+
+#include <linux/fs.h> /* for struct super_block  */
 
 /* ondisk super block for format 40. It is 512 bytes long */
 typedef struct format40_disk_super_block {	
@@ -51,4 +58,8 @@ const reiser4_key * format40_root_dir_key (const struct super_block *);
 int                 format40_release      (struct super_block * s);
 jnode             * format40_log_super    (struct super_block * s);
 void                format40_print_info   (const struct super_block * s);
+
+/* __DISK_FORMAT40_H__ */
+#endif
+
 

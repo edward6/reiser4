@@ -9,6 +9,13 @@
 #if !defined( __KASSIGN_H__ )
 #define __KASSIGN_H__
 
+#include "forward.h"
+#include "key.h"
+#include "dformat.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block, etc  */
+#include <linux/dcache.h> /* for struct qstr */
 /* key assignment functions */ 
 
 /**

@@ -47,6 +47,17 @@
      adjusting the item headers after the move is done using the node handler.
 */
 
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "../plugin_header.h"
+#include "../item/item.h"
+#include "node.h"
+#include "../plugin.h"
+#include "../../znode.h"
+#include "../../tree.h"
+#include "../../super.h"
 #include "../../reiser4.h"
 
 /**

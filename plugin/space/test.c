@@ -2,7 +2,15 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../../super.h"
+#include "../../block_alloc.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "space_allocator.h"
+#include "test.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
 
 /*
  * this file contains:

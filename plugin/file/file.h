@@ -10,6 +10,13 @@
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
+#include "../../forward.h"
+#include "../../seal.h"
+
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct file  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/buffer_head.h> /* for struct buffer_head */
 
 void get_exclusive_access      (struct inode * inode);
 void drop_exclusive_access     (struct inode * inode);

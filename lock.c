@@ -323,7 +323,16 @@
  *   4. before releasing znode spinlock, call lock_object() as before.  */
 
 
-#include "reiser4.h"
+
+#include "debug.h"
+#include "txnmgr.h"
+#include "znode.h"
+#include "jnode.h"
+#include "tree.h"
+#include "plugin/node/node.h"
+#include "super.h"
+
+#include <linux/spinlock.h>
 
 /**
  * Returns a lock owner associated with current thread

@@ -9,6 +9,11 @@
 #if !defined( __FS_REISER4_PLUGIN_OBJECT_H__ )
 #define __FS_REISER4_PLUGIN_OBJECT_H__
 
+#include "../forward.h"
+
+#include <linux/fs.h> /* for struct inode */
+#include <linux/types.h>
+
 extern int lookup_sd            ( struct inode *inode, znode_lock_mode lock_mode,
 				  coord_t *coord, lock_handle *lh, 
 				  reiser4_key *key );
@@ -40,4 +45,3 @@ extern int common_file_owns_item( const struct inode *inode,
  * fill-column: 120
  * End:
  */
-

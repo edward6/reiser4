@@ -9,6 +9,17 @@
 #if !defined( __FS_REISER4_VFS_OPS_H__ )
 #define __FS_REISER4_VFS_OPS_H__
 
+#include "forward.h"
+#include "coord.h"
+#include "seal.h"
+#include "tslist.h"
+#include "plugin/dir/dir.h"
+
+#include <linux/types.h> /* for loff_t */
+#include <linux/fs.h> /* for struct address_space */
+#include <linux/dcache.h> /* for struct dentry */
+#include <linux/mm.h>
+
 extern int reiser4_write_sd ( struct inode *object );
 extern int reiser4_add_nlink( struct inode *, struct inode *, int );
 extern int reiser4_del_nlink( struct inode *, struct inode *, int );

@@ -2,7 +2,26 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "coord.h"
+#include "seal.h"
+#include "plugin/item/item.h"
+#include "plugin/node/node.h"
+#include "plugin/plugin.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree_walk.h"
+#include "tree.h"
+#include "trace.h"
 #include "reiser4.h"
+#include "super.h"
+
+#include <linux/slab.h>
+
 /* rules for locking during searches: never insert before the first
    item in a node without locking the left neighbor and the patch to
    the common parent from the node and left neighbor.  This ensures

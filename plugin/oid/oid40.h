@@ -12,6 +12,15 @@
  * oid allocation. Also counter of used oids is maintained, mainly for
  * statfs(2) sake.
  */
+#ifndef __REISER4_OID40_H__
+#define __REISER4_OID40_H__
+
+#include "../../forward.h"
+#include "../../key.h"
+
+#include <linux/types.h>  /* for __u??  */
+#include <linux/spinlock.h>
+
 typedef struct {
 	/**
 	 * spinlock serializing accesses to this structure.
@@ -42,4 +51,7 @@ extern int   oid40_reserve_allocate( reiser4_oid_allocator * );
 extern int   oid40_reserve_release ( reiser4_oid_allocator * );
 
 extern void  oid40_print_info      ( const char *, reiser4_oid_allocator * );
+
+/* __REISER4_OID40_H__ */
+#endif
 

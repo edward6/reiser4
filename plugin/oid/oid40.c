@@ -2,7 +2,12 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../../debug.h"
+#include "../../key.h"
+#include "oid40.h"
+#include "oid.h"
+
+#include <linux/types.h> /* for __u??  */
 
 /*
  * Object-id manipulations.

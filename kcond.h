@@ -10,6 +10,9 @@
 #ifndef __KCOND_H__
 #define __KCOND_H__
 
+#include <linux/spinlock.h>
+#include <asm/semaphore.h>
+
 typedef struct kcond_queue_link_s kcond_queue_link_t;
 
 /** condition variable */

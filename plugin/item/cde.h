@@ -9,6 +9,13 @@
 #if !defined( __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ )
 #define __FS_REISER4_PLUGIN_COMPRESSED_DE_H__
 
+#include "../../forward.h"
+#include "../../kassign.h"
+#include "../../dformat.h"
+
+#include <linux/fs.h> /* for struct inode */
+#include <linux/dcache.h> /* for struct dentry, etc  */
+
 typedef struct cde_unit_header {
 	de_id hash;
 	d16   offset;

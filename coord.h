@@ -8,6 +8,10 @@
 #if !defined( __REISER4_NEW_COORD_H__ )
 #define __REISER4_NEW_COORD_H__
 
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+
 /**
  * insertions happen between coords in the tree, so we need some means
  * of specifying the sense of betweenness.

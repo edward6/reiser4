@@ -136,7 +136,26 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *
  */
 
+#include "forward.h"
+#include "debug.h"
+#include "key.h"
+#include "coord.h"
+#include "plugin/item/item.h"
+#include "plugin/item/extent.h"
+#include "plugin/node/node.h"
+#include "jnode.h"
+#include "znode.h"
+#include "tree_mod.h"
+#include "tree_walk.h"
+#include "block_alloc.h"
+#include "pool.h"
+#include "tree.h"
+#include "carry.h"
+#include "carry_ops.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/types.h>
 
 /* level locking/unlocking */
 static int lock_carry_level( carry_level *level );

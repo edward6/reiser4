@@ -7,7 +7,12 @@
  * Key manipulations.
  */
 
+#include "debug.h"
+#include "key.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/types.h> /* for __u??  */
 
 /**
  * Minimal possible key: all components are zero. It is presumed that this is

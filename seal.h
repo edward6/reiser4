@@ -9,6 +9,16 @@
 #ifndef __SEAL_H__
 #define __SEAL_H__
 
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "coord.h"
+
+
+/* for __u?? types */
+#include <linux/types.h>
+
 /** seal. See comment at the top of seal.c */
 typedef struct seal_s { 
 	/** version of znode recorder at the time of seal creation */

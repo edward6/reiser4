@@ -5,6 +5,14 @@
 /*
  * plugin->u.item.common.*
  */
+
+#if !defined( __REISER4_TAIL_H__ )
+#define __REISER4_TAIL_H__
+
+#include "../../forward.h"
+#include "../../seal.h"
+#include <linux/fs.h> /* for struct inode */
+
 reiser4_key * tail_max_key_inside  (const coord_t *, reiser4_key *);
 int           tail_can_contain_key (const coord_t *coord,
 				    const reiser4_key *key,
@@ -40,3 +48,5 @@ int tail_write (struct inode *, struct sealed_coord *, flow_t *,
 		struct page *);
 int tail_read  (struct inode *, struct sealed_coord *, flow_t *);
 
+/* __REISER4_TAIL_H__ */
+#endif

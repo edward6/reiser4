@@ -172,7 +172,26 @@
  *
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree.h"
+#include "vfs_ops.h"
+#include "inode.h"
+#include "super.h"
+#include "page_cache.h"
+#include "ktxnmgrd.h"
+
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/mm.h> /* for struct page */
+#include <linux/pagemap.h>
+#include <linux/bio.h>
+#include <linux/writeback.h>
 
 static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp );
 

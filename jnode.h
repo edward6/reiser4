@@ -9,6 +9,22 @@
 #ifndef __JNODE_H__
 #define __JNODE_H__
 
+#include "forward.h"
+#include "tshash.h"
+#include "tslist.h"
+#include "txnmgr.h"
+#include "plugin/plugin.h"
+#include "debug.h"
+#include "dformat.h"
+#include "spin_macros.h"
+
+#include <linux/fs.h>
+#include <linux/mm.h>
+#include <linux/spinlock.h>
+#include <asm/atomic.h>
+#include <asm/bitops.h>
+#include <linux/list.h>
+
 /** 
  * declare hash table of jnodes (jnodes proper, that is, unformatted
  * nodes) 

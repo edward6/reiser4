@@ -2,7 +2,16 @@
  * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../plugin.h"
+#include "../plugin_header.h"
+#include "../../debug.h"
+
+#include "../../super.h"
+#include "../../key.h"
+#include "../../txnmgr.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
 
 /* a wrapper for allocate_oid method of oid_allocator plugin */
 int oid_allocate( oid_t *oid )

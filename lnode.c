@@ -80,7 +80,17 @@
  *
  */
 
+#include "debug.h"
+#include "kcond.h"
+#include "key.h"
+#include "kassign.h"
+#include "plugin/plugin_header.h"
+#include "lnode.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/spinlock.h>
 
 static reiser4_key *lnode_inode_key( const lnode *node, reiser4_key *result );
 static reiser4_key *lnode_lw_key( const lnode *node, reiser4_key *result );

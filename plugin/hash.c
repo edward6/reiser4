@@ -6,7 +6,12 @@
  * Hash functions
  */
 
-#include "../reiser4.h"
+#include "../debug.h"
+#include "plugin_header.h"
+#include "plugin.h"
+#include "../super.h"
+
+#include <linux/types.h>
 
 /** old rupasov (yura) hash */
 static __u64 rupasov_hash( const unsigned char *name /* name to hash */, 

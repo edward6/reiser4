@@ -3,7 +3,12 @@
 /* This file contains code for various block number sets used by the atom to
  * track the deleted set and wandered block mappings. */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "dformat.h"
+#include "tslist.h"
+#include "txnmgr.h"
+
+#include <linux/slab.h>
 
 /* The proposed data structure for storing unordered block number sets is a
  * list of elements, each of which contains an array of block number or/and

@@ -2,6 +2,19 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#ifndef __REISER4_EXTENT_H__
+#define __REISER4_EXTENT_H__
+
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "item.h"
+#include "../../seal.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/mm.h> /* for struct page */
+
 /* on disk extent */
 typedef struct {
 	reiser4_dblock_nr start;
@@ -142,6 +155,8 @@ __u64 extent_unit_width   (const coord_t *item); /* Number of blocks in this uni
 reiser4_block_nr extent_unit_start (const coord_t *item); /* Starting block location of this unit. */
 void  extent_get_inode    (const coord_t *item, struct inode **inode); /* Get the inode: you must iput() it. */
 
+/* __REISER4_EXTENT_H__ */
+#endif
 /* 
  * Local variables:
  * c-indentation-style: "K&R"

@@ -2,7 +2,23 @@
  * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "../../key.h"
+#include "../node/node.h"
+#include "../space/space_allocator.h"
+#include "disk_format40.h"
+#include "../oid/oid.h"
+#include "../plugin.h"
+#include "../../txnmgr.h"
+#include "../../jnode.h"
+#include "../../tree.h"
+#include "../../super.h"
+#include "../../wander.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/buffer_head.h>
 
 /*
  * reiser 4.0 default disk layout

@@ -5,6 +5,12 @@
 #if !defined (__FS_REISER4_BLOCK_ALLOC_H__)
 #define __FS_REISER4_BLOCK_ALLOC_H__
 
+#include "dformat.h"
+#include "forward.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h>
+
 /* Mask when is applied to given block number shows is that block number is a fake one */
 #define REISER4_FAKE_BLOCKNR_BIT_MASK   0x8000000000000000ULL
 /* Mask which isolates a type of object this fake block number was assigned to */

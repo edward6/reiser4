@@ -12,6 +12,18 @@
  * handler, and all of the item specific portions of the item handler are put
  * into a union. */
 
+#if !defined( __REISER4_ITEM_H__ )
+#define __REISER4_ITEM_H__
+
+#include "../../forward.h"
+#include "../plugin_header.h"
+#include "../../dformat.h"
+#include "../../seal.h"
+
+#include <linux/fs.h> /* for struct file, struct inode  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/dcache.h> /* for struct dentry */
+
 typedef enum { 
 	STAT_DATA_ITEM_TYPE,
 	DIR_ENTRY_ITEM_TYPE,
@@ -333,6 +345,8 @@ extern item_id item_id_by_coord( const coord_t *coord /* coord to query */ );
 extern reiser4_key *item_key_by_coord( const coord_t *coord, reiser4_key *key );
 extern reiser4_key *unit_key_by_coord( const coord_t *coord, reiser4_key *key );
 
+/* __REISER4_ITEM_H__ */
+#endif
 /* 
  * Make Linus happy.
  * Local variables:

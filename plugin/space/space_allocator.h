@@ -1,7 +1,11 @@
 /*
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
+#ifndef __SPACE_ALLOCATOR_H__
+#define __SPACE_ALLOCATOR_H__
 
+#include "../../forward.h"
+#include "test.h"
 
 /* identifiers of available space allocators */
 typedef enum {
@@ -18,3 +22,7 @@ struct reiser4_space_allocator {
 		void * generic;
 	} u;
 };
+
+
+/* __SPACE_ALLOCATOR_H__ */
+#endif

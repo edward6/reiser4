@@ -2,8 +2,31 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../key.h"
+#include "../../kassign.h"
+#include "../../coord.h"
+#include "../../seal.h"
+#include "../plugin_header.h"
+#include "../item/item.h"
+#include "file.h"
+#include "../plugin.h"
+#include "../object.h"
+#include "../../txnmgr.h"
+#include "../../jnode.h"
+#include "../../znode.h"
+#include "../../tree_walk.h"
+#include "../../tree.h"
+#include "../../vfs_ops.h"
+#include "../../inode.h"
+#include "../../super.h"
 
-#include "../../reiser4.h"
+#include <linux/pagemap.h>
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct file  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/buffer_head.h> /* for struct buffer_head */
 
 /* this file contains:
  * - file_plugin methods of reiser4 unix file (REGULAR_FILE_PLUGIN_ID)

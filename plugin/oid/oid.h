@@ -1,6 +1,14 @@
 /*
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
+#ifndef __REISER4_OID_H__
+#define __REISER4_OID_H__
+
+#include "../../forward.h"
+#include "../../key.h"
+#include "oid40.h"
+
+#include <linux/fs.h> /* for struct super_block */
 
 extern __u64 oid_used          ( void );
 extern __u64 oid_next          ( void );
@@ -32,3 +40,6 @@ struct reiser4_oid_allocator {
 		oid40_allocator oid40;
 	} u;
 };
+
+/* __REISER4_OID_H__ */
+#endif

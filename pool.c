@@ -46,7 +46,12 @@
  *
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "pool.h"
+#include "super.h"
+
+#include <linux/types.h>
+#include <linux/err.h>
 
 /**
  * initialise new pool object

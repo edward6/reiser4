@@ -150,8 +150,24 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
  * different blocks.
  */
 
-
+#include "debug.h"
+#include "dformat.h"
+#include "plugin/oid/oid.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "page_cache.h"
+#include "wander.h"
 #include "reiser4.h"
+#include "super.h"
+
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/pagemap.h>
+#include <linux/bio.h> /* for struct bio */
+#include <linux/blkdev.h>
 
 int WRITE_LOG = 1;		/* journal is written by default  */
 

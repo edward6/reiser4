@@ -173,7 +173,19 @@
  *
  */
 
+#include "../debug.h"
+#include "../dformat.h"
+#include "plugin_header.h"
+#include "item/static_stat.h"
+#include "node/node.h"
+#include "security/perm.h"
+#include "oid/oid.h"
+#include "space/space_allocator.h"
+#include "disk_format/disk_format.h"
+#include "plugin.h"
 #include "../reiser4.h"
+
+#include <linux/fs.h> /* for struct super_block  */
 
 /* plugin type representation. Nobody outside of this file
    should care about this, so define it right here. */

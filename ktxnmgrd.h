@@ -9,6 +9,15 @@
 #ifndef __KTXNMGRD_H__
 #define __KTXNMGRD_H__
 
+#include "kcond.h"
+#include "txnmgr.h"
+
+#include <linux/fs.h>
+#include <linux/completion.h>
+#include <linux/spinlock.h>
+#include <asm/atomic.h>
+#include <linux/sched.h> /* for struct task_struct */
+
 struct ktxnmgrd_context {
 	kcond_t             startup;
 	struct completion   finish;

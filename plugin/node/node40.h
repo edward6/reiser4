@@ -2,6 +2,14 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#if !defined( __REISER4_NODE40_H__ )
+#define __REISER4_NODE40_H__
+
+#include "../../forward.h"
+#include "../../dformat.h"
+#include "node.h"
+
+#include <linux/types.h>
 
 typedef d16 node40_offset;
 
@@ -128,6 +136,8 @@ int                node40_prepare_for_removal( znode * empty,
 
 void update_znode_dkeys (znode * left, znode * right);
 
+/* __REISER4_NODE40_H__ */
+#endif
 /* 
  * Local variables:
  * c-indentation-style: "K&R"

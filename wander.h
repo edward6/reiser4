@@ -3,6 +3,10 @@
 #if !defined (__FS_REISER4_WANDER_H__)
 #define __FS_REISER4_WANDER_H__
 
+#include "dformat.h"
+
+#include <linux/fs.h> /* for struct super_block  */
+
 /*****************************************************************************************
                             REISER4 JOURNAL ON-DISK DATA STRUCTURES  
  *****************************************************************************************/

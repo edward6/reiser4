@@ -83,7 +83,18 @@ pointers in the nodes that they point to.
    Someone else can do the code for the exchanging disks and make it
    complex. It would not be that hard.  Using other than the PAGE_SIZE
    might be suboptimal.  y*/
+
+#if !defined( __REISER4_NODE_H__ )
+#define __REISER4_NODE_H__
+
 #define LEAF40_NODE_SIZE PAGE_CACHE_SIZE
+
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "../plugin_header.h"
+
+#include <linux/types.h>
 
 typedef enum { 
 	NS_FOUND = 0, 
@@ -312,7 +323,8 @@ typedef struct common_node_header {
 	/** number of items */
 	d16            nr_items;
 } common_node_header;
-
+/* __REISER4_NODE_H__ */
+#endif
 /* 
  * Local variables:
  * c-indentation-style: "K&R"

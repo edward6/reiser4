@@ -2,7 +2,13 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "tree.h"
+#include "plugin/item/item.h"
+#include "znode.h"
+#include "coord.h"
 
 /* Internal constructor. */
 /* Audited by: green(2002.06.15) */

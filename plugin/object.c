@@ -54,8 +54,33 @@
  
 */
 
+#include "../forward.h"
+#include "../debug.h"
+#include "../key.h"
+#include "../kassign.h"
+#include "../coord.h"
+#include "../seal.h"
+#include "plugin_header.h"
+#include "item/static_stat.h"
+#include "file/file.h"
+#include "symlink.h"
+#include "dir/dir.h"
+#include "item/item.h"
+#include "oid/oid.h"
+#include "plugin.h"
+#include "object.h"
+#include "../znode.h"
+#include "../tap.h"
+#include "../tree.h"
+#include "../vfs_ops.h"
+#include "../inode.h"
+#include "../super.h"
 #include "../reiser4.h"
 
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/dcache.h>
+#include <linux/quotaops.h> 
 
 /** helper function to print errors */
 static void key_warning( const char *error_message /* message to print */, 

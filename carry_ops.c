@@ -2,7 +2,26 @@
 
 /* implementation of carry operations */
 
+#include "forward.h"
+#include "debug.h"
+#include "key.h"
+#include "coord.h"
+#include "plugin/item/item.h"
+#include "plugin/node/node.h" 
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree_walk.h"
+#include "pool.h"
+#include "tree_mod.h"
+#include "carry.h"
+#include "carry_ops.h"
+#include "tree.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/types.h>
+#include <linux/err.h>
 
 static int carry_shift_data( sideof side, coord_t *insert_coord, znode *node,
 			     carry_level *doing, carry_level *todo, 

@@ -40,7 +40,12 @@
  *
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "kcond.h"
+#include "spin_macros.h"
+
+#include <linux/timer.h>
+#include <linux/spinlock.h>
 
 static void kcond_timeout( unsigned long datum );
 static void kcond_remove( kcond_t *cvar, kcond_queue_link_t *link );

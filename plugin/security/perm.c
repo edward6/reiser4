@@ -6,7 +6,13 @@
  * definition of item plugins.
  */
 
-#include "../../reiser4.h"
+#include "../plugin.h"
+#include "../plugin_header.h"
+#include "../../debug.h"
+
+#include <linux/fs.h>
+#include <linux/dcache.h> /* for struct dentry */
+#include <linux/quotaops.h>
 
 static int common_setattr_ok( struct dentry *dentry, struct iattr *attr )
 {

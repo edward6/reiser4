@@ -6,7 +6,22 @@
  * Implementation of internal-item plugin methods.
  */
 
-#include "../../reiser4.h"
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "internal.h"
+#include "item.h"
+#include "../node/node.h"
+#include "../plugin.h"
+#include "../../jnode.h"
+#include "../../znode.h"
+#include "../../tree_walk.h"
+#include "../../tree_mod.h"
+#include "../../tree.h"
+#include "../../super.h"
+#include "../../block_alloc.h"
 
 /* see internal.h for explanation */
 

@@ -8,6 +8,12 @@
 #if !defined( __REISER4_PAGE_CACHE_H__ )
 #define __REISER4_PAGE_CACHE_H__
 
+#include "forward.h"
+#include "debug.h"
+
+#include <linux/fs.h> /* for struct super_block, address_space  */
+#include <linux/mm.h> /* for struct page  */
+
 extern int init_fakes( void );
 extern int init_formatted_fake( struct super_block *super );
 extern int done_formatted_fake( struct super_block *super );

@@ -9,6 +9,20 @@
 #if !defined( __REISER4_INODE_H__ )
 #define __REISER4_INODE_H__
 
+#include "forward.h"
+#include "debug.h"
+#include "spin_macros.h"
+#include "key.h"
+#include "seal.h"
+#include "plugin/plugin.h"
+#include "plugin/security/perm.h"
+#include "vfs_ops.h"
+
+#include <linux/types.h> /* for __u?? , ino_t */
+#include <linux/fs.h> /* for struct super_block, struct rw_semaphore, etc  */
+#include <linux/spinlock.h>
+#include <asm/types.h>
+
 /** reiser4-specific inode flags */
 typedef enum { 
 	/** 

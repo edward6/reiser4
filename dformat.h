@@ -19,6 +19,12 @@
 #if !defined( __FS_REISER4_DFORMAT_H__ )
 #define __FS_REISER4_DFORMAT_H__
 
+#include "debug.h"
+
+#include <asm/byteorder.h>
+#include <asm/unaligned.h>
+#include <linux/types.h>
+
 /* our default disk byteorder is little endian */
 
 #if defined( __LITTLE_ENDIAN )

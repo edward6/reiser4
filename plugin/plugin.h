@@ -10,6 +10,43 @@
 #if !defined( __FS_REISER4_PLUGIN_TYPES_H__ )
 #define __FS_REISER4_PLUGIN_TYPES_H__
 
+#include "../forward.h"
+#include "../debug.h"
+#include "../dformat.h"
+#include "../key.h"
+#include "../tslist.h"
+#include "plugin_header.h"
+#include "item/static_stat.h"
+#include "item/internal.h"
+#include "item/sde.h"
+#include "item/cde.h"
+#include "item/extent.h"
+#include "item/tail.h"
+#include "file/file.h"
+#include "symlink.h"
+#include "dir/hashed_dir.h"
+#include "dir/dir.h"
+#include "item/item.h"
+#include "node/node.h"
+#include "node/node40.h"
+#include "security/perm.h"
+
+#include "oid/oid40.h"
+#include "oid/oid.h"
+
+#include "space/bitmap.h"
+#include "space/test.h"
+#include "space/space_allocator.h"
+
+#include "disk_format/disk_format40.h"
+#include "disk_format/test.h"
+#include "disk_format/disk_format.h"
+
+#include <linux/fs.h> /* for struct super_block, address_space  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/buffer_head.h> /* for struct buffer_head */
+#include <linux/dcache.h> /* for struct dentry */
+#include <linux/types.h>
 
 /* a flow is a sequence of bytes being written to or read from the tree.  The
    tree will slice the flow into items while storing it into nodes, but all of

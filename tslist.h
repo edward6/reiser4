@@ -4,6 +4,8 @@
 #ifndef __REISER4_TSLIST_H__
 #define __REISER4_TSLIST_H__
 
+#include "reiser4.h"
+
 /* A circular doubly linked list that differs from the previous
  * <linux/list.h> implementation because it is parametrized to provide
  * type safety.  This data structure is also useful as a queue or stack.

@@ -8,6 +8,12 @@
 #if !defined( __REISER4_KEY_H__ )
 #define __REISER4_KEY_H__
 
+#include "dformat.h"
+#include "forward.h"
+#include "debug.h"
+
+#include <linux/types.h> /* for __u??  */
+
 /* Operations on keys in reiserfs tree */
 
 /* No access to any of these fields shall be done except via a

@@ -2,7 +2,15 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#ifndef __DISK_FORMAT_TEST_H__
+#define __DISK_FORMAT_TEST_H__
+
 #define TEST_MAGIC "TestLay"
+
+#include "../../dformat.h"
+#include "../../key.h"
+
+#include <linux/fs.h> /* for struct super_block  */
 
 /* ondisk super block for test layout */
 typedef struct test_disk_super_block {
@@ -41,3 +49,17 @@ int                 test_format_get_ready    (struct super_block *, void * data)
 const reiser4_key * test_format_root_dir_key (const struct super_block *);
 int                 test_format_release      (struct super_block *);
 void                test_format_print_info   (const struct super_block *);
+
+/* __DISK_FORMAT_TEST_H__ */
+#endif
+
+/*
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * End:
+ */

@@ -20,6 +20,11 @@ reiser4 is working, then fix it...:-)
 #if !defined( __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__ )
 #define __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__
 
+#include "../../forward.h"
+#include "../../dformat.h"
+
+#include <linux/fs.h> /* for struct inode */
+
 /* Stat data layout: goals and implementation.  
 
    Reiser4 should support extensible means to store attributes with each

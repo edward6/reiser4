@@ -5,7 +5,17 @@
  * Transaction manager daemon.
  */
 
+#include "debug.h"
+#include "kcond.h"
+#include "txnmgr.h"
+#include "tree.h"
+#include "ktxnmgrd.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/sched.h> /* for struct task_struct */
+#include <linux/suspend.h>
+#include <linux/kernel.h>
 
 static int scan_mgr( txn_mgr *mgr );
 

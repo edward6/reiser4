@@ -6,7 +6,15 @@
  * Key assignment policy implementation
  */
 
-#include "reiser4.h"
+#include "debug.h"
+#include "key.h"
+#include "kassign.h"
+#include "vfs_ops.h"
+#include "inode.h"
+#include "super.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block, etc  */
 
 #define OID_CHARS ( sizeof( __u64 ) - 1 )
 

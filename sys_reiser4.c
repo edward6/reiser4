@@ -13,6 +13,8 @@
 /*#include "parser/parser.h"*/
 #include "parser/y.tab.c"
 
+#include <linux/slab.h>
+
 
 int yywrap()
 {

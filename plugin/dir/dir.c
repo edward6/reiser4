@@ -11,7 +11,29 @@
    directory read-ahead code, but I am not sure how well this can be
    done.  */
 
-#include "../../reiser4.h"
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../spin_macros.h"
+#include "../plugin_header.h"
+#include "../../key.h"
+#include "../../kassign.h"
+#include "../../coord.h"
+#include "../../tslist.h"
+#include "../plugin.h"
+#include "dir.h"
+#include "../item/item.h"
+#include "../security/perm.h"
+#include "../../jnode.h"
+#include "../../znode.h"
+#include "../../tap.h"
+#include "../../vfs_ops.h"
+#include "../../inode.h"
+#include "../../super.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct file  */
+#include <linux/quotaops.h> 
+#include <linux/dcache.h> /* for struct dentry */
 
 /*
  * Directory read-ahead control.

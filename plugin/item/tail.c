@@ -2,8 +2,19 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "../file/file.h"
+#include "item.h"
+#include "../plugin.h"
+#include "../../znode.h"
+#include "../../tree.h"
 
+#include <linux/fs.h> /* for struct inode */
+#include <linux/quotaops.h>
+#include <asm/uaccess.h>
 
 /*
  * plugin->u.item.b.max_key_inside

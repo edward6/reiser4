@@ -2,8 +2,20 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "../plugin.h"
+#include "../../txnmgr.h"
+#include "../../jnode.h"
+#include "../../block_alloc.h"
+#include "../../tree.h"
+#include "space_allocator.h"
 #include "bitmap.h"
+#include "../../super.h"
+
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct super_block  */
+#include <asm/semaphore.h>
 
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. */

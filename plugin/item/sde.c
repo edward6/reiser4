@@ -5,8 +5,22 @@
 /*
  * Directory entry implementation
  */
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../dformat.h"
+#include "../../kassign.h"
+#include "../../coord.h"
+#include "sde.h"
+#include "item.h"
+#include "../plugin.h"
+#include "../../znode.h"
+#include "../../carry.h"
+#include "../../tree.h"
+#include "../../inode.h"
 
-#include "../../reiser4.h"
+#include <linux/fs.h> /* for struct inode */
+#include <linux/dcache.h> /* for struct dentry */
+#include <linux/quotaops.h>
 
 #if REISER4_DEBUG_OUTPUT
 /* Audited by: green(2002.06.14) */

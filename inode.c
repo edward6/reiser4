@@ -6,7 +6,23 @@
  * Inode specific operations.
  */
 
+#include "forward.h"
+#include "debug.h"
+#include "key.h"
+#include "kassign.h"
+#include "coord.h"
+#include "seal.h"
+#include "plugin/item/item.h"
+#include "plugin/security/perm.h"
+#include "plugin/plugin.h"
+#include "plugin/object.h"
+#include "znode.h"
+#include "vfs_ops.h"
+#include "inode.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/fs.h> /* for struct super_block,  address_space */
 
 /** return pointer to reiser4-specific part of inode */
 /* Audited by: green(2002.06.17) */

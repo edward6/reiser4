@@ -2,8 +2,11 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
+#include "../plugin_header.h"
+#include "../plugin.h"
 #include "bitmap.h"
+#include "test.h"
+#include "space_allocator.h"
 
 /* initialization of objectid space allocator plugins */
 space_allocator_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {

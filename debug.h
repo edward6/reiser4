@@ -9,6 +9,20 @@
 #if !defined( __FS_REISER4_DEBUG_H__ )
 #define __FS_REISER4_DEBUG_H__
 
+#include "forward.h"
+#include "reiser4.h"
+ 
+#ifdef __KERNEL__
+/* for __u?? types */
+#include <linux/types.h>
+/* for struct super_block, etc */
+#include <linux/fs.h>
+/* for in_interrupt() */
+#include <asm/hardirq.h>
+#endif
+ 
+#include <linux/sched.h>
+
 /** basic debug/logging output macro. "label" is unfamous "maintainer-id" */
 
 /** generic function to produce formatted output, decorating it with

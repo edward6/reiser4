@@ -9,6 +9,10 @@
 #if !defined( __CARRY_OPS_H__ )
 #define __CARRY_OPS_H__
 
+#include "forward.h"
+#include "znode.h"
+#include "carry.h"
+
 /*
  * carry operation handlers
  */

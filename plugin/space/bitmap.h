@@ -5,7 +5,12 @@
 #if !defined (__REISER4_PLUGIN_SPACE_BITMAP_H__)
 #define __REISER4_PLUGIN_SPACE_BITMAP_H__
 
-#include "../../reiser4.h"
+#include "../../dformat.h"
+#include "space_allocator.h"
+#include "../../block_alloc.h"
+
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct super_block  */
 
 /* declarations of functions implementing methods of space allocator plugin for
  * bitmap based allocator. The functions theirself are in bitmap.c */

@@ -14,7 +14,12 @@
  *
  */
 
-#include "../reiser4.h"
+#include "../tree.h"
+#include "plugin.h"
+#include "plugin_header.h"
+
+#include <linux/pagemap.h>
+#include <linux/fs.h> /* For struct inode */
 
 /** Never store file's tail as direct item */
 /* Audited by: green(2002.06.12) */

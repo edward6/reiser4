@@ -9,6 +9,14 @@
 #if !defined( __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ )
 #define __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__
 
+#include "../../forward.h"
+#include "../../dformat.h"
+#include "../../kassign.h"
+#include "../../key.h"
+
+#include <linux/fs.h>
+#include <linux/dcache.h> /* for struct dentry */
+
 typedef struct directory_entry_format {
 	/**
 	 * key of object stat-data. It's not necessary to store whole

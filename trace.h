@@ -10,6 +10,13 @@
 #if !defined( __REISER4_TRACE_H__ )
 #define __REISER4_TRACE_H__
 
+#include "forward.h"
+#include "debug.h"
+
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct super_block, etc  */
+#include <asm/semaphore.h>
+
 typedef enum { log_to_file, log_to_console, log_to_bucket } trace_file_type;
 
 #if REISER4_TRACE_TREE

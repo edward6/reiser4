@@ -7,7 +7,41 @@
  * are defined here.
  */
 
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "coord.h"
+#include "plugin/item/item.h"
+#include "plugin/file/file.h"
+#include "plugin/security/perm.h"
+#include "plugin/oid/oid.h"
+#include "plugin/disk_format/disk_format.h"
+#include "plugin/plugin.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree.h"
+#include "trace.h"
+#include "vfs_ops.h"
+#include "inode.h"
+#include "page_cache.h"
+#include "ktxnmgrd.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/mm.h>
+#include <linux/buffer_head.h>
+#include <linux/dcache.h>
+#include <linux/list.h>
+#include <linux/pagemap.h>
+#include <linux/slab.h>
+#include <linux/seq_file.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/writeback.h>
 
 /* inode operations */
 

@@ -7,7 +7,27 @@
  * file names to the files.
  */
 
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../spin_macros.h"
+#include "../../key.h"
+#include "../../kassign.h"
+#include "../../coord.h"
+#include "../../seal.h"
+#include "dir.h"
+#include "../item/item.h"
+#include "..//security/perm.h"
+#include "../plugin.h"
+#include "../object.h"
+#include "../../jnode.h"
+#include "../../znode.h"
+#include "../../tree.h"
+#include "../../vfs_ops.h"
+#include "../../inode.h"
 #include "../../reiser4.h"
+
+#include <linux/fs.h> /* for struct inode */
+#include <linux/dcache.h> /* for struct dentry */
 
 static int create_dot_dotdot( struct inode *object, struct inode *parent );
 static int find_entry( const struct inode *dir, struct dentry *name, 

@@ -9,6 +9,25 @@
 #if !defined( __REISER4_SUPER_H__ )
 #define __REISER4_SUPER_H__
 
+#include "forward.h"
+#include "debug.h"
+#include "tree.h"
+#include "trace.h"
+#include "lnode.h"
+#include "plugin/plugin.h"
+
+#include "plugin/space/space_allocator.h"
+#include "plugin/oid/oid.h"
+
+#include "plugin/disk_format/test.h"
+#include "plugin/disk_format/disk_format40.h"
+#include "plugin/security/perm.h"
+
+#include <linux/spinlock.h>
+#include <linux/types.h> /* for __u??, etc.  */
+#include <linux/fs.h> /* for struct super_block, etc.  */
+#include <linux/list.h> /* for struct list_head */
+
 typedef struct {
 		unsigned relocate_threshold;
 		unsigned relocate_distance;

@@ -2,8 +2,13 @@
  * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "../../reiser4.h"
-
+#include "../../debug.h"
+#include "../plugin_header.h"
+#include "disk_format40.h"
+#include "test.h"
+#include "disk_format.h"
+#include "../oid/oid.h"
+#include "../plugin.h"
 
 /* initialization of disk layout plugins */
 disk_format_plugin format_plugins[ LAST_FORMAT_ID ] = {

@@ -2,8 +2,25 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+#include "../../forward.h"
+#include "../../debug.h"
+#include "../../key.h"
+#include "../../coord.h"
+#include "file.h"
+#include "../item/item.h"
+#include "../plugin.h"
+#include "../../txnmgr.h"
+#include "../../jnode.h"
+#include "../../znode.h"
+#include "../../tree.h"
+#include "../../vfs_ops.h"
+#include "../../inode.h"
+#include "../../super.h"
+#include "../../page_cache.h"
 
-#include "../../reiser4.h"
+#include <linux/types.h> /* for __u??  */
+#include <linux/fs.h> /* for struct file  */
+#include <linux/pagemap.h>
 
 /* this file contains:
  * tail2extent and extent2tail

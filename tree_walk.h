@@ -7,6 +7,9 @@
 #ifndef __FS_REISER4_TREE_WALK_H__
 #define __FS_REISER4_TREE_WALK_H__
 
+#include "debug.h"
+#include "forward.h"
+
 /* establishes horizontal links between cached znodes */
 int connect_znode (coord_t *coord, znode * node);
 

@@ -3,7 +3,36 @@
 
 /* The design document for this file is at www.namesys.com/flush-alg.html. */
 
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "key.h"
+#include "coord.h"
+#include "tslist.h"
+#include "plugin/item/internal.h"
+#include "plugin/item/extent.h"
+#include "plugin/item/item.h"
+#include "plugin/plugin.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree_walk.h"
+#include "carry.h"
+#include "tree.h"
+#include "vfs_ops.h"
+#include "inode.h"
+#include "page_cache.h"
+#include "wander.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <asm/atomic.h>
+#include <linux/fs.h> /* for struct super_block  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/bio.h> /* for struct bio */
+#include <linux/pagemap.h>
+#include <linux/blkdev.h>
 
 /********************************************************************************
  * IMPLEMENTATION NOTES

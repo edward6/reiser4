@@ -9,6 +9,21 @@
 #ifndef __ZNODE_H__
 #define __ZNODE_H__
 
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "spin_macros.h"
+#include "key.h"
+#include "coord.h"
+#include "tslist.h"
+#include "plugin/node/node.h"
+#include "jnode.h"
+
+#include <linux/types.h>
+#include <linux/spinlock.h>
+#include <asm/atomic.h>
+#include <asm/semaphore.h>
+
 /* per-znode lock requests queue; list items are lock owner objects
    which want to lock given znode */
 TS_LIST_DECLARE(requestors);

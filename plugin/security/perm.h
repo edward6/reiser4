@@ -9,6 +9,12 @@
 #if !defined( __REISER4_PERM_H__ )
 #define __REISER4_PERM_H__
 
+#include "../../forward.h"
+#include "../plugin_header.h"
+
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct file  */
+#include <linux/dcache.h> /* for struct dentry */
 
 /**
  * interface for perm plugin.

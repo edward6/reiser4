@@ -9,6 +9,9 @@
 #ifndef __REISER4_POOL_H__
 #define __REISER4_POOL_H__
 
+#include "tslist.h"
+#include <linux/types.h>
+
 /** 
  * each pool object is either on a "used" or "free" list.
  */

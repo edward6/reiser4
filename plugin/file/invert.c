@@ -214,6 +214,20 @@ Then a read will return:
 #define SUBFILE_HEADER_MAGIC 0x19196605
 #define FLOW_HEADER_MAGIC 0x01194304
 
+#include "../plugin.h"
+#include "../../debug.h"
+#include "../../forward.h"
+#include "../object.h"
+#include "../item/item.h"
+#include "../item/static_stat.h"
+#include "../../dformat.h"
+#include "../znode.h"
+#include "../inode.h"
+
+#include <linux/types.h>
+#include <linux/fs.h> /* for struct file  */
+#include <linux/list.h> /* for struct list_head */
+
 typedef enum {
 	LIGHT_WEIGHT_FILE,
 	ORDINARY_FILE,

@@ -16,7 +16,16 @@
 
  */
 
-#include "reiser4.h"
+#include "forward.h"
+#include "debug.h"
+#include "dformat.h"
+#include "coord.h"
+#include "plugin/item/item.h"
+#include "jnode.h"
+#include "znode.h"
+#include "tree_walk.h"
+#include "tree.h"
+#include "super.h"
 
 /* These macros are used internally in tree_walk.c in attempt to make
  * lock_neighbor() code usable to build lock_parent(), lock_right_neighbor,
