@@ -2367,7 +2367,7 @@ jnode_make_dirty(jnode * node)
 		   Perhaps that is no longer true. */
 		assert("nikita-1900", znode_is_write_locked(z));
 		assert("jmacd-9777", node->atom != NULL);
-		ON_DEBUG_MODIFY(z->cksum = znode_is_loaded(z) ? znode_checksum(z) : 0);
+		ON_DEBUG_MODIFY(znode_set_checksum(z));
 	}
 
 }
@@ -2383,14 +2383,14 @@ jnode_make_clean_nolock(jnode * node)
 
 	if (jnode_is_dirty(node)) {
 
+#if REISER4_DEBUG_MODIFY
+		if (jnode_is_znode(node))
+			znode_set_checksum(JZNODE(node));
+#endif
+
 		JF_CLR(node, JNODE_DIRTY);
 
 		assert("jmacd-9366", !jnode_is_dirty(node));
-
-#if REISER4_DEBUG_MODIFY
-		if (jnode_is_znode(node) && jnode_is_loaded(node))
-			JZNODE(node)->cksum = znode_checksum(JZNODE(node));
-#endif
 
 		/*trace_on (TRACE_FLUSH, "clean %sformatted node %p\n", 
 		   jnode_is_unformatted (node) ? "un" : "", node); */

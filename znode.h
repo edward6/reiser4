@@ -222,6 +222,7 @@ extern void zfree(znode * node);
 extern __u32 znode_checksum(const znode * node);
 extern int znode_pre_write(znode * node);
 extern int znode_post_write(znode * node);
+extern void znode_set_checksum(znode * node);
 #endif
 
 #if REISER4_DEBUG_OUTPUT

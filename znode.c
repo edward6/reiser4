@@ -1111,6 +1111,15 @@ znode_invariant(const znode * node /* znode to check */ )
 #endif
 
 #if REISER4_DEBUG_MODIFY
+void znode_set_checksum(znode * node)
+{
+	if (znode_is_loaded(node)) {
+		spin_lock(&node->cksum_guard);
+		node->cksum = znode_checksum(node);
+		spin_unlock(&node->cksum_guard);
+	}
+}
+
 __u32 znode_checksum(const znode * node)
 {
 	int i, size = znode_size(node);
