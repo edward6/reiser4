@@ -18,7 +18,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_block_t *block) {
 	return NULL;
 
     if (!(node->plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, 
-	reiserfs_node_get_plugin_id(block)))) 
+			    reiserfs_node_get_plugin_id(block)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "vpf-001", 
 	    "Node plugin cannot be find by its identifier %x.",  
@@ -39,12 +39,14 @@ reiserfs_node_t *reiserfs_node_open(aal_device_block_t *block) {
     
 error_free_node:
     aal_free (node);
-error: 
+
     return NULL;
 }
 
-reiserfs_node_t *reiserfs_node_create(aal_device_block_t *block,
-    reiserfs_plugin_id_t plugin_id, uint8_t level)
+reiserfs_node_t *reiserfs_node_create(
+	aal_device_block_t *block,	/* allocated block */	                                     
+	reiserfs_plugin_id_t plugin_id,	/* node plugin id to be used */
+	uint8_t level)			/* level of the node in the tree */
 {
     reiserfs_node_t *node;
  
@@ -56,13 +58,14 @@ reiserfs_node_t *reiserfs_node_create(aal_device_block_t *block,
 
     reiserfs_node_set_plugin_id(block, plugin_id);
     
-    reiserfs_plugin_check_routine(node->plugin->node, create, 
-	goto error_free_node);
+    reiserfs_plugin_check_routine(node->plugin->node, create, goto error_free_node);
+    reiserfs_plugin_check_routine(node->plugin->node, create, goto error_free_node);
 
     if (!(node->entity = node->plugin->node.create(block, level))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "vpf-002", 
 	    "Node plugin hasn't been able to create a node on block %d.", 
 	    aal_device_get_block_location(block));
+	    aal_device_get_block_location(block);
 	goto error_free_node;
     }
 
@@ -133,4 +136,3 @@ aal_device_block_t *reiserfs_node_block(reiserfs_node_t *node) {
     reiserfs_plugin_check_routine(node->plugin->node, block, return NULL);
     return node->plugin->node.block(node->entity);
 }
-
