@@ -180,7 +180,7 @@ all: $(OBJ)
 	$(CC) $(LDFLAGS) $(OBJ) $(LIBS)
 
 all-in-one:
-	$(CC)  $(INCS) $(CFLAGS) $(DEFINES) $(LDFLAGS) all-reiser4.c -o all-a.out $(LIBS)
+	$(CC)  $(INCS) $(CFLAGS) $(DEFINES) $(LDFLAGS) all-reiser4.c $(LIBS)
 
 clean:
 	for dir in `find . -type d -exec echo {} \;` ;do ( cd $$dir ; rm -f $(JUNK_FILES) ; rm -fr $(JUNK_DIRS) ) ;done
