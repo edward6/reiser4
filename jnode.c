@@ -552,6 +552,26 @@ static int jnode_start_read (jnode * node, struct page * page)
 	return page_io(page, node, READ, GFP_KERNEL);
 }
 
+#if REISER4_DEBUG
+static void check_jload(jnode * node, struct page * page)
+{
+	if (jnode_is_znode(node)) {
+		node40_header *nh;
+		znode *z;
+
+		z = JZNODE(node);
+		nh = (node40_header *)kmap(page);
+		/* this only works for node40-only file systems. For
+		 * debugging. */
+		assert("nikita-3253", z->nr_items == d16tocpu(&nh->nr_items));
+		kunmap(page);
+	}
+}
+#else
+#define check_jload(node) noop
+#endif
+
+
 /* load jnode's data into memory */
 int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 							       * flags*/)
@@ -604,14 +624,16 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 			kunmap(page);
 			goto failed;
 		}
+		check_jload(node, page);
 	} else {
 		page = jnode_page(node);
+		check_jload(node, page);
 		node->data = kmap(page);
 		reiser4_stat_inc_at_level(jnode_get_level(node), 
 					  jnode.jload_already);
 	}
 
-	if (REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH))
+	if (unlikely(REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH)))
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
 
 	if (!is_writeout_mode()) 
@@ -623,19 +645,6 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 		 * moved out from inactive list as a result of this
 		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
-
-#if REISER4_DEBUG
-	if (jnode_is_znode(node)) {
-		znode *z;
-		node_plugin *nplug;
-
-		z = JZNODE(node);
-		nplug = z->nplug;
-		assert("nikita-3254", nplug != NULL);
-		assert("nikita-3253", 
-		       node_num_items(z) == nplug->num_of_items(z));
-	}
-#endif
 
 	PROF_END(jload);
 	return 0;
@@ -904,6 +913,12 @@ mapping_znode(const jnode * node)
 static unsigned long
 index_znode(const jnode * node)
 {
+	return JZNODE(node)->zgen;
+}
+
+static unsigned long
+index_is_address(const jnode * node)
+{
 	unsigned long ind;
 
 	ind = (unsigned long)node;
@@ -1050,7 +1065,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = init_noinit,
 		.parse = parse_noparse,
 		.mapping = mapping_znode,
-		.index = index_znode,
+		.index = index_is_address,
 		.io_hook = io_hook_no_hook
 	},
 	[JNODE_IO_HEAD] = {
@@ -1065,7 +1080,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = init_noinit,
 		.parse = parse_noparse,
 		.mapping = mapping_znode,
-		.index = index_znode,
+		.index = index_is_address,
 		.io_hook = io_hook_no_hook
 	},
 	[JNODE_INODE] = {
