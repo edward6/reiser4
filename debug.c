@@ -171,7 +171,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 
 	       info->rw_locked_cbk_cache,
 	       info->read_locked_cbk_cache,
-	       info->write_locked_cbk_cache
+	       info->write_locked_cbk_cache,
 
 	       info->spin_locked_epoch,
 	       info->spin_locked_super_eflush,
