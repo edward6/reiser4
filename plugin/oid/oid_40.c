@@ -115,7 +115,7 @@ __u64 oid_40_used( reiser4_oid_allocator *map )
  * on success, negative error code on failure.
  */
 /* Audited by: green(2002.06.12) */
-int oid_40_allocate( reiser4_oid_allocator *map, oid_t *result UNUSED_ARG )
+int oid_40_allocate( reiser4_oid_allocator *map, oid_t *result )
 {
 	assert( "nikita-1982", map != NULL );
 
@@ -135,7 +135,7 @@ int oid_40_allocate( reiser4_oid_allocator *map, oid_t *result UNUSED_ARG )
  */
 /* Audited by: green(2002.06.12) */
 /* This never actually marks oid as free, oid "map" is 64 bits and right now
-   there si assumption that counter would never overflow */
+   there is assumption that counter would never overflow */
 int oid_40_release( reiser4_oid_allocator *map, oid_t oid UNUSED_ARG )
 {
 	assert( "nikita-1984", map != NULL ); /* BIG BROTHER IS WATCHING YOU */
