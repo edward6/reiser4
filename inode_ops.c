@@ -221,11 +221,13 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to
 		/* if parent directory has directory plugin with ->lookup
 		 * method, use the latter to do lookup */
 		lookup = dplug->lookup;
+#if 0 /* disable pseudofiles */
 	else if (!reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
 		/* even if there is no ->lookup method, pseudo file lookup
 		 * should still be performed, but only unless we are in
 		 * "no-pseudo" mode */
 		lookup = lookup_pseudo_file;
+#endif
 	else
 		lookup = NULL;
 	if (lookup != NULL) {
