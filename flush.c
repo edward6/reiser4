@@ -941,40 +941,57 @@ failed:
 /* Flush some nodes of current atom, usually slum, return -EAGAIN if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
-int flush_current_atom (int flags, long *nr_submitted, txn_atom **locked_atom)
+int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 {
-	txn_atom * atom;
-	flush_queue_t *fq;
+	flush_queue_t *fq = NULL;
 	jnode * node;
 	int nr_queued;
 	int ret;
 
-	fq = get_fq_for_current_atom();
-	if (IS_ERR(fq))
-		return PTR_ERR(fq);
+	assert ("zam-889", atom != NULL && *atom != NULL);
+	assert ("zam-890", spin_atom_is_locked(*atom));
+	assert ("zam-892", get_current_context()->trans->atom == *atom);
 
-	atom = fq->atom;
+	while(1) {
+		ret = fq_by_atom(*atom, &fq);
+		if (ret != -EAGAIN)
+			break;
+		*atom = get_current_atom_locked();
+	}
 
-	write_syscall_trace("in");
+        if (ret)
+		return ret;
+
+	assert ("zam-891", spin_atom_is_locked(*atom));
+
+	if (REISER4_TRACE_TREE) {
+		UNLOCK_ATOM(*atom);
+		write_syscall_trace("in");
+		*atom = get_current_atom_locked();
+	}
 	reiser4_stat_inc(flush.flush);
 	writeout_mode_enable();
 
 	/* count ourself as a flusher */
-	atom->nr_flushers++;
+	(*atom)->nr_flushers++;
 
 	nr_queued = 0;
 
 	/* In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
 	 * nodes. The atom spin lock is not released until all dirty nodes processed or
 	 * not prepped node found in the atom dirty lists. */
-	while ((node = find_first_dirty_jnode(atom))) {
+	while ((node = find_first_dirty_jnode(*atom))) {
 		LOCK_JNODE(node);
 
 		if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 			/* ???? move to another list ???? */
+			(*atom)->nr_flushers --;
 			UNLOCK_JNODE(node);
-			node = NULL;
-			break;
+			UNLOCK_ATOM(*atom);
+
+			preempt_point();
+
+			return -EAGAIN;
 		}
 
 		assert ("zam-881", jnode_is_dirty(node));
@@ -1005,19 +1022,18 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom **locked_atom)
 
 	if (node == NULL) {
 		if (nr_queued == 0) {
-			atom->nr_flushers --;
+			(*atom)->nr_flushers --;
 			fq_put_nolock(fq);
 			/* current atom remains locked */
-			*locked_atom = atom;
 			return 0;
 		}
 		ret = -EAGAIN;
-		UNLOCK_ATOM(atom);
+		UNLOCK_ATOM(*atom);
 
 	} else {
 		jref(node);
 
-		UNLOCK_ATOM(atom);
+		UNLOCK_ATOM(*atom);
 		UNLOCK_JNODE(node);
 
 		ret = jnode_flush(node, NULL, nr_submitted, fq, flags);
@@ -1038,30 +1054,15 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom **locked_atom)
 
 	fq_put(fq);
 
-	atom = get_current_atom_locked();
-	atom->nr_flushers --;
-	UNLOCK_ATOM(atom);
+	*atom = get_current_atom_locked();
+	(*atom)->nr_flushers --;
+	UNLOCK_ATOM(*atom);
 
 	writeout_mode_disable();
 	write_syscall_trace("ex");
 
 	return ret;
 }
-
-int flush_current_atom_not_commit(int flags, long * nr_submitted)
-{
-	int ret;
-	txn_atom * atom;
-
-	ret = flush_current_atom(flags, nr_submitted, &atom);
-	if (ret == 0)
-		UNLOCK_ATOM(atom);
-	else if (ret == -EAGAIN)
-		ret = 0;
-
-	return ret;
-}
-
 
 /* REVERSE PARENT-FIRST RELOCATION POLICIES */
 
