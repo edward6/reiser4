@@ -1263,6 +1263,9 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		*znode_get_rd_key( child ) = *znode_get_rd_key( parent ) = 
 			*max_key();
 		spin_unlock_dk( current_tree );
+
+		/* @child escaped imminent death! */
+		ZF_CLR( child, JNODE_HEARD_BANSHEE );
 		return 0;
 	}
 
