@@ -475,7 +475,7 @@ znode*
 zget (reiser4_tree *tree,
       const reiser4_block_nr *const blocknr,
       znode        *parent,
-      tree_level    level,	/* is this parameter really worth having? ZAM-FIXME-HANS */
+      tree_level    level,
       int           gfp_flag)
 {
 	znode *result;
