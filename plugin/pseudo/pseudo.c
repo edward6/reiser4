@@ -310,8 +310,7 @@ static int show_oid(struct seq_file *seq, void *cookie)
 
 static int show_key(struct seq_file *seq, void *cookie)
 {
-	/* (%Lx:%x:%Lx:%Lx:%Lx) = 1 + 16 + 1 + 1 + 1 + 1 + 1 + 16 + 1 + 16 + 1 */
-	char buf[60];
+	char buf[KEY_BUF_LEN];
 	reiser4_key key;
 
 	sprintf_key(buf, build_sd_key(get_seq_pseudo_host(seq), &key));
@@ -396,6 +395,16 @@ static int get_rwx(struct file *file, const char *buf)
 	return result;
 }
 
+static unsigned long list_length(const struct list_head *head)
+{
+	struct list_head *scan;
+	unsigned long length;
+
+	length = 0;
+	list_for_each(scan, head)
+		++ length;
+	return length;
+}
 
 static void * pseudos_start(struct seq_file *m, loff_t *pos)
 {
@@ -479,10 +488,9 @@ static int is_host_item(struct inode *host, coord_t *coord)
 	return 1;
 }
 
-static void finish(struct inode *host, readdir_cookie *c)
+static void finish(readdir_cookie *c)
 {
-	up(&host->i_sem);
-	if (c != NULL) {
+	if (c != NULL && !IS_ERR(c)) {
 		tap_done(&c->tap);
 		kfree(c);
 	}
@@ -498,7 +506,6 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 	int             result;
 	loff_t          entryno;
 
-
 	host = get_seq_pseudo_host(m);
 	dplug = inode_dir_plugin(host);
 
@@ -507,7 +514,7 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 
 	down(&host->i_sem);
 	if (dplug == NULL) {
-		finish(host, NULL);
+		finish(NULL);
 		return NULL;
 	}
 
@@ -515,7 +522,7 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 
 	c = kmalloc(sizeof *c, GFP_KERNEL);
 	if (c == NULL) {
-		finish(host, NULL);
+		finish(NULL);
 		return ERR_PTR(RETERR(-ENOMEM));
 	}
 
@@ -536,24 +543,30 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 		if (result == 0) {
 			for (entryno = 0; entryno != *pos; ++ entryno) {
 				result = go_next_unit(&c->tap);
+				if (result == -E_NO_NEIGHBOR) {
+					finish(c);
+					return NULL;
+				}
 				if (result != 0)
 					break;
 				if (!is_host_item(host, c->tap.coord)) {
-					finish(host, c);
+					finish(c);
 					return NULL;
 				}
 			}
 		}
 	}
 	if (result != 0) {
-		finish(host, c);
+		finish(c);
 		return ERR_PTR(result);
-	}
-	return c;
+	} else
+		return c;
 }
 
 static void readdir_stop(struct seq_file *m, void *v)
 {
+	up(&get_seq_pseudo_host(m)->i_sem);
+	finish(v);
 }
 
 static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
@@ -568,12 +581,12 @@ static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
 	result = go_next_unit(&c->tap);
 	if (result == 0) {
 		if (!is_host_item(host, c->tap.coord)) {
-			finish(host, c);
+			finish(c);
 			return NULL;
 		} else
 			return v;
 	} else {
-		finish(host, c);
+		finish(c);
 		return ERR_PTR(result);
 	}
 }
@@ -605,6 +618,12 @@ typedef struct plugin_entry {
 	.offset = offsetof(plugin_set, field)	\
 }
 
+#define PSEUDO_ARRAY_ENTRY(idx, aname)		\
+[idx] = {					\
+	.name = aname,				\
+	.offset = idx				\
+}
+
 static plugin_entry pentry[] = {
 	PLUGIN_ENTRY(file),
 	PLUGIN_ENTRY(dir),
@@ -630,22 +649,10 @@ typedef enum {
 } plugin_field;
 
 static plugin_entry fentry[] = {
-	{
-		.name   = "type_id",
-		.offset = PFIELD_TYPEID
-	},
-	{
-		.name   = "id",
-		.offset = PFIELD_ID
-	},
-	{
-		.name   = "label",
-		.offset = PFIELD_LABEL
-	},
-	{
-		.name   = "desc",
-		.offset = PFIELD_DESC
-	},
+	PSEUDO_ARRAY_ENTRY(PFIELD_TYPEID, "type_id"),
+	PSEUDO_ARRAY_ENTRY(PFIELD_ID, "id"),
+	PSEUDO_ARRAY_ENTRY(PFIELD_LABEL, "label"),
+	PSEUDO_ARRAY_ENTRY(PFIELD_DESC, "desc"),
 	{
 		.name   = NULL,
 		.offset = 0
@@ -678,19 +685,16 @@ static int show_plugin(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
-static int lookup_plugin_field(struct inode *parent, struct dentry * dentry)
+static int array_lookup_pseudo(struct inode *parent, struct dentry * dentry,
+			       plugin_entry *array, pseudo_plugin *pplug)
 {
 	int result;
 	int idx;
 	struct inode *pseudo;
 
-	pseudo_plugin *pplug;
-
 	pseudo = ERR_PTR(-ENOENT);
-	pplug  = pseudo_plugin_by_id(PSEUDO_PLUGIN_FIELD_ID);
-	for (idx = 0; fentry[idx].name != NULL; ++ idx) {
-		if (!strcmp(dentry->d_name.name, fentry[idx].name)) {
-
+	for (idx = 0; array[idx].name != NULL; ++ idx) {
+		if (!strcmp(dentry->d_name.name, array[idx].name)) {
 			pseudo = add_pseudo(parent, pplug, dentry);
 			break;
 		}
@@ -702,6 +706,51 @@ static int lookup_plugin_field(struct inode *parent, struct dentry * dentry)
 		pseudo_set_datum(pseudo, idx);
 	}
 	return result;
+}
+
+static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
+				plugin_entry *array, int size)
+{
+	loff_t off;
+	ino_t  ino;
+
+	off = f->f_pos;
+	if (off < 0)
+		return 0;
+
+	/* for god's sake, why switch(loff_t) requires __cmpdi2? */
+	switch ((int)off) {
+	case 0:
+		ino = f->f_dentry->d_inode->i_ino;
+		if (filld(dirent, ".", 1, off, ino, DT_DIR) < 0)
+			break;
+		++ off;
+		/* fallthrough */
+	case 1:
+		ino = parent_ino(f->f_dentry);
+		if (filld(dirent, "..", 2, off, ino, DT_DIR) < 0)
+			break;
+		++ off;
+		/* fallthrough */
+	default:
+		for (; off < size + 1; ++ off) {
+			const char *name;
+
+			name = array[off - 2].name;
+			if (filld(dirent, name, strlen(name), 
+				  off, off + (long)f, DT_REG) < 0)
+				break;
+		}
+	}
+	f->f_pos = off;
+	return 0;
+}
+
+
+static int lookup_plugin_field(struct inode *parent, struct dentry * dentry)
+{
+	return array_lookup_pseudo(parent, dentry, fentry,
+				   pseudo_plugin_by_id(PSEUDO_PLUGIN_FIELD_ID));
 }
 
 static int show_plugin_field(struct seq_file *seq, void *cookie)
@@ -729,20 +778,20 @@ static int show_plugin_field(struct seq_file *seq, void *cookie)
 	plug  = *(reiser4_plugin **)(((char *)pset) + entry->offset);
 
 	if (plug != NULL) {
-	switch (fentry[idx].offset) {
-	case PFIELD_TYPEID:
-		seq_printf(seq, "%i", plug->h.type_id);
-		break;
-	case PFIELD_ID:
-		seq_printf(seq, "%i", plug->h.id);
-		break;
-	case PFIELD_LABEL:
-		seq_printf(seq, "%s", plug->h.label);
-		break;
-	case PFIELD_DESC:
-		seq_printf(seq, "%s", plug->h.desc);
-		break;
-	}
+		switch (idx) {
+		case PFIELD_TYPEID:
+			seq_printf(seq, "%i", plug->h.type_id);
+			break;
+		case PFIELD_ID:
+			seq_printf(seq, "%i", plug->h.id);
+			break;
+		case PFIELD_LABEL:
+			seq_printf(seq, "%s", plug->h.label);
+			break;
+		case PFIELD_DESC:
+			seq_printf(seq, "%s", plug->h.desc);
+			break;
+		}
 	}
 
 	return 0;
@@ -750,57 +799,228 @@ static int show_plugin_field(struct seq_file *seq, void *cookie)
 
 static int readdir_plugin_field(struct file *f, void *dirent, filldir_t filld)
 {
-	loff_t off;
-	for (off = f->f_pos; off < sizeof_array(fentry) - 1; ++ off) {
-		const char *name;
-
-		name = fentry[off].name;
-
-		if (filld(dirent, name, strlen(name), off, off + 10, DT_REG) < 0)
-			break;
-	}
-	f->f_pos = off;
-	return 0;
+	return array_readdir_pseudo(f, dirent, filld, 
+				    fentry, sizeof_array(fentry));
 }
 
 static int lookup_plugins(struct inode *parent, struct dentry * dentry)
 {
-	int result;
-	int idx;
-	struct inode *pseudo;
-
-	pseudo_plugin *pplug;
-
-	pseudo = ERR_PTR(-ENOENT);
-	pplug  = pseudo_plugin_by_id(PSEUDO_PLUGIN_ID);
-	for (idx = 0; pentry[idx].name != NULL; ++ idx) {
-		if (!strcmp(dentry->d_name.name, pentry[idx].name)) {
-
-			pseudo = add_pseudo(parent, pplug, dentry);
-			break;
-		}
-	}
-	if (IS_ERR(pseudo))
-		result = PTR_ERR(pseudo);
-	else {
-		pseudo_set_datum(pseudo, idx);
-		result = 0;
-	}
-	return result;
+	return array_lookup_pseudo(parent, dentry, pentry,
+				   pseudo_plugin_by_id(PSEUDO_PLUGIN_ID));
 }
 
 static int readdir_plugins(struct file *f, void *dirent, filldir_t filld)
 {
-	loff_t off;
-	for (off = f->f_pos; off < sizeof_array(pentry) - 1; ++ off) {
-		const char *name;
+	return array_readdir_pseudo(f, dirent, filld, 
+				    pentry, sizeof_array(pentry));
+}
 
-		name = pentry[off].name;
+typedef enum {
+	PAGECACHE_NRPAGES,
+	PAGECACHE_CLEAN,
+	PAGECACHE_DIRTY,
+	PAGECACHE_LOCKED,
+	PAGECACHE_IO
+} pagecache_stat;
 
-		if (filld(dirent, name, strlen(name), off, off + 10, DT_REG) < 0)
-			break;
+static plugin_entry pagecache_entry[] = {
+	PSEUDO_ARRAY_ENTRY(PAGECACHE_NRPAGES, "nrpages"),
+	PSEUDO_ARRAY_ENTRY(PAGECACHE_CLEAN, "clean"),
+	PSEUDO_ARRAY_ENTRY(PAGECACHE_DIRTY, "dirty"),
+	PSEUDO_ARRAY_ENTRY(PAGECACHE_LOCKED, "locked"),
+	PSEUDO_ARRAY_ENTRY(PAGECACHE_IO, "io"),
+	{
+		.name   = NULL,
+		.offset = 0
+	},
+};
+
+static int show_pagecache(struct seq_file *seq, void *cookie)
+{
+	struct inode *host;
+	struct address_space *as;
+
+	unsigned long nrpages;
+	unsigned long clean;
+	unsigned long dirty;
+	unsigned long locked;
+	unsigned long io;
+
+	host = get_seq_pseudo_host(seq);
+	
+	as = host->i_mapping;
+	spin_lock(&as->page_lock);
+	nrpages = as->nrpages;
+	clean   = list_length(&as->clean_pages);
+	dirty   = list_length(&as->dirty_pages);
+	locked  = list_length(&as->locked_pages);
+	io      = list_length(&as->io_pages);
+	spin_unlock(&as->page_lock);
+
+	seq_printf(seq, "%lu %lu %lu %lu %lu",
+		   nrpages, clean, dirty, locked, io);
+	return 0;
+}
+
+static int readdir_pagecache(struct file *f, void *dirent, filldir_t filld)
+{
+	return array_readdir_pseudo(f, dirent, filld, 
+				    pagecache_entry, 
+				    sizeof_array(pagecache_entry));
+}
+
+static int lookup_pagecache(struct inode *parent, struct dentry * dentry)
+{
+	return array_lookup_pseudo(parent, dentry, pagecache_entry,
+				   pseudo_plugin_by_id(PSEUDO_PAGECACHE_STAT_ID));
+}
+
+static int show_pagecache_stat(struct seq_file *seq, void *cookie)
+{
+	struct inode   *host;
+	struct file    *file;
+	struct inode   *inode;
+	int             idx;
+
+	struct address_space *as;
+
+	file  = seq->private;
+	inode = file->f_dentry->d_inode;
+
+	/* foo is grand-parent of foo/..pagecache/dirty  */
+	host  = get_inode_host(get_inode_host(inode));
+	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
+	as    = host->i_mapping;
+	spin_lock(&as->page_lock);
+	switch (idx) {
+	case PAGECACHE_NRPAGES:
+		seq_printf(seq, "%lu", as->nrpages);
+		break;
+	case PAGECACHE_CLEAN:
+		seq_printf(seq, "%lu", list_length(&as->clean_pages));
+		break;
+	case PAGECACHE_DIRTY:
+		seq_printf(seq, "%lu", list_length(&as->dirty_pages));
+		break;
+	case PAGECACHE_LOCKED:
+		seq_printf(seq, "%lu", list_length(&as->locked_pages));
+		break;
+	case PAGECACHE_IO:
+		seq_printf(seq, "%lu", list_length(&as->io_pages));
+		break;
 	}
-	f->f_pos = off;
+	spin_unlock(&as->page_lock);
+
+	return 0;
+}
+
+static void * items_start(struct seq_file *m, loff_t *pos)
+{
+	struct inode   *host;
+	readdir_cookie *c;
+	file_plugin    *fplug;
+	reiser4_key     headkey;
+	int             result;
+	loff_t          entryno;
+
+	host = get_seq_pseudo_host(m);
+	fplug = inode_file_plugin(host);
+
+	down(&host->i_sem);
+	if (fplug->key_by_inode == NULL) {
+		finish(NULL);
+		return NULL;
+	}
+
+	fplug->key_by_inode(host, 0, &headkey);
+
+	c = kmalloc(sizeof *c, GFP_KERNEL);
+	if (c == NULL) {
+		finish(NULL);
+		return ERR_PTR(RETERR(-ENOMEM));
+	}
+
+	result = coord_by_key(tree_by_inode(host),
+			      &headkey,
+			      &c->coord,
+			      &c->lh,
+			      ZNODE_READ_LOCK,
+			      FIND_MAX_NOT_MORE_THAN,
+			      TWIG_LEVEL,
+			      LEAF_LEVEL,
+			      0,
+			      NULL);
+
+	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
+	if (result == 0)
+		result = tap_load(&c->tap); {
+		if (result == 0) {
+			for (entryno = 0; entryno != *pos; ++ entryno) {
+				result = go_next_unit(&c->tap);
+				if (result == -E_NO_NEIGHBOR) {
+					finish(c);
+					return NULL;
+				}
+				if (result != 0)
+					break;
+				if (!fplug->owns_item(host, c->tap.coord)) {
+					finish(c);
+					return NULL;
+				}
+			}
+		}
+	}
+	if (result != 0) {
+		finish(c);
+		return ERR_PTR(result);
+	} else
+		return c;
+}
+
+static void items_stop(struct seq_file *m, void *v)
+{
+	up(&get_seq_pseudo_host(m)->i_sem);
+	finish(v);
+}
+
+static void * items_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	readdir_cookie *c;
+	struct inode   *host;
+	int result;
+
+	c = v;
+	++ (*pos);
+	host = get_seq_pseudo_host(m);
+	result = go_next_unit(&c->tap);
+	if (result == 0) {
+		if (!inode_file_plugin(host)->owns_item(host, c->tap.coord)) {
+			finish(c);
+			return NULL;
+		} else
+			return v;
+	} else {
+		finish(c);
+		return ERR_PTR(result);
+	}
+}
+
+static int items_show(struct seq_file *m, void *v)
+{
+	readdir_cookie *c;
+	item_plugin    *iplug;
+	char            buf[KEY_BUF_LEN];
+	reiser4_key     key;
+
+
+	c = v;
+	iplug = item_plugin_by_coord(&c->coord);
+
+	sprintf_key(buf, unit_key_by_coord(&c->coord, &key));
+	seq_printf(m, "%s %s ", buf, iplug->h.label);
+	if (iplug->b.show != NULL)
+		iplug->b.show(m, &c->coord);
+	seq_printf(m, "\n");
 	return 0;
 }
 
@@ -959,6 +1179,43 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			 },
 			 .write_type  = PSEUDO_WRITE_NONE
 	},
+	[PSEUDO_PAGECACHE_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_PAGECACHE_ID,
+			       .pops = NULL,
+			       .label = "..pagecache",
+			       .desc = "returns page cache stats",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_pagecache,
+			 .lookup_mode = S_IFREG | S_IRUGO | S_IXUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_pagecache
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE,
+			 .readdir     = readdir_pagecache
+	},
+	[PSEUDO_PAGECACHE_STAT_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_PAGECACHE_STAT_ID,
+			       .pops = NULL,
+			       .label = "pagecache stat",
+			       .desc = "pagecache stat",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = NULL,
+			 .lookup      = NULL,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_pagecache_stat
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
 	[PSEUDO_PSEUDOS_ID] = {
 			 .h = {
 			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
@@ -1068,8 +1325,8 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
 			       .id = PSEUDO_PLUGIN_ID,
 			       .pops = NULL,
-			       .label = "plugin",
-			       .desc = "plugin",
+			       .label = "plugin-field",
+			       .desc = "plugin field",
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = NULL,
@@ -1081,7 +1338,30 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			 },
 			 .write_type  = PSEUDO_WRITE_NONE,
 			 .readdir     = NULL
-	}
+	},
+	[PSEUDO_ITEMS_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_ITEMS_ID,
+			       .pops = NULL,
+			       .label = "..items",
+			       .desc = "returns a list of items for this file",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = NULL,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SEQ,
+			 .read        = {
+				 .ops = {
+					 .start = items_start,
+					 .stop  = items_stop,
+					 .next  = items_next,
+					 .show  = items_show
+				 }
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
 };
 
 /* Make Linus happy.
