@@ -122,7 +122,6 @@ SRC             := \
                    debug.c \
                    znode.c \
                    key.c \
-                   oid.c \
                    balance.c \
                    pool.c \
                    tree_mod.c \
@@ -135,9 +134,9 @@ SRC             := \
                    block_alloc.c \
                    txnmgr.c \
                    kassign.c \
-				   flush.c \
-				   wander.c \
-				   search.c \
+		   flush.c \
+		   wander.c \
+		   search.c \
                    plugin/plugin.c \
                    plugin/node/node.c \
                    plugin/node/node40.c \
@@ -154,6 +153,8 @@ SRC             := \
                    plugin/dir/dir.c \
                    plugin/security/perm.c \
                    plugin/security/acl.c \
+		   plugin/oid/oid_40.c plugin/oid/oid.c \
+		   plugin/disk_format/layout_40.c plugin/disk_format/layout.c \
                    super.c \
                    tree_walk.c \
                    inode.c \
