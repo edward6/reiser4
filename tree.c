@@ -880,23 +880,23 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-939", nplug != NULL );
 
 
+	spin_lock_tree( current_tree );
 	/*
 	 * fast path. Try to use cached value. Lock tree to keep
 	 * node->pos_in_parent and pos->*_blocknr consistent.
 	 */
 	if( child -> ptr_in_parent_hint.item_pos + 1 != 0 ) {
 		reiser4_stat_tree_add( pos_in_parent_set );
-		spin_lock_tree( current_tree );
 		*result = child -> ptr_in_parent_hint;
-		spin_unlock_tree( current_tree );
-		if( check_tree_pointer( result, child ) == NS_FOUND )
+		if( check_tree_pointer( result, child ) == NS_FOUND ) {
+			spin_unlock_tree( current_tree );
 			return NS_FOUND;
+		}
 
 		reiser4_stat_tree_add( pos_in_parent_miss );
-		spin_lock_tree( current_tree );
 		child -> ptr_in_parent_hint.item_pos = ~0u;
-		spin_unlock_tree( current_tree );
 	}
+	spin_unlock_tree( current_tree );
 
 	/*
 	 * is above failed, find some key from @child. We are looking for the
