@@ -33,7 +33,8 @@ reiserfs_plugin_t plugin_info = {
 		.id = 0x1,
 		.type = REISERFS_LAYOUT_PLUGIN,
 		.label = "layout40",
-		.desc = "Default disk-layout plugin, ver. 0.1, Copyright (C) 1996 - 2002 Hans Reiser",
+		.desc = "Reiserfs 4.0 disk-layout plugin, ver. 0.1, "
+			"Copyright (C) 1996 - 2002 Hans Reiser",
 		.nlink = 0
 	},
 	.layout = {

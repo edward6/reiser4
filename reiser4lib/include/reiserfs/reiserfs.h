@@ -24,6 +24,7 @@ extern "C" {
 #include "plugin.h"
 #include "tools.h"
 #include "list.h"
+#include "endian.h"
 
 typedef void *(*libreiserfs_malloc_handler_t) (size_t);
 typedef void *(*libreiserfs_realloc_handler_t) (void *, size_t);
