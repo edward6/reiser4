@@ -10,7 +10,7 @@
 #include "../../prof.h"
 #include "../../flush.h"
 #include "../object.h"
-#include "../tree_walk.h" /* check_sibling_list() */
+#include "../../tree_walk.h" /* check_sibling_list() */
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
