@@ -16,7 +16,7 @@ any other threads and locks in the system (This only holds if io completion
 handlers don't acquire locks themselves.).
 
 -------------------------------LOCKS IN REISER4---------------------------------
-
+ 
 Reiser4 introduces following locks:
 
 1.  Per-super-block tree spin lock                              (tree_lock*)
