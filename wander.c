@@ -527,6 +527,26 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	return ret;
 }
 
+static void
+undo_bio(struct bio *bio)
+{
+	int i;
+
+	for (i = 0; i < bio->bi_vcnt; ++i) {
+		struct page *pg;
+		jnode *node;
+
+		pg = bio->bi_io_vec[i].bv_page;
+		ClearPageWriteback(pg);
+		node = jprivate(pg);
+		LOCK_JNODE(node);
+		JF_CLR(node, JNODE_WRITEBACK);
+		JF_SET(node, JNODE_DIRTY);
+		UNLOCK_JNODE(node);
+	}
+	bio_put(bio);
+}
+
 #if REISER4_COPY_ON_CAPTURE
 
 extern spinlock_t scan_lock;
@@ -651,8 +671,10 @@ get_overwrite_set(struct commit_handle *ch)
 			 * overwritten leaves */
 			else {
 #if REISER4_DEBUG
-				assert("nikita-3450",
-				       JF_ISSET(cur, JNODE_FLUSH_RESERVED));
+				/* at this point @cur either has
+				 * JNODE_FLUSH_RESERVED or is
+				 * eflushed. Locking is not strong enough to
+				 * write an assertion checking for this. */
 				if (jnode_is_znode(cur))
 					nr_formatted_leaves ++;
 				else
@@ -715,11 +737,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 	ON_TRACE (TRACE_IO_W, "write of %d blocks starting from %llu\n",
 		  nr, (unsigned long long)block);
 
-#if REISER4_USER_LEVEL_SIMULATION
-	max_blocks = nr;
-#else
 	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
-#endif
 
 	while (nr > 0) {
 		struct bio *bio;
@@ -731,6 +749,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 		if (!bio)
 			return RETERR(-ENOMEM);
 
+		bio->bi_bdev = super->s_bdev;
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 			ON_DEBUG(int jnode_is_releasable(jnode *));
@@ -749,18 +768,27 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
 				assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 				assert("nikita-3165", !jnode_is_releasable(cur));
+				UNLOCK_JNODE(cur);
+				if (!bio_add_page(bio,
+						  pg, super->s_blocksize, 0))
+					/*
+					 * underlying device is satiated. Stop
+					 * adding pages to the bio.
+					 */
+					break;
+
+				LOCK_JNODE(cur);
 				JF_SET(cur, JNODE_WRITEBACK);
 				JF_CLR(cur, JNODE_DIRTY);
 				UNLOCK_JNODE(cur);
 
 				SetPageWriteback(pg);
-				
+
 				spin_lock(&pg->mapping->page_lock);
 
-#if REISER4_STATS
-				if (!PageDirty(pg))
+				if (REISER4_STATS && !PageDirty(pg))
 					reiser4_stat_inc(pages_clean);
-#endif
+
 				/* don't check return value: submit page even if
 				   it wasn't dirty. */		
 				test_clear_page_dirty(pg);
@@ -771,10 +799,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				spin_unlock(&pg->mapping->page_lock);
 				
 				unlock_page(pg);
-				
-				bio->bi_io_vec[nr_used].bv_page = pg;
-				bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
-				bio->bi_io_vec[nr_used].bv_offset = 0;
+				nr_used ++;
 			} else {
 				/* jnode being WRITEBACK might be replaced on
 				   ovrwr_nodes list with jnode CC. We just
@@ -790,31 +815,18 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			cur = capture_list_next(cur);
 			if (!capture_list_end(head, cur))
 				JF_SET(cur, JNODE_SCANNED);
-			else {
-				/* end of overwrite list reached */
-				assert("", i == nr_blocks - 1);
-				assert("", nr_used + 1 == nr);
-			}
 			spin_unlock(&scan_lock);
-			nr_used ++;
 		}
 		if (nr_used > 0) {
 			bio->bi_sector = block * (super->s_blocksize >> 9);
-			bio->bi_bdev = super->s_bdev;
-			bio->bi_size = super->s_blocksize * nr_used;
-			bio->bi_vcnt = nr_used;
+			assert("nikita-3455",
+			       bio->bi_size = super->s_blocksize * nr_used);
+			assert("nikita-3456", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */
-			if ( super->s_flags & MS_RDONLY ) {
-				int i;
-				for ( i = 0; i < nr_used ; i++) {
-					struct page *pg = bio->bi_io_vec[i].bv_page;
-					ClearPageWriteback(pg);
-					JF_CLR((jnode *)pg->private, JNODE_WRITEBACK);
-					JF_SET((jnode *)pg->private, JNODE_DIRTY);
-				}
-				bio_put(bio);
-			} else {
+			if (super->s_flags & MS_RDONLY)
+				undo_bio(bio);
+			else {
 				add_fq_to_bio(fq, bio);
 				reiser4_submit_bio(WRITE, bio);
 			}
@@ -1038,8 +1050,9 @@ get_overwrite_set(struct commit_handle *ch)
 			nr_not_leaves ++;
 		else {
 #if REISER4_DEBUG
-			assert("nikita-3451",
-			       JF_ISSET(cur, JNODE_FLUSH_RESERVED));
+			/* at this point @cur either has JNODE_FLUSH_RESERVED
+			 * or is eflushed. Locking is not strong enough to
+			 * write an assertion checking for this. */
 			if (jnode_is_znode(cur))
 				nr_formatted_leaves ++;
 			else
@@ -1142,11 +1155,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 	ON_TRACE (TRACE_IO_W, "write of %d blocks starting from %llu\n",
 		  nr, (unsigned long long)block);
 
-#if REISER4_USER_LEVEL_SIMULATION
-	max_blocks = nr;
-#else
 	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
-#endif
 
 	while (nr > 0) {
 		struct bio *bio;
@@ -1158,6 +1167,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 		if (!bio)
 			return RETERR(-ENOMEM);
 
+		bio->bi_bdev = super->s_bdev;
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 			ON_DEBUG(int jnode_is_releasable(jnode *));
@@ -1168,6 +1178,13 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			page_cache_get(pg);
 
 			lock_and_wait_page_writeback(pg);
+
+			if (!bio_add_page(bio, pg, super->s_blocksize, 0))
+				/*
+				 * underlying device is satiated. Stop adding
+				 * pages to the bio.
+				 */
+				break;
 
 			LOCK_JNODE(cur);
 			ON_DEBUG_MODIFY(znode_set_checksum(cur, 1));
@@ -1183,10 +1200,9 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			spin_lock(&pg->mapping->page_lock);
 
-#if REISER4_STATS
-			if (!PageDirty(pg))
+			if (REISER4_STATS && !PageDirty(pg))
 				reiser4_stat_inc(pages_clean);
-#endif
+
 			/* don't check return value: submit page even if it
 			   wasn't dirty. */		
 			test_clear_page_dirty(pg);
@@ -1198,34 +1214,19 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			unlock_page(pg);
 
-			bio->bi_io_vec[nr_used].bv_page = pg;
-			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
-			bio->bi_io_vec[nr_used].bv_offset = 0;
-
 			cur = capture_list_next(cur);
 			nr_used ++;
 		}
 		if (nr_used > 0) {
 			bio->bi_sector = block * (super->s_blocksize >> 9);
-			bio->bi_bdev = super->s_bdev;
-			bio->bi_size = super->s_blocksize * nr_used;
-			bio->bi_vcnt = nr_used;
+			assert("nikita-3453",
+			       bio->bi_size == super->s_blocksize * nr_used);
+			assert("nikita-3454", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */
-			if ( super->s_flags & MS_RDONLY ) {
-				int i;
-				for ( i = 0; i < nr_used ; i++) {
-					struct page *pg = bio->bi_io_vec[i].bv_page;
-					struct jnode *j;
-
-					j = jprivate(pg);
-					ClearPageWriteback(pg);
-					JF_CLR(j, JNODE_WRITEBACK);
-					ON_DEBUG_MODIFY(znode_set_checksum(j, 1));
-					JF_SET(j, JNODE_DIRTY);
-				}
-				bio_put(bio);
-			} else {
+			if (super->s_flags & MS_RDONLY)
+				undo_bio(bio);
+			else {
 				add_fq_to_bio(fq, bio);
 				reiser4_submit_bio(WRITE, bio);
 			}
