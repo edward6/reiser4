@@ -6,13 +6,6 @@
 #include <reiserfs/debug.h>
 #include <reiserfs/reiserfs.h>
 
-#if ENABLE_NLS
-#  include <libintl.h>
-#  define _(String) dgettext (PACKAGE, String)
-#else
-#  define _(String) (String)
-#endif
-
 extern aal_list_t *plugins;
 
 int reiserfs_super_open(reiserfs_fs_t *fs) {
@@ -24,7 +17,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	
 	if (fs->super) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-007", 
-			_("Super block already opened."));
+			"Super block already opened.");
 		return 0;
 	}
 	

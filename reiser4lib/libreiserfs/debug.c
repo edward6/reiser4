@@ -10,13 +10,6 @@
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
-#if ENABLE_NLS
-#  include <libintl.h>
-#  define _(String) dgettext (PACKAGE, String)
-#else
-#  define _(String) (String)
-#endif
-
 #ifdef ENABLE_DEBUG
 
 int libreiserfs_assert(int cond, char *cond_text, char *file, int line, char *function) {
@@ -26,7 +19,7 @@ int libreiserfs_assert(int cond, char *cond_text, char *file, int line, char *fu
 		return 1;
 
 	opt = aal_exception_throw(EXCEPTION_BUG, EXCEPTION_IGNORE | EXCEPTION_CANCEL,
-		_("Assertion (%s) at %s:%d in function %s() failed."), cond_text, file, 
+		"Assertion (%s) at %s:%d in function %s() failed.", cond_text, file, 
 		line, function);
 	
 	return opt == EXCEPTION_IGNORE;

@@ -12,13 +12,6 @@
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
-#if ENABLE_NLS
-#  include <libintl.h>
-#  define _(String) dgettext (PACKAGE, String)
-#else
-#  define _(String) (String)
-#endif
-
 extern aal_list_t *plugins;
 
 struct walk_desc {
@@ -61,14 +54,14 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
 
 	if (!(handle = dlopen(name, RTLD_NOW))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-001", 
-			_("Can't load plugin library %s. Error: %s."), name, strerror(errno));
+			"Can't load plugin library %s. Error: %s.", name, strerror(errno));
 		return NULL;
 	}
 
 	entry = dlsym(handle, point);
 	if ((error = dlerror()) != NULL) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
-			_("Can't find symbol %s in plugin %s. Error: %s."), point, name, error);
+			"Can't find symbol %s in plugin %s. Error: %s.", point, name, error);
 		goto error_free_handle;
 	}
 	

@@ -9,10 +9,6 @@
 
 #include <reiserfs/reiserfs.h>
 
-#ifdef ENABLE_NLS
-#  include <libintl.h>
-#endif
-
 aal_list_t *plugins = NULL;
 
 int libreiserfs_get_max_interface_version(void) {
@@ -40,11 +36,11 @@ static void libreiserfs_release_plugins(void) {
 static void _init(void) __attribute__ ((constructor));
 
 static void _init(void) {
-#ifdef ENABLE_NLS
-	 bindtextdomain(PACKAGE, LOCALEDIR);
-#endif
 	plugins = aal_list_create(10);
-	libreiserfs_init_plugins();
+	if (!libreiserfs_init_plugins()) {
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-008", 
+		"Can't initialize plugins.");
+	}
 }
 
 static void _done(void) __attribute__ ((destructor));
