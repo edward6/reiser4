@@ -1473,7 +1473,7 @@ grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	assert("edward-787", clust != NULL);
 	assert("edward-788", clust->pages != NULL);
 	assert("edward-789", clust->nr_pages != 0);
-	assert("edward-790", 0 < clust->nr_pages <= cluster_nrpages(inode));
+	assert("edward-790", clust->nr_pages <= cluster_nrpages(inode));
 
 	for (i = 0; i < clust->nr_pages; i++) {
 		clust->pages[i] = grab_cache_page(inode->i_mapping, clust_to_pg(clust->index, inode) + i);
