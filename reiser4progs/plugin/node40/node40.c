@@ -119,12 +119,12 @@ static void node40_item_set_plugin_id(aal_block_t *block,
 }
 
 static error_t node40_prepare_space(aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, void *key, reiserfs_item_info_t *info) 
+    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
+    reiserfs_item_info_t *info) 
 {
     void *body;
     int i, item_pos;
     uint32_t offset;
-    reiserfs_plugin_t *plugin;
     
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
@@ -133,6 +133,8 @@ static error_t node40_prepare_space(aal_block_t *block,
 
     aal_assert("vpf-006", coord != NULL, return -1);
     aal_assert("vpf-007", info != NULL, return -1);
+    aal_assert("umka-712", key != NULL, return -1);
+    aal_assert("umka-713", key->plugin != NULL, return -1);
 
     is_enought_space = (nh40_get_free_space(reiserfs_nh40(block)) >= 
 	info->length + sizeof(reiserfs_ih40_t));
@@ -186,13 +188,9 @@ static error_t node40_prepare_space(aal_block_t *block,
     if (!is_new_item)	
 	return 0;
     
-    /* FIXME-UMKA: The same as above concerning key id */
-    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -1);
-
     /* Create a new item header */
-    aal_memcpy(&ih->key, key, libreiser4_plugin_call(return -1, 
-	plugin->key, size,));
+    aal_memcpy(&ih->key, key->body, libreiser4_plugin_call(return -1, 
+	key->plugin->key, size,));
     
     ih40_set_offset(ih, offset);
     ih40_set_plugin_id(ih, info->plugin->h.id);
@@ -203,7 +201,8 @@ static error_t node40_prepare_space(aal_block_t *block,
 
 /* Inserts item described by info structure into node. */
 static error_t node40_item_insert(aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, void *key, reiserfs_item_info_t *info) 
+    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
+    reiserfs_item_info_t *info) 
 { 
     reiserfs_nh40_t *nh;
     
@@ -221,7 +220,8 @@ static error_t node40_item_insert(aal_block_t *block,
 
 /* Pastes units into item described by info structure. */
 static error_t node40_item_paste(aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, void *key, reiserfs_item_info_t *info) 
+    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
+    reiserfs_item_info_t *info) 
 {   
     aal_assert("vpf-120", coord != NULL && coord->unit_pos != -1, return -1);
     
@@ -337,23 +337,20 @@ static void *callback_elem_for_lookup(void *block, uint32_t pos,
 static int callback_compare_for_lookup(const void *key1,
     const void *key2, void *data)
 {
-    reiserfs_plugin_t *plugin;
-    
     aal_assert("umka-566", key1 != NULL, return -2);
     aal_assert("umka-567", key2 != NULL, return -2);
     aal_assert("umka-656", data != NULL, return -2);
 
-    plugin = (reiserfs_plugin_t *)data;
-
-    return libreiser4_plugin_call(return -2, plugin->key, 
+    return libreiser4_plugin_call(return -2, ((reiserfs_plugin_t *)data)->key, 
 	compare, key1, key2);
 }
 
 /*
     Makes lookup inside the node and returns result of lookuping.
 
-    coord->item_pos = -1 if the wanted key goes before the first item of the node,
-    count for item_pos if after. unit_num is preset on 0.
+    coord->item_pos = -1 if the wanted key goes before the first item 
+    of the node, count for item_pos if after. unit_num is preset on 0.
+    
     Returns: 
     -1 if problem occured, 1(0) - exact match has (not) been found.
     
@@ -361,17 +358,18 @@ static int callback_compare_for_lookup(const void *key1,
 */
 
 static int node40_lookup(aal_block_t *block, reiserfs_unit_coord_t *coord, 
-    void *key, reiserfs_plugin_t *plugin) 
+    reiserfs_key_t *key) 
 {
     int found; int64_t pos;
     
     aal_assert("umka-472", key != NULL, return -2);
+    aal_assert("umka-714", key->plugin != NULL, return -2);
     aal_assert("umka-478", coord != NULL, return -2);
     aal_assert("umka-470", block != NULL, return -2);
  
     if ((found = reiserfs_misc_bin_search((void *)block, 
-	    node40_item_count(block), key, callback_elem_for_lookup, 
-	    callback_compare_for_lookup, plugin, &pos)) == -1)
+	    node40_item_count(block), key->body, callback_elem_for_lookup, 
+	    callback_compare_for_lookup, key->plugin, &pos)) == -1)
 	return -1;
 
     coord->item_pos = pos;
@@ -395,7 +393,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.confirm = (error_t (*)(aal_block_t *))node40_confirm,
 	.check = (error_t (*)(aal_block_t *, int))node40_check,
 	
-	.lookup = (int (*)(aal_block_t *, void *, void *, void *))
+	.lookup = (int (*)(aal_block_t *, void *, void *))
 	    node40_lookup,
 	
 	.print = (void (*)(aal_block_t *, char *, uint16_t))

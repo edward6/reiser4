@@ -142,8 +142,12 @@ struct reiserfs_item_common_ops {
     error_t (*confirm) (void *);
     error_t (*check) (void *);
     void (*print) (void *, char *, uint16_t);
-    /* get the max key which could be stored in the item of this type */
-    error_t (*max_key_inside) (void *, void *);
+
+    /* 
+	Get the max key which could be stored in the item of 
+	this type.
+    */
+    error_t (*max_key) (void *);
     
     /* 
 	Unit-working routines. 	We need to create special opaque 
@@ -233,7 +237,7 @@ struct reiserfs_node_ops {
     error_t (*check) (aal_block_t *, int);
     
     /* Makes lookup inside node by specified key */
-    int (*lookup) (aal_block_t *, void *, void *, void *);
+    int (*lookup) (aal_block_t *, void *, void *);
     
     /* Gets/sets node's free space */
     uint16_t (*get_free_space) (aal_block_t *);

@@ -220,7 +220,7 @@ error_t reiserfs_tree_flush(reiserfs_fs_t *fs) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, fs->tree->root_node->children) {
-	    if (reiserfs_node_flush((reiserfs_node_t *)walk->data))
+	    if (reiserfs_node_flush((reiserfs_node_t *)walk->item))
 		return -1;
 	}
 	aal_list_free(fs->tree->root_node->children);

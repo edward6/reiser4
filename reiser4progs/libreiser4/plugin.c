@@ -155,7 +155,7 @@ void libreiser4_factory_done(void) {
     
     for (walk = aal_list_last(plugins); walk; ) {
 	aal_list_t *temp = aal_list_prev(walk);
-	libreiser4_plugin_unload((reiserfs_plugin_t *)walk->data);
+	libreiser4_plugin_unload((reiserfs_plugin_t *)walk->item);
 	walk = temp;
     }
     plugins = NULL;
@@ -168,7 +168,7 @@ reiserfs_plugin_t *libreiser4_factory_find_by_label(const char *label) {
     aal_assert("umka-258", label != NULL, return NULL);
 	
     return (found = aal_list_find_custom(aal_list_first(plugins), (void *)label, 
-	(comp_func_t)callback_match_label)) ? (reiserfs_plugin_t *)found->data : NULL;
+	(comp_func_t)callback_match_label, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
 }
 
 reiserfs_plugin_t *libreiser4_factory_find_by_coord(reiserfs_plugin_id_t type, 
@@ -183,7 +183,7 @@ reiserfs_plugin_t *libreiser4_factory_find_by_coord(reiserfs_plugin_id_t type,
     desc.id = id;
 	
     return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
-	(comp_func_t)callback_match_coords)) ? (reiserfs_plugin_t *)found->data : NULL;
+	(comp_func_t)callback_match_coords, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
 }
 
 error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data) {
@@ -193,10 +193,11 @@ error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *dat
     aal_assert("umka-479", plugin_func != NULL, return -1);
 
     aal_list_foreach_forward(walk, plugins) {
-	reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->data;
+	reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->item;
 	
 	if ((res = plugin_func(plugin, data)))
 	    return res;
     }
     return res;
 }
+

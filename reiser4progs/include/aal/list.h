@@ -10,13 +10,13 @@
 typedef struct aal_list aal_list_t;
 
 struct aal_list {
-    void *data;
+    void *item;
     
     aal_list_t *next;
     aal_list_t *prev;
 };
 
-extern aal_list_t *aal_list_alloc(void *data);
+extern aal_list_t *aal_list_alloc(void *item);
 extern aal_list_t *aal_list_last(aal_list_t *list);
 extern aal_list_t *aal_list_first(aal_list_t *list);
 
@@ -28,25 +28,25 @@ extern uint32_t aal_list_length(aal_list_t *list);
 extern int aal_list_foreach(aal_list_t *list, 
     foreach_func_t func, void *data);
 
-extern int32_t aal_list_pos(aal_list_t *list, void *data);
+extern int32_t aal_list_pos(aal_list_t *list, void *item);
 extern aal_list_t *aal_list_at(aal_list_t *list, uint32_t n);
 
 extern aal_list_t *aal_list_insert(aal_list_t *list, 
-    void *data, uint32_t n);
+    void *item, uint32_t n);
 
 extern aal_list_t *aal_list_insert_sorted(aal_list_t *list,
-    void *data, comp_func_t com_func);
+    void *item, comp_func_t comp_func, void *data);
     
-extern aal_list_t *aal_list_prepend(aal_list_t *list, void *data);
-extern aal_list_t *aal_list_append(aal_list_t *list, void *data);
-extern void aal_list_remove(aal_list_t *list, void *data);
-extern aal_list_t *aal_list_find(aal_list_t *list, void *data);
+extern aal_list_t *aal_list_prepend(aal_list_t *list, void *item);
+extern aal_list_t *aal_list_append(aal_list_t *list, void *item);
+extern void aal_list_remove(aal_list_t *list, void *item);
+extern aal_list_t *aal_list_find(aal_list_t *list, void *item);
 
-extern aal_list_t *aal_list_find_custom(aal_list_t *list, void *data, 
-    comp_func_t comp_func);
+extern aal_list_t *aal_list_find_custom(aal_list_t *list, void *item, 
+    comp_func_t comp_func, void *data);
 
-extern aal_list_t *aal_list_bin_search(aal_list_t *list, void *data, 
-    comp_func_t comp_func);
+extern aal_list_t *aal_list_bin_search(aal_list_t *list, void *item, 
+    comp_func_t comp_func, void *data);
 
 extern void aal_list_free(aal_list_t *list);
 

@@ -9,7 +9,6 @@
 #endif
 
 #include <reiser4/reiser4.h>
-#include <reiser4/key.h>
 #include <misc/misc.h>
 
 #include "direntry40.h"
@@ -146,26 +145,19 @@ static int callback_cmp_for_lookup(const void *key1, const void *key2,
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
-    void *key, reiserfs_unit_coord_t *coord)
+    reiserfs_key_t *key, reiserfs_unit_coord_t *coord)
 {
     int found;
     uint64_t pos;
-    reiserfs_plugin_t *plugin;
     
     aal_assert("umka-609", direntry != NULL, return -2);
     aal_assert("umka-610", key != NULL, return -2);
+    aal_assert("umka-717", key->plugin != NULL, return -2);
     aal_assert("umka-629", coord != NULL, return -2);
     
-    /*
-	FIXME-UMKA: Here should be using not hardcoded
-	key id.
-    */
-    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
-    
     if ((found = reiserfs_misc_bin_search((void *)direntry, 
-	    direntry->count, key, callback_elem_for_lookup, 
-	    callback_cmp_for_lookup, plugin, &pos)) == -1)
+	    direntry->count, key->body, callback_elem_for_lookup, 
+	    callback_cmp_for_lookup, key->plugin, &pos)) == -1)
 	return -1;
 
     coord->unit_pos = (uint32_t)pos;
@@ -177,14 +169,18 @@ static int direntry40_internal(void) {
     return 0;
 }
 
-static error_t direntry40_max_key_inside(void *key, reiserfs_plugin_t *plugin) {
-    aal_assert("vpf-120", plugin != NULL, return -1);
-    aal_assert("vpf-121", plugin->key.set_objectid != NULL, return -1);
-    aal_assert("vpf-122", plugin->key.get_objectid != NULL, return -1);
-    aal_assert("vpf-123", plugin->key.maximal != NULL, return -1);
+static error_t direntry40_max_key(reiserfs_key_t *key) {
+    aal_assert("umka-716", key->plugin != NULL, return -1);
+    aal_assert("vpf-121", key->plugin->key.set_objectid != NULL, return -1);
+    aal_assert("vpf-122", key->plugin->key.get_objectid != NULL, return -1);
+    aal_assert("vpf-123", key->plugin->key.maximal != NULL, return -1);
     
-    plugin->key.set_objectid(key, plugin->key.get_objectid(plugin->key.maximal()));
-    plugin->key.set_offset(key, plugin->key.get_offset(plugin->key.maximal()));
+    key->plugin->key.set_objectid(key->body, 
+	key->plugin->key.get_objectid(key->plugin->key.maximal()));
+    
+    key->plugin->key.set_offset(key->body, 
+	key->plugin->key.get_offset(key->plugin->key.maximal()));
+    
     return 0;
 }
 
@@ -212,7 +208,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
 	    .internal = (int (*)(void))direntry40_internal,
-	    .max_key_inside = (error_t (*)(void *, void*))direntry40_max_key_inside,
+	    .max_key = (error_t (*)(void *))direntry40_max_key,
 	    
 	    .confirm = NULL,
 	    .check = NULL,

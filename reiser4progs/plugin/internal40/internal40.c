@@ -107,7 +107,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .internal = (int (*)(void))internal40_internal,
 
 	    .lookup = NULL,
-	    .max_key_inside = NULL,
+	    .max_key = NULL,
 	    .confirm = NULL,
 	    .check = NULL,
 	    .unit_add = NULL,

@@ -22,12 +22,15 @@ static reiserfs_plugin_factory_t *factory = NULL;
 #ifndef ENABLE_COMPACT
 
 static error_t dir40_item_insert(reiserfs_item_info_t *item_info, aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, reiserfs_plugin_t *node_plugin, void *key) 
+    reiserfs_unit_coord_t *coord, reiserfs_plugin_t *node_plugin, reiserfs_key_t *key) 
 {
     uint32_t overhead, free_space;
 
-    if (libreiser4_plugin_call(return -1, item_info->plugin->item.common, estimate, 
-	item_info, coord))
+    aal_assert("umka-721", key != NULL, return -1);
+    aal_assert("umka-722", key->plugin != NULL, return -1);
+    
+    if (libreiser4_plugin_call(return -1, item_info->plugin->item.common, 
+	estimate, item_info, coord))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't estimate stat data item.");
@@ -124,9 +127,10 @@ static reiserfs_dir40_t *dir40_create(aal_block_t *block, uint32_t pos,
     coord.item_pos = pos;
     coord.unit_pos = -1;
     
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, &key);
+    key.plugin = key_plugin;
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, key.body);
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key, build_file_key, 
-	&key, KEY40_STATDATA_MINOR, root_parent_objectid, root_objectid, 0);
+	key.body, KEY40_STATDATA_MINOR, root_parent_objectid, root_objectid, 0);
     
     if (!(item_info.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN,
 	stat_plugin_id)))
@@ -139,7 +143,6 @@ static reiserfs_dir40_t *dir40_create(aal_block_t *block, uint32_t pos,
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't insert stat data item into node %llu", 
 	    aal_block_get_nr(block));
-	
 	goto error_free_dir;
     }
 
@@ -165,9 +168,9 @@ static reiserfs_dir40_t *dir40_create(aal_block_t *block, uint32_t pos,
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &direntry_info;
 
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, &key);
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, key.body);
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key, build_dir_key, 
-	&key, direntry_info.hash_plugin, direntry_info.parent_id, 
+	key.body, direntry_info.hash_plugin, direntry_info.parent_id, 
 	direntry_info.object_id, ".");
      
     coord.item_pos = pos + 1;
@@ -182,8 +185,7 @@ static reiserfs_dir40_t *dir40_create(aal_block_t *block, uint32_t pos,
 
     if (dir40_item_insert(&item_info, block, &coord, node_plugin, &key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't insert direntry item into node %llu", 
-	    aal_block_get_nr(block));
+	    "Can't insert direntry item into node %llu", aal_block_get_nr(block));
 	goto error_free_dir;
     }
     
