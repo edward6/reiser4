@@ -136,9 +136,8 @@ static error_t node40_prepare_space(aal_block_t *block,
     if (coord->unit_pos == -1) {
 	is_new_item = 1;
 	item_pos = coord->item_pos;
-    } else {
+    } else
 	item_pos = coord->item_pos + 1;
-    }
     
     nh = reiserfs_nh40(block);
     ih = node40_ih_at(block, item_pos);
@@ -413,7 +412,7 @@ static reiserfs_plugin_t node40_plugin = {
     }
 };
 
-reiserfs_plugin_t *node40_entry(reiserfs_plugin_factory_t *f) {
+static reiserfs_plugin_t *node40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &node40_plugin;
 }

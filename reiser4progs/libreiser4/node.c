@@ -521,7 +521,7 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
     c) get item_info->plugin on the base of coord.
 */
 
-error_t reiserfs_node_item_estimate (reiserfs_node_t *node, 
+error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
     reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord)
 {
     aal_assert("vpf-106", item_info != NULL, return -1);
@@ -551,7 +551,7 @@ error_t reiserfs_node_item_estimate (reiserfs_node_t *node,
     return 0;
 }
 
-error_t reiserfs_node_insert(reiserfs_node_t *node, reiserfs_item_coord_t *coord, 
+error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_item_coord_t *coord, 
     void *key, reiserfs_item_info_t *item_info) 
 {
     error_t ret;
@@ -593,7 +593,7 @@ error_t reiserfs_node_insert(reiserfs_node_t *node, reiserfs_item_coord_t *coord
     /* Item must be inserted/unit pasted in item_insert/item_paste node methods. */
 /*
     if (item_info->plugin == NULL) {
-        reiserfs_check_method (coord->node->plugin->node, item, return -1);
+        reiserfs_check_method(coord->node->plugin->node, item, return -1);
 
         aal_memcpy(coord->node->plugin->node.item(coord->node, coord->item_pos),
             item_info->data, item_info->length);

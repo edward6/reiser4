@@ -71,7 +71,7 @@ extern void reiserfs_node_item_set_plugin(reiserfs_node_t *node,
 extern reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node, 
     uint32_t pos);
 
-extern error_t reiserfs_node_insert(reiserfs_node_t *node, 
+extern error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
     reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info);
 
 extern error_t reiserfs_node_item_replace(reiserfs_node_t *node, 
