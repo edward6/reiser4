@@ -9,7 +9,6 @@
 
 #include "../reiser4.h"
 
-
 /*
  * FIXME-VS: do not turn this on yet
  */
@@ -3785,22 +3784,88 @@ int jmacd_test( int argc UNUSED_ARG,
  *                                      BITMAP TEST
  *****************************************************************************************/
 
-static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree UNUSED_ARG)
+#define BLOCK_COUNT 100000
+
+/* tree op. read node which emulates read from valid reiser4 volume  */
+static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t blksz )
+{
+	struct super_block * super = get_current_context() -> super;
+
+	/* it is a hack for finding what block we read (bitmap block or not) */
+	int bmap_nr = *addr / super->s_blocksize;
+	reiser4_block_nr bmap_block_addr;
+
+	get_bitmap_blocknr (super,  bmap_nr, &bmap_block_addr);
+
+	if (disk_addr_eq (addr, &bmap_block_addr)) {
+		int offset = *addr - bmap_nr * blksz * 8;
+		
+		*data = reiser4_kmalloc (blksz, GFP_KERNEL);
+
+		if (*data == NULL) return -ENOMEM;
+
+		xmemset(*data, '0', blksz);
+		set_bit(offset, (long*)*data);
+
+	} else {
+		warning ("zam-411", "bitmap test should not read not bitmap block #%llu", *addr);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/** a temporary solutions for setting up reiser4 super block */
+static void fill_sb (struct super_block * super)
+{
+	reiser4_super_info_data * info_data = get_super_private (super);
+	
+	info_data -> block_count2 = BLOCK_COUNT;
+	info_data -> blocks_used2  = BLOCK_COUNT / 10;
+	info_data -> blocks_free2  = info_data -> block_count2 - info_data -> blocks_free2;
+
+	info_data -> blocks_free_committed2 = info_data -> blocks_free2;
+
+	/* set an allocator plugin field to bitmap-based allocator */
+	info_data ->space_plug = &space_plugins[BITMAP_SPACE_ALLOCATOR_ID].space_allocator;
+}
+
+static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree)
 {
 	struct super_block * super = reiser4_get_current_sb();
 
 	assert ("vs-510", get_super_private (super) != NULL);
 
+
+	/* just a setting of all sb fields when real read_super is not ready */ 
+	fill_sb (super);
+
 	/*
 	assert ("vs-511", get_super_private (super)->space_plug != NULL);
 	*/
-	/* set an allocator plugin filed to bitmap-based allocator */
-
-	get_super_private(super)->space_plug = &space_plugins[BITMAP_SPACE_ALLOCATOR_ID].space_allocator;
-
 	if (get_super_private (super)->space_plug->init_allocator)
 		get_super_private (super)->space_plug->init_allocator (
 			get_space_allocator (super), super, 0);
+
+	tree -> read_node = bm_test_read_node;
+
+
+	{
+		reiser4_blocknr_hint hint;
+
+		reiser4_block_nr block;
+		reiser4_block_nr len;
+		
+		len = 10;
+
+		blocknr_hint_init (&hint);
+
+		reiser4_alloc_blocks (&hint, &block, &len);
+
+		blocknr_hint_done (&hint);
+		
+	}
+
 
 	if (get_super_private (super)->space_plug->destroy_allocator)
 		get_super_private (super)->space_plug->destroy_allocator (
