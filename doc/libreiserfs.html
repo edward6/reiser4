@@ -482,14 +482,32 @@ opening process.
 <h2>libreiserfs</h2>
 
 <table width=90%><tr><td align=justify>
-<p>Libreiserfs will consists of set of APIs. There are following:<br>
-plugins API (plugin factory), filesystem API, gauge API, tree API, 
-memory allocation functions, string working functions.</p>
+<p>Libreiserfs will consists of:</p>
 
-<p>Also it will contain API (a set of wrapper functions) for every plugin:<br>
-journal API, allocator API, oid allocator API, directory API, file API, node API,
-item API, etc. For example, libreiserfs will be working with directory plugin via 
-directory API.</p>
+<ul>
+	<li>a number of plugins (disk-layout plugins, journal plugins, node plugins, etc)
+	<li>plugins factory.
+	<li>a number of API for every plugin (reiserfs_super_*, reiserfs_journal_*). For example, 
+libreiserfs will be working with directory plugin via directory API.
+	<li>the filesystem API, the tree API, blocks API.
+	<li>a number of utilities (gauge, exceptions, tools).
+	<li>memory allocation factory.
+</ul>
+
+<p>Every plugin will consists of a number of common routines for all plugins
+and plugin-specific routins.</p>
+
+<p>The common routines are following:</p>
+
+<ul>
+	<li>init() - initializing of an object instance (for example, journal).
+	<li>create() - creating of an object on device.
+	<li>done() - finalizing of given object instance. Freeing all internal structures.
+	<li>check() - cheking specifiedd object for validness.
+	<li>recover() - recovering of specified object.
+</ul>
+
+<p>See bellow for plugin-specific routines.</p>
 
 <p>Additional API for every plugin is needed because plugins will be implemented in 
 application-independent maner in order to using by any software. Not just libreiserfs. 
@@ -601,7 +619,7 @@ functionality to it. It may to ask user something. For example:</p>
 
 <p><i>"Error: Can't read block 8193. (C)ancel, (R)etry"</i></p>
 
-<p>Or yet another behavior. Exception handler may emit all errors in system log. 
+<p>Or yet another behavior. Exception handler may emit all errors to system log. 
 The exception handler behavior will depends on application.</p>
 
 <p>Exception handling functions:</p>
@@ -617,9 +635,9 @@ reiserfs_exception_option_t opt, const char* message, ...)</b>
 <p>Raises (throws) an exception. Exception contains type (ERROR, WARNING, etc), 
 options (IGNORE, CANCEL, RETRY, etc) and error message.</p>
 
-<p>After exceptions factory has been catch an exception, it passes control onto 
+<p>After exceptions factory has been catched an exception, it passes the control onto 
 exception handler. Then exception handler processes exception in some maner and 
-returns result into calling function. Therefore, calling function may decide what 
+returns result into calling function. Then calling function may decide what 
 it have to do. And this decision will be based on result of processing of issued 
 exception.</p>
 
