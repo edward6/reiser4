@@ -212,20 +212,26 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		if (result == 0) {
 			lock_handle lh;
 
-			/* 
-			 * if we inserted new child into tree we have to mark
-			 * it dirty so that flush will be able to process it.
-			 */
-			init_lh(&lh);
-			result = longterm_lock_znode(&lh, node, 
-						     ZNODE_WRITE_LOCK,
-						     ZNODE_LOCK_LOPRI);
+			result = zload(node);
 			if (result == 0) {
-				znode_make_dirty(node);
-				done_lh(&lh);
-			} else {
-				warning("nikita-3136", "Cannot dirty child");
-				print_znode("child", node);
+				/* 
+				 * if we inserted new child into tree we have
+				 * to mark it dirty so that flush will be able
+				 * to process it.
+				 */
+				init_lh(&lh);
+				result = longterm_lock_znode(&lh, node, 
+							     ZNODE_WRITE_LOCK,
+							     ZNODE_LOCK_LOPRI);
+				if (result == 0) {
+					znode_make_dirty(node);
+					done_lh(&lh);
+				} else {
+					warning("nikita-3136", 
+						"Cannot dirty child");
+					print_znode("child", node);
+				}
+				zrelse(node);
 			}
 		}
 	} else
