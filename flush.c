@@ -1236,7 +1236,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 exit:
 	done_load_count(&pload);
 	done_lh(&plock);
-	PROF_END(flush_alloc, flush_alloc);
+	PROF_END(flush_alloc, 0);
 	return ret;
 }
 
@@ -2194,7 +2194,7 @@ static int squalloc (flush_pos_t * pos)
 			break;
 	}
 
-	PROF_END(forward_squalloc, forward_squalloc);
+	PROF_END(forward_squalloc, 0);
 
 	/* any positive value or -E_NO_NEIGHBOR are legal return codes for handle_pos*
 	   routines, -E_NO_NEIGHBOR means that slum edge was reached */
