@@ -1018,8 +1018,13 @@ jnode * alloc_io_head (const reiser4_block_nr * block)
 
 void drop_io_head (jnode * node)
 {
+	reiser4_tree * tree = current_tree;
+
 	assert ("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
+
+	spin_lock_tree (tree);
 	jdrop(node);
+	spin_unlock_tree (tree);
 }
 
 #if REISER4_DEBUG

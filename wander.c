@@ -305,7 +305,7 @@ static void dealloc_tx_list (capture_list_head * tx_list)
 
 		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
-		jdrop (cur);
+		drop_io_head (cur);
 	}
 }
 
@@ -591,14 +591,12 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct reiser4_io_hand
 
 		/* create jnodes for all log records */
 		while (len --) {
-			cur = jnew ();
+			cur = alloc_io_head (&first);
 
 			if (cur == NULL) {
 				ret = -ENOMEM;
 				goto free_not_assigned;
 			}
-
-			jnode_set_block(cur, &first);
 
 			ret = jload(cur);
 
@@ -913,9 +911,6 @@ static int replay_transaction (const struct super_block * s,
 
 	int ret;
 
-	log = jnew();
-	if (log == NULL) return -ENOMEM; 
-
 	capture_list_init(&overwrite);
 
 	while (log_rec_block != *end_block) {
@@ -931,13 +926,14 @@ static int replay_transaction (const struct super_block * s,
 			goto free_ow_set;
 		}
 
-		jnode_set_block(log, &log_rec_block);
+		log = alloc_io_head(&log_rec_block);
+		if (log == NULL) return -ENOMEM; 
 
 		ret = jload(log);
-		if (ret < 0) { jfree(log); return ret; }
+		if (ret < 0) { drop_io_head(log); return ret; }
 
 		ret= check_log_record(log);
-		if (ret) { jrelse(log); jdrop(log); return ret; }
+		if (ret) { jrelse(log); drop_io_head(log); return ret; }
 
 		LH = (struct log_record_header *)jdata(log);
 		log_rec_block = d64tocpu(&LH->next_block);
@@ -949,16 +945,16 @@ static int replay_transaction (const struct super_block * s,
 			reiser4_block_nr block;
 			jnode * node;
 
-			node = jnew();
-			if (node == NULL) { ret = -ENOMEM; goto free_ow_set; }
-
 			block = d64tocpu(&LE->wandered);
+
 			if (block == 0) break;
 
-			jnode_set_block(node, &block);
+			node = alloc_io_head(&block);
+			if (node == NULL) { ret = -ENOMEM; goto free_ow_set; }
+
 			ret = jload(node);
 
-			if (ret < 0) { jfree (node); goto free_ow_set; }
+			if (ret < 0) { drop_io_head (node); goto free_ow_set; }
 
 			block = d64tocpu(&LE->original);
 
@@ -972,9 +968,8 @@ static int replay_transaction (const struct super_block * s,
 		}
 
 		jrelse(log);
-		jdrop(log);
-		/* FIXME: JMACD->ZAM: Can you explain why jdrop is not followed by jfree here? */
-		/* FIXME:NIKITA->ZAM now jdrop() calls jfree() internally */
+		drop_io_head(log);
+
 		-- nr_log_records;
 	}
 
@@ -1002,7 +997,7 @@ static int replay_transaction (const struct super_block * s,
 	while (!capture_list_empty(&overwrite)) {
 		jnode * cur = capture_list_pop_front(&overwrite);
 		jrelse(cur);
-		jdrop(cur);
+		drop_io_head(cur);
 	}
 
 	return ret;
@@ -1041,19 +1036,18 @@ static int replay_oldest_transaction(struct super_block * s)
 
 	trace_on(TRACE_REPLAY, "not flushed transactions found.");
 
-	if ((tx_head = jnew()) == NULL) return -ENOMEM;
-
 	prev_tx = private->last_committed_tx;
 
 	/* searching for oldest not flushed transaction */
 	while (1) {
-		jnode_set_block(tx_head, &prev_tx);
+		tx_head = alloc_io_head (&prev_tx);
+		if (!tx_head) return -ENOMEM;
 
 		ret = jload(tx_head);
-		if (ret < 0 ) { jfree (tx_head); return ret;}
+		if (ret < 0 ) { drop_io_head (tx_head); return ret;}
 
 		ret = check_tx_head(tx_head);
-		if (ret) { jrelse(tx_head); jdrop(tx_head); return ret; }
+		if (ret) { jrelse(tx_head); drop_io_head(tx_head); return ret; }
 
 		T = (struct tx_header*)jdata(tx_head);
 
@@ -1068,9 +1062,7 @@ static int replay_oldest_transaction(struct super_block * s)
 		}
 
 		jrelse(tx_head);
-		jdrop(tx_head);
-		/* FIXME: JMACD->ZAM: Can you explain why jdrop is not followed by jfree here? */
-		/* FIXME:NIKITA->ZAM now jdrop() calls jfree() internally */
+		drop_io_head(tx_head);
 	}
 
 	total = d32tocpu(&T->total);
@@ -1085,7 +1077,7 @@ static int replay_oldest_transaction(struct super_block * s)
 	ret = replay_transaction(s, tx_head, &log_rec_block, jnode_get_block(tx_head), total - 1);
 
 	jput(tx_head);
-	jdrop(tx_head);
+	drop_io_head(tx_head);
 
 	if (ret) return ret;
 	return -EAGAIN;

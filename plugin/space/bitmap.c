@@ -377,13 +377,17 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 static void invalidate_jnode(jnode * node)
 {
 	if (node) {
+		reiser4_tree * tree = current_tree;
+ 
 		spin_lock_jnode (node);
 		if (JF_ISSET(node, ZNODE_LOADED)) {
 			jrelse_nolock(node);
 		}
 		spin_unlock_jnode(node);
 
+		spin_lock_tree (tree);
 		jdrop(node);
+		spin_unlock_tree (tree);
 	}
 }
 
