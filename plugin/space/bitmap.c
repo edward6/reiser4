@@ -1064,21 +1064,12 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 void
 bitmap_pre_commit_hook(void)
 {
-	reiser4_context *ctx = get_current_context();
-
-	txn_handle *tx;
+	struct super_block * super = reiser4_get_current_sb();
 	txn_atom *atom;
 
 	long long blocks_freed = 0;
 
-	assert("zam-433", ctx != NULL);
-
-	tx = ctx->trans;
-	assert("zam-434", tx != NULL);
-
-	atom = atom_get_locked_with_txnh_locked(tx);
-	assert("zam-435", atom != 0);
-	spin_unlock_txnh(tx);
+	atom = get_current_atom_locked ();
 
 	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
 
@@ -1094,23 +1085,28 @@ bitmap_pre_commit_hook(void)
 
 				bmap_off_t offset;
 				struct bnode *bn;
-				__u32 size = bmap_size(get_current_context()->super->s_blocksize);
+				__u32 size = bmap_size(super->s_blocksize);
 				char byte;
 
 				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
 				assert("zam-460", !blocknr_is_fake(&node->blocknr));
 
 				parse_blocknr(&node->blocknr, &bmap, &offset);
-				bn = get_bnode(ctx->super, bmap);
+				bn = get_bnode(super, bmap);
 
 				assert("vpf-276", offset / 8 < size);
 
 				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
 					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
 
-				check_bnode_loaded(bn);
+				assert ("zam-779", atom->satge == ASTAGE_PRE_COMMIT);
+				spin_unlock_atom (atom);
 
+				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
+
+				spin_lock_atom (atom);
+
 				byte = *(bnode_commit_data(bn) + offset / 8);
 				reiser4_set_bit(offset, bnode_commit_data(bn));
 
@@ -1143,14 +1139,14 @@ bitmap_pre_commit_hook(void)
 	{
 		__u64 free_committed_blocks;
 
-		reiser4_spin_lock_sb(ctx->super);
+		reiser4_spin_lock_sb(super);
 
-		free_committed_blocks = reiser4_free_committed_blocks(ctx->super);
+		free_committed_blocks = reiser4_free_committed_blocks(super);
 
 		free_committed_blocks += blocks_freed;
-		reiser4_set_free_committed_blocks(ctx->super, free_committed_blocks);
+		reiser4_set_free_committed_blocks(super, free_committed_blocks);
 
-		reiser4_spin_unlock_sb(ctx->super);
+		reiser4_spin_unlock_sb(super);
 	}
 }
 
