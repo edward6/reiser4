@@ -111,6 +111,8 @@ Also, following kernel locks are used by our code:
 
 3. Per-inode semaphore                                          (i_sem)
 
+4. Per-inode I_LOCK bit-lock                                    (I_LOCK)
+
 Thread also can block on the following "objects" that are not really locks:
 
 1. Page fault                                                   (pfault)
@@ -250,7 +252,8 @@ with respect to each other. Any spin lock is righter than any long term lock,
 obviously.
 
 i_sem
-..inode_rw_lock <---------DEAD1---+
+..inode_rw_lock <-------DEAD1-----+
+......I_LOCK                      |
 ....delete_sema                   |
 ......flush_sema                  |
 ........longterm_lock <---DEAD2-+ |
@@ -424,6 +427,10 @@ jnode_lock->(zone->lru_lock)
 
     jnode_set_dirty()->mark_page_accessed()
 
+
+I_LOCK->longterm_lock
+
+    reiser4_iget()
 
 ----------------------------------DEADLOCKS-------------------------------------
 

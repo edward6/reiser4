@@ -65,6 +65,7 @@ subgraph long {
 	SYSLONG(i_sem, i_sem);
 	SYSLONG(page_lock, page_lock);
 	SYSLONG(cache_chain_sem, "&cache_chain_sem");
+	SYSLONG(I_LOCK, "I_LOCK");
 
 	SYSLONG(namespace_sem, "namespace->sem");
 	// SYSLONG(bdev_bd_sem, "bdev->bd_sem");
@@ -217,5 +218,7 @@ ARC(bkl, inode_lock, "iget()");
 ARC(jnode_lock, mapping_page_lock, "jnode_set_dirty()");
 ARC(jnode_lock, inode_lock, "jnode_set_dirty()");
 ARC(jnode_lock, zone_lru_lock, "jnode_set_dirty()");
+
+ARC(I_LOCK, longterm_lock, "reiser4_iget()");
 
 }
