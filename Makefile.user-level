@@ -136,9 +136,9 @@ SRC             := \
                    block_alloc.c \
                    txnmgr.c \
                    kassign.c \
-				   flush.c \
-				   wander.c \
-				   search.c \
+		   flush.c \
+		   wander.c \
+		   search.c \
                    plugin/plugin.c \
                    plugin/node/node.c \
                    plugin/node/node40.c \
@@ -149,7 +149,7 @@ SRC             := \
                    plugin/item/internal.c \
                    plugin/item/tail.c \
                    plugin/hash.c \
-                   plugin/tail.c \
+                   plugin/tail_policy.c \
                    plugin/item/item.c \
                    plugin/dir/hashed_dir.c \
                    plugin/dir/dir.c \
@@ -161,8 +161,8 @@ SRC             := \
                    vfs_ops.c \
                    plugin/item/extent.c \
                    plugin/file/file.c \
-				   ulevel/uabend.c \
-				   ulevel/ulevel.c \
+		   ulevel/uabend.c \
+		   ulevel/ulevel.c \
                    memory.c
 
 OBJ             := $(SRC:.c=.o)
