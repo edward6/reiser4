@@ -364,7 +364,7 @@ static int fq_end_io (struct bio * bio, unsigned int bytes_done, int err)
 			jnode * node;
 
 			assert ("zam-736", pg != NULL);
-			assert ("zam-736", pg->private != NULL);
+			assert ("zam-736", PagePrivate(pg));
 			node = (jnode*)(pg->private);
 
 			JF_CLR (node, JNODE_WRITEBACK);
