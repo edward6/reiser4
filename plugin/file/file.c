@@ -126,11 +126,13 @@ static int
 item_contains_key(const coord_t * coord, const reiser4_key * key)
 {
 	reiser4_key tmp;
+	item_plugin *iplug;
 
 	assert("vs-1082", coord_is_existing_item(coord));
-	assert("vs-1011", coord->iplug->b.real_max_key_inside);
+	iplug = item_plugin_by_coord(coord);
+	assert("vs-1011", iplug->b.real_max_key_inside);
 	return (keyge(key, item_key_by_coord(coord, &tmp)) &&
-		keyle(key, coord->iplug->b.real_max_key_inside(coord, &tmp)));
+		keyle(key, iplug->b.real_max_key_inside(coord, &tmp)));
 }
 #endif
 
