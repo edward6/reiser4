@@ -383,6 +383,31 @@ jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
+/* as jlookup(), but is called with tree locked already */
+static jnode *
+jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
+{
+	jnode_key_t jkey;
+	jnode *node;
+
+	assert("nikita-2353", tree != NULL);
+
+	jkey.objectid = objectid;
+	jkey.index = index;
+
+	node = j_hash_find(&tree->jhash_table, &jkey);
+	if (node != NULL) {
+		/* protect @node from recycling */
+		jref(node);
+		assert("nikita-2955", jnode_invariant(node, 1, 0));
+		if (unlikely(JF_ISSET(node, JNODE_RIP))) {
+			dec_x_ref(node);
+			node = NULL;
+		}
+	}
+	return node;
+}
+
 static int
 inode_has_no_jnodes(reiser4_inode *r4_inode)
 {
@@ -448,7 +473,7 @@ inode_detach_jnode(jnode *node)
 /* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
    (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
    fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is created */
-reiser4_internal void
+static void
 hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long index)
 {
 	j_hash_table *jtable;
@@ -457,17 +482,14 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	assert("vs-1442", node->key.j.mapping == 0);
 	assert("vs-1443", node->key.j.objectid == 0);
 	assert("vs-1444", node->key.j.index == (unsigned long)-1);
+	assert("nikita-3439", rw_tree_is_write_locked(jnode_get_tree(node)));
 	
 	node->key.j.mapping  = mapping;
 	node->key.j.objectid = get_inode_oid(mapping->host);
 	node->key.j.index    = index;
 
-	jtable = &node->tree->jhash_table;
+	jtable = &jnode_get_tree(node)->jhash_table;
 
-	/* when no spin locks are held, preload radix tree node. */
-	check_me("zam-992", radix_tree_preload(GFP_KERNEL) == 0);
-
-	WLOCK_TREE(node->tree);
 	/* race with some other thread inserting jnode into the hash table is
 	 * impossible, because we keep the page lock. */
 	/*
@@ -478,10 +500,6 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	j_hash_insert_rcu(jtable, node);
 
 	inode_attach_jnode(node);
-
-	WUNLOCK_TREE(node->tree);
-
-	radix_tree_preload_end();
 }
 
 static void
@@ -511,17 +529,57 @@ unhash_unformatted_jnode(jnode *node)
 	WUNLOCK_TREE(node->tree);
 }
 
+jnode *
+find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
+	       unsigned long index)
+{
+	jnode *result;
+	jnode *shadow;
+	int preload;
+
+	result = jnew_unformatted();
+
+	if (unlikely(result == NULL))
+		return ERR_PTR(RETERR(-ENOMEM));
+
+	preload = radix_tree_preload(GFP_KERNEL);
+	if (preload != 0)
+		return ERR_PTR(preload);
+
+	WLOCK_TREE(tree);
+	shadow = jlookup_locked(tree, oid, index);
+	if (likely(shadow == NULL)) {
+		jref(result);
+		hash_unformatted_jnode(result, mapping, index);
+	} else {
+		jfree(result);
+		shadow->key.j.mapping = mapping;
+		result = shadow;
+	}
+	WUNLOCK_TREE(tree);
+	radix_tree_preload_end();
+	return result;
+}
+
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
 static jnode *
 do_jget(reiser4_tree * tree, struct page * pg)
 {
-	/* FIXME: Note: The following code assumes page_size == block_size.
-	   When support for page_size > block_size is added, we will need to
-	   add a small per-page array to handle more than one jnode per
-	   page. */
-	jnode *jal;
+	/*
+	 * There are two ways create jnode: starting with pre-existing page
+	 * and without page.
+	 *
+	 * When page already exists, jnode is created
+	 * (jnode_of_page()->do_jget()) under page lock. This is done in
+	 * ->witepage(), or when capturing anonymous page dirtied through
+	 * mmap.
+	 *
+	 * Jnode without page is created by index_extent_jnode().
+	 *
+	 */
+
 	jnode *result;
 	oid_t oid = get_inode_oid(pg->mapping->host);
 
@@ -532,28 +590,20 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	if (likely(result != NULL))
 		return jref(result);
 
-	/* check hash-table first */
 	tree = tree_by_page(pg);
 
+	/* check hash-table first */
 	result = jlookup(tree, oid, pg->index);
 	if (unlikely(result != NULL)) {
-		assert("nikita-2358", jnode_page(result) == NULL);
 		UNDER_SPIN_VOID(jnode, result, jnode_attach_page(result, pg));
 		result->key.j.mapping = pg->mapping;
 		return result;
 	}
 
-	jal = jnew_unformatted();
-
-	if (unlikely(jal == NULL))
-		return ERR_PTR(RETERR(-ENOMEM));
-
-	assert("nikita-3209", jprivate(pg) == NULL);
-	jref(jal);
-	hash_unformatted_jnode(jal, pg->mapping, pg->index);
+	result = find_get_jnode(tree, pg->mapping, oid, pg->index);
 	/* attach jnode to page */
-	UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
-	return jal;
+	UNDER_SPIN_VOID(jnode, result, jnode_attach_page(result, pg));
+	return result;
 }
 
 reiser4_internal jnode *
@@ -1648,7 +1698,7 @@ jnode_get_mapping(const jnode * node)
 	return jnode_ops(node)->mapping(node);
 }
 
-#if REISER4_DEBUG
+#if 1 || REISER4_DEBUG
 /* debugging aid: jnode invariant */
 reiser4_internal int
 jnode_invariant_f(const jnode * node,
@@ -1669,8 +1719,10 @@ jnode_invariant_f(const jnode * node,
 		      JF_ISSET(node, JNODE_RELOC) ||
 		      JF_ISSET(node, JNODE_HEARD_BANSHEE)) &&
 
+#if REISER4_DEBUG
 		_check(node->jnodes.prev != NULL) &&
 		_check(node->jnodes.next != NULL) &&
+#endif
 
 		/* [jnode-dirty] invariant */
 
@@ -1681,9 +1733,18 @@ jnode_invariant_f(const jnode * node,
 
 		/* for unformatted node ->objectid and ->mapping fields are
 		 * consistent */
-		_ergo(jnode_is_unformatted(node),
+		_ergo(jnode_is_unformatted(node) && node->key.j.mapping != NULL,
 		      node->key.j.objectid == get_inode_oid(node->key.j.mapping->host)) &&
-		_ergo(node->atom != NULL, node->atom->stage != ASTAGE_INVALID) &&
+		/* [jnode-atom-valid] invariant */
+
+		/* node atom has valid state */
+		_ergo(node->atom != NULL,
+		      node->atom->stage != ASTAGE_INVALID) &&
+
+		/* [jnode-page-binding] invariant */
+
+		/* if node points to page, it points back to node */
+		_ergo(node->pg != NULL, jprivate(node->pg) == node) &&
 
 		/* [jnode-refs] invariant */
 

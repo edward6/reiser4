@@ -94,6 +94,8 @@ typedef struct {
       [jnode-refs]
       [jnode-oid]
       [jnode-queued]
+      [jnode-atom-valid]
+      [jnode-page-binding]
 */
 
 /* this is to show on which list of atom jnode is */
@@ -347,7 +349,10 @@ extern jnode *jlookup(reiser4_tree * tree,
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg) NONNULL;
 void jnode_attach_page(jnode * node, struct page *pg);
-void hash_unformatted_jnode(jnode *, struct address_space *, unsigned long index);
+jnode *find_get_jnode(reiser4_tree * tree,
+		      struct address_space *mapping, oid_t oid,
+		      unsigned long index);
+
 void unhash_unformatted_jnode(jnode *);
 struct page *jnode_get_page_locked(jnode *, int gfp_flags);
 extern jnode *page_next_jnode(jnode * node) NONNULL;

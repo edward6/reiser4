@@ -251,7 +251,7 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     /* for unformatted node ->objectid and ->mapping fields are
      * consistent */
-    jnode_is_unformatted(node) =>
+    jnode_is_unformatted(node) && node->key.j.mapping != NULL =>
         node->key.j.objectid == get_inode_oid(node->key.j.mapping->host)
 
     (Checked by znode_invariant_f().)
@@ -270,12 +270,26 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     (Checked by jnode_invariant_f().)
 
-[jnode-queued]
+[jnode-queued]                                         jnode_lock, tree_lock
 
     /* only relocated node can be queued, except that when znode
      * is being deleted, its JNODE_RELOC bit is cleared */
     JF_ISSET(node, JNODE_FLUSH_QUEUED) => 
 		      JF_ISSET(node, JNODE_RELOC) || JF_ISSET(node, JNODE_HEARD_BANSHEE)
+
+    (Checked by jnode_invariant_f().)
+
+[jnode-atom-valid]                                     jnode_lock, tree_lock
+
+    /* node atom has valid state */
+    node->atom != NULL => node->atom->stage != ASTAGE_INVALID
+
+    (Checked by jnode_invariant_f().)
+
+[jnode-page-binding]                                    jnode_lock, tree_lock
+
+    /* if node points to page, it points back to node */
+    node->pg != NULL => node->pg->private == node
 
     (Checked by jnode_invariant_f().)
 

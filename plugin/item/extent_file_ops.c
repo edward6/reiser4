@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* COPYRIGHT 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "item.h"
 #include "../../inode.h"
@@ -510,16 +510,8 @@ index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid,
 			return ERR_PTR(result);
 		}
 
-		if (j == NULL) {
-			j = jnew_unformatted();
-			if (unlikely(!j))
-				return ERR_PTR(RETERR(-ENOMEM));
-		
-			assert("vs-1402", !jlookup(tree, oid, index));
-			jref(j);
-			hash_unformatted_jnode(j, mapping, index);
-			assert("vs-1424", atomic_read(&j->x_count) == 1);
-		}
+		if (j == NULL)
+			j = find_get_jnode(tree, mapping, oid, index);
 		if (blocknr_is_fake(&blocknr)) {
 			jnode_set_created(j);
 			JF_SET(j, JNODE_NEW);			
