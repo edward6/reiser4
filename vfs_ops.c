@@ -1416,7 +1416,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
 	assert("vs-1220", list_empty(&info->eflushed_jnodes));
-	assert("", info->eflushed == 0);
+	assert("vs-1222", info->eflushed == 0);
 
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
@@ -1458,6 +1458,20 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 
 extern void generic_drop_inode(struct inode *object);
 
+static void drop_object_body(struct inode *inode)
+{
+	struct iattr attr;
+
+	/* FIXME: this is not necessary for others but unix files */
+	if (!S_ISREG(inode->i_mode))
+		return;
+	assert("vs-1215", inode_file_plugin(inode)->setattr);
+	attr.ia_size = 0;
+	attr.ia_valid = ATTR_SIZE;
+	if (inode_file_plugin(inode)->setattr(inode, &attr))
+		warning("vs-1216", "Failed to truncate file for %llu)\n", get_inode_oid(inode));
+}
+
 static void
 reiser4_drop_inode(struct inode *object)
 {
@@ -1481,7 +1495,31 @@ reiser4_drop_inode(struct inode *object)
 		   unallocated extent will be flushed to the disk.
 		*/
 		__REISER4_ENTRY(object->i_sb, );
+		/*
+		 * FIXME: this resembles generic_delete_inode
+		 */
+		hlist_del_init(&object->i_hash);
+		list_del_init(&object->i_list);
+		object->i_state|=I_FREEING;
+		inodes_stat.nr_inodes--;
+		spin_unlock(&inode_lock);
+
+		drop_object_body(object);
+
+		if (object->i_data.nrpages)
+			truncate_inode_pages(&object->i_data, 0);
+
+		security_inode_delete(object);
+		if (!is_bad_inode(object))
+			DQUOT_INIT(object);
+		reiser4_delete_inode(object);
+		if (object->i_state != I_CLEAR)
+			BUG();
+		destroy_inode(object);
+
+/*
 		generic_delete_inode(object);
+*/
 		(void)reiser4_exit_context(&__context);
 	} else
 		generic_forget_inode(object);
@@ -2383,6 +2421,14 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	if (offset == 0) {
 		jnode *node;
 
+		node = jnode_by_page(page);
+		if (node != NULL)
+			UNDER_SPIN_VOID(jnode, node, eflush_del(node, 1));
+		uncapture_page(page);
+		UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
+#if 0
+		jnode *node;
+
 		/* ->private pointer is protected by page lock that we are
 		   holding right now. */
 again:
@@ -2475,6 +2521,7 @@ try_to_lock:
 			   page was just detached from jnode. */
 			jput(node);
 		}
+#endif
 	}
 	REISER4_EXIT(ret);
 }
