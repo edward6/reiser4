@@ -2,7 +2,7 @@
  * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "../../reiser4.h"
 
 
 /* initialization of disk layout plugins */

@@ -2,7 +2,7 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "../../reiser4.h"
 
 /*
  * this file contains:
@@ -31,7 +31,7 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 /*
  * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
  */
-#define P 0.2
+#define P 2
 
 /* plugin->u.space_allocator.alloc_blocks */
 int test_alloc_blocks (reiser4_space_allocator * allocator,
@@ -41,7 +41,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 {
 	double p;
 	reiser4_block_nr min_free;
-
+	int rand;
 
 	assert ("vs-460", needed > 0);
 
@@ -57,7 +57,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 		hint->blk = min_free;
 	}
 
-	p = drand48 ();
+	p = jiffies % 10;
 	if (p < P) {
 		/*
 		 * return what we were asked for
@@ -71,7 +71,8 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 		 * choose amount of free blocks randomly in the range
 		 * from 1 to needed
 		 */
-		*num = 1 + (int) ((double)(needed) * rand () / (RAND_MAX + 1.0));
+		rand = jiffies;
+		*num = 1 + (int) ((double)(needed) * rand / (~0ul + 1.0));
 	}
 
 	min_free = *start + *num;
