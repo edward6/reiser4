@@ -25,12 +25,12 @@ struct node40 {
 
 typedef struct node40 node40_t;
 
-struct node40_flush_stamp {
-    uint32_t mkfs_id;
-    uint64_t write_counter;
+struct node40_stamp {
+    uint32_t mkfs;
+    uint64_t time;
 };
 
-typedef struct node40_flush_stamp node40_flush_stamp_t;
+typedef struct node40_stamp node40_stamp_t;
 
 /* Format of node header for node40 */
 struct node40_header {
@@ -38,17 +38,23 @@ struct node40_header {
     /* The node common header */
     reiser4_node_header_t h;
     
+    /* The number of items */
+    uint16_t num_items;
+    
     /* Node free space */
     uint16_t free_space;
 
     /* Free space start */
     uint16_t free_space_start;
 
+    /* Node40 magic 0x52344653 */
+    uint32_t magic;
+    
+    /* Node flush stamp */
+    node40_stamp_t stamp;
+    
     /* Node level (is not used in libreiser4) */
     uint8_t level;
-
-    uint32_t magic;
-    node40_flush_stamp_t flush_stamp;
 };
 
 typedef struct node40_header node40_header_t;  
@@ -58,8 +64,8 @@ typedef struct node40_header node40_header_t;
 #define nh40_get_pid(header)			aal_get_le16(&(header)->h, pid)
 #define nh40_set_pid(header, val)		aal_set_le16(&(header)->h, pid, val)
 
-#define nh40_get_num_items(header)		aal_get_le16(&(header)->h, num_items)
-#define nh40_set_num_items(header, val)		aal_set_le16(&(header)->h, num_items, val)
+#define nh40_get_num_items(header)		aal_get_le16(header, num_items)
+#define nh40_set_num_items(header, val)		aal_set_le16(header, num_items, val)
 
 #define nh40_get_free_space(header)		aal_get_le16(header, free_space)
 #define nh40_set_free_space(header, val)	aal_set_le16(header, free_space, val)
@@ -73,10 +79,8 @@ typedef struct node40_header node40_header_t;
 #define nh40_get_magic(header)			aal_get_le32(header, magic)
 #define nh40_set_magic(header, val)		aal_set_le32(header, magic, val)
 
-/* 
-    Item headers are not standard across all node layouts, pass
-    pos_in_node to functions instead.
-*/
+#define nh40_get_state(header)			aal_get_le32(header, state)
+#define nh40_set_state(header, val)		aal_set_le32(header, state, val)
 
 union key40 {
     uint64_t el[3];
@@ -104,17 +108,12 @@ typedef struct item40_header item40_header_t;
 #define ih40_get_pid(ih)			aal_get_le16(ih, pid)
 #define ih40_set_pid(ih, val)			aal_set_le16(ih, pid, val)
 
-#define node40_free_space_end(block)	aal_device_get_bs(block->device) - \
-    nh40_get_num_items(nh40(block)) * sizeof(item40_header_t)
+extern inline item40_header_t *node40_ih_at(aal_block_t *block, int pos);
+extern inline void *node40_ib_at(aal_block_t *block, int pos);
 
-/* Returns item header by pos */
-static item40_header_t *node40_ih_at(aal_block_t *block, int pos) {
-    return ((item40_header_t *)(block->data + block->size)) - pos - 1;
-}
-
-/* Retutrns item body by pos */
-static void *node40_ib_at(aal_block_t *block, int pos) {
-    return block->data + ih40_get_offset(node40_ih_at(block, pos));
+static uint16_t node40_free_space_end(aal_block_t *block) {
+    return aal_block_size(block) - 
+	nh40_get_num_items(nh40(block)) * sizeof(item40_header_t);
 }
 
 #endif
