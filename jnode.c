@@ -1260,6 +1260,9 @@ jdelete(jnode * node /* jnode to finish with */)
 
 		/* detach page */
 		if (page != NULL)
+			/*
+			 * FIXME this is racy against jnode_extent_write().
+			 */
 			page_clear_jnode(page, node);
 		UNLOCK_JNODE(node);
 		/* goodbye */
