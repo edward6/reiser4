@@ -517,7 +517,7 @@ reiser4_internal int reserve_cut_iteration(reiser4_tree *tree)
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
    and update file stat data on every single cut from the tree */
 reiser4_internal int
-cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size, int mode)
+cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size)
 {
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
@@ -538,7 +538,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			break;
 
 		result = cut_tree_object(current_tree, &from_key, &to_key,
-					 &smallest_removed, inode, mode);
+					 &smallest_removed, inode);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
@@ -590,7 +590,7 @@ shorten_file(struct inode *inode, loff_t new_size)
 
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
-	result = cut_file_items(inode, new_size, 1/*update_sd*/, get_key_offset(max_key()), 1);
+	result = cut_file_items(inode, new_size, 1/*update_sd*/, get_key_offset(max_key()));
 	if (result)
 		return result;
 
