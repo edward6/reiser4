@@ -429,6 +429,7 @@ static void release_prepped_list(flush_queue_t * fq)
 
 		count_dequeued_node(fq);
 		LOCK_JNODE(cur);
+		assert("nikita-3154", !JF_ISSET(cur, JNODE_OVRWR));
 		JF_CLR(cur, JNODE_FLUSH_QUEUED);
 
 		if (JF_ISSET(cur, JNODE_HEARD_BANSHEE)) {

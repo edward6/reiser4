@@ -2025,6 +2025,7 @@ uncapture_page(struct page *pg)
 	blocknr_set_entry *blocknr_entry = NULL;
 
 	assert("umka-199", pg != NULL);
+	assert("nikita-3155", PageLocked(pg));
 
 	spin_lock(&pg->mapping->page_lock);
 	test_clear_page_dirty(pg);
@@ -2212,6 +2213,7 @@ jnode_make_dirty(jnode * node)
 
 			int level = jnode_get_level(node);
 
+			assert("nikita-3152", !JF_ISSET(node, JNODE_OVRWR));
 			assert("zam-654", !(JF_ISSET(node, JNODE_OVRWR)
 						    && atom->stage >= ASTAGE_PRE_COMMIT));
 			assert("nikita-2607", 0 <= level);
@@ -2328,6 +2330,7 @@ void jnode_make_wander_nolock (jnode * node)
 
 	assert("nikita-2431", node != NULL);
 	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
+	assert("nikita-3153", jnode_is_dirty(node));
 	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 
 	atom = node->atom;
