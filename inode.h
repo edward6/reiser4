@@ -46,7 +46,7 @@ typedef enum {
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
 	REISER4_GENERIC_VP_USED = 4,
-	REISER4_EXCLUSIVE_USE = 5,
+/*	REISER4_EXCLUSIVE_USE = 5,*/
 	REISER4_SDLEN_KNOWN   = 6,
 	/* reiser4_inode->crypt points to the crypto stat */
 	REISER4_CRYPTO_STAT_LOADED = 7,
