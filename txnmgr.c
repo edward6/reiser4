@@ -925,6 +925,17 @@ txn_try_capture (jnode           *node,
 	return ret;
 }
 
+/* This is the interface to capture unformatted nodes via their struct page
+ * reference.  If the page currently has a jnode assigned to it, call
+ * txn_try_capture, otherwise assign it a jnode and then make the call.
+ */
+int
+txn_try_capture_page  (struct page        *pg,
+		       znode_lock_mode     mode,
+		       int                 non_blocking)
+{
+
+}
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
  * increases atom refcount, adds to txnh_list. */
