@@ -1308,11 +1308,15 @@ reiser4_kill_super(struct super_block *s)
 	   became dirty via mapping. Have them to go through reiser4_writepages */
 	fsync_super(s);
 
-	/* FIXME: complete removal of directories which were not deleted when
-	   they were supposed to be because their dentries had negative child
-	   dentries */
+	/* complete removal of directories which were not deleted when they
+	 * were supposed to be because their dentries had negative child
+	 * dentries */
 	shrink_dcache_parent(s->s_root);
-	
+	/* kill "anonymous" dentries that are created, for example, while
+	 * decoding NFS file handles. */
+	shrink_dcache_anon(&s->s_anon);
+	INIT_HLIST_HEAD(&s->s_anon);
+
 #if REISER4_TRACE
 	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT))
 		get_current_context()->trace_flags |= (TRACE_PCACHE |
@@ -1744,6 +1748,7 @@ reiser4_get_dentry(struct super_block *sb, void *data)
 			dentry = ERR_PTR(-ENOMEM);
 		}
 		reiser4_iget_complete(inode);
+		dentry->d_op = &get_super_private(sb)->ops.dentry;
 		return dentry;
 	} else if (PTR_ERR(inode) == -ENOENT)
 		/*
