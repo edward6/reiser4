@@ -127,7 +127,7 @@ struct reiser4_tree {
 	    - znode hash table
 	    - coord cache
 	*/
-	spinlock_t tree_lock;
+	rwlock_t tree_lock;
 
 	/* lock protecting delimiting keys
 	   */
