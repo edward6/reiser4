@@ -1029,6 +1029,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		}
 
 		assert ("zam-881", jnode_is_dirty(node));
+		assert ("zam-898", !JF_ISSET(node, JNODE_OVRWR));
 
 		/* A special case for znode-above-root.  The above-root (fake) znode is
 		   captured and dirtied when the tree height changes or when the root node
@@ -1041,15 +1042,11 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 			/* Just pass dirty znode-above-root to overwrite set. */
 			jnode_set_wander(node);
-			jnode_set_clean_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(fq, node);
 			++ nr_queued;
-		} else if (JF_ISSET(node, JNODE_OVRWR)) {
-			jnode_set_clean_nolock(node);
-		} else {
+		} else
 			break;
-		}
 
 		UNLOCK_JNODE(node);
 	}
@@ -2446,7 +2443,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 	} else if (pos->preceder.blk == 0) {
 
 		/* If we don't know the preceder, leave it where it is. */
-		jnode_set_wander(ZJNODE(node));
+		ZF_SET(node, JNODE_OVRWR);
 	} else {
 		/* Make a decision based on block distance. */
 		reiser4_block_nr dist;
@@ -2458,7 +2455,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 		if (pos->preceder.blk == nblk - 1) {
 			/* Ideal. */
-			jnode_set_wander(ZJNODE(node));
+			JF_SET(ZJNODE(node), JNODE_OVRWR);
 		} else {
 
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
@@ -2479,7 +2476,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 				jnode_set_reloc(ZJNODE(node));
 			} else if (dist < sbinfo->flush.relocate_distance) {
 				/* The present allocation is good enough. */
-				jnode_set_wander(ZJNODE(node));
+				ZF_SET(node, JNODE_OVRWR);
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
@@ -2514,7 +2511,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			queue_jnode(pos->fq, ZJNODE(node));
 		} else {
 			assert ("zam-828", ZF_ISSET(node, JNODE_OVRWR));
-			jnode_set_clean_nolock(ZJNODE(node));
+			jnode_set_wander(ZJNODE(node));
 		}
 
 		UNLOCK_ATOM(atom);
