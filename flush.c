@@ -733,7 +733,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to enqueue node %p: %s\n", call_depth, node, flush_pos_tostring (pos));
 
 	/* Now finished with node. */
-	if (znode_is_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+	if (znode_check_dirty (node) && znode_is_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 		goto exit;
 	}
 
