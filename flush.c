@@ -2881,8 +2881,6 @@ scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
 	if (jnode_is_znode(scan->node)) {
 		ret = longterm_lock_znode(&scan->node_lock, JZNODE(scan->node), 
 					  ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-		if (ret == -EDEADLK)
-			warning("nikita-2813", "Flush collided");
 	}
 
 	/* Rapid_scan would go here (with limit set to FLUSH_RELOCATE_THRESHOLD). */
