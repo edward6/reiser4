@@ -3526,12 +3526,19 @@ int jmacd_test( int argc UNUSED_ARG,
 /*****************************************************************************************
  *                                      BITMAP TEST
  *****************************************************************************************/
-int zam_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree UNUSED_ARG)
+
+static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree UNUSED_ARG)
 {
 	struct super_block * super = reiser4_get_current_sb();
 
-	assert ("vs-510", get_super_private (super));
-	assert ("vs-511", get_super_private (super)->space_plug);
+	assert ("vs-510", get_super_private (super) != NULL);
+
+	/*
+	assert ("vs-511", get_super_private (super)->space_plug != NULL);
+	*/
+	/* set an allocator plugin filed to bitmap-based allocator */
+
+	get_super_private(super)->space_plug = &space_plugins[BITMAP_SPACE_ALLOCATOR_ID].space_allocator;
 
 	if (get_super_private (super)->space_plug->init_allocator)
 		get_super_private (super)->space_plug->init_allocator (
@@ -3541,6 +3548,33 @@ int zam_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree 
 		get_super_private (super)->space_plug->destroy_allocator (
 			get_space_allocator (super), super);
 
+	return 0;
+}
+
+static int zam_test (int argc, char ** argv, reiser4_tree * tree)
+{
+	char * testname;
+
+	if (argc < 3) {
+		printf ("Usage: %s zam testname ...\n", __prog_name);
+		return -1;
+	}
+
+	testname = argv[2];
+
+	{ /* eliminate already parsed command line arguments */
+		int i;
+
+		for (i = 3; i < argc; i++) {
+			argv[i - 2] = argv[i];
+		}
+	}
+
+	if (!strcmp(testname, "bitmap")) {
+		return bitmap_test(argc - 2, argv, tree);
+	}
+
+	printf ("%s: unknown zam\'s test name\n", __prog_name);
 	return 0;
 }
 
