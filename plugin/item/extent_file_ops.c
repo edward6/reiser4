@@ -1183,8 +1183,14 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 		/* extent corresponding to this jnode was just created */
 		assert("vs-1504", *jnode_get_block(j) == 0);
 		UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
-		jnode_set_block(j, &blocknr);		
 	}
+
+	/* jnode_of_page() might create new jnode which requires setting its
+	 * block number.  It is not related to whether the extent unit is new or
+	 * not. */
+	if (*jnode_get_block(j) == 0)
+		jnode_set_block(j, &blocknr);		
+
 	done_lh(uf_coord->lh);
 
 
