@@ -55,8 +55,8 @@ directory_readahead(struct inode *dir /* directory being accessed */ ,
 
 /* helper function. Standards require than for many file-system operations
    on success ctime and mtime of parent directory is to be updated. */
-static int
-update_dir(struct inode *dir)
+int
+reiser4_update_dir(struct inode *dir)
 {
 	assert("nikita-2525", dir != NULL);
 
@@ -175,7 +175,7 @@ link_common(struct inode *parent /* parent directory */ ,
 		   st_mtime fields of the directory that contains the new
 		   entry shall be marked for update. --SUS
 		*/
-		result = update_dir(parent);
+		result = reiser4_update_dir(parent);
 	}
 	return result;
 }
@@ -284,7 +284,7 @@ unlink_common(struct inode *parent /* parent object */ ,
 				   the file's link count is not 0, the
 				   st_ctime field of the file shall be marked
 				   for update. --SUS */
-				result = update_dir(parent);
+				result = reiser4_update_dir(parent);
 		}
 	}
 	reiser4_release_reserved(object->i_sb);
@@ -480,7 +480,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 			/* @object times are already updated by
 			   reiser4_add_nlink() */
 			if (result == 0)
-				result = update_dir(parent);
+				result = reiser4_update_dir(parent);
 			if (result != 0)
 				/* cleanup failure to update times */
 				par_dir->rem_entry(parent, dentry, &entry);

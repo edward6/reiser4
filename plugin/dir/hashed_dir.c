@@ -767,7 +767,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	   node. */
 	done_lh(&new_lh);
 	/* "capture" inodes */
-	reiser4_mark_inode_dirty(new_dir);
+	reiser4_update_dir(new_dir);
 	if (new_inode != NULL)
 		reiser4_mark_inode_dirty(new_inode);
 
@@ -828,7 +828,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		reiser4_free_dentry_fsdata(&dotdot_name);
 	}
 	/* "capture" inodes */
-	reiser4_mark_inode_dirty(old_dir);
+	reiser4_update_dir(old_dir);
 	reiser4_mark_inode_dirty(old_inode);
 	return result;
 }
