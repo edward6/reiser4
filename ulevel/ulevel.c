@@ -4691,7 +4691,7 @@ static int shrink_cache (void)
 
 		/* free page */
 		assert ("vs-822", page_count (page) == 1);
-		list_del (page);
+		list_del (&page->lru);
 		nr_pages --;
 
 		trace_on (TRACE_PCACHE, "page freed: page: %p (index %lu, ino %lu)\n",
