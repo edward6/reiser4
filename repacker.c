@@ -30,7 +30,8 @@ struct repacker {
 
 struct repacker_stats {
 	int count;
-	long blocks_dirtied;
+	long znodes_dirtied;
+	long jnodes_dirtied;
 };
 
 static int renew_transaction (void)
@@ -46,27 +47,39 @@ static int renew_transaction (void)
 	return 0;
 }
 
-static int dirtying_znode (znode * node, void * arg)
+static int dirtying_znode (tap_t * tap, void * arg)
 {
 	struct repacker_stats * stats = arg;
 
 	assert("zam-954", stats->count > 0);
 
-	if (znode_is_dirty(node))
+	if (znode_is_dirty(tap->lh->node))
 		return 0;
 
-	znode_make_dirty(node);
+	znode_make_dirty(tap->lh->node);
 
-	stats->blocks_dirtied ++;
+	stats->znodes_dirtied ++;
 
 	if (-- stats->count <= 0)
 		return -EAGAIN;
 	return 0;
 }
 
-static int dirtying_extent (const coord_t * coord, void * stats)
+static int dirtying_extent (tap_t *tap, void * arg)
 {
-	return 0;
+	int ret;
+	struct repacker_stats * stats = arg;
+
+	ret = mark_extent_for_repacking(tap, stats->count);
+	if (ret > 0) {
+		stats->jnodes_dirtied += ret;
+		stats->count -= ret;
+		if (stats->count <= 0)
+			     return -EAGAIN;
+		return 0;
+	}
+
+	return ret;
 }
 
 /* The reiser4 repacker process nodes by chunks of REPACKER_CHUNK_SIZE
@@ -121,10 +134,12 @@ static int repacker_d(void *arg)
 
 	printk(KERN_INFO "Repacker: I am alive, pid = %u\n", me->pid);
 	{
-		struct repacker_stats stats = {.blocks_dirtied = 0};
+		struct repacker_stats stats = {.znodes_dirtied = 0, .jnodes_dirtied = 0};
+
 		ret = tree_walk(NULL, &repacker_actor, &stats);
-		printk(KERN_INFO "reiser4 repacker: %lu blocks processed\n",
-		       stats.blocks_dirtied);
+		printk(KERN_INFO "reiser4 repacker: "
+		       "%lu formatted node(s) processed, %lu unformatted node(s) processed, ret = %d\n",
+		       stats.znodes_dirtied, stats.jnodes_dirtied, ret);
 	}
  done:
 	{ 

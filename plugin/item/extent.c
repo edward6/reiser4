@@ -3473,6 +3473,102 @@ exit:
 	return ret;
 }
 
+int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
+{
+	coord_t * coord = tap->coord;
+	reiser4_extent *ext;
+	int nr_marked;
+	struct inode * inode;
+	unsigned long index, i;
+	reiser4_block_nr width, start;
+	int ret = 0;
+
+	ext = extent_by_coord(coord);
+
+	if (state_of_extent(ext) != ALLOCATED_EXTENT)
+		return 0;
+
+	width = extent_get_width(ext);
+	start = extent_get_start(ext);
+	index = extent_unit_index(coord);
+
+	{
+		reiser4_key sd_key;
+		struct super_block * super = reiser4_get_current_sb();
+
+		unit_key_by_coord(coord, &sd_key);
+		set_key_type(&sd_key, KEY_SD_MINOR);
+		set_key_offset(&sd_key, (__u64) 0);
+
+		inode = ilookup5(super, (unsigned long)get_key_objectid(&sd_key),
+				 reiser4_inode_find_actor, &sd_key);
+		if (inode == NULL) {
+			/* Release all locks before CBK. */
+			tap_done(tap);
+			inode = reiser4_iget(super, &sd_key);
+			if (IS_ERR(inode))
+				return PTR_ERR(inode);
+			if (inode->i_state & I_NEW)
+				unlock_new_inode(inode);
+			iput(inode);
+			return -EAGAIN;
+		}
+
+		if (is_bad_inode(inode)) {
+			iput(inode);
+			return -EIO;
+		}
+	}
+
+	for (nr_marked = 0, i = 0; nr_marked < max_nr_marked && i < width; i++) {
+		jnode * node;
+		struct page * page;
+
+		ret = 0;
+
+		page = grab_cache_page(inode->i_mapping, index + i);
+		if (page == NULL) {
+			ret = -ENOMEM;
+			break;
+		}
+		
+		node = jnode_of_page(page);
+		unlock_page(page);
+		if (IS_ERR(node)) {
+			ret = PTR_ERR(node);
+			break;
+		}
+		if (node->blocknr == 0) {
+			reiser4_block_nr block;
+			block = start + index;
+			jnode_set_block(node, &block);
+		}
+
+		if (!jnode_is_dirty(node)) {
+			do {
+				ret = jstartio(node);
+				if (ret)
+					break;
+
+				ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
+				if (ret)
+					break;
+
+				unformatted_jnode_make_dirty(node);
+				nr_marked ++;
+			} while (0);
+		}
+		jput(node);
+		if (ret)
+			break;
+	}
+
+	iput(inode);
+	if (ret)
+		return ret;
+	return nr_marked;
+}
+
 /*
    Local variables:
    c-indentation-style: "K&R"

@@ -835,7 +835,7 @@ static int go_next_node (struct tree_walk_handle * h, lock_handle * lock, const 
 		coord_init_first_unit(h->tap.coord, lock->node);
 
 	if (h->actor->process_znode != NULL) {
-		ret = (h->actor->process_znode)(lock->node, h->opaque);
+		ret = (h->actor->process_znode)(&h->tap, h->opaque);
 		if (ret)
 			goto error;
 	}
@@ -903,7 +903,7 @@ static int tree_walk_by_handle (struct tree_walk_handle * h)
 
 		if (item_is_extent(h->tap.coord)) {
 			if (h->actor->process_extent != NULL) {
-				ret = (h->actor->process_extent)(h->tap.coord, h->opaque);
+				ret = (h->actor->process_extent)(&h->tap, h->opaque);
 				if (ret)
 					break;
 			}
