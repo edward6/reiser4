@@ -14,17 +14,19 @@ struct cut_list;
 reiser4_key *max_key_inside_tail(const coord_t *, reiser4_key *);
 int can_contain_key_tail(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int mergeable_tail(const coord_t * p1, const coord_t * p2);
-pos_in_item_t nr_units_tail(const coord_t *);
+pos_in_node_t nr_units_tail(const coord_t *);
 lookup_result lookup_tail(const reiser4_key *, lookup_bias, coord_t *);
 int paste_tail(coord_t *, reiser4_item_data *, carry_plugin_info *);
 int can_shift_tail(unsigned free_space, coord_t * source,
 		   znode * target, shift_direction, unsigned *size, unsigned want);
 void copy_units_tail(coord_t * target, coord_t * source,
 		     unsigned from, unsigned count, shift_direction, unsigned free_space);
-int cut_units_tail(coord_t * item, unsigned *from,
-		   unsigned *to,
-		   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
-reiser4_key *unit_key_tail(const coord_t * coord, reiser4_key * key);
+int kill_hook_tail(const coord_t *, pos_in_node_t from, pos_in_node_t count, struct carry_kill_data *);
+int cut_units_tail(coord_t *, pos_in_node_t from, pos_in_node_t to,
+		   struct carry_cut_data *, reiser4_key *smallest_removed, reiser4_key *new_first);
+int kill_units_tail(coord_t *, pos_in_node_t from, pos_in_node_t to,
+		    struct carry_kill_data *, reiser4_key *smallest_removed, reiser4_key *new_first);
+reiser4_key *unit_key_tail(const coord_t *, reiser4_key *);
 
 /* plugin->u.item.s.* */
 int write_tail(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
