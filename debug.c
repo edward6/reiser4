@@ -122,17 +122,17 @@ void check_stack( void )
 	}
 }
 
-int reiser4_is_debugged( struct super_block *super, __u32 flag )
-{
-	return get_super_private( super ) -> debug_flags & flag;
-}
+#endif
 
 int reiser4_are_all_debugged( struct super_block *super, __u32 flags )
 {
 	return ( get_super_private( super ) -> debug_flags & flags ) == flags;
 }
 
-#endif
+int reiser4_is_debugged( struct super_block *super, __u32 flag )
+{
+	return get_super_private( super ) -> debug_flags & flag;
+}
 
 #if REISER4_STATS
 /**

@@ -19,7 +19,8 @@
          do { fun( /**/lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
 		       no_context ? "interrupt" : current_pname,		\
 		       no_context ? -1 : current_pid,				\
-		       __func__, __FILE__, __LINE__, label , ## __VA_ARGS__ );	\
+		       __FUNCTION__,                 				\
+		       __FILE__, __LINE__, label , ## __VA_ARGS__ );	\
 		      } while( 0 )
 
 /** panic. Print backtrace and die */
@@ -172,8 +173,21 @@ typedef struct lock_counters_info {
 
 extern lock_counters_info *lock_counters(void);
 
+#else
+
+#define dinfo( format, args... ) noop
+#define impossible( label, format, args... ) noop
+#define not_implemented( label, format, args... ) noop
+#define assert( label, cond ) noop
+#define check_me( label, expr )	( ( void ) ( expr ) )
+#define ON_DEBUG( exp )
+
+/* REISER4_DEBUG */
+#endif
+
 /**
- * flags controlling debugging behavior. Are set through debug=N mount option.
+ * flags controlling debugging behavior. Are set through debug_flags=N mount
+ * option.
  */
 typedef enum {
 	/**
@@ -190,23 +204,8 @@ typedef enum {
 	REISER4_STATS_ON_UMOUNT   = 0x00000004
 } reiser4_debug_flags;
 
-extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
 extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
-
-#else
-
-#define dinfo( format, args... ) noop
-#define impossible( label, format, args... ) noop
-#define not_implemented( label, format, args... ) noop
-#define assert( label, cond ) noop
-#define check_me( label, expr )	( ( void ) ( expr ) )
-#define ON_DEBUG( exp )
-
-#define reiser4_is_debugged( super, flag )       (0)
-#define reiser4_are_all_debugged( super, flags ) (0)
-
-/* REISER4_DEBUG */
-#endif
+extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
 
 #define ON_CONTEXT( e )	do {			\
 	if( current -> journal_info != NULL ) {	\
