@@ -926,7 +926,7 @@ jnode_build_key(const jnode * node, reiser4_key * key)
 
 	inode = mapping_jnode(node)->host;
 	fplug = inode_file_plugin(inode);
-	off   = index_jnode(node) << PAGE_CACHE_SHIFT;
+	off   = ((loff_t)index_jnode(node)) << PAGE_CACHE_SHIFT;
 
 	assert("nikita-3095", fplug != NULL);
 	fplug->key_by_inode(inode, off, key);
