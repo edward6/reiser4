@@ -237,54 +237,14 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 
 #ifndef ENABLE_COMPACT
 
-static errno_t reiserfs_tree_relocate(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src, int remove) 
-{
-    int res;
-    reiserfs_id_t plugin_id;
-    reiserfs_item_hint_t item;
-    
-    reiserfs_node_t *src_node;
-    reiserfs_node_t *dst_node;
-    
-    aal_memset(&item, 0, sizeof(item));
-    
-    dst_node = dst->cache->node;
-    src_node = src->cache->node;
-    
-    item.data = reiserfs_node_item_body(src_node, src->pos.item);
-    item.length = reiserfs_node_item_length(src_node, src->pos.item);
-    
-    /* Getting the key of item that going to be copied */
-    reiserfs_key_init((reiserfs_key_t *)&item.key, 
-	reiserfs_node_item_key(src_node, src->pos.item), 
-	src_node->key_plugin);
-	
-    plugin_id = reiserfs_node_get_item_plugin_id(src_node, src->pos.item);
-	
-    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, plugin_id)))
-	libreiser4_factory_failed(return -1, find, item, plugin_id);
-
-    /* FIXME-UMKA: Here should be copied also enties of cache */
-    
-    /* Insering item into new location */
-    if ((res = reiserfs_node_insert(dst_node, &dst->pos,
-	    (reiserfs_key_t *)&item.key, &item)))
-	return res;
-    
-    /* Remove src item if remove flag is turned on */
-    if (remove)
-	res = reiserfs_node_remove(src_node, &src->pos);
-    
-    return res;
-}
-
 errno_t reiserfs_tree_move(reiserfs_coord_t *dst, reiserfs_coord_t *src) {
-    return reiserfs_tree_relocate(dst, src, 1);
+    return reiserfs_node_move(dst->cache->node, &dst->pos, 
+	src->cache->node, &src->pos);
 }
 
 errno_t reiserfs_tree_copy(reiserfs_coord_t *dst, reiserfs_coord_t *src) {
-    return reiserfs_tree_relocate(dst, src, 0);
+    return reiserfs_node_copy(dst->cache->node, &dst->pos, 
+	src->cache->node, &src->pos);
 }
 
 #endif
@@ -830,7 +790,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 
 /* Removes item by specified key */
 errno_t reiserfs_tree_remove(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key) 
+    reiserfs_coord_t *coord) 
 {
     return -1;
 }

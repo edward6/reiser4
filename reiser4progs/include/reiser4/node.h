@@ -42,6 +42,14 @@ extern errno_t reiserfs_node_ldkey(reiserfs_node_t *node,
 extern errno_t reiserfs_node_remove(reiserfs_node_t *node, 
     reiserfs_pos_t *pos);
 
+extern errno_t reiserfs_node_copy(reiserfs_node_t *dst_node, 
+    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
+    reiserfs_pos_t *src_pos);
+
+extern errno_t reiserfs_node_move(reiserfs_node_t *dst_node, 
+    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
+    reiserfs_pos_t *src_pos);
+
 extern uint16_t reiserfs_node_maxnum(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_count(reiserfs_node_t *node);
 

@@ -147,23 +147,78 @@ errno_t reiserfs_node_close(reiserfs_node_t *node) {
     return 0;
 }
 
+static errno_t reiserfs_node_relocate(reiserfs_node_t *dst_node, 
+    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
+    reiserfs_pos_t *src_pos, int remove) 
+{
+    errno_t res;
+    reiserfs_id_t plugin_id;
+    reiserfs_item_hint_t item;
+
+    aal_assert("umka-799", src_node != NULL, return -1);
+    aal_assert("umka-800", dst_node != NULL, return -1);
+
+    item.data = reiserfs_node_item_body(src_node, src_pos->item);
+    item.length = reiserfs_node_item_length(src_node, src_pos->item);
+    
+    /* Getting the key of item that is going to be copied */
+    reiserfs_key_init((reiserfs_key_t *)&item.key, 
+	reiserfs_node_item_key(src_node, src_pos->item), 
+	src_node->key_plugin);
+	
+    plugin_id = reiserfs_node_get_item_plugin_id(src_node, src_pos->item);
+	
+    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, plugin_id)))
+	libreiser4_factory_failed(return -1, find, item, plugin_id);
+
+    /* Insering the item into new location */
+    if ((res = reiserfs_node_insert(dst_node, dst_pos,
+	    (reiserfs_key_t *)&item.key, &item)))
+	return res;
+    
+    /* Remove src item if remove flag is turned on */
+    if (remove)
+	res = reiserfs_node_remove(src_node, src_pos);
+    
+    return res;
+}
+
+errno_t reiserfs_node_copy(reiserfs_node_t *dst_node, 
+    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
+    reiserfs_pos_t *src_pos) 
+{
+    return reiserfs_node_relocate(dst_node, dst_pos, 
+	src_node, src_pos, 0);
+}
+
+errno_t reiserfs_node_move(reiserfs_node_t *dst_node, 
+    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
+    reiserfs_pos_t *src_pos) 
+{
+    return reiserfs_node_relocate(dst_node, dst_pos, 
+	src_node, src_pos, 1);
+}
+
 errno_t reiserfs_node_split(reiserfs_node_t *node, 
     reiserfs_node_t *right) 
 {
-/*    uint32_t median;
-    reiserfs_coord_t dst, src;
+    uint32_t median;
+    reiserfs_pos_t dst_pos, src_pos;
     
     aal_assert("umka-780", node != NULL, return -1);
     aal_assert("umka-781", right != NULL, return -1);
 
     median = reiserfs_node_count(node) / 2;
     while (reiserfs_node_count(node) > median) {
-	reiserfs_coord_init(&src, node, reiserfs_node_count(node) - 1, 0xffff);	    
-	reiserfs_coord_init(&dst, right, 0, 0xffff);
+	src_pos.item = reiserfs_node_count(node) - 1;
+	src_pos.unit = 0xffff;
 	
-	if (reiserfs_node_move_item(&dst, &src, node->key_plugin))
+	dst_pos.item = 0;
+	dst_pos.unit = 0xffff;
+	
+	if (reiserfs_node_move(right, &dst_pos, node, &src_pos))
 	    return -1;
-    }*/
+    }
     
     return 0;
 }
