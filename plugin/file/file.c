@@ -34,7 +34,7 @@ static int find_item (reiser4_key * key, tree_coord * coord,
 		      znode_lock_mode lock_mode)
 {
 	return coord_by_key (current_tree, key, coord, lh,
-			     lock_mode, FIND_MAX_NOT_MORE_THAN/*FIND_EXACT*/,
+			     lock_mode, FIND_MAX_NOT_MORE_THAN,
 			     LEAF_LEVEL, LEAF_LEVEL);
 }
 
@@ -203,6 +203,11 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 			continue;
 		break;
 	}
+
+	/*
+	 * FIXME-VS: remove after debugging insert_extent is done
+	 */
+	print_tree_rec ("WRITE", tree_by_inode (inode), REISER4_NODE_CHECK);
 
 	*off += (to_write - f.length);
 	return (to_write - f.length) ? (to_write - f.length) : result;
