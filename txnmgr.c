@@ -1503,10 +1503,13 @@ try_commit_txnh(commit_data *cd)
 			 */
 			atom_send_event(cd->atom);
 			result = 0;
-		} else if (cd->preflush > 0) {
+		} else if (cd->preflush > 0 && !is_current_ktxnmgrd()) {
 			/*
 			 * optimization: flush atom without switching it into
 			 * ASTAGE_CAPTURE_WAIT.
+			 *
+			 * But don't do this for ktxnmgrd, because ktxnmgrd
+			 * should never block on atom fusion.
 			 */
 			result = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS,
 						    &cd->nr_written, &cd->atom);

@@ -37,6 +37,8 @@ extern void ktxnmgrd_detach(txn_mgr * mgr);
 
 extern void ktxnmgrd_kick(txn_mgr * mgr);
 
+extern int is_current_ktxnmgrd(void);
+
 /* __KTXNMGRD_H__ */
 #endif
 

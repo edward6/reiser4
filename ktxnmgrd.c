@@ -207,6 +207,12 @@ ktxnmgrd_kick(txn_mgr * mgr)
 	kcond_signal(&mgr->daemon->wait);
 }
 
+int
+is_current_ktxnmgrd(void)
+{
+	return (get_current_super_private()->tmgr.daemon->tsk == current);
+}
+
 /* scan one transaction manager for old atoms; should be called with ktxnmgrd
  * spinlock, releases this spin lock at exit */
 static int
