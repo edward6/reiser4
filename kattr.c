@@ -296,7 +296,7 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 #endif
 
 static decl_subsys(fs, NULL, NULL);
-static decl_subsys(reiser4, &ktype_reiser4, NULL);
+decl_subsys(reiser4, &ktype_reiser4, NULL);
 
 int reiser4_sysfs_init_once(void)
 {
@@ -306,6 +306,8 @@ int reiser4_sysfs_init_once(void)
 	if (result == 0) {
 		kset_set_kset_s(&reiser4_subsys, fs_subsys);
 		result = subsystem_register(&reiser4_subsys);
+		if (result == 0)
+			result = init_prof_kobject();
 	}
 	return result;
 }
@@ -314,9 +316,8 @@ void reiser4_sysfs_done_once(void)
 {
 	subsystem_unregister(&reiser4_subsys);
 	subsystem_unregister(&fs_subsys);
+	done_prof_kobject();
 }
-
-int init_prof_kobject(struct super_block *super);
 
 int reiser4_sysfs_init(struct super_block *super)
 {
@@ -357,15 +358,21 @@ int reiser4_sysfs_init(struct super_block *super)
 	result = reiser4_populate_kattr_dir(kobj);
 #endif
 
-#if REISER4_PROF
-	init_prof_kobject(super);
-#endif
 	return result;
 }
 
 void reiser4_sysfs_done(struct super_block *super)
 {
-	kobject_unregister(&get_super_private(super)->kobj);
+	reiser4_super_info_data *sbinfo;
+	ON_STATS(int i);
+
+	sbinfo = get_super_private(super);
+#if REISER4_STATS
+	for (i = 0; i < sizeof_array(sbinfo->level); ++i)
+		kobject_unregister(&sbinfo->level[i].kobj);
+	kobject_unregister(&sbinfo->stats_kobj);
+#endif
+	kobject_unregister(&sbinfo->kobj);
 }
 
 /* REISER4_USE_SYSFS */

@@ -77,6 +77,10 @@ void calibrate_prof(void);
 			__swtch_mark__ ## aname, __prof_jiffies ## aname );	\
 })
 
+extern int init_prof_kobject(void);
+extern void done_prof_kobject(void);
+
+/* REISER4_PROF */
 #else
 
 typedef struct reiser4_prof_cnt {} reiser4_prof_cnt;
@@ -85,6 +89,9 @@ typedef struct reiser4_prof {} reiser4_prof;
 #define PROF_BEGIN(aname) noop
 #define PROF_END(aname, acnt) noop
 #define calibrate_prof() noop
+
+#define init_prof_kobject() (0)
+#define done_prof_kobject() noop
 
 #endif
 

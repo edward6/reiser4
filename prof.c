@@ -17,8 +17,6 @@
 
 #if REISER4_PROF
 
-
-
 #ifdef CONFIG_FRAME_POINTER
 static void 
 update_prof_trace(reiser4_prof_cnt *cnt)
@@ -131,12 +129,14 @@ static struct sysfs_ops prof_attr_ops = {
 	.store = store_prof_attr
 };
 
-struct kobj_type ktype_reiser4_prof = {
+static struct kobj_type ktype_reiser4_prof = {
 	.sysfs_ops	= &prof_attr_ops,
 	.default_attrs	= NULL
 };
 
 static decl_subsys(prof, &ktype_reiser4_prof, NULL);
+
+static struct kobject spin_prof;
 
 #define DEFINE_PROF_ENTRY_0(attr_name,field_name)	\
 	.field_name = {					\
@@ -177,34 +177,37 @@ void calibrate_prof(void)
 }
 
 
-int init_prof_kobject(struct super_block *super)
+int init_prof_kobject(void)
 {
-	reiser4_super_info_data *sbinfo;
 	int result;
-	struct kobject *prof_kobj;
-	
-	sbinfo = get_super_private(super);
-	prof_kobj = &sbinfo->prof_kobj;
-	prof_kobj->parent = kobject_get(&sbinfo->kobj);
-	snprintf(prof_kobj->name, KOBJ_NAME_LEN, "prof");
-	prof_kobj->kset  = reiser4_subsys.kset;
-	result = kobject_register(prof_kobj);
-	if (result != 0)
-		return result;		
-	
-	/* populate */
-	{
-		int i;
-		reiser4_prof_entry *array;
 
-		array = (reiser4_prof_entry *)&reiser4_prof_defs;
-		for(i = 0 ; i < sizeof(reiser4_prof_defs)/sizeof(reiser4_prof_entry) && !result ; ++ i)
-			result = sysfs_create_file(prof_kobj,
-						   &array[i].attr);
+	result = subsystem_register(&prof_subsys);
+	if (result == 0) {
+		spin_prof.kset = &prof_subsys.kset;
+		snprintf(spin_prof.name, KOBJ_NAME_LEN, "spin_prof");
+		result = kobject_register(&spin_prof);
+		if (result == 0) {
+			/* populate */
+			int i;
+			reiser4_prof_entry *array;
+
+			array = (reiser4_prof_entry *)&reiser4_prof_defs;
+			for(i = 0 ; i < sizeof(reiser4_prof_defs)/sizeof(reiser4_prof_entry) && !result ; ++ i)
+				result = sysfs_create_file(&spin_prof,
+							   &array[i].attr);
+		}
 	}
 	return result;
 }
 
+void done_prof_kobject(void)
+{
+	kobject_unregister(&spin_prof);
+	subsystem_unregister(&prof_subsys);
+}
+
+/* REISER4_PROF */
+#else
 
 /* REISER4_PROF */
 #endif
