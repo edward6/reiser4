@@ -88,7 +88,7 @@ void jnode_attach_page( jnode *node, struct page *pg )
 	assert( "nikita-2047", node != NULL );
 	assert( "nikita-2048", pg != NULL );
 
-	trace_on( TRACE_PCACHE, "attach: node %p, page: %p", node, pg );
+	trace_on( TRACE_PCACHE, "attach: node %p, page: %p\n", node, pg );
 
 	spin_lock( &_jnode_ptr_lock );
 	jnode_attach_page_nolock( node, pg );
@@ -101,7 +101,7 @@ static void break_page_jnode_linkage( struct page *page, jnode *node )
 	assert( "nikita-2063", page != NULL );
 	assert( "nikita-2064", node != NULL );
 
-	trace_on( TRACE_PCACHE, "break page: %p", page );
+	trace_on( TRACE_PCACHE, "break page: %p\n", page );
 
 	page -> private = 0ul;
 	ClearPagePrivate( page );
@@ -115,7 +115,7 @@ jnode *page_detach_jnode( struct page *page )
 
 	assert( "nikita-2062", page != NULL );
 
-	trace_on( TRACE_PCACHE, "detach page: %p", page );
+	trace_on( TRACE_PCACHE, "detach page: %p\n", page );
 
 	spin_lock( &_jnode_ptr_lock );
 	node = ( jnode * ) page -> private;
@@ -133,7 +133,7 @@ void jnode_detach_page( jnode *node )
 
 	assert( "nikita-2052", node != NULL );
 
-	trace_on( TRACE_PCACHE, "detach jnode: %p", node );
+	trace_on( TRACE_PCACHE, "detach jnode: %p\n", node );
 
 	spin_lock( &_jnode_ptr_lock );
 	page = jnode_page( node );
