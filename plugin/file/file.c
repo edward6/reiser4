@@ -1782,9 +1782,10 @@ reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count,
     file_size = inode->i_size;
     new_file_size = *off + count > file_size ? *off + count : file_size;
     
-    return tail_plugin->estimate(inode, new_file_size, 0/*is_fake*/) + 
+    return tail_plugin->estimate(inode, new_file_size - file_size, 0/*is_fake*/) + 
 	    inode_file_plugin(inode)->estimate.update(inode) + 1;
 }
+
 /* plugin->u.file.write */
 ssize_t
 unix_file_write(struct file * file,	/* file to write to */
