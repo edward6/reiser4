@@ -146,8 +146,8 @@ struct _##PREFIX##_list_head                                                    
  * rx_event_list_remove_get_prev  Remove an item from anywhere in the list and return the prev element
  * rx_event_list_pop_front        Remove and return the front of the list, cannot be empty
  * rx_event_list_pop_back         Remove and return the back of the list, cannot be empty
- * rx_event_list_front            Get the front of the list, cannot be empty
- * rx_event_list_back             Get the back of the list, cannot be empty
+ * rx_event_list_front            Get the front of the list
+ * rx_event_list_back             Get the back of the list
  * rx_event_list_next             Iterate front-to-back through the list
  * rx_event_list_prev             Iterate back-to-front through the list
  * rx_event_list_end              Test to end an iteration, either direction
@@ -302,15 +302,23 @@ PREFIX##_list_remove_get_prev (ITEM_TYPE  *item)                                
   return TS_LINK_TO_ITEM(ITEM_TYPE,LINK_NAME,prev);                                           \
 }                                                                                             \
                                                                                               \
+static __inline__ int                                                                         \
+PREFIX##_list_empty (const PREFIX##_list_head  *head)                                         \
+{                                                                                             \
+  return head == (PREFIX##_list_head*) head->_next;                                           \
+}                                                                                             \
+                                                                                              \
 static __inline__ ITEM_TYPE*                                                                  \
 PREFIX##_list_pop_front (PREFIX##_list_head  *head)                                           \
 {                                                                                             \
+  assert ("nikita-1913", ! PREFIX##_list_empty (head));                                       \
   return TS_LINK_TO_ITEM(ITEM_TYPE,LINK_NAME,PREFIX##_list_remove_int (head->_next));         \
 }                                                                                             \
                                                                                               \
 static __inline__ ITEM_TYPE*                                                                  \
 PREFIX##_list_pop_back (PREFIX##_list_head  *head)                                            \
 {                                                                                             \
+  assert ("nikita-1914", ! PREFIX##_list_empty (head)); /* WWI started */                     \
   return TS_LINK_TO_ITEM(ITEM_TYPE,LINK_NAME,PREFIX##_list_remove_int (head->_prev));         \
 }                                                                                             \
                                                                                               \
@@ -343,12 +351,6 @@ PREFIX##_list_end (const PREFIX##_list_head  *head,                             
  		   const ITEM_TYPE           *item)                                           \
 {                                                                                             \
   return ((PREFIX##_list_link *) head) == (& item->LINK_NAME);                                \
-}                                                                                             \
-                                                                                              \
-static __inline__ int                                                                         \
-PREFIX##_list_empty (const PREFIX##_list_head  *head)                                         \
-{                                                                                             \
-  return head == (PREFIX##_list_head*) head->_next;                                           \
 }                                                                                             \
                                                                                               \
 static __inline__ void                                                                        \
