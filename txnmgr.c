@@ -746,6 +746,8 @@ static void invalidate_clean_list (txn_atom * atom)
 	while (!capture_list_empty(&atom->clean_nodes)) {
 		jnode * cur = capture_list_front (&atom->clean_nodes);
 		capture_list_remove_clean(cur);
+		assert ("nikita-2224", cur->atom->capture_count != 0);
+		cur->atom->capture_count -= 1;
 		cur->atom = NULL;
 	}
 }
