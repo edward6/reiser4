@@ -1,1 +1,1 @@
-SUBDIRS = aal misc reiser4 reiser4progs
+SUBDIRS = aal misc reiser4 progs

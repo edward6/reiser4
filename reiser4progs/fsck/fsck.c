@@ -16,7 +16,7 @@
 #include <string.h>
 
 #include <reiser4/reiser4.h>
-#include <reiser4progs/misc.h>
+#include <misc/misc.h>
 
 static void fsck_print_usage(void) {
     fprintf(stderr, "Usage: fsck.reiser4 [ options ] FILE\n");
