@@ -1209,7 +1209,7 @@ reiserfs_alloc_resize, reiserfs_alloc_copy, reiserfs_alloc_clone.
 <h3>Balanced Tree API.</h3>
 
 <table width=70%><tr><td alalign=justify>
-There will be routins for working with balanced tree. There following:<br><br>
+There functions for working with b*tree. There following:<br><br>
 
 <b>reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs)</b>
 
@@ -1235,38 +1235,37 @@ Frees all memory assosiated with tree.<br><br>
 reiserfs_comp_func_t *comp_func, struct key *key, reiserfs_path_t *path)</b>
 
 <p>
-Makes looking up for specified key in the balanced tree. Stops the looking up 
-process on the last found internal node. Fills "path" by tracked path. For comparing
-keys in tree is used "comp_func" callback function. This functions is used by tree 
-modification routines in order to find the internal node, we should insert new formated 
-node.<br><br>
+Makes looking up for specified key in the balanced tree. Stops search on the last 
+found internal node. Fills "path" by tracked path. For comparing keys in tree is 
+used "comp_func" callback function. "reiserfs_tree_lookup_internal" functions is 
+used by tree modification routines in order to find the internal node, we should 
+insert new formated node in it.<br><br>
 
 <b>int reiserfs_tree_lookup_leaf(reiserfs_tree_t *tree, blk_t from, <br>
 reiserfs_comp_func_t *comp_func, struct key *key, reiserfs_path_t *path)</b>
 
 <p>
-Makes looking up for specified key in the balanced tree. Stops the looking up 
-process on the found leaf node. Fills "path" by tracked path. For comparing
-keys in tree is used "comp_func" callback function. This functions is used by tree 
-modification routines in order to find the leaf in the tree, and the position inside 
-found leaf where we should insert new item. It is also used by file and directory APIs.
+Makes looking up for specified key in the balanced tree. Stops serach on the found 
+leaf node. Fills "path" by tracked path. For comparing keys in tree is used "comp_func" 
+callback function. Is used by tree modification routines in order to find the leaf in 
+the tree, and the position inside found leaf where we should insert new item. It is 
+also used by file and directory APIs.
 <br><br>
-
 
 <b>long reiserfs_tree_traverse(reiserfs_tree_t *tree, void *data,<br>
 reiserfs_edge_traverse_func_t before_node_func, reiserfs_node_func_t node_func,<br>
 reiserfs_chld_func_t chld_func, reiserfs_edge_traverse_func_t after_node_func)</b>
 
 <p>
-Makes full traversing in the balanced tree. For all "node-specifics" operations for every 
-formated node is used a set of callback functions. Traversing may be stoped in any point 
+Makes full traversing in the balanced tree. For all "node-specific" operations for every 
+formated node uses a set of callback functions. Traversing may be stoped in any point 
 if an callback function returns "bool" false value.<br><br>
 
 This is the central function for all following operations:<br><br>
 
 resizing, smart resizing (resize filesystem by start and end parameters), copying, 
 relocating (relocates specified region of the balanced tree onto other specified region), 
-etc.<br><br>
+journal resizing, journal relocating, etc.<br><br>
 
 There will be routines for modifying the balanced tree (We have to discuss it).
 
@@ -1275,29 +1274,27 @@ There will be routines for modifying the balanced tree (We have to discuss it).
 <h3>Plugins map.</h3>
 
 <table width=70%><tr><td align=justify>
-Plugins map keeps correspondence between  plugins  id  and
-library for this plugin.<br>
+Plugins map keeps correspondence between plugin's coords (KIND, ID) and library for 
+this plugin.<br>
 </td></tr></table>
 
 <h3>Plugins factory.</h3>
 
 <table width=70%><tr><td align=justify>
-In the initialization  time  libreiserfs will initialize
-plugins factory with plugins cache that will store  loaded
-plugins.  Plugin  cache  keeps track of loaded plugins and
-allows to avoid duplicate loading of the same plugin.<br><br>
+In the initialization time libreiserfs will initialize plugins factory 
+with plugins cache that will store loaded plugins. Plugin cache keeps 
+track of loaded plugins and allows to avoid duplicate loading of the 
+same plugin.<br><br>
 
-During filesystem open library will determine what journal
-plugin  to  use.   Corresponding  plugin  will be located,
-loaded and stored in the  cache.  After  that,  filesystem
-open will proceed further.<br><br>
+During filesystem open library will determine what journal plugin to 
+use. Corresponding plugin will be located, loaded and stored in the 
+cache. After that, filesystem open will proceed further.<br><br>
 
-The  all other plugins will be loaded on demand and stored
-in plugin cache.  And all subsequent requests to load  the
-same plugin will be satisfied from the cache.<br><br>
+The all other plugins will be loaded on demand and stored in plugin 
+cache. And all subsequent requests to load the same plugin will be 
+satisfied from the cache.<br><br>
 
-Plugins loading code and data-structures look roughly like
-following:<br><br>
+Plugins loading code and data-structures look roughly like following:<br><br>
 
 <pre>
 #define REISERFS_PLUG_MAX_NAME          255
