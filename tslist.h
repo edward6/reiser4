@@ -170,7 +170,7 @@ struct _##PREFIX##_list_head                                                    
 #define TS_LIST_DEFINE(PREFIX,ITEM_TYPE,LINK_NAME)                                            \
                                                                                               \
 static __inline__ int                                                                         \
-PREFIX##_list_link_invariant (PREFIX##_list_link  *_link)                                     \
+PREFIX##_list_link_invariant (const PREFIX##_list_link  *_link)                               \
 {                                                                                             \
   return (_link != NULL) &&                                                                   \
 	  (_link->_prev != NULL) && (_link->_next != NULL ) &&                                \
@@ -179,13 +179,13 @@ PREFIX##_list_link_invariant (PREFIX##_list_link  *_link)                       
 }                                                                                             \
                                                                                               \
 static __inline__ void                                                                        \
-PREFIX##_list_link_ok (PREFIX##_list_link  *_link UNUSED_ARG)                                 \
+PREFIX##_list_link_ok (const PREFIX##_list_link  *_link UNUSED_ARG)                           \
 {                                                                                             \
   assert ("nikita-1054", PREFIX##_list_link_invariant (_link));                               \
 }                                                                                             \
                                                                                               \
 static __inline__ void                                                                        \
-PREFIX##_list_object_ok (ITEM_TYPE           *item)                                           \
+PREFIX##_list_object_ok (const ITEM_TYPE           *item)                                     \
 {                                                                                             \
   PREFIX##_list_link_ok (&item->LINK_NAME);                                                   \
 }                                                                                             \
@@ -207,9 +207,9 @@ PREFIX##_list_clean (ITEM_TYPE           *item)                                 
 }                                                                                             \
                                                                                               \
 static __inline__ int                                                                         \
-PREFIX##_list_is_clean (ITEM_TYPE           *item)                                            \
+PREFIX##_list_is_clean (const ITEM_TYPE           *item)                                      \
 {                                                                                             \
-  PREFIX##_list_link *_link = &item->LINK_NAME;                                               \
+  const PREFIX##_list_link *_link = &item->LINK_NAME;                                         \
                                                                                               \
   PREFIX##_list_link_ok (_link);                                                              \
   return (_link == _link->_next) && (_link == _link->_prev);                                  \
@@ -376,9 +376,9 @@ PREFIX##_list_splice (PREFIX##_list_head  *head_join,                           
 }                                                                                             \
                                                                                               \
 static __inline__ void                                                                        \
-PREFIX##_list_check (PREFIX##_list_head  *head)                                               \
+PREFIX##_list_check (const PREFIX##_list_head  *head)                                         \
 {                                                                                             \
-	PREFIX##_list_link *link;                                                             \
+	const PREFIX##_list_link *link;                                                       \
                                                                                               \
 	for (link = head->_next ; link != ((PREFIX##_list_link *) head) ; link = link->_next) \
 		PREFIX##_list_link_ok (link);                                                 \
