@@ -38,6 +38,10 @@
 /* for __le??_to_cpu() */
 #include <linux/byteorder/little_endian.h>
 
+#include <stdio.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "atomic.h"
 
 /* This let's us test with posix locks, thereby allowing use of typedef'd spinlock_t as
