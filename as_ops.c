@@ -184,14 +184,12 @@ static int
 reiser4_writepage(struct page *page, struct writeback_control *wbc)
 {
 	int result;
-	PROF_BEGIN(writepage);
 
 	assert("zam-822", current->flags & PF_MEMALLOC);
 	assert("nikita-3017", schedulable());
 
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	assert("nikita-3018", schedulable());
-	__PROF_END(writepage, REISER4_BACKTRACE_DEPTH, 5);
 	return result;
 }
 

@@ -1123,8 +1123,6 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	ra_info_t ra_info;
 	int (*read_f) (struct file *, flow_t *, hint_t *);
 	unix_file_info_t *uf_info;
-	PROF_BEGIN(file_read);
-	
 
 	if (unlikely(!read_amount))
 		return 0;
@@ -1251,7 +1249,6 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	*off += read;
 
 	/* return number of read bytes or error code if nothing is read */
-	PROF_END(file_read);
 	return read ?: result;
 }
 

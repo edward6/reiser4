@@ -236,10 +236,8 @@ typedef enum {
 	JNODE_REPACK = 23,
 	JNODE_SCANNED = 24,
 	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25,
-#if REISER4_DEBUG
 	/* capture copy jnode */
-	JNODE_CC = 31
-#endif
+	JNODE_CC = 26
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */

@@ -557,7 +557,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	oid_t oid;
 	reiser4_tree *tree;
 	reiser4_key page_key;
-	PROF_BEGIN(extent_write);
 
 	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
@@ -692,7 +691,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 
-	PROF_END(extent_write);
 	return result;
 }
 

@@ -1399,7 +1399,6 @@ init_wlinks(txn_wait_links * wlinks)
 void atom_wait_event(txn_atom * atom)
 {
 	txn_wait_links _wlinks;
-	PROF_BEGIN(atom_wait_event);
 
 	assert("zam-744", spin_atom_is_locked(atom));
 	assert("nikita-3156", 
@@ -1418,7 +1417,6 @@ void atom_wait_event(txn_atom * atom)
 	LOCK_ATOM (atom);
 	fwaitfor_list_remove(&_wlinks);
 	atom_dec_and_unlock (atom);
-	PROF_END(atom_wait_event);
 }
 
 /* wake all threads which wait for an event */
@@ -2810,7 +2808,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 
 	/* Initialize the waiting list links. */
 	txn_wait_links wlinks;
-	PROF_BEGIN(fuse_wait);
 
 	assert("umka-212", node != NULL);
 	assert("umka-213", txnh != NULL);
@@ -2830,7 +2827,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		ON_TRACE(TRACE_TXN, "thread %u nonblocking on atom %u\n", current->pid, atomf->atom_id);
 
 		reiser4_stat_inc(txnmgr.restart.fuse_wait_nonblock);
-		PROF_END(fuse_wait);
 		return RETERR(-E_REPEAT);
 	}
 
@@ -2879,7 +2875,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	}
 
 	assert("nikita-2186", ergo(ret, spin_jnode_is_not_locked(node)));
-	PROF_END(fuse_wait);
 	return ret;
 }
 

@@ -489,7 +489,6 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	__u32 hashi;
 
 	z_hash_table *zth;
-	PROF_BEGIN(zget);
 
 	trace_stamp(TRACE_ZNODES);
 
@@ -530,7 +529,6 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	
 		result = zalloc(gfp_flag);
 		if (!result) {
-			PROF_END(zget);
 			return ERR_PTR(RETERR(-ENOMEM));
 		}
 
@@ -563,7 +561,6 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
 		reiser4_check_block(blocknr, 1);
 #endif
-	PROF_END(zget);
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
 		warning("jmacd-504",
