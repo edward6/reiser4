@@ -188,7 +188,7 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 
 	trace_stamp( TRACE_CARRY );
 
-	grabbed    = get_current_context() -> grabbed_blocks;
+	grabbed = get_current_context() -> grabbed_blocks;
 	/* reserve enough disk space */
 	result = reiser4_grab_space1( carry_estimate_space( doing ) );
 	if( result != 0 )
@@ -891,6 +891,7 @@ static void unlock_carry_level( carry_level *level /* level to unlock */,
 		if( ! failure )
 			node_check( node -> real_node, 
 				    REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
+
 		unlock_carry_node( node, failure );
 	}
 	level -> new_root = NULL;
