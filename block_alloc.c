@@ -151,6 +151,8 @@ blocknr_is_fake(const reiser4_block_nr * da)
 static void
 sub_from_ctx_grabbed(reiser4_context *ctx, __u64 count)
 {	
+	if (ctx->grabbed_blocks < count)
+		print_clog();
 	BUG_ON(ctx->grabbed_blocks < count);
 	assert("zam-527", ctx->grabbed_blocks >= count);
 	ctx->grabbed_blocks -= count;
@@ -946,6 +948,7 @@ all_grabbed2free(void)
 	reiser4_context *ctx = get_current_context();
 
 	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks);
+	clog_op(ALL_GRABBED2FREE, 0);
 }
 
 /* adjust sb block counters if real (on-disk) blocks do not become unallocated
