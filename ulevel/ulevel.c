@@ -3537,7 +3537,7 @@ static int bash_mkfs (char * file_name)
 	info = kmalloc (sizeof (reiser4_super_info_data), GFP_KERNEL);
 	if( info == NULL )
 		BUG();
-	super.u.generic_sbp = info;
+	super.s_fs_info = info;
 	xmemset (info, 0, sizeof (reiser4_super_info_data));
 	ON_DEBUG (INIT_LIST_HEAD (&info->all_jnodes));
 	super.s_op = &reiser4_super_operations;
