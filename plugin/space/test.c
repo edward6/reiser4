@@ -12,7 +12,7 @@
 
 /* plugin->u.space_allocator.init_allocator */
 int test_init_allocator (reiser4_space_allocator * allocator,
-			 struct super_block * super UNUSED_ARG, void * arg)
+			 struct super_block * super, void * arg)
 {
 	reiser4_block_nr * next;
 
@@ -24,6 +24,8 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 	spin_lock (&allocator->u.test.guard);
 	allocator->u.test.new_block_nr = *next;
 	spin_unlock (&allocator->u.test.guard);
+
+	get_super_private( super ) -> blocks_free = ~(__u64)0;
 
 	return 0;
 }
