@@ -493,6 +493,7 @@ extern int kswapd(void *);
 
 #include <linux/personality.h>
 #include "ktxnmgrd.h"
+#include "repacker.h"
 
 /*
  * true iff @addr is between @start and @end

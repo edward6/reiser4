@@ -16,4 +16,7 @@ struct repacker_cursor {
 extern int  init_reiser4_repacker(struct super_block *);
 extern void done_reiser4_repacker(struct super_block *);
 
+extern int reiser4_repacker (struct repacker * repacker);
+extern int repacker_d(void *arg);
+
 #endif /* __FS_REISER4_REPACKER_H__ */
