@@ -22,18 +22,6 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
 }
 
 
-/*
- * plugin->u.item.b.max_key_inside
- */
-reiser4_key * extent_max_key_inside (const tree_coord * coord, 
-				     reiser4_key * key)
-{
-	item_key_by_coord (coord, key);
-	set_key_offset (key, get_key_offset (max_key ()));
-	return key;
-}
-
-
 /* how many bytes are addressed by @nr (or all of @nr == -1) first extents of
    the extent item */
 static __u64 extent_size (const tree_coord * coord, unsigned nr)
@@ -57,6 +45,63 @@ static __u64 extent_size (const tree_coord * coord, unsigned nr)
 		bytes += ((loff_t)blocksize * d64tocpu (&(ext->width)));
 
 	return bytes;
+}
+
+
+/*
+ * plugin->u.item.b.max_key_inside
+ */
+reiser4_key * extent_max_key_inside (const tree_coord * coord, 
+				     reiser4_key * key)
+{
+	item_key_by_coord (coord, key);
+	set_key_offset (key, get_key_offset (max_key ()));
+	return key;
+}
+
+/*
+ * plugin->u.item.b.can_contain_key
+ */
+int extent_can_contain_key (const tree_coord * coord, const reiser4_key * key,
+			    const reiser4_item_data * data)
+{
+	reiser4_key item_key;
+
+
+	if (item_plugin_by_coord (coord) != data->iplug)
+		return 0;
+
+	item_key_by_coord (coord, &item_key);
+	if (get_key_locality (key) != get_key_locality (&item_key) ||
+	    get_key_objectid (key) != get_key_objectid (&item_key))
+		return 0;
+
+	assert ("vs-458",
+		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
+		(coord->unit_pos == last_unit_pos (coord) &&
+		 coord->between == AFTER_UNIT));
+
+	if (coord->between == BEFORE_UNIT) {
+		reiser4_extent * ext;
+
+		ext = (reiser4_extent *)data->data;
+		if (get_key_offset (key) + (extent_get_width (ext) *
+					    reiser4_get_current_sb ()->s_blocksize) !=
+		    get_key_offset (&item_key)) {
+			info ("could not merge extent items of one file\n");
+			return 0;
+		} else
+			return 1;
+
+	} else {
+		if (get_key_offset (key) != (get_key_offset (&item_key) +
+					     extent_size (coord, (unsigned)-1))) {
+			info ("could not append extent with "
+			      "an extent of the same file\n");
+			return 0;
+		} else
+			return 1;
+	}
 }
 
 
@@ -621,7 +666,7 @@ reiser4_key * extent_unit_key (const tree_coord * coord, reiser4_key * key)
  * plugin->u.item.b.item_data_by_flow
  */
 int extent_item_data_by_flow (const tree_coord * coord UNUSED_ARG,
-			      const flow * f,
+			      const flow_t * f,
 			      reiser4_item_data * data)
 {
 	data->data = f->data;
@@ -646,6 +691,70 @@ static void set_extent (reiser4_extent * ext, extent_state state, __u64 width)
 			    "do not create extents but holes and unallocated");
 	}
 	extent_set_width (ext, width);
+}
+
+
+/*
+ * union union-able extents and cut an item correspondingly
+ */
+static void optimize_extent (tree_coord * item)
+{
+	unsigned i, old_num, new_num;
+	reiser4_extent * ext, * prev, * start;
+	__u64 width;
+
+
+	ext = start = extent_item (item);
+	old_num = extent_nr_units (item);
+	prev = 0;
+	new_num = 0;
+	for (i = 0; i < old_num; i ++, ext ++) {
+		width = extent_get_width (ext);
+		if (!width)
+			continue;
+		if (prev && state_of_extent (prev) == state_of_extent (ext)) {
+			/* current extent (@ext) and previous one (@prev) can
+			   be unioned when they are hole or unallocated
+			   extents or when they are adjacent allocated
+			   extents */
+			if (state_of_extent (prev) != ALLOCATED_EXTENT) {
+				set_extent (prev, state_of_extent (ext),
+					    extent_get_width (prev) + width);
+				continue;
+			} else if (extent_get_start (prev) + extent_get_width (prev) ==
+				   extent_get_start (ext)) {
+				extent_set_width (prev, extent_get_width (prev) + width);
+				continue;
+			}
+		}
+
+		/* @ext can not be joined with @prev, move @prev forward */
+		if (prev)
+			prev ++;
+		else
+			prev = start;
+		*prev = *ext;
+		new_num ++;
+	}
+	if (new_num != old_num)	{
+		int result;
+		tree_coord from, to;
+
+		reiser4_dup_coord (&from, item);
+		from.unit_pos = new_num;
+		from.between = AT_UNIT;
+
+		reiser4_dup_coord (&to, &from);
+		to.unit_pos = old_num - 1;
+
+		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT);
+		reiser4_done_coord (&from);
+		reiser4_done_coord (&to);
+		/*
+		 * nothing should happen cutting
+		 */
+		assert ("vs-456", result == 0);
+	}
 }
 
 
@@ -784,7 +893,7 @@ static int add_extents (tree_coord * coord,
 		to = *coord;
 		to.unit_pos = old_num - 1;
 		to.between = AT_UNIT;
-		return cut_node (&from, &to, 0, 0, 0);
+		return cut_node (&from, &to, 0, 0, 0, 0/*flags*/);
 	}
 }
 
@@ -1157,6 +1266,7 @@ static int key_in_item (tree_coord * coord, reiser4_key * key)
 						  &item_key)) == LESS_THAN));
 }
 
+
 /* this is todo for regular reiser4 files which are made of extents
    only. Extents represent every byte of file body. One node may not have more
    than one extent item of one file */
@@ -1244,18 +1354,6 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 	return EXTENT_RESEARCH;
 }
 
-
-/* generic_file_write starts with getting locked page,
-
-then it calls prepare_write which deals only with buffers being changed. If
-all those buffers are mapped - prepare_write does nothing. If page is
-uptodate - buffers are marked uptodate too
-
-then user data is copied to the page
-
-commit_write deals with all buffers containing a page. Changed buffers are
-marked uptodate and dirty. If all buffers are uptodate - page is marked uptodate
-*/
 
 /*
  * return 1 we do not need to read block before overwriting
@@ -1462,7 +1560,7 @@ static int commit_write (struct page * page, __u64 file_off,
  * is done in one modification of extent?
  */
 int extent_write (struct inode * inode, tree_coord * coord,
-		  reiser4_lock_handle * lh, flow * f)
+		  reiser4_lock_handle * lh, flow_t * f)
 {
 	int result;
 	struct page * page;
@@ -1873,7 +1971,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
  * plugin->u.item.s.file.read
  */
 int extent_read (struct inode * inode, tree_coord * coord,
-		 reiser4_lock_handle * lh, flow * f)
+		 reiser4_lock_handle * lh, flow_t * f)
 {
 	int result;
 	struct page * page;
@@ -1945,26 +2043,45 @@ int extent_read (struct inode * inode, tree_coord * coord,
 }
 
 
-static void check_resize_result (tree_coord * coord, reiser4_key * key UNUSED_ARG)
+/*
+ * ask block allocator for some blocks
+ */
+static int extent_allocate_blocks (block_nr desired_first,
+				   block_nr wanted_count,
+				   block_nr * first_allocated,
+				   block_nr * allocated)
 {
-	reiser4_key k;
+	int result;
+	block_nr start, count;
 
-
-	assert ("vs-326",
-		coord->between == AT_UNIT);
-	item_key_by_coord (coord, &k);
-	set_key_offset (&k, (get_key_offset (&k) +
-			     extent_size (coord, (unsigned) coord->unit_pos)));
-	assert ("vs-329",
-		keycmp (&k, key) == EQUAL_TO);
+	start = desired_first;
+	count = wanted_count;
+	result = allocate_new_blocks (&start, &count);
+	if (result) {
+		/*
+		 * no free space
+		 * FIXME-VS: returning -ENOSPC is not enough
+		 * here. It should not happen actully
+		 */
+		impossible ("vs-420", "could not allocate unallocated");
+		return result;
+	}
+	*first_allocated = start;
+	*allocated = count;
+	return 0;
 }
 
 
-/* look for all pages containing buffers for which block numbers were just
-   allocated */
-static void set_blocknrs (__u64 objectid, __u64 offset, __u64 first,
-			  __u64 count)
+
+/*
+ * unallocated extent of file with @objectid correspondign to @offset was
+ * replaced allocated extent [first, count]. Look for corresponding buffers in
+ * the page cache and map them properly
+ */
+static void map_allocated_buffers (reiser4_key * key, __u64 first, __u64 count)
 {
+	__u64 objectid;
+	__u64 offset;
 	struct inode * inode;
 	struct page * page;
 	struct buffer_head * bh;
@@ -1972,6 +2089,8 @@ static void set_blocknrs (__u64 objectid, __u64 offset, __u64 first,
 	unsigned long ind;
 
 
+	objectid = get_key_objectid (key);
+	offset = get_key_offset (key);
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 
 	inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
@@ -2001,6 +2120,25 @@ static void set_blocknrs (__u64 objectid, __u64 offset, __u64 first,
 		if (!count)
 			break;
 	}
+}
+
+
+#if 0 /*
+       * allocate extents inflating them to right
+       */
+
+static void check_resize_result (tree_coord * coord, reiser4_key * key UNUSED_ARG)
+{
+	reiser4_key k;
+
+
+	assert ("vs-326",
+		coord->between == AT_UNIT);
+	item_key_by_coord (coord, &k);
+	set_key_offset (&k, (get_key_offset (&k) +
+			     extent_size (coord, (unsigned) coord->unit_pos)));
+	assert ("vs-329",
+		keycmp (&k, key) == EQUAL_TO);
 }
 
 
@@ -2110,55 +2248,10 @@ static int allocate_unallocated_extent (tree_coord * coord,
 	return 0;
 }
 
+#endif /*
+       * allocate extents inflating them to right
+       */
 
-int alloc_extent (reiser4_tree * tree, tree_coord * coord,
-		  reiser4_lock_handle * lh, void * arg UNUSED_ARG)
-{
-	int result;
-	reiser4_key key;
-
-	if (!item_is_extent (coord)) {
-		return 1;
-	}
-
-	item_key_by_coord (coord, &key);
-	while ((result = allocate_unallocated_extent (coord, lh, &key)) > 0) {
-		ON_DEBUG (reiser4_key last_key);
-
-		/* extent is not done yet */
-		reiser4_done_lh (lh);
-		reiser4_done_coord (coord);
-
-		reiser4_init_coord (coord);
-		reiser4_init_lh (lh);
-		if (coord_by_key (tree, &key, coord, lh,
-				  ZNODE_WRITE_LOCK, FIND_EXACT,
-				  TWIG_LEVEL, TWIG_LEVEL, 
-				  CBK_FOR_INSERT | CBK_UNIQUE) != CBK_COORD_FOUND) {
-			result = 0;
-			assert ("vs-343",
-				get_key_offset (&key) ==
-				get_key_offset (last_key_in_extent (coord,
-								    &last_key)));
-			break;
-		}
-	}
-
-	if (result) {
-		/* error occurred */
-		return result;
-	}
-	/* have reiser4_iterate_tree to continue */
-	coord->unit_pos = 0;
-	coord->between = AT_UNIT;
-	return 1;
-}
-
-
-static int map_allocated_buffers (void)
-{
-	return 0;
-}
 
 
 /*
@@ -2227,22 +2320,43 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
 }
 
 
-static int can_glue (znode * left UNUSED_ARG, tree_coord * right UNUSED_ARG,
-		     block_nr obtained UNUSED_ARG)
-{
-	return 0;
-}
-
-
 /*
- * try to merge extents which can be merge. If size of item is reduced - no
- * attempt to compact a node will be made.
+ * try to expand last extent in node @left by @allocated. Return 1 in case of
+ * success and 0 otherwise
  */
-static void optimize_extent (tree_coord * item UNUSED_ARG)
+static int try_to_glue (znode * left, tree_coord * right,
+			block_nr first_allocated, block_nr allocated)
 {
+	int result;
+	tree_coord last;	
+	reiser4_key item_key, last_key;
+	reiser4_extent * ext;
+
+
+	if (right->unit_pos != 0)
+		return 0;
+
+	result = 0;
+	reiser4_init_coord (&last);
+	coord_last_unit (&last, left);
+	ext = extent_by_coord (&last);
+
+	if ((keycmp (last_key_in_extent (&last, &last_key), &item_key) ==
+	     EQUAL_TO) &&
+	    (extent_get_start (ext) + extent_get_width (ext) ==
+	     first_allocated)) {
+		/*
+		 * @first_allocated is adjacent to last block of last extent in
+		 * @left
+		 */
+		extent_set_width (ext, extent_get_width (ext) + allocated);
+		result = 1;
+	}
+	reiser4_done_coord (&last);
+	return result;
 }
 
-#ifdef NOTYET
+
 /*
  * @right is extent item. @left and @right are extents of one file. Copy item
  * @right to @left unit by unit. Units which do not require allocation are
@@ -2250,17 +2364,17 @@ static void optimize_extent (tree_coord * item UNUSED_ARG)
  * start block number and extent size to them. Those units may get inflated due
  * to impossibility to allocate desired number of contiguous free blocks
  */
-squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
-					 block_nr * preceder,
-					 /*
-					  * biggest key which was moved, it is
-					  * * maintained while shifting is in *
-					  * progress and is used to cut right *
-					  * node at the end
-					  */
-					 reiser4_key * stop_key)
+int allocate_and_copy_extent (znode * left, tree_coord * right,
+			      block_nr * preceder,
+			      /*
+			       * biggest key which was moved, it is
+			       * * maintained while shifting is in *
+			       * progress and is used to cut right *
+			       * node at the end
+			       */
+			      reiser4_key * stop_key)
 {
-	squeeze_result result;
+	int result;
 	reiser4_item_data data;
 	reiser4_key key;
 	unsigned long blocksize;
@@ -2278,14 +2392,6 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 
 	optimize_extent (right);
 
-	/*
-	 * @data will be used to put one extent unit into tree. All its fields
-	 * but .data are initialized here once for all future
-	 * insertions/pastings
-	 */
-	init_new_extent (&data, 0);
-
-
 	result = SQUEEZE_CONTINUE;
 	item_key_by_coord (right, &key);
 
@@ -2296,9 +2402,9 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 			 * unit does not require allocation, copy this unit as
 			 * it is
 			 */
-			data.data = (char *)&ext;
-			result = put_unit_to_end (left, &key, &data);
-			if (result == (int)-ENOSPC) {
+			result = put_unit_to_end (left, &key,
+						  init_new_extent (&data, ext));
+			if (result == -ENOSPC) {
 				/*
 				 * left->node does not have enough free space
 				 * for this unit
@@ -2318,36 +2424,26 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 		 * extent must be allocated
 		 */
 		to_allocate = extent_get_width (ext);
-		/**preceder = get_preceder (left);*/
 		/*
 		 * while whole extent is allocated
 		 */
 		while (to_allocate) {
-			result = allocate_new_blocks (*preceder, to_allocate,
-						      &first_allocated, &allocated);
+			result = extent_allocate_blocks (*preceder, to_allocate,
+							 &first_allocated,
+							 &allocated);
 			if (result) {
-				/*
-				 * no free space
-				 * FIXME-VS: returning -ENOSPC is not enough
-				 * here. It should not happen actully
-				 */
-				impossible ("vs-420", "could not allocate unallocated");
 				return result;
 			}
+
 			to_allocate -= allocated;
 			*preceder += allocated;
-			if (right->unit_pos == 0 && can_glue (left, right, first_allocated)) {
-				tree_coord last;
+			if (try_to_glue (left, right, first_allocated, allocated)) {
 				/*
-				 * special case: instead of appending @left
-				 * with a new unit we can simply increase width
-				 * of last unit of @left
+				 * find all pages containing allocated blocks
+				 * and map corresponding buffers
 				 */
-				reiser4_init_coord (&last);
-				coord_last_unit (&last);
-				extent_set_width (extent_by_coord (&last),
-						  extent_get_width (extent_by_coord (&last)) + allocated);
-				reiser4_done_coord (&last);
+				map_allocated_buffers (&key, first_allocated,
+						       allocated);
 				/*
 				 * update stop key
 				 */
@@ -2361,9 +2457,10 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 			 */
 			extent_set_start (&new_ext, first_allocated);
 			extent_set_width (&new_ext, allocated);
-			data.data = (char *)&new_ext;
-			
-			result = put_unit_to_end (left, &key, &data);
+
+			result = put_unit_to_end (left, &key,
+						  init_new_extent (&data,
+								   &new_ext));
 			if (result == -ENOSPC) {
 				/*
 				 * left->node is full, free blocks we grabbed
@@ -2376,6 +2473,12 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 				result = SQUEEZE_DONE;
 				goto done;
 			}
+			/*
+			 * find all pages containing allocated blocks and map
+			 * corresponding buffers
+			 */
+			map_allocated_buffers (&key, first_allocated,
+					       allocated);
 			/*
 			 * update stop key
 			 */
@@ -2390,7 +2493,7 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 	assert ("vs-421", result == SQUEEZE_DONE || SQUEEZE_CONTINUE);
 	return result;
 }
-#endif
+
 
 /*
  * paste new unallocated extent of width after unit @coord is set to. Ask
@@ -2418,7 +2521,7 @@ static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
 	return result;
 }
 
-#ifdef NOTYET
+
 /*
  * find all units of extent item which require allocation. Allocate free blocks
  * for them and replace those extents with new ones. As result of this item may
@@ -2432,20 +2535,15 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 	unsigned i;
  	reiser4_extent * ext;
 	__u64 initial_width,
-		first_obtained,
-		obtained;
+		first_allocated,
+		allocated;
 	reiser4_key key;
 	unsigned long blocksize;
 
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	/*
-	 * content of extent item may be optimize-able (it may have mergeable
-	 * extents))
-	 */
-	optimize_extent (item);
 
-	assert ("vs-451", coord_is_leftmost (item) && coord_of_unit (item));
+	assert ("vs-451", item->unit_pos == 0 && coord_of_unit (item));
 
 	ext = extent_item (item);
 	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
@@ -2458,38 +2556,41 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 		 * *preceder
 		 */
 		initial_width = extent_get_width (ext);
-		result = allocate_new_blocks (*preceder, initial_width,
-					      &first_obtained, &obtained);
+		result = extent_allocate_blocks (*preceder, initial_width,
+						 &first_allocated, &allocated);
 		if (result)
 			return result;
 
-		assert ("vs-440", obtained > 0);
+		assert ("vs-440", allocated > 0);
 		/*
 		 * update extent's start, width and recalculate preceder
 		 */
-		extent_set_start (ext, first_obtained);
-		extent_set_width (ext, obtained);
-		*preceder = first_obtained + obtained - 1;
+		extent_set_start (ext, first_allocated);
+		extent_set_width (ext, allocated);
+		*preceder = first_allocated + allocated - 1;
 
+		unit_key_by_coord (item, &key);
 		/*
 		 * find all pages containing allocated blocks and map
 		 * corresponding buffers
 		 */
-		map_allocated_buffers ();
+		map_allocated_buffers (&key, first_allocated, allocated);
 
-		if (obtained == initial_width)
+		if (allocated == initial_width)
 			/*
 			 * whole extent is allocated
 			 */
 			continue;
 		/*
-		 * we must put the rest of extent we were trying to allocate
-		 * back into item
+		 * update @key offset to offset of the part of extent which was
+		 * not allocated
 		 */
-		unit_key_by_coord (item, &key);
-		set_key_offset (&key, get_key_offset (&key) + obtained * blocksize);
+		set_key_offset (&key, get_key_offset (&key) + allocated * blocksize);
+		/*
+		 * put the rest of extent into tree
+		 */
 		result = paste_unallocated_extent (item, &key, 
-						   initial_width - obtained);
+						   initial_width - allocated);
 		if (result)
 			return result;
 		/*
@@ -2503,14 +2604,61 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 				unit_key_by_coord (item, &ext_key);
 				set_key_offset (&ext_key,
 						get_key_offset (&ext_key) +
-						obtained * blocksize);
+						allocated * blocksize);
 				keycmp (&ext_key, &key) == EQUAL_TO;
 			}));
 	}
 
+	/*
+	 * content of extent item may be optimize-able (it may have mergeable
+	 * extents))
+	 */
+	optimize_extent (item);
 	return 0;
 }
-#endif
+
+
+/*
+ * iterate_tree's actor is to test extent allocation
+ */
+int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
+		  reiser4_lock_handle * lh UNUSED_ARG, void * arg UNUSED_ARG)
+{
+	block_nr preceder;
+
+	if (!item_is_extent (coord)) {
+		return 1;
+	}
+
+	/*
+	 * try to calculate block number of left neighbor in parent-first order
+	 */
+	if (coord->item_pos == 0) {
+		preceder = coord->node->blocknr.blk;
+	} else {
+		tree_coord prev;
+		reiser4_disk_addr da;
+
+		assert ("vs-455", coord->unit_pos == 0);
+		reiser4_dup_coord (&prev, coord);
+		coord_prev_unit (&prev);
+		if (item_is_internal (&prev)) {
+			item_plugin_by_coord (&prev)->s.internal.down_link (&prev, 0,
+						       &da);
+			preceder = da.blk;
+		} else if (item_is_extent (&prev)) {
+			reiser4_extent * ext;
+			ext = extent_by_coord (&prev);
+			preceder = extent_get_start (ext) + extent_get_width (ext);
+		} else
+			impossible ("vs-454", "unknown item type");
+		reiser4_done_coord (&prev);
+	}
+
+	allocate_extent_item_in_place (coord, &preceder);
+	return 1;
+}
+
 /* 
  * Local variables:
  * c-indentation-style: "K&R"
