@@ -60,7 +60,7 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		sizeof set1->file +
 		sizeof set1->dir +
 		sizeof set1->perm +
-		sizeof set1->tail +
+		sizeof set1->formatting +
 		sizeof set1->hash +
 		sizeof set1->sd +
 		sizeof set1->dir_item +
@@ -76,7 +76,7 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		set1->file == set2->file &&
 		set1->dir == set2->dir &&
 		set1->perm == set2->perm &&
-		set1->tail == set2->tail &&
+		set1->formatting == set2->formatting &&
 		set1->hash == set2->hash &&
 		set1->sd == set2->sd &&
 		set1->dir_item == set2->dir_item &&
@@ -98,7 +98,7 @@ static inline unsigned long calculate_hash(const plugin_set *set)
 	HASH_FIELD(result, set, file);
 	HASH_FIELD(result, set, dir);
 	HASH_FIELD(result, set, perm);
-	HASH_FIELD(result, set, tail);
+	HASH_FIELD(result, set, formatting);
 	HASH_FIELD(result, set, hash);
 	HASH_FIELD(result, set, sd);
 	HASH_FIELD(result, set, dir_item);
@@ -127,7 +127,7 @@ static plugin_set empty_set = {
 	.file               = NULL,
 	.dir                = NULL,
 	.perm               = NULL,
-	.tail               = NULL,
+	.formatting         = NULL,
 	.hash               = NULL,
 	.sd                 = NULL,
 	.dir_item           = NULL,
@@ -212,7 +212,7 @@ int plugin_set_ ## field(plugin_set **set, type *val)				\
 DEFINE_PLUGIN_SET(file_plugin, file)
 DEFINE_PLUGIN_SET(dir_plugin, dir)
 DEFINE_PLUGIN_SET(perm_plugin, perm)
-DEFINE_PLUGIN_SET(tail_plugin, tail)
+DEFINE_PLUGIN_SET(formatting_plugin, formatting)
 DEFINE_PLUGIN_SET(hash_plugin, hash)
 DEFINE_PLUGIN_SET(item_plugin, sd)
 DEFINE_PLUGIN_SET(item_plugin, dir_item)

@@ -314,7 +314,7 @@ _INIT_(fs_root)
 		grab_plugin_from(info, dir, default_dir_plugin(s));
 		grab_plugin_from(info, sd, default_sd_plugin(s));
 		grab_plugin_from(info, hash, default_hash_plugin(s));
-		grab_plugin_from(info, tail, default_tail_plugin(s));
+		grab_plugin_from(info, formatting, default_formatting_plugin(s));
 		grab_plugin_from(info, perm, default_perm_plugin(s));
 		grab_plugin_from(info, dir_item, default_dir_item_plugin(s));
 

@@ -60,11 +60,11 @@ have_tail_default(const struct inode *inode UNUSED_ARG	/* inode to operate on */
 }
 
 /* tail plugins */
-tail_plugin tail_plugins[LAST_TAIL_ID] = {
-	[NEVER_TAIL_ID] = {
+formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID] = {
+	[NEVER_TAILS_FORMATTING_ID] = {
 		.h = {
-			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id = NEVER_TAIL_ID,
+			.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
+			.id = NEVER_TAILS_FORMATTING_ID,
 			.pops = NULL,
 			.label = "never",
 			.desc = "Never store file's tail",
@@ -72,10 +72,10 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 		},
 		.have_tail = have_tail_never
 	},
-	[ALWAYS_TAIL_ID] = {
+	[ALWAYS_TAILS_FORMATTING_ID] = {
 		.h = {
-			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id = ALWAYS_TAIL_ID,
+			.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
+			.id = ALWAYS_TAILS_FORMATTING_ID,
 			.pops = NULL,
 			.label = "always",
 			.desc = "Always store file's tail",
@@ -83,10 +83,10 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 		},
 		.have_tail = have_tail_always
 	},
-	[DEFAULT_TAIL_ID] = {
+	[SMALL_FILE_FORMATTING_ID] = {
 		.h = {
-			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id = DEFAULT_TAIL_ID,
+			.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
+			.id = SMALL_FILE_FORMATTING_ID,
 			.pops = NULL,
 			.label = "default tail policy plugin",
 			.desc = "store files shorter than 4 blocks in tail items",

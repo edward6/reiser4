@@ -1030,7 +1030,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
 
 	if (sbinfo->plug.t == NULL)
-		sbinfo->plug.t = tail_plugin_by_id(REISER4_TAIL_PLUGIN);
+		sbinfo->plug.t = formatting_plugin_by_id(REISER4_FORMATTING_PLUGIN);
 	if (sbinfo->plug.sd == NULL)
 		sbinfo->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
 	if (sbinfo->plug.dir_item == NULL)

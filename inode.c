@@ -232,7 +232,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			/* file and directory plugins are already initialised. */
 			grab_plugin(self, root, sd);
 			grab_plugin(self, root, hash);
-			grab_plugin(self, root, tail);
+			grab_plugin(self, root, formatting);
 			grab_plugin(self, root, perm);
 			grab_plugin(self, root, dir_item);
 		}
@@ -453,11 +453,11 @@ inode_perm_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->perm;
 }
 
-tail_plugin *
-inode_tail_plugin(const struct inode * inode)
+formatting_plugin *
+inode_formatting_plugin(const struct inode * inode)
 {
 	assert("nikita-2000", inode != NULL);
-	return reiser4_inode_data(inode)->pset->tail;
+	return reiser4_inode_data(inode)->pset->formatting;
 }
 
 hash_plugin *
@@ -645,7 +645,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_plugin("\tfile", file_plugin_to_plugin(ref->pset->file));
 	print_plugin("\tdir", dir_plugin_to_plugin(ref->pset->dir));
 	print_plugin("\tperm", perm_plugin_to_plugin(ref->pset->perm));
-	print_plugin("\ttail", tail_plugin_to_plugin(ref->pset->tail));
+	print_plugin("\ttail", formatting_plugin_to_plugin(ref->pset->tail));
 	print_plugin("\thash", hash_plugin_to_plugin(ref->pset->hash));
 	print_plugin("\tsd", item_plugin_to_plugin(ref->pset->sd));
 

@@ -758,7 +758,7 @@ adjust_to_parent_common(struct inode *object /* new object */ ,
 
 	grab_plugin(self, ancestor, file);
 	grab_plugin(self, ancestor, sd);
-	grab_plugin(self, ancestor, tail);
+	grab_plugin(self, ancestor, formatting);
 	grab_plugin(self, ancestor, perm);
 	return 0;
 }
@@ -788,7 +788,7 @@ adjust_to_parent_dir(struct inode *object /* new object */ ,
 	grab_plugin(self, ancestor, dir);
 	grab_plugin(self, ancestor, sd);
 	grab_plugin(self, ancestor, hash);
-	grab_plugin(self, ancestor, tail);
+	grab_plugin(self, ancestor, formatting);
 	grab_plugin(self, ancestor, perm);
 	grab_plugin(self, ancestor, dir_item);
 	return 0;

@@ -1928,12 +1928,12 @@ static void
 set_file_notail(struct inode *inode)
 {
 	reiser4_inode *state;
-	tail_plugin   *tplug;
+	formatting_plugin   *tplug;
 
 	state = reiser4_inode_data(inode);
-	tplug = tail_plugin_by_id(NEVER_TAIL_ID);
-	plugin_set_tail(&state->pset, tplug);
-	inode_set_plugin(inode, tail_plugin_to_plugin(tplug));
+	tplug = formatting_plugin_by_id(NEVER_TAILS_FORMATTING_ID);
+	plugin_set_formatting(&state->pset, tplug);
+	inode_set_plugin(inode, formatting_plugin_to_plugin(tplug));
 }
 
 /* if file is built of tails - convert it to extents */
@@ -2190,7 +2190,7 @@ init_inode_data_unix_file(struct inode *inode,
 	data = unix_file_inode_data(inode);
 	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
 	rw_latch_init(&data->latch);
-	data->tplug = inode_tail_plugin(inode);
+	data->tplug = inode_formatting_plugin(inode);
 	data->exclusive_use = 0;
 	
 #if REISER4_DEBUG

@@ -46,7 +46,7 @@ typedef struct format40_disk_super_block {
 	/* magic string R4Sb-Default */
 	/*  68 */ d16 tree_height;
 	/* height of filesystem tree */
-	/*  70 */ d16 tail_policy;
+	/*  70 */ d16 formatting_policy;
 	/*  72 */ d64 flags;
 	/*  72 */ char not_used[432];
 } format40_disk_super_block;

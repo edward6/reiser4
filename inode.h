@@ -314,7 +314,7 @@ is_inode_loaded(const struct inode *inode /* inode queried */ )
 extern file_plugin *inode_file_plugin(const struct inode *inode);
 extern dir_plugin *inode_dir_plugin(const struct inode *inode);
 extern perm_plugin *inode_perm_plugin(const struct inode *inode);
-extern tail_plugin *inode_tail_plugin(const struct inode *inode);
+extern formatting_plugin *inode_formatting_plugin(const struct inode *inode);
 extern hash_plugin *inode_hash_plugin(const struct inode *inode);
 extern crypto_plugin *inode_crypto_plugin(const struct inode *inode);
 extern digest_plugin *inode_digest_plugin(const struct inode *inode);

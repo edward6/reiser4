@@ -329,13 +329,13 @@ typedef struct dir_plugin {
 	} estimate;
 } dir_plugin;
 
-typedef struct tail_plugin {
+typedef struct formatting_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int (*have_tail) (const struct inode * inode, loff_t size);
-} tail_plugin;
+} formatting_plugin;
 
 typedef struct hash_plugin {
 	/* generic fields */
@@ -499,7 +499,7 @@ union reiser4_plugin {
 	/* compression plugin, used by file plugin */
 	compression_plugin compression;
 	/* tail plugin, used by file plugin */
-	tail_plugin tail;
+	formatting_plugin formatting;
 	/* permission plugin */
 	perm_plugin perm;
 	/* node plugin */
@@ -614,13 +614,13 @@ typedef enum {
 /* builtin tail-plugins */
 
 typedef enum {
-	NEVER_TAIL_ID,
+	NEVER_TAILS_FORMATTING_ID,
 	SUPPRESS_OLD_ID,
-	FOURK_TAIL_ID,
-	ALWAYS_TAIL_ID,
-	DEFAULT_TAIL_ID,
-	LAST_TAIL_ID
-} reiser4_tail_id;
+	FOURK_FORMATTING_ID,
+	ALWAYS_TAILS_FORMATTING_ID,
+	SMALL_FILE_FORMATTING_ID,
+	LAST_TAIL_FORMATTING_ID
+} reiser4_formatting_id;
 
 /* Encapsulations of crypto specific data */
 typedef struct crypto_data {
@@ -714,7 +714,7 @@ PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
 PLUGIN_BY_ID(crypto_plugin, REISER4_CRYPTO_PLUGIN_TYPE, crypto);
 PLUGIN_BY_ID(digest_plugin, REISER4_DIGEST_PLUGIN_TYPE, digest);
 PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
-PLUGIN_BY_ID(tail_plugin, REISER4_TAIL_PLUGIN_TYPE, tail);
+PLUGIN_BY_ID(formatting_plugin, REISER4_FORMATTING_PLUGIN_TYPE, formatting);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE, oid_allocator);
 PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);

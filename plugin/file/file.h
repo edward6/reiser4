@@ -43,7 +43,7 @@ typedef enum {
 
 #include "../../latch.h"
 
-struct tail_plugin;
+struct formatting_plugin;
 struct inode;
 
 /* unix file plugin specific part of reiser4 inode */
@@ -53,7 +53,7 @@ typedef struct unix_file_info {
 			     read-lock. Accesses which modify file containerization (truncate, conversion from tail to extent and
 			     back) take write-lock. */
 	file_container_t container; /* this enum specifies which items are used to build the file */
-	struct tail_plugin *tplug; /* tail policy plugin which controls when file is to be converted to extents and back
+	struct formatting_plugin *tplug; /* tail policy plugin which controls when file is to be converted to extents and back
 				      to tail */
 	/* pointer back to the inode */
 	struct inode *_inode;

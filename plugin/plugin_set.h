@@ -24,7 +24,7 @@ struct plugin_set {
 	/* perm plugin for this file */
 	perm_plugin        *perm;
 	/* tail policy plugin. Only meaningful for regular files */
-	tail_plugin        *tail;
+	formatting_plugin        *formatting;
 	/* hash plugin. Only meaningful for directories. */
 	hash_plugin        *hash;
 	/* plugin of stat-data */
@@ -47,7 +47,7 @@ extern void        plugin_set_put(plugin_set *set);
 extern int plugin_set_file       (plugin_set **set, file_plugin *file);
 extern int plugin_set_dir        (plugin_set **set, dir_plugin *file);
 extern int plugin_set_perm       (plugin_set **set, perm_plugin *file);
-extern int plugin_set_tail       (plugin_set **set, tail_plugin *file);
+extern int plugin_set_formatting (plugin_set **set, formatting_plugin *file);
 extern int plugin_set_hash       (plugin_set **set, hash_plugin *file);
 extern int plugin_set_sd         (plugin_set **set, item_plugin *file);
 extern int plugin_set_dir_item   (plugin_set **set, item_plugin *file);

@@ -496,7 +496,7 @@ extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 /* defined in fs/reiser4/plugin/compress.c */
 extern crypto_plugin compression_plugins[LAST_COMPRESSION_ID];
 /* defined in fs/reiser4/plugin/tail.c */
-extern tail_plugin tail_plugins[LAST_TAIL_ID];
+extern formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID];
 /* defined in fs/reiser4/plugin/security/security.c */
 extern perm_plugin perm_plugins[LAST_PERM_ID];
 /* defined in fs/reiser4/plugin/item/item.c */
@@ -567,14 +567,14 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.size = sizeof (compression_plugin)
 	},
 
-	[REISER4_TAIL_PLUGIN_TYPE] = {
-		.type_id = REISER4_TAIL_PLUGIN_TYPE,
+	[REISER4_FORMATTING_PLUGIN_TYPE] = {
+		.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
 		.label = "tail",
 		.desc = "Tail inlining policies",
-		.builtin_num = sizeof_array(tail_plugins),
-		.builtin = tail_plugins,
+		.builtin_num = sizeof_array(formatting_plugins),
+		.builtin = formatting_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (tail_plugin)
+		.size = sizeof (formatting_plugin)
 	},
 	[REISER4_PERM_PLUGIN_TYPE] = {
 		.type_id = REISER4_PERM_PLUGIN_TYPE,

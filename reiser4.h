@@ -81,8 +81,8 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* default perm(ission) plugin */
 #define REISER4_PERM_PLUGIN       (RWX_PERM_ID)
 
-/* default tail policy plugin */
-#define REISER4_TAIL_PLUGIN       (ALWAYS_TAIL_ID)
+/* default formatting policy plugin */
+#define REISER4_FORMATTING_PLUGIN       (ALWAYS_TAILS_FORMATTING_ID)
 
 /* item plugin used by files by default to store stat data. */
 #define REISER4_SD_PLUGIN         (STATIC_STAT_DATA_ID)

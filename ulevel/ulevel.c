@@ -2767,7 +2767,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( reiser4_super_info_data );
 		STYPE( plugin_header );
 		STYPE( file_plugin );
-		STYPE( tail_plugin );
+		STYPE( formatting_plugin );
 		STYPE( hash_plugin );
 		STYPE( perm_plugin );
 		STYPE( reiser4_plugin );
@@ -3526,7 +3526,7 @@ static int bash_mkfs (char * file_name)
 	struct buffer_head * bh;
 	test_disk_super_block * test_sb;
 	char * p;
-	reiser4_tail_id tail_id;
+	reiser4_formatting_id tail_id;
 	reiser4_super_info_data *info;
 
 
@@ -3534,15 +3534,15 @@ static int bash_mkfs (char * file_name)
 	p = strchr (file_name, ' ');
 	if (p == NULL) {
 		info ("Using default tail policy: test\n");
-		tail_id = TEST_TAIL_ID;
+		tail_id = TEST_FORMATTING_ID;
 	} else {
 		*p ++ = 0;
 		if (!strcmp (p, "tail")) {
-			tail_id = ALWAYS_TAIL_ID;
+			tail_id = ALWAYS_TAILS_FORMATTING_ID;
 		} else if (!strcmp (p, "notail")) {
-			tail_id = NEVER_TAIL_ID;
+			tail_id = NEVER_TAILS_FORMATTING_ID;
 		} else if (!strcmp (p, "test")) {
-			tail_id = TEST_TAIL_ID;
+			tail_id = TEST_FORMATTING_ID;
 		} else if (!strcmp (p, "40")) {
 			char * command;
 
@@ -3637,7 +3637,7 @@ static int bash_mkfs (char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (tail_id, &test_sb->tail_policy);
+			cputod16 (tail_id, &test_sb->formatting_policy);
 
 
 			/* block count on device */
@@ -3741,7 +3741,7 @@ static int bash_mkfs (char * file_name)
 			reiser4_inode_data (fake_parent)->file = file_plugin_by_id (DIRECTORY_FILE_PLUGIN_ID);
 			reiser4_inode_data (fake_parent)->hash =
 				hash_plugin_by_id (DEGENERATE_HASH_ID);
-			reiser4_inode_data (fake_parent)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+			reiser4_inode_data (fake_parent)->tail = formatting_plugin_by_id (NEVER_TAILS_FORMATTING_ID);
 			reiser4_inode_data (fake_parent)->perm =
 				perm_plugin_by_id (RWX_PERM_ID);
 			reiser4_inode_data (fake_parent)->dir_item =
@@ -4281,13 +4281,13 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			 */
 			if (!strcmp (command, "tail")) {
 				print_plugin("",
-					     tail_plugin_to_plugin(inode_tail_plugin (cwd)));
+					     formatting_plugin_to_plugin(inode_formatting_plugin (cwd)));
 			} else if (!strcmp (command + 5, "off")) {
 				reiser4_inode_data (cwd) -> tail =
-					tail_plugin_by_id (NEVER_TAIL_ID);
+					formatting_plugin_by_id (NEVER_TAILS_FORMATTING_ID);
 			} else if (!strcmp (command + 5, "on")) {
 				reiser4_inode_data (cwd) -> tail =
-					tail_plugin_by_id (ALWAYS_TAIL_ID);
+					formatting_plugin_by_id (ALWAYS_TAILS_FORMATTING_ID);
 			} else {
 				info ("\ttail [on|off]\n");
 			}

@@ -60,9 +60,9 @@ get_format40_oid(const format40_disk_super_block * sb)
 }
 
 static __u16
-get_format40_tail_policy(const format40_disk_super_block * sb)
+get_format40_formatting_policy(const format40_disk_super_block * sb)
 {
-	return d16tocpu(&sb->tail_policy);
+	return d16tocpu(&sb->formatting_policy);
 }
 
 static __u32
@@ -250,7 +250,7 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 		return result;
 
 	/* initializing tail policy */
-	sbinfo->plug.t = tail_plugin_by_id(get_format40_tail_policy(sb_copy));
+	sbinfo->plug.t = formatting_plugin_by_id(get_format40_formatting_policy(sb_copy));
 	assert("umka-751", sbinfo->plug.t);
 
 	/* get things necessary to init reiser4_tree */
@@ -420,7 +420,7 @@ print_info_format40(const struct super_block *s)
 	       get_format40_block_count(sb_copy),
 	       get_format40_free_blocks(sb_copy),
 	       get_format40_root_block(sb_copy),
-	       tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
+	       formatting_plugin_by_id(get_format40_formatting_policy(sb_copy))->h.label,
 	       get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
 #endif
 }

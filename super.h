@@ -240,7 +240,7 @@ struct reiser4_super_info_data {
 	unsigned long optimal_io_size;
 
 	struct {
-		tail_plugin *t;
+		formatting_plugin *t;
 		item_plugin *sd;
 		item_plugin *dir_item;
 		perm_plugin *p;
@@ -506,7 +506,7 @@ file_plugin *default_file_plugin(const struct super_block *super);
 dir_plugin *default_dir_plugin(const struct super_block *super);
 hash_plugin *default_hash_plugin(const struct super_block *super);
 perm_plugin *default_perm_plugin(const struct super_block *super);
-tail_plugin *default_tail_plugin(const struct super_block *super);
+formatting_plugin *default_formatting_plugin(const struct super_block *super);
 item_plugin *default_sd_plugin(const struct super_block *super);
 item_plugin *default_dir_item_plugin(const struct super_block *super);
 
