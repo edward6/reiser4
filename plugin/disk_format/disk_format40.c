@@ -156,8 +156,8 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	tree_level height;
 	node_plugin *nplug;
 
-	static const reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
-	static const reiser4_block_nr jheader_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
+	static const reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
+	static const reiser4_block_nr jheader_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
 
 	assert("vs-475", s != NULL);
 	assert("vs-474", get_super_private(s));
