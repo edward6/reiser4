@@ -1530,7 +1530,6 @@ static int flush_allocate_point (flush_position *pos)
 }
 
 /* This enqueues the current flush point into the developing "struct bio" queue. */
-/* Audited by: green(2002.06.17) */ 
 static int flush_enqueue_point (flush_position *pos)
 {
 	int ret;
@@ -1565,9 +1564,8 @@ static int flush_enqueue_point (flush_position *pos)
 	assert ("jmacd-9921", jnode_page (pos->point) != NULL);
 
 	bvec->bv_page   = jnode_page (pos->point);
-	/* AUDIT. I have a strong feeling that PAGE_CACHE_SIZE should be used here */
-	bvec->bv_len    = PAGE_SIZE;
-	bvec->bv_offset = PAGE_SIZE * (*jnode_get_block (pos->point));
+	bvec->bv_len    = PAGE_CACHE_SIZE;
+	bvec->bv_offset = PAGE_CACHE_SIZE * (*jnode_get_block (pos->point));
 
 	jnode_set_clean (pos->point);
 
