@@ -60,9 +60,18 @@ int ktxnmgrd( void *arg )
 		if( me -> flags & PF_FREEZE )
 			refrigerator( PF_IOTHREAD );
 
+		/* While otherwise is good, kcond_timedwait is actually based on
+		   semaphores, when task is waiting on semaphore, it is
+		   converted to "UNINTERRUPTIBLE SLEEP" state, and each such
+		   task adds one to LA, and this would confuse just about
+		   everyone.
+		   FIXME: I just fixed that with choosing not to ignore
+		   signals, and handling -EINTR case absolutely the same as
+		   in case of real timeout. */
 		result = kcond_timedwait( &ctx -> wait, &ctx -> guard,
-					  ctx -> timeout, 0 );
-		if( ( result != -ETIMEDOUT ) && ( result != 0 ) ) {
+					  ctx -> timeout, 1 /* do not block signals */ );
+		if( ( result != -ETIMEDOUT && result != -EINTR ) &&
+		    ( result != 0 ) ) {
 			/*
 			 * some other error
 			 */
