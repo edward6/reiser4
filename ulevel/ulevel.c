@@ -275,7 +275,8 @@ int register_filesystem (struct file_system_type * fs)
 struct super_block super_blocks[1];
 
 struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
-				  int flags, char *dev_name, void * data,
+				  int flags, char *dev_name UNUSED_ARG, 
+				  void * data,
 				  int (*fill_super)(struct super_block *, void *, int))
 {
 	struct super_block * s;
@@ -390,7 +391,8 @@ static struct inode * find_inode (struct super_block *super UNUSED_ARG,
 	spin_lock( &inode_hash_guard );
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
-		info( "inode: %li, %li\n", inode->i_ino, ino );
+		trace_on( TRACE_VFS_OPS, 
+			  "inode: %li, %li\n", inode->i_ino, ino );
 		if (inode->i_ino == ino) {
 			spin_unlock( &inode_hash_guard );
 			return inode;
@@ -1107,6 +1109,7 @@ static int call_unlink( struct inode * dir, struct inode *victim,
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
+	xmemset( &guillotine, 0, sizeof guillotine );
 	guillotine.d_inode = victim;
 	guillotine.d_name.name = name;
 	guillotine.d_name.len = strlen( name );
@@ -1343,7 +1346,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		print_inode( "inode", f );
 
-		info( "ret: %i\n", ret );
 		ret = call_create( f, "foo" );
 		info( "ret: %i\n", ret );
 		ret = call_create( f, "bar" );
@@ -1613,7 +1615,7 @@ static struct inode * create_root_dir (znode * root)
 	carry_pool  pool;
 	carry_level lowest_level;
 	carry_op   *op;
-	struct reiser4_inode_info *rii;
+	reiser4_inode_info *rii;
 	struct inode * inode;
 	reiser4_item_data data;
 	reiser4_key key;
@@ -1696,11 +1698,12 @@ static struct inode * create_root_dir (znode * root)
 	inode->i_sb = reiser4_get_current_sb();
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
-	reiser4_inode_data( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-	reiser4_inode_data( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
-	reiser4_inode_data( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-	reiser4_inode_data( inode ) -> dir_item = item_plugin_by_id ( SIMPLE_DIR_ENTRY_ID );
-	reiser4_inode_data( inode ) -> locality_id = get_key_locality( &key );
+	rii -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
+	rii -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
+	rii -> perm = perm_plugin_by_id ( RWX_PERM_ID );
+	rii -> dir_item = item_plugin_by_id ( SIMPLE_DIR_ENTRY_ID );
+	rii -> locality_id = get_key_locality( &key );
+	rii -> sd = item_plugin_by_id( STATIC_STAT_DATA_ID );
 
 	call_create (inode, ".");
 	inode -> i_sb -> s_root -> d_inode = inode;
