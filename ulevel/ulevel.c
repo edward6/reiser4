@@ -4491,70 +4491,6 @@ int jmacd_test( int argc UNUSED_ARG,
 
 #define BLOCK_COUNT 14000
 
-/* tree op. read node which emulates read from valid reiser4 volume  */
-static int bm_test_read_node (reiser4_tree * tree, jnode * node )
-{
-	bmap_nr_t bmap_nr;
-	struct page * page;
-	struct super_block * super;
-
-	unsigned long page_idx;
-
-	assert ("zam-413", tree != NULL);
-	assert ("zam-431", node != NULL);
-
-	super = tree -> super;
-
-	page_idx = (unsigned long)node;
-
-	page = grab_cache_page (get_super_fake(super)->i_mapping, page_idx);
-
-	if (page == NULL) return -ENOMEM;
-	
-	jnode_attach_page (node, page);
-
-	unlock_page (page);
-
-	page_cache_release (page);
-
-	spin_lock_jnode (node);
-
-	kmap(page);
-
-	if(!JF_ISSET(node, ZNODE_KMAPPED))
-		JF_SET(node, ZNODE_KMAPPED);
-	else
-		kunmap( page );
-
-	spin_unlock_jnode (node);
-
-	if (PageUptodate(page)) return 0;
-
-	xmemset (jdata(node), 0, tree->super->s_blocksize);
-
-	if (! blocknr_is_fake(jnode_get_block (node))) {
-		reiser4_block_nr bmap_block_addr;
-
-		/* it is a hack for finding what block we read (bitmap block or not) */
-		bmap_nr = *jnode_get_block(node) / (tree->super->s_blocksize * 8);
-		get_bitmap_blocknr (tree->super,  bmap_nr, &bmap_block_addr);
-
-		if (disk_addr_eq (jnode_get_block (node), &bmap_block_addr)) {
-			int offset = *jnode_get_block(node) - (bmap_nr << super->s_blocksize_bits);
-			set_bit(offset, jdata(node));
-
-		} else {
-			warning ("zam-411", "bitmap test should not read"
-				 " not bitmap block #%llu", *jnode_get_block(node));
-
-			return -EIO;
-		}
-	}
-
-	SetPageUptodate(page);
-
-	return 0;
-}
 
 /** a temporary solutions for setting up reiser4 super block */
 static void fill_sb (struct super_block * super)
@@ -4587,7 +4523,7 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 		get_super_private (super)->space_plug->init_allocator (
 			get_space_allocator (super), super, 0);
 
-	tree -> ops -> read_node = bm_test_read_node;
+	// tree -> ops -> read_node = bm_test_read_node;
 
 
 	{
