@@ -160,9 +160,12 @@ int page_cache_delete_node( reiser4_tree *tree, jnode *node )
 /** ->release_node method of page-cache based tree operations */
 int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	struct page *pg;
+
+	pg = jnode_page( node );
+	kunmap( pg );
 	jnode_detach_page( node );
-	kunmap( jnode_page( node ) );
-	page_cache_release( jnode_page( node ) );
+	page_cache_release( pg );
 	return 0;
 }
 
