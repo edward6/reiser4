@@ -512,7 +512,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 					result = (int)long_ret;
 					break;
 				}
-			}				
+			}
 			continue;
 		}
 		if (result)
@@ -2309,29 +2309,6 @@ pre_delete_unix_file(struct inode *inode)
 {
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
 }
-
-reiser4_internal int
-safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
-		   __u64 value)
-{
-	int result;
-
-	if (link == SAFE_E2T || link == SAFE_T2E) {
-		unix_file_info_t *ufo;
-
-		ufo = unix_file_inode_data(object);
-		inode_set_flag(object, REISER4_PART_CONV);
-		get_exclusive_access(ufo);
-		if (link == SAFE_E2T)
-			result = extent2tail(ufo);
-		else
-			result = tail2extent(ufo);
-		drop_access(ufo);
-	} else
-		result = safelink_common(object, link, value);
-	return result;
-}
-
 
 /* Reads @count bytes from @file and calls @actor for every page read. This is
    needed for loop back devices support. */
