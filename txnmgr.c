@@ -1752,7 +1752,7 @@ void txn_delete_page (struct page *pg)
 		return;
 	}
 
-	if (*jnode_get_block(node) && !blocknr_is_fake(jnode_get_block(node))) {
+	if (/**jnode_get_block(node) &&*/ !blocknr_is_fake(jnode_get_block(node))) {
 		/*
 		 * jnode has assigned real disk block. Put it into atom's
 		 * delete set
