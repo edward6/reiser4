@@ -2723,6 +2723,7 @@ static int flush_empty_queue (flush_position *pos)
 				return ret;
 			}
 
+			ON_DEBUG_CONTEXT( assert( "nikita-2585", lock_counters() -> spin_locked == 0 ) );
 			submit_bio (WRITE, bio);
 		}
 		jrelse (check);
