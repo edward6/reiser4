@@ -83,7 +83,7 @@ init_fq(flush_queue_t * fq)
 	capture_list_init(&fq->sent);
 
 	sema_init(&fq->sema, 0);
-	spin_lock_init(&fq->guard);
+	spin_fq_init(fq);
 }
 
 /* create new flush queue object */
@@ -169,7 +169,7 @@ uncapture_queued_node(flush_queue_t * fq, jnode * node)
 	node->atom->capture_count--;
 	node->atom = NULL;
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	jput(node);
 }
@@ -243,7 +243,7 @@ dequeue_jnode(flush_queue_t * fq, jnode * node)
 	capture_list_remove(node);
 	capture_list_push_back(&fq->atom->clean_nodes, node);
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	return 1;
 }
@@ -291,7 +291,7 @@ scan_fq_sent_list(flush_queue_t * fq)
 	while (!capture_list_end(&fq->sent, cur)) {
 		jnode *next = capture_list_next(cur);
 
-		spin_lock_jnode(cur);
+		LOCK_JNODE(cur);
 
 		assert("zam-735", !JF_ISSET(cur, JNODE_WRITEBACK));
 
@@ -299,7 +299,7 @@ scan_fq_sent_list(flush_queue_t * fq)
 			capture_list_remove(cur);
 			capture_list_push_back(&fq->prepped, cur);
 
-			spin_unlock_jnode(cur);
+			UNLOCK_JNODE(cur);
 		} else {
 			dequeue_jnode(fq, cur);
 		}
@@ -428,9 +428,9 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 	     !capture_list_end(list, cur);
 	     cur = capture_list_next(cur))
 	{
-		spin_lock_jnode(cur);
+		LOCK_JNODE(cur);
 		cur->atom = atom;
-		spin_unlock_jnode(cur);
+		UNLOCK_JNODE(cur);
 	}
 }
 
@@ -563,7 +563,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 			__u32 id    = 0;
 			txn_atom * atom;
 
-			spin_lock_jnode (first);
+			LOCK_JNODE (first);
 			atom = atom_locked_by_jnode(first);
 
 			if (atom) {
@@ -572,7 +572,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 				spin_unlock_atom(atom);
 			}
 
-			spin_unlock_jnode (first);
+			UNLOCK_JNODE (first);
 			
 			trace_on(TRACE_LOG, "jnode [block = %llu] written %d times, atom (id = %u, count=%u)\n", 
 				 (unsigned long long)first->blocknr, first->written, id, count);
@@ -643,7 +643,7 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
 	assert("zam-726", atom != NULL);
 	assert("zam-803", spin_atom_is_locked(atom));
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 
 	if (!JF_ISSET(node, JNODE_DIRTY)) {
 		/* dequeue it */
@@ -657,7 +657,7 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
 		capture_list_remove(node);
 		capture_list_push_back(&fq->sent, node);
 
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 	}
 	return ret;
 }
@@ -904,7 +904,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 	while (1) {
 		/* begin with taking lock on atom */
 		atom = atom_locked_by_jnode(node);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 
 		if (atom == NULL) {
 			/* jnode does not point to the atom anymore, it is
@@ -930,7 +930,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
  		}
 
 		/* It is correct to lock atom first, then lock a jnode */
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 
 		if (node->atom == atom)
 			break;	/* Yes! it is our jnode. We got all of them:
@@ -939,7 +939,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 
 		/* release all locks and allocated objects and restart from
 		 * locked jnode. */
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 
 		fq_put(*fq);
 		fq = NULL;
@@ -947,7 +947,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 		spin_unlock_atom(atom);
 
 	lock_again:
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 	}
 
 	return 0;
@@ -1001,7 +1001,7 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node)
 
 	assert ("zam-790", node != NULL);
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	ret = fq_by_jnode(node, &fq);
 
 	if (ret || !fq)
@@ -1009,7 +1009,7 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node)
 
 	atom = node->atom;
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	assert ("zam-789", spin_atom_is_locked (atom));
 

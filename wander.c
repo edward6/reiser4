@@ -583,14 +583,14 @@ get_overwrite_set(struct commit_handle *ch)
 					if (IS_ERR(sj))
 						return PTR_ERR(sj);
 
-					spin_lock_jnode(sj);
+					LOCK_JNODE(sj);
 
 					jnode_set_wander(sj);
 					capture_list_push_back(&ch->overwrite_set, sj);
 					sj->atom = ch->atom;
 					jref(sj);
 
-					spin_unlock_jnode(sj);
+					UNLOCK_JNODE(sj);
 
 					/* jload it as the rest of overwrite set */
 					jload (sj);
@@ -605,12 +605,12 @@ get_overwrite_set(struct commit_handle *ch)
 					ch->atom->capture_count--;
 				}
 
-				spin_lock_jnode(cur);
+				LOCK_JNODE(cur);
 
 				cur->atom = NULL;
 				JF_CLR(cur, JNODE_OVRWR);
 
-				spin_unlock_jnode(cur);
+				UNLOCK_JNODE(cur);
 				jput(cur);
 
 			} else {

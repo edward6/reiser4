@@ -179,7 +179,7 @@ TS_LIST_DECLARE(fq);
 struct txn_atom {
 	/* The spinlock protecting the atom, held during fusion and various other state
 	   changes. */
-	spinlock_t alock;
+	reiser4_spin_data alock;
 
 	/* Refcount: Initially an atom has a single reference which is decremented when
 	   the atom finishes.  The value is always modified under the above spinlock.
@@ -260,7 +260,7 @@ struct txn_atom {
    the system to a txn_atom. */
 struct txn_handle {
 	/* Spinlock protecting ->atom pointer */
-	spinlock_t hlock;
+	reiser4_spin_data hlock;
 
 	/* Flags for controlling commit_txnh() behavior */
 	txn_handle_flags_t flags;
@@ -280,7 +280,7 @@ TS_LIST_DECLARE(txn_mgrs);
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr {
 	/* A spinlock protecting the atom list, id_count, flush_control */
-	spinlock_t tmgr_lock;
+	reiser4_spin_data tmgr_lock;
 
 	/* List of atoms. */
 	atom_list_head atoms_list;
@@ -439,7 +439,7 @@ struct flush_queue {
 
 	/* A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
 	   fields. */
-	spinlock_t guard;
+	reiser4_spin_data guard;
 	/* flush_handle state: empty, active, */
 	flush_queue_state_t state;
 	/* list of not yet submitted to disk nodes */

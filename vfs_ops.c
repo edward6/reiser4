@@ -1425,6 +1425,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->expkey = NULL;
 		info->keyid = NULL;
 		info->flags = 0;
+		spin_inode_object_init(info);
 		return &obj->vfs_inode;
 	} else
 		return NULL;
@@ -2053,7 +2054,7 @@ DEFINE_SPIN_PROFREGIONS(atom);
 DEFINE_SPIN_PROFREGIONS(txnh);
 DEFINE_SPIN_PROFREGIONS(txnmgr);
 DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
-DEFINE_SPIN_PROFREGIONS(inode);
+DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
 
 DEFINE_RW_PROFREGIONS(tree);
@@ -2068,7 +2069,7 @@ static int register_profregions(void)
 	register_txnh_profregion();
 	register_txnmgr_profregion();
 	register_ktxnmgrd_profregion();
-	register_inode_profregion();
+	register_inode_object_profregion();
 	register_fq_profregion();
 
 	register_tree_profregion();
@@ -2086,7 +2087,7 @@ static void unregister_profregions(void)
 	unregister_txnh_profregion();
 	unregister_txnmgr_profregion();
 	unregister_ktxnmgrd_profregion();
-	unregister_inode_profregion();
+	unregister_inode_object_profregion();
 	unregister_fq_profregion();
 
 	unregister_tree_profregion();
@@ -2111,8 +2112,15 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 
 	assert("umka-085", s != NULL);
 
-	if ((REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
-	     REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE || REISER4_TRACE_TREE) && !silent)
+	if ((REISER4_DEBUG || 
+	     REISER4_DEBUG_MODIFY || 
+	     REISER4_TRACE ||
+	     REISER4_STATS || 
+	     REISER4_DEBUG_MEMCPY || 
+	     REISER4_ZERO_NEW_NODE || 
+	     REISER4_TRACE_TREE || 
+	     REISER4_PROF || 
+	     REISER4_LOCKPROF) && !silent)
 		warning("nikita-2372", "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
@@ -2184,7 +2192,7 @@ read_super_block:
 		goto error1;
 	}
 
-	spin_lock_init(&info->guard);
+	spin_super_init(info);
 
 	/* init layout plugin */
 	info->df_plug = df_plug;
@@ -2415,7 +2423,7 @@ again:
 		if (node != NULL) {
 			jref(node);
 try_to_lock:
-			spin_lock_jnode(node);
+			LOCK_JNODE(node);
 			reiser4_unlock_page(page);
 
 			ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
@@ -2431,7 +2439,7 @@ try_to_lock:
 					int nr_io_errors;
 
 					atom = atom_locked_by_jnode(node);
-					spin_unlock_jnode(node);
+					UNLOCK_JNODE(node);
 
 					assert("zam-x1070", atom != NULL);
 
@@ -2479,7 +2487,7 @@ try_to_lock:
 				}
 			}
 
-			spin_unlock_jnode(node);
+			UNLOCK_JNODE(node);
 			/* return with page still
 			   locked. truncate_list_pages() expects this. */
 			reiser4_lock_page(page);
@@ -2581,18 +2589,18 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		return 0;
 	}
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	if (releasable(node)) {
 		reiser4_tree *tree = tree_by_page(page);
 		REISER4_ENTRY(tree->super);
 
-		/* account for spin_lock_jnode() above */
+		/* account for LOCK_JNODE() above */
 		if (REISER4_DEBUG && get_current_context() == &__context)
 			spin_jnode_inc();
 
 		jref(node);
 		page_clear_jnode(page, node);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 
 		reiser4_stat_inc_at_level(jnode_get_level(node), page_released);
 
@@ -2605,7 +2613,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		/**/
 		/*if (JF_ISSET(node, JNODE_EFLUSH))
 		  info_jnode("reiser4_releasepage: !not releasable node!!", node);*/
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		schedulable();
 		return 0;
 	}

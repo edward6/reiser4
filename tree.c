@@ -1361,7 +1361,7 @@ void
 init_tree_0(reiser4_tree * tree)
 {
 	assert("zam-683", tree != NULL);
-	rwlock_init(&tree->tree_lock);
+	rw_tree_init(tree);
 }
 
 /* finishing reiser4 initialization */

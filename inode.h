@@ -86,6 +86,7 @@ typedef __u32 oid_hi_t;
 
 */
 typedef struct reiser4_inode {
+	/* */ reiser4_spin_data guard;
 	/* object plugins */
 	/*   0 */ plugin_set *pset;
 	/* high 32 bits of object id */
@@ -143,7 +144,7 @@ typedef struct reiser4_inode_object {
 	( lock_counters() -> spin_locked_ktxnmgrd == 0 ) &&	\
 	( lock_counters() -> spin_locked_txnmgr == 0 )
 
-SPIN_LOCK_FUNCTIONS(inode, struct inode, i_data.private_lock);
+SPIN_LOCK_FUNCTIONS(inode_object, reiser4_inode, guard);
 
 extern oid_t get_inode_oid(const struct inode *inode);
 extern void set_inode_oid(struct inode *inode, oid_t oid);
@@ -157,6 +158,16 @@ reiser4_inode_data(const struct inode * inode /* inode queried */)
 {
 	assert("nikita-254", inode != NULL);
 	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
+}
+
+static inline void spin_lock_inode(struct inode *inode)
+{
+	spin_lock_inode_object(reiser4_inode_data(inode));
+}
+
+static inline void spin_unlock_inode(struct inode *inode)
+{
+	spin_unlock_inode_object(reiser4_inode_data(inode));
 }
 
 extern int reiser4_max_filename_len(const struct inode *inode);

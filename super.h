@@ -126,7 +126,7 @@ struct reiser4_super_info_data {
 	   block fields (currently blocks_free, 
 	   blocks_free_committed)
 	*/
-	spinlock_t guard;
+	reiser4_spin_data guard;
 
 	/* allocator used to allocate new object ids for objects in the file
 	   system. Current default implementation of object id allocator is

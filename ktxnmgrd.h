@@ -19,7 +19,7 @@ struct ktxnmgrd_context {
 	kcond_t startup;
 	struct completion finish;
 	kcond_t wait;
-	spinlock_t guard;
+	reiser4_spin_data guard;
 	signed long timeout;
 	struct task_struct *tsk;
 	txn_mgrs_list_head queue;

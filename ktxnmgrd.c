@@ -71,10 +71,12 @@ ktxnmgrd(void *arg)
 		   load-average. This doesn't require any special handling,
 		   because all signals were blocked.
 		*/
-		PROFREGION_EX();
+		PREG_EX(get_cpu(), &pregion_spin_ktxnmgrd_held);
 		result = kcond_timedwait(&ctx->wait, 
-					 &ctx->guard, ctx->timeout, 1);
-		PROFREGION_IN(&pregion_spin_ktxnmgrd_held);
+					 &ctx->guard.lock, ctx->timeout, 1);
+		PREG_IN(get_cpu(), 
+			&pregion_spin_ktxnmgrd_held, &ctx->guard.held, 0);
+		put_cpu();
 		if ((result != -ETIMEDOUT) && (result != 0)) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
@@ -125,7 +127,7 @@ init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 	kcond_init(&ctx->startup);
 	init_completion(&ctx->finish);
 	kcond_init(&ctx->wait);
-	spin_lock_init(&ctx->guard);
+	spin_ktxnmgrd_init(ctx);
 	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
 	txn_mgrs_list_init(&ctx->queue);
 	atomic_set(&ctx->pressure, 0);
@@ -163,7 +165,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 	/* daemon thread is not yet initialized */
 	if (ctx->tsk == NULL)
 		/* wait until initialization completes */
-		kcond_wait(&ctx->startup, &ctx->guard, 0);
+		kcond_wait(&ctx->startup, &ctx->guard.lock, 0);
 
 	assert("nikita-2452", ctx->tsk != NULL);
 

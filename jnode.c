@@ -165,7 +165,7 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	node->state = 0;
 	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
-	spin_lock_init(&node->guard);
+	spin_jnode_init(node);
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
@@ -257,6 +257,24 @@ jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
 	return UNDER_RW(tree, tree, read, jlook(tree, objectid, index));
 }
+
+#if REISER4_LOCKPROF
+
+static int maxheld = 0;
+static int maxtrying = 0;
+
+void jnode_lockprof_hook(const jnode *node)
+{
+	if (node->guard.held > maxheld) {
+		print_jnode("maxheld", node);
+		maxheld = node->guard.held;
+	}
+	if (node->guard.trying > maxtrying) {
+		print_jnode("maxtrying", node);
+		maxtrying = node->guard.trying;
+	}
+}
+#endif
 
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
@@ -445,7 +463,7 @@ jnode_lock_page(jnode * node)
 
 	while (1) {
 
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 		page = jnode_page(node);
 		if (page == NULL) {
 			break;
@@ -462,7 +480,7 @@ jnode_lock_page(jnode * node)
 
 		/* Page is locked by someone else. */
 		page_cache_get(page);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		wait_on_page_locked(page);
 		/* it is possible that page was detached from jnode and
 		   returned to the free pool, or re-assigned while we were
@@ -557,7 +575,7 @@ jload_gfp (jnode * node, int gfp_flags)
 	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
 	 * should be atomic, otherwise there is a race against jrelse().
 	 */
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	add_d_ref(node);
 
 	if (!jnode_is_loaded(node)) {
@@ -604,7 +622,7 @@ jload_gfp (jnode * node, int gfp_flags)
 		   because page can be detached from jnode only when ->d_count
 		   is 0, and JNODE_LOADED is not set.
 		*/
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		if (likely(page != NULL && !JF_ISSET(node, JNODE_ASYNC))) {
 			load_page(page, node);
 			node->data = page_address(page);
@@ -623,7 +641,7 @@ jload_gfp (jnode * node, int gfp_flags)
 			if (!IS_ERR(page)) {
 				kmap(page);
 				reiser4_lock_page(page);
-				spin_lock_jnode(node);
+				LOCK_JNODE(node);
 				node->data = page_address(page);
 				if (jnode_page(node) == NULL)
 					/* this line and jget() are the only
@@ -640,7 +658,7 @@ jload_gfp (jnode * node, int gfp_flags)
 				if (REISER4_STATS && JF_ISSET(node, JNODE_ASYNC))
 					reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload_async);
 				JF_CLR(node, JNODE_ASYNC);
-				spin_unlock_jnode(node);
+				UNLOCK_JNODE(node);
 				reiser4_unlock_page(page);
 			} else
 				result = PTR_ERR(page);
@@ -649,7 +667,7 @@ jload_gfp (jnode * node, int gfp_flags)
 				jrelse(node);
 		}
 	} else {
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
@@ -684,13 +702,13 @@ jinit_new(jnode * node /* jnode to initialise */)
 		kmap(page);
 		node->data = page_address(page);
 		result = 0;
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 		if (likely(!jnode_is_loaded(node))) {
 			result = jplug->init(node);
 			if (likely(result == 0))
 				JF_SET(node, JNODE_LOADED);
 		}
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 	} else
 		result = -ENOMEM;
 
@@ -747,7 +765,7 @@ jstartio(jnode * node)
 
 	assert("nikita-2858", PageLocked(page));
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	if (jnode_page(node) == NULL) {
 		/* NOTE: JNODE_ASYNC has to be set *before* page is attached
 		 * to jnode, because jload() will assume that attached page is
@@ -755,14 +773,14 @@ jstartio(jnode * node)
 		 * jnode spin-lock in this case. */
 		JF_SET(node, JNODE_ASYNC);
 		jnode_attach_page(node, page);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		if (!PageUptodate(page))
 			result = page_io(page, node, READ, GFP_KERNEL);
 		else
 			unlock_page(page);
 	} else {
 		assert("nikita-2636", jnode_page(node) == page);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		unlock_page(page);
 	}
 	
@@ -786,17 +804,17 @@ jnode_try_drop(jnode * node)
 	tree = jnode_get_tree(node);
 	jplug = jnode_ops(node);
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	write_lock_tree(tree);
 	if (jnode_page(node) != NULL) {
 		JF_CLR(node, JNODE_RIP);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		write_unlock_tree(tree);
 		return -EBUSY;
 	}
 
 	result = jplug->is_busy(node);
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 	if (result == 0)
 		/* no page and no references---despatch him. */
 		result = jplug->remove(node, tree);
@@ -838,11 +856,11 @@ jdelete(jnode * node /* jnode to finish with */)
 		/* detach page */
 		if (page != NULL)
 			drop_page(page, node);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		result = jplug->delete(node, tree);
 	} else {
 		JF_CLR(node, JNODE_RIP);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
@@ -893,11 +911,11 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 			reiser4_unlock_page(page);
 			page_cache_release(page);
 		}
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		result = jplug->remove(node, tree);
 	} else {
 		JF_CLR(node, JNODE_RIP);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
@@ -940,15 +958,15 @@ jnode_finish_io(jnode * node)
 
 	assert("nikita-2922", node != NULL);
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	page = jnode_page(node);
 	if (page != NULL) {
 		page_cache_get(page);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		wait_on_page_writeback(page);
 		page_cache_release(page);
 	} else
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 }
 
 int
@@ -1318,7 +1336,7 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	assert("umka-064321", tree != NULL);
 
 	if (!jlocked && !tlocked)
-		spin_lock_jnode((jnode *) node);
+		LOCK_JNODE((jnode *) node);
 	if (!tlocked)
 		read_lock_tree(jnode_get_tree(node));
 	result = jnode_invariant_f(node, &failed_msg);
@@ -1329,7 +1347,7 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	if (!tlocked)
 		read_unlock_tree(jnode_get_tree(node));
 	if (!jlocked && !tlocked)
-		spin_unlock_jnode((jnode *) node);
+		UNLOCK_JNODE((jnode *) node);
 	return result;
 }
 #endif
@@ -1404,6 +1422,17 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	if (jnode_is_unformatted(node)) {
 		info("inode: %llu, index: %lu, ", node->key.j.objectid, node->key.j.index);
 	}
+}
+
+/* debugging aid: output human readable information about @node */
+void
+print_jnode(const char *prefix /* prefix to print */ ,
+	    const jnode * node /* node to print */)
+{
+	if (jnode_is_znode(node))
+		print_znode(prefix, JZNODE(node));
+	else
+		info_jnode(prefix, node);
 }
 
 /* this is cut-n-paste replica of print_znodes() */

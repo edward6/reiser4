@@ -222,7 +222,7 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 {
 	assert("umka-050", tree != NULL);
 
-	spin_lock_init(&tree->dk_lock);
+	spin_dk_init(tree);
 
 	return z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE);
 }
@@ -838,7 +838,7 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 		   with unallocated children to be written to disk if atom is
 		   not being committed but just flushed at out-of-memory
 		   situation. */
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 		atom = atom_locked_by_jnode(node);
 		/* formatted nodes cannot be written without assigning an atom
 		   to them */
@@ -846,7 +846,7 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 		if (!(atom->flags & ATOM_FORCE_COMMIT))
 			result = 1;
 		spin_unlock_atom(atom);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		if (result)
 			return 0;	/* not a commit */
 

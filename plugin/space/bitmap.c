@@ -997,7 +997,7 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 	assert("zam-547", spin_atom_is_locked(atom));
 	assert("zam-548", node != NULL);
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 
 	if (node->atom == NULL) {
 		jnode_set_wander(node);
@@ -1006,7 +1006,7 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 		assert("zam-549", node->atom == atom);
 	}
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 }
 
 /* an actor which applies delete set to COMMIT bitmap pages and link modified

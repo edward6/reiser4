@@ -152,7 +152,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	/* UMKA-FIXME-HANS: needs better name */
 	reiser4_super_info_data *private;
 	format40_disk_super_block  sb;
-	/* FIXME-NIKITA ugly work-around: keep copy of on-disk super-lobk c*/
+	/* FIXME-NIKITA ugly work-around: keep copy of on-disk super-block */
 	format40_disk_super_block *sb_copy = &sb;
 	reiser4_block_nr root_block;
 	tree_level height;

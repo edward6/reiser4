@@ -127,11 +127,11 @@ struct reiser4_tree {
 	    - znode hash table
 	    - coord cache
 	*/
-	rwlock_t tree_lock;
+	reiser4_rw_data tree_lock;
 
 	/* lock protecting delimiting keys
 	   */
-	spinlock_t dk_lock;
+	reiser4_spin_data dk_lock;
 
 	/* default plugin used to create new nodes in a tree. */
 	node_plugin *nplug;

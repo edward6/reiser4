@@ -95,7 +95,7 @@ struct jnode {
 	/*   0 */ unsigned long state;
 
 	/* lock, protecting jnode's fields. */
-	/*   4 */ spinlock_t guard;
+	/*   4 */ reiser4_spin_data guard;
 
 	/* counter of references to jnode's data. Pin data page(s) in
 	   memory while this is greater than 0. Increased on jload().
@@ -256,6 +256,21 @@ JF_TEST_AND_SET(jnode * j, int f)
 */
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
+#if REISER4_LOCKPROF
+
+#define LOCK_JNODE(node)			\
+({						\
+	LOCKSITE_INIT(__hits);			\
+						\
+	spin_lock_jnode_at(node, &__hits);	\
+})
+
+#else
+#define LOCK_JNODE(node) spin_lock_jnode(node)
+#endif
+
+#define UNLOCK_JNODE(node) spin_unlock_jnode(node)
+
 static inline int
 jnode_is_in_deleteset(const jnode * node)
 {
@@ -345,6 +360,7 @@ extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
 
 #if REISER4_DEBUG_OUTPUT
 extern void info_jnode(const char *prefix, const jnode * node);
+extern void print_jnode(const char *prefix, const jnode * node);
 extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 #else
 #define info_jnode( p, n ) noop
@@ -625,14 +641,14 @@ static inline int jprotect (jnode * node)
 {
 	int ret;
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 
 	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
 
 	JF_SET(node, JNODE_EPROTECTED);
 	ret = JF_ISSET(node, JNODE_EFLUSH);
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	if (ret)
 		ret = emergency_unflush(node);

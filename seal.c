@@ -199,7 +199,7 @@ seal_matches(const seal_t * seal /* seal to check */ ,
 	assert("nikita-1991", seal != NULL);
 	assert("nikita-1993", node != NULL);
 
-	return UNDER_SPIN(znode, node, (seal->version == node->version));
+	return UNDER_SPIN(jnode, ZJNODE(node), (seal->version == node->version));
 }
 
 /* intranode search */

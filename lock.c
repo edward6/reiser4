@@ -990,7 +990,7 @@ init_lock_stack(lock_stack * owner	/* pointer to
 	xmemset(owner, 0, sizeof (lock_stack));
 	locks_list_init(&owner->locks);
 	requestors_list_clean(owner);
-	spin_lock_init(&owner->sguard);
+	spin_stack_init(owner);
 	owner->curpri = 1;
 	sema_init(&owner->sema, 0);
 }

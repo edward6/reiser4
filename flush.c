@@ -695,7 +695,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	/* The following code gets a fq attached to the atom and takes spin
 	   locks on both atom and jnode */
 
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	ret = fq_by_jnode(node, &fq);
 	if (ret || !fq)
 		goto clean_out;
@@ -717,7 +717,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		jnode_set_wander(node);
 		jnode_set_clean_nolock(node);
 
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		spin_unlock_atom(atom);
 
 		trace_on(TRACE_FLUSH, "flush aboveroot %s %s\n",
@@ -738,7 +738,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 0;
 		}
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		spin_unlock_atom(atom);
 		trace_on(TRACE_FLUSH, "flush nothing %s %s\n", jnode_tostring(node), flags_tostring(flags));
 		goto clean_out;
@@ -764,13 +764,13 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 			(*nr_to_flush) = 1;
 		}
 
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		spin_unlock_atom(atom);
 
 		goto clean_out;
 	}
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 	spin_unlock_atom(atom);
 
 	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", jnode_tostring(node), flags_tostring(flags));
@@ -2621,7 +2621,7 @@ enqueue_unformatted(jnode * node, flush_position * pos)
 {
 	txn_atom *atom;
 	/* flush_queue_jnode expects the jnode to be locked. */
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 
 	atom = atom_locked_by_jnode(node);
 
@@ -2632,7 +2632,7 @@ enqueue_unformatted(jnode * node, flush_position * pos)
 		spin_unlock_atom(atom);
 	}
 
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	return 0;
 }
@@ -3756,7 +3756,7 @@ jnode_tostring_internal(jnode * node, char *buf)
 		state, atom, block, jnode_get_level(node), items, JF_ISSET(node, JNODE_FLUSH_QUEUED) ? " fq" : "");
 
 	if (lockit == 1) {
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 	}
 }
 

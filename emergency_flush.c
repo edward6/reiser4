@@ -156,7 +156,6 @@ emergency_flush(struct page *page)
 	struct super_block *sb;
 	jnode *node;
 	int result;
-	warning("reiser-2020", "vm is badly out of balance, this code should never run.\n");
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2724", PageLocked(page));
 
@@ -176,7 +175,7 @@ emergency_flush(struct page *page)
 	trace_on(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
 
 	result = 0;
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	if (flushable(node, page)) {
 		if (needs_allocation(node)) {
 			reiser4_block_nr blk;
@@ -207,7 +206,7 @@ emergency_flush(struct page *page)
 					trace_on(TRACE_EFLUSH, "submit-failure\n");
 				}
 			} else {
-				spin_unlock_jnode(node);
+				UNLOCK_JNODE(node);
 				if (blk != 0ull)
 					ef_free_block_with_stage(node, &blk, hint.block_stage);
 				if (efnode != NULL)
@@ -234,7 +233,7 @@ emergency_flush(struct page *page)
 
 			if (!flushable(node, page) || needs_allocation(node) || !jnode_is_dirty(node)) {
 				trace_on(TRACE_EFLUSH, "failure-3\n");
-				spin_unlock_jnode(node);
+				UNLOCK_JNODE(node);
 				spin_unlock_atom(atom);
 				fq_put(fq);
 				return 0;
@@ -245,7 +244,7 @@ emergency_flush(struct page *page)
 
 			queue_jnode(fq, node);
 
-			spin_unlock_jnode(node);
+			UNLOCK_JNODE(node);
 			spin_unlock_atom(atom);
 
 			result = write_fq(fq, 0);
@@ -257,7 +256,7 @@ emergency_flush(struct page *page)
 		}
 		
 	} else {
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 		trace_on(TRACE_EFLUSH, "failure-1\n");
 	}
 
@@ -410,7 +409,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	 * locked.
 	 */
 	JF_SET(node, JNODE_EFLUSH);
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	if (jnode_is_unformatted(node)) {
 		struct inode  *inode;
@@ -508,14 +507,14 @@ eflush_del(jnode *node, int page_locked)
 			 * we clear JNODE_EFLUSH bit concurrently---page_io()
 			 * gets wrong block number. */
 			page_cache_get(page);
-			spin_unlock_jnode(node);
+			UNLOCK_JNODE(node);
 			wait_on_page_locked(page);
 			page_cache_release(page);
-			spin_lock_jnode(node);
+			LOCK_JNODE(node);
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 
 		if (inode != NULL) {
 #if 0
@@ -546,7 +545,7 @@ eflush_del(jnode *node, int page_locked)
 		kmem_cache_free(eflush_slab, ef);
 		ef_free_block(node, &blk);
 
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 
 		trace_on(TRACE_EFLUSH, "unflush: %i...\n", 
 			 get_super_private(tree->super)->eflushed);
@@ -598,12 +597,12 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 
 		/* further, transfer block from grabbed into flush reserved
 		 * space. */
-		spin_lock_jnode(node);
+		LOCK_JNODE(node);
 		atom = atom_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
 		grabbed2flush_reserved_nolock(atom, 1, "ef_free_block_with_stage");
 		spin_unlock_atom(atom);
-		spin_unlock_jnode(node);
+		UNLOCK_JNODE(node);
 	}
 	return result;
 }
@@ -649,7 +648,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 
 	/* XXX protect @node from being concurrently eflushed. Otherwise,
 	 * there is a danger of underflowing block space */
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	one = 1ull;
 	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node), "ef_prepare");
@@ -663,7 +662,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 #endif
 		}
 	}
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	return result;
 }
 
@@ -729,9 +728,9 @@ drop_enodes(struct inode *inode, unsigned long index)
 		ef_free_block(j, &ef_node->blocknr);
 		kmem_cache_free(eflush_slab, ef_node);
 
-		spin_lock_jnode(j);
+		LOCK_JNODE(j);
 		JF_CLR(j, JNODE_EFLUSH);
-		spin_unlock_jnode(j);
+		UNLOCK_JNODE(j);
 		
 		uncapture_jnode(j);
 		/* jget is in emergency_flush */

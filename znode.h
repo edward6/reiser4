@@ -210,7 +210,7 @@ struct lock_handle {
 /* A lock stack structure for accumulating locks owned by a process */
 struct lock_stack {
 	/* A guard lock protecting a lock stack */
-	spinlock_t sguard;
+	reiser4_spin_data sguard;
 	/* number of znodes which were requested by high priority processes */
 	atomic_t nr_signaled;
 	/* Current priority of a process 
@@ -429,8 +429,8 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #define znode_set_clean(x)          jnode_set_clean   ( ZJNODE(x) )
 #define znode_set_block(x, b)       jnode_set_block ( ZJNODE(x), (b) )
 
-#define spin_lock_znode(x)          spin_lock_jnode ( ZJNODE(x) )
-#define spin_unlock_znode(x)        spin_unlock_jnode ( ZJNODE(x) )
+#define spin_lock_znode(x)          LOCK_JNODE ( ZJNODE(x) )
+#define spin_unlock_znode(x)        UNLOCK_JNODE ( ZJNODE(x) )
 #define spin_trylock_znode(x)       spin_trylock_jnode ( ZJNODE(x) )
 #define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
