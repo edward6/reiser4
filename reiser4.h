@@ -175,6 +175,10 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_FLUSH_SCAN_MAXNODES 10000
 
+/**
+ * Number of hashed spinlocks used to protect page-to-jnode linkage
+ */
+#define REISER4_JNODE_TO_PAGE_HASH_SIZE (16)
 
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )

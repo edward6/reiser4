@@ -89,6 +89,11 @@ struct reiser4_super_info_data {
 	 */
 	__u32    trace_flags;
 
+	/**
+	 * spinlocks used to protect page to jnode linkage
+	 */
+	spinlock_t j_to_p[ REISER4_JNODE_TO_PAGE_HASH_SIZE ];
+
 	/* super block flags */
 
 	/**
@@ -201,12 +206,6 @@ int default_read_node (const reiser4_block_nr *addr, char **data,
 		       size_t blocksize);
 int default_allocate_node (znode *);
 void default_unread_node (znode *);
-
-extern int init_tree( reiser4_tree *tree, struct super_block *super,
-		      const reiser4_block_nr *root_block,
-		      tree_level height, node_plugin *default_plugin,
-		      node_operations *tops20 );
-extern void done_tree( reiser4_tree *tree );
 
 #if REISER4_DEBUG
 extern void register_thread( void );

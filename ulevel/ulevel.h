@@ -48,9 +48,9 @@
 
 /* This let's us test with posix locks, thereby allowing use of typedef'd spinlock_t as
  * the lock guarding our condition variables. */
-#define KUT_LOCK_POSIX 1
+/*#define KUT_LOCK_POSIX 1*/
 /*#define KUT_LOCK_SPINLOCK 1*/
-/*#define KUT_LOCK_ERRORCHECK 1*/
+#define KUT_LOCK_ERRORCHECK 1
 #define SPINLOCK_BUG(x) spinlock_bug (x);
 
 extern void spinlock_bug (const char *msg);

@@ -1454,6 +1454,50 @@ int cut_tree (reiser4_tree * tree,
 	return result;
 }
 
+int init_tree( reiser4_tree *tree /* pointer to structure being
+				   * initialized */, 
+	       struct super_block *super /* super block this tree is
+					  * associated with */,
+	       const reiser4_block_nr *root_block /* address of a root block
+						   * on a disk */,
+	       tree_level height /* height of a tree */, 
+	       node_plugin *nplug /* default node plugin */, 
+	       node_operations *tops /* tree operations */ )
+{
+	assert( "nikita-306", tree != NULL );
+	assert( "nikita-2043", super != NULL );
+	assert( "nikita-307", root_block != NULL );
+	assert( "nikita-308", height > 0 );
+	assert( "nikita-309", nplug != NULL );
+	assert( "nikita-2037", tops != NULL );
+	assert( "nikita-1099", tops -> read_node != NULL );
+
+	xmemset( tree, 0, sizeof *tree );
+	tree -> super = super;
+	tree -> root_block = *root_block;
+	tree -> height = height;
+	tree -> nplug = nplug;
+	tree -> ops = tops;
+	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
+	if( tree -> cbk_cache == NULL )
+		return -ENOMEM;
+	cbk_cache_init( tree -> cbk_cache );
+	tree -> znode_epoch = 1ull;
+
+	return znodes_tree_init( tree );
+}
+
+
+/** release resources associated with @tree */
+void done_tree( reiser4_tree *tree /* tree to release */ )
+{
+	assert( "nikita-311", tree != NULL );
+
+	znodes_tree_done( tree );
+
+	if( tree -> cbk_cache != NULL )
+		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
+}
 
 #if REISER4_DEBUG
 
