@@ -591,7 +591,7 @@ void adjust_dir_file( struct inode *dir, const coord_t *coord,
 		      int offset, int adj )
 {
 	reiser4_file_fsdata *scan;
-	reiser4_inode_info  *info;
+	reiser4_inode  *info;
 	reiser4_key          de_key;
 	dir_pos              mod_point;
 
@@ -780,7 +780,7 @@ int dir_readdir_init( struct file *f, tap_t *tap, readdir_pos **pos )
 {
 	struct inode        *inode;
 	reiser4_file_fsdata *fsdata;
-	reiser4_inode_info  *info;
+	reiser4_inode  *info;
 
 	assert( "nikita-1359", f != NULL );
 	inode = f -> f_dentry -> d_inode;

@@ -1182,7 +1182,7 @@ static void init_once( void *obj /* pointer to new inode */,
 		       kmem_cache_t *cache UNUSED_ARG /* slab cache */,
 		       unsigned long flags /* cache flags */ )
 {
-	struct reiser4_inode_info *info;
+	reiser4_inode_object *info;
 
 	info = obj;
 
@@ -1196,9 +1196,9 @@ static void init_once( void *obj /* pointer to new inode */,
 		 * FIXME-NIKITA where inode is zeroed?
 		 */
 		inode_init_once( &info -> vfs_inode );
-		spin_lock_init( &info -> guard );
-		init_rwsem( &info -> sem );
-		readdir_list_init( &info -> readdir_list );
+		spin_lock_init( &info -> p.guard );
+		init_rwsem( &info -> p.sem );
+		readdir_list_init( &info -> p.readdir_list );
 	}
 }
 
@@ -1207,7 +1207,7 @@ static void init_once( void *obj /* pointer to new inode */,
 int init_inodecache( void )
 {
 	inode_cache = kmem_cache_create( "reiser4_inode_cache", 
-					 sizeof( reiser4_inode_info ), 0, 
+					 sizeof( reiser4_inode_object ), 0, 
 					 SLAB_HWCACHE_ALIGN, init_once, NULL );
 	return ( inode_cache != NULL ) ? 0 : - ENOMEM;
 }
@@ -1221,20 +1221,20 @@ static void destroy_inodecache(void)
 }
 
 /** ->alloc_inode() super operation: allocate new inode */
-/* Audited by: umka (2002.06.12) */
-static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super
-										* block
-										* new
-										* inode
-										* is
-										* allocated
-										* for */ )
+static struct inode *
+reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super block new
+							   * inode is
+							   * allocated for */ )
 {
-	struct reiser4_inode_info *info;
+	reiser4_inode_object *obj;
 
 	assert( "nikita-1696", super != NULL );
-	info = kmem_cache_alloc( inode_cache, SLAB_KERNEL );
-	if( info != NULL ) {
+	obj = kmem_cache_alloc( inode_cache, SLAB_KERNEL );
+	if( obj != NULL ) {
+		reiser4_inode *info;
+
+		info = &obj -> p;
+
 		info -> flags = 0;
 		info -> file  = NULL;
 		info -> dir   = NULL;
@@ -1250,7 +1250,7 @@ static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /
 		seal_init( &info -> sd_seal, NULL, NULL );
 		coord_init_invalid( &info -> sd_coord, NULL );
 		xmemset( &info -> ra, 0, sizeof info -> ra );
-		return &info -> vfs_inode;
+		return &obj -> vfs_inode;
 	} else
 		return NULL;
 }
@@ -1878,7 +1878,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	s->s_root->d_op = &reiser4_dentry_operation;
 
 	if( inode -> i_state & I_NEW ) {
-		reiser4_inode_info *info;
+		reiser4_inode *info;
 		
 		info = reiser4_inode_data (inode);
 		

@@ -138,7 +138,7 @@ int sd_load( struct inode *inode /* object being processed */,
 	int   chunk;
 	__u16 mask;
 	reiser4_stat_data_base *sd_base;
-	reiser4_inode_info *state;
+	reiser4_inode *state;
 
 	assert( "nikita-625", inode != NULL );
 	assert( "nikita-626", sd != NULL );
@@ -632,7 +632,7 @@ static int len_for( reiser4_plugin *plugin /* plugin to save */,
 static int plugin_sd_save_len( struct inode *inode /* object being processed */ )
 {
 	int                 len;
-	reiser4_inode_info *state;
+	reiser4_inode *state;
 
 	assert( "nikita-663", inode != NULL );
 	
@@ -696,7 +696,7 @@ static int plugin_sd_save( struct inode *inode /* object being processed */,
 	int result;
 	int num_of_plugins;
 	reiser4_plugin_stat *sd;
-	reiser4_inode_info  *state;
+	reiser4_inode  *state;
 	int fake_len;
 
 	assert( "nikita-669", inode != NULL );

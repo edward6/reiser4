@@ -170,7 +170,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	reiser4_item_data  data;
 	const char *error_message;
 	char *area;
-	reiser4_inode_info *ref;
+	reiser4_inode *ref;
 	lock_handle lh;
 	oid_t oid;
 
@@ -303,7 +303,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	seal_t      seal;
 	reiser4_item_data  data;
 	const char *error_message;
-	reiser4_inode_info *state;
+	reiser4_inode *state;
 	lock_handle lh;
 
 	assert( "nikita-726", inode != NULL );
@@ -678,8 +678,8 @@ static int common_adjust_to_parent( struct inode *object /* new object */,
 				    struct inode *parent /* parent directory */,
 				    struct inode *root /* root directory */ )
 {
-	reiser4_inode_info *self;
-	reiser4_inode_info *ancestor;
+	reiser4_inode *self;
+	reiser4_inode *ancestor;
 
 	assert( "nikita-2165", object != NULL );
 	if( parent == NULL )
@@ -701,8 +701,8 @@ static int dir_adjust_to_parent( struct inode *object /* new object */,
 				 struct inode *parent /* parent directory */,
 				 struct inode *root /* root directory */ )
 {
-	reiser4_inode_info *self;
-	reiser4_inode_info *ancestor;
+	reiser4_inode *self;
+	reiser4_inode *ancestor;
 
 	assert( "nikita-2166", object != NULL );
 	if( parent == NULL )

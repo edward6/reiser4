@@ -1947,7 +1947,7 @@ void print_inode( const char *prefix /* prefix to print */,
 		  const struct inode *i /* inode to print */ )
 {
 	reiser4_key         inode_key;
-	reiser4_inode_info *ref;
+	reiser4_inode *ref;
 
 	if( i == NULL ) {
 		info( "%s: inode: null\n", prefix );

@@ -59,7 +59,7 @@ TS_LIST_DECLARE( readdir );
  * at the time of its creation.
  *
  */
-typedef struct reiser4_inode_info {
+typedef struct reiser4_inode {
 	/** plugin of file */
 	file_plugin            *file;
 	/** plugin of dir */
@@ -100,12 +100,17 @@ typedef struct reiser4_inode_info {
 	/** high 32 bits of object id */
 	oid_hi_t                   oid_hi;
 	readdir_list_head          readdir_list;
+} reiser4_inode;
+
+typedef struct reiser4_inode_object {
+	/** private part */
+	reiser4_inode p;
 	/** generic fields not specific to reiser4, but used by VFS */
-	struct inode       vfs_inode;
-} reiser4_inode_info;
+	struct inode  vfs_inode;
+} reiser4_inode_object;
 
 #define spin_ordering_pred_inode( inode )   (1)
-SPIN_LOCK_FUNCTIONS( inode, reiser4_inode_info, guard );
+SPIN_LOCK_FUNCTIONS( inode, reiser4_inode, guard );
 
 extern oid_t get_inode_oid( const struct inode *inode );
 extern void  set_inode_oid( struct inode *inode, oid_t oid );
@@ -113,7 +118,7 @@ extern ino_t oid_to_ino( oid_t oid );
 extern ino_t oid_to_uino( oid_t oid );
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
-extern reiser4_inode_info *reiser4_inode_data( const struct inode *inode );
+extern reiser4_inode *reiser4_inode_data( const struct inode *inode );
 extern int reiser4_max_filename_len( const struct inode *inode );
 extern int max_hash_collisions( const struct inode *dir );
 extern inter_syscall_rap *inter_syscall_ra( const struct inode *inode );

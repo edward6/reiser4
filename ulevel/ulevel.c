@@ -2676,7 +2676,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( pos_in_item );
 		STYPE( coord_t );
 		STYPE( reiser4_item_data );
-		STYPE( reiser4_inode_info );
+		STYPE( reiser4_inode );
 		STYPE( reiser4_super_info_data );
 		STYPE( plugin_header );
 		STYPE( file_plugin );

@@ -26,7 +26,7 @@
  *
  *   Pseudo file inodes require a pointer to the "host" object inode.
  *
- *   Adding yet another field to the generic reiser4_inode_info that will
+ *   Adding yet another field to the generic reiser4_inode that will
  *   only be used for the pseudo file seems to be an excess. Moreover, each pseudo file type can
  *   require its own additional state, which is hard to predict in advance,
  *   and ability to freely add new pseudo file types with rich and widely different

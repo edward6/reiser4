@@ -10,11 +10,11 @@
 
 /** return pointer to reiser4-specific part of inode */
 /* Audited by: green(2002.06.17) */
-reiser4_inode_info *reiser4_inode_data( const struct inode *inode /* inode
-								   * queried */ )
+reiser4_inode *reiser4_inode_data( const struct inode *inode /* inode
+							      * queried */ )
 {
 	assert( "nikita-254", inode != NULL );
-	return list_entry( inode, reiser4_inode_info, vfs_inode );
+	return &list_entry( inode, reiser4_inode_object, vfs_inode ) -> p;
 }
 
 /** return reiser4 internal tree which inode belongs to */
@@ -286,7 +286,7 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	item_plugin    *iplug;
 	void           *body;
 	int             length;
-	reiser4_inode_info *state;
+	reiser4_inode *state;
 
 	assert( "nikita-292", coord != NULL );
 	assert( "nikita-293", inode != NULL );
@@ -316,8 +316,8 @@ int init_inode( struct inode *inode /* inode to intialise */,
 		result = setup_inode_ops( inode, NULL );
 		if( ( result == 0 ) && ( inode -> i_sb -> s_root ) &&
 		    ( inode -> i_sb -> s_root -> d_inode ) ) {
-			reiser4_inode_info *self;
-			reiser4_inode_info *root;
+			reiser4_inode *self;
+			reiser4_inode *root;
 
 			/* take missing plugins from file-system defaults */
 			self = reiser4_inode_data( inode );
@@ -353,7 +353,7 @@ static void read_inode( struct inode * inode /* inode to read from disk */,
 {
 	int                 result;
 	lock_handle         lh;
-	reiser4_inode_info *info;
+	reiser4_inode *info;
 	coord_t          coord;
 
 	assert( "nikita-298", inode != NULL );
