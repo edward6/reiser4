@@ -877,6 +877,7 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 	spin_lock_txnh (txnh);
 	spin_lock_txnmgr (mgr);
 
+	/* FIXME: There may be a race causing a committing atom to be flushed here... */
 	for (atom = atom_list_front (& mgr->atoms_list);
 	     /**/ ! atom_list_end   (& mgr->atoms_list, atom) && node == NULL;
 	     atom = atom_list_next  (atom)) {
