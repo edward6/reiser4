@@ -64,6 +64,8 @@ cluster_index_by_coord(const coord_t * coord)
 	return get_key_offset(item_key_by_coord(coord, &key)) >>  cluster_shift_by_coord(coord) >> PAGE_CACHE_SHIFT;
 }
 
+#define cluster_key(key, coord) !(get_key_offset(key) & ~(~0ULL << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT))
+
 static char *
 first_unit(coord_t * coord)
 {
@@ -74,8 +76,25 @@ first_unit(coord_t * coord)
 /* plugin->u.item.b.max_key_inside :
    tail_max_key_inside */
 
-/* plugin->u.item.b.can_contain_key :
-   tail_can_contain_key */
+/* plugin->u.item.b.can_contain_key */
+int
+can_contain_key_ctail(const coord_t *coord, const reiser4_key *key, const reiser4_item_data *data)
+{
+	reiser4_key item_key;
+
+	if (item_plugin_by_coord(coord) != data->iplug)
+		return 0;
+
+	item_key_by_coord(coord, &item_key);
+	if (get_key_locality(key) != get_key_locality(&item_key) ||
+	    get_key_objectid(key) != get_key_objectid(&item_key))
+		return 0;
+	if (get_key_offset(&item_key) + nr_units_ctail(coord) != get_key_offset(key))
+		return 0;
+	if (cluster_key(key, coord))
+		return 0;
+	return 1;
+}
 
 /* plugin->u.item.b.mergeable
    c-tails of different clusters are not mergeable */
@@ -100,11 +119,10 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 		/* items of different objects */
 		return 0;
 	    }
-	if (get_key_offset(&key1) + nr_units_ctail(p1) != get_key_offset(&key2)) 
+	if (get_key_offset(&key1) + nr_units_ctail(p1) != get_key_offset(&key2))
 		/*  not adjacent items */
 		return 0;
-	if (!(get_key_offset(&key2) & ~(~0ULL << cluster_shift_by_coord(p2) << PAGE_CACHE_SHIFT)))
-		/* items of different clusters */
+	if (cluster_key(&key2, p2))
 		return 0;
 	return 1;
 }
@@ -150,6 +168,15 @@ print_ctail(const char *prefix /* prefix to print */ ,
 }
 #endif
 
+/* ->init() method for this item plugin. */
+int
+init_ctail(coord_t * coord /* coord of item */,
+	   reiser4_item_data * data /* structure used for insertion */)
+{
+	cputod8(*((char *)(data->arg)), &formatted_at(coord)->cluster_shift);
+	return 0;
+}
+
 /* plugin->u.item.b.lookup:
    NULL. (we are looking only for exact keys from item headers) */
 
@@ -161,37 +188,24 @@ int
 paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
 	unsigned old_nr_units;
+
+	assert("edward-268", data->data != NULL);
+	/* copy only from kernel space */
+	assert("edward-66", data->user == 0);
 	
 	/* number of units the item had before resizing has been performed */
 	old_nr_units = nr_units_ctail(coord) - data->length;
 
 	/* tail items never get pasted in the middle */
 	assert("edward-65",
-	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
-	       (coord->unit_pos == old_nr_units - 1 &&
-		coord->between == AFTER_UNIT) ||
-	       (coord->unit_pos == 0 && old_nr_units == 0 && coord->between == AT_UNIT));
+	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||  /* after can_paste - wanna glue at right - impossible */     
+	       (coord->unit_pos == old_nr_units - 1 && coord->between == AFTER_UNIT) ||  
+	       (coord->unit_pos == 0 && old_nr_units == 0 && coord->between == AT_UNIT)); /* after create item */
 	
-	if (coord->unit_pos == 0)
-		/* make space for pasted data when pasting at the beginning of
-		   the item */
-		xmemmove(first_unit(coord) + data->length, first_unit(coord), old_nr_units);
-
 	if (coord->between == AFTER_UNIT)
 		coord->unit_pos++;
-
-	if (data->data) {
-		assert("edward-66", data->user == 0 || data->user == 1);
-		if (data->user) {
-			assert("edward-67", schedulable());
-			/* copy from user space */
-			__copy_from_user(first_unit(coord) + coord->unit_pos, data->data, (unsigned) data->length);
-		} else
-			/* copy from kernel space */
-			xmemcpy(first_unit(coord) + coord->unit_pos, data->data, (unsigned) data->length);
-	} else {
-		xmemset(first_unit(coord) + coord->unit_pos, 0, (unsigned) data->length);
-	}
+	
+	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, (unsigned) data->length);
 	return 0;
 }
 
@@ -508,13 +522,14 @@ append_key_ctail(const coord_t *coord, reiser4_key *key)
 }
 
 static int
-insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f)
+insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * inode)
 {
 	int result;
 	carry_pool pool;
 	carry_level lowest_level;
 	carry_op *op;
 	reiser4_item_data data;
+	__u8 cluster_shift = inode_cluster_shift(inode);
 
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
@@ -524,7 +539,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 		return RETERR(op ? PTR_ERR(op) : -EIO);
 	data.user = 0;
 	data.iplug = item_plugin_by_id(CTAIL_ID);
-	data.arg = 0;
+	data.arg = &cluster_shift;
 
 	data.length = 0;
 	data.data = 0;
@@ -545,7 +560,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 }
 
 static int
-insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f)
+insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * inode)
 {
 	int ret;
 	coord_t point;
@@ -555,14 +570,35 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f)
 	init_lh (&lock);
 	copy_lh(&lock, lh);
 	
-	ret = insert_crc_flow(&point, &lock, f);
+	ret = insert_crc_flow(&point, &lock, f, inode);
 	done_lh(&lock);
 	return ret;
 }
 
+
+/* overwrite first @f->length bytes of the item and cut remainder without carry */
 static int
-overwrite_ctail(coord_t * coord, flow_t * flow)
+overwrite_ctail(coord_t * coord, flow_t * f)
 {
+	unsigned count;
+	
+	assert("edward-269", f->user == 0);
+	assert("edward-270", f->data != NULL);
+	assert("edward-271", f->length > 0);
+	assert("edward-272", coord_is_existing_unit(coord));
+	assert("edward-273", coord->unit_pos == 0);
+	assert("edward-274", znode_is_write_locked(coord->node));
+	assert("edward-275", schedulable());
+
+	count = item_length_by_coord(coord);
+	
+	if (count > f->length) {
+		node_plugin * nplug = node_plugin_by_coord(coord);
+		nplug->change_item_size(coord, count - f->length);
+		count = f->length;
+	}
+	xmemcpy(item_body_by_coord(coord), f->data, count);
+	move_flow_forward(f, count);
 	return 0;
 }
 
@@ -574,14 +610,14 @@ cut_ctail(coord_t * coord)
 
 /* plugin->u.item.s.file.write ? */
 int
-write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_mode_t mode)
+write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_mode_t mode, struct inode * inode)
 {
 	int result;
 	
 	switch (mode) {
 	case CRC_FIRST_ITEM:
 	case CRC_APPEND_ITEM:
-		result = insert_crc_flow_in_place(coord, lh, f);
+		result = insert_crc_flow_in_place(coord, lh, f, inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
 		result = overwrite_ctail(coord, f);
@@ -649,7 +685,7 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust.index << PAGE_CACHE_SHIFT, WRITE, &f);
 	/* insert processed data */
 	result = insert_crc_flow(&scan->parent_coord, /* insert point */
-				 &scan->parent_lock, &f);
+				 &scan->parent_lock, &f, inode);
 	if (result)
 		goto exit;
 	
@@ -809,7 +845,7 @@ int squeeze_ctail(flush_pos_t * pos, int child)
 	}
 	
 	info = &pos->idata->ctail_info;
-	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, guess_write_mode(pos, child));
+	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, guess_write_mode(pos, child), info->inode);
 	if (result != 0 || child == 0)
 		invalidate_squeeze_ctail_data(pos->idata); 
 	return result;
