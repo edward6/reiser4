@@ -252,7 +252,6 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 
 	/* not yet phash_jnode_destroy(ZJNODE(node)); */
-	ON_DEBUG(jnode_done(ZJNODE(node), znode_get_tree(node)));
 
 	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xde, sizeof *node));

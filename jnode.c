@@ -180,6 +180,7 @@ jnode_done(jnode * node, reiser4_tree * tree)
 	spin_lock_irq(&sbinfo->all_guard);
 	assert("nikita-2422", !list_empty(&node->jnodes));
 	list_del_init(&node->jnodes);
+	assert("nikita-3218", atomic_read(&sbinfo->jnodes_in_flight) > 0);
 	atomic_dec(&sbinfo->jnodes_in_flight);
 	kcond_signal(&sbinfo->rcu_done);
 	spin_unlock_irq(&sbinfo->all_guard);
@@ -214,7 +215,6 @@ jfree(jnode * node)
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 
 	/* not yet phash_jnode_destroy(node); */
-	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
 	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xad, sizeof *node));
 	kmem_cache_free(_jnode_slab, node);
@@ -878,7 +878,6 @@ remove_inode_jnode(jnode * node, reiser4_tree * tree UNUSED_ARG)
 	assert("nikita-2663", capture_list_is_clean(node));
 
 	phash_jnode_destroy(node);
-	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
 }
 
 static struct address_space *
@@ -1115,6 +1114,8 @@ jnode_free_actor(void *arg)
 	node = arg;
 	jtype = jnode_get_type(node);
 
+	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
+
 	switch (jtype) {
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
@@ -1123,8 +1124,8 @@ jnode_free_actor(void *arg)
 		break;
 	case JNODE_FORMATTED_BLOCK:
 		zfree(JZNODE(node));
-	case JNODE_INODE:
 		break;
+	case JNODE_INODE:
 	default:
 		wrong_return_value("nikita-3197", "Wrong jnode type");
 	}
@@ -1133,16 +1134,30 @@ jnode_free_actor(void *arg)
 static inline void
 jnode_free(jnode * node, jnode_type jtype)
 {
+	if (jtype != JNODE_INODE) {
 #if REISER4_DEBUG
+		{
+			reiser4_super_info_data *sbinfo;
+
+			sbinfo = get_super_private(jnode_get_tree(node)->super);
+			atomic_inc(&sbinfo->jnodes_in_flight);
+		}
+#endif
+		call_rcu(&node->rcu, jnode_free_actor, node);
+	} 
+#if REISER4_DEBUG
+	else
 	{
 		reiser4_super_info_data *sbinfo;
 
 		sbinfo = get_super_private(jnode_get_tree(node)->super);
-		atomic_inc(&sbinfo->jnodes_in_flight);
+
+		spin_lock_irq(&sbinfo->all_guard);
+		assert("nikita-2422", !list_empty(&node->jnodes));
+		list_del_init(&node->jnodes);
+		spin_unlock_irq(&sbinfo->all_guard);
 	}
 #endif
-	if (jtype != JNODE_INODE)
-		call_rcu(&node->rcu, jnode_free_actor, node);
 }
 
 int
