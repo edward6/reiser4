@@ -278,6 +278,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add(find_next_item);
 
+#if 0	/* FIXME: broken code temporary disabled */
 	if (hint) {
 		hint->lock = lock_mode;
 		result = hint_validate(hint, key, coord, lh);
@@ -287,6 +288,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 			return CBK_COORD_FOUND;
 		}
 	}
+#endif
 
 	/* collect statistics on the number of calls to this function which did
 	   not get optimized */
