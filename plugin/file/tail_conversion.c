@@ -454,7 +454,18 @@ extent2tail(struct file *file)
 			break;
 		}
 
+		/* detach jnode if any */
+		reiser4_lock_page(page);
 		assert("nikita-2689", page->mapping == inode->i_mapping);
+		if (PagePrivate(page)) {
+			result = page->mapping->a_ops->invalidatepage(page, 0);
+			if (result) {
+				reiser4_unlock_page(page);
+				page_cache_release(page);
+				break;
+			}
+		}
+		reiser4_unlock_page(page);
 
 		/* cut part of file we have read */
 		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
@@ -464,6 +475,7 @@ extent2tail(struct file *file)
 			page_cache_release(page);
 			break;
 		}
+
 		/* put page data into tree via tail_write */
 		count = PAGE_CACHE_SIZE;
 		if (i == num_pages - 1)
@@ -473,17 +485,10 @@ extent2tail(struct file *file)
 			page_cache_release(page);
 			break;
 		}
-		/* release page, detach jnode if any */
+
+		/* release page */
 		reiser4_lock_page(page);
 		assert("vs-1086", page->mapping == inode->i_mapping);
-		if (PagePrivate(page)) {
-			result = page->mapping->a_ops->invalidatepage(page, 0);
-			if (result) {
-				reiser4_unlock_page(page);
-				page_cache_release(page);
-				break;
-			}
-		}
 		assert("nikita-2690", (!PagePrivate(page) && page->private == 0));
 		drop_page(page, NULL);
 		/* release reference taken by read_cache_page() above */
