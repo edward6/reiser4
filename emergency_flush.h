@@ -40,10 +40,8 @@ extern void eflush_del(jnode *node, int page_locked);
 extern int emergency_flush(struct page *page);
 extern int emergency_unflush(jnode *node);
 
-/* eflushed jnodes are stored in reiser4_inode's radix tree. Eflushed jnodes may be either "captured" or
- * "anonymous". Use existing tags to tag jnodes in reiser4_inode's tree of eflushed jnodes */
+/* tag to tag eflushed anonymous jnodes in reiser4_inode's radix tree of jnodes */
 #define EFLUSH_TAG_ANONYMOUS PAGECACHE_TAG_DIRTY
-#define EFLUSH_TAG_CAPTURED PAGECACHE_TAG_WRITEBACK
 
 #else /* REISER4_USE_EFLUSH */
 
