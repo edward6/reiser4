@@ -9,14 +9,6 @@
 /* Mr. Demidov, please implement by the end of March. */
 
 
-/* Issues of VFS consistency:
-
-It seems most issues of consistency can be resolved by locking the parent directory.
-
-
-
- */
-
 #include "parser/parser.h"
 #include "parser/y.tab.c"
 
@@ -26,7 +18,6 @@ int yywrap()
     return 1;
 }
 
-/* allocate next part of space for freeSpace */
 freeSpace * freeSpaceAlloc()
 {
 	freeSpace * fs;
@@ -39,10 +30,14 @@ freeSpace * freeSpaceAlloc()
 	return fs;
 }
 
-/* allocate next part of table WrdTab */
 wrdtab * WrdTabAlloc()
 {
 	wrdtab * wrd;
+
+	work_space->WrdTabHead      = 
+	work_space->WrdTabHead->
+	work_space->WrdTabHead->
+	work_space->WrdTabHead->
 
 	if ( ( wrd = ( wrdtab *    ) kmalloc( sizeof( wrdtab    ) ) ) != 0 )
 		{
@@ -53,7 +48,6 @@ wrdtab * WrdTabAlloc()
 	return wrd;
 }
 
-/* allocate next part of table VarTab */
 vartab * VarTabAlloc()
 {
 	vartab * var;
@@ -66,7 +60,6 @@ vartab * VarTabAlloc()
 	return var;
 }
 
-/* allocate next part of table StrTab */
 strtab * StrTabAlloc()
 {
 	strtab * str;
@@ -81,18 +74,15 @@ strtab * StrTabAlloc()
 
 
 /* @str is a command string for parsing  
-this function allocates work area for yacc, 
-initializes fields, calls yacc, free space
-and call for execute the generated code */
+this function allocates work area for parser, initializes fields, calls parser, free space */
 asmlinkage long  sys_reiser4(char * str)
 {
-	long ret;
-	int * Gencode;
-
+	int ret;
+/* don't use r4 as abbreviation for reiser4, else we get people calling it rfs, which is from ATT */
 	struct yy_r4_work_space * work_space;
 
                                                             /* allocate work space for parser 
-							       working variables, attached to this call */
+							       working variables, FIXME-NIKITA<-HANS: dependens of task */
 	if ( ( work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 ) )==0 )
 		{
 			return -ENOMEM;
@@ -102,13 +92,8 @@ asmlinkage long  sys_reiser4(char * str)
 	
 	                                                    /* initialize fields */
 	                                                    /* this two field used for parsing string, one (inline) stay on begin */
-	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                    */
+	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                   */
 
-
-
-
-
-	                                                    /* allocate first part of working tables and assign to headers */
 	work_space->freeSpHead = freeSpaceAlloc();
 	work_space->WrdTabHead = WrdTabAlloc();
 	work_space->VarTabHead = StrTabAlloc();
@@ -117,8 +102,7 @@ asmlinkage long  sys_reiser4(char * str)
 
 	if (work_space->freeSpHead && work_space->WrdTabHead && work_space->VarTabHead && work_space->StrTabHead)
 		{
-			ret = yyparse(work_space);                 /* parse command */
-			Gencode = getGeneratedCode(work_space);
+			ret = yyparse(work_space);
 		}
 	else
 		{
@@ -141,14 +125,7 @@ asmlinkage long  sys_reiser4(char * str)
 			freeList(work_space->StrTabHead);
 		}
 	free(work_space);
-
-	                      			                                     /* execute list of commands 
-					                                              of course, we can return address of this generated code 
-										      or execute it by next one system call */
-	if ( ret != -ENOEM )
-		{
-			ret = execut_this_code(Gencode);
-		}	
+	
 	return ret;
 }
 
