@@ -65,6 +65,10 @@ struct zlock {
    Long term: data in a disk node attached to this znode are protected
    by long term, deadlock aware lock ->lock;
   
+   Spin lock: the following fields are protected by the spin lock:
+  
+    ->lock
+
    Following fields are protected by the global tree lock:
   
     ->left
@@ -174,7 +178,10 @@ struct znode {
 
 /* Since we have R/W znode locks we need additional bidirectional `link'
    objects to implement n<->m relationship between lock owners and lock
-   objects. We call them `lock handles'. */
+   objects. We call them `lock handles'.
+
+   Locking: see lock.c/"SHORT-TERM LOCKING"
+*/
 struct lock_handle {
 	/* This flag indicates that a signal to yield a lock was passed to
 	   lock owner and counted in owner->nr_signalled 
