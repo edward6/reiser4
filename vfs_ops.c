@@ -106,10 +106,6 @@ static int invoke_create_method( struct inode *parent,
 				 reiser4_object_create_data *data );
 
 
-static int readdir_actor( reiser4_tree *tree, 
-			  coord_t *coord, lock_handle *lh,
-			  void *arg );
-
 /**
  * reiser4_lookup() - entry point for ->lookup() method.
  *
@@ -764,86 +760,27 @@ typedef struct readdir_actor_args {
  * always known, to start readdir() from given point objectid and offset
  * fields have to be filled.
  *
- * To work around this, implementation stores highest 64 bits of
- * information (objectid of the next directory entry to be read) in the
- * file ->f_pos field and last 64 bits (offset of the next directory
- * entry) in the file system specific data attached to the file
- * descriptor (->private_data field in struct file, allocated lazily by
- * reiser4_get_file_fsdata() and recycled in reiser4_release()).
- *
- * As a result, successive calls to readdir() work correctly. If user
- * manually calls lseek (seekdir) on a directory, highest 64 bits of
- * next entry key are reset and lower 64 bits are cleared (FIXME-NIKITA
- * tbd). Next ->readdir() will proceed from "roughly" the same point.
- *
  */
-/* Audited by: umka (2002.06.12) */
 static int reiser4_readdir( struct file *f /* directory file being read */, 
 			    void *dirent /* opaque data passed to us by VFS */, 
 			    filldir_t filldir /* filler function passed to us
 					       * by VFS */ )
 {
+	dir_plugin         *dplug;
 	int                 result;
-	struct inode       *inode;
-	coord_t             coord;
-	readdir_actor_args  arg;
-	lock_handle lh;
+	struct inode       *inode = f -> f_dentry -> d_inode;
 
-	REISER4_ENTRY( f -> f_dentry -> d_inode -> i_sb );
-	
-	assert( "nikita-1359", f != NULL );
-	inode = f -> f_dentry -> d_inode;
-	assert( "nikita-1360", inode != NULL );
+	REISER4_ENTRY( inode -> i_sb );
 
-	if( ! S_ISDIR( inode -> i_mode ) )
-		REISER4_EXIT( -ENOTDIR );
-
-	coord_init_zero( &coord );
-	init_lh( &lh );
-
-	result = inode_dir_plugin( inode ) -> readdir_key( f, &arg.key );
-
-	trace_on( TRACE_DIR | TRACE_VFS_OPS, 
-		  "readdir: inode: %llu offset: %lli\n", 
-		  get_inode_oid( inode ), f -> f_pos );
-	trace_if( TRACE_DIR | TRACE_VFS_OPS, print_key( "readdir", &arg.key ) );
-
-	if( result == 0 ) {
-		result = coord_by_key( tree_by_inode( inode ), &arg.key, 
-				       &coord, &lh, 
-				       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
-				       LEAF_LEVEL, LEAF_LEVEL, 0 );
-		if( result == CBK_COORD_FOUND ) {
-			reiser4_file_fsdata *fsdata;
-
-			arg.dirent   = dirent;
-			arg.filldir  = filldir;
-			arg.dir      = f;
-			arg.skip     = reiser4_get_file_fsdata( f ) -> dir.skip;
-			arg.skipped  = 0;
-
-			result = iterate_tree
-				( tree_by_inode( inode ), &coord, &lh, 
-				  readdir_actor, &arg, ZNODE_READ_LOCK, 1 );
-			/*
-			 * if end of the tree or extent was reached
-			 * during scanning. That's fine.
-			 */
-			if( result == -ENAVAIL )
-				result = 0;
-
-			f -> f_version = inode -> i_version;
-			f -> f_pos = get_key_objectid( &arg.key );
-			fsdata = reiser4_get_file_fsdata( f );
-			fsdata -> dir.readdir_offset = get_key_offset( &arg.key );
-			fsdata -> dir.skip = arg.skip;
-		}
-	}
-
-	done_lh( &lh );
+	dplug = inode_dir_plugin( inode );
+	if( ( dplug != NULL ) && ( dplug -> readdir != NULL ) )
+		result = dplug -> readdir( f, dirent, filldir );
+	else
+		result = -ENOTDIR;
 
 	UPDATE_ATIME( inode );
 	REISER4_EXIT( result );
+
 }
 
 
@@ -1162,13 +1099,16 @@ reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 	assert( "nikita-1603", f != NULL );
 
 	if( f -> private_data == NULL ) {
+		reiser4_file_fsdata *fsdata;
 		reiser4_stat_file_add( private_data_alloc );
 		/* FIXME-NIKITA use slab in stead */
-		f -> private_data = reiser4_kmalloc( sizeof( reiser4_file_fsdata ),
-					     GFP_KERNEL );
-		if( f -> private_data == NULL )
+		fsdata = reiser4_kmalloc( sizeof *fsdata, GFP_KERNEL );
+		if( fsdata == NULL )
 			return ERR_PTR( -ENOMEM );
-		xmemset( f -> private_data, 0, sizeof( reiser4_file_fsdata ) );
+		xmemset( fsdata, 0, sizeof *fsdata );
+		fsdata -> back = f;
+		readdir_list_clean( fsdata );
+		f -> private_data = fsdata;
 	}
 	return f -> private_data;
 }
@@ -1215,107 +1155,6 @@ static int reiser4_release( struct inode *i /* inode released */,
 	REISER4_EXIT( result );
 }
 
-/**
- * Function that is called by reiser4_readdir() on each directory item
- * while doing readdir.
- */
-/* Audited by: umka (2002.06.12) */
-static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
-			  coord_t *coord /* current coord */,
-			  lock_handle *lh UNUSED_ARG /* current lock
-							      * handle */, 
-			  void *arg /* readdir arguments */ )
-{
-	readdir_actor_args  *args;
-	file_plugin         *fplug;
-	item_plugin         *iplug;
-	struct inode        *inode;
-	char                *name;
-	reiser4_key          de_key;
-	reiser4_key          sd_key;
-
-	assert( "nikita-1367", tree != NULL );
-	assert( "nikita-1368", coord != NULL );
-	assert( "nikita-1369", arg != NULL );
-	
-
-	args = arg;
-	inode = args -> dir -> f_dentry -> d_inode;
-	assert( "nikita-1370", inode != NULL );
-
-	if( item_id_by_coord( coord ) !=
-	    item_id_by_plugin( inode_dir_item_plugin( inode ) ) )
-		return 0;
-
-	fplug = inode_file_plugin( inode );
-	assert( "umka-083", fplug != NULL );
-	
-	if( ! fplug -> owns_item( inode, coord ) ) {
-		return 0;
-	}
-
-	iplug = item_plugin_by_coord( coord );
-	assert( "umka-084", iplug != NULL );
-	
-	name = iplug -> s.dir.extract_name( coord );
-	assert( "nikita-1371", name != NULL );
-	if( iplug -> s.dir.extract_key( coord, &sd_key ) != 0 ) {
-		return -EIO;
-	}
-	/* get key of directory entry */
-	unit_key_by_coord( coord, &de_key );
-	/*
-	 * skip some entries that we already processed during previous
-	 * readdir()
-	 */
-	if( keyeq( &de_key, &args -> key ) ) {
-		++ args -> skipped;
-		if( args -> skipped <= args -> skip ) {
-			return 1;
-		}
-		++ args -> skip;
-		assert( "nikita-1756", args -> skip == args -> skipped );
-	} else {
-		assert( "nikita-1720", keygt( &de_key, &args -> key ) );
-		args -> skipped = args -> skip = 1;
-		args -> key = de_key;
-	}
-
-	trace_on( TRACE_DIR | TRACE_VFS_OPS,
-		  "readdir_actor: %lli: name: %s, off: 0x%llx, ino: %lli\n",
-		  get_inode_oid( inode ), name, get_key_objectid( &de_key ),
-		  get_key_objectid( &sd_key ) );
-
-	/*
-	 * send information about directory entry to the ->filldir() filler
-	 * supplied to us by caller (VFS).
-	 */
-	if( args -> filldir( args -> dirent, name, ( int ) strlen( name ),
-			     /* FIXME-NIKITA into kassign.c */
-			     /*
-			      * offset of the next entry
-			      */
-			     ( loff_t ) get_key_objectid( &de_key ), 
-			     /* FIXME-NIKITA into kassign.c */
-			     /*
-			      * inode number of object bounden by this entry
-			      */
-			     ( ino_t ) get_key_objectid( &sd_key ), 
-			     iplug -> s.dir.extract_file_type( coord ) ) < 0 ) {
-		/*
-		 * ->filldir() is satisfied.
-		 *
-		 * Last item wasn't passed to the user, so it shouldn't be
-		 * skipped on the next readdir.
-		 */
-		assert( "nikita-1721", args -> skip > 0 );
-		-- args -> skip;
-		return 0;
-	}
-	/* continue with the next entry */
-	return 1;
-}
-
 /** our ->read_inode() is no-op. Reiser4 inodes should be loaded
     through fs/reiser4/inode.c:reiser4_iget() */
 static void noop_read_inode( struct inode *inode UNUSED_ARG )
@@ -1353,6 +1192,7 @@ static void init_once( void *obj /* pointer to new inode */,
 		inode_init_once( &info -> vfs_inode );
 		spin_lock_init( &info -> guard );
 		init_rwsem( &info -> sem );
+		readdir_list_init( &info -> readdir_list );
 	}
 }
 
