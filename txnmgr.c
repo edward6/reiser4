@@ -860,7 +860,7 @@ int memory_pressure (struct super_block *super)
 		jput (node);
 	}
 
-	return 0;
+	REISER4_EXIT (0);
 }
 #endif
 
