@@ -720,7 +720,7 @@ typedef enum {
 
 static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
 
-
+/* VS-FIXME-HANS: comments are where? */
 ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 {
 	int result;
