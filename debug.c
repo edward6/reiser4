@@ -147,6 +147,7 @@ void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
+	       "jload: %i, "
 	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
 	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
 	       "inode: %i, cbk_cache: %i, epoch: %i, eflush: %i, "
@@ -159,6 +160,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 
 	       info->rw_locked_dk, info->read_locked_dk, info->write_locked_dk,
 
+	       info->spin_locked_jload,
 	       info->spin_locked_txnh,
 	       info->spin_locked_atom, info->spin_locked_stack,
 	       info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,

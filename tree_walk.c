@@ -58,7 +58,8 @@ lock_neighbor(
 		     /* lock request for longterm_lock_znode call */
 		     znode_lock_request req,
 		     /* GN_* flags */
-		     int flags)
+		     int flags,
+		     int rlocked)
 {
 	reiser4_tree *tree = znode_get_tree(node);
 	znode *neighbor;
@@ -98,14 +99,14 @@ lock_neighbor(
 		/* protect it from deletion. */
 		zref(neighbor);
 
-		WUNLOCK_TREE(tree);
+		XUNLOCK_TREE(tree, rlocked);
 
 		ret = longterm_lock_znode(result, neighbor, mode, req);
 
 		/* The lock handle obtains its own reference, release the one from above. */
 		zput(neighbor);
 
-		WLOCK_TREE(tree);
+		XLOCK_TREE(tree, rlocked);
 
 		/* restart if node we got reference to is being
 		   invalidated. we should not get reference to this node
@@ -122,9 +123,9 @@ lock_neighbor(
 
 		/* znode was locked by mistake; unlock it and restart locking
 		   process from beginning. */
-		WUNLOCK_TREE(tree);
+		XUNLOCK_TREE(tree, rlocked);
 		longterm_unlock_znode(result);
-		WLOCK_TREE(tree);
+		XLOCK_TREE(tree, rlocked);
 	}
 }
 /* get parent node with longterm lock, accepts GN* flags. */
@@ -134,9 +135,9 @@ reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 			 znode_lock_mode mode /* type of lock: read or write */,
 			 int flags /* GN_* flags */)
 {
-	return UNDER_RW(tree, znode_get_tree(node), write,
+	return UNDER_RW(tree, znode_get_tree(node), read,
 			lock_neighbor(result, node, PARENT_PTR_OFFSET, mode,
-				      ZNODE_LOCK_HIPRI, flags));
+				      ZNODE_LOCK_HIPRI, flags, 1));
 }
 
 /* A wrapper for reiser4_get_parent_flags(). */
@@ -164,7 +165,10 @@ reiser4_get_parent(lock_handle * result	/* resulting lock
    bit in @flags parameter  */
 /* Audited by: umka (2002.06.14) */
 static inline int
-lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int flags)
+lock_side_neighbor(lock_handle * result,
+		   znode * node,
+		   znode_lock_mode mode,
+		   int flags, int rlocked)
 {
 	int ret;
 	int ptr_offset;
@@ -178,7 +182,7 @@ lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int
 		req = ZNODE_LOCK_HIPRI;
 	}
 
-	ret = lock_neighbor(result, node, ptr_offset, mode, req, flags);
+	ret = lock_neighbor(result, node, ptr_offset, mode, req, flags, rlocked);
 
 	if (ret == -E_NO_NEIGHBOR)	/* if we walk left or right -E_NO_NEIGHBOR does not
 				   * guarantee that neighbor is absent in the
@@ -333,7 +337,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	if (!ret)
 		return 0;
 
-	ret = lock_side_neighbor(handle, coord->node, ZNODE_READ_LOCK, flags);
+	ret = lock_side_neighbor(handle, coord->node, ZNODE_READ_LOCK, flags, 0);
 
 	if (ret)
 		return ret;
@@ -510,21 +514,21 @@ connect_znode(coord_t * coord, znode * node)
 		return ret;
 
 	/* protect `connected' state check by tree_lock */
-	WLOCK_TREE(tree);
+	RLOCK_TREE(tree);
 
 	if (!znode_is_right_connected(node)) {
-		WUNLOCK_TREE(tree);
+		RUNLOCK_TREE(tree);
 		/* connect right (default is right) */
 		ret = connect_one_side(coord, node, GN_NO_ALLOC);
 		if (ret)
 			goto zrelse_and_ret;
 
-		WLOCK_TREE(tree);
+		RLOCK_TREE(tree);
 	}
 
 	ret = znode_is_left_connected(node);
 
-	WUNLOCK_TREE(tree);
+	RUNLOCK_TREE(tree);
 
 	if (!ret) {
 		ret = connect_one_side(coord, node, GN_NO_ALLOC | GN_GO_LEFT);
@@ -650,8 +654,8 @@ reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
 again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	   link existence */
-	ret = UNDER_RW(tree, tree, write,
-		       lock_side_neighbor(neighbor, node, lock_mode, flags));
+	ret = UNDER_RW(tree, tree, read,
+		       lock_side_neighbor(neighbor, node, lock_mode, flags, 1));
 
 	if (!ret) {
 		/* load znode content if it was specified */

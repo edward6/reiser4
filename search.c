@@ -602,26 +602,14 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		   parent.
 		*/
 		coord_to_parent_coord(h->coord, &active->in_parent);
-		/* protect sibling pointers and `connected' state bits, check
-		   znode state */
-		ret = znode_is_connected(active);
-		/* above two operations (setting ->in_parent up and checking
-		   connectedness) are logically separate and one can release
-		   and re-acquire tree lock between them. On the other hand,
-		   releasing-acquiring spinlock requires d-cache flushing on
-		   some architectures and can thus be expensive.
-		*/
 		WUNLOCK_TREE(h->tree);
-	} else {
-		/* do the same check as above, but under read tree lock */
-		RLOCK_TREE(h->tree);
-		ret = znode_is_connected(active);
-		RUNLOCK_TREE(h->tree);
 	}
 
-
-	if (!ret) {
-		/* FIXME: h->coord->node and active are of different levels? */
+	/* check connectedness without holding tree lock---false negatives
+	 * will be re-checked by connect_znode(), and false positives are
+	 * impossible---@active cannot suddenly turn into unconnected
+	 * state. */
+	if (!znode_is_connected(active)) {
 		h->result = connect_znode(h->coord, active);
 		if (h->result) {
 			put_parent(h);
@@ -629,7 +617,10 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 
-	update_stale_dk(h->tree, active);
+	jload_prefetch(ZJNODE(active));
+
+	if (setdk)
+		update_stale_dk(h->tree, active);
 
 	/* put_parent() cannot be called earlier, because connect_znode()
 	   assumes parent node is referenced; */
@@ -1273,30 +1264,36 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 						 * delimiting key */ )
 {
 	coord_t neighbor;
+	int result;
 
 	assert("nikita-1484", parent != NULL);
 	assert("nikita-1485", rw_dk_is_locked(znode_get_tree(parent)));
 
 	coord_dup(&neighbor, parent_coord);
 
+	result = 0;
 	if (neighbor.between == AT_UNIT)
 		/* imitate item ->lookup() behavior. */
 		neighbor.between = AFTER_UNIT;
 
 	if (coord_is_existing_unit(&neighbor) || (coord_set_to_left(&neighbor) == 0))
 		unit_key_by_coord(&neighbor, ld);
-	else
+	else {
 		*ld = *znode_get_ld_key(parent);
+		result = 1;
+	}
 
 	coord_dup(&neighbor, parent_coord);
 	if (neighbor.between == AT_UNIT)
 		neighbor.between = AFTER_UNIT;
 	if (coord_set_to_right(&neighbor) == 0)
 		unit_key_by_coord(&neighbor, rd);
-	else
+	else {
 		*rd = *znode_get_rd_key(parent);
+		result = 1;
+	}
 
-	return 0;
+	return result;
 }
 
 int
@@ -1315,14 +1312,14 @@ set_child_delimiting_keys(znode * parent,
 	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
 		WLOCK_DK(tree);
-		if (!ZF_ISSET(child, JNODE_DKSET)) {
-			find_child_delimiting_keys(parent, coord,
-						   znode_get_ld_key(child),
-						   znode_get_rd_key(child));
+		if (likely(!ZF_ISSET(child, JNODE_DKSET))) {
+			result = find_child_delimiting_keys
+				(parent, coord,
+				 znode_get_ld_key(child),
+				 znode_get_rd_key(child));
 			ZF_SET(child, JNODE_DKSET);
 		}
 		WUNLOCK_DK(tree);
-		result = 1;
 	}
 	return result;
 }
@@ -1346,12 +1343,14 @@ static void stale_dk(reiser4_tree *tree, znode *node)
 static void update_stale_dk(reiser4_tree *tree, znode *node)
 {
 	znode *right;
+	reiser4_key rd;
 
 	RLOCK_DK(tree);
+	rd = *znode_get_rd_key(node);
 	RLOCK_TREE(tree);
 	right = node->right;
 	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right &&
-		     !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))) {
+		     !keyeq(&rd, znode_get_ld_key(right)))) {
 		RUNLOCK_TREE(tree);
 		RUNLOCK_DK(tree);
 		stale_dk(tree, node);
