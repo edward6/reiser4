@@ -40,23 +40,22 @@ typedef enum {
 	REISER4_IMMUTABLE = 2,
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
-	/* this is set when we know for sure state of file: for default
-	   reiser4 ordinary files it means that we know whether file is built
-	   of extents or of tail items only */
-	REISER4_FILE_STATE_KNOWN = 4,
-	/* this is set to 1 when not all file data are stored as unformatted
-	   node, 0 - otherwise. Note, that this bit can be only checked if
-	   REISER4_FILE_STATE_KNOWN is set */
-	REISER4_BUILT_OF_TAILS = 5,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
-	REISER4_GENERIC_VP_USED = 6,
-	REISER4_EXCLUSIVE_USE = 7,
-	REISER4_SDLEN_KNOWN   = 8,
+	REISER4_GENERIC_VP_USED = 4,
+	REISER4_EXCLUSIVE_USE = 5,
+	REISER4_SDLEN_KNOWN   = 6,
 	/* reiser4_inode->keyid points to the identification word */
-	REISER4_KEYID_LOADED = 9,
+	REISER4_KEYID_LOADED = 7,
 	/* reiser4_inode->expkey points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 10
+	REISER4_SECRET_KEY_INSTALLED = 8,
+	/* this is set when we know for sure state of file: for default reiser4 ordinary files it means that we know
+	   whether file is built of extents or of tail items only or has no items at all. The below 3 bits should be
+	   only checked when this bit is set */
+	REISER4_FILE_STATE_KNOWN = 9,
+	REISER4_BUILT_OF_TAILS = 10,
+	REISER4_BUILT_OF_EXTENTS = 11,
+	REISER4_FILE_EMPTY = 12
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
