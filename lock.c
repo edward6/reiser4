@@ -727,8 +727,6 @@ longterm_unlock_znode(lock_handle * handle)
 		}
 		znode_post_write(node);
 	}
-	if (znode_is_rlocked(node))
-		ON_STATS(znode_at_read(node));
 
 	if (handle->signaled)
 		atomic_dec(&oldowner->nr_signaled);
@@ -782,8 +780,6 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 		if (REISER4_DEBUG_MODIFY) {
 			if (znode_is_wlocked_once(node))
 				znode_post_write(node);
-			else if (znode_is_rlocked(node))
-				ON_STATS(znode_at_read(node));
 		}
 	}
 
