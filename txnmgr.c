@@ -750,6 +750,8 @@ txn_mgr_force_commit (struct super_block *super)
 		spin_unlock_atom (atom);
 	}
 
+	spin_unlock_txnmgr (mgr);
+
 	REISER4_EXIT (0);
 }
 
