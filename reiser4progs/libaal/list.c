@@ -23,7 +23,7 @@ aal_list_t *aal_list_alloc(void *item) {
 }
 
 aal_list_t *aal_list_last(aal_list_t *list) {
-    aal_assert("umka-611", list != NULL, return NULL);
+    if (!list) return NULL;
     
     while (list->next)
 	list = list->next;
@@ -32,7 +32,7 @@ aal_list_t *aal_list_last(aal_list_t *list) {
 }
 
 aal_list_t *aal_list_first(aal_list_t *list) {
-    aal_assert("umka-612", list != NULL, return NULL);
+    if (!list) return NULL;
     
     while (list->prev)
 	list = list->prev;
@@ -41,12 +41,12 @@ aal_list_t *aal_list_first(aal_list_t *list) {
 }
 
 aal_list_t *aal_list_next(aal_list_t *list) {
-    aal_assert("umka-613", list != NULL, return NULL);
+    if (!list) return NULL;
     return list->next;
 }
 
 aal_list_t *aal_list_prev(aal_list_t *list) {
-    aal_assert("umka-614", list != NULL, return NULL);
+    if (!list) return NULL;
     return list->prev;
 }
 
@@ -247,7 +247,7 @@ aal_list_t *aal_list_find_custom(aal_list_t *list, void *needle,
 void aal_list_free(aal_list_t *list) {
     aal_list_t *last = list;
     
-    aal_assert("umka-627", list != NULL, return);
+    if (!list) return;
     
     while (last->next) {
 	aal_list_t *temp = last->next;

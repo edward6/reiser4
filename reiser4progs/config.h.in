@@ -18,7 +18,11 @@
 
 #undef ENABLE_DEBUG
 
-#undef HAVE_UUID
+#undef HAVE_LIBUUID
+
+#undef HAVE_LIBREADLINE
+
+
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -66,6 +70,9 @@
 /* Define if you have the <libintl.h> header file. */
 #undef HAVE_LIBINTL_H
 
+/* Define if you have the `uuid' library (-luuid). */
+#undef HAVE_LIBUUID
+
 /* Define if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 
@@ -95,6 +102,15 @@
 
 /* Define if you have the `nl_langinfo' function. */
 #undef HAVE_NL_LANGINFO
+
+/* Define if you have the <readline/history.h> header file. */
+#undef HAVE_READLINE_HISTORY_H
+
+/* Define if you have the <readline/readline.h> header file. */
+#undef HAVE_READLINE_READLINE_H
+
+/* Define if you have the `rl_completion_matches' function. */
+#undef HAVE_RL_COMPLETION_MATCHES
 
 /* Define if you have the `setlocale' function. */
 #undef HAVE_SETLOCALE
@@ -147,8 +163,14 @@
 /* Define if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
 
+/* Define if you have the <termcap.h> header file. */
+#undef HAVE_TERMCAP_H
+
 /* Define if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
+
+/* Define if you have the <uuid/uuid.h> header file. */
+#undef HAVE_UUID_UUID_H
 
 /* Define if you have the `__argz_count' function. */
 #undef HAVE___ARGZ_COUNT

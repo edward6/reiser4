@@ -1,4 +1,6 @@
-noinst_LIBRARIES	    = libmisc.a
-libmisc_a_SOURCES	    = misc.c profile.c
+noinst_LTLIBRARIES	= libmisc.la
+libmisc_la_SOURCES	= misc.c profile.c exception.c
 
-INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/progs/include
+libmisc_la_LIBADD 	= $(PROGS_LDADD)
+
+INCLUDES = -I$(top_srcdir)/include

@@ -17,4 +17,7 @@
 
 #undef ENABLE_DEBUG
 
-#undef HAVE_UUID
+#undef HAVE_LIBUUID
+
+#undef HAVE_LIBREADLINE
+
