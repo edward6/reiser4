@@ -702,8 +702,8 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 			lock_and_wait_page_writeback(pg);
 
-			ON_DEBUG_MODIFY(znode_set_checksum(cur));
 			LOCK_JNODE(cur);
+			ON_DEBUG_MODIFY(znode_set_checksum(cur, 1));
 			assert("nikita-3166", 
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
@@ -752,9 +752,13 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 				int i;
 				for ( i = 0; i < nr_used ; i++) {
 					struct page *pg = bio->bi_io_vec[i].bv_page;
+					struct jnode *j;
+
+					j = jprivate(pg);
 					ClearPageWriteback(pg);
-					JF_CLR((jnode *)pg->private, JNODE_WRITEBACK);
-					JF_SET((jnode *)pg->private, JNODE_DIRTY);
+					JF_CLR(j, JNODE_WRITEBACK);
+					ON_DEBUG_MODIFY(znode_set_checksum(j, 1));
+					JF_SET(j, JNODE_DIRTY);
 				}
 				bio_put(bio);
 			} else {

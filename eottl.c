@@ -205,7 +205,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		item.arg = NULL;
 		/* have @insert_coord to be set at inserted item after
 		   insertion is done */
-		op->node->track = 1;
+		op->node->track = CARRY_TRACK_CHANGE;
 		todo.tracked = lh;
 
 		result = carry(&todo, 0);

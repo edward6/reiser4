@@ -1304,6 +1304,11 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 		reiser4_key lkey;
 		reiser4_key rkey;
 
+		if (node->track != 0 && 
+		    node->track != CARRY_TRACK_NODE &&
+		    node->track != CARRY_TRACK_CHANGE)
+			return 0;
+
 		if (node != carry_node_front(level)) {
 			if (state == CARRY_TODO) {
 				right = node->node;

@@ -203,12 +203,15 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 	op->u.insert.type = COPT_ITEM_DATA;
 	op->u.insert.child = 0;
 	if (lh != NULL) {
-		op->node->track = 1;
+		assert("nikita-3245", lh->node == coord->node);
+		op->node->track = CARRY_TRACK_CHANGE;
 		lowest_level.tracked = lh;
 	}
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
+	assert("nikita-3245", ergo(result == 0 && lh != NULL,
+				   lh->node == coord->node));
 	done_carry_pool(&pool);
 
 	return result;
@@ -256,7 +259,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 	op->u.paste.flags = flags;
 	op->u.paste.type = COPT_ITEM_DATA;
 	if (lh != NULL) {
-		op->node->track = 1;
+		op->node->track = CARRY_TRACK_CHANGE;
 		lowest_level.tracked = lh;
 	}
 
@@ -523,7 +526,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	op->u.insert_flow.data = &data;
 	op->u.insert_flow.new_nodes = 0;
 
-	op->node->track = 1;
+	op->node->track = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
@@ -583,7 +586,6 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 /* This is called from longterm_unlock_znode() when last lock is released from
    the node that has been removed from the tree. At this point node is removed
    from sibling list and its lock is invalidated. */
-/* Audited by: umka (2002.06.16) */
 void
 forget_znode(lock_handle * handle)
 {
@@ -686,7 +688,6 @@ forget_znode(lock_handle * handle)
 }
 
 /* Check that internal item at @pointer really contains pointer to @child. */
-/* Audited by: umka (2002.06.16) */
 int
 check_tree_pointer(const coord_t * pointer	/* would-be pointer to
 						   * @child */ ,

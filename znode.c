@@ -325,7 +325,6 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
 	init_parent_coord(&node->in_parent, parent);
-	ON_DEBUG_MODIFY(spin_lock_init(&node->cksum_guard));
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
 
@@ -801,20 +800,9 @@ znode_is_true_root(const znode * node /* znode to query */ )
 int
 znode_is_root(const znode * node /* znode to query */ )
 {
-	int result;
-
 	assert("nikita-1206", node != NULL);
-	assert("umka-062", current_tree != NULL);
 
-	result = znode_get_level(node) == znode_get_tree(node)->height;
-	if (REISER4_DEBUG) {
-		RLOCK_TREE(znode_get_tree(node));
-		assert("nikita-1208", !result || znode_is_true_root(node));
-		assert("nikita-1209", !result || znode_get_level(znode_parent(node)) == 0);
-		assert("nikita-1212", !result || ((node->left == NULL) && (node->right == NULL)));
-		RUNLOCK_TREE(znode_get_tree(node));
-	}
-	return result;
+	return znode_get_level(node) == znode_get_tree(node)->height;
 }
 
 /* Returns true is @node was just created by zget() and wasn't ever loaded
@@ -1059,6 +1047,10 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 {
 #define _ergo(ant, con) 						\
 	((*msg) = "{" #ant "} ergo {" #con "}", ergo((ant), (con)))
+
+#define _equi(e1, e2) 						\
+	((*msg) = "{" #e1 "} <=> {" #e2 "}", equi((e1), (e2)))
+
 #define _check(exp) ((*msg) = #exp, (exp))
 
 	return
@@ -1073,8 +1065,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		      znode_parent(node) == NULL) &&
 		/* it has special block number, and */
 		_ergo(znode_get_level(node) == 0,
-		      disk_addr_eq(znode_get_block(node),
-				   &UBER_TREE_ADDR)) &&
+		      disk_addr_eq(znode_get_block(node), &UBER_TREE_ADDR)) &&
 		/* it is the only znode with such block number, and */
 		_ergo(!znode_above_root(node) && znode_is_loaded(node),
 		      !disk_addr_eq(znode_get_block(node), &UBER_TREE_ADDR)) &&
@@ -1094,6 +1085,17 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		/* right neighbor is at the same level */
 		_ergo(znode_is_right_connected(node) && node->right != NULL,
 		      znode_get_level(node) == znode_get_level(node->right)) &&
+
+		/* [znode-connected] invariant */
+
+		_ergo(node->left != NULL, znode_is_left_connected(node)) &&
+		_ergo(node->right != NULL, znode_is_right_connected(node)) &&
+		_ergo(!znode_is_root(node) && node->left != NULL,
+		      znode_is_right_connected(node->left) &&
+		      node->left->right == node) &&
+		_ergo(!znode_is_root(node) && node->right != NULL,
+		      znode_is_left_connected(node->right) && 
+		      node->right->left == node) &&
 
 		/* [znode-c_count] invariant */
 
@@ -1141,27 +1143,12 @@ znode_invariant(const znode * node /* znode to check */ )
 #endif
 
 #if REISER4_DEBUG_MODIFY
-void znode_set_checksum(jnode * node)
-{
-	if (jnode_is_znode(node)) {
-		znode *z;
-
-		z = JZNODE(node);
-		spin_lock(&z->cksum_guard);
-		z->cksum = znode_is_loaded(z) ? znode_checksum(z) : 0;
-		spin_unlock(&z->cksum_guard);
-	}
-}
-
-__u32 znode_checksum(const znode * node)
+static __u32 znode_checksum(const znode * node)
 {
 	int i, size = znode_size(node);
 	__u32 l = 0;
 	__u32 h = 0;
-	const char *data = zdata(node);
-
-	assert("umka-065", node != NULL);
-	assert("jmacd-1080", znode_is_loaded(node));
+	const char *data = page_address(znode_page(node));
 
 	/* Checksum is similar to adler32... */
 	for (i = 0; i < size; i += 1) {
@@ -1172,18 +1159,35 @@ __u32 znode_checksum(const znode * node)
 	return (h << 16) | (l & 0xffff);
 }
 
+void znode_set_checksum(jnode * node, int locked_p)
+{
+	if (jnode_is_znode(node)) {
+		znode *z;
+
+		z = JZNODE(node);
+
+		if (!locked_p)
+			LOCK_JNODE(node);
+		if (znode_page(z) != NULL)
+			z->cksum = znode_checksum(z);
+		else
+			z->cksum = 0;
+		if (!locked_p)
+			UNLOCK_JNODE(node);
+	}
+}
+
 int
 znode_pre_write(znode * node)
 {
 	assert("umka-066", node != NULL);
 
-	if (!znode_is_loaded(node))
-		return 0;
-
-	spin_lock(&node->cksum_guard);
-	if ((node->cksum == 0) && !znode_check_dirty(node))
-		node->cksum = znode_checksum(node);
-	spin_unlock(&node->cksum_guard);
+	spin_lock_znode(node);
+	if (znode_page(node) != NULL) {
+		if ((node->cksum == 0) && !znode_is_dirty(node))
+			node->cksum = znode_checksum(node);
+	}
+	spin_unlock_znode(node);
 	return 0;
 }
 
@@ -1194,21 +1198,18 @@ znode_post_write(znode * node)
 
 	assert("umka-067", node != NULL);
 
-	if (!znode_is_loaded(node))
-		return 0;
+	spin_lock_znode(node);
+	if (znode_page(node) != NULL) {
+		cksum = znode_checksum(node);
 
-	spin_lock(&node->cksum_guard);
-
-	cksum = znode_checksum(node);
-
-	if (!znode_is_dirty(node) && cksum != node->cksum && node->cksum != 0)
-		reiser4_panic("jmacd-1081", "changed znode is not dirty: %llu", node->zjnode.blocknr);
-
-	if (0 && znode_is_dirty(node) && cksum == node->cksum && !ZF_ISSET(node, JNODE_CREATED)) {
-		warning("jmacd-1082",
-			"dirty node %llu was not actually modified (or cksum collision)", node->zjnode.blocknr);
+		if (!znode_is_dirty(node) && 
+		    cksum != node->cksum && 
+		    node->cksum != 0)
+			reiser4_panic("jmacd-1081", 
+				      "changed znode is not dirty: %llu", 
+				      node->zjnode.blocknr);
 	}
-	spin_unlock(&node->cksum_guard);
+	spin_unlock_znode(node);
 	return 0;
 }
 #endif

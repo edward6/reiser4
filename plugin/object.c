@@ -222,9 +222,17 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	coord_init_zero(&coord);
 	init_lh(&lh);
 
-	result = insert_by_key(tree_by_inode(inode), build_sd_key(inode, &key), &data, &coord, &lh,
+	result = insert_by_key(tree_by_inode(inode), 
+			       build_sd_key(inode, &key), 
+			       &data, 
+			       &coord, 
+			       &lh,
 			       /* stat data lives on a leaf level */
-			       LEAF_LEVEL, inter_syscall_ra(inode), NO_RAP, CBK_UNIQUE);
+			       LEAF_LEVEL, 
+			       inter_syscall_ra(inode), 
+			       NO_RAP, 
+			       CBK_UNIQUE);
+
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
 	   insert_by_key() returned error. */
@@ -250,20 +258,21 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			   from hash-table (like old knfsd), should check
 			   IMMUTABLE flag that is set by common_create_child.
 			*/
-			if (data.iplug && data.iplug->s.sd.save) {
-				area = item_body_by_coord(&coord);
-				result = data.iplug->s.sd.save(inode, &area);
-				if (result == 0) {
-					/* object has stat-data now */
-					inode_clr_flag(inode, REISER4_NO_SD);
-					inode_set_flag(inode, REISER4_SDLEN_KNOWN);
-					/* initialise stat-data seal */
-					seal_init(&ref->sd_seal, &coord, &key);
-					ref->sd_coord = coord;
-					check_inode_seal(inode, &coord, &key);
-				} else
-					result = RETERR(-EIO);
-			}
+			assert("nikita-3240", data.iplug != NULL);
+			assert("nikita-3241", data.iplug->s.sd.save != NULL);
+			area = item_body_by_coord(&coord);
+			result = data.iplug->s.sd.save(inode, &area);
+			znode_make_dirty(coord.node);
+			if (result == 0) {
+				/* object has stat-data now */
+				inode_clr_flag(inode, REISER4_NO_SD);
+				inode_set_flag(inode, REISER4_SDLEN_KNOWN);
+				/* initialise stat-data seal */
+				seal_init(&ref->sd_seal, &coord, &key);
+				ref->sd_coord = coord;
+				check_inode_seal(inode, &coord, &key);
+			} else
+				result = RETERR(-EIO);
 			zrelse(coord.node);
 		}
 	}

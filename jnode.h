@@ -285,7 +285,6 @@ void bind_jnode_and_page(jnode *node, oid_t oid, struct page *pg) NONNULL;
 extern jnode *page_next_jnode(jnode * node) NONNULL;
 extern void jnode_init(jnode * node, reiser4_tree * tree) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
-extern void jnode_make_clean_nolock(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
 extern void jnode_make_wander(jnode*) NONNULL;

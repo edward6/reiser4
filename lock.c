@@ -819,8 +819,6 @@ longterm_unlock_znode(lock_handle * handle)
 	/* Last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
 
-		ON_DEBUG_MODIFY(znode_post_write(node));
-
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 			/* invalidate lock. FIXME-NIKITA locking.  This doesn't
@@ -834,6 +832,7 @@ longterm_unlock_znode(lock_handle * handle)
 			ON_DEBUG(check_lock_data());
 			ON_DEBUG(check_lock_node_data(node));
 			ON_DEBUG(node_check(node, 0));
+			ON_DEBUG_MODIFY(znode_post_write(node));
 			forget_znode(handle);
 			assert("nikita-2191", znode_invariant(node));
 			zput(node);
@@ -866,6 +865,7 @@ longterm_unlock_znode(lock_handle * handle)
 		UNLOCK_ZLOCK(&node->lock);
 
 	assert("nikita-3182", spin_zlock_is_not_locked(&node->lock));
+	ON_DEBUG_MODIFY(znode_post_write(node));
 	/* minus one reference from handle->node */
 	handle->node = NULL;
 	assert("nikita-2190", znode_invariant(node));
@@ -1367,7 +1367,7 @@ prepare_to_sleep(lock_stack * owner)
 
 	/* We return -EDEADLK if one or more "give me the lock" messages are
 	 * counted in nr_signaled */
-	if (unlikely(atomic_read(&owner->nr_signaled) != 0) {
+	if (unlikely(atomic_read(&owner->nr_signaled) != 0)) {
 		assert("zam-959", !owner->curpri);
 		return RETERR(-EDEADLK);
 	}

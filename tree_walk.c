@@ -693,6 +693,7 @@ sibling_list_remove(znode * node)
 	}
 	ZF_CLR(node, JNODE_LEFT_CONNECTED);
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
+	ON_DEBUG(node->left = node->right = NULL);
 }
 
 /* disconnect node from sibling list */

@@ -446,6 +446,8 @@ create_hook_extent(const coord_t *coord, void *arg)
 	child_coord = arg;
 	tree = znode_get_tree(coord->node);
 
+	assert("nikita-3246", znode_get_level(child_coord->node) == LEAF_LEVEL);
+
 	WLOCK_DK(tree);
 	WLOCK_TREE(tree);
 	/* find a node on the left level for which right delimiting key has to
@@ -780,88 +782,6 @@ unit_key_extent(const coord_t *coord, reiser4_key *key)
 	return key;
 }
 
-/* plugin->u.item.b.estimate
-   plugin->u.item.b.item_data_by_flow */
-
-/* union union-able extents and cut an item correspondingly */
-static void
-optimize_extent(const coord_t *item)
-{
-	unsigned i, old_num, new_num;
-	reiser4_extent *cur, *new_cur, *start;
-	reiser4_block_nr cur_width, new_cur_width;
-	extent_state cur_state;
-	ON_DEBUG(const char *error);
-
-	assert("vs-765", coord_is_existing_item(item));
-	assert("vs-763", item_is_extent(item));
-	assert("vs-934", check_extent(item, &error) == 0);
-
-	cur = start = extent_item(item);
-	old_num = nr_units_extent(item);
-	new_num = 0;
-	new_cur = NULL;
-	new_cur_width = 0;
-
-	for (i = 0; i < old_num; i++, cur++) {
-		cur_width = extent_get_width(cur);
-		if (!cur_width)
-			continue;
-
-		cur_state = state_of_extent(cur);
-		if (new_cur && state_of_extent(new_cur) == cur_state) {
-			/* extents can be unioned when they are holes or unallocated extents or when they are adjacent
-			   allocated extents */
-			if (cur_state != ALLOCATED_EXTENT ||
-			    (extent_get_start(new_cur) + new_cur_width == extent_get_start(cur))) {
-				new_cur_width += cur_width;
-				extent_set_width(new_cur, new_cur_width);
-				continue;
-			}
-		}
-
-		/* @ext can not be joined with @prev, move @prev forward */
-		if (new_cur)
-			new_cur++;
-		else {
-			assert("vs-935", cur == start);
-			new_cur = start;
-		}
-
-		/* FIXME-VS: this is not necessary if new_cur == cur */
-		*new_cur = *cur;
-		new_cur_width = cur_width;
-		new_num++;
-	}
-
-	if (new_num != old_num) {
-		/* at least one pair of adjacent extents has merged. Shorten
-		   item from the end correspondingly */
-		int result;
-		coord_t from, to;
-
-		assert("vs-952", new_num < old_num);
-
-		coord_dup(&from, item);
-		from.unit_pos = new_num;
-		from.between = AT_UNIT;
-
-		coord_dup(&to, &from);
-		to.unit_pos = old_num - 1;
-
-		/* wipe part of item which is going to be cut, so that
-		   node_check will not be confused by extent overlapping */
-		xmemset(extent_by_coord(&from), 0, sizeof (reiser4_extent) * (old_num - new_num));
-		result = cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0, 0/*inode*/);
-
-		/* nothing should happen cutting
-		   FIXME: JMACD->VS: Just return the error! */
-		assert("vs-456", result == 0);
-	}
-	check_me("nikita-2755", reiser4_grab_space_force(1, BA_RESERVED, "optimize_extent") == 0);
-	znode_make_dirty(item->node);
-}
-
 /* Return the reiser_extent and position within that extent. */
 static reiser4_extent *
 extent_utmost_ext(const coord_t *coord, sideof side, reiser4_block_nr *pos_in_unit)
@@ -996,6 +916,10 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	unsigned i, j;
 	reiser4_block_nr start, width, blk_cnt;
 	unsigned num_units;
+	reiser4_tree *tree;
+	oid_t oid;
+	reiser4_key key;
+	coord_t scan;
 
 	assert("vs-933", REISER4_DEBUG);
 
@@ -1010,8 +934,36 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	ext = first = extent_item(coord);
 	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
 	num_units = coord_num_units(coord);
+	tree = znode_get_tree(coord->node);
+	item_key_by_coord(coord, &key);
+	oid = get_key_objectid(&key);
+	coord_dup(&scan, coord);
 
 	for (i = 0; i < num_units; ++i, ++ext) {
+		__u64 index;
+
+		scan.unit_pos = i;
+		index = extent_unit_index(&scan);
+
+		/* check that all jnodes are present for the unallocated
+		 * extent */
+		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
+			for (j = 0; j < extent_get_width(ext); j ++) {
+				jnode *node;
+
+				RLOCK_TREE(tree);
+				node = jlook_lock(tree, oid, index + j);
+				if (node == NULL) {
+					BUG();
+					print_coord("scan", &scan, 0);
+					*error = "Jnode missing";
+					RUNLOCK_TREE(tree);
+					return -1;
+				}
+				RUNLOCK_TREE(tree);
+				jput(node);
+			}
+		}
 
 		start = extent_get_start(ext);
 		if (start < 2)
@@ -1037,7 +989,6 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 				return -1;
 			}
 		}
-
 	}
 	return 0;
 }
@@ -2128,8 +2079,6 @@ extent_handle_overwrite_and_copy(znode *left, coord_t *right, flush_pos_t *flush
 }
 
 /* Block offset of first block addressed by unit */
-/* AUDIT shouldn't return value be of reiser4_block_nr type?
-   Josh's answer: who knows?  This returns the same type of information as "struct page->index", which is currently an unsigned long. */
 __u64
 extent_unit_index(const coord_t *item)
 {
@@ -2561,11 +2510,17 @@ page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *u
 				return ERR_PTR(RETERR(-ENOMEM));
 
 			reiser4_unlock_page(page);
+			DISABLE_NODE_CHECK;
+			get_current_context()->trace_flags |= TRACE_CARRY;
 			result = make_extent(key, uf_coord, mode, &blocknr);
+			get_current_context()->trace_flags &= ~TRACE_CARRY;
+			ENABLE_NODE_CHECK;
 			if (result) {
 				jfree(j);
 				return ERR_PTR(result);
 			}
+			assert("nikita-3243", 
+			       znode_get_level(uf_coord->lh->node) == TWIG_LEVEL);
 			reiser4_lock_page(page);
 			if (!PagePrivate(page)) {
 				/* page is still not private. Initialize jnode and attach to page */
@@ -3065,37 +3020,6 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		break;
 	}
 		
-#if 0
-		if (!PagePrivate(page)) {
-			oid_t oid;
-			reiser4_block_nr blocknr;
-			
-			oid = get_inode_oid(page->mapping->host);
-			j = jlook_lock(current_tree, oid, page->index);
-			if (j) {
-				info_jnode("found jnode", j);
-				assert("", 0);
-			}
-			/*assert("vs-1391", !jlook_lock(current_tree, oid, page->index));*/
-
-			j = jnew();
-			if (unlikely(!j))
-				return RETERR(-ENOMEM);
-
-			jnode_set_mapped(j);
-			blocknr = extent_get_start(ext) + pos;
-			jnode_set_block(j, &blocknr);
-			bind_jnode_and_page(j, oid, page);
-			ON_TRACE(TRACE_EXTENTS, "allocated, page mage private, read issued\n");
-		} else {
-			j = jnode_by_page(page);
-			assert("vs-1390", jnode_mapped(j));
-			assert("vs-1392", !blocknr_is_fake(jnode_get_block(j)));
-			jref(j);
-			ON_TRACE(TRACE_EXTENTS, "allocated, page was private, read issued\n");
-		}
-#endif
-
 	case UNALLOCATED_EXTENT:
 		j = jlook_lock(current_tree, get_inode_oid(page->mapping->host),
 			       page->index);

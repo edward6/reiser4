@@ -378,7 +378,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	__u32 flags;
 	int adj;
 
-	carry_node *tracking;
+	int tracking;
 	coord_t *coord;
 
 	assert("nikita-890", op != NULL);
@@ -393,7 +393,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 
 	coord = op->u.insert.d->coord;
 	orig_node = node = coord->node;
-	tracking = op->node;
+	tracking = op->node->track;
 
 	assert("nikita-908", node != NULL);
 	assert("nikita-909", node_plugin_by_node(node) != NULL);
@@ -567,7 +567,9 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			warning("nikita-948", "Cannot insert new item");
 		result = -E_NODE_FULL;
 	}
-	if ((result == 0) && (node != orig_node) && tracking->track) {
+	if (result == 0 && 
+	    (tracking == CARRY_TRACK_NODE || 
+	     (tracking == CARRY_TRACK_CHANGE && node != orig_node))) {
 		/* inserting or pasting into node different from
 		   original. Update lock handle supplied by caller. */
 		assert("nikita-1417", doing->tracked != NULL);
@@ -576,9 +578,11 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		result = longterm_lock_znode(doing->tracked, node,
 					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		reiser4_stat_level_inc(doing, track_lh);
+		ON_TRACE(TRACE_CARRY, "tracking: %i: %p -> %p\n",
+			 tracking, orig_node, node);
 	}
 	assert("nikita-1622", ergo(result == 0, carry_real(op->node) == coord->node));
-	assert("nikita-2616", coord = op->u.insert.d->coord);
+	assert("nikita-2616", coord == op->u.insert.d->coord);
 	return result;
 }
 
@@ -1593,6 +1597,23 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	assert("nikita-1719", op->u.extent.d->key != NULL);
 	insert_extent->u.insert.d->data->arg = op->u.extent.d->coord;
 	insert_extent->u.insert.flags = znode_get_tree(node)->carry.new_extent_flags;
+
+	/*
+	 * if carry was asked to track lock handle we should actually track
+	 * lock handle on the twig node rather than on the leaf where
+	 * operation was started from. Transfer tracked lock handle.
+	 */
+	if (op->node->track) {
+		assert("nikita-3242", doing->tracked != NULL);
+		assert("nikita-3244", todo->tracked == NULL);
+		ON_TRACE(TRACE_CARRY, "ext track: %i: %p\n",
+			 op->node->track, node);
+		todo->tracked = doing->tracked;
+		doing->tracked = NULL;
+		insert_extent->node->track = CARRY_TRACK_NODE;
+		op->node->track = 0;
+	}
+
 	return 0;
 }
 

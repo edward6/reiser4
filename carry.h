@@ -8,15 +8,15 @@
 
 #include "forward.h"
 #include "debug.h"
-
 #include "pool.h"
 #include "znode.h"
-//#include "coord.h"
-//#include "key.h"
-//#include "tree.h"
-//#include "reiser4.h"
 
 #include <linux/types.h>
+
+typedef enum {
+	CARRY_TRACK_CHANGE = 1,
+	CARRY_TRACK_NODE   = 2
+} carry_track_type;
 
 /* &carry_node - "location" of carry node.
   
@@ -64,7 +64,7 @@ typedef struct carry_node {
 	   from this node to automagically wander to the node where
 	   insertion point moved after insert or paste.
 	*/
-	__u32 track:1;
+	__u32 track:2;
 
 	/* type of lock we want to take on this node */
 	lock_handle lock_handle;

@@ -2383,6 +2383,7 @@ znode_make_dirty(znode * z)
 		   because it was early flushed, or ->releasepaged? */
 		assert("zam-596", znode_above_root(JZNODE(node)));
 
+	ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
 	UNLOCK_JNODE(node);
 
 	/* jnode lock is not needed for the rest of jnode_set_dirty(). */
@@ -2394,16 +2395,8 @@ znode_make_dirty(znode * z)
 
 	/* bump version counter in znode */
 	z->version = znode_build_version(jnode_get_tree(node));
-	/* NIKITA-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-NIKITA-BY-HANS: This makes no sense, delete it, reenable nikita-1900:
-
-	the flush code sets a node dirty even though it is read
-	locked... but it captures it first.  However, the new
-	assertion (jmacd-9777) seems to contradict the statement
-	above, that a node is captured before being captured.
-	Perhaps that is no longer true. */
 	assert("nikita-1900", znode_is_write_locked(z));
 	assert("jmacd-9777", node->atom != NULL);
-	ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z)));
 }
 
 /* ZAM-FIXME-HANS: I suggest you drop either unformatted or jnode from the function name below. */
@@ -2426,18 +2419,23 @@ unformatted_jnode_make_dirty(jnode * node)
 	}
 }
 
-/* Unset the dirty status for the node if necessary spin locks are already taken */
+/* Unset the dirty status for this jnode.  If the jnode is dirty, this
+   involves locking the atom (for its capture lists), removing from the
+   dirty_nodes list and pushing in to the clean list. */
 void
-jnode_make_clean_nolock(jnode * node)
+jnode_make_clean(jnode * node)
 {
-	txn_atom *atom = node->atom;
+	txn_atom *atom;
 
-	assert("zam-748", spin_jnode_is_locked(node));
-	assert("zam-750", ergo(atom, spin_atom_is_locked(atom)));
+	assert("umka-205", node != NULL);
+	assert("jmacd-1083", spin_jnode_is_not_locked(node));
+
+	LOCK_JNODE(node);
+
+	atom = atom_locked_by_jnode(node);
 
 	if (jnode_is_dirty(node)) {
 
-		ON_DEBUG_MODIFY(znode_set_checksum(node));
 		JF_CLR(node, JNODE_DIRTY);
 
 		assert("jmacd-9366", !jnode_is_dirty(node));
@@ -2456,27 +2454,11 @@ jnode_make_clean_nolock(jnode * node)
 			capture_list_push_front(&atom->clean_nodes, node);
 		}
 	}
-}
-/* NIKITA-FIXME-HANS: merge this wrapper, and all other wrappers like this that call inner functions and are the only callers of those inner functions, into the inner function */
-/* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
-   lists), removing from the dirty_nodes list and pushing in to the clean list. */
-void
-jnode_make_clean(jnode * node)
-{
-	txn_atom *atom;
-
-	assert("umka-205", node != NULL);
-	assert("jmacd-1083", spin_jnode_is_not_locked(node));
-
-	LOCK_JNODE(node);
-
-	atom = atom_locked_by_jnode(node);
-
-	jnode_make_clean_nolock(node);
 
 	if (atom)
 		UNLOCK_ATOM(atom);
 
+	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
 	UNLOCK_JNODE(node);
 }
 
@@ -3304,6 +3286,7 @@ void uncapture_block(jnode * node)
 	/*ON_TRACE (TRACE_TXN, "un-capture %p from atom %u (captured %u)\n",
 	 * node, atom->atom_id, atom->capture_count); */
 
+	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
 	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);
 	JF_CLR(node, JNODE_OVRWR);

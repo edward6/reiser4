@@ -71,6 +71,7 @@ typedef struct parent_coord {
 
       [znode-fake]
       [znode-level]
+      [znode-connected]
       [znode-c_count]
       [znode-refs]
       [jnode-refs]
@@ -136,7 +137,6 @@ struct znode {
 	/* In debugging mode, used to detect loss of znode_set_dirty()
 	   notification. */
 	__u32 cksum;
-	spinlock_t cksum_guard;
 #endif
 
 #if REISER4_DEBUG
@@ -232,10 +232,9 @@ extern int znode_just_created(const znode * node);
 extern void zfree(znode * node);
 
 #if REISER4_DEBUG_MODIFY
-extern __u32 znode_checksum(const znode * node);
 extern int znode_pre_write(znode * node);
 extern int znode_post_write(znode * node);
-extern void znode_set_checksum(jnode * node);
+extern void znode_set_checksum(jnode * node, int locked_p);
 #endif
 
 #if REISER4_DEBUG_OUTPUT

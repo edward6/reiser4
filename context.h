@@ -67,10 +67,6 @@ struct reiser4_context {
 	/* per-thread grabbed (for further allocation) blocks counter */
 	reiser4_block_nr grabbed_blocks;
 
-	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
-	   bits in it. */
-	__u32 trace_flags;
-
 	/* parent context */
 	reiser4_context *parent;
 	tap_list_head taps;
@@ -102,6 +98,11 @@ struct reiser4_context {
 	backtrace_path   grabbed_at;
 	flushers_list_link  flushers_link;
 	err_site err;
+#endif
+#if REISER4_TRACE
+	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
+	   bits in it. */
+	__u32 trace_flags;
 #endif
 #if REISER4_DEBUG_NODE
 	int disable_node_check;

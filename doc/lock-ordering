@@ -191,6 +191,20 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     (Checked by znode_invariant_f().)
 
+[znode-connected]
+
+     /* ->left, ->right pointers form a valid list and are consistent with
+     JNODE_{LEFT,RIGHT}_CONNECTED bits */
+
+     node->left != NULL => znode_is_left_connected(node)
+     node->right != NULL => znode_is_right_connected(node)
+     node->left != NULL => 
+		      znode_is_right_connected(node->left) &&
+		      node->left->right == node
+     node->right != NULL =>
+		      znode_is_left_connected(node->right) && 
+		      node->right->left == node
+
 [znode-c_count]                                       jnode_lock, tree_lock
 
     /* for any znode, c_count of its parent is greater than 0, and */
