@@ -30,8 +30,9 @@
 
 #include <linux/types.h>
 
-static const __u64 default_fibre = 0x0000000000000000ull;
 static const int fibre_shift = 57;
+
+#define FIBRE_NO(n) (((__u64)(n)) << fibre_shift)
 
 /*
  * Trivial fibration: all files of directory are just ordered
@@ -39,7 +40,7 @@ static const int fibre_shift = 57;
  */
 static __u64 fibre_trivial(const struct inode *dir, const char *name, int len)
 {
-	return default_fibre;
+	return FIBRE_NO(0);
 }
 
 /*
@@ -49,9 +50,9 @@ static __u64 fibre_dot_o(const struct inode *dir, const char *name, int len)
 {
 	/* special treatment for .*\.o */
 	if (len > 2 && name[len - 1] == 'o' && name[len - 2] == '.')
-		return 1ull << fibre_shift;
+		return FIBRE_NO(1);
 	else
-		return default_fibre;
+		return FIBRE_NO(0);
 }
 
 /*
@@ -62,9 +63,9 @@ static __u64 fibre_dot_o(const struct inode *dir, const char *name, int len)
 static __u64 fibre_ext_1(const struct inode *dir, const char *name, int len)
 {
 	if (len > 2 && name[len - 2] == '.')
-		return ((__u64)name[len - 1]) << fibre_shift;
+		return FIBRE_NO(name[len - 1]);
 	else
-		return default_fibre;
+		return FIBRE_NO(0);
 }
 
 /*
@@ -74,11 +75,9 @@ static __u64 fibre_ext_1(const struct inode *dir, const char *name, int len)
 static __u64 fibre_ext_3(const struct inode *dir, const char *name, int len)
 {
 	if (len > 4 && name[len - 4] == '.')
-		return ((__u64)(name[len - 3] +
-				name[len - 2] +
-				name[len - 1])) << fibre_shift;
+		return FIBRE_NO(name[len - 3] + name[len - 2] + name[len - 1]);
 	else
-		return default_fibre;
+		return FIBRE_NO(0);
 }
 
 /* fibration plugins */

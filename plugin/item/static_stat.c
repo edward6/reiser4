@@ -864,7 +864,7 @@ save_len_plugin_sd(struct inode *inode /* object being processed */ )
 	len = len_for(perm_plugin_to_plugin(state->pset->perm), inode, len);
 	len = len_for(formatting_plugin_to_plugin(state->pset->formatting), inode, len);
 	len = len_for(hash_plugin_to_plugin(state->pset->hash), inode, len);
-	len = len_for(fibration_plugin_to_plugin(state->pset->hash), inode, len);
+	len = len_for(fibration_plugin_to_plugin(state->pset->fibration), inode, len);
 	len = len_for(crypto_plugin_to_plugin(state->pset->crypto), inode, len);
 	len = len_for(digest_plugin_to_plugin(state->pset->digest), inode, len);
 	len = len_for(compression_plugin_to_plugin(state->pset->compression), inode, len);
@@ -944,7 +944,7 @@ save_plugin_sd(struct inode *inode /* object being processed */ ,
 	    || save_plug(perm_plugin_to_plugin(state->pset->perm), inode, area, &num_of_plugins)
 	    || save_plug(formatting_plugin_to_plugin(state->pset->formatting), inode, area, &num_of_plugins)
             || save_plug(hash_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
-            || save_plug(fibration_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
+            || save_plug(fibration_plugin_to_plugin(state->pset->fibration), inode, area, &num_of_plugins)
 	    || save_plug(crypto_plugin_to_plugin(state->pset->crypto), inode, area, &num_of_plugins)
 	    || save_plug(digest_plugin_to_plugin(state->pset->digest), inode, area, &num_of_plugins)
 	    || save_plug(compression_plugin_to_plugin(state->pset->compression), inode, area, &num_of_plugins);
