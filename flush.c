@@ -1672,6 +1672,62 @@ out:
 }
 #endif /* NEW_TWIG_SQUEEZE */
 
+
+/* Scan @node items and try to squeeze each one. */
+static int squeeze_node(flush_pos_t * pos, znode * node)
+{
+	int ret = 0;
+
+#ifdef SQUEEZE_NODE_SUPPORT
+	
+	item_plugin * iplug;
+
+	assert("edward-304", pos != NULL);
+	assert("edward-305", pos->child == NULL);
+	assert("edward-306", (znode_get_level(node) == LEAF_LEVEL));
+	
+	coord_init_before_first_item(&pos->coord, node);
+	
+	while (1) {
+		if (node_is_empty(node))
+			/* nothing to squeeze */
+			return 0;
+		iplug = item_plugin_by_coord(&pos->coord);
+		
+		if (iplug->f.squeeze == NULL)
+			/* do not squeeze */
+			return 0;
+		/* get child if squeeze item data is not uptodate */
+		if (!pos->idata) {
+			ret = iplug->f.utmost_child(&pos->coord, LEFT_SIDE, &pos->child);
+			if (ret)
+				return ret;
+			if (pos->child == NULL)
+				/* do not squeeze */
+				return 0;
+		}
+		ret = iplug->f.squeeze(pos, 1 /* attach info */);
+		
+		assert("edward-307", pos->child == NULL);
+		if (ret)
+			return ret;
+		if (coord_next_item(&pos->coord))
+			/* node is over */
+			break;
+		if (item_plugin_by_coord(&pos->coord) != iplug) {
+			/* squeeze one more time previous item
+			   and invalidate squeeze item data */
+			ret = iplug->f.squeeze(pos, 0 /* detach info */);
+			pos->idata = NULL;
+			if (ret)
+				return ret;
+		}
+	}
+	
+#endif	/* SQUEEZE_NODE_SUPPORT */
+	return ret;
+}
+
 /* Squeeze and allocate the right neighbor.  This is called after @left and
    its current children have been squeezed and allocated already.  This
    procedure's job is to squeeze and items from @right to @left.
@@ -1929,6 +1985,10 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
+	ret = squeeze_node(pos, pos->lock.node);
+	if (ret)
+		return ret;
+	
 	while (1) {
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 		if (ret)
@@ -1947,6 +2007,10 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (ret)
 			break;
 
+		ret = squeeze_node(pos, right_lock.node);
+		if (ret)
+			break;
+		
 		/* squeeze _before_ going upward. */
 		ret = squeeze_right_neighbor(pos, pos->lock.node, right_lock.node);
 		if (ret < 0)
