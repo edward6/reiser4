@@ -178,7 +178,7 @@ op_t ops[] = {
 	}
 };
 
-const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:O:o:m:";
+const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:O:o:m:j";
 
 static double
 rate(unsigned long events, int secs)
@@ -219,7 +219,8 @@ usage(char *argv0)
 		"\t-B     \tbenchmark mode: don't ever sleep [%i]\n"
 		"\t-v     \tincrease verbosity\n"
 		"\t-F op=N\tset relative frequence of op (see below) to N\n"
-		"\t-L N   \tlimit amount of used disk space to N kbytes [%i]\n",
+		"\t-L N   \tlimit amount of used disk space to N kbytes [%i]\n"
+		"\t-j     \twait for the completion of all spawned threads\n",
 
 		DEFAULT_THREADS,
 		DEFAULT_FILES,
@@ -275,6 +276,8 @@ main(int argc, char **argv)
 	unsigned long long initiallyavail;
 	unsigned long long used;
 	op_t *op;
+	pthread_t *id;
+	int join;
 
 	result = ok;
 	ops[gcop].freq = 0;
@@ -398,11 +401,17 @@ main(int argc, char **argv)
 		"\n\titerations: %i, sleep: %i, buffer: %i, max size: %i\n",
 		argv[0], threads, files, delta, iterations,
 		max_sleep, max_buf_size, max_size);
+
+	id = calloc(threads, sizeof id[0]);
+	if (id == NULL) {
+		perror("calloc");
+		return 1;
+	}
+
 	for (i = 0; i < threads; ++i) {
 		int rv;
-		pthread_t id;
 
-		rv = pthread_create(&id, NULL, worker, NULL);
+		rv = pthread_create(&id[i], NULL, worker, NULL);
 		if (rv != 0) {
 			fprintf(stderr,
 				"%s: pthread_create fails: %s(%i) while creating %i-%s thread\n",
@@ -460,6 +469,15 @@ main(int argc, char **argv)
 			stats.totfreq += (ops[gcop].freq - origfreq);
 		}
 		_nap(delta, 0);
+	}
+	if (join) {
+		for (i = 0; i < threads; ++i) {
+			int ret;
+
+			ret = pthread_join(id[i], NULL);
+			if (ret != 0)
+				fprintf(stderr, "pthread_join: %i\n", ret);
+		}
 	}
 	return result;
 }
