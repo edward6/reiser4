@@ -112,6 +112,10 @@ void print_znode_content( const znode *node /* node to print */,
 	reiser4_key key;
 
 
+	if( !znode_is_loaded( node ) ) {
+		print_znode( "znode is not loaded", node );
+		return;
+	}
 	if( ( flags & REISER4_NODE_PRINT_HEADER ) &&
 	    ( node_plugin_by_node( node ) -> print != NULL ) ) {
 		indent_znode (node);
