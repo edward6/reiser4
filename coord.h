@@ -307,7 +307,6 @@ extern const char * coord_tween_tostring (between_enum n);
 
 extern int          item_utmost_child_real_block (const coord_t *coord, sideof side, reiser4_block_nr *blk);
 extern int          item_utmost_child            (const coord_t *coord, sideof side, jnode **child);
-extern int          item_utmost_child_dirty      (const coord_t *coord, sideof side, int *is_dirty);
 
 /* __REISER4_NEW_COORD_H__ */
 #endif

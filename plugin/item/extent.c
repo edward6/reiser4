@@ -1338,43 +1338,6 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 }
 
 /**
- * Return whether the child is dirty.
- */
-/* Audited by: green(2002.06.13) */
-int extent_utmost_child_dirty ( const coord_t *coord, sideof side, int *is_dirty )
-{
-	int ret;
-	reiser4_extent * ext;
-	reiser4_block_nr pos_in_unit;
-	jnode *child;
-
-	ext = extent_utmost_ext (coord, side, & pos_in_unit);
-
-	switch (state_of_extent (ext)) {
-	case ALLOCATED_EXTENT:
-		break;
-	case HOLE_EXTENT:
-		*is_dirty = 0;
-		return 0;
-	case UNALLOCATED_EXTENT:
-		*is_dirty = 1;
-		return 0;
-	}
-
-	if ((ret = extent_utmost_child (coord, side, &child))) {
-		return ret;
-	}
-
-	if (child == NULL) {
-		*is_dirty = 0;
-	} else {
-		*is_dirty = jnode_check_dirty (child);
-		jput (child);
-	}
-	return 0;
-}
-
-/**
  * Return the child's block, if allocated.
  */
 /* Audited by: green(2002.06.13) */

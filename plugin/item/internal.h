@@ -40,8 +40,6 @@ extern void internal_print        ( const char *prefix, coord_t *coord );
 
 extern int  internal_utmost_child   ( const coord_t *coord, sideof side,
 				      jnode **child );
-int         internal_utmost_child_dirty ( const coord_t  *coord,
-				  sideof side, int *is_dirty );
 int         internal_utmost_child_real_block ( const coord_t  *coord,
 					       sideof side,
 					       reiser4_block_nr  *block );

@@ -1028,11 +1028,6 @@ int item_utmost_child (const coord_t *coord, sideof side, jnode **child)
 	return item_plugin_by_coord (coord)->common.utmost_child (coord, side, child);
 }
 
-int item_utmost_child_dirty (const coord_t *coord, sideof side, int *is_dirty)
-{
-	return item_plugin_by_coord (coord)->common.utmost_child_dirty (coord, side, is_dirty);
-}
-
 /* 
  * Local variables:
  * c-indentation-style: "K&R"

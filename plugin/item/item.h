@@ -201,8 +201,6 @@ typedef struct {
 	/* return the right or left child of @coord, only if it is in memory */
 	int ( *utmost_child )( const coord_t *coord, sideof side,
 			       jnode **child );
-	/* return whether the right or left child of @coord is dirty. */
-	int ( *utmost_child_dirty )( const coord_t *coord, sideof side, int *is_dirty );
 	
 	/* return whether the right or left child of @coord has a non-fake block number. */
 	int ( *utmost_child_real_block )( const coord_t *coord, sideof side,

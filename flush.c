@@ -473,7 +473,7 @@ static int           flush_pos_init               (flush_position *pos, int *nr_
 static int           flush_pos_valid              (flush_position *pos);
 static void          flush_pos_done               (flush_position *pos);
 static int           flush_pos_stop               (flush_position *pos);
-static int           flush_pos_is_extent        (flush_position *pos);
+static int           flush_pos_on_twig_level        (flush_position *pos);
 static int           flush_pos_to_child_and_alloc (flush_position *pos);
 static int           flush_pos_to_parent          (flush_position *pos);
 static int           flush_pos_set_point          (flush_position *pos, jnode *node);
@@ -771,7 +771,10 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		 * trying to prevent atoms from fusing during flushing.  We allow -ENAVAIL
 		 * code to be returned from flush_forward_squalloc and continue to
 		 * flush_empty_queue.  The proper solution, I feel, is to catch -EINVAL
-		 * everywhere it may be generated, not at the top level like this. */
+		 * everywhere it may be generated, not at the top level like this.  For
+		 * example, every call to jnode_lock_parent_coord should check ENAVAIL,
+		 * perhaps should also check not-same-atom condition, then do the Right
+		 * Thing. */
 		if (ret != -ENAVAIL) {
 			goto failed;
 		}
@@ -1021,7 +1024,8 @@ static int flush_reverse_relocate_end_of_twig (flush_position *pos)
 }
 
 /********************************************************************************
- * INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST)
+ * INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST ALLOCATION BEFORE FORWARD
+ * PARENT-FIRST LOOP BEGINS)
  ********************************************************************************/
 
 /* This step occurs after the left- and right-scans are completed, before starting the
@@ -1056,7 +1060,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 	init_lh (& plock);
 	init_load_count (& pload);
 
-	if (flush_pos_is_extent (pos) || ! znode_is_root (JZNODE (pos->point))) {
+	if (flush_pos_on_twig_level (pos) || ! znode_is_root (JZNODE (pos->point))) {
 		/* Lock the parent (it may already be locked, thus the special case). */
 		if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, & pload, ZNODE_WRITE_LOCK))) {
 			goto exit;
@@ -1075,7 +1079,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 	/* Finally, allocate the current flush point if it is formatted.  This leaves us
 	 * with the current point allocated, ready to call the flush_forward_squalloc
 	 * loop. */
-	if (ret == 0 && ! flush_pos_is_extent (pos)) {
+	if (ret == 0 && ! flush_pos_on_twig_level (pos)) {
 		ret = flush_allocate_znode (JZNODE (pos->point), & pcoord, pos);
 	}
 
@@ -1196,7 +1200,7 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 }
 
 /********************************************************************************
- * SQUEEZE AND ALLOCATE
+ * MAIN SQUEEZE AND ALLOCATE LOOP (THREE BIG FUNCTIONS)
  ********************************************************************************/
 
 /* This procedure implements the outer loop of the flush algorithm.  To put this in
@@ -1232,16 +1236,14 @@ static int flush_forward_squalloc (flush_position *pos)
 {
 	int ret = 0;
 
-	/* FIXME(D): This check has no atomicity, so its not really right.  Should be okay
-	 * to remove this, replace with an assertion (just like in
-	 * flush_alloc_ancestors). */
+	/* If there is a race and the current node is already prepped, why continue? */
 	if (jnode_check_flushprepped (pos->point)) {
 		return 0;
 	}
 
  ALLOC_EXTENTS:
 	/* Step 4: Allocate the current extent (if current position is an extent). */
-	if (flush_pos_valid (pos) && flush_pos_is_extent (pos)) {
+	if (flush_pos_valid (pos) && flush_pos_on_twig_level (pos)) {
 
 		assert ("jmacd-8712", item_is_extent (& pos->parent_coord));
 
@@ -1298,7 +1300,7 @@ static int flush_forward_squalloc (flush_position *pos)
 		}
 
 		/* We are about to try to allocate the right twig by calling
-		 * flush_squalloc_changed_ancestors in the flush_pos_is_extent state.
+		 * flush_squalloc_changed_ancestors in the flush_pos_on_twig_level state.
 		 * However, the twig may need to be dirtied first if its left-child will
 		 * be relocated. */
 		if ((ret = flush_reverse_relocate_end_of_twig (pos))) {
@@ -1307,7 +1309,7 @@ static int flush_forward_squalloc (flush_position *pos)
 	}
 
 	if (flush_pos_valid (pos)) {
-		/* Step 5: Formatted and unformatted cases. Squeeze upward, allocate
+		/* Step 5: Formatted and unformatted cases.  Squeeze upward, allocate
 		 * downward, for any ancestors that are not in common between current
 		 * position and its right neighbor. */
 		if ((ret = flush_squalloc_changed_ancestors (pos))) {
@@ -1333,14 +1335,13 @@ static int flush_forward_squalloc (flush_position *pos)
 static int flush_squalloc_changed_ancestors (flush_position *pos)
 {
 	int ret;
-	int is_unformatted, is_dirty;
+	int on_twig_level;
 	lock_handle right_lock;
 	znode *node;
 
- repeat:
 	/* The node used for the recursive call is either a twig (if position is an
 	 * extent) or the current leaf. */
-	if ((is_unformatted = flush_pos_is_extent (pos))) {
+	if ((on_twig_level = flush_pos_on_twig_level (pos))) {
 		/* If we are checking for changed ancestors, we must have reached the
 		 * end-of-twig situation described in flush_forward_squalloc.  Otherwise
 		 * we would have repeated extent allocation or descended to a formatted
@@ -1358,7 +1359,12 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	init_lh (& right_lock);
 
-	if ((ret = flush_squalloc_one_changed_ancestor (node, /*call_depth*/is_unformatted, pos))) {
+	/* Recursive step: the on_twig_level argument passed in as the call_depth requires
+	 * a note--its quite subtle.  If we are on the twig level,
+	 * flush_squalloc_one_changed_ancestor behaves as if it is already at a recursion
+	 * depth of one, otherwise we start at zero.  Read the comments there for more
+	 * explanation. */
+	if ((ret = flush_squalloc_one_changed_ancestor (node, /*call_depth*/on_twig_level, pos))) {
 		warning ("jmacd-61432", "sq1_ca failed: %d", ret);
 		goto exit;
 	}
@@ -1370,8 +1376,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	trace_on (TRACE_FLUSH_VERB, "sq_rca after sq_ca recursion: %s\n", flush_pos_tostring (pos));
 
 	/* In the unformatted case, we may have shifted new contents into the current
-	 * twig. */
-	if (is_unformatted && ! coord_is_after_rightmost (& pos->parent_coord)) {
+	 * twig.  In that case, we should return to the main loop for extent allocation.
+	 * If the first-shifted item is an internal item, then descend back to the leaf
+	 * level. */
+	if (on_twig_level && ! coord_is_after_rightmost (& pos->parent_coord)) {
 
 		trace_on (TRACE_FLUSH_VERB, "sq_rca unformatted after: %s\n", flush_pos_tostring (pos));
 
@@ -1384,11 +1392,18 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		goto exit;
 	}
 
-	/* Get the right neighbor. */
-	assert ("jmacd-1092", znode_is_write_locked (node));
+	/* Now advance to the right neighbor.  We may repeat at this point when handling the */
+ repeat: assert ("jmacd-1092", znode_is_write_locked (node));
+
 	if ((ret = znode_get_utmost_if_dirty (node, & right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
 
-		/* Unless we get ENAVAIL at the leaf level, it means to stop. */
+		jnode *child;
+		int keep_going;
+
+		/* If we get ENAVAIL it means the right neighbor is not dirty.  If we are
+		 * at the leaf level there may be an unformatted node to the right, so we
+		 * only break here if there is an error or ENAVAIL not on the leaf
+		 * level. */
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring (pos));
@@ -1404,73 +1419,92 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		/* We are leaving node now. */
 		/*JF_CLR (node, JNODE_FLUSH_BUSY)*/
 
-		/* We may have a unformatted node to the right. */
+		/* We are on the leaf level and we got ENAVAIL to the right, but we may
+		 * have a unformatted node to the right, so go up to the twig level. */
 		if ((ret = flush_pos_to_parent (pos))) {
 			warning ("jmacd-61435", "flush_pos_to_parent failed: %d", ret);
 			goto exit;
 		}
 
-		/* Procede with unformatted case. */
-		assert ("jmacd-9259", flush_pos_is_extent (pos));
+		/* Now on the twig level, update local variables. */
+		assert ("jmacd-9259", flush_pos_on_twig_level (pos));
 		assert ("jmacd-9260", ! coord_is_after_rightmost (& pos->parent_coord));
-		is_unformatted = 1;
+		on_twig_level = 1;
 		node = pos->parent_lock.node;
 
+		/* We are interested in the next item. */
 		coord_next_item (& pos->parent_coord);
 
-		/* Now maybe try the twig to the right... */
+		/* ... but we may be at the end of a twig. */
 		if (coord_is_after_rightmost (& pos->parent_coord)) {
 			trace_on (TRACE_FLUSH_VERB, "sq_rca to right twig: %s\n", flush_pos_tostring (pos));
 
-			if (znode_check_dirty (node)) {
-				goto repeat;
-			} else {
-				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (right twig clean): %s\n", flush_pos_tostring (pos));
-				ret = flush_pos_stop (pos);
+			/* Otherwise, we may want to dirty the right twig if its
+			 * leftmost child (an extent) is dirty. */
+			if ((ret = flush_reverse_relocate_end_of_twig (pos))) {
 				goto exit;
 			}
+
+			/* Now repeat the get_right_if_dirty step locally. */
+			goto repeat;
 		}
 
 		/* If positioned over a formatted node, then the preceding
-		 * get_utmost_if_dirty would have succeeded if it were in memory. */
+		 * get_right_if_dirty would have succeeded if the formatted neighbor was
+		 * in memory.  Therefore it must not be, so we are finished. */
 		if (item_is_internal (& pos->parent_coord)) {
 			trace_on (TRACE_FLUSH_VERB, "sq_rca stop at twig, next is internal: %s\n", flush_pos_tostring (pos));
-		stop_at_twig:
-			/* We are leaving twig now, enqueue it if allocated. */
-			trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (at twig): %s\n", flush_pos_tostring (pos));
 			ret = flush_pos_stop (pos);
 			goto exit;
 		}
 
 		trace_on (TRACE_FLUSH_VERB, "sq_rca check right twig child: %s\n", flush_pos_tostring (pos));
 
-		/* Finally, we must now be positioned over an extent, but is it dirty? */
-		if ((ret = item_utmost_child_dirty (& pos->parent_coord, LEFT_SIDE, & is_dirty))) {
-			warning ("jmacd-61437", "item_utmost_child_dirty failed: %d", ret);
+		/* Finally, we must now be positioned over an extent, but does it need flushprep? */
+		if ((ret = item_utmost_child (& pos->parent_coord, LEFT_SIDE, & child))) {
 			goto exit;
 		}
 
-		if (! is_dirty) {
-			trace_on (TRACE_FLUSH_VERB, "sq_rca stop at twig, child not dirty: %s\n", flush_pos_tostring (pos));
-			goto stop_at_twig;
+		if (child == NULL) {
+			ret = flush_pos_stop (pos);
+			goto exit;
 		}
 
+		keep_going = ! jnode_check_flushprepped (child);
+
+		jput (child);
+
+		/* If it doesn't need flushprep, stop now. */
+		if (! keep_going) {
+			trace_on (TRACE_FLUSH_VERB, "sq_rca stop at twig, child already flushprepped: %s\n", flush_pos_tostring (pos));
+			ret = flush_pos_stop (pos);
+			goto exit;
+		}
+
+		/* In this case, continue the outer flush_forward_squalloc loop. */
 		ret = 0;
 		goto exit;
 	}
 
 	trace_on (TRACE_FLUSH_VERB, "sq_rca ready to move right %s\n", flush_znode_tostring (right_lock.node));
 
-	/* We have a new right and it should have been allocated by the call to
+	/* We have a new right and it should have been flushprepped by the call to
 	 * flush_squalloc_one_changed_ancestor.  However, a concurrent thread could
-	 * possibly insert a new node, so just stop if ! allocated. */
+	 * possibly insert a new node, so just stop if ! flushprepped. */
 	if (! jnode_check_flushprepped (ZJNODE (right_lock.node))) {
 		trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (right not allocated): %s\n", flush_pos_tostring (pos));
 		ret = flush_pos_stop (pos);
 		goto exit;
 	}
 
-	if (is_unformatted) {
+	/* Note: The above check and comment are correct, I think, but there is still a
+	 * subtle issue worth explaining.  If the node is flushprepped already, how do we
+	 * know that it was our thread and not some concurrent thread that did the work?
+	 * The answer is: squalloc_one_changed_ancestor stops the flush if it finds a node
+	 * to the right that is already flushprepped. */
+
+	/* Now to finish--update the flush position with the new coordinate/point. */
+	if (on_twig_level) {
 		done_load_count (& pos->parent_load);
 		done_lh (& pos->parent_lock);
 		move_lh (& pos->parent_lock, & right_lock);
@@ -1480,6 +1514,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		}
 		coord_init_first_unit (& pos->parent_coord, pos->parent_lock.node);
 
+		/* If the first entry of the new twig is an internal item, descend to the
+		 * leaf level. */
 		if (! item_is_extent (& pos->parent_coord)) {
 			ret = flush_pos_to_child_and_alloc (pos);
 		}
@@ -1497,12 +1533,17 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	return ret;
 }
 
-/* FIXME: comment */
+/* This implements the recursive part of step 5 described in flush_forward_squalloc,
+ * including squeezing on the way up, as long as the node and its right neighbor have
+ * different parents, then allocating the right side on the way back down.  This is a
+ * complicated beast.  The call_depth paramter tells us how high in the recursion we are.
+ * Note that the greater (recursive) call_depth, the higher tree level.  When the comments
+ * below discuss "lower-level", it means lower smaller call_depth as well.  */
 static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flush_position *pos)
 {
 	int ret;
 	int same_parents;
-	int unallocated_below;
+	int shifted_nodes_below;
 	lock_handle right_lock;
 	lock_handle parent_lock;
 	load_count right_load;
@@ -1518,19 +1559,13 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] %s\n", call_depth, flush_znode_tostring (node));
 
-	/* Originally the idea was to assert that a node is always allocated before the
-	 * upward recursion here, but its not always true.  We are allocating in the
-	 * rightward direction and there is no reason the initial (leftmost) ancestors
-	 * must be allocated.  They are not considered part of this parent-first traversal. */
-	/*assert ("jmacd-9925", znode_check_flushprepped (node));*/
-
 	if ((ret = incr_load_count_znode (& node_load, node))) {
 		warning ("jmacd-61424", "zload failed: %d", ret);
 		goto exit;
 	}
 
  RIGHT_AGAIN:
-	/* Get the right neighbor. */
+	/* First get the right neighbor. */
 	if ((ret = znode_get_utmost_if_dirty (node, & right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
 		/* If the node is unavailable... */
 		if (ret == -ENAVAIL) {
@@ -1547,41 +1582,62 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
+	/* If the right node is already flushprepped then we should stop now.  Note: there
+	 * may be refinements here.  There is a region to the right that was already
+	 * squeezed, but it could be that squeezing it with this node (and then squeezing
+	 * to the right) will reduce by a node. */
+	if (znode_check_flushprepped (right_lock.node)) {
+		trace_on (TRACE_FLUSH_VERB, "sq1_ca: STOP (right already prepped): %s\n", flush_pos_tostring (pos));
+		ret = flush_pos_stop (pos);
+		goto exit;
+	}
+
 	if ((ret = incr_load_count_znode (& right_load, right_lock.node))) {
 		warning ("jmacd-61426", "zload failed: %d", ret);
 		goto exit;
 	}
 
+	/* Set a coordinate to the after last item in node before we squeeze it.  After
+	 * squeezing, we will know whether any items were shifted by checking if this
+	 * coordinate is still after the last item. */
 	coord_init_after_last_item (& at_right, node);
 
 	assert ("jmacd-7866", ! node_is_empty (right_lock.node));
 
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] before right neighbor %s\n", call_depth, flush_znode_tostring (right_lock.node));
 
-	/* We found the right znode (and locked it), now squeeze from right into
-	 * current node position. */
+	/* We found the right znode (and locked it), now squeeze from right into current
+	 * node position. */
 	if ((ret = squalloc_right_neighbor (node, right_lock.node, pos)) < 0) {
 		warning ("jmacd-61427", "squalloc_right_neighbor failed: %d", ret);
 		goto exit;
 	}
 
-	unallocated_below = ! coord_is_after_rightmost (& at_right);
+	/* Now check whether there are shifted nodes below this level using the coordinate
+	 * set prior to squeezing.  */
+	shifted_nodes_below = ! coord_is_after_rightmost (& at_right);
 
-	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after right neighbor %s: unallocated_below = %u\n",
-		  call_depth, flush_znode_tostring (right_lock.node), unallocated_below);
+	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after right neighbor %s: shifted_nodes_below = %u\n",
+		  call_depth, flush_znode_tostring (right_lock.node), shifted_nodes_below);
 
-	/* unallocated_below may be true but we still may have allocated to the end of a twig
-	 * (via extent_copy_and_allocate), in which case we should unset it. */
-	if (unallocated_below && node == pos->parent_coord.node) {
+	/* In general, shifted_nodes_below indicates whether we should stop the upward
+	 * recursion now because, after shifting, this node is the common parent of the
+	 * level below and the level below's right neighbor.  However, there is one case
+	 * where we unset shifted_nodes_below, that is if all the shifted nodes were
+	 * unformatted nodes that were allocated during shifting by
+	 * extent_copy_and_allocated.
+	 *
+	 * We are only interested if this node is the current parent_coord->node. Here,
+	 * check if everything that was shifted is an extent item.  If we reach a
+	 * non-extent item then leave the parent_coord at that position--its our next
+	 * flush position.  Otherwise, unset shifted_nodes_below. */
+	if (shifted_nodes_below && node == pos->parent_coord.node) {
 
 		assert ("jmacd-1732", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 		/*trace_if (TRACE_FLUSH_VERB, print_coord ("present coord", & pos->parent_coord, 0));*/
 
-		/* We reached this point because we were at the end of a twig, and now we
-		 * have shifted new contents into that twig.  Skip past any allocated
-		 * extents.  If we are still at the end of the node, unset unallocated_below. */
 		coord_next_unit (& pos->parent_coord);
 
 		/*trace_if (TRACE_FLUSH_VERB, print_coord ("after next_unit", & pos->parent_coord, 0));*/
@@ -1594,28 +1650,40 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		}
 
 		if (! coord_is_existing_unit (& pos->parent_coord)) {
-			unallocated_below = 0;
+			/* All the shifted nodes were allocated -- so unset
+			 * shifted_nodes_below. */
+			shifted_nodes_below = 0;
 		}
 
-		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after (shifted & unformatted): unallocated_below = %u: %s\n", call_depth, unallocated_below, flush_pos_tostring (pos));
+		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after (shifted & unformatted): shifted_nodes_below = %u: %s\n",
+			  call_depth, shifted_nodes_below, flush_pos_tostring (pos));
 	}
 
 	/* The next two if-stmts depend on call_depth, which is initially set to
-	 * is_unformatted because when allocating for unformatted nodes the first call is
+	 * on_twig_level because when allocating for unformatted nodes the first call is
 	 * effectively at level 1: */
 
-	/* If we emptied the right node and we are unconcerned with allocation at the
-	 * level below. */
-	if ((unallocated_below == 0 || call_depth == 0) && node_is_empty (right_lock.node)) {
+	/* We are concerned with shifted_nodes_below because a lower tree-level in the
+	 * recursion called us thinking that its node and right neighbor have different
+	 * parents.  Now, if we shifted anything it means the lower-level's "same parent"
+	 * test is true now, meaning we should stop the recursion.
+	 *
+	 * So, if the test for (shifted_nodes_below == 0 || call_depth == 0) is true, it
+	 * indicates that there is no reason to stop the recursion.  If there is no reason
+	 * to stop the recursion and the right node was completely emptied, then we should
+	 * squeeze the next right node (after the empty right node is removed from the
+	 * tree, i.e., after we release right_lock). */
+	if ((shifted_nodes_below == 0 || call_depth == 0) && node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_load_count (& right_load);
 		done_lh (& right_lock);
 		goto RIGHT_AGAIN;
 	}
 
-	/* If anything is shifted at an upper level, we should not allocate any further
-	 * because the child is no longer rightmost. */
-	if (unallocated_below && call_depth > 0) {
+	/* If anything was shifted and we are not at zero call depth, it indicates that
+	 * the current node is now the common parent of the level below.  If that is true,
+	 * we should continue allocating below us, stop the recursion and return here. */
+	if (shifted_nodes_below && call_depth > 0) {
 		ret = 0;
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] shifted & not leaf: %s\n", call_depth, flush_pos_tostring (pos));
 		goto exit;
@@ -1623,14 +1691,17 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	assert ("jmacd-18231", ! node_is_empty (right_lock.node));
 
-	/* Here we still have the right node locked, current node is full, ready to shift
-	 * positions, but first we have to check for ancestor changes and squeeze going
-	 * upward. */
+	/* We still have the right node locked and nothing more could be shifted out of
+	 * the right node.  So as far as this invocation of flush is concerned, we have
+	 * decided what the node's right neighbor is.  At this point we check whether the
+	 * node and its right neighbor have the same parent.  If they do NOT have the same
+	 * parent then we recurse upwards, squeezing the level above and allocating any of
+	 * the right's ancestors before we allocate the right node below, after the
+	 * recursive call (on the way back down). */
 	if (! (same_parents = znode_same_parents (node, right_lock.node))) {
 
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] before (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 
-		/* Recurse upwards on parent of node. */
 		if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_WRITE_LOCK, 0))) {
 			/* FIXME(C): check ENAVAIL, EINVAL, EDEADLK */
 			warning ("jmacd-61428", "reiser4_get_parent failed: %d", ret);
@@ -1652,22 +1723,14 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* Now finished with node. */
 	/* JF_CLR (node, JNODE_FLUSH_BUSY) */
 
-	/* No reason to hold onto the node data now, can release it early.  Okay to call
-	 * done_load_count twice. */
+	/* No reason to hold onto the node data now, can release it early. */
 	done_load_count (& node_load);
 
-	/* NOTE: A possible optimization is to avoid locking the right_parent here.  It
-	 * requires handling three cases, however, which makes it more complex than I want
-	 * to implement right now.  (1) Same parents (no recursion) case, lift the above
-	 * get_parent call outside the preceding (! same_parents) condition and allocate
-	 * the right node here. (2) Pass the right child into the recursive call and
-	 * allocate when the right neighbor (its parent) is locked in the call above, but
-	 * (3) handle the case where the right child is shifted so that they have same
-	 * parents after shifting. */
-
-	/* Allocate the right node. */
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to allocate right %s\n", call_depth, flush_znode_tostring (right_lock.node));
 
+	/* Allocate the right node if it was not already allocated.  We already checked if
+	 * the right node was flushprepped above, before squeezing, so why check it now?
+	 * Why not?  The call to flush_allocate_znode acquires a spinlock */
 	if (! znode_check_flushprepped (right_lock.node)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
@@ -1681,6 +1744,9 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		}
 	}
 
+	/* That's it!  We made it through the most complex routine in the entire flush
+	 * algorithm.  If you were reading these comments and understood them,
+	 * congratulate yourself. :) */
 	ret = 0;
  exit:
 	done_load_count (& node_load);
@@ -1690,6 +1756,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	done_lh (& parent_lock);
 	return ret;
 }
+
+/********************************************************************************
+ * SQUEEZE CODE
+ ********************************************************************************/
 
 /* Squeeze and allocate the right neighbor.  This is called after @left and
  * its current children have been squeezed and allocated already.  This
@@ -2331,31 +2401,8 @@ static int flush_empty_queue (flush_position *pos)
 
 		assert ("jmacd-71236", jnode_check_flushprepped (check));
 
-		/* Skip if the node is still busy (i.e., its children are being squalloced). */
-		/* FIXME: JMACD->?: This is dead code now that FLUSH_BUSY is no longer
-		 * needed--someone should remove it, but it is retained in case
-		 * JNODE_FLUSH_BUSY is needed again. */
-		/*if (JF_ISSET (check, JNODE_FLUSH_BUSY)) {
-
-			if (finish == 0) {
-				if ( flushed >= flush_get_params()->written_threshold ) {
-		                      *//* If we have already flushed some amount of
-					 * jnodes, we return now in hope that this jnode
-					 * will be cleaned next time we are called */
-		                      /*break;
-				}
-
-				refill++;
-
-				trace_on (TRACE_FLUSH, "flush_empty_queue refills busy %s\n", flush_jnode_tostring (check));
-				continue;
-			}
-
-			JF_CLR (check, JNODE_FLUSH_BUSY);
-		} else*/ {
-			/* Increase number of flushed jnodes */
-			flushed ++;
-		}
+		/* Increase number of flushed jnodes */
+		flushed ++;
 
 		/* FIXME(E): JMACD->ZAM: I think that WANDER nodes should never be put in the
 		 * queue at all, they should simply be ignored by jnode_flush_queue or
@@ -2368,7 +2415,6 @@ static int flush_empty_queue (flush_position *pos)
 
 			trace_on (TRACE_FLUSH, "flush_empty_queue skips wandered %s\n", flush_jnode_tostring (check));
 			continue;
-
 		}
 
 		ret = jload (check);
@@ -2382,19 +2428,11 @@ static int flush_empty_queue (flush_position *pos)
 		spin_unlock_jnode (check);
 		assert ("jmacd-78199", cpage != NULL);
 
-		if (PageWriteback (cpage)) {
-			/* FIXME: It is being written, presumably it is clean already?  In
-			 * any case, deal with it later. */
-			/* FIXME-ZAM: This situation should be impossible with
-			 * new flush queue implementation */
-			/* FIXME: JMACD->ZAM: So this should be an assertion, right?  If so, this if-block should be removed. */
-			unlock_page (cpage);
+		/* ZAM writes: This situation should be impossible with new flush queue
+		 * implementation */
+		assert ("jmacd-89162", ! PageWriteback (cpage));
 
-			flush_dequeue_jnode (pos, check);
-			warning ("jmacd-74232", "flush_empty_queue: page in writeback already: %s", flush_jnode_tostring (check));
-			continue;
-
-		} else {
+		if (1) {
 
 			/* Find consecutive nodes. */
 			struct bio *bio;
@@ -3463,7 +3501,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	int ret;
 	jnode *child;
 
-	assert ("jmacd-6078", flush_pos_is_extent (pos));
+	assert ("jmacd-6078", flush_pos_on_twig_level (pos));
 	assert ("jmacd-6079", lock_mode (& pos->point_lock) == ZNODE_NO_LOCK);
 	assert ("jmacd-6080", pos->point_load.d_ref == 0);
 
@@ -3520,7 +3558,7 @@ static int flush_pos_to_parent (flush_position *pos)
 {
 	int ret;
 
-	assert ("jmacd-6078", ! flush_pos_is_extent (pos));
+	assert ("jmacd-6078", ! flush_pos_on_twig_level (pos));
 
 	/* Lock the parent, find the coordinate. */
 	if ((ret = jnode_lock_parent_coord (pos->point, & pos->parent_coord, & pos->parent_lock, & pos->parent_load, ZNODE_WRITE_LOCK))) {
@@ -3540,7 +3578,7 @@ static int flush_pos_to_parent (flush_position *pos)
 	return 0;
 }
 
-static int flush_pos_is_extent (flush_position *pos)
+static int flush_pos_on_twig_level (flush_position *pos)
 {
 	return pos->parent_lock.node != NULL;
 }
@@ -3567,7 +3605,7 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 {
 	int ret;
 
-	if (flush_pos_is_extent (pos)) {
+	if (flush_pos_on_twig_level (pos)) {
 		/* In this case we already have the parent locked. */
 		znode_lock_mode have_mode = lock_mode (& pos->parent_lock);
 

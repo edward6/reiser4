@@ -103,32 +103,6 @@ void internal_down_link( const coord_t *coord /* coord of item */,
 
 
 /**
- * Set if the the child is dirty.
- */
-/* Audited by: green(2002.06.14) */
-int internal_utmost_child_dirty ( const coord_t  *coord,
-				  sideof             side UNUSED_ARG,
-				  int               *is_dirty )
-{
-	jnode* child;
-	int ret;
-
-	assert ("jmacd-2058", is_dirty != NULL); 
-
-	if ((ret = internal_utmost_child (coord, side, & child))) {
-		return ret;
-	}
-
-	if (child == NULL) {
-		*is_dirty = 0;
-	} else {
-		*is_dirty = jnode_check_dirty (child);
-		jput (child);
-	}
-	return 0;
-}
-
-/**
  * Get the child's block number, or 0 if the block is unallocated.
  */
 /* Audited by: green(2002.06.14) */

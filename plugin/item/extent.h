@@ -92,8 +92,6 @@ int           extent_item_data_by_flow (const coord_t *, const flow_t *,
 void          extent_print             (const char *, coord_t *);
 int           extent_utmost_child      (const coord_t *coord, sideof side,
 					jnode **child );
-int           extent_utmost_child_dirty ( const coord_t  *coord,
-					  sideof side, int *is_dirty );
 int           extent_utmost_child_real_block ( const coord_t  *coord,
 					       sideof side,
 					       reiser4_block_nr  *block );
