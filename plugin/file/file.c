@@ -1089,7 +1089,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 
 		PROF_END(prep, prep);
 	}
-	read_amount = f.length;
+	
 	while (f.length) {
 		loff_t cur_offset;
 
