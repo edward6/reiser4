@@ -28,7 +28,8 @@ error_t reiserfs_node_free (reiserfs_node_t *node) {
 
 #ifndef ENABLE_COMPACT
 
-error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,			blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level)
+error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,
+    blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
     int no_node = 0;
     reiserfs_node_t *work_node;
@@ -46,7 +47,7 @@ error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,			blk_
 	work_node = node;
    
     work_node->device = device;
-    work_node->parent = NULL;
+    work_node->parent = parent;
     
     if (!(work_node->block = aal_device_alloc_block(device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -158,18 +159,6 @@ error_t reiserfs_node_close(reiserfs_node_t *node) {
     return 0;
 }
 
-
-
-/*
-error_t reiserfs_node_add(reiserfs_node_t *node, reiserfs_node_t *child) {
-    aal_assert("umka-480", node != NULL, return -1);
-    aal_assert("umka-481", child != NULL, return -1);
-
-    child->parent = node;
-    return 0;
-}
-*/
-
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
 
@@ -196,8 +185,10 @@ int reiserfs_node_lookup(reiserfs_coord_t *coord, reiserfs_key_t *key) {
     if (found == 1)
 	return 1;
 
-    /* We need to lookup in the found item. Check that the key is in 
-       item first */
+    /* 
+	We need to lookup in the found item. Check that the key is in 
+	item first 
+    */
     item.coord = coord;
     if (reiserfs_item_open(&item)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -322,7 +313,7 @@ int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key,
 	return -1;
     }
 
-   /* Insert item or create it if needed */
+    /* Insert item or create it if needed */
     if (item_info->plugin == NULL) {
 	reiserfs_check_method (coord->node->plugin->node, item, return -1);
     
@@ -342,7 +333,8 @@ int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key,
     return 0;
 }
 
-reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, uint16_t pos)
+reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, 
+    uint16_t pos)
 {
     aal_assert("vpf-047", node != NULL, return 0);
     

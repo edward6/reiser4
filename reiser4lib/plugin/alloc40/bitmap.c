@@ -221,7 +221,7 @@ error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap,
 	chunk = (left < aal_device_get_blocksize(bitmap->device) ? left : 
 	    aal_device_get_blocksize(bitmap->device));
 	
-	if (pipe_func && !pipe_func(bitmap->device, blk, map, chunk, NULL))
+	if (pipe_func && pipe_func(bitmap->device, blk, map, chunk, NULL))
 	    return -1;
 		
 	blk = (blk / (aal_device_get_blocksize(bitmap->device) * 8) + 1) * 
@@ -247,7 +247,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_open(aal_device_t *device,
     bitmap->start = start;
     bitmap->device = device;
 	
-    if (!reiserfs_bitmap_pipe(bitmap, callback_bitmap_fetch, NULL))
+    if (reiserfs_bitmap_pipe(bitmap, callback_bitmap_fetch, NULL))
 	goto error_free_bitmap;
 
     if (!(bitmap->used_blocks = reiserfs_bitmap_calc_used(bitmap)))
@@ -339,8 +339,8 @@ error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap,
     int size;
     blk_t i, bmap_old_blknr, bmap_new_blknr;
 	
-    aal_assert("umka-350", bitmap != NULL, return 0);
-    aal_assert("umka-351", end - start > 0, return 0);
+    aal_assert("umka-350", bitmap != NULL, return -1);
+    aal_assert("umka-351", end - start > 0, return -1);
 	
     if ((size = reiserfs_bitmap_resize_map(bitmap, start, end)) - 
 	    bitmap->size == 0)
@@ -373,7 +373,7 @@ blk_t reiserfs_bitmap_copy(reiserfs_bitmap_t *dest_bitmap,
     if (!len) 
 	return 0;
 	
-    if (!reiserfs_bitmap_resize(dest_bitmap, 0, (len > src_bitmap->total_blocks ? 
+    if (reiserfs_bitmap_resize(dest_bitmap, 0, (len > src_bitmap->total_blocks ? 
 	    src_bitmap->total_blocks : len)))
         return 0;
 	
@@ -399,7 +399,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_clone(reiserfs_bitmap_t *bitmap) {
 
 error_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap) {
 
-    if (!reiserfs_bitmap_pipe(bitmap, callback_bitmap_flush, NULL))
+    if (reiserfs_bitmap_pipe(bitmap, callback_bitmap_flush, NULL))
 	return -1;
 
     return 0;

@@ -97,18 +97,20 @@ static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
     return NULL;
 }
 
-static reiserfs_format36_t *reiserfs_format36_open(aal_device_t *device) {
+static reiserfs_format36_t *reiserfs_format36_open(aal_device_t *host_device, 
+    aal_device_t *journal_device) 
+{
     reiserfs_format36_t *format;
 
-    aal_assert("umka-380", device != NULL, return NULL);    
+    aal_assert("umka-380", host_device != NULL, return NULL);    
 	
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
 		
-    if (!(format->super = reiserfs_format36_super_open(device)))
+    if (!(format->super = reiserfs_format36_super_open(host_device)))
 	goto error_free_format;
 	
-    format->device = device;
+    format->device = host_device;
     return format;
 
 error_free_format:
@@ -130,8 +132,8 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
     return 0;
 }
 
-static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
-    count_t blocks)
+static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *host_device, 
+    count_t blocks, aal_device_t *journal_device, reiserfs_params_opaque_t *params)
 {
     return NULL;
 }
@@ -189,9 +191,19 @@ static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
     return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device));
 }
 
-static reiserfs_opaque_t *reiserfs_format36_alloc(reiserfs_format36_t *format) {
+static reiserfs_opaque_t *reiserfs_format36_journal(reiserfs_format36_t *format) {
     aal_assert("umka-488", format != NULL, return 0);
+    return format->journal;
+}
+
+static reiserfs_opaque_t *reiserfs_format36_alloc(reiserfs_format36_t *format) {
+    aal_assert("umka-506", format != NULL, return 0);
     return format->alloc;
+}
+
+static reiserfs_opaque_t *reiserfs_format36_oid(reiserfs_format36_t *format) {
+    aal_assert("umka-507", format != NULL, return 0);
+    return format->oid;
 }
 
 static blk_t reiserfs_format36_get_root(reiserfs_format36_t *format) {
@@ -234,10 +246,10 @@ static reiserfs_plugin_t format36_plugin = {
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))reiserfs_format36_open,
 	
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))
-	    reiserfs_format36_create,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, 
+	    aal_device_t *, reiserfs_params_opaque_t *))reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_sync,
@@ -246,7 +258,6 @@ static reiserfs_plugin_t format36_plugin = {
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format36_format,
 
 	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_offset,
-	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format36_alloc,
 	
 	.get_root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_root,
 	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_format36_set_root,
@@ -265,6 +276,10 @@ static reiserfs_plugin_t format36_plugin = {
 	
 	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_oid_plugin,
+	
+	.journal = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format36_journal,
+	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format36_alloc,
+	.oid = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format36_oid,
     }
 };
 

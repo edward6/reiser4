@@ -26,7 +26,7 @@ extern "C" {
 #include <aal/aal.h>
 
 #include "filesystem.h"
-#include "super.h"
+#include "format.h"
 #include "journal.h"
 #include "alloc.h"
 #include "plugin.h"

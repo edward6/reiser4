@@ -45,9 +45,9 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
     aal_assert("umka-143", fs != NULL, return -1);
     
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
-    aal_device_set_blocksize(fs->device, REISERFS_DEFAULT_BLOCKSIZE);
+    aal_device_set_blocksize(fs->host_device, REISERFS_DEFAULT_BLOCKSIZE);
 	
-    if (!(block = aal_device_read_block(fs->device, master_offset))) {
+    if (!(block = aal_device_read_block(fs->host_device, master_offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't read master super block at %llu.", master_offset);
 	return -1;
@@ -64,11 +64,11 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	    goto error_free_block;
 		
 	reiserfs_check_method(format36->format, probe, goto error_free_block);
-	if (!format36->format.probe(fs->device))
+	if (!format36->format.probe(fs->host_device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	if (reiserfs_master_create(fs, 0x1, aal_device_get_blocksize(fs->device), "", "")) {
+	if (reiserfs_master_create(fs, 0x1, aal_device_get_blocksize(fs->host_device), "", "")) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
 		"master super block in order to open reiser3 filesystem.");
 	    goto error_free_block;
@@ -80,7 +80,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	
 	aal_memcpy(fs->master, master, sizeof(*master));
 	
-	if (aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
+	if (aal_device_set_blocksize(fs->host_device, get_mr_block_size(master))) {
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 		"Invalid block size detected %u. It must be power of two.", 
 		get_mr_block_size(master));
@@ -108,11 +108,11 @@ static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-145", fs->master != NULL, return -1);
 
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
-    if (!(block = aal_device_alloc_block(fs->device, master_offset, 0)))
+    if (!(block = aal_device_alloc_block(fs->host_device, master_offset, 0)))
 	return -1;
     
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
-    if (aal_device_write_block(fs->device, block)) {
+    if (aal_device_write_block(fs->host_device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize master super block at %llu.", 
 	    master_offset);
@@ -141,27 +141,28 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 
-    fs->device = host_device;
+    fs->host_device = host_device;
+    fs->journal_device = journal_device;
 
     if (reiserfs_master_open(fs))
 	goto error_free_fs;
 	    
-    if (reiserfs_super_open(fs))
+    if (reiserfs_format_open(fs))
 	goto error_free_master;
 
-    if (reiserfs_alloc_open(fs))
+    if (reiserfs_alloc_init(fs))
 	goto error_free_super;
 	
     if (journal_device) {
 	aal_device_set_blocksize(journal_device, reiserfs_fs_blocksize(fs));
 
-	if (reiserfs_super_journal_plugin_id(fs) != -1 && 
-		reiserfs_journal_open(fs, journal_device, replay))
+	if (reiserfs_format_journal_plugin_id(fs) != -1 && 
+		reiserfs_journal_init(fs, replay))
 	    goto error_free_alloc;
 	
 	/* Reopening recent superblock */
 	if (replay) {
-	    if (reiserfs_super_reopen(fs))
+	    if (reiserfs_format_reopen(fs))
 		goto error_free_journal;
 	}
     }
@@ -177,7 +178,7 @@ error_free_journal:
 error_free_alloc:
     reiserfs_alloc_close(fs);
 error_free_super:
-    reiserfs_super_close(fs);
+    reiserfs_format_close(fs);
 error_free_master:
     reiserfs_master_close(fs);
 error_free_fs:
@@ -208,24 +209,25 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 	
-    fs->device = host_device;
+    fs->host_device = host_device;
+    fs->journal_device = journal_device;
 
     if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
 	goto error_free_fs;
 
-    if (reiserfs_super_create(fs, format_plugin_id, len))
+    if (reiserfs_format_create(fs, format_plugin_id, len, journal_params))
 	goto error_free_master;
 
-    if (reiserfs_alloc_create(fs, len))
+    if (reiserfs_alloc_init(fs))
 	goto error_free_super;
 
-    if (reiserfs_journal_create(fs, journal_device, journal_params))
+    if (reiserfs_journal_init(fs, 0))
 	goto error_free_alloc;
 
     if (reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_journal;
     
-    reiserfs_super_set_free(fs, reiserfs_alloc_free(fs));
+    reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
     return fs;
 
 error_free_journal:
@@ -233,7 +235,7 @@ error_free_journal:
 error_free_alloc:
     reiserfs_alloc_close(fs);
 error_free_super:
-    reiserfs_super_close(fs);
+    reiserfs_format_close(fs);
 error_free_master:
     reiserfs_master_close(fs);    
 error_free_fs:
@@ -247,14 +249,12 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
    
     if (reiserfs_master_sync(fs))
 	return -1;
-
-    if (reiserfs_super_sync(fs))
-	return -1;
-
-    if (fs->journal && reiserfs_journal_sync(fs))
-	return -1;
-
-    if (reiserfs_alloc_sync(fs))
+    
+    /* 
+	As format is owner of all objects (oid allocator, block allocator),
+	journal, it will sync they itself.
+    */
+    if (reiserfs_format_sync(fs))
 	return -1;
 
     if (reiserfs_tree_sync(fs))
@@ -278,13 +278,13 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
 	reiserfs_journal_close(fs);
 	
     reiserfs_alloc_close(fs);
-    reiserfs_super_close(fs);
+    reiserfs_format_close(fs);
     reiserfs_master_close(fs);
     aal_free(fs);
 }
 
 const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
-    return reiserfs_super_format(fs);
+    return reiserfs_format_format(fs);
 }
 
 reiserfs_plugin_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {

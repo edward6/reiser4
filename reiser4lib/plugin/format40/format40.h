@@ -57,7 +57,9 @@ struct reiserfs_format40 {
     aal_device_t *device;
     aal_block_t *super;
 
+    reiserfs_opaque_t *journal;
     reiserfs_opaque_t *alloc;
+    reiserfs_opaque_t *oid;
 };
 
 typedef struct reiserfs_format40 reiserfs_format40_t;

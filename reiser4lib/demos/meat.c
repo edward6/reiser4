@@ -30,10 +30,10 @@ static void print_fs(reiserfs_fs_t *fs) {
 
     aal_printf("reiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
 	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
-	reiserfs_super_get_blocks(fs), reiserfs_alloc_used(fs), 
+	reiserfs_format_get_blocks(fs), reiserfs_alloc_used(fs), 
 	reiserfs_alloc_free(fs));
     
-    print_plugin(fs->super->plugin);
+    print_plugin(fs->format->plugin);
     
     if (fs->journal)
 	print_plugin(fs->journal->plugin);

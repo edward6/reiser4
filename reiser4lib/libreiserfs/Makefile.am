@@ -19,7 +19,7 @@ else
 libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la @LIBREISERFS_LIBS@
 endif
 
-libreiserfs_la_SOURCES  = libreiserfs.c filesystem.c super.c journal.c \
+libreiserfs_la_SOURCES  = libreiserfs.c filesystem.c format.c journal.c \
 			  alloc.c tools.c plugin.c node.c path.c item.c \
 			  tree.c hack.c key.c
 

@@ -22,6 +22,7 @@ extern error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,
 /* plugin_id must be specified for 3.x format */
 extern error_t reiserfs_node_open(reiserfs_node_t *node, aal_device_t *device, 
     blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id);
+
 extern error_t reiserfs_node_close(reiserfs_node_t *node);
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 extern error_t reiserfs_node_sync(reiserfs_node_t *node);
@@ -44,9 +45,8 @@ extern void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos);
 extern int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key,
     reiserfs_item_info_t *item, reiserfs_plugin_id_t id);
 
-extern reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, uint16_t pos);
-
-//extern error_t reiserfs_node_add(reiserfs_node_t *node, reiserfs_node_t *child);
+extern reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, 
+    uint16_t pos);
 
 #define reiserfs_node(node)	    ((reiserfs_node_t *)node)
 #define reiserfs_node_block(node)   (reiserfs_node(node)->block)

@@ -4,8 +4,8 @@
     Author Yury Umanets.
 */
 
-#ifndef FILE_DEVICE_H
-#define FILE_DEVICE_H
+#ifndef FILE_H
+#define FILE_H
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>

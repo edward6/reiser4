@@ -40,12 +40,7 @@ aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize,
 }
 
 void aal_device_close(aal_device_t *device) {
-
     aal_assert("umka-430", device != NULL, return);
-    
-    if (!device) 
-	return;
-	
     aal_free(device);
 }
 

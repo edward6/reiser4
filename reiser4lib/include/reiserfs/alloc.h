@@ -11,10 +11,7 @@
 #include <reiserfs/filesystem.h>
 #include <reiserfs/plugin.h>
 
-extern error_t reiserfs_alloc_open(reiserfs_fs_t *fs);
-
-extern error_t reiserfs_alloc_create(reiserfs_fs_t *fs, 
-    count_t blocks);
+extern error_t reiserfs_alloc_init(reiserfs_fs_t *fs);
 
 extern error_t reiserfs_alloc_sync(reiserfs_fs_t *fs);
 extern void reiserfs_alloc_close(reiserfs_fs_t *fs);

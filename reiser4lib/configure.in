@@ -50,7 +50,7 @@ fi
 
 AC_ARG_ENABLE(monolithic,
     [  --enable-monolithic        build in monolithic maner (with builtin plugins) [default=no]], ,
-        enable_monolithic=no
+        enable_monolithic=yes
 )
 
 if test x$enable_monolithic = xyes; then

@@ -34,12 +34,14 @@ typedef struct reiserfs_master reiserfs_master_t;
 /* Default plugins structure */
 struct reiserfs_default_plugin {
     reiserfs_plugin_id_t node;
+    
     struct item_plugins {
 	reiserfs_plugin_id_t internal;
 	reiserfs_plugin_id_t stat;
 	reiserfs_plugin_id_t dir_item;
 	reiserfs_plugin_id_t file_item;
     } item;
+    
     reiserfs_plugin_id_t file;
     reiserfs_plugin_id_t dir;
     reiserfs_plugin_id_t hash;
@@ -61,11 +63,7 @@ struct reiserfs_node {
     aal_block_t *block;
     reiserfs_plugin_t *plugin;
     reiserfs_node_t *parent;
-    
     reiserfs_opaque_t *entity;
-
-    /* we do not need this list at all, as all childs available from block */
-    aal_list_t *childs;
 };
 
 struct reiserfs_coord {
@@ -81,55 +79,27 @@ struct reiserfs_path {
     void *data;			/* user specified per-path data */
 };
 
-/* Super block structure */
-struct reiserfs_super {
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_super reiserfs_super_t;
-
-/* Journal structure */
-struct reiserfs_journal {
-    aal_device_t *device;
-    
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_journal reiserfs_journal_t;
-
-/* Allocator structure */
-struct reiserfs_alloc {
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_alloc reiserfs_alloc_t;
-
 struct reiserfs_node_common_header {
     uint16_t plugin_id; 
 };
 
 typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
 
-
-
 /*
-This structure differs from others and I think we should move others to 
-the same form. 
-1. It is useless complicity to have opaque structures which encapsulate 
-   information available on the api level like blocks, devices, etc.
-2. Opaque structures are useful when we work with e.g. compressed nodes
-   which data shuold be uncompressed first. 
-3. For e.g. not-compressed nodes node plugin open method does just nothing
-   but creates useless structure, which contails the same data as in 
-   the reiserfs_node_t structure. 
-4. Plugins should work with the same structures as api does. E.g. node40 
-   plugin should work with reiserfs_node_t method. If plugin needs it can 
-   create some entity for itself.
-5. As many plugins does not need methods like open/create etc, we get rid 
-   of their implementation. Good.
+    This structure differs from others and I think we should move others to 
+    the same form. 
+    1. It is useless complicity to have opaque structures which encapsulate 
+       information available on the api level like blocks, devices, etc.
+    2. Opaque structures are useful when we work with e.g. compressed nodes
+       which data shuold be uncompressed first. 
+    3. For e.g. not-compressed nodes node plugin open method does just nothing
+       but creates useless structure, which contails the same data as in 
+       the reiserfs_node_t structure. 
+    4. Plugins should work with the same structures as api does. E.g. node40 
+       plugin should work with reiserfs_node_t method. If plugin needs it can 
+       create some entity for itself.
+    5. As many plugins does not need methods like open/create etc, we get rid 
+       of their implementation. Good.
 */
 struct reiserfs_item {
     reiserfs_coord_t *coord;
@@ -148,22 +118,22 @@ struct reiserfs_tree {
 typedef struct reiserfs_tree reiserfs_tree_t;
 
 /* 
-To create a new item or to insert into the item we need to perform the following 
-operations:
-1. Create the description of the data being inserted.
-2. Ask item plugin how much space is needed for the data, described in 1.   
-3. Free needed space for data being inserted.
-4. Ask item plugin to create an item (to paste into the item) on the base of 
-   description from 1.
+    To create a new item or to insert into the item we need to perform the following 
+    operations:
+    1. Create the description of the data being inserted.
+    2. Ask item plugin how much space is needed for the data, described in 1.   
+    3. Free needed space for data being inserted.
+    4. Ask item plugin to create an item (to paste into the item) on the base of 
+       description from 1.
 
-For such purposes we have: 
-1. Fixed description structures for all item types (stat, diritem, internal, etc).
-2. Estimate common item method which gets coord of where to insert into 
-   (NULL or unit_pos == -1 for insertion, otherwise it is pasting) and data 
-   description from 1.
-3. Insert node methods prepare needed space and call Create/Paste item methods if 
-   data description is specified.
-4. Create/Paste item methods if data description has not beed specified on 3. 
+    For such purposes we have: 
+    1. Fixed description structures for all item types (stat, diritem, internal, etc).
+    2. Estimate common item method which gets coord of where to insert into 
+       (NULL or unit_pos == -1 for insertion, otherwise it is pasting) and data 
+       description from 1.
+    3. Insert node methods prepare needed space and call Create/Paste item methods if 
+       data description is specified.
+    4. Create/Paste item methods if data description has not beed specified on 3. 
 */
 
 /* 
@@ -187,8 +157,10 @@ struct reiserfs_internal_info {
 typedef struct reiserfs_internal_info reiserfs_internal_info_t;
 
 struct reiserfs_stat_info {
-/*  These fields should be changed to what proper description of 
-    needed extentions. */
+    /*  
+	These fields should be changed to what proper description of 
+	needed extentions. 
+    */
     uint16_t mode;
     uint16_t extmask;
     uint32_t nlink;
@@ -212,12 +184,37 @@ struct reiserfs_dir_info {
 
 typedef struct reiserfs_dir_info reiserfs_dir_info_t;
 
+/* Format structure */
+struct reiserfs_format {
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_format reiserfs_format_t;
+
+/* Journal structure */
+struct reiserfs_journal {
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_journal reiserfs_journal_t;
+
+/* Allocator structure */
+struct reiserfs_alloc {
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_alloc reiserfs_alloc_t;
+
 /* Filesystem compound structure */
 struct reiserfs_fs {
-    aal_device_t *device;
+    aal_device_t *host_device;
+    aal_device_t *journal_device;
     
     reiserfs_master_t *master;
-    reiserfs_super_t *super;
+    reiserfs_format_t *format;
     reiserfs_journal_t *journal;
     reiserfs_alloc_t *alloc;
     reiserfs_tree_t *tree;
