@@ -1533,11 +1533,12 @@ static int flush_enqueue_point (flush_position *pos)
 	bvec = & pos->bio->bi_io_vec[pos->bio->bi_vcnt++];
 
 	/* FIXME: page-cache HACK!!! */
+/*
 	if (pos->point->pg == NULL) {
 		pos->point->pg = kmalloc (sizeof (struct page), GFP_NOFS);
 		pos->point->pg->virtual = zdata (JZNODE (pos->point));
 	}
-
+*/
 	assert ("jmacd-9921", pos->point->pg != NULL);
 
 	bvec->bv_page   = pos->point->pg;
@@ -1773,11 +1774,12 @@ static int flush_scan_extent_coord (flush_scan *scan, new_coord *coord)
 
 	extent_get_inode_n (coord, & ino);
 
+	ret = 0;
 	if (ino == NULL) {
 		scan->stop = 1;
 		goto exit;
 	}
-	
+
 	do {
 		/* If not allocated, the entire extent must be dirty and in the same atom.
 		 * (Actually, I'm not sure this is properly enforced, but it should be the
