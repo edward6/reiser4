@@ -73,7 +73,7 @@ void print_lock_counters( const char *prefix, lock_counters_info *info )
 {
 	info( "%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i"
 	      "inode: %i, spin: %i, long: %i\n"
-	      "d: %i, i: %i, t: %i\n", prefix,
+	      "d: %i, x: %i, t: %i\n", prefix,
 	      info -> spin_locked_jnode,
 	      info -> spin_locked_tree,
 	      info -> spin_locked_dk,
