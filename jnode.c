@@ -581,9 +581,13 @@ jload_gfp (jnode * node, int gfp_flags)
 	spin_unlock_jload(node);
 
 	if (!loaded) {
-		LOCK_JNODE(node);
 		/* If node is not loaded we need a spin lock to get reliable not
 		 * null jnode_page() result */
+		/* subtle locking point: ->pg pointer is protected by jnode
+		   spin lock, but it is safe to release spin lock here,
+		   because page can be detached from jnode only when ->d_count
+		   is 0, and JNODE_LOADED is not set.
+		*/
 		page = jnode_page(node);
 		/* read data from page cache. Page reference counter is
 		   incremented and page is kmapped, it will kunmapped in
@@ -620,12 +624,6 @@ jload_gfp (jnode * node, int gfp_flags)
 		    smaller (not yet implemented). Pointer to atom?
 
 		*/
-		/* subtle locking point: ->pg pointer is protected by jnode
-		   spin lock, but it is safe to release spin lock here,
-		   because page can be detached from jnode only when ->d_count
-		   is 0, and JNODE_LOADED is not set.
-		*/
-		UNLOCK_JNODE(node);
 		if (likely(page != NULL && !JF_ISSET(node, JNODE_ASYNC))) {
 			load_page(page, node);
 			node->data = page_address(page);
