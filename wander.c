@@ -691,7 +691,7 @@ get_overwrite_set(struct commit_handle *ch)
 ZAM-FIXME-HANS: brief me on why this function exists, and why bios are
 aggregated in this function instead of being left to the layers below
 
-FXIME: ZAM->HANS: What layer are you talking about? Can you point me to that?
+FIXME: ZAM->HANS: What layer are you talking about? Can you point me to that?
 Why that layer needed? Why BIOs cannot be constructed here?
 */
 static int
