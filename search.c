@@ -343,7 +343,7 @@ coord_by_handle(cbk_handle * handle)
 	else
 		return traverse_tree(handle);
 }
-
+/* NIKITA-FIXME-HANS: replace with a macro, the function dereferences must be very expensive for something like readdir() */
 /* Execute actor for each item (or unit, depending on @through_units_p),
    starting from @coord, right-ward, until either: 
   
