@@ -1498,7 +1498,11 @@ try_commit_txnh(commit_data *cd)
 		result = 0;
 
 	assert("jmacd-1027", ergo(result == 0, spin_atom_is_locked(cd->atom)));
-	assert("jmacd-1028", ergo(result != 0, spin_atom_is_not_locked(cd->atom)));
+	/* perfectly valid assertion, except that when atom/txnh is not locked
+	 * fusion can take place, and cd->atom point nowhere. */
+	/*
+	  assert("jmacd-1028", ergo(result != 0, spin_atom_is_not_locked(cd->atom)));
+	*/
 	return result;
 }
 
@@ -2128,14 +2132,13 @@ uncapture_page(struct page *pg)
 	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));*/
 
 	atom = atom_locked_by_jnode(node);
-	UNLOCK_JNODE (node);
 
 	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_check_dirty(node));
+		assert("jmacd-7111", !jnode_is_dirty(node));
+		UNLOCK_JNODE (node);
 		return;
 	}
 
-	LOCK_JNODE(node);
 	/* We can remove jnode from transaction even if it is on flush queue
 	 * prepped list, we only need to be sure that flush queue is not being
 	 * written by write_fq().  write_fq() does not use atom spin lock for
@@ -2334,6 +2337,7 @@ znode_make_dirty(znode * z)
 	struct page *page;
 
 	assert("umka-204", z != NULL);
+	assert("nikita-3290", znode_above_root(z) || znode_is_loaded(z));
 
 	node = ZJNODE(z);
 
@@ -3049,6 +3053,9 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	/* Merge allocated blocks counts */
 	large->nr_blocks_allocated += small->nr_blocks_allocated;
+
+	large->nr_running_queues += small->nr_running_queues;
+	small->nr_running_queues = 0;
 
 	/* Merge blocks reserved for overwrite set. */
 	large->flush_reserved += small->flush_reserved;
