@@ -478,14 +478,16 @@ typedef struct reiser4_statistics {
 	struct {
 		statcnt_t calls;
 		/* satisfied requests */
-		statcnt_t reloc;
-		statcnt_t ovrwr;
-		/* failures */
-		statcnt_t zload_race;
+		statcnt_t ok_uber;
+		statcnt_t ok_clean;
+		statcnt_t ok_ovrwr;
+		statcnt_t ok_reloc;
+		/* refused copy on capture requests */
+		statcnt_t forbidden;
+		statcnt_t reloc_writeback_dirty_fq;
 		statcnt_t scan_race;
 		statcnt_t atom_changed;
-		statcnt_t flush_queued;
-		statcnt_t nopage;
+		statcnt_t nopage_eflush;
 	} coc;
 
 	statcnt_t pages_dirty;
