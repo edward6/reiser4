@@ -1937,8 +1937,8 @@ int node40_shift (tree_coord * from, znode * to,
 #endif	
 	trace_on (TRACE_SHIFT, "shift: [%Li] %s--%s [%Li]: %i\n",
 		  znode_get_block (left) -> blk, 
-		  (shift.pend == SHIFT_APPEND) ? "<" : "",
-		  (shift.pend == SHIFT_APPEND) ? "" : ">",
+		  (shift.pend == SHIFT_LEFT) ? "<" : "",
+		  (shift.pend == SHIFT_LEFT) ? "" : ">",
 		  znode_get_block (right) -> blk, shift.shift_bytes);
 
 	node_check (source, REISER4_NODE_PANIC);
