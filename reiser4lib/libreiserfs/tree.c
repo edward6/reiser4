@@ -137,20 +137,20 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	if (path && !reiserfs_path_append(path, coord))
 	    return 0;
 	
-	if (!(item_info = reiserfs_node_item_info(node, coord->item_pos))) {
+	if (!(item_info = reiserfs_item_open(node, coord->item_pos))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item info from node for item %d.", coord->item_pos);
 	    return 0;
 	}
 
-/*	if (!reiserfs_item_is_internal(item_info))
+	if (!reiserfs_item_is_internal(item_info))
 	    return 1;
 	
-	if (!(from = reiserfs_item_down_link (item_link))) {
+	if (!(from = reiserfs_item_down_link (item_info, coord->unit_pos))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get node in block %lu.", from);
+		"Can't get node in block %llu.", from);
 	    return 1;
-	}*/
+	}
     }
     return 0;
 }

@@ -205,48 +205,6 @@ void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
     return node->plugin->node.set_free_space(node->entity, value);
 }
 
-reiserfs_item_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos) {
-    reiserfs_item_t *info;
-    reiserfs_plugin_id_t plugin_id;
-
-    if (!(info = aal_calloc(sizeof(*info), 0)))
-	return NULL;
-    
-    reiserfs_check_method(node->plugin->node, item_length, return 0);
-    info->length = node->plugin->node.item_length(node->entity, pos); 
-    
-    reiserfs_check_method(node->plugin->node, item_min_key, return 0); 
-    if (!(info->key = node->plugin->node.item_min_key(node->entity, pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't get key of the item (%u) in node (%llu).",
-	    pos, aal_device_get_block_nr(node->device, node->block));
-	goto free_info;
-    }
-
-/*    reiserfs_check_method(node->plugin->node, item, return 0); 
-    if (!(info->data = node->plugin->node.item(node->entity, pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't get item (%lu) in node (%llu).",
-	    pos, aal_device_get_block_nr(node->device, node->block));
-	goto free_info;
-    }
-
-    reiserfs_check_method(node->plugin->node, item_plugin_id, return 0); 
-    plugin_id = node->plugin->node.item_plugin_id(node->entity, pos);
-    
-    if (!(info->plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, info->plugin_id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find item plugin by its id %x.", item_info->plugin_id);
-	    goto free_info;
-    }*/
-    
-    return info;
-
-free_info:
-    aal_free(info);
-    return NULL;
-}
-
 void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos) {
     return NULL;
 }

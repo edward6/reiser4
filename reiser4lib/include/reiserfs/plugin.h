@@ -68,6 +68,7 @@ struct reiserfs_common_item_plugin {
     reiserfs_item_type_id_t item_type;
 
     reiserfs_opaque_t *(*create) (reiserfs_key_t *);
+    reiserfs_opaque_t *(*open) (void *);
 
     int (*add_unit) (reiserfs_opaque_t *, int32_t, 
 	reiserfs_opaque_t *unit_info);
@@ -81,7 +82,7 @@ struct reiserfs_common_item_plugin {
     
     uint32_t (*estimate) (reiserfs_opaque_t *, int32_t,
 	reiserfs_opaque_t *);
-    int (*is_internal) (reiserfs_opaque_t *, reiserfs_plugin_id_t);
+    int (*is_internal) ();
 };
 
 typedef struct reiserfs_common_item_plugin reiserfs_common_item_plugin_t;
@@ -111,7 +112,7 @@ struct reiserfs_stat_ops {
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
 struct reiserfs_internal_ops {
-    blk_t (*down_link) (reiserfs_opaque_t *, int32_t);
+    blk_t (*down_link) (reiserfs_opaque_t *, uint16_t);
     
     /* Check that given internal item contains given pointer. */
     int (*has_pointer_to) (reiserfs_opaque_t *, blk_t);
