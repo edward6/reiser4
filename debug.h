@@ -674,6 +674,8 @@ typedef struct reiser4_statistics {
 		stat_cnt left;
 		/* how many nodes were scanned by flush_scan_right() */
 		stat_cnt right;
+		/* an overhead of MTFLUSH semaphore */
+		stat_cnt slept_in_mtflush_sem;
 	} flush;
 	struct {
 		/* how many carry objects were allocated */
