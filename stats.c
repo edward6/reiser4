@@ -351,6 +351,7 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(node.lookup.pos),
 	DEFINE_STAT_LEVEL_CNT(node.lookup.posrelative),
 	DEFINE_STAT_LEVEL_CNT(node.lookup.samepos),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.nextpos),
 
 	DEFINE_STAT_LEVEL_CNT(time_slept),
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)

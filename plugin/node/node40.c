@@ -458,6 +458,8 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 		ADDSTAT(node, posrelative, 1 << 10);
 	if (left == node->last_lookup_pos)
 		INCSTAT(node, samepos);
+	if (left == node->last_lookup_pos + 1)
+		INCSTAT(node, nextpos);
 	node->last_lookup_pos = left;
 #endif
 

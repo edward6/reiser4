@@ -179,6 +179,7 @@ typedef struct reiser4_level_statistics {
 			statcnt_t pos;
 			statcnt_t posrelative;
 			statcnt_t samepos;
+			statcnt_t nextpos;
 		} lookup;
 	} node;
 	statcnt_t total_hits_at_level;
