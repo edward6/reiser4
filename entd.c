@@ -90,7 +90,7 @@ entd(void *arg)
 		entd_set_comm("!");
 		if (result == 0)
 			entd_flush(super);
-		else
+		else if (result != EINTR)
 			/* some other error */
 			warning("nikita-3099", "Error: %i", result);
 	}

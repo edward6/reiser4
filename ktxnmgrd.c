@@ -100,7 +100,7 @@ ktxnmgrd(void *arg)
 		/* wake up all threads doing umount. See ktxnmgrd_detach(). */
 		kcond_broadcast(&ctx->loop);
 
-		if (result != -ETIMEDOUT && result != 0) {
+		if (result != -ETIMEDOUT && result != -EINTR && result != 0) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
 			continue;
