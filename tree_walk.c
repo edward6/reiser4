@@ -464,11 +464,11 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
  * locked.
  */
 
-int reiser4_get_neighbor (reiser4_lock_handle * result /* lock handle that
-							* points to origin
-							* node we go to
-							* left/right/upward
-							* from */,
+int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
+							  * points to origin
+							  * node we go to
+							  * left/right/upward
+							  * from */,
 			  znode * node,
 			  znode_lock_mode lock_mode /* lock mode {LM_READ,
 						     * LM_WRITE}.*/, 

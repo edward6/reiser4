@@ -53,7 +53,7 @@ typedef enum {
 				 * cache */
 } znode_get_neigbor_flags;
 
-int reiser4_get_neighbor (reiser4_lock_handle * result,
+int reiser4_get_neighbor (reiser4_lock_handle * neighbor,
 			  znode * node, znode_lock_mode lock_mode, int flags);
 
 /* there are wrappers for most common usages of reiser4_get_neighbor() */
