@@ -630,7 +630,7 @@ is_dir_empty(const struct inode *dir)
 	init_lh(&lh);
 
 	result = coord_by_key(tree_by_inode(dir), &de_key, &coord, &lh,
-			      ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0);
+			      ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, 0/*ra_info*/);
 	switch (result) {
 	case CBK_COORD_FOUND:
 		result = iterate_tree(tree_by_inode(dir), &coord, &lh,
@@ -818,7 +818,7 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	if (result != 0)
 		return result;
 	result = coord_by_key(tree_by_inode(inode), &key,
-			      tap->coord, tap->lh, tap->mode, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0);
+			      tap->coord, tap->lh, tap->mode, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, &tap->ra_info);
 	if (result == CBK_COORD_FOUND)
 		result = rewind_right(tap, (int) pos->position.pos);
 	else
@@ -1004,7 +1004,7 @@ common_readdir(struct file *f /* directory file being read */ ,
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
 	/* initialize readdir readahead information */
-	tap.ra_info.flags = RA_READDIR;
+	tap.ra_info.type = RA_READDIR;
 	tap.ra_info.u.readdir.oid = get_inode_oid(inode);
 
 	trace_on(TRACE_DIR | TRACE_VFS_OPS, 

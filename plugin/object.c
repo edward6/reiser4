@@ -166,7 +166,7 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
 	result = coord_by_key(tree, key, coord, lh, lock_mode, 
-			      FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags);
+			      FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags, 0/*ra_info*/);
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
 

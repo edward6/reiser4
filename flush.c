@@ -2729,7 +2729,7 @@ jnode_lock_parent_coord(jnode         * node,
 		if (
 		    (ret =
 		     coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
-				  parent_mode, FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE)) != CBK_COORD_FOUND) {
+				  parent_mode, FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE, 0/*ra_info*/)) != CBK_COORD_FOUND) {
 			return ret;
 		}
 

@@ -976,7 +976,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 	}
 	flags = (mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	result = coord_by_key(tree_by_inode(dir), &entry->key, coord, lh,
-			      mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags);
+			      mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags, 0/*ra_info*/);
 
 	if (result == CBK_COORD_FOUND) {
 		entry_actor_args arg;

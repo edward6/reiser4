@@ -322,7 +322,8 @@ extern void coord_unit_move_to(coord_t * coord, int units);
 lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
 			   coord_t * coord, lock_handle * handle,
 			   znode_lock_mode lock, lookup_bias bias,
-			   tree_level lock_level, tree_level stop_level, __u32 flags);
+			   tree_level lock_level, tree_level stop_level, __u32 flags,
+			   ra_info_t *);
 lookup_result coord_by_hint_and_key(reiser4_tree * tree,
 				    const reiser4_key * key,
 				    coord_t * coord, lock_handle * handle,
@@ -428,6 +429,7 @@ typedef struct cbk_handle {
 	/* flags, passed to the cbk routine. Bits of this bitmask are defined
 	   in tree.h:cbk_flags enum. */
 	__u32 flags;
+	ra_info_t *ra_info;
 } cbk_handle;
 
 extern znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h);

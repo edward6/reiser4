@@ -371,7 +371,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 
 	/* collect statistics on the number of calls to this function which did not get optimized */
 	reiser4_stat_file_add(find_next_item_via_cbk);
-	return coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags | CBK_READA);
+	return coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags, 0/*ra_info*/);
 }
 
 /* plugin->u.file.write_flowom = NULL

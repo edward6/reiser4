@@ -153,7 +153,7 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 	assert("nikita-361", ra != NULL);
 
 	result = coord_by_key(tree, key, coord, lh, ZNODE_WRITE_LOCK,
-			      FIND_EXACT, stop_level, stop_level, flags | CBK_FOR_INSERT);
+			      FIND_EXACT, stop_level, stop_level, flags | CBK_FOR_INSERT, 0/*ra_info*/);
 	switch (result) {
 	default:
 		break;

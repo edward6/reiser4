@@ -288,7 +288,8 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 							 * for has to be between
 							 * @lock_level and
 							 * @stop_level, inclusive */ ,
-			   __u32 flags /* search flags */ )
+			   __u32 flags /* search flags */,
+			   ra_info_t *info /* information about desired tree traversal readahead */)
 {
 	cbk_handle handle;
 	lock_handle parent_lh;
@@ -320,6 +321,8 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 
 	handle.active_lh = lh;
 	handle.parent_lh = &parent_lh;
+	
+	handle.ra_info = info;
 
 	return coord_by_handle(&handle);
 }
@@ -622,7 +625,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (h->result == -EAGAIN)
 		return LOOKUP_REST;
 
-	h->result = zload(active);
+	h->result = zload_ra(active, h->ra_info);
 	if (h->result) {
 		return LOOKUP_DONE;
 	}
