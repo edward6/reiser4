@@ -844,10 +844,10 @@ report_err(void)
 	if (ctx != NULL) {
 		if (ctx->err.code != 0) {
 			int i;
-			printk("code: %i at %s:%i", 
+			printk("code: %i at %s:%i ", 
 			       ctx->err.code, ctx->err.file, ctx->err.line);
 			for (i = 0; i < REISER4_BACKTRACE_DEPTH ; ++ i)
-				printk("%p ", ctx->err.path[i]);
+				printk("0x%p ", ctx->err.path[i]);
 			printk("\n");
 		}
 	}
