@@ -657,9 +657,10 @@ atom_try_commit_locked (txn_atom *atom)
  	 * tmgr semaphore */
 	down (&private->tmgr.commit_semaphore);
 
+
 	do {
 		pre_commit_hook ();
-#if 1
+#ifdef WRITE_LOG
 		ret = alloc_wandered_blocks();
 		if (ret) break;
 
@@ -672,12 +673,12 @@ atom_try_commit_locked (txn_atom *atom)
 	up (&private->tmgr.commit_semaphore);
 
 	if (ret) return ret;
-
+#ifdef WRITE_LOG
 	/* FIXME: force write-back should be here */
 
 	ret = reiser4_flush_logs();
 	if (ret) return ret;
-
+#endif
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);
 
