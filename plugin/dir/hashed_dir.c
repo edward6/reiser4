@@ -61,14 +61,15 @@ int hashed_delete( struct inode *object /* object being deleted */,
 	assert( "nikita-1449", object != NULL );
 
 	xmemset( &entry, 0, sizeof entry );
-	xmemset( &goodby_dots, 0, sizeof goodby_dots );
 
 	entry.obj = goodby_dots.d_inode = object;
+	xmemset( &goodby_dots, 0, sizeof goodby_dots );
 	goodby_dots.d_name.name = ".";
 	goodby_dots.d_name.len = 1;
 	hashed_rem_entry( object, &goodby_dots, &entry );
 
 	entry.obj = goodby_dots.d_inode = parent;
+	xmemset( &goodby_dots, 0, sizeof goodby_dots );
 	goodby_dots.d_name.name = "..";
 	goodby_dots.d_name.len = 2;
 	result = hashed_rem_entry( object, &goodby_dots, &entry );
@@ -370,7 +371,6 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 	assert( "nikita-1130", lh != NULL );
 	assert( "nikita-1128", dir != NULL );
 	assert( "nikita-1129", name != NULL );
-	assert( "nikita-1895", seal != NULL );
 
 	name = &de -> d_name;
 	coord = &reiser4_get_dentry_fsdata( de ) -> entry_coord;
@@ -466,7 +466,7 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 		return -EBUSY;
 	}
 #endif
-	if( !keycmp( args -> key, unit_key_by_coord( coord, &unit_key ) ) ) {
+	if( !keyeq( args -> key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		assert( "nikita-1791", 
 			keycmp( args -> key, 
 				unit_key_by_coord( coord, 

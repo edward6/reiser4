@@ -1180,6 +1180,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	old_context = get_current_context();
 
 	sprintf( dir_name, "Dir-%i", current_pid );
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = dir_name;
 	dentry.d_name.len = strlen( dir_name );
 	SUSPEND_CONTEXT( old_context );
@@ -1741,6 +1742,7 @@ static int call_create (struct inode * dir, const char * name)
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen( name );
 	ret = dir->i_op -> create( dir, &dentry, S_IFREG | 0777 );
@@ -1765,6 +1767,7 @@ static ssize_t call_write (struct inode * inode, const char * buf,
 	SUSPEND_CONTEXT( old_context );
 
 	file.f_dentry = &dentry;
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = inode;
 	result = inode->i_fop->write (&file, buf, count, &offset);
 
@@ -1787,6 +1790,7 @@ static ssize_t call_read (struct inode * inode, char * buf, loff_t offset,
 	SUSPEND_CONTEXT( old_context );
 
 	file.f_dentry = &dentry;
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = inode;
 	result = inode->i_fop->read (&file, buf, count, &offset);
 
@@ -1817,6 +1821,7 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen (name);
 	result = dir->i_op->lookup (dir, &dentry);
@@ -1843,6 +1848,7 @@ static int call_mkdir (struct inode * dir, const char * name)
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen (name);
 	result = dir->i_op->mkdir (dir, &dentry, S_IFDIR | 0777);
@@ -1861,6 +1867,7 @@ static int call_readdir_common (struct inode * dir, const char *prefix,
 
 
 	xmemset (&file, 0, sizeof (struct file));
+	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
 	readdir (prefix, &file, flags);
@@ -3110,6 +3117,7 @@ int real_main( int argc, char **argv )
 
 		super.s_op = &reiser4_super_operations;
 		super.s_root = &root_dentry;
+		xmemset( &root_dentry, 0, sizeof root_dentry );
 
 		super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 					       GFP_KERNEL);

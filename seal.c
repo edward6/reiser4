@@ -196,7 +196,7 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 		return -EAGAIN;
 	}
 
-	result = zparse( node );
+	result = zload( node );
 	if( result != 0 )
 		return result;
 	

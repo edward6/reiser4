@@ -261,7 +261,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 {
 	int result;
 	reiser4_key key;
-	tree_coord coord;
+	tree_coord *coord;
 	reiser4_item_data  data;
 	const char *error_message;
 	reiser4_inode_info *state;
@@ -273,22 +273,24 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	if( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA )
 		return -ENOENT;
 
-	init_coord( &coord );
 	init_lh( &lh );
 
 	state = reiser4_inode_data( inode );
+	coord = &state -> sd_coord;
 
 	if( seal_is_set( &state -> sd_seal ) ) {
 		/* first, try to use seal */
-		result = seal_validate( &state -> sd_seal, &coord, 
+		build_sd_key( inode, &key );
+		result = seal_validate( &state -> sd_seal, coord, 
 					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
 					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
-		if( result == 0 )
-			dup_coord( &state -> sd_coord, &coord );
-	}
+	} else
+		result = -EAGAIN;
 
-	if( result != 0 )
-		result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
+	if( result != 0 ) {
+		init_coord( coord );
+		result = lookup_sd( inode, ZNODE_WRITE_LOCK, coord, &lh, &key );
+	}
 	error_message = NULL;
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
@@ -307,7 +309,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		}
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
-		data.length = state -> sd_len - item_length_by_coord( &coord );
+		data.length = state -> sd_len - item_length_by_coord( coord );
 
 		/* if on-disk stat data is of different length than required
 		   for this inode, resize it */
@@ -316,7 +318,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			/*
 			 * FIXME-NIKITA resize can create new item.
 			 */
-			result = resize_item( &coord, &data, &key,
+			result = resize_item( coord, &data, &key,
 					      0/*FIXME-NIKITA lh?*/, 
 					      0/*flags*/ );
 			switch( result ) {
@@ -336,22 +338,17 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		}
 		if( result == 0 ) {
 			assert( "nikita-729", 
-				item_length_by_coord( &coord ) == state -> sd_len );
-			area = item_body_by_coord( &coord );
+				item_length_by_coord( coord ) == state -> sd_len );
+			area = item_body_by_coord( coord );
 			result = state -> sd -> s.sd.save( inode, &area );
 			/* re-initialise stat-data seal */
-			seal_init( &state -> sd_seal, &coord, &key );
-			/* 
-			 * possibly coord changed during resizing. Update
-			 * sd_coord.
-			 */
-			dup_coord( &state -> sd_coord, &coord );
+			seal_init( &state -> sd_seal, coord, &key );
 		} else {
 			key_warning( error_message, &key, result );
 		}
 	}
 	done_lh( &lh );
-	done_coord( &coord );
+	done_coord( coord );
 	return result;
 }
 
