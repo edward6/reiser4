@@ -16,25 +16,18 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
-extern int hashed_init(struct inode *object,
-		       struct inode *parent, reiser4_object_create_data *);
+extern int hashed_init(struct inode *object, struct inode *parent, reiser4_object_create_data *);
 extern int hashed_done(struct inode *object);
 extern int hashed_owns_item(const struct inode *inode, const coord_t * coord);
-extern file_lookup_result hashed_lookup(struct inode *inode,
-					struct dentry *dentry);
+extern file_lookup_result hashed_lookup(struct inode *inode, struct dentry *dentry);
 /*					     const struct qstr *name, name_t *,
 					     reiser4_key *key, 
 					     reiser4_dir_entry_desc *entry );*/
 extern int hashed_rename(struct inode *old_dir,
-			 struct dentry *old_name,
-			 struct inode *new_dir, struct dentry *new_name);
+			 struct dentry *old_name, struct inode *new_dir, struct dentry *new_name);
 extern int hashed_add_entry(struct inode *object,
-			    struct dentry *where,
-			    reiser4_object_create_data *,
-			    reiser4_dir_entry_desc * entry);
-extern int hashed_rem_entry(struct inode *object,
-			    struct dentry *where,
-			    reiser4_dir_entry_desc * entry);
+			    struct dentry *where, reiser4_object_create_data *, reiser4_dir_entry_desc * entry);
+extern int hashed_rem_entry(struct inode *object, struct dentry *where, reiser4_dir_entry_desc * entry);
 extern reiser4_block_nr	  hashed_estimate_rename(
 					     struct inode  *old_dir,
 					     struct dentry *old_name,
