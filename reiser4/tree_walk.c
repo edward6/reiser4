@@ -36,6 +36,10 @@
 static int lock_neighbor (reiser4_lock_handle * result, 
 			  znode * node, /* source node? */
 			  int dir, /* I have no understanding of why this is named this, and it seems like it should be more strongly typed. -Hans */
+			           /* I don't have strong objections to the lack of strong types, but I agree that the
+				    * name is very bad.  Reame "dir" to "field_offset", perhaps?  You could do it w/
+				    * strong types by passing a function pointer, or by passing an enumerated type
+				    * value, then using a switch() to select the field based on that. -josh */
 			  znode_lock_mode mode,
 			  znode_lock_request req,
 			  int only_connected_p)
@@ -80,8 +84,6 @@ static int lock_neighbor (reiser4_lock_handle * result,
 
 		/* znode was locked by mistake; unlock it and restart locking
 		 * process from beginning. */
-		/* FIXME_JMACD This is a case where we might write-lock a node but not modify it.
-		 * This supports the need for an explicit node_was_modified() method. -josh */
 		spin_unlock_tree(tree);
 		reiser4_unlock_znode(result);
 		spin_lock_tree(tree);

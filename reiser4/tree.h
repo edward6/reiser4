@@ -26,6 +26,7 @@ typedef struct cbk_cache_slot {
 	/** cached node */
 	znode            *node;
 	/** linkage to the next cbk cache slot in a LRU order */
+	/* FIXME_JMACD: Why not use the type safe list here? */
 	struct list_head  lru_chain;
 } cbk_cache_slot;
 
@@ -46,7 +47,7 @@ typedef struct cbk_cache_slot {
  * out of it.
  *
  * Tree spin lock is used to protect coord cache. If contention for this
- * lock proves to be too high, more finer gained locking can be added.
+ * lock proves to be too high, more finer grained locking can be added.
  *
  */
 typedef struct cbk_cache {
