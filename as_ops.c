@@ -319,14 +319,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2258", node != NULL);
 
 #if REISER4_STATS
-	{
-		reiser4_context __ctx;
-
-		init_context(&__ctx, page->mapping->host->i_sb);
-		++get_super_private(page->mapping->host->i_sb)->
-			stats.level[jnode_get_level(node) - LEAF_LEVEL].page_try_release;
-		reiser4_exit_context(&__ctx);
-	}
+	++get_super_private(page->mapping->host->i_sb)->
+		stats.level[jnode_get_level(node) - LEAF_LEVEL].page_try_release;
 #endif
 
 	/* is_page_cache_freeable() check 
