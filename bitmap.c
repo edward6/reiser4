@@ -10,6 +10,33 @@
    logical bitmap number @bmap */
 extern block_nr reiser4_get_bmap_blocknr (int bmap);
 
+/* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
+ * blocks loading/unloading which is different from v3.x where all bitmap
+ * blocks are loaded at mount time.
+ *
+ * To implement bitmap blocks unloading we need to count bitmap block usage
+ * and detect currently unused blocks allowing them to be unloaded. It is not
+ * a simple task since we allow several threads to modify one bitmap block
+ * simultaneously.
+ *
+ * Briefly speaking, the following schema is proposed: we count in special
+ * variable associated with each bitmap block. That is for counting of block
+ * alloc/dealloc operations on that bitmap block. With a deferred block
+ * deallocation feature of reiser4 all those operation will be represented in
+ * atom dirty/deleted lists as jnodes for freshly allocated or deleted
+ * nodes. 
+ *
+ * So, we increment usage counter for each new node allocated or deleted, and
+ * decrement it at atom commit one time for each node from the dirty/deleted
+ * atom's list.  Of course, freshly allocated node deletion and node reusing
+ * from atom deleted (if we do so) list should decrement bitmap usage counter
+ * also.
+ *
+ * FIXME-ZAM: This schema seems to be working but that reference counting is
+ * not easy to debug. I think we should agree with Hans and do not implement
+ * it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
+ */
+
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. We use them for now. */
 struct reiser4_bnode {
@@ -35,63 +62,96 @@ block_nr get_commit_bitmap_blocknr (int bmap)
 
 /* FIXME_ZAM: bitmap dynamic loading/unloading needs a support from znode
  * destroying function which should set corresponding
- * sb->u.reiser4_i.bitmap[bmap].wb (cb) pointer to zero */
+ * sb->u.reiser4_i.bitmap[bmap].working (commit) pointer to zero */
 
-static int load_bmap_node (struct reiser4_bnode * bnode)
+/** Load node at given blocknr, update given pointer. This function should be
+ * called under tree lock held */
+static inline int load_bnode_half (znode ** node_pp, block_nr block)
 {
-	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
+	reiser4_disk_addr addr;
+	znode * node;
+	int ret;
+
+	spin_unlock_tree (current_tree);
+
+	addr.blk = block;
+	node = zget(current_tree, &addr, NULL, 0, GFP_KERNEL);
+
+	if (IS_ERR(node)) {
+		spin_lock_tree(current_tree);
+
+		return PTR_ERR(node);
+	}
+
+	ret = zload(node);
+
+	if (ret) { 
+		zput(node);
+		spin_lock_tree(current_tree);
+		return ret;
+	}
 
 	spin_lock_tree(current_tree);
 
-	if (bnode->working == NULL) {
-		znode * node;
-		reiser4_disk_addr addr;
-
+	if (*node_pp == NULL) {
+		*node_pp = node;
+	} else {
 		spin_unlock_tree(current_tree);
 
-		addr.blk = reiser4_get_bitmap_blocknr(bmap);
-		node = zget(current_tree, &addr, NULL, 0, GFP_KERNEL);
-		if (ERR(node)) return PTR_ERR(node);
+		zrelse(node, 1);
+		zput(node);
 
 		spin_lock_tree(current_tree);
 
-		if (bnode->working == NULL) bnode->working = node;
-		else           zput(node);
-	} else {
-		zref (bnode->working);
+		/* return value above zero indicates that another thread has
+		 * done our work */
+		return 1;
 	}
-
-	if (bnode->commit == NULL) {
-		znode * node;
-		reiser4_disk_addr addr;
-
-		spin_unlock_tree(current_tree);
-
-		addr.blk = get_commit_bitmap_blocknr(info->bitmap - bnode);
-		node = zget(current_tree, &addr, NULL, 0, GFP_KERNEL);
-		if (ERR(node)) return PTR_ERR(node);
-
-		spin_lock_tree(current_tree);
-
-		if (bnode->commit == NULL) bnode->commit = node;
-		else           zput(node);
-	} else {
-		zref(bnode->commit);
-	}
-	
-
-	spin_unlock_tree(current_tree);
-
-	ret = zload (bnode->working);
-	if (ret) return ret;
-
-	ret = zload (bnode->commit);
-	if (ret) return ret;
 
 	return 0;
 }
 
-static void relse_bitmap_node(struct reiser4_bnode * bnode)
+/* load bitmap blocks "on-demand" */
+static int load_bnode (struct reiser4_bnode * bnode)
+{
+	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
+	struct super_block * super = reiser4_get_current_context()->super;
+	int ret = 0;
+
+	spin_lock_tree(current_tree);
+
+	if (bnode->working == NULL) {
+		ret = load_bnode_half(&bnode->working, reiser4_get_bitmap_blocknr(bmap));
+
+		if (ret < 0) goto out;
+	}
+
+	if (bnode->commit == NULL) {
+		ret = load_bnode_half(&bnode->commit, 
+				      get_commit_bitmap_blocknr(info->bitmap - bnode));
+
+		if (ret < 0) goto out;
+
+		if (ret == 0) {
+			/* commit bitmap is initialized by on-disk bitmap
+			 * content (working bitmap in this context) */
+			memcpy(bnode->commit->data,
+			       bnode->working->data,
+			       super->s_blocksize);
+		}
+
+		ret = 0;
+	}
+	
+ out:
+	spin_unlock_tree(current_tree);
+
+	return ret;
+}
+
+#if 0
+
+static void release_bnode(struct reiser4_bnode * bnode)
 {
 	assert("zam-362", bnode->working != NULL);
 	assert("zam-363", bnode->commit != NULL);
@@ -103,22 +163,23 @@ static void relse_bitmap_node(struct reiser4_bnode * bnode)
 	zput(bnode->commit);
 }
 
-static void clear_bits (char * data, int start, int end)
-{
-	int first_byte = start / 8;
-	int last_byte = (end - 1) / 8;
-
-	assert ("zam-367", end >= start);
-#if 0
-	if (first_byte + 1 < last_byte - 1)
-		memset(data + first_byte + 1, 0, last_byte - first_byte - 2);
 #endif
-	
-	
-}
-static void set_bits (char * data, int start, int end)
+
+/** find out real block number for given reiser4 node formatted or
+ * unformatted */
+static inline block_nr reconstruct_blocknr (jnode * node)
 {
-	assert ("zam-368", end >= start);
+	if (!JF_ISSET(node, ZNODE_UNFORMATTED)) 
+		return JZNODE(node)->blocknr.blk;
+	/* ??? */
+	return 0;
+}
+
+/** find out wandered block number */
+static inline block_nr reconstruct_wandered_blocknr (jnode * node)
+{
+	/* ??? */
+	return 0;
 }
 
 /** This function does all block allocation work but only for one bitmap
@@ -168,7 +229,9 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 
 out:
 	spin_unlock_znode(bnode->working);
-	release_bitmap_node(bnode);
+
+	/*release_bnode(bnode);*/
+
 	return ret;
 }
 
@@ -176,12 +239,6 @@ out:
 static int bitmap_clear (block_nr start, int len, int bitmap)
 {
 	
-}
-
-/** set bits in bitmap(s) */
-static int bitmap_set (block_nr start, int len, int bitmap)
-{
-
 }
 
 /** allocate contiguous range of blocks in bitmap */
@@ -292,15 +349,26 @@ int reiser4_bitmap_done_commit (txn_atom * atom) {
 	WALK_ATOM_VARS;
 	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
 
+	assert ("zam-382", info->bitmap != NULL);
+
 	spin_lock_atom (atom);
 	WALK_ATOM {
 		block_nr block;
+		int bmap, offset;
+		struct reiser4_bnode * bnode;
 
 		if (!JF_SET(node, ZNODE_DELETESET))
 			continue;
 
 		block = reconstruct_blocknr(node);
-		
+		parse_blocknr(block, &bmap, &offset);
+
+		bnode = (struct reiser4_bnode*)(info->bitmap) + bmap;
+
+		assert ("zam-383", bnode->working != NULL);
+		assert ("zam-384", bnode->commit != NULL);
+
+		clear_le_bit(offset, bnode->working->data);
 	}
 	spin_unlock_atom (atom);
 }
@@ -313,14 +381,33 @@ int reiser4_bitmap_done_flush ()
 	reiser4_super_info_data * info = reiser4_get_current_super_private();
 	WALK_ATOM_VARS;
 
+	assert ("zam-380", info->bitmap != NULL);
+
 	spin_lock_atom(atom);
 
+	/* FIXME_ZAM: we do not know what dynamic objects will be used to keep
+	 * informations about wandered blocks locations. This alg. is done
+	 * under an assumption that those objects are jnodes. */
 	WALK_ATOM {
 		int bmap, offset;
+		struct reiser4_bnode * bnode;
+		block_nr wandered;
+
 		if (!JF_ISSET(node, ZNODE_WANDER))
 			continue;
 
-		clear_le_bit();
+		/* FIXME-ZAM: there should be way to
+		 * reconstruct wandered blocknr from jnode's
+		 * page offset or something else.*/;
+		wandered = reconstruct_wandered_blocknr(node);
+
+		parse_blocknr(wandered, &bmap, &offset);
+		bnode = (struct reiser4_bnode*)(info->bitmap) + bmap;
+
+		assert ("zam-379", bnode->commit != NULL);
+		assert ("zam-381", bnode->working != NULL);
+
+		clear_le_bit(offset, bnode->working->data);
 	}
 
 	spin_unlock_atom(atom);
@@ -332,12 +419,62 @@ int reiser4_bitmap_done_flush ()
 /** bitmap structure initialization */
 int reiser4_init_bitmap ()
 {
-	
+	struct super_block * super = reiser4_get_current_context()->super;
+	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
+	int bitmap_blocks_nr;
+	int i;
+	int ret = 0;
+
+	assert("zam-372", info->blocks_used != 0);
+	assert ("zam-375", super->s_blocksize != 0);
+
+	bitmap_blocks_nr = (info->blocks_used - 1) % super->s_blocksize + 1; 
+
+	info->bitmap = reiser4_kmalloc (sizeof(struct reiser4_bnode) * bitmap_blocks_nr, 
+					GFP_KERNEL);
+	if (info->bitmap == NULL)
+		return -ENOMEM;
+
+	/* at fs mount time, no one bitmap block is loaded into memory */
+	memset(info->bitmap, sizeof(struct reiser4_bnode) * bitmap_blocks_nr);
+
+	return 0;
 }
 
 /** bitmap structure proper destroying */
-int reiser4_done_bitmap ()
+void reiser4_done_bitmap ()
 {
+	struct super_block * super = reiser4_get_current_context()->super;
+	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
+	int bitmap_blocks_nr;
+	int i;
+
+	assert ("zam-376", info->bitmap != NULL);
+	assert ("zam-373", info->block_used != 0);
+	assert ("zam-374", super->s_blocksize != 0);
+
+	bitmap_blocks_nr = (info->blocks_used - 1) % super->s_blocksize + 1;
+
+	for (i = 0; i < bitmap_blocks_nr; i ++) {
+		struct reiser4_bnode * bnode 
+			= (struct reiser4_bnode *)(info->bitmap) + i;
+
+		assert ("zam-378", equiv(bnode->working == NULL, bnode->commit == NULL));
+
+		if (bnode->working != NULL) {
+			zrelse(bnode->working, 1);
+			zrelse(bnode->commit, 1);
+
+			zput(bnode->working);
+			zput(bnode->commit);
+			
+			zdestroy(bnode->commit);
+			zdestroy(bnode->working);
+		}
+	}
+
+	reiser4_kfree(info->bitmap, sizeof(struct reiser4_bnode) * bitmap_blocks_nr);
+	info->bitmap = NULL;
 }
 
 /*
