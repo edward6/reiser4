@@ -992,3 +992,10 @@ reiser4progs/plugin/key40/.libs/libkey40.so.0.0.0T
 reiser4progs/plugin/node40/.libs/libnode40.so.0.0.0T
 reiser4progs/plugin/oid40/.libs/liboid40.so.0.0.0T
 reiser4progs/plugin/stat40/.libs/libstat40.so.0.0.0T
+reiser4progs/libreiser4/.libs/libreiser4-0.1.so.0.0.0U
+reiser4progs/plugin/alloc40/.libs/liballoc40.so.0.0.0U
+reiser4progs/reiser4progs/fsck/.deps/fsck.Po
+reiser4progs/reiser4progs/fsck/.libs/fsck.reiser4
+reiser4progs/reiser4progs/fsck/Makefile
+reiser4progs/reiser4progs/fsck/Makefile.in
+reiser4progs/reiser4progs/fsck/fsck.reiser4
