@@ -415,11 +415,9 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	   then marked so that iput() wouldn't try to remove stat data. But
 	   inode itself is still there.
 	*/
-	up(&victim->d_inode->i_sem);
-	up(&parent->i_sem);
-	reiser4_exit_context(&ctx);
-	down(&parent->i_sem);
-	down(&victim->d_inode->i_sem);
+	/* we cannot release directory semaphore here, because name has
+	 * already been deleted, but dentry (@victim) still exists. */
+	reiser4_exit_context(&ctx); 
 	return result;
 }
 

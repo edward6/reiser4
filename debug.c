@@ -326,7 +326,6 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(vfs_calls.rmdir),
 	DEFINE_STAT_CNT(vfs_calls.alloc_inode),
 	DEFINE_STAT_CNT(vfs_calls.destroy_inode),
-	DEFINE_STAT_CNT(vfs_calls.drop_inode),
 	DEFINE_STAT_CNT(vfs_calls.delete_inode),
 	DEFINE_STAT_CNT(vfs_calls.write_super),
 	DEFINE_STAT_CNT(vfs_calls.private_data_alloc),

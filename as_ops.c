@@ -319,8 +319,14 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2258", node != NULL);
 
 #if REISER4_STATS
-	++get_super_private(page->mapping->host->i_sb)->
-		stats.level[jnode_get_level(node) - LEAF_LEVEL].page_try_release;
+	{
+		reiser4_context __ctx;
+
+		init_context(&__ctx, page->mapping->host->i_sb);
+		++get_super_private(page->mapping->host->i_sb)->
+			stats.level[jnode_get_level(node) - LEAF_LEVEL].page_try_release;
+		reiser4_exit_context(&__ctx);
+	}
 #endif
 
 	/* is_page_cache_freeable() check 
@@ -481,10 +487,10 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	   are hold it means we can call begin jnode_flush right from there having no
 	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
 
+	init_context(&ctx, mapping->host->i_sb);
 	assert("zam-760", ergo(is_in_reiser4_context(), 
 			       lock_stack_isclean(get_current_lock_stack())));
 
-	init_context(&ctx, mapping->host->i_sb);
 	if (mapping_has_anonymous_pages(mapping)) {
 		ret = capture_anonymous_pages (mapping);
 

@@ -383,7 +383,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 		 * if scanning priority (which is a measure of memory
 		 * pressure) is low, do nothing
 		 */
-		if (wbc->priority > DEF_PRIORITY / 2) {
+		if (wbc->priority > DEF_PRIORITY - 3) {
 			reiser4_stat_inc(wff.low_priority);
 			result = 1;
 			break;
@@ -456,9 +456,7 @@ static void entd_flush(struct super_block *super)
 	int             result;
 	reiser4_context txn;
 
-	result = init_context(&txn, super);
-	if (result != 0)
-		reiser4_panic("nikita-3102", "Cannot create context: %i", result);
+	init_context(&txn, super);
 
 	txn.entd = 1;
 

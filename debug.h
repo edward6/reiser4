@@ -632,7 +632,6 @@ typedef struct reiser4_statistics {
 		stat_cnt rmdir;
 		stat_cnt alloc_inode;
 		stat_cnt destroy_inode;
-		stat_cnt drop_inode;
 		stat_cnt delete_inode;
 		stat_cnt write_super;
 		stat_cnt private_data_alloc; /* allocations of either per struct dentry or per struct file data */

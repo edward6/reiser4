@@ -502,7 +502,6 @@ reiser4_drop_inode(struct inode *object)
 	file_plugin *fplug;
 
 	assert("nikita-2643", object != NULL);
-	reiser4_stat_inc_at(object->i_sb, vfs_calls.drop_inode);
 
 	/* -not- creating context in this method, because it is frequently
 	   called and all existing ->not_linked() methods are one liners. */
@@ -1351,10 +1350,8 @@ reiser4_kill_super(struct super_block *s)
 		return;
 	}
 
-	if (init_context(&context, s)) {
-		warning("nikita-2728", "Cannot initialize context.");
-		return;
-	}
+	init_context(&context, s);
+
 	trace_on(TRACE_VFS_OPS, "kill_super\n");
 
 	reiser4_sysfs_done(s);

@@ -220,7 +220,6 @@ reiser4_read(struct file *file /* file to read from */ ,
 	ssize_t result;
 	struct inode *inode;
 	reiser4_context ctx;
-	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("umka-072", file != NULL);
 	assert("umka-073", buf != NULL);
@@ -228,6 +227,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
+	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.read);
 
 	trace_on(TRACE_VFS_OPS,
@@ -263,7 +263,6 @@ reiser4_write(struct file *file /* file to write on */ ,
 	struct inode *inode;
 	ssize_t result;
 	reiser4_context ctx;
-	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("nikita-1421", file != NULL);
 	assert("nikita-1422", buf != NULL);
@@ -271,6 +270,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
+	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.write);
 
 	trace_on(TRACE_VFS_OPS,
