@@ -214,148 +214,10 @@ It is questionable whether (1) needs to precede (3).  If (3) was performed first
  *
  */
 
-
-  /* item independent tree operations */
-
 #include "reiser4.h"
 
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-
-/* if coord managed to move - left neighbor must get locked, node points
-   initially was set to must get unlocked */
-shift_result shift_left_of_and_including_insert_coord (reiser4_tree *tree,
-						       tree_coord *coord);
-
-shift_result shift_right_of_but_excluding_insert_coord (reiser4_tree *tree,
-							tree_coord *coord);
-
-
-add_entry ()
-{
-}
-
-remove_entry ()
-{
-}
-
-void * remove_empty_node()
-{
-}
-
-/* needs locking added */
-update_delimiting_key(node node, key old_key, key new_key, pos key_location_hint)
-{
-	if (is_delimiting_key(node, old_key))
-		update_delimiting_key(parent_of(node));
-	else
-		{
-			/* this next function could cause balancing if using
-			   compressed keys, but we do not do that in this version
-			   4.0 */
-			node->replace_key(old_key, new_key, key_location_hint);
-		}
-}
-
-/* 
-
-obsoleted by make_space, will be deleted soon after design is stable
-
-should resemble insert_unitype_flow, except item_data is not a
-   flow. 
-
- item_handler->insert_new_item should usually be
-implemented to use copy_units to do its work. 
-
-   When append_item has filled its node, and the item being appended to has
-   become the rightmost item in the node, it should create another node (an
-   empty node) to hold the next item it creates (this node is in addition to
-   any node that was required to hold items that could not be shifted into the
-   right neighbor), so that the items that could not be shifted to the right
-   neighbor do not get endlessly shifted when repeated insertions occur.
-
-
-*/
-void *	insert_single_item(node, item_handler, item_data)
-{
-	space_needed = space_needed(item_data, node_layout, node, item_handler);
-	if (insert_coord->insertion_node->free_space > space_needed)
-		item_handler->insert_new_item(insert_coord, item_data);
-	else
-		{
-			/* shift everything possible to the left of and including insertion coord into the left neighbor */
-			shift_left_of_and_including_insert_coord(insert_coord);
-			space_needed = space_needed(item_data, node_layout, node, item_handler);
-			if (insert_coord->insertion_node->free_space > space_needed)
-				{
-					item_handler->insert_new_item(insert_coord, item_data);
-					return;
-				}
-			else
-				{
-					/* shift everything that you can to the right of the insertion coord into the right neighbor */
-					/* notice, the insert_coord itself may
-					   have been shifted into what was the
-					   left neighbor in the previous step,
-					   but this algorithm will (should)
-					   still work as shift_right will be a
-					   no_op.*/
-					right_shift_result = shift_right_of_but_excluding_insert_coord(insert_coord);
-					if (right_shift_result == SHIFTED_SOMETHING)
-						space_needed = space_needed(flow, node_layout, node, item_handler);
-					if (insert_coord->insertion_node->free_space > space_needed)
-						{
-							item_handler->insert_new_item(insert_coord, item_data);
-							return;
-						}
-					else
-						if (right_shift_result equals items still to the right of the insert coord in this node)
-							{
-								insert_new_node();
-								right_shift_result = shift_right_of_but_excluding_insertion_coord(insert_coord);
-							}
-					item_handler->insert_new_item(insert_coord, item_data);
-				}
-		}
-}
-
-
-void * insert_new_node(reiser4_tree * tree, reiser4_tree_coord * coord)
-{
-	node parent_node;
-
-	parent_node = parent_of(coord);
-	if (!parent_node)
-		add_new_root();
-	zn = create_empty_node();
-	insert_single_item(parent_node, pointer_item, zn);
-}
-
-				/* after this, node can probably be
-                                   inserted into, and if you run this
-                                   enough times, it is expected that
-                                   it will be possible to insert into
-                                   it eventually. */
-internal_node_split(node node, insert_coord)
-{
-  /* notice how it uses the average, which prevents us from super
-     balancing too often if we get real close to the maximum amount
-     that can fit into children of this node and stay at that level of
-     usage for a while */
-  if(average_child_free_space_too_high(node))
-    {
-      if (FREED_A_NODE = super_balance_children(node))
-	return;
-    }
-  if (node == root(tree))
-    insert_new_root_node(node);
-  insert_new_node(parent(node, insert_coord));
-  shift_coord = find_middle_item(node);
-  node_handler->shift_right(node, shift_coord);
-}
-
-/* YOU_CAN_COMPILE_PSEUDO_CODE */
-#endif
-
+/* Long-dead pseudo-code removed Tue Apr 23 17:55:24 MSD 2002. */
+  
 /**
  * Disk address (block number) never ever used for any real tree node. This is
  * used as block number of "fake" znode.
@@ -365,11 +227,14 @@ internal_node_split(node node, insert_coord)
  */
 const reiser4_disk_addr FAKE_TREE_ADDR = { .blk = 0 };
 
-/* comment? */
+#if REISER4_DEBUG
+/* This list and the two fields that follow maintain the currently active
+ * contexts, used for debugging purposes.  */
 TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 
 static spinlock_t        active_contexts_lock;
 static context_list_head active_contexts;
+#endif
 
 /**
  * release resources associated with @tree
@@ -390,6 +255,7 @@ void reiser4_insert_znode( tree_coord *coord, znode *node )
 	assert( "nikita-314", coord != NULL );
 	assert( "nikita-315", node != NULL );
 
+ 	/* FIXME_JMACD: Why zref() here? */
 	coord -> node = zref( node );
 }
 
@@ -792,6 +658,10 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 }
 
 
+unsigned node_num_items (const znode * node)
+{
+	return node_plugin_by_node (node)->num_of_items (node);
+}
 
 int node_is_empty (const znode * node)
 {
@@ -1113,10 +983,23 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-1321", child != NULL );
 	assert( "nikita-1322", result != NULL );
 
-	result -> node = parent;
 	ret = NS_NOT_FOUND;
-	coord_first_unit( result );
-	for( coord_first_unit( result ) ; coord_of_unit( result ) ; ) {
+
+	/* FIXME_NIKITA: The following loop is awkward.  It looks as if it
+	 * ALWAYS will return NS_NOT_FOUND.  When else is ret set?
+	 *
+	 * Also, why not write this as:
+	 *
+	 * coord_first_unit();
+	 * do {
+	 *   ...
+	 * } while (! coord_next_unit ());
+	 *
+	 * The for-loop test (coord_of_unit) is only useful the first time
+	 * through... every other time it is redundent.
+	 */
+	
+	for( coord_first_unit( result, parent ) ; coord_of_unit( result ) ; ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
 			child -> ptr_in_parent_hint = *result;
@@ -1162,8 +1045,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 	tree_coord from;
 	node_plugin * nplug;
 
-	from.node = right;
-	coord_last_unit (&from);
+	coord_last_unit (&from, right);
 
 	nplug = node_plugin_by_node (right);
 	result = nplug->shift (&from, left, SHIFT_LEFT,
@@ -1391,7 +1273,7 @@ cut_error cut_tree_original(key * from, key * to)
 			if (key_by_item_coord (next_item) > to)
 				{
 					handler(from_item_header)->cut(from_item_header, from, to, node);
-					if(num_items(from_item_coord.node) == 0)
+					if(node_num_items(from_item_coord.node) == 0)
 						delete_node(from_item_coord.node);
 					break;
 				}
@@ -1399,7 +1281,7 @@ cut_error cut_tree_original(key * from, key * to)
 			/* this indirectly calls the item handler delete method */
 			node->delete_item(from_item_coord);
 			/* if node is empty, delete it */
-			if (num_items(from_item_coord.node) == 0)
+			if (node_num_items(from_item_coord.node) == 0)
 				delete_node(from_item_coord.node);
 		}
 }
