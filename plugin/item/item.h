@@ -216,6 +216,8 @@ typedef struct {
 
 	/* return true if unit to which coord is set contains @key */
 	int ( *key_in_unit )( const coord_t *coord, const reiser4_key *key );
+
+	void ( *item_stat )( const coord_t *coord, void * );
 } common_item_plugin;
 
 

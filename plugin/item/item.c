@@ -178,7 +178,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
 				.key_in_item             = NULL,
-				.key_in_unit             = NULL
+				.key_in_unit             = NULL,
+				.item_stat               = sd_item_stat
 			},
 			.s = {
 				.sd = {
@@ -227,7 +228,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
 				.key_in_item             = NULL,
-				.key_in_unit             = NULL
+				.key_in_unit             = NULL,
+				.item_stat               = NULL
 			},
 			.s = {
 				.dir = {
@@ -279,7 +281,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
 				.key_in_item             = NULL,
-				.key_in_unit             = NULL
+				.key_in_unit             = NULL,
+				.item_stat               = NULL
 			},
 			.s = {
 				.dir = {
@@ -331,7 +334,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_real_block = internal_utmost_child_real_block,
 				.real_max_key_inside     = NULL,
 				.key_in_item             = NULL,
-				.key_in_unit             = NULL
+				.key_in_unit             = NULL,
+				.item_stat               = NULL
 			},
 			.s = {
 				.internal = {
@@ -378,7 +382,9 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_real_block = extent_utmost_child_real_block,
 				.real_max_key_inside     = extent_max_key,
 				.key_in_item             = extent_key_in_item,
-				.key_in_unit             = extent_key_in_unit
+				.key_in_unit             = extent_key_in_unit,
+				.item_stat               = extent_item_stat
+
 			},
 			.s = {
 				.file = {
@@ -428,7 +434,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = tail_max_key,
 				.key_in_item             = tail_key_in_item,
-				.key_in_unit             = NULL
+				.key_in_unit             = NULL,
+				.item_stat               = NULL
 			},
 			.s = {
 				.file = {
