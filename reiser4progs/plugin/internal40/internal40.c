@@ -81,8 +81,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .id = ITEM_INTERNAL40_ID,
 	    .type = ITEM_PLUGIN_TYPE,
 	    .label = "internal40",
-	    .desc = "Internal item for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Internal item for reiserfs 4.0, ver. " VERSION,
 	},
 	.common = {
 #ifndef ENABLE_COMPACT	    

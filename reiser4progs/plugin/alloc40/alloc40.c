@@ -181,8 +181,7 @@ static reiserfs_plugin_t alloc40_plugin = {
 	    .id = ALLOC_REISER40_ID,
 	    .type = ALLOC_PLUGIN_TYPE,
 	    .label = "alloc40",
-	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Space allocator for reiserfs 4.0, ver. " VERSION,
 	},
 	.open = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc40_open,
 	.close = (void (*)(reiserfs_entity_t *))alloc40_close,

@@ -279,8 +279,8 @@ reiserfs_fs_t *reiserfs_fs_create(
 	reiserfs_object_hint_t dir_hint;
 	
 	/* Finding directroy plugin */
-	if (!(dir_plugin = libreiser4_factory_find_by_id(DIRECTORY_FILE, profile->file.dir)))
-	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->file.dir);
+	if (!(dir_plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, profile->dir.dir)))
+	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir.dir);
 	
 	dir_hint.statdata_pid = profile->item.statdata;
 	dir_hint.sdext = profile->sdext;

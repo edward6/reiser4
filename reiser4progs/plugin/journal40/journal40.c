@@ -180,8 +180,7 @@ static reiserfs_plugin_t journal40_plugin = {
 	    .id = JOURNAL_REISER40_ID,
 	    .type = JOURNAL_PLUGIN_TYPE,
 	    .label = "journal40",
-	    .desc = "Default journal for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Default journal for reiserfs 4.0, ver. " VERSION,
 	},
 	.open = (reiserfs_entity_t *(*)(aal_device_t *))
 	    journal40_open,

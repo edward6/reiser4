@@ -13,16 +13,13 @@
 
 #include <reiser4/filesystem.h>
 
-extern void progs_profile_print_list(void);
-extern reiserfs_profile_t *progs_profile_find(const char *profile);
+extern void progs_profile_list(void);
+extern void progs_profile_print(reiserfs_profile_t *profile);
 
 extern reiserfs_profile_t *progs_profile_default();
+extern reiserfs_profile_t *progs_profile_find(const char *profile);
 
-extern void progs_profile_print_list(void);
-
-extern int progs_profile_override_plugin_id_by_name(reiserfs_profile_t *profile, 
-    const char *plugin_type_name, const char *plugin_label);
-
-extern void progs_profile_print(reiserfs_profile_t *profile);
+extern errno_t progs_profile_override(reiserfs_profile_t *profile, 
+    const char *type, const char *name);
 
 #endif

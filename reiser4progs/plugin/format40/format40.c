@@ -258,8 +258,7 @@ static reiserfs_plugin_t format40_plugin = {
 	    .id = FORMAT_REISER40_ID,
 	    .type = FORMAT_PLUGIN_TYPE,
 	    .label = "format40",
-	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Disk-format for reiserfs 4.0, ver. " VERSION,
 	},
 	.open = (reiserfs_entity_t *(*)(aal_device_t *))format40_open,
 

@@ -37,12 +37,19 @@ static void mkfs_print_usage(void) {
 	"  -f | --force                   makes mkfs to use whole disk, not block device\n"
 	"                                 or mounted partition.\n"
 	"  -p | --profile                 profile to be used.\n"
-	"  -k | --known-profiles          prints known profiles.\n"
+	"  -K | --known-profiles          prints known profiles.\n"
 	"  -b | --block-size=N            block size, 4096 by default,\n"
 	"                                 other are not supported for awhile.\n"
 	"  -l | --label=LABEL             volume label lets to mount\n"
 	"                                 filesystem by its label.\n"
 	"  -d | --uuid=UUID               universally unique identifier.\n");
+}
+
+static void mkfs_setup_streams(void) {
+    int i;
+
+    for (i = 0; i < 5; i++)
+	progs_exception_set_stream(i, stderr);
 }
 
 int main(int argc, char *argv[]) {
@@ -65,7 +72,7 @@ int main(int argc, char *argv[]) {
 	{"help", no_argument, NULL, 'h'},
 	{"profile", required_argument, NULL, 'p'},
 	{"force", no_argument, NULL, 'f'},
-	{"known-profiles", no_argument, NULL, 'k'},
+	{"known-profiles", no_argument, NULL, 'K'},
 	{"quiet", no_argument, NULL, 'q'},
 	{"block-size", required_argument, NULL, 'b'},
 	{"label", required_argument, NULL, 'l'},
@@ -78,13 +85,14 @@ int main(int argc, char *argv[]) {
 	return USER_ERROR;
     }
     
+    mkfs_setup_streams();
     aal_exception_set_handler(progs_exception_handler);
     
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
 
     /* Parsing parameters */    
-    while ((c = getopt_long_only(argc, argv, "uhvp:qfkb:i:l:", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uhvp:qfKb:i:l:", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
@@ -109,8 +117,8 @@ int main(int argc, char *argv[]) {
 		quiet = 1;
 		break;
 	    }
-	    case 'k': {
-		progs_profile_print_list();
+	    case 'K': {
+		progs_profile_list();
 		return NO_ERROR;
 	    }
 	    case 'b': {
@@ -245,7 +253,6 @@ int main(int argc, char *argv[]) {
 	if (aal_strlen(uuid) == 0)
 	    uuid_generate(uuid);
 #endif
-
 	/* Opening device */
 	if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
 	    char *error = strerror(errno);
@@ -271,7 +278,7 @@ int main(int argc, char *argv[]) {
 	/* Checking for "quiet" mode */
 	if (!quiet) {
 	    if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YESNO, 
-		   "All data on \"%s\" will be lost.", host_dev) == EXCEPTION_NO)
+		   "Reiser4 is going to be created on \"%s\".", host_dev) == EXCEPTION_NO)
 		goto error_free_device;
 	}
     

@@ -38,7 +38,7 @@ reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
     }
     
     /* FIXME-UMKA: Here should be real detecting instead of hardcoded plugin */
-    return libreiser4_factory_find_by_id(DIRECTORY_FILE, FILE_DIR40_ID);
+    return libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, DIR_DIR40_ID);
 }
 
 /* 
@@ -161,7 +161,11 @@ static errno_t reiserfs_object_lookup(
 	    return -1;
 	}
 	
-	if (object_plugin->h.type == DIRECTORY_FILE) {
+	/* 
+	    FIXME-UMKA: Here should be used alternative scheme of distinguish 
+	    what object type realy is.
+	*/
+	if (object_plugin->h.type == DIR_PLUGIN_TYPE) {
 	    reiserfs_entry_hint_t entry;
 	    
 	    if (!(object_entity = libreiser4_plugin_call(return -1, 

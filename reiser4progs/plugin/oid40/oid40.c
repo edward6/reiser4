@@ -104,8 +104,7 @@ static reiserfs_plugin_t oid40_plugin = {
 	    .id = OID_REISER40_ID,
 	    .type = OID_PLUGIN_TYPE,
 	    .label = "oid40",
-	    .desc = "Default inode allocator for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Inode allocator for reiserfs 4.0, ver. " VERSION,
 	},
 	.open = (reiserfs_entity_t *(*)(void *, void *))oid40_open,
 	.close = (void (*)(reiserfs_entity_t *))oid40_close,

@@ -174,16 +174,14 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[],
 		profile_label = optarg;
 		break;
 	    case 'k':
-		progs_misc_factory_print();
+		progs_misc_factory_list();
 		return NO_ERROR;
 	    case 'K':
-		progs_profile_print_list();
+		progs_profile_list();
 		return NO_ERROR;
 	    case 'o':
 		str = aal_strsep(&optarg, "=");
-		if (!optarg || progs_profile_override_plugin_id_by_name(
-		    data->profile, str, optarg)) 
-		{
+		if (!optarg || progs_profile_override(data->profile, str, optarg)) {
 		    progs_fatal("Cannot load a plugin '%s' of the type '%s'.\n", str, optarg);
 		    return USER_ERROR;
 		}

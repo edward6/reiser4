@@ -38,7 +38,7 @@ void reiserfs_cache_close(
 	aal_list_foreach_forward(walk, cache->list)
 	    reiserfs_cache_close((reiserfs_cache_t *)walk->item);
 
-	aal_list_free(cache->list);
+	aal_list_free(aal_list_first(cache->list));
 	cache->list = NULL;
     }
     
@@ -155,7 +155,7 @@ errno_t reiserfs_cache_pos(
     
     if (reiserfs_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find left delimiting key of node %llu.", 
+	    "Can't find left delimiting key of node %llu in its parent.", 
 	    aal_block_get_nr(cache->node->block));
 	return -1;
     }

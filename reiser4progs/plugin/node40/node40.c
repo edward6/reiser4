@@ -479,8 +479,7 @@ static reiserfs_plugin_t node40_plugin = {
 	    .id = NODE_REISER40_ID,
 	    .type = NODE_PLUGIN_TYPE,
 	    .label = "node40",
-	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Node for reiserfs 4.0, ver. " VERSION,
 	},
 	.open = (reiserfs_entity_t *(*)(aal_block_t *))node40_open,
 	.close = (errno_t (*)(reiserfs_entity_t *))node40_close,

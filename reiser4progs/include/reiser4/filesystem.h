@@ -60,8 +60,11 @@ struct reiserfs_profile {
     reiserfs_id_t node;
 
     struct {
-	reiserfs_id_t reg;
 	reiserfs_id_t dir;
+    } dir;
+    
+    struct {
+	reiserfs_id_t reg;
 	reiserfs_id_t symlink;
 	reiserfs_id_t special;      
     } file;

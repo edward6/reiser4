@@ -56,8 +56,7 @@ static reiserfs_plugin_t rupasov_hash_plugin = {
 	    .id = HASH_RUPASOV_ID,
 	    .type = HASH_PLUGIN_TYPE,
 	    .label = "rupasov_hash",
-	    .desc = "rupasov hash plugin for reiser4, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Implementation of rupasov hash for reiserfs 4.0, ver. " VERSION,
 	},
 	.build = (uint64_t (*)(const unsigned char *, uint32_t))rupasov_hash_build
     }

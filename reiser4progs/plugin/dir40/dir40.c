@@ -482,11 +482,10 @@ static reiserfs_plugin_t dir40_plugin = {
     .dir_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = FILE_DIR40_ID,
-	    .type = DIRECTORY_FILE,
+	    .id = DIR_DIR40_ID,
+	    .type = DIR_PLUGIN_TYPE,
 	    .label = "dir40",
-	    .desc = "Compound directory plugin for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Compound directory for reiserfs 4.0, ver. " VERSION,
 	},
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *, 

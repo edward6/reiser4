@@ -264,8 +264,7 @@ static reiserfs_plugin_t key40_plugin = {
 	    .id = KEY_REISER40_ID,
 	    .type = KEY_PLUGIN_TYPE,
 	    .label = "key40",
-	    .desc = "Reiser4 default key, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Key for reiserfs 4.0, ver. " VERSION,
 	},
 	.confirm = (int (*)(const void *))key40_confirm,
 	.check = (errno_t (*)(const void *, int))key40_check,

@@ -12,9 +12,11 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.label = "default40",
         .desc = "Profile for reiser4 with smart drop policy",
 	.node		= NODE_REISER40_ID,
+	.dir = {
+	    .dir	= DIR_DIR40_ID,
+	},
 	.file = {
 	    .reg	= FILE_REG40_ID, 
-	    .dir	= FILE_DIR40_ID,
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
 	},
@@ -42,9 +44,11 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.label = "extent40",
 	.desc = "Profile for reiser4 with extents turned on",
 	.node		= NODE_REISER40_ID,
+	.dir = {
+	    .dir	= DIR_DIR40_ID,
+	},
 	.file = {
 	    .reg	= FILE_REG40_ID, 
-	    .dir	= FILE_DIR40_ID,
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
 	},
@@ -72,9 +76,11 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.label = "drop40",
 	.desc = "Profile for reiser4 with drops turned on",     
 	.node		= NODE_REISER40_ID,
+	.dir = {
+	    .dir	= DIR_DIR40_ID,
+	},
 	.file = {
 	    .reg	= FILE_REG40_ID, 
-	    .dir	= FILE_DIR40_ID,
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
 	},
@@ -117,11 +123,13 @@ reiserfs_profile_t *progs_profile_find(
 }
 
 /* Shows all knows profiles */
-void progs_profile_print_list(void) {
+void progs_profile_list(void) {
     unsigned i;
     
+    printf("\nKnown profiles are:\n");
     for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++)
-	printf("(%d) %s (%s).\n", i + 1, reiser4profiles[i].label, reiser4profiles[i].desc);
+	printf("%s: %s.\n", reiser4profiles[i].label, reiser4profiles[i].desc);
+    printf("\n");
 }
 
 /* 0 profile is the default one. */
@@ -129,7 +137,7 @@ reiserfs_profile_t *progs_profile_default() {
     return &reiser4profiles[0];
 }
 
-enum plugin_internal_type {
+enum progs_plugin_type {
     PROGS_NODE_PLUGIN,
     PROGS_FILE_PLUGIN,
     PROGS_DIR_PLUGIN,
@@ -138,11 +146,11 @@ enum plugin_internal_type {
     PROGS_INTERNAL_PLUGIN, 
     PROGS_STATDATA_PLUGIN, 
     PROGS_DIRENTRY_PLUGIN,
-    PROGS_TAIL_PLUGIN,
+    PROGS_DROP_PLUGIN,
     PROGS_EXTENT_PLUGIN,
     PROGS_ACL_PLUGIN,
     PROGS_HASH_PLUGIN,
-    PROGS_TAIL_POLICY_PLUGIN,
+    PROGS_DROP_POLICY_PLUGIN,
     PROGS_PERM_PLUGIN,
     PROGS_FORMAT_PLUGIN,
     PROGS_OID_PLUGIN,
@@ -152,20 +160,22 @@ enum plugin_internal_type {
     PROGS_LAST_PLUGIN
 };
 
-static char *progs_internal_plugin_name[] = {
+typedef enum progs_plugin_type progs_plugin_type_t;
+
+static char *progs_plugin_name[] = {
     "NODE",
-    "REGULAR_FILE",
-    "DIR_FILE",
-    "SYMLINK_FILE",
-    "SPECIAL_FILE",
-    "INTERNAL_ITEM",
-    "STATDATA_ITEM",
-    "DIRENTRY_ITEM",
-    "TAIL_ITEM",
-    "EXTENT_ITEM",
-    "ACL_ITEM",
+    "FILE",
+    "DIR",
+    "SYMLINK",
+    "SPECIAL",
+    "INTERNAL",
+    "STATDATA",
+    "DIRENTRY",
+    "DROP",
+    "EXTENT",
+    "ACL",
     "HASH",
-    "TAIL_POLICY",
+    "DROP_POLICY",
     "PERM",
     "FORMAT",
     "OID",
@@ -174,24 +184,21 @@ static char *progs_internal_plugin_name[] = {
     "KEY"
 };
 
-typedef enum plugin_internal_type plugin_internal_type_t;
-
-static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile, 
-    plugin_internal_type_t internal_type) 
+static reiserfs_id_t *progs_profile_field(reiserfs_profile_t *profile, 
+    progs_plugin_type_t type) 
 {
-    if (!profile)
-	return NULL;
-	
-    if (internal_type >= PROGS_LAST_PLUGIN) 
+    aal_assert("umka-920", profile != NULL, return NULL);
+    
+    if (type >= PROGS_LAST_PLUGIN) 
 	return NULL;
     
-    switch (internal_type) {
+    switch (type) {
 	case PROGS_NODE_PLUGIN:
 	    return &profile->node;
 	case PROGS_FILE_PLUGIN:
 	    return &profile->file.reg;
 	case PROGS_DIR_PLUGIN:
-	    return &profile->file.dir;
+	    return &profile->dir.dir;
 	case PROGS_SYMLINK_PLUGIN:
 	    return &profile->file.symlink;
 	case PROGS_SPECIAL_PLUGIN:
@@ -202,7 +209,7 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	    return &profile->item.statdata;
 	case PROGS_DIRENTRY_PLUGIN:
 	    return &profile->item.direntry;
-	case PROGS_TAIL_PLUGIN:
+	case PROGS_DROP_PLUGIN:
 	    return &profile->item.file_body.drop;
 	case PROGS_EXTENT_PLUGIN:
 	    return &profile->item.file_body.extent;
@@ -210,7 +217,7 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	    return &profile->item.acl;
 	case PROGS_HASH_PLUGIN:
 	    return &profile->hash;
-	case PROGS_TAIL_POLICY_PLUGIN:
+	case PROGS_DROP_POLICY_PLUGIN:
 	    return &profile->drop_policy;
 	case PROGS_PERM_PLUGIN:
 	    return &profile->perm;
@@ -231,16 +238,17 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
     return NULL;
 }
 
-static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type_t internal_type) {
-    if (internal_type >= PROGS_LAST_PLUGIN) 
-	return -1;
+static reiserfs_plugin_type_t progs_profile_it2pt(progs_plugin_type_t type) {
+
+    if (type >= PROGS_LAST_PLUGIN) 
+	return 0xffff;
     
-    switch (internal_type) {
+    switch (type) {
 	case PROGS_NODE_PLUGIN:
 	    return NODE_PLUGIN_TYPE;
-	case PROGS_FILE_PLUGIN:
-	    return FILE_PLUGIN_TYPE;
 	case PROGS_DIR_PLUGIN:
+	    return DIR_PLUGIN_TYPE;
+	case PROGS_FILE_PLUGIN:
 	    return FILE_PLUGIN_TYPE;
 	case PROGS_SYMLINK_PLUGIN:
 	    return FILE_PLUGIN_TYPE;
@@ -252,7 +260,7 @@ static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type
 	    return ITEM_PLUGIN_TYPE;
 	case PROGS_DIRENTRY_PLUGIN:
 	    return ITEM_PLUGIN_TYPE;
-	case PROGS_TAIL_PLUGIN:
+	case PROGS_DROP_PLUGIN:
 	    return ITEM_PLUGIN_TYPE;
 	case PROGS_EXTENT_PLUGIN:
 	    return ITEM_PLUGIN_TYPE;
@@ -260,7 +268,7 @@ static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type
 	    return ITEM_PLUGIN_TYPE;
 	case PROGS_HASH_PLUGIN:
 	    return HASH_PLUGIN_TYPE;
-	case PROGS_TAIL_POLICY_PLUGIN:
+	case PROGS_DROP_POLICY_PLUGIN:
 	    return DROP_POLICY_PLUGIN_TYPE;
 	case PROGS_PERM_PLUGIN:
 	    return PERM_PLUGIN_TYPE;
@@ -276,93 +284,93 @@ static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type
 	    return KEY_PLUGIN_TYPE;
 
 	default:
-	    return -1;
+	    return 0xffff;
     }
-    return -1;
 }
 
-static plugin_internal_type_t progs_profile_get_plugin_internal_type(
-    const char *plugin_type_name) 
-{
-    if (!plugin_type_name)
-	return -1;
+static progs_plugin_type_t progs_profile_name2it(const char *name) {
+    aal_assert("umka-921", name != NULL, return 0xffff);
 
-    if (!aal_strncmp(plugin_type_name, "NODE", 4)) {
+    if (!aal_strncmp(name, "NODE", 4))
 	return PROGS_NODE_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "FILE", 4)) {
+    else if (!aal_strncmp(name, "FILE", 4))
 	return PROGS_FILE_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "DIR", 3)) {
+    else if (!aal_strncmp(name, "DIR", 3))
 	return PROGS_DIR_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "SYMLINK", 7)) {
+    else if (!aal_strncmp(name, "SYMLINK", 7))
 	return PROGS_SYMLINK_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "SPECIAL", 7)) {
+    else if (!aal_strncmp(name, "SPECIAL", 7))
 	return PROGS_SPECIAL_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "INTERNAL", 8)) {	
+    else if (!aal_strncmp(name, "INTERNAL", 8))
 	return PROGS_INTERNAL_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "STATDATA", 8)) {
+    else if (!aal_strncmp(name, "STATDATA", 8))
 	return PROGS_STATDATA_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "DIRENTRY", 8)) {
+    else if (!aal_strncmp(name, "DIRENTRY", 8))
 	return PROGS_DIRENTRY_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "TAIL", 4)) {
-	return PROGS_TAIL_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "EXTENT", 6)) {
+    else if (!aal_strncmp(name, "TAIL", 4))
+	return PROGS_DROP_PLUGIN;
+    else if (!aal_strncmp(name, "EXTENT", 6))
 	return PROGS_EXTENT_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "ACL", 3)) {
+    else if (!aal_strncmp(name, "ACL", 3))
 	return PROGS_ACL_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "HASH", 4)) {
+    else if (!aal_strncmp(name, "HASH", 4))
 	return PROGS_HASH_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "TAIL_POLICY", 11)) {
-	return PROGS_TAIL_POLICY_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "PERM", 4)) {
+    else if (!aal_strncmp(name, "DROP_POLICY", 11))
+	return PROGS_DROP_POLICY_PLUGIN;
+    else if (!aal_strncmp(name, "PERM", 4))
 	return PROGS_PERM_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "FORMAT", 6)) {
+    else if (!aal_strncmp(name, "FORMAT", 6))
 	return PROGS_FORMAT_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "OID", 3)) {
+    else if (!aal_strncmp(name, "OID", 3))
 	return PROGS_OID_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "ALLOC", 5)) {
+    else if (!aal_strncmp(name, "ALLOC", 5))
 	return PROGS_ALLOC_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "JOURNAL", 7)) {
+    else if (!aal_strncmp(name, "JOURNAL", 7))
 	return PROGS_JOURNAL_PLUGIN;
-    } else if (!aal_strncmp(plugin_type_name, "KEY", 3)) {
+    else if (!aal_strncmp(name, "KEY", 3))
 	return PROGS_KEY_PLUGIN;
-    } else {
-	return -1;
-    }    
+    
+    return 0xffff;
 }
 
-static char *progs_profile_get_plugin_internal_type_name(
-    plugin_internal_type_t internal_type) 
-{
-    return (internal_type >= PROGS_LAST_PLUGIN) ? NULL : 
-	progs_internal_plugin_name[internal_type];
+static char *progs_profile_it2name(progs_plugin_type_t type) {
+    return (type >= PROGS_LAST_PLUGIN) ? NULL : progs_plugin_name[type];
 }
 
-
-int progs_profile_override_plugin_id_by_name(reiserfs_profile_t *profile, 
-    const char *plugin_type_name, const char *plugin_label) 
+errno_t progs_profile_override(reiserfs_profile_t *profile, 
+    const char *type, const char *name) 
 {
-    plugin_internal_type_t int_type;
-    reiserfs_plugin_type_t type;
-    reiserfs_id_t *id;
+    reiserfs_id_t *field;
+    progs_plugin_type_t it;
+    reiserfs_plugin_type_t pt;
     reiserfs_plugin_t *plugin;
 
-    if (!profile || !plugin_type_name || !plugin_label)
-	return -1;
+    aal_assert("umka-922", profile != NULL, return -1);
+    aal_assert("umka-923", type != NULL, return -1);
+    aal_assert("umka-924", name != NULL, return -1);
        	
-    if ((int_type = progs_profile_get_plugin_internal_type(plugin_type_name)) == 
-	(plugin_internal_type_t)-1)
+    if ((it = progs_profile_name2it(type)) == 0xffff) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find plugin type \"%s\".", type);
+	return -1;
+    }
+    
+    if ((pt = progs_profile_it2pt(it)) == 0xffff)
 	return -1;
     
-    if ((type = progs_profile_get_plugin_type(int_type)) == (reiserfs_plugin_type_t)-1)
+    if (!(plugin = libreiser4_factory_find_by_name(pt, name))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find plugin by type \"%s\" and name \"%s\".", type, name);
 	return -1;
-
-    if (!(plugin = libreiser4_factory_find_by_name(type, plugin_label))) 
-	return -1;
+    }
     
-    if ((id = progs_profile_get_field(profile, int_type)) == NULL)
+    if (!(field = progs_profile_field(profile, it))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't get profile field.");
 	return -1;
+    }
     
-    *id = plugin->h.id;
+    *field = plugin->h.id;
  
     return 0;
 }
@@ -371,19 +379,15 @@ void progs_profile_print(reiserfs_profile_t *profile) {
     int i;
     reiserfs_plugin_t *plugin;
 
-    if (!profile)
-	return;
+    aal_assert("umka-925", profile != NULL, return);
 	
-    printf("\nProfile %s: %s.\n", profile->label, profile->desc);
+    printf("\nProfile %s:\n", profile->label);
     for (i = 0; i < PROGS_LAST_PLUGIN; i++) {
-	if ((plugin = libreiser4_factory_find_by_id(
-	    progs_profile_get_plugin_type(i), *progs_profile_get_field(profile, i))) != NULL) 
+	if ((plugin = libreiser4_factory_find_by_id(progs_profile_it2pt(i), 
+	    *progs_profile_field(profile, i))) != NULL) 
 	{
-	    printf("%s plugin is %s: %s.\n", progs_profile_get_plugin_internal_type_name(i), 
+	    printf("%s: %s (%s).\n", progs_profile_it2name(i),
 		plugin->h.label, plugin->h.desc);
-	} else {
-	    printf("%s plugin is not found.\n", 
-		progs_profile_get_plugin_internal_type_name(i));
 	}
     }
     printf("\n");

@@ -17,6 +17,7 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 
 enum reiserfs_plugin_type {
     FILE_PLUGIN_TYPE,
+    DIR_PLUGIN_TYPE,
     ITEM_PLUGIN_TYPE,
     NODE_PLUGIN_TYPE,
     HASH_PLUGIN_TYPE,
@@ -32,15 +33,6 @@ enum reiserfs_plugin_type {
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
-enum reiserfs_file_type {
-    REGULAR_FILE,
-    DIRECTORY_FILE,
-    SYMLINK_FILE,
-    SPECIAL_FILE,
-};
-
-typedef enum reiserfs_file_type reiserfs_file_type_t;
-
 enum reiserfs_item_type {
     STATDATA_ITEM,
     DIRENTRY_ITEM,
@@ -51,11 +43,14 @@ enum reiserfs_item_type {
 
 typedef enum reiserfs_item_type reiserfs_item_type_t;
 
+enum reiserfs_dir_plugin_id {
+    DIR_DIR40_ID		= 0x0
+};
+
 enum reiserfs_file_plugin_id {
     FILE_REG40_ID		= 0x0,
-    FILE_DIR40_ID		= 0x1,
-    FILE_SYMLINK40_ID		= 0x2,
-    FILE_SPECIAL40_ID		= 0x3
+    FILE_SYMLINK40_ID		= 0x1,
+    FILE_SPECIAL40_ID		= 0x2
 };
 
 enum reiserfs_item_plugin_id {

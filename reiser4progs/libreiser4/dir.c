@@ -94,6 +94,10 @@ reiserfs_object_t *reiserfs_dir_create(
     if (!(object = reiserfs_object_create(fs, plugin)))
 	return NULL;
     
+    /* 
+	This is a special case. In the case parent is NULL, we are trying to
+	create root directory.
+    */
     if (parent) {
         reiserfs_key_init(&parent_key, parent->key.plugin, parent->key.body);
         objectid = reiserfs_oid_alloc(parent->fs->oid);
@@ -111,6 +115,8 @@ reiserfs_object_t *reiserfs_dir_create(
     locality = reiserfs_key_get_objectid(&parent_key);
     
     object_key.plugin = parent_key.plugin;
+
+    /* Building stat data key of directory */
     reiserfs_key_build_generic_full(&object_key, KEY40_STATDATA_MINOR,
         locality, objectid, 0);
     

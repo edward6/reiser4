@@ -243,8 +243,7 @@ static reiserfs_plugin_t format36_plugin = {
 	    .id = FORMAT_REISER40_ID,
 	    .type = FORMAT_PLUGIN_TYPE,
 	    .label = "format36",
-	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Disk-format for reiserfs 3.6.x, ver. " VERSION,
 	},
 	.open = (reiserfs_entity_t *(*)(aal_device_t *))
 	    format36_open,

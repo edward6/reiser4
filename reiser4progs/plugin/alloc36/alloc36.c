@@ -75,8 +75,7 @@ static reiserfs_plugin_t alloc36_plugin = {
 	    .id = ALLOC_REISER36_ID,
 	    .type = ALLOC_PLUGIN_TYPE,
 	    .label = "alloc36",
-	    .desc = "Space allocator for reiserfs 3.6.x, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Space allocator for reiserfs 3.6.x, ver. " VERSION,
 	},
 
 #ifndef ENABLE_COMPACT

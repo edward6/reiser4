@@ -62,8 +62,7 @@ static reiserfs_plugin_t sdext_unix_plugin = {
 	    .id = SDEXT_UNIX_ID,
 	    .type = SDEXT_PLUGIN_TYPE,
 	    .label = "sdext_unix",
-	    .desc = "Unix stat data extention for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Unix stat data extention for reiserfs 4.0, ver. " VERSION,
 	},
 	.create = (errno_t (*)(void *, void *))sdext_unix_create,
 	.open = (errno_t (*)(void *, void *))sdext_unix_open,

@@ -163,8 +163,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .id = ITEM_STATDATA40_ID,
 	    .type = ITEM_PLUGIN_TYPE,
 	    .label = "stat40",
-	    .desc = "Stat data for reiserfs 4.0, ver. 0.1, "
-		"Copyright (C) 1996-2002 Hans Reiser",
+	    .desc = "Stat data for reiserfs 4.0, ver. " VERSION,
 	},
 	.common = {
 		

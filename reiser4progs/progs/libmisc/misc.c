@@ -12,8 +12,12 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
 #include <sys/vfs.h>
+#include <sys/ioctl.h>
+#include <sys/mount.h>
 
 #include <misc.h>
 
@@ -198,12 +202,8 @@ static aal_exception_option_t progs_exception_option_by_name(char *name) {
     for (i = 0; i < aal_log2(EXCEPTION_LAST); i++) {
 	char *opt = aal_exception_option_string(1 << i);
 	
-	/* 
-	    Function fgets puts '\n' symbol at end of entered string. Because of 
-	    this we should check for strlen(name) == 2.
-	*/
 	if (aal_strncmp(opt, name, aal_strlen(name)) == 0 || 
-		(aal_strlen(name) == 2 && toupper(opt[0]) == toupper(name[0])))
+		(aal_strlen(name) == 1 && toupper(opt[0]) == toupper(name[0])))
 	    return 1 << i;
     }
     
@@ -216,6 +216,9 @@ static aal_exception_option_t progs_exception_selected_option(void) {
     
     aal_memset(str, 0, sizeof(str));
     fgets(str, sizeof(str), stdin);
+
+    if (str[aal_strlen(str) - 1] == '\n')
+	str[aal_strlen(str) - 1] = '\0';
 
     return progs_exception_option_by_name(str);
 }
@@ -257,7 +260,7 @@ aal_exception_option_t progs_exception_handler(
 
     if (progs_exception_bit_count(exception->options, 0) == 1) {
 	if (!(stream = streams[exception->type]))
-	    return 0;
+	    return EXCEPTION_UNHANDLED;
     }
     
     /* Printing exception type */
@@ -367,8 +370,9 @@ errno_t callback_print_plugin(reiserfs_plugin_t *plugin, void *data) {
     return 0;
 }
 
-void progs_misc_factory_print(void) {
+void progs_misc_factory_list(void) {
     printf("\nKnown plugins are:\n");
     libreiser4_factory_foreach(callback_print_plugin, NULL);
+    printf("\n");
 }
 

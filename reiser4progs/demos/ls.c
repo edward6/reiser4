@@ -65,8 +65,8 @@ int main(int argc, char *argv[]) {
 	reiserfs_plugin_t *dir_plugin;
 	reiserfs_object_hint_t dir_hint;
 	
-	if (!(dir_plugin = libreiser4_factory_find_by_id(DIRECTORY_FILE, FILE_DIR40_ID)))
-	    libreiser4_factory_failed(goto error_free_object, find, dir, FILE_DIR40_ID);
+	if (!(dir_plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, DIR_DIR40_ID)))
+	    libreiser4_factory_failed(goto error_free_object, find, dir, DIR_DIR40_ID);
 	
 	dir_hint.statdata_pid = ITEM_STATDATA40_ID;
 	dir_hint.sdext = SDEXT_UNIX_ID;
