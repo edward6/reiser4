@@ -1357,8 +1357,31 @@ try_capture_block (txn_handle  *txnh,
 	txnh_atom  = txnh->atom;
 
 	if (txnh_atom != NULL) {
-		/* A hack for <lock>/<atom fuse> deadlock prevention
-		 * as it described in the head comment of this file.*/
+		/* It is time to perform deadlock prevention check over the node we want to capture.
+		 * It is possible this node was locked for read without capturing it. The
+		 * optimization which allows to do it helps us in keeping atoms independent as long
+		 * as possible but it may cause lock/fuse deadlock problems. 
+
+		 * The number of similar deadlock situations with locked but not captured were
+		 * found.  In each situation there are two or more threads one of them does flushing
+		 * another one does routine balancing or tree lookup.  The flushing thread (F)
+		 * sleeps in long term locking request for node (N), another thread (A) sleeps in
+		 * trying to capture some node already belonging the atom F, F has a state which
+		 * prevents immediately fusion .
+
+		 * Deadlocks of this kind cannot happen if node N was properly captured by thread
+		 * A. The F thread fuse atoms before locking therefore current atom of thread F and
+		 * current atom of thread A became the same atom and thread A may proceed.  This
+		 * does not work if node N was not captured because the fusion of atom does not
+		 * happens.
+
+		 * The following scheme solves the deadlock: If longterm_lock_znode locks and does
+		 * not capture a znode, that znode is marked as MISSED_IN_CAPTURE.  A node marked
+		 * this way is processed by the code below which restores the missed capture and
+		 * fuses current atoms of all the node lock owners by calling the
+		 * check_not_fused_lock_owners() function.
+		 */
+
 		if (txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
 		    jnode_is_znode (node) &&
 		    znode_is_locked (JZNODE(node)) && JF_ISSET (node, JNODE_MISSED_IN_CAPTURE))
