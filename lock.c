@@ -644,7 +644,7 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 			forget_znode(handle);
 
 			/* FIXME_JMACD: for now, set it to clean so it doesn't
-			 * get flushed. */
+			 * get flushed.  Zam wants this to be a deleted list. */
 			znode_set_clean (node);
 			return;
 		}
