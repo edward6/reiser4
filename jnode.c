@@ -1009,13 +1009,19 @@ jnode_set_type(jnode * node, jnode_type type)
 }
 
 static int
-noparse(jnode * node UNUSED_ARG)
+init_noinit(jnode * node UNUSED_ARG)
+{
+	return 0;
+}
+
+static int
+parse_noparse(jnode * node UNUSED_ARG)
 {
 	return 0;
 }
 
 struct address_space *
-jnode_mapping(const jnode * node)
+mapping_jnode(const jnode * node)
 {
 	struct address_space *map;
 
@@ -1028,13 +1034,13 @@ jnode_mapping(const jnode * node)
 }
 
 unsigned long
-jnode_index(const jnode * node)
+index_jnode(const jnode * node)
 {
 	return node->key.j.index;
 }
 
 static int
-jnode_remove_op(jnode * node, reiser4_tree * tree)
+remove_jnode(jnode * node, reiser4_tree * tree)
 {
 	/* remove jnode from hash-table */
 	j_hash_remove(&tree->jhash_table, node);
@@ -1042,7 +1048,7 @@ jnode_remove_op(jnode * node, reiser4_tree * tree)
 	return 0;
 }
 
-static int inode_jnode_remove_op(jnode * node, reiser4_tree * tree)
+static int remove_inode_jnode(jnode * node, reiser4_tree * tree)
 {
 	/* remove from super block's all_jnodes list */
 	assert("nikita-2422", !list_empty(&node->jnodes));
@@ -1054,19 +1060,19 @@ static int inode_jnode_remove_op(jnode * node, reiser4_tree * tree)
 }
 
 static int
-jnode_is_busy(const jnode * node)
+is_busy_jnode(const jnode * node)
 {
 	return (atomic_read(&node->x_count) > 0);
 }
 
 static struct address_space *
-znode_mapping(const jnode * node UNUSED_ARG)
+mapping_znode(const jnode * node UNUSED_ARG)
 {
 	return get_super_fake(reiser4_get_current_sb())->i_mapping;
 }
 
 static unsigned long
-znode_index(const jnode * node)
+index_znode(const jnode * node)
 {
 	unsigned long ind;
 
@@ -1085,9 +1091,9 @@ jnode_build_key(const jnode * node, reiser4_key * key)
 	assert("nikita-3093", key != NULL);
 	assert("nikita-3094", jnode_is_unformatted(node));
 
-	inode = jnode_mapping(node)->host;
+	inode = mapping_jnode(node)->host;
 	fplug = inode_file_plugin(inode);
-	off   = jnode_index(node) << PAGE_CACHE_SHIFT;
+	off   = index_jnode(node) << PAGE_CACHE_SHIFT;
 
 	assert("nikita-3095", fplug != NULL);
 	fplug->key_by_inode(inode, off, key);
@@ -1097,13 +1103,13 @@ jnode_build_key(const jnode * node, reiser4_key * key)
 extern int zparse(znode * node);
 
 static int
-znode_parse(jnode * node)
+parse_znode(jnode * node)
 {
 	return zparse(JZNODE(node));
 }
 
 static int
-znode_delete_op(jnode * node, reiser4_tree * tree)
+delete_znode(jnode * node, reiser4_tree * tree)
 {
 	znode *z;
 
@@ -1122,7 +1128,7 @@ znode_delete_op(jnode * node, reiser4_tree * tree)
 }
 
 static int
-znode_remove_op(jnode * node, reiser4_tree * tree)
+remove_znode(jnode * node, reiser4_tree * tree)
 {
 	znode *z;
 
@@ -1142,13 +1148,13 @@ znode_remove_op(jnode * node, reiser4_tree * tree)
 }
 
 static int
-znode_is_busy(const jnode * node)
+is_busy_znode(const jnode * node)
 {
-	return jnode_is_busy(node) || (atomic_read(&JZNODE(node)->c_count) > 0);
+	return is_busy_jnode(node) || (atomic_read(&JZNODE(node)->c_count) > 0);
 }
 
 static int
-znode_init(jnode * node)
+init_znode(jnode * node)
 {
 	znode *z;
 
@@ -1157,128 +1163,128 @@ znode_init(jnode * node)
 }
 
 static int
-no_hook(jnode * node UNUSED_ARG, struct page *page UNUSED_ARG, int rw UNUSED_ARG)
+io_hook_no_hook(jnode * node UNUSED_ARG, struct page *page UNUSED_ARG, int rw UNUSED_ARG)
 {
 	return 1;
 }
 
 static int
-other_remove_op(jnode * node, reiser4_tree * tree UNUSED_ARG)
+remove_other(jnode * node, reiser4_tree * tree UNUSED_ARG)
 {
 	jfree(node);
 	return 0;
 }
 
-extern int znode_io_hook(jnode * node, struct page *page, int rw);
+extern int io_hook_znode(jnode * node, struct page *page, int rw);
 
 jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 	[JNODE_UNFORMATTED_BLOCK] = {
-				     .h = {
-					   .type_id = REISER4_JNODE_PLUGIN_TYPE,
-					   .id = JNODE_UNFORMATTED_BLOCK,
-					   .pops = NULL,
-					   .label = "unformatted",
-					   .desc = "unformatted node",
-					   .linkage = TS_LIST_LINK_ZERO
-				     },
-				     .init = noparse,
-				     .parse = noparse,
-				     .remove = jnode_remove_op,
-				     .delete = jnode_remove_op,
-				     .is_busy = jnode_is_busy,
-				     .mapping = jnode_mapping,
-				     .index = jnode_index,
-				     .io_hook = no_hook
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id = JNODE_UNFORMATTED_BLOCK,
+			.pops = NULL,
+			.label = "unformatted",
+			.desc = "unformatted node",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init = init_noinit,
+		.parse = parse_noparse,
+		.remove = remove_jnode,
+		.delete = remove_jnode,
+		.is_busy = is_busy_jnode,
+		.mapping = mapping_jnode,
+		.index = index_jnode,
+		.io_hook = io_hook_no_hook
 	},
 	[JNODE_FORMATTED_BLOCK] = {
-				   .h = {
-					 .type_id = REISER4_JNODE_PLUGIN_TYPE,
-					 .id = JNODE_FORMATTED_BLOCK,
-					 .pops = NULL,
-					 .label = "formatted",
-					 .desc = "formatted tree node",
-					 .linkage = TS_LIST_LINK_ZERO
-				   },
-				   .init = znode_init,
-				   .parse = znode_parse,
-				   .remove = znode_remove_op,
-				   .delete = znode_delete_op,
-				   .is_busy = znode_is_busy,
-				   .mapping = znode_mapping,
-				   .index = znode_index,
-				   .io_hook = znode_io_hook
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id = JNODE_FORMATTED_BLOCK,
+			.pops = NULL,
+			.label = "formatted",
+			.desc = "formatted tree node",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init = init_znode,
+		.parse = parse_znode,
+		.remove = remove_znode,
+		.delete = delete_znode,
+		.is_busy = is_busy_znode,
+		.mapping = mapping_znode,
+		.index = index_znode,
+		.io_hook = io_hook_znode
 	},
 	[JNODE_BITMAP] = {
-			  .h = {
-				.type_id = REISER4_JNODE_PLUGIN_TYPE,
-				.id = JNODE_BITMAP,
-				.pops = NULL,
-				.label = "bitmap",
-				.desc = "bitmap node",
-				.linkage = TS_LIST_LINK_ZERO
-			  },
-			  .init = noparse,
-			  .parse = noparse,
-			  .remove = other_remove_op,
-			  .delete = other_remove_op,
-			  .is_busy = jnode_is_busy,
-			  .mapping = znode_mapping,
-			  .index = znode_index,
-			  .io_hook = no_hook
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id = JNODE_BITMAP,
+			.pops = NULL,
+			.label = "bitmap",
+			.desc = "bitmap node",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init = init_noinit,
+		.parse = parse_noparse,
+		.remove = remove_other,
+		.delete = remove_other,
+		.is_busy = is_busy_jnode,
+		.mapping = mapping_znode,
+		.index = index_znode,
+		.io_hook = io_hook_no_hook
 	},
 	[JNODE_CLUSTER_PAGE] = {
-				     .h = {
-					   .type_id = REISER4_JNODE_PLUGIN_TYPE,
-					   .id = JNODE_CLUSTER_PAGE,
-					   .pops = NULL,
-					   .label = "cluster page",
-					   .desc = "cluster page",
-					   .linkage = TS_LIST_LINK_ZERO
-				     },
-				     .init = noparse,
-				     .parse = noparse,
-				     .remove = jnode_remove_op,
-				     .delete = jnode_remove_op,
-				     .is_busy = jnode_is_busy,
-				     .mapping = jnode_mapping,
-				     .index = jnode_index,
-				     .io_hook = no_hook
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id = JNODE_CLUSTER_PAGE,
+			.pops = NULL,
+			.label = "cluster page",
+			.desc = "cluster page",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init = init_noinit,
+		.parse = parse_noparse,
+		.remove = remove_jnode,
+		.delete = remove_jnode,
+		.is_busy = is_busy_jnode,
+		.mapping = mapping_jnode,
+		.index = index_jnode,
+		.io_hook = io_hook_no_hook
 	},	
 	[JNODE_IO_HEAD] = {
-			   .h = {
-				 .type_id = REISER4_JNODE_PLUGIN_TYPE,
-				 .id = JNODE_IO_HEAD,
-				 .pops = NULL,
-				 .label = "io head",
-				 .desc = "io head",
-				 .linkage = TS_LIST_LINK_ZERO
-			   },
-			   .init = noparse,
-			   .parse = noparse,
-			   .remove = other_remove_op,
-			   .delete = other_remove_op,
-			   .is_busy = jnode_is_busy,
-			   .mapping = znode_mapping,
-			   .index = znode_index,
-			   .io_hook = no_hook
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id = JNODE_IO_HEAD,
+			.pops = NULL,
+			.label = "io head",
+			.desc = "io head",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init = init_noinit,
+		.parse = parse_noparse,
+		.remove = remove_other,
+		.delete = remove_other,
+		.is_busy = is_busy_jnode,
+		.mapping = mapping_znode,
+		.index = index_znode,
+		.io_hook = io_hook_no_hook
 	},
 	[JNODE_INODE] = {
-			   .h = {
-				 .type_id = REISER4_JNODE_PLUGIN_TYPE,
-				 .id = JNODE_INODE,
-				 .pops = NULL,
-				 .label = "inode",
-				 .desc = "inode's builtin jnode",
-				 .linkage = TS_LIST_LINK_ZERO
-			   },
-			   .init = NULL,
-			   .parse = NULL,
-			   .remove = inode_jnode_remove_op,
-			   .delete = NULL,
-			   .is_busy = jnode_is_busy,
-			   .mapping = NULL,
-			   .index = NULL,
-			   .io_hook = NULL
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id = JNODE_INODE,
+			.pops = NULL,
+			.label = "inode",
+			.desc = "inode's builtin jnode",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init = NULL,
+		.parse = NULL,
+		.remove = remove_inode_jnode,
+		.delete = NULL,
+		.is_busy = is_busy_jnode,
+		.mapping = NULL,
+		.index = NULL,
+		.io_hook = NULL
 	}
 };
 

@@ -509,7 +509,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 		spin_lock_eflush(tree->super);
 
-		inode = jnode_mapping(node)->host;
+		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
 		++ info->eflushed;
 
@@ -615,7 +615,7 @@ eflush_del(jnode *node, int page_locked)
 
 			spin_lock_eflush(tree->super);
 
-			inode = jnode_mapping(node)->host;
+			inode = mapping_jnode(node)->host;
 			info = reiser4_inode_data(inode);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;

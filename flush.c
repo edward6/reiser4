@@ -3341,7 +3341,7 @@ scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 
 	/* The scan_index variable corresponds to the current page index of the
 	   unformatted block scan position. */
-	scan_index = jnode_index(scan->node);
+	scan_index = index_jnode(scan->node);
 
 	assert("jmacd-7889", item_is_extent(&coord));
 
@@ -3610,7 +3610,7 @@ jnode_tostring_internal(jnode * node, char *buf)
 
 	items[0] = 0;
 	if (!fmttd) {
-		sprintf(items, " index=%lu", jnode_index(node));
+		sprintf(items, " index=%lu", index_jnode(node));
 	}
 
 	sprintf(buf + strlen(buf),

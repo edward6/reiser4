@@ -518,7 +518,7 @@ static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
 
 		ef = list_entry(tmp, eflush_node_t, inode_link);
 		j = ef->node;
-		if (jnode_index(j) >= index) {
+		if (index_jnode(j) >= index) {
 			jref(j);			
 			spin_unlock_eflush(tree->super);
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 0));

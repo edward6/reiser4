@@ -826,7 +826,7 @@ znode_just_created(const znode * node)
 }
 
 int
-znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
+io_hook_znode(jnode * node, struct page *page UNUSED_ARG, int rw)
 {
 	if (REISER4_STATS && (rw == WRITE)) {
 		int result = 0;
