@@ -70,6 +70,7 @@ crypto_stat_t * inode_crypto_stat(struct inode *);
 unsigned long pg_to_clust(unsigned long, struct inode *);
 loff_t clust_to_off(unsigned long, struct inode *);
 unsigned long off_to_pg(loff_t);
+unsigned long clust_to_pg(unsigned long, struct inode *);
 unsigned off_to_pgoff(loff_t);
 unsigned off_to_pgcount(loff_t, unsigned long);
 unsigned pg_to_off_to_cloff(unsigned long, struct inode *);
