@@ -398,7 +398,7 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		init_coord( &arg.last_coord );
 		init_lh( &arg.last_lh );
 
-		result = reiser4_iterate_tree( tree_by_inode( dir ), 
+		result = iterate_tree( tree_by_inode( dir ), 
 					       coord, lh, entry_actor, &arg, 
 					       mode, 1 );
 		/*
@@ -412,8 +412,8 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 			done_lh( lh );
 			done_coord( coord );
 
-			reiser4_dup_coord( coord, &arg.last_coord );
-			reiser4_move_lh( lh, &arg.last_lh );
+			dup_coord( coord, &arg.last_coord );
+			move_lh( lh, &arg.last_lh );
 
 			result = -ENOENT;
 		}
@@ -475,7 +475,7 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 	assert( "nikita-1137", iplug -> s.dir.extract_name );
 
 	done_coord( &args -> last_coord );
-	reiser4_dup_coord( &args -> last_coord, coord );
+	dup_coord( &args -> last_coord, coord );
 	if( args -> last_lh.node != lh -> node ) {
 		int lock_result;
 

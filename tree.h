@@ -209,7 +209,7 @@ typedef int ( *tree_iterate_actor_t )( reiser4_tree *tree,
 				       tree_coord *coord,
 				       reiser4_lock_handle *lh,
 				       void *arg );
-extern int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord, 
+extern int iterate_tree( reiser4_tree *tree, tree_coord *coord, 
 				 reiser4_lock_handle *lh, 
 				 tree_iterate_actor_t actor, void *arg,
 				 znode_lock_mode mode, int through_units_p );

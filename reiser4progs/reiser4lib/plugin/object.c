@@ -249,7 +249,7 @@ static int insert_new_sd( struct inode *inode )
 	ref -> sd_len = data.length;
 	data.data = NULL;
 
-	result = reiser4_allocate_oid
+	result = allocate_oid
 		( reiser4_get_oid_allocator( inode -> i_sb ), &oid );
 	if( result != 0 )
 		return result;

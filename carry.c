@@ -1057,7 +1057,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 			result = add_new_root( level, node, tmp_lh.node );
 			if( result == 0 ) {
 				reference_point = level -> new_root;
-				reiser4_move_lh( &lh, &node -> lock_handle );
+				move_lh( &lh, &node -> lock_handle );
 			}
 		} else if( ( level -> new_root != NULL ) && 
 			   ( level -> new_root != 
@@ -1072,7 +1072,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 				 "hodie natus est radici frater" );
 			result = -EIO;
 		} else {
-			reiser4_move_lh( &lh, &tmp_lh );
+			move_lh( &lh, &tmp_lh );
 			reference_point = lh.node;
 		}
 	} 
@@ -1084,7 +1084,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 						    GN_DO_READ );
 		if( result == 0 ) {
 			done_lh( &lh );
-			reiser4_move_lh( &lh, &tmp_lh );
+			move_lh( &lh, &tmp_lh );
 			reference_point = lh.node;
 		}
 	} 
@@ -1093,7 +1093,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 					      ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
 	}
 	if( result == 0 ) {
-		reiser4_move_lh( &node -> lock_handle, &lh );
+		move_lh( &node -> lock_handle, &lh );
 		result = lock_carry_node_tail( node );
 	}
 	done_lh( &tmp_lh );

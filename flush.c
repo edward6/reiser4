@@ -333,7 +333,7 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 	jnode *left_child;
 	tree_coord coord;
 
-	reiser4_dup_coord (& coord, parent_coord);
+	dup_coord (& coord, parent_coord);
 
 	if (! (is_leftmost = coord_prev_unit (& coord))) {
 		/* Not leftmost of parent, don't relocate */

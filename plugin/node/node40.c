@@ -535,7 +535,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 			/*
 			 * two neighboring items can not be mergeable
 			 */
-			reiser4_dup_coord( &prev_coord, &coord );
+			dup_coord( &prev_coord, &coord );
 			coord_prev_item( &prev_coord );
 			if( are_items_mergeable( &prev_coord, &coord ) ) {
 				*error = "mergeable items in one node";

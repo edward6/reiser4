@@ -338,7 +338,7 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		arg.not_found = 0;
 		if( REISER4_STATS )
 			arg.non_uniq = 0;
-		result = reiser4_iterate_tree( tree_by_inode( dir ), 
+		result = iterate_tree( tree_by_inode( dir ), 
 					       coord, lh, entry_actor, &arg, 
 					       mode, 1 );
 		/*

@@ -432,7 +432,7 @@ extern int longterm_lock_znode     (reiser4_lock_handle *handle,
 				   znode_lock_request   request);
 extern void longterm_unlock_znode  (reiser4_lock_handle *handle);
 
-extern int reiser4_check_deadlock ( void );
+extern int check_deadlock ( void );
 
 extern reiser4_lock_stack *get_current_lock_stack (void);
 
@@ -440,15 +440,15 @@ extern void init_lock_stack (reiser4_lock_stack * owner);
 extern void reiser4_init_lock (reiser4_zlock * lock);
 
 extern void init_lh (reiser4_lock_handle*);
-extern void reiser4_move_lh (reiser4_lock_handle *new, reiser4_lock_handle *old);
+extern void move_lh (reiser4_lock_handle *new, reiser4_lock_handle *old);
 extern void done_lh (reiser4_lock_handle*);
 
-extern int  reiser4_prepare_to_sleep (reiser4_lock_stack *owner);
-extern void reiser4_go_to_sleep      (reiser4_lock_stack *owner);
+extern int  prepare_to_sleep (reiser4_lock_stack *owner);
+extern void go_to_sleep      (reiser4_lock_stack *owner);
 extern void reiser4_wake_up          (reiser4_lock_stack *owner);
 
-extern void reiser4_show_lock_stack    (reiser4_context    *owner);
-extern int  reiser4_lock_stack_isclean (reiser4_lock_stack *owner);
+extern void show_lock_stack    (reiser4_context    *owner);
+extern int  lock_stack_isclean (reiser4_lock_stack *owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
  * lock is held by the current thread. */

@@ -374,8 +374,8 @@ static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 	buf -> f_bavail  = buf -> f_bfree - 
 		reiser4_reserved_blocks( super, 0, 0 );
 	oidmap = reiser4_get_oid_allocator( super );
-	buf -> f_files   = reiser4_oids_used( oidmap );
-	buf -> f_ffree   = reiser4_oids_free( oidmap );
+	buf -> f_files   = oids_used( oidmap );
+	buf -> f_ffree   = oids_free( oidmap );
 	/* maximal acceptable name length depends on directory plugin. */
 	buf -> f_namelen = -1;
 	REISER4_EXIT( 0 );
@@ -532,7 +532,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 			arg.skip     = reiser4_get_file_fsdata( f ) -> skip;
 			arg.skipped  = 0;
 
-			result = reiser4_iterate_tree
+			result = iterate_tree
 				( tree_by_inode( inode ), &coord, &lh, 
 				  readdir_actor, &arg, ZNODE_READ_LOCK, 1 );
 			/*

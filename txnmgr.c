@@ -1308,10 +1308,10 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 	 * mess.  I think there is a race condition here. -josh */
 	spin_unlock_txnh (txnh);
 	
-	if ((ret = reiser4_prepare_to_sleep (wlinks._lock_stack)) != 0) {
+	if ((ret = prepare_to_sleep (wlinks._lock_stack)) != 0) {
 		trace_on (TRACE_TXN, "thread %u deadlock blocking on atom %u\n", (unsigned) pthread_self (), atomf->atom_id);
 	} else {
-		reiser4_go_to_sleep      (wlinks._lock_stack);
+		go_to_sleep      (wlinks._lock_stack);
 
 		ret = -EAGAIN;
 

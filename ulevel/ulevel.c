@@ -2124,7 +2124,7 @@ static void allocate_unallocated (reiser4_tree * tree)
 			       TWIG_LEVEL, TWIG_LEVEL, 
 			       CBK_FOR_INSERT | CBK_UNIQUE);
 	coord_first_unit (&coord, NULL);
-	result = reiser4_iterate_tree (tree, &coord, &lh, 
+	result = iterate_tree (tree, &coord, &lh, 
 				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
 
 	done_lh (&lh);
@@ -2227,7 +2227,7 @@ static void squeeze_twig_level (reiser4_tree * tree)
 			       TWIG_LEVEL, TWIG_LEVEL, 
 			       CBK_FOR_INSERT | CBK_UNIQUE);
 	coord_first_unit (&coord, NULL);
-	result = reiser4_iterate_tree (tree, &coord, &lh, 
+	result = iterate_tree (tree, &coord, &lh, 
 				       do_twig_squeeze, 0, ZNODE_WRITE_LOCK, 0/* through items */);
 
 	done_lh (&lh);
@@ -2990,7 +2990,7 @@ int real_main( int argc, char **argv )
 	txn_mgr_init( &reiser4_get_super_private (&super) -> tmgr );
 
 	root_dentry.d_inode = NULL;
-	reiser4_init_oid_allocator( reiser4_get_oid_allocator( &super ) );
+	init_oid_allocator( reiser4_get_oid_allocator( &super ) );
 
 	INIT_LIST_HEAD( &inode_hash_list );
 	INIT_LIST_HEAD( &page_list );

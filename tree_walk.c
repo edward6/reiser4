@@ -340,7 +340,7 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 	int nr_locked;
 	int ret;
 
-	reiser4_dup_coord(&local, coord);
+	dup_coord(&local, coord);
 	init_lh(&handle);
 
 	ret = renew_sibling_link(&local, &handle, node, znode_get_level( node ),
@@ -416,7 +416,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 	int nr_locked = 0;
 	int ret;
 
-	reiser4_dup_coord(&local, coord);
+	dup_coord(&local, coord);
 
 	ret = renew_sibling_link(&local, &empty[0], node, level, flags & ~GN_NO_ALLOC, &nr_locked);
 	if (ret) goto out;
@@ -572,7 +572,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 			    /* there was lock request from hi-pri locker. if
 			       it is possible we unlock last parent node and
 			       re-lock it again. */
-			    while (reiser4_check_deadlock()) {
+			    while (check_deadlock()) {
 				    if (h == 0) goto fail;
 
 				    done_lh(&path[--h]);

@@ -477,7 +477,7 @@ int cde_check( tree_coord *coord, const char **error )
 	item_start = item_body_by_coord( coord );
 	item_end = item_start + item_length_by_coord( coord );
 
-	reiser4_dup_coord( &c, coord );
+	dup_coord( &c, coord );
 	result = 0;
 	for( i = 0 ; i < units( coord ) ; ++ i ) {
 		directory_entry_format *entry;

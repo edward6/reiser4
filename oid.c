@@ -25,7 +25,7 @@ static const oid_t ABSOLUTE_MIN_OID = ( oid_t )  0;
 /**
  * Initialise object id allocator
  */
-int reiser4_init_oid_allocator( reiser4_oid_allocator_t *map )
+int init_oid_allocator( reiser4_oid_allocator_t *map )
 {
 	assert( "nikita-1168", map != NULL );
 	
@@ -50,7 +50,7 @@ static void unlock( reiser4_oid_allocator_t *map )
 }
 
 /** number of oids available for use by users */
-__u64 reiser4_oids_free( reiser4_oid_allocator_t *map )
+__u64 oids_free( reiser4_oid_allocator_t *map )
 {
 	__u64 result;
 
@@ -65,7 +65,7 @@ __u64 reiser4_oids_free( reiser4_oid_allocator_t *map )
 
 /** return number of user-visible oids already allocated in this map.
     Used by reiser4_statfs() to report "f_files". */
-__u64 reiser4_oids_used( reiser4_oid_allocator_t *map )
+__u64 oids_used( reiser4_oid_allocator_t *map )
 {
 	__u64 result;
 
@@ -78,7 +78,7 @@ __u64 reiser4_oids_used( reiser4_oid_allocator_t *map )
 
 /** allocate new objectid in "map" and store it in "result". Return 0 on
     success, negative error code on failure. */
-int reiser4_allocate_oid( reiser4_oid_allocator_t *map, oid_t *result UNUSED_ARG )
+int allocate_oid( reiser4_oid_allocator_t *map, oid_t *result UNUSED_ARG )
 {
 	assert( "nikita-445", map != NULL );
 	lock( map );
@@ -92,7 +92,7 @@ int reiser4_allocate_oid( reiser4_oid_allocator_t *map, oid_t *result UNUSED_ARG
 }
 
 /** release object id back to "map". */
-int reiser4_release_oid( reiser4_oid_allocator_t *map UNUSED_ARG, 
+int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG, 
 			 oid_t oid UNUSED_ARG )
 {
 	assert( "nikita-446", map != NULL );
@@ -107,14 +107,14 @@ int reiser4_release_oid( reiser4_oid_allocator_t *map UNUSED_ARG,
 
 /** how many pages to reserve in transaction for allocation of new
     objectid */
-int reiser4_oid_reserve_allocate( reiser4_oid_allocator_t *map UNUSED_ARG )
+int oid_reserve_allocate( reiser4_oid_allocator_t *map UNUSED_ARG )
 {
 	return 1;
 }
 
 /** how many pages to reserve in transaction for freeing of an
     objectid */
-int reiser4_oid_reserve_release( reiser4_oid_allocator_t *map UNUSED_ARG )
+int oid_reserve_release( reiser4_oid_allocator_t *map UNUSED_ARG )
 {
 	return 1;
 }

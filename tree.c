@@ -743,7 +743,7 @@ void reiser4_done_context( reiser4_context *context UNUSED_ARG /* context being
 	assert( "nikita-860", context != NULL );
 	assert( "nikita-859", context -> magic == context_magic );
 	assert( "jmacd-673", context -> trans == NULL );
-	assert( "jmacd-1002", reiser4_lock_stack_isclean (& context->stack));
+	assert( "jmacd-1002", lock_stack_isclean (& context->stack));
 	/* add more checks here */
 
 #if REISER4_DEBUG
@@ -781,7 +781,7 @@ void reiser4_show_context (int show_tree)
 		print_address ("; tree root", & tree->root_block);
 		info ("\n");
 
-		reiser4_show_lock_stack (context);
+		show_lock_stack (context);
 
 		info ("\n");
 	}

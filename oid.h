@@ -45,13 +45,13 @@ typedef struct reiser4_oid_allocator {
 	oid_t      oids_in_use;
 } reiser4_oid_allocator_t;
 
-extern int   reiser4_init_oid_allocator( reiser4_oid_allocator_t *map );
-extern __u64 reiser4_oids_used( reiser4_oid_allocator_t *map );
-extern __u64 reiser4_oids_free( reiser4_oid_allocator_t *map );
-extern int   reiser4_allocate_oid( reiser4_oid_allocator_t *map, oid_t *result );
-extern int   reiser4_release_oid( reiser4_oid_allocator_t *map, oid_t oid );
-extern int   reiser4_oid_reserve_allocate( reiser4_oid_allocator_t *map );
-extern int   reiser4_oid_reserve_release( reiser4_oid_allocator_t *map );
+extern int   init_oid_allocator( reiser4_oid_allocator_t *map );
+extern __u64 oids_used( reiser4_oid_allocator_t *map );
+extern __u64 oids_free( reiser4_oid_allocator_t *map );
+extern int   allocate_oid( reiser4_oid_allocator_t *map, oid_t *result );
+extern int   release_oid( reiser4_oid_allocator_t *map, oid_t oid );
+extern int   oid_reserve_allocate( reiser4_oid_allocator_t *map );
+extern int   oid_reserve_release( reiser4_oid_allocator_t *map );
 
 /* __REISER4_OID_H__ */
 #endif

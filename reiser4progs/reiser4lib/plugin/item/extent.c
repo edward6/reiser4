@@ -1600,7 +1600,7 @@ static int fill_page_actor (reiser4_tree * tree UNUSED_ARG,
 
 
 /* plugin->u.item.s.file.fill_page
-   this uses @reiser4_iterate_tree to find all blocks populating @page. 
+   this uses @iterate_tree to find all blocks populating @page. 
  */
 int extent_fill_page (struct page * page, tree_coord * coord,
 		      reiser4_lock_handle * lh)
@@ -1615,7 +1615,7 @@ int extent_fill_page (struct page * page, tree_coord * coord,
 		create_empty_buffers (page, reiser4_get_current_sb ()->s_blocksize);
 	desc.bh = page->buffers;
 
-	result = reiser4_iterate_tree (current_tree, coord, lh,
+	result = iterate_tree (current_tree, coord, lh,
 				       fill_page_actor, &desc,
 				       ZNODE_READ_LOCK, 1 /* through units */);
 	if (result)
@@ -1779,7 +1779,7 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 	if (result)
 		/* error occurred */
 		return result;
-	/* have reiser4_iterate_tree to continue */
+	/* have iterate_tree to continue */
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;
 	return 1;

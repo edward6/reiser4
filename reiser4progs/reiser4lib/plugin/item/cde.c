@@ -457,7 +457,7 @@ int cde_check( tree_coord *coord, const char **error )
 	item_start = item_body_by_coord( coord );
 	item_end = item_start + item_length_by_coord( coord );
 
-	reiser4_dup_coord( &c, coord );
+	dup_coord( &c, coord );
 	result = 0;
 	for( i = 0 ; i < units( coord ) ; ++ i ) {
 		directory_entry_format *entry;
@@ -869,7 +869,7 @@ static int try_to_glue_to( tree_coord *coord, const struct inode *dir,
 	else if( coord_between_items( coord ) ) {
 		tree_coord neighbor;
 
-		reiser4_dup_coord( &neighbor, coord );
+		dup_coord( &neighbor, coord );
 		if( ( move_to_neighbor( &neighbor ) == 0 ) &&
 		    can_glue_to( &neighbor, dir, plugin ) ) {
 			move_to_neighbor( coord );

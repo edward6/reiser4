@@ -24,7 +24,7 @@ int init_coord( tree_coord *coord )
 }
 
 /** correct tree_coord object duplication */
-void reiser4_dup_coord (tree_coord * new, const tree_coord * old)
+void dup_coord (tree_coord * new, const tree_coord * old)
 {
 	xmemcpy (new, old, sizeof (tree_coord));
 	if (old->node != NULL) {
@@ -455,7 +455,7 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
  *
  * This is used by readdir() and alikes.
  */
-int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord, 
+int iterate_tree( reiser4_tree *tree, tree_coord *coord, 
 			  reiser4_lock_handle *lh, 
 			  tree_iterate_actor_t actor, void *arg,
 			  znode_lock_mode mode, int through_units_p )
@@ -491,7 +491,7 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 					done_coord( coord );
 
 					coord_first_unit( coord, couple.node );
-					reiser4_move_lh( lh, &couple );
+					move_lh( lh, &couple );
 				} else
 					return result;
 			} while( node_is_empty( coord -> node ) );
@@ -535,7 +535,7 @@ static lookup_result cbk( cbk_handle *h )
 /* obtain fake znode */
 		znode *fake;
 
-		assert ("zam-355", reiser4_lock_stack_isclean(
+		assert ("zam-355", lock_stack_isclean(
 				get_current_lock_stack()));
 /* ewww, ugly, why not just follow the super block pointer to the root
    of the tree. Or even better, have some nice little
@@ -579,7 +579,7 @@ static lookup_result cbk( cbk_handle *h )
 		}
 		switch( cbk_level_lookup( h ) ) {
 		    case LLR_CONT:
-			    reiser4_move_lh(h->parent_lh, h->active_lh);
+			    move_lh(h->parent_lh, h->active_lh);
 			    continue;
 		    default:
 			    wrong_return_value( "nikita-372", "cbk_level" );
@@ -769,8 +769,8 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 				done_coord( coord );
 
 				init_coord( coord );
-				reiser4_dup_coord( coord, &right );
-				reiser4_move_lh( lh, &right_lh );
+				dup_coord( coord, &right );
+				move_lh( lh, &right_lh );
 
 				done_coord( &right );
 				return 1;
@@ -797,7 +797,7 @@ static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
 		 */
 		tree_coord tmp;
 
-		reiser4_dup_coord( &tmp, coord );
+		dup_coord( &tmp, coord );
 		tmp.item_pos ++;
 		item_key_by_coord( &tmp, key );
 		done_coord( &tmp );
@@ -1242,7 +1242,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	assert( "nikita-1484", parent != NULL );
 	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
 	
-	reiser4_dup_coord( &neighbor, parent_coord );
+	dup_coord( &neighbor, parent_coord );
 
 	if( neighbor.between == AT_UNIT )
 		/*
@@ -1257,7 +1257,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 		*ld = *znode_get_ld_key( parent );
 	done_coord( &neighbor );
 
-	reiser4_dup_coord( &neighbor, parent_coord );
+	dup_coord( &neighbor, parent_coord );
 	if( neighbor.between == AT_UNIT )
 		neighbor.between = AFTER_UNIT;
 	if( coord_set_to_right( &neighbor ) == 0 )

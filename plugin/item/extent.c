@@ -737,11 +737,11 @@ static void optimize_extent (tree_coord * item)
 		int result;
 		tree_coord from, to;
 
-		reiser4_dup_coord (&from, item);
+		dup_coord (&from, item);
 		from.unit_pos = new_num;
 		from.between = AT_UNIT;
 
-		reiser4_dup_coord (&to, &from);
+		dup_coord (&to, &from);
 		to.unit_pos = old_num - 1;
 
 		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT);
@@ -1643,10 +1643,10 @@ static void submit_bhs (struct buffer_head ** bhs, unsigned nr)
 
 
 /*
- * extent_readpage uses search.c:reiser4_iterate_tree() to go through all
+ * extent_readpage uses search.c:iterate_tree() to go through all
  * extents pointing to blocks a page consists of. This is because page may
  * consist of several blocks and therefore extents addressing page blocks may
- * be located in more than one node. reiser4_iterate_tree will iterate all
+ * be located in more than one node. iterate_tree will iterate all
  * those extents and call map_extent for every one. This map_extent gets
  * pointer to struct readpage_desc and records there how mapping of page
  * buffers is going
@@ -1846,7 +1846,7 @@ int extent_readpage (void * p, struct page * page)
 	/*
 	 * go through extents until all buffers are mapped
 	 */
-	result = reiser4_iterate_tree (current_tree, arg->coord, arg->lh,
+	result = iterate_tree (current_tree, arg->coord, arg->lh,
 				       map_extent, &desc,
 				       ZNODE_READ_LOCK, 1 /* through units */);
 	if (result)
@@ -2528,7 +2528,7 @@ static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
 
 	set_extent (&new_ext, UNALLOCATED_EXTENT, width);
 	
-	reiser4_dup_coord (&coord, item);
+	dup_coord (&coord, item);
 	coord.between = AFTER_UNIT;
 	/*
 	 * have paste_into_item to not shift anything to left
@@ -2659,7 +2659,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 		reiser4_disk_addr da;
 
 		assert ("vs-455", coord->unit_pos == 0);
-		reiser4_dup_coord (&prev, coord);
+		dup_coord (&prev, coord);
 		coord_prev_unit (&prev);
 		if (item_is_internal (&prev)) {
 			item_plugin_by_coord (&prev)->s.internal.down_link (&prev, 0,

@@ -146,7 +146,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 		right = add_carry( doing, POOLO_AFTER, node );
 		if( !IS_ERR( right ) ) {
 			right -> node = lh.node;
-			reiser4_move_lh( &right -> lock_handle, &lh );
+			move_lh( &right -> lock_handle, &lh );
 			right -> free = 1;
 			result = lock_carry_node_tail( right );
 			if( result != 0 )
@@ -476,7 +476,7 @@ static int make_space( carry_op *op /* carry operation, insert or
 		 * shift everything possible on the right of and
 		 * including insertion coord into the right neighbor.
 		 */
-		reiser4_dup_coord( &coord_shadow, op -> u.insert.d -> coord );
+		dup_coord( &coord_shadow, op -> u.insert.d -> coord );
 		node_shadow = op -> node;
 		result = carry_shift_data( RIGHT_SIDE, op -> u.insert.d -> coord,
 					   fresh -> real_node, doing, todo, 1 );
@@ -494,7 +494,7 @@ static int make_space( carry_op *op /* carry operation, insert or
 			 * space in the source node now.
 			 */
 			done_coord( op -> u.insert.d -> coord );
-			reiser4_dup_coord( op -> u.insert.d -> coord, 
+			dup_coord( op -> u.insert.d -> coord, 
 					   &coord_shadow );
 			node = op -> u.insert.d -> coord -> node;
 			op -> node = node_shadow;
@@ -806,7 +806,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		return result;
 	}
 
-	reiser4_dup_coord( &coord2, &coord );
+	dup_coord( &coord2, &coord );
 	result = node_plugin_by_node( parent ) -> cut_and_kill
 		( &coord, &coord2, NULL, NULL, NULL, todo, 
 		  op -> u.delete.flags );

@@ -786,7 +786,7 @@ int longterm_lock_znode (
 		/* By having semaphore initialization here we cannot lose
 		 * wakeup signal even if it comes after `nr_signaled' field
 		 * check. */
-		if ((ret = reiser4_prepare_to_sleep(owner))) {
+		if ((ret = prepare_to_sleep(owner))) {
 			break;
 		}
 
@@ -823,7 +823,7 @@ int longterm_lock_znode (
 		spin_unlock_znode(node);
 		/*
 		 * ... and sleep */
-		reiser4_go_to_sleep(owner);
+		go_to_sleep(owner);
 
 		spin_lock_znode(node);
 		if (hipri) node->lock.nr_hipri_requests--;
@@ -899,10 +899,10 @@ void invalidate_lock (reiser4_lock_handle *handle /* path to lock
 	while (!requestors_list_empty(&node->lock.requestors)) {
 		requestors_list_push_back(&node->lock.requestors, owner);
 
-		reiser4_prepare_to_sleep(owner);
+		prepare_to_sleep(owner);
 
 		spin_unlock_znode(node);
-		reiser4_go_to_sleep(owner);
+		go_to_sleep(owner);
 		spin_lock_znode(node);
 
 		requestors_list_remove(owner);
@@ -1004,7 +1004,7 @@ void done_lh (reiser4_lock_handle *handle)
  * Transfer a lock handle (presumably so that variables can be moved between stack and
  * heap locations).
  */
-void reiser4_move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
+void move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
 {
 	znode * node = old -> node;
 	reiser4_lock_stack * owner = old -> owner;
@@ -1024,7 +1024,7 @@ void reiser4_move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
 }
 
 /* after getting -EDEADLK we unlock znodes until this function returns false */
-int reiser4_check_deadlock ( void )
+int check_deadlock ( void )
 {
 	reiser4_lock_stack * owner = get_current_lock_stack();
 	return atomic_read(&owner->nr_signaled) != 0;
@@ -1033,7 +1033,7 @@ int reiser4_check_deadlock ( void )
 /**
  * Reset the semaphore (under protection of lock_stack spinlock) to avoid lost
  * wake-up. */
-int reiser4_prepare_to_sleep (reiser4_lock_stack *owner)
+int prepare_to_sleep (reiser4_lock_stack *owner)
 {
 	spin_lock_stack(owner);
 	sema_init(&owner->sema, 0);
@@ -1060,7 +1060,7 @@ void reiser4_wake_up (reiser4_lock_stack *owner)
 /*
  * Puts a thread to sleep
  */
-void reiser4_go_to_sleep (reiser4_lock_stack *owner)
+void go_to_sleep (reiser4_lock_stack *owner)
 {
 	/*
 	 * FIXME-NIKITA sema_init() is called on owner->sema under @onwer
@@ -1074,7 +1074,7 @@ void reiser4_go_to_sleep (reiser4_lock_stack *owner)
 	down(&owner->sema);
 }
 
-int reiser4_lock_stack_isclean (reiser4_lock_stack *owner)
+int lock_stack_isclean (reiser4_lock_stack *owner)
 {
 	if (locks_list_empty (& owner->locks)) {
 		assert ("zam-353", atomic_read(&owner->nr_signaled) == 0);
@@ -1087,7 +1087,7 @@ int reiser4_lock_stack_isclean (reiser4_lock_stack *owner)
 /*
  * Debugging help
  */
-void reiser4_show_lock_stack (reiser4_context *context)
+void show_lock_stack (reiser4_context *context)
 {
 	reiser4_lock_handle *handle;
 	reiser4_lock_stack  *owner = & context->stack;
