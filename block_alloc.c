@@ -672,6 +672,8 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
+	assert("nikita-3342", !blocknr_is_fake(block));
+
 	reiser4_spin_lock_sb(sbinfo);
 	if (*block < sbinfo->block_count) {
 		sbinfo->blocknr_hint_default = *block;
