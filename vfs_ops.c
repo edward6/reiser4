@@ -1435,7 +1435,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		REISER4_EXIT (result);
 
 	inode = reiser4_iget (s, lplug->root_dir_key (s));
-	if (inode) {
+	if ( !IS_ERR( inode ) ) {
 		/* allocate dentry for root inode, It works with inode == 0 */
 		s->s_root = d_alloc_root (inode);
 		if (!s->s_root) {
@@ -1475,7 +1475,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 			unlock_new_inode (inode);
 		}
 	} else
-		REISER4_EXIT (-ENOMEM);
+		REISER4_EXIT (PTR_ERR (inode));
 
 	REISER4_EXIT (0);
 }

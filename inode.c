@@ -347,7 +347,7 @@ int reiser4_inode_find_actor( struct inode *inode /* inode from hash table to
 /** this is our helper function a la iget().
     Probably we also need function taking locality_id as the second argument. ???
     This will be called by reiser4_lookup() and reiser4_read_super().
-    Return inode locked.
+    Return inode locked or error encountered. 
 */
 /* Audited by: green(2002.06.17) */
 struct inode *reiser4_iget( struct super_block *super /* super block  */, 
@@ -371,7 +371,7 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 			      reiser4_inode_find_actor, init_locked_inode, 
 			      ( reiser4_key * ) key );
 	if( inode == NULL ) 
-		return NULL;
+		return ERR_PTR( -ENOMEM );
 	else if( is_bad_inode( inode ) ) {
 		warning( "nikita-304", "Stat data not found" );
 		print_key( "key", key );
@@ -387,7 +387,7 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 	}
 	if( is_bad_inode( inode ) ) {
 		iput( inode );
-		inode = NULL;
+		inode = ERR_PTR( -EIO );
 	} else if( REISER4_DEBUG ) {
 		reiser4_key found_key;
 				

@@ -222,7 +222,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 		struct inode *inode;
 
 		inode = reiser4_iget( parent -> i_sb, &entry.key );
-		if( inode ) {
+		if( !IS_ERR(inode) ) {
 			__u32 *flags;
  
 			flags = reiser4_inode_flags( inode );
@@ -240,7 +240,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 				unlock_new_inode( inode );
 			result = 0;
 		} else
-			result = -EACCES;
+			result = PTR_ERR(inode);
 	}
 
 #if 0
