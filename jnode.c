@@ -530,9 +530,13 @@ int jload_and_lock( jnode *node )
 		} else
 			jrelse_nolock( node );
 	} else {
+		struct page *page;
+
+		page = jnode_page( node );
 		assert( "nikita-2136", atomic_read( &node -> d_count ) > 1 );
-		assert( "nikita-2348", jnode_page( node ) != NULL );
-		page_cache_get( jnode_page( node ) );
+		assert( "nikita-2348", page != NULL );
+		page_cache_get( page );
+		kmap( page );
 		result = 1;
 	}
 	return result;
