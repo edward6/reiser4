@@ -179,7 +179,7 @@
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int jnode_extent_write(capture_list_head * head, jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
+static int write_jnodes_to_disk_extent(capture_list_head * head, jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -419,7 +419,7 @@ update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = jnode_extent_write(&ch->tx_list, jh, 1, jnode_get_block(jh), NULL);
+	ret = write_jnodes_to_disk_extent(&ch->tx_list, jh, 1, jnode_get_block(jh), NULL);
 
 	if (ret)
 		return ret;
@@ -450,7 +450,7 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = jnode_extent_write(&ch->tx_list, jf, 1, jnode_get_block(jf), 0);
+	ret = write_jnodes_to_disk_extent(&ch->tx_list, jf, 1, jnode_get_block(jf), 0);
 	if (ret)
 		return ret;
 
@@ -723,7 +723,7 @@ FIXME: ZAM->HANS: What layer are you talking about? Can you point me to that?
 Why that layer needed? Why BIOs cannot be constructed here?
 */
 static int
-jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
@@ -877,7 +877,7 @@ write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitt
 		}
 		spin_unlock(&scan_lock);
 
-		ret = jnode_extent_write(head, beg, nr, jnode_get_block(beg), fq);
+		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq);
 		if (ret) {
 			JF_CLR(beg, JNODE_SCANNED);
 			return ret;
@@ -991,7 +991,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 			return ret;
 		}
 
-		ret = jnode_extent_write(ch->overwrite_set, cur, len, &block, fq);
+		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len, &block, fq);
 		if (ret) {
 			JF_CLR(cur, JNODE_SCANNED);
 			return ret;
@@ -1145,7 +1145,7 @@ get_overwrite_set(struct commit_handle *ch)
    all low-level things as bio construction and page states manipulation.
 */
 static int
-jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
@@ -1273,7 +1273,7 @@ write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitt
 			cur = capture_list_next(cur);
 		}
 
-		ret = jnode_extent_write(head, beg, nr, jnode_get_block(beg), fq);
+		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq);
 		if (ret)
 			return ret;
 
@@ -1359,7 +1359,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		if (ret)
 			return ret;
 
-		ret = jnode_extent_write(ch->overwrite_set, cur, len, &block, fq);
+		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len, &block, fq);
 		if (ret)
 			return ret;
 
