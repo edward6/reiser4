@@ -2690,8 +2690,6 @@ shift_node40(coord_t *from, znode *to, shift_direction pend,
 
 	/* set @shift.wish_stop to rightmost/leftmost unit among units we want
 	   shifted */
-	if (node_is_empty(shift.wish_stop.node))
-		result = 1;
 	if (pend == SHIFT_LEFT) {
 		result = coord_set_to_left(&shift.wish_stop);
 		left = to;
