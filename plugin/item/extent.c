@@ -144,6 +144,15 @@ static extent_state state_of_extent (reiser4_extent * ext)
 	default:
 		break;
 	}
+	if (REISER4_DEBUG) {
+		/* make sure that all blocks are marked used */
+		reiser4_block_nr start, width;
+
+		start = extent_get_start (ext);
+		width = extent_get_width (ext);
+		reiser4_check_blocks (&start, &width, 1);
+	}
+
 	return ALLOCATED_EXTENT;
 }
 
@@ -1981,7 +1990,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				lock_page (page);
 			}
 
-			if (jnode_created (j)) {
+			if (jnode_created (j) && !PageUptodate (page)) {
 				int padd;
 
 				/* new block added. Zero block content which is
@@ -2067,11 +2076,21 @@ int extent_write (struct inode * inode, coord_t * coord,
 			break;
 		loaded = coord->node;
 		result = zload (loaded);
-		if (result)
+		if (result) {
+			txn_delete_page (page);
 			break;
+		}
 		result = write_flow_to_page (coord, lh, f, page);
 		if (result) {
 			zrelse (loaded);
+			/*
+			 * FIXME-VS: how to uncapture page?
+			 * this only works for page==blocksize
+			 */
+			if (!PageUptodate (page))
+				txn_delete_page (page);
+			else
+				assert ("vs-838", result == -EAGAIN);
 			break;
 		}
 		if (f->data) {
@@ -2547,6 +2566,10 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 
 	*allocated = wanted_count;
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
+	/*
+	 * FIXME-VS: ask Zam how to use this block_stage
+	 */
+	preceder->block_stage = BLOCK_UNALLOCATED;
 	result = reiser4_alloc_blocks (preceder, first_allocated, allocated);
 	if (result) {
 		/*
