@@ -103,7 +103,7 @@ void readpages_cryptcompress(struct file *, struct address_space *, struct list_
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_cryptcompress(struct inode *);
 void hint_init_zero(hint_t *, lock_handle *);
-void destroy_cryptcompress_info(struct inode * inode);
+void destroy_inode_cryptcompress(struct inode * inode);
 int crc_inode_ok(struct inode * inode);
 
 static inline struct crypto_tfm * 

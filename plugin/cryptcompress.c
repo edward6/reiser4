@@ -400,9 +400,14 @@ reiser4_internal int open_cryptcompress(struct inode * inode, struct file * file
 	return 0;
 }
 
+/* plugin->destroy_inode() */
 reiser4_internal void
-destroy_cryptcompress_info(struct inode * inode)
+destroy_inode_cryptcompress(struct inode * inode)
 {
+	assert("edward-802", inode_file_plugin(inode) == file_plugin_by_id(SYMLINK_FILE_PLUGIN_ID));
+	assert("edward-803", !is_bad_inode(inode) && is_inode_loaded(inode));
+	assert("edward-804", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
 	free_crypto_tfm(inode);
 	if (inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED))
 		detach_crypto_stat(inode);
