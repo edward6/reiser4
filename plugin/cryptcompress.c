@@ -150,7 +150,7 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	return result;
 }
 
-static crypto_stat_t * inode_crypto_stat (struct inode * inode)
+crypto_stat_t * inode_crypto_stat (struct inode * inode)
 {
 	assert("edward-90", inode != NULL);
 	assert("edward-91", reiser4_inode_data(inode) != NULL);
@@ -262,10 +262,13 @@ void put_cluster_data(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-123", clust->stat != HOLE_CLUSTER);
 	assert("edward-124", inode != NULL);
 	assert("edward-125", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	
-	reiser4_kfree(clust->buf, inode_scaled_cluster_size(inode));
+
+	reiser4_kfree(clust->buf, (clust->tlen ?
+				   /* buf was updated */
+				   clust->tlen :
+				   inode_scaled_cluster_size(inode)));
 	/* invalidate cluster data */
-	clust->buf = NULL;
+	xmemset(clust, 0, sizeof *clust);
 }
 
 /* returns true if we need to read new cluster from disk */
@@ -295,11 +298,99 @@ find_cluster_item(const reiser4_key *key, /* key of next cluster item to read */
 			     FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE, ra_info);
 }
 
-/* decrypt and inflate cluster data if @op == READ
-   deflate and encrypt cluster data if @op == WRITE */
-int process_cluster(reiser4_cluster_t *clust, struct inode *inode, rw_op op)
+void get_cluster_magic(__u8 * magic)
 {
-	return 0;
+	/* FIXME-EDWARD: fill this by first 4 bytes of decrypted keyid
+	   PARANOID? */ 
+}
+
+/* @op == READ_OP:
+   . decrypt cluster
+   . check for end-of-cluster magic (NOTE-EDWARD: this magic should be private)
+   . decompress cluster
+   
+   @op == WRITE_OP:
+*/
+int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
+		    struct inode *inode, rw_op op)
+{
+	int result = 0;
+	int i, nr_fips;
+	__u8 tail_size;
+	size_t size, blksize;
+	crypto_plugin * cr_plug;
+	compression_plugin * co_plug;
+	__u8 magic[CLUSTER_MAGIC_SIZE];
+	__u8 * buf = NULL;
+	__u32 * expkey;
+	
+	cr_plug = inode_crypto_plugin(inode);
+	co_plug = inode_compression_plugin(inode);
+	/* original cluster size before compression */
+	size = (inode->i_size - clust->off < inode_cluster_size(inode) ?
+		inode->i_size - clust->off : inode_cluster_size(inode));
+	blksize = cr_plug->blocksize(inode_crypto_stat(inode)->keysize);
+	
+	assert("edward-154", clust->len <= size);
+	assert("edward-155", clust->tlen == 0);
+	
+	/* decrypt cluster with the simplest ecb-mode
+	 * NOTE-EDWARD: input cluster should be processed as a whole one
+	 * FIXME-EDWARD: call here stream mode plugin for decompression */
+	buf = reiser4_kmalloc(size, GFP_KERNEL);
+	if (!buf) 
+		return -ENOMEM;
+	nr_fips = clust->len/blksize;
+	expkey = cryptcompress_inode_data(inode)->expkey;
+
+	for (i=0; i < nr_fips; i++)
+		cr_plug->decrypt(expkey, buf + i*blksize, /* dst */
+				 clust->buf + i*blksize /* src */);
+	if (size == clust->len) {
+		/* cluster was not compressed, alternate buffers */
+		__u8 * tbuf;
+		tbuf = clust->buf;
+		clust->buf = buf;
+		clust->tlen = size;
+		buf = tbuf;
+		size = inode_scaled_cluster_size(inode);
+		goto exit;
+	}
+	/* check for end-of-cluster signature, this allows to hold read
+	   errors when second or other next items of the cluster are missed 
+	   
+	   end-of-cluster format created before encryption:
+	   
+	   data
+	   cluster_magic  (4)   indicates presence of compression
+	                        infrastructure, should be private.
+	   aligning_tail        created by ->align() method of crypto-plugin,
+				we don't align non-compressed clusters 
+            
+	   Aligning tail format:			
+
+           data 				
+	   tail_size      (1)   size of aligning tail,
+				1 <= tail_size <= blksize  
+	*/
+	get_cluster_magic(magic);
+	tail_size = *(buf + (clust->len - 1)); 
+	if (memcmp(buf + clust->len - (size_t)CLUSTER_MAGIC_SIZE - tail_size,
+		   magic, (size_t)CLUSTER_MAGIC_SIZE)) {
+		printk("edward-156: process_cluster: wrong end-of-cluster magic\n");
+		result = -EIO;
+		goto exit;
+	}
+	{
+		/* decompress cluster */
+		__u8 wbuf[co_plug->mem_req];
+		co_plug->decompress(wbuf, buf, clust->len, clust->buf, &clust->len);
+		/* check the length of decompressed data */
+		assert("edward-157", size == clust->len);
+	}
+ exit:
+	reiser4_kfree(buf, size);
+	return result;	
 }
 
 /* plugin->read() :
