@@ -17,6 +17,8 @@
 TS_LIST_DECLARE( r4_pars );
 
 
+
+
 r4_pars_list_head     HeadVar;
 
 typedef struct _p_VarTab  p_VarTab;
@@ -25,15 +27,14 @@ struct _p_VarTab
 {
 	r4_pars_list_link     links;	
 
-
-
 };
 
 
 TS_LIST_DEFINE( r4_pars, p_VarTab, links );
 
 /*
- * rx_event_list_init             Initialize a list_head
+ * 
+ * r4_pars_list_init             Initialize a list_head
  * r4_pars_list_clean            Initialize a list_link
  * r4_pars_list_is_clean         True if list_link is not in a list
  * r4_pars_list_push_front       Insert to the front of the list
@@ -113,12 +114,74 @@ struct streg            /* for information compile time level */
     sflag,              /*                  flag    */
     slsco,              /* cur count of lists       */
     slist;              /* cur type  of lists       */
-  char far *
+  char *
     slopt;              /* to ftell on lists        */
 
 };
 
-/* for OPR    */
+
+
+static struct
+{
+char    *       wrd;
+int             class;
+}
+	key [] =
+{
+	"and"         ,    AND            ,
+
+	"bytes"       ,    BYTES          ,
+
+	"else"        ,    ELSE           ,
+	"eq"          ,    EQ             ,
+	"exist"       ,    EXIST          ,
+
+	"first"       ,    FIRST          ,
+	"first_byte"  ,    FIRST_BYTE     ,
+
+	"ge"          ,    GE             ,
+	"gt"          ,    GT             ,
+
+	"if"          ,    IF             ,
+
+	"last"        ,    LAST           ,
+	"le"          ,    LE             ,
+	"lt"          ,    LT             ,
+
+	"last_byte"   ,    LAST_BYTE      ,
+
+	"ne"          ,    NE             ,
+	"not"         ,    NOT            ,
+
+	"offset"      ,    OFFSET         ,
+	"offset_back" ,    OFFSET_BACK    ,
+	"or"          ,    OR             ,
+
+	"process"     ,    PROCESS        ,
+
+	"range"       ,    RANGE          ,
+
+	"stat"        ,    STAT           ,
+
+	"then"        ,    THEN           ,
+	"tw"          ,    TRANSCRASH     
+}
+
+
+
+int 	yylval;
+int	yyval;
+int	yyerrco;
+int	level;              /* current level            */
+int	labco;              /* current label            */
+int	errco;              /* number of errors         */
+int	strco;              /* number of entries in tptr*/
+int	varco;              /* number of variables      */
+int	varsol;             /* begin number of variables*/
+
+
+
+
 
 
 /*******************************************/
