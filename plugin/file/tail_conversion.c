@@ -407,6 +407,8 @@ int tail2extent (struct inode * inode)
 			nr_pages = 0;
 			item = 0;
 			page = 0;
+			coord_init_zero (&coord);
+			init_lh (&lh);
 			continue;
 		}
 		
