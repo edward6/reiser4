@@ -90,8 +90,13 @@ static inline int check_seal_match( const coord_t *coord, const reiser4_key *k )
 
 	return
 		( coord -> between != AT_UNIT ) ||
-		( coord_is_existing_unit( coord ) && 
-		  keyeq( k, unit_key_by_coord( coord, &ukey ) ) );
+		/*
+		 * FIXME-VS: we only can compare keys for items whose units
+		 * represent exactly one key
+		 */
+		( coord_is_existing_unit( coord ) &&
+		  ( item_is_extent( coord ) ||
+		    keyeq( k, unit_key_by_coord( coord, &ukey ) ) ) );
 }
 #endif
 
