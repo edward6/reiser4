@@ -32,7 +32,7 @@ extern file_plugin *get_file_plugin( const struct inode *inode );
 extern dir_plugin *get_dir_plugin( const struct inode *inode );
 extern int reiser4_max_filename_len( const struct inode *inode );
 extern int max_hash_collisions( const struct inode *dir );
-extern item_plugin *get_sd_plugin( const struct inode *inode );
+extern sd_plugin *get_sd_plugin( const struct inode *inode );
 extern inter_syscall_ra_hint *inter_syscall_ra( const struct inode *inode );
 extern void reiser4_lock_inode( struct inode *inode );
 extern int reiser4_lock_inode_interruptible( struct inode *inode );
