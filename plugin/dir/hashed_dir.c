@@ -180,7 +180,9 @@ detach_hashed(struct inode *object, struct inode *parent)
 		/* and, together with the only name directory can have, they
 		 * provides for the last 2 remaining references. If we get
 		 * here as part of error handling during mkdir, @object
-		 * possibly has no name yet, so its nlink == 1. */
+		 * possibly has no name yet, so its nlink == 1. If we get here
+		 * from rename (targeting empty directory), it has no name
+		 * already, so its nlink == 1. */
 		assert("nikita-3401",
 		       object->i_nlink == 2 || object->i_nlink == 1);
 
@@ -807,7 +809,8 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 
 	lock_handle new_lh;
 
-	dir_plugin *dplug;
+	dir_plugin  *dplug;
+	file_plugin *fplug;
 
 	assert("nikita-2318", old_dir != NULL);
 	assert("nikita-2319", new_dir != NULL);
@@ -818,6 +821,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	new_inode = new_name->d_inode;
 
 	dplug = inode_dir_plugin(old_dir);
+	fplug = NULL;
 
 	new_fsdata = reiser4_get_dentry_fsdata(new_name);
 	if (IS_ERR(new_fsdata))
@@ -871,19 +875,8 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 					      new_inode,
 					      new_coord,
 					      &new_lh);
-			if (result == 0) {
-				file_plugin *fplug;
-
+			if (result == 0)
 				fplug = inode_file_plugin(new_inode);
-				/* detach @new_inode from name-space */
-				result = fplug->detach(new_inode, new_dir);
-				if (result != 0) {
-					warning("nikita-2330",
-						"Cannot detach %lli: %i. %s",
-						get_inode_oid(new_inode),
-						result, possible_leak);
-				}
-			}
 		} else if (result == CBK_COORD_NOTFOUND) {
 			/* VFS told us that @new_name is bound to existing
 			   inode, but we failed to find directory entry. */
@@ -912,6 +905,14 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	/* We are done with all modifications to the @new_dir, release lock on
 	   node. */
 	done_lh(&new_lh);
+
+	if (fplug != NULL) {
+		/* detach @new_inode from name-space */
+		result = fplug->detach(new_inode, new_dir);
+		if (result != 0)
+			warning("nikita-2330", "Cannot detach %lli: %i. %s",
+				get_inode_oid(new_inode), result, possible_leak);
+	}
 
 	if (new_inode != NULL)
 		reiser4_mark_inode_dirty(new_inode);
