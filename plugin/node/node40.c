@@ -264,6 +264,9 @@ int
 node40_length_by_coord(const coord_t * coord)
 {
 	item_header40 *ih;
+	int result;
+	PROF_BEGIN(length_by_coord);
+
 
 	/* @coord is set to existing item */
 	assert("vs-256", coord != NULL);
@@ -271,9 +274,12 @@ node40_length_by_coord(const coord_t * coord)
 
 	ih = node40_ih_at_coord(coord);
 	if ((int) coord->item_pos == node40_num_of_items_internal(coord->node) - 1)
-		return nh40_get_free_space_start(node40_node_header(coord->node)) - ih40_get_offset(ih);
+		result = nh40_get_free_space_start(node40_node_header(coord->node)) - ih40_get_offset(ih);
 	else
-		return ih40_get_offset(ih - 1) - ih40_get_offset(ih);
+		result = ih40_get_offset(ih - 1) - ih40_get_offset(ih);
+	PROF_END(length_by_coord, length_by_coord);
+
+	return result;
 }
 
 /* plugin->u.node.plugin_by_coord
@@ -475,7 +481,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 		reiser4_key max_item_key;
 
 		/* key > max_item_key --- outside of an item */
-		if (keygt(key, iplug->b.max_key_inside(coord, &max_item_key))) {
+		if (keygt(key, iplug->b.max_key_inside(coord, &max_item_key, 0))) {
 			coord->unit_pos = 0;
 			coord->between = AFTER_ITEM;
 			/* FIXME-VS: key we are looking for does not fit into
@@ -617,10 +623,12 @@ node40_check(const znode * node /* node to check */ ,
 
 		coord_init_last_unit(&coord, node);
 		iplug = item_plugin_by_coord(&coord);
-		if (iplug->b.real_max_key_inside != NULL) {
+		if (iplug->s.file.append_key != NULL) {
 			reiser4_key mkey;
 
-			if (keygt(iplug->b.real_max_key_inside(&coord, &mkey), znode_get_rd_key((znode *) node))) {
+			iplug->s.file.append_key(&coord, &mkey, 0);
+			set_key_offset(&mkey, get_key_offset(&mkey) - 1);
+			if (keygt(&mkey, znode_get_rd_key((znode *) node))) {
 				*error = "key of rightmost item is too large";
 				return -1;
 			}
