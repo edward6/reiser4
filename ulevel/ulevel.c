@@ -2975,6 +2975,18 @@ static void bash_umount (reiser4_context * context)
 }
 
 
+/* number of block on device */
+static __u64 get_fs_size (struct super_block * s)
+{
+	struct stat st;
+	loff_t size;
+
+	check_me ("vs-749", fstat (s->s_bdev->bd_dev, &st) == 0);
+	size = lseek64 (s->s_bdev->bd_dev, 0, SEEK_END);
+	assert ("vs-750", size != (loff_t)-1);
+	return size / (s->s_blocksize / 512);
+}
+
 #define TEST_MKFS_ROOT_LOCALITY   (41ull)
 #define TEST_MKFS_ROOT_OBJECTID   (42ull)
 
@@ -3059,12 +3071,18 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
+			cputod16 (NEVER_TAIL_ID, &test_sb->node_plugin);
+
+			/* block count on device */
+			cputod64 (get_fs_size (&super), &test_sb->block_count);
+
 			/* this will change on put_super in accordance to state
 			 * of filesystem at that time */
 			cputod64 (0ull, &test_sb->root_block);
 			cputod16 (0, &test_sb->tree_height);
-			cputod64 (0ull, &test_sb->new_block_nr);
-			cputod64 (TEST_MKFS_ROOT_OBJECTID - 3, &test_sb->next_to_use);
+			cputod64 (0ull, &test_sb->next_free_block);
+			cputod64 (TEST_MKFS_ROOT_OBJECTID - 3, &test_sb->next_free_oid);
+
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
@@ -3206,7 +3224,7 @@ static int bash_mkfs (const char * file_name)
 				  &test_sb->root_locality);
 			cputod64 ((__u64)inode -> i_ino, &test_sb->root_objectid);
 			/* OIDS_RESERVED---macro defines in oid.c */
-			cputod64 ( (__u64)( 1 << 16 ), &test_sb->next_to_use);
+			/*cputod64 ( (__u64)( 1 << 16 ), &test_sb->next_to_use);*/
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
