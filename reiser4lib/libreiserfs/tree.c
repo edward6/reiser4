@@ -11,7 +11,7 @@
     Tree functions which work with root node will 
     work through node API later. 
 */
-int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
+int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {    
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
     reiserfs_node_common_header_t *header;
@@ -19,12 +19,11 @@ int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
     ASSERT(fs != NULL, return 0);
     ASSERT(block != NULL, return 0);
 
-    header = (reiserfs_node_common_header_t *)block->data;
-   
-    id = get_nh_plugin_id(header);
-    if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, 
+				    reiserfs_get_node_plugin_id (block)))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-035", 
-	    "Can't find node plugin for root node by its identifier %x.", id);
+	    "Can't find node plugin for root node by its identifier %x.",
+	    reiserfs_get_node_plugin_id (block) );
 	return 0;
     }
     
@@ -33,6 +32,7 @@ int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
 }
 
 int reiserfs_tree_open(reiserfs_fs_t *fs) {
+    /*
     blk_t root_block;
     aal_block_t *block;
     reiserfs_plugin_id_t id;
@@ -82,11 +82,12 @@ error_free_block:
     aal_block_free(block);
 error_free_tree:
     aal_free(fs->tree);
-error:
+error:*/
     return 0;
 }
 
 int reiserfs_tree_create(reiserfs_fs_t *fs) {
+    /*
     blk_t root_block;
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
@@ -113,7 +114,7 @@ int reiserfs_tree_create(reiserfs_fs_t *fs) {
     }
     fs->tree->plugin = plugin;
     
-/*    reiserfs_plugin_check_routine(plugin->node, create, goto error_free_tree);
+    reiserfs_plugin_check_routine(plugin->node, create, goto error_free_tree);
     if (!(fs->tree->entity = plugin->node->create(REISERFS_NODE_LEAF))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-038", 
 	    "Can't create root node.");

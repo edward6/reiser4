@@ -26,8 +26,7 @@ typedef struct node40_header node40_header_t;
 
 /* node object which plugin works with */
 struct reiserfs_node40 {
-    aal_device_t *block;
-    aal_block_t  *header;
+    aal_block_t  *block;
 };
 
 typedef struct reiserfs_node40 reiserfs_node40_t;

@@ -1,6 +1,7 @@
 /*
-	plugin.h -- reiserfs plugin factory implementation.
-	Copyright (C) 1996 - 2002 Hans Reiser
+    plugin.h -- reiserfs plugin factory implementation.
+    Copyright (C) 1996 - 2002 Hans Reiser
+    Author Vitaly Fertman.
 */
 
 #ifndef PLUGIN_H
@@ -76,11 +77,12 @@ struct reiserfs_node_plugin {
     void (*close) (reiserfs_node_opaque_t *, int);
     uint32_t (*check) (reiserfs_node_opaque_t *, int);
     
-    uint32_t (*max_item_size) (void);
-    uint32_t (*max_item_num)  (void);
+    uint32_t (*max_item_size) (reiserfs_node_opaque_t *);
+    uint32_t (*max_item_num)  (reiserfs_node_opaque_t *);
 
     uint32_t (*count) (reiserfs_node_opaque_t *);
     uint32_t (*level) (reiserfs_node_opaque_t *);
+    aal_block_t *(*block) (reiserfs_node_opaque_t *);
     
     uint32_t (*get_free_space) (reiserfs_node_opaque_t *);
     void     (*set_free_space) (reiserfs_node_opaque_t *);
