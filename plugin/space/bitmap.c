@@ -454,19 +454,42 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 static int load_and_lock_bnode (struct bnode * bnode)
 {
 	struct super_block * super = get_current_context()->super;
-	int ret;
+
+	jnode * wj = &bnode->wjnode;
+	jnode * cj = &bnode->cjnode;
+
+	int ret = 0;
 
 	down (&bnode->sema);
 
-	ret = jload (&bnode->wjnode);
+	spin_lock_jnode (wj);
+	
+	add_d_ref (wj);
 
-	if (ret < 0) goto up_and_ret;
+	if (!JF_ISSET(wj, ZNODE_LOADED)) {
+		reiser4_tree * tree = current_tree;
 
-	ret = jload(&bnode->cjnode);
+		assert ("zam-630", tree->ops != NULL && tree->ops->allocate_node != NULL);
+
+		spin_unlock_jnode(wj);
+
+		ret = tree->ops->allocate_node(tree, wj);
+
+		if (ret >= 0) {
+			JF_SET(wj, ZNODE_LOADED);
+		} else {
+			jrelse_nolock(wj);
+			goto up_and_ret;
+		}
+	}
+
+	spin_unlock_jnode (wj);
+
+	ret = jload(cj);
 
 	if (ret < 0) { 
-		junlock_and_relse(&bnode->wjnode);
-		jdrop(&bnode->wjnode);
+		junlock_and_relse(wj);
+		jdrop(wj);
 	
 		goto up_and_ret;
 	}
