@@ -32,6 +32,19 @@ extern void reiserfs_cache_unregister(reiserfs_cache_t *cache,
 
 extern errno_t reiserfs_cache_sync(reiserfs_cache_t *cache);
 
+extern errno_t reiserfs_cache_insert(reiserfs_cache_t *cache,
+    reiserfs_pos_t *pos, reiserfs_item_hint_t *item);
+
+extern errno_t reiserfs_cache_remove(reiserfs_cache_t *cache,
+    reiserfs_pos_t *pos);
+
+extern errno_t reiserfs_cache_move(reiserfs_cache_t *dst_cache,
+    reiserfs_pos_t *dst_pos, reiserfs_cache_t *src_cache,
+    reiserfs_pos_t *src_pos);
+
+extern errno_t reiserfs_cache_set_key(reiserfs_cache_t *cache, 
+    reiserfs_pos_t *pos, reiserfs_key_t *key);
+
 #endif
 
 extern errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache, 

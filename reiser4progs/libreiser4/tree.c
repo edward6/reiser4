@@ -55,8 +55,6 @@ static void reiserfs_tree_dealloc(reiserfs_tree_t *tree,
 {
     aal_assert("umka-917", cache != NULL, return);
     aal_assert("umka-918", cache->node != NULL, return);
-
-    reiserfs_node_close(cache->node);
     reiserfs_cache_close(cache);
 }
 
@@ -327,29 +325,6 @@ int reiserfs_tree_lookup(
 
 #ifndef ENABLE_COMPACT
 
-/* Moves item specified by src into place specified by dst */
-errno_t reiserfs_tree_move(
-    reiserfs_coord_t *dst,	    /* destination coord of item*/
-    reiserfs_coord_t *src	    /* source coord of item */
-) {
-    if (src->pos.unit == 0xffffffff) {
-	if (reiserfs_node_get_level(src->cache->node) > REISERFS_LEAF_LEVEL) {
-	    reiserfs_key_t key;
-	    reiserfs_cache_t *child;
-
-	    reiserfs_node_get_key(src->cache->node, &src->pos, &key);
-	
-	    if ((child = reiserfs_cache_find(src->cache, &key))) {
-		reiserfs_cache_unregister(src->cache, child);
-		reiserfs_cache_register(dst->cache, child);
-	    }
-	}
-    }
-    
-    return reiserfs_node_move(dst->cache->node, &dst->pos, 
-	src->cache->node, &src->pos);
-}
-
 /* 
     The central packing on insert function. It shifts some number of items to left
     or right neightbor in order to release "needed" space in specified by "old"
@@ -449,7 +424,7 @@ errno_t reiserfs_tree_shift(
 	    reiserfs_coord_init(&dst, left, 
 		reiserfs_node_count(left->node), 0xffffffff);
 	    
-	    if (reiserfs_tree_move(&dst, &src)) {
+	    if (reiserfs_cache_move(dst.cache, &dst.pos, src.cache, &src.pos)) {
 	        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		   "Left shifting failed. Can't move item.");
 		return -1;
@@ -503,7 +478,7 @@ errno_t reiserfs_tree_shift(
 
 	    reiserfs_coord_init(&dst, right, 0, 0xffffffff);
 	
-	    if (reiserfs_tree_move(&dst, &src)) {
+	    if (reiserfs_cache_move(dst.cache, &dst.pos, src.cache, &src.pos)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Right shifting of an item failed.");
 		return -1;
@@ -739,10 +714,10 @@ static errno_t reiserfs_tree_relocate_unit(reiserfs_coord_t *dst,
     if (dst->pos.item >= reiserfs_node_count(dst->cache->node))
         dst->pos.unit = 0xffffffff;
 	
-    if (reiserfs_node_insert(dst->cache->node, &dst->pos, &direntry_item))
+    if (reiserfs_cache_insert(dst->cache, &dst->pos, &direntry_item))
         return -1;
     
-    if (reiserfs_node_remove(src->cache->node, &src->pos))
+    if (reiserfs_cache_remove(src->cache, &src->pos))
         return -1;
 
     return 0;
@@ -820,7 +795,7 @@ errno_t reiserfs_tree_insert(
 	/* Updating coord by just allocated leaf */
 	reiserfs_coord_init(coord, cache, 0, 0xffffffff);
 	
-        if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
+        if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an item into the node %llu.", 
 		aal_block_get_nr(coord->cache->node->block));
@@ -841,7 +816,7 @@ errno_t reiserfs_tree_insert(
     /* Inserting item at coord if there is enough free space */
     if (reiserfs_node_get_space(coord->cache->node) >= needed) {
 
-        if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
+        if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an %s into the node %llu.", 
 		(coord->pos.unit == 0xffffffff ? "item" : "unit"),
@@ -879,7 +854,7 @@ errno_t reiserfs_tree_insert(
 	*/
 	if (reiserfs_node_get_space(insert.cache->node) >= needed) {
 
-	    if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
+	    if (reiserfs_cache_insert(insert.cache, &insert.pos, item)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		    "Can't insert an %s into the node %llu.", 
 		    (insert.pos.unit == 0xffffffff ? "item" : "unit"),
@@ -948,7 +923,7 @@ errno_t reiserfs_tree_insert(
 		
 		coord->pos.unit = 0xffffffff;
 		
-		if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
+		if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an item into the node %llu.", 
 			aal_block_get_nr(coord->cache->node->block));
@@ -968,9 +943,7 @@ errno_t reiserfs_tree_insert(
 		Check if new item should be placed inside found node or in new 
 		allocated node.
 	    */
-	    if (insert.pos.item < reiserfs_node_count(insert.cache->node) &&
-		reiserfs_node_count(insert.cache->node) > 1)
-	    {
+	    if (insert.pos.item < reiserfs_node_count(insert.cache->node) - 1) {
 		reiserfs_pos_t src_pos;
 		reiserfs_pos_t dst_pos;
 		
@@ -979,7 +952,7 @@ errno_t reiserfs_tree_insert(
 		reiserfs_pos_init(&src_pos, 
 		    reiserfs_node_count(insert.cache->node) - 1, 0xffffffff);
 		
-		if (reiserfs_node_move(cache->node, &dst_pos, insert.cache->node, &src_pos)) {
+		if (reiserfs_cache_move(cache, &dst_pos, insert.cache, &src_pos)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't move last item from insert node to new allocated node.");
 		    reiserfs_tree_dealloc(tree, cache);
@@ -1007,7 +980,7 @@ errno_t reiserfs_tree_insert(
 		    return -1;
 		}
 		
-		if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
+		if (reiserfs_cache_insert(insert.cache, &insert.pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 
 			(coord->pos.unit == 0xffffffff ? "item" : "unit"),
@@ -1065,7 +1038,7 @@ errno_t reiserfs_tree_insert(
 		    coord->pos.item = 0;
 		}
 
-		if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
+		if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 
 			(coord->pos.unit == 0xffffffff ? "item" : "unit"),
