@@ -93,7 +93,6 @@
 ({								\
 	check_preempt();					\
 	check_stack();						\
-	check_spinlocks_array();				\
 	if( unlikely( !( cond ) ) )				\
 		rpanic( label, "assertion failed: " #cond );	\
 })
