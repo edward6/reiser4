@@ -18,6 +18,18 @@ typedef struct extent_stat {
 	int hole_blocks;
 } extent_stat;
 
+/* extents in an extent item can be either holes, or unallocated or allocated
+   extents */
+typedef enum {
+	HOLE_EXTENT,
+	UNALLOCATED_EXTENT,
+	UNALLOCATED_EXTENT2,
+	ALLOCATED_EXTENT
+} extent_state;
+
+#define HOLE_EXTENT_START 0
+#define UNALLOCATED_EXTENT_START 1
+#define UNALLOCATED_EXTENT_START2 2
 
 typedef struct {	
 	reiser4_block_nr pos_in_unit;
@@ -29,7 +41,6 @@ typedef struct {
 	reiser4_extent extent;
 #endif
 } extent_coord_extension_t;
-
 
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr
@@ -116,7 +127,7 @@ int check_extent(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.file.* */
 int write_extent(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
-int read_extent(struct file *, flow_t *, uf_coord_t *);
+int read_extent(struct file *, flow_t *, hint_t *);
 int readpage_extent(void *, struct page *);
 void readpages_extent(void *, struct address_space *, struct list_head *pages);
 int writepage_extent(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
@@ -139,8 +150,17 @@ reiser4_block_nr extent_unit_start(const coord_t * item);	/* Starting block loca
 /* plugin->u.item.f. */
 int scan_extent (flush_scan * scan, const coord_t * in_coord);
 
-extern int mark_extent_for_repacking (tap_t *, int);
+reiser4_item_data *init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents);
+reiser4_block_nr extent_size(const coord_t *coord, pos_in_item_t nr);
+extent_state state_of_extent(reiser4_extent *ext);
+void set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width);
+int replace_extent(coord_t *un_extent, lock_handle *lh,
+		   reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags);
+lock_handle *znode_lh(znode *, znode_lock_mode mode);
+
 extern int process_extent_backward_for_repacking (tap_t *, int, reiser4_blocknr_hint *);
+extern int mark_extent_for_repacking (tap_t *, int);
+
 /* __REISER4_EXTENT_H__ */
 #endif
 /*
