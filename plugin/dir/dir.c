@@ -636,7 +636,7 @@ static int dir_go_to( struct file *dir, readdir_pos *pos, tap_t *tap )
 }
 
 static int dir_rewind( struct file *dir, readdir_pos *pos,
-		   loff_t offset, tap_t *tap )
+		       loff_t offset, tap_t *tap )
 {
 	__u64 destination;
 	int   shift;
@@ -672,7 +672,7 @@ static int dir_rewind( struct file *dir, readdir_pos *pos,
 		 * rewinding to the left
 		 */
 		reiser4_stat_dir_add( readdir.rewind_left );
-		if( shift <= pos -> position.pos ) {
+		if( shift <= ( int ) pos -> position.pos ) {
 			/*
 			 * destination is within sequence of entries with
 			 * duplicate keys.

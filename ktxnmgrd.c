@@ -228,7 +228,7 @@ void ktxnmgrd_detach( txn_mgr *mgr )
 /**
  * wake up ktxnmgrd thread
  */
-void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason )
+void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason UNUSED_ARG )
 {
 	if( ctx != NULL ) {
 		spin_lock( &ctx -> guard );

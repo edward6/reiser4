@@ -2103,7 +2103,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	dentry.d_name.len = strlen( dir_name );
 	ret = info -> dir -> i_op -> mkdir( info -> dir, 
 					    &dentry, S_IFDIR | 0777 );
-	dinfo( "nikita-1638", "In directory: %s", dir_name );
+	dinfo( "In directory: %s", dir_name );
 
 	if( ( ret != 0 ) && ( ret != -ENOMEM ) ) {
 		rpanic( "nikita-1636", "Cannot create dir: %i", ret );
@@ -2483,7 +2483,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			stuff = call_lookup( site, buf );
 			check_me( "nikita-2387", !IS_ERR( stuff ) );
 			check_me( "nikita-2388", 
-				  call_write( stuff, buf, (loff_t)0, size ) == size );
+				  call_write( stuff, buf, (loff_t)0, (unsigned) size ) == size );
 			iput( stuff );
 			print_percentage( ( ulong ) i, 
 					  ( ulong ) iterations, '+' );
@@ -2875,8 +2875,9 @@ static int call_readdir_common (struct inode * dir, const char *prefix,
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
+	file.f_op = &reiser4_file_operations;
 	readdir2 (prefix, &file, flags);
-
+	file.f_op->release( dir, &file );
 	return 0;
 }
 
@@ -5282,6 +5283,16 @@ struct file *filp_open(const char * filename, int flags, int mode)
 int filp_close(struct file *filp, fl_owner_t id UNUSED_ARG)
 {
 	return close( filp -> f_ufd );
+}
+
+unsigned int nr_free_pagecache_pages( void )
+{
+	return ( unsigned int ) ~0;
+}
+
+unsigned int nr_free_pages( void )
+{
+	return ( unsigned int ) ~0;
 }
 
 /*
