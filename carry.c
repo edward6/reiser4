@@ -812,6 +812,12 @@ sync_dkeys(carry_node * node /* node to update */ ,
 		if (spot == NULL)
 			break;
 
+		/* we can only increase right delimiting key of a node on
+		 * which we don't hold a long term lock. */
+		assert("nikita-2930", 
+		       ergo(!znode_is_write_locked(spot), 
+			    keyge(&pivot, znode_get_rd_key(spot))));
+
 		*znode_get_rd_key(spot) = pivot;
 		if (ZF_ISSET(spot, JNODE_HEARD_BANSHEE))
 			*znode_get_ld_key(spot) = pivot;
