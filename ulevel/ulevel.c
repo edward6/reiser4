@@ -3156,7 +3156,7 @@ static int bash_mkfs (const char * file_name)
 			/* oid allocator */
 			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
 			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID);
+				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 3);
 
 			/* test layout super block */
 			test_sb = (test_disk_super_block *)(bh->b_data + sizeof (*master_sb));
@@ -3195,6 +3195,8 @@ static int bash_mkfs (const char * file_name)
 		{
 			int result;
 			struct inode * fake_parent, * inode;
+			reiser4_key from;
+			reiser4_key to;
 
 			reiser4_stat_data_base sd;
 			reiser4_item_data insert_data;
@@ -3204,7 +3206,7 @@ static int bash_mkfs (const char * file_name)
 			key_init( &key );
 			set_key_type( &key, KEY_SD_MINOR );
 			set_key_locality( &key, 1ull );
-			set_key_objectid( &key, TEST_MKFS_ROOT_LOCALITY );
+			set_key_objectid( &key, TEST_MKFS_ROOT_LOCALITY - 3);
 
 			/* item body */
 			xmemset( &sd, 0, sizeof sd );
@@ -3251,6 +3253,11 @@ static int bash_mkfs (const char * file_name)
 			super.s_root->d_inode = fake_parent;
 
 			reiser4_inode_data (fake_parent)->locality_id = 1;
+
+			/*
+			 * tree contains one item only. The below is necessary
+			 * to create tree of height 2 and allow mkdir to work
+			 */
 			call_create (fake_parent, ".");
 			call_create (fake_parent, "x");
 			inode = call_lookup (fake_parent, "x");
@@ -3263,26 +3270,37 @@ static int bash_mkfs (const char * file_name)
 			inode->i_state &= ~I_DIRTY;
 			iput (inode);
 
-			call_mkdir (fake_parent, "root");
 
+			/* make a directory with objectid TEST_MKFS_ROOT_LOCALITY */
+			call_mkdir (fake_parent, "root_of_root");
+			inode = call_lookup (fake_parent, "root_of_root");
+			if (IS_ERR (inode) || inode->i_ino != TEST_MKFS_ROOT_LOCALITY) {
+				info ("lookup failed or wrong inode number\n");
+				exit (1);
+			}
+			check_me ("vs-741", call_mkdir (inode, "root") == 0);
+			
+			build_sd_key (fake_parent, &from);
+			fake_parent->i_state &= ~I_DIRTY;
+			iput (fake_parent);
+			fake_parent = inode;
 			/* inode of root directory */
 			inode = call_lookup (fake_parent, "root");
-
-			{
-				/* cut everything but root directory */
-				reiser4_key from;
-				reiser4_key to;
-
-				build_sd_key (fake_parent, &from);
-				build_sd_key (inode, &to);
-
-				set_key_objectid (&to, get_key_objectid (&to) - 1);
-				set_key_offset (&to, get_key_offset (max_key ()));
-
-				result = cut_tree (tree, &from, &to);
-				if (result)
-					return result;
+			if (IS_ERR (inode)) {
+				info ("lookup failed\n");
+				exit (1);
 			}
+				
+			/* cut everything but root directory */
+			build_sd_key (inode, &to);
+			
+			set_key_objectid (&to, get_key_objectid (&to) - 1);
+			set_key_offset (&to, get_key_offset (max_key ()));
+
+			result = cut_tree (tree, &from, &to);
+			if (result)
+				return result;
+
 			fake_parent->i_state &= ~I_DIRTY;
 			inode->i_state &= ~I_DIRTY;
 			iput (fake_parent);
