@@ -101,7 +101,7 @@ int __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * start
 int __reiser4_dealloc_blocks(const reiser4_block_nr *,
 			     const reiser4_block_nr *, block_stage_t, reiser4_ba_flags_t flags, const char *);
 int __reiser4_dealloc_block(const reiser4_block_nr *, block_stage_t, reiser4_ba_flags_t flags, const char *);
-
+int __reiser4_grab_reserved(struct super_block *, __u64, reiser4_ba_flags_t, const char *);
 
 #define reiser4_grab_space(count, flags, message)             __reiser4_grab_space(count, flags, message)
 #define reiser4_grab_space_force(count, flags, message)       __reiser4_grab_space(count, flags | BA_FORCE, message)
@@ -114,6 +114,7 @@ int __reiser4_dealloc_block(const reiser4_block_nr *, block_stage_t, reiser4_ba_
 #define reiser4_alloc_blocks(hint,start,len,flags,message)    __reiser4_alloc_blocks(hint,start,len,flags,message)
 #define reiser4_dealloc_blocks(start,len,stage,flags,message) __reiser4_dealloc_blocks(start,len,stage,flags,message)
 #define reiser4_dealloc_block(block,stage,flags,message)      __reiser4_dealloc_block(block,stage,flags,message)
+#define reiser4_grab_reserved(s, count, flags, msg)           __reiser4_grab_reserved(s, count, flags, msg);
 
 #else
 
@@ -129,6 +130,7 @@ int __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * start
 int __reiser4_dealloc_blocks(const reiser4_block_nr *,
 			     const reiser4_block_nr *, block_stage_t, reiser4_ba_flags_t flags);
 int __reiser4_dealloc_block(const reiser4_block_nr *, block_stage_t, reiser4_ba_flags_t flags);
+int __reiser4_grab_reserved(struct super_block *, __u64, reiser4_ba_flags_t);
 
 #define reiser4_grab_space(count, flags, message)       __reiser4_grab_space(count, flags)
 #define reiser4_grab_space_force(count, flags, message) __reiser4_grab_space(count, flags | BA_FORCE)
@@ -141,14 +143,16 @@ int __reiser4_dealloc_block(const reiser4_block_nr *, block_stage_t, reiser4_ba_
 #define reiser4_alloc_blocks(hint,start,len,flags,message) __reiser4_alloc_blocks(hint,start,len,flags)
 #define reiser4_dealloc_blocks(start,len,stage,flags,message) __reiser4_dealloc_blocks(start,len,stage,flags)
 #define reiser4_dealloc_block(block,stage,flags,message) __reiser4_dealloc_block(block,stage,flags)
+#define reiser4_grab_reserved(s, count, flags, msg)      __reiser4_grab_reserved(s, count, flags);
 
 #endif /* !REISER4_TRACE */
 
 extern void grabbed2free_mark(int mark);
 
-extern int reiser4_grab_reserved(struct super_block *super,
-				 __u64 count, reiser4_ba_flags_t flags, 
-				 const char *message);
+extern int __reiser4_grab_reserved(struct super_block *super,
+				   __u64 count, reiser4_ba_flags_t flags, 
+				   const char *message
+	);
 
 extern void reiser4_release_reserved(struct super_block *super);
 
