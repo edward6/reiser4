@@ -269,14 +269,18 @@ typedef enum {
 	/* Jnode is marked for repacking, that means the reiser4 flush and the
 	 * block allocator should process this node special way  */
 	JNODE_REPACK = 23,
-	JNODE_SCANNED = 24,
-	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25,
-	/* capture copy jnode */
-	JNODE_CC = 26,
-	/* this jnode is copy of coced original */
-	JNODE_CCED = 27,
 	/* enable node squeezing */
-	JNODE_SQUEEZABLE = 28,
+	JNODE_SQUEEZABLE = 24,
+
+	JNODE_SCANNED = 25,
+	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 26,
+	/* capture copy jnode */
+	JNODE_CC = 27,
+	/* this jnode is copy of coced original */
+	JNODE_CCED_CLEAN = 28,
+	JNODE_CCED_RELOC = 29,
+	JNODE_CCED_UBER = 30,
+	JNODE_CCED_OVRWR = 31
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
