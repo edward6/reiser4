@@ -565,17 +565,18 @@ extern int seq_printf(struct seq_file *, const char *, ...)
 	__attribute__ ((format (printf,2,3)));
 
 struct task_struct {
-	char *comm;
+	char comm[ 30 ];
 	int   pid;
 	void *journal_info;
 	__u32         fsuid;
 	__u32         fsgid;
 	int i_am_swapd; /**/
 	int flags;
+	spinlock_t    sigmask_lock;
 };
 
 #define PF_MEMALLOC 1 /* NOTE: Not currently set in ulevel.  Should be set in task_struct->flags. */
-
+#define PF_FREEZE   2
 
 struct block_device {
 	int bd_dev;
@@ -1534,6 +1535,44 @@ static inline void init_timer(struct timer_list * timer)
 {
 	timer->list.next = timer->list.prev = NULL;
 }
+
+#define HZ (100)
+
+#define time_after(a,b)		((long)(b) - (long)(a) < 0)
+#define time_before(a,b)	time_after(b,a)
+
+#define time_after_eq(a,b)	((long)(a) - (long)(b) >= 0)
+#define time_before_eq(a,b)	time_after_eq(b,a)
+
+static inline void schedule( void )
+{
+	sched_yield();
+}
+
+#define daemonize()
+#define spin_lock_irq   spin_lock
+#define spin_unlock_irq spin_unlock
+#define siginitsetinv( a, b )
+#define recalc_sigpending() noop
+#define refrigerator( f ) noop
+
+extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
+
+#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+
+/**
+ * container_of - cast a member of a structure out to the containing structure
+ *
+ * @ptr:	the pointer to the member.
+ * @type:	the type of the container struct this is embedded in.
+ * @member:	the name of the member within the struct.
+ *
+ */
+#define container_of(ptr, type, member) ({			\
+        const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
+        (type *)( (char *)__mptr - offsetof(type,member) );})
+
+#define reparent_to_init() noop
 
 /* __REISER4_ULEVEL_H__ */
 #endif
