@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiserfs/reiserfs.h>
 
 error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
@@ -28,6 +32,8 @@ error_free_tree:
 error:
     return -1;
 }
+
+#ifndef ENABLE_COMPACT
 
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     blk_t root_blk;
@@ -59,12 +65,16 @@ error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
     return reiserfs_node_sync(fs->tree->root);
 }
 
+#endif
+
 void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
     aal_assert("umka-133", fs != NULL, return);
     aal_assert("umka-134", fs->tree != NULL, return);
-    
+
+#ifndef ENABLE_COMPACT    
     if (sync)
 	reiserfs_tree_sync(fs);
+#endif
     
     reiserfs_node_close(fs->tree->root);
     

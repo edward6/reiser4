@@ -4,7 +4,13 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiserfs/reiserfs.h>
+
+#ifndef ENABLE_COMPACT
 
 static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
     unsigned int blocksize, const char *uuid, const char *label) 
@@ -23,6 +29,8 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t fo
 	
     return 0;
 }
+
+#endif
 
 static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
     blk_t master_offset;
@@ -44,6 +52,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 
     /* Checking for reiser3 disk-format */
     if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
+#ifndef ENABLE_COMPACT    
 	reiserfs_plugin_t *format36;
 	
 	if (!(format36 = reiserfs_plugins_find(REISERFS_FORMAT_PLUGIN, 0x2)))
@@ -59,6 +68,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 		"master super block in order to open reiser3 filesystem.");
 	    goto error_free_block;
 	}
+#endif	
     } else {
 	if (!(fs->master = aal_calloc(sizeof(*master), 0)))
 	    goto error_free_block;
@@ -83,6 +93,8 @@ error:
     return -1;    
 }
 
+#ifndef ENABLE_COMPACT
+
 static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     blk_t master_offset;	
     aal_block_t *block;
@@ -105,12 +117,16 @@ static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     return 0;
 }
 
+#endif
+
 static void reiserfs_master_close(reiserfs_fs_t *fs, int sync) {
     aal_assert("umka-146", fs != NULL, return);
     aal_assert("umka-147", fs->master != NULL, return);
-    
+
+#ifndef ENABLE_COMPACT    
     if (sync)
 	reiserfs_master_sync(fs);
+#endif
     
     aal_free(fs->master);
 }
@@ -162,6 +178,8 @@ error_free_fs:
 error:
     return NULL;
 }
+
+#ifndef ENABLE_COMPACT
 
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
     reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id,
@@ -223,6 +241,8 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
 	((fs->journal && !reiserfs_journal_sync(fs)) || !fs->journal) && 
 	!reiserfs_alloc_sync(fs) && !reiserfs_tree_sync(fs);
 }
+
+#endif
 
 /* 
     Closes all filesystem's entities. Calls plugins' "done" 

@@ -192,7 +192,8 @@ union reiserfs_plugin {
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
-#define reiserfs_plugin_check_routine(plugin, routine, action) \
+#ifndef ENABLE_COMPACT
+#   define reiserfs_plugin_check_routine(plugin, routine, action) \
     do { \
 	if (!plugin.##routine##) { \
 	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, \
@@ -201,6 +202,9 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 	    action; \
 	} \
     } while(0)
+#else
+#   define reiserfs_plugin_check_routine(plugin, routine, action)
+#endif
 
 /* 
     Here will be some plugin entry point 

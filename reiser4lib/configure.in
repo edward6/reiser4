@@ -36,9 +36,6 @@ AC_ARG_ENABLE(debug,
     [  --enable-debug        compile in assertions [default=yes]], , 
 	enable_debug=yes
 )
-if test x$enable_debug = xyes; then
-    AC_DEFINE(ENABLE_DEBUG)
-fi
 
 AM_ENABLE_SHARED
 
@@ -47,7 +44,12 @@ AC_ARG_ENABLE(compact,
         enable_compact=no
 )
 if test x$enable_compact = xyes; then
+    enable_debug=no;
     AC_DEFINE(ENABLE_COMPACT)
+fi
+
+if test x$enable_debug = xyes; then
+    AC_DEFINE(ENABLE_DEBUG)
 fi
 
 AC_ARG_ENABLE(Werror,

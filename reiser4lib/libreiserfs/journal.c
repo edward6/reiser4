@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiserfs/reiserfs.h>
 
 error_t reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
@@ -61,6 +65,8 @@ error:
     return -1;
 }
 
+#ifndef ENABLE_COMPACT
+
 error_t reiserfs_journal_create(reiserfs_fs_t *fs, aal_device_t *device, 
     reiserfs_params_opaque_t *journal_params) 
 {
@@ -106,6 +112,8 @@ error_t reiserfs_journal_sync(reiserfs_fs_t *fs) {
     reiserfs_plugin_check_routine(fs->journal->plugin->journal, sync, return -1);
     return fs->journal->plugin->journal.sync(fs->journal->entity);
 }
+
+#endif
 
 error_t reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
     reiserfs_journal_close(fs, 1);

@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiserfs/reiserfs.h>
 
 error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
@@ -46,6 +50,8 @@ error_free_alloc:
 error:
     return -1;
 }
+
+#ifndef ENABLE_COMPACT
 
 error_t reiserfs_alloc_create(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
@@ -93,6 +99,8 @@ error_t reiserfs_alloc_sync(reiserfs_fs_t *fs) {
     reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, sync, return -1);
     return fs->alloc->plugin->alloc.sync(fs->alloc->entity);
 }
+
+#endif
 
 void reiserfs_alloc_close(reiserfs_fs_t *fs, int sync) {
     aal_assert("umka-140", fs != NULL, return);

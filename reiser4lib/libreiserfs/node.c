@@ -4,7 +4,10 @@
     Author Vitaly Fertman.
 */  
 
-#include <aal/aal.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiserfs/reiserfs.h>
 
 reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk) {
@@ -39,6 +42,8 @@ error_free_node:
     aal_free (node);
     return NULL;
 }
+
+#ifndef ENABLE_COMPACT
 
 /* 
     Parameters:
@@ -87,6 +92,8 @@ error:
     return NULL;
 }
 
+#endif
+
 void reiserfs_node_close(reiserfs_node_t *node) {
     aal_assert("umka-122", node != NULL, return);
     
@@ -102,6 +109,8 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     return node->plugin->node.check(node->block, flags);
 }
 
+#ifndef ENABLE_COMPACT
+
 /* Syncs formed node onto device */
 error_t reiserfs_node_sync(reiserfs_node_t *node) {
     aal_assert("umka-124", node != NULL, return 0);
@@ -114,6 +123,8 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
     }
     return 0;
 }
+
+#endif
 
 /* 
     Here must be more smart code in order to guess 
@@ -151,3 +162,4 @@ uint32_t reiserfs_node_free_space(reiserfs_node_t *node) {
 
 void reiserfs_node_set_free_space(reiserfs_node_t *node) {
 }
+

@@ -51,6 +51,8 @@ error:
     return -1;
 }
 
+#ifndef ENABLE_COMPACT
+
 error_t reiserfs_super_create(reiserfs_fs_t *fs, 
     reiserfs_plugin_id_t format_plugin_id, count_t len) 
 {
@@ -94,6 +96,8 @@ error_t reiserfs_super_sync(reiserfs_fs_t *fs) {
     reiserfs_plugin_check_routine(fs->super->plugin->format, sync, return -1);
     return fs->super->plugin->format.sync(fs->super->entity);
 }
+
+#endif
 
 void reiserfs_super_close(reiserfs_fs_t *fs, int sync) {
     aal_assert("umka-108", fs != NULL, return);
