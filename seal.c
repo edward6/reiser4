@@ -42,7 +42,7 @@ static int seal_search_node( seal_t *seal, coord_t *coord,
  */
 /* Audited by: green(2002.06.17) */
 void seal_init( seal_t   *seal /* seal to initialise */, 
-		coord_t  *coord /* coord @seal will be attached to */, 
+		const coord_t  *coord /* coord @seal will be attached to */, 
 		const reiser4_key *key UNUSED_ARG /* key @seal will be
 						   * attached to */ )
 {
@@ -154,7 +154,12 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				/*
 				 * if seal was placed on position with node
 				 * (rather than on the existing unit within
-				 * node), node lookup is not possible.
+				 * node), we don't know what to lookup for.
+				 *
+				 * Seals were designed to "point" to existing
+				 * units in the tree, rather than positions
+				 * within a node. This is not a problem
+				 * usually, though.
 				 */
 				result = -EAGAIN;
 			else if( znode_contains_key_lock( node, key ) )
