@@ -469,7 +469,6 @@ znode *
 zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
 {
 	znode *result;
-	znode * shadow;
 	__u32 hashi;
 
 	z_hash_table *zth;
@@ -506,41 +505,41 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		       (ZF_ISSET(result, JNODE_ORPHAN) && (znode_parent(result) == NULL)));
 	}
 
-	/* Release the hash table lock. */
 	RUNLOCK_TREE(tree);
 
-	if (result)
-		goto out;
-	
-	result = zalloc(gfp_flag);
 	if (!result) {
-		PROF_END(zget, zget);
-		return ERR_PTR(-ENOMEM);
+		znode * shadow;
+	
+		result = zalloc(gfp_flag);
+		if (!result) {
+			PROF_END(zget, zget);
+			return ERR_PTR(-ENOMEM);
+		}
+
+		zinit(result, parent, tree);
+		ZJNODE(result)->blocknr = *blocknr;
+		ZJNODE(result)->key.z = *blocknr;
+		result->level = level;
+
+		WLOCK_TREE(tree);
+
+		shadow = z_hash_find_index(zth, hashi, blocknr);
+		if (shadow != NULL) {
+			zfree(result);
+			result = shadow;
+		} else {
+			result->version = ++ tree->znode_epoch;
+			z_hash_insert_index(zth, hashi, result);
+
+			if (parent != NULL)
+				atomic_inc(&parent->c_count);
+		}
+
+		add_x_ref(ZJNODE(result));
+
+		WUNLOCK_TREE(tree);
 	}
 
-	zinit(result, parent, tree);
-	ZJNODE(result)->blocknr = *blocknr;
-	ZJNODE(result)->key.z = *blocknr;
-	result->level = level;
-
-	WLOCK_TREE(tree);
-
-	shadow = z_hash_find_index(zth, hashi, blocknr);
-	if (shadow != NULL) {
-		zfree(result);
-		result = shadow;
-	} else {
-		result->version = ++ tree->znode_epoch;
-		z_hash_insert_index(zth, hashi, result);
-
-		if (parent != NULL)
-			atomic_inc(&parent->c_count);
-	}
-
-	add_x_ref(ZJNODE(result));
-
-	WUNLOCK_TREE(tree);
- out:
 #if REISER4_DEBUG
 	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
 		reiser4_check_block(blocknr, 1);
