@@ -1370,7 +1370,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	-- parent_lock.node->c_count;
 	WUNLOCK_TREE(tree);
 
-	assert("zam-940", item_is_internal(&cut_from));
+	assert("zam-989", item_is_internal(&cut_from));
 
 	/* @node should be deleted after unlocking. */
 	ZF_SET(node, JNODE_HEARD_BANSHEE);
@@ -1451,10 +1451,14 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			if (result)
 				return result;
 
+			/* Prepare the second (right) point for cut_node() */
 			if (iterations)
 				coord_init_last_unit(tap->coord, node);
 
-			/* Prepare the second (right) point for cut_node() */
+			else if (item_plugin_by_coord(tap->coord)->b.lookup == NULL)
+				/* set rightmost unit for the items without lookup method */
+				tap->coord->unit_pos = coord_last_unit_pos(tap->coord);
+			
 			nplug = node->nplug;
 
 			assert("vs-686", nplug);
