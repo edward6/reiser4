@@ -31,11 +31,8 @@
 
 static int create_dot_dotdot(struct inode *object, struct inode *parent);
 static int find_entry(const struct inode *dir, struct dentry *name,
-		      lock_handle * lh,
-		      znode_lock_mode mode, reiser4_dir_entry_desc * entry,
-		      int *offset);
-static int check_item(const struct inode *dir,
-		      const coord_t * coord, const char *name);
+		      lock_handle * lh, znode_lock_mode mode, reiser4_dir_entry_desc * entry, int *offset);
+static int check_item(const struct inode *dir, const coord_t * coord, const char *name);
 reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object)
 {
 	reiser4_block_nr res = 0;
@@ -142,8 +139,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 			 * "values of B will give rise to dom!\n"
 			 *          -- v6src/s2/mv.c:89
 			 */
-			warning("nikita-2252", "Cannot remove dot of %lli: %i",
-				get_inode_oid(object), result);
+			warning("nikita-2252", "Cannot remove dot of %lli: %i", get_inode_oid(object), result);
 
 		/*
 		 * FIXME-NIKITA this only works if @parent is -the- parent of
@@ -157,8 +153,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 		result = hashed_rem_entry(object, &goodby_dots, &entry);
 		reiser4_free_dentry_fsdata(&goodby_dots);
 		if (result != 0)
-			warning("nikita-2253", "Cannot remove .. of %lli: %i",
-				get_inode_oid(object), result);
+			warning("nikita-2253", "Cannot remove .. of %lli: %i", get_inode_oid(object), result);
 
 		if (parent != NULL)
 			reiser4_del_nlink(parent, object, 1);
@@ -182,8 +177,7 @@ hashed_owns_item(const struct inode *inode /* object to check against */ ,
 		/*
 		 * FIXME-NIKITA move this into kassign.c
 		 */
-		return get_key_locality(item_key_by_coord(coord, &item_key)) ==
-		    get_inode_oid(inode);
+		return get_key_locality(item_key_by_coord(coord, &item_key)) == get_inode_oid(inode);
 	else
 		return common_file_owns_item(inode, coord);
 }
@@ -231,8 +225,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	if (result == 0)
 		result = reiser4_add_nlink(object, parent, 0);
 	else
-		warning("nikita-2222", "Failed to create dot in %llu: %i",
-			get_inode_oid(object), result);
+		warning("nikita-2222", "Failed to create dot in %llu: %i", get_inode_oid(object), result);
 
 	if (result == 0) {
 		entry.obj = dots_entry.d_inode = parent;
@@ -245,9 +238,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 		 * with ".".
 		 */
 		if (result != 0)
-			warning("nikita-2234",
-				"Failed to create dotdot in %llu: %i",
-				get_inode_oid(object), result);
+			warning("nikita-2234", "Failed to create dotdot in %llu: %i", get_inode_oid(object), result);
 	}
 
 	if (result == 0)
@@ -259,10 +250,9 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 /**
  * implementation of ->resolve_into_inode() method for hashed directories.
  */
-file_lookup_result
-hashed_lookup(struct inode * parent	/* inode of directory to
-					 * lookup into */ ,
-	      struct dentry * dentry /* name to look for */ )
+file_lookup_result hashed_lookup(struct inode * parent	/* inode of directory to
+							 * lookup into */ ,
+				 struct dentry * dentry /* name to look for */ )
 {
 	int result;
 	coord_t *coord;
@@ -291,16 +281,13 @@ hashed_lookup(struct inode * parent	/* inode of directory to
 	coord = &reiser4_get_dentry_fsdata(dentry)->entry_coord;
 	init_lh(&lh);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n",
-		 get_inode_oid(parent), dentry->d_name.name);
+	trace_on(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n", get_inode_oid(parent), dentry->d_name.name);
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry, 0);
 	if (result == 0)
 		/* entry was found, extract object key from it. */
-		result = WITH_DATA(coord->node,
-				   item_plugin_by_coord(coord)->s.dir.
-				   extract_key(coord, &entry.key));
+		result = WITH_DATA(coord->node, item_plugin_by_coord(coord)->s.dir.extract_key(coord, &entry.key));
 	done_lh(&lh);
 
 	if (result == 0) {
@@ -376,8 +363,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 			return result;
 		}
 
-		result = from_item->s.dir.update_key(from_coord,
-						     &to_key, from_lh);
+		result = from_item->s.dir.update_key(from_coord, &to_key, from_lh);
 		if (result != 0) {
 			reiser4_del_nlink(to_inode, from_dir, 0);
 			zrelse(node);
@@ -398,9 +384,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 		 */
 		result = reiser4_del_nlink(from_inode, from_dir, 0);
 		if (result != 0) {
-			warning("nikita-2330",
-				"Cannot remove link from source: %i. %s",
-				result, possible_leak);
+			warning("nikita-2330", "Cannot remove link from source: %i. %s", result, possible_leak);
 			/*
 			 * Has to return success, because entry is already
 			 * modified.
@@ -445,8 +429,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	xmemset(&entry, 0, sizeof entry);
 	entry.obj = inode;
 	/* build key of directory entry description */
-	result = inode_dir_plugin(dir)->entry_key(dir, &name->d_name,
-						  &entry.key);
+	result = inode_dir_plugin(dir)->entry_key(dir, &name->d_name, &entry.key);
 	if (result != 0)
 		return result;
 
@@ -469,20 +452,15 @@ add_name(struct inode *inode	/* inode where @coord is to be
 		 * @old_inode
 		 */
 		result = WITH_DATA(coord->node,
-				   inode_dir_item_plugin(dir)->s.dir.
-				   add_entry(dir, coord, lh, name, &entry));
+				   inode_dir_item_plugin(dir)->s.dir.add_entry(dir, coord, lh, name, &entry));
 		if (result != 0) {
 			result = reiser4_del_nlink(inode, dir, 0);
 			if (result != 0) {
-				warning("nikita-2327",
-					"Cannot drop link on source: %i. %s",
-					result, possible_leak);
+				warning("nikita-2327", "Cannot drop link on source: %i. %s", result, possible_leak);
 			}
 			result = reiser4_del_nlink(dir, inode, 0);
 			if (result != 0) {
-				warning("nikita-2328",
-					"Cannot drop link on target dir %i. %s",
-					result, possible_leak);
+				warning("nikita-2328", "Cannot drop link on target dir %i. %s", result, possible_leak);
 			}
 			/*
 			 * Has to return success, because entry is already
@@ -733,8 +711,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	/*
 	 * find entry for @new_name
 	 */
-	result = find_entry(new_dir, new_name,
-			    &new_lh, ZNODE_WRITE_LOCK, &new_entry, 0);
+	result = find_entry(new_dir, new_name, &new_lh, ZNODE_WRITE_LOCK, &new_entry, 0);
 
 	if ((result != CBK_COORD_FOUND) && (result != CBK_COORD_NOTFOUND)) {
 		done_lh(&new_lh);
@@ -768,8 +745,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 		 * both directories and files at the same time.
 		 */
 		if (result == CBK_COORD_FOUND)
-			result = replace_name(old_inode, new_dir,
-					      new_inode, new_coord, &new_lh);
+			result = replace_name(old_inode, new_dir, new_inode, new_coord, &new_lh);
 		else if (result == CBK_COORD_NOTFOUND) {
 			/*
 			 * VFS told us that @new_name is bound to existing
@@ -783,8 +759,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 		 * target (@new_name) doesn't exists.
 		 */
 		if (result == CBK_COORD_NOTFOUND)
-			result = add_name(old_inode, new_dir, new_name,
-					  new_coord, &new_lh, is_dir);
+			result = add_name(old_inode, new_dir, new_name, new_coord, &new_lh, is_dir);
 		else if (result == CBK_COORD_FOUND) {
 			/*
 			 * VFS told us that @new_name is "negative" dentry,
@@ -826,8 +801,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	} else {
 		result = reiser4_del_nlink(old_inode, old_dir, 0);
 		if (result != 0) {
-			warning("nikita-2337", "Cannot drop link on old: %i",
-				result);
+			warning("nikita-2337", "Cannot drop link on old: %i", result);
 		}
 	}
 
@@ -849,22 +823,16 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 
 		init_lh(&dotdot_lh);
 
-		dotdot_coord =
-		    &reiser4_get_dentry_fsdata(&dotdot_name)->entry_coord;
+		dotdot_coord = &reiser4_get_dentry_fsdata(&dotdot_name)->entry_coord;
 
-		result = find_entry(old_inode, &dotdot_name,
-				    &dotdot_lh, ZNODE_WRITE_LOCK,
-				    &dotdot_entry, 0);
+		result = find_entry(old_inode, &dotdot_name, &dotdot_lh, ZNODE_WRITE_LOCK, &dotdot_entry, 0);
 		if (result == 0) {
-			result = replace_name(new_dir, old_inode,
-					      old_dir, dotdot_coord,
-					      &dotdot_lh);
+			result = replace_name(new_dir, old_inode, old_dir, dotdot_coord, &dotdot_lh);
 			/*
 			 * replace_name() decreases i_nlink on @old_dir
 			 */
 		} else {
-			warning("nikita-2336", "Dotdot not found in %llu",
-				get_inode_oid(old_inode));
+			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
 			result = -EIO;
 		}
 		if (result == 0)
@@ -909,8 +877,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	trace_on(TRACE_RESERVE, "add_entry grabs %llu blocks.", reserve);
 	
 	init_lh(&lh);
-	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid,
-		 where->d_name.name, get_inode_oid(object));
+	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->entry_coord;
 
 	/*
@@ -925,11 +892,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 		assert("nikita-1709", inode_dir_item_plugin(object));
 		assert("nikita-2230", coord->node == lh.node);
 		seal_done(&fsdata->entry_seal);
-		result =
-		    inode_dir_item_plugin(object)->s.dir.add_entry(object,
-								   coord, &lh,
-								   where,
-								   entry);
+		result = inode_dir_item_plugin(object)->s.dir.add_entry(object, coord, &lh, where, entry);
 		if (result == 0) {
 			adjust_dir_file(object, coord, off, +1);
 			object->i_size += 1;
@@ -981,14 +944,12 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 		seal_done(&fsdata->entry_seal);
 		adjust_dir_file(object, coord, off, -1);
 		result = WITH_DATA(coord->node,
-				   inode_dir_item_plugin(object)->s.dir.
-				   rem_entry(object, coord, &lh, entry));
+				   inode_dir_item_plugin(object)->s.dir.rem_entry(object, coord, &lh, entry));
 		if (result == 0) {
 			if (object->i_size >= 1)
 				object->i_size -= 1;
 			else {
-				warning("nikita-2509", "Dir %llu is runt",
-					get_inode_oid(object));
+				warning("nikita-2509", "Dir %llu is runt", get_inode_oid(object));
 				result = -EIO;
 			}
 		}
@@ -1070,13 +1031,11 @@ find_entry(const struct inode *dir /* directory to scan */ ,
 
 	if (seal_is_set(seal)) {
 		/* check seal */
-		result = seal_validate(seal, coord, &entry->key, LEAF_LEVEL,
-				       lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI);
+		result = seal_validate(seal, coord, &entry->key, LEAF_LEVEL, lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI);
 		if (result == 0) {
 			/* key was found. Check that it is really item we are
 			 * looking for. */
-			result = WITH_DATA(coord->node,
-					   check_item(dir, coord, name->name));
+			result = WITH_DATA(coord->node, check_item(dir, coord, name->name));
 			if (result == 0)
 				return 0;
 		}
@@ -1101,8 +1060,7 @@ find_entry(const struct inode *dir /* directory to scan */ ,
 		coord_init_zero(&arg.last_coord);
 		init_lh(&arg.last_lh);
 
-		result = iterate_tree(tree_by_inode(dir),
-				      coord, lh, entry_actor, &arg, mode, 1);
+		result = iterate_tree(tree_by_inode(dir), coord, lh, entry_actor, &arg, mode, 1);
 		/*
 		 * if end of the tree or extent was reached during
 		 * scanning.
@@ -1162,8 +1120,7 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 #endif
 
 	if (!keyeq(args->key, unit_key_by_coord(coord, &unit_key))) {
-		assert("nikita-1791",
-		       keylt(args->key, unit_key_by_coord(coord, &unit_key)));
+		assert("nikita-1791", keylt(args->key, unit_key_by_coord(coord, &unit_key)));
 		args->not_found = 1;
 		args->last_coord.between = AFTER_UNIT;
 		return 0;
@@ -1175,8 +1132,7 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 
 		done_lh(&args->last_lh);
 		assert("nikita-1896", znode_is_any_locked(lh->node));
-		lock_result = longterm_lock_znode(&args->last_lh, lh->node,
-						  args->mode, ZNODE_LOCK_HIPRI);
+		lock_result = longterm_lock_znode(&args->last_lh, lh->node, args->mode, ZNODE_LOCK_HIPRI);
 		if (lock_result != 0)
 			return lock_result;
 	}
@@ -1193,8 +1149,7 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 		warning("nikita-1135", "Cannot get item plugin");
 		print_coord("coord", coord, 1);
 		return -EIO;
-	} else if (item_id_by_coord(coord) !=
-		   item_id_by_plugin(inode_dir_item_plugin(dir))) {
+	} else if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir))) {
 		/* item id of current item does not match to id of items a
 		 * directory is built of */
 		warning("nikita-1136", "Wrong item plugin");
@@ -1205,9 +1160,7 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 	assert("nikita-1137", iplug->s.dir.extract_name);
 
 	trace_on(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli\n",
-		 current_pid, name,
-		 iplug->s.dir.extract_name(coord),
-		 *znode_get_block(coord->node));
+		 current_pid, name, iplug->s.dir.extract_name(coord), *znode_get_block(coord->node));
 	/*
 	 * Compare name stored in this entry with name we are looking for.
 	 * 
