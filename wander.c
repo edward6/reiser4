@@ -1530,6 +1530,16 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	if (ret)
 		return ret;
 
+	/* relocate set is on the atom->clean_nodes list after
+	 * current_atom_complete_writes() finishes. It can be safely
+	 * uncaptured after commit_semaphore is taken, because any atom that
+	 * captures these nodes is guaranteed to commit after current one.
+	 *
+	 * This can only be done after pre_commit_hook(), because it is where
+	 * early flushed jnodes with CREATED bit are transferred to the
+	 * overwrite list. */
+	invalidate_list(ATOM_CLEAN_LIST(*atom));
+
 	trace_mark(wander);
 
 	/* No locks are required if we take atom which stage >=
