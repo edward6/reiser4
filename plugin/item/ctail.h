@@ -12,6 +12,8 @@ typedef struct ctail_item_format {
 
 #define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE  
 
+#define prev_list_to_page(head) (list_entry((head)->prev->prev, struct page, list))
+
 /* plugin->item.b.* */
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
 pos_in_item_t nr_units_ctail(const coord_t * coord);
@@ -44,7 +46,7 @@ crypto_stat_t * inode_crypto_stat(struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
-int cluster_is_required (reiser4_cluster_t *);
+int cluster_is_uptodate (reiser4_cluster_t *);
 loff_t inode_scaled_offset(struct inode *, const loff_t);
 size_t inode_scaled_cluster_size(struct inode *);
 unsigned long cluster_index_by_page(struct page *, struct inode *);
