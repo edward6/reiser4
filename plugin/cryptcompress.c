@@ -1337,6 +1337,7 @@ find_cluster(reiser4_cluster_t * clust,
 			}
 			if (write) {
 				znode_make_dirty(hint.coord.base_coord.node);
+				znode_set_squeezable(hint.coord.base_coord.node);
 				if (!read)
 					move_flow_forward(&f, iplug->b.nr_units(&hint.coord.base_coord));
 			}
@@ -1994,7 +1995,7 @@ writepages_cryptcompress(struct address_space * mapping)
 	while ((result == 0 || result == 1) && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
 		struct page *pg = list_to_page(mpages);
 
-		assert("edward-xxx", PageDirty(pg));
+		assert("edward-481", PageDirty(pg));
 
 		if (!clust->nr_pages || !page_of_cluster(pg, &clust, inode)) {
 			/* update cluster handle */
@@ -2073,7 +2074,7 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 	init_context(&ctx, inode->i_sb);
 	
 	ctx.nobalance = 1;
-	assert("edward-xxx", lock_stack_isclean(get_current_lock_stack()));
+	assert("edward-482", lock_stack_isclean(get_current_lock_stack()));
 	
 	result = 0;
 

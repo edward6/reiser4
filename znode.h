@@ -261,6 +261,8 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
 #define znode_created(x)            jnode_created ( ZJNODE(x) )
 #define znode_set_created(x)        jnode_set_created ( ZJNODE(x) )
+#define znode_squeezable(x)         jnode_squeezable (ZJNODE(x)) 
+#define znode_set_squeezable(x)     jnode_set_squeezable (ZJNODE(x)) 
 
 #define znode_is_dirty(x)           jnode_is_dirty    ( ZJNODE(x) )
 #define znode_check_dirty(x)        jnode_check_dirty ( ZJNODE(x) )

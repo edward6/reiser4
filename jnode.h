@@ -275,6 +275,8 @@ typedef enum {
 	JNODE_CC = 26,
 	/* this jnode is copy of coced original */
 	JNODE_CCED = 27,
+	/* enable node squeezing */
+	JNODE_SQUEEZABLE = 28, 
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
@@ -402,6 +404,10 @@ extern flush_queue_t * pos_fq(flush_pos_t * pos);
    hole), or zinit_new was called */
 #define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
 #define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
+
+/* the node should be squeezed during flush squalloc phase */
+#define jnode_squeezable(node)        JF_ISSET (node, JNODE_SQUEEZABLE)
+#define jnode_set_squeezable(node)    JF_SET (node, JNODE_SQUEEZABLE)
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros
    because C doesn't allow overloading of const prototypes. */

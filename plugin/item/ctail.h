@@ -54,6 +54,7 @@ int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 int kill_hook_ctail(const coord_t *, unsigned, unsigned, struct cut_list *);
+int shift_hook_ctail(const coord_t *, unsigned, unsigned, znode *);
 
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);

@@ -317,7 +317,48 @@ kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_
 	return 0;
 }
 
+/* for shift_hook_ctail(),
+   return true if the first disk cluster item has dirty child
+*/
+static int
+ctail_squeezable (const coord_t *coord)
+{
+	int result;
+	reiser4_key  key;
+	jnode * child = NULL;
+
+	assert("edward-477", coord != NULL);
+	assert("edward-478", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
+
+	item_key_by_coord(coord, &key);
+	child =  jlookup(current_tree, get_key_objectid(&key), pg_by_coord(coord));
+	
+	if (!child)
+		return 0;
+	LOCK_JNODE(child);
+	if (jnode_is_dirty(child))
+		result = 1;
+	UNLOCK_JNODE(child);
+	jput(child);
+	return result;
+}
+
 /* plugin->u.item.b.shift_hook */
+int
+shift_hook_ctail(const coord_t * item /* coord of item */ ,
+		 unsigned from UNUSED_ARG /* start unit */ ,
+		 unsigned count UNUSED_ARG /* stop unit */ ,
+		 znode * old_node /* old parent */ )
+{
+	assert("edward-479", item != NULL);
+	assert("edward-480", item->node != old_node);
+	
+	if (!znode_squeezable(old_node) || znode_squeezable(item->node))
+		return 0;
+	if (ctail_squeezable(item))
+		znode_set_squeezable(item->node);
+	return 0;
+}
 
 static int
 cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
