@@ -1355,10 +1355,17 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
  * @left: locked left neighbor,
  * @node: node to be deleted,
  * @smallest_removed: leftmost key of deleted node,
+ * @object: inode pointer, if we truncate a file body. 
  *
  * @return: 0 if success, error code otherwise.
+ *
+ * NOTE: if @object!=NULL we assume that @smallest_removed != NULL and it
+ * contains the right value of the smallest removed key from the previous
+ * cut_worker() iteration.  This is needed for proper accounting of
+ * "i_blocks" and "i_bytes" fields of the @object.
  */
-static int delete_node (znode * left, znode * node, reiser4_key * smallest_removed)
+static int delete_node (znode * left, znode * node, reiser4_key * smallest_removed,
+			struct inode * object)
 {
 	lock_handle parent_lock;
 	coord_t cut_from;
@@ -1369,6 +1376,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	assert ("zam-937", node != NULL);
 	assert ("zam-933", znode_is_write_locked(node));
 	assert ("zam-939", ergo(left != NULL, znode_is_locked(left)));
+	assert ("zam-999", ergo(object != NULL, smallest_removed != NULL));
 
 	init_lh(&parent_lock);
 
@@ -1413,13 +1421,27 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 
 	{
 		reiser4_tree * tree = current_tree;
+		__u64 start_offset = 0, end_offset = 0;
 
 		WLOCK_DK(tree);
+		if (object) {
+			/* We use @smallest_removed and the left delimiting of
+			 * the current node for @object->i_blocks, i_bytes
+			 * calculation.  We assume that the items after the
+			 * *@smallest_removed key have been deleted from the
+			 * file body. */
+			start_offset = get_key_offset(znode_get_ld_key(node));
+			end_offset = get_key_offset(smallest_removed);
+		}
+		
 		if (left)
 			left->rd_key = node->rd_key;
 		if (smallest_removed)
 			*smallest_removed = *znode_get_ld_key(node);
 		WUNLOCK_DK(tree);
+
+		if (object)
+			inode_sub_bytes(object, (loff_t)(end_offset - start_offset));
 	}
  failed:
 	zrelse(parent_lock.node);
@@ -1471,8 +1493,8 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read,
 			     keyle(from_key, znode_get_ld_key(node)))) {
-			result = delete_node(next_node_lock.node,
-					     node, smallest_removed);
+			result = delete_node(
+				next_node_lock.node, node, smallest_removed, object);
 		} else {
 			result = tap_load(tap);
 			if (result)
