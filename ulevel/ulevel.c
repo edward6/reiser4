@@ -302,6 +302,10 @@ static struct super_block * call_mount (const char * dev_name, const char *opts)
 {
 	struct file_system_type * fs;
 
+	if (opts != NULL) {
+		info ("mount options: %s\n", opts);
+	}
+
 	fs = find_filesystem ("reiser4");
 	if (!fs)
 		return 0;
@@ -4152,7 +4156,8 @@ static void *uswapd( void *untyped )
 
 	while( 1 ) {
 		int result;
-		int to_flush = 21;
+		int to_flush;
+		int flushed  = 0;
 
 		spin_lock( &mp_guard );
 		while( ! is_mp )
@@ -4161,9 +4166,13 @@ static void *uswapd( void *untyped )
 		spin_unlock( &mp_guard );
 		rlog( "nikita-1939", "uswapd wakes up..." );
 
-		result = memory_pressure( super, & to_flush );
-		if( result != 0 )
-			warning( "nikita-1937", "flushing failed: %i", result );
+		while (flushed < MEMORY_PRESSURE_HOWMANY) {
+			to_flush = MEMORY_PRESSURE_HOWMANY - flushed;
+			result = memory_pressure( super, & to_flush );
+			if( result != 0 )
+				warning( "nikita-1937", "flushing failed: %i", result );
+			flushed += to_flush;
+		}
 	}
 	REISER4_EXIT_PTR( NULL );
 }
