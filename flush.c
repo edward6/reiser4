@@ -1544,6 +1544,7 @@ out:
 	return ret;
 }
 
+
 /* Scan @node items and try to squeeze each one. */
 static int squeeze_node(flush_pos_t * pos, znode * node)
 {
@@ -1590,11 +1591,13 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (coord_next_item(&pos->coord))
 			/* node is over */
 			break;
-		if (iplug->f.squeeze != NULL && item_plugin_by_coord(&pos->coord) != iplug) {
-			/* squeeze one more time previous item
-			   and invalidate squeeze item data */
-			ret = iplug->f.squeeze(pos, 0 /* detach info */);
-			pos->idata = NULL;
+		/* before starting next iteration check if existing squeeze item data
+		   should be invalidate. If so, call squeeze() method of previous item
+		   plugin for updated flush position */
+		if (pos->idata != NULL && item_plugin_by_coord(&pos->coord) != iplug) {
+			assert("edward-308", iplug->f.squeeze != NULL);
+			ret = iplug->f.squeeze(pos, 0 /* invalidate info */);
+			assert("edward-309", pos->idata == NULL);
 			if (ret)
 				return ret;
 		}
