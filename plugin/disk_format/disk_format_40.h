@@ -50,4 +50,5 @@ int                 format_40_get_ready    (struct super_block *, void * data);
 const reiser4_key * format_40_root_dir_key (const struct super_block *);
 int                 format_40_release      (struct super_block * s);
 jnode             * format_40_log_super    (struct super_block * s);
+void                format_40_print_info   (const struct super_block * s);
 
