@@ -557,7 +557,7 @@ zget(reiser4_tree * tree,
 
 		/* Arrive here after a race to insert a new znode: the shadow variable
 		 * below became result. */
-	      retry_miss_race:
+retry_miss_race:
 
 		/* Take the znode lock in order to test its blocknr and status. */
 		if (REISER4_DEBUG) {
