@@ -191,13 +191,17 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	return 0;
 }
 
+#define FORMAT40_ROOT_LOCALITY 41
+#define FORMAT40_ROOT_OBJECTID 42
+
 /* plugin->u.layout.root_dir_key */
 const reiser4_key * format_40_root_dir_key (
 	const struct super_block * super UNUSED_ARG)
 {
 	static const reiser4_key FORMAT_40_ROOT_DIR_KEY = {
-		.el = { { ( 2 << 4 ) | KEY_SD_MINOR }, { 0x10002ull }, { 0ull } }
+		.el = { { (FORMAT40_ROOT_LOCALITY  << 4 ) | KEY_SD_MINOR }, 
+			{ FORMAT40_ROOT_OBJECTID }, { 0ull } }
 	};
-
+	
 	return &FORMAT_40_ROOT_DIR_KEY;
 }
