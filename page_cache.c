@@ -540,14 +540,16 @@ int set_page_dirty_internal (struct page * page, int tag_as_moved)
 					inc_page_state(nr_dirty);
 				radix_tree_tag_set(&mapping->page_tree,
 					page->index, PAGECACHE_TAG_DIRTY);
-				if (tag_as_moved)
+				if (tag_as_moved) {
+					assert("vs-1731", 0);
 					radix_tree_tag_set(
 						&mapping->page_tree, page->index,
 						PAGECACHE_TAG_REISER4_MOVED);
-				else
+				} else {
 					radix_tree_tag_clear(
 						&mapping->page_tree, page->index,
 						PAGECACHE_TAG_REISER4_MOVED);
+				}
 			}
 			read_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
@@ -560,7 +562,6 @@ reiser4_internal void capture_reiser4_inodes (
 	struct super_block * sb, struct writeback_control * wbc)
 {
 	const unsigned long start = jiffies;
-	long captured = 0;
 
 	if (list_empty(&sb->s_io))
 		list_splice_init(&sb->s_dirty, &sb->s_io);
@@ -584,7 +585,7 @@ reiser4_internal void capture_reiser4_inodes (
 			if (fplug != NULL && fplug->capture != NULL) {
 				/* call file plugin method to capture anonymous pages and
 				 * anonymous jnodes */
-				fplug->capture(inode, wbc, &captured);
+				fplug->capture(inode, wbc);
 			}
 		}
 

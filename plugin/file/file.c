@@ -1015,6 +1015,7 @@ capture_anonymous_page(struct page *pg, int keepme)
 
 #define CAPTURE_APAGE_BURST      (1024)
 
+#if 0
 static int
 capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *captured)
 {
@@ -1174,6 +1175,152 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *cap
 
 	return 0;
 }
+#endif
+
+/* look for pages tagged REISER4_MOVED starting from the index-th page, return
+   number of captured pages, update index to next page after the last found
+   one */
+static int
+capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
+			int to_capture)
+{
+	int result;
+	struct pagevec pvec;
+	unsigned found_pages;
+	int count;
+	int i;
+	int nr;
+
+	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+		 "capture anonymous: oid %llu: start index %lu\n",
+		 get_inode_oid(mapping->host), *index);
+
+	pagevec_init(&pvec, 0);	
+	count = min(pagevec_space(&pvec), (unsigned)to_capture);
+	nr = 0;
+
+	found_pages = pagevec_lookup_tag(&pvec, mapping, index, PAGECACHE_TAG_REISER4_MOVED, count);
+	if (found_pages != 0) {
+		ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+			 "oid %llu: found %u moved pages\n",
+			 get_inode_oid(mapping->host), found_pages);
+		
+		for (i = 0; i < pagevec_count(&pvec); i ++) {
+			/* tag PAGECACHE_TAG_REISER4_MOVED will be cleared by
+			   set_page_dirty_internal which is called when jnode
+			   is captured */
+			result = capture_anonymous_page(pvec.pages[i], 0);
+			if (result == 1)
+				nr ++;
+			else if (result < 0) {
+				warning("vs-1454", "failed for moved page: result=%d, captured=%d)\n",
+					result, i);
+				pagevec_release(&pvec);
+				return result;
+			} else {
+				/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
+				;
+			}
+		}
+		pagevec_release(&pvec);
+	} else
+		/* there are no starting from *index */
+		*index = (pgoff_t)-1;
+
+	return nr;
+}
+
+static int
+capture_anonymous_jnodes(struct address_space *mapping,
+			 pgoff_t *from, pgoff_t to,
+			 int to_capture)
+{
+#if REISER4_USE_EFLUSH
+	int found_jnodes;
+	int count;
+	int nr;
+	int i;
+	int result;
+	jnode *jvec[PAGEVEC_SIZE];
+	reiser4_tree *tree;
+
+	count = min(PAGEVEC_SIZE, to_capture);
+	nr = 0;
+	result = 0;
+
+	tree = &get_super_private(mapping->host->i_sb)->tree;
+	RLOCK_TREE(tree);
+	found_jnodes = radix_tree_gang_lookup_tag(jnode_tree_by_inode(mapping->host),
+						  (void **)&jvec, *from, count,
+						  EFLUSH_TAG_ANONYMOUS);
+	if (found_jnodes == 0) {
+		/* there are no anonymous jnodes from index from down to the
+		   end of file */
+		RUNLOCK_TREE(tree);
+		*from = to;
+		return 0;
+	}
+
+	for (i = 0; i < found_jnodes; i ++) {
+		if (index_jnode(jvec[i]) < to)
+			jref(jvec[i]);
+		else {
+			found_jnodes = i;
+			break;
+		}
+	}
+		
+	RUNLOCK_TREE(tree);
+	if (found_jnodes == 0) {
+		/* there are no anonymous jnodes in the gived range of
+		   indexes */
+		*from = to;
+		return 0;
+	}
+       
+	/* there are anonymous jnodes from given range */
+	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+		 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
+		 get_inode_oid(mapping->host), found_jnodes, from, to - 1);
+	
+	/* start i/o for eflushed nodes */
+	for (i = 0; i < found_jnodes; i ++)
+		jstartio(jvec[i]);
+
+	for (i = 0; i < found_jnodes; i ++) {
+		result = jload(jvec[i]);
+		if (result == 0) {
+			result = capture_anonymous_page(jnode_page(jvec[i]), 0);
+			if (result == 1)
+				nr ++;
+			else if (result < 0) {
+				jrelse(jvec[i]);
+				warning("nikita-3328",
+					"failed for anonymous jnode: result=%i, captured %d\n",
+					result, i);
+				break;
+			} else {
+				/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
+				;
+			}
+			jrelse(jvec[i]);
+		} else {
+			warning("vs-1454", "jload for anonymous jnode failed: result=%i, captured %d\n",
+				result, i);
+			break;
+		}
+	}
+	*from = index_jnode(jvec[found_jnodes - 1]) + 1;
+
+	for (i = 0; i < found_jnodes; i ++)
+		jput(jvec[i]);
+	if (result)
+		return result;
+	return nr;
+#else /* REISER4_USE_EFLUSH */
+	return 0;
+#endif
+}
 
 /*
  * Commit atom of the jnode of a page.
@@ -1329,6 +1476,7 @@ commit_file_atoms(struct inode *inode)
 	return result;
 }
 
+#if 0
 /*
  * this file plugin method is called to capture into current atom all
  * "anonymous pages", that is, pages modified through mmap(2). For each such
@@ -1342,13 +1490,14 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long
 {
 	int               result;
 	unix_file_info_t *uf_info;
-	pgoff_t index;
+	pgoff_t index, nr_pages;
 
 	if (!inode_has_anonymous_pages(inode))
 		return 0;
 
 	result = 0;
 	index = 0;
+	nr_pages = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	do {
 		reiser4_context ctx;
 
@@ -1396,6 +1545,129 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long
 		reiser4_exit_context(&ctx);
 	} while (result == 0 && inode_has_anonymous_pages(inode) /* FIXME: it should be: there are anonymous pages with
 								    page->index >= index */);
+
+	return result;
+}
+#endif
+
+pgoff_t cur_pindex;
+extern int clog_id;
+
+reiser4_internal int
+capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
+{
+	int               result;
+	unix_file_info_t *uf_info;
+	pgoff_t pindex, jindex, nr_pages;
+	int to_capture;
+	int clog_begin;
+	int phantoms;
+
+	clog_begin = clog_id;
+	if (!inode_has_anonymous_pages(inode))
+		return 0;
+
+	uf_info = unix_file_inode_data(inode);
+	clog_op(CLOG_CUF_START, (void *)reiser4_inode_data(inode)->anonymous_eflushed, (void *)wbc->sync_mode);
+
+	result = 0;
+	pindex = 0;
+	jindex = 0;
+	phantoms = 0;
+	nr_pages = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	do {
+		reiser4_context ctx;
+
+		to_capture = CAPTURE_APAGE_BURST;
+		/*
+		 * locking: creation of extent requires read-semaphore on
+		 * file. _But_, this function can also be called in the
+		 * context of write system call from
+		 * balance_dirty_pages(). So, write keeps semaphore (possible
+		 * in write mode) on file A, and this function tries to
+		 * acquire semaphore on (possibly) different file B. A/B
+		 * deadlock is on a way. To avoid this try-lock is used
+		 * here. When invoked from sys_fsync() and sys_fdatasync(),
+		 * this function is out of reiser4 context and may safely
+		 * sleep on semaphore.
+		 */
+		if (is_in_reiser4_context()) {
+			if (down_read_trylock(&uf_info->latch) == 0) {
+/* ZAM-FIXME-HANS: please explain this error handling here, grep for
+ * all instances of returning EBUSY, and tell me whether any of them
+ * represent busy loops that we should recode.  Also tell me whether
+ * any of them fail to return EBUSY to user space, and if yes, then
+ * recode them to not use the EBUSY macro.*/
+				result = RETERR(-EBUSY);
+				break;
+			}
+		} else
+			down_read(&uf_info->latch);
+		LOCK_CNT_INC(inode_sem_r);
+
+
+		init_context(&ctx, inode->i_sb);
+		/* avoid recursive calls to ->sync_inodes */
+		ctx.nobalance = 1;
+		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
+
+		while (to_capture) {
+			pgoff_t start;
+			
+			assert("vs-1727", jindex <= pindex);
+			cur_pindex = pindex;
+			if (pindex == jindex) {
+				start = pindex;
+				/*clog_op(CLOG_CAP_START, (void *)start, NULL);*/
+				result = capture_anonymous_pages(inode->i_mapping, &pindex, to_capture);
+				if (result < 0)
+					break;
+				/*clog_op(CLOG_CAP_END, (void *)start, (void *)pindex);*/
+				to_capture -= result;				
+				if (start + result == pindex) {
+					jindex = pindex;
+					continue;
+				}
+			}
+			/* deal with anonymous jnodes between jindex and pindex */
+			/*clog_op(CLOG_CAJ_START, (void *)jindex, NULL);*/
+			result = capture_anonymous_jnodes(inode->i_mapping, &jindex, pindex, to_capture);
+			/*clog_op(CLOG_CAJ_END, (void *)jindex, NULL);*/
+			if (result < 0)
+				break;
+			to_capture -= result;
+			phantoms += result;
+
+			if (jindex == (pgoff_t)-1) {
+				assert("vs-1728", pindex == (pgoff_t)-1);
+				break;
+			}
+		}
+		if (to_capture == 0)
+			/* there may be left more pages */
+			redirty_inode(inode);
+
+		up_read(&uf_info->latch);
+		LOCK_CNT_DEC(inode_sem_r);
+		if (result < 0) {
+			/* error happened */
+			reiser4_exit_context(&ctx);
+			return result;
+		}
+		result = 0;
+		if (wbc->sync_mode != WB_SYNC_ALL) {
+			reiser4_exit_context(&ctx);
+			break;
+		}
+		result = commit_file_atoms(inode);
+		reiser4_exit_context(&ctx);
+		if (pindex >= nr_pages && jindex == pindex)
+			break;
+	} while (1);
+
+	clog_op(CLOG_CAP_END, (void *)pindex, (void *)jindex);
+	clog_op(CLOG_CUF_END, (void *)reiser4_inode_data(inode)->anonymous_eflushed, (void *)phantoms);
+	cur_pindex = 0;
 
 	return result;
 }

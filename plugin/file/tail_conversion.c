@@ -652,8 +652,7 @@ extent2tail(unix_file_info_t *uf_info)
 		page_cache_release(page);
 	}
 
-	assert("vs-1260", (reiser4_inode_data(inode)->captured_eflushed == 0 &&
-			   reiser4_inode_data(inode)->anonymous_eflushed == 0));
+	assert("vs-1260", inode_has_no_jnodes(reiser4_inode_data(inode)));
 
 	if (i == num_pages) {
 		/* file is converted to formatted items */

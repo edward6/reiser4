@@ -572,8 +572,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 					   index_jnode(node), EFLUSH_TAG_ANONYMOUS);
 			ON_DEBUG(info->anonymous_eflushed ++);
 		} else {
-			radix_tree_tag_set(jnode_tree_by_reiser4_inode(info),
-					   index_jnode(node), EFLUSH_TAG_CAPTURED);
 			ON_DEBUG(info->captured_eflushed ++);
 		}
 		WUNLOCK_TREE(tree);
@@ -671,13 +669,15 @@ static void eflush_free (jnode * node)
 		info = reiser4_inode_data(inode);
 
 		/* clear e-flush specific tags from node's radix tree slot */
-		radix_tree_tag_clear(
-			jnode_tree_by_reiser4_inode(info), index_jnode(node),
-			ef->hadatom ? EFLUSH_TAG_CAPTURED : EFLUSH_TAG_ANONYMOUS);
-		ON_DEBUG(ef->hadatom ? (info->captured_eflushed --) : (info->anonymous_eflushed --));
+		if (!ef->hadatom) {
+			radix_tree_tag_clear(
+				jnode_tree_by_reiser4_inode(info), index_jnode(node),
+				EFLUSH_TAG_ANONYMOUS);
+			info->anonymous_eflushed --;
+		} else
+			ON_DEBUG(info->captured_eflushed --);
 
-		assert("nikita-3355", ergo(jnode_tree_by_reiser4_inode(info)->rnode == NULL,
-					   (info->captured_eflushed == 0 && info->anonymous_eflushed == 0)));
+		assert("nikita-3355", jnode_tree_by_reiser4_inode(info)->rnode != NULL);
 
 		WUNLOCK_TREE(tree);
 
@@ -704,6 +704,8 @@ static void eflush_free (jnode * node)
 
 	LOCK_JNODE(node);
 }
+
+int reiser4_set_page_dirty2(struct page *page /* page to mark dirty */);
 
 reiser4_internal void eflush_del (jnode * node, int page_locked)
 {
@@ -744,7 +746,8 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
         }
 
 	if (JF_ISSET(node, JNODE_KEEPME))
-		set_page_dirty(page);
+		/* jnode is already tagged in reiser4_inode's tree of jnodes */
+		reiser4_set_page_dirty2(page);
 	else
 		/*
 		 * either jnode was dirty or page was dirtied through mmap. Page's dirty

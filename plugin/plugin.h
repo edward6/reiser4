@@ -17,7 +17,6 @@
 #include "item/internal.h"
 #include "item/sde.h"
 #include "item/cde.h"
-/*#include "file/file.h"*/
 #include "pseudo/pseudo.h"
 #include "symlink.h"
 #include "dir/hashed_dir.h"
@@ -164,7 +163,7 @@ typedef struct file_plugin {
 	/*
 	 * add pages created through mmap into object.
 	 */
-	int (*capture) (struct inode *inode, const struct writeback_control *wbc, long *);
+	int (*capture) (struct inode *inode, const struct writeback_control *wbc);
 	/* these should be implemented using body_read_flow and body_write_flow
 	   builtins */
 	 ssize_t(*read) (struct file * file, char *buf, size_t size, loff_t * off);

@@ -104,6 +104,12 @@ reiser4_clear_page_dirty(struct page *page)
 */
 static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 {
+	/* this page can be unformatted only */
+	assert("vs-1734", ergo(page->mapping && page->mapping->host,
+			       get_super_fake(page->mapping->host->i_sb) != page->mapping->host &&
+			       get_cc_fake(page->mapping->host->i_sb) != page->mapping->host &&
+			       get_super_private(page->mapping->host->i_sb)->bitmap != page->mapping->host));
+
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page->mapping;
 
@@ -119,6 +125,32 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 				/* FIXME: if would be nice to not set this tag on pages which are captured already */
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index, PAGECACHE_TAG_REISER4_MOVED);
+			}
+			read_unlock_irq(&mapping->tree_lock);
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+		}
+	}
+	return 0;
+}
+
+int reiser4_set_page_dirty2(struct page *page /* page to mark dirty */)
+{
+	/* this page can be unformatted only */
+	assert("vs-1734", ergo(page->mapping && page->mapping->host,
+			       get_super_fake(page->mapping->host->i_sb) != page->mapping->host &&
+			       get_cc_fake(page->mapping->host->i_sb) != page->mapping->host &&
+			       get_super_private(page->mapping->host->i_sb)->bitmap != page->mapping->host));
+
+	if (!TestSetPageDirty(page)) {
+		struct address_space *mapping = page->mapping;
+
+		if (mapping) {
+			read_lock_irq(&mapping->tree_lock);
+			/* check for race with truncate */
+			if (page->mapping) {
+				assert("vs-1652", page->mapping == mapping);
+				if (!mapping->backing_dev_info->memory_backed)
+					inc_page_state(nr_dirty);
 			}
 			read_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
@@ -615,13 +647,10 @@ reiser4_writepages(struct address_space *mapping,
 
 	inode = mapping->host;
 	fplug = inode_file_plugin(inode);
-	if (fplug != NULL && fplug->capture != NULL) {
-		long captured = 0;
-
+	if (fplug != NULL && fplug->capture != NULL)
 		/* call file plugin method to capture anonymous pages and
-		 * anonymous jnodes */
-		ret = fplug->capture(inode, wbc, &captured);
-	}
+		   anonymous jnodes */
+		ret = fplug->capture(inode, wbc);
 
 	move_inode_out_from_sync_inodes_loop(mapping);
 	return ret;
