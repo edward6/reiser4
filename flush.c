@@ -1682,6 +1682,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_load_count (& right_load);
 		done_lh (& right_lock);
+
+		/* FIXME: Note: We should subtract from nr_to_write here, or something
+		 * like that. */
+
 		goto RIGHT_AGAIN;
 	}
 
