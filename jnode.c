@@ -248,7 +248,6 @@ jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
 	jnode_key_t jkey;
 	jnode *node;
-	PROF_BEGIN(jlook);
 
 	assert("nikita-2353", tree != NULL);
 
@@ -264,7 +263,6 @@ jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 		node = jnode_rip_check(tree, node);
 	}
 	rcu_read_unlock();
-	PROF_END(jlook);
 	return node;
 }
 
@@ -661,8 +659,6 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 	int result = 0;
 	int parsed;
 
-	PROF_BEGIN(jload);
-
 	assert("nikita-3010", schedulable());
 	write_node_trace(node);
 
@@ -727,12 +723,10 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
 
-	PROF_END(jload);
 	return 0;
 
  failed:
 	jrelse(node);
-	PROF_END(jload);
 	return result;
 	
 }
@@ -794,7 +788,6 @@ void
 jrelse(jnode * node /* jnode to release references to */)
 {
 	struct page *page;
-	PROF_BEGIN(jrelse);
 
 	assert("nikita-487", node != NULL);
 	assert("nikita-1906", spin_jnode_is_not_locked(node));
@@ -820,7 +813,6 @@ jrelse(jnode * node /* jnode to release references to */)
 	atomic_dec(&node->d_count);
 	/* release reference acquired in jload_gfp() or jinit_new() */
 	jput(node);
-	PROF_END(jrelse);
 }
 
 /* called from jput() to wait for io completion */
@@ -1797,7 +1789,7 @@ jnode *jclone(jnode *node)
 
 	jref(clone);
 	JF_SET(clone, JNODE_HEARD_BANSHEE);
-	ON_DEBUG(JF_SET(clone, JNODE_CC));
+	JF_SET(clone, JNODE_CC);
 	return clone;
 }
 

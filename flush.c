@@ -1171,7 +1171,6 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	lock_handle plock;
 	load_count pload;
 	coord_t pcoord;
-	PROF_BEGIN(flush_alloc);
 
 	ON_TRACE(TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", pos_tostring(pos));
 
@@ -1227,7 +1226,6 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 exit:
 	done_load_count(&pload);
 	done_lh(&plock);
-	PROF_END(flush_alloc);
 	return ret;
 }
 
@@ -2276,7 +2274,6 @@ static pos_state_handle_t flush_pos_handlers[] = {
 static int squalloc (flush_pos_t * pos)
 {
 	int ret = 0;
-	PROF_BEGIN(forward_squalloc);
 
 	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
 	 * greater CPU efficiency? Measure and see.... -Hans */
@@ -2290,8 +2287,6 @@ static int squalloc (flush_pos_t * pos)
 			break;
 	}
 	
-	PROF_END(forward_squalloc);
-
 	/* any positive value or -E_NO_NEIGHBOR are legal return codes for handle_pos*
 	   routines, -E_NO_NEIGHBOR means that slum edge was reached */
 	if (ret > 0 || ret == -E_NO_NEIGHBOR)
