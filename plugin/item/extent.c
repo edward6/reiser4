@@ -1463,8 +1463,19 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 		extent_get_inode_and_key_by_coord (coord, & inode, & key);
 
 		if ( !inode )  {
-			assert ("jmacd-1231", state_of_extent (ext) != UNALLOCATED_EXTENT);
-			*childp = NULL;
+			if (state_of_extent (ext) != UNALLOCATED_EXTENT) {
+				/*
+				 * Unallocated extent without inode.
+				 *
+				 * This is possible because of the race with
+				 * unlink: inode was already removed from the
+				 * hash table (by generic_delete_inode()), but
+				 * truncate_pages and reiser4_delete_inode()
+				 * weren't yet called.
+				 */
+				*childp = ERR_PTR (-EAGAIN);
+			} else
+				*childp = NULL;
 			return 0;
 		}
 
@@ -2408,7 +2419,12 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	inode = find_get_inode (reiser4_get_current_sb (), 
 				oid_to_ino (get_key_objectid (key)), 
 				reiser4_inode_find_actor, key);
-	assert ("vs-348", inode);
+	if (!inode)
+		/*
+		 * inode is being removed right now by concurrent iput().
+		 */
+		return 0;
+
 /*	if( inode -> i_state & I_NEW )
 		unlock_new_inode( inode );*/
 
@@ -3006,7 +3022,8 @@ static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
  * to right
  */
 /* Audited by: green(2002.06.13) */
-int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
+int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos,
+				   jnode *node)
 {
 	int result;
 	unsigned i;
@@ -3047,15 +3064,21 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 		 */
 		ext = extent_by_coord (item);
 		unit_key_by_coord (item, &unit_key);
-#if 0
+
+		assert ("nikita-2652", jnode_get_level (node) == LEAF_LEVEL);
+		assert ("nikita-2653", jnode_get_type (node) == JNODE_UNFORMATTED_BLOCK);
+		assert ("nikita-2650", 
+			get_inode_oid (node->key.j.mapping->host) ==
+			get_key_objectid (&unit_key));
+		assert ("vs-898", state_of_extent (ext) != HOLE_EXTENT);
+
 		assert ("vs-899", get_key_offset (&unit_key) <= 
-			(__u64)flush_pos->point->pg->index << PAGE_CACHE_SHIFT);
+			(__u64)node->pg->index << PAGE_CACHE_SHIFT);
 		set_key_offset (&unit_key, (get_key_offset (&unit_key) +
 					   extent_get_width (ext) * blocksize));
 		assert ("", get_key_offset (&unit_key) - blocksize >= 
-			(__u64)flush_pos->point->pg->index << PAGE_CACHE_SHIFT);
-#endif
-		assert ("vs-898", state_of_extent (ext) != HOLE_EXTENT);
+			(__u64)node->pg->index << PAGE_CACHE_SHIFT);
+
 #if 0
 		assert ("vs-900",
 			ergo (*jnode_get_block (flush_pos->point) == 0,

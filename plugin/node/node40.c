@@ -935,7 +935,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.13) */
-void node40_update_item_key (coord_t * target, reiser4_key * key,
+void node40_update_item_key (coord_t * target, const reiser4_key * key,
 			     carry_plugin_info *info)
 {
 	item_header40 * ih;

@@ -201,7 +201,7 @@ typedef struct node_plugin {
 	/**
 	 * update key of item.
 	 */
-	void ( *update_item_key )( coord_t *target, reiser4_key *key,
+	void ( *update_item_key )( coord_t *target, const reiser4_key *key,
 				   carry_plugin_info *info );
 
 	/* remove data between @from and @to from the tree */

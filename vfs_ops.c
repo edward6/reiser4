@@ -1264,6 +1264,8 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 {
 	__REISER4_ENTRY( inode -> i_sb, );
 
+	trace_on( TRACE_BUG, "Removing inode %llx\n", get_inode_oid( inode ) );
+
 	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
 		assert( "vs-839", S_ISLNK( inode -> i_mode ) );
 		reiser4_kfree( inode -> u.generic_ip, 
@@ -1306,9 +1308,23 @@ static void reiser4_drop_inode( struct inode *object )
 	 */
 
 	fplug = inode_file_plugin( object );
-	if( ( fplug != NULL ) && fplug -> not_linked( object ) )
+	if( ( fplug != NULL ) && fplug -> not_linked( object ) ) {
+		/*
+		 * create context here.
+		 *
+		 * removal of inode from the hash table (done at the very
+		 * beginning of generic_delete_inode(), truncate of pages, and
+		 * removal of file's extents has to be performed in the same
+		 * atom. Otherwise, it may so happen, that twig node with
+		 * allocated extent will be flushed to the disk.
+		 */
+		__REISER4_ENTRY( object -> i_sb, );
+
 		object -> i_nlink = 0;
-	generic_drop_inode( object );
+		generic_delete_inode( object );
+		__REISER4_EXIT( &__context );
+	} else
+		generic_drop_inode( object );
 }
 
 /** ->delete_inode() super operation */

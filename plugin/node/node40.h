@@ -90,7 +90,7 @@ int                node40_create_item      ( coord_t * target,
 					     reiser4_item_data *data, 
 					     carry_plugin_info *info );
 void               node40_update_item_key  ( coord_t * target, 
-					     reiser4_key * key, 
+					     const reiser4_key * key, 
 					     carry_plugin_info *info);
 int                node40_cut_and_kill     ( coord_t * from, 
 					     coord_t * to, 
