@@ -1033,6 +1033,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		if (nr_queued == 0) {
 			writeout_mode_disable();
 			(*atom)->nr_flushers --;
+			atom_send_event(*atom);
 			fq_put_nolock(fq);
 			/* current atom remains locked */
 			return 0;
@@ -1056,6 +1057,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	*atom = get_current_atom_locked();
 	(*atom)->nr_flushers --;
 	fq_put_nolock(fq);
+	atom_send_event(*atom);
 	UNLOCK_ATOM(*atom);
 
 	writeout_mode_disable();
