@@ -375,6 +375,26 @@ PREFIX##_list_splice (PREFIX##_list_head  *head_join,                           
 }                                                                                             \
                                                                                               \
 static __inline__ void                                                                        \
+PREFIX##_list_split(PREFIX##_list_head  *head_split,                                          \
+		    PREFIX##_list_head  *head_new,                                            \
+		    ITEM_TYPE  *item)                                                         \
+{                                                                                             \
+  assert("vs-1471", PREFIX##_list_empty(head_new));                                           \
+                                                                                              \
+  /* attach to new list */                                                                    \
+  head_new->_next = (& item->LINK_NAME);                                                      \
+  head_new->_prev = head_split->_prev;                                                        \
+                                                                                              \
+  /* cut from old list */                                                                     \
+  item->LINK_NAME._prev->_next = (PREFIX##_list_link*)head_split;                             \
+  head_split->_prev = item->LINK_NAME._prev;                                                  \
+                                                                                              \
+  /* link new list */                                                                         \
+  head_new->_next->_prev = (PREFIX##_list_link*)head_new;                                     \
+  head_new->_prev->_next = (PREFIX##_list_link*)head_new;                                     \
+}                                                                                             \
+                                                                                              \
+static __inline__ void                                                                        \
 PREFIX##_list_check (const PREFIX##_list_head  *head)                                         \
 {                                                                                             \
 	const PREFIX##_list_link *link;                                                       \
