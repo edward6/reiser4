@@ -732,6 +732,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 		UNLOCK_JNODE(node);
 		spin_unlock_txnmgr(mgr);
 
+		reiser4_stat_inc(txnmgr.restart.atom_begin);
 		return ERR_PTR(-EAGAIN);
 	}
 
@@ -1051,7 +1052,8 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	if (!atom_can_be_committed(*atom)) {
 		UNLOCK_ATOM(*atom);
-		return -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.cannot_commit);
+		return RETERR(-EAGAIN);
 	}
 
 	/* Up to this point we have been flushing and after flush is called we
@@ -1471,7 +1473,8 @@ try_commit_txnh(commit_data *cd)
 				cd->atom->nr_waiters++;
 				cd->wait = 1;
 				atom_wait_event(cd->atom);
-				result = -EAGAIN;
+				reiser4_stat_inc(txnmgr.restart.should_wait);
+				result = RETERR(-EAGAIN);
 			} else
 				result = 0;
 		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
@@ -1492,7 +1495,8 @@ try_commit_txnh(commit_data *cd)
 			if (result == 0) {
 				UNLOCK_ATOM(cd->atom);
 				cd->preflush = 0;
-				result = -EAGAIN;
+				reiser4_stat_inc(txnmgr.restart.flush);
+				result = RETERR(-EAGAIN);
 			} else
 				-- cd->preflush;
 		} else {
@@ -1692,12 +1696,12 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	if (block_atom != NULL) {
 		/* The block has already been assigned to an atom. */
 
-		if (block_atom == txnh_atom) {
-			/* No extra capturing work required. */
-		} else if (txnh_atom == NULL) {
+		/* case (block_atom == txnh_atom) is already handled above */
+		if (txnh_atom == NULL) {
 
 			/* The txnh is unassigned, try to assign it. */
-			if ((ret = capture_assign_txnh(node, txnh, mode)) != 0) {
+			ret = capture_assign_txnh(node, txnh, mode);
+			if (ret != 0) {
 				/* EAGAIN or otherwise */
 				assert("jmacd-6129", spin_txnh_is_not_locked(txnh));
 				assert("jmacd-6130", spin_jnode_is_not_locked(node));
@@ -1715,7 +1719,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 
 			/* In this case, both txnh and node belong to different atoms.  This function
 			   returns -EAGAIN on successful fusion, 0 on the fall-through case. */
-			if ((ret = capture_init_fusion(node, txnh, mode)) != 0) {
+			ret = capture_init_fusion(node, txnh, mode);
+			if (ret != 0) {
 				assert("jmacd-6131", spin_txnh_is_not_locked(txnh));
 				assert("jmacd-6132", spin_jnode_is_not_locked(node));
 				return ret;
@@ -1731,7 +1736,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 
 		if (txnh_atom != NULL) {
 			/* The txnh is already assigned: add the page to its atom. */
-			if ((ret = capture_assign_block(txnh, node)) != 0) {
+			ret = capture_assign_block(txnh, node);
+			if (ret != 0) {
 				/* EAGAIN or otherwise */
 				assert("jmacd-6133", spin_txnh_is_not_locked(txnh));
 				assert("jmacd-6134", spin_jnode_is_not_locked(node));
@@ -1989,7 +1995,8 @@ check_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		*/
 		capture_fuse_into(atomf, atomh);
 
-		return -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners_fused);
+		return RETERR(-EAGAIN);
 	}
 
 	UNLOCK_ATOM(atomh);
@@ -1999,7 +2006,8 @@ fail:
 		UNLOCK_TXNH(txnh);
 		UNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
-		return -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners);
+		return RETERR(-EAGAIN);
 	}
 
 	UNLOCK_ZLOCK(&node->lock);
@@ -2513,6 +2521,22 @@ void jnode_make_reloc (jnode * node, flush_queue_t * fq)
 	
 }
 
+static int
+trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
+{
+	if (unlikely(!spin_trylock_atom(atom))) {
+		atomic_inc(&atom->refcount);
+
+		UNLOCK_JNODE(node);
+		UNLOCK_TXNH(txnh);
+
+		LOCK_ATOM(atom);
+		atomic_dec(&atom->refcount);
+		return 1;
+	} else
+		return 0;
+}
+
 /*
  * in transaction manager jnode spin lock and transaction handle spin lock
  * nest within atom spin lock. During capturing we are in a situation when
@@ -2536,14 +2560,10 @@ trylock_throttle(txn_atom *atom, txn_handle * txnh, jnode * node)
 	assert("nikita-3227", spin_txnh_is_locked(txnh));
 	assert("nikita-3229", spin_jnode_is_locked(node));
 
-	if (unlikely(!spin_trylock_atom(atom))) {
-		atomic_inc(&atom->refcount);
-
-		UNLOCK_JNODE(node);
-		UNLOCK_TXNH(txnh);
-
-		UNDER_SPIN_VOID(atom, atom, atomic_dec(&atom->refcount));
-		return -EAGAIN;
+	if (unlikely(trylock_wait(atom, txnh, node) != 0)) {
+		UNLOCK_ATOM(atom);
+		reiser4_stat_inc(txnmgr.restart.trylock_throttle);
+		return RETERR(-EAGAIN);
 	} else
 		return 0;
 }
@@ -2555,6 +2575,7 @@ static int
 capture_assign_block(txn_handle * txnh, jnode * node)
 {
 	txn_atom *atom;
+	int       result;
 
 	assert("umka-206", txnh != NULL);
 	assert("umka-207", node != NULL);
@@ -2563,10 +2584,12 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 
 	assert("umka-297", atom != NULL);
 
-	if (trylock_throttle(atom, txnh, node) != 0) {
+	result = trylock_throttle(atom, txnh, node);
+	if (result != 0) {
 		/* this avoid busy loop, but we return -EAGAIN anyway to
 		 * simplify things. */
-		return -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.assign_block);
+		return result;
 	} else {
 
 		assert("jmacd-19", atom_isopen(atom));
@@ -2600,11 +2623,53 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	assert("umka-298", atom != NULL);
 
-	if (trylock_throttle(atom, txnh, node) != 0) {
-		/* this avoid busy loop, but we return -EAGAIN anyway to
-		 * simplify things. */
-		return -EAGAIN;
-	} else if (atom->stage == ASTAGE_CAPTURE_WAIT) {
+	/* 
+	 * optimization: this code went through three evolution stages. Main
+	 * driving force of evolution here is lock ordering:
+	 *
+	 * at the entry to this function following pre-conditions are met:
+	 *
+	 *     1. txnh and node are both spin locked,
+	 *
+	 *     2. node belongs to atom, and
+	 *
+	 *     3. txnh don't. 
+	 *
+	 * What we want to do here is to acquire spin lock on node's atom and
+	 * modify it somehow depending on its ->stage. In the simplest case,
+	 * where ->stage is ASTAGE_CAPTURE_FUSE, txnh should be added to
+	 * atom's list. Problem is that atom spin lock nests outside of jnode
+	 * and transaction handle ones. So, we cannot just LOCK_ATOM here.
+	 *
+	 * Solutions tried here:
+	 *
+	 *     1. spin_trylock(atom), return -EAGAIN on failure.
+	 *
+	 *     2. spin_trylock(atom). On failure to acquire lock, increment
+	 *     atom->refcount, release all locks, and spin on atom lock. Then
+	 *     recrement ->refcount, unlock atom and return -EAGAIN.
+	 *
+	 *     3. like previous one, but before unlocking atom, re-acquire
+	 *     spin locks on node and txnh and re-check whether function
+	 *     pre-condition are still met. Continue boldly if they are.
+	 *
+	 */
+	if (trylock_wait(atom, txnh, node) != 0) {
+		LOCK_JNODE(node);
+		LOCK_TXNH(txnh);
+		/* NOTE-NIKITA is it at all possible that current txnh
+		 * spontaneously changes ->atom from NULL to non-NULL? */
+		if (node->atom == NULL || txnh->atom != NULL) {
+			/* something changed. Caller have to re-decide */
+			UNLOCK_ATOM(atom);
+			UNLOCK_TXNH(txnh);
+			UNLOCK_JNODE(node);
+			reiser4_stat_inc(txnmgr.restart.assign_txnh);
+			return RETERR(-EAGAIN);
+		}
+	}
+
+	if (atom->stage == ASTAGE_CAPTURE_WAIT) {
 
 		/* The atom could be blocking requests--this is the first chance we've had
 		   to test it.  Since this txnh is not yet assigned, the fuse_wait logic
@@ -2732,8 +2797,10 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	assert("umka-213", txnh != NULL);
 	assert("umka-214", atomf != NULL);
 
+	/* We do not need the node lock. */
+	UNLOCK_JNODE(node);
+
 	if ((mode & TXN_CAPTURE_NONBLOCKING) != 0) {
-		UNLOCK_JNODE(node);
 		UNLOCK_TXNH(txnh);
 		UNLOCK_ATOM(atomf);
 
@@ -2743,13 +2810,11 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 
 		ON_TRACE(TRACE_TXN, "thread %u nonblocking on atom %u\n", current->pid, atomf->atom_id);
 
-		return -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.fuse_wait_nonblock);
+		return RETERR(-EAGAIN);
 	}
 
 	init_wlinks(&wlinks);
-
-	/* We do not need the node lock. */
-	UNLOCK_JNODE(node);
 
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
 	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
@@ -2769,12 +2834,14 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	/* Go to sleep. */
 	UNLOCK_TXNH(txnh);
 
-	if ((ret = prepare_to_sleep(wlinks._lock_stack)) != 0) {
+	ret = prepare_to_sleep(wlinks._lock_stack);
+	if (ret != 0) {
 		ON_TRACE(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
 		go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
 
-		ret = -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.fuse_wait_slept);
+		ret = RETERR(-EAGAIN);
 		ON_TRACE(TRACE_TXN, "thread %u wakeup %u waiting %u\n",
 			 current->pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 	}
@@ -2808,6 +2875,7 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 {
 	txn_atom *atomf;
 	txn_atom *atomh;
+	int       result;
 
 	assert("umka-216", txnh != NULL);
 	assert("umka-217", node != NULL);
@@ -2816,17 +2884,16 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 	atomf = node->atom;
 
 	/* Have to perform two trylocks here. */
-	if (!spin_trylock_atom(atomf)) {
-		goto noatomf_out;
+	result = trylock_throttle(atomf, txnh, node);
+	if (result != 0) {
+		reiser4_stat_inc(txnmgr.restart.init_fusion_atomf);
+		return result;
 	}
-
-	if (!spin_trylock_atom(atomh)) {
-		/* Release locks and try again. */
+	result = trylock_throttle(atomh, txnh, node);
+	if (result != 0) {
 		UNLOCK_ATOM(atomf);
-noatomf_out:
-		UNLOCK_JNODE(node);
-		UNLOCK_TXNH(txnh);
-		return -EAGAIN;
+		reiser4_stat_inc(txnmgr.restart.init_fusion_atomh);
+		return result;
 	}
 
 	/* The txnh atom must still be open (since the txnh is active)...  the node atom may
@@ -2876,7 +2943,8 @@ noatomf_out:
 	}
 
 	/* Atoms are unlocked in capture_fuse_into.  No locks held. */
-	return -EAGAIN;
+	reiser4_stat_inc(txnmgr.restart.init_fusion_fused);
+	return RETERR(-EAGAIN);
 }
 
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
