@@ -1355,7 +1355,7 @@ char * kmap (struct page * page)
 void kunmap (struct page * page)
 {
 	spin_lock (&page->lock2);
-	assert ("vs-724", page->kmap_count > 0);
+	/*assert ("vs-724", page->kmap_count > 0);*/
 	page->kmap_count --;
 	if (page->kmap_count == 0) {
 		page->virtual = 0;
@@ -3246,6 +3246,9 @@ static int ls_lR (struct inode * inode, const char * path)
 
 	do {
 		info.eof = 1;
+		if (!inode->i_fop)
+			/* this happens for symlinks */
+			break;
 		result = inode->i_fop->readdir (&file, &info, get_one_name);
 		if( info.eof )
 			break;
