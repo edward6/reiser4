@@ -5211,6 +5211,15 @@ void balance_dirty_pages(struct address_space *mapping UNUSED_ARG)
 {
 }
 
+void add_timer(struct timer_list * timer UNUSED_ARG)
+{
+}
+
+int del_timer(struct timer_list * timer UNUSED_ARG)
+{
+	return 0;
+}
+
 /*
  * Make Linus happy.
  * Local variables:

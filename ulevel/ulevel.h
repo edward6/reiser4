@@ -1519,6 +1519,22 @@ extern int vfs_follow_link(struct nameidata *nd, const char *link);
 
 extern void balance_dirty_pages(struct address_space *mapping);
 
+struct timer_list {
+	struct list_head list;
+	unsigned long expires;
+	unsigned long data;
+	void (*function)(unsigned long);
+};
+
+extern void add_timer(struct timer_list * timer);
+extern int del_timer(struct timer_list * timer);
+#define del_timer_sync(t)	del_timer(t)
+
+static inline void init_timer(struct timer_list * timer)
+{
+	timer->list.next = timer->list.prev = NULL;
+}
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 
