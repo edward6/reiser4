@@ -206,7 +206,10 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 			if (efnode != NULL)
 				kmem_cache_free(eflush_slab, efnode);
 		}
+	} else {
+		spin_unlock_jnode(node);
 	}
+
 	jput(node);
 	return result;
 }
