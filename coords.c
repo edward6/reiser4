@@ -10,7 +10,7 @@ unsigned coord_num_units (const tree_coord * coord)
 	return item_plugin_by_coord (coord)->common.nr_units (coord);
 }
 
-unsigned last_unit_pos (const tree_coord * coord)
+unsigned coord_last_unit_pos (const tree_coord * coord)
 {
 	return coord_num_units (coord) - 1;
 }
@@ -73,7 +73,7 @@ int coord_of_unit (const tree_coord * coord)
 		return 0;
 	if (coord->item_pos >= node_num_items (coord->node))
 		return 0;
-	if (coord->unit_pos > last_unit_pos (coord))
+	if (coord->unit_pos > coord_last_unit_pos (coord))
 		return 0;
 	return 1;
 }
@@ -99,7 +99,7 @@ int coord_is_in_node( const tree_coord *coord )
 	tweenness = coord -> between;
 	items = node_num_items( coord -> node );
 	if( coord_of_item( coord ) )
-		units = last_unit_pos( coord ) + 1;
+		units = coord_last_unit_pos( coord ) + 1;
 	else
 		units = ~0u;
 	if( ( pos == 0 ) && ( tweenness == BEFORE_ITEM ) )
@@ -126,7 +126,7 @@ int coord_next_unit (tree_coord * coord)
 	if (coord_is_rightmost(coord))
 		return 1;
 	coord->unit_pos ++;
-	if (coord->unit_pos > last_unit_pos (coord)) {
+	if (coord->unit_pos > coord_last_unit_pos (coord)) {
 		coord->item_pos ++;
 		coord->unit_pos = 0;
 	}
@@ -149,7 +149,7 @@ int coord_prev_unit (tree_coord * coord)
 		coord->unit_pos --;
 	} else {
 		coord->item_pos --;
-		coord->unit_pos = last_unit_pos (coord);		
+		coord->unit_pos = coord_last_unit_pos (coord);		
 	}
 	return 0;
 }
@@ -170,7 +170,7 @@ void coord_first_item_unit (tree_coord * coord)
  */
 void coord_last_item_unit (tree_coord * coord)
 {
-	coord->unit_pos = last_unit_pos (coord);
+	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AT_UNIT;
 }
 
@@ -196,7 +196,7 @@ void coord_last_unit (tree_coord * coord, znode *node)
 	}
 
 	coord->item_pos = node_num_items (coord->node) - 1;
-	coord->unit_pos = last_unit_pos (coord);
+	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AT_UNIT;
 }
 
@@ -240,13 +240,13 @@ int coord_between_items (const tree_coord * coord)
 		if (coord->between == AFTER_ITEM || coord->between == BEFORE_ITEM)
 			return 1;
 		/* in node position is set to item within a node */
-		if (coord->unit_pos <= last_unit_pos (coord)) {
+		if (coord->unit_pos <= coord_last_unit_pos (coord)) {
 			/* in item position is set to unit within an item */
 			if (coord->unit_pos == 0) {
 				if (coord->between == BEFORE_UNIT)
 					return 1;
 			}
-			if (coord->unit_pos == last_unit_pos (coord)) {
+			if (coord->unit_pos == coord_last_unit_pos (coord)) {
 				if (coord->between == AFTER_UNIT)
 					return 1;
 			}
@@ -272,7 +272,7 @@ int coord_after_last (const tree_coord * coord)
 
 /* this is supposed to be used when @coord is set between items. Return value
    is position of item which is left of those neighboring items */
-int left_item_pos (const tree_coord * coord)
+static int coord_left_item_pos (const tree_coord * coord)
 {
 	assert ("vs-208", coord_correct (coord));
 	assert ("vs-197", !node_is_empty (coord->node));
@@ -284,7 +284,7 @@ int left_item_pos (const tree_coord * coord)
 	if (coord->item_pos == node_num_items (coord->node))
 		return node_num_items (coord->node) - 1;
 
-	if ((coord->unit_pos == last_unit_pos (coord) &&
+	if ((coord->unit_pos == coord_last_unit_pos (coord) &&
 	     coord->between == AFTER_UNIT) ||
 	    coord->between == AFTER_ITEM)
 		return coord->item_pos;
@@ -303,11 +303,11 @@ int coord_set_to_left (tree_coord * coord)
 	assert ("vs-203", coord_correct (coord));
 
 	if (coord_between_items (coord)) {
-		if (left_item_pos (coord) < 0)
+		if (coord_left_item_pos (coord) < 0)
 			/* there is no units on the left of @coord */
 			return 1;
-		coord->item_pos = left_item_pos (coord);
-		coord->unit_pos = last_unit_pos (coord);
+		coord->item_pos = coord_left_item_pos (coord);
+		coord->unit_pos = coord_last_unit_pos (coord);
 	} else {
 		if (coord->between == BEFORE_UNIT) {
 			/* unit_pos can not be 0 because it would have to be
@@ -323,7 +323,7 @@ int coord_set_to_left (tree_coord * coord)
 
 /* this is supposed to be used when @coord is set between items. Return value
    is position of item which is right of those neighboring items */
-unsigned right_item_pos (const tree_coord * coord)
+static unsigned coord_right_item_pos (const tree_coord * coord)
 {
 	assert ("vs-204", coord_correct (coord));
 	assert ("vs-198", !node_is_empty (coord->node));
@@ -336,7 +336,7 @@ unsigned right_item_pos (const tree_coord * coord)
 		return coord->item_pos;
 
 	assert ("vs-160",
-		(coord->unit_pos == last_unit_pos (coord) &&
+		(coord->unit_pos == coord_last_unit_pos (coord) &&
 		 coord->between == AFTER_UNIT) ||
 		(coord->unit_pos == coord_num_units (coord) &&
 		 coord->between == BEFORE_UNIT) ||
@@ -356,14 +356,14 @@ int coord_set_to_right (tree_coord * coord)
 	if (node_is_empty (coord->node))
 		return 1;
 	else if (coord_between_items (coord)) {
-		if (right_item_pos (coord) + 1 > node_num_items (coord->node))
+		if (coord_right_item_pos (coord) + 1 > node_num_items (coord->node))
 			/* there is no units on the right of @coord */
 			return 1;
-		coord->item_pos = right_item_pos (coord);
+		coord->item_pos = coord_right_item_pos (coord);
 		coord->unit_pos = 0;
 	} else if (coord->between == AFTER_UNIT) {
 		assert ("vs-157", 
-			coord->unit_pos < last_unit_pos (coord));
+			coord->unit_pos < coord_last_unit_pos (coord));
 		coord->unit_pos ++;
 	}
 	coord->between = AT_UNIT;
@@ -417,7 +417,7 @@ int coord_are_neighbors( tree_coord *c1, tree_coord *c2 )
 	if( left -> item_pos == right -> item_pos )
 		return left -> unit_pos + 1 == right -> unit_pos;
 	else if( left -> item_pos + 1 == right -> item_pos ) {
-		return ( left -> unit_pos == last_unit_pos( left ) ) &&
+		return ( left -> unit_pos == coord_last_unit_pos( left ) ) &&
 			( right -> unit_pos == 0 );
 	} else 
 		return 0;
@@ -434,7 +434,7 @@ int coord_is_rightmost( const tree_coord *coord )
 	assert( "nikita-1091", coord != NULL );
 	return 
 		( coord -> item_pos + 1u == node_num_items( coord -> node ) ) && 
-		( coord -> unit_pos == last_unit_pos( coord ) );
+		( coord -> unit_pos == coord_last_unit_pos( coord ) );
 }
 
 int coord_is_utmost( const tree_coord *coord, sideof side )
@@ -456,19 +456,16 @@ int coord_is_utmost( const tree_coord *coord, sideof side )
 int coord_is_after_item (const tree_coord * coord)
 {
 	assert ("vs-261", coord_of_item (coord));
-	if (coord->unit_pos == last_unit_pos (coord) + 1)
+	if (coord->unit_pos == coord_last_unit_pos (coord) + 1)
 		return 1;
-	return (coord->unit_pos == last_unit_pos (coord) &&
+	return (coord->unit_pos == coord_last_unit_pos (coord) &&
 		coord->between == AFTER_UNIT);
 }
 
 
-int coord_is_before_item (const tree_coord * coord, unsigned item_pos UNUSED_ARG)
+int coord_is_before_item (const tree_coord * coord)
 {
-	/*
-	 * it is not ready yet for other item_pos than 0
-	 */
-	assert ("vs-446", item_pos == 0);
+	assert ("vs-446", coord_of_item (coord));
 
 	if (coord->item_pos == 0 && coord->between == BEFORE_ITEM)
 		return 1;
@@ -490,9 +487,9 @@ coord_wrt_node coord_wrt( const tree_coord *coord )
 	if( coord_between_items( coord ) ) {
 		if( node_is_empty( coord -> node ) )
 			return COORD_ON_THE_RIGHT;
-		if( left_item_pos( coord ) == -1 )
+		if( coord_left_item_pos( coord ) == -1 )
 			return COORD_ON_THE_LEFT;
-		if( right_item_pos( coord ) >= node_num_items( coord -> node ) )
+		if( coord_right_item_pos( coord ) >= node_num_items( coord -> node ) )
 			return COORD_ON_THE_RIGHT;
 	}
 	return COORD_INSIDE;
@@ -523,15 +520,15 @@ int coord_eq( const tree_coord *c1, const tree_coord *c2 )
 			assert( "nikita-1810", c1 -> unit_pos == 0 );
 			return 
 				( c1 -> item_pos == c2 -> item_pos + 1 ) &&
-				( c2 -> unit_pos == last_unit_pos( c2 ) ) &&
+				( c2 -> unit_pos == coord_last_unit_pos( c2 ) ) &&
 				( ( c1 -> between == AFTER_UNIT ) ||
 				  ( c1 -> between == AFTER_ITEM ) );
 		}
 	case AFTER_UNIT:
-		if( c1 -> unit_pos == last_unit_pos( c1 ) ) {
+		if( c1 -> unit_pos == coord_last_unit_pos( c1 ) ) {
 	case AFTER_ITEM:
 			assert( "nikita-1811", 
-				c1 -> unit_pos == last_unit_pos( c1 ) );
+				c1 -> unit_pos == coord_last_unit_pos( c1 ) );
 			return 
 				( c1 -> item_pos + 1 == c2 -> item_pos ) &&
 				( c2 -> unit_pos == 0 ) &&
