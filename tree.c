@@ -623,8 +623,9 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	xmemset( context, 0, sizeof *context );
 
 	tid = set_current ();
-	if( REISER4_DEBUG && current -> journal_info ) {
-		BUG ();
+	if( current -> journal_info ) {
+		context -> parent = current -> journal_info;
+		return 0;
 	}
 	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
 	tree  = & sdata -> tree;
@@ -649,6 +650,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	context_list_push_front (& active_contexts, context);
 	spin_unlock (& active_contexts_lock);
 #endif
+	context -> parent = context;
 	return 0;
 }
 

@@ -427,6 +427,8 @@ struct reiser4_context {
 	/**
 	 * A link of all active contexts. */
 	context_list_link     contexts_link;
+	/** parent context */
+	reiser4_context      *parent;
 #if REISER4_DEBUG
 	lock_counters_info    locks;
 #endif
@@ -462,7 +464,13 @@ static inline reiser4_context *get_context( const struct task_struct *tsk )
 /** return context associated with current thread */
 static inline reiser4_context *get_current_context(void)
 {
-	return get_context( current );
+	reiser4_context *context;
+
+	context = get_context( current );
+	if( context != NULL )
+		return context -> parent;
+	else
+		return NULL;
 }
 
 
