@@ -1404,6 +1404,7 @@ static int carry_level_invariant( carry_level *level )
 						    left, ~REISER4_NODE_SILENT );
 				print_node_content( "right", 
 						    right, ~REISER4_NODE_SILENT );
+				spin_unlock_dk( current_tree );
 				return 0;
 			}
 		}
@@ -1416,6 +1417,7 @@ static int carry_level_invariant( carry_level *level )
 						    left, ~REISER4_NODE_SILENT );
 				print_node_content( "right", 
 						    right, ~REISER4_NODE_SILENT );
+				spin_unlock_dk( current_tree );
 				return 0;
 			}
 		}
