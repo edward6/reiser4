@@ -5,6 +5,32 @@
 #define NOT_HEAD
 #define IF_STATEMENT
 
+#ifndef YYSTYPE
+typedef int YYSTYPE;
+#endif
+
+struct yy_r4_work_space
+{
+	char * inline;
+	char * pline;
+
+	int ws_yydebug;
+	int ws_yynerrs;
+	int ws_yyerrflag;
+	int ws_yychar;
+	short * ws_yyssp;
+	YYSTYPE * ws_yyvsp;
+	YYSTYPE ws_yyval;
+	YYSTYPE ws_yylval;
+	short * ws_yyss;             /*[YYSTACKSIZE]*/
+	YYSTYPE * ws_yyvs;           /*[YYSTACKSIZE]*/
+	//	short yyss[YYSTACKSIZE];
+	//	YYSTYPE yyvs[YYSTACKSIZE];
+	int  ws_yystacksize 500;
+	int  ws_yymaxdepth 500;
+
+} * work_space;
+
 
 TS_LIST_DECLARE( r4_pars );
 
