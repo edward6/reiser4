@@ -47,41 +47,42 @@ static void yyerror( struct reiser4_syscall_w_space *ws  /* work space ptr */,
 	case LEX_Ste:
 		strcat(errstr,"wrong lexem");
 		break;
-	case 11111: {
-		int state = va_arg(args, int);
+	case 11111:
 		{
-			char ss[16];
-			/*				int s = va_arg(args, int);*/
-			sprintf( ss,"%4d ", state);
-			strcat( errstr, ss );
+			int state = va_arg(args, int);
+			{
+				char ss[16];
+				/*				int s = va_arg(args, int);*/
+				sprintf( ss,"%4d ", state);
+				strcat( errstr, ss );
+			}
+			strcat( errstr, " syntax error:" );
+			switch(state) {
+				//		case 4:
+				//			strcat(errstr," wrong operation");
+				//			break;
+			case 6:
+				strcat(errstr," wrong assign operation");
+				break;
+			case 7:
+			case 12:
+				strcat(errstr," wrong name");
+				break;
+			case 27:
+				strcat(errstr," wrong logical operation");
+				break;
+			case 10:
+				strcat(errstr," wrong THEN keyword");
+				break;
+			case 34:
+			case 50:
+				strcat(errstr," wrong separatop");
+				break;
+			default:
+				strcat(errstr," strange error");
+				break;
+			}
 		}
-		strcat( errstr, " syntax error:" );
-		switch(state) {
-//		case 4:
-//			strcat(errstr," wrong operation");
-//			break;
-		case 6:
-			strcat(errstr," wrong assign operation");
-			break;
-		case 7:
-		case 12:
-			strcat(errstr," wrong name");
-			break;
-		case 27:
-			strcat(errstr," wrong logical operation");
-			break;
-		case 10:
-			strcat(errstr," wrong THEN keyword");
-			break;
-		case 34:
-		case 50:
-			strcat(errstr," wrong separatop");
-			break;
-		default:
-			strcat(errstr," strange error");
-			break;
-		}
-	}
 		break;
 	}
 	va_end(args);
@@ -946,7 +947,8 @@ static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /*
 		ws->nd.mnt    = parent->ln->dentry.mnt;
 		ws->nd.flags  = LOOKUP_NOALT ;
 		if ( link_path_walk( w->u.name, &(ws->nd) ) ) /* namei.c */ {
-			printk("\nlokkup error");
+			printk("\nlookup error"); 
+			/*			rez_pars_var->ln  = lget( LNODE_PSEUDO, get_inode_oid( ws->nd.dentry->d_inode) );*/
 		}
 		else {
 			rez_pars_var->ln  = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
