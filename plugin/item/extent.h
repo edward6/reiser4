@@ -8,6 +8,14 @@ typedef struct {
 	reiser4_dblock_nr width;
 } reiser4_extent;
 
+typedef struct extent_stat {
+	int unallocated_units;
+	int unallocated_blocks;
+	int allocated_units;
+	int allocated_blocks;
+	int hole_units;
+	int hole_blocks;
+} extent_stat;
 
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr extent_get_start(const reiser4_extent *ext)
@@ -95,6 +103,7 @@ int           extent_key_in_item        ( coord_t *coord,
 					  const reiser4_key *key );
 int           extent_key_in_unit        ( const coord_t *coord,
 					  const reiser4_key *key );
+void          extent_item_stat          ( const coord_t *coord, void *vp );
 
 /*
  * plugin->u.item.s.file.*

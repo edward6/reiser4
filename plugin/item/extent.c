@@ -1481,6 +1481,37 @@ int extent_key_in_unit( const coord_t *coord, const reiser4_key *key )
 }
 
 
+/* plugin->u.item.b.item_stat */
+void extent_item_stat (const coord_t * coord, void * vp)
+{
+	reiser4_extent * ext;
+	struct extent_stat * ex_stat;
+	unsigned i, nr_units;
+
+	ex_stat = (struct extent_stat *)vp;
+
+	ext = extent_item (coord);
+	nr_units = extent_nr_units (coord);
+
+	for (i = 0; i < nr_units; i ++) {
+		switch (state_of_extent (ext + i)) {
+		case ALLOCATED_EXTENT:
+			ex_stat->allocated_units ++;
+			ex_stat->allocated_blocks += extent_get_width (ext + i);
+			break;
+		case UNALLOCATED_EXTENT:
+			ex_stat->unallocated_units ++;
+			ex_stat->unallocated_blocks += extent_get_width (ext + i);
+			break;
+		case HOLE_EXTENT:
+			ex_stat->hole_units ++;
+			ex_stat->hole_blocks += extent_get_width (ext + i);
+			break;
+		}
+	}
+}
+
+
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
 /* Audited by: green(2002.06.13) */
