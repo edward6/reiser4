@@ -1566,10 +1566,6 @@ static void flush_bio_write (struct bio *bio)
 			SetPageError (pg);
 		}
 
-		if (! TestClearPageWriteback (pg)) {
-			BUG ();
-		}
-
 		/* FIXME: JMACD->NIKITA: For unformatted pages DIRTY needs to be cleared.
 		 * For formatted pages I think it never gets set.  Okay? */
 		ClearPageDirty (pg);
