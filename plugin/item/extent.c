@@ -2700,10 +2700,10 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * reiser4_dealloc_block to 0 because
 					 * these blocks can be made allocable
 					 * again immediately.
-					 * FIXME-VS: not sure about block stage here, 
+					 * FIXME-VS: set target state to grabbed? 
 					 */
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
-								0 /* defer */, BLOCK_ALLOCATED);
+								0 /* defer */, BLOCK_GRABBED);
 					result = SQUEEZE_TARGET_FULL;
 					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 					goto done;
