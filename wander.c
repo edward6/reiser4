@@ -460,7 +460,7 @@ dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = capture_list_pop_front(&ch->tx_list);
 
 		ON_DEBUG(capture_list_clean(cur));
-		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, 0);
+		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, 0, "dealloc_tx_list");
 
 		unpin_jnode_data(cur);
 		drop_io_head(cur);
@@ -479,7 +479,7 @@ dealloc_wmap_actor(txn_atom * atom,
 	assert("zam-501", !blocknr_is_fake(b));
 
 	spin_unlock_atom(atom);
-	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0);
+	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0, "dealloc_wmap_actor");
 	spin_lock_atom(atom);
 
 	return 0;
@@ -512,10 +512,8 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	hint.block_stage = BLOCK_FLUSH_RESERVED;
 	
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 
-		BA_FORMATTED/* formatted, not from reserved area */);
+		BA_FORMATTED/* formatted, not from reserved area */, "get_more_wandered_blocks");
 
-	trace_on(TRACE_RESERVE, 
-		 "flush allocates %llu blocks for wandering logs.\n", wide_len);
 	*len = (int) wide_len;
 
 	return ret;
@@ -580,8 +578,6 @@ get_overwrite_set(struct commit_handle *ch)
 
 					spin_unlock_jnode(sj);
 
-				trace_on(TRACE_RESERVE1,
-					 "get_overwrite_set: moving SB to overwrite set\n");
 					ch->overwrite_set_size++;
 				} else {
 					/* the fake znode was removed from
@@ -603,8 +599,6 @@ get_overwrite_set(struct commit_handle *ch)
 			} else {
 				capture_list_push_back(&ch->overwrite_set, cur);
 				ch->overwrite_set_size++;
-				trace_on(TRACE_RESERVE1,
-					 "get_overwrite_set: moving to overwrite set. Atom %u: block %llu\n", ch->atom->atom_id, cur->blocknr);
 			}
 		}
 
@@ -773,10 +767,8 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		   nodes which contain log records */
 		
 		/* FIXME-VITALY: Who grabbed this? */
-		trace_on(TRACE_RESERVE, 
-			 "flush allocates %llu blocks for tx lists.\n", len);
 		ret = reiser4_alloc_blocks (&hint, &first, &len, 
-			BA_FORMATTED | BA_RESERVED /* formatted, from reserved area */);
+			BA_FORMATTED | BA_RESERVED /* formatted, from reserved area */, "alloc_tx");
 
 		blocknr_hint_done(&hint);
 
@@ -852,7 +844,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	   caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, BA_FORMATTED);
+	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, BA_FORMATTED, "alloc_tx: free not assigned");
 
 	return ret;
 }
@@ -884,7 +876,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			reiser4_block_nr wide_len = len;
 
 			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */);
+				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
 			
 			return ret;
 		}
@@ -988,17 +980,17 @@ reiser4_write_logs(void)
 	trace_on(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
 
 	/* Grab space for modified bitmaps from 100% of disk space. */
-	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED))
+	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED, "reiser4_write_logs: for modified bitmaps"))
 		reiser4_panic("vpf-341", "No space left from reserved area.");
-	
-	grabbed2flush_reserved(ch.nr_bitmap);
+
+	grabbed2flush_reserved(ch.nr_bitmap, "reiser4_write_logs");
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
 	
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, (__u64)ch.overwrite_set_size));
 
-	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED)))
+	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED, "reiser4_write_logs: for transaction")))
 		goto up_and_ret;
 
 	{
@@ -1015,9 +1007,7 @@ reiser4_write_logs(void)
 			ret = alloc_tx(&ch, fq);
 		
 		/* FIXME-VITALY: Check this with Zam. */
-		trace_on(TRACE_RESERVE, "free all (%llu) reserved.\n", 
-			 reiser4_atom_flush_reserved());
-		flush_reserved2free_all();
+		flush_reserved2free_all("reiser4_write_logs");
 		
 		fq_put(fq);
 		if (ret)
@@ -1088,9 +1078,8 @@ up_and_ret:
 	dealloc_wmap(&ch);
 
 	/* VITALY: Free flush_reserved blocks. */
-	trace_on(TRACE_RESERVE, "release all grabbed blocks (%llu).\n", 
-		 get_current_context()->grabbed_blocks);
-	all_grabbed2free();	
+	/* FIXME-VS: flush_reserved or grabbed? */
+	all_grabbed2free("reiser4_write_logs: release grabbed blocks");
 	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
 	done_commit_handle(&ch);
 

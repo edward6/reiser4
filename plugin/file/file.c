@@ -431,7 +431,7 @@ find_file_size(struct inode *inode, loff_t * file_size)
 static int reserve_cut_iteration(tree_level height)
 {
 	grab_space_enable();
-	return reiser4_grab_space_exact(estimate_one_item_removal(height) + estimate_one_insert_into_item(height), 0);
+	return reiser4_grab_space(estimate_one_item_removal(height) + estimate_one_insert_into_item(height), 0, "cut_file: one cut_iteration");
 }
 
 /* estimate and reserve space needed to truncate page which gets partially truncated: one block for page itself, stat
@@ -440,7 +440,7 @@ static int reserve_cut_iteration(tree_level height)
 static int reserve_partial_page(tree_level height)
 {
 	grab_space_enable();
-	return reiser4_grab_space_exact(1 + 2 * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+	return reiser4_grab_space(1 + 2 * estimate_one_insert_into_item(height), BA_CAN_COMMIT, "reserve_partial_page");
 }
 
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
@@ -528,7 +528,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 			/* cut_node may return -EDEADLK when we cut from the beginning of twig node and it had to lock
 			   neighbor to get "left child" to update its right delimiting key and it failed because left
 			   neighbor was locked. So, release lock held and try again */
-			all_grabbed2free();
+			all_grabbed2free("cut_file_items on error");
 			if (result == -EDEADLK)
 				continue;
 			break;
@@ -537,7 +537,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 		assert("vs-301", !keyeq(&smallest_removed, min_key()));
 
 		result = update_inode_and_sd_if_necessary(inode, get_key_offset(&smallest_removed), 1/*update inode->i_size*/);
-		all_grabbed2free();
+		all_grabbed2free("cut_file_items after update_inode..");
 		if (result)
 			break;
 		balance_dirty_pages(inode->i_mapping);
@@ -595,7 +595,7 @@ shorten_file(struct inode *inode, loff_t new_size)
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
 	page = read_cache_page(inode->i_mapping, index, filler, 0);
 	if (IS_ERR(page)) {
-		all_grabbed2free();
+		all_grabbed2free("shorten_file: read_cache_page failed");
 		if (likely(PTR_ERR(page) == -EINVAL)) {
 			/* looks like file is built of tail items */
 			return 0;
@@ -604,12 +604,12 @@ shorten_file(struct inode *inode, loff_t new_size)
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
-		all_grabbed2free();
+		all_grabbed2free("shorten_file: page !uptodate");
 		page_cache_release(page);
 		return -EIO;
 	}
 	result = unix_file_writepage_nolock(page);
-	all_grabbed2free();
+	all_grabbed2free("shorten_file");
 	if (result) {
 		page_cache_release(page);
 		return result;
@@ -827,7 +827,7 @@ unix_file_writepage(struct page *page)
 	assert("vs-1084", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 	assert("vs-1032", PageLocked(page));
-	assert("", file_is_built_of_extents(inode));
+	assert("vs-1139", file_is_built_of_extents(inode));
 
 	if (inode->i_size < ((loff_t) page->index << PAGE_CACHE_SHIFT)) {		
 		/* The file was truncated but the page was not yet processed
@@ -858,14 +858,14 @@ unix_file_writepage(struct page *page)
 	}
 
 	/* writepage may involve insertion of one unit into tree */
-	if ((result = reiser4_grab_space_exact(estimate_one_insert_into_item(tree_by_inode(inode)->height), BA_CAN_COMMIT)) != 0)
+	if ((result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)->height), BA_CAN_COMMIT, "unix_file_writepage")) != 0)
 		goto out;
 
 	result = unix_file_writepage_nolock(page);
 
 	assert("vs-1068", PageLocked(page));
 
-	all_grabbed2free();
+	all_grabbed2free("unix_file_writepage");
  out:
 	drop_nonexclusive_access(inode);
 	page_cache_release(page);
@@ -1045,12 +1045,11 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	get_nonexclusive_access(inode);
 
 	needed = unix_file_estimate_read(inode, read_amount);
-	result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT);	
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
 	if (result != 0) {
 		drop_nonexclusive_access(inode);
 		return -ENOSPC;
 	}
-	trace_on(TRACE_RESERVE, "file read grabs %llu blocks.\n", needed);
 
 	/* build flow */
 	result = inode_file_plugin(inode)->flow_by_inode(inode, buf, 1 /* user space */ ,
@@ -1177,7 +1176,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		if (to_write == f->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			 * node between two extent items) */
-			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0);
+			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0, "append_and_or_overwrite: for cbk and eottl");
 			if (result)
 				return result;
 		}
@@ -1185,7 +1184,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		   to position we write to */
 		init_lh(&lh);
 		result = find_next_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
-		all_grabbed2free();
+		all_grabbed2free("append_and_or_overwrite after cbk");
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
 			done_lh(&lh);
@@ -1541,7 +1540,7 @@ static int
 setattr_reserve(tree_level height)
 {
 	assert("vs-1096", is_grab_enabled());
-	return reiser4_grab_space_exact(estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+	return reiser4_grab_space(estimate_one_insert_into_item(height), BA_CAN_COMMIT, "setattr_reserve");
 }
 
 /* plugin->u.file.setattr method */

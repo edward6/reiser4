@@ -206,7 +206,7 @@ prepare_tail2extent(struct inode *inode)
 	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
 	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
 	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
-					  unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+					  unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT, "tail2extent");
 	if (result) {
 		done_lh(&first_lh);
 		return result;
@@ -475,7 +475,7 @@ tail2extent(struct inode *inode)
 	   have neither NEA nor EA to the file */
 	assert("vs-830", file_is_built_of_extents(inode));
 	assert("vs-1083", result == 0);
-	all_grabbed2free();
+	all_grabbed2free("tail2extent");
 	return 0;
 
 error:
@@ -483,7 +483,7 @@ error:
 exit:
 	if (access_switched)
 		ea2nea(inode);
-	all_grabbed2free();
+	all_grabbed2free("tail2exten failed");
 	return result;
 }
 
@@ -572,9 +572,9 @@ static int prepare_extent2tail(struct inode *inode)
 
 	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
 	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
-	result = reiser4_grab_space_exact(twig_nodes * estimate_one_item_removal(height) +
-					  flow_insertions * estimate_insert_flow(height) +
-					  1 + estimate_one_insert_item(height), BA_CAN_COMMIT);
+	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(height) +
+				    flow_insertions * estimate_insert_flow(height) +
+				    1 + estimate_one_insert_item(height), BA_CAN_COMMIT, "extent2tail");
 	if (result) {
 		done_lh(&first_lh);
 		return result;
@@ -701,7 +701,7 @@ extent2tail(struct file *file)
 		print_inode("inode", inode);
 	}
 	drop_exclusive_access(inode);
-	all_grabbed2free();
+	all_grabbed2free("extent2tail");
 	return result;
 }
 
