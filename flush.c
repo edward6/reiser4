@@ -1714,116 +1714,96 @@ out:
 	return ret;
 }
 
+#if REISER4_DEBUG
+reiser4_internal void
+item_squeeze_invariant(flush_pos_t * pos)
+{
+	if (squeeze_data(pos) && item_squeeze_data(pos)) {
+		item_plugin * iplug  = item_squeeze_plug(pos);
+		
+		assert("edward-1000", ergo(coord_is_existing_item(&pos->coord), 
+					  iplug == item_plugin_by_coord(&pos->coord)));
+		assert("edward-1001", iplug->f.squeeze != NULL);
+	}
+}
+#endif
+
 /* Scan node items starting from the first one and apply for each
-   item its flush ->squeeze() method (if there exists non-zero one).
-   This method may resize/kill the item, and also may change the tree.
+   item its flush ->squeeze() method (if any). This method may
+   resize/kill the item, and also may change the tree.
 */
 static int squeeze_node(flush_pos_t * pos, znode * node)
 {
 	int ret = 0;
-
 	item_plugin * iplug;
-
+	
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
 	assert("edward-475", znode_squeezable(node));
 	assert("edward-669", znode_is_wlocked(node));
-
+	
 	if (znode_get_level(node) != LEAF_LEVEL)
-		/* do not squeeze this node */
+		/* unsupported */
 		goto exit;
 
 	coord_init_first_unit(&pos->coord, node);
-
+	
 	while (1) {
 		ret = 0;
-
-		if (node_is_empty(node))
-			/* nothing to squeeze */
-			goto exit;
-		if (pos->sq && item_squeeze_data(pos)) {
+		item_squeeze_invariant(pos);
+		
+		if (squeeze_data(pos) && item_squeeze_data(pos))
 			iplug = item_squeeze_plug(pos);
-			assert("edward-476", iplug->f.squeeze != NULL);
-		}
-		else if (!coord_is_existing_item(&pos->coord))
-			/* finished this node */
+		else if (!coord_is_existing_item(&pos->coord)) {
+			assert("edward-1002", 0);
 			break;
-		else {
-			iplug = item_plugin_by_coord(&pos->coord);
-			if (pos->sq && item_squeeze_plug(pos) != iplug)
-				set_item_squeeze_count(pos, 0);
 		}
+		else
+			iplug = item_plugin_by_coord(&pos->coord);
+		
 		assert("edward-844", iplug != NULL);
-		if (iplug->f.squeeze == NULL)
-			/* unsqueezable */
-			goto next;
-
-		ret = iplug->f.squeeze(pos);
-
-		if (ret == -E_REPEAT)
-			continue;
-		if (ret)
-			goto exit;
-
+		
+		if (iplug->f.squeeze) {
+			ret = iplug->f.squeeze(pos);
+			if (ret)
+				goto exit;
+		}
 		assert("edward-307", pos->child == NULL);
-
-		/* now we should check if item_squeeze_data is valid, and if so,
-		   call previous method again, BUT if current item is last
-		   and mergeable with the first item of slum right neighbor,
-		   we set idata->mergeable = 1, go to slum right neighbor
-		   and continue squeezing using this info
-		*/
-	next:
+	
 		if (coord_next_item(&pos->coord)) {
 			/* node is over */
-			lock_handle right_lock;
-			load_count right_load;
-			coord_t coord;
-
-			if (!pos->sq || !item_squeeze_data(pos))
-				break;
-
-			init_lh(&right_lock);
-			init_load_count(&right_load);
-
-			/* check for right neighbor which may be not in slum */
 			
-			ret = reiser4_get_right_neighbor(&right_lock, node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
-			if (ret == -E_NO_NEIGHBOR)
-				/* no neighbor, repeat on this node */
-				continue;
-			if (ret)
-				return ret;
-			ret = incr_load_count_znode(&right_load, right_lock.node);
-			if (ret) {
-				done_lh(&right_lock);
+			if (!squeeze_data(pos) || !item_squeeze_data(pos))
+				/* finished this node */
+				break;
+			if (chain_next_node(pos)) {
+				/* go to next node */
+				move_item_squeeze_data(pos, 0 /* to next node */);
 				break;
 			}
-			coord_init_after_item_end(&pos->coord);
-			coord_init_before_first_item(&coord, right_lock.node);
-
-			if (iplug->b.mergeable(&pos->coord, &coord)) {
-				/* go to the right neighbor */
-				item_squeeze_data(pos)->mergeable = 1;
-#if REISER4_DEBUG
-				if (!znode_is_dirty(right_lock.node))
-					warning("edward-952",
-						"first item mergeable, but znode isn't dirty\n");
-#endif
-				znode_make_dirty(right_lock.node);
-				done_load_count(&right_load);
-				done_lh(&right_lock);
-				break;
-			}
-			/* first item of the right neighbor is not mergeable,
-			   repeat on this node */
-			done_load_count(&right_load);
-			done_lh(&right_lock);
+			/* repeat this node */
+			move_item_squeeze_data(pos, 1 /* this node */);
+			continue;
+		}
+		/* Node is not over.
+		   Check if there is attached squeeze data.
+		   If so, roll one item position back and repeat
+		   on this node 
+		*/
+		if (squeeze_data(pos) && item_squeeze_data(pos)) {
+			if (iplug != item_plugin_by_coord(&pos->coord))
+				set_item_squeeze_count(pos, 0);
+			
+			ret = coord_prev_item(&pos->coord);
+			assert("edward-1003", !ret);
+			
+			move_item_squeeze_data(pos, 1 /* this node */);
 		}
 	}
- exit:
 	JF_CLR(ZJNODE(node), JNODE_SQUEEZABLE);
 	znode_make_dirty(node);
+ exit:
+	assert("edward-1004", !ret);
 	return ret;
 }
 
@@ -2116,6 +2096,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		 * be suboptimal because it would be quite complex to code it to be
 		 * smarter. */
 		if (znode_check_flushprepped(right_lock.node) && !znode_squeezable(right_lock.node)) {
+			assert("edward-1005", !should_squeeze_next_node(pos, right_lock.node));
 			pos_stop(pos);
 			break;
 		}
@@ -2187,6 +2168,8 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			break;
 	}
 	check_pos(pos);
+
+	assert("edward-1006", !squeeze_data(pos) || !item_squeeze_data(pos));
 
 	done_load_count(&right_load);
 	done_lh(&right_lock);
