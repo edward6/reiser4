@@ -155,7 +155,6 @@ static ssize_t
 kattr_stats_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 {
 	reiser4_super_info_data *info;
-	struct super_block *super;
 	reiser4_kattr *kattr;
 
 	info = container_of(kobj, reiser4_super_info_data, stats_kobj);
