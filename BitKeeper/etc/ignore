@@ -1488,3 +1488,4 @@ plugin/.xattr.o.cmd
 plugin/.fibration.o.cmd
 plugin/.fibration.o.d
 .writeout.o.cmd
+.log.o.cmd
