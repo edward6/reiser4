@@ -482,13 +482,14 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 	hashi = blknrhashfn(blocknr);
 
-	/* Take the hash table lock. */
-	RLOCK_TREE(tree);
-
 	/* NOTE-NIKITA address-as-unallocated-blocknr still is not
 	   implemented. */
 
 	zth = get_htable(tree, blocknr);
+
+	/* Take the hash table lock. */
+	RLOCK_TREE(tree);
+
 	/* Find a matching BLOCKNR in the hash table.  If the znode is found,
 	   we obtain an reference (x_count) but the znode remains unlocked.
 	   Have to worry about race conditions later. */

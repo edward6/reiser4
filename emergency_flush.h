@@ -27,6 +27,8 @@ extern void eflush_del(jnode *node, int page_locked);
 int emergency_flush(struct page *page);
 int emergency_unflush(jnode *node);
 
+extern spinlock_t eflushed_guard;
+
 #else
 
 typedef struct {

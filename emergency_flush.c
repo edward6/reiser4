@@ -250,6 +250,8 @@ static kmem_cache_t *eflush_slab;
 
 #define EFLUSH_START_BLOCK ((reiser4_block_nr)0)
 
+spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
+
 /* try to flush @page to the disk */
 int
 emergency_flush(struct page *page)
@@ -492,13 +494,24 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 	tree = jnode_get_tree(node);
 
+	if (jnode_is_unformatted(node)) {
+		struct inode  *inode;
+		reiser4_inode *info;
+
+		inode = jnode_mapping(node)->host;
+		info = reiser4_inode_data(inode);
+		spin_lock(&eflushed_guard);
+		++ info->eflushed;
+		spin_unlock(&eflushed_guard);
+	}
+
 	ef->node = node;
 	ef->blocknr = *blocknr;
 	jref(node);
-	WLOCK_TREE(tree);
+	spin_lock_eflush(tree->super);
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	++ get_super_private(tree->super)->eflushed;
-	WUNLOCK_TREE(tree);
+	spin_unlock_eflush(tree->super);
 	/*
 	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
 	 * point. We are safe, because page it is still attached to both @node
@@ -508,18 +521,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	JF_SET(node, JNODE_EFLUSH);
 	UNLOCK_JNODE(node);
 
-	if (jnode_is_unformatted(node)) {
-		struct inode  *inode;
-		reiser4_inode *info;
-
-		inode = jnode_mapping(node)->host;
-		info = reiser4_inode_data(inode);
-		/* pin inode containing eflushed pages. Otherwise it
-		 * may get evicted */
-		spin_lock_inode(inode);
-		++ info->eflushed;
-		spin_unlock_inode(inode);
-	}
 	return 0;
 }
 
@@ -530,13 +531,17 @@ reiser4_block_nr *
 eflush_get(const jnode *node)
 {
 	eflush_node_t *ef;
+	reiser4_tree  *tree;
 
 	assert("nikita-2740", node != NULL);
 	assert("nikita-2741", JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-2767", spin_jnode_is_locked(node));
 
-	ef = UNDER_RW(tree, jnode_get_tree(node), read,
-		      ef_hash_find(get_jnode_enhash(node), C(node)));
+	
+	tree = jnode_get_tree(node);
+	spin_lock_eflush(tree->super);
+	ef = ef_hash_find(get_jnode_enhash(node), C(node));
+	spin_unlock_eflush(tree->super);
 
 	assert("nikita-2742", ef != NULL);
 	return &ef->blocknr;
@@ -580,16 +585,23 @@ eflush_del(jnode *node, int page_locked)
 			wait_on_page_locked(page);
 			page_cache_release(page);
 			LOCK_JNODE(node);
+			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH))) {
+				/*
+				 * race: some other thread unflushed jnode.
+				 */
+				UNLOCK_JNODE(node);
+				return;
+			}
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
-		WLOCK_TREE(tree);
+		spin_lock_eflush(tree->super);
 		ef = ef_hash_find(table, C(node));
 		assert("nikita-2745", ef != NULL);
 		blk = ef->blocknr;
 		ef_hash_remove(table, ef);
 		-- get_super_private(tree->super)->eflushed;
-		WUNLOCK_TREE(tree);
+		spin_unlock_eflush(tree->super);
 
 		JF_CLR(node, JNODE_EFLUSH);
 		UNLOCK_JNODE(node);
@@ -600,14 +612,12 @@ eflush_del(jnode *node, int page_locked)
 
 			inode = jnode_mapping(node)->host;
 			info = reiser4_inode_data(inode);
-			/* unpin inode after unflushing last eflushed page
-			 * from it. Dual to __iget() in eflush_add(). */
-			spin_lock_inode(inode);
+			spin_lock(&eflushed_guard);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
 			if (info->eflushed == 0 && (inode->i_state & I_GHOST))
 				despatchhim = 1;
-			spin_unlock_inode(inode);
+			spin_unlock(&eflushed_guard);
 			if (despatchhim)
 				inode->i_sb->s_op->destroy_inode(inode);
 		}

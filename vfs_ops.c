@@ -1417,11 +1417,11 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	info = reiser4_inode_data(inode);
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
-	spin_lock_inode(inode);
+	spin_lock(&eflushed_guard);
 	fallout = info->eflushed > 0;
 	if (fallout)
 		inode->i_state |= I_GHOST;
-	spin_unlock_inode(inode);
+	spin_unlock(&eflushed_guard);
 
 	if (fallout)
 		return;
@@ -1993,6 +1993,7 @@ DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
 DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
 DEFINE_SPIN_PROFREGIONS(cbk_cache);
+DEFINE_SPIN_PROFREGIONS(super_eflush);
 
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
@@ -2015,6 +2016,7 @@ static int register_profregions(void)
 	pregion_spin_jnode_held.champion = jnode_most_held;
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
 #endif
+	register_super_eflush_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
 	register_stack_profregion();
@@ -2035,6 +2037,7 @@ static int register_profregions(void)
 
 static void unregister_profregions(void)
 {
+	unregister_super_eflush_profregion();
 	unregister_epoch_profregion();
 	unregister_jnode_profregion();
 	unregister_stack_profregion();
@@ -2150,6 +2153,7 @@ read_super_block:
 	}
 
 	spin_super_init(sbinfo);
+	spin_super_eflush_init(sbinfo);
 
 	/* init layout plugin */
 	sbinfo->df_plug = df_plug;

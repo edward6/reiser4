@@ -240,8 +240,9 @@ struct reiser4_super_info_data {
 
 	flush_params flush;
 
-	int           eflushed;
-	ef_hash_table efhash_table;
+	reiser4_spin_data eflush_guard;
+	int               eflushed;
+	ef_hash_table     efhash_table;
 
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
@@ -336,6 +337,9 @@ extern const __u32 REISER4_SUPER_MAGIC;
 #define spin_ordering_pred_super(private) (1)
 SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
 
+#define spin_ordering_pred_super_eflush(private) (1)
+SPIN_LOCK_FUNCTIONS(super_eflush, reiser4_super_info_data, eflush_guard);
+
 static inline void reiser4_spin_lock_sb(const struct super_block * s)
 {
 	reiser4_super_info_data * sbinfo = get_super_private (s);
@@ -347,6 +351,19 @@ static inline void reiser4_spin_unlock_sb(const struct super_block * s)
 	reiser4_super_info_data * sbinfo = get_super_private (s);
 	spin_unlock_super(sbinfo);
 }
+
+static inline void spin_lock_eflush(const struct super_block * s)
+{
+	reiser4_super_info_data * sbinfo = get_super_private (s);
+	spin_lock_super_eflush(sbinfo);
+}
+
+static inline void spin_unlock_eflush(const struct super_block * s)
+{
+	reiser4_super_info_data * sbinfo = get_super_private (s);
+	spin_unlock_super_eflush(sbinfo);
+}
+
 
 extern __u64 flush_reserved        ( const struct super_block*);
 extern void  set_flush_reserved    ( const struct super_block*, __u64 nr );

@@ -584,10 +584,10 @@ int jload_gfp (jnode * node, int gfp_flags)
 	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
 	 * should be atomic, otherwise there is a race against jrelse().
 	 */
-	spin_lock_jnode(node);
+	LOCK_JNODE(node);
 	add_d_ref(node);
 	parsed = jnode_is_parsed(node);
-	spin_unlock_jnode(node);
+	UNLOCK_JNODE(node);
 
 	if (!parsed) {
 		trace_on(TRACE_PCACHE, "read node: %p\n", node);
