@@ -353,7 +353,7 @@ tail2extent(unix_file_info_t *uf_info)
 		nea2ea(uf_info);
 	}
 
-	if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS) {
+	if (uf_info->container == UF_CONTAINER_EXTENTS) {
 		warning("vs-1171", 
 			"file %llu is built of tails already. Should not happen",
 			get_inode_oid(uf_info->inode));
@@ -491,7 +491,7 @@ tail2extent(unix_file_info_t *uf_info)
 			goto exit;
 	}
 	/* tail converted */
-	uf_info->state = UNIX_FILE_BUILT_OF_EXTENTS;
+	uf_info->container = UF_CONTAINER_EXTENTS;
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
 	if (access_switched)
@@ -501,7 +501,7 @@ tail2extent(unix_file_info_t *uf_info)
 
 	/* file could not be converted back to tails while we did not
 	   have neither NEA nor EA to the file */
-	assert("vs-830", uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS);
+	assert("vs-830", uf_info->container == UF_CONTAINER_EXTENTS);
 	assert("vs-1083", result == 0);
 	all_grabbed2free("tail2extent");
 	return 0;
@@ -722,7 +722,7 @@ extent2tail(unix_file_info_t *uf_info)
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
-		uf_info->state = UNIX_FILE_BUILT_OF_TAILS;
+		uf_info->container = UF_CONTAINER_TAILS;
 	else {
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
