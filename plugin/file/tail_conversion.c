@@ -100,7 +100,7 @@ cut_formatting_items(struct inode *inode, loff_t offset, int count)
 	set_key_offset(&to, (__u64) (offset + count - 1));
 
 	/* cut everything between those keys */
-	return cut_tree(tree_by_inode(inode), &from, &to, inode, 1);
+	return cut_tree(tree_by_inode(inode), &from, &to, inode);
 }
 
 static void
@@ -622,7 +622,7 @@ extent2tail(unix_file_info_t *uf_info)
 		 * extent->tail conversion should be performed in one
 		 * transaction.
 		 */
-		result = cut_tree(tree_by_inode(inode), &from, &to, inode, 1);
+		result = cut_tree(tree_by_inode(inode), &from, &to, inode);
 
 		if (result) {
 			page_cache_release(page);

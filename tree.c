@@ -1505,8 +1505,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 }
 
 /**
- * The cut_tree subroutine which does progressive deletion of items and whole
- * nodes from right to left (which is not optimal but implementation seems to
+ * This subroutine is not optimal but implementation seems to
  * be easier).
  *
  * @tap: the point deletion process begins from,
@@ -1517,10 +1516,10 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
  * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
  * operation was interrupted for allowing atom commit .
  */
-static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
-			    const reiser4_key * to_key, reiser4_key * smallest_removed,
-			    struct inode * object,
-			    int lazy)
+reiser4_internal int
+cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
+				    const reiser4_key * to_key, reiser4_key * smallest_removed,
+				    struct inode * object)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
@@ -1544,7 +1543,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		if (result != 0 && result != -E_NO_NEIGHBOR)
 			break;
 		/* Check can we delete the node as a whole. */
-		if (lazy && iterations && znode_get_level(node) == LEAF_LEVEL &&
+		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read, keyle(from_key, znode_get_ld_key(node))))
 		{
 			result = delete_node(node, smallest_removed, object);
@@ -1688,13 +1687,15 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 reiser4_internal int
 cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
-		struct inode * object, int lazy)
+		struct inode * object)
 {
 	lock_handle lock;
 	int result;
 	tap_t tap;
 	coord_t right_coord;
 	reiser4_key smallest_removed;
+	int (*cut_tree_worker)(tap_t *, const reiser4_key *, const reiser4_key *,
+			       reiser4_key *, struct inode *);
 	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
@@ -1716,10 +1717,13 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 			LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
 		if (result != CBK_COORD_FOUND)
 			break;
-
+		if (object == NULL || inode_file_plugin(object)->cut_tree_worker == NULL)
+			cut_tree_worker = cut_tree_worker_common;
+		else
+			cut_tree_worker = inode_file_plugin(object)->cut_tree_worker;
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
 		result = cut_tree_worker(
-			&tap, from_key, to_key, smallest_removed_p, object, lazy);
+			&tap, from_key, to_key, smallest_removed_p, object);
 		tap_done(&tap);
 
 		preempt_point();
@@ -1753,12 +1757,12 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
  * cut_tree_object. */
 reiser4_internal int
 cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
-	 struct inode *inode, int mode)
+	 struct inode *inode)
 {
 	int result;
 
 	do {
-		result = cut_tree_object(tree, from, to, NULL, inode, mode);
+		result = cut_tree_object(tree, from, to, NULL, inode);
 	} while (result == -E_REPEAT);
 
 	return result;

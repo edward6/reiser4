@@ -53,6 +53,14 @@ cluster_shift_by_coord(const coord_t * coord)
 	return d8tocpu(&ctail_formatted_at(coord)->cluster_shift);
 }
 
+static int unsigned long
+disk_cluster_size (const coord_t * coord)
+{
+	assert("edward-1156", 
+	       item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
+	return PAGE_CACHE_SIZE << cluster_shift_by_coord(coord);
+}
+
 static unsigned long
 pg_by_coord(const coord_t * coord)
 {
@@ -67,7 +75,12 @@ clust_by_coord(const coord_t * coord)
 	return pg_by_coord(coord) >> cluster_shift_by_coord(coord);
 }
 
-#define cluster_key(key, coord) !(get_key_offset(key) & ~(~0ULL << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT))
+/* true if the key is of first disk cluster item */
+static int
+disk_cluster_key(const reiser4_key * key, const coord_t * coord)
+{
+	return !(get_key_offset(key) & ((loff_t)disk_cluster_size(coord) - 1));
+}
 
 static char *
 first_unit(coord_t * coord)
@@ -94,7 +107,7 @@ can_contain_key_ctail(const coord_t *coord, const reiser4_key *key, const reiser
 		return 0;
 	if (get_key_offset(&item_key) + nr_units_ctail(coord) != get_key_offset(key))
 		return 0;
-	if (cluster_key(key, coord))
+	if (disk_cluster_key(key, coord))
 		return 0;
 	return 1;
 }
@@ -125,7 +138,7 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 	if (get_key_offset(&key1) + nr_units_ctail(p1) != get_key_offset(&key2))
 		/*  not adjacent items */
 		return 0;
-	if (cluster_key(&key2, p2))
+	if (disk_cluster_key(&key2, p2))
 		return 0;
 	return 1;
 }
@@ -153,13 +166,6 @@ estimate_ctail(const coord_t * coord /* coord of item */,
 }
 
 #if REISER4_DEBUG_OUTPUT
-static unsigned
-cluster_size_by_coord(const coord_t * coord)
-{
-	return (PAGE_CACHE_SIZE << cluster_shift_by_coord(coord));
-}
-
-
 /* ->print() method for this item plugin. */
 reiser4_internal void
 print_ctail(const char *prefix /* prefix to print */ ,
@@ -171,7 +177,7 @@ print_ctail(const char *prefix /* prefix to print */ ,
 	if (item_length_by_coord(coord) < (int) sizeof (ctail_item_format))
 		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (ctail_item_format));
 	else
-		printk("%s: disk cluster size: %i\n", prefix, cluster_size_by_coord(coord));
+		printk("%s: disk cluster size: %lu\n", prefix, disk_cluster_size(coord));
 }
 #endif
 
@@ -349,17 +355,18 @@ reiser4_internal int
 kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, carry_kill_data *kdata)
 {
 	struct inode *inode;
-
+	
+	assert("edward-1157", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-291", znode_is_write_locked(coord->node));
-
+	
 	inode = kdata->inode;
 	if (inode) {
 		reiser4_key key;
 		item_key_by_coord(coord, &key);
-
-		if (from == 0 && cluster_key(&key, coord)) {
+		
+		if (from == 0 && disk_cluster_key(&key, coord)) {
 			pgoff_t start = off_to_clust(get_key_offset(&key), inode);
-			truncate_page_clusters(inode, start, 1);
+			truncate_pg_clusters(inode, start);
 		}
 	}
 	return 0;
@@ -739,7 +746,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	
 	init_lh(&lh);
 
-	ret = alloc_cluster_pgset(&clust, inode_cluster_pages(inode));
+	ret = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (ret)
 		goto out;
 	ret = load_file_hint(clust.file, &hint);
@@ -1337,7 +1344,7 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	assert("edward-259", side == LEFT_SIDE);
 	assert("edward-260", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
 
-	if (!cluster_key(&key, coord))
+	if (!disk_cluster_key(&key, coord))
 		*child = NULL;
 	else
 		*child = jlookup(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), pg_by_coord(coord));
