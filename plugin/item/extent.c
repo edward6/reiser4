@@ -426,7 +426,7 @@ void extent_copy_units (tree_coord * target, tree_coord * source,
 		reiser4_key key;
 		tree_coord coord;
 
-		assert ("vs-216", from + count == last_unit_pos (source) + 1);
+		assert ("vs-216", from + count == coord_last_unit_pos (source) + 1);
 
 		from_ext += item_length_by_coord (source) - free_space;
 
@@ -565,7 +565,7 @@ static int cut_or_kill_units (tree_coord * coord,
 	/*
 	 * extent item can be cut either from the beginning or down to the end
 	 */
-	assert ("vs-298", *from == 0 || *to == last_unit_pos (coord));
+	assert ("vs-298", *from == 0 || *to == coord_last_unit_pos (coord));
 	
 
 	item_key_by_coord (coord, &key);
@@ -605,7 +605,7 @@ static int cut_or_kill_units (tree_coord * coord,
 			/* cut from the middle of extent item is not allowed,
 			 * make sure that the rest of item gets cut
 			 * completely */
-			assert ("vs-612", *to == last_unit_pos (coord));
+			assert ("vs-612", *to == coord_last_unit_pos (coord));
 			assert ("vs-613",
 				keyge (to_key, extent_max_key (coord, &key_inside)));
 
@@ -673,7 +673,7 @@ static int cut_or_kill_units (tree_coord * coord,
 		 */
 		extent_kill_item_hook (coord, *from, count, NULL/*FIXME!!!*/);
 
-	if (*from == 0 && count != last_unit_pos (coord) + 1) {
+	if (*from == 0 && count != coord_last_unit_pos (coord) + 1) {
 		/*
 		 * part of item is removed from item beginning, update item key
 		 * therefore
@@ -1033,7 +1033,7 @@ static int append_one_block (tree_coord * coord,
 	reiser4_key key;
 
 	assert ("vs-228",
-		(coord->unit_pos == last_unit_pos (coord) &&
+		(coord->unit_pos == coord_last_unit_pos (coord) &&
 		 coord->between == AFTER_UNIT) ||
 		coord->between == AFTER_ITEM);
 
@@ -1062,7 +1062,7 @@ static int append_one_block (tree_coord * coord,
 	mark_buffer_new (bh);
 	mark_buffer_unallocated (bh);
 
-	coord->unit_pos = last_unit_pos (coord);
+	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
 	return 0;
 }
@@ -1174,7 +1174,7 @@ static reiser4_extent* extent_utmost_ext ( const tree_coord *coord, sideof side,
 		 * get last extent of item and last position within it
 		 */
 		assert ("vs-363", side == RIGHT_SIDE);
-		ext = extent_item (coord) + last_unit_pos (coord);
+		ext = extent_item (coord) + coord_last_unit_pos (coord);
 		*pos_in_unit = extent_get_width (ext) - 1;
 	}
 
@@ -1408,7 +1408,7 @@ static int add_hole (tree_coord * coord, lock_handle * lh,
 	} else {
  		/* @coord points to last extent of the item and to its last block */
 		assert ("vs-29",
-			coord->unit_pos == last_unit_pos (coord) &&
+			coord->unit_pos == coord_last_unit_pos (coord) &&
 			coord->between == AFTER_UNIT);
 		/* last extent in the item */
 		ext = extent_by_coord (coord);
@@ -1427,7 +1427,7 @@ static int add_hole (tree_coord * coord, lock_handle * lh,
 					      last_key_in_extent (coord, &last_key),
 					      &item);
 
-			coord->unit_pos = last_unit_pos (coord);
+			coord->unit_pos = coord_last_unit_pos (coord);
 			coord->between = AFTER_UNIT;
 		}
 	}
@@ -1495,7 +1495,7 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 			 * of another file we can get here even if coord->node
 			 * does not contain key we are looking for */
 			if (znode_get_level (coord->node) == LEAF_LEVEL &&
-			    coord_is_before_item (coord, 0)) {
+			    coord_is_before_item (coord)) {
 				if (fbb_offset == 0)
 					return EXTENT_FIRST_BLOCK;
 				else
