@@ -59,7 +59,6 @@ reiser4-objs := \
 		   lnode.o \
 		   kcond.o \
 		   seal.o \
-		   scint.o \
 		   dscale.o \
 		   log.o \
 		   flush_queue.o \
