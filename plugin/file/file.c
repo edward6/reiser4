@@ -138,16 +138,6 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	coord->between = AT_UNIT;
 	iplug = coord->iplug;
 	item_key_by_coord (coord, &item_key);
-#if 0
-	item.node = coord->node;
-	item.item_pos = coord->item_pos;
-	item.iplug = coord->iplug;
-	/*coord_dup (&item, coord);*/
-	item.unit_pos = 0;
-	item.between = AT_UNIT;
-	item_key_by_coord (&item, &item_key);
-	iplug = item_plugin_by_coord (&item);
-#endif
 
 
 	/* max key stored in item */
@@ -169,11 +159,12 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		/* item_key <= key */
 		if (keygt (key, &max_possible_key)) {
 			/* key > max_possible_key */
-			assert ("vs-739", keylt (key, &next_item_key));
-			coord->unit_pos = 0;
-			coord->between = AFTER_ITEM;
-			zrelse (coord->node);
-			return 1;		
+			if (keylt (key, &next_item_key)) {
+				coord->unit_pos = 0;
+				coord->between = AFTER_ITEM;
+				zrelse (coord->node);
+				return 1;
+			}
 		}
 		if (keylt (key, &max_possible_key)) {
 			/* key < max_possible_key */
@@ -192,6 +183,7 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	 * incrementing the item_pos and seeing if it contains what we are
 	 * looking for instead of searching within the node.
 	 */
+	
 	impossible ("vs-725", "do we ever get here?");
 	node_plugin_by_node (coord->node)->lookup (coord->node, key,
 						   SEARCH_BIAS,
@@ -201,6 +193,7 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 }
 
 
+#if 0
 /* get right neighbor and set coord to first unit in it */
 static int get_next_item (coord_t * coord, lock_handle * lh,
 			  znode_lock_mode lock_mode)
@@ -233,11 +226,11 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 
 	return result;	
 }
+#endif
 
-
-int find_next_item (struct file * file,
-		    const reiser4_key * key, /* key of position in a file of
-					      * next read/write */
+int find_next_item (struct sealed_coord * hint,
+		    reiser4_key * key, /* key of position in a file of next
+					* read/write */
 		    coord_t * coord, /* on entry - initilized by 0s or
 					coordinate (locked node and position in
 					it) on which previous read/write
@@ -255,34 +248,18 @@ int find_next_item (struct file * file,
 
 
 	/* collect statistics on the number of calls to this function */
-	reiser4_stat_file_add (find_items);
+	reiser4_stat_file_add (find_next_item);
+
+	result = hint_validate (hint, key, coord, lh);
+	if (!result) {
+		reiser4_stat_file_add (find_next_item_via_seal);
+		return CBK_COORD_FOUND;
+	}
 
 #if 0
-/* VS said so */
-	if (!coord->node && file) {
-		reiser4_file_fsdata * fdata;
-		seal_t seal;
-		coord_t sealed_coord;
-
-		/* try to use seal which might be set in previous access to the
-		 * file */
-		fdata = reiser4_get_file_fsdata (file);
-		if (!IS_ERR (fdata)) {
-			seal = fdata->reg.last_access;
-			if (seal_is_set (&seal)) {
-				sealed_coord = fdata->reg.coord;
-				result = seal_validate (&seal, &sealed_coord, key,
-							znode_get_level (sealed_coord.node),
-							lh, SEARCH_BIAS, lock_mode,
-							ZNODE_LOCK_LOPRI);
-				if (result == 0) {
-					/* set coord based on seal */
-					coord_dup (coord, &sealed_coord);
-				}
-			}
-		}
-	}
-#endif
+	/*
+	 * FIXME-VS: longterm_lock_znode is needed here
+	 */
 	if (coord->node) {
 		if (coord_set_properly (key, coord))
 			return 0;
@@ -290,23 +267,23 @@ int find_next_item (struct file * file,
 		if (!result)
 			if (coord_set_properly (key, coord))
 				return 0;
-		/**/
 		done_lh (lh);
 
 		coord_init_zero (coord);
 		init_lh (lh);
 	}
+#endif
 
 	/* collect statistics on the number of calls to this function which did
 	 * not get optimized */
-	reiser4_stat_file_add (full_find_items);
+	reiser4_stat_file_add (find_next_item_via_cbk);
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, SEARCH_BIAS,
 			     TWIG_LEVEL, LEAF_LEVEL, cbk_flags);
 }
 
 
-/* plugin->u.file.write_flow = NULL
+/* plugin->u.file.write_flowom = NULL
  * plugin->u.file.read_flow = NULL
  */
 
@@ -463,7 +440,7 @@ static int shorten (struct inode * inode)
 
 /* part of unix_file_truncate: it is called when truncate is used to make file
  * longer */
-static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f);
+static loff_t append_and_or_overwrite (struct file * file, struct inode * inode, flow_t * f);
 
 
 /* Add hole to end of file. @file_size is current file size. @inode->i_size is
@@ -485,7 +462,7 @@ static int expand_file (struct inode * inode, loff_t file_size)
 	if (result)
 		return result;
 
-	written = write_flow (0, inode, &f);	
+	written = append_and_or_overwrite (0, inode, &f);
 	if (written != inode->i_size - file_size) {
 		/* we were not able to write expand file to desired size */
 		if (written < 0)
@@ -557,8 +534,10 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
-	/* look for file metadata corresponding to first byte of page */
-	result = find_next_item (file, &key, &coord, &lh,
+	/* look for file metadata corresponding to first byte of page
+	 * FIXME-VS: seal might be used here
+	 */
+	result = find_next_item (0, &key, &coord, &lh,
 				 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
 				 CBK_UNIQUE);
 	if (result != CBK_COORD_FOUND) {
@@ -653,8 +632,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	flow_t f;
 #endif /* NEW_READ_IS_READY */
 
-	/* collect statistics on the number of reads */
-	reiser4_stat_file_add (reads);
 
 	inode = file->f_dentry->d_inode;
 	result = 0;
@@ -721,7 +698,11 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		/* coord will point to current item on entry and next item on exit */
 		coord_init_zero (&coord);
 		init_lh (&lh);
-		result = find_next_item (file, &f.key, &coord, &lh,
+
+		/*
+		 * FIXEM-VS: seal might be used here
+		 */
+		result = find_next_item (0, &f.key, &coord, &lh,
 					 ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
@@ -837,11 +818,104 @@ static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
 
 
 /*
+ * get access hint (seal, coord, key, level) stored in reiser4 private part of
+ * struct file if it was stores in previous access to file
+ */
+static int load_file_hint (struct file * file,
+			   struct sealed_coord * hint)
+{
+	reiser4_file_fsdata * fsdata;
+
+
+	memset (hint, 0, sizeof (hint));
+	if (file) {
+		fsdata = reiser4_get_file_fsdata (file);
+		if (IS_ERR (fsdata))
+			return PTR_ERR (fsdata);
+
+		if (seal_is_set (&fsdata->reg.hint.seal))
+			*hint = fsdata->reg.hint;
+	}
+	return 0;
+}
+
+
+/*
+ * this copies hint for future tree accesses back to reiser4 private part of
+ * struct file
+ */
+static void save_file_hint (struct file * file,
+			    const struct sealed_coord * hint)
+{
+	reiser4_file_fsdata * fsdata;
+
+
+	if (!file || !seal_is_set (&hint->seal))
+		return;
+
+	fsdata = reiser4_get_file_fsdata (file);
+	assert ("vs-965", !IS_ERR (fsdata));
+	fsdata->reg.hint = *hint;
+	return;
+}
+
+
+void set_hint (struct sealed_coord * hint, const reiser4_key * key,
+	       const coord_t * coord)
+{
+	assert ("vs-966", znode_is_locked (coord->node));
+	seal_init (&hint->seal, coord, key);
+	hint->coord = *coord;
+	hint->key = *key;
+	hint->level = znode_get_level (coord->node);
+	hint->lock = znode_is_wlocked (coord->node) ? ZNODE_WRITE_LOCK :
+		ZNODE_READ_LOCK;
+}
+
+
+void unset_hint (struct sealed_coord * hint)
+{
+	memset (hint, 0, sizeof (hint));
+}
+
+
+int hint_is_set (const struct sealed_coord * hint)
+{
+	return seal_is_set (&hint->seal);
+}
+
+
+int hint_validate (struct sealed_coord * hint, reiser4_key * key,
+		   coord_t * coord, lock_handle * lh)
+{
+	int result;
+
+
+	if (!hint || !hint_is_set (hint) || !keyeq (key, &hint->key))
+		/*
+		 * hint either not set or set for different key
+		 */
+		return -EAGAIN;
+
+	result = seal_validate (&hint->seal, &hint->coord, key,
+				hint->level,
+				lh, FIND_MAX_NOT_MORE_THAN,
+				hint->lock,
+				ZNODE_LOCK_LOPRI);
+	if (result)
+		return result;
+	coord_dup_nocheck (coord, &hint->coord);
+	return 0;
+}
+
+
+/*
  * This searches for write position in the tree and calls write method of
  * appropriate item to actually copy user data into filesystem. This loops
  * until all the data from flow @f are written to a file.
  */
-static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
+static loff_t append_and_or_overwrite (struct file * file, 
+				       struct inode * inode, flow_t * f)
 {
 	int result;
 	coord_t coord;
@@ -849,18 +923,25 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 	size_t to_write;
 	item_plugin * iplug;
 	write_todo mode;
-	seal_t seal;
-	lw_coord_t lw_coord = {&seal, &coord};
+	struct sealed_coord hint;
 
 
 	init_lh (&lh);
-	coord_init_zero (&coord);
+
+
+	/*
+	 * get seal and coord sealed with it from reiser4 private data of
+	 * struct file
+	 */
+	result = load_file_hint (file, &hint);
+	if (result)
+		return result;
 
 	to_write = f->length;
 	while (1) {
 		/* look for file's metadata (extent or tail item) corresponding
 		 * to position we write to */
-		result = find_next_item (file, &f->key, &coord, &lh,
+		result = find_next_item (&hint, &f->key, &coord, &lh,
 					 ZNODE_WRITE_LOCK,
 					 CBK_UNIQUE | CBK_FOR_INSERT);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
@@ -875,7 +956,7 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			return -EIO;
 		}
 
-		seal_init (&seal, &coord, &f->key);
+		set_hint (&hint, &f->key, &coord);
 		done_lh (&lh);
 
 		switch (mode) {
@@ -883,8 +964,9 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			/* resolves to extent_write function */
 
-			result = iplug->s.file.write (inode, &lw_coord, f, 0);
+			result = iplug->s.file.write (inode, &hint, f, 0);
 			if (result == -EAGAIN) {
+				unset_hint (&hint);
 				continue;
 			}
 			if (!result) {
@@ -897,8 +979,9 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			iplug = item_plugin_by_id (TAIL_ID);
 			/* resolves to tail_write function */
 
-			result = iplug->s.file.write (inode, &lw_coord, f, 0);
+			result = iplug->s.file.write (inode, &hint, f, 0);
 			if (result == -EAGAIN) {
+				unset_hint (&hint);
 				continue;
 			}
 			if (!result) {
@@ -909,11 +992,9 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 
 		case CONVERT:
 			result = tail2extent (inode);
-			if (result) {
+			if (result)
 				return result;
-			}
-			init_lh (&lh);
-			coord_init_zero (&coord);
+			unset_hint (&hint);
 			continue;
 
 		default:
@@ -939,19 +1020,7 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			break;
 	}
 
-	if (coord.node && coord_set_properly (&f->key, &coord) && file) {
-		reiser4_file_fsdata * fdata;
-		seal_t seal;
-
-		fdata = reiser4_get_file_fsdata (file);
-		if (!IS_ERR (fdata)) {
-			/* re-set seal of last access to file */
-			seal_init (&seal, &coord, &f->key);
-			fdata->reg.last_access = seal;
-			fdata->reg.coord = coord;
-			fdata->reg.level = znode_get_level (coord.node);
-		}
-	}
+	save_file_hint (file, &hint);
 
 	/* if nothing were written - there must be an error */
 	assert ("vs-951", ergo ((to_write == f->length), result < 0));
@@ -975,8 +1044,6 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 	assert ("vs-855", count > 0);
 
-	/* collect statistics on the number of writes */
-	reiser4_stat_file_add (writes);
 
 	inode = file->f_dentry->d_inode;
 
@@ -1014,7 +1081,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	if (result)
 		return result;
 
-	written = write_flow (file, inode, &f);
+	written = append_and_or_overwrite (file, inode, &f);
 	if (written < 0) {
 		drop_nonexclusive_access (inode);
 		return written;
@@ -1095,65 +1162,6 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 		return WRITE_EXTENT;
 	return WRITE_TAIL;
 }
-
-#if 0
-/* decide how to write flow @f into file @inode */
-/* Audited by: green(2002.06.15) */
-static write_todo unix_file_how_to_write2 (struct inode * inode, flow_t * f,
-					   coord_t * coord)
-{
-	loff_t new_size;
-
-
-	/* size file will have after write */
-	new_size = get_key_offset (&f->key) + f->length;
-
-	if (new_size <= inode->i_size && f->length) {
-		/* file does not get longer - no conversion will be
-		 * performed */
-		/* AUDIT: Will this also work correctly if we start overwritting
-		   extend but then contine to overwrite over the tail? */
-		if (built_of_extents (inode, coord))
-			return WRITE_EXTENT;
-		else
-			return WRITE_TAIL;
-	}
-
-	assert ("vs-377", inode_tail_plugin (inode)->have_tail);
-
-	if (coord->between == AT_UNIT || coord->between == AFTER_UNIT) {
-		/* file is not empty (there is at least one its item) and will
-		 * get longer or is being expanded on truncate */
-		if (should_have_notail (inode, new_size)) {
-			/* that long file (@new_size bytes) is supposed to be
-			 * built of extents */
-			if (built_of_extents (inode, coord)) {
-				/* it is built that way already */
-				return WRITE_EXTENT;
-			} else {
-				/* file is built of tail items, conversion is
-				 * required */
-				return CONVERT;
-			}
-		} else {
-			/* "notail" is not required, so keep file in its
-			 * current form */
-			if (built_of_extents (inode, coord))
-				return WRITE_EXTENT;
-			else
-				return WRITE_TAIL;
-		}
-	}
-
-	/* there are no any items of this file. FIXME-VS: should we write by
-	 * extents? */
-	if (should_have_notail (inode, new_size))
-		return WRITE_EXTENT;
-	else
-		return WRITE_TAIL;
-}
-#endif
-
 
 
 /* plugin->u.file.release
