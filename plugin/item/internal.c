@@ -308,9 +308,9 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 */
 reiser4_internal int
 kill_hook_internal(const coord_t * item /* coord of item */ ,
-		   unsigned from UNUSED_ARG /* start unit */ ,
-		   unsigned count UNUSED_ARG /* stop unit */,
-		   struct cut_list *p UNUSED_ARG)
+		   pos_in_node_t from UNUSED_ARG /* start unit */ ,
+		   pos_in_node_t count UNUSED_ARG /* stop unit */,
+		   struct carry_kill_data *p UNUSED_ARG)
 {
 	znode *child;
 

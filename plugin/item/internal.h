@@ -24,7 +24,8 @@ lookup_result lookup_internal(const reiser4_key * key, lookup_bias bias, coord_t
 extern void down_link_internal(const coord_t * coord, const reiser4_key * key, reiser4_block_nr * block);
 extern int has_pointer_to_internal(const coord_t * coord, const reiser4_block_nr * block);
 extern int create_hook_internal(const coord_t * item, void *arg);
-extern int kill_hook_internal(const coord_t * item, unsigned from, unsigned count, struct cut_list *);
+extern int kill_hook_internal(const coord_t * item, pos_in_node_t from, pos_in_node_t count, 
+			      struct carry_kill_data *);
 extern int shift_hook_internal(const coord_t * item, unsigned from, unsigned count, znode * old_node);
 extern void print_internal(const char *prefix, coord_t * coord);
 
