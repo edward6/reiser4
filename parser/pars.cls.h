@@ -7,47 +7,6 @@
 //
 
 
-/*
-#define yymaxdepth __file_##maxdepth
-#define yyparse __file_parse
-#define yylex   __file_lex
-#define yyerror __file_error
-#define yylval  __file_lval
-#define yychar  __file_char
-#define yydebug __file_debug
-#define yypact  __file_pact  
-#define yyr1    __file_r1                    
-#define yyr2    __file_r2                    
-#define yydef   __file_def           
-#define yychk   __file_chk           
-#define yypgo   __file_pgo           
-#define yyact   __file_act           
-#define yyexca  __file_exca
-#define yyerrflag __file_errflag
-#define yynerrs __file_nerrs
-#define yyps    __file_ps
-#define yypv    __file_pv
-#define yys     __file_s
-#define yy_yys  __file_yys
-#define yystate __file_state
-#define yytmp   __file_tmp
-#define yyv     __file_v
-#define yy_yyv  __file_yyv
-#define yyval   __file_val
-#define yylloc  __file_lloc
-#define yyreds  __file_reds
-#define yytoks  __file_toks
-#define yylhs   __file_yylhs
-#define yylen   __file_yylen
-#define yydefred __file_yydefred
-#define yydgoto __file_yydgoto
-#define yysindex __file_yysindex
-#define yyrindex __file_yyrindex
-#define yygindex __file_yygindex
-#define yytable  __file_yytable
-#define yycheck  __file_yycheck
-*/
-
 
 
 
@@ -88,15 +47,16 @@
 #define Res 28   /*  */
 
 
-#define Str 32
+#define STr 32
 #define ASG 33
 #define App 34
 #define Lnk 35
 
 
 
-/*static*/
-char   ncl     [256] =
+
+
+static char   ncl     [256] =
 {
 	ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
 	ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
@@ -160,14 +120,14 @@ char        lexcls[32][32]=
 /*               a    1         _    `    '      (    )    ,    -    <    /    [    ]      \    {    }    |    ;    :    .    =      >    ?            */
 /*          Blk  Wrd  Int  Ptr  Pru  Stb  Ste    Lpr  Rpr  Com  Mns  Les  Slh  Lsq  Rsq    Bsl  Lfl  Rfl  Pip  Sp1  Sp2  Sp3  Sp4    Sp5  Sp6  Res ...  */
 
-/*Blk*/{0,  Blk, Wrd, Int, Ptr, Pru, Str, ERR,   Lpr, Rpr, Com, Mns, OK , Slh, Lsq, Rsq,   Bsl, Lfl, Rfl, Pip, Sp1, Sp2, Sp3, Sp4,   Sp5, Sp6, OK , OK , OK , OK , OK , OK },
+/*Blk*/{0,  Blk, Wrd, Int, Ptr, Pru, STr, ERR,   Lpr, Rpr, Com, Mns, OK , Slh, Lsq, Rsq,   Bsl, Lfl, Rfl, Pip, Sp1, Sp2, Sp3, Sp4,   Sp5, Sp6, OK , OK , OK , OK , OK , OK },
 /*Wrd*/{0,  OK , Wrd, Wrd, Wrd, Wrd, OK , OK ,   OK , OK , OK , Wrd, Wrd, Wrd, OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
 /*Int*/{0,  OK , Wrd, Int, Wrd, Wrd, OK , OK ,   OK , OK , OK , Wrd, Wrd, OK , OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 /*Ptr*/{0,  OK , Wrd, Wrd, Wrd, OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 /*Pru*/{0,  OK , Pru, Pru, Pru, Pru, OK , OK ,   OK , OK , OK , Pru, Pru, Pru, OK , OK ,   Pru, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
-/*Stb*/{0,  OK , Str, Str, Str, Str, Str, OK ,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str},
+/*Stb*/{0,  OK , STr, STr, STr, STr, STr, OK ,   STr, STr, STr, STr, STr, STr, STr, STr,   STr, STr, STr, STr, STr, STr, STr, STr,   STr, STr, STr, STr, STr, STr, STr, STr},
 /*Ste*/{0,  ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR},
 /*Lpr*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
@@ -200,8 +160,8 @@ char        lexcls[32][32]=
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
-/*Str*/{0,  OK , Str, Str, Str, Str, Str, OK ,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str},
+/*STr*/{0,  OK , STr, STr, STr, STr, STr, OK ,   STr, STr, STr, STr, STr, STr, STr, STr,   STr, STr, STr, STr, STr, STr, STr, STr,   STr, STr, STr, STr, STr, STr, STr, STr},
 /*ASG*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   Lnk, OK , OK , OK , OK , OK , OK , OK },
 /*App*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
-/*Lnk*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+/*Lnk*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK }
 };

@@ -214,11 +214,11 @@ Expression
 
 
 tw_begin
-: TRANSCRASH SLASH L_SKW_PARENT                   { level_up( TW_BEGIN ); $$ = begin_tw_list( level ); }
+: TRANSCRASH SLASH L_SKW_PARENT                   { level_up( TW_BEGIN ); $$ = begin_tw_list( ws->ws_level ); }
 ;
 
 asyn_begin
-: L_FLX_PARENT                                    { level_up( ASYN_BEGIN ); $$ = begin_asynchronouse( level ); }
+: L_FLX_PARENT                                    { level_up( ASYN_BEGIN ); $$ = begin_asynchronouse( ws->ws_level ); }
 ;
 
 op_level
@@ -226,7 +226,7 @@ op_level
 ;
 
 cd_begin
-: Object_Name SLASH_L_PARENT                      { level_up( CD_BEGIN ); $$ = make_cd( $1,  level ); } 
+: Object_Name SLASH_L_PARENT                      { level_up( CD_BEGIN ); $$ = make_cd( $1,  ws->ws_level ); } 
 ;
 
 
@@ -388,7 +388,7 @@ static reiser4_lex( struct yy_r4_work_spaces * ws )
 			if ( !(ret = b_check_word(ws)) )
 				{
 					ret=Wrd;
-					yyval.var=inittab(ws);
+					yyval.Var=inittab(ws);
 				}
 			break;
 		default :                                /*  others  */
@@ -524,7 +524,7 @@ var_t * inttab(struct yy_r4_work_spaces * ws )
 
 	new_var         = (var_t*)( (char*)(ws->freeSpace) + len );
 	new_var->u.name = ws->freeSpace;
-	new_var->u.len  = (usigned long)new_var - (usigned long)ws->freeSpace;
+	new_var->u.len  = (unsigned long)new_var - (unsigned long)ws->freeSpace;
 	ws->freeSpace= (char *)((usigned long)new_var + sizeof(struct var));
 
 	new_var->next   = NULL;
@@ -545,7 +545,7 @@ var_t * inttab(struct yy_r4_work_spaces * ws )
 
 //#include ???? dentry, 
 
-lnode * get_root_lnode(struct yy_r4_work_space * ws)
+lnode * get_root_lnode(struct yy_r4_work_spaces * ws)
 {
 	struct dentry   dentry;
 	struct dentry * result;
@@ -618,7 +618,8 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 
 
 			
-			lnode =         ;              /*nd->dentry->d_inode;?????*/		while (current  is reiser4)
+			lnode =         ;              /*nd->dentry->d_inode;?????*/		
+ while (current  is reiser4)
 			{
 				get_dir_plugin( l_node? ) -> lookup( l_node, "f" ); /*?????????????*/
 				while ( ?? )
@@ -727,7 +728,7 @@ newtmp(struct yy_r4_work_space * ws, int n)
 	Vart(i)     = n;
 	Vare(i)     = 0;
 	Varn(i)     = 0;
-	Varlev(i)   = level;
+	Varlev(i)   = ws->ws_level;
 	Varc(i)     = 0;
 	Vara(i)     = 0;
 	return(i);
@@ -735,24 +736,24 @@ newtmp(struct yy_r4_work_space * ws, int n)
 
 lup(struct yy_r4_work_space *ws, int s1)
 {
-	switch ( Slist   (level) )
+	switch ( Slist   (ws->ws_level) )
 		{
                         
 		}
 	subup();
-	level++;
-	Stype   (level)   = s1;
-	Sdef    (level)   = 0;
-	Svar    (level)   = 0;
-	Svar1   (level)   = 0;
-	Svar2   (level)   = 0;
-	Sloop   (level)   = 0;
-	Slab    (level)   = 0;
-	Spatco  (level)   = 0;
-	Sapco   (level)   = 0;
-	Sflag   (level)   = 0;
-	Slsco   (level)   = 0;
-	Slist   (level)   = 0;
+	ws->ws_level++;
+	Stype   (ws->ws_level)   = s1;
+	Sdef    (ws->ws_level)   = 0;
+	Svar    (ws->ws_level)   = 0;
+	Svar1   (ws->ws_level)   = 0;
+	Svar2   (ws->ws_level)   = 0;
+	Sloop   (ws->ws_level)   = 0;
+	Slab    (ws->ws_level)   = 0;
+	Spatco  (ws->ws_level)   = 0;
+	Sapco   (ws->ws_level)   = 0;
+	Sflag   (ws->ws_level)   = 0;
+	Slsco   (ws->ws_level)   = 0;
+	Slist   (ws->ws_level)   = 0;
 
 }
 
@@ -760,8 +761,8 @@ lup(struct yy_r4_work_space *ws, int s1)
 ldw(struct yy_r4_work_space * ws)
 {
 	int i;
-	ldwl( ws, 1, level);
-	level--;
+	ldwl( ws, 1, ws->ws_level);
+	ws->ws_level--;
 }
 
 
