@@ -1032,7 +1032,8 @@ item_utmost_child(const coord_t * coord, sideof side, jnode ** child)
 	return item_plugin_by_coord(coord)->f.utmost_child(coord, side, child);
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

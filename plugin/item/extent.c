@@ -3026,7 +3026,8 @@ extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 	return result;
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode: linux-c
    c-basic-offset: 8

@@ -390,7 +390,8 @@ typedef struct { int foo; } PREFIX##_dummy_decl
 
 #endif				/* __REISER4_TSLIST_H__ */
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

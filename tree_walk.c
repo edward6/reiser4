@@ -1,3 +1,5 @@
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
 /* Routines and macros to:
 
    get_left_neighbor()
@@ -745,7 +747,8 @@ sibling_list_insert(znode * new, znode * before)
 	UNDER_SPIN_VOID(tree, znode_get_tree(new), sibling_list_insert_nolock(new, before));
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

@@ -1,5 +1,4 @@
-/* Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by
-   reiser4/README */
+/* Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Tracing facility. Copied from reiserfs v3.x patch, never released */
 
@@ -63,3 +62,14 @@ typedef struct {
 
 /* __REISER4_TRACE_H__ */
 #endif
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

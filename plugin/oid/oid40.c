@@ -157,3 +157,14 @@ oid40_print_info(const char *prefix, reiser4_oid_allocator * map)
 	     "oids in use %llu\n", prefix, map->u.oid40.next_to_use, map->u.oid40.oids_in_use);
 	unlock(map);
 }
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

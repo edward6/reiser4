@@ -59,7 +59,8 @@ int is_dir_empty(const struct inode *dir);
 /* __REISER4_DIR_H__ */
 #endif
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

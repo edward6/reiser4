@@ -478,7 +478,8 @@ extent2tail(struct file *file)
 	return result;
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

@@ -123,7 +123,8 @@ void extent_get_inode(const coord_t * item, struct inode **inode);	/* Get the in
 
 /* __REISER4_EXTENT_H__ */
 #endif
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

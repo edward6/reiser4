@@ -84,7 +84,8 @@ extern void link_left_and_right(znode * left, znode * right);
 
 #endif				/* __FS_REISER4_TREE_WALK_H__ */
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

@@ -49,3 +49,15 @@ space_allocator_plugin space_plugins[LAST_SPACE_ALLOCATOR_ID] = {
 				     .post_write_back_hook = NULL,
 				     .print_info = test_print_info}
 };
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/
+

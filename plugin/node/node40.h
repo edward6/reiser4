@@ -115,7 +115,8 @@ void update_znode_dkeys(znode * left, znode * right);
 
 /* __REISER4_NODE40_H__ */
 #endif
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

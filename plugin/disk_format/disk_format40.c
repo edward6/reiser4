@@ -378,3 +378,14 @@ format40_print_info(const struct super_block *s)
 	     tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
 	     get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
 }
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

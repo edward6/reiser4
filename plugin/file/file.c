@@ -1610,7 +1610,8 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 
 /* plugin->u.file.can_add_link = common_file_can_add_link */
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

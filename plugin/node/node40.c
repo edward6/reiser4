@@ -2205,7 +2205,8 @@ node40_max_item_size(void)
 	return reiser4_get_current_sb()->s_blocksize - sizeof (node40_header) - sizeof (item_header40);
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

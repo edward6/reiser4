@@ -431,7 +431,8 @@ tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
 	return 0;
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

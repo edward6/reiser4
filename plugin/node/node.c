@@ -381,7 +381,8 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		       .prepare_removal = node40_prepare_for_removal}
 };
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

@@ -32,3 +32,14 @@ typedef __u32 bmap_off_t;
 extern void get_bitmap_blocknr(struct super_block *, bmap_nr_t, reiser4_block_nr *);
 
 #endif				/* __REISER4_PLUGIN_SPACE_BITMAP_H__ */
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

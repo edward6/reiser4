@@ -1582,6 +1582,6 @@ init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, 
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 78
+   fill-column: 120
    End:
 */

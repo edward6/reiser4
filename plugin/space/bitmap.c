@@ -1154,12 +1154,13 @@ bitmap_pre_commit_hook(void)
 	}
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 78
+   fill-column: 120
    scroll-step: 1
    End:
 */

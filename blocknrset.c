@@ -382,12 +382,13 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
 	return 0;
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 78
+   fill-column: 120
    scroll-step: 1
    End:
 */

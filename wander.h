@@ -1,4 +1,4 @@
-/* Copyright 2002 by Hans Reiser*/
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined (__FS_REISER4_WANDER_H__)
 #define __FS_REISER4_WANDER_H__
@@ -119,3 +119,14 @@ extern int init_journal_info(struct super_block *, const reiser4_block_nr *, con
 extern void done_journal_info(struct super_block *);
 
 #endif				/* __FS_REISER4_WANDER_H__ */
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

@@ -1,86 +1,89 @@
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
 /* We need a definition of the default node layout here. */
 
 /* Generally speaking, it is best to have free space in the middle of the
-node so that two sets of things can grow towards it, and to have the
-item bodies on the left so that the last one of them grows into free
-space.  We optimize for the case where we append new items to the end
-of the node, or grow the last item, because it hurts nothing to so
-optimize and it is a common special case to do massive insertions in
-increasing key order (and one of cases more likely to have a real user
-notice the delay time for).
+   node so that two sets of things can grow towards it, and to have the
+   item bodies on the left so that the last one of them grows into free
+   space.  We optimize for the case where we append new items to the end
+   of the node, or grow the last item, because it hurts nothing to so
+   optimize and it is a common special case to do massive insertions in
+   increasing key order (and one of cases more likely to have a real user
+   notice the delay time for).
 
-formatted leaf default layout: (leaf1)
+   formatted leaf default layout: (leaf1)
 
-|node header:item bodies:free space:key + pluginid + item offset|
+   |node header:item bodies:free space:key + pluginid + item offset|
 
-We grow towards the middle, optimizing layout for the case where we
-append new items to the end of the node.  The node header is fixed
-length.  Keys, and item offsets plus pluginids for the items
-corresponding to them are in increasing key order, and are fixed
-length.  Item offsets are relative to start of node (16 bits creating
-a node size limit of 64k, 12 bits might be a better choice....).  Item
-bodies are in decreasing key order.  Item bodies have a variable size.
-There is a one to one to one mapping of keys to item offsets to item
-bodies.  Item offsets consist of pointers to the zeroth byte of the
-item body.  Item length equals the start of the next item minus the
-start of this item, except the zeroth item whose length equals the end
-of the node minus the start of that item (plus a byte).  In other
-words, the item length is not recorded anywhere, and it does not need
-to be since it is computable.
+   We grow towards the middle, optimizing layout for the case where we
+   append new items to the end of the node.  The node header is fixed
+   length.  Keys, and item offsets plus pluginids for the items
+   corresponding to them are in increasing key order, and are fixed
+   length.  Item offsets are relative to start of node (16 bits creating
+   a node size limit of 64k, 12 bits might be a better choice....).  Item
+   bodies are in decreasing key order.  Item bodies have a variable size.
+   There is a one to one to one mapping of keys to item offsets to item
+   bodies.  Item offsets consist of pointers to the zeroth byte of the
+   item body.  Item length equals the start of the next item minus the
+   start of this item, except the zeroth item whose length equals the end
+   of the node minus the start of that item (plus a byte).  In other
+   words, the item length is not recorded anywhere, and it does not need
+   to be since it is computable.
 
-Leaf variable length items and keys layout : (lvar)
+   Leaf variable length items and keys layout : (lvar)
 
-|node header:key offset + item offset + pluginid triplets:free space:key bodies:item bodies|
+   |node header:key offset + item offset + pluginid triplets:free space:key bodies:item bodies|
+   
+   We grow towards the middle, optimizing layout for the case where we
+   append new items to the end of the node.  The node header is fixed
+   length.  Keys and item offsets for the items corresponding to them are
+   in increasing key order, and keys are variable length.  Item offsets
+   are relative to start of node (16 bits).  Item bodies are in
+   decreasing key order.  Item bodies have a variable size.  There is a
+   one to one to one mapping of keys to item offsets to item bodies.
+   Item offsets consist of pointers to the zeroth byte of the item body.
+   Item length equals the start of the next item's key minus the start of
+   this item, except the zeroth item whose length equals the end of the
+   node minus the start of that item (plus a byte).  
 
-We grow towards the middle, optimizing layout for the case where we
-append new items to the end of the node.  The node header is fixed
-length.  Keys and item offsets for the items corresponding to them are
-in increasing key order, and keys are variable length.  Item offsets
-are relative to start of node (16 bits).  Item bodies are in
-decreasing key order.  Item bodies have a variable size.  There is a
-one to one to one mapping of keys to item offsets to item bodies.
-Item offsets consist of pointers to the zeroth byte of the item body.
-Item length equals the start of the next item's key minus the start of
-this item, except the zeroth item whose length equals the end of the
-node minus the start of that item (plus a byte).  
+   leaf compressed keys layout: (lcomp)
 
-leaf compressed keys layout: (lcomp)
+   |node header:key offset + key inherit + item offset pairs:free space:key bodies:item bodies|
+   
+   We grow towards the middle, optimizing layout for the case where we
+   append new items to the end of the node.  The node header is fixed
+   length.  Keys and item offsets for the items corresponding to them are
+   in increasing key order, and keys are variable length.  The "key
+   inherit" field indicates how much of the key prefix is identical to
+   the previous key (stem compression as described in "Managing
+   Gigabytes" is used).  key_inherit is a one byte integer.  The
+   intra-node searches performed through this layout are linear searches,
+   and this is theorized to not hurt performance much due to the high
+   cost of processor stalls on modern CPUs, and the small number of keys
+   in a single node.  Item offsets are relative to start of node (16
+   bits).  Item bodies are in decreasing key order.  Item bodies have a
+   variable size.  There is a one to one to one mapping of keys to item
+   offsets to item bodies.  Item offsets consist of pointers to the
+   zeroth byte of the item body.  Item length equals the start of the
+   next item minus the start of this item, except the zeroth item whose
+   length equals the end of the node minus the start of that item (plus a
+   byte).  In other words, item length and key length is not recorded
+   anywhere, and it does not need to be since it is computable.
 
-|node header:key offset + key inherit + item offset pairs:free space:key bodies:item bodies|
-
-We grow towards the middle, optimizing layout for the case where we
-append new items to the end of the node.  The node header is fixed
-length.  Keys and item offsets for the items corresponding to them are
-in increasing key order, and keys are variable length.  The "key
-inherit" field indicates how much of the key prefix is identical to
-the previous key (stem compression as described in "Managing
-Gigabytes" is used).  key_inherit is a one byte integer.  The
-intra-node searches performed through this layout are linear searches,
-and this is theorized to not hurt performance much due to the high
-cost of processor stalls on modern CPUs, and the small number of keys
-in a single node.  Item offsets are relative to start of node (16
-bits).  Item bodies are in decreasing key order.  Item bodies have a
-variable size.  There is a one to one to one mapping of keys to item
-offsets to item bodies.  Item offsets consist of pointers to the
-zeroth byte of the item body.  Item length equals the start of the
-next item minus the start of this item, except the zeroth item whose
-length equals the end of the node minus the start of that item (plus a
-byte).  In other words, item length and key length is not recorded
-anywhere, and it does not need to be since it is computable.
-
-internal node default layout: (idef1)
-
-just like ldef1 except that item bodies are either blocknrs of
-children or extents, and moving them may require updating parent
-pointers in the nodes that they point to.
-
+   internal node default layout: (idef1)
+   
+   just like ldef1 except that item bodies are either blocknrs of
+   children or extents, and moving them may require updating parent
+   pointers in the nodes that they point to.
 */
+
 /* There is an inherent 3-way tradeoff between optimizing and
    exchanging disks between different architectures and code
    complexity.  This is optimal and simple and inexchangeable.
    Someone else can do the code for exchanging disks and make it
    complex. It would not be that hard.  Using other than the PAGE_SIZE
-   might be suboptimal.  */
+   might be suboptimal.
+*/
 
 #if !defined( __REISER4_NODE_H__ )
 #define __REISER4_NODE_H__
@@ -291,7 +294,8 @@ typedef struct common_node_header {
 } common_node_header;
 /* __REISER4_NODE_H__ */
 #endif
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

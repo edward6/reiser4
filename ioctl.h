@@ -12,3 +12,14 @@ extern int reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cm
 extern int reiser4_unpack(struct inode *inode, struct file *filp);
 
 #endif				/* __IOCTL_H__ */
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

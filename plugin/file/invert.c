@@ -1,3 +1,5 @@
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
 /* Suppose you want to conveniently read and write a large variety of
    small files conveniently within a single emacs buffer, without
    having a separate buffer for each 8 byte or so file.  Inverts are
@@ -488,3 +490,14 @@ ssize_t invert_write(struct *file, flow * f)
 {
 
 }
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

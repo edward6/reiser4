@@ -70,7 +70,8 @@ int unix_file_setattr(struct inode *inode, struct iattr *attr);
 /* __REISER4_FILE_H__ */
 #endif
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8

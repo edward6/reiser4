@@ -141,3 +141,14 @@ oid_allocator_plugin oid_plugins[LAST_OID_ALLOCATOR_ID] = {
 				.oid_reserve_release = oid40_reserve_release,
 				.print_info = oid40_print_info}
 };
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/

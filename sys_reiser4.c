@@ -1,3 +1,5 @@
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
 /* System call for accessing enhanced semantics of the Reiser Filesystem Version 4 (reiser4). */
 
 /* This system call feeds a string to parser.c, parser.c converts the
@@ -46,5 +48,6 @@ sys_reiser4(char *str)
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
+   fill-column: 120
    End:
 */

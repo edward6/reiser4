@@ -1,3 +1,4 @@
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* maximal cost in leaf nodes of deleting an item (left and right are wandered, current disappears but not immediately)*/
 #define ESTIMATE_ITEM_DELETE 2
@@ -23,3 +24,14 @@ estimate_rename()
 	return ESTIMATE_ITEM_DELETE + ESTIMATE_ITEM_INSERT + ESTIMATE_ITEM_UPDATE;
 
 }
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/
