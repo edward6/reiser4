@@ -1820,7 +1820,7 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 	}
 
 	/* set @key to key of first byte of part of extent which left unallocated */
-	set_key_offset(&key, index << PAGE_CACHE_SHIFT);
+	set_key_offset(&key, (__u64)index << PAGE_CACHE_SHIFT);
 	set_extent(&paste, UNALLOCATED_EXTENT_START, extent_slum_size - allocated);
 
 	/* [u/width] ->
@@ -2032,7 +2032,7 @@ extent_handle_relocate_and_copy(znode *left, coord_t *right, flush_pos_t *flush_
 			protected -= allocated;
 			extent_slum_size -= allocated;
 			done += allocated;
-			set_key_offset(&key, index << PAGE_CACHE_SHIFT);
+			set_key_offset(&key, (__u64)index << PAGE_CACHE_SHIFT);
 
 			/* update stop key */
 			*stop_key = key;
@@ -2387,7 +2387,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 		goto done;
 	}
 	/* page contains some data of this file */
-	assert("vs-699", inode->i_size > page->index << PAGE_CACHE_SHIFT);
+	assert("vs-699", inode->i_size > (__u64)page->index << PAGE_CACHE_SHIFT);
 
 	if (from == 0 && file_off + count >= inode->i_size) {
 		/* current end of file is in this page. write areas covers it
