@@ -185,8 +185,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->plug.t = tail_plugin_by_id (get_format_40_tail_policy(sb_copy));
 	assert("umka-751", private->plug.t);
 	
-	printk("Tail policy is %x.\n", get_format_40_tail_policy(sb_copy));
-
 	/* layout 40 uses bitmap based space allocator - the one implemented in
 	 * plugin/space/bitmap.[ch] */
 	private->space_plug =

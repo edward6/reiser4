@@ -17,7 +17,22 @@
 
 static reiserfs_core_t *core = NULL;
 
+static oid_t dir40_objectid(reiserfs_dir40_t *dir) {
+    aal_assert("umka-839", dir != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, dir->key.plugin->key_ops, 
+	get_objectid, dir->key.body);
+}
+
 static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
+    
+    if (core->tree_lookup(dir->tree, &dir->key, &dir->place) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find stat data of directory with oid %llx.", 
+	    dir40_objectid(dir));
+	return -1;
+    }
+    
     return 0;
 }
 
@@ -42,9 +57,12 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     /* Positioning onto first directory unit */
     if (dir40_rewind(dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't rewind directory.");
+	    "Can't rewind directory with oid %llx.", 
+	    dir40_objectid(dir));
 	goto error_free_dir;
     }
+    
+    /* FIXME-UMKA: Here should be stat data grabbing */
     
     return dir;
 
@@ -62,6 +80,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     reiserfs_item_hint_t item;
     reiserfs_stat_hint_t stat;
     reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *hash_plugin;
     reiserfs_direntry_hint_t direntry;
    
     reiserfs_id_t stat_pid;
@@ -81,6 +100,10 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     dir->tree = tree;
     
     key_plugin = object->plugin;
+
+    /* FIXME-UMKA: Here should be not hardcoded hash plugin id */
+    if (!(hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, REISERFS_R5_HASH)))
+	libreiser4_factory_failed(goto error_free_dir, find, hash, REISERFS_R5_HASH);
     
     parent_objectid = libreiser4_plugin_call(return NULL, 
 	key_plugin->key_ops, get_objectid, parent->body);
@@ -137,7 +160,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     direntry.count = 2;
     direntry.key_plugin = key_plugin;
-    direntry.hash_plugin = NULL;
+    direntry.hash_plugin = hash_plugin;
    
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, 
 	build_entry_full, item.key.body, direntry.hash_plugin, 
@@ -166,10 +189,21 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     }
     
     aal_free(direntry.entry);
-
+    
+    dir->key.plugin = key_plugin;
     aal_memcpy(dir->key.body, object->body, libreiser4_plugin_call(goto error_free_dir, 
 	key_plugin->key_ops, size,));
     
+    /* Positioning onto first directory unit */
+    if (dir40_rewind(dir)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't rewind directory with oid %llx.", 
+	    dir40_objectid(dir));
+	goto error_free_dir;
+    }
+    
+    /* FIXME-UMKA: Here should be stat data grabbing */
+
     return dir;
 
 error_free_dir:
