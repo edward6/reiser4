@@ -311,7 +311,7 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 	free_blocks -= count;
 	reiser4_set_free_blocks(super, free_blocks);
 
-	check_block_counters(super);
+	assert("nikita-2986", check_block_counters(super));
 
 	trace_on(TRACE_ALLOC, "%s: grabbed %llu, free blocks left %llu\n",
 		 __FUNCTION__, count, reiser4_free_blocks (super));
