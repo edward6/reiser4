@@ -1384,7 +1384,9 @@ void atom_wait_event(txn_atom * atom)
 	PROF_BEGIN(atom_wait_event);
 
 	assert("zam-744", spin_atom_is_locked(atom));
-	assert("nikita-3156", lock_stack_isclean(get_current_lock_stack()));
+	assert("nikita-3156", 
+	       lock_stack_isclean(get_current_lock_stack()) || 
+	       atom->nr_running_queues > 0);
 
 	init_wlinks(&_wlinks);
 	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
@@ -2084,7 +2086,20 @@ repeat:
 	LOCK_JNODE(node);
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
 		UNLOCK_JNODE(node);
+		/*
+		 * at this moment we want to wait for "atom event", viz. wait
+		 * until @node will be removed from flush queue. But
+		 * atom_wait_event() cannot be called with page locked,
+		 * because it deadlocks with jnode_extent_write(). Unlock
+		 * page, after making sure (through page_cache_get()) that it
+		 * cannot be released from memory.
+		 */
+		page_cache_get(pg);
+		reiser4_unlock_page(pg);
 		atom_wait_event(atom);
+		reiser4_lock_page(pg);
+		assert("nikita-3168", jprivate(pg) == node);
+		page_cache_release(pg);
 		LOCK_JNODE(node);
 		atom = atom_locked_by_jnode(node);
 		if (atom == NULL) {
