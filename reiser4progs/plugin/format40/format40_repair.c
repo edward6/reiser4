@@ -7,14 +7,7 @@
 /* Remove it when exception will know how to get an open answer. */
 #define _GNU_SOURCE
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
-#include <aal/aal.h>
-#include <reiser4/reiser4.h>
 #include <comm/misc.h>
-
 #include "format40.h"
 
 static long int __get_number(int *error, char *ask, ...) __check_format__(printf, 2, 3);

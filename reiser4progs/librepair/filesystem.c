@@ -34,8 +34,12 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
 	return -1;
     }
 
+    /* Mark the format area as used in the control allocator */
     reiser4_format_mark(fs->format, traverse->a_control);
 
+    traverse->format = fs->format;
+    traverse->options = repair_data(fs)->options;
+    
     /* Prepare a level. */
     traverse->level = reiser4_format_get_height(fs->format) + 1;
 
@@ -48,8 +52,8 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
 	return -1;
     }
     
-    traverse->format = fs->format;
     traverse->rd_key.plugin = traverse->ld_key.plugin;
+    
     reiser4_key_minimal(&traverse->ld_key);
     reiser4_key_maximal(&traverse->rd_key);
     

@@ -7,6 +7,10 @@
 #ifndef FORMAT40_H
 #define FORMAT40_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/plugin.h>
 
