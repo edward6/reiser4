@@ -790,26 +790,28 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 			result = RETERR(-EINVAL);
 		}
 		break;
-	case OPT_ONEOF:{
-			int i = 0;
-
-			if (val_start == NULL) {
-				err_msg = "Value is missing";
-				result = RETERR(-EINVAL);
+	case OPT_ONEOF:
+	{
+		int i = 0;
+		
+		if (val_start == NULL) {
+			err_msg = "Value is missing";
+			result = RETERR(-EINVAL);
+			break;
+		}
+		err_msg = "Wrong option value";
+		result = RETERR(-EINVAL);
+		while ( opt->u.oneof.list[i] ) {
+			if ( !strcmp(opt->u.oneof.list[i], val_start) ) {
+				result = 0;
+				err_msg = NULL;
+				*opt->u.oneof.result = i;
 				break;
 			}
-			err_msg = "Wrong option value";
-			result = RETERR(-EINVAL);
-			while ( opt->u.oneof.list[i] ) {
-				if ( !strcmp(opt->u.oneof.list[i], val_start) ) {
-					result = 0;
-					*opt->u.oneof.result = i;
-					break;
-				}
-				i++;
-			}
-		        break;
-		       }
+			i++;
+		}
+		break;
+	}
 	default:
 		wrong_return_value("nikita-2100", "opt -> type");
 		break;
