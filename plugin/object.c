@@ -1228,6 +1228,8 @@ wire_get_common(struct super_block *sb, reiser4_object_on_wire *obj)
 	extract_key_from_id(&obj->u.std.key_id, &key);
 	inode = reiser4_iget(sb, &key, 1);
 	if (!IS_ERR(inode)) {
+		/* mark inode as created through NFS */
+		inode_set_flag(inode, REISER4_STATELESS);
 		reiser4_iget_complete(inode);
 		dentry = d_alloc_anon(inode);
 		if (dentry == NULL) {
