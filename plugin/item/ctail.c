@@ -174,17 +174,23 @@ init_ctail(coord_t * to /* coord of item */,
 	   coord_t * from /* old_item */,
 	   reiser4_item_data * data /* structure used for insertion */)
 {
+	int cluster_shift; /* cpu value to convert */
+	
 	if (data) {
 		assert("edward-463", data->length > sizeof(ctail_item_format));
-		
-		cputod8(*((char *)(data->arg)), &formatted_at(to)->cluster_shift);
+
+		cluster_shift = (int)(*((char *)(data->arg)));
 		data->length -= sizeof(ctail_item_format);
 	}
 	else {
 		assert("edward-464", from != NULL);
 		
-		cputod8(cluster_shift_by_coord(from), &formatted_at(to)->cluster_shift);
+		cluster_shift = (int)(cluster_shift_by_coord(from));
 	}
+	cputod8(cluster_shift, &formatted_at(to)->cluster_shift);
+
+	assert("edward-45", cluster_size_by_coord(to) == 4096);
+	
 	return 0;
 }
 
@@ -223,6 +229,9 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 		impossible("edward-453", "bad paste position");
 	
 	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
+
+	assert("edward-474", cluster_size_by_coord(coord) == 4096);
+	
 	return 0;
 }
 
@@ -318,10 +327,12 @@ cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 	       struct cut_list *p)
 {
 	unsigned count; /* number of units to cut */
+	char * item;
 	
  	count = *to - *from + 1;
-	/* regarless to whether we cut from the beginning or from the end of
-	   item - we have nothing to do */
+	item = item_body_by_coord(coord);
+	
+	/* When we cut from the end of item - we have nothing to do */
 	assert("edward-73", count > 0 && count <= nr_units_ctail(coord));
 	assert("edward-74", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
 
@@ -336,8 +347,10 @@ cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 	
 	if (*from == 0) {
 		if (count != nr_units_ctail(coord)) {
-			/* part of item is removed, update item key therefore */
+			/* part of item is removed, so move free space at the beginning
+			   of the item and update item key */
 			reiser4_key key;
+			xmemcpy(item + *to + 1, item, sizeof(ctail_item_format));
 			item_key_by_coord(coord, &key);
 			set_key_offset(&key, get_key_offset(&key) + count);
 			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
@@ -346,10 +359,11 @@ cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 			/* whole item is cut, so more then amount of space occupied
 			   by units got freed */
 			count += sizeof(ctail_item_format);
+		if (REISER4_DEBUG)
+			xmemset(item, 0, count);
 	}
-	
-	if (REISER4_DEBUG)
-		xmemset((char *)item_body_by_coord(coord) + *to - count + 1, 0, count);
+	else if (REISER4_DEBUG)
+		xmemset(item + sizeof(ctail_item_format) + *from, 0, count);
 	return count;
 }
 
