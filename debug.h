@@ -25,19 +25,20 @@
    whatever standard prefixes/postfixes we want. "Fun" is a function
    that will be actually called, can be printk, panic etc.
    This is for use by other debugging macros, not by users. */
-#define DCALL(lev, fun, label, format, ...)					\
-({										\
-	reiser4_print_prefix(lev, label, __FUNCTION__, __FILE__, __LINE__);	\
-	fun(lev format "\n" , ## __VA_ARGS__);					\
+#define DCALL(lev, fun, reperr, label, format, ...)		\
+({								\
+	reiser4_print_prefix(lev, reperr, label, 		\
+			     __FUNCTION__, __FILE__, __LINE__);	\
+	fun(lev format "\n" , ## __VA_ARGS__);			\
 })
 
 #define reiser4_panic(mid, format, ...)				\
-	DCALL("", reiser4_do_panic, mid, format , ## __VA_ARGS__)
+	DCALL("", reiser4_do_panic, 1, mid, format , ## __VA_ARGS__)
 
 /* print message with indication of current process, file, line and
    function */
 #define reiser4_log(label, format, ...) 				\
-	DCALL(KERN_DEBUG, printk, label, format , ## __VA_ARGS__)
+	DCALL(KERN_DEBUG, printk, 0, label, format , ## __VA_ARGS__)
 
 /* Assertion checked during compilation. 
     If "cond" is false (0) we get duplicate case label in switch.
@@ -255,7 +256,8 @@ extern int is_in_reiser4_context(void);
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
 #define warning( label, format, ... )					\
-	DCALL( KERN_WARNING, printk, label, "WARNING: " format , ## __VA_ARGS__ )
+	DCALL( KERN_WARNING, 						\
+	       printk, 1, label, "WARNING: " format , ## __VA_ARGS__ )
 #define not_yet( label, format, ... )				\
 	reiser4_panic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
@@ -351,7 +353,7 @@ extern __u32 reiser4_current_trace_flags;
 extern void reiser4_do_panic(const char *format, ...)
 __attribute__ ((noreturn, format(printf, 1, 2)));
 
-extern void reiser4_print_prefix(const char *level, const char *mid,
+extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 				 const char *function, 
 				 const char *file, int lineno);
 

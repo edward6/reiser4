@@ -76,7 +76,7 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 }
 
 void
-reiser4_print_prefix(const char *level, const char *mid,
+reiser4_print_prefix(const char *level, int reperr, const char *mid,
 		     const char *function, const char *file, int lineno)
 {
 	const char *comm;
@@ -91,7 +91,8 @@ reiser4_print_prefix(const char *level, const char *mid,
 	}
 	printk("%s reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
 	       level, comm, pid, function, file, lineno, mid);
-	report_err();
+	if (reperr)
+		report_err();
 }
 
 /* Preemption point: this should be called periodically during long running
@@ -336,7 +337,7 @@ report_err(void)
 				printk("0x%p ", ctx->err.path[i]);
 			printk("\n");
 #endif
-			printk("code: %i at %s:%i ", 
+			printk("code: %i at %s:%i\n", 
 			       ctx->err.code, ctx->err.file, ctx->err.line);
 		}
 	}
