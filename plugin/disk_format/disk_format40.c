@@ -13,6 +13,7 @@
 #include "../../tree.h"
 #include "../../super.h"
 #include "../../wander.h"
+#include "../../diskmap.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -77,40 +78,19 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 {
 	struct buffer_head *super_bh;
 	format40_disk_super_block *disk_sb;
-	sector_t rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location */
+	reiser4_block_nr rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location */
 
 	assert("umka-487", s != NULL);
 
 #ifdef CONFIG_REISER4_BADBLOCKS
-	if ( get_super_private(s)->fixmap_block ) { /* If there is fixmap table, need to read and parse it */
-		struct buffer_head *fixmap_bh;
-		struct format40_fixmap_block *fixmap;
+        if ( reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER, &rootblock) != 0 )
+		rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
 
-		fixmap_bh = sb_bread(s, get_super_private(s)->fixmap_block);
-		if ( !fixmap_bh )
-			return ERR_PTR(RETERR(-EIO));
-
-		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
-		/* Compare magic */
-		if ( strncmp(fixmap->magic, FORMAT40_FIXMAP_MAGIC, sizeof(FORMAT40_FIXMAP_MAGIC)-1 ) ) {
-			/* Wrong magic */
-			brelse(fixmap_bh);
-			warning("green-2003", "fixmap is specified, but its magic is wrong");
-			return ERR_PTR(RETERR(-EINVAL));
-		}
-
-		/* Check for alternative superblock location */
-		if ( d64tocpu(&fixmap->fm_super) )
-			rootblock = d64tocpu(&fixmap->fm_super);
-
-		/* Check for alternative journal header location */
-		if ( jh && d64tocpu(&fixmap->fm_journal_header) )
-			*jh = d64tocpu(&fixmap->fm_journal_header);
-		/* Check for alternative journal footer location */
-		if ( jf && d64tocpu(&fixmap->fm_journal_footer) )
-			*jf = d64tocpu(&fixmap->fm_journal_footer);
-		brelse(fixmap_bh);
-	}
+        if ( jf && reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF, jf) != 0 )
+		*jf = FORMAT40_JOURNAL_FOOTER_BLOCKNR; /* Default format-specific location, if there is nothing in diskmap */
+	
+        if ( jh && reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH, jh) != 0 )
+		*jh = FORMAT40_JOURNAL_HEADER_BLOCKNR; /* Default format-specific location, if there is nothing in diskmap */
 #endif
 
 	if (!(super_bh = sb_bread(s, rootblock)))
@@ -144,34 +124,13 @@ get_super_jnode(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *sb_jnode;
-	reiser4_block_nr super_block_nr = FORMAT40_OFFSET / s->s_blocksize;
+	reiser4_block_nr super_block_nr;
 	int ret;
 
 #ifdef CONFIG_REISER4_BADBLOCKS
-	if ( get_super_private(s)->fixmap_block ) { /* If there is fixmap table, need to read and parse it */
-		struct buffer_head *fixmap_bh;
-		struct format40_fixmap_block *fixmap;
 
-		fixmap_bh = sb_bread(s, get_super_private(s)->fixmap_block);
-		if ( !fixmap_bh )
-			return RETERR(-EIO);
-
-		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
-		/* Compare magic, all of this is redundant sunce we have already checked this
-		   when we first read our super block */
-		if ( strncmp(fixmap->magic, FORMAT40_FIXMAP_MAGIC, sizeof(FORMAT40_FIXMAP_MAGIC)-1 ) ) {
-			/* Wrong magic */
-			brelse(fixmap_bh);
-			warning("green-2004", "fixmap is specified, but its magic is wrong");
-			return RETERR(-EINVAL);
-		}
-
-		/* Check for alternative superblock location */
-		if ( d64tocpu(&fixmap->fm_super) )
-			super_block_nr = d64tocpu(&fixmap->fm_super);
-
-		brelse(fixmap_bh);
-	}
+        if ( reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER, &super_block_nr) != 0 )
+		super_block_nr = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
 #endif
 
 	sb_jnode = alloc_io_head(&super_block_nr);
