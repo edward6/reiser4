@@ -52,16 +52,6 @@ item_plugin *item_plugin_by_coord( const coord_t *coord /* coord to query */ )
 	return coord -> iplug;
 }
 
-/** return node plugin of @node */
-/* Audited by: green(2002.06.15) */
-node_plugin * node_plugin_by_node( const znode *node /* node to query */ )
-{
-	assert( "vs-213", node != NULL );
-	assert( "vs-214", znode_is_loaded( node ) );
-
-	return node->nplug;
-}
-
 /** return type of item at @coord */
 /* Audited by: green(2002.06.15) */
 item_type_id item_type_by_coord( const coord_t *coord /* coord to query */ )
