@@ -246,7 +246,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 
    Must be called with inode locked. Return inode still locked.
 */
-static void
+static int
 read_inode(struct inode *inode /* inode to read from disk */ ,
 	   const reiser4_key * key /* key of stat data */ )
 {
@@ -293,6 +293,7 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 
 	if (result != 0)
 		reiser4_make_bad_inode(inode);
+	return result;
 }
 
 /* initialise new reiser4 inode being inserted into hash table. */
@@ -357,9 +358,12 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 					 * stat-data */ )
 {
 	struct inode *inode;
+	int result;
 
 	assert("nikita-302", super != NULL);
 	assert("nikita-303", key != NULL);
+
+	result = 0;
 
 	/* call iget(). Our ->read_inode() is dummy, so this will either
 	    find inode in cache or return uninitialised inode */
@@ -397,7 +401,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			/* now, inode has objectid as ->i_ino and locality in
 			   reiser4-specific part. This is enough for
 			   read_inode() to read stat data from the disk */
-			read_inode(inode, key);
+			result = read_inode(inode, key);
 		}
 	}
 
@@ -407,7 +411,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	if (is_bad_inode(inode)) {
 		up(&inode->i_sem);
 		iput(inode);
-		inode = ERR_PTR(RETERR(-EIO));
+		inode = ERR_PTR(RETERR(result));
 	} else if (REISER4_DEBUG) {
 		reiser4_key found_key;
 
