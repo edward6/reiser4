@@ -2509,6 +2509,7 @@ static ssize_t call_read (struct inode * inode, char * buf, loff_t offset,
 	struct file file;
 	struct dentry dentry;
 
+	xmemset( &file, 0, sizeof file);
 	file.f_dentry = &dentry;
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_inode = inode;
