@@ -42,14 +42,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /* size of hash-table for znodes */
 #define REISER4_ZNODE_HASH_TABLE_SIZE (1 << 13)
-/* order of emergency flush hash table */
-#define REISER4_EF_HASH_BITS (10)
-/* size of emergency flush hash table */
-#define REISER4_EF_HASH_SIZE (1 << REISER4_EF_HASH_BITS)
-
-/* size of hash-table for jnodes */
-#define REISER4_JNODE_HASH_TABLE_BITS (13)
-#define REISER4_JNODE_HASH_TABLE_SIZE (1 << REISER4_JNODE_HASH_TABLE_BITS)
 
 /* number of buckets in lnode hash-table */
 #define LNODE_HTABLE_BUCKETS (1024)
@@ -58,20 +50,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
 #define REISER4_MAX_ZTREE_HEIGHT     (10)
-
-/* classical balancing algorithms require to update delimiting key in a
-   parent every time one deletes leftmost item in its child so that
-   delimiting key is actually exactly minimal key in a tree rooted at
-   the right child of this delimiting key.
-
-   It seems this condition can be relaxed to the following: all keys in
-   a tree rooted in the left child of the delimiting key are less than
-   said key and all keys in the tree rooted in the right child of the
-   delimiting key are greater than or equal to the said delimiting key.
-
-   This saves one io on deletion and as far as I can see, doesn't lead
-   to troubles on parent splitting and merging. */
-#define REISER4_EXACT_DELIMITING_KEY (0)
 
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 
@@ -123,10 +101,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    be overwritten by tmgr.atom_max_age mount option. */
 #define REISER4_ATOM_MAX_AGE          (600 * HZ)
 
-/* After percentage of free memory falls below this, preventive flushing is
-   started. */
-#define REISER4_LOW_MEMORY (50)
-
 /* sleeping period for ktxnmrgd */
 #define REISER4_TXNMGR_TIMEOUT  (5 * HZ)
 
@@ -147,9 +121,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 */
 #define REISER4_MAX_CBK_ITERATIONS    ((unsigned)~0)
 
-/* read all blocks when one block on the page is read */
-#define REISER4_FORMATTED_CLUSTER_READ (0)
-
 /* put a per-inode limit on maximal number of directory entries with identical
    keys in hashed directory.
 
@@ -157,13 +128,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    set per directory limit.
 */
 #define REISER4_USE_COLLISION_LIMIT    (0)
-
-/* global limit on number of directory entries with identical keys in hashed
-   directory */
-#define REISER4_GLOBAL_COLLISION_LIMIT (1024)
-
-/* maximal number of keys lookup_multikey() can handle. */
-#define REISER4_MAX_MULTI_SEARCH (4)
 
 /* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level blocks it
    will force them to be relocated. */
