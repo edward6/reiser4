@@ -495,19 +495,10 @@ common_file_can_add_link(const struct inode *object /* object to check */ )
 	return object->i_nlink < (((nlink_t) ~ 0) >> 1);
 }
 
-static reiser4_block_nr common_estimate_file_delete(struct inode *inode)
-{
-	reiser4_block_nr amount;
-	
-	assert( "vpf-319", inode != NULL );
 
-	amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
-	return amount + 1;
-}
-
-/* common_file_delete() - delete object stat-data */
+/* space for stat data removal is reserved */
 int
-common_file_delete(struct inode *inode /* object to remove */ )
+common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 {
 	int result;
 
@@ -515,19 +506,9 @@ common_file_delete(struct inode *inode /* object to remove */ )
 
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_key sd_key;
-		reiser4_block_nr reserve;
 
 		DQUOT_FREE_INODE(inode);
 		DQUOT_DROP(inode);
-		
-		if (reiser4_grab_space_exact((reserve = common_estimate_file_delete(inode)), 
-			BA_RESERVED | BA_CAN_COMMIT))
-		{
-			return -ENOSPC;
-		}
-
-		trace_on(TRACE_RESERVE, 
-			 "file delete grabs %llu block.\n", reserve);
 
 		build_sd_key(inode, &sd_key);
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
@@ -539,6 +520,51 @@ common_file_delete(struct inode *inode /* object to remove */ )
 		}
 	} else
 		result = 0;
+	return result;
+}
+
+/* common_file_delete() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
+int
+common_file_delete(struct inode *inode /* object to remove */ )
+{
+	int result;
+
+	assert("nikita-1477", inode != NULL);
+
+	if (!inode_get_flag(inode, REISER4_NO_SD)) {
+		reiser4_block_nr reserve;
+
+		/* grab space which is needed to remove one item from the tree */
+		if (reiser4_grab_space_exact(reserve = estimate_one_item_removal(tree_by_inode(inode)->height),
+					     BA_RESERVED | BA_CAN_COMMIT))
+			return -ENOSPC;
+
+		trace_on(TRACE_RESERVE, 
+			 "file delete grabs %llu block.\n", reserve);
+
+		result = common_file_delete_no_reserve(inode);
+	} else
+		result = 0;
+	return result;
+}
+
+/* common directory consists of two items: stat data and one item containing "." and ".." */
+static int common_delete_directory(struct inode *inode)
+{
+	int result;
+	dir_plugin *dplug;
+
+	dplug = inode_dir_plugin(inode);
+	assert("vs-1101", dplug && dplug->done);
+
+	/* grab space enough for removing two items */
+	if (reiser4_grab_space_exact(2 * estimate_one_item_removal(tree_by_inode(inode)->height), BA_RESERVED | BA_CAN_COMMIT))
+		return -ENOSPC;
+
+	result = dplug->done(inode);
+	if (!result)
+		result = common_file_delete_no_reserve(inode);
+	all_grabbed2free();
 	return result;
 }
 
@@ -892,7 +918,7 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 
 /* this common implementation of update estimation function may be used when stat data update does not do more than
    inserting a unit into a stat data item which is probably true for most cases */
-static reiser4_block_nr 
+reiser4_block_nr 
 common_estimate_update(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
@@ -934,7 +960,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .set_plug_in_inode = common_set_plug,
 				    .adjust_to_parent = common_adjust_to_parent,
 				    .create = common_file_create,
-				    .delete = common_file_delete,
+				    .delete = unix_file_delete,
 				    .add_link = common_add_link,
 				    .rem_link = common_rem_link,
 				    .owns_item = unix_file_owns_item,
@@ -947,13 +973,15 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .bind = common_bind,
 				    .estimate = {
 					    .create = common_estimate_create,
-					    .update = common_estimate_update,
+					    .update = common_estimate_update
+#if 0 
 					    .read = unix_file_estimate_read,
 					    .write = unix_file_estimate_write,
-					    .truncate = unix_file_estimate_truncate,
+					    /*.truncate = unix_file_estimate_truncate,*/
 					    .release = unix_file_estimate_release,
 					    .mmap = unix_file_estimate_mmap,
 					    .delete = common_estimate_file_delete
+#endif
 				    }
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
@@ -978,7 +1006,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .set_plug_in_inode = common_set_plug,
 				      .adjust_to_parent = dir_adjust_to_parent,
 				      .create = common_file_create,
-				      .delete = common_file_delete,
+				      .delete = common_delete_directory,
 				      .add_link = common_add_link,
 				      .rem_link = common_rem_link,
 				      .owns_item = hashed_owns_item,
@@ -991,8 +1019,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .bind = dir_bind,
 				      .estimate = {
 					    .create = common_estimate_create_dir,
-					    .update = common_estimate_update,
+					    .update = common_estimate_update
+#if 0
 					    .delete = common_estimate_file_delete
+#endif
 				      }
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
@@ -1032,8 +1062,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .bind = common_bind,
 				    .estimate = {
 					    .create = common_estimate_create,
-					    .update = common_estimate_update,
+					    .update = common_estimate_update
+#if 0
 					    .delete = common_estimate_file_delete
+#endif
 				    }
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
@@ -1071,9 +1103,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .seek = NULL,
 				    .bind = common_bind,
 				    .estimate = {
-					.create	= common_estimate_create,
-					.update	= common_estimate_update,
-					.delete	= common_estimate_file_delete
+					    .create = common_estimate_create,
+					    .update = common_estimate_update
+#if 0
+					    .delete = common_estimate_file_delete
+#endif
 				    }
 	}
 };
