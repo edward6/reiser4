@@ -922,26 +922,29 @@ int fsync_bdev(struct block_device * bdev)
 	jnode * j;
 
 	list_for_each (cur, &page_list) {
+		struct buffer_head bh, *pbh;
+
 		page = list_entry (cur, struct page, list);
 		if (!PageDirty (page))
 			continue;
-		if (PagePrivate (page)) {
-			struct buffer_head bh, *pbh;
-
+		if (PagePrivate (page))
 			j = (jnode *)page->private;
-			bh.b_size = reiser4_get_current_sb ()->s_blocksize;
-			bh.b_blocknr = j->blocknr;
-			bh.b_bdev = bdev;
-			bh.b_data = kmap (page);
-			pbh = &bh;
-			ll_rw_block (WRITE, 1, &pbh);
-			kunmap (page);
-			ClearPageDirty (page);
-			jnode_detach_page (j);
-		} else {
+		else if(page->mapping == get_current_super_private() -> fake)
+			j = (jnode *)page->index;
+		else {
 			info ("dirty page does not have jnode\n");
 			ClearPageDirty (page);
+			continue;
 		}
+		bh.b_size = reiser4_get_current_sb ()->s_blocksize;
+		bh.b_blocknr = j->blocknr;
+		bh.b_bdev = bdev;
+		bh.b_data = kmap (page);
+		pbh = &bh;
+		ll_rw_block (WRITE, 1, &pbh);
+		kunmap (page);
+		ClearPageDirty (page);
+		// jnode_detach_page (j);
 	}
 	return 0;
 }
@@ -1577,6 +1580,8 @@ static void call_umount (struct super_block * sb)
 {
 	reiser4_context *old_context;
 
+	fsync_bdev (sb->s_bdev);
+
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
@@ -1586,7 +1591,6 @@ static void call_umount (struct super_block * sb)
 	iput (sb->s_root->d_inode);
 
 	init_context( old_context, sb );
-	fsync_bdev (sb->s_bdev);
 }
 
 
