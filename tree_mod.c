@@ -35,7 +35,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	/*
 	 * interface to block allocator is non-existent as of now.
 	 */
-	retcode = reiser4_alloc_block( brother, &blocknr );
+	retcode = alloc_blocknr( brother, &blocknr );
 	if( retcode == 0 ) {
 		result = zget( current_tree, &blocknr, NULL, level,
 			       GFP_KERNEL );
