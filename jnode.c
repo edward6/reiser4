@@ -1161,7 +1161,7 @@ void pin_jnode_data (jnode * node)
 void unpin_jnode_data (jnode * node)
 {
 	assert ("zam-672", jnode_page (node) != NULL);
-	page_cache_release (node);
+	page_cache_release (jnode_page (node));
 }
 
 #if REISER4_DEBUG
