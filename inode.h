@@ -32,10 +32,8 @@
 
 /* reiser4-specific inode flags. They are "transient" and are not
    supposed to be stored on disk. Used to trace "state" of
-   inode. Bitmasks for this field are defined in
-   reiser4_file_plugin_flags enum.
-
-   Flags are stored in inode->i_mapping.assoc_mapping field */
+   inode
+*/
 typedef enum {
 	/* this is light-weight inode, inheriting some state from its
 	   parent  */
