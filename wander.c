@@ -1021,6 +1021,7 @@ reiser4_write_logs(void)
 	}
 
 	/* Grab space for modified bitmaps from 100% of disk space. */
+	reiser4_grab_space_enable();
 	if (reiser4_grab_space_exact(ch.nr_bitmap, 1))
 		rpanic("vpf-341", "No space left from reserved area.");
 	
