@@ -786,7 +786,7 @@ int check_tree_pointer( const new_coord *pointer /* would-be pointer to
 			}
 		}
 	}
-	warning ("jmacd-1002", "tree pointer incorrect");
+	/* warning ("jmacd-1002", "tree pointer incorrect"); */
 	return NS_NOT_FOUND;
 }
 
@@ -923,7 +923,8 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	 * through... every other time it is redundent.
 	 */
 	
-	for( ncoord_init_before_first_item( result, parent ) ; ncoord_next_unit( result ) ; ) {
+	for( ncoord_init_before_first_item( result, parent ) ; 
+	     ncoord_next_unit( result ) == 0 ; ) { 
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
 			child -> ptr_in_parent_hint = *result;
