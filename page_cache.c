@@ -195,14 +195,14 @@ static struct address_space_operations formatted_fake_as_ops;
 
 static const oid_t fake_ino = 0x1;
 
-/* one-time initialisation of fake inodes handling functions. */
+/* one-time initialization of fake inodes handling functions. */
 int
 init_fakes()
 {
 	return 0;
 }
 
-/* initialise fake inode to which formatted nodes are bound in the page cache. */
+/* initialize fake inode to which formatted nodes are bound in the page cache. */
 int
 init_formatted_fake(struct super_block *super)
 {
