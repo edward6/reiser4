@@ -920,6 +920,24 @@ atom_should_commit_asap(const txn_atom * atom)
 		(atom->flushed > 100);
 }
 
+static jnode * find_first_dirty_in_list (capture_list_head * head, int flags)
+{
+	jnode * first_dirty;
+
+	for_all_type_safe_list(capture, head, first_dirty) {
+		if (!(flags & JNODE_FLUSH_COMMIT)) {
+			if (
+				/* skip jnodes which have "heard banshee" */
+				JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE) ||
+				/* and with active I/O */
+				JF_ISSET(first_dirty, JNODE_WRITEBACK))
+				continue;
+		}
+		return first_dirty;
+	}
+	return NULL;
+}
+
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
 reiser4_internal jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
@@ -929,27 +947,18 @@ reiser4_internal jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 
 	assert("zam-753", spin_atom_is_locked(atom));
 
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-		capture_list_head *head;
-
-		if (capture_list_empty(&atom->dirty_nodes[level])) {
+	/* The flush starts from LEAF_LEVEL (=1). */
+	for (level = 1; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
+		if (capture_list_empty(&atom->dirty_nodes[level]))
 			continue;
-		}
 
-		head = &atom->dirty_nodes[level];
-		for_all_type_safe_list(capture, head, first_dirty) {
-			if (!(flags & JNODE_FLUSH_COMMIT)) {
-				if (
-					/* skip jnodes which have "heard banshee" */
-					JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE) ||
-					/* and with active I/O */
-					JF_ISSET(first_dirty, JNODE_WRITEBACK))
-					continue;
-			}		
+		first_dirty = find_first_dirty_in_list(&atom->dirty_nodes[level], flags);
+		if (first_dirty)
 			return first_dirty;
-		}
 	}
-	return NULL;
+
+	/* znode-above-root is on the list #0. */
+	return find_first_dirty_in_list(&atom->dirty_nodes[0], flags);
 }
 
 #if REISER4_COPY_ON_CAPTURE
@@ -1511,7 +1520,9 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 			 * event which is sent at operation completion. */
 			assert("zam-1002", atom->stage >= ASTAGE_PRE_COMMIT 
 			       || atom->nr_flushers != 0);
+			printk ("-- %d sleep\n", (int)current->pid);
 			atom_wait_event(atom);
+			printk ("++ %d get up\n", (int)current->pid);
 
 			return 0;
 		}
