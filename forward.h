@@ -43,7 +43,7 @@ typedef struct reiser4_oid_allocator reiser4_oid_allocator;
 typedef struct reiser4_space_allocator reiser4_space_allocator;
 
 typedef struct flush_scan flush_scan;
-typedef struct flush_position flush_position;
+typedef struct flush_position flush_pos_t;
 
 typedef unsigned short pos_in_node;
 typedef unsigned short pos_in_item;

@@ -102,8 +102,8 @@ int extent_get_block_address(const coord_t *, sector_t block, struct buffer_head
 
 /* these are used in flush.c
    FIXME-VS: should they be somewhere in item_plugin? */
-int allocate_extent_item_in_place(coord_t *, lock_handle *, flush_position * pos);
-int allocate_and_copy_extent(znode * left, coord_t * right, flush_position * pos, reiser4_key * stop_key);
+int allocate_extent_item_in_place(coord_t *, lock_handle *, flush_pos_t * pos);
+int allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * pos, reiser4_key * stop_key);
 
 int extent_is_unallocated(const coord_t * item);	/* True if this extent is unallocated (i.e., not a hole, not allocated). */
 __u64 extent_unit_index(const coord_t * item);	/* Block offset of this unit. */
