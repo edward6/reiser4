@@ -2228,8 +2228,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 				   for this unit */
 				result = SQUEEZE_TARGET_FULL;
 				trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: target full, !needs_allocation\n");
-				/* set coord @right such that this unit does
-				   not get cut because it was not moved */
+				/* set coord @right such that this unit does not get cut because it was not moved */
 				right->between = BEFORE_UNIT;
 				goto done;
 			}
@@ -2266,25 +2265,18 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 			flush_pos_hint(flush_pos)->blk += allocated;
 
 			if (!try_to_glue(left, first_allocated, allocated, &key)) {
-				/* could not copy current extent by just
-				   increasing width of last extent in left
-				   neighbor, add new extent to the end of
-				   @left
+				/* could not copy current extent by just increasing width of last extent in left
+				   neighbor, add new extent to the end of @left
 				*/
 				extent_set_start(&new_ext, first_allocated);
 				extent_set_width(&new_ext, (reiser4_block_nr) allocated);
 
 				result = put_unit_to_end(left, &key, init_new_extent(&data, &new_ext, 1));
 				if (result == -ENOSPC) {
-					/* @left is full, free blocks we
-					   grabbed because this extent will
-					   stay in right->node, and, therefore,
-					   blocks it points to have different
-					   predecer in parent-first order. Set
-					   "defer" parameter of
-					   reiser4_dealloc_block to 0 because
-					   these blocks can be made allocable
-					   again immediately.
+					/* @left is full, free blocks we grabbed because this extent will stay in
+					   right->node, and, therefore, blocks it points to have different predecer in
+					   parent-first order. Set "defer" parameter of reiser4_dealloc_block to 0
+					   because these blocks can be made allocable again immediately.
 					*/
 					reiser4_dealloc_blocks(&first_allocated, &allocated,
 						BLOCK_UNALLOCATED, BA_PERMANENT);
@@ -2293,26 +2285,21 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 					trace_on(TRACE_EXTENTS,
 						 "alloc_and_copy_extent: target full, to_allocate = %llu\n",
 						 to_allocate);
-					/**/ if (to_allocate == width) {
-						/* nothing of this unit were
-						   allocated and copied. Take
-						   care that it does not get
-						   cut */
+					if (to_allocate == width) {
+						/* nothing of this unit were allocated and copied. Take care that it
+						   does not get cut */
 						right->between = BEFORE_UNIT;
 					} else {
-						/* part of extent was allocated
-						   and copied to left
-						   neighbor. Leave coord @right
-						   at this unit so that it will
-						   be cut properly by
+						/* part of extent was allocated and copied to left neighbor. Leave coord
+						   @right at this unit so that it will be cut properly by
 						   squalloc_right_twig_cut */
 					}
 
 					goto finish_unflush;
 				}
 			}
-			/* find all pages for which blocks were allocated and
-			   assign block numbers to jnodes of those pages */
+			/* find all pages for which blocks were allocated and assign block numbers to jnodes of those
+			   pages */
 			result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos);
 			if (result)
 				goto finish_unflush;
@@ -2360,7 +2347,6 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	tap_t watch;
 	reiser4_extent orig_ext;	/* this is for debugging */
 	znode *orig_znode;
-	reiser4_block_nr grabbed, needed;
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
 
@@ -2381,22 +2367,25 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 		set_key_offset(&tmp, get_key_offset(&tmp) + extent_get_width(new_ext) * current_blocksize);
 		assert("vs-1080", keyeq(&tmp, key));
 	}
-
+#if 0
 	grabbed = get_current_context()->grabbed_blocks;
 	needed = estimate_internal_amount(1, znode_get_tree(orig_znode)->height);
 	/* Grab from 100% of disk space, not 95% as usual. */
 	if (reiser4_grab_space_force(needed, BA_RESERVED))
 		reiser4_panic("vpf-340", "No space left in reserved area.");
-	
+#endif	
+
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
 	result = insert_into_item(un_extent, (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh, key, data, flags);
 	
+#if 0
 	/* While assigning unallocated block to block numbers we need to insert 
 	    new extent units - this may lead to new block allocation on twig and 
 	    upper levels. Take these blocks from 5% of disk space. */
 	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
-	    
+#endif	
+    
 	if (!result) {
 		reiser4_extent *ext;
 
@@ -2420,6 +2409,26 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	return result;
 }
 
+/* when on flush time unallocated extent is to be replaced with allocated one it may happen that one unallocated extent
+ * will have to be replalced with set of allocated extents. In this case insert_into_item will be called which may have
+ * to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
+static reiser4_block_nr
+reserve_replace(void)
+{
+	reiser4_block_nr grabbed, needed;
+
+	grabbed = get_current_context()->grabbed_blocks;
+	needed = estimate_one_insert_into_item(current_tree->height);
+	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED));
+	return grabbed;
+}
+
+static void
+free_reserved(reiser4_block_nr grabbed)
+{
+	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
+}
+
 /* find all units of extent item which require allocation. Allocate free blocks
    for them and replace those extents with new ones. As result of this item may
    "inflate", so, special precautions are taken to have it to inflate to right
@@ -2440,6 +2449,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	reiser4_key key, orig_key;
 	znode *orig;
 	struct inode *object;
+	reiser4_block_nr grabbed;
 
 	assert("vs-1019", item_is_extent(coord));
 	assert("vs-1018", coord_is_existing_unit(coord));
@@ -2541,14 +2551,15 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 
 		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
 		if (allocated == initial_width) {
-			int ret;
 			/* whole extent is allocated */
 			*ext = replace;
-
+#if 0
 			/* grabbing one block for this dirty znode */
 			if ((ret = reiser4_grab_space_force(1, BA_RESERVED)) != 0)
 				break;
-			
+#endif
+			/* no need to grab space as it is done already */
+			 
 			znode_set_dirty(coord->node);
 			continue;
 		}
@@ -2561,8 +2572,12 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		/* [u/initial_width] ->
 		   [first_allocated/allocated][u/initial_width - allocated] */
 		orig = coord->node;
+
+		/* space for this operation is not reserved. reserve it from inviolable reserve */
+		grabbed = reserve_replace();
 		result = replace_extent(coord, lh, &key,
 					init_new_extent(&item, &paste, 1), &replace, COPI_DONT_SHIFT_LEFT);
+		free_reserved(grabbed);
 		if (result)
 			break;
 
@@ -2934,16 +2949,28 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 {
 	int result;
 	struct sealed_coord hint;
+	loff_t new_size;
 
 	set_hint(&hint, &f->key, coord);
 	done_lh(lh);
 	coord->node = 0;
-	result = update_sd_if_necessary(mapping->host, f);
+	new_size = get_key_offset(&f->key);
+	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
 	if (result)
 		return result;
 
 	balance_dirty_pages(mapping);
 	return hint_validate(&hint, &f->key, coord, lh);
+}
+
+/* estimate and reserve space which may be required for writing one page of file */
+static int
+reserve_extent_write_iteration(tree_level height)
+{
+	grab_space_enable();
+	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
+	   involved */
+	return reiser4_grab_space_exact(1 + estimate_one_insert_into_item(height) * 2, 0);
 }
 
 /* write flow's data into file by pages */
@@ -2956,6 +2983,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	char *data;
 	struct page *page;
 	jnode *j;
+	int to_write = f->length;
 
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", f->user == 1);
@@ -2973,6 +3001,9 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	page_off = (unsigned) (file_off & (PAGE_CACHE_SIZE - 1));
 
 	do {
+		result = reserve_extent_write_iteration(tree_by_inode(inode)->height);
+		if (result)
+			break;
 		/* number of bytes to be written to page */
 		to_page = PAGE_CACHE_SIZE - page_off;
 		if (to_page > f->length)
@@ -3039,6 +3070,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 
 		/* throttle the writer */
 		result = extent_balance_dirty_pages(page->mapping, f, coord, lh);
+		all_grabbed2free();
 		if (result) {
 			reiser4_stat_extent_add(bdp_caused_repeats);
 			break;
@@ -3051,6 +3083,7 @@ exit2:
 		reiser4_unlock_page(page);
 		page_cache_release(page);
 exit1:
+		all_grabbed2free();
 		break;
 
 		/* hint is unset by make_page_extent when first extent of a
@@ -3063,38 +3096,63 @@ exit1:
 	if (f->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 
+	if (to_write == f->length) {
+		print_key("extent_write: key", &f->key);
+		info("extent_write: written nothing: %d\n", result);
+	}
 	return result;
 }
 
-/* extent's write method. It can be called in tree modes:
-  
-   1. real write - to write data from flow to a file (@page == 0 && @f->data != 0)
-  
-   2. expanding truncate (@page == 0 && @f->data == 0)
+/* estimate and reserve space which may be required for appending file with hole stored in extent */
+static int
+extent_hole_reserve(tree_level height)
+{
+	grab_space_enable();
+	/* adding hole may require adding a hole unit into extent item and stat data update */
+	return reiser4_grab_space_exact(estimate_one_insert_into_item(height) * 2, 0);
+}
+
+static int extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
+{
+	int result;
+	loff_t new_size;
+
+	result = extent_hole_reserve(tree_by_inode(inode)->height);
+	if (result)
+		return result;
+
+	new_size = get_key_offset(&f->key) + f->length;
+	set_key_offset(&f->key, new_size);
+	f->length = 0;
+	result = add_hole(coord, lh, &f->key);
+	if (!result) {
+		done_lh(lh);
+		coord->node = 0;
+		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/);
+	}
+	all_grabbed2free();
+	return result;
+}
+
+/* extent's write method. It can be called in two modes:
+   1. real write - to write data from flow to a file (@f->data != 0)
+   2. expanding truncate (@f->data == 0)
 */
 int
 extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 {
-	int result;
-
 	if (f->data)
 		/* real write */
-		result = extent_write_flow(inode, coord, lh, f);
-	else {
-		/* expanding truncate. add_hole requires f->key to be set to
-		   new end of file */
-		set_key_offset(&f->key, get_key_offset(&f->key) + f->length);
-		f->length = 0;
-		result = add_hole(coord, lh, &f->key);
-	}
+		return extent_write_flow(inode, coord, lh, f);
 
-	return result;
+	/* expanding truncate. add_hole requires f->key to be set to new end of file */
+	return extent_write_hole(inode, coord, lh, f);
 }
 
 /*
    Local variables:
    c-indentation-style: "K&R"
-   mode: linux-c
+   mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
