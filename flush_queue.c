@@ -257,8 +257,8 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 			int ret;
 
 			mark_fq_in_use(fq);
-			assert("vs-1247", fq->owner == 0);
-			fq->owner = current;
+			assert("vs-1247", fq->owner == NULL);
+			ON_DEBUG(fq->owner = current);
 			ret = finish_fq(fq, nr_io_errors);
 
 			if ( *nr_io_errors )
@@ -482,7 +482,10 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 /* Getting flush queue object for exclusive use by one thread. May require
    several iterations which is indicated by -EAGAIN return code. 
 
-NIKITA-FIXME-HANS: explain why the iteration loop is not inside this function */
+   This function does not contain code for obtaining an atom lock because an
+   atom lock is obtained by different ways in different parts of reiser4,
+   usually it is current atom, but we need a possibility for getting fq for the
+   atom of given jnode. */
 int
 fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
@@ -496,8 +499,8 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 
 		if (fq_ready(fq)) {
 			mark_fq_in_use(fq);
-			assert("vs-1246", fq->owner == 0);
-			fq->owner = current;
+			assert("vs-1246", fq->owner == NULL);
+			ON_DEBUG(fq->owner = current);
 			spin_unlock_fq(fq);
 
 			if (*new_fq)
@@ -517,7 +520,7 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 	if (*new_fq) {
 		mark_fq_in_use(*new_fq);
 		assert("vs-1248", (*new_fq)->owner == 0);
-		(*new_fq)->owner = current;
+		ON_DEBUG((*new_fq)->owner = current);
 		attach_fq(atom, *new_fq);
 
 		return 0;
@@ -561,7 +564,7 @@ fq_put_nolock(flush_queue_t * fq)
 	assert("zam-902", capture_list_empty(&fq->prepped));
 	mark_fq_ready(fq);
 	assert("vs-1245", fq->owner == current);
-	fq->owner = 0;
+	ON_DEBUG(fq->owner = NULL);
 }
 
 /* NIKITA-FIXME-HANS: find all instances where we have a wrapper for locking
