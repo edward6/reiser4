@@ -118,6 +118,18 @@ PREFIX##_hash_done (PREFIX##_hash_table *hash)						\
   hash->_table = NULL;									\
 }											\
 											\
+static __inline__ void									\
+PREFIX##_hash_prefetch_next (ITEM_TYPE *item)						\
+{											\
+	prefetch(item->LINK_NAME._next);						\
+}											\
+											\
+static __inline__ void									\
+PREFIX##_hash_prefetch_bucket (PREFIX##_hash_table *hash,				\
+			       __u32                index)				\
+{											\
+	prefetch(hash->_table[index]);  						\
+}											\
 											\
 static __inline__ ITEM_TYPE*								\
 PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
@@ -134,6 +146,8 @@ PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
        item  = item->LINK_NAME._next)							\
     {											\
       TSHASH_SCANNED(hash->_stats);							\
+      prefetch(item->LINK_NAME._next);							\
+      prefetch(item->LINK_NAME._next + offsetof(ITEM_TYPE, KEY_NAME));			\
       if (EQ_FUNC (& item->KEY_NAME, find_key))						\
         {										\
           return item;									\
@@ -155,6 +169,7 @@ PREFIX##_hash_find_index_lru (PREFIX##_hash_table *hash,				\
                                                                                         \
   while (*item != NULL) {                                                               \
     TSHASH_SCANNED(hash->_stats);							\
+    prefetch(&(*item)->LINK_NAME._next);						\
     if (EQ_FUNC (&(*item)->KEY_NAME, find_key)) {                                       \
       ITEM_TYPE *found; 								\
 											\
@@ -181,6 +196,7 @@ PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
                                                                                         \
   while (*hash_item_p != NULL) {                                                        \
     TSHASH_SCANNED(hash->_stats);							\
+    prefetch(&(*hash_item_p)->LINK_NAME._next);						\
     if (*hash_item_p == del_item) {                                                     \
       *hash_item_p = (*hash_item_p)->LINK_NAME._next;                                   \
       return 1;                                                                         \
@@ -255,7 +271,9 @@ PREFIX##_hash_next (PREFIX##_hash_table *hash,						\
   if (next == NULL)									\
     next = PREFIX##_hash_first (hash, HASH_FUNC(&item->KEY_NAME) + 1);			\
   return next;										\
-}
+}											\
+											\
+typedef struct {} PREFIX##_hash_dummy
 
 #define for_all_ht_buckets(table, head)					\
 for ((head) = &(table) -> _table[ 0 ] ;					\
@@ -266,10 +284,12 @@ for ((item) = *(bucket), (next) = (item) ? (item) -> field._next : NULL ;	\
      (item) != NULL ;								\
      (item) = (next), (next) = (item) ? (item) -> field._next : NULL )
 
-#define for_all_in_htable(table, prefix, item, next)						    \
-for ((item) = prefix ## _hash_first ((table), 0), (next) = prefix ## _hash_next ((table), (item)) ; \
-     (item) != NULL ;										    \
-     (item) = (next), (next) = prefix ## _hash_next ((table), (item)))
+#define for_all_in_htable(table, prefix, item, next)	\
+for ((item) = prefix ## _hash_first ((table), 0), 	\
+     (next) = prefix ## _hash_next ((table), (item)) ;	\
+     (item) != NULL ;					\
+     (item) = (next), 					\
+     (next) = prefix ## _hash_next ((table), (item)))
 
 #endif				/* __REISER4_TSHASH_H__ */
 

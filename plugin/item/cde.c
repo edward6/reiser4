@@ -221,6 +221,7 @@ find(const coord_t * coord /* coord of item */ ,
 	}
 	header = header_at(coord, left);
 	for (; left < entries; ++ left, ++ header) {
+		prefetch(header + 1);
 		*last = de_id_key_cmp(&header->hash, entry_key);
 		if (*last != LESS_THAN)
 			break;

@@ -494,6 +494,8 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 	zth = get_htable(tree, blocknr);
 
+	z_hash_prefetch_bucket(zth, hashi);
+
 	/* Take the hash table lock. */
 	RLOCK_TREE(tree);
 

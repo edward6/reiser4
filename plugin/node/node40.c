@@ -145,7 +145,7 @@ nh40_get_flush_id(node40_header * nh)
    plugin_by_disk_id/save_disk_plugin */
 
 /* array of item headers is at the end of node */
-static item_header40 *
+static inline item_header40 *
 node40_ih_at(const znode * node, unsigned pos)
 {
 	return (item_header40 *) (zdata(node) + znode_size(node)) - pos - 1;
@@ -326,6 +326,10 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	int right;
 	int found;
 	int items;
+
+	item_header40 *lefth;
+	item_header40 *righth;
+
 	item_plugin *iplug;
 	item_header40 *bstop;
 	item_header40 *ih;
@@ -335,9 +339,11 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	assert("nikita-584", key != NULL);
 	assert("nikita-585", coord != NULL);
 	assert("nikita-2693", znode_is_any_locked(node));
+	cassert(REISER4_SEQ_SEARCH_BREAK > 2);
+
 	trace_stamp(TRACE_NODES);
 
-	items = node40_num_of_items_internal(node);
+	items = node_num_items(node);
 	INCSTAT(node, calls);
 	ADDSTAT(node, items, items);
 
@@ -353,6 +359,9 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	right = items - 1;
 	coord->node = node;
 	found = 0;
+
+	lefth = node40_ih_at(node, left);
+	righth = node40_ih_at(node, right);
 
 	/* It is known that for small arrays sequential search is on average
 	   more efficient than binary. This is because sequential search is
@@ -372,31 +381,36 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	  
 	*/
 
-#define __get_key(pos) (&node40_ih_at(node, (unsigned)(pos))->key)
-
 	while (right - left >= REISER4_SEQ_SEARCH_BREAK) {
 		int median;
+		item_header40 *medianh;
 
 		median = (left + right) / 2;
+		medianh = node40_ih_at(node, median);
 
 		assert("nikita-1084", median >= 0);
 		assert("nikita-1085", median < items);
 		INCSTAT(node, binary);
-		switch (keycmp(key, __get_key(median))) {
-		case EQUAL_TO:
-			do {
-				-- median;
-			} while (median >= 0 && keyeq(key, __get_key(median)));
-			right = left = median + 1;
-			found = 1;
-			break;
+		switch (keycmp(key, &medianh->key)) {
 		case LESS_THAN:
 			right = median;
+			righth = medianh;
 			break;
 		default:
 			wrong_return_value("nikita-586", "keycmp");
 		case GREATER_THAN:
 			left = median;
+			lefth = medianh;
+			break;
+		case EQUAL_TO:
+			do {
+				-- median;
+				/* headers are ordered from right to left */
+				++ medianh;
+			} while (median >= 0 && keyeq(key, &medianh->key));
+			right = left = median + 1;
+			ih = lefth = righth = medianh - 1;
+			found = 1;
 			break;
 		}
 	}
@@ -405,12 +419,11 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	   access memory from left to right, and hence, scan in _descending_
 	   order of item numbers.
 	*/
-	for (left = right, ih = node40_ih_at(node, (unsigned) left); 
-	     !found && left >= 0; 
-	     ++ih, prefetch(ih), --left) {
+	for (left = right, ih = righth; !found && left >= 0; ++ ih, -- left) {
 		cmp_t comparison;
 
 		INCSTAT(node, seq);
+		prefetch(ih + 1);
 		comparison = keycmp(&ih->key, key);
 		if (comparison == GREATER_THAN)
 			continue;
@@ -418,8 +431,10 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 			found = 1;
 			do {
 				-- left;
-			} while (left >= 0 && keyeq(__get_key(left), key));
+				++ ih;
+			} while (left >= 0 && keyeq(&ih->key, key));
 			++ left;
+			-- ih;
 		} else {
 			assert("nikita-1256", comparison == LESS_THAN);
 		}
@@ -431,7 +446,8 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	if (left < 0)
 		left = 0;
 
-	assert("nikita-3214", equi(found, keyeq(__get_key(left), key)));
+	assert("nikita-3214", 
+	       equi(found, keyeq(&node40_ih_at(node, left)->key, key)));
 
 	if (REISER4_STATS) {
 		ADDSTAT(node, found, !!found);
