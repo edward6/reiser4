@@ -266,6 +266,9 @@ link_left_and_right(znode * left, znode * right)
 		if (left->right == NULL) {
 			left->right = right;
 			ZF_SET(left, JNODE_RIGHT_CONNECTED);
+		} else if (ZF_ISSET(left->right, JNODE_HEARD_BANSHEE)) {
+			left->right->left = NULL;
+			left->right = NULL;
 		} else
 			/*
 			 * there is a race condition in renew_sibling_link()
@@ -287,6 +290,9 @@ link_left_and_right(znode * left, znode * right)
 		if (right->left == NULL) {
 			right->left = left;
 			ZF_SET(right, JNODE_LEFT_CONNECTED);
+		} else if (ZF_ISSET(right->left, JNODE_HEARD_BANSHEE)) {
+			right->left->right = NULL;
+			right->left = NULL;
 		} else
 			assert("nikita-3303", 
 			       left == NULL || right->left == left);
