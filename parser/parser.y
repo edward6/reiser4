@@ -17,11 +17,6 @@ eval eval eval echo $z
 
 result is:
 
-$w+$v
-$v+$u
-$u+5
-5+5
-
 tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ] 
 
         chgrp --      changes group ownership
@@ -44,7 +39,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
         sync --	      synchronizes memory and disk
 */
 
- 
+
 
 /* type definitions */
 %union 
@@ -55,10 +50,10 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 	/*	String * StrPtr;*/
 	//	expr_lnode_t * lnd;
 	//	expr_flow_t * flw;
-	//	vnode_t * vnode;
+	//	pars_var_t * pars_var;
 }
 
-%type <charType> L_BRACKET R_BRACKET level_up
+%type <charType> L_BRACKET R_BRACKET level_up reiser4
 
 %type <wrd> WORD
 %type <wrd> P_RUNNER 
@@ -66,7 +61,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 %type <expr> Object_Name name  target
 %type <expr> begin_from
-//%type <vnode> Object_Name name  
+//%type <pars_var> Object_Name name  
 %type <expr> Expression 
 
 %type <expr> if_statement 
@@ -141,13 +136,13 @@ For bison:
 /*
   Starting production of our grammar.  8000.00:04:c1:14:50:07.800
  */
-%start Expression
+%start reiser4
 
 %%
 
-//reiser4
-//: Expression                                      { $$ = make_do_it( ws, $1 ); }
-//;
+reiser4
+: Expression                                      { $$ = free_expr( $1 ); }
+;
 
 Expression
 : Object_Name                                     { $$ = $1;}
@@ -163,6 +158,7 @@ Expression
 |  target  L_APPEND        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
 |  target  L_ASSIGN  INV_L Expression INV_R       { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
 |  target  L_SYMLINK       Expression             { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
+| error /*SEMICOLON*/
 ;
 
 if_statement        
