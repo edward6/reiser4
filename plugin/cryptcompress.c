@@ -224,7 +224,7 @@ loff_t inode_scaled_offset (struct inode * inode,
 	return cplug->scale(inode, size, src_off);
 }
 
-static inline unsigned min_count(unsigned a, unsigned b)
+static inline loff_t min_count(loff_t a, loff_t b)
 {
 	return (a < b ? a : b);
 }
@@ -328,7 +328,7 @@ pg_to_clust_to_pg(unsigned long idx, struct inode * inode)
 	return clust_to_pg(pg_to_clust(idx, inode), inode);
 }
 
-static inline unsigned long
+unsigned long
 off_to_pg(loff_t off)
 {
 	return (off >> PAGE_CACHE_SHIFT);
@@ -593,7 +593,8 @@ save_compressed(reiser4_cluster_t * clust, struct inode * inode)
 }
 
 /*
-  Maybe compress cluster, then maybe encrypt result
+  . maybe compress cluster
+  . maybe encrypt the result
   FIXME-EDWARD: the only symmetric algorithms with ecb are supported for a while */
 int
 deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
@@ -734,12 +735,14 @@ readpages_cryptcompress(struct file *file UNUSED_ARG, struct address_space *mapp
 }
 
 static void
-set_cluster_pages_dirty(reiser4_cluster_t * clust)
+set_cluster_pages_dirty(reiser4_cluster_t * clust, int * num)
 {
-	int i;
+	int i, nr;
 	struct page * pg;
+
+	nr = (num ? *num : clust->nr_pages);
 	
-	for (i=0; i < clust->nr_pages; i++) {
+	for (i=0; i < nr; i++) {
 		
 		pg = clust->pages[i];
 		
@@ -760,12 +763,14 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
    Any two blocks of the same cluster contain dependent modification and should
    commit at the same time */
 static int
-try_capture_cluster(reiser4_cluster_t * clust)
+try_capture_cluster(reiser4_cluster_t * clust, int * num)
 {
-	int i;
+	int i, nr;
 	int result = 0;
+
+	nr = (num ? *num : clust->nr_pages);
 	
-	for (i=0; i < clust->nr_pages; i++) {
+	for (i=0; i < nr; i++) {
 		jnode * node;
 		struct page *pg;
 		
@@ -794,12 +799,14 @@ try_capture_cluster(reiser4_cluster_t * clust)
 }
 
 static void
-make_cluster_jnodes_dirty(reiser4_cluster_t * clust)
+make_cluster_jnodes_dirty(reiser4_cluster_t * clust, int *num)
 {
-	int i;
+	int i, nr;
 	jnode * node;
+
+	nr = (num? *num : clust->nr_pages);
 	
-	for (i=0; i < clust->nr_pages; i++) {
+	for (i=0; i < nr; i++) {
 		node = jprivate(clust->pages[i]);
 		
 		assert("edward-221", node != NULL);
@@ -1013,12 +1020,12 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	if (!clust->delta) {
 		/* only zeroes, try to flush */
 		
-		set_cluster_pages_dirty(clust);
-		result = try_capture_cluster(clust);
+		set_cluster_pages_dirty(clust, NULL);
+		result = try_capture_cluster(clust, NULL);
 		if (result) {
 			return result;
 		}
-		make_cluster_jnodes_dirty(clust);
+		make_cluster_jnodes_dirty(clust, NULL);
 		result = update_inode_and_sd_if_necessary(inode, clust_to_off(clust->index, inode) + clust->off + clust->count, 1, 1, 1);
 		if (result)
 			return result;
@@ -1316,13 +1323,13 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 			page_off = 0;
 		}
 		
-		set_cluster_pages_dirty(&clust);
+		set_cluster_pages_dirty(&clust, NULL);
 		
-		result = try_capture_cluster(&clust);
+		result = try_capture_cluster(&clust, NULL);
 		if (result)
 			goto exit2;
 		
-		make_cluster_jnodes_dirty(&clust);
+		make_cluster_jnodes_dirty(&clust, NULL);
 		
 		result = update_inode_and_sd_if_necessary(inode,
 							  clust_to_off(clust.index, inode) + clust.off + clust.count /* new_size */,
@@ -1472,7 +1479,7 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 	reiser4_key smallest_removed;
 	int result;
 	
-	assert("edward-xxx", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
+	assert("edward-293", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
 	key_by_inode_cryptcompress(inode, off_to_clust(new_size, inode) + 1, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
@@ -1504,13 +1511,6 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 	return result;
 }
 
-
-static int
-writepage_cryptcompress(struct page * page)
-{
-	return 0;
-}
-
 /* The following two procedures are called when truncate decided
    to deal with real items */
 static int
@@ -1519,47 +1519,74 @@ cryptcompress_append_hole(struct inode * inode, loff_t new_size)
 	return write_cryptcompress_flow(0, inode, 0, 0, new_size);
 }
 
+/* safe taking down pages */
+void truncate_pages_cryptcompress(struct address_space * mapping, unsigned long index)
+{
+	truncate_inode_pages(mapping, pg_to_off(index));
+}
+
 static int
 shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 {
 	int result;
-	struct page * page;
+	int nrpages;
+	struct page ** pages;
 	loff_t old_size;
 	char * kaddr;
+	loff_t to_cut;
+	pgoff_t pg_padd;
+	reiser4_cluster_t clust;
+	crypto_plugin * cplug;
 	
 	assert("edward-290", inode->i_size > new_size);
 	
 	old_size = inode->i_size;
+	to_cut = old_size - new_size;
+	cplug = inode_crypto_plugin(inode);
 	result = cut_items_cryptcompress(inode, new_size, update_sd);
 	if(result)
 		return result;
 	if (!off_to_cloff(old_size, inode))
+		/* truncated to cluster boundary */
 		return 0;
 	/* FIXME-EDWARD: reserve partial page */
-	page = read_cache_page(inode->i_mapping, off_to_pg(old_size), readpage_cryptcompress, 0);
-	if (IS_ERR(page))
-		return PTR_ERR(page);
-	wait_on_page_locked(page);
-	if (!PageUptodate(page)) {
-		page_cache_release(page);
-		return RETERR(-EIO);
-	}
+	pages = reiser4_kmalloc(sizeof(*pages) << inode_cluster_shift(inode), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
 
-	assert("edward-291", PageLocked(page));
+	reiser4_cluster_init(&clust);
+	clust.pages = pages;
+	clust.index = off_to_clust(new_size, inode);
+	clust.off = off_to_cloff(new_size, inode);
+	clust.count = min_count(inode_cluster_size(inode) - clust.off, to_cut);
+
+	result = prepare_cluster(inode, 0, 0, &clust);
+	if (result)
+		goto exit;
+	/* truncate cluster, so flush will deal with new number of pages */
+
+	assert("edward-294", clust.stat == DATA_CLUSTER);
+
+	pg_padd = PAGE_CACHE_SIZE - off_to_pgoff(clust.off);
 	
-	kaddr = kmap_atomic(page, KM_USER0);
-	memset(kaddr + off_to_pgoff(old_size), 0, PAGE_CACHE_SIZE - off_to_pgoff(old_size));
-	flush_dcache_page(page);
-	kunmap_atomic(kaddr, KM_USER0);
-	reiser4_unlock_page(page);
-	page_cache_release(page);
-	
-	result = writepage_cryptcompress(page);
-	
-/* Final sd update after the file gets its correct size */
-//		result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
-	
-	return 0;
+	truncate_pages_cryptcompress(inode->i_mapping, off_to_pg(clust_to_off(clust.index, inode) + clust.off + pg_padd));
+
+	reiser4_lock_page(pages[off_to_pg(clust.off)]);
+	kaddr = kmap_atomic(pages[off_to_pg(clust.off)], KM_USER0);
+	cplug->align_cluster(kaddr + off_to_pgoff(clust.off), off_to_pgoff(clust.off), PAGE_CACHE_SIZE);
+	reiser4_unlock_page(pages[off_to_pg(clust.off)]);
+
+	nrpages = off_to_pg(clust.off) + 1;
+	set_cluster_pages_dirty(&clust, &nrpages);
+	result = try_capture_cluster(&clust, &nrpages);
+	if(result)
+		goto exit;
+	make_cluster_jnodes_dirty(&clust, &nrpages);
+
+	result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
+ exit:
+	reiser4_kfree(pages, sizeof(*pages) << inode_cluster_shift(inode));
+	return result;
 }
 
 /* This is called in setattr_cryptcompress when it is used to truncate,
