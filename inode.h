@@ -23,7 +23,16 @@ typedef enum {
 	    See comment in create_object(). */
 	REISER4_IMMUTABLE          = 2,
 	/** inode was read from storage */
-	REISER4_LOADED             = 3
+	REISER4_LOADED             = 3,
+	/** this is set when we know for sure state of file tail: for default
+	 * reiser4 ordinary files it means that we know whether file is built
+	 * of extents or of tail items only */
+	REISER4_TAIL_STATE_KNOWN   = 4,
+	/** this is set to 1 when not all file data are stored as unformatted
+	 * node, 0 - otherwise. Note, that this bit can be only checked if
+	 * REISER4_TAIL_STATE_KNOWN is set
+	 */
+	REISER4_HAS_TAIL           = 5
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
