@@ -292,6 +292,9 @@ struct reiser4_super_info_data {
 
 	/* serialize semaphore */
 	struct semaphore flush_sema;
+#ifdef CONFIG_REISER4_BADBLOCKS
+	__u64 fixmap_block;
+#endif
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct

@@ -70,16 +70,50 @@ get_format40_mkfs_id(const format40_disk_super_block * sb)
 }
 
 /* find any valid super block of disk_format40 (even if the first
-   super block is destroyed) */
+   super block is destroyed), will change block numbers of actual journal header/footer (jf/jh)
+   if needed */
 static struct buffer_head *
-find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG)
+find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block_nr *jf UNUSED_ARG, reiser4_block_nr *jh UNUSED_ARG)
 {
 	struct buffer_head *super_bh;
 	format40_disk_super_block *disk_sb;
+	sector_t rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location */
 
 	assert("umka-487", s != NULL);
 
-	if (!(super_bh = sb_bread(s, (int) (FORMAT40_OFFSET / s->s_blocksize))))
+#ifdef CONFIG_REISER4_BADBLOCKS
+	if ( get_super_private(s)->fixmap_block ) { /* If there is fixmap table, need to read and parse it */
+		struct buffer_head *fixmap_bh;
+		struct format40_fixmap_block *fixmap;
+
+		fixmap_bh = sb_bread(s, get_super_private(s)->fixmap_block);
+		if ( !fixmap_bh )
+			return ERR_PTR(-EIO);
+
+		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
+		/* Compare magic */
+		if ( strncmp(fixmap->magic, FORMAT40_FIXMAP_MAGIC, sizeof(FORMAT40_FIXMAP_MAGIC)-1 ) ) {
+			/* Wrong magic */
+			brelse(fixmap_bh);
+			warning("green-2003", "fixmap is specified, but its magic is wrong");
+			return ERR_PTR(-EINVAL);
+		}
+
+		/* Check for alternative superblock location */
+		if ( d64tocpu(&fixmap->fm_super) )
+			rootblock = d64tocpu(&fixmap->fm_super);
+
+		/* Check for alternative journal header location */
+		if ( jh && d64tocpu(&fixmap->fm_journal_header) )
+			*jh = d64tocpu(&fixmap->fm_journal_header);
+		/* Check for alternative journal footer location */
+		if ( jf && d64tocpu(&fixmap->fm_journal_footer) )
+			*jf = d64tocpu(&fixmap->fm_journal_footer);
+		brelse(fixmap_bh);
+	}
+#endif
+
+	if (!(super_bh = sb_bread(s, rootblock)))
 		return ERR_PTR(-EIO);
 
 	disk_sb = (format40_disk_super_block *) super_bh->b_data;
@@ -102,7 +136,7 @@ read_super_block(struct super_block *s UNUSED_ARG)
 {
 	/* FIXME-UMKA: Here must be reading of the most recent superblock copy. However, as
 	   journal isn't complete, we are using find_any_superblock function. */
-	return find_a_disk_format40_super_block(s);
+	return find_a_disk_format40_super_block(s, NULL, NULL);
 }
 
 static int
@@ -110,10 +144,35 @@ get_super_jnode(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *sb_jnode;
-	reiser4_block_nr super_block_nr;
+	reiser4_block_nr super_block_nr = FORMAT40_OFFSET / s->s_blocksize;
 	int ret;
 
-	super_block_nr = FORMAT40_OFFSET / s->s_blocksize;
+#ifdef CONFIG_REISER4_BADBLOCKS
+	if ( get_super_private(s)->fixmap_block ) { /* If there is fixmap table, need to read and parse it */
+		struct buffer_head *fixmap_bh;
+		struct format40_fixmap_block *fixmap;
+
+		fixmap_bh = sb_bread(s, get_super_private(s)->fixmap_block);
+		if ( !fixmap_bh )
+			return -EIO;
+
+		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
+		/* Compare magic, all of this is redundant sunce we have already checked this
+		   when we first read our super block */
+		if ( strncmp(fixmap->magic, FORMAT40_FIXMAP_MAGIC, sizeof(FORMAT40_FIXMAP_MAGIC)-1 ) ) {
+			/* Wrong magic */
+			brelse(fixmap_bh);
+			warning("green-2004", "fixmap is specified, but its magic is wrong");
+			return -EINVAL;
+		}
+
+		/* Check for alternative superblock location */
+		if ( d64tocpu(&fixmap->fm_super) )
+			super_block_nr = d64tocpu(&fixmap->fm_super);
+
+		brelse(fixmap_bh);
+	}
+#endif
 
 	sb_jnode = alloc_io_head(&super_block_nr);
 
@@ -158,8 +217,8 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	tree_level height;
 	node_plugin *nplug;
 
-	static const reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
-	static const reiser4_block_nr jheader_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
+	static reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
+	static reiser4_block_nr jheader_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
 
 	assert("vs-475", s != NULL);
 	assert("vs-474", get_super_private(s));
@@ -167,7 +226,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	/* initialize reiser4_super_info_data */
 	sbinfo = get_super_private(s);
 
-	super_bh = find_a_disk_format40_super_block(s);
+	super_bh = find_a_disk_format40_super_block(s, &jfooter_block, &jheader_block);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 	brelse(super_bh);

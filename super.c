@@ -456,6 +456,13 @@ print_fs_info(const char *prefix, const struct super_block *s)
 	       reiser4_fake_allocated(s), reiser4_fake_allocated_unformatted(s));
 	print_key("Root directory key", sbinfo->df_plug->root_dir_key(s));
 
+#ifdef CONFIG_REISER4_BADBLOCKS
+	if ( sbinfo->fixmap_block)
+		printk("Fixmap is present in %llu block\n", sbinfo->fixmap_block);
+	else
+		printk("Fixmap is not present\n");
+#endif
+
 	if (sbinfo->df_plug->print_info) {
 		printk("=========== disk format info (%s) =============\n", sbinfo->df_plug->h.label);
 		sbinfo->df_plug->print_info(s);

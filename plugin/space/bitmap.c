@@ -475,6 +475,45 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 	} else {
 		*bnr = bmap * bmap_bit_count(super->s_blocksize);
 	}
+#ifdef CONFIG_REISER4_BADBLOCKS
+	if ( get_super_private(super)->fixmap_block ) { /* If there is fixmap table, we need to read and parse it */
+		struct buffer_head *fixmap_bh;
+		struct format40_fixmap_block *fixmap;
+		int i = 0;
+
+		fixmap_bh = sb_bread(super, get_super_private(super)->fixmap_block);
+search_again:
+		if ( !fixmap_bh )
+			reiser4_panic("green-2005", "Cannot read fixmap while doing bitmap checks");
+
+		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
+#ifdef CONFIG_REISER4_CHECK
+		/* We only do this when debug is enabled, because we already double-checked it anyway */
+		if ( strncmp(fixmap->magic, FORMAT40_FIXMAP_MAGIC, sizeof(FORMAT40_FIXMAP_MAGIC)-1 ) ) {
+			/* Wrong magic */
+			brelse(fixmap_bh);
+			reiser4_panic("green-2004", "fixmap is specified, but its magic is wrong");
+		}
+#endif
+		while ((d64tocpu(&fixmap->fm_bitmap_table[i].bmap_nr) < bmap) && (d64tocpu(&fixmap->fm_bitmap_table[i].bmap_nr) != -1))
+			i++;
+		if ( d64tocpu(&fixmap->fm_bitmap_table[i].bmap_nr) == -1 ) { /* Need to load next fixmap block */
+			sector_t bitmap_block = d64tocpu(&fixmap->fm_bitmap_table[i].new_block);
+			brelse(fixmap_bh);
+			fixmap_bh = sb_bread(super, bitmap_block);
+			i = 0;
+			goto search_again;
+		}
+
+		if ( d64tocpu(&fixmap->fm_bitmap_table[i].bmap_nr) == bmap ) { /* Found what we were looking for in bitmap table. */
+			if ( bmap || d64tocpu(&fixmap->fm_bitmap_table[i].new_block)) { /* avoid {0,0} end of table sign to be
+											   counted as "bitmap 0 at 0th block" */
+				*bnr = d64tocpu(&fixmap->fm_bitmap_table[i].new_block);
+			}
+		}
+		brelse(fixmap_bh);
+	}
+#endif
 }
 
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
