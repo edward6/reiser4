@@ -1918,10 +1918,6 @@ static int flush_rewrite_jnode (jnode *node)
 		return 0;
 	}
 
-	/*
-	 * FIXME:NIKITA->JMACD I see this failing when called from
-	 * jnode_flush().  Josh says: this is only called from jnode_flush.
-	 */
 	assert ("jmacd-76515", PageDirty (pg));
 
 	ret = write_one_page (pg, 0 /* no wait */);
