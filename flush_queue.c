@@ -685,6 +685,8 @@ write_fq(flush_queue_t * fq, int how_many)
 	/* atom the fq is attached to */
 	txn_atom * atom;
 
+	schedulable();
+
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = fq->nr_queued;
 #else
