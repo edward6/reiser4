@@ -1593,13 +1593,6 @@ struct super_operations reiser4_super_operations = {
  *
  */
 
-#define TRACE_EXPORT_OPS(...) \
-	{\
-		ON_TRACE(TRACE_DIR, "%s: ", \
-			 __FUNCTION__);\
-		ON_TRACE(TRACE_DIR, __VA_ARGS__);\
-	}
-
 /*
  * return number of bytes that on-wire representation of @inode's identity
  * consumes.
@@ -1625,8 +1618,6 @@ encode_inode(struct inode *inode, char *start)
 	assert("nikita-3518", inode_file_plugin(inode) != NULL);
 	assert("nikita-3519", inode_file_plugin(inode)->wire.write != NULL);
 
-	TRACE_EXPORT_OPS("locality %llu, oid %llu\n",
-			 get_inode_locality(inode), get_inode_oid(inode));
 	/*
 	 * first, store two-byte identifier of object plugin, then
 	 */
@@ -1668,8 +1659,6 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	 * object plugins.
 	 */
 
-	TRACE_EXPORT_OPS("started\n");
-
 	inode = dentry->d_inode;
 	parent = dentry->d_parent->d_inode;
 
@@ -1686,7 +1675,6 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	}
 
 	init_context(&context, dentry->d_inode->i_sb);
-	TRACE_EXPORT_OPS("need space %d\n", need);
 
 	if (need <= sizeof(__u32) * (*lenp)) {
 		addr = encode_inode(inode, addr);
@@ -1700,7 +1688,6 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	} else
 		/* no enough space in file handle */
 		result = NFSERROR;
-	TRACE_EXPORT_OPS("return %d\n", result);
 	reiser4_exit_context(&context);
 	return result;
 }
@@ -1764,8 +1751,6 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 	with_parent = (fhtype == FH_WITH_PARENT);
 
 	addr = (char *)data;
-
-	TRACE_EXPORT_OPS("started\n");
 
 	object_on_wire_init(&object);
 	object_on_wire_init(&parent);
