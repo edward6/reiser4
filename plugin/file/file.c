@@ -1210,6 +1210,9 @@ commit_file_atoms(struct inode *inode)
 		 */
 		result = txnmgr_force_commit_all(inode->i_sb, 0);
 		break;
+	case UF_CONTAINER_EMPTY:
+		result = 0;
+		break;
 	case UF_CONTAINER_UNKNOWN:
 	default:
 		result = -EIO;
