@@ -197,7 +197,9 @@ extern int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 				 reiser4_lock_handle *lh, 
 				 tree_iterate_actor_t actor, void *arg,
 				 znode_lock_mode mode, int through_units_p );
+
 int node_is_empty (const znode * node);
+unsigned node_num_items (const znode * node);
 
 
 typedef enum { SHIFTED_SOMETHING  = 0,

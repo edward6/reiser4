@@ -781,7 +781,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 
 	if( znode_is_root( parent ) && 
 	    ( znode_get_level( parent ) <= REISER4_MIN_TREE_HEIGHT ) &&
-	    ( num_items( parent ) == 1 ) ) {
+	    ( node_num_items( parent ) == 1 ) ) {
 		/*
 		 * Delimiting key manipulations.
 		 */
@@ -821,7 +821,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	     * don't kill roots at and lower than twig level
 	     */
 	    ( znode_get_level( parent ) > REISER4_MIN_TREE_HEIGHT ) &&
-	    ( num_items( parent ) == 1 ) ) {
+	    ( node_num_items( parent ) == 1 ) ) {
 		result = kill_tree_root( coord.node );
 	}
 	reiser4_done_coord( &coord2 );
