@@ -108,7 +108,7 @@ struct reiser4_super_info_data {
 	/**
 	 * spinlocks used to protect page to jnode linkage
 	 */
-	spinlock_t j_to_p[ REISER4_JNODE_TO_PAGE_HASH_SIZE ];
+	spinlock_t ____cacheline_aligned_in_smp j_to_p[ REISER4_JNODE_TO_PAGE_HASH_SIZE ];
 
 	/* super block flags */
 
