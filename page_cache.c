@@ -607,9 +607,19 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	   writeback_queued_jnodes to get its atom. As newly created jnode has
 	   no atom - there is no reason to call jfind, jlook (or zlook if page
 	   is of fake inode) is enough */
-	if (page->mapping->host != get_super_private(s)->fake)
+	if (page->mapping->host != get_super_private(s)->fake) {
 		node = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
-	else {
+		if (!node) {
+			/*
+			 * page dirtied via mapping?
+			 * shrink_list cleared page dirty bit and moved page to locked_pages list?
+			 * put it back to place from where reiser4_writepages will be able to capture it from (io_pages list, namely)
+			 */
+			page->mapping->a_ops->set_page_dirty(page);
+			reiser4_unlock_page(page);
+			REISER4_EXIT(-EAGAIN);
+		}
+	} else {
 		/* formatted pages always have znode attached to them */
 		assert("vs-1101", PagePrivate(page) && jnode_by_page(page));
 		node = jref(jnode_by_page(page));
