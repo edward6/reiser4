@@ -46,35 +46,32 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
     return plugin;
 }
 
-reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
+#define make_string(value) ("" #value "")
+
+reiserfs_plugin_t *reiserfs_plugin_load(const char *filename) {
 #ifndef ENABLE_ALONE
     char *error;
-    void *handle, *entry;
+    void *handle;
     reiserfs_plugin_t *plugin;
-    reiserfs_plugin_t *(*get_plugin) (void);
 	
-    ASSERT(name != NULL, return NULL);
-    ASSERT(point != NULL, return NULL);
+    ASSERT(filename != NULL, return NULL);
 
     if (!plugins) 
 	return NULL;
 	
-    if (!(handle = dlopen(name, RTLD_NOW))) {
+    if (!(handle = dlopen(filename, RTLD_NOW))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-001", 
-	    "Can't load plugin %s.", name);
+	    "Can't load plugin %s.", filename);
 	return NULL;
     }
-
-    entry = dlsym(handle, point);
-    if ((error = dlerror()) != NULL) {
+    
+    plugin = (reiserfs_plugin_t *)dlsym(handle, make_string(PLUGIN_ENTRY));
+    if ((error = dlerror()) != NULL || plugin == NULL) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
-	    "Can't find symbol \"%s\" in plugin %s.", point, name);
+	    "Can't find symbol \"%s\" in plugin %s.", make_string(PLUGIN_ENTRY), filename);
 	goto error_free_handle;
     }
 	
-    get_plugin = (reiserfs_plugin_t *(*)(void))entry;
-    plugin = get_plugin();
-
     plugin->h.handle = handle;
     aal_list_add(plugins, (void *)plugin);
 	

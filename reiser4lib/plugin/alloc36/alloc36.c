@@ -61,7 +61,7 @@ static void reiserfs_alloc36_close(reiserfs_alloc36_t *alloc, int sync) {
     aal_free(alloc);
 }
 
-reiserfs_plugin_t plugin_info = {
+static reiserfs_plugin_t alloc36_plugin = {
     .alloc = {
 	.h = {
 	    .handle = NULL,
@@ -78,7 +78,5 @@ reiserfs_plugin_t plugin_info = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_plugin_info() {
-    return &plugin_info;
-}
+reiserfs_plugin_register(alloc36_plugin);
 

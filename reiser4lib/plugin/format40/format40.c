@@ -162,7 +162,7 @@ static blk_t reiserfs_format40_root_block(reiserfs_format40_t *format) {
     return get_sb_root_block((reiserfs_format40_super_t *)format->super->data);
 }
 
-reiserfs_plugin_t plugin_info = {
+static reiserfs_plugin_t format40_plugin = {
     .format = {
 	.h = {
 	    .handle = NULL,
@@ -193,7 +193,5 @@ reiserfs_plugin_t plugin_info = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_plugin_info() {
-    return &plugin_info;
-}
+reiserfs_plugin_register(format40_plugin);
 

@@ -65,7 +65,7 @@ static int reiserfs_journal40_replay(reiserfs_journal40_t *journal) {
     return 1;
 }
 
-reiserfs_plugin_t plugin_info = {
+static reiserfs_plugin_t journal40_plugin = {
     .journal = {
 	.h = {
 	    .handle = NULL,
@@ -83,7 +83,5 @@ reiserfs_plugin_t plugin_info = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_plugin_info() {
-    return &plugin_info;
-}
+reiserfs_plugin_register(journal40_plugin);
 

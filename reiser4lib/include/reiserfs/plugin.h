@@ -205,13 +205,24 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 	} \
     } while(0)
 
-extern reiserfs_plugin_t *reiserfs_plugin_load(const char *name, 
-    const char *point);
+/* 
+    Here will be some plugin entry point 
+    initialization for alone mode too.
+*/
+#define PLUGIN_ENTRY reiserfs_plugin_entry
+
+#ifndef ENABLE_ALONE
+#   define reiserfs_plugin_register(plugin) \
+	reiserfs_plugin_t *PLUGIN_ENTRY = &plugin
+#else
+#   define reiserfs_plugin_register(plugin, name)
+#endif
+
+extern reiserfs_plugin_t *reiserfs_plugin_load(const char *filename);
+extern void reiserfs_plugin_unload(reiserfs_plugin_t *plugin);
 
 extern reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type, 
     reiserfs_plugin_id_t id);
-
-extern void reiserfs_plugin_unload(reiserfs_plugin_t *plugin);
 
 #endif
 

@@ -61,7 +61,7 @@ int libreiserfs_init(void) {
 		
 	aal_memset(plug_name, 0, sizeof(plug_name));
 	aal_snprintf(plug_name, sizeof(plug_name), "%s/%s", PLUGIN_DIR, ent->d_name);
-	if (!(plugin = reiserfs_plugin_load(plug_name, "reiserfs_plugin_info"))) {
+	if (!(plugin = reiserfs_plugin_load(plug_name))) {
 	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-004", 
 		"Plugin %s was not loaded.", plug_name);
 	    continue;
