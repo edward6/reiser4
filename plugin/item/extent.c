@@ -2155,7 +2155,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	return replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
 }
 
-/* @coord is set to allocated unit inside of extent item, replace it with unallocated one */
+/* replace allocated node pointer @uf_coord is set to with unallocated node pointer */
 static int
 allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
 {
@@ -2189,8 +2189,7 @@ allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
 				/* widen previous unit */
 				extent_set_width(ext - 1, extent_get_width(ext - 1) + 1);
 				/* narrow current unit */
-				extent_set_start(ext, extent_get_start(ext) + 1);
-				extent_set_width(ext, width - 1);
+				set_extent(ext, extent_get_start(ext) + 1, width - 1);
 				znode_make_dirty(coord->node);
 
 				/* update coord extension */
@@ -2258,9 +2257,7 @@ allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
 	return result;
 }
 
-/* pointer to block for @bh exists in extent item and it is addressed by
-   @coord. If it is hole - make unallocated extent for it. */
-/* Audited by: green(2002.06.13) */
+/* make unallocated node pointer in the position @uf_coord is set to */
 static int
 overwrite_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 {
@@ -2538,7 +2535,7 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 			goto exit2;
 		}
 
-		if (!jnode_mapped(j) || !JF_ISSET(j, JNODE_DIRTY)) {
+		if (!jnode_mapped(j) || !jnode_check_flushprepped(j) || !!jnode_check_dirty(j)) {
 			ON_TRACE(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
 
 			/* unlock page before doing anything with filesystem tree */
