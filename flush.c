@@ -2141,6 +2141,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 	int old_free_space;
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
+	assert("vs-1102", znode_is_dirty(left) && znode_is_dirty(right));
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 
@@ -2165,14 +2166,22 @@ squeeze_right_non_twig(znode * left, znode * right)
 		//info ("shifted %u bytes %p <- %p\n", ret, left, right);
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
 		
+#if 0
+		/* FIXME-VS: this looks superfluous: nodes participating in shift (@left and @right) are dirty
+		   already. If @right does not fit entirely into @left - the only one block is to be reserved - their
+		   common parent which contains delimiting key. If @right fits into @left entirely - the number of nodes
+		   changed on higher levels is also one: that will be a node which from which pointer to @right. Note
+		   that if direct parent of @right contains only one pointer and get deleted as well - number of nodes
+		   to be changed on higher levels is still 1 */
 		amount = estimate_internal_amount(2, 
 						  get_current_super_private()->tree.height);
-
+#endif
+		amount = 1;
 		if ((ret = reiser4_grab_space_force(amount, BA_RESERVED)) != 0) {
 			done_carry_pool(&pool);
 			return ret;
 		}
-		
+
 		trace_on(TRACE_RESERVE, 
 			 "squeeze right non twig grabs %llu blocks.\n", amount);
 		ret = carry(&todo, NULL /* previous level */ );
