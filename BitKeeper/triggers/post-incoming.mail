@@ -43,7 +43,7 @@ fi
 
 function export_patch() # parent, version
 {
-  local rspec
+  rspec=""
   
   if test -z "$2"; then
     return;
@@ -75,7 +75,7 @@ EXPORT_VERSION=
 for cset in `cat $BK_CSETLIST`; do 
 
   # Test if it is a mergeset
-  if test -z `bk -R prs -h -C$cset -d':MPARENT:'`; then
+  if test -z `bk -R prs -h -C$cset -d':MPARENT:' ChangeSet`; then
     CSETS_REAL="$CSETS_REAL $cset"
     LAST_VERSION="$cset"
     EXPORT_VERSION="$cset"
@@ -86,7 +86,7 @@ for cset in `cat $BK_CSETLIST`; do
 
   # Save the parent of the first changeset
   if test -z "$FIRST_PARENT"; then
-    FIRST_PARENT=`bk -R prs -h -C$cset -d':PARENT:'`
+    FIRST_PARENT=`bk -R prs -h -C$cset -d':PARENT:' ChangeSet`
     EXPORT_PARENT="$FIRST_PARENT"
   fi
 
@@ -99,9 +99,9 @@ for cset in `cat $BK_CSETLIST`; do
 
   if test "$mset"; then
     # Export diffs up to, not including, each merge.
-    export_patch "$EXPORT_PARENT" "$LAST_VERSION"
+    export_patch "$EXPORT_PARENT" "$EXPORT_VERSION"
     EXPORT_PARENT="$cset"
-    EXPORT_VESION=""
+    EXPORT_VERSION=""
   fi
 done
 
@@ -150,11 +150,6 @@ fi
 
 # And the subject is:
 SUBJECT="$SPREFIX $SMODFILES"
-
-#bk export -T -tpatch -du -r$CSET \
-#| tail +5 - \
-#| grep -v "^#$" \
-#| grep -v "^# The following is the BitKeeper ChangeSet Log$"
 
 # Start generating output
 (
