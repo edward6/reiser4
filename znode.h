@@ -622,9 +622,10 @@ extern void   jput( jnode *node );
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
 
-#define znode_is_dirty(x)           jnode_is_dirty  ( ZJNODE(x) )
-#define znode_set_dirty(x)          jnode_set_dirty ( ZJNODE(x) )
-#define znode_set_clean(x)          jnode_set_clean ( ZJNODE(x) )
+#define znode_is_dirty(x)           jnode_is_dirty    ( ZJNODE(x) )
+#define znode_check_dirty(x)        jnode_check_dirty ( ZJNODE(x) )
+#define znode_set_dirty(x)          jnode_set_dirty   ( ZJNODE(x) )
+#define znode_set_clean(x)          jnode_set_clean   ( ZJNODE(x) )
 
 #define spin_lock_znode(x)          spin_lock_jnode ( ZJNODE(x) )
 #define spin_unlock_znode(x)        spin_unlock_jnode ( ZJNODE(x) )
@@ -670,6 +671,18 @@ static inline int jnode_is_dirty( const jnode *node )
 	assert( "nikita-782", node != NULL );
 	assert( "jmacd-1800", spin_jnode_is_locked (node) || (jnode_is_formatted (node) && znode_is_any_locked (JZNODE (node))));
 	return JF_ISSET( node, ZNODE_DIRTY );
+}
+
+/** return true if "node" is dirty, node is unlocked */
+static inline int jnode_check_dirty( jnode *node )
+{
+	int is_dirty;
+	assert( "jmacd-7798", node != NULL );
+	assert( "jmacd-7799", spin_jnode_is_not_locked (node) );
+	spin_lock_jnode (node);
+	is_dirty = jnode_is_dirty (node);
+	spin_unlock_jnode (node);
+	return is_dirty;
 }
 
 /* __ZNODE_H__ */

@@ -1126,14 +1126,12 @@ void jnode_set_dirty( jnode *node )
 		}
 	}
 
-	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
+	if (jnode_is_formatted (node)) {
 		/* bump version counter in znode */
 		spin_lock_tree (current_tree);
 		JZNODE (node)->version = ++ current_tree->znode_epoch;
 		spin_unlock_tree (current_tree);
-		assert ("nikita-1900", znode_is_write_locked (node)); /* 20-th
-								       * century
-								       * coming */
+		assert ("nikita-1900", znode_is_write_locked (JZNODE (node))); /* 20-th century coming */
 	}
 
 	spin_unlock_jnode (node);
