@@ -415,7 +415,6 @@ static void release_prepped_list(flush_queue_t * fq)
 	txn_atom * atom;
 
 	assert ("zam-904", fq_in_use(fq));
- again:
 	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 
 	while(!capture_list_empty(&fq->prepped)) {
@@ -429,22 +428,6 @@ static void release_prepped_list(flush_queue_t * fq)
 		assert("nikita-3154", !JF_ISSET(cur, JNODE_OVRWR));
 		JF_CLR(cur, JNODE_FLUSH_QUEUED);
 
-		if (JF_ISSET(cur, JNODE_HEARD_BANSHEE)) {
-			JF_CLR(cur, JNODE_FLUSH_QUEUED);
-			JF_CLR(cur, JNODE_OVRWR);
-			JF_CLR(cur, JNODE_RELOC);
-			JF_CLR(cur, JNODE_CREATED);
-
-			cur->atom->capture_count--;
-			cur->atom = NULL;
-
-			UNLOCK_JNODE(cur);
-			UNLOCK_ATOM(atom);
-			jput (cur);
-
-			goto again;
-		}
-
 		if (JF_ISSET(cur, JNODE_DIRTY))
 			capture_list_push_back(&atom->dirty_nodes[jnode_get_level(cur)], cur);
 		else
@@ -452,8 +435,6 @@ static void release_prepped_list(flush_queue_t * fq)
 
 		UNLOCK_JNODE(cur);
 	}
-
-	assert ("zam-908", capture_list_empty(&fq->prepped));
 
 	if (-- atom->nr_running_queues == 0)
 		atom_send_event(atom);
