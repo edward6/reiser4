@@ -678,20 +678,15 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 /**
  * locks given lock object
  */
-static int internal_lock_znode (reiser4_lock_handle *handle /* local link
-							     * object (may be
-							     * allocated on
-							     * the process
-							     * owner); */,
-				znode               *node /* znode we want to
-							   * lock. */,
-				znode_lock_mode      mode /* {ZNODE_READ_LOCK,
-							   * ZNODE_WRITE_LOCK,
-							   * ZNODE_WRITE_IF_DIRTY}; */,
-				znode_lock_request   request /* {0, -EINVAL,
-							      * -EDEADLK}, see
-							      * return codes
-							      * description. */ )
+static int internal_lock_znode (
+	/* local link object (may be allocated on the process owner); */
+	reiser4_lock_handle *handle,
+	/* znode we want to lock. */
+	znode               *node ,
+	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK, ZNODE_WRITE_IF_DIRTY}; */
+	znode_lock_mode      mode ,
+	/* {0, -EINVAL, -EDEADLK}, see return codes description. */ 
+	znode_lock_request   request)
 {
 	int ret;
 	int hipri = (request & ZNODE_LOCK_HIPRI) != 0;
