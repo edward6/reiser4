@@ -51,7 +51,7 @@ get_exclusive_access(struct inode *inode)
 		assert("nikita-3048", lock_counters()->inode_sem_r == 0);
 		lock_counters()->inode_sem_w ++;
 	}
-	down_write(&reiser4_inode_data(inode)->sem);
+	rw_latch_down_write(&reiser4_inode_data(inode)->latch);
 	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1157", !ea_obtained(inode));
 	ea_set(inode, current);
@@ -65,7 +65,7 @@ drop_exclusive_access(struct inode *inode)
 	assert("vs-1158", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	up_write(&reiser4_inode_data(inode)->sem);
+	rw_latch_up_write(&reiser4_inode_data(inode)->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3049", lock_counters()->inode_sem_r == 0);
 		assert("nikita-3049", lock_counters()->inode_sem_w > 0);
@@ -78,7 +78,7 @@ void
 get_nonexclusive_access(struct inode *inode)
 {
 	assert("nikita-3029", schedulable());
-	down_read(&reiser4_inode_data(inode)->sem);
+	rw_latch_down_read(&reiser4_inode_data(inode)->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3050", lock_counters()->inode_sem_w == 0);
 		assert("nikita-3051", lock_counters()->inode_sem_r == 0);
@@ -93,7 +93,7 @@ drop_nonexclusive_access(struct inode *inode)
 {
 	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1160", !ea_obtained(inode));
-	up_read(&reiser4_inode_data(inode)->sem);
+	rw_latch_up_read(&reiser4_inode_data(inode)->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3049", lock_counters()->inode_sem_w == 0);
 		assert("nikita-3049", lock_counters()->inode_sem_r > 0);
@@ -115,7 +115,7 @@ ea2nea(struct inode *inode)
 	assert("vs-1168", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	downgrade_write(&reiser4_inode_data(inode)->sem);
+	rw_latch_downgrade(&reiser4_inode_data(inode)->latch);
 	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
 	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
 }

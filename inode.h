@@ -9,6 +9,7 @@
 #include "debug.h"
 #include "spin_macros.h"
 #include "key.h"
+#include "kcond.h"
 #include "seal.h"
 #include "scint.h"
 #include "plugin/plugin.h"
@@ -71,6 +72,20 @@ typedef __u32 oid_hi_t;
 
 #define OID_HI_SHIFT (sizeof(ino_t) * 8)
 
+typedef struct rw_latch {
+	spinlock_t guard;
+	int        access;
+	kcond_t    cond;
+} rw_latch_t;
+
+extern void rw_latch_init(rw_latch_t * latch);
+extern void rw_latch_done(rw_latch_t * latch);
+extern void rw_latch_down_read(rw_latch_t * latch);
+extern void rw_latch_down_write(rw_latch_t * latch);
+extern void rw_latch_up_read(rw_latch_t * latch);
+extern void rw_latch_up_write(rw_latch_t * latch);
+extern void rw_latch_downgrade(rw_latch_t * latch);
+
 /* state associated with each inode.
    reiser4 inode.
   
@@ -99,7 +114,7 @@ typedef struct reiser4_inode {
 	/*  28 */ coord_t sd_coord;
 	/* truncate, tail2extent and extent2tail use down_write, read, write,
 	 * readpage - down_read */
-	/* 68 */ struct rw_semaphore sem;
+	/* 68 */ rw_latch_t latch;
 	/* 88 */ scint_t extmask;
 	/* 92 */ int eflushed;
 	/* bitmask of non-default plugins for this inode */

@@ -1371,7 +1371,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* NOTE-NIKITA add here initialisations for locks, list heads,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
-		init_rwsem(&info->p.sem);
+		rw_latch_init(&info->p.latch);
 		info->p.eflushed = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
@@ -1472,7 +1472,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		plugin_set_put(info->pset);
 
 	assert("nikita-2872", list_empty(&info->moved_pages));
-	assert("", list_empty(&info->eflushed_nodes));
+	assert("nikita-3064", list_empty(&info->eflushed_nodes));
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
@@ -2116,6 +2116,42 @@ static void unregister_profregions(void)
 	unregister_tree_profregion();
 }
 
+static struct rw_semaphore rwsem;
+static int access;
+
+static int rwsem_thread(void *arg)
+{
+	int no;
+
+	no = (int)arg;
+	daemonize(__FUNCTION__);
+	while (1) {
+		printk("loop: %i\n", no);
+		down_write(&rwsem);
+		BUG_ON(access != 0);
+		access = -1;
+		up_write(&rwsem);
+		down_read(&rwsem);
+		BUG_ON(access < 0);
+		access ++;
+		up_read(&rwsem);
+	}
+	return 0;
+}
+
+static void
+test_rw_sem(void)
+{
+	int i;
+
+	init_rwsem(&rwsem);
+	access = 0;
+	for (i = 0 ; i < 41 ; ++ i) {
+		kernel_thread(rwsem_thread, (void *)i, 
+			      CLONE_VM | CLONE_FS | CLONE_FILES);
+		printk("started: %i\n", i);
+	}
+}
 
 /* read super block from device and fill remaining fields in @s.
   
@@ -2167,6 +2203,8 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		s->s_fs_info = NULL;
 		return result;
 	}
+
+	test_rw_sem();
 
 read_super_block:
 	/* look for reiser4 magic at hardcoded place */
