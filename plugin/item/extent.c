@@ -788,6 +788,22 @@ static void optimize_extent (coord_t * item)
 
 	ext = start = extent_item (item);
 	old_num = extent_nr_units (item);
+
+	if (REISER4_DEBUG) {
+		/* make sure that extents do not overlap */
+		reiser4_block_nr next;
+
+		next = 0;
+		for (i = 0; i < old_num; i ++) {
+			if (state_of_extent (&ext [i]) != ALLOCATED_EXTENT)
+				continue;
+			assert ("vs-775", 
+				ergo (next,
+				      extent_get_start (&ext [i]) >= next));
+			next = extent_get_start (&ext [i]) +
+				extent_get_width (&ext [i]);
+		}
+	}
 	prev = NULL;
 	new_num = 0;
 	assert ("vs-765", coord_is_existing_item (item));
