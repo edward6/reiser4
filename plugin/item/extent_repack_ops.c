@@ -262,6 +262,8 @@ static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, in
 			reiser4_block_nr block;
 			block = ext_start + reloc_start;
 			jnode_set_block(check, &block);
+
+			node->parent_item_id = EXTENT_POINTER_ID;
 		}
 
 		if (relocatable(check)) {
