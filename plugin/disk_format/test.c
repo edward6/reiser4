@@ -56,8 +56,7 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	reiser4_set_free_blocks (s, (d64tocpu (&disk_sb->block_count) -
 				     d64tocpu (&disk_sb->next_free_block)));
 	/* set tail policy plugin */
-	get_super_private (s)->tplug =
-		tail_plugin_by_id (d16tocpu (&disk_sb->tail_policy));
+	private->plug.t = tail_plugin_by_id (d16tocpu (&disk_sb->tail_policy));
 
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);

@@ -402,7 +402,7 @@ dir_plugin *default_dir_plugin( const struct super_block *super UNUSED_ARG /*  s
 									    *  query */ )
 {
 	assert( "nikita-1967", super != NULL );
-	return dir_plugin_by_id( REISER4_DIR_PLUGIN );
+	return get_super_private( super ) -> plug.d;
 }
 
 /** 
@@ -414,7 +414,7 @@ hash_plugin *default_hash_plugin( const struct super_block *super UNUSED_ARG /* 
 									      *  query */ )
 {
 	assert( "nikita-1968", super != NULL );
-	return hash_plugin_by_id( REISER4_HASH_PLUGIN );
+	return get_super_private( super ) -> plug.h;
 }
 
 /** 
@@ -426,7 +426,7 @@ perm_plugin *default_perm_plugin( const struct super_block *super UNUSED_ARG /* 
 									      *  query */ )
 {
 	assert( "nikita-1969", super != NULL );
-	return perm_plugin_by_id( REISER4_PERM_PLUGIN );
+	return get_super_private( super ) -> plug.p;
 }
 
 /** 
@@ -438,9 +438,7 @@ tail_plugin *default_tail_plugin( const struct super_block *super /*  super
 								   *  query */ )
 {
 	assert( "nikita-1971", super != NULL );
-	if( get_super_private( super ) -> tplug )
-		return get_super_private( super ) -> tplug;
-	return tail_plugin_by_id( REISER4_TAIL_PLUGIN );
+	return get_super_private( super ) -> plug.t;
 }
 
 /** 
@@ -452,7 +450,7 @@ item_plugin *default_sd_plugin( const struct super_block *super UNUSED_ARG /*  s
 									    *  query */ )
 {
 	assert( "nikita-1972", super != NULL );
-	return item_plugin_by_id( REISER4_SD_PLUGIN );
+	return get_super_private( super ) -> plug.sd;
 }
 
 /** 
@@ -466,7 +464,7 @@ item_plugin *default_dir_item_plugin( const struct super_block *super UNUSED_ARG
 										  *  query */ )
 {
 	assert( "nikita-1973", super != NULL );
-	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
+	return get_super_private( super ) -> plug.dir_item;
 }
 
 void print_fs_info (const char *prefix, const struct super_block * s)

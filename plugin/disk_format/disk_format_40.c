@@ -180,8 +180,8 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		return result;
 	
 	/* initializing tail policy */
-	private->tplug = tail_plugin_by_id (get_format_40_tail_policy(sb_copy));
-	assert("umka-751", private->tplug);
+	private->plug.t = tail_plugin_by_id (get_format_40_tail_policy(sb_copy));
+	assert("umka-751", private->plug.t);
 	
 	printk("Tail policy is %x.\n", get_format_40_tail_policy(sb_copy));
 

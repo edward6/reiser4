@@ -199,7 +199,7 @@ typedef struct reiser4_plugin_type_data {
 int init_plugins( void );
 int handle_default_plugin_option( char *option, reiser4_plugin **area );
 int setup_plugins( struct super_block *super, reiser4_plugin **area );
-reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
+reiser4_plugin *lookup_plugin( const char *type_label, const char *plug_label );
 reiser4_plugin *lookup_plugin_name( char *plug_label );
 int locate_plugin( struct inode *inode, plugin_locator *loc );
 
@@ -315,8 +315,8 @@ reiser4_plugin *lookup_plugin_name( char *plug_label /* label to search for */ )
 
 
 /** lookup plugin by scanning tables */
-reiser4_plugin *lookup_plugin( char *type_label /* plugin type label */, 
-			       char *plug_label /* plugin label */ )
+reiser4_plugin *lookup_plugin( const char *type_label /* plugin type label */, 
+			       const char *plug_label /* plugin label */ )
 {
 	reiser4_plugin     *result;
 	reiser4_plugin_type type_id;

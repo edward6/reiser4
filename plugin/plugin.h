@@ -512,7 +512,8 @@ extern int handle_default_plugin_option( char *option,
 						 reiser4_plugin **area );
 extern int setup_plugins( struct super_block *super, 
 				  reiser4_plugin **area );
-extern reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
+extern reiser4_plugin *lookup_plugin( const char *type_label, 
+				      const char *plug_label );
 extern int init_plugins( void );
 
 /* functions implemented in fs/reiser4/plugin/object.c */

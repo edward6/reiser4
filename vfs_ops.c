@@ -1440,7 +1440,8 @@ typedef enum {
 	OPT_STRING,
 	OPT_BIT,
 	OPT_FORMAT,
-	OPT_ONEOF
+	OPT_ONEOF,
+	OPT_PLUGIN
 } opt_type_t;
 
 typedef struct opt_desc {
@@ -1462,6 +1463,10 @@ typedef struct opt_desc {
 		} f;
 		struct {
 		} oneof;
+		struct {
+			reiser4_plugin **addr;
+			const char      *type_label;
+		} plugin;
 	} u;
 } opt_desc_t;
 
@@ -1511,6 +1516,19 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	case OPT_ONEOF:
 		not_implemented( "nikita-2099", "Oneof" );
 		break;
+	case OPT_PLUGIN: {
+		reiser4_plugin *plug;
+
+		plug = lookup_plugin( opt -> u.plugin.type_label, val_start );
+		if( plug != NULL )
+			*opt -> u.plugin.addr = plug;
+		else {
+			warning( "nikita-2494", "Wrong plugin for \"%s\"",
+				 opt -> name );
+			return -EINVAL;
+		}
+		break;
+	}
 	default:
 		wrong_return_value( "nikita-2100", "opt -> type" );
 		break;
@@ -1570,6 +1588,18 @@ static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
 		}
 
 #define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &info -> field )
+
+#define PLUG_OPT( label, ptype, plug )					\
+	{								\
+		.name = ( label ),					\
+		.type = OPT_PLUGIN,					\
+		.u = {							\
+			.plugin = {					\
+				.type_label = #ptype,			\
+				.addr = ( reiser4_plugin ** )( plug )	\
+			}						\
+		}							\
+	}
 
 static int reiser4_parse_options( struct super_block * s, char *opt_string )
 {
@@ -1636,11 +1666,19 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		 * The maximum number of nodes to scan left on a level during
 		 * flush.
 		 */
-		SB_FIELD_OPT( flush.scan_maxnodes, "%u" )
+		SB_FIELD_OPT( flush.scan_maxnodes, "%u" ),
+
+		PLUG_OPT( "plugin.tail",     tail, &info -> plug.t ),
+		PLUG_OPT( "plugin.sd",       item, &info -> plug.sd ),
+		PLUG_OPT( "plugin.dir_item", item, &info -> plug.dir_item ),
+		PLUG_OPT( "plugin.perm",     perm, &info -> plug.p ),
+		PLUG_OPT( "plugin.file",     file, &info -> plug.f ),
+		PLUG_OPT( "plugin.dir",      dir,  &info -> plug.d ),
+		PLUG_OPT( "plugin.hash",     hash, &info -> plug.h )
 	};
 
 	info -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
-	info -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	info -> txnmgr.atom_max_age  = REISER4_ATOM_MAX_AGE / HZ;
 
 	info -> tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 
@@ -1650,8 +1688,26 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 	info -> flush.written_threshold  = FLUSH_WRITTEN_THRESHOLD;
 	info -> flush.scan_maxnodes      = FLUSH_SCAN_MAXNODES;
 
+	if( info -> plug.t == NULL )
+		info -> plug.t        = tail_plugin_by_id( REISER4_TAIL_PLUGIN );
+	if( info -> plug.sd == NULL )
+		info -> plug.sd       = item_plugin_by_id( REISER4_SD_PLUGIN );
+	if( info -> plug.dir_item == NULL )
+		info -> plug.dir_item = item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
+	if( info -> plug.p == NULL )
+		info -> plug.p        = perm_plugin_by_id( REISER4_PERM_PLUGIN );
+	if( info -> plug.f == NULL )
+		info -> plug.f        = file_plugin_by_id( REISER4_FILE_PLUGIN );
+	if( info -> plug.d == NULL )
+		info -> plug.d        = dir_plugin_by_id( REISER4_DIR_PLUGIN );
+	if( info -> plug.h == NULL )
+		info -> plug.h        = hash_plugin_by_id( REISER4_HASH_PLUGIN );
+
 	result = parse_options( opt_string, opts, sizeof_array( opts ) );
 	info -> txnmgr.atom_max_age *= HZ;
+	if( info -> txnmgr.atom_max_age <= 0 )
+		/* overflow */
+		info -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
 	return result;
 }
 

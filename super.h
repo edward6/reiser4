@@ -9,6 +9,14 @@
 #if !defined( __REISER4_SUPER_H__ )
 #define __REISER4_SUPER_H__
 
+typedef struct {
+		unsigned relocate_threshold;
+		unsigned relocate_distance;
+		unsigned queue_size;
+		unsigned written_threshold;
+		unsigned scan_maxnodes;
+} flush_params;
+
 /** reiser4-specific part of super block */
 struct reiser4_super_info_data {
 	/**
@@ -153,22 +161,22 @@ struct reiser4_super_info_data {
 		test_layout_super_info test_layout;
 	} u;
 
-	/* if this is set (by disk format mount code) - default_tail_plugin
-	 * will return it */
-	tail_plugin * tplug;
+	struct {
+		tail_plugin * t;
+		item_plugin * sd;
+		item_plugin * dir_item;
+		perm_plugin * p;
+		file_plugin * f;
+		dir_plugin  * d;
+		hash_plugin * h;
+	} plug;
 
 	struct {
 		unsigned atom_max_size;
 		unsigned atom_max_age;
 	} txnmgr;
 
-	struct {
-		unsigned relocate_threshold;
-		unsigned relocate_distance;
-		unsigned queue_size;
-		unsigned written_threshold;
-		unsigned scan_maxnodes;
-	} flush;
+	flush_params flush;
 
 	/* pointers to jnodes for journal header and footer */
 	jnode                 *journal_header;

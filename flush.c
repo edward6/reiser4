@@ -472,6 +472,8 @@ static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
 static const char*   flush_flags_tostring         (int flags);
 
+static flush_params *flush_get_params( void );
+
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
  * useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
  * no static initializer function...) */
@@ -679,7 +681,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/* First scan left and remember the leftmost scan position.  If the leftmost
 	 * position is unformatted we remember its parent_coord.  We scan until counting
 	 * FLUSH_SCAN_MAXNODES. */
-	if ((ret = flush_scan_left (& left_scan, & right_scan, node, FLUSH_SCAN_MAXNODES))) {
+	if ((ret = flush_scan_left (& left_scan, & right_scan, node, flush_get_params()->scan_maxnodes))) {
 		goto failed;
 	}
 
@@ -688,8 +690,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * leftward scan.  If we do scan right, we only care to go far enough to establish
 	 * that at least FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed.  The
 	 * scan limit is the difference between left_scan.count and the threshold. */
-	if ((left_scan.count < FLUSH_RELOCATE_THRESHOLD) &&
-	    (ret = flush_scan_right (& right_scan, node, FLUSH_RELOCATE_THRESHOLD - left_scan.count))) {
+	if ((left_scan.count < flush_get_params()->relocate_threshold) &&
+	    (ret = flush_scan_right (& right_scan, node, flush_get_params()->relocate_threshold - left_scan.count))) {
 		goto failed;
 	}
 
@@ -698,7 +700,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	 * FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= FLUSH_RELOCATE_THRESHOLD);
+	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= flush_get_params()->relocate_threshold);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node));*/
 
@@ -839,7 +841,7 @@ static int flush_reverse_relocate_if_close_enough (const reiser4_block_nr *pblk,
 
 	/* If the block is less than FLUSH_RELOCATE_DISTANCE blocks away from its preceder
 	 * block, do not relocate. */
-	if (dist <= FLUSH_RELOCATE_DISTANCE) {
+	if (dist <= flush_get_params()->relocate_distance) {
 		return 0;
 	}
 
@@ -2020,7 +2022,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
 
 			/* See if we can find a closer block (forward direction only). */
-			pos->preceder.max_dist = min ((reiser4_block_nr) FLUSH_RELOCATE_DISTANCE, dist);
+			pos->preceder.max_dist = min ((reiser4_block_nr) flush_get_params()->relocate_distance, dist);
 			pos->preceder.level    = znode_get_level (node);
 
 			if ((ret = flush_allocate_znode_update (node, parent_coord, pos)) && (ret != -ENOSPC)) {
@@ -2030,7 +2032,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			if (ret == 0) {
 				/* Got a better allocation. */
 				jnode_set_reloc (ZJNODE (node));
-			} else if (dist < FLUSH_RELOCATE_DISTANCE) {
+			} else if (dist < flush_get_params()->relocate_distance) {
 				/* The present allocation is good enough. */
 				jnode_set_wander (ZJNODE (node));
 			} else {
@@ -2227,7 +2229,7 @@ static int flush_empty_queue (flush_position *pos)
 		/*if (JF_ISSET (check, JNODE_FLUSH_BUSY)) {
 
 			if (finish == 0) {
-				if ( flushed >= FLUSH_WRITTEN_THRESHOLD ) {
+				if ( flushed >= flush_get_params()->written_threshold ) {
 		                      *//* If we have already flushed some amount of
 					 * jnodes, we return now in hope that this jnode
 					 * will be cleaned next time we are called */
@@ -3519,6 +3521,11 @@ void flush_fuse_queues (txn_atom *large, txn_atom *small)
 void flush_init_atom (txn_atom * atom)
 {
 	flushers_list_init (& atom->flushers);
+}
+
+static flush_params *flush_get_params( void )
+{
+	return &get_current_super_private() -> flush;
 }
 
 //#if REISER4_DEBUG
