@@ -14,11 +14,11 @@ struct reiserfs_objid {
 
 typedef struct reiserfs_objid reiserfs_objid_t;
 
-#define objid_get_locality(objid)	    LE64_TO_CPU(*((uint64_t *)objid->locality))
-#define objid_set_locality(objid, val)	    (*(uint64_t *)objid->locality) = CPU_TO_LE64(val)
+#define oid_get_locality(oid)		    LE64_TO_CPU(*((uint64_t *)oid->locality))
+#define oid_set_locality(oid, val)	    (*(uint64_t *)oid->locality) = CPU_TO_LE64(val)
 
-#define objid_get_objectid(objid)	    LE64_TO_CPU(*((uint64_t *)objid->objectid))
-#define objid_set_objectid(objid, val)	    (*(uint64_t *)objid->objectid) = CPU_TO_LE64(val)
+#define oid_get_objectid(oid)		    LE64_TO_CPU(*((uint64_t *)oid->objectid))
+#define oid_set_objectid(oid, val)	    (*(uint64_t *)oid->objectid) = CPU_TO_LE64(val)
 
 struct reiserfs_entryid {
     uint8_t objectid[sizeof(uint64_t)];
@@ -27,11 +27,11 @@ struct reiserfs_entryid {
 
 typedef struct reiserfs_entryid reiserfs_entryid_t;
 
-#define entryid_get_objectid(entryid)	    LE64_TO_CPU(*((uint64_t *)entryid->objectid))
-#define entryid_set_objectid(entryid, val)  (*(uint64_t *)entryid->objectid) = CPU_TO_LE64(val)
+#define eid_get_objectid(eid)		    LE64_TO_CPU(*((uint64_t *)eid->objectid))
+#define eid_set_objectid(eid, val)	    (*(uint64_t *)eid->objectid) = CPU_TO_LE64(val)
 
-#define entryid_get_offset(entryid)	    LE64_TO_CPU(*((uint64_t *)entryid->offset))
-#define entryid_set_offset(entryid, val)    (*(uint64_t *)entryid->offset) = CPU_TO_LE64(val)
+#define eid_get_offset(eid)		    LE64_TO_CPU(*((uint64_t *)eid->offset))
+#define eid_set_offset(eid, val)	    (*(uint64_t *)eid->offset) = CPU_TO_LE64(val)
 
 struct reiserfs_entry40 {
     reiserfs_entryid_t entryid;

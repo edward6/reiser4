@@ -36,6 +36,10 @@ struct reiserfs_dir40 {
 
     /* Current position in the directory */
     uint32_t pos;
+
+    reiserfs_plugin_t *statdata_plugin;
+    reiserfs_plugin_t *direntry_plugin;
+    reiserfs_plugin_t *hash_plugin;
 };
 
 typedef struct reiserfs_dir40 reiserfs_dir40_t;

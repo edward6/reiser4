@@ -87,7 +87,7 @@ typedef enum {
 	e1 = get_key40_el(k1, off);	    \
 	e2 = get_key40_el(k2, off);	    \
 					    \
-	e1 < e2 ? -1 : e1 == e2 ? 0 : 1;    \
+	e1 < e2 ? -1 : (e1 == e2 ? 0 : 1);  \
     })
 
 static inline uint64_t get_key40_el(const reiserfs_key40_t *key,

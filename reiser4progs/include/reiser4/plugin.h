@@ -197,8 +197,8 @@ typedef struct reiserfs_item_hint reiserfs_item_hint_t;
 typedef struct reiserfs_object_hint reiserfs_object_hint_t;*/
 
 struct reiserfs_pos {
-    uint16_t item;
-    uint16_t unit;
+    uint32_t item;
+    uint32_t unit;
 };
 
 typedef struct reiserfs_pos reiserfs_pos_t;
@@ -296,6 +296,9 @@ struct reiserfs_dir_ops {
     
     /* Closes previously opened or created directory */
     void (*close) (reiserfs_entity_t *);
+
+    /* Seeks directory pointer at specified pos */    
+    errno_t (*seek) (reiserfs_entity_t *, uint32_t);
     
     /* 
 	Resets internal position so that next read from the directory will return
@@ -327,7 +330,7 @@ struct reiserfs_item_common_ops {
     errno_t (*create) (const void *, reiserfs_item_hint_t *);
 
     /* Makes lookup for passed key */
-    int (*lookup) (const void *, reiserfs_key_t *, uint16_t *);
+    int (*lookup) (const void *, reiserfs_key_t *, uint32_t *);
 
     /* Confirms item type */
     int (*confirm) (const void *);
@@ -336,30 +339,31 @@ struct reiserfs_item_common_ops {
     errno_t (*check) (const void *, int);
 
     /* Prints item into specified buffer */
-    errno_t (*print) (const void *, char *, uint16_t);
+    errno_t (*print) (const void *, char *, uint32_t);
 
     /* Get the max key which could be stored in the item of this type */
     errno_t (*maxkey) (const void *);
     
     /* Returns unit count */
-    uint16_t (*count) (const void *);
+    uint32_t (*count) (const void *);
 
     /* Removes specified unit from the item */
-    errno_t (*remove) (const void *, uint16_t);
+    errno_t (*remove) (const void *, uint32_t);
 
     /* Inserts unit described by passed hint into the item */
-    errno_t (*insert) (const void *, uint16_t, reiserfs_item_hint_t *);
+    errno_t (*insert) (const void *, uint32_t, reiserfs_item_hint_t *);
     
     /* Estimatess item */
-    errno_t (*estimate) (uint16_t, reiserfs_item_hint_t *);
+    errno_t (*estimate) (uint32_t, reiserfs_item_hint_t *);
     
     /* Retunrs min size the item may occupy */
-    uint16_t (*minsize) (void);
+    uint32_t (*minsize) (void);
 };
 
 typedef struct reiserfs_item_common_ops reiserfs_item_common_ops_t;
 
 struct reiserfs_direntry_ops {
+    errno_t (*get_entry) (const void *, uint32_t, reiserfs_entry_hint_t *);
 };
 
 typedef struct reiserfs_direntry_ops reiserfs_direntry_ops_t;
@@ -387,8 +391,8 @@ struct reiserfs_item_ops {
 
     /* Methods specific to particular type of item */
     union {
-	reiserfs_direntry_ops_t dir;
-	reiserfs_stat_ops_t stat;
+	reiserfs_direntry_ops_t direntry;
+	reiserfs_stat_ops_t statdata;
 	reiserfs_internal_ops_t internal;
     } specific;
 };

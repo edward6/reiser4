@@ -27,7 +27,7 @@ static errno_t internal40_create(reiserfs_internal40_t *internal,
     return 0;
 }
 
-static errno_t internal40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
+static errno_t internal40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
     aal_assert("vpf-068", hint != NULL, return -1);
 
     hint->len = sizeof(reiserfs_internal40_t);
@@ -41,7 +41,7 @@ static uint32_t internal40_minsize(void) {
 }
 
 static errno_t internal40_print(reiserfs_internal40_t *internal, 
-    char *buff, uint16_t n) 
+    char *buff, uint32_t n) 
 {
     aal_assert("umka-544", internal != NULL, return -1);
     aal_assert("umka-545", buff != NULL, return -1);
@@ -89,14 +89,16 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))
 		internal40_create,
 	    
-	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))
+	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))
 		internal40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
-	    .minsize = (uint16_t (*)(void))internal40_minsize,
-	    .print = (errno_t (*)(const void *, char *, uint16_t))internal40_print,
+	    .minsize = (uint32_t (*)(void))internal40_minsize,
+	    
+	    .print = (errno_t (*)(const void *, char *, uint32_t))
+		internal40_print,
 
 	    .lookup = NULL,
 	    .maxkey = NULL,

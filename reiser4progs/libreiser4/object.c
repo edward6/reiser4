@@ -77,7 +77,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	}
 	
 	mode = libreiser4_plugin_call(return -1, 
-	    plugin->item_ops.specific.stat, get_mode, body);
+	    plugin->item_ops.specific.statdata, get_mode, body);
 
 	if (!S_ISLNK(LE16_TO_CPU(mode)) && !S_ISDIR(LE16_TO_CPU(mode)) && 
 	    !S_ISREG(LE16_TO_CPU(mode))) 
@@ -269,6 +269,38 @@ errno_t reiserfs_object_rewind(reiserfs_object_t *object) {
     if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
 	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
 	    rewind, object->entity);
+    } else {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Sorry, files are not supported now!");
+	return -1;
+    }
+}
+
+errno_t reiserfs_object_read(reiserfs_object_t *object, 
+    reiserfs_entry_hint_t *hint) 
+{
+    aal_assert("umka-860", object != NULL, return -1);
+    aal_assert("umka-861", object->entity != NULL, return -1);
+
+    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
+	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
+	    read, object->entity, hint);
+    } else {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Sorry, files are not supported now!");
+	return -1;
+    }
+}
+
+errno_t reiserfs_object_add(reiserfs_object_t *object, 
+    reiserfs_entry_hint_t *hint) 
+{
+    aal_assert("umka-862", object != NULL, return -1);
+    aal_assert("umka-863", object->entity != NULL, return -1);
+
+    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
+	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
+	    add, object->entity, hint);
     } else {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Sorry, files are not supported now!");

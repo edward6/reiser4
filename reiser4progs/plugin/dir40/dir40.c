@@ -24,11 +24,27 @@ static oid_t dir40_objectid(reiserfs_dir40_t *dir) {
 	get_objectid, dir->key.body);
 }
 
-static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
+static oid_t dir40_locality(reiserfs_dir40_t *dir) {
+    aal_assert("umka-839", dir != NULL, return 0);
     
-    if (core->tree_lookup(dir->tree, &dir->key, &dir->place) != 1) {
+    return libreiser4_plugin_call(return 0, dir->key.plugin->key_ops, 
+	get_locality, dir->key.body);
+}
+
+static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
+    reiserfs_key_t key;
+    
+    aal_assert("umka-864", dir != NULL, return -1);
+    
+    /* Preparing key of the first entyr in directory */
+    key.plugin = dir->key.plugin;
+
+    libreiser4_plugin_call(return -1, key.plugin->key_ops, build_entry_full, 
+	key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), ".");
+	    
+    if (core->tree_lookup(dir->tree, &key, &dir->place) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find stat data of directory with oid %llx.", 
+	    "Can't find direntry of object %llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -38,23 +54,79 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
     return 0;
 }
 
-/* This function grabbs the stat data of directory */
+/* This function grabs the stat data of directory */
 static errno_t dir40_realize(reiserfs_dir40_t *dir) {
+    reiserfs_place_t place;
+    
     aal_assert("umka-857", dir != NULL, return -1);	
-    aal_assert("umka-840", dir->place.node != NULL, return -1);
 
-    return core->tree_data(dir->tree, &dir->place, 
+    /* Positioning to the dir stat data */
+    if (core->tree_lookup(dir->tree, &dir->key, &place) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find stat data of directory with oid %llx.", 
+	    dir40_objectid(dir));
+	return -1;
+    }
+    
+    return core->tree_data(dir->tree, &place, 
 	&dir->statdata.data, &dir->statdata.len);
 }
 
-static errno_t dir40_read(reiserfs_dir40_t *dir, reiserfs_entry_hint_t *entry) {
+static errno_t dir40_readent(reiserfs_dir40_t *dir,
+    reiserfs_entry_hint_t *entry) 
+{
+    uint32_t len;
+    void *direntry;
+    
+    if (core->tree_data(dir->tree, &dir->place, &direntry, &len))
+	return -1;
+    
+    return libreiser4_plugin_call(return -1, 
+	dir->direntry_plugin->item_ops.specific.direntry, 
+	get_entry, direntry, dir->pos, entry);
+}
+
+static errno_t dir40_seek(reiserfs_dir40_t *dir, uint32_t pos) {
+    void *direntry;
+    uint32_t count, len;
+    
+    if (core->tree_data(dir->tree, &dir->place, &direntry, &len))
+	return -1;
+    
+    if ((count = libreiser4_plugin_call(return -1,
+	    dir->direntry_plugin->item_ops.common, 
+	    count, direntry)) == 0)
+	return -1;
+
+    /* 
+	Checking if next pos will be out of bounds the current direntry item. If so,
+	we need to perform tree lookup for new next item.
+    */
+    if (pos >= count) {
+	
+	/* Here we need to get next node the next direntry lies in */
+	return -1;
+    } else
+	dir->pos = pos;
+    
+    return 0;
+}
+
+static errno_t dir40_read(reiserfs_dir40_t *dir, 
+    reiserfs_entry_hint_t *entry) 
+{
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
 
-    return -1;
+    if (dir40_readent(dir, entry))
+	return -1;
+    
+    return dir40_seek(dir, dir->pos + 1);
 }
 
-static errno_t dir40_add(reiserfs_dir40_t *dir, reiserfs_entry_hint_t *entry) {
+static errno_t dir40_add(reiserfs_dir40_t *dir, 
+    reiserfs_entry_hint_t *entry) 
+{
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
 
@@ -79,17 +151,40 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     aal_memcpy(dir->key.body, key->body, libreiser4_plugin_call(goto error_free_dir, 
 	key->plugin->key_ops, size,));
     
-    /* Positioning onto first directory unit */
-    if (dir40_rewind(dir)) {
+    /* FIXME-UMKA: Here should not be hardcoded plugin ids */
+    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	REISERFS_STATDATA_ITEM)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    statdata, REISERFS_STATDATA_ITEM);
+    }
+    
+    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	REISERFS_CDE_ITEM)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    direntry, REISERFS_CDE_ITEM);
+    }
+    
+    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, 
+	REISERFS_R5_HASH)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    hash, REISERFS_R5_HASH);
+    }
+    
+    /* Grabbing stat data */
+    if (dir40_realize(dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't rewind directory with oid %llx.", 
+	    "Can't grab stat data of  directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
     
-    if (dir40_realize(dir)) {
+    /* Positioning to the first directory unit */
+    if (dir40_rewind(dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't grabb stat data of  directory with oid %llx.", 
+	    "Can't rewind directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -224,6 +319,36 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     aal_memcpy(dir->key.body, object->body, libreiser4_plugin_call(goto error_free_dir, 
 	key_plugin->key_ops, size,));
     
+    /* FIXME-UMKA: Here should not be hardcoded plugin ids */
+    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	REISERFS_STATDATA_ITEM)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    statdata, REISERFS_STATDATA_ITEM);
+    }
+    
+    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	REISERFS_CDE_ITEM)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    direntry, REISERFS_CDE_ITEM);
+    }
+    
+    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, 
+	REISERFS_R5_HASH)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    hash, REISERFS_R5_HASH);
+    }
+    
+    /* Grabbing the stat data item */
+    if (dir40_realize(dir)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't grab stat data of  directory with oid %llx.", 
+	    dir40_objectid(dir));
+	goto error_free_dir;
+    }
+
     /* Positioning onto first directory unit */
     if (dir40_rewind(dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -232,13 +357,6 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	goto error_free_dir;
     }
     
-    if (dir40_realize(dir)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't grabb stat data of  directory with oid %llx.", 
-	    dir40_objectid(dir));
-	goto error_free_dir;
-    }
-
     return dir;
 
 error_free_dir:
@@ -285,7 +403,10 @@ static reiserfs_plugin_t dir40_plugin = {
 	.rewind = (errno_t (*)(reiserfs_entity_t *))dir40_rewind,
 	
 	.read = (errno_t (*)(reiserfs_entity_t *, reiserfs_entry_hint_t *))
-	    dir40_read
+	    dir40_read,
+	
+	.seek = (errno_t (*)(reiserfs_entity_t *, uint32_t))
+	    dir40_seek
     }
 };
 

@@ -39,7 +39,7 @@ static errno_t stat40_create(reiserfs_stat40_base_t *stat,
     return 0;
 }
 
-static errno_t stat40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
+static errno_t stat40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
     aal_assert("vpf-074", hint != NULL, return -1);
 
     /* Should calculate extentions size also */
@@ -55,7 +55,7 @@ static errno_t stat40_check(reiserfs_stat40_base_t *stat, int flags) {
 }
 
 static errno_t stat40_print(reiserfs_stat40_base_t *stat, 
-    char *buff, uint16_t n) 
+    char *buff, uint32_t n)
 {
     aal_assert("umka-546", stat != NULL, return -1);
     aal_assert("umka-547", buff != NULL, return -1);
@@ -90,15 +90,15 @@ static reiserfs_plugin_t stat40_plugin = {
 	.common = {
 #ifndef ENABLE_COMPACT
 	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))stat40_create,
-	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))stat40_estimate,
+	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
 	    .confirm = (errno_t (*)(const void *))stat40_confirm,
 	    .check = (errno_t (*)(const void *, int))stat40_check,
-	    .print = (errno_t (*)(const void *, char *, uint16_t))stat40_print,
-	    .minsize = (uint16_t (*)(void))stat40_minsize,
+	    .print = (errno_t (*)(const void *, char *, uint32_t))stat40_print,
+	    .minsize = (uint32_t (*)(void))stat40_minsize,
 
 	    .maxkey = NULL,
 	    .lookup = NULL,
@@ -108,7 +108,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .remove = NULL
 	},
 	.specific = {
-	    .stat = {
+	    .statdata = {
 		.get_mode = (uint16_t (*)(const void *))stat40_get_mode,
 		.set_mode = (void (*)(const void *, uint16_t))stat40_get_mode
 	    }
