@@ -171,6 +171,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		return 0;
 
 	ref = reiser4_inode_data( inode );
+	spin_lock_inode( ref );
 	if( ref -> sd == NULL ) {
 		ref -> sd = inode_sd_plugin( inode );
 	}
@@ -182,6 +183,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	}
 
 	ref -> sd_len = data.length;
+	spin_unlock_inode( ref );
 	data.data = NULL;
 	data.user = 0;
 
@@ -236,22 +238,22 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		assert( "nikita-725", /* have we really inserted stat data? */
 			item_is_statdata( &coord ) );
 
+		spin_lock_inode( ref );
 		if( ref -> sd && ref -> sd -> s.sd.save ) {
 			area = item_body_by_coord( &coord );
 			result = ref -> sd -> s.sd.save( inode, &area );
 			if( result == 0 ) {
 				/* object has stat-data now */
 				*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
-				spin_lock_inode( ref );
 				/* initialise stat-data seal */
 				seal_init( &ref -> sd_seal, &coord, &key );
 				ref -> sd_coord = coord;
-				spin_unlock_inode( ref );
 			} else {
 				error_message = "cannot save sd of";
 				result = -EIO;
 			}
 		}
+		spin_unlock_inode( ref );
 	}
 	}
 	done_lh( &lh );
@@ -295,6 +297,19 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		result = seal_validate( &seal, &coord, 
 					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
 					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
+		if( result == 0 ) {
+			reiser4_key ukey;
+			if( !coord_of_unit( &coord ) )
+				info( "not unit\n" );
+			if( !item_plugin_by_coord( &coord ) )
+				info( "no plugin\n" );
+			if( !keyeq( unit_key_by_coord( &coord, &ukey ), &key ) )
+				info( "wrong key\n" );
+			if( znode_get_level( coord.node ) != LEAF_LEVEL )
+				info( "wrong level\n" );
+			if( !item_is_statdata( &coord ) )
+				info( "wrong item type\n" );
+		}
 	} else
 		result = -EAGAIN;
 
@@ -309,6 +324,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	if( result == 0 ) {
 		char *area;
 
+		spin_lock_inode( state );
 		assert( "nikita-728", state -> sd != NULL );
 		data.iplug = state -> sd;
 
@@ -321,6 +337,11 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
 		data.length = state -> sd_len - item_length_by_coord( &coord );
+		if( data.length < 0 ) {
+			info( "sd_len: %i, item: %i\n", state -> sd_len, 
+			      item_length_by_coord( &coord ) );
+		}
+		spin_unlock_inode( state );
 
 		/* if on-disk stat data is of different length than required
 		   for this inode, resize it */
@@ -349,12 +370,13 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			}
 		}
 		if( result == 0 ) {
+			area = item_body_by_coord( &coord );
+			spin_lock_inode( state );
 			assert( "nikita-729", 
 				item_length_by_coord( &coord ) == state -> sd_len );
-			area = item_body_by_coord( &coord );
 			result = state -> sd -> s.sd.save( inode, &area );
+			znode_set_dirty( coord.node );
 			/* re-initialise stat-data seal */
-			spin_lock_inode( state );
 			seal_init( &state -> sd_seal, &coord, &key );
 			state -> sd_coord = coord;
 			spin_unlock_inode( state );
