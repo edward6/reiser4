@@ -960,6 +960,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	reiser4_crypto_stat *sd;
 	crypto_stat_t stat;
 	digest_plugin * dplug = inode_digest_plugin(inode);
+	/* IO_ERROR? */
 	unsigned int keyid_size;
 	
 	assert("edward-06", dplug != NULL);
@@ -972,6 +973,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 		return not_enough_space(inode, "crypto-sd");
 	}	
 
+	/* FIXME-EDWARD assert */
 	keyid_size = dplug->digestsize;
 	/* *len is number of bytes in stat data item from *area to the end of
 	   item. It must be not less than size of this extension */
@@ -1011,6 +1013,7 @@ static int save_crypto_sd(struct inode *inode, char **area)
 		assert("edward-15", stat != NULL);
 
 		reiser4_inode_data(inode)->crypt = NULL;
+		/* FIXME-EDWARD alloc data for stat in create_oblect */
 		result = crypto_stat_to_inode(inode, stat, dplug->digestsize);
 		/* copy inode crypto-stat to the disk stat-data */
 		cputod16(stat->keysize, &sd->keysize);
@@ -1216,6 +1219,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				,
 				.present = present_cluster_sd,
 				.absent = NULL,
+				/* return IO_ERROR if smthng is wrong */
 				.save_len = save_len_cluster_sd,
 				.save = save_cluster_sd,
 #if REISER4_DEBUG_OUTPUT
@@ -1234,6 +1238,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				,
 				.present = present_crypto_sd,
 				.absent = NULL,
+				/* return IO_ERROR if smthng is wrong */
 				.save_len = save_len_crypto_sd,
 				.save = save_crypto_sd,
 #if REISER4_DEBUG_OUTPUT
