@@ -19,7 +19,7 @@
 
 #ifdef CONFIG_FRAME_POINTER
 static void 
-update_prof_trace(reiser4_prof_cnt *cnt)
+update_prof_trace(reiser4_prof_cnt *cnt, int shift)
 {
 	int i;
 	int minind;
@@ -27,11 +27,10 @@ update_prof_trace(reiser4_prof_cnt *cnt)
 	unsigned long hash;
 	backtrace_path bt;
 
-	fill_backtrace(bt);
+	fill_backtrace(&bt, shift);
 
 	for (i = 0, hash = 0 ; i < REISER4_BACKTRACE_DEPTH ; ++ i) {
-		hash <<= 4;
-		hash ^= (((unsigned long)bt[i]) >> 2);
+		hash += (unsigned long)bt.trace[i];
 	}
 	minhit = ~0ull;
 	minind = 0;
@@ -45,16 +44,16 @@ update_prof_trace(reiser4_prof_cnt *cnt)
 			minind = i;
 		}
 	}
-	memcpy(&cnt->bt[minind].path, bt, sizeof bt);
+	cnt->bt[minind].path = bt;
 	cnt->bt[minind].hash = hash;
 	cnt->bt[minind].hits = 1;
 }
 #else
-#define update_prof_trace(cnt) noop
+#define update_prof_trace(cnt, shift) noop
 #endif
 
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark, __u64 start_jif)
+		     unsigned long swtch_mark, __u64 start_jif, int shift)
 {
 	__u64 delta;
 
@@ -67,7 +66,7 @@ void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 		cnt->noswtch_total += delta;
 		cnt->noswtch_max = max(cnt->noswtch_max, delta);
 	}
-	update_prof_trace(cnt);
+	update_prof_trace(cnt, shift);
 }
 
 
@@ -87,8 +86,11 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 		    val->nr, val->total, val->max,
 		    val->noswtch_nr, val->noswtch_total, val->noswtch_max);
 #ifdef CONFIG_FRAME_POINTER
-	for (i = 0 ; i < REISER4_BACKTRACE_DEPTH ; ++ i) {
+	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
 		int j;
+
+		if (val->bt[i].hash == 0)
+			continue;
 
 		KATTR_PRINT(p, buf, "\t%llu: ", val->bt[i].hits);
 		for (j = 0 ; j < REISER4_BACKTRACE_DEPTH ; ++ j) {
@@ -99,13 +101,13 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 			unsigned long offset;
 			unsigned long size;
 
-			address = (unsigned long) val->bt[i].path[j];
+			address = (unsigned long) val->bt[i].path.trace[j];
 			name = kallsyms_lookup(address, &size, 
 					       &offset, &module, namebuf);
-			KATTR_PRINT(p, buf, "0x%lx ", address);
+			KATTR_PRINT(p, buf, "\n\t\t%#lx ", address);
 			if (name != NULL)
-				KATTR_PRINT(p, buf, "%s+%lx/%lx [%s] ", name, 
-					    offset, size, module ? : "core");
+				KATTR_PRINT(p, buf, "%s+%#lx/%#lx",
+					    name, offset, size);
 		}
 		KATTR_PRINT(p, buf, "\n");
 	}
@@ -151,13 +153,12 @@ static struct kobject spin_prof;
  	DEFINE_PROF_ENTRY_0(#name,name)
 
 reiser4_prof reiser4_prof_defs = {
+	DEFINE_PROF_ENTRY(writepage),
 	DEFINE_PROF_ENTRY(jload),
 	DEFINE_PROF_ENTRY(jrelse),
-	DEFINE_PROF_ENTRY(carry),
 	DEFINE_PROF_ENTRY(flush_alloc),
 	DEFINE_PROF_ENTRY(forward_squalloc),
 	DEFINE_PROF_ENTRY(atom_wait_event),
-	DEFINE_PROF_ENTRY(set_child_delimiting_keys),
 	DEFINE_PROF_ENTRY(zget),
 	/* write profiling */
 	DEFINE_PROF_ENTRY(extent_write),

@@ -404,12 +404,14 @@ static int
 formatted_writepage(struct page *page, /* page to write */ struct writeback_control *wbc)
 {
 	int result;
+	PROF_BEGIN(writepage);
 
 	assert("zam-823", current->flags & PF_MEMALLOC);
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
 	assert("nikita-3042", schedulable());
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
+	PROF_END(writepage, 5);
 	assert("nikita-3043", schedulable());
 	return result;
 }

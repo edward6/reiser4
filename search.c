@@ -1298,7 +1298,6 @@ set_child_delimiting_keys(znode * parent,
 {
 	reiser4_tree *tree;
 	int result;
-	PROF_BEGIN(set_child_delimiting_keys);
 
 	assert("nikita-2952", 
 	       znode_get_level(parent) == znode_get_level(coord->node));
@@ -1318,7 +1317,6 @@ set_child_delimiting_keys(znode * parent,
 		WUNLOCK_DK(tree);
 		result = 1;
 	}
-	PROF_END(set_child_delimiting_keys, set_child_delimiting_keys);
 	return result;
 }
 

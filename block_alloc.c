@@ -336,7 +336,7 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 
 #if REISER4_DEBUG
 	ctx->grabbed_initially = count;
-	fill_backtrace(ctx->grabbed_at);
+	fill_backtrace(&ctx->grabbed_at, 0);
 #endif
 
 	assert("nikita-2986", check_block_counters(ctx->super));

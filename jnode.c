@@ -620,12 +620,12 @@ int jload_gfp (jnode * node, int gfp_flags)
 		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
 
-	PROF_END(jload, jload);
+	PROF_END(jload, 0);
 	return 0;
 
  failed:
 	jrelse(node);
-	PROF_END(jload, jload);
+	PROF_END(jload, 0);
 	return result;
 	
 }
@@ -713,7 +713,7 @@ jrelse(jnode * node /* jnode to release references to */)
 	atomic_dec(&node->d_count);
 	/* release reference acquired in jload_gfp() or jinit_new() */
 	jput(node);
-	PROF_END(jrelse, jrelse);
+	PROF_END(jrelse, 0);
 }
 
 /* called from jput() to wait for io completion */

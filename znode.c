@@ -519,7 +519,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	
 		result = zalloc(gfp_flag);
 		if (!result) {
-			PROF_END(zget, zget);
+			PROF_END(zget, 0);
 			return ERR_PTR(RETERR(-ENOMEM));
 		}
 
@@ -552,7 +552,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
 		reiser4_check_block(blocknr, 1);
 #endif
-	PROF_END(zget, zget);
+	PROF_END(zget, 0);
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
 		warning("jmacd-504",

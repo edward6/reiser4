@@ -200,7 +200,6 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	/* queue of new requests */
 	carry_level *todo;
 	ON_DEBUG(STORE_COUNTERS;)
-	PROF_BEGIN(carry);
 
 	assert("nikita-888", doing != NULL);
 
@@ -279,7 +278,6 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	/* all counters, but x_refs should remain the same. x_refs can change
 	   owing to transaction manager */
 	ON_DEBUG(CHECK_COUNTERS;)
-	PROF_END(carry, carry);
 	return result;
 }
 

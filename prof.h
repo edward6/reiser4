@@ -17,7 +17,7 @@
 
 #include <asm-i386/msr.h>
 
-#define REISER4_PROF_TRACE_NUM (8)
+#define REISER4_PROF_TRACE_NUM (30)
 
 typedef struct {
 	unsigned long hash;
@@ -32,7 +32,7 @@ typedef struct {
 	__u64 noswtch_nr;
 	__u64 noswtch_total;
 	__u64 noswtch_max;
-	reiser4_trace bt[REISER4_PROF_TRACE_NUM];	
+	reiser4_trace bt[REISER4_PROF_TRACE_NUM];
 } reiser4_prof_cnt;
 
 typedef struct {
@@ -41,13 +41,12 @@ typedef struct {
 } reiser4_prof_entry;
 
 typedef struct {
+	reiser4_prof_entry writepage;
 	reiser4_prof_entry jload;
 	reiser4_prof_entry jrelse;
-	reiser4_prof_entry carry;
 	reiser4_prof_entry flush_alloc;
 	reiser4_prof_entry forward_squalloc;
 	reiser4_prof_entry atom_wait_event;
-	reiser4_prof_entry set_child_delimiting_keys;
 	reiser4_prof_entry zget;
 	/* write profiling */
 	reiser4_prof_entry extent_write;
@@ -59,7 +58,7 @@ extern reiser4_prof reiser4_prof_defs;
 
 extern unsigned long nr_context_switches(void);
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark, __u64 start_jif);
+		     unsigned long swtch_mark, __u64 start_jif, int shift);
 void calibrate_prof(void);
 
 #define PROF_BEGIN(aname)							\
@@ -68,13 +67,17 @@ void calibrate_prof(void);
 	__u64 __prof_cnt__ ## aname = ({ __u64 __tmp_prof ;			\
 			      		rdtscll(__tmp_prof) ; __tmp_prof; })
 
-#define PROF_END(aname, acnt)							\
-({										\
-	__u64 __prof_end;							\
-										\
-	rdtscll(__prof_end);							\
-	update_prof_cnt(&reiser4_prof_defs.acnt.cnt, __prof_cnt__ ## aname, __prof_end,		\
-			__swtch_mark__ ## aname, __prof_jiffies ## aname );	\
+#define PROF_END(aname, shift)				\
+({							\
+	__u64 __prof_end;				\
+							\
+	rdtscll(__prof_end);				\
+	update_prof_cnt(&reiser4_prof_defs.aname.cnt, 	\
+			__prof_cnt__ ## aname,		\
+			__prof_end,			\
+			__swtch_mark__ ## aname, 	\
+			__prof_jiffies ## aname, 	\
+			shift );			\
 })
 
 extern int init_prof_kobject(void);
@@ -87,7 +90,7 @@ typedef struct reiser4_prof_cnt {} reiser4_prof_cnt;
 typedef struct reiser4_prof {} reiser4_prof;
 
 #define PROF_BEGIN(aname) noop
-#define PROF_END(aname, acnt) noop
+#define PROF_END(aname, shift) noop
 #define calibrate_prof() noop
 
 #define init_prof_kobject() (0)
