@@ -269,7 +269,9 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
-	ON_DEBUG(node->list = NOT_CAPTURED);
+
+	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
+
 	INIT_RCU_HEAD(&node->rcu);
 
 #if REISER4_DEBUG
@@ -327,7 +329,7 @@ jfree(jnode * node)
 {
 	assert("zam-449", node != NULL);
 
-	assert("nikita-2663", capture_list_is_clean(node) && node->list == NOT_CAPTURED);
+	assert("nikita-2663", capture_list_is_clean(node) && NODE_LIST(node) == NOT_CAPTURED);
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3222", list_empty(&node->jnodes));
 	assert("nikita-3221", jnode_page(node) == NULL);
