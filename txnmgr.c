@@ -100,7 +100,7 @@ static kmem_cache_t *_jnode_slab = NULL;
 /* The jnode_ptr_lock is a global spinlock used to protect the struct_page to
  * jnode mapping (i.e., it protects all struct_page_private fields).  It could
  * be a per-txnmgr spinlock instead. */
-static spinlock_t    _jnode_ptr_lock;
+spinlock_t    _jnode_ptr_lock;
 
 /*****************************************************************************************
 				       TXN_INIT
@@ -297,7 +297,6 @@ jnode_of_page (struct page* pg)
 		 * znodes aren't having theirs set. */
 		jnode_init (jal);
 
-		jal->pg    = pg;
 		jal->level = LEAF_LEVEL;
 
 		JF_SET (jal, ZNODE_UNFORMATTED);
@@ -305,7 +304,7 @@ jnode_of_page (struct page* pg)
 		jal = NULL;
 	}
 
-	/* FIXME: This may be called from memory.c, read_in_formatted, which
+	/* FIXME: This may be called from page_cache.c, read_in_formatted, which
 	 * does is already synchronized under the page lock, but I imagine
 	 * this will get called from other places, in which case the
 	 * jnode_ptr_lock is probably still necessary, unless...
@@ -1254,15 +1253,7 @@ void jnode_set_dirty( jnode *node )
 		/*info ("dirty unformatted page %lu\n", node->pg->index);*/
 	}
 
-	/*
-	 * FIXME-VS: where do we dirty page?
-	 */
-	{
-		assert ("vs-688", JF_ISSET (node, ZNODE_LOADED));
-		if (node->pg)
-			SetPageDirty (node->pg);
-	}
-
+	current_tree -> ops -> dirty_node( current_tree, node );
 	spin_unlock_jnode (node);
 }
 
