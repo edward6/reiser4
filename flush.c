@@ -2164,7 +2164,6 @@ squeeze_right_non_twig(znode * left, znode * right)
 		
 		trace_on(TRACE_RESERVE, 
 			 "squeeze right non twig grabs %llu blocks.\n", amount);
-		
 		ret = carry(&todo, NULL /* previous level */ );
 	}
 

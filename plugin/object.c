@@ -532,7 +532,7 @@ common_file_delete(struct inode *inode /* object to remove */ )
 
 		trace_on(TRACE_RESERVE, 
 			 "file delete grabs %llu block.\n", reserve);
-		
+
 		build_sd_key(inode, &sd_key);
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
 		if (result == 0) {

@@ -718,7 +718,7 @@ unix_file_writepage(struct page *page)
 	needed = tail_plugin->estimate(inode, 1, 0);
 
 	trace_on(TRACE_RESERVE, "write page grabbed %llu blocks\n", needed);
-		
+
 	if ((result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT)) != 0)
 		goto out;
 
