@@ -676,13 +676,11 @@ static int zrelse_nolock( znode *node );
 int zload( znode *node /* znode to load */ )
 {
 	int result;
-	unsigned long blocksize;
 
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
 
 	result = 0;
-	blocksize = reiser4_get_current_sb() -> s_blocksize;
 	spin_lock_znode( node );
 	reiser4_stat_znode_add( zload );
 	if( ! ZF_ISSET( node, ZNODE_LOADED ) ) {
@@ -695,34 +693,22 @@ int zload( znode *node /* znode to load */ )
 
 		/* load data... */
 		assert( "nikita-1097", tree != NULL );
-		assert( "nikita-1098", tree -> read_node != NULL );
+		assert( "nikita-1098", tree -> ops -> read_node != NULL );
+
 		/*
 		 * ->read_node() reads data from page cache. In any case we
 		 * rely on proper synchronization in the underlying
 		 * transport. Page reference counter is incremented and page is
 		 * kmapped, it will be decremented and kunmaped in zunload
 		 */
-		result = tree -> read_node( znode_get_block( node ), &data,
-					    blocksize );
+		result = tree -> ops -> read_node( tree, ZJNODE( node ), &data );
 		reiser4_stat_znode_add( zload_read );
 		spin_lock_znode( node );
 
-		if( result >= 0 ) {
-			node -> data = data;
-			node -> size = blocksize/*result*/;
-			/*
-			 * FIXME-NIKITA kmap() is required somewhere. But
-			 * kmap() can sleep.
-			 * kmap is done by tree->read_node ()
-			 */
+		if( result == 0 ) {
+			ZJNODE( node ) -> data = data;
+			node -> size = reiser4_get_current_sb() -> s_blocksize;
 			ZF_SET( node, ZNODE_LOADED );
-
-			/* @data may be not a beginning of page, so calculate
-			 * its beginning */
-			assert( "vs-690", blocksize == PAGE_CACHE_SIZE );
-			/*data -= ((*znode_get_block( node ) % (PAGE_CACHE_SIZE / blocksize)) * blocksize);*/
-			ZJNODE( node ) -> pg =	virt_to_page( data );
-
 			add_d_ref( node );
 			result = zparse( node );
 			if( unlikely( result != 0 ) ) {
@@ -733,7 +719,6 @@ int zload( znode *node /* znode to load */ )
 		add_d_ref( node );
 	spin_unlock_znode( node );
 	assert( "nikita-1378", znode_invariant( node ) );
-
 	return result;
 }
 
@@ -741,14 +726,17 @@ int zload( znode *node /* znode to load */ )
 /* Audited by: umka (2002.06.11) */
 int zinit_new( znode *node /* znode to initialise */ )
 {
-	int result;
+	char *data;
+	int   result;
 
 	assert( "nikita-1234", node != NULL );
-	assert( "umka-054", current_tree != NULL );
-	assert( "nikita-1908", current_tree -> allocate_node != NULL );
+	assert( "nikita-1908", current_tree -> ops -> allocate_node != NULL );
 
-	result = current_tree -> allocate_node( node );
+	result = current_tree -> ops -> 
+		allocate_node( current_tree, ZJNODE( node ), &data );
 	if( result == 0 ) {
+		ZJNODE( node ) -> data = data;
+		node -> size = reiser4_get_current_sb() -> s_blocksize;
 		ZF_SET( node, ZNODE_LOADED );
 		ZF_SET( node, ZNODE_ALLOC );
 		add_d_ref( node );
@@ -776,10 +764,10 @@ int zunload( znode *node /* znode to unload */ )
 	/* node -> data = NULL; ? */
 	/* unload data... */
 	/* kupmap() */
-	assert( "vs-660", current_tree -> unread_node != NULL );
-	current_tree -> unread_node( node );	
+	assert( "vs-660", current_tree -> ops -> release_node != NULL );
+	current_tree -> ops -> release_node( current_tree, ZJNODE( node ) );
 	ZF_CLR( node, ZNODE_LOADED );
-	node -> data = 0;
+	ZJNODE( node ) -> data = NULL;
 	return 0;
 }
 
@@ -824,14 +812,6 @@ int zrelse( znode *node /* znode to release references to */ )
 	spin_unlock_znode( node );
 	assert( "nikita-1382", znode_invariant( node ) );
 	return ret;
-}
-
-/** return pointer to znode's data */
-/* Audited by: umka (2002.06.11) */
-char *zdata( const znode *node /* znode to query */ )
-{
-	assert( "nikita-1415", node != NULL );
-	return node -> data;
 }
 
 /** size of data in znode */
