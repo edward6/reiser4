@@ -114,6 +114,7 @@ typedef struct lock_counters_info {
 	int                   spin_locked_txnmgr;
 	int                   spin_locked_inode;
 	int                   spin_locked;
+	int                   page_locked;
 	int                   long_term_locked_znode;
 
 	int                   d_refs;
