@@ -2399,6 +2399,7 @@ shift_check_prepare(const znode *left, const znode *right)
 			data[i].key = ih->key;
 			data[i].plugin_id = d16tocpu(&ih->plugin_id);
 			switch(data[i].plugin_id) {
+			case CTAIL_ID:
 			case FORMATTING_ID:
 				data[i].u.bytes = coord_num_units(&coord);
 				break;
@@ -2424,6 +2425,7 @@ shift_check_prepare(const znode *left, const znode *right)
 
 			assert("vs-1589", data[i - 1].plugin_id == d16tocpu(&ih->plugin_id));
 			switch(data[i - 1].plugin_id) {
+			case CTAIL_ID:
 			case FORMATTING_ID:
 				data[i - 1].u.bytes += coord_num_units(&coord);
 				break;
@@ -2449,6 +2451,7 @@ shift_check_prepare(const znode *left, const znode *right)
 			data[i].key = ih->key;
 			data[i].plugin_id = d16tocpu(&ih->plugin_id);
 			switch(data[i].plugin_id) {
+			case CTAIL_ID:
 			case FORMATTING_ID:
 				data[i].u.bytes = coord_num_units(&coord);
 				break;
@@ -2512,6 +2515,7 @@ shift_check(void *vp, const znode *left, const znode *right)
 		assert("vs-1591", d16tocpu(&ih->plugin_id) == data[i].plugin_id);
 		if ((i < (node40_num_of_items_internal(left) - 1)) || !mergeable) {
 			switch(data[i].plugin_id) {
+			case CTAIL_ID:
 			case FORMATTING_ID:
 				assert("vs-1592", data[i].u.bytes == coord_num_units(&coord));
 				break;
@@ -2527,6 +2531,7 @@ shift_check(void *vp, const znode *left, const znode *right)
 		}
 		if (item_pos == (node40_num_of_items_internal(left) - 1) && mergeable) {
 			switch(data[i].plugin_id) {
+			case CTAIL_ID:
 			case FORMATTING_ID:
 				last_bytes = coord_num_units(&coord);
 				break;
@@ -2551,6 +2556,7 @@ shift_check(void *vp, const znode *left, const znode *right)
 		assert("vs-1589", data[i - 1].plugin_id == d16tocpu(&ih->plugin_id));
 		assert("vs-1608", last_bytes != 0);
 		switch(data[i - 1].plugin_id) {
+		case CTAIL_ID:
 		case FORMATTING_ID:
 			assert("vs-1596", data[i - 1].u.bytes == last_bytes + coord_num_units(&coord));
 			break;
@@ -2578,6 +2584,7 @@ shift_check(void *vp, const znode *left, const znode *right)
 		assert("vs-1612", keyeq(&ih->key, &data[i].key));
 		assert("vs-1613", d16tocpu(&ih->plugin_id) == data[i].plugin_id);
 		switch(data[i].plugin_id) {
+		case CTAIL_ID:
 		case FORMATTING_ID:
 			assert("vs-1600", data[i].u.bytes == coord_num_units(&coord));
 			break;
