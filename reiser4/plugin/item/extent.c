@@ -291,19 +291,18 @@ static extent_state state_of_extent (reiser4_extent * ext)
 }
 
 
-/* plugin->u.item.b.create_hook
-   @cookie is znode of leaf node for which we need to update right delimiting
-   key
+/* plugin->u.item.b.create_hook @arg is znode of leaf node for which we
+   need to update right delimiting key
 */
-int extent_create_hook (const tree_coord * coord, void * cookie)
+int extent_create_hook (const tree_coord * coord, void * arg)
 {
 	znode * node;
 	reiser4_key key;
 
-	if (!cookie)
+	if (!arg)
 		return 0;
 
-	node = (znode *)cookie;
+	node = (znode *)arg;
 	spin_lock_dk (current_tree);
 	*znode_get_rd_key (node) = *item_key_by_coord (coord, &key);
 	spin_unlock_dk (current_tree);
@@ -584,7 +583,7 @@ static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
 	 * delimiting key of left neighboring znode on leaf level and to break
 	 * linkage between that znode and its right neighbor. This will be done
 	 * by extent_create_hook. znode is being taken here and passed down to
-	 * create_hook via item.cookie
+	 * create_hook via item.arg
 	 */
 	left = *coord;
 	assert ("vs-347", left_item_pos (&left) >= 0);
@@ -593,14 +592,14 @@ static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
 		left.unit_pos = last_unit_pos (&left);
 		left.between = AT_UNIT;
 		spin_lock_dk (current_tree);
-		unit.cookie = child_znode (&left, 1/*do setup delimiting keys*/);
+		unit.arg = child_znode (&left, 1/*do setup delimiting keys*/);
 		spin_unlock_dk (current_tree);
-		if (IS_ERR (unit.cookie))
-			return PTR_ERR (unit.cookie);
+		if (IS_ERR (unit.arg))
+			return PTR_ERR (unit.arg);
 	}
 	result = insert_by_coord (coord, &unit, &first_key, lh, 0, 0);
-	if (unit.cookie)
-		zput (unit.cookie);
+	if (unit.arg)
+		zput (unit.arg);
 	if (result)
 		return result;
 
@@ -984,7 +983,7 @@ static int add_hole (reiser4_tree * tree,
 	item.data = (char *)&new_ext;
 	item.length = sizeof (reiser4_extent);
 	item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);	
-	item.cookie = 0;
+	item.arg = 0;
 
 	if (todo == CREATE_HOLE) {
 		reiser4_key hole_key;
@@ -998,7 +997,7 @@ static int add_hole (reiser4_tree * tree,
 		 * and to break linkage between that znode and its right
 		 * neighbor. This will be done by extent_create_hook. znode is
 		 * being taken here and passed down to create_hook via
-		 * item.cookie
+		 * item.arg
 		 */
 		left = *coord;
 		assert ("vs-346", left_item_pos (&left) >= 0);
@@ -1006,13 +1005,13 @@ static int add_hole (reiser4_tree * tree,
 		if (item_plugin_by_coord (&left)->u.item.item_type == INTERNAL_ITEM_TYPE) {
 			left.unit_pos = last_unit_pos (&left);
 			left.between = AT_UNIT;
-			item.cookie = child_znode (&left, 1/*do setup delimiting keys*/);
-			if (IS_ERR (item.cookie))
-				return PTR_ERR (item.cookie);
+			item.arg = child_znode (&left, 1/*do setup delimiting keys*/);
+			if (IS_ERR (item.arg))
+				return PTR_ERR (item.arg);
 		}
 		result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
-		if (item.cookie)
-			zput (item.cookie);
+		if (item.arg)
+			zput (item.arg);
 	} else {
  		/* @coord points to last extent of the item and to its last block */
 		assert ("vs-29",
@@ -1418,7 +1417,7 @@ static void issue_read (struct buffer_head ** bhs, unsigned nr)
 /* */
 #define MAX_READAHEAD 10
 
-static int readahead_filler (void * cookie, struct page * page)
+static int readahead_filler (void * arg, struct page * page)
 {
 	struct buffer_head *bhs [PAGE_SIZE / 512];
 	struct buffer_head * bh;
@@ -1429,7 +1428,7 @@ static int readahead_filler (void * cookie, struct page * page)
 	if (!page->buffers)
 		create_empty_buffers (page, reiser4_get_current_sb ()->s_blocksize);
 	bh = page->buffers;
-	block = *(unsigned long long *)cookie;
+	block = *(unsigned long long *)arg;
 	nr = 0;
 	do {
 		if (buffer_uptodate (bh))
@@ -1492,11 +1491,11 @@ struct fill_page_desc {
 };
 
 
-/* @cookie is "fill page descriptor" which contains information about how does
+/* @arg is "fill page descriptor" which contains information about how does
    filling of a page process. */
 static int fill_page_actor (reiser4_tree * tree UNUSED_ARG,
 			    tree_coord * coord,
-			    reiser4_lock_handle *lh UNUSED_ARG, void * cookie)
+			    reiser4_lock_handle *lh UNUSED_ARG, void * arg)
 {
 	reiser4_extent * ext;
 	unsigned long long pos_in_unit, width;
@@ -1510,7 +1509,7 @@ static int fill_page_actor (reiser4_tree * tree UNUSED_ARG,
 	unsigned i;
 
 
-	desc = (struct fill_page_desc *)cookie;
+	desc = (struct fill_page_desc *)arg;
 	page = desc->page;
 	assert ("vs-290", PageLocked (page));
 	bh = desc->bh;
@@ -1746,7 +1745,7 @@ static int allocate_unallocated_extent (reiser4_tree * tree,
 
 
 int alloc_extent (reiser4_tree * tree, tree_coord * coord,
-		  reiser4_lock_handle * lh, void * cookie UNUSED_ARG)
+		  reiser4_lock_handle * lh, void * arg UNUSED_ARG)
 {
 	int result;
 	reiser4_key key;
