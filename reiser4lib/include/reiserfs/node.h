@@ -19,7 +19,7 @@ typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
 struct reiserfs_node {
     aal_device_t *device;
     aal_block_t *block;
-    reiserfs_node_opaque_t *entity;
+    reiserfs_opaque_t *entity;
     
     reiserfs_plugin_t *plugin;
 };

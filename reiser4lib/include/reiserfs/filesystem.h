@@ -32,7 +32,7 @@ typedef struct reiserfs_master reiserfs_master_t;
 #define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
 
 struct reiserfs_super {
-    reiserfs_format_opaque_t *entity;
+    reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
@@ -41,14 +41,14 @@ typedef struct reiserfs_super reiserfs_super_t;
 struct reiserfs_journal {
     aal_device_t *device;
     
-    reiserfs_journal_opaque_t *entity;
+    reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_journal reiserfs_journal_t;
 
 struct reiserfs_alloc {
-    reiserfs_alloc_opaque_t *entity;
+    reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
 };
 

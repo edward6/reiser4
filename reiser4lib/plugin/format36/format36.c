@@ -90,7 +90,9 @@ static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
     return NULL;
 }
 
-static reiserfs_format36_t *reiserfs_format36_open(aal_device_t *device) {
+static reiserfs_format36_t *reiserfs_format36_open(reiserfs_opaque_t *alloc, 
+    aal_device_t *device) 
+{
     reiserfs_format36_t *format;
 	
     if (!device)
@@ -124,8 +126,8 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
     return 0;
 }
 
-static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
-    count_t blocks) 
+static reiserfs_format36_t *reiserfs_format36_create(reiserfs_opaque_t *alloc, 
+    aal_device_t *device, count_t blocks, uint16_t blocksize) 
 {
     return NULL;
 }
@@ -188,23 +190,26 @@ static reiserfs_plugin_t format36_plugin = {
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
-	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *, count_t))reiserfs_format36_create,
-	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_close,
-	.sync = (error_t (*)(reiserfs_format_opaque_t *))reiserfs_format36_sync,
-	.check = (error_t (*)(reiserfs_format_opaque_t *))reiserfs_format36_check,
-	.probe = (int (*)(aal_device_t *))reiserfs_format36_probe,
-	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format36_format,
-			
-	.root_block = (blk_t (*)(reiserfs_format_opaque_t *))reiserfs_format36_root_block,
+	.open = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *))reiserfs_format36_open,
 	
-	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+	.create = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *, count_t, uint16_t))
+	    reiserfs_format36_create,
+	
+	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_format36_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_sync,
+	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_check,
+	.probe = (int (*)(aal_device_t *))reiserfs_format36_probe,
+	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format36_format,
+			
+	.root_block = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_root_block,
+	
+	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_alloc_plugin,
 	
-	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_node_plugin,
     }
 };

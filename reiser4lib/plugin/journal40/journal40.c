@@ -77,11 +77,11 @@ static reiserfs_plugin_t journal40_plugin = {
 	    .desc = "Default journal for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_journal_opaque_t *(*)(aal_device_t *))reiserfs_journal40_open,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_journal40_open,
 	.create = NULL,
-	.close = (void (*)(reiserfs_journal_opaque_t *, int))reiserfs_journal40_close,
-	.sync = (error_t (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_sync,
-	.replay = (error_t (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_replay
+	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_journal40_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal40_sync,
+	.replay = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal40_replay
     }
 };
 

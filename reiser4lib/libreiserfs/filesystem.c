@@ -146,8 +146,11 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (reiserfs_master_open(fs))
 	goto error_free_fs;
 	    
-    if (reiserfs_super_open(fs))
+    if (reiserfs_alloc_open(fs))
 	goto error_free_master;
+	
+    if (reiserfs_super_open(fs))
+	goto error_free_alloc;
 
     if (journal_device)
 	aal_device_set_blocksize(journal_device, reiserfs_fs_blocksize(fs));
@@ -156,21 +159,18 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	    reiserfs_journal_open(fs, journal_device, replay))
 	goto error_free_super;
 	
-    if (reiserfs_super_alloc_plugin(fs) != -1 && reiserfs_alloc_open(fs))
-	goto error_free_journal;
-	
     if (reiserfs_tree_open(fs))
-	goto error_free_alloc;
+	goto error_free_journal;
 	
     return fs;
 
-error_free_alloc:
-    reiserfs_alloc_close(fs, 0);
 error_free_journal:
     if (fs->journal)
 	reiserfs_journal_close(fs, 0);
 error_free_super:
     reiserfs_super_close(fs, 0);
+error_free_alloc:
+    reiserfs_alloc_close(fs, 0);
 error_free_master:
     reiserfs_master_close(fs, 0);
 error_free_fs:
@@ -206,26 +206,26 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
 	goto error_free_fs;
 	    
-    if (reiserfs_super_create(fs, format_plugin_id, len))
+    if (reiserfs_alloc_create(fs))
 	goto error_free_master;
+	
+    if (reiserfs_super_create(fs, format_plugin_id, len))
+	goto error_free_alloc;
 	
     if (reiserfs_journal_create(fs, journal_device, journal_params))
 	goto error_free_super;
 	
-    if (reiserfs_alloc_create(fs))
-	goto error_free_journal;
-	
     if (reiserfs_tree_create(fs, node_plugin_id))
-	goto error_free_alloc;
+	goto error_free_journal;
 	
     return fs;
 
-error_free_alloc:
-    reiserfs_alloc_close(fs, 0);
 error_free_journal:
     reiserfs_journal_close(fs, 0);
 error_free_super:
     reiserfs_super_close(fs, 0);
+error_free_alloc:
+    reiserfs_alloc_close(fs, 0);
 error_free_master:
     reiserfs_master_close(fs, 0);    
 error_free_fs:

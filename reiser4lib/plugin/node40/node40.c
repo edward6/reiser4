@@ -223,16 +223,16 @@ static reiserfs_plugin_t node40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 
-	.open = (reiserfs_node_opaque_t *(*)(aal_device_t *, aal_block_t *))reiserfs_node40_open,
-	.create = (reiserfs_node_opaque_t *(*)(aal_device_t *,aal_block_t *, uint8_t))reiserfs_node40_create,
-	.confirm_format = (error_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_confirm,
-	.check =  (error_t (*)(reiserfs_node_opaque_t *, int))reiserfs_node40_check,
-	.max_item_size = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_max_item_size,
-	.max_item_num =  (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_max_item_num,
-	.count = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_count,
-	.get_free_space = (uint32_t (*)(reiserfs_node_opaque_t *))reiserfs_node40_get_free_space,
-	.set_free_space = (void (*)(reiserfs_node_opaque_t *, uint32_t))reiserfs_node40_set_free_space,
-	.print = (void (*)(reiserfs_node_opaque_t *))reiserfs_node40_print
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_block_t *))reiserfs_node40_open,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *,aal_block_t *, uint8_t))reiserfs_node40_create,
+	.confirm_format = (error_t (*)(reiserfs_opaque_t *))reiserfs_node40_confirm,
+	.check =  (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
+	.max_item_size = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_max_item_size,
+	.max_item_num =  (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_max_item_num,
+	.count = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_count,
+	.get_free_space = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_get_free_space,
+	.set_free_space = (void (*)(reiserfs_opaque_t *, uint32_t))reiserfs_node40_set_free_space,
+	.print = (void (*)(reiserfs_opaque_t *))reiserfs_node40_print
     }
 };
 

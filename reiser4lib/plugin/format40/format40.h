@@ -44,11 +44,17 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 #define get_sb_oid(sb)					get_le64(sb, sb_oid)
 #define set_sb_oid(sb, val)				set_le64(sb, sb_oid, val)
 
-#define get_journal_plugin_id(sb)			get_le16(sb, journal_plugin_id)
-#define set_journal_plugin_id(sb, val)			set_le16(sb, journal_plugin_id, val)
+#define get_sb_file_count(sb)				get_le64(sb, sb_file_count)
+#define set_sb_file_count(sb, val)			set_le64(sb, sb_file_count, val)
 
-#define get_alloc_plugin_id(sb)				get_le16(sb, alloc_plugin_id)
-#define set_alloc_plugin_id(sb, val)			set_le16(sb, alloc_plugin_id, val)
+#define get_sb_flushes(sb)				get_le64(sb, sb_flushes)
+#define set_sb_flushes(sb, val)				set_le64(sb, sb_flushes, val)
+
+#define get_sb_journal_plugin_id(sb)			get_le16(sb, sb_journal_plugin_id)
+#define set_sb_journal_plugin_id(sb, val)		set_le16(sb, sb_journal_plugin_id, val)
+
+#define get_sb_alloc_plugin_id(sb)			get_le16(sb, sb_alloc_plugin_id)
+#define set_sb_alloc_plugin_id(sb, val)			set_le16(sb, sb_alloc_plugin_id, val)
 
 struct reiserfs_format40 {
     aal_device_t *device;

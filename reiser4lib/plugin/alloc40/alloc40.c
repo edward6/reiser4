@@ -63,6 +63,18 @@ static void reiserfs_alloc40_close(reiserfs_alloc40_t *alloc, int sync) {
     aal_free(alloc);
 }
 
+static error_t reiserfs_alloc40_allocate(reiserfs_alloc40_t *alloc, 
+    reiserfs_segment_t *request, reiserfs_segment_t *response)
+{
+    return -1;
+}
+
+static error_t reiserfs_alloc40_deallocate(reiserfs_alloc40_t *alloc, 
+    reiserfs_segment_t *request, reiserfs_segment_t *response)
+{
+    return -1;
+}
+
 static reiserfs_plugin_t alloc40_plugin = {
     .alloc = {
 	.h = {
@@ -73,10 +85,16 @@ static reiserfs_plugin_t alloc40_plugin = {
 	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc40_open,
-	.create = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc40_create,
-	.close = (void (*)(reiserfs_alloc_opaque_t *, int))reiserfs_alloc40_close,
-	.sync = (error_t (*)(reiserfs_alloc_opaque_t *))reiserfs_alloc40_sync
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_alloc40_open,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_alloc40_create,
+	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_alloc40_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_sync,
+
+	.allocate = (error_t (*)(reiserfs_opaque_t *, reiserfs_segment_t *, reiserfs_segment_t *))
+	    reiserfs_alloc40_allocate,
+	
+	.deallocate = (error_t (*)(reiserfs_opaque_t *, reiserfs_segment_t *, reiserfs_segment_t *))
+	    reiserfs_alloc40_deallocate
     }
 };
 

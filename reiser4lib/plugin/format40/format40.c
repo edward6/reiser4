@@ -51,7 +51,9 @@ static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
     return NULL;
 }
 
-static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *device) {
+static reiserfs_format40_t *reiserfs_format40_open(reiserfs_opaque_t *alloc, 
+    aal_device_t *device) 
+{
     reiserfs_format40_t *format;
 	
     if (!device)
@@ -85,9 +87,13 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     return 0;
 }
 
-static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, count_t blocks) {
+static reiserfs_format40_t *reiserfs_format40_create(reiserfs_opaque_t *alloc, 
+    aal_device_t *device, count_t blocks, uint16_t blocksize) 
+{
+    reiserfs_plugin_t *plugin;
     reiserfs_format40_t *format;
     reiserfs_format40_super_t *super;
+    reiserfs_segment_t request, response;
 
     if (!device)
 	return NULL;
@@ -103,13 +109,58 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, count
 	goto error_free_format;
     }
     super = (reiserfs_format40_super_t *)format->super->data;
-    set_sb_block_count(super, blocks);
-    
-    /* There will be superblock forming code */
-   
-    if (!reiserfs_format40_sync(format))
-	goto error_free_super;
 
+    /* Super block forming code */
+    set_sb_block_count(super, blocks);
+
+    /* 
+	Free blocks value equals blockcount minus skiped area, minus master super block,
+       	minus format-specific super block, minus root internal node and minus leaf.
+    */
+    set_sb_free_blocks(super, blocks - ((REISERFS_MASTER_OFFSET / blocksize) + 1 + 1 + 1 + 1));
+
+    /* Requesting allocator plugin to allocate one block for root node */
+    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 0x01))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find allocator plugin by its coords (%x, %x).", 
+	    REISERFS_ALLOC_PLUGIN, 0x01);
+	goto error_free_format;
+    }
+
+    aal_memset(&request, 0, sizeof(request));
+    aal_memset(&response, 0, sizeof(response));
+    
+    request.start = 0;
+    request.count = 1;
+    
+    reiserfs_plugin_check_routine(plugin->alloc, allocate, goto error_free_format);
+    if (plugin->alloc.allocate(alloc, &request, &response))
+	goto error_free_format;
+    
+    /* 
+	Okay, allocator plugin has returned correctly filled 
+	response with allocated area.
+    */
+    
+    set_sb_root_block(super, response.start);
+
+    /* Tree height */
+    set_sb_tree_height(super, 2);
+
+    /* 
+	Smallest free oid. In theory it should be zero and then 
+	it should be increased by node plugin or some item plugin.
+	However, both they not accessible and we will set it into 
+	"two" value (two dirs in the root dir "." and "..").
+    */
+    set_sb_oid(super, 2);
+
+    /* The same as smallest oid */
+    set_sb_file_count(super, 2);
+    set_sb_flushes(super, 0);
+    set_sb_journal_plugin_id(super, 0x01);
+    set_sb_alloc_plugin_id(super, 0x01);
+    
     return format;
     
 error_free_super:
@@ -175,23 +226,26 @@ static reiserfs_plugin_t format40_plugin = {
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
-	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *, count_t))reiserfs_format40_create,
-	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format40_close,
-	.sync = (error_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_sync,
-	.check = (error_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_check,
+	.open = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *))reiserfs_format40_open,
+	
+	.create = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *, count_t, uint16_t))
+	    reiserfs_format40_create,
+	
+	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_format40_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
+	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,
 	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
-	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format40_format,
+	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format40_format,
 	
-	.root_block = (blk_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_root_block,
+	.root_block = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_root_block,
 	
-	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_alloc_plugin,
 	
-	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_node_plugin,
     }
 };

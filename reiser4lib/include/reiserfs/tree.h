@@ -20,7 +20,7 @@ extern error_t reiserfs_tree_sync(reiserfs_fs_t *fs);
 extern void reiserfs_tree_close(reiserfs_fs_t *fs, int sync);
 
 struct reiserfs_coord {
-    reiserfs_node_opaque_t *node;
+    reiserfs_opaque_t *node;
     int16_t item_pos;
     int16_t unit_pos; 
 };
