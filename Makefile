@@ -48,7 +48,7 @@ reiser4-objs := \
 		   emergency_flush.o \
 		   spinprof.o\
 		   readahead.o \
-           crypt.o \
+	           crypt.o \
 		   compress.o\
            \
 		   plugin/plugin.o \
