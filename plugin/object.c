@@ -112,6 +112,22 @@ key_warning(const char *error_message /* message to print */ ,
 	print_key("for key", key);
 }
 
+#if REISER4_DEBUG
+static void
+check_inode_seal(const struct inode *inode,
+		 const coord_t *coord, const reiser4_key *key)
+{
+	reiser4_key unit_key;
+
+	unit_key_by_coord(coord, &unit_key);
+	assert("nikita-2752", 
+	       WITH_DATA_RET(coord->node, 1, keyeq(key, &unit_key)));
+	assert("nikita-2753", get_inode_oid(inode) == get_key_objectid(key));
+}
+#else
+#define check_inode_seal(inode, coord, key) noop
+#endif
+
 /** find sd of inode in a tree, deal with errors */
 int
 lookup_sd(struct inode *inode /* inode to look sd for */ ,
@@ -306,6 +322,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 					/* initialise stat-data seal */
 					seal_init(&ref->sd_seal, &coord, &key);
 					ref->sd_coord = coord;
+					check_inode_seal(inode, &coord, &key);
 				} else {
 					error_message = "cannot save sd of";
 					result = -EIO;
@@ -435,6 +452,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 			seal_init(&state->sd_seal, &coord, &key);
 			state->sd_coord = coord;
 			spin_unlock_inode(state);
+			check_inode_seal(inode, &coord, &key);
 			zrelse(coord.node);
 		} else {
 			key_warning(error_message, &key, result);
