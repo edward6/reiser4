@@ -83,35 +83,20 @@ cut_formatting_items(struct inode *inode, loff_t offset, int count)
 	return cut_tree(tree_by_inode(inode), &from, &to, inode);
 }
 
-typedef enum {
-	UNLOCK = 0,
-	RELEASE = 1,
-	DROP = 2
-} page_action;
-
 static void
-for_all_pages(struct page **pages, unsigned nr_pages, page_action action)
+release_all_pages(struct page **pages, unsigned nr_pages)
 {
 	unsigned i;
 
 	for (i = 0; i < nr_pages; i++) {
-		if (!pages[i])
-			continue;
-		switch(action) {
-		case UNLOCK:
-			set_page_dirty_internal(pages[i]);
-			unlock_page(pages[i]);
-			break;
-		case DROP:
-			unlock_page(pages[i]);
-		case RELEASE:
-			/* Cannot assert that page is not locked here, because
-			 * other thread can lock it. */
-			/* assert("vs-1082", !PageLocked(pages[i])); */
-			page_cache_release(pages[i]);
-			pages[i] = NULL;
+		if (pages[i] == NULL) {
+			unsigned j;
+			for (j = i + 1; j < nr_pages; j ++)
+				assert("vs-1620", pages[j] == NULL);
 			break;
 		}
+		page_cache_release(pages[i]);
+		pages[i] = NULL;
 	}
 }
 
@@ -137,6 +122,11 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 
 	/* put into tree replacement for just removed items: extent item, namely */
 	for (i = 0; i < nr_pages; i++) {
+		result = add_to_page_cache_lru(pages[i], inode->i_mapping,
+					       pages[i]->index, mapping_gfp_mask(inode->i_mapping));
+		if (result)
+			break;
+		unlock_page(pages[i]);
 		result = find_or_create_extent(pages[i]);
 		if (result)
 			break;
@@ -305,12 +295,13 @@ tail2extent(unix_file_info_t *uf_info)
 		}
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT));
+			pages[i] = alloc_page(mapping_gfp_mask(inode->i_mapping));
 			if (!pages[i]) {
 				result = RETERR(-ENOMEM);
 				goto error;
 			}
 
+			pages[i]->index = (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT);
 			/* usually when one is going to longterm lock znode (as
 			   find_file_item does, for instance) he must not hold
 			   locked pages. However, there is an exception for
@@ -388,13 +379,11 @@ tail2extent(unix_file_info_t *uf_info)
 			}	/* for */
 		}		/* for */
 
-		/* to keep right lock order unlock pages before calling replace which will have to obtain longterm
-		   znode lock */
-		for_all_pages(pages, sizeof_array(pages), UNLOCK);
+		assert("vs-1619", i > 0);
 		result = replace(inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
-		for_all_pages(pages, sizeof_array(pages), RELEASE);
+		release_all_pages(pages, sizeof_array(pages));
 		if (result)
-			goto exit;
+			goto error;
 		/* throttle the conversion */
 		balance_dirty_page_unix_file(inode);
 	}
@@ -402,8 +391,6 @@ tail2extent(unix_file_info_t *uf_info)
 	if (result == 0) {
 		/* tail converted */
 		uf_info->container = UF_CONTAINER_EXTENTS;
-
-		for_all_pages(pages, sizeof_array(pages), RELEASE);
 
 		if (inode_get_flag(inode, REISER4_PART_CONV)) {
 			inode_clr_flag(inode, REISER4_PART_CONV);
@@ -415,9 +402,8 @@ tail2extent(unix_file_info_t *uf_info)
 		/* conversion is not complete. Inode was already marked as
 		 * REISER4_PART_CONV and stat-data were updated at the first
 		 * iteration of the loop above. */
-error:
-		for_all_pages(pages, sizeof_array(pages), DROP);
-exit:
+ error:
+		release_all_pages(pages, sizeof_array(pages));
 		warning("nikita-2282", "Partial conversion of %llu: %i",
 			get_inode_oid(inode), result);
 		print_inode("inode", inode);
