@@ -44,6 +44,9 @@
 /** size of hash-table for znodes */
 #define REISER4_ZNODE_HASH_TABLE_SIZE (8192)
 
+/** number of buckets in lnode hash-table */
+#define LNODE_HTABLE_BUCKETS (1024)
+
 /** some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
@@ -205,6 +208,7 @@ static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
 
+#include "kcond.h"
 #include "dformat.h"
 #include "key.h"
 #include "kassign.h"
@@ -235,7 +239,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "tshash.h"
 #include "tslist.h"
-#include "lnode.h"
 #include "plugin/plugin.h"
 #include "txnmgr.h"
 #include "znode.h"
@@ -248,6 +251,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "tree.h"
 
 #include "inode.h"
+#include "lnode.h"
 #include "super.h"
 
 #include "memory.h"
