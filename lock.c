@@ -714,11 +714,6 @@ longterm_unlock_znode(lock_handle * handle)
 			   still waiting on this node and notifying them
 			   that node is dying.
 			*/
-			UNLOCK_ZLOCK(&node->lock);
-			ON_DEBUG(check_lock_data());
-			ON_DEBUG(check_lock_node_data(node));
-			ON_DEBUG(node_check(node, 0));
-			ON_DEBUG_MODIFY(znode_post_write(node));
 			forget_znode(handle);
 			assert("nikita-2191", znode_invariant(node));
 			zput(node);
@@ -1069,14 +1064,12 @@ invalidate_lock(lock_handle * handle	/* path to lock
 	lock_stack *rq;
 
 	assert("zam-325", owner == get_current_lock_stack());
-
-	LOCK_ZLOCK(&node->lock);
-
 	assert("zam-103", znode_is_write_locked(node));
 	assert("nikita-1393", !ZF_ISSET(node, JNODE_LEFT_CONNECTED));
 	assert("nikita-1793", !ZF_ISSET(node, JNODE_RIGHT_CONNECTED));
 	assert("nikita-1394", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 	assert("nikita-3097", znode_is_wlocked_once(node));
+	assert("nikita-3338", spin_zlock_is_locked(&node->lock));
 
 	if (handle->signaled)
 		atomic_dec(&owner->nr_signaled);
