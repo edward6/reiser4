@@ -4235,16 +4235,20 @@ static int bm_test_read_node (reiser4_tree * tree, jnode * node )
 	
 	jnode_attach_page (node, page);
 
+	unlock_page (page);
+
 	page_cache_release (page);
 
 	spin_lock_jnode (node);
 
 	kmap(page);
 
-	if( likely( !JF_ISSET( node, ZNODE_KMAPPED ) ) )
-		JF_SET( node, ZNODE_KMAPPED );
+	if(!JF_ISSET(node, ZNODE_KMAPPED))
+		JF_SET(node, ZNODE_KMAPPED);
 	else
 		kunmap( page );
+
+	spin_unlock_jnode (node);
 
 	if (PageUptodate(page)) return 0;
 

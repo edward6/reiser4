@@ -462,7 +462,12 @@ static int load_bnode_half (struct bnode * bnode, jnode * node)
 		( node == &bnode->wjnode && blocknr_is_fake (jnode_get_block(node))) ||
 		( node == &bnode->cjnode && !blocknr_is_fake (jnode_get_block(node)))) ;
 
-	if (JF_ISSET (node, ZNODE_LOADED)) return 0;
+	if (JF_ISSET (node, ZNODE_LOADED)) {
+		assert ("zam-432", node->pg != NULL);
+		kmap (node -> pg);
+		JF_SET (node, ZNODE_KMAPPED);
+		return 1;
+	}
 
 	spin_unlock_bnode (bnode);
 
@@ -473,19 +478,6 @@ static int load_bnode_half (struct bnode * bnode, jnode * node)
 	if (ret) return ret;
 
 	spin_lock_bnode(bnode);
-
-	/* another thread might call tree->read_node, we should re-check
-	 * ZNODE_LOADED state bit */
-	if (JF_ISSET (node, ZNODE_LOADED)) {
-		int (*release_node) (reiser4_tree*, jnode*);
-		reiser4_tree * tree = current_tree;
-
-		release_node = tree->ops->release_node;
-
-		assert ("zam-488", release_node != NULL);
-
-		release_node (tree, node);
-	}
 
 	return 0;
 }
@@ -636,10 +628,12 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 		start = end + 1;
 	}
 
+#if 0
 	if (ret > 0) {
 		jnode_set_dirty(& bnode->wjnode);
 		jnode_set_dirty(& bnode->wjnode);
 	}
+#endif
 
  out:
 	release_and_unlock_bnode (bnode);
