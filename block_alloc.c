@@ -474,6 +474,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (stage == BLOCK_NOT_COUNTED) {
+		get_current_context()->grab_enabled = 1;
 		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, reserved);
 		if (ret != 0)
 			return ret;
