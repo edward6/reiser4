@@ -183,13 +183,13 @@ errno_t reiser4_cache_raise(
     
     /* 
 	Initializing stop level for tree lookup function. Here tree lookup function is
-	used as instrument for reflecting the part of b*tree into libreiser4 tree cache.
-	So, connecting to the stop level for lookup we need to map part of the b*tree
+	used as instrument for reflecting the part of tree into libreiser4 tree cache.
+	So, connecting to the stop level for lookup we need to map part of the tree
 	from the root (tree height) to the level of passed node, because we should make
 	sure, that needed neighbour will be mapped into cache and will be accesible by
 	cache->left or cache->right pointers.
     */
-    level = reiser4_node_get_level(cache->node);
+    level = cache->level;
     
     /* Rasing the right neighbour */
     if (!cache->left) {
@@ -414,12 +414,12 @@ errno_t reiser4_cache_set_key(reiser4_cache_t *cache,
 */
 errno_t reiser4_cache_insert(
     reiser4_cache_t *cache,	    /* cache item will be inserted in */
-    reiser4_pos_t *pos,	    /* pos item will be inserted at */
-    reiser4_item_hint_t *item	    /* item hint to be inserted */
+    reiser4_pos_t *pos,	    	    /* pos item will be inserted at */
+    reiser4_item_hint_t *hint	    /* item hint to be inserted */
 ) {
     aal_assert("umka-990", cache != NULL, return -1);
     aal_assert("umka-991", pos != NULL, return -1);
-    aal_assert("umka-992", item != NULL, return -1);
+    aal_assert("umka-992", hint != NULL, return -1);
 
     /* Check if we need to update ldkey in parent cache */
     if (reiser4_node_count(cache->node) > 0 && cache->parent && 
@@ -430,17 +430,17 @@ errno_t reiser4_cache_insert(
 	if (reiser4_cache_pos(cache, &p))
 	    return -1;
 	
-	if (reiser4_cache_set_key(cache->parent, &p, &item->key))
+	if (reiser4_cache_set_key(cache->parent, &p, &hint->key))
 	    return -1;
     }
 
     /* Inserting item */
-    if (reiser4_node_insert(cache->node, pos, item))
+    if (reiser4_node_insert(cache->node, pos, hint))
 	return -1;
 
     /* Updating ldkey in parent cache */
     if (pos->item == 0 && (pos->unit == 0 || pos->unit == ~0ul)) {
-	if (reiser4_node_set_key(cache->node, pos, &item->key))
+	if (reiser4_node_set_key(cache->node, pos, &hint->key))
 	    return -1;
     }
     
@@ -480,9 +480,7 @@ errno_t reiser4_cache_remove(
 	Updating list of childrens of modified node in the case we modifying an 
 	internal node.
     */
-    if (reiser4_node_get_level(cache->node) > 
-	REISER4_LEAF_LEVEL) 
-    {
+    if (cache->level > REISER4_LEAF_LEVEL) {
         reiser4_key_t key;
         reiser4_cache_t *child;
 
@@ -557,9 +555,7 @@ errno_t reiser4_cache_move(
     }
     
     /* Updating cache pointers in the case of moving items on leaves level */
-    if (reiser4_node_get_level(src_cache->node) > 
-	REISER4_LEAF_LEVEL)
-    {
+    if (src_cache->level > REISER4_LEAF_LEVEL) {
         reiser4_key_t key;
         reiser4_cache_t *child;
 

@@ -79,12 +79,12 @@ static inline errno_t __item_body(
     node = ((reiser4_cache_t *)place->cache)->node;
     
     /* Getting item from the node */
-    *item = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
+    *item = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
 	item_body, node->entity, &place->pos);
     
     /* Getting item length from the node */
     if (len) {
-	*len = libreiser4_plugin_call(return -1, node->plugin->node_ops,
+	*len = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops,
 	    item_len, node->entity, &place->pos);
     }
     
@@ -162,12 +162,17 @@ static inline reiser4_id_t __item_pid(
     aal_assert("umka-873", place != NULL, return -1);
     
     switch (type) {
-	case ITEM_PLUGIN_TYPE:
-	    return reiser4_node_item_get_pid(((reiser4_cache_t *)place->cache)->node, 
-		&place->pos);
+	case ITEM_PLUGIN_TYPE: {
+	    reiser4_node_t *node;
 	    
+	    node = ((reiser4_cache_t *)place->cache)->node;
+	    
+	    return libreiser4_plugin_call(return -1, 
+		node->entity->plugin->node_ops, item_pid, 
+		node->entity, &place->pos);
+	}
 	case NODE_PLUGIN_TYPE:
-	    return reiser4_node_get_pid(((reiser4_cache_t *)place->cache)->node);
+	    return reiser4_node_pid(((reiser4_cache_t *)place->cache)->node);
 	    
 	default:
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

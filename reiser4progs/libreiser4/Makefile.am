@@ -2,7 +2,7 @@ includedir		     = -I$(top_srcdir)/include
 
 libreiser4_sources	     = libreiser4.c filesystem.c format.c journal.c \
 			       alloc.c oid.c plugin.c node.c tree.c key.c \
-			       object.c coord.c cache.c dir.c master.c
+			       object.c coord.c cache.c dir.c master.c item.c
 
 lib_LTLIBRARIES		     = libreiser4.la
 

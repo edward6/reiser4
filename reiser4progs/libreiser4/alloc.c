@@ -18,7 +18,6 @@
 reiser4_alloc_t *reiser4_alloc_open(
     reiser4_format_t *format	/* disk-format allocator is going to be opened on */
 ) {
-    count_t len;
     reiser4_id_t pid;
     reiser4_alloc_t *alloc;
     reiser4_plugin_t *plugin;
@@ -39,17 +38,9 @@ reiser4_alloc_t *reiser4_alloc_open(
     if (!(plugin = libreiser4_factory_find_by_id(ALLOC_PLUGIN_TYPE, pid)))
     	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
 
-    alloc->plugin = plugin;
-
-    if (!(len = reiser4_format_get_len(format))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid filesystem size has been found.");
-	goto error_free_alloc;
-    }
-
     /* Calling "open" method from block allocator plugin */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc_ops, open, format->device, len)))
+	plugin->alloc_ops, open, format->entity)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator.");
@@ -66,13 +57,13 @@ error_free_alloc:
 #ifndef ENABLE_COMPACT
 
 /* 
-    Creates new block allocator. Initializes all structures, calles block allocator 
-    plugin in order to initialize allocator instance and returns instance to caller.
+    Creates new block allocator. Initializes all structures, calles block 
+    allocator plugin in order to initialize allocator instance and returns 
+    instance to caller.
 */
 reiser4_alloc_t *reiser4_alloc_create(
     reiser4_format_t *format	    /* format block allocator is going to be created on */
 ) {
-    count_t len;
     reiser4_id_t pid;
     reiser4_alloc_t *alloc;
     reiser4_plugin_t *plugin;
@@ -91,19 +82,11 @@ reiser4_alloc_t *reiser4_alloc_create(
     
     /* Getting needed plugin from plugin factory by its id */
     if (!(plugin = libreiser4_factory_find_by_id(ALLOC_PLUGIN_TYPE, pid)))
-    	libreiser4_factory_failed(goto error_free_alloc, find, block allocator, pid);
-
-    alloc->plugin = plugin;
-
-    if (!(len = reiser4_format_get_len(format))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid filesystem size has been found.");
-	goto error_free_alloc;
-    }
+    	libreiser4_factory_failed(goto error_free_alloc, find, allocator, pid);
 
     /* Query the block allocator plugin for creating allocator entity */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc_ops, create, format->device, len)))
+	plugin->alloc_ops, create, format->entity)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create block allocator.");
@@ -123,7 +106,7 @@ errno_t reiser4_alloc_sync(
 ) {
     aal_assert("umka-139", alloc != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, alloc->plugin->alloc_ops, 
+    return libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	sync, alloc->entity);
 }
 
@@ -136,7 +119,7 @@ void reiser4_alloc_close(
     aal_assert("umka-141", alloc != NULL, return);
 
     /* Calling the plugin for close its internal instance properly */
-    libreiser4_plugin_call(return, alloc->plugin->alloc_ops, 
+    libreiser4_plugin_call(return, alloc->entity->plugin->alloc_ops, 
 	close, alloc->entity);
     
     aal_free(alloc);
@@ -148,7 +131,7 @@ count_t reiser4_alloc_free(
 ) {
     aal_assert("umka-362", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
+    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	free, alloc->entity);
 }
 
@@ -158,7 +141,7 @@ count_t reiser4_alloc_used(
 ) {
     aal_assert("umka-499", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
+    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	used, alloc->entity);
 }
 
@@ -171,7 +154,7 @@ void reiser4_alloc_mark(
 ) {
     aal_assert("umka-501", alloc != NULL, return);
 
-    libreiser4_plugin_call(return, alloc->plugin->alloc_ops, 
+    libreiser4_plugin_call(return, alloc->entity->plugin->alloc_ops, 
 	mark, alloc->entity, blk);
 }
 
@@ -182,7 +165,7 @@ void reiser4_alloc_dealloc(
 ) {
     aal_assert("umka-503", alloc != NULL, return);
 
-    libreiser4_plugin_call(return, alloc->plugin->alloc_ops, 
+    libreiser4_plugin_call(return, alloc->entity->plugin->alloc_ops, 
 	dealloc, alloc->entity, blk);
 }
 
@@ -192,18 +175,17 @@ blk_t reiser4_alloc_alloc(
 ) {
     aal_assert("umka-505", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
+    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	alloc, alloc->entity);
 }
 
 errno_t reiser4_alloc_valid(
-    reiser4_alloc_t *alloc,	/* allocator to be checked */
-    int flags			/* some flags will be used by plugin in the future */
+    reiser4_alloc_t *alloc	/* allocator to be checked */
 ) {
     aal_assert("umka-833", alloc != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, alloc->plugin->alloc_ops, 
-	valid, alloc->entity, flags);
+    return libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
+	valid, alloc->entity);
 }
 
 #endif
@@ -218,7 +200,7 @@ int reiser4_alloc_test(
 ) {
     aal_assert("umka-662", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
+    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	test, alloc->entity, blk);
 }
 
