@@ -157,7 +157,8 @@ unsigned long long progs_misc_size_parse(
     strncpy(number, str, strlen(str));
     label = number[strlen(number) - 1];
 	
-    if (label == 'K' || label == 'M' || label == 'G')
+    if (toupper(label) == toupper('k') || toupper(label) == toupper('m') || 
+	    toupper(label) == toupper('g'))
 	number[strlen(number) - 1] = '\0';
     else
 	label = 0;	
@@ -165,11 +166,11 @@ unsigned long long progs_misc_size_parse(
     if ((size = progs_misc_strtol(number, error)) == 0 && *error)
 	return 0;
 	
-    if (label == 0 || label == 'M')
+    if (label == 0 || toupper(label) == toupper('m'))
 	size = size * MB;
-    else if (label == 'K')
+    else if (toupper(label) == toupper('k'))
 	size = size * KB;
-    else if (label == 'G')
+    else if (toupper(label) == toupper('g'))
 	size = size * GB;
 
     return size;
@@ -328,6 +329,13 @@ aal_exception_option_t __progs_exception_handler(
 ) {
     aal_exception_option_t opt;
     
+    if (exception->type == EXCEPTION_ERROR || 
+	exception->type == EXCEPTION_FATAL ||
+	exception->type == EXCEPTION_BUG)
+        aal_gauge_failed(); 
+    else
+	aal_gauge_pause();
+
     do {
 	fflush(stdout);
 	
@@ -340,6 +348,11 @@ aal_exception_option_t __progs_exception_handler(
     
 	if (__progs_exception_bit_count(exception->options, 0) == 1) {
 	    printf("\n");
+	    
+	    if (exception->type == EXCEPTION_WARNING || 
+		    exception->type == EXCEPTION_INFORMATION)
+		aal_gauge_resume();
+	    
 	    return exception->options;
 	}
 	    
@@ -348,6 +361,85 @@ aal_exception_option_t __progs_exception_handler(
 	
     } while (opt == EXCEPTION_UNHANDLED);
 
+    if (exception->type == EXCEPTION_WARNING || 
+	    exception->type == EXCEPTION_INFORMATION)
+	aal_gauge_resume();
+	    
     return opt;
+}
+
+/* Common gauge handler */
+#define GAUGE_BITS_SIZE 4
+
+static inline void __progs_gauge_blit(void) {
+    static short bitc = 0;
+    static const char bits[] = "|/-\\";
+
+    putc(bits[bitc], stderr);
+    putc('\b', stderr);
+    fflush(stderr);
+    bitc++;
+    bitc %= GAUGE_BITS_SIZE;
+}
+
+/* This functions "draws" gauge header */
+static inline void __progs_gauge_header(
+    const char *name,		/* gauge name */
+    aal_gauge_type_t type	/* gauge type */
+) {
+    if (name) {
+	if (type != GAUGE_SILENT)
+	    fprintf(stderr, "\r%s: ", name);
+	else
+	    fprintf(stderr, "\r%s...", name);
+    }
+}
+
+/* This function "draws" gauge footer */
+static inline void __progs_gauge_footer(
+    const char *name,	    /* footer name */
+    aal_gauge_type_t type   /* gauge type */
+) {
+    if (name)
+	fputs(name, stderr);
+}
+
+/* Common gauge handler */
+void __progs_gauge_handler(aal_gauge_t *gauge) {
+    if (gauge->state == GAUGE_PAUSED) {
+	putc('\r', stderr);
+	fflush(stderr);
+	return;
+    }
+	
+    if (gauge->state == GAUGE_STARTED)
+	__progs_gauge_header(gauge->name, gauge->type);
+	
+    switch (gauge->type) {
+	case GAUGE_PERCENTAGE: {
+	    unsigned int i;
+	    char display[10] = {0};
+		
+	    sprintf(display, "%d%%", gauge->value);
+	    fputs(display, stderr);
+		
+	    for (i = 0; i < strlen(display); i++)
+		fputc('\b', stderr);
+	    break;
+	}
+	case GAUGE_INDICATOR: {
+	    __progs_gauge_blit();
+	    break;
+	}
+	case GAUGE_SILENT: break;
+    }
+
+    if (gauge->state == GAUGE_DONE)
+	__progs_gauge_footer("done\n", gauge->type);
+    
+    if (gauge->state == GAUGE_FAILED)
+	__progs_gauge_footer("failed\n", gauge->type);
+	
+    fflush(stderr);
 }
 
