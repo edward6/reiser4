@@ -13,7 +13,7 @@ int release_unix_file(struct inode *inode, struct file *);
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *vma);
 int get_block_unix_file(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
-int flow_by_inode_unix_file(struct inode *, char *buf, int user, size_t, loff_t, rw_op, flow_t *);
+int flow_by_inode_unix_file(struct inode *, char *buf, int user, loff_t, loff_t, rw_op, flow_t *);
 int key_by_inode_unix_file(struct inode *, loff_t off, reiser4_key *);
 int delete_unix_file(struct inode *);
 int owns_item_unix_file(const struct inode *, const coord_t *);

@@ -2841,7 +2841,7 @@ read_extent(struct file *file, flow_t *f, uf_coord_t *uf_coord)
 	coord = &uf_coord->base_coord;
 	ext_coord = &uf_coord->extension.extent;
 
-	ON_TRACE(TRACE_EXTENTS, "read_extent start: ino %llu, size %llu, offset %llu, count %u\n",
+	ON_TRACE(TRACE_EXTENTS, "read_extent start: ino %llu, size %llu, offset %llu, count %lld\n",
 		 get_inode_oid(inode), inode->i_size, get_key_offset(&f->key), f->length);
 	IF_TRACE(TRACE_EXTENTS, print_ext_coord("read_extent start", uf_coord));
 
@@ -2911,7 +2911,7 @@ read_extent(struct file *file, flow_t *f, uf_coord_t *uf_coord)
 		count = PAGE_CACHE_SIZE;
 	} while (f->length && uf_coord->valid == 1);
 
-	ON_TRACE(TRACE_EXTENTS, "read_extent done: left %u\n", f->length);
+	ON_TRACE(TRACE_EXTENTS, "read_extent done: left %lld\n", f->length);
 	IF_TRACE(TRACE_EXTENTS, print_ext_coord("read_extent done", uf_coord));
 
 	return 0;

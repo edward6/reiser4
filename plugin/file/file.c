@@ -617,7 +617,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 }
 
 static loff_t
-write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, size_t count, loff_t pos);
+write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, loff_t count, loff_t pos);
 
 /* it is called when truncate is used to make file longer and when write position is set past real end of file. It
    appends file which has size @cur_size with hole of certain size (@hole_size) */
@@ -1262,7 +1262,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 	int result;
 	lock_handle lh;
 	hint_t hint;
-	size_t to_write;
+	loff_t to_write;
 	write_f_t write_f;
 	file_container_t cur_container, new_container;
 	znode *loaded;
@@ -1370,7 +1370,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 /* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
    uf_info->latch either read- or write-locked */
 static loff_t
-write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, size_t count, loff_t pos)
+write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, loff_t count, loff_t pos)
 {
 	int result;
 	flow_t flow;
@@ -1661,7 +1661,7 @@ int
 flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
 			char *buf /* user level buffer */ ,
 			int user  /* 1 if @buf is of user space, 0 - if it is kernel space */ ,
-			size_t size /* buffer size */ ,
+			loff_t size /* buffer size */ ,
 			loff_t off /* offset to start operation(read/write) from */ ,
 			rw_op op /* READ or WRITE */ ,
 			flow_t *flow /* resulting flow */ )

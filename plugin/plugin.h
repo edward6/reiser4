@@ -49,7 +49,7 @@
 
 struct flow {
 	reiser4_key key;	/* key of start of flow's sequence of bytes */
-	size_t length;		/* length of flow's sequence of bytes */
+	loff_t length;		/* length of flow's sequence of bytes */
 	char *data;		/* start of flow's sequence of bytes */
 	int user;		/* if 1 data is user space, 0 - kernel space */
 	rw_op op;               /* */
@@ -180,7 +180,7 @@ typedef struct file_plugin {
 	   global implemenation, because key in a flow used by plugin may
 	   depend on data in a @buf.
 	*/
-	int (*flow_by_inode) (struct inode *, char *buf, int user, size_t size, loff_t off, rw_op op, flow_t *);
+	int (*flow_by_inode) (struct inode *, char *buf, int user, loff_t size, loff_t off, rw_op op, flow_t *);
 
 	/* Return the key used to retrieve an offset of a file. It is used by
 	   default implemenation of ->flow_by_inode() method
