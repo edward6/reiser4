@@ -288,17 +288,13 @@ static int renew_sibling_link (tree_coord * coord, lock_handle * handle,
 			side_parent = handle->node;
 		}
 
-		iplug -> s.internal.down_link( coord, NULL, &da);
+		iplug -> s.internal.down_link(coord, NULL, &da);
 
 		if (flags & GN_NO_ALLOC) {
 			neighbor = zlook(tree, &da);
 		} else {
 			neighbor = zget(tree, &da, side_parent, level, GFP_KERNEL);
 		}
-
-		/*
-		 * FIXME-NIKITA delimiting keys should be updated here
-		 */
 
 		if (IS_ERR(neighbor)) {
 			/* restore the state we had before entering
@@ -313,6 +309,15 @@ static int renew_sibling_link (tree_coord * coord, lock_handle * handle,
 			}
 
 			return ret;
+		}
+
+		if(neighbor) {
+			/* update delimiting keys */
+			spin_lock_dk(tree);
+			find_child_delimiting_keys(coord->node, coord,
+						   znode_get_ld_key(neighbor),
+						   znode_get_rd_key(neighbor));
+			spin_unlock_dk(tree);
 		}
 
 		spin_lock_tree(tree);
