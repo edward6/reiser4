@@ -745,7 +745,14 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	/* is above failed, find some key from @child. We are looking for the
 	   least key in a child. */
 	UNDER_RW_VOID(dk, tree, read, ld = *znode_get_ld_key(child));
-	/* now, lookup parent with key just found. */
+	/* 
+	 * now, lookup parent with key just found. Note, that left delimiting
+	 * key doesn't identify node uniquely, because (in extremely rare
+	 * case) two nodes can have equal left delimiting keys, if one of them
+	 * is completely filled with directory entries that all happened to be
+	 * hash collision. But, we check block number in check_tree_pointer()
+	 * and, so, are safe.
+	 */
 	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
 	if (lookup_res == NS_FOUND) {
