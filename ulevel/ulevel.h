@@ -641,17 +641,13 @@ extern int init_special_inode( struct inode *inode, __u32 mode, int rdev );
 extern void make_bad_inode( struct inode *inode );
 extern int is_bad_inode( struct inode *inode );
 
-struct inode * find_inode (struct super_block *super UNUSED_ARG,
-			   unsigned long ino, 
-			   int (*test)(struct inode *, void *), 
-			   void *data);
-
 extern struct inode *
 iget5_locked(struct super_block *sb, 
 	     unsigned long hashval, 
 	     int (*test)(struct inode *, void *), 
 	     int (*set)(struct inode *, void *), void *data);
 extern struct inode *iget_locked(struct super_block *sb, unsigned long ino);
+extern struct inode * find_get_inode(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data);
 
 #define I_DIRTY    0x1
 #define I_NEW      0x2

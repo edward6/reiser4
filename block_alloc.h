@@ -26,6 +26,8 @@ struct reiser4_blocknr_hint {
 	reiser4_block_nr blk;	     /* search start hint */
 	reiser4_block_nr max_dist;   /* if not zero, it is a region size we
 				      * search for free blocks in */
+	tree_level level;            /* level for allocation, may be useful have
+				      * branch-level and higher write-optimized. */
 	int not_counted:1;	     /* was space allocation counted when we
 				      * allocated these nodes as fake ones */
 };
