@@ -1,0 +1,1339 @@
+This file contains diffs that reverse the removal of all slum tracking
+code, performed Fri Mar 22, 2002.
+
+diff -crN reiser4/Makefile.user-level reiser4-formatted-slum-tracking/Makefile.user-level
+*** reiser4/Makefile.user-level	Fri Mar 22 18:37:35 2002
+--- reiser4-formatted-slum-tracking/Makefile.user-level	Fri Mar 22 18:36:46 2002
+***************
+*** 120,125 ****
+--- 120,126 ----
+                     znode.c \
+                     key.c \
+                     oid.c \
++                    slum_track.c \
+                     balance.c \
+                     pool.c \
+                     tree_mod.c \
+diff -crN reiser4/balance.c reiser4-formatted-slum-tracking/balance.c
+*** reiser4/balance.c	Thu Jan  1 03:00:00 1970
+--- reiser4-formatted-slum-tracking/balance.c	Fri Mar 22 18:36:46 2002
+***************
+*** 0 ****
+--- 1,305 ----
++ /*
++  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
++  */
++ 
++ /*
++ 
++ In 3.6 we balanced with every operation, and we balanced only considering the
++ immediate neighbors.
++ 
++ In version 4, tree operations that delete from a node (freeing space) do not
++ immediately re-balance their vicinity in the tree.  Instead, the tree is
++ balanced prior to flushing from memory.
++ 
++ The tree is not always balanced--there is not a balancing criterion that is
++ always met--instead it is a "dancing tree".  (A dancer has a sense of balance,
++ but is not balanced most of the time.)
++ 
++ EXTENT FORMATION: After an unformatted level slum is block allocated, its
++ blocks are converted into extents.  These consist of blocknumber and number of
++ blocks.  The big question is, how do we detect and convert these pages into
++ extents.  I think the answer is using a special range of reserved
++ blocknumbers, which must be unique so that zget() still works.
++ 
++ */
++ 
++ #include "reiser4.h"
++ 
++ /** Return 1 if the slum may be squeezed enough to free a node. */
++ int slum_likely_squeezable( slum *hood )
++ {
++ 	assert( "nikita-813", hood != NULL );
++ 	assert( "nikita-858", hood -> leftmost != NULL );
++ 
++ 	return (hood -> free_space > znode_size( hood -> leftmost )) &&
++ 		! (hood->flags & (SLUM_BEING_SQUEEZED | SLUM_WAS_SQUEEZED));
++ }
++ 
++ /**
++  * Scan all nodes of squeezable slum and squeeze everything to the left.
++  *
++  * Go ahead and read comments in the body.
++  */
++ int balance_slum( slum *hood )
++ {
++ 	int                  result;
++ 	znode               *target;
++ 	znode               *frontier;
++ 
++ 	int                  i;
++ 
++ 	reiser4_lock_handle  lh_area[ 2 ];
++ 	reiser4_lock_handle *target_lh;
++ 	reiser4_lock_handle *source_lh;
++ 
++ 	carry_node          *addc;
++ 
++ 	reiser4_tree        *tree = current_tree;
++ 
++ 	unsigned             before = hood->free_space;
++ 
++ 	carry_pool           pool;
++ 	/** slum_level: carry queue where locked nodes are accumulated. */
++ 	carry_level          slum_level;
++ 	/** todo: carry queue where delayed operations to be performed on the
++ 	 * parent level are accumulated for batch processing.  */
++ 	carry_level          todo;
++ 
++ 	trace_on (TRACE_SLUM, "slum balancing: %p free space %u\n", hood, before);
++ 
++ 	/* Tree is locked at arrival to this function, ensuring that
++ 	 * slum_likely_squeezable() test and hood remain valid.
++ 	 */
++ 	assert ("jmacd-1014", spin_tree_is_locked (tree));
++ 	assert ("jmacd-1017", slum_likely_squeezable (hood));
++ 
++ 	/* protect ourselves from someone lurking from behind while we are
++ 	 * squeezing this slum */
++ 	hood -> flags |= SLUM_BEING_SQUEEZED;
++ 
++ 	frontier = target = hood -> leftmost;
++ 	/*
++ 	 * there is no need to take any kind of lock on @frontier: it can only
++ 	 * be different from @target due to carry batching leaving empty nodes
++ 	 * until queue flush, but this means, that @frontier vicinity is
++ 	 * write-locked. 
++ 	 *
++ 	 * When carry queue is flushed, all pending-deletion nodes are
++ 	 * deleted, but @frontier is pinned.
++ 	 */
++ 	zref( frontier );
++ 
++ 	/* don't need the tree lock anymore, slum is protected. */
++ 	spin_unlock_tree (tree);
++ 
++ 	/* initialize data structures */
++ 	for( i = 0 ; i < sizeof_array( lh_area ) ; i += 1 ) {
++ 		reiser4_init_lh( &lh_area[ i ] );
++ 	}
++ 
++ 	target_lh = &lh_area[ 0 ];
++ 	source_lh = &lh_area[ 1 ];
++ 
++ 	reiser4_init_carry_pool( &pool );
++ 	reiser4_init_carry_level( &slum_level, &pool );
++ 	reiser4_init_carry_level( &todo, &pool );
++ 
++ 	/* lock target */
++ 	result = reiser4_lock_znode( target_lh, target, ZNODE_WRITE_LOCK, 
++ 				     ZNODE_LOCK_HIPRI );
++ 	if( result != 0 ) {
++ 		goto done;
++ 	}
++ 
++ 	result = zload( target );
++ 	if( result != 0 )
++ 		goto done;
++ 
++ 	addc = reiser4_add_to_carry( target, &slum_level );
++ 	if ( IS_ERR( addc ) ) {
++ 		result = PTR_ERR( addc );
++ 		goto done;
++ 	}
++ 
++ 	/* since slum denies new members/merges at this time, leftmost cannot
++ 	 * change. */
++ 	assert( "nikita-1275", hood -> leftmost == target );
++ 
++ 	/* 
++ 	 * iterate over all nodes in a slum, squeezing them to the left along
++ 	 * the way. Two variables: @source and @target indicate where we are
++ 	 * in a slum. @source is right neighbor of the @target. As much as
++ 	 * possible of the content of @source is shifted into @target on each
++ 	 * iteration. Updates to the parent nodes are deferred and processed
++ 	 * in batches by flushing @todo carry queue where they are
++ 	 * accumulated. 
++ 	 */
++ 	while( result == 0 ) {
++ 
++ 		znode *source;
++ 		int in_slum;
++ 
++ 		assert ("jmacd-1034", znode_is_connected (target));
++ 
++ 		result = reiser4_get_right_neighbor (source_lh, frontier, 
++ 						     ZNODE_WRITE_LOCK, 0);
++ 		if (result != 0) {
++ 			/* FIXME_JMACD ENAVAIL means no right neighbor, ENOENT means??? -josh */
++ 			if (result == -ENAVAIL || result == -ENOENT) {
++ 				result = 0;
++ 			}
++ 			break;
++ 		}
++ 
++ 		
++ 		source = source_lh->node;
++ 
++ 		assert( "nikita-1497", source_lh -> node == source );
++ 		assert( "nikita-1498", target_lh -> node == target );
++ 
++ 		/* check if its actually in the slum... */
++ 		spin_lock_tree (tree);
++ 		in_slum = is_in_slum( source, hood );
++ 		spin_unlock_tree (tree);
++ 
++ 		/* check end-of-slum */
++ 		if (! in_slum) {
++ 			break;
++ 		}
++ 
++ 		addc = reiser4_add_to_carry( source, &slum_level );
++ 		if( IS_ERR( addc ) ) {
++ 			result = PTR_ERR( addc );
++ 			break;
++ 		}
++ 
++ 		result = zload( source );
++ 		if( result != 0 )
++ 			break;
++ 
++ 		assert ("jmacd-1050", ! is_empty_node (target));
++ 		assert ("jmacd-1051", ! is_empty_node (source));
++ 
++ 		assert( "nikita-1499", znode_is_write_locked( source ) );
++ 		assert( "nikita-1500", znode_is_write_locked( target ) );
++ 		assert( "nikita-1390", 
++ 			ZF_ISSET( frontier, ZNODE_HEARD_BANSHEE ) ||
++ 			znode_is_write_locked( frontier ) );
++ 
++ 		assert( "nikita-1501", source -> lock.nr_readers < -1 );
++ 		assert( "nikita-1502", target -> lock.nr_readers < -1 );
++ 
++ 		assert( "nikita-1386", source != target );
++ 		/*
++ 		 * this holds even without tree lock, because each node in the
++ 		 * vicinity of @frontier is either write locked or orphaned.
++ 		 */
++ 		assert( "nikita-1387", frontier -> right == source );
++ 		/* pack part of @source into @target */
++ 		/* at this point both source and target are write locked */
++ 		result = shift_everything_left( source, target, &todo );
++ 
++ 		/* result >= indicates the number of _something_ shifted. */
++ 		if( result >= 0 ) {
++ 			
++ 			result = 0;
++ 			if( !is_empty_node( source ) ) {
++ 				/* move to the next node */
++ 				/* at this point "target" is hopefully well
++ 				   packed. */
++ 				reiser4_lock_handle *tmp = target_lh;
++ 				zput( frontier );
++ 				frontier = target = source;
++ 				zref( frontier );
++ 				target_lh = source_lh;
++ 				source_lh = tmp;
++ 				source = source_lh -> node;
++ 			} else {
++ 				/* 
++ 				 * empty @source was freed already by
++ 				 * shift_everything_left(). Deletion of a
++ 				 * pointer in a parent was batched in @todo
++ 				 * queue.  
++ 				 */
++ 				zput( frontier );
++ 				frontier = source;
++ 				zref( frontier );
++ 			}
++ 			/* 
++ 			 * if there are more pending operations in a @todo
++ 			 * queue than some preconfigured limit, or if we are
++ 			 * keeping more nodes locked than some other limit,
++ 			 * flush todo queue.
++ 			 */
++ 			if( ( reiser4_carry_op_num( &todo ) > 
++ 			      REISER4_SQUEEZE_OP_MAX ) ||
++ 			    ( reiser4_carry_node_num( &slum_level ) > 
++ 			      REISER4_SQUEEZE_NODE_MAX ) ) {
++ 				/*
++ 				 * batch-run all pending operations.
++ 				 */
++ 				result = carry( &todo, &slum_level );
++ 				reiser4_stat_slum_add( flush_carry );
++ 				/*
++ 				 * reinitialise carry pool, so that 
++ 				 * new operations will be gathered here.
++ 				 */
++ 				reiser4_done_carry_pool( &pool );
++ 				reiser4_init_carry_pool( &pool );
++ 				reiser4_init_carry_level( &slum_level, &pool );
++ 				reiser4_init_carry_level( &todo, &pool );
++ 				addc = reiser4_add_to_carry( target, 
++ 							     &slum_level );
++ 				if ( IS_ERR( addc ) )
++ 					result = PTR_ERR( addc );
++ 			}
++ 		}
++ 		zrelse( source, 1 );
++ 		reiser4_unlock_znode( source_lh );
++ 	}
++ 
++  done:
++ 	assert ("jmacd-1020", spin_tree_is_not_locked (tree));
++ 	
++ 	zrelse( target, 1 );
++ 	zput( frontier );
++ 
++ 	/* we're finished with the slum now */
++ 	spin_lock_tree   (tree);
++ 	hood -> flags &= ~SLUM_BEING_SQUEEZED;
++ 	hood -> flags |= SLUM_WAS_SQUEEZED;
++ 
++ 	spin_unlock_tree (tree);
++ 
++ 	/*
++ 	 * unlock on reverse order
++ 	 */
++ 	for( i = sizeof_array( lh_area ) - 1 ; i >= 0 ; i -= 1 ) {
++ 		reiser4_done_lh( &lh_area[ i ] );
++ 	}
++ 
++ 	/* pick up operations still in @todo queue and perform them. */
++ 	if (result == 0) {
++ 		result = carry( &todo, &slum_level );
++ 	} else
++ 		warning( "nikita-1503", "Post squeezing carry skipped: %i",
++ 			 result );
++ 	
++ 	reiser4_done_carry_pool( &pool );
++ 
++ 	trace_on (TRACE_SLUM, "balancing increased free space %u\n", 
++ 		  hood -> free_space - before );
++ 
++ 	reiser4_stat_slum_add( squeeze );
++ 	return result;
++ }
++ 
++ /*
++  * Local variables:
++  * c-indentation-style: "K&R"
++  * mode-name: "LC"
++  * c-basic-offset: 8
++  * tab-width: 8
++  * fill-column: 120
++  * End:
++  */
+diff -crN reiser4/block_alloc.c reiser4-formatted-slum-tracking/block_alloc.c
+*** reiser4/block_alloc.c	Fri Mar 22 18:39:47 2002
+--- reiser4-formatted-slum-tracking/block_alloc.c	Fri Mar 22 18:36:46 2002
+***************
+*** 21,26 ****
+--- 21,33 ----
+  }
+  
+  
++ /* for every node in the slum @sl */
++ int allocate_blocks_in_slum (reiser4_tree * tree UNUSED_ARG, slum * sl UNUSED_ARG)
++ {
++ 	return 0;
++ }
++ 
++ 
+  #if YOU_CAN_COMPILE_PSEUDO_CODE
+  
+  /* we need to allocate node to the left of an extent before allocating the extent */
+diff -crN reiser4/flush.c reiser4-formatted-slum-tracking/flush.c
+*** reiser4/flush.c	Fri Mar 22 18:45:40 2002
+--- reiser4-formatted-slum-tracking/flush.c	Fri Mar 22 18:36:46 2002
+***************
+*** 107,113 ****
+  
+  #include "reiser4.h"
+  
+- #if BROKEN_WITHOUT_SLUM
+  /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
+  int flush_slum (slum *hood)
+  {
+--- 107,112 ----
+***************
+*** 181,187 ****
+  	
+  	return 0;
+  }
+! #endif
+  
+  #if YOU_CAN_COMPILE_PSEUDO_CODE
+  /* this version probably won't get implemented, see the one below */
+--- 180,186 ----
+  	
+  	return 0;
+  }
+! 
+  
+  #if YOU_CAN_COMPILE_PSEUDO_CODE
+  /* this version probably won't get implemented, see the one below */
+diff -crN reiser4/lock.c reiser4-formatted-slum-tracking/lock.c
+*** reiser4/lock.c	Fri Mar 22 18:39:31 2002
+--- reiser4-formatted-slum-tracking/lock.c	Fri Mar 22 18:36:46 2002
+***************
+*** 407,412 ****
+--- 407,455 ----
+  	handle->owner = NULL;
+  }
+  
++ unsigned znode_save_free_space( znode *node )
++ {
++ 	unsigned free_space;
++ 	reiser4_lock_handle *handle;
++ 	
++  	assert( "jmacd-1014", ! ZF_ISSET (node, ZNODE_FREE_SPACE) );
++ 	free_space = znode_free_space (node);
++ 	ZF_SET (node, ZNODE_FREE_SPACE);
++ 
++ 	for (handle = owners_list_front ( &node -> lock.owners );
++ 	            ! owners_list_end   ( &node -> lock.owners, handle );
++ 	     handle = owners_list_next  ( handle)) {
++ 		handle->free_space = free_space;
++ 	}
++ 
++ 	return free_space;
++ }
++ 
++ unsigned znode_recover_free_space( znode *node )
++ {
++ 	if (ZF_ISSET (node, ZNODE_FREE_SPACE)) {
++ 		reiser4_lock_handle *handle;
++ 
++ 		assert ("jmacd-1090", ! owners_list_empty( &node -> lock.owners ));
++ 		
++ 		handle = owners_list_front ( &node -> lock.owners );
++ 
++ 		return handle->free_space;
++ 	}
++ 
++ 	return znode_free_space (node);
++ }
++ 
++ static void znode_propagate_free_space( znode *node, reiser4_lock_handle *new_handle )
++ {
++ 	reiser4_lock_handle *handle = owners_list_back( &node -> lock.owners );
++ 
++ 	assert ("jmacd-1091", ! owners_list_empty( &node -> lock.owners ));
++ 	assert ("jmacd-1092", handle != new_handle);
++ 
++ 	new_handle->free_space = handle->free_space;
++ }
++ 
+  /*
+   * Actually locks an object knowing that we are able to do this
+   */
+***************
+*** 425,430 ****
+--- 468,490 ----
+  	if (owner->curpri) {
+  		node->lock.nr_hipri_owners ++;
+  	}
++ 
++ 	if (znode_is_wlocked (node) && znode_has_slum_lock_context (node)) {
++ 
++ 		if (znode_is_wlocked_once (node)) {
++ 			/* Record free space prior to the first write lock so we can
++ 			 * update the slum free space later. */
++ 			znode_save_free_space (node);
++ 
++ 			ON_DEBUG_MODIFY (znode_pre_write (node));
++ 		} else {
++ 			/* Pass free space information from one write lock handle to the
++ 			 * others.  This is because write locks can be released in a
++ 			 * different order than they were aquired and we need to know this
++ 			 * free space value when the last lock is released. */
++ 			znode_propagate_free_space (node, owner->request.handle);
++ 		}
++ 	}
+  }
+  
+  /**
+***************
+*** 629,634 ****
+--- 689,706 ----
+  		if (ZF_ISSET(node, ZNODE_HEARD_BANSHEE)) {
+  			assert("nikita-1221", is_empty_node(node));
+  
++ 			/* Remove it from the slum. */
++ 			if (znode_has_slum_lock_context (node)) {
++ 
++ 				assert ("jmacd-1044", ZF_ISSET (node, ZNODE_FREE_SPACE));
++ 
++ 				/* Delete node from slum under tree lock. */
++ 				spin_lock_tree (current_tree);
++ 				delete_node_from_slum (node);
++ 				spin_unlock_tree (current_tree);
++ 
++ 				ZF_CLR (node, ZNODE_FREE_SPACE);
++ 			}
+  			/*
+  			 * invalidate lock. FIXME-NIKITA locking.  This doesn't
+  			 * actually deletes node, only removes it from
+***************
+*** 648,653 ****
+--- 720,761 ----
+  			
+  			return;
+  		}
++ 
++ 		/* Update/add to slum */
++ 
++ 		else if (znode_above_root (node)) {
++ 			/* special case -- never added to a slum. */
++ 		} else if (znode_is_dirty (node) && ! znode_has_slum_lock_context (node)) {
++ 
++ 			int ret;
++ 
++ 			spin_lock_tree (current_tree);
++ 
++ 			if ((ret = add_to_slum (node))) {
++ 				/* FIXME_JMACD This is getting ugly. -josh */
++ 				rpanic ("jmacd-1031", "don't know what to do");
++ 			}
++ 
++ 			spin_unlock_tree (current_tree);
++ 
++ 			ZF_CLR (node, ZNODE_FREE_SPACE);
++ 
++ 		} else if (znode_is_dirty (node)) {
++ 			unsigned free_space;
++ 			int      change;
++ 
++ 			assert ("jmacd-1039", ZF_ISSET (node, ZNODE_FREE_SPACE));
++ 
++ 			/* Compute change in free space. */
++ 			free_space = znode_free_space (node);
++ 			change = free_space - znode_recover_free_space (node);
++ 			ZF_CLR (node, ZNODE_FREE_SPACE);
++ 
++ 			/* Update slum free space under tree lock. */
++ 			spin_lock_tree (current_tree);
++ 			node->zslum->free_space += change;
++ 			spin_unlock_tree (current_tree);
++ 		}
+  	}
+  
+  	if (handle->signaled) atomic_dec(&handle->owner->nr_signaled);
+***************
+*** 982,987 ****
+--- 1090,1096 ----
+  	spin_lock_znode( node );
+  
+  	new -> node  = node;
++ 	new -> free_space = old -> free_space;
+  
+  	signaled = old->signaled;
+  	unlink_object( old );
+diff -crN reiser4/plugin/item/internal.c reiser4-formatted-slum-tracking/plugin/item/internal.c
+*** reiser4/plugin/item/internal.c	Fri Mar 22 18:44:14 2002
+--- reiser4-formatted-slum-tracking/plugin/item/internal.c	Fri Mar 22 18:36:46 2002
+***************
+*** 105,110 ****
+--- 105,115 ----
+  		if( cookie != NULL )
+  			reiser4_sibling_list_insert_nolock( child, cookie );
+  
++ 		/* Check ->zslum under tree lock. */
++ 		if( child -> zslum == NULL ) {
++ 			result = add_to_slum( child );
++ 		}
++ 
+  		ZF_CLR( child, ZNODE_NEW );
+  
+  		trace_on( TRACE_ZWEB, "create: %lli: %i [%lli]\n",
+diff -crN reiser4/reiser4.h reiser4-formatted-slum-tracking/reiser4.h
+*** reiser4/reiser4.h	Fri Mar 22 18:37:49 2002
+--- reiser4-formatted-slum-tracking/reiser4.h	Fri Mar 22 18:36:46 2002
+***************
+*** 191,196 ****
+--- 191,197 ----
+  #include "tshash.h"
+  #include "tslist.h"
+  #include "plugin/types.h"
++ #include "slum.h"
+  #include "coords.h"
+  #include "znode.h"
+  #include "txnmgr.h"
+diff -crN reiser4/slum.h reiser4-formatted-slum-tracking/slum.h
+*** reiser4/slum.h	Thu Jan  1 03:00:00 1970
+--- reiser4-formatted-slum-tracking/slum.h	Fri Mar 22 18:36:46 2002
+***************
+*** 0 ****
+--- 1,67 ----
++ /*
++  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
++  */
++ 
++ /*
++  * Slum data-types. See slum_track.c for description.
++  */
++ 
++ #if !defined( __SLUM_H__ )
++ #define __SLUM_H__
++ 
++ typedef enum {
++ 	SLUM_BEING_SQUEEZED       = (1 << 0),
++ 	SLUM_WAS_SQUEEZED         = (1 << 1),
++ } slum_flags;
++ 
++ /** Slum is set of dirty nodes contiguous in a tree order. Slums are
++     tracked dymanically. Locking: slum pointers and lists are protected
++     by ->lock spinlock in a znode tree slums are in. */
++ typedef struct slum {
++ 	/** flags of slum */
++ 	__u32                       flags;
++ 	/** leftmost node in this slum. They are pinned, that is we call
++ 	    zget() on this, if this proves too expensive, there are two
++ 	    possible strategies:
++ 	    
++ 	     - if we never flush early, any node added into slum will
++ 	     stay in memory, at least until slum is squuzed.
++ 	*/
++ 	znode                      *leftmost;
++ 	/** total "estimated" free space. This is not required to be
++ 	    exact. If we err here, super balancing will be sub
++ 	    optimal. */
++ 	unsigned                    free_space;
++ 	unsigned                    num_of_nodes;
++ 
++ 	/** maybe this will only be used for assertions, but... */
++ 	txn_atom                   *atom;
++ } slum;
++ 
++ extern int slums_init( void );
++ extern int slums_done( void );
++ extern int balance_slum( slum *hood );
++ extern int flush_slum ( slum *hood);
++ extern int add_to_slum( znode *node );
++ extern int slum_likely_squeezable( slum *hood );
++ extern void delete_node_from_slum (znode *node);
++ extern int delete_from_slum( znode *node );
++ extern int delete_from_slum_locked( znode *node );
++ extern int is_in_slum( znode *node, slum *hood );
++ extern void slum_merge_neighbors( znode *node, txn_atom *dying, txn_atom *growing );
++ 
++ /* __SLUM_H__ */
++ #endif
++ 
++ /* 
++  * Make Linus happy.
++  * Local variables:
++  * c-indentation-style: "K&R"
++  * mode-name: "LC"
++  * c-basic-offset: 8
++  * tab-width: 8
++  * fill-column: 120
++  * scroll-step: 1
++  * End:
++  */
++ 
+diff -crN reiser4/slum_track.c reiser4-formatted-slum-tracking/slum_track.c
+*** reiser4/slum_track.c	Thu Jan  1 03:00:00 1970
+--- reiser4-formatted-slum-tracking/slum_track.c	Fri Mar 22 18:36:46 2002
+***************
+*** 0 ****
+--- 1,416 ----
++ /*
++  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README.
++  */
++ 
++ /*
++  * Slum tracking code. A slum is a set of dirty unsqueezed nodes contiguous in the tree
++  * order.  Slums are the main device used to implement "super balancing", which is,
++  * roughly speaking, the process of squeezing slums to the left, described in balance.c.
++  *
++  * Our current approach is to track slums all of the time.  Slum objects are dynamically
++  * allocated, and each dirty znode points to its slum.  We use sibling pointers of the
++  * znodes as the slum ordering.
++  *
++  * Nodes are either added to the slum at the time they are write-locked (Nikita's
++  * proposal) or at the time they are modified (which requires some possibly bug-prone
++  * additional work).  At that time, new slums are created or existing slums are modified
++  * or merged.  More sophisticated flushing techniques will require ability to split one
++  * slum into two when node is flushed to the disk in the middle of transaction.
++  *
++  * We do not maintain a tree-wide record of all slums in existance, instead each atom
++  * maintains a level-specific lists of its captured znodes.  Znodes refer to their slum,
++  * so the atom can find all slums when trying to commit.  This solution simplifies slum
++  * management (especially w.r.t. locking) at the possible cost of extra list-scanning
++  * during pre-commit.
++  *
++  * When we decide to perform super balancing (balance.c) of an atom, all slums are scanned
++  * from leaf level upward and squeezed, if possible.
++  *
++  * Possible optimizations deferred for now:
++  *
++  * * to not put every dirty node into a slum
++  *
++  * * make decision of whether to squeeze a slum dependent on not just whether a nodeful of
++  *   space could be saved without additional disk IO but upon more complex criteria such
++  *   as the amount of CPU bandwidth required to save the nodeful.  */
++ 
++ #include "reiser4.h"
++ 
++ static kmem_cache_t *slum_slab;
++ 
++ static slum* alloc_slum( txn_atom *atom );
++ static void  dealloc_slum( slum *hood );
++ static slum* merge_slums( slum *left, slum *right );
++ static void  update_leftmost( slum *hood, znode *node );
++ 
++ /** Called once on reiser4 initialisation. */
++ int slums_init( void )
++ {
++ 	slum_slab = kmem_cache_create( "slum_cache", sizeof( slum ),
++ 				       0, SLAB_HWCACHE_ALIGN, NULL, NULL );
++ 	if( slum_slab == NULL ) {
++ 		return -ENOMEM;
++ 	}
++ 
++ 	return 0;
++ }
++ 
++ /** called during system shutdown */
++ int slums_done( void )
++ {
++ 	if ( slum_slab != NULL) {
++ 		return kmem_cache_destroy( slum_slab );
++ 	}
++ 
++ 	return 0;
++ }
++ 
++ /** helper function: set fields in "node" indicating it's now in
++     "hood". Update counter of members in "hood", update free space
++     in "hood". */
++ static void add_node_to_slum (znode *node, slum *hood)
++ {
++  	assert( "jmacd-1013", node -> zslum == NULL );
++ 
++ 	node->zslum = hood;
++ 
++ 	hood->free_space   += znode_save_free_space (node);
++ 	hood->num_of_nodes += 1;
++ 
++ 	trace_on (TRACE_SLUM, "add to slum: %llu level %u slum %p nodes %u leftmost %u\n",
++ 		  node->blocknr.blk, znode_get_level (node), hood, hood->num_of_nodes, (int)hood->leftmost->blocknr.blk);
++ }
++ 
++ void delete_node_from_slum (znode *node)
++ {
++ 	slum *hood = node->zslum;
++ 	unsigned free_space;
++ 	
++ 	assert ("jmacd-1026", hood != NULL);
++ 	assert ("jmacd-1028", hood->num_of_nodes != 0); 
++ 	assert ("jmacd-1030", znode_is_connected (node));
++ 	assert ("jmacd-1031", spin_tree_is_locked (current_tree));
++ 
++ 	free_space = znode_recover_free_space (node);
++ 
++ 	assert ("jmacd-1029", hood->free_space >= free_space);
++ 	
++ 	hood->free_space   -= free_space;
++ 	hood->num_of_nodes -= 1;
++ 	node->zslum         = NULL;
++ 
++ 	trace_on (TRACE_SLUM, "delete from slum: %llu level %u slum %p nodes %u\n", node->blocknr.blk, znode_get_level (node), hood, hood->num_of_nodes);
++ 
++ 	if (hood->num_of_nodes == 0) {
++ 		assert ("jmacd-1038", hood->free_space == 0);
++ 
++ 		dealloc_slum (hood);
++ 		
++ 	} else if (hood->leftmost == node) {
++ 
++ 		assert ("jmacd-1032", node->left == NULL || node->left->zslum != hood);
++ 
++ 		update_leftmost (hood, hood->leftmost->right);
++ 
++ 		assert ("jmacd-1039", hood->leftmost->zslum == hood);
++ 	}
++ }
++ 
++ /** set ->leftmost pointer in hood to node */
++ static void update_leftmost( slum *hood, znode *node )
++ {
++ 	assert( "nikita-1272", hood != NULL );
++ 	assert( "nikita-1273", node != NULL );
++ 
++ 	if( hood -> leftmost != NULL ) {
++ 		zput( hood -> leftmost );
++ 	}
++ 	
++ 	hood -> leftmost = zref( node );
++ }
++ 
++ /** Add "node" to slum. This is called after node content was modified, for example as a
++  * result of lazy balancing. This can result in slum merging, etc. Only call this on
++  * connected, write-locked node. */
++ int add_to_slum( znode *node )
++ {
++ 	znode *left_neighbor;
++ 	znode *right_neighbor;
++ 	
++ 	slum *left;             /* our left neighboring slum, if any */
++ 	slum *right;            /* our right neighboring slum, if any */
++ 	slum *new_slum = NULL; 	/* new slum we are creating, if any */
++ 	slum *node_slum; 	/* node's slum */
++ 
++ 	trace_stamp( TRACE_SLUM );
++ 
++ 	assert( "nikita-816", node != NULL );
++ 	assert( "jmacd-1057", node->atom != NULL );
++ 
++ 	/* Calling add_to_slum implies that we hold a write_lock. */
++  	assert( "jmacd-767", znode_is_write_locked( node ) );
++ 
++ 	/* Need the tree lock to check slum pointer, connected bit, and head_of_slum
++ 	 * status.  Note that we do not take znode locks below because the tree_lock
++ 	 * protects the slum data structures.  We CANNOT take znode spinlocks while
++ 	 * holding the tree lock or else deadlock. */
++  	assert( "jmacd-709", spin_tree_is_locked( current_tree ));
++  	assert( "nikita-823", znode_is_connected( node ) );
++ 
++ 	/* If node is already in a slum, this shouldn't be called. */
++ 	assert( "jmacd-1035", node -> zslum == NULL );
++ 
++  restart:
++ 	/* Restart point: Restarts are because allocation can sleep and we cannot hold
++ 	 * tree lock during this. */
++ 
++ 	if( node -> left ) {
++ 		left_neighbor = zref( node -> left );
++ 	} else {
++ 		left_neighbor = NULL;
++ 	}
++ 
++ 	if( node -> right ) {
++ 		right_neighbor = zref( node -> right );
++ 	} else {
++ 		right_neighbor = NULL;
++ 	}
++ 
++ 	assert( "nikita-826", node != right_neighbor );
++ 	assert( "nikita-828", node != left_neighbor );
++ 
++ 	left  = left_neighbor  ? left_neighbor  -> zslum : NULL;
++ 	right = right_neighbor ? right_neighbor -> zslum : NULL;
++ 
++ 	/* check if neighboring slums refuse merges  */
++ 	if( left != NULL && ( ( left -> flags & SLUM_BEING_SQUEEZED ) ||
++ 			      ( left -> atom != node -> atom ) ) ) {
++ 		left = NULL;
++ 	}
++ 	/* FIXME_JMACD what kind of node/atom locking is required, if any? -josh */
++ 	if( right != NULL && ( ( right -> flags & SLUM_BEING_SQUEEZED ) ||
++ 			       ( right -> atom != node -> atom ) ) ) {
++ 		right = NULL;
++ 	}
++ 	
++ 	/* four cases:
++ 	   (0==00) left == NULL, right == NULL => create new slum
++ 	   (1==01) left == NULL, right != NULL => append node to right
++ 	   (2==10) left != NULL, right == NULL => append node to left
++ 	   (3==11) left != NULL, right != NULL => merge left, node, right
++ 	   
++ 	   following switch handles all cases
++ 	*/
++ 	switch( ( left ? 2 : 0 ) | ( right ? 1 : 0 ) ) {
++ 	case 0: /* create new slum */
++ 		if( new_slum == NULL ) {
++ 			/* Unlock tree before possible schedule. */
++ 			spin_unlock_tree( current_tree );
++ 
++ 			/* Release neighbors. */
++ 			if (left_neighbor) {
++ 				zput( left_neighbor );
++ 			}
++ 			if (right_neighbor) {
++ 				zput( right_neighbor );
++ 			}
++ 
++ 			/* Allocate new slum. */
++ 			new_slum = alloc_slum( node -> atom );
++ 			
++ 			if( new_slum == NULL ) {
++ 				return -ENOMEM;
++ 			}
++ 
++ 			spin_lock_tree( current_tree );
++ 
++ 			/* Restart in case of a race. */
++ 			goto restart;
++ 		}
++ 
++ 		/* Set right so the fall through case works, unset new_slum so it is not
++ 		 * deleted. */
++ 		right    = new_slum;
++ 		new_slum = NULL;
++ 		/* FALL THROUGH */
++ 
++ 	case 1: /* prepend node to the right neighboring slum */
++ 		update_leftmost( right, node );
++ 		node_slum = right;
++ 		break;
++ 
++ 	case 3: /* merge slums */
++ 		if (left != right) {
++ 			node_slum = merge_slums( left, right );
++ 			break;
++ 		}
++ 		/* FALL THROUGH: (add to middle of a slum) */
++ 
++ 	case 2: /* node to the left neighboring slum */
++ 		node_slum = left;
++ 		break;
++ 	default:
++ 		impossible( "nikita-825", "Absolutely impossible" );
++ 	}
++ 
++ 	add_node_to_slum( node, node_slum );
++ 	
++ 	/* Release neighbor node references. */
++ 
++ 	if( left_neighbor ) {
++ 		zput( left_neighbor );
++ 	}
++ 	if( right_neighbor ) {
++ 		zput( right_neighbor );
++ 	}
++ 	if( new_slum != NULL ) {
++ 		dealloc_slum( new_slum );
++ 	}
++ 
++ 	return 0;
++ }
++ 
++ /** merges any neighboring slums into one as a result of atom fusion */
++ void slum_merge_neighbors (znode *node, txn_atom *dying, txn_atom *growing)
++ {
++ 	slum *hood;
++ 	
++ 	trace_stamp( TRACE_SLUM );
++ 
++ 	spin_lock_tree (current_tree);
++ 
++ 	hood = node->zslum;
++ 
++ 	if (znode_is_connected (node) && hood != NULL && (hood->flags & SLUM_BEING_SQUEEZED) == 0) {
++ 
++ 		znode *left  = node->left;
++ 		znode *right = node->right;
++ 		slum  *lhood;
++ 		slum  *rhood;
++ 
++ 		assert ("jmacd-1060", hood->num_of_nodes > 1 || hood->leftmost == node);
++ 
++ 		trace_on (TRACE_SLUM, "merge neighbor: %p node %u nodes %u leftmost %u\n", hood, (int)node->blocknr.blk, hood->num_of_nodes, (int)hood->leftmost->blocknr.blk);
++ 
++ 		if (right != NULL && (rhood = right->zslum) != NULL && rhood->atom == growing && hood != rhood && (rhood->flags & SLUM_BEING_SQUEEZED) == 0) {
++ 
++ 			assert ("jmacd-904", right->left == node); 
++ 
++ 			hood = merge_slums (hood, rhood);
++ 		}
++ 
++ 		if (left != NULL && (lhood = left->zslum) != NULL && lhood->atom == growing && hood != lhood && (lhood->flags & SLUM_BEING_SQUEEZED) == 0) {
++ 
++ 			assert ("jmacd-905", left->right == node); 
++ 
++ 			hood = merge_slums (lhood, hood);
++ 		}
++ 	}
++ 
++ 	if (hood != NULL) {
++ 		trace_on (TRACE_SLUM, "merge neighbor: slum %p old atom %u new atom %u\n", hood, dying->atom_id, growing->atom_id);
++ 
++ 		hood->atom = growing;
++ 	}
++ 
++ 	spin_unlock_tree (current_tree);
++ }
++ 
++ /** merge slums: holding tree lock */
++ static slum* merge_slums (slum *left, slum *right)
++ {
++ 	slum  *large;
++ 	slum  *small;
++ 	znode *node;
++ 	unsigned small_nodes = 0;
++ 
++ 	assert ("jmacd-910", left != right);
++ 	assert ("jamcd-918", (right->flags & SLUM_BEING_SQUEEZED) == 0);
++ 	assert ("jamcd-919", (left->flags & SLUM_BEING_SQUEEZED) == 0);
++ 
++ 	trace_stamp (TRACE_SLUM);
++ 
++ 	if (left->num_of_nodes > right->num_of_nodes) {
++ 		large = left;
++ 		small = right;
++ 	} else {
++ 		small = left;
++ 		large = right;
++ 	}
++ 
++ 	trace_on (TRACE_SLUM, "merge left: %p nodes %u leftmost %u\n", left, left->num_of_nodes, (int)left->leftmost->blocknr.blk);
++ 	trace_on (TRACE_SLUM, "merge right: %p nodes %u leftmost %u\n", right, right->num_of_nodes, (int)right->leftmost->blocknr.blk);
++ 		
++ 	for (node = small->leftmost; is_in_slum (node, small); node = node->right) {
++ 
++ 		assert ("jmacd-906", node->right == NULL || node->right->left == node);
++ 
++ 		/*trace_on (TRACE_SLUM, "small node: %u\n", (int)node->blocknr.blk);*/
++ 		
++ 		node->zslum = large;
++ 		small_nodes += 1;
++ 	}
++ 
++ 	large->free_space   += small->free_space;
++ 	large->num_of_nodes += small->num_of_nodes;
++ 
++ 	if (large == right) {
++ 		zput (large->leftmost);
++ 		large->leftmost = left->leftmost;
++ 	} else {
++ 		zput (small->leftmost);
++ 	}
++ 
++ 	trace_on (TRACE_SLUM, "merge result: slum %p nodes %u leftmost %u\n", large, large->num_of_nodes, (int)large->leftmost->blocknr.blk);
++ 	
++ 	assert ("jmacd-907", small_nodes == small->num_of_nodes);
++ 
++ 	dealloc_slum (small);
++ 
++ 	return large;
++ }
++ 
++ /** allocate new slums */
++ static slum *alloc_slum( txn_atom *atom )
++ {
++ 	slum *hood;
++ 
++ 	trace_stamp( TRACE_SLUM );
++ 
++ 	hood = kmem_cache_alloc( slum_slab, GFP_KERNEL );
++ 	memset( hood, 0, sizeof *hood );
++ 	hood->atom = atom;
++ 	return hood;
++ }
++ 
++ /** free slum data structure */
++ static void dealloc_slum( slum *hood )
++ {
++ 	assert( "nikita-831", hood != NULL );
++ 
++ 	trace_stamp( TRACE_SLUM );
++ 
++ 	trace_on (TRACE_SLUM, "dealloc slum: %p\n", hood);
++ 	
++ 	kmem_cache_free( slum_slab, hood );
++ }
++ 
++ /** checks whether given node belongs to given slum.  must have tree locked. */
++ int is_in_slum( znode *node, slum *hood )
++ {
++ 	assert ("jmacd-1090", ergo( node != NULL,
++ 				    spin_tree_is_locked( current_tree ) ) );
++ 	return ( node != NULL ) && ( node -> zslum == hood );
++ }
++ 
++ /*
++  * Make Linus happy.
++  * Local variables:
++  * c-indentation-style: "K&R"
++  * mode-name: "LC"
++  * c-basic-offset: 8
++  * tab-width: 8
++  * fill-column: 120
++  * scroll-step: 1
++  * End:
++  */
+diff -crN reiser4/txnmgr.c reiser4-formatted-slum-tracking/txnmgr.c
+*** reiser4/txnmgr.c	Fri Mar 22 18:45:16 2002
+--- reiser4-formatted-slum-tracking/txnmgr.c	Fri Mar 22 18:36:46 2002
+***************
+*** 497,502 ****
+--- 497,503 ----
+  atom_try_commit_locked (txn_atom *atom)
+  {
+  	int level;
++ 	int ret;
+  	txn_node *scan;
+  	
+  	assert ("jmacd-150", atom->txnh_count == 1);
+***************
+*** 530,536 ****
+  			/* Check for a slum -- no znode lock needed because atom has
+  			 * exclusive ownership.
+  			 */
+- #if BROKEN_WITHOUT_SLUM
+  			if (znode_has_slum_commit_context (scan)) {
+  
+  				/* Protect slum */
+--- 531,536 ----
+***************
+*** 538,545 ****
+  
+  				if (slum_likely_squeezable (scan->zslum)) {
+  
+- 					int ret;
+- 					
+  					/* Balancing a slum requires node locks, which require the
+  					 * atom lock and so on.  We begin this processing with the
+  					 * atom in the CAPTURE_WAIT state, unlocked. */
+--- 538,543 ----
+***************
+*** 556,562 ****
+  
+  				spin_unlock_tree (current_tree);
+  			}
+- #endif
+  		}
+  	}
+  
+--- 554,559 ----
+***************
+*** 572,577 ****
+--- 569,580 ----
+  
+  			scan = capture_list_front (& atom->capture_level[level]);
+  
++ 			if (znode_has_slum_commit_context (scan)) {
++ 				spin_lock_tree (current_tree);
++ 				scan = scan->zslum->leftmost;
++ 				spin_unlock_tree (current_tree);
++ 			} 
++ 
+  			assert ("jmacd-1063", scan != NULL);
+  			assert ("jmacd-1061", scan->atom == atom);
+  
+***************
+*** 1269,1274 ****
+--- 1272,1281 ----
+  			spin_lock_znode (node);
+  			node->atom = large;
+  			spin_unlock_znode (node);
++ 
++ 			/* Merge slums w/o znode spinlock -- slums are protected by the
++ 			 * tree lock. */
++ 			slum_merge_neighbors (node, small, large);
+  		}
+  
+  		/* Splice the capture list at this level. */
+***************
+*** 1369,1374 ****
+--- 1376,1391 ----
+  	trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", TNODE_ID (node), atom->atom_id, atom->capture_count);
+  
+  	spin_lock_znode (node);
++ 
++ 	if (znode_has_slum_commit_context (node)) {
++ 
++ 		assert ("jmacd-1044", !ZF_ISSET (node, ZNODE_FREE_SPACE));
++ 
++ 		spin_lock_tree (current_tree);
++ 		assert ("jmacd-1024", node->zslum->atom == atom);
++ 		delete_node_from_slum (node);
++ 		spin_unlock_tree (current_tree);
++ 	}
+  
+  	capture_list_remove_clean (node);
+  	atom->capture_count -= 1;
+diff -crN reiser4/ulevel/ulevel.c reiser4-formatted-slum-tracking/ulevel/ulevel.c
+*** reiser4/ulevel/ulevel.c	Fri Mar 22 18:46:15 2002
+--- reiser4-formatted-slum-tracking/ulevel/ulevel.c	Fri Mar 22 18:36:46 2002
+***************
+*** 2158,2163 ****
+--- 2158,2164 ----
+  
+  	znodes_init();
+  	init_plugins();
++ 	slums_init();
+  	txn_init_static();
+  	sys_rand_init();
+  	memset( &super, 0, sizeof super );
+***************
+*** 2274,2279 ****
+--- 2275,2281 ----
+  
+  	ret = real_main (argc, argv);
+  
++ 	slums_done ();
+  	txn_done_static ();
+  
+  	return ret;
+diff -crN reiser4/znode.c reiser4-formatted-slum-tracking/znode.c
+*** reiser4/znode.c	Fri Mar 22 18:38:22 2002
+--- reiser4-formatted-slum-tracking/znode.c	Fri Mar 22 18:36:46 2002
+***************
+*** 271,276 ****
+--- 271,277 ----
+  	assert( "nikita-468", atomic_read( &node -> d_count ) == 0 );
+  	assert( "nikita-469", atomic_read( &node -> x_count ) == 0 );
+  	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
++ 	assert( "nikita-849", node -> zslum == NULL );
+  
+  	/* remove reference to this znode from pbk cache */
+  	cbk_cache_invalidate( node );
+***************
+*** 976,981 ****
+--- 977,1027 ----
+  }
+  #endif
+  
++ /** this function is called from certain contexts in the lock manager to check if a node
++  * has a slum without locking the tree.  In this context, we know that the znode is write
++  * locked, its spinlock is held, and it is dirty if it has a slum.
++  */
++ int znode_has_slum_lock_context( znode *node )
++ {
++ 	int ret;
++ 	
++ 	assert ("jmacd-1082", spin_tree_is_not_locked (current_tree));
++ 	assert ("jmacd-1083", spin_znode_is_locked (node));
++ 	assert ("jmacd-1084", znode_is_write_locked (node));
++ 
++ 	ret = ( node->zslum != NULL );
++ 
++ 	assert ("jmacd-1085", ret == 0 || znode_is_dirty (node));
++ 
++ 	return ret;
++ }
++ 
++ /** this function is called from certain contexts in the transaction manager to check if a
++  * node has a slum without locking the tree.  In this context, we know that the atom is
++  * locked and there are no open handles, thus no locks held on the node.  The znode
++  * spinlock may or may not be held.
++  */
++ int znode_has_slum_commit_context( znode *node )
++ {
++ 	assert ("jmacd-1086", spin_tree_is_not_locked (current_tree));
++ 	assert ("jmacd-1088", node->atom != NULL && spin_atom_is_locked (node->atom));
++ 	assert ("jmacd-1089", ! znode_is_any_locked (node));
++ 
++ 	return node->zslum != NULL;
++ }
++ 
++ /** this function is called from certain contexts where there are no long term locks on
++  * the node and its spinlock is held.
++  */
++ int znode_has_slum_notlocked_context( znode *node )
++ {
++ 	assert ("jmacd-1086", spin_tree_is_not_locked (current_tree));
++ 	assert ("jmacd-1088", spin_znode_is_locked (node));
++ 	assert ("jmacd-1089", ! znode_is_any_locked (node));
++ 
++ 	return node->zslum != NULL;
++ }
++ 
+  void znode_set_dirty( znode *node )
+  {
+  	assert ("jmacd-1083", spin_znode_is_not_locked (node));
+***************
+*** 1014,1020 ****
+  		return;
+  	}
+  
+! 	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, "
+  	      "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
+  	      prefix, node, node -> zstate, 
+  
+--- 1060,1066 ----
+  		return;
+  	}
+  
+! 	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], slum: %p, level: %i, "
+  	      "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
+  	      prefix, node, node -> zstate, 
+  
+***************
+*** 1032,1038 ****
+  	      znode_state_name( node, ZNODE_WRITEOUT ),
+  	      znode_state_name( node, ZNODE_IS_DYING ),
+  	      
+! 	      znode_get_level( node ),
+  	      atomic_read( &node -> c_count ),
+  	      atomic_read( &node -> d_count ),
+  	      atomic_read( &node -> x_count ),
+--- 1078,1084 ----
+  	      znode_state_name( node, ZNODE_WRITEOUT ),
+  	      znode_state_name( node, ZNODE_IS_DYING ),
+  	      
+! 	      node -> zslum, znode_get_level( node ),
+  	      atomic_read( &node -> c_count ),
+  	      atomic_read( &node -> d_count ),
+  	      atomic_read( &node -> x_count ),
+diff -crN reiser4/znode.h reiser4-formatted-slum-tracking/znode.h
+*** reiser4/znode.h	Fri Mar 22 18:37:29 2002
+--- reiser4-formatted-slum-tracking/znode.h	Fri Mar 22 18:36:46 2002
+***************
+*** 40,45 ****
+--- 40,48 ----
+  	   its parent */
+         ZNODE_NEW               = (1 << 6),
+  
++        /** znode free_space is being changed, used to track slum free space. */
++        ZNODE_FREE_SPACE        = (1 << 7),
++ 
+         /** this node was allocated by its txn */
+         ZNODE_ALLOC             = (1 << 10),
+         /** this node is currently relocated */
+***************
+*** 140,145 ****
+--- 143,155 ----
+   *  ->right
+   *  ->in_parent
+   *  ->link
++  *  ->zslum (*)
++  *
++  * (*) Note that the ->zslum field may be tested in certain contexts without
++  * the tree lock held, using the znode_has_slum_{lock,commit}_context()
++  * methods.  This is basically because ->zslum can only become non-NULL in the
++  * lock context and only become NULL again by flushing.  There is also the
++  * zdestroy() assertion and the internal_create_hook usage.
+   *
+   * Following fields are protected by the global delimiting key lock (dk_lock):
+   *
+***************
+*** 257,262 ****
+--- 267,274 ----
+  	atomic_t               x_count;
+  	/** pointers to maintain hash-table */
+  	z_hash_link            link;
++ 	/** slum this znode is in, if any */
++ 	slum                  *zslum;
+  
+  	/** plugin of node attached to this znode. NULL if znode is not
+  	    loaded. */
+***************
+*** 336,341 ****
+--- 348,356 ----
+  	/**
+  	 * A list of all owners for a znode */
+  	owners_list_link owners_link;
++ 	/**
++ 	 * Saved free space, used for tracking slum free space. */
++ 	unsigned free_space;
+  };
+  
+  /**
+***************
+*** 502,507 ****
+--- 517,525 ----
+  extern void znodes_tree_done( reiser4_tree *ztree );
+  extern int znode_contains_key( znode *node, const reiser4_key *key );
+  extern int znode_invariant( const znode *node );
++ extern int  znode_has_slum_lock_context( znode *node );
++ extern int  znode_has_slum_commit_context( znode *node );
++ extern int  znode_has_slum_notlocked_context( znode *node );
+  extern void znode_set_dirty( znode *node );
+  extern unsigned znode_save_free_space( znode *node );
+  extern unsigned znode_recover_free_space( znode *node );
