@@ -323,6 +323,7 @@ again:
 	assert("nikita-2364", jprivate(pg)->key.j.index == pg->index);
 	assert("nikita-2367", jprivate(pg)->key.j.mapping == pg->mapping);
 	assert("nikita-2365", jprivate(pg)->key.j.objectid == oid);
+	assert("vs-1200", jprivate(pg)->key.j.objectid == pg->mapping->host->i_ino);
 	assert("nikita-2356", jnode_get_type(jnode_by_page(pg)) == JNODE_UNFORMATTED_BLOCK);
 	assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
 
