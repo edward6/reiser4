@@ -1393,7 +1393,7 @@ reiser4_drop_inode(struct inode *object)
 		   beginning of generic_delete_inode(), truncate of pages, and
 		   removal of file's extents has to be performed in the same
 		   atom. Otherwise, it may so happen, that twig node with
-		   allocated extent will be flushed to the disk.
+		   unallocated extent will be flushed to the disk.
 		*/
 		__REISER4_ENTRY(object->i_sb,);
 
