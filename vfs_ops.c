@@ -627,15 +627,14 @@ static sector_t
 reiser4_bmap(struct address_space *mapping, sector_t block)
 {
 	file_plugin *fplug;
-
-	assert("vs-693", mapping && mapping->host);
+	REISER4_ENTRY(mapping->host->i_sb);
 
 	fplug = inode_file_plugin(mapping->host);
 	if (!fplug || !fplug->get_block) {
 		return -EINVAL;
 	}
 
-	return generic_block_bmap(mapping, (sector_t) block, fplug->get_block);
+	REISER4_EXIT(generic_block_bmap(mapping, block, fplug->get_block));
 }
 
 /* ->invalidatepage()
