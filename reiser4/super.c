@@ -101,11 +101,11 @@ long reiser4_reserved_blocks( const struct super_block *super,
 /**
  * objectid allocator used by this file system
  */
-reiser4_oidmap *reiser4_get_oid_allocator( const struct super_block *super )
+reiser4_allocator *reiser4_get_oid_allocator( const struct super_block *super )
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );
-	return &reiser4_get_super_data( super ) -> oidmap;
+	return &reiser4_get_super_data( super ) -> allocator;
 }
 
 /**

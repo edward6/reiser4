@@ -11,10 +11,10 @@
 
 /** reiser4-specific part of inode */
 typedef struct reiser4_super_info_data {
-	reiser4_oidmap  oidmap;
-	reiser4_tree    tree;
-	uid_t           default_uid;
-	gid_t           default_gid;
+	reiser4_allocator  allocator;
+	reiser4_tree       tree;
+	uid_t              default_uid;
+	gid_t              default_gid;
 
 	__u32    blocks_used;
 	__u32    blocks_free;
@@ -56,7 +56,7 @@ extern long reiser4_data_blocks( const struct super_block *super );
 extern long reiser4_free_blocks( const struct super_block *super );
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 			      uid_t uid, gid_t gid );
-extern reiser4_oidmap *reiser4_get_oid_allocator( const struct super_block *super );
+extern reiser4_allocator *reiser4_get_oid_allocator( const struct super_block *super );
 extern reiser4_tree *reiser4_get_tree( const struct super_block *super );
 extern __u32 reiser4_new_inode_generation( const struct super_block *super );
 extern int  reiser4_adg( const struct super_block *super );

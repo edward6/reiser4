@@ -304,7 +304,7 @@ static void reiser4_truncate( struct inode *inode )
  */
 static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 {
-	reiser4_oidmap *oidmap;
+	reiser4_allocator *oidmap;
 	REISER4_ENTRY( super );
 
 	assert( "nikita-408", super != NULL );
