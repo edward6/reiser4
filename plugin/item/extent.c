@@ -532,8 +532,6 @@ static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
 		}
 	}
 	spin_unlock_eflush(tree->super);
-	if (nr)
-		warning("vs-1223", "drop_eflushed_nodes: %d nodes found\n", nr);
 }
 
 /* plugin->u.item.b.kill_item_hook
