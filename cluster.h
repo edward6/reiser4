@@ -6,8 +6,6 @@
 #if !defined( __FS_REISER4_CLUSTER_H__ )
 #define __FS_REISER4_CLUSTER_H__
 
-typedef unsigned long cloff_t;
-
 static inline loff_t min_count(loff_t a, loff_t b)
 {
 	return (a < b ? a : b);
