@@ -178,10 +178,13 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	carry_level     todo_area;
 	/** queue of new requests */
 	carry_level    *todo;
+	ON_DEBUG( lock_counters_info entry_counters );
 
 	assert( "nikita-888", doing != NULL );
 
 	trace_stamp( TRACE_CARRY );
+
+	ON_DEBUG( entry_counters = *lock_counters() );
 
 	todo = &todo_area;
 	init_carry_level( todo, doing -> pool );
@@ -266,6 +269,13 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 		preempt_point();
 	}
 	done_carry_level( done );
+	/* 
+	 * all counters, but x_refs should remain the same. x_refs can change
+	 * owing to transaction manager
+	 */
+	assert( "nikita-2107", !memcmp( &entry_counters, lock_counters(),
+					sizeof entry_counters ) - sizeof( int ) );
+
 	return result;
 }
 
