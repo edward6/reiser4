@@ -1432,6 +1432,10 @@ reiser4_kill_super(struct super_block *s)
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		reiser4_print_stats();
 
+	/* we don't want ->write_super to be called any more. */
+	s->s_op->write_super = NULL;
+	kill_block_super(s);
+
 #if REISER4_DEBUG
 	{
 		struct list_head *scan;
@@ -1444,10 +1448,15 @@ reiser4_kill_super(struct super_block *s)
 			info_jnode("\nafter umount", busy);
 		}
 	}
+	/* sbinfo->stats is not allocated by reiser4_kmalloc, because it's too
+	 * large (vmalloc() is used). */
 	if (sbinfo->kmalloc_allocated > 0)
 		warning("nikita-2622", 
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
 #endif
+
+	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
+		reiser4_print_stats();
 
 out:
 
