@@ -46,12 +46,12 @@ struct reiser4_syscall_w_space
 	freeSpace_t * freeSpHead;
 	freeSpace_t * freeSpCur;
 	wrd_t       * wrdHead;
-	vnode_t     * Head_vnode;
+	pars_var_t     * Head_pars_var;
 	streg_t     * Head_level;	
 	streg_t     * cur_level;	
 	expr_v4_t   * root_e;          /* root expression  for this task */
 
-	vnode_t     * wvn;              /* work    for this task */
+	pars_var_t     * wvn;              /* work    for this task */
 
 	struct dentry * de;            /* work dentry for this task */
 	struct nameidata nd;

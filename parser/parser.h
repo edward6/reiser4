@@ -79,7 +79,7 @@ typedef enum
 })
 
 
-typedef struct vnode vnode_t;
+typedef struct pars_var pars_var_t;
 
 typedef struct wrd wrd_t;
 
@@ -133,7 +133,7 @@ struct tube
 	struct file *src;
 
 	/* offset might actually point to sink */
-	//	vnode_t * sink;
+	//	pars_var_t * sink;
 	struct file *dst;
 
 /* 	pos_t pos; */
@@ -154,10 +154,10 @@ typedef enum
 	V4Plugin
 } SpaceType;
 
-struct vnode
+struct pars_var
 {
-	vnode_t * next ;            /* next                          */
-	vnode_t * parent;           /* parent                        */
+	pars_var_t * next ;            /* next                          */
+	pars_var_t * parent;           /* parent                        */
 	wrd_t * w ;                 /* pair (parent,w) is unique     */
 	lnode * ln;                 /* file/dir name lnode           */
 	int count;                  /* ref counter                   */
@@ -189,11 +189,11 @@ typedef struct expr_flow
 	flow_t     *   flw;
 } expr_flow_t;
 
-typedef struct expr_vnode
+typedef struct expr_pars_var
 {
 	expr_common_t   h;
-	vnode_t  *  v;
-} expr_vnode_t;
+	pars_var_t  *  v;
+} expr_pars_var_t;
 
 
 typedef struct expr_wrd
@@ -201,14 +201,6 @@ typedef struct expr_wrd
 	expr_common_t   h;
 	wrd_t  *  s;
 } expr_wrd_t;
-
-/* list is same as op2
-typedef struct expr_list {
-	expr_common   h;
-	expr_v4_t  *  next;
-	expr_v4_t  *  e;
-} expr_list;
-*/
 
 typedef struct expr_op3
 {
@@ -234,7 +226,7 @@ typedef struct expr_op
 typedef struct expr_assign
 {
 	expr_common_t   h;
-	vnode_t       *  target;
+	pars_var_t       *  target;
 	expr_v4_t       *  source;
 	expr_v4_t       *  (* construct)( lnode *, expr_v4_t *  );
 } expr_assign_t;
@@ -250,7 +242,7 @@ struct expr_list
 typedef enum
 {
 	EXPR_WRD,
-	EXPR_VNODE,
+	EXPR_PARS_VAR,
 	EXPR_LIST,
 	EXPR_ASSIGN,
 	EXPR_LNODE,
@@ -264,7 +256,7 @@ union expr_v4
 {
 	expr_common_t   h;
 	expr_wrd_t      wd;
-	expr_vnode_t    vnode;
+	expr_pars_var_t    pars_var;
 	expr_list_t     list;
 
         expr_assign_t   assgn;
@@ -317,7 +309,7 @@ struct streg
 //	struct vfsmount *mnt;
 //	struct nameidata_reiser4 nd;        /* current   for this level */
 //	lnode * cur_lnode;          /* cur lnode for this level */
-//	vnode_t * cur_vnode;          /* cur lnode for this level */
+//	pars_var_t * cur_pars_var;          /* cur lnode for this level */
 
 };
 

@@ -39,6 +39,6 @@ typedef union
 	/*	String * StrPtr;*/
 	/*	expr_lnode_t * lnd;*/
 	/*	expr_flow_t * flw;*/
-	/*	vnode_t * vnode;*/
+	/*	pars_var_t * pars_var;*/
 } YYSTYPE;
 extern YYSTYPE yylval;
