@@ -115,7 +115,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /**
  * default tail policy plugin
  */
-#define REISER4_TAIL_PLUGIN       (TEST_TAIL_ID/*ALWAYS_TAIL_ID*/)
+#define REISER4_TAIL_PLUGIN       (NEVER_TAIL_ID)
 
 /**
  * item plugin used by files by default to store stat data.
