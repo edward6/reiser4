@@ -341,8 +341,24 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
 	inode = page->mapping->host;
-	assert("vs-1426", ergo(PagePrivate(page) && get_super_fake(inode->i_sb) != inode, ((inode->i_state & I_JNODES) &&
-											   (reiser4_inode_data(inode)->jnodes > 0))));
+
+	/*
+	 * ->invalidatepage() should only be called for the unformatted
+	 * jnodes. Destruction of all other types of jnodes is performed
+	 * separately. But, during some corner cases (like handling errors
+	 * during mount) it is simpler to let ->invalidatepage to be called on
+	 * them. Check for this, and do nothing.
+	 */
+	if (get_super_fake(inode->i_sb) == inode)
+		return 0;
+	if (get_cc_fake(inode->i_sb) == inode)
+		return 0;
+	if (get_super_private(inode->i_sb)->bitmap == inode)
+		return 0;
+
+	assert("vs-1426", ergo(PagePrivate(page),
+			       ((inode->i_state & I_JNODES) &&
+				(reiser4_inode_data(inode)->jnodes > 0))));
 	assert("vs-1427", ergo(PagePrivate(page), page->mapping == jnode_get_mapping(jnode_by_page(page))));
 	assert("vs-1449", !test_bit(PG_arch_1, &page->flags));
 
