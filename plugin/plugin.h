@@ -24,8 +24,8 @@ typedef enum {
 	REISER4_PERM_PLUGIN_TYPE,
 	REISER4_SD_EXT_PLUGIN_TYPE,
 	REISER4_LAYOUT_PLUGIN_TYPE,
-	REISER4_OID_MGR_PLUGIN_TYPE,
-	REISER4_SPACE_MGR_PLUGIN_TYPE,
+	REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+	REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
@@ -36,9 +36,8 @@ struct reiser4_plugin_ops;
     plugin type. */
 typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 
-struct inodes_plugins;
-
-typedef struct inodes_plugins inodes_plugins;
+struct reiser4_plugin_ref;
+typedef struct reiser4_plugin_ref reiser4_plugin_ref;
 
 TS_LIST_DECLARE( plugin );
 
@@ -347,8 +346,9 @@ typedef struct sd_ext_plugin {
 /* this plugin contains methods to allocate objectid for newly created files,
  * to deallocate objectid when file gets removed, to report number of used and
  * free objectids */
-typedef struct oid_mgr_plugin {
-	int ( *init_oid_allocator )( reiser4_oid_allocator *map );
+typedef struct oid_allocator_plugin {
+	int ( *init_oid_allocator )( reiser4_oid_allocator *map, __u64 nr_files,
+				     __u64 oids );
 	/* used to report statfs->f_files */	
 	__u64 ( *oids_used )( reiser4_oid_allocator *map );
 	/* used to report statfs->f_ffree */	
@@ -363,28 +363,28 @@ typedef struct oid_mgr_plugin {
 	/* how many pages to reserve in transaction for freeing of an
 	   objectid */
 	int ( *oid_reserve_release )( reiser4_oid_allocator *map );
-} oid_mgr_plugin;
+} oid_allocator_plugin;
 
 /* this plugin contains method to allocate and deallocate free space of disk */
-typedef struct space_mgr_plugin {
-	int ( *init_space_mgr )( struct super_block * );
-} space_mgr_plugin;
+typedef struct space_allocator_plugin {
+	int ( *init_allocator )( reiser4_space_allocator *,
+				 struct super_block * );
+	int ( *destroy_allocator )( reiser4_space_allocator *,
+				    struct super_block *);
+	int ( *alloc_blocks )( reiser4_blocknr_hint *, int needed,
+			       reiser4_block_nr *start, int *len );
+	void ( *dealloc_blocks )( reiser4_block_nr start, int len );
+
+} space_allocator_plugin;
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
  * are any) locations, etc */
 typedef struct layout_plugin {
 	/* replay journal, initialize super_info_data, etc */
-	int ( *get_ready )( struct super_block *, reiser4_super_info_data *,
-			    struct buffer_head * );
+	int ( *get_ready )( struct super_block *, void * data);
 
 	/* key of root directory stat data */
 	const reiser4_key * ( *root_dir_key )( void );
-
-	/* plugin responsible for objectid allocation/freeing */
-	oid_mgr_plugin *oid_manager;
-
-	/* plugin responsible for free disk space allocation */
-	space_mgr_plugin *space_manager;
 } layout_plugin;
 
 
@@ -405,10 +405,10 @@ typedef struct layout_plugin {
 		item_plugin      item;
 		sd_ext_plugin    sd_ext;
 		layout_plugin    layout;
-		oid_mgr_plugin   oid_mgr;
-		space_mgr_plugin space_mgr;
-/* 		void                *dynamic; */
-	};
+		oid_allocator_plugin   oid_allocator;
+		space_allocator_plugin space_allocator;
+	/*	void                  *generic; */
+	} u;
 
 typedef enum { 
 	REISER4_LIGHT_WEIGHT_INODE = 0x1,
@@ -579,7 +579,7 @@ static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )                     
 }                                                                                  \
 typedef struct { int foo; } TYPE ## _plugin_dummy
 
-PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
+PLUGIN_BY_ID(common_item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
 PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
 PLUGIN_BY_ID(dir_plugin,REISER4_DIR_PLUGIN_TYPE,dir);
 PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);
@@ -588,6 +588,10 @@ PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);
 PLUGIN_BY_ID(hash_plugin,REISER4_HASH_PLUGIN_TYPE,hash);
 PLUGIN_BY_ID(tail_plugin,REISER4_TAIL_PLUGIN_TYPE,tail);
 PLUGIN_BY_ID(layout_plugin,REISER4_LAYOUT_PLUGIN_TYPE,layout);
+PLUGIN_BY_ID(oid_allocator_plugin,REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+	     oid_allocator);
+PLUGIN_BY_ID(space_allocator_plugin,REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
+	     space_allocator);
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
