@@ -245,4 +245,6 @@ ARC(atom_lock, stack_lock, "check_not_fused_lock_owners()");//atom_send_event()
 ARC(txnh_lock, stack_lock, "check_not_fused_lock_owners()");
 ARC(fq_lock, stack_lock, "wakeup_atom_waitfor_list()");
 ARC(atom_lock, fq_lock, "detach_fq()");
+ARC(jnode_lock, zlock, "check_not_fused_lock_owners()");
+ARC(txnh_lock, zlock, "check_not_fused_lock_owners()");
 }

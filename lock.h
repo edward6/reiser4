@@ -57,9 +57,8 @@ struct zlock {
 	requestors_list_head requestors;
 };
 
-#define spin_ordering_pred_zlock(lock)		\
-	  /* top-most lock */			\
-	  (lock_counters()->spin_locked == 0)
+#define spin_ordering_pred_zlock(lock)			\
+	  (lock_counters()->spin_locked_stack == 0)
 
 /* Define spin_lock_zlock, spin_unlock_zlock, etc. */
 SPIN_LOCK_FUNCTIONS(zlock, zlock, guard);
