@@ -817,7 +817,7 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 			return 1;
 		}
 		++ args -> skip;
-		assert( "nikita-1719", args -> skip == args -> skipped );
+		assert( "nikita-1756", args -> skip == args -> skipped );
 	} else {
 		assert( "nikita-1720", 
 			keycmp( &de_key, &args -> key ) == GREATER_THAN );

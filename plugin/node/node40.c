@@ -422,7 +422,7 @@ reiser4_key *node40_key_at( const tree_coord *coord, reiser4_key *key )
 {
 	item_header_40 *ih;
 
-	assert( "nikita-1716", coord_of_item( coord ) );
+	assert( "nikita-1765", coord_of_item( coord ) );
 
 	/* @coord is set to existing item */
 	ih = node40_ih_at_coord( coord );

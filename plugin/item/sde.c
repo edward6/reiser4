@@ -65,7 +65,7 @@ char *de_extract_name( const tree_coord *coord )
  */
 unsigned de_extract_file_type( const tree_coord *coord UNUSED_ARG )
 {
-	assert( "nikita-1722", coord != NULL );
+	assert( "nikita-1764", coord != NULL );
 	/*
 	 * we don't store file type in the directory entry yet.
 	 *

@@ -110,14 +110,14 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 	int           result;
 	int           blksizebits;
 
-	assert( "nikita-1709", super != NULL );
-	assert( "nikita-1711", data != NULL );
+	assert( "nikita-1771", super != NULL );
+	assert( "nikita-1772", data != NULL );
 
 	blksizebits = super -> s_blocksize_bits;
 	/*
 	 * only blocks smaller than pages are supported
 	 */
-	assert( "nikita-1713", PAGE_CACHE_SHIFT >= blksizebits );
+	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
 	page_idx = block >> ( PAGE_CACHE_SHIFT - blksizebits );
 	page = grab_cache_page( reiser4_get_super_fake( super ) -> i_mapping, 
 				page_idx );
@@ -127,7 +127,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		/*
 		 * we have page locked and referenced.
 		 */
-		assert( "nikita-1714", PageLocked( page ) );
+		assert( "nikita-1774", PageLocked( page ) );
 
 		/*
 		 * FIXME-NIKITA add reiser4 decorations to the page, if they
@@ -143,7 +143,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		 * each other on the disk, so this is cheap.
 		 */
 		result = block_read_full_page( page, fake_get_block );
-		assert( "nikita-1716", page -> buffers != NULL );
+		assert( "nikita-1775", page -> buffers != NULL );
 
 		/*
 		 * find buffer head for @block
@@ -151,7 +151,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		bh = page -> buffers;
 		while( bh -> b_blocknr != block ) {
 			bh = bh -> b_this_page;
-			assert( "nikita-1718", bh != page -> buffers );
+			assert( "nikita-1776", bh != page -> buffers );
 		}
 
 		if( REISER4_FORMATTED_CLUSTER_READ )
@@ -277,9 +277,9 @@ static int fake_get_block( struct inode *inode,
 			   sector_t block, struct buffer_head *bh, 
 			   int create UNUSED_ARG )
 {
-	assert( "nikita-1720", inode != NULL );
-	assert( "nikita-1721", bh != NULL );
-	assert( "nikita-1722", !create );
+	assert( "nikita-1777", inode != NULL );
+	assert( "nikita-1778", bh != NULL );
+	assert( "nikita-1779", !create );
 
 	/*
 	 * FIXME-NIKITA check that block < max_block( inode -> i_rdev ).

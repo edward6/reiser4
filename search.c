@@ -877,10 +877,10 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		int is_ld;
 			
 		assert( "nikita-1716", node != NULL );
-		assert( "nikita-1717", key != NULL );
+		assert( "nikita-1758", key != NULL );
 			
 		spin_lock_dk( current_tree );
-		assert( "nikita-1718", znode_contains_key( node, key ) );
+		assert( "nikita-1759", znode_contains_key( node, key ) );
 		is_ld = keycmp( znode_get_ld_key( node ), key ) == EQUAL_TO;
 		spin_unlock_dk( current_tree );
 		return is_ld;
@@ -1029,7 +1029,7 @@ static int key_is_delimiting( znode *node, const reiser4_key *key )
 {
 	int result;
 
-	assert( "nikita-1721", node != NULL );
+	assert( "nikita-1760", node != NULL );
 	assert( "nikita-1722", key != NULL );
 
 	spin_lock_dk( current_tree );
@@ -1278,13 +1278,13 @@ static level_lookup_result search_to_left( cbk_handle *h )
 
 	reiser4_lock_handle lh;
 
-	assert( "nikita-1716", h != NULL );
-	assert( "nikita-1719", h -> level == h -> slevel );
+	assert( "nikita-1761", h != NULL );
+	assert( "nikita-1762", h -> level == h -> slevel );
 
 	reiser4_init_lh( &lh );
 	coord = h -> coord;
 	node  = h -> active_lh -> node;
-	assert( "nikita-1717", coord_is_leftmost( coord ) );
+	assert( "nikita-1763", coord_is_leftmost( coord ) );
 
 	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 

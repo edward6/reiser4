@@ -962,10 +962,10 @@ static int readdir( const char *prefix, struct file *dir, __u32 flags )
 
 			i = call_lookup( dir -> f_dentry -> d_inode, info.name );
 			if( IS_ERR( i ) )
-				warning( "nikita-1722", "Not found: %s", 
+				warning( "nikita-1767", "Not found: %s", 
 					 info.name );
 			else if( ( int ) i -> i_ino != info.inum )
-				warning( "nikita-1721", 
+				warning( "nikita-1768", 
 					 "Wrong inode number: %i != %i",
 					 ( int ) info.inum, ( int ) i -> i_ino );
 			else
@@ -1199,14 +1199,14 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_create( f, name );
-			assert( "nikita-1720", ret == 0 );
+			assert( "nikita-1769", ret == 0 );
 			print_percentage( i, atoi( argv[ 3 ] ), '+' );
 		}
 		call_readdir( f, "unlink-filled" );
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_rm( f, name );
-			assert( "nikita-1720", ret == 0 );
+			assert( "nikita-1770", ret == 0 );
 			print_percentage( i, atoi( argv[ 3 ] ), '-' );
 		}
 		call_readdir( f, "unlink-end" );

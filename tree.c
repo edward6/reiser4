@@ -1103,7 +1103,7 @@ const block_nr UNALLOCATED_BIT_MASK = ( 1ull << 63 );
  */
 int is_disk_addr_unallocated( const reiser4_disk_addr *addr )
 {
-	assert( "nikita-1685", addr != NULL );
+	assert( "nikita-1766", addr != NULL );
 	cassert( sizeof( block_nr ) == 8 );
 	return addr -> blk & UNALLOCATED_BIT_MASK;
 }

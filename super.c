@@ -113,7 +113,7 @@ reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *supe
  */
 struct inode *reiser4_get_super_fake( const struct super_block *super )
 {
-	assert( "nikita-1719", super != NULL );
+	assert( "nikita-1757", super != NULL );
 	return reiser4_get_super_private( super ) -> fake;
 }
 

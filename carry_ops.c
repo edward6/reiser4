@@ -974,9 +974,9 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	carry_op         *insert_extent;
 	int               result;
 
-	assert( "nikita-1036", op != NULL );
-	assert( "nikita-1037", todo != NULL );
-	assert( "nikita-1038", op -> op == COP_EXTENT );
+	assert( "nikita-1751", op != NULL );
+	assert( "nikita-1752", todo != NULL );
+	assert( "nikita-1753", op -> op == COP_EXTENT );
 
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, extent );
@@ -1019,8 +1019,8 @@ static int carry_extent( carry_op *op /* operation to perform */,
 		return result;
 
 	node = op -> u.extent.d -> coord -> node;
-	assert( "nikita-1039", node != NULL );
-	assert( "nikita-1040", node_plugin_by_node( node ) != NULL );
+	assert( "nikita-1754", node != NULL );
+	assert( "nikita-1755", node_plugin_by_node( node ) != NULL );
 	assert( "nikita-1700", 
 		coord_wrt( op -> u.extent.d -> coord ) != COORD_INSIDE );
 	/*
