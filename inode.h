@@ -29,14 +29,14 @@ typedef struct reiser4_inode_info {
 	tail_plugin            *tail;
 	/** hash plugin. Only meaningful for directories. */
 	hash_plugin            *hash;
-#if 0
 	/** plugin of stat-data */
 	item_plugin            *sd;
-#endif
 	/** seal for stat-data */
 	seal_t                    sd_seal;
 	/** coord of stat-data in sealed node */
 	tree_coord                sd_coord;
+	/** plugin of items a directory is built of */
+	item_plugin            *dir_item;
 	/** reiser4-specific inode flags. They are "transient" and 
 	    are not supposed to be stored on a disk. Used to trace
 	    "state" of inode. Bitmasks for this field are defined in 
@@ -98,6 +98,8 @@ extern dir_plugin  *inode_dir_plugin ( const struct inode *inode );
 extern perm_plugin *inode_perm_plugin( const struct inode *inode );
 extern tail_plugin *inode_tail_plugin( const struct inode *inode );
 extern hash_plugin *inode_hash_plugin( const struct inode *inode );
+extern item_plugin *inode_sd_plugin( const struct inode *inode );
+extern item_plugin *inode_dir_item_plugin( const struct inode *inode );
 
 extern struct file_operations reiser4_file_operations;
 extern struct inode_operations reiser4_inode_operations;
