@@ -114,7 +114,7 @@ coord_init_before_first_item(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
 
-	coord_init_values(coord, node, 0, 0, (is_empty ? EMPTY_NODE : BEFORE_ITEM));
+	coord_init_values(coord, node, 0, 0, (is_empty ? EMPTY_NODE : BEFORE_UNIT));
 
 	assert("jmacd-9803", coord_check(coord));
 }
@@ -307,7 +307,8 @@ coord_check(const coord_t * coord)
 	if (coord->between == AFTER_ITEM || coord->between == BEFORE_ITEM)
 		return 1;
 
-	if (coord->unit_pos > item_plugin_by_coord(coord)->b.nr_units(coord) - 1) {
+	if (coord_is_iplug_set(coord) &&
+	    coord->unit_pos > item_plugin_by_coord(coord)->b.nr_units(coord) - 1) {
 		return 0;
 	}
 
@@ -1038,8 +1039,8 @@ print_coord(const char *mes, const coord_t * coord, int node)
 		printk("%s: null\n", mes);
 		return;
 	}
-	printk("%s: item_pos = %d, unit_pos %d, tween=%s\n",
-	       mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between));
+	printk("%s: item_pos = %d, unit_pos %d, tween=%s, iplug=%d\n",
+	       mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between), coord->iplugid);
 	if (node)
 		print_znode("\tnode", coord->node);
 }
