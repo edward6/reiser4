@@ -577,7 +577,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int dont_check_congestion)
 	if (!dont_check_congestion && check_write_congestion())
 		return 0;
 #endif /* FLUSH_CHECKS_CONGESTION */
-
+	trace_mark(flush);
 	ret = write_fq(pos->fq);
 	if (ret > 0) {
 		*pos->nr_written += ret;
@@ -1101,6 +1101,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		int ret1;
 
 		flush_started_io();
+		trace_mark(flush);
 		ret1 = write_fq(fq);
 		if (ret1 > 0)
 			*nr_submitted += ret1;

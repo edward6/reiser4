@@ -949,6 +949,8 @@ reiser4_write_logs(void)
 	/* block allocator may add j-nodes to the clean_list */
 	pre_commit_hook();
 
+	trace_mark(wander);
+
 	atom = get_current_atom_locked();
 	UNLOCK_ATOM(atom);
 	
@@ -1028,6 +1030,8 @@ reiser4_write_logs(void)
 	LOCK_ATOM(atom);
 	atom->stage = ASTAGE_POST_COMMIT;
 	UNLOCK_ATOM(atom);
+
+	trace_mark(ovrwr);
 
 	post_commit_hook();
 

@@ -924,6 +924,7 @@ static int submit_wb_list (void)
 
 	scan_wb_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
+	trace_mark(flush);
 	ret = write_fq(fq);
 	fq_put(fq);
 	
