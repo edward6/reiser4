@@ -1251,7 +1251,7 @@ txn_try_capture_page  (struct page        *pg,
  * committing while they perform early flushing.  The node is already captured but the
  * txnh is not.
  */
-int txn_attach_txnh_to_node (jnode *node)
+int txn_attach_txnh_to_node (jnode *node, txn_flags flags)
 {
 	txn_atom *atom;
 	reiser4_context *ctx;
@@ -1275,6 +1275,8 @@ int txn_attach_txnh_to_node (jnode *node)
 		ret = -ENOENT;
 		goto fail_unlock;
 	}
+
+	atom->flags |= flags;
 
 	capture_assign_txnh_nolock (atom, txnh);
 

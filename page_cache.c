@@ -617,7 +617,7 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 
 	/* Attach the txn handle to this node, preventing the atom from committing while
 	 * this flush occurs. */ 
-	result = txn_attach_txnh_to_node (node);
+	result = txn_attach_txnh_to_node (node, ATOM_FORCE_COMMIT);
 
 	if (result == -ENOENT) {
 
