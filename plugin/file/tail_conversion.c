@@ -7,6 +7,7 @@
 #include "../../lib.h"
 #include "../../safe_link.h"
 #include "funcs.h"
+#include <linux/writeback.h>
 
 /* this file contains:
    tail2extent and extent2tail */
