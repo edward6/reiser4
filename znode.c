@@ -235,6 +235,10 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 	return result;
 }
 
+#if REISER4_DEBUG
+extern void jnode_done(jnode * node, reiser4_tree * tree);
+#endif
+
 /* free this znode */
 void
 zfree(znode * node /* znode to free */ )
@@ -248,7 +252,7 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 
 	/* not yet phash_jnode_destroy(ZJNODE(node)); */
-	ON_DEBUG(list_del(&ZJNODE(node)->jnodes));
+	ON_DEBUG(jnode_done(ZJNODE(node), znode_get_tree(node)));
 
 	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xde, sizeof *node));
@@ -570,14 +574,19 @@ static node_plugin *
 znode_guess_plugin(const znode * node	/* znode to guess
 					 * plugin of */ )
 {
+	reiser4_tree * tree;
+
 	assert("nikita-1053", node != NULL);
 	assert("nikita-1055", zdata(node) != NULL);
-	assert("umka-053", current_tree != NULL);
 
-	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_ONE_NODE_PLUGIN)) {
-		return znode_get_tree(node)->nplug;
+	tree = znode_get_tree(node);
+	assert("umka-053", tree != NULL);
+
+	if (reiser4_is_set(tree->super, REISER4_ONE_NODE_PLUGIN)) {
+		return tree->nplug;
 	} else {
-		return node_plugin_by_disk_id(znode_get_tree(node), &((common_node_header *) zdata(node))->plugin_id);
+		return node_plugin_by_disk_id
+			(tree, &((common_node_header *) zdata(node))->plugin_id);
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
 

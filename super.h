@@ -269,8 +269,12 @@ struct reiser4_super_info_data {
 	__u64 min_blocks_used;
 	/* amount of space allocated by kmalloc. For debugging. */
 	int kmalloc_allocated;
+
+	kcond_t rcu_done;
+
 	/* list of all jnodes */
 	struct list_head all_jnodes;
+	atomic_t jnodes_in_flight;
 #endif
 #if REISER4_TRACE_TREE
 	reiser4_block_nr last_touched;

@@ -1188,6 +1188,8 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	s->s_fs_info = sbinfo;
 	memset(sbinfo, 0, sizeof (*sbinfo));
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
+	ON_DEBUG(kcond_init(&sbinfo->rcu_done));
+	ON_DEBUG(atomic_set(&sbinfo->jnodes_in_flight, 0));
 
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
@@ -1422,6 +1424,11 @@ reiser4_kill_super(struct super_block *s)
 	kill_block_super(s);
 
 #if REISER4_DEBUG
+	reiser4_spin_lock_sb(sbinfo);
+	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
+		kcond_wait(&sbinfo->rcu_done, &sbinfo->guard.lock, 0);
+	reiser4_spin_unlock_sb(sbinfo);
+
 	{
 		struct list_head *scan;
 
@@ -1435,6 +1442,7 @@ reiser4_kill_super(struct super_block *s)
 	}
 	if (sbinfo->kmalloc_allocated > 0)
 		warning("nikita-2622", "%i bytes still allocated", sbinfo->kmalloc_allocated);
+
 #endif
 
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
@@ -1446,7 +1454,6 @@ out:
 
 	phash_super_destroy(s);
 
-	synchronize_kernel();
 	kfree(sbinfo);
 	s->s_fs_info = NULL;
 }

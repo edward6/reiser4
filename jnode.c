@@ -158,10 +158,35 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	INIT_RCU_HEAD(&node->rcu);
 
 #if REISER4_DEBUG
-	UNDER_RW_VOID(tree, tree, write,
-		      list_add(&node->jnodes, &get_current_super_private()->all_jnodes));
+	{
+		reiser4_super_info_data *sbinfo;
+
+		sbinfo = get_super_private(tree->super);
+		reiser4_spin_lock_sb(sbinfo);
+		list_add(&node->jnodes, &sbinfo->all_jnodes);
+		reiser4_spin_unlock_sb(sbinfo);
+	}
 #endif
 }
+
+#if REISER4_DEBUG
+void
+jnode_done(jnode * node, reiser4_tree * tree)
+{
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = get_super_private(tree->super);
+	reiser4_spin_lock_sb(sbinfo);
+
+	assert("nikita-2422", !list_empty(&node->jnodes));
+
+	list_del_init(&node->jnodes);
+	kcond_signal(&sbinfo->rcu_done);
+	atomic_dec(&sbinfo->jnodes_in_flight);
+	reiser4_spin_unlock_sb(sbinfo);
+
+}
+#endif
 
 /* return already existing jnode of page */
 jnode *
@@ -187,12 +212,11 @@ jfree(jnode * node)
 {
 	assert("zam-449", node != NULL);
 
-	assert("nikita-2422", !list_empty(&node->jnodes));
 	assert("nikita-2663", capture_list_is_clean(node));
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 
 	/* not yet phash_jnode_destroy(node); */
-	ON_DEBUG(list_del_init(&node->jnodes));
+	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
 	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xad, sizeof *node));
 	kmem_cache_free(_jnode_slab, node);
@@ -866,18 +890,16 @@ remove_jnode(jnode * node, reiser4_tree * tree)
 static void
 remove_inode_jnode(jnode * node, reiser4_tree * tree UNUSED_ARG)
 {
-	/* remove from super block's all_jnodes list */
-	assert("nikita-2422", !list_empty(&node->jnodes));
 	assert("nikita-2663", capture_list_is_clean(node));
 
 	phash_jnode_destroy(node);
-	ON_DEBUG(list_del_init(&node->jnodes));
+	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
 }
 
 static struct address_space *
-mapping_znode(const jnode * node UNUSED_ARG)
+mapping_znode(const jnode * node)
 {
-	return get_super_fake(reiser4_get_current_sb())->i_mapping;
+	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
 
 static unsigned long
@@ -1140,6 +1162,14 @@ jnode_free(jnode * node, jnode_type jtype)
 {
 	if (jtype != JNODE_INODE)
 		call_rcu(&node->rcu, jnode_free_actor, node);
+#if REISER4_DEBUG
+	{
+		reiser4_super_info_data *sbinfo;
+
+		sbinfo = get_super_private(jnode_get_tree(node)->super);
+		atomic_inc(&sbinfo->jnodes_in_flight);
+	}
+#endif
 }
 
 int
