@@ -333,6 +333,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	assert( "nikita-908", node != NULL );
 	assert( "nikita-909", node_plugin_by_node( node ) != NULL );
 
+#if 0
 	if( space_needed_for_op( node, op ) > znode_size( node ) ) {
 		/*
 		 * There is no chance ever to insert item large than whole
@@ -340,7 +341,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 */
 		return -ENAMETOOLONG;
 	}
-
+#endif
 	result = 0;
 	/*
 	 * If there is not enough space in a node, try to shift something to
