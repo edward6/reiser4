@@ -685,19 +685,14 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 	}
 
-	/* If we emptied and allocated the entire contents of the right twig, try again. */
-	/* FIXME: The (! any_shifted) part of this test causes the -ENAVAIL failure from
-	 * reiser4_get_parent in the second regression test.  Strange. */
-	if (node_is_empty (right_lock.node)) {
+	/* If we emptied and allocated the entire contents of the right twig, try again,
+	 * unless we are at an internal node, in which case the next if-statement
+	 * applies. */
+	if ((any_shifted == 0 || znode_get_level (node) == LEAF_LEVEL) && node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_zh (& right_load);
 		done_lh (& right_lock);
-
-		/* If none where shifted (i.e., if we skipped all the shifted nodes
-		 * above), do it again. */
-		if (any_shifted == 0 || znode_get_level (node) == LEAF_LEVEL) {
-			goto RIGHT_AGAIN;
-		}
+		goto RIGHT_AGAIN;
 	}
 
 	/* If anything is shifted at an upper level, we should not allocate any further
@@ -858,15 +853,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			trace_on (TRACE_FLUSH, "sq_changed_ancestors right again: %s\n", flush_pos_tostring (pos));
 
 			if (znode_check_dirty (node)) {
-				/* If we started at an allocated node and continued to the
-				 * right, reaching this point, it is possible that the
-				 * parent needs to be allocated.  But then, why do it? */
-				if (! znode_is_allocated (node)) {
-					/* FIXME: WHAT? */
-					/*trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (right twig dirty not allocated): %s\n", flush_pos_tostring (pos));
-					ret = flush_pos_stop (pos);
-					goto exit;*/
-				}
 				goto repeat;
 			} else {
 				trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (right twig clean): %s\n", flush_pos_tostring (pos));
