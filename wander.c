@@ -929,8 +929,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
    WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
    are submitted to write.*/
 
-int
-reiser4_write_logs(void)
+int reiser4_write_logs(long * nr_submitted)
 {
 	txn_atom *atom;
 
@@ -972,6 +971,10 @@ reiser4_write_logs(void)
 		/* FIXME: an extra check for empty RELOC set should be here */
 		goto up_and_ret;
 	}
+
+	/* Inform the caller about what number of dirty pages will be
+	 * submitted to disk. */
+	*nr_submitted += ch.overwrite_set_size - ch.nr_bitmap;
 
 	trace_on(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
 

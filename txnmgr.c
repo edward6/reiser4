@@ -1075,7 +1075,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	 * thread using tmgr semaphore */
 	down(&sbinfo->tmgr.commit_semaphore);
 
-	ret = reiser4_write_logs();
+	ret = reiser4_write_logs(nr_submitted);
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 

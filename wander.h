@@ -106,7 +106,7 @@ struct log_entry {
 
 /* REISER4 JOURNAL WRITER FUNCTIONS   */
 
-extern int reiser4_write_logs(void);
+extern int reiser4_write_logs(long *);
 extern int reiser4_journal_replay(struct super_block *);
 extern int reiser4_journal_recover_sb_data(struct super_block *);
 
