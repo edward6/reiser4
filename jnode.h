@@ -363,8 +363,9 @@ extern void info_jnode(const char *prefix, const jnode * node);
 extern void print_jnode(const char *prefix, const jnode * node);
 extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 #else
-#define info_jnode( p, n ) noop
-#define print_jnodes( p, t ) noop
+#define info_jnode(p, n) noop
+#define print_jnodes(p, t) noop
+#define print_jnode(p, n) noop
 #endif
 
 extern int znode_is_root(const znode * node);
