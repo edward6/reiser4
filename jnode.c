@@ -418,7 +418,6 @@ int jload_and_lock( jnode *node )
 			if( likely( !jnode_is_loaded( node ) ) ) {
 				JF_SET( node, ZNODE_LOADED );
 			} else {
-				jrelse_nolock( node );
 				/* indicates that data was cached */
 				result = 1;
 			}
