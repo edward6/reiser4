@@ -83,13 +83,19 @@ ext2_find_next_zero_bit(addr, maxoffset, offset)
 static inline void reiser4_set_bit (bmap_off_t nr, void * addr)
 {
 	unsigned char * base = (char*)addr + (nr  >> 3);
-	*base |= (1 << (nr & 0x7));
+	unsigned char   mask = (1 << (nr & 0x7));
+
+	assert ("zam-620", (*base & mask) == 0);
+	*base |= mask;
 }
 
 static inline void reiser4_clear_bit (bmap_off_t nr, void * addr)
 {
 	unsigned char * base = (char*)addr + (nr >> 3);
-	*base &= ~(1 << (nr & 0x7));
+	unsigned char   mask = (1 << (nr & 0x7));
+
+	assert ("zam-621", (*base & mask) != 0);
+	*base &= ~mask;
 }
 
 static bmap_nr_t reiser4_find_next_zero_bit (void * addr, bmap_off_t max_offset, bmap_off_t start_offset)
@@ -174,6 +180,7 @@ static void reiser4_clear_bits (char * addr, bmap_off_t start, bmap_off_t end)
 	unsigned char last_byte_mask  = 0xFF;
 
 	assert ("zam-410", start < end);
+	assert ("zam-619", reiser4_find_next_zero_bit(addr, end, start) >= end);
 
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
@@ -203,6 +210,7 @@ static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 	unsigned char last_byte_mask  = 0xFF;
 
 	assert ("zam-386", start < end);
+	assert ("zam-618", reiser4_find_next_set_bit(addr, end, start) >= end);
 
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
