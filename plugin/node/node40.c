@@ -816,17 +816,18 @@ void node40_update_item_key (tree_coord * target, reiser4_key * key,
 }
 
 
-static unsigned cut_units (tree_coord * coord, unsigned from, unsigned count,
-			   shift_direction direction, int cut,
+static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
+			   int cut,
 			   const reiser4_key * from_key,
 			   const reiser4_key * to_key,
 			   reiser4_key * smallest_removed)
 {
 	unsigned cut_size;
 	item_plugin * iplug;
-	int (*cut_f) (tree_coord *, unsigned, unsigned, shift_direction,
+	int (*cut_f) (tree_coord *, unsigned *, unsigned *,
 		       const reiser4_key *, const reiser4_key *,
 		       reiser4_key *);
+
 
 	iplug = item_plugin_by_coord (coord);
 	if (cut) {
@@ -834,20 +835,23 @@ static unsigned cut_units (tree_coord * coord, unsigned from, unsigned count,
 	} else {
 		cut_f = iplug->b.kill_units;
 	}
+
 	if (cut_f) {
-		cut_size = cut_f (coord, from, count, direction,
+		cut_size = cut_f (coord, from, to,
 				  from_key, to_key, smallest_removed);
 	} else {
-		/* cut method is not defined, so there should be request to
-		   cut the single unit of item */
-		assert ("vs-302", count == 1 &&
+		/*
+		 * cut method is not defined, so there should be request to cut
+		 * the single unit of item
+		 */
+		assert ("vs-302", *from == 0 && *to == 0 &&
 			coord->unit_pos == 0 && num_units (coord) == 1);
 		/* that item will be removed entirely */
 		cut_size = item_length_by_coord (coord);
 		if (smallest_removed)
 			item_key_by_coord (coord, smallest_removed);
 		if (!cut && iplug->b.kill_hook)
-			iplug->b.kill_hook (coord, from, count);
+			iplug->b.kill_hook (coord, 0, 1);
 	}
 
 	return cut_size;
@@ -878,6 +882,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	/* FIXME-NIKITA */
 	unsigned wrong_item; /* position of item for which may get mismatching
 				item key and key of first unit in it */
+	unsigned from_unit, to_unit;
 
 
 	assert ("vs-184", from->node == to->node);
@@ -891,28 +896,72 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 
 	wrong_item = ~0u;
 	if (from->item_pos == to->item_pos) {
+		/*
+		 * cut one item (partially or as whole)
+		 */
 		first_removed = from->item_pos;
 		removed_entirely = 0;
-		cut_size = cut_units (from, (unsigned) from->unit_pos, 
-				      to->unit_pos - from->unit_pos + 1u,
-				      SHIFT_PREPEND, cut,
-				      from_key, to_key, smallest_removed);
+		from_unit = from->unit_pos;
+		to_unit = to->unit_pos;
+		cut_size = cut_units (from, &from_unit, &to_unit,
+				      cut, from_key, to_key, smallest_removed);
 		if (cut_size == (unsigned)item_length_by_coord (from))
+			/*
+			 * item will be removed entirely
+			 */
 			removed_entirely = 1;
 		else
 			/* this item may have wrong key after cut_units */
 			wrong_item = from->item_pos;
 
 		ih = node40_ih_at (node, (unsigned) from->item_pos);
-		new_from_end = ih_40_get_offset (ih);
-		new_to_start = new_from_end + cut_size;
-		ih_40_set_offset (ih, new_to_start);
+		/*
+		 * there are 4 possible cases: cut from the beginning, cut from
+		 * the end, cut from the middle and cut whole item
+		 */
+		if (removed_entirely) {
+			/*
+			 * whole item is cut
+			 */
+			new_from_end = ih_40_get_offset (ih);
+			new_to_start = ih_40_get_offset (ih) + cut_size;
+		} else if (from->unit_pos == 0) {
+			/*
+			 * head is cut
+			 */
+			new_from_end = ih_40_get_offset (ih);
+			new_to_start = ih_40_get_offset (ih) + cut_size;
+			ih_40_set_offset (ih, new_to_start);
+
+		} else if (to->unit_pos == last_unit_pos (to)) {
+			/*
+			 * tail is cut
+			 */
+			new_from_end = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
+			new_to_start = new_from_end + cut_size;
+			ih_40_set_offset (ih, ih_40_get_offset (ih) + cut_size);
+		} else {
+			/*
+			 * cut from the middle
+			 * NOTE: cut method of item must leave freed space at
+			 * the end of item
+			 */
+			new_from_end = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
+			new_to_start = new_from_end + cut_size;
+			ih_40_set_offset (ih, ih_40_get_offset (ih) + cut_size);
+		}
+		/*ih_40_set_offset (ih, new_to_start);*/
 	} else {
+		/*
+		 * @from and @to are different items
+		 */
 		first_removed = from->item_pos + 1;
 		removed_entirely = to->item_pos - from->item_pos - 1;
 		if (!cut) {
-			/* for every item between @from and @to call special
-			   method */
+			/*
+			 * for every item beign removed entirely between @from
+			 * and @to call special kill method
+			 */
 			tree_coord tmp;
 			item_plugin * iplug;
 			
@@ -927,12 +976,17 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			}
 		}
 
-		/* @from */
-		cut_size = cut_units (from, (unsigned) from->unit_pos,
-				      (num_units (from) - from->unit_pos),
-				      SHIFT_APPEND, cut,
-				      from_key, to_key, smallest_removed);
+		/*
+		 * cut @from item first
+		 */
+		from_unit = from->unit_pos;
+		to_unit = last_unit_pos (from);
+		cut_size = cut_units (from, &from_unit, &to_unit,
+				      cut, from_key, to_key, smallest_removed);
 		if (cut_size == (unsigned)item_length_by_coord (from)) {
+			/*
+			 * item will be removed
+			 */
 			first_removed --;
 			removed_entirely ++;
 		}
@@ -940,11 +994,17 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		new_from_end = ih_40_get_offset (ih) +
 			node40_length_by_coord (from) - cut_size;
 
-		/* @to */
-		cut_size = cut_units (to, 0, to->unit_pos + 1u,
-				      SHIFT_PREPEND, cut,
-				      from_key, to_key, 0);
+		/*
+		 * cut @to item
+		 */
+		from_unit = 0;
+		to_unit = to->unit_pos;
+		cut_size = cut_units (to, &from_unit, &to_unit,
+				      cut, from_key, to_key, 0);
 		if (cut_size == (unsigned)item_length_by_coord (to))
+			/*
+			 * item will be removed
+			 */
 			removed_entirely ++;
 		else
 			/* this item may have wrong key after cut_units */
@@ -954,6 +1014,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		new_to_start = ih_40_get_offset (ih) + cut_size;
 		ih_40_set_offset (ih, new_to_start);
 	}
+
 
 	/* move remaining data to left */
 	memmove (node->data + new_from_end, node->data + new_to_start,
@@ -1085,7 +1146,7 @@ static int item_creation_overhead (tree_coord * item)
 static int wanted_units (tree_coord * source, tree_coord * stop_coord,
 			 shift_direction pend)
 {
-	if (pend == SHIFT_APPEND) {
+	if (pend == SHIFT_LEFT) {
 		assert ("vs-181", source->unit_pos == 0);
 	} else {
 		assert ("vs-182", source->unit_pos == last_unit_pos (source));
@@ -1096,15 +1157,14 @@ static int wanted_units (tree_coord * source, tree_coord * stop_coord,
 		return last_unit_pos (source) + 1;
 	}
 
-	if (pend == SHIFT_APPEND) {
+	if (pend == SHIFT_LEFT) {
 		return stop_coord->unit_pos + 1;
 	} else {
 		return source->unit_pos - stop_coord->unit_pos + 1;
 	}
 }
 
-#define SHIFT_LEFT SHIFT_APPEND
-#define SHIFT_RIGHT SHIFT_PREPEND
+
 
 /* this calculates what can be copied from @shift->wish_stop.node to
    @shift->target */
@@ -1120,7 +1180,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 	/* shifting to left/right starts from first/last units of
 	   @shift->wish_stop.node */
 	source.node = shift->wish_stop.node;
-	(shift->pend == SHIFT_APPEND) ? coord_first_unit (&source) :
+	(shift->pend == SHIFT_LEFT) ? coord_first_unit (&source) :
 		coord_last_unit (&source);
 	shift->real_stop = source;
 
@@ -1136,7 +1196,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 
 		/* item we try to merge @source with */
 		to.node = shift->target;
-		(shift->pend == SHIFT_APPEND) ? coord_last_unit (&to) :
+		(shift->pend == SHIFT_LEFT) ? coord_last_unit (&to) :
 			coord_first_unit (&to);
 
 		if ((shift->pend == SHIFT_LEFT) ?
@@ -1183,7 +1243,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 	/* calculate how many items can be copied into given free
 	   space as whole */
 	for (; source.item_pos != stop_item; source.item_pos += shift->pend) {
-		if (shift->pend == SHIFT_PREPEND)
+		if (shift->pend == SHIFT_RIGHT)
 			source.unit_pos = last_unit_pos (&source);
 
 		/* how many units of @source do we want to copy */
@@ -1203,7 +1263,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 				   last unit of @source we can merge to
 				   @target */
 				shift->real_stop = source;
-				if (shift->pend == SHIFT_APPEND)
+				if (shift->pend == SHIFT_LEFT)
 					shift->real_stop.unit_pos = 
 						last_unit_pos (&shift->real_stop);
 				else
@@ -1270,7 +1330,7 @@ static void copy_units (tree_coord * target, tree_coord * source,
 	assert ("nikita-1468", iplug == item_plugin_by_coord (target));
 	iplug -> b.copy_units (target, source, from, count, dir, free_space);
 
-	if (dir == SHIFT_PREPEND) {
+	if (dir == SHIFT_RIGHT) {
 		/*
 		 * FIXME-VS: this looks not necessary. update_item_key was
 		 * called already by copy_units method
@@ -1312,7 +1372,7 @@ void node40_copy (struct shift_params * shift)
 	from = shift->wish_stop;
 
 	to.node = shift->target;
-	if (shift->pend == SHIFT_APPEND) {
+	if (shift->pend == SHIFT_LEFT) {
 		/* copying to left */
 
 		from.item_pos = 0;
@@ -1330,7 +1390,7 @@ void node40_copy (struct shift_params * shift)
 			/* appending last item of @target */
 			copy_units (&to, &from, 0, /* starting from 0-th unit */
 				    shift->merging_units, 
-				    SHIFT_APPEND, shift->merging_bytes);
+				    SHIFT_LEFT, shift->merging_bytes);
 			from.item_pos ++;
 			from_ih --;
 			to.item_pos ++;
@@ -1379,7 +1439,7 @@ void node40_copy (struct shift_params * shift)
 			if (item_plugin_by_coord (&to)->b.init)
 				item_plugin_by_coord (&to)->b.init(&to);
 			copy_units (&to, &from, 0, shift->part_units, 
-				    SHIFT_APPEND, shift->part_bytes);
+				    SHIFT_LEFT, shift->part_bytes);
 		}
 
 	} else {
@@ -1429,7 +1489,7 @@ void node40_copy (struct shift_params * shift)
 			copy_units (&to, &from, 
 				    last_unit_pos (&from) - shift->merging_units + 1,
 				    shift->merging_units, 
-				    SHIFT_PREPEND, shift->merging_bytes);
+				    SHIFT_RIGHT, shift->merging_bytes);
 			from.item_pos --;
 			from_ih ++;
 		}
@@ -1467,7 +1527,7 @@ void node40_copy (struct shift_params * shift)
 			copy_units (&to, &from, 
 				    last_unit_pos (&from) - shift->part_units + 1,
 				    shift->part_units,
-				    SHIFT_PREPEND, shift->part_bytes);
+				    SHIFT_RIGHT, shift->part_bytes);
 		}
 	}
 }
@@ -1481,7 +1541,7 @@ static int node40_delete_copied (struct shift_params * shift)
 	tree_coord to;
 
 
-	if (shift->pend == SHIFT_APPEND) {
+	if (shift->pend == SHIFT_LEFT) {
 		/* we were shifting to left, remove everything from the
 		   beginning of @shift->wish_stop->node upto
 		   @shift->wish_stop */
@@ -1614,7 +1674,7 @@ static void adjust_coord (tree_coord * insert_coord,
 	if (is_empty_node (shift->wish_stop.node)) {
 		assert ("vs-242", shift->everything);
 		if (including_insert_coord) {
-			if (shift->pend == SHIFT_PREPEND) {
+			if (shift->pend == SHIFT_RIGHT) {
 				/* set @insert_coord before first unit of
 				   @shift->target node */
 				insert_coord->node = shift->target;
@@ -1637,7 +1697,7 @@ static void adjust_coord (tree_coord * insert_coord,
 		return;
 	}
 
-	if (shift->pend == SHIFT_PREPEND) {
+	if (shift->pend == SHIFT_RIGHT) {
 		/* there was shifting to right */
 		if (shift->everything) {
 			/* everything wanted was shifted */
@@ -1710,7 +1770,7 @@ static int call_shift_hooks (struct shift_params * shift)
 	shifted = shift->entire + (shift->merging_units ? 1 : 0) +
 		(shift->part_units ? 1 : 0);
 
-	if (shift->pend == SHIFT_APPEND) {
+	if (shift->pend == SHIFT_LEFT) {
 		/* moved items are at the end */
 		coord.node = shift->target;
 		coord_last_unit (&coord);
@@ -1806,7 +1866,7 @@ int node40_shift (tree_coord * from, znode * to,
 	   shifted */
 	if (is_empty_node (shift.wish_stop.node))
 		result = 1;
-	if (pend == SHIFT_APPEND) {
+	if (pend == SHIFT_LEFT) {
 		result = coord_set_to_left (&shift.wish_stop);
 		left = to;
 		right = from->node;
@@ -1821,7 +1881,7 @@ int node40_shift (tree_coord * from, znode * to,
 		 */
 		if (including_stop_coord) {
 			from->node = to;
-			if (pend == SHIFT_APPEND) {
+			if (pend == SHIFT_LEFT) {
 				coord_last_unit (from);
 				from->between = AFTER_UNIT;
 			} else {
@@ -1871,7 +1931,7 @@ int node40_shift (tree_coord * from, znode * to,
 
 #ifdef DEBUGGING_SHIFT
 	dinfo ("SHIFT TO %s: merging %d, entire %d, part %d, size %d\n",
-		shift.pend == SHIFT_APPEND ? "LEFT" : "RIGHT",
+		shift.pend == SHIFT_LEFT ? "LEFT" : "RIGHT",
 		shift.merging_units, shift.entire, shift.part_units,
 		shift.shift_bytes);
 #endif	
