@@ -13,10 +13,7 @@
 
 #include "format40.h"
 
-#define format40_super(block) ((format40_super_t *)block->data)
-
 static reiser4_core_t *core = NULL;
-
 static errno_t format40_super_check(format40_super_t *super, 
     aal_device_t *device) 
 {
@@ -126,6 +123,9 @@ error_free_format:
 error:
     return NULL;
 }
+
+extern errno_t format40_check(reiserfs_entity_t *entity, uint16_t options);
+extern void format40_print(char *buf, size_t n, reiserfs_entity_t *entity, uint16_t options);
 
 /* This function should update all copies of the super block */
 static errno_t format40_sync(reiser4_entity_t *entity) {
@@ -330,11 +330,15 @@ static reiser4_plugin_t format40_plugin = {
 	.open		= format40_open,
 	.valid		= format40_valid,
 #ifndef ENABLE_COMPACT	
+	.check		= format40_check,
 	.sync		= format40_sync,
 	.create		= format40_create,
+	.print		= format40_print,
 #else
+	.check		= NULL,
 	.sync		= NULL,
 	.create		= NULL,
+	.print		= NULL,
 #endif
 	.oid_area	= format40_oid_area,
 	.journal_area	= format40_journal_area,

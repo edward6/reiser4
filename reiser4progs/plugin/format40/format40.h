@@ -32,6 +32,8 @@ struct format40_super {
 
 typedef struct format40_super format40_super_t;
 
+#define format40_super(block) ((format40_super_t *)block->data)
+
 #define get_sb_block_count(sb)			aal_get_le64(sb, sb_block_count)
 #define set_sb_block_count(sb, val)		aal_set_le64(sb, sb_block_count, val)
 
@@ -41,8 +43,8 @@ typedef struct format40_super format40_super_t;
 #define get_sb_root_block(sb)			aal_get_le64(sb, sb_root_block)
 #define set_sb_root_block(sb, val)		aal_set_le64(sb, sb_root_block, val)
 
-#define get_sb_tree_height(sb)			aal_get_le64(sb, sb_tree_height)
-#define set_sb_tree_height(sb, val)		aal_set_le64(sb, sb_tree_height, val)
+#define get_sb_drop_policy(sb)			aal_get_le16(sb, sb_drop_policy)
+#define set_sb_drop_policy(sb, val)		aal_set_le16(sb, sb_drop_policy, val)
 
 #define get_sb_oid(sb)				aal_get_le64(sb, sb_oid)
 #define set_sb_oid(sb, val)			aal_set_le64(sb, sb_oid, val)
@@ -53,8 +55,8 @@ typedef struct format40_super format40_super_t;
 #define get_sb_flushes(sb)			aal_get_le64(sb, sb_flushes)
 #define set_sb_flushes(sb, val)			aal_set_le64(sb, sb_flushes, val)
 
-#define get_sb_drop_policy(sb)			aal_get_le16(sb, sb_drop_policy)
-#define set_sb_drop_policy(sb, val)		aal_set_le16(sb, sb_drop_policy, val)
+#define get_sb_tree_height(sb)			aal_get_le64(sb, sb_tree_height)
+#define set_sb_tree_height(sb, val)		aal_set_le64(sb, sb_tree_height, val)
 
 struct format40 {
     aal_device_t *device;
