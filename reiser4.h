@@ -14,6 +14,10 @@
 #include <asm/hardirq.h>
 #include <linux/sched.h>
 
+#if defined(CONFIG_4KSTACKS)
+#error "Please turn 4k stack off"
+#endif
+
 /*
  * reiser4 compilation options.
  */
