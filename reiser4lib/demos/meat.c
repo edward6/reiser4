@@ -56,8 +56,10 @@ int main(int argc, char *argv[]) {
 	    goto error_free_device;
 	}
 	
-	aal_printf("Found reiserfs %s, block size %d.\n", reiserfs_fs_format(fs), 
-	    reiserfs_fs_blocksize(fs));
+	aal_printf("Found reiserfs %s, block size %d, blocks: %d, used: %d, free: %d.\n", 
+	    reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
+	    reiserfs_super_blocks(fs), reiserfs_alloc_used(fs), 
+	    reiserfs_alloc_free(fs));
     } else {
 	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

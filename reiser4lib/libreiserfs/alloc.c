@@ -36,7 +36,11 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
     fs->alloc->plugin = plugin;
 
     reiserfs_plugin_check_routine(plugin->alloc, open, goto error_free_alloc);
-    if (!(fs->alloc->entity = plugin->alloc.open(fs->device))) {
+    
+    if (!(fs->alloc->entity = plugin->alloc.open(fs->device, 
+	reiserfs_super_offset(fs), reiserfs_super_blocks(fs), 
+	reiserfs_fs_blocksize(fs)))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator plugin.");
 	goto error_free_alloc;
@@ -78,7 +82,9 @@ error_t reiserfs_alloc_create(reiserfs_fs_t *fs) {
     fs->alloc->plugin = plugin;
 
     reiserfs_plugin_check_routine(plugin->alloc, create, goto error_free_alloc);
-    if (!(fs->alloc->entity = plugin->alloc.create(fs->device))) {
+    if (!(fs->alloc->entity = plugin->alloc.create(fs->device, reiserfs_super_offset(fs), 
+	reiserfs_super_blocks(fs), reiserfs_fs_blocksize(fs)))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't allocator.");
 	goto error_free_alloc;
@@ -112,5 +118,21 @@ void reiserfs_alloc_close(reiserfs_fs_t *fs) {
     
     aal_free(fs->alloc);
     fs->alloc = NULL;
+}
+
+count_t reiserfs_alloc_free(reiserfs_fs_t *fs) {
+    aal_assert("umka-361", fs != NULL, return 0);
+    aal_assert("umka-362", fs->alloc != NULL, return 0);
+	
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, free, return 0);
+    return fs->alloc->plugin->alloc.free(fs->alloc->entity);
+}
+
+count_t reiserfs_alloc_used(reiserfs_fs_t *fs) {
+    aal_assert("umka-361", fs != NULL, return 0);
+    aal_assert("umka-362", fs->alloc != NULL, return 0);
+	
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, used, return 0);
+    return fs->alloc->plugin->alloc.used(fs->alloc->entity);
 }
 

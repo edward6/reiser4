@@ -49,17 +49,17 @@ int reiserfs_bitmap_test_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
     return reiserfs_misc_test_bit(blk, bitmap->bm_map);
 }
 
-blk_t reiserfs_bitmap_find_free_block(reiserfs_bitmap_t *bitmap, blk_t start) {
-    blk_t bit;
+blk_t reiserfs_bitmap_find_free(reiserfs_bitmap_t *bitmap, blk_t start) {
+    blk_t blk;
 	
     aal_assert("umka-339", bitmap != NULL, return 0);
 	
     reiserfs_bitmap_range_check(bitmap, start, return 0);
-    if ((bit = reiserfs_misc_find_next_zero_bit(bitmap->bm_map, 
+    if ((blk = reiserfs_misc_find_next_zero_bit(bitmap->bm_map, 
 	    bitmap->bm_blocks, start)) >= bitmap->bm_blocks)
 	return 0;
 
-    return bit;
+    return blk;
 }
 
 static blk_t reiserfs_bitmap_calc(reiserfs_bitmap_t *bitmap, blk_t start, blk_t end, 
@@ -164,7 +164,7 @@ error:
 }
 
 static error_t callback_bitmap_flush(aal_device_t *device, 
-    blk_t blk, char *map, size_t chunk, void *data) 
+    blk_t blk, char *map, uint32_t chunk, void *data) 
 {
     aal_block_t *block;
 	
@@ -189,7 +189,7 @@ error:
 }
 
 static error_t callback_bitmap_fetch(aal_device_t *device, 
-    blk_t blk, char *map, size_t chunk, void *data) 
+    blk_t blk, char *map, uint32_t chunk, void *data) 
 {
     aal_block_t *block;
 	
@@ -230,7 +230,7 @@ error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap, aal_device_t *device,
     return 0;
 }
 
-reiserfs_bitmap_t *reiserfs_bitmap_open(aal_device_t *device, blk_t start, blk_t len) {
+reiserfs_bitmap_t *reiserfs_bitmap_open(aal_device_t *device, blk_t start, count_t len) {
     reiserfs_bitmap_t *bitmap;
 	    
     aal_assert("umka-349", device != NULL, return NULL);
@@ -254,7 +254,7 @@ error:
     return NULL;
 }
 
-reiserfs_bitmap_t *reiserfs_bitmap_create(blk_t start, blk_t len, size_t blocksize) {
+reiserfs_bitmap_t *reiserfs_bitmap_create(blk_t start, count_t len, uint16_t blocksize) {
     blk_t i, bmap_blknr;
     reiserfs_bitmap_t *bitmap;
 	
@@ -263,14 +263,8 @@ reiserfs_bitmap_t *reiserfs_bitmap_create(blk_t start, blk_t len, size_t blocksi
 	
     bitmap->bm_start = start;
     
-    /* Marking master super block as used */
-    reiserfs_bitmap_use_block(bitmap, (REISERFS_MASTER_OFFSET / blocksize));
-    
-    /* Marking format-specific super block as used */
-    reiserfs_bitmap_use_block(bitmap, (REISERFS_MASTER_OFFSET / blocksize) + 1);
-    
     /* Marking first bitmap block as used */
-    reiserfs_bitmap_use_block(bitmap, (REISERFS_MASTER_OFFSET / blocksize) + 2);
+    reiserfs_bitmap_use_block(bitmap, start);
   
     /* Setting up other bitmap blocks */
     bmap_blknr = (len - 1) / (blocksize * 8) + 1;
@@ -328,7 +322,7 @@ static uint32_t reiserfs_bitmap_resize_map(reiserfs_bitmap_t *bitmap,
 }
 
 error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap, 
-    long start, long end, size_t blocksize) 
+    long start, long end, uint16_t blocksize) 
 {
     int bm_size;
     blk_t i, bmap_old_blknr, bmap_new_blknr;
@@ -356,7 +350,7 @@ error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap,
 }
 
 blk_t reiserfs_bitmap_copy(reiserfs_bitmap_t *dest_bitmap, reiserfs_bitmap_t *src_bitmap, 
-    blk_t len, size_t blocksize) 
+    blk_t len, uint16_t blocksize) 
 {
 	
     aal_assert("umka-352", dest_bitmap != NULL, return 0);

@@ -125,12 +125,28 @@ const char *reiserfs_super_format(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.format(fs->super->entity);
 }
 
-blk_t reiserfs_super_root_block(reiserfs_fs_t *fs) {
+blk_t reiserfs_super_root(reiserfs_fs_t *fs) {
     aal_assert("umka-112", fs != NULL, return 0);
     aal_assert("umka-113", fs->super != NULL, return 0);
 
-    reiserfs_plugin_check_routine(fs->super->plugin->format, root_block, return 0);
-    return fs->super->plugin->format.root_block(fs->super->entity);
+    reiserfs_plugin_check_routine(fs->super->plugin->format, root, return 0);
+    return fs->super->plugin->format.root(fs->super->entity);
+}
+
+blk_t reiserfs_super_offset(reiserfs_fs_t *fs) {
+    aal_assert("umka-359", fs != NULL, return 0);
+    aal_assert("umka-360", fs->super != NULL, return 0);
+    
+    reiserfs_plugin_check_routine(fs->super->plugin->format, offset, return 0);
+    return fs->super->plugin->format.offset(fs->super->entity);
+}
+
+count_t reiserfs_super_blocks(reiserfs_fs_t *fs) {
+    aal_assert("umka-359", fs != NULL, return 0);
+    aal_assert("umka-360", fs->super != NULL, return 0);
+    
+    reiserfs_plugin_check_routine(fs->super->plugin->format, blocks, return 0);
+    return fs->super->plugin->format.blocks(fs->super->entity);
 }
 
 reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {

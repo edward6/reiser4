@@ -159,8 +159,8 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	    goto error_free_alloc;
     }
 	
-    if (reiserfs_tree_open(fs))
-	goto error_free_journal;
+/*    if (reiserfs_tree_open(fs))
+	goto error_free_journal;*/
 	
     return fs;
 
@@ -236,10 +236,23 @@ error:
 
 error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-231", fs != NULL, return -1);
+   
+    if (reiserfs_master_sync(fs))
+	return -1;
+
+    if (reiserfs_super_sync(fs))
+	return -1;
+
+    if (fs->journal && reiserfs_journal_sync(fs))
+	return -1;
+
+    if (reiserfs_alloc_sync(fs))
+	return -1;
+
+/*    if (reiserfs_tree_sync(fs))
+	return -1;*/
     
-    return !reiserfs_master_sync(fs) && !reiserfs_super_sync(fs) && 
-	((fs->journal && !reiserfs_journal_sync(fs)) || !fs->journal) && 
-	!reiserfs_alloc_sync(fs) && !reiserfs_tree_sync(fs);
+    return 0;
 }
 
 #endif
@@ -252,12 +265,11 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     
     aal_assert("umka-230", fs != NULL, return);
     
-//    reiserfs_tree_close(fs);
-    reiserfs_alloc_close(fs);
-    
+/*    reiserfs_tree_close(fs);
     if (fs->journal)
-	reiserfs_journal_close(fs);
+	reiserfs_journal_close(fs);*/
 	
+    reiserfs_alloc_close(fs);
     reiserfs_super_close(fs);
     reiserfs_master_close(fs);
     aal_free(fs);

@@ -19,7 +19,7 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    root_blk = reiserfs_super_root_block(fs);
+    root_blk = reiserfs_super_root(fs);
    
     if (reiserfs_fs_format_plugin_id(fs) == 0x2) {
 	if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk, 0x2)))
@@ -49,7 +49,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 	
-    root_blk = reiserfs_super_root_block(fs);
+    root_blk = reiserfs_super_root(fs);
     if (!(fs->tree->root = reiserfs_node_create(fs->device, root_blk, 
 	    node_plugin_id, REISERFS_ROOT_LEVEL))) 
 	goto error_free_tree;

@@ -115,7 +115,9 @@ struct reiserfs_format_plugin {
     int (*probe) (aal_device_t *device, blk_t);
     const char *(*format) (reiserfs_opaque_t *);
 
-    blk_t (*root_block) (reiserfs_opaque_t *);
+    blk_t (*root) (reiserfs_opaque_t *);
+    blk_t (*offset) (reiserfs_opaque_t *);
+    count_t (*blocks) (reiserfs_opaque_t *);
 	
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
@@ -130,22 +132,18 @@ struct reiserfs_oid_plugin {
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
 
-struct reiserfs_segment {
-    blk_t start;
-    count_t count;
-};
-
-typedef struct reiserfs_segment reiserfs_segment_t;
-
 struct reiserfs_alloc_plugin {
     reiserfs_plugin_header_t h;
-    reiserfs_opaque_t *(*open) (aal_device_t *);
-    reiserfs_opaque_t *(*create) (aal_device_t *);
+    reiserfs_opaque_t *(*open) (aal_device_t *, blk_t, count_t, uint16_t);
+    reiserfs_opaque_t *(*create) (aal_device_t *, blk_t, count_t, uint16_t);
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
 
-    error_t (*allocate) (reiserfs_opaque_t *, reiserfs_segment_t *, reiserfs_segment_t *);
-    error_t (*deallocate) (reiserfs_opaque_t *, reiserfs_segment_t *, reiserfs_segment_t *);
+    blk_t (*allocate) (reiserfs_opaque_t *);
+    void (*deallocate) (reiserfs_opaque_t *, blk_t);
+    
+    count_t (*free) (reiserfs_opaque_t *);
+    count_t (*used) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;

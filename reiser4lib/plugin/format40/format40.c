@@ -90,10 +90,10 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, 
     blk_t offset, count_t blocks, uint16_t blocksize) 
 {
+//    blk_t root_blk;
     reiserfs_plugin_t *plugin;
     reiserfs_format40_t *format;
     reiserfs_format40_super_t *super;
-//    reiserfs_segment_t request, response;
 
     if (!device)
 	return NULL;
@@ -128,20 +128,16 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
 	goto error_free_format;
     }
 
-    aal_memset(&request, 0, sizeof(request));
-    aal_memset(&response, 0, sizeof(response));
-    
-    request.start = 0;
-    request.count = 1;
-    
     reiserfs_plugin_check_routine(plugin->alloc, allocate, goto error_free_format);
-    if (plugin->alloc.allocate(alloc, &request, &response))
+    if (!(root_blk = plugin->alloc.allocate(alloc, &request, &response)))
 	goto error_free_format;*/
     
     /* 
 	Okay, allocator plugin has returned correctly filled 
 	response with allocated area.
     */
+//    set_sb_root_block(super, root_blk);
+    
     set_sb_root_block(super, offset + 1);
 
     /* Tree height */
@@ -209,8 +205,16 @@ static reiserfs_plugin_id_t reiserfs_format40_node_plugin(reiserfs_format40_t *f
     return 0x1;
 }
 
-static blk_t reiserfs_format40_root_block(reiserfs_format40_t *format) {
+static blk_t reiserfs_format40_root(reiserfs_format40_t *format) {
     return get_sb_root_block((reiserfs_format40_super_t *)format->super->data);
+}
+
+static blk_t reiserfs_format40_offset(reiserfs_format40_t *format) {
+    return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device)) + 1;
+}
+
+static count_t reiserfs_format40_blocks(reiserfs_format40_t *format) {
+    return get_sb_block_count((reiserfs_format40_super_t *)format->super->data);
 }
 
 static reiserfs_plugin_t format40_plugin = {
@@ -234,7 +238,9 @@ static reiserfs_plugin_t format40_plugin = {
 	.probe = (int (*)(aal_device_t *, blk_t))reiserfs_format40_probe,
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format40_format,
 	
-	.root_block = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_root_block,
+	.root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_root,
+	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_offset,
+	.blocks = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_blocks,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_journal_plugin,

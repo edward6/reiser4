@@ -179,8 +179,16 @@ static reiserfs_plugin_id_t reiserfs_format36_node_plugin(reiserfs_format36_t *f
     return 0x2;
 }
 
-static blk_t reiserfs_format36_root_block(reiserfs_format36_t *format) {
+static blk_t reiserfs_format36_root(reiserfs_format36_t *format) {
     return get_sb_root_block((reiserfs_format36_super_t *)format->super->data);
+}
+
+static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
+    return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device));
+}
+
+static count_t reiserfs_format36_blocks(reiserfs_format36_t *format) {
+    return get_sb_block_count((reiserfs_format36_super_t *)format->super->data);
 }
 
 static reiserfs_plugin_t format36_plugin = {
@@ -204,7 +212,9 @@ static reiserfs_plugin_t format36_plugin = {
 	.probe = (int (*)(aal_device_t *, blk_t))reiserfs_format36_probe,
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format36_format,
 			
-	.root_block = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_root_block,
+	.root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_root,
+	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_offset,
+	.blocks = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_blocks,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_journal_plugin,

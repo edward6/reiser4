@@ -9,8 +9,11 @@
 
 #include <aal/aal.h>
 
+#include "bitmap.h"
+
 struct reiserfs_alloc40 {
     aal_device_t *device;
+    reiserfs_bitmap_t *bitmap;
 };
 
 typedef struct reiserfs_alloc40 reiserfs_alloc40_t;
