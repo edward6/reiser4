@@ -872,7 +872,7 @@ int longterm_lock_znode (
 		spin_unlock_znode(node);
 		/*
 		 * ... and sleep */
-		go_to_sleep(owner);
+		ret = go_to_sleep(owner);
 
 		spin_lock_znode(node);
 		if (hipri) {
@@ -881,6 +881,10 @@ int longterm_lock_znode (
 		}
 
 		requestors_list_remove(owner);
+		if (ret) {
+			warning("nikita-2266", "Wait interrupted: %i", ret);
+			break;
+		}
 	}
 
 	assert ("jmacd-807", spin_znode_is_locked (node));
@@ -1129,12 +1133,9 @@ void __reiser4_wake_up (lock_stack *owner)
 /*
  * Puts a thread to sleep
  */
-void go_to_sleep (lock_stack *owner)
+int go_to_sleep (lock_stack *owner)
 {
-	/*
-	 * FIXME:NIKITA->ZAM shouldn't we use down_interruptible() here?!
-	 */
-	down(&owner->sema);
+	return down_interruptible(&owner->sema);
 }
 
 int lock_stack_isclean (lock_stack *owner)

@@ -359,7 +359,7 @@ extern void done_lh (lock_handle*);
 extern znode_lock_mode lock_mode (lock_handle*);
 
 extern int  prepare_to_sleep (lock_stack *owner);
-extern void go_to_sleep      (lock_stack *owner);
+extern int  go_to_sleep      (lock_stack *owner);
 extern void __reiser4_wake_up          (lock_stack *owner);
 
 extern void show_lock_stack    (reiser4_context    *owner);
