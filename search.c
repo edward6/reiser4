@@ -515,7 +515,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 				 iterations );
 			print_key( "key", h -> key );
 		} else if( unlikely( iterations > REISER4_MAX_CBK_ITERATIONS ) ) {
-			h -> error = "reiser-2018: Too many iterations. Tree corrupted, or starvation occuring.  Starvation handling code needs to be written.";
+			h -> error = "reiser-2018: Too many iterations. Tree corrupted, or (less likely) starvation occuring.";
 			h -> result = -EIO;
 			break;
 		}
@@ -535,7 +535,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 			    goto restart;
 		}
 	}
-
+        /* NIKITA-FIXME-HANS: think about whether this should be a separate function */
 	/* that's all. The rest is error handling */
 	if( unlikely( h -> error != NULL ) ) {
 		warning( "nikita-373", "%s: level: %i, "
@@ -799,6 +799,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	}
 
 	if( h -> level > TWIG_LEVEL && result == NS_NOT_FOUND ) {
+                /* NIKITA-FIXME-HANS: why is this error message not signed? */
 		h -> error = "not found on internal node";
 		h -> result = result;
 		return LOOKUP_DONE;
@@ -818,7 +819,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 		h -> result = CBK_IO_ERROR;
 		return LOOKUP_DONE;
 	}
-
+ /* NIKITA-FIXME-HANS: if this is moved into the node40_lookup plugin then you can avoid the item_plugin_by_coord() call
+  * and this call becomes something simpler also? */
 	/* go down to next level */
 	assert( "vs-515", item_is_internal ( h -> coord ) );
 	iplug -> s.internal.down_link( h -> coord, h -> key, &h -> block );
