@@ -113,7 +113,7 @@ struct reiser4_context {
 	lock_counters_info locks;
 	int nr_children;	/* number of child contexts */
 	struct task_struct *task; /* so we can easily find owner of the stack */
-	
+
 	reiser4_block_nr grabbed_initially;
 	backtrace_path   grabbed_at;
 	flushers_list_link  flushers_link;
