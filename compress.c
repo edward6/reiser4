@@ -1,8 +1,6 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* reiser4 compression transform plugins */
 
-/* reiser4 compression transform plugins */
-
 #include "debug.h"
 #include "compress.h"
 #include "plugin/plugin.h"
