@@ -1126,6 +1126,36 @@ static reiser4_block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 }
 
 /**
+ * Return the inode and its key.
+ */
+int extent_get_inode_and_key (const tree_coord *item, struct inode **inode, reiser4_key *key)
+{
+	item_key_by_coord (item, key);
+
+	/* FIXME: Probably not quite right. */
+	set_key_type (key, KEY_SD_MINOR);
+	set_key_offset (key, 0ull);
+	(*inode) = reiser4_iget (reiser4_get_current_sb (), key);
+
+	if (*inode == NULL) {
+		/* Inode must be in memory.  FIXME: why? */
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/**
+ * Return the inode.
+ */
+int extent_get_inode (const tree_coord *item, struct inode **inode)
+{
+	reiser4_key key;
+
+	return extent_get_inode_and_key (item, inode, & key);
+}
+
+/**
  * Return the reiser_extent and position within that extent.
  */
 static reiser4_extent* extent_utmost_ext ( const tree_coord *coord, sideof side,
@@ -1205,7 +1235,6 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 
 	return 0;
 }
-
 
 /**
  * Return whether the child is dirty.

@@ -914,10 +914,10 @@ void tcoord_to_ncoord (new_coord *ncoord, const tree_coord *tcoord)
 		return;
 	}
 
-	ncoord->item_pos = ncoord->item_pos;
-	ncoord->unit_pos = ncoord->unit_pos;
-	ncoord->node     = ncoord->node;
-	ncoord->between  = ncoord->between;
+	ncoord->item_pos = tcoord->item_pos;
+	ncoord->unit_pos = tcoord->unit_pos;
+	ncoord->node     = tcoord->node;
+	ncoord->between  = tcoord->between;
 
 	assert ("jmacd-5111", ncoord->between != INVALID_COORD && ncoord->between != EMPTY_NODE);
 	assert ("jmacd-5112", ncoord->item_pos < items);
@@ -1037,6 +1037,13 @@ __u64 extent_unit_width_n (const new_coord *coord)
 	tree_coord tcoord;
 	ncoord_to_tcoord (&tcoord, coord);
 	return extent_unit_width (&tcoord);
+}
+
+int extent_get_inode_n (const new_coord *coord, struct inode **inode)
+{
+	tree_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);
+	return extent_get_inode (&tcoord, inode);
 }
 
 int node_shift_n (znode *pnode, new_coord *coord, znode *snode, sideof side,
