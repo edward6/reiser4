@@ -44,7 +44,7 @@ typedef enum {
 void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *, coord_state_t);
 void unset_hint(struct sealed_coord *);
 int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
-int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size);
+int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size, int update_sd);
 
 typedef enum {
 	UNIX_FILE_STATE_UNKNOWN = 0,
