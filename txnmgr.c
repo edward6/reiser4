@@ -1317,14 +1317,6 @@ atom_send_event(txn_atom * atom)
 	wakeup_atom_waitfor_list(atom);
 }
 
-/* Disable commits during memory pressure.  A call to sync() does not set PF_MEMALLOC.
-   Kswapd sets the PF_KSWAPD flag on itself before calling our vm_writeback. */
-static inline int
-should_delegate_commit(void)
-{
-	return current_is_kswapd();
-}
-
 /* Informs txn manager code that owner of this txn_handle should wait atom commit completion (for
    example, because it does fsync(2)) */
 static int
@@ -1367,12 +1359,6 @@ again:
 	if (!failed && atom_should_commit(atom)) {
 		if (atom->stage == ASTAGE_DONE)
 			goto done;
-
-		/* No wait if bdflush thread calls us */
-		if (should_delegate_commit()) {
-			ktxnmgrd_kick(get_current_super_private()->tmgr.daemon, CANNOT_COMMIT);
-			goto done;
-		}
 
 		if (atom->txnh_count > (unsigned)atom->nr_waiters + 1) {
 			if (should_wait_commit(txnh)) {

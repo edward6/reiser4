@@ -60,8 +60,8 @@ ktxnmgrd(void *arg)
 		txn_mgr *mgr;
 
 		/* software suspend support. Doesn't work currently
-		   (kcond_timedwait). */
-		if (me->flags & PF_FREEZE)
+		   (kcond_timedwait), also refrigerator() may schedule */
+		if (0 && (me->flags & PF_FREEZE))
 			refrigerator(PF_IOTHREAD);
 
 		set_comm("wait");
@@ -200,22 +200,6 @@ ktxnmgrd_detach(txn_mgr * mgr)
 		wait_for_completion(&ctx->finish);
 	} else
 		spin_unlock_ktxnmgrd(ctx);
-}
-
-/* wake up ktxnmgrd thread */
-void
-ktxnmgrd_kick(ktxnmgrd_context * ctx, ktxnmgrd_wake reason)
-{
-	if (ctx != NULL) {
-		spin_lock_ktxnmgrd(ctx);
-		if (ctx->tsk != NULL) {
-			ctx->duties |= reason;
-			kcond_signal(&ctx->wait);
-		}
-		spin_unlock_ktxnmgrd(ctx);
-
-		preempt_point();
-	}
 }
 
 /* scan one transaction manager for old atoms; should be called with ktxnmgrd
