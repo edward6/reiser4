@@ -111,7 +111,7 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG, tree_coord *coord,
 	 * of @coord.
 	 */
 	reiser4_dup_coord( &coord_shadow, coord );
-	result = cut_node( coord, coord, NULL, NULL, NULL );
+	result = cut_node( coord, coord, NULL, NULL, NULL, 0/*flags*/ );
 	reiser4_done_coord( &coord_shadow );
 	return result;
 }
