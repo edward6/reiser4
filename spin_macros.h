@@ -37,6 +37,9 @@
 
 #define REISER4_LOCKPROF (0)
 #if REISER4_LOCKPROF
+
+#include "spinprof.h"
+
 #define DEFINE_SPIN_PROFREGIONS(aname)						\
 struct profregion pregion_spin_ ## aname ## _held = {				\
 	.kobj = {								\

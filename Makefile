@@ -46,6 +46,7 @@ reiser4-objs := \
 		   inode.o \
 		   vfs_ops.o \
 		   emergency_flush.o \
+		   spinprof.o\
 		   readahead.o \
            crypt.o \
 		   compress.o\
