@@ -127,10 +127,13 @@ int de_add_entry( struct inode *dir /* directory of item */,
 		strlen( name -> d_name.name ) == name -> d_name.len );
 	xmemcpy( dent -> name, name -> d_name.name, name -> d_name.len );
 	cputod8( 0, &dent -> name[ name -> d_name.len ] );
+	/*
+	 * FIXME-NIKITA add disk quota checks here
+	 */
+	reiser4_inode_data( dir ) -> bytes += data.length;
 	return 0;
 }
 
-/* Audited by: green(2002.06.14) */
 int de_rem_entry( struct inode *dir /* directory of item */, 
 		  coord_t *coord /* coord of item */,
 		  lock_handle *lh UNUSED_ARG /* lock handle for
@@ -140,6 +143,21 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 							    * being removed */ )
 {
 	coord_t shadow;
+	int     result;
+	int     length;
+
+	length = item_length_by_coord( coord );
+	if( reiser4_inode_data( dir ) -> bytes >= length )
+		/*
+		 * FIXME-NIKITA add disk quota updates here
+		 */
+		reiser4_inode_data( dir ) -> bytes -= length;
+	else {
+		warning( "nikita-2627", "Dir is broke: %llu: %llu",
+			 get_inode_oid( dir ), 
+			 reiser4_inode_data( dir ) -> bytes );
+		return -EIO;
+	}
 
 	/*
 	 * cut_node() is supposed to take pointers to _different_
@@ -148,7 +166,14 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 	 * of @coord.
 	 */
 	coord_dup( &shadow, coord );
-	return cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
+	result = cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
+	if( result != 0 ) {
+		/*
+		 * undo change
+		 */
+		reiser4_inode_data( dir ) -> bytes += length;
+	}
+	return result;
 }
 
 /* Audited by: green(2002.06.14) */

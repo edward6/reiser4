@@ -964,10 +964,56 @@ int cde_add_entry( struct inode *dir /* directory object */,
 		result = resize_item( coord, &data, 
 				      &dir_entry -> key, lh, 0/*flags*/ );
 	}
+	if( result == 0 )
+		/*
+		 * FIXME-NIKITA add disk quota checks here
+		 */
+		reiser4_inode_data( dir ) -> bytes += data.length;
 	return result;
 }
 
-/** ->s.dir.rem_entry() == de_rem_entry */
+/** ->s.dir.rem_entry() */
+int cde_rem_entry( struct inode *dir /* directory of item */, 
+		   coord_t *coord /* coord of item */,
+		   lock_handle *lh UNUSED_ARG /* lock handle for
+					       * removal */, 
+		   reiser4_dir_entry_desc *entry UNUSED_ARG /* parameters of
+							     * directory entry
+							     * being removed */ )
+{
+	coord_t shadow;
+	int     result;
+	int     length;
+
+	length = 
+		strlen( cde_extract_name( coord ) ) + 1 + 
+		sizeof( directory_entry_format) + sizeof( cde_unit_header );
+
+	if( reiser4_inode_data( dir ) -> bytes >= length )
+		reiser4_inode_data( dir ) -> bytes -= length;
+	else {
+		warning( "nikita-2627", "Dir is broke: %llu: %llu",
+			 get_inode_oid( dir ), 
+			 reiser4_inode_data( dir ) -> bytes );
+		return -EIO;
+	}
+
+	/*
+	 * cut_node() is supposed to take pointers to _different_
+	 * coords, because it will modify them without respect to
+	 * possible aliasing. To work around this, create temporary copy
+	 * of @coord.
+	 */
+	coord_dup( &shadow, coord );
+	result = cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
+	if( result != 0 ) {
+		/*
+		 * undo change
+		 */
+		reiser4_inode_data( dir ) -> bytes += length;
+	}
+	return result;
+}
 
 /** ->s.dir.max_name_len() method for this item plugin */
 /* Audited by: green(2002.06.13) */

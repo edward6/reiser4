@@ -215,10 +215,11 @@ int sd_load( struct inode *inode /* object being processed */,
 			break;
 	}
 	/* common initialisations */
-	inode -> i_blocks     = 
+	inode -> i_blocks  = 
 		( state -> bytes + VFS_BLKSIZE - 1 ) >> VFS_BLKSIZE_BITS;
-	inode -> i_blksize    = reiser4_blksize( inode -> i_sb );
-	inode -> i_version    = ++ event;
+	inode -> i_blksize = 
+		get_super_private( inode -> i_sb ) -> optimal_io_size;
+	inode -> i_version = ++ event;
 	if( len > 0 )
 		warning( "nikita-631", "unused space in inode %llu", 
 			 get_inode_oid( inode ) );

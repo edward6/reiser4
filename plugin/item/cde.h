@@ -68,6 +68,8 @@ char *cde_extract_name ( const coord_t *coord );
 int   cde_add_entry    ( struct inode *dir, coord_t *coord, 
 			 lock_handle *lh, const struct dentry *name, 
 			 reiser4_dir_entry_desc *entry );
+int   cde_rem_entry    ( struct inode *dir, coord_t *coord, lock_handle *lh, 
+			 reiser4_dir_entry_desc *entry );
 int   cde_max_name_len ( const struct inode *dir );
 
 

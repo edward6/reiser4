@@ -721,6 +721,7 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 			   struct dentry *dentry, struct kstat *stat )
 {
 	struct inode *obj;
+	__u64         bytes;
 
 	assert( "nikita-2298", dentry != NULL );
 	assert( "nikita-2299", stat != NULL );
@@ -739,7 +740,8 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 	stat -> mtime   = obj -> i_mtime;
 	stat -> ctime   = obj -> i_ctime;
 	stat -> size    = obj -> i_size;
-	stat -> blocks  = obj -> i_blocks;
+	bytes = reiser4_inode_data( obj ) -> bytes;
+	stat -> blocks  = ( bytes + VFS_BLKSIZE ) >> VFS_BLKSIZE_BITS;
 	/*
 	 * "preferred" blocksize for efficient file system I/O
 	 */
