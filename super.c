@@ -445,13 +445,12 @@ build_object_ops(struct super_block *super, object_ops *ops)
 	ops->dentry  = reiser4_dentry_operations;
 	ops->as      = reiser4_as_operations;
 
-	if (reiser4_is_set(super, REISER4_NO_PSEUDO)) {
-		/* if we don't support pseudo files, we need neither ->open,
-		 * nor ->lookup on regular files */
-		ops->regular.lookup = NULL;
-		ops->file.open = NULL;
-	}
-
+#if !ENABLE_REISER4_PSEUDO
+	/* if we don't support pseudo files, we need neither ->open,
+	 * nor ->lookup on regular files */
+	ops->regular.lookup = NULL;
+	ops->file.open = NULL;
+#endif
 }
 
 #if REISER4_DEBUG_OUTPUT
