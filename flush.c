@@ -37,6 +37,7 @@ static int           flush_scan_left              (flush_scan *scan, jnode *node
 static int           flush_preceder_hint          (jnode *leftpoint, const tree_coord *parent_coord, reiser4_blocknr_hint *preceder);
 static int           flush_preceder_rightmost     (const tree_coord *parent_coord, reiser4_blocknr_hint *preceder);
 static int           flush_should_relocate        (jnode *node, const tree_coord *parent_coord, unsigned long blocks_dirty_at_this_level);
+static int           flush_extents                (tree_coord *coord, reiser4_blocknr_hint *preceder);
 
 static int           flush_lock_leftpoint         (jnode                *start,
 						   lock_handle          *start_lock,
@@ -45,24 +46,25 @@ static int           flush_lock_leftpoint         (jnode                *start,
 						   reiser4_blocknr_hint *preceder);
 
 static int           squalloc_leftpoint           (jnode *node, lock_handle *node_lock, reiser4_blocknr_hint *preceder);
-static int           flush_extent              (jnode *node, reiser4_blocknr_hint *preceder);
+static int           squalloc_leftpoint_end_of_twig (jnode **node, lock_handle *node_lock, lock_handle *parent_lock, tree_coord *parent_coord, int *is_unformatted);
+static int           squalloc_update_leftpoint    (jnode **node, lock_handle *node_lock, lock_handle *parent_lock, tree_coord *parent_coord, int *is_unformatted);
 static int           squalloc_parent_first        (znode *node, reiser4_blocknr_hint *preceder);
 static int           squalloc_children            (znode *node, reiser4_blocknr_hint *preceder);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, reiser4_blocknr_hint *preceder);
-static int           squeeze_right_leaf           (znode *right, znode *left);
 static int           squalloc_right_twig          (znode *left, znode *right, reiser4_blocknr_hint *preceder);
 static int           squalloc_right_twig_cut      (tree_coord * to, reiser4_key * to_key);
+static int           squeeze_right_leaf           (znode *right, znode *left);
 static int           shift_one_internal_unit      (znode *left, znode *right);
 
 static int           jnode_lock_parent_coord      (jnode *node,
 						   tree_coord *coord,
 						   lock_handle *parent_lh,
 						   znode_lock_mode mode);
-static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index);
+static jnode*        jnode_get_extent_neighbor    (jnode *node, unsigned long node_index);
 static int           jnode_is_allocated           (jnode *node);
 static int           jnode_allocate_flush         (jnode *node, reiser4_blocknr_hint *preceder);
 static int           znode_get_right_if_dirty     (znode *node, lock_handle *right_lock);
-static int           jnode_get_right_neighbor     (jnode *node, lock_handle *parent_lock, tree_coord *parent_coord);
+static int           znode_same_parents           (znode *a, znode *b);
 
 
 /* This is the main entry point for flushing a jnode, called by the
@@ -237,7 +239,7 @@ static int flush_lock_leftpoint (jnode                *start_node,
 
 		/* Release lock at this level before going upward. */
 		done_lh (start_lock ? start_lock : & end_lock);
- 
+
 		/* Recurse upwards. */
 		if ((ret = flush_lock_leftpoint (ZJNODE (parent_node), & parent_lock, leftpoint, leftpoint_lock, preceder))) {
 			goto failure;
@@ -411,6 +413,8 @@ static int flush_preceder_hint (jnode *node,
 		if ((ret = jnode_lock_parent_coord (node, & coord, & parent_lock, ZNODE_READ_LOCK))) {
 			return ret;
 		}
+
+		parent = parent_lock.node;
 	}
 
 	/* Node can't be the root node here, since it is always allocated. */
@@ -422,7 +426,7 @@ static int flush_preceder_hint (jnode *node,
 
 	/* Non-lefmost leaf case: set left-of-node block number */
 	if (is_leaf && ! is_leftmost) {
-		
+
 		iplug = item_plugin_by_coord (& coord);
 
 		assert ("jmacd-2040", iplug->common.utmost_child_real_block != NULL);
@@ -497,7 +501,7 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 	if (! blocknr_is_fake (jnode_get_block (child))) {
 
 		assert ("jmacd-2061", jnode_is_formatted (child));
-	
+
 		/* The child is in memory, recurse. */
 		coord_last_unit (& child_coord, JZNODE (child));
 
@@ -515,10 +519,14 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 /* Squeeze and allocate, one subtree at a time starting from the leftpoint and
  * repeating the process to the right as long as nodes are dirty and part of
  * the same atom.  There is a special handling of unformatted leftpoint
- * nodes--it is required to know the parent. */
+ * nodes--it is required to know the parent to find extent entries.
+ *
+ * FIXME: better comments needed
+ */
 static int squalloc_leftpoint (jnode *node, lock_handle *node_lock, reiser4_blocknr_hint *preceder)
 {
 	int ret;
+	int is_unformatted;
 	lock_handle right_lock;
 	lock_handle parent_lock;
 	tree_coord  parent_coord;
@@ -526,31 +534,81 @@ static int squalloc_leftpoint (jnode *node, lock_handle *node_lock, reiser4_bloc
 	init_lh (& parent_lock);
 	init_lh (& right_lock);
 
-	/* Call the appropriate squalloc_parent_first() or flush_extent() method on
-	 * node, then continue to the right. */
+	/* If the initial node is unformatted, have to find its parent coordinate to flush
+	 * the extent.  In this case, we would not arrive here at this level unless the
+	 * parent is clean and these nodes are being overwritten.  If the parent was dirty
+	 * we would call squalloc_parent_first at a higher level.  Therefore, READ_LOCK
+	 * the parent. */
+	if ((is_unformatted = jnode_is_unformatted (node))) {
+
+		if ((ret = jnode_lock_parent_coord (node, & parent_coord, & parent_lock, ZNODE_READ_LOCK))) {
+			goto failure;
+		}
+
+		/* Node will not be used... */
+		assert ("jmacd-6077", node_lock->node == NULL);
+		node = NULL;
+	}
+
+	/* Call the appropriate squalloc_parent_first() or flush_extents() method on node,
+	 * then continue to the right. */
 	do {
-		if (jnode_is_unformatted (node)) {
+		if (is_unformatted) {
+			/* Extent case. */
+			assert ("jmacd-6079", node == NULL);
 
-			/* Unformatted node case: we would not be called if the parent was
-			 * dirty, therefore the extent was previously allocated and all we
-			 * have to do is issue flushes and add to the overwrite set. */
-			if ((ret = flush_extent (node, preceder))) {
+			/* Unformatted node case: we would not be called at this level if
+			 * the parent was dirty, instead squalloc_twig would have been
+			 * called, therefore the extent was previously allocated and all
+			 * we have to do is issue flushes and add to the overwrite set. */
+			if ((ret = flush_extents (& parent_coord, preceder))) {
 				goto failure;
 			}
 
-			/* FIXME: ... mostly same issues as below. */
-			if ((ret = jnode_get_right_neighbor (node, & parent_lock, & parent_coord))) {
-				goto failure;
+			/* FIXME: How do we stop if the extent is clean? */
+
+			/* Flush extent returns when it reaches the end of its node or
+			 * when it reaches a formatted item. */
+			if (coord_of_item (& parent_coord) == 0) {
+				/* End of twig node.  This call updates the state of this loop for
+				 * the next iteration at the leftpoint of the sub-tree to the
+				 * right. */
+				if ((ret = squalloc_leftpoint_end_of_twig (& node, node_lock, & parent_lock, & parent_coord, & is_unformatted))) {
+					goto failure;
+				}
+
+			} else {
+				/* Reached an internal node. */
+				znode *child;
+
+				assert ("jmacd-6078", item_is_internal (& parent_coord));
+
+				/* Get the child, lock it, unlock the parent. */
+				child = child_znode (& parent_coord, 1 /* set delim coord */);
+
+				if (IS_ERR (child)) {
+					ret = PTR_ERR (child);
+					goto failure;
+				}
+
+				if ((ret = longterm_lock_znode (node_lock, child, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+					goto failure;
+				}
+
+				/* And keep going... */
+				node = ZJNODE (child);
+				done_lh (& parent_lock);
+				is_unformatted = 0;
 			}
+
 		} else {
-			/* Formatted node case. */
+			/* Formatted node case.  Squeeze and allocate this node. */
 			if ((ret = squalloc_parent_first (JZNODE (node), preceder))) {
 				goto failure;
 			}
 
-			/* It is possible that we would want to ascend to an ancestor of
-			 * the right neighbor.  A possible optimization. */
-			if ((ret = znode_get_right_if_dirty (JZNODE (node), & right_lock))) {
+			/* Get the right neighbor if it is dirty. */
+			if ((ret = znode_get_right_if_dirty (JZNODE (node), & right_lock)) != 0) {
 
 				/* ENOENT means the right neighbor is not in memory or not
 				 * found.  If at the leaf level we have to check for an
@@ -563,27 +621,154 @@ static int squalloc_leftpoint (jnode *node, lock_handle *node_lock, reiser4_bloc
 					goto failure;
 				}
 
-				/* FIXME: want roughly flush_scan_right_neighbor_using_parent()
-				 * but should setup parent lock for unformatted node case
-				 * to continue iteration. */
-				if ((ret = jnode_get_right_neighbor (node, & parent_lock, & parent_coord))) {
+				/* Get the parent coordinate. */
+				if ((ret = jnode_lock_parent_coord (node, & parent_coord, & parent_lock, ZNODE_READ_LOCK))) {
 					goto failure;
 				}
+
+				/* We're finished with node, have its parent locked. */
+				done_lh (node_lock);
+				node = NULL;
+
+				/* coord_next_item returns 0 if there are no more items. */
+				if (coord_next_item (& parent_coord) == 0) {
+
+					/* End of twig node.  This call updates the state of this
+					 * loop for the next iteration at the leftpoint of the
+					 * sub-tree to the right.  There is a slight optimization
+					 * possible, which is that we've already checked the leaf
+					 * level sibling and it is NULL, meaning we don't have to
+					 * check the leaf level in end_of_twig. */
+					if ((ret = squalloc_leftpoint_end_of_twig (& node, node_lock, & parent_lock, & parent_coord, & is_unformatted))) {	
+						goto failure;
+					}
+
+				} else if (item_is_extent (& parent_coord)) {
+
+					/* Extent case. */
+					is_unformatted = 1;
+
+				} else {
+
+					/* Formatted sibling is not in memory. */
+					assert ("jmacd-7088", item_is_internal (& parent_coord));
+					ret = 0;
+					goto failure;
+				}
+
 			} else {
 				/* Advance to the right sibling of this znode. */
 				node = ZJNODE (right_lock.node);
 				done_lh (node_lock);
 				move_lh (node_lock, & right_lock);
+
+				if (! znode_same_parents (right_lock.node, JZNODE (node))) {
+
+					/* We have a new parent, so call squalloc_update_leftpoint () to
+					 * find the next leftpoint in parent first order. */
+					if ((ret = squalloc_update_leftpoint (& node, node_lock, & parent_lock, & parent_coord, & is_unformatted))) {
+						goto failure;
+					}
+				}
 			}
 		}
 
-	} while (node != NULL);
-	
+	} while (node != NULL || is_unformatted);
+
 	ret = 0;
  failure:
 	done_lh (& right_lock);
 	done_lh (& parent_lock);
 	return ret;
+}
+
+/* This function is called when squalloc_leftpoint reaches the end of a twig node.  Next we check
+ * the twig's right neighbor.  If the right twig is clean, check its leftmost child.  If the right
+ * twig is dirty, call squalloc_leftpoint_ancestor to find the next leftpoint for parent first
+ * traversal.
+ *
+ * FIXME: better comments needed
+ */
+static int squalloc_leftpoint_end_of_twig (jnode **node, lock_handle *node_lock, lock_handle *twig_lock, tree_coord *twig_coord, int *is_unformatted)
+{
+	int ret;
+	int child_dirty, right_twig_dirty;
+	lock_handle right_lock;
+	item_plugin *iplug;
+
+	/* Setup a default return value, which ends the squalloc_leftpoint loop. */
+	assert ("jmacd-7903", *node == NULL);
+	(*is_unformatted) = 0;
+
+	init_lh (& right_lock);
+
+	/* Not using znode_get_right_if_dirty to get the parent's right sibling since the parent's
+	 * sibling may be clean while its leftmost child is dirty. */
+	if ((ret = reiser4_get_right_neighbor (& right_lock, twig_lock->node, ZNODE_READ_LOCK, 0))) {
+		if (ret == -ENOENT || ret == -ENAVAIL) {
+			ret = 0;
+		}
+		goto failure;
+	}
+
+	/* See if the right twig is dirty. */
+	spin_lock_znode (right_lock.node);
+	right_twig_dirty = znode_is_dirty (right_lock.node);
+	spin_unlock_znode (right_lock.node);
+
+	if (right_twig_dirty) {
+		/* If the twig is dirty, don't need to check the child. */
+
+		/* FIXME: HERE YOU ARE */
+		if ((ret = squalloc_update_leftpoint (node, node_lock, twig_lock, twig_coord, is_unformatted))) {
+			goto failure;
+		}
+
+	} else {
+		/* See if the left child is dirty. */
+		coord_first_unit (twig_coord, twig_lock->node);
+		iplug = item_plugin_by_coord (twig_coord);
+
+		if ((ret = iplug->common.utmost_child_dirty (twig_coord, LEFT_SIDE, & child_dirty))) {
+			goto failure;
+		}
+
+		if (! child_dirty) {
+			/* If it is not dirty and the twig is not dirty, then the
+			 * squalloc_leftpoint loop should just terminate. */
+			ret = 0;
+			goto failure;
+		} else {
+			/* If the child is dirty and the twig is not dirty, then the check if the
+			 * child should be relocated, in which case we will dirty the parent now. */
+
+			/* FIXME: HERE YOU ARE */
+			if ((ret = squalloc_update_leftpoint (node, node_lock, twig_lock, twig_coord, is_unformatted))) {
+				goto failure;
+			}
+		}
+	}
+	
+	ret = 0;
+ failure:
+	done_lh (& right_lock);
+	return ret;
+}
+
+/* Called at the end of a leftpoint subtree to update for the next iteration of squalloc_leftpoint
+ * loop.  This checks should_relocate and ascends to the highest dirty ancestor, then repeats in
+ * squalloc_leftpoint.
+ *
+ * FIXME: better comment needed
+ */
+static int squalloc_update_leftpoint (jnode **node UNUSED_ARG,
+				      lock_handle *node_lock UNUSED_ARG,
+				      lock_handle *parent_lock UNUSED_ARG,
+				      tree_coord *parent_coord UNUSED_ARG,
+				      int *is_unformatted UNUSED_ARG)
+{
+	/* FIXME: */
+	return 0;
 }
 
 /* Squeeze and allocate, parent first -- This is initially called on the
@@ -666,7 +851,7 @@ static int squalloc_parent_first (znode *node, reiser4_blocknr_hint *preceder)
 		 * squeeze that subtree (now the last item of this node). */
 		tree_coord crd;
 		znode *child;
-		
+
 		init_coord (& crd);
 		coord_last_unit (& crd, JZNODE (node));
 
@@ -697,7 +882,7 @@ static int squalloc_parent_first (znode *node, reiser4_blocknr_hint *preceder)
 
 	/* Either an error occured or SQUEEZE_TARGET_FULL (or
 	 * can't-squeeze-right, e.g., end-of-level or
-	 * unformatted-to-the-right) */ 
+	 * unformatted-to-the-right) */
 	assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
 	ret = ((squeeze < 0) ? squeeze : 0);
 
@@ -706,9 +891,11 @@ static int squalloc_parent_first (znode *node, reiser4_blocknr_hint *preceder)
 	return ret;
 }
 
-/* Called with an unformatted node argument that needs to be flushed.  The parent is clean
- * or else we would have tried to squeeze and called squalloc_twig instead. */
-static int flush_extent (jnode *node UNUSED_ARG, reiser4_blocknr_hint *preceder UNUSED_ARG)
+/* Called with an unformatted node argument that _may_ need to be flushed.  The parent is
+ * clean or else we would have tried to squeeze and called squalloc_twig instead.
+ *
+ * FIXME: How is "nothing to flush" returned? */
+static int flush_extents (tree_coord *coord UNUSED_ARG, reiser4_blocknr_hint *preceder UNUSED_ARG)
 {
 	/* FIXME: */
 	return 0;
@@ -818,7 +1005,7 @@ static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
 	}
 
 	assert ("jmacd-2011", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL  || ret == SUBTREE_MOVED);
-	
+
 	if (ret == SQUEEZE_SOURCE_EMPTY) {
 		reiser4_stat_flush_add (squeezed_completely);
 	}
@@ -837,7 +1024,7 @@ static int squeeze_right_leaf (znode * right, znode * left)
 
 	init_carry_pool (& pool);
 	init_carry_level (& todo, & pool);
-	
+
 	ret = shift_everything_left (right, left, & todo);
 
 	if (ret >= 0) {
@@ -845,7 +1032,7 @@ static int squeeze_right_leaf (znode * right, znode * left)
 		 * node. */
 		ret = carry (& todo, NULL /* previous level */);
 	}
-	
+
 	done_carry_pool (& pool);
 
 	if (ret < 0) {
@@ -864,7 +1051,7 @@ static int squalloc_right_twig (znode    *left,
 				znode    *right,
 				reiser4_blocknr_hint *preceder)
 {
-	int ret;
+	int ret = 0;
 	tree_coord coord;
 	reiser4_key stop_key;
 
@@ -890,7 +1077,8 @@ static int squalloc_right_twig (znode    *left,
 
 		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
 
-		if (! coord_next_item (&coord)) {
+		/* coord_next_item returns 0 if there are no more items. */
+		if (coord_next_item (&coord) == 0) {
 			ret = SQUEEZE_SOURCE_EMPTY;
 			break;
 		}
@@ -988,7 +1176,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 		/* Shift or carry operation failed. */
 		return ret;
 	}
-	
+
 	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
 }
 
@@ -998,7 +1186,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 /* Gets the sibling of an unformatted jnode using its index, only if it is in
  * memory, and reference it. */
-static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
+static jnode* jnode_get_extent_neighbor (jnode *node, unsigned long node_index)
 {
 	struct page *pg;
 
@@ -1009,7 +1197,7 @@ static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_inde
 	}
 
 	assert ("jmacd-1700", ! IS_ERR (pg));
-	
+
 	return jnode_of_page (pg);
 }
 
@@ -1030,7 +1218,7 @@ static int jnode_allocate_flush (jnode *node, reiser4_blocknr_hint *preceder)
 	reiser4_block_nr blk;
 
 	/* FIXME: Need to set RELOC/WANDER bits. */
-	   
+
 	/* FIXME_ZAM: Interface issues... */
 	if (0 && (ret = reiser4_alloc_blocks (preceder, & blk, & len))) {
 		return ret;
@@ -1141,10 +1329,15 @@ static int znode_get_right_if_dirty (znode *node, lock_handle *right_lock)
 	return ret;
 }
 
-/* Get the right neighbor of a leaf node... FIXME: not yet finished here. */
-static int jnode_get_right_neighbor (jnode *node UNUSED_ARG, lock_handle *parent_lock UNUSED_ARG, tree_coord *parent_coord UNUSED_ARG)
+/* Return true if two znodes have the same parent.  This is called with both nodes
+ * write-locked (for squeezing) so no tree lock is needed. */
+static int znode_same_parents (znode *a, znode *b)
 {
-	return 0;
+	assert ("jmacd-7011", znode_is_write_locked (a));
+	assert ("jmacd-7012", znode_is_write_locked (b));
+
+	/* The assumption here could be broken if the "hint" actually becomes one... */
+	return a->ptr_in_parent_hint.node == b->ptr_in_parent_hint.node;
 }
 
 /********************************************************************************
@@ -1365,7 +1558,7 @@ static int flush_scan_left_extent (flush_scan *scan, jnode *node)
 	while (scan_index > 0 && ! flush_scan_left_finished (scan)) {
 
 		/* For each loop iteration, get the previous index. */
-		left = jnode_get_neighbor_in_memory (node, --scan_index);
+		left = jnode_get_extent_neighbor (node, --scan_index);
 
 		/* If the left neighbor is not in memory... */
 		if (left == NULL) {
