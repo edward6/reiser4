@@ -625,6 +625,19 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
 
+#if REISER4_DEBUG
+	if (jnode_is_znode(node)) {
+		znode *z;
+		node_plugin *nplug;
+
+		z = JZNODE(node);
+		nplug = z->nplug;
+		assert("nikita-3254", nplug != NULL);
+		assert("nikita-3253", 
+		       node_num_items(z) == nplug->num_of_items(z));
+	}
+#endif
+
 	PROF_END(jload);
 	return 0;
 

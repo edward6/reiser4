@@ -144,14 +144,59 @@ utmost_child_internal(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 	return 0;
 }
 
+static void check_link(const znode *left, const znode *right)
+{
+	RLOCK_TREE(znode_get_tree(left));
+	if (znode_is_right_connected(left)) {
+		assert("nikita-3258", znode_is_left_connected(right));
+		assert("nikita-3259", left->right == right);
+		assert("nikita-3260", right->left == left);
+	}
+	if (znode_is_left_connected(right)) {
+		assert("nikita-3261", znode_is_right_connected(left));
+		assert("nikita-3262", right->left == left);
+		assert("nikita-3263", left->right == right);
+	}
+	RUNLOCK_TREE(znode_get_tree(left));
+}
+
 int check__internal(const coord_t * coord, const char **error)
 {
 	reiser4_block_nr blk;
+	znode *child;
+	znode *left_child;
+	znode *right_child;
+	coord_t cpy;
 
 	blk = pointer_at(coord);
 	if (!reiser4_blocknr_is_sane(&blk)) {
 		*error = "Invalid pointer";
 		return -1;
+	}
+	coord_dup(&cpy, coord);
+	child = znode_at(&cpy, cpy.node);
+	if (child != NULL) {
+		assert("nikita-3256", znode_invariant(child));
+		if (coord_prev_item(&cpy) == 0 && item_is_internal(&cpy)) {
+			left_child = znode_at(&cpy, cpy.node);
+			if (left_child != NULL) {
+				check_link(left_child, child);
+				zput(left_child);
+			} else {
+				assert("nikita-3257", child->left == NULL);
+			}
+		}
+		coord_dup(&cpy, coord);
+		if (coord_next_item(&cpy) == 0 && item_is_internal(&cpy)) {
+			right_child = znode_at(&cpy, cpy.node);
+			if (right_child != NULL) {
+				check_link(child, right_child);
+				zput(right_child);
+			} else {
+				assert("nikita-3264", child->right == NULL);
+			}
+		}
+		zput(child);
 	}
 	return 0;
 }
