@@ -383,6 +383,11 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 	}
  ok:
 	clust->len = inode_scaled_cluster_size(inode) - f.length;
+	if (clust->len % cr_plug->blocksize(inode_crypto_stat(inode)->keysize)) {
+		res = -EIO;
+		goto out2;
+	}
+	clust->off = offset;
 	res = process_cluster(clust, inode, READ_OP);
 	if (res)
 		goto out2;
@@ -390,7 +395,7 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
  out:
 	done_lh(&lh);
  out2:
-	reiser4_kfree(clust->buf, inode_scaled_cluster_size(inode));
+	put_cluster_data(clust, inode);
 	return res;
 }
 
