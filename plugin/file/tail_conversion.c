@@ -169,8 +169,6 @@ reserve_tail2extent_iteration(struct inode *inode)
 	 *
 	 *     5. possible update of stat-data
 	 *
-	 *     6. removal of safe-link
-	 *
 	 */
 	grab_space_enable();
 	return reiser4_grab_space
@@ -178,8 +176,7 @@ reserve_tail2extent_iteration(struct inode *inode)
 		 TAIL2EXTENT_PAGE_NUM +
 		 TAIL2EXTENT_PAGE_NUM * estimate_one_insert_into_item(tree) +
 		 1 + estimate_one_insert_item(tree) +
-		 inode_file_plugin(inode)->estimate.update(inode) +
-		 safe_link_tograb(tree),
+		 inode_file_plugin(inode)->estimate.update(inode),
 		 BA_CAN_COMMIT);
 }
 
@@ -231,7 +228,6 @@ reiser4_internal int
 tail2extent(unix_file_info_t *uf_info)
 {
 	int result;
-	int s_result;
 	reiser4_key key;	/* key of next byte to be moved to page */
 	ON_DEBUG(reiser4_key tmp;)
 	char *p_data;		/* data of page */
@@ -273,14 +269,6 @@ tail2extent(unix_file_info_t *uf_info)
 			/* some other error */
 			return result;
 	}
-
-	result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
-	if (result == 0) {
-		result = safe_link_add(inode, SAFE_T2E);
-		if (result != 0)
-			goto out;
-	} else if (result != -EEXIST)
-		goto out;
 
 	/* get key of first byte of a file */
 	key_by_inode_unix_file(inode, offset, &key);
@@ -415,13 +403,7 @@ tail2extent(unix_file_info_t *uf_info)
 		print_inode("inode", inode);
 	}
 
-	s_result = safe_link_del(inode, SAFE_T2E);
-	if (s_result != 0)
-		warning("nikita-3425", "Cannot kill safe-link %lli: %i",
-			get_inode_oid(inode), s_result);
-
  out:
-	safe_link_release(tree_by_inode(inode));
 	all_grabbed2free();
 	return result;
 }
@@ -512,16 +494,13 @@ reserve_extent2tail_iteration(struct inode *inode)
 	 *     3. drilling to the leaf level by coord_by_key()
 	 *
 	 *     4. possible update of stat-data
-	 *
-	 *     5. removal of safe-link
 	 */
 	grab_space_enable();
 	return reiser4_grab_space
 		(estimate_one_item_removal(tree) +
 		 estimate_insert_flow(tree->height) +
 		 1 + estimate_one_insert_item(tree) +
-		 inode_file_plugin(inode)->estimate.update(inode) +
-		 safe_link_tograb(tree),
+		 inode_file_plugin(inode)->estimate.update(inode),
 		 BA_CAN_COMMIT);
 }
 
@@ -531,7 +510,6 @@ reiser4_internal int
 extent2tail(unix_file_info_t *uf_info)
 {
 	int result;
-	int s_result;
 	struct inode *inode;
 	struct page *page;
 	unsigned long num_pages, i;
@@ -540,7 +518,6 @@ extent2tail(unix_file_info_t *uf_info)
 	reiser4_key to;
 	unsigned count;
 	__u64 offset;
-	int space_reserved;
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
@@ -560,14 +537,6 @@ extent2tail(unix_file_info_t *uf_info)
 			return result;
 	}
 
-	result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
-	if (result == 0) {
-		result = safe_link_add(inode, SAFE_E2T);
-		if (result != 0)
-			return result;
-	} else if (result != -EEXIST)
-		return result;
-
 	/* number of pages in the file */
 	num_pages =
 		(inode->i_size - offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
@@ -577,16 +546,13 @@ extent2tail(unix_file_info_t *uf_info)
 	to = from;
 
 	result = 0;
-	space_reserved = 0;
 	for (i = 0; i < num_pages; i++) {
 		__u64 start_byte;
 
 		all_grabbed2free();
-		space_reserved = 0;
 		result = reserve_extent2tail_iteration(inode);
 		if (result != 0)
 			break;
-		space_reserved = 1;
 		if (i == 0) {
 			inode_set_flag(inode, REISER4_PART_CONV);
 			reiser4_update_sd(inode);
@@ -666,16 +632,8 @@ extent2tail(unix_file_info_t *uf_info)
 			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
 	}
-	if (space_reserved) {
-		s_result = safe_link_del(inode, SAFE_E2T);
-		if (s_result != 0) {
-			warning("nikita-3422", "Cannot kill safe-link %lli: %i",
-				get_inode_oid(inode), s_result);
-		}
-	} else
-		s_result = 0;
 	all_grabbed2free();
-	return result ? : s_result;
+	return result;
 }
 
 reiser4_internal int

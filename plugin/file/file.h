@@ -21,8 +21,6 @@ int setattr_unix_file(struct inode *, struct iattr *);
 void readpages_unix_file(struct file *, struct address_space *, struct list_head *pages);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
-int safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
-		       __u64 value);
 
 extern ssize_t sendfile_common (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);

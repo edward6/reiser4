@@ -231,9 +231,7 @@ typedef enum {
 
 typedef enum {
 	SAFE_UNLINK,   /* safe-link for unlink */
-	SAFE_TRUNCATE, /* safe-link for truncate */
-	SAFE_E2T,      /* safe-link for extent->tail conversion */
-	SAFE_T2E       /* safe-link for tail->extent conversion */
+	SAFE_TRUNCATE  /* safe-link for truncate */
 } reiser4_safe_link_t;
 
 /* this is to show on which list of atom jnode is */

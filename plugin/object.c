@@ -536,12 +536,8 @@ delete_object(struct inode *inode /* object to remove */, int mode /* cut mode *
 		 * safe-link form the tree */
 		reserve = 2 * estimate_one_item_removal(tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
-					     BA_RESERVED | BA_CAN_COMMIT)) {
-			warning("nikita-2847",
-				"Cannot delete unnamed sd of %lli. Run fsck",
-				get_inode_oid(inode));
+					     BA_RESERVED | BA_CAN_COMMIT))
 			return RETERR(-ENOSPC);
-		}
 		result = common_file_delete_no_reserve(inode, mode);
 	} else
 		result = 0;
@@ -1291,7 +1287,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
-		.safelink = safelink_unix_file,
+		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
