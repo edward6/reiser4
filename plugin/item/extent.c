@@ -2774,7 +2774,8 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	if (result)
 		return result;
 
-	balance_dirty_pages(mapping);
+	/* balance dirty pages periodically */
+	balance_dirty_pages_ratelimited(mapping);
 	return hint_validate(&hint, &f->key, coord, lh);
 }
 
