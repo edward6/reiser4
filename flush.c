@@ -422,16 +422,7 @@ static int pos_stop(flush_pos_t * pos);
 #else
 #endif
 
-#if REISER4_TRACE
-static const char *pos_tostring(flush_pos_t * pos);
-static const char *znode_tostring(znode * node);
-static const char *flags_tostring(int flags);
-#else
-#define pos_tostring(p)   ""
-#define znode_tostring(n) ""
-#define flags_tostring(f) ""
-#endif
-
+const char *pos_tostring(flush_pos_t * pos);
 
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
    useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
@@ -1990,6 +1981,12 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 {
 	int ret;
 	int slum_size;
+	/*XXXX*/int init_slum_size;
+	/*XXXX*/coord_t init_coord;
+	/*XXXX*/int init_pos_in_unit;
+	/*XXXX*/reiser4_block_nr init_start;
+	/*XXXX*/reiser4_block_nr init_width;
+	/*XXXX*/reiser4_extent old[20];
 
 	assert ("zam-844", pos->state == POS_ON_EPOINT);
 	assert ("zam-843", item_is_extent(&pos->coord));
@@ -2023,6 +2020,14 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 			pos->pos_in_unit = 0;
 		}
 	} else {
+		/*XXXX*/init_slum_size = slum_size;
+		/*XXXX*/init_pos_in_unit = pos->pos_in_unit;
+		/*XXXX*/init_coord = pos->coord;
+		/*XXXX*/init_start = extent_unit_start(&pos->coord);
+		/*XXXX*/init_width = extent_unit_width(&pos->coord);
+		/*XXXX*/memcpy(&old, extent_by_coord(&pos->coord),
+		       sizeof(reiser4_extent) * ((coord_num_units(&pos->coord) - pos->coord.unit_pos) < 20 ? (coord_num_units(&pos->coord) - pos->coord.unit_pos) : 20));
+		
 		/* relocate "slum" */
 		/* FIXME: way for optimization: we could try to alloc blocks for whole
 		   slum at once. But, slum here may be mixture of allocated and
@@ -2041,6 +2046,9 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 				break;
 			pos->pos_in_unit = 0;			
 		}
+		/*XXXX*/if (pos->pos_in_unit == 16723243)
+			/*XXXX*/printk("%d %d %d %llu %llu %llu\n", init_slum_size, init_pos_in_unit,
+			       init_coord.unit_pos, init_start, init_width, extent_get_start(&old[0]));
 		ret = rapid_flush(pos);
 		if (ret)
 			return ret;
@@ -3473,79 +3481,9 @@ flush_queue_t * pos_fq(flush_pos_t * pos)
 	return pos->fq;
 }
 
-#if REISER4_TRACE
 const char *coord_tween_tostring(between_enum n);
 
-static void
-jnode_tostring_internal(jnode * node, char *buf)
-{
-	const char *state;
-	char atom[32];
-	char block[32];
-	char items[32];
-	int fmttd;
-	int dirty;
-	int lockit;
-
-	lockit = spin_trylock_jnode(node);
-
-	fmttd = jnode_is_znode(node);
-	dirty = JF_ISSET(node, JNODE_DIRTY);
-
-	sprintf(block, " block=%s", sprint_address(jnode_get_block(node)));
-
-	if (JF_ISSET(node, JNODE_OVRWR)) {
-		state = dirty ? "wandr,dirty" : "wandr";
-	} else if (JF_ISSET(node, JNODE_RELOC) && JF_ISSET(node, JNODE_CREATED)) {
-		state = dirty ? "creat,dirty" : "creat";
-	} else if (JF_ISSET(node, JNODE_RELOC)) {
-		state = dirty ? "reloc,dirty" : "reloc";
-	} else if (JF_ISSET(node, JNODE_CREATED)) {
-		assert("jmacd-61554", dirty);
-		state = "fresh";
-		block[0] = 0;
-	} else {
-		state = dirty ? "dirty" : "clean";
-	}
-
-	if (node->atom == NULL) {
-		atom[0] = 0;
-	} else {
-		sprintf(atom, " atom=%u", node->atom->atom_id);
-	}
-
-	items[0] = 0;
-	if (!fmttd) {
-		sprintf(items, " index=%lu", index_jnode(node));
-	}
-
-	sprintf(buf + strlen(buf),
-		"%s=%p [%s%s%s level=%u%s%s]",
-		fmttd ? "z" : "j",
-		node,
-		state, atom, block, jnode_get_level(node), items, JF_ISSET(node, JNODE_FLUSH_QUEUED) ? " fq" : "");
-
-	if (lockit == 1) {
-		UNLOCK_JNODE(node);
-	}
-}
-
 const char *
-jnode_tostring(jnode * node)
-{
-	static char fmtbuf[256];
-	fmtbuf[0] = 0;
-	jnode_tostring_internal(node, fmtbuf);
-	return fmtbuf;
-}
-
-static const char *
-znode_tostring(znode * node)
-{
-	return jnode_tostring(ZJNODE(node));
-}
-
-static const char *
 pos_tostring(flush_pos_t * pos)
 {
 	static char fmtbuf[256];
@@ -3593,24 +3531,6 @@ pos_tostring(flush_pos_t * pos)
 	done_load_count(&load);
 	return fmtbuf;
 }
-
-static const char *
-flags_tostring(int flags)
-{
-	switch (flags) {
-	case JNODE_FLUSH_WRITE_BLOCKS:
-		return "(write blocks)";
-	case JNODE_FLUSH_COMMIT:
-		return "(commit)";
-	case JNODE_FLUSH_MEMORY_FORMATTED:
-		return "(memory-z)";
-	case JNODE_FLUSH_MEMORY_UNFORMATTED:
-		return "(memory-j)";
-	default:
-		return "(unknown)";
-	}
-}
-#endif /* REISER4_TRACE */
 
 /* Make Linus happy.
    Local variables:
