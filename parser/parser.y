@@ -40,7 +40,6 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 */
 
 
-
 /* type definitions */
 %union 
 {
