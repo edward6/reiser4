@@ -69,6 +69,13 @@ get_format40_mkfs_id(const format40_disk_super_block * sb)
 	return d32tocpu(&sb->mkfs_id);
 }
 
+static __u64
+get_format40_flags(const format40_disk_super_block * sb)
+{
+	return d64tocpu(&sb->flags);
+}
+
+
 /* find any valid super block of disk_format40 (even if the first
    super block is destroyed), will change block numbers of actual journal header/footer (jf/jh)
    if needed */
@@ -180,6 +187,8 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	static reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
 	static reiser4_block_nr jheader_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
 
+	cassert(sizeof sb == 512);
+
 	assert("vs-475", s != NULL);
 	assert("vs-474", get_super_private(s));
 
@@ -212,6 +221,14 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 
 	xmemcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
+
+	if (!equi(REISER4_LARGE_KEY,
+		  get_format40_flags(sb_copy) & (1 << FORMAT40_LARGE_KEYS))) {
+		warning("nikita-3228", "Key format mismatch. "
+			"Only %s keys are supported.", 
+			REISER4_LARGE_KEY ? "large" : "small");
+		return RETERR(-EINVAL);
+	}
 
 	result = oid_init_allocator(s, get_format40_file_count(sb_copy), get_format40_oid(sb_copy));
 	if (result)

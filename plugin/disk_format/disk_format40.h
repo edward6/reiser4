@@ -20,6 +20,10 @@
 
 #include <linux/fs.h>		/* for struct super_block  */
 
+typedef enum {
+	FORMAT40_LARGE_KEYS
+} format40_flags;
+
 /* ondisk super block for format 40. It is 512 bytes long */
 typedef struct format40_disk_super_block {
 	/*   0 */ d64 block_count;
@@ -43,7 +47,8 @@ typedef struct format40_disk_super_block {
 	/*  68 */ d16 tree_height;
 	/* height of filesystem tree */
 	/*  70 */ d16 tail_policy;
-	/*  72 */ char not_used[440];
+	/*  72 */ d64 flags;
+	/*  72 */ char not_used[432];
 } format40_disk_super_block;
 
 /* format 40 specific part of reiser4_super_info_data */
