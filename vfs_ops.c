@@ -1757,10 +1757,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	assert( "umka-085", s != NULL );
 	
-	if (REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
-	    REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE ||
-	    REISER4_TRACE_TREE)
-		warning ("nikita-2372", "Debugging is on. Benchmarking is invalid.");
+	if ((REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
+	     REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE ||
+	     REISER4_TRACE_TREE) && !silent)
+		warning ("nikita-2372", 
+			 "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
 	 * specific part of info can be attached to, though */
@@ -1795,7 +1796,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		blocksize = d16tocpu (&master_sb->blocksize);
 		
-		if (blocksize != PAGE_CACHE_SIZE) {
+		if ((blocksize != PAGE_CACHE_SIZE) && !silent) {
 			info ("reiser4_fill_super: %s: wrong block size %ld\n",
 			      s->s_id, blocksize);
 			brelse (super_bh);
@@ -1816,6 +1817,10 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		df_plug = disk_format_plugin_by_id (plugin_id);
 		brelse (super_bh);
 	} else {
+		if (!silent)
+			warning ("nikita-2608", "Wrong magic: %x != %x",
+				 *(__u32*) master_sb->magic, 
+				 *(__u32*) REISER4_SUPER_MAGIC_STRING);
 		/* no standard reiser4 super block found */
 		brelse (super_bh);
 		/* FIXME-VS: call guess method for all available layout
@@ -1914,7 +1919,8 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	}
 
 	check_block_counters (s);
-	print_fs_info ("mount ok", s);
+	if (!silent)
+		print_fs_info ("mount ok", s);
 	REISER4_EXIT (0);
 
  error4:
