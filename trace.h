@@ -43,8 +43,8 @@ extern int write_trace_raw   ( reiser4_trace_file *file,
 extern int hold_trace        ( reiser4_trace_file *file, int flag );
 extern int disable_trace     ( reiser4_trace_file *file, int flag );
 extern void close_trace_file ( reiser4_trace_file *file );
-extern int write_trace_stamp ( reiser4_tree *tree,
-			       reiser4_traced_op op, const reiser4_key *key );
+extern int write_trace_stamp ( reiser4_tree *tree, reiser4_traced_op op, ... );
+
 #else
 
 typedef struct {} reiser4_trace_file;
@@ -55,7 +55,7 @@ typedef struct {} reiser4_trace_file;
 #define hold_trace( file, flag ) (0)
 #define disable_trace( file, flag ) (0)
 #define close_trace_file( file ) noop
-#define write_trace_stamp( tree, op, key ) (0)
+#define write_trace_stamp( tree, op, ... ) (0)
 
 #endif
 

@@ -5005,11 +5005,12 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		return;
 	}
 
+	sprintf_key( buffer_l, &node -> ld_key );
+	sprintf_key( buffer_r, &node -> rd_key );
+
 	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n", 
-		 *znode_get_block( node ), 
-		 *znode_get_block( node ),
-		 sprintf_key( buffer_l, &node -> ld_key ),
-		 sprintf_key( buffer_r, &node -> rd_key ) );
+		 *znode_get_block( node ), *znode_get_block( node ), 
+		 buffer_l, buffer_r );
 
 	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
 

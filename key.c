@@ -202,15 +202,15 @@ void print_key( const char *prefix /* prefix to print */,
 	/* printf ("\033[m\017"); */
 }
 
-char *sprintf_key( char *buffer /* buffer to print key into */, 
-		   const reiser4_key *key /* key to print */ )
+int sprintf_key( char *buffer /* buffer to print key into */, 
+		 const reiser4_key *key /* key to print */ )
 {
-	sprintf( buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
-		 get_key_locality( key ), get_key_type( key ),
-		 get_key_band( key ),
-		 get_key_objectid( key ), get_key_offset( key ) );
-	return buffer;
+	return sprintf( buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
+			get_key_locality( key ), get_key_type( key ),
+			get_key_band( key ), get_key_objectid( key ), 
+			get_key_offset( key ) );
 }
+
 /* 
  * Make Linus happy.
  * Local variables:

@@ -230,21 +230,13 @@ static int free_space( reiser4_trace_file *file, int *len )
 }
 
 
-typedef struct {
-	__u32              pid;
-	__u32              device;
-	__u16              op;
-	__u16              magic;
-	__u32              reserved;
-	__u64              bolt;
-	reiser4_key        key;
-} __trace_stamp;
-
-int write_trace_stamp( reiser4_tree *tree, 
-		       reiser4_traced_op op, const reiser4_key *key )
+int write_trace_stamp( reiser4_tree *tree, reiser4_traced_op op, ... )
 {
-	__trace_stamp stamp;
 	reiser4_trace_file *file;
+	va_list             args;
+	char                buf[ 200 ];
+	char               *rest;
+	reiser4_key        *key;
 
 	file = &get_super_private( tree -> super ) -> trace_file;
 
@@ -252,24 +244,46 @@ int write_trace_stamp( reiser4_tree *tree,
 		info( "cannot write trace from interrupt\n" );
 		return 0;
 	}
-	stamp.pid = current -> pid;
-	stamp.device = tree -> super -> s_dev;
-	stamp.op = op;
-	stamp.magic = 0xacc0u;
-	stamp.bolt = jiffies;
-	stamp.key = *key;
-#if 1
-	return write_trace( file, "%i:[%s]:%c:%x:%Lx:(%Lx:%x:%Lx:%Lx:%Lx)\n",
 
-			    stamp.pid, kdevname( to_kdev_t( stamp.device ) ),
-			    stamp.op, stamp.magic, stamp.bolt,
+	va_start( args, op );
 
-			    get_key_locality( key ),
-			    get_key_type( key ), get_key_band( key ),
-			    get_key_objectid( key ), get_key_offset( key ) );
-#else
-	return write_trace_raw( file, &stamp, sizeof stamp );
-#endif
+	key = va_arg( args, reiser4_key * );
+	rest = buf + sprintf_key( buf, key );
+	*rest ++ = ':';
+	*rest = '\0';
+
+	switch( op ) {
+	case tree_cut: {
+		reiser4_key *to;
+
+		to   = va_arg( args, reiser4_key * );
+		rest += sprintf_key( rest, to );
+		break;
+	}
+	case tree_lookup: {
+	default:
+		break;
+	}
+	case tree_insert: 
+	case tree_paste: {
+		reiser4_item_data *data;
+		coord_t           *coord;
+		__u32              flags;
+
+		data  = va_arg( args, reiser4_item_data * );
+		coord = va_arg( args, coord_t * );
+		flags = va_arg( args, __u32 );
+
+		rest += sprintf( rest, "%s:(%u:%u):%x",
+				 data -> iplug -> h.label,
+				 coord -> item_pos, coord -> unit_pos, flags );
+	}
+	}
+	va_end( args );
+	return write_trace( file, "%i:[%s]:%c:%x:%lu:%s\n",
+			    current -> pid, 
+			    kdevname( to_kdev_t( tree -> super -> s_dev ) ),
+			    op, 0xacc0u, jiffies, buf );
 }
 
 #endif
