@@ -62,7 +62,7 @@ reiser4_key *leftmost_key_in_node( const znode *node /* node to query */,
 	if( !node_is_empty( node ) ) {
 		coord_t first_item;
 
-		ncoord_init_first_unit( &first_item, ( znode * ) node );
+		coord_init_first_unit( &first_item, ( znode * ) node );
 		item_key_by_coord( &first_item, key );
 	} else
 		*key = *max_key();

@@ -232,7 +232,7 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 	
 	handle->owner = NULL;	/* mark lock handle as unused */
 
-	ret = (flags & GN_GO_LEFT) ? ncoord_prev_unit(coord) : ncoord_next_unit(coord);
+	ret = (flags & GN_GO_LEFT) ? coord_prev_unit(coord) : coord_next_unit(coord);
 	if (!ret) return 0;
 
 	ret = lock_side_neighbor(handle, coord->node, ZNODE_READ_LOCK, flags);
@@ -241,7 +241,7 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 
 	spin_unlock_tree(current_tree);
 
-	ncoord_init_zero(coord);
+	coord_init_zero(coord);
 
 	node = handle->node;
 
@@ -255,8 +255,8 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 		return ret;
 	}
 
-	if (flags & GN_GO_LEFT) ncoord_init_last_unit(coord, node);
-	else                    ncoord_init_first_unit(coord, node);
+	if (flags & GN_GO_LEFT) coord_init_last_unit(coord, node);
+	else                    coord_init_first_unit(coord, node);
 
 	spin_lock_tree(current_tree);
 	return 0;
@@ -372,7 +372,7 @@ static int connect_one_side (coord_t * coord, znode * node, int flags)
 	assert("umka-248", coord != NULL);
 	assert("umka-249", node != NULL);
 	
-	ncoord_dup_nocheck(&local, coord);
+	coord_dup_nocheck(&local, coord);
 	init_lh(&handle);
 
 	ret = renew_sibling_link(&local, &handle, node, znode_get_level( node ),
@@ -474,7 +474,7 @@ static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int 
 	 * Something like assert("xxx-yyy", level < REAL_MAX_ZTREE_HEIGHT); 
 	 * */
 	
-	ncoord_dup(&local, coord);
+	coord_dup(&local, coord);
 
 	ret = renew_sibling_link(&local, &empty[0], node, level, flags & ~GN_NO_ALLOC, &nr_locked);
 	if (ret) goto out;
@@ -556,7 +556,7 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 
 	assert("umka-310", base_level <= tree->height);
 	
-	ncoord_init_zero(&coord);
+	coord_init_zero(&coord);
 
  again:
 	/* first, we try to use simple lock_neighbor() which requires sibling

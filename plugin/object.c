@@ -126,7 +126,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		break;
 	case CBK_COORD_FOUND:
 		if( REISER4_DEBUG && ( result = zload( coord -> node ) ) == 0 ) {
-			assert( "nikita-1082", ncoord_is_existing_unit( coord ) );
+			assert( "nikita-1082", coord_is_existing_unit( coord ) );
 			assert( "nikita-721", item_plugin_by_coord( coord ) != NULL );
 			/* next assertion checks that item we found really has
 			 * the key we've been looking for */
@@ -200,7 +200,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 
 	inode -> i_ino = oid;
 
-	ncoord_init_zero( &coord );
+	coord_init_zero( &coord );
 	init_lh( &lh );
 
 	result = insert_by_key( tree_by_inode( inode ),
@@ -310,7 +310,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		    ( ( result = zload( coord.node ) ) == 0 ) ) {
 			reiser4_key ukey;
 
-			if( !ncoord_is_existing_unit( &coord ) ||
+			if( !coord_is_existing_unit( &coord ) ||
 			    !item_plugin_by_coord( &coord ) ||
 			    !keyeq( unit_key_by_coord( &coord, &ukey ), &key ) ||
 			    ( znode_get_level( coord.node ) != LEAF_LEVEL ) ||
@@ -318,7 +318,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 				warning( "nikita-1901", "Conspicuous seal" );
 				/*print_inode( "inode", inode );*/
 				print_key( "key", &key );
-				ncoord_print( "coord", &coord, 1 );
+				coord_print( "coord", &coord, 1 );
 				result = -EIO;
 			}
 			zrelse( coord.node );
@@ -327,7 +327,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		result = -EAGAIN;
 
 	if( result != 0 ) {
-		ncoord_init_zero( &coord );
+		coord_init_zero( &coord );
 		result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	}
 	error_message = NULL;
@@ -529,7 +529,7 @@ int common_file_owns_item( const struct inode *inode /* object to check
 	assert( "nikita-761", coord != NULL );
 
 	return /*coord_is_in_node( coord ) &&*/
-		ncoord_is_existing_item (coord) &&
+		coord_is_existing_item (coord) &&
 		( get_key_objectid( build_sd_key ( inode, &file_key ) ) ==
 		  get_key_objectid( item_key_by_coord( coord, &item_key ) ) );
 }
@@ -659,7 +659,7 @@ static int dir_can_rem_link( const struct inode *dir )
 	if( result != 0 )
 		return result;
 
-	ncoord_init_zero( &coord );
+	coord_init_zero( &coord );
 	init_lh( &lh );
 		
 	/* 

@@ -272,7 +272,7 @@ static void read_inode( struct inode * inode /* inode to read from disk */,
 	info = reiser4_inode_data( inode );
 	assert( "nikita-300", info -> locality_id != 0 );
 
-	ncoord_init_zero( &coord );
+	coord_init_zero( &coord );
 	init_lh( &lh );
 	/* locate stat-data in a tree and return znode locked */
 	result = lookup_sd_by_key( tree_by_inode( inode ), 

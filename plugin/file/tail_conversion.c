@@ -109,7 +109,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	to_page = PAGE_CACHE_SIZE;
 	result = 0;
 
-	ncoord_init_zero (&coord);
+	coord_init_zero (&coord);
 	init_lh (&lh);
 
 	for (i = 0; i < nr_pages; i ++) {
@@ -287,7 +287,7 @@ int tail2extent (struct inode * inode)
 	item = 0;
 	copied = 0;
 
-	ncoord_init_zero (&coord);
+	coord_init_zero (&coord);
 	init_lh (&lh);
 	while (1) {
 		if (!item) {
@@ -454,7 +454,7 @@ int extent2tail (struct file * file)
 		
 		do_conversion = 0;
 
-		ncoord_init_zero (&coord);
+		coord_init_zero (&coord);
 		init_lh (&lh);
 		result = find_next_item (file, &from, &coord, &lh, ZNODE_READ_LOCK);
 		if (result == CBK_COORD_FOUND && (result = zload (coord.node))) {

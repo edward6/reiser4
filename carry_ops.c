@@ -270,7 +270,7 @@ static int free_space_shortage( znode *node /* node to check */,
 		 * when inserting extent shift data around until insertion
 		 * point is utmost in the node.
 		 */
-		if( ncoord_wrt( op -> u.insert.d -> coord ) == COORD_INSIDE )
+		if( coord_wrt( op -> u.insert.d -> coord ) == COORD_INSIDE )
 			return +1;
 		else 
 			return -1;
@@ -447,7 +447,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 * shift everything possible on the right of and
 		 * including insertion coord into the right neighbor.
 		 */
-		ncoord_dup( &coord_shadow, op -> u.insert.d -> coord );
+		coord_dup( &coord_shadow, op -> u.insert.d -> coord );
 		node_shadow = op -> node;
 		result = carry_shift_data( RIGHT_SIDE, op -> u.insert.d -> coord,
 					   fresh -> real_node, doing, todo, 1 );
@@ -464,8 +464,8 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			 * still no enough space?! May be there is enough
 			 * space in the source node now.
 			 */
-			ncoord_normalize( &coord_shadow );
-			ncoord_dup( op -> u.insert.d -> coord, &coord_shadow );
+			coord_normalize( &coord_shadow );
+			coord_dup( op -> u.insert.d -> coord, &coord_shadow );
 			node = op -> u.insert.d -> coord -> node;
 			op -> node = node_shadow;
 			not_enough_space = free_space_shortage( node, op );
@@ -679,7 +679,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 	 * FIXME-VS: init_coord used to be here. insert_paste_common seems to
 	 * use that zeroed coord
 	 */
-	ncoord_init_zero (&coord);
+	coord_init_zero (&coord);
 
 	/* perform common functionality of insert and paste. */
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
@@ -730,8 +730,8 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, delete );
 
-	ncoord_init_zero( &coord );
-	ncoord_init_zero( &coord2 );
+	coord_init_zero( &coord );
+	coord_init_zero( &coord2 );
 
 	parent = op -> node -> real_node;
 	child  = op -> u.delete.child ?
@@ -768,7 +768,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		return result;
 	}
 
-	ncoord_dup( &coord2, &coord );
+	coord_dup( &coord2, &coord );
 	result = node_plugin_by_node( parent ) -> cut_and_kill
 		( &coord, &coord2, NULL, NULL, NULL, todo, 
 		  NULL, op -> u.delete.flags );
@@ -857,7 +857,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, paste );
 
-	ncoord_init_zero( &coord );
+	coord_init_zero( &coord );
 
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
 	if( result != 0 )
@@ -867,10 +867,10 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	iplug = ncoord_is_existing_item( op -> u.insert.d -> coord ) ? 
+	iplug = coord_is_existing_item( op -> u.insert.d -> coord ) ? 
 		item_plugin_by_coord( op -> u.insert.d -> coord ) : NULL;
 	can_paste_here = 
-		ncoord_is_existing_item( op -> u.insert.d -> coord ) &&
+		coord_is_existing_item( op -> u.insert.d -> coord ) &&
 		( iplug == op -> u.insert.d -> data -> iplug );
 
 	if( !can_paste_here || 
@@ -893,7 +893,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	assert( "nikita-987",
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
-	assert( "nikita-1286", ncoord_is_existing_item( op -> u.insert.d -> coord ) );
+	assert( "nikita-1286", coord_is_existing_item( op -> u.insert.d -> coord ) );
 
 	assert( "nikita-992", iplug != NULL );
 	real_size = space_needed_for_op( node, op );
@@ -984,7 +984,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	assert( "nikita-1754", node != NULL );
 	assert( "nikita-1755", node_plugin_by_node( node ) != NULL );
 	assert( "nikita-1700", 
-		ncoord_wrt( op -> u.extent.d -> coord ) != COORD_INSIDE );
+		coord_wrt( op -> u.extent.d -> coord ) != COORD_INSIDE );
 	/*
 	 * FIXME-NIKITA add some checks here. Not assertions, -EIO. Check that
 	 * extent fits between items.
@@ -1058,7 +1058,7 @@ static int update_delimiting_key( znode *parent /* node key is updated
 		return result;
 	}
 
-	if( ( left != NULL ) && !ncoord_is_leftmost_unit( &right_pos ) ) {
+	if( ( left != NULL ) && !coord_is_leftmost_unit( &right_pos ) ) {
 		/* find position of the left child in a parent */
 		result = find_child_ptr( parent, left, &left_pos );
 		if( result != NS_FOUND ) {
@@ -1074,16 +1074,16 @@ static int update_delimiting_key( znode *parent /* node key is updated
 	 * sane
 	 */
 	if( REISER4_DEBUG ) {
-		if( ( left_pos.node != NULL ) && !ncoord_is_existing_unit( &left_pos ) ) {
+		if( ( left_pos.node != NULL ) && !coord_is_existing_unit( &left_pos ) ) {
 			*error_msg = "Left child is bastard";
 			return -EIO;
 		}
-		if( !ncoord_is_existing_unit( &right_pos ) ) {
+		if( !coord_is_existing_unit( &right_pos ) ) {
 			*error_msg = "Right child is bastard";
 			return -EIO;
 		}
 		if( ( left_pos.node != NULL ) && 
-		    !ncoord_are_neighbors( &left_pos, &right_pos ) ) {
+		    !coord_are_neighbors( &left_pos, &right_pos ) ) {
 			*error_msg = "Children are not direct siblings";
 			return -EIO;
 		}
@@ -1235,7 +1235,7 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 		znode_set_dirty( source );
 		znode_set_dirty( node );
 	}
-	assert( "nikita-2077", ncoord_check( insert_coord ) );
+	assert( "nikita-2077", coord_check( insert_coord ) );
 	return 0;
 }
 

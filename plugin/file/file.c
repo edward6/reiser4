@@ -40,7 +40,7 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	result = zload (coord->node);
 	if (result)
 		return 0;
-	if (ncoord_is_existing_unit (coord)) {
+	if (coord_is_existing_unit (coord)) {
 		/* check whether @key is inside of this unit */
 		item_plugin * iplug;
 
@@ -54,7 +54,7 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	} else {
 		/* when coord is set after last unit in an item - it is very
 		 * often exactly what we need */
-		if (ncoord_is_after_last_unit (coord)) {
+		if (coord_is_after_last_unit (coord)) {
 			/* just check key of next item before using that
 			 * coord */
 			reiser4_key tmp_key; /* will be used for various purposes */
@@ -70,8 +70,8 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 				 * node */
 				coord_t next;
 
-				ncoord_dup (&next, coord);
-				check_me ("vs-730", ncoord_set_to_right (&next));
+				coord_dup (&next, coord);
+				check_me ("vs-730", coord_set_to_right (&next));
 				item_key_by_coord (&next, &tmp_key);
 			}
 			if (keygt (&tmp_key, key)) {
@@ -145,7 +145,7 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 		result = zload (lh_right_neighbor.node);
 		if (result != 0)
 			return result;
-		ncoord_init_first_unit (coord, lh_right_neighbor.node);
+		coord_init_first_unit (coord, lh_right_neighbor.node);
 		move_lh (lh, &lh_right_neighbor);
 	}
 	return result;	
@@ -190,7 +190,7 @@ int find_next_item (struct file * file,
 							ZNODE_LOCK_LOPRI);
 				if (result == 0) {
 					/* set coord based on seal */
-					ncoord_dup (coord, sealed_coord);
+					coord_dup (coord, sealed_coord);
 				}
 			}
 		}
@@ -206,7 +206,7 @@ int find_next_item (struct file * file,
 		/**/
 		done_lh (lh);
 
-		ncoord_init_zero (coord);
+		coord_init_zero (coord);
 		init_lh (lh);
 	}
 
@@ -284,7 +284,7 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 	unix_file_key_by_inode (page->mapping->host,
 				(loff_t)page->index << PAGE_CACHE_SHIFT, &key);
 	
-	ncoord_init_zero (&coord);
+	coord_init_zero (&coord);
 	init_lh (&lh);
 
 	/* look for file metadata corresponding to first byte of page */
@@ -362,7 +362,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	call_code resembling generic_readahead in its algorithms but which modifies to_read;
 #endif
 	
-	ncoord_init_zero (&coord);
+	coord_init_zero (&coord);
 	init_lh (&lh);
 
 	to_read = f.length;
@@ -458,7 +458,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	get_nonexclusive_access (inode);
 
 	init_lh (&lh);
-	ncoord_init_zero (&coord);
+	coord_init_zero (&coord);
 
 	to_write = f.length;
 	while (f.length) {
@@ -503,7 +503,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 				return result;
 			}
 			init_lh (&lh);
-			ncoord_init_zero (&coord);
+			coord_init_zero (&coord);
 			continue;
 
 		default:

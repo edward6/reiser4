@@ -319,7 +319,7 @@ int extent_init (coord_t * coord, reiser4_item_data * extent)
 	assert ("vs-529",
 		item_length_by_coord (coord) == sizeof (reiser4_extent));
 	assert ("vs-530", coord->unit_pos == 0);
-	assert ("vs-531", ncoord_is_existing_unit (coord));
+	assert ("vs-531", coord_is_existing_unit (coord));
 	/* extent was prepared in kernel space */
 	assert ("vs-555", extent->user == 0);
 
@@ -361,7 +361,7 @@ int extent_paste (coord_t * coord, reiser4_item_data * data,
 	assert ("vs-260", item_length >= data->length);
 
 	/* make sure that coord is set properly */
-	assert ("vs-35", ((!ncoord_is_existing_unit (coord)) || 
+	assert ("vs-35", ((!coord_is_existing_unit (coord)) || 
 			  (!old_nr_units && !coord->unit_pos))); 
 	
 	/* first unit to be moved */
@@ -388,7 +388,7 @@ int extent_paste (coord_t * coord, reiser4_item_data * data,
 	xmemcpy (ext + coord->unit_pos, data->data, (unsigned)data->length);
 
 	/* after paste @coord is set to first of pasted units */
-	assert ("vs-332", ncoord_is_existing_unit (coord));
+	assert ("vs-332", coord_is_existing_unit (coord));
 	assert ("vs-333", !memcmp (data->data, extent_by_coord (coord),
 				   (unsigned)data->length));
 	return 0;
@@ -444,7 +444,7 @@ void extent_copy_units (coord_t * target, coord_t * source,
 		reiser4_key key;
 		coord_t coord;
 
-		assert ("vs-216", from + count == ncoord_last_unit_pos (source) + 1);
+		assert ("vs-216", from + count == coord_last_unit_pos (source) + 1);
 
 		from_ext += item_length_by_coord (source) - free_space;
 
@@ -480,11 +480,11 @@ int extent_create_hook (const coord_t * coord, void * arg)
 	 * be updated
 	 */
 	child_coord = arg;
-	if (ncoord_wrt (child_coord) == COORD_ON_THE_LEFT) {
+	if (coord_wrt (child_coord) == COORD_ON_THE_LEFT) {
 		assert ("vs-411", znode_is_left_connected (child_coord->node));
 		node = child_coord->node->left;
 	} else {
-		assert ("vs-412", ncoord_wrt (child_coord) == COORD_ON_THE_RIGHT);
+		assert ("vs-412", coord_wrt (child_coord) == COORD_ON_THE_RIGHT);
 		node = child_coord->node;
 	}
 
@@ -593,7 +593,7 @@ static int cut_or_kill_units (coord_t * coord,
 	/*
 	 * extent item can be cut either from the beginning or down to the end
 	 */
-	assert ("vs-298", *from == 0 || *to == ncoord_last_unit_pos (coord));
+	assert ("vs-298", *from == 0 || *to == coord_last_unit_pos (coord));
 	
 
 	item_key_by_coord (coord, &key);
@@ -634,7 +634,7 @@ static int cut_or_kill_units (coord_t * coord,
 			/* cut from the middle of extent item is not allowed,
 			 * make sure that the rest of item gets cut
 			 * completely */
-			assert ("vs-612", *to == ncoord_last_unit_pos (coord));
+			assert ("vs-612", *to == coord_last_unit_pos (coord));
 			assert ("vs-613",
 				keyge (to_key, extent_max_key (coord, &key_inside)));
 
@@ -706,7 +706,7 @@ static int cut_or_kill_units (coord_t * coord,
 		 */
 		extent_kill_item_hook (coord, *from, count, NULL/*FIXME!!!*/);
 
-	if (*from == 0 && count != ncoord_last_unit_pos (coord) + 1) {
+	if (*from == 0 && count != coord_last_unit_pos (coord) + 1) {
 		/*
 		 * part of item is removed from item beginning, update item key
 		 * therefore
@@ -760,7 +760,7 @@ int extent_kill_units (coord_t * item, unsigned * from, unsigned * to,
 /* Audited by: green(2002.06.13) */
 reiser4_key * extent_unit_key (const coord_t * coord, reiser4_key * key)
 {
-	assert ("vs-300", ncoord_is_existing_unit (coord));
+	assert ("vs-300", coord_is_existing_unit (coord));
 
 	item_key_by_coord (coord, key);
 	set_key_offset (key, (get_key_offset (key) +
@@ -823,11 +823,11 @@ static void optimize_extent (coord_t * item)
 		int result;
 		coord_t from, to;
 
-		ncoord_dup (&from, item);
+		coord_dup (&from, item);
 		from.unit_pos = new_num;
 		from.between = AT_UNIT;
 
-		ncoord_dup (&to, &from);
+		coord_dup (&to, &from);
 		to.unit_pos = old_num - 1;
 
 		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0);
@@ -1005,7 +1005,7 @@ static reiser4_block_nr in_extent (const coord_t * coord,
         reiser4_block_nr cur;
         reiser4_extent * ext;
 
-        assert ("vs-266", ncoord_is_existing_unit (coord));
+        assert ("vs-266", coord_is_existing_unit (coord));
 
         item_key_by_coord (coord, &key);
         cur = get_key_offset (&key) + extent_size (coord, (unsigned) coord->unit_pos);
@@ -1096,7 +1096,7 @@ static int append_one_block (coord_t * coord,
 	reiser4_key key;
 
 	assert ("vs-228",
-		(coord->unit_pos == ncoord_last_unit_pos (coord) &&
+		(coord->unit_pos == coord_last_unit_pos (coord) &&
 		 coord->between == AFTER_UNIT) ||
 		coord->between == AFTER_ITEM);
 
@@ -1122,7 +1122,7 @@ static int append_one_block (coord_t * coord,
 	set_jnode_unallocated (j);
 	jnode_set_mapped (j);
 
-	coord->unit_pos = ncoord_last_unit_pos (coord);
+	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
 	return 0;
 }
@@ -1141,7 +1141,7 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 	reiser4_item_data item;
 	int count;
 
-	assert ("vs-234", ncoord_is_existing_unit (coord));
+	assert ("vs-234", coord_is_existing_unit (coord));
 
 	ext = extent_by_coord (coord);
 	width = extent_get_width (ext);
@@ -1180,7 +1180,7 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 static reiser4_block_nr blocknr_by_coord_in_extent (coord_t * coord,
 						    reiser4_block_nr off)
 {
-	assert ("vs-12", ncoord_is_existing_unit (coord));
+	assert ("vs-12", coord_is_existing_unit (coord));
 	assert ("vs-264", state_of_extent (extent_by_coord (coord)) ==
 		ALLOCATED_EXTENT);
 
@@ -1237,7 +1237,7 @@ static reiser4_extent* extent_utmost_ext ( const coord_t *coord, sideof side,
 		 * get last extent of item and last position within it
 		 */
 		assert ("vs-363", side == RIGHT_SIDE);
-		ext = extent_item (coord) + ncoord_last_unit_pos (coord);
+		ext = extent_item (coord) + coord_last_unit_pos (coord);
 		*pos_in_unit = extent_get_width (ext) - 1;
 	}
 
@@ -1492,7 +1492,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	assert ("vs-714", item_id_by_coord (coord) == EXTENT_POINTER_ID);
 	/* @coord points to last extent of the item and to its last block */
 	assert ("vs-29",
-		coord->unit_pos == ncoord_last_unit_pos (coord) &&
+		coord->unit_pos == coord_last_unit_pos (coord) &&
 		coord->between == AFTER_UNIT);
 	
 	hole_off = get_key_offset (last_key_in_extent(coord, &last_key));
@@ -1524,7 +1524,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	if (!result) {
 		/* this should re-set @coord such that no re-search will be
 		 * required to continue writing to a file */
-		coord->unit_pos = ncoord_last_unit_pos (coord);
+		coord->unit_pos = coord_last_unit_pos (coord);
 		coord->between = AFTER_UNIT;
 	}
 	return result;
@@ -1585,7 +1585,7 @@ static extent_write_todo extent_what_todo (const coord_t * coord,
 
 	if (!znode_contains_key_lock (coord->node, key)) {
 		assert ("vs-602", !node_is_empty (coord->node));
-		ncoord_init_first_unit (&left, coord->node);
+		coord_init_first_unit (&left, coord->node);
 		item_key_by_coord (&left, &coord_key);
 
 		if (keylt (key, &coord_key)) {
@@ -1593,7 +1593,7 @@ static extent_write_todo extent_what_todo (const coord_t * coord,
 			 * of another file we can get here even if coord->node
 			 * does not contain key we are looking for */
 			if (znode_get_level (coord->node) == LEAF_LEVEL &&
-			    ncoord_is_before_leftmost (coord)) {
+			    coord_is_before_leftmost (coord)) {
 				if (fbb_offset == 0)
 					return EXTENT_FIRST_BLOCK;
 				else {
@@ -1617,12 +1617,12 @@ static extent_write_todo extent_what_todo (const coord_t * coord,
 		}
 	}
 
-	if (ncoord_is_existing_unit (coord))
+	if (coord_is_existing_unit (coord))
 		return key_in_extent (coord, key) ? EXTENT_OVERWRITE_BLOCK : EXTENT_RESEARCH;
 
-	if (ncoord_is_between_items (coord)) {
+	if (coord_is_between_items (coord)) {
 		if (node_is_empty (coord->node) ||
-		    !ncoord_is_existing_item (coord)) {
+		    !coord_is_existing_item (coord)) {
 			assert ("vs-722", znode_get_level (coord->node) == LEAF_LEVEL);
 			if (fbb_offset == 0)
 				return EXTENT_FIRST_BLOCK;
@@ -1634,7 +1634,7 @@ static extent_write_todo extent_what_todo (const coord_t * coord,
 
 		/* look at the item to the right of @coord*/
 		right = *coord;
-		if (ncoord_set_to_right (&right) == 0) {
+		if (coord_set_to_right (&right) == 0) {
 			reiser4_key right_key;
 
 			/* there is an item to the right of @coord */
@@ -1693,7 +1693,7 @@ static extent_write_todo extent_what_todo (const coord_t * coord,
 
 		/* look at the item to the left of @coord*/
 		left = *coord;
-		if (ncoord_set_to_left (&left)) {
+		if (coord_set_to_left (&left)) {
 			info ("extent_what_todo: "
 			      "no item to the left of insertion coord\n");
 			return EXTENT_RESEARCH;
@@ -2186,7 +2186,7 @@ static int reset_coord (struct page * page,
 		assert ("vs-389", coord->item_pos == 0);
 		done_lh (lh);
 
-		ncoord_init_zero (coord);
+		coord_init_zero (coord);
 		init_lh (lh);
 		result = coord_by_key (current_tree, &key, coord, lh,
 				       ZNODE_READ_LOCK, FIND_EXACT,
@@ -2473,7 +2473,7 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
 	cop_insert_flag flags;
 
 	/* set coord after last unit in an item */
-	ncoord_init_last_unit (&coord, node);
+	coord_init_last_unit (&coord, node);
 	coord.between = AFTER_UNIT;
 
 	flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
@@ -2509,7 +2509,7 @@ static int try_to_glue (znode * left, coord_t * right,
 	if (right->unit_pos != 0)
 		return 0;
 
-	ncoord_init_last_unit (&last, left);
+	coord_init_last_unit (&last, left);
 
 	ext = extent_by_coord (&last);
 
@@ -2570,7 +2570,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	item_key_by_coord (right, &key);
 
 	ext = extent_item (right);
-	for (; right->unit_pos < ncoord_num_units (right); right->unit_pos ++, ext ++) {
+	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
 		if (!extent_needs_allocation (ext, preceder)) {
 			/*
 			 * unit does not require allocation, copy this unit as
@@ -2695,7 +2695,7 @@ static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
 
 	set_extent (&new_ext, UNALLOCATED_EXTENT, width);
 	
-	ncoord_dup (&coord, item);
+	coord_dup (&coord, item);
 	coord.between = AFTER_UNIT;
 	/*
 	 * have insert_into_item to not shift anything to left
@@ -2728,10 +2728,10 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 
-	assert ("vs-451", item->unit_pos == 0 && ncoord_is_existing_unit (item));
+	assert ("vs-451", item->unit_pos == 0 && coord_is_existing_unit (item));
 
 	ext = extent_item (item);
-	for (i = 0; i < ncoord_num_units (item); i ++, ext ++, item->unit_pos ++) {
+	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
 		if (!extent_needs_allocation (ext, preceder))
 			continue;
 		assert ("vs-439", state_of_extent (ext) == UNALLOCATED_EXTENT);
@@ -2802,7 +2802,7 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 
 	/* set coord to last unit in the item */
 	assert ("vs-679", item_is_extent (item));
-	item->unit_pos = ncoord_last_unit_pos (item);
+	item->unit_pos = coord_last_unit_pos (item);
 	item->between = AT_UNIT;
 
 	return 0;
@@ -2832,10 +2832,10 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, coord_t * coord,
 		reiser4_block_nr da;
 
 		assert ("vs-455", coord->unit_pos == 0);
-		ncoord_dup (&prev, coord);
+		coord_dup (&prev, coord);
 		/* there must exist an unit to the left of coord */
-		ncoord_prev_unit (&prev);
-		assert ("vs-680", ncoord_is_existing_unit (&prev));
+		coord_prev_unit (&prev);
+		assert ("vs-680", coord_is_existing_unit (&prev));
 
 		if (item_is_internal (&prev)) {
 			item_plugin_by_coord (&prev)->s.internal.down_link (&prev, 0,
@@ -2863,7 +2863,7 @@ __u64 extent_unit_index (const coord_t * item)
 {
 	reiser4_key key;
 
-	assert ("vs-648", ncoord_is_existing_unit (item));
+	assert ("vs-648", coord_is_existing_unit (item));
 	unit_key_by_coord (item, &key);
 	return get_key_offset (&key) >> reiser4_get_current_sb ()->s_blocksize_bits;
 }
@@ -2873,7 +2873,7 @@ __u64 extent_unit_index (const coord_t * item)
 /* AUDIT shouldn't return value be of reiser4_block_nr type? */
 __u64 extent_unit_width (const coord_t * item)
 {
-	assert ("vs-649", ncoord_is_existing_unit (item));
+	assert ("vs-649", coord_is_existing_unit (item));
 	return width_by_coord (item);
 }
 

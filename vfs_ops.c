@@ -606,7 +606,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 		REISER4_EXIT( -ENOTDIR );
 
 	/*init_coord( &coord );*/
-	ncoord_init_zero( &coord );
+	coord_init_zero( &coord );
 	init_lh( &lh );
 
 	result = build_readdir_key( f, &arg.key );

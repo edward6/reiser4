@@ -268,7 +268,7 @@ static void zinit( znode *node /* znode to initialise */,
 	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
 
-	ncoord_init_parent_hint (&node -> ptr_in_parent_hint, parent);
+	coord_init_parent_hint (&node -> ptr_in_parent_hint, parent);
 
 	assert( "umka-051", current_tree != NULL );
 	

@@ -42,7 +42,7 @@ static int single_key_in_coord( const coord_t *coord, const reiser4_key *key )
 {
 	reiser4_key unit_key;
 
-	assert( "vs-717", ncoord_is_existing_unit( coord ));
+	assert( "vs-717", coord_is_existing_unit( coord ));
 	unit_key_by_coord( coord, &unit_key );
 	return keyeq( key, &unit_key ) ? 1 : 0;
 }
@@ -130,7 +130,7 @@ int are_items_mergeable( const coord_t *i1 /* coord of first item */,
 /* Audited by: green(2002.06.14) */
 int item_is_extent (const coord_t *item)
 {
-	assert ("vs-482", ncoord_is_existing_item (item));
+	assert ("vs-482", coord_is_existing_item (item));
 	return item_id_by_coord (item) == EXTENT_POINTER_ID;
 }
 
@@ -138,7 +138,7 @@ int item_is_extent (const coord_t *item)
 /* Audited by: green(2002.06.14) */
 int item_is_internal (const coord_t *item)
 {
-	assert ("vs-483", ncoord_is_existing_item (item));
+	assert ("vs-483", coord_is_existing_item (item));
 	return item_type_by_coord (item) == INTERNAL_ITEM_TYPE;
 }
 
@@ -146,7 +146,7 @@ int item_is_internal (const coord_t *item)
 /* Audited by: green(2002.06.14) */
 int item_is_statdata (const coord_t *item)
 {
-	assert ("vs-516", ncoord_is_existing_item (item));
+	assert ("vs-516", coord_is_existing_item (item));
 	return item_type_by_coord (item) == STAT_DATA_ITEM_TYPE;
 }
 

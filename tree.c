@@ -333,7 +333,7 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
 		 */
 		result = -ENOSPC;
 	} else if( ( item_size <= znode_free_space( node ) ) && 
-		   !ncoord_is_before_leftmost( coord ) && 
+		   !coord_is_before_leftmost( coord ) && 
 		   ( node_plugin_by_node( node ) -> fast_insert != NULL ) &&
 		   node_plugin_by_node( node ) -> fast_insert( coord ) ) {
 		/*
@@ -789,7 +789,7 @@ int check_tree_pointer( const coord_t *pointer /* would-be pointer to
 	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
 		return NS_NOT_FOUND;
 
-	if( ncoord_is_existing_unit( pointer ) ) {
+	if( coord_is_existing_unit( pointer ) ) {
 		item_plugin     *iplug;
 		reiser4_block_nr addr;
 
@@ -864,7 +864,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 
 	assert( "umka-321", current_tree != NULL );
 
-	ncoord_init_zero( result );
+	coord_init_zero( result );
 	result -> node = parent;
 
 	nplug = parent -> nplug;
@@ -998,7 +998,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 	coord_t from;
 	node_plugin * nplug;
 
-	ncoord_init_last_unit (&from, right);
+	coord_init_last_unit (&from, right);
 
 	nplug = node_plugin_by_node (right);
 	result = nplug->shift (&from, left, SHIFT_LEFT,
@@ -1111,9 +1111,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 
 	assert ("vs-593", from->unit_pos == 0);
 
-	ncoord_dup (&left_coord, from);
+	coord_dup (&left_coord, from);
 	init_lh (&left_lh);
-	if (ncoord_prev_unit (&left_coord)) {
+	if (coord_prev_unit (&left_coord)) {
 		if (!locked_left_neighbor) {
 			/* @from is leftmost item in its node */
 			result = reiser4_get_left_neighbor (&left_lh, from->node,
@@ -1135,9 +1135,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			}
 
 			/* we have acquired left neighbor of from->node */
-			ncoord_init_last_unit (&left_coord, left_lh.node);
+			coord_init_last_unit (&left_coord, left_lh.node);
 		} else {
-			ncoord_init_last_unit (&left_coord, locked_left_neighbor);
+			coord_init_last_unit (&left_coord, locked_left_neighbor);
 		}
 	}
 
@@ -1166,17 +1166,17 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		lock_handle right_lh;
 
 
-		assert ("vs-607", to->unit_pos == ncoord_last_unit_pos (to));
-		ncoord_dup (&right_coord, to);
+		assert ("vs-607", to->unit_pos == coord_last_unit_pos (to));
+		coord_dup (&right_coord, to);
 		init_lh (&right_lh);
-		if (ncoord_next_unit (&right_coord)) {
+		if (coord_next_unit (&right_coord)) {
 			/* @to is rightmost unit in the node */
 			result = reiser4_get_right_neighbor (&right_lh, from->node,
 							     ZNODE_READ_LOCK,
 							     GN_DO_READ);
 			switch (result) {
 			case 0:
-				ncoord_init_first_unit (&right_coord, right_lh.node);
+				coord_init_first_unit (&right_coord, right_lh.node);
 				item_key_by_coord (&right_coord, &key);
 				break;
 
@@ -1276,20 +1276,20 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 	assert ("umka-328", from != NULL);
 	assert ("vs-316", !node_is_empty (from->node));
 
-	if (ncoord_eq (from, to) && !ncoord_is_existing_unit (from)) {
-		assert ("nikita-1812", !ncoord_is_existing_unit (to));
+	if (coord_eq (from, to) && !coord_is_existing_unit (from)) {
+		assert ("nikita-1812", !coord_is_existing_unit (to));
 		/* Napoleon defeated */
 		return 0;
 	}
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
-	if (ncoord_set_to_right (from) || ncoord_set_to_left (to))
+	if (coord_set_to_right (from) || coord_set_to_left (to))
 		return -EIO;
 
 	/* make sure that @from and @to are set to existing units in the
 	   node */
-	assert ("vs-161", ncoord_is_existing_unit (from));
-	assert ("vs-162", ncoord_is_existing_unit (to));
+	assert ("vs-161", coord_is_existing_unit (from));
+	assert ("vs-162", coord_is_existing_unit (to));
 
 
 	if (znode_get_level (from->node) == TWIG_LEVEL && item_is_extent (from)) {
@@ -1365,8 +1365,8 @@ int cut_tree (reiser4_tree * tree,
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
 
-	ncoord_init_zero (&intranode_to);
-	ncoord_init_zero (&intranode_from);
+	coord_init_zero (&intranode_to);
+	coord_init_zero (&intranode_from);
 	init_lh(&lock_handle);
 
 #define WE_HAVE_READAHEAD (0)
@@ -1406,8 +1406,8 @@ int cut_tree (reiser4_tree * tree,
 		}
 
 
-		if (ncoord_eq (&intranode_from, &intranode_to) && 
-		    !ncoord_is_existing_unit (&intranode_from)) {
+		if (coord_eq (&intranode_from, &intranode_to) && 
+		    !coord_is_existing_unit (&intranode_from)) {
 			/* nothing to cut */
 			result = 0;
 			zrelse (loaded);
@@ -1467,7 +1467,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		print_address( "children of node", znode_get_block( node ) );
 	}
 
-	for( ncoord_init_before_first_item( &coord, node ); ncoord_next_item( &coord ) == 0; ) {
+	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
 
 		if( item_is_internal(&coord ) ) {
 			znode *child;
@@ -1575,7 +1575,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
 	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
 	print_seal( "\tsd_seal", &ref -> sd_seal );
-	ncoord_print( "\tsd_coord", &ref -> sd_coord, 1 );
+	coord_print( "\tsd_coord", &ref -> sd_coord, 1 );
 	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
 	      ref -> flags, ref -> bytes, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );

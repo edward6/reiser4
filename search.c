@@ -471,7 +471,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 	result = zload( coord -> node );
 	if( result != 0 )
 		return result;
-	if( !ncoord_is_existing_unit( coord ) ) {
+	if( !coord_is_existing_unit( coord ) ) {
 		zrelse( coord -> node );
 		return -ENOENT;
 	}
@@ -479,8 +479,8 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 		/*
 		 * move further 
 		 */
-		if( ( through_units_p && ncoord_next_unit( coord ) ) || 
-		    ( !through_units_p && ncoord_next_item( coord ) ) ) {
+		if( ( through_units_p && coord_next_unit( coord ) ) || 
+		    ( !through_units_p && coord_next_item( coord ) ) ) {
 			do {
 				lock_handle couple;
 
@@ -498,14 +498,14 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 					result = zload( couple.node );
 					if( result != 0 )
 						return result;
-					ncoord_init_first_unit( coord, couple.node );
+					coord_init_first_unit( coord, couple.node );
 					move_lh( lh, &couple );
 				} else
 					return result;
 			} while( node_is_empty( coord -> node ) );
 		};
 
-		assert( "nikita-1149", ncoord_is_existing_unit( coord ) );
+		assert( "nikita-1149", coord_is_existing_unit( coord ) );
 	}
 	zrelse( coord -> node );
 	return result;
@@ -623,7 +623,7 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 			assert( "nikita-1605", ergo( ( h -> result == CBK_COORD_FOUND ) &&
 						     ( h -> bias == FIND_EXACT ) &&
 						     ( !node_is_empty( h -> coord -> node ) ),
-						     ncoord_is_existing_unit( h -> coord ) ) );
+						     coord_is_existing_unit( h -> coord ) ) );
 			zrelse( h -> coord -> node );
 		} else {
 			h -> error = "zload failed on unloading";
@@ -784,15 +784,15 @@ static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
 			return result;
 		}
 		if( !result ) {
-			ncoord_init_first_unit( &right, right_lh.node );
+			coord_init_first_unit( &right, right_lh.node );
 			if( item_is_internal( &right ) ) {
 				/*
 				 * switch to right neighbor
 				 */
 				done_lh( lh );
 
-				ncoord_init_zero( coord );
-				ncoord_dup( coord, &right );
+				coord_init_zero( coord );
+				coord_dup( coord, &right );
 				move_lh( lh, &right_lh );
 
 				return 1;
@@ -819,7 +819,7 @@ static reiser4_key *rd_key( coord_t *coord, reiser4_key *key )
 		 */
 		coord_t tmp;
 
-		ncoord_dup( &tmp, coord );
+		coord_dup( &tmp, coord );
 		tmp.item_pos ++;
 		item_key_by_coord( &tmp, key );
 	} else {
@@ -951,7 +951,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			/* success of tree lookup */
 			assert( "nikita-1604",
 				ergo( h -> bias == FIND_EXACT, 
-				      ncoord_is_existing_unit( h -> coord ) ) );
+				      coord_is_existing_unit( h -> coord ) ) );
 			if( !( h -> flags & CBK_UNIQUE ) && 
 			    key_is_ld( active, h -> key ) ) {
 				return search_to_left( h );
@@ -1253,22 +1253,22 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	assert( "nikita-1484", parent != NULL );
 	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
 	
-	ncoord_dup( &neighbor, parent_coord );
+	coord_dup( &neighbor, parent_coord );
 
 	if( neighbor.between == AT_UNIT )
 		/* imitate item ->lookup() behavior. */
 		neighbor.between = AFTER_UNIT;
 
-	if( ncoord_is_existing_unit( &neighbor ) || 
-	    ( ncoord_set_to_left( &neighbor ) == 0 ) )
+	if( coord_is_existing_unit( &neighbor ) || 
+	    ( coord_set_to_left( &neighbor ) == 0 ) )
 		unit_key_by_coord( &neighbor, ld );
 	else
 		*ld = *znode_get_ld_key( parent );
 
-	ncoord_dup( &neighbor, parent_coord );
+	coord_dup( &neighbor, parent_coord );
 	if( neighbor.between == AT_UNIT )
 		neighbor.between = AFTER_UNIT;
-	if( ncoord_set_to_right( &neighbor ) == 0 )
+	if( coord_set_to_right( &neighbor ) == 0 )
 		unit_key_by_coord( &neighbor, rd );
 	else
 		*rd = *znode_get_rd_key( parent );
@@ -1310,7 +1310,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 	init_lh( &lh );
 	coord = h -> coord;
 	node  = h -> active_lh -> node;
-	assert( "nikita-1763", ncoord_is_leftmost_unit( coord ) );
+	assert( "nikita-1763", coord_is_leftmost_unit( coord ) );
 
 	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 
@@ -1335,7 +1335,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 
 		nplug = neighbor -> nplug;
 
-		ncoord_init_zero( &crd );
+		coord_init_zero( &crd );
 		bias = h -> bias;
 		h -> bias = FIND_EXACT;
 		h -> result = nplug -> lookup( neighbor, h -> key,

@@ -512,7 +512,7 @@ int cde_check( coord_t *coord /* coord of item to check */,
 	item_start = item_body_by_coord( coord );
 	item_end = item_start + item_length_by_coord( coord );
 
-	ncoord_dup( &c, coord );
+	coord_dup( &c, coord );
 	result = 0;
 	for( i = 0 ; i < units( coord ) ; ++ i ) {
 		directory_entry_format *entry;
