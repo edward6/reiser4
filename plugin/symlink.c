@@ -39,7 +39,8 @@ int symlink_create( struct inode * symlink, /* inode of symlink */
 	/* insert stat data appended with data->name */
 	result = common_file_save (symlink);
 	if (result) {
-		assert( "vs-848", symlink->u.generic_ip == 0);
+		/* FIXME-VS: Make sure that symlink->u.generic_ip is not attached
+		   to kmalloced data */
 	} else {
 		assert( "vs-849", symlink->u.generic_ip &&
 			inode_get_flag (symlink, REISER4_GENERIC_VP_USED));
