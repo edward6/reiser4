@@ -888,6 +888,7 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0) {
 		tap_relse(tap);
 		longterm_unlock_znode(tap->lh);
+		tap->coord->node = 0;
 		return RETERR(-EIO);
 	}
 
@@ -899,6 +900,7 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 		if (!tmp_name) {
 			tap_relse(tap);
 			longterm_unlock_znode(tap->lh);
+			tap->coord->node = 0;
 			return RETERR(-ENOMEM);
 		}
 	} else
@@ -935,6 +937,9 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 				longterm_unlock_znode(tap->lh);
 		}
 	}
+
+	if (result)
+		tap->coord->node = 0;
 	return result;
 }
 
