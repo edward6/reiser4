@@ -19,7 +19,7 @@ typedef enum {
 	INTERNAL_ITEM_TYPE,
 	ORDINARY_FILE_METADATA_TYPE,
 	OTHER_ITEM_TYPE /* not used */
-} item_type;
+} item_type_id;
 
 
 typedef enum { 
@@ -32,8 +32,6 @@ typedef enum {
 	TAIL_ID, 
 	LAST_ITEM_ID 
 } item_id;
-
-#define FIRST_ITEM_ID STATIC_STAT_DATA_ID
 
 /* flags to utmost_child method */
 typedef enum {
@@ -50,7 +48,7 @@ typedef struct {
 	   has the same minor packing locality. Use "item_plugin_id" to determine
 	   what kind of item you have found.  
 	*/
-	item_id id;
+	item_type_id item_type;
 
 	/** operations called by balancing 
 
@@ -300,7 +298,7 @@ struct item_plugin {
 
 static inline item_id item_id_by_plugin (item_plugin *plugin)
 {
-	return plugin->common.id;
+	return plugin->h.id;
 }
 
 

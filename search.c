@@ -92,7 +92,7 @@ node_plugin * node_plugin_by_node( const znode *node /* node to query */ )
 }
 
 /** return type of item at @coord */
-item_type item_type_by_coord( const tree_coord *coord /* coord to query */ )
+item_type_id item_type_by_coord( const tree_coord *coord /* coord to query */ )
 {
 	assert( "nikita-333", coord != NULL );
 	assert( "nikita-334", coord -> node != NULL );
@@ -101,7 +101,7 @@ item_type item_type_by_coord( const tree_coord *coord /* coord to query */ )
 
 	trace_stamp( TRACE_TREE );
 
-	return item_plugin_by_coord( coord ) -> h.id;
+	return item_plugin_by_coord( coord ) -> common.item_type;
 }
 
 /* return id of item */
@@ -115,7 +115,6 @@ item_id item_id_by_coord( const tree_coord *coord /* coord to query */ )
 	trace_stamp( TRACE_TREE );
 
 	assert( "vs-540",
-		item_id_by_plugin( item_plugin_by_coord( coord ) ) > FIRST_ITEM_ID ||
 		item_id_by_plugin( item_plugin_by_coord( coord ) ) < LAST_ITEM_ID );
 	return item_id_by_plugin( item_plugin_by_coord( coord ) );
 }
@@ -954,7 +953,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	assert( "vs-361", h -> level > h -> slevel );
 
 	iplug = item_plugin_by_coord( h -> coord );
-	if( item_is_internal( h -> coord ) ) {
+	if( !item_is_internal( h -> coord ) ) {
 		/* strange item type found on non-stop level?!  Twig
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );

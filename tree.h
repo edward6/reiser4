@@ -239,7 +239,7 @@ extern void coord_unit_move_to( tree_coord *coord, int units );
 extern void *item_body_by_coord( const tree_coord *coord );
 extern int item_length_by_coord( const tree_coord *coord );
 extern item_plugin *item_plugin_by_coord( const tree_coord *coord );
-extern item_type item_type_by_coord( const tree_coord *coord );
+extern item_type_id item_type_by_coord( const tree_coord *coord );
 extern item_id item_id_by_coord( const tree_coord *coord /* coord to query */ );
 extern reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key );
 extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key );
