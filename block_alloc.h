@@ -35,6 +35,7 @@ extern void reiser4_dealloc_block (jnode *node);
 extern int allocate_new_blocks (block_nr * start, block_nr *len);
 extern void reiser4_delete_block (block_nr block UNUSED_ARG);
 extern int free_blocks (block_nr start UNUSED_ARG, block_nr len UNUSED_ARG);
+extern void reiser4_free_block (block_nr block UNUSED_ARG);
 
 /*
  * Make Linus happy.
