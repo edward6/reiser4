@@ -1757,7 +1757,7 @@ static int prepare_for_update (znode * left, znode * right, carry_level * todo)
 			return PTR_ERR (cn);
 		cn->parent = 1;
 		cn->node = left;
-		if (ZF_ISSET (left, ZNODE_NEW))
+		if (ZF_ISSET (left, ZNODE_ORPHAN))
 			cn->left_before = 1;
 		op->u.update.left = cn;
 	} else

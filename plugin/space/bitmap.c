@@ -821,8 +821,7 @@ void bitmap_pre_commit_hook (void)
 
 			while (!capture_list_end (head, node)) {
 				/* we detect freshly allocated jnodes */
-				if (JF_ISSET(node, ZNODE_ALLOC) 
-				    || JF_ISSET(node, ZNODE_RELOC))
+				if (JF_ISSET(node, ZNODE_CREATED) || JF_ISSET(node, ZNODE_RELOC))
 				{
 					bmap_nr_t  bmap;
 					bmap_off_t offset;

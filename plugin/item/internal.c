@@ -243,7 +243,7 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 			}
 		}
 
-		ZF_CLR( child, ZNODE_NEW );
+		ZF_CLR( child, ZNODE_ORPHAN );
 
 		trace_on( TRACE_ZWEB, "create: %lli: %i [%lli]\n",
 			  *znode_get_block( item -> node ),
