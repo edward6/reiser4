@@ -327,6 +327,7 @@ extern int flush_one_atom(txn_mgr *, long *, int);
 extern int flush_some_atom(long *, int);
 
 extern int same_atom_dirty(jnode * base, jnode * check, int alloc_check, int alloc_value);
+extern void atom_dec_and_unlock(txn_atom * atom);
 
 extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 

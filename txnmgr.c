@@ -537,24 +537,47 @@ atom_locked_by_jnode(jnode * node)
 	txn_atom *atom;
 
 	assert("umka-181", node != NULL);
-	assert("jmacd-5108", spin_jnode_is_locked(node));
 
-try_again:
+	while (1) {
+		assert("jmacd-5108", spin_jnode_is_locked(node));
 
-	atom = node->atom;
+		atom = node->atom;
+		/* node is not in any atom */
+		if (atom == NULL)
+			break;
 
-	if (atom == NULL) {
-		return NULL;
-	}
+		/* there could be not contention for the atom spin lock at this
+		 * moment and trylock can succeed. */
+		if (spin_trylock_atom(atom))
+			break;
 
-	if (!spin_trylock_atom(atom)) {
-		/* If the atom lock fails then it could be in the middle of fusion, which
-		   means that node->atom pointer might be updated. */
+		/* At leat one jnode belongs to this atom it guarantees that
+		 * atom->refcount > 0, we can safely increment refcount. */
+		atomic_inc(&atom->refcount);
 		UNLOCK_JNODE(node);
 
-		/* Busy loop. */
+		/* re-aquire spin locks in right order */
+		LOCK_ATOM(atom);
 		LOCK_JNODE(node);
-		goto try_again;
+
+		/* check if node still points to the same atom. */
+		if (node->atom == atom) {
+			atomic_dec(&atom->refcount);
+			break;
+		}
+
+		/* releasing of atom lock and reference requires not holding
+		 * locks on jnodes.  */
+		UNLOCK_JNODE(node);
+
+		/* We do not sure that this atom has extra references except our
+		 * one, so we should call proper function which may free atom if
+		 * last reference is released. */
+		atom_dec_and_unlock(atom);
+
+		/* lock jnode again for getting valid node->atom pointer
+		 * value. */
+		LOCK_JNODE(node);
 	}
 
 	return atom;
@@ -615,8 +638,7 @@ atom_isopen(const txn_atom * atom)
 #endif
 
 /* Decrement the atom's reference count and if it falls to zero, free it. */
-static void
-atom_dec_and_unlock(txn_atom * atom)
+void atom_dec_and_unlock(txn_atom * atom)
 {
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 

@@ -52,20 +52,32 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 static txn_atom *
 atom_get_locked_by_fq(flush_queue_t * fq)
 {
+	/* This code is similar to atom_locked_by_jnode(), look at it for the
+	 * explanation. */
 	txn_atom *atom;
 
 	assert("zam-729", spin_fq_is_locked(fq));
 
-	for (;;) {
+	while(1) {
 		atom = fq->atom;
-
 		if (atom == NULL)
 			break;
 
 		if (spin_trylock_atom(atom))
 			break;
 
+		atomic_inc(&atom->refcount);
 		spin_unlock_fq(fq);
+		LOCK_ATOM(atom);
+		spin_lock_fq(fq);
+
+		if (fq->atom == atom) {
+			atomic_dec(&atom->refcount);
+			break;
+		}
+
+		spin_unlock_fq(fq);
+		atom_dec_and_unlock(atom);
 		spin_lock_fq(fq);
 	}
 
