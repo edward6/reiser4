@@ -284,6 +284,17 @@ static inline unsigned node_num_items (const znode * node)
 	return node->nr_items;
 }
 
+/* Return the number of items at the present node.  Asserts coord->node !=
+ * NULL. */
+static inline unsigned
+coord_num_items(const coord_t * coord)
+{
+	assert("jmacd-9805", coord->node != NULL);
+
+	return node_num_items(coord->node);
+}
+
+
 static inline int node_is_empty (const znode * node)
 {
 	return node_num_items (node) == 0;

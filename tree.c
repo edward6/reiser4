@@ -1615,6 +1615,9 @@ check_jnode_for_unallocated(jnode * node)
 {
 	int ret = 0;
 
+	if (!REISER4_DEBUG)
+		return 0;
+
 	if (jnode_is_znode(node) && jnode_get_level(node) >= TWIG_LEVEL) {
 		int ret = zload(JZNODE(node));
 		if (ret)
@@ -1632,6 +1635,9 @@ check_jnode_for_unallocated_in_core(znode * z)
 {
 	int nr = 0;		/* number of unallocated children found */
 	coord_t coord;
+
+	if (!REISER4_DEBUG)
+		return 0;
 
 	for_all_units(&coord, z) {
 		if (item_is_internal(&coord)) {
