@@ -58,23 +58,27 @@ struct reiserfs_profile {
     char desc[255];
     
     reiserfs_id_t node;
-    
+
     struct {
+	reiserfs_id_t reg;
+	reiserfs_id_t dir;
+	reiserfs_id_t symlink;
+	reiserfs_id_t special;      
+    } file;
+    
+    struct {	    
 	reiserfs_id_t statdata;
 	reiserfs_id_t internal;
 	reiserfs_id_t direntry;
-	reiserfs_id_t drop;
-	reiserfs_id_t extent;
+	struct {
+	    reiserfs_id_t tail;
+	    reiserfs_id_t extent;
+	} file_body;
+	reiserfs_id_t acl;
     } item;
-    
-    struct {
-	reiserfs_id_t file;
-	reiserfs_id_t dir;
-    } object;
     
     reiserfs_id_t hash;
     reiserfs_id_t drop_policy;
-    reiserfs_id_t hook;
     reiserfs_id_t perm;
     reiserfs_id_t format;
     reiserfs_id_t oid;
