@@ -1831,11 +1831,6 @@ commit_txnh(txn_handle * txnh)
    in the failure case.
 */
 
-/* ZAM-FIXME-HANS: this and its wrappers could be completely restructured to some advantage in clarity, yes? */
-/* HANS-FIXME-ZAM: everything should be restructured, probably completely, no?
- * Can you point exactly to thing which you don't like?  This code implements
- * enough complex algorithm and just does many branches because atoms, nodes,
- * transaction handles could have many different states. */
 static int
 try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom ** atom_alloc, int can_coc)
 {
@@ -3808,9 +3803,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 
 #endif /* REISER4_COPY_ON_CAPTURE */
 
-/* Perform copy-on-capture of a block.  INCOMPLETE CODE.
-
-VS-FIXME-HANS: complete it or remove it.*/
+/* Perform copy-on-capture of a block. */
 static int
 capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode, int can_coc)
 {
