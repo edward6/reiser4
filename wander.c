@@ -450,7 +450,7 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = write_jnodes_to_disk_extent(&ch->tx_list, jf, 1, jnode_get_block(jf), 0);
+	ret = write_jnodes_to_disk_extent(&ch->tx_list, jf, 1, jnode_get_block(jf), NULL);
 	if (ret)
 		return ret;
 
@@ -821,6 +821,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 			spin_lock(&scan_lock);
 			if (cur != first)
 				JF_CLR(cur, JNODE_SCANNED);
+			nr --;
 			cur = capture_list_next(cur);
 			if (!capture_list_end(head, cur))
 				JF_SET(cur, JNODE_SCANNED);
@@ -846,7 +847,6 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 			reiser4_stat_inc(txnmgr.empty_bio);
 			bio_put(bio);
 		}
-		nr -= nr_used;
 	}
 	return 0;
 }
