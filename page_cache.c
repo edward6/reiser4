@@ -500,6 +500,10 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		assert("nikita-2276", !blocknr_is_fake(&blocknr));
 
 		bio->bi_bdev = super->s_bdev;
+		/* fill bio->bi_sector before calling bio_add_page(), because
+		 * q->merge_bvec_fn may want to inspect it (see
+		 * drivers/md/linear.c:linear_mergeable_bvec() for example. */
+		bio->bi_sector = blocknr * (blksz >> 9);
 
 		if (!bio_add_page(bio, page, blksz, 0)) {
 			warning("nikita-3452",
@@ -507,7 +511,6 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 			return ERR_PTR(RETERR(-EINVAL));
 		}
 
-		bio->bi_sector = blocknr * (blksz >> 9);
 		/* bio -> bi_idx is filled by bio_init() */
 		bio->bi_end_io = (rw == READ) ?
 			end_bio_single_page_read : end_bio_single_page_write;
