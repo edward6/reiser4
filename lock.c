@@ -1,27 +1,20 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* We assume that reiserfs tree operations, such as modification (balancing),
-   lookup (search_by_key) and maybe super balancing (squeeze left) should
-   require locking of small or huge chunks of tree nodes to perform these
-   operations.  We need to introduce per node lock object (it will be part of
-   znode object which is associated with each node (buffer) in cache), and we
-   need special techniques to avoid deadlocks.
-  
-   V4 LOCKING ALGORITHM DESCRIPTION
-  
-   Suppose we have a set of processes which do lock (R/W) of tree nodes. Each
-   process have a set (m.b. empty) of already locked nodes ("process locked
-   set"). Each process may have a pending lock request to the node locked by
-   another process (this request cannot be satisfied without unlocking the
-   node because request mode and node lock mode are not compatible).
+/* Traditional deadlock avoidance is achieved by acquiring all locks in a single order.  V4 balances the tree from the bottom up, and searches the tree from the top down, and that is really the way we want it, so tradition won't work for us.
 
-   The deadlock situation appears when we have a loop constructed from
+Instead we have two lock orderings, a high priority lock ordering, and a low priority lock ordering.  Each node in the tree has a lock in its znode. 
+
+   Suppose we have a set of processes which lock (R/W) tree nodes. Each
+   process has a set (maybe empty) of already locked nodes ("process locked
+   set"). Each process may have a pending lock request to a node locked by
+   another process.  Note: we lock and unlock, but do not transfer locks: it is possible transferring locks instead would save some bus locking....
+
+   Deadlock occurs when we have a loop constructed from
    process locked sets and lock request vectors.
 
   
-   NOTE: we can have loops there because initial strict tree structure is
-   extended in reiser4 tree by having of sibling pointers which connect
-   neighboring cached nodes.
+   NOTE: The reiser4 "tree" is a tree on disk, but its cached representation in memory is extended with "znodes" with which we connect nodes with their left and right neighbors using sibling pointers stored in the znodes.  When we perform balancing operations we often go from left to right and from right to left.
+
   
    +-P1-+          +-P3-+
    |+--+|   V1     |+--+|
@@ -37,45 +30,23 @@
    |+--+            +--+|
    +--------------------+
   
-   The basic deadlock avoidance mechanism used by everyone is to acquire locks
-   only in one predetermined order -- it makes loop described above
-   impossible.  The problem we have with chosen balancing algorithm is that we
-   could not find predetermined order of locking there. Tree lookup goes from
-   top to bottom locking more than one node at time, tree change (AKA
-   balancing) goes from bottom, two (or more) tree change operations may lock
-   same set of nodes in different orders. So, basic deadlock avoidance scheme
-   does not work there.
-  
-   Instead of having one predetermined order of getting locks for all
-   processes we divide all processes into two classes, and each class
-   has its own order of locking.
-  
-   Processes of first class (we call it L-class) take locks in from top to
-   tree bottom and from right to left, processes from second class (H-class)
-   take locks from bottom to top and left to right. It is not a complete
-   definition for the order of locking. Exact definitions will be given later,
-   now we should know that some locking orders are predefined for both
-   classes, L and H.
-  
+We solve this by ensuring that only low priority processes lock in top to bottom order and from right to left, and high priority processes
+   lock from bottom to top and left to right. ZAM-FIXME-HANS: order not just node locks in this way, order atom locks, and kill those damn busy loops.
+
    How does it help to avoid deadlocks ?
   
-   Suppose we have a deadlock with n processes. Processes from one
+   Suppose we have a deadlock with n processes. Processes from one priority
    class never deadlock because they take locks in one consistent
    order.
   
-   So, any possible deadlock loop must have L-class processes as well as H-class
-   ones. This lock.c contains code that prevents deadlocks between L- and
-   H-class processes by using process lock priorities.
-  
-   We assign low priority to all L-class processes and high priority to all
-   processes from class H. There are no other lock priority levels except low
+   So, any possible deadlock loop must have low priority as well as high priority processes.  
+   There are no other lock priority levels except low
    and high. We know that any deadlock loop contains at least one node locked
-   by L-class process and requested by H-class process. It is enough to avoid
-   deadlocks if this situation is caught and resolved.
+   by a low priority process and requested by a high priority process. If this situation is caught and resolved it is sufficient to avoid deadlocks.
   
    V4 DEADLOCK PREVENTION ALGORITHM IMPLEMENTATION.
   
-   The deadlock prevention algorithm is based on comparing of
+   The deadlock prevention algorithm is based on comparing 
    priorities of node owners (processes which keep znode locked) and
    requesters (processes which want to acquire a lock on znode).  We
    implement a scheme where low-priority owners yield locks to
@@ -94,139 +65,45 @@
    #                                           #
    #############################################
 
+     Note that a low-priority process
+     delays node releasing if another high-priority process owns this node.  So, slightly more strictly speaking, to have a deadlock capable cycle you must have a loop in which a high priority process is waiting on a low priority process to yield a node, which is slightly different from saying a high priority process is waiting on a node owned by a low priority process.
     
-     FIXME: It is a bit different from initial statement of resolving of all
-     situations where we have a node locked by low-priority process and
-     requested by high-priority one.
-    
-     The difference is that in current implementation a low-priority process
-     delays node releasing if another high-priority process owns this node.
-    
-     It is not proved yet that modified deadlock check prevents deadlocks. It
-     is possible we should return to strict deadlock check formula as
-     described above in the proof (i.e. any low pri owners release locks when
-     high-pri lock request arrives, unrelated to another high-pri owner
-     existence). -zam.
-
    It is enough to avoid deadlocks if we prevent any low-priority process from
    falling asleep if its locked set contains a node which satisfies the
    deadlock condition.
   
    That condition is implicitly or explicitly checked in all places where new
-   high-priority request may be added or removed from node request queue or
+   high-priority requests may be added or removed from node request queue or
    high-priority process takes or releases a lock on node. The main
    goal of these checks is to never lose the moment when node becomes "has
    wrong owners" and send "must-yield-this-lock" signals to its low-pri owners
    at that time.
   
    The information about received signals is stored in the per-process
-   structure (lock stack) and analyzed before low-priority process is going to
+   structure (lock stack) and analyzed before a low-priority process goes to
    sleep but after a "fast" attempt to lock a node fails. Any signal wakes
    sleeping process up and forces him to re-check lock status and received
    signal info. If "must-yield-this-lock" signals were received the locking
    primitive (longterm_lock_znode()) fails with -EDEADLK error code.
-  
-   USING OF V4 LOCKING ALGORITHM IN V4 TREE TRAVERSAL CODE
-  
-   Let's complete definitions of lock orders used by L- and H-class
-   processes.
-  
-   1. H-class:
-      We count all tree nodes as shown at the picture:
-
-  .
-  .
-  .
- (m+1)
-  |  \
-  |    \
- (n+1)  (n+2) ..                     (m)
-  | \   | \                           | \
-  1  2  3  4  5  6  7  8  9  10 .. (n-1) (n)
-
-   i.e. leaves first, then all nodes at one level above and so on until tree
-   root. H-class process acquires (and requests) locks in increasing order of
-   assigned numbers. Current implementation of v4 balancing follows these
-   rules.
-
-   2. L-class:
-   Count all tree nodes in recursive order:
-
- .
- .
- 13---
- |     \
- 8      12
- | \      \
- 3   7-    (11)
- |\  |\ \  | \
- 1 2 4 5 6 9 (10) ...
-
-   and L-class process requests locks in decreasing order of assigned
-   numbers. You see that any movement left or down decreases the node number.
-   Recursive counting was used because one situation in
-   reiser4_get_left_neighbor() where process does low-pri lock request (to
-   left) after locking of a set of nodes as high-pri process in upward
-   direction.
-
- x <- c
-      ^
-      |
-      b
-      ^
-      |
-      a
-
-   Nodes a-b-c are locked in accordance with H-class rules, then the process
-   changes its class and tries to lock node x. Recursive order guarantees that
-   node x will have a number less than all already locked nodes (a-b-c)
-   numbers.
-  
+    
    V4 LOCKING DRAWBACKS
    
-   The deadlock prevention code may signal about possible deadlock in the
-   situation where is no deadlock actually. 
-  
-   Suppose we have a tree balancing operation in progress. One level is
-   completely balanced and we are going to propagate tree changes on the level
-   above. We locked leftmost node in the set of all immediate parents of all
-   modified nodes (by current balancing operation) on already balanced level
-   as it requires by locking order defined for H-class (high-priority)
-   processes.  At this moment we want to look on left neighbor for free space
-   on this level and thus avoid new node allocation. That locking is done in
-   the order not defined for H-class, but for L-class process. It means we
-   should change the process locking priority and make process locked set
-   available to high-priority requests from any balancing that goes upward. It
-   is not good.  First, for most cases it is not a deadlock situation; second,
-   locking of left neighbor node is impossible in that situation. -EDEADLK is
-   returned from longterm_lock_znode() until we release all nodes requested by
-   high-pri processes, we can't do it because nodes we need to unlock contain
-   modified data, we can't unroll changes due to reiser4 journal limits.
-  
-    +-+     +-+
-    |X| <-- | |
-    +-+     +-+--LOW-PRI-----+
-            |already balanced|
-            +----------------+
-                ^
-                |
-              +----HI-PRI-------+
-              |another balancing|
-              +-----------------+
-  
-   The solution is not to lock nodes to left in described situation. Current
-   implementation of reiser4 tree balancing algorithms uses non-blocking
-   try_lock call in that case.
+   If we have already balanced on one level, and we are propagating our changes upward to a higher level, it could be
+   very messy to surrender all locks on the lower level because we put so much computational work into it, and reverting
+   them to their state before they were locked might be very complex.  We also don't want to acquire all locks before
+   performing balancing because that would either be almost as much work as the balancing, or it would be too
+   conservative and lock too much.  We want balancing to be done only at high priority.  Yet, we might want to go to the
+   left one node and use some of its empty space... So we make one attempt at getting the node to the left using
+   try_lock, and if it fails we do without it, because we didn't really need it, it was only a nice to have.
   
    LOCK STRUCTURES DESCRIPTION
   
-   The following data structures are used in reiser4 locking
+   The following data structures are used in the reiser4 locking
    implementation:
 
-   Lock object is a znode. All fields related to long-term locking are grouped
-   into znode->lock embedded object.
+   All fields related to long-term locking are stored in znode->lock.
   
-   Lock stack is a per thread object.  It owns all znodes locked by the
+   The lock stack is a per thread object.  It owns all znodes locked by the
    thread. One znode may be locked by several threads in case of read lock or
    one znode may be write locked by one thread several times. The special link
    objects (lock handles) support n<->m relation between znodes and lock
@@ -250,26 +127,21 @@
    |  Z1     |	    |	Z2    |                  |  Z3     |
    +---------+	    +---------+                  +---------+ 
 
-   Thread 1 locked znodes Z1 and Z2, thread 2 locked znodes Z2 and Z3. The
-   picture above shows that lock stack LS1 has a list of 2 lock handles LH1
-   and LH2, lock stack LS2 has a list with lock handles LH3 and LH4 on it.
-   Znode Z1 is locked by only one thread, znode has only one lock handle LH1
-   on its list, similar situation is for Z3 which is locked by the thread 2
-   only. Z2 is locked (for read) twice by different threads and two lock
-   handles are on its list. Each lock handle represents a single relation of a
-   locking of a znode by a thread. Locking of a znode is an establishing of a
-   locking relation between the lock stack and the znode by adding of a new
-   lock handle to lists of lock handles: one that list is owned by lock stack
-   and it links all lock handles for all znodes locked by the lock stack,
-   another list groups all lock handles for all locks stacks which locked the
-   znode.
+   Thread 1 locked znodes Z1 and Z2, thread 2 locked znodes Z2 and Z3. The picture above shows that lock stack LS1 has a
+   list of 2 lock handles LH1 and LH2, lock stack LS2 has a list with lock handles LH3 and LH4 on it.  Znode Z1 is
+   locked by only one thread, znode has only one lock handle LH1 on its list, similar situation is for Z3 which is
+   locked by the thread 2 only. Z2 is locked (for read) twice by different threads and two lock handles are on its
+   list. Each lock handle represents a single relation of a locking of a znode by a thread. Locking of a znode is an
+   establishing of a locking relation between the lock stack and the znode by adding of a new lock handle to a list of
+   lock handles, the lock stack.  The lock stack links all lock handles for all znodes locked by the lock stack.  The znode
+   list groups all lock handles for all locks stacks which locked the znode.
 
    Yet another relation may exist between znode and lock owners.  If lock
    procedure cannot immediately take lock on an object it adds the lock owner
    on special `requestors' list belongs to znode.  That list represents a
    queue of pending lock requests.  Because one lock owner may request only
-   only one lock object in a time, it is a 1->n relation between lock objects
-   and a lock owner implemented as it written above. Full information
+   only one lock object at a time, it is a 1->n relation between lock objects
+   and a lock owner implemented as it is described above. Full information
    (priority, pointers to lock and link objects) about each lock request is
    stored in lock owner structure in `request' field.
   
@@ -281,10 +153,9 @@
    1. locking / unlocking which is done by two list insertion/deletion is
       protected by znode spinlock.  A simultaneous access to the list owned by
       znode is impossible because the only one spinlock embedded into the
-      znode should be taken.  The list owned by lock stack can be modified
+      znode should be taken.  The list owned by the lock stack can be modified
       only by thread who owns the lock stack and nobody else can modify/read
       it. There is nothing to be protected by a spinlock or something else.
-
    2. adding/removing a lock request to/from znode requesters list. The rule
       is that znode spinlock should be taken for this.
 
@@ -297,10 +168,15 @@
       znodes. Another way is when somebody who keep znode spin-locked accesses
       its lock owners. The parallel access conflicts are solved by using
       atomic variables for lock stack fields and lock stack spinlock.
+
+ZAM-FIXME-HANS: this section, especially 1. is incomprehensible and bloated
+
+Maybe you mean to say: the znode is protected by a spinlock which also protects all lock lists and requestors lists.  Accessing a lock stack by any thread other than its owner requires spinlocking all znodes on the lock stack.
+
 */
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
-  
+  ZAM-FIXME-HANS: deadlock is not observed anymore, right?  rewrite this whole comment.
    FIXME: DEADLOCK STILL OBSERVED:!!!
   
    Point 1. The order in which a node is captured matters.  If a read-capture arrives
@@ -327,8 +203,8 @@
    requests.
   
    What this means is for a regular lock_znode request (try_lock is slightly simpler).
-  
      1. acquire znode spinlock, check whether the lock request is compatible
+ZAM-FIXME-HANS: define compatible  
         \_ and if not, make request and sleep on lock_stack semaphore
         |_ and when it wakes, go to step #1
      2. perform a try_capture request
@@ -341,6 +217,7 @@
         recheck whether lock request is still compatible.
         \_ and if it is not, same as step #1
      4. before releasing znode spinlock, call lock_object() as before.  */
+ZAM-FIXME-HANS: the above is not clear to me
 
 #include "debug.h"
 #include "txnmgr.h"
@@ -542,7 +419,7 @@ znode_is_write_locked(const znode * node)
    low priority owner(s) to high priority one(s).
   
    The procedure results in passing an event (setting lock_handle->signaled
-   flag) and count this event in nr_signaled field of owner's lock stack
+   flag) and counting this event in nr_signaled field of owner's lock stack
    object and wakeup owner's process.
 */
 static inline int
@@ -918,13 +795,16 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 int 
 longterm_lock_znode(
 	/* local link object (may be allocated on the process owner); */
+/* ZAM-FIXME-HANS: ^on^by ?
+                   ^may^must ? */
 	lock_handle * handle,
 	/* znode we want to lock. */
 	znode * node,
 	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}; */
 	znode_lock_mode mode,
 	/* {0, -EINVAL, -EDEADLK}, see return codes description. */
-	znode_lock_request request) {
+	znode_lock_request request)
+{
 
 	int          ret;
 	int          hipri             = (request & ZNODE_LOCK_HIPRI) != 0;
