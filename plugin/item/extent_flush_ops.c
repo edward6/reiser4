@@ -129,10 +129,8 @@ reiser4_internal int scan_extent(flush_scan * scan)
 	jnode *neighbor;
 	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist;
 	reiser4_block_nr unit_start;
-	/*struct inode *ino = NULL; */
 	__u64 oid;
 	reiser4_key key;
-	/*struct page *pg; */
 	int ret = 0, allocated, incr;
 	reiser4_tree *tree;
 
@@ -227,7 +225,7 @@ repeat:
 			goto exit;
 		}
 
-		assert ("zam-1042", !jnode_is_flushprepped(neighbor));
+		assert ("zam-1042", UNDER_SPIN(jnode, neighbor, !jnode_is_flushprepped(neighbor)));
 		assert ("zam-1043", blocknr_is_fake(jnode_get_block(neighbor)));
 
 		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
