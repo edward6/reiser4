@@ -600,7 +600,7 @@ inode_invariant(const struct inode *inode)
 {
 	reiser4_inode * object;
 
-	assert("nikita-3077", spin_inode_is_locked(inode));
+	assert("nikita-3077", spin_inode_object_is_locked(reiser4_inode_data(inode)));
 	object = reiser4_inode_data(inode);
 	DEBUGON(object->eflushed < 0);
 }

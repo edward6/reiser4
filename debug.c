@@ -790,30 +790,6 @@ no_counters_are_held()
 
 #endif
 
-ssize_t
-generic_file_write_nolock(struct file *file, const struct iovec *iov,
-			  unsigned long nr_segs, loff_t *ppos);
-
-ssize_t
-generic_file_write_nolock1(struct file *file, const struct iovec *iov,
-			   unsigned long nr_segs, loff_t *ppos)
-{
-	ssize_t res;
-	PROF_BEGIN(real_write);
-	res = generic_file_write_nolock(file, iov,
-					nr_segs, ppos);
-	PROF_END(real_write, real_write);
-	return res;
-}
-
-void balance_dirty_pages_ratelimited1(struct address_space *mapping);
-void balance_dirty_pages_ratelimited1(struct address_space *mapping)
-{
-	PROF_BEGIN(real_bdp);
-	balance_dirty_pages_ratelimited(mapping);
-	PROF_END(real_bdp, real_bdp);
-}
-
 #if KERNEL_DEBUGGER
 void debugtrap(void)
 {
