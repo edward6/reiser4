@@ -167,7 +167,7 @@ typedef struct lock_counters_info {
 	int spin_locked_txnmgr;
 	int spin_locked_ktxnmgrd;
 	int spin_locked_fq;
-	int spin_locked_reiser4_super_info_data;
+	int spin_locked_super;
 	int spin_locked_inode;
 	int spin_locked;
 	int long_term_locked_znode;
