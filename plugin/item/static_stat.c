@@ -565,7 +565,7 @@ static int
 symlink_target_to_inode(struct inode *inode, const char *target, int len)
 {
 	assert("vs-845", inode->u.generic_ip == 0);
-	assert("vs-846", !inode_get_flag(inode, REISER4_GENERIC_VP_USED));
+	assert("vs-846", !inode_get_flag(inode, REISER4_GENERIC_PTR_USED));
 
 	/* FIXME-VS: this is prone to deadlock. Not more than other similar
 	   places, though */
@@ -575,7 +575,7 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 
 	xmemcpy((char *) (inode->u.generic_ip), target, (size_t) len);
 	((char *) (inode->u.generic_ip))[len] = 0;
-	inode_set_flag(inode, REISER4_GENERIC_VP_USED);
+	inode_set_flag(inode, REISER4_GENERIC_PTR_USED);
 	return 0;
 }
 
@@ -625,7 +625,7 @@ save_symlink_sd(struct inode *inode, char **area)
 
 	result = 0;
 	sd = (reiser4_symlink_stat *) * area;
-	if (!inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
+	if (!inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
 		const char *target;
 
 		target = (const char *) (inode->u.generic_ip);

@@ -254,7 +254,7 @@ reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
 {
 	assert("vs-852", S_ISLNK(dentry->d_inode->i_mode));
 	reiser4_stat_inc_at(dentry->d_inode->i_sb, vfs_calls.readlink);
-	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
+	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return RETERR(-EINVAL);
 	return vfs_readlink(dentry, buf, buflen, dentry->d_inode->u.generic_ip);
 }
@@ -265,7 +265,7 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
 	reiser4_stat_inc_at(dentry->d_inode->i_sb, vfs_calls.follow_link);
-	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
+	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return RETERR(-EINVAL);
 	return vfs_follow_link(data, dentry->d_inode->u.generic_ip);
 }

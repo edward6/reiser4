@@ -395,7 +395,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 #endif
 		seal_init(&info->sd_seal, NULL, NULL);
 		coord_init_invalid(&info->sd_coord, NULL);
-		xmemset(&info->ra, 0, sizeof info->ra);
 		info->cluster_shift = 0;
 		info->crypt = NULL;
 		info->flags = 0;
@@ -436,11 +435,11 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
-		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
+		if (inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
 			inode->u.generic_ip = 0;
-			inode_clr_flag(inode, REISER4_GENERIC_VP_USED);
+			inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
 		}
 		if (inode_get_flag(inode, REISER4_SECRET_KEY_INSTALLED)) {
 			/* destroy secret key */
