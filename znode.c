@@ -8,7 +8,7 @@
  * Znode is the in-memory header for a tree node. It is stored
  * separately from the node itself so that it does not get written to
  * disk.  In this respect znode is like buffer head or page head. We
- * also use znodes for additional reiserfs specific purposes:
+ * also use znodes for additional reiser4 specific purposes:
  *
  *  . they are organized into tree structure which is a part of whole
  *    reiser4 tree. 
