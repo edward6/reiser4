@@ -209,8 +209,10 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 		
 		to_paste = data->length;
 	}
-	else
+	else {
+		to_paste = 0;
 		impossible("edward-453", "bad paste position");
+	}
 	
 	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, to_paste);
 	return 0;
@@ -655,6 +657,7 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
 		result = cut_ctail(coord);
 		break;
 	default:
+		result = RETERR(-EIO);
 		impossible("edward-244", "wrong ctail write mode");
 	}
 	return result;

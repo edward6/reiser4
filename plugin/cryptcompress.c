@@ -1904,10 +1904,15 @@ cryptcompress_writepage(struct page * page)
 	return 0;	
 }
 
-/* plugin->u.file.capture */
+/* plugin->u.file.capture 
+   FIXME: capture method of file plugin is called by reiser4_writepages. It has to capture all
+   anonymous pages and jnodes of the mapping. See capture_unix_file, for example
+ */
 int
-capture_cryptcompress(struct page *page)
+capture_cryptcompress(struct inode *inode, struct writeback_control *wbc/*struct page *page*/)
 {
+	return 0;
+#if 0
 	int result;
 	struct inode *inode;
 	
@@ -1929,6 +1934,7 @@ capture_cryptcompress(struct page *page)
 	result = cryptcompress_writepage(page);
 	assert("edward-428", PageLocked(page));
 	return result;
+#endif
 }
 
 static inline void
