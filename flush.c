@@ -2667,7 +2667,8 @@ int flush_pos_leaf_relocate (flush_position *pos)
 	return pos->leaf_relocate;
 }
 
-#if REISER4_DEBUG
+//#if REISER4_DEBUG
+#if 1
 static void flush_jnode_tostring_internal (jnode *node, char *buf)
 {
 	const char* state;
