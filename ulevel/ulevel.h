@@ -1371,7 +1371,7 @@ extern int write_one_page(struct page *page, int wait);
 
 extern void wait_on_page_locked(struct page *page);
 extern void wait_on_page_writeback(struct page *page);
-
+extern void end_page_writeback(struct page *page);
 
 /* include/linux/spinlock.h */
 /*

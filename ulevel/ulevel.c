@@ -3642,6 +3642,9 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			if (!strncmp (command, "pp", 2)) {
 				print_tree_rec ("DONE", tree_by_inode (cwd),
 						REISER4_TREE_VERBOSE & ~REISER4_NODE_ONLY_INCORE);
+			} else if (!strncmp (command, "pb", 2)) {
+				print_tree_rec ("BRIEF", tree_by_inode (cwd),
+						REISER4_NODE_PRINT_HEADER);
 			} else {
 				print_tree_rec ("DONE", tree_by_inode (cwd),
 						REISER4_TREE_VERBOSE);
@@ -4491,6 +4494,13 @@ int write_one_page(struct page *page, int wait)
 		unlock_page(page);
 	}
 	return ret;
+}
+
+void end_page_writeback(struct page *page)
+{
+	if (!TestClearPageWriteback(page))
+		BUG();
+	unlock_page (page);
 }
 
 /*
