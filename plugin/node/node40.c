@@ -1650,6 +1650,13 @@ update_znode_dkeys(znode * left, znode * right)
 
 	leftmost_key_in_node(right, &key);
 
+	if (0) {
+		printk("update_znode_dkeys: %p(%s) %p(%s)\n", 
+		       left, left ? (node_is_empty(left) ? "e" : "o") : "n",
+		       right, right ? (node_is_empty(right) ? "e" : "o") : "n");
+		print_key("leftmost", &key);
+	}
+
 	if (left == NULL) {
 		/* update left delimiting key of @right */
 		znode_set_ld_key(right, &key);

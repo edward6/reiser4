@@ -731,6 +731,17 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 	       znode_is_any_locked(node) || 
 	       keyeq(znode_get_ld_key(node), min_key()));
 
+#if 0
+	printk("znode_set_ld_key: %p %p %p %p %p %p %p %p\n", node,
+	       __builtin_return_address(0),
+	       __builtin_return_address(1),
+	       __builtin_return_address(2),
+	       __builtin_return_address(3),
+	       __builtin_return_address(4),
+	       __builtin_return_address(5),
+	       __builtin_return_address(6));
+#endif
+
 	node->ld_key = *key;
 	return &node->ld_key;
 }
