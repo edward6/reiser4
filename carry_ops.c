@@ -6,7 +6,7 @@
 
 static int carry_shift_data( sideof side, coord_t *insert_coord, znode *node,
 			     carry_level *doing, carry_level *todo, 
-			     int including_insert_coord_p );
+			     unsigned int including_insert_coord_p );
 
 extern int lock_carry_node( carry_level *level, carry_node *node );
 extern int lock_carry_node_tail( carry_node *node );
@@ -18,12 +18,16 @@ extern int lock_carry_node_tail( carry_node *node );
  * comments in the body.
  *
  */
-static carry_node *find_left_neighbor( carry_node *node /* node to find left
-							 * neighbor of */, 
+static carry_node *find_left_neighbor( carry_op *op /* node to find left
+						     * neighbor of */, 
 				       carry_level *doing /* level to scan */ )
 {
 	int         result;
+	carry_node *node;
 	carry_node *left;
+	int         flags;
+
+	node = op -> node;
 
 	/* first, check whether left neighbor is already in a @doing queue */
 	left = find_left_carry( node, doing );
@@ -50,29 +54,35 @@ static carry_node *find_left_neighbor( carry_node *node /* node to find left
 	left -> node = node -> node;
 	left -> free = 1;
 
+	flags = GN_TRY_LOCK;
+	if( !op -> u.insert.flags & COPI_LOAD_LEFT )
+		flags |= GN_NO_ALLOC;
+
 	/* then, feeling lucky, peek left neighbor in the cache. */
 	result = reiser4_get_left_neighbor( &left -> lock_handle,
 					    node -> real_node,
-					    ZNODE_WRITE_LOCK, GN_TRY_LOCK );
+					    ZNODE_WRITE_LOCK, flags );
 	if( result == 0 ) {
 		/* ok, node found and locked. */
 		result = lock_carry_node_tail( left );
 		if( result != 0 )
 			left = ERR_PTR( result );
 		reiser4_stat_level_add( doing, carry_left_in_cache );
-	} else if( result == -ENAVAIL ) {
+	} else if( ( result == -ENAVAIL ) || ( result == -ENOENT ) ) {
 		/*
-		 * node is leftmost node in a tree, or there is an extent on
-		 * the left.
+		 * node is leftmost node in a tree, or neighbor wasn't in
+		 * cache, or there is an extent on the left.
 		 */
-		reiser4_stat_level_add( doing, carry_left_not_avail );
+		if( REISER4_STATS && ( result == -ENOENT ) )
+			reiser4_stat_level_add( doing, carry_left_missed );
+		if( REISER4_STATS && ( result == -ENAVAIL ) )
+			reiser4_stat_level_add( doing, carry_left_not_avail );
 		reiser4_pool_free( &left -> header );
 		left = NULL;
 	} else if( doing -> restartable ) {
 		/*
-		 * if left neighbor is not in a cache or is locked,
-		 * and level is restartable, add new node to @doing
-		 * and restart.
+		 * if left neighbor is locked, and level is restartable, add
+		 * new node to @doing and restart.
 		 */
 		assert( "nikita-913", node -> parent != 0 );
 		assert( "nikita-914", node -> node != NULL );
@@ -81,8 +91,8 @@ static carry_node *find_left_neighbor( carry_node *node /* node to find left
 		left = ERR_PTR( -EAGAIN );
 	} else {
 		/*
-		 * left neighbor is not in a cache or locked, level cannot be
-		 * restarted. Just ignore left neighbor.
+		 * left neighbor is locked, level cannot be restarted. Just
+		 * ignore left neighbor.
 		 */
 		reiser4_pool_free( &left -> header );
 		left = NULL;
@@ -98,15 +108,19 @@ static carry_node *find_left_neighbor( carry_node *node /* node to find left
  * comments in the body.
  *
  */
-static carry_node *find_right_neighbor( carry_node *node /* node to find right
-							  * neighbor of */, 
+static carry_node *find_right_neighbor( carry_op *op /* node to find right
+						      * neighbor of */, 
 					carry_level *doing /* level to scan */ )
 {
 	int         result;
+	carry_node *node;
 	carry_node *right;
 	lock_handle lh;
+	int         flags;
 
 	init_lh( &lh );
+
+	node = op -> node;
 
 	/* first, check whether right neighbor is already in a @doing queue */
 	right = find_right_carry( node, doing );
@@ -126,10 +140,14 @@ static carry_node *find_right_neighbor( carry_node *node /* node to find right
 		}
 	}
 
+	flags = GN_DO_READ;
+	if( !op -> u.insert.flags & COPI_LOAD_RIGHT )
+		flags = GN_NO_ALLOC;
+
 	/* then, try to lock right neighbor */
 	init_lh( &lh );
 	result = reiser4_get_right_neighbor( &lh, node -> real_node,
-					     ZNODE_WRITE_LOCK, GN_DO_READ );
+					     ZNODE_WRITE_LOCK, flags );
 	if( result == 0 ) {
 		/* ok, node found and locked. */
 		reiser4_stat_level_add( doing, carry_right_in_cache );
@@ -141,14 +159,16 @@ static carry_node *find_right_neighbor( carry_node *node /* node to find right
 			result = lock_carry_node_tail( right );
 			if( result != 0 )
 				right = ERR_PTR( result );
-		} else
-			done_lh( &lh );
-	} else if( result == -ENAVAIL ) {
-			/*
-			 * node is rightmost node in a tree, or there is an
-			 * extent on the right.
-			 */
-			right = NULL;
+		}
+	} else if( ( result == -ENAVAIL ) || ( result == -ENOENT ) ) {
+		/*
+		 * node is rightmost node in a tree, or neighbor wasn't in
+		 * cache, or there is an extent on the right.
+		 */
+		right = NULL;
+		if( REISER4_STATS && ( result == -ENOENT ) )
+			reiser4_stat_level_add( doing, carry_right_missed );
+		if( REISER4_STATS && ( result == -ENAVAIL ) )
 			reiser4_stat_level_add( doing, carry_right_not_avail );
 	} else
 			right = ERR_PTR( result );
@@ -286,8 +306,6 @@ static int free_space_shortage( znode *node /* node to check */,
  *
  * See comments in the body.
 
-Assumes that the node format favors insertions at the right end of the node as node40 does. 
-
 GREEN-FIXME-HANS: why isn't this code audited?
 
 NIKITA-FIXME-HANS: can this be broken into subfunctions that will look like the following except with function arguments:
@@ -304,7 +322,11 @@ if(!enough_space()){
         insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
 }
 
-
+ *
+ * Assumes that the node format favors insertions at the right end of the node
+ * as node40 does.
+ *
+ * See carry_flow() on detail about flow insertion
  */
 static int make_space( carry_op *op /* carry operation, insert or paste */, 
 		       carry_level *doing /* current carry queue */, 
@@ -315,6 +337,33 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	int    not_enough_space;
 	int    blk_alloc;
 	znode *orig_node;
+	__u32  flags;
+
+	/**
+	 * helper function: update node pointer in operation after insertion
+	 * point was probably shifted into @target.
+	 */
+	static znode *sync_op( carry_op *op, carry_node *target ) {
+		znode *insertion_node;
+
+		/*
+		 * reget node from coord: shift might move insertion coord to
+		 * the neighbor
+		 */
+		insertion_node = op -> u.insert.d -> coord -> node;
+		/*
+		 * if insertion point was actually moved into new node,
+		 * update carry node pointer in operation.
+		 */
+		if( insertion_node != op -> node -> real_node ) {
+			op -> node = target;
+			assert( "nikita-2540", 
+				target -> real_node == insertion_node );
+		}
+		assert( "nikita-2541", 
+			op -> node -> real_node == op -> u.insert.d -> coord -> node );
+		return insertion_node;
+	}
 
 	carry_node *tracking;
 
@@ -326,6 +375,8 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		op -> node -> real_node == op -> u.insert.d -> coord -> node );
 
 	trace_stamp( TRACE_CARRY );
+
+	flags = op -> u.insert.flags;
 
 	orig_node = node = op -> u.insert.d -> coord -> node;
 	tracking  = op -> node;
@@ -347,14 +398,14 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 * leftmost item so that delimiting keys have to be updated.
 		 */
 		return 0;	
-	if( !( op -> u.insert.flags & COPI_DONT_SHIFT_LEFT ) ) {
+	if( !( flags & COPI_DONT_SHIFT_LEFT ) ) {
 		carry_node *left;
 		/* 
 		 * make note in statistics of an attempt to move
 		 * something into the left neighbor
 		 */
 		reiser4_stat_level_add( doing, insert_looking_left );
-		left = find_left_neighbor( op -> node, doing );
+		left = find_left_neighbor( op, doing );
 		if( unlikely( IS_ERR( left ) ) ) {
 			if( PTR_ERR( left ) == -EAGAIN )
 				return -EAGAIN;
@@ -378,12 +429,14 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			result = carry_shift_data( LEFT_SIDE, 
 						   op -> u.insert.d -> coord,
 						   left -> real_node, 
-						   doing, todo, 0 );
+						   doing, todo, 
+						   flags & COPI_GO_LEFT );
 			/*
 			 * reget node from coord: shift_left() might move
 			 * insertion coord to the left neighbor
 			 */
-			node = op -> u.insert.d -> coord -> node;
+			node = sync_op( op, left );
+
 			not_enough_space = free_space_shortage( node, op );
 			/*
 			 * There is not enough free space in @node, but
@@ -394,12 +447,11 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		}
 	}
 	/* If there still is not enough space, shift to the right */
-	if( ( not_enough_space > 0 ) &&
-	    !( op -> u.insert.flags & COPI_DONT_SHIFT_RIGHT ) ) {
+	if( ( not_enough_space > 0 ) && !( flags & COPI_DONT_SHIFT_RIGHT ) ) {
 		carry_node *right;
 
 		reiser4_stat_level_add( doing, insert_looking_right );
-		right = find_right_neighbor( op -> node, doing );
+		right = find_right_neighbor( op, doing );
 		if( IS_ERR( right ) ) {
 			warning( "nikita-1065", 
 				 "Error accessing right neighbor: %li",
@@ -416,12 +468,13 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			result = carry_shift_data( RIGHT_SIDE, 
 						   op -> u.insert.d -> coord,
 						   right -> real_node, 
-						   doing, todo, 0 );
+						   doing, todo, 
+						   flags & COPI_GO_RIGHT );
 			/*
 			 * reget node from coord: shift_right() might move
 			 * insertion coord to the right neighbor
 			 */
-			node = op -> u.insert.d -> coord -> node;
+			node = sync_op( op, right );
 			not_enough_space = free_space_shortage( node, op );
 		}
 	}
@@ -432,10 +485,9 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	 * the carry operation flags (currently this is needed during flush
 	 * only).
 	 */
-/* NIKITA-FIXME-HANS: partial insertion to fill available space.  Review with Hans how insert_flow works for 11k files. */
 	for( blk_alloc = 0 ; 
 	     ( not_enough_space > 0 ) && ( result == 0 ) && ( blk_alloc < 2 ) &&
-	     !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
+	     !( flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
 		carry_node *fresh; /* new node we are allocating */
 		coord_t coord_shadow; /* remembered insertion point before
 				       * shifting data into new node */
@@ -485,29 +537,36 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		node_shadow = op -> node;
 		result = carry_shift_data( RIGHT_SIDE, op -> u.insert.d -> coord,
 					   fresh -> real_node, doing, todo, 1 );
-		node = op -> u.insert.d -> coord -> node;
 		/*
 		 * if insertion point was actually moved into new node,
 		 * update carry node pointer in operation.
 		 */
-		if( node != op -> node -> real_node )
-			op -> node = fresh;
+		node = sync_op( op, fresh );
 		not_enough_space = free_space_shortage( node, op );
 		if( ( not_enough_space > 0 ) && ( node != coord_shadow.node ) ) {
-			/* 
-			 * still not enough space?! Maybe there is enough space
-			 * in the source node (i.e., node data are moved from)
-			 * now.
+			/*
+			 * there is not enough free in new node. Shift
+			 * insertion point back to the @shadow_node so that
+			 * next new node would be inserted between
+			 * @shadow_node and @fresh.
 			 */
 			coord_normalize( &coord_shadow );
 			coord_dup( op -> u.insert.d -> coord, &coord_shadow );
 			node = op -> u.insert.d -> coord -> node;
 			op -> node = node_shadow;
-			not_enough_space = free_space_shortage( node, op );
+			if( 1 || ( flags & COPI_STEP_BACK ) ) {
+				/* 
+				 * still not enough space?! Maybe there is
+				 * enough space in the source node (i.e., node
+				 * data are moved from) now.
+				 */
+				not_enough_space = free_space_shortage( node, 
+									op );
+			}
 		}
 	}
 	if( not_enough_space > 0 ) {
-		if( !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) )
+		if( !( flags & COPI_DONT_ALLOCATE ) )
 			warning( "nikita-948", "Cannot insert new item" );
 		result = -ENOSPC;
 	}
@@ -1517,6 +1576,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 			return PTR_ERR( delete_dummy );
 		delete_dummy -> u.delete.child = NULL;
 		delete_dummy -> u.delete.flags = DELETE_RETAIN_EMPTY;
+		ZF_SET( node, JNODE_HEARD_BANSHEE );
 	}
 
 	/*
@@ -1536,7 +1596,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	insert_extent -> u.insert.d = op -> u.extent.d;
 	assert( "nikita-1719", op -> u.extent.d -> key != NULL );
 	insert_extent -> u.insert.d -> data -> arg = op -> u.extent.d -> coord;
-		
+	insert_extent -> u.insert.flags = current_tree -> carry.new_extent_flags;
 	return 0;
 }
 
@@ -1733,21 +1793,24 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 			     carry_level *todo /* carry queue where new
 						* operations are to be put
 						* in */, 
-			     int including_insert_coord_p /* true if
+			     unsigned int including_insert_coord_p /* true if
 							   * @insertion_coord
 							   * can be moved */)
 {
 	int result;
 	znode *source;
 	carry_plugin_info info;
+	node_plugin *nplug;
 
 	source = insert_coord -> node;
+
 	info.doing = doing;
 	info.todo  = todo;
-	result = node_plugin_by_node( node ) -> shift
-		( insert_coord, node, 
-		  ( side == LEFT_SIDE ) ? SHIFT_LEFT : SHIFT_RIGHT, 0,
-		  including_insert_coord_p, &info );
+
+	nplug = node_plugin_by_node( node );
+	result = nplug -> shift( insert_coord, node, 
+				 ( side == LEFT_SIDE ) ? SHIFT_LEFT : SHIFT_RIGHT, 0,
+				 ( int ) including_insert_coord_p, &info );
 	/*
 	 * the only error ->shift() method of node plugin can return is
 	 * -ENOMEM due to carry node/operation allocation.
