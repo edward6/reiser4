@@ -1,7 +1,11 @@
 /* Copyright 2002, Hans Reiser */
 
-/*
- *
+/* A part of reiser4 block allocator. This code only allocates contiguous
+ * chunks of blocks and does routine work for bitmap logging: prepare commit
+ * bitmap blocks which are written to disk and make deleted/wandered blocks
+ * available to allocator after an atom passes its commit/write-back stages.
+ *  
+ * A "smart" part of the block allocator is in block_alloc.[ch] files.
  */
 
 #include "reiser4.h"
@@ -37,13 +41,6 @@ extern block_nr reiser4_get_bmap_blocknr (int bmap);
  * it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
  */
 
-/* Block allocation/deallocation are done through special bitmap objects which
- * are allocated in an array at fs mount. We use them for now. */
-struct reiser4_bnode {
-	znode * working;	/* working bitmap block */
-	znode * commit;		/* commit bitmap block */
-};
-
 /** calculate bitmap block number and offset within that bitmap block */
 static void parse_blocknr (block_nr block, int *bmap, int *offset)
 {
@@ -59,10 +56,6 @@ block_nr get_commit_bitmap_blocknr (int bmap)
 	block_nr block = bmap;
 	return bmap | 0xF0000000LL;
 }
-
-/* FIXME_ZAM: bitmap dynamic loading/unloading needs a support from znode
- * destroying function which should set corresponding
- * sb->u.reiser4_i.bitmap[bmap].working (commit) pointer to zero */
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under tree lock held */
@@ -235,12 +228,6 @@ out:
 	return ret;
 }
 
-/** clear bits in bitmap(s) (working, commit or both) */
-static int bitmap_clear (block_nr start, int len, int bitmap)
-{
-	
-}
-
 /** allocate contiguous range of blocks in bitmap */
 int reiser4_bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_len)
 {
@@ -376,7 +363,7 @@ int reiser4_bitmap_done_commit (txn_atom * atom) {
 /** This function is called after write-back (writing blocks from OVERWRITE
  * SET to real locations) transaction stage completes. (clear WANDERED SET in
  * WORKING BITMAP) */
-int reiser4_bitmap_done_flush ()
+int reiser4_bitmap_done_writeback (txn_atom * atom)
 {
 	reiser4_super_info_data * info = reiser4_get_current_super_private();
 	WALK_ATOM_VARS;
