@@ -2313,6 +2313,8 @@ jnode_make_dirty(jnode * node)
 	/* jnode lock is not needed for the rest of jnode_set_dirty(). */
 
 	if (page != NULL) {
+		if (!PageDirty(page))
+			get_current_super_private()->pages_dirty++;
 		set_page_dirty_internal(page);
 		page_cache_release(page);
 	}
