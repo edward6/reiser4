@@ -14,8 +14,6 @@
 #include <plugin/internal40/internal40.h>
 #include <plugin/direntry40/direntry40.h>
 
-#define OID_CHARS (sizeof(uint64_t) - 1)
-
 static uint64_t pack_string( const char *name, int start_idx) {
     unsigned i;
     uint64_t str;
@@ -116,11 +114,11 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     nh40_set_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_stat40_base_t) + sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
+	2*sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
     
     nh40_set_free_space(node, block->size - (sizeof(reiserfs_nh40_t) + 
 	(2*sizeof(reiserfs_ih40_t)) + sizeof(reiserfs_stat40_base_t) + 
-	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_direntry40_unit_t) + 2 + 3 + 
+	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_direntry40_t) + 2 + 3 + 
 	2*sizeof(reiserfs_objid_t)));
 
     /* Forming stat data item and body */
@@ -150,13 +148,13 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     ih40_set_plugin_id(item, 0x2);
     ih40_set_length(item, sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 
+	2*sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_objid_t) + 
 	2 + 3);
     
     ih40_set_offset(item, sizeof(reiserfs_nh40_t) + sizeof(reiserfs_stat40_base_t));
     
     direntry_body = (reiserfs_direntry40_t *)(block->data + ih40_get_offset(item));
-    direntry_body->num_entries = 2;
+    direntry_body->count = 2;
    
     {
 	reiserfs_key_t key;
@@ -170,12 +168,12 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	objectid = get_key_objectid(&key);
 	offset = get_key_offset(&key);
 	
-	aal_memcpy(direntry_body->entry[0].hash.objectid, &objectid, 8);
-	aal_memcpy(direntry_body->entry[0].hash.offset, &offset, 8);
+	aal_memcpy(direntry_body->entry[0].entryid.objectid, &objectid, 8);
+	aal_memcpy(direntry_body->entry[0].entryid.hash, &offset, 8);
     }
     
     /* Offset of the first name in directory */
-    direntry_body->entry[0].offset = 2*sizeof(reiserfs_direntry40_unit_t) + 
+    direntry_body->entry[0].offset = 2*sizeof(reiserfs_direntry40_t) + 
 	sizeof(reiserfs_direntry40_t);
     
     {
@@ -194,8 +192,8 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	
 	offset = get_key_offset(&key);
 	
-	aal_memcpy(direntry_body->entry[1].hash.objectid, &objectid, 8);
-	aal_memcpy(direntry_body->entry[1].hash.offset, &offset, 8);
+	aal_memcpy(direntry_body->entry[1].entryid.objectid, &objectid, 8);
+	aal_memcpy(direntry_body->entry[1].entryid.hash, &offset, 8);
     }
 
     /* 
@@ -205,7 +203,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	size of dir units array + key for first name + size of first 
 	name (".") + zero for terminating first name.
     */
-    direntry_body->entry[1].offset = 2*sizeof(reiserfs_direntry40_unit_t) + 
+    direntry_body->entry[1].offset = 2*sizeof(reiserfs_direntry40_t) + 
 	2 + sizeof(reiserfs_objid_t) + sizeof(reiserfs_direntry40_t);
 
     {

@@ -51,7 +51,7 @@ int reiserfs_key_cmp (reiserfs_key_t *key1, reiserfs_key_t *key2) {
     return result;
 }
 
-static uint64_t reiserfs_pack_string(const char *name, int start_idx) {
+static uint64_t pack_string(const char *name, int start_idx) {
     unsigned i;
     uint64_t str;
 
@@ -63,5 +63,59 @@ static uint64_t reiserfs_pack_string(const char *name, int start_idx) {
     str <<= (sizeof str - i - start_idx) << 3;
     return str;
 }
+
+/* Build the entry key */
+void build_key_by_entryid(reiserfs_key_t *key, reiserfs_entryid_t *entryid)
+{
+    aal_assert("vpf-090", key != NULL, return);
+    aal_assert("vpf-091", entryid != NULL, return);
+
+    aal_memcpy (&key->el[1], entryid, sizeof *entryid);
+    set_key_type(key, KEY_FILE_NAME_MINOR);
+}
+
+static void build_entryid_by_key(reiserfs_entryid_t *entryid, reiserfs_key_t *key)
+{
+    aal_assert("vpf-092", key != NULL, return);
+    aal_assert("vpf-093", entryid != NULL, return);
+
+    aal_memcpy (entryid, &key->el[1], sizeof *entryid);
+
+    return;
+}
+
+void build_entryid_by_entry_info(reiserfs_entryid_t *entryid, 
+    reiserfs_entry_info_t *info/*, reiserfs_dir_t *dir*/) 
+{
+    uint16_t len; 
+    reiserfs_key_t key;
+    
+    aal_assert("vpf-101", entryid != NULL, return);
+    aal_assert("vpf-102", info != NULL, return);
+
+    reiserfs_key_init(&key);
+    set_key_type(&key, KEY_FILE_NAME_MINOR);
+    len = aal_strlen(info->name);
+    if ((len != 1) || (info->name != ".")) {
+	/* Not dot, pack the first part of the name into objectid. */
+	set_key_objectid(&key, pack_string(info->name, 1));
+	if (len <= OID_CHARS + sizeof(uint64_t)) {
+	    /* Fits into objectid + hash. */
+	    if (len > OID_CHARS)
+		/* Does not fit into objectid, pack the second part of 
+		   the name into offset. */
+		set_key_offset(&key, pack_string(info->name, 0));			
+	} else {
+	    /* Note in the key that it is hash, not a name. */
+	    key.el[1] |= 0x0100000000000000ull;
+	    /* This should be uncomment when directory object will be ready.
+	    offset = dir->plugin->dir.hash(info->name + OID_CHARS, len);
+	    */
+	}
+    }
+
+    build_entryid_by_key(entryid, &key);
+}
+
 
 
