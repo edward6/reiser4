@@ -20,6 +20,8 @@ extern int owns_item_common(const struct inode *inode,
 			    const coord_t * coord);
 extern reiser4_block_nr estimate_update_common(const struct inode *inode);
 
+extern reiser4_plugin_ops cryptcompress_plugin_ops;
+
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif
 
