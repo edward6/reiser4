@@ -349,6 +349,12 @@ extern int flush_current_atom (int, long *, txn_atom **);
 
 extern int flush_some_atom(long *, int);
 
+#if defined (REISER4_USE_RAPID_FLUSH)
+extern void set_rapid_flush_mode(int);
+#else
+#define set_rapid_flush_mode(on) do{}while(0)
+#endif
+
 extern int same_atom_dirty(jnode * base, jnode * check, int alloc_check, int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
@@ -431,9 +437,6 @@ extern int blocknr_set_add_pair(txn_atom * atom,
 typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *, const reiser4_block_nr *, void *);
 
 extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete);
-/* these are needed to move to PAGE_CACHE_SIZE > blocksize */
-jnode *nth_jnode(struct page *page, int block);
-jnode *next_jnode(jnode * node);
 
 /* flush code takes care about how to fuse flush queues */
 extern void flush_init_atom(txn_atom * atom);
@@ -509,6 +512,9 @@ extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
 
 extern unsigned int txnmgr_get_max_atom_size(struct super_block *super);
+
+extern void znode_make_dirty(znode * node);
+extern void unformatted_jnode_make_dirty(jnode * node);
 
 #if REISER4_DEBUG
 extern int atom_fq_parts_are_clean (txn_atom *);
