@@ -94,6 +94,7 @@ static int reiser4_set_page_dirty (struct page * page)
 
 		if (mapping) {
 			spin_lock(&mapping->page_lock);
+			/*XXXXX*/
 			if (page->mapping) {	/* Race with truncate? */
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
@@ -102,6 +103,8 @@ static int reiser4_set_page_dirty (struct page * page)
 			}			
 			spin_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+			/*XXXX*/if (mapping->host->i_state & I_CLEAR)
+				/*XXXX*/printk("SPD: clear inode: %p, page %p\n", mapping->host, page);
 		}
 	}
 	return ret;
@@ -240,13 +243,20 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
 
+	assert("vs-1426", ergo(PagePrivate(page), ((page->mapping->host->i_state & I_JNODES) && 
+						   (reiser4_inode_data(page->mapping->host)->jnodes > 0))));
+	assert("vs-1427", ergo(PagePrivate(page), page->mapping == jnode_get_mapping(jnode_by_page(page))));
+
 	init_context(&ctx, page->mapping->host->i_sb);
 	/* capture page being truncated. */
-	ret = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+	ret = try_capture_page_to_invalidate(page);
 	if (ret != 0) {
 		warning("nikita-3141", "Cannot capture: %i", ret);
 		print_page("page", page);
-	}
+	} else
+		assert("vs-1425", ((page->mapping->host->i_state & I_JNODES) && 
+				   (reiser4_inode_data(page->mapping->host)->jnodes > 0)));
+
 
 	if (offset == 0) {
 		jnode *node;
@@ -254,6 +264,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 		/* remove jnode from transaction and detach it from page. */
 		node = jnode_by_page(page);
 		if (node != NULL) {
+			assert("vs-1435", !JF_ISSET(node, JNODE_CC));
 			jref(node);
 			JF_SET(node, JNODE_HEARD_BANSHEE);
 			/* page cannot be detached from jnode concurrently,
@@ -261,6 +272,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 			uncapture_page(page);
 			UNDER_SPIN_VOID(jnode,
 					node, page_clear_jnode(page, node));
+			unhash_unformatted_jnode(node);
 			jput(node);
 		}
 	}
@@ -407,7 +419,12 @@ static int capture_anonymous_pages (struct address_space * mapping)
 		} else if (!PageDirty(pg))
 			list_move(&pg->list, &mapping->clean_pages);
 		else {
+			/*XXXX*/assert("", mpages->prev == &pg->list);
+			/*XXXX*/assert("", mpages == pg->list.next);
 			list_move(&pg->list, &mapping->io_pages);
+			/*XXXX*/assert("", mpages->prev != &pg->list);
+			/*XXXX*/assert("", mapping->io_pages.next == &pg->list);
+			/*XXXX*/assert("", pg->list.prev == &mapping->io_pages);
 			page_cache_get (pg);
 
 			spin_unlock (&mapping->page_lock);
