@@ -194,8 +194,8 @@ error_t aal_device_write_block(aal_device_t *device, aal_block_t *block) {
     if (!device || !block)
 	return -1;
 
-    if (!aal_block_dirty(block))
-	return 0;
+//    if (!aal_block_dirty(block))
+//	return 0;
 
     if((error = aal_device_write(device, block->data, 
 	    aal_device_get_block_location(device, block), 1)))

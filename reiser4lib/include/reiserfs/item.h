@@ -8,7 +8,7 @@
 /* on memory structure to wotk with items */
 struct reiserfs_item_data {
     reiserfs_key_t * key;
-    uint32_t lenght;
+    uint32_t length;
     void *data;
     void *arg;    
 };

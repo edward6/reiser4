@@ -23,6 +23,7 @@ int reiserfs_bin_search (
 {
     int64_t rbound, lbound, j;
     int ret = 0;
+    void * elem;
 
     if (count == 0) {
         *ppos = -1;
@@ -33,7 +34,14 @@ int reiserfs_bin_search (
     rbound = count - 1;
 
     for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
-        ret =  comp_func (get_elem(entity, j), find_it);
+	elem = get_elem(entity, j);
+;
+	if (elem == NULL) {
+	    *ppos = -1;
+	    return -1;
+	}
+	
+        ret =  comp_func (elem, find_it);
         if (ret < 0) { 
 	    /* second is greater */
             lbound = j + 1;
