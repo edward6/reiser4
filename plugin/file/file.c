@@ -371,7 +371,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 
 	/* collect statistics on the number of calls to this function which did not get optimized */
 	reiser4_stat_file_add(find_next_item_via_cbk);
-	return coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags);
+	return coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags | CBK_READA);
 }
 
 /* plugin->u.file.write_flowom = NULL
@@ -1084,7 +1084,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 
 		page_cache_readahead(inode->i_mapping, &file->f_ra, file, cur_offset >> PAGE_CACHE_SHIFT);
 
-		result = find_next_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE | CBK_READA);
+		result = find_next_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			   -EIO */
