@@ -580,7 +580,8 @@ int jload( jnode *node )
 					result = jplug -> parse( node );
 					if( result == 0 )
 						JF_SET( node, ZNODE_LOADED );
-				}
+				} else
+					result = 0;
 				spin_unlock_jnode( node );
 			} else
 				result = -EIO;
