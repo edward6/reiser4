@@ -2821,7 +2821,7 @@ writepages_cryptcompress(struct address_space * mapping)
    anonymous pages and jnodes of the mapping. See capture_unix_file, for example
  */
 reiser4_internal int
-capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
+capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc, long *captured)
 {
 
 #if 0

@@ -1479,7 +1479,7 @@ commit_some_atoms(txn_mgr * mgr)
    If atom is too large or too old it is committed also.
 */
 reiser4_internal int
-flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
+flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int flags)
 {
 	reiser4_context *ctx = get_current_context();
 	txn_handle *txnh = ctx->trans;
@@ -1536,6 +1536,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 				UNLOCK_ATOM(atom);
 			}
 		}
+		ON_TRACE(TRACE_WRITEOUT, "FSA wrote nothing\n");
 		spin_unlock_txnmgr(tmgr);
 		return 0;
 	found:
@@ -1543,6 +1544,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 	} else
 		atom = get_current_atom_locked();
 
+	ON_TRACE(TRACE_WRITEOUT, "FCA is called: atom capture count %d\n", atom->capture_count);
 	ret = flush_current_atom(flags, nr_submitted, &atom);
 
 	if (ret == 0) {
@@ -1563,6 +1565,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 		ret = 0;
 
 	ret1 = txn_end(ctx);
+	assert("vs-1692", ret1 == 0);
 	if (ret1 > 0)
 		*nr_submitted += ret1;
 	txn_begin(ctx);

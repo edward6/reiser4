@@ -525,6 +525,7 @@ reiser4_internal void capture_reiser4_inodes (
 	struct super_block * sb, struct writeback_control * wbc)
 {
 	const unsigned long start = jiffies;
+	long captured = 0;
 
 	if (list_empty(&sb->s_io))
 		list_splice_init(&sb->s_dirty, &sb->s_io);
@@ -545,10 +546,11 @@ reiser4_internal void capture_reiser4_inodes (
 			file_plugin *fplug;
 			
 			fplug = inode_file_plugin(inode);
-			if (fplug != NULL && fplug->capture != NULL)
+			if (fplug != NULL && fplug->capture != NULL) {
 				/* call file plugin method to capture anonymous pages and
 				 * anonymous jnodes */
-				fplug->capture(inode, wbc);
+				fplug->capture(inode, wbc, &captured);
+			}
 		}
 
 		spin_lock(&inode_lock);
@@ -570,9 +572,14 @@ reiser4_internal void capture_reiser4_inodes (
 		iput(inode);
 
 		spin_lock(&inode_lock);
-		if (wbc->nr_to_write <= 0)
+		if (wbc->nr_to_write <= 0) {
+			warning("vs-1689", "does this ever happen? nr_to_write = %ld", wbc->nr_to_write);
 			break;
+		}
 	}
+	if (captured)
+		ON_TRACE(TRACE_WRITEOUT, "%s: captured %ld pages\n",
+			 current->comm, captured);
 }
 
 

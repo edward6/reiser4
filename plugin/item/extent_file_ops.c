@@ -170,6 +170,7 @@ insert_first_block(uf_coord_t *uf_coord, const reiser4_key *key, reiser4_block_n
 	}
 
 	*block = fake_blocknr_unformatted();
+	/*XXXXX*/inc_unalloc_unfm_ptr();
 
 	/* invalidate coordinate, research must be performed to continue because write will continue on twig level */
 	uf_coord->valid = 0;
@@ -227,6 +228,7 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 	}
 
 	*block = fake_blocknr_unformatted();
+	/*XXXXX*/inc_unalloc_unfm_ptr();
 	return 0;
 }
 
@@ -357,6 +359,7 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 	case HOLE_EXTENT:
 		result = plug_hole(uf_coord, key);
 		if (!result) {
+			/*XXXXX*/inc_unalloc_unfm_ptr();
 			*block = fake_blocknr_unformatted();
 			*created = 1;
 		}

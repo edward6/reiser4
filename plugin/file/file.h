@@ -8,7 +8,7 @@
 int truncate_unix_file(struct inode *, loff_t size);
 int readpage_unix_file(void *, struct page *);
 int capturepage_unix_file(struct page *);
-int capture_unix_file(struct inode *inode, struct writeback_control *wbc);
+int capture_unix_file(struct inode *, const struct writeback_control *, long *);
 ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t *off);
 ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t *off);
 int release_unix_file(struct inode *inode, struct file *);

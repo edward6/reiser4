@@ -244,6 +244,8 @@ static void entd_capture_anonymous_pages(
 	spin_unlock(&inode_lock);
 }
 
+#define DEBUG_WRITEOUT (1)
+
 static void entd_flush(struct super_block *super)
 {
 	long            nr_submitted = 0;
@@ -265,6 +267,10 @@ static void entd_flush(struct super_block *super)
 	result = flush_some_atom(&nr_submitted, &wbc, 0);
 	if (result != 0)
 		warning("nikita-3100", "Flush failed: %i", result);
+
+	ON_TRACE(TRACE_WRITEOUT, "%s: to write %ld, written %ld\n",
+		 current->comm, wbc.nr_to_write, nr_submitted);
+
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 }

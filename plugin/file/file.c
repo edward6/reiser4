@@ -1035,7 +1035,7 @@ capture_anonymous_page(struct page *pg, int keepme)
 #define CAPTURE_APAGE_BURST      (1024)
 
 static int
-capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
+capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *captured)
 {
 	int result;
 	unsigned to_capture;
@@ -1074,6 +1074,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
 				   called when jnode is captured */
 				result = capture_anonymous_page(pvec.pages[i], 0);
 				if (result == 1) {
+					(*captured) ++;
 					result = 0;
 					to_capture --;
 				} else if (result < 0) {
@@ -1135,6 +1136,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
 						if (result == 0) {
 							result = capture_anonymous_page(jnode_page(jvec[i]), 0);
 							if (result == 1) {
+								(*captured) ++;
 								result = 0;
 								to_capture --;
 							} else if (result < 0) {
@@ -1349,7 +1351,7 @@ commit_file_atoms(struct inode *inode)
  * from this inode is scanned.
  */
 reiser4_internal int
-capture_unix_file(struct inode *inode, struct writeback_control *wbc)
+capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long *captured)
 {
 	int               result;
 	unix_file_info_t *uf_info;
@@ -1391,7 +1393,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 
 		LOCK_CNT_INC(inode_sem_r);
 
-		result = capture_anonymous_pages(inode->i_mapping, &index);
+		result = capture_anonymous_pages(inode->i_mapping, &index, captured);
 		up_read(&uf_info->latch);
 		LOCK_CNT_DEC(inode_sem_r);
 		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL) {

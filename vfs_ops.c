@@ -592,8 +592,6 @@ reiser4_drop_inode(struct inode *object)
 		generic_forget_inode(object);
 }
 
-#define DEBUG_WRITEOUT (0)
-
 /*
  * Called by reiser4_sync_inodes(), during speculative write-back (through
  * pdflush, or balance_dirty_pages()).
@@ -602,7 +600,7 @@ static void
 writeout(struct super_block *sb, struct writeback_control *wbc)
 {
 	long written = 0;
-	long to_write = wbc->nr_to_write;
+	int repeats = 0;
 
 	/*
 	 * Performs early flushing, trying to free some memory. If there is
@@ -639,19 +637,19 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 				break;
 			}
 		}
+		repeats ++;
 		flush_some_atom(&nr_submitted, wbc, JNODE_FLUSH_WRITE_BLOCKS);
 		if (!nr_submitted)
 			break;
 
 		wbc->nr_to_write -= nr_submitted;
 
-		if (DEBUG_WRITEOUT)
-			written += nr_submitted;
+		written += nr_submitted;
+
 	} while (wbc->nr_to_write > 0);
 
-	if (DEBUG_WRITEOUT)
-		printk("%s: to write %ld, written %ld\n",
-		       current->comm, to_write, written);
+	ON_TRACE(TRACE_WRITEOUT, "%s: to write %ld, written %ld in %d attempts\n",
+		 current->comm, wbc->nr_to_write, written, repeats);
 }
 
 /* ->sync_inodes() method. This is called by pdflush, and synchronous
@@ -696,6 +694,18 @@ reiser4_delete_inode(struct inode *object)
 	object->i_blocks = 0;
 	clear_inode(object);
 	reiser4_exit_context(&ctx);
+}
+
+/* ->delete_inode() super operation */
+static void
+reiser4_clear_inode(struct inode *object)
+{
+	reiser4_inode *r4_inode;
+
+	r4_inode = reiser4_inode_data(object);
+	assert("vs-1688", (r4_inode->anonymous_eflushed == 0 &&
+			   r4_inode->captured_eflushed == 0 &&
+			   r4_inode->jnodes == 0));
 }
 
 const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";
@@ -1503,7 +1513,7 @@ struct super_operations reiser4_super_operations = {
  	.put_inode          = NULL, /* d */
 	.drop_inode = reiser4_drop_inode,	/* d */
 	.delete_inode = reiser4_delete_inode,	/* d */
-	.clear_inode  = NULL,    /* d */
+	.clear_inode  = reiser4_clear_inode,    /* d */
 	.put_super = NULL /* d */ ,
 	.write_super = reiser4_write_super,
 /*      .sync_fs = NULL, */

@@ -372,11 +372,16 @@ struct reiser4_super_info_data {
 	/* list of all jnodes */
 	struct list_head all_jnodes;
 
+	/*XXX debugging code */
+	__u64 eflushed_unformatted; /* number of eflushed unformatted nodes */
+	__u64 unalloc_extent_pointers; /* number of unallocated extent pointers in the tree */
 #endif
 	struct repacker * repacker;
 	struct page * status_page;
 	struct bio * status_bio;
 };
+
+
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
@@ -555,6 +560,12 @@ void print_fs_info(const char *prefix, const struct super_block *);
 #else
 #define print_fs_info(p,s) noop
 #endif
+
+void inc_unalloc_unfm_ptr(void);
+void dec_unalloc_unfm_ptrs(int nr);
+void inc_unfm_ef(void);
+void dec_unfm_ef(void);
+
 
 /* __REISER4_SUPER_H__ */
 #endif

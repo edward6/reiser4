@@ -225,7 +225,6 @@ repeat:
 			goto exit;
 		}
 
-		assert ("zam-1042", !jnode_check_flushprepped(neighbor));
 		assert ("zam-1043", blocknr_is_fake(jnode_get_block(neighbor)));
 
 		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
@@ -674,11 +673,13 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 	jnode *node;
 	txn_atom *atom;
 	flush_queue_t *fq;
+	int i;
 
 	fq = pos_fq(flush_pos);
 	atom = atom_locked_by_fq(fq);
 	assert("vs-1468", atom);
 
+	i = 0;
 	for_all_type_safe_list(capture, protected_nodes, node) {
 		LOCK_JNODE(node);
 		assert("vs-1132", ergo(state == UNALLOCATED_EXTENT, blocknr_is_fake(jnode_get_block(node))));
@@ -692,9 +693,14 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 		assert("", NODE_LIST(node) == FQ_LIST);
 		UNLOCK_JNODE(node);
 		first ++;
+		i ++;
 	}
 
 	capture_list_splice(ATOM_FQ_LIST(fq), protected_nodes);
+	/*XXX*/
+	assert("vs-1687", count == i);
+	if (state == UNALLOCATED_EXTENT)
+		dec_unalloc_unfm_ptrs(count);
 	UNLOCK_ATOM(atom);
 }
 
