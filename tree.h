@@ -417,7 +417,7 @@ extern void show_context     (int show_tree);
 #endif
 
 /* Hans, is this too expensive? */
-#define current_tree (&get_super_private (reiser4_get_current_sb ())->tree)
+#define current_tree (&(get_super_private (reiser4_get_current_sb ())->tree))
 #define current_blocksize current_tree->super->s_blocksize
 #define current_blocksize_bits current_tree->super->s_blocksize_bits
 
