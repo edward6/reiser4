@@ -160,9 +160,11 @@ uint32_t reiserfs_node_count(reiserfs_node_t *node) {
     return 0;
 }
 
+/*
 uint8_t reiserfs_node_level(reiserfs_node_t *node) {
     return 0;
 }
+*/
 
 uint32_t reiserfs_node_free_space(reiserfs_node_t *node) {
     return 0;
