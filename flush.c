@@ -726,7 +726,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	if (jnode_is_unformatted (left_scan.node)) {
 		coord_dup (& flush_pos.parent_coord, & left_scan.parent_coord);
 		move_lh (& flush_pos.parent_lock, & left_scan.parent_lock);
-		move_lc (& flush_pos.parent_load, & left_scan.parent_load);
+		move_load_count (& flush_pos.parent_load, & left_scan.parent_load);
 	} else {
 		move_lh (& flush_pos.point_lock, & left_scan.node_lock);
 	}
@@ -930,7 +930,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	coord_t right_coord;
 
 	init_lh (& right_lock);
-	init_lc (& right_load);
+	init_load_count (& right_load);
 
 	/* Not using get_utmost_if_dirty because then we would not discover
 	 * a dirty unformatted leftmost child of a clean twig. */
@@ -953,7 +953,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 		goto exit;
 	}
 
-	if ((ret = load_lc_znode (& right_load, right_lock.node))) {
+	if ((ret = incr_load_count_znode (& right_load, right_lock.node))) {
 		goto exit;
 	}
 
@@ -982,7 +982,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
  exit:
 	if (child != NULL) { jput (child); }
 	done_lh (& right_lock);
-	done_lc (& right_load);
+	done_load_count (& right_load);
 	return ret;
 }
 
@@ -1051,7 +1051,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 	}
 
 	init_lh (& alock);
-	init_lc (& aload);
+	init_load_count (& aload);
 	coord_init_invalid (& acoord, NULL);
 
 	/* Only ascend to the next level if it is a leftmost child, but write-lock the
@@ -1080,7 +1080,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 	ret = flush_allocate_znode (coord->node, & acoord, pos);
 
  exit:
-	done_lc (& aload);
+	done_load_count (& aload);
 	done_lh (& alock);
 	return ret;
 }
@@ -1097,7 +1097,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 
 	coord_init_invalid (& pcoord, NULL);
 	init_lh (& plock);
-	init_lc (& pload);
+	init_load_count (& pload);
 
 	if (flush_pos_unformatted (pos) || ! znode_is_root (JZNODE (pos->point))) {
 		/* Lock the parent (it may already be locked, thus the special case). */
@@ -1120,7 +1120,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 	}
 
  exit:
-	done_lc (& pload);
+	done_load_count (& pload);
 	done_lh (& plock);
 	return ret;
 }
@@ -1140,9 +1140,9 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	init_lh (& right_lock);
 	init_lh (& parent_lock);
-	init_lc (& right_load);
-	init_lc (& parent_load);
-	init_lc (& node_load);
+	init_load_count (& right_load);
+	init_load_count (& parent_load);
+	init_load_count (& node_load);
 
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] %s\n", call_depth, flush_znode_tostring (node));
 
@@ -1152,7 +1152,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * must be allocated.  They are not considered part of this parent-first traversal. */
 	/*assert ("jmacd-9925", znode_check_flushprepped (node));*/
 
-	if ((ret = load_lc_znode (& node_load, node))) {
+	if ((ret = incr_load_count_znode (& node_load, node))) {
 		warning ("jmacd-61424", "zload failed: %d", ret);
 		goto exit;
 	}
@@ -1175,7 +1175,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
-	if ((ret = load_lc_znode (& right_load, right_lock.node))) {
+	if ((ret = incr_load_count_znode (& right_load, right_lock.node))) {
 		warning ("jmacd-61426", "zload failed: %d", ret);
 		goto exit;
 	}
@@ -1236,7 +1236,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * level below. */
 	if ((unallocated_below == 0 || call_depth == 0) && node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
-		done_lc (& right_load);
+		done_load_count (& right_load);
 		done_lh (& right_lock);
 		goto RIGHT_AGAIN;
 	}
@@ -1281,8 +1281,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* JF_CLR (node, JNODE_FLUSH_BUSY) */
 
 	/* No reason to hold onto the node data now, can release it early.  Okay to call
-	 * done_lc twice. */
-	done_lc (& node_load);
+	 * done_load_count twice. */
+	done_load_count (& node_load);
 
 	/* NOTE: A possible optimization is to avoid locking the right_parent here.  It
 	 * requires handling three cases, however, which makes it more complex than I want
@@ -1311,9 +1311,9 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	ret = 0;
  exit:
-	done_lc (& node_load);
-	done_lc (& right_load);
-	done_lc (& parent_load);
+	done_load_count (& node_load);
+	done_load_count (& right_load);
+	done_load_count (& parent_load);
 	done_lh (& right_lock);
 	done_lh (& parent_lock);
 	return ret;
@@ -1455,10 +1455,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	}
 
 	if (is_unformatted) {
-		done_lc (& pos->parent_load);
+		done_load_count (& pos->parent_load);
 		done_lh (& pos->parent_lock);
 		move_lh (& pos->parent_lock, & right_lock);
-		if ((ret = load_lc_znode (& pos->parent_load, pos->parent_lock.node))) {
+		if ((ret = incr_load_count_znode (& pos->parent_load, pos->parent_lock.node))) {
 			warning ("jmacd-61438", "zload failed: %d", ret);
 			goto exit;
 		}
@@ -2518,7 +2518,7 @@ static int jnode_lock_parent_coord (jnode *node,
 			return ret;
 		}
 
-		if ((ret = load_lc_znode (parent_zh, parent_lh->node))) {
+		if ((ret = incr_load_count_znode (parent_zh, parent_lh->node))) {
 			return ret;
 		}
 
@@ -2534,8 +2534,8 @@ static int jnode_lock_parent_coord (jnode *node,
 		 * root, which caller must check.) */
 		if (coord != NULL) {
 
-			if ((ret = load_lc_znode (parent_zh, parent_lh->node))) {
-				warning ("jmacd-976812", "load_lc_znode failed: %d", ret);
+			if ((ret = incr_load_count_znode (parent_zh, parent_lh->node))) {
+				warning ("jmacd-976812", "incr_load_count_znode failed: %d", ret);
 				return ret;
 			}
 
@@ -2624,20 +2624,20 @@ static void flush_scan_init (flush_scan *scan)
 	memset (scan, 0, sizeof (*scan));
 	init_lh (& scan->node_lock);
 	init_lh (& scan->parent_lock);
-	init_lc (& scan->parent_load);
-	init_lc (& scan->node_load);
+	init_load_count (& scan->parent_load);
+	init_load_count (& scan->node_load);
 	coord_init_invalid (& scan->parent_coord, NULL);
 }
 
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
 static void flush_scan_done (flush_scan *scan)
 {
-	done_lc (& scan->node_load);
+	done_load_count (& scan->node_load);
 	if (scan->node != NULL) {
 		jput (scan->node);
 		scan->node = NULL;
 	}
-	done_lc (& scan->parent_load);
+	done_load_count (& scan->parent_load);
 	done_lh (& scan->parent_lock);
 	done_lh (& scan->node_lock);
 }
@@ -2670,7 +2670,7 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_count, const coord_t *parent)
 {
 	/* Release the old references, take the new reference. */
-	done_lc (& scan->node_load);
+	done_load_count (& scan->node_load);
 
 	if (scan->node != NULL) {
 		jput (scan->node);
@@ -2687,9 +2687,9 @@ static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_c
 		coord_dup (& scan->parent_coord, parent);
 	}
 
-	/* Failure may happen at the load_lc call, but the caller can assume the reference
+	/* Failure may happen at the incr_load_count call, but the caller can assume the reference
 	 * is safely taken. */
-	return load_lc_jnode (& scan->node_load, node);
+	return incr_load_count_jnode (& scan->node_load, node);
 }
 
 /* Return true if scanning in the leftward direction. */
@@ -2812,7 +2812,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 			/* Duplicate the reference into the other flush_scan. */
 			coord_dup (& other->parent_coord, & scan->parent_coord);
 			copy_lh (& other->parent_lock, & scan->parent_lock);
-			copy_lc (& other->parent_load, & scan->parent_load);
+			copy_load_count (& other->parent_load, & scan->parent_load);
 		}
 
 		/* The common scan code is structured as a loop that repeatedly calls:
@@ -2959,7 +2959,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 	jnode *child;
 
 	init_lh (& next_lock);
-	init_lc (& next_load);
+	init_load_count (& next_load);
 
 	for (; ! flush_scan_finished (scan); skip_first = 0) {
 
@@ -3000,7 +3000,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 
 			if (ret != 0) { goto exit; }
 
-			if ((ret = load_lc_znode (& next_load, next_lock.node))) {
+			if ((ret = incr_load_count_znode (& next_load, next_lock.node))) {
 				goto exit;
 			}
 
@@ -3051,7 +3051,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		if (next_load.node != NULL) {
 			done_lh (& scan->parent_lock);
 			move_lh (& scan->parent_lock, & next_lock);
-			move_lc (& scan->parent_load, & next_load);
+			move_load_count (& scan->parent_load, & next_load);
 		}
 
 		assert ("jmacd-1239", item_is_extent (& scan->parent_coord));
@@ -3061,10 +3061,10 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
  exit:
 	if (jnode_is_znode (scan->node)) {
 		done_lh (& scan->parent_lock);
-		done_lc (& scan->parent_load);
+		done_load_count (& scan->parent_load);
 	}
 
-	done_lc (& next_load);
+	done_load_count (& next_load);
 	done_lh (& next_lock);
 	return ret;
 }
@@ -3276,8 +3276,8 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 	blocknr_hint_init (& pos->preceder);
 	init_lh (& pos->point_lock);
 	init_lh (& pos->parent_lock);
-	init_lc (& pos->parent_load);
-	init_lc (& pos->point_load);
+	init_load_count (& pos->parent_load);
+	init_load_count (& pos->point_load);
 
 	return 0;
 }
@@ -3346,8 +3346,8 @@ static void flush_pos_done (flush_position *pos)
 /* Reset the point and parent. */
 static int flush_pos_stop (flush_position *pos)
 {
-	done_lc (& pos->parent_load);
-	done_lc (& pos->point_load);
+	done_load_count (& pos->parent_load);
+	done_load_count (& pos->point_load);
 	if (pos->point != NULL) {
 		jput (pos->point);
 		pos->point = NULL;
@@ -3410,7 +3410,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	}
 
 	/* And keep going... */
-	done_lc (& pos->parent_load);
+	done_load_count (& pos->parent_load);
 	done_lh (& pos->parent_lock);
 	coord_init_invalid (& pos->parent_coord, NULL);
 	return 0;
@@ -3431,7 +3431,7 @@ static int flush_pos_to_parent (flush_position *pos)
 
 	/* When this is called, we have already tried the sibling link of the znode in
 	 * question, therefore we are not interested in saving ->point. */
-	done_lc (& pos->point_load);
+	done_load_count (& pos->point_load);
 	done_lh (& pos->point_lock);
 
 	/* Note: we leave the point set, but unlocked/unloaded. */
@@ -3452,7 +3452,7 @@ static void flush_pos_release_point (flush_position *pos)
 		jput (pos->point);
 		pos->point = NULL;
 	}
-	done_lc (& pos->point_load);
+	done_load_count (& pos->point_load);
 	done_lh (& pos->point_lock);
 }
 
@@ -3461,7 +3461,7 @@ static int flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
 	pos->point = jref (node);
-	return load_lc_jnode (& pos->point_load, node);
+	return incr_load_count_jnode (& pos->point_load, node);
 }
 
 static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_count *parent_load, znode_lock_mode mode)
@@ -3477,7 +3477,7 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 		 * here and get a new one. */
 		assert ("jmacd-9923", have_mode == mode);
 		copy_lh (parent_lock, & pos->parent_lock);
-		if ((ret = load_lc_znode (parent_load, parent_lock->node))) {
+		if ((ret = incr_load_count_znode (parent_load, parent_lock->node))) {
 			return ret;
 		}
 		coord_dup (parent_coord, & pos->parent_coord);
@@ -3612,7 +3612,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 	load_count load;
 	fmtbuf[0] = 0;
 
-	init_lc (& load);
+	init_load_count (& load);
 
 	if (pos->parent_lock.node != NULL) {
 
@@ -3621,7 +3621,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 		strcat (fmtbuf, "par:");
 		flush_jnode_tostring_internal (ZJNODE (pos->parent_lock.node), fmtbuf);
 
-		if (load_lc_znode (& load, pos->parent_lock.node)) {
+		if (incr_load_count_znode (& load, pos->parent_lock.node)) {
 			return "*error*";
 		}
 
@@ -3654,7 +3654,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 		flush_jnode_tostring_internal (pos->point, fmtbuf);
 	}
 
-	done_lc (& load);
+	done_load_count (& load);
 	return fmtbuf;
 }
 
