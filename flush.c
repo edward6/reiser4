@@ -1413,136 +1413,6 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
 			left, 0);
 }
 
-#if 0
-
-/* Copy as much of the leading extents from @right to @left, allocating
-   unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
-   SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
-   internal item it calls shift_one_internal_unit and may then return
-   SUBTREE_MOVED. */
-static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
-{
-	int ret = 0;
-	coord_t coord,		/* used to iterate over items */
-		stop_coord;	/* used to call twig_cut properly */
-	reiser4_key stop_key;
-
-	assert("jmacd-2008", !node_is_empty(right));
-	coord_init_first_unit(&coord, right);
-
-	/* Initialize stop_key to detect if any extents are copied.  After
-	   this loop loop if stop_key is still equal to *min_key then nothing
-	   was copied (and there is nothing to cut). */
-	stop_key = *min_key();
-
-	DISABLE_NODE_CHECK;
-
-	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", znode_tostring(left));
-	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", znode_tostring(right));
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
-
-	while (item_is_extent(&coord)) {
-		reiser4_key last_stop_key;
-
-		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:item_is_extent:", &coord, 0));
-
-		last_stop_key = stop_key;
-		ret = allocate_and_copy_extent(left, &coord, pos, &stop_key);
-		if (ret < 0) {
-			ENABLE_NODE_CHECK;
-			return ret;
-		}
-
-		/* we will cut from the beginning of node upto @stop_coord (and
-		   @stop_key) */
-		if (!keyeq(&stop_key, &last_stop_key)) {
-			/* something were copied, update cut boundary */
-			coord_dup(&stop_coord, &coord);
-		}
-
-		if (ret == SQUEEZE_TARGET_FULL) {
-			/* Could not complete with current extent item. */
-			IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:target_full:", &coord, 0));
-			break;
-		}
-
-		assert("jmacd-2009", ret == SQUEEZE_CONTINUE);
-
-		/* coord_next_item returns 0 if there are more items. */
-		if (coord_next_item(&coord) != 0) {
-			ret = SQUEEZE_SOURCE_EMPTY;
-			IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:source_empty:", &coord, 0));
-			break;
-		}
-
-		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:continue:", &coord, 0));
-	}
-
-	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig:after copy extents: left %s\n", znode_tostring(left));
-	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig:after copy extents: right %s\n", znode_tostring(right));
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
-
-	if (!keyeq(&stop_key, min_key())) {
-		int cut_ret;
-
-		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
-
-		/* Helper function to do the cutting. */
-		cut_ret = squalloc_right_twig_cut(&stop_coord, &stop_key, left);
-		if (cut_ret != 0) {
-			assert("jmacd-6443", cut_ret < 0);
-			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
-		}
-
-		/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right_after_cut", right, ~0u)); */
-	}
-
-	ENABLE_NODE_CHECK;
-	node_check(left, REISER4_NODE_DKEYS);
-	node_check(right, REISER4_NODE_DKEYS);
-
-	if (ret == SQUEEZE_TARGET_FULL) {
-		goto out;
-	}
-
-	if (node_is_empty(right)) {
-		/* The whole right node was copied into @left. */
-		ON_TRACE(TRACE_FLUSH_VERB, "sq_twig right node empty: %s\n", znode_tostring(right));
-		assert("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
-		goto out;
-	}
-
-	coord_init_first_unit(&coord, right);
-
-	assert("jmacd-433", item_is_internal(&coord));
-
-	/* Shift an internal unit.  The child must be allocated before shifting any more
-	   extents, so we stop here. */
-	ret = shift_one_internal_unit(left, right);
-
-out:
-	assert("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL
-	       || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
-
-	if (ret == SQUEEZE_TARGET_FULL) {
-		/* We submit prepped nodes here and expect that this @left twig
-		 * will not be modified again during this jnode_flush() call. */
-		int ret1;
-
-		ret1 = write_prepped_nodes(pos, 1);
-		if (ret1 < 0)
-			return ret1;
-	}
-
-	return ret;
-}
-
-#endif /* OLD_TWIG_SQUEEZE */
-
-#define NEW_TWIG_SQUEEZE
-#ifdef NEW_TWIG_SQUEEZE
 
 extern unsigned find_extent_slum_size(const coord_t *coord, unsigned pos_in_unit);
 extern int extent_handle_relocate_in_place(flush_pos_t *, unsigned *slum_size);
@@ -1566,7 +1436,7 @@ should_relocate(unsigned slum_size)
    SUBTREE_MOVED. */
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
-	int ret = 0;
+	int ret = SUBTREE_MOVED;
 	coord_t coord;		/* used to iterate over items */
 	reiser4_key stop_key;
 	unsigned slum_size;
@@ -1588,7 +1458,9 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 
 	if (item_is_extent(&coord)) {
 		slum_size = find_extent_slum_size(&coord, 0);
-		if (!should_relocate(slum_size)) {
+		if (slum_size == 0)
+			ret = SQUEEZE_TARGET_FULL;
+		else if (!should_relocate(slum_size)) {
 			while (slum_size && ret == SQUEEZE_CONTINUE) {
 				if (extent_is_allocated(&coord))
 					ret = extent_handle_overwrite_and_copy(left, &coord, pos, &slum_size, &stop_key);
@@ -1663,6 +1535,7 @@ out:
 		 * will not be modified again during this jnode_flush() call. */
 		int ret1;
 
+		/* NOTE: seems like io is done under long term locks. */
 		ret1 = write_prepped_nodes(pos, 1);
 		if (ret1 < 0)
 			return ret1;
@@ -1670,8 +1543,6 @@ out:
 
 	return ret;
 }
-#endif /* NEW_TWIG_SQUEEZE */
-
 
 /* Scan @node items and try to squeeze each one. */
 static int squeeze_node(flush_pos_t * pos, znode * node)
