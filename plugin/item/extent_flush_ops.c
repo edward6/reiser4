@@ -164,10 +164,6 @@ repeat:
 	ON_TRACE(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
 		 (scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
 
-	/* FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
-	   by this function---this leads to incorrect preceder update in
-	   "stop-same-parent" branch below.
-	*/
 	allocated = !extent_is_unallocated(&coord);
 	/* Get the values of this extent unit: */
 	unit_index = extent_unit_index(&coord);
