@@ -480,6 +480,7 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 		if (ret >= 0) {
 			JF_SET(wj, ZNODE_LOADED);
+			jref(wj);
 		} else {
 			jrelse_nolock(wj);
 			goto up_and_ret;
@@ -491,7 +492,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 	ret = jload(cj);
 
 	if (ret < 0) { 
-		junlock_and_relse(wj);
+		jrelse(wj);
+		jput(wj);
 		jdrop(wj);
 	
 		goto up_and_ret;
@@ -501,10 +503,9 @@ static int load_and_lock_bnode (struct bnode * bnode)
 		/* node has been loaded by this jload call  */
 		/* working bitmap is initialized by on-disk commit bitmap */
 		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
-	}
 
-	jref(wj);
-	jref(cj);
+		jref(cj);
+	}
 
 	return 0;
 
