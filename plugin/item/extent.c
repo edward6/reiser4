@@ -1525,13 +1525,19 @@ jnode_is_of_the_same_atom(jnode *node)
 {
 	int result;
 	reiser4_context *ctx;
+	txn_atom *atom;
 
 	ctx = get_current_context();
+	atom = get_current_atom_locked();
+
 	LOCK_JNODE(node);
 	LOCK_TXNH(ctx->trans);		
-	result = (node->atom == ctx->trans->atom);
+	assert("nikita-3304", ctx->trans->atom == atom);
+	result = (node->atom == atom);
 	UNLOCK_TXNH(ctx->trans);
 	UNLOCK_JNODE(node);
+	if (atom != NULL)
+		UNLOCK_ATOM(atom);
 	return result;
 }
 
