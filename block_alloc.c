@@ -486,9 +486,10 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 	reiser4_block_nr not_used;
 
 #if 1
-	ret = reiser4_grab_space (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
+	/* ret = reiser4_grab_space (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
 
 	if (ret != 0) return ret;
+	*/
 
 	get_next_fake_blocknr (blocknr);
 	reiser4_count_fake_allocation((__u64)1);

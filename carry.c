@@ -155,6 +155,7 @@ static int carry_on_level( carry_level *doing, carry_level *todo );
 static void fatal_carry_error( carry_level *doing, int ecode );
 static int add_new_root( carry_level *level, carry_node *node, znode *fake );
 
+static __u64 carry_estimate_space( carry_level *level );
 static int carry_level_invariant( carry_level *level );
 
 ON_DEBUG( TS_LIST_DEFINE( owners, lock_handle, owners_link ) );
@@ -173,7 +174,6 @@ ON_DEBUG( TS_LIST_DEFINE( locks, lock_handle, locks_link ) );
  * For usage, see comment at the top of fs/reiser4/carry.c
  *
  **/
-/* Audited by: green(2002.06.17) */
 int carry( carry_level *doing /* set of carry operations to be performed */, 
 	   carry_level *done  /* set of nodes, already performed at the
 			       * previous level. NULL in most cases */ )
@@ -183,11 +183,18 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	carry_level     todo_area;
 	/** queue of new requests */
 	carry_level    *todo;
+	__u64           grabbed;
 	STORE_COUNTERS;
 
 	assert( "nikita-888", doing != NULL );
 
 	trace_stamp( TRACE_CARRY );
+
+	grabbed    = get_current_context() -> grabbed_blocks;
+	/* reserve enough disk space */
+	result = reiser4_grab_space1( carry_estimate_space( doing ) );
+	if( result != 0 )
+		return result;
 
 	todo = &todo_area;
 	init_carry_level( todo, doing -> pool );
@@ -197,12 +204,8 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 		init_carry_level( done, doing -> pool );
 	}
 
-	result = 0;
-	/* FIXME-NIKITA before embarking into this we should assure ourselves that
-	 * there are enough free blocks. This should be done through some
-	 * per-super block semaphore. */
 	/*
-	 * FIXME-NIKITA also, enough free memory have to be reserved.
+	 * FIXME-NIKITA enough free memory has to be reserved.
 	 */
 	/* iterate until there is nothing more to do */
 	while( ( result == 0 ) && ( carry_op_num( doing ) > 0 ) ) {
@@ -272,6 +275,13 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 		preempt_point();
 	}
 	done_carry_level( done );
+
+	/*
+	 * release reserved, but unused disk space
+	 */
+	reiser4_release_grabbed_space
+		( get_current_context() -> grabbed_blocks - grabbed );
+
 	/* 
 	 * all counters, but x_refs should remain the same. x_refs can change
 	 * owing to transaction manager
@@ -1290,6 +1300,42 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 		*znode_get_rd_key( brother );
 	spin_unlock_dk( current_tree );
 	return fresh;
+}
+
+/**
+ * estimate how much disk space is necessary to perform @op
+ */
+static __u64 carry_estimate_op( carry_level *level UNUSED_ARG /* level to
+							     * estimate space
+							     * for */,
+			      carry_op *op UNUSED_ARG /* operation to
+						       * estimate */ )
+{
+	/*
+	 * FIXME-NIKITA dumb estimation
+	 */
+	return 2 * ( current_tree -> height + 1 );
+}
+
+/**
+ * estimate how much disk space is necessary to perform @level
+ */
+static __u64 carry_estimate_space( carry_level *level /* level to estimate space
+						    * for */ )
+{
+	carry_op *op;
+	carry_op *tmp_op;
+	__u64       blocks;
+
+	assert( "nikita-2278", level != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	blocks = 0;
+	for_all_ops( level, op, tmp_op ) {
+		blocks += carry_estimate_op( level, op );
+	}
+	return blocks;
 }
 
 
