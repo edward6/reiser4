@@ -447,7 +447,7 @@ static int submit_write (jnode * first, int nr,
 	super = jnode_page(cur)->mapping->host->i_sb;
 
 	bio->bi_sector = *block * (super->s_blocksize >>9);
-	bio->bi_bdev   = super->s_dev;
+	bio->bi_bdev   = super->s_bdev;
 	bio->bi_vcnt   = nr;
 	bio->bi_size   = super->s_blocksize * nr;
 	bio->bi_end_io = wander_end_io;
@@ -653,7 +653,7 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct txn_ato
 	reiser4_block_nr len = 0;
 	reiser4_block_nr block;
 
-	int     ret;
+	int     ret = 0;
 
 	jnode * cur;
 
