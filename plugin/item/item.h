@@ -196,6 +196,8 @@ typedef struct {
 	int (*utmost_child_real_block) (const coord_t *, sideof side, reiser4_block_nr *);
 	/* relocate child at @coord to the @block */
 	void (*update) (const coord_t *, const reiser4_block_nr *);
+	/* count unformatted nodes per item for leave relocation policy, etc.. */
+	int (*scan) (flush_scan * scan, const coord_t * in_coord);
 } flush_ops;
 
 /* operations specific to the directory item */
