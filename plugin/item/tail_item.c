@@ -21,6 +21,7 @@
 
 /* plugin->u.item.b.nr_units
  */
+/* Audited by: green(2002.06.14) */
 int tail_nr_units (item_coord * item)
 {
 	return length_by_coord (item);
@@ -38,6 +39,7 @@ int tail_nr_units (item_coord * item)
 /* plugin->u.item.b.can_shift
    look for description of this method in plugin/item/item.h
 */
+/* Audited by: green(2002.06.14) */
 int tail_can_shift (int free_space, new_coord * target,
 		    unit_coord * source, shift_direction pend,
 		    int * size, int stop)
@@ -64,6 +66,7 @@ int tail_can_shift (int free_space, new_coord * target,
 /* plugin->u.item.b.copy_units
    look for description of this method in plugin/item/item.h
  */
+/* Audited by: green(2002.06.14) */
 void tail_copy_units (new_coord * target, unit_coord * source,
 		      int unit_num, shift_direction pend,
 		      char * new_data)
@@ -97,6 +100,7 @@ void tail_copy_units (new_coord * target, unit_coord * source,
 /* plugin->u.item.b.copy_units
    look for description of this method in plugin/item/item.h
  */
+/* Audited by: green(2002.06.14) */
 void tail_pend_units (new_coord * target, new_coord * source,
 		      int from, int count,
 		      shift_direction where_is_free_space, int free_space)
@@ -149,6 +153,7 @@ void tail_pend_units (new_coord * target, new_coord * source,
 /* plugin->u.item.b.remove_units
    look for description of this method in plugin/item/item.h
  */
+/* Audited by: green(2002.06.14) */
 int tail_remove_units (item_coord *item, int from, int count,
 		       shift_direction where_to_move_free_space)
 {
@@ -157,6 +162,7 @@ int tail_remove_units (item_coord *item, int from, int count,
 
 	length = length_by_coord (item);
 
+/* AUDIT: I think we can only remove the units from the end of tail (or sometimes we can do that for beginning of tail if we shift the tail? DO we use this function in that case?) But this should never be asked to remove units from the middle of tail and this is not checked here at all */
 	if (from + count == length && where_to_move_free_space == append)
 		return count;
 
@@ -174,6 +180,7 @@ int tail_remove_units (item_coord *item, int from, int count,
 
 /* plugin->u.item.b.unit_key
  */
+/* Audited by: green(2002.06.14) */
 void tail_unit_key (unit_coord * unit, reiser4_key * key)
 {
 	assert ("vs-110", unit->unit >= 0 && unit->unit < tail_nr_units (unit));
