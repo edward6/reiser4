@@ -941,8 +941,16 @@ int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
 			 ret );
 		return -EIO;
 	} else {
-		/* FIXME_COORD: what does this accomplish?
-		   result -> between = AFTER_UNIT; */
+		/*
+		 * Pointer to the new child should be inserted exactly after
+		 * existing pointer to its left sibling. Update insertion
+		 * point correspondingly.
+		 */
+		/*
+		 * FIXME-NIKITA don't access coord fields directly. Implement
+		 * wrapper for this.
+		 */
+		result -> between = AFTER_UNIT;
 		return NS_NOT_FOUND;
 	}
 }

@@ -152,7 +152,6 @@ int coord_is_existing_unit (const tree_coord *coord)
  * true for empty nodes nor coordinates positioned before the first item. */
 int coord_is_leftmost_unit (const tree_coord *coord)
 {
-	assert ("jmacd-9808", coord_is_existing_item (coord));
 	return (coord->between == AT_UNIT &&
 		coord->item_pos == 0 &&
 		coord->unit_pos == 0);
@@ -181,7 +180,11 @@ int coord_is_rightmost_item (const tree_coord *coord)
 /* For assertions only, checks for a valid coordinate. */
 int coord_check (const tree_coord *coord)
 {
-	if (coord->node == NULL) { return 0; }
+	if (coord->node == NULL) {
+		return 0; 
+	}
+	if (znode_above_root (coord->node))
+		return 1;
 
 	switch (coord->between) {
 	default:
@@ -195,6 +198,10 @@ int coord_check (const tree_coord *coord)
 
 	case BEFORE_UNIT:
 	case AFTER_UNIT:
+		if (node_is_empty (coord->node) && 
+		    (coord->item_pos == 0) &&
+		    (coord->unit_pos == 0))
+			return 1;
 	case AT_UNIT:
 		break;
 	case AFTER_ITEM:
@@ -210,7 +217,8 @@ int coord_check (const tree_coord *coord)
 		return 0;
 	}
 
-	if (coord->unit_pos > coord_last_unit_pos (coord)) {
+	if (coord->unit_pos > 
+	    item_plugin_by_coord (coord)->common.nr_units (coord) - 1) {
 		return 0;
 	}
 

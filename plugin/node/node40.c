@@ -280,10 +280,16 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		left = 0;
 	coord -> item_pos = left;
 	coord -> unit_pos = 0;
-	coord -> between  = AT_UNIT;
 
-	if( left >= ( int ) node_num_items( node ) )
+	if( left >= ( int ) node_num_items( node ) ) {
+		if( left == 0 )
+			coord_init_first_unit( coord, node );
+		else
+			coord -> between  = AFTER_UNIT;
 		return NS_NOT_FOUND;
+	}
+
+	coord -> between  = AT_UNIT;
 
 	/* key < leftmost key in a mode or node is corrupted and keys
 	   are not sorted  */

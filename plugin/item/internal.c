@@ -20,7 +20,7 @@ int internal_mergeable (const tree_coord * p1 UNUSED_ARG /* first item */,
 
 /* ->lookup() method for internal items */
 lookup_result internal_lookup (const reiser4_key *key /* key to look up */, 
-			       lookup_bias bias UNUSED_ARG /* lookup bias */,
+			       lookup_bias bias UNUSED_ARG,
 			       tree_coord *coord /* coord of item */ )
 {
 	reiser4_key ukey;
@@ -28,7 +28,7 @@ lookup_result internal_lookup (const reiser4_key *key /* key to look up */,
 	switch( keycmp( unit_key_by_coord( coord, &ukey ), key ) ) {
 	default: impossible( "", "keycmp()?!" );
 	case LESS_THAN:
-		coord -> between = AFTER_ITEM;
+		coord -> between = AT_UNIT;
 	case EQUAL_TO:
 		return CBK_COORD_FOUND;
 	case GREATER_THAN:
