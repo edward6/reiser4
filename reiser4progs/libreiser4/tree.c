@@ -408,8 +408,8 @@ static errno_t reiserfs_tree_attach(
 	
     /* 
 	FIXME-UMKA: Hardcoded internal item id. Here should be getting internal
-	item plugin id from parent. In the case parent doesm't exist, it should
-	be got form filesystem default profile.
+	item plugin id from parent. In the case parent doesn't exist, it should
+	be got from filesystem default profile.
     */
     if (!(internal_item.plugin = 
 	libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
@@ -572,7 +572,7 @@ errno_t reiserfs_tree_lshift(
 		reiserfs_node_count(left->node), ~0ul);
 	    
 	    /* Moving item into left neighbor */
-	    if (reiserfs_cache_move(dst.cache, &dst.pos, src.cache, &src.pos)) {
+	    if (reiserfs_tree_move(tree, &dst, &src)) {
 	        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		   "Left shifting failed. Can't move item.");
 		return -1;
@@ -702,7 +702,7 @@ errno_t reiserfs_tree_rshift(
 
 	    reiserfs_coord_init(&dst, right, 0, ~0ul);
 	
-	    if (reiserfs_cache_move(dst.cache, &dst.pos, src.cache, &src.pos)) {
+	    if (reiserfs_tree_move(tree, &dst, &src)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Right shifting of an item failed.");
 		return -1;
@@ -1028,7 +1028,38 @@ errno_t reiserfs_tree_remove(
 	return -1;
     }
    
-    return reiserfs_cache_remove(coord.cache, &coord.pos);
+    if (reiserfs_cache_remove(coord.cache, &coord.pos))
+	return -1;
+
+    /* 
+	FIXME-UMKA: Here should be also checking if we need descrease tree 
+	height.
+    */
+    
+    return 0;
+}
+
+/* 
+    Moves item or unit from src coord to dst. Also it keeps track of change
+    of root node in the tree.
+*/
+errno_t reiserfs_tree_move(
+    reiserfs_tree_t *tree,	    /* tree we are operating on */
+    reiserfs_coord_t *dst,	    /* dst coord */
+    reiserfs_coord_t *src	    /* src coord */
+) {
+    aal_assert("umka-1020", tree != NULL, return -1);
+    aal_assert("umka-1020", dst != NULL, return -1);
+    aal_assert("umka-1020", src != NULL, return -1);
+    
+
+    /* 
+	FIXME-UMKA: Here should be keeping track of the situation when we need 
+	to change tree root.
+    */
+
+    return reiserfs_cache_move(dst->cache, &dst->pos, 
+	src->cache, &src->pos);
 }
 
 #endif

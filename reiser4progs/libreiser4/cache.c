@@ -513,6 +513,9 @@ errno_t reiserfs_cache_remove(
 	    if (reiserfs_cache_remove(cache->parent, &p))
 		return -1;
 
+	    reiserfs_alloc_dealloc(cache->tree->fs->alloc,
+		aal_block_get_nr(cache->node->block));
+	    
 	    reiserfs_cache_unregister(cache->parent, cache);
 	    reiserfs_cache_close(cache);
 	}
