@@ -389,23 +389,36 @@ int connect_znode (new_coord * coord, znode * node)
 		return 0;
 	}
 
+	/* load parent node */
+	ret = zload (coord -> node);
+
+	if (ret != 0) return ret; 
+
 	/* protect `connected' state check by tree_lock */
 	spin_lock_tree(tree);
 
 	if (!znode_is_right_connected(node)) {
 		spin_unlock_tree(tree);
+
 		ret = connect_one_side(coord, node, GN_NO_ALLOC);
-		if (ret) return ret;
+		if (ret) goto zrelse_and_ret;
+
 		spin_lock_tree(tree);
 	}
 
 	/* connect to right neighbor */
 	ret = znode_is_left_connected(node);
+
 	spin_unlock_tree(tree);
+
 	if (!ret) {
-		return  connect_one_side(coord, node, GN_NO_ALLOC | GN_GO_LEFT);
+		ret = connect_one_side(coord, node, GN_NO_ALLOC | GN_GO_LEFT);
 	}
-	return 0;
+
+ zrelse_and_ret:
+	zrelse (coord -> node);
+
+	return ret;
 }
 
 /* this function is like renew_sibling_link() but allocates neighbor node if
