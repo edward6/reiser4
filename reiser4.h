@@ -326,13 +326,18 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /** Define several inline functions for each type of spinlock. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
 										\
+static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x)			\
+{										\
+	spin_lock( &x -> FIELD );						\
+	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
+	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
+}										\
+										\
 static inline void spin_lock_ ## NAME (TYPE *x)					\
 {										\
 	ON_DEBUG_CONTEXT( assert( "nikita-1383",                                \
 				  spin_ordering_pred_ ## NAME( x ) ) );		\
-	spin_lock( &x -> FIELD );						\
-	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
+	spin_lock_ ## NAME ## _no_ord( x );                                     \
 }										\
 										\
 static inline int  spin_trylock_ ## NAME (TYPE *x)				\
