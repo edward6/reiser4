@@ -984,9 +984,6 @@ extern spinlock_t inode_lock;
 
 static void delete_inode_common(struct inode *object)
 {
-	/*FIXME*/int js = 0;
-	/*FIXME*/loff_t size = object->i_size;
-
 	/* create context here.
 
 	removal of inode from the hash table (done at the very beginning of
@@ -1010,11 +1007,9 @@ static void delete_inode_common(struct inode *object)
 	uncapture_inode(object);
 
 	if (!is_bad_inode(object)) {
-		/*FIXME*/js = reiser4_inode_data(object)->jnodes;
 		drop_object_body(object);
 		assert("vs-1430", reiser4_inode_data(object)->jnodes == 0);
 	}
-	/*FIXME*/size += 100;
 
 	if (object->i_data.nrpages) {
 		warning("vs-1434", "nrpages %ld\n", object->i_data.nrpages);
