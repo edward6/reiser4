@@ -412,7 +412,7 @@ ON_DEBUG (atomic_t flush_cnt;)
  * values themselves and, for instance, stop flushing instead of resulting in a restart.
  * If any of these results are true error conditions then flush will go into a busy-loop,
  * as we noticed during testing when a corrupt tree caused find_child_ptr to return
- * ENAVAIL.  It needs careful thought and testing of corner conditions.
+ * ENOENT.  It needs careful thought and testing of corner conditions.
  */
 
 /* D. Atomicity of flush against deletion.  Suppose a created block is assigned a block
