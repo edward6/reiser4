@@ -56,36 +56,19 @@ drop_nonexclusive_access(struct inode *inode)
 	up_read(&reiser4_inode_data(inode)->sem);
 }
 
-#if 0
-/* part of tail2extent. @count bytes were copied into @page starting from the
- * beginning. mark all modifed jnode dirty and loaded, mark others
- * uptodate */
-static void
-mark_jnodes_dirty(struct page *page, unsigned count)
+void
+nea2ea(struct inode *inode)
 {
-	struct jnode *j;
-
-	/* make sure that page has jnodes */
-	assert("vs-525", PagePrivate(page));
-
-	j = nth_jnode(page, 0);
-	do {
-		if (count) {
-			jnode_set_dirty(j);
-			if (count < current_blocksize)
-				count = 0;
-			else
-				count -= current_blocksize;
-		}
-
-		/* AUDIT Perhaps it worth to add a check for count !=
-		 * 0 here as well to optimise for a case where only
-		 * few buffers at the beginning of a page were
-		 * touched.  ANSWER: we need to iterate all jnodes
-		 * anyway to mark them loaded */
-	} while ((j = next_jnode(j)) != 0);
+	drop_nonexclusive_access(inode);
+	get_exclusive_access(inode);
 }
-#endif
+
+void
+ea2nea(struct inode *inode)
+{
+	drop_exclusive_access(inode);
+	get_nonexclusive_access(inode);
+}
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
  * @offset */
@@ -108,98 +91,32 @@ cut_tail_items(struct inode *inode, loff_t offset, int count)
 	return cut_tree(tree_by_inode(inode), &from, &to);
 }
 
-/* @page contains file data. tree does not contain items corresponding to those
- * data. Put them in using specified item plugin */
-static int
-write_pages_by_item(struct inode *inode, struct page **pages,
-		    unsigned nr_pages, int count, item_plugin * iplug)
-{
-	flow_t f;
-	coord_t coord;
-	lock_handle lh;
-	int result;
-	char *p_data;
-	unsigned i;
-	int to_page;
-	struct sealed_coord hint;
-
-	assert("vs-604", (item_plugin_id(iplug) == TAIL_ID && nr_pages == 1));
-	assert("vs-564", iplug && iplug->s.file.write);
-
-	result = 0;
-
-	coord_init_zero(&coord);
-	init_lh(&lh);
-
-	for (i = 0; i < nr_pages; i++) {
-		p_data = kmap(pages[i]);
-
-		/* build flow */
-		if (count > (int) PAGE_CACHE_SIZE)
-			to_page = (int) PAGE_CACHE_SIZE;
-		else
-			to_page = count;
-
-		inode_file_plugin(inode)->flow_by_inode(inode,
-							p_data
-							/* no data to copy from */
-							,
-							0 /* not user space */ ,
-							(unsigned) to_page,
-							(loff_t) (pages[i]->
-								  index <<
-								  PAGE_CACHE_SHIFT),
-							WRITE_OP, &f);
-
-		while (f.length) {
-			result = find_next_item(0, &f.key, &coord, &lh,
-						ZNODE_WRITE_LOCK,
-						CBK_UNIQUE | CBK_FOR_INSERT);
-			if (result != CBK_COORD_NOTFOUND &&
-			    result != CBK_COORD_FOUND) {
-				goto done;
-			}
-
-			assert("vs-957", ergo(result == CBK_COORD_NOTFOUND,
-					      get_key_offset(&f.key) == 0));
-			assert("vs-958", ergo(result == CBK_COORD_FOUND,
-					      get_key_offset(&f.key) != 0));
-
-			set_hint(&hint, &f.key, &coord);
-			done_lh(&lh);
-
-			result = iplug->s.file.write(inode, &hint, &f);
-			if (result)
-				goto done;
-
-		}
-
-		kunmap(pages[i]);
-		/* page is written */
-		count -= to_page;
-	}
-
-done:
-	done_lh(&lh);
-
-	/* result of write is 0 or error */
-	assert("vs-589", result <= 0);
-	/* if result is 0 - all @count bytes is written completely */
-	assert("vs-588", ergo(result == 0, count == 0));
-	return result;
-}
+typedef enum {
+	UNLOCK = 0,
+	RELEASE = 1,
+	DROP = 2
+} page_action;
 
 static void
-drop_pages(struct page **pages, unsigned nr_pages)
+for_all_pages(struct page **pages, unsigned nr_pages, page_action action)
 {
 	unsigned i;
 
 	for (i = 0; i < nr_pages; i++) {
 		if (!pages[i])
 			continue;
-		reiser4_unlock_page(pages[i]);
-		page_cache_release(pages[i]);
-		pages[i] = NULL;
+		switch(action) {
+		case UNLOCK:
+			reiser4_unlock_page(pages[i]);
+			break;
+		case DROP:
+			reiser4_unlock_page(pages[i]);
+		case RELEASE:
+			assert("vs-1082", !PageLocked(pages[i]));
+			page_cache_release(pages[i]);
+			pages[i] = NULL;
+			break;
+		}
 	}
 }
 
@@ -218,20 +135,18 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 	assert("vs-596", nr_pages > 0 && pages[0]);
 
 	/* cut copied items */
-	result =
-	    cut_tail_items(inode, (loff_t) pages[0]->index << PAGE_CACHE_SHIFT,
-			   count);
+	result = cut_tail_items(inode, (loff_t) pages[0]->index << PAGE_CACHE_SHIFT, count);
 	if (result)
 		return result;
 
 	CHECK_COUNTERS;
 
-	/* put into tree replacement for just removed items: extent item,
-	 * namely */
+	/* put into tree replacement for just removed items: extent item, namely */
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 
 	for (i = 0; i < nr_pages; i++) {
-		result = unix_file_writepage_nolock_locked_page(pages[i]);
+		result = unix_file_writepage_nolock(pages[i]);
+		reiser4_unlock_page(pages[i]);
 		if (result)
 			break;
 		SetPageUptodate(pages[i]);
@@ -247,8 +162,7 @@ tail2extent(struct inode *inode)
 {
 	int result;
 	reiser4_key key;	/* key of next byte to be moved to page */
-	ON_DEBUG(reiser4_key tmp;
-	    )
+	ON_DEBUG(reiser4_key tmp;)
 	char *p_data;		/* data of page */
 	unsigned page_off = 0,	/* offset within the page where to copy data */
 	 count;			/* number of bytes of item which can be
@@ -260,17 +174,15 @@ tail2extent(struct inode *inode)
 
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
 	 * to write_down */
-	drop_nonexclusive_access(inode);
-	get_exclusive_access(inode);
+	nea2ea(inode);
+
+	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)) {
+		/* tail was converted by someone else */
+		ea2nea(inode);
+		return 0;
+	}
 
 	xmemset(pages, 0, sizeof (pages));
-
-	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) &&
-	    !inode_get_flag(inode, REISER4_HAS_TAIL)) {
-		/* tail was converted by someone else */
-		result = 0;
-		goto ok;
-	}
 
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_file_add(tail2extent);
@@ -279,17 +191,14 @@ tail2extent(struct inode *inode)
 	unix_file_key_by_inode(inode, 0ull, &key);
 
 	done = 0;
+	result = 0;
 	while (!done) {
-		drop_pages(pages, sizeof_array(pages));
+		/*for_all_pages(pages, sizeof_array(pages), DROP);*/
 		xmemset(pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
-			assert("vs-598",
-			       (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			pages[i] = grab_cache_page(inode->i_mapping,
-						   (unsigned
-						    long) (get_key_offset(&key)
-							   >>
-							   PAGE_CACHE_SHIFT));
+			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
+			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key)
+										      >> PAGE_CACHE_SHIFT));
 			if (!pages[i]) {
 				result = -ENOMEM;
 				goto error;
@@ -313,12 +222,9 @@ tail2extent(struct inode *inode)
 				/* get next item */
 				coord_init_zero(&coord);
 				init_lh(&lh);
-				result = find_next_item(0, &key, &coord, &lh,
-							ZNODE_READ_LOCK,
-							CBK_UNIQUE);
+				result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
 				if (result != CBK_COORD_FOUND) {
-					if (result == CBK_COORD_NOTFOUND &&
-					    get_key_offset(&key) == 0)
+					if (result == CBK_COORD_NOTFOUND && get_key_offset(&key) == 0)
 						/* conversion can be called for
 						 * empty file */
 						result = 0;
@@ -332,10 +238,8 @@ tail2extent(struct inode *inode)
 					 */
 					done_lh(&lh);
 					done = 1;
-					p_data =
-					    kmap_atomic(pages[i], KM_USER0);
-					xmemset(p_data + page_off, 0,
-						PAGE_CACHE_SIZE - page_off);
+					p_data = kmap_atomic(pages[i], KM_USER0);
+					xmemset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
 					kunmap_atomic(p_data, KM_USER0);
 					break;
 				}
@@ -344,12 +248,9 @@ tail2extent(struct inode *inode)
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562",
-				       unix_file_owns_item(inode, &coord));
+				assert("vs-562", unix_file_owns_item(inode, &coord));
 				assert("vs-856", coord.between == AT_UNIT);
-				assert("green-11",
-				       keyeq(&key,
-					     unit_key_by_coord(&coord, &tmp)));
+				assert("green-11", keyeq(&key, unit_key_by_coord(&coord, &tmp)));
 				if (item_id_by_coord(&coord) != TAIL_ID) {
 					/*
 					 * something other than tail
@@ -358,21 +259,17 @@ tail2extent(struct inode *inode)
 					 * call to reiser4_mmap.
 					 */
 					result = -EIO;
-					if (get_key_offset(&key) == 0 &&
-					    item_id_by_coord(&coord) ==
-					    EXTENT_POINTER_ID) result = 0;
+					if (get_key_offset(&key) == 0 && item_id_by_coord(&coord) == EXTENT_POINTER_ID)
+						result = 0;
 
 					zrelse(coord.node);
 					done_lh(&lh);
 					goto error;
 				}
-				item =
-				    item_body_by_coord(&coord) + coord.unit_pos;
+				item = item_body_by_coord(&coord) + coord.unit_pos;
 
 				/* how many bytes to copy */
-				count =
-				    item_length_by_coord(&coord) -
-				    coord.unit_pos;
+				count = item_length_by_coord(&coord) - coord.unit_pos;
 				/* limit length of copy to end of page */
 				if (count > PAGE_CACHE_SIZE - page_off)
 					count = PAGE_CACHE_SIZE - page_off;
@@ -383,13 +280,11 @@ tail2extent(struct inode *inode)
 				p_data = kmap_atomic(pages[i], KM_USER0);
 				/* copy item (as much as will fit starting from
 				 * the beginning of the item) into the page */
-				memcpy(p_data + page_off, item,
-				       (unsigned) count);
+				memcpy(p_data + page_off, item, (unsigned) count);
 				kunmap_atomic(p_data, KM_USER0);
 
 				page_off += count;
-				set_key_offset(&key,
-					       get_key_offset(&key) + count);
+				set_key_offset(&key, get_key_offset(&key) + count);
 
 				zrelse(coord.node);
 				done_lh(&lh);
@@ -398,10 +293,8 @@ tail2extent(struct inode *inode)
 					/*
 					 * end of file is detected here
 					 */
-					p_data =
-					    kmap_atomic(pages[i], KM_USER0);
-					memset(p_data + page_off, 0,
-					       PAGE_CACHE_SIZE - page_off);
+					p_data = kmap_atomic(pages[i], KM_USER0);
+					memset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
 					kunmap_atomic(p_data, KM_USER0);
 					done = 1;
 					break;
@@ -409,32 +302,34 @@ tail2extent(struct inode *inode)
 			}	/* for */
 		}		/* for */
 
-		result = replace(inode, pages, i,
-				 (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
-		if (result)
-			goto error;
-	}
+		/* to keep right lock order unlock pages before calling replace which will have to obtain longterm
+		 * znode lock */
+		for_all_pages(pages, sizeof_array(pages), UNLOCK);
 
+		result = replace(inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
+		for_all_pages(pages, sizeof_array(pages), RELEASE);
+		if (result)
+			goto exit;
+	}
+	/* tail coverted */
 	inode_set_flag(inode, REISER4_TAIL_STATE_KNOWN);
 	inode_clr_flag(inode, REISER4_HAS_TAIL);
 
-ok:
-	drop_pages(pages, sizeof_array(pages));
-	drop_exclusive_access(inode);
-	get_nonexclusive_access(inode);
+	for_all_pages(pages, sizeof_array(pages), RELEASE);
+	ea2nea(inode);
 
 	/* It is advisabel to check here that all grabbed pages were freed */
 
-	/* file can not be converted back to tails, because tail */
-	assert("vs-830", (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) &&
-			  !inode_get_flag(inode, REISER4_HAS_TAIL)));
-
+	/* file could not be converted back to tails while we did not
+	 * have neither NEA nor EA to the file */
+	assert("vs-830", (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)));
+	assert("vs-1083", result == 0);
 	return 0;
 
 error:
-	drop_pages(pages, sizeof_array(pages));
-	drop_exclusive_access(inode);
-	get_nonexclusive_access(inode);
+	for_all_pages(pages, sizeof_array(pages), DROP);
+exit:
+	ea2nea(inode);
 	return result;
 }
 
@@ -446,12 +341,54 @@ error:
 static int
 write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 {
-	return write_pages_by_item(inode, &page, 1, (int) count,
-				   item_plugin_by_id(TAIL_ID));
+	flow_t f;
+	coord_t coord;
+	lock_handle lh;
+	znode *loaded;
+	item_plugin *iplug;
+	int result;
+
+	result = 0;
+
+	assert("vs-1089", count);
+
+	coord_init_zero(&coord);
+	init_lh(&lh);
+
+	/* build flow */
+	inode_file_plugin(inode)->flow_by_inode(inode, kmap(page), 0 /* not user space */ ,
+						count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
+	iplug = item_plugin_by_id(TAIL_ID);
+	while (f.length) {
+		result = find_next_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
+		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
+			break;
+		}
+		assert("vs-957", ergo(result == CBK_COORD_NOTFOUND, get_key_offset(&f.key) == 0));
+		assert("vs-958", ergo(result == CBK_COORD_FOUND, get_key_offset(&f.key) != 0));
+
+		result = zload(coord.node);
+		if (result)
+			break;
+		loaded = coord.node;
+		result = item_plugin_by_id(TAIL_ID)->s.file.write(inode, &coord, &lh, &f);
+		zrelse(loaded);
+		if (result)
+			break;
+		done_lh(&lh);
+	}
+
+	kunmap(page);
+
+	/* result of write is 0 or error */
+	assert("vs-589", result <= 0);
+	/* if result is 0 - all @count bytes is written completely */
+	assert("vs-588", ergo(result == 0, f.length == 0));
+	return result;
 }
 
-
-static int filler(void *vp, struct page *page)
+static int
+filler(void *vp, struct page *page)
 {
 	return unix_file_readpage(vp, page);
 }
@@ -476,8 +413,7 @@ extent2tail(struct file *file)
 
 	get_exclusive_access(inode);
 
-	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) &&
-	    inode_get_flag(inode, REISER4_HAS_TAIL)) {
+	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && inode_get_flag(inode, REISER4_HAS_TAIL)) {
 		drop_exclusive_access(inode);
 		return 0;
 	}
@@ -491,8 +427,7 @@ extent2tail(struct file *file)
 	result = 0;
 
 	for (i = 0; i < num_pages; i++) {
-		page = read_cache_page(inode->i_mapping, (unsigned) i,
-				       filler, file);
+		page = read_cache_page(inode->i_mapping, (unsigned) i, filler, file);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;
@@ -506,34 +441,28 @@ extent2tail(struct file *file)
 			break;
 		}
 
-		reiser4_lock_page(page);
-
 		assert("nikita-2689", page->mapping == inode->i_mapping);
 
 		/* cut part of file we have read */
 		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
-		set_key_offset(&to,
-			       (__u64) ((i << PAGE_CACHE_SHIFT) +
-					PAGE_CACHE_SIZE - 1));
+		set_key_offset(&to, (__u64) ((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
 		result = cut_tree(tree_by_inode(inode), &from, &to);
 		if (result) {
-			reiser4_unlock_page(page);
 			page_cache_release(page);
 			break;
 		}
 		/* put page data into tree via tail_write */
 		count = PAGE_CACHE_SIZE;
 		if (i == num_pages - 1)
-			count =
-			    (inode->
-			     i_size & ~PAGE_CACHE_MASK) ? : PAGE_CACHE_SIZE;
+			count = (inode->i_size & ~PAGE_CACHE_MASK) ? : PAGE_CACHE_SIZE;
 		result = write_page_by_tail(inode, page, count);
 		if (result) {
-			reiser4_unlock_page(page);
 			page_cache_release(page);
 			break;
 		}
 		/* release page, detach jnode if any */
+		reiser4_lock_page(page);
+		assert("vs-1086", page->mapping == inode->i_mapping);
 		if (PagePrivate(page)) {
 			result = page->mapping->a_ops->invalidatepage(page, 0);
 			if (result) {
@@ -542,8 +471,7 @@ extent2tail(struct file *file)
 				break;
 			}
 		}
-		assert("nikita-2690", (!PagePrivate(page) &&
-				       page->private == 0));
+		assert("nikita-2690", (!PagePrivate(page) && page->private == 0));
 		drop_page(page, NULL);
 		/*
 		 * release reference taken by read_cache_page() above
@@ -558,8 +486,18 @@ extent2tail(struct file *file)
 		 */
 		inode_set_flag(inode, REISER4_HAS_TAIL);
 	else
-		warning("nikita-2282", "Partial conversion of %lu: %lu of %lu",
-			inode->i_ino, i, num_pages);
+		warning("nikita-2282", "Partial conversion of %lu: %lu of %lu", inode->i_ino, i, num_pages);
 	drop_exclusive_access(inode);
 	return result;
 }
+
+/* 
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */
