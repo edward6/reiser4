@@ -268,6 +268,8 @@ typedef struct dir_plugin {
 	   some state for the plugin, and that this state might even include
 	   the name used by open.  */
 	int (*resolve_into_inode)(struct inode *parent_inode, 
+				  struct dentry *dentry );
+#if 0
 				  const struct qstr *name, 
 				  /* probably needs more parameters? */
 				  name_t *,
@@ -277,7 +279,7 @@ typedef struct dir_plugin {
 				  reiser4_dir_entry_desc * /* entry key and
 							    * inode bound by
 							    * it */);
-
+#endif
 	/* VFS required/defined operations below this line */
 	int ( *unlink )( struct inode *parent, struct dentry *victim );
 	int ( *link )( struct inode *parent, struct dentry *existing, 

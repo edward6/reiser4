@@ -94,13 +94,11 @@ static int reiser4_bmap(struct address_space *, long);
 static int reiser4_direct_IO(int, struct inode *, 
 			     struct kiobuf *, unsigned long, int);
 
-static struct dentry_operations reiser4_dentry_operation;
+struct dentry_operations reiser4_dentry_operation;
 
-static int            invoke_create_method ( struct inode *parent, 
-					     struct dentry *dentry, 
-					     reiser4_object_create_data *data );
-static struct dentry *lookup_object        ( struct inode *parent, 
-					     struct dentry *dentry );
+static int invoke_create_method( struct inode *parent, 
+				 struct dentry *dentry, 
+				 reiser4_object_create_data *data );
 
 
 static int readdir_actor( reiser4_tree *tree, 
@@ -114,17 +112,122 @@ static int readdir_actor( reiser4_tree *tree,
  *
  * This is installed in ->lookup() in reiser4_inode_operations.
  */
-static struct dentry *reiser4_lookup( struct inode *parent, /* directory within which we are to look for the name specified in dentry */
+static struct dentry *reiser4_lookup( struct inode *parent, /* directory within which we are to look for the name
+							     * specified in dentry */
 				      struct dentry *dentry /* this contains the name that is to be looked for on entry,
 							       and on exit contains a filled in dentry with a pointer to
 							       the inode (unless name not found) */
 
 )
 {
-/* this should find the plugin and invoke its method, not more */
+	dir_plugin *dplug;
+	int retval;
+	struct dentry *result;
+	REISER4_ENTRY_PTR( parent -> i_sb );
+
+
+	assert( "nikita-403", parent != NULL );
+	assert( "nikita-404", dentry != NULL );
+
+	/* find @parent directory plugin and make sure that it has lookup
+	 * method */
+	dplug = reiser4_get_dir_plugin( parent );
+	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
+		return ERR_PTR( -ENOTDIR );
+	}
+
+	/* call its lookup method */
+	retval = dplug -> resolve_into_inode( parent, dentry );
+	if( retval )
+		result = ERR_PTR( retval );
+	else
+		result = NULL;
+	/* success */
+	REISER4_EXIT_PTR( result );
 }
 
+#if 0
+static struct dentry *invloke_lookup_method( struct inode *parent, 
+					     struct dentry *dentry )
+{
+	dir_plugin          *dplug;
+	struct inode        *inode;
+	reiser4_key          key;
+	reiser4_dir_entry_desc        entry;
 
+	const char          *name;
+	int                  len;
+
+	assert( "nikita-403", parent != NULL );
+	assert( "nikita-404", dentry != NULL );
+
+	dplug = reiser4_get_dir_plugin( parent );
+
+	/* FIXME-HANS: is this okay? */
+	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
+		return ERR_PTR( -ENOTDIR );
+	}
+
+	/* check permissions */
+	if( perm_chk( parent, lookup, parent, dentry ) )
+		return ERR_PTR( -EPERM );
+
+	inode = NULL;
+	name = dentry -> d_name.name;
+	len  = dentry -> d_name.len;
+
+	/*
+	 * set up operations on dentry. 
+	 *
+	 * FIXME-NIKITA this also has to be done for root dentry somewhere?
+	 */
+	dentry -> d_op = &reiser4_dentry_operation;
+
+	if( dplug -> is_name_acceptable && 
+	    !dplug -> is_name_acceptable( parent, name, len ) ) {
+		/* some arbitrary error code to return */
+		return ERR_PTR( -ENAMETOOLONG );
+	}
+
+	xmemset( &entry, 0, sizeof entry );
+
+	/*switch( dplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {*/
+	switch( dplug -> resolve_into_inode( parent, &dentry -> d_name, 0/*name_t*/,&key, &entry ) ) {
+	default: wrong_return_value( "nikita-407", "->lookup()" );
+	case FILE_IO_ERROR:
+		return ERR_PTR( -EIO );
+	case FILE_OOM:
+		return ERR_PTR( -ENOMEM );
+	case FILE_NAME_NOTFOUND:
+		/*
+		 * FIXME-NIKITA here should go lookup of pseudo files. Hans
+		 * decided that existing implementation
+		 * (lookup_pseudo()) was unsatisfactory.
+		 */
+		return ERR_PTR( -ENOENT );
+		break;
+	case FILE_NAME_FOUND: {
+		__u32 *flags;
+
+		inode = reiser4_iget( parent -> i_sb, &key );
+		if( inode == NULL )
+			return ERR_PTR( -EACCES );
+		flags = reiser4_inode_flags( inode );
+		if( *flags & REISER4_LIGHT_WEIGHT_INODE ) {
+			inode -> i_uid = parent -> i_uid;
+			inode -> i_gid = parent -> i_gid;
+			/* clear light-weight flag. If inode would be
+			   read by any other name, [ug]id wouldn't
+			   change. */
+			*flags &= ~REISER4_LIGHT_WEIGHT_INODE;
+		}
+		reiser4_unlock_inode( inode );
+	}
+	}
+	d_add( dentry, inode );
+	return NULL;
+}
+#endif
 
 /**
  * ->create() VFS method in reiser4 inode_operations
@@ -1041,7 +1144,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.dentry_to_fh       = reiser4_dentry_to_fh */
 };
 
-static struct dentry_operations reiser4_dentry_operation = {
+struct dentry_operations reiser4_dentry_operation = {
 	.d_revalidate = NULL,
 	.d_hash       = NULL,
 	.d_compare    = NULL,

@@ -149,28 +149,48 @@ static int create_dot_dotdot( struct inode *object, struct inode *parent )
 }
 
 /**
- * implementation of ->lookup() method for hashed durectories.
+ * implementation of ->resolve_into_inode() method for hashed durectories.
  */
-file_lookup_result hashed_lookup( struct inode *inode /* inode of
-						       * directory to
-						       * lookup into */, 
-				  const struct qstr *name /* name to look for
-							   * and its length */,
-				  name_t *unused UNUSED_ARG,
-				  reiser4_key *key  /* key of object found */,
-				  reiser4_dir_entry_desc *entry /* key of
-								 * object
-								 * found */ )
+file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
+							* lookup into */,
+				  struct dentry *dentry )
 {
-	int                 result;
-	tree_coord          coord;
-	reiser4_lock_handle lh;
+	int                    result;
+	tree_coord             coord;
+	reiser4_lock_handle    lh;
+	const char            *name;
+	int                    len;
+	reiser4_dir_entry_desc entry;
+	
+	assert( "nikita-1247", parent != NULL );
+	assert( "nikita-1248", dentry != NULL );
+	assert( "nikita-1123", dentry->d_name.name != NULL );
+	
+	/*
+	 * we are trying to do finer grained locking than BKL. Lock inode in
+	 * question and release BKL. Hopefully BKL was only taken once by VFS.
+	 */
+	if( reiser4_lock_inode_interruptible( parent ) != 0 )
+		return -EINTR;
 
-	assert( "nikita-1247", inode != NULL );
-	assert( "nikita-1248", name != NULL );
-	assert( "nikita-1122", name != NULL );
-	assert( "nikita-1123", name -> name != NULL );
-	assert( "nikita-1249", key != NULL );
+	if( perm_chk( parent, lookup, parent, dentry ) )
+		return -EPERM;
+	
+	name = dentry -> d_name.name;
+	len  = dentry -> d_name.len;
+	
+
+	if( !is_name_acceptable( parent, name, len ) ) {
+		/* some arbitrary error code to return */
+		return -ENAMETOOLONG;
+	}
+
+	/*
+	 * set up operations on dentry. 
+	 *
+	 * FIXME-NIKITA this also has to be done for root dentry somewhere?
+	 */
+	dentry -> d_op = &reiser4_dentry_operation;
 
 	reiser4_init_coord( &coord );
 	reiser4_init_lh( &lh );
@@ -178,15 +198,41 @@ file_lookup_result hashed_lookup( struct inode *inode /* inode of
 	/*
 	 * find entry in a directory. This is plugin method.
 	 */
-	result = find_entry( inode, name, &coord, &lh, ZNODE_READ_LOCK, entry );
-	if( result == 0 )
-		/*
-		 * if entry was found, extract object key from it.
-		 */
+	result = find_entry( parent, &dentry -> d_name, &coord, &lh,
+			     ZNODE_READ_LOCK, &entry );
+	if( result == 0 ) {
+		/* entry was found, extract object key from it. */
 		result = item_plugin_by_coord( &coord ) -> 
-			s.dir.extract_key( &coord, key );
+			s.dir.extract_key( &coord, &entry.key );
+	}
 	reiser4_done_lh( &lh );
 	reiser4_done_coord( &coord );
+	
+	if( result == 0 ) {
+		struct inode *inode;
+
+		inode = reiser4_iget( parent -> i_sb, &entry.key );
+		if( inode ) {
+			__u32 *flags;
+ 
+			flags = reiser4_inode_flags( inode );
+			if( *flags & REISER4_LIGHT_WEIGHT_INODE ) {
+				inode -> i_uid = parent -> i_uid;
+				inode -> i_gid = parent -> i_gid;
+				/* clear light-weight flag. If inode would be
+				   read by any other name, [ug]id wouldn't
+				   change. */
+				*flags &= ~REISER4_LIGHT_WEIGHT_INODE;
+			}
+			/* success */
+			d_add( dentry, inode );
+			reiser4_unlock_inode( inode );
+			result = 0;
+		} else
+			result = -EACCES;
+	}
+
+	reiser4_unlock_inode( parent );
 	return result;
 }
 
@@ -319,6 +365,7 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		       znode_lock_mode mode, reiser4_dir_entry_desc *entry )
 {
 	int         result;
+
 
 	assert( "nikita-1130", lh != NULL );
 	assert( "nikita-1128", dir != NULL );
