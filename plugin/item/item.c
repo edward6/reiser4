@@ -499,7 +499,7 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.read      = extent_read,
 				.readpage  = extent_readpage,
 				.writepage = extent_writepage,
-				.page_cache_readahead = extent_page_cache_readahead,
+				.page_cache_readahead = NULL /*extent_page_cache_readahead*/,
 			}
 		}
 	},

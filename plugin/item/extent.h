@@ -122,10 +122,12 @@ int extent_read     (struct inode *, struct sealed_coord *,
 		     flow_t *);
 int extent_readpage (void *, struct page * page);
 int extent_writepage (void *, struct page *);
+#if 0
 int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				 lock_handle * lh UNUSED_ARG,
 				 unsigned long start_page,
 				 unsigned long intrafile_readahead_amount);
+#endif
 
 /* these are used in flush.c
  * FIXME-VS: should they be somewhere in item_plugin? */

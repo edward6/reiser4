@@ -228,6 +228,7 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
+#if 0
 /** 
  * check amount of available for allocation memory, and kick ktxnmgrd is it
  * is low. NEITHER FINISHED NOR USED.
@@ -274,7 +275,6 @@ void reiser4_check_mem( reiser4_context *ctx )
 	}
 }
 
-#if 0
 /** 
  * helper function to find-and-lock page in a page cache and do additional
  * checks 

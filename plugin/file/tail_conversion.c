@@ -36,6 +36,7 @@ void drop_nonexclusive_access (struct inode * inode)
 }
 
 
+#if 0
 /* part of tail2extent. @count bytes were copied into @page starting from the
  * beginning. mark all modifed jnode dirty and loaded, mark others
  * uptodate */
@@ -63,7 +64,7 @@ static void mark_jnodes_dirty (struct page * page, unsigned count)
 		 * anyway to mark them loaded */
 	} while ((j = next_jnode (j)) != 0);
 }
-
+#endif
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
  * @offset */
@@ -171,6 +172,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 }
 
 
+#if 0
 /* part of tail2extent. @page contains data read from tail items. Those tail
  * items are removed from tree already. extent slot pointing to this page will
  * be created by using extent_write */
@@ -194,6 +196,7 @@ static int write_pages_by_extent (struct inode * inode, struct page ** pages,
 	return result;
 }
 
+#endif
 
 /* Audited by: green(2002.06.15) */
 static void drop_pages (struct page ** pages, unsigned nr_pages)
@@ -219,7 +222,6 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 {
 	int result;
 	unsigned i;
-	unsigned to_page;
 	item_plugin * iplug;
 	STORE_COUNTERS;
 

@@ -1797,6 +1797,7 @@ static int extent_end_io_read(struct bio *bio,
 	return 0;
 }
 
+#if 0
 /* Implements plugin->u.item.s.file.readahead operation for extent items.
  *
  * scan extent item @coord starting from position addressing @start_page and
@@ -2061,6 +2062,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	 * returned value */
 	return intrafile_readahead_amount - left;
 }
+#endif
 
 /*
  * ask block allocator for some blocks
@@ -3013,12 +3015,12 @@ static void extent_assign_fake_blocknr (jnode * j)
 	assign_fake_blocknr (&fake_blocknr, 0/*unformatted*/);
 	jnode_set_block (j, &fake_blocknr);
 
-	unallocated_blocks ++;
+//	unallocated_blocks ++;
 	/*
 	 * FIXME-VS: for debugging zam-528
 	 */
-	assert ("", unallocated_blocks ==
-		reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()));
+/*  	assert ("", unallocated_blocks == */
+/*  		reiser4_fake_allocated_unformatted (reiser4_get_current_sb ())); */
 }
 
 
