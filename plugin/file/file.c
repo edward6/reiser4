@@ -29,12 +29,12 @@ typedef enum {
 /*
  * look for item of file @inode corresponding to @key
  */
-static int find_item (struct inode * inode, reiser4_key * key,
-		      tree_coord * coord,
-		      reiser4_lock_handle * lh)
+static int find_item (reiser4_key * key, tree_coord * coord,
+		      reiser4_lock_handle * lh,
+		      znode_lock_mode lock_mode)
 {
-	return coord_by_key (tree_by_inode (inode), key, coord, lh,
-			     ZNODE_WRITE_LOCK, FIND_EXACT,
+	return coord_by_key (current_tree, key, coord, lh,
+			     lock_mode, FIND_EXACT,
 			     LEAF_LEVEL, LEAF_LEVEL);
 }
 
@@ -143,9 +143,10 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	flow f;
 	
 
-	/* collect statistics on the number of writes */
+	/*
+	 * collect statistics on the number of writes
+	 */
 	reiser4_stat_file_add (writes);
-
 
 	inode = file->f_dentry->d_inode;
 	result = 0;
@@ -154,8 +155,8 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	 * build flow
 	 */
 	f.length = size;
-	f.data   = buf;
-	build_sd_key (file->f_dentry->d_inode, &f.key);
+	f.data = buf;
+	build_sd_key (inode, &f.key);
 	set_key_type (&f.key, KEY_BODY_MINOR );
 	set_key_offset (&f.key, ( __u64 ) *off);
 
@@ -164,7 +165,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 		reiser4_init_coord (&coord);
 		reiser4_init_lh (&lh);
 
-		result = find_item (inode, &f.key, &coord, &lh);
+		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/*
 			 * error occured
@@ -208,36 +209,39 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 }
 
 
-/* plugin->u.file.readpage
-   this finds item of file corresponding to page being read in and calls its
-   fill_page method
-*/
-int ordinary_readpage (struct file * file, struct page * page)
+/*
+ * plugin->u.file.readpage
+ * this finds item of file corresponding to page being read in and calls its
+ * readpage method
+ */
+int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 {
 	int result;
-	struct inode * inode;
 	tree_coord coord;
 	reiser4_lock_handle lh;
 	reiser4_key key;
 	item_plugin * iplug;
+	struct readpage_arg arg;
 
-	inode = file->f_dentry->d_inode;
 
-	build_sd_key (inode, &key);
+	build_sd_key (page->mapping->host, &key);
 	set_key_type (&key, KEY_BODY_MINOR);
-	set_key_offset (&key, page->index * (unsigned long long)PAGE_SIZE);
+	set_key_offset (&key, (unsigned long long)page->index << PAGE_SHIFT);
 
 	reiser4_init_coord (&coord);
 	reiser4_init_lh (&lh);
 
-	result = find_item (inode, &key, &coord, &lh);
+	result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
 	if (result != CBK_COORD_FOUND) {
-		warning ("vs-280", "No file items found");
+		warning ("vs-280", "No file items found\n");
 		reiser4_done_lh (&lh);
 		reiser4_done_coord (&coord);
 		return result;
 	}
 
+	/*
+	 * get plugin of found item
+	 */
 	iplug = item_plugin_by_coord (&coord);
 	if (!iplug->s.file.fill_page) {
 		reiser4_done_lh (&lh);
@@ -245,7 +249,9 @@ int ordinary_readpage (struct file * file, struct page * page)
 		return -EINVAL;
 	}
 
-	result = iplug->s.file.fill_page (page, &coord, &lh);
+	arg.coord = &coord;
+	arg.lh = &lh;
+	result = iplug->s.file.readpage (page, &arg);
 
 	reiser4_done_lh (&lh);
 	reiser4_done_coord (&coord);
@@ -253,8 +259,10 @@ int ordinary_readpage (struct file * file, struct page * page)
 }
 
 
-/* plugin->u.file.read
-
+/*
+ * plugin->u.file.read
+ */
+/*
    this calls mm/filemap.c:read_cache_page() for every page spanned by the
    flow @f. This read_cache_page allocates a page if it does not exist and
    calls a function specified by caller (we specify reiser4_ordinary_readpage
@@ -278,9 +286,14 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	tree_coord coord;
 	reiser4_lock_handle lh;
 	size_t to_read;
-	unsigned long long file_off;
+	item_plugin * iplug;
 	flow f;
 
+
+	/*
+	 * collect statistics on the number of reads
+	 */
+	reiser4_stat_file_add (reads);
 
 	inode = file->f_dentry->d_inode;
 	result = 0;
@@ -289,15 +302,13 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	 * build flow
 	 */
 	f.length = size;
-	f.data   = buf;
-	build_sd_key (file->f_dentry->d_inode, &f.key);
+	f.data = buf;
+	build_sd_key (inode, &f.key);
 	set_key_type (&f.key, KEY_BODY_MINOR );
 	set_key_offset (&f.key, ( __u64 ) *off);
 
-	file_off = *off;
 	to_read = f.length;
-
-	while (f.length && !result) {
+	while (f.length) {
 		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
 			/*
 			 * do not read out of file
@@ -305,11 +316,17 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 			break;
 		reiser4_init_coord (&coord);
 		reiser4_init_lh (&lh);
-
-		result = find_item (inode, &f.key, &coord, &lh);
+		
+		result = find_item (inode, &f.key, &coord, &lh,
+				    ZNODE_READ_LOCK);
 		switch (result) {
 		case CBK_COORD_FOUND:
-			result = item_plugin_by_coord (&coord)->s.file.read (inode, &coord, &lh, &f);
+			iplug = item_plugin_by_coord (&coord);
+			if (!iplug->s.file.read)
+				result = -EINVAL;
+			else
+				result = iplug->s.file.read (inode, &coord,
+							     &lh, &f);
 			break;
 
 		case CBK_COORD_NOTFOUND:
@@ -322,6 +339,8 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 		}
 		reiser4_done_lh (&lh);
 		reiser4_done_coord (&coord);
+		if (!result)
+			continue;
 	}
 
 	*off += (to_read - f.length);
@@ -329,10 +348,11 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 }
 
 #if 0
-
+{
+	{
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		}
-		
+
 		page_nr = (get_key_offset (&f->key) >> PAGE_SHIFT);
 		page = read_cache_page (inode->i_mapping, page_nr,
 					(filler_t *)reiser4_ordinary_readpage, file);
@@ -379,7 +399,8 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 }
 #endif
 
-/* plugin->u.file.truncate
+/*
+ * plugin->u.file.truncate
  */
 int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 {
@@ -393,12 +414,30 @@ int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 	to = from;
 	set_key_offset (&to, get_key_offset (max_key ()));
 	
-	/* all items of ordinary reiser4 file are grouped together. That is
-	   why we can use cut_tree. Plan B files (for instance) can not be
+	/* all items of ordinary reiser4 file are grouped together. That is why
+	   we can use cut_tree. Plan B files (for instance) can not be
 	   truncated that simply */
 	return cut_tree (tree_by_inode (inode), &from, &to);
 }
 
+
+/*
+ * plugin->u.file.create
+ * create sd for ordinary file. Just pass control to
+ * fs/reiser4/plugin/object.c:common_file_save()
+ */
+int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
+			  reiser4_object_create_data *data UNUSED_ARG )
+{
+	assert( "nikita-744", object != NULL );
+	assert( "nikita-745", parent != NULL );
+	assert( "nikita-747", data != NULL );
+	assert( "nikita-748", 
+		*reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA );
+	assert( "nikita-749", data -> id == REGULAR_FILE_PLUGIN_ID );
+	
+	return common_file_save( object );
+}
 
 #if 0
 
