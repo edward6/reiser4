@@ -688,12 +688,10 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 		spin_lock_jnode( node );
 		if( likely( !jnode_is_loaded( node ) ) ) {
 			JF_SET( node, JNODE_LOADED );
-			JF_SET( node, JNODE_CREATED );
 			assert( "nikita-1235", jnode_is_loaded( node ) );
 			result = jplug -> init( node );
 			if( unlikely( result != 0 ) ) {
 				JF_CLR( node, JNODE_LOADED );
-				JF_CLR( node, JNODE_CREATED );
 			}
 		}
 		spin_unlock_jnode( node );

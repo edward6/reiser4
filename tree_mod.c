@@ -68,9 +68,10 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		assert( "nikita-933", result -> nplug != NULL );
 			
 		retcode = zinit_new( result );
-		if( retcode == 0 )
+		if( retcode == 0 ) {
+			ZF_SET( result, JNODE_CREATED );
 			zrelse( result );
-		else
+		} else
 			result = ERR_PTR( retcode );
 	} else {
 		/*
@@ -159,7 +160,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 				coord_set_item_pos( in_parent, ~0u );
 				in_parent -> between = AT_UNIT;
 				spin_unlock_tree( tree );
-			
+
 				/*
 				 * insert into new root pointer to the
 				 * @old_root.
