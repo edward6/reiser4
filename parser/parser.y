@@ -129,8 +129,7 @@ a file containing the owner of A, and reading the A directory shows no
 file named ..owner.  More generally, all of the fields returned by
 stat() have a corresponding name of the form A/..stat/field_name for
 all regfiles and regdirs.  The use of'..' avoids clashes between method names and
-filenames.  More extreme measures could be taken using something more
-obscure than '..' as a prefix, but I remember that Clearcase and WAFL
+filenames.  More extreme measures could be taken using something moreobscure than '..' as a prefix, but I remember that Clearcase and WAFL
 never really had much in the way of problems with namespace collisions
 affecting users seriously, so I don't think one should excessively
 inconvenience a syntax for such reasons.  
@@ -169,16 +168,31 @@ Assume 357 is the user id of Michael Jackson.
 
 The following 3 expressions are equivalent:
 
-ascii_command = "/home/teletubbies/(..new(..name<-glove_location, ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location/..acl<-( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower.')";
+ascii_command = "/home/teletubbies/(..new(..name<-glove_location, ..object_t<-audit/regular, ..perm_t<-acl); glove_location/..acl<-( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower.')";
 
 DEMIDOV, why the \ in the line below? -Hans
 for make nonprintabele sysmbols.
 example:  \n \t \013 ...
 
-ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location/..acl<-  ( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower)')";
+ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/regular, ..perm_t<-acl); glove_location/..acl<-  ( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower)')";
 
 
-ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location / ( ..acl<-(uid<-357, access<-denied) ; ..audit<-mailto<-teletubbies@pbs.org); glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower).')";
+ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/regular, ..perm_t<-acl); glove_location / ( ..acl<-(uid<-357, access<-denied) ; ..audit<-mailto<-teletubbies@pbs.org); glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower).')";
+
+ascii_command = 
+   "/home/teletubbies/glove_location<-
+             ( (..object_t<-audit, ..perm_t<-acl) ; 
+                ..acl<-  ( uid<-357, access<-denied ); 
+                ..audit/(backing<-..anon<=(..object_t<-regular); // lookup<-/home/teletubbies/some-existing-file), 
+                         log<-(mailto<-teletubbies@pbs.org)); 
+                ..body<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower)';)";
+
+(a b)
+result<-/subject/[elves strike]
+(result /subject/[elves strike])
+/subject/[elves strike]->result
+
+
 
 
 The components of this example have the following meanings: 
@@ -187,7 +201,7 @@ The components of this example have the following meanings:
 /glove_location, - name of new file - parameter for name submethod of ..new method
 ..object_t     -  name of submethod that assigns object type to new files - parameter for ..new plugin
 /audit         - plugin for file
-/encrypted,    - plugin for backing store for audit plugin
+/regular,      - plugin for backing store for audit plugin
 ..perm_t       - security plugin to be assigned
 )              - end of parameters for ..new plugin
 ;              - next system call
