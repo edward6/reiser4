@@ -540,7 +540,8 @@ int common_file_owns_item( const struct inode *inode /* object to check
  */
 void move_flow_forward (flow_t * f, unsigned count)
 {
-	f->data += count;
+	if (f->data)
+		f->data += count;
 	f->length -= count;
 	set_key_offset (&f->key, get_key_offset (&f->key) + count);
 }
@@ -787,6 +788,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = unix_file_write,
 			.release             = unix_file_release,
 			.mmap                = unix_file_mmap,
+			.get_block           = unix_file_get_block,
 			.flow_by_inode       = common_build_flow/*NULL*/,
 			.key_by_inode        = unix_key_by_inode,
 			.set_plug_in_sd      = NULL,
@@ -822,6 +824,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = NULL, /* EISDIR */
 			.release             = NULL,
 			.mmap                = NULL,
+			.get_block           = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
@@ -857,6 +860,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = NULL,
 			.release             = NULL,
 			.mmap                = NULL,
+			.get_block           = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
@@ -896,6 +900,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = NULL,
 			.release             = NULL,
 			.mmap                = NULL,
+			.get_block           = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
