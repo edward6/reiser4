@@ -12,18 +12,27 @@
  * handler, and all of the item specific portions of the item handler are put
  * into a union. */
 
+
 typedef enum { 
-	/* an entry for each item type goes here, suffix _TID for "type id" */
-	
+	STAT_DATA_ITEM_TYPE,
+	DIR_ENTRY_ITEM_TYPE,
+	INTERNAL_ITEM_TYPE,
+	ORDINARY_FILE_METADATA_TYPE,
+	OTHER_ITEM_TYPE /* not used */
+} item_type;
+
+
+typedef enum { 
+	FIRST_ITEM_ID,
+	STATIC_STAT_DATA_ID,
 	SIMPLE_DIR_ENTRY_ID,
 	COMPOUND_DIR_ID,
-	STATIC_STAT_DATA_ID,
 	ACL_ID,
 	EXTENT_POINTER_ID, 
 	TAIL_ID, 
 	NODE_POINTER_ID,
 	LAST_ITEM_ID 
-} item_plugin_id;
+} item_id;
 
 
 /* flags to utmost_child method */
@@ -34,15 +43,15 @@ typedef enum {
 /* this is the part of each item plugin that all items are expected to
  * support or at least explicitly fail to support by setting the
  * pointer to null. */
-struct common_item_plugin {
+typedef struct {
 	/* in reiser4 the key doesn't contain the full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
 	   found what we have looked for, rather than some different item that
 	   has the same minor packing locality. Use "item_plugin_id" to determine
 	   what kind of item you have found.  
 	*/
-	item_plugin_id item_plugin_id;
-
+	item_type type2;
+	item_id id2;
 
 	/** operations called by balancing 
 
@@ -105,8 +114,9 @@ struct common_item_plugin {
 	lookup_result ( *lookup )( const reiser4_key *key, 
 				   lookup_bias bias, 
 				   tree_coord *coord );
-	/** method called by ->create_item() to initialise new item */
-	int ( *init )( tree_coord *coord );
+	/** method called by ode_plugin->create_item() to initialise new
+	 * item */
+	int ( *init )( tree_coord *coord, reiser4_item_data *data );
 	/** method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
 	int ( *paste )( tree_coord *coord, reiser4_item_data *data,
@@ -212,24 +222,94 @@ struct common_item_plugin {
 			       jnode **child );
 	int ( *utmost_child_dirty )( const tree_coord *coord, sideof side, int *is_dirty );
 	
-	int ( *utmost_child_real_block )( const tree_coord *coord, sideof side, reiser4_block_nr *block );
+	int ( *utmost_child_real_block )( const tree_coord *coord, sideof side,
+					  reiser4_block_nr *block );
+} common_item_plugin;
 
-	/* if these are set - an item is internal one */
-	void ( *down_link )( const tree_coord *coord,
-			     const reiser4_key *key,
+
+/* operations specific to the directory item */
+typedef struct {
+	/**
+	 * extract stat-data key from directory entry at @coord and place it
+	 * into @key.
+	 */
+	int ( *extract_key )( const tree_coord *coord, reiser4_key *key );
+	/**
+	 * extract name from directory entry at @coord and return it
+	 */
+	char *( *extract_name )( const tree_coord *coord );
+	/**
+	 * extract file type (DT_* stuff) from directory entry at @coord and
+	 * return it
+	 */
+	unsigned ( *extract_file_type )( const tree_coord *coord );
+	int ( *add_entry )( const struct inode *dir,
+			    tree_coord *coord, lock_handle *lh,
+			    const struct dentry *name, reiser4_dir_entry_desc *entry );
+	int ( *rem_entry )( const struct inode *dir,
+			    tree_coord *coord, lock_handle *lh,
+			    reiser4_dir_entry_desc *entry );
+	int ( *max_name_len )( int block_size );
+} dir_entry_ops;
+
+
+/* operations specific to items regular file metadata are built of */
+typedef struct {
+	int (* write) (struct inode *, tree_coord *,
+		       lock_handle *, flow_t *);
+	int (* read) (struct inode *, tree_coord *,
+		      lock_handle *, flow_t *);
+	int (* readpage) (void *, struct page *);
+} file_ops;
+
+
+/* operations specific to items of stat data type */
+typedef struct {
+	int ( *init_inode )( struct inode *inode, char *sd, int len );
+	int ( *save_len ) ( struct inode *inode );
+	int ( *save ) ( struct inode *inode, char **area );
+} sd_ops;
+
+
+/* operations specific to internal item */
+typedef struct {
+	/** all tree traversal want to know from internal item is where
+	    to go next. */
+	void ( *down_link )( const tree_coord *coord, 
+			     const reiser4_key *key, 
 			     reiser4_block_nr *block );
-	int ( *has_pointer_to )( const tree_coord *coord,
+	/** check that given internal item contains given pointer. */
+	int ( *has_pointer_to )( const tree_coord *coord, 
 				 const reiser4_block_nr *block );
+} internal_item_ops;
+
+struct item_plugin {
+	/** generic fields */
+	plugin_header h;
+	
+	/* methods common for all item types */
+	common_item_plugin common;
+	/* methods specific to particular type of item */
+	union {
+		dir_entry_ops     dir;
+		file_ops	  file;
+		sd_ops            sd;
+		internal_item_ops internal;
+	} s;
 
 };
+
+static inline item_id item_id_by_plugin (item_plugin *plugin)
+{
+	return plugin->common.id2;
+}
 
 
 int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
 			  const reiser4_item_data * );
 int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 );
-
-simple_dir_item_plugin simple_dir_plugin;
-compound_dir_item_plugin compound_dir_plugin;
+int item_is_internal(const tree_coord * );
+int item_is_statdata (const tree_coord *item);
 
 
 /* 
