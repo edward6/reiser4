@@ -652,10 +652,6 @@ reinitial( struct yy_r4_work_spaces * ws)
 	ws->StrBase          =   (struct streg *) kmallok();
 	ws->ws_freeSpace     =   
 	ws->ws_freeSpaceBase = kmallok();
-	ws->ws_pline         =
-	ws->ws_inline        = kmallok();
-
-
 
 	yyerrco =  0;
 	errco   =  0;
@@ -691,38 +687,38 @@ lexem( struct yy_r4_work_spaces * ws )
 	char * s ;
 
 	if ( ( s = insymbol( ws ) ) == NULL ) return(0);                      /* first symbl  */
-
+	
 	while ( ncl[*s] == 6 )
 		{
-		if ( ( s = insymbol( ws ) ) == NULL ) return(0);              /* skip blank   */
+			if ( ( s = insymbol( ws ) ) == NULL ) return(0);              /* skip blank   */
 		}
-
-
+	
+	
 	cls     =       lcls    =       ncl[*s] ;
 	yytext  = s;
 	while( term )
 		{
-		while ( ( n = lexcls[ lcls ][ i=ncl[ * s ] ] ) > 0 && n < 128)
-			{
-			s = insymbol(ws);
-			lcls=n;
-			}
-		n=-n;
-
-		switch (n)
-			{
-			case 0:
-				yyerror ( ws, 2222, (lcls-1)* 20+i);
-				return(0);
-			case 1:
-				term=0;
-				break;
-			default: 
-				yyerror ( ws, 3333, (lcls-1)* 20+i);
-				return(0);
-			}
+			while ( ( n = lexcls[ lcls ][ i=ncl[ * s ] ] ) > 0 && n < 128)
+				{
+					s = insymbol(ws);
+					lcls=n;
+				}
+			n=-n;
+			
+			switch (n)
+				{
+				case 0:
+					yyerror ( ws, 2222, (lcls-1)* 20+i);
+					return(0);
+				case 1:
+					term=0;
+					break;
+				default: 
+					yyerror ( ws, 3333, (lcls-1)* 20+i);
+					return(0);
+				}
 		}
-	 switch (lcls)
+	switch (lcls)
 		{
 		case 1223:
 		default :                                /*  others  */
