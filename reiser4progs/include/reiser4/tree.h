@@ -20,6 +20,7 @@ extern error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     reiserfs_profile_t *profile);
 
 extern error_t reiserfs_tree_sync(reiserfs_fs_t *fs);
+extern error_t reiserfs_tree_flush(reiserfs_fs_t *fs);
 
 #endif
 

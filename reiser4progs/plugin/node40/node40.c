@@ -223,6 +223,29 @@ static void reiserfs_node40_print(aal_block_t *block,
 }
 
 /*
+    We need to decide is key is plugin-specific value, or not.
+    But for awhile this function will be using for comparing
+    keys in node40 plugin.
+*/
+static int reiserfs_node40_key_cmp(const void *key1, const void *key2) {
+    int result;
+    reiserfs_key_t *k1, *k2;
+
+    aal_assert("umka-566", key1 != NULL, return -2);
+    aal_assert("umka-567", key2 != NULL, return -2);
+
+    k1 = (reiserfs_key_t *)key1;
+    k2 = (reiserfs_key_t *)key2;
+
+    if ((result = DIFF_EL(k1, k2, 0)) == 0) {
+	if ((result = DIFF_EL(k1, k2, 1)) == 0)
+	    result = DIFF_EL(k1, k2, 2);
+    }
+
+    return result;
+}
+
+/*
     Makes lookup inside the node and returns result of lookuping.
 
     coord->item_pos = -1 if the wanted key goes before the first item of the node,
@@ -234,6 +257,7 @@ static void reiserfs_node40_print(aal_block_t *block,
     0 - exact match has not been found,
     1 - exact match has been found.
 */
+
 static int reiserfs_node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coord, 
     reiserfs_key_t *key) 
 {
@@ -246,7 +270,7 @@ static int reiserfs_node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coo
     if ((found = reiserfs_misc_bin_search(key, (void *)block, 
 	    reiserfs_node40_item_count(block), 
 	    (void *(*)(void *, uint32_t))reiserfs_node40_key_at, 
-	    reiserfs_misc_comp_keys, &pos)) == -1)
+	    reiserfs_node40_key_cmp, &pos)) == -1)
 	return -1;
 
     /*
@@ -356,6 +380,8 @@ static reiserfs_plugin_t node40_plugin = {
 	
 	.key_at = (reiserfs_opaque_t *(*)(aal_block_t *, int32_t))
 	    reiserfs_node40_key_at,
+
+	.key_cmp = reiserfs_node40_key_cmp,
 	
 	.item_at = (void *(*)(aal_block_t *, int32_t))
 	    reiserfs_node40_item_at,

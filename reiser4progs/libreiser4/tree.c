@@ -46,10 +46,8 @@ error:
 #ifndef ENABLE_COMPACT
 
 /*
-    FIXME-UMKA: Probably not the tree should concerning about creating 
-    root directory. On my own it is directory object plugin/API job.
     Tree in its creation time should just create root node (squeeze).
-    That is all. The leaf node root directory lies in must create 
+    That is all. The leaf node, root directory lies in must create 
     directory plugin by tree API (inserting items).
 */
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
@@ -105,6 +103,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	    "Can't create a root node at block %llu.", block_nr);
 	goto error_free_tree;
     }
+    fs->tree->root = squeeze;
 
     if (!(block_nr = reiserfs_alloc_alloc(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -224,22 +223,8 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	goto error_free_leaf;
     }
 
-    /*
-	FIXME-UMKA: Created nodes should be added to tree-cache (reiserfs_tree_t) and 
-	stored onto device during its synchronize call.
-    */
-
-    /* Some hack for until tree-cache will be completed */
-
-    fs->tree->root = squeeze;
-    squeeze->children = aal_list_append(squeeze->children, leaf);
+    reiserfs_node_add_children(fs->tree->root, leaf);
     
-/*    reiserfs_node_sync(squeeze);
-    reiserfs_node_sync(leaf);
-    
-    reiserfs_node_fini(squeeze);
-    reiserfs_node_fini(leaf);*/
-
     return 0;
 
 error_free_leaf:
@@ -253,47 +238,46 @@ error:
     return -1;
 }
 
-static error_t reiserfs_tree_sync_node(reiserfs_fs_t *fs, reiserfs_node_t *node) {
-    aal_list_t *walk;
-   
-    if (node->children) {
-	aal_list_foreach_forward(walk, node->children) {
-	    if (reiserfs_tree_sync_node(fs, (reiserfs_node_t *)walk->data))
+/* 
+    Syncs whole the tree-cache and removes all node except 
+    root node from the cache.
+*/
+error_t reiserfs_tree_flush(reiserfs_fs_t *fs) {
+    reiserfs_node_t *root;
+    
+    aal_assert("umka-572", fs != NULL, return -1);
+    aal_assert("umka-573", fs->tree != NULL, return -1);
+    aal_assert("umka-574", fs->tree->root != NULL, return -1);
+    
+    root = fs->tree->root;
+    if (root->children) {
+	aal_list_t *walk;
+	
+	aal_list_foreach_forward(walk, root->children) {
+	    if (reiserfs_node_flush((reiserfs_node_t *)walk->data))
 		return -1;
 	}
-/*	aal_list_free(node->children);
-	node->children = NULL;*/
+	aal_list_free(root->children);
+	root->children = NULL;
     }
-    
-    if (reiserfs_node_sync(node))
-	return -1;
-    
-/*    if (reiserfs_node_get_level(node) > REISERFS_ROOT_LEVEL)
-	reiserfs_node_fini(node);*/
 
     return 0;
 }
 
+/* Syncs whole the tree-cache */
 error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-131", fs != NULL, return -1);
-    aal_assert("umka-132", fs->tree != NULL, return -1);
+    aal_assert("umka-560", fs->tree != NULL, return -1);
     aal_assert("umka-560", fs->tree->root != NULL, return -1);
 
-    return reiserfs_tree_sync_node(fs, fs->tree->root);
+    return reiserfs_node_sync(fs->tree->root);
 }
 
 #endif
 
-/*
-    FIXME-UMKA: This method should free tree-cache and all
-    assosiated with it memory.
-*/
 void reiserfs_tree_fini(reiserfs_fs_t *fs) {
     aal_assert("umka-133", fs != NULL, return);
     aal_assert("umka-134", fs->tree != NULL, return);
-    
-    if (fs->tree->root->children)
-	aal_list_free(fs->tree->root->children);
     
     reiserfs_node_fini(fs->tree->root);
     aal_free(fs->tree);

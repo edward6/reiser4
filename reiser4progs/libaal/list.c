@@ -208,7 +208,9 @@ aal_list_t *aal_list_find(aal_list_t *list, void *data) {
     return NULL;
 }
 
-aal_list_t *aal_list_find_custom(aal_list_t *list, void *data, comp_func_t func) {
+aal_list_t *aal_list_find_custom(aal_list_t *list, void *data, 
+    comp_func_t func) 
+{
 	
     if (!func)
 	return NULL;

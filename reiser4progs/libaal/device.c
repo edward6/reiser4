@@ -127,7 +127,14 @@ aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c) {
     aal_block_t *block;
 
     aal_assert("umka-443", device != NULL, return NULL);
-
+    
+    if (blk > aal_device_len(device)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate block %llu beyond of device (0-%llu).", 
+	    blk, aal_device_len(device));
+	return NULL;
+    }
+    
     if (!(block = (aal_block_t *)aal_calloc(sizeof(*block), 0)))
 	return NULL;
 

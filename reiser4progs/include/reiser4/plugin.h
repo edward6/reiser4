@@ -207,6 +207,9 @@ struct reiserfs_node_plugin {
     
     /* Returns item's length by pos */
     uint16_t (*item_length) (aal_block_t *, int32_t);
+
+    /* Compare two keys */
+    int (*key_cmp) (const void *, const void *);
     
     /* Gets item's body and key by pos */
     void *(*key_at) (aal_block_t *, int32_t);

@@ -53,14 +53,12 @@ int reiserfs_misc_bin_search(
         }
     }
 
-    /* lbound == j, set *pos on the position which element less than "needle" 
-       on the base of the last search  */
+    /* 
+	lbound == j, set *pos on the position which element less than "needle" 
+	on the base of the last search.
+    */
     *pos = lbound - (ret >= 0);
 
     return 0;
-}
-
-int reiserfs_misc_comp_keys(void *key1, void *key2) {
-    return -1;
 }
 

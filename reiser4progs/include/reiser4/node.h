@@ -21,6 +21,7 @@ extern reiserfs_node_t *reiserfs_node_init(aal_device_t *device, blk_t blk,
 extern void reiserfs_node_fini(reiserfs_node_t *node);
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 extern error_t reiserfs_node_sync(reiserfs_node_t *node);
+extern error_t reiserfs_node_flush(reiserfs_node_t *node);
 
 /*
     I suggest the following results of lookup (item_pos/unit_pos):
@@ -35,7 +36,6 @@ extern int reiserfs_node_lookup(reiserfs_node_t *node,
     reiserfs_item_coord_t *coord, reiserfs_key_t *key);
 
 extern reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node);
-extern void *reiserfs_node_item_at(reiserfs_node_t *node, uint32_t pos);
 
 extern uint8_t reiserfs_node_get_level(reiserfs_node_t *node);
 extern void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level);
@@ -48,6 +48,9 @@ extern error_t reiserfs_node_add_children(reiserfs_node_t *node,
 
 extern void reiserfs_node_remove_children(reiserfs_node_t *node, 
     reiserfs_node_t *children);
+
+extern reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
+    void *key);
 
 /* Item functions */
 extern void reiserfs_node_set_item_plugin_id(reiserfs_node_t *node, 
@@ -77,6 +80,11 @@ extern uint16_t reiserfs_node_overhead_item(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_maxsize_item(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_maxnum_item(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_count_item(reiserfs_node_t *node);
+
+extern void *reiserfs_node_item_at(reiserfs_node_t *node, uint32_t pos);
+extern void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos);
+extern int reiserfs_node_item_key_cmp(reiserfs_node_t *node, 
+    const void *key1, const void *key2);
 
 #endif
 
