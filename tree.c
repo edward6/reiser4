@@ -1588,6 +1588,17 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 				break;
 			}
 
+			if (left_coord.item_pos != tap->coord->item_pos) {
+				/* do not allow to cut more than one item. It is added to solve problem of truncating
+				   partially converted files. If file is partially converted there may exist a twig node
+				   containing both internal item or items pointing to leaf nodes with formatting items
+				   and extent item. We do not want to kill internal items being at twig node here
+				   because cut_tree_worker assumes killing them from level level */
+				coord_dup(&left_coord, tap->coord);
+				assert("vs-1652", coord_is_existing_unit(&left_coord));
+				left_coord.unit_pos = 0;
+			}
+
 			/* cut data from one node */
 			*smallest_removed = *min_key();
 			result = kill_node_content(&left_coord,
