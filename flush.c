@@ -2093,11 +2093,8 @@ static int flush_empty_queue (flush_position *pos)
 {
 	int ret = 0;
 	jnode * node;
-#if REISER4_USER_LEVEL_SIMULATION == 0	/* FIXME: Eliminate #ifdefs */
-	int max_queue_len = (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9));
-#else
-	int max_queue_len = pos->queue_num;
-#endif
+	int max_queue_len;
+	struct super_block *super;
 
 	trace_on (TRACE_FLUSH, "flush_empty_queue with %u queued\n", pos->queue_num);
 
@@ -2105,10 +2102,21 @@ static int flush_empty_queue (flush_position *pos)
 		return 0;
 	}
 
+	super = reiser4_get_current_sb (); /* cpage->mapping->host->i_sb; */
+
 	/* We can safely traverse this flush queue without locking of atom and nodes
 	 * because only this thread can add nodes to it and all already queued nodes are
 	 * protected from moving out by JNODE_FLUSH_QUEUED bit */
 	node = capture_list_front (&pos->queue);
+
+	assert ("jmacd-71972", !capture_list_end (&pos->queue, node));
+
+#if REISER4_USER_LEVEL_SIMULATION == 0	/* FIXME: Eliminate #ifdefs */
+	max_queue_len = (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9));
+#else
+	max_queue_len = pos->queue_num;
+#endif
+
 	while (!capture_list_end (&pos->queue, node)) {
 		jnode * check = node;
 		struct page *cpage;
@@ -2158,7 +2166,6 @@ static int flush_empty_queue (flush_position *pos)
 			/* Find consecutive nodes. */
 			struct bio *bio;
 			int nr = 1, i;
-			struct super_block *super;
 			jnode *prev = check;
 			int blksz;
 
