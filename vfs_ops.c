@@ -930,7 +930,7 @@ static void init_once( void *obj /* pointer to new inode */,
 }
 
 /** initialise slab cache where reiser4 inodes will live */
-int init_inodecache()
+int init_inodecache( void )
 {
 	inode_cache = kmem_cache_create( "reiser4_inode_cache", 
 					 sizeof( reiser4_inode_info ), 0, 
