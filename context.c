@@ -93,6 +93,13 @@ get_context_by_lock_stack(lock_stack * owner)
 	return container_of(owner, reiser4_context, stack);
 }
 
+int
+is_in_reiser4_context(void)
+{
+	return current->fs_context != NULL && 
+		((__u32) current->fs_context->owner) == context_magic;
+}
+
 static void 
 balance_dirty_pages_at(reiser4_context * context)
 {

@@ -36,7 +36,7 @@ ON_DEBUG(TS_LIST_DECLARE(context);)
    good idea.
 */
 struct reiser4_context {
-	/* magic constant. For debugging */
+	/* magic constant. For identification of reiser4 contexts. */
 	__u32 magic;
 
 	/* current lock stack. See lock.[ch]. This is where list of all
@@ -124,11 +124,7 @@ extern void done_context(reiser4_context * context);
    catch accesses to staled or uninitialized contexts. */
 #define context_magic ((__u32) 0x4b1b5d0b)
 
-static inline int
-is_in_reiser4_context(void)
-{
-	return current->fs_context != NULL && ((__u32) current->fs_context->owner) == context_magic;
-}
+extern int is_in_reiser4_context(void);
 
 /* return context associated with given thread */
 static inline reiser4_context *
