@@ -2210,8 +2210,7 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
 
 
 	reiser4_init_coord (&coord);
-	coord.node = node;
-	coord_last_unit (&coord);
+	coord_last_unit (&coord, node);
 	coord.between = AFTER_UNIT;
 
 	flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
@@ -2291,7 +2290,7 @@ squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
 	item_key_by_coord (right, &key);
 
 	ext = extent_item (right);
-	for (; right->unit_pos < num_units (right); right->unit_pos ++, ext ++) {
+	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
 		if (!extent_needs_allocation (ext, preceder)) {
 			/*
 			 * unit does not require allocation, copy this unit as
@@ -2449,7 +2448,7 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 	assert ("vs-451", coord_is_leftmost (item) && coord_of_unit (item));
 
 	ext = extent_item (item);
-	for (i = 0; i < num_units (item); i ++, ext ++, item->unit_pos ++) {
+	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
 		if (!extent_needs_allocation (ext, preceder))
 			continue;
 		assert ("vs-439", state_of_extent (ext) == UNALLOCATED_EXTENT);
