@@ -126,6 +126,13 @@
 #define REISER4_DEBUG_OUTPUT (0)
 #endif
 
+#if defined(CONFIG_REISER4_USE_EFLUSH)
+/* enable emergency flush */
+#define REISER4_USE_EFLUSH (1)
+#else
+#define REISER4_USE_EFLUSH (0)
+#endif
+
 #if defined(CONFIG_REISER4_LOCKPROF)
 #define REISER4_LOCKPROF (1)
 #else
