@@ -2511,7 +2511,7 @@ reiser4_internal ssize_t sendfile_common (
 
 		(*ppos) += ret;
 	
-		if (ret != nr)
+		if (ret != read_request_size)
 			break;
 	}
 
