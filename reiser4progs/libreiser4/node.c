@@ -267,7 +267,7 @@ void reiserfs_node_remove_children(reiserfs_node_t *node,
 #ifndef ENABLE_COMPACT
 
 error_t reiserfs_node_flush(reiserfs_node_t *node) {
-    aal_assert("umka-124", node != NULL, return 0);
+    aal_assert("umka-575", node != NULL, return 0);
     
     if (node->children) {
 	aal_list_t *walk;

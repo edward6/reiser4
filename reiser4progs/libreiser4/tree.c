@@ -268,7 +268,7 @@ error_t reiserfs_tree_flush(reiserfs_fs_t *fs) {
 error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-131", fs != NULL, return -1);
     aal_assert("umka-560", fs->tree != NULL, return -1);
-    aal_assert("umka-560", fs->tree->root != NULL, return -1);
+    aal_assert("umka-576", fs->tree->root != NULL, return -1);
 
     return reiserfs_node_sync(fs->tree->root);
 }
