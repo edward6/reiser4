@@ -1721,6 +1721,16 @@ static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
 
 extern ktxnmgrd_context kdaemon;
 
+/* There are some 'committed' versions of reiser4 super block counters, which
+ * correspond to reiser4 on-disk state. These counters are initialized here */
+static void init_committed_sb_counters (const struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private (s);
+
+	private->blocks_free_committed = private->blocks_free;
+	private->nr_files_committed    = oid_used ();
+}
+
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
@@ -1834,6 +1844,8 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	if (result) {
 		goto error3;
 	}
+
+	init_committed_sb_counters(s);
 
 	/*
 	 * FIXME-NIKITA actually, options should be parsed by plugins also.
