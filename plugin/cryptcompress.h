@@ -360,6 +360,11 @@ typedef struct reiser4_cluster{
 	reiser4_slide_t * win;        /* sliding window of cluster size */
 	int reserved;                 /* this indicates that space for disk
 					 cluster modification is reserved */
+#if REISER4_DEBUG
+	reiser4_context * ctx;
+	int reserved_prepped;
+	int reserved_unprepped;
+#endif
 } reiser4_cluster_t;
 
 static inline void
