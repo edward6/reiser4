@@ -40,7 +40,6 @@ static txn_atom * atom_get_locked_by_fq (flush_queue_t * fq)
 	return atom;
 }
 
-/**/
 static void init_fq (flush_queue_t * fq)
 {
 	xmemset (fq, 0, sizeof *fq);
@@ -65,6 +64,20 @@ static flush_queue_t * fq_create (void)
 
 	return fq;
 }
+
+/* adjust atom's and flush queue's counters of queued nodes */
+static void count_enqueued_node (flush_queue_t * fq)
+{
+	fq->nr_queued ++;
+	fq->atom->num_queued ++;
+}
+
+static void count_dequeued_node (flush_queue_t *fq)
+{
+	fq->nr_queued --;
+	fq->atom->num_queued --;
+}
+
 
 /* attach flush queue object to the atom */
 static void fq_attach (txn_atom * atom, flush_queue_t * fq)
@@ -166,7 +179,8 @@ static void fq_scan_io_list (flush_queue_t * fq)
 		} else {
 			capture_list_push_back (&atom->clean_nodes, cur);
 			JF_CLR (cur, JNODE_FLUSH_QUEUED);
-			fq->nr_queued --;
+
+			count_dequeued_node (fq);
 		}
 
 		spin_unlock_jnode (cur);
@@ -318,8 +332,7 @@ void fq_queue_node (flush_queue_t * fq, jnode * node)
 		capture_list_push_back (&fq->queue, node);
 	}
 
-	fq->nr_queued ++;
-
+	count_enqueued_node (fq);
 	spin_unlock_fq (fq);
 }
 
@@ -333,7 +346,8 @@ static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
 
 	if (jnode_is_dirty(node)); /* ???? */
 
-	fq->nr_queued --;
+	count_dequeued_node (fq);
+
 	JF_CLR (node, JNODE_FLUSH_QUEUED);
 	JF_CLR (node, JNODE_DIRTY);
 
@@ -456,8 +470,9 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 		/* dequeue it */
 		capture_list_push_back (&atom->clean_nodes, node);
 		JF_CLR (node, JNODE_FLUSH_QUEUED);
-		fq->nr_queued --;
 
+		count_dequeued_node (fq);
+		
 		ret = 1;	/* this node should be skipped */
 	} else {
 

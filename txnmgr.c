@@ -2446,7 +2446,7 @@ capture_fuse_into (txn_atom  *small,
 	tcount += capture_fuse_txnh_lists  (large, & large->txnh_list,    & small->txnh_list);
 
 	/* Check our accounting. */
-	// assert ("jmacd-1063", zcount + small->num_queued == small->capture_count );
+	assert ("jmacd-1063", zcount + small->num_queued == small->capture_count );
 	assert ("jmacd-1065", tcount == small->txnh_count);
 
 	/* splice flush queues */
