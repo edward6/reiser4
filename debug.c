@@ -717,14 +717,14 @@ report_err(void)
 
 	if (ctx != NULL) {
 		if (ctx->err.code != 0) {
-			int i;
-			printk("code: %i at %s:%i ", 
-			       ctx->err.code, ctx->err.file, ctx->err.line);
 #ifdef CONFIG_FRAME_POINTER
+			int i;
 			for (i = 0; i < REISER4_BACKTRACE_DEPTH ; ++ i)
 				printk("0x%p ", ctx->err.path[i]);
-#endif
 			printk("\n");
+#endif
+			printk("code: %i at %s:%i ", 
+			       ctx->err.code, ctx->err.file, ctx->err.line);
 		}
 	}
 }

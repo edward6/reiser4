@@ -79,8 +79,9 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 	char *p;
 	reiser4_prof_entry *entry;
 	reiser4_prof_cnt   *val;
+#ifdef CONFIG_FRAME_POINTER
 	int i;
-
+#endif
 	entry = container_of(attr, reiser4_prof_entry, attr);
 	val = &entry->cnt;
 	p = buf;
