@@ -6,6 +6,7 @@
 *.so
 *~
 .*.flags
+.as_ops.o.cmd
 .block_alloc.o.cmd
 .blocknrset.o.cmd
 .build
@@ -29,6 +30,7 @@
 .entd.o.cmd
 .eottl.o.cmd
 .estimate.o.cmd
+.file_ops.o.cmd
 .flush.o.cmd
 .flush.o.d
 .flush.o.tmp
@@ -37,6 +39,7 @@
 .hdepend
 .inode.o.cmd
 .inode.o.d
+.inode_ops.o.cmd
 .io_handle.o.cmd
 .ioctl.o.cmd
 .ioctl.o.d
@@ -54,6 +57,7 @@
 .new_coord.o.cmd
 .page_cache.o.cmd
 .pool.o.cmd
+.prof.o.cmd
 .readahead.o.cmd
 .reiser4.o.cmd
 .scint.o.cmd
@@ -138,6 +142,7 @@ estimate
 file.list
 flush.bb
 flush.bbg
+flush.c.orig
 foo
 fs.loop
 gmon.0
@@ -237,6 +242,7 @@ plugin/item/cde.bb
 plugin/item/cde.bbg
 plugin/item/extent.bb
 plugin/item/extent.bbg
+plugin/item/extent.c.orig
 plugin/item/internal.bb
 plugin/item/internal.bbg
 plugin/item/item.bb
@@ -291,6 +297,7 @@ plugin/tail_policy.bbg
 pool.bb
 pool.bbg
 print
+prof.E
 read
 read-test
 read.c
@@ -1312,10 +1319,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-flush.c.orig
-plugin/item/extent.c.orig
-.prof.o.cmd
-prof.E
-.as_ops.o.cmd
-.file_ops.o.cmd
-.inode_ops.o.cmd
