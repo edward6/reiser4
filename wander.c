@@ -968,8 +968,7 @@ reiser4_write_logs(void)
 	}
 
 	/* Grab space for modified bitmaps from 100% of disk space. */
-	reiser4_grab_space_enable();
-	if (reiser4_grab_space_exact(ch.nr_bitmap, 1))
+	if (reiser4_grab_space_force(ch.nr_bitmap, 1))
 		rpanic("vpf-341", "No space left from reserved area.");
 	
 	grabbed2flush_reserved(ch.nr_bitmap);
@@ -979,9 +978,7 @@ reiser4_write_logs(void)
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
-	/* FIXME-UMKA: Check if we should grab blocks from flush reserved */
-	if ((ret = reiser4_grab_space_force((__u64)
-					    (ch.overwrite_set_size + ch.tx_size), 1)))
+	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), 1)))
 		goto up_and_ret;
 
 	{
