@@ -976,9 +976,11 @@ common_readdir(struct file *f /* directory file being read */ ,
 	init_lh(&lh);
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-	/* initialize readdir readahead information */
-	tap.ra_info.type = RA_READDIR;
-	tap.ra_info.u.readdir.oid = get_inode_oid(inode);
+	/* initialize readdir readahead information: include into readahead stat data of all files of the directory */
+	set_key_locality(&tap.ra_info.key_to_stop, get_inode_oid(inode));
+	set_key_type(&tap.ra_info.key_to_stop, KEY_SD_MINOR);
+	set_key_objectid(&tap.ra_info.key_to_stop, get_key_objectid(max_key()));
+	set_key_offset(&tap.ra_info.key_to_stop, get_key_offset(max_key()));
 
 	trace_on(TRACE_DIR | TRACE_VFS_OPS, 
 		 "readdir: inode: %llu offset: %lli\n", 
