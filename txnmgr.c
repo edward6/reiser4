@@ -2001,6 +2001,30 @@ repeat:
 	spin_unlock_atom(atom);
 }
 
+/* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
+   flushed and therefore does not have a page */
+void
+uncapture_jnode(jnode *node)
+{
+	txn_atom *atom;
+
+	jnode_set_clean(node);
+
+	spin_lock_jnode(node);
+
+	atom = atom_locked_by_jnode(node);
+	spin_unlock_jnode (node);
+
+	if (atom == NULL) {
+		assert("jmacd-7111", !jnode_check_dirty(node));
+		return;
+	}
+
+	uncapture_block(atom, node);
+
+	spin_unlock_atom(atom);
+}
+
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
    increases atom refcount, adds to txnh_list. */
 static void
