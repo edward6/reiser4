@@ -468,8 +468,6 @@ static int load_bnode_half (struct bnode * bnode, jnode * node)
 
 	spin_unlock_bnode (bnode);
 
-	assert ("zam-487", read_node != NULL);
-
 	ret = read_node (current_tree, node);
 
 	if (ret) return ret;
