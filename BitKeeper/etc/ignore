@@ -1283,3 +1283,6 @@ write-test.2
 znode.bb
 znode.bbg
 gmon.0
+ulevel/c.ps
+ulevel/reads
+ulevel/writes
