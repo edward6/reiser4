@@ -258,6 +258,7 @@ void print_cbk_cache( const char *prefix /* prefix to print */,
 }
 #endif
 
+static lookup_result coord_by_handle( cbk_handle *handle );
 static lookup_result traverse_tree( cbk_handle *h );
 static int cbk_cache_search( cbk_handle *h );
 
@@ -316,14 +317,14 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						   * taking @lock type of
 						   * locks */,
 			    tree_level stop_level /* tree level to stop. Pass
-						   * leaf_level or twig_level
+						   * LEAF_LEVEL or TWIG_LEVEL
 						   * here Item being looked
 						   * for has to be between
 						   * @lock_level and
 						   * @stop_level, inclusive */,
 			    __u32      flags /* search flags */ )
 {
-	cbk_handle          handle;
+	cbk_handle  handle;
 	lock_handle parent_lh;
 /* AUDIT: add insertion to check whether lh and parent_lh are zeroed. -Hans */
 	/* AUDIT: initialising passed in parameters is totally pointless.
@@ -356,11 +357,16 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	handle.active_lh  = lh;
 	handle.parent_lh  = &parent_lh;
 
+	return coord_by_handle( &handle );
+}
+
+static lookup_result coord_by_handle( cbk_handle *handle )
+{
 	/* first check whether "key" is in cache of recent lookups. */
-	if( cbk_cache_search( &handle ) == 0 )
-		return handle.result;
+	if( cbk_cache_search( handle ) == 0 )
+		return handle -> result;
 	else
-		return traverse_tree( &handle );
+		return traverse_tree( handle );
 }
 
 
@@ -800,6 +806,224 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	iplug -> s.internal.down_link( h -> coord, h -> key, &h -> block );
 	-- h -> level;
 	return LOOKUP_CONT; /* continue */
+}
+
+/**
+ * look for several keys at once. 
+ *
+ * Outline:
+ *
+ * One cannot just issue several tree traversals in sequence without releasing
+ * locks on lookup results, because keeping a lock at the bottom of the tree
+ * while doing new top-to-bottom traversal can easily lead to the
+ * deadlock. (Actually, there is assertion at the very beginning of
+ * coord_by_key(), checking that no locks are held.)
+ *
+ * Still, node-level locking for rename requires locking of several nodes at
+ * once, before starting balancings.
+ *
+ * lookup_multikey() uses seals (see seal.[ch]) to work around deadlocks:
+ *
+ * tree lookups are issued starting from the largest key in decsending key
+ * order. For each, but the smallest key, after lookup finishes, its result is
+ * sealed and corresponding node is unlocked.
+ *
+ * After all lookups were performed, we have result of lookup of smallest key
+ * locked and results of the rest of lookups sealed.
+ *
+ * All seals are re-validated in ascending key order. If seal is found broken,
+ * all locks and seals are released and process repeated.
+ *
+ * See comments in the body.
+ */
+int lookup_multikey( cbk_handle *handle /* handles to search */, 
+		     int nr_keys /* number of handles */ )
+{
+	seal_t seal[ REISER4_MAX_MULTI_SEARCH - 1 ];
+	int i;
+	int result;
+	int once_again;
+
+	/* helper routine to clean up seals and locks */
+	static void done_handles() {
+		for( i = 0 ; i < nr_keys - 1 ; ++ i )
+			seal_done( &seal[ i ] );
+		if( result != 0 ) {
+			for( i = 0 ; i < nr_keys - 1 ; ++ i )
+				done_lh( handle[ i ].active_lh );
+		}
+	}
+
+	assert( "nikita-2147", handle != NULL );
+	assert( "nikita-2148", 
+		( 0 <= nr_keys ) && ( nr_keys <= REISER4_MAX_MULTI_SEARCH ) );
+
+
+	if( REISER4_DEBUG ) {
+		/* check that @handle is sorted */
+
+		for( i = 1 ; i < nr_keys ; ++ i ) {
+			assert( "nikita-2149", keyle( handle[ i - 1 ].key, 
+						      handle[ i ].key ) );
+		}
+	}
+
+	for( i = 0 ; i < nr_keys ; ++ i )
+		init_lh( handle[ i ].parent_lh );
+
+	for( i = 0 ; i < nr_keys - 1 ; ++ i )
+		seal_init( &seal[ i ], NULL, NULL );
+
+	/*
+	 * main loop
+	 */
+	do {
+		once_again = 0;
+		/* issue lookups from right to left */
+		for( i = nr_keys - 1 ; i >= 0 ; -- i ) {
+			cbk_handle *h;
+
+			h = &handle[ i ];
+			result = coord_by_handle( h );
+			/* some error, abort */
+			if( ( result != CBK_COORD_FOUND ) && 
+			    ( result != CBK_COORD_NOTFOUND ) )
+				break;
+			else
+				result = 0;
+			if( i == 0 )
+				break;
+			/* seal lookup result */
+			seal_init( &seal[ i - 1 ], h -> coord, h -> key );
+			/* and unlock it */
+			done_lh( h -> active_lh );
+		}
+		if( result != 0 )
+			break;
+		/*
+		 * result of smallest key lookup is locked. Others are
+		 * unlocked, but sealed, try to validate and relock them.
+		 */
+		for( i = 1 ; i < nr_keys ; ++ i ) {
+			cbk_handle *h;
+
+			h = &handle[ i ];
+			result = seal_validate( &seal[ i - 1 ], 
+						h -> coord, h -> key, h -> level,
+						h -> active_lh, h -> bias, 
+						h -> lock_mode,
+						/*
+						 * going from left to right we
+						 * can request high-priority
+						 * lock. This is only valid if
+						 * all handles are targeted to
+						 * the same level, though.
+						 */
+						ZNODE_LOCK_HIPRI );
+			if( result == -EAGAIN ) {
+				/* seal was broken, restart */
+				once_again = 1;
+				reiser4_stat_tree_add( multikey_restart );
+				break;
+			}
+			/* some other error */
+			if( result != 0 )
+				break;
+		}
+		done_handles();
+	} while( once_again );
+
+	done_handles();
+	return result;
+}
+
+/** 
+ * lookup two keys in a tree. This is required for node-level locking during
+ * rename. Arguments are similar to these of coord_by_key(). 
+ */
+lookup_result lookup_couple( reiser4_tree *tree /* tree to perform search in */, 
+			     const reiser4_key *key1 /* first key to look for */,
+			     const reiser4_key *key2 /* second key to look
+						      * for */,
+			     coord_t *coord1 /* where to store result for the
+					      * @key1 */,
+			     coord_t *coord2 /* where to store result for the
+					      * @key2 */,
+			     lock_handle *lh1 /* where to keep lock for
+					       * @coord1 */,
+			     lock_handle *lh2 /* where to keep lock for
+					       * @coord2 */,
+			     znode_lock_mode lock_mode /* type of lookup we
+							* want on node. */, 
+			     lookup_bias bias /* what to return if coord with
+					       * exactly the @key is not in
+					       * the tree */,
+			     tree_level lock_level /* tree level where to
+						    * start taking @lock type
+						    * of locks */,
+			     tree_level stop_level /* tree level to stop. Pass
+						    * LEAF_LEVEL or TWIG_LEVEL
+						    * here Item being looked
+						    * for has to be between
+						    * @lock_level and
+						    * @stop_level,
+						    * inclusive */,
+			     __u32      flags /* search flags */ )
+{
+	cbk_handle  handle[ 2 ];
+	lock_handle parent_lh[ 2 ];
+	int         first_pos;
+	int         secnd_pos;
+
+	cassert( REISER4_MAX_MULTI_SEARCH >= 2 );
+	assert( "nikita-2139", tree != NULL );
+	assert( "nikita-2140", key1 != NULL );
+	assert( "nikita-2141", key2 != NULL );
+	assert( "nikita-2142", coord1 != NULL );
+	assert( "nikita-2143", coord2 != NULL );
+	assert( "nikita-2150", lh1 != NULL );
+	assert( "nikita-2151", lh2 != NULL );
+	assert( "nikita-2144",
+		( bias == FIND_EXACT ) || ( bias == FIND_MAX_NOT_MORE_THAN ) );
+	assert( "nikita-2145", stop_level >= LEAF_LEVEL );
+	assert( "nikita-2146", lock_stack_isclean( get_current_lock_stack() ) );
+	trace_stamp( TRACE_TREE );
+
+	if( keylt( key1, key2 ) ) {
+		first_pos = 0;
+		secnd_pos = 1;
+	} else {
+		first_pos = 1;
+		secnd_pos = 0;
+	}
+
+	xmemset( &handle, 0, sizeof handle );
+
+	handle[ first_pos ].tree       = tree;
+	handle[ first_pos ].key        = key1;
+	handle[ first_pos ].lock_mode  = lock_mode;
+	handle[ first_pos ].bias       = bias;
+	handle[ first_pos ].lock_level = lock_level;
+	handle[ first_pos ].stop_level = stop_level;
+	handle[ first_pos ].coord      = coord1;
+	handle[ first_pos ].flags      = flags | CBK_TRUST_DK;
+
+	handle[ first_pos ].active_lh  = lh1;
+	handle[ first_pos ].parent_lh  = &parent_lh[ first_pos ];
+
+	handle[ secnd_pos ].tree       = tree;
+	handle[ secnd_pos ].key        = key2;
+	handle[ secnd_pos ].lock_mode  = lock_mode;
+	handle[ secnd_pos ].bias       = bias;
+	handle[ secnd_pos ].lock_level = lock_level;
+	handle[ secnd_pos ].stop_level = stop_level;
+	handle[ secnd_pos ].coord      = coord2;
+	handle[ secnd_pos ].flags      = flags | CBK_TRUST_DK;
+
+	handle[ secnd_pos ].active_lh  = lh2;
+	handle[ secnd_pos ].parent_lh  = &parent_lh[ secnd_pos ];
+
+	return lookup_multikey( handle, 2 );
 }
 
 /** true if @key is one of delimiting keys in @node */

@@ -401,6 +401,11 @@ typedef struct reiser4_statistics {
 		 * right delimiting key is not exact
 		 */
 		stat_cnt rd_key_skew;
+		/*
+		 * how many times lookup_multikey() has to restart from the
+		 * beginning because of the broken seal.
+		 */
+		stat_cnt multikey_restart;
 		stat_cnt check_left_nonuniq;
 		stat_cnt left_nonuniq_found;
 	} tree;

@@ -143,6 +143,7 @@ void reiser4_print_stats()
 	      "\t fast_cut:\t %lli\n"
 	      "\t reparenting:\t %lli\n"
 	      "\t rd_key_skew:\t %lli\n"
+	      "\t multikey_restart:\t %lli\n"
 	      "\t check_left_nonuniq:\t %lli\n"
 	      "\t left_nonuniq_found:\t %lli\n"
 
@@ -211,6 +212,7 @@ void reiser4_print_stats()
 	      s -> tree.fast_cut,
 	      s -> tree.reparenting,
 	      s -> tree.rd_key_skew,
+	      s -> tree.multikey_restart,
 	      s -> tree.check_left_nonuniq,
 	      s -> tree.left_nonuniq_found,
 

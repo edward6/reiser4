@@ -316,7 +316,6 @@ resize_result resize_item( coord_t *coord, reiser4_item_data *data,
 int find_new_child_ptr( znode *parent, znode *child, znode *left, 
 			coord_t *result );
 
-
 int shift_right_of_but_excluding_insert_coord (coord_t * insert_coord);
 int shift_left_of_and_including_insert_coord (coord_t * insert_coord);
 int shift_everything_left (znode * right, znode * left, carry_level *todo);
@@ -409,6 +408,15 @@ extern znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h );
 
 /* eottl.c */
 extern int handle_eottl( cbk_handle *h, int *outcome );
+
+int lookup_multikey( cbk_handle *handle, int nr_keys );
+lookup_result lookup_couple( reiser4_tree *tree,
+			     const reiser4_key *key1, const reiser4_key *key2,
+			     coord_t *coord1, coord_t *coord2,
+			     lock_handle *lh1, lock_handle *lh2,
+			     znode_lock_mode lock_mode, lookup_bias bias,
+			     tree_level lock_level, tree_level stop_level,
+			     __u32 flags );
 
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);

@@ -155,6 +155,11 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_GLOBAL_COLLISION_LIMIT (1024)
 
+/**
+ * maximal number of keys lookup_multikey() can handle.
+ */
+#define REISER4_MAX_MULTI_SEARCH (4)
+
 /* 
  * what size units of IO we would like cp, etc., to use, in writing to
  * reiser4. In 512 byte blocks.
