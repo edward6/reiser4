@@ -54,7 +54,6 @@ static void unlock( reiser4_oid_allocator_t *map /* oid allocator to unlock */ )
 }
 
 /** number of oids available for use by users */
-/* Audited by: green(2002.06.15) */
 __u64 oids_free( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 {
 	__u64 result;
@@ -62,9 +61,7 @@ __u64 oids_free( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 	assert( "nikita-1797", map != NULL );
 
 	lock( map );
-	/* AUDIT: this calculation seems to suffer from off-by-one error.
-	   + 1 should be added to correctly represent amount of free oids */
-	result = ABSOLUTE_MAX_OID - OIDS_RESERVED - map -> next_to_use;
+	result = ABSOLUTE_MAX_OID - OIDS_RESERVED - map -> next_to_use + 1;
 	unlock( map );
 	return result;
 }
