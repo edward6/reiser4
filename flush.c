@@ -1563,6 +1563,10 @@ static void flush_bio_write (struct bio *bio)
 		page_cache_release (pg);
 
 		node = jnode_by_page (pg);
+
+		/* FIXME: Now that it has a place on disk... */
+		/*JF_CLR (pg, ZNODE_CREATED);*/
+
 		jput (node);
 	}
 	
@@ -1642,12 +1646,20 @@ static int flush_finish (flush_position *pos, int none_busy)
 			int j, c, nr;
 			struct super_block *super;
 			int blksz;
+			int max_j;
 
 			super = check->pg->mapping->host->i_sb;
 			assert( "jmacd-2029", super != NULL );
 
+			/* FIXME: Need to work on this: */
+#if REISER4_USER_LEVEL_SIMULATION
+			max_j = pos->queue_num;
+#else
+ 			max_j = min (pos->queue_num, i+ (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9)));
+#endif
+
 			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
-			for (j = i + 1; j < min(pos->queue_num, i+(bdev_get_queue(super->s_bdev)->max_sectors >> ( super->s_blocksize_bits - 9 ) )); j += 1) {
+			for (j = i + 1; j < max_j; j += 1) {
 				if (JF_ISSET (pos->queue[j], ZNODE_WANDER) ||
 				    (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j]))) {
 					break;
@@ -2664,7 +2676,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	if (JF_ISSET (node, ZNODE_WANDER)) {
 		state = dirty ? "wandr,dirty" : "wandr";
 	} else if (JF_ISSET (node, ZNODE_RELOC) && JF_ISSET (node, ZNODE_CREATED)) {
-		state = dirty ? "alloc,dirty" : "alloc";
+		state = dirty ? "creat,dirty" : "creat";
 	} else if (JF_ISSET (node, ZNODE_RELOC)) {
 		state = dirty ? "reloc,dirty" : "reloc";
 	} else if (JF_ISSET (node, ZNODE_CREATED)) {
