@@ -59,7 +59,6 @@ struct page;
 struct file;
 struct dentry;
 struct super_block;
-struct sealed_coord;
 
 /* return values of coord_by_key(). cbk == coord_by_key */
 typedef enum {

@@ -28,14 +28,6 @@ typedef struct seal_s {
 #endif
 } seal_t;
 
-struct sealed_coord {
-	seal_t seal;
-	coord_t coord;
-	reiser4_key key;
-	tree_level level;
-	znode_lock_mode lock;
-};
-
 extern void seal_init(seal_t * seal, const coord_t * coord, const reiser4_key * key);
 extern void seal_done(seal_t * seal);
 
