@@ -2068,9 +2068,9 @@ unpack(struct inode *inode, int forever)
 	int            result = 0;
 	unix_file_info_t *uf_info;
 
-	assert("vs-1628", ea_obtained(uf_info));
 
 	uf_info = unix_file_inode_data(inode);
+	assert("vs-1628", ea_obtained(uf_info));
 
 	result = find_file_state(uf_info);
 	assert("vs-1074", ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
