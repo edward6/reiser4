@@ -1582,7 +1582,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 	int refill = 0;
 	int ret = 0;
 
-/*	assert ("vs-806", pos->queue_num > 0);*/
+	assert ("vs-806", pos->queue_num > 0);
 
 	if (REISER4_DEBUG && none_busy) {
 		int nbusy = 0;
@@ -1679,7 +1679,6 @@ static int flush_finish (flush_position *pos, int none_busy)
 				break;
 			}
 
-			/* Note: very much copied from page_cache.c:page_bio. */
 			blksz = super->s_blocksize;
 			assert( "jmacd-2028", blksz == ( int ) PAGE_CACHE_SIZE );
 
@@ -1700,17 +1699,22 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
-				/* FIXME: JMACD->NIKITA: can you review this? */
 				jnode_set_clean (node);
 
-				/*page_cache_get (pg);*/
+				lock_page (pg);
+				if (! PageDirty (pg)) {
+					warning ("jmacd-74232", "flush_finish: page not dirty");
+					SetPageDirty (pg);
+				}
 				SetPageWriteback (pg);
+				unlock_page (pg);
 
 				bio->bi_io_vec[c].bv_page   = pg;
 				bio->bi_io_vec[c].bv_len    = blksz;
 				bio->bi_io_vec[c].bv_offset = 0;
 
-				/* The page reference is enough to maintain the jnode... */
+				/* The page cannot be purged while it is in writeback,
+				 * release last reference. */
 				jput (node);
 			}
 
@@ -1781,9 +1785,13 @@ static int flush_rewrite_jnode (jnode *node)
 	/* FIXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
 	 * otherwise if the page was a fresh allocation the dealloc of that block might
 	 * have been non-deferred, and then we could trash otherwise-allocated data? */
-	if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+	if (! jnode_check_dirty (node) ||
+	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
+	    (WRITE_LOG && JF_ISSET (node, ZNODE_WANDER))) {
 		return 0;
 	}
+
+	assert ("jmacd-76516", jnode_check_allocated (node));
 
 	if ((pg = jnode_page (node)) == NULL) {
 		return -ENOMEM;
@@ -1792,7 +1800,10 @@ static int flush_rewrite_jnode (jnode *node)
 	jnode_set_clean (node);
 
 	lock_page (pg);
-	/*SetPageWriteback (pg);*/
+
+	/* The jnode thinks it is clean, the page should still think it is dirty.  I think
+	 * the next assertion can fail in a race but I'd like to prove it. */
+	assert ("jmacd-76515", PageDirty (pg));
 
 	ret = write_one_page (pg, 0 /* no wait */);
 

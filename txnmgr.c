@@ -1115,12 +1115,8 @@ txn_try_capture (jnode           *node,
 		 * internal tree levels, the user only reads/writes leaves. */
 		cap_mode = TXN_CAPTURE_READ_ATOMIC;
 	} else {
-		/* In this case there's no reason to capture. */
+		/* In this case (read lock at a non-leaf) there's no reason to capture. */
 		/* cap_mode = TXN_CAPTURE_READ_NONCOM; */
-		/*
-		 * FIXME-VS: probably wrong
-		 */
-/*		jnode_detach_page (node);*/
 		return 0;
 	}
 
@@ -1223,6 +1219,7 @@ void txn_delete_page (struct page *pg)
 
 	/* FIXME: JMACD->NIKITA: What do you think of this? */
 	ClearPageDirty (pg);
+	/* current_tree->ops->clean_node (current_tree, node);*/
 	
 	node = (jnode *)(pg->private);
 
@@ -1426,10 +1423,11 @@ void jnode_set_clean( jnode *node )
 
 	spin_unlock_jnode (node);
 
-	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
-		/*WITH_DATA (JZNODE (node), */
-		current_tree->ops->clean_node (current_tree, node) /*)*/;
-	}
+	/* FIXME: JMACD->NIKITA: Shouldn't we rely on the flush/writeback method to set
+	 * the page clean? */ 
+	/*if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
+		current_tree->ops->clean_node (current_tree, node);
+	}*/
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
