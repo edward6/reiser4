@@ -81,8 +81,6 @@
 #include <linux/fs.h>
 #include <linux/dcache.h>
 #include <linux/quotaops.h>
-#define ten_percent(n)	((103 * n) >> 10)
-
 /** Amount of internals which will get dirty of get allocated we estimate as 
   * 5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
   * and the currect block on the leaf level, 2 neighbour nodes + the current 
@@ -92,11 +90,14 @@
   *
   * Do not calculate the current node of the lowest level here - this is overhead 
   * only. */
-reiser4_block_nr estimate_internal_amount(
-	reiser4_block_nr childs, 
-	__u32 tree_height)
+void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 {
-	return tree_height * 2 + 4 + ten_percent(childs);
+	__u32 ten_percent;
+	
+	assert("umka-1249", amount != NULL);
+	
+	ten_percent = ((103 * childen) >> 10);
+	*amount = (tree_height * 2 + 4 + ten_percent);
 }
 
 /** helper function to print errors */
@@ -515,9 +516,12 @@ common_file_can_add_link(const struct inode *object /* object to check */ )
 
 static reiser4_block_nr common_estimate_file_delete(struct inode *inode)
 {
+	reiser4_block_nr amount;
+	
 	assert( "vpf-319", inode != NULL );
 
-	return estimate_internal_amount(1, tree_by_inode(inode)->height) + 1 /* the current leaf */;
+	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+	return amount + 1;
 }
 
 /** common_file_delete() - delete object stat-data */
@@ -649,7 +653,11 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 
 static reiser4_block_nr common_estimate_create(__u32 tree_height, struct inode *object)
 {
-	return estimate_internal_amount(1, tree_height) + 1;
+	reiser4_block_nr amount;
+
+	estimate_internal_amount(1, tree_height, &amount);
+	
+	return amount + 1;
 }
 
 /* 
