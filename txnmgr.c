@@ -1703,6 +1703,7 @@ try_commit_txnh(commit_data *cd)
 			   flusher */
 			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
+			atom_send_event(cd->atom);
 
 			result = commit_current_atom(&cd->nr_written, &cd->atom);
 			if (result != 0 && result != -E_REPEAT)
@@ -2325,7 +2326,7 @@ VS-FIXME-HANS: can this code be at all streamlined?  In particular, can you lock
 
 Handles the E_REPEAT result from
    blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
-   lock to perform an allocation.  The atom could fuse while this lock is held, which is
+   lock to perform an allocation.  The atom could fuse while this lock is released, which is
    why the E_REPEAT must be handled by repeating the call to atom_locked_by_jnode.  The
    second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
    "repeat" once.  */
@@ -2412,29 +2413,20 @@ uncapture_jnode(jnode *node)
 {
 	txn_atom *atom;
 
-	jnode_make_clean(node);
+	assert("vs-1462", spin_jnode_is_locked(node));
+	assert("", node->pg == 0);
 
-	jref(node);
-	LOCK_JNODE(node);
-	assert("vs-1447", node->pg == 0);
-	eflush_del(node, 0/* page is not locked */);
-
+	eflush_del(node, 0);
+	/*jnode_make_clean(node);*/
 	atom = atom_locked_by_jnode(node);
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
 		UNLOCK_JNODE (node);
-		unhash_unformatted_jnode(node);
-		jput(node);
 		return;
 	}
 
 	uncapture_block(node);
 	UNLOCK_ATOM(atom);
-	jput(node);
-
-	unhash_unformatted_jnode(node);
-
-	/* first jput is uncapturing, this matches to jref in above */
 	jput(node);
 }
 
