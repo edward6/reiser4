@@ -362,6 +362,8 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 	reiser4_block_nr replace_ext_width;
 	reiser4_key key;
 
+	int ret;
+
 	assert ("zam-959", item_is_extent(coord));
 
 	ext = extent_by_coord(coord);
@@ -385,9 +387,32 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 	unit_key_by_coord(coord, &key);
 	set_key_offset(&key, get_key_offset(&key) + replace_ext_width * current_blocksize);
 
-	return replace_extent(
-		coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key, 
-		init_new_extent(&item, &new_ext, 1), &replace_ext, COPI_DONT_SHIFT_LEFT);
+	{
+		reiser4_context * ctx = get_current_context();
+		reiser4_super_info_data * sinfo = get_super_private(ctx->super);
+		__u64 grabbed;
+
+		/* grab space for operations on internal levels. */
+		ret = reiser4_grab_space((__u64)1, BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+
+		if (ret)
+			return ret;
+
+		grabbed = ctx->grabbed_blocks;
+
+		ret =  replace_extent(
+			coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key, 
+			init_new_extent(&item, &new_ext, 1), &replace_ext, COPI_DONT_SHIFT_LEFT);
+
+		/* release grabbed space if it was not used. */
+		if (grabbed == ctx->grabbed_blocks)
+			grabbed2free(ctx, sinfo, (__u64)1, __FUNCTION__);
+		else
+			assert("zam-979", ctx->grabbed_blocks + 1 == grabbed);
+		
+	}
+
+	return ret;
 }
 
 static int make_new_extent_at_end (coord_t * coord, reiser4_block_nr width, int * all_replaced)
