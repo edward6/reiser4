@@ -587,7 +587,6 @@ extent2tail(struct inode *inode)
 	reiser4_key from;
 	reiser4_key to;
 	unsigned count;
-	int err = 0;
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
@@ -609,7 +608,6 @@ extent2tail(struct inode *inode)
 		page = read_cache_page(inode->i_mapping, (unsigned) i, unix_file_readpage/*filler*/, 0);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
-			err = 1;
 			break;
 		}
 
@@ -618,7 +616,6 @@ extent2tail(struct inode *inode)
 		if (!PageUptodate(page)) {
 			page_cache_release(page);
 			result = -EIO;
-			err = 2;
 			break;
 		}
 
@@ -630,7 +627,6 @@ extent2tail(struct inode *inode)
 			if (result) {
 				reiser4_unlock_page(page);
 				page_cache_release(page);
-				err = 3;
 				break;
 			}
 		}
@@ -642,7 +638,6 @@ extent2tail(struct inode *inode)
 		result = cut_tree(tree_by_inode(inode), &from, &to);
 		if (result) {
 			page_cache_release(page);
-			err = 4;
 			break;
 		}
 
@@ -653,7 +648,6 @@ extent2tail(struct inode *inode)
 		result = write_page_by_tail(inode, page, count);
 		if (result) {
 			page_cache_release(page);
-			err = 5;
 			break;
 		}
 
@@ -675,8 +669,8 @@ extent2tail(struct inode *inode)
 		set_file_state_tails(inode);
 	else {
 		warning("nikita-2282",
-			"Partial conversion of %llu: %lu of %lu: %i/%i",
-			get_inode_oid(inode), i, num_pages, result, err);
+			"Partial conversion of %llu: %lu of %lu: %i",
+			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
 	}
 	all_grabbed2free("extent2tail");
