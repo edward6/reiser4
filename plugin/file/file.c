@@ -229,8 +229,8 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 #endif
 
 int find_next_item (struct sealed_coord * hint,
-		    reiser4_key * key, /* key of position in a file of next
-					* read/write */
+		    const reiser4_key * key, /* key of position in a file of
+					      * next read/write */
 		    coord_t * coord, /* on entry - initilized by 0s or
 					coordinate (locked node and position in
 					it) on which previous read/write
@@ -885,7 +885,7 @@ int hint_is_set (const struct sealed_coord * hint)
 }
 
 
-int hint_validate (struct sealed_coord * hint, reiser4_key * key,
+int hint_validate (struct sealed_coord * hint, const reiser4_key * key,
 		   coord_t * coord, lock_handle * lh)
 {
 	int result;
