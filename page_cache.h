@@ -18,6 +18,14 @@ extern reiser4_tree *tree_by_page(const struct page *page);
 extern void reiser4_lock_page(struct page *page);
 extern void reiser4_unlock_page(struct page *page);
 
+extern void reiser4_wait_page_writeback (struct page * page);
+static inline void lock_and_wait_page_writeback (struct page * page)
+{
+	reiser4_lock_page(page);
+	if (unlikely(PageWriteback(page)))
+	    reiser4_wait_page_writeback(page);
+}  
+
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
 
 extern int page_io(struct page *page, jnode * node, int rw, int gfp);

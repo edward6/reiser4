@@ -572,9 +572,8 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		assert("zam-727", pg != NULL);
 
 		page_cache_get(pg);
-		reiser4_lock_page(pg);
 
-		assert("zam-728", !PageWriteback(pg));
+		lock_and_wait_page_writeback(pg);
 		SetPageWriteback(pg);
 
 		write_lock(&pg->mapping->page_lock);

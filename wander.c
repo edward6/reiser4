@@ -670,10 +670,8 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 			assert("zam-573", pg != NULL);
 
 			page_cache_get(pg);
-			reiser4_lock_page(pg);
 
-			/* There could i/o in progress, submitted by e-flush */
-			wait_on_page_writeback (pg);
+			lock_and_wait_page_writeback(pg);
 			SetPageWriteback(pg);
 
 			jrelse(cur);
