@@ -775,44 +775,10 @@ alloc_extent(flush_pos_t *flush_pos)
 	reiser4_key key;
 	block_stage_t block_stage;
 
-
-
 	assert("vs-1468", flush_pos->state == POS_ON_EPOINT);
 	assert("vs-1469", coord_is_existing_unit(&flush_pos->coord) && item_is_extent(&flush_pos->coord));
 
 	coord = &flush_pos->coord;
-	/*
-	 * NOTE-NIKITA
-	 *
-	 * Extent items are marked as "frozen" at the beginning of
-	 * extent->tail conversion (similarly, tail items are marked as
-	 * "frozen" during tail->extent conversion), this is necessary so that
-	 * number of items file being converted consists of doesn't change
-	 * during conversion and so, space reservation remains valid.
-	 *
-	 * Initial design was that flush just skips frozen items on the
-	 * pretext that they will be removed soon and it, hence, makes no
-	 * sense to allocated them.
-	 *
-	 * But this leads to the following deadlock:
-	 *
-	 * extent->tail marks items as frozen and starts conversion. It then
-	 * calls balance_dirty_pages() that can close current transaction
-	 * handle. So, when extent->tail continues, frozen items are not part
-	 * of its current transaction.
-	 *
-	 * At this moment, node N containing frozen items is locked by some
-	 * other thread and captured into atom. That atom switches into
-	 * CAPTURE_WAIT state and starts flushing. Flush cannot make progress,
-	 * because it constantly hits frozen item and falls back to repeat,
-	 * waiting for extent->tail to finish.
-	 *
-	 * extent->tail cannot make progress, because it is sleeping in
-	 * capture_fuse() trying to lock and capture N.
-	 *
-	 * NOTE: New extent->tail conversion doesn't use "frozen" items, so
-	 * that comment above is only of historical interest.
-	 */
 
 	ext = extent_by_coord(coord);
 	state = state_of_extent(ext);
