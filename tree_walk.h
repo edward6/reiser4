@@ -55,6 +55,9 @@ typedef enum {
 	/* do not go across atom boundaries */
 	GN_SAME_ATOM = 0x20,
 /* ZAM-FIXME-HANS: would GN_LOCK_NOT_CONNECTED be a better name? */
+/* ANSWER(ZAM): it does not lock not connected node, it allows to sleep on
+ * not-yet-connected but locked node, that node expected to be connected when
+ * lock will be released. */
 	/* allow to lock not connected nodes */
 	GN_ALLOW_NOT_CONNECTED = 0x40
 } znode_get_neigbor_flags;
@@ -84,10 +87,14 @@ extern void sibling_list_insert(znode * new, znode * before);
 extern void sibling_list_insert_nolock(znode * new, znode * before);
 extern void link_left_and_right(znode * left, znode * right);
 
-/* ZAM-FIXME-HANS: could use a comment, eh? */
+/* Functions called by tree_walk() when tree_walk() ...  */
 struct tree_walk_actor {
+	/* ... meets a formatted node, */
 	int (*process_znode)(tap_t* , void*);
+	/* ... meets an extent, */
 	int (*process_extent)(tap_t*, void*);
+	/* ... begins tree traversal or repeats it after -E_REPEAT was returned by
+	 * node or extent processing functions. */
 	int (*before)(void *);
 };
 extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *, void *);

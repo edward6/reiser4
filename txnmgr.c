@@ -697,9 +697,6 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 		spin_unlock_txnmgr(mgr);
 
 		reiser4_stat_inc(txnmgr.restart.atom_begin);
-/*  ZAM-FIXME-HANS: explain this error code which is for user space interactions being used here.  I thought I clearly
- *  indicated I didn't want user space error codes used for purposes other than what they were intended for, returning
- *  errors to user space? */
 		return ERR_PTR(-E_REPEAT);
 	}
 
@@ -1536,7 +1533,9 @@ commit_txnh(txn_handle * txnh)
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
-/* ZAM-FIXME-HANS: comment on why are we doing this, what is the logic here? */
+	/* if we don't want to do a commit (TXNH_DONT_COMMIT is set, probably
+	 * because it takes time) by current thread, we do that work
+	 * asynchronously by ktxnmgrd daemon. */
 	if (txnh->flags & TXNH_DONT_COMMIT)
 		ktxnmgrd_kick(&get_current_super_private()->tmgr);
 
@@ -2920,7 +2919,6 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 	UNLOCK_TXNH(txnh);
 	return RETERR(-E_REPEAT);
 }
-/* ZAM-FIXME-HANS: how do you know that this preserves the lock ordering invariants? */
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
    the small list to point to the large atom.  Returns the length of the list. */
 static int
@@ -2932,6 +2930,8 @@ capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head, captu
 	assert("umka-218", large != NULL);
 	assert("umka-219", large_head != NULL);
 	assert("umka-220", small_head != NULL);
+	/* small atom should be locked also. */
+	assert("zam-968", spin_atom_is_locked(large)); 
 
 	/* For every jnode on small's capture list... */
 	for_all_tslist(capture, small_head, node) {
@@ -3321,22 +3321,6 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 	return nr_free_pagecache_pages() / 2;
 }
 
-/* DEBUG HELP */
-/* ZAM-FIXME-HANS: this is classic josh working independently without concern for how others on the team code things.  Put this in debug.c, and teach it to use the reiserfs warning/panic infrastructure, or cut it entirely. */
-#if REISER4_DEBUG_OUTPUT
-void
-info_atom(const char *prefix, txn_atom * atom)
-{
-	if (atom == NULL) {
-		printk("%s: no atom\n", prefix);
-		return;
-	}
-
-	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	       " capture_count: %i stage: %x start: %lu\n", prefix,
-	       atomic_read(&atom->refcount), atom->atom_id, atom->flags, atom->txnh_count,
-	       atom->capture_count, atom->stage, atom->start_time);
-}
 
 void
 print_atom(const char *prefix, txn_atom * atom)

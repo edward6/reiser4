@@ -211,7 +211,8 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
   
    What this means is for a regular lock_znode request (try_lock is slightly simpler).
      1. acquire znode spinlock, check whether the lock request is compatible
-ZAM-FIXME-HANS: define compatible  
+        (lock request and node state are compatible that means node can be
+        locked immediately)
         \_ and if not, make request and sleep on lock_stack semaphore
         |_ and when it wakes, go to step #1
      2. perform a try_capture request
@@ -801,9 +802,8 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 /* locks given lock object */
 int 
 longterm_lock_znode(
-	/* local link object (may be allocated on the process owner); */
-/* ZAM-FIXME-HANS: ^on^by ?
-                   ^may^must ? */
+	/* local link object (allocated by lock owner thread, usually on its own
+	 * stack) */
 	lock_handle * handle,
 	/* znode we want to lock. */
 	znode * node,

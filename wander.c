@@ -1043,7 +1043,8 @@ int reiser4_write_logs(long * nr_submitted)
 
 	ch.free_blocks = sbinfo->blocks_free_committed;
 	ch.nr_files = sbinfo->nr_files_committed;
-/* ZAM-FIXME-HANS: email me what the contention level is for the super lock. */
+	/* ZAM-FIXME-HANS: email me what the contention level is for the super
+	 * lock. */
 	ch.next_oid = oid_next(super);
 
 	/* count overwrite set and place it in a separate list */

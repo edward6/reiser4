@@ -432,6 +432,28 @@ int atom_isopen(const txn_atom * atom)
 	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
 }
 
+/* ZAM-FIXME-HANS: this is classic josh working independently without concern
+ * for how others on the team code things.  Put this in debug.c, and teach it to
+ * use the reiserfs warning/panic infrastructure, or cut it entirely. */
+/* ANSWER(ZAM): Hans, this is not panic, this is not warning, it is a debug
+ * output, printk is OK for this. */
+#if REISER4_DEBUG_OUTPUT
+void
+info_atom(const char *prefix, txn_atom * atom)
+{
+	if (atom == NULL) {
+		printk("%s: no atom\n", prefix);
+		return;
+	}
+
+	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	       " capture_count: %i stage: %x start: %lu\n", prefix,
+	       atomic_read(&atom->refcount), atom->atom_id, atom->flags, atom->txnh_count,
+	       atom->capture_count, atom->stage, atom->start_time);
+}
+
+#endif
+
 #endif 
 
 /* Make Linus happy.

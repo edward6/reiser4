@@ -82,7 +82,14 @@ lock_neighbor(
 					  znode.lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 
-/* ZAM-FIXME-HANS: explain this logic in detail */
+		/* return -E_NO_NEIGHBOR if parent or side pointer is NULL or if
+		 * node pointed by it is not connected.  
+		 *
+		 * However, GN_ALLOW_NOT_CONNECTED option masks "connected"
+		 * check and allows passing reference to not connected znode to
+		 * subsequent longterm_lock_znode() call.  This kills possible
+		 * busy loop if we are trying to get longterm lock on locked but
+		 * not yet connected parent node. */
 		if (neighbor == NULL || !((flags & GN_ALLOW_NOT_CONNECTED)
 					  || znode_is_connected(neighbor))) {
 			return RETERR(-E_NO_NEIGHBOR);
@@ -120,7 +127,7 @@ lock_neighbor(
 		WLOCK_TREE(tree);
 	}
 }
-/* ZAm-FIXME-HANS: comment? */
+/* get parent node with longterm lock, accepts GN* flags. */
 int
 reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 			 znode * node /* child node */,
@@ -132,7 +139,7 @@ reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 				      ZNODE_LOCK_HIPRI, flags));
 }
 
-/* description is in tree_walk.h */
+/* A wrapper for reiser4_get_parent_flags(). */
 int
 reiser4_get_parent(lock_handle * result	/* resulting lock
 					   * handle */ ,
