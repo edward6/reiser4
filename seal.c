@@ -42,7 +42,8 @@ static int seal_search_node( seal_t *seal, tree_coord *coord,
  */
 void seal_init( seal_t      *seal /* seal to initialise */, 
 		tree_coord  *coord /* coord @seal will be attached to */, 
-		reiser4_key *key UNUSED_ARG /* key @seal will be attached to */ )
+		const reiser4_key *key UNUSED_ARG /* key @seal will be
+						   * attached to */ )
 {
 	assert( "nikita-1886", seal != NULL );
 	xmemset( seal, 0, sizeof *seal );
