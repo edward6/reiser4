@@ -564,7 +564,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 			txn_atom * atom;
 
 			spin_lock_jnode (first);
-			atom = atom_get_locked_by_jnode(first);
+			atom = atom_locked_by_jnode(first);
 
 			if (atom) {
 				count = atom->capture_count;
@@ -901,7 +901,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 
 	while (1) {
 		/* begin with taking lock on atom */
-		atom = atom_get_locked_by_jnode(node);
+		atom = atom_locked_by_jnode(node);
 		spin_unlock_jnode(node);
 
 		if (atom == NULL) {
