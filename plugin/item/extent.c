@@ -2406,11 +2406,37 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 }
 
 
-void extent_bdp(struct address_space *mapping)
-{
-	PROF_BEGIN(bdp);
-	balance_dirty_pages_ratelimited(mapping);
-	PROF_END(bdp, bdp);
+#define SET_SEAL \
+{\
+	PROF_BEGIN(set_seal);\
+	if (hint && coord_state == COORD_RIGHT_STATE)\
+		set_hint(hint, &f->key, coord, coord_state);\
+	else\
+		unset_hint(hint);\
+	longterm_unlock_znode(lh);\
+	PROF_END(set_seal, set_seal);\
+}
+
+#define UPDATE_SD \
+{\
+	PROF_BEGIN(update_sd);\
+	new_size = get_key_offset(&f->key);\
+	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);\
+	PROF_END(update_sd, update_sd);\
+}
+
+#define BALANCE_DIRTY_PAGES \
+{\
+	PROF_BEGIN(bdp);\
+	balance_dirty_pages_ratelimited(mapping);\
+	PROF_END(bdp, bdp);\
+}
+
+#define HINT_VALIDATE \
+{\
+	PROF_BEGIN(validate);\
+	result = hint_validate(hint, &f->key, coord, lh);\
+	PROF_END(validate, validate);\
 }
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
@@ -2420,27 +2446,29 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 {
 	int result;
 	loff_t new_size;
-	PROF_BEGIN(extent_bdp);
 
-	if (hint && coord_state == COORD_RIGHT_STATE)
-		set_hint(hint, &f->key, coord, coord_state);
-	else
-		unset_hint(hint);
-	longterm_unlock_znode(lh);
+	SET_SEAL;
 
-	new_size = get_key_offset(&f->key);
-	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
+	UPDATE_SD;
 	if (result)
 		return result;
 
 	/* balance dirty pages periodically */
-	extent_bdp(mapping);
+	BALANCE_DIRTY_PAGES;
 
 	if (coord_state == COORD_WRONG_STATE)
 		return -EAGAIN;
-	result = hint_validate(hint, &f->key, coord, lh);
-	PROF_END(extent_bdp, extent_bdp);
+
+	HINT_VALIDATE;
+
 	return result;
+}
+
+#define EXTENT_BALANCE_DIRTY_PAGES \
+{\
+	PROF_BEGIN(extent_bdp);\
+	result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);\
+	PROF_END(extent_bdp, extent_bdp);\
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
@@ -2458,22 +2486,12 @@ reserve_extent_write_iteration(struct inode *inode, tree_level height)
 }
 
 /* FIXME: remove me */
-static int prof_copy_from_user(struct page *page, unsigned page_off, unsigned to_page,
-				flow_t *f)
-{
-	int result;
-
-	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);
-	kunmap(page);
-	return result;
-}
-
-static struct page *prof_grab_cache_page(struct address_space *mapping, unsigned long index)
-{
-	struct page *page;
-
-	page = grab_cache_page(mapping, index);
-	return page;
+#define COPY_FROM_USER \
+{\
+	PROF_BEGIN(copy);\
+	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);\
+	kunmap(page);\
+	PROF_END(copy, copy);\
 }
 
 /* write flow's data into file by pages */
@@ -2523,7 +2541,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		/* FIXME-NIKITA fault_in_pages_readable() should be used here
 		 * to avoid dead-locks */
 
-		page = prof_grab_cache_page(inode->i_mapping, index);
+		page = grab_cache_page(inode->i_mapping, index);
 		if (!page) {
 			result = RETERR(-ENOMEM);
 			goto exit1;
@@ -2561,12 +2579,8 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
-		prof_copy_from_user(page, page_off, to_page, f);
-/*
-		data = kmap(page);
-		result = __copy_from_user(data + page_off, f->data, to_page);
-		kunmap(page);
-*/
+		COPY_FROM_USER;
+
 		/* jnode_set_dirty() will mark page accessed. No need to call
 		 * mark_page_accessed() here */
 
@@ -2591,7 +2605,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		move_flow_forward(f, to_page);
 
 		/* throttle the writer */
-		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);
+		EXTENT_BALANCE_DIRTY_PAGES;
 		if (!grabbed)
 			all_grabbed2free("extent_write_flow");
 		if (result) {
