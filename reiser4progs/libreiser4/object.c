@@ -35,8 +35,6 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
 	from stat data item.
     */
     if (item.plugin->item_ops.specific.statdata.get_mode) {
-	rid_t id, type;
-
 	/* 
 	    Guessing plugin type and plugin id by mode field from the stat data
 	    item. This guessing should be performed only if stat data has not an
@@ -45,18 +43,12 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
 	
 	uint16_t mode = item.plugin->item_ops.specific.statdata.get_mode(item.body);
     
-	if (S_ISDIR(mode)) {
-	    type = DIR_PLUGIN_TYPE;
-	    id = DIR_DIR40_ID;
-	} else if (S_ISLNK(mode)) {
-	    type = FILE_PLUGIN_TYPE;
-	    id = FILE_SYMLINK40_ID;
-	} else {
-	    type = FILE_PLUGIN_TYPE;
-	    id = FILE_REG40_ID;
-	}
-	
-	return libreiser4_factory_ifind(type, id);
+	if (S_ISDIR(mode))
+	    return libreiser4_factory_ifind(DIR_PLUGIN_TYPE, DIR_DIR40_ID);
+	else if (S_ISLNK(mode))
+	    return libreiser4_factory_ifind(FILE_PLUGIN_TYPE, FILE_SYMLINK40_ID);
+	else
+	    return libreiser4_factory_ifind(FILE_PLUGIN_TYPE, FILE_REG40_ID);
     }
 
     return NULL;
@@ -245,7 +237,6 @@ reiser4_object_t *reiser4_object_open(
     object->fs = fs;
 
     root_key = &fs->tree->key;
-    
     reiser4_key_init(&object->key, root_key->plugin, root_key->body);
     
     /* 
@@ -271,13 +262,11 @@ error_free_object:
 
 /* Creates new object on specified filesystem */
 reiser4_object_t *reiser4_object_create(
-    reiser4_fs_t *fs,		    /* filesystem new object will be created on */
-    reiser4_plugin_t *plugin	    /* plugin to be used */
+    reiser4_fs_t *fs		    /* filesystem new object will be created on */
 ) {
     reiser4_object_t *object;
     
     aal_assert("umka-790", fs != NULL, return NULL);
-    aal_assert("umka-785", plugin != NULL, return NULL);
     
     /* Allocating the memory for obejct instance */
     if (!(object = aal_calloc(sizeof(*object), 0)))

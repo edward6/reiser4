@@ -77,7 +77,7 @@ reiser4_object_t *reiser4_dir_create(
     
     reiser4_object_t *object;
 
-    if (!(object = reiser4_object_create(fs, plugin)))
+    if (!(object = reiser4_object_create(fs)))
 	return NULL;
     
     /* 
