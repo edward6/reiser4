@@ -53,19 +53,19 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 
 #define extent_item(coord) 					\
 ({								\
-	DEBUGON(!item_is_extent(coord));			\
+	assert("nikita-3143", item_is_extent(coord));		\
 	((reiser4_extent *)item_body_by_coord (coord));		\
 })
 
 #define extent_by_coord(coord)					\
 ({								\
-	DEBUGON(!item_is_extent(coord));			\
+	assert("nikita-3144", item_is_extent(coord));		\
 	(extent_item (coord) + (coord)->unit_pos);		\
 })
 
 #define width_by_coord(coord) 					\
 ({								\
-	DEBUGON(!item_is_extent(coord));			\
+	assert("nikita-3145", item_is_extent(coord));		\
 	extent_get_width (extent_by_coord(coord));		\
 })
 
