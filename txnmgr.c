@@ -661,11 +661,27 @@ atom_isopen (const txn_atom *atom)
 static void
 atom_dec_and_unlock (txn_atom *atom)
 {
+	txn_mgr *mgr = &get_super_private (reiser4_get_current_sb ())->tmgr;
+
 	assert ("umka-186", atom != NULL);
 	assert ("jmacd-1071", spin_atom_is_locked (atom));
 	
 	if (--atom->refcount == 0) {
-		atom_free (atom);
+		/*
+		 * take txnmgr lock and atom lock in proper order.
+		 */
+		if (! spin_trylock_txnmgr (mgr)) {
+			spin_unlock_atom (atom);
+			spin_lock_txnmgr (mgr);
+			spin_lock_atom (atom);
+		}
+		assert ("nikita-2656", spin_txnmgr_is_locked (mgr));
+		if (atom->refcount == 0) {
+			atom_free (atom);
+		} else {
+			spin_unlock_atom (atom);
+		}
+		spin_unlock_txnmgr (mgr);
 	} else {
 		spin_unlock_atom (atom);
 	}
@@ -685,37 +701,45 @@ atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
 	assert ("jmacd-43226", node->atom == NULL);
 	assert ("jmacd-43225", txnh->atom == NULL);
 
+	/* Cannot allocate under those spinlocks. */
+	spin_unlock_jnode (node);
+	spin_unlock_txnh (txnh);
+
 	if (*atom_alloc == NULL) {
-		/* Cannot allocate under those spinlocks. */
-		spin_unlock_jnode (node);
-		spin_unlock_txnh (txnh);
 		(*atom_alloc) = kmem_cache_alloc (_atom_slab, GFP_KERNEL);
-		spin_lock_jnode (node);
-		spin_lock_txnh (txnh);
+	}
+	/*
+	 * and, also, txnmgr spin lock should be taken before jnode and txnh
+	 * locks.
+	 */
+	mgr = &get_super_private (reiser4_get_current_sb ())->tmgr;
+	spin_lock_txnmgr (mgr);
 
-		if (*atom_alloc == NULL) {
-			return ERR_PTR (-ENOMEM);
-		}
+	spin_lock_jnode (node);
+	spin_lock_txnh (txnh);
 
-		/* Check if both atom pointers are still NULL... */
-		if (node->atom != NULL || txnh->atom != NULL) {
-			trace_on (TRACE_TXN, "alloc atom race\n");
-			return ERR_PTR (-EAGAIN);
-		}
+	if (*atom_alloc == NULL) {
+		return ERR_PTR (-ENOMEM);
+	}
+
+	/* Check if both atom pointers are still NULL... */
+	if (node->atom != NULL || txnh->atom != NULL) {
+		trace_on (TRACE_TXN, "alloc atom race\n");
+		return ERR_PTR (-EAGAIN);
 	}
 
 	atom = *atom_alloc;
 	*atom_alloc = NULL;
 
-	mgr = &get_super_private (reiser4_get_current_sb ())->tmgr;
-
 	atom_init (atom);
 
 	assert ("jmacd-17", atom_isclean (atom));
 
-	/* Take the atom and txnmgr lock. */
-	spin_lock_atom   (atom);
-	spin_lock_txnmgr (mgr);
+	/* 
+	 * Take the atom and txnmgr lock. No checks for lock ordering, because
+	 * @atom is new and inaccessible for others.
+	 */
+	spin_lock_atom_no_ord (atom);
 
 	atom_list_push_back (& mgr->atoms_list, atom);
 
@@ -765,16 +789,15 @@ atom_free (txn_atom *atom)
 	assert ("jmacd-18", spin_atom_is_locked (atom));
 
 	/* Remove from the txn_mgr's atom list */
-	spin_lock_txnmgr (mgr);
+	assert ("nikita-2657", spin_txnmgr_is_locked (mgr));
 	mgr->atom_count -= 1;
 	atom_list_remove_clean (atom);
-	spin_unlock_txnmgr (mgr);
 
 	/* Clean the atom */
 	assert ("jmacd-16", (atom->stage == ASTAGE_FUSED ||
 			     atom->stage == ASTAGE_PRE_COMMIT));
 	atom->stage = ASTAGE_FREE;
-	
+
 	blocknr_set_destroy (& atom->delete_set);
 	blocknr_set_destroy (& atom->wandered_map);
 
@@ -1114,7 +1137,7 @@ static void invalidate_clean_list (txn_atom * atom)
  * Disable commits during memory pressure.  A call to sync() does not set PF_MEMALLOC.
  * Kswapd sets the PF_MEMALLOC flag on itself before calling our vm_writeback.
  */
-static inline int no_commit_thread( void )
+static inline int should_delegate_commit( void )
 {
 	return current -> flags & PF_MEMALLOC;
 }
@@ -1148,8 +1171,9 @@ commit_txnh (txn_handle *txnh)
 		 * FIXME:NIKITA->JMACD hack to disable commits during memory
 		 * pressure.
 		 */
-		if (no_commit_thread()) {
-			ktxnmgrd_kick (get_current_super_private() -> tmgr.daemon, CANNOT_COMMIT);
+		if (should_delegate_commit()) {
+			ktxnmgrd_kick (get_current_super_private() -> tmgr.daemon, 
+				       CANNOT_COMMIT);
 		} else {
 
 			ret = atom_try_commit_locked (atom);
@@ -1223,6 +1247,9 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 	assert("umka-288", txnh != NULL);
 	assert("jmacd-289", txnh->atom == NULL);
 
+	/*
+	 * FIXME-NIKITA looks like lock ordering violation?
+	 */
 	spin_lock_txnh (txnh);
 	spin_lock_txnmgr (mgr);
 
