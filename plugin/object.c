@@ -79,6 +79,7 @@
 /* helper function to print errors */
 static void
 key_warning(const reiser4_key * key /* key to print */,
+	    const struct inode *inode,
 	    int code /* error code to print */)
 {
 	assert("nikita-716", key != NULL);
@@ -86,6 +87,7 @@ key_warning(const reiser4_key * key /* key to print */,
 	warning("nikita-717", "Error for inode %llu (%i)",
 		get_key_objectid(key), code);
 	print_key("for key", key);
+	print_inode("inode", inode);
 }
 
 #if REISER4_DEBUG
@@ -151,6 +153,11 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
+	/*
+	 * traverse tree to find stat data. We cannot use vroot here, because
+	 * it only covers _body_ of the file, and stat data don't belong
+	 * there.
+	 */
 	result = coord_by_key(tree_by_inode(inode),
 			       key,
 			       coord,
@@ -165,7 +172,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 		check_sd_coord(coord, key);
 
 	if (result != 0)
-		key_warning(key, result);
+		key_warning(key, inode, result);
 	return result;
 }
 
@@ -273,7 +280,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	done_lh(&lh);
 
 	if (result != 0)
-		key_warning(&key, result);
+		key_warning(&key, inode, result);
 	else
 		oid_count_allocated();
 
@@ -325,7 +332,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		data.user = 0;
 		result = resize_item(coord, &data, key, lh, 0);
 		if (result != 0) {
-			key_warning(key, result);
+			key_warning(key, inode, result);
 			zrelse(loaded);
 			return result;
 		}
