@@ -3185,7 +3185,8 @@ scan_formatted(flush_scan * scan)
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
 		   where this znode is already write-locked by us. */
-		ret = longterm_lock_znode(&end_lock, JZNODE(scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		ret = longterm_lock_znode(&end_lock, JZNODE(scan->node), ZNODE_WRITE_LOCK,
+					  scanning_left(scan) ? ZNODE_LOCK_LOPRI : ZNODE_LOCK_HIPRI);
 		if (ret != 0) {
 			/* EINVAL or EDEADLK here mean... try again!  At this point we've
 			   scanned too far and can't back out, just start over. */
