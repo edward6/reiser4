@@ -492,9 +492,7 @@ znode_is_any_locked(const znode * node)
 
 	ret = 0;
 
-	for (handle = locks_list_front(&stack->locks);
-	     !locks_list_end(&stack->locks, handle); handle = locks_list_next(handle)) {
-
+	for_all_tslist(locks, &stack->locks, handle) {
 		if (handle->node == node) {
 			ret = 1;
 			break;
@@ -566,12 +564,12 @@ check_lock_object(lock_stack * owner)
 	   direction and a node have a high priority request without high
 	   priority owners. */
 	if (unlikely(!owner->curpri && check_deadlock_condition(node))) {
-		return -EAGAIN;
+		return RETERR(-EAGAIN);
 	}
 
 	if (unlikely(!is_lock_compatible(node, owner->request.mode) && 
-		     !recursive(owner))){
-		return -EAGAIN;
+		     !recursive(owner))) {
+		return RETERR(-EAGAIN);
 	}
 
 	return 0;
@@ -676,6 +674,119 @@ set_low_priority(lock_stack * owner)
 	}
 }
 
+#define ADDSTAT(node, counter) 						\
+	reiser4_stat_inc_at_level(znode_get_level(node), znode.counter)
+
+#define MAX_CONVOY_SIZE ((unsigned)(NR_CPUS - 1))
+
+/* helper function used by longterm_unlock_znode() to wake up requestor(s). */
+/*
+ * In certain multi threaded work loads jnode spin lock is the most
+ * contented one. Wake up of threads waiting for znode is, thus,
+ * important to do right. There are three well known strategies:
+ *
+ *  (1) direct hand-off. Hasn't been tried.
+ *
+ *  (2) wake all (thundering herd). This degrades performance in our
+ *      case.
+ *
+ *  (3) wake one. Simplest solution where requestor in the front of
+ *      requestors list is awaken under znode spin lock is not very
+ *      good on the SMP, because first thing requestor will try to do
+ *      after waking up on another CPU is to acquire znode spin lock
+ *      that is still held by this thread. As an optimization we grab
+ *      lock stack spin lock, release znode spin lock and wake
+ *      requestor. done_context() synchronize against stack spin lock
+ *      to avoid (impossible) case where requestor has been waked by
+ *      some other thread (wake_up_all_lopri_owners(), or something
+ *      similar) and managed to exit before we waked it up.
+ *
+ *      Effect of this optimization wasn't big, after all.
+ *
+ */
+static void
+wake_up_requestor(znode *node)
+{
+#ifdef CONFIG_SMP
+	requestors_list_head *creditors;
+	lock_stack           *convoy[MAX_CONVOY_SIZE];
+	int                   convoyused;
+	int                   convoylimit;
+
+	assert("nikita-3180", node != NULL);
+	assert("nikita-3181", spin_znode_is_locked(node));
+	assert("nikita-3183", !znode_is_wlocked(node));
+
+	ADDSTAT(node, wakeup);
+
+	convoyused = 0;
+	convoylimit = min(num_online_cpus() - 1, MAX_CONVOY_SIZE);
+	creditors = &node->lock.requestors;
+	if (!requestors_list_empty(creditors)) {
+		convoy[0] = requestors_list_front(creditors);
+		convoyused = 1;
+		ADDSTAT(node, wakeup_found);
+		/*
+		 * it has been verified experimentally, that there are no
+		 * convoys on the leaf level.
+		 */
+		if (znode_get_level(node) != LEAF_LEVEL && 
+		    convoy[0]->request.mode == ZNODE_READ_LOCK) {
+			lock_stack *item;
+
+			ADDSTAT(node, wakeup_found_read);
+			for (item = requestors_list_next(convoy[0]);
+			          ! requestors_list_end(creditors, item);
+			     item = requestors_list_next(item)) {
+				ADDSTAT(node, wakeup_scan);
+				if (item->request.mode == ZNODE_READ_LOCK) {
+					ADDSTAT(node, wakeup_convoy);
+					convoy[convoyused] = item;
+					++ convoyused;
+					/*
+					 * it is safe to spin lock multiple
+					 * lock stacks here, because lock
+					 * stack cannot sleep on more than one
+					 * requestors queue.
+					 */
+					/*
+					 * use raw spin_lock in stead of macro
+					 * wrappers, because spin lock
+					 * profiling code cannot cope with so
+					 * many locks held at the same time.
+					 */
+					spin_lock(&item->sguard.lock);
+					if (convoyused == convoylimit)
+						break;
+				}
+			}
+		}
+		spin_lock(&convoy[0]->sguard.lock);
+	}
+
+	spin_unlock_znode(node);
+	
+	while (convoyused > 0) {
+		-- convoyused;
+		__reiser4_wake_up(convoy[convoyused]);
+		spin_unlock(&convoy[convoyused]->sguard.lock);
+	}
+#else
+	/* uniprocessor case: keep it simple */
+	if (!requestors_list_empty(&node->lock.requestors)) {
+		lock_stack *requestor;
+
+		requestor = requestors_list_front(&node->lock.requestors);
+		reiser4_wake_up(requestor);
+	}
+
+	spin_unlock_znode(node);
+#endif
+}
+
+#undef ADDSTAT
+#undef MAX_CONVOY_SIZE
+
 /* unlock a znode long term lock */
 void
 longterm_unlock_znode(lock_handle * handle)
@@ -685,11 +796,13 @@ longterm_unlock_znode(lock_handle * handle)
 
 	assert("jmacd-1021", handle != NULL);
 	assert("jmacd-1022", handle->owner != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1392", lock_counters()->long_term_locked_znode > 0));
+	assert("nikita-1392", lock_counters()->long_term_locked_znode > 0);
 
 	assert("zam-130", oldowner == get_current_lock_stack());
 
-	ON_DEBUG_CONTEXT(--lock_counters()->long_term_locked_znode);
+	ON_DEBUG(--lock_counters()->long_term_locked_znode);
+
+	reiser4_stat_inc_at_level(znode_get_level(node), znode.unlock_znode);
 
 	spin_lock_znode(node);
 
@@ -752,15 +865,12 @@ longterm_unlock_znode(lock_handle * handle)
 	       || !owners_list_empty(&node->lock.owners));
 
 	/* If there are pending lock requests we wake up a requestor */
-	if (!requestors_list_empty(&node->lock.requestors)) {
-		lock_stack *requestor;
+	if (!znode_is_wlocked(node))
+		wake_up_requestor(node);
+	else
+		spin_unlock_znode(node);
 
-		requestor = requestors_list_front(&node->lock.requestors);
-		reiser4_wake_up(requestor);
-	}
-
-	spin_unlock_znode(node);
-
+	assert("nikita-3182", spin_znode_is_not_locked(node));
 	/* minus one reference from handle->node */
 	handle->node = NULL;
 	assert("nikita-2190", znode_invariant(node));
@@ -944,7 +1054,7 @@ int longterm_lock_znode(
 		*/
 		zref(node);
 
-		ON_DEBUG_CONTEXT(++lock_counters()->long_term_locked_znode);
+		ON_DEBUG(++lock_counters()->long_term_locked_znode);
 		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
 			node_check(node, 0);
 			ON_DEBUG_MODIFY(znode_pre_write(node));
@@ -986,8 +1096,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 	node->lock.nr_readers = 0;
 
 	/* all requestors will be informed that lock is invalidated. */
-	for (rq = requestors_list_front(&node->lock.requestors);
-	     !requestors_list_end(&node->lock.requestors, rq); rq = requestors_list_next(rq)) {
+	for_all_tslist(requestors, &node->lock.requestors, rq) {
 		reiser4_wake_up(rq);
 	}
 
@@ -1098,7 +1207,7 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 		if (owner->curpri) {
 			node->lock.nr_hipri_owners += 1;
 		}
-		ON_DEBUG_CONTEXT(++lock_counters()->long_term_locked_znode);
+		ON_DEBUG(++lock_counters()->long_term_locked_znode);
 
 		zref(node);
 	}
@@ -1226,9 +1335,7 @@ print_lock_stack(const char *prefix, lock_stack * owner)
 
 	printk(".... current locks:\n");
 
-	for (handle = locks_list_front(&owner->locks);
-	     !locks_list_end(&owner->locks, handle); handle = locks_list_next(handle)) {
-
+	for_all_tslist(locks, &owner->locks, handle) {
 		if (handle->node != NULL)
 			print_address(znode_is_rlocked(handle->node) ?
 				      "......  read" : "...... write", znode_get_block(handle->node));
@@ -1258,8 +1365,7 @@ check_lock_data()
 		reiser4_context *context;
 
 		spin_lock(&active_contexts_lock);
-		for (context = context_list_front(&active_contexts);
-		     !context_list_end(&active_contexts, context); context = context_list_next(context)) {
+		for_all_tslist(context, &active_contexts, context) {
 			check_lock_stack(&context->stack);
 		}
 		spin_unlock(&active_contexts_lock);
