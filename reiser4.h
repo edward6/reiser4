@@ -9,6 +9,10 @@
 #include <linux/config.h>
 #include <asm/param.h>		/* for HZ */
 #include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <asm/hardirq.h>
+#include <linux/sched.h>
 
 /*
  * reiser4 compilation options.
@@ -331,7 +335,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
-#define REISER4_MAX_ZTREE_HEIGHT     (10)
+#define REISER4_MAX_ZTREE_HEIGHT     (6)
 
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 
