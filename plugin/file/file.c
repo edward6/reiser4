@@ -5,34 +5,283 @@
 
 #include "../../reiser4.h"
 
-/*
- * all file data have to be stored in unformatted nodes
+/* this file contains:
+ * - file_plugin methods of reiser4 ordinary file (REGULAR_FILE_PLUGIN_ID)
  */
-#define should_have_notail(inode,new_size) \
-!get_object_state (inode)->tail->have_tail (inode, new_size)
 
-/*
- * not all file data have to be stored in unformatted nodes
+/* plugin->u.file.write_flow = NULL
+ * plugin->u.file.read_flow = NULL
  */
-#define should_have_tail(inode) \
-get_object_state (inode)->tail->have_tail (inode, inode->i_size)
 
-/* Dead USING_INSERT_UNITYPE_FLOW code removed from version 1.76 of this file. */
 
+/* plugin->u.file.truncate */
+int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
+{
+	reiser4_key from, to;
+
+	assert ("vs-319", size == inode->i_size);
+
+	build_sd_key (inode, &from);
+	set_key_type (&from, KEY_BODY_MINOR);
+	set_key_offset (&from, (__u64) inode->i_size);
+	to = from;
+	set_key_offset (&to, get_key_offset (max_key ()));
+	
+	/* all items of ordinary reiser4 file are grouped together. That is why
+	   we can use cut_tree. Plan B files (for instance) can not be
+	   truncated that simply */
+	return cut_tree (tree_by_inode (inode), &from, &to);
+}
+
+
+/* plugin->u.write_sd_by_inode = common_file_save */
+
+
+/* plugin->u.file.readpage
+ * this finds item of file corresponding to page being read in and calls its
+ * readpage method
+ */
+int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
+{
+	int result;
+	tree_coord coord;
+	lock_handle lh;
+	reiser4_key key;
+	item_plugin * iplug;
+	struct readpage_arg arg;
+
+
+	build_sd_key (page->mapping->host, &key);
+	set_key_type (&key, KEY_BODY_MINOR);
+	set_key_offset (&key, (unsigned long long)page->index << PAGE_SHIFT);
+
+	init_coord (&coord);
+	init_lh (&lh);
+
+	result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
+	if (result != CBK_COORD_FOUND) {
+		warning ("vs-280", "No file items found\n");
+		done_lh (&lh);
+		done_coord (&coord);
+		return result;
+	}
+
+	/*
+	 * get plugin of found item
+	 */
+	iplug = item_plugin_by_coord (&coord);
+	if (!iplug->s.file.readpage) {
+		done_lh (&lh);
+		done_coord (&coord);
+		return -EINVAL;
+	}
+
+	arg.coord = &coord;
+	arg.lh = &lh;
+	result = iplug->s.file.readpage (&arg, page);
+
+	done_lh (&lh);
+	done_coord (&coord);
+	return result;
+}
+
+
+/* plugin->u.file.read */
+/*
+ * FIXME: This comment is out of date, there is no call to read_cache_page:
+ 
+   this calls mm/filemap.c:read_cache_page() for every page spanned by the
+   flow @f. This read_cache_page allocates a page if it does not exist and
+   calls a function specified by caller (we specify reiser4_ordinary_readpage
+   here) to try to fill that page if it is not
+   uptodate. reiser4_ordinary_readpage looks through the tree to find metadata
+   corresponding to the beginning of a page being read. If that metadata is
+   found - fill_page method of item plugin is called to do mapping of not
+   mapped yet buffers the page is built off and issue read of not uptodate
+   buffers. When read is issued - and we are forced to wait - extent's
+   fill_page fills few more pages in advance using the rest of extent it
+   stopped at and starts reading for them. This will cause only reading ahead
+   of blocks adjacent to block which must be read anyway. So, except for
+   allocation of extra pages there will be no delay in delivering of the page
+   we asked about.
+ */
+static int find_item (reiser4_key * key, tree_coord * coord,
+		      reiser4_lock_handle * lh,
+		      znode_lock_mode lock_mode);
+
+ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
+			    loff_t * off)
+{
+	int result;
+	struct inode * inode;
+	tree_coord coord;
+	lock_handle lh;
+	size_t to_read;
+	item_plugin * iplug;
+	flow_t f;
+
+
+	/*
+	 * collect statistics on the number of reads
+	 */
+	reiser4_stat_file_add (reads);
+
+	inode = file->f_dentry->d_inode;
+	result = 0;
+
+	/*
+	 * build flow
+	 */
+	f.length = size;
+	f.data = buf;
+	build_sd_key (inode, &f.key);
+	set_key_type (&f.key, KEY_BODY_MINOR );
+	set_key_offset (&f.key, ( __u64 ) *off);
+
+	to_read = f.length;
+	while (f.length) {
+		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/*
+			 * do not read out of file
+			 */
+			break;
+		
+		result = find_item (&f.key, &coord, &lh,
+				    ZNODE_READ_LOCK);
+		switch (result) {
+		case CBK_COORD_FOUND:
+			iplug = item_plugin_by_coord (&coord);
+			if (!iplug->s.file.read)
+				result = -EINVAL;
+			else
+				result = iplug->s.file.read (inode, &coord,
+							     &lh, &f);
+			break;
+
+		case CBK_COORD_NOTFOUND:
+			/* 
+			 * item had to be found, as it was not - we have -EIO
+			 */
+			result = -EIO;
+		default:
+			break;
+		}
+		done_lh (&lh);
+		done_coord (&coord);
+		if (!result)
+			continue;
+		break;
+	}
+
+	*off += (to_read - f.length);
+	return (to_read - f.length) ? (to_read - f.length) : result;
+}
+
+
+/* plugin->u.file.write */
 typedef enum {
 	WRITE_EXTENT,
 	WRITE_TAIL,
 	CONVERT
 } write_todo;
 
+static write_todo what_todo (struct inode *, flow_t *, tree_coord *);
+static int tail2extent (struct inode *, tree_coord *, reiser4_lock_handle *);
+
+ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
+			     loff_t * off)
+{
+	int result;
+	struct inode * inode;
+	tree_coord coord;
+	reiser4_lock_handle lh;	
+	size_t to_write;
+	file_plugin * fplug;
+	item_plugin * iplug;
+	flow_t f;
+	
+
+	/*
+	 * collect statistics on the number of writes
+	 */
+	reiser4_stat_file_add (writes);
+
+	inode = file->f_dentry->d_inode;
+	result = 0;
+
+	/*
+	 * build flow
+	 */
+	assert ("vs-481", get_object_state (inode)->file);
+	fplug = get_object_state (inode)->file;
+	if (!fplug->flow_by_inode)
+		return -EINVAL;
+
+	result = fplug->flow_by_inode (file, buf, size, off, WRITE_OP, &f);
+	if (result)
+		return result;
+
+	to_write = f.length;
+	while (f.length) {
+		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+			/*
+			 * error occured
+			 */
+			done_lh (&lh);
+			done_coord (&coord);
+			break;
+		}
+		switch (what_todo (inode, &f, &coord)) {
+		case WRITE_EXTENT:
+			iplug = item_plugin_by_id (EXTENT_POINTER_IT);
+			/* resolves to extent_write function */
+
+			result = iplug->s.file.write (inode, &coord, &lh, &f);
+			break;
+
+		case WRITE_TAIL:
+			iplug = item_plugin_by_id (TAIL_IT);
+			/* resolves to tail_write function */
+
+			result = iplug->s.file.write (inode, &coord, &lh, &f);
+			break;
+			
+		case CONVERT:
+			result = tail2extent (inode, &coord, &lh);
+			break;
+
+		default:
+			impossible ("vs-293", "unknown write mode");
+		}
+
+		done_lh (&lh);
+		done_coord (&coord);
+		if (!result || result == -EAGAIN)
+			continue;
+		break;
+	}
+
+	/*
+	 * FIXME-VS: remove after debugging insert_extent is done
+	 */
+	print_tree_rec ("WRITE", tree_by_inode (inode), REISER4_NODE_CHECK);
+
+	
+	*off += (to_write - f.length);
+	return (to_write - f.length) ? (to_write - f.length) : result;
+}
+
 
 /*
  * look for item of file @inode corresponding to @key
  */
 static int find_item (reiser4_key * key, tree_coord * coord,
-		      lock_handle * lh,
+		      reiser4_lock_handle * lh,
 		      znode_lock_mode lock_mode)
 {
+	init_coord (coord);
+	init_lh (lh);
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, FIND_MAX_NOT_MORE_THAN,
 			     LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
@@ -52,10 +301,16 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 }
 
 
-/*
- * decide how to write @count bytes to position @offset of file @inode
- */
-write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
+/* all file data have to be stored in unformatted nodes */
+static int should_have_notail (struct inode * inode, loff_t new_size)
+{
+	return !get_object_state (inode)->tail->have_tail (inode, new_size);
+
+}
+
+
+/* decide how to write @count bytes to position @offset of file @inode */
+static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
 {
 	loff_t new_size;
 
@@ -120,273 +375,66 @@ write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
 }
 
 
-static int tail2extent (struct inode * inode UNUSED_ARG,
-			tree_coord * coord UNUSED_ARG,
-			lock_handle * lh UNUSED_ARG)
+typedef struct {
+	
+} read_in_page_actor;
+
+/* read all direct items of file into newly created pages
+ * remove all those item from the tree
+ * insert extent item */
+static int tail2extent (struct inode * inode, tree_coord * coord,
+			reiser4_lock_handle * lh)
 {
+	int result;
+	file_plugin * fplug;
+	reiser4_key key;
+
+
+	fplug = get_object_state (inode)->file;
+	if (!fplug || !fplug->key_by_inode) {
+		return -EINVAL;
+	}
+
+	result = fplug->key_by_inode (inode, 0, &key);
+	if (result) {
+		return result;
+	}
+
+	done_lh (lh);
+	done_coord (coord);
+	
+	
+	result = find_item (&key, coord, lh, ZNODE_READ_LOCK);
+	if (result != CBK_COORD_FOUND) {
+		return result;
+	}
+
+	/* for all items of the file starting from the found one run read_in_page */
+	result = iterate_tree (tree_by_inode (inode), coord, lh,
+			       read_in_page, &arg, ZNODE_READ_LOCK, 0/*through items*/);
+	if (result == -ENAVAIL) {
+		/* no right neighbor or it is an unformatted node */
+		result = 0;
+	}
+	if (result) {
+		return result;
+	}
+
+	/* cut */
+
 	return 0;
 }
 
-
-/*
- * plugin->u.file.write
+/* plugin->u.file.flow_by_inode  = common_build_flow
+ * plugin->u.file.flow_by_key    = NULL
+ * plugin->u.file.key_by_inode   = ordinary_key_by_inode
+ * plugin->u.file.set_plug_in_sd = NULL
+ * plugin->u.file.set_plug_in_inode = NULL
+ * plugin->u.file.create_blank_sd = NULL
  */
-ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
-			     loff_t * off)
-{
-	int result;
-	struct inode * inode;
-	tree_coord coord;
-	lock_handle lh;	
-	size_t to_write;
-	file_plugin * fplug;
-	item_plugin * iplug;
-	flow_t f;
-	
-
-	/*
-	 * collect statistics on the number of writes
-	 */
-	reiser4_stat_file_add (writes);
-
-	inode = file->f_dentry->d_inode;
-	result = 0;
-
-	/*
-	 * build flow
-	 */
-	assert ("vs-481", get_object_state (inode)->file);
-	fplug = get_object_state (inode)->file;
-	if (!fplug->flow_by_inode)
-		return -EINVAL;
-
-	result = fplug->flow_by_inode (file, buf, size, off, WRITE_OP, &f);
-	if (result)
-		return result;
-
-	to_write = f.length;
-	while (f.length) {
-		init_coord (&coord);
-		init_lh (&lh);
-
-		if (get_key_objectid (&f.key) == 0x100c6)
-			info ("writing to file 0x100c6\n");
-		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/*
-			 * error occured
-			 */
-			done_lh (&lh);
-			done_coord (&coord);
-			break;
-		}
-		switch (what_todo (inode, &f, &coord)) {
-		case WRITE_EXTENT:
-			iplug = item_plugin_by_id (EXTENT_POINTER_IT);
-			/* resolves to extent_write function */
-
-			result = iplug->s.file.write (inode, &coord, &lh, &f);
-			break;
-
-		case WRITE_TAIL:
-			iplug = item_plugin_by_id (TAIL_IT);
-			/* resolves to tail_write function */
-
-			result = iplug->s.file.write (inode, &coord, &lh, &f);
-			break;
-			
-		case CONVERT:
-			result = tail2extent (inode, &coord, &lh);
-			break;
-
-		default:
-			impossible ("vs-293", "unknown write mode");
-		}
-
-		done_lh (&lh);
-		done_coord (&coord);
-		if (!result || result == -EAGAIN)
-			continue;
-		break;
-	}
-
-	/*
-	 * FIXME-VS: remove after debugging insert_extent is done
-	 */
-	print_tree_rec ("WRITE", tree_by_inode (inode), REISER4_NODE_CHECK);
-
-	
-	*off += (to_write - f.length);
-	return (to_write - f.length) ? (to_write - f.length) : result;
-}
 
 
-/*
- * plugin->u.file.readpage
- * this finds item of file corresponding to page being read in and calls its
- * readpage method
- */
-int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
-{
-	int result;
-	tree_coord coord;
-	lock_handle lh;
-	reiser4_key key;
-	item_plugin * iplug;
-	struct readpage_arg arg;
-
-
-	build_sd_key (page->mapping->host, &key);
-	set_key_type (&key, KEY_BODY_MINOR);
-	set_key_offset (&key, (unsigned long long)page->index << PAGE_SHIFT);
-
-	init_coord (&coord);
-	init_lh (&lh);
-
-	result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
-	if (result != CBK_COORD_FOUND) {
-		warning ("vs-280", "No file items found\n");
-		done_lh (&lh);
-		done_coord (&coord);
-		return result;
-	}
-
-	/*
-	 * get plugin of found item
-	 */
-	iplug = item_plugin_by_coord (&coord);
-	if (!iplug->s.file.readpage) {
-		done_lh (&lh);
-		done_coord (&coord);
-		return -EINVAL;
-	}
-
-	arg.coord = &coord;
-	arg.lh = &lh;
-	result = iplug->s.file.readpage (&arg, page);
-
-	done_lh (&lh);
-	done_coord (&coord);
-	return result;
-}
-
-
-/*
- * plugin->u.file.read
- */
-/*
- * FIXME: This comment is out of date, there is no call to read_cache_page:
- 
-   this calls mm/filemap.c:read_cache_page() for every page spanned by the
-   flow @f. This read_cache_page allocates a page if it does not exist and
-   calls a function specified by caller (we specify reiser4_ordinary_readpage
-   here) to try to fill that page if it is not
-   uptodate. reiser4_ordinary_readpage looks through the tree to find metadata
-   corresponding to the beginning of a page being read. If that metadata is
-   found - fill_page method of item plugin is called to do mapping of not
-   mapped yet buffers the page is built off and issue read of not uptodate
-   buffers. When read is issued - and we are forced to wait - extent's
-   fill_page fills few more pages in advance using the rest of extent it
-   stopped at and starts reading for them. This will cause only reading ahead
-   of blocks adjacent to block which must be read anyway. So, except for
-   allocation of extra pages there will be no delay in delivering of the page
-   we asked about.
- */
-ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
-			    loff_t * off)
-{
-	int result;
-	struct inode * inode;
-	tree_coord coord;
-	lock_handle lh;
-	size_t to_read;
-	item_plugin * iplug;
-	flow_t f;
-
-
-	/*
-	 * collect statistics on the number of reads
-	 */
-	reiser4_stat_file_add (reads);
-
-	inode = file->f_dentry->d_inode;
-	result = 0;
-
-	/*
-	 * build flow
-	 */
-	f.length = size;
-	f.data = buf;
-	build_sd_key (inode, &f.key);
-	set_key_type (&f.key, KEY_BODY_MINOR );
-	set_key_offset (&f.key, ( __u64 ) *off);
-
-	to_read = f.length;
-	while (f.length) {
-		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
-			/*
-			 * do not read out of file
-			 */
-			break;
-		init_coord (&coord);
-		init_lh (&lh);
-		
-		result = find_item (&f.key, &coord, &lh,
-				    ZNODE_READ_LOCK);
-		switch (result) {
-		case CBK_COORD_FOUND:
-			iplug = item_plugin_by_coord (&coord);
-			if (!iplug->s.file.read)
-				result = -EINVAL;
-			else
-				result = iplug->s.file.read (inode, &coord,
-							     &lh, &f);
-			break;
-
-		case CBK_COORD_NOTFOUND:
-			/* 
-			 * item had to be found, as it was not - we have -EIO
-			 */
-			result = -EIO;
-		default:
-			break;
-		}
-		done_lh (&lh);
-		done_coord (&coord);
-		if (!result)
-			continue;
-		break;
-	}
-
-	*off += (to_read - f.length);
-	return (to_read - f.length) ? (to_read - f.length) : result;
-}
-
-
-/*
- * plugin->u.file.truncate
- */
-int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
-{
-	reiser4_key from, to;
-
-	assert ("vs-319", size == inode->i_size);
-
-	build_sd_key (inode, &from);
-	set_key_type (&from, KEY_BODY_MINOR);
-	set_key_offset (&from, (__u64) inode->i_size);
-	to = from;
-	set_key_offset (&to, get_key_offset (max_key ()));
-	
-	/* all items of ordinary reiser4 file are grouped together. That is why
-	   we can use cut_tree. Plan B files (for instance) can not be
-	   truncated that simply */
-	return cut_tree (tree_by_inode (inode), &from, &to);
-}
-
-
-/*
- * plugin->u.file.create
+/* plugin->u.file.create
  * create sd for ordinary file. Just pass control to
  * fs/reiser4/plugin/object.c:common_file_save()
  */
@@ -402,6 +450,14 @@ int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 	
 	return common_file_save( object );
 }
+
+
+/* plugin->u.file.destroy_stat_data = NULL
+ * plugin->u.file.add_link = NULL
+ * plugin->u.file.rem_link = NULL
+ * plugin->u.file.owns_item = common_file_owns_item
+ * plugin->u.file.can_add_link = common_file_can_add_link
+ */
 
 #if 0
 
