@@ -45,9 +45,13 @@ void aal_printf(const char *format, ...) {
     printf_handler(buff);
 }
 
-#define MOD_EMPTY 0x0
-#define MOD_LONG 0x1
-#define MOD_LONG_LONG 0x2
+enum format_modifier {
+    mod_empty,
+    mod_long,
+    mod_longer
+};
+
+typedef enum format_modifier format_modifier_t;
 
 int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
     int i;
@@ -58,9 +62,10 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
     unsigned long int lu;
     unsigned long long llu;
     
-    int modifier = MOD_EMPTY;
     const char *old = format;
     const char *fmt = format;
+    
+    format_modifier_t modifier = mod_empty;
     
     aal_memset(buff, 0, n);
 	
@@ -68,7 +73,7 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 	if (fmt - format + 1 >= (int)n)
 	    break;
 
-	modifier = MOD_EMPTY;	
+	modifier = mod_empty;
 	switch (*fmt) {
 	    case '%': {
 		if (aal_strlen(fmt) < 2)
@@ -82,7 +87,7 @@ repeat:
 		    case 's': {
 			char *s;
 			
-			if (modifier != MOD_EMPTY)
+			if (modifier != mod_empty)
 			    break;
 			
 			s = va_arg(arg_list, char *);
@@ -101,7 +106,7 @@ repeat:
 			break;
 		    }
 		    case 'l': {
-			modifier = (modifier == MOD_LONG ? MOD_LONG_LONG : MOD_LONG);
+			modifier = (modifier == mod_long ? mod_longer : mod_long);
 			old++;
 			goto repeat;
 		    }
@@ -116,10 +121,10 @@ repeat:
 			aal_memset(s, 0, sizeof(s));
 			
 			if (*fmt == 'd' || *fmt == 'i') {
-			    if (modifier == MOD_EMPTY) {
+			    if (modifier == mod_empty) {
 				i = va_arg(arg_list, int);
 				aal_stoa(i, sizeof(s), s, 10, 0);
-			    } else if (modifier == MOD_LONG) {
+			    } else if (modifier == mod_long) {
 				li = va_arg(arg_list, long int);
 				aal_lstoa(li, sizeof(s), s, 10, 0);
 			    } else {
@@ -128,7 +133,7 @@ repeat:
 			    }
 			    aal_strncat(buff, s, n - aal_strlen(buff));
 			} else {
-			    if (modifier == MOD_EMPTY) {
+			    if (modifier == mod_empty) {
 				u = va_arg(arg_list, unsigned int);
 				switch (*fmt) {
 				    case 'u': {
@@ -148,7 +153,7 @@ repeat:
 					break;
 				    }
 				}
-			    } else if (modifier == MOD_LONG) {
+			    } else if (modifier == mod_long) {
 				lu = va_arg(arg_list, unsigned long int);
 				switch (*fmt) {
 				    case 'u': {

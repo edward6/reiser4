@@ -3,98 +3,97 @@
     Copyright (C) 1996-2002 Hans Reiser.
     Author Vitaly Fertman.
 */
+
 #include <stdio.h>
 #include <fcntl.h>
+
 #include <reiserfs/reiserfs.h>
 
-#define REISER40_PROFILE 1
+#define REISER40_PROFILE 0x1
 
-static void set_base_plugin_ids (reiserfs_default_plugin_t *def_plugs, int profile) {
-    reiserfs_default_plugin_t reiser40 = 
-	    {	0x0, /* node */ 
-		{ /* item */
-		    0x3 /* internal */,
-		    0x0 /* stat */,		    
-		    0x2 /* dir_item */,
-		    0x0 /* file_item */
-		},
-		0x0 /* file */,
-		0x0 /* dir */,
-		0x0 /* hash */,
-		0x0 /* tail */,
-		0x0 /* hook */,
-		0x0 /* perm */,
-		0x0 /* format */,
-		0x0 /* oid */,
-		0x0 /* alloc */,
-		0x0 /* journal */
-	    };
+static reiserfs_profile_t profile40 = {
+    .label = "profile40",
+    .desc = "Default profile for reiser4 filesystem",
     
-    aal_assert("vpf-104", def_plugs != NULL, return);
+    .node = 0x0,
+    .item = {
+	.internal = 0x3,
+	.statdata = 0x0,
+	.direntry = 0x2,
+	.fileentry = 0x0
+    },
+    .file = 0x0,
+    .dir = 0x0,
+    .hash = 0x0,
+    .tail = 0x0,
+    .hook = 0x0,
+    .perm = 0x0,
+    .format = 0x0,
+    .oid = 0x0,
+    .alloc = 0x0,
+    .journal = 0x0
+};
+    
+static error_t mkfs_setup_profile(reiserfs_profile_t *profile, int number) {
+    aal_assert("vpf-104", profile != NULL, return -1);
 
-    switch (profile) {
-	case REISER40_PROFILE:
-	    *def_plugs = reiser40;
+    switch (number) {
+	case REISER40_PROFILE: {
+	    *profile = profile40;
 	    break;
-	default:
+	}
+	default: {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Unknown profile has detected %x.", number);
+	    return -1;
+	}
     }
+    return 0;
 }
 
-static void print_usage (void) {
-    fprintf (stderr, "Usage: mkreiserfs device");
+static void mkfs_print_usage(void) {
+    fprintf(stderr, "Usage: mkreiserfs FILE\n");
 }
 
-static void print_plugin(reiserfs_plugin_t *plugin) {
-    aal_printf("%x:%x (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label);
-    aal_printf("%s\n\n", plugin->h.desc);
-}
-
-static void print_fs(reiserfs_fs_t *fs) {
-    reiserfs_plugin_t *plugin;
-
-    aal_printf("reiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
-	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
-	reiserfs_format_get_blocks(fs), reiserfs_alloc_used(fs), 
-	reiserfs_alloc_free(fs));
-    
-    print_plugin(fs->format->plugin);
-    
-    if (fs->journal)
-	print_plugin(fs->journal->plugin);
-
-    print_plugin(fs->alloc->plugin);
-}
-
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     reiserfs_fs_t *fs;
     aal_device_t *device;
-    int ret;
-    reiserfs_default_plugin_t default_plugins;
+    reiserfs_profile_t profile;
     
+    if (argc < 2) {
+	mkfs_print_usage();
+	return 0xfe;
+    }
+       
     if (libreiserfs_init()) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiserfs.");
-	ret = -1;
 	goto error;
     }
 
     if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open device %s.", argv[1]);
-	ret = -2;
 	goto error_free_libreiserfs;
     }
     
-    set_base_plugin_ids(&default_plugins, REISER40_PROFILE);
+    mkfs_setup_profile(&profile, REISER40_PROFILE);
     
-    if (!(fs = reiserfs_fs_create_2(device, &default_plugins, 4096, "test-uuid", 
-	"test-label", aal_device_len(device), device, NULL))) 
+    fprintf(stderr, "Creating filesystem with %s...", profile.label);
+    fflush(stderr);
+    
+    if (!(fs = reiserfs_fs_create(device, &profile, 4096, NULL, 
+	NULL, aal_device_len(device), device, NULL))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create filesystem on %s.", argv[1]);
 	goto error_free_device;
     }
+    fprintf(stderr, "done\n");
 
+    fprintf(stderr, "Synchronizing...");
+    fflush(stderr);
+    
     if (reiserfs_fs_sync(fs)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize created filesystem.");
@@ -106,9 +105,9 @@ int main (int argc, char *argv[]) {
 	    "Can't synchronize device %s.", argv[1]);
 	goto error_free_fs;
     }
-    
-    print_fs(fs);
 
+    fprintf(stderr, "done\n");
+    
     reiserfs_fs_close(fs);
     libreiserfs_fini();
     aal_file_close(device);
@@ -122,5 +121,5 @@ error_free_device:
 error_free_libreiserfs:
     libreiserfs_fini();
 error:
-    return -2;
+    return 0xff;
 }

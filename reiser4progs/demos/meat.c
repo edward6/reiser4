@@ -16,15 +16,15 @@
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
-static void usage(void) {
-    fprintf(stderr, "Usage: meat <open|create> DEV\n");
+static void meat_print_usage(void) {
+    fprintf(stderr, "Usage: <open|create> DEV\n");
 }
 
-static void print_plugin(reiserfs_plugin_t *plugin) {
+static void meat_print_plugin(reiserfs_plugin_t *plugin) {
     aal_printf("%x:%x (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label);
 }
 
-static void print_fs(reiserfs_fs_t *fs) {
+static void meat_print_fs(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 
     aal_printf("\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
@@ -35,18 +35,18 @@ static void print_fs(reiserfs_fs_t *fs) {
     aal_printf("Used plugins:\n-------------\n");
 
     aal_printf("(1) ");
-    print_plugin(fs->format->plugin);
+    meat_print_plugin(fs->format->plugin);
     
     if (fs->journal) {
 	aal_printf("(2) ");
-	print_plugin(fs->journal->plugin);
+	meat_print_plugin(fs->journal->plugin);
     }
 
     aal_printf("(3) ");
-    print_plugin(fs->alloc->plugin);
+    meat_print_plugin(fs->alloc->plugin);
     
     aal_printf("(4) ");
-    print_plugin(fs->oid->plugin);
+    meat_print_plugin(fs->oid->plugin);
 }
 
 int main(int argc, char *argv[]) {
@@ -55,13 +55,8 @@ int main(int argc, char *argv[]) {
 
 #ifndef ENABLE_COMPACT    
     
-    if (argc < 3) {
-	usage();
-	return 0xfe;
-    }
-	
-    if (aal_strncmp(argv[1], "open", 4) && aal_strncmp(argv[1], "create", 6)) {
-	usage();
+    if (argc < 2) {
+	meat_print_usage();
 	return 0xfe;
     }
 	
@@ -71,48 +66,18 @@ int main(int argc, char *argv[]) {
 	return 0xff;
     }
     
-    if (aal_strncmp(argv[1], "open", 4) == 0) {
-	    
-	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't open device %s.", argv[2]);
-	    goto error_free_libreiserfs;
-	}
-    
-	if (!(fs = reiserfs_fs_open(device, device, 0))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't %s filesystem on %s.", argv[1], argv[2]);
-	    goto error_free_device;
-	}
-    } else {
-	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't open device %s.", argv[2]);
-	    goto error_free_libreiserfs;
-	}
-    
-	if (!(fs = reiserfs_fs_create(device, 0x0, 0x0, 4096, "test-uuid", "test-label", 
-	    aal_device_len(device), device, NULL))) 
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't create filesystem on %s.", argv[2]);
-	    goto error_free_device;
-	}
-	
-	if (reiserfs_fs_sync(fs)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't synchronize created filesystem.");
-	    goto error_free_fs;
-	}
-	
-	if (aal_device_sync(device)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't synchronize device %s.", argv[2]);
-	    goto error_free_fs;
-	}
-	
+    if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't open device %s.", argv[2]);
+	goto error_free_libreiserfs;
     }
-    print_fs(fs);
+    
+    if (!(fs = reiserfs_fs_open(device, device, 0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't %s filesystem on %s.", argv[1], argv[2]);
+	goto error_free_device;
+    }
+    meat_print_fs(fs);
 
     reiserfs_fs_close(fs);
     libreiserfs_fini();
@@ -120,8 +85,6 @@ int main(int argc, char *argv[]) {
 
     return 0;
 
-error_free_fs:
-    reiserfs_fs_close(fs);
 error_free_device:
     aal_file_close(device);
 error_free_libreiserfs:

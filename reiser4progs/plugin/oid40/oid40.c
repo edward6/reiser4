@@ -50,6 +50,18 @@ static uint64_t reiserfs_oid40_used(reiserfs_oid40_t *oid) {
     return oid->used;
 }
 
+uint64_t reiserfs_oid40_root_parent_locality(reiserfs_oid40_t *oid) {
+    return REISERFS_OID40_ROOT_PARENT_LOCALITY;
+}
+
+uint64_t reiserfs_oid40_root_self_locality(reiserfs_oid40_t *oid) {
+    return REISERFS_OID40_ROOT_SELF_LOCALITY;
+}
+
+uint64_t reiserfs_oid40_root(reiserfs_oid40_t *oid) {
+    return REISERFS_OID40_ROOT;
+}
+
 static reiserfs_plugin_t oid40_plugin = {
     .oid = {
 	.h = {
@@ -57,7 +69,7 @@ static reiserfs_plugin_t oid40_plugin = {
 	    .id = 0x0,
 	    .type = REISERFS_OID_PLUGIN,
 	    .label = "oid40",
-	    .desc = "Inode allocator for reiserfs 4.0, ver. 0.1, "
+	    .desc = "Default inode allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.init = (reiserfs_opaque_t *(*)(uint64_t, uint64_t))reiserfs_oid40_init,
@@ -67,7 +79,11 @@ static reiserfs_plugin_t oid40_plugin = {
 	.dealloc = (void (*)(reiserfs_opaque_t *, uint64_t))reiserfs_oid40_dealloc,
 	
 	.next = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_next,
-	.used = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_used
+	.used = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_used,
+	
+	.root_parent_locality = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root_parent_locality,
+	.root_self_locality = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root_self_locality,
+	.root = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_root,
     }
 };
 

@@ -31,15 +31,21 @@ typedef struct reiserfs_master reiserfs_master_t;
 #define get_mr_block_size(mr)		get_le16(mr, mr_blocksize)
 #define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
 
-/* Default plugins structure */
-struct reiserfs_default_plugin {
+/* 
+    Profile structure. It describes what plugins will be used
+    for every corresponding filesystem part.
+*/
+struct reiserfs_profile {
+    char label[255];
+    char desc[255];
+    
     reiserfs_plugin_id_t node;
     
-    struct item_plugins {
+    struct {
 	reiserfs_plugin_id_t internal;
-	reiserfs_plugin_id_t stat;
-	reiserfs_plugin_id_t dir_item;
-	reiserfs_plugin_id_t file_item;
+	reiserfs_plugin_id_t statdata;
+	reiserfs_plugin_id_t direntry;
+	reiserfs_plugin_id_t fileentry;
     } item;
     
     reiserfs_plugin_id_t file;
@@ -54,7 +60,7 @@ struct reiserfs_default_plugin {
     reiserfs_plugin_id_t journal;
 };
 
-typedef struct reiserfs_default_plugin reiserfs_default_plugin_t;
+typedef struct reiserfs_profile reiserfs_profile_t;
 
 typedef struct reiserfs_node reiserfs_node_t;
 
@@ -241,12 +247,7 @@ extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 	
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_id, reiserfs_plugin_id_t node_id, 
-    size_t blocksize, const char *uuid, const char *label, count_t len, 
-    aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params);
-
-extern reiserfs_fs_t *reiserfs_fs_create_2(aal_device_t *host_device, 
-    reiserfs_default_plugin_t *default_plugins, size_t blocksize, const char *uuid, 
+    reiserfs_profile_t *profile, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
     reiserfs_params_opaque_t *journal_params);
 

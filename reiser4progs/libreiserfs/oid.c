@@ -78,3 +78,27 @@ uint64_t reiserfs_oid_used(reiserfs_fs_t *fs) {
     return fs->oid->plugin->oid.used(fs->oid->entity);
 }
 
+uint64_t reiserfs_oid_root_parent_locality(reiserfs_fs_t *fs) {
+    aal_assert("umka-531", fs != NULL, return 0);
+    aal_assert("umka-532", fs->oid != NULL, return 0);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, root_parent_locality, return 0);
+    return fs->oid->plugin->oid.root_parent_locality(fs->oid->entity);
+}
+
+uint64_t reiserfs_oid_root_self_locality(reiserfs_fs_t *fs) {
+    aal_assert("umka-533", fs != NULL, return 0);
+    aal_assert("umka-534", fs->oid != NULL, return 0);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, root_self_locality, return 0);
+    return fs->oid->plugin->oid.root_self_locality(fs->oid->entity);
+}
+
+uint64_t reiserfs_oid_root(reiserfs_fs_t *fs) {
+    aal_assert("umka-535", fs != NULL, return 0);
+    aal_assert("umka-536", fs->oid != NULL, return 0);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, root, return 0);
+    return fs->oid->plugin->oid.root(fs->oid->entity);
+}
+

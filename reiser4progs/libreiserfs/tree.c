@@ -47,55 +47,15 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
-    blk_t root_blk;
-    reiserfs_plugin_t *plugin;
-    reiserfs_plugin_id_t plugin_id;
-    
-    aal_assert("umka-129", fs != NULL, return -1);
-    aal_assert("umka-130", fs->format != NULL, return -1);
-
-    if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
-	return -1;
-
-    if (!(root_blk = hack_create_tree(fs, node_plugin_id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create b*tree.");
-	goto error_free_tree;
-    }	
-
-/*    if (!(root_blk = reiserfs_alloc_find(fs))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't allocate block for root node.");
-	goto error_free_tree;
-    }
-    
-    reiserfs_alloc_use(fs, root_blk);*/
-    reiserfs_format_set_root(fs, root_blk);
-    
-    /* Here will be also allocated leaf node */
-    
-/*    if (!(fs->tree->root = reiserfs_node_create(fs->device, root_blk, 
-	    node_plugin_id, REISERFS_ROOT_LEVEL))) 
-	goto error_free_tree;*/
-    
-
-    return 0;
-
-error_free_tree:
-    aal_free(fs->tree);
-    fs->tree = NULL;
-error:
-    return -1;
-}
-
-/* To be moved into oid plugin when ready */
-#define REISERFS_ROOT_DIRECTORY_LOCATION 41
-#define REISERFS_ROOT_PARENT_DIRECTORY_LOCATION 38
-#define REISERFS_ROOT_DIRECTORY_OBJECTID 42
-
-error_t reiserfs_tree_create_2(reiserfs_fs_t *fs, 
-    reiserfs_default_plugin_t *default_plugins) 
+/*
+    FIXME-UMKA: Probably not the tree should concerning about creating 
+    root directory. On my own it is directory object plugin/API job.
+    Tree in its creation time should just create root node (squeeze).
+    That is all. The leaf node root directory lies in must create 
+    directory plugin by tree API (inserting items).
+*/
+error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
+    reiserfs_profile_t *profile) 
 {
     int size;
     blk_t block_nr;
@@ -108,21 +68,27 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     reiserfs_internal_info_t internal_info;
     reiserfs_stat_info_t stat_info;
     reiserfs_dir_info_t dir_info;
-    /* FIXME: Directory object plugin should define what will be created in 
-       the empty directory. Move it there when ready. */
-    reiserfs_entry_info_t entry [2] = {
-	{   REISERFS_ROOT_DIRECTORY_LOCATION, 
-	    REISERFS_ROOT_DIRECTORY_OBJECTID, 
-	    "."	}, 
-	{
-	    REISERFS_ROOT_PARENT_DIRECTORY_LOCATION, 
-	    REISERFS_ROOT_DIRECTORY_LOCATION, 
-	    ".." }
-	};
+
+    /* 
+	FIXME-VITALY: Directory object plugin should define what will be created in 
+	the empty directory. Move it there when ready. 
+    */
+    reiserfs_entry_info_t entry[2] = {
+	[0] = {
+	    .parent_id = reiserfs_oid_root_self_locality(fs),
+	    .object_id = reiserfs_oid_root(fs),
+	    "."
+	}, 
+	[1] = {
+	    .parent_id = reiserfs_oid_root_parent_locality(fs),
+	    .object_id = reiserfs_oid_root_self_locality(fs),
+	    ".." 
+	}
+    };
 
     aal_assert("umka-129", fs != NULL, return -1);
+    aal_assert("vpf-115", profile != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
-    aal_assert("vpf-115", default_plugins != NULL, return -1);
 
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
@@ -136,7 +102,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     reiserfs_format_set_root(fs, block_nr);
   
     if (reiserfs_node_create(&squeeze, fs->host_device, block_nr, NULL, 
-	default_plugins->node, REISERFS_LEAF_LEVEL + 1)) 
+	profile->node, REISERFS_LEAF_LEVEL + 1)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create a root node.");
@@ -154,8 +120,8 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
    
     reiserfs_key_init(&key);
     set_key_type(&key, KEY_SD_MINOR);
-    set_key_locality(&key, REISERFS_ROOT_DIRECTORY_LOCATION);
-    set_key_objectid(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
+    set_key_locality(&key, reiserfs_oid_root_self_locality(fs));
+    set_key_objectid(&key, reiserfs_oid_root(fs));
 
     reiserfs_init_item_info(&item_info);
     item_info.info = &internal_info;
@@ -165,10 +131,10 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 
     /* 
 	Insert an internal item. Item will be created automatically from 
-	the node insert api method. 
+	the node insert API method. 
     */
-    if (reiserfs_node_insert_item (&coord, &key, &item_info, 
-	default_plugins->item.internal)) 
+    if (reiserfs_node_insert_item(&coord, &key, &item_info, 
+	profile->item.internal)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
@@ -176,15 +142,15 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	goto error_close_squeese;
     }
 
-    /*	
+    /*
 	We cannot just close the squeeze node here and create a leaf node in 
 	the same object, because node plugin will probably want to update 
 	the parent and we should provide it the whole path up to the root 
     */
     
     /* Create the leaf */
-    if (reiserfs_node_create (&leaf, fs->host_device, block_nr, 
-	&squeeze, default_plugins->node, REISERFS_LEAF_LEVEL)) 
+    if (reiserfs_node_create(&leaf, fs->host_device, block_nr, 
+	&squeeze, profile->node, REISERFS_LEAF_LEVEL)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create a leaf node.");
@@ -202,22 +168,31 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     coord.node = &leaf;
 
     /* Insert the stat data. */
-    if (reiserfs_node_insert_item (&coord, &key, &item_info, default_plugins->item.stat)) {
+    if (reiserfs_node_insert_item (&coord, &key, &item_info, profile->item.statdata)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_device_get_block_nr(leaf.device, leaf.block));
 	goto error_close_leaf;
     }
    
-    /* Initialize dir_entry */
+    /* 
+	Initialize dir_entry.
+	FIXME-UMKA: This should be in directory object plugin. It should 
+	decide what is configuration of empty dir. Its possible that in the
+	future will be directories like this
+	
+	.   points to current dir
+	..  points to parent dir
+	... points to parent of parent dir
+    */
     dir_info.count = 2;
     dir_info.entry = entry;
 
     reiserfs_key_init(&key);
     set_key_type(&key, KEY_FILE_NAME_MINOR);
-    set_key_locality(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
+    set_key_locality(&key, reiserfs_oid_root(fs));
 
-    /* FIXME: this should go into directory object api. */
+    /* FIXME-VITALY: this should go into directory object API. */
     build_entryid_by_entry_info((reiserfs_entryid_t *)key.el + 1, &entry[0]);
 
     reiserfs_init_item_info(&item_info);
@@ -226,17 +201,23 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     coord.item_pos = 1;
     coord.unit_pos = -1;
 
-    /* Insert an internal item. Item will be created automatically from 
-       the node insert api method */
+    /* 
+	Insert an internal item. Item will be created automatically from 
+	the node insert API method.
+    */
     if (reiserfs_node_insert_item (&coord, &key, &item_info, 
-	default_plugins->item.dir_item)) 
+	profile->item.direntry)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_device_get_block_nr(squeeze.device, squeeze.block));
 	goto error_close_leaf;
     }
-   
+
+    /*
+	FIXME-UMKA: Created nodes should be added to tree-cache (reiserfs_tree_t) and 
+	stored onto device during its synchronize call.
+    */   
     reiserfs_node_sync(&squeeze);
     reiserfs_node_sync(&leaf);
     
@@ -256,26 +237,39 @@ error:
     return -1;
 }
 
-
+/*
+    FIXME-UMKA: This method should synchronize tree cache onto device.
+    Probably it should call "sync" method for root node and then root
+    node should sync all childrens in recursively maner.
+*/
 error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-131", fs != NULL, return -1);
     aal_assert("umka-132", fs->tree != NULL, return -1);
     
-    return 0/*reiserfs_node_sync(fs->tree->root)*/;
+    return 0;
 }
 
 #endif
 
+/*
+    FIXME-UMKA: This method should free tree-cache and all
+    assosiated with it memory.
+*/
 void reiserfs_tree_close(reiserfs_fs_t *fs) {
     aal_assert("umka-133", fs != NULL, return);
     aal_assert("umka-134", fs->tree != NULL, return);
 
-//    reiserfs_node_close(fs->tree->root);
-    
     aal_free(fs->tree);
     fs->tree = NULL;
 }
 
+/*
+    FIXME-UMKA: This method should bring up all node on search 
+    path into tree-cache and return pointer (something ala coords)
+    to leaf node. Probably we should add some modification of this 
+    method, which will make lookup for internal node (leaf_level - 1).
+    It may be usefull for inserting leaves.
+*/
 int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from, 
     reiserfs_comp_func_t comp_func, reiserfs_key_t *key, 
     reiserfs_path_t *path) 

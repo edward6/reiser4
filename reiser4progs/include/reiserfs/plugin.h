@@ -300,6 +300,10 @@ struct reiserfs_oid_plugin {
     
     uint64_t (*next) (reiserfs_opaque_t *);
     uint64_t (*used) (reiserfs_opaque_t *);
+
+    uint64_t (*root_parent_locality) (reiserfs_opaque_t *);
+    uint64_t (*root_self_locality) (reiserfs_opaque_t *);
+    uint64_t (*root) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
