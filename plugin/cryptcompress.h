@@ -6,9 +6,11 @@
 
 
 #include <linux/pagemap.h>
+#include <linux/crypto.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
 #define MAX_CLUSTER_SHIFT 4
+#define DEFAULT_CLUSTER_SHIFT 0
 #define MIN_SIZE_FOR_COMPRESSION 64
 #define MIN_CRYPTO_BLOCKSIZE 8
 #define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
@@ -19,6 +21,14 @@ typedef enum {
 	HOLE_CLUSTER = 1, /* indicates hole for write ops */
 	FAKE_CLUSTER = 2  /* indicates absence of disk cluster for read ops */
 } reiser4_cluster_status;
+
+/* reiser4 transforms */
+typedef enum {
+	CRYPTO_TFM,
+	DIGEST_TFM,
+	COMPRESS_TFM,
+	LAST_TFM
+} reiser4_tfm;
 
 /* Write modes for item conversion in flush squeeze phase */
 typedef enum {
@@ -42,6 +52,7 @@ typedef struct reiser4_cluster{
 	int nr_pages;    /* number of attached pages */
 	struct page ** pages; /* attached pages */
 	struct file * file;
+	hint_t * hint;
 	reiser4_cluster_status stat;
 	/* sliding frame of cluster size in loff_t-space to translate main file 'offsets'
 	   like read/write position, size, new size (for truncate), etc.. into number
@@ -61,7 +72,7 @@ typedef struct crypto_stat {
 
 /* cryptcompress specific part of reiser4_inode */
 typedef struct cryptcompress_info {
-	/* cpu-key words */
+	struct crypto_tfm *tfm[LAST_TFM];
 	__u32 * expkey;
 } cryptcompress_info_t;
 
@@ -73,7 +84,9 @@ int load_file_hint(struct file *, hint_t *, lock_handle *);
 void save_file_hint(struct file *, const hint_t *);
 
 /* declarations of functions implementing methods of cryptcompress object plugin */
+void init_inode_data_cryptcompress(struct inode *inode, reiser4_object_create_data *crd, int create);
 int create_cryptcompress(struct inode *, struct inode *, reiser4_object_create_data *);
+int open_cryptcompress(struct inode * inode, struct file * file);
 int truncate_cryptcompress(struct inode *, loff_t size);
 int readpage_cryptcompress(void *, struct page *);
 int capture_cryptcompress(struct inode *inode, struct writeback_control *wbc);
@@ -90,6 +103,64 @@ void readpages_cryptcompress(struct file *, struct address_space *, struct list_
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_cryptcompress(struct inode *);
 void hint_init_zero(hint_t *, lock_handle *);
+void destroy_cryptcompress_info(struct inode * inode);
+int crc_inode_ok(struct inode * inode);
+
+static inline struct crypto_tfm * 
+inode_get_tfm (struct inode * inode, reiser4_tfm tfm)
+{
+	return cryptcompress_inode_data(inode)->tfm[tfm];
+}      
+
+static inline struct crypto_tfm * 
+inode_get_crypto (struct inode * inode)
+{
+	return (inode_get_tfm(inode, CRYPTO_TFM));
+}
+	
+static inline struct crypto_tfm * 
+inode_get_digest (struct inode * inode)
+{
+	return (inode_get_tfm(inode, DIGEST_TFM));
+}
+
+static inline struct crypto_tfm * 
+inode_get_compression (struct inode * inode)
+{
+	return (inode_get_tfm(inode, COMPRESS_TFM));
+}
+
+static inline unsigned int
+crypto_blocksize(struct inode * inode)
+{
+	assert("edward-758", inode_get_tfm(inode, CRYPTO_TFM) != NULL);
+	return crypto_tfm_alg_blocksize(inode_get_tfm(inode, CRYPTO_TFM));
+}
+
+#define REGISTER_NONE_ALG(ALG, TFM)                                  \
+static int alloc_none_ ## ALG (struct inode * inode)                 \
+{                                                                    \
+        cryptcompress_info_t * info;                                 \
+        assert("edward-760", inode != NULL);                         \
+	                                                             \
+	info = cryptcompress_inode_data(inode);                      \
+                                                                     \
+                                                                     \
+	cryptcompress_inode_data(inode)->tfm[TFM ## _TFM] = NULL;    \
+	return 0;                                                    \
+                                                                     \
+}                                                                    \
+static void free_none_ ## ALG (struct inode * inode)                 \
+{                                                                    \
+        cryptcompress_info_t * info;                                 \
+        assert("edward-761", inode != NULL);                         \
+	                                                             \
+	info = cryptcompress_inode_data(inode);                      \
+	                                                             \
+	assert("edward-762", info != NULL);                          \
+	                                                             \
+	info->tfm[TFM ## _TFM] = NULL;                               \
+}                                                                     
 
 #endif /* __FS_REISER4_CRYPTCOMPRESS_H__ */
 
