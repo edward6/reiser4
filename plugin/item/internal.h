@@ -49,7 +49,14 @@ extern int internal_shift_hook    ( const tree_coord *item,
 				    znode *old_node );
 extern void internal_print        ( const char *prefix, tree_coord *coord );
 
-extern int  internal_utmost_child   ( const tree_coord *coord, sideof side, jnode **child, reiser4_block_nr *blocknr );
+extern int  internal_utmost_child   ( const tree_coord *coord, sideof side,
+				      jnode **child );
+int         internal_utmost_child_dirty ( const tree_coord  *coord,
+				  sideof side, int *is_dirty );
+int         internal_utmost_child_real_block ( const tree_coord  *coord,
+					       sideof side,
+					       reiser4_block_nr  *block );
+
 
 /* __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__ */
 #endif
