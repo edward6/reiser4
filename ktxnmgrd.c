@@ -19,7 +19,7 @@
 
 static int scan_mgr( txn_mgr *mgr );
 
-#if (0)
+#if (1)
 #define ktxnmgrd_trace( args... ) info( "ktxnmgrd: " ##args )
 #else
 #define ktxnmgrd_trace( args... ) noop
@@ -58,10 +58,10 @@ int ktxnmgrd( void *arg )
 
 	/*
 	 * do_fork() just copies task_struct into the new
-	 * thread. ->journal_info shouldn't be copied of course. This shouldn't
+	 * thread. ->fs_context shouldn't be copied of course. This shouldn't
 	 * be a problem for the rest of the code though.
 	 */
-	me -> journal_info = NULL;
+	me -> fs_context = NULL;
 
 	ctx = arg;
 	spin_lock( &ctx -> guard );
@@ -232,12 +232,14 @@ void ktxnmgrd_detach( txn_mgr *mgr )
 /**
  * wake up ktxnmgrd thread
  */
-void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason UNUSED_ARG )
+void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason )
 {
 	if( ctx != NULL ) {
 		spin_lock( &ctx -> guard );
-		if( ctx -> tsk != NULL )
+		if( ctx -> tsk != NULL ) {
+			ctx -> duties |= reason;
 			kcond_signal( &ctx -> wait );
+		}
 		spin_unlock( &ctx -> guard );
 	}
 }
