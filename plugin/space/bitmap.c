@@ -165,7 +165,7 @@ bnew(void)
 static int
 find_next_zero_bit_in_word(ulong_t word, int start_bit)
 {
-	ulong_t mask = 1 << start_bit;
+	ulong_t mask = 1UL << start_bit;
 	int i = start_bit;
 
 	while ((word & mask) != 0) {
@@ -235,7 +235,7 @@ static int find_last_set_bit_in_word (ulong_t word, int start_bit)
 	assert ("zam-965", start_bit < BITS_PER_LONG);
 	assert ("zam-966", start_bit >= 0);
 
-	bit_mask = (1 << nr);
+	bit_mask = (1UL << nr);
 
 	while (bit_mask != 0) {
 		if (bit_mask & word)
