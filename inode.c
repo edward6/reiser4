@@ -337,7 +337,8 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 	return
 	    /* oid is unique, so first term is enough, actually. */
 	    (get_inode_oid(inode) == get_key_objectid(key)) &&
-	    (reiser4_inode_data(inode)->locality_id == get_key_locality(key));
+            (!is_inode_loaded(inode) ||
+		 (reiser4_inode_data(inode)->locality_id == get_key_locality(key)));
 }
 
 /* this is our helper function a la iget().
