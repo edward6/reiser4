@@ -124,7 +124,10 @@ typedef enum {
        /* In the following bits jnode type is encoded. */
        JNODE_TYPE_1            = 13,
        JNODE_TYPE_2            = 14,
-       JNODE_TYPE_3            = 15
+       JNODE_TYPE_3            = 15,
+
+       /* jnode has to be recycled on last jput() */
+       JNODE_DROP              = 16
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -348,7 +351,7 @@ extern void add_d_ref( jnode *node );
 extern int jload(jnode * node);
 extern int jinit_new( jnode *node );
 
-extern void jdrop_in_tree     (jnode *node, reiser4_tree *tree);
+extern int  jdrop_in_tree     (jnode *node, reiser4_tree *tree, int drop_page_p);
 extern void jdrop             (jnode* node);
 extern int  jwait_io          (jnode* node, int rw);
 
@@ -356,6 +359,8 @@ extern void jrelse_nolock     (jnode* node);
 
 extern jnode * alloc_io_head (const reiser4_block_nr * block);
 extern void    drop_io_head  (jnode * node);
+
+extern int prune_jcache( int goal, int to_scan );
 
 /**
  * drop reference to node data. When last reference is dropped, data are
