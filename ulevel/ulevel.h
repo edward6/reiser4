@@ -498,6 +498,7 @@ struct task_struct {
 	void *journal_info;
 	__u32         fsuid;
 	__u32         fsgid;
+	int i_am_swapd; /**/
 };
 
 

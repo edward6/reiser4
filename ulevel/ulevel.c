@@ -144,17 +144,44 @@ static void xx_check_mem (void * addr)
 	assert ("vs-818", *(__u32 *)((char *)check + size) == KMEM_MAGIC);
 }
 
+
+pthread_t uswapper;
+kcond_t memory_pressed;
+int going_down;
+spinlock_t mp_guard;
+int is_mp;
+/* this is used to wait in xxmalloc until usswapd released some memory */
+int is_mp_done;
+kcond_t memory_pressure_done;
+
 static void *xxmalloc( size_t size )
 {
-	total_allocations += size;
+	char * addr;
 
 	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) ) {
 		info( "xxmalloc failed at its discretion\n" );
 		return NULL;
 	}
-	if( total_allocations > MEMORY_PRESSURE_THRESHOLD )
-		declare_memory_pressure();
-	return malloc( size );
+
+	while ( total_allocations > MEMORY_PRESSURE_THRESHOLD && !current -> i_am_swapd ) {
+		/* wakeup uswapd */
+		spin_lock( &mp_guard );
+		is_mp = 1;
+		is_mp_done = 0;
+		spin_unlock( &mp_guard );
+		kcond_broadcast( &memory_pressed );
+
+		/* wait until it is done */
+		spin_lock( &mp_guard );
+		while( !is_mp_done )
+			kcond_wait( &memory_pressure_done, &mp_guard, 0 );
+		spin_unlock( &mp_guard );
+	}
+
+	addr = malloc( size );
+	if (addr)
+		total_allocations += size;
+	return addr;
 }
 
 static void xxfree( void *addr )
@@ -740,6 +767,8 @@ __u32 set_current ()
 		struct task_struct *self;
 
 		self = malloc (sizeof (struct task_struct));
+		assert ("vs-827", self);
+		memset (self, 0, sizeof (struct task_struct));
 		self->journal_info = 0;
 		if ((ret = pthread_setspecific (__current_key, self)) != 0) {
 			rpanic ("jmacd-900", "pthread_setspecific failed");
@@ -1184,6 +1213,7 @@ void wait_on_page_locked(struct page * page)
 
 void wait_on_page_writeback(struct page * page UNUSED_ARG)
 {
+	assert ("vs-821", !PageWriteback (page));
 	return;
 }
 
@@ -1340,25 +1370,17 @@ unsigned long get_jiffies ()
 
 void page_cache_get(struct page * page)
 {
-	spin_lock( &page_list_guard );
 	atomic_inc (&page->count);
-	spin_unlock( &page_list_guard );
 }
 
 
 /* mm/page_alloc.c */
 void page_cache_release (struct page * page)
 {
-	assert ("vs-352", atomic_read (&page->count) > 0);
+	assert ("vs-352", page_count (page) > 0);
 	atomic_dec (&page->count);
-	if (!atomic_read (&page->count)) {
-		spin_lock( &page_list_guard );
-
-		list_del (&page->lru);
+	if (!page_count (page)) {
 		kfree (page);
-		nr_pages --;
-
-		spin_unlock( &page_list_guard );
 	}
 }
 
@@ -3227,6 +3249,10 @@ static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
 	/*struct super_block * sb;*/
 	int fd;
 
+	going_down = 1;
+	declare_memory_pressure();
+	check_me( "vs-825", pthread_join( uswapper, NULL ) == 0 );
+
 	assert ("vs-768", sb);
 	/*sb = reiser4_get_current_sb ();*/
 	fd = sb->s_bdev->bd_dev;
@@ -3237,16 +3263,6 @@ static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
 	/* free all pages and inodes, make sure that there are no dirty/used
 	 * pages/inodes */
 	invalidate_inodes (sb);
-	/*invalidate_pages ();*/
-
-	/* REISER4_EXIT */
-/*
-        ret = txn_end (context);
-	done_context (context);
-*/
-	/*
-	txn_mgr_force_commit (s);
-	*/
 }
 
 
@@ -3827,6 +3843,9 @@ void * cpr_thread_start (void *arg)
               "\tstat           - print reiser4 stats\n"\
 	      "\texit\n");
 
+static void *uswapd( void *untyped );
+
+
 static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG, 
 		      reiser4_tree *tree UNUSED_ARG)
 {
@@ -3839,6 +3858,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	int tmp_n;
 	struct super_block * sb;
 
+
 	mounted = 0;
 	sb = 0;
 
@@ -3846,6 +3866,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	/* module_init () -> reiser4_init () -> register_filesystem */
 	run_init_reiser4 ();
 
+	/* start "uswapd" */
 
 
 /* for (cwd, command + strlen ("foocmd ")) 
@@ -3910,6 +3931,13 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			assert ("vs-767", sb);
 			cwd = sb->s_root->d_inode;
 			mounted = 1;
+
+			/*
+			 * start uswapd
+			 */
+			result = pthread_create( &uswapper, NULL, uswapd, sb );
+			assert( "vs-824", result == 0 );
+			
 			continue;
 		}
 		if (!strcmp (command, "umount")) {
@@ -4530,21 +4558,23 @@ static int zam_test (int argc, char ** argv, reiser4_tree * tree)
 	return 0;
 }
 
-kcond_t memory_pressed;
-int going_down;
-spinlock_t mp_guard;
-int is_mp;
+
+static int shrink_cache (void);
 
 static void *uswapd( void *untyped )
 {
 	struct super_block *super = untyped;
 	REISER4_ENTRY_PTR( super );
 
+	current->i_am_swapd = 1;
 	while( 1 ) {
 		int result;
 		int to_flush;
 		int flushed  = 0;
 
+		/*
+		 * wait for next memory pressure request
+		 */
 		spin_lock( &mp_guard );
 		while( !is_mp && !going_down )
 			kcond_wait( &memory_pressed, &mp_guard, 0 );
@@ -4554,6 +4584,7 @@ static void *uswapd( void *untyped )
 			break;
 		rlog( "nikita-1939", "uswapd wakes up..." );
 
+/*
 		while (flushed < MEMORY_PRESSURE_HOWMANY) {
 			to_flush = MEMORY_PRESSURE_HOWMANY - flushed;
 			result = memory_pressure( super, & to_flush );
@@ -4561,28 +4592,120 @@ static void *uswapd( void *untyped )
 				warning( "nikita-1937", "flushing failed: %i", result );
 			flushed += to_flush;
 		}
+*/
+		
+		flushed = shrink_cache ();
+		trace_on (TRACE_PCACHE, "shrink_cache released %d pages\n",
+			  flushed);
+
+		/* wakeup xxmalloc */
+		spin_lock( &mp_guard );
+		is_mp_done = 1;
+		spin_unlock( &mp_guard );
+		kcond_broadcast( &memory_pressure_done );
+		
 	}
 	REISER4_EXIT_PTR( NULL );
 }
 
-
-/* scan list of pages, writeback dirty pages, release freeable pages */
-shrink_cache ()
+static int try_to_release_page (struct page * page, int gfp_mask)
 {
-	
+	return page->mapping->a_ops->releasepage (page, gfp_mask);
+}
+
+/* scan list of pages, writeback dirty pages, release freeable pages. Return
+ * number of freed pages */
+static int shrink_cache (void)
+{
+	struct list_head * cur, * tmp;
+	struct page * page;
+	int removed;
+
+	removed = 0;
+
+	spin_lock (&page_list_guard);
+
+	list_for_each_safe (cur, tmp, &page_lru_list) {
+		page = list_entry (cur, struct page, lru);
+		
+		if (!PagePrivate (page) || !page->mapping) {
+			assert ("vs-820", page_count (page) && page_count (page) < 3);
+			continue;
+		}
+
+		if (PageWriteback (page)) {
+			continue;
+		}
+		if (!spin_trylock (&page->lock))
+			/* page is locked already */
+			continue;
+		check_me ("vs-826", !TestSetPageLocked (page));
+		if (PageWriteback (page)) {
+			unlock_page (page);
+			continue;
+		}
+		if (PageDirty (page) && page_count (page) == 2) {
+			int nr_pages = 32;
+
+			page_cache_get (page);
+			spin_unlock (&page_list_guard);
+			page->mapping->a_ops->vm_writeback (page, &nr_pages);
+			page_cache_release (page);
+			spin_lock (&page_list_guard);
+			continue;
+		}
+		assert ("vs-823", PagePrivate(page));
+
+		spin_unlock (&page_list_guard);
+		
+		/* avoid to free a locked page */
+		page_cache_get(page);
+		
+		if (!try_to_release_page (page, 0)) {
+			/* releasepage failed: page's jnode is in
+			 * transaction */
+			unlock_page (page);
+			page_cache_release (page);
+
+			spin_lock (&page_list_guard);
+			continue;
+		}
+
+		page_cache_release(page);
+				
+		spin_lock (&page_list_guard);
+			
+		write_lock (&page->mapping->page_lock);
+		remove_inode_page (page);
+		write_unlock (&page->mapping->page_lock);
+
+		/* free page */
+		assert ("vs-822", page_count (page) == 1);
+		list_del (page);
+		nr_pages --;
+
+		trace_on (TRACE_PCACHE, "page freed: page: %p (index %lu, ino %lu)\n",
+			  page, page->index, page->mapping->host->i_ino);
+		unlock_page(page);
+		page_cache_release(page);
+		removed ++;
+	}
+	spin_unlock (&page_list_guard);
+	return removed;
 }
 
 
 void declare_memory_pressure( void )
 {
-	/* FIXME: To disable ulevel memory pressure, return here.  Make it an environment option? */
+	/* FIXME: To disable ulevel memory pressure, return here.  Make it an
+	 * environment option? */
 	/*return;*/
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );
 	kcond_broadcast( &memory_pressed );
 	rlog( "nikita-1940", "Memory pressure declared: %lli", total_allocations );
-	total_allocations = 0;
+	/*total_allocations = 0;*/
 }
 
 /*****************************************************************************************
@@ -4636,7 +4759,6 @@ int real_main( int argc, char **argv )
 	reiser4_tree *tree;
 	reiser4_context __context;
 	int blocksize;
-	pthread_t uswapper;
 	char *e;
 
 	printf("node size: %d\n", sizeof(node_header_40));
@@ -4685,11 +4807,23 @@ int real_main( int argc, char **argv )
 	/*pc_hash_init( &page_htable, PAGE_HASH_TABLE_SIZE );*/
 
 	/*
+	 *
+	 */
+	spin_lock_init( &mp_guard );
+	kcond_init( &memory_pressed );
+	kcond_init( &memory_pressure_done );
+	going_down = 0;
+
+	/*
 	 * FIXME-VS: will be fixed
 	 */
 	if (argc == 2 && !strcmp (argv[1], "sh")) {
+		/*
+		 * it starts uswapd on mount
+		 */
 		bash_test (argc, argv, 0);
 	}
+
 	e = getenv( "REISER4_MOUNT" );
 	if( e == NULL ) {
 		warning( "nikita-2175", "Set REISER4_MOUNT" );
@@ -4706,9 +4840,7 @@ int real_main( int argc, char **argv )
 
 	assert ("jmacd-998", s -> s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 	
-	spin_lock_init( &mp_guard );
-	kcond_init( &memory_pressed );
-	going_down = 0;
+
 	result = pthread_create( &uswapper, NULL, uswapd, s );
 	assert( "nikita-1938", result == 0 );
 	
