@@ -137,31 +137,25 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	reiser4_exit_context(&ctx);
 	return 0;
 }
-/* VS-FIXME-HANS: shouldn't there be more assertions in this file, and the function below? */
+
+/* ->readpages() VFS method in reiser4 address_space_operations */
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
 		  struct list_head *pages, unsigned nr_pages)
 {
 	file_plugin *fplug;
 
-	if (!is_in_reiser4_context()) {
-		/* no readahead in the path: handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround */
-/* VS-FIXME-HANS: this comment above means what? how about putting some better comments in this function? */
-		unsigned i;
-
-		for (i = 0; i < nr_pages; i++) {
-			struct page *page = list_entry(pages->prev, struct page, list);
-			list_del(&page->list);
-			page_cache_release(page);
-		}
-		return 0;
+	if (is_in_reiser4_context()) {
+		/* we are called from reiser4 context, typically from method which implements read into page cache. From
+		   read_extent, for example */
+		fplug = inode_file_plugin(mapping->host);
+		if (fplug->readpages)
+			fplug->readpages(file, mapping, pages);
+	} else {
+		/* we are called from page fault. Currently, we do not readahead in this case. */;
 	}
 
-	fplug = inode_file_plugin(mapping->host);
-	if (fplug->readpages)
-		fplug->readpages(file, mapping, pages);
-
-	/* FIXME-VS: until it is not centralized */
+	/* __do_page_cache_readahead expects filesystem's readpages method to process every page on this list */
 	while (!list_empty(pages)) {
 		struct page *page = list_entry(pages->prev, struct page, list);
 		list_del(&page->list);
