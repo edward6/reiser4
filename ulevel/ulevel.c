@@ -40,7 +40,7 @@ void panic( const char *format, ... )
 	}
 }
 
-#if REISER4_SILENT
+#if defined( REISER4_SILENT ) && REISER4_SILENT
 int printf( const char *format UNUSED_ARG, ... )
 {
 	return 0;
@@ -3680,9 +3680,9 @@ int real_main( int argc, char **argv )
 
 		init_context( &__context, &super );
 
-		assert( "vs-417", super.s_blocksize == 512 ||
-			super.s_blocksize == 1024 || super.s_blocksize == 2048 ||
-			super.s_blocksize == 4096);
+		/* check that blocksize is a power of two */
+		assert( "vs-417", 
+			! ( super.s_blocksize & ( super.s_blocksize - 1 ) ) );
 
 		spin_lock_init( &inode_hash_guard );
 		spin_lock_init( &alloc_guard );
