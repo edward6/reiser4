@@ -193,6 +193,12 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 
 int format_40_release (struct super_block * s)
 {
+	int ret;
+
+	if ((ret = txn_mgr_force_commit (s))) {
+		warning ("jmacd-77114429378", 
+			 "txn_force failed in umount: %d", ret);
+	}
 
 	done_tree (&get_super_private (s)->tree);
 	return 0;

@@ -105,8 +105,18 @@ int test_layout_release (struct super_block * s)
 {
 	struct buffer_head * super_bh;
 	test_disk_super_block * disk_sb;
+	int ret;
+
+	if ((ret = txn_mgr_force_commit (s))) {
+		warning ("jmacd-7711", "txn_force failed in umount: %d", ret);
+	}
 
 	done_tree (&get_super_private (s)->tree);
+
+	/* 
+	 * temporary fix, until transaction manager/log writer deals with
+	 * super-block correctly 
+	 */
 
 	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {
@@ -135,10 +145,8 @@ int test_layout_release (struct super_block * s)
 		  &disk_sb->next_free_block);
 
 	/* next free objectid */
-	cputod64 (get_oid_allocator (s)->u.oid_40.next_to_use, &disk_sb->next_free_oid);
-
-	/* */
-	
+	cputod64 (get_oid_allocator (s)->u.oid_40.next_to_use, 
+		  &disk_sb->next_free_oid);
 
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("release:\n", disk_sb);

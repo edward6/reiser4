@@ -1630,29 +1630,12 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 static void reiser4_kill_super (struct super_block *s)
 {
-	int ret;
 	__REISER4_ENTRY (s,);
 
 	trace_on (TRACE_VFS_OPS, "kill_super\n");
-	if ((ret = txn_mgr_force_commit (s))) {
-		warning ("jmacd-7711", "txn_force failed in umount_begin: %d", ret);
-	}
 
-	__REISER4_EXIT (&__context);
-	kill_block_super(s);
-}
-
-/* Audited by: umka (2002.06.12) */
-static int put_super (struct super_block * s)
-{
-	REISER4_ENTRY (s);
-	assert( "umka-087", get_super_private (s) != NULL );
-
-	/*print_tree_rec ("umount", &get_super_private (s)->tree, ~0ul);*/
-
-	if (get_super_private (s)->lplug->release) {
-		get_super_private (s)->lplug->release (s);
-	}		
+	/* flushes transactions, etc. */
+	get_super_private (s)->lplug->release (s);
 
 	/* no assertions below this line */
 	__REISER4_EXIT (&__context);
@@ -1660,7 +1643,11 @@ static int put_super (struct super_block * s)
 	done_formatted_fake (s);
 	kfree(s->u.generic_sbp);
 	s->u.generic_sbp = NULL;
-	return 0;
+	/*
+	 * we don't want ->write_super to be called any more.
+	 */
+	s->s_op->write_super = NULL;
+	kill_block_super(s);
 }
 
 static void reiser4_write_super (struct super_block * s)
@@ -1677,17 +1664,6 @@ static void reiser4_write_super (struct super_block * s)
 
 	__REISER4_EXIT (&__context);
 }
-
-/* Audited by: umka (2002.06.12) */
-static void reiser4_put_super (struct super_block * s)
-{
-	int result;
-
-	result = put_super (s);
-	return;
-}
-
-
 
 /** ->get_sb() method of file_system operations. */
 /* Audited by: umka (2002.06.12) */
@@ -1871,7 +1847,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
 /* 	.delete_inode       = reiser4_delete_inode, */
-	.put_super          = reiser4_put_super,
+	.put_super          = NULL,
  	.write_super        = reiser4_write_super,
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */
 /* 	.unlockfs           = reiser4_unlockfs, */
