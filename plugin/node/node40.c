@@ -420,15 +420,14 @@ item_plugin *node40_plugin_by_coord( const tree_coord *coord )
 */
 reiser4_key *node40_key_at( const tree_coord *coord, reiser4_key *key )
 {
-	if( coord_of_item( coord ) ) {
-		/* @coord is set to existing item */
-		item_header_40 *ih;
+	item_header_40 *ih;
 
-		ih = node40_ih_at_coord( coord );
-		memcpy( key, &ih -> key, sizeof (reiser4_key) );
-		return key;
-	}
-	return ERR_PTR( -ENOENT );
+	assert( "nikita-1716", coord_of_item( coord ) );
+
+	/* @coord is set to existing item */
+	ih = node40_ih_at_coord( coord );
+	xmemcpy( key, &ih -> key, sizeof (reiser4_key) );
+	return key;
 }
 
 
@@ -617,9 +616,9 @@ int node40_init( znode *node )
 
 	header = node40_node_header( node );
 	if( REISER4_ZERO_NEW_NODE )
-		memset( zdata( node ), 0, ( unsigned int ) znode_size( node ) );
+		xmemset( zdata( node ), 0, ( unsigned int ) znode_size( node ) );
 	else
-		memset( header, 0, sizeof (node_header_40) );
+		xmemset( header, 0, sizeof (node_header_40) );
 	nh_40_set_free_space (header, znode_size( node ) - sizeof (node_header_40));
 	nh_40_set_free_space_start (header, sizeof (node_header_40));
 	/* sane hypothesis: 0 in CPU format is 0 in disk format */
@@ -683,7 +682,7 @@ void node40_change_item_size (tree_coord * coord, int by)
 
 	/* move item bodies */
 	ih = node40_ih_at_coord (coord);
-	memmove (item_data + item_length + by, item_data + item_length,
+	xmemmove (item_data + item_length + by, item_data + item_length,
 		 nh_40_get_free_space_start (node40_node_header (coord->node)) -
 		 (ih_40_get_offset (ih) + item_length));
 
@@ -739,7 +738,7 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 		/* new item will start at this offset */
 		offset = ih_40_get_offset (ih);
 
-		memmove (zdata (target->node) + offset + data->length,
+		xmemmove (zdata (target->node) + offset + data->length,
 			 zdata (target->node) + offset,
 			 nh_40_get_free_space_start (nh) - offset);
 		/* update headers of moved items */
@@ -749,7 +748,7 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 		}
 
 		/* @ih is set to item header of the last item, move item headers */
-		memmove (ih - 1, ih,
+		xmemmove (ih - 1, ih,
 			 sizeof (item_header_40) * (nh_40_get_num_items (nh) - target->item_pos));
 	} else {
 		/* new item will start at this offset */
@@ -758,7 +757,7 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 
 	/* make item header for the new item */
 	ih = node40_ih_at_coord (target);
-	memcpy (&ih->key, key, sizeof (reiser4_key));
+	xmemcpy (&ih->key, key, sizeof (reiser4_key));
 	ih_40_set_offset (ih, offset);
 	save_plugin_id (item_plugin_to_plugin (data->iplug), &ih->plugin_id);
 
@@ -782,7 +781,7 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 		data->iplug->b.paste (target, data, todo);
 	}
 	else if (data->data != NULL) {
-		memcpy (zdata (target->node) + offset, data->data, 
+		xmemcpy (zdata (target->node) + offset, data->data, 
 			(unsigned)data->length);
 	}
 
@@ -810,7 +809,7 @@ void node40_update_item_key (tree_coord * target, reiser4_key * key,
 	item_header_40 * ih;
 
 	ih = node40_ih_at_coord (target);
-	memcpy (&ih->key, key, sizeof (reiser4_key));
+	xmemcpy (&ih->key, key, sizeof (reiser4_key));
 
 	if (target->item_pos == 0) {
 		prepare_for_update (NULL, target->node, todo);
@@ -1019,7 +1018,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 
 
 	/* move remaining data to left */
-	memmove (node->data + new_from_end, node->data + new_to_start,
+	xmemmove (node->data + new_from_end, node->data + new_to_start,
 		 nh_40_get_free_space_start (nh) - new_to_start);
 
 	/* update item headers of moved items */
@@ -1031,7 +1030,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 
 	/* cut item headers of removed items */
 	ih = node40_ih_at (node, num_items (node) - 1);
-	memmove (ih + removed_entirely, ih,
+	xmemmove (ih + removed_entirely, ih,
 		 sizeof (item_header_40) * (num_items (node) -
 					    removed_entirely - first_removed));
 
@@ -1403,7 +1402,7 @@ void node40_copy (struct shift_params * shift)
 			/* copy @entire items entirely */
 
 			/* copy item headers */
-			memcpy (to_ih - shift->entire + 1,
+			xmemcpy (to_ih - shift->entire + 1,
 				from_ih - shift->entire + 1,
 				shift->entire * sizeof (item_header_40));
 			/* update item header offset */
@@ -1413,7 +1412,7 @@ void node40_copy (struct shift_params * shift)
 						  ih_40_get_offset (from_ih) - old_offset + free_space_start );
 
 			/* copy item bodies */
-			memcpy (shift->target->data + free_space_start,
+			xmemcpy (shift->target->data + free_space_start,
 				from.node->data + old_offset,/*ih_40_get_offset (from_ih),*/
 				shift->entire_bytes);
 
@@ -1436,7 +1435,7 @@ void node40_copy (struct shift_params * shift)
 
 			/* copy item header of partially copied item */
 			to.item_pos = num_items (to.node) - 1;
-			memcpy (to_ih, from_ih, sizeof (item_header_40));
+			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
 			ih_40_set_offset (to_ih, nh_40_get_free_space_start (nh) - shift->part_bytes);
 			if (item_plugin_by_coord (&to)->b.init)
 				item_plugin_by_coord (&to)->b.init(&to);
@@ -1453,7 +1452,7 @@ void node40_copy (struct shift_params * shift)
 		to.item_pos = 0;
 
 		/* prepare space for new items */
-		memmove (zdata (to.node) + sizeof (node_header_40) + shift->shift_bytes,
+		xmemmove (zdata (to.node) + sizeof (node_header_40) + shift->shift_bytes,
 			 zdata (to.node) + sizeof (node_header_40),
 			 free_space_start - sizeof (node_header_40));
 		/* update item headers of moved items */
@@ -1470,7 +1469,7 @@ void node40_copy (struct shift_params * shift)
 					  ih_40_get_offset (to_ih - i) + shift->shift_bytes);
 
 		/* move item headers to make space for new items */
-		memmove (to_ih - old_items + 1 - new_items, to_ih - old_items + 1,
+		xmemmove (to_ih - old_items + 1 - new_items, to_ih - old_items + 1,
 			 sizeof (item_header_40) * old_items);
 		to_ih -= (new_items - 1);
 
@@ -1500,7 +1499,7 @@ void node40_copy (struct shift_params * shift)
 			/* copy @entire items entirely */
 
 			/* copy item headers */
-			memcpy (to_ih, from_ih, shift->entire * sizeof (item_header_40));
+			xmemcpy (to_ih, from_ih, shift->entire * sizeof (item_header_40));
 
 			/* update item header offset */
 			old_offset = ih_40_get_offset (from_ih + shift->entire - 1);
@@ -1510,7 +1509,7 @@ void node40_copy (struct shift_params * shift)
 						  sizeof (node_header_40) + shift->part_bytes);
 			/* copy item bodies */
 			from.item_pos -= (shift->entire - 1);
-			memcpy (to.node->data + sizeof (node_header_40) + shift->part_bytes,
+			xmemcpy (to.node->data + sizeof (node_header_40) + shift->part_bytes,
 				item_body_by_coord (&from), shift->entire_bytes);
 			from.item_pos --;
 		}
@@ -1522,7 +1521,7 @@ void node40_copy (struct shift_params * shift)
 			   a new item into @target->node */
 
 			/* copy item header of partially copied item */
-			memcpy (to_ih, from_ih, sizeof (item_header_40));
+			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
 			ih_40_set_offset (to_ih, sizeof (node_header_40));
 			if (item_plugin_by_coord (&to)->b.init)
 				item_plugin_by_coord (&to)->b.init(&to);
@@ -1853,7 +1852,7 @@ int node40_shift (tree_coord * from, znode * to,
 	znode * left, * right;
 	znode * source;
 
-	memset (&shift, 0, sizeof (shift));
+	xmemset (&shift, 0, sizeof (shift));
 	shift.pend = pend;
 	shift.wish_stop = *from;
 	shift.target = to;
