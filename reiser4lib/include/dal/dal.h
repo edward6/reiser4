@@ -1,7 +1,6 @@
 /*
 	dal.h -- device abstraction API
-	Copyright (C) 2001, 2002 Yury Umanets <torque@ukrpost.net>, see COPYING for 
-	licensing and copyright details.
+	Copyright (C) 1996 - 2002 Hans Reiser.
 */
 
 #ifndef DAL_H
@@ -55,3 +54,4 @@ extern int dal_stat(dal_t *dal, struct stat *stat);
 extern blk_t dal_len(dal_t *dal);
 
 #endif
+

@@ -1,7 +1,6 @@
 /*
 	file_dal.h -- standard file device abstraction layer
-	Copyright (C) 2001, 2002 Yury Umanets <torque@ukrpost.net>, see COPYING for 
-	licensing and copyright details.
+	Copyright (C) 1996 - 2002 Hans Reiser.
 */
 
 #ifndef FILE_DAL_H
@@ -14,3 +13,4 @@ extern int file_dal_reopen(dal_t *dal, int flags);
 extern void file_dal_close(dal_t *dal);
 
 #endif
+
