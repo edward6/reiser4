@@ -1996,9 +1996,7 @@ try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 	reiser4_unlock_page(pg);
 
 	ret = try_capture(node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
-	if (ret == 0) {
-		UNLOCK_JNODE(node);
-	}
+	UNLOCK_JNODE(node);
 	jput(node);
 	reiser4_lock_page(pg);
 	return ret;
@@ -2347,10 +2345,6 @@ jnode_make_dirty(jnode * node)
 	/* jnode lock is not needed for the rest of jnode_set_dirty(). */
 
 	if (page != NULL) {
-#if REISER4_STATS
-		if (!PageDirty(page))
-			reiser4_stat_inc(pages_dirty);
-#endif
 		set_page_dirty_internal(page);
 		page_cache_release(page);
 	}
