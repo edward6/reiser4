@@ -462,6 +462,94 @@ info_atom(const char *prefix, const txn_atom * atom)
 
 #endif
 
+const char *coord_tween_tostring(between_enum n);
+
+void
+jnode_tostring_internal(jnode * node, char *buf)
+{
+	const char *state;
+	char atom[32];
+	char block[48];
+	char items[32];
+	int fmttd;
+	int dirty;
+	int lockit;
+
+	lockit = spin_trylock_jnode(node);
+
+	fmttd = jnode_is_znode(node);
+	dirty = JF_ISSET(node, JNODE_DIRTY);
+
+	sprintf(block, " block=%s page=%p state=%lx", sprint_address(jnode_get_block(node)), node->pg, node->state);
+
+	if (JF_ISSET(node, JNODE_OVRWR)) {
+		state = dirty ? "wandr,dirty" : "wandr";
+	} else if (JF_ISSET(node, JNODE_RELOC) && JF_ISSET(node, JNODE_CREATED)) {
+		state = dirty ? "creat,dirty" : "creat";
+	} else if (JF_ISSET(node, JNODE_RELOC)) {
+		state = dirty ? "reloc,dirty" : "reloc";
+	} else if (JF_ISSET(node, JNODE_CREATED)) {
+		assert("jmacd-61554", dirty);
+		state = "fresh";
+		block[0] = 0;
+	} else {
+		state = dirty ? "dirty" : "clean";
+	}
+
+	if (node->atom == NULL) {
+		atom[0] = 0;
+	} else {
+		sprintf(atom, " atom=%u", node->atom->atom_id);
+	}
+
+	items[0] = 0;
+	if (!fmttd) {
+		sprintf(items, " index=%lu", index_jnode(node));
+	}
+
+	sprintf(buf + strlen(buf),
+		"%s=%p [%s%s%s level=%u%s%s]",
+		fmttd ? "z" : "j",
+		node,
+		state, atom, block, jnode_get_level(node), items, JF_ISSET(node, JNODE_FLUSH_QUEUED) ? " fq" : "");
+
+	if (lockit == 1) {
+		UNLOCK_JNODE(node);
+	}
+}
+
+const char *
+jnode_tostring(jnode * node)
+{
+	static char fmtbuf[256];
+	fmtbuf[0] = 0;
+	jnode_tostring_internal(node, fmtbuf);
+	return fmtbuf;
+}
+
+const char *
+znode_tostring(znode * node)
+{
+	return jnode_tostring(ZJNODE(node));
+}
+
+const char *
+flags_tostring(int flags)
+{
+	switch (flags) {
+	case JNODE_FLUSH_WRITE_BLOCKS:
+		return "(write blocks)";
+	case JNODE_FLUSH_COMMIT:
+		return "(commit)";
+	case JNODE_FLUSH_MEMORY_FORMATTED:
+		return "(memory-z)";
+	case JNODE_FLUSH_MEMORY_UNFORMATTED:
+		return "(memory-j)";
+	default:
+		return "(unknown)";
+	}
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
