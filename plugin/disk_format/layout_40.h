@@ -16,16 +16,19 @@
 typedef struct layout_40_disk_super_block {	
 	/*   0 */ d64 block_count; /* number of block in a filesystem */
 	/*   8 */ d64 free_blocks; /* number of free blocks */
-	/*  12 */ d64 root_block;  /* filesystem tree root block */
-	/*  20 */ d16 tree_height; /* height of filesystem tree */
-	/*  22 */ d16 padd [3];
+	/*  16 */ d64 root_block;  /* filesystem tree root block */
+	/*  24 */ d16 tree_height; /* height of filesystem tree */
+	/*  26 */ d16 padd [3];
 	/*  28 */ d64 oid;	   /* smallest free objectid */
-	/*  32 */ d64 file_count;  /* number of files in a filesystem */
-	/*  48 */ d64 flushes;  /* number of times super block was
+	/*  36 */ d64 file_count;  /* number of files in a filesystem */
+	/*  44 */ d64 flushes;  /* number of times super block was
 				    * flushed. Needed if layout 40
 				    * will have few super blocks */
-	/*  56 */ char magic[16]; /* magic string R4Sb-Default */
-	/*  72 */ char not_used [408]; /* 88 */
+	/*  52 */ char magic[16]; /* magic string R4Sb-Default */
+	
+	/*  68 */ d16 journal_plugin_id; /* journal plugin identifier */
+	/*  70 */ d16 alloc_plugin_id; /* space allocator plugin identifier */
+	/*  72 */ char not_used [440];
 } layout_40_disk_super_block;
 
 
