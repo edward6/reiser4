@@ -536,7 +536,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	warning("vpf-304", "SPACE: flush allocates %llu blocks for wandering logs.", wide_len);
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/, 0);
 
-	block_hint_done(&hint);
+	blocknr_hint_done(&hint);
 	*len = (int) wide_len;
 
 	return ret;
