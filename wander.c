@@ -1413,7 +1413,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 				goto free_not_assigned;
 			}
 
-			ret = jinit_new(cur);
+			ret = jinit_new(cur, GFP_KERNEL);
 
 			if (ret != 0) {
 				jfree(cur);
@@ -2005,27 +2005,31 @@ reiser4_internal int
 reiser4_journal_recover_sb_data(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
-	struct journal_footer *JF;
+	struct journal_footer *jf;
 	int ret;
 
 	assert("zam-673", sbinfo->journal_footer != NULL);
 
-	if ((ret = jload(sbinfo->journal_footer)))
+	ret = jload(sbinfo->journal_footer);
+	if (ret != 0)
 		return ret;
 
-	if ((ret = check_journal_footer(sbinfo->journal_footer)))
+	ret = check_journal_footer(sbinfo->journal_footer);
+	if (ret != 0)
 		goto out;
 
-	JF = (struct journal_footer *) jdata(sbinfo->journal_footer);
+	jf = (struct journal_footer *) jdata(sbinfo->journal_footer);
 
 	/* was there at least one flushed transaction?  */
-	if (d64tocpu(&JF->last_flushed_tx)) {
+	if (d64tocpu(&jf->last_flushed_tx)) {
 
 		/* restore free block counter logged in this transaction */
-		reiser4_set_free_blocks(s, d64tocpu(&JF->free_blocks));
+		reiser4_set_free_blocks(s, d64tocpu(&jf->free_blocks));
 
 		/* restore oid allocator state */
-		oid_init_allocator(s, d64tocpu(&JF->nr_files), d64tocpu(&JF->next_oid));
+		oid_init_allocator(s,
+				   d64tocpu(&jf->nr_files),
+				   d64tocpu(&jf->next_oid));
 	}
 out:
 	jrelse(sbinfo->journal_footer);
@@ -2146,22 +2150,24 @@ done_journal_info(struct super_block *s)
 
 /* load journal control blocks */
 reiser4_internal int
-init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, const reiser4_block_nr * footer_block)
+init_journal_info(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
+	journal_location *loc;
 	int ret;
 
-	assert("zam-650", header_block != NULL);
-	assert("zam-651", footer_block != NULL);
-	assert("zam-652", *header_block != 0);
-	assert("zam-653", *footer_block != 0);
+	loc = &sbinfo->jloc;
 
-	ret = load_journal_control_block(&sbinfo->journal_header, header_block);
+	assert("zam-651", loc != NULL);
+	assert("zam-652", loc->header != 0);
+	assert("zam-653", loc->footer != 0);
+
+	ret = load_journal_control_block(&sbinfo->journal_header, &loc->header);
 
 	if (ret)
 		return ret;
 
-	ret = load_journal_control_block(&sbinfo->journal_footer, footer_block);
+	ret = load_journal_control_block(&sbinfo->journal_footer, &loc->footer);
 
 	if (ret) {
 		unload_journal_control_block(&sbinfo->journal_header);
