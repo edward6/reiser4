@@ -686,7 +686,10 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 #endif
 
 	reiser4_grab_space_enable();
-	if (sdata->fake)
+	if (sdata->fake && !(current->flags & PF_MEMALLOC))
+		/*
+		 * FIXME-ZAM: temporary
+		 */
 		balance_dirty_pages(sdata->fake->i_mapping);
 
 	return 0;
