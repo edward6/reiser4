@@ -391,6 +391,7 @@ txnh_init(txn_handle * txnh, txn_mode mode)
 
 	txnh->mode = mode;
 	txnh->atom = NULL;
+	txnh->flags = 0;
 
 	spin_txnh_init(txnh);
 
