@@ -1316,8 +1316,17 @@ static void node40_estimate_shift (struct shift_params * shift)
 			shift->shift_bytes += size;
 			/* update stop coord to be set to last unit of @source
 			   we can merge to @target */
-			shift->real_stop = source;
-			shift->real_stop.unit_pos = (shift->merging_units - source.unit_pos - 1) * shift->pend;
+			if (shift->merging_units)
+				/* at least one unit can be shifted */
+				shift->real_stop.unit_pos = (shift->merging_units - source.unit_pos - 1) * shift->pend;
+			else {
+				/* nothing can be shifted */
+				if (shift->pend == SHIFT_LEFT)
+					ncoord_init_before_first_item (&shift->real_stop, source.node);
+				else
+					ncoord_init_after_last_item (&shift->real_stop, source.node);
+			}
+			assert ("nikita-2081", shift->real_stop.unit_pos + 1);
 
 			if (shift->merging_units != want) {
 				/* we could not copy as many as we want, so,
@@ -1398,6 +1407,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 		if (shift->part_units) {
 			shift->real_stop = source;
 			shift->real_stop.unit_pos = (shift->part_units - source.unit_pos - 1) * shift->pend;
+			assert ("nikita-2082", shift->real_stop.unit_pos + 1);
 		}
 
 		if (want != shift->part_units)
@@ -1837,10 +1847,12 @@ static void adjust_coord (coord_t * insert_coord,
 				assert( "nikita-1441", insert_coord->unit_pos >=
 					shift->merging_units );
 				insert_coord->unit_pos -= shift->merging_units;
+				assert ("nikita-2083", insert_coord->unit_pos + 1);
 			} else {
 				assert( "nikita-1442", insert_coord->unit_pos >=
 					shift->part_units );
 				insert_coord->unit_pos -= shift->part_units;
+				assert ("nikita-2084", insert_coord->unit_pos + 1);
 			}
 		}
 		return;
@@ -1848,6 +1860,7 @@ static void adjust_coord (coord_t * insert_coord,
 	if (shift->real_stop.item_pos == insert_coord->item_pos)
 		insert_coord->unit_pos -= shift->part_units;
 	insert_coord->item_pos -= removed;
+	assert ("nikita-2085", insert_coord->unit_pos + 1);
 }
 
 
@@ -1945,6 +1958,8 @@ int node40_shift (coord_t * from, znode * to,
 	znode * left, * right;
 	znode * source;
 
+	assert ("nikita-2077", ncoord_check (from));
+
 	xmemset (&shift, 0, sizeof (shift));
 	shift.pend = pend;
 	shift.wish_stop = *from;
@@ -1984,6 +1999,7 @@ int node40_shift (coord_t * from, znode * to,
 			}
 		}
 		/* there is nothing to shift */
+		assert ("nikita-2078", ncoord_check (from));
 		return 0;
 	}
 
@@ -1994,9 +2010,11 @@ int node40_shift (coord_t * from, znode * to,
 	/* shift->stop_coord is updated to last unit which really will be
 	   shifted */
 	node40_estimate_shift (&shift);
-	if (!shift.shift_bytes)
-	/* we could not shift anything */
+	if (!shift.shift_bytes) {
+		/* we could not shift anything */
+		assert ("nikita-2079", ncoord_check (from));
 		return 0;
+	}
 
 	node40_copy (&shift);
 
@@ -2037,6 +2055,7 @@ int node40_shift (coord_t * from, znode * to,
 
 	node_check (source, REISER4_NODE_PANIC);
 	node_check (to, REISER4_NODE_PANIC);
+	assert ("nikita-2080", ncoord_check (from));
 
 	return result ? result : shift.shift_bytes;
 }

@@ -1235,6 +1235,7 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 		znode_set_dirty( source );
 		znode_set_dirty( node );
 	}
+	assert( "nikita-2077", ncoord_check( insert_coord ) );
 	return 0;
 }
 

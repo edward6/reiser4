@@ -942,7 +942,7 @@ int fsync_bdev(struct block_device * bdev)
 			continue;
 		if (PagePrivate (page))
 			j = (jnode *)page->private;
-		else if(page->mapping == get_current_super_private() -> fake)
+		else if(page->mapping->host == get_current_super_private() -> fake)
 			j = (jnode *)page->index;
 		else {
 			info ("dirty page does not have jnode\n");
