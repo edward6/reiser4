@@ -215,8 +215,6 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 	int result;
 	reiser4_key unit_key;
 
-	return -EAGAIN;
-	
 	assert("nikita-1888", seal != NULL);
 	assert("nikita-1994", coord != NULL);
 	assert("nikita-1892", node != NULL);
