@@ -37,8 +37,9 @@ static error_t reiserfs_stat40_create(void *body, reiserfs_item_info_t *item_inf
     return 0;
 }
 
-static void reiserfs_stat40_estimate(void *body, 
-    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord) {
+static void reiserfs_stat40_estimate(reiserfs_item_info_t *item_info, 
+    reiserfs_item_coord_t *coord) 
+{
     aal_assert("vpf-074", item_info != NULL, return);
 
     /* Should calculate extentions size also */
@@ -75,7 +76,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .confirm = (error_t (*)(void *))reiserfs_stat40_confirm,
 	    .check = (error_t (*)(void *))reiserfs_stat40_check,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_stat40_print,
-	    .estimate = (void (*)(void *, void *, reiserfs_item_coord_t *))reiserfs_stat40_estimate,
+	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))reiserfs_stat40_estimate,
 	    .minsize = (uint32_t (*)(void *))reiserfs_stat40_minsize,
 
 	    .lookup = NULL,

@@ -38,12 +38,10 @@ static uint32_t reiserfs_internal40_minsize(void *body) {
     return sizeof(reiserfs_internal40_t);
 }
 
-static void reiserfs_internal40_estimate(void *body,
-    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord) 
+static void reiserfs_internal40_estimate(reiserfs_item_info_t *item_info, 
+    reiserfs_item_coord_t *coord) 
 {
     aal_assert("vpf-068", item_info != NULL, return);
-    aal_assert("vpf-116", body != NULL, return);
-
     item_info->length = sizeof(reiserfs_internal40_t);
 }
 
@@ -71,7 +69,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    
 	    .create = (error_t (*)(void *, void *))reiserfs_internal40_create,
 	    
-	    .estimate = (void (*)(void *, void *, reiserfs_item_coord_t *))
+	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))
 		reiserfs_internal40_estimate,
 	    
 	    .minsize = (uint32_t (*)(void *))reiserfs_internal40_minsize,

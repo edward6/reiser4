@@ -436,8 +436,6 @@ int reiserfs_node_is_internal_item(reiserfs_node_t *node, uint32_t pos) {
 error_t reiserfs_node_estimate_item(reiserfs_node_t *node, 
     reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord)
 {
-    void *body;
-    
     aal_assert("vpf-106", item_info != NULL, return -1);
     aal_assert("umka-541", node != NULL, return -1);
 
@@ -452,16 +450,8 @@ error_t reiserfs_node_estimate_item(reiserfs_node_t *node,
     if (item_info->data != NULL)
 	return 0;
 
-    if (!(body = reiserfs_node_item_at(node, coord->item_pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get item at node %llu and pos %u.",
-	    aal_device_get_block_nr(node->device, node->block), 
-	    coord->item_pos);
-	return -1;
-    }
-
     reiserfs_check_method(item_info->plugin->item.common, estimate, return -1);    
-    item_info->plugin->item.common.estimate(body, item_info, coord);
+    item_info->plugin->item.common.estimate(item_info, coord);
     
     return 0;
 }

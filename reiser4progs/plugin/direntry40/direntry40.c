@@ -5,7 +5,6 @@
 */
 
 #include <reiser4/reiser4.h>
-
 #include "direntry40.h"
 
 #define	DIRENTRY40_ID 0x2
@@ -79,13 +78,12 @@ static error_t reiserfs_direntry40_create(void *body,
     return 0;
 }
 
-static void reiserfs_direntry40_estimate(void *body, 
-    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord) 
+static void reiserfs_direntry40_estimate(reiserfs_item_info_t *item_info, 
+    reiserfs_item_coord_t *coord) 
 {
     int i;
     reiserfs_dir_info_t *info;    
 	    
-    aal_assert("umka-540", body != NULL, return);
     aal_assert("vpf-095", item_info != NULL, return);
     aal_assert("vpf-096", item_info->info != NULL, return);
     
@@ -126,7 +124,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    
 	    .create = (error_t (*)(void *, void *))reiserfs_direntry40_create,
 	    
-	    .estimate = (void (*)(void *, void *, reiserfs_item_coord_t *))
+	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))
 		reiserfs_direntry40_estimate,
 	    
 	    .minsize = (uint32_t (*)(void *))reiserfs_direntry40_minsize,

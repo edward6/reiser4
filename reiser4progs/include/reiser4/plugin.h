@@ -93,20 +93,21 @@ struct reiserfs_common_item_plugin {
 	Unit-working routines. I'm sorry Vitaly, these names 
 	are more better on my own.
 
-	We need to create special opaque type
-	for item_info and unit_info. But for awhile
-	it will be void *
+	We need to create special opaque type for item_info and 
+	unit_info. But for awhile it will be void *
     */
     int (*unit_add) (void *, int32_t, void *);
     uint16_t (*unit_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
     
     /*  
-	FIXME-UMKA: We can't pass node coord to plugin's methods, because
-	it contains reiserfs_node_t - pointer to high level structure instance,
-	plugins doesn't known about.
+	FIXME-UMKA: We can't pass reiserfs_node_coord_t to plugin's 
+	methods, because it contains reiserfs_node_t - pointer to high 
+	level structure instance, plugins doesn't known about. Also
+	plugins should be not libreiserfs dependent. They may be used
+	not only libreiserfs.
     */
-    void (*estimate) (void *, void *, reiserfs_item_coord_t *);
+    void (*estimate) (void *, reiserfs_item_coord_t *);
     uint32_t (*minsize) (void *);
     
     int (*is_internal) (void);
