@@ -86,8 +86,12 @@ int jnode_flush (jnode *node)
 	jnode *leftpoint = NULL;       /* leftpoint is jref'd when set. */
 	lock_handle leftpoint_lock;    /* if leftpoint is formatted, a write lock */
 	reiser4_blocknr_hint preceder; /* hint for block allocation */
-
+	
+	/* FIXME-NIKITA locked jnode to satisfy assertion in
+	 * jnode_is_dirty() */
+	spin_lock_jnode (node);
 	assert ("jmacd-5012", jnode_is_dirty (node));
+	spin_unlock_jnode (node);
 
 	/* If the node has already been through the allocate process, we have
 	 * decided whether it is to be relocated or overwritten (or if it was
