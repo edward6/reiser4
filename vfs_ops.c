@@ -649,8 +649,6 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 
 	} while (wbc->nr_to_write > 0);
 
-	ON_TRACE(TRACE_WRITEOUT, "%s: to write %ld, written %ld in %d attempts\n",
-		 current->comm, wbc->nr_to_write, written, repeats);
 }
 
 /* ->sync_inodes() method. This is called by pdflush, and synchronous
