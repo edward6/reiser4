@@ -2076,6 +2076,7 @@ write_unix_file(struct file *file, /* file to write to */
 	}
 
 	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
+		txn_restart_current();
 		result = sync_unix_file(inode, 0/* data and stat data */);
 		if (result)
 			warning("reiser4-7", "failed to sync file %llu",
