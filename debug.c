@@ -257,13 +257,13 @@ __u32 get_current_trace_flags(void)
 	ctx = get_current_context_check();
 	if (ctx) {
 		flags |= ctx->trace_flags;
-		flags |= get_super_private(ctx->super)->_trace_flags;
+		flags |= get_super_private(ctx->super)->trace_flags;
 	}
 	return flags;
 }
 #endif
 
-#if REISER4_TRACE
+#if REISER4_LOG
 
 /* log flags are stored in super block */
 __u32 get_current_log_flags(void)
@@ -274,7 +274,7 @@ __u32 get_current_log_flags(void)
 	flags = 0;
 	ctx = get_current_context_check();
 	if (ctx)
-		flags = get_super_private(ctx->super)->_log_flags;
+		flags = get_super_private(ctx->super)->log_flags;
 	return flags;
 }
 

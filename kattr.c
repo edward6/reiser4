@@ -216,7 +216,7 @@ show_##XXX##_flags(struct super_block * s,					\
 										\
 	(void)o;								\
 	p = buf;								\
-	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)->_##XXX##_flags);	\
+	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)-> XXX##_flags);	\
 	return (p - buf);							\
 }										\
 										\
@@ -227,7 +227,7 @@ ssize_t store_##XXX##_flags(struct super_block * s,				\
 	__u32 flags;								\
 										\
 	if (sscanf(buf, "%i", &flags) == 1)					\
-		get_super_private(s)->_##XXX##_flags = flags;			\
+		get_super_private(s)-> XXX##_flags = flags;			\
 	else									\
 		size = RETERR(-EINVAL);						\
 	return size;								\

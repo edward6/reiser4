@@ -933,7 +933,15 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		   bitfield filled by values of debug.h:reiser4_trace_flags
 		   enum
 		*/
-		SB_FIELD_OPT(_trace_flags, "%i"),
+		SB_FIELD_OPT(trace_flags, "%i"),
+		/* log_flags=N
+		
+		   set log flags to be N for this mount. N can be C numeric
+		   literal recognized by %i scanf specifier.  It is treated as
+		   bitfield filled by values of debug.h:reiser4_log_flags
+		   enum
+		*/
+		SB_FIELD_OPT(log_flags, "%i"),
 		/* debug_flags=N
 		
 		   set debug flags to be N for this mount. N can be C numeric
@@ -1143,8 +1151,8 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	super = mnt->mnt_sb;
 	sbinfo = get_super_private(super);
 
-	seq_printf(m, ",trace=0x%x", sbinfo->_trace_flags);
-	seq_printf(m, ",log=0x%x", sbinfo->_log_flags);
+	seq_printf(m, ",trace=0x%x", sbinfo->trace_flags);
+	seq_printf(m, ",log=0x%x", sbinfo->log_flags);
 	seq_printf(m, ",debug=0x%x", sbinfo->debug_flags);
 	seq_printf(m, ",atom_max_size=0x%x", sbinfo->tmgr.atom_max_size);
 

@@ -208,11 +208,11 @@ struct reiser4_super_info_data {
 
 	/* per-fs tracing flags. Use reiser4_trace_flags enum to set
 	   bits in it. */
-	__u32 _trace_flags;
+	__u32 trace_flags;
 
 	/* per-fs log flags. Use reiser4_log_flags enum to set
 	   bits in it. */
-	__u32 _log_flags;
+	__u32 log_flags;
 
 	/* file where tracing goes (if enabled). */
 	reiser4_log_file log_file;
