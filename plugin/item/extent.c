@@ -531,7 +531,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 				assert("vs-1095", 
 				       UNDER_SPIN(jnode, node, 
 						  jnode_page(node) == NULL));
-						  JF_SET(node, JNODE_HEARD_BANSHEE);
+				JF_SET(node, JNODE_HEARD_BANSHEE);
 				jput(node);
 			}
 		}
