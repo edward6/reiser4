@@ -229,6 +229,11 @@ typedef struct node_plugin {
 	int ( *fast_insert )( const tree_coord *coord );
 	int ( *fast_paste )( const tree_coord *coord );
 	int ( *fast_cut )( const tree_coord *coord );
+	/*
+	 * this limits max size of item which can be inserted into a node and
+	 * number of bytes item in a node may be appended with
+	 */
+	int max_item_size (void);	
 } node_plugin;
 
 
