@@ -62,16 +62,6 @@ int preempt_point( void )
 	return signal_pending( current );
 }
 
-/**
- * conditionally call preempt_point() when debugging is on. Used to test MT
- * stuff with better thread interfusion.
- */
-void check_preempt( void )
-{
-	if( REISER4_DEBUG == 3 )
-		preempt_point();
-}
-
 #if REISER4_DEBUG
 /**
  * Debugging aid: return struct where information about locks taken by current
@@ -114,7 +104,7 @@ void print_lock_counters( const char *prefix, lock_counters_info *info )
  */
 void check_stack( void )
 {
-	if (REISER4_DEBUG > 1) {
+	if (REISER4_DEBUG_STACK) {
 		char     dummy;
 		unsigned gap;
 		reiser4_context *context = get_current_context();

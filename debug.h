@@ -41,53 +41,86 @@
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
 #define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: break; } })
 
-#ifndef __KERNEL__
-#define CONFIG_REISER4_CHECK
-#endif
-
-#ifndef REISER4_DEBUG
-
-#if defined( CONFIG_REISER4_CHECK )
-
-/* have assert to check condition only */
+#if defined( CONFIG_REISER4_DEBUG )
+/* turn on assertions */
 #define REISER4_DEBUG (1)
-/* have assert to check condition and check stack */
-/*#define REISER4_DEBUG (2)*/
-/* have assert to do everything */
-/*#define REISER4_DEBUG (3)*/
-
 #else
-
-#define REISER4_DEBUG (1)
-
-#endif /* #if defined( CONFIG_REISER4_CHECK ) */
-
-#endif /* REISER4_DEBUG */
-
-#ifndef REISER4_DEBUG_MODIFY
-#define REISER4_DEBUG_MODIFY (0) /* this significantly slows down testing, but we should run
-				* our testsuite through with this every once in a
-				* while. */
+#define REISER4_DEBUG (0)
 #endif
 
-#ifndef REISER4_DEBUG_MEMCPY
+#if defined( CONFIG_REISER4_CHECK_STACK )
+/* check for stack overflow in each assertion check */
+#define REISER4_DEBUG_STACK (1)
+#else
+#define REISER4_DEBUG_STACK (0)
+#endif
+
+#if defined( CONFIG_REISER4_DEBUG_MODIFY )
+/* 
+ * this significantly slows down testing, but we should run our testsuite
+ * through with this every once in a while. 
+ */
+#define REISER4_DEBUG_MODIFY (1)
+#else
+#define REISER4_DEBUG_MODIFY (0)
+#endif
+
+#if defined( CONFIG_REISER4_DEBUG_MEMCPY )
 /** provide our own memcpy/memmove to profile shifts */
+#define REISER4_DEBUG_MEMCPY (1)
+#else
 #define REISER4_DEBUG_MEMCPY (0)
 #endif
 
-#ifndef REISER4_DEBUG_NODE
-/** check node content integrity */
+#if defined( CONFIG_REISER4_DEBUG_NODE )
+/** check consistency of internal node structures */
 /*
  * FIXME-VS: do not set this. It gets confused with allocate_and_copy_extent
  * which copies extents to left without updating delimting keys
  */
-#define REISER4_DEBUG_NODE   (0)
+#define REISER4_DEBUG_NODE (1)
+#else
+#define REISER4_DEBUG_NODE (0)
 #endif
 
-/** if this is non-zero, clear content of new node, otherwise leave
-    whatever may happen to be here */
-#ifndef REISER4_ZERO_NEW_NODE
+#if defined( CONFIG_REISER4_ZERO_NEW_NODE )
+/** 
+ * if this is non-zero, clear content of new node, otherwise leave whatever
+ * may happen to be here
+ */
+#define REISER4_ZERO_NEW_NODE (1)
+#else
 #define REISER4_ZERO_NEW_NODE (0)
+#endif
+
+#if defined( CONFIG_REISER4_TRACE )
+/** 
+ * tracing facility.
+ *
+ *  REISER4_DEBUG doesn't necessary implies tracing, because tracing is only
+ *  meaningful during debugging and can produce big amonts of output useless
+ *  for average user.
+ */
+#define REISER4_TRACE (1)
+#else
+#define REISER4_TRACE (0)
+#endif
+
+#if defined( CONFIG_REISER4_TRACE_TREE )
+/** collect tree traces */
+#define REISER4_TRACE_TREE (1)
+#else
+#define REISER4_TRACE_TREE (0)
+#endif
+
+#if defined( CONFIG_REISER4_STATS )
+/** 
+ * collect internal stats. Should be switched to use kernel logging facility
+ * once latter merged. 
+ */
+#define REISER4_STATS (1)
+#else
+#define REISER4_STATS (0)
 #endif
 
 #define noop   do {;} while( 0 )
@@ -110,7 +143,6 @@
  */
 #define assert( label, cond )					\
 ({								\
-	check_preempt();					\
 	check_stack();						\
 	if( unlikely( !( cond ) ) )				\
 		rpanic( label, "assertion failed: " #cond );	\
@@ -204,22 +236,6 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 	DCALL( KERN_WARNING, wprint, label, "WARNING: " format , ## __VA_ARGS__ )
 #define not_yet( label, format, ... )				\
 	rpanic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
-
-/** tracing facility.
-
-    REISER4_DEBUG doesn't necessary implies tracing, because tracing is
-    only meaningful during debugging and can produce big amonts of
-    output useless for average user.
-*/
-
-#ifndef REISER4_TRACE
-#define REISER4_TRACE (1)
-#endif
-
-#ifndef REISER4_TRACE_TREE
-/** collect tree traces */
-#define REISER4_TRACE_TREE (1)
-#endif
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
@@ -350,10 +366,6 @@ extern __u32 reiser4_current_trace_flags;
         trace_if( f, rlog( "trace", #var ": " format, var ) )
 /** print output only if appropriate trace flag(s) is on */
 #define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
-
-#ifndef REISER4_STATS
-#define REISER4_STATS (1)
-#endif
 
 #if REISER4_STATS
 
@@ -886,7 +898,6 @@ typedef struct {} reiser4_stat;
 extern void reiser4_panic( const char *format, ... ) 
 __attribute__( ( noreturn, format( printf, 1, 2 ) ) );
 
-extern void check_preempt( void );
 extern int  preempt_point( void );
 extern void reiser4_print_stats( void );
 
