@@ -446,8 +446,11 @@ static int reiser4_writepage( struct page *page UNUSED_ARG /* page used as a
 							    * but not
 							    * necessary. */ )
 {
-	printk("reiser4_writepage\n");
-	return -ENOSYS;
+	/*
+	 * FIXME-NIKITA not sure about this. Especially about GFP_* flag here
+	 * and in page_cache.c.
+	 */
+	return page_io( page, WRITE, GFP_NOIO );
 }
 
 /** ->readpage() VFS method in reiser4 address_space_operations */
