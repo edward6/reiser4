@@ -111,7 +111,6 @@ static inline int disk_addr_eq( const reiser4_block_nr *b1,
 	return !memcmp( b1, b2, sizeof *b1 );
 }
 
-extern int get_nr_bmap (struct super_block * super);
 
 extern void get_bitmap_blocknr (struct super_block *, int, reiser4_block_nr *);
 
@@ -125,23 +124,6 @@ typedef struct reiser4_master_sb {
 	char uuid [16];     /* unique id */
 } reiser4_master_sb;
 
-
-
-typedef enum { 
-	/* default for reiser 4.0 disk space manager id */
-	DEFAULT_40_SPACE_MGR_ID,
-	LAST_SPACE_MGR_ID
-} space_mgr_id;
-
-
-extern reiser4_plugin space_plugins[ LAST_SPACE_MGR_ID ];
-
-
-/* super block for standard reiser 40 disk layout */
-typedef struct layout_40_disk_super_block {
-	reiser4_master_sb master;
-	
-} layout_40_disk_super_block;
 
 
 /* __FS_REISER4_DFORMAT_H__ */
