@@ -184,6 +184,10 @@ int setup_inode_ops( struct inode *inode /* inode to intialise */ )
 		break;
 	}
 	case S_IFLNK:
+		inode -> i_op = &reiser4_symlink_inode_operations;
+		inode -> i_fop = NULL;
+		inode -> i_mapping -> a_ops = &reiser4_as_operations;
+		break;
 	case S_IFDIR:
 	case S_IFREG:
 		inode -> i_op = &reiser4_inode_operations;
