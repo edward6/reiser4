@@ -58,6 +58,8 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	/* panic("reiser4 panicked cowardly: %s", panic_buf); */
 	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
 	BUG();
+	/* to make gcc happy about noreturn attribute */
+	panic(panic_buf);
 }
 
 void
@@ -105,7 +107,14 @@ lock_counters()
 /* check that no spinlocks are held */
 void schedulable (void)
 {
-	assert ("zam-782", lock_counters()->spin_locked == 0);
+	if (REISER4_DEBUG && get_current_context() != NULL) {
+		lock_counters_info *counters;
+
+		counters = lock_counters();
+		if (counters->spin_locked != 0)
+			print_lock_counters("in atomic", counters);
+		assert ("zam-782", counters->spin_locked == 0);
+	}
 	might_sleep();
 }
 
