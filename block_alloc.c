@@ -710,7 +710,7 @@ void grabbed2free_mark(int mark)
 {
 	assert("nikita-3007", mark >= 0);
 	assert("nikita-3006", get_current_context()->grabbed_blocks >= mark);
-	__grabbed2free(get_current_context()->grabbed_blocks - mark);
+	grabbed2free(get_current_context()->grabbed_blocks - mark, __FUNCTION__);
 }
 
 /* Adjust free blocks count for blocks which were reserved but were not used. */
