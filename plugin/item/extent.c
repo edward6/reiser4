@@ -889,6 +889,7 @@ static void optimize_extent (coord_t * item)
 	old_num = extent_nr_units (item);
 	new_num = 0;
 	new_cur = NULL;
+	new_cur_width = 0;
 
 	for (i = 0; i < old_num; i ++, cur ++) {
 		cur_width = extent_get_width (cur);
@@ -934,7 +935,10 @@ static void optimize_extent (coord_t * item)
 		int result;
 		coord_t from, to;
 
-		coord_dup (&from, item);
+		/*coord_dup (&from, item);*/
+		from.node = item->node;
+		from.item_pos = item->item_pos;
+		from.iplug = item->iplug;
 		from.unit_pos = new_num;
 		from.between = AT_UNIT;
 
@@ -1255,8 +1259,9 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 }
 
 
-/* @coord is set to hole extent, replace it with unallocated extent of length
-   1 and correct amount of hole extents around it */
+/* @coord is set to hole unit inside of extent item, replace hole unit with an
+ * unallocated unit and perhaps a hole unit before the unallocated unit and
+ * perhaps a hole unit after the unallocated unit. */
 /* Audited by: green(2002.06.13) */
 static int plug_hole (coord_t * coord, lock_handle * lh,
 		      reiser4_block_nr off)
@@ -1774,12 +1779,10 @@ static int have_to_read_block (struct inode * inode, jnode * j,
 	assert ("vs-704", ((file_off & ~(current_blocksize - 1)) ==
 			   ((loff_t)j->pg->index << PAGE_CACHE_SHIFT)));
 
-
+	if (PageUptodate (j->pg))
+		return 0;
 	if (j->blocknr == 0)
 		/* jnode of unallocated unformatted node */
-		return 0;
-	if (JF_ISSET (j, JNODE_LOADED))
-		/* buffer uptodate ? */
 		return 0;
 	if (count == (int)current_blocksize)
 		/* all content of block will be overwritten */
@@ -1917,39 +1920,6 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 }
 
 
-#if DEBUGGING_FSX
-
-/*
- * FIXME-VS: remove after debugging
- */
-struct {
-	char page_data [PAGE_CACHE_SIZE];
-	struct page * page;
-} fu_data [8];
-
-struct page * get_fu_page (int index)
-{
-	assert ("vs-928", index < 8);
-	return fu_data [index].page;
-}
-
-void set_fu_page (unsigned long index, struct page * page)
-{
-	assert ("vs-932",
-		(fu_data [index].page == 0 && page) ||
-		(page == 0));
-	fu_data [index].page = page;
-}
-
-char * get_fu_page_data (int index)
-{
-	assert ("vs-931", index < 8);
-	return fu_data [index].page_data;
-}
-
-#endif /* DEBUGGING_FSX */
-
-
 /*
  * Implements plugin->u.item.s.file.read operation for extent items.
  */
@@ -2012,26 +1982,12 @@ int extent_read (struct inode * inode, coord_t * coord,
 	ON_DEBUG_CONTEXT( assert( "green-6", 
 				  lock_counters() -> spin_locked == 0 ) );
 
-#if DEBUGGING_FSX
-	{
-		/*
-		 * FIXME-VS: remove after debugging
-		 */
-		if (page != get_fu_page (page->index)) {
-			info ("!!!!!! page changed\n");
-		}
-		if (memcmp (get_fu_page_data (page->index), kaddr, PAGE_CACHE_SIZE) != 0) {
-			info ("!!!!!! content mismatch\n");
-		}
-	}
-#endif
 	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
 
 	page_cache_release (page);
 	if (result) {
-		/* AUDIT: that should return -EFAULT */
-		return result;
+		return -EFAULT;
 	}
 
 	move_flow_forward (f, count);
@@ -3455,6 +3411,9 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		j = jnode_of_page (page);
 		if (have_to_read_block (page->mapping->host, j,
 					file_off, to_page)) {
+
+			reiser4_stat_extent_add (unfm_block_reads);
+
 			page_io (page, READ, GFP_NOIO);
 			wait_on_page_locked (page);
 			if (!PageUptodate (page)) {
@@ -3462,22 +3421,24 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 				txn_delete_page (page);
 				unlock_page (page);
 				page_cache_release (page);
-				warning ("jmacd-61238", "write_flow_to_page: page not up to date");
+				warning ("jmacd-61238", "extent_write_flow: page not up to date");
 				result = -EIO;				
 				break;
 			}
+
 			lock_page (page);
 		}
 
 		page_data = kmap (page);
 		if (jnode_created (j) && !PageUptodate (page)) {
 			int padd;
-			
+
 			/* new block added. Zero block content which is not
 			 * covered by write */
-			if (page_off)
+			if (page_off) {
 				/* zero beginning of block */
 				memset (page_data, 0, (unsigned)page_off);
+			}
 			/* zero end of block */
 			padd = current_blocksize - page_off - to_page;
 			assert ("vs-721", padd >= 0);
@@ -3485,7 +3446,9 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			/* FIXME: JMACD->VS: Are you sure this doesn't cause excess zero-ing? */
 			/*jnode_clear_new (j);*/
 		}
+
 		assert( "green-13", lock_counters() -> spin_locked == 0 );
+
 		/* copy data into page */
 		if (unlikely (__copy_from_user (page_data + page_off,
 						f->data, (unsigned)to_page))) {
@@ -3503,25 +3466,6 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 
 		jput (j);
 
-#if 0
-		{
-			/*
-			 * FIXME-VS: remove after debugging
-			 */
-			assert ("vs-927", page->index < 8);
-			if (get_fu_page (page->index) != page) {
-				if (get_fu_page (page->index) != 0)
-					info ("!!!!!!!! write: page changed: %lu\n", page->index);
-				else {
-					info ("Setting page %lu to %p\n", page->index,
-					      page);
-					set_fu_page (page->index, page);
-				}
-			}
-			memcpy (get_fu_page_data (page->index) + page_off,
-				page_data + page_off, to_page);
-		}
-#endif
 		kunmap (page);
 		unlock_page (page);
 		page_cache_release (page);
