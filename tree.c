@@ -659,12 +659,10 @@ static void uncapture_znode (znode * node)
 
 	/* Get e-flush block allocation back before deallocating node's
 	 * block number. */
-#ifdef REISER4_USE_EFLUSH
 	spin_lock_znode(node);
 	if (ZF_ISSET(node, JNODE_EFLUSH))
 		eflush_del(ZJNODE(node), 0);
 	spin_unlock_znode(node);
-#endif
 
 	if (!blocknr_is_fake(znode_get_block(node))) {
 		int ret;
