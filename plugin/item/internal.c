@@ -205,9 +205,11 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 
 	child = znode_at(item, item->node);
 	if (!IS_ERR(child)) {
+		znode *left;
 		int result = 0;
 		reiser4_tree *tree;
 
+		left = arg;
 		tree = znode_get_tree(item->node);
 		spin_lock_dk(tree);
 		write_lock_tree(tree);
@@ -215,7 +217,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 		atomic_inc(&item->node->c_count);
 		child->in_parent = *item;
 		child->in_parent.between = AT_UNIT;
-		sibling_list_insert_nolock(child, arg);
+		sibling_list_insert_nolock(child, left);
 
 		ZF_CLR(child, JNODE_ORPHAN);
 
@@ -223,6 +225,13 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
 
 		write_unlock_tree(tree);
+		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
+					     znode_get_rd_key(child))) {
+			warning("nikita-2990", "Synched");
+			print_znode("left", left);
+			print_znode("right", child);
+			znode_set_rd_key(child, znode_get_rd_key(left));
+		}
 		spin_unlock_dk(tree);
 		zput(child);
 		return result;
@@ -305,16 +314,6 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 	new_node = item->node;
 	assert("nikita-2132", new_node != old_node);
 	tree = znode_get_tree(item->node);
-	/* FIXME-NIKITA here lies a problem:
-	 *
-	 * internal_shift_hook() is called during balancing to update parent
-	 * pointers in affected children. But at the moment of call delimiting
-	 * keys of parent are not yet updated. Hence, child_znode() that tries
-	 * to setup delimiting keys of child gets wrong keys from parent (when
-	 * delimiting keys of utmost child are set). Currently this is ok,
-	 * because of JNODE_DKSET bit in child state, but changes to ->shift()
-	 * method of node plugin are expected.
-	 */
 	child = UNDER_SPIN(dk, tree, child_znode(item, old_node, 1, 0));
 	if (child == NULL)
 		return 0;
