@@ -540,10 +540,11 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 		}
 
 		/* FIXME-VS: do I need to do anything for unallocated extents */
-		/* "defer" parameter is set to 1 because blocks which get freed
+		/* BA_DEFER bit parameter is turned on because blocks which get freed
 		   are not safe to be freed immediately */
-		reiser4_dealloc_blocks(&start, &length, 1 /* defer */ ,
-				       0 /* not used */ , 0 /* unformatted */ );
+		
+		reiser4_dealloc_blocks(&start, &length, 0 /* not used */, 
+			BA_DEFER/* unformatted with defer */);
 	}
 	return 0;
 }
@@ -640,9 +641,9 @@ cut_or_kill_units(coord_t * coord,
 					*/
 					start = extent_get_start(ext) + new_width;
 					length = old_width - new_width;
-					reiser4_dealloc_blocks(&start, &length, 1	/* defer */
-							       , 0 /* not used */ , 0	/* unformatted */
-					    );
+
+					reiser4_dealloc_blocks(&start, &length, 0 /* not used */, 
+						BA_DEFER /* unformatted with defer */);
 				}
 				extent_set_width(ext, new_width);
 				znode_set_dirty(coord->node);
@@ -695,9 +696,8 @@ cut_or_kill_units(coord_t * coord,
 				*/
 				start = extent_get_start(ext);
 				length = old_width - new_width;
-				reiser4_dealloc_blocks(&start, &length, 1 /* defer */ ,
-						       0 /* not used */ ,
-						       0 /* unformatted */ );
+				reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
+					BA_DEFER/* unformatted with defer */);
 			}
 
 			/* (old_width - new_width) blocks of this extent were
@@ -850,7 +850,7 @@ optimize_extent(const coord_t * item)
 	 * FIXME-NIKITA disk block has to be grabbed before marking jnode
 	 * dirty
 	 */
-	check_me("nikita-2755", reiser4_grab_space_force(1, 1) == 0);
+	check_me("nikita-2755", reiser4_grab_space_force(1, BA_RESERVED) == 0);
 	znode_set_dirty(item->node);
 }
 
@@ -1179,7 +1179,6 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 int
 extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 {
-	reiser4_key key;
 	reiser4_block_nr block;
 	reiser4_block_nr pos;
 	jnode *j;
@@ -1801,8 +1800,10 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 	*allocated = wanted_count;
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
 	preceder->block_stage = BLOCK_UNALLOCATED;
-	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 0/*unformatted*/,
-	    0/* do not use 5% */);
+	
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 
+		0/* unformatted, do not use 5% */);
+
 	if (result) {
 		/* no free space
 		   FIXME-VS: returning -ENOSPC is not enough
@@ -2056,10 +2057,9 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 
 			/* FIXME-VS: grab space first */
 			/* FIXME: JMACD->ZAM: Is this right? */
-			if ((ret = reiser4_dealloc_blocks(&start, &count,
-							  /* defer */ 1,
-							  BLOCK_ALLOCATED, 0	/* unformatted */
-			     ))) {
+			if ((ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, 
+				BA_DEFER/* unformatted with defer */))) 
+			{
 				assert("jmacd-71892", ret < 0);
 				goto fail;
 			}
@@ -2267,9 +2267,8 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 					   these blocks can be made allocable
 					   again immediately.
 					*/
-					reiser4_dealloc_blocks(&first_allocated, &allocated, 0	/* defer */
-							       , BLOCK_UNALLOCATED, 0	/* unformatted */
-					    );
+					reiser4_dealloc_blocks(&first_allocated, &allocated,
+						BLOCK_UNALLOCATED, 0/* unformatted, without defer */);
 
 					result = SQUEEZE_TARGET_FULL;
 					trace_on(TRACE_EXTENTS,
@@ -2361,7 +2360,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	grabbed = get_current_context()->grabbed_blocks;
 	estimate_internal_amount(1, znode_get_tree(orig_znode)->height, &needed);
 	/* Grab from 100% of disk space, not 95% as usual. */
-	if (reiser4_grab_space_force(needed, 1))
+	if (reiser4_grab_space_force(needed, BA_RESERVED))
 		rpanic("vpf-340", "No space left in reserved area.");
 	
 	/* set insert point after unit to be replaced */
@@ -2473,7 +2472,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 			*ext = replace;
 
 			/* grabbing one block for this dirty znode */
-			if ((ret = reiser4_grab_space_force(1, 1)) != 0)
+			if ((ret = reiser4_grab_space_force(1, BA_RESERVED)) != 0)
 				return ret;
 			
 			znode_set_dirty(coord->node);
@@ -2566,11 +2565,6 @@ insert_first_block(coord_t * coord, lock_handle * lh, jnode * j, const reiser4_k
 	/* extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(coord->node) == LEAF_LEVEL);
 
-	/* FIXME-VITALY: this is grabbed at file_write time.. */
-	/* result = reiser4_grab_space_exact ((__u64)1);
-	if (result)
-		return result;*/
-
 	set_extent(&ext, UNALLOCATED_EXTENT, 0, 1ull);
 	result = insert_extent_by_coord(coord, init_new_extent(&unit, &ext, 1), key, lh);
 	if (result) {
@@ -2608,10 +2602,6 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * key
 	assert("vs-883", ( {
 			  reiser4_key next; keyeq(key, last_key_in_extent(coord, &next));
 			  }));
-	/* FIXME-VITALY: this is grabbed at file_write time. */
-	/*result = reiser4_grab_space_exact ((__u64)1);
-	if (result)
-		return result;*/
 
 	ext = extent_by_coord(coord);
 	switch (state_of_extent(ext)) {
@@ -2736,17 +2726,10 @@ overwrite_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * 
 		break;
 
 	case HOLE_EXTENT:
-		/* VITALY: this is grabbed at file_write time. */
-		/*result = reiser4_grab_space_exact ((__u64)1);
-		if (result)
-			return result;*/
 
 		result = plug_hole(coord, lh, key);
-		if (result) {
-			/* VITALY: this is grabbed at file_write time. */
-			/*grabbed2free ((__u64)1);*/
+		if (result)
 			return result;
-		}
 
 		jnode_set_mapped(j);
 		jnode_set_created(j);
