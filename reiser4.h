@@ -407,8 +407,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* If flush finds can find a block allocation closer than at most FLUSH_RELOCATE_DISTANCE
    from the preceder it will relocate to that position. */
 #define FLUSH_RELOCATE_DISTANCE  64
-/* Flush defers actualy BIO submission until it gathers FLUSH_QUEUE_SIZE blocks. */
-#define FLUSH_QUEUE_SIZE         256
 
 /* If we have written this much or more blocks before encountering busy jnode
    in flush list - abort flushing hoping that next time we get called

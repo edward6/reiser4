@@ -37,7 +37,6 @@
 typedef struct {
 	unsigned relocate_threshold;
 	unsigned relocate_distance;
-	unsigned queue_size;
 	unsigned written_threshold;
 	unsigned scan_maxnodes;
 } flush_params;

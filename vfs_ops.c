@@ -938,9 +938,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		   most FLUSH_RELOCATE_DISTANCE from the preceder it will
 		   relocate to that position. */
 		SB_FIELD_OPT(flush.relocate_distance, "%u"),
-		/* Flush defers actualy BIO submission until it gathers
-		   FLUSH_QUEUE_SIZE blocks. */
-		SB_FIELD_OPT(flush.queue_size, "%u"),
 		/* If we have written this much or more blocks before
 		   encountering busy jnode in flush list - abort flushing
 		   hoping that next time we get called this jnode will be
@@ -1029,7 +1026,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 	sbinfo->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
 	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
-	sbinfo->flush.queue_size = FLUSH_QUEUE_SIZE;
 	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
 	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
 
