@@ -459,6 +459,19 @@ init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
 }
 
 /*
+  plugin->u.item.s.file.get_block
+*/
+int get_block_address_tail(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
+{
+	assert("nikita-3252", 
+	       znode_get_level(uf_coord->base_coord.node) == LEAF_LEVEL);
+
+	bh->b_blocknr = *znode_get_block(uf_coord->base_coord.node);
+	return 0;
+}
+
+
+/*
   plugin->u.item.s.file.key_in_item
   return true @coord is set inside of item to key @key
 */

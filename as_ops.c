@@ -59,7 +59,7 @@ static int reiser4_commit_write(struct file *,
 				struct page *, unsigned, unsigned);
 */
 static int reiser4_set_page_dirty (struct page *);
-static sector_t reiser4_bmap(struct address_space *, sector_t);
+sector_t reiser4_bmap(struct address_space *, sector_t);
 /* static int reiser4_direct_IO(int, struct inode *, 
 			     struct kiobuf *, unsigned long, int); */
 
@@ -196,7 +196,7 @@ reiser4_writepage(struct page *page, struct writeback_control *wbc)
 */
 
 /* ->bmap() VFS method in reiser4 address_space_operations */
-static sector_t
+sector_t
 reiser4_bmap(struct address_space *mapping, sector_t block)
 {
 	file_plugin *fplug;
