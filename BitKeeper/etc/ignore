@@ -1213,3 +1213,5 @@ reiser4progs/progs/libmisc/.deps/misc.Plo
 reiser4progs/progs/libmisc/.deps/profile.Plo
 reiser4progs/progs/libmisc/.deps/ui.Plo
 .flush_queue.o.cmd
+reiser4progs/libreiser4/.deps/item.P
+reiser4progs/libreiser4/item.lo
