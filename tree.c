@@ -1585,7 +1585,153 @@ void done_tree( reiser4_tree *tree /* tree to release */ )
 
 #if REISER4_DEBUG
 
-int leaves, nodes, internal_free_space, pointers, leaf_free_space;
+struct tree_stat {
+	int nodes; /* number of node in the tree */
+	int leaves; /* number of leaves */
+	int leaf_free_space; /* average amount of free space for leaf level */
+
+	int internal_free_space; /* average amount of free space for internal level */
+	int leaves_with_unformatted_left_neighbor;
+
+	int items;
+	int item_total_length;
+	int leaf_level_items;
+	int leaf_level_item_total_length;
+	int internals;
+
+	int stat_data;
+	sd_stat sd_stat;
+
+	int cde;
+	int names;
+
+	int extents;
+	extent_stat ex_stat;
+
+	int tails;
+	int tail_total_length;
+} tree_stat;
+
+
+static void collect_tree_stat( reiser4_tree *tree, znode *node )
+{
+	coord_t coord;
+	static int last_twig_item = 0; /* it is 1 if last item on twig level is
+					* extent, 2 if - internal */
+
+	/* number of formatted nodes in the tree */
+	tree_stat.nodes ++;
+
+	if( znode_get_level( node ) == LEAF_LEVEL ) {
+		/* number of leaves */
+		tree_stat.leaves ++;
+
+		/* amount of free space in leaves */
+		tree_stat.leaf_free_space += znode_free_space( node );
+	} else {
+		/* amount of free space in internal nodes and number of items
+		 * (root not included) */
+		if( *znode_get_block( node ) != tree -> root_block ) {
+			tree_stat.internal_free_space += znode_free_space( node );
+		}
+	}
+
+	/* calculate number of leaves which have unformatted left neighbor */
+	if( znode_get_level( node ) == TWIG_LEVEL ) {
+		for( coord_init_before_first_item( &coord, node );
+		     coord_next_item( &coord ) == 0; ) {
+			if( last_twig_item ) {
+				if( last_twig_item == 1 && item_is_internal( &coord ) )
+					tree_stat.leaves_with_unformatted_left_neighbor ++;
+			}
+			if( item_is_internal( &coord ) )
+				last_twig_item = 2;
+			else if( item_is_extent( &coord ) )
+				last_twig_item = 1;
+			else
+				impossible( "vs-896", "wrong item on twig level" );
+		}
+	}
+
+	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
+		item_id id;
+
+		tree_stat.items ++;
+		tree_stat.item_total_length += item_length_by_coord( &coord );
+		if( znode_get_level( node ) == LEAF_LEVEL ) {
+			tree_stat.leaf_level_items ++;
+			tree_stat.leaf_level_item_total_length += item_length_by_coord( &coord );
+		}
+		id = item_id_by_coord( &coord );
+		switch( id ) {
+		case STATIC_STAT_DATA_ID:
+			tree_stat.stat_data ++;
+			item_plugin_by_id( STATIC_STAT_DATA_ID ) -> 
+				common.item_stat( &coord, &tree_stat.sd_stat );
+			break;
+		case COMPOUND_DIR_ID:
+			tree_stat.cde ++;
+			tree_stat.names += coord_num_units( &coord );
+			break;
+		case NODE_POINTER_ID:
+			tree_stat.internals ++;
+			break;
+		case EXTENT_POINTER_ID:
+			tree_stat.extents ++;
+			item_plugin_by_id( EXTENT_POINTER_ID ) ->
+				common.item_stat( &coord, &tree_stat.ex_stat );
+			break;
+		case TAIL_ID:
+			tree_stat.tails ++;
+			tree_stat.tail_total_length += coord_num_units( &coord );
+			break;
+		default:
+			info( "Unexpected item found: %d\n", id );
+			break;
+		}
+	}
+}
+
+
+static void print_tree_stat( void )
+{
+	info( "Nodes:\n"
+	      "total number of formatted nodes: %d\n"
+	      "\tleaves: %d\n"
+	      "\taverage free space in leaves: %d\n"
+	      "\taverage free space in internals (root not included): %d\n"
+	      "\tleaves with no formatted left neighbor: %d\n",
+	      tree_stat.nodes, tree_stat.leaves,
+	      
+	      tree_stat.leaf_free_space / tree_stat.leaves,
+	      tree_stat.internal_free_space ? tree_stat.internal_free_space / (tree_stat.nodes - tree_stat.leaves - 1) : 0,
+	      tree_stat.leaves_with_unformatted_left_neighbor);
+
+	info( "Items:\n"
+	      "total_number of items: %d, total length %d\n"
+	      "\titems on leaf level: %d, their total length: %d\n"
+	      "\tinternals: %d\n"
+	      "\tstat data: %d\n"
+	      "\t\tregular files: %d\n"
+	      "\t\tdirectories: %d\n"
+	      "\tdirectory items: %d\n"
+	      "\t\tnames in them: %d\n"
+	      "\textents: %d\n"
+	      "\t\tallocated: %d, poniters: %d\n"
+	      "\t\tunallocated: %d, poniters: %d\n"
+	      "\t\thole: %d, poniters: %d\n"
+	      "\ttail items: %d, total length: %d\n",
+	      tree_stat.items, tree_stat.item_total_length,
+	      tree_stat.leaf_level_items, tree_stat.leaf_level_item_total_length,
+	      tree_stat.internals,
+	      tree_stat.stat_data, tree_stat.sd_stat.files, tree_stat.sd_stat.dirs,
+	      tree_stat.cde, tree_stat.names,
+	      tree_stat.extents,
+	      tree_stat.ex_stat.allocated_units, tree_stat.ex_stat.allocated_blocks,
+	      tree_stat.ex_stat.unallocated_units, tree_stat.ex_stat.unallocated_blocks,
+	      tree_stat.ex_stat.hole_units, tree_stat.ex_stat.hole_blocks,
+	      tree_stat.tails, tree_stat.tail_total_length);
+}
 
 /** helper called by print_tree_rec() */
 static void tree_rec( reiser4_tree *tree /* tree to print */, 
@@ -1602,51 +1748,38 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		return;
 	}
 
-	/*
-	 * calculate some statistics:
-	 */
-	/* number of nodes in the tree */
-	nodes ++;
-	if( znode_get_level( node ) == LEAF_LEVEL ) {
-		/* number of leaves */
-		leaves ++;
-		/* amount of free space in leaves */
-		leaf_free_space += znode_free_space( node );
+	if( flags == REISER4_COLLECT_STAT ) {
+		info( "%lld\n", *znode_get_block( node ) );
+		collect_tree_stat( tree, node );
 	} else {
-		/* amount of free space in internal nodes and number of items
-		 * (root not included) */
-		if( *znode_get_block( node ) != tree -> root_block ) {
-			internal_free_space += znode_free_space( node );
-			pointers += node_num_items( node );
+
+		if( flags & REISER4_NODE_PRINT_ZNODE )
+			print_znode( "", node );
+
+		if( flags & REISER4_NODE_SILENT ) {
+			/* Nothing */
+		} else if( flags == REISER4_NODE_PRINT_BRIEF ) {
+			info( "[node %p block %llu level %u dirty %u created %u alloc %u]\n",
+			      node,
+			      *znode_get_block( node ),
+			      znode_get_level( node ),
+			      znode_check_dirty( node ),
+			      ZF_ISSET( node, JNODE_CREATED ),
+			      ZF_ISSET( node, JNODE_RELOC ) || ZF_ISSET( node, JNODE_WANDER ) );
+		} else {
+			print_node_content( "", node, flags );
 		}
+		
+		if( node_is_empty( node ) ) {
+			indent_znode( node );
+			info( "empty\n" );
+			zrelse( node );
+			return;
+		}
+
+		if( flags & REISER4_NODE_CHECK )
+			node_check( node, flags );
 	}
-
-	if( flags & REISER4_NODE_PRINT_ZNODE )
-		print_znode( "", node );
-
-	if( flags & REISER4_NODE_SILENT ) {
-		/* Nothing */
-	} else if( flags == REISER4_NODE_PRINT_BRIEF ) {
-		info( "[node %p block %llu level %u dirty %u created %u alloc %u]\n",
-		      node,
-		      *znode_get_block( node ),
-		      znode_get_level( node ),
-		      znode_check_dirty( node ),
-		      ZF_ISSET( node, JNODE_CREATED ),
-		      ZF_ISSET( node, JNODE_RELOC ) || ZF_ISSET( node, JNODE_WANDER ) );
-	} else {
-		print_node_content( "", node, flags );
-	}
-
-	if( node_is_empty( node ) ) {
-		indent_znode( node );
-		info( "empty\n" );
-		zrelse( node );
-		return;
-	}
-
-	if( flags & REISER4_NODE_CHECK )
-		node_check( node, flags );
 
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "children of node", znode_get_block( node ) );
@@ -1714,18 +1847,13 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 		zput( fake );
 		return;
 	}
-	nodes = 0;
-	leaves = 0;
-	leaf_free_space = internal_free_space = 0;
-	pointers = 0;
+	memset( &tree_stat, 0, sizeof( tree_stat ) );
+
 	tree_rec( tree, root, flags );
-	info( "There are %d nodes (including %d leaves).\n"
-	      "Average free space in leaves %d\n"
-	      "Average free space in internals %d\n"
-	      "average number of items in internals nodes %d\n",
-	      nodes, leaves, leaf_free_space / leaves,
-	      internal_free_space / (nodes - leaves - 1),
-	      pointers / (nodes - leaves - 1));
+	
+	if( flags == REISER4_COLLECT_STAT ) {
+		print_tree_stat();
+	}
 
 #if REISER4_USER_LEVEL_SIMULATION
 	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
