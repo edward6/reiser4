@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
 	return ERROR_USER;
     }
 
-#ifdef HAVE_UUID    
+#ifdef HAVE_UUID
     if (aal_strlen(uuid) == 0)
 	uuid_generate(uuid);
 #endif
@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
 	
     if (fs_len > dev_len) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Filesystem size is too big for device %llu blocks long.", dev_len);
+	    "Filesystem wouldn't fit into device %llu blocks long, %llu blocks required.", dev_len, fs_len);
 	goto error_free_libreiser4;
     }
 
@@ -262,7 +262,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Creating reiser4 with \"%s\" profile...", profile->label);
     fflush(stderr);
     
-    /* Cerating filesystem */
+    /* Creating filesystem */
     if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
 	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
     {
