@@ -692,13 +692,16 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 static void
 make_node_ovrwr(capture_list_head *jnodes, jnode *node)
 {
+	LOCK_JNODE(node);
+
 	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
 	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 
 	JF_SET(node, JNODE_OVRWR);
 	capture_list_remove_clean(node);
 	capture_list_push_back(jnodes, node);	
-	ON_DEBUG(node->list = OVRWR_LIST);
+
+	UNLOCK_JNODE(node);
 }
 
 /* put nodes of one extent (file objectid @oid, extent width @width) to overwrite set. Starting from the one with index
