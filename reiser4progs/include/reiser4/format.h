@@ -43,7 +43,7 @@ extern void reiser4_format_set_len(reiser4_format_t *format, count_t blocks);
 extern void reiser4_format_set_free(reiser4_format_t *format, count_t blocks);
 extern void reiser4_format_set_height(reiser4_format_t *format, uint8_t height);
 
-extern errno_t reiser4_format_mark(reiser4_format_t *format, 
+extern void reiser4_format_mark(reiser4_format_t *format, 
     reiser4_alloc_t *alloc);
 
 extern errno_t reiser4_format_mark_journal(reiser4_format_t *format, 
@@ -57,6 +57,7 @@ extern blk_t reiser4_format_offset(reiser4_format_t *format);
 extern reiser4_id_t reiser4_format_journal_pid(reiser4_format_t *format);
 extern reiser4_id_t reiser4_format_alloc_pid(reiser4_format_t *format);
 extern reiser4_id_t reiser4_format_oid_pid(reiser4_format_t *format);
+extern int reiser4_format_data_block(reiser4_format_t *format, blk_t blk);
 
 #endif
 
