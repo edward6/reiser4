@@ -839,7 +839,7 @@ int deallocate_znode( znode *node )
  * Check that internal item at @pointer really contains pointer to @child.
  *
  */
-int check_tree_pointer( tree_coord *pointer, znode *child )
+int check_tree_pointer( const tree_coord *pointer, const znode *child )
 {
 	assert( "nikita-1016", pointer != NULL );
 	assert( "nikita-1017", child != NULL );
@@ -857,8 +857,7 @@ int check_tree_pointer( tree_coord *pointer, znode *child )
 
 		iplug = item_plugin_by_coord( pointer );
 		if( ( iplug -> item_type == INTERNAL_ITEM_TYPE ) ) {
-			iplug -> s.internal.down_link( pointer,
-							       NULL, &addr );
+			iplug -> s.internal.down_link( pointer, NULL, &addr );
 			/*
 			 * check that cached value is correct
 			 */
