@@ -3907,7 +3907,7 @@ int jmacd_test( int argc UNUSED_ARG,
  *                                      BITMAP TEST
  *****************************************************************************************/
 
-#define BLOCK_COUNT 100000
+#define BLOCK_COUNT 10000
 
 /* tree op. read node which emulates read from valid reiser4 volume  */
 static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t blksz )
@@ -3991,13 +3991,29 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 		reiser4_block_nr block;
 		reiser4_block_nr len;
 		
-		len = 10;
+		int ret;
+		int count = 0;
+		int total = 0;
+		
+		while (1) {
+			len = 30;
 
-		blocknr_hint_init (&hint);
+			blocknr_hint_init (&hint);
 
-		reiser4_alloc_blocks (&hint, &block, &len);
+			ret = reiser4_alloc_blocks (&hint, &block, &len);
 
-		blocknr_hint_done (&hint);
+			blocknr_hint_done (&hint);
+
+			if (ret != 0) break;
+
+			++ count;
+			total += (int)len;
+
+			printf ("allocated %d blocks in %d attempt(s)\n", total, count);
+
+		}
+
+		printf ("total %d blocks allocated until %d error (%s) returned\n", total, ret, strerror(ret));
 	}
 
 
