@@ -1667,6 +1667,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 
 	JF_SET (node, ZNODE_FLUSH_QUEUED);
 
+	assert ("zam-670", PageDirty(jnode_page(node)));
 	// assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
 	assert ("jmacd-1771", jnode_is_allocated (node));
 
@@ -1981,8 +1982,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				
 				assert ("jmacd-74233", !PageWriteback (pg));
 				// assert ("jmacd-74234", PageDirty (pg));
-				ClearPageDirty (pg);
 				SetPageWriteback (pg);
+				set_page_clean_nolock(pg);
 
 				unlock_page (pg);
 
