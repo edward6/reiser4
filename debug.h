@@ -541,6 +541,10 @@ typedef struct reiser4_stat {
 		 * squeezing
 		 */
 		stat_cnt flush_carry;
+		/*
+		 * how many nodes were squeezed to left neighbor completely
+		 */
+		stat_cnt squeezed_completely;
 	} slum;
 	struct {
 		/*
