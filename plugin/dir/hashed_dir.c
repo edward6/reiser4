@@ -73,7 +73,7 @@ hashed_init(struct inode *object /* new directory */ ,
 	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
 		return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, info("hashed_init grabs %llu blocks.\n", reserve));
+	trace_on(TRACE_RESERVE, "hashed_init grabs %llu blocks.\n", reserve);
 	
 	return create_dot_dotdot( object, parent );
 }
@@ -120,7 +120,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 					     BA_CAN_COMMIT | BA_RESERVED)) 
 			return -ENOSPC;
 		
-		trace_on(TRACE_RESERVE, info("hashed_done grabs %llu blocks.\n", reserve));
+		trace_on(TRACE_RESERVE, "hashed_done grabs %llu blocks.\n", reserve);
 		
 		entry.obj = goodby_dots.d_inode = object;
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
@@ -702,7 +702,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	seal_done(&new_fsdata->entry_seal);
-	
+
 	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
 		/* target (@new_name) exists. */
@@ -825,7 +825,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
 		return -ENOSPC;
 
-	trace_on(TRACE_RESERVE, info("add entry grabs %llu blocks.\n", reserve));
+	trace_on(TRACE_RESERVE, "add entry grabs %llu blocks.\n", reserve);
 	
 	init_lh(&lh);
 	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid, where->d_name.name, get_inode_oid(object));
