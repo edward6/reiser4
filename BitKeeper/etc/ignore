@@ -70,7 +70,10 @@
 .seal.o.cmd
 .search.o.cmd
 .spinprof.o.cmd
+.stats.o.cmd
 .super.o.cmd
+.super.o.d
+.sys_reiser4.o.cmd
 .tap.o.cmd
 .trace.o.cmd
 .tree.o.cmd
@@ -131,6 +134,7 @@ copy-test
 core
 core.*
 dead.code
+debug.E
 debug.bb
 debug.bbg
 doc/.xvpics/set-theoretic-stuff.gif
@@ -193,9 +197,13 @@ oid.h.old
 page_cache.E
 page_cache.bb
 page_cache.bbg
+parser/parser.code.c
+parser/parser.tab.c
+parser/parser.tab.h
 plugin/.built-in.o.cmd
 plugin/.crypo_compressed.o.cmd
 plugin/.cryptcompress.o.cmd
+plugin/.cryptcompress.o.d
 plugin/.digest.o.cmd
 plugin/.hash.o.cmd
 plugin/.object.o.cmd
@@ -210,10 +218,13 @@ plugin/dir/.dir.o.cmd
 plugin/dir/.dir.o.d
 plugin/dir/.hashed_dir.o.cmd
 plugin/dir/.props/dir.c
+plugin/dir/.pseudo_dir.o.cmd
 plugin/dir/dir.bb
 plugin/dir/dir.bbg
 plugin/dir/hashed_dir.bb
 plugin/dir/hashed_dir.bbg
+plugin/dir/pseudo_dir.c
+plugin/dir/pseudo_dir.h
 plugin/disk_format/.built-in.o.cmd
 plugin/disk_format/.disk_format.o.cmd
 plugin/disk_format/.disk_format40.o.cmd
@@ -1292,6 +1303,7 @@ search.bb
 search.bbg
 sfsfdf
 spin_macros_template.h
+stats
 super.bb
 super.bbg
 test1
@@ -1335,12 +1347,3 @@ write-test.2
 yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
-debug.E
-.stats.o.cmd
-stats
-plugin/.cryptcompress.o.d
-.sys_reiser4.o.cmd
-.super.o.d
-plugin/dir/.pseudo_dir.o.cmd
-plugin/dir/pseudo_dir.c
-plugin/dir/pseudo_dir.h
