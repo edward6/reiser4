@@ -735,7 +735,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 
 	flush_mode();
-	write_in_trace("flush:in");
+	write_in_trace(__FUNCTION__, "in");
 
 	reiser4_stat_flush_add(flush);
 
@@ -1059,7 +1059,7 @@ clean_out:
 	atom->nr_flushers--;
 	spin_unlock_atom(atom);
 	not_flush_mode();
-	write_in_trace("flush:ex");
+	write_in_trace(__FUNCTION__, "ex");
 
 	return ret;
 }

@@ -309,7 +309,7 @@ int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
 
 	start = bio->bi_sector >> (super->s_blocksize_bits - 9);
 	(void)write_trace(&info->trace_file, 
-			  "%i:%s:[%s]:%lu:....bio:%s:%c:%+lli:(%llu,%u)\n",
+			  "%i %s %s %lu ......bio %s %c %+lli  (%llu,%u)\n",
 			  current->pid, current->comm,
 			  kdevname(to_kdev_t(super->s_dev)), jiffies,
 			  moniker, (rw == READ) ? 'r' : 'w',
