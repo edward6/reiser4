@@ -15,6 +15,7 @@
  */
 /*#define READ_SUPER_READY 1*/
 
+int fs_is_here;
 
 static void
 SUSPEND_CONTEXT( reiser4_context *context )
@@ -450,10 +451,10 @@ void d_instantiate(struct dentry *entry, struct inode * inode)
 }
 
 static spinlock_t alloc_guard;
-int  reiser4_alloc_block( znode *neighbor UNUSED_ARG,
-			  reiser4_block_nr *blocknr )
+static reiser4_block_nr new_block_nr;
+
+int reiser4_alloc_block( znode *neighbor UNUSED_ARG, reiser4_block_nr *blocknr )
 {
-	static reiser4_block_nr new_block_nr = 10;
 	
 	spin_lock( &alloc_guard );
 	*blocknr = new_block_nr;
@@ -786,17 +787,6 @@ static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
 static size_t mmap_back_end_size = 0;
 
-int ulevel_allocate_node( znode *node )
-{
-	assert( "nikita-1909", node != NULL );
-	node -> size = reiser4_get_current_sb() -> s_blocksize;
-	node -> data = malloc( node -> size );
-	if( node -> data != NULL )
-		return 0;
-	else
-		return -ENOMEM;
-}
-
 int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 {
 	if( mmap_back_end_fd > 0 ) {
@@ -818,6 +808,27 @@ int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 		else
 			return -ENOMEM;
 	}
+}
+
+int ulevel_allocate_node( znode *node )
+{
+	if( mmap_back_end_fd > 0 ) {
+		int ret;
+
+		ret = ulevel_read_node( znode_get_block( node ), &node -> data );
+		if( ret > 0 ) {
+			node -> size = ret;
+			return 0;
+		} else
+			return ret;
+	}
+	assert( "nikita-1909", node != NULL );
+	node -> size = reiser4_get_current_sb() -> s_blocksize;
+	node -> data = malloc( node -> size );
+	if( node -> data != NULL )
+		return 0;
+	else
+		return -ENOMEM;
 }
 
 
@@ -866,7 +877,8 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
 		root -> nplug = node_plugin_by_id( NODE40_ID );
 		result = zinit_new( root );
-		zrelse( root );
+		if( result == 0 )
+			zrelse( root );
 	} else {
 		result = zload( root );
 	}
@@ -1498,6 +1510,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		/*
 		 * root is already allocated/initialised above.
 		 */
+		fs_is_here = 0;
+		create_root_dir( root );
 		info( "Done.\n" );
 	} else if( !strcmp( argv[ 2 ], "clean" ) ) {
 		ret = cut_tree( tree, min_key(), max_key() );
@@ -1672,7 +1686,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			done_coord( &coord );
 
 		}
-		print_tree_rec( "tree:ibk", tree, ~0u | REISER4_NODE_CHECK );
+		print_tree_rec( "tree:ibk", tree, REISER4_NODE_CHECK );
 		/* print_tree_rec( "tree", tree, ~0u ); */
 	} else if( !strcmp( argv[ 2 ], "carry" ) ) {
 		reiser4_item_data data;
@@ -1877,50 +1891,55 @@ static struct inode * create_root_dir (znode * root)
 	lock_handle lh;
 
 
-	init_carry_pool( &pool );
-	init_carry_level( &lowest_level, &pool );
-
-	init_lh( &lh );
-	ret = longterm_lock_znode( &lh, root, 
-				   ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
-	assert( "nikita-1792", ret == 0 );
-	op = post_carry( &lowest_level,
-				 COP_INSERT, root, 0 );
-
-	done_lh( &lh );
-	assert( "nikita-1269", !IS_ERR( op ) && ( op != NULL ) );
-	// fill in remaining fields in @op, according to
-	// carry.h:carry_op
-	cdata.data = &data;
-	cdata.key = &key;
-	cdata.coord = &coord;
-	op -> u.insert.type = COPT_ITEM_DATA;
-	op -> u.insert.d = &cdata;
-	
-	xmemset( &sd, 0, sizeof sd );
-	cputod16( S_IFDIR | 0111, &sd.base.mode );
-	cputod16( 0x0 , &sd.base.extmask );
-	cputod32( 1, &sd.base.nlink );
-	cputod64( 0x283746ull, &sd.base.size );
-
-	/* this inserts stat data */
-	data.data = ( char * ) &sd;
-	data.user = 0;
-	data.length = sizeof sd.base;
-	data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-	coord_first_unit( &coord, NULL );
-	
 	key_init( &key );
 	set_key_type( &key, KEY_SD_MINOR );
 	set_key_locality( &key, 2ull );
 	set_key_objectid( &key, 42ull );
+	init_lh( &lh );
 	
-	coord.between = AT_UNIT;
-	ret = carry( &lowest_level, NULL );
-	printf( "result: %i\n", ret );
-	info( "_____________sd inserted_____________\n" );
-	done_carry_pool( &pool );
+	if( !fs_is_here ) {
+		init_carry_pool( &pool );
+		init_carry_level( &lowest_level, &pool );
 
+		ret = longterm_lock_znode( &lh, root, 
+					   ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
+		assert( "nikita-1792", ret == 0 );
+		op = post_carry( &lowest_level, COP_INSERT, root, 0 );
+
+		assert( "nikita-1269", !IS_ERR( op ) && ( op != NULL ) );
+		// fill in remaining fields in @op, according to
+		// carry.h:carry_op
+		cdata.data = &data;
+		cdata.key = &key;
+		cdata.coord = &coord;
+		op -> u.insert.type = COPT_ITEM_DATA;
+		op -> u.insert.d = &cdata;
+	
+		xmemset( &sd, 0, sizeof sd );
+		cputod16( S_IFDIR | 0111, &sd.base.mode );
+		cputod16( 0x0 , &sd.base.extmask );
+		cputod32( 1, &sd.base.nlink );
+		cputod64( 0x283746ull, &sd.base.size );
+
+		/* this inserts stat data */
+		data.data = ( char * ) &sd;
+		data.user = 0;
+		data.length = sizeof sd.base;
+		data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
+		coord_first_unit( &coord, NULL );
+	
+		coord.between = AT_UNIT;
+		ret = carry( &lowest_level, NULL );
+		printf( "result: %i\n", ret );
+		info( "_____________sd inserted_____________\n" );
+		done_carry_pool( &pool );
+	} else {
+		ret = coord_by_key( current_tree,
+				    &key, &coord, &lh, ZNODE_READ_LOCK,
+				    FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
+				    CBK_UNIQUE );
+		assert( "nikita-1933", ret == 0 );
+	}
 
 	rii = malloc (sizeof *rii);
 	if (!rii)
@@ -1950,9 +1969,11 @@ static struct inode * create_root_dir (znode * root)
 	rii -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
 	rii -> tail = tail_plugin_by_id ( TEST_TAIL_ID );
 	rii -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-	rii -> dir_item = item_plugin_by_id ( SIMPLE_DIR_ENTRY_ID );
+	rii -> dir_item = item_plugin_by_id ( REISER4_DIR_ITEM_PLUGIN );
 	rii -> locality_id = get_key_locality( &key );
 	rii -> sd = item_plugin_by_id( STATIC_STAT_DATA_ID );
+
+	done_lh( &lh );
 
 	call_create (inode, ".");
 	inode -> i_sb -> s_root -> d_inode = inode;
@@ -3009,7 +3030,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		if (call_mkdir (root_dir, "testdir")) {
 			info ("mkdir failed");
-			return 1;
+			/* return 1; */
 		}
 		cwd = call_lookup (root_dir, "testdir");
 		if (IS_ERR (cwd)) {
@@ -3482,10 +3503,14 @@ int real_main( int argc, char **argv )
 	struct super_block *s;
 	reiser4_tree *tree;
 	reiser4_block_nr root_block;
+	oid_t next_to_use;
 	int tree_height;
 	struct super_block super;
 	struct dentry root_dentry;
 	reiser4_context __context;
+	char *mmap_fname;
+	char *mmap_meta_fname;
+	int   mmap_meta_fd;
 
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
@@ -3502,6 +3527,56 @@ int real_main( int argc, char **argv )
 			strtol( getenv( "REISER4_TRACE_FLAGS" ), NULL, 0 );
 		rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
 		      get_current_trace_flags() );
+	}
+
+	root_block = 3ull;
+	tree_height = 1;
+	next_to_use = 0x10000ull;
+	new_block_nr = 10;
+	mmap_fname = getenv( "REISER4_UL_DURABLE_MMAP" );
+	mmap_meta_fname = getenv( "REISER4_UL_DURABLE_MMAP_META" );
+	mmap_meta_fd = -1;
+	fs_is_here = 0;
+	if( ( mmap_fname != NULL ) && ( mmap_meta_fname != NULL ) ) {
+		mmap_back_end_fd = open( mmap_fname, O_CREAT | O_RDWR, 0700 );
+		if( mmap_back_end_fd == -1 ) {
+			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
+				 mmap_fname, strerror( errno ) );
+			exit( 1 );
+		}
+		mmap_back_end_size = lseek( mmap_back_end_fd, (off_t)0, SEEK_END );
+		if( ( off_t ) mmap_back_end_size == ( off_t ) -1 ) {
+			perror( "lseek" );
+			exit( 2 );
+		}
+		mmap_back_end_start = mmap( NULL, 
+					    mmap_back_end_size, 
+					    PROT_WRITE | PROT_READ, 
+					    MAP_SHARED, mmap_back_end_fd, (off_t)0 );
+		if( mmap_back_end_start == MAP_FAILED ) {
+			perror( "mmap" );
+			exit( 3 );
+		}
+		mmap_meta_fd = open( mmap_meta_fname, O_CREAT | O_RDWR, 0777 );
+		if( mmap_meta_fd == -1 ) {
+			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
+				 mmap_meta_fname, strerror( errno ) );
+		} else {
+			char buf[ 100 ];
+
+			if( read( mmap_meta_fd, buf, sizeof buf ) == -1 ) {
+				fprintf( stderr, "%s: read error %s\n", 
+					 argv[ 0 ], mmap_meta_fname );
+			}
+			
+			if( sscanf( buf, "%lli %i %lli %lli", 
+				    &root_block, &tree_height, 
+				    &next_to_use, &new_block_nr ) != 4 ) {
+				fprintf( stderr, "%s: Wrong conversion in %s\n", 
+					 argv[ 0 ], buf );
+			}
+			fs_is_here = 1;
+		}
 	}
 
 #ifndef READ_SUPER_READY
@@ -3538,7 +3613,7 @@ int real_main( int argc, char **argv )
 		/* initialize reiser4_super_info_data's oid plugin */
 		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].oid_allocator;
 		get_super_private( &super ) -> oid_plug ->
-			init_oid_allocator( get_oid_allocator( &super ), 1ull, 0x10000ull );
+			init_oid_allocator( get_oid_allocator( &super ), 1ull, next_to_use );
 
 		s = &super;
 	}
@@ -3556,49 +3631,10 @@ int real_main( int argc, char **argv )
 	INIT_LIST_HEAD( &inode_hash_list );
 	INIT_LIST_HEAD( &page_list );
 
-	root_block = 3ull;
-	tree_height = 1;
-	if( getenv( "REISER4_UL_DURABLE_MMAP" ) != NULL ) {
-		mmap_back_end_fd = open( getenv( "REISER4_UL_DURABLE_MMAP" ),
-					 O_CREAT | O_RDWR, 0700 );
-		if( mmap_back_end_fd == -1 ) {
-			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
-				 getenv( "REISER4_UL_DURABLE_MMAP" ),
-				 strerror( errno ) );
-			exit( 1 );
-		}
-		mmap_back_end_size = lseek( mmap_back_end_fd, (off_t)0, SEEK_END );
-		if( ( off_t ) mmap_back_end_size == ( off_t ) -1 ) {
-			perror( "lseek" );
-			exit( 2 );
-		}
-		mmap_back_end_start = mmap( NULL, 
-					    mmap_back_end_size, 
-					    PROT_WRITE | PROT_READ, 
-					    MAP_SHARED, mmap_back_end_fd, (off_t)0 );
-		if( mmap_back_end_start == MAP_FAILED ) {
-			perror( "mmap" );
-			exit( 3 );
-		}
-		if( pread( mmap_back_end_fd, &root_block, sizeof root_block, (off_t)0 ) != sizeof root_block ) {
-			perror( "read root block" );
-			exit( 4 );
-		}
-		if( root_block == 0 )
-			root_block = 3;
-		if( pread( mmap_back_end_fd, &tree_height, sizeof tree -> height, (off_t)(sizeof root_block) ) != sizeof tree -> height ) {
-			perror( "read tree height" );
-			exit( 4 );
-		}
-		if( tree_height == 0 )
-			tree_height = 1;
-	}
-
 	tree = &get_super_private( s ) -> tree;
 	result = init_tree( tree, &root_block,
-				    1, node_plugin_by_id( NODE40_ID ),
-				    ulevel_read_node, ulevel_allocate_node );
-	tree -> height = tree_height;
+			    tree_height, node_plugin_by_id( NODE40_ID ),
+			    ulevel_read_node, ulevel_allocate_node );
 
 	if( result )
 		rpanic ("jmacd-500", "znode_tree_init failed");
@@ -3620,16 +3656,17 @@ int real_main( int argc, char **argv )
 	}
 	if( getenv( "REISER4_PRINT_STATS" ) != NULL )
 		reiser4_print_stats();
-	if( ( mmap_back_end_fd > 0 ) && 
-	    ( pwrite( mmap_back_end_fd, &tree -> root_block, 
-		      sizeof root_block, (off_t)0 ) != sizeof root_block ) ) {
-			perror( "write root block" );
-			exit( 5 );
-		}
-	if( ( mmap_back_end_fd > 0 ) && 
-	    ( pwrite( mmap_back_end_fd, &tree -> height, sizeof tree -> height, (off_t)(sizeof root_block) ) != sizeof tree -> height ) ) {
-			perror( "write tree height" );
-			exit( 4 );
+	if( mmap_meta_fd != -1 ) {
+		char buf[ 100 ];
+		get_super_private( &super ) -> oid_plug ->
+			allocate_oid( get_oid_allocator( &super ), &next_to_use );
+		root_block = tree -> root_block;
+		tree_height = tree -> height;
+		
+		lseek( mmap_meta_fd, 0, SEEK_SET );
+		sprintf( buf, "%lli %i %lli %lli\n", 
+			 root_block, tree_height, next_to_use, ++ new_block_nr );
+		write( mmap_meta_fd, buf, strlen( buf ) + 1 );
 	}
 	info( "tree height: %i\n", tree -> height );
 
