@@ -591,7 +591,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 								\
 	fplug = inode_file_plugin(_inode);			\
 	if (fplug->_method != NULL)				\
-		result = fplug->_method( ## __VA_ARGS__);	\
+		result = fplug->_method(__VA_ARGS__);	\
 	else							\
 		result = RETERR(_errcode);			\
 	reiser4_exit_context(&ctx);				\
