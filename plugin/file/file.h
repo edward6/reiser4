@@ -18,10 +18,17 @@ void drop_nonexclusive_access  (struct inode * inode);
 int  tail2extent               (struct inode * inode);
 int  extent2tail               (struct file * file);
 int  unix_file_readpage_nolock (void * file, struct page * page);
-int  find_next_item            (struct file *, const reiser4_key *, coord_t *,
+int  find_next_item            (struct sealed_coord *, reiser4_key *, coord_t *,
 				lock_handle *, znode_lock_mode,
 				__u32 cbk_flags);
+void set_hint                  (struct sealed_coord *, const reiser4_key *,
+				const coord_t *);
+void unset_hint                (struct sealed_coord * hint);
+int  hint_is_set               (const struct sealed_coord * hint);
+int  hint_validate             (struct sealed_coord *,
+				reiser4_key *, coord_t *, lock_handle *);
 int  coord_set_properly        (const reiser4_key * key, coord_t * coord);
+
 
 
 
