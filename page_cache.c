@@ -524,6 +524,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 
 #if REISER4_USE_ENTD
 
+#if 0 /* pages not having jnodes (anonymous pages) can be found in reiser_inode's radix tree of pages */
 static void move_to_anon_page_list(struct page * page)
 {
 	struct address_space * mapping;
@@ -540,6 +541,7 @@ static void move_to_anon_page_list(struct page * page)
 	spin_unlock(&mapping->page_lock);
 	__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 }
+#endif
 
 static int write_page_by_ent (struct page *page)
 {
@@ -553,7 +555,8 @@ static int write_page_by_ent (struct page *page)
 	while (1) {
 		if (page->mapping == NULL || page->mapping->host->i_sb != super)
 			break;
-		move_to_anon_page_list(page);
+		/* FIXME: this is not necessary any more */
+		/*move_to_anon_page_list(page);*/
 		unlock_page(page);
 		wait_for_flush(super);
 		lock_page(page);
@@ -566,7 +569,8 @@ static int write_page_by_ent (struct page *page)
 			reiser4_stat_inc(pcwb.ent_repeat);
 			return -E_REPEAT;
 		}
-		blk_run_queues();
+		/* FIXME: no need for blk_run_queue */
+		/*blk_run_queue();*/
 	}
 	unlock_page(page);
 	return 0;
@@ -595,6 +599,17 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 
 	set_rapid_flush_mode(1);
 
+
+	FIXME: should be turned into assertion?
+	{
+		/* dirty bit is removed already. clear "reiser4 moved" tag as well */
+		unsigned long flags;
+
+		spin_lock_irqsave(&page->mapping->tree_lock, flags);
+		radix_tree_tag_clear(&page->mapping->page_tree, page->index,
+				     PAGECACHE_TAG_REISER4_MOVED);
+		spin_unlock_irqrestore(&page->mapping->tree_lock, flags);
+	}
 
 #if REISER4_USE_ENTD
 	
@@ -818,7 +833,8 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 	from_bytes = ((loff_t)from) << PAGE_CACHE_SHIFT;
 	count_bytes = ((loff_t)count) << PAGE_CACHE_SHIFT;
 
-	invalidate_mmap_range(mapping, from_bytes, count_bytes);
+	/*invalidate_mmap_range(mapping, from_bytes, count_bytes);*/
+	unmap_mapping_range(mapping, from_bytes, count_bytes, 1/*even cows*/);
 	truncate_mapping_pages_range(mapping, from, count);
 	truncate_inode_jnodes_range(mapping->host, from, count);
 } 
