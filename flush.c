@@ -1261,10 +1261,10 @@ static int get_leftmost_child_of_unit (flush_pos_t * pos, jnode ** child)
 	if (ret)
 		return ret;
 
-	if (IS_ERR(child))
-		return PTR_ERR(child);
+	if (IS_ERR(*child))
+		return PTR_ERR(*child);
 
-	if (!child)
+	if (!*child)
 		return -ENOENT;	/* not in cache */
 
 	return 0;
