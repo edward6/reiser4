@@ -295,8 +295,6 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	assert("nikita-728", state->pset->sd != NULL);
 	data.iplug = state->pset->sd;
 
-	DEBUGON(inode->i_ino == 0x178aa);
-
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */
 	if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {

@@ -594,6 +594,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 }
 #endif
 
+#if REISER4_DEBUG
 void
 inode_invariant(const struct inode *inode)
 {
@@ -602,10 +603,10 @@ inode_invariant(const struct inode *inode)
 	assert("nikita-3077", spin_inode_object_is_locked(reiser4_inode_data(inode)));
 	object = reiser4_inode_data(inode);
 	spin_lock(&eflushed_guard);
-	DEBUGON(object->eflushed < 0);
+	assert("nikita-3146", object->eflushed >= 0);
 	spin_unlock(&eflushed_guard);
 }
-
+#endif
 
 /* Make Linus happy.
    Local variables:

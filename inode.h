@@ -164,7 +164,11 @@ extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
 extern reiser4_tree *tree_by_inode(const struct inode *inode);
 
+#if REISER4_DEBUG
 extern void inode_invariant(const struct inode *inode);
+#else
+#define inode_invariant(inode) noop
+#endif
 
 static inline void spin_lock_inode(struct inode *inode)
 {
