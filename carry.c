@@ -793,21 +793,16 @@ lock_carry_level(carry_level * level /* level to lock */ )
 
 */
 static void
-sync_dkeys(carry_node * node /* node to update */ ,
-	   carry_level * doing UNUSED_ARG /* level @node is in */ )
+sync_dkeys(znode *spot /* node to update */)
 {
-	znode *spot;
 	reiser4_key pivot;
 	reiser4_tree *tree;
 
-	assert("nikita-1610", node != NULL);
-	assert("nikita-1611", doing != NULL);
+	assert("nikita-1610", spot != NULL);
 	assert("nikita-1612", lock_counters()->rw_locked_dk == 0);
 
-	tree = znode_get_tree(carry_real(node));
+	tree = znode_get_tree(spot);
 	WLOCK_DK(tree);
-	spot = carry_real(node);
-	RLOCK_TREE(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
 
@@ -819,6 +814,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 
 	znode_set_ld_key(spot, &pivot);
 
+	RLOCK_TREE(tree);
 	/* there can be sequence of empty nodes pending removal on the left of
 	   @spot. Scan them and update their left and right delimiting keys to
 	   match left delimiting key of @spot. Also, update right delimiting
@@ -872,9 +868,16 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 	trace_stamp(TRACE_CARRY);
 
 	if (!failure) {
+		znode *spot;
+
+		spot = NULL;
 		/* update delimiting keys */
-		for_all_nodes(level, node, tmp_node)
-			sync_dkeys(node, level);
+		for_all_nodes(level, node, tmp_node) {
+			if (carry_real(node) != spot) {
+				spot = carry_real(node);
+				sync_dkeys(spot);
+			}
+		}
 	}
 
 	/* nodes can be unlocked in arbitrary order.  In preemptible
