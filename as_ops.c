@@ -99,6 +99,8 @@ static int reiser4_set_page_dirty (struct page * page)
 					inc_page_state(nr_dirty);
 				list_del(&page->list);
 				list_add(&page->list, get_moved_pages(mapping));
+				BUG_ON(PagePrivate(page));
+				assert("nikita-3238", !PagePrivate(page));
 			}			
 			spin_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
@@ -401,11 +403,11 @@ static int capture_anonymous_pages (struct address_space * mapping)
 
 		if (PageWriteback(pg)) {
 			if (PageDirty(pg))
-				list_add(&pg->list, &mapping->dirty_pages);
+				list_move(&pg->list, &mapping->dirty_pages);
 			else
-				list_add(&pg->list, &mapping->locked_pages);
+				list_move(&pg->list, &mapping->locked_pages);
 		} else if (!PageDirty(pg))
-			list_add(&pg->list, &mapping->clean_pages);
+			list_move(&pg->list, &mapping->clean_pages);
 		else {
 			list_move(&pg->list, &mapping->io_pages);
 			page_cache_get (pg);
