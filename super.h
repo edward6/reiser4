@@ -94,6 +94,11 @@ struct reiser4_super_info_data {
 	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
 
+#if REISER4_DEBUG
+	/* minimum used blocks value (includes super blocks, bitmap blocks and
+	 * other fs reserved areas), depends on fs format and fs size. */
+	__u64 min_blocks_used;
+#endif
 	/* amount of free blocks. This is "working" free blocks counter. It is
 	   like "working" bitmap, please see block_alloc.c for description. */
 	__u64 blocks_free;

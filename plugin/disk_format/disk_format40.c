@@ -206,15 +206,6 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	private->plug.t = tail_plugin_by_id(get_format40_tail_policy(sb_copy));
 	assert("umka-751", private->plug.t);
 
-	/* layout 40 uses bitmap based space allocator - the one implemented in
-	   plugin/space/bitmap.[ch] */
-	private->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
-	assert("vs-493", (private->space_plug && private->space_plug->init_allocator));
-	/* init disk space allocator */
-	result = private->space_plug->init_allocator(get_space_allocator(s), s, 0);
-	if (result)
-		return result;
-
 	/* get things necessary to init reiser4_tree */
 	root_block = get_format40_root_block(sb_copy);
 	height = get_format40_tree_height(sb_copy);
@@ -257,9 +248,20 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
 
 #if REISER4_DEBUG
-	/* FIXME-VS: init_tree worked already */
-	/*private->kmalloc_allocated = 0; */
+	private->min_blocks_used = 
+		16 /* reserved area */ + 
+		2 /* super blocks */ + 
+		2 /* journal footer and header */;
 #endif
+
+	/* layout 40 uses bitmap based space allocator - the one implemented in
+	   plugin/space/bitmap.[ch] */
+	private->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
+	assert("vs-493", (private->space_plug && private->space_plug->init_allocator));
+	/* init disk space allocator */
+	result = private->space_plug->init_allocator(get_space_allocator(s), s, 0);
+	if (result)
+		return result;
 
 	result = get_super_jnode(s);
 

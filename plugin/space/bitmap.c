@@ -542,6 +542,10 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 
 	allocator->u.generic = data;
 
+#if REISER4_DEBUG
+	get_super_private(super)->min_blocks_used += bitmap_blocks_nr;
+#endif
+
 	return 0;
 }
 

@@ -102,10 +102,10 @@ extern void all_grabbed2free(void);
 extern void used2grabbed(__u64 count);
 extern void flush_reserved2free_all (void);
 extern void flush_reserved2atom_all_nolock (txn_atom *);
-extern void sub_from_atom_flush_reserved_nolock(txn_atom *, __u32);
 extern void grabbed2flush_reserved_nolock (txn_atom *, __u64);
 extern void grabbed2flush_reserved (__u64);
 extern void flush_reserved2grabbed(txn_atom * atom, __u64 count);
+extern void flush_reserved2used(txn_atom * atom, __u64 count);
 extern int  check_atom_reserved_blocks(struct txn_atom *, __u64);
 extern __u64 reiser4_atom_flush_reserved(void);
 

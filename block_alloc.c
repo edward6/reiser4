@@ -182,7 +182,7 @@ sub_from_sb_used(const struct super_block *super, __u64 count)
 {
 	__u64 used_blocks = reiser4_data_blocks(super);
 
-	assert("zam-530", used_blocks >= count);
+	assert("zam-530", used_blocks >= count + get_super_private(super)->min_blocks_used);
 	used_blocks -= count;
 	reiser4_set_data_blocks(super, used_blocks);
 }
@@ -196,7 +196,7 @@ static void add_to_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
 }
 
 /* Decrease the counter of block reserved for flush in atom. */
-void sub_from_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
+static void sub_from_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
 {
 	assert ("zam-774", atom != NULL);
 	assert ("zam-775", spin_atom_is_locked (atom));
@@ -560,7 +560,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		    	trace_on(TRACE_RESERVE, "get wandered %llu blocks.\n", *len);
 			{
 				txn_atom * atom = get_current_atom_locked ();
-				sub_from_atom_flush_reserved_nolock (atom, *len);
+				flush_reserved2used(atom, *len);
 				spin_unlock_atom (atom);
 			}
 			break;
@@ -719,6 +719,26 @@ void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 	reiser4_spin_unlock_sb (super);	
 }
 
+void flush_reserved2used(txn_atom * atom, __u64 count)
+{
+	struct super_block *super;
+
+	assert("zam-787", atom != NULL);
+	assert("zam-788", spin_atom_is_locked(atom));
+
+	super = reiser4_get_current_sb();
+
+	sub_from_atom_flush_reserved_nolock(atom, count);
+
+	reiser4_spin_lock_sb(super);
+
+	add_to_sb_used(super, count);
+	sub_from_sb_flush_reserved(super, count);
+
+	assert ("zam-789", check_block_counters (super));
+
+	reiser4_spin_unlock_sb (super);	
+}
 
 __u64 reiser4_atom_flush_reserved(void)
 {
