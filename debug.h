@@ -335,7 +335,9 @@ typedef enum {
 
 	TRACE_CAPTURE_COPY = (1 << 26), /* 0x04000000 */
 
-	TRACE_EXTENT_ALLOC = (1 << 27), /* 0x08000000 */
+	TRACE_EXTENT_ALLOC = (1 << 27),      /* 0x08000000 */
+
+	TRACE_CAPTURE_ANONYMOUS = (1 << 28), /* 0x10000000 */
 
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
