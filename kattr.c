@@ -181,7 +181,7 @@ show_atoms(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 			    " objects_deleted: %i objects_created: %i"
 			    " blocks_allocated: %llu queued: %i waiters: %i"
 			    " flushers: %i running_queues: %i"
-			    " flush_reserved: %llu"
+			    " flush_reserved: %llu flushed: %i"
 			    "\n",
 			    atomic_read(&atom->refcount), 
 			    atom->atom_id, 
@@ -197,7 +197,8 @@ show_atoms(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 			    atom->nr_waiters,
 			    atom->nr_flushers,
 			    atom->nr_running_queues,
-			    atom->flush_reserved);
+			    atom->flush_reserved,
+			    atom->flushed);
 		UNLOCK_ATOM(atom);
 	}
 	spin_unlock_txnmgr(tmgr);

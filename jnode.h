@@ -90,6 +90,7 @@ typedef struct {
   
    Invariants involving this data-type:
 
+      [jnode-dirty]
       [jnode-refs]
       [jnode-queued]
 */

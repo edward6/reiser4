@@ -232,6 +232,13 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     (Checked by jnode_invariant_f().)
 
+[jnode-dirty]                                         jnode_lock, tree_lock
+
+    /* dirty inode is part of atom */
+    jnode_is_dirty(node) => node->atom != NULL
+
+    (Checked by jnode_invariant_f().)
+
 [jnode-queued]
 
     /* only relocated node can be queued, except that when znode
