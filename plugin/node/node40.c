@@ -738,10 +738,10 @@ parse_node40(znode * node /* node to parse */ )
 
 	header = node40_node_header((znode *) node);
 	result = -EIO;
-	if (((__u8) znode_get_level(node)) != nh40_get_level(header))
+	if (unlikely(((__u8) znode_get_level(node)) != nh40_get_level(header)))
 		warning("nikita-494", "Wrong level found in node: %i != %i",
 			znode_get_level(node), nh40_get_level(header));
-	else if (nh40_get_magic(header) != REISER4_NODE_MAGIC)
+	else if (unlikely(nh40_get_magic(header) != REISER4_NODE_MAGIC))
 		warning("nikita-495",
 			"Wrong magic in tree node: want %x, got %x", 
 			REISER4_NODE_MAGIC, nh40_get_magic(header));
@@ -749,8 +749,8 @@ parse_node40(znode * node /* node to parse */ )
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
 	}
-	if (result != 0)
-		print_znode("node", node);
+	if (unlikely(result != 0))
+		/* print_znode("node", node)*/;
 	return RETERR(result);
 }
 

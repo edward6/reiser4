@@ -155,6 +155,9 @@ struct reiser4_tree {
 	 * information. */
 	__u64 znode_epoch;
 
+	reiser4_spin_data zgen_lock;
+	unsigned long zgen;
+
 	znode       *uber;
  	node_plugin *nplug;
 	struct super_block *super;
@@ -170,9 +173,11 @@ struct reiser4_tree {
 	} carry;
 };
 
-#define spin_ordering_pred_epoch(cache) (1)
-
+#define spin_ordering_pred_epoch(tree) (1)
 SPIN_LOCK_FUNCTIONS(epoch, reiser4_tree, epoch_lock);
+
+#define spin_ordering_pred_zgen(tree) (1)
+SPIN_LOCK_FUNCTIONS(zgen, reiser4_tree, zgen_lock);
 
 extern void init_tree_0(reiser4_tree *);
 
