@@ -227,9 +227,6 @@ typedef enum {
 
 	/* znode lock is being invalidated */
 	JNODE_IS_DYING = 9,
-	/* jnode of block which has pointer (allocated or unallocated) from
-	   extent or something similar (indirect item, for example) */
-	JNODE_MAPPED = 10,
 
 	JNODE_EFLUSH = 11,
 
@@ -251,8 +248,9 @@ typedef enum {
 	/* write is in progress */
 	JNODE_WRITEBACK = 18,
 
-	/* used in plugin/item/extent.c */
+	/* FIXME: now it is used by crypto-compress plugin only */
 	JNODE_NEW = 19,
+
 	JNODE_DKSET = 20,
 	/* if page was dirtied through mmap, we don't want to lose data, even
 	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
