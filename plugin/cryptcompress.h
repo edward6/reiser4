@@ -14,9 +14,9 @@ typedef enum {
 
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the cluster's data */
-	size_t len;      /* actual size of the data above, this is <= (PAGE_CACHE_SIZE << cluster_shift),
-			    "<" takes place when this structure represents the end of file */
-	loff_t off;      /* offset of the first page */
+	size_t len;      /* size of the processed (i.e compressed,
+			    aligned and encrypted cluster) */
+	unsigned long index;      /* index of the first page */
 	size_t tlen;     /* size of updated buffer to release */
 	reiser4_cluster_status stat;
 } reiser4_cluster_t;
