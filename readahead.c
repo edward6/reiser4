@@ -44,6 +44,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 	znode *cur;
 	int i;
 	int grn_flags;
+	lock_handle next_lh;
 
 	if (blocknr_is_fake(znode_get_block(node)))
 		/*
@@ -75,27 +76,25 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 	i = 0;
 	cur = zref(node);
+	init_lh(&next_lh);
 	while (i < ra_params->max) {
-		lock_handle next_lh;
+		const reiser4_block_nr *nextblk;
 
 		if (!should_readahead_neighbor(cur, info))
 			break;
 
-		init_lh(&next_lh);
 		if (reiser4_get_right_neighbor(&next_lh, cur, ZNODE_READ_LOCK, grn_flags))
 			break;
 
 		if (JF_ISSET(ZJNODE(next_lh.node), JNODE_EFLUSH)) {
 			/* emergency flushed znode is encountered. That means we are low on memory. Do not readahead
 			   then */
-			done_lh(&next_lh);
 			break;
 		}
 
-		assert("vs-1143", !blocknr_is_fake(znode_get_block(next_lh.node)));
-
-		if (ra_adjacent_only(ra_params->flags) && *znode_get_block(next_lh.node) != *znode_get_block(cur) + 1) {
-			done_lh(&next_lh);
+		nextblk = znode_get_block(next_lh.node);
+		if (blocknr_is_fake(nextblk) ||
+		    (ra_adjacent_only(ra_params->flags) && *nextblk != *znode_get_block(cur) + 1)) {
 			break;
 		}
 
@@ -106,6 +105,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 		i ++;
 	}
 	zput(cur);
+	done_lh(&next_lh);
 
 	write_current_tracef("...readahead exits\n");
 }
