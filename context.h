@@ -138,25 +138,24 @@ extern int is_in_reiser4_context(void);
 static inline reiser4_context *
 get_context(const struct task_struct *tsk)
 {
-	if (tsk == NULL) {
-		BUG();
-	}
-
 	return (reiser4_context *) tsk->fs_context;
 }
 
+
+static inline reiser4_context *
+get_current_context_check(void)
+{
+	if (is_in_reiser4_context())
+		return get_context(current);
+	else
+		return NULL;
+}
 
 /* return context associated with current thread */
 static inline reiser4_context *
 get_current_context(void)
 {
-	reiser4_context *context;
-
-	context = get_context(current);
-	if (context != NULL)
-		return context->parent;
-	else
-		return NULL;
+	return get_context(current);
 }
 
 static inline int is_writeout_mode(void)
