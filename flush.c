@@ -28,6 +28,7 @@
 #include "trace.h"
 #include "entd.h"
 #include "reiser4.h"
+#include "prof.h"
 
 #include <asm/atomic.h>
 #include <linux/fs.h>		/* for struct super_block  */

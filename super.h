@@ -13,6 +13,7 @@
 #include "lnode.h"
 #include "entd.h"
 #include "plugin/plugin.h"
+#include "prof.h"
 
 #include "plugin/space/space_allocator.h"
 #include "plugin/oid/oid.h"
@@ -267,7 +268,7 @@ struct reiser4_super_info_data {
 	reiser4_level_stats_kobj level[REAL_MAX_ZTREE_HEIGHT];
 #endif
 #if REISER4_PROF
-	reiser4_prof prof;
+	struct kobject prof_kobj;
 #endif
 #if REISER4_DEBUG
 	/* minimum used blocks value (includes super blocks, bitmap blocks and

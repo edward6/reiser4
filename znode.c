@@ -154,6 +154,7 @@
 #include "tree_walk.h"
 #include "super.h"
 #include "reiser4.h"
+#include "prof.h"
 
 #include <linux/pagemap.h>
 #include <linux/spinlock.h>

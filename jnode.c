@@ -23,6 +23,7 @@
 #include "super.h"
 #include "inode.h"
 #include "page_cache.h"
+#include "prof.h"
 
 #include <asm/uaccess.h>        /* UML needs this for PAGE_OFFSET */
 #include <linux/types.h>

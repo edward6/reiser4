@@ -17,6 +17,7 @@
 #include "trace.h"
 #include "reiser4.h"
 #include "super.h"
+#include "prof.h"
 
 #include <linux/slab.h>
 
