@@ -685,14 +685,15 @@ longterm_unlock_znode(lock_handle * handle)
 		 node->lock.nr_readers);
 
 	/* Handle znode deallocation on last write-lock release. */
-	if (youdie && znode_is_wlocked_once(node)) {
-		forget_znode(handle);
-		assert("nikita-2191", znode_invariant(node));
-		zput(node);
-		return;
+	if (znode_is_wlocked_once(node)) {
+		if (youdie) {
+			forget_znode(handle);
+			assert("nikita-2191", znode_invariant(node));
+			zput(node);
+			return;
+		}
+		ON_DEBUG_MODIFY(znode_post_write(node));
 	}
-
-	ON_DEBUG_MODIFY(znode_post_write(node));
 
 	if (handle->signaled)
 		atomic_dec(&oldowner->nr_signaled);
