@@ -353,6 +353,18 @@ typedef struct crypto_plugin {
 	void (*decrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
 } crypto_plugin;
 
+typedef struct compression_plugin {
+	/* generic fields */
+	plugin_header h;
+	/* working memory size, bytes */
+	unsigned mem_req;
+	/* main text processing procedures */
+	void (*compress) (__u8 *buf, __u8 *src_first, unsigned *src_len,
+			  __u8 *dst_first, unsigned *dst_len);
+	void (*decompress) (__u8 *buf, __u8 *src_first, unsigned *src_len,
+			    __u8 *dst_first, unsigned *dst_len);
+}compression_plugin;
+
 typedef struct sd_ext_plugin {
 	/* generic fields */
 	plugin_header h;
@@ -474,6 +486,8 @@ union reiser4_plugin {
 	hash_plugin hash;
 	/* crypto plugin, used by file plugin */
 	crypto_plugin crypto;
+	/* compression plugin, used by file plugin */
+	compression_plugin compression;
 	/* tail plugin, used by file plugin */
 	tail_plugin tail;
 	/* permission plugin */
@@ -679,6 +693,7 @@ PLUGIN_BY_ID(sd_ext_plugin, REISER4_SD_EXT_PLUGIN_TYPE, sd_ext);
 PLUGIN_BY_ID(perm_plugin, REISER4_PERM_PLUGIN_TYPE, perm);
 PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
 PLUGIN_BY_ID(crypto_plugin, REISER4_CRYPTO_PLUGIN_TYPE, crypto);
+PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
 PLUGIN_BY_ID(tail_plugin, REISER4_TAIL_PLUGIN_TYPE, tail);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE, oid_allocator);
