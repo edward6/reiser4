@@ -6,7 +6,10 @@
 
 #include "reiser4.h"
 
-/* FIXME: Comments are out of date and missing in this file. */
+/* JOSH-FIXME: Comments are out of date and missing in this file. */
+
+/* JMACD-FIXME-HANS: Please describe how you plan to implement a repacker and resizer using this flush code (1-2
+ * paragraphs) */
 
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
@@ -21,6 +24,7 @@ struct flush_scan {
 	unsigned max_size;
 
 	/* Direction: LEFT_SIDE or RIGHT_SIDE. */
+/* JOSH-FIXME-HANS: why LEFT_SIDE and not simply LEFT? */
 	sideof direction;
 
 	/* True if some condition stops the search (e.g., we found a clean
