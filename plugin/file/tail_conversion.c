@@ -667,6 +667,12 @@ extent2tail(struct inode *inode)
 		reiser4_lock_page(page);
 		assert("nikita-2689", page->mapping == inode->i_mapping);
 		if (PagePrivate(page)) {
+			/*
+			 * it is possible that io is underway for this
+			 * page. Wait for io completion. We don't want to
+			 * detach jnode from in-flight page.
+			 */
+			wait_on_page_writeback(page);
 			result = page->mapping->a_ops->invalidatepage(page, 0);
 			if (result) {
 				reiser4_unlock_page(page);
