@@ -269,7 +269,12 @@ emergency_flush(struct page *page)
 
 					result = write_fq(fq, 0);
 					trace_on(TRACE_EFLUSH, "flushed %d blocks\n", result);
-					assert("vs-1141", result > 0);
+					result = 1; /* Even if we wrote nothing,
+						       We unlocked the page, so
+						       let know to the caller
+						       that page should not be
+						       unlocked again */
+
 					fq_put(fq);
 					break;
 				}
