@@ -58,8 +58,11 @@ typedef enum {
 	REISER4_32_BIT_TIMES = 3,
 	/* allow concurrent flushes */
 	REISER4_MTFLUSH = 4,
+	/* disable support for pseudo files. Don't treat regular files as
+	 * directories. */
+	REISER4_NO_PSEUDO = 5,
 	/* load all bitmap blocks at mount time */
-	REISER4_LOAD_BITMAP = 5
+	REISER4_LOAD_BITMAP = 6
 } reiser4_fs_flag;
 
 #if REISER4_STATS
@@ -70,6 +73,16 @@ typedef struct reiser4_level_stats_kobj {
 } reiser4_level_stats_kobj;
 
 #endif
+
+typedef struct object_ops {
+	struct file_operations          file;
+	struct dentry_operations        dentry;
+	struct address_space_operations as;
+
+	struct inode_operations         regular;
+	struct inode_operations         dir;
+	struct inode_operations         symlink;
+} object_ops;
 
 /* reiser4-specific part of super block 
 
@@ -201,12 +214,6 @@ struct reiser4_super_info_data {
 	/* file-system wide flags. See reiser4_fs_flag enum */
 	unsigned long fs_flags;
 
-#if REISER4_STATS
-	/* Statistical counters. reiser4_stat is empty data-type unless
-	   REISER4_STATS is set. */
-	reiser4_stat *stats;
-#endif
-
 	/* transaction manager */
 	txn_mgr tmgr;
 
@@ -257,34 +264,6 @@ struct reiser4_super_info_data {
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
 
-#if REISER4_USE_SYSFS
-	struct kobject kobj;
-#endif
-#if REISER4_STATS
-	struct kobject stats_kobj;
-	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];
-#endif
-#if REISER4_PROF
-	struct kobject prof_kobj;
-#endif
-#if REISER4_DEBUG
-	/* minimum used blocks value (includes super blocks, bitmap blocks and
-	 * other fs reserved areas), depends on fs format and fs size. */
-	__u64 min_blocks_used;
-	/* amount of space allocated by kmalloc. For debugging. */
-	int kmalloc_allocated;
-
-	kcond_t rcu_done;
-
-	spinlock_t all_guard;
-	/* list of all jnodes */
-	struct list_head all_jnodes;
-	atomic_t jnodes_in_flight;
-#endif
-#if REISER4_TRACE_TREE
-	reiser4_block_nr last_touched;
-#endif
-
 	ra_params_t ra_params;
 
 	/* A semaphore for serializing cut tree operation if out-of-free-space: the only
@@ -301,9 +280,43 @@ struct reiser4_super_info_data {
 
 	/* What to do in case of error */
 	int onerror;
+
+	/* operations for objects on this file system */
+	object_ops ops;
+#if REISER4_USE_SYSFS
+	struct kobject kobj;
+#endif
+#if REISER4_STATS
+	/* Statistical counters. reiser4_stat is empty data-type unless
+	   REISER4_STATS is set. */
+	reiser4_stat *stats;
+	struct kobject stats_kobj;
+	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];
+#endif
+#if REISER4_PROF
+	struct kobject prof_kobj;
+#endif
+
 #ifdef CONFIG_REISER4_BADBLOCKS
 	/* Alternative master superblock offset (in bytes) */
 	unsigned long altsuper;
+#endif
+#if REISER4_TRACE_TREE
+	reiser4_block_nr last_touched;
+#endif
+#if REISER4_DEBUG
+	/* minimum used blocks value (includes super blocks, bitmap blocks and
+	 * other fs reserved areas), depends on fs format and fs size. */
+	__u64 min_blocks_used;
+	/* amount of space allocated by kmalloc. For debugging. */
+	int kmalloc_allocated;
+
+	kcond_t rcu_done;
+
+	spinlock_t all_guard;
+	/* list of all jnodes */
+	struct list_head all_jnodes;
+	atomic_t jnodes_in_flight;
 #endif
 };
 
@@ -348,6 +361,8 @@ get_current_super_ra_params(void)
 }
 
 extern __u64 reiser4_current_block_count(void);
+
+extern void build_object_ops(struct super_block *super, object_ops *ops);
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
