@@ -896,7 +896,7 @@ unix_file_writepage_nolock(struct page *page)
 	return result;
 }
 
-/* plugin->u.file.writepage this does not start i/o against this page. It just must garantee that tree has a pointer to
+/* plugin->u.file.capture this does not start i/o against this page. It just must garantee that tree has a pointer to
    this page. This is called for pages which were dirtied via mmap-ing by reiser4_writepages */
 static int
 capture_unix_file_page(struct page *page)

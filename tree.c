@@ -712,7 +712,7 @@ forget_znode(lock_handle * handle)
 		{
 			txn_atom * atom ;
 
-			atom = atom_locked_by_jnode(ZJNODE(node));
+			atom = jnode_get_atom(ZJNODE(node));
 			assert("zam-939", atom != NULL);
 			spin_unlock_znode(node);
 			flush_reserved2grabbed(atom, (__u64)1);
@@ -751,7 +751,7 @@ forget_znode(lock_handle * handle)
 
 		/* handle "flush queued" znodes */
 		while (1) {
-			atom = atom_locked_by_jnode(ZJNODE(node));
+			atom = jnode_get_atom(ZJNODE(node));
 			assert("zam-943", atom != NULL);
 
 			if (!ZF_ISSET(node, JNODE_FLUSH_QUEUED) || !atom->nr_running_queues)

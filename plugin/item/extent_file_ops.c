@@ -601,12 +601,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
 		set_hint_unlock_node(hint, flow, ZNODE_WRITE_LOCK);
 
-		/*
-		 * FIXME: try iozone -a -B -G -K
-		 */
 		fault_in_pages_readable(flow->data - count, count);
 
-		/* */
 		page = jnode_get_page_locked(j, GFP_KERNEL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);

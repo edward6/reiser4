@@ -551,7 +551,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 		 * want to handle such jnodes specially.
 		 */
 		phantom = !jnode_is_dirty(node);
-		atom = atom_locked_by_jnode(node);
+		atom = jnode_get_atom(node);
 		if (atom != NULL) {
 			if (!(atom->flags & ATOM_FORCE_COMMIT)) {
 				atom->flags |= ATOM_FORCE_COMMIT;

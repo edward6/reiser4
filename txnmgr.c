@@ -533,7 +533,7 @@ txn_end(reiser4_context * context)
    is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
    return NULL. */
 reiser4_internal txn_atom *
-atom_locked_by_txnh_nocheck(txn_handle * txnh)
+txnh_get_atom(txn_handle * txnh)
 {
 	txn_atom *atom;
 
@@ -582,7 +582,7 @@ get_current_atom_locked_nocheck(void)
 	txnh = cx->trans;
 	assert("zam-435", txnh != NULL);
 
-	atom = atom_locked_by_txnh_nocheck(txnh);
+	atom = txnh_get_atom(txnh);
 
 	UNLOCK_TXNH(txnh);
 	return atom;
@@ -593,7 +593,7 @@ get_current_atom_locked_nocheck(void)
    break the lock-ordering cycle.  Assumes the jnode is already locked, and
    returns NULL if atom is not set. */
 reiser4_internal txn_atom *
-atom_locked_by_jnode(jnode * node)
+jnode_get_atom(jnode * node)
 {
 	txn_atom *atom;
 
@@ -667,7 +667,7 @@ same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 	   different objects, but the atom is the same.*/
 	LOCK_JNODE(check);
 
-	atom = atom_locked_by_jnode(check);
+	atom = jnode_get_atom(check);
 
 	if (atom == NULL) {
 		compat = 0;
@@ -1289,7 +1289,7 @@ reiser4_internal int txnmgr_force_commit_current_atom (void)
 	txn_handle * txnh = get_current_context()->trans;
 	txn_atom * atom;
 
-	atom = atom_locked_by_txnh_nocheck(txnh);
+	atom = txnh_get_atom(txnh);
 
 	if (atom == NULL) {
 		UNLOCK_TXNH(txnh);
@@ -1629,7 +1629,6 @@ typedef struct commit_data {
 	int          failed;
 } commit_data;
 
-
 /*
  * Called from commit_txnh() repeatedly, until either error happens, or atom
  * commits successfully.
@@ -1642,7 +1641,8 @@ try_commit_txnh(commit_data *cd)
 	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
 
 	/* Get the atom and txnh locked. */
-	cd->atom = atom_locked_by_txnh(cd->txnh);
+	cd->atom = txnh_get_atom(cd->txnh);
+	assert("jmacd-309", cd->atom != NULL);
 	UNLOCK_TXNH(cd->txnh);
 
 	if (cd->wait) {
@@ -2318,7 +2318,7 @@ reiser4_internal int uncapture_inode(struct inode *inode)
 
 	inode->i_state &= ~I_CAPTURED;
 	assert("vs-1244", !jnode_is_dirty(j));
-	atom = atom_locked_by_jnode(j);
+	atom = jnode_get_atom(j);
 	if (atom == NULL) {
 		UNLOCK_JNODE (j);
 		return 0;
@@ -2366,7 +2366,7 @@ uncapture_page(struct page *pg)
 	eflush_del(node, 1/* page is locked */);
 	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));*/
 
-	atom = atom_locked_by_jnode(node);
+	atom = jnode_get_atom(node);
 
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
@@ -2404,7 +2404,7 @@ uncapture_page(struct page *pg)
 		LOCK_JNODE(node);
 		eflush_del(node, 1);
 		page_cache_release(pg);
-		atom = atom_locked_by_jnode(node);
+		atom = jnode_get_atom(node);
 /* VS-FIXME-HANS: improve the commenting in this function */
 		if (atom == NULL) {
 			UNLOCK_JNODE(node);
@@ -2427,7 +2427,7 @@ uncapture_jnode(jnode *node)
 
 	eflush_del(node, 0);
 	/*jnode_make_clean(node);*/
-	atom = atom_locked_by_jnode(node);
+	atom = jnode_get_atom(node);
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
 		UNLOCK_JNODE (node);
@@ -2600,10 +2600,10 @@ jnode_make_dirty_locked(jnode * node)
 	if (!jnode_is_dirty(node)) {
 		txn_atom * atom;
 
-		atom = atom_locked_by_jnode (node);
+		atom = jnode_get_atom (node);
 		assert("vs-1094", atom);
 		/* Check jnode dirty status again because node spin lock might
-		 * be released inside atom_locked_by_jnode(). */
+		 * be released inside jnode_get_atom(). */
 		if (likely(!jnode_is_dirty(node)))
 			do_jnode_make_dirty(node, atom);
 		UNLOCK_ATOM (atom);
@@ -2668,7 +2668,7 @@ jnode_make_clean(jnode * node)
 
 	LOCK_JNODE(node);
 
-	atom = atom_locked_by_jnode(node);
+	atom = jnode_get_atom(node);
 
 	if (jnode_is_dirty(node)) {
 
@@ -2729,7 +2729,7 @@ reiser4_internal void jnode_make_wander (jnode * node)
 	txn_atom * atom;
 
 	LOCK_JNODE(node);
-	atom = atom_locked_by_jnode(node);
+	atom = jnode_get_atom(node);
 	assert ("zam-913", atom != NULL);
 	assert ("zam-914", !JF_ISSET(node, JNODE_RELOC));
 
@@ -2747,7 +2747,7 @@ reiser4_internal void znode_make_reloc (znode *z, flush_queue_t * fq)
 	node = ZJNODE(z);
 	LOCK_JNODE(node);
 
-	atom = atom_locked_by_jnode(node);
+	atom = jnode_get_atom(node);
 
 	assert ("zam-919", atom != NULL);
 	assert ("zam-916", jnode_is_dirty(node));
@@ -3454,7 +3454,7 @@ protected_jnodes_done(protected_jnodes *list)
 
 /* copy on capture steals jnode (J) from capture list. It may replace (J) with
    special newly created jnode (CCJ) to which J's page gets attached. J in its
-   turn gets newly created copy of page. 
+   turn gets newly created copy of page.
    Or, it may merely take J from capture list if J was never dirtied
 
    The problem with this replacement is that capture lists are being contiguously

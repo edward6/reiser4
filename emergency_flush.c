@@ -580,7 +580,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	UNLOCK_JLOAD(node);
 
 	/*
-	 * atom_locked_by_jnode() can possible release jnode spin lock. This
+	 * jnode_get_atom() can possible release jnode spin lock. This
 	 * means it can only be called _after_ JNODE_EFLUSH is set, because
 	 * otherwise we would have to re-check flushable() once more. No
 	 * thanks.
@@ -589,7 +589,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	if (ef->hadatom) {
 		txn_atom *atom;
 
-		atom = atom_locked_by_jnode(node);
+		atom = jnode_get_atom(node);
 		if (atom != NULL) {
 			++ atom->flushed;
 			ef->incatom = 1;
@@ -695,7 +695,7 @@ eflush_del(jnode *node, int page_locked)
 		spin_unlock_eflush(tree->super);
 
 		if (ef->incatom) {
-			atom = atom_locked_by_jnode(node);
+			atom = jnode_get_atom(node);
 			assert("nikita-3311", atom != NULL);
 			-- atom->flushed;
 			UNLOCK_ATOM(atom);
@@ -796,7 +796,7 @@ static int ef_free_block_with_stage(jnode *node,
 			/* further, transfer block from grabbed into flush
 			 * reserved space. */
 			LOCK_JNODE(node);
-			atom = atom_locked_by_jnode(node);
+			atom = jnode_get_atom(node);
 			assert("nikita-2785", atom != NULL);
 			grabbed2flush_reserved_nolock(atom, 1);
 			UNLOCK_ATOM(atom);
@@ -844,7 +844,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 			/* We cannot just ask block allocator to take block from
 			 * flush reserved space, because there is no current
 			 * atom at this point. */
-			atom = atom_locked_by_jnode(node);
+			atom = jnode_get_atom(node);
 			if (atom != NULL) {
 				flush_reserved2grabbed(atom, 1);
 				UNLOCK_ATOM(atom);

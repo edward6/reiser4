@@ -231,7 +231,7 @@ typedef enum {
 
    (core of this is implemented in trylock_throttle() function)
 
-   See the atom_locked_by_jnode() function for a common case.
+   See the jnode_get_atom() function for a common case.
 
    As an additional (and important) optimization allowing to avoid restarts,
    it is possible to re-check required pre-conditions at the HERE point in
@@ -475,7 +475,7 @@ extern void uncapture_jnode(jnode *);
 extern int capture_inode(struct inode *);
 extern int uncapture_inode(struct inode *);
 
-extern txn_atom *atom_locked_by_txnh_nocheck(txn_handle * txnh);
+extern txn_atom *txnh_get_atom(txn_handle * txnh);
 extern txn_atom *get_current_atom_locked_nocheck(void);
 
 #define atom_is_protected(atom) (spin_atom_is_locked(atom) || (atom)->stage >= ASTAGE_PRE_COMMIT)
@@ -492,19 +492,7 @@ get_current_atom_locked(void)
 	return atom;
 }
 
- /* Same as atom_locked_by_txnh_nocheck, by may not return NULL */
-static inline txn_atom *
-atom_locked_by_txnh(txn_handle * txnh)
-{
-	txn_atom *atom;
-
-	atom = atom_locked_by_txnh_nocheck(txnh);
-
-	assert("jmacd-309", atom != NULL);
-	return atom;
-}
-
-extern txn_atom *atom_locked_by_jnode(jnode *);
+extern txn_atom *jnode_get_atom(jnode *);
 
 extern void atom_wait_event(txn_atom *);
 extern void atom_send_event(txn_atom *);

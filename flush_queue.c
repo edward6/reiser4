@@ -60,7 +60,7 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 reiser4_internal txn_atom *
 atom_get_locked_by_fq(flush_queue_t * fq)
 {
-	/* This code is similar to atom_locked_by_jnode(), look at it for the
+	/* This code is similar to jnode_get_atom(), look at it for the
 	 * explanation. */
 	txn_atom *atom;
 
@@ -653,7 +653,7 @@ reiser4_internal int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 
 	while (1) {
 		/* begin with taking lock on atom */
-		atom = atom_locked_by_jnode(node);
+		atom = jnode_get_atom(node);
 		UNLOCK_JNODE(node);
 
 		if (atom == NULL) {

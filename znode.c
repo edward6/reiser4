@@ -480,7 +480,11 @@ znode_get_htable(const znode *node)
    LOCK ORDERING: NONE
 */
 reiser4_internal znode *
-zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
+zget(reiser4_tree * tree,
+     const reiser4_block_nr * const blocknr,
+     znode * parent,
+     tree_level level,
+     int gfp_flag)
 {
 	znode *result;
 	__u32 hashi;
