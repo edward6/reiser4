@@ -1243,7 +1243,9 @@ reiser4_put_super(struct super_block *s)
 	assert("vs-1699", sbinfo);
 
 	init_context(&context, s);
+#if defined(REISER4_REPACKER)
 	done_reiser4_repacker(s);
+#endif /* REISER4_REPACKER */
 	stop_ktxnmgrd(&sbinfo->tmgr);
 	reiser4_sysfs_done(s);
 
