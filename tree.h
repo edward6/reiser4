@@ -104,7 +104,9 @@ struct reiser4_tree {
 	cbk_cache           *cbk_cache;
 
 	/** hash table to look up znodes by block number. */
-	z_hash_table         hash_table;
+	z_hash_table         zhash_table;
+	/** hash table to look up jnodes by inode and offset. */
+	j_hash_table         jhash_table;
 	__u64                znode_epoch;
 
 	/** lock protecting:

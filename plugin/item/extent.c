@@ -1314,6 +1314,8 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 		}
 
 		*childp = jnode_of_page (pg);
+		if (IS_ERR(*childp))
+			*childp = NULL;
 
 		page_cache_release (pg);
 		iput (inode);
@@ -2174,8 +2176,8 @@ int extent_readpage (void * vp, struct page * page)
 		current_blocksize_bits;
 
 	j = jnode_of_page (page);
-	if (!j)
-		return -ENOMEM;
+	if (IS_ERR(j))
+		return PTR_ERR(j);
 
 	if (state_of_extent (ext) == ALLOCATED_EXTENT) {
 		block = extent_get_start (ext) + pos_in_extent;
@@ -2670,8 +2672,8 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		assert ("vs-350", page->private != 0);
 
 		j = jnode_of_page (page);
-		if (! j) {
-			ret = -ENOMEM;
+		if (IS_ERR(j)) {
+			ret = PTR_ERR(j);
 			break;
 		}
 		jnode_set_block (j, &first);
@@ -2780,7 +2782,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			j = jnode_of_page (pg);
 			page_cache_release (pg);
 
-			if (j == NULL) {
+			if (IS_ERR(j)) {
 				all_dirty = 0;
 				break;
 			}
@@ -2818,7 +2820,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			j = jnode_of_page (pg);
 			page_cache_release (pg);
 
-			if (j == NULL) {
+			if (IS_ERR(j)) {
 				assert ("jmacd-71890", relocate == 0);
 				continue;
 			}

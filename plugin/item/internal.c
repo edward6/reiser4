@@ -233,7 +233,7 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 
 		ZF_CLR( child, ZNODE_ORPHAN );
 
-		trace_on( TRACE_ZWEB, "create: %lli: %i [%lli]\n",
+		trace_on( TRACE_ZWEB, "create: %llx: %i [%llx]\n",
 			  *znode_get_block( item -> node ),
 			  atomic_read( &item -> node -> c_count ),
 			  *znode_get_block( child ) );
@@ -287,7 +287,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		coord_init_zero( &child -> ptr_in_parent_hint );
 		spin_unlock_tree( current_tree );
 		del_c_ref( item -> node );
-		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",
+		trace_on( TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
 			  *znode_get_block( item -> node ),
 			  atomic_read( &item -> node -> c_count ),
 			  *znode_get_block( child ) );
@@ -347,7 +347,7 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 		del_c_ref( old_node );
 		spin_unlock_tree( tree );
 		zput( child );
-		trace_on( TRACE_ZWEB, "shift: %lli: %i -> %lli: %i [%lli]\n",
+		trace_on( TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
 			  *znode_get_block( old_node ), 
 			  atomic_read( &old_node -> c_count ),
 			  *znode_get_block( new_node ), 

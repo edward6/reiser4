@@ -9,6 +9,20 @@
 #ifndef __JNODE_H__
 #define __JNODE_H__
 
+/** 
+ * declare hash table of jnodes (jnodes proper, that is, unformatted
+ * nodes) 
+ */
+TS_HASH_DECLARE(j, jnode);
+
+/** declare hash table of znodes */
+TS_HASH_DECLARE(z, znode);
+
+typedef struct {
+	struct address_space *mapping;
+	unsigned long         index;
+} jnode_key_t;
+
 struct jnode
 {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
@@ -30,19 +44,26 @@ struct jnode
 	 */
 	atomic_t               x_count;
 
-	/* the real blocknr (as far as the parent node is concerned) */
+	/** the real blocknr (as far as the parent node is concerned) */
 	reiser4_block_nr blocknr;
+
+	/** inode plus offset for unformatted page */
+	jnode_key_t key;
 
 	/* 
 	 * pointer to jnode page. 
 	 *
 	 * FIXME-NIKITA: Page itself is not enough in a case where block size
 	 * is smaller than page size. For initial version we are going to
-	 * force blocksize == PAGE_CACHE_SIZE. Later, when and if support for
-	 * different block sizes will be added, some bits can be stolen from
-	 * ->level to store number of block within page.
+	 * force blocksize == PAGE_CACHE_SIZE. 
 	 */
 	struct page *pg;
+
+	union {
+		/** pointers to maintain hash-table */
+		z_hash_link    z;
+		j_hash_link    j;
+	} link;
 
 	/* atom the block is in, if any */
 	txn_atom    *atom;
@@ -187,11 +208,16 @@ extern int znode_check_allocated (znode *node);
 })
 
 
+extern int jnodes_tree_init( reiser4_tree *tree );
+extern int jnodes_tree_done( reiser4_tree *tree );
+
 #if REISER4_DEBUG
-extern int znode_is_any_locked( const znode *node );
-void info_jnode( const char *prefix, const jnode *node );
+extern int  znode_is_any_locked( const znode *node );
+extern void info_jnode( const char *prefix, const jnode *node );
+extern void print_jnodes( const char *prefix, reiser4_tree *tree );
 #else
 #define info_jnode( p, n ) noop
+#define print_jnodes( p, t ) noop
 #endif
 
 extern int znode_is_root( const znode *node );
@@ -319,7 +345,7 @@ static inline int jload (jnode * node)
 	return ret;
 }
 
-extern int  jdrop             (jnode* node);
+extern void jdrop             (jnode* node);
 extern int  jwait_io          (jnode* node, int rw);
 
 extern void jrelse_nolock     (jnode* node);

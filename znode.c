@@ -183,7 +183,8 @@ static inline __u32 blknrhashfn( const reiser4_block_nr *b )
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE( z, znode, reiser4_block_nr, zjnode.blocknr, link, blknrhashfn, blknreq );
+TS_HASH_DEFINE( z, znode, reiser4_block_nr, 
+		zjnode.blocknr, zjnode.link.z, blknrhashfn, blknreq );
 #undef KFREE
 #undef KMALLOC
 
@@ -225,7 +226,8 @@ int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 	spin_lock_init( & tree -> tree_lock );
 	spin_lock_init( & tree -> dk_lock );
 
-	return z_hash_init( &tree -> hash_table, REISER4_ZNODE_HASH_TABLE_SIZE );
+	return z_hash_init( &tree -> zhash_table, 
+			    REISER4_ZNODE_HASH_TABLE_SIZE );
 }
 
 /** free this znode */
@@ -275,8 +277,8 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	do {
 		parents = 0;
 		ON_DEBUG( killed = 0 );
-		for_all_ht_buckets( &tree -> hash_table, bucket ) {
-			for_all_in_bucket( bucket, node, next, link ) {
+		for_all_ht_buckets( &tree -> zhash_table, bucket ) {
+			for_all_in_bucket( bucket, node, next, zjnode.link.z ) {
 				if( atomic_read( &node -> c_count ) != 0 ) {
 					++ parents;
 					continue;
@@ -297,7 +299,7 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 
 	spin_unlock_tree( tree );
 
-	z_hash_done( &tree -> hash_table );
+	z_hash_done( &tree -> zhash_table );
 }
 
 /****************************************************************************************
@@ -365,7 +367,7 @@ static void znode_remove( znode *node /* znode to remove */ )
 	}
 
 	/* remove znode from hash-table */
-	z_hash_remove( & current_tree -> hash_table, node );
+	z_hash_remove( & current_tree -> zhash_table, node );
 }
 
 static int znode_lock_remove( reiser4_tree *tree, znode *node )
@@ -442,10 +444,13 @@ void zdrop( reiser4_tree *tree /* tree to remove znode from */,
 	assert( "nikita-2154", tree != NULL );
 	ON_SMP( assert( "nikita-2128", spin_tree_is_locked( tree ) ) );
 
-	if( atomic_read( &ZJNODE(node) -> x_count ) > 0 )
+	if( atomic_read( &ZJNODE( node ) -> x_count ) > 0 )
 		return;
 
-	/* FIXME: JMACD->NIKITA: Why not znode_lock_remove here? */
+	/*
+	 * this is called with tree spin-lock held, so call znode_remove()
+	 * directly (rather than znode_lock_remove()).
+	 */
 	znode_remove( node );
 
 	assert( "nikita-2155", tree -> ops -> drop_node != NULL );
@@ -471,7 +476,7 @@ int znode_rehash( znode *node /* node to rehash */,
 	assert( "nikita-2018", node != NULL );
 	assert( "umka-052", current_tree != NULL );
 
-	htable  = &current_tree -> hash_table;
+	htable  = &current_tree -> zhash_table;
 
 	spin_lock_tree( current_tree );
 	/* remove znode from hash-table */
@@ -513,7 +518,7 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 	/* Precondition for call to zlook_internal: locked hash table */
 	spin_lock_tree (tree);
 
-	result = z_hash_find_index (& tree->hash_table, blknrhashfn (blocknr), blocknr);
+	result = z_hash_find_index (& tree->zhash_table, blknrhashfn (blocknr), blocknr);
 
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
@@ -569,6 +574,8 @@ zget (reiser4_tree *tree,
 	znode *shadow;
 	__u32  hashi;
 
+	z_hash_table *zth;
+
 	trace_stamp (TRACE_ZNODES);
 
 	assert ("jmacd-512", tree    != NULL);
@@ -577,6 +584,7 @@ zget (reiser4_tree *tree,
 
 	hashi = blknrhashfn (blocknr);
 
+	zth = & tree->zhash_table;
 	/* Take the hash table lock. */
 	spin_lock_tree (tree);
 
@@ -594,7 +602,7 @@ zget (reiser4_tree *tree,
 		 * found, we obtain an reference (x_count) but the znode
 		 * remains * unlocked.  Have to worry about race conditions
 		 * later. */
-		result = z_hash_find_index (& tree->hash_table, hashi, blocknr);
+		result = z_hash_find_index (zth, hashi, blocknr);
 	}
 
 	/* According to the current design, the hash table lock protects new znode
@@ -653,7 +661,7 @@ zget (reiser4_tree *tree,
 		/* Repeat search in case of a race, first take the hash table lock. */
 		spin_lock_tree (tree);
 
-		shadow = z_hash_find_index (& tree->hash_table, hashi, blocknr);
+		shadow = z_hash_find_index (zth, hashi, blocknr);
 
 		if (shadow != NULL) {
 
@@ -666,7 +674,7 @@ zget (reiser4_tree *tree,
 		}
 		
 		/* Insert it into hash: no race. */
-		z_hash_insert_index (& tree->hash_table, hashi, result);
+		z_hash_insert_index (zth, hashi, result);
 
 		/* Has to be done under tree lock, because it protects parent
 		 * pointer. */
@@ -1295,10 +1303,10 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	 * want here, but it is passable.
 	 */
 	tree_lock_taken = spin_trylock_tree( tree );
-	htable = &tree -> hash_table;
+	htable = &tree -> zhash_table;
 
 	for_all_ht_buckets( htable, bucket ) {
-		for_all_in_bucket( bucket, node, next, link )
+		for_all_in_bucket( bucket, node, next, zjnode.link.z )
 			info_znode( prefix, node );
 	}
 	if( tree_lock_taken )

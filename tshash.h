@@ -104,7 +104,8 @@ PREFIX##_hash_init (PREFIX##_hash_table *hash,                                  
 static __inline__ void                                                                        \
 PREFIX##_hash_done (PREFIX##_hash_table *hash)                                                \
 {                                                                                             \
-  KFREE (hash->_table, sizeof (ITEM_TYPE*) * hash->_buckets);                                 \
+  if (hash->_table != NULL)                                                                   \
+    KFREE (hash->_table, sizeof (ITEM_TYPE*) * hash->_buckets);                               \
   hash->_table = NULL;                                                                        \
 }                                                                                             \
                                                                                               \

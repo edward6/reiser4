@@ -47,6 +47,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /** size of hash-table for znodes */
 #define REISER4_ZNODE_HASH_TABLE_SIZE (8192)
 
+/** size of hash-table for jnodes */
+#define REISER4_JNODE_HASH_TABLE_SIZE (8192)
+
 /** number of buckets in lnode hash-table */
 #define LNODE_HTABLE_BUCKETS (1024)
 

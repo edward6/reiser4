@@ -9,9 +9,6 @@
 #ifndef __ZNODE_H__
 #define __ZNODE_H__
 
-/** declare hash table of znodes */
-TS_HASH_DECLARE(z, znode);
-
 /* per-znode lock requests queue; list items are lock owner objects
    which want to lock given znode */
 TS_LIST_DECLARE(requestors);
@@ -177,9 +174,6 @@ struct znode {
 	 * reference addition/drop.
 	 */
 	atomic_t               c_count;
-
-	/** pointers to maintain hash-table */
-	z_hash_link            link;
 
 	/** plugin of node attached to this znode. NULL if znode is not
 	    loaded. */

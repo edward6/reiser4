@@ -304,7 +304,6 @@ static void dealloc_tx_list (capture_list_head * tx_list)
 		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
 		jdrop (cur);
-		jfree (cur);
 	}
 }
 
@@ -936,7 +935,7 @@ static int replay_transaction (const struct super_block * s,
 		if (ret < 0) { jfree(log); return ret; }
 
 		ret= check_log_record(log);
-		if (ret) { jrelse(log); jdrop(log); jfree(log); return ret; }
+		if (ret) { jrelse(log); jdrop(log); return ret; }
 
 		LH = (struct log_record_header *)jdata(log);
 		log_rec_block = d64tocpu(&LH->next_block);
@@ -973,7 +972,7 @@ static int replay_transaction (const struct super_block * s,
 		jrelse(log);
 		jdrop(log);
 		/* FIXME: JMACD->ZAM: Can you explain why jdrop is not followed by jfree here? */
-
+		/* FIXME:NIKITA->ZAM now jdrop() calls jfree() internally */
 		-- nr_log_records;
 	}
 
@@ -1002,7 +1001,6 @@ static int replay_transaction (const struct super_block * s,
 		jnode * cur = capture_list_pop_front(&overwrite);
 		jrelse(cur);
 		jdrop(cur);
-		jfree(cur);
 	}
 
 	return ret;
@@ -1053,7 +1051,7 @@ static int replay_oldest_transaction(struct super_block * s)
 		if (ret < 0 ) { jfree (tx_head); return ret;}
 
 		ret = check_tx_head(tx_head);
-		if (ret) { jrelse(tx_head); jdrop(tx_head); jfree(tx_head); return ret; }
+		if (ret) { jrelse(tx_head); jdrop(tx_head); return ret; }
 
 		T = (struct tx_header*)jdata(tx_head);
 
@@ -1070,6 +1068,7 @@ static int replay_oldest_transaction(struct super_block * s)
 		jrelse(tx_head);
 		jdrop(tx_head);
 		/* FIXME: JMACD->ZAM: Can you explain why jdrop is not followed by jfree here? */
+		/* FIXME:NIKITA->ZAM now jdrop() calls jfree() internally */
 	}
 
 	total = d32tocpu(&T->total);
@@ -1085,7 +1084,6 @@ static int replay_oldest_transaction(struct super_block * s)
 
 	jput(tx_head);
 	jdrop(tx_head);
-	jfree(tx_head);
 
 	if (ret) return ret;
 	return -EAGAIN;

@@ -1235,8 +1235,8 @@ txn_try_capture_page  (struct page        *pg,
        
 	assert("umka-292", pg != NULL);
 	
-	if ((node = jnode_of_page (pg)) == NULL) {
-		return -ENOMEM;
+	if ( IS_ERR(node = jnode_of_page (pg))) {
+		return PTR_ERR(node);
 	}
 	
 	spin_lock_jnode (node);

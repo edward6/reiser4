@@ -374,7 +374,6 @@ static void invalidate_jnode(jnode * node)
 		spin_unlock_jnode(node);
 
 		jdrop(node);
-		jfree(node);
 	}
 }
 

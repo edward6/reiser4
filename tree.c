@@ -1519,8 +1519,6 @@ void init_tree_ops( reiser4_tree *tree,
 	assert( "nikita-1099", tops -> read_node != NULL );
 	assert( "nikita-2043", super != NULL );
 
-	xmemset( tree, 0, sizeof (*tree));
-
 	tree->super = super;
 	tree->ops = tops;
 }
@@ -1533,6 +1531,8 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	       tree_level height /* height of a tree */, 
 	       node_plugin *nplug /* default node plugin */ )
 {
+	int result;
+
 	assert( "nikita-306", tree != NULL );
 	assert( "nikita-307", root_block != NULL );
 	assert( "nikita-308", height > 0 );
@@ -1549,7 +1549,10 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	cbk_cache_init( tree -> cbk_cache );
 	tree -> znode_epoch = 1ull;
 
-	return znodes_tree_init( tree );
+	result = znodes_tree_init( tree );
+	if( result == 0 )
+		result = jnodes_tree_init( tree );
+	return result;
 }
 
 
@@ -1559,6 +1562,7 @@ void done_tree( reiser4_tree *tree /* tree to release */ )
 	assert( "nikita-311", tree != NULL );
 
 	znodes_tree_done( tree );
+	jnodes_tree_done( tree );
 
 	if( tree -> cbk_cache != NULL )
 		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
@@ -1656,7 +1660,7 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 	 * print_tree_rec() could be called late during umount, when znode
 	 * hash table is already destroyed. Check for this.
 	 */
-	if( tree -> hash_table._table == NULL )
+	if( tree -> zhash_table._table == NULL )
 		return;
 
 	if( !( flags & REISER4_NODE_SILENT ) )

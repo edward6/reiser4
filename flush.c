@@ -2261,8 +2261,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 			page_cache_release (pg);
 
-			if (neighbor == NULL) {
-				ret = -ENOMEM;
+			if (IS_ERR(neighbor)) {
+				ret = PTR_ERR(neighbor);
 				goto exit;
 			}
 
@@ -2294,8 +2294,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		page_cache_release (pg);
 
-		if (neighbor == NULL) {
-			ret = -ENOMEM;
+		if (IS_ERR(neighbor)) {
+			ret = PTR_ERR(neighbor);
 			goto exit;
 		}
 

@@ -107,7 +107,6 @@ static void unload_journal_control_block (jnode ** node)
 	if (*node) {
 		jput(*node);
 		jdrop(*node);
-		jfree(*node);
 		*node = NULL;
 	}
 }
@@ -183,7 +182,6 @@ static void done_super_jnode (struct super_block * s)
 	if (sb_jnode) {
 		jput (sb_jnode);
 		jdrop(sb_jnode);
-		jfree (sb_jnode);
 	}
 }
 
