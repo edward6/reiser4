@@ -302,6 +302,7 @@ static void dealloc_tx_list (capture_list_head * tx_list)
 
 		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
+		jnode_detach_page (cur);
 		jfree (cur);
 	}
 }
@@ -390,11 +391,22 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 
 					if (IS_ERR(sbj)) return PTR_ERR(sbj);
 
+					spin_lock_jnode (sbj);
+
 					JF_SET(sbj, ZNODE_WANDER);
 					capture_list_push_front (overwrite_list, sbj);
 					sbj->atom = atom;
+					jref(sbj);
 
-					zput(cur);
+					spin_unlock_jnode(sbj);
+
+					spin_lock_jnode(cur);
+
+					jput(cur);
+					cur->atom = NULL;
+					JF_CLR(cur, ZNODE_WANDER);
+
+					spin_unlock_jnode(cur);
 
 					set_size ++;
 				}
