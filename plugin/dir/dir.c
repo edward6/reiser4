@@ -521,6 +521,14 @@ is_name_acceptable(const struct inode *inode /* directory to check */ ,
 	return len <= reiser4_max_filename_len(inode);
 }
 
+static int
+is_valid_dir_coord(struct inode * inode, coord_t * coord)
+{
+	return 
+		item_type_by_coord(coord) == DIR_ENTRY_ITEM_TYPE &&
+		inode_file_plugin(inode)->owns_item(inode, coord);
+}
+
 /* actor function looking for any entry different from dot or dotdot. */
 static int
 is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
@@ -530,7 +538,6 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 	       void *arg /* readdir arguments */ )
 {
 	struct inode *dir;
-	file_plugin *fplug;
 	item_plugin *iplug;
 	char *name;
 	char buf[DE_NAME_BUF_LEN];
@@ -542,11 +549,7 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 	dir = arg;
 	assert("nikita-2003", dir != NULL);
 
-	if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir)))
-		return 0;
-
-	fplug = inode_file_plugin(dir);
-	if (!fplug->owns_item(dir, coord))
+	if (!is_valid_dir_coord(dir, coord))
 		return 0;
 
 	iplug = item_plugin_by_coord(coord);
@@ -655,6 +658,11 @@ static char filter(const d8 *dch)
 static void
 print_de_id(const char *prefix, const de_id *did)
 {
+	reiser4_key key;
+
+	extract_key_from_de_id(0, did, &key);
+	print_key(prefix, &key);
+	return;
 	printk("%s: %c%c%c%c%c%c%c%c:%c%c%c%c%c%c%c%c",
 	       prefix, 
 	       filter(&did->objectid[0]),
@@ -697,9 +705,10 @@ adjust_dir_pos(struct file   * dir,
 	dir_pos *pos;
 
 	ON_TRACE(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
-	IF_TRACE(TRACE_DIR, print_dir_pos(" mod", mod_point));
-	IF_TRACE(TRACE_DIR, print_dir_pos(" spot", &readdir_spot->position));
-	ON_TRACE(TRACE_DIR, "\n\tspot.entry_no: %llu\n", readdir_spot->entry_no);
+	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
+	IF_TRACE(TRACE_DIR, print_dir_pos("\nspot", &readdir_spot->position));
+	ON_TRACE(TRACE_DIR, "\nadj: %i, spot.entry_no: %llu\n", 
+		 adj, readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
 
@@ -780,13 +789,22 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
-	result = coord_by_key(tree_by_inode(inode), &key,
-			      tap->coord, tap->lh, tap->mode, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, &tap->ra_info);
+	result = coord_by_key(tree_by_inode(inode), 
+			      &key,
+			      tap->coord,
+			      tap->lh,
+			      tap->mode,
+			      FIND_EXACT,
+			      LEAF_LEVEL,
+			      LEAF_LEVEL,
+			      0,
+			      &tap->ra_info);
 	if (result == CBK_COORD_FOUND)
 		result = rewind_right(tap, (int) pos->position.pos);
 	else {
 		tap->coord->node = NULL;
 		done_lh(tap->lh);
+		result = RETERR(-EIO);
 	}
 	return result;
 }
@@ -800,6 +818,7 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
 	tap_t        scan;
 	file_plugin *fplug;
 	de_id       *did;
+	reiser4_key  de_key;
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
@@ -811,28 +830,31 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
 
 	did = &pos->position.dir_entry_key;
 
-	while (1) {
-		reiser4_key de_key;
+	if (is_valid_dir_coord(inode, scan.coord)) {
 
-		result = go_prev_unit(&scan);
-		if (result != 0)
-			break;
+		build_de_id_by_key(unit_key_by_coord(scan.coord, &de_key), did);
 
-		if (item_type_by_coord(scan.coord) != DIR_ENTRY_ITEM_TYPE)
-			break;
-		else if (!fplug->owns_item(inode, scan.coord))
-			break;
+		while (1) {
 
-		/* get key of directory entry */
-		unit_key_by_coord(scan.coord, &de_key);
+			result = go_prev_unit(&scan);
+			if (result != 0)
+				break;
 
-		result = 0;
-		if (de_id_key_cmp(did, &de_key) != EQUAL_TO) {
-			/* duplicate-sequence is over */
-			break;
+			if (!is_valid_dir_coord(inode, scan.coord)) {
+				result = -EINVAL;
+				break;
+			}
+
+			/* get key of directory entry */
+			unit_key_by_coord(scan.coord, &de_key);
+			if (de_id_key_cmp(did, &de_key) != EQUAL_TO) {
+				/* duplicate-sequence is over */
+				break;
+			}
+			pos->position.pos ++;
 		}
-		pos->position.pos ++;
-	}
+	} else
+		result = RETERR(-ENOENT);
 	tap_relse(&scan);
 	tap_done(&scan);
 	return result;
@@ -856,6 +878,8 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 
 	if (offset < 0)
 		return RETERR(-EINVAL);
+	else if (offset >= dir->f_dentry->d_inode->i_size)
+		return RETERR(-ENOENT);
 	else if (offset == 0ll) {
 		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
@@ -899,9 +923,10 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 			result = rewind_right(tap, -shift);
 	}
 	if (result == 0) {
-		pos->entry_no = destination;
-		/* update pos->position.pos */
 		result = set_pos(dir->f_dentry->d_inode, pos, tap);
+		if (result == 0)
+			/* update pos->position.pos */
+			pos->entry_no = destination;
 	}
 	return result;
 }
@@ -914,10 +939,8 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	item_plugin *iplug;
 	char *name;
 	reiser4_key sd_key;
-	reiser4_key de_key;
 	int result;
 	char buf[DE_NAME_BUF_LEN];
-	de_id *did;
 
 	iplug = item_plugin_by_coord(coord);
 
@@ -926,22 +949,8 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
 		return RETERR(-EIO);
 
-	/* get key of directory entry */
-	unit_key_by_coord(coord, &de_key);
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
 		 name, pos->entry_no + 1, get_key_objectid(&sd_key));
-
-	/* update @pos */
-	++pos->entry_no;
-	did = &pos->position.dir_entry_key;
-	if (de_id_key_cmp(did, &de_key) == EQUAL_TO)
-		/* we are within sequence of directory entries
-		   with duplicate keys. */
-		++pos->position.pos;
-	else {
-		pos->position.pos = 0;
-		build_de_id_by_key(&de_key, did);
-	}
 
 	/* send information about directory entry to the ->filldir() filler
 	   supplied to us by caller (VFS). */
@@ -956,6 +965,29 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	} else
 		result = 0;
 	return result;
+}
+
+static void
+move_entry(readdir_pos * pos, coord_t * coord)
+{
+	reiser4_key de_key;
+	de_id *did;
+
+	/* update @pos */
+	++pos->entry_no;
+	did = &pos->position.dir_entry_key;
+
+	/* get key of directory entry */
+	unit_key_by_coord(coord, &de_key);
+
+	if (de_id_key_cmp(did, &de_key) == EQUAL_TO)
+		/* we are within sequence of directory entries
+		   with duplicate keys. */
+		++pos->position.pos;
+	else {
+		pos->position.pos = 0;
+		build_de_id_by_key(&de_key, did);
+	}
 }
 
 int
@@ -1031,19 +1063,14 @@ readdir_common(struct file *f /* directory file being read */ ,
 	result = dir_readdir_init(f, &tap, &pos);
 	if (result == 0) {
 		result = tap_load(&tap);
-		if (result == 0)
-			pos->entry_no = f->f_pos - 1;
 		/* scan entries one by one feeding them to @filld */
 		while (result == 0) {
 			coord_t *coord;
 
 			coord = tap.coord;
 			assert("nikita-2572", coord_is_existing_unit(coord));
+			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
-			if (item_type_by_coord(coord) != DIR_ENTRY_ITEM_TYPE)
-				break;
-			else if (!fplug->owns_item(inode, coord))
-				break;
 			result = feed_entry(pos, coord, filld, dirent);
 			if (result > 0) {
 				break;
@@ -1052,15 +1079,19 @@ readdir_common(struct file *f /* directory file being read */ ,
 				if (result == -E_NO_NEIGHBOR || result == -ENOENT) {
 					result = 0;
 					break;
+				} else if (result == 0) {
+					if (is_valid_dir_coord(inode, coord)) {
+						move_entry(pos, coord);
+						f->f_pos = pos->entry_no + 1;
+					} else
+						break;
 				}
 			}
 		}
 		tap_relse(&tap);
 
-		if (result >= 0) {
-			f->f_pos = pos->entry_no + ((result == 0) ? 1 : 0);
+		if (result >= 0)
 			f->f_version = inode->i_version;
-		}
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
