@@ -1075,7 +1075,7 @@ static int add_extents (coord_t * coord,
 		data->data += delta * sizeof (reiser4_extent);
 		data->length -= delta * sizeof (reiser4_extent);
 
-		{
+		if (0) {
 			reiser4_key tmp_key;
 
 			item_key_by_coord (coord, &tmp_key);
@@ -1171,11 +1171,12 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 		return result;
 	}
 
-	reiser4_unformatted_grabbed2unallocated (1);
+	// reiser4_unformatted_grabbed2unallocated (1);
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
-	jnode_set_block (j, &null_block_nr);
+	assign_fake_blocknr (jnode_get_block (j));
+	// jnode_set_block (j, &null_block_nr);
 
 	reiser4_stat_file_add (pointers);
 	reiser4_stat_file_add (write_repeats);
@@ -1247,12 +1248,13 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 		coord->between = AFTER_UNIT;
 		break;
 	}
-	reiser4_unformatted_grabbed2unallocated (1);
+	// reiser4_unformatted_grabbed2unallocated (1);
 	/*reiser4_count_fake_allocation ((__u64)1);*/
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
-	jnode_set_block (j, &null_block_nr);
+	assign_fake_blocknr (jnode_get_block (j));
+	// jnode_set_block (j, &null_block_nr);
 
 	reiser4_stat_file_add (pointers);
 	return 0;
@@ -1260,9 +1262,8 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 
 
 /* @coord is set to hole unit inside of extent item, replace hole unit with an
- * unallocated unit and perhaps a hole unit before the unallocated unit and
- * perhaps a hole unit after the unallocated unit. */
-/* Audited by: green(2002.06.13) */
+ * unit for unallocated extent of the width 1, and perhaps a hole unit before
+ * the unallocated unit and perhaps a hole unit after the unallocated unit. */
 static int plug_hole (coord_t * coord, lock_handle * lh,
 		      reiser4_block_nr off)
 {
@@ -1272,6 +1273,13 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 	reiser4_key key;
 	reiser4_item_data item;
 	int count;
+	extent_state state_after;
+	reiser4_block_nr width_after;
+	coord_t coord_after;
+	lock_handle lh_after;
+	tap_t watch;
+	int ret;
+
 
 	assert ("vs-234", coord_is_existing_unit (coord));
 
@@ -1283,15 +1291,18 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 		set_extent (ext, UNALLOCATED_EXTENT, 1ull);
 		return 0;
 	} else if (pos_in_unit == 0) {
-		set_extent (ext, UNALLOCATED_EXTENT, 1ull);
+		state_after = UNALLOCATED_EXTENT;
+		width_after = 1ull;
 		set_extent (&new_exts[0], HOLE_EXTENT, width - 1);
 		count = 1;
 	} else if (pos_in_unit == width - 1) {
-		set_extent (ext, HOLE_EXTENT, width - 1);
+		state_after = HOLE_EXTENT;
+		width_after = width - 1;
 		set_extent (&new_exts[0], UNALLOCATED_EXTENT, 1ull);
 		count = 1;
 	} else {
-		set_extent (ext, HOLE_EXTENT, pos_in_unit);
+		state_after = HOLE_EXTENT;
+		width_after = pos_in_unit;
 		set_extent (&new_exts[0], UNALLOCATED_EXTENT, 1ull);
 		set_extent (&new_exts[1], HOLE_EXTENT, width - pos_in_unit - 1);
 		count = 2;
@@ -1299,11 +1310,29 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 
 	item_key_by_coord (coord, &key);
 	set_key_offset (&key, (get_key_offset (&key) +
-			       extent_size (coord,
-					    (unsigned) coord->unit_pos + 1)));
+			       extent_size (coord, (unsigned) coord->unit_pos) + 
+			       width_after));
 
 	coord->between = AFTER_UNIT;
-	return add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));
+
+	/*
+	 * FIXME-NIKITA temporary fix for debugging
+	 */
+	coord_dup (&coord_after, coord);
+	init_lh (&lh_after);
+	copy_lh (&lh_after, lh);
+	tap_init (&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
+	tap_monitor (&watch);
+
+	set_extent (extent_by_coord (&coord_after), 
+		    state_after, width_after);
+
+	ret = add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));
+	if (!ret)
+		;
+
+	tap_done (&watch);
+	return ret;
 }
 
 
@@ -1616,12 +1645,13 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 			return result;
 		}
 
-		reiser4_unformatted_grabbed2unallocated (1);
+		// reiser4_unformatted_grabbed2unallocated (1);
 		/*reiser4_count_fake_allocation((__u64)1);*/
 
 		jnode_set_mapped (j);
 		jnode_set_created (j);
-		jnode_set_block (j, &null_block_nr);
+		// jnode_set_block (j, &null_block_nr);
+		assign_fake_blocknr (jnode_get_block (j));
 		reiser4_stat_file_add (pointers);
 		break;
 
@@ -1781,8 +1811,8 @@ static int have_to_read_block (struct inode * inode, jnode * j,
 
 	if (PageUptodate (j->pg))
 		return 0;
-	if (j->blocknr == 0)
-		/* jnode of unallocated unformatted node */
+	if ((*jnode_get_block (j) == 0) || blocknr_is_fake (jnode_get_block (j)))
+		/* jnode of unallocated unformatted node, or of hole */
 		return 0;
 	if (count == (int)current_blocksize)
 		/* all content of block will be overwritten */
