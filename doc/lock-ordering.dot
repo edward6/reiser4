@@ -114,7 +114,8 @@ subgraph spin {
 	SYSSPIN(mm_page_table_lock, "mm->page_table_lock");
 	SYSSPIN(sb_lock, "&sb_lock");
 	SYSSPIN(page_chain_lock, "page->chain_lock");
-	SYSSPIN(dparent_lock, "dparent_lock");
+    //removed at 2003.04.04 by akpm@digeo.com
+	//SYSSPIN(dparent_lock, "dparent_lock");
 	SYSSPIN(dcache_lock, "dcache_lock");
 	SYSSPIN(fs_struct_lock, "fs_struct->lock");
 	SYSSPIN(tasklist_lock, "&tasklist_lock");
@@ -192,7 +193,7 @@ ARC(zone_lru_lock, page_chain_lock, "rmap.c");
 ARC(cache_chain_sem, kalloc, "cpuup_callback()");
 //ARC(cache_chain_sem, pfault, "kmem_cache_create()");
 
-ARC(dcache_lock, dparent_lock, "d_move()");
+//obsolete ARC(dcache_lock, dparent_lock, "d_move()");
 ARC(fs_struct_lock, dcache_lock, "set_fs_pwd()");//,\nset_fs_root()");
 
 ARC(namespace_sem, i_sem, "sys_pivot_root()");
