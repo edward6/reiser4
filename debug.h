@@ -126,7 +126,7 @@
 #define REISER4_DEBUG_OUTPUT (0)
 #endif
 
-#if defined(CONFIG_PROFILING)
+#if defined(CONFIG_REISER4_LOCKPROF)
 #define REISER4_LOCKPROF (1)
 #else
 #define REISER4_LOCKPROF (0)
