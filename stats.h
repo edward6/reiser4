@@ -259,6 +259,7 @@ typedef struct reiser4_statistics {
 	} tree;
 	reiser4_level_stat level[REISER4_MAX_ZTREE_HEIGHT];
 	struct {
+		statcnt_t open;
 		statcnt_t lookup;
 		statcnt_t create;
 		statcnt_t mkdir;

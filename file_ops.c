@@ -60,9 +60,9 @@ static int reiser4_ioctl(struct inode *, struct file *, unsigned int cmd, unsign
 static int reiser4_mmap(struct file *, struct vm_area_struct *);
 static int reiser4_release(struct inode *, struct file *);
 static int reiser4_fsync(struct file *, struct dentry *, int datasync);
+static int reiser4_open(struct inode *, struct file *);
 #if 0
 static unsigned int reiser4_poll(struct file *, struct poll_table_struct *);
-static int reiser4_open(struct inode *, struct file *);
 static int reiser4_flush(struct file *);
 static int reiser4_fasync(int, struct file *, int);
 static int reiser4_lock(struct file *, int, struct file_lock *);
@@ -309,12 +309,33 @@ reiser4_release(struct inode *i /* inode released */ ,
 		 "RELEASE: (i_ino %li, size %lld)\n", i->i_ino, i->i_size);
 
 	if (fplug->release)
-		result = fplug->release(f);
+		result = fplug->release(i, f);
 	else
 		result = 0;
 
 	if (f->private_data != NULL)
 		reiser4_kfree(f->private_data, sizeof (reiser4_file_fsdata));
+
+	reiser4_exit_context(&ctx);
+	return result;
+}
+
+static int 
+reiser4_open(struct inode * inode, struct file * file)
+{
+	int result;
+
+	reiser4_context ctx;
+	file_plugin *fplug;
+
+	init_context(&ctx, inode->i_sb);
+	reiser4_stat_inc(vfs_calls.open);
+	fplug = inode_file_plugin(inode);
+
+	if (fplug->open != NULL)
+		result = fplug->open(inode, file);
+	else
+		result = 0;
 
 	reiser4_exit_context(&ctx);
 	return result;
@@ -328,6 +349,7 @@ reiser4_fsync(struct file *file UNUSED_ARG,
 {
 	int result;
 	reiser4_context ctx;
+
 	init_context(&ctx, dentry->d_inode->i_sb);
 	result = txnmgr_force_commit_all(dentry->d_inode->i_sb);
 	up(&dentry->d_inode->i_sem);
@@ -344,7 +366,7 @@ struct file_operations reiser4_file_operations = {
 /* 	.poll              = reiser4_poll, */
 	.ioctl   = reiser4_ioctl,
 	.mmap    = reiser4_mmap,	/* d */
-/* 	.open              = reiser4_open, */
+ 	.open              = reiser4_open,
 /* 	.flush             = reiser4_flush, */
 	.release = reiser4_release,	/* d */
  	.fsync   = reiser4_fsync        /* d */,

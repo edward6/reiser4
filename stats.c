@@ -130,6 +130,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(tree.check_left_nonuniq),
 	DEFINE_STATCNT(tree.left_nonuniq_found),
 
+	DEFINE_STATCNT(vfs_calls.open),
 	DEFINE_STATCNT(vfs_calls.lookup),
 	DEFINE_STATCNT(vfs_calls.create),
 	DEFINE_STATCNT(vfs_calls.mkdir),

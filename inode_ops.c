@@ -198,6 +198,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	int retval;
 	struct dentry *result;
 	reiser4_context ctx;
+	int (*lookup) (struct inode * parent_inode, struct dentry * dentry);
 
 	assert("nikita-403", parent != NULL);
 	assert("nikita-404", dentry != NULL);
@@ -208,9 +209,13 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	/* find @parent directory plugin and make sure that it has lookup
 	   method */
 	dplug = inode_dir_plugin(parent);
-	if (dplug != NULL && dplug->lookup != NULL) {
+	if (dplug != NULL && dplug->lookup != NULL)
+		lookup = dplug->lookup;
+	else if (1)
+		lookup = lookup_pseudo;
+	if (lookup != NULL) {
 		/* call its lookup method */
-		retval = dplug->lookup(parent, dentry);
+		retval = lookup(parent, dentry);
 		if (retval == 0) {
 			struct inode *obj;
 			file_plugin *fplug;

@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /*   To simplify balancing, allow some flexibility in locking and speed up
      important coord cache optimization, we keep delimiting keys of nodes in

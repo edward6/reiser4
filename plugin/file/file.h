@@ -9,7 +9,7 @@ int readpage_unix_file(void *, struct page *);
 int writepage_unix_file(struct page *);
 ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t *off);
 ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t *off);
-int release_unix_file(struct file *);
+int release_unix_file(struct inode *inode, struct file *);
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *vma);
 int get_block_unix_file(struct inode *, sector_t block, struct buffer_head *bh_result, int create);

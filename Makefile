@@ -117,6 +117,7 @@ reiser4-objs := \
 		   plugin/disk_format/test.o \
 		   plugin/disk_format/disk_format.o \
            \
+		   plugin/file/pseudo.o \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o
 
