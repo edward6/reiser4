@@ -338,7 +338,6 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		}
 
 		if (IS_ERR(neighbor)) {
-			WUNLOCK_TREE(tree);
 			ret = PTR_ERR(neighbor);
 			return ret;
 		}
