@@ -690,6 +690,12 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	}
 
 	ret =  cbk_node_lookup(h);
+
+	/* 
+	 * reget @active from handle, because it can change in
+	 * cbk_node_lookup() 
+	 */
+	active = h->active_lh->node;
 	zrelse(active);
 
 	return ret;
