@@ -237,50 +237,6 @@ done_formatted_fake(struct super_block *super)
 	return 0;
 }
 
-#if 0
-/* check amount of available for allocation memory, and kick ktxnmgrd is it
-   is low. NEITHER FINISHED NOR USED. */
-void
-reiser4_check_mem(reiser4_context * ctx)
-{
-	reiser4_super_info_data *info;
-
-	unsigned int total;
-	unsigned int free;
-	unsigned int ratio;
-
-	if (ctx == NULL || ctx->super == NULL)
-		return;
-
-	info = get_super_private(ctx->super);
-	if (info == NULL)
-		return;
-
-	total = nr_free_pagecache_pages();
-	free = nr_free_pages();
-
-	/* we don't care about overflows here, because this is only hint
-	   anyway. */
-	ratio = free * 100 / total;
-	if (ratio <= info->txnmgr.low_memory) {
-		ktxnmgrd_context *daemon;
-
-		daemon = info->tmgr.daemon;
-		if (daemon != NULL) {
-			int kick_it;
-
-			/* we are first to note low free memory. Wake up
-			   ktxnmgrd  */
-			kick_it = !atomic_read(&daemon->pressure);
-			atomic_inc(&daemon->pressure);
-			if (kick_it)
-				ktxnmgrd_kick(daemon, LOW_MEMORY);
-		}
-	}
-}
-
-#endif
-
 /* helper function to find-and-lock page in a page cache and do additional
    checks  */
 void
