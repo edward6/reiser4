@@ -243,7 +243,8 @@ typedef enum {
 	CLEAN_LIST,
 	FQ_LIST,
 	WB_LIST,
-	OVRWR_LIST
+	OVRWR_LIST,
+	PROTECT_LIST
 } atom_list;
 
 /* __REISER4_FORWARD_H__ */
