@@ -62,7 +62,7 @@ static phash_hash_table phash_table;
 #if REISER4_DEBUG
 static int is_scope_valid(phash_scope scope)
 {
-	return (0 <= scope) && (scope < PHASH_LAST);
+	return (0 <= (int)scope) && (scope < PHASH_LAST);
 }
 #endif
 
