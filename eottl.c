@@ -215,6 +215,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	ON_STATS(todo.level_no = TWIG_LEVEL);
 	assert("", znode_contains_key_lock(insert_coord->node, key));
 
+#if 0
 	grabbed = get_current_context() -> grabbed_blocks;
 	
 	/* VITALY: Grab block for the balancing needs. */
@@ -223,12 +224,15 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		return result;
 
 	trace_on(TRACE_RESERVE, "balancing grabs 1 block for a leaf.\n");
+#endif
 
 	node = new_node(insert_coord->node, LEAF_LEVEL);
+#if 0
 	/* VITALY: Ungrab block for the balancing needs. */
 	grabbed2free
 	    /*reiser4_release_grabbed_space */
 	    (get_current_context()->grabbed_blocks - grabbed);
+#endif
 
 	if (IS_ERR(node))
 		return PTR_ERR(node);
@@ -345,6 +349,15 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			return 1;
 		}
 		assert("vs-358", keyeq(h->key, item_key_by_coord(coord, &key)));
+#if 0
+		{
+			/* FIXME-VS: remove after debugging */
+			reiser4_block_nr block;
+
+			item_plugin_by_coord(coord)->s.internal.down_link(coord, h->key, &block);
+			info("empty leaf added: %llx (pid %i)\n", block, current->pid);
+		}
+#endif
 	} else {
 		/* this is special case mentioned in the comment on
 		   tree.h:cbk_flags. We have found internal item immediately
