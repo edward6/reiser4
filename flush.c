@@ -1763,6 +1763,9 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
+	/* We get a lock on the right twig node even it is not dirty because
+	 * slum continues or discontinues on leaf level not on next twig. This
+	 * lock on the right twig is needed for getting its leftmost child. */
 	ret = reiser4_get_right_neighbor(&right_lock, pos->lock.node, ZNODE_WRITE_LOCK, GN_SAME_ATOM);
 	if (ret)
 		goto out;
@@ -1771,8 +1774,11 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	if (ret)
 		goto out;
 
+	/* right twig could be not dirty */
 	if (znode_check_dirty(right_lock.node)) {
-	became_dirty:
+		/* If right twig node is dirty we always attempt to squeeze it
+		 * content to the left... */
+became_dirty:
 		ret = full_squeeze_right_twig(pos, right_lock.node);
 		if (ret <=0) {
 			/* pos->coord is on internal item, go to leaf level, or
@@ -1781,16 +1787,22 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 			goto out;
 		}
 
-		/* repeat if right twig was squeezed completely */
+		/* If right twig was squeezed completely we wave to re-lock
+		 * right twig. now it is done through the top-level squalloc
+		 * routine. */
 		if (node_is_empty(right_lock.node))
 			goto out;
 
-		/* Prep the right dirty twig if it is not yet prepped */
+		/* ... and prep it if it is not yet prepped */
 		if (!znode_check_flushprepped(right_lock.node)) {
-			ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
-			if (ret)
-				goto out;
+			/* As usual, process parent before ...*/
+			if (!znode_same_parents(pos->lock.node, right_lock.node)) {
+				ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+				if (ret)
+					goto out;
+			}
 
+			/* ... processing the child */
 			ret = lock_parent_and_allocate_znode(right_lock.node, pos);
 			if (ret)
 				goto out;
@@ -1817,11 +1829,7 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
 
-	if (item_is_extent(&at_right))
-		pos->state = POS_ON_TWIG;
-	else
-		pos->state = POS_TO_LEAF;
-
+	pos->state = item_is_extent(&at_right) ? POS_ON_TWIG : POS_TO_LEAF;
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
  out:
@@ -1850,10 +1858,8 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	init_load_count(&child_load);
 
 	ret = get_leftmost_child_of_unit(&pos->coord, &child);
-
 	if (ret)
 		return ret;
-
 	if (child == NULL) {
 		pos_stop(pos);
 		return 0;
@@ -1865,20 +1871,18 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	}
 
 	ret = longterm_lock_znode(&child_lock, JZNODE(child), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-
 	if (ret)
 		goto out;
 
 	ret = incr_load_count_znode(&child_load, JZNODE(child));
 
 	ret = allocate_znode(JZNODE(child), &pos->coord, pos);
-
 	if (ret)
 		goto out;
 
 	/* move flush position to leaf level */
-	move_flush_pos(pos, &child_lock, &child_load, NULL);
 	pos->state = POS_ON_LEAF;
+	move_flush_pos(pos, &child_lock, &child_load, NULL);
 
  out:
 	done_load_count(&child_load);
@@ -1903,21 +1907,16 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	init_load_count(&parent_load);
 
 	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK, 1);
-
 	if (ret)
 		goto out;
 
 	ret = find_child_ptr(parent_lock.node, pos->lock.node, &pcoord);
-
 	if (ret)
 		goto out;
 
+	pos->state = coord_is_after_rightmost(&pos->coord) ? POS_END_OF_TWIG : POS_ON_TWIG;
 	move_flush_pos(pos, &parent_lock, &parent_load, &pcoord);
 
-	if (coord_is_after_rightmost(&pos->coord))
-		pos->state = POS_END_OF_TWIG;
-	else 
-		pos->state = POS_ON_TWIG;
  out:
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
@@ -1943,11 +1942,8 @@ static int squalloc (flush_pos_t * pos)
 
 	PROF_BEGIN(forward_squalloc);
 
-	while (pos_valid (pos)) {
+	while (pos_valid(pos) && ret >= 0)
 		ret = flush_pos_handlers[pos->state](pos);
-		if (ret < 0)
-			break;
-	}
 
 	PROF_END(forward_squalloc, forward_squalloc);
 
