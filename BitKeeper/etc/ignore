@@ -1191,3 +1191,7 @@ reiser4progs/progs/libmisc/misc.lo
 reiser4progs/progs/libmisc/profile.lo
 reiser4progs/progs/libmisc/ui.lo
 plugin/file/.file.o.tmp
+reiser4progs/librepair/.deps/node.P
+reiser4progs/librepair/node.lo
+reiser4progs/plugin/key40/.deps/key40_repair.P
+reiser4progs/plugin/key40/key40_repair.lo
