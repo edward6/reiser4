@@ -19,11 +19,13 @@ extern void reiser4_lock_page(struct page *page);
 extern void reiser4_unlock_page(struct page *page);
 
 #if REISER4_TRACE_TREE
+extern char *jnode_short_info(const jnode *j, char *buf);
 extern int reiser4_submit_bio_helper(const char *moniker, 
 				     int rw, struct bio *bio);
 #define reiser4_submit_bio(rw, bio)				\
 	reiser4_submit_bio_helper(__FUNCTION__, (rw), (bio))
 #else
+#define jnode_short_info(j, buf) (NULL)
 #define reiser4_submit_bio(rw, bio) submit_bio((rw), (bio))
 #endif
 

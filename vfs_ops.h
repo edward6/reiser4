@@ -39,6 +39,7 @@ static inline int set_page_dirty_internal (struct page * page)
 extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
 extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
+extern int reiser4_sync_page(struct page *page);
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
   

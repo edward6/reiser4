@@ -667,7 +667,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
 	*/
-	.sync_page = block_sync_page,
+	.sync_page = reiser4_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
 	.writepages = reiser4_writepages,

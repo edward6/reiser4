@@ -2482,20 +2482,26 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	REISER4_EXIT(ret);
 }
 
-static int reiser4_sync_page(struct page *page)
+int reiser4_sync_page(struct page *page)
 {
-#if REISER4_TRACE_TREE
-	jnode *j;
-	reiser4_block_nr block;
+	if (REISER4_TRACE_TREE) {
+		jnode *j;
 
-	assert("vs-1111", page->mapping && page->mapping->host);
-	assert("vs-1113", page->mapping->host->i_ino != 1);
-	assert("vs-1112", PagePrivate(page) && jprivate(page));
-	j = jprivate(page);
-	block = *jnode_get_block(j);
-	write_trace(&get_super_private(page->mapping->host->i_sb)->trace_file,
-		    "reiser4_sync_page: wait_on_page?: %s: %llu\n", kdevname(to_kdev_t(page->mapping->host->i_sb->s_dev)), block);
-#endif
+		assert("vs-1111", page->mapping && page->mapping->host);
+
+		j = jprivate(page);
+		if (j != NULL) {
+			reiser4_block_nr block;
+			struct super_block *s;
+			char jbuf[100];
+
+			block = *jnode_get_block(j);
+			s = page->mapping->host->i_sb;
+			(void)jnode_short_info(j, jbuf);
+			write_tracef(&get_super_private(s)->trace_file, s,
+				     "wait_on_page: %llu %s\n", block, jbuf);
+		}
+	}
 	block_sync_page(page);
 	return 0;
 }
