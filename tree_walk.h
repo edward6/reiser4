@@ -37,7 +37,7 @@ int reiser4_connect_znode (tree_coord *coord, znode * node);
 */
 
 int reiser4_get_parent (reiser4_lock_handle * result, znode * node,
-			int mode, int only_connected_p );
+			znode_lock_mode mode, int only_connected_p );
 
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */

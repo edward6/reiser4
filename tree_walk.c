@@ -102,7 +102,8 @@ static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
 /* description is in tree_walk.h */
 int reiser4_get_parent (reiser4_lock_handle * result /* resulting lock
 						      * handle */, 
-			znode * node /* child node */, int mode /* ??? */, 
+			znode * node /* child node */,
+			znode_lock_mode mode /* type of lock: read or write */, 
 			int only_connected_p /* if this is true, parent is
 					      * only returned when it is
 					      * connected. If parent is

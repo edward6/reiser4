@@ -165,6 +165,7 @@ static int slum_allocate (slum_scan *scan)
 	reiser4_lock_handle child_lock;
 	tree_coord coord;
 	slum_scan parent_scan;
+	int relocate_child;
 
 	reiser4_init_lh (& parent_lock);
 	reiser4_init_lh (& child_lock);
@@ -175,19 +176,19 @@ static int slum_allocate (slum_scan *scan)
 	/* If we will relocate node or node is unallocated, then parent will
 	 * become dirty, which means we will squeeze it, thus write lock it
 	 * now. */
-	write_lock_parent = flush_should_relocate (child_lock.node);
+	relocate_child = flush_should_relocate (child_lock.node);
 
 	/* At the end of one level, lock node & parent. Since we are going to
 	 * relocate, capture and write lock now.  Need it for squeezing.
 	 * Getting the write lock captures the node. */
 	if ((ret = jnode_lock_parent_coord (scan->node, & child_lock, & parent_lock, & coord,
-					    write_lock_parent ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK))) {
+					    relocate_child ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK))) {
 		goto failure;
 	}
 	
 	/* If relocating, artificially dirty it right now. */
-	if (write_lock_parent) {
-		znode_set_dirty ();
+	if (relocate_child) {
+		znode_set_dirty (parent_lock.node);
 	}
 
 	/* If the parent is dirty, want to check if it should be allocated
@@ -251,7 +252,7 @@ static int jnode_is_allocated (jnode *node UNUSED_ARG)
 /* Lock a node (if formatted) and then get its parent of a jnode locked, get
  * the coordinate. */
 static int
-jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh, tree_coord *coord)
+jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh, tree_coord *coord, znode_lock_mode parent_mode)
 {
 	int ret;
 
@@ -270,7 +271,7 @@ jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock
 		}
 
 		/* Get the parent read locked. */
-		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), ZNODE_READ_LOCK, 1))) {
+		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
 			return ret;
 		}
 
@@ -357,7 +358,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	reiser4_init_lh    (& parent_lh);
 	reiser4_init_lh    (& left_parent_lh);
 
-	if ((ret = jnode_lock_parent_coord (scan->node, & node_lh, & parent_lh, & coord))) {
+	if ((ret = jnode_lock_parent_coord (scan->node, & node_lh, & parent_lh, & coord, ZNODE_READ_LOCK))) {
 		goto done;
 	}
 
