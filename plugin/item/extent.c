@@ -2300,7 +2300,9 @@ int extent_read (struct inode * inode, coord_t * coord,
 	}
 
 	/* Capture the page. */
+	lock_page (page);
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
+	unlock_page (page);
 	if (result != 0) {
 		page_detach_jnode_lock (page, inode->i_mapping, page_nr);
 		page_cache_release (page);
