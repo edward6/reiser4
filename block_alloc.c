@@ -253,7 +253,6 @@ int reiser4_grab_space (__u64 * grabbed, __u64 min_block_count, __u64 max_block_
 	reiser4_spin_lock_sb (super);
 
 	assert ("zam-472", grabbed != NULL);
-	assert ("zam-473", min_block_count != 0);
 	assert ("zam-474", max_block_count >= min_block_count);
 
 	free_blocks = reiser4_free_blocks (super);
