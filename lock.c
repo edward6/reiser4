@@ -376,8 +376,6 @@ static inline void link_object (
 
 	handle->owner = owner;
 	handle->node = node;
-	locks_list_clean(handle);
-	owners_list_clean(handle);
 	locks_list_push_back(&owner->locks, handle);
 	owners_list_push_front(&node->lock.owners, handle);
 	handle->signaled = 0;
@@ -393,14 +391,9 @@ static inline void unlink_object (lock_handle *handle)
 	assert ("nikita-1633", spin_znode_is_locked(handle->node));
 	assert ("nikita-1829", handle->owner == get_current_lock_stack());
 
-	if(REISER4_DEBUG) {
-		locks_list_remove_clean(handle);
-		owners_list_remove_clean(handle);
-	} else {
-		locks_list_remove(handle);
-		owners_list_remove(handle);
-	}
-		
+	locks_list_remove_clean(handle);
+	owners_list_remove_clean(handle);
+
 	/* indicates that lock handle is free now */
 	handle->owner = NULL;
 }
@@ -608,7 +601,6 @@ static void set_low_priority(lock_stack *owner)
 			 * this thread just was hipri owner of @node, so
 			 * nr_hipri_owners has to be greater than zero.
 			 */
-			/* FIXME: JMACD->ZAM/NIKITA: This is failing for some reason. */
 			trace_on (TRACE_LOCKS, "set_lopri lock: %p node: %p: hipri_owners before: %u nr_readers: %d\n", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
 			node->lock.nr_hipri_owners--;
