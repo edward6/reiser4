@@ -525,6 +525,8 @@ jload(jnode * node)
 	int result;
 	struct page *page;
 
+	assert ("zam-778", lock_counters()->spin_locked == 0);
+
 	result = 0;
 	reiser4_stat_znode_add(zload);
 	jref(node);
