@@ -479,10 +479,11 @@ init_carry_pool(void)
 
 /* finish with queue pools */
 reiser4_internal void
-done_carry_pool(carry_pool * pool UNUSED_ARG /* pool to destroy */ )
+done_carry_pool(carry_pool * pool /* pool to destroy */ )
 {
 	reiser4_done_pool(&pool->op_pool);
 	reiser4_done_pool(&pool->node_pool);
+	kfree(pool);
 }
 
 /* add new carry node to the @level.
