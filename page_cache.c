@@ -303,7 +303,6 @@ reiser4_internal void reiser4_wait_page_writeback (struct page * page)
 
 	do {
 		unlock_page(page);
-		blk_run_queues();
 		wait_on_page_writeback(page);
 		lock_page(page);
 	} while (PageWriteback(page));
