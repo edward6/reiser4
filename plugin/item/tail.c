@@ -282,18 +282,20 @@ overwrite_tail(coord_t *coord, flow_t *f)
 }
 
 int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-			     hint_t *hint, int back_to_dirty)
+			     hint_t *hint, int back_to_dirty, int do_set_hint)
 {
 	int result;
 	loff_t new_size;
 	struct inode *object;
 	int size_changed;
 	
-	if (hint->coord.valid)
-		set_hint(hint, &f->key);
-	else
-		unset_hint(hint);
-	longterm_unlock_znode(hint->coord.lh);
+	if (do_set_hint) {
+		if (hint->coord.valid)
+			set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
+		else
+			unset_hint(hint);
+		longterm_unlock_znode(hint->coord.lh);
+	}
 
 	new_size = get_key_offset(&f->key);
 	object = mapping->host;
@@ -322,7 +324,7 @@ int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 				    hint_t *hint)
 {
-	return item_balance_dirty_pages(mapping, f, hint, 1);
+	return item_balance_dirty_pages(mapping, f, hint, 1, 1/* set hint */);
 }
 
 /* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.
