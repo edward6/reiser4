@@ -213,9 +213,8 @@ reiser4_read(struct file *file /* file to read from */ ,
 	     char *buf		/* user-space buffer to put data read
 				 * from the file */ ,
 	     size_t count /* bytes to read */ ,
-	     loff_t * off	/* offset to start reading from. This
-				 * is updated to indicate actual
-				 * number of bytes read */ )
+	     loff_t * off	/* current position within the file, which needs to be increased by the act of reading. Reads
+				 * start from here. */ )
 {
 	ssize_t result;
 	struct inode *inode;
