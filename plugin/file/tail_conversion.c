@@ -376,11 +376,11 @@ int tail2extent (struct inode * inode)
 				/* kmap/kunmap are necessary for pages which
 				 * are not addressable by direct kernel virtual
 				 * addresses */
-				p_data = kmap (pages [i]);
+				p_data = kmap_atomic (pages [i], KM_USER0);
 				/* copy item (as much as will fit starting from
 				 * the beginning of the item) into the page */
 				memcpy (p_data + page_off, item, (unsigned)count);
-				kunmap (pages [i]);
+				kunmap_atomic (p_data, KM_USER0);
 				
 				page_off += count;
 				set_key_offset (&key, get_key_offset (&key) + count);
@@ -393,8 +393,9 @@ int tail2extent (struct inode * inode)
 					 * FIXME-VS: this can be used to detect
 					 * end of file
 					 */
-					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
-					kunmap (pages [i]);
+					kaddr = kmap_atomic (pages [i], KM_USER0);
+					memset (kaddr + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					kunmap_atomic (kaddr, KM_USER0);
 					done = 1;
 				}
 			} /* while */
@@ -549,11 +550,11 @@ int tail2extent (struct inode * inode)
 				/* kmap/kunmap are necessary for pages which
 				 * are not addressable by direct kernel virtual
 				 * addresses */
-				p_data = kmap (pages [i]);
+				p_data = kmap_atomic (pages [i], KM_USER0);
 				/* copy item (as much as will fit starting from
 				 * the beginning of the item) into the page */
 				memcpy (p_data + page_off, item, (unsigned)count);
-				kunmap (pages [i]);
+				kunmap_atomic (p_data , KM_USER0);
 				
 				page_off += count;
 				set_key_offset (&key, get_key_offset (&key) + count);
