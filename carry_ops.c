@@ -1575,10 +1575,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	}
 	/* if we pasted at the beginning of the item, update item's key. */
 	if( ( coord -> unit_pos == 0 ) && ( coord -> between != AFTER_UNIT ) ) {
-		reiser4_key item_key;
-
-		unit_key_by_coord( coord, &item_key );
-		node -> nplug -> update_item_key( coord, &item_key, &info );
+		node -> nplug -> update_item_key( coord, op -> u.insert.d -> key, &info );
 	}
 
 	return result;
