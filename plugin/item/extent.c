@@ -2634,7 +2634,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 	 * try to calculate block number of left neighbor in parent-first order
 	 */
 	if (coord->item_pos == 0) {
-		preceder = coord->node->blocknr.blk;
+		preceder = znode_get_block (coord->node)->blk;
 	} else {
 		tree_coord prev;
 		reiser4_disk_addr da;

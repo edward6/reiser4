@@ -139,9 +139,9 @@ int internal_create_hook( const tree_coord *item, void *arg )
 		ZF_CLR( child, ZNODE_NEW );
 
 		trace_on( TRACE_ZWEB, "create: %lli: %i [%lli]\n",
-			  item -> node -> blocknr.blk, 
+			  znode_get_block( item -> node ) -> blk, 
 			  atomic_read( &item -> node -> c_count ),
-			  child -> blocknr.blk );
+			  znode_get_block( child ) -> blk );
 
 		spin_unlock_tree( current_tree );
 		zput( child );
@@ -189,9 +189,9 @@ int internal_kill_hook( const tree_coord *item,
 		spin_unlock_tree( current_tree );
 		atomic_dec( &item -> node -> c_count );
 		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",
-			  item -> node -> blocknr.blk, 
+			  znode_get_block( item -> node ) -> blk, 
 			  atomic_read( &item -> node -> c_count ),
-			  child -> blocknr.blk );
+			  znode_get_block( child ) -> blk );
 
 		zput( child );
 		return 0;
@@ -238,11 +238,11 @@ int internal_shift_hook( const tree_coord *item,
 		spin_unlock_tree( current_tree );
 		zput( child );
 		trace_on( TRACE_ZWEB, "shift: %lli: %i -> %lli: %i [%lli]\n",
-			  old_node -> blocknr.blk, 
+			  znode_get_block( old_node ) -> blk, 
 			  atomic_read( &old_node -> c_count ),
-			  item -> node -> blocknr.blk, 
+			  znode_get_block( item -> node ) -> blk, 
 			  atomic_read( &item -> node -> c_count ),
-			  child -> blocknr.blk );
+			  znode_get_block( child ) -> blk );
 		return 0;
 	} else
 		return PTR_ERR( child );
