@@ -2196,6 +2196,7 @@ read_super_block:
 
 	/* init layout plugin */
 	info->df_plug = df_plug;
+	info->tree.super = s;
 
 	txnmgr_init(&info->tmgr);
 
