@@ -13,8 +13,8 @@
 #define REISER4_MASTER_OFFSET		(65536)
 #define REISER4_MASTER_MAGIC		("R4Sb")
 
-typedef uint64_t reiser4_oid_t;
-typedef uint16_t reiser4_pid_t;
+typedef uint64_t oid_t;
+typedef uint16_t reiser4_id_t;
 
 typedef void reiser4_body_t;
 
