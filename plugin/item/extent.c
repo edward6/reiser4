@@ -2152,19 +2152,43 @@ int extent_read (struct inode * inode, coord_t * coord,
 }
 
 
-struct ra_page_range {
-	struct list_head next; /* list of page ranges */
-	struct list_head pages; /* list of newly created, contiguous, belonging
-				 * to one extent pages. Number of pages in this
-				 * list is not mmore than max number of pages
-				 * in bio */
-	int extent;
+/* list of such structures (linked via field @next) is created during extent
+ * scanning. Every element has a list of pages (attached to field
+ * @pages). Number of pages in that list is stored in field @nr_pages. It can
+ * not be bigger than max number of pages in bio. Those pages are freshly
+ * created and contiguous (belong to the same extent unit (@unit_pos)). */
+/*
+ * FIXME-VS: why we do not create bio during scanning of extent? The reason is
+ * that we want (similar to sequence of these actions in the path
+ * page_cache_readahead -> do_page_cache_readahead -> read_pages) to allocate
+ * all readahead pages and to insert them into mapping's tree separately. Bio-s
+ * are created when pages get inserted into mapping's page tree by ourself. If
+ * we created bio-s during extent scanning we would have to split bio-s when we
+ * were not able to insert page into mapping's tree of pages
+ */
+struct page_range {
+	struct list_head next;
+	struct list_head pages;
+	sector_t sector;
 	int nr_pages;
 };
 
+
+static void print_range_list (struct list_head * list)
+{
+	struct list_head * cur;
+	struct page_range * range;
+
+	list_for_each (cur, list) {
+		range = list_entry (cur, struct page_range, next);
+		info ("range: sector %llu, nr_pages %d\n", range->sector, range->nr_pages);
+	}
+}
+
+
 /* return true if number of pages in a range is maximal possible number of
  * pages in one bio */
-static int range_is_full (struct ra_page_range * range)
+static int range_is_full (struct page_range * range)
 {
 	return ((unsigned)range->nr_pages == (BIO_MAX_SIZE / PAGE_CACHE_SIZE)) ? 1 : 0;
 }
@@ -2197,7 +2221,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	unsigned i, j, nr_units;
 	__u64 pos_in_unit;
 	LIST_HEAD (range_list);
-	struct ra_page_range * range;
+	struct page_range * range;
 	struct page * page;
 	unsigned long left;
 	__u64 pages;
@@ -2230,13 +2254,16 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	left = intrafile_readahead_amount;
 
 	/* while not all pages are allocated and item is not over */
-	for (i = 0; left && (coord->unit_pos + i < nr_units); i ++) {
+	for (i = 0; left && (coord->unit_pos + i < nr_units); i ++, pos_in_unit = 0) {
+		extent_state state;
+
 		/* how many pages from current extent to read ahead */
-		pages = extent_get_width (&ext [i]) - (i == 0 ? pos_in_unit : 0);
+		pages = extent_get_width (&ext [i]) - pos_in_unit;
 		if (pages > left)
 			pages = left;
 
-		if (state_of_extent (&ext [i]) == UNALLOCATED_EXTENT) {
+		state = state_of_extent (&ext [i]);
+		if (state == UNALLOCATED_EXTENT) {
 			/* these pages are in memory */
 			start_page += pages;
 			left -= pages;
@@ -2244,7 +2271,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 		}
 
 		range = 0;
-		read_lock(&mapping->page_lock);
+		read_lock (&mapping->page_lock);
 		for (j = 0; j < pages; j ++) {
 			page = radix_tree_lookup (&mapping->page_tree,
 						  start_page + j);
@@ -2256,10 +2283,6 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				}
 				continue;
 			}
-			if (range && range_is_full (range)) {
-				/* range is too big for one bio */
-				range = 0;
-			}
 			if (!range) {
 				/* create new range of contiguous pages
 				 * belonging to one extent */
@@ -2267,12 +2290,16 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				 * FIXME-VS: maybe this should be after
 				 * read_unlock (&mapping->page_lock)
 				 */
-				range = kmalloc (sizeof (struct ra_page_range), GFP_KERNEL);
+				range = kmalloc (sizeof (struct page_range), GFP_KERNEL);
 				if (!range)
 					break;
-				memset (range, 0, sizeof (struct ra_page_range));
+				memset (range, 0, sizeof (struct page_range));
 				range->nr_pages = 0;
-				range->extent = coord->unit_pos + i;
+				if (state == HOLE_EXTENT)
+					range->sector = 0;
+				else
+					range->sector = extent_get_start (&ext [i]) +
+						pos_in_unit;
 				INIT_LIST_HEAD (&range->pages);
 				list_add (&range->next, &range_list);
 			}
@@ -2282,72 +2309,87 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 			read_lock (&mapping->page_lock);
 			if (!page)
 				break;
-			page->index = start_page;
+			page->index = start_page + j;
 			list_add (&page->list, &range->pages);
 			range->nr_pages ++;
 		}
-		read_unlock(&mapping->page_lock);
+		read_unlock (&mapping->page_lock);
 
 		left -= pages;
 		start_page += j;
 	}
+	/*
+	 * FIXME-VS: remove after debugging
+	 */
+	print_range_list (&range_list);
 
 	/* submit bio for all ranges */
 	{
 		struct list_head * cur, * tmp;
-		struct bio * bio = NULL;
+		struct bio * bio;
 		struct bio_vec * bvec;
 
 		list_for_each_safe (cur, tmp, &range_list) {
-			coord_t unit;
-			extent_state state;
-			struct list_head * cur2, * tmp2;
+			unsigned long prev;
 
 
-			range = list_entry (cur, struct ra_page_range, pages);
-			
-			/* get extent unit which points to all pages of this range */
-			coord_dup (&unit, coord);
-			coord->unit_pos = range->extent;
-			coord->between = AT_UNIT;
-			state = state_of_extent (extent_by_coord (&unit));
-			assert ("vs-787", state != UNALLOCATED_EXTENT);
+			range = list_entry (cur, struct page_range, next);
 
+			/* remove range from the list of ranges */
 			list_del (&range->next);
 			
-			list_for_each_safe (cur2, tmp2, &range->pages) {
+			bio = NULL;
 
-				page = list_entry (cur2, struct page, list);
+			/*
+			 * FIXME-VS: if some of pages from the range are added
+			 * into mapping's tree already or number of pages is
+			 * too big for one bio - we will have to spilt the
+			 * range into several bio-s
+			 */
+			prev = ~0lu;
+			while (range->nr_pages) {
+				/* list of pages must contains at list one page
+				 * in it */
+				assert ("vs-798", !list_empty (&range->pages));
+				/* make sure that pages are in right order */
+				assert ("vs-800", ergo (prev != ~0lu, prev + 1 == page->index));
+
+				/* take first page off the list */
+				page = list_entry (range->pages.next, struct page, list);
 				list_del (&page->list);
-
+				range->nr_pages --;
+				
 				if (add_to_page_cache_unique (page, mapping, page->index)) {
-					/* page is in address space already,
-					 * skip it, and submit bio we have so
-					 * far */
+					/* someone else added this page */
 					page_cache_release (page);
 					if (bio) {
 						bio->bi_vcnt = bio->bi_idx;
 						submit_bio (READ, bio);
 						bio = 0;
-						range->nr_pages -= bio->bi_vcnt;
 					}
-					range->nr_pages --;
 					continue;
 				}
-				
-				if (state == HOLE_EXTENT) {
+
+				/* page is added into mapping's tree of pages */
+
+				if (range->sector == 0) {
+					/* this range matches to hole
+					 * extent. no bio is created for this
+					 * range of pages which correspond to
+					 * hole extent */
+					assert ("vs-799", bio == 0);
 					memset (kmap (page), 0, PAGE_CACHE_SIZE);
 					flush_dcache_page (page);
 					kunmap (page);
 					SetPageUptodate (page);
 					unlock_page (page);
 					page_cache_release (page);
-					range->nr_pages --;
+					continue;
 				}
+
+				/* put this page into bio */
 				if (!bio) {
-					coord_t unit;
-					
-					bio = bio_alloc (GFP_KERNEL, range->nr_pages);
+					bio = bio_alloc (GFP_KERNEL, range->nr_pages + 1);
 					if (!bio) {
 						page_cache_release (page);
 						range->nr_pages --;
@@ -2357,8 +2399,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 					bio->bi_vcnt = range->nr_pages;
 					bio->bi_idx = 0;
 					bio->bi_size = 0;
-					bio->bi_sector = extent_get_start (extent_by_coord (&unit)) +
-						in_extent (&unit, (__u64)page->index << PAGE_CACHE_SHIFT);
+					bio->bi_sector = range->sector;
 					bio->bi_io_vec[0].bv_page = NULL;
 				}
 				bvec = &bio->bi_io_vec [bio->bi_idx];
@@ -2368,6 +2409,8 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				bio->bi_size += bvec->bv_len;
 				bio->bi_idx ++;
 				page_cache_release (page);
+				
+				range->nr_pages --;					
 			}
 			bio->bi_vcnt = bio->bi_idx;
 			submit_bio (READ, bio);
