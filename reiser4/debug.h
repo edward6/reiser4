@@ -218,7 +218,7 @@ extern __u32 reiser4_current_trace_flags;
    see */
 
 #define ON_STATS( e ) e
-#define STS ( reiser4_get_super_data_nocheck( reiser4_get_current_sb() ) -> stats )
+#define STS ( reiser4_get_super_private_nocheck( reiser4_get_current_sb() ) -> stats )
 #define ST_INC_CNT( field ) ( ++ STS.field )
 
 /*

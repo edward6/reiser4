@@ -845,7 +845,7 @@ void reiser4_show_context (int show_tree)
 	             ! context_list_end   (& active_contexts, context);
 	     context = context_list_next  (context)) {
 
-		tree = &reiser4_get_super_data (context->super)->tree;
+		tree = &reiser4_get_super_private (context->super)->tree;
 
 		info ("context for thread %u", context->tid);
 		print_address ("; tree root", & tree->root_block);

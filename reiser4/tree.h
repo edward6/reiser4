@@ -351,7 +351,7 @@ struct reiser4_context {
 	txn_handle            trans_in_ctx;
 
 	/** super block we are working with.  To get the current tree
-	 * use &reiser4_get_super_data (reiser4_get_current_sb ())->tree.
+	 * use &reiser4_get_super_private (reiser4_get_current_sb ())->tree.
 	 */
 	struct super_block   *super;
 
@@ -385,7 +385,7 @@ extern void reiser4_show_context     (int show_tree);
 
 
 /* Hans, is this too expensive? */
-#define current_tree (&reiser4_get_super_data (reiser4_get_current_sb ())->tree)
+#define current_tree (&reiser4_get_super_private (reiser4_get_current_sb ())->tree)
 
 extern int  reiser4_init_context( reiser4_context *context,
 				  struct super_block *super );

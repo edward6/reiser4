@@ -373,7 +373,7 @@ static txn_atom*
 atom_begin_andlock (void)
 {
 	txn_atom *atom = kmem_cache_alloc (_atom_slab, GFP_KERNEL);
-	txn_mgr  *mgr  = &reiser4_get_super_data (reiser4_get_current_sb ())->tmgr;
+	txn_mgr  *mgr  = &reiser4_get_super_private (reiser4_get_current_sb ())->tmgr;
 
 	if (atom == NULL) {
 		return ERR_PTR (-ENOMEM);
@@ -422,7 +422,7 @@ atom_pointer_count (txn_atom *atom)
 static void
 atom_free (txn_atom *atom)
 {
-	txn_mgr  *mgr = &reiser4_get_super_data (reiser4_get_current_sb ())->tmgr;
+	txn_mgr  *mgr = &reiser4_get_super_private (reiser4_get_current_sb ())->tmgr;
 
 	trace_on (TRACE_TXN, "free atom %u\n", atom->atom_id);	
 
@@ -546,7 +546,7 @@ txn_mgr_force_commit (struct super_block *super)
 {
 	int ret;
 	txn_atom *atom;
-	txn_mgr *mgr = & reiser4_get_super_data (super)->tmgr;
+	txn_mgr *mgr = & reiser4_get_super_private (super)->tmgr;
 	txn_handle  *txnh;
 
 	REISER4_ENTRY (super);
