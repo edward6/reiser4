@@ -138,7 +138,9 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
     return 0;
 }
 
-reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
+reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, 
+    reiserfs_plugin_t *plugin, const char *name) 
+{
     reiserfs_key_t parent_key;
     reiserfs_object_t *object;
     
@@ -149,13 +151,10 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 	return NULL;
 
     object->fs = fs;
+    object->plugin = plugin;
 
     object->key.plugin = fs->key.plugin;
     reiserfs_key_init(&object->key, fs->key.body);
-    
-    /* FIXME-UMKA: Hardcoded plugin id */
-    if (!(object->plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0)))
-    	libreiser4_factory_failed(goto error_free_object, find, dir, 0x0);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
@@ -170,8 +169,23 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 	    "Can't find %s.", name);
 	return NULL;
     }
-
+    
+    if (plugin->h.type == REISERFS_DIR_PLUGIN) {
+	if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
+	    object->plugin->dir_ops, open, fs->tree, &object->key)))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't open directory %s.", name);
+	    goto error_free_object;
+	}
+    } else {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Sorry, files are not supported yet!");
+	goto error_free_object;
+    }
+    
     return object;
+    
 error_free_object:
     aal_free(object);
     return NULL;
@@ -179,8 +193,8 @@ error_free_object:
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *parent, 
-    const char *name, reiserfs_plugin_t *plugin, reiserfs_profile_t *profile)
+reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_plugin_t *plugin, 
+    reiserfs_object_t *parent, const char *name)
 {
     int i;
     reiserfs_object_t *object;
@@ -189,7 +203,6 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
     
     aal_assert("umka-790", fs != NULL, return NULL);
     aal_assert("umka-785", plugin != NULL, return NULL);
-    aal_assert("umka-786", profile != NULL, return NULL);
     
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;

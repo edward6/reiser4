@@ -17,6 +17,42 @@
 
 static reiserfs_core_t *core = NULL;
 
+static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
+    return 0;
+}
+
+static reiserfs_dir40_t *dir40_open(const void *tree, 
+    reiserfs_key_t *key) 
+{
+    reiserfs_dir40_t *dir;
+
+    aal_assert("umka-836", tree != NULL, return NULL);
+    aal_assert("umka-837", key != NULL, return NULL);
+    aal_assert("umka-838", key->plugin != NULL, return NULL);
+    
+    if (!(dir = aal_calloc(sizeof(*dir), 0)))
+	return NULL;
+    
+    dir->tree = tree;
+    
+    dir->key.plugin = key->plugin;
+    aal_memcpy(dir->key.body, key->body, libreiser4_plugin_call(goto error_free_dir, 
+	key->plugin->key_ops, size,));
+    
+    /* Positioning onto first directory unit */
+    if (dir40_rewind(dir)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't rewind directory.");
+	goto error_free_dir;
+    }
+    
+    return dir;
+
+error_free_dir:
+    aal_free(dir);
+    return NULL;
+}
+
 #ifndef ENABLE_COMPACT
 
 static reiserfs_dir40_t *dir40_create(const void *tree, 
@@ -41,6 +77,8 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 
     if (!(dir = aal_calloc(sizeof(*dir), 0)))
 	return NULL;
+    
+    dir->tree = tree;
     
     key_plugin = object->plugin;
     
@@ -161,11 +199,13 @@ static reiserfs_plugin_t dir40_plugin = {
 	.create = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *, 
 	    reiserfs_key_t *)) dir40_create,
 
-	.close = (void (*)(reiserfs_entity_t *))dir40_close
 #else
 	.create = NULL,
-	.close = NULL
 #endif
+	.open = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *))
+	    dir40_open,
+
+	.close = (void (*)(reiserfs_entity_t *))dir40_close
     }
 };
 

@@ -281,6 +281,7 @@ struct reiserfs_dir_ops {
     reiserfs_entity_t *(*create) (const void *, reiserfs_key_t *, 
 	reiserfs_key_t *); 
     
+    reiserfs_entity_t *(*open) (const void *, reiserfs_key_t *);
     void (*close) (reiserfs_entity_t *);
 };
 

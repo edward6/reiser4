@@ -8,6 +8,8 @@
 #define DIR40_H
 
 struct reiserfs_dir40 {
+    const void *tree;
+
     reiserfs_place_t place;
     reiserfs_key_t key;
 };
