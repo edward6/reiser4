@@ -172,6 +172,7 @@ typedef union reiser4_file_fsdata {
 		 * useless. Shouldn't therefore coord be included into seal?
 		 */
 		coord_t coord;
+		tree_level level;
 	} reg;
 } reiser4_file_fsdata;
 
