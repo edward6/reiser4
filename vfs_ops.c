@@ -33,7 +33,7 @@
 
 #include <linux/types.h>
 #include <linux/mount.h>
-#include <linux/fs.h>
+#include <linux/vfs.h>
 #include <linux/mm.h>
 #include <linux/buffer_head.h>
 #include <linux/dcache.h>
