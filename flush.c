@@ -3922,6 +3922,5 @@ flush_flags_tostring(int flags)
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
-   properties-flag: t
    End:
 */
