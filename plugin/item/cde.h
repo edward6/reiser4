@@ -34,10 +34,10 @@ typedef struct cde_entry_data {
 } cde_entry_data;
 
 /* plugin->item.b.* */
-reiser4_key *max_key_inside_cde(const coord_t * coord, reiser4_key * result, void *);
+reiser4_key *max_key_inside_cde(const coord_t * coord, reiser4_key * result);
 int can_contain_key_cde(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int mergeable_cde(const coord_t * p1, const coord_t * p2);
-unsigned nr_units_cde(const coord_t * coord);
+pos_in_item_t nr_units_cde(const coord_t * coord);
 reiser4_key *unit_key_cde(const coord_t * coord, reiser4_key * key);
 int estimate_cde(const coord_t * coord, const reiser4_item_data * data);
 void print_cde(const char *prefix, coord_t * coord);

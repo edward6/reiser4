@@ -387,7 +387,7 @@ estimate_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* ->nr_units() method for this item plugin. */
-unsigned
+pos_in_item_t
 nr_units_cde(const coord_t * coord /* coord of item */ )
 {
 	return units(coord);
@@ -433,8 +433,7 @@ mergeable_cde(const coord_t * p1 /* coord of first item */ ,
 /* ->max_key_inside() method for this item plugin. */
 reiser4_key *
 max_key_inside_cde(const coord_t * coord /* coord of item */ ,
-		   reiser4_key * result /* resulting key */,
-		   void *p UNUSED_ARG)
+		   reiser4_key * result /* resulting key */)
 {
 	assert("nikita-1342", coord != NULL);
 
@@ -598,7 +597,7 @@ lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
 
 	CHECKME(coord);
 
-	if (keygt(key, max_key_inside_cde(coord, &utmost_key, 0))) {
+	if (keygt(key, max_key_inside_cde(coord, &utmost_key))) {
 		/* @key is from another directory item */
 		coord->unit_pos = units(coord) - 1;
 		coord->between = AFTER_UNIT;
