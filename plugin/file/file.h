@@ -34,6 +34,7 @@ typedef enum {
 
 write_mode how_to_write(coord_t *, lock_handle *, const reiser4_key *);
 void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
+void unset_hint(struct sealed_coord *);
 int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
 int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size);
 
