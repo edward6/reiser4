@@ -198,8 +198,7 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 		atomic_inc( &item -> node -> c_count );
 		child -> in_parent = *item;
 		child -> in_parent.between = AT_UNIT;
-		if( arg != NULL )
-			sibling_list_insert_nolock( child, arg );
+		sibling_list_insert_nolock( child, arg );
 
 		ZF_CLR( child, JNODE_ORPHAN );
 
