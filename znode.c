@@ -1066,7 +1066,7 @@ znode_pre_write(znode * node)
 }
 
 int
-znode_post_write(const znode * node)
+znode_post_write(znode * node)
 {
 	__u32 cksum;
 

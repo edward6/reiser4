@@ -432,7 +432,7 @@ extern void zfree(znode * node);
 #if REISER4_DEBUG_MODIFY
 extern __u32 znode_checksum(const znode * node);
 extern int znode_pre_write(znode * node);
-extern int znode_post_write(const znode * node);
+extern int znode_post_write(znode * node);
 #endif
 
 const char *lock_mode_name(znode_lock_mode lock);
