@@ -395,20 +395,6 @@ struct reiser4_key_ops {
 
 typedef struct reiser4_key_ops reiser4_key_ops_t;
 
-struct reiser4_regular_ops {
-
-    /* Reads the data from file to passed buffer */
-    errno_t (*read) (reiser4_entity_t *, char *, uint64_t);
-
-    /* Writes the data to file from passed buffer */
-    errno_t (*write) (reiser4_entity_t *, char *, uint64_t);
-
-    /* Truncates file to passed length */
-    errno_t (*truncate) (reiser4_entity_t *, uint64_t);
-};
-
-typedef struct reiser4_regular_ops reiser4_regular_ops_t;
-
 struct reiser4_file_ops {
     reiser4_plugin_header_t h;
 
@@ -437,17 +423,14 @@ struct reiser4_file_ops {
     /* Makes lookup inside dir */
     int (*lookup) (reiser4_entity_t *, char *, reiser4_key_t *);
     
-    /* Reads next entry from the directory */
-    errno_t (*entry) (reiser4_entity_t *, reiser4_entry_hint_t *);
+    /* Reads the data from file to passed buffer */
+    errno_t (*read) (reiser4_entity_t *, char *, uint64_t);
     
-    /* Adds new entry into directory */
-    errno_t (*add) (reiser4_entity_t *, reiser4_entry_hint_t *);
+    /* Writes the data to file from passed buffer */
+    errno_t (*write) (reiser4_entity_t *, char *, uint64_t);
 
-    /* Removes entry from directory */
-    errno_t (*remove) (reiser4_entity_t *, uint32_t);
-
-    /* Specific file operations */
-    reiser4_regular_ops_t regular;
+    /* Truncates file to passed length */
+    errno_t (*truncate) (reiser4_entity_t *, uint64_t);
 };
 
 typedef struct reiser4_file_ops reiser4_file_ops_t;

@@ -182,12 +182,14 @@ static int dir40_continue(reiser4_entity_t *entity,
     return (dir_locality == next_locality);
 }
 
-static errno_t dir40_entry(reiser4_entity_t *entity, 
-    reiser4_entry_hint_t *entry) 
+static errno_t dir40_read(reiser4_entity_t *entity, 
+    char *buff, uint64_t n)
 {
     uint32_t count;
     reiser4_plugin_t *plugin;
     dir40_t *dir = (dir40_t *)entity;
+
+    reiser4_entry_hint_t *entry = (reiser4_entry_hint_t *)buff;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
@@ -507,12 +509,21 @@ error:
     return NULL;
 }
 
-static errno_t dir40_add(reiser4_entity_t *entity, 
-    reiser4_entry_hint_t *entry) 
+static errno_t dir40_truncate(reiser4_entity_t *entity, 
+    uint64_t n) 
+{
+    /* Sorry, not implemented yet! */
+    return -1;
+}
+
+static errno_t dir40_write(reiser4_entity_t *entity, 
+    char *buff, uint64_t n) 
 {
     reiser4_item_hint_t hint;
     reiser4_direntry_hint_t direntry_hint;
     dir40_t *dir = (dir40_t *)entity;
+    
+    reiser4_entry_hint_t *entry = (reiser4_entry_hint_t *)buff;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
@@ -596,12 +607,12 @@ static reiser4_plugin_t dir40_plugin = {
 	},
 #ifndef ENABLE_COMPACT
         .create	    = dir40_create,
-        .add	    = dir40_add,
-        .remove	    = NULL,
+        .write	    = dir40_write,
+        .truncate   = dir40_truncate,
 #else
         .create	    = NULL,
-        .add	    = NULL,
-        .remove	    = NULL,
+        .write	    = NULL,
+        .truncate   = NULL,
 #endif
         .valid	    = NULL,
         .open	    = dir40_open,
@@ -610,13 +621,7 @@ static reiser4_plugin_t dir40_plugin = {
         .offset	    = dir40_offset,
         .seek	    = dir40_seek,
         .lookup	    = dir40_lookup,
-        .entry	    = dir40_entry,
-	
-	.regular = {
-	    .read	    = NULL,
-	    .write	    = NULL,
-	    .truncate	    = NULL
-	}
+	.read	    = dir40_read
     }
 };
 

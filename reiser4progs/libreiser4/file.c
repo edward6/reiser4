@@ -239,16 +239,28 @@ error_free_file:
 
 #ifndef ENABLE_COMPACT
 
+errno_t reiser4_file_truncate(
+    reiser4_file_t *file,	    /* file for truncating */
+    uint64_t n			    /* the number of entries */
+) {
+    aal_assert("umka-1154", file != NULL, return -1);
+    aal_assert("umka-1155", file->entity != NULL, return -1);
+    
+    return plugin_call(return -1, file->entity->plugin->file_ops, 
+        truncate, file->entity, n);
+}
+
 /* Adds speficied entry into passed opened dir */
-errno_t reiser4_file_add(
-    reiser4_file_t *file,	    /* dir new entry will be add in */
-    reiser4_entry_hint_t *hint	    /* new entry hint */
+errno_t reiser4_file_write(
+    reiser4_file_t *file,	    /* file for writing */
+    char *buff,			    /* new entries buffer */
+    uint64_t n			    /* the number of entries to be created */
 ) {
     aal_assert("umka-862", file != NULL, return -1);
     aal_assert("umka-863", file->entity != NULL, return -1);
     
     return plugin_call(return -1, file->entity->plugin->file_ops, 
-        add, file->entity, hint);
+        write, file->entity, buff, n);
 }
 
 /* Creates new file on specified filesystem */
@@ -328,7 +340,7 @@ reiser4_file_t *reiser4_file_create(
 	entry.objid.locality = reiser4_key_get_locality(&file->key);
 	entry.name = (char *)name;
 
-	if (reiser4_file_add(parent, &entry)) {
+	if (reiser4_file_write(parent, (char *)&entry, 1)) {
 	    aal_exception_error("Can't add entry \"%s\".", name);
 	    goto error_free_file;
 	}
@@ -376,16 +388,16 @@ errno_t reiser4_file_reset(
 	reset, file->entity);
 }
 
-/* Reads one entry from directory, current position points on */
-errno_t reiser4_file_entry(
+errno_t reiser4_file_read(
     reiser4_file_t *file,	    /* dir entry will be read from */
-    reiser4_entry_hint_t *hint	    /* entry pointer result will be stored in */
+    char *buff,			    /* entry pointer result will be stored in */
+    uint64_t n
 ) {
     aal_assert("umka-860", file != NULL, return -1);
     aal_assert("umka-861", file->entity != NULL, return -1);
 
     return plugin_call(return -1, file->entity->plugin->file_ops, 
-        entry, file->entity, hint);
+        read, file->entity, buff, n);
 }
 
 /* Retutns current position in directory */
