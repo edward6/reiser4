@@ -764,6 +764,7 @@ static int cut_or_kill_units (coord_t * coord,
 								1 /* defer */, 0 /* not used */);
 				}
 				extent_set_width (ext, new_width);
+				znode_set_dirty (coord->node);
 			}
 			(*from) ++;
 			count --;
@@ -839,6 +840,7 @@ static int cut_or_kill_units (coord_t * coord,
 				extent_set_start (ext, extent_get_start (ext) + old_width - new_width);
 			}
 			extent_set_width (ext, new_width);
+			znode_set_dirty (coord->node);
 			(*to) --;
 			count --;
 		}
@@ -1013,6 +1015,7 @@ static void optimize_extent (const coord_t * item)
 		 */
 		assert ("vs-456", result == 0);
 	}
+	znode_set_dirty (item->node);
 }
 
 
@@ -1142,6 +1145,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 	case UNALLOCATED_EXTENT:
 		set_extent (ext, UNALLOCATED_EXTENT,
 			    extent_get_width (ext) + 1);
+		znode_set_dirty (coord->node);
 		break;
 
 	case HOLE_EXTENT:
@@ -1196,6 +1200,7 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 
 	if (width == 1) {
 		set_extent (ext, UNALLOCATED_EXTENT, 1ull);
+		znode_set_dirty (coord->node);
 		return 0;
 	} else if (pos_in_unit == 0) {
 		state_after = UNALLOCATED_EXTENT;
@@ -1235,12 +1240,11 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 	ret = insert_into_item (coord, lh, &key,
 				init_new_extent (&item, new_exts, count),
 				0/*flags*/);
-	/*ret = add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));*/
 	if (!ret) {
 		/* FIXME-VS: we might also try to optimize @coord */
 		set_extent (extent_by_coord (&coord_after), 
 			    state_after, width_after);
-		/*optimize_extent (&coord_after);*/
+		znode_set_dirty (coord_after.node);
 	}
 	tap_done (&watch);
 	return ret;
@@ -2745,6 +2749,7 @@ static int try_to_glue (znode * left, coord_t * right,
 		 * @left
 		 */
 		extent_set_width (ext, extent_get_width (ext) + allocated);
+		znode_set_dirty (left);
 		return 1;
 	}
 	return 0;
