@@ -8,6 +8,7 @@
 #include "../../page_cache.h"
 #include "../../emergency_flush.h"
 #include "../../prof.h"
+#include "../../flush.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
@@ -3141,6 +3142,190 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 	ext_coord->pos_in_unit = ((lookuped - offset) >> current_blocksize_bits);
 
 	uf_coord->valid = 1;
+}
+
+/* plugin->u.item.f.scan */
+/* Performs leftward scanning starting from an unformatted node and its parent coordinate.
+   This scan continues, advancing the parent coordinate, until either it encounters a
+   formatted child or it finishes scanning this node.
+  
+   If unallocated, the entire extent must be dirty and in the same atom.  (Actually, I'm
+   not sure this is last property (same atom) is enforced, but it should be the case since
+   one atom must write the parent and the others must read the parent, thus fusing?).  In
+   any case, the code below asserts this case for unallocated extents.  Unallocated
+   extents are thus optimized because we can skip to the endpoint when scanning.
+  
+   It returns control to scan_extent, handles these terminating conditions, e.g., by
+   loading the next twig.
+*/
+int scan_extent(flush_scan * scan, const coord_t * in_coord)
+{
+	coord_t coord;
+	jnode *neighbor;
+	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist;
+	reiser4_block_nr unit_start;
+	/*struct inode *ino = NULL; */
+	__u64 oid;
+	reiser4_key key;
+	/*struct page *pg; */
+	int ret = 0, allocated, incr;
+	reiser4_tree *tree;
+
+	if (!jnode_check_dirty(scan->node)) {
+		scan->stop = 1;
+		return 0; /* Race with truncate, this node is already
+			   * truncated. */
+	}
+
+	coord_dup(&coord, in_coord);
+
+	assert("jmacd-1404", !scan_finished(scan));
+	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);
+	assert("jmacd-1406", jnode_is_unformatted(scan->node));
+
+	/* The scan_index variable corresponds to the current page index of the
+	   unformatted block scan position. */
+	scan_index = index_jnode(scan->node);
+
+	assert("jmacd-7889", item_is_extent(&coord));
+
+	ON_TRACE(TRACE_FLUSH_VERB, "%s scan starts %lu: %s\n",
+		 (scanning_left(scan) ? "left" : "right"), scan_index, jnode_tostring(scan->node));
+
+repeat:
+	/* If the get_inode call is expensive we can be a bit more clever and only call
+	   get_inode when the extent item changes, not just the extent unit.  As it is,
+	   this repeats the get_inode call for every unit even when the OID doesn't
+	   change. */
+	oid = get_key_objectid(item_key_by_coord(&coord, &key));
+
+	ON_TRACE(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
+		 (scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
+
+	/* FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
+	   by this function---this leads to incorrect preceder update in
+	   "stop-same-parent" branch below.
+	*/
+	allocated = !extent_is_unallocated(&coord);
+	/* Get the values of this extent unit: */
+	unit_index = extent_unit_index(&coord);
+	unit_width = extent_unit_width(&coord);
+	unit_start = extent_unit_start(&coord);
+
+	assert("jmacd-7187", unit_width > 0);
+	assert("jmacd-7188", scan_index >= unit_index);
+	assert("jmacd-7189", scan_index <= unit_index + unit_width - 1);
+
+	/* Depending on the scan direction, we set different maximum values for scan_index
+	   (scan_max) and the number of nodes that would be passed if the scan goes the
+	   entire way (scan_dist).  Incr is an integer reflecting the incremental
+	   direction of scan_index. */
+	if (scanning_left(scan)) {
+		scan_max = unit_index;
+		scan_dist = scan_index - unit_index;
+		incr = -1;
+	} else {
+		scan_max = unit_index + unit_width - 1;
+		scan_dist = scan_max - unit_index;
+		incr = +1;
+	}
+
+	tree = current_tree;	/*tree_by_inode (ino); */
+
+	/* If the extent is allocated we have to check each of its blocks.  If the extent
+	   is unallocated we can skip to the scan_max. */
+	if (allocated) {
+		do {
+			neighbor = jlook_lock(tree, oid, scan_index);
+			if (neighbor == NULL)
+				goto stop_same_parent;
+
+			ON_TRACE(TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n",
+				 scan_index, jnode_tostring(neighbor));
+
+			if (scan->node != neighbor && !scan_goto(scan, neighbor)) {
+				/* @neighbor was jput() by scan_goto(). */
+				goto stop_same_parent;
+			}
+
+			ret = scan_set_current(scan, neighbor, 1, &coord);
+			if (ret != 0) {
+				goto exit;
+			}
+
+			/* reference to @neighbor is stored in @scan, no need
+			   to jput(). */
+			scan_index += incr;
+
+		} while (incr + scan_max != scan_index);
+
+	} else {
+		/* Optimized case for unallocated extents, skip to the end. */
+		neighbor = jlook_lock(tree, oid, scan_index);
+		if (neighbor == NULL) {
+			/* Race with truncate */
+			scan->stop = 1;
+			ret = 0;
+			goto exit;
+		}
+
+		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
+
+		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
+		       && same_atom_dirty(neighbor, scan->node, 0, 0));
+
+		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
+		if (ret != 0) {
+			goto exit;
+		}
+	}
+
+	if (coord_sideof_unit(&coord, scan->direction) == 0 && item_is_extent(&coord)) {
+		/* Continue as long as there are more extent units. */
+
+		scan_index =
+		    extent_unit_index(&coord) + (scanning_left(scan) ? extent_unit_width(&coord) - 1 : 0);
+		/*assert ("vs-835", ino); */
+		/*iput (ino); */
+		goto repeat;
+	}
+
+	if (0) {
+stop_same_parent:
+
+		/* If we are scanning left and we stop in the middle of an allocated
+		   extent, we know the preceder immediately.. */
+		/* middle of extent is (scan_index - unit_index) != 0. */
+		if (scanning_left(scan) && (scan_index - unit_index) != 0) {
+			/* FIXME(B): Someone should step-through and verify that this preceder
+			   calculation is indeed correct. */
+			/* @unit_start is starting block (number) of extent
+			   unit. Flush stopped at the @scan_index block from
+			   the beginning of the file, which is (scan_index -
+			   unit_index) block within extent.
+			*/
+			if (unit_start) {
+				/* skip preceder update when we are at hole */
+				scan->preceder_blk = unit_start + scan_index - unit_index;
+				check_preceder(scan->preceder_blk);
+			}
+		}
+
+		/* In this case, we leave coord set to the parent of scan->node. */
+		scan->stop = 1;
+
+	} else {
+		/* In this case, we are still scanning, coord is set to the next item which is
+		   either off-the-end of the node or not an extent. */
+		assert("jmacd-8912", scan->stop == 0);
+		assert("jmacd-7812", (coord_is_after_sideof_unit(&coord, scan->direction)
+				      || !item_is_extent(&coord)));
+	}
+
+	ret = 0;
+exit:
+	/*if (ino != NULL) { iput (ino); } */
+	return ret;
 }
 
 /*
