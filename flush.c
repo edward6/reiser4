@@ -10,6 +10,8 @@
  * written location.  When you're writing just a single internal node, use the global
  * value. */
 
+/* FIXME: Comments are out of date and missing in this file. */
+
 /* FIXME: */
 #define NEW_ENQUEUE 0
 
@@ -112,11 +114,6 @@ static int           shift_one_internal_unit      (znode *left, znode *right);
 static int           flush_squeeze_left_edge      (flush_position *pos);
 static int           flush_squalloc_right         (flush_position *pos);
 
-#if REISER4_DEBUG
-static void          jnode_check_parent_coord     (jnode *node, coord_t *coord);
-#else
-#define              jnode_check_parent_coord(n,c) (void)0
-#endif
 static int           jnode_lock_parent_coord      (jnode *node,
 						   coord_t *coord,
 						   lock_handle *parent_lh,
@@ -267,10 +264,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		if ((ret = flush_squalloc_right (& flush_pos))) {
 			goto failed;
 		}
-
-		/* This is not true because, e.g., an allocated node (such as the root)
-		 * can disappear during squalloc. */
-		/*assert ("jmacd-8966", flush_pos.alloc_cnt == flush_pos.enqueue_cnt); */
 	}
 
 	/* Perform batch write. FIXME: Not here, somewhere in the caller... */
@@ -1672,14 +1665,6 @@ static int jnode_lock_parent_coord (jnode *node,
 	return 0;
 }
 
-#if REISER4_DEBUG
-/* Assert that parent coord is correct. */
-static void jnode_check_parent_coord (jnode *node UNUSED_ARG, coord_t *check UNUSED_ARG)
-{
-	/* How do I do this w/o tree traversal? */
-}
-#endif
-
 /* Get the right neighbor of a znode locked provided a condition is met.  The neighbor
  * must be dirty and a member of the same atom.  If there is no right neighbor or the
  * neighbor is not in memory or if there is a neighbor but it is not dirty or not in the
@@ -1979,7 +1964,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	}
 
 	/* This asserts the invariant. */
-	jnode_check_parent_coord (scan->node, & scan->parent_coord);
+	/*jnode_check_parent_coord (scan->node, & scan->parent_coord);*/
 
 	ret = 0;
  exit:
