@@ -411,9 +411,11 @@ void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags)
 	}
 	tree_rec( tree, root, flags );
 	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
+		char path[ 1024 ];
 		FILE *dot;
 
-		dot = fopen( prefix, "w+" );
+		sprintf( path, "/tmp/%s.dot", prefix );
+		dot = fopen( path, "w+" );
 		if( dot != NULL ) {
 			fprintf( dot,
 				 "digraph L0 {\n"
