@@ -170,12 +170,12 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 	case S_IFBLK:
 	case S_IFCHR:
 	case S_IFIFO:{
-			int rdev;	/* to keep gcc happy */
+			dev_t rdev;	/* to keep gcc happy */
 
 			/* ugly hack with rdev */
 			if (data == NULL) {
-				rdev = kdev_t_to_nr(inode->i_rdev);
-				inode->i_rdev = to_kdev_t(0);
+				rdev = inode->i_rdev;
+				inode->i_rdev = 0;
 			} else
 				rdev = data->rdev;
 			inode->i_blocks = 0;
@@ -579,7 +579,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	}
 	printk("%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
 	       prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink, i->i_mode, (unsigned long long) i->i_size);
-	printk("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_sb->s_dev, kdev_t_to_nr(i->i_rdev));
+	printk("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_sb->s_dev, i->i_rdev);
 	printk("\tatime: [%li,%li], mtime: [%li,%li], ctime: [%li,%li]\n", 
 	       i->i_atime.tv_sec, i->i_atime.tv_nsec,
 	       i->i_mtime.tv_sec, i->i_mtime.tv_nsec,

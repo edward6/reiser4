@@ -676,7 +676,7 @@ struct reiser4_object_create_data {
 /* what happens if some other sort of perm plugin is in use? */
 	int mode;
 	/* rdev of special file */
-	int rdev;
+	dev_t rdev;
 	/* symlink target */
 	const char *name;
 	/* add here something for non-standard objects you invent, like
