@@ -499,7 +499,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	reiser4_tree *tree;
 	int result;
 
-	REISER4_ENTRY(s);
+	REISER4_ENTRY(s, WRITEBACK_OP);
 	assert("vs-828", PageLocked(page));
 
 	tree = &get_super_private(s)->tree;
@@ -543,8 +543,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		REISER4_EXIT(0);
 
 	reiser4_lock_page(page);
-	result = emergency_flush(page);
-
+	if (page->mapping)
+		result = emergency_flush(page);
+	else {
+		/* race with truncate? */
+		result = -EINVAL;
+	}
 	if (result <= 0)
 		REISER4_EXIT(WRITEPAGE_ACTIVATE);
 
