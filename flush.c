@@ -1615,6 +1615,7 @@ static int squeeze_right_twig_and_advance_coord (flush_pos_t * pos, znode * righ
 	return 0;
 }
 
+#if 0
 /* "prepped" check for parent node without long-term locking it */
 static inline int fast_check_parent_flushprepped (znode * node)
 {
@@ -1630,6 +1631,7 @@ static inline int fast_check_parent_flushprepped (znode * node)
 
 	return prepped;
 }
+#endif
 
 /* forward declaration */
 static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
@@ -1638,7 +1640,7 @@ static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
  * squalloc_upper_levels() */
 static inline int check_parents_and_squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 {
-	if (znode_same_parents(left, right) || fast_check_parent_flushprepped(right))
+	if (znode_same_parents(left, right))
 		return 0;
 
 	return squalloc_upper_levels(pos, left, right);
@@ -1678,8 +1680,11 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	if (left_parent_lock.node == right_parent_lock.node)
 		goto out;
 
-	if (znode_check_flushprepped(right_parent_lock.node))
+	if (znode_check_flushprepped(right_parent_lock.node)) {
+		pos->preceder.blk = *znode_get_block(right_parent_lock.node);
+		check_preceder(pos->preceder.blk);
 		goto out;
+	}
 
 	ret = incr_load_count_znode(&left_parent_load, left_parent_lock.node);
 	if (ret)
@@ -2630,6 +2635,11 @@ jnode_lock_parent_coord(jnode         * node,
 			else
 				return ret;
 		case CBK_COORD_FOUND:
+			if (coord->between != AT_UNIT) {
+				/* FIXME: comment needed */
+				done_lh(parent_lh);
+				return -ENOENT;
+			}
 			if ((ret = incr_load_count_znode(parent_zh, parent_lh->node))) 
 				return ret;
 			break;
