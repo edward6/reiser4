@@ -238,6 +238,11 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 			move_zh (& flush_pos.parent_load, & left_scan.parent_load);
 		} else {
 			if ((ret = longterm_lock_znode (& flush_pos.point_lock, JZNODE (left_scan.node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+				/* EINVAL means the node was deleted, DEADLK should be impossible here. */
+				assert ("jmacd-34113", ret != -EDEADLK);
+				if (ret == -EINVAL) {
+					ret = 0;
+				}
 				goto failed;
 			}
 		}
@@ -272,7 +277,16 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 
 	//print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF);
 	if (nr_to_flush != NULL) {
-		(*nr_to_flush) = flush_pos.enqueue_cnt;
+		if (ret == 0) {
+			(*nr_to_flush) = flush_pos.enqueue_cnt;
+		} else {
+			(*nr_to_flush) = 0;
+		}
+	}
+
+	if (ret == -EINVAL || ret == -EDEADLK) {
+		/* Something bad happened, but can't be avoided...  Try again! */
+		ret = 0;
 	}
 
 	if (ret != 0) {
@@ -395,7 +409,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 			} else {
 				ret = 0;
 			}
-			trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (end of twig, EINVAL right): %s\n", flush_pos_tostring (pos));
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (end of twig, ENAVAIL right): %s\n", flush_pos_tostring (pos));
 			flush_pos_stop (pos);
 		}
 		goto exit;
@@ -657,7 +671,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 			 * the calling function.  Could be done here without a second
 			 * test, except that complicates the recursion here. */
 			ret = 0;
-			trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] EINVAL: %s\n", call_depth, flush_pos_tostring (pos));
+			trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ENAVAIL: %s\n", call_depth, flush_pos_tostring (pos));
 		} else {
 			warning ("jmacd-61425", "znode_get_if_dirty failed: %d", ret);
 		}
@@ -864,7 +878,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
 				ret = flush_enqueue_ancestors (node, pos);
-				trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (EINVAL, ancestors allocated): %s\n", flush_pos_tostring (pos));
+				trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring (pos));
 				flush_pos_stop (pos);
 			} else {
 				warning ("jmacd-61433", "znode_get_if_dirty failed: %d", ret);
@@ -1404,8 +1418,9 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 
 		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
 
-		/* FIXME: This is failing with another spinlock held. */
-		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
+			/* The fake node cannot be deleted, and we must have priority here. */
+			assert ("jmacd-74412", ret != -EINVAL && ret != -EDEADLK);
 			zput (fake);
 			goto exit;
 		}
@@ -1668,7 +1683,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 
 	/* Can't assert is_dirty here, even though we checked it above,
 	 * because there is a race when the tree_lock is released. */
-        if (! znode_is_dirty (lock->node)) {
+        if (! znode_check_dirty (lock->node)) {
 		done_lh (lock);
 		ret = -ENAVAIL;
 	}
@@ -2119,6 +2134,8 @@ static int flush_scan_formatted (flush_scan *scan)
 
 		/* Need the node locked to get the parent lock. */
 		if ((ret = longterm_lock_znode (& end_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/, ZNODE_LOCK_LOPRI))) {
+			/* EINVAL or EDEADLK here mean... try again!  At this point we've
+			 * scanned too far.  Seems right to start over. */
 			return ret;
 		}
 

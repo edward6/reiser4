@@ -550,6 +550,7 @@ static int can_lock_object (lock_stack *owner, znode *node)
 
 	/* See if the node is disconnected. */
 	if (ZF_ISSET (node, ZNODE_IS_DYING)) {
+		warning ("jmacd-61558", "attempt to lock dying znode: %p", node);
 		return -EINVAL;
 	}
 
