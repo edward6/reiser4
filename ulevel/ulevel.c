@@ -125,54 +125,24 @@ void spinlock_bug (const char *msg)
 	rpanic ("jmacd-1010", "spinlock: %s", msg); 
 }
 
-#if 0
-static void kcondvar_checklock (kcondvar_t  *kcond)
-{
-	assert ("jmacd-59", spin_is_locked (kcond->_lockp));
-}
-
-void kcondvar_init (kcondvar_t *kcond,
-		    spinlock_t *lock)
-{
-	kcond->_lockp = lock;
-	kcond->_count = 0;
-
-	pthread_cond_init (& kcond->_cond, NULL);
-}
-
-int kcondvar_waiters (kcondvar_t *kcond)
-{
-	kcondvar_checklock (kcond);
-
-	return kcond->_count;
-}
-
-void kcondvar_wait (kcondvar_t *kcond)
-{
-	kcondvar_checklock (kcond);
-
-	kcond->_count += 1;
-
-	pthread_cond_wait (& kcond->_cond, kcond->_lockp);
-
-	kcondvar_checklock (kcond);
-
-	kcond->_count -= 1;
-}
-
-void kcondvar_signal (kcondvar_t *kcond)
-{
-	pthread_cond_signal (& kcond->_cond);
-}
-
-void kcondvar_broadcast (kcondvar_t *kcond)
-{
-	pthread_cond_broadcast (& kcond->_cond);
-}
-#endif
-
 #define KMEM_CHECK 0
 #define KMEM_MAGIC 0x74932123U
+
+__u64 total_allocations = 0ull;
+
+void *xmalloc( size_t size )
+{
+	++ total_allocations;
+
+	if( total_allocations > MEMORY_PRESSURE_THRESHOLD )
+		declare_memory_pressure();
+	return malloc( size );
+}
+
+void xfree( void *addr )
+{
+	free( addr );
+}
 
 void *kmalloc( size_t size, int flag UNUSE )
 {
@@ -182,7 +152,7 @@ void *kmalloc( size_t size, int flag UNUSE )
 	size += sizeof (__u32);
 #endif
 
-	addr = malloc( size );
+	addr = xmalloc( size );
 
 #if KMEM_CHECK
 	if (addr != NULL) {
@@ -854,22 +824,31 @@ static size_t mmap_back_end_size = 0;
 
 int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 {
+	size_t blksz;
+
+	blksz = reiser4_get_current_sb ()->s_blocksize;
+
 	if( mmap_back_end_fd > 0 ) {
 		off_t start;
 
-		start = *addr * reiser4_get_current_sb ()->s_blocksize;
-		if( start + reiser4_get_current_sb ()->s_blocksize > mmap_back_end_size ) {
+		start = *addr * blksz;
+		if( start + blksz > mmap_back_end_size ) {
 			warning( "nikita-1372", "Trying to access beyond the device: %li > %u",
 				 start, mmap_back_end_size );
 			return -EIO;
 		} else {
+			++ total_allocations;
+			
+			if (total_allocations > MEMORY_PRESSURE_THRESHOLD)
+				declare_memory_pressure();
+
 			*data = mmap_back_end_start + start;
-			return reiser4_get_current_sb ()->s_blocksize;
+			return blksz;
 		}
 	} else {
-		*data = malloc( reiser4_get_current_sb ()->s_blocksize );
+		*data = xmalloc( reiser4_get_current_sb ()->s_blocksize );
 		if( *data != NULL )
-			return reiser4_get_current_sb ()->s_blocksize;
+			return blksz;
 		else
 			return -ENOMEM;
 	}
@@ -877,6 +856,10 @@ int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 
 int ulevel_allocate_node( znode *node )
 {
+	size_t blksz;
+
+	blksz = reiser4_get_current_sb ()->s_blocksize;
+
 	if( mmap_back_end_fd > 0 ) {
 		int ret;
 
@@ -888,8 +871,9 @@ int ulevel_allocate_node( znode *node )
 			return ret;
 	}
 	assert( "nikita-1909", node != NULL );
-	node -> size = reiser4_get_current_sb() -> s_blocksize;
-	node -> data = malloc( node -> size );
+	node -> size = blksz;
+	node -> data = xmalloc( node -> size );
+
 	if( node -> data != NULL )
 		return 0;
 	else
@@ -936,7 +920,7 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 		add_d_ref( root );
 		root -> ld_key = *min_key();
 		root -> rd_key = *max_key();
-		root -> data = malloc( 1 );
+		root -> data = xmalloc( 1 );
 		return root;
 	}
 	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
@@ -1034,7 +1018,7 @@ void test_search( int rounds, int size, int num )
 	u_int64_t cycles;
 
 	for( i = 0 ; i < num ; ++ i ) {
-		key[ i ] = malloc( sizeof key[ i ][ 0 ] * size );
+		key[ i ] = xmalloc( sizeof key[ i ][ 0 ] * size );
 	}
 	for( i = 0 ; i < num ; ++ i ) {
 		for( j = 0 ; j < size ; ++ j ) {
@@ -1444,7 +1428,7 @@ static int mt_queue_put( mt_queue_t *queue, int value )
 	mt_queue_el_t *el;
 	int ret;
 
-	el = malloc( sizeof *el );
+	el = xmalloc( sizeof *el );
 	if( el == NULL )
 		return -ENOMEM;
 
@@ -1618,7 +1602,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		f = sandbox( create_root_dir( root ) );
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
-		tid = malloc( threads * sizeof tid[ 0 ] );
+		tid = xmalloc( threads * sizeof tid[ 0 ] );
 		assert( "nikita-1495", tid != NULL );
 
 		print_inode( "inode", f );
@@ -1675,7 +1659,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		ret = mt_queue_init( capacity, &queue );
 		assert( "nikita-1918", ret == 0 ); /* Civil war */
 
-		tid = malloc( ( threads + 2 ) * sizeof tid[ 0 ] );
+		tid = xmalloc( ( threads + 2 ) * sizeof tid[ 0 ] );
 		assert( "nikita-1919", tid != NULL );
 
 		for( i = 0 ; i < capacity / 2 ; ++ i )
@@ -2007,7 +1991,7 @@ static struct inode * create_root_dir (znode * root)
 		assert( "nikita-1933", ret == 0 );
 	}
 
-	rii = malloc (sizeof *rii);
+	rii = xmalloc (sizeof *rii);
 	if (!rii)
 		return ERR_PTR (errno);
 	xmemset (rii, 0, sizeof *rii);
@@ -2283,9 +2267,9 @@ int copy_file (const char * oldname,
 		return 1;
 	}	
 
-	buf = malloc (BUFSIZE);
+	buf = xmalloc (BUFSIZE);
 	if (!buf) {
-		perror ("copy_file: malloc failed");
+		perror ("copy_file: xmalloc failed");
 		iput (inode);
 		return 1;
 	}
@@ -2537,10 +2521,10 @@ static int bash_diff (char * real_file, struct inode * cwd, const char * name)
 		return 0;
 	}
 	
-	buf1 = malloc (BUFSIZE);
-	buf2 = malloc (BUFSIZE);
+	buf1 = xmalloc (BUFSIZE);
+	buf2 = xmalloc (BUFSIZE);
 	if (!buf1 || !buf2) {
-		perror ("diff: malloc failed");
+		perror ("diff: xmalloc failed");
 		iput (inode);
 		return 0;
 	}
@@ -2621,9 +2605,9 @@ static int bash_read (struct inode * dir, const char * name)
 		return 0;
 	}
 	
-	buf = malloc (count);
+	buf = xmalloc (count);
 	if (!buf) {
-		info ("read: malloc failed\n");
+		info ("read: xmalloc failed\n");
 		return 0;
 	}
 	if (call_read (inode, buf, (loff_t)from, count) != (ssize_t)count) {
@@ -2939,7 +2923,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/*
 			 * write to that file 3 blocks at offset 1 blocks
 			 */
-			buf = malloc (blocksize * 10);
+			buf = xmalloc (blocksize * 10);
 			assert ("vs-345", buf);
 			call_write (inode, buf, (loff_t)1 * blocksize, blocksize * 3);
 			iput (inode);
@@ -3480,8 +3464,8 @@ int jmacd_test( int argc UNUSED_ARG,
 	_jmacd_items = atoi (argv[4]);
 	_jmacd_ops   = atoi (argv[5]);
 
-	proc_ids              = malloc (sizeof (pthread_t) * procs);
-	_jmacd_exists_map     = malloc (_jmacd_items);
+	proc_ids              = xmalloc (sizeof (pthread_t) * procs);
+	_jmacd_exists_map     = xmalloc (_jmacd_items);
 
 	for (i = 0; i < _jmacd_items; i += 1) {
 		_jmacd_exists_map[i] = 1;
@@ -3491,7 +3475,7 @@ int jmacd_test( int argc UNUSED_ARG,
 	 * necessary--maybe they belong somewhere else... */
 	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
 	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block, 
-			       !strcmp( argv[ 2 ], "mkr4fs" ) );
+			       0 );
 	root -> rd_key = *max_key();
 	sibling_list_insert( root, NULL );
 
@@ -3576,6 +3560,47 @@ static int zam_test (int argc, char ** argv, reiser4_tree * tree)
 
 	printf ("%s: unknown zam\'s test name\n", __prog_name);
 	return 0;
+}
+
+kcond_t memory_pressed;
+spinlock_t mp_guard;
+int is_mp;
+
+static void *uswapd( void *untyped )
+{
+	struct super_block *super = untyped;
+	REISER4_ENTRY_PTR( super );
+
+	while( 1 ) {
+		int result;
+
+
+		spin_lock( &mp_guard );
+		while( ! is_mp )
+			kcond_wait( &memory_pressed, &mp_guard, 0 );
+		is_mp = 0;
+		spin_unlock( &mp_guard );
+		rlog( "nikita-1939", "uswapd wakes up..." );
+
+		SUSPEND_CONTEXT( &__context );
+		result = memory_pressure( super );
+		init_context( &__context, super );
+
+		if( result != 0 )
+			warning( "nikita-1937", "flushing failed: %i", result );
+	}
+	return NULL;
+}
+
+void declare_memory_pressure( void )
+{
+	return;
+	spin_lock( &mp_guard );
+	is_mp = 1;
+	spin_unlock( &mp_guard );
+	kcond_broadcast( &memory_pressed );
+	rlog( "nikita-1940", "Memory pressure declared: %lli", total_allocations );
+	total_allocations = 0;
 }
 
 /*****************************************************************************************
@@ -3700,6 +3725,8 @@ int real_main( int argc, char **argv )
 
 #ifndef READ_SUPER_READY
 	{		
+		pthread_t uswapper;
+
 		super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 					       GFP_KERNEL);
 		if( super.u.generic_sbp == NULL )
@@ -3713,6 +3740,11 @@ int real_main( int argc, char **argv )
 		xmemset( &root_dentry, 0, sizeof root_dentry );
 
 		init_context( &__context, &super );
+
+		spin_lock_init( &mp_guard );
+		kcond_init( &memory_pressed );
+		result = pthread_create( &uswapper, NULL, uswapd, &super );
+		assert( "nikita-1938", result == 0 );
 
 		/* check that blocksize is a power of two */
 		assert( "vs-417", 
