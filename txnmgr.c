@@ -298,6 +298,7 @@ jnode_of_page (struct page* pg)
 		jnode_init (jal);
 
 		jal->level = LEAF_LEVEL;
+		jal->data  = page_address (pg);
 
 		JF_SET (jal, ZNODE_UNFORMATTED);
 
