@@ -1356,6 +1356,31 @@ try_capture_block (txn_handle  *txnh,
 	block_atom = node->atom;
 	txnh_atom  = txnh->atom;
 
+	if (txnh_atom != NULL) {
+		/* A hack for <lock>/<atom fuse> deadlock prevention
+		 * as it described in the head comment of this file.*/
+		if (txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
+		    jnode_is_znode (node) &&
+		    znode_is_locked (JZNODE(node)) && JF_ISSET (node, JNODE_MISSED_IN_CAPTURE))
+		{
+			JF_CLR (node, JNODE_MISSED_IN_CAPTURE);
+
+			ret = check_not_fused_lock_owners (txnh, JZNODE(node));
+
+			if (ret) {
+				JF_SET (node, JNODE_MISSED_IN_CAPTURE);
+
+				assert ("zam-687", spin_txnh_is_not_locked (txnh));
+				assert ("zam-688", spin_jnode_is_not_locked (node));
+
+				return ret;
+			}
+
+			assert ("zam-701", spin_txnh_is_locked (txnh));
+			assert ("zam-702", spin_jnode_is_locked (node));
+		}
+	}
+
 	if (block_atom != NULL) {
 		/* The block has already been assigned to an atom. */
 
@@ -1393,18 +1418,6 @@ try_capture_block (txn_handle  *txnh,
 		/* In this case, the page is unlocked and the txnh wishes exclusive access. */
 
 		if (txnh_atom != NULL) {
-			/* A hack for <lock>/<atom fuse> deadlock prevention
-			 * as it described in the head comment of this file.*/
-			if (txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
-			    jnode_is_znode (node) &&
-			    znode_is_locked (JZNODE(node)))
-			{
-				ret = check_not_fused_lock_owners (txnh, JZNODE(node));
-				assert ("zam-687", spin_txnh_is_not_locked (txnh));
-				assert ("zam-688", spin_jnode_is_not_locked (node));
-				if (ret) return ret;
-			}
-
 			/* The txnh is already assigned: add the page to its atom. */
 			if ((ret = capture_assign_block (txnh, node)) != 0) {
 				/* EAGAIN or otherwise */
@@ -1492,6 +1505,9 @@ txn_try_capture (jnode           *node,
 	} else {
 		/* In this case (read lock at a non-leaf) there's no reason to capture. */
 		/* cap_mode = TXN_CAPTURE_READ_NONCOM; */
+		
+		/* Mark this node as "MISSED".  It helps in further deadlock analysis */
+		JF_SET (node, JNODE_MISSED_IN_CAPTURE);
 		return 0;
 	}
 
