@@ -363,7 +363,7 @@ reiser4_internal reiser4_key *
 lnode_dentry_key(const lnode * node /* lnode to query */ ,
 		reiser4_key * result /* result */ )
 {
-	return build_sd_key(node->dentry.dentry->d_inode, result);
+	return build_sd_key(node->l_dentry.dentry->d_inode, result);
 }
 
 
@@ -374,7 +374,7 @@ static reiser4_key *
 lnode_inode_key(const lnode * node /* lnode to query */ ,
 		reiser4_key * result /* result */ )
 {
-	return build_sd_key(node->inode.inode, result);
+	return build_sd_key(node->l_inode.inode, result);
 }
 
 /* return key of object behind lighweight @node */
@@ -383,7 +383,7 @@ static reiser4_key *
 lnode_lw_key(const lnode * node /* lnode to query */ ,
 	     reiser4_key * result /* result */ )
 {
-	*result = node->lw.key;
+	*result = node->l_lw.key;
 	return result;
 }
 
@@ -396,10 +396,10 @@ lnode_inode_eq(const lnode * node1 /* first node to compare */ ,
 	assert("nikita-1923", node1 != NULL);
 	assert("nikita-1924", node2 != NULL);
 
-	assert("nikita-1927", node1->inode.inode != NULL);
-	assert("nikita-1928", node2->inode.inode != NULL);
+	assert("nikita-1927", node1->l_inode.inode != NULL);
+	assert("nikita-1928", node2->l_inode.inode != NULL);
 
-	return (node1->inode.inode == node2->inode.inode);
+	return (node1->l_inode.inode == node2->l_inode.inode);
 
 }
 
@@ -416,7 +416,7 @@ lnode_lw_eq(const lnode * node1 UNUSED_ARG	/* first node to
 
 	/* we only get there if oids are equal */
 	assert("nikita-1929", node1->h.oid == node2->h.oid);
-	assert("nikita-1930", keyeq(&node1->lw.key, &node2->lw.key));
+	assert("nikita-1930", keyeq(&node1->l_lw.key, &node2->l_lw.key));
 	return 1;
 }
 
