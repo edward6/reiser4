@@ -163,7 +163,9 @@ static void *xxmalloc( size_t size )
 		return NULL;
 	}
 
-	while ( total_allocations > MEMORY_PRESSURE_THRESHOLD && !current -> i_am_swapd ) {
+	while ( getenv ("REISER4_SWAPD") &&
+		total_allocations > MEMORY_PRESSURE_THRESHOLD &&
+		!current -> i_am_swapd ) {
 		/* wakeup uswapd */
 		spin_lock( &mp_guard );
 		is_mp = 1;
@@ -845,7 +847,8 @@ void * radix_tree_lookup (struct radix_tree_root * tree, unsigned long index)
 }
 
 
-int radix_tree_insert (struct radix_tree_root * tree, unsigned long index,
+int radix_tree_insert (struct radix_tree_root * tree,
+		       unsigned long index UNUSED_ARG,
 		       void * item)
 {
 	mp_hash_insert ((mp_hash_table *)tree->vp, (struct page *)item);
@@ -874,11 +877,8 @@ static spinlock_t page_list_guard = SPIN_LOCK_UNLOCKED;
 unsigned long nr_pages;
 
 
-static void init_page (struct page * page, struct address_space * mapping/*,
-					   unsigned long ind*/)
+static void init_page (struct page * page)
 {
-	/*page->index = ind;
-	  page->mapping = mapping;*/
 	page->private = 0;
 	page->self = page;
 	atomic_set (&page->count, 1);
@@ -894,7 +894,6 @@ static void init_page (struct page * page, struct address_space * mapping/*,
 struct page * page_cache_alloc (struct address_space * mapping UNUSED_ARG)
 {
 	struct page * page;
-	struct list_head * cur;
 
 
 	spin_lock( &page_list_guard );
@@ -904,7 +903,7 @@ struct page * page_cache_alloc (struct address_space * mapping UNUSED_ARG)
 	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
 	atomic_set (&page->count, 1);
 	
-	init_page (page, mapping/*, ind*/);
+	init_page (page);
 
 	/* add page into global lru list */
 	list_add (&page->lru, &page_lru_list);
@@ -1076,10 +1075,10 @@ int truncate_list_pages (struct address_space * mapping,
 	list_for_each_safe (cur, tmp, head) {
 		int failed;
 
+		page = list_entry (cur, struct page, list);
 		if (page->index < start) {
 			continue;
 		}
-		page = list_entry (cur, struct page, list);
 		page_cache_get (page);
 		failed = PageLocked (page);
 		if (failed) {
@@ -3152,8 +3151,9 @@ static int bash_diff_r (struct inode * dir, const char * source)
 /*
  * ls -lR
  */
-static int get_one_name (void *arg, const char *name, int namelen, 
-			 loff_t offset, ino_t inum, unsigned ftype)
+static int get_one_name (void *arg, const char *name, int namelen UNUSED_ARG,
+			 loff_t offset UNUSED_ARG, ino_t inum,
+			 unsigned ftype UNUSED_ARG)
 {
 	echo_filldir_info *info;
 
@@ -3226,9 +3226,88 @@ static int ls_lR (struct inode * inode, const char * path)
 	return result;
 }
 
-static int bash_mount (/*reiser4_context * context,*/ char * cmd, struct super_block **sb)
+#include <regex.h>
+
+static int rm_r (struct inode * dir, const char * path, regex_t * exp)
 {
-	/*struct super_block * sb;*/
+	struct dentry dentry;
+	struct file file;
+	echo_filldir_info info;
+	int result;
+
+
+	xmemset (&file, 0, sizeof (struct file));
+	xmemset( &dentry, 0, sizeof dentry );
+	dentry.d_inode = dir;
+	file.f_dentry = &dentry;
+		
+	xmemset( &info, 0, sizeof info );
+
+	do {
+		info.eof = 1;
+		result = dir->i_fop->readdir (&file, &info, get_one_name);
+		if( info.eof )
+			break;
+		if( info.name != NULL ) {
+			struct inode *i;
+
+			if( strcmp( info.name, "." ) &&
+			    strcmp( info.name, ".." ) ) {
+				/* skip "." and ".." */
+				char * name;
+
+				asprintf (&name, "%s/%s", path, info.name);
+
+				i = call_lookup (dir, info.name);
+				if( IS_ERR( i ) )
+					warning( "nikita-2235", "Not found: %s", 
+						 info.name );
+				else if( ( int ) i -> i_ino != info.inum )
+					warning( "nikita-2236", 
+						 "Wrong inode number: %i != %i",
+						 ( int ) info.inum, ( int ) i -> i_ino );
+				else {
+					if (S_ISREG (i->i_mode)) {
+						iput (i);
+						if (regexec (exp, info.name, 0, 0, 0) == 0) {
+							/* file name matches to patern */
+							info ("%s\n", name);
+							call_rm (dir, info.name);
+						}
+					} else {
+						/* recursive to directory */
+						rm_r (i, name, exp);
+						iput (i);
+					}
+				}
+				free (name);
+				free( info.name );
+			}			
+		}
+	} while( !info.eof && ( result == 0 ) );
+
+	return result;
+}
+
+
+/* remove all regular files whose names match to @pattern */
+static int bash_rmr (struct inode * dir, const char * pattern)
+{
+	regex_t exp;
+	int result;
+
+	result = regcomp (&exp, pattern, REG_NOSUB);
+	if (result)
+		return result;
+	return rm_r (dir, ".", &exp);
+}
+
+
+
+static void *uswapd( void *untyped );
+
+static int bash_mount (char * cmd, struct super_block **sb)
+{
 	char *opts;
 	char *file_name;
 
@@ -3239,24 +3318,27 @@ static int bash_mount (/*reiser4_context * context,*/ char * cmd, struct super_b
 	if (IS_ERR (*sb)) {
 		return PTR_ERR (*sb);
 	}
+	if (getenv( "REISER4_SWAPD" )) {
+		/* start uswapd */
+		check_me ("vs-824", pthread_create( &uswapper, NULL, uswapd, *sb ) == 0);
+	}
 
-	/* REISER4_ENTRY */
-/*	init_context (context, sb);*/
 	return 0;
 }
 
 
-static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
+static void bash_umount (struct super_block * sb)
 {
-	/*struct super_block * sb;*/
 	int fd;
 
-	going_down = 1;
-	declare_memory_pressure();
-	check_me( "vs-825", pthread_join( uswapper, NULL ) == 0 );
+	if (getenv( "REISER4_SWAPD" )) {
+		/* stop uswapd */
+		going_down = 1;
+		declare_memory_pressure();
+		check_me( "vs-825", pthread_join( uswapper, NULL ) == 0 );
+	}
 
 	assert ("vs-768", sb);
-	/*sb = reiser4_get_current_sb ();*/
 	fd = sb->s_bdev->bd_dev;
 	call_umount (sb);
 
@@ -3440,7 +3522,7 @@ static int bash_mkfs (char * file_name)
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
 		init_formatted_fake( &super );
-		init_tree_0( tree, &super, /*&mkfs_tops*/ &page_cache_tops);
+		init_tree_ops( tree, &super, /*&mkfs_tops*/ &page_cache_tops);
 		result = init_tree( tree, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
 
@@ -3834,9 +3916,10 @@ void * cpr_thread_start (void *arg)
 	      "\tcd             - change directory\n"\
 	      "\tmkdir dirname  - create new directory\n"\
 	      "\tcp filename    - copy file to current directory\n"\
-              "\tcp-r dir       - copy directory recursively"\
+              "\tcp-r dir       - copy directory recursively\n"\
+	      "\trm-r pattern   - remove all files matching to regular expression\n"\
 	      "\tdiff filename  - compare files\n"\
-              "\tdiff-r dir     - compare directories recursively"\
+              "\tdiff-r dir     - compare directories recursively\n"\
 	      "\ttrunc filename size - truncate file\n"\
 	      "\ttouch          - create empty file\n"\
 	      "\tread filename from count\n"\
@@ -3850,7 +3933,6 @@ void * cpr_thread_start (void *arg)
               "\tstat           - print reiser4 stats\n"\
 	      "\texit\n");
 
-static void *uswapd( void *untyped );
 
 
 static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG, 
@@ -3873,7 +3955,6 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	/* module_init () -> reiser4_init () -> register_filesystem */
 	run_init_reiser4 ();
 
-	/* start "uswapd" */
 
 
 /* for (cwd, command + strlen ("foocmd ")) 
@@ -3930,7 +4011,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info ("Umount first\n");
 				continue;
 			}
-			result = bash_mount (/*&context,*/ command + 6, &sb);
+			result = bash_mount (command + 6, &sb);
 			if (result) {
 				info ("mount failed: %s\n", strerror (-result));
 				continue;
@@ -3939,12 +4020,6 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			cwd = sb->s_root->d_inode;
 			mounted = 1;
 
-			/*
-			 * start uswapd
-			 */
-			result = pthread_create( &uswapper, NULL, uswapd, sb );
-			assert( "vs-824", result == 0 );
-			
 			continue;
 		}
 		if (!strcmp (command, "umount")) {
@@ -3952,7 +4027,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info ("Mount first\n");
 				continue;
 			}
-			bash_umount (sb/*&context*/);
+			bash_umount (sb);
 			mounted = 0;
 			sb = 0;
 			continue;
@@ -4008,6 +4083,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		BASH_CMD ("write ", bash_write);
 		BASH_CMD ("trunc ", bash_trunc);
 		BASH_CMD ("cp-r ", bash_cpr);
+		BASH_CMD ("rm-r ", bash_rmr);
 		BASH_CMD ("diff-r ", bash_diff_r);
 		BASH_CMD ("trace ", bash_trace);
 
@@ -4575,8 +4651,6 @@ static void *uswapd( void *untyped )
 
 	current->i_am_swapd = 1;
 	while( 1 ) {
-		int result;
-		int to_flush;
 		int flushed  = 0;
 
 		/*
@@ -5057,7 +5131,7 @@ void end_page_writeback(struct page *page)
 		BUG();
 }
 
-int block_sync_page(struct page *page)
+int block_sync_page(struct page *page UNUSED_ARG)
 {
 	return 0;
 }
