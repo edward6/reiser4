@@ -234,8 +234,10 @@ reiser4_internal void reiser4_exit_context(reiser4_context * context)
 	assert("nikita-3021", schedulable());
 
 	if (context == context->parent) {
-		if (!context->nobalance)
+		if (!context->nobalance) {
+			txn_restart(context);
 			balance_dirty_pages_at(context);
+		}
 		txn_end(context);
 	}
 	done_context(context);

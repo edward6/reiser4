@@ -40,7 +40,7 @@ extern int reiser4_writepages(struct address_space *, struct writeback_control *
 extern int reiser4_start_up_io(struct page *page);
 extern void move_inode_out_from_sync_inodes_loop(struct address_space * mapping);
 extern void reiser4_clear_page_dirty(struct page *);
-
+extern void reiser4_throttle_write(struct inode*);
 /*
  * this is used to speed up lookups for directory entry: on initial call to
  * ->lookup() seal and coord of directory entry (if found, that is) are stored
