@@ -538,6 +538,13 @@ static int reiser4_unlink( struct inode *parent, struct dentry *victim )
 	REISER4_EXIT( result );
 }
 
+static int reiser4_permission( struct inode *inode, int mask )
+{
+	assert( "nikita-1687", inode != NULL );
+
+	return perm_chk( inode, mask, inode, mask ) ? -EACCES : 0;
+}
+
 /** 
  * common parts of read/write processing. Delegate functionality to the
  * object plugin. 
@@ -814,7 +821,7 @@ struct inode_operations reiser4_inode_operations = {
 /* 	.readlink    = reiser4_readlink, */
 /* 	.follow_link = reiser4_follow_link, */
  	.truncate    = reiser4_truncate, /* d */
-/* 	.permission  = reiser4_permission, */
+ 	.permission  = reiser4_permission, /* d */
 /* 	.revalidate  = reiser4_revalidate, */
 /* 	.setattr     = reiser4_setattr, */
 /* 	.getattr     = reiser4_getattr */
