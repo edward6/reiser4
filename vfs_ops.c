@@ -849,12 +849,13 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 	assert( "nikita-428", data != NULL );
 
 	dplug = inode_dir_plugin( parent );
-	assert( "nikita-429", dplug != NULL );
-	if( dplug -> create_child != NULL ) {
+	if( dplug == NULL )
+		result = -ENOTDIR;
+	else if( dplug -> create_child != NULL )
 		result = dplug -> create_child( parent, dentry, data );
-	} else {
+	else
 		result = -EPERM;
-	}
+
 	REISER4_EXIT( result );
 }
 
