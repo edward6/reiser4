@@ -302,7 +302,7 @@ static void node40_print(aal_block_t *block,
     aal_assert("umka-457", buff != NULL, return);
 }
 
-static int reiserfs_node40_key_cmp(const void *key1, const void *key2) {
+static int node40_key_cmp(const void *key1, const void *key2) {
     aal_assert("umka-566", key1 != NULL, return -2);
     aal_assert("umka-567", key2 != NULL, return -2);
 
@@ -334,7 +334,7 @@ static int node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coord,
     if ((found = reiserfs_misc_bin_search((void *)block, 
 	    node40_item_count(block), key, 
 	    (void *(*)(void *, uint32_t))node40_key_at, 
-	    reiserfs_node40_key_cmp, &pos)) == -1)
+	    node40_key_cmp, &pos)) == -1)
 	return -1;
 
     coord->item_pos = pos;
@@ -406,7 +406,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.key_at = (reiserfs_opaque_t *(*)(aal_block_t *, int32_t))
 	    node40_key_at,
 
-	.key_cmp = reiserfs_node40_key_cmp
+	.key_cmp = node40_key_cmp
     }
 };
 

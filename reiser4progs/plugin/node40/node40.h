@@ -49,13 +49,14 @@ typedef struct reiserfs_nh40 reiserfs_nh40_t;
 #define nh40_get_num_items(header)		get_le16(header, num_items)
 #define nh40_set_num_items(header, val)		set_le16(header, num_items, val)
 
+#define REISERFS_KEY40_SIZE			24
+
 /* 
     Item headers are not standard across all node layouts, pass
     pos_in_node to functions instead.
 */
 struct reiserfs_ih40 {
-    reiserfs_key40_t key;
-    
+    char key[REISERFS_KEY40_SIZE];
     uint16_t offset;
     uint16_t length;
     uint16_t plugin_id;

@@ -70,10 +70,23 @@ struct reiserfs_key_plugin {
     int (*compare) (const void *, const void *);
 
     /* Creates key by its components */
-    void *(*create) (uint16_t, oid_t, oid_t, uint64_t);
+    error_t (*init) (void *, uint16_t, oid_t, oid_t, uint64_t);
 
-    /* Destroys given key */
-    void (*fini) (void *);
+    /* Gets/sets key type (minor in reiser4 notation) */	
+    void (*set_type) (void *, uint16_t);
+    uint16_t (*get_type) (void *);
+
+    /* Gets/sets key locality */
+    void (*set_locality) (void *, oid_t);
+    oid_t (*get_locality) (void *);
+    
+    /* Gets/sets key objectid */
+    void (*set_objectid) (void *, oid_t);
+    oid_t (*get_objectid) (void *);
+
+    /* Gets/sets key offset */
+    void (*set_offset) (void *, uint64_t);
+    uint64_t (*get_offset) (void *);
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
