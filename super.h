@@ -18,12 +18,6 @@ typedef struct reiser4_super_info_data {
 	 */
 	spinlock_t        guard;
  
-	 /**
-	 * rwlock protecting against bit-tearing in jnode bitfields
-	 * manipulations.
-	 */
-	/*rwlock_t*/ spinlock_t bit_tear_guard;
-
 	/**
 	 * allocator used to allocate new object ids for objects in the file
 	 * system. Current default implementation of object id allocator is

@@ -417,7 +417,8 @@ int reiser4_bitmap_prepare_commit (txn_atom * atom)
 
 		struct reiser4_bnode * bnode;
 
-		if (! JF_ISSET(node, ZNODE_DELETESET | ZNODE_ALLOC))
+		if (!znode_is_in_deleteset(node) && 
+		    !JF_ISSET(node, ZNODE_ALLOC))
 			continue;
 
 		ret = reconstruct_blocknr(node, &da);
@@ -455,7 +456,7 @@ int reiser4_bitmap_prepare_commit (txn_atom * atom)
 		}
 
 		/* apply DELETED SET */
-		if (JF_ISSET(node, ZNODE_DELETESET))
+		if (znode_is_in_deleteset(node))
 			reiser4_clear_bit(offset, bnode->commit->data);
 		/* set bits for freshly allocated nodes */
 		if (JF_ISSET(node, ZNODE_ALLOC))
@@ -481,7 +482,7 @@ int reiser4_bitmap_done_commit (txn_atom * atom) {
 		int bmap, offset;
 		struct reiser4_bnode * bnode;
 
-		if (!JF_ISSET(node, ZNODE_DELETESET))
+		if (! znode_is_in_deleteset(node))
 			continue;
 
 		ret = reconstruct_blocknr(node, &da);
