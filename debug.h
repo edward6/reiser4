@@ -387,6 +387,7 @@ extern __u32 reiser4_current_trace_flags;
 #define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
 #define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode . stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
+#define reiser4_stat_vfs_calls_add( stat ) ST_INC_CNT( vfs_calls . stat )
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file . stat )
 #define reiser4_stat_extent_add( stat ) ST_INC_CNT( extent . stat )
 #define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush . stat )
@@ -701,6 +702,10 @@ typedef struct reiser4_statistics {
 		stat_cnt lock_neighbor_iteration;
 	} znode;
 	struct {
+		stat_cnt reads;
+		stat_cnt writes;
+	} vfs_calls;
+	struct {
 		struct {
 			stat_cnt calls;
 			stat_cnt reset;
@@ -714,32 +719,26 @@ typedef struct reiser4_statistics {
 			stat_cnt adjust_eq;
 		} readdir;
 	} dir;
+	/*
+	 * statistics of unix file plugin
+	 */
 	struct {
 		stat_cnt wait_on_page;
 		stat_cnt fsdata_alloc;
 		stat_cnt private_data_alloc;
+
 		/*
-		 * reads performed
+		 * number of tail conversions
 		 */
-		stat_cnt reads;
-		/*
-		 * writes performed
-		 */
-		stat_cnt writes;
-		/*
-		 * how many times extent_write asked to repeat
-		 * search_by_key
-		 */
-		stat_cnt write_repeats;
-		/* number of tail conversions */
 		stat_cnt tail2extent;
 		stat_cnt extent2tail;
-		/* how many times find_next_item was called */
-		stat_cnt find_items;
-		/* how many times find_next_item had to call coord_by_key */
-		stat_cnt full_find_items;
-		/* pointers to unformatted nodes added */
-		stat_cnt pointers;
+
+		/* 
+		 * find_next_item statistic
+		 */
+		stat_cnt find_next_item;
+		stat_cnt find_next_item_via_seal;
+		stat_cnt find_next_item_via_cbk;
 
 	} file;
 	struct {
@@ -881,6 +880,7 @@ typedef struct reiser4_statistics {
 #define reiser4_stat_flush_add( stat ) noop
 #define reiser4_stat_flush_add_few( stat, cnt ) noop
 #define reiser4_stat_pool_add( stat ) noop
+#define reiser4_stat_vfs_calls_add( stat ) noop
 #define reiser4_stat_file_add( stat ) noop
 #define reiser4_stat_extent_add( stat ) noop
 #define	reiser4_stat_add_at_level( lev, stat ) noop
