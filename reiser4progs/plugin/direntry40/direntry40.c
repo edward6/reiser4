@@ -74,7 +74,7 @@ static errno_t direntry40_estimate(uint32_t pos, reiser4_item_hint_t *hint) {
     return 0;
 }
 
-static uint32_t direntry40_unitlen(reiser4_direntry40_t *direntry, 
+static uint32_t direntry40_entrylen(reiser4_direntry40_t *direntry, 
     uint32_t pos) 
 {
     char *name;
@@ -117,7 +117,7 @@ static errno_t direntry40_insert(reiser4_body_t *body, uint32_t pos,
 	} else {
 	    offset = en40_get_offset(&direntry->entry[de40_get_count(direntry) - 1]);
 	    offset += sizeof(reiser4_entry40_t) + 
-		direntry40_unitlen(direntry, de40_get_count(direntry) - 1);
+		direntry40_entrylen(direntry, de40_get_count(direntry) - 1);
 	}
     } else
 	offset = sizeof(reiser4_direntry40_t) + 
@@ -130,10 +130,10 @@ static errno_t direntry40_insert(reiser4_body_t *body, uint32_t pos,
     len_before = (de40_get_count(direntry) - pos)*sizeof(reiser4_entry40_t);
 	
     for (i = 0; i < pos; i++)
-	len_before += direntry40_unitlen(direntry, i);
+	len_before += direntry40_entrylen(direntry, i);
 	
     for (i = pos; i < de40_get_count(direntry); i++)
-	len_after += direntry40_unitlen(direntry, i);
+	len_after += direntry40_entrylen(direntry, i);
 	
     /* Updating offsets */
     for (i = 0; i < pos; i++) {
@@ -217,7 +217,7 @@ static uint32_t direntry40_remove(reiser4_body_t *body,
     head_len = offset - sizeof(reiser4_entry40_t) -
 	(((char *)&direntry->entry[pos]) - ((char *)direntry));
 
-    rem_len = direntry40_unitlen(direntry, pos);
+    rem_len = direntry40_entrylen(direntry, pos);
 
     aal_memmove(&direntry->entry[pos], 
 	&direntry->entry[pos + 1], head_len);
@@ -234,7 +234,7 @@ static uint32_t direntry40_remove(reiser4_body_t *body,
 	offset = en40_get_offset(&direntry->entry[pos]);
 	
 	for (i = pos; i < (uint32_t)de40_get_count(direntry) - 1; i++)
-	    foot_len += direntry40_unitlen(direntry, i);
+	    foot_len += direntry40_entrylen(direntry, i);
 	
 	aal_memmove((((char *)direntry) + offset) - (sizeof(reiser4_entry40_t) +
 	    rem_len), ((char *)direntry) + offset, foot_len);

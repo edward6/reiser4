@@ -122,5 +122,8 @@ extern uint32_t reiser4_node_item_len(reiser4_node_t *node,
 extern reiser4_body_t *reiser4_node_item_body(reiser4_node_t *node, 
     reiser4_pos_t *pos);
 
+extern uint32_t reiser4_node_item_count(reiser4_node_t *node,
+    reiser4_pos_t *pos);
+
 #endif
 

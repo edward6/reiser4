@@ -823,3 +823,35 @@ errno_t reiser4_node_item_estimate(
 
 #endif
 
+/* Returns count of units in item */
+uint32_t reiser4_node_item_count(
+    reiser4_node_t *node,	/* node we will work with */
+    reiser4_pos_t *pos		/* the pos of an item in the node */
+) {
+    reiser4_body_t *body;
+    reiser4_plugin_t *plugin;
+    
+    aal_assert("umka-1030", node != NULL, return 0);
+    aal_assert("umka-1031", pos != NULL, return 0);
+    
+    /* Getting needed plugin */
+    if (!(plugin = reiser4_node_item_plugin(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
+	return -1;
+    }
+    
+    /* Getting item body for using it with plugin */
+    if (!(body = reiser4_node_item_body(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
+	    aal_block_get_nr(node->block), pos->item);
+	return -1;
+    }
+    
+    if (plugin->item_ops.common.count)
+	return plugin->item_ops.common.count(body);
+
+    return 0;
+}
+

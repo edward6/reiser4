@@ -1114,7 +1114,7 @@ errno_t reiser4_tree_move(
 
 /* This function makes travers of the tree */
 errno_t reiser4_tree_traverse(
-    reiser4_tree_t *tree,		/* tree to be traversed */
+    aal_device_t *device,		/* tree to be traversed */
     aal_block_t *block,			/* root block traverse will be going from */
     reiser4_open_func_t open_func,	/* callback will be used for opening node */
     reiser4_edge_func_t before_func,	/* callback will be called before node */
@@ -1126,7 +1126,7 @@ errno_t reiser4_tree_traverse(
     errno_t result = 0;
     reiser4_node_t *node;
     
-    aal_assert("umka-1023", tree != NULL, return -1);
+    aal_assert("umka-1023", device != NULL, return -1);
     aal_assert("umka-1029", block != NULL, return -1);
     aal_assert("umka-1024", open_func != NULL, return -1);
 
@@ -1140,26 +1140,29 @@ errno_t reiser4_tree_traverse(
         goto error_free_node;
 
     if ((setup_func && !(result = setup_func(node, data))) || !setup_func) {
-	int level;
-	reiser4_pos_t pos;
+	reiser4_pos_t pos = {0, 0};
 
-	if ((level = reiser4_node_get_level(node)) > REISER4_LEAF_LEVEL) {
-	    reiser4_pos_init(&pos, 0, ~0ul);
-
-	    for (; pos.item <= reiser4_node_count(node); pos.item++) {
+	for (; pos.item < reiser4_node_count(node); pos.item++) {
+	    uint32_t count;
+	    aal_block_t *block;
+	    
+	    count = reiser4_node_item_count(node, &pos);
+	    
+	    for (; pos.unit < count; pos.unit++) {
 		blk_t blk;
-		aal_block_t *block;
+
+		if (!reiser4_node_item_internal(node, &pos))
+		    continue;
 		
 		if ((blk = reiser4_node_get_pointer(node, &pos)) > 0) {
 
-		    if (!(block = aal_block_read(tree->fs->format->device, blk))) {
+		    if (!(block = aal_block_read(device, blk))) {
 			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			    "Can't read block %llu. %s.", blk, 
-			    tree->fs->format->device->error);
+			    "Can't read block %llu. %s.", blk, device->error);
 			goto error_free_node;
 		    }
 		
-		    result = reiser4_tree_traverse(tree, block, open_func, 
+		    result = reiser4_tree_traverse(device, block, open_func, 
 			before_func, setup_func, update_func, after_func, data);
 
 		    if (update_func && !update_func(node, pos.item, data))

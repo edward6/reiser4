@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     }
     
     {
-	reiser4_tree_traverse(fs->tree, fs->tree->cache->node->block, 
+	reiser4_tree_traverse(fs->format->device, fs->tree->cache->node->block, 
 	    __node_open, NULL, NULL, NULL, NULL, NULL);
     }
     
