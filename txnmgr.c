@@ -3642,8 +3642,7 @@ remove_from_capture_list(jnode *node)
 	JF_CLR(node, JNODE_CREATED);
 	JF_CLR(node, JNODE_WRITEBACK);
 	JF_CLR(node, JNODE_REPACK);
-	clear_cced_bits(node);
-	
+
 	capture_list_remove_clean(node);
 	node->atom->capture_count --;
 	atomic_dec(&node->x_count);
@@ -3720,7 +3719,6 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	
 	if (capturable(node, atom) && node->pg == 0) {
 		replace_on_capture_list(node, copy);
-		set_cced_bit(node);
 		if (znode_above_root(JZNODE(node))) {
 			reiser4_stat_inc(coc.ok_uber);
 		} else {
@@ -3794,7 +3792,6 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 		} else
 			impossible("", "");
 
-		set_cced_bit(node);
 		memcpy(to, from, PAGE_CACHE_SIZE);
 		SetPageUptodate(new_page);
 		if (was_jloaded)
@@ -3910,19 +3907,25 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		return RETERR(-E_REPEAT);
 	}
 
+	if (JF_ISSET(node, JNODE_CCED)) {
+		UNLOCK_JNODE(node);
+		return RETERR(-E_REPEAT);
+	}
+
+	set_cced_bit(node);
 	if (!JF_ISSET(node, JNODE_OVRWR) && !JF_ISSET(node, JNODE_RELOC)) {
 		/* clean node can be made available for capturing. Just take
 		   care to preserve atom list during uncapturing */
 		ON_TRACE(TRACE_CAPTURE_COPY, "clean\n");
-		return copy_on_capture_clean(node, atom);
-	}
-
-	if (!node->pg) {
+		result = copy_on_capture_clean(node, atom);
+	} else if (!node->pg) {
 		ON_TRACE(TRACE_CAPTURE_COPY, "uber\n");
-		return copy_on_capture_nopage(node, atom);
-	}
-
-	return real_copy_on_capture(node, atom);
+		result = copy_on_capture_nopage(node, atom);
+	} else
+		result = real_copy_on_capture(node, atom);
+	if (result != 0)
+		clear_cced_bits(node);
+	return result;
 }
 #endif /* REISER4_COPY_ON_CAPTURE */
 
@@ -3965,7 +3968,6 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 			}
 			result = RETERR(-E_REPEAT);
 		}
-			
 		return result;
 	} else {
 		reiser4_stat_inc(coc.forbidden);
