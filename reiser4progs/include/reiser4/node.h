@@ -110,7 +110,6 @@ extern uint16_t reiserfs_node_item_maxnum(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_item_count(reiserfs_node_t *node);
 
 extern void *reiserfs_node_item_at(reiserfs_node_t *node, uint32_t pos);
-
 extern void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos);
 
 #endif

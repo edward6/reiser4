@@ -28,3 +28,4 @@ void reiserfs_dir_close(reiserfs_dir_t *dir) {
     aal_assert("umka-589", dir != NULL, return);
     aal_free(dir);
 }
+

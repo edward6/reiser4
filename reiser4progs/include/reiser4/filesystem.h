@@ -113,8 +113,9 @@ struct reiserfs_tree {
 typedef struct reiserfs_tree reiserfs_tree_t;
 
 struct reiserfs_object {
-    reiserfs_key_t key;
     reiserfs_fs_t *fs;
+    reiserfs_key_t key;
+    reiserfs_coord_t coord;
 };
 
 typedef struct reiserfs_object reiserfs_object_t;

@@ -17,6 +17,7 @@
 #define REISERFS_KEY_SIZE 24
 
 struct reiserfs_key {
+    reiserfs_plugin_t *plugin;
     uint8_t body[REISERFS_KEY_SIZE];
 };
 
@@ -44,16 +45,34 @@ typedef enum {
     KEY40_BODY_MINOR	 = 4
 } reiserfs_key40_minor_t;
 
-extern void reiserfs_key_clean(reiserfs_key_t *key, 
+extern void reiserfs_key_init(reiserfs_key_t *key, 
     reiserfs_plugin_t *key_plugin);
 
+extern reiserfs_key_t *reiserfs_key_create(reiserfs_plugin_t *key_plugin);
+extern void reiserfs_key_done(reiserfs_key_t *key);
+
+extern void reiserfs_key_clean(reiserfs_key_t *key);
+
 extern error_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
-    reiserfs_plugin_t *key_plugin, uint32_t type, oid_t locality, 
-    oid_t objectid, uint64_t offset);
+    uint32_t type, oid_t locality, oid_t objectid, uint64_t offset);
 
 extern error_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
-    reiserfs_plugin_t *key_plugin, reiserfs_plugin_t *hash_plugin, 
-    oid_t locality, oid_t objectid, const char *name);
+    reiserfs_plugin_t *hash_plugin, oid_t locality, oid_t objectid, 
+    const char *name);
+
+extern error_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type);
+extern error_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset);
+extern error_t reiserfs_key_set_hash(reiserfs_key_t *key, uint64_t hash);
+
+extern error_t reiserfs_key_set_objectid(reiserfs_key_t *key, oid_t objectid);
+extern error_t reiserfs_key_set_locality(reiserfs_key_t *key, oid_t locality);
+
+extern uint32_t reiserfs_key_get_type(reiserfs_key_t *key);
+extern uint64_t reiserfs_key_get_offset(reiserfs_key_t *key);
+extern uint64_t reiserfs_key_get_hash(reiserfs_key_t *key);
+
+extern oid_t reiserfs_key_get_objectid(reiserfs_key_t *key);
+extern oid_t reiserfs_key_get_locality(reiserfs_key_t *key);
 
 #endif
 

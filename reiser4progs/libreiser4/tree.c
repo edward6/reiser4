@@ -52,8 +52,9 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
 	FIXME-UMKA: Here should be not key40 stat data type, but
 	key format independent stat data type.
     */
-    reiserfs_key_clean(&key, key_plugin);
-    reiserfs_key_build_file_key(&key, key_plugin, KEY40_STATDATA_MINOR, 
+    reiserfs_key_init(&key, key_plugin);
+    reiserfs_key_clean(&key);
+    reiserfs_key_build_file_key(&key, KEY40_STATDATA_MINOR, 
 	reiserfs_oid_root_parent_objectid(fs), reiserfs_oid_root_objectid(fs), 0);
     
     if (!reiserfs_tree_lookup(fs, &key, &coord)) {
