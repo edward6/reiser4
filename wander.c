@@ -476,10 +476,7 @@ dealloc_wmap_actor(txn_atom * atom,
 	assert("zam-500", *b != 0);
 	assert("zam-501", !blocknr_is_fake(b));
 
-	UNLOCK_ATOM(atom);
 	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0, "dealloc_wmap_actor");
-	LOCK_ATOM(atom);
-
 	return 0;
 }
 
@@ -489,9 +486,7 @@ dealloc_wmap(struct commit_handle *ch)
 {
 	assert("zam-696", ch->atom != NULL);
 
-	LOCK_ATOM(ch->atom);
 	blocknr_set_iterator(ch->atom, &ch->atom->wandered_map, dealloc_wmap_actor, NULL, 1);
-	UNLOCK_ATOM(ch->atom);
 }
 
 /* helper function for alloc wandered blocks, which refill set of block
@@ -975,7 +970,7 @@ reiser4_write_logs(void)
 	pre_commit_hook();
 
 	atom = get_current_atom_locked();
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 	
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
 	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
@@ -1048,9 +1043,9 @@ reiser4_write_logs(void)
 
 	reiser4_stat_inc(txnmgr.commits);
 
-	spin_lock_atom(atom);
+	LOCK_ATOM(atom);
 	atom->stage = ASTAGE_POST_COMMIT;
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	post_commit_hook();
 
