@@ -102,19 +102,24 @@ struct zlock {
       [znode-refs]
       [jnode-refs]
       [jnode-queued]
-*/
+
+    For this to be made into a clustering or NUMA filesystem, we would want to eliminate all of the global locks.
+    Suggestions for how to do that are desired.*/
 struct znode {
 	/* Embedded jnode. */
 	jnode zjnode;
 
-	/* position of this node in a parent node. This is cached to
-	   speed up lookups during balancing. Not required to be up to
+	/* contains three subfields, node, pos_in_node, and pos_in_unit.
+
+	   pos_in_node and pos_in_unit are only hints that are cached to
+	   speed up lookups during balancing. They are not required to be up to
 	   date. Synched in find_child_ptr().
 	  
 	   This value allows us to avoid expensive binary searches.
-	  
-	   Also, parent pointer is stored here.  The parent pointer
-	   stored here is NOT a hint, only the position is.
+
+	   node points to the parent of this node, and is NOT a hint.
+
+	   why? NIKITA-FIXME-HANS
 	*/
 	coord_t in_parent;
 
