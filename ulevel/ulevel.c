@@ -1278,7 +1278,7 @@ struct dentry * d_alloc_root(struct inode * inode)
 
 
 znode *allocate_znode( reiser4_tree *tree, znode *parent,
-		       unsigned int level, const reiser4_block_nr *addr, int init_node_p )
+		       unsigned int level, const reiser4_block_nr *addr )
 {
 	znode *root;
 	int    result;
@@ -1290,10 +1290,8 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 		root -> rd_key = *max_key();
 		return root;
 	}
-	if( init_node_p ) {
-		root -> nplug = node_plugin_by_id( NODE40_ID );
-		result = zinit_new( root );
-	}
+	root -> nplug = node_plugin_by_id( NODE40_ID );
+	result = zinit_new( root );
 	assert( "nikita-1171", result == 0 );
 	zrelse( root );
 	return root;
@@ -1982,9 +1980,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	assert( "nikita-1096", tree != NULL );
 
-	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
-	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block, 
-			       !strcmp( argv[ 2 ], "mkfs" ) );
+	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
+	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block );
 	root -> rd_key = *max_key();
 	sibling_list_insert( root, NULL );
 
@@ -3229,8 +3226,8 @@ static int bash_mkfs (const char * file_name)
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
 				    &mkfs_tops );
 
-		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
-		root = allocate_znode( tree, fake, tree->height, &tree->root_block, 1);
+		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
+		root = allocate_znode( tree, fake, tree->height, &tree->root_block);
 		root -> rd_key = *max_key();
 		sibling_list_insert( root, NULL );
 
@@ -4201,9 +4198,8 @@ int jmacd_test( int argc UNUSED_ARG,
 
 	/* These four magic lines are taken from nikita_test, and seem to be
 	 * necessary--maybe they belong somewhere else... */
-	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
-	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block, 
-			       0 );
+	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
+	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block );
 	root -> rd_key = *max_key();
 	sibling_list_insert( root, NULL );
 
@@ -4586,6 +4582,7 @@ int real_main( int argc, char **argv )
 		atomic_set( &get_current_super_private() -> total_threads, 0 );
 		atomic_set( &get_current_super_private() -> active_threads, 0 );
 #endif
+		get_current_super_private() -> blocks_free = ~0;
 
 		assert ("jmacd-998", super.s_blocksize == PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 
