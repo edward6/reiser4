@@ -33,7 +33,7 @@ typedef enum {
 typedef struct {	
 	reiser4_block_nr pos_in_unit;
 	reiser4_block_nr width; /* width of current unit */
-	pos_in_item_t nr_units; /* number of units */
+	pos_in_node_t nr_units; /* number of units */
 	reiser4_extent *ext; /* */
 	unsigned long expected_page;
 #if REISER4_DEBUG
@@ -92,13 +92,14 @@ extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 	extent_get_width (extent_by_coord(coord));		\
 })
 
-struct cut_list;
+struct carry_cut_data;
+struct carry_kill_data;
 
 /* plugin->u.item.b.* */
 reiser4_key *max_key_inside_extent(const coord_t *, reiser4_key *);
 int can_contain_key_extent(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int mergeable_extent(const coord_t * p1, const coord_t * p2);
-pos_in_item_t nr_units_extent(const coord_t *);
+pos_in_node_t nr_units_extent(const coord_t *);
 lookup_result lookup_extent(const reiser4_key *, lookup_bias, coord_t *);
 void init_coord_extent(coord_t *);
 int init_extent(coord_t *, reiser4_item_data *);
@@ -108,15 +109,14 @@ int can_shift_extent(unsigned free_space,
 void copy_units_extent(coord_t * target,
 		       coord_t * source,
 		       unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
-int kill_hook_extent(const coord_t *, unsigned from, unsigned count, struct cut_list *);
+int kill_hook_extent(const coord_t *, pos_in_node_t from, pos_in_node_t count, struct carry_kill_data *);
 int create_hook_extent(const coord_t * coord, void *arg);
-int cut_units_extent(coord_t *, unsigned *from,
-		     unsigned *to,
-		     const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
-int kill_units_extent(coord_t *, unsigned *from,
-		      unsigned *to,
-		      const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
-reiser4_key *unit_key_extent(const coord_t * coord, reiser4_key * key);
+int cut_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
+		     struct carry_cut_data *, reiser4_key *smallest_removed, reiser4_key *new_first);
+int kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
+		      struct carry_kill_data *, reiser4_key *smallest_removed, reiser4_key *new_first);
+reiser4_key *unit_key_extent(const coord_t *, reiser4_key *);
+reiser4_key *max_unit_key_extent(const coord_t *, reiser4_key *);
 void print_extent(const char *, coord_t *);
 void show_extent(struct seq_file *m, coord_t *coord);
 int utmost_child_extent(const coord_t * coord, sideof side, jnode ** child);
@@ -151,7 +151,7 @@ int scan_extent (flush_scan * scan);
 extern int key_by_offset_extent(struct inode *, loff_t, reiser4_key *);
 
 reiser4_item_data *init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents);
-reiser4_block_nr extent_size(const coord_t *coord, pos_in_item_t nr);
+reiser4_block_nr extent_size(const coord_t *coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent *ext);
 void set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width);
 int replace_extent(coord_t *un_extent, lock_handle *lh,
