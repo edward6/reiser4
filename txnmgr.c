@@ -1455,6 +1455,7 @@ void jnode_set_clean( jnode *node )
 	
 	spin_unlock_atom (atom);
 
+	current_tree->ops->clean_node (current_tree, node);
 	spin_unlock_jnode (node);
 }
 
