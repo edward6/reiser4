@@ -1433,7 +1433,10 @@ static int flush_squalloc_right (flush_position *pos)
 
 		trace_on (TRACE_FLUSH_VERB, "allocate_extent_in_place: %s\n", flush_pos_tostring (pos));
 
-		/* This allocates extents up to the end of the current twig and returns
+		/* This allocates extents up to the end of the current twig 
+JOSH-FIXME-HANS: you mean up to the end of the current extent item, yes?
+
+and returns
 		 * pos->parent_coord set to the next item. */
 		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
 			goto exit;
