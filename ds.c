@@ -95,18 +95,6 @@ void atom_ds_done (txn_atom * atom)
 	}
 }
 
-/** refill an atom's DSLE list */
-static txn_dsle_t * add_new_dsle(txn_atom * atom)
-{
-	txn_dsle_t * e;
-
-	if (IS_ERR(e = dsle_alloc())) return e;
-
-	dsle_list_push_front(&atom->deleted_list, e);
-
-	return e;
-}
-
 /** add one more block number to given DSLE */
 static void put_blocknr (txn_dsle_t * e, reiser4_block_nr * block)
 {
@@ -132,19 +120,41 @@ static void put_extent (txn_dsle_t * e, reiser4_block_nr * start, reiser4_block_
  * atom's spin lock held */
 int add_blocknrs_to_ds (txn_atom * atom, const reiser4_block_nr * start, const reiser4_block_nr * len)
 {
-	txn_dsle_t * e;
+	txn_dsle_t * e = NULL;
+	int space_needed;
 	int err = 0;
 
-	e = dsle_list_front(&atom->deleted_list);
+	space_needed = (len->blk == 1) ? DSLE_BLOCKNR_SIZE : DSLE_EXTENT_SIZE;
 
 	if (dsle_list_empty(&atom->deleted_list) 
-	    || !((len->blk == 1) ? DSLE_HAS_SPACE_FOR_BLOCKNR(e) : DSLE_HAS_SPACE_FOR_BLOCKNR(e))) {
-		e = add_new_dsle(atom);
-		if (IS_ERR(e)) return PTR_ERR(e);
+	    || DSLE_FREE_SPACE(dsle_list_front(&atom->deleted_list)) > space_needed)
+	{
+		tnx_dsle_t * new_dsle;
+
+		/* we release spinlock before doing memory allocation */
+		spin_unlock_atom(atom);
+		new_dsle = dsle_alloc();
+		spin_lock_atom(atom);
+
+		if (IS_ERR(new_dsle)) return PTR_ERR(new_dsle);
+
+		/* check last atom's dsle for free space again, the situation
+		 * might be changed while we slept */
+		assert("zam-407", !dsle_list_empty(&atom->deleted_list));
+
+		if (!(DSLE_FREE_SPACE(dsle_list_front(&atom->deleted_list) > space_needed)))
+		{
+			dsle_list_push_front(&atom->deleted_list, new_dsle);
+		} else {
+			dsle_free(new_dsle);
+		}
 	}
 
-	if (len->blk == 1) put_blocknr(e, start);
-	else               put_extent (e, start, len);
+	if (len->blk == 1) {
+		put_blocknr(dsle_list_front(&atom->deleted_list), start);
+	} else {
+		put_extent (dsle_list_front(&atom->deleted_list), start, len);
+	}
 
 	return 0;
 }
