@@ -346,10 +346,10 @@ reiserfs_fs_t *reiserfs_fs_create(
     }
 
     /* Checks whether filesystem size is enough big */
-    if (aal_device_len(host_device) < REISERFS_MIN_SIZE) {
+    if (len < REISERFS_MIN_SIZE) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Device %s is too small (%llu). ReiserFS required device %u blocks long.", 
-	    aal_device_name(host_device), aal_device_len(host_device), REISERFS_MIN_SIZE);
+	    aal_device_name(host_device), len, REISERFS_MIN_SIZE);
 	return NULL;
     }
     
