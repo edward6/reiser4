@@ -138,7 +138,7 @@ struct kobj_type ktype_reiser4_prof = {
 #define DEFINE_PROF_ENTRY_0(attr_name,field_name)	\
 	.field_name = {					\
 		.attr = {	       			\
-			.name = attr_name,		\
+			.name = (char *)attr_name,	\
 			.mode = 0644 /* rw-r--r-- */	\
 		}					\
 	}
