@@ -40,6 +40,7 @@ typedef struct stats {
 	struct timeval start;
 	struct timeval end;
 	int totfreq;
+	int stop;
 } stats_t;
 
 stats_t stats;
@@ -365,6 +366,7 @@ main(int argc, char **argv)
 	} while (opt != -1);
 	stats.total = operations;
 	stats.done = 0;
+	stats.stop = 0;
 
 	stats.totfreq = 0;
 	for (op = &ops[0] ; op->label ; ++ op)
@@ -470,6 +472,7 @@ main(int argc, char **argv)
 		}
 		_nap(delta, 0);
 	}
+	stats.stop = 1;
 	if (join) {
 		for (i = 0; i < threads; ++i) {
 			int ret;
@@ -534,8 +537,9 @@ worker(void *arg)
 			       stats.end.tv_sec, stats.end.tv_usec,
 			       stats.end.tv_sec - stats.start.tv_sec,
 			       stats.end.tv_usec - stats.start.tv_usec);
-			exit(0);
-		}
+			break;
+		} else if (stats.stop)
+			break;
 	}
 }
 
