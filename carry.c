@@ -857,6 +857,7 @@ static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
 {
 	znode *left;
 	znode *right;
+	reiser4_key pivot;
 
 	assert( "nikita-1610", node != NULL );
 	assert( "nikita-1611", doing != NULL );
@@ -866,19 +867,24 @@ static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
 	right = node -> real_node;
 	spin_lock_tree( current_tree );
 
-	left = right;
-
-	/*
-	 * skip all nodes pending deletion
-	 */
 	do {
-		if( ZF_ISSET( left, ZNODE_LEFT_CONNECTED ) )
-			left = left -> left;
+		if( ZF_ISSET( right, ZNODE_LEFT_CONNECTED ) )
+			left = right -> left;
 		else
 			left = NULL;
-	} while( left && ZF_ISSET( left, ZNODE_HEARD_BANSHEE ) );
-	
-	update_znode_dkeys( left, right );
+
+		if( node_is_empty( right ) )
+			pivot = *znode_get_rd_key( right );
+		else
+			leftmost_key_in_node( right, &pivot );
+
+		*znode_get_ld_key( right ) = pivot;
+		if( left != NULL ) {
+			*znode_get_rd_key( left ) = pivot;
+		} else
+			break;
+		right = left;
+	} while( ZF_ISSET( right, ZNODE_HEARD_BANSHEE ) );
 
 	spin_unlock_tree( current_tree );
 	spin_unlock_dk( current_tree );
