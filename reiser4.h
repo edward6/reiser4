@@ -280,6 +280,12 @@
 #define REISER4_DEBUG_SIBLING_LIST (0)
 #endif
 
+#if defined(CONFIG_CRYPTO_DEFLATE)
+#define REISER4_GZIP_TFM (1)
+#else
+#define REISER4_GZIP_TFM (0)
+#endif
+
 /*
  * PLEASE update fs/reiser4/kattr.c:show_options() when adding new compilation
  * option
