@@ -355,9 +355,6 @@ static int common_create_child( struct inode *parent /* parent object */,
 	 * remove it in reiser4_delete_inode(). This is accomplished through
 	 * REISER4_NO_STAT_DATA bit in inode.u.reiser4_i.plugin.flags
 	 */
-/*	if( result == 0 )
-		dentry -> d_inode = object;
-*/
 	return result;
 }
 
