@@ -1152,9 +1152,6 @@ static void unregister_profregions(void)
 
    This is read_super() of the past.   */
 
-extern int first_read_started;
-extern int second_read_started;
-
 #if REISER4_DEBUG
 static void finish_rcu(reiser4_super_info_data *sbinfo)
 {

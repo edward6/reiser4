@@ -1006,10 +1006,10 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
    the read method for the unix_file plugin
 
 */
+#if 0
 int first_read_started = 0;
 int second_read_started = 0;
 
-#if 0
 static int
 debugging_can_read(loff_t *off)
 {
