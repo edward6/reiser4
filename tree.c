@@ -1116,7 +1116,7 @@ int shift_right_of_but_excluding_insert_coord (tree_coord * insert_coord)
 	reiser4_init_carry_level (&parent_level, &pool);
 
 	nplug = node_plugin_by_node (right);
-	result = nplug->shift (insert_coord, right, SHIFT_PREPEND,
+	result = nplug->shift (insert_coord, right, SHIFT_RIGHT,
 			    0 /* do not delete node if all contents of
 				 @insert_coord->node was shifted */,
 			    0 /* do not move @insert_coord to @right even if
@@ -1151,7 +1151,7 @@ int shift_left_of_and_including_insert_coord (tree_coord * insert_coord)
 	reiser4_init_carry_level (&parent_level, &pool);
 
 	nplug = node_plugin_by_node (left);
-	result = nplug->shift (insert_coord, left, SHIFT_APPEND,
+	result = nplug->shift (insert_coord, left, SHIFT_LEFT,
 			    0 /* do not delete node if all contents of
 				 @insert_coord->node was shifted */,
 			    1 /* move @insert_coord to node @left if
@@ -1177,7 +1177,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 	coord_last_unit (&from);
 
 	nplug = node_plugin_by_node (right);
-	result = nplug->shift (&from, left, SHIFT_APPEND,
+	result = nplug->shift (&from, left, SHIFT_LEFT,
 			    1/* delete node @right if all its contents was moved to @left */,
 			    1/* @from will be set to @left node */,
 			    todo);
