@@ -541,8 +541,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					      .readpage = extent_readpage,
 					      .writepage = extent_writepage,
 					      .page_cache_readahead = NULL,
-					      .get_block = extent_get_block_address
+					      .get_block = extent_get_block_address,
 					      /*extent_page_cache_readahead */
+					      .readpages = extent_readpages
 				     }
 			       }
 	},
@@ -595,7 +596,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				    .readpage = NULL,
 				    .writepage = NULL,
 				    .page_cache_readahead = NULL,
-				    .get_block = NULL
+				    .get_block = NULL,
+				    .readpages = NULL
 			   }
 		     }
 	},
