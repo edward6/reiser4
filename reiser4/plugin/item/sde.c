@@ -64,7 +64,7 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 
 	data.length = sizeof *dent + name -> d_name.len + 1;
 	data.data   = NULL;
-	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, DIR_ITEM_ID );
+	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, SIMPLE_DIR_ITEM_ID );
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
 				  reiser4_inter_syscall_ra( dir ), NO_RA );

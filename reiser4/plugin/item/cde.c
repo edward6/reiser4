@@ -903,7 +903,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	entry.name = &name -> d_name;
 
 	data.data   = ( char * ) &edata;
-	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, COMPR_DIR_ITEM_ID );
+	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, CMPND_DIR_ITEM_ID );
 	data.arg = dir_entry;
 	assert( "nikita-1302", data.plugin != NULL );
 

@@ -217,8 +217,8 @@ typedef enum {
 	SD_ITEM_ID, 
 	EXTENT_ITEM_ID, 
 	BODY_ITEM_ID,          /* not yet */
-	DIR_ITEM_ID,
-	COMPR_DIR_ITEM_ID,
+	SIMPLE_DIR_ITEM_ID,
+	CMPND_DIR_ITEM_ID,
 	ACL_ITEM_ID,           /* not yet */
 	INTERNAL_ITEM_ID,
 	LAST_ITEM_ID

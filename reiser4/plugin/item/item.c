@@ -147,11 +147,11 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ DIR_ITEM_ID ] = {
+	[ SIMPLE_DIR_ITEM_ID ] = {
 		.h = {
 			.rec_len = sizeof( reiser4_plugin ),
 			.type_id = REISER4_ITEM_PLUGIN_ID,
-			.id      = DIR_ITEM_ID,
+			.id      = SIMPLE_DIR_ITEM_ID,
 			.pops    = NULL,
 			.label   = "de",
 			.desc    = "directory entry",
@@ -194,11 +194,11 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ COMPR_DIR_ITEM_ID ] = {
+	[ CMPND_DIR_ITEM_ID ] = {
 		.h = {
 			.rec_len = sizeof( reiser4_plugin ),
 			.type_id = REISER4_ITEM_PLUGIN_ID,
-			.id      = COMPR_DIR_ITEM_ID,
+			.id      = CMPND_DIR_ITEM_ID,
 			.pops    = NULL,
 			.label   = "cde",
 			.desc    = "compressed directory entry",
