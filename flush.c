@@ -73,6 +73,9 @@ struct flush_position {
 						* until it reaches capacity at which point flush_empty_queue() is called. */
  	int                   queue_num;       /* The current number of queue entries. */
 
+	flushers_list_link    flushers_link;
+	txn_atom             *atom;
+
 	/* FIXME: Currently there is no checking for (internal) nodes that have
 	 * un-allocated children when the node is flushed.  This needs to be fixed for
 	 * performance reasons, but it will not cause file system corruption since the
@@ -109,6 +112,8 @@ struct flush_position {
 
 	struct reiser4_io_handle * hio;
 };
+
+TS_LIST_DEFINE(flushers, struct flush_position, flushers_link);
 
 typedef enum {
 	SCAN_EVERY_LEVEL,
@@ -1640,6 +1645,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 		txn_atom * atom;
 
 		pos->queue_num++;
+		atom->num_queued ++;
 
 		atom = atom_get_locked_by_jnode (node);
 
@@ -1677,6 +1683,7 @@ static void flush_dequeue_jnode (flush_position * pos, jnode * node)
 	capture_list_push_back (&atom->clean_nodes, node);
 
 	pos->queue_num --;
+	atom->num_queued --;
 
 	spin_unlock_atom (atom);
 	spin_unlock_jnode (node);
@@ -2712,7 +2719,8 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
 	capture_list_init (&pos->queue);
-	
+	flushers_list_clean (pos);
+
 	pos->queue_num = 0;
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
@@ -2740,11 +2748,9 @@ static int flush_pos_valid (flush_position *pos)
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 
-/* Release any resources of a flush_position. */
-static void flush_pos_done (flush_position *pos)
+/* invalidate flush queue */
+static void flush_dequeue_all (struct flush_position * pos)
 {
-	flush_pos_stop (pos);
-	blocknr_hint_done (& pos->preceder);
 
 	while (!capture_list_empty(&pos->queue)) {
 		jnode * cur = capture_list_pop_front(&pos->queue);
@@ -2758,6 +2764,7 @@ static void flush_pos_done (flush_position *pos)
 		
 		capture_list_remove (cur);
 		pos->queue_num --;
+		atom->num_queued ++;
 
 		if (jnode_is_dirty(cur)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(cur)], cur);
 		else                     capture_list_push_back (&atom->clean_nodes, cur);
@@ -2765,6 +2772,15 @@ static void flush_pos_done (flush_position *pos)
 		spin_unlock_atom (atom);
 		spin_unlock_jnode (cur);
 	}
+
+}
+
+/* Release any resources of a flush_position. */
+static void flush_pos_done (flush_position *pos)
+{
+	flush_dequeue_all (pos);
+	flush_pos_stop (pos);
+	blocknr_hint_done (& pos->preceder);
 }
 
 /* Reset the point and parent. */
@@ -2773,6 +2789,15 @@ static int flush_pos_stop (flush_position *pos)
 	done_dh (& pos->parent_load);
 	done_dh (& pos->point_load);
 	if (pos->point != NULL) {
+		txn_atom * atom;
+
+		spin_lock_jnode (pos->point);
+		atom = atom_get_locked_by_jnode(pos->point);
+		assert ("zam-657", atom != NULL);
+		assert ("zam-658", atom == pos->atom);
+		spin_unlock_atom (atom);
+		spin_unlock_jnode (pos->point);
+
 		jput (pos->point);
 		pos->point = NULL;
 	}
@@ -2883,6 +2908,28 @@ static int flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
 	pos->point = jref (node);
+
+	{
+		txn_atom * atom;
+
+		int ret = -EAGAIN;
+
+		spin_lock_jnode (node);
+		atom = atom_get_locked_by_jnode (node);
+
+		if (atom) {
+			flushers_list_push_back(&atom->flushers, pos);
+			pos->atom = atom;
+			spin_unlock_atom(atom);
+
+			ret = 0;
+		}
+
+		spin_unlock_jnode (node);
+		
+		if (ret) return ret;
+	}
+
 	return load_dh_jnode (& pos->point_load, node);
 }
 
@@ -2921,6 +2968,37 @@ reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
 int flush_pos_leaf_relocate (flush_position *pos)
 {
 	return pos->leaf_relocate;
+}
+
+/*  */
+void flush_fuse_queues (txn_atom *large, txn_atom *small)
+{
+	struct flush_position * pos;
+
+	assert ("zam-659", spin_atom_is_locked (large));
+	assert ("zam-660", spin_atom_is_locked (small));
+
+	pos = flushers_list_front (&small->flushers);
+	while (!flushers_list_end (&small->flushers, pos)) {
+		jnode * scan;
+
+		pos->atom = large;
+
+		scan = capture_list_front (&pos->queue);
+		while (!capture_list_end (&pos->queue, scan)) {
+			spin_lock_jnode (scan);
+			scan->atom = large;
+			spin_unlock_jnode (scan);
+
+			scan = capture_list_next (scan);
+		}
+
+		pos = flushers_list_next (pos);
+	}
+
+	flushers_list_splice (&large->flushers, & small->flushers);
+	large->num_queued += small->num_queued;
+	small->num_queued = 0;
 }
 
 //#if REISER4_DEBUG

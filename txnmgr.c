@@ -1444,6 +1444,8 @@ void jnode_set_dirty( jnode *node )
 
 			int level = jnode_real_level (node);
 
+			assert ("zam-654", !(JF_ISSET(node, ZNODE_WANDER) && atom->stage >= ASTAGE_PRE_COMMIT));
+
 			capture_list_remove     (node);
 			capture_list_push_front (& atom->dirty_nodes[level], node);
 
@@ -1960,11 +1962,14 @@ capture_fuse_into (txn_atom  *small,
 	/* Splice and update the [clean,dirty] jnode and txnh lists */
 	zcount += capture_fuse_jnode_lists (large, & large->clean_nodes, & small->clean_nodes);
 	tcount += capture_fuse_txnh_lists  (large, & large->txnh_list,    & small->txnh_list);
-	
+
 	/* Check our accounting. */
-	assert ("jmacd-1063", zcount == small->capture_count);
+	assert ("jmacd-1063", zcount == small->capture_count + small->num_queued);
 	assert ("jmacd-1065", tcount == small->txnh_count);
 
+	/* splice flush queues */
+	flush_fuse_queues (large, small);
+	
 	/* Transfer list counts to large. */
 	large->txnh_count          += small->txnh_count;
 	large->capture_count       += small->capture_count;

@@ -19,7 +19,10 @@ TS_LIST_DECLARE(fwaiting);         /* waiting on another atom and one for revers
 
 TS_LIST_DECLARE(capture);          /* The transaction's list of captured znodes */
 
-TS_LIST_DECLARE(blocknr_set);      /* Used for the transaction's delete set and wandered mapping. */
+TS_LIST_DECLARE(blocknr_set);      /* Used for the transaction's delete set
+				    * and wandered mapping. */
+/* per atom list of flush positions */
+TS_LIST_DECLARE(flushers); 
 
 /****************************************************************************************
 				    TYPE DECLARATIONS
@@ -222,6 +225,11 @@ struct txn_atom
 	 * is implemented */
 	int  nr_objects_deleted;
 	int  nr_objects_created;
+
+	int num_queued;		/* number of jnodes which were removed from
+				 * atom's lists and put on flush_queue */
+	/* all flush_pos objects that flush this atom are on this list  */
+	flushers_list_head      flushers; 
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
@@ -341,6 +349,9 @@ extern int          blocknr_set_iterator   (txn_atom                *atom,
  */
 jnode *             nth_jnode              (struct page *           page, int block);
 jnode *             next_jnode             (jnode *                 node);
+
+/* flush code takes care about how to fuse flush queues */
+extern void flush_fluse_queues (txn_atom *, txn_atom *); 
 
 
 /*****************************************************************************************
