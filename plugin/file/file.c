@@ -2172,71 +2172,68 @@ safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
 }
 
 
-/* Reads @count bytes from @file and calls @actor for every read page. This is
+/* Reads @count bytes from @file and calls @actor for every page read. This is
    needed for loop back devices support. */
 reiser4_internal ssize_t sendfile_common (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target)
 {
-	ssize_t result = 0;
+	ssize_t amount_read;
 	file_plugin *fplug;
 	struct inode *inode;
-	unsigned long index;
-	unsigned long eindex;
-	unsigned long offset;
 	read_descriptor_t desc;
 	struct page *page = NULL;
+	int ret = 0;
 
 	assert("umka-3108", file != NULL);
 	
 	inode = file->f_dentry->d_inode;
-
-	/* FIXME-UMKA: apparently here readahead should be called first.*/
 
 	desc.error = 0;
 	desc.written = 0;
 	desc.buf = target;
 	desc.count = count;
 
-	index = *ppos >> PAGE_CACHE_SHIFT;
-	offset = *ppos & ~PAGE_CACHE_MASK;
 	fplug = inode_file_plugin(inode);
+	if (fplug->readpage == NULL)
+		return RETERR(-EINVAL);
 
-	while (1) {
-		unsigned long nr, ret;
-		loff_t isize = i_size_read(inode);
+	amount_read = 0;
 
-		eindex = (isize >> PAGE_CACHE_SHIFT);
-		
-		if (index > eindex)
+	while (desc.count != 0) {
+		unsigned long read_request_size;
+		unsigned long index;
+		unsigned long offset;
+		loff_t file_size = i_size_read(inode);
+
+		if (*ppos >= file_size)
 			break;
 
-		nr = PAGE_CACHE_SIZE;
+		index = *ppos >> PAGE_CACHE_SHIFT;
+		offset = *ppos & ~PAGE_CACHE_MASK;
 
-		if (index == eindex) {
-			nr = isize & ~PAGE_CACHE_MASK;
-			if (nr <= offset)
+		/* determine valid read request size. */
+		read_request_size = PAGE_CACHE_SIZE - offset;
+		if (read_request_size > desc.count)
+			read_request_size = desc.count;
+		if (*ppos + read_request_size >= file_size) {
+			read_request_size = file_size - *ppos;
+			if (read_request_size == 0)
 				break;
 		}
-
-		nr = nr - offset;
-
 		page = grab_cache_page(inode->i_mapping, index);
 		if (unlikely(page == NULL)) {
-			result = RETERR(-ENOMEM);
+			ret = RETERR(-ENOMEM);
 			goto fail_no_page;
 		}
+
+		/* FIXME-UMKA: apparently here readahead should be called first.*/
 
 		if (PageUptodate(page))
 			/* process locked, up-to-date  page by read actor */
 			goto actor;
 
-		if (fplug->readpage != NULL) {
-			result = RETERR(-EINVAL);
-			goto fail_locked_page;
-		}
-
-		result = fplug->readpage(file, page);
-		if (result != 0) {
+		ret = fplug->readpage(file, page);
+		if (ret != 0) {
 			SetPageError(page);
 			ClearPageUptodate(page);
 			goto fail_page;
@@ -2244,36 +2241,33 @@ reiser4_internal ssize_t sendfile_common (
 
 		lock_page(page);
 		if (!PageUptodate(page)) {
-			result = RETERR(-EIO);
+			ret = RETERR(-EIO);
 			goto fail_locked_page;
 		}
 
 	actor:
-		ret = actor(&desc, page, offset, nr);
-
+		ret = actor(&desc, page, offset, read_request_size);
 		unlock_page(page);
 		page_cache_release(page);
+		if (ret < 0)
+			goto fail_no_page;
 
-		offset += ret;
-		index += offset >> PAGE_CACHE_SHIFT;
-		offset &= ~PAGE_CACHE_MASK;
-
-		if (ret != nr || desc.count == 0)
-			break;
+		(*ppos) += ret;
+		amount_read += ret;
 	}
 
-	if (0) {
-	fail_locked_page:
-		unlock_page(page);
-	fail_page:
-		page_cache_release(page);
-	}
-	fail_no_page:
-
-	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
 	update_atime(inode);
+	return amount_read;
 
-	return result;
+
+ fail_locked_page:
+	unlock_page(page);
+ fail_page:
+	page_cache_release(page);
+ fail_no_page:
+
+	update_atime(inode);
+	return ret;
 }
 
 reiser4_internal ssize_t sendfile_unix_file (
