@@ -560,7 +560,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
 
-		++ info->eflushed;
+		ON_DEBUG(++ info->eflushed);
 		if (!ef->hadatom)
 			++ info->eflushed_anon;
 
@@ -694,14 +694,16 @@ eflush_del(jnode *node, int page_locked)
 			inode = mapping_jnode(node)->host;
 			info = reiser4_inode_data(inode);
 			assert("vs-1194", info->eflushed > 0);
-			-- info->eflushed;
+			ON_DEBUG(-- info->eflushed);
 			if (!ef->hadatom)
 				-- info->eflushed_anon;
 			/* remove eflush node from inode's list of eflush
 			 * nodes */
 			list_del(&ef->inode_link);
-			if (info->eflushed == 0)
+			if (list_empty(&info->eflushed_jnodes)) {
+				assert("nikita-3355", info->eflushed == 0);
 				inode->i_state &= ~I_EFLUSH;
+			}
 
 			/*printk("eflush_del: j %p, inode %llu, index %lu atom %p\n", node, get_inode_oid(inode),
 			  jnode_index(node), node->atom);*/
