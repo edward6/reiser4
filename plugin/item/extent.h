@@ -115,9 +115,9 @@ int extent_readpage (void *, struct page * page);
 
 /* these are used in flush.c
  * FIXME-VS: should they be somewhere in item_plugin? */
-int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preceder);
+int allocate_extent_item_in_place (coord_t * item, flush_position *pos);
 int allocate_and_copy_extent (znode * left, coord_t * right,
-			      reiser4_blocknr_hint * preceder,
+			      flush_position *pos,
 			      reiser4_key * stop_key);
 
 int   extent_is_unallocated (const coord_t *item); /* True if this extent is unallocated (i.e., not a hole, not allocated). */

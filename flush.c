@@ -11,9 +11,6 @@
  * written location.  When you're writing just a single internal node, use the global
  * value. */
 
-typedef struct flush_scan     flush_scan;
-typedef struct flush_position flush_position;
-
 #define FLUSH_RELOCATE_THRESHOLD 64
 #define FLUSH_RELOCATE_DISTANCE  64
 
@@ -92,7 +89,6 @@ static int           flush_scan_right             (flush_scan *scan, jnode *node
 
 static int           flush_left_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
-static int           flush_enqueue_jnode          (jnode *node, flush_position *pos);
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 
 static int           flush_finish                 (flush_position *pos);
@@ -838,7 +834,7 @@ static int flush_squalloc_right (flush_position *pos)
 
 		/* This allocates extents up to the end of the current twig and returns
 		 * pos->parent_coord set to the next item. */
-		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, & pos->preceder))) {
+		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
 			goto exit;
 		}
 
@@ -1012,7 +1008,7 @@ static int squalloc_right_twig (znode    *left,
 
 	while (item_is_extent (&coord)) {
 
-		if ((ret = allocate_and_copy_extent (left, &coord, & pos->preceder, &stop_key)) < 0) {
+		if ((ret = allocate_and_copy_extent (left, &coord, pos, &stop_key)) < 0) {
 			return ret;
 		}
 
@@ -1289,7 +1285,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 }
 
 /* This enqueues the current flush point into the developing "struct bio" queue. */
-static int flush_enqueue_jnode (jnode *node, flush_position *pos)
+int flush_enqueue_jnode (jnode *node, flush_position *pos)
 {
 	int ret;
 	struct page *pg;
@@ -2089,6 +2085,11 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 		assert ("jmacd-9924", lock_mode (& pos->parent_lock) == ZNODE_NO_LOCK);
 		return jnode_lock_parent_coord (pos->point, parent_coord, parent_lock, parent_load, mode);
 	}
+}
+
+reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
+{
+	return & pos->preceder;
 }
 
 /*

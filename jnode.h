@@ -144,7 +144,13 @@ extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
 extern int                     jnode_has_block( jnode * );
 extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
+
+/**
+ * Jnode flush interface.
+ */
 extern int    jnode_flush     (jnode *node, int flags);
+extern int    flush_enqueue_jnode (jnode *node, flush_position *pos);
+extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 
 /*
  * FIXME-VS: these are used in plugin/item/extent.c

@@ -2338,18 +2338,15 @@ int extent_read (struct inode * inode, coord_t * coord,
  * ask block allocator for some blocks
  */
 /* Audited by: green(2002.06.13) */
-static int extent_allocate_blocks (reiser4_block_nr desired_first,
+static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 				   reiser4_block_nr wanted_count,
 				   reiser4_block_nr * first_allocated,
 				   reiser4_block_nr * allocated)
 {
 	int result;
-	reiser4_blocknr_hint preceder;
 
-
-	preceder.blk = desired_first;
 	*allocated = wanted_count;
-	result = reiser4_alloc_blocks (&preceder, first_allocated, allocated);
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated);
 	if (result) {
 		/*
 		 * no free space
@@ -2371,10 +2368,12 @@ static int extent_allocate_blocks (reiser4_block_nr desired_first,
  * FIXME-VS: this needs changes if blocksize != pagesize is needed
  */
 /* Audited by: green(2002.06.13) */
-static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first, 
+static int map_allocated_buffers (reiser4_key * key,
+				   reiser4_block_nr first, 
 				   /* FIXME-VS: get better type for number of
 				    * blocks */
-				   reiser4_block_nr count)
+				   reiser4_block_nr count,
+				   flush_position *flush_pos)
 {
 	loff_t offset;
 	struct inode * inode;
@@ -2383,7 +2382,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	unsigned long ind;
 	reiser4_key sd_key;
 	jnode * j;
-	int i;
+	int i, ret;
 
 
 	blocksize = current_blocksize;
@@ -2410,12 +2409,17 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 		j = jnode_of_page (page);
 		jnode_set_block (j, &first);
 
+		/* Submit I/O and set the jnode clean. */
+		if ((ret = flush_enqueue_jnode (j, flush_pos))) {
+			return ret;
+		}
+
 		unlock_page (page);
 		page_cache_release (page);
 	}
  	iput (inode);
 		
-	
+	return 0;
 #if 0
 	while (1) {
 		ind = offset >> PAGE_CACHE_SHIFT;
@@ -2453,7 +2457,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 
 
 /*
- * return 1 if @extent unit needs allocation, 0 - otherwize. Try to update
+ * return 1 if @extent unit needs allocation, 0 - otherwise. Try to update
  * preceder in parent-first order for next block which will be allocated
  * FIXME-VS: this only returns 1 for unallocated extents. It may be modified to
  * return 1 for allocated extents all unformatted nodes of which are in
@@ -2570,7 +2574,7 @@ static int try_to_glue (znode * left, coord_t * right,
  */
 /* Audited by: green(2002.06.13) */
 int allocate_and_copy_extent (znode * left, coord_t * right,
-			      reiser4_blocknr_hint * preceder,
+			      flush_position *flush_pos,
 			      /*
 			       * biggest key which was moved, it is
 			       * * maintained while shifting is in *
@@ -2601,7 +2605,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 	ext = extent_item (right);
 	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
-		if (!extent_needs_allocation (ext, preceder)) {
+		if (!extent_needs_allocation (ext, flush_pos_hint (flush_pos))) {
 			/*
 			 * unit does not require allocation, copy this unit as
 			 * it is
@@ -2634,7 +2638,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 		 * while whole extent is allocated
 		 */
 		while (to_allocate) {
-			result = extent_allocate_blocks (preceder->blk, to_allocate,
+			result = extent_allocate_blocks (flush_pos_hint (flush_pos), to_allocate,
 							 &first_allocated,
 							 &allocated);
 			if (result) {
@@ -2642,14 +2646,18 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			}
 
 			to_allocate -= allocated;
-			preceder->blk += allocated;
+
+			/* FIXME: JMACD->ZAM->VS: I think the block allocator should do this. */
+			flush_pos_hint (flush_pos)->blk += allocated;
+
 			if (try_to_glue (left, right, first_allocated, allocated)) {
 				/*
 				 * find all pages containing allocated blocks
 				 * and map corresponding buffers
 				 */
-				map_allocated_buffers (&key, first_allocated,
-						       allocated);
+				if ((result = map_allocated_buffers (&key, first_allocated, allocated, flush_pos))) {
+					goto done;
+				}
 				/*
 				 * update stop key
 				 */
@@ -2685,8 +2693,10 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			 * find all pages containing allocated blocks and map
 			 * corresponding buffers
 			 */
-			map_allocated_buffers (&key, first_allocated,
-					       allocated);
+			if ((result = map_allocated_buffers (&key, first_allocated,
+							     allocated, flush_pos))) {
+				goto done;
+			}
 			/*
 			 * update stop key
 			 */
@@ -2745,7 +2755,7 @@ static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
  * to right
  */
 /* Audited by: green(2002.06.13) */
-int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preceder)
+int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 {
 	int result;
 	unsigned i;
@@ -2762,7 +2772,7 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 
 	ext = extent_item (item);
 	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
-		if (!extent_needs_allocation (ext, preceder))
+		if (!extent_needs_allocation (ext, flush_pos_hint (flush_pos)))
 			continue;
 		assert ("vs-439", state_of_extent (ext) == UNALLOCATED_EXTENT);
 
@@ -2771,7 +2781,7 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 		 * *preceder
 		 */
 		initial_width = extent_get_width (ext);
-		result = extent_allocate_blocks (preceder->blk, initial_width,
+		result = extent_allocate_blocks (flush_pos_hint (flush_pos), initial_width,
 						 &first_allocated, &allocated);
 		if (result)
 			return result;
@@ -2782,14 +2792,16 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 		 */
 		extent_set_start (ext, first_allocated);
 		extent_set_width (ext, allocated);
-		preceder->blk = first_allocated + allocated - 1;
+		flush_pos_hint (flush_pos)->blk = first_allocated + allocated - 1;
 
 		unit_key_by_coord (item, &key);
 		/*
 		 * find all pages containing allocated blocks and map
 		 * corresponding buffers
 		 */
-		map_allocated_buffers (&key, first_allocated, allocated);
+		if ((result = map_allocated_buffers (&key, first_allocated, allocated, flush_pos))) {
+			return result;
+		}
 
 		if (allocated == initial_width)
 			/*
@@ -2838,7 +2850,7 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 	return 0;
 }
 
-
+#if 0
 /*
  * iterate_tree's actor is to test extent allocation
  */
@@ -2884,7 +2896,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, coord_t * coord,
 	allocate_extent_item_in_place (coord, &preceder);
 	return 1;
 }
-
+#endif
 
 /* Block offset of first block addressed by unit */
 /* Audited by: green(2002.06.13) */

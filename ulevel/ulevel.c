@@ -2523,8 +2523,10 @@ static int call_readdir_long (struct inode * dir, const char *prefix)
 }
 
 
+#if 0
 int alloc_extent (reiser4_tree *, coord_t *,
 		  lock_handle *, void *);
+#endif
 
 #define BUFSIZE 255
 
@@ -3435,6 +3437,7 @@ static int bash_trunc (struct inode * cwd, const char * name)
 	return 0;
 }
 
+#if 0
 /*
  * go through all "twig" nodes and call alloc_extent for every item
  */
@@ -3468,7 +3471,6 @@ static void allocate_unallocated (reiser4_tree * tree)
 	print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
 }
-
 
 static int do_twig_squeeze (reiser4_tree * tree, coord_t * coord,
 			    lock_handle * lh, void * arg UNUSED_ARG)
@@ -3565,6 +3567,7 @@ static void squeeze_twig_level (reiser4_tree * tree)
 	print_tree_rec ("AFTER SQUEEZING TWIG", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
 }
+#endif
 
 #define print_help() \
 	info ("Commands:\n"\
@@ -3752,12 +3755,14 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			} else {
 				info ("\ttail [on|off]\n");
 			}
+#if 0
 		} else if (!strcmp (command, "alloc")) {
 			allocate_unallocated (tree_by_inode (cwd));
-		} else if (!strcmp (command, "df")) {
-			bash_df (cwd);
 		} else if (!strcmp (command, "squeeze")) {
 			squeeze_twig_level (tree_by_inode (cwd));
+#endif
+		} else if (!strcmp (command, "df")) {
+			bash_df (cwd);
 		} else if (!strncmp (command, "p", 1)) {
 			/*
 			 * print tree
