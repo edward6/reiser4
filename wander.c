@@ -620,6 +620,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
+	int ret;
 	jnode *cur = first;
 	reiser4_block_nr block;
 
@@ -660,6 +661,11 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 		for (i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 
+			/* jload() helps if node was emergency flushed */
+			ret = jload(node);
+			if (ret) 
+				rpanic ("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
+
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
 
@@ -668,6 +674,8 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 			assert("zam-605", !PageWriteback(pg));
 			SetPageWriteback(pg);
+
+			jrelse(node);
 
 			write_lock(&pg->mapping->page_lock);
 
