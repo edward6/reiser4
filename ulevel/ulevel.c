@@ -441,7 +441,7 @@ void iput( struct inode *inode )
 			info ("release failed");
 
 		spin_lock( &inode_hash_guard );
-		list_del_init( &inode -> i_hash );
+		/*list_del_init( &inode -> i_hash );*/
 		spin_unlock( &inode_hash_guard );
 	}
 }
@@ -531,6 +531,16 @@ int __copy_to_user (char * to, char * from, unsigned n)
 }
 
 
+/* mm/swap.c */
+
+void lru_cache_del (struct page * page UNUSED_ARG)
+{
+	return;
+}
+
+
+/* mm/filemap.c */
+
 struct list_head page_list;
 
 static struct page * new_page (struct address_space * mapping,
@@ -555,6 +565,28 @@ static struct page * new_page (struct address_space * mapping,
 }
 
 
+void lock_page (struct page * p)
+{
+	assert ("vs-287", !PageLocked (p));\
+	(p)->flags |= PG_locked;\
+}
+
+
+void unlock_page (struct page * p)
+{
+	assert ("vs-286", PageLocked (p));\
+	(p)->flags &= ~PG_locked;\
+}
+
+
+void remove_inode_page (struct page * page)
+{
+	assert ("vs-618", (page->count == 1 &&
+			   PageLocked (page)));
+	page->mapping = 0;
+}
+
+
 struct page * find_get_page (struct address_space * mapping,
 			     unsigned long ind)
 {
@@ -573,6 +605,30 @@ struct page * find_get_page (struct address_space * mapping,
 }
 
 
+static void truncate_inode_pages (struct address_space * mapping,
+				  loff_t from)
+{
+	struct list_head * cur;
+	struct page * page;
+	unsigned ind;
+
+
+	ind = (from + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	list_for_each (cur, &page_list) {
+		page = list_entry (cur, struct page, list);
+		if (page->mapping == mapping) {
+			if (page->index >= ind) {
+				page->count ++;
+				lock_page (page);
+				remove_inode_page (page);
+				unlock_page (page);
+				page->count --;
+			}
+		}
+	}
+}
+
+
 struct page * find_lock_page (struct address_space * mapping,
 			      unsigned long ind)
 {
@@ -580,7 +636,7 @@ struct page * find_lock_page (struct address_space * mapping,
 
 	page = find_get_page (mapping, ind);
 	if (page)
-		LockPage (page);
+		lock_page (page);
 	return page;
 }
 
@@ -597,7 +653,7 @@ struct page * grab_cache_page (struct address_space * mapping,
 		return page;
 
 	page = new_page (mapping, ind);
-	LockPage (page);
+	lock_page (page);
 	return page;
 }
 
@@ -616,7 +672,7 @@ struct page *read_cache_page (struct address_space * mapping,
 		page = new_page (mapping, idx);
 	
 	if (!Page_Uptodate (page)) {
-		LockPage (page);
+		lock_page (page);
 		filler (data, page);
 	}
 	return page;
@@ -638,7 +694,7 @@ void wait_on_page(struct page * page)
 		} while (bh = bh->b_this_page, bh != page->buffers);
 
 		reiser4_stat_file_add (wait_on_page);
-		UnlockPage (page);
+		unlock_page (page);
 		if (!notuptodate)
 			SetPageUptodate (page);
 	}
@@ -649,6 +705,8 @@ static void print_page (struct page * page)
 {
 	struct buffer_head * bh;
 
+	if (!page->mapping)
+		return;
 	info ("PAGE: index %lu, count %d, ino %lx%s%s\nbuffers:\n",
 	      page->index, page->count, page->mapping->host->i_ino,
 	      PageLocked (page) ? ", Locked" : "",
@@ -2091,7 +2149,10 @@ void call_truncate (struct inode * inode, loff_t size)
 	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
+
+	truncate_inode_pages (inode->i_mapping, size);
 	inode->i_size = size;
+
 	inode->i_op->truncate (inode);
 	init_context (old_context, inode->i_sb);
 }
@@ -2603,7 +2664,7 @@ static int bash_write (struct inode * dir, const char * name)
 
 	buf = 0;
 	n = 0;
-	count = getdelim (&buf, &n, EOF, stdin);
+	count = getdelim (&buf, &n, '#', stdin);
 	if (count == -1) {
 		info ("write: getdelim failed\n");
 		return 0;
@@ -3022,6 +3083,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		
 	} else if (!strcmp (argv[2], "bash")) {
 		char * command = 0;
+		int n;
 		struct inode * cwd;
 
 /* for (cwd, command + strlen ("foocmd ")) */
@@ -3058,7 +3120,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			return 1;
 		}
 
-		for ( ; (command = readline ("> ")) != NULL ; free (command)) {
+		for ( ; printf ("> "), (getline (&command, &n, stdin)) != EOF ; ) {
+		/*for ( ; (command = readline ("> ")) != NULL ; free (command)) {*/
 			add_history (command);
 			if (!strncmp (command, "pwd", 2)) {
 				info ("Not ready\n");
