@@ -521,10 +521,6 @@ static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
 			jref(j);			
 			spin_unlock_eflush(tree->super);
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 0));
-			if (j->pg) {
-				print_jnode("page left", j);
-				printk("\n");
-			}
 			uncapture_jnode(j);
 			jput(j);
 			nr ++;
