@@ -1933,9 +1933,11 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	assert( "nikita-2258", node != NULL );
 
 	/*
-	 * is_page_cache_freeable() check
+	 * is_page_cache_freeable() check 
+	 *
+	 * (mapping + private + page_cache_get() by shrink_cache())
 	 */
-	if( page_count( page ) > 2 )
+	if( page_count( page ) > 3 )
 		return 0;
 	if( PageDirty( page ) )
 		return 0;
@@ -1955,6 +1957,8 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	}
 	page_clear_jnode_nolock( page, node );
 	spin_unlock_jnode( node );
+	trace_on( TRACE_BUG, "released: %li, %lu\n",
+		  page -> mapping -> host -> i_ino, page -> index );
 	page_cache_release( page );
 	/*
 	 * return with page still locked. shrink_cache() expects this.
