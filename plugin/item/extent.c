@@ -2844,8 +2844,9 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
    locked, coord is set to existing unit inside of extent item
 */
 int
-extent_readpage(coord_t * coord, struct page *page)
+extent_readpage(void * vp, struct page *page)
 {
+	coord_t * coord = vp;
 	ON_DEBUG(reiser4_key key;)
 	reiser4_block_nr pos;
 	jnode *j;

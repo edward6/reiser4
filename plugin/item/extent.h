@@ -102,7 +102,7 @@ int extent_check(const coord_t * coord, const char **error);
 /* plugin->u.item.s.file.* */
 int extent_write(struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int grabbed);
 int extent_read(struct file *, coord_t *, flow_t *);
-int extent_readpage(coord_t *, struct page *page);
+int extent_readpage(void *, struct page *page);
 void extent_readpages(coord_t *, struct address_space *, struct list_head *pages);
 int extent_writepage(coord_t *, lock_handle *, struct page *);
 reiser4_key *extent_append_key(const coord_t * coord, reiser4_key * key, void *);
