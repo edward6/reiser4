@@ -1093,6 +1093,7 @@ static reiser4_block_nr reserved_for_sd_update(struct inode *inode)
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
 
+#if 0
 static void atom_update_stat_data(txn_atom **atom)
 {
 	jnode *j;
@@ -1122,6 +1123,7 @@ static void atom_update_stat_data(txn_atom **atom)
 
 	assert("vs-1231", capture_list_empty(&((*atom)->inodes)));
 }
+#endif
 
 /* Wait completion of all writes, re-submit atom writeback list if needed. */
 static int current_atom_complete_writes (void)
@@ -2406,7 +2408,6 @@ reiser4_internal int capture_inode(struct inode *inode)
 	UNLOCK_JNODE(j);
 	return result;
 }
-#endif
 
 reiser4_internal int uncapture_inode(struct inode *inode)
 {
@@ -2430,6 +2431,8 @@ reiser4_internal int uncapture_inode(struct inode *inode)
 	jput(j);
 	return 0;
 }
+
+#endif
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
    atom's delete set and uncapture the block.
@@ -2617,6 +2620,29 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	JF_SET(node, JNODE_DIRTY);
 
 	get_current_context()->nr_marked_dirty ++;
+#if REISER4_DEBUG
+	{
+		reiser4_context *ctx;
+
+		ctx = get_current_context();
+		if (__builtin_return_address(0) == ctx->mjd_bt[0] &&
+		    __builtin_return_address(1) == ctx->mjd_bt[1] &&
+		    __builtin_return_address(2) == ctx->mjd_bt[2] &&
+		    __builtin_return_address(3) == ctx->mjd_bt[3] &&
+		    __builtin_return_address(4) == ctx->mjd_bt[4] &&
+		    __builtin_return_address(5) == ctx->mjd_bt[5]) {
+			ctx->count ++;
+		} else {
+			ctx->mjd_bt[0] = __builtin_return_address(0);
+			ctx->mjd_bt[1] = __builtin_return_address(1);
+			ctx->mjd_bt[2] = __builtin_return_address(2);
+			ctx->mjd_bt[3] = __builtin_return_address(3);
+			ctx->mjd_bt[4] = __builtin_return_address(4);
+			ctx->mjd_bt[5] = __builtin_return_address(5);
+			ctx->count = 1;
+		}
+	}
+#endif
 	/* We grab2flush_reserve one additional block only if node was
 	   not CREATED and jnode_flush did not sort it into neither
 	   relocate set nor overwrite one. If node is in overwrite or
