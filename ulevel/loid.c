@@ -5,7 +5,6 @@
 #include <time.h>
 
 #define MAX_LEN   (20)
-#define CYCLE     (20000)
 
 #define RAT( a, b ) ( ( ( double ) ( a ) ) / ( ( double ) ( b ) ) )
 int main( int argc, char **argv )
@@ -20,14 +19,29 @@ int main( int argc, char **argv )
   unsigned long prev;
   unsigned long N;
   int ebusy;
+  int ch;
+  int pad;
+  unsigned long cycle;
 
-  if( argc == 2 )
+  N = 0;
+  pad = 0;
+  cycle = 20000;
+  while( ( ch = getopt( argc, argv, "n:p:c:" ) ) != -1 )
 	{
-	  N = atol( argv[ 1 ] );
-	}
-  else
-	{
-	  N = 0;
+	  switch( ch )
+		{
+		case 'n':
+		  N = atol( optarg );
+		  break;
+		case 'p':
+		  pad = atoi( optarg );
+		  break;
+		case 'c':
+		  cycle = atol( optarg );
+		  break;
+		default:
+		  exit( 0 );
+		}
 	}
 
   base = strlen( alphabet );
@@ -41,6 +55,7 @@ int main( int argc, char **argv )
 	  int j;
 	  int c;
 	  int fd;
+	  int shift;
 	  char fname[ MAX_LEN + 1 ];
 
 	  for( j = MAX_LEN - 1, c = 1 ; ( j >= 0 ) && c ; -- j )
@@ -65,11 +80,27 @@ int main( int argc, char **argv )
 		{
 		  exit( 1 );
 		}
+	  if( pad )
+		{
+		  shift = pad - ( MAX_LEN - min );
+		  if( shift < 0 )
+			{
+			  shift = 0;
+			}
+		  for( j = 0 ; j < shift ; ++ j )
+			{
+			  fname[ j ] = '#';
+			}
+		}
+	  else
+		{
+		  shift = 0;
+		}
 	  for( j = min ; j < MAX_LEN ; ++ j )
 		{
-		  fname[ j - min ] = alphabet[ ( int ) name[ j ] ];
+		  fname[ j - min + shift ] = alphabet[ ( int ) name[ j ] ];
 		}
-	  fname[ MAX_LEN - min ] = 0;
+	  fname[ MAX_LEN - min + shift ] = 0;
 	  fd = open( fname, O_CREAT, 0777 );
 	  if( fd == -1 )
 		{
@@ -85,7 +116,7 @@ int main( int argc, char **argv )
 			}
 		}
 	  close( fd );
-	  if( ( i % CYCLE ) == 0 )
+	  if( ( i % cycle ) == 0 )
 		{
 		  time_t now;
 
