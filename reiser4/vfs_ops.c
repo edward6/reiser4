@@ -28,6 +28,10 @@ static int reiser4_permission (struct inode *, int);
 static int reiser4_revalidate (struct dentry *);
 static int reiser4_setattr (struct dentry *, struct iattr *);
 static int reiser4_getattr (struct dentry *, struct iattr *);
+static int reiser4_setxattr(struct dentry *, const char *, void *, size_t, int);
+static ssize_t reiser4_getxattr(struct dentry *, const char *, void *, size_t);
+static ssize_t reiser4_listxattr(struct dentry *, char *, size_t);
+static int reiser4_removexattr(struct dentry *, const char *);
 
 /* file operations */
 
@@ -827,7 +831,10 @@ struct inode_operations reiser4_inode_operations = {
  	.permission  = reiser4_permission, /* d */
 /* 	.revalidate  = reiser4_revalidate, */
 /* 	.setattr     = reiser4_setattr, */
-/* 	.getattr     = reiser4_getattr */
+/* 	.getattr     = reiser4_getattr, */
+/* 	.getxattr    = reiser4_getxattr, */
+/* 	.listxattr   = reiser4_listxattr, */
+/* 	.removexattr = reiser4_removexattr */
 };
 
 struct file_operations reiser4_file_operations = {
