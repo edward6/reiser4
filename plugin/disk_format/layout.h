@@ -7,6 +7,7 @@
 typedef enum { 
 	/* standard reiser4 disk layout plugin id */
 	LAYOUT_40_ID,
+	TEST_LAYOUT_ID,
 	LAST_LAYOUT_ID
 } disk_layout_id;
 

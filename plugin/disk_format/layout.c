@@ -17,7 +17,23 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 				.linkage = TS_LIST_LINK_ZERO,
 			},
 			.get_ready     = layout_40_get_ready,
-			.root_dir_key  = layout_40_root_dir_key
+			.root_dir_key  = layout_40_root_dir_key,
+			.release       = NULL
+		}
+	},
+	[ TEST_LAYOUT_ID ] = {
+		.layout = {
+			.h = {
+				.type_id = REISER4_LAYOUT_PLUGIN_TYPE,
+				.id      = TEST_LAYOUT_ID,
+				.pops    = NULL,
+				.label   = "test",
+				.desc    = "layout for debugging",
+				.linkage = TS_LIST_LINK_ZERO,
+			},
+			.get_ready     = test_layout_get_ready,
+			.root_dir_key  = test_layout_root_dir_key,
+			.release       = test_layout_release
 		}
 	}
 };
