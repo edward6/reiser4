@@ -15,6 +15,7 @@ reiser4-objs := \
 		   key.o \
 		   pool.o \
 		   tree_mod.o \
+		   estimate.o \
 		   carry.o \
 		   carry_ops.o \
 		   lock.o \
