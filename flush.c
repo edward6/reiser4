@@ -158,6 +158,22 @@ int flush_jnode_slum (jnode *node)
  ********************************************************************************/
 
 /* NO COMMENTS YET BECAUSE I DON'T KNOW WHAT I'M DOING */
+static int slum_allocate_parent (slum_scan *scan, znode *parent)
+{
+	/* FIXME: This will share code with slum_allocate: we have the parent
+	 * locked already when slum_allocate calls this function. */
+
+	/* Now (recursing upward) lock the grandparent, scan_left, squeeze,
+	 * check parent change, check if it is the leftmost.  I guess it is
+	 * okay to call slum_allocate recursively since the depth is limited
+	 * to tree height. */
+
+	/* Then allocate this node. */
+	
+	return 0;
+}
+
+/* NO COMMENTS YET BECAUSE I DON'T KNOW WHAT I'M DOING */
 static int slum_allocate (slum_scan *scan)
 {
 	int ret;
@@ -166,6 +182,7 @@ static int slum_allocate (slum_scan *scan)
 	tree_coord coord;
 	slum_scan parent_scan;
 	int relocate_child;
+	znode_lock_mode parent_mode;
 
 	reiser4_init_lh (& parent_lock);
 	reiser4_init_lh (& child_lock);
@@ -175,14 +192,13 @@ static int slum_allocate (slum_scan *scan)
 
 	/* If we will relocate node or node is unallocated, then parent will
 	 * become dirty, which means we will squeeze it, thus write lock it
-	 * now. */
+	 * now. If the node is dirty we will squeeze, so get a write lock in
+	 * that case. */
 	relocate_child = flush_should_relocate (child_lock.node);
+	parent_mode    = (relocate_child ? ZNODE_WRITE_LOCK : ZNODE_WRITE_IF_DIRTY);
 
-	/* At the end of one level, lock node & parent. Since we are going to
-	 * relocate, capture and write lock now.  Need it for squeezing.
-	 * Getting the write lock captures the node. */
-	if ((ret = jnode_lock_parent_coord (scan->node, & child_lock, & parent_lock, & coord,
-					    relocate_child ? ZNODE_WRITE_LOCK : ZNODE_WRITE_IF_DIRTY))) {
+	/* We're at the end of a level slum, lock node & parent. */
+	if ((ret = jnode_lock_parent_coord (scan->node, & child_lock, & parent_lock, & coord, parent_mode))) {
 		goto failure;
 	}
 	
@@ -191,25 +207,57 @@ static int slum_allocate (slum_scan *scan)
 		znode_set_dirty (parent_lock.node);
 	}
 
-	/* If the parent is dirty, want to check if it should be allocated
-	 * before the child's level slum. */
+	/* If the parent is dirty, squeeze it now because that can change
+	 * parent. */
 	if (znode_is_dirty (parent_lock.node)) {
 
-		/* Scan parent level, then squeeze */
+		int parent_changed;
+
+		/* Scan parent level for the leftmost dirty */
 		if ((ret = slum_scan_left (& parent_scan, ZJNODE (parent_lock.node)))) {
 			goto failure;
 		}
-		
+
+		/* Then squeeze. */
 		if ((ret = balance_level_slum (& parent_scan))) {
 			goto failure;
 		}
 
-		/* FIXME: find and allocate unallocated children: not recursively! */
+		/* Check if parent changed (requires tree lock). */
+		spin_lock_tree (current_tree);
+		parent_changed = (child_lock.node->ptr_in_parent_hint.node == parent_lock.node);
+		spin_unlock_tree (current_tree);
+
+		/* If parent changed, re-aquire parent lock */
+		if (parent_changed) {
+			reiser4_done_lh (& parent_lock);
+
+			/* Pass NULL for child lock handle since it is already locked. */
+			if ((ret = jnode_lock_parent_coord (scan->node, NULL, & parent_lock, & coord, parent_mode))) {
+				goto failure;
+			}
+		}
 	}
 
-	/* if child is leftmost of parent, allocate for parent, otherwise
-	 * allocate starting from the right of child's left, continue
-	 * allocating rightward. */
+	/* Travelling upwards as long as child is leftmost of parent, allocate parent. */
+	if (coord_is_leftmost (& coord) && (ret = slum_allocate_parent (scan, parent_lock.node))) {
+		goto failure;
+	}
+
+	/* FIXME: Now the rightward phase: the slum_scan stopped at the
+	 * leftmost dirty leaf, meaning to the left there is a clean node (or
+	 * not part of the atom, or NULL), which means that the ancestor found
+	 * in slum_alloc_parent really the first dirty node in pre-order.  The
+	 * left-of-current-node could precede that left-wise greatest
+	 * ancestor, but we know it is clean.
+	 *
+	 * The code for this will be moved out of slum_allocate, which will be
+	 * renamed something like slum_allocate_first_in_preorder, a recursive
+	 * function, and after calling slum_allocate_first_in_preorder (from
+	 * flush_jnode_slum) we will do the rightward pass.
+	 *
+	 * It is starting to make sense to me.
+	 */
 	
  failure:
 	slum_scan_cleanup (& parent_scan);
@@ -249,7 +297,12 @@ static int jnode_is_allocated (jnode *node UNUSED_ARG)
 /* Lock a node (if formatted) and then get its parent of a jnode locked, get
  * the coordinate. */
 static int
-jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh, tree_coord *coord, znode_lock_mode parent_mode)
+jnode_lock_parent_coord (jnode *node,
+			 reiser4_lock_handle *node_lh,   /* lock handle for node -- may be passed as NULL if
+							  * the node is already locked. */
+			 reiser4_lock_handle *parent_lh,
+			 tree_coord *coord,
+			 znode_lock_mode parent_mode)
 {
 	int ret;
 
@@ -262,8 +315,9 @@ jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock
 		/* Formatted node case: */ 
 
 		/* Lock the node itself, which is necessary for getting its
-		 * parent (FIXME_JMACD: not sure why, LOPRI correct?). */
-		if ((ret = reiser4_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		 * parent. FIXME_JMACD: Not sure LOPRI is correct. */
+		
+		if (node_lh && (ret = reiser4_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 			return ret;
 		}
 

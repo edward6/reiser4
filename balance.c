@@ -44,8 +44,6 @@ int balance_level_slum (slum_scan *scan)
 
 	carry_node          *addc;
 
-	reiser4_tree        *tree = current_tree;
-
 	carry_pool           pool;
 	/** slum_level: carry queue where locked nodes are accumulated. */
 	carry_level          slum_level;
@@ -65,9 +63,6 @@ int balance_level_slum (slum_scan *scan)
 	 * deleted, but @frontier is pinned.
 	 */
 	zref( frontier );
-
-	/* don't need the tree lock anymore, slum is protected. */
-	spin_unlock_tree (tree);
 
 	/* initialize data structures */
 	for( i = 0 ; i < sizeof_array( lh_area ) ; i += 1 ) {
@@ -157,8 +152,8 @@ int balance_level_slum (slum_scan *scan)
 
 		assert( "nikita-1386", source != target );
 		/*
-		 * this holds even without tree lock, because each node in the
-		 * vicinity of @frontier is either write locked or orphaned.
+		 * each node in the vicinity of @frontier is either write
+		 * locked or orphaned.
 		 */
 		assert( "nikita-1387", frontier -> right == source );
 		/* pack part of @source into @target */
@@ -225,7 +220,6 @@ int balance_level_slum (slum_scan *scan)
 	}
 
  done:
-	assert ("jmacd-1020", spin_tree_is_not_locked (tree));
 	
 	zrelse( target, 1 );
 	zput( frontier );
