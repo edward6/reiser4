@@ -431,11 +431,12 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		REISER4_EXIT (0);
 	}
 
-	/* Attach the txn handle to this node, preventing the atom from
-	 * committing while this flush occurs. */
-
-	/* FIXME: JMACD->NIKITA: This ATOM_FORCE_COMMIT causes the atom to commit right
-	 * away... except the hacked no_commit_thread() disabled it...
+	/* Attach the txn handle to this node, preventing the atom from committing while
+	 * this flush occurs.
+	 *
+	 * Note: This ATOM_FORCE_COMMIT causes the atom to commit right away... except the
+	 * no_commit_thread() check in txnmgr.c may disable it if called from memory
+	 * pressure.
 	 */
 	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
 

@@ -838,7 +838,8 @@ static void invalidate_clean_list (txn_atom * atom)
 }
 
 /*
- * Disable commits during memory pressure.
+ * Disable commits during memory pressure.  A call to sync() does not set PF_MEMALLOC.
+ * Kswapd sets the PF_MEMALLOC flag on itself before calling our vm_writeback.
  */
 static inline int no_commit_thread( void )
 {
