@@ -67,8 +67,9 @@ typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
 struct reiserfs_common_item_plugin {
     reiserfs_item_type_id_t item_type;
 
-    reiserfs_opaque_t *(*create) (reiserfs_opaque_t *, reiserfs_opaque_t *);
-    reiserfs_opaque_t *(*open) (void *);
+    error_t (*create) (reiserfs_opaque_t *, reiserfs_opaque_t *);
+    error_t (*open) (reiserfs_opaque_t *);
+    error_t (*close) (reiserfs_opaque_t *);
 
     int (*add_unit) (reiserfs_opaque_t *, int32_t, 
 	reiserfs_opaque_t *unit_info);

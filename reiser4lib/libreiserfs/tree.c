@@ -236,7 +236,7 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	if (path && !reiserfs_path_append(path, coord))
 	    return 0;
 	
-	if (reiserfs_item_open(&item, coord)) {
+	if (reiserfs_item_init(&item, coord)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open item %d, from node %llu.", 
 		coord->item_pos, from);

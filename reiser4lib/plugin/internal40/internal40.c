@@ -24,6 +24,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .item_type = INTERNAL40_ID,
 	    .create = NULL,
 	    .open = NULL,
+	    .close = NULL,
 	    .add_unit = NULL,
 	    .confirm = NULL,
 	    .check = NULL,

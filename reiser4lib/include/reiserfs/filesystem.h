@@ -59,12 +59,12 @@ typedef struct reiserfs_node reiserfs_node_t;
 struct reiserfs_node {
     aal_device_t *device;
     aal_block_t *block;
+    reiserfs_plugin_t *plugin;
+    reiserfs_node_t *parent;
     
     reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
 
-    reiserfs_node_t *parent;
-    /* we do not need this list at all */
+    /* we do not need this list at all, as all childs available from block */
     aal_list_t *childs;
 };
 

@@ -12,7 +12,8 @@
 
 extern blk_t reiserfs_item_down_link(reiserfs_item_t *item);
 extern int reiserfs_item_is_internal (reiserfs_item_t * item);
-extern error_t reiserfs_item_open(reiserfs_item_t *item, reiserfs_coord_t *coord);
+extern reiserfs_item_t *reiserfs_item_open(reiserfs_coord_t *coord);
+extern error_t reiserfs_item_init(reiserfs_item_t *item, reiserfs_coord_t *coord);
 
 /* 
     If item_info->plugin != NULL
