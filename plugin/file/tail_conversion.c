@@ -385,7 +385,9 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 		loaded = coord.node;
 		result = item_plugin_by_id(TAIL_ID)->s.file.write(inode, &coord, &lh, &f);
 		zrelse(loaded);
-		if (result)
+		if (result == -EAGAIN)
+			result = 0;
+		else if (result)
 			break;
 		done_lh(&lh);
 	}
