@@ -1457,6 +1457,8 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
 
+	pos->preceder.block_stage = BLOCK_NOT_COUNTED;
+
 	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
 		return ret;
 	}
@@ -1711,6 +1713,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
+			trace_on (TRACE_FLUSH, "flush_empty_queue not dirty %s\n", flush_jnode_tostring (check));
 			continue;
 		}
 
@@ -1729,6 +1732,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				refill += 1;
 				i += 1;
+				trace_on (TRACE_FLUSH, "flush_empty_queue refiles busy %s\n", flush_jnode_tostring (check));
 				continue;
 			}
 
@@ -1748,6 +1752,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
+			trace_on (TRACE_FLUSH, "flush_empty_queue skips wandered %s\n", flush_jnode_tostring (check));
 			continue;
 
 		}
@@ -1763,7 +1768,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
-			warning ("jmacd-74232", "flush_empty_queue: page in writeback already");
+			warning ("jmacd-74232", "flush_empty_queue: page in writeback already: %s", flush_jnode_tostring (check));
 			continue;
 
 		} else {
@@ -1821,6 +1826,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			bio->bi_size   = blksz * nr;
 			bio->bi_end_io = flush_bio_write;
 
+			trace_on (TRACE_FLUSH, "flush_empty_queue writes");
+
 			for (c = 0, j = i; c < nr; c += 1, j += 1) {
 
 				jnode       *node = pos->queue[j];
@@ -1830,7 +1837,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				JF_CLR (node, ZNODE_FLUSH_QUEUED);
 
-				trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes %s\n", flush_jnode_tostring (node));
+				trace_on (TRACE_FLUSH, " %s", flush_jnode_tostring (node));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
@@ -1855,7 +1862,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			i = j;
 			pos->enqueue_cnt += nr;
 
-			trace_on (TRACE_FLUSH, "flush_empty_queue writes %u consecutive blocks: BIO %p\n", nr, bio);
+			trace_on (TRACE_FLUSH, "\nflush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
 			submit_bio (WRITE, bio);
 
@@ -2639,6 +2646,8 @@ static void flush_pos_done (flush_position *pos)
 		int i;
 		for (i = 0; i < pos->queue_num; i += 1) {
 			if (pos->queue[i] != NULL) {
+				JF_CLR (pos->queue[i], ZNODE_FLUSH_BUSY);
+				JF_CLR (pos->queue[i], ZNODE_FLUSH_QUEUED);
 				jput (pos->queue[i]);
 			}
 		}
@@ -2849,7 +2858,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	}
 
 	sprintf (buf+strlen(buf),
-		 "%s=%p [%s%s%s level=%u%s%s]",
+		 "%s=%p [%s%s%s level=%u%s%s%s]",
 		 fmttd ? "z" : "j",
 		 node,
 		 state,
@@ -2857,7 +2866,8 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 		 block,
 		 jnode_get_level (node),
 		 items,
-		 JF_ISSET (node, ZNODE_FLUSH_BUSY) ? " fbusy" : "");
+		 JF_ISSET (node, ZNODE_FLUSH_BUSY) ? " fb" : "",
+		 JF_ISSET (node, ZNODE_FLUSH_QUEUED) ? " fq" : "");
 
 	if (lockit == 1) { spin_unlock_jnode (node); }
 }
