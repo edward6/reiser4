@@ -20,6 +20,8 @@ extern int write_sd_by_inode_common(struct inode *inode);
 extern int owns_item_common(const struct inode *inode,
 			    const coord_t * coord);
 extern reiser4_block_nr estimate_update_common(const struct inode *inode);
+extern int safelink_common(struct inode *object,
+			   reiser4_safe_link_t link, __u64 value);
 
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
 

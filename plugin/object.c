@@ -1081,6 +1081,48 @@ can_rem_dir(const struct inode * inode)
 	return !is_dir_empty(inode);
 }
 
+static int
+process_truncate(struct inode *inode, __u64 size)
+{
+	int result;
+	struct iattr attr;
+	file_plugin *fplug;
+	reiser4_context ctx;
+
+	init_context(&ctx, inode->i_sb);
+
+	attr.ia_size = size;
+	attr.ia_valid = ATTR_SIZE | ATTR_CTIME;
+	fplug = inode_file_plugin(inode);
+
+	down(&inode->i_sem);
+	result = fplug->setattr(inode, &attr);
+	up(&inode->i_sem);
+
+	context_set_commit_async(&ctx);
+	reiser4_exit_context(&ctx);
+
+	return result;
+}
+
+reiser4_internal int
+safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
+{
+	int result;
+
+	if (link == SAFE_UNLINK)
+		/* nothing to do. iput() in the caller (process_safelink) will
+		 * finish with file */
+		result = 0;
+	else if (link == SAFE_TRUNCATE)
+		result = process_truncate(object, value);
+	else {
+		warning("nikita-3438", "Unrecognized safe-link type: %i", link);
+		result = RETERR(-EIO);
+	}
+	return result;
+}
+
 /*
  * Definitions of object plugins.
  */
@@ -1173,7 +1215,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = seek_dir,
 		.detach = detach_dir,
 		.bind = bind_dir,
-		.safelink = NULL,
+		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_dir_common,
 			.update = estimate_update_common,
@@ -1224,7 +1266,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
-		.safelink = NULL,
+		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
@@ -1274,7 +1316,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
-		.safelink = NULL,
+		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
@@ -1375,7 +1417,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
-		.safelink = NULL,
+		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,

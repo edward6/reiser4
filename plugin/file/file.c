@@ -2143,42 +2143,13 @@ pre_delete_unix_file(struct inode *inode)
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
 }
 
-static int process_truncate(struct inode *inode, __u64 size)
-{
-	int result;
-	struct iattr attr;
-	file_plugin *fplug;
-	reiser4_context ctx;
-
-	init_context(&ctx, inode->i_sb);
-
-	attr.ia_size = size;
-	attr.ia_valid = ATTR_SIZE | ATTR_CTIME;
-	fplug = inode_file_plugin(inode);
-
-	down(&inode->i_sem);
-	result = fplug->setattr(inode, &attr);
-	up(&inode->i_sem);
-
-	context_set_commit_async(&ctx);
-	reiser4_exit_context(&ctx);
-
-	return result;
-}
-
 reiser4_internal int
 safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
 		   __u64 value)
 {
 	int result;
 
-	if (link == SAFE_UNLINK)
-		/* nothing to do. iput() in the caller (process_safelink) will
-		 * finish with file */
-		result = 0;
-	else if (link == SAFE_TRUNCATE)
-		result = process_truncate(object, value);
-	else if (link == SAFE_E2T || link == SAFE_T2E) {
+	if (link == SAFE_E2T || link == SAFE_T2E) {
 		unix_file_info_t *ufo;
 
 		ufo = unix_file_inode_data(object);
@@ -2189,10 +2160,8 @@ safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
 		else
 			result = tail2extent(ufo);
 		drop_access(ufo);
-	} else {
-		warning("nikita-3432", "Unrecognized safe-link type: %i", link);
-		result = RETERR(-EIO);
-	}
+	} else
+		result = safelink_common(object, link, value);
 	return result;
 }
 
