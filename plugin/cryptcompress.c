@@ -866,12 +866,26 @@ compress_overhead(struct inode * inode, int in_len)
 	return inode_compression_plugin(inode)->overrun(in_len);
 }
 
+/* Since small input stream can not get compressed,
+   we try to awoid a lot of useless job */
+static int
+min_size_to_compress(struct inode * inode)
+{
+	assert("edward-1036",
+	       inode_compression_plugin(inode)->min_tfm_size != NULL);
+	return inode_compression_plugin(inode)->min_tfm_size();
+}
+
+
 /* The following two functions represent reiser4 compression policy */
 static int
 try_compress(tfm_cluster_t * tc, struct inode * inode)
 {
+	assert("edward-1037", min_size_to_compress(inode) > 0 &&
+	       min_size_to_compress(inode) < inode_cluster_size(inode));
+	
 	return (inode_compression_plugin(inode) != compression_plugin_by_id(NONE_COMPRESSION_ID)) &&
-		(tc->len >= MIN_SIZE_FOR_COMPRESSION);
+		(tc->len >= min_size_to_compress(inode));
 }
 
 static int
