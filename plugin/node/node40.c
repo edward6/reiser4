@@ -282,6 +282,13 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	coord -> unit_pos = 0;
 	coord -> between  = AT_UNIT;
 
+	/*
+	 * FIXME-VS: handling of empty node case
+	 */
+	if( node_is_empty( node ) )
+		/* this will set coord in empty node properly */
+		ncoord_init_first_unit( coord, node );
+
 	if( left >= ( int ) node_num_items( node ) )
 		return NS_NOT_FOUND;
 
@@ -1002,12 +1009,17 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 			new_coord tmp;
 			item_plugin * iplug;
 			
+			/*
+			 * FIXME-VS: this iterates items starting not from
+			 * 0-th, so it does not use new coord interface
+			 */
 			tmp.node = node;
 			tmp.unit_pos = 0;
 			tmp.between = AT_UNIT;
 			for (i = 0; i < removed_entirely; i ++) {
 				tmp.item_pos = first_removed + i;
-
+				tmp.unit_pos = 0;
+				tmp.between = AT_UNIT;
 				iplug = item_plugin_by_coord (&tmp);
 				if (iplug->common.kill_hook) {
 					iplug->common.kill_hook (&tmp, 0, ncoord_num_units (&tmp), cut_params);
