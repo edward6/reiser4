@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
 
 #include "reiser4.h"
 #define REISER4_FIRST_BITMAP_BLOCK 100

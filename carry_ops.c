@@ -1,10 +1,6 @@
-/*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README.
- */
+/* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README. */
 
-/*
- * implementation of carry operations
- */
+/* implementation of carry operations */
 
 #include "reiser4.h"
 
@@ -55,9 +51,7 @@ static carry_node *find_left_neighbor( carry_node *node, carry_level *doing )
 	left -> node = node -> node;
 	left -> free = 1;
 
-	/*
-	 * then, feeling lucky, peek left neighbor in the cache.
-	 */
+	/* then, feeling lucky, peek left neighbor in the cache. */
 	result = reiser4_get_left_neighbor( &left -> lock_handle,
 					    node -> real_node,
 					    ZNODE_WRITE_LOCK, GN_TRY_LOCK );
@@ -134,9 +128,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 		}
 	}
 
-	/*
-	 * then, try to lock right neighbor
-	 */
+	/* then, try to lock right neighbor */
 	init_lh( &lh );
 	result = reiser4_get_right_neighbor( &lh, node -> real_node,
 					     ZNODE_WRITE_LOCK, GN_DO_READ );
@@ -223,18 +215,14 @@ unsigned int space_needed( const znode *node /* node data are inserted
 		 */
 		result += iplug -> b.estimate ( insertion ? NULL : coord, data );
 	} else {
-		/*
-		 * reasonable default
-		 */
+		/* reasonable default */
 		result += data -> length;
 	}
 	if( insertion ) {
 		node_plugin *nplug;
 		
 		nplug = node -> nplug;
-		/*
-		 * and add node overhead
-		 */
+		/* and add node overhead */
 		if( nplug -> item_overhead != NULL ) {
 			result += nplug -> item_overhead( node, 0 );
 		}
@@ -242,10 +230,7 @@ unsigned int space_needed( const znode *node /* node data are inserted
 	return result;
 }
 
-/**
- * find &coord in parent where pointer to new child is to be stored.
- *
- */
+/* find &coord in parent where pointer to new child is to be stored. */
 static int find_new_child_coord( carry_op *op /* COP_INSERT carry
 					       * operation to insert
 					       * pointer to new child */ )
@@ -271,10 +256,7 @@ static int find_new_child_coord( carry_op *op /* COP_INSERT carry
 	return result;
 }
 
-/**
- * additional amount of free space in @node required to complete @op
- *
- */
+/* additional amount of free space in @node required to complete @op */
 static int free_space_shortage( znode *node, carry_op *op )
 {
 	assert( "nikita-1061", node != NULL );
@@ -392,9 +374,7 @@ static int make_space( carry_op *op /* carry operation, insert or
 			 */
 		}
 	}
-	/*
-	 * If there still is not enough space, shift to the right
-	 */
+	/* If there still is not enough space, shift to the right */
 	if( ( not_enough_space > 0 ) &&
 	    !( op -> u.insert.flags & COPI_DONT_SHIFT_RIGHT ) ) {
 		carry_node *right;
@@ -425,9 +405,7 @@ static int make_space( carry_op *op /* carry operation, insert or
 			not_enough_space = free_space_shortage( node, op );
 		}
 	}
-	/*
-	 * If there is still not enough space, allocate new node(s).
-	 */
+	/* If there is still not enough space, allocate new node(s). */
 	for( blk_alloc = 0 ; 
 	     ( not_enough_space > 0 ) && ( result == 0 ) && ( blk_alloc < 2 ) &&
 	     !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
@@ -457,9 +435,7 @@ static int make_space( carry_op *op /* carry operation, insert or
 		if( IS_ERR( fresh ) )
 			return PTR_ERR( fresh );
 
-		/*
-		 * Try to shift into new node.
-		 */
+		/* Try to shift into new node. */
 		result = lock_carry_node( doing, fresh );
 		zput( fresh -> real_node );
 		if( result != 0 ) {
@@ -575,9 +551,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 	trace_stamp( TRACE_CARRY );
 
 	if( op -> u.insert.type == COPT_PASTE_RESTARTED ) {
-		/* 
-		 * nothing to do. Fall through to make_space().
-		 */
+		/* nothing to do. Fall through to make_space(). */
 		;
 	} else if( op -> u.insert.type == COPT_KEY ) {
 		node_search_result  intra_node;
@@ -672,9 +646,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 	}
 
 
-	/*
-	 * find free space.
-	 */
+	/* find free space. */
 	return make_space( op, doing, todo );
 }
 
@@ -711,9 +683,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 
 	init_coord( &coord );
 
-	/*
-	 * perform common functionality of insert and paste.
-	 */
+	/* perform common functionality of insert and paste. */
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
 	if( result != 0 )
 		return result;
@@ -725,9 +695,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 	assert( "nikita-949",
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
-	/*
-	 * ask node layout to create new item.
-	 */
+	/* ask node layout to create new item. */
 	result = node_plugin_by_node( node ) -> create_item
 		( op -> u.insert.d -> coord, op -> u.insert.d -> key,
 		  op -> u.insert.d -> data, todo );
@@ -782,9 +750,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	if( znode_is_root( parent ) && 
 	    ( znode_get_level( parent ) <= REISER4_MIN_TREE_HEIGHT ) &&
 	    ( node_num_items( parent ) == 1 ) ) {
-		/*
-		 * Delimiting key manipulations.
-		 */
+		/* Delimiting key manipulations. */
 		spin_lock_dk( current_tree );
 		*znode_get_ld_key( child ) = *znode_get_ld_key( parent ) = 
 			*min_key();
@@ -794,9 +760,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		return 0;
 	}
 
-	/*
-	 * convert child pointer to the tree_coord
-	 */
+	/* convert child pointer to the tree_coord */
 	result = find_child_ptr( parent, child, &coord );
 	if( result != NS_FOUND ) {
 		warning( "nikita-994", "Cannot find child pointer: %i", result );
@@ -813,13 +777,9 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	doing -> restartable = 0;
 	znode_set_dirty( coord.node );
 	znode_set_dirty( coord2.node );
-	/*
-	 * check whether root should be killed violently
-	 */
+	/* check whether root should be killed violently */
 	if( znode_is_root( parent ) &&
-	    /*
-	     * don't kill roots at and lower than twig level
-	     */
+	    /* don't kill roots at and lower than twig level */
 	    ( znode_get_level( parent ) > REISER4_MIN_TREE_HEIGHT ) &&
 	    ( node_num_items( parent ) == 1 ) ) {
 		result = kill_tree_root( coord.node );
@@ -951,9 +911,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 			change_item_size( op -> u.insert.d -> coord, 
 					  real_size );
 	}
-	/*
-	 * if we pasted at the beginning of the item, update item's key.
-	 */
+	/* if we pasted at the beginning of the item, update item's key. */
 	if( ( op -> u.insert.d -> coord -> unit_pos == 0 ) &&
 	    ( op -> u.insert.d -> coord -> between != AFTER_UNIT ) ) {
 		reiser4_key item_key;
@@ -967,9 +925,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	return result;
 }
 
-/**
- * handle carry COP_EXTENT operation.
- */
+/* handle carry COP_EXTENT operation. */
 static int carry_extent( carry_op *op /* operation to perform */, 
 			 carry_level *doing /* queue of operations @op
 					     * is part of */, 
@@ -1021,9 +977,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 *
 	 */
 
-	/*
-	 * perform common functionality of insert and paste.
-	 */
+	/* perform common functionality of insert and paste. */
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
 	if( result != 0 )
 		return result;
@@ -1060,9 +1014,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 */
 	insert_extent = post_carry( todo, COP_INSERT, node, 1 );
 	if( IS_ERR( insert_extent ) )
-		/*
-		 * FIXME-NIKITA cleanup @delete_dummy
-		 */
+		/* FIXME-NIKITA cleanup @delete_dummy */
 		return PTR_ERR( insert_extent );
 	/*
 	 * FIXME-NIKITA insertion by key is simplest option here. Another
@@ -1259,10 +1211,7 @@ static int carry_modify( carry_op *op /* operation to be performed */,
 		return 0;
 }
 
-/**
- * move items from @node during carry
- *
- */
+/* move items from @node during carry */
 static int carry_shift_data( sideof side /* in what direction to move data */, 
 			     tree_coord *insert_coord /* coord where
 							* new item is to

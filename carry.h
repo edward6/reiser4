@@ -90,9 +90,7 @@ typedef enum {
 	COP_CUT,
 	/** increase size of item. */
 	COP_PASTE,
-	/**
-	 * insert extent (that is sequence of unformatted nodes).
-	 */
+	/* insert extent (that is sequence of unformatted nodes). */
 	COP_EXTENT,
 	/** 
 	 * update delimiting key in least common ancestor of two
@@ -118,21 +116,13 @@ typedef enum {
  * item is determined.
  */
 typedef enum {
-	/**
-	 * target item is one containing pointer to the ->child node
-	 */
+	/* target item is one containing pointer to the ->child node */
 	COPT_CHILD,
-	/**
-	 * target item is given explicitly by @coord
-	 */
+	/* target item is given explicitly by @coord */
 	COPT_ITEM_DATA,
-	/**
-	 * target item is given by key
-	 */
+	/* target item is given by key */
 	COPT_KEY,
-	/**
-	 * see insert_paste_common() for more comments on this.
-	 */
+	/* see insert_paste_common() for more comments on this. */
 	COPT_PASTE_RESTARTED,
 } cop_insert_pos_type;
 
@@ -149,9 +139,7 @@ typedef enum {
 	DELETE_KILL         = ( 1 << 2 )
 } cop_delete_flag;
 
-/**
- * data supplied to COP_{INSERT|PASTE} by callers
- */
+/* data supplied to COP_{INSERT|PASTE} by callers */
 typedef struct carry_insert_data {
 	/** position where new item is to be inserted */
 	tree_coord          *coord;
@@ -161,9 +149,7 @@ typedef struct carry_insert_data {
 	const reiser4_key   *key;
 } carry_insert_data;
 
-/**
- * data supplied to COP_CUT by callers
- */
+/* data supplied to COP_CUT by callers */
 typedef struct carry_cut_data {
 	tree_coord        *from;
 	tree_coord        *to;
@@ -254,9 +240,7 @@ typedef struct carry_op {
 	} u;
 } carry_op;
 
-/**
- * &carry_op_pool - preallocated pool of carry operations, and nodes
- */
+/* &carry_op_pool - preallocated pool of carry operations, and nodes */
 typedef struct carry_pool {
 	carry_op           op[ CARRIES_POOL_SIZE ];
 	reiser4_pool       op_pool;

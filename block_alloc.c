@@ -814,9 +814,7 @@ int allocate_new_blocks (reiser4_block_nr * hint,
 	p = drand48 ();
 	if (p < P) {
 		if (*hint >= min_free) {
-			/*
-			 * return what we were asked for
-			 */
+			/* return what we were asked for */
 			min_free += *count;
 			return 0;
 		}

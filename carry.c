@@ -326,9 +326,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
 
 #include "reiser4.h"
 
-/*
- * level locking/unlocking
- */
+/* level locking/unlocking */
 static int lock_carry_level( carry_level *level );
 static void unlock_carry_level( carry_level *level, int failure );
 static void done_carry_level( carry_level *level );
@@ -337,9 +335,7 @@ static void unlock_carry_node( carry_node *node, int failure );
 int lock_carry_node( carry_level *level, carry_node *node );
 int lock_carry_node_tail( carry_node *node );
 
-/*
- * carry processing proper
- */
+/* carry processing proper */
 static int carry_on_level( carry_level *doing, carry_level *todo );
 
 /* handlers for carry operations. */
@@ -458,9 +454,7 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	return result;
 }
 
-/**
- * macro to iterate over all operations in a @level
- */
+/* macro to iterate over all operations in a @level */
 #define for_all_ops( level /* carry level (of type carry_level *) */, 		\
 		     op    /* pointer to carry operation, modified by loop (of	\
 			    * type carry_op *) */, 				\
@@ -472,9 +466,7 @@ for( op = ( carry_op * ) pool_level_list_front( &level -> ops ),		\
      ! pool_level_list_end( &level -> ops, &op -> header ) ;			\
      op = tmp, tmp = ( carry_op * ) pool_level_list_next( &op -> header ) )
 
-/**
- * macro to iterate over all nodes in a @level
- */
+/* macro to iterate over all nodes in a @level */
 #define for_all_nodes( level /* carry level (of type carry_level *) */,		\
 		       node  /* pointer to carry node, modified by loop (of	\
 			      * type carry_node *) */, 				\
@@ -666,25 +658,19 @@ carry_node *add_to_carry( znode *node         /* node to be added */,
 	return result;
 }
 
-/**
- * number of carry operations in a @level
- */
+/* number of carry operations in a @level */
 int carry_op_num( const carry_level *level )
 {
 	return level -> ops_num;
 }
 
-/**
- * number of carry nodes in a @level
- */
+/* number of carry nodes in a @level */
 int carry_node_num( const carry_level *level )
 {
 	return level -> nodes_num;
 }
 
-/**
- * initialise carry queue
- */
+/* initialise carry queue */
 void init_carry_level( carry_level *level, carry_pool *pool )
 {
 	assert( "nikita-1045", level != NULL );
@@ -697,9 +683,7 @@ void init_carry_level( carry_level *level, carry_pool *pool )
 	pool_level_list_init( &level -> ops );
 }
 
-/**
- * initialise pools within queue
- */
+/* initialise pools within queue */
 void init_carry_pool( carry_pool *pool )
 {
 	assert( "nikita-945", pool != NULL );
@@ -710,9 +694,7 @@ void init_carry_pool( carry_pool *pool )
 			   NODES_LOCKED_POOL_SIZE, ( char * ) pool -> node );
 }
 
-/**
- * finish with queue pools
- */
+/* finish with queue pools */
 void done_carry_pool( carry_pool *pool UNUSED_ARG )
 {
 	reiser4_done_pool( &pool -> op_pool );
@@ -747,9 +729,7 @@ carry_node *add_carry( carry_level *level     /* &carry_level to add
 					    &level -> nodes, order,
 					    &reference -> header );
 	if( !IS_ERR( result ) && ( result != NULL ) )
-		/*
-		 * FIXME-NIKITA this is never decreased
-		 */
+		/* FIXME-NIKITA this is never decreased */
 		++ level -> nodes_num;
 	return result;
 }
@@ -778,9 +758,7 @@ carry_op *add_op( carry_level *level  /* &carry_level to add node
 					 &level -> ops, order,
 					 &reference -> header );
 	if( !IS_ERR( result ) && ( result != NULL ) )
-		/*
-		 * FIXME-NIKITA this is never decreased
-		 */
+		/* FIXME-NIKITA this is never decreased */
 		++ level -> ops_num;
 	return result;
 }
@@ -819,9 +797,7 @@ carry_node *find_begetting_brother( carry_node *node, carry_level *kin UNUSED_AR
 	return scan;
 }
 
-/**
- * lock all carry nodes in @level
- */
+/* lock all carry nodes in @level */
 static int lock_carry_level( carry_level *level )
 {
 	int         result;
@@ -890,9 +866,7 @@ static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
 	spin_unlock_dk( current_tree );
 }
 
-/**
- * unlock all carry nodes in @level
- */
+/* unlock all carry nodes in @level */
 static void unlock_carry_level( carry_level *level, int failure )
 {
 	carry_node *node;
@@ -903,9 +877,7 @@ static void unlock_carry_level( carry_level *level, int failure )
 	trace_stamp( TRACE_CARRY );
 
 	if( ! failure ) {
-		/*
-		 * update delimiting keys
-		 */
+		/* update delimiting keys */
 		
 		for_all_nodes( level, node, tmp_node )
 			sync_dkeys( node, level );
@@ -1223,9 +1195,7 @@ static int add_new_root( carry_level *level /* carry level in context of which
 	assert( "nikita-1403", znode_is_write_locked( node -> node ) );
 	assert( "nikita-1404", znode_is_write_locked( fake ) );
 
-	/*
-	 * trying to create new root.
-	 */
+	/* trying to create new root. */
 	/*
 	 * @node is root and it's already locked by us. This
 	 * means that nobody else can be trying to add/remove
@@ -1325,9 +1295,7 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	add_pointer -> u.insert.type = COPT_CHILD;
 	add_pointer -> u.insert.child = fresh;
 	add_pointer -> u.insert.brother = brother;
-	/*
-	 * initially new node spawns empty key range
-	 */
+	/* initially new node spawns empty key range */
 	spin_lock_dk( current_tree );
 	*znode_get_ld_key( new_znode ) = *znode_get_rd_key( new_znode ) = 
 		*znode_get_rd_key( brother );
@@ -1343,17 +1311,13 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
  * debugging is turned off to print dumps at errors.
  */
 
-/**
- * get symbolic name for boolean
- */
+/* get symbolic name for boolean */
 static const char *tf( int boolean )
 {
 	return boolean ? "t" : "f";
 }
 
-/**
- * symbolic name for carry operation
- */
+/* symbolic name for carry operation */
 static const char *carry_op_name( carry_opcode op )
 {
 	switch( op ) {
@@ -1379,9 +1343,7 @@ static const char *carry_op_name( carry_opcode op )
 	}
 }
 
-/**
- * dump information about carry node
- */
+/* dump information about carry node */
 void print_carry( const char *prefix, carry_node *node )
 {
 	if( node == NULL ) {
@@ -1396,9 +1358,7 @@ void print_carry( const char *prefix, carry_node *node )
 	print_znode( "\treal_node", node -> real_node );
 }
 
-/**
- * dump information about carry operation
- */
+/* dump information about carry operation */
 void print_op( const char *prefix, carry_op *op )
 {
 	if( op == NULL ) {
@@ -1434,9 +1394,7 @@ void print_op( const char *prefix, carry_op *op )
 	}
 }
 
-/**
- * dump information about all nodes and operations in a @level
- */
+/* dump information about all nodes and operations in a @level */
 void print_level( const char *prefix, carry_level *level )
 {
 	carry_node *node;
