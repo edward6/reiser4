@@ -54,12 +54,12 @@ if test x$enable_debug = xyes; then
     AC_DEFINE(ENABLE_DEBUG)
 fi
 
-AC_ARG_ENABLE(compact,
-	[  --enable-compact    build in compact maner [default=no]], ,
-	    enable_compact=no
+AC_ARG_ENABLE(alone,
+	[  --enable-alone    build in alone maner (without libc) [default=no]], ,
+	    enable_alone=no
 )
-if test x$enable_compact = xyes; then
-	AC_DEFINE(ENABLE_COMPACT)
+if test x$enable_alone = xyes; then
+	AC_DEFINE(ENABLE_ALONE)
 fi
 
 LIBREISERFS_LIBS=""
@@ -140,9 +140,9 @@ esac
 AC_OUTPUT([
 	Makefile
 	include/Makefile
-	include/dal/Makefile
+	include/agl/Makefile
 	include/reiserfs/Makefile
-	libdal/Makefile
+	libagl/Makefile
 	libreiserfs/Makefile
 	plugin/Makefile
 	plugin/layout36/Makefile

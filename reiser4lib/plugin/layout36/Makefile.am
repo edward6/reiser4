@@ -4,7 +4,7 @@ lib_LTLIBRARIES         = liblayout36.la
 liblayout36_la_LDFLAGS  = -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) \
 	                      -release $(LT_RELEASE)
 
-liblayout36_la_LIBADD   = $(top_builddir)/libdal/libdal.la
+liblayout36_la_LIBADD   = $(top_builddir)/libagl/libagl.la
 
 liblayout36_la_SOURCES  = layout36.c layout36.h
 

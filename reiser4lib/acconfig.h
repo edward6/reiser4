@@ -11,6 +11,6 @@
 
 #undef ENABLE_NLS
 
-#undef ENABLE_COMPACT
+#undef ENABLE_ALONE
 
-#undef DEBUG
+#undef ENABLE_DEBUG

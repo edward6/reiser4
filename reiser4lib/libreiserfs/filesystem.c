@@ -3,14 +3,14 @@
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
-#include <dal/dal.h>
+#include <agl/agl.h>
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
 /* Opens the filesystem and journal on the specified devices. */
-reiserfs_fs_t *reiserfs_fs_open(dal_t *host_dal, dal_t *journal_dal) {
-	ASSERT(host_dal != NULL, return NULL);
-	ASSERT(journal_dal != NULL, return NULL);
+reiserfs_fs_t *reiserfs_fs_open(device_t *host_device, device_t *journal_device) {
+	ASSERT(host_device != NULL, return NULL);
+	ASSERT(journal_device != NULL, return NULL);
 }
 
 /* Closes filesystem. Closes all filesystem's entities. Frees all assosiated memory. */

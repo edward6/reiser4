@@ -3,11 +3,8 @@
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
-#include <stdlib.h>
-#include <string.h>
-
+#include <agl/agl.h>
 #include <reiserfs/reiserfs.h>
-#include <reiserfs/list.h>
 
 #define ptr_by_pos(base, pos) (base + (pos * sizeof(void *)))
 #define size_by_count(count) (count * sizeof(void *))
@@ -15,7 +12,7 @@
 list_t *list_create(int inc) {
 	list_t *list;
 
-	if (!(list = libreiserfs_calloc(sizeof(list_t), 0)))
+	if (!(list = agl_calloc(sizeof(list_t), 0)))
 		return NULL;
 	
 	list->count = 0;
@@ -28,34 +25,39 @@ list_t *list_create(int inc) {
 	return list;
 	
 error_free_list:
-	libreiserfs_free(list);
+	agl_free(list);
 error:
 	return NULL;
 }
 
 void list_free(list_t *list) {
-	libreiserfs_free(list->body);
-	libreiserfs_free(list);
+	agl_free(list->body);
+	agl_free(list);
 }
 
 int list_expand(list_t *list) {
+	int i;
+	
 	if (list->count < list->size)
 		return 1;
 
-	if (!libreiserfs_realloc((void **)&list->body, size_by_count(list->size + list->inc)))
+	if (!agl_realloc((void **)&list->body, size_by_count(list->size + list->inc)))
 		return 0;
-		
-	memset(ptr_by_pos(list->body, list->count), 0, size_by_count(list->inc));
+	
+	for (i = list->count; i < list->count + list->inc; i++)
+		*ptr_by_pos(list->body, i) = NULL;
+			
 	list->size += list->inc;
 	
 	return 1;
 }
 
 int list_shrink(list_t *list) {
+	
 	if (list->count - list->size >= list->inc)
 		return 1;
 	
-	if (!libreiserfs_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
+	if (!agl_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
 		return 0;
 		
 	list->size -= list->inc;
@@ -69,8 +71,9 @@ void *list_at(list_t *list, int pos) {
 
 int list_pos(list_t *list, void *item) {
 	int i;
+	
 	for (i = 0; i < list->count; i++)
-		if (list->body[i] == item) return i;
+		if (*ptr_by_pos(list->body, i) == item) return i;
 	
 	return -1;
 }
@@ -82,19 +85,20 @@ int list_insert(list_t *list, void *item, int pos) {
 		return 0;
 	
 	if (pos < list->count) {
-		memmove(ptr_by_pos(list->body, pos), ptr_by_pos(list->body, pos + 1), 
-			size_by_count(list->count - pos));
+		int i;
+		for (i = list->count - 1; i >= pos; i--)
+			*ptr_by_pos(list->body, i + 1) = *ptr_by_pos(list->body, i);
 	}	
 	
-	list->body[pos] = item;
+	*ptr_by_pos(list->body, pos) = item;
 	return 1;
 }
 
 int list_delete(list_t *list, int pos) {
 	if (pos < list->count - 1) {
-		memmove(ptr_by_pos(list->body, pos), ptr_by_pos(list->body, pos + 1), 
-			size_by_count(list->size - pos));
-		list->body[size_by_count(list->count)] = NULL;
+		int i;
+		for (i = pos; i < list->count; i++)
+			*ptr_by_pos(list->body, i) = *ptr_by_pos(list->body, i + 1);
 	}
 	
 	list->count--;

@@ -3,19 +3,20 @@
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
-#include <dal/dal.h>
+#include <agl/agl.h>
 #include <reiserfs/plugin.h>
 
 #include <stdlib.h>
 
 #include "layout36.h"
 
-static reiserfs_layout36_t *reiserfs_layout36_init(dal_t *dal) {
+static reiserfs_layout36_t *reiserfs_layout36_init(device_t *device) {
 	reiserfs_layout36_t *layout;
 	
 	if (!(layout = malloc(sizeof(*layout))))
 		return NULL;
-	layout->dal = dal;
+		
+	layout->device = device;
 
 	/* Initializing superblock */
 	
@@ -37,7 +38,7 @@ reiserfs_plugin_t plugin_info = {
 		.nlink = 0
 	},
 	.layout = {
-		.init = (reiserfs_layout_opaque_t *(*)(dal_t *))reiserfs_layout36_init,
+		.init = (reiserfs_layout_opaque_t *(*)(device_t *))reiserfs_layout36_init,
 		.done = (void *(*)(void))reiserfs_layout36_done
 	}
 };

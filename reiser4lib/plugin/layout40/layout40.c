@@ -5,17 +5,18 @@
 
 #include <stdlib.h>
 
-#include <dal/dal.h>
+#include <agl/agl.h>
 #include <reiserfs/plugin.h>
 
 #include "layout40.h"
 
-static reiserfs_layout40_t *reiserfs_layout40_init(dal_t *dal) {
+static reiserfs_layout40_t *reiserfs_layout40_init(device_t *device) {
 	reiserfs_layout40_t *layout;
 	
 	if (!(layout = malloc(sizeof(*layout))))
 		return NULL;
-	layout->dal = dal;
+
+	layout->device = device;
 
 	/* Initializing superblock */
 	
@@ -37,7 +38,7 @@ reiserfs_plugin_t plugin_info = {
 		.nlink = 0
 	},
 	.layout = {
-		.init = (reiserfs_layout_opaque_t *(*)(dal_t *))reiserfs_layout40_init,
+		.init = (reiserfs_layout_opaque_t *(*)(device_t *))reiserfs_layout40_init,
 		.done = (void *(*)(void))reiserfs_layout40_done
 	}
 };

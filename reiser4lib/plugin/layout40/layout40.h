@@ -7,7 +7,7 @@
 #define LAYOUT40_H
 
 #include <stdint.h>
-#include <dal/dal.h>
+#include <agl/agl.h>
 
 struct reiserfs_layout40_super {
 	uint64_t s_block_count;
@@ -24,7 +24,7 @@ struct reiserfs_layout40_super {
 typedef struct reiserfs_layout40_super reiserfs_layout40_super_t;
 
 struct reiserfs_layout40 {
-	dal_t *dal;
+	device_t *device;
 };
 
 typedef struct reiserfs_layout40 reiserfs_layout40_t;

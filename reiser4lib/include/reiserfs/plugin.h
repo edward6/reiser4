@@ -6,7 +6,7 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
-#include <dal/dal.h>
+#include <agl/agl.h>
 
 enum reiserfs_plugin_type {
 	REISERFS_FILE_PLUGIN,
@@ -92,7 +92,7 @@ typedef void reiserfs_layout_opaque_t;
 
 struct reiserfs_layout_plugin {
 	reiserfs_plugin_header_t h;
-	reiserfs_layout_opaque_t *(*init) (dal_t *);
+	reiserfs_layout_opaque_t *(*init) (device_t *);
 	void (*done) (reiserfs_layout_opaque_t *);
 };
 

@@ -1,12 +1,12 @@
 /*
-	filesystem.h -- reiserfs filesystem structures and macroses.
+	filesystem.h -- reiserfs filesystem structures and macros.
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
 #ifndef FILESYSTEM_H
 #define FILESYSTEM_H
 
-#include <dal/dal.h>
+#include <agl/agl.h>
 #include <reiserfs/plugin.h>
 
 struct reiserfs_super {
@@ -16,7 +16,7 @@ struct reiserfs_super {
 typedef struct reiserfs_super reiserfs_super_t;
 
 struct reiserfs_journal {
-	dal_t *dal;
+	device_t *device;
 	reiserfs_journal_plugin_t *entity;
 };
 
@@ -34,7 +34,7 @@ struct reiserfs_tree {
 typedef struct reiserfs_tree reiserfs_tree_t;
 
 struct reiserfs_fs {
-	dal_t *dal;
+	device_t *device;
 	reiserfs_super_t *super;
 	reiserfs_journal_t *journal;
 	reiserfs_alloc_t *alloc;

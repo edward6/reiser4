@@ -7,7 +7,7 @@
 #define LAYOUT36_H
 
 #include <stdint.h>
-#include <dal/dal.h>
+#include <agl/agl.h>
 
 struct reiserfs_journal_params {
 	uint32_t jp_start;
@@ -54,7 +54,7 @@ struct reiserfs_layout36_super {
 typedef struct reiserfs_layout36_super reiserfs_layout36_super_t;
 
 struct reiserfs_layout36 {
-	dal_t *dal;
+	device_t *device;
 };
 
 typedef struct reiserfs_layout36 reiserfs_layout36_t;
