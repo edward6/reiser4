@@ -453,7 +453,8 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	
 	assert( "vs-318", page -> mapping && page -> mapping -> host );
 	assert( "nikita-1352", 
-		f -> f_dentry -> d_inode == page -> mapping -> host );
+		( f == NULL ) ||
+		( f -> f_dentry -> d_inode == page -> mapping -> host ) );
 
 	inode = page -> mapping -> host;
 	fplug = inode_file_plugin( inode );
