@@ -89,6 +89,7 @@ typedef struct {
    Invariants involving this data-type:
 
       [jnode-refs]
+      [jnode-queued]
 */
 struct jnode {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */

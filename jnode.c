@@ -1242,6 +1242,8 @@ jnode_invariant_f(const jnode * node,
 	return
 		_check(node != NULL) &&
 
+		/* [jnode-queued] */
+
 		/* only relocated node can be queued, except that when znode
 		 * is being deleted, its JNODE_RELOC bit is cleared */
 		_ergo(JF_ISSET(node, JNODE_FLUSH_QUEUED),
