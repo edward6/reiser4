@@ -145,7 +145,7 @@ static void format_tx_head (
 	cputod64((__u64)(*next), & TH->next_block );
 	cputod64((__u64)reiser4_free_committed_blocks(super), & TH->free_blocks);
 
-	cputod64(private->nr_files, & TH->nr_files);
+	cputod64(private->nr_files_committed, & TH->nr_files);
 	cputod64(oid_next(), & TH->next_oid);
 }
 
@@ -801,8 +801,8 @@ int reiser4_write_logs (void)
 
 	atom = get_current_atom_locked();
 
-	private->nr_files += (unsigned)atom->nr_objects_created;
-	private->nr_files -= (unsigned)atom->nr_objects_deleted;
+	private->nr_files_committed += (unsigned)atom->nr_objects_created;
+	private->nr_files_committed -= (unsigned)atom->nr_objects_deleted;
 
 	spin_unlock_atom(atom);
 
@@ -1099,13 +1099,8 @@ static int replay_oldest_transaction(struct super_block * s)
 
 		prev_tx = d64tocpu(&T->prev_tx);
 
-		if (prev_tx == last_flushed_tx) {
-			/* get free block count from committed transaction
-			 * head and set per-fs free block counter, it will be
-			 * used in journal footer update also */
-			reiser4_set_free_blocks(s, d64tocpu(&T->free_blocks));
+		if (prev_tx == last_flushed_tx)
 			break;
-		}
 
 		jrelse(tx_head);
 		drop_io_head(tx_head);
