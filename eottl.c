@@ -301,17 +301,6 @@ inline int handle_eottl( cbk_handle *h /* cbk handle */,
 		 */
 		return 0;
 	}
-
-	if( !( h -> flags & CBK_FOR_INSERT ) ) {
-		/*
-		 * tree traversal is not for insertion. Just return
-		 * CBK_COORD_NOTFOUND.
-		 */
-		h -> result = CBK_COORD_NOTFOUND;
-		*outcome = LOOKUP_DONE;
-		return 1;
-	}
-
 	/* strange item type found on non-stop level?!  Twig
 	   horrors? */
 	assert( "vs-356", h -> level == TWIG_LEVEL );
@@ -330,6 +319,16 @@ inline int handle_eottl( cbk_handle *h /* cbk handle */,
 		 */
 		h -> result = CBK_COORD_FOUND;
 		reiser4_stat_tree_add( cbk_found );
+		*outcome = LOOKUP_DONE;
+		return 1;
+	}
+
+	if( !( h -> flags & CBK_FOR_INSERT ) ) {
+		/*
+		 * tree traversal is not for insertion. Just return
+		 * CBK_COORD_NOTFOUND.
+		 */
+		h -> result = CBK_COORD_NOTFOUND;
 		*outcome = LOOKUP_DONE;
 		return 1;
 	}
