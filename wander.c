@@ -532,14 +532,11 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	/* FIXME-ZAM: A special policy needed for allocation of wandered
 	 * blocks */
 	blocknr_hint_init(&hint);
-	hint.block_stage = BLOCK_GRABBED;
+	hint.block_stage = BLOCK_FLUSH_RESERVED;
+	warning("vpf-304", "SPACE: flush allocates %llu blocks for wandering logs.", wide_len);
+	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/, 0);
 
-	ret =
-	    reiser4_alloc_blocks(&hint, start, &wide_len,
-				 1 /*not unformatted */ );
-
-	blocknr_hint_done(&hint);
-
+	block_hint_done(&hint);
 	*len = (int) wide_len;
 
 	return ret;
@@ -797,9 +794,9 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		/* FIXME: there should be some block allocation policy for
 		 * nodes which contain log records */
-		ret =
-		    reiser4_alloc_blocks(&hint, &first, &len,
-					 1 /*not unformatted */ );
+		/* FIXME-VITALY: Who grabbed this? */
+		warning("vpf-305", "SPACE: flush allocates %llu blocks for tx lists.", len);
+		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 0);
 
 		blocknr_hint_done(&hint);
 
@@ -1021,12 +1018,13 @@ reiser4_write_logs(void)
 
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
+	/* VITALY: Check that flush_reserve is enough. */	
+	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
-	if (
-	    (ret =
-	     reiser4_grab_space_exact((__u64)
-				      (ch.overwrite_set_size +
-				       ch.tx_size)))) goto up_and_ret;
+	if (reiser4_grab_space_exact((__u64)/*ch.overwrite_set_size + */ch.tx_size, 1))
+		goto up_and_ret;
+
+	warning("vpf-302", "SPACE: tx logs grabs %d blocks.", ch.tx_size);
 
 	{
 		flush_queue_t *fq;
@@ -1040,9 +1038,13 @@ reiser4_write_logs(void)
 
 		if (!(ret = alloc_wandered_blocks(&ch, fq)))
 			ret = alloc_tx(&ch, fq);
+		/* FIXME-VITALY: Check this with Zam. */
+		warning("vpf-296", "SPACE: free all (%llu) reserved.", 
+			reiser4_atom_flush_reserved());
 
+		flush_reserved2free_all();
+		
 		fq_put(fq);
-
 		if (ret)
 			goto up_and_ret;
 	}
@@ -1114,11 +1116,9 @@ up_and_ret:
 	dealloc_tx_list(&ch);
 	dealloc_wmap(&ch);
 
-	/*reiser4_release_all_grabbed_space(); */
-	all_grabbed2free();
-
+	/* VITALY: Free flush_reserved blocks. */
+	all_grabbed2free();	
 	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
-
 	done_commit_handle(&ch);
 
 	return ret;
