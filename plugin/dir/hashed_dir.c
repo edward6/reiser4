@@ -154,10 +154,10 @@ static int create_dot_dotdot( struct inode *object, struct inode *parent )
 file_lookup_result hashed_lookup( struct inode *inode /* inode of
 						       * directory to
 						       * lookup into */, 
-				  const struct qstr *name /* name to
-							   * look for */, 
-				  reiser4_key *key /* length of name to
-						    * look for */,
+				  const struct qstr *name /* name to look for
+							   * and its length */,
+				  name_t *unused UNUSED_ARG,
+				  reiser4_key *key  /* key of object found */,
 				  reiser4_dir_entry_desc *entry /* key of
 								 * object
 								 * found */ )
@@ -296,6 +296,11 @@ typedef struct entry_actor_args {
 	int          non_uniq;
 #endif
 	int          not_found;
+	znode_lock_mode mode;
+
+	tree_coord          last_coord;
+	reiser4_lock_handle last_lh;
+
 } entry_actor_args;
 
 /**
@@ -342,6 +347,10 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		arg.non_uniq = 0;
 		arg.max_non_uniq = reiser4_max_hash_collisions( dir );
 #endif
+		arg.mode = mode;
+		reiser4_init_coord( &arg.last_coord );
+		reiser4_init_lh( &arg.last_lh );
+
 		result = reiser4_iterate_tree( tree_by_inode( dir ), 
 					       coord, lh, entry_actor, &arg, 
 					       mode, 1 );
@@ -349,8 +358,21 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		 * if end of the tree or extent was reached during
 		 * scanning.
 		 */
-		if( arg.not_found || ( result == -ENAVAIL ) )
+		if( arg.not_found || ( result == -ENAVAIL ) ) {
+			/*
+			 * step back
+			 */
+			reiser4_done_lh( lh );
+			reiser4_done_coord( coord );
+
+			reiser4_dup_coord( coord, &arg.last_coord );
+			reiser4_move_lh( lh, &arg.last_lh );
+
 			result = -ENOENT;
+		}
+
+		reiser4_done_lh( &arg.last_lh );
+		reiser4_done_coord( &arg.last_coord );
 	}
 	return result;
 }
@@ -384,8 +406,12 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 #endif
 	if( keycmp( args -> key, 
 		    unit_key_by_coord( coord, &unit_key ) ) != EQUAL_TO ) {
+		assert( "nikita-1791", 
+			keycmp( args -> key, 
+				unit_key_by_coord( coord, 
+						   &unit_key ) ) == LESS_THAN );
 		args -> not_found = 1;
-		coord -> between = BEFORE_UNIT;
+		args -> last_coord.between = AFTER_UNIT;
 		return 0;
 	}
 	iplug = item_plugin_by_coord( coord );
@@ -401,6 +427,20 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 	}
 	assert( "nikita-1137", iplug -> s.dir.extract_name );
 
+	reiser4_done_coord( &args -> last_coord );
+	reiser4_dup_coord( &args -> last_coord, coord );
+	if( args -> last_lh.node != lh -> node ) {
+		int lock_result;
+
+		reiser4_done_lh( &args -> last_lh );
+		assert( "", znode_is_any_locked( lh -> node ) );
+		lock_result = reiser4_lock_znode( &args -> last_lh, lh -> node,
+						  args -> mode, 
+						  ZNODE_LOCK_HIPRI );
+		if( lock_result != 0 )
+			return lock_result;
+	}
+	
 	trace_on( TRACE_DIR, "[%i]: \"%s\", \"%s\" in %lli\n",
 		  current_pid, args -> name, 
 		  iplug -> s.dir.extract_name( coord ),
