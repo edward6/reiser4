@@ -4,6 +4,7 @@
 #include "dformat.h"
 #include "tree.h"
 #include "carry.h"
+#include "plugin/item/ctail.h"
 
 /* this returns how many nodes might get dirty and added nodes if @children nodes are dirtied
 
@@ -73,6 +74,21 @@ reiser4_block_nr
 estimate_insert_flow(tree_level height)
 {
 	return 3 + CARRY_FLOW_NEW_NODES_LIMIT + max_balance_overhead(3 + CARRY_FLOW_NEW_NODES_LIMIT, height);
+}
+
+/* returnes max number of nodes can be occupied by disk cluster */
+reiser4_block_nr
+estimate_disk_cluster(struct inode * inode)
+{
+	return 2 + inode_cluster_pages(inode);
+}
+
+/* how many nodes might get dirty and added nodes during insertion of a disk cluster */
+reiser4_block_nr
+estimate_insert_cluster(struct inode * inode)
+{
+	return 3 + inode_cluster_pages(inode) +
+		max_balance_overhead(3 + inode_cluster_pages(inode), REISER4_MAX_ZTREE_HEIGHT);
 }
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
