@@ -206,6 +206,8 @@ int coord_next_unit (tree_coord *coord)
 	case EMPTY_NODE:
 		/* The node has changed, change state as if it was before the first unit. */
 		assert ("jmacd-9810", coord_empty_check (coord));
+		/* FALLTHROUGH */
+
 	case BEFORE_UNIT:
 		/* Now it is positioned at the same unit. */
 		coord->between = AT_UNIT;
@@ -225,6 +227,69 @@ int coord_next_unit (tree_coord *coord)
 		 * after the current item. */
 		coord->between  = AFTER_ITEM;
 		coord->unit_pos = 0;
+		/* FALLTHROUGH */
+
+	case AFTER_ITEM:
+		/* Check for end-of-node. */
+		if (coord->item_pos == items - 1) {
+			return 1;
+		}
+
+		coord->item_pos += 1;
+		coord->unit_pos  = 0;
+		coord->between   = AT_UNIT;
+		return 0;
+
+	case BEFORE_ITEM:
+		/* The out-of-range check ensures that we are valid here. */
+		coord->unit_pos = 0;
+		coord->between  = AT_UNIT;
+		return 0;
+	}
+
+	impossible ("jmacd-9902", "unreachable");
+}
+
+/* Advances the coordinate by one item to the right.  If empty, no change.  If
+ * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is
+ * an existing item. */
+int coord_next_item (tree_coord *coord)
+{
+	unsigned items = coord_num_items (coord);
+
+	/* If the node is empty, set it appropriately. */
+	if (items == 0) {
+		coord->between  = EMPTY_NODE;
+		coord->item_pos = 0;
+		coord->unit_pos = 0;
+		return 1;
+	}
+
+	/* If the item_pos is out-of-range, set it appropriatly. */
+	if (coord->item_pos >= items) {
+		coord->between  = AFTER_ITEM;
+		coord->item_pos = items - 1;
+		coord->unit_pos = 0;
+		return 1;
+	}
+
+	switch (coord->between) {
+	case EMPTY_NODE:
+		/* The node has changed, now position at the first unit. */
+		assert ("jmacd-9810", coord_empty_check (coord));
+		coord->between  = AT_UNIT;
+		coord->item_pos = 0;
+		coord->unit_pos = 0;
+		return 0;
+
+	case AFTER_UNIT:
+	case AT_UNIT:
+	case BEFORE_UNIT:
+		/* Anywhere in an item, go to the next one. */
+		coord->between   = AT_UNIT;
+		coord->item_pos += 1;
+		coord->unit_pos  = 0;
+		return 0;
 
 	case AFTER_ITEM:
 		/* Check for end-of-node. */

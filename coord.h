@@ -42,7 +42,7 @@ typedef enum {
 struct tree_coord {
 	/* node in a tree */
 	znode *node;
-#if 1 /*def DONTUSE_COORD_FIELDS*/
+
 	/* position of item within node */
 	pos_in_node  item_pos;
 	/* position of unit within item */
@@ -57,7 +57,6 @@ struct tree_coord {
 	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
 	 * user.
 	 */
-#endif
 };
 
 /*
@@ -186,11 +185,9 @@ extern int coord_is_before_leftmost (const tree_coord *coord);
  * argument. */
 extern int coord_is_after_sideof_unit (tree_coord *coord, sideof dir);
 
-/* Returns true if coord is set to before the Nth (existing) unit of an item. */
-extern int coord_is_before_nth_unit (tree_coord *coord, sideof dir);
-
-/* Returns true if coord is set to after the Nth (existing) unit of an item. */
-extern int coord_is_after_nth_unit (tree_coord *coord, sideof dir);
+/* Returns true if coord is set to or before the first (if LEFT_SIDE) unit of the item and
+ * to or after the last (if RIGHT_SIDE) unit of the item. */
+extern int coord_is_delimiting (tree_coord *coord, sideof dir);
 
 /*****************************************************************************************/
 /* 				      COORD MODIFIERS                                    */
