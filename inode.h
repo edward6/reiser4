@@ -49,9 +49,7 @@ typedef enum {
 	/* reiser4_inode->keyid points to the identification word */
 	REISER4_KEYID_LOADED = 7,
 	/* reiser4_inode->expkey points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 8,
-	/* do not eflush nodes of this file */
-	REISER4_DONT_EFLUSH = 13
+	REISER4_SECRET_KEY_INSTALLED = 8
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -117,9 +115,6 @@ struct reiser4_inode {
 	struct list_head  moved_pages;
 	readdir_list_head readdir_list;
 	unsigned long flags;
-	/* list of emergency flushed nodes */
-	struct list_head eflushed_nodes;
-
 	union {
 		unix_file_info_t unix_file_info;
 	} file_plugin_data;
