@@ -814,6 +814,7 @@ typedef struct reiser4_statistics {
 	} seal;
 	struct {
 		tshash_stat znode;
+		tshash_stat zfake;
 		tshash_stat jnode;
 		tshash_stat lnode;
 		tshash_stat eflush;

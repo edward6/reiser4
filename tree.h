@@ -121,6 +121,7 @@ struct reiser4_tree {
 
 	/* hash table to look up znodes by block number. */
 	z_hash_table zhash_table;
+	z_hash_table zfake_table;
 	/* hash table to look up jnodes by inode and offset. */
 	j_hash_table jhash_table;
 	__u64 znode_epoch;

@@ -1646,6 +1646,8 @@ print_tree_rec(const char *prefix /* prefix to print */ ,
 	   hash table is already destroyed. Check for this. */
 	if (tree->zhash_table._table == NULL)
 		return;
+	if (tree->zfake_table._table == NULL)
+		return;
 
 	if (!(flags & REISER4_NODE_SILENT))
 		printk("tree: [%s]\n", prefix);

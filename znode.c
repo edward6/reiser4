@@ -220,12 +220,18 @@ znodes_done()
 int
 znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 {
+	int result;
 	assert("umka-050", tree != NULL);
 
 	rw_dk_init(tree);
 
-	return z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE,
-			   reiser4_stat(tree->super, hashes.znode));
+	result = z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE,
+			     reiser4_stat(tree->super, hashes.znode));
+	if (result != 0)
+		return result;
+	result = z_hash_init(&tree->zfake_table, REISER4_ZNODE_HASH_TABLE_SIZE,
+			     reiser4_stat(tree->super, hashes.zfake));
+	return result;
 }
 
 /* free this znode */
@@ -271,6 +277,17 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 	}
 
 	z_hash_done(&tree->zhash_table);
+
+	ztable = &tree->zfake_table;
+
+	for_all_in_htable(ztable, z, node, next) {
+		atomic_set(&node->c_count, 0);
+		node->in_parent.node = NULL;
+		assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
+		zdrop(node);
+	}
+
+	z_hash_done(&tree->zfake_table);
 }
 
 /* ZNODE STRUCTURES */
@@ -338,7 +355,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 	}
 
 	/* remove znode from hash-table */
-	z_hash_remove(&tree->zhash_table, node);
+	z_hash_remove(znode_get_htable(node), node);
 }
 
 /* zdrop() -- Remove znode from the tree.
@@ -355,26 +372,28 @@ int
 znode_rehash(znode * node /* node to rehash */ ,
 	     const reiser4_block_nr * new_block_nr /* new block number */ )
 {
-	z_hash_table *htable;
+	z_hash_table *oldtable;
+	z_hash_table *newtable;
 	reiser4_tree *tree;
 
 	assert("nikita-2018", node != NULL);
 
 	tree = znode_get_tree(node);
-	htable = &tree->zhash_table;
+	oldtable = znode_get_htable(node);
+	newtable = get_htable(tree, new_block_nr);
 
 	WLOCK_TREE(tree);
 	/* remove znode from hash-table */
-	z_hash_remove(htable, node);
+	z_hash_remove(oldtable, node);
 
-	assert("nikita-2019", z_hash_find(htable, new_block_nr) == NULL);
+	assert("nikita-2019", z_hash_find(newtable, new_block_nr) == NULL);
 
 	/* update blocknr */
 	znode_set_block(node, new_block_nr);
 	node->zjnode.key.z = *new_block_nr;
 
 	/* insert it into hash */
-	z_hash_insert(htable, node);
+	z_hash_insert(newtable, node);
 	WUNLOCK_TREE(tree);
 	return 0;
 }
@@ -400,7 +419,8 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	/* Precondition for call to zlook_internal: locked hash table */
 	RLOCK_TREE(tree);
 
-	result = z_hash_find_index(&tree->zhash_table, blknrhashfn(blocknr), blocknr);
+	result = z_hash_find_index(get_htable(tree, blocknr), 
+				   blknrhashfn(blocknr), blocknr);
 
 	/* According to the current design, the hash table lock protects new znode
 	   references. */
@@ -421,6 +441,23 @@ del_c_ref(znode * node /* node to decrease c_count of */ )
 	assert("nikita-2157", node != NULL);
 	assert("nikita-2133", atomic_read(&node->c_count) > 0);
 	atomic_dec(&node->c_count);
+}
+
+z_hash_table *
+get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
+{
+	z_hash_table *table;
+	if (is_disk_addr_unallocated(blocknr))
+		table = &tree->zfake_table;
+	else
+		table = &tree->zhash_table;
+	return table;
+}
+
+z_hash_table *
+znode_get_htable(const znode *node)
+{
+	return get_htable(znode_get_tree(node), znode_get_block(node));
 }
 
 /* zget() - get znode from hash table, allocating it if necessary.
@@ -450,23 +487,17 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 	hashi = blknrhashfn(blocknr);
 
-	zth = &tree->zhash_table;
 	/* Take the hash table lock. */
 	RLOCK_TREE(tree);
 
 	/* NOTE-NIKITA address-as-unallocated-blocknr still is not
 	   implemented. */
-	if (0 && is_disk_addr_unallocated(blocknr)) {
-		/* Asked for unallocated znode. */
-		result = unallocated_disk_addr_to_ptr(blocknr);
-	} else {
-		/* Find a matching BLOCKNR in the hash table.  If the znode is
-		   found, we obtain an reference (x_count) but the znode
-		   remains * unlocked.  Have to worry about race conditions
-		   later. */
-		result = z_hash_find_index(zth, hashi, blocknr);
-	}
 
+	zth = get_htable(tree, blocknr);
+	/* Find a matching BLOCKNR in the hash table.  If the znode is found,
+	   we obtain an reference (x_count) but the znode remains unlocked.
+	   Have to worry about race conditions later. */
+	result = z_hash_find_index(zth, hashi, blocknr);
 	/* According to the current design, the hash table lock protects new znode
 	   references. */
 	if (result != NULL) {
@@ -1179,11 +1210,17 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 	   want here, but it is passable.
 	*/
 	tree_lock_taken = write_trylock_tree(tree);
-	htable = &tree->zhash_table;
 
+	htable = &tree->zhash_table;
 	for_all_in_htable(htable, z, node, next) {
 		info_znode(prefix, node);
 	}
+
+	htable = &tree->zfake_table;
+	for_all_in_htable(htable, z, node, next) {
+		info_znode(prefix, node);
+	}
+
 	if (tree_lock_taken)
 		WUNLOCK_TREE(tree);
 }
