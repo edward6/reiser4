@@ -943,6 +943,7 @@ jnode_remove_op(jnode * node, reiser4_tree * tree)
 {
 	/* remove jnode from hash-table */
 	j_hash_remove(&tree->jhash_table, node);
+	eflush_del(node);
 	jfree(node);
 	return 0;
 }
@@ -1212,7 +1213,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 		return;
 	}
 
-	info("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	info("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	     " block: %s, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	     prefix, node, node->state,
 	     jnode_state_name(node, JNODE_LOADED),
@@ -1228,6 +1229,9 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	     jnode_state_name(node, JNODE_MAPPED),
 	     jnode_state_name(node, JNODE_FLUSH_QUEUED),
 	     jnode_state_name(node, JNODE_RIP),
+	     jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
+	     jnode_state_name(node, JNODE_WRITEBACK),
+	     jnode_state_name(node, JNODE_EFLUSH),
 	     jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	     atomic_read(&node->d_count), atomic_read(&node->x_count),
 	     jnode_page(node), jnode_type_name(jnode_get_type(node)));

@@ -376,6 +376,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 
 	/* remove znode from hash-table */
 	z_hash_remove(&tree->zhash_table, node);
+	eflush_del(ZJNODE(node));
 }
 
 /** zdrop() -- Remove znode from the tree.

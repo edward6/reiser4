@@ -177,6 +177,7 @@ SRC		:= \
 		   io_handle.c \
 		   trace.c \
 		   flush_queue.c \
+		   emergency_flush.c \
 		   ktxnmgrd.c
 
 OBJ_DIR     := obj

@@ -526,7 +526,11 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		blksz = super->s_blocksize;
 		assert("nikita-2028", blksz == (int) PAGE_CACHE_SIZE);
 
-		blocknr = *jnode_get_block(node);
+		if (rw == READ)
+			blocknr = *jnode_get_io_block(node);
+		else
+			blocknr = *jnode_get_block(node);
+
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
 		assert("nikita-2276", !blocknr_is_fake(&blocknr));
 

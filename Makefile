@@ -41,6 +41,7 @@ reiser4-objs := \
 		   inode.o \
 		   vfs_ops.o \
 		   ioctl.o \
+		   emergency_flush.o \
            \
 		   plugin/plugin.o \
 		   plugin/node/node.o \

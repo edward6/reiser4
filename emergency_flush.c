@@ -127,6 +127,16 @@
 
 #include "forward.h"
 #include "debug.h"
+#include "page_cache.h"
+#include "tree.h"
+#include "jnode.h"
+#include "znode.h"
+#include "super.h"
+#include "emergency_flush.h"
+
+#include <linux/mm.h>
+#include <linux/writeback.h>
+#include <linux/slab.h>
 
 static int flushable(const jnode * node);
 
@@ -146,7 +156,7 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	assert("nikita-2724", PageLocked(page));
 
 	sb = page->mapping->host->i_sb;
-	node = jprivate(pg);
+	node = jprivate(page);
 
 	if (node == NULL)
 		return 0;
@@ -174,7 +184,8 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 		} else {
 		}
 		if (sendit) {
-			result = page_io(page, node, WRITE, GFP_NOFS | __GFP_HIGH);
+			result = page_io(page, 
+					 node, WRITE, GFP_NOFS | __GFP_HIGH);
 			if (result == 0)
 				--wbc->nr_to_write;
 		}
@@ -199,6 +210,129 @@ flushable(const jnode * node)
 	if (jnode_is_znode(node) && znode_is_locked(JZNODE(node)))
 		return 0;
 	return 1;
+}
+
+static inline int
+jnode_eq(jnode * const * j1, jnode * const * j2)
+{
+	assert("nikita-2733", j1 != NULL);
+	assert("nikita-2734", j2 != NULL);
+
+	return *j1 == *j2;
+}
+
+static inline __u32
+jnode_hfn(jnode * const * j)
+{
+	assert("nikita-2735", j != NULL);
+	return ((unsigned long)*j) / sizeof(**j);
+}
+
+struct eflush_node {
+	jnode           *node;
+	reiser4_block_nr blocknr;
+	ef_hash_link     linkage;
+};
+
+/** The hash table definition */
+#define KMALLOC(size) reiser4_kmalloc((size), GFP_KERNEL)
+#define KFREE(ptr, size) reiser4_kfree(ptr, size)
+TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
+#undef KFREE
+#undef KMALLOC
+
+/** slab for eflush_node_t's */
+static kmem_cache_t *eflush_slab;
+
+int 
+eflush_init(void)
+{
+	eflush_slab = kmem_cache_create("eflush_cache", sizeof (eflush_node_t), 
+					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	if (eflush_slab == NULL)
+		return -ENOMEM;
+	else
+		return 0;
+}
+
+int 
+eflush_done(void)
+{
+	return kmem_cache_destroy(eflush_slab);
+}
+
+int
+eflush_init_at(struct super_block *super)
+{
+	return ef_hash_init(&get_super_private(super)->efhash_table, 
+			    REISER4_EF_HASH_SIZE);
+}
+
+void
+eflush_done_at(struct super_block *super)
+{
+	ef_hash_done(&get_super_private(super)->efhash_table);
+}
+
+static ef_hash_table *
+get_jnode_enhash(const jnode *node)
+{
+	struct super_block *super;
+
+	assert("nikita-2739", node != NULL);
+
+	super = jnode_get_tree(node)->super;
+	return &get_super_private(super)->efhash_table;
+}
+
+int
+eflush_add(jnode *node, reiser4_block_nr *blocknr)
+{
+	eflush_node_t *ef;
+
+	assert("nikita-2737", node != NULL);
+	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
+
+	ef = kmem_cache_alloc(eflush_slab, GFP_NOFS);
+	if (ef != NULL) {
+		ef->node = node;
+		ef->blocknr = *blocknr;
+		ef_hash_insert(get_jnode_enhash(node), ef);
+		JF_SET(node, JNODE_EFLUSH);
+		return 0;
+	} else
+		return -ENOMEM;
+}
+
+reiser4_block_nr *
+eflush_get(const jnode *node)
+{
+	eflush_node_t *ef;
+
+	assert("nikita-2740", node != NULL);
+	assert("nikita-2741", JF_ISSET(node, JNODE_EFLUSH));
+
+	ef = ef_hash_find(get_jnode_enhash(node), (jnode *const *)&node);
+	assert("nikita-2742", ef != NULL);
+	return &ef->blocknr;
+}
+
+void
+eflush_del(jnode *node)
+{
+	eflush_node_t *ef;
+	ef_hash_table *table;
+
+	assert("nikita-2743", node != NULL);
+
+	if (JF_ISSET(node, JNODE_EFLUSH)) {
+		table = get_jnode_enhash(node);
+		ef = ef_hash_find(table, (jnode *const *)&node);
+		assert("nikita-2745", ef != NULL);
+		ef_hash_remove(table, ef);
+		kmem_cache_free(eflush_slab, ef);
+		JF_CLR(node, JNODE_EFLUSH);
+	}
 }
 
 /* 

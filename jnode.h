@@ -17,6 +17,7 @@
 #include "debug.h"
 #include "dformat.h"
 #include "spin_macros.h"
+#include "emergency_flush.h"
 
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -153,7 +154,8 @@ typedef enum {
 	JNODE_MISSED_IN_CAPTURE = 17,
 
 	/* write is in progress */
-	JNODE_WRITEBACK = 18
+	JNODE_WRITEBACK = 18,
+	JNODE_EFLUSH    = 19
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -249,6 +251,15 @@ jnode_get_block(const jnode * node	/* jnode to
    the block: likely we already have that.
 */
 	return &node->blocknr;
+}
+
+static inline const reiser4_block_nr *
+jnode_get_io_block(const jnode * node)
+{
+	if (likely(!JF_ISSET(node, JNODE_EFLUSH)))
+		return jnode_get_block(node);
+	else
+		return eflush_get(node);
 }
 
 /**
