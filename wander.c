@@ -54,6 +54,10 @@ static void format_journal_header (struct super_block *s, capture_list_head * tx
 
 	jrelse_nolock (private->journal_header);
 	spin_unlock_jnode (private->journal_header);
+	/*
+	 * drop x_count acquired by jload()
+	 */
+	jput (private->journal_header);
 }
 
 
