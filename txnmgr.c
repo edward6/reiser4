@@ -282,13 +282,14 @@ jnode_of_page (struct page* pg)
 			goto again;
 		}
 		pg->private = (unsigned long) jal;
-		jal = NULL;
 
 		/* FIXME: jnode_init doesn't take struct page argument, so
 		 * znodes aren't having theirs set. */
 		jnode_init (jal);
 
 		jal->pg = pg;
+
+		jal = NULL;
 	}
 
 	/* FIXME: This may be called from memory.c, read_in_formatted, which
