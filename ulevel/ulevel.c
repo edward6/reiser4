@@ -266,11 +266,13 @@ void kmem_cache_free( kmem_cache_t *slab, void *addr )
     xmemset may try access NULL addr in the case kmalloc 
     will unable to allocate specified size.
 */
-void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE )
+void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag )
 {
 	void *addr;
 
-	addr = kmalloc( slab -> size, 0 );
+	assert( "nikita-2267", lock_counters() -> spin_locked == 0 );
+
+	addr = kmalloc( slab -> size, gfp_flag );
 
 	if (addr) {
 		xmemset( addr, 0, slab -> size );
