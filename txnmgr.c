@@ -298,7 +298,7 @@ jnode_init (jnode *node)
 
 /* Holding the jnode_ptr_lock, check whether the page already has a jnode and
  * if not, allocate one. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 jnode*
 jnode_of_page (struct page* pg)
 {
@@ -309,6 +309,7 @@ jnode_of_page (struct page* pg)
 	jnode *jal = NULL;
 	
 	assert("umka-176", pg != NULL);
+	assert("umka-282", !spin_is_locked(&_kone_ptr_lock));
 	
  again:
 	spin_lock (& _jnode_ptr_lock);
@@ -324,8 +325,9 @@ jnode_of_page (struct page* pg)
 			 * umka (2002.06.13) 
 			 * In this point should be a check for kmalloc_cache_alloc 
 			 * has really allocated memory. In the case it hasn't allocated 
-			 * memory, here will be endless cycle or very long cycle until
-			 * kmem_cache_alloc function will be able to allocate memory.
+			 * memory and jnode page isn't allocated, here will be endless 
+			 * cycle or very long and useless cycle until kmem_cache_alloc 
+			 * function will be able to allocate memory.
 			 */
 			
 			goto again;
@@ -438,12 +440,16 @@ txn_begin (reiser4_context *context)
 }
 
 /* Finish a transaction handle context. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 int
 txn_end (reiser4_context *context)
 {
 	int ret = 0;
-	txn_handle *txnh  = context->trans;
+	txn_handle *txnh;
+	
+	assert("umka-283", context != NULL);
+	
+	txnh = context->trans;
 	
 	if (txnh != NULL) { 
 
@@ -622,7 +628,7 @@ atom_dec_and_unlock (txn_atom *atom)
 /* Return an new atom, locked.  This adds the atom to the transaction manager's list and
  * sets its reference count to 1, an artificial reference which is kept until it
  * commits. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static txn_atom*
 atom_begin_andlock (void)
 {
@@ -636,6 +642,7 @@ atom_begin_andlock (void)
 	atom_init (atom);
 
 	assert ("jmacd-17", atom_isclean (atom));
+	assert ("umka-284", !spin_is_locked(&mgr->tmgr_lock));
 
 	/* Take the atom and txnmgr lock. */
 	spin_lock_atom   (atom);
@@ -662,12 +669,12 @@ atom_begin_andlock (void)
 /* Return the number of pointers to this atom that must be updated during fusion.  This
  * approximates the amount of work to be done.  Fusion chooses the atom with fewer
  * pointers to fuse into the atom with more pointers. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.16.15) */
 static int
 atom_pointer_count (txn_atom *atom)
 {
 	assert("umka-187", atom != NULL);
-	
+
 	/* This is a measure of the amount of work needed to fuse this atom into another. */
 	assert ("jmacd-28", atom_isopen (atom));
 
@@ -676,7 +683,7 @@ atom_pointer_count (txn_atom *atom)
 
 /* Called holding the atom lock, this removes the atom from the transaction manager list
  * and frees it. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static void
 atom_free (txn_atom *atom)
 {
@@ -687,6 +694,7 @@ atom_free (txn_atom *atom)
 	trace_on (TRACE_TXN, "free atom %u\n", atom->atom_id);	
 
 	assert ("jmacd-18", spin_atom_is_locked (atom));
+	assert ("umka-285", !spin_is_locked(&mgr->tmgr_lock));
 
 	/* Remove from the txn_mgr's atom list */
 	spin_lock_txnmgr (mgr);
@@ -809,18 +817,23 @@ atom_try_commit_locked (txn_atom *atom)
 /* Called to force commit of any outstanding atoms.  Later this should be improved to: (1)
  * wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
  * created. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13) umka (2002.06.15) */
 int
 txn_mgr_force_commit (struct super_block *super)
 {
 	int ret;
 	txn_atom *atom;
-	txn_mgr *mgr = & get_super_private (super)->tmgr;
+	txn_mgr *mgr;
 	txn_handle  *txnh;
 
 	REISER4_ENTRY (super);
 
 	assert("umka-191", super != NULL);
+	
+	mgr = & get_super_private (super)->tmgr;
+	
+	assert("umka-287", mgr != NULL);
+	assert("umka-286", !spin_is_locked(&mgr->tmgr_lock));
 
 	txnh = get_current_context ()->trans;
 
@@ -926,7 +939,7 @@ commit_txnh (txn_handle *txnh)
  * transactions, finds the first dirty node it can, and then calls jnode_flush() on that
  * node.
  */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 int memory_pressure (struct super_block *super)
 {
 	txn_mgr *mgr = & get_super_private (super)->tmgr;
@@ -940,6 +953,11 @@ int memory_pressure (struct super_block *super)
 	assert("umka-193", super != NULL);
 
 	txnh = get_current_context ()->trans;
+
+	assert("umka-288", txnh != NULL);
+	
+	assert("umka-289", !spin_is_locked(&txnh->hlock));
+	assert("umka-290", !spin_is_locked(&mgr->tmgr_lock));
 
 	spin_lock_txnh (txnh);
 	spin_lock_txnmgr (mgr);
@@ -1023,7 +1041,7 @@ int memory_pressure (struct super_block *super)
  * released.  The external interface (txn_try_capture) manages re-aquiring the jnode lock
  * in the failure case.
  */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static int
 try_capture_block (txn_handle  *txnh,
 		   jnode       *node,
@@ -1040,6 +1058,8 @@ try_capture_block (txn_handle  *txnh,
 	
 	assert("umka-194", txnh != NULL);
 	assert("umka-195", node != NULL);
+
+	assert("umka-291", !spin_is_locked(&txnh->hlock));
 	
 	/* The jnode is already locked!  Being called from txn_try_capture(). */
 	assert ("jmacd-567", spin_jnode_is_locked (node));
@@ -1134,7 +1154,8 @@ try_capture_block (txn_handle  *txnh,
  * the lock manager with the jnode lock held and it always returns with the jnode lock
  * held.
  */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
+/* AUDIT: node locking policy is very difficult because locking/unlocking is distributed through few functions */
 int
 txn_try_capture (jnode           *node,
 		 znode_lock_mode  lock_mode,
@@ -1221,7 +1242,7 @@ txn_try_capture (jnode           *node,
 
 /* This is the interface to capture unformatted nodes via their struct page
  * reference. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 int
 txn_try_capture_page  (struct page        *pg,
 		       znode_lock_mode     lock_mode,
@@ -1229,8 +1250,14 @@ txn_try_capture_page  (struct page        *pg,
 {
 	int ret;
 
-	jnode *node = jnode_of_page (pg);
+	jnode *node;
+       
+	assert("umka-292", pg != NULL);
+	assert("umka-293", !spin_jnode_is_locked (node));
+	
+	node = jnode_of_page (pg);
 	spin_lock_jnode (node);
+	
 	ret = txn_try_capture (node, lock_mode, non_blocking);
 	if (ret == 0) {
 		spin_unlock_jnode (node);
@@ -1240,7 +1267,7 @@ txn_try_capture_page  (struct page        *pg,
 }
 
 /* This informs the transaction manager when an unformatted node is deleted. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 void txn_delete_page (struct page *pg)
 {
 	jnode *node;
@@ -1252,6 +1279,8 @@ void txn_delete_page (struct page *pg)
 		return;
 	}
 
+	assert("umka-294", !spin_jnode_is_locked (node));
+	
 	spin_lock_jnode (node);
 
 	atom = atom_get_locked_by_jnode (node);
@@ -1292,7 +1321,7 @@ capture_assign_txnh_nolock (txn_atom   *atom,
 
 /* No-locking version of assign_block.  Sets the block's atom pointer, references the
  * block, adds it to the clean or dirty capture_jnode list, increments capture_count. */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static void
 capture_assign_block_nolock (txn_atom *atom,
 			     jnode    *node)
@@ -1301,6 +1330,10 @@ capture_assign_block_nolock (txn_atom *atom,
 	assert ("umka-203", node != NULL);
 	
 	assert ("jmacd-321", spin_jnode_is_locked (node));
+	
+	/* AUDIT: Check whether atom is locked due to atom modifying protection */
+	assert ("umka-295", spin_atom_is_locked (atom));
+	
 	assert ("jmacd-323", node->atom == NULL);
 
 	node->atom = atom;
@@ -1320,12 +1353,13 @@ capture_assign_block_nolock (txn_atom *atom,
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
  * capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level.
  */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 void jnode_set_dirty( jnode *node )
 {
 	txn_atom *atom;
 	
 	assert ("umka-204", node != NULL);	
+	assert ("umka-296", current_tree != NULL);	
 	assert ("jmacd-1083", spin_jnode_is_not_locked (node));
 
 	spin_lock_jnode (node);
@@ -1423,6 +1457,8 @@ capture_assign_block (txn_handle *txnh,
 	
 	atom = txnh->atom;
 
+	assert("umka-297", atom != NULL);
+
 	if (! spin_trylock_atom (atom)) {
 
 		/* EAGAIN releases locks. */
@@ -1452,7 +1488,7 @@ capture_assign_block (txn_handle *txnh,
  * handle.  If the atom is closed and the handle requests to write the block, then
  * initiate copy-on-capture.
  */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static int
 capture_assign_txnh (jnode       *node,
 		     txn_handle  *txnh,
@@ -1464,6 +1500,8 @@ capture_assign_txnh (jnode       *node,
 	assert("umka-209", txnh != NULL);
 	
 	atom = node->atom;
+
+	assert("umka-298", atom != NULL);
 
 	if (! spin_trylock_atom (atom)) {
 
@@ -1806,7 +1844,7 @@ capture_fuse_txnh_lists (txn_atom *large, txnh_list_head *large_head, txnh_list_
  * updated as well, and any waiting handles belonging to either are awakened.  Finally the
  * smaller atom's refcount is decremented.
  */
-/* Audited by: umka (2002.06.13) */
+/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static void
 capture_fuse_into (txn_atom  *small,
 		   txn_atom  *large)
@@ -1817,6 +1855,10 @@ capture_fuse_into (txn_atom  *small,
 
 	assert ("umka-224", small != NULL);
 	assert ("umka-225", small != NULL);
+	
+	/* AUDIT: These atoms chould be loocked by caller in order to be safe modified. */
+	assert ("umka-299", spin_is_locked(&large->alock));
+	assert ("umka-300", spin_is_locked(&small->alock));
 	
 	assert ("jmacd-201", atom_isopen (small));
 	assert ("jmacd-202", atom_isopen (large));
