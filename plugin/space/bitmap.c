@@ -352,6 +352,20 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	return ret;
 }
 
+
+static void release_bnode(struct reiser4_bnode * bnode)
+{
+	assert("zam-362", bnode->working != NULL);
+	assert("zam-363", bnode->commit != NULL);
+
+	zrelse(bnode->working, 1);
+	zrelse(bnode->commit, 1);
+
+	zput(bnode->working);
+	zput(bnode->commit);
+}
+
+
 /** This function does all block allocation work but only for one bitmap
  * block.*/
 /* FIXME_ZAM: It does not allow us to allocate block ranges across bitmap
@@ -717,3 +731,14 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
 
 	return ret;
 }
+
+/* 
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 78
+ * scroll-step: 1
+ * End:
+ */
