@@ -1181,7 +1181,7 @@ int txnmgr_force_commit_all (struct super_block *super)
 	assert("nikita-3058", commit_check_locks());
 
 	ret = txn_end(ctx);
-	if (ret)
+	if (ret < 0)
 		return ret;
 
 	txn_begin(ctx);
