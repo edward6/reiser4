@@ -10,6 +10,7 @@
 #if !defined( __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__ )
 #define __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__
 
+#if 0
 /** operations specific to internal item. Used in
     fs/reiser4/plugin/item/item.h:item_ops */
 typedef struct {
@@ -21,7 +22,8 @@ typedef struct {
 	/** check that given internal item contains given pointer. */
 	int ( *has_pointer_to )( const tree_coord *coord, 
 				 const reiser4_block_nr *block );
-} internal_item_ops;
+} internal_item_plugin;
+#endif
 
 /** on-disk layout of internal item */
 typedef struct internal_item_layout {
