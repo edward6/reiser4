@@ -693,6 +693,7 @@ struct inode {
 	unsigned int		i_blkbits;
 	unsigned long		i_blksize;
 	unsigned long		i_blocks;
+	unsigned long		i_bytes;
 	unsigned long		i_version;
 	struct semaphore	i_sem;
 	struct semaphore	i_zombie;
@@ -773,6 +774,9 @@ extern struct inode * find_get_inode(struct super_block * sb, unsigned long ino,
 #define I_NEW      0x2
 #define I_LOCK     0x4
 #define I_DIRTY_PAGES 0x8
+#define I_FREEING  0x10
+#define I_CLEAR    0x20
+
 void mark_inode_dirty (struct inode * inode);
 
 /* [cut from include/linux/fs.h]
@@ -1631,6 +1635,107 @@ void complete_and_exit( struct completion *, long ) __attribute__((noreturn));
 void init_completion(struct completion *x);
 void wait_for_completion(struct completion *x);
 void complete(struct completion *x);
+
+
+static inline void inode_add_bytes(struct inode *inode, loff_t bytes)
+{
+	inode->i_blocks += bytes >> 9;
+	bytes &= 511;
+	inode->i_bytes += bytes;
+	if (inode->i_bytes >= 512) {
+		inode->i_blocks++;
+		inode->i_bytes -= 512;
+	}
+}
+
+static inline void inode_sub_bytes(struct inode *inode, loff_t bytes)
+{
+	inode->i_blocks -= bytes >> 9;
+	bytes &= 511;
+	if (inode->i_bytes < bytes) {
+		inode->i_blocks--;
+		inode->i_bytes += 512;
+	}
+	inode->i_bytes -= bytes;
+}
+
+static inline loff_t inode_get_bytes(struct inode *inode)
+{
+	return (((loff_t)inode->i_blocks) << 9) + inode->i_bytes;
+}
+
+static inline void inode_set_bytes(struct inode *inode, loff_t bytes)
+{
+	inode->i_blocks = bytes >> 9;
+	inode->i_bytes = bytes & 511;
+}
+
+typedef __s64 qsize_t;
+
+/*
+ * NO-OP when quota not configured.
+ */
+#define sb_dquot_ops				(NULL)
+#define sb_quotactl_ops				(NULL)
+#define DQUOT_INIT(inode)			do { } while(0)
+#define DQUOT_DROP(inode)			do { } while(0)
+#define DQUOT_ALLOC_INODE(inode)		(0)
+#define DQUOT_FREE_INODE(inode)			do { } while(0)
+#define DQUOT_SYNC(sb)				do { } while(0)
+#define DQUOT_OFF(sb)				do { } while(0)
+#define DQUOT_TRANSFER(inode, iattr)		(0)
+
+static inline int DQUOT_PREALLOC_SPACE_NODIRTY(struct inode *inode, qsize_t nr)
+{
+	lock_kernel();
+	inode_add_bytes(inode, nr);
+	unlock_kernel();
+	return 0;
+}
+
+static inline int DQUOT_PREALLOC_SPACE(struct inode *inode, qsize_t nr)
+{
+	DQUOT_PREALLOC_SPACE_NODIRTY(inode, nr);
+	mark_inode_dirty(inode);
+	return 0;
+}
+
+static inline int DQUOT_ALLOC_SPACE_NODIRTY(struct inode *inode, qsize_t nr)
+{
+	lock_kernel();
+	inode_add_bytes(inode, nr);
+	unlock_kernel();
+	return 0;
+}
+
+static inline int DQUOT_ALLOC_SPACE(struct inode *inode, qsize_t nr)
+{
+	DQUOT_ALLOC_SPACE_NODIRTY(inode, nr);
+	mark_inode_dirty(inode);
+	return 0;
+}
+
+static inline void DQUOT_FREE_SPACE_NODIRTY(struct inode *inode, qsize_t nr)
+{
+	lock_kernel();
+	inode_sub_bytes(inode, nr);
+	unlock_kernel();
+}
+
+static inline void DQUOT_FREE_SPACE(struct inode *inode, qsize_t nr)
+{
+	DQUOT_FREE_SPACE_NODIRTY(inode, nr);
+	mark_inode_dirty(inode);
+}	
+
+#define DQUOT_PREALLOC_BLOCK_NODIRTY(inode, nr)	DQUOT_PREALLOC_SPACE_NODIRTY(inode, ((qsize_t)(nr)) << (inode)->i_sb->s_blocksize_bits)
+#define DQUOT_PREALLOC_BLOCK(inode, nr)	DQUOT_PREALLOC_SPACE(inode, ((qsize_t)(nr)) << (inode)->i_sb->s_blocksize_bits)
+#define DQUOT_ALLOC_BLOCK_NODIRTY(inode, nr) DQUOT_ALLOC_SPACE_NODIRTY(inode, ((qsize_t)(nr)) << (inode)->i_sb->s_blocksize_bits)
+#define DQUOT_ALLOC_BLOCK(inode, nr) DQUOT_ALLOC_SPACE(inode, ((qsize_t)(nr)) << (inode)->i_sb->s_blocksize_bits)
+#define DQUOT_FREE_BLOCK_NODIRTY(inode, nr) DQUOT_FREE_SPACE_NODIRTY(inode, ((qsize_t)(nr)) << (inode)->i_sb->s_blocksize_bits)
+#define DQUOT_FREE_BLOCK(inode, nr) DQUOT_FREE_SPACE(inode, ((qsize_t)(nr)) << (inode)->i_sb->s_blocksize_bits)
+
+extern void clear_inode(struct inode *);
 
 /* __REISER4_ULEVEL_H__ */
 #endif

@@ -3545,7 +3545,7 @@ static int bash_mkfs (char * file_name)
 			/* oid allocator */
 			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID40_ALLOCATOR_ID);
 			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 3);
+				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 4);
 
 			/* test layout super block */
 			test_sb = (test_disk_super_block *)(bh->b_data + sizeof (*master_sb));
@@ -5322,6 +5322,30 @@ void complete_and_exit( struct completion *comp, long code UNUSED_ARG )
 		complete( comp );
 	for(;0;)
 		;
+}
+
+/**
+ * clear_inode - clear an inode
+ * @inode: inode to clear
+ *
+ * This is called by the filesystem to tell us
+ * that the inode is no longer useful. We just
+ * terminate it with extreme prejudice.
+ */
+ 
+void clear_inode(struct inode *inode)
+{
+	// invalidate_inode_buffers(inode);
+       
+	if (inode->i_data.nrpages)
+		BUG();
+	if (inode->i_state & I_CLEAR)
+		BUG();
+	// wait_on_inode(inode);
+	DQUOT_DROP(inode);
+	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->clear_inode)
+		inode->i_sb->s_op->clear_inode(inode);
+	inode->i_state = I_CLEAR;
 }
 
 /*
