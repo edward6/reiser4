@@ -344,9 +344,10 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		}
 
 		if (neighbor) {
+			spin_lock_dk(tree);
 			/* update delimiting keys */
-			UNDER_SPIN_VOID(dk, tree, find_child_delimiting_keys
-					(coord->node, coord, znode_get_ld_key(neighbor), znode_get_rd_key(neighbor)));
+			set_child_delimiting_keys(coord->node, coord, neighbor);
+			spin_unlock_dk(tree);
 		}
 
 		spin_lock_tree(tree);

@@ -578,10 +578,8 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 		else
 			child = zget(tree, &addr, parent, znode_get_level(parent) - 1, GFP_KERNEL);
 		spin_lock_dk(tree);
-		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p && znode_just_created(child)) {
-			find_child_delimiting_keys(parent, parent_coord,
-						   znode_get_ld_key(child), znode_get_rd_key(child));
-		}
+		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
+			set_child_delimiting_keys(parent, parent_coord, child);
 	} else {
 		warning("nikita-1483", "Internal item expected");
 		print_znode("node", parent);

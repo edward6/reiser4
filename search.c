@@ -240,8 +240,6 @@ static int sanity_check(cbk_handle * h);
 /* release resources in handle */
 static void hput(cbk_handle * h);
 
-static void setup_delimiting_keys(cbk_handle * h);
-static int prepare_delimiting_keys(cbk_handle * h);
 static level_lookup_result search_to_left(cbk_handle * h);
 
 /* main tree lookup procedure
@@ -421,6 +419,7 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	assert("nikita-368", h->coord != NULL);
 	assert("nikita-369", (h->bias == FIND_EXACT) || (h->bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-370", h->stop_level >= LEAF_LEVEL);
+	assert("nikita-2949", !(h->flags & CBK_DKSET));
 	trace_stamp(TRACE_TREE);
 	reiser4_stat_inc(tree.cbk);
 
@@ -453,6 +452,7 @@ restart:
 		h->coord->node = fake;
 		h->ld_key = *min_key();
 		h->rd_key = *max_key();
+		h->flags |= CBK_DKSET;
 	}
 
 	h->block = h->tree->root_block;
@@ -554,8 +554,15 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	   it. Delimiting keys are taken from the parent node. See
 	   setup_delimiting_keys() for details. 
 	*/
-	if (znode_just_created(active))
-		setup_delimiting_keys(h);
+	if (!(h->flags & CBK_DKSET)) {
+		ret = zload(h->parent_lh->node);
+		assert("nikita-2953", ret == 0);
+		UNDER_SPIN_VOID(dk, h->tree,
+				set_child_delimiting_keys(h->parent_lh->node,
+							  h->coord, 
+							  h->active_lh->node));
+		h->flags &= ~CBK_DKSET;
+	}
 
 	/* this is ugly kludge. Reminder: this is necessary, because
 	   ->lookup() method returns coord with ->between field probably set
@@ -731,12 +738,6 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	assert("nikita-2116", item_is_internal(h->coord));
 	iplug = item_plugin_by_coord(h->coord);
 
-	/* prepare delimiting keys for the next node */
-	if (prepare_delimiting_keys(h)) {
-		h->error = "cannot prepare delimiting keys";
-		h->result = CBK_IO_ERROR;
-		return LOOKUP_DONE;
-	}
 	/* go down to next level */
 	assert("vs-515", item_is_internal(h->coord));
 	iplug->s.internal.down_link(h->coord, h->key, &h->block);
@@ -1156,7 +1157,7 @@ znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
    @parent_coord.
   
 */
-int
+static int
 find_child_delimiting_keys(znode * parent	/* parent znode, passed
 						 * locked */ ,
 			   const coord_t * parent_coord	/* coord where
@@ -1195,16 +1196,23 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 	return 0;
 }
 
-/* helper function used by coord_by_key(): remember in @h delimiting keys of
-   child that will be processed on the next level.
-   */
-static int
-prepare_delimiting_keys(cbk_handle * h /* search handle */ )
+void
+set_child_delimiting_keys(znode * parent,
+			  const coord_t * coord, znode * child)
 {
-	assert("nikita-1095", h != NULL);
+	reiser4_tree *tree;
 
-	return UNDER_SPIN(dk, znode_get_tree(h->active_lh->node),
-			  find_child_delimiting_keys(h->active_lh->node, h->coord, &h->ld_key, &h->rd_key));
+	assert("nikita-2952", parent == coord->node);
+
+	tree = znode_get_tree(parent);
+	spin_lock_dk(tree);
+	if (!ZF_ISSET(child, JNODE_DKSET)) {
+		find_child_delimiting_keys(parent, coord, 
+					   znode_get_ld_key(child),
+					   znode_get_rd_key(child));
+		ZF_SET(child, JNODE_DKSET);
+	}
+	spin_unlock_dk(tree);
 }
 
 static level_lookup_result
@@ -1261,10 +1269,13 @@ search_to_left(cbk_handle * h /* search handle */ )
 				result = LOOKUP_DONE;
 			} else if (h->result == NS_FOUND) {
 				reiser4_stat_inc(tree.left_nonuniq_found);
+
 				spin_lock_dk(znode_get_tree(neighbor));
 				h->rd_key = *znode_get_ld_key(node);
 				leftmost_key_in_node(neighbor, &h->ld_key);
 				spin_unlock_dk(znode_get_tree(neighbor));
+				h->flags |= CBK_DKSET;
+
 				h->block = *znode_get_block(neighbor);
 				/* clear coord -> node so that cbk_level_lookup()
 				   wouldn't overwrite parent hint in neighbor.
@@ -1368,22 +1379,6 @@ hput(cbk_handle * h /* search handle */ )
 	assert("nikita-385", h != NULL);
 	done_lh(h->parent_lh);
 	done_lh(h->active_lh);
-}
-
-/* Helper function used by cbk(): update delimiting keys of child node (stored
-   in h->active_lh->node) using key taken from parent on the parent level. */
-static void
-setup_delimiting_keys(cbk_handle * h /* search handle */ )
-{
-	znode *active;
-
-	assert("nikita-1088", h != NULL);
-
-	active = h->active_lh->node;
-	spin_lock_dk(znode_get_tree(active));
-	znode_set_ld_key(active, &h->ld_key);
-	znode_set_rd_key(active, &h->rd_key);
-	spin_unlock_dk(znode_get_tree(active));
 }
 
 static int
