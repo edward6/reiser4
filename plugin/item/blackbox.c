@@ -33,6 +33,7 @@ store_black_box(reiser4_tree *tree,
 	idata.iplug = item_plugin_by_id(BLACK_BOX_ID);
 
 	init_lh(&lh);
+	/*XXXX*/clog_op(OP_STORE_BB, 0);
 	result = insert_by_key(tree, key,
 			       &idata, &coord, &lh, LEAF_LEVEL, CBK_UNIQUE);
 	
