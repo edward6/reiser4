@@ -509,11 +509,15 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	/* loop descending a tree */
 	for( ; !done ; ++ iterations ) {
 
-		if( unlikely(( iterations > REISER4_CBK_ITERATIONS_LIMIT ) &&
-		    !( iterations & ( iterations - 1 ) )) ) {
+		if( unlikely( ( iterations > REISER4_CBK_ITERATIONS_LIMIT ) &&
+		    !( iterations & ( iterations - 1 ) ) ) ) {
 			warning( "nikita-1481", "Too many iterations: %i",
 				 iterations );
 			print_key( "key", h -> key );
+		} else if( unlikely( iterations > REISER4_MAX_CBK_ITERATIONS ) ) {
+			h -> error = "Too many iterations. Tree corrupted?";
+			h -> result = -EIO;
+			break;
 		}
 		switch( cbk_level_lookup( h ) ) {
 		    case LOOKUP_CONT:
@@ -533,7 +537,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	}
 
 	/* that's all. The rest is error handling */
-	if( unlikely(h -> error != NULL) ) {
+	if( unlikely( h -> error != NULL ) ) {
 		warning( "nikita-373", "%s: level: %i, "
 			 "lock_level: %i, stop_level: %i "
 			 "lock_mode: %s, bias: %s",
@@ -545,8 +549,10 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 		print_znode( "active", h -> active_lh -> node);
 		print_znode( "parent", h -> parent_lh -> node);
 	}
-	/* the unlikely asssumes misses are rarer than finds */
-	if( ( unlikely (h -> result != CBK_COORD_FOUND) ) &&
+	/*
+	 * `unlikely' error case
+	 */
+	if( ( unlikely( h -> result != CBK_COORD_FOUND ) ) &&
 	    ( h -> result != CBK_COORD_NOTFOUND ) ) {
 		/* failure. do cleanup */
 		hput( h );

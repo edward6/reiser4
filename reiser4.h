@@ -142,6 +142,11 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
 /**
+ * return -EIO after that many iterations in coord_by_key().
+ */
+#define REISER4_MAX_CBK_ITERATIONS    (1000)
+
+/**
  * read all blocks when one block on the page is read
  */
 #define REISER4_FORMATTED_CLUSTER_READ (0)
