@@ -4511,8 +4511,8 @@ int real_main( int argc, char **argv )
 	if( getenv( "REISER4_TRACE_FLAGS" ) != NULL ) {
 		reiser4_current_trace_flags = 
 			strtol( getenv( "REISER4_TRACE_FLAGS" ), NULL, 0 );
-		rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
-		      get_current_trace_flags() );
+		/*rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
+		  get_current_trace_flags() );*/
 	}
 
 
