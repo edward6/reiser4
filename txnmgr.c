@@ -1357,19 +1357,23 @@ again:
 		/* Commit any atom which can be committed.  If @commit_new_atoms
 		 * is not set we commit only atoms which were created before
 		 * this call is started. */
-		if (atom->stage < ASTAGE_PRE_COMMIT &&
-		    (commit_all_atoms || time_before_eq(atom->start_time, start_time))) {
-			spin_unlock_txnmgr(mgr);
-			LOCK_TXNH(txnh);
+		if (commit_all_atoms || time_before_eq(atom->start_time, start_time)) {
+			if (atom->stage <= ASTAGE_POST_COMMIT) { 
+				spin_unlock_txnmgr(mgr);
 
-			/* Add force-context txnh */
-			capture_assign_txnh_nolock(atom, txnh);
+				if (atom->stage < ASTAGE_PRE_COMMIT) {
+					LOCK_TXNH(txnh);
+					/* Add force-context txnh */
+					capture_assign_txnh_nolock(atom, txnh);
+					ret = force_commit_atom_nolock(txnh);
+					if(ret)
+						return ret;
+				} else
+					/* wait atom commit */
+					atom_wait_event(atom);
 
-			ret = force_commit_atom_nolock(txnh);
-			if(ret)
-				return ret;
-
-			goto again;
+				goto again;
+			}
 		}
 
 		UNLOCK_ATOM(atom);
