@@ -176,11 +176,13 @@ static inline int is_writeout_mode(void)
 
 static inline void writeout_mode_enable(void)
 {
+	assert("zam-941", !get_current_context()->writeout_mode);
 	get_current_context()->writeout_mode = 1;
 }
 
 static inline void writeout_mode_disable(void)
 {
+	assert("zam-942", get_current_context()->writeout_mode);
 	get_current_context()->writeout_mode = 0;
 }
 

@@ -937,7 +937,6 @@ failed:
 
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
-	writeout_mode_disable();
 	write_syscall_trace("ex");
 
 	leave_flush(sb);
@@ -1068,14 +1067,9 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		LOCK_JNODE(node);
 
 		if (skip_jnode(node)) {
-			/* ???? move to another list ???? */
-			(*atom)->nr_flushers --;
 			UNLOCK_JNODE(node);
 			UNLOCK_ATOM(*atom);
-			fq_put(fq);
-			preempt_point();
-			
-			return -EAGAIN;
+			goto submit;
 		}
 
 		assert ("zam-881", jnode_is_dirty(node));
@@ -1103,48 +1097,40 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 		UNLOCK_JNODE(node);
 	}
-
+	
 	if (node == NULL) {
 		if (nr_queued == 0) {
+			writeout_mode_disable();
 			(*atom)->nr_flushers --;
 			fq_put_nolock(fq);
 			/* current atom remains locked */
 			return 0;
 		}
-		ret = -EAGAIN;
 		UNLOCK_ATOM(*atom);
-
 	} else {
 		jref(node);
-
 		UNLOCK_ATOM(*atom);
 		UNLOCK_JNODE(node);
-
 		ret = jnode_flush(node, NULL, nr_submitted, fq, flags);
-
 		jput(node);
-
-		if (ret == 0)
-			ret = -EAGAIN;
 	}
 
-	{
-		int ret1;
-
-		flush_started_io();
-		trace_mark(flush);
-		ret1 = write_fq(fq, nr_submitted);
-		set_rapid_flush_mode(0);
-	}
-
-	fq_put(fq);
+ submit:
+	flush_started_io();
+	trace_mark(flush);
+	ret = write_fq(fq, nr_submitted);
+	set_rapid_flush_mode(0);
 
 	*atom = get_current_atom_locked();
 	(*atom)->nr_flushers --;
+	fq_put_nolock(fq);
 	UNLOCK_ATOM(*atom);
 
 	writeout_mode_disable();
 	write_syscall_trace("ex");
+
+	if (ret == 0)
+		ret = -EAGAIN;
 
 	return ret;
 }
