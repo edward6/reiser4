@@ -19,6 +19,7 @@
 #include <linux/fs.h>		/* for struct address_space */
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/mm.h>
+#include <linux/backing-dev.h>
 
 extern int reiser4_mark_inode_dirty(struct inode *object);
 extern int reiser4_update_sd(struct inode *object);
@@ -39,7 +40,29 @@ static inline int set_page_dirty_internal (struct page * page)
 {
 	if (REISER4_STATS && !PageDirty(page))
 		reiser4_stat_inc(pages_dirty);
-	return __set_page_dirty_nobuffers (page);
+
+	/* the below resembles __set_page_dirty_nobuffers except that it also clears REISER4_MOVED page tag */
+	if (!TestSetPageDirty(page)) {
+		struct address_space *mapping = page->mapping;
+
+		if (mapping) {
+			spin_lock_irq(&mapping->tree_lock);
+			if (page->mapping) {	/* Race with truncate? */
+				BUG_ON(page->mapping != mapping);
+				if (!mapping->backing_dev_info->memory_backed)
+					inc_page_state(nr_dirty);
+				radix_tree_tag_set(&mapping->page_tree,
+					page->index, PAGECACHE_TAG_DIRTY);
+				radix_tree_tag_clear(&mapping->page_tree,
+					page->index, PAGECACHE_TAG_REISER4_MOVED);
+			}
+			spin_unlock_irq(&mapping->tree_lock);
+			if (!PageSwapCache(page))
+				__mark_inode_dirty(mapping->host,
+							I_DIRTY_PAGES);
+		}
+	}
+	return 0;
 }
 
 extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
@@ -47,6 +70,7 @@ extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
 extern int reiser4_start_up_io(struct page *page);
 extern void move_inode_out_from_sync_inodes_loop(struct address_space * mapping);
+extern void reiser4_clear_page_dirty(struct page *);
 
 /*
  * this is used to speed up lookups for directory entry: on initial call to
