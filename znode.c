@@ -257,7 +257,8 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 
 	assert("nikita-795", tree != NULL);
 
-	trace_if(TRACE_ZWEB, UNDER_SPIN_VOID(tree, tree, print_znodes("umount", tree)));
+	trace_if(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
+					   print_znodes("umount", tree)));
 
 	ztable = &tree->zhash_table;
 

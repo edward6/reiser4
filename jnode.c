@@ -102,7 +102,8 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 
 	assert("nikita-2360", tree != NULL);
 
-	trace_if(TRACE_ZWEB, UNDER_SPIN_VOID(tree, tree, print_jnodes("umount", tree)));
+	trace_if(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
+					   print_jnodes("umount", tree)));
 
 	jtable = &tree->jhash_table;
 	do {
