@@ -3218,7 +3218,7 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode, in
 	/* If the node atom is in the FUSE_WAIT state then we should wait, except to
 	   avoid deadlock we still must fuse if the txnh atom is also in FUSE_WAIT. */
 	if (atomf->stage == ASTAGE_CAPTURE_WAIT && atomf->txnh_count != 0
-	    && atomh->stage != ASTAGE_CAPTURE_WAIT) 
+	    && atomh->stage != ASTAGE_CAPTURE_WAIT)
 	{
 		/* see comment in capture_assign_txnh() about the
 		 * "atomf->txnh_count != 0" condition. */
@@ -3707,6 +3707,7 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 
 	jref(node);
 	UNLOCK_JNODE(node);
+	assert("nikita-3475", schedulable());
 	copy = jclone(node);
 	if (IS_ERR(copy)) {
 		jput(node);
@@ -3731,25 +3732,13 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 
 	spin_unlock(&scan_lock);
 	UNLOCK_JNODE(node);
+	assert("nikita-3476", schedulable());
 	jput(copy);
+	assert("nikita-3477", schedulable());
 	jput(node);
+	assert("nikita-3478", schedulable());
 	ON_TRACE(TRACE_CAPTURE_COPY, "nopage\n");
 	return result;
-}
-
-static void check_coc(jnode * node, struct page * page)
-{
-	if (jnode_is_znode(node)) {
-		node40_header *nh;
-		znode *z;
-
-		z = JZNODE(node);
-		nh = (node40_header *)kmap(page);
-		/* this only works for node40-only file systems. For
-		 * debugging. */
-		assert("nikita-3253", z->nr_items == d16tocpu(&nh->nr_items));
-		kunmap(page);
-	}
 }
 
 static void
@@ -3765,13 +3754,95 @@ lock_two_nodes(jnode *node1, jnode *node2)
 }
 
 static int
+handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
+	   txn_atom *atom)
+{
+	char *to;
+	char *from;
+	int   result;
+
+	to = kmap(new_page);
+	lock_page(page);
+	from = kmap(page);
+	/*
+	 * FIXME(zam): one preloaded radix tree node may be not enough for two
+	 * insertions, one insertion is in replace_page_in_mapping(), another
+	 * one is in swap_jnode_pages(). The radix_tree_delete() call might
+	 * not help, because an empty radix tree node is freed and the node's
+	 * free space may not be re-used in insertion.
+	 */
+	radix_tree_preload(GFP_KERNEL);
+	lock_two_nodes(node, copy);
+	spin_lock(&scan_lock);
+	if (capturable(node, atom)) {
+		/* if node was jloaded by get_overwrite_set, we have to jrelse
+		   it here, because we remove jnode from atom's capture list -
+		   put_overwrite_set will not jrelse it */
+		int was_jloaded;
+
+		was_jloaded = JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
+					
+		replace_page_in_mapping(node, new_page);
+		swap_jnode_pages(node, copy, new_page);
+		replace_on_capture_list(node, copy);
+		/* statistics */
+		if (JF_ISSET(copy, JNODE_RELOC)) {
+			reiser4_stat_inc(coc.ok_reloc);
+		} else if (JF_ISSET(copy, JNODE_OVRWR)) {
+			reiser4_stat_inc(coc.ok_ovrwr);
+		} else
+			impossible("", "");
+
+		set_cced_bit(node);
+		memcpy(to, from, PAGE_CACHE_SIZE);
+		SetPageUptodate(new_page);
+		if (was_jloaded)
+			fake_jload(copy);
+		else
+			kunmap(page);
+					
+		assert("vs-1419", page_count(new_page) >= 3);
+		spin_unlock(&scan_lock);
+		UNLOCK_JNODE(node);
+		UNLOCK_JNODE(copy);
+		radix_tree_preload_end();
+		unlock_page(page);
+
+		if (was_jloaded) {
+			jrelse_tail(node);
+			assert("vs-1494", JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET));
+			JF_CLR(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
+		} else
+			kunmap(new_page);
+
+		jput(copy);
+		jrelse(node);
+		jput(node);
+		page_cache_release(page);
+		page_cache_release(new_page);
+		ON_TRACE(TRACE_CAPTURE_COPY, "copy on capture done\n");
+		result = 0;
+	} else {
+		spin_unlock(&scan_lock);
+		UNLOCK_JNODE(node);
+		UNLOCK_JNODE(copy);
+		radix_tree_preload_end();
+		kunmap(page);
+		unlock_page(page);
+		kunmap(new_page);
+		page_cache_release(new_page);
+		result = RETERR(-E_REPEAT);
+	}
+	return result;
+}
+
+static int
 real_copy_on_capture(jnode *node, txn_atom *atom)
 {
 	int result;
 	jnode *copy;
 	struct page *page;
 	struct page *new_page;
-	char *to, *from;
 
 	assert("vs-1432", spin_jnode_is_locked(node));
 	assert("vs-1490", !JF_ISSET(node, JNODE_EFLUSH));
@@ -3790,85 +3861,10 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 		if (likely(!IS_ERR(copy))) {
 			new_page = alloc_page(GFP_KERNEL);
 			if (new_page) {
-				to = kmap(new_page);
-				lock_page(page);
-				from = kmap(page);
-				/* FIXME(zam): one preloaded radix tree node may
-				 * be not enough for two insertions, one
-				 * insertion is in replace_page_in_mapping(),
-				 * another one is in swap_jnode_pages(). The
-				 * radix_tree_delete() call might not help,
-				 * because an empty radix tree node is freed and
-				 * the node's free space may not be re-used in
-				 * insertion. */
-				radix_tree_preload(GFP_KERNEL);
-				lock_two_nodes(node, copy);
-				/*LOCK_JNODE(node);*/
-				spin_lock(&scan_lock);
-				if (capturable(node, atom)) {
-					/* if node was jloaded by
-					   get_overwrite_set, we have to jrelse
-					   it here, because we remove jnode from
-					   atom's capture list -
-					   put_overwrite_set will not jrelse
-					   it */
-					int was_jloaded;
-					check_coc(node, page);
-
-					was_jloaded = JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
-					
-					replace_page_in_mapping(node, new_page);
-					swap_jnode_pages(node, copy, new_page);
-					replace_on_capture_list(node, copy);
-					/* statistics */
-					if (JF_ISSET(copy, JNODE_RELOC)) {
-						reiser4_stat_inc(coc.ok_reloc);
-					} else if (JF_ISSET(copy, JNODE_OVRWR)) {
-						reiser4_stat_inc(coc.ok_ovrwr);
-					} else
-						impossible("", "");
-
-					set_cced_bit(node);
-					memcpy(to, from, PAGE_CACHE_SIZE);
-					SetPageUptodate(new_page);
-					if (was_jloaded)
-						fake_jload(copy);
-					else
-						kunmap(page);
-					
-					assert("vs-1419", page_count(new_page) >= 3);
-					spin_unlock(&scan_lock);
-					UNLOCK_JNODE(node);
-					UNLOCK_JNODE(copy);
-					unlock_page(page);
-
-					if (was_jloaded) {
-						jrelse_tail(node);
-						assert("vs-1494", JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET));
-						JF_CLR(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
-					} else
-						kunmap(new_page);
-
-					jput(copy);
-					jrelse(node);
-					jput(node);
-					page_cache_release(page);
-					page_cache_release(new_page);
-					check_coc(node, new_page);
-					ON_TRACE(TRACE_CAPTURE_COPY, "copy on capture done\n");
+				result = handle_coc(node,
+						    copy, page, new_page, atom);
+				if (result == 0)
 					return 0;
-					
-				} else
-					result = RETERR(-E_REPEAT);
-
-				spin_unlock(&scan_lock);
-				UNLOCK_JNODE(node);
-				UNLOCK_JNODE(copy);
-				radix_tree_preload_end();
-				kunmap(page);
-				unlock_page(page);
-				kunmap(new_page);
-				page_cache_release(new_page);			
 			} else
 				result = RETERR(-ENOMEM);
 			jput(copy);
@@ -3953,6 +3949,8 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 		atomic_inc(&atomf->refcount);
 		UNLOCK_ATOM(atomf);
 		result = create_copy_and_replace(node, atomf);
+		assert("nikita-3474", schedulable());
+		preempt_point();
 		LOCK_ATOM(atomf);
 		atom_dec_and_unlock(atomf);
 		preempt_point();
