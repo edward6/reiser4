@@ -194,6 +194,7 @@ static int replace (struct inode * inode, struct page ** pages, int nr_pages,
 	int result;
 	int i;
 	unsigned to_page;
+	STORE_COUNTERS;
 
 	assert ("vs-596", nr_pages > 0 && pages [0]);
 
@@ -203,6 +204,8 @@ static int replace (struct inode * inode, struct page ** pages, int nr_pages,
 	if (result) {
 		return result;
 	}
+
+	CHECK_COUNTERS;
 
 	/* put into tree replacement for just removed items: extent item,
 	 * namely */

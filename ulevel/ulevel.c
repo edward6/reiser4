@@ -3729,8 +3729,6 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	mounted = 0;
 
-	INIT_LIST_HEAD( &inode_hash_list );
-	INIT_LIST_HEAD( &page_list );
 	set_current ();
 	/* module_init () -> reiser4_init () -> register_filesystem */
 	run_init_reiser4 ();
@@ -4508,13 +4506,21 @@ int real_main( int argc, char **argv )
 	}
 
 
+	INIT_LIST_HEAD( &inode_hash_list );
+	INIT_LIST_HEAD( &page_list );
+
 	/*
 	 * FIXME-VS: will be fixed
 	 */
 	if (argc == 2 && !strcmp (argv[1], "sh")) {
 		bash_test (argc, argv, 0);
 	}
-
+	if( getenv( "REISER4_MOUNT" ) != NULL ) {
+		set_current ();
+		run_init_reiser4 ();
+		call_mount( getenv( "REISER4_MOUNT" ), 
+			    getenv( "REISER4_MOUNT_OPTS" ) );
+	}
 
 	root_block = 3ull;
 	tree_height = 1;
@@ -4617,8 +4623,6 @@ int real_main( int argc, char **argv )
 		txn_init_static();
 		sys_rand_init();
 		txn_mgr_init( &get_super_private (&super) -> tmgr );
-		INIT_LIST_HEAD( &inode_hash_list );
-		INIT_LIST_HEAD( &page_list );
 		init_formatted_fake( &super );
 		
 		root_dentry.d_inode = NULL;

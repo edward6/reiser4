@@ -1373,6 +1373,7 @@ int cut_tree (reiser4_tree * tree,
 	lock_handle lock_handle;
 	int result;
 	znode * loaded;
+	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
 	assert("umka-330", from_key != NULL);
@@ -1454,6 +1455,7 @@ int cut_tree (reiser4_tree * tree,
 	} while (keygt (&smallest_removed, from_key));
 
 
+	CHECK_COUNTERS;
 	return result;
 }
 

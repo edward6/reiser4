@@ -1363,6 +1363,7 @@ capture_assign_block_nolock (txn_atom *atom,
 
 	atom->capture_count += 1;
 	jref (node);
+	ON_DEBUG (++ lock_counters() -> t_refs);
 
 	trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);
 }
@@ -1464,7 +1465,9 @@ void jnode_set_clean( jnode *node )
 	spin_unlock_atom (atom);
 
 	spin_unlock_jnode (node);
-	WITH_DATA (node, current_tree->ops->clean_node (current_tree, node));
+	if (! JF_ISSET (node, ZNODE_UNFORMATTED))
+		WITH_DATA (JZNODE (node), 
+			   current_tree->ops->clean_node (current_tree, node));
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If

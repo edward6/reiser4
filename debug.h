@@ -104,6 +104,7 @@ typedef struct lock_counters_info {
 
 	int                   d_refs;
 	int                   x_refs;
+	int                   t_refs;
 } lock_counters_info;
 
 extern lock_counters_info *lock_counters(void);
