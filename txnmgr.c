@@ -309,7 +309,7 @@ jnode_of_page (struct page* pg)
 	jnode *jal = NULL;
 	
 	assert("umka-176", pg != NULL);
-	assert("umka-282", !spin_is_locked(&_kone_ptr_lock));
+	assert("umka-282", !spin_is_locked(&_jnode_ptr_lock));
 	
  again:
 	spin_lock (& _jnode_ptr_lock);
