@@ -759,12 +759,11 @@ static int len_for( reiser4_plugin *plugin /* plugin to save */,
 		    struct inode *inode /* object being processed */, int len )
 {
 	assert( "nikita-661", inode != NULL );
-	assert( "nikita-662", plugin != NULL );
 
-	if( reiser4_inode_data( inode ) -> plugin_mask & 
-	    ( 1 << ( plugin -> h.type_id ) ) ) {
+	if( plugin && ( reiser4_inode_data( inode ) -> plugin_mask & 
+			( 1 << ( plugin -> h.type_id ) ) ) ) {
 		len += sizeof( reiser4_plugin_slot );
-		if( plugin -> h.pops -> save_len != NULL ) {
+		if( plugin -> h.pops && plugin -> h.pops -> save_len != NULL ) {
 			/* non-standard plugin, call method */
 			len = round_up( len, plugin -> h.pops -> alignment );
 			len += plugin -> h.pops -> save_len( inode, plugin );
@@ -811,6 +810,7 @@ static int save_plug( reiser4_plugin *plugin /* plugin to save */,
 {
 	reiser4_plugin_slot *slot;
 	int                  fake_len;
+	int                  result;
 
 	assert( "nikita-665", inode != NULL );
 	assert( "nikita-666", area != NULL );
@@ -825,12 +825,14 @@ static int save_plug( reiser4_plugin *plugin /* plugin to save */,
 	cputod16( ( unsigned ) plugin -> h.id, &slot -> id );
 	fake_len = ( int ) 0xffff;
 	next_stat( &fake_len, area, sizeof *slot );
-	align( inode, &fake_len, area, plugin -> h.pops -> alignment );
 	++ *count;
-	if( plugin -> h.pops -> save != NULL )
-		return plugin -> h.pops -> save( inode, plugin, area );
-	else
-		return 0;
+	result = 0;
+	if( plugin -> h.pops != NULL ) {
+		align( inode, &fake_len, area, plugin -> h.pops -> alignment );
+		if( plugin -> h.pops -> save != NULL )
+			result = plugin -> h.pops -> save( inode, plugin, area );
+	}
+	return result;
 }
 
 /** save state of all non-standard plugins associated with inode */
