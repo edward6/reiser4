@@ -26,7 +26,6 @@
 /* see internal.h for explanation */
 
 /* plugin->u.item.b.mergeable */
-/* Audited by: green(2002.06.14) */
 int internal_mergeable (const coord_t * p1 UNUSED_ARG /* first item */,
 			const coord_t * p2 UNUSED_ARG /* second item */)
 {
@@ -35,7 +34,6 @@ int internal_mergeable (const coord_t * p1 UNUSED_ARG /* first item */,
 }
 
 /* ->lookup() method for internal items */
-/* Audited by: green(2002.06.14) */
 lookup_result internal_lookup (const reiser4_key *key /* key to look up */, 
 			       lookup_bias bias UNUSED_ARG /* lookup bias */,
 			       coord_t *coord /* coord of item */ )
@@ -59,7 +57,6 @@ lookup_result internal_lookup (const reiser4_key *key /* key to look up */,
 }
 
 /** return body of internal item at @coord */
-/* Audited by: green(2002.06.14) */
 static internal_item_layout *internal_at( const coord_t *coord /* coord of
 								   * item */ )
 {
@@ -77,7 +74,6 @@ void internal_update (const coord_t *coord, reiser4_block_nr blocknr)
 }
 
 /** return child block number stored in the internal item at @coord */
-/* Audited by: green(2002.06.14) */
 static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
 {
 	assert( "nikita-608", coord != NULL );
@@ -85,7 +81,6 @@ static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
 }
 
 /** get znode pointed to by internal @item */
-/* Audited by: green(2002.06.14) */
 static znode *znode_at( const coord_t *item /* coord of item */, 
 			znode *parent /* parent node */, int incore_p )
 {
@@ -96,7 +91,6 @@ static znode *znode_at( const coord_t *item /* coord of item */,
 
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
-/* Audited by: green(2002.06.14) */
 void internal_down_link( const coord_t *coord /* coord of item */, 
 			 const reiser4_key *key UNUSED_ARG /* key to get
 							    * pointer for */, 
@@ -118,7 +112,6 @@ void internal_down_link( const coord_t *coord /* coord of item */,
 /**
  * Get the child's block number, or 0 if the block is unallocated.
  */
-/* Audited by: green(2002.06.14) */
 int internal_utmost_child_real_block ( const coord_t  *coord,
 				       sideof             side UNUSED_ARG,
 				       reiser4_block_nr  *block )
@@ -137,7 +130,6 @@ int internal_utmost_child_real_block ( const coord_t  *coord,
 /**
  * Return the child.
  */
-/* Audited by: green(2002.06.14) */
 int internal_utmost_child ( const coord_t  *coord,
 			    sideof             side UNUSED_ARG,
 			    jnode            **childp )
@@ -193,7 +185,6 @@ int internal_has_pointer_to( const coord_t *coord /* coord of item */,
  * parent pointer in child znode, insert child into sibling list and slum.
  *
  */
-/* Audited by: green(2002.06.14) */
 int internal_create_hook( const coord_t *item /* coord of item */, 
 			  void *arg /* child's left neighbor, if any */ )
 {
@@ -252,7 +243,6 @@ int internal_create_hook( const coord_t *item /* coord of item */,
  *
  *
  */
-/* Audited by: green(2002.06.14) */
 int internal_kill_hook( const coord_t *item /* coord of item */, 
 			unsigned from UNUSED_ARG /* start unit */, 
 			unsigned count UNUSED_ARG /* stop unit */, 
@@ -298,7 +288,6 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
  * Update parent pointer in child and c_counts in old and new parent
  *
  */
-/* Audited by: green(2002.06.14) */
 int internal_shift_hook( const coord_t *item /* coord of item */, 
 			 unsigned from UNUSED_ARG /* start unit */, 
 			 unsigned count UNUSED_ARG /* stop unit */, 

@@ -142,7 +142,6 @@ jnode_done_static (void)
 }
 
 /* Initialize a jnode. */
-/* Audited by: umka (2002.06.13) */
 void
 jnode_init (jnode *node, reiser4_tree *tree)
 {
@@ -386,7 +385,6 @@ const reiser4_block_nr *jnode_get_block( const jnode *node /* jnode to
 	return & node -> blocknr;
 }
 
-/* Audited by: umka (2002.06.15) */
 void jnode_attach_page( jnode *node, struct page *pg )
 {
 	assert( "nikita-2060", node != NULL );
@@ -492,7 +490,6 @@ struct page *jnode_lock_page( jnode *node )
 }
 
 /** bump data counter on @node */
-/* Audited by: umka (2002.06.11) */
 void add_d_ref( jnode *node /* node to increase d_count of */ )
 {
 	assert( "nikita-1962", node != NULL );
@@ -1274,7 +1271,6 @@ const char *jnode_type_name( jnode_type type )
 	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
 
 /** debugging aid: output human readable information about @node */
-/* Audited by: umka (2002.06.11) */
 void info_jnode( const char *prefix /* prefix to print */, 
 		 const jnode *node /* node to print */ )
 {

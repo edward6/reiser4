@@ -354,7 +354,6 @@ static int reiser4_getattr( struct vfsmount *mnt UNUSED_ARG,
 
 
 /** ->read() VFS method in reiser4 file_operations */
-/* Audited by: umka (2002.06.12) */
 static ssize_t reiser4_read( struct file *file /* file to read from */,
 			     char *buf /* user-space buffer to put data read
 					* from the file */, 
@@ -391,7 +390,6 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 }
 
 /** ->write() VFS method in reiser4 file_operations */
-/* Audited by: umka (2002.06.12) */
 static ssize_t reiser4_write( struct file *file /* file to write on */,
 			      const char *buf /* user-space buffer to get data
 					       * to write on the file */, 
@@ -429,7 +427,6 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 }
 
 /** ->truncate() VFS method in reiser4 inode_operations */
-/* Audited by: umka (2002.06.12) */
 static void reiser4_truncate( struct inode *inode /* inode to truncate */)
 {
 	__REISER4_ENTRY( inode -> i_sb, );
@@ -527,7 +524,6 @@ static int reiser4_statfs( struct super_block *super /* super block of file
  */
 
 /** ->writepage() VFS method in reiser4 address_space_operations */
-/* Audited by: umka (2002.06.12) */
 static int reiser4_writepage( struct page *page )
 {	
 	int result;
@@ -851,7 +847,6 @@ static int reiser4_mmap (struct file * file, struct vm_area_struct * vma)
 }
 
 
-/* Audited by: umka (2002.06.12) */
 static int unlink_file( struct inode *parent /* parent directory */, 
 			struct dentry *victim /* name of object being
 					       * unlinked */ )
@@ -924,7 +919,6 @@ static int reiser4_rmdir( struct inode *parent /* parent directory */,
 }
 
 /** ->permission() method in reiser4_inode_operations. */
-/* Audited by: umka (2002.06.12) */
 static int reiser4_permission( struct inode *inode /* object */, 
 			       int mask /* mode bits to check permissions
 					 * for */ )
@@ -1000,7 +994,6 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */,
  *
  * Used by unlink/create
  */
-/* Audited by: umka (2002.06.12) */
 int reiser4_del_nlink( struct inode *object /* object from which link is
 					     * removed */,
 		       struct inode *parent /* parent where entry was */,
@@ -1025,7 +1018,6 @@ int reiser4_del_nlink( struct inode *object /* object from which link is
 }
 
 /** call ->create() directory plugin method. */
-/* Audited by: umka (2002.06.12) */
 static int invoke_create_method( struct inode *parent /* parent directory */, 
 				 struct dentry *dentry /* dentry of new
 							* object */, 
@@ -1070,7 +1062,6 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 }
 
 /** helper function: call object plugin to truncate file to @size */
-/* Audited by: umka (2002.06.12) */
 int truncate_object( struct inode *inode /* object to truncate */, 
 		     loff_t size /* size to truncate object to */ )
 {
@@ -1147,7 +1138,6 @@ static void reiser4_d_release( struct dentry *dentry /* dentry released */ )
  * Return and lazily allocate if necessary per-file data that we attach
  * to each struct file.
  */
-/* Audited by: umka (2002.06.12) */
 reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 							      * queried */ )
 {
@@ -1196,7 +1186,6 @@ static const char *tail_status( const struct inode *inode )
 
 /** Release reiser4 file. This is f_op->release() method. Called when last
  * holder closes a file */
-/* Audited by: umka (2002.06.12) */
 static int reiser4_release( struct inode *i /* inode released */,
 			    struct file *f /* file released */ )
 {
@@ -1241,7 +1230,6 @@ static kmem_cache_t *inode_cache;
  * initalisation function passed to the kmem_cache_create() to init new pages
  * grabbed by our inodecache.
  */
-/* Audited by: umka (2002.06.12) */
 static void init_once( void *obj /* pointer to new inode */, 
 		       kmem_cache_t *cache UNUSED_ARG /* slab cache */,
 		       unsigned long flags /* cache flags */ )
@@ -1267,7 +1255,6 @@ static void init_once( void *obj /* pointer to new inode */,
 }
 
 /** initialise slab cache where reiser4 inodes will live */
-/* Audited by: umka (2002.06.12) */
 int init_inodecache( void )
 {
 	inode_cache = kmem_cache_create( "reiser4_inode_cache", 
@@ -1324,7 +1311,6 @@ reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super block new
 }
 
 /** ->destroy_inode() super operation: recycle inode */
-/* Audited by: umka (2002.06.12) */
 static void reiser4_destroy_inode( struct inode *inode /* inode being
 							* destroyed */ )
 {

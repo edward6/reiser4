@@ -62,7 +62,6 @@ item_plugin *item_plugin_by_coord( const coord_t *coord /* coord to query */ )
 }
 
 /** return type of item at @coord */
-/* Audited by: green(2002.06.15) */
 item_type_id item_type_by_coord( const coord_t *coord /* coord to query */ )
 {
 	assert( "nikita-333", coord != NULL );
@@ -105,7 +104,6 @@ reiser4_key *item_key_by_coord( const coord_t *coord /* coord to query */,
 }
 
 /** return key of unit at @coord */
-/* Audited by: green(2002.06.15) */
 reiser4_key *unit_key_by_coord( const coord_t *coord /* coord to query */, 
 				reiser4_key *key /* result */ )
 {
@@ -124,7 +122,6 @@ reiser4_key *unit_key_by_coord( const coord_t *coord /* coord to query */,
 
 /** ->max_key_inside() method for items consisting of exactly one key (like
     stat-data) */
-/* Audited by: green(2002.06.14) */
 static reiser4_key *single_key( const coord_t *coord /* coord of item */, 
 				reiser4_key *result /* resulting key */ )
 {
@@ -136,7 +133,6 @@ static reiser4_key *single_key( const coord_t *coord /* coord of item */,
 }
 
 /** ->nr_units() method for items consisting of exactly one unit always */
-/* Audited by: green(2002.06.14) */
 static unsigned int single_unit( const coord_t *coord UNUSED_ARG /* coord
 								       of
 								       item */ )
@@ -150,7 +146,6 @@ int agree_to_fast_op( const coord_t *coord UNUSED_ARG /* coord of item */ )
 	return 1;
 }
 
-/* Audited by: green(2002.06.14) */
 int item_can_contain_key( const coord_t *item /* coord of item */, 
 			  const reiser4_key *key /* key to check */,
 			  const reiser4_item_data *data /* parameters of item
@@ -183,7 +178,6 @@ int item_can_contain_key( const coord_t *item /* coord of item */,
 }
 
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
-/* Audited by: green(2002.06.14) */
 int are_items_mergeable( const coord_t *i1 /* coord of first item */, 
 			 const coord_t *i2 /* coord of second item */ )
 {
@@ -230,7 +224,6 @@ int are_items_mergeable( const coord_t *i1 /* coord of first item */,
 	}
 }
 
-/* Audited by: green(2002.06.14) */
 int item_is_extent (const coord_t *item)
 {
 	assert ("vs-482", coord_is_existing_item (item));
@@ -244,7 +237,6 @@ int item_is_tail (const coord_t *item)
 }
 
 /* this returns true if item is of internal type */
-/* Audited by: green(2002.06.14) */
 int item_is_internal (const coord_t *item)
 {
 	assert ("vs-483", coord_is_existing_item (item));
@@ -252,7 +244,6 @@ int item_is_internal (const coord_t *item)
 }
 
 
-/* Audited by: green(2002.06.14) */
 int item_is_statdata (const coord_t *item)
 {
 	assert ("vs-516", coord_is_existing_item (item));

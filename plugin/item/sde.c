@@ -23,7 +23,6 @@
 #include <linux/quotaops.h>
 
 #if REISER4_DEBUG_OUTPUT
-/* Audited by: green(2002.06.14) */
 void de_print( const char *prefix /* prefix to print */, 
 	       coord_t *coord /* item to print */ )
 {
@@ -50,7 +49,6 @@ void de_print( const char *prefix /* prefix to print */,
 /**
  * ->extract_key() method of simple directory item plugin.
  */
-/* Audited by: green(2002.06.14) */
 int de_extract_key( const coord_t *coord /* coord of item */,
 		    reiser4_key *key /* resulting key */ )
 {
@@ -87,7 +85,6 @@ int de_update_key( const coord_t *coord,
 /**
  * ->extract_name() method of simple directory item plugin.
  */
-/* Audited by: green(2002.06.14) */
 char *de_extract_name( const coord_t *coord /* coord of item */ )
 {
 	directory_entry_format *dent;
@@ -115,7 +112,6 @@ unsigned de_extract_file_type( const coord_t *coord UNUSED_ARG /* coord of
 	return DT_UNKNOWN;
 }
 
-/* Audited by: green(2002.06.14) */
 int de_add_entry( struct inode *dir /* directory of item */, 
 		  coord_t *coord /* coord of item */, 
 		  lock_handle *lh /* insertion lock handle */, 
@@ -188,7 +184,6 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 	return result;
 }
 
-/* Audited by: green(2002.06.14) */
 int de_max_name_len( const struct inode *dir )
 {
 	return 

@@ -35,7 +35,6 @@ static const oid_t ABSOLUTE_MIN_OID = ( oid_t )  0;
  * plugin->u.oid_allocator.read_oid_allocator
  * Initialise object id allocator
  */
-/* Audited by: green(2002.06.12) */
 int oid40_read_allocator( reiser4_oid_allocator *map, __u64 nr_files, __u64 oids )
 {
 	assert( "nikita-1977", map != NULL );
@@ -47,8 +46,6 @@ int oid40_read_allocator( reiser4_oid_allocator *map, __u64 nr_files, __u64 oids
 }
 
 /** helper function: spin lock allocator */
-/* Audited by: green(2002.06.12) */
-/* AUDIT: this kind of function name seems to be not very nice */
 static void lock( reiser4_oid_allocator *map )
 {
 	assert( "nikita-1978", map != NULL );
@@ -56,8 +53,6 @@ static void lock( reiser4_oid_allocator *map )
 }
 
 /** helper function: spin unlock allocator */
-/* Audited by: green(2002.06.12) */
-/* AUDIT: this kind of function name seems to be not very nice */
 static void unlock( reiser4_oid_allocator *map )
 {
 	assert( "nikita-1979", map != NULL );
@@ -68,7 +63,6 @@ static void unlock( reiser4_oid_allocator *map )
  * plugin->u.oid_allocator.oids_free
  * number of oids available for use by users
  */
-/* Audited by: green(2002.06.12) */
 __u64 oid40_free( reiser4_oid_allocator *map )
 {
 	__u64 result;
@@ -101,7 +95,6 @@ __u64 oid40_next_oid( reiser4_oid_allocator *map)
  * plugin->u.oid_allocator.oids_used
  * return number of user-visible oids already allocated in this map
  */
-/* Audited by: green(2002.06.12) */
 __u64 oid40_used( reiser4_oid_allocator *map )
 {
 	__u64 result;
@@ -119,7 +112,6 @@ __u64 oid40_used( reiser4_oid_allocator *map )
  * allocate new objectid in "map" and store it in "result". Return 0
  * on success, negative error code on failure.
  */
-/* Audited by: green(2002.06.12) */
 int oid40_allocate( reiser4_oid_allocator *map, oid_t *result )
 {
 	assert( "nikita-1982", map != NULL );
@@ -138,7 +130,6 @@ int oid40_allocate( reiser4_oid_allocator *map, oid_t *result )
  * plugin->u.oid_allocator.allocate_oid
  * release object id back to "map".
  */
-/* Audited by: green(2002.06.12) */
 /* This never actually marks oid as free, oid "map" is 64 bits and right now
    there is assumption that counter would never overflow */
 int oid40_release( reiser4_oid_allocator *map, oid_t oid UNUSED_ARG )
@@ -158,7 +149,6 @@ int oid40_release( reiser4_oid_allocator *map, oid_t oid UNUSED_ARG )
  * plugin->u.oid_allocator.reserve_allocate
  * how many pages to reserve in transaction for allocation of new objectid
  */
-/* Audited by: green(2002.06.12) */
 /* This currently assumes that PAGE_SIZE equals blocksize */
 int oid40_reserve_allocate( reiser4_oid_allocator *map UNUSED_ARG )
 {
@@ -169,7 +159,6 @@ int oid40_reserve_allocate( reiser4_oid_allocator *map UNUSED_ARG )
  * plugin->u.oid_allocator.reserve_release
  * how many pages to reserve in transaction for freeing of an objectid
  */
-/* Audited by: green(2002.06.12) */
 /* This currently assumes that PAGE_SIZE equals blocksize */
 int oid40_reserve_release( reiser4_oid_allocator *map UNUSED_ARG )
 {
@@ -177,7 +166,6 @@ int oid40_reserve_release( reiser4_oid_allocator *map UNUSED_ARG )
 }
 
 /* plugin->u.oid_allocator.print_info */
-/* Audited by: green(2002.06.12) */
 void oid40_print_info (const char * prefix, reiser4_oid_allocator *map)
 {
 	lock (map);

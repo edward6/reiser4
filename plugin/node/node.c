@@ -63,7 +63,6 @@
 /**
  * return starting key of the leftmost item in the @node
  */
-/* Audited by: green(2002.06.12) */
 reiser4_key *leftmost_key_in_node( const znode *node /* node to query */, 
 				   reiser4_key *key /* resulting key */ )
 {
@@ -105,7 +104,6 @@ void indent (unsigned indentation)
 
 /** helper function used to indent output for @node during recursive tree
  * printing */
-/* Audited by: green(2002.06.12) */
 void indent_znode( const znode *node /* current node */ )
 {
 	if( znode_get_tree( node ) -> height < znode_get_level( node ) )

@@ -235,7 +235,6 @@ int znodes_done()
 }
 
 /** call this to initialise tree of znodes */
-/* Audited by: umka (2002.06.11) */
 int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 {
 	assert( "umka-050", tree != NULL );
@@ -247,7 +246,6 @@ int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 }
 
 /** free this znode */
-/* Audited by: umka (2002.06.11) */
 void zfree( znode *node /* znode to free */ )
 {
 	trace_stamp( TRACE_ZNODES );
@@ -268,7 +266,6 @@ void zfree( znode *node /* znode to free */ )
 }
 
 /** call this to free tree of znodes */
-/* Audited by: umka (2002.06.11) */
 void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 {
 	znode        *node;
@@ -326,7 +323,6 @@ static znode *zalloc( int gfp_flag /* allocation flag */ )
 }
 
 /** initialise fields of znode */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 static void zinit( znode *node /* znode to initialise */, 
 		   znode *parent /* parent znode */,
 		   reiser4_tree *tree /* tree we are in */ )
@@ -392,7 +388,6 @@ void zdrop( znode *node /* znode to finish with */ )
 }
 
 /** put znode into right place in the hash table */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int znode_rehash( znode *node /* node to rehash */, 
 		  const reiser4_block_nr *new_block_nr /* new block number */ )
 {
@@ -433,7 +428,6 @@ int znode_rehash( znode *node /* node to rehash */,
  * accepts pre-computed hash index.  The hash table is accessed under caller's
  * tree->hash_lock.
  */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 znode*
 zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 {
@@ -462,7 +456,6 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 }
 
 /** bump reference counter on @node */
-/* Audited by: umka (2002.06.11) */
 void add_x_ref( jnode *node /* node to increase x_count of */ )
 {
 	assert( "nikita-1911", node != NULL );
@@ -491,7 +484,6 @@ void del_c_ref( znode *node /* node to decrease c_count of */ )
  * LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
  * LOCK ORDERING: NONE
  */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 znode*
 zget (reiser4_tree *tree,
       const reiser4_block_nr *const blocknr,
@@ -645,7 +637,6 @@ zget (reiser4_tree *tree,
  * "guess" plugin for node loaded from the disk. Plugin id of node plugin is
  * stored at the fixed offset from the beginning of the node.
  */
-/* Audited by: umka (2002.06.11) */
 static node_plugin *znode_guess_plugin( const znode *node /* znode to guess
 							   * plugin of */)
 {
@@ -721,7 +712,6 @@ int zload( znode *node /* znode to load */ )
 }
 
 /** call node plugin to initialise newly allocated node. */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int zinit_new( znode *node /* znode to initialise */ )
 {
 	return jinit_new( ZJNODE( node ) );
@@ -740,7 +730,6 @@ void zrelse( znode *node /* znode to release references to */ )
 }
 
 /** size of data in znode */
-/* Audited by: umka (2002.06.11) */
 unsigned znode_size( const znode *node UNUSED_ARG /* znode to query */ )
 {
 	assert( "nikita-1416", node != NULL );
@@ -756,7 +745,6 @@ unsigned znode_free_space( znode *node /* znode to query */ )
 }
 
 /** return non-0 iff data are loaded into znode */
-/* Audited by: umka (2002.06.11) */
 int znode_is_loaded( const znode *node /* znode to query */ )
 {
 	assert( "nikita-497", node != NULL );
@@ -764,7 +752,6 @@ int znode_is_loaded( const znode *node /* znode to query */ )
 }
 
 /** left delimiting key of znode */
-/* Audited by: umka (2002.06.11) */
 reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-958", node != NULL );
@@ -774,7 +761,6 @@ reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 }
 
 /** right delimiting key of znode */
-/* Audited by: umka (2002.06.11) */
 reiser4_key *znode_get_ld_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-974", node != NULL );
@@ -799,7 +785,6 @@ int znode_contains_key( znode *node /* znode to look in */,
 }
 
 /** same as znode_contains_key(), but lock dk lock */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int znode_contains_key_lock( znode *node /* znode to look in */, 
 			     const reiser4_key *key /* key to look for */ )
 {
@@ -812,7 +797,6 @@ int znode_contains_key_lock( znode *node /* znode to look in */,
 }
 
 /** get parent pointer, assuming tree is not locked */
-/* Audited by: umka (2002.06.11) */
 znode *znode_parent_nolock( const znode *node /* child znode */ )
 {
 	assert( "nikita-1444", node != NULL );
@@ -820,7 +804,6 @@ znode *znode_parent_nolock( const znode *node /* child znode */ )
 }
 
 /** get parent pointer of znode */
-/* Audited by: umka (2002.06.11) */
 znode *znode_parent( const znode *node /* child znode */ )
 {
 	assert( "nikita-1226", node != NULL );
@@ -841,7 +824,6 @@ int znode_above_root (const znode *node /* znode to query */ )
 /** 
  * check that @node is root---that its block number is recorder in the tree as
  * that of root node */
-/* Audited by: umka (2002.06.11) */
 int znode_is_true_root( const znode *node /* znode to query */ )
 {
 	assert( "umka-060", node != NULL );
@@ -852,7 +834,6 @@ int znode_is_true_root( const znode *node /* znode to query */ )
 }
 
 /** check that @node is root */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int znode_is_root( const znode *node /* znode to query */ )
 {
 	int result;
@@ -980,7 +961,6 @@ void move_load_count( load_count *new, load_count *old )
 }
 
 /** debugging aid: znode invariant */
-/* Audited by: umka (2002.06.11) */
 static int znode_invariant_f( const znode *node /* znode to check */, 
 			      char const **msg /* where to store error
 						* message, if any */ )
@@ -1037,7 +1017,6 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 }
 
 /** debugging aid: check znode invariant and panic if it doesn't hold */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int znode_invariant( const znode *node /* znode to check */ )
 {
 	char const *failed_msg;
@@ -1059,7 +1038,6 @@ int znode_invariant( const znode *node /* znode to check */ )
 }
 
 #if REISER4_DEBUG_MODIFY
-/* Audited by: umka (2002.06.11) */
 __u32 znode_checksum( const znode *node )
 {
 	int i, size = znode_size( node );
@@ -1079,7 +1057,6 @@ __u32 znode_checksum( const znode *node )
 	return (h << 16) | (l & 0xffff);
 }
 
-/* Audited by: umka (2002.06.11) */
 int znode_pre_write( znode *node )
 {
 	assert( "umka-066", node != NULL );
@@ -1094,7 +1071,6 @@ int znode_pre_write( znode *node )
 	return 0;
 }
 
-/* Audited by: umka (2002.06.11) */
 int znode_post_write( const znode *node )
 {
 	__u32 cksum;
@@ -1141,7 +1117,6 @@ const char *lock_mode_name( znode_lock_mode lock /* lock mode to get name of */ 
 
 /** debugging aid: output more human readable information about @node that
  * info_znode(). */
-/* Audited by: umka (2002.06.11) */
 void print_znode( const char *prefix /* prefix to print */, 
 		  const znode *node /* node to print */ )
 {
@@ -1164,7 +1139,6 @@ void print_znode( const char *prefix /* prefix to print */,
 }
 
 /** debugging aid: output human readable information about @node */
-/* Audited by: umka (2002.06.11) */
 void info_znode( const char *prefix /* prefix to print */, 
 		 const znode *node /* node to print */)
 {

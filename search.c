@@ -44,7 +44,6 @@ static void cbk_cache_init_slot( cbk_cache_slot *slot )
 }
 
 /** Initialise coord cache */
-/* Audited by: green(2002.06.15) */
 int cbk_cache_init( cbk_cache *cache /* cache to init */ )
 {
 	int i;
@@ -168,7 +167,6 @@ static int cbk_cache_invariant( const cbk_cache *cache )
 /**
  * Remove references, if any, to @node from coord cache
  */
-/* Audited by: green(2002.06.15) */
 void cbk_cache_invalidate( const znode *node /* node to remove from cache */,
 			   reiser4_tree *tree /* tree to remove node from */ )
 {
@@ -199,7 +197,6 @@ void cbk_cache_invalidate( const znode *node /* node to remove from cache */,
 
 /** add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
-/* Audited by: green(2002.06.15) */
 void cbk_cache_add( const znode *node /* node to add to the cache */ )
 {
 	cbk_cache        *cache;
@@ -262,7 +259,6 @@ static level_lookup_result search_to_left( cbk_handle *h );
  * Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
  * long term locks) while calling this. 
  */
-/* Audited by: green(2002.06.15) */
 lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* in. Usually this tree is
 						* part of file-system
@@ -298,9 +294,6 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 {
 	cbk_handle  handle;
 	lock_handle parent_lh;
-/* AUDIT: add insertion to check whether lh and parent_lh are zeroed. -Hans */
-	/* AUDIT: initialising passed in parameters is totally pointless.
-	   caller should do this! */
 	init_lh(lh);
 	init_lh(&parent_lh);
 
@@ -357,7 +350,6 @@ static lookup_result coord_by_handle( cbk_handle *handle )
  *
  * This is used by readdir() and alikes.
  */
-/* Audited by: green(2002.06.15) */
 int iterate_tree( reiser4_tree *tree /* tree to scan */, 
 		  coord_t *coord /* coord to start from */, 
 		  lock_handle *lh /* lock handle to start with and to
@@ -425,8 +417,6 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 
 /** main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
-/* Audited by: green(2002.06.15) */
-/* find more descriptive names for the onion layers of coord_by_key */
 static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 {
 	int done;
@@ -1033,7 +1023,6 @@ int lookup_couple( reiser4_tree *tree /* tree to perform search in */,
  * we are looking for possibly non-unique key and it is item is at the edge of
  * @node. May be it is in the neighbor.
  */
-/* Audited by: green(2002.06.15) */
 static int znode_contains_key_strict( znode *node /* node to check key
 						   * against */, 
 				      const reiser4_key *key /* key to check */ )
@@ -1047,7 +1036,6 @@ static int znode_contains_key_strict( znode *node /* node to check key
 }
 
 
-/* Audited by: green(2002.06.15) */
 static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 {
 	level_lookup_result llr;
@@ -1203,7 +1191,6 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
  * of coord_by_key.
  *
  */
-/* Audited by: green(2002.06.15) */
 static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 {
 	int result = 0;
@@ -1229,7 +1216,6 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 
 /** type of lock we want to obtain during tree traversal. On stop level
     we want type of lock user asked for, on upper levels: read lock. */
-/* Audited by: green(2002.06.15) */
 znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
 {
 	assert( "nikita-382", h != NULL );
@@ -1244,7 +1230,6 @@ znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
  * @parent_coord.
  *
  */
-/* Audited by: green(2002.06.15) */
 int find_child_delimiting_keys( znode *parent /* parent znode, passed
 					       * locked */, 
 				const coord_t *parent_coord /* coord where
@@ -1289,7 +1274,6 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
  * child that will be processed on the next level.
  *
  */
-/* Audited by: green(2002.06.15) */
 static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-1095", h != NULL );
@@ -1301,7 +1285,6 @@ static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 						       &h -> rd_key ) );
 }
 
-/* Audited by: green(2002.06.15) */
 static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 {
 	level_lookup_result result;
@@ -1470,7 +1453,6 @@ static void hput( cbk_handle *h /* search handle */ )
  * Helper function used by cbk(): update delimiting keys of child node (stored
  * in h->active_lh->node) using key taken from parent on the parent level.
  */
-/* Audited by: green(2002.06.15) */
 static void setup_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-1088", h != NULL );

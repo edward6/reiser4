@@ -11,7 +11,6 @@
 #include "coord.h"
 
 /* Internal constructor. */
-/* Audited by: green(2002.06.15) */
 static inline void coord_init_values (coord_t  *coord,
 				      const znode       *node,
 				      pos_in_node  item_pos,
@@ -28,7 +27,6 @@ static inline void coord_init_values (coord_t  *coord,
 
 /* after shifting of node content, coord previously set properly may become
  * invalid, try to "normalize" it. */
-/* Audited by: green(2002.06.15) */
 void coord_normalize (coord_t * coord)
 {
 	znode * node;
@@ -64,7 +62,6 @@ void coord_normalize (coord_t * coord)
 }
 
 /* Copy a coordinate. */
-/* Audited by: green(2002.06.15) */
 void coord_dup (coord_t *coord, const coord_t *old_coord)
 {
 	assert ("jmacd-9800", coord_check (old_coord));
@@ -73,7 +70,6 @@ void coord_dup (coord_t *coord, const coord_t *old_coord)
 
 /* Copy a coordinate without check. Useful when old_coord->node is not
  * loaded. As in cbk_tree_lookup -> connect_znode -> connect_one_side */
-/* Audited by: green(2002.06.15) */
 void coord_dup_nocheck (coord_t *coord, const coord_t *old_coord)
 {
 	coord->node     = old_coord->node;
@@ -85,7 +81,6 @@ void coord_dup_nocheck (coord_t *coord, const coord_t *old_coord)
 
 
 /* Initialize an invalid coordinate. */
-/* Audited by: green(2002.06.15) */
 void coord_init_invalid (coord_t *coord, const znode *node)
 {
 	coord_init_values (coord, node, 0, 0, INVALID_COORD);
@@ -93,7 +88,6 @@ void coord_init_invalid (coord_t *coord, const znode *node)
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
  * empty, it is positioned at the EMPTY_NODE. */
-/* Audited by: green(2002.06.15) */
 void coord_init_first_unit (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
@@ -105,7 +99,6 @@ void coord_init_first_unit (coord_t *coord, const znode *node)
 
 /* Initialize a coordinate to point at the last unit of the last item.  If the node is
  * empty, it is positioned at the EMPTY_NODE. */
-/* Audited by: green(2002.06.15) */
 void coord_init_last_unit  (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
@@ -120,7 +113,6 @@ void coord_init_last_unit  (coord_t *coord, const znode *node)
 
 /* Initialize a coordinate to before the first item.  If the node is empty, it is
  * positioned at the EMPTY_NODE. */
-/* Audited by: green(2002.06.15) */
 void coord_init_before_first_item (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
@@ -132,7 +124,6 @@ void coord_init_before_first_item (coord_t *coord, const znode *node)
 
 /* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
  * at the EMPTY_NODE. */
-/* Audited by: green(2002.06.15) */
 void coord_init_after_last_item (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
@@ -152,7 +143,6 @@ void coord_init_after_item_end (coord_t *coord)
 
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
  * look for comments there) */
-/* Audited by: green(2002.06.15) */
 void coord_init_parent_hint (coord_t *coord, const znode *node)
 {
 	coord->node = (znode *) node;
@@ -161,10 +151,9 @@ void coord_init_parent_hint (coord_t *coord, const znode *node)
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
  * it was not clear how actually */
-/* Audited by: green(2002.06.15) */
 void coord_init_zero (coord_t *coord)
 {
-	memset (coord, 0, sizeof (*coord));
+	xmemset (coord, 0, sizeof (*coord));
 }
 
 
@@ -178,7 +167,6 @@ unsigned coord_num_items (const coord_t * coord)
 }
 
 /* Return the number of units at the present item.  Asserts coord_is_existing_item(). */
-/* Audited by: green(2002.06.15) */
 unsigned coord_num_units (const coord_t * coord)
 {
 	assert ("jmacd-9806", coord_is_existing_item (coord));
@@ -212,7 +200,6 @@ int coord_is_invalid (const coord_t *coord)
 /* Returns true if the coordinate is positioned at an existing item, not before or after
  * an item.  It may be placed at, before, or after any unit within the item, whether
  * existing or not. */
-/* Audited by: green(2002.06.15) */
 int coord_is_existing_item (const coord_t * coord)
 {
 	switch (coord->between) {
@@ -346,7 +333,6 @@ int coord_check (const coord_t *coord)
 
 /* Adjust coordinate boundaries based on the number of items prior to coord_next/prev.
  * Returns 1 if the new position is does not exist. */
-/* Audited by: green(2002.06.15) */
 static int coord_adjust_items (coord_t *coord, unsigned items, int is_next)
 {
 	/* If the node is invalid, leave it. */
@@ -385,7 +371,6 @@ static int coord_adjust_items (coord_t *coord, unsigned items, int is_next)
 /* Advances the coordinate by one unit to the right.  If empty, no change.  If
  * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is an
  * existing unit. */
-/* Audited by: green(2002.06.15) */
 int coord_next_unit (coord_t *coord)
 {
 	unsigned items = coord_num_items (coord);
@@ -444,7 +429,6 @@ int coord_next_unit (coord_t *coord)
 /* Advances the coordinate by one item to the right.  If empty, no change.  If
  * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is
  * an existing item. */
-/* Audited by: green(2002.06.15) */
 int coord_next_item (coord_t *coord)
 {
 	unsigned items = coord_num_items (coord);
@@ -487,7 +471,6 @@ int coord_next_item (coord_t *coord)
 /* Advances the coordinate by one unit to the left.  If empty, no change.  If
  * coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
  * is an existing unit. */
-/* Audited by: green(2002.06.15) */
 int coord_prev_unit (coord_t *coord)
 {
 	unsigned items = coord_num_items (coord);
@@ -544,7 +527,6 @@ int coord_prev_unit (coord_t *coord)
 /* Advances the coordinate by one item to the left.  If empty, no change.  If
  * coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
  * is an existing item. */
-/* Audited by: green(2002.06.15) */
 int coord_prev_item (coord_t *coord)
 {
 	unsigned items = coord_num_items (coord);
@@ -583,7 +565,6 @@ int coord_prev_item (coord_t *coord)
 }
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-/* Audited by: green(2002.06.15) */
 void coord_init_sideof_unit (coord_t *coord, const znode *node, sideof dir)
 {
 	assert ("jmacd-9821", dir == LEFT_SIDE || dir == RIGHT_SIDE);
@@ -714,7 +695,6 @@ int coord_is_after_rightmost (const coord_t *coord)
 
 /* Returns true if the coordinate is positioned before the first item or it is an empty
  * node. */
-/* Audited by: green(2002.06.15) */
 int coord_is_before_leftmost (const coord_t *coord)
 {
 	/* FIXME-VS: coord_check requires node to be loaded whereas it is not
@@ -770,7 +750,6 @@ int coord_is_between_items (const coord_t *coord)
 
 /* Returns true if the coordinates are positioned at adjacent units, regardless of
  * before-after or item boundaries. */
-/* Audited by: green(2002.06.15) */
 int coord_are_neighbors (coord_t *c1, coord_t *c2)
 {
 	coord_t *left;
@@ -871,7 +850,6 @@ int coord_set_to_unit (coord_t *coord)
 
 /* If the coordinate is between items, shifts it to the right.  Returns 0 on success and
  * non-zero if there is no position to the right. */
-/* Audited by: green(2002.06.15) */
 int coord_set_to_right (coord_t *coord)
 {
 	unsigned items = coord_num_items (coord);
@@ -927,7 +905,6 @@ int coord_set_to_right (coord_t *coord)
 
 /* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
  * non-zero if there is no position to the left. */
-/* Audited by: green(2002.06.15) */
 int coord_set_to_left (coord_t *coord)
 {
 	unsigned items = coord_num_items (coord);
@@ -1000,7 +977,6 @@ int coord_is_after_last_unit (coord_t *coord)
 }
 
 #if REISER4_DEBUG_OUTPUT
-/* Audited by: green(2002.06.15) */
 const char * coord_tween_tostring (between_enum n)
 {
 	switch (n) {
@@ -1021,7 +997,6 @@ const char * coord_tween_tostring (between_enum n)
 }
 
 
-/* Audited by: green(2002.06.15) */
 void print_coord (const char * mes, const coord_t * coord, int node)
 {
 	if( coord == NULL ) {

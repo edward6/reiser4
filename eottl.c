@@ -194,7 +194,6 @@ static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
  * inserting empty leaf after (or between) item of not internal type we have to
  * know which right delimiting key corresponding znode has to be inserted with
  */
-/* Audited by: green(2002.06.15) */
 static reiser4_key *rd_key( coord_t *coord, reiser4_key *key )
 {
 	coord_t dup;
@@ -224,7 +223,6 @@ static reiser4_key *rd_key( coord_t *coord, reiser4_key *key )
  * this is used to insert empty node into leaf level if tree lookup can not go
  * further down because it stopped between items of not internal type
  */
-/* Audited by: green(2002.06.15) */
 static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 			   const reiser4_key *key, const reiser4_key *rdkey )
 {
