@@ -71,6 +71,7 @@ extern void spinlock_bug (const char *msg);
 #define current_pid     ( ( int ) pthread_self() )
 #define UNUSE __attribute__( ( unused ) )
 #define GFP_KERNEL     (0)
+#define GFP_NOIO     (1)
 #define	SLAB_KERNEL		GFP_KERNEL
 #define printk printf
 #define SLAB_HWCACHE_ALIGN (0)
@@ -499,35 +500,36 @@ struct super_block {
 struct address_space;
 struct kiobuf;
 
+
 struct address_space_operations {
-        int (*writepage)(struct page *);
-        int (*readpage)(struct file *, struct page *);
-        int (*sync_page)(struct page *);
+	int (*writepage)(struct page *);
+	int (*readpage)(struct file *, struct page *);
+	int (*sync_page)(struct page *);
 
-        /* Write back some dirty pages from this mapping. */
-        int (*writepages)(struct address_space *, int *nr_to_write);
+	/* Write back some dirty pages from this mapping. */
+	int (*writepages)(struct address_space *, int *nr_to_write);
 
-        /* Perform a writeback as a memory-freeing operation. */
-        int (*vm_writeback)(struct page *, int *nr_to_write);
+	/* Perform a writeback as a memory-freeing operation. */
+	int (*vm_writeback)(struct page *, int *nr_to_write);
 
-        /* Set a page dirty */
-        int (*set_page_dirty)(struct page *page);
+	/* Set a page dirty */
+	int (*set_page_dirty)(struct page *page);
 
-        int (*readpages)(struct address_space *mapping,
-                        struct list_head *pages, unsigned nr_pages);
+	int (*readpages)(struct address_space *mapping,
+			struct list_head *pages, unsigned nr_pages);
 
-        /*
-         * ext3 requires that a successful prepare_write() call be followed
-         * by a commit_write() call - they must be balanced
-         */
-        int (*prepare_write)(struct file *, struct page *, unsigned, unsigned);
-        int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
-        /* Unfortunately this kludge is needed for FIBMAP. Don't use it */
-        int (*bmap)(struct address_space *, long);
-        int (*invalidatepage) (struct page *, unsigned long);
-        int (*releasepage) (struct page *, int);
+	/*
+	 * ext3 requires that a successful prepare_write() call be followed
+	 * by a commit_write() call - they must be balanced
+	 */
+	int (*prepare_write)(struct file *, struct page *, unsigned, unsigned);
+	int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
+	/* Unfortunately this kludge is needed for FIBMAP. Don't use it */
+	int (*bmap)(struct address_space *, long);
+	int (*invalidatepage) (struct page *, unsigned long);
+	int (*releasepage) (struct page *, int);
 #define KERNEL_HAS_O_DIRECT /* this is for modules out of the kernel */
-        int (*direct_IO)(int, struct inode *, struct kiobuf *, unsigned long, int);
+	int (*direct_IO)(int, struct inode *, struct kiobuf *, unsigned long, int);
 };
 
 struct address_space {
@@ -648,6 +650,8 @@ iget5_locked(struct super_block *sb,
 	     unsigned long hashval, 
 	     int (*test)(struct inode *, void *), 
 	     int (*set)(struct inode *, void *), void *data);
+extern struct inode *iget_locked(struct super_block *sb, unsigned long ino);
+
 #define I_DIRTY    0x1
 #define I_NEW      0x2
 #define I_LOCK     0x4
@@ -753,6 +757,161 @@ struct page {
 	unsigned long private;
 	struct list_head list;
 };
+
+#define PG_locked	 0	/* Page is locked. Don't touch. */
+#define PG_error		 1
+#define PG_referenced		 2
+#define PG_uptodate		 3
+
+#define PG_dirty_dontuse	 4
+#define PG_lru			 5
+#define PG_active		 6
+#define PG_slab			 7	/* slab debug (Suparna wants this) */
+
+#define PG_highmem		 8
+#define PG_checked		 9	/* kill me in 2.5.<early>. */
+#define PG_arch_1		10
+#define PG_reserved		11
+
+#define PG_private		12	/* Has something at ->private */
+#define PG_writeback		13	/* Page is under writeback */
+#define PG_nosave		15	/* Used for system suspend/resume */
+#define PG_kmapped              16
+
+#define inc_page_state(member)	noop
+#define dec_page_state(member)	noop
+
+/*
+ * Manipulation of page state flags
+ */
+#define PageLocked(page)		\
+		test_bit(PG_locked, &(page)->flags)
+#define SetPageLocked(page)		\
+		set_bit(PG_locked, &(page)->flags)
+#define TestSetPageLocked(page)		\
+		test_and_set_bit(PG_locked, &(page)->flags)
+#define ClearPageLocked(page)		\
+		clear_bit(PG_locked, &(page)->flags)
+#define TestClearPageLocked(page)	\
+		test_and_clear_bit(PG_locked, &(page)->flags)
+
+#define PageError(page)		test_bit(PG_error, &(page)->flags)
+#define SetPageError(page)	set_bit(PG_error, &(page)->flags)
+#define ClearPageError(page)	clear_bit(PG_error, &(page)->flags)
+
+#define PageReferenced(page)	test_bit(PG_referenced, &(page)->flags)
+#define SetPageReferenced(page)	set_bit(PG_referenced, &(page)->flags)
+#define ClearPageReferenced(page)	clear_bit(PG_referenced, &(page)->flags)
+#define TestClearPageReferenced(page) test_and_clear_bit(PG_referenced, &(page)->flags)
+
+#define PageUptodate(page)	test_bit(PG_uptodate, &(page)->flags)
+#define SetPageUptodate(page)	set_bit(PG_uptodate, &(page)->flags)
+#define ClearPageUptodate(page)	clear_bit(PG_uptodate, &(page)->flags)
+
+#define PageDirty(page)		test_bit(PG_dirty_dontuse, &(page)->flags)
+#define SetPageDirty(page)						\
+	do {								\
+		if (!test_and_set_bit(PG_dirty_dontuse,			\
+					&(page)->flags))		\
+			inc_page_state(nr_dirty);			\
+	} while (0)
+#define TestSetPageDirty(page)						\
+	({								\
+		int ret;						\
+		ret = test_and_set_bit(PG_dirty_dontuse,		\
+				&(page)->flags);			\
+		if (!ret)						\
+			inc_page_state(nr_dirty);			\
+		ret;							\
+	})
+#define ClearPageDirty(page)						\
+	do {								\
+		if (test_and_clear_bit(PG_dirty_dontuse,		\
+				&(page)->flags))			\
+			dec_page_state(nr_dirty);			\
+	} while (0)
+#define TestClearPageDirty(page)					\
+	({								\
+		int ret;						\
+		ret = test_and_clear_bit(PG_dirty_dontuse,		\
+				&(page)->flags);			\
+		if (ret)						\
+			dec_page_state(nr_dirty);			\
+		ret;							\
+	})
+
+#define PageLRU(page)		test_bit(PG_lru, &(page)->flags)
+#define TestSetPageLRU(page)	test_and_set_bit(PG_lru, &(page)->flags)
+#define TestClearPageLRU(page)	test_and_clear_bit(PG_lru, &(page)->flags)
+
+#define PageActive(page)	test_bit(PG_active, &(page)->flags)
+#define SetPageActive(page)	set_bit(PG_active, &(page)->flags)
+#define ClearPageActive(page)	clear_bit(PG_active, &(page)->flags)
+
+#define PageSlab(page)		test_bit(PG_slab, &(page)->flags)
+#define SetPageSlab(page)	set_bit(PG_slab, &(page)->flags)
+#define ClearPageSlab(page)	clear_bit(PG_slab, &(page)->flags)
+
+#ifdef CONFIG_HIGHMEM
+#define PageHighMem(page)	test_bit(PG_highmem, &(page)->flags)
+#else
+#define PageHighMem(page)	0 /* needed to optimize away at compile time */
+#endif
+
+#define PageChecked(page)	test_bit(PG_checked, &(page)->flags)
+#define SetPageChecked(page)	set_bit(PG_checked, &(page)->flags)
+
+#define PageReserved(page)	test_bit(PG_reserved, &(page)->flags)
+#define SetPageReserved(page)	set_bit(PG_reserved, &(page)->flags)
+#define ClearPageReserved(page)	clear_bit(PG_reserved, &(page)->flags)
+
+#define SetPagePrivate(page)	set_bit(PG_private, &(page)->flags)
+#define ClearPagePrivate(page)	clear_bit(PG_private, &(page)->flags)
+#define PagePrivate(page)	test_bit(PG_private, &(page)->flags)
+
+#define PageWriteback(page)	test_bit(PG_writeback, &(page)->flags)
+#define SetPageWriteback(page)						\
+	do {								\
+		if (!test_and_set_bit(PG_writeback,			\
+				&(page)->flags))			\
+			inc_page_state(nr_writeback);			\
+	} while (0)
+#define TestSetPageWriteback(page)					\
+	({								\
+		int ret;						\
+		ret = test_and_set_bit(PG_writeback,			\
+					&(page)->flags);		\
+		if (!ret)						\
+			inc_page_state(nr_writeback);			\
+		ret;							\
+	})
+#define ClearPageWriteback(page)					\
+	do {								\
+		if (test_and_clear_bit(PG_writeback,			\
+				&(page)->flags))			\
+			dec_page_state(nr_writeback);			\
+	} while (0)
+#define TestClearPageWriteback(page)					\
+	({								\
+		int ret;						\
+		ret = test_and_clear_bit(PG_writeback,			\
+				&(page)->flags);			\
+		if (ret)						\
+			dec_page_state(nr_writeback);			\
+		ret;							\
+	})
+
+#define PageNosave(page)	test_bit(PG_nosave, &(page)->flags)
+#define SetPageNosave(page)	set_bit(PG_nosave, &(page)->flags)
+#define TestSetPageNosave(page)	test_and_set_bit(PG_nosave, &(page)->flags)
+#define ClearPageNosave(page)		clear_bit(PG_nosave, &(page)->flags)
+#define TestClearPageNosave(page)	test_and_clear_bit(PG_nosave, &(page)->flags)
+
+#define PageKmaped(page)	test_bit(PG_kmapped, &(page)->flags)
+#define SetPageKmaped(page)	set_bit(PG_kmapped, &(page)->flags)
+#define TestSetPageKmaped(page)	test_and_set_bit(PG_kmapped, &(page)->flags)
+#define ClearPageKmaped(page)		clear_bit(PG_kmapped, &(page)->flags)
+#define TestClearPageKmaped(page)	test_and_clear_bit(PG_kmapped, &(page)->flags)
 
 #define page_address(page)   ((page)->virtual)
 void remove_inode_page(struct page *);
@@ -861,33 +1020,6 @@ int generic_file_mmap(struct file * file, struct vm_area_struct * vma);
         } while (0)
 
 int fsync_bdev(struct block_device *);
-
-/* include/linux/page-flags.h */
-#define PG_uptodate 1
-#define PG_locked 2
-#define PG_private 3
-#define PG_dirty 4
-
-#define PG_kmaped 10
-
-#define PageUptodate(page) (test_bit(PG_uptodate, &(page)->flags))
-#define PageLocked(page) (test_bit(PG_locked, &(page)->flags))
-#define PagePrivate(page) (test_bit(PG_private, &(page)->flags))
-#define PageDirty(page) (test_bit(PG_dirty, &(page)->flags))
-#define PageKmaped(page) (test_bit(PG_kmaped, &(page)->flags))
-
-#define SetPageUptodate(page) (set_bit(PG_uptodate, &(page)->flags))
-#define SetPageLocked(page) (set_bit(PG_locked, &(page)->flags))
-#define SetPagePrivate(page) (set_bit(PG_private, &(page)->flags))
-#define SetPageDirty(page) (set_bit(PG_dirty, &(page)->flags))
-#define SetPageKmaped(page) (set_bit(PG_kmaped, &(page)->flags))
-
-#define ClearPageUptodate(page) (clear_bit(PG_uptodate, &(page)->flags))
-#define ClearPageLocked(page) (clear_bit(PG_locked, &(page)->flags))
-#define ClearPagePrivate(page) (clear_bit(PG_private, &(page)->flags))
-#define ClearPageDirty(page) (clear_bit(PG_dirty, &(page)->flags))
-#define ClearPageKmaped(page) (clear_bit(PG_kmaped, &(page)->flags))
-
 
 /* include/linux/locks.h */
 void wait_on_buffer(struct buffer_head *);
@@ -1067,10 +1199,16 @@ enum bh_state_bits {
 			 */
 };
 
-int ulevel_read_node( );
-int ulevel_allocate_node( );
+int ulevel_read_node( reiser4_tree *tree, jnode *node, char **data );
+int ulevel_allocate_node( reiser4_tree *tree, jnode *node, char **data );
+int ulevel_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG );
+int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG );
 
 #define GFP_NOFS 0
+
+struct bio;
+typedef void (bio_end_io_t) (struct bio *);
+typedef void (bio_destructor_t) (struct bio *);
 
 struct bio_vec {
 	struct page	*bv_page;
@@ -1082,7 +1220,36 @@ struct bio
 {
 	struct bio_vec *bi_io_vec;	/* the actual vec list */
 	unsigned short  bi_vcnt;	/* how many bio_vec's */
+	unsigned long	bi_flags;	/* status, command, etc */
+	sector_t		bi_sector;
+	struct block_device	*bi_bdev;
+	unsigned short		bi_idx;		/* current index into bvl_vec */
+	unsigned int		bi_size;	/* residual I/O count */
+	bio_end_io_t		*bi_end_io;
 };
+
+#define BIO_MAX_SECTORS	128
+#define BIO_MAX_SIZE	(BIO_MAX_SECTORS << 9)
+
+/*
+ * bio flags
+ */
+#define BIO_UPTODATE	0	/* ok after I/O completion */
+#define BIO_RW_BLOCK	1	/* RW_AHEAD set, and read/write would block */
+#define BIO_EOF		2	/* out-out-bounds error */
+#define BIO_SEG_VALID	3	/* nr_hw_seg valid */
+#define BIO_CLONED	4	/* doesn't own data */
+
+/*
+ * bio bi_rw flags
+ *
+ * bit 0 -- read (not set) or write (set)
+ * bit 1 -- rw-ahead when set
+ * bit 2 -- barrier
+ */
+#define BIO_RW		0
+#define BIO_RW_AHEAD	1
+#define BIO_RW_BARRIER	2
 
 int submit_bio (int rw, struct bio *bio);
 

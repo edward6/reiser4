@@ -259,8 +259,8 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
 
 	s = &super_blocks[0];
 	s->s_flags = flags;
-	s->s_blocksize = 1024;
-	s->s_blocksize_bits = 10;
+	s->s_blocksize = PAGE_CACHE_SIZE;
+	s->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	s->s_bdev = &block_devices[0];
 	s->s_bdev->fd = open (dev_name, O_RDWR);
 	if (s->s_bdev->fd == -1)
@@ -303,6 +303,14 @@ static struct super_block * call_mount (const char * dev_name)
 
 static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
+
+static tree_operations ul_tops = {
+	.read_node     = ulevel_read_node,
+	.allocate_node = ulevel_read_node,
+	.delete_node   = NULL,
+	.release_node  = ulevel_release_node,
+	.dirty_node    = ulevel_dirty_node
+};
 
 static struct inode * alloc_inode (struct super_block * sb)
 {
@@ -365,7 +373,7 @@ struct inode * find_inode (struct super_block *super UNUSED_ARG,
 			  "inode: %li, %li\n", inode->i_ino, ino );
 		if (inode->i_ino != ino)
 			continue;
-		if (!test(inode, data))
+		if (!test || !test(inode, data))
 			continue;
 		return inode;
 	}
@@ -461,8 +469,12 @@ get_new_inode(struct super_block *sb,
 		/* We released the lock, so.. */
 		old = find_inode(sb, hashval, test, data);
 		if (!old) {
-			if (set(inode, data))
-				goto set_failed;
+			if (set != NULL) {
+				if (set(inode, data))
+					goto set_failed;
+			} else {
+				inode->i_ino = hashval;
+			}
 
 			inode->i_state = I_LOCK|I_NEW;
 			spin_unlock(&inode_hash_guard);
@@ -508,6 +520,11 @@ iget5_locked(struct super_block *sb,
 	 * in case it had to block at any point.
 	 */
 	return get_new_inode(sb, hashval, test, set, data);
+}
+
+struct inode *iget_locked(struct super_block *sb, unsigned long ino)
+{
+	return iget5_locked (sb, ino, NULL, NULL, NULL);
 }
 
 void mark_inode_dirty (struct inode * inode)
@@ -995,6 +1012,8 @@ int submit_bio (int rw, struct bio *bio)
 {
 	int i;
 
+	return 0;
+
 	assert ("jmacd-997", rw == WRITE);
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
@@ -1006,8 +1025,13 @@ int submit_bio (int rw, struct bio *bio)
 	return 0;
 }
 
-int ulevel_read_node( const reiser4_block_nr *addr, char **data, size_t blksz )
+int ulevel_read_node( reiser4_tree *tree, jnode *node, char **data )
 {
+	const reiser4_block_nr *addr;
+	unsigned int blksz;
+
+	addr = jnode_get_block( node );
+	blksz = tree -> super -> s_blocksize;
 	if( ( mmap_back_end_fd > 0 ) && !blocknr_is_fake( addr ) ) {
 		off_t start;
 
@@ -1023,42 +1047,27 @@ int ulevel_read_node( const reiser4_block_nr *addr, char **data, size_t blksz )
 				declare_memory_pressure();
 
 			*data = mmap_back_end_start + start;
-			return blksz;
+			return 0;
 		}
 	} else {
 		*data = xmalloc( blksz );
 		if( *data != NULL )
-			return blksz;
+			return 0;
 		else
 			return -ENOMEM;
 	}
 }
 
-int ulevel_allocate_node( znode *node )
+int ulevel_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 {
-	size_t blksz;
+	return 0;
+}
 
-	blksz = reiser4_get_current_sb ()->s_blocksize;
-
-	if( mmap_back_end_fd > 0 ) {
-		int ret;
-
-		ret = ulevel_read_node( znode_get_block( node ), &node -> data,
-					reiser4_get_current_sb() -> s_blocksize );
-		if( ret > 0 ) {
-			node -> size = ret;
-			return 0;
-		} else
-			return ret;
-	}
-	assert( "nikita-1909", node != NULL );
-	node -> size = blksz;
-	node -> data = xmalloc( node -> size );
-
-	if( node -> data != NULL )
-		return 0;
-	else
-		return -ENOMEM;
+int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
+{
+	assert ("vs-688", JF_ISSET (node, ZNODE_LOADED));
+	SetPageDirty (jnode_page (node));
+	return 0;
 }
 
 
@@ -1215,7 +1224,7 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 		add_d_ref( root );
 		root -> ld_key = *min_key();
 		root -> rd_key = *max_key();
-		root -> data = xmalloc( 1 );
+		ZJNODE( root ) -> data = xmalloc( 1 );
 		return root;
 	}
 	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
@@ -2988,10 +2997,10 @@ static int mkfs_bread (const reiser4_block_nr *addr, char **data, size_t blksz)
 
 static int mkfs_getblk (znode *node)
 {
-	assert ("vs-671", node->data == 0);
+	assert ("vs-671", zdata (node) == 0);
 	node->size = reiser4_get_current_sb ()->s_blocksize;
-	node->data = malloc (node->size);
-	assert ("vs-668", node->data);
+	ZJNODE (node)->data = xmalloc (node->size);
+	assert ("vs-668", zdata (node));
 	return 0;
 }
 
@@ -3013,7 +3022,7 @@ static void mkfs_brelse (znode *node)
 		ll_rw_block (WRITE, 1, &pbh);
 		ZF_CLR (node, ZNODE_DIRTY);
 	}
-	free (node->data);
+	free (ZJNODE (node)->data);
 }
 
 
@@ -3041,7 +3050,7 @@ static int bash_mkfs (const char * file_name)
 	super.s_root = &root_dentry;
 	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
-	super.s_blocksize = blocksize;
+	super.s_blocksize = PAGE_CACHE_SIZE;
 	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
 	super.s_bdev = &bd;
 	super.s_bdev->fd = open (file_name, O_RDWR);
@@ -3113,11 +3122,9 @@ static int bash_mkfs (const char * file_name)
 
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
-		result = init_tree( tree, &root_block,
+		result = init_tree( tree, &super, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
-				    mkfs_bread,
-				    /*ulevel_allocate_node*/mkfs_getblk,
-				    mkfs_brelse );
+				    &page_cache_tops );
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block, 1);
 		root -> rd_key = *max_key();
@@ -4212,7 +4219,7 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 		get_super_private (super)->space_plug->init_allocator (
 			get_space_allocator (super), super, 0);
 
-	tree -> read_node = bm_test_read_node;
+	tree -> ops -> read_node = bm_test_read_node;
 
 
 	{
@@ -4473,8 +4480,9 @@ int real_main( int argc, char **argv )
 
 		super.s_op = &reiser4_super_operations;
 		super.s_root = &root_dentry;
-		super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
-			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+		super.s_blocksize = PAGE_CACHE_SIZE; /*getenv( "REISER4_BLOCK_SIZE" ) ? 
+			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512; */
+		super.s_blocksize_bits = PAGE_CACHE_SHIFT;
 		xmemset( &root_dentry, 0, sizeof root_dentry );
 
 		init_context( &__context, &super );
@@ -4484,7 +4492,7 @@ int real_main( int argc, char **argv )
 		atomic_set( &get_current_super_private() -> active_threads, 0 );
 #endif
 
-		assert ("jmacd-998", super.s_blocksize == PAGE_SIZE /* don't blame me, otherwise. */);
+		assert ("jmacd-998", super.s_blocksize == PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 
 		register_thread();
 		spin_lock_init( &mp_guard );
@@ -4505,6 +4513,9 @@ int real_main( int argc, char **argv )
 		txn_init_static();
 		sys_rand_init();
 		txn_mgr_init( &get_super_private (&super) -> tmgr );
+		INIT_LIST_HEAD( &inode_hash_list );
+		INIT_LIST_HEAD( &page_list );
+		init_formatted_fake( &super );
 		
 		root_dentry.d_inode = NULL;
 		/* initialize reiser4_super_info_data's oid plugin */
@@ -4526,13 +4537,11 @@ int real_main( int argc, char **argv )
 
 		get_super_private( &super ) -> lplug = layout_plugin_by_id( LAYOUT_40_ID );
 		s = &super;
-		INIT_LIST_HEAD( &inode_hash_list );
-		INIT_LIST_HEAD( &page_list );
 		
 		tree = &get_super_private( s ) -> tree;
-		result = init_tree( tree, &root_block,
+		result = init_tree( tree, s, &root_block,
 				    tree_height, node_plugin_by_id( NODE40_ID ),
-				    ulevel_read_node, ulevel_allocate_node, 0 );
+				    &page_cache_tops );
 		if( result )
 			rpanic ("jmacd-500", "znode_tree_init failed");
 	}
