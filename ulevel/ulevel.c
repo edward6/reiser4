@@ -3265,6 +3265,7 @@ static int bash_trunc (struct inode * cwd, const char * name)
  */
 static void allocate_unallocated (reiser4_tree * tree)
 {
+/* comment this code -Hans */
 	tree_coord coord;
 	lock_handle lh;
 	reiser4_key key;
