@@ -1260,6 +1260,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		parent = znode_parent( child );
 		assert( "nikita-2581", find_carry_node( doing, parent ) );
 	}
+	spin_unlock_tree( current_tree );
 
 	assert( "nikita-1213", znode_get_level( parent ) > LEAF_LEVEL );
 
