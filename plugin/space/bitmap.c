@@ -19,7 +19,8 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
 
-/* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap blocks
+/* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap
+ * blocks
 
    A useful optimization of reiser4 bitmap handling would be dynamic bitmap
    blocks loading/unloading which is different from v3.x where all bitmap
@@ -60,8 +61,7 @@
 
 /* Block allocation/deallocation are done through special bitmap objects which
    are allocated in an array at fs mount. */
-/* how about calling it a maplink instead of bnode? ZAM-FIXME-HANS: */
-struct bnode {
+struct bitmap_node {
 	struct semaphore sema;	/* long term lock object */
 
 	jnode *wjnode;		/* j-nodes for WORKING ... */
@@ -74,7 +74,7 @@ struct bnode {
 };
 
 static inline char *
-bnode_working_data(struct bnode *bnode)
+bnode_working_data(struct bitmap_node *bnode)
 {
 	char *data;
 
@@ -85,7 +85,7 @@ bnode_working_data(struct bnode *bnode)
 }
 
 static inline char *
-bnode_commit_data(const struct bnode *bnode)
+bnode_commit_data(const struct bitmap_node *bnode)
 {
 	char *data;
 
@@ -96,7 +96,7 @@ bnode_commit_data(const struct bnode *bnode)
 }
 
 static inline __u32
-bnode_commit_crc(const struct bnode *bnode)
+bnode_commit_crc(const struct bitmap_node *bnode)
 {
 	char *data;
 
@@ -107,7 +107,7 @@ bnode_commit_crc(const struct bnode *bnode)
 }
 
 static inline void
-bnode_set_commit_crc(struct bnode *bnode, __u32 crc)
+bnode_set_commit_crc(struct bitmap_node *bnode, __u32 crc)
 {
 	char *data;
 
@@ -119,11 +119,16 @@ bnode_set_commit_crc(struct bnode *bnode, __u32 crc)
 
 /* ZAM-FIXME-HANS: is the idea that this might be a union someday? having
  * written the code, does this added abstraction still have */
-/* ANSWER(Zam): No, the reiser4_space_allocator structure is for it. */
+/* ANSWER(Zam): No, the abstractions is in the level above (exact place is the
+ * reiser4_space_allocator structure) */
 /* ZAM-FIXME-HANS: I don't understand your english in comment above. */
+/* FIXME-HANS(Zam): I don't understand the questions like "might be a union
+ * someday?". What they about?  If there is a reason to have a union, it should
+ * be a union, if not, it should not be a union.  "..might be someday" means no
+ * reason. */
 struct bitmap_allocator_data {
 	/* an array for bitmap blocks direct access */
-	struct bnode *bitmap;
+	struct bitmap_node *bitmap;
 };
 
 #define get_barray(super) \
@@ -420,7 +425,7 @@ adler32(char *data, __u32 len)
 }
 
 static __u32
-bnode_calc_crc(const struct bnode *bnode)
+bnode_calc_crc(const struct bitmap_node *bnode)
 {
 	struct super_block *super;
 
@@ -432,7 +437,7 @@ bnode_calc_crc(const struct bnode *bnode)
 
 #if REISER4_CHECK_BMAP_CRC
 static int
-bnode_check_crc(const struct bnode *bnode)
+bnode_check_crc(const struct bitmap_node *bnode)
 {
 	if (bnode_calc_crc(bnode) != bnode_commit_crc (bnode)) {
 		bmap_nr_t bmap;
@@ -461,11 +466,8 @@ bnode_check_crc(const struct bnode *bnode)
     old_data, data - old, new byte values.
     tail == (chunk - offset) : length, checksum was calculated for, - offset of
     the changed byte within this chunk.
-    This function could be used for checksum calculation optimisation, but not
-    used for now. -Vitaly.
-
+    This function can be used for checksum calculation optimisation.
 */
-/* ZAM-FIXME-HANS: We should use it.  */
 
 static __u32
 adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail)
@@ -530,7 +532,7 @@ check_block_range(const reiser4_block_nr * start, const reiser4_block_nr * len)
 }
 
 static void
-check_bnode_loaded(const struct bnode *bnode)
+check_bnode_loaded(const struct bitmap_node *bnode)
 {
 	assert("zam-485", bnode != NULL);
 	assert("zam-483", jnode_page(bnode->wjnode) != NULL);
@@ -549,7 +551,7 @@ check_bnode_loaded(const struct bnode *bnode)
 /* modify bnode->first_zero_bit (if we free bits before); bnode should be
    spin-locked */
 static inline void
-adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
+adjust_first_zero_bit(struct bitmap_node *bnode, bmap_off_t offset)
 {
 	if (offset < bnode->first_zero_bit)
 		bnode->first_zero_bit = offset;
@@ -557,7 +559,12 @@ adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
 
 /* return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
-/* ZAM-FIXME-HANS: your answer is? Use not more than one function dereference per block allocation so that performance is not affected.  Probably this whole file should be considered part of the disk layout plugin, and other disk layouts can use other defines and efficiency will not be significantly affected.  */
+/* ZAM-FIXME-HANS: your answer is? Use not more than one function dereference
+ * per block allocation so that performance is not affected.  Probably this
+ * whole file should be considered part of the disk layout plugin, and other
+ * disk layouts can use other defines and efficiency will not be significantly
+ * affected.  */
+
 #define REISER4_FIRST_BITMAP_BLOCK \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
 	
@@ -594,10 +601,10 @@ get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
 
 /* bnode structure initialization */
 static void
-init_bnode(struct bnode *bnode,
+init_bnode(struct bitmap_node *bnode,
 	   struct super_block *super UNUSED_ARG, bmap_nr_t bmap UNUSED_ARG)
 {
-	xmemset(bnode, 0, sizeof (struct bnode));
+	xmemset(bnode, 0, sizeof (struct bitmap_node));
 
 	sema_init(&bnode->sema, 1);
 	atomic_set(&bnode->loaded, 0);
@@ -614,7 +621,7 @@ release(jnode *node)
 /* This function is for internal bitmap.c use because it assumes that jnode is
    in under full control of this thread */
 static void
-done_bnode(struct bnode *bnode)
+done_bnode(struct bitmap_node *bnode)
 {
 	if (bnode) {
 		atomic_set(&bnode->loaded, 0);
@@ -628,7 +635,7 @@ done_bnode(struct bnode *bnode)
 
 /* ZAM-FIXME-HANS: comment this.  Called only by load_and_lock_bnode()*/
 static int
-prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
+prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 {
 	struct super_block *super;
 	jnode *cjnode;
@@ -682,7 +689,7 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 /* load bitmap blocks "on-demand" */
 static int
-load_and_lock_bnode(struct bnode *bnode)
+load_and_lock_bnode(struct bitmap_node *bnode)
 {
 	int ret;
 
@@ -736,7 +743,7 @@ load_and_lock_bnode(struct bnode *bnode)
 }
 
 static void
-release_and_unlock_bnode(struct bnode *bnode)
+release_and_unlock_bnode(struct bitmap_node *bnode)
 {
 	check_bnode_loaded(bnode);
 	up(&bnode->sema);
@@ -753,7 +760,7 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_of
 			  int min_len, int max_len)
 {
 	struct super_block *super = get_current_context()->super;
-	struct bnode *bnode = get_bnode(super, bmap);
+	struct bitmap_node *bnode = get_bnode(super, bmap);
 
 	char *data;
 
@@ -826,7 +833,7 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 			    int min_len, int max_len)
 {
 	struct super_block *super = get_current_context()->super;
-	struct bnode *bnode = get_bnode(super, bmap);
+	struct bitmap_node *bnode = get_bnode(super, bmap);
 	char *data;
 	bmap_off_t start;
 	int ret;
@@ -1045,7 +1052,7 @@ dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_bl
 	bmap_nr_t bmap;
 	bmap_off_t offset;
 
-	struct bnode *bnode;
+	struct bitmap_node *bnode;
 	int ret;
 
 	assert("zam-468", len != 0);
@@ -1081,7 +1088,7 @@ check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len
 	bmap_off_t start_offset;
 	bmap_off_t end_offset;
 
-	struct bnode *bnode;
+	struct bitmap_node *bnode;
 	int ret;
 
 	assert("zam-622", len != NULL);
@@ -1144,7 +1151,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 	long long *blocks_freed_p = data;
 
-	struct bnode *bnode;
+	struct bitmap_node *bnode;
 
 	struct super_block *sb = reiser4_get_current_sb();
 
@@ -1241,7 +1248,7 @@ pre_commit_hook_bitmap(void)
 
 				bmap_off_t offset;
 				bmap_off_t index;
-				struct bnode *bn;
+				struct bitmap_node *bn;
 				__u32 size = bmap_size(super->s_blocksize);
 				char byte;
 				__u32 crc;
@@ -1336,7 +1343,7 @@ pre_commit_hook_bitmap(void)
 
 				bmap_off_t offset;
 				bmap_off_t index;
-				struct bnode *bn;
+				struct bitmap_node *bn;
 				__u32 size = bmap_size(super->s_blocksize);
 				__u32 crc;
 				char byte;
@@ -1428,7 +1435,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	   with that storage device, much less reiser4. ;-) -Hans). Kmalloc is not possible and,
 	   probably, another dynamic data structure should replace a static
 	   array of bnodes. */
-	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bnode) * bitmap_blocks_nr), GFP_KERNEL);
+	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bitmap_node) * bitmap_blocks_nr), GFP_KERNEL);
 
 	if (data->bitmap == NULL) {
 		reiser4_kfree(data);
@@ -1447,7 +1454,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	/* Load all bitmap blocks at mount time. */
 	if (!test_bit(REISER4_DONT_LOAD_BITMAP, &get_super_private(super)->fs_flags)) {
 		__u64 start_time, elapsed_time;
-		struct bnode * bnode;
+		struct bitmap_node * bnode;
 		int ret;
 
 		printk(KERN_INFO "loading reiser4 bitmap...");
@@ -1486,7 +1493,7 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 	bitmap_blocks_nr = get_nr_bmap(super);
 
 	for (i = 0; i < bitmap_blocks_nr; i++) {
-		struct bnode *bnode = data->bitmap + i;
+		struct bitmap_node *bnode = data->bitmap + i;
 
 		down(&bnode->sema);
 
@@ -1527,7 +1534,7 @@ check_struct_allocator_bitmap(reiser4_space_allocator * allocator,
 			      const struct super_block *super)
 {
 	struct bitmap_allocator_data *ba;
-	struct bnode *bnode;
+	struct bitmap_node *bnode;
 	bmap_nr_t count, i;
 	int res;
 
