@@ -81,6 +81,59 @@
  * flushed transaction is found.
  */
 
+/*
+ * The support of the special logging of reiser4 super block fields
+ */
+
+/* There some reiser4 super block fields (free block count and OID allocator
+ * state (number of files and next free OID) which are logged separately from
+ * super block to avoid unnecessary atom fusion.
+ *
+ * So, the reiser4 super block can be not captured by a transaction with
+ * allocates/deallocates disk blocks or create/delete file objects.  Moreover,
+ * the reiser4 on-disk super block is not touched when such a transaction is
+ * committed and flushed.  Those "counters logged specially" are logged in "tx
+ * head" blocks and in the journal footer block.
+ *
+ * The step-by-step description of special logging is the following:
+ *
+ * 0. The per-atom information about deleted or created files and allocated or
+ * freed blocks is collected during the transaction.  The atom's
+ * ->nr_objects_created and ->nr_objects_deleted are for object
+ * deletion/creation tracking, the numbers of allocated and freed blocks are
+ * calculated using atom's delete set and atom's capture list -- all new and
+ * relocated nodes should be on atom's clean list and should have JNODE_RELOC
+ * bit set.
+ * 
+ * 1. The "logged specially" reiser4 super block fields have their "committed"
+ * versions in the reiser4 in-memory super block.  They get modified only at
+ * atom commit time.  The atom's commit thread has an exclusive access to that
+ * "committed" fields because the log writer implementation supports only one
+ * atom commit a time (it is done by using of per-fs "commit" semaphore).  At
+ * that time "committed" counters are modified using per-atom information
+ * collected during the transaction. These counters are stored on disk as a
+ * part of tx head block when atom is committed.
+ * 
+ * 2. When atom is flushed the value of free block counter and OID allocator
+ * state get written to the journal footer block.  A special journal procedure
+ * (journal_recover_sb_data()) takes those values from the journal footer and
+ * updates the reiser4 in-memory super block.
+ *
+ * NOTE: That means free block count and OID allocator state are logged separately
+ * from the reiser4 super block regardless that reiser4 super block has fields
+ * to store both free block counter and OID allocator.
+ *
+ * The reason for that for writing of reiser4 super block we need to know
+ * actual values of all its fields.  For example if we have a transaction
+ * which has not captured the super block we cannot re-write the super block
+ * when such a transaction is committed because we do not know the actual
+ * value of the tree root pointer. Knowing that requires write locking of the
+ * super block and implies some dependency between atoms which we wanted to
+ * avoid. So, the simplest solutions seems to be the implemented one, when the
+ * data logged different ways are written in different blocks.
+ */
+
+
 #include "reiser4.h"
 
 int WRITE_LOG = 1;		/* journal is written by default  */
