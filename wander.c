@@ -173,6 +173,7 @@
 #include "super.h"
 #include "vfs_ops.h"
 #include "writeout.h"
+#include "inode.h"
 #include "entd.h"
 
 #include <linux/types.h>
