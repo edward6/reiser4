@@ -514,45 +514,6 @@ inode_detach_jnode(jnode *node)
 	spin_unlock(&inode_lock);
 }
 
-/* keep track of recently created jnodes */
-#define RCJ_NUM 20
-struct {
-	const jnode *node;
-	int log_num;
-	void *bt[5];
-	void *creator;
-} rcj_history[RCJ_NUM];
-
-int first = 0;
-int count = 0;
-int log_num = 0;
-
-static inline void
-log_jnode_creation(const jnode *node)
-{
-	int i;
-
-	if (count == RCJ_NUM) {
-		i = first;
-		first ++;
-		first %= RCJ_NUM;		
-	} else {
-		assert("", first == 0);
-		i = count;
-		count ++;
-	}	
-	rcj_history[i].node = node;
-	rcj_history[i].log_num = log_num ++;
-	rcj_history[i].bt[0] = __builtin_return_address(0);
-	rcj_history[i].bt[1] = __builtin_return_address(1);
-	rcj_history[i].bt[2] = __builtin_return_address(2);
-	rcj_history[i].bt[3] = __builtin_return_address(3);
-	rcj_history[i].bt[4] = __builtin_return_address(4);
-	rcj_history[i].creator = get_current();
-}
-
-/* keep track of recently created jnodes */
-
 /* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
    (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
    fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is created */
@@ -583,7 +544,6 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	j_hash_insert_rcu(jtable, node);
 
 	inode_attach_jnode(node);
-	log_jnode_creation(node);
 }
 
 static void
