@@ -905,11 +905,11 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	   with inode */
 	/* AUDIT. Hardcoded list of plugins is bad */
 	result = save_plug(file_plugin_to_plugin(state->pset->file), inode, area, &num_of_plugins)
-	    && save_plug(perm_plugin_to_plugin(state->pset->perm), inode, area, &num_of_plugins)
-	    && save_plug(tail_plugin_to_plugin(state->pset->tail), inode, area, &num_of_plugins)
-            && save_plug(hash_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
-	    && save_plug(crypto_plugin_to_plugin(state->pset->crypto), inode, area, &num_of_plugins)
-	    && save_plug(compression_plugin_to_plugin(state->pset->compression), inode, area, &num_of_plugins);
+	    || save_plug(perm_plugin_to_plugin(state->pset->perm), inode, area, &num_of_plugins)
+	    || save_plug(tail_plugin_to_plugin(state->pset->tail), inode, area, &num_of_plugins)
+            || save_plug(hash_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
+	    || save_plug(crypto_plugin_to_plugin(state->pset->crypto), inode, area, &num_of_plugins)
+	    || save_plug(compression_plugin_to_plugin(state->pset->compression), inode, area, &num_of_plugins);
 
 	cputod16((unsigned) num_of_plugins, &sd->plugins_no);
 	return result;
