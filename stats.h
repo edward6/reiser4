@@ -507,6 +507,7 @@ typedef struct reiser4_statistics {
 		statcnt_t eflush;
 		statcnt_t scan_race;
 		statcnt_t atom_changed;
+		statcnt_t coc_race;
 	} coc;
 
 	statcnt_t pages_dirty;
