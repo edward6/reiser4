@@ -1136,10 +1136,15 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 			/* good. Either item found or definitely not found. */
 			result = 0;
 
-			/* move found entry to the head of the LRU list. */
 			cbk_cache_lock( cache );
-			cbk_cache_list_remove( slot );
-			cbk_cache_list_push_front( &cache -> lru, slot );
+			if( slot -> node == node ) {
+				/*
+				 * if this node is still in cbk cache---move
+				 * its slot to the head of the LRU list.
+				 */
+				cbk_cache_list_remove( slot );
+				cbk_cache_list_push_front( &cache -> lru, slot );
+			}
 			cbk_cache_unlock( cache );
 		}
 	} else {
