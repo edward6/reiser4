@@ -10,7 +10,7 @@
 #define __REISER4_TREE_H__
 
 /** fictive block number never actually used */
-extern const reiser4_disk_addr FAKE_TREE_ADDR;
+extern const reiser4_block_nr FAKE_TREE_ADDR;
 
 /*
  * define typed list for cbk_cache lru
@@ -73,8 +73,7 @@ typedef enum {
 	LLR_REST
 } level_lookup_result;
 
-typedef int ( *node_read_actor )( reiser4_tree *tree, 
-				  const reiser4_disk_addr *addr, char **data );
+typedef int ( *node_read_actor )( const reiser4_block_nr *addr, char **data );
 
 /** PUT THIS IN THE SUPER BLOCK
  *
@@ -97,7 +96,7 @@ struct reiser4_tree {
 	/* block_nr == 0 is fake znode. Write lock it, while changing
 	   tree height. */
 	/** disk address of root node of a tree */
-	reiser4_disk_addr    root_block;
+	reiser4_block_nr    root_block;
 
 	/** level of the root node. If this is 1, tree consists of root
 	    node only */
@@ -226,7 +225,7 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 
 
 extern int reiser4_init_tree( reiser4_tree *tree, 
-			      const reiser4_disk_addr *root_block,
+			      const reiser4_block_nr *root_block,
 			      tree_level height,
 			      node_plugin *default_plugin,
 			      node_read_actor read_node );
@@ -241,7 +240,7 @@ extern void coord_unit_move_to( tree_coord *coord, int units );
 extern void *item_body_by_coord( const tree_coord *coord );
 extern int item_length_by_coord( const tree_coord *coord );
 extern item_plugin *item_plugin_by_coord( const tree_coord *coord );
-extern item_type item_type_by_coord( const tree_coord *coord );
+extern reiser4_item_plugin_id item_plugin_id_by_coord( const tree_coord *coord );
 extern reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key );
 extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key );
 
@@ -330,7 +329,7 @@ extern int find_child_delimiting_keys( znode *parent,
 extern znode *child_znode( const tree_coord *in_parent, int setup_dkeys_p );
 
 extern void print_coord_content( const char *prefix, tree_coord *p );
-extern void print_address( const char *prefix, const reiser4_disk_addr *block );
+extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int cbk_cache_init( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node );
@@ -351,8 +350,8 @@ extern void print_cbk_cache( const char *prefix, cbk_cache  *cache );
 extern void forget_znode (reiser4_lock_handle *handle);
 extern int deallocate_znode( znode *node );
 
-extern int is_disk_addr_unallocated( const reiser4_disk_addr *addr );
-extern void *unallocated_disk_addr_to_ptr( const reiser4_disk_addr *addr );
+extern int is_disk_addr_unallocated( const reiser4_block_nr *addr );
+extern void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr );
 
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);

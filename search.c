@@ -100,7 +100,7 @@ node_plugin * node_plugin_by_node( const znode *node )
 /**
  * return type of item at @coord
  */
-item_type item_type_by_coord( const tree_coord *coord )
+reiser4_item_plugin_id item_plugin_id_by_coord( const tree_coord *coord )
 {
 	assert( "nikita-333", coord != NULL );
 	assert( "nikita-334", coord -> node != NULL );
@@ -109,7 +109,7 @@ item_type item_type_by_coord( const tree_coord *coord )
 
 	trace_stamp( TRACE_TREE );
 
-	return item_plugin_by_coord( coord ) -> item_type;
+	return item_plugin_by_coord( coord ) -> item_plugin_id;
 }
 
 /**
@@ -301,7 +301,7 @@ typedef struct cbk_handle {
 	/** level we are currently at */
 	tree_level           level;
 	/** block number of "active" node */
-	reiser4_disk_addr    block;
+	reiser4_block_nr    block;
 	/** put here error message to be printed by caller */
 	const char          *error;
 	/** result passed back to caller */
@@ -736,7 +736,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		 */
 		coord -> item_pos ++;
 		iplug = item_plugin_by_coord( coord );
-		if( iplug -> item_type == INTERNAL_ITEM_TYPE )
+		if( iplug -> item_plugin_id == NODE_POINTER_IT )
 			return 1;
 		coord -> item_pos --;
 		return 0;
@@ -761,7 +761,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		if( !result ) {
 			coord_first_unit( &right, right_lh.node );
 			iplug = item_plugin_by_coord( &right );
-			if( iplug -> item_type == INTERNAL_ITEM_TYPE ) {
+			if( iplug -> item_plugin_id == NODE_POINTER_IT ) {
 				/*
 				 * switch to right neighbor
 				 */
@@ -953,11 +953,11 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	assert( "vs-361", h -> level > h -> slevel );
 
 	iplug = item_plugin_by_coord( h -> coord );
-	if( iplug -> item_type != INTERNAL_ITEM_TYPE ) {
+	if( iplug -> item_plugin_id != NODE_POINTER_IT ) {
 		/* strange item type found on non-stop level?!  Twig
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );
-		assert( "vs-357", item_plugin_id (iplug) == EXTENT_ITEM_ID );
+		assert( "vs-357", item_plugin_id (iplug) == EXTENT_POINTER_IT );
 
 		if( result == NS_FOUND ) {
 			/*
@@ -1012,8 +1012,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 				keycmp( h -> key,
 					item_key_by_coord( h -> coord,
 							   &key)) == EQUAL_TO );
-			assert( "vs-362", item_type_by_coord( h -> coord ) ==
-				INTERNAL_ITEM_TYPE );
+			assert( "vs-362", item_plugin_id_by_coord( h -> coord ) ==
+				NODE_POINTER_IT );
 			iplug = item_plugin_by_coord( h -> coord );
 		} else
 			/* 
@@ -1398,12 +1398,13 @@ void print_coord_content( const char *prefix, tree_coord *p )
 }
 
 /** debugging aid: print human readable information about @block */
-void print_address( const char *prefix, const reiser4_disk_addr *block )
+void print_address( const char *prefix, const reiser4_block_nr *block )
 {
-	if( block == NULL )
+	if( block == NULL ) {
 		info( "%s: null\n", prefix );
-	else
-		info( "%s: %lu\n", prefix, ( unsigned long ) block -> blk );
+	} else {
+		info( "%s: %llu\n", prefix, *block );
+	}
 }
 
 /** release parent node during traversal */
@@ -1438,7 +1439,7 @@ static void setup_delimiting_keys( cbk_handle *h )
 	spin_unlock_dk( current_tree );
 }
 
-static int block_nr_is_correct( reiser4_disk_addr *block UNUSED_ARG, 
+static int block_nr_is_correct( reiser4_block_nr *block UNUSED_ARG, 
 				reiser4_tree *tree UNUSED_ARG )
 {
 	assert( "nikita-757", block != NULL );

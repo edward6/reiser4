@@ -252,7 +252,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			       znode * child, tree_level level, int flags, int *nr_locked)
 {
 	int ret;
-	reiser4_disk_addr da;
+	reiser4_block_nr da;
 	/* parent of the neighbor node; we set it to parent until not sharing
 	 * of one parent between child and neighbor node is detected */
 	znode * side_parent = coord->node;
@@ -274,7 +274,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 		 * unformatted nodes and return -ENAVAIL in that case. */
 		/* FIXME-NIKITA nikita: can child_znode() be used here? */
 		iplug = item_plugin_by_coord(coord);
-		if (iplug->item_type != INTERNAL_ITEM_TYPE) {
+		if (iplug->item_plugin_id != NODE_POINTER_IT) {
 			if (handle->owner != NULL) {
 				longterm_unlock_znode(handle);
 			}

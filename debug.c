@@ -314,15 +314,15 @@ static void tree_rec_dot( reiser4_tree *tree, znode *node,
 	}
 
 	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n", 
-		 znode_get_block( node ) -> blk, 
-		 znode_get_block( node ) -> blk,
+		 *znode_get_block( node ), 
+		 *znode_get_block( node ),
 		 sprintf_key( buffer_l, &node -> ld_key ),
 		 sprintf_key( buffer_r, &node -> rd_key ) );
 
 	coord_first_unit( &coord, node );
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
-		if( item_type_by_coord( &coord ) == INTERNAL_ITEM_TYPE ) {
+		if( item_plugin_id_by_coord( &coord ) == NODE_POINTER_IT ) {
 			znode *child;
 
 			spin_lock_dk( current_tree );
@@ -331,8 +331,8 @@ static void tree_rec_dot( reiser4_tree *tree, znode *node,
 			if( !IS_ERR( child ) ) {
 				tree_rec_dot( tree, child, flags, dot );
 				fprintf( dot, "B%lli -> B%lli ;\n", 
-					 znode_get_block( node ) -> blk,
-					 znode_get_block( child ) -> blk );
+					 *znode_get_block( node ),
+					 *znode_get_block( child ) );
 				zput( child );
 			} else {
 				info( "Cannot get child: %li\n", 
@@ -373,11 +373,12 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 		node_check( node, flags );
 
 	coord_first_unit( &coord, node );
-	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "children of node", znode_get_block( node ) );
+	}
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
-		if( item_type_by_coord( &coord ) == INTERNAL_ITEM_TYPE ) {
+		if( item_plugin_id_by_coord( &coord ) == NODE_POINTER_IT ) {
 			znode *child;
 
 			spin_lock_dk( current_tree );
@@ -392,8 +393,9 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 			}
 		}
 	}
-	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "end children of node", znode_get_block( node ) );
+	}
 	done_coord( &coord );
 }
 

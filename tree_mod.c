@@ -10,7 +10,7 @@
 
 static int add_child_ptr( znode *parent, znode *child );
 
-extern int reiser4_alloc_block( znode *neighbor, reiser4_disk_addr *blocknr );
+extern int reiser4_alloc_block( znode *neighbor, reiser4_block_nr *blocknr );
 
 /**
  * warning only issued if error is not -EAGAIN
@@ -29,7 +29,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 {
 	znode *result;
 	int    retcode;
-	reiser4_disk_addr blocknr;
+	reiser4_block_nr blocknr;
 
 	assert( "nikita-930", brother != NULL );
 
@@ -190,8 +190,8 @@ void build_child_ptr_data( znode *child /* node pointer to which will be
 
 	/* this is subtle assignment to meditate upon */
 	data -> data = ( char * ) znode_get_block( child );
-	data -> length = sizeof( reiser4_disk_addr );
-	data -> iplug = item_plugin_by_id( INTERNAL_ITEM_ID );
+	data -> length = sizeof( reiser4_block_nr );
+	data -> iplug = item_plugin_by_id( NODE_POINTER_IT );
 }
 
 /**
@@ -233,7 +233,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 		      znode *old_root /* root node that is being removed */, 
 		      znode *new_root /* new root---sole child of *
 				       * @old_root */, 
-		      const reiser4_disk_addr *new_root_blk /* disk address of
+		      const reiser4_block_nr *new_root_blk /* disk address of
 							     * @new_root */ )
 {
 	znode *fake;
