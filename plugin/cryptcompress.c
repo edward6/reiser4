@@ -447,6 +447,29 @@ cryptcompress_readpages(struct file *file UNUSED_ARG, struct address_space *mapp
 	return;
 }
 
+ssize_t
+write_cryptcompress(struct file * file, /* file to write to */
+		    const char *buf, /* address of user-space buffer */
+		    size_t count, /* number of bytes to write */
+		    loff_t * off /* position to write which */)
+{
+	ssize_t result;
+	struct inode *inode;
+	flow_t f;
+	item_plugin *iplug;
+	
+	inode = file->f_dentry->d_inode;
+	iplug = item_plugin_by_id(CTAIL_ID);
+	
+	down(&inode->i_sem);
+
+	cryptcompress_build_flow(inode, (char *)buf, 1, count, *off, WRITE_OP, &f);
+	result = iplug->s.file.write(inode, NULL, NULL, &f, NULL, 0);
+
+	up(&inode->i_sem);
+	return result;
+}
+
 /*
    Local variables:
    c-indentation-style: "K&R"
