@@ -535,14 +535,14 @@ void move_flow_forward (flow_t * f, unsigned count)
  * Default method to construct flow into @f according to user-supplied
  * data.
  */
-static int common_build_flow( struct inode *inode /* file to build flow for */, 
-			      char *buf /* user level buffer */,
-			      int user /* 1 if @buf is of user space, 0 - if
-					* it is kernel space */,
-			      size_t size /* buffer size */, 
-			      loff_t off /* offset to start io from */, 
-			      rw_op op UNUSED_ARG /* io operation */, 
-			      flow_t *f /* resulting flow */ )
+int common_build_flow( struct inode *inode /* file to build flow for */, 
+		       char *buf /* user level buffer */,
+		       int user /* 1 if @buf is of user space, 0 - if it is
+				   kernel space */,
+		       size_t size /* buffer size */, 
+		       loff_t off /* offset to start io from */, 
+		       rw_op op UNUSED_ARG /* io operation */, 
+		       flow_t *f /* resulting flow */ )
 {
 	file_plugin *fplug;
 
