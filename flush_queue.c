@@ -956,10 +956,21 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node, struct writebac
 
 	if (atomic_read(&fq->nr_submitted) == 0)
 		scan_fq_sent_list(fq);
+	else {
+		int errors = 0;
+		/* wait for i/o completion */
+		ret = wait_io(fq, &errors);
+		if (ret == -EAGAIN)
+			return 0;
+		if (ret)
+			return ret;
+		spin_unlock_atom(atom);
+		if (errors)
+			return -EIO;
+		return 0;
+	}
 
-	ret = (fq->nr_queued == 0);
-
-	if (ret)
+	if (fq->nr_queued == 0)
 		steal_queued_nodes (atom, fq, wbc->nr_to_write);
 
 	spin_unlock_atom(atom);

@@ -587,14 +587,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	assert("vs-828", PageLocked(page));
 
-	result = emergency_flush(page, wbc);
-	if (result > 0)
-		REISER4_EXIT(0);
-
 	tree = &get_super_private(s)->tree;
-	/* jfind which used to be here creates jnode for the page if it is not private yet. But that jnode is only later
-	   used by writeback_queued_jnodes to get its atom. As newly created jnode has no atom - there is no reason to
-	   call jfind, jlook (or zlook if page is of fake inode) is enough */
+	/* jfind which used to be here creates jnode for the page if it is not
+	   private yet. But that jnode is only later used by
+	   writeback_queued_jnodes to get its atom. As newly created jnode has
+	   no atom - there is no reason to call jfind, jlook (or zlook if page
+	   is of fake inode) is enough */
 	if (page->mapping->host != get_super_private(s)->fake)
 		node = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
 	else {
@@ -607,10 +605,19 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	reiser4_unlock_page(page);
 
-	writeback_queued_jnodes(s, node, wbc);
-
-	if (node)
+	if (node) {
+		result = writeback_queued_jnodes(s, node, wbc);
 		jput(node);
+	}
+
+	if (result > 0)
+		REISER4_EXIT(0);
+
+	reiser4_lock_page(page);
+	result = emergency_flush(page, wbc);
+	if (result <= 0)
+		reiser4_unlock_page(page);
+
 	REISER4_EXIT(0);
 }
 
