@@ -54,7 +54,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .estimate = NULL,
 	    .is_internal = NULL
 	},
-	.ops = {
+	.specific = {
 	    .stat = { }
 	}
     }

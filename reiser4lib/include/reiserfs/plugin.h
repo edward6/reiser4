@@ -135,7 +135,7 @@ struct reiserfs_item_plugin {
 	reiserfs_file_ops_t file;
 	reiserfs_stat_ops_t stat;
 	reiserfs_internal_ops_t internal;
-    } ops;
+    } specific;
 };
 
 typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;

@@ -18,8 +18,8 @@ struct reiserfs_coord {
 typedef struct reiserfs_coord reiserfs_coord_t;
 
 struct reiserfs_path {
-    aal_list_t *entity;	    /* list for holding path elements */
-    void *data;		    /* user specified per-path data */
+    aal_list_t *entity;		/* list for holding path elements */
+    void *data;			/* user specified per-path data */
 };
 
 typedef struct reiserfs_path reiserfs_path_t;

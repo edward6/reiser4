@@ -183,7 +183,7 @@ count_t reiserfs_super_get_free(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.get_free(fs->super->entity);
 }
 
-reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
+reiserfs_plugin_id_t reiserfs_super_journal_plugin_id(reiserfs_fs_t *fs) {
     aal_assert("umka-114", fs != NULL, return -1);
     aal_assert("umka-115", fs->super != NULL, return -1);
 	
@@ -192,7 +192,7 @@ reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.journal_plugin_id(fs->super->entity);
 }
 
-reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
+reiserfs_plugin_id_t reiserfs_super_alloc_plugin_id(reiserfs_fs_t *fs) {
     aal_assert("umka-116", fs != NULL, return -1);
     aal_assert("umka-117", fs->super != NULL, return -1);
 	
@@ -201,7 +201,7 @@ reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.alloc_plugin_id(fs->super->entity);
 }
 
-reiserfs_plugin_id_t reiserfs_super_node_plugin(reiserfs_fs_t *fs) {
+reiserfs_plugin_id_t reiserfs_super_node_plugin_id(reiserfs_fs_t *fs) {
     aal_assert("umka-118", fs != NULL, return -1);
     aal_assert("umka-119", fs->super != NULL, return -1);
 	

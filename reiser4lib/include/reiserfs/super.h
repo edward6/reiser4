@@ -30,9 +30,9 @@ extern void reiserfs_super_set_root(reiserfs_fs_t *fs, blk_t root);
 extern void reiserfs_super_set_blocks(reiserfs_fs_t *fs, count_t blocks);
 extern void reiserfs_super_set_free(reiserfs_fs_t *fs, count_t blocks);
 
-extern reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs);
-extern reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs);
-extern reiserfs_plugin_id_t reiserfs_super_node_plugin(reiserfs_fs_t *fs);
+extern reiserfs_plugin_id_t reiserfs_super_journal_plugin_id(reiserfs_fs_t *fs);
+extern reiserfs_plugin_id_t reiserfs_super_alloc_plugin_id(reiserfs_fs_t *fs);
+extern reiserfs_plugin_id_t reiserfs_super_node_plugin_id(reiserfs_fs_t *fs);
 
 #endif
 

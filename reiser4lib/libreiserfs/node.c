@@ -29,7 +29,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     }
     
     if (plugin_id == REISERFS_GUESS_PLUGIN_ID) 
-	plugin_id = reiserfs_node_plugin(node);
+	plugin_id = reiserfs_node_plugin_id(node);
     
     if (!(node->plugin = reiserfs_plugins_find_by_coords(REISERFS_NODE_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -148,7 +148,7 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
 
 #endif
 
-reiserfs_plugin_id_t reiserfs_node_plugin(reiserfs_node_t *node) {
+reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node) {
     aal_assert("umka-161", node != NULL, return -1);
     return get_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id);
 }
@@ -193,5 +193,13 @@ void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
     
     reiserfs_plugin_check_routine(node->plugin->node, set_free_space, return); 
     return node->plugin->node.set_free_space(node->entity, value);
+}
+
+reiserfs_item_info_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos) {
+    return NULL;
+}
+
+void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos) {
+    return NULL;
 }
 

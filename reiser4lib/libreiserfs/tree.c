@@ -116,6 +116,8 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
     int found = 0;
     reiserfs_node_t *node;
     reiserfs_coord_t *coord;
+    reiserfs_plugin_t *plugin;
+    reiserfs_item_info_t *item_info;
 	
     aal_assert("umka-458", fs != NULL, return 0);
     aal_assert("umka-459", key != NULL, return 0);
@@ -136,11 +138,25 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 
 	if (path && !reiserfs_path_append(path, coord))
 	    return 0;
-		
-/*	if (reiserfs_node_is_leaf(node))
-	    return found;
-			
-	from = get_dc_child_blocknr(get_node_disk_child(node, pos)) + tree->offset;*/
+	
+	if (!(item_info = reiserfs_node_item_info(node, coord->item_pos))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't get item info from node for item %d.", coord->item_pos);
+	    return 0;
+	}
+
+	if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, item_info->plugin_id))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't find item plugin by its id %x.", item_info->plugin_id);
+	    return 0;
+	}
+	
+//	reiserfs_plugin_check_routine(plugin->item.common, is_internal, return 0);
+	if (!plugin->item.common.is_internal(item_info->data, item_info->plugin_id))
+	    return 1;
+	
+//	reiserfs_plugin_check_routine(plugin->item.specific.internal, down_link, return 0);
+	from = plugin->item.specific.internal.down_link(item_info->data, coord->unit_pos);
     }
     return 0;
 }
