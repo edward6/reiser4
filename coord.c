@@ -435,6 +435,7 @@ coord_next_item(coord_t * coord)
 		if (coord->item_pos == items - 1) {
 			coord->between = AFTER_ITEM;
 			coord->unit_pos = 0;
+			coord_clear_iplug(coord);
 			return 1;
 		}
 
