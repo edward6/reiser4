@@ -174,7 +174,7 @@ reiser4_clear_bit(bmap_off_t nr, void *addr)
 	*base &= ~mask;
 }
 
-static bmap_nr_t
+static bmap_off_t
 reiser4_find_next_zero_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
 {
 	unsigned char *base = addr;
@@ -216,7 +216,7 @@ reiser4_test_bit(bmap_off_t nr, void *addr)
 
 #endif
 
-static bmap_nr_t
+static bmap_off_t
 reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
 {
 	unsigned char *base = addr;
