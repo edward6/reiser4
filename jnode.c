@@ -1719,7 +1719,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	       atomic_read(&node->d_count), atomic_read(&node->x_count),
 	       jnode_page(node), node->atom,
-#if REISER4_LOCKPROF
+#if REISER4_LOCKPROF && REISER4_LOCKPROF_OBJECTS
 	       node->guard.held, node->guard.trying,
 #else
 	       0, 0,
