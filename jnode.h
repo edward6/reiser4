@@ -95,6 +95,17 @@ typedef struct {
       [jnode-oid]
       [jnode-queued]
 */
+
+/* this is to show on which list of atom jnode is */
+typedef enum {
+	NOT_CAPTURED,
+	DIRTY_LIST,
+	CLEAN_LIST,
+	FQ_LIST,
+	WB_LIST,
+	OVRWR_LIST
+} atom_list;
+
 struct jnode {
 #if REISER4_DEBUG
 #define JMAGIC 0x52654973 /* "ReIs" */
@@ -169,6 +180,7 @@ struct jnode {
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
 	int      written;
+        atom_list list;
 #endif
 } __attribute__((aligned(16)));
 
@@ -260,7 +272,14 @@ typedef enum {
 	JNODE_SCANNED = 24,
 	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25,
 	/* capture copy jnode */
-	JNODE_CC = 26
+	JNODE_CC = 26,
+#if REISER4_DEBUG
+	/* this is set when jnode was copied on capture */
+	JNODE_CCED_RELOC = 27,
+	JNODE_CCED_OVRWR = 29,
+	JNODE_CCED_CLEAN = 30,
+	JNODE_CCED_UBER = 31,
+#endif
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
