@@ -33,14 +33,18 @@ struct reiser4_blocknr_hint {
 extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
 extern void blocknr_hint_done (reiser4_blocknr_hint *hint);
 
-int blocknr_is_fake(const reiser4_block_nr * da);
-void get_next_fake_blocknr (reiser4_block_nr *bnr);
+extern int reiser4_reserve_blocks (reiser4_block_nr *,
+				    const reiser4_block_nr,
+				    const reiser4_block_nr);
+extern void reiser4_free_reserved_blocks (const reiser4_block_nr count);
+
+extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
-extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int);
-extern int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr);
+extern void reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int);
 
-
+extern int assign_fake_blocknr (reiser4_block_nr *);
+extern void release_blocknr (reiser4_block_nr *);
 
 #endif /* __FS_REISER4_BLOCK_ALLOC_H__ */
 

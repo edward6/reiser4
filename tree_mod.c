@@ -39,7 +39,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	/*
 	 * interface to block allocator is non-existent as of now.
 	 */
-	retcode = alloc_blocknr( brother, &blocknr );
+	retcode = assign_fake_blocknr( &blocknr );
 	if( retcode == 0 ) {
 		result = zget( current_tree, &blocknr, NULL, level,
 			       GFP_KERNEL );

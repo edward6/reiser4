@@ -70,11 +70,12 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 /* FIXME-ZAM: reserved blocks could be counted in a reiser4 super block field,
  * it allows more error checks. */
 
-static int reserve_blocks (struct super_block * super,
-			   reiser4_block_nr * reserved,
+int reiser4_reserve_blocks (reiser4_block_nr * reserved,
 			   const reiser4_block_nr min_block_count,
 			   const reiser4_block_nr max_block_count)
 {
+	struct super_block * super = reiser4_get_current_sb ();
+
 	__u64 free_blocks;
 	int ret = 0;
 
@@ -110,8 +111,9 @@ static int reserve_blocks (struct super_block * super,
 /**
  * Adjust free blocks count for blocks which were reserved but were not used.
  */
-static void free_reserved_blocks (struct super_block * super, reiser4_block_nr count)
+void reiser4_free_reserved_blocks (const reiser4_block_nr count)
 {
+	struct super_block * super = reiser4_get_current_sb ();
 	__u64 free_blocks;
 
 	reiser4_spin_lock_sb (super);
@@ -125,7 +127,7 @@ static void free_reserved_blocks (struct super_block * super, reiser4_block_nr c
 
 /** a generator for tree nodes fake block numbers */
 /* Audited by: green(2002.06.11) */
-void get_next_fake_blocknr (reiser4_block_nr *bnr)
+static void get_next_fake_blocknr (reiser4_block_nr *bnr)
 {
 	static spinlock_t       fake_lock = SPIN_LOCK_UNLOCKED;
 	static reiser4_block_nr fake_gen  = 0;
@@ -152,8 +154,6 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			  reiser4_block_nr *len)
 {
-	struct super_block * super = reiser4_get_current_sb ();
-
 	space_allocator_plugin * splug;
 	reiser4_block_nr needed;
 	int ret;
@@ -164,7 +164,7 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 
 	if (hint != NULL && hint -> not_counted) {
 		/* we should not allocate reserved space */
-		ret = reserve_blocks (super, &needed, (reiser4_block_nr)1, *len);
+		ret = reiser4_reserve_blocks (&needed, (reiser4_block_nr)1, *len);
 		if (ret != 0) return ret;		
 	} else {
 		needed  = *len;
@@ -178,9 +178,9 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 	if (hint != NULL && hint -> not_counted) {
 		if (ret == 0) {
 			assert ("zam-475", *len <= needed);
-			free_reserved_blocks (super, needed - *len);
+			reiser4_free_reserved_blocks (needed - *len);
 		} else {
-			free_reserved_blocks (super, needed);
+			reiser4_free_reserved_blocks (needed);
 		}
 	}
 
@@ -191,7 +191,7 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
  * plugin allocation or store deleted block numbers in atom's delete_set data
  * structure depend on @defer parameter.
  */
-int reiser4_dealloc_blocks (
+void reiser4_dealloc_blocks (
 	const reiser4_block_nr * start,
 	const reiser4_block_nr * len, 
 	/* defer actual block freeing until transaction commit */
@@ -221,7 +221,7 @@ int reiser4_dealloc_blocks (
 			/* This loop might spin at most two times */
 		} while (ret != -EAGAIN);
 
-		if (ret != 0) return ret;
+		assert ("zam-477", ret == 0);
 
 		assert ("zam-433", atom != NULL);
 		spin_unlock_atom (atom);
@@ -239,13 +239,23 @@ int reiser4_dealloc_blocks (
 
 		splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()), *start, *len);
 	}
-
-	return 0;
 }
 
-/** obtain block number for formatted node */
-int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr)
+/** obtain a block number for new formatted node which will be used to refer
+ * to this newly allocated node until real allocation is done */
+int assign_fake_blocknr (reiser4_block_nr *blocknr)
 {
+	int ret;
+	reiser4_block_nr not_used;
+
+	ret = reiser4_reserve_blocks (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
+
+	if (ret != 0) return ret;
+
+	get_next_fake_blocknr (blocknr);
+
+	return 0;
+#if 0
 	if (1) {
 		space_allocator_plugin * splug;
 		reiser4_blocknr_hint preceder;
@@ -263,7 +273,26 @@ int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr)
 		get_next_fake_blocknr (blocknr);
 		return 0;
 	}
+
+#endif;
 }
+
+/* release disk space (reserved or real one) depend on block number type (fake
+ * or real) */
+void release_blocknr (reiser4_block_nr * block)
+{
+	const reiser4_block_nr one = 1;
+
+	assert ("zam-476", block != NULL);
+	/* FIXME: more checks about jnode state should be here */
+
+	if (blocknr_is_fake (block)) {
+		reiser4_free_reserved_blocks ((reiser4_block_nr)1);
+	} else {
+		reiser4_dealloc_blocks (block, &one, 1);
+	}
+}
+
 
 /* 
  * Local variables:
