@@ -13,6 +13,8 @@ struct bnode {
 	jnode      wjnode;	/* embedded jnodes for WORKING ... */
 	jnode      cjnode;	/* ... and COMMIT bitmap blocks */
 
+	bmap_off_t first_zero_bit;	/* for skip_busy option implementation */
+
 	struct bnode * next_in_commit_list;
 };
 
@@ -293,6 +295,15 @@ static void check_bnode_loaded (const struct bnode * bnode)
 
 #endif
 
+/** modify bnode->first_zero_bit (if we free bits before); bnode should be
+ * spin-locked */
+static void inline adjust_first_zero_bit (struct bnode * bnode, bmap_off_t offset)
+{
+	if (offset < bnode->first_zero_bit)
+		bnode->first_zero_bit = offset;
+}
+
+
 /** return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
 #define REISER4_FIRST_BITMAP_BLOCK 100
@@ -557,6 +568,8 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 	bmap_off_t start;
 	bmap_off_t end;
 
+	int set_first_zero_bit = 0;
+
 	int ret;
 
 	assert("zam-364", min_len > 0);
@@ -571,6 +584,11 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 
 	start = *offset;
 
+	if (bnode->first_zero_bit >= start) {
+		start = bnode->first_zero_bit;
+		set_first_zero_bit = 1;
+	}
+
 	while (start + min_len < max_offset) {
 
 		start = reiser4_find_next_zero_bit((long*) data, max_offset, start);
@@ -580,23 +598,33 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 		search_end = LIMIT(start + max_len, max_offset);
 		end = reiser4_find_next_set_bit((long*) data, search_end, start);
 
+		if (set_first_zero_bit &&
+		    (end < max_offset || max_offset >= super->s_blocksize)) {
+			bnode->first_zero_bit = end;
+			set_first_zero_bit = 0;
+		}
+
 		if (end >= start + min_len) {
 			ret = end - start;
 			*offset = start;
 
 			reiser4_set_bits(data, start, end);
-			break;
+
+			/* FIXME: we may advance first_zero_bit if [start,
+			 * end] region overlaps the first_zero_bit point */
+
+			break; 
 		}
 
 		start = end + 1;
 	}
 
- out:
 	if (ret > 0) {
 		jnode_set_dirty(& bnode->wjnode);
 		jnode_set_dirty(& bnode->wjnode);
 	}
 
+ out:
 	release_and_unlock_bnode (bnode);
 
 	return ret;
@@ -723,6 +751,8 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	assert ("zam-481", ret == 0);
 
 	reiser4_clear_bits (jdata (&bnode->wjnode), offset, (bmap_off_t)(offset + *len));
+
+	adjust_first_zero_bit (bnode, offset);
 
 	release_and_unlock_bnode (bnode);
 
@@ -921,6 +951,8 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 		reiser4_clear_bit (offset, data);
 	}
 
+	adjust_first_zero_bit (bnode, offset);
+
 	release_and_unlock_bnode(bnode);
 
 	reiser4_spin_lock_sb (sb);
@@ -979,7 +1011,8 @@ static int apply_wset_to_working_bmap (
 	check_bnode_loaded (bnode);
 
 	load_and_lock_bnode (bnode);
-	reiser4_clear_bit(offset, jdata (&bnode->wjnode)); 
+	reiser4_clear_bit(offset, jdata (&bnode->wjnode));
+	adjust_first_zero_bit(bnode, offset);
 	release_and_unlock_bnode(bnode);
 
 	reiser4_spin_lock_sb (sb);
