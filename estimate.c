@@ -71,7 +71,7 @@ estimate_one_item_removal(tree_level height)
 }
 
 
-#if PSEUDO_CODE_CAN_COMPILE
+#if YOU_CAN_COMPILE_PSEUDO_CODE
 
 /* maximal cost in leaf nodes of deleting an item (left and right are wandered, current disappears but not immediately)*/
 #define ESTIMATE_ITEM_DELETE 2

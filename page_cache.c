@@ -590,8 +590,8 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 */
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
-		      int flush_flags	/* Additional hint. Seems to be
-					 * unused currently. */ )
+		      int flush_flags UNUSED_ARG /* Additional hint. Seems to
+						  * be unused currently. */)
 {
 	jnode *node;
 	struct super_block *s = page->mapping->host->i_sb;

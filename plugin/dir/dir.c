@@ -142,6 +142,9 @@ common_link(struct inode *parent /* parent directory */ ,
 
 	data.mode = object->i_mode;
 	data.id = inode_file_plugin(object)->h.id;
+	/*
+	 * FIXME: comparing unsigned with 0
+	 */
 	if ((reserve = common_estimate_link(parent, existing->d_inode)) < 0)
 	    return reserve;
 
@@ -230,6 +233,9 @@ common_unlink(struct inode *parent /* parent object */ ,
 	assert("nikita-1239", object != NULL);
 
 	fplug = inode_file_plugin(object);
+	/*
+	 * FIXME: comparing unsigned with 0
+	 */
 	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
 		return reserve;
 
@@ -438,6 +444,9 @@ common_create_child(struct inode *parent /* parent object */ ,
 		return -EPERM;
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
+	/*
+	 * FIXME: comparing unsigned with 0
+	 */
 	if ((reserve = common_estimate_create_child(parent, object)) < 0)
 	    return reserve;
 

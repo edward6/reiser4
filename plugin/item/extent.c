@@ -878,6 +878,9 @@ offset_is_in_extent(const coord_t * coord, loff_t off, reiser4_block_nr * pos_in
 	unit_off = get_key_offset(&unit_key);
 	if (off < unit_off)
 		return 0;
+	/*
+	 * FIXME: comparing signed and unsigned
+	 */
 	if (off >= (unit_off + (current_blocksize * extent_get_width(extent_by_coord(coord)))))
 		return 0;
 	if (pos_in_unit)
@@ -2632,6 +2635,9 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 	inode_file_plugin(inode)->key_by_inode(inode, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT, &key);
 
 	todo = how_to_write(coord, lh, &key);
+	/*
+	 * FIXME: comparing unsigned and 0
+	 */
 	if (unlikely(todo < 0))
 		return todo;
 

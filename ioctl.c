@@ -39,7 +39,7 @@ reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned
 /* reiser4_unpack -- function try to convert tail into extent by means of using
    tail2extent function. */
 int
-reiser4_unpack(struct inode *inode, struct file *filp)
+reiser4_unpack(struct inode *inode, struct file *filp UNUSED_ARG)
 {
 	int result;
 

@@ -180,7 +180,8 @@ goto_right_neighbor(coord_t * coord, lock_handle * lh)
 
 }
 
-write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * key)
+write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG, 
+			const reiser4_key * key)
 {
 	write_mode result;
 	ON_DEBUG(reiser4_key check);
@@ -1012,7 +1013,9 @@ item_to_operate_on(struct inode *inode, flow_t * f, coord_t * coord)
 	return TAIL_ID;
 }
 
-reiser4_block_nr unix_file_estimate_read(struct inode *inode, loff_t count) {
+reiser4_block_nr unix_file_estimate_read(struct inode *inode, 
+					 loff_t count UNUSED_ARG) 
+{
     	/* We should reserve the one block, because of updating of the stat data
 	   item */
 	return inode_file_plugin(inode)->estimate.update(inode);

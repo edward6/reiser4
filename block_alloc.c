@@ -412,7 +412,7 @@ assign_fake_blocknr(reiser4_block_nr * blocknr, reiser4_ba_flags_t flags)
 	}
 #endif
 	trace_on(TRACE_RESERVE, "moving 1 grabbed block to fake allocated.\n");
-	grabbed2fake_allocated(1, flags);
+	grabbed2fake_allocated((__u64)1, flags);
 	
 	return 0;
 }
@@ -579,14 +579,15 @@ used2fake_allocated(__u64 count, reiser4_ba_flags_t flags)
 }
 
 static void
-used2flush_reserved(txn_atom * atom, __u64 count, reiser4_ba_flags_t flags)
+used2flush_reserved(txn_atom * atom, __u64 count, 
+		    reiser4_ba_flags_t flags UNUSED_ARG)
 {
 	const struct super_block *super = reiser4_get_current_sb();
 
 	assert("nikita-2791", atom != NULL);
 	assert("nikita-2792", spin_atom_is_locked(atom));
 
-	add_to_atom_flush_reserved_nolock(atom, count);
+	add_to_atom_flush_reserved_nolock(atom, (__u32)count);
 
 	reiser4_spin_lock_sb(super);
 
@@ -688,7 +689,7 @@ void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 	super = reiser4_get_current_sb();
 
 	add_to_ctx_grabbed (count);
-	sub_from_atom_flush_reserved_nolock(atom, count);
+	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
 
 	reiser4_spin_lock_sb(super);
 
@@ -709,7 +710,7 @@ void flush_reserved2used(txn_atom * atom, __u64 count)
 
 	super = reiser4_get_current_sb();
 
-	sub_from_atom_flush_reserved_nolock(atom, count);
+	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
 
 	reiser4_spin_lock_sb(super);
 
@@ -747,7 +748,7 @@ void flush_reserved2free_all ()
 
 	count = atom->flush_reserved;
 	
-	sub_from_atom_flush_reserved_nolock(atom, count);
+	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
 
 	reiser4_spin_lock_sb (super);
 	

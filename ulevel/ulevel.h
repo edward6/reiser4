@@ -884,9 +884,6 @@ struct address_space_operations {
 	/* Write back some dirty pages from this mapping. */
 	int (*writepages)(struct address_space *, struct writeback_control *wbc);
 
-	/* Perform a writeback as a memory-freeing operation. */
-	int (*vm_writeback)(struct page *, struct writeback_control *wbc);
-
 	/* Set a page dirty */
 	int (*set_page_dirty)(struct page *page);
 
@@ -1447,6 +1444,9 @@ void wait_on_buffer(struct buffer_head *);
 struct page *grab_cache_page(struct address_space *mapping, unsigned long idx);
 struct page *read_cache_page(struct address_space *mapping, unsigned long idx,
 			     int (*filler)(void *,struct page*), void *data);
+
+struct page * find_or_create_page (struct address_space * mapping,
+				   unsigned long ind, int gfp);
 
 /* fs/buffer.c */
 struct buffer_head * sb_bread (struct super_block * sb, int block);
@@ -2096,7 +2096,7 @@ extern void generic_delete_inode(struct inode *inode);
 extern void generic_forget_inode(struct inode *inode);
 
 #define called_for_sync() (0)
-#define bdi_write_congested(bdi) (0)
+#define bdi_write_congested(bdi) (((void)(bdi)),(0))
 
 #define get_seconds() (time(0))
 

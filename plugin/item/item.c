@@ -141,7 +141,9 @@ single_unit(const coord_t * coord UNUSED_ARG	/* coord
 }
 
 static int
-no_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info)
+no_paste(coord_t * coord UNUSED_ARG, 
+	 reiser4_item_data * data UNUSED_ARG, 
+	 carry_plugin_info * info UNUSED_ARG)
 {
 	return 0;
 }

@@ -122,6 +122,12 @@ void spinlock_bug (const char *msg)
 	reiser4_panic("jmacd-1010", "spinlock: %s", msg); 
 }
 
+
+static void ul_init_file(struct file *f)
+{
+	assert("nikita-2860", f != NULL);
+}
+
 #define KMEM_CHECK 1
 #define KMEM_MAGIC 0x74932123U
 
@@ -474,6 +480,10 @@ static struct inode * alloc_inode (struct super_block * sb)
 	INIT_LIST_HEAD (&inode->i_mapping->dirty_pages);
 	INIT_LIST_HEAD (&inode->i_mapping->locked_pages);
 	spin_lock_init (&inode->i_mapping->page_lock);
+
+	INIT_LIST_HEAD (&inode->i_mapping->private_list);
+	spin_lock_init(&inode->i_mapping->private_lock);
+	inode->i_mapping->assoc_mapping = NULL;
 
 	/*
 	 * FIXME-VS: init mapping's hash table of pages
@@ -1060,6 +1070,12 @@ struct page * find_lock_page (struct address_space * mapping,
 }
 
 
+struct page * find_or_create_page (struct address_space * mapping,
+				   unsigned long ind, int gfp)
+{
+	return grab_cache_page(mapping, ind);
+}
+
 /* this increases page->count and locks the page */
 struct page * grab_cache_page (struct address_space * mapping,
 			       unsigned long ind)
@@ -1190,13 +1206,13 @@ static void truncate_inode_pages (struct address_space * mapping,
 
 	
 	ind = (from + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	write_lock (&mapping->page_lock);
+	// write_lock (&mapping->page_lock);
 
 	truncate_list_pages (mapping, &mapping->clean_pages, ind);
 	truncate_list_pages (mapping, &mapping->dirty_pages, ind);
 	truncate_list_pages (mapping, &mapping->locked_pages, ind);
 
-	write_unlock (&mapping->page_lock);
+	// write_unlock (&mapping->page_lock);
 }
 
 
@@ -2220,7 +2236,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 			nanosleep( &delay, NULL );
 		}
 	}
-	xmemset( &df, 0, sizeof df );
+	ul_init_file( &df );
 	xmemset( &dentry, 0, sizeof dentry );
 
 	call_readdir( f, dir_name );
@@ -3447,10 +3463,12 @@ static int bash_mount (char * cmd, struct super_block **sb)
 	if (IS_ERR (*sb)) {
 		return PTR_ERR (*sb);
 	}
+#if 0
 	if (getenv( "REISER4_SWAPD" )) {
 		/* start uswapd */
 		check_me ("vs-824", pthread_create( &uswapper, NULL, uswapd, *sb ) == 0);
 	}
+#endif
 
 	return 0;
 }
@@ -3674,7 +3692,7 @@ static int bash_mkfs (char * file_name)
 
 			struct {
 				reiser4_stat_data_base base;
-				reiser4_light_weight_stat lw;
+				/* reiser4_light_weight_stat lw; */
 			} sd;
 			reiser4_item_data insert_data;
 			reiser4_key key;
@@ -3687,20 +3705,26 @@ static int bash_mkfs (char * file_name)
 
 			/* item body */
 			xmemset( &sd, 0, sizeof sd );
-			cputod16( S_IFDIR | 0111, &sd.lw.mode );
 			cputod16( 0x0 , &sd.base.extmask );
+			/* cputod16( S_IFDIR | 0111, &sd.lw.mode );
 			cputod32( 1, &sd.lw.nlink );
-			cputod64( 0ull, &sd.lw.size );
+			cputod64( 0ull, &sd.lw.size ); */
 
 			/* data for insertion */
 			insert_data.data = ( char * ) &sd;
 			insert_data.user = 0;
 			insert_data.length = sizeof (sd);
 			insert_data.iplug = item_plugin_by_id (STATIC_STAT_DATA_ID);
-		
+			result = reiser4_grab_space_exact(100, 0);
+			if (result) {
+				info ("grabbing failed\n");
+				return result;
+			}
+
+
 			result = insert_item (tree, &insert_data, &key);
 			if (result) {
-				info ("insert_item failed");
+				info ("insert_item failed\n");
 				return result;
 			}
 			
@@ -3739,6 +3763,9 @@ static int bash_mkfs (char * file_name)
 			inode = call_lookup (fake_parent, "x");
 			if (!inode)
 				return 1;
+			all_grabbed2free();
+
+
 			result = call_write2 (inode, (loff_t)0, super.s_blocksize);
 			assert ("jmacd-0000", (unsigned)result == super.s_blocksize);
 			result = call_unlink (fake_parent, inode, "x", 0);
@@ -4334,6 +4361,7 @@ sys_lrand (__u32 max)
 
 #define BLOCK_COUNT 14000
 
+#if 0
 static int shrink_cache (void);
 
 static void *uswapd( void *untyped )
@@ -4467,6 +4495,7 @@ static int shrink_cache (void)
 	return removed;
 }
 
+#endif
 
 void declare_memory_pressure( void )
 {
@@ -4608,9 +4637,11 @@ int real_main( int argc, char **argv )
 	assert ("jmacd-998", s -> s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 	
 
+#if 0
 	result = pthread_create( &uswapper, NULL, uswapd, s );
 	assert( "nikita-1938", result == 0 );
-	
+#endif
+
 	/* check that blocksize is a power of two */
 	assert( "vs-417", ! ( s -> s_blocksize & ( s -> s_blocksize - 1 ) ) );
 	

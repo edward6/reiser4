@@ -418,7 +418,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 	if (left < 0)
 		left = 0;
 
-	coord_set_item_pos(coord, (unsigned short) left);
+	coord_set_item_pos(coord, left);
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;
 
@@ -560,7 +560,7 @@ node40_check(const znode * node /* node to check */ ,
 		unsigned j;
 
 		ih = node40_ih_at(node, (unsigned) i);
-		coord_set_item_pos(&coord, (unsigned short) i);
+		coord_set_item_pos(&coord, i);
 		if ((ih40_get_offset(ih) >=
 		     znode_size(node) - nr_items * sizeof (item_header40)) ||
 		    (ih40_get_offset(ih) < sizeof (node40_header))) {
@@ -814,7 +814,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	if (coord_set_to_right(target))
 		/* there are not items to the right of @target, so, new item
 		   will be inserted after last one */
-		coord_set_item_pos(target, (pos_in_node)nh40_get_num_items(nh));
+		coord_set_item_pos(target, nh40_get_num_items(nh));
 
 	if (target->item_pos < nh40_get_num_items(nh)) {
 		/* there are items to be moved to prepare space for new
@@ -1458,7 +1458,7 @@ node40_copy(struct shift_params *shift)
 		coord_set_item_pos(&from, 0);
 		from_ih = node40_ih_at(from.node, 0);
 
-		coord_set_item_pos(&to, (unsigned) node40_num_of_items_internal(to.node) - 1);
+		coord_set_item_pos(&to, node40_num_of_items_internal(to.node) - 1);
 		if (shift->merging_units) {
 			/* expand last item, so that plugin methods will see
 			   correct data */
@@ -1512,7 +1512,7 @@ node40_copy(struct shift_params *shift)
 			   a new item into @target->node */
 
 			/* copy item header of partially copied item */
-			coord_set_item_pos(&to, (unsigned) node40_num_of_items_internal(to.node)
+			coord_set_item_pos(&to, node40_num_of_items_internal(to.node)
 					   - 1);
 			xmemcpy(to_ih, from_ih, sizeof (item_header40));
 			ih40_set_offset(to_ih, nh40_get_free_space_start(nh) - shift->part_bytes);
@@ -1524,7 +1524,7 @@ node40_copy(struct shift_params *shift)
 	} else {
 		/* copying to right */
 
-		coord_set_item_pos(&from, (unsigned) node40_num_of_items_internal(from.node) - 1);
+		coord_set_item_pos(&from, node40_num_of_items_internal(from.node) - 1);
 		from_ih = node40_ih_at_coord(&from);
 
 		coord_set_item_pos(&to, 0);

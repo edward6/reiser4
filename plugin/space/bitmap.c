@@ -487,7 +487,8 @@ get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
 
 /* bnode structure initialization */
 static void
-init_bnode(struct bnode *bnode, struct super_block *super, bmap_nr_t bmap)
+init_bnode(struct bnode *bnode,
+	   struct super_block *super UNUSED_ARG, bmap_nr_t bmap UNUSED_ARG)
 {
 	xmemset(bnode, 0, sizeof (struct bnode));
 

@@ -39,7 +39,6 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -Wall \
 	       -Wpointer-arith \
 	       -Wwrite-strings \
-	       -Wconversion \
 	       -Wnested-externs \
 	       -Woverloaded-virtual \
 	       -Winline -Wformat \
@@ -53,6 +52,7 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -Wreorder \
 	       -Wsign-promo
 
+#	       -Wconversion \
 #	       -Wid-clash-32 \
 #	       -Wtraditional \ gcc version 3.0.4 is mad about this
 #	       -Wshadow: forces warnings on int foo(flow *flow);
