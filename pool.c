@@ -51,6 +51,7 @@
 /**
  * initialise new pool object
  */
+/* Audited by: green(2002.06.15) */
 static void reiser4_init_pool_obj( reiser4_pool_header *h /* pool object to
 							   * initialise */ )
 {
@@ -62,6 +63,7 @@ static void reiser4_init_pool_obj( reiser4_pool_header *h /* pool object to
 /**
  * initialise new pool
  */
+/* Audited by: green(2002.06.15) */
 void reiser4_init_pool( reiser4_pool *pool /* pool to initialise */, 
 			size_t obj_size /* size of objects in @pool */, 
 			int num_of_objs /* number of preallocated objects */, 
@@ -97,6 +99,7 @@ void reiser4_init_pool( reiser4_pool *pool /* pool to initialise */,
  * allocated objects.
  *
  */
+/* Audited by: green(2002.06.15) */
 void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG /* pool to destroy */ )
 {
 }
@@ -108,6 +111,7 @@ void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG /* pool to destroy */ )
  * allocation.
  *
  */
+/* Audited by: green(2002.06.15) */
 void *reiser4_pool_alloc( reiser4_pool *pool /* pool to allocate object
 					      * from */ )
 {
@@ -147,6 +151,7 @@ void *reiser4_pool_alloc( reiser4_pool *pool /* pool to allocate object
  * return object back to the pool
  *
  */
+/* Audited by: green(2002.06.15) */
 void reiser4_pool_free( reiser4_pool_header *h /* pool to return object back
 						* into */)
 {
@@ -184,6 +189,7 @@ void reiser4_pool_free( reiser4_pool_header *h /* pool to return object back
  * (that is "right" node).
  *
  */
+/* Audited by: green(2002.06.15) */
 reiser4_pool_header *add_obj( reiser4_pool *pool /* pool from which to
 						  * allocate new object */, 
 			      pool_level_list_head *list /* list where to add
