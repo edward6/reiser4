@@ -1326,3 +1326,4 @@ write-test.2
 yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
+.debug.o.d
