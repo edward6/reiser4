@@ -1480,7 +1480,9 @@ int reiser4_write_logs(long * nr_submitted)
 	writeout_mode_enable();
 
 	/* block allocator may add j-nodes to the clean_list */
-	pre_commit_hook();
+	ret = pre_commit_hook();
+	if (ret)
+		return ret;
 
 	trace_mark(wander);
 

@@ -23,7 +23,7 @@ extern void check_blocks_bitmap(const reiser4_block_nr *, const reiser4_block_nr
 #endif
 
 extern void dealloc_blocks_bitmap(reiser4_space_allocator *, reiser4_block_nr, reiser4_block_nr);
-extern void pre_commit_hook_bitmap(void);
+extern int pre_commit_hook_bitmap(void);
 
 typedef __u64 bmap_nr_t;
 typedef __u32 bmap_off_t;

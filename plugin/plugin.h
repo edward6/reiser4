@@ -454,7 +454,7 @@ typedef struct space_allocator_plugin {
 	void (*print_info) (const char *, reiser4_space_allocator *);
 
 	/* program hooks from journal code */
-	void (*pre_commit_hook) (void);
+	int (*pre_commit_hook) (void);
 	void (*post_commit_hook) (void);
 	void (*post_write_back_hook) (void);
 } space_allocator_plugin;

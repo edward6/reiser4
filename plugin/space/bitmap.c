@@ -650,20 +650,36 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 	/* load commit bitmap */
 	ret = jload_gfp(cjnode, GFP_NOFS);
-	if (ret == 0) {
-		/* allocate memory for working bitmap block. Note that for
-		 * bitmaps jinit_new() doesn't actually modifies node content,
-		 * so parallel calls to this are ok. */
-		ret = jinit_new(wjnode);
-		if (ret != 0)
-			jrelse(cjnode);
-	}
+	if (ret)
+		goto error;
+	
+	/* allocate memory for working bitmap block. Note that for
+	 * bitmaps jinit_new() doesn't actually modifies node content,
+	 * so parallel calls to this are ok. */
+	ret = jinit_new(wjnode);
 	if (ret != 0) {
-		jput(cjnode);
-		jput(wjnode);
-		*wjnode_ret = *cjnode_ret = NULL;
+		jrelse(cjnode);
+		goto error;
 	}
+
+	if (*(__u32 *)jdata(cjnode) != adler32(jdata(cjnode) + CHECKSUM_SIZE, 
+					       bmap_size(super->s_blocksize)))
+	{
+		warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", bmap);
+		ret = -EINVAL;
+		jrelse(cjnode);
+		jrelse(wjnode);
+		goto error;
+	}
+	
+	return 0;
+	
+ error:
+	jput(cjnode);
+	jput(wjnode);
+	*wjnode_ret = *cjnode_ret = NULL;
 	return ret;
+
 }
 
 /* load bitmap blocks "on-demand" */
@@ -1156,7 +1172,6 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 
 /* an actor which applies delete set to COMMIT bitmap pages and link modified
    pages in a single-linked list */
-/* Audited by: green(2002.06.12) */
 static int
 apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const reiser4_block_nr * len, void *data)
 {
@@ -1193,9 +1208,13 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 	data = bnode_commit_data(bnode);
 
-	if (REISER4_DEBUG && *bnode_commit_crc(bnode) != adler32(bnode_commit_data(bnode), bmap_size(sb->s_blocksize)))
+	if (__cpu_to_le32 (adler32 (bnode_commit_data(bnode), bmap_size(sb->s_blocksize))) != 
+	    *bnode_commit_crc (bnode))
+	{
 		warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", bmap);
-
+		return -EINVAL;
+	}
+	
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
 		assert("zam-443", offset + *len <= bmap_bit_count(sb->s_blocksize));
@@ -1207,7 +1226,8 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 		(*blocks_freed_p)++;
 	}
 
-	*bnode_commit_crc(bnode) = adler32(bnode_commit_data(bnode), bmap_size(sb->s_blocksize));
+	*bnode_commit_crc(bnode) = __cpu_to_le32 (adler32(bnode_commit_data(bnode), 
+							  bmap_size(sb->s_blocksize)));
 
 	release_and_unlock_bnode(bnode);
 
@@ -1226,7 +1246,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 extern spinlock_t scan_lock;
 
-void
+int
 pre_commit_hook_bitmap(void)
 {
 	struct super_block * super = reiser4_get_current_sb();
@@ -1270,8 +1290,10 @@ pre_commit_hook_bitmap(void)
 
 				assert("vpf-276", offset / 8 < size);
 
-				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
 					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
+					return -EINVAL;
+				}
 
 				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
@@ -1279,14 +1301,18 @@ pre_commit_hook_bitmap(void)
 				byte = *(bnode_commit_data(bn) + offset / 8);
 				reiser4_set_bit(offset, bnode_commit_data(bn));
 
-				*bnode_commit_crc(bn) =
-				    adler32_recalc(*bnode_commit_crc(bn), byte,
-						    *(bnode_commit_data(bn) + offset / 8), size - offset / 8);
+				*bnode_commit_crc(bn) = 
+					__cpu_to_le32 (adler32_recalc(*bnode_commit_crc(bn), byte,
+								      *(bnode_commit_data(bn) + offset / 8),
+								      size - offset / 8));
 
 				release_and_unlock_bnode(bn);
 
-				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
 					warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
+					return -EINVAL;
+					
+				}
 
 				/* working of this depends on how it inserts
 				   new j-node into clean list, because we are
@@ -1315,11 +1341,13 @@ pre_commit_hook_bitmap(void)
 		sbinfo->blocks_free_committed += blocks_freed;
 		reiser4_spin_unlock_sb(sbinfo);
 	}
+
+	return 0;
 }
 
 #else /* ! REISER4_COPY_ON_CAPTURE */
 
-void
+int
 pre_commit_hook_bitmap(void)
 {
 	struct super_block * super = reiser4_get_current_sb();
@@ -1354,8 +1382,10 @@ pre_commit_hook_bitmap(void)
 
 				assert("vpf-276", offset / 8 < size);
 
-				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
 					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
+					return -EINVAL;
+				}
 
 				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
@@ -1364,13 +1394,16 @@ pre_commit_hook_bitmap(void)
 				reiser4_set_bit(offset, bnode_commit_data(bn));
 
 				*bnode_commit_crc(bn) =
-				    adler32_recalc(*bnode_commit_crc(bn), byte,
-						    *(bnode_commit_data(bn) + offset / 8), size - offset / 8);
+				    __cpu_to_le32 (adler32_recalc(*bnode_commit_crc(bn), byte,
+								  *(bnode_commit_data(bn) + offset / 8), 
+								  size - offset / 8));
 
 				release_and_unlock_bnode(bn);
 
-				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
 					warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
+					return -EINVAL;
+				}
 
 				/* working of this depends on how it inserts
 				   new j-node into clean list, because we are
@@ -1396,6 +1429,8 @@ pre_commit_hook_bitmap(void)
 		sbinfo->blocks_free_committed += blocks_freed;
 		reiser4_spin_unlock_sb(sbinfo);
 	}
+
+	return 0;
 }
 #endif /* ! REISER4_COPY_ON_CAPTURE */
 

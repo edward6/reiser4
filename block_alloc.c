@@ -1264,7 +1264,7 @@ __reiser4_dealloc_block(const reiser4_block_nr * block, block_stage_t stage, rei
 }
 
 /* wrappers for block allocator plugin methods */
-extern void
+extern int
 pre_commit_hook(void)
 {
 	space_allocator_plugin *splug;
@@ -1274,7 +1274,9 @@ pre_commit_hook(void)
 	assert("zam-503", splug != NULL);
 
 	if (splug->pre_commit_hook != NULL)
-		splug->pre_commit_hook();
+		return splug->pre_commit_hook();
+
+	return 0;
 }
 
 /* an actor which applies delete set to block allocator data */
