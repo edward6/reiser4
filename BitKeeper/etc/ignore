@@ -1348,3 +1348,4 @@ yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
 plugin/file/.pseudo.o.cmd
+.repacker.o.cmd
