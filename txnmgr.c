@@ -2817,7 +2817,7 @@ uncapture_block(txn_atom * atom, jnode * node)
 void
 insert_into_atom_clean_list(txn_atom * atom, jnode * node)
 {
-	assert("zam-538", spin_atom_is_locked(atom));
+	assert("zam-538", spin_atom_is_locked(atom) || atom->stage >= ASTAGE_PRE_COMMIT);
 	assert("zam-539", spin_jnode_is_locked(node));
 	assert("zam-540", !jnode_is_dirty(node));
 	assert("zam-543", node->atom == NULL);
