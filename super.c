@@ -271,10 +271,10 @@ __u32 new_inode_generation( const struct super_block *super /* super block
 /**
  * amount of blocks reserved for given group in file system
  */
-static __u64 reserved_for_gid( const struct super_block *super UNUSE/* super
-								       block
-								       queried */,
-			       gid_t gid UNUSE /* group id */ )
+static __u64 reserved_for_gid( const struct super_block *super UNUSED_ARG /* super
+									   * block
+									   * queried */,
+			       gid_t gid UNUSED_ARG /* group id */ )
 {
 	return 0;
 }
@@ -282,10 +282,10 @@ static __u64 reserved_for_gid( const struct super_block *super UNUSE/* super
 /**
  * amount of blocks reserved for given user in file system
  */
-static __u64 reserved_for_uid( const struct super_block *super UNUSE /* super
-									block
-									queried */, 
-			       uid_t uid UNUSE /* user id */ )
+static __u64 reserved_for_uid( const struct super_block *super UNUSED_ARG /* super
+									     block
+									     queried */, 
+			       uid_t uid UNUSED_ARG /* user id */ )
 {
 	return 0;
 }
@@ -293,9 +293,9 @@ static __u64 reserved_for_uid( const struct super_block *super UNUSE /* super
 /**
  * amount of blocks reserved for super user in file system
  */
-static __u64 reserved_for_root( const struct super_block *super UNUSE /* super
-									 block
-									 queried */ )
+static __u64 reserved_for_root( const struct super_block *super UNUSED_ARG /* super
+									      block
+									      queried */ )
 {
 	return 0;
 }
@@ -304,10 +304,10 @@ static __u64 reserved_for_root( const struct super_block *super UNUSE /* super
  * default file plugin used by this file system.
  * This should actually look at the mount options or something
  */
-file_plugin *default_file_plugin( const struct super_block *super UNUSE /* super
-									 * block
-									 * to
-									 * query */ )
+file_plugin *default_file_plugin( const struct super_block *super UNUSED_ARG /* super
+									      * block
+									      * to
+									      * query */ )
 {
 	assert( "nikita-1950", super != NULL );
 
@@ -318,9 +318,9 @@ file_plugin *default_file_plugin( const struct super_block *super UNUSE /* super
  * default dir plugin used by this file system.
  * This should actually look at the mount options or something
  */
-dir_plugin *default_dir_plugin( const struct super_block *super UNUSE /*  super
-								 *  block to
-								 *  query */ )
+dir_plugin *default_dir_plugin( const struct super_block *super UNUSED_ARG /*  super
+									    *  block to
+									    *  query */ )
 {
 	assert( "nikita-1967", super != NULL );
 	return dir_plugin_by_id( REISER4_DIR_PLUGIN );
@@ -330,9 +330,9 @@ dir_plugin *default_dir_plugin( const struct super_block *super UNUSE /*  super
  * default hash plugin used by this file system.
  * This should actually look at the mount options or something
  */
-hash_plugin *default_hash_plugin( const struct super_block *super UNUSE /*  super
-								 *  block to
-								 *  query */ )
+hash_plugin *default_hash_plugin( const struct super_block *super UNUSED_ARG /*  super
+									      *  block to
+									      *  query */ )
 {
 	assert( "nikita-1968", super != NULL );
 	return hash_plugin_by_id( REISER4_HASH_PLUGIN );
@@ -342,9 +342,9 @@ hash_plugin *default_hash_plugin( const struct super_block *super UNUSE /*  supe
  * default perm plugin used by this file system.
  * This should actually look at the mount options or something
  */
-perm_plugin *default_perm_plugin( const struct super_block *super UNUSE /*  super
-								 *  block to
-								 *  query */ )
+perm_plugin *default_perm_plugin( const struct super_block *super UNUSED_ARG /*  super
+									      *  block to
+									      *  query */ )
 {
 	assert( "nikita-1969", super != NULL );
 	return perm_plugin_by_id( REISER4_PERM_PLUGIN );
@@ -354,9 +354,9 @@ perm_plugin *default_perm_plugin( const struct super_block *super UNUSE /*  supe
  * default tail policy plugin used by this file system.
  * This should actually look at the mount options or something
  */
-tail_plugin *default_tail_plugin( const struct super_block *super UNUSE /*  super
-								 *  block to
-								 *  query */ )
+tail_plugin *default_tail_plugin( const struct super_block *super UNUSED_ARG /*  super
+									      *  block to
+									      *  query */ )
 {
 	assert( "nikita-1971", super != NULL );
 	return tail_plugin_by_id( REISER4_TAIL_PLUGIN );
@@ -366,9 +366,9 @@ tail_plugin *default_tail_plugin( const struct super_block *super UNUSE /*  supe
  * default sd plugin used by this file system.
  * This should actually look at the mount options or something
  */
-item_plugin *default_sd_plugin( const struct super_block *super UNUSE /*  super
-								 *  block to
-								 *  query */ )
+item_plugin *default_sd_plugin( const struct super_block *super UNUSED_ARG /*  super
+									    *  block to
+									    *  query */ )
 {
 	assert( "nikita-1972", super != NULL );
 	return item_plugin_by_id( REISER4_SD_PLUGIN );
@@ -378,24 +378,70 @@ item_plugin *default_sd_plugin( const struct super_block *super UNUSE /*  super
  * default dir item plugin used by this file system.
  * This should actually look at the mount options or something
  */
-item_plugin *default_dir_item_plugin( const struct super_block *super UNUSE /*  super
-									     *  block to
-									     *  query */ )
+item_plugin *default_dir_item_plugin( const struct super_block *super UNUSED_ARG /*  super
+										  *  block
+										  *  to
+										  *  *
+										  *  query */ )
 {
 	assert( "nikita-1973", super != NULL );
 	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
 }
 
-int init_tree( reiser4_tree *tree /* pointer to structure being
-				   * initialised */, 
-	       const reiser4_block_nr *root_block /* address of a root block
-						   * on a disk */,
+
+/*
+ * FIXME-VS: do we need this level of indirection between
+ * read_in_formatted/unread_formatted and init_treee
+ */
+int default_read_node (const reiser4_block_nr *addr, char **data,
+			size_t blocksize UNUSED_ARG)
+{
+	return read_in_formatted (reiser4_get_current_sb (), *addr, data);
+}
+
+
+void default_unread_node (znode *node)
+{
+	unread_formatted (node);
+}
+
+int default_allocate_node (znode *node)
+{
+	struct super_block * sb;
+	struct page * page;
+	unsigned long page_idx;
+
+
+	sb = reiser4_get_current_sb ();
+
+	page_idx = *znode_get_block (node) >> (PAGE_CACHE_SHIFT - sb->s_blocksize_bits);
+	page = grab_cache_page (get_super_fake (sb)->i_mapping, 
+				page_idx);
+	if (!page)
+		return -ENOMEM;
+
+	/*
+	 * FIXME-VS: not clear what to map here when blocksize != pagesize 
+	 */
+	assert ("vs-667", sb->s_blocksize == PAGE_CACHE_SIZE);
+	node->size = sb->s_blocksize;
+	node->data = kmap (page);
+	memset (node->data, 0, node->size);
+	SetPageUptodate (page);
+	return 0;
+}
+
+
+int init_tree( reiser4_tree *tree, /* pointer to structure being initialised */
+	const reiser4_block_nr *root_block /* address of a root block
+					    * on a disk */,
 	       tree_level height /* height of a tree */, 
 	       node_plugin *nplug /* default node plugin */, 
 	       node_read_actor read_node /* function to read nodes from
 					  * disk */,
-	       node_allocate_actor allocate_node /* function to allocate new
-						  * nodes */ )
+	node_allocate_actor allocate_node /* function to allocate new
+						  * nodes */,
+	node_unread_actor unread_node /* function to be called on zunload */)
 {
 	assert( "nikita-306", tree != NULL );
 	assert( "nikita-307", root_block != NULL );
@@ -409,6 +455,7 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	tree -> nplug = nplug;
 	tree -> read_node = read_node;
 	tree -> allocate_node = allocate_node;
+	tree -> unread_node = unread_node;
 	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
 	if( tree -> cbk_cache == NULL )
 		return -ENOMEM;
@@ -416,6 +463,18 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	tree -> znode_epoch = 1ull;
 
 	return znodes_tree_init( tree );
+}
+
+
+/** release resources associated with @tree */
+void done_tree( reiser4_tree *tree /* tree to release */ )
+{
+	assert( "nikita-311", tree != NULL );
+
+	znodes_tree_done( tree );
+
+	if( tree -> cbk_cache != NULL )
+		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
 }
 
 
