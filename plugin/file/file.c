@@ -516,7 +516,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 		}
 
 		/* cut data from one node */
-		smallest_removed = *min_key();
+		smallest_removed = *max_key();
 		result = cut_node(&intranode_from, &intranode_to,	/* is used as an input and
 									   an output, with output
 									   being a hint used by next
