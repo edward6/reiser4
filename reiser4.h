@@ -193,7 +193,13 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_UINO_SHIFT (1 << 30)
 
 /* Mark function argument as unused to avoid compiler warnings. */
-#define UNUSED_ARG __attribute__( ( unused ) )
+#define UNUSED_ARG __attribute__((unused))
+
+#if ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 3)) || (__GNUC__ > 3)
+#define NONNULL __attribute__((nonnull))
+#else
+#define NONNULL
+#endif
 
 /* size of VFS block */
 #define VFS_BLKSIZE 512
