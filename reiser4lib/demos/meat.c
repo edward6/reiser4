@@ -17,7 +17,7 @@
 #include <reiserfs/reiserfs.h>
 
 static void usage(void) {
-    fprintf(stderr, "Usage: meat DEV <open|create>\n");
+    fprintf(stderr, "Usage: meat <open|create> DEV\n");
 }
 
 static void print_plugin(reiserfs_plugin_t *plugin) {
