@@ -460,7 +460,7 @@ grabbed2fake_allocated_formatted(void)
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-void
+static void
 grabbed2fake_allocated_unformatted(__u64 count)
 {
 	reiser4_context *ctx;
