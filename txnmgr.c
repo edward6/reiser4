@@ -480,12 +480,10 @@ txn_end(reiser4_context * context)
 	txnh = context->trans;
 
 	if (txnh != NULL) {
-
 		/* The txnh's field "atom" can be checked for NULL w/o holding a lock because
 		 * only this thread's call to try_capture will set it. */
-		if (txnh->atom != NULL) {
+		if (txnh->atom != NULL) 
 			ret = commit_txnh(txnh);
-		}
 
 		assert("jmacd-633", txnh_isclean(txnh));
 
@@ -2061,6 +2059,10 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	txnh->atom = atom;
 	txnh_list_push_back(&atom->txnh_list, txnh);
 	atom->txnh_count += 1;
+	/* VITALY: set atom->flush_reserve from context->flush_reserve.*/
+	flush_reserved2atom_all();
+	warning("vpf-298", "SPACE: move reserved from context to atom, reserved in atom %llu.", 
+		reiser4_atom_flush_reserved());
 }
 
 /* No-locking version of assign_block.  Sets the block's atom pointer, references the
@@ -2115,6 +2117,12 @@ jnode_set_dirty(jnode * node)
 
 		assert("jmacd-3981", jnode_is_dirty(node));
 
+		/* Make if flush_reserved if either leaf or unformatted for not FAKE_BLOCKNR. */
+		if (!JF_ISSET(node, JNODE_CREATED) && !is_flush_mode()) {
+		    warning("vpf-297", "SPACE: set_dirty moves 1 grabbed to flush_resererved.");
+		    grabbed2flush_reserved(1);
+		}
+		    
 		if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 			txn_atom *atom;
 			/* If the atom is not set yet, it will be added to the appropriate list in
