@@ -137,6 +137,11 @@ struct reiser4_super_info_data {
 		format_40_super_info   format_40;
 		test_layout_super_info test_layout;
 	} u;
+
+	/* if this is set (by disk format mount code) - default_tail_plugin
+	 * will return it */
+	tail_plugin * tplug;
+
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );

@@ -376,11 +376,13 @@ perm_plugin *default_perm_plugin( const struct super_block *super UNUSED_ARG /* 
  * default tail policy plugin used by this file system.
  * This should actually look at the mount options or something
  */
-tail_plugin *default_tail_plugin( const struct super_block *super UNUSED_ARG /*  super
-									      *  block to
-									      *  query */ )
+tail_plugin *default_tail_plugin( const struct super_block *super /*  super
+								   *  block to
+								   *  query */ )
 {
 	assert( "nikita-1971", super != NULL );
+	if( get_super_private( super ) -> tplug )
+		return get_super_private( super ) -> tplug;
 	return tail_plugin_by_id( REISER4_TAIL_PLUGIN );
 }
 
