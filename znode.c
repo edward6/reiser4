@@ -1178,6 +1178,8 @@ void print_znode( const char *prefix /* prefix to print */,
 	}
 
 	info_znode( prefix, node );
+	if( jnode_is_unformatted( ZJNODE( node ) ) )
+		return;
 	info_znode( "\tparent", znode_parent_nolock( node ) );
 	info_znode( "\tleft", node -> left );
 	info_znode( "\tright", node -> right );
@@ -1192,11 +1194,12 @@ void print_znode( const char *prefix /* prefix to print */,
 void info_znode( const char *prefix /* prefix to print */, 
 		 const znode *node /* node to print */)
 {
-	info_jnode (prefix, ZJNODE (node));
-
 	if( node == NULL ) {
 		return;
 	}
+	info_jnode (prefix, ZJNODE (node));
+	if( jnode_is_unformatted( ZJNODE( node ) ) )
+		return;
 
 	info( "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
 	      atomic_read( &node -> c_count ),
