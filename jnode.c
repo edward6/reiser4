@@ -458,6 +458,17 @@ jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
+reiser4_internal jnode *
+jfind(struct address_space *mapping, unsigned long index)
+{
+	jnode *node;
+
+	WLOCK_TREE(current_tree);
+/*	radix_tree_lookup();*/
+	WUNLOCK_TREE(current_tree);
+	return NULL;
+}
+
 static void inode_attach_jnode(jnode * node)
 {
 	struct inode * inode;
@@ -475,7 +486,6 @@ static void inode_attach_jnode(jnode * node)
 	ON_DEBUG(info->nr_jnodes ++);
 	inode->i_state |= I_JNODES;
 	spin_unlock(&inode_lock);
-	clog_op(HASH_JNODE, inode);
 }
 
 static void inode_detach_jnode(jnode * node)
@@ -498,7 +508,6 @@ static void inode_detach_jnode(jnode * node)
 		inode->i_state &= ~I_JNODES;
 	}
 	spin_unlock(&inode_lock);
-	clog_op(UNHASH_JNODE, inode);
 }
 
 /* put jnode into hash table (where they can be found by flush who does not know
