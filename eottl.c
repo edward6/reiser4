@@ -232,12 +232,13 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	assert ("", znode_contains_key_lock (insert_coord->node, key));
 
 	grabbed = get_current_context() -> grabbed_blocks;
-	result = reiser4_grab_space1( (__u64)1 );
+	result = reiser4_grab_space_exact( (__u64)1 );
 	if( result != 0 )
 		return result;
 
 	node = new_node( insert_coord -> node, LEAF_LEVEL );
-	reiser4_release_grabbed_space
+	grabbed2free
+		/*reiser4_release_grabbed_space*/
 		( get_current_context() -> grabbed_blocks - grabbed );
 
 	if( IS_ERR( node ) )

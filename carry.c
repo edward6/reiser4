@@ -190,7 +190,7 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 
 	grabbed = get_current_context() -> grabbed_blocks;
 	/* reserve enough disk space */
-	result = reiser4_grab_space1( carry_estimate_space( doing ) );
+	result = reiser4_grab_space_exact( carry_estimate_space( doing ) );
 	if( result != 0 )
 		return result;
 
@@ -277,8 +277,7 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	/*
 	 * release reserved, but unused disk space
 	 */
-	reiser4_release_grabbed_space
-		( get_current_context() -> grabbed_blocks - grabbed );
+	grabbed2free( get_current_context() -> grabbed_blocks - grabbed );
 
 	/* 
 	 * all counters, but x_refs should remain the same. x_refs can change
