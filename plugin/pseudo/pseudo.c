@@ -97,35 +97,48 @@ Use the pluginid field?
 static int init_pseudo(struct inode *parent, struct inode *pseudo,
 		       pseudo_plugin *pplug, const char *name);
 
-struct inode *
-lookup_pseudo(struct inode *parent, const char *name)
+int
+lookup_pseudo(struct inode *parent, struct dentry * dentry)
 {
 	reiser4_plugin *plugin;
+	const char     *name;
+	struct inode   *pseudo;
+	int             result;
 
 	assert("nikita-2999", parent != NULL);
-	assert("nikita-3000", name != NULL);
+	assert("nikita-3000", dentry != NULL);
 
+	if (reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
+		return RETERR(-ENOENT);
+
+	name = dentry->d_name.name;
+	pseudo = 0;
 	for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
 		pseudo_plugin *pplug;
 
 		pplug = &plugin->pseudo;
 		assert("nikita-3001", pplug->try != NULL);
 
-		if (pplug->try(parent, name)) {
-			struct inode  *pseudo;
-			int result;
-
+		if (pplug->try(pplug, parent, name)) {
 			pseudo = new_inode(parent->i_sb);
-			if (pseudo == NULL)
-				return ERR_PTR(RETERR(-ENOMEM));
-			result = init_pseudo(parent, pseudo, pplug, name);
-			if (result == 0)
-				return pseudo;
-			else
-				return ERR_PTR(result);
+			if (pseudo != NULL) {
+				result = init_pseudo(parent, 
+						     pseudo, pplug, name);
+				if (result != 0)
+					pseudo = ERR_PTR(result);
+			} else
+				pseudo = ERR_PTR(RETERR(-ENOMEM));
+			break;
 		}
 	}
-	return NULL;
+	if (pseudo == NULL)
+		result = RETERR(-ENOENT);
+	else if (!IS_ERR(pseudo)) {
+		d_add(dentry, pseudo);
+		result = 0;
+	} else
+		result = PTR_ERR(pseudo);
+	return result;
 }
 
 static int 
@@ -142,10 +155,11 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 	idata->file_plugin_data.pseudo_info.host   = parent;
 	idata->file_plugin_data.pseudo_info.plugin = pplug;
 
-	data.id   = pplug->h.id;
+	data.id   = PSEUDO_FILE_PLUGIN_ID;
 	data.mode = pplug->lookup_mode;
 
 	plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
+
 	result = inode_file_plugin(pseudo)->set_plug_in_inode(pseudo, 
 							      parent, &data);
 	if (result != 0) {
@@ -160,29 +174,476 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 	return 0;
 }
 
-static int try_test(const struct inode *parent, const char *name)
+static struct inode *get_pseudo_host(struct file *file)
 {
-	return !strcmp(name, "..test");
+	struct inode *inode;
+
+	inode = file->f_dentry->d_inode;
+	return reiser4_inode_data(inode)->file_plugin_data.pseudo_info.host;
 }
 
-static int lookup_test(const char *name)
+static struct inode *get_seq_pseudo_host(struct seq_file *seq)
 {
+	struct file *file;
+
+	file = seq->private;
+	return get_pseudo_host(file);
+}
+
+
+static int try_by_label(pseudo_plugin *pplug, 
+			const struct inode *parent, const char *name)
+{
+	return !strcmp(name, pplug->h.label);
+}
+
+static int lookup_none(const char *name)
+{
+	return RETERR(-ENOENT);
+}
+
+static int show_uid(struct seq_file *seq, void *cookie)
+{
+	seq_printf(seq, "%lu", (long unsigned)get_seq_pseudo_host(seq)->i_uid);
 	return 0;
 }
 
+static int check_perm(struct inode *inode)
+{
+	if (IS_RDONLY(inode))
+		return RETERR(-EROFS);
+	if (IS_IMMUTABLE(inode) || IS_APPEND(inode))
+		return RETERR(-EPERM);
+	return 0;
+}
+
+static int update_ugid(struct dentry *dentry, struct inode *inode,
+		       uid_t uid, gid_t gid)
+{
+	int result;
+
+	/* logic COPIED from fs/open.c:chown_common() */
+	result = check_perm(inode);
+	if (result == 0) {
+		struct iattr newattrs;
+
+		newattrs.ia_valid =  ATTR_CTIME;
+		if (uid != (uid_t) -1) {
+			newattrs.ia_valid |= ATTR_UID;
+			newattrs.ia_uid = uid;
+		}
+		if (gid != (uid_t) -1) {
+			newattrs.ia_valid |= ATTR_GID;
+			newattrs.ia_gid = gid;
+		}
+		if (!S_ISDIR(inode->i_mode))
+			newattrs.ia_valid |= ATTR_KILL_SUID|ATTR_KILL_SGID;
+		down(&inode->i_sem);
+		result = notify_change(dentry, &newattrs);
+		up(&inode->i_sem);
+	}
+	return result;
+}
+
+static int get_uid(struct file *file, const char *buf)
+{
+	uid_t uid;
+	int result;
+
+	if (sscanf(buf, "%i", &uid) == 1) {
+		struct inode *host;
+
+		host = get_pseudo_host(file);
+		result = update_ugid(file->f_dentry->d_parent, host, uid, -1);
+		if (result == 0)
+			result = strlen(buf) + 1;
+	} else
+		result = RETERR(-EINVAL);
+	return result;
+}
+
+int show_gid(struct seq_file *seq, void *cookie)
+{
+	seq_printf(seq, "%lu", (long unsigned)get_seq_pseudo_host(seq)->i_gid);
+	return 0;
+}
+
+static int get_gid(struct file *file, const char *buf)
+{
+	gid_t gid;
+	int result;
+
+	if (sscanf(buf, "%i", &gid) == 1) {
+		struct inode *host;
+
+		host = get_pseudo_host(file);
+		result = update_ugid(file->f_dentry->d_parent, host, -1, gid);
+		if (result == 0)
+			result = strlen(buf) + 1;
+	} else
+		result = RETERR(-EINVAL);
+	return result;
+}
+
+static int show_oid(struct seq_file *seq, void *cookie)
+{
+	seq_printf(seq, "%llu", get_inode_oid(get_seq_pseudo_host(seq)));
+	return 0;
+}
+
+static int show_key(struct seq_file *seq, void *cookie)
+{
+	/* (%Lx:%x:%Lx:%Lx:%Lx) = 1 + 16 + 1 + 1 + 1 + 1 + 1 + 16 + 1 + 16 + 1 */
+	char buf[60];
+	reiser4_key key;
+
+	sprintf_key(buf, build_sd_key(get_seq_pseudo_host(seq), &key));
+	seq_printf(seq, "%s", buf);
+	return 0;
+}
+
+static int show_size(struct seq_file *seq, void *cookie)
+{
+	seq_printf(seq, "%lli", get_seq_pseudo_host(seq)->i_size);
+	return 0;
+}
+
+static int show_nlink(struct seq_file *seq, void *cookie)
+{
+	seq_printf(seq, "%u", get_seq_pseudo_host(seq)->i_nlink);
+	return 0;
+}
+
+static int show_locality(struct seq_file *seq, void *cookie)
+{
+	seq_printf(seq, "%llu", 
+		   reiser4_inode_data(get_seq_pseudo_host(seq))->locality_id);
+	return 0;
+}
+
+static int show_rwx(struct seq_file *seq, void *cookie)
+{
+	umode_t      m;
+
+	m = get_seq_pseudo_host(seq)->i_mode;
+	seq_printf(seq, "%#ho %c%c%c%c%c%c%c%c%c%c",
+		   m,
+
+		   S_ISREG(m) ? '-' : 
+		   S_ISDIR(m) ? 'd' : 
+		   S_ISCHR(m) ? 'c' : 
+		   S_ISBLK(m) ? 'b' : 
+		   S_ISFIFO(m) ? 'p' : 
+		   S_ISLNK(m) ? 'l' : 
+		   S_ISSOCK(m) ? 's' : '?',
+
+		   m & S_IRUSR ? 'r' : '-',
+		   m & S_IWUSR ? 'w' : '-',
+		   m & S_IXUSR ? 'x' : '-',
+
+		   m & S_IRGRP ? 'r' : '-',
+		   m & S_IWGRP ? 'w' : '-',
+		   m & S_IXGRP ? 'x' : '-',
+
+		   m & S_IROTH ? 'r' : '-',
+		   m & S_IWOTH ? 'w' : '-',
+		   m & S_IXOTH ? 'x' : '-');
+	return 0;
+}
+
+static int get_rwx(struct file *file, const char *buf)
+{
+	umode_t rwx;
+	int result;
+
+	if (sscanf(buf, "%hi", &rwx) == 1) {
+		struct inode *host;
+
+		host = get_pseudo_host(file);
+		result = check_perm(host);
+		if (result == 0) {
+			struct iattr newattrs;
+
+			down(&host->i_sem);
+			if (rwx == (mode_t) -1)
+				rwx = host->i_mode;
+			newattrs.ia_mode = 
+				(rwx & S_IALLUGO) | (host->i_mode & ~S_IALLUGO);
+			newattrs.ia_valid = ATTR_MODE | ATTR_CTIME;
+			result = notify_change(file->f_dentry->d_parent, 
+					       &newattrs);
+			up(&host->i_sem);
+			if (result == 0)
+				result = strlen(buf) + 1;
+		}
+	} else
+		result = RETERR(-EINVAL);
+	return result;
+}
+
+
+void * pseudos_start(struct seq_file *m, loff_t *pos)
+{
+	if (*pos >= LAST_PSEUDO_ID)
+		return NULL;
+	return pseudo_plugin_by_id(*pos);
+}
+
+void pseudos_stop(struct seq_file *m, void *v)
+{
+}
+
+void * pseudos_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	++ (*pos);
+	return pseudos_start(m, pos);
+}
+
+int pseudos_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%s\n", ((pseudo_plugin *)v)->h.label);
+	return 0;
+}
+
+void * bmap_start(struct seq_file *m, loff_t *pos)
+{
+	struct inode *host;
+
+	host = get_seq_pseudo_host(m);
+	if (*pos >= host->i_blocks >> (host->i_blkbits - VFS_BLKSIZE_BITS))
+		return NULL;
+	else
+		return (void *)((int)*pos + 1);
+}
+
+void bmap_stop(struct seq_file *m, void *v)
+{
+}
+
+void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	++ (*pos);
+	return bmap_start(m, pos);
+}
+
+extern sector_t reiser4_bmap(struct address_space *mapping, sector_t block);
+
+int bmap_show(struct seq_file *m, void *v)
+{
+	sector_t lblock;
+	reiser4_block_nr sector;
+
+	lblock = ((sector_t)(int)v) - 1;
+	sector = reiser4_bmap(get_seq_pseudo_host(m)->i_mapping, lblock);
+	if (sector >= 0) {
+		if (blocknr_is_fake(&sector))
+			seq_printf(m, "%llx ", sector);
+		else
+			seq_printf(m, "%llu ", sector);
+		return 0;
+	} else
+		return sector;
+}
+
 pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
-	[PSEUDO_TEST_ID] = {
+	[PSEUDO_UID_ID] = {
 			 .h = {
 			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
-			       .id = PSEUDO_TEST_ID,
+			       .id = PSEUDO_UID_ID,
 			       .pops = NULL,
-			       .label = "test",
-			       .desc = "test",
+			       .label = "..uid",
+			       .desc = "returns owner",
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
-			 .try         = try_test,
-			 .lookup      = lookup_test,
-			 .lookup_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_uid
+			 },
+			 .write_type  = PSEUDO_WRITE_STRING,
+			 .write       = {
+				 .gets        = get_uid
+			 }
+	},
+	[PSEUDO_GID_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_GID_ID,
+			       .pops = NULL,
+			       .label = "..gid",
+			       .desc = "returns group",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_gid
+			 },
+			 .write_type  = PSEUDO_WRITE_STRING,
+			 .write       = {
+				 .gets        = get_gid
+			 }
+	},
+	[PSEUDO_RWX_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_RWX_ID,
+			       .pops = NULL,
+			       .label = "..rwx",
+			       .desc = "returns rwx permissions",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_rwx
+			 },
+			 .write_type  = PSEUDO_WRITE_STRING,
+			 .write       = {
+				 .gets        = get_rwx
+			 }
+	},
+	[PSEUDO_OID_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_OID_ID,
+			       .pops = NULL,
+			       .label = "..oid",
+			       .desc = "returns object id",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_oid
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_KEY_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_KEY_ID,
+			       .pops = NULL,
+			       .label = "..key",
+			       .desc = "returns object's key",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_key
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_SIZE_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_SIZE_ID,
+			       .pops = NULL,
+			       .label = "..size",
+			       .desc = "returns object's size",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_size
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_NLINK_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_NLINK_ID,
+			       .pops = NULL,
+			       .label = "..nlink",
+			       .desc = "returns nlink count",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_nlink
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_LOCALITY_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_LOCALITY_ID,
+			       .pops = NULL,
+			       .label = "..locality",
+			       .desc = "returns object's locality",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_locality
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_PSEUDOS_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_PSEUDOS_ID,
+			       .pops = NULL,
+			       .label = "..pseudo",
+			       .desc = "returns a list of pseudo files",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SEQ,
+			 .read        = {
+				 .ops = {
+					 .start = pseudos_start,
+					 .stop  = pseudos_stop,
+					 .next  = pseudos_next,
+					 .show  = pseudos_show
+				 }
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_BMAP_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_BMAP_ID,
+			       .pops = NULL,
+			       .label = "..bmap",
+			       .desc = "returns a list blocks for this file",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SEQ,
+			 .read        = {
+				 .ops = {
+					 .start = bmap_start,
+					 .stop  = bmap_stop,
+					 .next  = bmap_next,
+					 .show  = bmap_show
+				 }
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
 	}
 };
 

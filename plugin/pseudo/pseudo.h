@@ -10,6 +10,20 @@
 #include "../../key.h"
 
 #include <linux/fs.h>
+#include <linux/seq_file.h>
+
+typedef enum {
+	PSEUDO_READ_NONE,
+	PSEUDO_READ_SEQ,
+	PSEUDO_READ_SINGLE,
+	PSEUDO_READ_FORWARD
+} pseudo_read_type;
+
+typedef enum {
+	PSEUDO_WRITE_NONE,
+	PSEUDO_WRITE_STRING,
+	PSEUDO_WRITE_FORWARD
+} pseudo_write_type;
 
 /* low level operations on the pseudo files.
   
@@ -20,10 +34,13 @@
    functions to look up plugin by name, dynamic loading is planned, etc.
   
 */
-typedef struct pseudo_plugin {
+struct pseudo_plugin;
+typedef struct pseudo_plugin pseudo_plugin;
+struct pseudo_plugin {
 	plugin_header h;
 
-	int (*try) (const struct inode *parent, const char *name);
+	int (*try) (pseudo_plugin *pplug,
+		    const struct inode *parent, const char *name);
 	/* lookup method applicable to this pseudo file by method name.
 	  
 	   This is for something like "foo/..acl/dup", here "../acl" is the
@@ -41,17 +58,40 @@ typedef struct pseudo_plugin {
 	/* NOTE-NIKITA some other operations. Reiser4 syntax people should
 	   add something here. */
 
-} pseudo_plugin;
+	pseudo_read_type read_type;
+	union {
+		struct seq_operations ops;
+		int (*single_show) (struct seq_file *, void *);
+		ssize_t (*read)(struct file *, char __user *, size_t , loff_t *);
+
+	} read;
+
+	pseudo_write_type write_type;
+	union {
+		int (*gets)(struct file *, const char *);
+		ssize_t (*write)(struct file *, 
+				 const char __user *, size_t , loff_t *);
+	} write;
+};
 
 typedef struct pseudo_info {
 	pseudo_plugin *plugin;
 	struct inode  *host;
 } pseudo_info_t;
 
-extern struct inode *lookup_pseudo(struct inode *parent, const char *name);
+extern int lookup_pseudo(struct inode *parent, struct dentry *dentry);
 
 typedef enum { 
-	PSEUDO_TEST_ID,
+	PSEUDO_UID_ID,
+	PSEUDO_GID_ID,
+	PSEUDO_RWX_ID,
+	PSEUDO_OID_ID,
+	PSEUDO_KEY_ID,
+	PSEUDO_SIZE_ID,
+	PSEUDO_NLINK_ID,
+	PSEUDO_LOCALITY_ID,
+	PSEUDO_PSEUDOS_ID,
+	PSEUDO_BMAP_ID,
 	LAST_PSEUDO_ID
 } reiser4_pseudo_id;
 
