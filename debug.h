@@ -16,7 +16,7 @@
     that will be actually called, can be printk, panic etc.
     This is for use by other debugging macros, not by users. */
 #define DCALL( lev, fun, label, format, ... )				\
-         do { fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
+         do { fun( /**/lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
 		       no_context ? "interrupt" : current_pname,		\
 		       no_context ? -1 : current_pid,				\
 		       __func__, __FILE__, __LINE__, label , ## __VA_ARGS__ );	\
@@ -221,16 +221,10 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #define ON_DEBUG_MODIFY( exp )
 #endif
 
-#ifndef __KERNEL__
-#define wprint( ... ) ( fprintf( stderr , ## __VA_ARGS__ ) )
-#else
-#define wprint( ... ) ( printk( ## __VA_ARGS__ ) )
-#endif
-
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
 #define warning( label, format, ... )					\
-	DCALL( KERN_WARNING, wprint, label, "WARNING: " format , ## __VA_ARGS__ )
+	DCALL( KERN_WARNING, printk, label, "WARNING: " format , ## __VA_ARGS__ )
 #define not_yet( label, format, ... )				\
 	rpanic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 

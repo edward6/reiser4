@@ -818,7 +818,8 @@ __u32 set_current ()
 		assert ("vs-827", self);
 		memset (self, 0, sizeof (struct task_struct));
 		self->journal_info = 0;
-		spin_lock_init (&self->sigmask_lock);
+		self->sig = &self->sig_here;
+		spin_lock_init (&self->sig->siglock);
 		if ((ret = pthread_setspecific (__current_key, self)) != 0) {
 			rpanic ("jmacd-900", "pthread_setspecific failed");
 		}
@@ -5413,6 +5414,18 @@ void clear_inode(struct inode *inode)
 void fsync_super( struct super_block *s )
 {
 	fsync_bdev (s->s_bdev);
+}
+
+/*
+ * Clear a page's dirty flag, while caring for dirty memory accounting. 
+ * Returns true if the page was previously dirty.
+ */
+int test_clear_page_dirty(struct page *page)
+{
+	if (TestClearPageDirty(page)) {
+		return 1;
+	}
+	return 0;
 }
 
 /*

@@ -579,6 +579,11 @@ struct super_operations {
 extern int seq_printf(struct seq_file *, const char *, ...)
 	__attribute__ ((format (printf,2,3)));
 
+
+struct signal_struct {
+	spinlock_t		siglock;
+};
+
 struct task_struct {
 	char comm[ 30 ];
 	int   pid;
@@ -587,7 +592,8 @@ struct task_struct {
 	__u32         fsgid;
 	int i_am_swapd; /**/
 	int flags;
-	spinlock_t    sigmask_lock;
+	struct signal_struct *sig;
+	struct signal_struct sig_here;
 };
 
 #define PF_MEMALLOC 1 /* NOTE: Not currently set in ulevel.  Should be set in task_struct->flags. */
@@ -1777,6 +1783,13 @@ extern void clear_inode(struct inode *);
 #define IS_RDONLY( something ) (0)
 
 void fsync_super( struct super_block *s );
+
+int test_clear_page_dirty(struct page *page);
+
+static inline void clear_page_dirty(struct page *page)
+{
+	test_clear_page_dirty(page);
+}
 
 /* __REISER4_ULEVEL_H__ */
 #endif

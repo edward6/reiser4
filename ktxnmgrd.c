@@ -41,10 +41,10 @@ int ktxnmgrd( void *arg )
 	strcpy( me -> comm, __FUNCTION__ );
 
 	/* block all signals */
-	spin_lock_irq( &me -> sig->siglock );
+	spin_lock_irq( &me -> sig -> siglock );
 	siginitsetinv( &me -> blocked, 0 );
 	recalc_sigpending();
-	spin_unlock_irq( &me -> sig->siglock );
+	spin_unlock_irq( &me -> sig -> siglock );
 
 	/*
 	 * do_fork() just copies task_struct into the new
