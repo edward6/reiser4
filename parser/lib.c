@@ -1020,7 +1020,7 @@ static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 	tube = kmalloc(sizeof(struct tube), GFP_KERNEL);
 	memset( tube , 0, sizeof( struct tube ));
 
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	assert("get_tube_general: no tube",!IS_ERR(tube));
 	assert("get_tube_general: src expression wrong",source->h.type == EXPR_VNODE);
 	assert("get_tube_general: src no dentry",source->vnode.v->ln->h.type== LNODE_DENTRY);
@@ -1046,19 +1046,19 @@ static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 
 static size_t reserv_space_in_sink(tube_t * tube, size_t len )
 {
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	return 	vfs_read(tube->src, tube->buf, len, &tube->readoff);
 }
 
 static size_t get_available_len(struct file * fl)
 {
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	return PUMP_BUF_SIZE;
 }
 
 static int prep_tube_general(tube_t * tube)
 {
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	tube->len = reserv_space_in_sink( tube, get_available_len(tube->src) );
 	return tube->len;
 }
@@ -1066,7 +1066,7 @@ static int prep_tube_general(tube_t * tube)
 static int source_to_tube_general(tube_t * tube)
 {
 //	tube->source->fplug->read(tube->offset,tube->len);
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	return tube->len;
 }
 
@@ -1074,13 +1074,13 @@ static int tube_to_sink_general(tube_t * tube)
 {
 //	tube->sink->fplug->write(tube->offset,tube->len);
 //	tube->offset+=tube->len;
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	return 	vfs_read(tube->dst, tube->buf, tube->len, &tube->writeoff);
 }
 
 static void put_tube(tube_t * tube)
 {
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 	END_KERNEL_IO_GLOB;
 	kfree(tube->buf);
 	kfree(tube);
@@ -1113,7 +1113,7 @@ static int  pump( vnode_t *sink, expr_v4_t *source )
       //      pos_t source_pos;
       //      pos_t sink_pos;
       
-	PTRACE(ws, "%s", "begin");
+	PTRACE1( "%s", "begin");
 
       /* remember to write code for freeing tube, error handling, etc. */
 #if 0
@@ -1134,7 +1134,7 @@ static int  pump( vnode_t *sink, expr_v4_t *source )
       }
       put_tube(tube);
       return ret_code;
-	PTRACE(ws, "%s", "end");
+	PTRACE1( "%s", "end");
 }
 
 

@@ -72,6 +72,13 @@ typedef enum
 		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);					\
 })
 
+#define PTRACE1( format, ... )						\
+({										\
+	ON_TRACE(TRACE_PARSE, "parser:%s  " format "\n",	\
+		 __FUNCTION__,  __VA_ARGS__);					\
+})
+
+
 typedef struct vnode vnode_t;
 
 typedef struct wrd wrd_t;
