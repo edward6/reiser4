@@ -56,8 +56,8 @@ error:
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
 {
-    uint8_t key[MAX_KEY_SIZE];
     blk_t block_nr;
+    reiserfs_key_t key;
     reiserfs_coord_t coord;
     reiserfs_plugin_t *plugin;
     reiserfs_node_t *squeeze, *leaf;
@@ -124,10 +124,10 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     /* Initialize internal item. */
     internal_info.blk = block_nr;
   
-    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, clean, key);
+    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, clean, &key);
 
     libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, 
-	build_file_key, key, KEY40_SD_MINOR, reiserfs_oid_root_parent_objectid(fs),
+	build_file_key, &key, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs),
 	reiserfs_oid_root_objectid(fs), 0);
     
     aal_memset(&item_info, 0, sizeof(item_info));
@@ -149,7 +149,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method. 
     */
-    if (reiserfs_node_item_insert(squeeze, &coord, key, &item_info)) {
+    if (reiserfs_node_item_insert(squeeze, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(squeeze->block));
@@ -184,7 +184,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
     
     /* Insert the stat data. */
-    if (reiserfs_node_item_insert(leaf, &coord, key, &item_info)) {
+    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(leaf->block));
@@ -198,10 +198,15 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     direntry_info.key_plugin = key_plugin;
     direntry_info.hash_plugin = NULL;
     
-    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, key);
-    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, 
-	build_dir_key, key, direntry_info.parent_id, direntry_info.object_id, ".", 
-	direntry_info.hash_plugin);
+    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, &key);
+    
+    if (libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, build_dir_key, 
+	&key, direntry_info.hash_plugin, direntry_info.parent_id, direntry_info.object_id, "."))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't build dir key.");
+	goto error_free_leaf;
+    }
      
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &direntry_info;
@@ -222,7 +227,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert a directory item. Item will be created automatically from 
 	the node insert API method.
     */
-    if (reiserfs_node_item_insert(leaf, &coord, key, &item_info)) {
+    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert direntry item into the node %llu.", 
 	    aal_block_get_nr(leaf->block));
@@ -381,8 +386,8 @@ error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, void *key) {
     node. Addes node into corresponding node cache.
 
     FIXME-UMKA: I foresee some problems here concerned with difference
-    beetwen internal items in reiser3 and reiser4. Internal item in
-    reiser3 is array of pointers whereas in reiser4 it contains of one 
+    beetwen internal item format in reiser3 and reiser4. Internal item in
+    reiser3 is array of pointers whereas in reiser4 it contains just one 
     pointer. So in the first case we need performs "paste" operation
     in order to insert pointer to new node, whereas in second case we 
     should perform "insert" operation.

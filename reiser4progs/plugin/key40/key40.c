@@ -8,6 +8,11 @@
 #include <reiser4/plugin.h>
 #include "key40.h"
 
+/*
+    FIXME-UMKA: All key building functions should 
+    make a check for key parameters validness.
+*/
+
 static reiserfs_plugin_factory_t *factory = NULL;
 
 static const reiserfs_key40_t MINIMAL_KEY = {
@@ -61,36 +66,9 @@ static int key40_confirm(reiserfs_key40_t *key) {
     return 1;
 }
 
-/* 
-    Useful for temp key creation, when all fields are built already. 
-    (Reason to take just one parameter - *key). When want to just 
-    build the key, use key40_build_file/dir_key depending on whether 
-    you need file or dir key.
-*/
-static reiserfs_key40_t *key40_create(uint32_t type, oid_t locality, 
-    oid_t objectid, uint64_t offset) 
-{
-    reiserfs_key40_t *key;
-    
-    if (!(key = aal_calloc(sizeof(*key), 0)))
-	return NULL;
-    
-    set_key40_locality(key, locality);
-    set_key40_type(key, (key40_minor_t)type);
-    set_key40_objectid(key, objectid);
-    set_key40_offset(key, offset);
-    
-    return key;
-}
-
-static void key40_close(reiserfs_key40_t *key) {
-    aal_assert("vpf-138", key != NULL, return);
-    aal_free(key);
-}
-
 static void key40_set_type(reiserfs_key40_t *key, uint32_t type) {
     aal_assert("umka-634", key != NULL, return);
-    set_key40_type(key, (key40_minor_t)type);
+    set_key40_type(key, (reiserfs_key40_minor_t)type);
 }
 
 static uint16_t key40_get_type(reiserfs_key40_t *key) {
@@ -163,7 +141,7 @@ static void key40_clean(reiserfs_key40_t *key) {
 }
 
 
-static error_t key40_build_hash(reiserfs_key40_t *key, char *name, 
+static error_t key40_build_hash(reiserfs_key40_t *key, const char *name, 
     reiserfs_plugin_t *hash_plugin) 
 {
     uint16_t len;
@@ -202,80 +180,108 @@ static error_t key40_build_hash(reiserfs_key40_t *key, char *name,
     return 0;
 }
 
-static void key40_build_dir_key(reiserfs_key40_t *key, oid_t locality, 
-    oid_t objectid, char *name, reiserfs_plugin_t *hash_plugin) 
+static error_t key40_build_dir_key(reiserfs_key40_t *key, 
+    reiserfs_plugin_t *hash_plugin, oid_t locality, 
+    oid_t objectid, const char *name) 
 {
-    aal_assert("vpf-140", key != NULL, return);
+    aal_assert("vpf-140", key != NULL, return -1);
+    aal_assert("umka-667", name != NULL, return -1);
+    
     key40_clean(key);
+
+    /* Here should be some checks */
+    
     set_key40_locality(key, objectid);
-    set_key40_type(key, KEY40_FILE_NAME_MINOR);
+    set_key40_type(key, KEY40_FILENAME_MINOR);
     
     key40_build_hash(key, name, hash_plugin);
+
+    return 0;
 }
 
-static void key40_build_file_key(reiserfs_key40_t *key, uint32_t type, 
+static error_t key40_build_file_key(reiserfs_key40_t *key, uint32_t type, 
     oid_t locality, oid_t objectid, uint64_t offset) 
 {
-    aal_assert("vpf-141", key != NULL, return);
-    aal_assert("vpf-127", type != KEY40_FILE_NAME_MINOR, return);
+    aal_assert("vpf-141", key != NULL, return -1);
+    aal_assert("vpf-127", type != KEY40_FILENAME_MINOR, return -1);
 
     key40_clean(key);
+
+    /* Her should be some checks */
+    
     set_key40_locality(key, locality);
-    set_key40_type(key, (key40_minor_t)type);
+    set_key40_type(key, (reiserfs_key40_minor_t)type);
     set_key40_objectid(key, objectid);
     set_key40_offset(key, offset);
+
+    return 0;
 }
 
-static void key40_build_dir_short_key(void *sh_key, char *name, 
+static error_t key40_build_dir_short_key(void *sh_key, const char *name, 
     reiserfs_plugin_t *hash_plugin, uint8_t size) 
 {
     reiserfs_key40_t key;    
     
-    aal_assert("vpf-142", sh_key != NULL, return);
-    aal_assert("vpf-131", size >= 2 * sizeof(uint64_t), return);
+    aal_assert("vpf-142", sh_key != NULL, return -1);
+    aal_assert("vpf-131", (size >= 2 * sizeof(uint64_t)), return -1);
     
-    key40_clean(&key);    
+    key40_clean(&key);
+    
+    /* Here should be some checks */
+    
     key40_build_hash(&key, name, hash_plugin);
+    
     aal_memset(sh_key, 0, size);
     aal_memcpy(sh_key, &key.el[1], 2 * sizeof(uint64_t));
+
+    return 0;
 }
 
-static void key40_build_file_short_key(void *sh_key, uint32_t type, 
+static error_t key40_build_file_short_key(void *sh_key, uint32_t type, 
     oid_t locality, oid_t objectid, uint8_t size)
 {
     reiserfs_key40_t key;
     
-    aal_assert("vpf-143", sh_key != NULL, return);
-    aal_assert("vpf-132", type != KEY40_FILE_NAME_MINOR, return);
-    aal_assert("vpf-133", size >= 2 * sizeof(uint64_t), return);
+    aal_assert("vpf-143", sh_key != NULL, return -1);
+    aal_assert("vpf-132", type != KEY40_FILENAME_MINOR, return -1);
+    aal_assert("vpf-133", size >= 2 * sizeof(uint64_t), return -1);
 
     key40_clean(&key);
 
+    /* Here also should be check for parameters validness */
+
     set_key40_locality(&key, locality);
-    set_key40_type(&key, (key40_minor_t)type);
+    set_key40_type(&key, (reiserfs_key40_minor_t)type);
     set_key40_objectid(&key, objectid);
+    
     aal_memset(sh_key, 0, size);
     aal_memcpy(sh_key, &key, 2 * sizeof(uint64_t));
+
+    return 0;
 }
 
-static void key40_build_key_by_dir_short_key(reiserfs_key40_t *key, void *sh_key, 
-    uint8_t size) 
+static error_t key40_build_key_by_dir_short_key(reiserfs_key40_t *key, 
+    void *sh_key, uint8_t size) 
 {
-    aal_assert("vpf-144", key != NULL, return);
-    aal_assert("vpf-145", sh_key != NULL, return);
-    aal_assert("vpf-146", size >= 2 * sizeof(uint64_t), return)
+    aal_assert("vpf-144", key != NULL, return -1);
+    aal_assert("vpf-145", sh_key != NULL, return -1);
+    aal_assert("vpf-146", (size >= 2 * sizeof(uint64_t)), return -1)
 	
     aal_memcpy(&key->el[1], sh_key, 2 * sizeof(uint64_t));
+    
+    return 0;
 }
 
-static void key40_build_key_by_file_short_key(reiserfs_key40_t *key, void *sh_key, 
-    uint8_t size) 
+static error_t key40_build_key_by_file_short_key(reiserfs_key40_t *key, 
+    void *sh_key, uint8_t size) 
 {
-    aal_assert("vpf-144", key != NULL, return);
-    aal_assert("vpf-145", sh_key != NULL, return);
-    aal_assert("vpf-146", size >= 2 * sizeof(uint64_t), return)
+    aal_assert("vpf-144", key != NULL, return -1);
+    aal_assert("vpf-145", sh_key != NULL, return -1);
+    aal_assert("vpf-146", (size >= 2 * sizeof(uint64_t)), return -1)
 	
     aal_memcpy(key, sh_key, 2 * sizeof(uint64_t));
+
+    return 0;
 }
 
 static reiserfs_plugin_t key40_plugin = {
@@ -292,9 +298,7 @@ static reiserfs_plugin_t key40_plugin = {
 	.minimal = (const void *(*)(void))key40_minimal,
 	.maximal = (const void *(*)(void))key40_maximal,
 	.compare = (int (*)(const void *, const void *))key40_compare,
-	.create = (void *(*)(uint16_t, oid_t, oid_t, uint64_t))key40_create,
 	.clean = (void (*)(void *))key40_clean,
-	.close = (void (*)(void *))key40_close,
 
 	.set_type = (void (*)(void *, uint32_t))key40_set_type,
 	.get_type = (uint32_t (*)(const void *))key40_get_type,
@@ -314,21 +318,22 @@ static reiserfs_plugin_t key40_plugin = {
 	.set_counter = (void (*)(void *, uint8_t))key40_set_counter,
 	.get_counter = (uint8_t (*)(const void *))key40_get_counter,
 	
-	.build_file_key = (void (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
+	.build_file_key = (error_t (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
 	    key40_build_file_key,
 	
-	.build_dir_key = (void (*)(void *, oid_t, oid_t, char *, void *))
+	.build_dir_key = (error_t (*)(void *, void *, oid_t, oid_t, const char *))
 	    key40_build_dir_key,
 
-	.build_dir_short_key = (void (*)(void *, char *, void *, uint8_t))
+	.build_dir_short_key = (error_t (*)(void *, const char *, void *, uint8_t))
 	    key40_build_dir_short_key,
 
-	.build_file_short_key = (void (*)(void *, uint32_t, oid_t, oid_t, uint8_t))
+	.build_file_short_key = (error_t (*)(void *, uint32_t, oid_t, oid_t, uint8_t))
 	    key40_build_file_short_key,
 
-	.build_key_by_dir_short_key = (void (*)(void *key, void *sh_key, uint8_t size))
+	.build_key_by_dir_short_key = (error_t (*)(void *key, void *sh_key, uint8_t size))
 		key40_build_key_by_dir_short_key,
-	.build_key_by_file_short_key = (void (*)(void *key, void *sh_key, uint8_t size))
+	
+	.build_key_by_file_short_key = (error_t (*)(void *key, void *sh_key, uint8_t size))
 	    key40_build_key_by_file_short_key, 
 	
 	.size = (uint8_t (*)(void))key40_size
