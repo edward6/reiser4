@@ -126,8 +126,8 @@ ino_t oid_to_uino( oid_t oid )
  * This is because we dont't have enough empirical evidence about scalability
  * of each scheme.
  *
- * FIXME-NIKITA ->i_sem is not we actually won't. May be spinlock is better
- * after all.
+ * FIXME-NIKITA ->i_sem is not what we actually won't. May be spinlock is
+ * better after all.
  */
 
 
