@@ -1915,7 +1915,9 @@ write_unix_file(struct file *file, /* file to write to */
 	written = generic_write_checks(file, off, &count, 0);
 	if (written == 0) {
 		unix_file_info_t *uf_info;
-		int gotaccess = 0;
+
+		/* UNIX behavior: clear suid bit on file modification */
+		remove_suid(file->f_dentry);
 
 		uf_info = unix_file_inode_data(inode);
 
@@ -1934,36 +1936,28 @@ write_unix_file(struct file *file, /* file to write to */
 		if (written == 0) {
 			int rep;
 
-			for (rep = 0;; ++ rep) {
-				if (!gotaccess) {
-					if (inode_get_flag(inode,
-							   REISER4_PART_CONV)) {
-						get_exclusive_access(uf_info);
-						written = finish_conversion(inode);
-						if (written != 0) {
-							drop_access(uf_info);
-							break;
-						}
-					/* check_pages_unix_file returned
-					   without taking any access. We need
-					   to take access. We take excluse if
-					   inode size is 0 */
-					} else if (inode->i_size == 0 || rep)
-						get_exclusive_access(uf_info);
-					else
-						get_nonexclusive_access(uf_info);
-				}
+			for (rep = 0; ; ++ rep) {
+				if (inode_get_flag(inode,
+						   REISER4_PART_CONV)) {
+					get_exclusive_access(uf_info);
+					written = finish_conversion(inode);
+					if (written != 0) {
+						drop_access(uf_info);
+						break;
+					}
+				} else if (inode->i_size == 0 || rep)
+					get_exclusive_access(uf_info);
+				else
+					get_nonexclusive_access(uf_info);
 
 				if (rep == 0) {
 					/* UNIX behavior: clear suid bit on file modification */
-					remove_suid(file->f_dentry);
 					grab_space_enable();
 				}
 
 				all_grabbed2free();
 				written = write_file(file, buf, count, off, uf_info);
 				drop_access(uf_info);
-				gotaccess = 0;
 
 				if (written == -E_REPEAT)
 					/* write_file required exclusive
