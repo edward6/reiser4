@@ -1688,6 +1688,11 @@ define_never_ever_op( direct_IO_vfs )
 
 #define V( func ) ( ( void * ) ( func ) )
 
+static int invalidatepage(struct page *p UNUSED_ARG, unsigned long o UNUSED_ARG)
+{
+	return 0;
+}
+
 struct address_space_operations reiser4_as_operations = {
 	.writepage      = reiser4_writepage,
 	.readpage       = reiser4_readpage,
@@ -1701,7 +1706,7 @@ struct address_space_operations reiser4_as_operations = {
 	/*reiser4_commit_write,*/
 	.commit_write   = V( never_ever_commit_write_vfs ),
  	.bmap           = reiser4_bmap,
-	.invalidatepage = NULL,
+	.invalidatepage = invalidatepage,
 	.releasepage    = NULL,
  	/*reiser4_direct_IO*/
 	.direct_IO      = V( never_ever_direct_IO_vfs )
