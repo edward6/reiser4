@@ -1708,6 +1708,9 @@ uncapture_block (txn_atom *atom,
 	atom->capture_count -= 1;
 	node->atom = NULL;
 
+	JF_CLR (node, ZNODE_RELOC);
+	JF_CLR (node, ZNODE_WANDER);
+
 	spin_unlock_jnode (node);
 
 	jput (node);

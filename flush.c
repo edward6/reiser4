@@ -906,9 +906,6 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 
 	assert ("jmacd-8122", child == JZNODE (pos->point));
 
-	/* Release pos->point reference again. */
-	flush_pos_release_point (pos);
-
 	/* Lock the parent. */
 	{
 		/* Have to move the pos->point lock out of the way, it is being replaced. */
@@ -919,6 +916,9 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 		ret = jnode_lock_parent_coord (pos->point, coord, & pos->point_lock, ZNODE_WRITE_LOCK);
 
 		done_lh (& save_lock);
+
+		/* Release pos->point reference again. */
+		flush_pos_release_point (pos);
 
 		if (ret == 0) { pos->point = jref (ZJNODE (pos->point_lock.node)); }
 	}
