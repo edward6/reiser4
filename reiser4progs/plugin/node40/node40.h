@@ -53,6 +53,7 @@ typedef struct reiserfs_nh40 reiserfs_nh40_t;
     Item headers are not standard across all node layouts, pass
     pos_in_node to functions instead.
 */
+
 struct reiserfs_ih40 {
     union {
 	uint64_t el[3];

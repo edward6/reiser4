@@ -56,11 +56,12 @@ error:
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
 {
-    void *key;
+    uint8_t key[MAX_KEY_SIZE];
     blk_t block_nr;
     reiserfs_coord_t coord;
     reiserfs_plugin_t *plugin;
     reiserfs_node_t *squeeze, *leaf;
+    reiserfs_plugin_t *key_plugin;
     
     reiserfs_item_info_t item_info;
     reiserfs_internal_info_t internal_info;
@@ -73,13 +74,13 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     */
     reiserfs_entry_info_t entry[2] = {
 	[0] = {
-	    .parent_id = reiserfs_oid_root_parent_objectid(fs),
-	    .object_id = reiserfs_oid_root_objectid(fs),
+	    .locality = reiserfs_oid_root_parent_objectid(fs),
+	    .objectid = reiserfs_oid_root_objectid(fs),
 	    "."
 	}, 
 	[1] = {
-	    .parent_id = reiserfs_oid_root_parent_locality(fs),
-	    .object_id = reiserfs_oid_root_parent_objectid(fs),
+	    .locality = reiserfs_oid_root_parent_locality(fs),
+	    .objectid = reiserfs_oid_root_parent_objectid(fs),
 	    ".." 
 	}
     };
@@ -88,6 +89,12 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     aal_assert("vpf-115", profile != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
 
+    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id %x.", 0x0);
+	return -1;
+    }
+    
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
     
@@ -116,21 +123,12 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 
     /* Initialize internal item. */
     internal_info.blk = block_nr;
-   
-    if (!(plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	goto error_free_squeeze;
-    }
-    
-    if (!(key = libreiser4_plugins_call(goto error_free_squeeze, plugin->key, 
-	create, KEY40_SD_MINOR, reiserfs_oid_root_parent_objectid(fs), 
-	reiserfs_oid_root_objectid(fs), 0)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create stat-data key.");
-	goto error_free_squeeze;
-    }
+  
+    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, clean, key);
+
+    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, 
+	build_file_key, key, KEY40_SD_MINOR, reiserfs_oid_root_parent_objectid(fs),
+	reiserfs_oid_root_objectid(fs), 0);
     
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &internal_info;
@@ -193,25 +191,17 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	goto error_free_leaf;
     }
    
+    direntry_info.parent_id = reiserfs_oid_root_parent_objectid(fs);
+    direntry_info.object_id = reiserfs_oid_root_objectid(fs);
     direntry_info.count = 2;
     direntry_info.entry = entry;
-
-    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
-	clean, key);
-    
-    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
-	set_type, key, KEY40_FILE_NAME_MINOR);
-    
-    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
-	set_locality, key, reiserfs_oid_root_objectid(fs));
-    
-    /* 
-	FIXME-VITALY: This should go into directory object API.
-	FIXME-UMKA: We can't access key's elements directly, we
-	know nothing about key structure here.
-    */
-    build_entryid_by_info((reiserfs_entryid_t *)(key + sizeof(uint64_t)), &entry[0]);
-
+    direntry_info.key_plugin = key_plugin;
+    direntry_info.hash_plugin = NULL;
+    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, key);
+    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, 
+	build_dir_key, key, direntry_info.parent_id, direntry_info.object_id, ".", 
+	direntry_info.hash_plugin);
+     
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &direntry_info;
 
@@ -228,7 +218,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
 
     /* 
-	Insert an internal item. Item will be created automatically from 
+	Insert a directory item. Item will be created automatically from 
 	the node insert API method.
     */
     if (reiserfs_node_item_insert(leaf, &coord, key, &item_info)) {
@@ -238,9 +228,6 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	goto error_free_leaf;
     }
 
-    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
-	close, key);
-    
     reiserfs_node_add_children(fs->tree->root, leaf);
     return 0;
 
