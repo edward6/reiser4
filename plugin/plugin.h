@@ -363,7 +363,7 @@ typedef struct layout_plugin {
 	/* key of root directory stat data */
 	const reiser4_key * ( *root_dir_key )( const struct super_block * );
 
-	void ( *release )( struct super_block * );
+	int ( *release )( struct super_block * );
 	void ( *print_info )( struct super_block * );
 } layout_plugin;
 
