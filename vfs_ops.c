@@ -1917,6 +1917,14 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
+	/*
+	 * FIXME-NIKITA obviously there is a (possibility of) deadlock here,
+	 * or rather locking ordering between "our" locks (jnode, tree,
+	 * jnode-to-page, etc.)  and mm locks (page, mapping->page_lock) is
+	 * undefined. For example, this deadlocks with jdelete() that takes
+	 * page lock with jnode-to-page lock already held.
+	 *
+	 */
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
