@@ -357,7 +357,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 	}
 
 	/* remove znode from hash-table */
-	z_hash_remove(znode_get_htable(node), node);
+	z_hash_remove_rcu(znode_get_htable(node), node);
 }
 
 /* zdrop() -- Remove znode from the tree.
@@ -386,16 +386,17 @@ znode_rehash(znode * node /* node to rehash */ ,
 
 	WLOCK_TREE(tree);
 	/* remove znode from hash-table */
-	z_hash_remove(oldtable, node);
+	z_hash_remove_rcu(oldtable, node);
 
-	assert("nikita-2019", z_hash_find(newtable, new_block_nr) == NULL);
+	/* assertion no longer valid due to RCU */
+	/* assert("nikita-2019", z_hash_find(newtable, new_block_nr) == NULL); */
 
 	/* update blocknr */
 	znode_set_block(node, new_block_nr);
 	node->zjnode.key.z = *new_block_nr;
 
 	/* insert it into hash */
-	z_hash_insert(newtable, node);
+	z_hash_insert_rcu(newtable, node);
 	WUNLOCK_TREE(tree);
 	return 0;
 }
@@ -423,16 +424,17 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	hash   = blknrhashfn(blocknr);
 	htable = get_htable(tree, blocknr);
 
-	RLOCK_TREE(tree);
-
+	rcu_read_lock();
 	result = z_hash_find_index(htable, hash, blocknr);
 
-	/* tree lock may be released early (before doing add_x_ref(), because
-	 * node is protected by RCU */
-	RUNLOCK_TREE(tree);
-
-	if (result != NULL)
+	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
+		if (unlikely(ZF_ISSET(result, JNODE_RIP))) {
+			dec_x_ref(ZJNODE(result));
+			result = NULL;
+		}
+	}
+	rcu_read_unlock();
 
 	return result;
 }
@@ -496,15 +498,13 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 	z_hash_prefetch_bucket(zth, hashi);
 
-	/* Take the hash table lock. */
-	RLOCK_TREE(tree);
-
+	rcu_read_lock();
 	/* Find a matching BLOCKNR in the hash table.  If the znode is found,
 	   we obtain an reference (x_count) but the znode remains unlocked.
 	   Have to worry about race conditions later. */
 	result = z_hash_find_index(zth, hashi, blocknr);
-	/* According to the current design, the hash table lock protects new znode
-	   references. */
+	/* According to the current design, the hash table lock protects new
+	   znode references. */
 	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
 		/* NOTE-NIKITA it should be so, but special case during
@@ -513,9 +513,13 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		*/
 		assert("nikita-2131", 1 || znode_parent(result) == parent ||
 		       (ZF_ISSET(result, JNODE_ORPHAN) && (znode_parent(result) == NULL)));
+		if (unlikely(ZF_ISSET(result, JNODE_RIP))) {
+			dec_x_ref(ZJNODE(result));
+			result = NULL;
+		}
 	}
 
-	RUNLOCK_TREE(tree);
+	rcu_read_unlock();
 
 	if (!result) {
 		znode * shadow;
@@ -534,12 +538,12 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		WLOCK_TREE(tree);
 
 		shadow = z_hash_find_index(zth, hashi, blocknr);
-		if (shadow != NULL) {
+		if (unlikely(shadow != NULL && !ZF_ISSET(shadow, JNODE_RIP))) {
 			zfree(result);
 			result = shadow;
 		} else {
 			result->version = znode_build_version(tree);
-			z_hash_insert_index(zth, hashi, result);
+			z_hash_insert_index_rcu(zth, hashi, result);
 
 			if (parent != NULL)
 				atomic_inc(&parent->c_count);
