@@ -208,8 +208,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	atomic_inc (& flush_cnt);
 	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
-        
-        /* temporary debugging code*/
 	if (FLUSH_SERIALIZE) {
 		if (atomic_read (& flush_cnt) > 1) {
 			/*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
@@ -220,7 +218,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	spin_lock_jnode (node);
 
 	/* a special case for znode-above-root */
-/* JMACD-FIXME-HANS: comment? */
 	if (jnode_is_formatted(node) && znode_above_root(JZNODE(node))) {
 		/* just pass dirty znode-above-root to overwrite set */
 		JF_SET(node, ZNODE_WANDER);
@@ -230,7 +227,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
-/* JMACD-FIXME-HANS: comment? */
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
 	if (! jnode_is_dirty (node) ||
 	    (jnode_is_formatted (node) && !znode_is_connected (JZNODE (node))) ||
@@ -244,7 +240,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
-/* JMACD-FIXME-HANS: comment? */
 	if (jnode_is_allocated (node)) {
 		/* Already has been assigned a block number, just write it again? */
 		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
@@ -263,7 +258,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
-/* JMACD-FIXME-HANS: comment? */
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		goto clean_out;
 	}
@@ -375,7 +369,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 
-/* JMACD-FIXME-HANS: comment? */
  clean_out:
 
 	/* wait for io completion */
@@ -1877,10 +1870,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				/* FIXME: Use TestClearPageDirty? */
 				assert ("jmacd-74233", !PageWriteback (pg));
-				/*
-				 * FIXME-VS: page can be not dirty: do_writepages clears dirty bit
-				 */
-				/*assert ("jmacd-74234", PageDirty (pg));*/
+				assert ("jmacd-74234", PageDirty (pg));
 				ClearPageDirty (pg);
 				SetPageWriteback (pg);
 				unlock_page (pg);
@@ -2271,8 +2261,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 			page_cache_release (pg);
 
-			if (IS_ERR(neighbor)) {
-				ret = PTR_ERR(neighbor);
+			if (neighbor == NULL) {
+				ret = -ENOMEM;
 				goto exit;
 			}
 
@@ -2304,8 +2294,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		page_cache_release (pg);
 
-		if (IS_ERR(neighbor)) {
-			ret = PTR_ERR(neighbor);
+		if (neighbor == NULL) {
+			ret = -ENOMEM;
 			goto exit;
 		}
 
@@ -2373,6 +2363,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 	for (; ! flush_scan_finished (scan); skip_first = 0) {
 		/* Either skip the first item (formatted) or scan the first extent. */
 		if (skip_first == 0) {
+		
 			assert ("jmacd-1230", item_is_extent (& scan->parent_coord));
 
 			if ((ret = flush_scan_extent_coord (scan, & scan->parent_coord))) {
@@ -2449,7 +2440,11 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			move_dh (& scan->parent_load, & next_load);
 		}
 
-		coord_dup (& scan->parent_coord, & next_coord);
+		/* 
+		    FIXME-UMKA: This this overkill, because flush scan_set_current 
+		    already made update of scan->parent_coord by next_coord.
+		*/
+//		coord_dup (& scan->parent_coord, & next_coord);
 
 		assert ("jmacd-1239", item_is_extent (& scan->parent_coord));
 	}
