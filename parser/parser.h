@@ -30,8 +30,8 @@
 #include "../plugin/node/node40.h"
 #include "../plugin/security/perm.h"
 
-#include "../plugin/oid/oid40.h"
-#include "../plugin/oid/oid.h"
+//#include "../plugin/oid/oid40.h"
+//#include "../plugin/oid/oid.h"
 
 #include "../plugin/space/bitmap.h"
 #include "../plugin/space/test.h"
@@ -63,6 +63,7 @@ typedef enum
 //#define  bizon
 
 #define  PARSER_DEBUG
+
 
 typedef struct vnode vnode_t;
 
@@ -100,6 +101,30 @@ typedef struct path_walk_name
 	struct qstr  sub_name;
 }path_walk_name;
 
+typedef struct tube tube_t;
+
+struct tube
+{
+	int type_offset;
+	char * offset;
+	long len;
+	long used;
+	char * buf;
+	loff_t readoff;
+	loff_t writeoff;
+
+	//	expr_v4_t * source;
+	struct file *src;
+
+	/* offset might actually point to sink */
+	//	vnode_t * sink;
+	struct file *dst;
+
+/* 	pos_t pos; */
+};
+
+
+
 struct wrd
 {
 	wrd_t * next ;                /* next word                   */
@@ -111,7 +136,7 @@ typedef enum
 	noV4Space,
 	V4Space,
 	V4Plugin
-};
+} SpaceType;
 
 struct vnode
 {
@@ -125,8 +150,7 @@ struct vnode
 	size_t len;		    /* length of sequence of bytes for read/write (-1 no limit) */
 	int vSpace  ;               /* v4  space name or not ???        */
 	int vlevel  ;               /* level              ???           */
-	int  (*fplug)(lnode * node, const reiser4_plugin_ref * area);
-	//	struct qstr restfilename;   /* rest of not resolved name     */
+//	int  (*fplug)(lnode * node, const reiser4_plugin_ref * area);
 } ;
 
 typedef union expr_v4  expr_v4_t;
@@ -212,7 +236,7 @@ typedef enum
 	EXPR_WRD,
 	EXPR_VNODE,
 	EXPR_LIST,
-	EXPR_ASSIGN
+	EXPR_ASSIGN,
 	EXPR_LNODE,
 	EXPR_FLOW,
 	EXPR_OP3,
@@ -314,6 +338,41 @@ static struct
 	Code[] =
 {
 };
+
+
+#if 0                           /*   */
+struct dentry {
+	atomic_t d_count;
+	unsigned int d_flags;
+	struct inode  * d_inode;	/* Where the name belongs to - NULL is negative */
+	struct dentry * d_parent;	/* parent directory */
+	struct list_head d_hash;	/* lookup hash list */
+	struct list_head d_lru;		/* d_count = 0 LRU list */
+	struct list_head d_child;	/* child of parent list */
+	struct list_head d_subdirs;	/* our children */
+	struct list_head d_alias;	/* inode alias list */
+	int d_mounted;
+	struct qstr d_name;
+	unsigned long d_time;		/* used by d_revalidate */
+	struct dentry_operations  *d_op;
+	struct super_block * d_sb;	/* The root of the dentry tree */
+	unsigned long d_vfs_flags;
+	void * d_fsdata;		/* fs-specific data */
+	struct dcookie_struct * d_cookie; /* cookie, if any */
+	unsigned char d_iname[DNAME_INLINE_LEN_MIN]; /* small names */
+} ____cacheline_aligned;
+
+struct dentry_operations {
+	int (*d_revalidate)(struct dentry *, int);
+	int (*d_hash) (struct dentry *, struct qstr *);
+	int (*d_compare) (struct dentry *, struct qstr *, struct qstr *);
+	int (*d_delete)(struct dentry *);
+	void (*d_release)(struct dentry *);
+	void (*d_iput)(struct dentry *, struct inode *);
+};
+#endif
+
+
 
 
 /*
