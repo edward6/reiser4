@@ -1158,16 +1158,23 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 			break;
 
 		level = znode_get_level( node );
-		if( ( h -> stop_level > level ) || ( level > h -> lock_level ) )
-			zput( node );
-		else {
-			/* min_key <= key <= max_key */
-			is_key_inside = znode_contains_key_lock( node, h -> key );
-			if( ! is_key_inside )
-				zput( node );
-			else
-				break;
-		}
+		if( h -> stop_level <= level && level <= h -> lock_level &&
+		    /* min_key <= key <= max_key */
+		    znode_contains_key_lock( node, h -> key ) )
+			break;
+		/*
+		 * we can safely release cbk cache lock here, because cbk
+		 * cache is organized as LRU list of persistent entries and
+		 * all list modifications are protected by cbk cache
+		 * spin-lock, but entries themselves never disappear.
+		 *
+		 * FIXME-NIKITA one can further reduce contention by releasing
+		 * lock right after zref() above, but this would complicate
+		 * unlocking logic after loop finishes.
+		 */
+		cbk_cache_unlock( cache );
+		zput( node );
+		cbk_cache_lock( cache );
 	}
 	cbk_cache_unlock( cache );
 	assert( "nikita-2475", cbk_cache_invariant( cache ) );
