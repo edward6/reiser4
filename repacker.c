@@ -23,9 +23,9 @@
 #include "kcond.h"
 
 enum repacker_state_bits {
-	REPACKER_RUNNING         = 1,
-	REPACKER_BEING_STOPPED   = 2,
-	REPACKER_BEING_DESTROYED = 4
+	REPACKER_RUNNING = 0x1,
+	REPACKER_STOP    = 0x2,
+	REPACKER_DESTROY = 0x4
 };
 
 struct repacker {
@@ -75,7 +75,7 @@ static int dirtying_znode (tap_t * tap, void * arg)
 
 	assert("zam-954", stats->count > 0);
 
-	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_BEING_STOPPED))
+	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
 
 	if (znode_is_dirty(tap->lh->node))
@@ -95,7 +95,7 @@ static int dirtying_extent (tap_t *tap, void * arg)
 	int ret;
 	struct repacker_stats * stats = arg;
 
-	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_BEING_STOPPED))
+	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
 
 	ret = mark_extent_for_repacking(tap, stats->count);
@@ -196,8 +196,8 @@ static void wait_repacker_completion(struct repacker * repacker)
 static int start_repacker(struct repacker * repacker) 
 {
 	spin_lock(&repacker->guard);
-	if (!(repacker->state & REPACKER_BEING_DESTROYED)) {
-		repacker->state &= ~REPACKER_BEING_STOPPED;
+	if (!(repacker->state & REPACKER_DESTROY)) {
+		repacker->state &= ~REPACKER_STOP;
 		if (!(repacker->state & REPACKER_RUNNING)) {
 			repacker->state |= REPACKER_RUNNING;
 			spin_unlock(&repacker->guard);
@@ -212,7 +212,7 @@ static int start_repacker(struct repacker * repacker)
 static void stop_repacker(struct repacker * repacker)
 {
 	spin_lock(&repacker->guard);
-	repacker->state |= REPACKER_BEING_STOPPED;
+	repacker->state |= REPACKER_STOP;
 	spin_unlock(&repacker->guard);
 }
 
@@ -317,7 +317,7 @@ void done_reiser4_repacker (struct super_block *super)
 	done_repacker_sysfs_iface(super);
 
 	spin_lock(&repacker->guard);
-	repacker->state |= (REPACKER_BEING_STOPPED | REPACKER_BEING_DESTROYED);
+	repacker->state |= (REPACKER_STOP | REPACKER_DESTROY);
 	wait_repacker_completion(repacker);
 	spin_unlock(&repacker->guard);
 
