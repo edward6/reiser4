@@ -994,7 +994,6 @@ static void delete_inode_common(struct inode *object)
 	*/
 	reiser4_context ctx;
 
-	init_context(&ctx, object->i_sb);
 	/*
 	 * FIXME: this resembles generic_delete_inode
 	 */
@@ -1003,6 +1002,8 @@ static void delete_inode_common(struct inode *object)
 	object->i_state|=I_FREEING;
 	inodes_stat.nr_inodes--;
 	spin_unlock(&inode_lock);
+
+	init_context(&ctx, object->i_sb);
 
 	uncapture_inode(object);
 
