@@ -114,9 +114,9 @@ with respect to each other. Any spin lock is righter than any long term lock,
 obviously.
 
 i_sem
-..inode_rw_lock <-----DEAD2---+
+..inode_rw_lock <-----DEAD1---+
 ....page_lock                 |
-......longterm_lock <-DEAD1-+ |
+......longterm_lock <-DEAD2-+ |
 ........pfault              | |
 ..........mm->mmap_sem------+-+                   [do_page_fault]
 ............kalloc
