@@ -346,6 +346,23 @@ void jnode_detach_page( jnode *node )
 /* Note: it _may_ return non-zero positive value if success, so you should
  * check for an error by the following way: */
 /* if((ret = jload(...)) < 0) return ret; */
+static void jkmap_nolock (jnode * node)
+{
+	assert ("zam-490", JF_ISSET (node, ZNODE_LOADED));
+	assert ("zam-491", jnode_page (node) != NULL);
+
+	kmap (jnode_page(node));
+	JF_SET(node, ZNODE_KMAPPED);
+}
+
+void jkmap (jnode * node)
+{
+	assert ("zam-492", node != NULL);
+
+	spin_lock_jnode (node);
+	jkmap_nolock (node);
+}
+
 int jload (jnode * node)
 {
 	reiser4_tree * tree = current_tree;
@@ -357,10 +374,7 @@ int jload (jnode * node)
 	spin_lock_jnode (node);
 
 	if (JF_ISSET(node, ZNODE_LOADED)) {
-		assert ("zam-473", jnode_page (node) != NULL);
-		kmap (jnode_page(node));
-		JF_SET(node, ZNODE_KMAPPED);
-
+		jkmap_nolock (node);
 		return 1;
 	}
 

@@ -299,6 +299,7 @@ typedef struct node_operations {
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 extern int  jload    (jnode* node);
+extern void jkmap    (jnode* node);
 extern int  jwrite   (jnode* node);
 extern int  jwait_io (jnode* node);
 extern int  jrelse   (jnode* node);

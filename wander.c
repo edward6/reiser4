@@ -26,6 +26,44 @@ struct journal_header {
 	d64      last_committed_tx;
 };
 
+static const d64 *get_last_committed_tx (struct super_block *s)
+{
+	struct reiser4_super_info_data * private;
+	struct journal_header * h;
+
+	private = get_super_private(s);
+	assert ("zam-477", private != NULL);
+	assert ("zam-478", private->journal_header != NULL);
+
+	jkmap (private->journal_header);
+
+	h = (struct journal_header*)jdata(private->journal_header);
+	assert ("zam-485", h != NULL);
+
+	junload (private->journal_header);
+
+	return &h->last_committed_tx; 
+}
+
+static void set_last_committed_tx (struct super_block *s, const d64 * block)
+{
+	struct reiser4_super_info_data * private;
+	struct journal_header * h;
+
+	private = get_super_private(s);
+	assert ("zam-479", private != NULL);
+	assert ("zam-480", private->journal_header != NULL);
+
+	jkmap (private->journal_header);
+
+	h = (struct journal_header*)jdata(private->journal_header);
+	assert ("zam-484", h != NULL);
+
+	jrelse (private->journal_header);
+
+	h->last_committed_tx = *block;
+}
+
 /* Journal footer gets updated after one transaction is flushed (all blocks
  * are written in place) and _before_ wandered blocks and log records are
  * freed in WORKING bitmap */
@@ -37,6 +75,44 @@ struct journal_footer {
 	 * which were not flushed completely */
 	d64      last_flushed_tx;
 };
+
+static const d64 *get_last_flushed_tx (struct super_block * s)
+{
+	struct reiser4_super_info_data * private;
+	struct journal_footer * h;
+
+	private = get_super_private(s);
+	assert ("zam-481", private != NULL);
+	assert ("zam-482", private->journal_footer != NULL);
+
+	jkmap (private->journal_footer);
+
+	h = (struct journal_footer*)jdata(private->journal_footer);
+	assert ("zam-483", h != NULL);
+
+	jrelse (private->journal_footer);
+
+	return &h->last_flushed_tx;
+}
+
+static void set_last_flushed_tx (struct super_block *s, const d64 *block)
+{
+	struct reiser4_super_info_data * private;
+	struct journal_footer * h;
+
+	private = get_super_private(s);
+	assert ("zam-493", private != NULL);
+	assert ("zam-494", private->journal_header != NULL);
+
+	jkmap (private->journal_footer);
+
+	h = (struct journal_footer*)jdata(private->journal_footer);
+	assert ("zam-495", h != NULL);
+
+	jrelse (private->journal_footer);
+
+	h->last_flushed_tx = *block;
+}
 
 #define TX_HEADER_MAGIC  "TxMagic4"
 #define LOG_RECORD_MAGIC "LogMagc4"
@@ -131,11 +207,11 @@ static void format_tx_head (
 
 	// cputod64((__u64)reiser4_trans_id(super), &h->id);
 	cputod32((__u32)total, & h->total);
-	// cputod64((__u64)reiser4_last_committed(super), & h->prev_tx    );
+	h->prev_tx = *get_last_committed_tx(super);
 	cputod64((__u64)(*next), & h->next_block );
 	cputod64((__u64)reiser4_free_committed_blocks(super), & h->free_blocks);
 }
-	
+
 static void format_log_record (
 	jnode * node,
 	int total, 
@@ -405,24 +481,20 @@ static int write_tx (capture_list_head * tx_list)
 
 	/* update journal header */
 	{
-		struct reiser4_super_info_data * private = get_current_super_private();
-		jnode * head = capture_list_back(tx_list);
-		struct journal_header * h;
+		struct super_block * s = reiser4_get_current_sb();
+		struct reiser4_super_info_data * private = get_super_private (s);
+		jnode * head = capture_list_back (tx_list);
+		d64 block;
 
-		assert ("zam-470", private != NULL);
-		assert ("zam-471", private->journal_header != NULL);
-		assert ("zam-472", jdata(private->journal_header) != NULL);
+		cputod64 (*jnode_get_block(head), &block);
 
-		h = (struct journal_header *)jdata(private->journal_header);
-
-		cputod64(*jnode_get_block(head), &h->last_committed_tx);
+		set_last_committed_tx (s, &block);
 
 		ret = jwrite(private->journal_header);
 
 		if (ret) return ret;
 
 		ret = jwait_io (private->journal_header);
-
 	}
 	
 	return ret;
