@@ -12,7 +12,9 @@ static void yy_exit()
 }
 #endif
 
-
+/* FIXME:NIKITA->VOVA this file uses indentation completely different than the
+ * rest of reiser4 and kernel. This complicates reading of the code by other
+ * people. I think this should be changed. */
 
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...)
 {
@@ -38,6 +40,8 @@ static void freeList(freeSpace * list)
 }
 
 
+/* FIXME:NIKITA->VOVA sys_* names are reserved for system call entry
+ * points. This function should be renamed. */
 static int sys_reiser4_free(struct reiser4_syscall_w_space * ws)
 {
 	if (ws->freeSpHead)
@@ -48,7 +52,9 @@ static int sys_reiser4_free(struct reiser4_syscall_w_space * ws)
 	return 0;
 }
 
-#define initNextFreeSpase(fs)	(fs)->freeSpace_next = NULL;                                      \
+/* FIXME:NIKITA->VOVA code below looks like custom made memory allocator. Why
+ * not to use slab? */
+#define initNextFreeSpace(fs)	(fs)->freeSpace_next = NULL;                                      \
                                 (fs)->freeSpaceMax   = (fs)->freeSpaceBase+FREESPACESIZE;         \
 			        (fs)->freeSpace      = (fs)->freeSpaceBase
 
@@ -57,19 +63,19 @@ static freeSpace * freeSpaceAlloc()
 	freeSpace * fs;
 	if ( ( fs = ( freeSpace * ) kmalloc( sizeof( freeSpace ),0 ) ) != NULL )
 		{
-			initNextFreeSpase(fs);
+			initNextFreeSpace(fs);
 		}
 	return fs;
 }
 
-#define get_firts_freeSpHead(ws) (ws)->freeSpHead
+#define get_first_freeSpHead(ws) (ws)->freeSpHead
 #define get_next_freeSpHead(curr) (curr)->freeSpace_next
 
 static freeSpace * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 {
 	freeSpace * curr,* next;
 	curr=NULL;
-	next = get_firts_freeSpHead(ws);
+	next = get_first_freeSpHead(ws);
 	while (next)
 		{
 			curr = next;
@@ -156,6 +162,8 @@ static lnode * get_lnode(struct inode * in)
 #endif
 }
 
+/* FIXME:NIKITA->VOVA sys_* names are reserved for system call entry
+ * points. This function should be renamed. */
 static struct reiser4_syscall_w_space * sys_reiser4_init()
 {
 	struct reiser4_syscall_w_space * ws;

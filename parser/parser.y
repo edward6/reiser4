@@ -134,7 +134,10 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 
 
-
+/*
+For bison:
+%pure_parser
+*/
 
 /*
   Starting production of our grammar.  8000.00:04:c1:14:50:07.800
