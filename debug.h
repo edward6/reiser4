@@ -185,7 +185,7 @@ extern void schedulable (void);
 #define assert( label, cond ) noop
 #define check_me( label, expr )	( ( void ) ( expr ) )
 #define ON_DEBUG( exp )
-#define schedulable() noop
+#define schedulable() might_sleep()
 
 /* REISER4_DEBUG */
 #endif
