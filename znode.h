@@ -146,6 +146,8 @@ struct jnode
 	capture_list_link capture_link;
 };
 
+TS_LIST_DEFINE(capture,jnode,capture_link);
+
 /* The znode is an extension of jnode. */
 struct znode {
 	/* Embedded jnode. */
@@ -324,9 +326,7 @@ typedef enum {
 /* Macros for accessing the znode state. */
 #define	ZF_CLR(p,f)		JF_CLR(ZJNODE(p), (f))
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
-#define	ZF_ISSET_NOLOCK(p,f)    JF_ISSET_NOLOCK(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET(ZJNODE(p), (f))
-#define	ZF_SET_NOLOCK(p,f)	JF_SET_NOLOCK(ZJNODE(p), (f))
 
 /* Macros for accessing the jnode state. */
 #define	JF_CLR(j,f)   clear_bit((f), &((jnode *)j)->state)

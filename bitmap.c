@@ -363,8 +363,6 @@ int reiser4_bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_le
 }
 
 
-TS_LIST_DEFINE(capture,jnode,capture_link);
-
 #define WALK_ATOM_VARS \
         int    h; \
         jnode *node;
