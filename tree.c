@@ -1345,7 +1345,8 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 	cdata.flags = flags;
 	op->u.cut = &cdata;
 
-	result = carry (&lowest_level, 0);
+	ON_STATS( lowest_level.level_no = znode_get_level( from -> node ) );
+	result = carry( &lowest_level, 0 );
 	done_carry_pool( &pool );
 
 	return result;
