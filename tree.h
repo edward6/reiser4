@@ -305,7 +305,7 @@ znode *insert_new_node (tree_coord * insert_coord, reiser4_lock_handle * lh);
 int cut_tree (reiser4_tree * tree, 
 	      const reiser4_key * from_key, const reiser4_key * to_key);
 
-extern int check_tree_pointer( tree_coord *pointer, znode *child );
+extern int check_tree_pointer( const tree_coord *pointer, const znode *child );
 extern int find_new_child_ptr( znode *parent, znode *child UNUSED_ARG,
 			       znode *left, tree_coord *result );
 extern int find_child_ptr( znode *parent, znode *child, tree_coord *result );
