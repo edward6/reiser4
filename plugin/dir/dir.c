@@ -60,7 +60,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	reiser4_object_create_data data;
 
 	assert( "nikita-1431", existing != NULL );
-	assert( "nikita-1432", parent != NULL );
+l	assert( "nikita-1432", parent != NULL );
 	assert( "nikita-1433", where != NULL );
 
 	object = existing -> d_inode;
@@ -87,7 +87,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	entry.obj = object;
 
 	data.mode = object -> i_mode;
-	data.id   = file_plugin_to_plugin( get_object_state( object ) -> file ) -> h.id;
+	data.id   = file_plugin_to_plugin( get_inode_plugin_data( object ) -> file ) -> h.id;
 
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
@@ -300,8 +300,8 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	 * directory
 	 */
 	{
-		reiser4_plugin_ref *self;
-		reiser4_plugin_ref *ancestor;
+		inodes_plugins *self;
+		inodes_plugins *ancestor;
 
 		self = get_object_state( object );
 		ancestor = get_object_state( parent ? parent :

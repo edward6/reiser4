@@ -58,7 +58,7 @@ Use the pluginid field?
  *
  * NOTES
  *
- *  Special flag in reiser4_plugin_ref->flags to detect pseudo file.
+ *  Special flag in inodes_plugins->flags to detect pseudo file.
 (The plugin id?)
  *  Mark pseudo file inode as loaded: ->flags | REISER4_LOADED
  *

@@ -24,20 +24,21 @@ typedef enum {
 	REISER4_PERM_PLUGIN_TYPE,
 	REISER4_SD_EXT_PLUGIN_TYPE,
 	REISER4_LAYOUT_PLUGIN_TYPE,
-	REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
-	REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
+	REISER4_OID_MGR_PLUGIN_TYPE,
+	REISER4_SPACE_MGR_PLUGIN_TYPE,
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
 typedef int reiser4_plugin_id;
 
-struct reiser4_plugin_operations;
+struct reiser4_plugin_ops;
 /** generic plugin operations, supported by each 
     plugin type. */
 typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 
-struct reiser4_plugin_ref;
-typedef struct reiser4_plugin_ref reiser4_plugin_ref;
+struct inodes_plugins;
+
+typedef struct inodes_plugins inodes_plugins;
 
 TS_LIST_DECLARE( plugin );
 
@@ -167,8 +168,9 @@ typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off )
  */
 
 typedef struct file_plugin {
-
-
+	
+	/** generic fields */
+	plugin_header h;
 /* reiser4 required file operations */
 
 	int (* write_flow)(flow_t * , /* buffer of data to write */
@@ -345,9 +347,8 @@ typedef struct sd_ext_plugin {
 /* this plugin contains methods to allocate objectid for newly created files,
  * to deallocate objectid when file gets removed, to report number of used and
  * free objectids */
-typedef struct oid_allocator_plugin {
-	int ( *init_oid_allocator )( reiser4_oid_allocator *map, __u64 nr_files,
-				     __u64 oids );
+typedef struct oid_mgr_plugin {
+	int ( *init_oid_allocator )( reiser4_oid_allocator *map );
 	/* used to report statfs->f_files */	
 	__u64 ( *oids_used )( reiser4_oid_allocator *map );
 	/* used to report statfs->f_ffree */	
@@ -362,28 +363,28 @@ typedef struct oid_allocator_plugin {
 	/* how many pages to reserve in transaction for freeing of an
 	   objectid */
 	int ( *oid_reserve_release )( reiser4_oid_allocator *map );
-} oid_allocator_plugin;
+} oid_mgr_plugin;
 
 /* this plugin contains method to allocate and deallocate free space of disk */
-typedef struct space_allocator_plugin {
-	int ( *init_allocator )( reiser4_space_allocator *,
-				 struct super_block * );
-	int ( *destroy_allocator )( reiser4_space_allocator *,
-				    struct super_block *);
-	int ( *alloc_blocks )( reiser4_blocknr_hint *, int needed,
-			       reiser4_block_nr *start, int *len );
-	void ( *dealloc_blocks )( reiser4_block_nr start, int len );
-
-} space_allocator_plugin;
+typedef struct space_mgr_plugin {
+	int ( *init_space_mgr )( struct super_block * );
+} space_mgr_plugin;
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
  * are any) locations, etc */
 typedef struct layout_plugin {
 	/* replay journal, initialize super_info_data, etc */
-	int ( *get_ready )( struct super_block *, void * data);
+	int ( *get_ready )( struct super_block *, reiser4_super_info_data *,
+			    struct buffer_head * );
 
 	/* key of root directory stat data */
 	const reiser4_key * ( *root_dir_key )( void );
+
+	/* plugin responsible for objectid allocation/freeing */
+	oid_mgr_plugin *oid_manager;
+
+	/* plugin responsible for free disk space allocation */
+	space_mgr_plugin *space_manager;
 } layout_plugin;
 
 
@@ -391,11 +392,9 @@ typedef struct layout_plugin {
     We keep everything inside single union for simplicity.
     Alternative solution is to to keep size of actual plugin
     in plugin type description. */
-struct reiser4_plugin {
+	union reiser4_plugin {
 	/** generic fields */
-	plugin_header h;
-	/** data specific to particular plugin type */
-	union __plugins {
+	plugin_header generic;
 		file_plugin      file;
 		dir_plugin       dir;
 		hash_plugin      hash;
@@ -403,14 +402,13 @@ struct reiser4_plugin {
 		hook_plugin      hook;
 		perm_plugin      perm;
 		node_plugin      node;
-		common_item_plugin      item;
+		item_plugin      item;
 		sd_ext_plugin    sd_ext;
 		layout_plugin    layout;
-		oid_allocator_plugin   oid_allocator;
-		space_allocator_plugin space_allocator;
-		void                  *generic;
-	} u;
-};
+		oid_mgr_plugin   oid_mgr;
+		space_mgr_plugin space_mgr;
+/* 		void                *dynamic; */
+	};
 
 typedef enum { 
 	REISER4_LIGHT_WEIGHT_INODE = 0x1,
@@ -423,61 +421,18 @@ typedef enum {
 	REISER4_LOADED             = 0x8,
 } reiser4_file_plugin_flags;
 
-/** intra-syscall ra hint. Use it when you are going to do
+/** intra-syscall Repetitive Access Pattern. Use it when you are going to do
     several operations in a row */
-typedef enum { AHEAD_RA, BEHIND_RA, NO_RA } intra_syscall_ra_hint;
+typedef enum { AHEAD_RAP, BEHIND_RAP, NO_RAP } intra_syscall_rap;
 
-/** inter-syscall ra hint structure. We can store such thing into inode.
-    Properly it should be associated with struct file rather than with
-    struct inode, but there is no file-system specific part in struct
-    file, or we can store ra_hints hashed by file-struct address and
-    track them in ->release() method. insert/delete tree operations
-    consult this structure and update it. We can add user interface to
-    this later.  This will help as to handle cross-syscall repeatable
-    insertions efficiently */
-typedef struct inter_syscall_ra_hint {
+/** inter-syscall Repetitive Access Pattern structure. We can store such thing into inode.  It would be better if it was
+    associated with struct file rather than with struct inode, but there is no file-system specific part in struct
+    file. insert/delete tree operations consult this structure and update it. We can add user interface to this later.
+    This will help improve the performance of cross-syscall insertions and reads that are localized within the tree. */
+typedef struct inter_syscall_rap_t {
 	/* some fields should go here.
 	   Start by looking at include/linux/fs.h:struct file */
-} inter_syscall_ra_hint;
-
-/** state associated with each inode. Stored in each inode. 
-    This is basically reiser4-specific part of inode 
-
-*/
-struct reiser4_plugin_ref {
-	/** plugin of file */
-	file_plugin            *file;
-	/** plugin of dir */
-	dir_plugin             *dir;
-	/** perm plugin for this file */
-	perm_plugin            *perm;
-	/** tail policy plugin. Only meaningful for regular files */
-	tail_plugin            *tail;
-	/** hash plugin. Only meaningful for directory files */
-	hash_plugin            *hash;
-	/** plugin of stat-data */
-	sd_plugin/*item_plugin*/            *sd;
-	/* id of item directory is built of */
-	item_plugin_id dir_item_plugin_id;
-	/** reiser4-specific inode flags. They are "transient" and 
-	    are not supposed to be stored on a disk. Used to trace
-	    "state" of inode. Bitmasks for this field are defined in 
-	    fs/reiser4/plugin/plugin.h:reiser4_file_plugin_flags */
-	__u32                      flags;
-	/** bytes actually used by the file */
-	__u64                      bytes;
-	__u64                      extmask;
-	/** length of stat-data for this inode */
-	short                      sd_len;
-	/** bitmask of non-standard plugins for this inode */
-	__u16                      plugin_mask;
-	inter_syscall_ra_hint      ra;
-	/** locality id for this file */
-	oid_t                      locality_id;
-#if REISER4_USE_COLLISION_LIMIT
-	int                        max_collisions;
-#endif
-};
+} inter_syscall_rap;
 
 struct reiser4_plugin_ops {
 	/** load given plugin from disk */
@@ -520,6 +475,7 @@ typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 		* VFS: fifos, devices, sockets 
 		*/
 	       SPECIAL_FILE_PLUGIN_ID,
+/* comment this nikita, and comment every LAST usage in our code -Hans */
 	       LAST_FILE_PLUGIN_ID
 } reiser4_file_id;
 
@@ -623,7 +579,7 @@ static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )                     
 }                                                                                  \
 typedef struct { int foo; } TYPE ## _plugin_dummy
 
-PLUGIN_BY_ID(common_item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
+PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
 PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
 PLUGIN_BY_ID(dir_plugin,REISER4_DIR_PLUGIN_TYPE,dir);
 PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);
@@ -632,10 +588,6 @@ PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);
 PLUGIN_BY_ID(hash_plugin,REISER4_HASH_PLUGIN_TYPE,hash);
 PLUGIN_BY_ID(tail_plugin,REISER4_TAIL_PLUGIN_TYPE,tail);
 PLUGIN_BY_ID(layout_plugin,REISER4_LAYOUT_PLUGIN_TYPE,layout);
-PLUGIN_BY_ID(oid_allocator_plugin,REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
-	     oid_allocator);
-PLUGIN_BY_ID(space_allocator_plugin,REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
-	     space_allocator);
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
