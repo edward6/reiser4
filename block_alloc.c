@@ -699,7 +699,7 @@ __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 
 	sub_from_ctx_grabbed (count);
 
-	atom->flush_reserved += count;
+	add_to_atom_flush_reserved_nolock(atom, count);
 
 	reiser4_spin_lock_sb(super);
 
