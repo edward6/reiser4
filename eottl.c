@@ -121,7 +121,7 @@
 */
 /* Audited by: green(2002.06.15) */
 static int
-is_next_item_internal(coord_t * coord, lock_handle * lh)
+is_next_item_internal(coord_t * coord)
 {
 	if (coord->item_pos != node_num_items(coord->node) - 1) {
 		/* next item is in the same node */
@@ -135,46 +135,6 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 		}
 	}
 	return 0;
-#if 0
-	int result;
-
-	} else {
-		return 0;
-		/* look for next item in right neighboring node */
-		lock_handle right_lh;
-		coord_t right;
-
-		init_lh(&right_lh);
-		result = reiser4_get_right_neighbor(&right_lh, coord->node, ZNODE_READ_LOCK, GN_DO_READ);
-		if (result && result != -E_NO_NEIGHBOR) {
-			/* error occured */
-			/* FIXME-VS: error code is not returned. Just that
-			   there is no right neighbor */
-			done_lh(&right_lh);
-			return 0;
-		}
-		if (!result && (result = zload(right_lh.node)) == 0) {
-			coord_init_first_unit(&right, right_lh.node);
-			if (item_is_internal(&right)) {
-				/* switch to right neighbor */
-				zrelse(coord->node);
-				done_lh(lh);
-
-				coord_init_zero(coord);
-				coord_dup(coord, &right);
-				move_lh(lh, &right_lh);
-
-				return 1;
-			}
-			/* zrelse right neighbor */
-			zrelse(right_lh.node);
-		}
-		/* item to the right of @coord either does not exist or is not
-		   of internal type */
-		done_lh(&right_lh);
-		return 0;
-	}
-#endif
 }
 
 /* inserting empty leaf after (or between) item of not internal type we have to
@@ -332,7 +292,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	}
 
 	/* take a look at the item to the right of h -> coord */
-	result = is_next_item_internal(coord, h->active_lh);
+	result = is_next_item_internal(coord);
 	if (result < 0) {
 		/* error occured while we were trying to look at the item to
 		   the right */

@@ -358,7 +358,7 @@ insert_result insert_by_key(reiser4_tree * tree, const reiser4_key * key,
 insert_result insert_by_coord(coord_t * coord,
 			      reiser4_item_data * data, const reiser4_key * key,
 			      lock_handle * lh,
-			      inter_syscall_rap * ra UNUSED_ARG, intra_syscall_rap ira UNUSED_ARG, cop_insert_flag);
+			      inter_syscall_rap * ra UNUSED_ARG, intra_syscall_rap ira UNUSED_ARG, __u32);
 insert_result insert_extent_by_coord(coord_t * coord,
 				     reiser4_item_data * data, const reiser4_key * key, lock_handle * lh);
 int cut_node(coord_t * from, coord_t * to,
@@ -368,7 +368,7 @@ int cut_node(coord_t * from, coord_t * to,
 
 resize_result resize_item(coord_t * coord, reiser4_item_data * data,
 			  reiser4_key * key, lock_handle * lh, cop_insert_flag);
-int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key, reiser4_item_data * data, cop_insert_flag);
+int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key, reiser4_item_data * data, unsigned);
 int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
 int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * result);
 

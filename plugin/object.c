@@ -878,7 +878,7 @@ bind_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 }
 
 #define detach_common bind_common
-#define cannot bind_common
+#define cannot ((void *)bind_common)
 
 static int
 detach_dir(struct inode *child, struct inode *parent)
