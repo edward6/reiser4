@@ -319,7 +319,7 @@ extern void print_cbk_slot( const char *prefix, cbk_cache_slot *slot );
 extern void print_cbk_cache( const char *prefix, cbk_cache  *cache );
 
 extern void forget_znode (reiser4_lock_handle *handle);
-extern int deallocate_node( znode *node );
+extern int deallocate_znode( znode *node );
 
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);
@@ -455,7 +455,7 @@ SPIN_LOCK_FUNCTIONS( dk, reiser4_tree, dk_lock );
  * ordering constraint for znode spin lock: znode lock is weaker than 
  * tree lock and dk lock
  */
-#define spin_ordering_pred_znode( node )			\
+#define spin_ordering_pred_jnode( node )			\
 	( ( lock_counters() -> spin_locked_tree == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_dk == 0 ) )
 
@@ -464,7 +464,7 @@ SPIN_LOCK_FUNCTIONS( dk, reiser4_tree, dk_lock );
  * Take and release short-term spinlocks.  Don't hold these across
  * io. 
  */
-SPIN_LOCK_FUNCTIONS(znode,znode,zguard);
+SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 
 /* __REISER4_TREE_H__ */
 #endif
