@@ -86,8 +86,6 @@ TS_LIST_DEFINE(txnh,txn_handle,txnh_link);
 TS_LIST_DEFINE(fwaitfor,txn_wait_links,_fwaitfor_link);
 TS_LIST_DEFINE(fwaiting,txn_wait_links,_fwaiting_link);
 
-TS_LIST_DEFINE(capture,jnode,capture_link);
-
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
 
