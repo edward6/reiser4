@@ -644,16 +644,17 @@ adjust_dir_pos(struct file   * dir,
 	 * to maintain stable readdir.
 	 */
 
-	ON_TRACE(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
+	ON_TRACE(TRACE_DIR, "adjust: %s/%i",
+		 dir ? (char *)dir->f_dentry->d_name.name : "(anon)", adj);
 	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
 	IF_TRACE(TRACE_DIR, print_dir_pos("\nspot", &readdir_spot->position));
 	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.entry_no: %llu\n",
-		 dir->f_pos, readdir_spot->entry_no);
+		 dir ? dir->f_pos : 0, readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
 
 	/* directory is positioned to the beginning. */
-	if (dir->f_pos == 0)
+	if (readdir_spot->entry_no == 0)
 		return;
 
 	pos = &readdir_spot->position;
@@ -662,11 +663,10 @@ adjust_dir_pos(struct file   * dir,
 		/* @mod_pos is _before_ @readdir_spot, that is, entry was
 		 * added/removed on the left (in key order) of current
 		 * position. */
-		readdir_spot->entry_no += adj;
-		assert("nikita-2577", dir->f_pos + adj >= 0);
 		/* logical number of directory entry readdir is "looking" at
 		 * changes */
-		dir->f_pos += adj;
+		readdir_spot->entry_no += adj;
+		assert("nikita-2577", ergo(dir != NULL, dir->f_pos + adj >= 0));
 		if (de_id_cmp(&pos->dir_entry_key, &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
 			/*
@@ -898,7 +898,8 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
  * unlocked.
  */
 static int
-feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
+feed_entry(struct file *f,
+	   readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 {
 	item_plugin *iplug;
 	char *name;
@@ -955,8 +956,8 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	assert("nikita-3436", lock_stack_isclean(get_current_lock_stack()));
 
 	result = filldir(dirent, name, (int) strlen(name),
-			 /* offset of the next entry */
-			 (loff_t) pos->entry_no,
+			 /* offset of this entry */
+			 f->f_pos,
 			 /* inode number of object bounden by this entry */
 			 oid_to_uino(get_key_objectid(&sd_key)),
 			 file_type);
@@ -1085,7 +1086,8 @@ readdir_common(struct file *f /* directory file being read */ ,
 	init_lh(&lh);
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-	/* initialize readdir readahead information: include into readahead stat data of all files of the directory */
+	/* initialize readdir readahead information: include into readahead
+	 * stat data of all files of the directory */
 	set_key_locality(&tap.ra_info.key_to_stop, get_inode_oid(inode));
 	set_key_type(&tap.ra_info.key_to_stop, KEY_SD_MINOR);
 	set_key_ordering(&tap.ra_info.key_to_stop, get_key_ordering(max_key()));
@@ -1108,7 +1110,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 			assert("nikita-2572", coord_is_existing_unit(coord));
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
-			result = feed_entry(pos, &tap, filld, dirent);
+			result = feed_entry(f, pos, &tap, filld, dirent);
 			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 				 "readdir: entry: offset: %lli\n", f->f_pos);
 			if (result > 0) {
