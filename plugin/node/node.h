@@ -197,7 +197,7 @@ typedef struct node_plugin {
 			       const reiser4_key *from_key,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed,
-			       carry_level *todo );
+			       carry_level *todo, __u32 flags );
 
 	/* remove data between @from and @to from a node (when shifting from
 	   one node to another, one cuts from a node but does not cut_and_kill
@@ -205,7 +205,7 @@ typedef struct node_plugin {
 	int ( *cut )( tree_coord *from, tree_coord *to,
 		      const reiser4_key *from_key, const reiser4_key *to_key,
 		      reiser4_key *smallest_removed,
-		      carry_level *todo );
+		      carry_level *todo, __u32 flags );
 	
 	/* copy as much as possible but not more than up to @stop from
 	   @stop->node to @target. If (pend == append) then data from beginning of

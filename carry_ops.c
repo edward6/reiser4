@@ -797,7 +797,8 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 
 	reiser4_dup_coord( &coord2, &coord );
 	result = node_plugin_by_node( parent ) -> cut_and_kill
-		( &coord, &coord2, NULL, NULL, NULL, todo );
+		( &coord, &coord2, NULL, NULL, NULL, todo, 
+		  op -> u.delete.flags );
 	doing -> restartable = 0;
 	znode_set_dirty( coord.node );
 	znode_set_dirty( coord2.node );
@@ -840,7 +841,7 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 		cut( op -> u.cut.from, op -> u.cut.to,
 		     op -> u.cut.from_key, op -> u.cut.to_key,
 		     op -> u.cut.smallest_removed,
-		     todo );
+		     todo, 0 /* FIXME-NIKITA flags */ );
 	znode_set_dirty( op -> u.cut.from -> node );
 	znode_set_dirty( op -> u.cut.to -> node );
 	doing -> restartable = 0;
@@ -956,6 +957,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	znode            *node;
 	tree_coord        coord;
 	reiser4_item_data data;
+	carry_op         *delete_dummy;
 	carry_op         *insert_extent;
 	int               result;
 
@@ -1011,6 +1013,13 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * FIXME-NIKITA add some checks here. Not assertions, -EIO. Check that
 	 * extent fits between items.
 	 */
+
+
+	if( is_empty_node( node ) ) {
+		delete_dummy = reiser4_post_carry( todo, COP_DELETE, node, 1 );
+		delete_dummy -> u.delete.child = NULL;
+		delete_dummy -> u.delete.flags = DELETE_RETAIN_EMPTY;
+	}
 
 	/*
 	 * proceed with inserting extent item into parent. We are definitely

@@ -119,6 +119,10 @@ typedef enum {
 	COPT_PASTE_RESTARTED,
 } cop_insert_pos_type;
 
+typedef enum {
+	DELETE_RETAIN_EMPTY
+} cop_delete_flag;
+
 /** 
  * &carry_tree_op - operation to "carry" upward.
  *
@@ -188,6 +192,11 @@ typedef struct carry_op {
 			__u32                flag;
 		} modify;
 		struct {
+			/**
+			 * flags to deletion operation. Are taken from
+			 * cop_delete_flag
+			 */
+			__u32                flags;
 			/** 
 			 * child to delete from parent. If this is
 			 * NULL, delete op->node. 

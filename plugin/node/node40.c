@@ -867,7 +867,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			const reiser4_key * from_key,
 			const reiser4_key * to_key,
 			reiser4_key * smallest_removed,
-			carry_level * todo, int cut)
+			carry_level * todo, int cut, __u32 flags)
 {
 	znode * node;
 	node_header_40 * nh;
@@ -1063,7 +1063,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	if (todo) {
 		/* it is not called by node40_shift, so we have to take care
 		   of changes on upper levels */
-		if (is_empty_node (node))
+		if (is_empty_node (node) && !(flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
 			prepare_for_removal (node, todo);
 		else if (keycmp (&node40_ih_at (node, 0)->key,
@@ -1084,10 +1084,10 @@ int node40_cut_and_kill (tree_coord * from, tree_coord * to,
 			 const reiser4_key * from_key,
 			 const reiser4_key * to_key,
 			 reiser4_key * smallest_removed,
-			 carry_level * todo)
+			 carry_level * todo, __u32 flags)
 {
 	return cut_or_kill (from, to, from_key, to_key, smallest_removed,
-			    todo, 0 /* not cut */);
+			    todo, 0 /* not cut */, flags);
 }
 
 
@@ -1097,10 +1097,10 @@ int node40_cut (tree_coord * from, tree_coord * to,
 		const reiser4_key * from_key,
 		const reiser4_key * to_key,
 		reiser4_key * smallest_removed,
-		carry_level * todo)
+		carry_level * todo, __u32 flags)
 {
 	return cut_or_kill (from, to, from_key, to_key, smallest_removed,
-			    todo, 1 /* cut */);
+			    todo, 1 /* cut */, flags);
 }
 
 
@@ -1561,7 +1561,7 @@ static int node40_delete_copied (struct shift_params * shift)
 		to.between = AT_UNIT;
 	}
 
-	return node40_cut (&from, &to, 0, 0, 0, 0);
+	return node40_cut (&from, &to, 0, 0, 0, 0, 0);
 }
 
 

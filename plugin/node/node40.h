@@ -86,13 +86,13 @@ int                node40_cut_and_kill     ( tree_coord * from,
 					     const reiser4_key * from_key,
 					     const reiser4_key * to_key,
 					     reiser4_key * smallest_removed,
-					     carry_level * todo);
+					     carry_level * todo, __u32 flags);
 int                node40_cut              ( tree_coord * from, 
 					     tree_coord * to,
 					     const reiser4_key * from_key,
 					     const reiser4_key * to_key,
 					     reiser4_key * smallest_removed,
-					     carry_level * todo);
+					     carry_level * todo, __u32 flags);
 int                node40_shift            ( tree_coord * from, 
 					     znode * to, 
 					     shift_direction pend,
