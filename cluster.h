@@ -272,7 +272,7 @@ move_cluster_forward(reiser4_cluster_t * clust, struct inode * inode,
 	    /* hole in the indices */
 	    pg_to_clust(pgidx, inode) != clust->index + 1)
 		invalidate_hint_cluster(clust);
-	*progress = *progress + 1;
+	*progress = 1;
 	clust->index = pg_to_clust(pgidx, inode);
 }
 
