@@ -272,8 +272,8 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
 	s->s_blocksize = PAGE_CACHE_SIZE;
 	s->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	s->s_bdev = &block_devices[0];
-	s->s_bdev->fd = open (dev_name, O_RDWR);
-	if (s->s_bdev->fd == -1)
+	s->s_bdev->bd_dev = open (dev_name, O_RDWR);
+	if (s->s_bdev->bd_dev == -1)
 		return ERR_PTR (errno);
 
 	result = fill_super (s, data, 0/*silent*/);
@@ -994,7 +994,7 @@ void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 	int i;
 
 	for (i = 0; i < nr; i ++) {
-		if (lseek64 (pbh[i]->b_bdev->fd,
+		if (lseek64 (pbh[i]->b_bdev->bd_dev,
 			     pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr,
 			     SEEK_SET) != 
 		    pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr, SEEK_SET) {
@@ -1002,7 +1002,7 @@ void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 			return;
 		}
 		if (rw == READ) {
-			if (read (pbh[i]->b_bdev->fd, pbh[i]->b_data, pbh[i]->b_size) != 
+			if (read (pbh[i]->b_bdev->bd_dev, pbh[i]->b_data, pbh[i]->b_size) != 
 			    (ssize_t)pbh[i]->b_size) {
 				info ("ll_rw_block: read failed\n");
 				clear_buffer_uptodate (pbh[i]);
@@ -1010,7 +1010,7 @@ void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 				set_buffer_uptodate (pbh[i]);
 			}
 		} else {
-			if (write (pbh[i]->b_bdev->fd, pbh[i]->b_data, pbh[i]->b_size) !=
+			if (write (pbh[i]->b_bdev->bd_dev, pbh[i]->b_data, pbh[i]->b_size) !=
 			    (ssize_t)pbh[i]->b_size) {
 				info ("ll_rw_block: read failed\n");
 			}
@@ -1055,7 +1055,7 @@ int submit_bio( int rw, struct bio *bio )
 
 	assert ("jmacd-997", (rw == WRITE) || (rw == READ));
 
-	fd = bio -> bi_bdev -> fd;
+	fd = bio -> bi_bdev -> bd_dev;
 	success = lseek64( fd, ( off64_t )( bio -> bi_sector * 512 ), SEEK_SET );
 	if( success == ( off64_t )-1 ) {
 		perror( "lseek64" );
@@ -1169,12 +1169,12 @@ struct buffer_head * sb_bread (struct super_block * sb, int block)
 	if (!bh)
 		return 0;
 
-	if (lseek64 (sb->s_bdev->fd, bh->b_size * (off64_t)block, SEEK_SET) != 
+	if (lseek64 (sb->s_bdev->bd_dev, bh->b_size * (off64_t)block, SEEK_SET) != 
 	    bh->b_size * (off64_t)block, SEEK_SET) {
 		brelse (bh);
 		return 0;
 	}
-	if (read (sb->s_bdev->fd, bh->b_data, bh->b_size) != (int)bh->b_size) {
+	if (read (sb->s_bdev->bd_dev, bh->b_data, bh->b_size) != (int)bh->b_size) {
 		brelse (bh);
 		return 0;
 	}
@@ -3022,7 +3022,7 @@ static void bash_umount (reiser4_context * context)
 	int fd;
 
 	sb = reiser4_get_current_sb ();
-	fd = sb->s_bdev->fd;
+	fd = sb->s_bdev->bd_dev;
 	call_umount (sb);
 
 	close (fd);
@@ -3159,8 +3159,8 @@ static int bash_mkfs (const char * file_name)
 	super.s_blocksize = blocksize;
 	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
 	super.s_bdev = &bd;
-	super.s_bdev->fd = open (file_name, O_RDWR);
-	if (super.s_bdev->fd == -1) {
+	super.s_bdev->bd_dev = open (file_name, O_RDWR);
+	if (super.s_bdev->bd_dev == -1) {
 		info ("Could not open device: %s\n", strerror (errno));
 		return 1;
 	}
@@ -4614,7 +4614,7 @@ int real_main( int argc, char **argv )
 #endif
 		get_current_super_private() -> blocks_free = ~0ul;
 
-		assert ("jmacd-998", super.s_blocksize == PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
+		assert ("jmacd-998", super.s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 
 		register_thread();
 		spin_lock_init( &mp_guard );
