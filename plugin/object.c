@@ -494,8 +494,7 @@ can_add_link_common(const struct inode *object /* object to check */ )
 
 /* remove object stat data. Space for it must be reserved by caller before */
 reiser4_internal int
-common_object_delete_no_reserve(struct inode *inode /* object to remove */,
-				int mode /* cut_mode */)
+common_object_delete_no_reserve(struct inode *inode /* object to remove */)
 {
 	int result;
 
@@ -509,7 +508,7 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */,
 
 		build_sd_key(inode, &sd_key);
 		write_current_logf(WRITE_TREE_LOG, "..sd k %#llx", get_inode_oid(inode));
-		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL, mode);
+		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(inode->i_sb, get_inode_oid(inode));
@@ -526,7 +525,7 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */,
 
 /* delete object stat-data. This is to be used when file deletion turns into stat data removal */
 reiser4_internal int
-delete_object(struct inode *inode /* object to remove */, int mode /* cut mode */)
+delete_object(struct inode *inode /* object to remove */)
 {
 	int result;
 
@@ -545,16 +544,10 @@ delete_object(struct inode *inode /* object to remove */, int mode /* cut mode *
 		if (reiser4_grab_space_force(reserve,
 					     BA_RESERVED | BA_CAN_COMMIT))
 			return RETERR(-ENOSPC);
-		result = common_object_delete_no_reserve(inode, mode);
+		result = common_object_delete_no_reserve(inode);
 	} else
 		result = 0;
 	return result;
-}
-
-reiser4_internal int
-delete_file_common(struct inode * inode)
-{
-	return delete_object(inode, 1);
 }
 
 /* common directory consists of two items: stat data and one item containing "." and ".." */
@@ -572,7 +565,7 @@ static int delete_directory_common(struct inode *inode)
 
 	result = dplug->done(inode);
 	if (!result)
-		result = common_object_delete_no_reserve(inode, 1);
+		result = common_object_delete_no_reserve(inode);
 	all_grabbed2free();
 	return result;
 }
@@ -1301,7 +1294,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create = create_common,
-		.delete = delete_file_common,
+		.delete = delete_object,
 		.sync = sync_unix_file,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
@@ -1330,6 +1323,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
+		.cut_tree_worker = cut_tree_worker_common,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.destroy_inode = NULL,
@@ -1391,6 +1385,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
+		.cut_tree_worker = cut_tree_worker_common,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.destroy_inode = NULL,
@@ -1425,7 +1420,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.create = create_symlink,
 		/* FIXME-VS: symlink should probably have its own destroy
 		 * method */
-		.delete = delete_file_common,
+		.delete = delete_object,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = NULL,
@@ -1453,6 +1448,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
+		.cut_tree_worker = cut_tree_worker_common,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.destroy_inode = destroy_inode_symlink,
@@ -1485,7 +1481,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.key_by_inode = NULL,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
-		.delete = delete_file_common,
+		.delete = delete_object,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_common,
@@ -1513,6 +1509,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
+		.cut_tree_worker = cut_tree_worker_common,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.destroy_inode = NULL,
@@ -1573,6 +1570,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
+		.cut_tree_worker = cut_tree_worker_common,
 		.drop = drop_pseudo,
 		.delete_inode = NULL,
 		.destroy_inode = NULL,
@@ -1634,6 +1632,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = readpages_cryptcompress,
 		.init_inode_data = init_inode_data_cryptcompress,
 		.pre_delete = pre_delete_cryptcompress,
+		.cut_tree_worker = cut_tree_worker_cryptcompress,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
 		.destroy_inode = destroy_inode_cryptcompress,

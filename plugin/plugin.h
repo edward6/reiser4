@@ -271,6 +271,21 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	   called when inode is read (read_inode) and when file is created (common_create_child) so that file plugin
 	   could initialize its inode data */
 	void (*init_inode_data)(struct inode *, reiser4_object_create_data *, int);
+	
+	/**
+	 * This method performs progressive deletion of items and whole nodes
+	 from right to left.
+	 *
+	 * @tap: the point deletion process begins from,
+	 * @from_key: the beginning of the deleted key range,
+	 * @to_key: the end of the deleted key range,
+	 * @smallest_removed: the smallest removed key,
+	 *
+	 * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
+	 * operation was interrupted for allowing atom commit .
+	 */
+	int (*cut_tree_worker)(tap_t * tap, const reiser4_key * from_key, const reiser4_key * to_key,
+			      reiser4_key * smallest_removed, struct inode * object);
 
 	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
 	int (*pre_delete)(struct inode *);
