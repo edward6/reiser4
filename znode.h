@@ -239,9 +239,9 @@ struct znode {
 
 
 /* Macros for accessing the znode state. */
-#define	ZF_CLR(p,f)		JF_CLR(ZJNODE(p), (f))
+#define	ZF_CLR(p,f)	        JF_CLR  (ZJNODE(p), (f))
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
-#define	ZF_SET(p,f)		JF_SET(ZJNODE(p), (f))
+#define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
 
 /**
  * Since we have R/W znode locks we need addititional `link' objects to
@@ -400,7 +400,7 @@ extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block );
 extern void zput( znode *node );
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
-extern int zrelse( znode *node );
+extern void zrelse( znode *node );
 extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
 
 extern unsigned znode_size( const znode *node );

@@ -17,21 +17,20 @@
  *    node 
  *  . they contain links to lists used by the transaction manager
  *
- * Znode is attached to some variable "block number" which is instance
- * of fs/reiser4/tree.h:reiser4_block_nr type. Znode can exist without
- * appropriate node being actually loaded in memory. Existence of znode
- * itself is regulated by reference count (->x_count) in it. Each time
- * thread acquires reference to znode through call to zget(),
- * ->x_count is incremented and decremented on call to zput().  Data
- * (content of node) are brought in memory through call to zload(),
- * which also increments ->d_count reference counter.  zload can block
- * waiting on IO.  Call to zrelse() decreases this counter. Thus,
- * ->x_count is never less than ->d_count. Also, ->c_count keeps track
- * of number of child znodes and prevents parent znode from being
- * recycled until all of its children are. ->c_count is decremented
- * whenever child goes out of existence (being actually recycled in
- * zdestroy()) which can be some time after last reference to this
- * child dies if we support some form of LRU cache for znodes.
+ * Znode is attached to some variable "block number" which is instance of
+ * fs/reiser4/tree.h:reiser4_block_nr type. Znode can exist without
+ * appropriate node being actually loaded in memory. Existence of znode itself
+ * is regulated by reference count (->x_count) in it. Each time thread
+ * acquires reference to znode through call to zget(), ->x_count is
+ * incremented and decremented on call to zput().  Data (content of node) are
+ * brought in memory through call to zload(), which also increments ->d_count
+ * reference counter.  zload can block waiting on IO.  Call to zrelse()
+ * decreases this counter. Also, ->c_count keeps track of number of child
+ * znodes and prevents parent znode from being recycled until all of its
+ * children are. ->c_count is decremented whenever child goes out of existence
+ * (being actually recycled in zdestroy()) which can be some time after last
+ * reference to this child dies if we support some form of LRU cache for
+ * znodes.
  *
  */
 /*
@@ -515,7 +514,6 @@ void add_d_ref( znode *node /* node to increase d_count of */ )
 void del_c_ref( znode *node /* node to decrease c_count of */ )
 {
 	assert( "nikita-1962", node != NULL );
-
 	assert( "nikita-2133", atomic_read( &node -> c_count ) > 0 );
 	atomic_dec( &node -> c_count );
 }
@@ -783,7 +781,7 @@ static int zparse( znode *node /* znode to parse */ )
 	return result;
 }
 
-static int zrelse_nolock( znode *node );
+static void zrelse_nolock( znode *node );
 
 /** load content of node into memory */
 /* Audited by: umka (2002.06.11), umka (2002.06.15) */
@@ -798,8 +796,9 @@ int zload( znode *node /* znode to load */ )
 
 	result = 0;
 	spin_lock_znode( node );
+
 	reiser4_stat_znode_add( zload );
-	if( ! ZF_ISSET( node, ZNODE_LOADED ) ) {
+	if( !znode_is_loaded( node ) ) {
 		reiser4_tree *tree;
 
 		add_d_ref( node );
@@ -834,9 +833,13 @@ int zload( znode *node /* znode to load */ )
 			spin_lock_znode( node );
 			zrelse_nolock( node );
 		}
-	} else
+	} else {
+		assert( "nikita-2136", atomic_read( &node -> d_count ) > 0 );
 		add_d_ref( node );
-	assert( "nikita-2135", ZF_ISSET( node, ZNODE_KMAPPED ) );
+	}
+	assert( "nikita-2135", ergo( result == 0,
+				     ZF_ISSET( node, ZNODE_KMAPPED ) ) );
+
 	spin_unlock_znode( node );
 	assert( "nikita-1378", znode_invariant( node ) );
 	return result;
@@ -877,7 +880,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 
 /** just like zrelse, but assume znode is already spin-locked */
 /* Audited by: umka (2002.06.11) */
-static int zrelse_nolock( znode *node /* znode to release references to */ )
+static void zrelse_nolock( znode *node /* znode to release references to */ )
 {
 	assert( "nikita-487", node != NULL );
 	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
@@ -885,19 +888,11 @@ static int zrelse_nolock( znode *node /* znode to release references to */ )
 
 	ON_DEBUG( -- lock_counters() -> d_refs );
 	if( atomic_dec_and_test( &node -> d_count ) ) {
-		/* unload data, or done some sort of lazy unloading */
-		/* spinlock needed to protect another d_count increment while
-		 * zunloading, thus semantically equivalent to
-		 * atomic_dec_and_lock().  same implementation as
-		 * atomic_dec_and_lock() as well, although comments in
-		 * atomic.h suggest a more efficient implementation is
-		 * possible on some architectures. */
 		current_tree -> ops -> release_node( current_tree, 
 						     ZJNODE( node ) );
+		assert( "nikita-2137", znode_is_loaded( node ) );
 		ZF_CLR( node, ZNODE_LOADED );
 	}
-	/* FIXME: Josh thinks this should return void. */
-	return 0;
 }
 
 /**
@@ -905,20 +900,17 @@ static int zrelse_nolock( znode *node /* znode to release references to */ )
  * unloaded.
  */
 /* Audited by: umka (2002.06.11), umka (2002.06.15) */
-int zrelse( znode *node /* znode to release references to */ )
+void zrelse( znode *node /* znode to release references to */ )
 {
-	int ret = 0;
-	
 	assert( "nikita-1963", node != NULL );
 	assert( "nikita-1964", atomic_read( &node -> d_count ) > 0 );
 	assert( "nikita-1381", znode_invariant( node ) );
 
 	spin_lock_znode( node );
-	ret = zrelse_nolock( node );
+	zrelse_nolock( node );
 	spin_unlock_znode( node );
 
 	assert( "nikita-1382", znode_invariant( node ) );
-	return ret;
 }
 
 /** size of data in znode */
@@ -1137,7 +1129,7 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		 * Condition 7+: Flags
 		 */
 		_ergo( !znode_above_root( node ) && 
-		      ZF_ISSET( node, ZNODE_LOADED ), 
+		      znode_is_loaded( node ), 
 		      !disk_addr_eq( znode_get_block( node ), 
 				     &FAKE_TREE_ADDR ) ) &&
 		_ergo( znode_get_level( node ) == LEAF_LEVEL,
@@ -1177,7 +1169,7 @@ static __u32 znode_checksum( const znode *node )
 	const char *data = node->data;;
 
 	assert( "umka-065", node != NULL );
-	assert ("jmacd-1080", ZF_ISSET (node, ZNODE_LOADED));
+	assert ("jmacd-1080", znode_is_loaded (node));
 
 	/* Checksum is similar to adler32... */
 	for (i = 0; i < size; i += 1) {
