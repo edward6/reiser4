@@ -73,6 +73,8 @@ static int           squalloc_right_twig_cut      (tree_coord * to, reiser4_key 
 static int           squeeze_right_leaf           (znode *right, znode *left);
 static int           shift_one_internal_unit      (znode *left, znode *right);
 
+flush_scan_left_config flush_scan_config (jnode *node, int flags);
+
 static int           jnode_flush_again            (jnode *node);
 static int           jnode_lock_parent_coord      (jnode *node,
 						   tree_coord *coord,
@@ -112,22 +114,11 @@ static void          flush_pos_release_point      (flush_position *pos);
  * During squeeze and allocate, nodes are scheduled for writeback and their jnodes are set
  * to the "clean" state (as far as the atom is concerned).
  */
-int jnode_flush (jnode *node, int flags UNUSED_ARG)
+int jnode_flush (jnode *node, int flags)
 {
 	int ret;
 	flush_position leftpoint;
-
-	/* We want to make a new mount/config option to allow setting this to
-	 * SCAN_LEFT_FIRST_LEVEL instead of SCAN_LEFT_EVERY_LEVEL, as described in
-	 * flush-alg.html.
-	 *
-	 * Make it SCAN_LEFT_EVERY_LEVEL if:
-	 * (node-level != leaf) || in_txn_commit,
-	 *
-	 * In other words, make it SCAN_LEFT_FIRST_LEVEL if:
-	 * (in_txn_flush && node-level == leaf)
-	 */	
-	flush_scan_left_config scan_config = SCAN_LEFT_EVERY_LEVEL;
+	flush_scan_left_config scan_config = flush_scan_config (node, flags);
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
 
@@ -165,6 +156,20 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 
 	flush_pos_done (& leftpoint);
 	return ret;
+}
+
+/* This should be a plugin or mount option.  This sets the default scan_left policy
+ * according to flush-alg.html. */
+flush_scan_left_config flush_scan_config (jnode *node, int flags)
+{
+	if (flags & JNODE_FLUSH_MEMORY && jnode_get_level (node) == LEAF_LEVEL) {
+		/* The conservative approach. */
+		return SCAN_LEFT_FIRST_LEVEL;
+	}
+
+	/* The expansive approach. */
+	assert ("jmacd-8812", (flags & JNODE_FLUSH_COMMIT) || jnode_get_level (node) != LEAF_LEVEL);
+	return SCAN_LEFT_EVERY_LEVEL;
 }
 
 /********************************************************************************
