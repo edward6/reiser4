@@ -9,6 +9,14 @@
 /* Mr. Demidov, please implement by the end of March. */
 
 
+/* Issues of VFS consistency:
+
+It seems most issues of consistency can be resolved by locking the parent directory.
+
+
+
+ */
+
 #include "parser/parser.h"
 #include "parser/y.tab.c"
 
@@ -18,6 +26,7 @@ int yywrap()
     return 1;
 }
 
+/* allocate next part of space for freeSpace */
 freeSpace * freeSpaceAlloc()
 {
 	freeSpace * fs;
@@ -30,6 +39,7 @@ freeSpace * freeSpaceAlloc()
 	return fs;
 }
 
+/* allocate next part of table WrdTab */
 wrdtab * WrdTabAlloc()
 {
 	wrdtab * wrd;
@@ -43,6 +53,7 @@ wrdtab * WrdTabAlloc()
 	return wrd;
 }
 
+/* allocate next part of table VarTab */
 vartab * VarTabAlloc()
 {
 	vartab * var;

@@ -501,6 +501,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	if( ! S_ISDIR( inode -> i_mode ) )
 		REISER4_EXIT( -ENOTDIR );
 
+	init_coord( &coord );
 	init_lh( &lh );
 
 	result = build_readdir_key( f, &arg.key );
@@ -538,6 +539,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 
 	UPDATE_ATIME( inode );
 	done_lh( &lh );
+	done_coord( &coord );
 
 	REISER4_EXIT( result );
 }
@@ -1265,7 +1267,7 @@ struct file_operations reiser4_file_operations = {
  	.readdir           = reiser4_readdir, /* d */
 /* 	.poll              = reiser4_poll, */
 /* 	.ioctl             = reiser4_ioctl, */
-/*  	.mmap              = reiser4_mmap, */
+/* 	.mmap              = reiser4_mmap, */
 /* 	.open              = reiser4_open, */
 /* 	.flush             = reiser4_flush, */
  	.release           = reiser4_release, /* d */

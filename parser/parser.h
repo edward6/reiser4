@@ -125,7 +125,7 @@ static struct msglist *Fistmsg;
 
 struct yy_r4_work_space
 {
-	char * ws_inline;    /* this FIXME-NIKITA<-HANS: two field used for parsing string, one (inline) stay on begin */
+	char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
 	char * ws_pline;     /*   of token, second (pline) walk to end to token                   */
 
 	                     /* next field need for yacc */
@@ -133,7 +133,7 @@ struct yy_r4_work_space
 	int ws_yynerrs;
 	int ws_yyerrflag;
 	int ws_yychar;
-	short * ws_yyssp;	/* FIXME-NIKITA<-HANS */
+	short * ws_yyssp;
 	YYSTYPE * ws_yyvsp;
 	YYSTYPE ws_yyval;
 	YYSTYPE ws_yylval;

@@ -501,8 +501,6 @@ extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
 		    znode *parent, tree_level level, int gfp_flag );
 extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block );
 extern void zput( znode *node );
-extern int znode_rehash( znode *node, const reiser4_block_nr *new_block_nr );
-
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
 extern int zunload( znode *node );
@@ -603,7 +601,6 @@ extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
-extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
 extern int    jnode_flush     (jnode *node, int flags);
 
 #if REISER4_DEBUG
@@ -621,7 +618,6 @@ extern void   jput( jnode *node );
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
-#define znode_set_block(x, b)       jnode_set_block ( ZJNODE(x), (b) )
 
 #define znode_is_dirty(x)           jnode_is_dirty    ( ZJNODE(x) )
 #define znode_check_dirty(x)        jnode_check_dirty ( ZJNODE(x) )

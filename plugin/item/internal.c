@@ -20,7 +20,7 @@ int internal_mergeable (const tree_coord * p1 UNUSED_ARG /* first item */,
 
 /* ->lookup() method for internal items */
 lookup_result internal_lookup (const reiser4_key *key /* key to look up */, 
-			       lookup_bias bias UNUSED_ARG,
+			       lookup_bias bias UNUSED_ARG /* lookup bias */,
 			       tree_coord *coord /* coord of item */ )
 {
 	reiser4_key ukey;
@@ -28,7 +28,7 @@ lookup_result internal_lookup (const reiser4_key *key /* key to look up */,
 	switch( keycmp( unit_key_by_coord( coord, &ukey ), key ) ) {
 	default: impossible( "", "keycmp()?!" );
 	case LESS_THAN:
-		coord -> between = AT_UNIT;
+		coord -> between = AFTER_ITEM;
 	case EQUAL_TO:
 		return CBK_COORD_FOUND;
 	case GREATER_THAN:
@@ -270,6 +270,7 @@ int internal_kill_hook( const tree_coord *item /* coord of item */,
 		/* fare thee well */
 		ZF_SET( child, ZNODE_HEARD_BANSHEE );
 		spin_lock_tree( current_tree );
+		init_coord( &child -> ptr_in_parent_hint );
 		spin_unlock_tree( current_tree );
 		atomic_dec( &item -> node -> c_count );
 		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",

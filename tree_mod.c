@@ -141,7 +141,9 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 				tree -> root_block = *znode_get_block( new_root );
 				/* new root is a child on "fake" node */
 				spin_lock_tree( tree );
-				coord_init_invalid( &new_root -> ptr_in_parent_hint, fake);
+				new_root -> ptr_in_parent_hint.node = fake;
+				new_root -> ptr_in_parent_hint.item_pos = ~0u;
+				new_root -> ptr_in_parent_hint.between = AT_UNIT;
 				spin_unlock_tree( tree );
 			
 				/*
@@ -209,7 +211,7 @@ static int add_child_ptr( znode *parent, znode *child )
 	result = zload( parent );
 	if( result != 0 )
 		return result;
-	coord_init_first_unit( &coord, parent );
+	coord_first_unit( &coord, parent );
 
 	build_child_ptr_data( child, &data );
 	data.arg = NULL;
@@ -270,7 +272,9 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			spin_lock_tree( tree );
 
 			/* new root is child on "fake" node */
-			coord_init_invalid( &new_root -> ptr_in_parent_hint, fake);
+			new_root -> ptr_in_parent_hint.node = fake;
+			new_root -> ptr_in_parent_hint.item_pos = ~0u;
+			new_root -> ptr_in_parent_hint.between = AT_UNIT;
 
 			sibling_list_insert_nolock( new_root, NULL );
 			spin_unlock_tree( tree );
@@ -319,7 +323,7 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 	assert( "nikita-1200", node_num_items( old_root ) == 1 );
 	assert( "nikita-1401", znode_is_write_locked( old_root ) );
 
-	coord_init_first_unit( &down_link, old_root );
+	coord_first_unit( &down_link, old_root );
 
 	spin_lock_dk( current_tree );
 	new_root = child_znode( &down_link, 1 );
@@ -330,7 +334,7 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 		zput( new_root );
 	} else
 		result = PTR_ERR( new_root );
-
+	done_coord( &down_link );
 	return result;
 }
 

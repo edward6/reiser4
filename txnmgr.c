@@ -298,13 +298,21 @@ jnode_of_page (struct page* pg)
 		jal = NULL;
 	}
 
+	/* FIXME: This may be called from memory.c, read_in_formatted, which
+	 * does is already synchronized under the page lock, but I imagine
+	 * this will get called from other places, in which case the
+	 * jnode_ptr_lock is probably still necessary, unless...
+	 *
+	 * If jnodes are unconditionally assigned at some other point, then
+	 * this interface and lock not needed? */
+
 	spin_unlock (& _jnode_ptr_lock);
 
 	if (jal != NULL) {
 		kmem_cache_free (_jnode_slab, jal);
 	}
 
-	return jref ((jnode*) pg->private);
+	return (jnode*) pg->private;
 }
 
 /* Increment to the jnode's reference counter. */

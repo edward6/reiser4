@@ -209,6 +209,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 			s.dir.extract_key( coord, &entry.key );
 	}
 	done_lh( &lh );
+	done_coord( coord );
 	
 	if( result == 0 ) {
 		struct inode *inode;
@@ -279,6 +280,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 	} else if( result == 0 )
 		result = -EEXIST;
 	done_lh( &lh );
+	done_coord( coord );
 	return result;
 }
 
@@ -316,6 +318,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 			s.dir.rem_entry( object, coord, &lh, entry );
 	}
 	done_lh( &lh );
+	done_coord( coord );
 	return result;
 }
 
@@ -414,6 +417,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 #endif
 		arg.mode = mode;
 		arg.inode = dir;
+		init_coord( &arg.last_coord );
 		init_lh( &arg.last_lh );
 
 		result = iterate_tree( tree_by_inode( dir ), 
@@ -425,14 +429,16 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		if( arg.not_found || ( result == -ENAVAIL ) ) {
 			/* step back */
 			done_lh( lh );
+			done_coord( coord );
 
-			coord_dup( coord, &arg.last_coord );
+			dup_coord( coord, &arg.last_coord );
 			move_lh( lh, &arg.last_lh );
 
 			result = -ENOENT;
 		}
 
 		done_lh( &arg.last_lh );
+		done_coord( &arg.last_coord );
 	}
 	if( result == 0 )
 		seal_init( seal, coord, &entry -> key );
@@ -475,7 +481,8 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 		return 0;
 	}
 
-	coord_dup( &args -> last_coord, coord );
+	done_coord( &args -> last_coord );
+	dup_coord( &args -> last_coord, coord );
 	if( args -> last_lh.node != lh -> node ) {
 		int lock_result;
 
@@ -498,14 +505,14 @@ static int check_item( const struct inode *dir,
 	iplug = item_plugin_by_coord( coord );
 	if( iplug == NULL ) {
 		warning( "nikita-1135", "Cannot get item plugin" );
-		coord_print( "coord", coord, 1 );
+		print_coord( "coord", coord, 1 );
 		return -EIO;
 	} else if( item_id_by_coord( coord ) !=
 		   item_id_by_plugin( inode_dir_item_plugin( dir ) ) ) {
 		/* item id of current item does not match to id of items a
 		 * directory is built of */
 		warning( "nikita-1136", "Wrong item plugin" );
-		coord_print( "coord", coord, 1 );
+		print_coord( "coord", coord, 1 );
 		print_plugin( "plugin", item_plugin_to_plugin (iplug) );
 		return -EIO;
 	}

@@ -255,7 +255,9 @@ static void zinit( znode *node /* znode to initialise */,
 	xmemset( node, 0, sizeof *node );
 	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
-	coord_init_invalid( &node -> ptr_in_parent_hint, parent );
+	init_coord( &node -> ptr_in_parent_hint );
+	node -> ptr_in_parent_hint.node = parent;
+	node -> ptr_in_parent_hint.item_pos = ~0u;
 	spin_lock_tree( current_tree );
 	node -> version = ++ current_tree -> znode_epoch;
 	spin_unlock_tree( current_tree );
@@ -312,30 +314,6 @@ void zdestroy( znode *node /* znode to finish with */ )
 	 */
 	ON_DEBUG( xmemset( node, 0xde, sizeof *node ) );
 	zfree( node );
-}
-
-/** put znode into right place in the hash table */
-int znode_rehash( znode *node /* node to rehash */, 
-		  const reiser4_block_nr *new_block_nr /* new block number */ )
-{
-	z_hash_table *htable;
-
-	assert( "nikita-2018", node != NULL );
-
-	htable  = &current_tree -> hash_table;
-
-	spin_lock_tree( current_tree );
-	/* remove znode from hash-table */
-	z_hash_remove( htable, node );
-
-	assert( "nikita-2019", z_hash_find( htable, new_block_nr ) == NULL );
-
-	/* update blocknr */
-	znode_set_block( node, new_block_nr );
-	/* insert it into hash */
-	z_hash_insert( htable, node );
-	spin_unlock_tree( current_tree );
-	return 0;
 }
 
 /****************************************************************************************
@@ -824,13 +802,6 @@ const reiser4_block_nr *jnode_get_block( const jnode *node /* jnode to
    the block: likely we already have that.
 */
 	return & node -> blocknr;
-}
-
-void jnode_set_block( jnode *node /* jnode to update */,
-		      const reiser4_block_nr *blocknr /* new block nr */ )
-{
-	assert( "nikita-2020", node  != NULL );
-	node -> blocknr = *blocknr;
 }
 
 /** left delimiting key of znode */

@@ -226,6 +226,9 @@ static int far_next_coord (tree_coord * coord, lock_handle * handle, int flags)
 
 	spin_unlock_tree(current_tree);
 
+	done_coord(coord);
+	init_coord(coord);
+
 	node = handle->node;
 
 	/* corresponded zrelse() should be called by the clients of
@@ -238,8 +241,8 @@ static int far_next_coord (tree_coord * coord, lock_handle * handle, int flags)
 		return ret;
 	}
 
-	if (flags & GN_GO_LEFT) coord_init_last_unit(coord, node);
-	else                    coord_init_first_unit(coord, node);
+	if (flags & GN_GO_LEFT) coord_last_unit(coord, node);
+	else                    coord_first_unit(coord, node);
 
 	spin_lock_tree(current_tree);
 	return 0;
@@ -345,11 +348,13 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 	int nr_locked;
 	int ret;
 
-	coord_dup(&local, coord);
+	dup_coord(&local, coord);
 	init_lh(&handle);
 
 	ret = renew_sibling_link(&local, &handle, node, znode_get_level( node ),
 				 flags | GN_NO_ALLOC, &nr_locked);
+
+	done_coord(&local);
 
 	if (handle.owner != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
@@ -419,7 +424,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 	int nr_locked = 0;
 	int ret;
 
-	coord_dup(&local, coord);
+	dup_coord(&local, coord);
 
 	ret = renew_sibling_link(&local, &empty[0], node, level, flags & ~GN_NO_ALLOC, &nr_locked);
 	if (ret) goto out;
@@ -445,6 +450,8 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 		ret = 0;
 
  out:
+	done_coord(&local);
+
 	for (-- nr_locked ; nr_locked >= 0 ; -- nr_locked) {
 		zrelse(empty[nr_locked].node);
 		longterm_unlock_znode(&empty[nr_locked]);
@@ -490,6 +497,8 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 	tree_level base_level = znode_get_level( node );
 	tree_level h = 0;
 	int ret;
+
+	init_coord(&coord);
 
  again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
