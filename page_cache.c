@@ -562,6 +562,7 @@ static int write_page_by_ent (struct page *page)
 		lock_page(page);
 		if (!PageDirty(page))
 			break;
+		blk_run_queues();
 	}
 	unlock_page(page);
 	return 0;
