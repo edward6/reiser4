@@ -9,7 +9,7 @@
 #if !defined( __SLUM_H__ )
 #define __SLUM_H__
 
-extern int flush_znode_slum ( znode *node );
+extern int flush_jnode_slum ( jnode *node );
 
 /* __SLUM_H__ */
 #endif
