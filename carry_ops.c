@@ -949,6 +949,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	carry_op         *delete_dummy;
 	carry_op         *insert_extent;
 	int               result;
+	carry_plugin_info info;
 
 	assert( "nikita-1751", op != NULL );
 	assert( "nikita-1752", todo != NULL );
@@ -1002,6 +1003,9 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * extent fits between items.
 	 */
 
+	info.doing = doing;
+	info.todo  = todo;
+
 	/*
 	 * there is another complication due to placement of extents on the
 	 * twig level: extents are "rigid" in the sense that key-range
@@ -1011,7 +1015,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * level, creating new node. Here we are removing this node.
 	 */
 	if( node_is_empty( node ) ) {
-		delete_dummy = post_carry( todo, COP_DELETE, node, 1 );
+		delete_dummy = node_post_carry( &info, COP_DELETE, node, 1 );
 		if( IS_ERR( delete_dummy ) )
 			return PTR_ERR( delete_dummy );
 		delete_dummy -> u.delete.child = NULL;
@@ -1022,7 +1026,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * proceed with inserting extent item into parent. We are definitely
 	 * inserting rather than pasting if we get that far.
 	 */
-	insert_extent = post_carry( todo, COP_INSERT, node, 1 );
+	insert_extent = node_post_carry( &info, COP_INSERT, node, 1 );
 	if( IS_ERR( insert_extent ) )
 		/* FIXME-NIKITA cleanup @delete_dummy */
 		return PTR_ERR( insert_extent );
