@@ -1510,6 +1510,17 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
+#ifdef NORELOC
+	/*
+	 * FIXME-VS: remove this after debugging 
+	 */
+	if (znode_created (node)) {
+		goto best_reloc;
+	} else {
+		ZF_SET (node, ZNODE_WANDER);
+		goto cont;
+	}
+#endif
 	if (znode_created (node) || znode_is_root (node)) {
 		/* No need to decide with new nodes, they are treated the same as
 		 * relocate. If the root node is dirty, relocate. */
@@ -1564,7 +1575,9 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			}
 		}
 	}
-
+#ifdef NORELOC
+ cont:
+#endif
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
 	pos->alloc_cnt += 1;
