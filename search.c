@@ -1088,6 +1088,21 @@ check_dkeys(const znode *node)
 }
 #endif
 
+/* true if @key is left delimiting key of @node */
+static int key_is_ld(znode * node, const reiser4_key * key)
+{
+	int ld;
+
+	assert("nikita-1716", node != NULL);
+	assert("nikita-1758", key != NULL);
+
+	RLOCK_DK(znode_get_tree(node));
+	assert("nikita-1759", znode_contains_key(node, key));
+	ld = keyeq(znode_get_ld_key(node), key);
+	RUNLOCK_DK(znode_get_tree(node));
+	return ld;
+}
+
 /* Process one node during tree traversal.
 
    This is called by cbk_level_lookup(). */
@@ -1107,19 +1122,6 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	/* result */
 	int result;
 
-	/* true if @key is left delimiting key of @node */
-	static int key_is_ld(znode * node, const reiser4_key * key) {
-		int ld;
-
-		 assert("nikita-1716", node != NULL);
-		 assert("nikita-1758", key != NULL);
-
-		 RLOCK_DK(znode_get_tree(node));
-		 assert("nikita-1759", znode_contains_key(node, key));
-		 ld = keyeq(znode_get_ld_key(node), key);
-		 RUNLOCK_DK(znode_get_tree(node));
-		 return ld;
-	}
 	assert("nikita-379", h != NULL);
 
 	active = h->active_lh->node;
