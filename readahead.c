@@ -130,7 +130,7 @@ static inline loff_t get_min_readahead(struct reiser4_file_ra_state *ra)
 
 
 /* Start read for the given window. */
-static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_t size)
+static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_t size)
 {
 	reiser4_inode * object;
 	reiser4_key start_key;
@@ -142,7 +142,7 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 	coord_t coord;
 	tap_t tap;
 
-	int ret;
+	loff_t result;
 
 	assert("zam-994", lock_stack_isclean(get_current_lock_stack()));
 
@@ -154,19 +154,19 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 	init_lh(&next_lock);
 
 	/* Stop on twig level */
-	ret = coord_by_key(
+	result = coord_by_key(
 		current_tree, &start_key, &coord, &lock, ZNODE_WRITE_LOCK, 
 		FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
-	if (ret < 0)
+	if (result < 0)
 		goto error;
-	if (ret != CBK_COORD_FOUND) {
-		ret = 0;
+	if (result != CBK_COORD_FOUND) {
+		result = 0;
 		goto error;
 	}
 
 	tap_init(&tap, &coord, &lock, ZNODE_WRITE_LOCK);
-	ret = tap_load(&tap);
-	if (ret)
+	result = tap_load(&tap);
+	if (result)
 		goto error0;
 
 	/* Advance coord to right (even across node boundaries) while coord key
@@ -183,45 +183,58 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 		if (keyge(&key, &stop_key))
 			break;
 
-		ret = item_utmost_child(&coord, LEFT_SIDE, &child);
-		if (ret || child == NULL)
+		result = item_utmost_child(&coord, LEFT_SIDE, &child);
+		if (result || child == NULL)
 			break;
 		if (IS_ERR(child)) {
-			ret = PTR_ERR(child);
+			result = PTR_ERR(child);
 			break;
 		}
 
-		ret = jstartio(child);
+		result = jstartio(child);
 		jput(child);
-		if (ret)
+		if (result)
 			break;
 
 		/* Advance coord by one unit ... */
-		ret = coord_next_unit(&coord);
-		if (ret == 0)
+		result = coord_next_unit(&coord);
+		if (result == 0)
 			continue;
 
 		/* ... and continue on the right neighbor if needed. */
-		ret = reiser4_get_right_neighbor (
-			&next_lock, lock.node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
-		if (ret == -E_NO_NEIGHBOR) {
-			ret = 0;
+		result = reiser4_get_right_neighbor (
+			&next_lock, lock.node, ZNODE_WRITE_LOCK,
+			GN_CAN_USE_UPPER_LEVELS | GN_ASYNC);
+		if (result)
 			break;
-		}
-		if (ret)
-			break;
-		ret = tap_move(&tap, &next_lock);
-		if (ret)
+
+		result = tap_move(&tap, &next_lock);
+		if (result)
 			break;
 		done_lh(&next_lock);
 		coord_init_first_unit(&coord, lock.node);
+	}
+
+	if (result) {
+		if (result == -E_REPEAT || result == -E_NO_NEIGHBOR) {
+			loff_t end_offset;
+
+			assert("zam-994", lock.node != NULL);
+
+			/* If node is locked, nobody can change node's left
+			 * delimiting key. */
+			end_offset = get_key_offset(znode_get_ld_key(lock.node));
+			result = end_offset - offset;
+		}
+	} else {
+		result = size;
 	}
  error0:
 	tap_done(&tap);
  error:
 	done_lh(&lock);
 	done_lh(&next_lock);
-	return ret;
+	return result;
 }
 
 /* This is derived from the linux original read-ahead code (mm/readahead.c), and
@@ -231,7 +244,7 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 	loff_t min;
 	loff_t max;
 	loff_t orig_next_size;
-	int actual;
+	loff_t actual;
 	struct reiser4_file_ra_state * ra;
 	struct inode * inode = file->f_dentry->d_inode;
 
@@ -251,7 +264,7 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 	min = get_min_readahead(ra);
 	orig_next_size = ra->next_size;
 
-	if (ra->next_size == 0 && offset == 0) {
+	if (ra->next_size == 0 /* && offset == 0 */) {
 		/*
 		 * Special case - first read from first page.
 		 * We'll assume it's a whole-file read, and
@@ -300,7 +313,9 @@ do_io:
 		ra->ahead_start = 0;		/* Invalidate these */
 		ra->ahead_size = 0;
 		actual = do_reiser4_file_readahead(inode, offset, ra->size);
-		// check_ra_success(ra, ra->size, actual, orig_next_size);
+		if (actual > 0) {
+			ra->size = actual;
+		}
 	} else {
 		/* Have we merely advanced into the ahead window? */
 		if (offset + size >= ra->ahead_start) {
@@ -332,7 +347,9 @@ do_io:
 			ra->ahead_size = ra->next_size;
 			actual = do_reiser4_file_readahead(
 				inode, ra->ahead_start, ra->ahead_size);
-			// check_ra_success(ra, ra->ahead_size,actual, orig_next_size);
+			if (actual > 0) {
+				ra->size = actual;
+			}
 		}
 	}
 out:
