@@ -298,6 +298,10 @@ typedef struct dir_plugin {
 	 */
 	int ( *rename )( struct inode *old_dir, struct dentry *old,
 			 struct inode *new_dir, struct dentry *new );
+
+	/** readdir implementation */
+	int ( *readdir )( struct file *f, void *cookie, filldir_t filldir );
+
 } dir_plugin;
 
 typedef struct tail_plugin {
@@ -539,7 +543,7 @@ typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 /* builtin dir-plugins */
 typedef enum { 
 	HASHED_DIR_PLUGIN_ID,
-	LARGE_DIR_PLUGIN_ID,
+	SEEKABLE_HASHED_DIR_PLUGIN_ID,
 	LAST_DIR_ID
 } reiser4_dir_id;
 

@@ -43,22 +43,22 @@ int build_readdir_key( struct file *dir /* directory being read */,
 		       reiser4_key *result /* where to store key */ )
 {
 	reiser4_file_fsdata *fdata;
+	struct inode *inode;
 
 	assert( "nikita-1361", dir != NULL );
 	assert( "nikita-1362", result != NULL );
 	assert( "nikita-1363", dir -> f_dentry != NULL );
-	assert( "nikita-1373", dir -> f_dentry -> d_inode != NULL );
+	inode = dir -> f_dentry -> d_inode;
+	assert( "nikita-1373", inode != NULL );
 
-	key_init( result );
-	set_key_locality( result, get_inode_oid( dir -> f_dentry -> d_inode ) );
-	set_key_type( result, KEY_FILE_NAME_MINOR );
-	set_key_objectid( result, ( oid_t ) dir -> f_pos );
 	fdata = reiser4_get_file_fsdata( dir );
 	if( IS_ERR( fdata ) )
 		return PTR_ERR( fdata );
 	assert( "nikita-1364", fdata != NULL );
-	set_key_offset( result, fdata -> dir.readdir_offset );
-	return 0;
+	return extract_key_from_de_id
+		( get_inode_oid( inode ), 
+		  &fdata -> dir.readdir.position.dir_entry_key, result );
+
 }
 
 /**
