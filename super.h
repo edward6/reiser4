@@ -84,7 +84,7 @@ struct reiser4_super_info_data {
 	__u64     blocks_grabbed;
 
 	/**
-	 * number of blocks, not mapped to disk yet.
+	 * number of unallocated blocks in tree.
 	 */
 	__u64     blocks_unallocated;
 
