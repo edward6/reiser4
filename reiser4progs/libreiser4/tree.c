@@ -15,10 +15,11 @@
 #include <misc/misc.h>
 #include <reiser4/reiser4.h>
 
-/* Requests block allocator for new blockand creates empty node on it */
-static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree, 
-    uint8_t level) 
-{
+/* Requests block allocator for new block and creates empty node in it */
+static reiserfs_node_t *reiserfs_tree_alloc_node(
+    reiserfs_tree_t *tree,	/* tree for operating on */
+    uint8_t level		/* level of new node */
+) {
     blk_t block_nr;
     
     aal_assert("umka-756", tree != NULL, return NULL);
@@ -30,6 +31,7 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree,
 	return NULL;
     }
 
+    /* Creating new node */
     return reiserfs_node_create(tree->fs->host_device, block_nr,
         reiserfs_node_get_pid(tree->cache->node), 
         tree->cache->node->key_plugin->h.id, level);
@@ -53,26 +55,31 @@ static errno_t reiserfs_tree_setup(reiserfs_tree_t *tree) {
     return 0;
 }
 
+/* Opens balanced tree (that is tree cache) on specified filesystem */
 reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     reiserfs_tree_t *tree;
     reiserfs_node_t *node;
 
     aal_assert("umka-737", fs != NULL, return NULL);
 
+    /* Allocating memory for the tree instance */
     if (!(tree = aal_calloc(sizeof(*tree), 0)))
 	return NULL;
     
     tree->fs = fs;
     
+    /* Opening root node */
     if (!(node = reiserfs_node_open(fs->host_device, 
 	    reiserfs_format_get_root(fs->format), fs->key.plugin->h.id)))
 	goto error_free_tree;
     
+    /* Creating cache for root node */
     if (!(tree->cache = reiserfs_cache_create(node)))
 	goto error_free_node;
     
     tree->cache->tree = tree;
     
+    /* Setting up tree cachee limits */
     if (reiserfs_tree_setup(tree)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
 	    "Can't initialize cache limits. Cache limit spying will be disables.");
@@ -88,6 +95,7 @@ error_free_tree:
     return NULL;
 }
 
+/* Returns tree root cache */
 reiserfs_cache_t *reiserfs_tree_root(reiserfs_tree_t *tree) {
     aal_assert("umka-738", tree != NULL, return NULL);
     return tree->cache;
@@ -95,9 +103,11 @@ reiserfs_cache_t *reiserfs_tree_root(reiserfs_tree_t *tree) {
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs, 
-    reiserfs_profile_t *profile) 
-{
+/* Creates new balanced tree on specified filesystem */
+reiserfs_tree_t *reiserfs_tree_create(
+    reiserfs_fs_t *fs,		    /* filesystem new tree will be created on */
+    reiserfs_profile_t *profile	    /* profile to be used */
+) {
     blk_t block_nr;
     reiserfs_node_t *node;
     reiserfs_tree_t *tree;
@@ -105,17 +115,20 @@ reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs,
     aal_assert("umka-741", fs != NULL, return NULL);
     aal_assert("umka-749", profile != NULL, return NULL);
 
+    /* Allocating memory needed for tree instance */
     if (!(tree = aal_calloc(sizeof(*tree), 0)))
 	return NULL;
 
     tree->fs = fs;
 
+    /* Getting free block from block allocator for place root block in it */
     if (!(block_nr = reiserfs_alloc_alloc(fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate block for the root node.");
 	goto error_free_tree;
     }
 
+    /* Creating root node */
     if (!(node = reiserfs_node_create(fs->host_device, block_nr,
         profile->node, profile->key, reiserfs_format_get_height(fs->format))))
     {
@@ -124,11 +137,13 @@ reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs,
 	goto error_free_tree;
     }
 
+    /* Creating cache for root node */
     if (!(tree->cache = reiserfs_cache_create(node)))
 	goto error_free_node;
     
     tree->cache->tree = tree;
     
+    /* Setting up tree cahce limits */
     if (reiserfs_tree_setup(tree)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
 	    "Can't initialize cache limits. Cache limit spying will be disables.");
@@ -145,13 +160,14 @@ error_free_tree:
 }
 
 /* 
-    Syncs whole the tree-cache and removes all nodes except 
-    root node from the cache.
+    Syncs whole tree cache and removes all nodes except root node from the 
+    cache.
 */
 errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
+
     aal_assert("umka-573", tree != NULL, return -1);
     
-    reiserfs_cache_sync(tree->cache);
+    reiserfs_tree_sync(tree);
     
     if (tree->cache->list) {
 	aal_list_t *walk;
@@ -165,7 +181,7 @@ errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
     return 0;
 }
 
-/* Syncs whole the tree-cache */
+/* Syncs whole tree cache */
 errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
     aal_assert("umka-560", tree != NULL, return -1);
     
@@ -174,6 +190,7 @@ errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
 
 #endif
 
+/* Closes specified tree (frees all assosiated memory) */
 void reiserfs_tree_close(reiserfs_tree_t *tree) {
     aal_assert("umka-134", tree != NULL, return);
     
@@ -182,12 +199,15 @@ void reiserfs_tree_close(reiserfs_tree_t *tree) {
 }
 
 /* 
-    Makes search in the tree by specified key. Fills passed
-    coord by coords of found item. 
+    Makes search in the tree by specified key. Fills passed coord by coords of 
+    found item. 
 */
-int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t level,
-    reiserfs_key_t *key, reiserfs_coord_t *coord) 
-{
+int reiserfs_tree_lookup(
+    reiserfs_tree_t *tree,	/* tree to be grepped */
+    uint8_t level,		/* stop level for search */
+    reiserfs_key_t *key,	/* key to be find */
+    reiserfs_coord_t *coord	/* coord of found item */
+) {
     int lookup;
     blk_t block_nr;
     reiserfs_key_t ikey;
@@ -269,7 +289,11 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t level,
 
 #ifndef ENABLE_COMPACT
 
-errno_t reiserfs_tree_move(reiserfs_coord_t *dst, reiserfs_coord_t *src) {
+/* Moves item specified by src into place specified by dst */
+errno_t reiserfs_tree_move(
+    reiserfs_coord_t *dst,	    /* destination coord of item*/
+    reiserfs_coord_t *src	    /* source coord of item */
+) {
     if (src->cache->parent)
 	reiserfs_cache_unregister(src->cache->parent, src->cache);
     
