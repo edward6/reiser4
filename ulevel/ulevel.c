@@ -47,6 +47,11 @@ int sema_init( semaphore *sem, int value )
 	return 0;
 }
 
+int init_MUTEX_LOCKED( semaphore *sem )
+{
+	return sema_init( sem, 0 );
+}
+
 int down_interruptible( semaphore *sem )
 {
 	return pthread_mutex_lock( &sem -> mutex );

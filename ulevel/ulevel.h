@@ -575,10 +575,12 @@ struct root_dir {
 extern unsigned long get_jiffies ();
 
 #define jiffies get_jiffies()
+#define signal_pending( current ) (0)
 
 extern void show_stack( unsigned long * esp );
 extern void panic( const char *format, ... ) __attribute__((noreturn));
 extern int sema_init( semaphore *sem, int value UNUSE);
+extern int init_MUTEX_LOCKED( semaphore *sem );
 extern int down_interruptible( semaphore *sem );
 extern void down( semaphore *sem );
 extern void up( semaphore *sem );
