@@ -67,24 +67,25 @@ sys_reiser4(char *p_string)
 	char * str;
 	struct reiser4_syscall_w_space *work_space;
 	str=getname(p_string);
-
-	reiser4_current_trace_flags |= TRACE_PARSE;
-
-	/* allocate work space for parser 
-	   working variables, attached to this call */
-
-	if ((work_space = reiser4_pars_init()) == NULL) {
-		return -ENOMEM;
-	}
-
-	/* initialize fields */
-	/* this field used for parsing string, one (inline) stay on begin of token*/
-
-	work_space->ws_pline = str;
-	PTRACE(work_space, "%s", "begin parsing");
-	ret = yyparse(work_space);	/* parse command */
-	reiser4_pars_free(work_space);
-	putname(str);
+	if (!IS_ERR(str)) 
+		{
+			reiser4_current_trace_flags |= TRACE_PARSE;
+			/* allocate work space for parser 
+			   working variables, attached to this call */
+			if ((work_space = reiser4_pars_init()) == NULL) {
+				return -ENOMEM;
+			}
+			/* initialize fields */
+			/* this field used for parsing string, one (inline) stay on begin of token*/
+			work_space->ws_pline = str;
+			PTRACE(work_space, "%s", "begin parsing");
+			ret = yyparse(work_space);	/* parse command */
+			reiser4_pars_free(work_space);
+			putname(str);
+		}
+	else
+		ret = PTR_ERR(inkernel);
+	
 	return ret;
 }
 
