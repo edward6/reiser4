@@ -350,6 +350,26 @@ typedef struct crypto_plugin {
 	void (*decrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
 } crypto_plugin;
 
+typedef struct digest_plugin {
+	/* generic fields */
+	plugin_header h;
+	/* input blocksize */
+	unsigned int blksize;
+	/* digestsize */
+	unsigned int digestsize;
+	/* alloc context */
+	int (*alloc)(void *ctx);
+	/* free context */
+	void (*free)(void *ctx);
+	/* main procedures */
+	void (*init)(void *ctx);
+	void (*update)(void *ctx,           /* context specific to particular
+					     * type of digest algorithm */
+		       const __u8 *data,    /* input data  */
+		       unsigned int len     /* input data size */);
+	void (*final)(void *ctx, __u8 *out  /* destination digest */);
+} digest_plugin;
+
 typedef struct compression_plugin {
 	/* generic fields */
 	plugin_header h;
