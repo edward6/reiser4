@@ -946,7 +946,7 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 	bmap_off_t offset, end_offset;
 	int len;
 	struct super_block *super = get_current_context()->super;
-	const bmap_off_t max_offset = bmap_bit_count(super->s_blocksize) - 1;
+	const bmap_off_t max_offset = bmap_bit_count(super->s_blocksize);
 
 	parse_blocknr(start, &bmap, &offset);
 	parse_blocknr(end, &end_bmap, &end_offset);
@@ -954,7 +954,7 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 	assert("zam-961", end_bmap <= bmap);
 	assert("zam-962", ergo(end_bmap == bmap, end_offset <= offset));
 
-	for (; bmap > end_bmap; end_bmap --, offset = max_offset) {
+	for (; bmap > end_bmap; end_bmap --, offset = max_offset - 1) {
 		len = search_one_bitmap_backward(bmap, &offset, 0, min_len, max_len);
 		if (len != 0)
 			goto out;
