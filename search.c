@@ -1141,11 +1141,6 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 				 * io or oom
 				 */
 				result = -ENOENT;
-			else if( h -> result == CBK_COORD_FOUND )
-				/*
-				 * good. Item found
-				 */
-				result = 0;
 			else if( key_is_delimiting( node, h -> key ) ) {
 				/*
 				 * we are looking for possibly non-unique key
@@ -1154,7 +1149,12 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 				 */
 				reiser4_stat_tree_add( cbk_cache_utmost );
 				result = -ENOENT;
-			} else
+			} else if( h -> result == CBK_COORD_FOUND )
+				/*
+				 * good. Item found
+				 */
+				result = 0;
+			else
 				/*
 				 * definitely not found
 				 */
@@ -1296,6 +1296,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 		znode               *neighbor;
 		node_plugin         *nplug;
 		tree_coord           crd;
+		lookup_bias          bias;
 		
 		neighbor = lh.node;
 		h -> result = zload( neighbor );
@@ -1307,8 +1308,11 @@ static level_lookup_result search_to_left( cbk_handle *h )
 		nplug = neighbor -> nplug;
 
 		reiser4_init_coord( &crd );
+		bias = h -> bias;
+		h -> bias = FIND_EXACT;
 		h -> result = nplug -> lookup( neighbor, h -> key,
 					       h -> bias, &crd );
+		h -> bias = bias;
 		reiser4_done_coord( &crd );
 
 		if( h -> result == NS_NOT_FOUND ) {
