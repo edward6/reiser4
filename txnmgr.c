@@ -1289,18 +1289,16 @@ void jnode_set_clean( jnode *node )
 		/*trace_on (TRACE_FLUSH, "clean %sformatted node %p\n", 
 		            jnode_is_formatted (node) ? "" : "un", node);*/
 	}
-	/*
-	 * FIXME-VS: remove jnode from capture list even when jnode is not
-	 * dirty
-	 */
+
+	/* FIXME-VS: remove jnode from capture list even when jnode is not
+	 * dirty.  JMACD says: Is it wrong? */
 	atom = atom_get_locked_by_jnode (node);
 	
-	capture_list_remove     (node);
+	capture_list_remove (node);
 
 	/* Now it's possible that atom may be NULL, in case this was called
-	   from invalidate page */
-	
-	if ( atom != NULL ) {
+	 * from invalidate page */
+	if (atom != NULL) {
 
 		capture_list_push_front (& atom->clean_nodes, node);
 	
@@ -1308,9 +1306,10 @@ void jnode_set_clean( jnode *node )
 	}
 
 	spin_unlock_jnode (node);
-	if (! JF_ISSET (node, ZNODE_UNFORMATTED))
-		WITH_DATA (JZNODE (node), 
-			   current_tree->ops->clean_node (current_tree, node));
+
+	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
+		WITH_DATA (JZNODE (node), current_tree->ops->clean_node (current_tree, node));
+	}
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If

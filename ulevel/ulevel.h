@@ -491,6 +491,7 @@ typedef unsigned short kdev_t;
 
 struct super_block {
 	kdev_t			s_dev;
+	unsigned char s_dirt;
 	struct block_device   * s_bdev;
 	struct file_system_type *s_type;
 	unsigned long s_blocksize;

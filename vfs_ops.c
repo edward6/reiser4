@@ -1663,6 +1663,21 @@ static int put_super (struct super_block * s)
 	return 0;
 }
 
+static void reiser4_write_super (struct super_block * s)
+{
+	int ret;
+	__REISER4_ENTRY (s,);
+
+	if ((ret = txn_mgr_force_commit (s))) {
+		warning ("jmacd-77113", "txn_force failed in write_super: %u", ret);
+	}
+
+	/* Oleg says do this: */
+	s->s_dirt = 0;
+
+	__REISER4_EXIT (&__context);
+}
+
 /* Audited by: umka (2002.06.12) */
 static void reiser4_put_super (struct super_block * s)
 {
@@ -1722,10 +1737,6 @@ static int __init init_reiser4(void)
 				result = txn_init_static();
 				if( result == 0 ) {
 					result = init_fakes();
-					/*
-					 * FIXME-NIKITA more initialisations
-					 * here
-					 */
 					if( result == 0 ) {
 						result = register_filesystem ( &reiser4_fs_type );
 
@@ -1861,7 +1872,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.put_inode          = reiser4_put_inode, */
 /* 	.delete_inode       = reiser4_delete_inode, */
 	.put_super          = reiser4_put_super,
-/* 	.write_super        = reiser4_write_super, */
+ 	.write_super        = reiser4_write_super,
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */
 /* 	.unlockfs           = reiser4_unlockfs, */
  	.statfs             = reiser4_statfs, /* d */
