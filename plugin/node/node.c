@@ -116,7 +116,7 @@ void print_znode_content( const znode *node /* node to print */,
 
 
 	if( !znode_is_loaded( node ) ) {
-		print_znode( "znode is not loaded", node );
+		print_znode( "znode is not loaded\n", node );
 		return;
 	}
 	if( ( flags & REISER4_NODE_PRINT_HEADER ) &&
