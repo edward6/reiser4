@@ -129,14 +129,21 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 				       WRITE_OP, &f);
 
 		do {
+			znode * loaded;
+
 			result = find_next_item (0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 			if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
 				goto done;
 			}
-
+			loaded = coord.node;
+			result = zload (loaded);
+			if (result)
+				goto done;
+			
 			result = iplug->s.file.write (inode, &coord, &lh, &f,
 						      pages [i]);
 			/* item's write method may return -EAGAIN */
+			zrelse (loaded);
 		} while (result == -EAGAIN);
 
 		kunmap (pages [i]);
