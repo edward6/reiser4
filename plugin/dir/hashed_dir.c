@@ -203,10 +203,11 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
-	if( result == 0 ) {
+	if( ( result == 0 ) && ( ( result = zload( coord -> node ) ) == 0 ) ) {
 		/* entry was found, extract object key from it. */
 		result = item_plugin_by_coord( coord ) ->
 			s.dir.extract_key( coord, &entry.key );
+		zrelse( coord -> node );
 	}
 	done_lh( &lh );
 
