@@ -2359,6 +2359,64 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	}
 }
 
+/* Check mapping for existence of not captured dirty pages */
+static int mapping_has_anonymous_pages (struct address_space * mapping )
+{
+	/* FIXME: The method to check has this mapping not captured dirty pages
+	 * or not is not implemented yet */
+	return 1;
+}
+
+static void capture_page_and_create_extent (struct page * page)
+{
+	int result;
+	file_plugin *fplug;
+
+	fplug = inode_file_plugin(page->mapping->host);
+
+	if (fplug == NULL)
+		return;
+
+	result = fplug->writepage(page);
+
+	if (result != 0) {
+		SetPageError(page);
+	}
+}
+
+static int capture_anonymous_pages (struct address_space * mapping)
+{
+	write_lock (&mapping->page_lock);
+
+	/* We can teach reiser4_set_page_dirty to place dirty page directly to
+	 * io_list. is it reasonable ? */
+
+	list_splice_init (&mapping->dirty_pages, &mapping->io_pages);
+
+	while (!list_empty (&mapping->io_pages)) {
+		struct page *pg = list_entry(mapping->io_pages.prev, struct page, list);
+
+		list_del(&pg->list);
+		list_add(&pg->list, &mapping->dirty_pages);
+		page_cache_get (pg);
+
+		write_unlock (&mapping->page_lock);
+
+		lock_page (pg);
+
+		capture_page_and_create_extent (pg);
+		
+		unlock_page (pg);
+
+		page_cache_release (pg);
+		write_lock (&mapping->page_lock);
+	}
+
+	write_unlock(&mapping->page_lock);
+
+	return 0;
+}
+
 /* reiser4 writepages() address space operation */
 int
 reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
@@ -2369,12 +2427,21 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 
 	REISER4_ENTRY(s);
 
-	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
 	/* Here we can call synchronously. We can be called from
 	 * balance_dirty_pages() Reiser4 code is supposed to call
 	 * balance_dirty_pages at paces where no locks are hold it means we can
 	 * call begin jnode_flush right from there having no deadlocks between the
 	 * caller of balance_dirty_pages() and jnode_flush(). */
+
+	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
+
+	if (mapping_has_anonymous_pages(mapping)) {
+		ret = capture_anonymous_pages (mapping);
+
+		if (ret)
+			return ret;
+	}
+
 
 	while (wbc->nr_to_write > 0) {
 		long nr_submitted = 0;
