@@ -86,10 +86,6 @@ state2label(extent_state state)
 		label = "unalloc";
 		break;
 
-	case UNALLOCATED_EXTENT2:
-		label = "unalloc2";
-		break;
-
 	case ALLOCATED_EXTENT:
 		label = "alloc";
 		break;
@@ -144,8 +140,6 @@ item_stat_extent(const coord_t *coord, void *vp)
 			ex_stat->hole_units++;
 			ex_stat->hole_blocks += extent_get_width(ext + i);
 			break;
-		case UNALLOCATED_EXTENT2:
-			assert("vs-1419", 0);
 		}
 	}
 }
