@@ -1295,12 +1295,9 @@ reiser4_kill_super(struct super_block *s)
 	reiser4_context context;
 
 	sbinfo = (reiser4_super_info_data *) s->s_fs_info;
-	if (!sbinfo) {
+	if (!sbinfo)
 		/* mount failed */
-		if (s->s_op) 
-			s->s_op->write_super = NULL;
 		return;
-	}
 
 	init_context(&context, s);
 
