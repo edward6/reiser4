@@ -8,7 +8,7 @@
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. */
 struct bnode {
-	semaphore sema;	/* long term lock object */
+	struct semaphore sema;	/* long term lock object */
 
 	jnode      wjnode;	/* embedded jnodes for WORKING ... */
 	jnode      cjnode;	/* ... and COMMIT bitmap blocks */
