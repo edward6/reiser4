@@ -17,6 +17,7 @@ typedef struct flush_position flush_position;
 #define FLUSH_RELOCATE_THRESHOLD 64
 #define FLUSH_RELOCATE_DISTANCE  64
 
+/* FIXME: Nikita has written similar functions to these, should replace them with his. */
 typedef struct load_handle load_handle;
 struct load_handle { znode *node; };
 static inline void init_zh (load_handle *zh) { zh->node = NULL; }
@@ -660,6 +661,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
+	/* No reason to hold onto the node data now, can release it early.  Okay to call
+	 * done_zh twice. */
 	done_zh (& node_load);
 
 	/* NOTE: A possible optimization is to avoid locking the right_parent here.  It
@@ -1188,11 +1191,11 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	} else {
 		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
 
-		if (IS_ERR (fake)) { return PTR_ERR(fake); }
+		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
 
 		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 			zput (fake);
-			return ret;
+			goto exit;
 		}
 
 		zput (fake);
@@ -1203,6 +1206,7 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	}
 
 	ret = znode_rehash (node, & blk);
+ exit:
 	done_lh (& fake_lock);
 	return ret;
 }
@@ -1533,7 +1537,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 	reiser4_block_nr unit_start;
 	struct inode *ino = NULL;
 	struct page *pg;
-	int ret, allocated, incr;
+	int ret = 0, allocated, incr;
 
 	assert ("jmacd-1404", ! flush_scan_finished (scan));
 	assert ("jmacd-1405", jnode_get_level (scan->node) == LEAF_LEVEL);
@@ -1543,124 +1547,119 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 
 	assert ("jmacd-7889", item_is_extent (coord));
 
+	info ("%s scan starts %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
+	      (flush_scanning_left (scan) ? "left" : "right"),
+	      scan_index,
+	      scan->node, scan->node->atom, jnode_check_dirty (scan->node), jnode_is_allocated (scan->node));
+
+ repeat:
+	/* If the get_inode call is expensive we can be a bit more clever... */
 	extent_get_inode (coord, & ino);
 
-	ret = 0;
 	if (ino == NULL) {
 		goto stop_same_parent;
 	}
 
-	do {
-		/* If not allocated, the entire extent must be dirty and in the same atom.
-		 * (Actually, I'm not sure this is properly enforced, but it should be the
-		 * case since one atom must write the parent and the others must read
-		 * it). */
-		allocated  = extent_is_allocated (coord);
-		unit_index = extent_unit_index (coord);
-		unit_width = extent_unit_width (coord);
-		unit_start = extent_unit_start (coord);
+	/* If not allocated, the entire extent must be dirty and in the same atom.
+	 * (Actually, I'm not sure this is properly enforced, but it should be the
+	 * case since one atom must write the parent and the others must read
+	 * it). */
+	allocated  = ! extent_is_unallocated (coord);
+	unit_index = extent_unit_index (coord);
+	unit_width = extent_unit_width (coord);
+	unit_start = extent_unit_start (coord);
 
-		assert ("jmacd-7187", unit_width > 0);
-		assert ("jmacd-7188", scan_index >= unit_index);
-		assert ("jmacd-7189", scan_index <= unit_index + unit_width - 1);
+	assert ("jmacd-7187", unit_width > 0);
+	assert ("jmacd-7188", scan_index >= unit_index);
+	assert ("jmacd-7189", scan_index <= unit_index + unit_width - 1);
 
-		if (flush_scanning_left (scan)) {
-			scan_max  = unit_index;
-			scan_dist = scan_index - unit_index;
-			incr      = -1;
-		} else {
-			scan_max  = unit_index + unit_width - 1;
-			scan_dist = scan_max - unit_index;
-			incr      = +1;
-		}
+	if (flush_scanning_left (scan)) {
+		scan_max  = unit_index;
+		scan_dist = scan_index - unit_index;
+		incr      = -1;
+	} else {
+		scan_max  = unit_index + unit_width - 1;
+		scan_dist = scan_max - unit_index;
+		incr      = +1;
+	}
 
-		info ("%s scan starts %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
-		      (incr > 0 ? "right" : "left"),
-		      scan_index,
-		      scan->node, scan->node->atom, jnode_check_dirty (scan->node), jnode_is_allocated (scan->node));
+	/* If the extent is allocated we have to check each of its blocks.  If the extent
+	 * is unallocated we can skip to the scan_max. */
+	if (allocated) {
 
-		/* If the extent is allocated we have to check each of its blocks.  In the
-		 * debugging case: verify that all unallocated nodes are present and in
-		 * the proper atom. */
-		if (scan_max != scan_index) {
-			if (allocated || REISER4_DEBUG) {
+		do {
+			/* Note: On the very first pass through this block we test
+			 * the current position. */
+			pg = find_get_page (ino->i_mapping, scan_index);
 
-				do {
-					pg = find_get_page (ino->i_mapping, scan_index + incr);
-
-					if (pg == NULL) {
-						assert ("jmacd-3550", allocated);
-						goto setup_preceder;
-					}
-
-					neighbor = jnode_of_page (pg);
-
-					page_cache_release (pg);
-
-					if (neighbor == NULL) {
-						ret = -ENOMEM;
-						goto exit;
-					}
-
-					info ("scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u) neighbor %p(atom=%p,dirty=%u,allocated=%u)\n",
-					      scan_index+incr,
-					      scan->node, scan->node->atom, jnode_check_dirty (scan->node), jnode_is_allocated (scan->node),
-					      neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_is_allocated (neighbor));
-
-					assert ("jmacd-3551", allocated || (! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node)));
-
-					if (! flush_scan_goto (scan, neighbor)) {
-					setup_preceder:
-						/* If we are scanning left and we stop in
-						 * the middle of an allocated extent, we
-						 * know the preceder immediately. */
-						if (flush_scanning_left (scan)) {
-							scan->preceder_blk = unit_start + scan_index + incr;
-						}
-
-						goto stop_same_parent;
-					}
-
-					if ((ret = flush_scan_set_current (scan, neighbor, 1))) {
-						goto exit;
-					}
-
-					scan_index += incr;
-				} while (scan_max != scan_index);
-
-			} else {
-				/* FIXME: This branch isn't very well tested. */
-
-				/* Optimized case for unallocated extents, skip to the end. */
-				pg = find_get_page (ino->i_mapping, scan_max);
-
-				if (pg == NULL) {
-					warning ("jmacd-8337", "unallocated node not in memory!");
-					ret = -EIO;
-					goto exit;
-				}
-
-				neighbor = jnode_of_page (pg);
-
-				page_cache_release (pg);
-
-				if (neighbor == NULL) {
-					ret = -ENOMEM;
-					goto exit;
-				}
-
-				assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
-
-				if ((ret = flush_scan_set_current (scan, neighbor, scan_dist))) {
-					goto exit;
-				}
-
-				scan_index  = scan_max;
+			if (pg == NULL) {
+				goto setup_preceder;
 			}
+
+			neighbor = jnode_of_page (pg);
+
+			page_cache_release (pg);
+
+			if (neighbor == NULL) {
+				ret = -ENOMEM;
+				goto exit;
+			}
+
+			info ("scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
+			      scan_index, neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_is_allocated (neighbor));
+
+			if (scan->node != neighbor && ! flush_scan_goto (scan, neighbor)) {
+			setup_preceder:
+				/* If we are scanning left and we stop in
+				 * the middle of an allocated extent, we
+				 * know the preceder immediately. */
+				if (flush_scanning_left (scan)) {
+					scan->preceder_blk = unit_start + scan_index;
+				}
+
+				goto stop_same_parent;
+			}
+
+			if ((ret = flush_scan_set_current (scan, neighbor, 1))) {
+				goto exit;
+			}
+
+			scan_index += incr;
+
+		} while (incr + scan_max != scan_index);
+
+	} else {
+		/* Optimized case for unallocated extents, skip to the end. */
+		pg = find_get_page (ino->i_mapping, scan_max);
+
+		if (pg == NULL) {
+			warning ("jmacd-8337", "unallocated node not in memory!");
+			ret = -EIO;
+			goto exit;
 		}
 
+		neighbor = jnode_of_page (pg);
+
+		page_cache_release (pg);
+
+		if (neighbor == NULL) {
+			ret = -ENOMEM;
+			goto exit;
+		}
+
+		assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
+
+		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist))) {
+			goto exit;
+		}
+
+		scan_index = scan_max + incr;
+	}
+
+	if (coord_sideof_unit (coord, scan->direction) == 0 && item_is_extent (coord)) {
 		/* Continue as long as there are more extent units. */
-	} while (coord_sideof_unit (coord, scan->direction) == 0 && item_is_extent (coord));
+		goto repeat;
+	}
 
 	if (0) {
 	stop_same_parent:
