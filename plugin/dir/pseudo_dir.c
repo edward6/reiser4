@@ -63,6 +63,14 @@ readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 	return result;
 }
 
+/* pseudo files are not serializable (current). So, this should just return an
+ * error. */
+reiser4_internal struct dentry *
+get_parent_pseudo(struct inode *child)
+{
+	return ERR_PTR(RETERR(-ENOTSUPP));
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

@@ -57,6 +57,8 @@ struct flow {
 
 typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
 
+typedef struct reiser4_object_on_wire reiser4_object_on_wire;
+
 /* File plugin.  Defines the set of methods that file plugins implement, some of which are optional.
 
  A file plugin offers to the caller an interface for IO ( writing to and/or reading from) to what the caller sees as one
@@ -286,13 +288,38 @@ typedef struct file_plugin {
 		xattr_list_head *ns;
 	} xattr;
 #endif
+	/*
+	 * methods to serialize object identify. This is used, for example, by
+	 * reiser4_{en,de}code_fh().
+	 */
+	struct {
+		/* store object's identity at @area */
+		char *(*write)(struct inode *inode, char *area);
+		/* parse object from wire to the @obj */
+		char *(*read)(char *area, reiser4_object_on_wire *obj);
+		/* given object identity in @obj, find or create its dentry */
+		struct dentry *(*get)(struct super_block *s,
+				      reiser4_object_on_wire *obj);
+		/* how many bytes ->wire.write() consumes */
+		int (*size)(struct inode *inode);
+		/* finish with object identify */
+		void (*done)(reiser4_object_on_wire *obj);
+	} wire;
 } file_plugin;
+
+struct reiser4_object_on_wire {
+	file_plugin *plugin;
+	union {
+		struct {
+			obj_key_id key_id;
+		} std;
+		void *generic;
+	} u;
+};
 
 typedef struct dir_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* this is to find name in a directory and key of object the name points to */
-	int (*lookup_name) (struct inode * parent, struct dentry *, reiser4_key *);
 	/* for use by open call, based on name supplied will install
 	   appropriate plugin and state information, into the inode such that
 	   subsequent VFS operations that supply a pointer to that inode
@@ -347,6 +374,8 @@ typedef struct dir_plugin {
 	/* called when @subdir was just looked up in the @dir */
 	int (*attach) (struct inode * subdir, struct inode * dir);
 	int (*detach)(struct inode * subdir, struct inode * dir);
+
+	struct dentry *(*get_parent)(struct inode *childdir);
 
 	struct {
 		reiser4_block_nr (*add_entry) (struct inode *node);

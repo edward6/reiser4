@@ -1581,6 +1581,17 @@ struct super_operations reiser4_super_operations = {
 	.show_options = reiser4_show_options	/* d */
 };
 
+/*
+ * Object serialization support.
+ *
+ * To support knfsd file system provides export_operations that are used to
+ * construct and interpret NFS file handles. As a generalization of this,
+ * reiser4 object plugins have serialization support: it provides methods to
+ * create on-wire representation of identity of reiser4 object, and
+ * re-create/locate object given its on-wire identity.
+ *
+ */
+
 #define TRACE_EXPORT_OPS(...) \
 	{\
 		ON_TRACE(TRACE_DIR, "%s: ", \
@@ -1588,41 +1599,51 @@ struct super_operations reiser4_super_operations = {
 		ON_TRACE(TRACE_DIR, __VA_ARGS__);\
 	}
 
+/*
+ * return number of bytes that on-wire representation of @inode's identity
+ * consumes.
+ */
 static int
 encode_inode_size(struct inode *inode)
 {
-	int result;
+	assert("nikita-3514", inode != NULL);
+	assert("nikita-3515", inode_file_plugin(inode) != NULL);
+	assert("nikita-3516", inode_file_plugin(inode)->wire.size != NULL);
 
-	result  = dscale_bytes(get_inode_oid(inode));
-	result += dscale_bytes(get_inode_locality(inode));
-	/*
-	 * ordering is large (it usually has highest bits set), so it makes
-	 * little sense to dscale it.
-	 */
-	if (REISER4_LARGE_KEY)
-		result += sizeof(get_inode_ordering(inode));
-	return result;
+	return inode_file_plugin(inode)->wire.size(inode) + sizeof(d16);
 }
 
+/*
+ * store on-wire representation of @inode's identity at the area beginning at
+ * @start.
+ */
 static char *
 encode_inode(struct inode *inode, char *start)
 {
-	start += dscale_write(start, get_inode_locality(inode));
-	start += dscale_write(start, get_inode_oid(inode));
+	assert("nikita-3517", inode != NULL);
+	assert("nikita-3518", inode_file_plugin(inode) != NULL);
+	assert("nikita-3519", inode_file_plugin(inode)->wire.write != NULL);
 
 	TRACE_EXPORT_OPS("locality %llu, oid %llu\n",
 			 get_inode_locality(inode), get_inode_oid(inode));
-	if (REISER4_LARGE_KEY) {
-		cputod64(get_inode_ordering(inode), (d64 *)start);
-		start += sizeof(get_inode_ordering(inode));
-	}
-	return start;
+	/*
+	 * first, store two-byte identifier of object plugin, then
+	 */
+	save_plugin_id(file_plugin_to_plugin(inode_file_plugin(inode)),
+		       (d16 *)start);
+	start += sizeof(d16);
+	/*
+	 * call plugin to serialize object's identity
+	 */
+	return inode_file_plugin(inode)->wire.write(inode, start);
 }
 
 typedef enum {
 	FH_WITH_PARENT    = 0x10,
 	FH_WITHOUT_PARENT = 0x11
 } reiser4_fhtype;
+
+#define NFSERROR (255)
 
 /* this returns number of 32 bit long numbers encoded in @data. 255 is
  * returned if file handle can not be stored */
@@ -1633,27 +1654,40 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	struct inode *parent;
 	char *addr;
 	int need;
+	int delta;
 	int result;
 	reiser4_context context;
 
+	/*
+	 * knfsd asks as to serialize object in @dentry, and, optionally its
+	 * parent (if need_parent != 0).
+	 *
+	 * encode_inode() and encode_inode_size() is used to build
+	 * representation of object and its parent. All hard work is done by
+	 * object plugins.
+	 */
+
 	TRACE_EXPORT_OPS("started\n");
 
-	init_context(&context, dentry->d_inode->i_sb);
 	inode = dentry->d_inode;
 	parent = dentry->d_parent->d_inode;
 
 	addr = (char *)data;
 
-	/* calculate size of buffer needed to store locality, objectid and,
-	   possibly, ordering of inode and, possibly the same information
-	   about its parent */
 	need = encode_inode_size(inode);
-	if (need_parent)
-		need += encode_inode_size(parent);
+	if (need < 0)
+		return NFSERROR;
+	if (need_parent) {
+		delta = encode_inode_size(parent);
+		if (delta < 0)
+			return NFSERROR;
+		need += delta;
+	}
+
+	init_context(&context, dentry->d_inode->i_sb);
 	TRACE_EXPORT_OPS("need space %d\n", need);
 
 	if (need <= sizeof(__u32) * (*lenp)) {
-		/* encode data necessary to restore stat data key */
 		addr = encode_inode(inode, addr);
 		if (need_parent)
 			addr = encode_inode(parent, addr);
@@ -1664,37 +1698,62 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		result = need_parent ? FH_WITH_PARENT : FH_WITHOUT_PARENT;
 	} else
 		/* no enough space in file handle */
-		result = 255;
+		result = NFSERROR;
 	TRACE_EXPORT_OPS("return %d\n", result);
 	reiser4_exit_context(&context);
 	return result;
 }
 
+/*
+ * read serialized object identity from @addr and store information about
+ * object in @obj. This is dual to encode_inode().
+ */
 static char *
-decode_inode(char *addr, __u64 *el)
+decode_inode(struct super_block *s, char *addr, reiser4_object_on_wire *obj)
 {
-	addr += dscale_read(addr, &el[0]);      /* locality */
-	addr += dscale_read(addr, &el[1]);      /* objectid */
-	if (REISER4_LARGE_KEY) {
-		el[2] = d64tocpu((d64 *)addr); 	/* ordering */
-		addr += sizeof el[2];
-	}
+	file_plugin *fplug;
+
+	/* identifier of object plugin is stored in the first two bytes,
+	 * followed by... */
+	fplug = file_plugin_by_disk_id(get_tree(s), (d16 *)addr);
+	if (fplug != NULL) {
+		addr += sizeof(d16);
+		obj->plugin = fplug;
+		assert("nikita-3520", fplug->wire.read != NULL);
+		/* plugin specific encoding of object identity. */
+		addr = fplug->wire.read(addr, obj);
+	} else
+		addr = ERR_PTR(RETERR(-EINVAL));
 	return addr;
 }
 
+/* initialize place-holder for object */
+static void
+object_on_wire_init(reiser4_object_on_wire *o)
+{
+	o->plugin = NULL;
+}
+
+/* finish with @o */
+static void
+object_on_wire_done(reiser4_object_on_wire *o)
+{
+	if (o->plugin != NULL)
+		o->plugin->wire.done(o);
+}
+
+/* decode knfsd file handle. This is dual to reiser4_encode_fh() */
 static struct dentry *
 reiser4_decode_fh(struct super_block *s, __u32 *data,
 		  int len, int fhtype,
 		  int (*acceptable)(void *context, struct dentry *de),
 		  void *context)
 {
-	oid_t obj[3], parent[3];
-	char *addr;
 	reiser4_context ctx;
-	struct dentry *dentry;
-	int with_parent;
-
-	TRACE_EXPORT_OPS("started\n");
+	reiser4_object_on_wire object;
+	reiser4_object_on_wire parent;
+	char *addr;
+	int   with_parent;
 
 	init_context(&ctx, s);
 
@@ -1704,85 +1763,76 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 	with_parent = (fhtype == FH_WITH_PARENT);
 
 	addr = (char *)data;
-	addr = decode_inode(addr, obj);
-	if (with_parent)
-		addr = decode_inode(addr, parent);
 
-	dentry = s->s_export_op->find_exported_dentry(s, obj, with_parent ? parent : NULL,
-						      acceptable, context);
-	TRACE_EXPORT_OPS("end\n");
+	TRACE_EXPORT_OPS("started\n");
+
+	object_on_wire_init(&object);
+	object_on_wire_init(&parent);
+
+	addr = decode_inode(s, addr, &object);
+	if (!IS_ERR(addr)) {
+		if (with_parent)
+			addr = decode_inode(s, addr, &parent);
+		if (!IS_ERR(addr)) {
+			typeof(s->s_export_op->find_exported_dentry) fn;
+
+			fn = s->s_export_op->find_exported_dentry;
+			assert("nikita-3521", fn != NULL);
+			addr = (char *)fn(s,
+					  &object, with_parent ? &parent : NULL,
+					  acceptable, context);
+		}
+	}
+
+	object_on_wire_done(&object);
+	object_on_wire_done(&parent);
+
 	reiser4_exit_context(&ctx);
-	return dentry;
+	return (void *)addr;
 }
 
 static struct dentry *
 reiser4_get_dentry(struct super_block *sb, void *data)
 {
-	struct inode *inode;
-	struct dentry *dentry;
-	reiser4_key key;
-	oid_t *oid;
+	reiser4_object_on_wire *o;
 
-	oid = (oid_t *)data;
-	key_init(&key);
-	set_key_locality(&key, oid[0]);
-	set_key_type(&key, KEY_SD_MINOR);
-	ON_LARGE_KEY(set_key_ordering(&key, oid[2]));
-	set_key_objectid(&key, oid[1]);
+	assert("nikita-3522", sb != NULL);
+	assert("nikita-3523", data != NULL);
+	/*
+	 * this is only supposed to be called by
+	 *
+	 *     reiser4_decode_fh->find_exported_dentry
+	 *
+	 * so, reiser4_context should be here already.
+	 *
+	 */
+	assert("nikita-3526", is_in_reiser4_context());
 
-	inode = reiser4_iget(sb, &key, 1);
-	if (!IS_ERR(inode)) {
-		dentry = d_alloc_anon(inode);
-		if (!dentry) {
-			/* FIXME: reiser4_iget might return down()-ed inode */
-			iput(inode);
-			dentry = ERR_PTR(-ENOMEM);
-		}
-		reiser4_iget_complete(inode);
-		dentry->d_op = &get_super_private(sb)->ops.dentry;
-		return dentry;
-	} else if (PTR_ERR(inode) == -ENOENT)
-		/*
-		 * inode wasn't found at the key encoded in the file
-		 * handle. Hence, file handle is stale.
-		 */
-		inode = ERR_PTR(RETERR(-ESTALE));
-	return (void *)inode;
+	o = (reiser4_object_on_wire *)data;
+	assert("nikita-3524", o->plugin != NULL);
+	assert("nikita-3525", o->plugin->wire.get != NULL);
+
+	return o->plugin->wire.get(sb, o);
 }
 
 static struct dentry *
 reiser4_get_dentry_parent(struct dentry *child)
 {
-	struct inode *dir, *parent;
-	struct dentry dentry, *parent_dentry;
-	reiser4_key key;
-	int result;
+	struct inode *dir;
+	dir_plugin *dplug;
+
+	assert("nikita-3527", child != NULL);
+	/* see comment in reiser4_get_dentry() about following assertion */
+	assert("nikita-3528", is_in_reiser4_context());
 
 	dir = child->d_inode;
-	assert("vs-1484", inode_dir_plugin(dir) && inode_dir_plugin(dir)->lookup_name);
-
-	memset(&dentry, 0, sizeof(dentry));
-	dentry.d_name.name = "..";
-	dentry.d_name.len = 2;
-	dentry.d_op = &get_super_private(child->d_sb)->ops.dentry;
-
-	result = inode_dir_plugin(dir)->lookup_name(dir, &dentry, &key);
-	if (result)
-		return ERR_PTR(result);
-	
-	parent = reiser4_iget(dir->i_sb, &key, 1);
-	if (!IS_ERR(parent)) {
-		parent_dentry = d_alloc_anon(parent);
-		if (!parent_dentry) {
-			/* FIXME: reiser4_iget might return down()-ed inode */
-			iput(parent);
-			parent_dentry = ERR_PTR(-ENOMEM);
-		}
-		reiser4_iget_complete(parent);
-		return parent_dentry;
-	} else if (PTR_ERR(parent) == -ENOENT)
-		parent = ERR_PTR(RETERR(-ESTALE));
-	return (void *)parent;
+	assert("nikita-3529", dir != NULL);
+	dplug = inode_dir_plugin(dir);
+	assert("nikita-3531", ergo(dplug != NULL, dplug->get_parent != NULL));
+	if (dplug != NULL)
+		return dplug->get_parent(dir);
+	else
+		return ERR_PTR(RETERR(-ENOTDIR));
 }
 
 struct export_operations reiser4_export_operations = {

@@ -8,6 +8,7 @@
 #include "vfs_ops.h"
 #include "inode.h"
 #include "super.h"
+#include "dscale.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block, etc  */
@@ -516,6 +517,49 @@ is_root_dir_key(const struct super_block *super /* super block to check */ ,
 	if (get_super_private(super)->df_plug && get_super_private(super)->df_plug->root_dir_key)
 		return keyeq(key, get_super_private(super)->df_plug->root_dir_key(super));
 	return 0;
+}
+
+int inode_onwire_size(const struct inode *inode)
+{
+	int result;
+
+	result  = dscale_bytes(get_inode_oid(inode));
+	result += dscale_bytes(get_inode_locality(inode));
+	/*
+	 * ordering is large (it usually has highest bits set), so it makes
+	 * little sense to dscale it.
+	 */
+	if (REISER4_LARGE_KEY)
+		result += sizeof(get_inode_ordering(inode));
+	return result;
+}
+
+char *build_inode_onwire(const struct inode *inode, char *start)
+{
+	start += dscale_write(start, get_inode_locality(inode));
+	start += dscale_write(start, get_inode_oid(inode));
+
+	if (REISER4_LARGE_KEY) {
+		cputod64(get_inode_ordering(inode), (d64 *)start);
+		start += sizeof(get_inode_ordering(inode));
+	}
+	return start;
+}
+
+char *extract_obj_key_id_from_onwire(char *addr, obj_key_id *key_id)
+{
+	__u64 val;
+
+	addr += dscale_read(addr, &val);
+	val = (val << KEY_LOCALITY_SHIFT) | KEY_SD_MINOR;
+	cputod64(val, (d64 *)key_id->locality);
+	addr += dscale_read(addr, &val);
+	cputod64(val, (d64 *)key_id->objectid);
+#if REISER4_LARGE_KEY
+	memcpy(&key_id->ordering, addr, sizeof key_id->ordering);
+	addr += sizeof key_id->ordering;
+#endif
+	return addr;
 }
 
 /* Make Linus happy.

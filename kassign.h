@@ -57,6 +57,10 @@ typedef struct de_id {
 	d8 offset[sizeof (__u64)];
 } de_id;
 
+extern int inode_onwire_size(const struct inode *obj);
+extern char *build_inode_onwire(const struct inode *obj, char *area);
+extern char *extract_obj_key_id_from_onwire(char *area, obj_key_id * key_id);
+
 extern int build_inode_key_id(const struct inode *obj, obj_key_id * id);
 extern int extract_key_from_id(const obj_key_id * id, reiser4_key * key);
 extern int build_obj_key_id(const reiser4_key * key, obj_key_id * id);

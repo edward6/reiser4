@@ -134,6 +134,42 @@ write_pseudo(struct file *file,
 	return result;
 }
 
+/* on-wire serialization of pseudo files. */
+
+/* this is not implemented so far (and, hence, pseudo files are not accessible
+ * over NFS, closing remote exploits a fortiori */
+
+reiser4_internal int
+wire_size_pseudo(struct inode *inode)
+{
+	return RETERR(-ENOTSUPP);
+}
+
+reiser4_internal char *
+wire_write_pseudo(struct inode *inode, char *start)
+{
+	return ERR_PTR(RETERR(-ENOTSUPP));
+}
+
+reiser4_internal char *
+wire_read_pseudo(char *addr, reiser4_object_on_wire *obj)
+{
+	return ERR_PTR(RETERR(-ENOTSUPP));
+}
+
+reiser4_internal void
+wire_done_pseudo(reiser4_object_on_wire *obj)
+{
+	/* nothing to do */
+}
+
+reiser4_internal struct dentry *
+wire_get_pseudo(struct super_block *sb, reiser4_object_on_wire *obj)
+{
+	return ERR_PTR(RETERR(-ENOTSUPP));
+}
+
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

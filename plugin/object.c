@@ -1233,6 +1233,59 @@ sync_common(struct file *file, struct dentry *dentry, int datasync)
 }
 
 static int
+wire_size_common(struct inode *inode)
+{
+	return inode_onwire_size(inode);
+}
+
+static char *
+wire_write_common(struct inode *inode, char *start)
+{
+	return build_inode_onwire(inode, start);
+}
+
+static char *
+wire_read_common(char *addr, reiser4_object_on_wire *obj)
+{
+	return extract_obj_key_id_from_onwire(addr, &obj->u.std.key_id);
+}
+
+static void
+wire_done_common(reiser4_object_on_wire *obj)
+{
+	/* nothing to do */
+}
+
+static struct dentry *
+wire_get_common(struct super_block *sb, reiser4_object_on_wire *obj)
+{
+	struct inode *inode;
+	struct dentry *dentry;
+	reiser4_key key;
+
+	extract_key_from_id(&obj->u.std.key_id, &key);
+	inode = reiser4_iget(sb, &key, 1);
+	if (!IS_ERR(inode)) {
+		reiser4_iget_complete(inode);
+		dentry = d_alloc_anon(inode);
+		if (dentry == NULL) {
+			iput(inode);
+			dentry = ERR_PTR(-ENOMEM);
+		} else
+			dentry->d_op = &get_super_private(sb)->ops.dentry;
+	} else if (PTR_ERR(inode) == -ENOENT)
+		/*
+		 * inode wasn't found at the key encoded in the file
+		 * handle. Hence, file handle is stale.
+		 */
+		dentry = ERR_PTR(RETERR(-ESTALE));
+	else
+		dentry = (void *)inode;
+	return dentry;
+}
+
+
+static int
 change_file(struct inode * inode, reiser4_plugin * plugin)
 {
 	/* cannot change object plugin of already existing object */
@@ -1307,6 +1360,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.ns     = &xattr_common_namespaces
 		},
 #endif
+		.wire = {
+			 .write = wire_write_common,
+			 .read  = wire_read_common,
+			 .get   = wire_get_common,
+			 .size  = wire_size_common,
+			 .done  = wire_done_common
+		 },
 		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
@@ -1370,6 +1430,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.ns     = &xattr_common_namespaces
 		},
 #endif
+		.wire = {
+			 .write = wire_write_common,
+			 .read  = wire_read_common,
+			 .get   = wire_get_common,
+			 .size  = wire_size_common,
+			 .done  = wire_done_common
+		 },
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
@@ -1434,6 +1501,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.ns     = &xattr_common_namespaces
 		},
 #endif
+		.wire = {
+			 .write = wire_write_common,
+			 .read  = wire_read_common,
+			 .get   = wire_get_common,
+			 .size  = wire_size_common,
+			 .done  = wire_done_common
+		 },
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
@@ -1496,6 +1570,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.ns     = &xattr_common_namespaces
 		},
 #endif
+		.wire = {
+			 .write = wire_write_common,
+			 .read  = wire_read_common,
+			 .get   = wire_get_common,
+			 .size  = wire_size_common,
+			 .done  = wire_done_common
+		 },
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
@@ -1558,6 +1639,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.ns     = NULL
 		},
 #endif
+		.wire = {
+			 .write = wire_write_pseudo,
+			 .read  = wire_read_pseudo,
+			 .get   = wire_get_pseudo,
+			 .size  = wire_size_pseudo,
+			 .done  = wire_done_pseudo
+		 },
 		.readpages = NULL,
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
@@ -1621,6 +1709,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.ns     = &xattr_common_namespaces
 		},
 #endif
+		.wire = {
+			 .write = wire_write_common,
+			 .read  = wire_read_common,
+			 .get   = wire_get_common,
+			 .size  = wire_size_common,
+			 .done  = wire_done_common
+		 },
 		.readpages = readpages_cryptcompress,
 		.init_inode_data = NULL,
 		.pre_delete = pre_delete_cryptcompress,

@@ -12,6 +12,7 @@
 
 extern int lookup_pseudo(struct inode * parent, struct dentry **dentry);
 extern int readdir_pseudo(struct file *f, void *dirent, filldir_t filld);
+extern struct dentry *get_parent_pseudo(struct inode *child);
 
 /* __PSEUDO_DIR_H__ */
 #endif

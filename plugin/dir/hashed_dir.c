@@ -279,12 +279,11 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	return result;
 }
 
-/* implementation of lookup_name() method for hashed directories
-
-   it looks for name specified in @dentry in directory @parent and if name is found - key of object found entry points
-   to is stored in @entry->key */
-reiser4_internal int
-lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name in */,
+/* looks for name specified in @dentry in directory @parent and if name is
+   found - key of object found entry points to is stored in @entry->key */
+static int
+lookup_name_hashed(struct inode *parent /* inode of directory to lookup for
+					 * name in */,
 		   struct dentry *dentry /* name to look for */,
 		   reiser4_key *key /* place to store key */)
 {
@@ -334,6 +333,18 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name
 
 }
 
+static void
+check_light_weight(struct inode *inode, struct inode *parent)
+{
+	if (inode_get_flag(inode, REISER4_LIGHT_WEIGHT)) {
+		inode->i_uid = parent->i_uid;
+		inode->i_gid = parent->i_gid;
+		/* clear light-weight flag. If inode would be read by any
+		   other name, [ug]id wouldn't change. */
+		inode_clr_flag(inode, REISER4_LIGHT_WEIGHT);
+	}
+}
+
 /* implementation of ->lookup() method for hashed directories. */
 reiser4_internal int
 lookup_hashed(struct inode * parent	/* inode of directory to
@@ -353,23 +364,64 @@ lookup_hashed(struct inode * parent	/* inode of directory to
 	if (result == 0) {
 		inode = reiser4_iget(parent->i_sb, &entry.key, 0);
 		if (!IS_ERR(inode)) {
-			if (inode_get_flag(inode, REISER4_LIGHT_WEIGHT)) {
-				inode->i_uid = parent->i_uid;
-				inode->i_gid = parent->i_gid;
-				/* clear light-weight flag. If inode would be
-				   read by any other name, [ug]id wouldn't
-				   change. */
-				inode_clr_flag(inode, REISER4_LIGHT_WEIGHT);
-			}
+			check_light_weight(inode, parent);
 			/* success */
 			*dentryloc = d_splice_alias(inode, dentry);
 			reiser4_iget_complete(inode);
 		} else
 			result = PTR_ERR(inode);
-	} else if (result == -ENOENT) {
+	} else if (result == -ENOENT)
 		result = lookup_pseudo_file(parent, dentryloc);
-	}
+
 	return result;
+}
+
+reiser4_internal struct dentry *
+get_parent_hashed(struct inode *child)
+{
+	struct super_block *s;
+	struct inode  *parent;
+	struct dentry  dotdot;
+	struct dentry *dentry;
+	reiser4_key key;
+	int         result;
+
+	s = child->i_sb;
+	memset(&dotdot, 0, sizeof(dotdot));
+	dotdot.d_name.name = "..";
+	dotdot.d_name.len = 2;
+	dotdot.d_op = &get_super_private(s)->ops.dentry;
+
+	result = lookup_name_hashed(child, &dotdot, &key);
+	if (result != 0)
+		return ERR_PTR(result);
+	
+	parent = reiser4_iget(s, &key, 1);
+	if (!IS_ERR(parent)) {
+		/*
+		 * FIXME-NIKITA dubious: attributes are inherited from @child
+		 * to @parent. But:
+		 *
+		 *     (*) this is the only this we can do
+		 *
+		 *     (*) attributes of light-weight object are inherited
+		 *     from a parent through which object was looked up first,
+		 *     so it is ambiguous anyway.
+		 *
+		 */
+		check_light_weight(parent, child);
+		reiser4_iget_complete(parent);
+		dentry = d_alloc_anon(parent);
+		if (dentry == NULL) {
+			iput(parent);
+			dentry = ERR_PTR(RETERR(-ENOMEM));
+		} else
+			dentry->d_op = &get_super_private(s)->ops.dentry;
+	} else if (PTR_ERR(parent) == -ENOENT)
+		dentry = ERR_PTR(RETERR(-ESTALE));
+	else
+		dentry = (void *)parent;
+	return dentry;
 }
 
 static const char *possible_leak = "Possible disk space leak.";
