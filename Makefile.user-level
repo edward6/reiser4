@@ -131,7 +131,6 @@ SRC             := \
                    lock.c \
                    tree.c \
                    coords.c \
-                   bitmap.c \
                    dformat.c \
                    block_alloc.c \
                    txnmgr.c \
