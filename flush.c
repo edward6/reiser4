@@ -920,6 +920,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		goto exit;
 	}
 
+	trace_on (TRACE_FLUSH_VERB, "sq_rca ready to move right %s\n", flush_znode_tostring (right_lock.node));
+
 	/* We have a new right and it should have been allocated by the call to
 	 * flush_squalloc_one_changed_ancestor.  FIXME: its coneivable under a
 	 * multi-threaded workload that this can be violated.  Nikita seems to have proven
