@@ -288,6 +288,13 @@
 #endif
 
 /*
+ * This will be turned on automatically when viewmasks are for
+ * obvious reasons.
+ */
+
+#define ENABLE_REISER4_PSEUDO (1)
+
+/*
  * PLEASE update fs/reiser4/kattr.c:show_options() when adding new compilation
  * option
  */
