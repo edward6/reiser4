@@ -525,9 +525,12 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	size_t pgcnt;
 	
 	assert("edward-212", PageLocked(page));
-
+	
+	if(PageUptodate(page))
+		goto exit;
+	
 	inode = page->mapping->host;
-
+	
 	if (!cluster_is_uptodate(clust)) {
 		clust->index = pg_to_clust(page->index, inode);
 		unlock_page(page);
@@ -539,11 +542,8 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		release = 1;	
 	}
 	if(PageUptodate(page))
-		/* Two possible reasons for it:
-		   1. page was filled by the caller,
-		   2. races with another read/write
-		*/
-		goto exit;	
+		/* races with another read/write */
+		goto exit;
 	if (clust->stat == FAKE_CLUSTER) {
 		/* fill page by zeroes */
 		char *kaddr = kmap_atomic(page, KM_USER0);
@@ -610,6 +610,41 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	return result;
 }
 
+static int
+ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode * inode)
+{
+	int i;
+	int result;
+	assert("edward-779", clust != NULL);
+	assert("edward-780", inode != NULL);
+	
+	set_nrpages_by_inode(clust, inode);
+	
+	result = grab_cluster_pages(inode, clust);
+	if (result)
+		return result;
+	result = ctail_read_cluster(clust, inode, 0 /* read */);
+	if (result)
+		goto out;
+	/* stream is attached at this point */
+	assert("edward-781", cluster_is_uptodate(clust));
+	
+	for (i=0; i < clust->nr_pages; i++) {
+		struct page * page = clust->pages[i];
+		lock_page(page);
+		do_readpage_ctail(clust, page);
+		unlock_page(page);
+	}
+	release_cluster_buf(clust);
+ out:
+	release_cluster_pages(clust, 0);
+	return result;
+}
+
+#define check_order(pages)                                                    \
+assert("edward-214", ergo(!list_empty(pages) && pages->next != pages->prev,   \
+       list_to_page(pages)->index < list_to_next_page(pages)->index))
+
 /* plugin->s.file.writepage */
 
 /* plugin->u.item.s.file.readpages
@@ -625,24 +660,23 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	reiser4_cluster_t clust;
 	struct page *page;
 	struct pagevec lru_pvec;
-	struct inode * inode;
+	struct inode * inode = mapping->host;
 
-	if (!list_empty(pages) && pages->next != pages->prev)
-		/* more then one pages in the list - make sure its order is right */
-		assert("edward-214", list_to_page(pages)->index < list_to_next_page(pages)->index);
-	
+	check_order(pages);
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);
 	clust.file = vp;
 	clust.hint = &hint;
+	
+	alloc_clust_pages(&clust, inode);
 	init_lh(&lh);
 	
 	ret = load_file_hint(clust.file, &hint, &lh);
 	if (ret)
 		return;
-	//coord_init_invalid(&hint.coord.base_coord, 0);
 	
-	inode = mapping->host;
+	/* address_space-level file readahead doesn't know about
+	   reiser4 page clustering, so we work around this fact */
 	
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
@@ -651,28 +685,23 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 			page_cache_release(page);
 			continue;
 		}
-		
-		/* FIXME-EDWARD: Fill all cluster's pages */
-		
-		/* update cluster handle if it is necessary */
-		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
-			release_cluster_buf(&clust);
-			clust.index = pg_to_clust(page->index, inode);
-			if (fsize_to_count(&clust, inode) <= PAGE_CACHE_SIZE) {
-				clust.pages = &page;
-				clust.nr_pages = 1;
-			}
+		if (PageUptodate(page)) {
 			unlock_page(page);
-			ret = ctail_read_cluster(&clust, inode, 0 /* do not write */);
-			if (ret)
-				goto exit;
-			lock_page(page);
+			continue;
 		}
+		unlock_page(page);
+		clust.index = pg_to_clust(page->index, inode);
+		ret = ctail_read_page_cluster(&clust, inode);
+		if (ret)
+			goto exit;
+		assert("edward-782", !cluster_is_uptodate(&clust));
+
+		lock_page(page);
 		ret = do_readpage_ctail(&clust, page);
 		if (!pagevec_add(&lru_pvec, page))
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {
-			impossible("edward-215", "do_readpage_ctail returned crap");
+			warning("edward-215", "do_readpage_ctail failed");
 			unlock_page(page);
 		exit:
 			while (!list_empty(pages)) {
@@ -686,10 +715,13 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 		}
 		unlock_page(page);
 	}
+	assert("edward-783", !cluster_is_uptodate(&clust));
 	hint.coord.valid = 0;
 	save_file_hint(clust.file, &hint);
 	
 	done_lh(&lh);
+	/* free array */
+	free_clust_pages(&clust);
 	put_cluster_data(&clust);
 	pagevec_lru_add(&lru_pvec);
 	return;
@@ -1104,13 +1136,20 @@ static void
 detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 {
 	ctail_squeeze_info_t * info;
+	struct inode * inode; 
 	
 	assert("edward-253", idata != NULL);
 	info = &(*idata)->u.ctail_info;
 	
 	assert("edward-254", info->clust != NULL);
 	assert("edward-255", info->inode != NULL);
+
+	inode = info->inode;
+
+	assert("edward-784", atomic_read(&inode->i_count));
 	assert("edward-256", info->clust->buf != NULL);
+	
+	atomic_dec(&inode->i_count);
 	
 	release_cluster_buf(info->clust);
 	reiser4_kfree(info->clust);
