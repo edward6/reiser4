@@ -186,6 +186,7 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     size_t blocksize, const char *uuid, const char *label, count_t len, 
     aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
+    blk_t root_blk;
     reiserfs_fs_t *fs;
 
     aal_assert("umka-149", host_device != NULL, return NULL);
@@ -211,13 +212,26 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	
     if (reiserfs_alloc_create(fs))
 	goto error_free_super;
-	
+    
 /*    if (reiserfs_journal_create(fs, journal_device, journal_params))
 	goto error_free_alloc;*/
 	
 /*    if (reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_journal;*/
-	
+    
+    /* 
+	Setting up root block. Here also should be setting 
+	of free-blocks filed. 
+    */
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, allocate, goto error_free_journal);
+    if (!(root_blk = fs->alloc->plugin->alloc.allocate(fs->alloc->entity))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't allocate root block.");
+	goto error_free_journal;
+    }
+
+    reiserfs_plugin_check_routine(fs->super->plugin->format, set_root, goto error_free_journal);
+    fs->super->plugin->format.set_root(fs->super->entity, root_blk);
+
     return fs;
 
 error_free_journal:

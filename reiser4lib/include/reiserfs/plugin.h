@@ -115,10 +115,14 @@ struct reiserfs_format_plugin {
     int (*probe) (aal_device_t *device, blk_t);
     const char *(*format) (reiserfs_opaque_t *);
 
-    blk_t (*root) (reiserfs_opaque_t *);
     blk_t (*offset) (reiserfs_opaque_t *);
-    count_t (*blocks) (reiserfs_opaque_t *);
+    
+    blk_t (*get_root) (reiserfs_opaque_t *);
+    count_t (*get_blocks) (reiserfs_opaque_t *);
 	
+    void (*set_root) (reiserfs_opaque_t *, blk_t);
+    void (*set_blocks) (reiserfs_opaque_t *, count_t);
+    
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*node_plugin_id) (reiserfs_opaque_t *);

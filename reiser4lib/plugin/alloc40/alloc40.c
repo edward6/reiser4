@@ -67,6 +67,10 @@ static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device,
     /* Marking format-specific super block as used */
     reiserfs_bitmap_use_block(alloc->bitmap, format_specific_offset);
 
+    /* Marking nodes as used */
+/*    reiserfs_bitmap_use_block(alloc->bitmap, format_specific_offset);
+    reiserfs_bitmap_use_block(alloc->bitmap, format_specific_offset);*/
+    
     alloc->device = device;
     return alloc;
 
