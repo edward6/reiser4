@@ -309,6 +309,8 @@ key_at_node40(const coord_t * coord, reiser4_key * key)
 	return key;
 }
 
+/* VS-FIXME-HANS: please review whether the below are properly disabled when debugging is disabled */
+
 #define INCSTAT(n, counter)							\
 	reiser4_stat_inc_at_level(znode_get_level(n), node.lookup.counter)
 
