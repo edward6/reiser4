@@ -92,8 +92,8 @@ int allocate_oid( reiser4_oid_allocator_t *map, oid_t *result UNUSED_ARG )
 }
 
 /** release object id back to "map". */
-int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG, 
-			 oid_t oid UNUSED_ARG )
+int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG,
+		 oid_t oid UNUSED_ARG )
 {
 	assert( "nikita-446", map != NULL );
 	trace_on( TRACE_OIDS, "[%i]: released: %llx\n", current_pid, oid );
