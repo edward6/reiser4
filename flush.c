@@ -429,7 +429,7 @@
  * parent immediately.  We can walk the dirty list and assign block numbers, and somehow
  * the parent must "know" to update itself later.  This may be difficult to implement
  * efficiently, so it may result in special code that is only activated when it knows that
- * emergency flushing has occured.
+ * emergency flushing has occurred.
  */
 
 /********************************************************************************
