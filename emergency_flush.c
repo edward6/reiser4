@@ -41,55 +41,14 @@
  *   from reiser4 ->vm_writeback() callback, because of OOM and deadlocks
  *   against threads waiting for memory.
  *
- *   So, it was decided that flush has to be performed from a separate
- *   thread. Reiser4 has a thread used to periodically commit old transactions,
- *   and this thread can be used for the flushing. That is, flushing thread
- *   does flush and accumulates nodes prepared for the IO on the special
- *   queue. reiser4_vm_writeback() submits nodes from this queue, if queue is
- *   empty, it only wakes up flushing thread and immediately returns.
- *
- *   Still there are some problems with integrating this stuff into VM
- *   scanning:
- *
- *      1 As ->vm_writeback() returns immediately without actually submitting
- *      pages for IO, throttling on PG_writeback in shrink_list() will not
- *      work. This opens a possibility (on a fast CPU), of try_to_free_pages()
- *      completing scanning and calling out_of_memory() before flushing thread
- *      managed to add anything to the queue.
- *
- *      2 It is possible, however unlikely, that flushing thread will be
- *      unable to flush anything, because there is not enough memory. In this
- *      case reiser4 resorts to the "emergency flush": some dumb algorithm,
- *      implemented in this file, that tries to write tree nodes to the disk
- *      without taking locks and without thoroughly optimizing tree layout. We
- *      only want to call emergency flush in desperate situations, because it
- *      is going to produce sub-optimal disk layouts.
- *
- *      3 Nodes prepared for IO can be from the active list, this means that
- *      they will not be met/freed by shrink_list() after IO completion. New
- *      blk_congestion_wait() should help with throttling but not
- *      freeing. This is not fatal though, because inactive list refilling
- *      will ultimately get to these pages and reclaim them.
- *
- * REQUIREMENTS
- *
- *   To make this work we need at least some hook inside VM scanning which
- *   gets triggered after scanning (or scanning with particular priority)
- *   failed to free pages. This is already present in the
- *   mm/vmscan.c:set_shrinker() interface.
- *
- *   Another useful thing that we would like to have is passing scanning
- *   priority down to the ->vm_writeback() that will allow file system to
- *   switch to the emergency flush more gracefully.
- *
- * POSSIBLE ALGORITHMS
- *
- *   1 Start emergency flush from ->vm_writeback after reaching some priority.
- *   This allows to implement simple page based algorithm: look at the page VM
- *   supplied us with and decide what to do.
- *
- *   2 Start emergency flush from shrinker after reaching some priority.
- *   This delays emergency flush as far as possible.
+ *   So, flush is performed from within balance_dirty_page() path when dirty
+ *   pages are generated. If balance_dirty_page() fails to throttle writers
+ *   and page replacement finds dirty page on the inactive list, we resort to
+ *   "emergency flush" in our ->vm_writeback(). Emergency flush is relatively
+ *   dumb algorithm, implemented in this file, that tries to write tree nodes
+ *   to the disk without taking locks and without thoroughly optimizing tree
+ *   layout. We only want to call emergency flush in desperate situations,
+ *   because it is going to produce sub-optimal disk layouts.
  *
  * DELAYED PARENT UPDATE
  *
@@ -103,11 +62,13 @@
  *    insert allocated extent unit. Balancing in emergency flush is
  *    impossible, because it will possibly wait on locks.
  *
- *  When we delay update of parent node, we mark it as such (and possibly also
- *  mark children to simplify delayed update later). Question: when parent
- *  should be really updated?
+ *   When we delay update of parent node, we mark it as such (and possibly
+ *   also mark children to simplify delayed update later). Question: when
+ *   parent should be really updated?
  *
- *  For the case (1): when 
+ * WHERE TO WRITE PAGE INTO?
+ *
+ *  
  *
  *
  */
