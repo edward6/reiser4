@@ -439,10 +439,15 @@ extern int jnodes_tree_done(reiser4_tree * tree);
 
 #if REISER4_DEBUG
 extern int znode_is_any_locked(const znode * node);
-extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
 extern void jnode_list_remove(jnode * node);
 #else
 #define jnode_list_remove(node) noop
+#endif
+
+#if REISER4_DEBUG_NODE_INVARIANT
+extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
+#else
+#define jnode_invariant(n, t, j) (0)
 #endif
 
 #if REISER4_DEBUG_OUTPUT

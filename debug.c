@@ -108,6 +108,22 @@ preempt_point(void)
 }
 
 #if REISER4_DEBUG
+
+/* check that no spinlocks are held */
+int schedulable(void)
+{
+	if (get_current_context_check() != NULL) {
+		if (!LOCK_CNT_NIL(spin_locked)) {
+			print_lock_counters("in atomic", lock_counters());
+			return 0;
+		}
+	}
+	might_sleep();
+	return 1;
+}
+#endif
+
+#if REISER4_DEBUG_SPIN_LOCKS
 /* Debugging aid: return struct where information about locks taken by current
    thread is accumulated. This can be used to formulate lock ordering
    constraints and various assertions.
@@ -120,26 +136,7 @@ lock_counters(void)
 	assert("jmacd-1123", ctx != NULL);
 	return &ctx->locks;
 }
-
-/* check that no spinlocks are held */
-int schedulable(void)
-{
-	if (REISER4_DEBUG && get_current_context_check() != NULL) {
-		lock_counters_info *counters;
-
-		counters = lock_counters();
-		if (counters->spin_locked != 0) {
-			print_lock_counters("in atomic", counters);
-			return 0;
-		}
-		return 1;
-	}
-	might_sleep();
-	return 1;
-}
-#endif
-
-#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
@@ -182,6 +179,58 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->inode_sem_r, info->inode_sem_w,
 	       info->d_refs, info->x_refs, info->t_refs);
 }
+/* REISER4_DEBUG_OUTPUT */
+#endif
+
+
+int
+no_counters_are_held(void)
+{
+	lock_counters_info *counters;
+
+	counters = lock_counters();
+	return
+		(counters->rw_locked_zlock == 0) &&
+		(counters->read_locked_zlock == 0) &&
+		(counters->write_locked_zlock == 0) &&
+		(counters->spin_locked_jnode == 0) &&
+		(counters->rw_locked_tree == 0) &&
+		(counters->read_locked_tree == 0) &&
+		(counters->write_locked_tree == 0) &&
+		(counters->rw_locked_dk == 0) &&
+		(counters->read_locked_dk == 0) &&
+		(counters->write_locked_dk == 0) &&
+		(counters->spin_locked_txnh == 0) &&
+		(counters->spin_locked_atom == 0) &&
+		(counters->spin_locked_stack == 0) &&
+		(counters->spin_locked_txnmgr == 0) &&
+		(counters->spin_locked_inode_object == 0) &&
+		(counters->spin_locked == 0) &&
+		(counters->long_term_locked_znode == 0) &&
+		(counters->inode_sem_r == 0) &&
+		(counters->inode_sem_w == 0);
+}
+
+int
+commit_check_locks(void)
+{
+	lock_counters_info *counters;
+	int inode_sem_r;
+	int inode_sem_w;
+	int result;
+
+	counters = lock_counters();
+	inode_sem_r = counters->inode_sem_r;
+	inode_sem_w = counters->inode_sem_w;
+
+	counters->inode_sem_r = counters->inode_sem_w = 0;
+	result = no_counters_are_held();
+	counters->inode_sem_r = inode_sem_r;
+	counters->inode_sem_w = inode_sem_w;
+	return result;
+}
+
+/* REISER4_DEBUG_SPIN_LOCKS */
 #endif
 
 reiser4_internal int
@@ -281,53 +330,6 @@ void __you_cannot_kmalloc_that_much(void)
 #endif
 
 #if REISER4_DEBUG
-
-int
-no_counters_are_held(void)
-{
-	lock_counters_info *counters;
-
-	counters = lock_counters();
-	return
-		(counters->rw_locked_zlock == 0) &&
-		(counters->read_locked_zlock == 0) &&
-		(counters->write_locked_zlock == 0) &&
-		(counters->spin_locked_jnode == 0) &&
-		(counters->rw_locked_tree == 0) &&
-		(counters->read_locked_tree == 0) &&
-		(counters->write_locked_tree == 0) &&
-		(counters->rw_locked_dk == 0) &&
-		(counters->read_locked_dk == 0) &&
-		(counters->write_locked_dk == 0) &&
-		(counters->spin_locked_txnh == 0) &&
-		(counters->spin_locked_atom == 0) &&
-		(counters->spin_locked_stack == 0) &&
-		(counters->spin_locked_txnmgr == 0) &&
-		(counters->spin_locked_inode_object == 0) &&
-		(counters->spin_locked == 0) &&
-		(counters->long_term_locked_znode == 0) &&
-		(counters->inode_sem_r == 0) &&
-		(counters->inode_sem_w == 0);
-}
-
-int
-commit_check_locks(void)
-{
-	lock_counters_info *counters;
-	int inode_sem_r;
-	int inode_sem_w;
-	int result;
-
-	counters = lock_counters();
-	inode_sem_r = counters->inode_sem_r;
-	inode_sem_w = counters->inode_sem_w;
-
-	counters->inode_sem_r = counters->inode_sem_w = 0;
-	result = no_counters_are_held();
-	counters->inode_sem_r = inode_sem_r;
-	counters->inode_sem_w = inode_sem_w;
-	return result;
-}
 
 void
 return_err(int code, const char *file, int line)

@@ -1719,7 +1719,7 @@ jnode_get_mapping(const jnode * node)
 	return jnode_ops(node)->mapping(node);
 }
 
-#if 1 || REISER4_DEBUG
+#if REISER4_DEBUG_NODE_INVARIANT
 /* debugging aid: jnode invariant */
 reiser4_internal int
 jnode_invariant_f(const jnode * node,
@@ -1740,10 +1740,8 @@ jnode_invariant_f(const jnode * node,
 		      JF_ISSET(node, JNODE_RELOC) ||
 		      JF_ISSET(node, JNODE_HEARD_BANSHEE)) &&
 
-#if REISER4_DEBUG
 		_check(node->jnodes.prev != NULL) &&
 		_check(node->jnodes.next != NULL) &&
-#endif
 
 		/* [jnode-dirty] invariant */
 
@@ -1803,7 +1801,7 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	return result;
 }
 
-/* REISER4_DEBUG */
+/* REISER4_DEBUG_NODE_INVARIANT */
 #endif
 
 #if REISER4_STATS

@@ -61,8 +61,11 @@
 #    endif
 #endif
 
-#define __ODC ON_DEBUG_CONTEXT
-#define __ODCA(l, e) __ODC(assert(l, e))
+#if REISER4_DEBUG_SPIN_LOCKS
+#define __ODCA(l, e) ON_DEBUG_CONTEXT(assert(l, e))
+#else
+#define __ODCA(l, e) noop
+#endif
 
 #define REISER4_LOCKPROF_OBJECTS (0)
 
@@ -297,7 +300,7 @@ DECLARE_SPIN_PROFREGIONS(NAME)							\
 /* Initialize spin lock embedded in @x			*/			\
 static inline void spin_ ## NAME ## _init(TYPE *x)				\
 {										\
-	assert("nikita-2987", x != NULL);					\
+	__ODCA("nikita-2987", x != NULL);					\
 	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	spin_lock_init(& x->FIELD.lock);					\
 }										\
@@ -341,7 +344,7 @@ static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x, 			\
 						  locksite *t, locksite *h)	\
 {										\
 	GETCPU(cpu);								\
-	assert("nikita-2703", spin_ ## NAME ## _is_not_locked(x));		\
+	__ODCA("nikita-2703", spin_ ## NAME ## _is_not_locked(x));		\
 	PREG_IN(cpu, &pregion_spin_ ## NAME ## _trying, &x->FIELD.trying, t);	\
 	spin_lock(&x->FIELD.lock);						\
 	PREG_REPLACE(cpu,							\
@@ -402,9 +405,9 @@ static inline int  spin_trylock_ ## NAME (TYPE *x)				\
 /* Unlock @x.                                                             */	\
 static inline void spin_unlock_ ## NAME (TYPE *x)				\
 {										\
-	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_ ## NAME));		\
-	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked > 0));			\
-	assert("nikita-2703", spin_ ## NAME ## _is_locked(x));			\
+	__ODCA("nikita-1375", LOCK_CNT_GTZ(spin_locked_ ## NAME));		\
+	__ODCA("nikita-1376", LOCK_CNT_GTZ(spin_locked > 0));			\
+	__ODCA("nikita-2703", spin_ ## NAME ## _is_locked(x));			\
 										\
 	spin_ ## NAME ## _dec();						\
 	spin_unlock (& x->FIELD.lock);						\
@@ -438,7 +441,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 	LOCKSITE_INIT(__hits_held);						\
 										\
 	__obj = (obj);								\
-	assert("nikita-2492", __obj != NULL);					\
+	__ODCA("nikita-2492", __obj != NULL);					\
 	spin_lock_ ## obj_type ## _at (__obj, &__hits_trying, &__hits_held);	\
 	__result = exp;								\
 	spin_unlock_ ## obj_type (__obj);					\
@@ -455,7 +458,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 	LOCKSITE_INIT(__hits_held);						\
 										\
 	__obj = (obj);								\
-	assert("nikita-2492", __obj != NULL);					\
+	__ODCA("nikita-2492", __obj != NULL);					\
 	spin_lock_ ## obj_type ## _at (__obj, &__hits_trying, &__hits_held);	\
 	exp;									\
 	spin_unlock_ ## obj_type (__obj);					\
@@ -471,7 +474,7 @@ DECLARE_RW_PROFREGIONS(NAME)							\
 /* Initialize read write lock embedded into @x.                           */	\
 static inline void rw_ ## NAME ## _init(TYPE *x)				\
 {										\
-	assert("nikita-2988", x != NULL);					\
+	__ODCA("nikita-2988", x != NULL);					\
 	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	rwlock_init(& x->FIELD.lock);						\
 }										\
@@ -552,7 +555,7 @@ static inline void read_lock_ ## NAME ## _no_ord (TYPE *x,			\
 						  locksite *t, locksite *h)	\
 {										\
 	GETCPU(cpu);								\
-	assert("nikita-2976", rw_ ## NAME ## _is_not_read_locked(x));		\
+	__ODCA("nikita-2976", rw_ ## NAME ## _is_not_read_locked(x));		\
 	PREG_IN(cpu, &pregion_rw_ ## NAME ## _r_trying, &x->FIELD.r_trying, t);	\
 	read_lock(&x->FIELD.lock);						\
 	PREG_REPLACE(cpu, &pregion_rw_ ## NAME ## _r_held,			\
@@ -567,7 +570,7 @@ static inline void write_lock_ ## NAME ## _no_ord (TYPE *x,			\
 						   locksite *t, locksite *h)	\
 {										\
 	GETCPU(cpu);								\
-	assert("nikita-2977", rw_ ## NAME ## _is_not_write_locked(x));		\
+	__ODCA("nikita-2977", rw_ ## NAME ## _is_not_write_locked(x));		\
 	PREG_IN(cpu, &pregion_rw_ ## NAME ## _w_trying, &x->FIELD.w_trying, t);	\
 	write_lock(&x->FIELD.lock);						\
 	PREG_REPLACE(cpu, &pregion_rw_ ## NAME ## _w_held,			\
@@ -611,11 +614,11 @@ static inline void write_lock_ ## NAME (TYPE *x)				\
 /* Release read lock on @x.                                               */	\
 static inline void read_unlock_ ## NAME (TYPE *x)				\
 {										\
-	assert("nikita-2979", LOCK_CNT_GTZ(read_locked_ ## NAME));		\
-	assert("nikita-2980", LOCK_CNT_GTZ(rw_locked_ ## NAME));		\
-	assert("nikita-2980", LOCK_CNT_GTZ(spin_locked));			\
+	__ODCA("nikita-2979", LOCK_CNT_GTZ(read_locked_ ## NAME));		\
+	__ODCA("nikita-2980", LOCK_CNT_GTZ(rw_locked_ ## NAME));		\
+	__ODCA("nikita-2980", LOCK_CNT_GTZ(spin_locked));			\
 	read_ ## NAME ## _dec();						\
-	assert("nikita-2703", rw_ ## NAME ## _is_read_locked(x));		\
+	__ODCA("nikita-2703", rw_ ## NAME ## _is_read_locked(x));		\
 	read_unlock (& x->FIELD.lock);						\
 	PREG_EX(get_cpu(), &pregion_rw_ ## NAME ## _r_held);			\
 }										\
@@ -623,11 +626,11 @@ static inline void read_unlock_ ## NAME (TYPE *x)				\
 /* Release write lock on @x.                                              */	\
 static inline void write_unlock_ ## NAME (TYPE *x)				\
 {										\
-	assert("nikita-2979", LOCK_CNT_GTZ(write_locked_ ## NAME));		\
-	assert("nikita-2980", LOCK_CNT_GTZ(rw_locked_ ## NAME));		\
-	assert("nikita-2980", LOCK_CNT_GTZ(spin_locked));			\
+	__ODCA("nikita-2979", LOCK_CNT_GTZ(write_locked_ ## NAME));		\
+	__ODCA("nikita-2980", LOCK_CNT_GTZ(rw_locked_ ## NAME));		\
+	__ODCA("nikita-2980", LOCK_CNT_GTZ(spin_locked));			\
 	write_ ## NAME ## _dec();						\
-	assert("nikita-2703", rw_ ## NAME ## _is_write_locked(x));		\
+	__ODCA("nikita-2703", rw_ ## NAME ## _is_write_locked(x));		\
 	write_unlock (& x->FIELD.lock);						\
 	PREG_EX(get_cpu(), &pregion_rw_ ## NAME ## _w_held);			\
 }										\
@@ -675,7 +678,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	LOCKSITE_INIT(__hits_h);					\
 									\
 	__obj = (obj);							\
-	assert("nikita-2981", __obj != NULL);				\
+	__ODCA("nikita-2981", __obj != NULL);				\
 	rw ## _lock_ ## obj_type ## _at (__obj, &__hits_t, &__hits_h);	\
 	__result = exp;							\
 	rw ## _unlock_ ## obj_type (__obj);				\
@@ -692,7 +695,7 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	LOCKSITE_INIT(__hits_h);					\
 									\
 	__obj = (obj);							\
-	assert("nikita-2982", __obj != NULL);				\
+	__ODCA("nikita-2982", __obj != NULL);				\
 	rw ## _lock_ ## obj_type ## _at (__obj, &__hits_t, &__hits_h);	\
 	exp;								\
 	rw ## _unlock_ ## obj_type (__obj);				\

@@ -1020,7 +1020,7 @@ init_parent_coord(parent_coord_t * pcoord, const znode * node)
 }
 
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_NODE_INVARIANT
 int jnode_invariant_f(const jnode * node, char const **msg);
 
 /* debugging aid: znode invariant */
@@ -1124,6 +1124,7 @@ znode_invariant(const znode * node /* znode to check */ )
 	spin_unlock_znode((znode *) node);
 	return result;
 }
+/* REISER4_DEBUG_NODE_INVARIANT */
 #endif
 
 /*

@@ -141,6 +141,18 @@
 #define REISER4_ALL_IN_ONE (0)
 #endif
 
+#if defined (CONFIG_REISER4_DEBUG_NODE_INVARIANT)
+#define REISER4_DEBUG_NODE_INVARIANT (1)
+#else
+#define REISER4_DEBUG_NODE_INVARIANT (0)
+#endif
+
+#if defined(CONFIG_REISER4_DEBUG_SPIN_LOCKS)
+#define REISER4_DEBUG_SPIN_LOCKS (1)
+#else
+#define REISER4_DEBUG_SPIN_LOCKS (0)
+#endif
+
 #define noop   do {;} while(0)
 
 #if REISER4_DEBUG
@@ -187,6 +199,7 @@ extern void call_on_each_assert(void);
 /* REISER4_DEBUG */
 #endif
 
+#if REISER4_DEBUG_SPIN_LOCKS
 /* per-thread information about lock acquired by this thread. Used by lock
  * ordering checking in spin_macros.h */
 typedef struct lock_counters_info {
@@ -229,19 +242,22 @@ typedef struct lock_counters_info {
 	int t_refs;
 } lock_counters_info;
 
-#if REISER4_DEBUG
 extern lock_counters_info *lock_counters(void);
 #define IN_CONTEXT(a, b) (is_in_reiser4_context() ? (a) : (b))
 #define LOCK_CNT_INC(counter) IN_CONTEXT(++(lock_counters()->counter), 0)
 #define LOCK_CNT_DEC(counter) IN_CONTEXT(--(lock_counters()->counter), 0)
 #define LOCK_CNT_NIL(counter) IN_CONTEXT(lock_counters()->counter == 0, 1)
 #define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
+/* REISER4_DEBUG_SPIN_LOCKS */
 #else
+typedef struct lock_counters_info {
+} lock_counters_info;
 #define lock_counters() ((lock_counters_info *)NULL)
 #define LOCK_CNT_INC(counter) noop
 #define LOCK_CNT_DEC(counter) noop
 #define LOCK_CNT_NIL(counter) (1)
 #define LOCK_CNT_GTZ(counter) (1)
+/* REISER4_DEBUG_SPIN_LOCKS */
 #endif
 
 #ifdef CONFIG_FRAME_POINTER
@@ -418,15 +434,15 @@ extern void reiser4_kfree(void *area);
 extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
 extern __u32 get_current_trace_flags(void);
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG_SPIN_LOCKS
+extern void print_lock_counters(const char *prefix,
+				const lock_counters_info * info);
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);
-#endif
-
-#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
-extern void print_lock_counters(const char *prefix, const lock_counters_info * info);
 #else
-#define print_lock_counters( p, i ) noop
+#define print_lock_counters(p, i) noop
+#define no_counters_are_held() (1)
+#define commit_check_locks() (1)
 #endif
 
 #define REISER4_STACK_ABORT          (8192 - sizeof(struct thread_info) - 30)

@@ -228,7 +228,6 @@ extern int znodes_tree_init(reiser4_tree * ztree);
 extern void znodes_tree_done(reiser4_tree * ztree);
 extern int znode_contains_key(znode * node, const reiser4_key * key);
 extern int znode_contains_key_lock(znode * node, const reiser4_key * key);
-extern int znode_invariant(const znode * node);
 extern unsigned znode_save_free_space(znode * node);
 extern unsigned znode_recover_free_space(znode * node);
 
@@ -277,6 +276,12 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 
 #if REISER4_DEBUG
 extern int znode_x_count_is_protected(const znode * node);
+#endif
+
+#if REISER4_DEBUG_NODE_INVARIANT
+extern int znode_invariant(const znode * node);
+#else
+#define znode_invariant(n) (1)
 #endif
 
 /* acquire reference to @node */
@@ -426,7 +431,7 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 })
 
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_SPIN_LOCKS
 #define STORE_COUNTERS						\
 	lock_counters_info __entry_counters = *lock_counters()
 #define CHECK_COUNTERS						\
