@@ -538,7 +538,7 @@ static int hashed_rename_estimate_and_grab(
 	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) 
 		return -ENOSPC;
 
-	trace_on(TRACE_RESERVE, info("hashed rename grabs %llu blocks.\n", reserve));
+	trace_on(TRACE_RESERVE, "hashed rename grabs %llu blocks.\n", reserve);
 
 	return 0;
 }

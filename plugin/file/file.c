@@ -507,7 +507,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 		return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, info("file truncate grabs %llu blocks.\n", needed));
+	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.\n", needed);
 
 	if (file_size < inode->i_size) {
 		result = expand_file(inode, file_size, inode->i_size);
@@ -717,8 +717,7 @@ unix_file_writepage(struct page *page)
 
 	needed = tail_plugin->estimate(inode, 1, 0);
 
-	trace_on(TRACE_RESERVE, info("write page grabbed %llu blocks\n", 
-		needed));
+	trace_on(TRACE_RESERVE, "write page grabbed %llu blocks\n", needed);
 		
 	if ((result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT)) != 0)
 		goto out;
@@ -921,7 +920,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	    return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, info("file read grabs %llu blocks.\n", needed));
+	trace_on(TRACE_RESERVE, "file read grabs %llu blocks.\n", needed);
 
 	/* build flow */
 	result = inode_file_plugin(inode)->flow_by_inode(inode, buf, 1 /* user space */ ,
@@ -1326,8 +1325,8 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 		return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, info("file write grabs %llu blocks "
-		"for %lu bytes long data.\n", needed, (unsigned long)count));
+	trace_on(TRACE_RESERVE, "file write grabs %llu blocks "
+		 "for %lu bytes long data.\n", needed, (unsigned long)count);
 	
 	pos = *off;
 	if (file->f_flags & O_APPEND)
@@ -1422,7 +1421,7 @@ unix_file_release(struct file *file)
 	
 	if (result != 0) return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, info("file release grabs %llu blocks.\n", needed));
+	trace_on(TRACE_RESERVE, "file release grabs %llu blocks.\n", needed);
 
 	/* FIXME-VS: it is not clear where to do extent2tail conversion yet */
 	if (!inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN))
@@ -1487,7 +1486,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 	
 	if (result != 0) return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, info("file mmap grabs %llu blocks.\n", needed));
+	trace_on(TRACE_RESERVE, "file mmap grabs %llu blocks.\n", needed);
 
 	/* tail2extent expects file to be nonexclusively locked */
 	get_nonexclusive_access(inode);

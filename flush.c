@@ -2162,7 +2162,8 @@ squeeze_right_non_twig(znode * left, znode * right)
 			return ret;
 		}
 		
-		trace_on(TRACE_RESERVE, info("squeeze right non twig grabs %llu blocks.\n", amount));
+		trace_on(TRACE_RESERVE, 
+			 "squeeze right non twig grabs %llu blocks.\n", amount);
 		
 		ret = carry(&todo, NULL /* previous level */ );
 	}
@@ -2542,7 +2543,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 		&pos->preceder, &blk, &len, BA_FORMATTED/* formatted, do not use 5% */)))
                 return ret;
                             
-        trace_on(TRACE_RESERVE, info("flush allocates %llu blocks.\n", len));
+        trace_on(TRACE_RESERVE, "flush allocates %llu blocks.\n", len);
 
 	if (!ZF_ISSET(node, JNODE_CREATED) && (ret = reiser4_dealloc_block(znode_get_block(node), 
 		0 /* target stage, it only matters when BA_DEFER is not present */, BA_DEFER/* defer */))) 

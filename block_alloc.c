@@ -284,8 +284,7 @@ reiser4_grab(__u64 * grabbed, __u64 min_block_count, __u64 max_block_count,
 	free_blocks = reiser4_free_blocks(super);
 	reserved_blocks = reiser4_fs_reserved_space (super);
 
-	trace_on(TRACE_ALLOC, info ("reiser4_grab: free_blocks %llu\n",
-		free_blocks));
+	trace_on(TRACE_ALLOC, "reiser4_grab: free_blocks %llu\n", free_blocks);
 
 	if ((reserved && (free_blocks < min_block_count)) || 
 	    (!reserved && (free_blocks < min_block_count + reserved_blocks))) 
@@ -308,8 +307,8 @@ reiser4_grab(__u64 * grabbed, __u64 min_block_count, __u64 max_block_count,
 
 	check_block_counters(super);
 
-	trace_on(TRACE_ALLOC, info ("reiser4_grab: grabbed %llu, free blocks left %llu\n",
-		grabbed, reiser4_free_blocks (super)));
+	trace_on(TRACE_ALLOC, "%s: grabbed %llu, free blocks left %llu\n",
+		 __FUNCTION__, *grabbed, reiser4_free_blocks (super));
 
 unlock_and_ret:
 	reiser4_spin_unlock_sb(super);

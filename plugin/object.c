@@ -530,7 +530,8 @@ common_file_delete(struct inode *inode /* object to remove */ )
 			return -ENOSPC;
 		}
 
-		trace_on(TRACE_RESERVE, info("file delete grabs %llu block.\n", reserve));
+		trace_on(TRACE_RESERVE, 
+			 "file delete grabs %llu block.\n", reserve);
 		
 		build_sd_key(inode, &sd_key);
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
@@ -655,7 +656,7 @@ common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser
 		return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, info("file create grabs %llu, blocks.\n", reserve));
+	trace_on(TRACE_RESERVE, "file create grabs %llu, blocks.\n", reserve);
 	return reiser4_write_sd(object);
 }
 
