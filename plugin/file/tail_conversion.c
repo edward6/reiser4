@@ -22,12 +22,12 @@ int file_is_built_of_extents(const struct inode *inode);
 static inline struct task_struct *
 inode_ea_owner(const struct inode *inode)
 {
-	return reiser4_inode_data(inode)->ea_owner;
+	return unix_file_inode_data(inode)->ea_owner;
 }
 
-static void ea_set(const struct inode *inode, void *value)
+static void ea_set(struct inode *inode, void *value)
 {
-	reiser4_inode_data(inode)->ea_owner = value;
+	unix_file_inode_data(inode)->ea_owner = value;
 }
 #else
 #define ea_set(inode, value) noop
@@ -51,7 +51,7 @@ get_exclusive_access(struct inode *inode)
 		assert("nikita-3048", lock_counters()->inode_sem_r == 0);
 		lock_counters()->inode_sem_w ++;
 	}
-	rw_latch_down_write(&reiser4_inode_data(inode)->latch);
+	rw_latch_down_write(&unix_file_inode_data(inode)->latch);
 	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1157", !ea_obtained(inode));
 	ea_set(inode, current);
@@ -65,7 +65,7 @@ drop_exclusive_access(struct inode *inode)
 	assert("vs-1158", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	rw_latch_up_write(&reiser4_inode_data(inode)->latch);
+	rw_latch_up_write(&unix_file_inode_data(inode)->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3049", lock_counters()->inode_sem_r == 0);
 		assert("nikita-3049", lock_counters()->inode_sem_w > 0);
@@ -78,7 +78,7 @@ void
 get_nonexclusive_access(struct inode *inode)
 {
 	assert("nikita-3029", schedulable());
-	rw_latch_down_read(&reiser4_inode_data(inode)->latch);
+	rw_latch_down_read(&unix_file_inode_data(inode)->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3050", lock_counters()->inode_sem_w == 0);
 		assert("nikita-3051", lock_counters()->inode_sem_r == 0);
@@ -93,7 +93,7 @@ drop_nonexclusive_access(struct inode *inode)
 {
 	assert("nikita-3060", inode_ea_owner(inode) == NULL);
 	assert("vs-1160", !ea_obtained(inode));
-	rw_latch_up_read(&reiser4_inode_data(inode)->latch);
+	rw_latch_up_read(&unix_file_inode_data(inode)->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3049", lock_counters()->inode_sem_w == 0);
 		assert("nikita-3049", lock_counters()->inode_sem_r > 0);
@@ -115,7 +115,7 @@ ea2nea(struct inode *inode)
 	assert("vs-1168", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	rw_latch_downgrade(&reiser4_inode_data(inode)->latch);
+	rw_latch_downgrade(&unix_file_inode_data(inode)->latch);
 	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
 	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
 }
@@ -307,7 +307,6 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 {
 	int result;
 	unsigned i;
-	item_plugin *iplug;
 	STORE_COUNTERS;
 
 	assert("vs-596", nr_pages > 0 && pages[0]);
@@ -320,8 +319,6 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 	CHECK_COUNTERS;
 
 	/* put into tree replacement for just removed items: extent item, namely */
-	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-
 	for (i = 0; i < nr_pages; i++) {
 		result = unix_file_writepage_nolock(pages[i]);
 		reiser4_unlock_page(pages[i]);
@@ -560,7 +557,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 		if (result)
 			break;
 		loaded = coord.node;
-		result = item_plugin_by_id(TAIL_ID)->s.file.write(inode, &coord, &lh, &f);
+		result = iplug->s.file.write(inode, &coord, &lh, &f, 0);
 		zrelse(loaded);
 		if (result == -EAGAIN)
 			result = 0;
