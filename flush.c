@@ -2412,10 +2412,12 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			pos->preceder.max_dist = min((reiser4_block_nr)sbinfo->flush.relocate_distance, dist);
 			pos->preceder.level = znode_get_level(node);
 
-			if ((ret = allocate_znode_update(node, parent_coord, pos))
-			    && (ret != -ENOSPC)) {
+			ret = allocate_znode_update(node, parent_coord, pos);
+
+			pos->preceder.max_dist = 0;
+
+			if (ret && (ret != -ENOSPC))
 				return ret;
-			}
 
 			if (ret == 0) {
 				/* Got a better allocation. */
@@ -2426,8 +2428,6 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
-
-				pos->preceder.max_dist = 0;
 				if ((ret = allocate_znode_update(node, parent_coord, pos))) {
 					return ret;
 				}
