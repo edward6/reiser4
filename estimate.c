@@ -31,7 +31,8 @@ max_balance_overhead(reiser4_block_nr childen, tree_level tree_height)
 /* this returns maximal possible number of nodes which can be modified plus number of new nodes which can be required to
    perform insertion of one item into the tree */
 /* it is only called when tree height changes, or gets initialized */
-reiser4_block_nr calc_estimate_one_insert(tree_level height)
+reiser4_block_nr
+calc_estimate_one_insert(tree_level height)
 {
 	return 1 + max_balance_overhead(1, height);
 }
