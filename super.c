@@ -6,7 +6,6 @@
 #include "dformat.h"
 #include "key.h"
 #include "plugin/security/perm.h"
-#include "plugin/oid/oid.h"
 #include "plugin/space/space_allocator.h"
 #include "plugin/plugin.h"
 #include "tree.h"
@@ -250,17 +249,6 @@ reiser4_set_fake_allocated_unformatted(const struct super_block *super, __u64 nr
 	get_super_private(super)->blocks_fake_allocated_unformatted = nr;
 }
 
-/* objectid allocator used by this file system */
-reiser4_oid_allocator *
-get_oid_allocator(const struct super_block *super	/* super
-							   block
-							   queried */ )
-{
-	assert("nikita-458", super != NULL);
-	assert("nikita-459", is_reiser4_super(super));
-	return &get_super_private(super)->oid_allocator;
-}
-
 /* space allocator used by this file system */
 reiser4_space_allocator *
 get_space_allocator(const struct super_block * super)
@@ -447,7 +435,7 @@ print_fs_info(const char *prefix, const struct super_block *s)
 	if (sbinfo->space_plug->print_info)
 		sbinfo->space_plug->print_info("", get_space_allocator(s));
 
-	oid_print_allocator(sbinfo->oid_plug->h.label, s);
+	printk("Oids: next to use %llu, in use %llu\n", sbinfo->next_to_use, sbinfo->oids_in_use);
 	printk("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
 	       "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tfake allocated formatted\t%llu\n"
 	       "\tfake allocated unformatted\t%llu\n",

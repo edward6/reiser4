@@ -10,7 +10,6 @@
 #include "plugin/item/item.h"
 #include "plugin/file/file.h"
 #include "plugin/security/perm.h"
-#include "plugin/oid/oid.h"
 #include "plugin/disk_format/disk_format.h"
 #include "plugin/plugin.h"
 #include "plugin/plugin_set.h"
@@ -65,71 +64,10 @@ static void reiser4_kill_super(struct super_block *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 static void reiser4_sync_inodes(struct super_block *s, struct writeback_control * wbc);
-#if 0
-static void reiser4_dirty_inode(struct inode *);
-static void reiser4_write_inode(struct inode *, int);
-static void reiser4_put_inode(struct inode *);
-static void reiser4_write_super_lockfs(struct super_block *);
-static void reiser4_unlockfs(struct super_block *);
-static int reiser4_remount_fs(struct super_block *, int *, char *);
-static void reiser4_clear_inode(struct inode *);
-static struct dentry *reiser4_fh_to_dentry(struct super_block *sb, __u32 * fh, int len, int fhtype, int parent);
-static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need_parent);
-#endif
 
 extern struct dentry_operations reiser4_dentry_operation;
 
 static struct file_system_type reiser4_fs_type;
-
-/* VS-FIXME-HANS: why is this in this file?  move it elsewhere please */
-/* return number of files in a filesystem. It is used in reiser4_statfs to
-   fill ->f_ffiles */
-/* Audited by: umka (2002.06.12) */
-static long
-oids_used(struct super_block *s	/* super block of file system in
-				 * queried */ )
-{
-	oid_allocator_plugin *oplug;
-	__u64 used;
-
-	assert("umka-076", s != NULL);
-	assert("vs-484", get_super_private(s));
-
-	oplug = get_super_private(s)->oid_plug;
-	if (!oplug || !oplug->oids_used)
-		return (long) -1;
-
-	used = oplug->oids_used(&get_super_private(s)->oid_allocator);
-	if (used < (__u64) ((long) ~0) >> 1)
-		return (long) used;
-	else
-		return (long) -1;
-}
-
-/* VS-FIXME-HANS: why is this in this file?  move it elsewhere please */
-/* number of oids available for use by users. It is used in reiser4_statfs to
-   fill ->f_ffree */
-/* Audited by: umka (2002.06.12) */
-static long
-oids_free(struct super_block *s	/* super block of file system in
-				 * queried */ )
-{
-	oid_allocator_plugin *oplug;
-	__u64 used;
-
-	assert("umka-077", s != NULL);
-	assert("vs-485", get_super_private(s));
-
-	oplug = get_super_private(s)->oid_plug;
-	if (!oplug || !oplug->oids_free)
-		return (long) -1;
-
-	used = oplug->oids_free(&get_super_private(s)->oid_allocator);
-	if (used < (__u64) ((long) ~0) >> 1)
-		return (long) used;
-	else
-		return (long) -1;
-}
 
 /* ->statfs() VFS method in reiser4 super_operations */
 /* Audited by: umka (2002.06.12) */

@@ -27,8 +27,6 @@
 #include "node/node40.h"
 #include "security/perm.h"
 
-#include "oid/oid40.h"
-#include "oid/oid.h"
 
 #include "space/bitmap.h"
 #include "space/test.h"

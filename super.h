@@ -16,7 +16,6 @@
 #include "prof.h"
 
 #include "plugin/space/space_allocator.h"
-#include "plugin/oid/oid.h"
 
 #include "plugin/disk_format/test.h"
 #include "plugin/disk_format/disk_format40.h"
@@ -130,13 +129,9 @@ struct reiser4_super_info_data {
 	*/
 	reiser4_spin_data guard;
 
-	/* allocator used to allocate new object ids for objects in the file
-	   system. Current default implementation of object id allocator is
-	   just counter and
-	   used by reiser 4.0 default oid manager
-	*/
-	oid_allocator_plugin *oid_plug;
-	reiser4_oid_allocator oid_allocator;
+	/* object id manager */
+	oid_t next_to_use;
+	oid_t oids_in_use;
 
 	/* space manager plugin */
 	space_allocator_plugin *space_plug;
@@ -428,6 +423,16 @@ item_plugin *default_dir_item_plugin(const struct super_block *super);
 extern int reiser4_blocknr_is_sane(const reiser4_block_nr *blk);
 extern int reiser4_blocknr_is_sane_for(const struct super_block *super, 
 				       const reiser4_block_nr *blk);
+
+int oid_init_allocator(struct super_block *, oid_t nr_files, oid_t next);
+oid_t oid_allocate(struct super_block *);
+int oid_release(struct super_block *, oid_t);
+oid_t oid_next(struct super_block *);
+void oid_count_allocated(void);
+void oid_count_released(void);
+long oids_used(struct super_block *);
+long oids_free(struct super_block *);
+
 
 #if REISER4_DEBUG_OUTPUT
 void print_fs_info(const char *prefix, const struct super_block *);

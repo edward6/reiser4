@@ -127,8 +127,8 @@ DEFINE_SUPER_RO(20, tree.carry.paste_flags, "%llx", 32);
 DEFINE_SUPER_RO(21, tree.carry.insert_flags, "%llx", 32);
 
 /* not very good. Should be done by the plugin in stead */
-DEFINE_SUPER_RO(22, oid_allocator.u.oid40.next_to_use, "%llu", 64);
-DEFINE_SUPER_RO(23, oid_allocator.u.oid40.oids_in_use, "%llu", 64);
+DEFINE_SUPER_RO(22, next_to_use, "%llu", 64);
+DEFINE_SUPER_RO(23, oids_in_use, "%llu", 64);
 
 DEFINE_SUPER_RO(24, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(25, entd.timeout, "%llu", 32);

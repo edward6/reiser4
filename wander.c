@@ -167,7 +167,6 @@ ZAM-FIXME-HANS: rewrite paragraph above, it is confusing.
 
 #include "debug.h"
 #include "dformat.h"
-#include "plugin/oid/oid.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -1007,7 +1006,7 @@ int reiser4_write_logs(long * nr_submitted)
 
 	ch.free_blocks = sbinfo->blocks_free_committed;
 	ch.nr_files = sbinfo->nr_files_committed;
-	ch.next_oid = oid_next();
+	ch.next_oid = oid_next(super);
 
 	/* count overwrite set and place it in a separate list */
 	ret = get_overwrite_set(&ch);
