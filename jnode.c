@@ -155,6 +155,7 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
 	spin_jnode_init(node);
+	spin_jload_init(node);
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
@@ -648,6 +649,10 @@ static void check_jload(jnode * node, struct page * page)
 #define check_jload(node, page) noop
 #endif
 
+void jload_prefetch(const jnode * node)
+{
+	prefetchw(&node->x_count);
+}
 
 /* load jnode's data into memory */
 int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
@@ -660,6 +665,8 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 	assert("nikita-3010", schedulable());
 	write_node_trace(node);
 
+	prefetchw(&node->pg);
+
 	/* taking d-reference implies taking x-reference. */
 	jref(node);
 
@@ -668,10 +675,10 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 	 * should be atomic, otherwise there is a race against
 	 * reiser4_releasepage().
 	 */
-	LOCK_JNODE(node);
+	LOCK_JLOAD(node);
 	add_d_ref(node);
 	parsed = jnode_is_parsed(node);
-	UNLOCK_JNODE(node);
+	UNLOCK_JLOAD(node);
 
 	if (unlikely(!parsed)) {
 		ON_TRACE(TRACE_PCACHE, "read node: %p\n", node);
@@ -1060,7 +1067,7 @@ delete_znode(jnode * node, reiser4_tree * tree)
 	assert("vs-898", JF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	z = JZNODE(node);
-	assert("vs-899", atomic_read(&z->c_count) == 0);
+	assert("vs-899", z->c_count == 0);
 
 	/* delete znode from sibling list. */
 	sibling_list_remove(z);
@@ -1076,7 +1083,7 @@ remove_znode(jnode * node, reiser4_tree * tree)
 	assert("nikita-2128", rw_tree_is_locked(tree));
 	z = JZNODE(node);
 
-	if (atomic_read(&z->c_count) == 0) {
+	if (z->c_count == 0) {
 		/* detach znode from sibling list. */
 		sibling_list_drop(z);
 		/* this is called with tree spin-lock held, so call
@@ -1095,14 +1102,6 @@ init_znode(jnode * node)
 	z = JZNODE(node);
 	return z->nplug->init(z);
 }
-
-static int
-io_hook_no_hook(jnode * node UNUSED_ARG, struct page *page UNUSED_ARG, int rw UNUSED_ARG)
-{
-	return 1;
-}
-
-extern int io_hook_znode(jnode * node, struct page *page, int rw);
 
 /* jplug->clone for formatted nodes (znodes) */
 znode *zalloc(int gfp_flag);
@@ -1161,7 +1160,6 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_noparse,
 		.mapping = mapping_jnode,
 		.index = index_jnode,
-		.io_hook = io_hook_no_hook,
 		.clone = clone_unformatted
 	},
 	[JNODE_FORMATTED_BLOCK] = {
@@ -1177,7 +1175,6 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_znode,
 		.mapping = mapping_znode,
 		.index = index_znode,
-		.io_hook = io_hook_znode,
 		.clone = clone_formatted
 	},
 	[JNODE_BITMAP] = {
@@ -1193,7 +1190,6 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_noparse,
 		.mapping = mapping_bitmap,
 		.index = index_is_address,
-		.io_hook = io_hook_no_hook,
 		.clone = NULL
 	},
 	[JNODE_IO_HEAD] = {
@@ -1209,7 +1205,6 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_noparse,
 		.mapping = mapping_bitmap,
 		.index = index_is_address,
-		.io_hook = io_hook_no_hook,
 		.clone = NULL
 	},
 	[JNODE_INODE] = {
@@ -1225,7 +1220,6 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = NULL,
 		.mapping = NULL,
 		.index = NULL,
-		.io_hook = NULL,
 		.clone = NULL
 	}
 };
@@ -1235,8 +1229,7 @@ jnode_is_busy(const jnode * node, jnode_type jtype)
 {
 	if (atomic_read(&node->x_count) > 0)
 		return 1;
-	if (jtype == JNODE_FORMATTED_BLOCK &&
-	    atomic_read(&JZNODE(node)->c_count) > 0)
+	if (jtype == JNODE_FORMATTED_BLOCK && JZNODE(node)->c_count > 0)
 		return 1;
 	return 0;
 }
@@ -1552,13 +1545,6 @@ unpin_jnode_data(jnode * node)
 {
 	assert("zam-672", jnode_page(node) != NULL);
 	page_cache_release(jnode_page(node));
-}
-
-
-int jnode_io_hook(jnode *node, struct page *page, int rw)
-{
-	/* prepare node to being written */
-	return jnode_ops(node)->io_hook(node, page, rw);
 }
 
 struct address_space *
