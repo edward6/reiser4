@@ -1046,7 +1046,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom,
 
 	data = bnode_commit_data(bnode);
 
-	if (*bnode_commit_crc(bnode) != adler32(bnode_commit_data(bnode), 
+	if (REISER4_DEBUG && *bnode_commit_crc(bnode) != adler32(bnode_commit_data(bnode), 
 	    bmap_size(sb->s_blocksize)))	
 	    warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", 
 		bmap);
@@ -1117,7 +1117,7 @@ void bitmap_pre_commit_hook (void)
 				parse_blocknr(& node->blocknr, &bmap, &offset);
 				bn = get_bnode (ctx->super, bmap);
 
-				if (*bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
 				    warning("vpf-262", "Checksum for the bitmap block %llu is incorrect",
 					bmap);
 				
