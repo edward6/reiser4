@@ -130,7 +130,7 @@ entd(void *arg)
 			struct wbq * rq = wbq_list_front(&ctx->wbq_list);
 
 			if (++ rq->nr_entd_iters > MAX_ENTD_ITERS)
-				break;
+				wakeup_wbq(rq);
 
 			spin_unlock(&ctx-guard);
 			entd_set_comm("!");
