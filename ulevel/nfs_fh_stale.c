@@ -73,8 +73,7 @@ int max_sleep = 0;
 int max_buf_size = 4096 * 100;
 int max_size = 4096 * 100 * 1000;
 int verbose = 0;
-long long limit = 0;
-long long initiallyused;
+unsigned long long limit = 0;
 
 /* random integer number in [0, n - 1] */
 #define RND(n) ((int)(((double)(n)) * rand() / (RAND_MAX + 1.0)))
@@ -156,8 +155,8 @@ usage(char *argv0)
 		argv0, optstring);
 }
 
-static long long
-getused()
+static unsigned long long
+getavail()
 {
 	int result;
 
@@ -168,7 +167,7 @@ getused()
 		perror("statfs");
 		exit(1);
 	}
-	return buf.f_bsize * buf.f_bavail;
+	return buf.f_bsize * (buf.f_bavail >> 10);
 }
 
 int benchmark = 0;
@@ -182,6 +181,8 @@ main(int argc, char **argv)
 	int i;
 	int iterations = 10;
 	int opt;
+	unsigned long long initiallyavail;
+	unsigned long long used;
 	op_t *op;
 
 	result = ok;
@@ -268,7 +269,7 @@ main(int argc, char **argv)
 	}
 	pthread_mutex_init(&stats.lock, NULL);
 
-	initiallyused = getused();
+	initiallyavail = getavail();
 
 	fprintf(stderr,
 		"%s: %i processes, %i files, delta: %i"
@@ -290,12 +291,15 @@ main(int argc, char **argv)
 		}
 	}
 	for (i = 0; i < iterations; i += delta) {
+		used = initiallyavail - getavail();
 		printf("\nseconds: %i\topens: %lu [%f] lseeks: %lu [%f]\n"
-		       "\terrors: %lu, naps: %lu [%f]\n",
+		       "\terrors: %lu, naps: %lu [%f], "
+		       "used: %lli, gc: %i\n",
 		       i,
 		       stats.opens, rate(stats.opens, i),
 		       stats.lseeks, rate(stats.lseeks, i),
-		       stats.errors, stats.naps, rate(stats.naps, i));
+		       stats.errors, stats.naps, rate(stats.naps, i),
+		       used, ops[gcop].freq);
 		printf("op:\tok\tmiss\tbusy\terr\trate\t\tglobal rate\n");
 		for (op = &ops[0] ; op->label ; ++ op) {
 			int done;
@@ -314,15 +318,17 @@ main(int argc, char **argv)
 			       rate(done - subtotal, delta), rate(done, i));
 		}
 		if (limit != 0) {
-			long long used;
+			int origfreq;
 
-			used = getused() - initiallyused;
+			origfreq = ops[gcop].freq;
 			if (used > limit / 2) {
 				if (used > limit)
 					ops[gcop].freq *= 2;
 				else
 					ops[gcop].freq = (used - limit / 2) * 100 / (limit / 2);
-			}
+			} else
+				ops[gcop].freq = 0;
+			stats.totfreq += (ops[gcop].freq - origfreq);
 		}
 		_nap(delta, 0);
 	}
@@ -602,7 +608,6 @@ sym_file(params_t *params)
 	char target[30];
 	const char *fileName;
 	int files;
-	int targetno;
 
 	fileName = params->filename;
 	files = params->files;
