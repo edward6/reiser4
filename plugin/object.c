@@ -1005,9 +1005,9 @@ static void delete_inode_common(struct inode *object)
 	object->i_sb->s_op->delete_inode(object);
 
 	spin_lock(&inode_lock);
-	hlist_del_init(&inode->i_hash);
+	hlist_del_init(&object->i_hash);
 	spin_unlock(&inode_lock);
-	wake_up_inode(inode);
+	wake_up_inode(object);
 	if (object->i_state != I_CLEAR)
 		BUG();
 	destroy_inode(object);
