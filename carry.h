@@ -10,7 +10,7 @@
 #include "debug.h"
 
 #include "pool.h"
-//#include "znode.h"
+#include "znode.h"
 //#include "coord.h"
 //#include "key.h"
 //#include "tree.h"
