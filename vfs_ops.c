@@ -506,7 +506,8 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		if (inode_get_flag(inode, REISER4_CLUSTER_KNOWN))
 			inode_clr_flag(inode, REISER4_CLUSTER_KNOWN);		
 
-		xattr_clean(inode);
+		if (reiser4_is_set(inode->i_sb, REISER4_USE_XATTR))
+			xattr_clean(inode);
 	}
 	phash_inode_destroy(inode);
 	if (info->pset)
@@ -1003,6 +1004,9 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		/* Don't load all bitmap blocks at mount time, it is useful
 		   for machines with tiny RAM and large disks. */
 		BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP),
+
+		BIT_OPT("xattr", REISER4_USE_XATTR),
+		BIT_OPT("acl", REISER4_USE_ACL),
 
 		{
 			/* tree traversal readahead parameters:
@@ -1589,82 +1593,102 @@ struct super_operations reiser4_super_operations = {
 		ON_TRACE(TRACE_DIR, __VA_ARGS__);\
 	}
 
-/* this returns number of 32 bit long numbers encoded in @data. 255 is returned if file handle can not be stored */
+static int
+encode_inode_size(struct inode *inode)
+{
+	int result;
+
+	result  = dscale_bytes(get_inode_oid(inode));
+	result += dscale_bytes(get_inode_locality(inode));
+	/*
+	 * ordering is large (it usually has highest bits set), so it makes
+	 * little sense to dscale it.
+	 */
+	if (REISER4_LARGE_KEY)
+		result += sizeof(get_inode_ordering(inode));
+	return result;
+}
+
+static char *
+encode_inode(struct inode *inode, char *start)
+{
+	start += dscale_write(start, get_inode_locality(inode));
+	start += dscale_write(start, get_inode_oid(inode));
+
+	TRACE_EXPORT_OPS("locality %llu, oid %llu\n",
+			 get_inode_locality(inode), get_inode_oid(inode));
+	if (REISER4_LARGE_KEY) {
+		cputod64(get_inode_ordering(inode), (d64 *)start);
+		start += sizeof(get_inode_ordering(inode));
+	}
+	return start;
+}
+
+typedef enum {
+	FH_WITH_PARENT    = 0x10,
+	FH_WITHOUT_PARENT = 0x11
+} reiser4_fhtype;
+
+/* this returns number of 32 bit long numbers encoded in @data. 255 is
+ * returned if file handle can not be stored */
 static int
 reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent)
 {
 	struct inode *inode;
 	struct inode *parent;
-	int maxlen;
 	char *addr;
 	int need;
 	int result;
 	reiser4_context context;
-	char *tmp;
-	
 
 	TRACE_EXPORT_OPS("started\n");
 
 	init_context(&context, dentry->d_inode->i_sb);
 	inode = dentry->d_inode;
+	parent = dentry->d_parent->d_inode;
 
 	addr = (char *)data;
-	maxlen = sizeof(__u32) * (*lenp);
 
-	/* calculate size of buffer needed to store locality, objectid and, possibly, ordering of inode and, possibly
-	   the same information about its parent */
-	need = dscale_bytes(get_inode_oid(inode)) + dscale_bytes(get_inode_locality(inode));
-	ON_LARGE_KEY(need += dscale_bytes(get_inode_ordering(inode)));
-	if (need_parent) {
-		parent = dentry->d_parent->d_inode;
-		need += dscale_bytes(get_inode_oid(parent)) + dscale_bytes(get_inode_locality(parent));
-		ON_LARGE_KEY(need += dscale_bytes(get_inode_ordering(parent)));
-	}
-
+	/* calculate size of buffer needed to store locality, objectid and,
+	   possibly, ordering of inode and, possibly the same information
+	   about its parent */
+	need = encode_inode_size(inode);
+	if (need_parent)
+		need += encode_inode_size(parent);
 	TRACE_EXPORT_OPS("need space %d\n", need);
-	if (need > maxlen) {
+
+	if (need <= sizeof(__u32) * (*lenp)) {
+		/* encode data necessary to restore stat data key */
+		addr = encode_inode(inode, addr);
+		if (need_parent)
+			addr = encode_inode(parent, addr);
+
+		*lenp = need / sizeof(__u32);
+		result = need_parent ? FH_WITH_PARENT : FH_WITHOUT_PARENT;
+	} else
 		/* no enough space in file handle */
-		reiser4_exit_context(&context);
-		return 255;
-	}
-
-	/*XXX*/
-	tmp = addr;
-
-	/* encode data necessary to restore stat data key */
-	addr += dscale_write(addr, get_inode_locality(inode));
-	addr += dscale_write(addr, get_inode_oid(inode));
-	TRACE_EXPORT_OPS("locality %llu, oid %llu\n",
-			 get_inode_locality(inode), get_inode_oid(inode));
-	result = 2;
-	ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(inode));
-		     result = 3;
-		     TRACE_EXPORT_OPS("ordering %llu\n", get_inode_ordering(inode))
-		     );
-	
-	if (need_parent) {
-		/* FIXME: spin_lock(&dentry->d_lock)? */
-		parent = dentry->d_parent->d_inode;
-		addr += dscale_write(addr, get_inode_locality(parent));
-		addr += dscale_write(addr, get_inode_oid(parent));
-		result += 2;
-		TRACE_EXPORT_OPS("parent locality %llu, parent oid %llu\n",
-				 get_inode_locality(parent), get_inode_oid(parent));
-		ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(parent));
-			     result ++;
-			     TRACE_EXPORT_OPS("parent ordering %llu\n", get_inode_ordering(parent)));
-	}
-
+		result = 255;
 	TRACE_EXPORT_OPS("return %d\n", result);
 	reiser4_exit_context(&context);
-	*lenp = result;
 	return result;
+}
+
+static char *
+decode_inode(char *addr, __u64 *el)
+{
+	addr += dscale_read(addr, &el[0]);      /* locality */
+	addr += dscale_read(addr, &el[1]);      /* objectid */
+	if (REISER4_LARGE_KEY) {
+		el[2] = d64tocpu((d64 *)addr); 	/* ordering */
+		addr += sizeof el[2];
+	}
+	return addr;
 }
 
 static struct dentry *
 reiser4_decode_fh(struct super_block *s, __u32 *data,
 		  int len, int fhtype,
-		  int (*acceptable)(void *contect, struct dentry *de),
+		  int (*acceptable)(void *context, struct dentry *de),
 		  void *context)
 {
 	oid_t obj[3], parent[3];
@@ -1677,30 +1701,15 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 
 	init_context(&ctx, s);
 
-#if REISER4_LARGE_KEY
-	assert("vs-1482", fhtype == 3 || fhtype == 6);
-	with_parent = ((fhtype == 6) ? 1 : 0);
-#else
-	assert("vs-1483", fhtype == 2 || fhtype == 4);
-	with_parent = ((fhtype == 4) ? 1 : 0);
-#endif
+	assert("vs-1482",
+	       fhtype == FH_WITH_PARENT || fhtype == FH_WITHOUT_PARENT);
+
+	with_parent = (fhtype == FH_WITH_PARENT);
 
 	addr = (char *)data;
-	addr += dscale_read(addr, &obj[0]); /* locality */
-	addr += dscale_read(addr, &obj[1]); /* objectid */
-	TRACE_EXPORT_OPS("fhtype %d, locality %llu, oid %llu\n", fhtype, obj[0], obj[1]);
-	ON_LARGE_KEY(addr += dscale_read(addr, &obj[2]); /* ordering */
-		     TRACE_EXPORT_OPS("ordering %llu\n", obj[2]);
-		     );
-
-	if (with_parent) {
-		addr += dscale_read(addr, &parent[0]); /* locality */
-		addr += dscale_read(addr, &parent[1]); /* objectid */
-		TRACE_EXPORT_OPS("parent locality %llu, parent oid %llu\n", parent[0], parent[1]);
-		ON_LARGE_KEY(addr += dscale_read(addr, &parent[2]); /* ordering */
-			     TRACE_EXPORT_OPS("parent ordering %llu\n", parent[2]);
-			     );
-	}
+	addr = decode_inode(addr, obj);
+	if (with_parent)
+		addr = decode_inode(addr, parent);
 
 	dentry = s->s_export_op->find_exported_dentry(s, obj, with_parent ? parent : NULL,
 						      acceptable, context);
