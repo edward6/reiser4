@@ -242,13 +242,11 @@ static void zinit( znode *node, znode *parent )
 	assert( "nikita-466", node != NULL );
 
 	memset( node, 0, sizeof *node );
-	spin_lock_init( &node -> zguard );
+	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
 	reiser4_init_coord( &node -> ptr_in_parent_hint );
 	node -> ptr_in_parent_hint.node = parent;
 	node -> ptr_in_parent_hint.item_pos = ~0u;
-
-	txn_znode_init (node);
 }
 
 /** zdestroy() -- Return a znode to the slab allocator.
@@ -265,6 +263,7 @@ void zdestroy( znode *node )
 	spin_lock_tree( current_tree );
 
 	if( atomic_read( &node -> x_count ) > 0 ) {
+		spin_unlock_tree( current_tree );
 		return;
 	}
 
@@ -497,15 +496,15 @@ void zput (znode *node)
 	atomic_dec (& node->x_count); 
 	/*
 	 * FIXME-NIKITA nikita: handle releasing reference to the znode that is
-	 * removed from the tree. Locking? josh?
+	 * removed from the tree. Locking?
 	 */
-	if ((atomic_read (& node->x_count) == 0 ) &&
-	    ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
-		deallocate_node (node);
-		/*
-		 * FIXME-NIKITA wipe node out of hash table. Race for block
-		 * number.
-		 */
+	if (atomic_read (& node->x_count) == 0 && ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+
+		/* FIXME_JMACD: Currently deallocate_znode just calls zdestroy(). */
+		deallocate_znode (node);
+
+		/* FIXME_JMACD: The atom has no reference because jnodes don't have
+		 * an x_count... what to do? */
 	}
 }
 
@@ -635,7 +634,7 @@ int zinit_new( znode *node )
 
 	ret = node_plugin_by_node( node ) -> init( node );
 
-	znode_set_dirty( node );
+	jnode_set_dirty( ZJNODE( node ) );
 
 	return ret;
 }
@@ -917,13 +916,6 @@ int znode_invariant( const znode *node )
 	return result;
 }
 
-/** return true if "node" is dirty */
-int znode_is_dirty( const znode *node )
-{
-	assert( "nikita-782", node != NULL );
-	return 	ZF_ISSET( node, ZNODE_DIRTY );
-}
-
 #if REISER4_DEBUG_MODIFY
 static __u32 znode_checksum( const znode *node )
 {
@@ -980,44 +972,7 @@ const char *lock_mode_name( znode_lock_mode lock )
 	}
 }
 
-/** helper macro for inode_znode(): get symbolic name for znode state bit */
-#define znode_state_name( node, flag )			\
-	( ZF_ISSET( ( node ), ( flag ) ) ? ((#flag ## "|")+6) : "" )
-
-/** debugging aid: output human readable information about @node */
-void info_znode( const char *prefix, const znode *node )
-{
-	if( node == NULL ) {
-		info( "%s: null\n", prefix );
-		return;
-	}
-
-	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, "
-	      "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
-	      prefix, node, node -> zstate, 
-
-	      znode_state_name( node, ZNODE_LOADED ),
-	      znode_state_name( node, ZNODE_PLUGIN ),
-	      znode_state_name( node, ZNODE_HEARD_BANSHEE ),
-	      znode_state_name( node, ZNODE_LEFT_CONNECTED ),
-	      znode_state_name( node, ZNODE_RIGHT_CONNECTED ),
-	      znode_state_name( node, ZNODE_NEW ),
-	      znode_state_name( node, ZNODE_ALLOC ),
-	      znode_state_name( node, ZNODE_RELOC ),
-	      znode_state_name( node, ZNODE_WANDER ),
-	      znode_state_name( node, ZNODE_DELETED ),
-	      znode_state_name( node, ZNODE_DIRTY ),
-	      znode_state_name( node, ZNODE_WRITEOUT ),
-	      znode_state_name( node, ZNODE_IS_DYING ),
-	      
-	      znode_get_level( node ),
-	      atomic_read( &node -> c_count ),
-	      atomic_read( &node -> d_count ),
-	      atomic_read( &node -> x_count ),
-	      node -> lock.nr_readers );
-
-	print_address( "blocknr", znode_get_block( node ) );
-}
+#if REISER4_DEBUG
 
 /** debugging aid: output more human readable information about @node that
  * info_znode(). */
@@ -1032,12 +987,62 @@ void print_znode( const char *prefix, const znode *node )
 	info_znode( "\tparent", znode_parent_nolock( node ) );
 	info_znode( "\tleft", node -> left );
 	info_znode( "\tright", node -> right );
-	print_address( "\trelocnr", & node -> relocnr );
 	print_plugin( "\tnode_plugin", node -> node_plugin );
 	print_key( "\tld", &node -> ld_key );
 	print_key( "\trd", &node -> rd_key );
 	info( "\treaders: %i\n", node -> lock.nr_readers );
 }
+
+#define jnode_state_name( node, flag )			\
+	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag ## "|")+6) : "" )
+
+/** debugging aid: output human readable information about @node */
+void info_jnode( const char *prefix, const jnode *node )
+{
+	if( node == NULL ) {
+		info( "%s: null\n", prefix );
+		return;
+	}
+
+	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
+	      prefix, node, node -> state, 
+
+	      jnode_state_name( node, ZNODE_LOADED ),
+	      jnode_state_name( node, ZNODE_PLUGIN ),
+	      jnode_state_name( node, ZNODE_HEARD_BANSHEE ),
+	      jnode_state_name( node, ZNODE_LEFT_CONNECTED ),
+	      jnode_state_name( node, ZNODE_RIGHT_CONNECTED ),
+	      jnode_state_name( node, ZNODE_NEW ),
+	      jnode_state_name( node, ZNODE_ALLOC ),
+	      jnode_state_name( node, ZNODE_RELOC ),
+	      jnode_state_name( node, ZNODE_WANDER ),
+	      jnode_state_name( node, ZNODE_DELETED ),
+	      jnode_state_name( node, ZNODE_DIRTY ),
+	      jnode_state_name( node, ZNODE_WRITEOUT ),
+	      jnode_state_name( node, ZNODE_IS_DYING ),
+	      
+	      jnode_get_level( node ));
+}
+
+/** debugging aid: output human readable information about @node */
+void info_znode( const char *prefix, const znode *node )
+{
+	info_jnode (prefix, ZJNODE (node));
+
+	if( node == NULL ) {
+		return;
+	}
+
+	info( "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
+	      atomic_read( &node -> c_count ),
+	      atomic_read( &node -> d_count ),
+	      atomic_read( &node -> x_count ),
+	      node -> lock.nr_readers );
+
+	print_address( "blocknr", znode_get_block( node ) );
+}
+
+#endif
 
 /*
  * Make Linus happy.
