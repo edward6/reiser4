@@ -1200,8 +1200,11 @@ void extent_get_inode_and_key (const coord_t *item, struct inode **inode, reiser
 
 	ino = get_key_objectid (key);
 
-	*inode = reiser4_iget (reiser4_get_current_sb (), key);
-/*	(*inode) = find_inode (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);*/
+	/* Note: This cannot call the usualy reiser4_iget() interface because that _may_
+	 * cause a call to read_inode(), which will likely deadlock at this point.  The
+	 * call to find_get_inode only gets the inode if it is found in cache. */
+	/* Bad: (*inode) = reiser4_iget (reiser4_get_current_sb (), key); */
+	(*inode) = find_get_inode (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);
 }
 
 /**

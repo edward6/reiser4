@@ -367,10 +367,10 @@ int is_bad_inode( struct inode *inode UNUSED_ARG )
 }
 
 
-struct inode * find_inode (struct super_block *super UNUSED_ARG,
-			   unsigned long ino, 
-			   int (*test)(struct inode *, void *), 
-			   void *data)
+static struct inode * find_inode (struct super_block *super UNUSED_ARG,
+				  unsigned long ino, 
+				  int (*test)(struct inode *, void *), 
+				  void *data)
 {
 	struct list_head * cur;
 	struct inode * inode;
@@ -386,6 +386,21 @@ struct inode * find_inode (struct super_block *super UNUSED_ARG,
 		return inode;
 	}
 	return 0;
+}
+
+/*
+ * Unlike the various iget() interfaces, find_get_inode only returns an inode if it is found in the inode cache.
+ */
+struct inode * find_get_inode(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data)
+{
+	struct inode *result;
+	spin_lock(&inode_hash_guard);
+	result = find_inode (sb, ino, test, data);
+	if (result != NULL) {
+		atomic_inc (& result->i_count);
+	}
+	spin_unlock(&inode_hash_guard);
+	return result;
 }
 
 

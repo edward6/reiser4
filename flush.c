@@ -1218,6 +1218,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			
 			/* See if we can find a closer block (forward direction only). */
 			pos->preceder.max_dist = dist;
+			pos->preceder.level    = znode_get_level (node);
 
 			if ((ret = flush_allocate_znode_update (node, parent_coord, pos)) && (ret != -ENOSPC)) {
 				return ret;
