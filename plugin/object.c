@@ -220,8 +220,6 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			       &lh,
 			       /* stat data lives on a leaf level */
 			       LEAF_LEVEL,
-			       NULL,
-			       NO_RAP,
 			       CBK_UNIQUE);
 
 	/* we don't want to re-check that somebody didn't insert

@@ -982,8 +982,7 @@ add_entry_cde(struct inode *dir /* directory object */ ,
 		return RETERR(-EDQUOT);
 
 	if (result)
-		result = insert_by_coord(coord, &data, &dir_entry->key, lh,
-					 NULL, NO_RAP, 0);
+		result = insert_by_coord(coord, &data, &dir_entry->key, lh, 0);
 	else
 		result = resize_item(coord, &data, &dir_entry->key, lh, 0);
 	return result;

@@ -147,8 +147,7 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
 		return -EDQUOT;
 
-	result = insert_by_coord(coord, &data, &entry->key, lh,
-				 NULL, NO_RAP, 0 /*flags */ );
+	result = insert_by_coord(coord, &data, &entry->key, lh, 0 /*flags */ );
 	if (result != 0)
 		return result;
 

@@ -368,8 +368,7 @@ put_unit_to_end(znode *node, reiser4_key *key, reiser4_item_data *data)
 
 	flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
 	if (must_insert(&coord, key)) {
-		result = insert_by_coord(&coord, data, key, 0 /*lh */ , 0 /*ra */ ,
-					 0 /*ira */ , flags);
+		result = insert_by_coord(&coord, data, key, NULL, flags);
 
 	} else {
 		/* try to append new extent unit */
