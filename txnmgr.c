@@ -1448,7 +1448,8 @@ try_commit_txnh(commit_data *cd)
 
 	trace_on(TRACE_TXN,
 		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
-		 cd->atom->atom_id, cd->failed, cd->atom->txnh_count, cd->atom_should_commit(cd->atom));
+		 cd->atom->atom_id, cd->failed, cd->atom->txnh_count, 
+		 atom_should_commit(cd->atom));
 
 	if (cd->failed)
 		return 0;
