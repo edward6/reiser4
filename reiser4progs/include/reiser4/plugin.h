@@ -67,11 +67,12 @@ enum reiser4_item_plugin_id {
 };
 
 enum reiser4_item_group {
-    STATDATA_ITEM_GROUP		= 0x0,
-    INTERNAL_ITEM_GROUP		= 0x1,
-    DIRENTRY_ITEM_GROUP		= 0x2,
-    FILEBODY_ITEM_GROUP		= 0x3,
-    PERMISSN_ITEM_GROUP		= 0x4
+    STATDATA_ITEM_GROUP,
+    INTERNAL_ITEM_GROUP,
+    DIRENTRY_ITEM_GROUP,
+    TAIL_ITEM_GROUP,
+    EXTENT_ITEM_GROUP,    
+    PERMISSN_ITEM_GROUP
 };
 
 typedef enum reiser4_item_group reiser4_item_group_t;
@@ -475,6 +476,9 @@ struct reiser4_item_common_ops {
     
     /* Returns unit count */
     uint32_t (*count) (reiser4_body_t *);
+
+    /* Checks the item structure. */
+    errno_t (*check) (reiser4_body_t *, uint16_t);
 };
 
 typedef struct reiser4_item_common_ops reiser4_item_common_ops_t;
@@ -568,6 +572,9 @@ struct reiser4_node_ops {
     errno_t (*check) (reiser4_entity_t *, uint16_t);
 
     errno_t (*valid) (reiser4_entity_t *);
+
+    /* Constrain on the item type. */
+    errno_t (*item_legal) (reiser4_entity_t *, reiser4_plugin_t *);
     
     /* Prints node into given buffer */
     errno_t (*print) (reiser4_entity_t *, char *, uint32_t, uint16_t);
