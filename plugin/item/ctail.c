@@ -305,14 +305,17 @@ kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, c
 	struct inode *inode;
 
 	assert("edward-291", znode_is_write_locked(coord->node));
-	
+
 	inode = kdata->inode;
 	if (inode) {
 		reiser4_key key;
 		item_key_by_coord(coord, &key);
-		
-		if (from == 0 && cluster_key(&key, coord))
-			truncate_pages_cryptcompress(inode->i_mapping, off_to_pg(get_key_offset(&key)));
+
+		if (from == 0 && cluster_key(&key, coord)) {
+			pgoff_t start = off_to_pg(get_key_offset(&key));
+			pgoff_t end = off_to_pg(inode->i_size);
+			truncate_cluster(inode, start, end - start + 1);
+		}
 	}
 	return 0;
 }
