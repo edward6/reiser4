@@ -15,27 +15,27 @@ typedef unsigned long count_t;
 struct aal_device_ops;
 
 struct aal_device {
-	int flags;
-	void *data;
-	size_t blocksize;
-	const void *entity;
-	struct aal_device_ops *ops;
+    int flags;
+    void *data;
+    size_t blocksize;
+    const void *entity;
+    struct aal_device_ops *ops;
 };
 
 typedef struct aal_device aal_device_t;
 
 struct aal_device_ops {
-	int (*read)(aal_device_t *, void *, blk_t, count_t);
-	int (*write)(aal_device_t *, void *, blk_t, count_t);
-	int (*sync)(aal_device_t *);
-	int (*flags)(aal_device_t *);
-	int (*equals)(aal_device_t *, aal_device_t *);
-	int (*stat)(aal_device_t *, struct stat *);
-	count_t (*len)(aal_device_t *);
+    int (*read)(aal_device_t *, void *, blk_t, count_t);
+    int (*write)(aal_device_t *, void *, blk_t, count_t);
+    int (*sync)(aal_device_t *);
+    int (*flags)(aal_device_t *);
+    int (*equals)(aal_device_t *, aal_device_t *);
+    int (*stat)(aal_device_t *, struct stat *);
+    count_t (*len)(aal_device_t *);
 };
 
 extern aal_device_t *aal_device_open(struct aal_device_ops *ops, const void *entity, 
-	size_t blocksize, int flags, void *data);
+    size_t blocksize, int flags, void *data);
 
 extern void aal_device_close(aal_device_t *device);
 

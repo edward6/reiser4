@@ -14,31 +14,31 @@
 
 #ifdef __GNUC__
 
-#define ASSERT(cond, action)			\
-	do {								\
-		if (!libreiserfs_assert(cond,	\
-			 #cond,						\
-			 __FILE__,					\
-			 __LINE__,					\
-			 __PRETTY_FUNCTION__))		\
-		{								\
-			action;						\
-		}								\
-	} while (0);
+#define ASSERT(cond, action)		\
+    do {				\
+    	if (!libreiserfs_assert(cond,	\
+	   #cond,			\
+	    __FILE__,			\
+	    __LINE__,			\
+	    __PRETTY_FUNCTION__))	\
+	{				\
+	    action;			\
+	}				\
+    } while (0);
 
 #else
 
-#define ASSERT(cond, action)			\
-	do {								\
-		if (!libreiserfs_assert(cond,	\
-			 #cond,						\
-			 "unknown",					\
-			 0,							\
-			 "unknown"))				\
-		{								\
-			action;						\
-		}								\
-	} while (0);
+#define ASSERT(cond, action)		\
+    do {				\
+	if (!libreiserfs_assert(cond,	\
+	    #cond,			\
+	    "unknown",			\
+	    0,				\
+	    "unknown"))			\
+	{				\
+	    action;			\
+	}				\
+    } while (0);
 
 #endif
 
@@ -49,7 +49,7 @@
 #endif
 
 extern int libreiserfs_assert(int cond, char *cond_text, char *file, int line, 
-	char *function);
+    char *function);
 
 #endif
 

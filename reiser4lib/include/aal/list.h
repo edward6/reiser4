@@ -7,8 +7,8 @@
 #define LIST_H
 
 struct aal_list {
-	void **body;
-	int size, count, inc;
+    void **body;
+    int size, count, inc;
 };
 
 typedef struct aal_list aal_list_t;

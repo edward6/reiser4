@@ -9,172 +9,185 @@
 #include "format36.h"
 
 static int reiserfs_format36_3_5_signature(const char *signature) {
-	return(!aal_strncmp(signature, REISERFS_3_5_SUPER_SIGNATURE,
-		strlen(REISERFS_3_5_SUPER_SIGNATURE)));
+    return(!aal_strncmp(signature, REISERFS_3_5_SUPER_SIGNATURE,
+	strlen(REISERFS_3_5_SUPER_SIGNATURE)));
 }
 
 static int reiserfs_format36_3_6_signature(const char *signature) {
-	return(!aal_strncmp(signature, REISERFS_3_6_SUPER_SIGNATURE,
-		strlen(REISERFS_3_6_SUPER_SIGNATURE)));
+    return(!aal_strncmp(signature, REISERFS_3_6_SUPER_SIGNATURE,
+	strlen(REISERFS_3_6_SUPER_SIGNATURE)));
 }
 
 static int reiserfs_format36_journal_signature(const char *signature) {
-	return(!aal_strncmp(signature, REISERFS_JR_SUPER_SIGNATURE,
-		strlen(REISERFS_JR_SUPER_SIGNATURE)));
+    return(!aal_strncmp(signature, REISERFS_JR_SUPER_SIGNATURE,
+	strlen(REISERFS_JR_SUPER_SIGNATURE)));
 }
 
 static int reiserfs_format36_signature(reiserfs_format36_super_t *super) {
-	const char *signature = (const char *)super->s_v1.sb_magic;
+    const char *signature = (const char *)super->s_v1.sb_magic;
 
-	if (reiserfs_format36_3_5_signature(signature) ||
-			reiserfs_format36_3_6_signature(signature) ||
-			reiserfs_format36_journal_signature(signature))
-		return 1;
+    if (reiserfs_format36_3_5_signature(signature) ||
+	    reiserfs_format36_3_6_signature(signature) ||
+	    reiserfs_format36_journal_signature(signature))
+	return 1;
 
-	return 0;
+    return 0;
 }
 
 static int reiserfs_format36_super_check(reiserfs_format36_super_t *super, 
-	aal_device_t *device) 
+    aal_device_t *device) 
 {
-	blk_t dev_len;
-	int is_journal_dev, is_journal_magic;
+    blk_t dev_len;
+    int is_journal_dev, is_journal_magic;
 
-	is_journal_dev = (get_jp_dev(get_sb_jp(super)) ? 1 : 0);
-	is_journal_magic = reiserfs_format36_journal_signature(super->s_v1.sb_magic);
+    is_journal_dev = (get_jp_dev(get_sb_jp(super)) ? 1 : 0);
+    is_journal_magic = reiserfs_format36_journal_signature(super->s_v1.sb_magic);
 
-	if (is_journal_dev != is_journal_magic) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-			"umka-020", "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
-			get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
-	}
+    if (is_journal_dev != is_journal_magic) {
+	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
+	    "umka-020", "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
+	    get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
+    }
 
-	dev_len = aal_device_len(device);
-	if (get_sb_block_count(super) > dev_len) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			"umka-021", "Superblock has an invalid block count %d for device "
-			"length %d blocks.", get_sb_block_count(super), dev_len);
-		return 0;
-	}
+    dev_len = aal_device_len(device);
+    if (get_sb_block_count(super) > dev_len) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+	    "umka-021", "Superblock has an invalid block count %d for device "
+	    "length %d blocks.", get_sb_block_count(super), dev_len);
+	return 0;
+    }
 
-	return 1;
+    return 1;
 }
 
 static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
-	aal_block_t *block;
-	reiserfs_format36_super_t *super;
-	int i, super_offset[] = {16, 2, -1};
+    aal_block_t *block;
+    reiserfs_format36_super_t *super;
+    int i, super_offset[] = {16, 2, -1};
 
-	for (i = 0; super_offset[i] != -1; i++) {
-		if ((block = aal_block_read(device, super_offset[i]))) {
-			super = (reiserfs_format36_super_t *)block->data;
+    for (i = 0; super_offset[i] != -1; i++) {
+	    if ((block = aal_block_read(device, super_offset[i]))) {
+		super = (reiserfs_format36_super_t *)block->data;
 			
-			if (reiserfs_format36_signature(super)) {
-				if (!aal_device_set_blocksize(device, get_sb_block_size(super))) {
-					aal_block_free(block);
-					continue;
-				}
-				
-				if (!reiserfs_format36_super_check(super, device)) {
-					aal_block_free(block);
-					continue;
-				}
-				return block;
-			}
-			aal_block_free(block);
+	    if (reiserfs_format36_signature(super)) {
+		if (!aal_device_set_blocksize(device, get_sb_block_size(super))) {
+		    aal_block_free(block);
+		    continue;
 		}
+				
+		if (!reiserfs_format36_super_check(super, device)) {
+		    aal_block_free(block);
+		    continue;
+		}
+		return block;
+	    }
+	    aal_block_free(block);
 	}
-	return NULL;
+    }
+    return NULL;
 }
 
-static reiserfs_format36_t *reiserfs_format36_init(aal_device_t *device) {
-	reiserfs_format36_t *format;
+static reiserfs_format36_t *reiserfs_format36_open(aal_device_t *device) {
+    reiserfs_format36_t *format;
 	
-	if (!device)
-		return NULL;
+    if (!device)
+	return NULL;
 	
-	if (!(format = aal_calloc(sizeof(*format), 0)))
-		return NULL;
+    if (!(format = aal_calloc(sizeof(*format), 0)))
+	return NULL;
 		
-	if (!(format->super = reiserfs_format36_super_open(device)))
-		goto error_free_format;
+    if (!(format->super = reiserfs_format36_super_open(device)))
+	goto error_free_format;
 	
-	format->device = device;
-	return format;
+    format->device = device;
+    return format;
 
 error_free_format:
-	aal_free(format);
+    aal_free(format);
 error:
-	return NULL;
+    return NULL;
 }
 
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device) {
-	return NULL;
+    return NULL;
 }
 
-static void reiserfs_format36_done(reiserfs_format36_t *format, int sync) {
-	if (sync && !aal_block_write(format->device, format->super)) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-022", 
-			"Can't synchronize super block.");
-	}
-	aal_block_free(format->super);
-	aal_free(format);
+static void reiserfs_format36_close(reiserfs_format36_t *format, int sync) {
+    if (sync && !aal_block_write(format->device, format->super)) {
+    	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-022", 
+	    "Can't synchronize super block.");
+    }
+    aal_block_free(format->super);
+    aal_free(format);
 }
 
 static unsigned int reiserfs_format36_probe(aal_device_t *device) {
-	unsigned int blocksize;
-	aal_block_t *block;
+    unsigned int blocksize;
+    aal_block_t *block;
 	
-	if (!(block = reiserfs_format36_super_open(device)))
-		return 0;
+    if (!(block = reiserfs_format36_super_open(device)))
+	return 0;
 	
-	blocksize = get_sb_block_size((reiserfs_format36_super_t *)block->data);
+    blocksize = get_sb_block_size((reiserfs_format36_super_t *)block->data);
 
-	aal_block_free(block);
-	return blocksize;
+    aal_block_free(block);
+    return blocksize;
 }
 
 static const char *formats[] = {"3.5", "unknown", "3.6"};
 
 static const char *reiserfs_format36_format(reiserfs_format36_t *format) {
-	reiserfs_format36_super_t *super = (reiserfs_format36_super_t *)format->super->data;
-	int version = get_sb_format(super);
-	return formats[version >= 0 && version < 3 ? version : 1];
+    reiserfs_format36_super_t *super = (reiserfs_format36_super_t *)format->super->data;
+    int version = get_sb_format(super);
+    return formats[version >= 0 && version < 3 ? version : 1];
 }
 
 static reiserfs_plugin_id_t reiserfs_format36_journal_plugin(void) {
-	return 0x2;
+    return 0x2;
 }
 
 static reiserfs_plugin_id_t reiserfs_format36_alloc_plugin(void) {
-	return 0x2;
+    return 0x2;
+}
+
+static reiserfs_plugin_id_t reiserfs_format36_node_plugin(void) {
+    return 0x2;
+}
+
+static blk_t reiserfs_format36_root_block(reiserfs_format36_t *format) {
+    return 0;
 }
 
 reiserfs_plugin_t plugin_info = {
-	.format = {
-		.h = {
-			.handle = NULL,
-			.id = 0x2,
-			.type = REISERFS_FORMAT_PLUGIN,
-			.label = "format36",
-			.desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
-				"Copyright (C) 1996-2002 Hans Reiser",
-		},
-		.init = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_init,
-		.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_create,
-		.done = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_done,
-		.probe = (unsigned int (*)(aal_device_t *))reiserfs_format36_probe,
-		.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format36_format,
+    .format = {
+	.h = {
+	    .handle = NULL,
+	    .id = 0x2,
+	    .type = REISERFS_FORMAT_PLUGIN,
+	    .label = "format36",
+	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
+		"Copyright (C) 1996-2002 Hans Reiser",
+	},
+	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
+	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_create,
+	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_close,
+	.probe = (unsigned int (*)(aal_device_t *))reiserfs_format36_probe,
+	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format36_format,
 			
-		.journal_plugin_id = (reiserfs_plugin_id_t(*)(void))
-			reiserfs_format36_journal_plugin,
+	.root_block = (blk_t (*)(reiserfs_format_opaque_t *))reiserfs_format36_root_block,
+	
+	.journal_plugin_id = (reiserfs_plugin_id_t(*)(void))
+	    reiserfs_format36_journal_plugin,
 		
-		.alloc_plugin_id = (reiserfs_plugin_id_t(*)(void))
-			reiserfs_format36_alloc_plugin,
-	}
+	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(void))
+	    reiserfs_format36_alloc_plugin,
+	
+	.node_plugin_id = (reiserfs_plugin_id_t(*)(void))
+	    reiserfs_format36_node_plugin,
+    }
 };
 
 reiserfs_plugin_t *reiserfs_plugin_info() {
-	return &plugin_info;
+    return &plugin_info;
 }
 

@@ -15,11 +15,11 @@
 #define REISERFS_DEFAULT_BLOCKSIZE	4096
 
 struct reiserfs_master_super {
-	char mr_magic[4];
-	uint16_t mr_format_id;
-	uint16_t mr_blocksize;
-	char mr_uuid[16];
-	char mr_label[16];
+    char mr_magic[4];
+    uint16_t mr_format_id;
+    uint16_t mr_blocksize;
+    char mr_uuid[16];
+    char mr_label[16];
 };
 
 typedef struct reiserfs_master_super reiserfs_master_super_t;
@@ -31,55 +31,58 @@ typedef struct reiserfs_master_super reiserfs_master_super_t;
 #define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
 
 struct reiserfs_super {
-	struct reiserfs_master_super master;
+    struct reiserfs_master_super master;
 		
-	reiserfs_format_opaque_t *entity;
-	reiserfs_plugin_t *plugin;
+    reiserfs_format_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_super reiserfs_super_t;
 
 struct reiserfs_journal {
-	aal_device_t *device;
-	reiserfs_journal_opaque_t *entity;
-	reiserfs_plugin_t *plugin;
+    aal_device_t *device;
+    
+    reiserfs_journal_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_journal reiserfs_journal_t;
 
 struct reiserfs_alloc {
-	reiserfs_alloc_opaque_t *entity;
-	reiserfs_plugin_t *plugin;
+    reiserfs_alloc_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 struct reiserfs_tree {
-	reiserfs_plugin_t *plugin;
+    reiserfs_node_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
 
 struct reiserfs_fs {
-	aal_device_t *device;
-	reiserfs_super_t *super;
-	reiserfs_journal_t *journal;
-	reiserfs_alloc_t *alloc;
-	reiserfs_tree_t *tree;
+    aal_device_t *device;
+	
+    reiserfs_super_t *super;
+    reiserfs_journal_t *journal;
+    reiserfs_alloc_t *alloc;
+    reiserfs_tree_t *tree;
 };
 
 typedef struct reiserfs_fs reiserfs_fs_t;
 
 /* Public functions */
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
-	aal_device_t *journal_device, int replay);
+    aal_device_t *journal_device, int replay);
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs, int sync);
 
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-	reiserfs_plugin_id_t format, unsigned int blocksize, const char *uuid, 
-	const char *label, count_t len, aal_device_t *journal_device, 
-	reiserfs_params_opaque_t *journal_params);
+    reiserfs_plugin_id_t format, unsigned int blocksize, const char *uuid, 
+    const char *label, count_t len, aal_device_t *journal_device, 
+    reiserfs_params_opaque_t *journal_params);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern unsigned int reiserfs_fs_blocksize(reiserfs_fs_t *fs);

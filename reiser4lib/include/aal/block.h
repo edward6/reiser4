@@ -10,27 +10,27 @@
 #include <aal/aal.h>
 
 struct aal_block {
-	int dirty;
-	void *data;
-	uint64_t location;
-	aal_device_t *device;
+    int dirty;
+    void *data;
+    uint64_t location;
+    aal_device_t *device;
 };
 
 typedef struct aal_block aal_block_t;
 
 #define aal_block_reading_failed(blk, action) \
-	do { \
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
-			"Reading block %lu failed.", blk); \
-		action; \
-	} while (0)
+    do { \
+    	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
+	   "Reading block %lu failed.", blk); \
+    	action; \
+    } while (0)
 
 #define aal_block_writing_failed(blk, action) \
-	do { \
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
-			"Writing block %lu failed.", blk); \
-		action; \
-	} while (0)
+    do { \
+    	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
+	   "Writing block %lu failed.", blk); \
+	action; \
+    } while (0)
 
 extern aal_block_t *aal_block_alloc(aal_device_t *device, blk_t blk, char c);
 extern aal_block_t *aal_block_realloc(aal_block_t *block, aal_device_t *device, blk_t blk);
