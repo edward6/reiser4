@@ -660,7 +660,7 @@ static void eflush_free (jnode * node)
 
 	spin_lock_eflush(tree->super);
 	ef = ef_hash_find(table, C(node));
-	BUG_ON(ef == NULL)
+	BUG_ON(ef == NULL);
 	assert("nikita-2745", ef != NULL);
 	blk = ef->blocknr;
 	ef_hash_remove(table, ef);
