@@ -491,6 +491,12 @@ reiser4_block_nr estimate_one_insert_into_item(tree_level);
 reiser4_block_nr estimate_insert_flow(tree_level);
 reiser4_block_nr estimate_one_item_removal(tree_level);
 
+#define XLOCK_TREE(tree, takeread)				\
+	(takeread ? RLOCK_TREE(tree) : WLOCK_TREE(tree))
+
+#define XUNLOCK_TREE(tree, takeread)				\
+	(takeread ? RUNLOCK_TREE(tree) : WUNLOCK_TREE(tree))
+
 /* __REISER4_TREE_H__ */
 #endif
 
