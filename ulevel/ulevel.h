@@ -449,7 +449,6 @@ struct super_operations {
    	struct inode *(*alloc_inode)(struct super_block *sb);
 	void (*destroy_inode)(struct inode *);
 	void (*read_inode) (struct inode *);
-    	void (*read_inode2) (struct inode *, void *) ;
    	void (*dirty_inode) (struct inode *);
 	void (*write_inode) (struct inode *, int);
 	void (*put_inode) (struct inode *);
@@ -476,10 +475,13 @@ struct task_struct {
 };
 
 struct block_device {
+	int fd;
 	void * vp;
 };
 
 typedef unsigned short kdev_t;
+#define val_to_kdev(val) val
+#define kdev_val(kdev) kdev
 
 struct super_block {
 	kdev_t			s_dev;
@@ -498,21 +500,34 @@ struct address_space;
 struct kiobuf;
 
 struct address_space_operations {
-	int (*writepage)(struct page *);
-	int (*readpage)(struct file *, struct page *);
-	int (*sync_page)(struct page *);
-	/*
-	 * ext3 requires that a successful prepare_write() call be followed
-	 * by a commit_write() call - they must be balanced
-	 */
-	int (*prepare_write)(struct file *, struct page *, unsigned, unsigned);
-	int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
-	/* Unfortunately this kludge is needed for FIBMAP. Don't use it */
-	int (*bmap)(struct address_space *, long);
-	int (*flushpage) (struct page *, unsigned long);
-	int (*releasepage) (struct page *, int);
+        int (*writepage)(struct page *);
+        int (*readpage)(struct file *, struct page *);
+        int (*sync_page)(struct page *);
+
+        /* Write back some dirty pages from this mapping. */
+        int (*writepages)(struct address_space *, int *nr_to_write);
+
+        /* Perform a writeback as a memory-freeing operation. */
+        int (*vm_writeback)(struct page *, int *nr_to_write);
+
+        /* Set a page dirty */
+        int (*set_page_dirty)(struct page *page);
+
+        int (*readpages)(struct address_space *mapping,
+                        struct list_head *pages, unsigned nr_pages);
+
+        /*
+         * ext3 requires that a successful prepare_write() call be followed
+         * by a commit_write() call - they must be balanced
+         */
+        int (*prepare_write)(struct file *, struct page *, unsigned, unsigned);
+        int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
+        /* Unfortunately this kludge is needed for FIBMAP. Don't use it */
+        int (*bmap)(struct address_space *, long);
+        int (*invalidatepage) (struct page *, unsigned long);
+        int (*releasepage) (struct page *, int);
 #define KERNEL_HAS_O_DIRECT /* this is for modules out of the kernel */
-	int (*direct_IO)(int, struct inode *, struct kiobuf *, unsigned long, int);
+        int (*direct_IO)(int, struct inode *, struct kiobuf *, unsigned long, int);
 };
 
 struct address_space {
@@ -619,7 +634,7 @@ extern void lock_kernel();
 extern void unlock_kernel();
 
 extern void insert_inode_hash(struct inode *inode);
-extern int init_special_inode( struct inode *inode, __u32 mode, __u32 rdev );
+extern int init_special_inode( struct inode *inode, __u32 mode, int rdev );
 extern void make_bad_inode( struct inode *inode );
 extern int is_bad_inode( struct inode *inode );
 
@@ -731,7 +746,6 @@ extern void       kcondvar_broadcast (kcondvar_t        *kcond);
 
 struct page {
 	unsigned long index;
-	struct buffer_head * buffers;
 	void * virtual;
 	struct address_space *mapping;
 	unsigned long flags;
@@ -740,30 +754,14 @@ struct page {
 	struct list_head list;
 };
 
-#define PG_uptodate 1
-#define PG_locked 2
-#define Page_Uptodate(page) ((page)->flags & PG_uptodate)
-#define PageLocked(page) ((page)->flags & PG_locked)
-/*
-#define UnlockPage(p) \
-{\
-	assert ("vs-286", PageLocked (p));\
-	(p)->flags &= ~PG_locked;\
-}
-#define LockPage(p) \
-{\
-	assert ("vs-287", !PageLocked (p));\
-	(p)->flags |= PG_locked;\
-}
-*/
-#define SetPageUptodate(page) (page)->flags |= PG_uptodate
 #define page_address(page)   ((page)->virtual)
 void remove_inode_page(struct page *);
+void page_cache_readahead(struct file *file, unsigned long offset);
 
 /* include/linux/pagemap.h */
 struct page * find_get_page (struct address_space *, unsigned long);
 struct page * find_lock_page (struct address_space *, unsigned long);
-void wait_on_page(struct page * page);
+void wait_on_page_locked(struct page * page);
 typedef int filler_t(void *, struct page*);
 void lock_page(struct page *page);
 void unlock_page(struct page *page);
@@ -808,7 +806,10 @@ struct buffer_head {
 
 #define mark_buffer_new(bh) ((bh)->b_state |= BH2_New)
 #define mark_buffer_mapped(bh) ((bh)->b_state |= BH2_Mapped)
-#define mark_buffer_uptodate(bh) ((bh)->b_state |= BH2_Uptodate)
+
+#define set_buffer_uptodate(bh) ((bh)->b_state |= BH2_Uptodate)
+#define clear_buffer_uptodate(bh) ((bh)->b_state &= ~BH2_Uptodate)
+
 #define mark_buffer_locked(bh) ((bh)->b_state |= BH2_Lock)
 #define mark_buffer_unallocated(bh) ((bh)->b_state |= BH2_unallocated)
 #define mark_buffer_allocated(bh)  ((bh)->b_state |= BH2_allocated)
@@ -832,13 +833,60 @@ struct address_space;
 struct inode;
 typedef int (get_block_t)(struct inode*,sector_t,struct buffer_head*,int);
 
-int create_empty_buffers (struct page * page, unsigned blocksize);
+/*int create_empty_buffers (struct page * page, unsigned blocksize, 
+  unsigned long b_state);*/
 void ll_rw_block(int, int, struct buffer_head * bh[]);
-void set_buffer_async_io (struct buffer_head * bh);
+void mark_buffer_async_read (struct buffer_head * bh);
 int submit_bh (int rw, struct buffer_head * bh);
 void map_bh (struct buffer_head * bh, struct super_block * sb,
 	     unsigned long long block);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
+int generic_file_mmap(struct file * file, struct vm_area_struct * vma);
+
+
+/* include/linux/buffer_head.h */
+#define MAX_BUF_PER_PAGE (PAGE_CACHE_SIZE / 512)
+
+#define page_buffers(page)                                      \
+        ({                                                      \
+                if (!PagePrivate(page))                         \
+                        BUG();                                  \
+                ((struct buffer_head *)(page)->private);        \
+        })
+#define page_has_buffers(page)  PagePrivate(page)
+#define set_page_buffers(page, buffers)                         \
+        do {                                                    \
+                SetPagePrivate(page);                           \
+                page->private = (unsigned long)buffers;         \
+        } while (0)
+
+int fsync_bdev(struct block_device *);
+
+/* include/linux/page-flags.h */
+#define PG_uptodate 1
+#define PG_locked 2
+#define PG_private 3
+#define PG_dirty 4
+
+#define PG_kmaped 10
+
+#define PageUptodate(page) (test_bit(PG_uptodate, &(page)->flags))
+#define PageLocked(page) (test_bit(PG_locked, &(page)->flags))
+#define PagePrivate(page) (test_bit(PG_private, &(page)->flags))
+#define PageDirty(page) (test_bit(PG_dirty, &(page)->flags))
+#define PageKmaped(page) (test_bit(PG_kmaped, &(page)->flags))
+
+#define SetPageUptodate(page) (set_bit(PG_uptodate, &(page)->flags))
+#define SetPageLocked(page) (set_bit(PG_locked, &(page)->flags))
+#define SetPagePrivate(page) (set_bit(PG_private, &(page)->flags))
+#define SetPageDirty(page) (set_bit(PG_dirty, &(page)->flags))
+#define SetPageKmaped(page) (set_bit(PG_kmaped, &(page)->flags))
+
+#define ClearPageUptodate(page) (clear_bit(PG_uptodate, &(page)->flags))
+#define ClearPageLocked(page) (clear_bit(PG_locked, &(page)->flags))
+#define ClearPagePrivate(page) (clear_bit(PG_private, &(page)->flags))
+#define ClearPageDirty(page) (clear_bit(PG_dirty, &(page)->flags))
+#define ClearPageKmaped(page) (clear_bit(PG_kmaped, &(page)->flags))
 
 
 /* include/linux/locks.h */
@@ -847,6 +895,9 @@ void wait_on_buffer(struct buffer_head *);
 /* include/asm/pgtable.h */
 #define flush_dcache_page(page)	do { } while (0)
 
+/* include/asm/page.h */
+/* FIXME-VS: */
+#define virt_to_page(addr) ((struct page *)((char *)addr - sizeof (struct page)))
 
 /* mm/filemap.c */
 struct page *grab_cache_page(struct address_space *mapping, unsigned long idx);
@@ -854,9 +905,8 @@ struct page *read_cache_page(struct address_space *mapping, unsigned long idx,
 			     int (*filler)(void *,struct page*), void *data);
 
 /* fs/buffer.c */
-int reiser4_sb_bread (struct super_block * sb, struct buffer_head * bh);
-void reiser4_sb_bwrite (struct buffer_head *);
-void reiser4_sb_brelse (struct buffer_head *);
+struct buffer_head * sb_bread (struct super_block * sb, int block);
+void brelse (struct buffer_head *);
 
 /* include/linux/dcache.h */
 struct dentry * d_alloc_root(struct inode *);
@@ -970,11 +1020,7 @@ static inline int unregister_filesystem(struct file_system_type * fs UNUSED_ARG)
 	return 0;
 }
 
-static inline int block_read_full_page(struct page *page UNUSED_ARG, 
-				       get_block_t *get_block UNUSED_ARG)
-{
-	return 0;
-}
+int block_read_full_page(struct page *page, get_block_t *get_block);
 
 static inline void mark_page_accessed( struct page *page UNUSED_ARG )
 {
@@ -1061,6 +1107,24 @@ static inline void bio_put (struct bio *bio)
 	kfree (bio->bi_io_vec);
 	kfree (bio);
 }
+
+/* include/linux/stat.h */
+struct kstat {
+        unsigned long   ino;
+        dev_t           dev;
+        umode_t         mode;
+        nlink_t         nlink;
+        uid_t           uid;
+        gid_t           gid;
+        dev_t           rdev;
+        loff_t          size;
+        time_t          atime;
+        time_t          mtime;
+        time_t          ctime;
+        unsigned long   blksize;
+        unsigned long   blocks;
+};
+
 
 /* __REISER4_ULEVEL_H__ */
 #endif
