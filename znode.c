@@ -457,6 +457,15 @@ int znode_rehash( znode *node /* node to rehash */,
 	/* remove znode from hash-table */
 	z_hash_remove( htable, node );
 
+	({
+		znode *old;
+
+		old = z_hash_find( htable, new_block_nr );
+		if( old != NULL )
+			print_node_content( "old", old, ~0 );
+	});
+
+
 	assert( "nikita-2019", z_hash_find( htable, new_block_nr ) == NULL );
 
 	/* update blocknr */
