@@ -426,15 +426,7 @@ static int copy2page (reiser4_tree * tree UNUSED_ARG /* tree scanned */,
 	assert ("vs-523", inode_file_plugin (arg->inode)->owns_item);
 
 	if (inode_file_plugin (arg->inode)->owns_item (arg->inode, coord)) {
-		if (get_key_type (&key) != KEY_BODY_MINOR ||
-		    get_key_type (&arg->next) == KEY_BODY_MINOR ||
-		    item_id_by_coord (coord) != TAIL_ID) {
-			/* item of unexpected type is encountered */
-			kunmap (arg->page);
-			UnlockPage (arg->page);
-			page_cache_release (arg->page);			
-			return -EIO;
-		}
+		assert ("vs-548", item_id_by_coord (coord) != TAIL_ID);
 
 		left = item_length_by_coord (coord);
 		item = item_body_by_coord (coord);
@@ -569,6 +561,14 @@ static int tail2extent (struct file * file, tree_coord * coord,
 }
 
 
+/* plugin->u.file.release */
+int ordinary_file_release (struct file * file UNUSED_ARG)
+{
+	return 0;
+}
+
+
+
 /* plugin->u.file.flow_by_inode  = common_build_flow
  * plugin->u.file.flow_by_key    = NULL
  * plugin->u.file.key_by_inode   = ordinary_key_by_inode
@@ -599,8 +599,29 @@ int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 /* plugin->u.file.destroy_stat_data = NULL
  * plugin->u.file.add_link = NULL
  * plugin->u.file.rem_link = NULL
- * plugin->u.file.owns_item = common_file_owns_item
- * plugin->u.file.can_add_link = common_file_can_add_link
+ */
+
+
+/* plugin->u.file.owns_item 
+ * this is common_file_owns_item with assertion */
+int ordinary_file_owns_item( const struct inode *inode /* object to check
+							* against */, 
+			     const tree_coord *coord /* coord to check */ )
+{
+	int retval;
+
+	retval = common_file_owns_item (inode, coord);
+	if (!retval)
+		return 0;
+	assert ("vs-546",
+		item_type_by_coord (coord) == ORDINARY_FILE_METADATA_TYPE);
+	assert ("vs-547", (item_id_by_coord (coord) == EXTENT_POINTER_ID ||
+			   item_id_by_coord (coord) == TAIL_ID));
+	return 1;
+}
+
+
+/* plugin->u.file.can_add_link = common_file_can_add_link
  */
 
 #if 0
