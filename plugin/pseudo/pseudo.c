@@ -533,7 +533,7 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 	dotname.len  = 1;
 
 	down(&host->i_sem);
-	if (dplug == NULL) {
+	if (dplug == NULL || dplug->build_entry_key == NULL) {
 		finish(NULL);
 		return NULL;
 	}
