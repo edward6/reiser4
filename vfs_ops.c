@@ -12,6 +12,7 @@
 #include "plugin/file/file.h"
 #include "plugin/security/perm.h"
 #include "plugin/disk_format/disk_format.h"
+#include "plugin/dir/dir.h"
 #include "plugin/plugin.h"
 #include "plugin/plugin_set.h"
 #include "plugin/plugin_hash.h"
@@ -74,7 +75,7 @@ static void reiser4_sync_inodes(struct super_block *s, struct writeback_control 
 
 extern struct dentry_operations reiser4_dentry_operation;
 
-static struct file_system_type reiser4_fs_type;
+struct file_system_type reiser4_fs_type;
 
 /* ->statfs() VFS method in reiser4 super_operations */
 static int
@@ -319,6 +320,20 @@ reiser4_internal void done_file_fsdata(void)
 	kmem_cache_destroy(file_fsdata_slab);
 }
 
+reiser4_internal reiser4_file_fsdata *
+create_fsdata(struct file *file, int gfp)
+{
+	reiser4_file_fsdata *fsdata;
+
+	fsdata = kmem_cache_alloc(file_fsdata_slab, gfp);
+	if (fsdata != NULL) {
+		xmemset(fsdata, 0, sizeof *fsdata);
+		fsdata->ra.max_window_size = VM_MAX_READAHEAD * 1024;
+		fsdata->back = file;
+		readdir_list_clean(fsdata);
+	}
+	return fsdata;
+}
 
 /* Return and lazily allocate if necessary per-file data that we attach
    to each struct file. */
@@ -333,17 +348,13 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		struct inode *inode;
 
 		reiser4_stat_inc(vfs_calls.private_data_alloc);
-		fsdata = kmem_cache_alloc(file_fsdata_slab, GFP_KERNEL);
+		fsdata = create_fsdata(f, GFP_KERNEL);
 		if (fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
-		xmemset(fsdata, 0, sizeof *fsdata);
-		fsdata->ra.max_window_size = VM_MAX_READAHEAD * 1024;
-		
+
 		inode = f->f_dentry->d_inode;
 		spin_lock_inode(inode);
 		if (f->private_data == NULL) {
-			fsdata->back = f;
-			readdir_list_clean(fsdata);
 			f->private_data = fsdata;
 			fsdata = NULL;
 		}
@@ -357,12 +368,23 @@ reiser4_get_file_fsdata(struct file *f	/* file
 }
 
 reiser4_internal void
+reiser4_free_fsdata(reiser4_file_fsdata *fsdata)
+{
+	if (fsdata != NULL)
+		kmem_cache_free(file_fsdata_slab, fsdata);
+}
+
+reiser4_internal void
 reiser4_free_file_fsdata(struct file *f)
 {
-	if (f->private_data != NULL) {
-		kmem_cache_free(file_fsdata_slab, f->private_data);
-		f->private_data = NULL;
+	reiser4_file_fsdata *fsdata;
+	fsdata = f->private_data;
+	if (fsdata != NULL) {
+		readdir_list_remove_clean(fsdata);
+		if (fsdata->cursor == NULL)
+			reiser4_free_fsdata(fsdata);
 	}
+	f->private_data = NULL;
 }
 
 /* our ->read_inode() is no-op. Reiser4 inodes should be loaded
@@ -523,6 +545,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			xattr_clean(inode);
 #endif
 	}
+	dispose_cursors(inode);
 	phash_inode_destroy(inode);
 	if (info->pset)
 		plugin_set_put(info->pset);
@@ -1417,6 +1440,9 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
 }
 
+int d_cursor_init(void);
+void d_cursor_done(void);
+
 /* initialization stages for reiser4 */
 typedef enum {
 	INIT_NONE,
@@ -1437,6 +1463,7 @@ typedef enum {
 	INIT_FQS,
 	INIT_DENTRY_FSDATA,
 	INIT_FILE_FSDATA,
+	INIT_D_CURSOR,
 	INIT_FS_REGISTERED,
 } reiser4_init_stage;
 
@@ -1453,6 +1480,7 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
+	DONE_IF(INIT_D_CURSOR, d_cursor_done());
 	DONE_IF(INIT_FILE_FSDATA, done_file_fsdata());
 	DONE_IF(INIT_DENTRY_FSDATA, done_dentry_fsdata());
 	DONE_IF(INIT_FQS, done_fqs());
@@ -1515,6 +1543,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_fqs());
 	CHECK_INIT_RESULT(init_dentry_fsdata());
 	CHECK_INIT_RESULT(init_file_fsdata());
+	CHECK_INIT_RESULT(d_cursor_init());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	calibrate_prof();
@@ -1559,7 +1588,7 @@ MODULE_AUTHOR("Hans Reiser <Reiser@Namesys.COM>");
 MODULE_LICENSE("GPL");
 
 /* description of the reiser4 file system type in the VFS eyes. */
-static struct file_system_type reiser4_fs_type = {
+struct file_system_type reiser4_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "reiser4",
 	.fs_flags = FS_REQUIRES_DEV,
@@ -1771,13 +1800,17 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 		if (with_parent)
 			addr = decode_inode(s, addr, &parent);
 		if (!IS_ERR(addr)) {
+			struct dentry *d;
 			typeof(s->s_export_op->find_exported_dentry) fn;
 
 			fn = s->s_export_op->find_exported_dentry;
 			assert("nikita-3521", fn != NULL);
-			addr = (char *)fn(s,
-					  &object, with_parent ? &parent : NULL,
-					  acceptable, context);
+			d = fn(s, &object, with_parent ? &parent : NULL,
+			       acceptable, context);
+			if (d != NULL && !IS_ERR(d))
+				/* FIXME check for -ENOMEM */
+				reiser4_get_dentry_fsdata(d)->stateless = 1;
+			addr = (char *)d;
 		}
 	}
 
