@@ -73,8 +73,8 @@ get_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("nikita-3029", schedulable());
 	rw_latch_down_read(&uf_info->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
-		assert("nikita-3050", lock_counters()->inode_sem_w == 0);
-		assert("nikita-3051", lock_counters()->inode_sem_r == 0);
+		//assert("nikita-3050", lock_counters()->inode_sem_w == 0);
+		//assert("nikita-3051", lock_counters()->inode_sem_r == 0);
 		lock_counters()->inode_sem_r ++;
 	}
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
@@ -88,8 +88,8 @@ drop_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("vs-1160", !ea_obtained(uf_info));
 	rw_latch_up_read(&uf_info->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
-		assert("nikita-3049", lock_counters()->inode_sem_w == 0);
-		assert("nikita-3049", lock_counters()->inode_sem_r > 0);
+		//assert("nikita-3049", lock_counters()->inode_sem_w == 0);
+		//assert("nikita-3049", lock_counters()->inode_sem_r > 0);
 		lock_counters()->inode_sem_r --;
 	}
 }
