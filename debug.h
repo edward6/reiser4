@@ -411,7 +411,6 @@ extern __u32 reiser4_current_trace_flags;
  *
  */
 
-#define reiser4_stat_key_add( stat ) ST_INC_CNT( key . stat )
 #define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
 #define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode . stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
@@ -788,6 +787,12 @@ typedef struct reiser4_statistics {
 		 */
 		stat_cnt broken_seals;
 
+		/*
+		 * extent_write calls balance_dirty_pages after it modifies every page. Before that it seals node it
+		 * currently holds and uses seal_validate to lock it again. This field stores how many times
+		 * balance_dirty_pages broke that seal and caused to repease search tree traversal
+		 */
+		stat_cnt bdp_caused_repeats;
 	} extent;
 	struct {
 		/*
@@ -879,33 +884,12 @@ typedef struct reiser4_statistics {
 	 * maximal stack size ever consumed by reiser4 thread.
 	 */
 	stat_cnt stack_size_max;
-	struct {
-		/*
-		 * how many times keycmp() was called
-		 */
-		stat_cnt eq0;
-		/*
-		 * how many times keycmp() found first 64 bits of a key
-		 * equal
-		 */
-		stat_cnt eq1;
-		/*
-		 * how many times keycmp() found first 128 bits of a key
-		 * equal
-		 */
-		stat_cnt eq2;
-		/*
-		 * how many times keycmp() found equal keys
-		 */
-		stat_cnt eq3;
-	} key;
 } reiser4_stat;
 
 #else
 
 #define ON_STATS( e ) noop
 
-#define	reiser4_stat_key_add( stat ) noop
 #define	reiser4_stat_tree_add( stat ) noop
 #define	reiser4_stat_tree_level_add( level, stat ) noop
 #define reiser4_stat_znode_add( stat ) noop
@@ -934,6 +918,7 @@ extern void reiser4_print_stats(void);
 
 extern void *reiser4_kmalloc(size_t size, int gfp_flag);
 extern void reiser4_kfree(void *area, size_t size);
+extern void reiser4_kfree_in_sb(void *area, size_t size, struct super_block *sb);
 extern __u32 get_current_trace_flags(void);
 
 #if REISER4_DEBUG
@@ -942,8 +927,7 @@ extern void check_stack(void);
 #endif
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
-extern void print_lock_counters(const char *prefix,
-				const lock_counters_info * info);
+extern void print_lock_counters(const char *prefix, const lock_counters_info * info);
 #else
 #define print_lock_counters( p, i ) noop
 #endif
