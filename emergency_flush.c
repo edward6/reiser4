@@ -300,6 +300,8 @@ flushable(const jnode * node, struct page *page)
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
 
+	if (!jnode_is_dirty(node))
+		return 0;
 	if (atomic_read(&node->d_count) != 0)   /* used */
 		return 0;
 	if (jnode_is_loaded(node))              /* loaded */
