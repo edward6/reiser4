@@ -260,10 +260,7 @@ jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 		/* protect @node from recycling */
 		jref(node);
 		assert("nikita-2955", jnode_invariant(node, 1, 0));
-		if (unlikely(JF_ISSET(node, JNODE_RIP))) {
-			dec_x_ref(node);
-			node = NULL;
-		}
+		node = jnode_rip_check(tree, node);
 	}
 	rcu_read_unlock();
 	return node;
@@ -895,6 +892,22 @@ index_znode(const jnode * node)
 	return ind - PAGE_OFFSET;
 }
 
+/* resolve race with jput */
+jnode *
+jnode_rip_sync(reiser4_tree *t, jnode * node)
+{
+	if (unlikely(JF_ISSET(node, JNODE_RIP))) {
+		RLOCK_TREE(t);
+		if (JF_ISSET(node, JNODE_RIP)) {
+			dec_x_ref(node);
+			node = NULL;
+		}
+		RUNLOCK_TREE(t);
+	}
+	return node;
+}
+
+
 reiser4_key *
 jnode_build_key(const jnode * node, reiser4_key * key)
 {
@@ -1251,9 +1264,9 @@ jdelete(jnode * node /* jnode to finish with */)
 		if (page != NULL)
 			drop_page(page);
 	} else {
+		JF_CLR(node, JNODE_RIP);
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);
-		JF_CLR(node, JNODE_RIP);
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
@@ -1315,9 +1328,9 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 			page_cache_release(page);
 		}
 	} else {
+		JF_CLR(node, JNODE_RIP);
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);
-		JF_CLR(node, JNODE_RIP);
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}

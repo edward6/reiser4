@@ -665,7 +665,8 @@ jput(jnode * node)
 extern void jrelse(jnode * node);
 
 /* protect @node from e-flush */
-static inline int jprotect (jnode * node)
+static inline int 
+jprotect (jnode * node)
 {
 	int ret;
 
@@ -687,12 +688,24 @@ static inline int jprotect (jnode * node)
 }
 
 /* remove protection from e-flush */
-static inline void junprotect (jnode * node)
+static inline void 
+junprotect (jnode * node)
 {
 	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
 
 	JF_CLR(node, JNODE_EPROTECTED);
+}
+
+extern jnode *jnode_rip_sync(reiser4_tree *t, jnode * node);
+
+/* resolve race with jput */
+static inline jnode *
+jnode_rip_check(reiser4_tree *tree, jnode * node)
+{
+	if (unlikely(JF_ISSET(node, JNODE_RIP)))
+		node = jnode_rip_sync(tree, node);
+	return node;
 }
 
 extern reiser4_key * jnode_build_key(const jnode * node, reiser4_key * key);

@@ -429,10 +429,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 
 	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
-		if (unlikely(ZF_ISSET(result, JNODE_RIP))) {
-			dec_x_ref(ZJNODE(result));
-			result = NULL;
-		}
+		result = JZNODE(jnode_rip_check(tree, ZJNODE(result)));
 	}
 	rcu_read_unlock();
 
@@ -509,14 +506,10 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		add_x_ref(ZJNODE(result));
 		/* NOTE-NIKITA it should be so, but special case during
 		   creation of new root makes such assertion highly
-		   complicated.
-		*/
+		   complicated.  */
 		assert("nikita-2131", 1 || znode_parent(result) == parent ||
 		       (ZF_ISSET(result, JNODE_ORPHAN) && (znode_parent(result) == NULL)));
-		if (unlikely(ZF_ISSET(result, JNODE_RIP))) {
-			dec_x_ref(ZJNODE(result));
-			result = NULL;
-		}
+		result = JZNODE(jnode_rip_check(tree, ZJNODE(result)));
 	}
 
 	rcu_read_unlock();
