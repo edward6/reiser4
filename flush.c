@@ -102,6 +102,8 @@ struct flush_position {
 	 * to the left and the finished queue/FLUSH_BUSY to detect possible unallocated
 	 * children to the right.
 	 */
+
+	struct reiser4_io_handle * hio;
 };
 
 typedef enum {
@@ -191,6 +193,10 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_position flush_pos;
 	flush_scan right_scan;
 	flush_scan left_scan;
+	struct reiser4_io_handle hio;
+
+	init_io_handle (&hio);
+	flush_pos.hio = &hio;
 
 	atomic_inc (& flush_cnt);
 	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
@@ -356,6 +362,13 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_done (& right_scan);
 
  clean_out:
+
+	/* wait for io completion */
+	{
+		int rc = done_io_handle(&hio);
+		if (rc && ret == 0) ret = rc;
+	}
+
 	atomic_dec (& flush_cnt);
 	if (FLUSH_SERIALIZE) {
 		/*up (& flush_semaphore);*/
@@ -1677,6 +1690,8 @@ static void flush_bio_write (struct bio *bio)
 
 		end_page_writeback (pg);
 	}
+
+	io_handle_end_io (bio);
 	
 	bio_put (bio);
 }
@@ -1866,6 +1881,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 			trace_on (TRACE_FLUSH_VERB, "\n");
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
+
+			io_handle_add_bio (pos->hio, bio);
 
 			submit_bio (WRITE, bio);
 		}
