@@ -314,6 +314,8 @@ init_once(void *obj /* pointer to new inode */ ,
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
+		INIT_RADIX_TREE(&info->p.jnode_tree, GFP_ATOMIC);
+		ON_DEBUG(info->p.jnodes = 0);
 		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
 	}
 }
@@ -368,8 +370,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		spin_inode_object_init(info);
 
 		/* initizalize inode's jnode */
-		jnode_init(&info->inode_jnode, current_tree);
-		jnode_set_type(&info->inode_jnode, JNODE_INODE);
+		jnode_init(&info->inode_jnode, current_tree, JNODE_INODE);
 		atomic_set(&info->inode_jnode.x_count, 1);
 
 		return &obj->vfs_inode;
@@ -388,6 +389,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 
 	assert("vs-1220", list_empty(&info->eflushed_jnodes));
 	assert("vs-1222", info->eflushed == 0);
+	assert("vs-1428", info->jnodes == 0);
 
 	{
 		/* complete with inode's jnode */
