@@ -1111,22 +1111,18 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	spin_lock_dk( tree );
 	result = 
 		znode_contains_key_strict( node, key ) &&
 		! ZF_ISSET( node, JNODE_HEARD_BANSHEE );
-	spin_unlock_dk( tree );
 
 	if( result ) {
-		/* disallow drilling of new nodes due to extent handling */
-		h -> flags &= ~CBK_FOR_INSERT;
 		/* do lookup inside node */
 		llr = cbk_node_lookup( h );
 		/*
 		 * if cbk_node_lookup() wandered to another node (due to eottl
 		 * or non-unique keys), adjust @node
 		 */
-		assert( "nikita-2672", node == h -> active_lh -> node );
+		node = h -> active_lh -> node;
 
 		if( llr != LOOKUP_DONE ) {
 			/* restart of continue on the next level */
@@ -1185,9 +1181,10 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 {
 	int result;
+	tree_level level;
 
-	for( h -> level = h -> stop_level ; h -> level <= h -> lock_level ;
-	     ++ h -> level ) {
+	for( level = h -> stop_level ; level <= h -> lock_level ; ++ level ) {
+		h -> level = level;
 		result = cbk_cache_scan_slots( h );
 		if( result != 0 ) {
 			done_lh( h -> active_lh );
