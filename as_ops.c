@@ -137,7 +137,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	reiser4_exit_context(&ctx);
 	return 0;
 }
-
+/* VS-FIXME-HANS: shouldn't there be more assertions in this file, and the function below? */
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
 		  struct list_head *pages, unsigned nr_pages)
@@ -146,6 +146,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 
 	if (!is_in_reiser4_context()) {
 		/* no readahead in the path: handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround */
+/* VS-FIXME-HANS: this comment above means what? how about putting some better comments in this function? */
 		unsigned i;
 
 		for (i = 0; i < nr_pages; i++) {
@@ -200,13 +201,6 @@ reiser4_bmap(struct address_space *mapping, sector_t block)
    ->releasepage() */
 
 /* ->invalidatepage method for reiser4 */
-int
-reiser4_invalidatepage(struct page *page, unsigned long offset)
-{
-	int ret = 0;
-	reiser4_context ctx;
-	struct inode *inode;
-
 	/*
 	 * this is called for each truncated page from
 	 * truncate_inode_pages()->truncate_{complete,partial}_page().
@@ -214,6 +208,13 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 * At the moment of call, page is under lock, and outstanding io (if
 	 * any) has completed.
 	 */
+
+int
+reiser4_invalidatepage(struct page *page, unsigned long offset)
+{
+	int ret = 0;
+	reiser4_context ctx;
+	struct inode *inode;
 
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
@@ -364,6 +365,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 }
 
 /* reiser4 writepages() address space operation */
+
+	/* Here we can call synchronously. 
+VS-FIXME-HANS: call what?
+We can be called from balance_dirty_pages()
+	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
+	   are held, which means we can call begin jnode_flush right from there  (VS-FIXME-HANS where? ) having no
+	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
 int
 reiser4_writepages(struct address_space *mapping,
 		   struct writeback_control *wbc)
@@ -372,11 +380,6 @@ reiser4_writepages(struct address_space *mapping,
 	struct inode *inode;
 
 	reiser4_context ctx;
-
-	/* Here we can call synchronously. We can be called from balance_dirty_pages()
-	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
-	   are hold it means we can call begin jnode_flush right from there having no
-	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
 
 	init_context(&ctx, mapping->host->i_sb);
 	/* avoid recursive calls to ->sync_inodes */
@@ -431,7 +434,11 @@ struct address_space_operations reiser4_as_operations = {
 	/* called to read page from the storage when page is added into page
 	   cache  */
 	.readpage = reiser4_readpage,
-	/* This is most annoyingly misnomered method. Actually it is called
+	/* This is most annoyingly misnomered method. 
+
+VS-FIXME-HANS: then rename it.
+
+Actually it is called
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
 	*/

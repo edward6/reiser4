@@ -5,7 +5,7 @@
 Unresolved issues:
 
   how do we flag an item as being a crypto item?  Or do we make crypto items distinct item types?
-
+EDWARD-FIXME-HANS: distinct item types sounds good to me.
 
 */
 
@@ -25,6 +25,8 @@ Unresolved issues:
                |
             @tail
    returns length of tail
+
+EDWARD-FIXME-HANS: let us not have more than one meaning for a word in our filesystem (tail)
 */
 static int align_cluster_common(__u8 *tail, int clust_size, int blocksize)
 {
@@ -39,7 +41,8 @@ static int align_cluster_common(__u8 *tail, int clust_size, int blocksize)
 	return tail_size;
 }
 
-/* use this only for symmetric algorithms */
+/* use this only for symmetric algorithms 
+EDWARD-FIXME-HANS: go through all your code and write function headers that explain what the function does.  For instance, what is "scale".*/
 static loff_t scale_common(struct inode * inode UNUSED_ARG,
 			   size_t blocksize UNUSED_ARG,
 			   loff_t src_off)
@@ -66,6 +69,8 @@ static void crypt_none (__u32 *expkey UNUSED_ARG, __u8 *dst, const __u8 *src)
 	memcpy(dst, src, NONE_BLOCKSIZE);
 }
 
+/* EDWARD-FIXME-HANS: why is this not in the plugin directory? */
+
 /* crypto plugins */
 crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 	[NONE_CRYPTO_ID] = {
@@ -73,6 +78,7 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
 			.id = NONE_CRYPTO_ID,
 			.pops = NULL,
+/* EDWARD-FIXME-HANS: I don't understand the label and desc chosen, explain it. */
 			.label = "none",
 			.desc = "Id rearrangement",
 			.linkage = TS_LIST_LINK_ZERO

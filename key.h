@@ -17,11 +17,11 @@
    wrapping macro/function, and that wrapping macro/function shall
    convert to little endian order.  Compare keys will consider cpu byte order. */
 
-/* The difference between a file and an attribute, is that all of the
-   attributes of a file are near in key to all of the other attributes
-   for all of the files within that directory.  It is interesting to
-   consider whether this is the wrong approach, and whether there
-   should be no difference at all. */
+/* A storage layer implementation difference between a regular unix file body and its attributes is in the typedef below
+   which causes all of the attributes of a file to be near in key to all of the other attributes for all of the files
+   within that directory, and not near to the file itself.  It is interesting to consider whether this is the wrong
+   approach, and whether there should be no difference at all. For current usage patterns this choice is probably the
+   right one.  */
 
 /* possible values for minor packing locality (4 bits required) */
 typedef enum {
@@ -37,19 +37,16 @@ typedef enum {
 	KEY_BODY_MINOR = 4,
 } key_minor_locality;
 
-/* everything stored in the tree has a unique key, which means that
-   the tree is (logically) fully ordered by key.  Physical order is
-   determined by dynamic heuristics that attempt to reflect key order
-   when allocating available space, and by a repacker which is not yet
-   written.  It is stylistically better to put aggregation information
-   into the key.  Thus, if you want to segregate extents from tails,
-   it is better to give them distinct minor packing localities rather
-   than changing block_alloc.c to check the node type when deciding
-   where to allocate the node.  The need to randomly displace new
-   directories and large files disturbs this symmetry unfortunately.
-   However, if tails have a different minor packing locality from
-   extents, and no files have both extents and tails, maybe symmetry
-   can be had.
+/* everything stored in the tree has a unique key, which means that the tree is (logically) fully ordered by key.
+   Physical order is determined by dynamic heuristics that attempt to reflect key order when allocating available space,
+   and by the repacker.  It is stylistically better to put aggregation information into the key.  Thus, if you want to
+   segregate extents from tails, it is better to give them distinct minor packing localities rather than changing
+   block_alloc.c to check the node type when deciding where to allocate the node.  
+
+   The need to randomly displace new directories and large files disturbs this symmetry unfortunately.  However, it
+   should be noted that this is a need that is not clearly established given the existence of a repacker.  Also, in our
+   current implementation tails have a different minor packing locality from extents, and no files have both extents and
+   tails, so maybe symmetry can be had without performance cost after all.  Symmetry is what we ship for now....
 */
 
 /* Arbitrary major packing localities can be assigned to objects using

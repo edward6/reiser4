@@ -52,10 +52,12 @@ typedef struct unix_file_info {
 			     (read, readpage, writepage, write (until tail conversion is involved)) take
 			     read-lock. Accesses which modify file containerization (truncate, conversion from tail to extent and
 			     back) take write-lock. */
-	file_container_t container; /* this shows which items are used to build the file */
+	file_container_t container; /* this enum specifies which items are used to build the file */
 	struct tail_plugin *tplug; /* tail policy plugin which controls when file is to be converted to extents and back
 				      to tail */
+/* NIKITA-FIXME-HANS: this expenditure of bytes is really needed why/where? */
 	struct inode *inode;
+/* NIKITA-FIXME-HANS: comment this properly */
 	int exclusive_use;
 #if REISER4_DEBUG
 	void *ea_owner; /* pointer to task struct of thread owning exclusive
@@ -85,7 +87,7 @@ struct uf_coord {
 
 #include "../../seal.h"
 
-/* FIXME: comments */
+/* NIKITA-FIXME-HANS: comments */
 struct hint {
 	seal_t seal;
 	uf_coord_t coord;

@@ -537,6 +537,7 @@ inode_check_scale(struct inode *inode, __u64 old, __u64 new)
 	spin_unlock_inode(inode);
 }
 
+/* NIKITA-FIXME-HANS: what is ordering? */
 void
 init_inode_ordering(struct inode *inode,
 		    reiser4_object_create_data *crd, int create)

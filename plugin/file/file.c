@@ -12,7 +12,7 @@
 
 #include <linux/writeback.h>
 
-/* this file contains file plugin of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
+/* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
 
@@ -2014,7 +2014,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 }
 
 /* plugin->u.file.can_add_link = common_file_can_add_link */
-
+/* VS-FIXME-HANS: why does this always resolve to extent pointer?  this wrapper serves what purpose?  get rid of it. */
 /* plugin->u.file.readpages method */
 void
 readpages_unix_file(struct file *file, struct address_space *mapping,
@@ -2049,7 +2049,7 @@ init_inode_data_unix_file(struct inode *inode,
 #endif
 	init_inode_ordering(inode, crd, create);
 }
-
+/* VS-FIXME-HANS: what is pre deleting all about? */
 /* plugin->u.file.pre_delete */
 int
 pre_delete_unix_file(struct inode *inode)
