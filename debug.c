@@ -67,6 +67,7 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
  */
 int preempt_point( void )
 {
+	assert("green-40", lock_counters() -> spin_locked == 0 );
 	cond_resched();
 	return signal_pending( current );
 }
