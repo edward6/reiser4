@@ -11,7 +11,9 @@
 #include "kattr.h"
 #include "super.h"
 #include "repacker.h"
+#include "tree.h"
 #include "tree_walk.h"
+#include "znode.h"
 
 struct repacker {
 	struct super_block * super;
@@ -26,7 +28,7 @@ struct repacker_stats {
 	long blocks_processed;
 };
 
-static int repacker_actor(void * arg)
+static int repacker_actor(znode * node, void * arg)
 {
 	struct repacker_stats * stats = arg;
 	stats->blocks_processed ++;

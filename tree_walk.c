@@ -752,7 +752,12 @@ sibling_list_insert(znode * new, znode * before)
 	UNDER_RW_VOID(tree, znode_get_tree(new), write, 
 		      sibling_list_insert_nolock(new, before));
 }
-
+struct tree_walk_handle {
+	reiser4_key       start_key;
+	tap_t             tap;
+	tree_walk_actor_t actor;
+	void            * opaque;
+};
 
 /* it locks the root node, handles the restarts inside */
 static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
@@ -787,78 +792,107 @@ static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
 	return ret;
 }
 
-/* Reiser4 tree walker. */
-
-int tree_walk(const reiser4_key * start_key, int (*actor)(void*), void * opaque)
+/* Move tap to the next node, load it. */
+static int go_next_node (struct tree_walk_handle * h, lock_handle * lock, const coord_t * coord)
 {
-	// reiser4_key last_processed_key;
-	lock_handle   lock;
-	coord_t       coord;
-	int           ret;
+	int ret;
 
-	znode      * next_node;
-	lock_handle  next_lock;
+	assert ("zam-948", ergo (coord != NULL, lock->node == coord->node));
 
-	tap_t tap;
+	tap_relse(&h->tap);
 
-	/* Start from the tree root */
-	init_lh(&lock);
-	ret = lock_tree_root(&lock, ZNODE_WRITE_LOCK);
+	ret = tap_move(&h->tap, lock);
 	if (ret)
 		return ret;
-	tap_init(&tap, &coord, &lock, ZNODE_WRITE_LOCK);
-	coord_init_first_unit(&coord, lock.node);
+
+	ret = tap_load(&h->tap);
+	if (ret)
+		goto error;
+
+	if (coord)
+		coord_dup(h->tap.coord, coord);
+	else {
+		coord_init_first_unit(h->tap.coord, lock->node);
+		ret = (h->actor)(lock->node, h->opaque);
+		if (ret)
+			goto error;
+
+		h->start_key = lock->node->ld_key;
+
+	}
+
+ error:
+	done_lh(lock);
+	return ret;
+}
+
+/* Traverse the reiser4 tree until either all tree traversing is done or an
+ * error encountered (including recoverable ones as -EDEADLK or -EAGAIN).  The
+ * @actor function is able to stop tree traversal by returning an appropriate
+ * error code. */
+static int tree_walk_by_handle (struct tree_walk_handle * h)
+{
+	int ret;
+	lock_handle next_lock;
+
+	ret = tap_load(&h->tap);
+	if (ret)
+		return ret;
+
+	init_lh (&next_lock);
 
 	while (1) {
 		item_plugin * iplug;
 		tree_level level;
 
-		if (coord_is_after_rightmost(&coord)) {
-			/* go upward */
-			ret = reiser4_get_parent(&next_lock, lock.node, ZNODE_WRITE_LOCK, 0);
+		if (coord_is_after_rightmost(h->tap.coord)) {
+			coord_t parent_coord;
+
+			ret = reiser4_get_parent(&next_lock, h->tap.lh->node, ZNODE_WRITE_LOCK, 0);
 			if (ret)
 				break;
 
 			if (znode_above_root(next_lock.node))
 				break;
 
-			ret = find_child_ptr(lock.node, next_lock.node, &coord);
+			ret = zload(next_lock.node);
 			if (ret)
 				break;
-			done_lh(&lock);
-			move_lh(&lock, &next_lock);
-
+			ret = find_child_ptr(next_lock.node, h->tap.lh->node, &parent_coord);
+			zrelse(next_lock.node);
+			if (ret)
+				break;
+			ret = go_next_node(h, &next_lock, &parent_coord);
+			if (ret)
+				break;
+			coord_next_unit(h->tap.coord);
 			continue;
 		}
 
-		assert ("zam-944", coord_is_existing_unit(&coord));
+		assert ("zam-944", coord_is_existing_unit(h->tap.coord));
 
-		iplug = item_plugin_by_coord(&coord);
+		iplug = item_plugin_by_coord(h->tap.coord);
 
-		ret = actor(opaque);
-		if (ret)
-			break;
-
-		level = znode_get_level(lock.node);
+		level = znode_get_level(h->tap.lh->node);
 
 		if (level == LEAF_LEVEL) {
-			coord_init_after_last_item(&coord, lock.node);
+			coord_init_after_last_item(h->tap.coord, h->tap.coord->node);
 			continue;
 		}
 
-		if (item_is_extent(&coord)) {
-			/*  */
-			coord_next_unit(&coord);
+		if (item_is_extent(h->tap.coord)) {
+			coord_next_unit(h->tap.coord);
 			continue;
 		} else {
 			reiser4_block_nr block;
 			lock_handle next_lock;
+			znode * next_node;
 
-			assert ("zam-943", item_is_internal(&coord));
+			assert ("zam-943", item_is_internal(h->tap.coord));
 
-			iplug->s.internal.down_link(&coord, NULL, &block);
+			iplug->s.internal.down_link(h->tap.coord, NULL, &block);
 
-			next_node = zget(current_tree, &block, lock.node, level - 1, GFP_KERNEL);
+			next_node = zget(current_tree, &block, h->tap.lh->node, level - 1, GFP_KERNEL);
 			if (IS_ERR(next_node)) {
 				ret = PTR_ERR(next_node);
 				break;
@@ -870,20 +904,59 @@ int tree_walk(const reiser4_key * start_key, int (*actor)(void*), void * opaque)
 			if (ret)
 				break;
 
-			done_lh(&lock);
-			move_lh(&lock, &next_lock);
-
-			coord_init_first_unit(&coord, lock.node);
+			ret = go_next_node (h, &next_lock, NULL);
+			if (ret)
+				break;
 		}
 	}
 
-	done_lh(&lock);
 	done_lh(&next_lock);
-
 	return ret;
 }
 
- 
+
+/* Walk the reiser4 tree in parent-first order */
+int tree_walk (const reiser4_key *start_key, tree_walk_actor_t actor, void * opaque)
+{
+	coord_t coord;
+	lock_handle lock;
+	struct tree_walk_handle handle;
+
+	int ret;
+
+	ON_DEBUG(xmemset(&handle, 0, sizeof (struct tree_walk_handle)));
+
+	handle.actor = actor;
+	handle.opaque = opaque;
+
+	init_lh(&lock);
+
+	if (start_key == NULL) {
+		ret = lock_tree_root(&lock, ZNODE_WRITE_LOCK);
+		if (ret)
+			return ret;
+		coord_init_first_unit_nocheck(&coord, lock.node);
+		handle.start_key = lock.node->ld_key;
+		goto no_start_key;
+	} else {
+		handle.start_key = *start_key;
+	}
+
+	do {
+		ret = coord_by_key(current_tree, &handle.start_key, &coord, &lock, ZNODE_WRITE_LOCK,
+				   FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 0, NULL);
+		if (ret != CBK_COORD_FOUND)
+			break;
+	no_start_key:
+		tap_init(&handle.tap, &coord, &lock, ZNODE_WRITE_LOCK);
+		ret = tree_walk_by_handle(&handle);
+		tap_done (&handle.tap);
+
+	} while (ret == -EDEADLK || ret == -EAGAIN);
+
+	done_lh(&lock);
+	return ret;
+}
 
 
 /*
@@ -892,6 +965,6 @@ int tree_walk(const reiser4_key * start_key, int (*actor)(void*), void * opaque)
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    End:
 */
