@@ -1996,9 +1996,9 @@ static void reiser4_kill_super (struct super_block *s)
 			info_jnode ("\nafter umount", busy);
 		}
 	}
-	if( info -> kmalloc_allocated > 0 )
-		warning( "nikita-2622", "%i bytes still allocated",
-			 info -> kmalloc_allocated );
+	if (info->kmalloc_allocated > 0)
+		warning ("nikita-2622", "%i bytes still allocated",
+			 info -> kmalloc_allocated);
 #endif
 
 	if (reiser4_is_debugged (s, REISER4_STATS_ON_UMOUNT))
