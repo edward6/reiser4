@@ -1331,11 +1331,6 @@ enum bh_state_bits {
 			 */
 };
 
-int ulevel_read_node( reiser4_tree *tree, jnode *node );
-int ulevel_allocate_node( reiser4_tree *tree, jnode *node );
-int ulevel_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG );
-int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG );
-
 /* include/linux/bio.h */
 struct bio;
 typedef void (bio_end_io_t) (struct bio *);
