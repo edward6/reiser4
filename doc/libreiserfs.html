@@ -552,7 +552,7 @@ current operation) then control will be passed onto highest level (the level of 
 project). And than "master" project have to deside what it will be doing. As usual it's actions
 are following: report about exception and going to finalization.</p>
 
-<p>However more smart behavior may implemented too.</p>
+<p>However more smart behavior may be implemented too.</p>
 </td></tr></table>
 
 <h3>Exceptions in libreiserfs.</h3>
@@ -826,11 +826,12 @@ progress information will looks like this:</p>
 <h3>Memory allocation.</h3>
 <table width=70%><tr><td align=justify>
 <p>In order to using libreiserfs in bootloaders (Yaboot, GNU GRUB, etc), which 
-are working without libc and kernel, libreiserfs should have a mechanism for 
-using memory allocation functions which actualy implemented by its "master" 
-project (some bootloader in this case). As usual, a project oriented to be working
-alone (without libc and kernel) has its own memory management subsystem. Therefore,
-we may be using its memory allocation subsystem for libreiserfs.</p>
+are working without libc and kernel, and can't use standard memory allocation factory,
+libreiserfs should have a mechanism for using memory allocation functions which 
+actualy implemented by its "master" project (some bootloader in this case). As usual, 
+a project oriented to be working alone (without libc and kernel) has its own memory 
+management subsystem. Therefore, we may be using its memory allocation subsystem for 
+libreiserfs.</p>
 
 <p>This mechanism is based on installable memory-allocation functions, which 
 will be called for every time, when memory will be allocated on freed in libreiserfs.</p>
@@ -933,9 +934,9 @@ void milo_libreiserfs_init() {
 are working alone (without libc), we need to reimplement in libreiserfs some 
 string-working functions and memory-working functions which are used by libreiserfs.</p>
 
-<p>Using of our own memory-working functions and string-working functions will be 
-activating by including "-nostdlib" option into linking parameters. By default, will 
-be using standard functions.</p>
+<p>Using of our own implementation of memory-working functions and string-working 
+functions will be activating by including "-nostdlib" option into linking parameters. 
+By default, will be using standard functions.</p>
 
 <p>Memory working functions will be using memory allocation factory and will be following:<br>
 memcpy(), memset(), memcmp(), memmove()</p>
@@ -957,8 +958,27 @@ void *memcpy(void *dest, const void *src, size_t n) {
 strlen(), strcmp(), strncmp(), strncat(), strchr().
 </p>
 
-<p>Or we may follow yet another way. This way is to delegate these functions (see above) to be
-implemented by the "master" project. We have to discuss it.</p>
+<p>There are few reasons why libreiserfs should implement these functions:</p>
+
+<ul>
+	<li>as usual these functions not implemened in "alone" applications at all or implemented
+	in minimal maner. Implemented set is not quite sufficient for libreiserfs.
+	<li>all "alone" applications should implement these functions in order to use libreiserfs.
+	This is an additional condition for using libreiserfs and this condition makes using 
+	of libreiserfs more complex. Because of this additional condition, some projects may
+	decline to use libreiserfs.
+</ul>
+
+<p>Or we may follow yet another way. This way is to delegate implementation of these 
+functions to the "master" project.</p>
+
+<p>There are few reasons why libreiserfs haven't to implement these functions.</p>
+
+<ul>
+	<li>implementation of these functions in libreiserfs causes libreiserfs code to be
+	growed.
+	<li>bad portability.
+</ul>
 
 </td</tr></table>
 	
@@ -994,7 +1014,7 @@ read the root block, and check it for validness; return initialized filesystem i
 may be used for working with corresponding filesystem. It may be resized, copied, tuned, etc.
 Also filesystem may be checked for errors on it. Checking for errors on the underlying 
 filesystem may be performed by "reiserfs_fs_check" function. This function may perform
-basic checks or more complex checks or even filesystem rebuilding.
+basic checks or more complex checks or even tree-rebuilding.
 </p>
 
 <p>Filesystem initialization (opening) and finalization will roughly look:</p>
@@ -1096,22 +1116,24 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
 order to support format-variable journal we need the journal 
 plugin.</p>
 
-<p>I assume, that any format of journal will support at least
-following properties: journal  will  be  transaction-based
-and journal can be opened and closed.</p>
+<p>Opening (initialization) of the journal  will include reading the journal header,
+checking it for validness. Possibly it will build journal cache, or something else. 
+The journal behavior fully depends on the journal plugin. Then journal plugin will 
+prepare initialized journal instance and will returns it to caller.</p>
 
-<p>Opening (initialization) will include reading the journal header,
-checking it for validness. Possibly it will build journal
-cache, or something else. The journal behavior fully depends on 
-the journal plugin. Then journal plugin  will prepare initialized 
-journal instance and will returns it to caller.</p>
+<p>Journal plugin interface will depends on common journal parameters for every journal 
+format. As reiser4 will support old journal format, journal plugin must export interface 
+to obtain such parameters: start, length, max_trans_size, etc. Also interface must let 
+to do something with the journal (tuning, resizing, etc).</p>
 
-<p>Journal plugin interface will depends on common journal 
-parameters for every journal format. As reiser4 will support 
-old journal format, journal plugin must export interface to 
-obtain such parameters: start, length, max_trans_size, etc. 
-Also interface must let to do something with the journal 
-(tuning, resizing, etc).</p>
+<p>Journal plugin will consist of two main part:</p>
+
+<ul>
+	<li>common part (the part that will exist in all formats).
+	<li>deprecated part (the part that needed by reiser3 journal format).
+</ul>
+
+<p>Journal plugin will roughly look:</p>
 
 <pre>
 typedef void reiserfs_opaque_t;
@@ -1124,10 +1146,9 @@ struct reiserfs_journal_plug {
 	/* Journal routines which are common in reiser3 and reiser4 journal format */
 	int (*replay) (reiserfs_opaque_t *, int is_replay);
 	int (*alterable) (reiserfs_opaque_t *);
-
-	/* Journal routines which are specific for reiser3 journal format */
 	int (*switch) (dal_t *dal);
-	
+
+	/* Deprecated part. Needed for reiser3 journal format. */
 	blk_t (*get_start) (reisrefs_opaque_t *);
 	void (*set_start) (reiserfs_opaque_t *, blk_t start);
 	
@@ -1164,7 +1185,7 @@ and returns initialized journal instance.</p>
 
 <b>int (*switch) (dal_t *dal)</b>
 
-<p>Switches journal in reiser3 onto specified device. Returns "true" on success
+<p>Switches journal onto specified device. Returns "true" on success
 or "false" on failure.</p>
 
 <b>blk_t (*get_start) (reisrefs_opaque_t *)<br>
@@ -1259,17 +1280,17 @@ void reiserfs_journal_close(reiserfs_journal_t *journal) {
 </pre>
 </td></tr></table>
 
-<h3>Disk-Format plugin. Superblock API.</h3>
+<h3>Disk-Format (Disk-Layout) plugin. Superblock API.</h3>
 
 <table width=70%><tr><td align=justify>
 <p>Disk-Format plugin defines following components of the filesystem:</p>
 		
 <ul>
-	<li>Where the superblock lies on device. What the format the superblock has.
+	<li>Where the superblock lies on device. What is its format.
 	<li>Where is journal header block and what is the format of the journal. What
 is journal plugin using at the moment.
 	<li>Where is root node block.
-	<li>What the plugin is usined for oid allocator.
+	<li>What the plugin is used for oid allocator.
 </ul>
 
 <p>As opening the filesystem directly dependends on disk-format, all available 
@@ -1285,6 +1306,8 @@ struct reiserfs_layout_plug {
 	reiserfs_opaque_t *(*init) (dal_t *);
 	void (*done) (reiserfs_opaque_t *);
 
+	reiserfs_key_t *(*get_rootdir_key) (reiserfs_opaque_t *); 
+	
 	uint16_t (*alloc_plug_id) (reiserfs_opaque_t *);
 	uint16_t (*oid_plug_id) (reiserfs_opaque_t *);
 	uint16_t (*journal_plug_id) (reiserfs_opaque_t *);
@@ -1320,6 +1343,10 @@ typedef struct reiserfs_layout_plug reiserfs_layout_plug_t;
 <p>Returns oid allocator plugin's ID. Will be used in order
 to find oid allocator plugin in plugins cashe and plugins
 map.</p>
+
+<b>reiserfs_key_t *(*get_rootdir_key) (reiserfs_opaque_t *)</b>
+
+<p>Returns root directory key.</p>
 
 <b>uint16_t (*alloc_plug_id) (reiserfs_opaque_t *)</b>
 
@@ -1491,7 +1518,26 @@ if an callback function returns "bool" false value.</p>
 relocating (relocates specified region of the balanced tree onto other specified region), 
 journal resizing, journal relocating, etc.</p>
 
-<p>There will be routines for modifying the balanced tree (We have to discuss it).</p>
+<b>int reiserfs_tree_insert_node(reiserfs_tree_t *tree, reiserfs_node_t *node)</b>
+
+<p>Inserts previously composed node into the tree corresponding to its key. 
+Returns result of operation: "true" on success or "false" on failure.</p>
+
+<b>int reiserfs_tree_insert_item(reiserfs_tree_t *tree, reiserfs_item_t *item)</b>
+
+<p>Inserts specified item into the tree in corresponding to item's key.
+Returns result of operation: "true" on success or "false" on failure.</p>
+
+<b>int reiserfs_tree_delete_node(reiserfs_tree_t *tree, reiserfs_key_t *key)</b>
+
+<p>Remomes node by specified key from the tree. Returns result of operation: "true" on success 
+or "false" on failure.</p>
+
+<b>int reiserfs_tree_delete_item(reiserfs_tree_t *tree, reiserfs_key_t *key)</b>
+
+<p>Remomes item by specified key from the tree. Returns result of operation: "true" on success 
+or "false" on failure.</p>
+
 </td></tr></table>
 
 <h3>Plugins map.</h3>
@@ -1706,9 +1752,13 @@ bootloadeds.</p>
 file and directory access code. All modifying code (resizing, copying, tree 
 modifying, etc), block allocator code, oid allocator code will be skiped. 
 The acceptable size for libreiserfs built in compact maner and without libc code 
-should be about 10k.</p>
+should be about 10k. This numver was choosed as evarage filesystem-code size in
+some bootloader. If our reiserfs code will take more than 10k then no one project
+will be using it.</p>
 
-<p>Compact building will be turned on by some option in configure time.</p>
+<p>Compact building will be turned on by "--compact" option in configure time.<br><br>
+<i>./configure --compact && make && make install</i>
+</p>
 </td></tr></table>
 
 <h3>Builtin plugins.</h3>
@@ -1733,12 +1783,6 @@ make install</i></p>
 </td></tr></table>
 
 <h3>Builtin plugins implementation.</h3>
-
-<table width=70%><tr><td align=justify>
-<p>Not implemented yet!</p>
-</td></tr></table>
-
-<h3>Common plugins source branch for user-space and kernel-space purposes.</h3>
 
 <table width=70%><tr><td align=justify>
 <p>Not implemented yet!</p>
