@@ -1870,7 +1870,10 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				/* FIXME: Use TestClearPageDirty? */
 				assert ("jmacd-74233", !PageWriteback (pg));
-				assert ("jmacd-74234", PageDirty (pg));
+				/*
+				 * FIXME-VS: page can be not dirty: do_writepages clears dirty bit
+				 */
+				/*assert ("jmacd-74234", PageDirty (pg));*/
 				ClearPageDirty (pg);
 				SetPageWriteback (pg);
 				unlock_page (pg);
