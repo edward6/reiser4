@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# This is taken from an example given in "bk help triggers" to prevent
+# malicious or dangerous triggers from being pushed.
+
+if test X$BK_STATUS = XDRYRUN -o X$BK_STATUS = XNOTHING; then
+    exit 0
+fi
+
+if test $BK_SIDE = client; then
+    exit 0
+fi
+
+if test `bk sfiles BitKeeper/triggers | wc -l` -gt 0; then
+    echo Triggers may not be pushed.
+    exit 2
+fi
+
+exit 0
