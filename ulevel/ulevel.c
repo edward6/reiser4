@@ -2453,7 +2453,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	assert( "nikita-1096", tree != NULL );
 
 	if( !strcmp( argv[ 2 ], "clean" ) ) {
-		ret = cut_tree( tree, min_key(), max_key() );
+		ret = cut_tree( tree, min_key(), max_key(), NULL );
 		printf( "result: %i\n", ret );
 	} else if( !strcmp( argv[ 2 ], "print" ) ) {
 		print_tree_rec( "tree", tree, (unsigned) atoi( argv[ 3 ] ) );
@@ -2752,7 +2752,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			done_lh( &lh );
 		}
-		ret = cut_tree( tree, min_key(), max_key() );
+		ret = cut_tree( tree, min_key(), max_key(), NULL );
 		printf( "result: %i\n", ret );
 		// print_tree_rec( "tree:cut", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "sizeof" ) ) {
@@ -3799,7 +3799,7 @@ static int bash_mkfs (char * file_name)
 			set_key_objectid (&to, get_key_objectid (&to) - 1);
 			set_key_offset (&to, get_key_offset (max_key ()));
 
-			result = cut_tree (tree, &from, &to);
+			result = cut_tree (tree, &from, &to, NULL);
 			if (result)
 				return result;
 

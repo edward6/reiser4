@@ -1536,8 +1536,8 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 
 		/* Break long cut_tree operation (deletion of a large file) if
 		 * atom requires commit. */
-		if (iterations > CUT_TREE_MIN_ITERATIONS 
-		    && current_atom_should_commit()) 
+		if (iterations > CUT_TREE_MIN_ITERATIONS
+		    && current_atom_should_commit())
 		{
 			result = -E_REPEAT;
 			break;
@@ -1621,8 +1621,8 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 	do {
 		/* Find rightmost item to cut away from the tree. */
 		result = object_lookup(
-			object, to_key, &right_coord, &lock, 
-			ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, 
+			object, to_key, &right_coord, &lock,
+			ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL,
 			LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
 		if (result != CBK_COORD_FOUND)
 			break;
@@ -1658,12 +1658,13 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 /* repeat cut_tree_object until everything is deleted. unlike cut_file_items, it
  * does not end current transaction if -E_REPEAT is returned by
  * cut_tree_object. */
-int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to)
+int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
+	     struct inode *inode)
 {
 	int result;
 
 	do {
-		result = cut_tree_object(tree, from, to, NULL, NULL);
+		result = cut_tree_object(tree, from, to, NULL, inode);
 	} while (result == -E_REPEAT);
 
 	return result;
