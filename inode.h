@@ -120,6 +120,7 @@ typedef struct reiser4_inode {
 	/* compression plugin */
 	/* 112 */compression_plugin *compression;
 	/* 116 */
+	struct list_head moved_pages;
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;

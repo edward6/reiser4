@@ -614,7 +614,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			/*
 			 * page dirtied via mapping?
 			 * shrink_list cleared page dirty bit and moved page to locked_pages list?
-			 * put it back to place from where reiser4_writepages will be able to capture it from (io_pages list, namely)
+			 * put it back to place from where reiser4_writepages will be able to capture it from (moved_pages list, namely)
 			 */
 			page->mapping->a_ops->set_page_dirty(page);
 			reiser4_unlock_page(page);
