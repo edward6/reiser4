@@ -2136,8 +2136,7 @@ jnode_set_dirty(jnode * node)
 				       level <= REAL_MAX_ZTREE_HEIGHT);
 
 				capture_list_remove(node);
-				capture_list_push_back(&atom->
-						       dirty_nodes[level],
+				capture_list_push_back(&atom->dirty_nodes[level],
 						       node);
 
 				spin_unlock_atom(atom);
