@@ -11,6 +11,7 @@
 #include "../dformat.h"
 #include "../key.h"
 #include "../type_safe_list.h"
+#include "../compress.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
 #include "item/internal.h"
@@ -434,11 +435,13 @@ typedef struct compression_plugin {
 	plugin_header h;
 	/* the maximum number of bytes the size of the "compressed" data can
 	 * exceed the uncompressed data. */
-	unsigned overrun;	
+	unsigned overrun;
+	int (*alloc) (void ** ctx, tfm_action act);
+	void (*free) (void ** ctx, tfm_action act);
 	/* main text processing procedures */
-	void (*compress) (__u8 *src_first, unsigned src_len,
+	void (*compress) (void * ctx, __u8 *src_first, unsigned src_len,
 			  __u8 *dst_first, unsigned *dst_len);
-	void (*decompress) (__u8 *src_first, unsigned src_len,
+	void (*decompress) (void * ctx, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
 }compression_plugin;
 
@@ -659,6 +662,7 @@ typedef enum {
 typedef enum {
 	NONE_COMPRESSION_ID,
 	LZRW1_COMPRESSION_ID,
+	GZIP6_COMPRESSION_ID,
 	LAST_COMPRESSION_ID
 } reiser4_compression_id;
 
