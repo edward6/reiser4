@@ -330,12 +330,13 @@ int cde_estimate( const new_coord *coord /* coord of item */,
 
 	result += e -> num_of_entries * 
 		( sizeof( cde_unit_header ) + sizeof( directory_entry_format ) );
-	for( i = 0 ; i < e -> num_of_entries ; ++i )
+	for( i = 0 ; i < e -> num_of_entries ; ++i ) {
 		/* AUDIT Huh?! Why to use expensive strlen() thing if there is
 		   ...name -> len already? */
 		assert( "nikita-2054", 
 			strlen( e -> entry[ i ].name -> name ) == e -> entry[ i ].name -> len );
 		result += e -> entry[ i ].name -> len + 1;
+	}
 	( ( reiser4_item_data * ) data ) -> length = result;
 	return result;
 }
