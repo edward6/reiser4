@@ -197,8 +197,8 @@ typedef struct {
 	void (*update) (const coord_t *, const reiser4_block_nr *);
 	/* count unformatted nodes per item for leave relocation policy, etc.. */
 	int (*scan) (flush_scan * scan);
-	/* squeeze by unformatted child */
-	int (*squeeze) (flush_pos_t * pos);
+	/* convert item by flush */
+	int (*convert) (flush_pos_t * pos);
 	/* backward mapping from jnode offset to a key.  */
 	int (*key_by_offset) (struct inode *, loff_t, reiser4_key *);
 } flush_ops;

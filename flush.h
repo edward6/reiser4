@@ -94,20 +94,20 @@ typedef enum {
 	DC_AFTER_CLUSTER = 3
 } dc_item_stat;
 
-typedef struct squeeze_item_info {
+typedef struct convert_item_info {
 	dc_item_stat d_cur;  /* status of the current item */
 	dc_item_stat d_next; /* status of the next slum item */
 	struct inode * inode;
 	flow_t flow;
-} squeeze_item_info_t;
+} convert_item_info_t;
 
-typedef struct squeeze_info {
+typedef struct convert_info {
 	int                    count; /* for squalloc terminating */
 	coa_set                coa;   /* specific info of compression algorithms */
 	reiser4_cluster_t      clust;   /* transform cluster */
 	item_plugin *          iplug; /* current item plugin */
-	squeeze_item_info_t *  itm;   /* current item info */
-} squeeze_info_t;
+	convert_item_info_t *  itm;   /* current item info */
+} convert_info_t;
 
 typedef enum flush_position_state {
 	POS_INVALID,		/* Invalid or stopped pos, do not continue slum
@@ -152,7 +152,7 @@ struct flush_position {
 
 	znode * prev_twig;	/* previous parent pointer value, used to catch
 				 * processing of new twig node */
-	squeeze_info_t * sq;    /* squeeze info */
+	convert_info_t * sq;    /* convert info */
 
 	unsigned long pos_in_unit; /* for extents only. Position
 				      within an extent unit of first
@@ -160,36 +160,36 @@ struct flush_position {
 };
 
 static inline int
-item_squeeze_count (flush_pos_t * pos)
+item_convert_count (flush_pos_t * pos)
 {
 	return pos->sq->count;
 }
 static inline void
-inc_item_squeeze_count (flush_pos_t * pos)
+inc_item_convert_count (flush_pos_t * pos)
 {
 	pos->sq->count++;
 }
 static inline void
-set_item_squeeze_count (flush_pos_t * pos, int count)
+set_item_convert_count (flush_pos_t * pos, int count)
 {
 	pos->sq->count = count;
 }
 static inline item_plugin *
-item_squeeze_plug (flush_pos_t * pos)
+item_convert_plug (flush_pos_t * pos)
 {
 	return pos->sq->iplug;
 }
 
-static inline squeeze_info_t * 
-squeeze_data (flush_pos_t * pos)
+static inline convert_info_t * 
+convert_data (flush_pos_t * pos)
 {
 	return pos->sq;
 }
 
-static inline squeeze_item_info_t *
-item_squeeze_data (flush_pos_t * pos)
+static inline convert_item_info_t *
+item_convert_data (flush_pos_t * pos)
 {
-	assert("edward-955", squeeze_data(pos));
+	assert("edward-955", convert_data(pos));
 	return pos->sq->itm;
 }
 
@@ -213,11 +213,11 @@ chain_next_node(flush_pos_t * pos) {
 	int result = 0;
 
 	assert("edward-1007", 
-	       squeeze_data(pos) && item_squeeze_data(pos));
+	       convert_data(pos) && item_convert_data(pos));
 	assert("edward-1008", 
 	       pos->coord.item_pos == coord_num_items(&pos->coord) - 1);
 	
-	switch (item_squeeze_data(pos)->d_next) {
+	switch (item_convert_data(pos)->d_next) {
 	case DC_CHAINED_ITEM:
 		result = 1;
 		break;
@@ -231,54 +231,56 @@ chain_next_node(flush_pos_t * pos) {
 }
 
 static inline void
-move_item_squeeze_data(flush_pos_t * pos, 
+move_item_convert_data(flush_pos_t * pos, 
 		       int this_node /* where is next item */) {
 	
-	assert("edward-1010", squeeze_data(pos) && item_squeeze_data(pos));
+	assert("edward-1010", convert_data(pos) && item_convert_data(pos));
 	
 	if (this_node == 0) {
 		/* next item is on the right neighbor */
 		assert("edward-1011", 
-		       item_squeeze_data(pos)->d_cur == DC_FIRST_ITEM ||
-		       item_squeeze_data(pos)->d_cur == DC_CHAINED_ITEM);
+		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
+		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
 		assert("edward-1012", 
-		       item_squeeze_data(pos)->d_next == DC_CHAINED_ITEM);
+		       item_convert_data(pos)->d_next == DC_CHAINED_ITEM);
 		
-		item_squeeze_data(pos)->d_cur = DC_CHAINED_ITEM;
-		item_squeeze_data(pos)->d_next = DC_UNKNOWN_ITEM;
+		item_convert_data(pos)->d_cur = DC_CHAINED_ITEM;
+		item_convert_data(pos)->d_next = DC_UNKNOWN_ITEM;
 	} else {
 		/* next item is on the same node */ 
 		
 		assert("edward-1013",
-		       item_squeeze_data(pos)->d_next == DC_AFTER_CLUSTER ||
-		       item_squeeze_data(pos)->d_next == DC_UNKNOWN_ITEM);
+		       item_convert_data(pos)->d_next == DC_AFTER_CLUSTER ||
+		       item_convert_data(pos)->d_next == DC_UNKNOWN_ITEM);
 		
-		item_squeeze_data(pos)->d_cur = DC_AFTER_CLUSTER;
+		item_convert_data(pos)->d_cur = DC_AFTER_CLUSTER;
 	}
 }
 
 static inline int
-should_squeeze_node(flush_pos_t * pos, znode * node)
+should_convert_node(flush_pos_t * pos, znode * node)
 {
-	return znode_squeezable(node);
+	return znode_convertible(node);
 }
 
-/* true if there is attached squeeze item info */
+/* true if there is attached convert item info */
 static inline int
-should_squeeze_next_node(flush_pos_t * pos, znode * node)
+should_convert_next_node(flush_pos_t * pos, znode * node)
 {
-	return squeeze_data(pos) && item_squeeze_data(pos);
+	return convert_data(pos) && item_convert_data(pos);
 }
 
-#define SQUALLOC_THRESHOLD 256 
+#define SQUALLOC_THRESHOLD 256
 
 static inline int
 should_terminate_squalloc(flush_pos_t * pos)
 {
-	return pos->sq && !item_squeeze_data(pos) && pos->sq->count >= SQUALLOC_THRESHOLD;
+	return convert_data(pos) &&
+		!item_convert_data(pos) &&
+		item_convert_count(pos) >= SQUALLOC_THRESHOLD;
 }
 
-void free_squeeze_data(flush_pos_t * pos);
+void free_convert_data(flush_pos_t * pos);
 /* used in extent.c */
 int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const coord_t * parent);
 int scan_finished(flush_scan * scan);
@@ -298,12 +300,12 @@ const char *jnode_tostring(jnode * node);
 #if REISER4_DEBUG
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
-extern void item_squeeze_invariant(flush_pos_t * pos);
+extern void item_convert_invariant(flush_pos_t * pos);
 extern void check_pos(flush_pos_t *pos);
 #else
 #define check_preceder(b) noop
 #define check_pos(pos) noop
-#define item_squeeze_invariant(pos) noop
+#define item_convert_invariant(pos) noop
 #endif
 
 /* __REISER4_FLUSH_H__ */

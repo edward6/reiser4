@@ -277,8 +277,8 @@ typedef enum {
 	/* Jnode is marked for repacking, that means the reiser4 flush and the
 	 * block allocator should process this node special way  */
 	JNODE_REPACK = 23,
-	/* enable node squeezing */
-	JNODE_SQUEEZABLE = 24,
+	/* node should be converted by flush in squalloc phase */
+	JNODE_CONVERTIBLE = 24,
 
 	JNODE_SCANNED = 25,
 	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 26,
@@ -435,9 +435,9 @@ extern flush_queue_t * pos_fq(flush_pos_t * pos);
 #define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
 #define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
 
-/* the node should be squeezed during flush squalloc phase */
-#define jnode_squeezable(node)        JF_ISSET (node, JNODE_SQUEEZABLE)
-#define jnode_set_squeezable(node)    JF_SET (node, JNODE_SQUEEZABLE)
+/* the node should be converted during flush squalloc phase */
+#define jnode_convertible(node)        JF_ISSET (node, JNODE_CONVERTIBLE)
+#define jnode_set_convertible(node)    JF_SET (node, JNODE_CONVERTIBLE)
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros
    because C doesn't allow overloading of const prototypes. */

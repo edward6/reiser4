@@ -116,7 +116,7 @@ free_ts_data(tfm_stream_t * stm)
 	memset(stm, 0, sizeof *stm);
 }
 
-/* Write modes for item conversion in flush squeeze phase */
+/* Write modes for item conversion in flush convert phase */
 typedef enum {
 	CRC_FIRST_ITEM = 1,
 	CRC_APPEND_ITEM = 2,

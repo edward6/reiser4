@@ -204,7 +204,7 @@ static int prepare_repacking_session (void * arg)
 /* When the repacker goes backward (from the rightmost key to the leftmost
  * one), it does relocation of all processed nodes to the end of disk.  Thus
  * repacker does what usually the reiser4 flush does but in backward direction
- * and node squeezing is not supported. */
+ * and node converting is not supported. */
 static int process_znode_backward (tap_t * tap, void * arg)
 {
 	lock_handle parent_lock;

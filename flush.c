@@ -943,7 +943,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Check jnode state after flush_scan completed. Having a lock on this
 	   node or its parent (in case of unformatted) helps us in case of
 	   concurrent flushing. */
-	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_squeezable(leftmost_in_slum)) {
+	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_convertible(leftmost_in_slum)) {
 		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
 		ret = 0;
 		goto failed;
@@ -963,7 +963,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 		goto failed;
 	}
 
-	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_squeezable(leftmost_in_slum)) {
+	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_convertible(leftmost_in_slum)) {
 		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
 		ret = 0;
 		goto failed;
@@ -1716,30 +1716,30 @@ out:
 
 #if REISER4_DEBUG
 reiser4_internal void
-item_squeeze_invariant(flush_pos_t * pos)
+item_convert_invariant(flush_pos_t * pos)
 {
-	if (squeeze_data(pos) && item_squeeze_data(pos)) {
-		item_plugin * iplug  = item_squeeze_plug(pos);
+	if (convert_data(pos) && item_convert_data(pos)) {
+		item_plugin * iplug  = item_convert_plug(pos);
 		
 		assert("edward-1000", ergo(coord_is_existing_item(&pos->coord), 
 					  iplug == item_plugin_by_coord(&pos->coord)));
-		assert("edward-1001", iplug->f.squeeze != NULL);
+		assert("edward-1001", iplug->f.convert != NULL);
 	}
 }
 #endif
 
 /* Scan node items starting from the first one and apply for each
-   item its flush ->squeeze() method (if any). This method may
+   item its flush ->convert() method (if any). This method may
    resize/kill the item, and also may change the tree.
 */
-static int squeeze_node(flush_pos_t * pos, znode * node)
+static int convert_node(flush_pos_t * pos, znode * node)
 {
 	int ret = 0;
 	item_plugin * iplug;
 	
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
-	assert("edward-475", znode_squeezable(node));
+	assert("edward-475", znode_convertible(node));
 	assert("edward-669", znode_is_wlocked(node));
 	
 	if (znode_get_level(node) != LEAF_LEVEL)
@@ -1750,10 +1750,10 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 	
 	while (1) {
 		ret = 0;
-		item_squeeze_invariant(pos);
+		item_convert_invariant(pos);
 		
-		if (squeeze_data(pos) && item_squeeze_data(pos))
-			iplug = item_squeeze_plug(pos);
+		if (convert_data(pos) && item_convert_data(pos))
+			iplug = item_convert_plug(pos);
 		else if (!coord_is_existing_item(&pos->coord)) {
 			assert("edward-1002", 0);
 			break;
@@ -1763,8 +1763,8 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		
 		assert("edward-844", iplug != NULL);
 		
-		if (iplug->f.squeeze) {
-			ret = iplug->f.squeeze(pos);
+		if (iplug->f.convert) {
+			ret = iplug->f.convert(pos);
 			if (ret)
 				goto exit;
 		}
@@ -1773,34 +1773,34 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (coord_next_item(&pos->coord)) {
 			/* node is over */
 			
-			if (!squeeze_data(pos) || !item_squeeze_data(pos))
+			if (!convert_data(pos) || !item_convert_data(pos))
 				/* finished this node */
 				break;
 			if (chain_next_node(pos)) {
 				/* go to next node */
-				move_item_squeeze_data(pos, 0 /* to next node */);
+				move_item_convert_data(pos, 0 /* to next node */);
 				break;
 			}
 			/* repeat this node */
-			move_item_squeeze_data(pos, 1 /* this node */);
+			move_item_convert_data(pos, 1 /* this node */);
 			continue;
 		}
 		/* Node is not over.
-		   Check if there is attached squeeze data.
+		   Check if there is attached convert data.
 		   If so, roll one item position back and repeat
 		   on this node 
 		*/
-		if (squeeze_data(pos) && item_squeeze_data(pos)) {
+		if (convert_data(pos) && item_convert_data(pos)) {
 			if (iplug != item_plugin_by_coord(&pos->coord))
-				set_item_squeeze_count(pos, 0);
+				set_item_convert_count(pos, 0);
 			
 			ret = coord_prev_item(&pos->coord);
 			assert("edward-1003", !ret);
 			
-			move_item_squeeze_data(pos, 1 /* this node */);
+			move_item_convert_data(pos, 1 /* this node */);
 		}
 	}
-	JF_CLR(ZJNODE(node), JNODE_SQUEEZABLE);
+	JF_CLR(ZJNODE(node), JNODE_CONVERTIBLE);
 	znode_make_dirty(node);
  exit:
 	assert("edward-1004", !ret);
@@ -2078,8 +2078,8 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	init_load_count(&right_load);
 
 	check_pos(pos);
-	if (should_squeeze_node(pos, pos->lock.node)) {
-		ret = squeeze_node(pos, pos->lock.node);
+	if (should_convert_node(pos, pos->lock.node)) {
+		ret = convert_node(pos, pos->lock.node);
 		check_pos(pos);
 		if (ret)
 			return ret;
@@ -2095,8 +2095,8 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		 * can be optimal.  For now we choose to live with the risk that it will
 		 * be suboptimal because it would be quite complex to code it to be
 		 * smarter. */
-		if (znode_check_flushprepped(right_lock.node) && !znode_squeezable(right_lock.node)) {
-			assert("edward-1005", !should_squeeze_next_node(pos, right_lock.node));
+		if (znode_check_flushprepped(right_lock.node) && !znode_convertible(right_lock.node)) {
+			assert("edward-1005", !should_convert_next_node(pos, right_lock.node));
 			pos_stop(pos);
 			break;
 		}
@@ -2105,13 +2105,13 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (ret)
 			break;
 
-		if (should_squeeze_node(pos, right_lock.node)) {
-			ret = squeeze_node(pos, right_lock.node);
+		if (should_convert_node(pos, right_lock.node)) {
+			ret = convert_node(pos, right_lock.node);
 			check_pos(pos);
 			if (ret)
 				break;
 			if (node_is_empty(right_lock.node)) {
-				/* node was squeezed completely, repeat */
+				/* node became empty after converting, repeat */
 				done_load_count(&right_load);
 				done_lh(&right_lock);
 				continue;
@@ -2125,9 +2125,9 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			break;
 
 		if (znode_check_flushprepped(right_lock.node)) {
-			if (should_squeeze_next_node(pos, right_lock.node)) {
-				assert("edward-953", squeeze_data(pos));
-				assert("edward-954", item_squeeze_data(pos));
+			if (should_convert_next_node(pos, right_lock.node)) {
+				assert("edward-953", convert_data(pos));
+				assert("edward-954", item_convert_data(pos));
 				
 				goto next;
 			}
@@ -2155,7 +2155,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			break;
 
 		if (should_terminate_squalloc(pos)) {
-			set_item_squeeze_count(pos, 0);
+			set_item_convert_count(pos, 0);
 			break;
 		}
 	next:
@@ -2169,7 +2169,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	}
 	check_pos(pos);
 
-	assert("edward-1006", !squeeze_data(pos) || !item_squeeze_data(pos));
+	assert("edward-1006", !convert_data(pos) || !item_convert_data(pos));
 
 	done_load_count(&right_load);
 	done_lh(&right_lock);
@@ -3776,8 +3776,8 @@ pos_done(flush_pos_t * pos)
 {
 	pos_stop(pos);
 	blocknr_hint_done(&pos->preceder);
-	if (pos->sq)
-		free_squeeze_data(pos);
+	if (convert_data(pos))
+		free_convert_data(pos);
 }
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the

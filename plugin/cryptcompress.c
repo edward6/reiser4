@@ -1773,7 +1773,7 @@ find_cluster(reiser4_cluster_t * clust,
 				goto out;
 			if (write) {
 				znode_make_dirty(hint->coord.base_coord.node);
-				znode_set_squeezable(hint->coord.base_coord.node);
+				znode_set_convertible(hint->coord.base_coord.node);
 			}
 			crc_validate_extended_coord(&hint->coord, get_key_offset(&f.key));
 			zrelse(hint->coord.base_coord.node);

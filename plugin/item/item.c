@@ -378,7 +378,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
 			.scan                    = NULL,
-			.squeeze                 = NULL
+			.convert                 = NULL
 		},
 		.s = {
 			.sd = {
@@ -431,7 +431,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
 			.scan                    = NULL,
-			.squeeze                 = NULL
+			.convert                 = NULL
 		},
 		.s = {
 			.dir = {
@@ -488,7 +488,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
 			.scan                    = NULL,
-			.squeeze                 = NULL
+			.convert                 = NULL
 		},
 		.s = {
 			.dir = {
@@ -545,7 +545,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = utmost_child_real_block_internal,
 			.update                  = update_internal,
 			.scan                    = NULL,
-			.squeeze                 = NULL
+			.convert                 = NULL
 		},
 		.s = {
 			.internal = {
@@ -598,7 +598,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = utmost_child_real_block_extent,
 			.update                  = NULL,
 			.scan                    = scan_extent,
-			.squeeze                 = NULL,
+			.convert                 = NULL,
 			.key_by_offset           = key_by_offset_extent
 		},
 		.s = {
@@ -658,7 +658,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
 			.scan                    = NULL,
-			.squeeze                 = NULL
+			.convert                 = NULL
 		},
 		.s = {
 			.file = {
@@ -717,7 +717,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
 			.scan                    = scan_ctail,
-			.squeeze                 = squeeze_ctail
+			.convert                 = convert_ctail
 		},
 		.s = {
 			.file = {

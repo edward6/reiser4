@@ -63,7 +63,7 @@ int shift_hook_ctail(const coord_t *, unsigned, unsigned, znode *);
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);
 int scan_ctail(flush_scan *);
-int squeeze_ctail(flush_pos_t *);
+int convert_ctail(flush_pos_t *);
 item_plugin * item_plugin_by_jnode(jnode *);
 
 size_t inode_scaled_cluster_size(struct inode *);
