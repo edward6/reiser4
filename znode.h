@@ -305,9 +305,7 @@ extern int lock_stack_isclean(lock_stack * owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
    lock is held by the current thread. */
-#if REISER4_DEBUG
 extern int znode_is_write_locked(const znode * node);
-#endif
 
 /* lock ordering is: first take znode spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack) (1)

@@ -498,6 +498,8 @@ znode_is_any_locked(const znode * node)
 	return ret;
 }
 
+#endif
+
 /* Returns true if a write lock is held by the calling thread. */
 int
 znode_is_write_locked(const znode * node)
@@ -518,7 +520,6 @@ znode_is_write_locked(const znode * node)
 
 	return (handle->owner == stack);
 }
-#endif
 
 /* This "deadlock" condition is the essential part of reiser4 locking
    implementation. This condition is checked explicitly by calling

@@ -819,6 +819,9 @@ sync_dkeys(carry_node * node /* node to update */ ,
 			    keyge(&pivot, znode_get_rd_key(spot))));
 
 		znode_set_rd_key(spot, &pivot);
+		/* don't sink into domain of another balancing */
+		if (!znode_is_write_locked(spot))
+			break;
 		if (ZF_ISSET(spot, JNODE_HEARD_BANSHEE))
 			znode_set_ld_key(spot, &pivot);
 		else
