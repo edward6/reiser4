@@ -149,23 +149,28 @@ struct reiser4_inode {
 			       tries to unmap page for which it is called. This prevents process from using page which
 			       was copied on capture */
 
+	/* tree of eflushed jnodes */
+	struct radix_tree_root ef_jnodes;
+
+#if 0
 	/* list of unformatted jnodes eflushed from this object */
 	struct list_head eflushed_jnodes;
 	struct list_head anon_jnodes;
 
-	jnode inode_jnode; /* this is to capture inode */
-
 	/* currently operations on this tree are protected by tree's spin lock */
 	struct radix_tree_root jnode_tree;
+#endif
+
 	/* block number of virtual root for this object. See comment above
 	 * fs/reiser4/search.c:handle_vroot() */
 	reiser4_block_nr vroot;
 	struct semaphore loading;
+
 #if REISER4_DEBUG
-	/* number of jnodes in jnode tree */
-	int jnodes;
-	/* number of unformatted nodes eflushed from this object */
+	/* number of unformatted nodes eflushed from this object. This is number of nodes in ef_jnodes tree */
 	int eflushed;
+	/* number of eflushed anon jnodes */
+	int anon_eflushed;
 #endif
 };
 
