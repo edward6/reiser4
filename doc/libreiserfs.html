@@ -1277,7 +1277,8 @@ it defines where the superblock lies and what the format this superblock has.</p
 
 <p>Therefore all available disk-format plugins must be loaded during library 
 initialization time, just after plugin cache will be initialized in order to be 
-able to find any superblock at filesystem opening time.</p>
+able to find any superblock at filesystem opening time. Or they might be loaded
+on first attempt to open filesystem on someone device.</p>
 
 <p>Also disk-format plugin defines where root block is placed, etc. It will look 
 like this:</p>
@@ -1319,8 +1320,8 @@ typedef struct reiserfs_layout_plug reiserfs_layout_plug_t;
 
 <b>reiserfs_opaque_t *(*init) (dal_t *)</b>
 
-<p>Returns oid allocator plugin's ID. Will be used  in  order
-to  find oid allocator plugin in plugins cashe and plugins
+<p>Returns oid allocator plugin's ID. Will be used in order
+to find oid allocator plugin in plugins cashe and plugins
 map.</p>
 
 <b>uint16_t (*alloc_plug_id) (reiserfs_opaque_t *)</b>
@@ -1507,12 +1508,12 @@ this plugin.</p>
 
 <table width=70%><tr><td align=justify>
 <p>In the initialization time libreiserfs will initialize plugins factory 
-with plugins cache that will store loaded plugins. Plugin cache keeps 
+with plugins cache that will store loaded plugins. Plugins cache keeps 
 track of loaded plugins and allows to avoid duplicate loading of the 
 same plugin.</p>
 
-<p>During filesystem open library will determine what journal plugin to 
-use. Corresponding plugin will be located, loaded and stored in the 
+<p>For example, during filesystem open library will determine what journal 
+plugin to use. Corresponding plugin will be located, loaded and stored in the 
 cache. After that, filesystem open will proceed further.</p>
 
 <p>The all other plugins will be loaded on demand and stored in plugin 
@@ -1661,26 +1662,28 @@ reiserfs_plug_t *reiserfs_plug_load(reiserfs_plug_kind_t plug_kind, uint32_t plu
 	}
 
 	if (!(plug = reiserfs_plug_load_by_name(plug_name)))
-		 goto error;
-		 reiserfs_plug_unregister(plug);
-		 dlclose(plug-&gt;header.plug_handle);
-	}
+		goto error;
+	
+	return plug;
+		 
+error:
+	return NULL;
 }
-</pre><br>
+</pre>
 
 <p>As you can see loaded plugins are registering in the  plugin cashe.</p>
 
 <p>There will be set of functions (reiserfs_plugin_*) for
-working with plugins.</p>
+working with plugins and plugins cashe.</p>
 
 <b>int reiserfs_plug_register(reiserfs_plug_t *plug)</b>
 
-<p>Registers initialized plugin in the plugins cache. Returns
-true on success, false on failure.</p>
+<p>Registers loaded plugin in the plugins cache. Returns true on success, 
+false on failure.</p>
 
 <b>int reiserfs_plug_unregister(reiserfs_plug_t *plug)</b>
 
-<p>Unregisters of given plugin.</p>
+<p>Unregisters given plugin.</p>
 
 <b>reiserfs_plug_t *reiserfs_plug_load(uint16_t plug_kind, uint16_t plug_id)</b>
 
@@ -1698,18 +1701,32 @@ loaded plugin in the cache.</p>
 <h3>Builtin plugins.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>In order to be used by bootloaders or other "alone" applications, we need a mechanism 
-for building plugins in libreiserfs staticaly. This ability also will be useful for 
-creating the repair reiserfs tools, which should be linked staticaty to avoid any dependencies
-on libc or something else.</p>
+<p>In order to be used by bootloaders or other "alone" applications, libreiserfs 
+need a mechanism for building plugins in it staticaly. This ability also will be 
+useful for creating the repair reiserfs tools, which should be linked staticaty 
+to avoid any dependencies on libc or something else.</p>
 
-<p>So user who wants to build libreiserfs staticaly for some purposes needs to know, which
-plugins are used in underlying filesystem at the moment. In order to know this, reiserfs 
-utilities should contains some utility program that will be inspecting corresponding
-filesystem and show all used plugins. Let it be "fsscan".</p>
+<p>So user who wants to build libreiserfs staticaly for some purposes, needs to 
+know which plugins are used in underlying filesystem at the moment. In order to 
+know this, reiserfs utilities should contains some utility program that will be 
+inspecting corresponding filesystem and show all used plugins. Let it be "fsscan".</p>
+
+<p>After "fsscan" program showed the list of used plugins, user may configure and 
+build libreiserfs to be contain all nessesary plugins in it. It is may be done by
+command:<br><br>
+<i>./configure --buildin="journal40 layout40 node40 item40 file40 dir40" && make && 
+make install</i></p>
+
+</td></tr></table>
+
+<h3>Builtin plugins implementation.</h3>
+
+<table width=70%><tr><td align=justify>
+<p>Not implemented yet!</p>
 </td></tr></table>
 
 <h3>Common plugins source branch for user-space and kernel-space purposes.</h3>
+
 <table width=70%><tr><td align=justify>
 <p>Not implemented yet!</p>
 </td></tr></table>
@@ -1720,3 +1737,4 @@ filesystem and show all used plugins. Let it be "fsscan".</p>
 </td></tr></table>
 </body>
 </html>
+
