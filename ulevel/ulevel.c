@@ -2631,6 +2631,11 @@ static int copy_file (const char * oldname, struct inode * dir,
 		info ("copy_file: create failed\n");
 		return 1;
 	}
+	/*
+	 * FIXME-VS: temporary: do not copy bodies
+	 */
+	/*return 0;*/
+
 	/* get its inode */
 	inode = call_lookup (dir, newname);
 	if (IS_ERR (inode)) {
@@ -2687,6 +2692,10 @@ static int copy_file (const char * oldname, struct inode * dir,
 		}
 		st->st_size -= count;
 		off += count;
+		/*
+		 * FIXME-VS: temporary: write only 255 bytes into file
+		 */
+		break;
 	}
 
 	if (!silent)
