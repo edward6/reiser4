@@ -159,6 +159,7 @@ static int           flush_pos_lock_parent        (flush_position *pos, coord_t 
 static const char*   flush_pos_tostring           (flush_position *pos);
 static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
+static const char*   flush_flags_tostring         (int flags);
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
@@ -178,7 +179,7 @@ static const char*   flush_znode_tostring         (znode *node);
  * During squeeze and allocate, nodes are scheduled for writeback and their jnodes are set
  * to the "clean" state (as far as the atom is concerned).
  */
-int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
+int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 {
 	int ret;
 	flush_position flush_pos;
@@ -198,7 +199,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		JF_SET(node, ZNODE_WANDER);
 		spin_unlock_jnode(node);
 		jnode_set_clean(node);
-		trace_on (TRACE_FLUSH, "flush aboveroot %s\n", flush_jnode_tostring (node));
+		trace_on (TRACE_FLUSH, "flush aboveroot %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		return 0;
 	}
 
@@ -211,13 +212,13 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 			(*nr_to_flush) = 0;
 		}
 		spin_unlock_jnode (node);
-		trace_on (TRACE_FLUSH, "flush nothing %s\n", flush_jnode_tostring (node));
+		trace_on (TRACE_FLUSH, "flush nothing %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		return 0;
 	}
 
 	if (jnode_is_allocated (node)) {
 		/* Already has been assigned a block number, just write it again? */
-		trace_on (TRACE_FLUSH, "flush rewrite %s\n", flush_jnode_tostring (node));
+		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		ret = flush_rewrite_jnode (node);
 
 		ON_SMP (assert ("jmacd-97755", spin_jnode_is_not_locked (node)));
@@ -231,7 +232,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 
 	spin_unlock_jnode (node);
 
-	trace_on (TRACE_FLUSH, "flush squalloc %s\n", flush_jnode_tostring (node));
+	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;
@@ -2916,6 +2917,16 @@ static const char* flush_pos_tostring (flush_position *pos)
 	return fmtbuf;
 }
 
+static const char*   flush_flags_tostring         (int flags)
+{
+	switch (flags) {
+	case JNODE_FLUSH_COMMIT: return "(commit)";
+	case JNODE_FLUSH_MEMORY_FORMATTED: return "(memory-z)";
+	case JNODE_FLUSH_MEMORY_UNFORMATTED: return "(memory-j)";
+	default:
+		return "(unknown)";
+	}	
+}
 #endif
 
 /*
