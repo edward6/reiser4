@@ -346,8 +346,7 @@ static int make_space( carry_op *op /* carry operation, insert or
 	not_enough_space = free_space_shortage( node, op );
 	if( not_enough_space <= 0 )
 		return 0;
-	if( ( not_enough_space > 0 ) && 
-	    !( op -> u.insert.flags & COPI_DONT_SHIFT_LEFT ) ) {
+	if( !( op -> u.insert.flags & COPI_DONT_SHIFT_LEFT ) ) {
 		carry_node *left;
 		/* 
 		 * make note in statistics of an attempt to move
