@@ -28,7 +28,7 @@ void dup_coord (tree_coord * new, const tree_coord * old)
 {
 	xmemcpy (new, old, sizeof (tree_coord));
 	if (old->node != NULL) {
-		/* FIXME-NIKITA nikita: done_coord() do nothing
+		/* FIXME-NIKITA nikita: done_coord() does nothing
 		   zref(old->node); */
 	}
 	/* FIXME-NIKITA: d_count ? */
