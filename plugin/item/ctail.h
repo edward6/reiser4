@@ -3,7 +3,10 @@
 /* cryptcompress object item. See ctail.c for description. */
 
 typedef struct ctail_item_format {
+	/* (PAGE_SIZE << cluster_shift) translated by ->scale()
+	   method of crypto plugin */
 	d32 disk_cluster_size;
+	/* ctail body */
 	d8 body[0];
 } __attribute__((packed)) ctail_item_format;
 
