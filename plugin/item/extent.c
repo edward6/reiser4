@@ -2783,7 +2783,7 @@ int allocate_extent_item_in_place (coord_t * item, lock_handle * lh, flush_posit
 
 		/* set @key to key of first byte of part of extent which left
 		 * unallocated */
-		set_key_offset (&key, get_key_offset (&key) + allocated * blocksize);
+		set_key_offset (&key, get_key_offset (&key) + initial_width * blocksize);
 
 		/* [u/initial_width] ->
 		   [first_allocated/allocated][u/initial_width - allocated] */
@@ -2803,9 +2803,11 @@ int allocate_extent_item_in_place (coord_t * item, lock_handle * lh, flush_posit
 				unit_key_by_coord (item, &ext_key);
 				set_key_offset (&ext_key,
 						get_key_offset (&ext_key) +
-						allocated * blocksize);
+						initial_width * blocksize);
 				keyeq (&ext_key, &key);
 			}));
+		assert ("vs-994", extent_get_start (extent_by_coord (item)) == first_allocated);
+		assert ("vs-995", extent_get_width (extent_by_coord (item)) == allocated);
 	}
 
 	/*
