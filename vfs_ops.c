@@ -58,8 +58,10 @@ static ssize_t reiser4_sendpage (struct file *, struct page *,
 static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long, 
 					       unsigned long, unsigned long, 
 					       unsigned long);
+/* super operations */
 
-
+static struct inode *reiser4_alloc_inode( struct super_block *super );
+static void reiserfs_destroy_inode( struct inode *inode );
 static void reiser4_dirty_inode (struct inode *);
 static void reiser4_write_inode (struct inode *, int);
 static void reiser4_put_inode (struct inode *);
@@ -76,6 +78,9 @@ static struct dentry * reiser4_fh_to_dentry(struct super_block *sb, __u32 *fh,
 					    int len, int fhtype, int parent);
 static int reiser4_dentry_to_fh(struct dentry *, __u32 *fh, 
 				int *lenp, int need_parent);
+static int reiser4_fill_super(struct super_block *s, void *data, int silent);
+
+
 
 
 static int reiser4_writepage(struct page *);
@@ -835,6 +840,171 @@ static int create_object( struct inode *parent, struct dentry *dentry,
 static void noop_read_inode( struct inode *inode UNUSED_ARG )
 {}
 
+/***************************************************
+ * initialisation and shutdown
+ ***************************************************/
+
+/**
+ * slab cache for inodes
+ */
+static kmem_cache_t *inode_cache;
+
+/**
+ * initalisation function passed to the kmem_cache_create() to init new pages
+ * grabbed by our inodecache.
+ */
+static void init_once( void *obj, kmem_cache_t *cache UNUSED_ARG, 
+		       unsigned long flags )
+{
+	struct reiser4_inode_info *info;
+
+	info = obj;
+
+	if( ( flags & ( SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR ) ) == 
+	    SLAB_CTOR_CONSTRUCTOR ) {
+		/*
+		 * FIXME-NIKITA add here initialisations for locks, list
+		 * heads, etc. that will be added to our private inode part.
+		 */
+		/*
+		 * FIXME-NIKITA where inode is zeroed?
+		 */
+		inode_init_once( &info -> vfs_inode );
+	}
+}
+
+/**
+ * initialise slab cache where reiser4 inodes will live
+ */
+static int init_inodecache()
+{
+	inode_cache = kmem_cache_create( "reiser4_inode_cache", 
+					 sizeof( reiser4_inode_info ), 0, 
+					 SLAB_HWCACHE_ALIGN, init_once, NULL );
+	return ( inode_cache != NULL ) ? 0 : - ENOMEM;
+}
+
+/**
+ * initialise slab cache where reiser4 inodes lived
+ */
+static void destroy_inodecache(void)
+{
+	if( kmem_cache_destroy( inode_cache ) != 0 )
+		warning( "nikita-1695", "not all inodes were freed" );
+}
+
+/**
+ * ->alloc_inode() super operation: allocate new inode
+ */
+static struct inode *reiser4_alloc_inode( struct super_block *super )
+{
+	struct reiser4_inode_info *info;
+
+	assert( "nikita-1696", super != NULL );
+	info = kmem_cache_alloc( inode_cache, SLAB_KERNEL );
+	return ( info == NULL ) ? NULL : &info -> vfs_inode;
+}
+
+/**
+ * ->destroy_inode() super operation: recycle inode
+ */
+static void reiser4_destroy_inode( struct inode *inode )
+{
+	assert( "nikita-1697", inode != NULL );
+	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
+}
+
+/**
+ * read super block from device and fill remaining fields in @s.
+ *
+ * This is read_super() of the past.
+ */
+static int reiser4_fill_super( struct super_block *s, void *data, int silent )
+{
+	not_implemented( "nikita-1698", "fixme, *YOU*!" );
+	return -ENOSYS;
+}
+
+/**
+ * ->get_sb() method of file_system operations.
+ */
+static struct super_block *reiser4_get_sb( struct file_system_type *fs_type,
+					   int flags, char *dev_name, void *data )
+{
+	return get_sb_bdev( fs_type, flags, dev_name, data, reiser4_fill_super );
+}
+
+/**
+ * description of the reiser4 file system type in the VFS eyes.
+ */
+static struct file_system_type reiser4_fs_type = {
+	.owner     = THIS_MODULE,
+	.name      = "reiser4",
+	.get_sb    = reiser4_get_sb,
+	.kill_sb   = kill_block_super,
+
+	/*
+	 * FIXME-NIKITA something more?
+	 */
+	.fs_flags  = FS_REQUIRES_DEV,
+};
+
+/**
+ * initialise reiser4: this is called either at bootup or at module load.
+ */
+static int __init init_reiser4()
+{
+	int result;
+
+	result = init_inodecache();
+	if( result == 0 ) {
+		reiser4_init_context_mgr();
+		result = znodes_init();
+		if( result == 0 ) {
+			result = init_plugins();
+			if( result == 0 ) {
+				result = txn_init_static();
+				/*
+				 * FIXME-NIKITA more initialisations here
+				 */
+				if( result == 0 ) {
+					result = register_filesystem
+						( &reiser4_fs_type );
+				}
+			}
+			if( result != 0 )
+				znodes_done();
+		}
+		if( result != 0 )
+			destroy_inodecache();
+	}
+	return result;
+}
+
+/**
+ * finish with reiser4: this is called either at shutdown or at module unload.
+ */
+static void __exit done_reiser4(void)
+{
+        unregister_filesystem( &reiser4_fs_type );
+	znodes_done();
+	destroy_inodecache();
+	/*
+	 * FIXME-NIKITA more cleanups here
+	 */
+}
+
+module_init( init_reiser4 );
+module_exit( done_reiser4 );
+
+MODULE_DESCRIPTION( "Reiser4 filesystem" );
+MODULE_AUTHOR( "Hans Reiser <Reiser@Namesys.COM>" );
+
+/*
+ * FIXME-NIKITA is this correct?
+ */
+MODULE_LICENSE( "GPL" );
+
 struct inode_operations reiser4_inode_operations = {
 	.create      = reiser4_create, /* d */
 	.lookup      = reiser4_lookup, /* d */
@@ -888,6 +1058,8 @@ struct address_space_operations reiser4_as_operations = {
 };
 
 struct super_operations reiser4_super_operations = {
+   	.alloc_inode        = reiser4_alloc_inode, /* d */
+	.destroy_inode      = reiser4_destroy_inode, /* d */
 	.read_inode         = noop_read_inode, /* d */
 	.read_inode2        = NULL, /* d */
 /* 	.dirty_inode        = reiser4_dirty_inode, */
