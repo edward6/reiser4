@@ -716,9 +716,15 @@ unix_file_writepage(struct page *page)
 	assert("vs-1084", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 	assert("vs-1032", PageLocked(page));
-	assert("vs-1085", (inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
 	assert("", file_is_built_of_extents(inode));
 
+	if (inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)) {
+		/* The file was truncated but the page was not yet processed
+		   by truncate_inode_pages. Probably we can safely do nothing
+		   here */
+		return 0;
+	}
+	
 	if (PagePrivate(page)) {
 		/* tree already has pointer to this page */
 		assert("vs-1097", jnode_mapped(jnode_by_page(page)));
