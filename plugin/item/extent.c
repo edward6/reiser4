@@ -305,7 +305,7 @@ void extent_copy_units (tree_coord * target, tree_coord * source,
 	from_ext = item_body_by_coord (source);
 	to_ext = item_body_by_coord (target);
 
-	if (where_is_free_space == SHIFT_APPEND) {
+	if (where_is_free_space == SHIFT_LEFT) {
 		assert ("vs-215", from == 0);
 
 		to_ext += (extent_nr_units (target) - count);
@@ -379,77 +379,109 @@ int extent_kill_item_hook (const tree_coord * coord, unsigned from, unsigned cou
 }
 
 
+static reiser4_key *last_key_in_extent (const tree_coord * coord, 
+					reiser4_key *key)
+{
+	item_key_by_coord (coord, key);
+	set_key_offset (key, get_key_offset (key) + 
+			extent_size (coord, extent_nr_units (coord)));
+	return key;
+}
+
+
 static int cut_or_kill_units (tree_coord * coord,
-			      unsigned from, unsigned count,
-			      shift_direction where_to_move_free_space, int cut,
-			      const reiser4_key * from_key,
-			      const reiser4_key * to_key UNUSED_ARG,
+			      unsigned * from, unsigned * to,
+			      int cut, const reiser4_key * from_key,
+			      const reiser4_key * to_key,
 			      reiser4_key * smallest_removed)
 {
  	reiser4_extent * ext;
-	unsigned to; /* position of last extent we have to cut */
 	reiser4_key key;
 	unsigned blocksize;
 	__u64 new_width;
-	int can_delete_from;
 	__u64 offset;
+	unsigned count;
 
+
+	count = *to - *from + 1;
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	to = from + count - 1;
 
-	/* make sure that we cut something but not more than all units */
+	/*
+	 * make sure that we cut something but not more than all units
+	 */
 	assert ("vs-220", count > 0 && count <= extent_nr_units (coord));
-	/* extent item can be cut either from the beginning or down to the
-	   end */
-	assert ("vs-298", from == 0 ||
-		from + count == extent_nr_units (coord));
+	/*
+	 * extent item can be cut either from the beginning or down to the end
+	 */
+	assert ("vs-298", *from == 0 || *to == last_unit_pos (coord));
+	
 
 	item_key_by_coord (coord, &key);
+	offset = get_key_offset (&key);
 
 	if (smallest_removed) {
 		/* set @smallest_removed assuming that @from unit will be
 		   cut */
 		*smallest_removed = key;
-		set_key_offset (smallest_removed, (get_key_offset (&key) +
-						   extent_size (coord, from)));
+		set_key_offset (smallest_removed, (offset +
+						   extent_size (coord, *from)));
 	}
-	can_delete_from = 1;
-	
+
 	if (from_key) {
-		/* called by cut_tree */
+		/*
+		 * it may happen that extent @from will not be removed
+		 */
+
+		/*
+		 * @to_key must be not 0 if @from_key is not
+		 */
 		assert ("vs-311", to_key);
-
-		offset = get_key_offset (&key);
-
-		/* check @from_key */
-		set_key_offset (&key, (offset +
-				       extent_size (coord, from + 1)));
-		assert ("vs-308", keycmp (from_key, &key) == LESS_THAN);
-		
-		set_key_offset (&key, (offset +
-				       extent_size (coord, from)));
-		if (keycmp (from_key, &key) == GREATER_THAN)
-			can_delete_from = 0;
-		
-		/* check @to_key */
-		set_key_offset (&key, (offset +
-				       extent_size (coord, to)));
-		assert ("vs-309", keycmp (to_key, &key) != LESS_THAN);
-		
-		/* only unit @from can be partially cut */
-		set_key_offset (&key, extent_size (coord, to + 1) - 1);
-		assert ("vs-317", keycmp (to_key, &key) != LESS_THAN);
-		
-		
-		if (!can_delete_from) {
-			__u64 first;
+		/*
+		 * this is not part of shift
+		 */
+		assert ("vs-401", cut == 0);
+		/*
+		 * item is supposed to be cut down to the end
+		 */
+		assert ("vs-402", *to == last_unit_pos (coord));
+		assert ("vs-404",
+			({ reiser4_key last_key;
 			
-			ext = extent_item (coord) + from;
-			first = offset + extent_size (coord, from);
+			   last_key_in_extent (coord, &last_key);
+			   set_key_offset (&last_key, get_key_offset (&last_key) - 1);
+			   keycmp (to_key, &last_key) != LESS_THAN;
+			}));
+		/*
+		 * @from_key must be less than key of @from + 1 unit
+		 */
+		assert ("vs-308",
+			({
+			   set_key_offset (&key, (offset +
+						  extent_size (coord, *from + 1)));
+			   keycmp (from_key, &key) == LESS_THAN;
+			}));
+
+		
+		set_key_offset (&key, (offset +
+				       extent_size (coord, *from)));
+		if (keycmp (from_key, &key) == GREATER_THAN) {
+			/*
+			 * @from-th extent can not be removed. Its width may
+			 * have to be decreased in accordance with @from_key
+			 */
+			__u64 first;
+
+
+			ext = extent_item (coord) + *from;
+			first = offset + extent_size (coord, *from);
 			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) / blocksize;
 			assert ("vs-307", new_width && new_width <= extent_get_width (ext));
 			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+				/*
+				 * free blocks which are not addressed by this
+				 * extent anymore
+				 */
 				__u64 cut_blocks, i;
 				
 				cut_blocks = extent_get_width (ext) - new_width;
@@ -457,7 +489,7 @@ static int cut_or_kill_units (tree_coord * coord,
 					reiser4_free_block (extent_get_start (ext) + new_width + i);
 			}
 			extent_set_width (ext, new_width);
-			from ++;
+			(*from) ++;
 			count --;
 			if (smallest_removed) {
 				set_key_offset (smallest_removed, get_key_offset (from_key));
@@ -466,27 +498,28 @@ static int cut_or_kill_units (tree_coord * coord,
 	}
 
 	if (!cut)
-		extent_kill_item_hook (coord, from, count);
-		
-	ext = extent_item (coord);
+		/*
+		 * call kill hook for all extents removed completely
+		 */
+		extent_kill_item_hook (coord, *from, count);
 
-	if (where_to_move_free_space == SHIFT_APPEND) {
-		/* free space has to be moved to the end of item */
-		memmove (ext + from, ext + from + count,
-			 (extent_nr_units (coord) - from - count) *
-			 sizeof (reiser4_extent));
-	} else {
-		if (from == 0) {
-			/* units will be cut from the beginning of item,
-			   update item key then */
-			item_key_by_coord (coord, &key);
-			set_key_offset (&key, (get_key_offset (&key) +
-					       extent_size (coord, count)));
-			node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0);
-		}
-		/* move head of item to its end */
-		memmove (ext + count, ext, from * sizeof (reiser4_extent));
+
+	if (REISER4_DEBUG) {
+		ext = extent_item (coord);
+		memset (ext + *from, 0, count * sizeof (reiser4_extent));
 	}
+
+	if (*from == 0 && count != last_unit_pos (coord) + 1) {
+		/*
+		 * part of item is removed from item beginning, update item key
+		 * therefore
+		 */
+		item_key_by_coord (coord, &key);
+		set_key_offset (&key, (get_key_offset (&key) +
+				       extent_size (coord, count)));
+		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0);
+	}
+
 	return count * sizeof (reiser4_extent);
 }
 
@@ -494,12 +527,11 @@ static int cut_or_kill_units (tree_coord * coord,
 /*
  * plugin->u.item.b.cut_units
  */
-int extent_cut_units (tree_coord * item, unsigned from, unsigned count,
-		      shift_direction where_to_move_free_space,
+int extent_cut_units (tree_coord * item, unsigned * from, unsigned * to,
 		      const reiser4_key * from_key, const reiser4_key * to_key,
 		      reiser4_key * smallest_removed)
 {
-	return cut_or_kill_units (item, from, count, where_to_move_free_space,
+	return cut_or_kill_units (item, from, to,
 				  1, from_key, to_key, smallest_removed);
 }
 
@@ -507,12 +539,11 @@ int extent_cut_units (tree_coord * item, unsigned from, unsigned count,
 /*
  * plugin->u.item.b.kill_units
  */
-int extent_kill_units (tree_coord * item, unsigned from, unsigned count,
-		       shift_direction where_to_move_free_space,
+int extent_kill_units (tree_coord * item, unsigned * from, unsigned * to,
 		       const reiser4_key * from_key, const reiser4_key * to_key,
 		       reiser4_key * smallest_removed)
 {
-	return cut_or_kill_units (item, from, count, where_to_move_free_space,
+	return cut_or_kill_units (item, from, to,
 				  0, from_key, to_key, smallest_removed);
 }
 
@@ -566,16 +597,6 @@ static void set_extent (reiser4_extent * ext, extent_state state, __u64 width)
 			    "do not create extents but holes and unallocated");
 	}
 	extent_set_width (ext, width);
-}
-
-
-static reiser4_key *last_key_in_extent (const tree_coord * coord, 
-					reiser4_key *key)
-{
-	item_key_by_coord (coord, key);
-	set_key_offset (key, get_key_offset (key) + 
-			extent_size (coord, extent_nr_units (coord)));
-	return key;
 }
 
 
