@@ -115,12 +115,15 @@ static int           slum_scan_left_formatted     (slum_scan *scan, znode *node)
 static void          slum_scan_set_current        (slum_scan *scan, jnode *node);
 static int           slum_scan_left               (slum_scan *scan, jnode *node);
 
+static int           slum_preceder_hint           (jnode *gda, znode *parent_node, reiser4_blocknr_hint *preceder);
+
 static int           slum_lock_greatest_dirty_ancestor      (jnode                *start,
 							     reiser4_lock_handle  *start_lock,
 							     jnode               **gda,
-							     reiser4_lock_handle  *gda_lock);
+							     reiser4_lock_handle  *gda_lock,
+							     reiser4_blocknr_hint *preceder);
 
-static int           squalloc_parent_first                  (jnode *gda, block_nr *preceder);
+static int           squalloc_parent_first                  (jnode *gda, reiser4_blocknr_hint *preceder);
 
 static int           jnode_lock_parent_coord      (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh,
 						   tree_coord *coord, znode_lock_mode mode);
@@ -139,7 +142,7 @@ int flush_jnode_slum (jnode *node)
 	int ret;
 	jnode *gda = NULL; /* Greatest dirty ancestor */
 	reiser4_lock_handle gda_lock;
-	block_nr preceder;
+	reiser4_blocknr_hint preceder;
 
 	reiser4_init_lh (& gda_lock);
 
@@ -147,7 +150,7 @@ int flush_jnode_slum (jnode *node)
 	 * which found by recursing upward as long as the parent is dirty and
 	 * leftward along each level as long as the left neighbor is dirty.
 	 */
-	if (FLUSH_WORKS && (ret = slum_lock_greatest_dirty_ancestor (node, NULL, & gda, & gda_lock))) {
+	if (FLUSH_WORKS && (ret = slum_lock_greatest_dirty_ancestor (node, NULL, & gda, & gda_lock, & preceder))) {
 		goto failed;
 	}
 
@@ -194,7 +197,11 @@ int flush_jnode_slum (jnode *node)
  * locked (and referenced), unless the node is unformatted, in which case only
  * a reference is returned.
  */
-static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_handle *start_lock, jnode **gda, reiser4_lock_handle *gda_lock)
+static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
+					      reiser4_lock_handle *start_lock,
+					      jnode **gda,
+					      reiser4_lock_handle *gda_lock,
+					      reiser4_blocknr_hint *preceder)
 {
 	int ret;
 	jnode *end_node;
@@ -224,7 +231,7 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_ha
 		reiser4_done_lh (start_lock);
 		
 		if (jnode_is_formatted (end_node) &&
-		    (ret = reiser4_lock_znode (& end_lock, JZNODE (end_node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		    (ret = longterm_lock_znode (& end_lock, JZNODE (end_node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 			goto failure;
 		}
 	}
@@ -266,45 +273,63 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_ha
 		reiser4_done_lh (& end_lock);
  
 		/* Recurse upwards. */
-		if ((ret = slum_lock_greatest_dirty_ancestor (ZJNODE (parent_node), & parent_lock, gda, gda_lock))) {
+		if ((ret = slum_lock_greatest_dirty_ancestor (ZJNODE (parent_node), & parent_lock, gda, gda_lock, preceder))) {
 			goto failure;
 		}
 
 	} else {
 		/* End the recursion, get a write lock at the highest level. */
+
+		/* But as long as we have the parent locked, might as well
+		 * initialize the preceder hint now.  It could release the
+		 * lock for us after determining we don't need to look at the
+		 * parent to initialize the hint. */
+		if ((ret = slum_preceder_hint (end_node, parent_node, preceder))) {
+			goto failure;
+		}
+		
 		(*gda) = jref (end_node);
 
 		/* Release any locks we might hold first, they are all read
 		 * locks on this level, and parent lock is not needed.  */
+		reiser4_done_lh (& parent_lock);
 		reiser4_done_lh (start_lock);
 		reiser4_done_lh (& end_lock);
-		reiser4_done_lh (& parent_lock);
 
 		if (jnode_is_formatted (end_node) &&
-		    (ret = reiser4_lock_znode (gda_lock, JZNODE (end_node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+		    (ret = longterm_lock_znode (gda_lock, JZNODE (end_node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 			jput (end_node);
 			goto failure;
 		}
 	}
 
+	assert ("jmacd-2030", ret == 0);
  failure:
 	slum_scan_cleanup (& level_scan);
 	reiser4_done_lh   (& parent_lock);
 	reiser4_done_lh   (& end_lock);
 
-	return 0;
+	return ret;
 }
 
 /********************************************************************************
  * SLUM ALLOCATE AND SQUEEZE
  ********************************************************************************/
 
+static int slum_preceder_hint (jnode *gda UNUSED_ARG,
+			       znode *parent_node UNUSED_ARG,
+			       reiser4_blocknr_hint *preceder UNUSED_ARG)
+{
+	/* FIXME */
+	return 0;
+}
+
 /* Called on a non-leaf-level znode to process its children in the
  * squalloc traversal.  For each extent or internal item in this
  * node, either allocate the extent or make a squalloc_parent_first
  * call on the child.
  */
-static int squalloc_children (znode *node, block_nr *preceder)
+static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
 {
 	int ret;
 	tree_coord crd;
@@ -458,7 +483,7 @@ static int cut_copied (tree_coord * to, reiser4_key * to_key)
  */
 static int squalloc_twig (znode    *left,
 			  znode    *right,
-			  block_nr *preceder)
+			  reiser4_blocknr_hint *preceder)
 {
 	int ret;
 	tree_coord coord;
@@ -549,7 +574,7 @@ static int squalloc_twig (znode    *left,
  */
 /*static*/ int squalloc_right_neighbor (znode    *left,
 					znode    *right,
-					block_nr *preceder)
+					reiser4_blocknr_hint *preceder)
 {
 	int ret;
 
@@ -599,7 +624,7 @@ static int squalloc_twig (znode    *left,
 
 /* Starting from the greatest dirty ancestor of a subtree to flush, allocate
  * self then recursively squeeze and allocate the children. */
-static int squalloc_parent_first (jnode *node, block_nr *preceder)
+static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 {
 	int ret, goright;
 	znode *right;
@@ -747,13 +772,13 @@ static unsigned long jnode_get_index (jnode *node)
 static int jnode_is_allocated (jnode *node UNUSED_ARG)
 {
 	/* FIXME_JMACD: */
-	return 1;
+	return 0;
 }
 
 static int jnode_allocate (jnode *node UNUSED_ARG)
 {
 	/* FIXME_JMACD: */
-	return 0;
+	return -EINVAL;
 }
 
 /* Lock a node (if formatted) and then get its parent of a jnode locked, get
@@ -778,7 +803,7 @@ jnode_lock_parent_coord (jnode *node,
 		/* Lock the node itself, which is necessary for getting its
 		 * parent. FIXME_JMACD: Not sure LOPRI is correct. */
 
-		if ((ret = reiser4_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		if ((ret = longterm_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 			return ret;
 		}
 
@@ -1054,7 +1079,7 @@ static int slum_scan_left (slum_scan *scan, jnode *node)
 	/* At the end of a scan, get a lock (if applicable). */
 	if (ret == 0 &&
 	    jnode_is_formatted (scan->node) &&
-	    (ret = reiser4_lock_znode (& scan->node_lock, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+	    (ret = longterm_lock_znode (& scan->node_lock, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 		return ret;
 	}
 
