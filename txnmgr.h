@@ -353,7 +353,7 @@ extern int try_capture_page(struct page *pg, znode_lock_mode mode, int non_block
 extern int attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags);
 
 extern void uncapture_page(struct page *pg);
-extern void uncapture_block(txn_atom *, jnode *);
+extern void uncapture_block(jnode *);
 extern void uncapture_jnode(jnode *);
 
 extern int capture_inode(struct inode *);

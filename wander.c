@@ -576,7 +576,10 @@ get_overwrite_set(struct commit_handle *ch)
 
 					ch->overwrite_set_size++;
 				}
-				uncapture_block(ch->atom, cur);
+				LOCK_JNODE(cur);
+				uncapture_block(cur);
+				jput(cur);
+				
 			} else {
 				int ret;
 				ch->overwrite_set_size++;

@@ -1363,7 +1363,9 @@ invalidate_list(capture_list_head * head)
 		jnode *pos_in_atom;
 
 		pos_in_atom = capture_list_front(head);
-		uncapture_block(pos_in_atom->atom, pos_in_atom);
+		LOCK_JNODE(pos_in_atom);
+		uncapture_block(pos_in_atom);
+		jput(pos_in_atom);
 	}
 }
 
@@ -1965,14 +1967,13 @@ int uncapture_inode(struct inode *inode)
 	inode->i_state &= ~I_CAPTURED;
 	assert("vs-1244", !jnode_is_dirty(j));
 	atom = atom_locked_by_jnode(j);
-	UNLOCK_JNODE (j);
-
-	if (atom == NULL)
+	if (atom == NULL) {
+		UNLOCK_JNODE (j);
 		return 0;
-
-	uncapture_block(atom, j);
-
+	}
+	uncapture_block(j);
 	UNLOCK_ATOM(atom);
+	jput(j);
 	return 0;
 }
 
@@ -2091,11 +2092,9 @@ repeat:
 			return;
 		}
 	}
-	UNLOCK_JNODE(node);
-
-	uncapture_block(atom, node);
-
+	uncapture_block(node);
 	UNLOCK_ATOM(atom);
+	jput(node);
 }
 
 /* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
@@ -2111,16 +2110,15 @@ uncapture_jnode(jnode *node)
 	eflush_del(node, 0/* page is not locked */);
 
 	atom = atom_locked_by_jnode(node);
-	UNLOCK_JNODE (node);
-
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_check_dirty(node));
+		UNLOCK_JNODE (node);
 		return;
 	}
 
-	uncapture_block(atom, node);
-
+	uncapture_block(node);
 	UNLOCK_ATOM(atom);
+	jput(node);
 }
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
@@ -2932,32 +2930,35 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 		UNLOCK_ATOM(atomh);
 	}
 
-	uncapture_block(atomf, node);
+	uncapture_block(node);
 
 	/* FIXME_JMACD What happens here?  Changes to: zstate?, buffer, data is copied -josh */
 
 	/* EAGAIN implies all locks are released. */
 	UNLOCK_ATOM(atomf);
+	jput(node);
 	ON_SMP(assert("nikita-2187", spin_jnode_is_not_locked(node)));
 #endif
 	return RETERR(-EIO);
 }
 
-/* Release a block from the atom, reversing the effects of being captured.
+/* Release a block from the atom, reversing the effects of being captured, 
+   do not release atom's reference to jnode due to holding spin-locks.
    Currently this is only called when the atom commits. */
-void
-uncapture_block(txn_atom * atom, jnode * node)
+void uncapture_block(jnode * node)
 {
+	txn_atom * atom;
+
 	assert("umka-226", node != NULL);
+	atom = node->atom;
 	assert("umka-228", atom != NULL);
 
 	assert("jmacd-1021", node->atom == atom);
-	assert("jmacd-1022", spin_jnode_is_not_locked(node));
+	assert("jmacd-1022", spin_jnode_is_locked(node));
 	assert("jmacd-1023", atom_is_protected(atom));
 
-	/*trace_on (TRACE_TXN, "uncapture %p from atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count); */
-
-	LOCK_JNODE(node);
+	/*trace_on (TRACE_TXN, "un-capture %p from atom %u (captured %u)\n",
+	 * node, atom->atom_id, atom->capture_count); */
 
 	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);
@@ -2977,8 +2978,6 @@ uncapture_block(txn_atom * atom, jnode * node)
 	atom->capture_count -= 1;
 	node->atom = NULL;
 	UNLOCK_JNODE(node);
-	/*trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg)); */
-	jput(node);
 	ON_DEBUG_CONTEXT(--lock_counters()->t_refs);
 }
 
