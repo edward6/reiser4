@@ -5,7 +5,7 @@
 */
 
 #ifndef NODE40_H
-#define NODE40_h
+#define NODE40_H
 
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>

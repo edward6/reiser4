@@ -17,7 +17,7 @@
 #include <reiserfs/reiserfs.h>
 
 struct walk_desc {
-    reiserfs_plugin_type_t type;
+    reiserfs_plugin_id_t type;
     reiserfs_plugin_id_t id;
 };
 
@@ -170,7 +170,7 @@ reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label) {
 	(comp_func_t)callback_match_label)) ? (reiserfs_plugin_t *)found->data : NULL;
 }
 
-reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_type_t type, 
+reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t type, 
     reiserfs_plugin_id_t id) 
 {
     aal_list_t *found;

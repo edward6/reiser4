@@ -68,6 +68,23 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
     
     return 0;
 
+    {
+	/* create 2 nodes - leaf and squeeze */
+	/* create internel item, insert it into squeeze */
+	/*  */
+
+	
+	/* init internal item to be inserted into tree->root */
+	reiserfs_key_t key;
+//	reiserfs_sd40_t sd40;
+	    
+        set_key_type(&key, KEY_SD_MINOR);
+        set_key_locality(&key, 1ull);
+        set_key_objectid(&key, 2ull);
+
+    }
+
+    
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;

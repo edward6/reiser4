@@ -12,7 +12,7 @@
 typedef void reiserfs_opaque_t;
 typedef void reiserfs_params_opaque_t;
 
-enum reiserfs_plugin_type {
+enum reiserfs_plugin_id {
     REISERFS_FILE_PLUGIN,
     REISERFS_DIR_PLUGIN,
     REISERFS_ITEM_PLUGIN,
@@ -28,8 +28,15 @@ enum reiserfs_plugin_type {
     REISERFS_JOURNAL_PLUGIN
 };
 
-typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
+enum reiserfs_item_type_id {
+    STAT_DATA_ITEM,
+    DIR_ENTRY_ITEM,
+    INTERNAL_ITEM,
+    ORDINARY_FILE_METADATA
+};
+
 typedef int reiserfs_plugin_id_t;
+typedef int reiserfs_item_type_id_t;
 
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256
@@ -37,7 +44,7 @@ typedef int reiserfs_plugin_id_t;
 struct reiserfs_plugin_header {
     void *handle;
     reiserfs_plugin_id_t id;
-    reiserfs_plugin_type_t type;
+    reiserfs_plugin_id_t type;
     const char label[REISERFS_PLUGIN_MAX_LABEL];
     const char desc[REISERFS_PLUGIN_MAX_DESC];
 };
@@ -56,8 +63,69 @@ struct reiserfs_dir_plugin {
 
 typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
 
+struct common_item_plugin {
+    reiserfs_item_type_id_t item_type;
+
+    reiserfs_opaque_t *(*create) ();
+    int (*paste) (reiserfs_opaque_t *coord, reiserfs_opaque_t *item_data);
+    error_t (*confirm_format) (reiserfs_opaque_t *);
+    error_t (*check) (reiserfs_opaque_t *);
+    void (*print) (reiserfs_opaque_t *);
+    uint16_t (*nr_units) (reiserfs_opaque_t *coord);
+    int (*remove_units) (reiserfs_opaque_t *from_key,
+	reiserfs_opaque_t *to_key);
+    uint32_t (*estimate) (reiserfs_opaque_t *coord,
+	reiserfs_opaque_t *data);
+};
+
+typedef struct common_item_plugin common_item_plugin_t;
+
+struct dir_entry_ops {
+    int (*add_entry) (reiserfs_opaque_t *coord, reiserfs_opaque_t *parent, 
+	reiserfs_opaque_t *name, reiserfs_opaque_t *entry);
+    int (*rem_entry) (reiserfs_opaque_t *coord, reiserfs_opaque_t *parent,
+        reiserfs_opaque_t *entry);
+    int (*max_name_len) (int block_size);
+};
+
+typedef struct dir_entry_ops dir_entry_ops_t;
+
+struct file_ops {
+    int (*write) (reiserfs_opaque_t *coord, reiserfs_opaque_t *file, 
+	reiserfs_opaque_t *buffer);
+    int (*read) (reiserfs_opaque_t *coord, reiserfs_opaque_t *file, 
+	reiserfs_opaque_t *buffer);
+};
+
+typedef struct file_ops file_ops_t;
+
+struct sd_ops {
+};
+
+typedef struct sd_ops sd_ops_t;
+
+struct internal_ops {
+    void (*down_link) (reiserfs_opaque_t *coord, reiserfs_opaque_t *key,
+	aal_block_t *block);
+    /** check that given internal item contains given pointer. */
+    int (*has_pointer_to) (reiserfs_opaque_t *coord, aal_block_t *block);
+};
+
+typedef struct internal_ops internal_ops_t;
+
 struct reiserfs_item_plugin {
     reiserfs_plugin_header_t h;
+
+    /* methods common for all item types */
+    common_item_plugin_t common;
+
+    /* methods specific to particular type of item */
+    union {
+	dir_entry_ops_t dir;
+	file_ops_t      file;
+        sd_ops_t        sd;
+        internal_ops_t  internal;
+    } ops;
 };
 
 typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
@@ -66,7 +134,7 @@ struct reiserfs_node_plugin {
     reiserfs_plugin_header_t h;
 
     reiserfs_opaque_t *(*open)  (aal_device_t *, aal_block_t *);
-    reiserfs_opaque_t *(*create)(aal_device_t *, aal_block_t *, uint8_t);
+    reiserfs_opaque_t *(*create) (aal_device_t *, aal_block_t *, uint8_t);
     error_t (*confirm_format) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *, int);
     uint32_t (*max_item_size) (reiserfs_opaque_t *);
@@ -186,7 +254,7 @@ union reiserfs_plugin {
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
 struct reiserfs_plugins_factory {
-    reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_type_t, reiserfs_plugin_id_t);
+    reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
     reiserfs_plugin_t *(*find_by_label)(const char *);
 };
 
@@ -230,7 +298,7 @@ extern reiserfs_plugin_t *reiserfs_plugins_load_by_name(const char *name);
 extern reiserfs_plugin_t *reiserfs_plugins_load_by_entry(reiserfs_plugin_entry_t entry);
 extern void reiserfs_plugins_unload(reiserfs_plugin_t *plugin);
 
-extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_type_t type, 
+extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t type, 
     reiserfs_plugin_id_t id);
 
 extern reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label);
