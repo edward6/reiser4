@@ -676,11 +676,13 @@ static int zrelse_nolock( znode *node );
 int zload( znode *node /* znode to load */ )
 {
 	int result;
+	unsigned long blocksize;
 
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
 
 	result = 0;
+	blocksize = reiser4_get_current_sb() -> s_blocksize;
 	spin_lock_znode( node );
 	reiser4_stat_znode_add( zload );
 	if( ! ZF_ISSET( node, ZNODE_LOADED ) ) {
@@ -695,23 +697,31 @@ int zload( znode *node /* znode to load */ )
 		assert( "nikita-1097", tree != NULL );
 		assert( "nikita-1098", tree -> read_node != NULL );
 		/*
-		 * ->read_data() reads data from page cache. In any case
-		 * we rely on proper synchronization in the underlying
-		 * transport.
+		 * ->read_node() reads data from page cache. In any case we
+		 * rely on proper synchronization in the underlying
+		 * transport. Page reference counter is incremented and page is
+		 * kmapped, it will be decremented and kunmaped in zunload
 		 */
 		result = tree -> read_node( znode_get_block( node ), &data,
-					    reiser4_get_current_sb() -> s_blocksize );
+					    blocksize );
 		reiser4_stat_znode_add( zload_read );
 		spin_lock_znode( node );
 
 		if( result >= 0 ) {
 			node -> data = data;
-			node -> size = result;
+			node -> size = blocksize/*result*/;
 			/*
 			 * FIXME-NIKITA kmap() is required somewhere. But
 			 * kmap() can sleep.
+			 * kmap is done by tree->read_node ()
 			 */
 			ZF_SET( node, ZNODE_LOADED );
+
+			/* @data may be not a beginning of page, so calculate
+			 * its beginning */
+			data -= ((*znode_get_block( node ) % (PAGE_CACHE_SIZE / blocksize)) * blocksize);
+			ZJNODE( node ) -> pg =	virt_to_page( data );
+
 			add_d_ref( node );
 			result = zparse( node );
 			if( unlikely( result != 0 ) ) {
@@ -722,6 +732,7 @@ int zload( znode *node /* znode to load */ )
 		add_d_ref( node );
 	spin_unlock_znode( node );
 	assert( "nikita-1378", znode_invariant( node ) );
+
 	return result;
 }
 
@@ -752,7 +763,7 @@ int zinit_new( znode *node /* znode to initialise */ )
  * necessary.
  */
 /* Audited by umka 2002.06.11 */
-int zunload( znode *node UNUSED_ARG /* znode to unload */ )
+int zunload( znode *node /* znode to unload */ )
 {
 	assert( "nikita-485", node != NULL );
 	assert( "nikita-486", atomic_read( &node -> d_count ) == 0 );
@@ -764,7 +775,10 @@ int zunload( znode *node UNUSED_ARG /* znode to unload */ )
 	/* node -> data = NULL; ? */
 	/* unload data... */
 	/* kupmap() */
-
+	assert( "vs-660", current_tree -> unread_node != NULL );
+	current_tree -> unread_node( node );	
+	ZF_CLR( node, ZNODE_LOADED );
+	node -> data = 0;
 	return 0;
 }
 
@@ -873,6 +887,25 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	
 	node -> blocknr = *blocknr;
 }
+#if 0
+/* this is used to assign block number to jnode of unformatted node */
+void jnode_set_block (jnode * node, reiser4_block_nr block)
+{
+	assert ("vs-650", node != NULL);
+	assert ("vs-672", node->blocknr);
+	assert ("vs-651", blocknr_is_fake (&node->blocknr));
+	node->blocknr = block;
+}
+#endif
+
+/* return true if jnode has real blocknr */
+int jnode_has_block (jnode * node)
+{
+	assert ("vs-673", node);
+	assert ("vs-674", node->blocknr);
+	return blocknr_is_fake (&node->blocknr) ? 0 : 1;
+}
+
 
 /** left delimiting key of znode */
 /* Audited by umka 2002.06.11 */
@@ -1165,7 +1198,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
