@@ -473,7 +473,7 @@ static int flush_left_relocate  (jnode *node, const tree_coord *parent_coord)
 	}
 
 	/* Find the preceder. */
-	dup_coord (& coord, parent_coord);
+	coord_dup (& coord, parent_coord);
 
 	if ((ret = flush_find_preceder (node, & coord, & pblk))) {
 		return ret;
@@ -561,7 +561,7 @@ static int flush_find_rightmost (const tree_coord *parent_coord, reiser4_block_n
 		assert ("jmacd-2061", jnode_is_formatted (child));
 
 		/* The child is in memory, recurse. */
-		coord_last_unit (& child_coord, JZNODE (child));
+		coord_init_last_unit (& child_coord, JZNODE (child));
 
 		ret = flush_find_rightmost (& child_coord, pblk);
 	}
@@ -618,7 +618,7 @@ static int squalloc_leftpoint (flush_position *pos)
 		if (flush_pos_unformatted (pos)) {
 			/* Extent case.  The parent is locked and the parent_coord is kept
 			 * up-to-date during the unformatted case of this loop. */
-			assert ("jmacd-5591", coord_of_item (& pos->parent_coord) != 0);
+			assert ("jmacd-5591", coord_is_existing_unit (& pos->parent_coord) != 0);
 
 			/* Unformatted node case: we would not be called at this level if
 			 * the parent was dirty, instead squalloc_twig would have been
@@ -637,7 +637,7 @@ static int squalloc_leftpoint (flush_position *pos)
 
 			/* Flush extent returns when it reaches the end of its node or
 			 * when it reaches a formatted node pointer. */
-			if (coord_of_item (& pos->parent_coord) == 0) {
+			if (coord_is_existing_unit (& pos->parent_coord) == 0) {
 				/* End of twig node.  This call updates the state of this loop for
 				 * the next iteration at the leftpoint of the sub-tree to the
 				 * right. */
@@ -682,8 +682,8 @@ static int squalloc_leftpoint (flush_position *pos)
 					goto exit;
 				}
 
-				/* coord_next_item returns 0 if there are no more items. */
-				if (coord_next_item (& pos->parent_coord) == 0) {
+				/* coord_next_unit returns 0 if there are no more items. */
+				if (coord_next_unit (& pos->parent_coord) == 0) {
 
 					/* End of twig node.  This call updates the state of this
 					 * loop for the next iteration at the leftpoint of the
@@ -747,7 +747,7 @@ static int squalloc_leftpoint_end_of_twig (flush_position *pos)
 	lock_handle right_lock;
 
 	assert ("jmacd-8861", flush_pos_unformatted (pos));
-	assert ("jmacd-8862", coord_of_item (& pos->parent_coord) == 0);
+	assert ("jmacd-8862", coord_is_existing_item (& pos->parent_coord) == 0);
 
 	init_lh (& right_lock);
 
@@ -778,7 +778,7 @@ static int squalloc_leftpoint_end_of_twig (flush_position *pos)
 		item_plugin *iplug;
 
 		/* See if the left child is in memory. */
-		coord_first_unit (& pos->parent_coord, right_lock.node);
+		coord_init_first_unit (& pos->parent_coord, right_lock.node);
 		iplug = item_plugin_by_coord (& pos->parent_coord);
 
 		if ((ret = iplug->common.utmost_child (& pos->parent_coord, LEFT_SIDE, & child))) {
@@ -921,7 +921,7 @@ static int squalloc_parent_first (flush_position *pos)
 		tree_coord crd;
 		znode *child;
 
-		coord_last_unit (& crd, JZNODE (pos->point));
+		coord_init_last_unit (& crd, JZNODE (pos->point));
 
 		assert ("vs-442", item_is_internal (& crd));
 
@@ -989,11 +989,11 @@ static int squalloc_children (flush_position *pos)
 	int ret;
 	tree_coord crd;
 
-	coord_first_unit (& crd, JZNODE (pos->point));
+	coord_init_first_unit (& crd, JZNODE (pos->point));
 
 	/* Assert the pre-condition for the following do-loop, essentially
 	 * stating that the node is not empty. */
-	assert ("jmacd-2000", ! coord_after_last (& crd));
+	assert ("jmacd-2000", ! coord_is_after_rightmost (& crd));
 
 	/* Do ... while not the last unit. */
 	do {
@@ -1079,7 +1079,7 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 	/* It is possible that balancing occurs during the recursive step, leaving this
 	 * node without a parent now. */
 	if (znode_is_root (JZNODE (pos->point))) {
-		coord_last_unit (coord, JZNODE (pos->point));
+		coord_init_last_unit (coord, JZNODE (pos->point));
 		return 0;
 	}
 
@@ -1220,7 +1220,7 @@ static int squalloc_right_twig (znode    *left,
 
 	assert ("jmacd-2008", ! node_is_empty (right));
 
-	coord_first_unit (&coord, right);
+	coord_init_first_unit (&coord, right);
 
 	/* Initialize stop_key to detect if any extents are copied.  After
 	 * this loop loop if stop_key is still equal to *min_key then nothing
@@ -1241,7 +1241,7 @@ static int squalloc_right_twig (znode    *left,
 		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
 
 		/* coord_next_item returns 0 if there are no more items. */
-		if (coord_next_item (&coord) == 0) {
+		if (coord_next_unit (&coord) == 0) {
 			ret = SQUEEZE_SOURCE_EMPTY;
 			break;
 		}
@@ -1255,7 +1255,7 @@ static int squalloc_right_twig (znode    *left,
 		 * at the coord of a unit, it means the extent processing
 		 * stoped in the middle of an extent item, the last unit of
 		 * which was not copied.  Cut everything before that point. */
-		if (coord_of_unit (& coord)) {
+		if (coord_is_existing_unit (& coord)) {
 			coord_prev_unit (& coord);
 		}
 
@@ -1271,7 +1271,7 @@ static int squalloc_right_twig (znode    *left,
 		return ret;
 	}
 
-	coord_first_unit (&coord, right);
+	coord_init_first_unit (&coord, right);
 
 	if (! item_is_internal (&coord)) {
 		/* There is no space in @left anymore. */
@@ -1291,7 +1291,7 @@ static int squalloc_right_twig_cut (tree_coord * to, reiser4_key * to_key, znode
 	tree_coord from;
 	reiser4_key from_key;
 
-	coord_first_unit (&from, to->node);
+	coord_init_first_unit (&from, to->node);
 	item_key_by_coord (&from, &from_key);
 
 	return cut_node (&from, to, &from_key, to_key,
@@ -1311,7 +1311,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	int size, moved;
 
 
-	coord_first_unit (&coord, right);
+	coord_init_first_unit (&coord, right);
 
 	assert ("jmacd-2007", item_is_internal (&coord));
 
@@ -1816,7 +1816,7 @@ static int flush_scan_extent_coord (flush_scan *scan, tree_coord *coord)
 		}
 
 		/* Continue as long as there are more extent units. */
-	} while (coord_next_utmost_unit (coord, scan->direction) == 0 && item_is_extent (coord));
+	} while (coord_sideof_unit (coord, scan->direction) == 0 && item_is_extent (coord));
 
  exit:
 	if (ino != NULL) { iput (ino); }
@@ -1855,8 +1855,8 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 				return ret;
 			}
 		} else {
-			if (coord_next_utmost_unit (& scan->parent_coord, scan->direction) == 1) {
-				coord_utmost_unit (& scan->parent_coord, scan->parent_coord.node, scan->direction);
+			if (coord_sideof_unit (& scan->parent_coord, scan->direction) == 1) {
+				coord_init_sideof_unit (& scan->parent_coord, scan->parent_coord.node, scan->direction);
 			}
 		}
 
@@ -1864,7 +1864,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			break;
 		}
 
-		if (coord_after_utmost (& scan->parent_coord, scan->direction)) {
+		if (coord_after_sideof_unit (& scan->parent_coord, scan->direction)) {
 
 			lock_handle save_lock;
 
@@ -1877,7 +1877,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 
 			if (ret != 0) { return ret; }
 
-			coord_utmost_unit (& scan->parent_coord, scan->parent_lock.node, sideof_reverse (scan->direction));
+			coord_init_sideof_unit (& scan->parent_coord, scan->parent_lock.node, sideof_reverse (scan->direction));
 		}
 
 		if (! item_is_extent (& scan->parent_coord)) {
