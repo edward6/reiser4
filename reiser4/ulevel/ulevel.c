@@ -2378,8 +2378,8 @@ int real_main( int argc, char **argv )
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
 
-	memset( &reiser4_get_current_super_data() -> stats, 0, 
-		sizeof reiser4_get_current_super_data() -> stats );
+	memset( &reiser4_get_current_super_private() -> stats, 0, 
+		sizeof reiser4_get_current_super_private() -> stats );
 	txn_mgr_init( &reiser4_get_super_private (&super) -> tmgr );
 
 	root_dentry.d_inode = NULL;
