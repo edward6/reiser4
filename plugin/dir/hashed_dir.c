@@ -209,11 +209,11 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
-	if( ( result == 0 ) && ( ( result = zload( coord -> node ) ) == 0 ) ) {
+	if( result == 0 ) {
 		/* entry was found, extract object key from it. */
-		result = item_plugin_by_coord( coord ) ->
-			s.dir.extract_key( coord, &entry.key );
-		zrelse( coord -> node );
+		result = WITH_DATA( coord -> node, 
+				    item_plugin_by_coord( coord ) ->
+				    s.dir.extract_key( coord, &entry.key ) );
 	}
 	done_lh( &lh );
 
@@ -320,15 +320,15 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
 	coord = &reiser4_get_dentry_fsdata( where ) -> entry_coord;
 	loaded = coord -> node;
-	if( ( result == 0 ) && ( ( result = zload( loaded ) ) == 0 ) ) {
+	if( result == 0 ) {
 		/*
 		 * remove entry. Just pass control to the directory item
 		 * plugin.
 		 */
 		assert( "vs-542", inode_dir_item_plugin( object ) );
-		result = inode_dir_item_plugin( object ) ->
-			s.dir.rem_entry( object, coord, &lh, entry );
-		zrelse( loaded );
+		result = WITH_DATA( loaded, inode_dir_item_plugin( object ) ->
+				    s.dir.rem_entry( object, 
+						     coord, &lh, entry ) );
 	}
 	done_lh( &lh );
 
@@ -376,7 +376,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 {
 	const struct qstr *name;
 	seal_t            *seal;
-	coord_t         *coord;
+	coord_t           *coord;
 	int                result;
 
 	assert( "nikita-1130", lh != NULL );
@@ -403,21 +403,20 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		/* check seal */
 		result = seal_validate( seal, coord, &entry -> key, LEAF_LEVEL,
 					lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI );
-		if( ( result == 0 ) && !( result = zload( coord -> node ) ) ) {
+		if( result == 0 ) {
 			/* key was found. Check that it is really item we are
 			 * looking for. */
-			result = check_item( dir, coord, name -> name );
-			zrelse( coord -> node );
+			result = WITH_DATA( coord -> node, 
+					    check_item( dir, coord, name -> name ) );
 			if( result == 0 )
 				return 0;
 		}
 	} else
 		result = -EAGAIN;
-	if( result != 0 )
-		result = coord_by_key( tree_by_inode( dir ), 
-				       &entry -> key, coord, lh,
-				       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
-				       CBK_FOR_INSERT );
+	assert( "nikita-2103", result != 0 );
+	result = coord_by_key( tree_by_inode( dir ), &entry -> key, coord, lh,
+			       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
+			       CBK_FOR_INSERT );
 	if( result == CBK_COORD_FOUND ) {
 		entry_actor_args arg;
 
@@ -451,9 +450,9 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		}
 
 		done_lh( &arg.last_lh );
+		if( result == 0 )
+			seal_init( seal, coord, &entry -> key );
 	}
-	if( result == 0 )
-		seal_init( seal, coord, &entry -> key );
 	return result;
 }
 
@@ -491,6 +490,11 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 			       unit_key_by_coord( coord, &unit_key ) ) );
 		args -> not_found = 1;
 		args -> last_coord.between = AFTER_UNIT;
+		if( args -> last_coord.node == NULL ) {
+			print_key( "unit_key", &unit_key );
+			print_key( "args", args -> key );
+			rpanic( "nikita-2102", "No way!" );
+		}
 		return 0;
 	}
 
