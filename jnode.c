@@ -479,6 +479,14 @@ void page_detach_jnode_lock( struct page *page,
 		unlock_page( page );
 }
 
+/**
+ * return @node page locked.
+ *
+ * Locking ordering requires that one first takes page lock and afterwards
+ * spin lock on node attached to this page. Sometimes it is necessary to go in
+ * the opposite direction. This is done through standard trylock-and-release
+ * loop.
+ */
 struct page *jnode_lock_page( jnode *node )
 {
 	struct page *page;
@@ -512,6 +520,12 @@ struct page *jnode_lock_page( jnode *node )
 		page_cache_get( page );
 		spin_unlock_jnode( node );
 		wait_on_page_locked( page );
+		/*
+		 * it is possible that page was detached from jnode and
+		 * returned to the free pool, or re-assigned while we were
+		 * waiting on locked bit. This will be rechecked on the next
+		 * loop iteration.
+		 */
 		page_cache_release( page );
 
 		/*
@@ -1159,7 +1173,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
