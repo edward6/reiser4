@@ -21,6 +21,7 @@ static kmem_cache_t *_jnode_slab = NULL;
 /* The jnode_ptr_lock is a global spinlock used to protect the struct_page to
  * jnode mapping (i.e., it protects all struct_page_private fields).  It could
  * be a per-txnmgr spinlock instead. */
+/* FIXME: Nikita says this should be fixed, possibly per-superblock or something better. */
 spinlock_t    _jnode_ptr_lock = SPIN_LOCK_UNLOCKED;
 
 /* Initialize static variables in this file. */
