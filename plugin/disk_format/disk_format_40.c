@@ -212,9 +212,9 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->default_gid = 0;
 
 	reiser4_set_block_count (s, get_format_40_block_count (sb_copy));
-	/* number of used blocks */
-	reiser4_set_data_blocks (s, get_format_40_block_count (sb_copy));
 	reiser4_set_free_blocks (s, get_format_40_free_blocks (sb_copy));
+	/* number of used blocks */
+	reiser4_set_data_blocks (s, get_format_40_block_count (sb_copy) - get_format_40_free_blocks (sb_copy));
 
 	private->inode_generation = get_format_40_oid (sb_copy);
 	private->fsuid = 0;
