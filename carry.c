@@ -61,8 +61,6 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
        //   COP_DELETE    --- delete pointer from parent node
        //   COP_UPDATE    --- update delimiting key in least
        //                     common ancestor of two
-       //   COP_MODIFY    --- update parent to reflect changes in
-       //                     the child
 
        op = post_carry( &lowest_level, operation, node, 0 );
        if( IS_ERR( op ) || ( op == NULL ) ) {
@@ -1335,8 +1333,6 @@ carry_op_name(carry_opcode op /* carry opcode */ )
 		return "COP_PASTE";
 	case COP_UPDATE:
 		return "COP_UPDATE";
-	case COP_MODIFY:
-		return "COP_MODIFY";
 	case COP_EXTENT:
 		return "COP_EXTENT";
 	case COP_INSERT_FLOW:
@@ -1399,9 +1395,6 @@ print_op(const char *prefix /* prefix to print */ ,
 	case COP_UPDATE:
 		print_carry("\tleft", op->u.update.left);
 		break;
-	case COP_MODIFY:
-		print_carry("\tchild", op->u.modify.child);
-		printk("\tflag: %x\n", op->u.modify.flag);
 	default:
 		/* do nothing */
 		break;

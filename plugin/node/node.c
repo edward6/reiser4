@@ -357,9 +357,6 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		.fast_insert = fast_insert_node40,
 		.fast_paste = fast_paste_node40,
 		.fast_cut = fast_cut_node40,
-#ifdef MODIFY_EXISTS
-		.modify = NULL,
-#endif
 		.max_item_size = max_item_size_node40,
 		.prepare_removal = prepare_removal_node40,
 		.set_item_plugin = set_item_plugin_node40

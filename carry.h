@@ -86,20 +86,12 @@ typedef enum {
 	   nodes.
 	*/
 	COP_UPDATE,
-	/* update parent to reflect changes in the child. 3.x format
-	   emulation uses this to update "child size" in parent. */
-	COP_MODIFY,
 	/* insert flow */
 	COP_INSERT_FLOW,
 	COP_LAST_OP,
 } carry_opcode;
 
 #define CARRY_FLOW_NEW_NODES_LIMIT 20
-
-typedef enum {
-	COP_MODIFY_FREE_SPACE = (1 << 0),	/* FIXME_JMACD currently unused
-						 * -josh */
-} cop_modify_flag;
 
 /* mode (or subtype) of COP_{INSERT|PASTE} operation. Specifies how target
    item is determined. */
