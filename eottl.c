@@ -226,7 +226,7 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	ON_STATS( todo.level_no = TWIG_LEVEL );
 
 	grabbed = get_current_context() -> grabbed_blocks;
-	result = reiser4_grab_space1( 1 );
+	result = reiser4_grab_space1( (__u64)1 );
 	if( result != 0 )
 		return result;
 

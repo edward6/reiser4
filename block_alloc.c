@@ -506,7 +506,6 @@ int reiser4_dealloc_blocks (
  * to this newly allocated node until real allocation is done */
 int assign_fake_blocknr (reiser4_block_nr *blocknr)
 {
-	int ret;
 	reiser4_block_nr not_used;
 
 #if 1

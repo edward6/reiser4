@@ -589,6 +589,7 @@ struct super_block {
 	struct dentry *s_root;
 	struct super_operations *s_op;
 	unsigned long s_flags;
+	char * s_id;
 	union {
 		void * generic_sbp;
 	} u;
