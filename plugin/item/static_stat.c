@@ -840,6 +840,7 @@ plugin_sd_save_len(struct inode *inode /* object being processed */ )
 	len = len_for(tail_plugin_to_plugin(state->pset->tail), inode, len);
 	len = len_for(hash_plugin_to_plugin(state->pset->hash), inode, len);
 	len = len_for(crypto_plugin_to_plugin(state->pset->crypto), inode, len);
+	len = len_for(digest_plugin_to_plugin(state->pset->digest), inode, len);
 	len = len_for(compression_plugin_to_plugin(state->pset->compression), inode, len);
 	assert("nikita-664", len > (int) sizeof (reiser4_plugin_stat));
 	return len;
@@ -912,99 +913,182 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	    || save_plug(tail_plugin_to_plugin(state->pset->tail), inode, area, &num_of_plugins)
             || save_plug(hash_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
 	    || save_plug(crypto_plugin_to_plugin(state->pset->crypto), inode, area, &num_of_plugins)
+	    || save_plug(digest_plugin_to_plugin(state->pset->digest), inode, area, &num_of_plugins)
 	    || save_plug(compression_plugin_to_plugin(state->pset->compression), inode, area, &num_of_plugins);
 
 	cputod16((unsigned) num_of_plugins, &sd->plugins_no);
 	return result;
 }
 
-/* helper function for keyid_sd_present(). Allocates memory for secret key
-   identifier and attaches it to inode */
 
-static int keyid_to_inode (struct inode *inode, const __u8 * word)
+/* helper function for crypto_sd_present(), crypto_sd_save.
+   Allocates memory for crypto stat, keyid and attaches it to the inode */
+ 
+static int crypto_stat_to_inode (struct inode *inode,
+				 crypto_stat_t * tmp,
+				 unsigned int size /* fingerprint size */)
 {
-	reiser4_inode *info = reiser4_inode_data(inode);
-
-	assert ("edward-11", info->keyid == NULL);
-	assert ("edward-33", !inode_get_flag(inode, REISER4_KEYID_LOADED));
-
-	info->keyid = reiser4_kmalloc(sizeof(reiser4_keyid_stat), GFP_KERNEL);
-	if (!info->keyid)
+	crypto_stat_t * stat;
+	
+	assert ("edward-11", (reiser4_inode_data(inode))->crypt == NULL);
+	assert ("edward-33", !inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED));
+	
+	stat = reiser4_kmalloc(sizeof(*stat), GFP_KERNEL);
+	if (!stat)
 		return RETERR(-ENOMEM);
-
-	xmemcpy(info->keyid, word, sizeof(reiser4_keyid_stat));
-	inode_set_flag(inode, REISER4_KEYID_LOADED);
+	stat->keyid = reiser4_kmalloc((size_t)size, GFP_KERNEL);
+	if (!stat->keyid) {
+		reiser4_kfree(stat, sizeof(*stat));
+		return RETERR(-ENOMEM);
+	}
+	/* load inode crypto-stat */
+	stat->keysize = tmp->keysize;
+	xmemcpy(stat->keyid, tmp->keyid, (size_t)size);
+	(reiser4_inode_data(inode))->crypt = stat;
+	
+	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;
 }
 
-/* key id stat-data extension */
+/* crypto stat-data extension */
 
-static int keyid_sd_present(struct inode *inode, char **area, int *len)
+static int crypto_sd_present(struct inode *inode, char **area, int *len)
 {
 	int result;
-	reiser4_keyid_stat *sd;
-
-	assert("edward-06", inode != NULL);
+	reiser4_crypto_stat *sd;
+	crypto_stat_t stat;
+	digest_plugin * dplug = inode_digest_plugin(inode);
+	unsigned int keyid_size;
+	
+	assert("edward-06", dplug != NULL);
 	assert("edward-07", area != NULL);
 	assert("edward-08", *area != NULL);
 	assert("edward-09", len != NULL);
 	assert("edward-10", *len > 0);
 
-	if (*len < (int) sizeof (reiser4_keyid_stat)) {
-		return not_enough_space(inode, "keyid-sd");
+	if (*len < (int) sizeof (reiser4_crypto_stat)) {
+		return not_enough_space(inode, "crypto-sd");
 	}	
 
-	sd = (reiser4_keyid_stat *) * area;
-	result = keyid_to_inode(inode, (const __u8 *)(sd->keyid));
-	next_stat(len, area, sizeof *sd);
+	keyid_size = dplug->digestsize;
+	/* *len is number of bytes in stat data item from *area to the end of
+	   item. It must be not less than size of this extension */
+	assert("edward-75", sizeof(*sd) + keyid_size <= *len);
+	
+	sd = (reiser4_crypto_stat *) * area;
+	stat.keysize = d16tocpu(&sd->keysize);
+	stat.keyid = (__u8 *)sd->keyid;
+	
+	result = crypto_stat_to_inode(inode, &stat, keyid_size);
+	next_stat(len, area, sizeof(*sd) + keyid_size);
 	return result;
 }
 
-static int keyid_sd_save_len(struct inode *inode UNUSED_ARG)
+static int crypto_sd_save_len(struct inode *inode)
 {
-	return sizeof (reiser4_keyid_stat);
+	return (sizeof(reiser4_crypto_stat) + inode_digest_plugin(inode)->digestsize);
 }
 
-static int keyid_sd_save(struct inode *inode, char **area) 
+static int crypto_sd_save(struct inode *inode, char **area) 
 {
 	int result = 0;
-	reiser4_keyid_stat *sd;
-	reiser4_inode * info = reiser4_inode_data(inode);
-	
-	assert("edward-12", inode != NULL);
+	reiser4_crypto_stat *sd;
+	digest_plugin * dplug = inode_digest_plugin(inode);
+
+	assert("edward-12", dplug != NULL);
 	assert("edward-13", area != NULL);
 	assert("edward-14", *area != NULL);
-
-	sd = (reiser4_keyid_stat *) *area;
-	if (!inode_get_flag(inode, REISER4_KEYID_LOADED)) {
-		/* file is just created, so update info->keyid which contains
-		 a pointer to the temporary data */ 
-		const __u8 * word = info->keyid;
-
-		assert("edward-15", word != NULL);
+	assert("edward-76", reiser4_inode_data(inode) != NULL);
+	
+	sd = (reiser4_crypto_stat *) *area;
+	if (!inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
+		/* file is just created, so update inode's crypto-stat
+		   which is a pointer to the temporary data */ 
+		crypto_stat_t * stat = reiser4_inode_data(inode)->crypt;
 		
-		/*sd = (reiser4_keyid_stat *) *area;*/
-		info->keyid = NULL;
-		result = keyid_to_inode(inode, word);
-		/* copy the word to stat-data */
-		xmemcpy(sd->keyid, word, sizeof *sd);
+		assert("edward-15", stat != NULL);
+
+		reiser4_inode_data(inode)->crypt = NULL;
+		result = crypto_stat_to_inode(inode, stat, dplug->digestsize);
+		/* copy inode crypto-stat to the disk stat-data */
+		cputod16(stat->keysize, &sd->keysize);
+		xmemcpy(sd->keyid, stat->keyid, (size_t)dplug->digestsize);
 	} else {
 		/* do nothing */
-		assert("edward-16", !memcmp(info->keyid, sd->keyid, sizeof *sd));
 	}
-	*area += sizeof *sd;
+	*area += (sizeof(*sd) + dplug->digestsize);
 	return result;
 }
 
 #if REISER4_DEBUG_OUTPUT
 static void
-keyid_sd_print(const char *prefix, char **area /* position in stat-data */ ,
+crypto_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 		 int *len /* remaining length */ )
 {
-	reiser4_keyid_stat *sd = (reiser4_keyid_stat *) * area;
+	/* FIXME-EDWARD Make sure we debug only with none digest plugin */
+	digest_plugin * dplug = digest_plugin_by_id(NONE_DIGEST_ID);
+	reiser4_crypto_stat *sd = (reiser4_crypto_stat *) * area;
+	
+	printk("%s: keysize: %u keyid: \"%llx\"\n", prefix, d16tocpu(&sd->keysize), *(__u64 *)(sd->keyid));
+	next_stat(len, area, sizeof(*sd) + dplug->digestsize);
+}
+#endif
 
-	/* FIXME-EDWARD: printed simbols can be not readable */
- 	printk("%s: \"%llx\"\n", prefix, *(__u64 *)(sd->keyid));
+/* cluster stat-data extension */
+
+static int cluster_sd_present(struct inode *inode, char **area, int *len)
+{
+	reiser4_inode * info;
+	
+	assert("edward-77", inode != NULL);
+	assert("edward-78", area != NULL);
+	assert("edward-79", *area != NULL);
+	assert("edward-80", len != NULL);
+	assert("edward-81", !inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	info = reiser4_inode_data(inode);
+	
+	assert("edward-82", info != NULL);
+	
+	if (*len >= (int) sizeof (reiser4_cluster_stat)) {
+		reiser4_cluster_stat *sd;
+		sd = (reiser4_cluster_stat *) * area;
+		info->cluster_shift = d8tocpu(&sd->cluster_shift);
+		inode_set_flag(inode, REISER4_CLUSTER_KNOWN);
+		next_stat(len, area, sizeof *sd);
+		return 0;
+	}
+	else
+		return not_enough_space(inode, "cluster sd");
+}
+
+static int cluster_sd_save_len(struct inode *inode UNUSED_ARG)
+{
+	return sizeof (reiser4_cluster_stat);
+}
+
+static int cluster_sd_save(struct inode *inode, char **area)
+{
+	reiser4_cluster_stat *sd;
+	
+	assert("edward-106", inode != NULL);
+	assert("edward-107", area != NULL);
+	assert("edward-108", *area != NULL);
+	
+	sd = (reiser4_cluster_stat *) * area;
+	cputod8(reiser4_inode_data(inode)->cluster_shift, &sd->cluster_shift);
+	*area += sizeof *sd;
+	return 0;
+}
+
+#if REISER4_DEBUG_OUTPUT
+static void
+cluster_sd_print(const char *prefix, char **area /* position in stat-data */,
+		int *len /* remaining length */ )
+{
+	reiser4_crypto_stat *sd = (reiser4_crypto_stat *) * area;
+
+	printk("%s: %u\n", prefix, d8tocpu(&sd->clust));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -1119,21 +1203,39 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #endif
 				.alignment = 8
 	},
-	[KEY_ID_STAT] = {
+	[CLUSTER_STAT] = {
 				.h = {
 				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-				      .id = KEY_ID_STAT,
+				      .id = CLUSTER_STAT,
 				      .pops = NULL,
-				      .label = "keyid-sd",
-				      .desc = "secret key identifier",
+				      .label = "cluster-sd",
+				      .desc = "cluster shift",
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
-				.present = keyid_sd_present,
+				.present = cluster_sd_present,
 				.absent = NULL,
-				.save_len = keyid_sd_save_len,
-				.save = keyid_sd_save,
+				.save_len = cluster_sd_save_len,
+				.save = cluster_sd_save,
 #if REISER4_DEBUG_OUTPUT
-				.print = keyid_sd_print,
+				.print = cluster_sd_print,
+#endif
+				.alignment = 8
+	},
+	[CRYPTO_STAT] = {
+				.h = {
+				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				      .id = CRYPTO_STAT,
+				      .pops = NULL,
+				      .label = "crypto-sd",
+				      .desc = "secret key size and id",
+				      .linkage = TS_LIST_LINK_ZERO}
+				,
+				.present = crypto_sd_present,
+				.absent = NULL,
+				.save_len = crypto_sd_save_len,
+				.save = crypto_sd_save,
+#if REISER4_DEBUG_OUTPUT
+				.print = crypto_sd_print,
 #endif
 				.alignment = 8
 	}

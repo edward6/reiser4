@@ -76,9 +76,12 @@ typedef enum {
 	/* this extension contains capabilities sets, associated with this
 	    file. Layout is in reiser4_capabilities_stat */
 	CAPABILITIES_STAT,
-	/* this extension contains the secret key identifier. Layout is
-	 in reiser4_keyid_stat */
-	KEY_ID_STAT,
+        /* this extension contains the information about minimal unit size for
+	   file data processing. Layout is in reiser4_cluster_stat */
+	CLUSTER_STAT,
+	/* this extension contains size and public id of the secret key.
+	   Layout is in reiser4_crypto_stat */
+	CRYPTO_STAT,
 	LAST_SD_EXTENSION,
 	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
 } sd_ext_bits;
@@ -158,10 +161,17 @@ typedef struct reiser4_capabilities_stat {
 	/* 16 */
 } PACKED reiser4_capabilities_stat;
 
-typedef struct reiser4_keyid_stat {
-	/*  0 */ d8 keyid[8];
-	/*  8 */
-} PACKED reiser4_keyid_stat;
+typedef struct reiser4_cluster_stat {
+	/* 0 */ d8 cluster_shift;
+	/* 8 */
+} PACKED reiser4_cluster_stat;
+
+typedef struct reiser4_crypto_stat {
+	/* secret key size, bits */
+	/*  0 */ d16 keysize;
+	/* secret key id */
+	/*  8 */ d8 keyid[0];
+} PACKED reiser4_crypto_stat;
 
 typedef struct reiser4_large_times_stat {
 	/* access time */
