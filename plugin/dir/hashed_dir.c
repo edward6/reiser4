@@ -1025,7 +1025,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 					      entry_actor, &arg, mode, 1);
 			/* if end of the tree or extent was reached during
 			   scanning. */
-			if (arg.not_found || (result == -ENAVAIL)) {
+			if (arg.not_found || (result == -E_NO_NEIGHBOR)) {
 				/* step back */
 				done_lh(lh);
 

@@ -78,12 +78,12 @@ find_left_neighbor(carry_op * op	/* node to find left
 		if (result != 0)
 			left = ERR_PTR(result);
 		reiser4_stat_level_inc(doing, carry_left_in_cache);
-	} else if ((result == -ENAVAIL) || (result == -ENOENT)) {
+	} else if ((result == -E_NO_NEIGHBOR) || (result == -ENOENT)) {
 		/* node is leftmost node in a tree, or neighbor wasn't in
 		   cache, or there is an extent on the left. */
 		if (REISER4_STATS && (result == -ENOENT))
 			reiser4_stat_level_inc(doing, carry_left_missed);
-		if (REISER4_STATS && (result == -ENAVAIL))
+		if (REISER4_STATS && (result == -E_NO_NEIGHBOR))
 			reiser4_stat_level_inc(doing, carry_left_not_avail);
 		reiser4_pool_free(&left->header);
 		left = NULL;
@@ -168,13 +168,13 @@ find_right_neighbor(carry_op * op	/* node to find right
 			if (result != 0)
 				right = ERR_PTR(result);
 		}
-	} else if ((result == -ENAVAIL) || (result == -ENOENT)) {
+	} else if ((result == -E_NO_NEIGHBOR) || (result == -ENOENT)) {
 		/* node is rightmost node in a tree, or neighbor wasn't in
 		   cache, or there is an extent on the right. */
 		right = NULL;
 		if (REISER4_STATS && (result == -ENOENT))
 			reiser4_stat_level_inc(doing, carry_right_missed);
-		if (REISER4_STATS && (result == -ENAVAIL))
+		if (REISER4_STATS && (result == -E_NO_NEIGHBOR))
 			reiser4_stat_level_inc(doing, carry_right_not_avail);
 	} else
 		right = ERR_PTR(result);

@@ -593,7 +593,7 @@ is_dir_empty(const struct inode *dir)
 		case -ENOTEMPTY:
 			break;
 		case 0:
-		case -ENAVAIL:
+		case -E_NO_NEIGHBOR:
 			result = 0;
 			break;
 		}
@@ -991,7 +991,7 @@ common_readdir(struct file *f /* directory file being read */ ,
 				break;
 			} else if (result == 0) {
 				result = go_next_unit(&tap);
-				if (result == -ENAVAIL || result == -ENOENT) {
+				if (result == -E_NO_NEIGHBOR || result == -ENOENT) {
 					result = 0;
 					break;
 				}
@@ -1003,7 +1003,7 @@ common_readdir(struct file *f /* directory file being read */ ,
 			f->f_pos = pos->entry_no + ((result == 0) ? 1 : 0);
 			f->f_version = inode->i_version;
 		}
-	} else if (result == -ENAVAIL || result == -ENOENT)
+	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
 	return result;

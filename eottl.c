@@ -146,7 +146,7 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 
 		init_lh(&right_lh);
 		result = reiser4_get_right_neighbor(&right_lh, coord->node, ZNODE_READ_LOCK, GN_DO_READ);
-		if (result && result != -ENAVAIL) {
+		if (result && result != -E_NO_NEIGHBOR) {
 			/* error occured */
 			/* FIXME-VS: error code is not returned. Just that
 			   there is no right neighbor */

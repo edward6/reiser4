@@ -388,7 +388,7 @@ find_file_item(struct sealed_coord *hint,
 			if (equal_to_rdk(coord->node, key)) {
 				assert("vs-1151", coord->between == AFTER_UNIT);
 				result = goto_right_neighbor(coord, lh);
-				if (result == -ENAVAIL)
+				if (result == -E_NO_NEIGHBOR)
 					return -EIO;
 				if (result)
 					return result;

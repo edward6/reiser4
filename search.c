@@ -1291,7 +1291,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 			h->bias = bias;
 
 			if (h->result == NS_NOT_FOUND) {
-	case -ENAVAIL:
+	case -E_NO_NEIGHBOR:
 				h->result = CBK_COORD_FOUND;
 				reiser4_stat_inc(tree.cbk_found);
 				cbk_cache_add(node);

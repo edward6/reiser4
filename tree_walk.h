@@ -21,7 +21,7 @@ int connect_znode(coord_t * coord, znode * node);
 	    -ENOENT  - neighbor is not in cache, what is detected by sibling
 	               link absence.
 
-            -ENAVAIL - we are sure that neighbor (or parent) node cannot be
+            -E_NO_NEIGHBOR - we are sure that neighbor (or parent) node cannot be
                        found (because we are left-/right- most node of the
 		       tree, for example). Also, this return code is for
 		       reiser4_get_parent() when we see no parent link -- it
