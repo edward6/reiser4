@@ -115,6 +115,7 @@ typedef enum {
 typedef enum {
 	COPT_CHILD,
 	COPT_ITEM_DATA,
+	COPT_KEY,
 	COPT_PASTE_RESTARTED,
 } cop_insert_pos_type;
 
