@@ -214,7 +214,7 @@ static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
-	SetPageDirty( jnode_page( node ) );
+	set_page_dirty( jnode_page( node ) );
 	return 0;
 }
 

@@ -1322,6 +1322,23 @@ static inline void init_rwsem( struct rw_semaphore *rwsem )
 
 int __set_page_dirty_nobuffers(struct page *page);
 
+static inline int __set_page_dirty_buffers(struct page *page UNUSED_ARG)
+{
+	return 0;
+}
+
+static inline int set_page_dirty(struct page *page)
+{
+	if (page->mapping) {
+		int (*spd)(struct page *);
+
+		spd = page->mapping->a_ops->set_page_dirty;
+		if (spd)
+			return (*spd)(page);
+	}
+	return __set_page_dirty_buffers(page);
+}
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

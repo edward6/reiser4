@@ -1137,7 +1137,7 @@ int ulevel_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 {
 	assert ("vs-688", JF_ISSET (node, ZNODE_LOADED));
-	SetPageDirty (jnode_page (node));
+	set_page_dirty (jnode_page (node));
 	return 0;
 }
 
@@ -3052,7 +3052,7 @@ static int mkfs_bdrop (reiser4_tree *tree UNUSED_ARG, jnode *node)
 int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 {
 	assert ("vs-692", JF_ISSET (node, ZNODE_LOADED));
-	SetPageDirty (jnode_page (node));
+	set_page_dirty (jnode_page (node));
 	return 0;
 }
 
