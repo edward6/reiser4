@@ -352,11 +352,6 @@ struct txn_atom {
 	reiser4_block_nr flush_reserved;
 #if REISER4_DEBUG
 	void *committer;
-	int coc_reloc;
-	int coc_ovrwr;
-	int coc_nopage;
-	int coc_clean;
-	int coc_uber;
 #endif
 };
 
