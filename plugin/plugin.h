@@ -57,7 +57,7 @@ struct flow {
 
 typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
 
-/* File plugin.  Defines the set of methods that file plugins implement, some of which are optional.  
+/* File plugin.  Defines the set of methods that file plugins implement, some of which are optional.
 
  A file plugin offers to the caller an interface for IO ( writing to and/or reading from) to what the caller sees as one
  sequence of bytes.  An IO to it may affect more than one physical sequence of bytes, or no physical sequence of bytes,
@@ -70,14 +70,14 @@ typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
  and extent items, whose keys contain offsets, do however provide efficient non-sequential lookup of any offset in the
  sequence of bytes).
 
- Directory plugins provide methods for selecting file plugins by resolving a name for them.  
+ Directory plugins provide methods for selecting file plugins by resolving a name for them.
 
  The functionality other filesystems call an attribute, and rigidly tie together, we decompose into orthogonal
  selectable features of files.  Using the terminology we will define next, an attribute is a perhaps constrained,
  perhaps static length, file whose parent has a uni-count-intra-link to it, which might be grandparent-major-packed, and
  whose parent has a deletion method that deletes it.
 
- File plugins implement constraints. 
+ File plugins implement constraints.
 
  Files can be of variable length (e.g. regular unix files), or of static length (e.g. static sized attributes).
 
@@ -117,10 +117,10 @@ typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
  subject, and permission bitmask} triples), it makes sense to not have an offset field in the ACE item key, and to allow
  duplicate keys for ACEs.  Thus, the set of ACES for a given file is found by looking for a key consisting of the
  objectid of the grandparent (thus grouping all ACLs in a directory together), the minor packing locality of ACE, the
- objectid of the file, and 0.  
+ objectid of the file, and 0.
 
  IO involves moving data from one location to another, which means that two locations must be specified, source and
- destination.  
+ destination.
 
  This source and destination can be in the filesystem, or they can be a pointer in the user process address space plus a byte count.
 
@@ -137,7 +137,7 @@ typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
  read, and a key that defines where in the tree the read is to come from.
 
  There will exist file plugins which have no pluginid stored on the disk for them, and which are only invoked by other
- plugins.  
+ plugins.
 
 */
 
@@ -174,7 +174,7 @@ typedef struct file_plugin {
    method that also uses them. */
 
 	/* Construct flow into @flow according to user-supplied data.
-	  
+	
 	   This is used by read/write methods to construct a flow to
 	   write/read. ->flow_by_inode() is plugin method, rather than single
 	   global implemenation, because key in a flow used by plugin may
@@ -198,7 +198,7 @@ typedef struct file_plugin {
 	int (*adjust_to_parent) (struct inode * object, struct inode * parent, struct inode * root);
 	/* this does whatever is necessary to do when object is created. For
 	   instance, for ordinary files stat data is inserted */
-	int (*create) (struct inode * object, struct inode * parent, 
+	int (*create) (struct inode * object, struct inode * parent,
 		       reiser4_object_create_data * data);
 	/* delete empty object. This method should check REISER4_NO_SD
 	   and set REISER4_NO_SD on success. Deletion of empty object
@@ -583,9 +583,9 @@ void move_flow_forward(flow_t * f, unsigned count);
 /* builtin plugins */
 
 /* builtin file-plugins */
-typedef enum { 
+typedef enum {
 	/* regular file */
-	UNIX_FILE_PLUGIN_ID, 
+	UNIX_FILE_PLUGIN_ID,
 	/* directory */
 	DIRECTORY_FILE_PLUGIN_ID,
 	/* symlink */
@@ -593,8 +593,8 @@ typedef enum {
 	/* for objects completely handled by the VFS: fifos, devices,
 	   sockets  */
 	SPECIAL_FILE_PLUGIN_ID,
-	/* Plugin id for crypto-compression objects */       
-	CRC_FILE_PLUGIN_ID,       
+	/* Plugin id for crypto-compression objects */
+	CRC_FILE_PLUGIN_ID,
 	/* pseudo file */
 	PSEUDO_FILE_PLUGIN_ID,
         /* number of file plugins. Used as size of arrays to hold
@@ -656,7 +656,7 @@ typedef enum {
 /* Encapsulations of crypto specific data */
 typedef struct crypto_data {
         reiser4_crypto_id      cra; /* id of the crypto algorithm */
-	reiser4_digest_id      dia; /* id of the digest algorithm */   
+	reiser4_digest_id      dia; /* id of the digest algorithm */
 	__u8 * key;                 /* secret key */
 	__u16 keysize;              /* key size, bits */
 	__u8 * keyid;               /* keyid */
@@ -665,7 +665,7 @@ typedef struct crypto_data {
 
 /* compression/clustering specific data */
 typedef reiser4_compression_id compression_data_t; /* id of the compression algorithm */
-typedef __u8 cluster_data_t;       /* cluster info */ 
+typedef __u8 cluster_data_t;       /* cluster info */
 
 /* data type used to pack parameters that we pass to vfs
     object creation function create_object() */
@@ -681,7 +681,7 @@ struct reiser4_object_create_data {
 	const char *name;
 	/* add here something for non-standard objects you invent, like
 	   query for interpolation file etc. */
-	crypto_data_t * crypto; 
+	crypto_data_t * crypto;
 	compression_data_t * compression;
 	cluster_data_t * cluster;
 

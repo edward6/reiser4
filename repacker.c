@@ -1,6 +1,6 @@
 /* Copyright 2003 by Hans Reiser */
 
-/* 
+/*
    The reiser4 repacker.
 
    It walks the reiser4 tree and marks all nodes (reads them if it is
@@ -213,9 +213,9 @@ static int process_znode_backward (tap_t * tap, void * arg)
 		cursor->hint.block_stage = BLOCK_UNALLOCATED;
 	} else {
 		assert("zam-963", !blocknr_is_fake(znode_get_block(child)));
-		ret = reiser4_dealloc_block(znode_get_block(child), 0, 
+		ret = reiser4_dealloc_block(znode_get_block(child), 0,
 					    BA_DEFER | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
-		if (ret) 
+		if (ret)
 			goto out;
 
 		if (znode_get_level(child) == LEAF_LEVEL)
@@ -232,7 +232,7 @@ static int process_znode_backward (tap_t * tap, void * arg)
 	{
 		__u64 len = 1UL;
 
-		ret = reiser4_alloc_blocks(&cursor->hint, &new_blocknr, &len, 
+		ret = reiser4_alloc_blocks(&cursor->hint, &new_blocknr, &len,
 					   BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
 		if (ret)
 			goto out;
@@ -333,7 +333,7 @@ static int reiser4_repacker (struct repacker * repacker)
 static int repacker_d(void *arg)
 {
 	struct repacker * repacker = arg;
-	struct task_struct * me = current; 
+	struct task_struct * me = current;
 	int ret;
 
 	reiser4_context ctx;
@@ -376,7 +376,7 @@ static void wait_repacker_completion(struct repacker * repacker)
 	}
 }
 
-static int start_repacker(struct repacker * repacker) 
+static int start_repacker(struct repacker * repacker)
 {
 	spin_lock(&repacker->guard);
 	if (!(repacker->state & REPACKER_DESTROY)) {
@@ -390,7 +390,7 @@ static int start_repacker(struct repacker * repacker)
 	}
 	spin_unlock(&repacker->guard);
 	return 0;
-} 
+}
 
 static void stop_repacker(struct repacker * repacker)
 {
@@ -417,7 +417,7 @@ static ssize_t start_attr_store (struct repacker * repacker,  const char *buf, s
 	int start_stop = 0;
 
 	sscanf(buf, "%d", &start_stop);
-	if (start_stop) 
+	if (start_stop)
 		start_repacker(repacker);
 	else
 		stop_repacker(repacker);
@@ -438,7 +438,7 @@ static ssize_t direction_attr_store (struct repacker * repacker,  const char *bu
 
 	spin_lock(&repacker->guard);
 	if (!(repacker->state & REPACKER_RUNNING)) {
-		if (go_left) 
+		if (go_left)
 			repacker->state |= REPACKER_GOES_BACKWARD;
 		else
 			repacker->state &= ~REPACKER_GOES_BACKWARD;
@@ -469,7 +469,7 @@ static struct attribute * repacker_def_attrs[] = {
 	&start_attr.attr,
 	&direction_attr.attr,
 	NULL
-}; 
+};
 
 static ssize_t repacker_attr_show (struct kobject *kobj, struct attribute *attr,  char *buf)
 {
@@ -508,7 +508,7 @@ static int init_repacker_sysfs_interface (struct super_block * s)
 	assert("zam-947", repacker != NULL);
 
 	snprintf(repacker->kobj.name, KOBJ_NAME_LEN, "repacker");
-	repacker->kobj.parent = kobject_get(root); 
+	repacker->kobj.parent = kobject_get(root);
 	repacker->kobj.ktype = &repacker_ktype;
 	ret = kobject_register(&repacker->kobj);
 

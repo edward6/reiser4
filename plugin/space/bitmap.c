@@ -22,25 +22,25 @@
 /* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
    blocks loading/unloading which is different from v3.x where all bitmap
    blocks are loaded at mount time.
-  
+
    To implement bitmap blocks unloading we need to count bitmap block usage
    and detect currently unused blocks allowing them to be unloaded. It is not
    a simple task since we allow several threads to modify one bitmap block
    simultaneously.
-  
+
    Briefly speaking, the following schema is proposed: we count in special
    variable associated with each bitmap block. That is for counting of block
    alloc/dealloc operations on that bitmap block. With a deferred block
    deallocation feature of reiser4 all those operation will be represented in
    atom dirty/deleted lists as jnodes for freshly allocated or deleted
-   nodes. 
-  
+   nodes.
+
    So, we increment usage counter for each new node allocated or deleted, and
    decrement it at atom commit one time for each node from the dirty/deleted
    atom's list.  Of course, freshly allocated node deletion and node reusing
    from atom deleted (if we do so) list should decrement bitmap usage counter
    also.
-  
+
    FIXME-ZAM: This schema seems to be working but that reference counting is
    not easy to debug. I think we should agree with Hans and do not implement
    it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
@@ -334,11 +334,11 @@ reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off
 	}
 	while (last_byte > first_byte) {
 		if (base[last_byte] != 0xFF) {
-			*result =  (last_byte << 3) + 
+			*result =  (last_byte << 3) +
 				find_last_set_bit_in_byte(~(unsigned)base[last_byte], 7);
 			return 0;
 		}
-		-- last_byte;    
+		-- last_byte;
 	}
 
 	return -1;	/* zero bit not found */
@@ -405,20 +405,20 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
 #define ADLER_BASE    65521
 #define ADLER_NMAX    5552
 
-/* Calculates the adler32 checksum for the data pointed by `data` of the 
-    length `len`. This function was originally taken from zlib, version 1.1.3, 
-    July 9th, 1998. 
+/* Calculates the adler32 checksum for the data pointed by `data` of the
+    length `len`. This function was originally taken from zlib, version 1.1.3,
+    July 9th, 1998.
 
     Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler
-    
+
     This software is provided 'as-is', without any express or implied
     warranty.  In no event will the authors be held liable for any damages
     arising from the use of this software.
-    
+
     Permission is granted to anyone to use this software for any purpose,
     including commercial applications, and to alter it and redistribute it
     freely, subject to the following restrictions:
-    
+
     1. The origin of this software must not be misrepresented; you must not
 	claim that you wrote the original software. If you use this software
 	in a product, an acknowledgment in the product documentation would be
@@ -426,7 +426,7 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
     2. Altered source versions must be plainly marked as such, and must not be
 	misrepresented as being the original software.
     3. This notice may not be removed or altered from any source distribution.
-    
+
     Jean-loup Gailly        Mark Adler
     jloup@gzip.org          madler@alumni.caltech.edu
 
@@ -459,9 +459,9 @@ adler32(char *data, __u32 len)
 /* Recalculates the adler32 checksum for only 1 byte change.
     adler - previous adler checksum
     old_data, data - old, new byte values.
-    tail == (chunk - offset) : length, checksum was calculated for, - offset of 
+    tail == (chunk - offset) : length, checksum was calculated for, - offset of
     the changed byte within this chunk.
-    This function could be used for checksum calculation optimisation, but not 
+    This function could be used for checksum calculation optimisation, but not
     used for now. -Vitaly.
 */
 
@@ -703,7 +703,7 @@ load_and_lock_bnode(struct bnode *bnode)
 			/* working bitmap is initialized by on-disk commit
 			 * bitmap. This should be performed under
 			 * semaphore. */
-			xmemcpy(bnode_working_data(bnode), 
+			xmemcpy(bnode_working_data(bnode),
 				bnode_commit_data(bnode), bmap_size(current_blocksize));
 		} else
 			/* race: someone already loaded bitmap while we were
@@ -968,7 +968,7 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-int alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed, 
+int alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 			 reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	struct super_block *super = get_current_context()->super;
@@ -1010,7 +1010,7 @@ int alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 	return 0;
 }
 
-static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed, 
+static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed,
 				  reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	reiser4_block_nr search_start;
@@ -1041,7 +1041,7 @@ static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed,
 
 /* plugin->u.space_allocator.alloc_blocks() */
 int alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
-			reiser4_blocknr_hint * hint, int needed, 
+			reiser4_blocknr_hint * hint, int needed,
 			reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	if (hint->backward)
@@ -1389,8 +1389,8 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 			assert("zam-480", jnode_page(cj) != NULL);
 			assert("zam-633", jnode_page(wj) != NULL);
 
-			assert("zam-634", 
-			       memcmp(jdata(wj), jdata(wj), 
+			assert("zam-634",
+			       memcmp(jdata(wj), jdata(wj),
 				      bmap_size(super->s_blocksize)) == 0);
 
 		}
