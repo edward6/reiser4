@@ -268,7 +268,11 @@ static int slum_allocate_left_edge_ancestors (jnode *node)
 		if (coord_is_leftmost (& coord)) {
 			jnode *parent = ZJNODE (parent_lock.node);
 			
-			if ((ret = slum_allocate_left_edge (parent))) {
+			/*
+			 * FIXME-VS: changed from slum_allocate_left_edge to
+			 * slum_allocate_left_edge_ancestors for compilability
+			 */
+			if ((ret = slum_allocate_left_edge_ancestors (parent))) {
 				goto failure;
 			}
 
