@@ -400,7 +400,8 @@ void *reiser4_kmalloc( size_t size /* number of bytes to allocate */,
 		       int gfp_flag /* allocation flag */ )
 {
 	assert( "nikita-1407", get_current_super_private() != NULL );
-	assert( "nikita-1408", lock_counters() -> spin_locked == 0 );
+	assert( "nikita-1408", ergo( gfp_flag & __GFP_WAIT, 
+				     lock_counters() -> spin_locked == 0 ) );
 
 	ON_DEBUG( get_current_super_private() -> kmalloc_allocated += size );
 	return kmalloc( size, gfp_flag );
