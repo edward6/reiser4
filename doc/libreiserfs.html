@@ -257,6 +257,10 @@ function for reading from device.</p>
 block. Returns true on success, false on failure. Used by reiserfs_block_write 
 function for writing data to device.</p>
 
+<p>Both "read" and "write" operations are atomic in context of returning data.
+For example, in the case "read" was unable to read "count" of blocks, "read" 
+will return error.</p>
+
 <b>int (*sync) (dal_t *dal)</b>
 
 <p>Syncs given device. Returns result. Used by front-ends for syncing device 
@@ -297,13 +301,13 @@ If journal is relocated (separated) then relocation will not be performed.</p>
 
 <b>int (*stat) (dal_t *dal, struct stat* st)</b>
 
-<p>Fills statistics buffer for dal,  like  standard  <b>stat(2)</b>.
+<p>Fills statistics buffer for dal, like standard <b>stat(2)</b>.
 Used by journal opening and creating routines.</p>
 
 <b>blk_t (*len) (dal_t *dal)</b>
 
 <p>Returns actual device length in blocks. Used by libreiserfs in all cases 
-where device length is needed. For example, it is used in reiserfs_fs_super_check.  
+where device length is needed. For example, it is used in reiserfs_super_check.  
 This functions makes some checks on opened superblock and one of them is check 
 whether sb_block_count is correct (less or equals than device length).</p>
 
@@ -321,18 +325,23 @@ dal_open to create DAL instance working over application-specific storage.</p>
 int flags, void *data)</b>
 
 <p>Allocates new instance of DAL that will use given operations. Sets blocksize
-and user specific data for allocated DAL. Returns initialized instance.</p>
+and user specific data for allocated DAL. Then actualy opens device and returns 
+initialized instance.</p>
 
 <b>void dal_close(dal_t *dal)</b>
 
-<p>Releases all memory associated with DAL.</p>
+<p>Closes device, releases all memory associated with DAL.</p>
 
 <b>int dal_set_blocksize(dal_t *dal, size_t blocksize)</b>
 <b>size_t dal_blocksize(dal_t *dal)</b>
 
 <p>Functions to set/get block size. dal_set_blocksize makes check whether given
 block size is power of two and if so, sets new blocksize. Function dal_blocksize
-returns blocksize of specified DAL.</p>
+returns blocksize of specified DAL. These functions are useful for chnaging block
+size of underlying DAL. For example, default block size before reading the superblock
+was 4096. After reading the superblock we have found that "blocksize" in the superblock
+someone else (for example 2048). And then we are setting up DAL for filesystem and 
+DAL for journal by readed from superblock "blocksize" value.</p>
 
 <p>The functions below are wrappers for operations registered in DAL's "ops" field. 
 These functions also public function, which will be using by "master" project.</p>
@@ -454,6 +463,7 @@ int main (int argc, char *argv[]) {
 	file_dal_close(dal);
 	
 	return 0;
+	
 error_free_dal:
 	file_dal_close(dal);
 error:
@@ -465,8 +475,8 @@ error:
 to open filesystem with standard journal. If filesystem has relocated
 journal then exception will be throwed out and NULL will be returned.</p>
 
-<p>See bellow at "Filesystem API" topic for detailed decription of the filesystem opening
-process.
+<p>See bellow at "Filesystem API" topic for detailed decription of the filesystem 
+opening process.
 </td></tr></table>
 
 <h2>libreiserfs</h2>
@@ -478,15 +488,19 @@ memory allocation functions, string working functions.</p>
 
 <p>Also it will contain API (a set of wrapper functions) for every plugin:<br>
 journal API, allocator API, oid allocator API, directory API, file API, node API,
-item API, etc.</p>
+item API, etc. For example, libreiserfs will be working with directory plugin via 
+directory API.</p>
 
-<p>For example, libreiserfs will be working with directory plugin via directory API.
-Additional API for every plugin is needed because plugins will be implemented for using
-by any software. For example, plugins will be using by kernel, libreiserfs or yet another 
-project. Besides, all plugins operate on lowest abstraction level in libreiserfs and can't
-modify objects which lie on higher level. So we need some layer for working with plugins 
-in libreiserfs. This layer will operate on the same abstraction level as filesystem API and
-will be able to modify internal structures of it.</p>
+<p>Additional API for every plugin is needed because plugins will be implemented in 
+application-independent maner in order to using by any software. Not just libreiserfs. 
+So they will have only their own low-level functions for working with underlying 
+filesystem abstract object (journal, node, item, etc). Besides, all plugins will 
+operate on lowest abstraction level in libreiserfs and they can't modify objects 
+which lie on higher level.</p>
+
+<p>So we need some layer for working with plugins in libreiserfs. This layer will 
+operate on the same abstraction level as filesystem API and will be able to modify 
+its internal structures directly.</p>
 
 <h3>Abstraction levels in libreiserfs.</h3>
 
@@ -587,7 +601,8 @@ functionality to it. It may to ask user something. For example:</p>
 
 <p><i>"Error: Can't read block 8193. (C)ancel, (R)etry"</i></p>
 
-<p>Or yet another behavior. Exception handler may emmit all errors in system log.</p>
+<p>Or yet another behavior. Exception handler may emmit all errors in system log. 
+The exception handler behavior will depends on application.</p>
 
 <p>Exception handling functions:</p>
 
@@ -601,6 +616,56 @@ reiserfs_exception_option_t opt, const char* message, ...)</b>
 
 <p>Raises (throws) an exception. Exception contains type (ERROR, WARNING, etc), 
 options (IGNORE, CANCEL, RETRY, etc) and error message.</p>
+
+<p>After exceptions factory has been catch an exception, it passes control onto 
+exception handler. Then exception handler processes exception in some maner and 
+retutns result into calling function. Therefore, calling function may decide what 
+it have to do. And this decission will be based on result of processing of issued 
+exception.</p>
+
+For example:
+
+<pre>
+void someone_function(void) {
+
+	if (reading_block_failed) {
+		reiserfs_exception_option_t opt = libreiserfs_exception_throw(EXCEPTION_ERROR, 
+			EXCEPTION_RETRY | EXCEPTION_CANCEL, "Can't read block %lu.", 8193);
+	
+		if (opt == EXCEPTION_RETRY) {
+			fprintf(stderr, "User has choosed RETRY\n");
+			goto retry_reading_block;
+		}	
+		
+		if (opt == EXCEPTION_CANCEL) {
+			fprintf(stderr, "User has choosed CANCEL\n");
+			goto cancel_reading_block;
+		}	
+	}
+}
+</pre>
+
+<p>Value, returned by "libreiserfs_exception_throw" function may be one of the 
+following:</p>
+
+<ul>
+	<li>EXCEPTION_UNHANDLED - exception has not processed.
+	<li>EXCEPTION_YES - exception has processed and user has selected "yes" 
+	from suggested choise.
+	<li>EXCEPTION_NO - exception has processed and user has selected "no" 
+	from suggested choise.
+	<li>EXCEPTION_OK - exception has processed and user has selected "ok" 
+	from suggested choise.
+	<li>EXCEPTION_RETRY - exception has processed and user has selected "retry" 
+	from suggested choise.
+	<li>EXCEPTION_IGNORE - exception has processed and user has selected "ignore" 
+	from suggested choise.
+	<li>EXCEPTION_CANCEL - exception has processed and user has selected "cancel" 
+	from suggested choise.
+</ul>
+
+<p>The default exception handler returns value that was passed to it in second 
+parameter on "libreiserfs_exception_throw" function.</p>
 
 <b>reiserfs_exception_option_t libreiserfs_exception_rethrow(void)</b>
 
@@ -638,22 +703,24 @@ int main (int argc, char *argv[]) {
 <h3>Gauge API.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>libreiserfs includes so called gauge API. It is the mechanism to handle progress activities
-by "master" project. This mechanism is based on "gauge_handler" callback function that may be 
-installed by "master" project. So, progress presentation may be changed by installing other
-handler than the default handler.</p>
+<p>libreiserfs includes so called gauge API. It is the mechanism to handle 
+progress activities by "master" project. This mechanism is based on "gauge_handler" 
+callback function that may be installed by "master" project. So, progress 
+presentation may be changed by installing other handler than the default handler.</p>
 
 <p>Gauge API consists of the following routines and types:</p>
 
 <b>typedef (reiserfs_gauge_habdler_t) (const char *, unsigned int, void *, int, int, int)</b>
 
-<p>Type for gauge callback function. Gauge callback function accepts following parameters:</p>
+<p>Type for gauge callback function. Gauge callback function accepts following 
+parameters:</p>
 <ul>
 	<li>description on the current progress. For example, "Initializing journal".
 	<li>current percentage.
 	<li>gauge specific data.
 	<li>gauge kind (may be changed online)
-	<li>the flag ("bool" value) that shows whether gauge handler must update gauge header (description).
+	<li>the flag ("bool" value) that shows whether gauge handler must update gauge header 
+	(description).
 	<li>the flag ("bool" value) that shows whether gauge handler must update gauge footer.
 </ul>
 
@@ -891,9 +958,7 @@ strlen(), strcmp(), strncmp(), strncat(), strchr().
 </p>
 
 <p>Or we may follow yet another way. This way is to delegate these functions (see above) to be
-implemented by the "master" project.</p>
-
-<p>We have to discuss this issue.</p>
+implemented by the "master" project.We have to discuss it.</p>
 
 </td</tr></table>
 	
@@ -901,13 +966,16 @@ implemented by the "master" project.</p>
 
 <table width=70%><tr><td align=justify>
 <p>As libreiserfs will be used by "alone" applications (some bootloaders), 
-we need a mechanism for building libreiserfs in "compact" maner needed by bootloadeds. 
-The acceptable size of reiserfs code with -nostdlib options is about 10K.</p>
+we need a mechanism for building libreiserfs in "compact" maner needed by 
+bootloadeds.</p>
 
-<p>Compact building will be turned on by an option in configure time. Libreiserfs 
-built in compact maner will contain filesystem opening code, file and directory 
-access code. All modifying code (resizing, copying, tree modifying, etc), block 
-allocator code, oid allocator code will be skiped.</p>
+<p>In compact building mode libreiserfs will contain: filesystem opening code, 
+file and directory access code. All modifying code (resizing, copying, tree 
+modifying, etc), block allocator code, oid allocator code will be skiped. 
+The acceptable size for libreiserfs built in compact maner and without libc code 
+should be about 10k.</p>
+
+<p>Compact building will be turned on by some option in configure time.</p>
 </td></tr></table>
 
 <h3>Filesystem API.</h3>
@@ -916,8 +984,8 @@ allocator code, oid allocator code will be skiped.</p>
 <p>Filesystem API will be containing all public functions.</p>
 
 <p>There are general functions:<br>
-reiserfs_fs_open, reiserfs_fs_close, reiserfs_fs_resize, reiserfs_fs_copy, reiserfs_fs_check, 
-etc.</p>
+reiserfs_fs_open, reiserfs_fs_close, reiserfs_fs_resize, reiserfs_fs_copy, 
+reiserfs_fs_check, etc.</p>
 
 <p>And some utilities:<br>
 reiserfs_fs_format, reiserfs_fs_uuid, reiserfs_fs_lable,
@@ -975,7 +1043,7 @@ reiserfs_fs_t *reiserfs_fs_open(dal_t *host_dal, dal_t *journal_dal) {
 
 	journal_plug_id = super-&gt;layout_plug-&gt;u.layout.journal_plug_id();
 	journal_block = super-&gt;layout_plug-&gt;u.get_journal_block();
-	if (!(fs-&gt;journal = reiserfs_journal_open(journal_dal, journal_block, journal_plug_id))) {
+	if (!(fs-&gt;journal = reiserfs_journal_open(journal_dal, journal_block, journal_plug_id))){
 		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
 			  _("Couldn't open journal."));
 		 goto error_free_super;
@@ -983,25 +1051,39 @@ reiserfs_fs_t *reiserfs_fs_open(dal_t *host_dal, dal_t *journal_dal) {
 
 	alloc_plug_id = super-&gt;layout_plug-&gt;u.layout.alloc_plug_id();
 	if (!(fs-&gt;alloc = reiserfs_alloc_open(alloc_plug_id))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't open allocator"));
-		 goto error_free_journal
+		libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			 _("Couldn't open allocator"));
+		goto error_free_journal
 	}
 
 	oid_plug_id = super-&gt;layout_plug-&gt;u.layout.oid_plug_id();
 	if (!(fs-&gt;oid = reiserfs_oid_open(oid_plug_id))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't open oid allocator."));
-		 goto error_free_alloc;
+		libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			_("Couldn't open oid allocator."));
+		goto error_free_alloc;
 	}
 
 	root_block = super-&gt;layout_plug-&gt;u.layout.get_root_block();
 	if (!(fs-&gt;tree = reiserfs_tree_open(root_block))) {
-	libreiserfs_free(fs-&gt;super);
+		libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't open tree."));
+		goto error_free_oid;
+	}
+
+	return fs;
+	
+error_free_oid:
+	reiserfs_oid_close(fs);
+error_free_alloc:
+	reiserfs_alloc_close(fs);
+error_free_journal:
+	reiserfs_journal_close(fs);
+error_free_super:	
+	reiserfs_super_close(fs);
 error_free_fs:
 	libreiserfs_free(fs);
 error:
-	return  NULL;
+	return NULL;
 }
 
 void reiserfs_fs_close(reiserfs_fs_t *fs) {
@@ -1091,7 +1173,7 @@ and returns initialized journal instance.</p>
 
 <b>void (*switch) (dal_t *dal)</b>
 
-<p>Switch journal in reiser3 onto specified device.</p>
+<p>Switches journal in reiser3 onto specified device.</p>
 
 <b>blk_t (*get_start) (reisrefs_opaque_t *)<br>
 void (*set_start) (reiserfs_opaque_t *, blk_t start)</b>
@@ -1611,13 +1693,23 @@ loaded plugin in the cache.</p>
 <p>Unloads plugin, unregisters it from cache if "plugin_nlink" field reaches zero.</p>
 
 <p>In the finalization time, plugin factory will release all plugins.</p>
-
-<h3>Builtin plugins.</h3>
-<table width=70%><tr><td align=justify>
-<p>Not implemented yet!</p>
 </td></tr></table>
 
-<h3>Common source branch for user-space and kernel-space purposes.</h3>
+<h3>Builtin plugins.</h3>
+
+<table width=70%><tr><td align=justify>
+<p>In order to be used by bootloaders or other "alone" applications, we need a mechanism 
+for building plugins in libreiserfs staticaly. This ability also will be useful for 
+creating the repair reiserfs tools, which should be linked staticaty to avoid any dependencies
+on libc or something else.</p>
+
+<p>So user who wants to build libreiserfs staticaly for some purposes needs to know, which
+plugins are used in underlying filesystem at the moment. In order to know this, reiserfs 
+utilities should contains some utility program that will be inspecting corresponding
+filesystem and show all used plugins. Let it be "fsscan".</p>
+</td></tr></table>
+
+<h3>Common plugins source branch for user-space and kernel-space purposes.</h3>
 <table width=70%><tr><td align=justify>
 <p>Not implemented yet!</p>
 </td></tr></table>
