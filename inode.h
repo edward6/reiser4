@@ -29,7 +29,7 @@
 /* reiser4-specific inode flags. They are "transient" and are not
    supposed to be stored on a disk. Used to trace "state" of
    inode. Bitmasks for this field are defined in
-   reiser4_file_plugin_flags enum. 
+   reiser4_file_plugin_flags enum.
 
    Flags are stored in inode->i_mapping.assoc_mapping field */
 typedef enum {
@@ -54,8 +54,7 @@ typedef enum {
 	/* reiser4_inode->cluster_shift makes sense */
 	REISER4_CLUSTER_KNOWN = 8,
 	/* cryptcompress_inode_data points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 9,
-	REISER4_DEC_UNUSED = 10
+	REISER4_SECRET_KEY_INSTALLED = 9
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -81,7 +80,7 @@ typedef __u32 oid_hi_t;
 
 /* state associated with each inode.
    reiser4 inode.
-  
+
    NOTE-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
    be of the same size. File-system allocates inodes by itself through
    s_op->allocate_inode() method. So, it is possible to adjust size of inode
@@ -124,11 +123,14 @@ struct reiser4_inode {
 	/* 98 */ __u16 padding;
 	/* cluster parameter for crypto and compression */
 	/* 100 */__u8 cluster_shift;
-	/* secret key parameter for crypto */ 
+	/* secret key parameter for crypto */
 	/* 101 */crypto_stat_t *crypt;
 	/* 105 */
 	struct list_head  moved_pages;
-	readdir_list_head readdir_list;
+	union {
+		readdir_list_head readdir_list;
+		struct list_head mmaped;
+	} lists;
 	unsigned long flags;
 	union {
 		unix_file_info_t unix_file_info;
@@ -271,10 +273,10 @@ extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 static inline readdir_list_head *
 get_readdir_list(const struct inode *inode)
 {
-	return &reiser4_inode_data(inode)->readdir_list;
+	return &reiser4_inode_data(inode)->lists.readdir_list;
 }
 
-extern void init_inode_ordering(struct inode *inode, 
+extern void init_inode_ordering(struct inode *inode,
 				reiser4_object_create_data *crd, int create);
 
 #if REISER4_DEBUG_OUTPUT

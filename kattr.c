@@ -42,6 +42,22 @@ kattr_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 		return 0;
 }
 
+static ssize_t
+kattr_store(struct kobject *kobj, struct attribute *attr,
+	    const char *buf, size_t size)
+{
+	struct super_block *super;
+	reiser4_kattr *kattr;
+
+	super = to_super(kobj);
+	kattr = to_kattr(attr);
+
+	if (kattr->store != NULL)
+		return kattr->store(super, kattr, 0, buf, size);
+	else
+		return 0;
+}
+
 typedef struct {
 	ptrdiff_t   offset;
 	const char *format;
@@ -64,7 +80,7 @@ static reiser4_kattr kattr_super_ro_ ## aname = {		\
 
 #define getat(ptr, offset, type) *(type *)(((char *)(ptr)) + (offset))
 
-static ssize_t 
+static ssize_t
 show_ro_32(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 {
 	char *p;
@@ -80,7 +96,7 @@ show_ro_32(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 	return (p - buf);
 }
 
-static ssize_t show_ro_64(struct super_block * s, 
+static ssize_t show_ro_64(struct super_block * s,
 			  reiser4_kattr * kattr, void * opaque, char * buf)
 {
 	char *p;
@@ -100,7 +116,7 @@ static ssize_t show_ro_64(struct super_block * s,
 	if (option)					\
 		KATTR_PRINT((p), (buf), #option "\n")
 
-static ssize_t 
+static ssize_t
 show_options(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 {
 	char *p;
@@ -133,7 +149,7 @@ static reiser4_kattr compile_options = {
 	.show = show_options
 };
 
-static ssize_t 
+static ssize_t
 show_device(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 {
 	char *p;
@@ -179,7 +195,7 @@ static const char *txn_stage_name(txn_stage stage)
 
 static char *show_atom(char *p, char *buf, const txn_atom *atom)
 {
-	KATTR_PRINT(p, buf, 
+	KATTR_PRINT(p, buf,
 		    "refcount: %i id: %i flags: %#x txnh_count: %i"
 		    " capture_count: %i stage: %s (%#x) start: %lu"
 		    " objects_deleted: %i objects_created: %i"
@@ -187,11 +203,11 @@ static char *show_atom(char *p, char *buf, const txn_atom *atom)
 		    " flushers: %i running_queues: %i"
 		    " flush_reserved: %llu flushed: %i"
 		    "\n",
-		    atomic_read(&atom->refcount), 
-		    atom->atom_id, 
-		    atom->flags, 
+		    atomic_read(&atom->refcount),
+		    atom->atom_id,
+		    atom->flags,
 		    atom->txnh_count,
-		    atom->capture_count, 
+		    atom->capture_count,
 		    txn_stage_name(atom->stage), atom->stage,
 		    atom->start_time,
 		    atom->nr_objects_deleted,
@@ -211,7 +227,7 @@ static char *show_atom(char *p, char *buf, const txn_atom *atom)
 extern spinlock_t active_contexts_lock;
 extern context_list_head active_contexts;
 
-static ssize_t 
+static ssize_t
 show_contexts(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 {
 	char *p;
@@ -255,29 +271,29 @@ show_contexts(struct super_block * s, reiser4_kattr * kattr, void * o, char * bu
 			    "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 			    "d: %i, x: %i, t: %i\n",
 			    lcinfo->spin_locked_jnode,
-			    lcinfo->rw_locked_tree, 
-			    lcinfo->read_locked_tree, 
+			    lcinfo->rw_locked_tree,
+			    lcinfo->read_locked_tree,
 			    lcinfo->write_locked_tree,
-			    lcinfo->rw_locked_dk, 
-			    lcinfo->read_locked_dk, 
+			    lcinfo->rw_locked_dk,
+			    lcinfo->read_locked_dk,
 			    lcinfo->write_locked_dk,
 			    lcinfo->spin_locked_txnh,
-			    lcinfo->spin_locked_atom, 
+			    lcinfo->spin_locked_atom,
 			    lcinfo->spin_locked_stack,
-			    lcinfo->spin_locked_txnmgr, 
+			    lcinfo->spin_locked_txnmgr,
 			    lcinfo->spin_locked_ktxnmgrd,
-			    lcinfo->spin_locked_fq, 
+			    lcinfo->spin_locked_fq,
 			    lcinfo->spin_locked_super,
-			    lcinfo->spin_locked_inode_object, 
+			    lcinfo->spin_locked_inode_object,
 			    lcinfo->spin_locked_cbk_cache,
 			    lcinfo->spin_locked_epoch,
 			    lcinfo->spin_locked_super_eflush,
 			    lcinfo->spin_locked_zlock,
 			    lcinfo->spin_locked,
 			    lcinfo->long_term_locked_znode,
-			    lcinfo->inode_sem_r, 
+			    lcinfo->inode_sem_r,
 			    lcinfo->inode_sem_w,
-			    lcinfo->d_refs, 
+			    lcinfo->d_refs,
 			    lcinfo->x_refs,
 			    lcinfo->t_refs);
 
@@ -302,13 +318,32 @@ static reiser4_kattr contexts = {
 	.cookie = NULL,
 	.show = show_contexts
 };
+
+ssize_t store_bugme(struct super_block * s,
+		    reiser4_kattr *ka, void *opaque, const char *buf,
+		    size_t size)
+{
+	DEBUGON(1);
+	return size;
+}
+
+static reiser4_kattr bugme = {
+	.attr = {
+		.name = (char *) "bugme",
+		.mode = 0222   /* -w--w--w- */
+	},
+	.cookie = NULL,
+	.store = store_bugme
+};
+
+/* REISER4_DEBUG */
 #endif
 
 #if REISER4_STATS
 
 TS_LIST_DEFINE(atom, txn_atom, atom_link);
 
-static ssize_t 
+static ssize_t
 show_atoms(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 {
 	char     *p;
@@ -410,13 +445,14 @@ static struct attribute * def_attrs[] = {
 #endif
 #if REISER4_DEBUG
 	&contexts.attr,
+	&bugme.attr,
 #endif
 	NULL
 };
 
 static struct sysfs_ops attr_ops = {
 	.show  = kattr_show,
-	.store = NULL
+	.store = kattr_store
 };
 
 struct kobj_type ktype_reiser4 = {
@@ -443,7 +479,7 @@ kattr_stats_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 }
 
 static ssize_t
-kattr_stats_store(struct kobject *kobj, struct attribute *attr, 
+kattr_stats_store(struct kobject *kobj, struct attribute *attr,
 		  const char *buf, size_t size)
 {
 	reiser4_super_info_data *sbinfo;
@@ -491,7 +527,7 @@ kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 }
 
 static ssize_t
-kattr_level_store(struct kobject *kobj, struct attribute *attr, 
+kattr_level_store(struct kobject *kobj, struct attribute *attr,
 		  const char *buf, size_t size)
 {
 	reiser4_super_info_data *sbinfo;
@@ -533,7 +569,7 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 	level = &sbinfo->level[i].kobj;
 	level->parent = kobject_get(parent);
 	if (level->parent != NULL) {
-		snprintf(level->name, 
+		snprintf(level->name,
 			 KOBJ_NAME_LEN, "level-%2.2i", i);
 		level->ktype = &ktype_level_reiser4;
 		result = kobject_register(level);
