@@ -148,36 +148,39 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
     reiserfs_object_t *object;
     
     aal_assert("umka-678", fs != NULL, return NULL);
+    aal_assert("umka-789", name != NULL, return NULL);
 
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;
 
     object->fs = fs;
-    object->key = fs->key;
+    reiserfs_key_clone(&fs->key, &object->key);
     
-    /* FIXME */
-//    object->plugin = 
+    /* FIXME-UMKA: Hardcoded plugin id */
+    if (!(object->plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0)))
+    	libreiser4_factory_failed(goto error_free_object, find, dir, 0x0);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
-    parent_key = fs->key;
+    reiserfs_key_clone(&fs->key, &parent_key);
     
-    if (name) {
-	if (reiserfs_object_lookup(object, name, &parent_key)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't find %s.", name);
-	    return NULL;
-	}
+    if (reiserfs_object_lookup(object, name, &parent_key)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find %s.", name);
+	return NULL;
     }
 
     return object;
+error_free_object:
+    aal_free(object);
+    return NULL;
 }
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
+reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *parent, 
     const char *name, reiserfs_plugin_t *plugin, reiserfs_profile_t *profile)
 {
     int i;
@@ -185,7 +188,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     oid_t objectid, parent_objectid;
     reiserfs_key_t parent_key, object_key;
     
-    aal_assert("umka-784", fs != NULL, return NULL);
+    aal_assert("umka-790", fs != NULL, return NULL);
     aal_assert("umka-785", plugin != NULL, return NULL);
     aal_assert("umka-786", profile != NULL, return NULL);
     
@@ -193,33 +196,15 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	return NULL;
 
     object->fs = fs;
-    object->key = fs->key;
+    reiserfs_key_clone(&fs->key, &object->key);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
-    if (name) {
-	char *ptr;
-	char parent_name[256];
-	reiserfs_object_t *parent;
-	
-	if (!(ptr = aal_strrchr(name, '/'))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid name %s.", name);
-	    goto error_free_object;
-	}
-	
-	aal_memset(parent_name, 0, sizeof(parent_name));
-	aal_strncpy(parent_name, name, ptr - name);
-	
-	if (!(parent = reiserfs_object_open(fs, parent_name)))
-	    goto error_free_object;
-	
-	parent_key = parent->key;
-	objectid = reiserfs_oid_alloc(fs->oid);
-
-	reiserfs_object_close(parent);
+    if (parent) {
+	reiserfs_key_clone(&parent->key, &parent_key);
+	objectid = reiserfs_oid_alloc(parent->fs->oid);
     } else {
 	parent_key.plugin = fs->key.plugin;
 	reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR, 
@@ -268,7 +253,9 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	    goto error_free_hint;
 	}
     }
-
+    
+    /* FIXME-UMKA: Here should be creating of the entry in parent directory */
+    
     object->key = object_key;
     object->plugin = plugin;
     
@@ -287,9 +274,10 @@ error_free_object:
 void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);
     
-    libreiser4_plugin_call(return, object->plugin->dir, 
-	destroy, object->hint);
-
+    if (object->hint) {
+	libreiser4_plugin_call(return, object->plugin->dir, 
+	    destroy, object->hint);
+    }
     aal_free(object);
 }
 

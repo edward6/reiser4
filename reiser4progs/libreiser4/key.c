@@ -22,6 +22,19 @@ errno_t reiserfs_key_init(reiserfs_key_t *key, const void *data,
     return 0;
 }
 
+errno_t reiserfs_key_clone(reiserfs_key_t *key, reiserfs_key_t *clone) {
+    aal_assert("umka-787", key != NULL, return -1);
+    aal_assert("umka-788", clone != NULL, return -1);
+
+    clone->plugin = key->plugin;
+    reiserfs_key_set_type(clone, reiserfs_key_get_type(key));
+    reiserfs_key_set_locality(clone, reiserfs_key_get_locality(key));
+    reiserfs_key_set_objectid(clone, reiserfs_key_get_objectid(key));
+    reiserfs_key_set_offset(clone, reiserfs_key_get_offset(key));
+    
+    return 0;
+}
+
 int reiserfs_key_compare(reiserfs_key_t *key1, reiserfs_key_t *key2) {
     aal_assert("umka-764", key1 != NULL, return -1);
     aal_assert("umka-765", key2 != NULL, return -1);

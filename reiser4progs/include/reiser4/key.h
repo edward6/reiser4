@@ -50,6 +50,9 @@ typedef enum {
 extern errno_t reiserfs_key_init(reiserfs_key_t *key, 
     const void *data, reiserfs_plugin_t *plugin);
 
+extern errno_t reiserfs_key_clone(reiserfs_key_t *key, 
+    reiserfs_key_t *clone);
+
 extern int reiserfs_key_compare(reiserfs_key_t *key1, 
     reiserfs_key_t *key2);
 
