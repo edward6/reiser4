@@ -380,8 +380,10 @@ int unix_file_readpage (struct file * file, struct page * page)
 
 
 /*
-* FIXME-VS: if/when do_page_cache_readahead*/
-static reiser4_page_cache_readahead ()
+ * FIXME-VS: if/when do_page_cache_readahead will be turned into address space
+ * operation - this will be that for reiser4
+ */
+void reiser4_page_cache_readahead (void)
 {
 }
 
