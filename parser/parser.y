@@ -351,7 +351,21 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
  */
 
 
+%union 
+{
+	long longType;
+	char * charPtr;
+	expression expr;
+	objectList oList;
+}
 
+
+%type <expr> operation_list operation asynchronous_list if_statement 
+%type <expr> assignment  Expression L_ASSIGN
+%type <oList> Object_sub_Name Object_Name
+
+
+%type <charPtr> Constant WORD
 
 
 /*
@@ -380,30 +394,6 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 %token EXIST
 
 
-/* unfinished, comment out what is not used but is maybe someday intended */
-
-/*
-  Declare following tokens to be left associative.
- */
-/*
-%left      '~'
-%left      '|'
-%left      '&'
-%left      '!'
-%left      EQ NE  LE GE   LT  GT   
-%left      '+'   '-'
-%left      '*' '/'  '%' SLASH
-%left      L_BRACKET R_BRACKET ':'  '{' '}' INV_L INV_R
-%left      ','
-%left      ';'
-*/
-
-/*
-  follows operators equivalence:
-  /path/path1/a<-/path/path2/b 
-  /path/(path1/a<-path2/b)
- */
-
 /*
   Starting production of our grammar.
  */
@@ -412,7 +402,7 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 %%
 
 reiser4
-: operation_list    EOF                          { make_do_it( $1 ); }
+: operation_list    EOF                          { $$ = make_do_it( $1 ); }
 ;
 
 operation_list      
@@ -478,10 +468,10 @@ assignment
 |  Object_Name L_SYMLINK      Expression                { $$ = symlink( $1, $3 ); }           /*   ->  symlink   */
 
 
-Expression          
-: Object_Name                                           {}
+Expression
+: Object_Name                                           { $$ = objToExpr( $1 );}
 | op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}   /*  this expression mast have value of written bytes    */
-| Constant                                              { $$ = $1; }
+| Constant                                              { $$ = constToExpr( $1 ); }
 | Expression '+' Expression                             { $$ = connect_expression( $1,  $3 ); }
 | Expression EQ Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression NE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
@@ -491,18 +481,21 @@ Expression
 | Expression GT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression OR  Expression                             { $$ = compare_expression( $1, $2, $3 ); }
 | Expression AND Expression                             { $$ = compare_expression( $1, $2, $3 ); }
-| NOT_head Expression ')'                                { $$ = not_expression( $3 ); level_down( NOT_HEAD );}
+| NOT_head Expression ')'                               { $$ = not_expression( $3 ); level_down( NOT_HEAD );}
 | op_level Expression ')'                               { $$ = $2; level_down( OP_LEVEL ); }
 | EXIST Object_Name                                     { $$ = check_exist( $2 ); }
 ;
-
+ 
 Constant
 : WORD
 | B_word
 
+/*              I think this is bad idea have binary text in command line. it mast be in file.
 B_word
 : '(' BINARY ':' WORD ':' B_WORD ')'
 ;
+*/
+
 
 NOT_head
 :NOT '('                                                { level_up( NOT_HEAD ); }
@@ -538,17 +531,11 @@ Object_Name
 
 Unordered_list
 : P_RUNNER                                              {}
-| pair_list
-;
+| Assoc_Expression
 
-pair_list
-: pair
-| pair_list ',' pair
-;
 
-pair
-: Object_Name SPACE Object_Name
-| Expression
+Assoc_Expression
+: Object_Name ASSOCIATE Object_Name
 
 
 Object_Path_Name
@@ -589,30 +576,15 @@ range
 | P_BYTES_WRITTEN  L_ASSIGN P_WORD                      {}                      /*p_bytes_written<-0xff001258*/
 | P_BYTES_READ  L_ASSIGN P_WORD                         {}                      /*p_bytes_read<-0xff001258*/
 | BYTES                                                 {}                      /*p_units<-bytes*/
-/*                    | LINES                                                                       /*p_units<-lines*/
+/*| LINES                                                                       /*p_units<-lines*/
 ;
 
-/*
-pattern             
-: pattern '~' pattern               {}
-| PATTERN
-| Expression 
-;
-*/
+
 /* Object name end*/
 
 
 
-/*
 
-  word. Word literals are sequences of characters enclosed in double quotes.
-  The characters in the string may be represented using Character literals are specified just like in C.
-  They may contain octal-escape characters (e.g., '\377'), and the usual special character escapes
-  ('\b', '\r', '\t', '\n', '\f', '\'', '\\')
-  If string is not contain a special symbol ( blank, '\b', '\r', '\t', '\n', '\f', '\'', '\\')
-  etc, it can be not enclosed in double quotes. ????
-
-*/
 %%
 
 
