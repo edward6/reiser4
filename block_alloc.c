@@ -293,9 +293,9 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count, __u64 max_block_count
 	   free_blocks)); */
 
 	if ((reserved && (free_blocks < min_block_count)) || 
-	    (!reserved && (free_blocks - reserved_blocks < min_block_count))) 
+	    (!reserved && (free_blocks < min_block_count + reserved_blocks))) 
 	{
-		/* FIXME-UMKA: Zam things, that here we should try to commit current atom first
+		/* FIXME-UMKA: Zam thinks, that here we should try to commit current atom first
 		   and try to allocate needed blocks one more time. Only if we will unable
 		   to allocate needed amount of blocks again, we will report -ENOSPC */
 
