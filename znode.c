@@ -657,17 +657,11 @@ int zparse( znode *node /* znode to parse */ )
 /** call node plugin to initialise newly allocated node. */
 int zinit_new( znode *node /* znode to initialise */ )
 {
-	int ret;
-	
 	assert( "nikita-1234", node != NULL );
 	assert( "nikita-1235", znode_is_loaded( node ) );
 	assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
 
-	ret = node_plugin_by_node( node ) -> init( node );
-
-	jnode_set_dirty( ZJNODE( node ) );
-
-	return ret;
+	return node_plugin_by_node( node ) -> init( node );
 }
 
 /**
@@ -961,10 +955,12 @@ void znode_post_write( const znode *node )
 	
 	cksum = znode_checksum (node);
 
-	assert ("jmacd-1081", znode_is_dirty (node) || cksum == node->cksum);
+	if ( ! (znode_is_dirty (node) || cksum == node->cksum))
+		rpanic ("jmacd-1081", "changed znode is not dirty: %llu", 
+			node->zjnode.blocknr);
 
 	if (znode_is_dirty (node) && cksum == node->cksum) {
-		warning ("jmacd-1082", "dirty node %u was not actually modified (or cksum collision)", (unsigned) node->blocknr.blk);
+		warning ("jmacd-1082", "dirty node %llu was not actually modified (or cksum collision)", node->zjnode.blocknr);
 	}
 }
 #endif
