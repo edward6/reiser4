@@ -416,12 +416,10 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 			goto fail;
 		}
 
-		/* FIXME-UMKA: here I count, that page is still locked after
-		   grab_cache_page(). Is it correct? */
-		if (PageUptodate(page)) {
-			unlock_page(page);
+		/* FIXME-UMKA: here I count, that page is not locked, because it is
+		   up-to-date. */
+		if (PageUptodate(page))
 			goto actor;
-		}
 		
 		if (fplug->readpage != NULL)
 			result = fplug->readpage(file, page);
