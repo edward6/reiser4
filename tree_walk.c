@@ -594,32 +594,36 @@ out:
 	return ret;
 }
 
-/* reiser4_get_neighbor() locks node's neighbor (left or right one, depends on
+/* 
+   reiser4_get_neighbor() -- lock node's neighbor.
+
+   reiser4_get_neighbor() locks node's neighbor (left or right one, depends on
    given parameter) using sibling link to it. If sibling link is not available
-   (i.e. neighbor znode is not in cache) and flags allow read blocks, we go
-   one level up for information about neighbor's disk address. We lock node's
+   (i.e. neighbor znode is not in cache) and flags allow read blocks, we go one
+   level up for information about neighbor's disk address. We lock node's
    parent, if it is common parent for both 'node' and its neighbor, neighbor's
-   disk address is in next (to left or to right) down link from link that
-   points to original node. If not, we need to lock parent's neighbor, read
-   its content and take first(last) downlink with neighbor's disk address.
-   That locking could be done by using sibling link and lock_neighbor()
-   function, if sibling link exists. In another case we have to go level up
-   again until we find common parent or valid sibling link. Then go down
+   disk address is in next (to left or to right) down link from link that points
+   to original node. If not, we need to lock parent's neighbor, read its content
+   and take first(last) downlink with neighbor's disk address.  That locking
+   could be done by using sibling link and lock_neighbor() function, if sibling
+   link exists. In another case we have to go level up again until we find
+   common parent or valid sibling link. Then go down
    allocating/connecting/locking/reading nodes until neighbor of first one is
    locked.
+
+   @neighbor:  result lock handle,
+   @node: a node which we lock neighbor of,
+   @lock_mode: lock mode {LM_READ, LM_WRITE},
+   @flags: logical OR of {GN_*} (see description above) subset.
+
+   @return: 0 if success, negative value if lock was impossible due to an error
+   or lack of neighbor node. 
 */
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 reiser4_internal int
-reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
-						   * points to origin
-						   * node we go to
-						   * left/right/upward
-						   * from */ ,
-		     znode * node, znode_lock_mode lock_mode	/* lock mode {LM_READ,
-								 * LM_WRITE}.*/ ,
-		     int flags	/* logical OR of {GN_*} (see description
-				 * above) subset. */ )
+reiser4_get_neighbor (
+	lock_handle * neighbor, znode * node, znode_lock_mode lock_mode mode, int flags)
 {
 	reiser4_tree *tree = znode_get_tree(node);
 	lock_handle path[REAL_MAX_ZTREE_HEIGHT];
