@@ -665,7 +665,7 @@ static inline int jnode_is_formatted( const jnode *node)
 }
 
 /** return true if "node" is dirty */
-static inline int jnode_is_dirty( jnode *node )
+static inline int jnode_is_dirty( const jnode *node )
 {
 	assert( "nikita-782", node != NULL );
 	assert( "jmacd-1800", spin_jnode_is_locked (node) || (jnode_is_formatted (node) && znode_is_any_locked (JZNODE (node))));
