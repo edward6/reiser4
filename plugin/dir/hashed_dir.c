@@ -158,7 +158,7 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 		 * with ".".
 		 */
 		if( result != 0 )
-			warning( "nikita-2222", 
+			warning( "nikita-2234", 
 				 "Failed to create dotdot in %lu: %i",
 				 object -> i_ino, result );
 	}
@@ -290,17 +290,19 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 	 * check for this entry in a directory. This is plugin method.
 	 */
 	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
-	assert( "nikita-2230", coord -> node == lh.node );
 	if( result == -ENOENT ) {
 		/*
 		 * add new entry. Just pass control to the directory
 		 * item plugin.
 		 */
 		assert( "nikita-1709", inode_dir_item_plugin( object ) );
+		assert( "nikita-2230", coord -> node == lh.node );
 		result = inode_dir_item_plugin( object ) ->
 			s.dir.add_entry( object, coord, &lh, where, entry );
-	} else if( result == 0 )
+	} else if( result == 0 ) {
+		assert( "nikita-2232", coord -> node == lh.node );
 		result = -EEXIST;
+	}
 	done_lh( &lh );
 
 	return result;

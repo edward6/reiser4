@@ -860,7 +860,7 @@ int zinit_new( znode *node /* znode to initialise */ )
  */
 void zrelse( znode *node /* znode to release references to */ )
 {
-	assert( "nikita-489", atomic_read( &ZJNODE(node) -> d_count ) > 0 );
+	assert( "nikita-2233", atomic_read( &ZJNODE(node) -> d_count ) > 0 );
 	assert( "nikita-1381", znode_invariant( node ) );
 
 	spin_lock_znode(node);
