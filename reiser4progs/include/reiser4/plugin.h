@@ -74,7 +74,8 @@ enum reiser4_drop_policy_plugin_id {
     DROP_SUPPRESS_ID		= 0x1,
     DROP_FOURK_ID		= 0x2,
     DROP_ALWAYS_ID		= 0x3,
-    DROP_SMART_ID		= 0x4
+    DROP_SMART_ID		= 0x4,
+    DROP_LAST_ID		= 0x5
 };
 
 enum reiser4_perm_plugin_id {
@@ -667,7 +668,12 @@ struct reiser4_format_ops {
 	block for 4096 byte long blocks.
     */
     errno_t (*valid) (reiser4_entity_t *, int);
+    /*	Checks thoroughly the format structure and fixes what needed. */
+    errno_t (*check) (reiser4_entity_t *, uint16_t);
 
+    /* Prints all useful information about the format */
+    void (*print) (char *buf, size_t n, reiser4_entity_t *, uint16_t);
+    
     /*
 	Probes whether filesystem on given device has this format.
 	Returns "true" if so and "false" otherwise.
