@@ -10,7 +10,8 @@
 
 /* Internal constructor. */
 static inline void
-coord_init_values(coord_t * coord, const znode * node, pos_in_node item_pos, pos_in_item unit_pos, between_enum between)
+coord_init_values(coord_t *coord, const znode *node, pos_in_node_t item_pos,
+		  pos_in_item_t unit_pos, between_enum between)
 {
 	coord->node = (znode *) node;
 	coord_set_item_pos(coord, item_pos);
@@ -23,7 +24,7 @@ coord_init_values(coord_t * coord, const znode * node, pos_in_node item_pos, pos
 /* after shifting of node content, coord previously set properly may become
    invalid, try to "normalize" it. */
 void
-coord_normalize(coord_t * coord)
+coord_normalize(coord_t *coord)
 {
 	znode *node;
 
@@ -139,6 +140,31 @@ coord_init_after_item_end(coord_t * coord)
 {
 	coord->between = AFTER_UNIT;
 	coord->unit_pos = coord_last_unit_pos(coord);
+}
+
+/* Initialize a coordinate to before the item. Coord must be set already to existing item */
+void
+coord_init_before_item(coord_t * coord)
+{
+	coord->unit_pos = 0;
+	coord->between = BEFORE_ITEM;
+}
+
+/* Initialize a coordinate to after the item. Coord must be set already to existing item */
+void
+coord_init_after_item(coord_t * coord)
+{
+	coord->unit_pos = 0;
+	coord->between = AFTER_ITEM;
+}
+
+/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
+   look for comments there) */
+void
+coord_init_parent_hint(coord_t * coord, const znode * node)
+{
+	coord->node = (znode *) node;
+	coord_invalid_item_pos(coord);
 }
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
@@ -302,7 +328,6 @@ coord_check(const coord_t * coord)
 	    coord->unit_pos > item_plugin_by_coord(coord)->b.nr_units(coord) - 1) {
 		return 0;
 	}
-
 	return 1;
 }
 #endif
@@ -603,9 +628,7 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 	cassert(sizeof(*c1) == sizeof(c1->node) + 
 		sizeof(c1->item_pos) +
 		sizeof(c1->unit_pos) + 
-		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad) +
-		sizeof(c1->pos_in_unit) + sizeof(c1->width) + sizeof(c1->nr_units) +
-		sizeof(c1->body));
+		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad) + sizeof(c1->body));
 	return 
 		c1->node == c2->node &&
 		c1->item_pos == c2->item_pos &&
@@ -1030,9 +1053,8 @@ print_coord(const char *mes, const coord_t * coord, int node)
 		printk("%s: null\n", mes);
 		return;
 	}
-	printk("%s: item_pos = %d, unit_pos %d, tween=%s, iplug=%d, pos_in_unit %llu\n",
-	       mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between), coord->iplugid,
-	       coord->pos_in_unit);
+	printk("%s: item_pos = %d, unit_pos %d, tween=%s, iplug=%d\n",
+	       mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between), coord->iplugid);
 	if (node)
 		print_znode("\tnode", coord->node);
 }

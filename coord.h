@@ -37,9 +37,9 @@ struct coord {
 	/*  0 */ znode *node;
 
 	/* position of item within node */
-	/*  4 */ pos_in_node item_pos;
+	/*  4 */ pos_in_node_t item_pos;
 	/* position of unit within item */
-	/*  6 */ pos_in_item unit_pos;
+	/*  6 */ pos_in_item_t unit_pos;
 	/* optimization: plugin of item is stored in coord_t. Until this was
 	   implemented, item_plugin_by_coord() was major CPU consumer. ->iplugid
 	   is invalidated (set to 0xff) on each modification of ->item_pos,
@@ -56,18 +56,7 @@ struct coord {
 	 * safe side and to have a clear picture of the memory layout of this
 	 * structure. */
 	/* 10 */ __u16 pad;
-	/* 12 */
-	reiser4_block_nr pos_in_unit;
-	reiser4_block_nr width; /* width of current unit */
-	int nr_units; /* number of units */
-	void *body;
-#if 0
-	/* fixme: attempt to decrease cpu usage */
-	unsigned long pos_in_node;
-	__u64 offset;
-	int move;
-	unsigned long expected_page;
-#endif
+	/* 12 */ void *body;
 };
 
 #define INVALID_PLUGID  ((char)((1 << 8) - 1))
@@ -88,7 +77,7 @@ coord_is_iplug_set(const coord_t * coord)
 }
 
 static inline void
-coord_set_item_pos(coord_t * coord, pos_in_node pos)
+coord_set_item_pos(coord_t * coord, pos_in_node_t pos)
 {
 	assert("nikita-2478", coord != NULL);
 	coord->item_pos = pos;
@@ -170,6 +159,11 @@ extern void coord_init_after_last_item(coord_t * coord, const znode * node);
 /* Initialize a coordinate to after last unit in the item. Coord must be set
    already to existing item */
 void coord_init_after_item_end(coord_t * coord);
+
+/* Initialize a coordinate to before the item. Coord must be set already to existing item */
+void coord_init_before_item(coord_t *);
+/* Initialize a coordinate to after the item. Coord must be set already to existing item */
+void coord_init_after_item(coord_t *);
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
 extern void coord_init_sideof_unit(coord_t * coord, const znode * node, sideof dir);
