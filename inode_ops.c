@@ -172,11 +172,12 @@ reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir,
 		dir_plugin *dplug;
 
 		dplug = inode_dir_plugin(old_dir);
-		assert("nikita-2271", dplug != NULL);
-		if (dplug->rename != NULL)
-			result = dplug->rename(old_dir, old, new_dir, new);
-		else
+		if (dplug == NULL)
+			result = RETERR(-ENOTDIR);
+		else if (dplug->rename == NULL)
 			result = RETERR(-EPERM);
+		else
+			result = dplug->rename(old_dir, old, new_dir, new);
 	}
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
@@ -388,7 +389,7 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 
 	/* for mysterious reasons ->truncate() VFS call doesn't return
 	   value  */
-	(void)reiser4_exit_context(&ctx);
+	reiser4_exit_context(&ctx);
 }
 
 /* ->permission() method in reiser4_inode_operations. */
