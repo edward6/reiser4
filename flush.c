@@ -1544,12 +1544,12 @@ out:
 #define NEW_TWIG_SQUEEZE
 #ifdef NEW_TWIG_SQUEEZE
 
-unsigned find_extent_slum_size(const coord_t *coord, unsigned pos_in_unit);
-int extent_handle_relocate_in_place(flush_pos_t *, unsigned *slum_size);
-int extent_handle_overwrite_in_place(flush_pos_t *, unsigned *slum_size);
-int extent_handle_relocate_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
+extern unsigned find_extent_slum_size(const coord_t *coord, unsigned pos_in_unit);
+extern int extent_handle_relocate_in_place(flush_pos_t *, unsigned *slum_size);
+extern int extent_handle_overwrite_in_place(flush_pos_t *, unsigned *slum_size);
+extern int extent_handle_relocate_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
 				    reiser4_key *stop_key);
-int extent_handle_overwrite_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
+extern int extent_handle_overwrite_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
 				     reiser4_key *stop_key);
 static int
 should_relocate(unsigned slum_size)
