@@ -1480,6 +1480,14 @@ flush_forward_squalloc(flush_position * pos)
 #endif
 
 ALLOC_EXTENTS:
+
+	if (JF_ISSET(pos->point, JNODE_HEARD_BANSHEE)) {
+		/* race with extent->tail. */
+		flush_pos_stop(pos);
+		ret = -EINVAL;
+		goto exit;
+	}
+	
 	/* Step 4: Allocate the current extent (if current position is an extent). */
 	if (flush_pos_valid(pos) && flush_pos_on_twig_level(pos)) {
 
