@@ -863,14 +863,6 @@ void test_search( int rounds, int size, int num )
 	       ( unsigned long ) cycles, ( ( double ) cycles ) / rounds );
 }
 
-static int echo_filldir(void *buf UNUSED_ARG, const char *name, int namelen, 
-			loff_t offset, ino_t inode, unsigned ftype)
-{
-	info( "filldir[%i]: %s (%i), %Lx, %Lx, %i\n",
-	      current_pid, name, namelen, offset, inode, ftype );
-	return 0;
-}
-
 static spinlock_t lc_rand_guard;
 
 static __u64 lc_seed = 5772156648ull;
@@ -893,6 +885,29 @@ static __u64 lc_rand_max( __u64 max )
 	result = lc_rand();
 	result *= max;
 	result /= LC_RAND_MAX;
+	return result;
+}
+
+static int echo_filldir(void *eof, const char *name, int namelen, 
+			loff_t offset, ino_t inode, unsigned ftype)
+{
+	* ( int * ) eof = 0;
+	if( lc_rand_max( 10ull ) < 2 )
+		return -EINVAL;
+	info( "filldir[%i]: %s (%i), %Lx, %Lx, %i\n",
+	      current_pid, name, namelen, offset, inode, ftype );
+	return 0;
+}
+
+static int readdir( struct file *dir )
+{
+	int eof;
+	int result;
+	do {
+		eof = 1;
+		result = dir -> f_dentry -> d_inode -> i_fop -> 
+			readdir( dir, &eof, echo_filldir );
+	} while( !eof && ( result == 0 ) );
 	return result;
 }
 
@@ -938,7 +953,7 @@ void *mkdir_thread( void *arg )
 
 		fno = lc_rand_max( ( __u64 ) info -> max );
 		
-		sprintf( name, "Pst-%lli-хлоп-Zzzz.", fno );
+		sprintf( name, "Pst0000000-%lli-хлоп-Zzzz.", fno );
 		dentry.d_name.name = name;
 		dentry.d_name.len = strlen( name );
 		SUSPEND_CONTEXT( old_context );
@@ -951,7 +966,7 @@ void *mkdir_thread( void *arg )
 		/* print_tree_rec( "tree", tree, 
 		   REISER4_NODE_PRINT_ZNODE ); */
 	  
-		if( 0 && lc_rand_max( 10ull ) < 2 ) {
+		if( lc_rand_max( 10ull ) < 2 ) {
 			delay.tv_sec  = 0;
 			delay.tv_nsec = lc_rand_max( 1000000000ull );
 			nanosleep( &delay, NULL );
@@ -964,7 +979,7 @@ void *mkdir_thread( void *arg )
 	df.f_dentry = &dentry;
 	df.f_op = &reiser4_file_operations;
 	SUSPEND_CONTEXT( old_context );
-	df.f_op -> readdir( &df, NULL, echo_filldir );
+	readdir( &df );
 	reiser4_init_context( old_context, f -> i_sb );
 	info( "(%i): done.\n", current_pid );
 	REISER4_EXIT_PTR( NULL );
@@ -1126,7 +1141,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		spin_lock_init( &lc_rand_guard );
 		info.dir = f;
 		info.num = atoi( argv[ 4 ] );
-		info.max = info.num * threads;
+		info.max = info.num;
 		for( i = 0 ; i < threads ; ++ i )
 			pthread_create( &tid[ i ], NULL, mkdir_thread, &info );
 
@@ -1146,7 +1161,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		df.f_dentry = &dd;
 		df.f_op = &reiser4_file_operations;
 		SUSPEND_CONTEXT (old_context);
-		df.f_op -> readdir( &df, NULL, echo_filldir );
+		readdir( &df );
 		reiser4_init_context( old_context, f -> i_sb );
 
 	} else if( !strcmp( argv[ 2 ], "ibk" ) ) {
@@ -1637,7 +1652,7 @@ static int call_readdir (struct inode * dir)
 	memset (&file, 0, sizeof (struct file));
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
-	while (dir->i_fop->readdir (&file, 0, echo_filldir) == 0);
+	readdir (&file);
 
 	reiser4_init_context (old_context, dir->i_sb);
 	return 0;
