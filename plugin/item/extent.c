@@ -1917,82 +1917,6 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
 }
 
 #if REISER4_USE_EFLUSH
-#if 0
-static void
-unflush_finish(coord_t *coord, __u64 done)
-{
-	reiser4_extent *ext;
-	reiser4_key     key;
-	oid_t           oid;
-	__u64           i;
-	unsigned long   ind;
-	int             result;
-
-	assert("nikita-2793", item_is_extent(coord));
-
-	result = 0;
-
-	ext = extent_by_coord(coord);
-
-	unit_key_by_coord(coord, &key);
-
-	oid   = get_key_objectid(&key);
-	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
-	
-	for (result = 0, i = 0 ; i < done ; ++ i, ++ ind) {
-		jnode  *node;
-		reiser4_tree *tree;
-
-		tree = current_tree;
-		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
-		if (node == NULL)
-			continue;
-		jrelse(node);
-		jput(node);
-	}
-}
-
-static int
-unflush(coord_t *coord)
-{
-	reiser4_extent *ext;
-	reiser4_key     key;
-	oid_t           oid;
-	__u64           width;
-	__u64           i;
-	unsigned long   ind;
-	int             result;
-
-	assert("nikita-2793", item_is_extent(coord));
-
-	result = 0;
-
-	ext = extent_by_coord(coord);
-
-	unit_key_by_coord(coord, &key);
-
-	width = extent_get_width(ext);
-	oid   = get_key_objectid(&key);
-	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
-	
-	for (result = 0, i = 0 ; i < width ; ++ i, ++ ind) {
-		jnode  *node;
-		reiser4_tree *tree;
-
-		tree = current_tree;
-		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
-		if (node == NULL)
-			continue;
-		result = jload(node);
-		jput(node);
-		if (result != 0) {
-			unflush_finish(coord, i);
-			break;
-		}
-	}
-	return result;
-}
-#endif
 
 /* before allocating unallocated extent we have to prevent from eflushing those jnodes which are not eflushed yet and
  * "unflush" jnodes which are already eflushed. Both are achieved by jload. However there can be too many eflushed
@@ -2022,8 +1946,10 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 			continue;
 
 		if (JF_ISSET(node, JNODE_EFLUSH)) {
-			if (eflushed == JNODES_TO_UNFLUSH)
+			if (eflushed == JNODES_TO_UNFLUSH) {
+				jput(node);
 				break;
+			}
 			eflushed ++;
 		}
 
