@@ -361,7 +361,10 @@ item_is_internal(const coord_t * item)
 }
 
 extern void item_body_by_coord_hard(coord_t * coord);
+extern void *item_body_by_coord_easy(const coord_t * coord);
+#if REISER4_DEBUG
 extern int item_body_is_valid(const coord_t * coord);
+#endif
 
 /* return pointer to item body */
 static inline void *
@@ -372,11 +375,11 @@ item_body_by_coord(const coord_t * coord /* coord to query */ )
 	assert("nikita-326", znode_is_loaded(coord->node));
 	trace_stamp(TRACE_TREE);
 
-	if (coord->body == NULL)
+	if (coord->offset == INVALID_OFFSET)
 		item_body_by_coord_hard((coord_t *)coord);
 	assert("nikita-3201", item_body_is_valid(coord));
 	assert("nikita-3550", coord->body_v == znode_times_locked(coord->node));
-	return coord->body;
+	return item_body_by_coord_easy(coord);
 }
 
 /* __REISER4_ITEM_H__ */
