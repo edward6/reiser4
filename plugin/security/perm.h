@@ -35,7 +35,7 @@ typedef struct perm_plugin {
 
 	/** check permissions for create */
 	int ( *create_ok )( struct inode *parent, struct dentry *dentry, 
-	-Lî		    reiser4_object_create_data *data );-A
+			    reiser4_object_create_data *data );
 
 	/** check permissions for linking @where to @existing */
 	int ( *link_ok )( struct dentry *existing, struct inode *parent, 
@@ -46,7 +46,7 @@ typedef struct perm_plugin {
 
 	/** check permissions for deletion of @object whose last reference is by @parent */
 	int ( *delete_ok )( struct inode *parent, struct dentry *victim );
-
+	int ( *mask_ok )( struct inode *inode, int mask );
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
