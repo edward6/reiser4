@@ -740,12 +740,14 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			lock_and_wait_page_writeback(pg);
 
 			LOCK_JNODE(cur);
+			LOCK_JLOAD(cur);
 			assert("nikita-3166",
 			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
+			UNLOCK_JLOAD(cur);
 			UNLOCK_JNODE(cur);
 
 			SetPageWriteback(pg);
