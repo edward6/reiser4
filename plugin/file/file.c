@@ -871,8 +871,10 @@ static int extent2tail (struct file * file)
 
 	/* number of pages in the file */
 	num_pages = (inode->i_size + PAGE_SIZE - 1) / PAGE_SIZE;
-	if (!num_pages)
+	if (!num_pages) {
+		up_write (&reiser4_inode_data (inode)->sem);
 		return 0;
+	}
 
 	unix_file_key_by_inode (inode, 0ull, &from);
 	to = from;
