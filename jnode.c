@@ -61,7 +61,6 @@ jnode_init (jnode *node)
 	
 	memset (node, 0, sizeof (jnode));
 	node->state = 0;
-	node->level = 0;
 	atomic_set (&node->d_count, 0);
 	atomic_set (&node->x_count, 0);
 	spin_lock_init (& node->guard);
@@ -171,8 +170,6 @@ jnode_of_page (struct page* pg)
 		/* FIXME: jnode_init doesn't take struct page argument, so
 		 * znodes aren't having theirs set. */
 		jnode_init (jal);
-
-		jal->level = LEAF_LEVEL;
 
 		jnode_attach_page_nolock (jal, pg);
 

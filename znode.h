@@ -117,6 +117,9 @@ struct znode {
 	/* Embedded jnode. */
 	jnode zjnode;
 	
+	/* znode's tree level */
+	__u16 level;
+
 	/* design note: I think that tree traversal will be more
 	   efficient because of these pointers, but there will be bugs
 	   associated with these pointers.  We could simply record the
@@ -467,8 +470,6 @@ void print_znodes( const char *prefix, reiser4_tree *tree );
  * jnodes in znode-specific code. */
 #define znode_page(x)               jnode_page ( ZJNODE(x) )
 #define zdata(x)                    jdata ( ZJNODE(x) )
-#define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
-#define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
 #define znode_created(x)            jnode_created ( ZJNODE(x) )
 #define znode_set_created(x)        jnode_set_created ( ZJNODE(x) )
@@ -493,6 +494,33 @@ static inline znode* zref (znode *node)
 static inline void zput (znode *node)
 {
 	jput (ZJNODE (node));
+}
+
+/** get the level field for a znode */
+static inline tree_level znode_get_level (const znode *node)
+{
+	return node->level;
+}
+
+/** set the level field for a znode */
+static inline void znode_set_level (znode      *node,
+				    tree_level  level)
+{
+	assert ("jmacd-1161", level < REISER4_MAX_ZTREE_HEIGHT);
+	node->level = level;
+}
+
+/** get the level field for a jnode */
+static inline tree_level jnode_get_level (const jnode *node)
+{
+	if (jnode_is_formatted (node))
+		return znode_get_level (JZNODE (node));
+	else
+		/*
+		 * unformatted nodes are all at the LEAF_LEVEL and for
+		 * "semi-formatted" nodes like bitmaps, level doesn't matter.
+		 */
+		return LEAF_LEVEL;
 }
 
 /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
