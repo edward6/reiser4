@@ -1580,7 +1580,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		/* do not squeeze this node */
 		goto exit;
 
-	coord_init_before_first_item(&pos->coord, node);
+	coord_init_first_unit(&pos->coord, node);
 
 	while (1) {
 		ret = 0;
@@ -1620,31 +1620,41 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 	next:
 		if (coord_next_item(&pos->coord)) {
 			/* node is over */
-			int res;
 			lock_handle right_lock;
+			load_count right_load;
 			coord_t coord;
+
+			if (pos->idata == NULL)
+				break;		
 			
 			init_lh(&right_lock);
+			init_load_count(&right_load);
 			
-			if (pos->idata == NULL)
-				break;
 			/* check for slum right neighbor */
-			res = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
-			if (res)
+			ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+			if (ret == -E_NO_NEIGHBOR)
 				/* no neighbor, repeat on this node */
 				continue;
-
+			else if (ret)
+				goto exit;
+			ret = incr_load_count_znode(&right_load, right_lock.node);
+			if (ret) {
+				done_lh(&right_lock);
+				break;
+			}
 			coord_init_after_item_end(&pos->coord);
 			coord_init_before_first_item(&coord, right_lock.node);
 			
 			if (iplug->b.mergeable(&pos->coord, &coord)) {
 				/* go to slum right neighbor */
 				pos->idata->mergeable = 1;
+				done_load_count(&right_load);
 				done_lh(&right_lock);
 				break;
 			}
 			/* first item of right neighbor is not mergeable,
 			   repeat this node */
+			done_load_count(&right_load);
 			done_lh(&right_lock);
 		}
 	}
