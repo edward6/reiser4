@@ -4225,7 +4225,7 @@ static void *uswapd( void *untyped )
 
 	while( 1 ) {
 		int result;
-
+		int to_flush = 21;
 
 		spin_lock( &mp_guard );
 		while( ! is_mp )
@@ -4234,7 +4234,7 @@ static void *uswapd( void *untyped )
 		spin_unlock( &mp_guard );
 		rlog( "nikita-1939", "uswapd wakes up..." );
 
-		result = memory_pressure( super );
+		result = memory_pressure( super, & to_flush );
 		if( result != 0 )
 			warning( "nikita-1937", "flushing failed: %i", result );
 	}
@@ -4243,7 +4243,7 @@ static void *uswapd( void *untyped )
 
 void declare_memory_pressure( void )
 {
-	return;
+	/*return;*/
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );

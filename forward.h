@@ -199,8 +199,9 @@ typedef enum {
 /* Flags passed to jnode_flush() to allow it to distinguish default settings based on
  * whether commit() was called or VM memory pressure was applied. */
 typedef enum {
-	JNODE_FLUSH_COMMIT = 1,
-	JNODE_FLUSH_MEMORY = 2,
+	JNODE_FLUSH_COMMIT             = 1,
+	JNODE_FLUSH_MEMORY_FORMATTED   = 2,
+	JNODE_FLUSH_MEMORY_UNFORMATTED = 4,
 } jnode_flush_flags;
 
 /* __REISER4_FORWARD_H__ */

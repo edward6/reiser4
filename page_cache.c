@@ -566,11 +566,9 @@ static struct bio *page_bio( struct page *page, int gfp )
 /**
  * memory pressure notification. Flush transaction, etc.
  */
-static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG, 
-					    int *nr_to_write UNUSED_ARG )
+static int formatted_fake_pressure_handler( struct page *page, int *nr_to_write )
 {
-	dinfo( "Kernel declared memory pressure for formatted nodes!\n" );
-	return 0;
+	return jnode_flush (jnode_by_page (page), nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
 }
 
 static int formatted_set_page_dirty( struct page *page )

@@ -615,7 +615,7 @@ atom_try_commit_locked (txn_atom *atom)
 		spin_unlock_atom (atom);
 
 		/* Call jnode_flush() without tree_lock held. */
-		if ((ret = jnode_flush (scan, JNODE_FLUSH_COMMIT)) != 0) {
+		if ((ret = jnode_flush (scan, NULL, JNODE_FLUSH_COMMIT)) != 0) {
 			return ret;
 		}
 
@@ -812,21 +812,21 @@ commit_txnh (txn_handle *txnh)
  * node.
  */
 /* Audited by: umka (2002.06.13), umka (2002.06.15) */
-int memory_pressure (struct super_block *super)
+int memory_pressure (struct super_block *super, int *nr_to_flush)
 {
 	txn_mgr *mgr = & get_super_private (super)->tmgr;
 	txn_atom *atom;
 	jnode *node = NULL;
 	txn_handle  *txnh;
 	int ret = 0, level;
-
-	REISER4_ENTRY (super);
+	reiser4_context *ctx = get_current_context ();
 
 	assert("umka-193", super != NULL);
 
-	txnh = get_current_context ()->trans;
+	txnh = ctx->trans;
 
 	assert("umka-288", txnh != NULL);
+	assert("jmacd-289", txnh->atom == NULL);
 
 	spin_lock_txnh (txnh);
 	spin_lock_txnmgr (mgr);
@@ -859,12 +859,18 @@ int memory_pressure (struct super_block *super)
 
 	if (node != NULL) {
 
-		ret = jnode_flush (node, JNODE_FLUSH_MEMORY);
+		ret = jnode_flush (node, nr_to_flush, jnode_is_formatted (node) ? JNODE_FLUSH_MEMORY_FORMATTED : JNODE_FLUSH_MEMORY_UNFORMATTED);
 
 		jput (node);
+
+		if (ret == 0) {
+			ret = commit_txnh (txnh);
+
+			assert ("jmacd-635", txnh_isclean (txnh));
+		}
 	}
 
-	REISER4_EXIT (0);
+	return 0;
 }
 #endif
 

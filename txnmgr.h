@@ -290,7 +290,7 @@ extern txn_atom*    atom_get_locked_with_txnh_locked (txn_handle       *txnh);
 extern txn_atom*    get_current_atom_locked (void);
 
 #if REISER4_USER_LEVEL_SIMULATION
-extern int          memory_pressure        (struct super_block *super);
+extern int          memory_pressure        (struct super_block *super, int *nr_to_flush);
 #endif
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the

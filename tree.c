@@ -1308,8 +1308,8 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 	}
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
-	if (coord_set_to_right (from) || coord_set_to_left (to))
-		return -EIO;
+	if (coord_set_to_right (from) || coord_set_to_left (to)) {
+		warning ("jmacd-18128", "coord_set failed"); return -EIO; }
 
 	/* make sure that @from and @to are set to existing units in the
 	   node */

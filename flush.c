@@ -74,6 +74,7 @@ struct flush_position {
 	load_handle           parent_load;
 	reiser4_blocknr_hint  preceder;
 	int                   leaf_relocate;
+	int                  *nr_to_flush;
 	ON_DEBUG (int alloc_cnt);
 	ON_DEBUG (int enqueue_cnt);
 };
@@ -126,7 +127,7 @@ static int           znode_is_allocated           (znode *node);
 static int           znode_get_utmost_if_dirty    (znode *node, lock_handle *right_lock, sideof side, znode_lock_mode mode);
 static int           znode_same_parents           (znode *a, znode *b);
 
-static int           flush_pos_init               (flush_position *pos);
+static int           flush_pos_init               (flush_position *pos, int *nr_to_flush);
 static int           flush_pos_valid              (flush_position *pos);
 static void          flush_pos_done               (flush_position *pos);
 static int           flush_pos_stop               (flush_position *pos);
@@ -157,7 +158,7 @@ static const char*   flush_pos_tostring           (flush_position *pos);
  * During squeeze and allocate, nodes are scheduled for writeback and their jnodes are set
  * to the "clean" state (as far as the atom is concerned).
  */
-int jnode_flush (jnode *node, int flags UNUSED_ARG)
+int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 {
 	int ret;
 	flush_position flush_pos;
@@ -182,7 +183,7 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
 
-	if ((ret = flush_pos_init (& flush_pos))) {
+	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;
 	}
 
@@ -813,7 +814,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	}
 
 	if (! flush_pos_valid (pos)) {
-		trace_on (TRACE_FLUSH, "squalloc_right changed ancestors position invalid: %s\n", flush_pos_tostring (pos));
 		goto exit;
 	}
 
@@ -1206,19 +1206,7 @@ static int squalloc_right_twig (znode    *left,
 	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
 
-		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut1:", & coord, 0));
-#if 0
-
-		/* @coord is set to the first unit that does not have to be
-		 * cut or after last item in the node.  If we are positioned
-		 * at the coord of a unit, it means the extent processing
-		 * stoped in the middle of an extent item, the last unit of
-		 * which was not copied.  Cut everything before that point. */
-		if (coord_is_existing_unit (& coord)) {
-			coord_prev_unit (& coord);
-		}
-#endif
-		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut2:", & coord, 0));
+		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut_coord", & coord, 0));
 
 		/* Helper function to do the cutting. */
 		if ((cut_ret = squalloc_right_twig_cut (&stop_coord, &stop_key, left))) {
@@ -1227,7 +1215,7 @@ static int squalloc_right_twig (znode    *left,
 			return cut_ret;
 		}
 
-		trace_if (TRACE_FLUSH, print_node_content ("right", right, ~0u));
+		trace_if (TRACE_FLUSH, print_node_content ("right_after_cut", right, ~0u));
 	}
 
 	if (ret == SQUEEZE_TARGET_FULL) { goto out; }
@@ -1337,7 +1325,6 @@ static int jnode_is_allocated (jnode *node)
 	assert ("jmacd-9270", jnode_check_dirty (node));
 
 	/* It must be relocated or wandered.  New allocations are set to relocate. */
-/*#define jnode_check_allocated(node) (JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER))*/
 	return jnode_check_allocated (node);
 }
 
@@ -1495,6 +1482,9 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 
 	ret = flush_enqueue_jnode_page_locked (node, pos, pg);
 	ON_DEBUG (pos->enqueue_cnt += 1);
+	if (pos->nr_to_flush != NULL) {
+		(*pos->nr_to_flush) += 1;
+	}
 	return ret;
 }
 
@@ -2191,10 +2181,12 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
  ********************************************************************************/
 
 /* Initialize the fields of a flush_position. */
-static int flush_pos_init (flush_position *pos)
+static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
+	pos->nr_to_flush = nr_to_flush;
+
 	ON_DEBUG (pos->alloc_cnt = 0);
 	ON_DEBUG (pos->enqueue_cnt = 0);
 
@@ -2212,6 +2204,9 @@ static int flush_pos_init (flush_position *pos)
 /* FIXME: comment */
 static int flush_pos_valid (flush_position *pos)
 {
+	if (pos->nr_to_flush != NULL && *pos->nr_to_flush <= 0) {
+		return 0;
+	}
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 

@@ -86,8 +86,8 @@ static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
 static int reiser4_sync_page(struct page *);
-static int reiser4_vm_writeback( struct page *page UNUSED_ARG, 
-				 int *nr_to_write UNUSED_ARG );
+static int reiser4_vm_writeback( struct page *page, 
+				 int *nr_to_write );
 /*
 static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
@@ -479,12 +479,9 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	return fplug -> readpage( f, page );
 }
 
-static int reiser4_vm_writeback( struct page *page UNUSED_ARG, 
-				 int *nr_to_write UNUSED_ARG )
+static int reiser4_vm_writeback( struct page *page, int *nr_to_write )
 {
-	dinfo( "Kernel declared memory pressure for inode %llu!\n",
-	       ( __u64 ) page -> mapping -> host -> i_ino );
-	return 0;
+	return jnode_flush (jnode_by_page (page), nr_to_write, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
 /* ->sync_page()
