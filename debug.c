@@ -33,6 +33,7 @@
 #include "context.h"
 #include "super.h"
 #include "txnmgr.h"
+#include "znode.h"
 
 #include <linux/sysfs.h>
 #include <linux/slab.h>
