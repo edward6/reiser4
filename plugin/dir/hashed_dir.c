@@ -473,8 +473,8 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 	old_dplug = inode_dir_plugin( old_dir );
 	new_dplug = inode_dir_plugin( new_dir );
 
-	xmemset( old_entry, 0, sizeof old_entry );
-	xmemset( new_entry, 0, sizeof new_entry );
+	xmemset( &old_entry, 0, sizeof old_entry );
+	xmemset( &new_entry, 0, sizeof new_entry );
 
 	/*
 	 * @new_entry and @old_entry are describing directory entries pointing
@@ -484,16 +484,16 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 	new_entry.obj = old_entry.obj = old_inode;
 
 	/* build keys of directory entries */
-	result = old_dplug -> entry_key( old_dir, old_name, &old_entry -> key );
+	result = old_dplug -> entry_key( old_dir, old_name, &old_entry.key );
 	if( result != 0 )
 		return result;
 
-	result = new_dplug -> entry_key( new_dir, new_name, &new_entry -> key );
+	result = new_dplug -> entry_key( new_dir, new_name, &new_entry.key );
 	if( result != 0 )
 		return result;
 
-	init_coord( &old_coord );
-	init_coord( &new_coord );
+	coord_init_zero( &old_coord );
+	coord_init_zero( &new_coord );
 
 	init_lh( &old_lh );
 	init_lh( &new_lh );
@@ -512,7 +512,7 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 	 */
 
 	result = lookup_couple( current_tree, 
-				&old_entry -> key, &new_entry -> key,
+				&old_entry.key, &new_entry.key,
 				&old_coord, &new_coord, &old_lh, &new_lh,
 				ZNODE_WRITE_LOCK,
 				FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
