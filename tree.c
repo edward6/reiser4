@@ -1260,7 +1260,9 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		if ((result != 0) && (result != -E_NO_NEIGHBOR))
 			break;
 
-		if (iterations && UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) {
+		/* FIXME:NIKITA->ZAM temporary fix */
+		if (znode_get_level(tap->coord->node) == LEAF_LEVEL &&
+		    iterations && UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) {
 			result = delete_node(next_node_lock.node, tap->coord->node, smallest_removed);
 			if (result)
 				break;
