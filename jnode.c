@@ -342,6 +342,51 @@ jfree(jnode * node)
 	kmem_cache_free(_jnode_slab, node);
 }
 
+static void
+jnode_free_actor(void *arg)
+{
+	jnode * node;
+	jnode_type jtype;
+
+	node = arg;
+	jtype = jnode_get_type(node);
+
+	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
+
+	switch (jtype) {
+	case JNODE_IO_HEAD:
+	case JNODE_BITMAP:
+	case JNODE_UNFORMATTED_BLOCK:
+		jfree(node);
+		break;
+	case JNODE_FORMATTED_BLOCK:
+		zfree(JZNODE(node));
+		break;
+	case JNODE_INODE:
+	default:
+		wrong_return_value("nikita-3197", "Wrong jnode type");
+	}
+}
+
+static inline void
+jnode_free(jnode * node, jnode_type jtype)
+{
+	if (jtype != JNODE_INODE) {
+#if REISER4_DEBUG
+		{
+			reiser4_super_info_data *sbinfo;
+
+			sbinfo = get_super_private(jnode_get_tree(node)->super);
+			atomic_inc(&sbinfo->jnodes_in_flight);
+		}
+#endif
+		assert("nikita-3219", list_empty(&node->rcu.list));
+		call_rcu(&node->rcu, jnode_free_actor, node);
+	}
+	else
+		jnode_list_remove(node);
+}
+
 /* allocate new unformatted jnode */
 reiser4_internal jnode *
 jnew_unformatted(void)
@@ -551,7 +596,7 @@ find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 		jref(result);
 		hash_unformatted_jnode(result, mapping, index);
 	} else {
-		jnode_free(result);
+		jnode_free(result, JNODE_UNFORMATTED_BLOCK);
 		shadow->key.j.mapping = mapping;
 		result = shadow;
 	}
@@ -1422,32 +1467,6 @@ jnode_delete(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 	}
 }
 
-static void
-jnode_free_actor(void *arg)
-{
-	jnode * node;
-	jnode_type jtype;
-
-	node = arg;
-	jtype = jnode_get_type(node);
-
-	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
-
-	switch (jtype) {
-	case JNODE_IO_HEAD:
-	case JNODE_BITMAP:
-	case JNODE_UNFORMATTED_BLOCK:
-		jfree(node);
-		break;
-	case JNODE_FORMATTED_BLOCK:
-		zfree(JZNODE(node));
-		break;
-	case JNODE_INODE:
-	default:
-		wrong_return_value("nikita-3197", "Wrong jnode type");
-	}
-}
-
 #if REISER4_DEBUG
 void jnode_list_remove(jnode * node)
 {
@@ -1461,25 +1480,6 @@ void jnode_list_remove(jnode * node)
 	spin_unlock_irq(&sbinfo->all_guard);
 }
 #endif
-
-static inline void
-jnode_free(jnode * node, jnode_type jtype)
-{
-	if (jtype != JNODE_INODE) {
-#if REISER4_DEBUG
-		{
-			reiser4_super_info_data *sbinfo;
-
-			sbinfo = get_super_private(jnode_get_tree(node)->super);
-			atomic_inc(&sbinfo->jnodes_in_flight);
-		}
-#endif
-		assert("nikita-3219", list_empty(&node->rcu.list));
-		call_rcu(&node->rcu, jnode_free_actor, node);
-	}
-	else
-		jnode_list_remove(node);
-}
 
 reiser4_internal int
 jnode_try_drop(jnode * node)
