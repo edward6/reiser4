@@ -222,6 +222,16 @@ extern int write_in_trace(const char *func, const char *mes);
 #define log_entry(super, str) noop
 #endif
 
+/* mark transaction handle in @ctx as TXNH_DONT_COMMIT, so that no commit or
+ * flush would be performed when it is closed. This is necessary when handle
+ * has to be closed under some coarse semaphore, like i_sem of
+ * directory. Commit will be performed by ktxnmgrd. */
+static inline void context_set_commit_async(reiser4_context * ctx)
+{
+	ctx->nobalance = 1;
+	ctx->trans->flags |= TXNH_DONT_COMMIT;
+}
+
 extern int reiser4_exit_context(reiser4_context * context);
 
 /* __REISER4_CONTEXT_H__ */

@@ -1513,6 +1513,9 @@ commit_txnh(txn_handle * txnh)
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
 
+	if (txnh->flags & TXNH_DONT_COMMIT)
+		ktxnmgrd_kick(&get_current_super_private()->tmgr);
+
 	/* VS-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-VS-BY-HANS: Note: We are ignoring the failure code.  Can't change the result of the caller.
 	   E.g., in write():
 	  

@@ -175,6 +175,7 @@ reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir,
 		else
 			result = RETERR(-EPERM);
 	}
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -240,8 +241,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 
 	/* prevent balance_dirty_pages() from being called: we don't want to
 	 * do this under directory i_sem. */
-	ctx.nobalance = 1;
-	ctx.trans->flags |= TXNH_DONT_COMMIT;
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -295,9 +295,8 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 		} else
 			result = -EAGAIN;
 	}
-	up(&inode->i_sem);
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
-	down(&inode->i_sem);
 	return result;
 }
 
@@ -423,8 +422,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	 * already been deleted, but dentry (@victim) still exists. */
 	/* prevent balance_dirty_pages() from being called: we don't want to
 	 * do this under directory i_sem. */
-	ctx.nobalance = 1;
-	ctx.trans->flags |= TXNH_DONT_COMMIT;
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx); 
 	return result;
 }
@@ -496,6 +494,7 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 	assert("nikita-1031", parent != NULL);
 
 	init_context(&ctx, parent->i_sb);
+	context_set_commit_async(&ctx);
 	reiser4_stat_inc(vfs_calls.link);
 
 	dplug = inode_dir_plugin(parent);
@@ -532,6 +531,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	reiser4_context ctx;
 
 	init_context(&ctx, parent->i_sb);
+	context_set_commit_async(&ctx);
 	write_syscall_trace("%s %o", dentry->d_name.name, data->mode);
 
 	assert("nikita-426", parent != NULL);
@@ -567,9 +567,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 
 	write_syscall_trace("ex");
 
-	up(&parent->i_sem);
 	reiser4_exit_context(&ctx);
-	down(&parent->i_sem);
 	return result;
 }
 

@@ -199,6 +199,14 @@ ktxnmgrd_detach(txn_mgr * mgr)
 		spin_unlock(&ctx->guard);
 }
 
+void
+ktxnmgrd_kick(txn_mgr * mgr)
+{
+	assert("nikita-3234", mgr != NULL);
+	assert("nikita-3235", mgr->daemon != NULL);
+	kcond_signal(&mgr->daemon->wait);
+}
+
 /* scan one transaction manager for old atoms; should be called with ktxnmgrd
  * spinlock, releases this spin lock at exit */
 static int

@@ -145,9 +145,8 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 
 	update_atime(inode);
 	write_syscall_trace("ex");
-	up(&inode->i_sem);
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
-	down(&inode->i_sem);
 	return result;
 }
 
@@ -352,9 +351,8 @@ reiser4_fsync(struct file *file UNUSED_ARG,
 
 	init_context(&ctx, dentry->d_inode->i_sb);
 	result = txnmgr_force_commit_all(dentry->d_inode->i_sb);
-	up(&dentry->d_inode->i_sem);
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
-	down(&dentry->d_inode->i_sem);
 	return result;
 }
 
