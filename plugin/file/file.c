@@ -1294,48 +1294,150 @@ write_flow(struct file *file, struct inode *inode, const char *buf, size_t count
 	return written;
 }
 
+/* stolen from generic_file_aio_write_nolock(). Should be genericized. */
+/* Check validness of write(2) arguments, process limits, LFS stuff, etc. */
+static int 
+write_checks(struct file * file, size_t * ocount, loff_t * off)
+{
+	struct inode *inode;
+	unsigned long limit;
+	loff_t pos;
+	size_t count;
+
+	inode = file->f_dentry->d_inode;
+	/* special files should get here in the first place */
+	assert("nikita-2932", !S_ISBLK(inode->i_mode));
+
+	pos = *off;
+	count = *ocount;
+
+	if (unlikely(pos < 0))
+		return -EINVAL;
+
+	if (unlikely(file->f_error)) {
+		int ferr;
+
+		ferr = file->f_error;
+		file->f_error = 0;
+		return ferr;
+	}
+
+	limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
+	/* FIXME: this is for backwards compatibility with 2.4 */
+	if (file->f_flags & O_APPEND)
+		pos = inode->i_size;
+
+	if (limit != RLIM_INFINITY) {
+		if (unlikely(pos >= limit)) {
+			send_sig(SIGXFSZ, current, 0);
+			return -EFBIG;
+		}
+		if (unlikely(pos > 0xFFFFFFFFULL || count > limit - (u32)pos)) {
+			/* send_sig(SIGXFSZ, current, 0); */
+			count = limit - (u32)pos;
+		}
+	}
+
+	/*
+	 * LFS rule
+	 */
+	if (unlikely(pos + count > MAX_NON_LFS && 
+		     !(file->f_flags & O_LARGEFILE))) {
+		if (pos >= MAX_NON_LFS) {
+			send_sig(SIGXFSZ, current, 0);
+			return -EFBIG;
+		}
+		if (count > MAX_NON_LFS - (u32)pos) {
+			/* send_sig(SIGXFSZ, current, 0); */
+			count = MAX_NON_LFS - (u32)pos;
+		}
+	}
+
+	/*
+	 * Are we about to exceed the fs block limit ?
+	 *
+	 * If we have written data it becomes a short write.  If we have
+	 * exceeded without writing data we send a signal and return EFBIG.
+	 * Linus frestrict idea will clean these up nicely..
+	 */
+	if (unlikely(pos >= inode->i_sb->s_maxbytes)) {
+		if (count || pos > inode->i_sb->s_maxbytes) {
+			send_sig(SIGXFSZ, current, 0);
+			return -EFBIG;
+		}
+		/* zero-length writes at ->s_maxbytes are OK */
+	}
+	
+	if (unlikely(pos + count > inode->i_sb->s_maxbytes))
+		count = inode->i_sb->s_maxbytes - pos;
+
+	*off = pos;
+	*ocount = count;
+	return 0;
+}
+
+static void
+get_access(struct inode * inode, int ea)
+{
+	if (ea)
+		get_exclusive_access(inode);
+	else
+		get_nonexclusive_access(inode);
+}
+
+static void
+drop_access(struct inode * inode, int ea)
+{
+	if (ea)
+		drop_exclusive_access(inode);
+	else
+		drop_nonexclusive_access(inode);
+}
+
 /* plugin->u.file.write */
-ssize_t
-unix_file_write(struct file * file, /* file to write to */
-		const char *buf, /* comments are needed */
-		size_t count, /* number of bytes to write */
-		loff_t * off /* position to write which */)
+static ssize_t
+write_file(struct file * file, /* file to write to */
+	   struct inode *inode, /* inode */
+	   const char *buf, /* address of user-space buffer */
+	   size_t count, /* number of bytes to write */
+	   loff_t * off /* position to write which */)
 {
 	int result;
-	struct inode *inode;
 	ssize_t written;
 	loff_t pos;
 	int ea;
 
 	schedulable();
 
-	inode = file->f_dentry->d_inode;
+	result = write_checks(file, &count, off);
+	if (unlikely(result != 0))
+		return result;
+
+	if (unlikely(count == 0))
+		return 0;
+
+	/* We can write back this queue in page reclaim */
+	current->backing_dev_info = inode->i_mapping->backing_dev_info;
+
+	/* UNIX behavior: clear suid bit on file modification */
+	remove_suid(file->f_dentry);
 
 	assert("vs-855", count > 0);
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 
-	if (inode->i_size == 0) {
-		ea = 1;
-		get_exclusive_access(inode);
-	} else {
-		ea = 0;
-		get_nonexclusive_access(inode);
-	}
+	ea = (inode->i_size == 0);
+	get_access(inode, ea);
 
 	/* estimation for write is entrusted to write item plugins */
 
 	pos = *off;
-	if (file->f_flags & O_APPEND)
-		pos = inode->i_size;
 
 	if (inode->i_size < pos) {
 		/* pos is set past real end of file */
 		result = append_hole(inode, pos);
 		if (result) {
-			if (ea)
-				drop_exclusive_access(inode);
-			else
-				drop_nonexclusive_access(inode);
+			drop_access(inode, ea);
+			current->backing_dev_info = 0;
 			return result;
 		}
 		assert("vs-1081", pos == inode->i_size);
@@ -1343,10 +1445,9 @@ unix_file_write(struct file * file, /* file to write to */
 
 	/* write user data to the file */
 	written = write_flow(file, inode, (char *)buf, count, pos);
-	if (ea)
-		drop_exclusive_access(inode);
-	else
-		drop_nonexclusive_access(inode);
+	drop_access(inode, ea);
+	current->backing_dev_info = 0;
+
 	if (written < 0)
 		return written;
 
@@ -1354,6 +1455,24 @@ unix_file_write(struct file * file, /* file to write to */
 	*off = pos + written;
 	/* return number of written bytes */
 	return written;
+}
+
+/* plugin->u.file.write */
+ssize_t
+unix_file_write(struct file * file, /* file to write to */
+		const char *buf, /* address of user-space buffer */
+		size_t count, /* number of bytes to write */
+		loff_t * off /* position to write which */)
+{
+	ssize_t result;
+	struct inode *inode;
+
+	inode = file->f_dentry->d_inode;
+
+	down(&inode->i_sem);
+	result = write_file(file, inode, buf, count, off);
+	up(&inode->i_sem);
+	return result;
 }
 
 /* plugin->u.file.release
