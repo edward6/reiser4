@@ -40,6 +40,7 @@ reiser4-objs := \
 		   tree_walk.o \
 		   inode.o \
 		   vfs_ops.o \
+		   ioctl.o \
            \
 		   plugin/plugin.o \
 		   plugin/node/node.o \

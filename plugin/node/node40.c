@@ -705,7 +705,7 @@ int node40_parse( znode *node /* node to parse */ )
 		node -> nr_items = node40_num_of_items( node );
 		result = 0;
 	}
-	if( 0 && result == 0 ) {
+	if( result == 0 ) {
 		ZF_SET( node, JNODE_LOADED );
 		result = check_jnode_for_unallocated_in_core( node );
 		ZF_CLR( node, JNODE_LOADED );
