@@ -329,6 +329,11 @@ emergency_flush(struct page *page)
 						 GFP_NOFS | __GFP_HIGH);
 				INC_STAT(node, vm.eflush.ok);
 			} else {
+				if (result == 0 && jnode_is_unformatted(node))
+					/* ef_prepare returned 0, therefore, it did radix_tree_preload. Do preload_end
+					   here */
+					radix_tree_preload_end();
+
 				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
@@ -574,6 +579,15 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
 
+		check_me("vs-1677",
+			 radix_tree_insert(&info->ef_jnodes, index_jnode(node), node) == 0);
+		ON_DEBUG(info->eflushed ++);
+		if (!ef->hadatom) {
+			radix_tree_tag_set(&info->ef_jnodes, index_jnode(node), HAD_NO_ATOM);
+			ON_DEBUG(info->anon_eflushed ++);
+		}
+		radix_tree_preload_end();
+#if 0
 		ON_DEBUG(++ info->eflushed);
 		assert("zam-1039", info->eflushed_anon >= 0);
 		if (!ef->hadatom) {
@@ -581,10 +595,12 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 			list_add(&ef->inode_anon_link, &info->anon_jnodes);
 		}
 
-		/* this is to make inode not freeable */
-		inode->i_state |= I_EFLUSH;
 		/* add eflush node to inode's list */
 		list_add(&ef->inode_link, &info->eflushed_jnodes);
+#endif
+
+		/* this is to make inode not freeable */
+		inode->i_state |= I_EFLUSH;
 
 		spin_unlock_eflush(tree->super);
 		spin_unlock(&inode_lock);
@@ -677,6 +693,9 @@ static void eflush_free (jnode * node)
 
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
+
+		/* removed eflushed jnode to reiser4_inode's radix tree */
+
 		assert("vs-1194", info->eflushed > 0);
 		ON_DEBUG(-- info->eflushed);
 		if (!ef->hadatom) {
@@ -684,6 +703,7 @@ static void eflush_free (jnode * node)
 			list_del(&ef->inode_anon_link);
 		}
 		assert("zam-1040", info->eflushed_anon >= 0);
+
 		/* remove eflush node from inode's list of eflush
 		 * nodes */
 		list_del(&ef->inode_link);
@@ -895,6 +915,13 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	if (*efnode == NULL) {
 		result = RETERR(-ENOMEM);
 		goto out;
+	}
+
+	/* prepare for jnode insertion to radix tree of eflushed jnodes */
+	if (jnode_is_unformatted(node)) {
+		result = radix_tree_preload(GFP_NOFS | __GFP_HIGH);
+		if (result)
+			goto out;
 	}
 
 #if REISER4_DEBUG
