@@ -1205,7 +1205,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
+	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, JNODE_LOADED ),
@@ -1219,7 +1219,6 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, JNODE_DIRTY ),
 	      jnode_state_name( node, JNODE_IS_DYING ),
 	      jnode_state_name( node, JNODE_MAPPED ),
-	      jnode_state_name( node, JNODE_FLUSH_BUSY ),
 	      jnode_state_name( node, JNODE_FLUSH_QUEUED ),
 
 	      jnode_get_level( node ), *jnode_get_block( node ),

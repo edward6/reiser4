@@ -118,10 +118,6 @@ typedef enum {
 	* extent or something similar (indirect item, for example) */
        JNODE_MAPPED            = 10,
 
-       /* jnode is being flushed.  this implies that the node or its children are being
-	* squeezed and allocated. */
-       JNODE_FLUSH_BUSY        = 11,
-
        /* jnode is queued for flushing. */
        JNODE_FLUSH_QUEUED      = 12,
 
