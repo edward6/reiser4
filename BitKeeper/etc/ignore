@@ -1120,3 +1120,14 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
+reiser4progs/libmisc/.libs/libmisc-static.al
+reiser4progs/libmisc/.libs/libmisc-static.la
+reiser4progs/libmisc/libmisc-static.la
+reiser4progs/libreiser4/.deps/master.P
+reiser4progs/libreiser4/master.lo
+reiser4progs/progs/include/Makefile
+reiser4progs/progs/include/Makefile.in
+reiser4progs/progs/libmisc/.deps/misc.P
+reiser4progs/progs/libmisc/.deps/profile.P
+reiser4progs/progs/libmisc/Makefile
+reiser4progs/progs/libmisc/Makefile.in
