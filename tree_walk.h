@@ -56,12 +56,10 @@ typedef enum {
 	GN_NO_ALLOC = 0x10,
 	/* do not go across atom boundaries */
 	GN_SAME_ATOM = 0x20,
-/* ZAM-FIXME-HANS: would GN_LOCK_NOT_CONNECTED be a better name? */
-/* ANSWER(ZAM): it does not lock not connected node, it allows to sleep on
- * not-yet-connected but locked node, that node expected to be connected when
- * lock will be released. */
 	/* allow to lock not connected nodes */
-	GN_ALLOW_NOT_CONNECTED = 0x40
+	GN_ALLOW_NOT_CONNECTED = 0x40,
+	/*  Avoid synchronous jload, instead, call jstartio() and return -E_REPEAT. */
+	GN_ASYNC = 0x80
 } znode_get_neigbor_flags;
 
 int reiser4_get_neighbor(lock_handle * neighbor, znode * node, znode_lock_mode lock_mode, int flags);

@@ -327,7 +327,6 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 		return 0;
 
 	ret = lock_side_neighbor(handle, coord->node, ZNODE_READ_LOCK, flags, 0);
-
 	if (ret)
 		return ret;
 
@@ -337,23 +336,32 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 	coord_init_zero(coord);
 
-	/* corresponded zrelse() should be called by the clients of
-	   far_next_coords(), in place when this node gets unlocked. */
-	ret = zload(handle->node);
-
-	if (ret) {
-		longterm_unlock_znode(handle);
-		WLOCK_TREE(tree);
-		return ret;
+	/* We avoid synchronous read here if it is specified by flag. */
+	if ((flags & GN_ASYNC) && znode_page(handle->node) == NULL) {
+		ret = jstartio(ZJNODE(handle->node));
+		if (ret)
+			goto error_locked;
+		ret = -E_REPEAT;
+		goto error_locked;
 	}
+
+	/* corresponded zrelse() should be called by the clients of
+	   far_next_coord(), in place when this node gets unlocked. */
+	ret = zload(handle->node);
+	if (ret)
+		goto error_locked;
 
 	if (flags & GN_GO_LEFT)
 		coord_init_last_unit(coord, node);
 	else
 		coord_init_first_unit(coord, node);
-
+	
+	if (0) {
+ error_locked:
+		longterm_unlock_znode(handle);
+	}
 	WLOCK_TREE(tree);
-	return 0;
+	return ret;
 }
 
 /* Very significant function which performs a step in horizontal direction
@@ -623,7 +631,7 @@ out:
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 reiser4_internal int
 reiser4_get_neighbor (
-	lock_handle * neighbor, znode * node, znode_lock_mode lock_mode mode, int flags)
+	lock_handle * neighbor, znode * node, znode_lock_mode lock_mode, int flags)
 {
 	reiser4_tree *tree = znode_get_tree(node);
 	lock_handle path[REAL_MAX_ZTREE_HEIGHT];
