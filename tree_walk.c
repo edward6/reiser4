@@ -798,6 +798,20 @@ static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
 	return ret;
 }
 
+/* Update the handle->start_key by the first key of the node is being
+ * processed. */
+static int update_start_key(struct tree_walk_handle * h)
+{
+	int ret;
+
+	ret = tap_load(&h->tap);
+	if (ret == 0) {
+		unit_key_by_coord(h->tap.coord, &h->start_key);
+		tap_relse(&h->tap);
+	}
+	return ret;
+} 
+
 /* Move tap to the next node, load it. */
 static int go_next_node (struct tree_walk_handle * h, lock_handle * lock, const coord_t * coord)
 {
@@ -826,7 +840,8 @@ static int go_next_node (struct tree_walk_handle * h, lock_handle * lock, const 
 			goto error;
 	}
 
-	h->start_key = lock->node->ld_key;
+	ret = update_start_key(h);
+
  error:
 	done_lh(lock);
 	return ret;
@@ -955,11 +970,9 @@ int tree_walk (const reiser4_key *start_key, struct tree_walk_actor * actor, voi
 		if (ret)
 			return ret;
 		coord_init_first_unit_nocheck(&coord, lock.node);
-		handle.start_key = lock.node->ld_key;
 		goto no_start_key;
-	} else {
+	} else
 		handle.start_key = *start_key;
-	}
 
 	do {
 		if (actor->before) {
@@ -969,11 +982,17 @@ int tree_walk (const reiser4_key *start_key, struct tree_walk_actor * actor, voi
 		}
 
 		ret = coord_by_key(current_tree, &handle.start_key, &coord, &lock, ZNODE_WRITE_LOCK,
-				   FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 0, NULL);
+				   FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, NULL);
 		if (ret != CBK_COORD_FOUND)
 			break;
 	no_start_key:
 		tap_init(&handle.tap, &coord, &lock, ZNODE_WRITE_LOCK);
+
+		ret = update_start_key(&handle);
+		if (ret) {
+			tap_done(&handle.tap);
+			break;
+		}
 		ret = tree_walk_by_handle(&handle);
 		tap_done (&handle.tap);
 

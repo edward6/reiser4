@@ -33,7 +33,7 @@ struct repacker_stats {
 	long blocks_dirtied;
 };
 
-static int restart_transaction (void)
+static int renew_transaction (void)
 {
 	reiser4_context * ctx = get_current_context();
 	long _ret;
@@ -81,7 +81,7 @@ static int prepare_repacking_session (void * arg)
 	assert("zam-951", schedulable());
 
 	all_grabbed2free(__FUNCTION__);
-	ret = restart_transaction();
+	ret = renew_transaction();
 	if (ret)
 		return ret;
 
