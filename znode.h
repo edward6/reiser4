@@ -430,7 +430,7 @@ extern znode *znode_parent( const znode *node );
 extern znode *znode_parent_nolock( const znode *node );
 extern int znode_above_root (const znode *node);
 extern int znode_is_true_root( const znode *node );
-extern void zdrop( reiser4_tree *tree, znode *node );
+extern void zdrop( znode *node );
 extern int  znodes_init( void );
 extern int  znodes_done( void );
 extern int  znodes_tree_init( reiser4_tree *ztree );

@@ -254,7 +254,8 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	znode        *node;
 	znode        *next;
 	int           parents;
-	ON_DEBUG( int killed );
+	int           killed;
+	z_hash_table *ztable;
 
 	assert( "nikita-795", tree != NULL );
 
@@ -264,6 +265,8 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 			  print_znodes( "umount", tree );
 			  spin_unlock_tree( tree );
 		  }) );
+
+	ztable = &tree -> zhash_table;
 
 	/* 
 	 * Remove all znodes.
@@ -275,25 +278,20 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 
 	do {
 		parents = 0;
-		ON_DEBUG( killed = 0 );
-		for_all_in_htable( &tree -> zhash_table, 
-				   bucket, node, next, zjnode.link.z ) {
+		killed  = 0;
+		for_all_in_htable( ztable, bucket, node, next, zjnode.link.z ) {
 			if( atomic_read( &node -> c_count ) != 0 ) {
 				++ parents;
 				continue;
 			}
-			/*
-			 * FIXME debugging output
-			 */
-			if( atomic_read( &ZJNODE(node) -> x_count ) != 0 )
-				print_znode( "busy on umount", node );
 			assert( "nikita-2179", 
 				atomic_read( &ZJNODE(node) -> x_count ) == 0 );
-			zdrop( tree, node );
-			ON_DEBUG( ++ killed );
+			zdrop( node );
+			++ killed;
+			break;
 		}
 		assert( "nikita-2178", ( parents == 0 ) || ( killed > 0 ) );
-	} while( parents > 0 );
+	} while( parents + killed > 0 );
 
 	spin_unlock_tree( tree );
 
@@ -372,8 +370,7 @@ void znode_remove( znode *node /* znode to remove */ )
  *
  * This is called when znode is removed from the memory.
  */
-void zdrop( reiser4_tree *tree UNUSED_ARG /* tree to remove znode from */,
-	    znode *node /* znode to finish with */ )
+void zdrop( znode *node /* znode to finish with */ )
 {
 	return jdrop( ZJNODE( node ) );
 }
