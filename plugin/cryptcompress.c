@@ -1238,11 +1238,17 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	return 0;
 }
 
-/* find all cluster's items, read and(or) write each one */
-int find_cluster(reiser4_cluster_t * clust,
-		 struct inode * inode,
-		 int read /* read items */,
-		 int write /* write items */)
+/*
+  This is the main disk search procedure for cryptcompress plugins, which
+  . finds all items of a disk cluster,
+  . maybe reads each of them to the flow (if @read != 0)
+  . maybe makes each znode dirty (if @write != 0)
+*/
+int
+find_cluster(reiser4_cluster_t * clust,
+	     struct inode * inode,
+	     int read,
+	     int write)
 {
 	flow_t f;
 	lock_handle lh;
@@ -1257,6 +1263,8 @@ int find_cluster(reiser4_cluster_t * clust,
 	assert("edward-226", schedulable());
 	assert("edward-137", inode != NULL);
 	assert("edward-138", clust != NULL);
+	assert("edward-461", ergo(read, clust->buf != NULL));
+	assert("edward-462", ergo(!read, !cluster_is_uptodate(clust)));
 	
 	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
@@ -1286,7 +1294,7 @@ int find_cluster(reiser4_cluster_t * clust,
 			goto ok;
 		case CBK_COORD_FOUND:
 			assert("edward-148", hint.coord.base_coord.between == AT_UNIT);
-			assert("edward-xxx", hint.coord.base_coord.unit_pos == 0);
+			assert("edward-460", hint.coord.base_coord.unit_pos == 0);
 			
 			coord_clear_iplug(&hint.coord.base_coord);
 			result = zload_ra(hint.coord.base_coord.node, &ra_info);
@@ -1308,8 +1316,9 @@ int find_cluster(reiser4_cluster_t * clust,
 		}
 	}
  ok:
-	/* gathering finished with number of items > 0 */
-	/* NOTE-EDWARD: Handle the cases when cluster is incomplete (-EIO) */	
+	/* at least one item was found  */
+	/* NOTE-EDWARD:
+	   Callers should handle the case when disk cluster is incomplete (-EIO) */
 	clust->len = inode_scaled_cluster_size(inode) - f.length;
 	save_file_hint(clust->file, &hint);
 	return 0;
