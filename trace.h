@@ -67,7 +67,7 @@ typedef struct {
 #define disable_trace(file, flag) (0)
 #define close_trace_file(file) noop
 
-#define write_syscall_trace(syscall, format, ...) noop
+#define write_syscall_trace(format, ...) noop
 #define write_tree_trace(tree, op, ...) noop
 #define write_node_trace(node) noop
 #define write_page_trace(mapping, index) noop
