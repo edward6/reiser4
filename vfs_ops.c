@@ -1448,9 +1448,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	/* init layout plugin */
 	get_super_private (s)->lplug = lplug;
 
-	/*
-	 * FIXME-JMACD: init txn mgr here?
-	 */
 	txn_mgr_init (&get_super_private (s)->tmgr);
 
 	/* call disk format plugin method to do all the preparations like
@@ -1595,6 +1592,7 @@ static int __init init_reiser4(void)
 {
 	int result;
 
+	/* This kind of stair-steping code sucks ass. */
 	info( KERN_INFO "Loading Reiser4. See www.namesys.com for a description of Reiser4.\n" );
 	result = init_inodecache();
 	if( result == 0 ) {
@@ -1611,8 +1609,16 @@ static int __init init_reiser4(void)
 					 * here
 					 */
 					if( result == 0 ) {
-						result = register_filesystem
-							( &reiser4_fs_type );
+						result = register_filesystem ( &reiser4_fs_type );
+
+						if( result == 0 ) {
+
+							result = jnode_init_static ();
+
+							if (result != 0) {
+								jnode_done_static ();
+							}
+						}
 					}
 				}
 			}
@@ -1634,6 +1640,7 @@ static void __exit done_reiser4(void)
 	znodes_done();
 	destroy_inodecache();
 	txn_done_static();
+	jnode_done_static(); /* why no error checks here? */
 	/*
 	 * FIXME-NIKITA more cleanups here
 	 */

@@ -97,12 +97,6 @@ TS_LIST_DEFINE(fwaiting,txn_wait_links,_fwaiting_link);
  * methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
-static kmem_cache_t *_jnode_slab = NULL;
-
-/* The jnode_ptr_lock is a global spinlock used to protect the struct_page to
- * jnode mapping (i.e., it protects all struct_page_private fields).  It could
- * be a per-txnmgr spinlock instead. */
-spinlock_t    _jnode_ptr_lock;
 
 /*****************************************************************************************
 				       TXN_INIT
@@ -115,7 +109,6 @@ txn_init_static (void)
 {
 	assert ("jmacd-600", _atom_slab == NULL);
 	assert ("jmacd-601", _txnh_slab == NULL);
-	assert ("umka-168", _jnode_slab == NULL);
 
 	spin_lock_init (& _jnode_ptr_lock);
 
@@ -132,13 +125,6 @@ txn_init_static (void)
 	if (_txnh_slab == NULL) {
 		goto error;
 	}
-
-	_jnode_slab = kmem_cache_create ("jnode", sizeof (jnode),
-					 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
-	
-	if (_jnode_slab == NULL) {
-		goto error;
-	}
 	
 	return 0;
 
@@ -146,7 +132,6 @@ txn_init_static (void)
 
 	if (_atom_slab != NULL) { kmem_cache_destroy (_atom_slab); }
 	if (_txnh_slab != NULL) { kmem_cache_destroy (_txnh_slab); }
-	if (_jnode_slab != NULL) { kmem_cache_destroy (_jnode_slab); }
 	return -ENOMEM;	
 }
 
@@ -169,12 +154,7 @@ txn_done_static (void)
 		_txnh_slab = NULL;
 	}
 
-	if (_jnode_slab != NULL) {
-		ret3 = kmem_cache_destroy (_jnode_slab);
-		_jnode_slab = NULL;
-	}
-	
-	return ret1 ? : (ret2 ? : ret3);
+	return ret1 ? : ret2;
 }
 
 /* Initialize a new transaction manager.  Called when the super_block is initialized. */
@@ -281,184 +261,6 @@ atom_isclean (txn_atom *atom)
 		fwaiting_list_empty      (& atom->fwaiting_list));
 }
 #endif
-
-/* Initialize a jnode. */
-/* Audited by: umka (2002.06.13) */
-void
-jnode_init (jnode *node)
-{
-	assert("umka-175", node != NULL);
-	
-	node->state = 0;
-	node->level = 0;
-	spin_lock_init (& node->guard);
-	node->atom = NULL;
-	capture_list_clean (node);
-}
-
-/* return already existing jnode of page */
-jnode* 
-jnode_by_page (struct page* pg)
-{
-	jnode *node;
-
-	assert ("nikita-2066", pg != NULL);
-	spin_lock (& _jnode_ptr_lock);
-	assert ("nikita-2068", PagePrivate (pg));
-	node = (jnode*) pg->private;
-	assert ("nikita-2067", node != NULL);
-	spin_unlock (& _jnode_ptr_lock);
-	return node;
-}
-
-/* exported functions to allocate/free jnode objects outside this file */
-jnode * jalloc (void)
-{
-	jnode * jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
-	return jal;
-}
-
-void jfree (jnode * node)
-{
-	assert ("zam-449", node != NULL);
-	kmem_cache_free (_jnode_slab, node);
-}
-
-jnode * jnew (void)
-{
-	jnode * jal;
-
-	jal = jalloc();
-
-	if (jal == NULL) return NULL;
-
-	jnode_init (jal);
-
-	/* FIXME: not a strictly correct, but should help in avoiding of
-	 * looking to missing znode-only fields */
-	JF_SET (jal, ZNODE_UNFORMATTED);
-
-	return jal;
-}
-
-/* Holding the jnode_ptr_lock, check whether the page already has a jnode and
- * if not, allocate one. */
-jnode*
-jnode_of_page (struct page* pg)
-{
-	/* FIXME: Note: The following code assumes page_size == block_size.
-	 * When support for page_size > block_size is added, we will need to
-	 * add a small per-page array to handle more than one jnode per
-	 * page. */
-	jnode *jal = NULL;
-	
-	assert("umka-176", pg != NULL);
-	/* check that page is unformatted */
-	assert ("nikita-2065", pg->mapping->host != 
-		get_super_private (pg->mapping->host->i_sb)->fake);
-	
- again:
-	spin_lock (& _jnode_ptr_lock);
-
-	if ((jnode*) pg->private == NULL) {
-		if (jal == NULL) {
-			spin_unlock (& _jnode_ptr_lock);
-			jal = jalloc();
-
-			if (jal == NULL) {
-				return NULL;
-			}
-
-			goto again;
-		}
-
-		/* FIXME: jnode_init doesn't take struct page argument, so
-		 * znodes aren't having theirs set. */
-		jnode_init (jal);
-
-		jal->level = LEAF_LEVEL;
-
-		jnode_attach_page_nolock (jal, pg);
-
-		JF_SET (jal, ZNODE_UNFORMATTED);
-
-		jal = NULL;
-	}
-	assert ("nikita-2046", ((jnode*) pg->private)->pg == pg);
-
-
-	/* FIXME: This may be called from page_cache.c, read_in_formatted, which
-	 * does is already synchronized under the page lock, but I imagine
-	 * this will get called from other places, in which case the
-	 * jnode_ptr_lock is probably still necessary, unless...
-	 *
-	 * If jnodes are unconditionally assigned at some other point, then
-	 * this interface and lock not needed? */
-
-	spin_unlock (& _jnode_ptr_lock);
-
-	if (jal != NULL) {
-		jfree(jal);
-	}
-
-	/*
-	 * FIXME:NIKITA->JMACD possible race here: page is released and
-	 * allocated again. All jnode_of_page() callers have to protect
-	 * against this.  Josh says: Huh? What?
-	 */
-	return (jnode*) pg->private;
-}
-
-
-/* FIXME-VS: change next two functions switching to support of blocksize !=
- * page cache size */
-jnode * nth_jnode (struct page * page, int block)
-{
-	assert ("vs-695", PagePrivate (page) && page->private);
-	assert ("vs-696", current_blocksize == (unsigned)PAGE_CACHE_SIZE);
-	assert ("vs-697", block == 0);
-	return (jnode *)page->private;
-}
-
-
-/* get next jnode of a page.
- * FIXME-VS: update this when more than one jnode per page will be allowed */
-/* Audited by: umka (2002.06.13) */
-jnode * next_jnode (jnode * node UNUSED_ARG)
-{
-	return 0;
-}
-
-/* Increment to the jnode's reference counter. */
-/* FIXME:NIKITA->JMACD comment is not exactly correct, because there is no
- * reference counter in jnode. */
-/* Audited by: umka (2002.06.13) */
-jnode *jref( jnode *node )
-{
-	assert("umka-177", node != NULL);
-	
-	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
-		return ZJNODE (zref (JZNODE (node)));
-	} else {
-		/* FIXME_JMACD: What to do here? */
-		return node;
-	}
-}
-
-/* Decrement the jnode's reference counter. */
-/* FIXME:NIKITA->JMACD comment is not exactly correct, because there is no
- * reference counter in jnode. */
-/* Audited by: umka (2002.06.13) */
-void   jput( jnode *node )
-{
-	assert("umka-178", node != NULL);
-	
-	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
-		zput (JZNODE (node));
-	} else {
-		/* FIXME: */
-	}
-}
 
 /* FIXME_LATER_JMACD Not sure how this is used yet.  The idea is to reserve a number of
  * blocks for use by the current transaction handle. */
@@ -2046,6 +1848,12 @@ uncapture_block (txn_atom *atom,
 	spin_unlock_jnode (node);
 
 	jput (node);
+
+	/* FIXME: because jref/jput are not implemented/not used... */
+	if (jnode_is_unformatted (node)) {
+		jnode_detach_page (node);
+		jfree (node);
+	}
 }
 
 /*****************************************************************************************

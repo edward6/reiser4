@@ -132,6 +132,9 @@ static inline int jnode_is_in_deleteset( const jnode *node )
 	return JF_ISSET( node, ZNODE_RELOC )  /*|| JF_ISSET( node, ZNODE_DELETED )*/;
 }
 
+extern int jnode_init_static (void);
+extern int jnode_done_static (void);
+
 /**
  * Jnode routines
  */
