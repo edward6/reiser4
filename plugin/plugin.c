@@ -175,7 +175,6 @@
 #include "item/static_stat.h"
 #include "node/node.h"
 #include "security/perm.h"
-#include "oid/oid.h"
 #include "space/space_allocator.h"
 #include "disk_format/disk_format.h"
 #include "plugin.h"
@@ -503,8 +502,6 @@ extern perm_plugin perm_plugins[LAST_PERM_ID];
 extern item_plugin item_plugins[LAST_ITEM_ID];
 /* defined in fs/reiser4/plugin/node/node.c */
 extern node_plugin node_plugins[LAST_NODE_ID];
-/* defined in fs/reiser4/plugin/oid/oid.c */
-extern oid_allocator_plugin oid_plugins[LAST_OID_ALLOCATOR_ID];
 /* defined in fs/reiser4/plugin/space/space_allocator.c */
 extern space_allocator_plugin space_plugins[LAST_SPACE_ALLOCATOR_ID];
 /* defined in fs/reiser4/plugin/disk_format/disk_format.c */
@@ -615,15 +612,6 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = sd_ext_plugins,
 		.plugins_list = TS_LIST_HEAD_ZERO,
 		.size = sizeof (sd_ext_plugin)
-	},
-	[REISER4_OID_ALLOCATOR_PLUGIN_TYPE] = {
-		.type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
-		.label = "oid manager",
-		.desc = "allocate/deallocate oids",
-		.builtin_num = sizeof_array(oid_plugins),
-		.builtin = oid_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
-		.size = sizeof (oid_allocator_plugin)
 	},
 	[REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE] = {
 		.type_id = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,

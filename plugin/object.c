@@ -57,7 +57,6 @@
 #include "symlink.h"
 #include "dir/dir.h"
 #include "item/item.h"
-#include "oid/oid.h"
 #include "plugin.h"
 #include "object.h"
 #include "../znode.h"
@@ -211,10 +210,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 		   insertion will go into. */
 		return RETERR(-ENAMETOOLONG);
 	}
-	result = oid_allocate(&oid);
-
-	if (result != 0)
-		return result;
+	oid = oid_allocate(inode->i_sb);
+	if (oid == ABSOLUTE_MAX_OID)
+		return RETERR(-EOVERFLOW);
 
 	set_inode_oid(inode, oid);
 
@@ -501,7 +499,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
-			result = oid_release(get_inode_oid(inode));
+			result = oid_release(inode->i_sb, get_inode_oid(inode));
 			if (result == 0)
 				oid_count_released();
 		}

@@ -4,7 +4,6 @@
 #include "../../dformat.h"
 #include "../../key.h"
 #include "../node/node.h"
-#include "../oid/oid.h"
 #include "../space/space_allocator.h"
 #include "test.h"
 #include "../plugin.h"
@@ -74,12 +73,10 @@ get_ready_test_format(struct super_block *s, void *data UNUSED_ARG)
 	/* set tail policy plugin */
 	sbinfo->plug.t = tail_plugin_by_id(d16tocpu(&disk_sb->tail_policy));
 
-	/* init oid allocator */
-	sbinfo->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
-	assert("vs-627", (sbinfo->oid_plug && sbinfo->oid_plug->init_oid_allocator));
-	result = sbinfo->oid_plug->init_oid_allocator(get_oid_allocator(s),
-						       d64tocpu(&disk_sb->next_free_oid),
-						       d64tocpu(&disk_sb->next_free_oid));
+	result = oid_init_allocator(s, d64tocpu(&disk_sb->next_free_oid),
+				    d64tocpu(&disk_sb->next_free_oid));
+	if (result)
+		return result;
 
 	/* init space allocator */
 	sbinfo->space_plug = space_allocator_plugin_by_id(TEST_SPACE_ALLOCATOR_ID);
@@ -157,7 +154,7 @@ release_test_format(struct super_block *s)
 	cputod64(get_space_allocator(s)->u.test.new_block_nr, &disk_sb->next_free_block);
 
 	/* next free objectid */
-	cputod64(get_oid_allocator(s)->u.oid40.next_to_use, &disk_sb->next_free_oid);
+	cputod64(oid_next(s), &disk_sb->next_free_oid);
 
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb("release:\n", disk_sb);

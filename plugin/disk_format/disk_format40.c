@@ -6,7 +6,6 @@
 #include "../node/node.h"
 #include "../space/space_allocator.h"
 #include "disk_format40.h"
-#include "../oid/oid.h"
 #include "../plugin.h"
 #include "../../txnmgr.h"
 #include "../../jnode.h"
@@ -214,8 +213,6 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	xmemcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
 
-	/* init oid allocator */
-	sbinfo->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
 	result = oid_init_allocator(s, get_format40_file_count(sb_copy), get_format40_oid(sb_copy));
 	if (result)
 		return result;
@@ -290,15 +287,12 @@ pack_format40_super(const struct super_block *s, char *data)
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	assert("zam-591", data != NULL);
-	assert("zam-598", sbinfo->oid_plug != NULL);
-	assert("zam-599", sbinfo->oid_plug->oids_used != NULL);
-	assert("zam-600", sbinfo->oid_plug->next_oid != NULL);
 
 	cputod64(reiser4_free_committed_blocks(s), &super_data->free_blocks);
 	cputod64(sbinfo->tree.root_block, &super_data->root_block);
 
-	cputod64(sbinfo->oid_plug->next_oid(&sbinfo->oid_allocator), &super_data->oid);
-	cputod64(sbinfo->oid_plug->oids_used(&sbinfo->oid_allocator), &super_data->file_count);
+	cputod64(oid_next(s), &super_data->oid);
+	cputod64(oid_next(s), &super_data->file_count);
 
 	cputod16(sbinfo->tree.height, &super_data->tree_height);
 }

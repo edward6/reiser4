@@ -4,9 +4,10 @@
 #include "super.h"
 #include "txnmgr.h"
 
-/* we used to have oid plugin. It was removed because it was
-   recognized as providing unneeded level of abstraction. If one ever
-   will find it useful - look at as_yet_unneeded_abstractions/oid */
+/* we used to have oid allocation plugin. It was removed because it
+   was recognized as providing unneeded level of abstraction. If one
+   ever will find it useful - look at yet_unneeded_abstractions/oid
+*/
 
 int
 oid_init_allocator(struct super_block *super, oid_t nr_files, oid_t next)
@@ -29,19 +30,28 @@ oid_allocate(struct super_block *super)
 	sbinfo = get_super_private(super);
 
 	reiser4_spin_lock_sb(super);
-	oid = sbinfo->next_to_use ++;
-	sbinfo->oids_in_use ++;
-	reiser4_spin_unlock_sb(super);
+	if (sbinfo->next_to_use != ABSOLUTE_MAX_OID) {
+		oid = sbinfo->next_to_use ++;
+		sbinfo->oids_in_use ++;
+	}
+	reiser4_spin_unlock_sb(super);	
 	return oid;
 }
 
 int
-oid_release(struct super_block *s, oid_t oid)
+oid_release(struct super_block *super, oid_t oid)
 {
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = get_super_private(super);
+
+	reiser4_spin_lock_sb(super);
+	sbinfo->oids_in_use --;
+	reiser4_spin_unlock_sb(super);
 	return 0;
 }
 
-oid_t oid_next(struct super_block *super)
+oid_t oid_next(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t oid;
@@ -54,7 +64,7 @@ oid_t oid_next(struct super_block *super)
 	return oid;
 }
 
-long oids_used(struct super_block *super)
+long oids_used(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t used;
@@ -70,11 +80,8 @@ long oids_used(struct super_block *super)
 		return (long) -1;
 }
 
-/* Maximal possible object id. */
-static const oid_t ABSOLUTE_MAX_OID = (oid_t) ~ 0;
-#define OIDS_RESERVED  ( 1 << 16 )
 
-long oids_free(struct super_block *super)
+long oids_free(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t oids;

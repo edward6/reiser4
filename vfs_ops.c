@@ -1071,7 +1071,7 @@ init_committed_sb_counters(const struct super_block *s)
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	sbinfo->blocks_free_committed = sbinfo->blocks_free;
-	sbinfo->nr_files_committed = oid_used();
+	sbinfo->nr_files_committed = oids_used(s);
 }
 
 DEFINE_SPIN_PROFREGIONS(epoch);

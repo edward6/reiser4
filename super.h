@@ -424,14 +424,17 @@ extern int reiser4_blocknr_is_sane(const reiser4_block_nr *blk);
 extern int reiser4_blocknr_is_sane_for(const struct super_block *super, 
 				       const reiser4_block_nr *blk);
 
+/* Maximal possible object id. */
+static const oid_t ABSOLUTE_MAX_OID = (oid_t) ~ 0;
+#define OIDS_RESERVED  ( 1 << 16 )
 int oid_init_allocator(struct super_block *, oid_t nr_files, oid_t next);
 oid_t oid_allocate(struct super_block *);
 int oid_release(struct super_block *, oid_t);
-oid_t oid_next(struct super_block *);
+oid_t oid_next(const struct super_block *);
 void oid_count_allocated(void);
 void oid_count_released(void);
-long oids_used(struct super_block *);
-long oids_free(struct super_block *);
+long oids_used(const struct super_block *);
+long oids_free(const struct super_block *);
 
 
 #if REISER4_DEBUG_OUTPUT

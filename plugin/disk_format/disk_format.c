@@ -5,7 +5,6 @@
 #include "disk_format40.h"
 #include "test.h"
 #include "disk_format.h"
-#include "../oid/oid.h"
 #include "../plugin.h"
 
 /* initialization of disk layout plugins */
