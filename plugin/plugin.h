@@ -10,7 +10,7 @@
 #include "../debug.h"
 #include "../dformat.h"
 #include "../key.h"
-#include "../tslist.h"
+#include "../type_safe_list.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
 #include "item/internal.h"
@@ -758,7 +758,7 @@ extern void print_plugin(const char *prefix, reiser4_plugin * plugin);
 #define print_plugin( pr, pl ) noop
 #endif
 
-TS_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
+TYPE_SAFE_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
 
 extern plugin_list_head *get_plugin_list(reiser4_plugin_type type_id);
 

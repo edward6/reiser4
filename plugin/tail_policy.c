@@ -64,7 +64,7 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 			.pops = NULL,
 			.label = "never",
 			.desc = "Never store file's tail",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.have_tail = have_tail_never
 	},
@@ -75,7 +75,7 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 			.pops = NULL,
 			.label = "always",
 			.desc = "Always store file's tail",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.have_tail = have_tail_always
 	},
@@ -86,7 +86,7 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 			.pops = NULL,
 			.label = "default tail policy plugin",
 			.desc = "store files shorter than 4 blocks in tail items",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.have_tail = have_tail_default
 	}

@@ -765,7 +765,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			spin_unlock(&pg->mapping->page_lock);
 
-			reiser4_unlock_page(pg);
+			unlock_page(pg);
 
 			bio->bi_io_vec[nr_used].bv_page = pg;
 			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
@@ -985,7 +985,7 @@ static void put_overwrite_set(struct commit_handle * ch)
 {
 	jnode * cur;
 
-	for_all_tslist(capture, ch->overwrite_set, cur)
+	for_all_type_safe_list(capture, ch->overwrite_set, cur)
 		jrelse(cur);
 }
 
@@ -1180,7 +1180,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			spin_unlock(&pg->mapping->page_lock);
 
-			reiser4_unlock_page(pg);
+			unlock_page(pg);
 
 			bio->bi_io_vec[nr_used].bv_page = pg;
 			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
@@ -1491,6 +1491,14 @@ int reiser4_write_logs(long * nr_submitted)
 	atom = get_current_context()->trans->atom;
 	assert("zam-965", atom != NULL);
 	
+	if (REISER4_DEBUG) {
+		 int level;
+
+		 for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; ++ level)
+			  assert("nikita-3352",
+					 capture_list_empty(&atom->dirty_nodes[level]));
+	}
+
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
 	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
 
@@ -1508,7 +1516,6 @@ int reiser4_write_logs(long * nr_submitted)
 	if (ret <= 0) {
 		/* It is possible that overwrite set is empty here, it means
 		   all captured nodes are clean */
-		/* NIKITA-FIXME-HANS-WAS-JMACD: an extra check for empty RELOC set should be here */
 		goto up_and_ret;
 	}
 
@@ -1661,7 +1668,7 @@ wait_on_jnode_list(capture_list_head * head)
 	jnode *scan;
 	int ret = 0;
 
-	for_all_tslist(capture, head, scan) {
+	for_all_type_safe_list(capture, head, scan) {
 		struct page *pg = jnode_page(scan);
 
 		if (pg) {

@@ -209,7 +209,7 @@ year old --- define all technical terms used.
  */
 
 #include "debug.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -273,16 +273,17 @@ struct _txn_wait_links {
 	int (*waiting_cb)(txn_atom *atom, struct _txn_wait_links *wlinks);
 };
 
-TS_LIST_DEFINE(atom, txn_atom, atom_link);
-TS_LIST_DEFINE(txnh, txn_handle, txnh_link);
+TYPE_SAFE_LIST_DEFINE(atom, txn_atom, atom_link);
+TYPE_SAFE_LIST_DEFINE(txnh, txn_handle, txnh_link);
 
-TS_LIST_DEFINE(fwaitfor, txn_wait_links, _fwaitfor_link);
-TS_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
+TYPE_SAFE_LIST_DEFINE(fwaitfor, txn_wait_links, _fwaitfor_link);
+TYPE_SAFE_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
 
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
-static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD (now NIKITA-FIXME-HANS:) Will it be used? */
+/* this is for user-visible, cross system-call transactions. */
+static kmem_cache_t *_txnh_slab = NULL;	
 
 ON_DEBUG(extern atomic_t flush_cnt;)
 
@@ -920,7 +921,7 @@ jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 		}
 
 		head = &atom->dirty_nodes[level];
-		for_all_tslist(capture, head, first_dirty) {
+		for_all_type_safe_list(capture, head, first_dirty) {
 			if (!(flags & JNODE_FLUSH_COMMIT)) {
 				if (
 					/* skip jnodes which have "heard banshee" */
@@ -935,9 +936,9 @@ jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 	return NULL;
 }
 
-#if REISER4_COPY_ON_CAPTURE 
+#if REISER4_COPY_ON_CAPTURE
 
-/* this spin lock is used to prevent races during steal on capture. 
+/* this spin lock is used to prevent races during steal on capture.
    FIXME: should be per filesystem or even per atom */
 spinlock_t scan_lock = SPIN_LOCK_UNLOCKED;
 
@@ -1050,25 +1051,21 @@ static reiser4_block_nr reserved_for_sd_update(struct inode *inode)
 {
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
-/* NIKITA-FIXME-HANS: write this more clearly. */
+
 static void atom_update_stat_data(txn_atom **atom)
 {
 	jnode *j;
 	
 	assert ("vs-1241", spin_atom_is_locked(*atom));
 	while (!capture_list_empty(&(*atom)->inodes)) {
-/* NIKITA-FIXME-HANS: why is this declared here? */
 		struct inode *inode;
 
 		j = capture_list_front(&((*atom)->inodes));
 		
 		inode = inode_by_reiser4_inode(container_of(j, reiser4_inode, inode_jnode));
 
-		/* move blocks grabbed for stat data update back from atom's flush_reserved to grabbed */
-/* NIKITA-FIXME-HANS: this function dereference for the inode's plugin is too
- * expensive, create a default and optimize for it, or send me the promised
- * metrics of howq the function dereferences we have are not significant to
- * performance.. */
+		/* move blocks grabbed for stat data update back from atom's
+		 * flush_reserved to grabbed */
 		flush_reserved2grabbed(*atom, reserved_for_sd_update(inode));
 
 		capture_list_remove_clean(j);			
@@ -1322,7 +1319,7 @@ again:
 
 	spin_lock_txnmgr(mgr);
 
-	for_all_tslist(atom, &mgr->atoms_list, atom) {
+	for_all_type_safe_list(atom, &mgr->atoms_list, atom) {
 		LOCK_ATOM(atom);
 
 		/* Commit any atom which can be committed.  If @commit_new_atoms
@@ -1379,7 +1376,7 @@ commit_some_atoms(txn_mgr * mgr)
 	spin_lock_txnmgr(mgr);
 
 	/* look for atom to commit */
-	for_all_tslist_safe(atom, &mgr->atoms_list, atom, next_atom) {
+	for_all_type_safe_list_safe(atom, &mgr->atoms_list, atom, next_atom) {
 		LOCK_ATOM(atom);
 
 		if (atom->stage < ASTAGE_PRE_COMMIT &&
@@ -1459,7 +1456,7 @@ int flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
-		for_all_tslist(atom, &tmgr->atoms_list, atom) {
+		for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
 			/* lock atom before checking its state */
 			LOCK_ATOM(atom);
 
@@ -1618,17 +1615,22 @@ typedef struct commit_data {
 	txn_atom    *atom;
 	txn_handle  *txnh;
 	long         nr_written;
-/* NIKITA-FIXME-HANS: comment this */
+	/* as an optimization we start committing atom by first trying to
+	 * flush it few times without switching into ASTAGE_CAPTURE_WAIT. This
+	 * allows to reduce stalls due to other threads waiting for atom in
+	 * ASTAGE_CAPTURE_WAIT stage. ->preflush is counter of these
+	 * preliminary flushes. */
 	int          preflush;
-/* NIKITA-FIXME-HANS: comment this */
+	/* have we waited on atom. */
 	int          wait;
 	int          failed;
 } commit_data;
 
-/* NIKITA-FIXME-HANS: comment this, including explaining why we only "try", and
- * whether we should call this "close_txnh" instead.  Advise on whether more
- * "unlikely"'s should be included here. */
 
+/*
+ * Called from commit_txnh() repeatedly, until either error happens, or atom
+ * commits successfully.
+ */
 static int
 try_commit_txnh(commit_data *cd)
 {
@@ -1735,7 +1737,9 @@ commit_txnh(txn_handle * txnh)
 	xmemset(&cd, 0, sizeof cd);
 	cd.txnh = txnh;
 	cd.preflush = 10;
-/* NIKITA-FIXME-HANS: comment on what we are looping on. */
+
+	/* calls try_commit_txnh() until either atom commits, or error
+	 * happens */
 	while (try_commit_txnh(&cd) != 0)
 		preempt_point();
 
@@ -1861,31 +1865,38 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 		UNLOCK_TXNH(txnh);
 		return 0;
 	}
-/* NIKITA-FIXME-HANS: what have we done to measure how often this code below runs under the worst case tests? */
+	/* NIKITA-HANS: nothing */
 	if (txnh_atom != NULL) {
-		/* It is time to perform deadlock prevention check over the node we want to capture.
-		   It is possible this node was locked for read without capturing it. The
-		   optimization which allows to do it helps us in keeping atoms independent as long
-		   as possible but it may cause lock/fuse deadlock problems.
+		/* It is time to perform deadlock prevention check over the
+		   node we want to capture.  It is possible this node was
+		   locked for read without capturing it. The optimization
+		   which allows to do it helps us in keeping atoms independent
+		   as long as possible but it may cause lock/fuse deadlock
+		   problems.
 
-		   A number of similar deadlock situations with locked but not captured nodes were
-		   found.  In each situation there are two or more threads: one of them does flushing
-		   while another one does routine balancing or tree lookup.  The flushing thread (F)
-		   sleeps in long term locking request for node (N), another thread (A) sleeps in
-		   trying to capture some node already belonging the atom F, F has a state which
+		   A number of similar deadlock situations with locked but not
+		   captured nodes were found.  In each situation there are two
+		   or more threads: one of them does flushing while another
+		   one does routine balancing or tree lookup.  The flushing
+		   thread (F) sleeps in long term locking request for node
+		   (N), another thread (A) sleeps in trying to capture some
+		   node already belonging the atom F, F has a state which
 		   prevents immediately fusion .
 
-		   Deadlocks of this kind cannot happen if node N was properly captured by thread
-		   A. The F thread fuse atoms before locking therefore current atom of thread F and
-		   current atom of thread A became the same atom and thread A may proceed.  This
-		   does not work if node N was not captured because the fusion of atom does not
-		   happens.
+		   Deadlocks of this kind cannot happen if node N was properly
+		   captured by thread A. The F thread fuse atoms before
+		   locking therefore current atom of thread F and current atom
+		   of thread A became the same atom and thread A may proceed.
+		   This does not work if node N was not captured because the
+		   fusion of atom does not happens.
 
-		   The following scheme solves the deadlock: If longterm_lock_znode locks and does
-		   not capture a znode, that znode is marked as MISSED_IN_CAPTURE.  A node marked
-		   this way is processed by the code below which restores the missed capture and
-		   fuses current atoms of all the node lock owners by calling the
-		   fuse_not_fused_lock_owners() function.
+		   The following scheme solves the deadlock: If
+		   longterm_lock_znode locks and does not capture a znode,
+		   that znode is marked as MISSED_IN_CAPTURE.  A node marked
+		   this way is processed by the code below which restores the
+		   missed capture and fuses current atoms of all the node lock
+		   owners by calling the fuse_not_fused_lock_owners()
+		   function.
 		*/
 
 		if (		// txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
@@ -1930,7 +1941,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			if (mode & TXN_CAPTURE_DONT_FUSE) {
 				UNLOCK_TXNH(txnh);
 				UNLOCK_JNODE(node);
-/* NIKITA-FIXME-HANS: comment this */
+				/* we are in a "no-fusion" mode and @node is
+				 * already part of transaction. */
 				return RETERR(-E_NO_NEIGHBOR);
 			}
 			/* In this case, both txnh and node belong to different atoms.  This function
@@ -2159,7 +2171,7 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	}
 
 	/* inspect list of lock owners */
-	for_all_tslist(owners, &node->lock.owners, lh) {
+	for_all_type_safe_list(owners, &node->lock.owners, lh) {
 		reiser4_context *ctx;
 		txn_atom *atomf;
 
@@ -2249,13 +2261,13 @@ try_capture_page_to_invalidate(struct page *pg)
 	}
 
 	LOCK_JNODE(node);
-	reiser4_unlock_page(pg);
+	unlock_page(pg);
 
 	/*ret = try_capture(node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);*/
 	ret = try_capture(node, ZNODE_WRITE_LOCK, 0, 0/* no copy on capture */);
 	UNLOCK_JNODE(node);
 	jput(node);
-	reiser4_lock_page(pg);
+	lock_page(pg);
 	return ret;
 }
 
@@ -2364,12 +2376,10 @@ uncapture_page(struct page *pg)
 	 * written by write_fq().  write_fq() does not use atom spin lock for
 	 * protection of the prepped nodes list, instead write_fq() increments
 	 * atom's nr_running_queues counters for the time when prepped list is
-	 * not protected by spin lock.  Here we check this counter if we want to
-	 * remove jnode from flush queue and, if the counter is not zero, wait
-	 * all write_fq() for this atom to complete. */
-/* NIKITA-FIXME-HANS: benchmark multiple deletes and multiple writes running
- * simultaneously and tell me if we spend measurable time here waiting, if yes,
- * find a more adroit way of coding this. */
+	 * not protected by spin lock.  Here we check this counter if we want
+	 * to remove jnode from flush queue and, if the counter is not zero,
+	 * wait all write_fq() for this atom to complete. This is not
+	 * significant overhead. */
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
 		UNLOCK_JNODE(node);
 		/*
@@ -2381,9 +2391,9 @@ uncapture_page(struct page *pg)
 		 * released from memory.
 		 */
 		page_cache_get(pg);
-		reiser4_unlock_page(pg);
+		unlock_page(pg);
 		atom_wait_event(atom);
-		reiser4_lock_page(pg);
+		lock_page(pg);
 		/*
 		 * page may has been detached by ->writepage()->releasepage().
 		 */
@@ -2743,11 +2753,8 @@ trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
  * if atom was busy returned -E_REPEAT to the top level. This can lead to the
  * busy loop if atom is locked for long enough time. Function below tries to
  * throttle this loop.
-
-NIKITA-FIXME-HANS: how is looping while holding a lock different from spinning
-on the lock as far as deadlock avoidance is concerned?  are we releasing all of
-our locks anywhere in the loop? email me our comprehensive locking/(deadlock
-avoiding) documentation.
+ *
+ * NIKITA-HANS: there is not different, deadlock-wise.
 
 ZAM-FIXME-HANS: how feasible would it be to use our hi-lo priority locking mechanisms/code for this as well? Does that make any sense?
 
@@ -2949,7 +2956,7 @@ wakeup_atom_waitfor_list(txn_atom * atom)
 	assert("umka-210", atom != NULL);
 
 	/* atom is locked */
-	for_all_tslist(fwaitfor, &atom->fwaitfor_list, wlinks) {
+	for_all_type_safe_list(fwaitfor, &atom->fwaitfor_list, wlinks) {
 		if (wlinks->waitfor_cb == NULL ||
 		    wlinks->waitfor_cb(atom, wlinks))
 			/* Wake up. */
@@ -2967,7 +2974,7 @@ wakeup_atom_waiting_list(txn_atom * atom)
 	assert("umka-211", atom != NULL);
 
 	/* atom is locked */
-	for_all_tslist(fwaiting, &atom->fwaiting_list, wlinks) {
+	for_all_type_safe_list(fwaiting, &atom->fwaiting_list, wlinks) {
 		if (wlinks->waiting_cb == NULL ||
 		    wlinks->waiting_cb(atom, wlinks))
 			/* Wake up. */
@@ -3183,7 +3190,7 @@ capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head, captu
 	assert("zam-968", spin_atom_is_locked(large));
 
 	/* For every jnode on small's capture list... */
-	for_all_tslist(capture, small_head, node) {
+	for_all_type_safe_list(capture, small_head, node) {
 		count += 1;
 
 		/* With the jnode lock held, update atom pointer. */
@@ -3210,7 +3217,7 @@ capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head, txnh_list
 	assert("umka-223", small_head != NULL);
 
 	/* Adjust every txnh to the new atom. */
-	for_all_tslist(txnh, small_head, txnh) {
+	for_all_type_safe_list(txnh, small_head, txnh) {
 		count += 1;
 
 		/* With the txnh lock held, update atom pointer. */
@@ -3660,7 +3667,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 			result = RETERR(-E_REPEAT);
 			copy->data = kmap(new_page);
 
-			reiser4_lock_page(page);
+			lock_page(page);
 			from = kmap(page);
 			LOCK_JNODE(node);
 			if (node->atom == atom && node->pg == page) {
@@ -3695,7 +3702,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 					spin_unlock(&scan_lock);
 					ON_DEBUG(JF_SET(node, JNODE_CCED_OVRWR));
 					UNLOCK_JNODE(node);
-					reiser4_unlock_page(page);
+					unlock_page(page);
 	
 					if (was_jloaded)
 						jrelse(node);
@@ -3717,7 +3724,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 			}
 			UNLOCK_JNODE(node);
 			kunmap(page);
-			reiser4_unlock_page(page);
+			unlock_page(page);
 			kunmap(new_page);
 			page_cache_release(new_page);
 		}
@@ -3872,8 +3879,8 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 	return ret;
 }
 
-/* NIKITA-FIXME-HANS: send me an email explaining this, it seems rather small. I
- * thought we discussed setting this to something like twice total RAM size. */
+/* when atom becomes that big, commit it as soon as possible. This was found
+ * to be most effective by testing. */
 unsigned int
 txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 {
@@ -3907,7 +3914,7 @@ print_atom(const char *prefix, txn_atom * atom)
 		}
 	}
 
-	for_all_tslist(capture, &atom->clean_nodes, pos_in_atom) {
+	for_all_type_safe_list(capture, &atom->clean_nodes, pos_in_atom) {
 		info_jnode("clean", pos_in_atom);
 		printk("\n");
 	}

@@ -286,7 +286,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "sd",
 			.desc = "stat-data",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = STAT_DATA_ITEM_TYPE,
@@ -339,7 +339,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "de",
 			.desc = "directory entry",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = DIR_ENTRY_ITEM_TYPE,
@@ -396,7 +396,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "cde",
 			.desc = "compressed directory entry",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = DIR_ENTRY_ITEM_TYPE,
@@ -452,7 +452,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "internal",
 			.desc = "internal item",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = INTERNAL_ITEM_TYPE,
@@ -503,7 +503,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "extent",
 			.desc = "extent item",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
@@ -566,7 +566,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "body",
 			.desc = "body (or tail?) item",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
@@ -629,7 +629,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "ctail",
 			.desc = "cryptcompress tail item",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
@@ -695,7 +695,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "frozen tail",
 			.desc = "non split-able tail item",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
@@ -758,7 +758,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "frozen extent",
 			.desc = "non split-able extent item",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,

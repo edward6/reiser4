@@ -394,7 +394,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	
 	coord_init_zero(coord);
 	if (uf_info != NULL) {
-		result = object_lookup(uf_info->inode,
+		result = object_lookup(unix_file_info_to_inode(uf_info),
 				       key,
 				       coord,
 				       lh,
@@ -637,7 +637,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 	memset(kaddr + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
 	flush_dcache_page(page);
 	kunmap_atomic(kaddr, KM_USER0);
-	reiser4_unlock_page(page);
+	unlock_page(page);
 	page_cache_release(page);
 	reiser4_release_reserved(inode->i_sb);
 	return 0;
@@ -655,11 +655,12 @@ append_hole(unix_file_info_t *uf_info, loff_t new_size)
 	loff_t written;
 	loff_t hole_size;
 	
-	assert("vs-1107", uf_info->inode->i_size < new_size);
+	assert("vs-1107", unix_file_info_to_inode(uf_info)->i_size < new_size);
 
 	result = 0;
-	hole_size = new_size - uf_info->inode->i_size;
-	written = write_flow(0/*file*/, uf_info, 0/*buf*/, hole_size, uf_info->inode->i_size);
+	hole_size = new_size - unix_file_info_to_inode(uf_info)->i_size;
+	written = write_flow(0/*file*/, uf_info, 0/*buf*/, hole_size,
+			     unix_file_info_to_inode(uf_info)->i_size);
 	if (written != hole_size) {
 		/* return error because file is not expanded as required */
 		if (written > 0)
@@ -667,7 +668,8 @@ append_hole(unix_file_info_t *uf_info, loff_t new_size)
 		else
 			result = written;
 	} else {
-		assert("vs-1081", uf_info->inode->i_size == new_size);
+		assert("vs-1081",
+		       unix_file_info_to_inode(uf_info)->i_size == new_size);
 	}
 	return result;
 }
@@ -680,7 +682,7 @@ setattr_reserve(reiser4_tree *tree)
 }
 
 /* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
-   used to truncate 
+   used to truncate
 VS-FIXME-HANS: explain that
 and in unix_file_delete */
 static int
@@ -1155,9 +1157,9 @@ readpage_unix_file(void *vp, struct page *page)
 	key_by_inode_unix_file(inode, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
 	/* look for file metadata corresponding to first byte of page */
-	reiser4_unlock_page(page);
+	unlock_page(page);
 	result = find_file_item(&hint, &key, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, unix_file_inode_data(inode));
-	reiser4_lock_page(page);
+	lock_page(page);
 	if (result != CBK_COORD_FOUND) {
 		/* this indicates file corruption */
 		done_lh(&lh);
@@ -1226,7 +1228,8 @@ should_have_notail(const unix_file_info_t *uf_info, loff_t new_size)
 {
 	if (!uf_info->tplug)
 		return 1;
-	return !uf_info->tplug->have_tail(uf_info->inode, new_size);
+	return !uf_info->tplug->have_tail(unix_file_info_to_inode(uf_info),
+					  new_size);
 
 }
 
@@ -1308,14 +1311,14 @@ debugging_read(struct file *file, unix_file_info_t *uf_info, char *buf, size_t r
 		BUG_ON(!PageUptodate(page));
 		mark_page_accessed(page);
 
-		reiser4_lock_page(page);
+		lock_page(page);
 		if (PagePrivate(page)) {
 			jnode *j;
 			j = jnode_by_page(page);
 			if (REISER4_USE_EFLUSH && j)
 				UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 		}
-		reiser4_unlock_page(page);
+		unlock_page(page);
 
 		__copy_to_user(buf, kmap(page), PAGE_CACHE_SIZE);
 		kunmap(page);
@@ -1521,7 +1524,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			   node between two extent items) */
-			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(uf_info->inode)), 0,
+			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(unix_file_info_to_inode(uf_info))), 0,
 							  "append_and_or_overwrite: for cbk and eottl");
 			if (result)
 				return result;
@@ -1581,7 +1584,11 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		 * XXX NIKITA coord has to be re-validated after zload()
 		 */
 
-		result = write_f(uf_info->inode, flow, &hint, 0/* not grabbed */, how_to_write(&hint.coord, &flow->key));
+		result = write_f(unix_file_info_to_inode(uf_info),
+				 flow,
+				 &hint,
+				 0/* not grabbed */,
+				 how_to_write(&hint.coord, &flow->key));
 
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
 		if (cur_container == UF_CONTAINER_EMPTY && to_write != flow->length) {
@@ -1616,9 +1623,10 @@ write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, loff_t
 	int result;
 	flow_t flow;
 
-	assert("vs-1251", inode_file_plugin(uf_info->inode)->flow_by_inode == flow_by_inode_unix_file);
+	assert("vs-1251", inode_file_plugin(unix_file_info_to_inode(uf_info))->flow_by_inode == flow_by_inode_unix_file);
 	
-	result = flow_by_inode_unix_file(uf_info->inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &flow);
+	result = flow_by_inode_unix_file(unix_file_info_to_inode(uf_info),
+					 (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &flow);
 	if (result)
 		return result;
 
@@ -2106,7 +2114,6 @@ init_inode_data_unix_file(struct inode *inode,
 	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
 	rw_latch_init(&data->latch);
 	data->tplug = inode_tail_plugin(inode);
-	data->inode = inode;
 	data->exclusive_use = 0;
 	
 #if REISER4_DEBUG

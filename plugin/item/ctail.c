@@ -403,9 +403,9 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 
 	if (!cluster_is_uptodate(clust)) {
 		clust->index = pg_to_clust(page->index, inode);
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		ret = ctail_read_cluster(clust, inode, 0 /* do not write */);
-		reiser4_lock_page(page);
+		lock_page(page);
 		if (ret)
 			return ret;
 		/* cluster was uptodated here, release it before exit */
@@ -495,18 +495,18 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
 			clust.index = pg_to_clust(page->index, inode);
-			reiser4_unlock_page(page);
+			unlock_page(page);
 			ret = ctail_read_cluster(&clust, inode, 0 /* do not write */);
 			if (ret)
 				goto exit;
-			reiser4_lock_page(page);
+			lock_page(page);
 		}
 		ret = do_readpage_ctail(&clust, page);
 		if (!pagevec_add(&lru_pvec, page))
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {
 			impossible("edward-215", "do_readpage_ctail returned crap");
-			reiser4_unlock_page(page);
+			unlock_page(page);
 		exit:
 			while (!list_empty(pages)) {
 				struct page *victim;
@@ -517,7 +517,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			}
 			break;
 		}
-		reiser4_unlock_page(page);
+		unlock_page(page);
 	}
 	put_cluster_data(&clust, inode);
 	pagevec_lru_add(&lru_pvec);

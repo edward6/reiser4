@@ -6,7 +6,7 @@
 #include "forward.h"
 #include "spin_macros.h"
 #include "dformat.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -19,9 +19,9 @@
 
 /* list of all atoms controlled by single transaction manager (that is, file
  * system) */
-TS_LIST_DECLARE(atom);
+TYPE_SAFE_LIST_DECLARE(atom);
 /* list of transaction handles attached to given atom */
-TS_LIST_DECLARE(txnh);
+TYPE_SAFE_LIST_DECLARE(txnh);
 
 /*
  * ->fwaitfor and ->fwaiting lists.
@@ -37,7 +37,7 @@ TS_LIST_DECLARE(txnh);
  * queue is released, etc. This is used, in particular, to implement sync(),
  * where thread has to wait until atom commits.
  */
-TS_LIST_DECLARE(fwaitfor);
+TYPE_SAFE_LIST_DECLARE(fwaitfor);
 
 /*
  * This list is used to wait for atom fusion (in capture_fuse_wait()). Threads
@@ -45,16 +45,16 @@ TS_LIST_DECLARE(fwaitfor);
  *
  * This is used in capture_fuse_wait() which see for more comments.
  */
-TS_LIST_DECLARE(fwaiting);	
+TYPE_SAFE_LIST_DECLARE(fwaiting);	
 
 /* The transaction's list of captured jnodes */
-TS_LIST_DECLARE(capture);
+TYPE_SAFE_LIST_DECLARE(capture);
 
-TS_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
+TYPE_SAFE_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
 				 * and wandered mapping. */
 
 /* list of flush queues attached to a given atom */
-TS_LIST_DECLARE(fq);
+TYPE_SAFE_LIST_DECLARE(fq);
 
 /* TYPE DECLARATIONS */
 
@@ -268,7 +268,7 @@ struct txn_atom {
 	__u32 txnh_count;
 
 	/* The number of znodes captured by this atom.  Equal to the sum of lengths of the
-	   dirty_znodes[level] and clean_znodes lists. */
+	   dirty_nodes[level] and clean_nodes lists. */
 	__u32 capture_count;
 
 	__u32 flushed;
@@ -354,7 +354,7 @@ struct txn_handle {
 	reiser4_spin_data hlock;
 
 	/* Flags for controlling commit_txnh() behavior */
-/* NIKITA-FIXME-HANS: mention where these are enumerated. */
+	/* NIKITA-HANS: txn_handle_flags_t */
 	txn_handle_flags_t flags;
 
 	/* Whether it is READ_FUSING or WRITE_FUSING. */
@@ -367,7 +367,7 @@ struct txn_handle {
 	txnh_list_link txnh_link;
 };
 
-TS_LIST_DECLARE(txn_mgrs);
+TYPE_SAFE_LIST_DECLARE(txn_mgrs);
 
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr {
@@ -398,7 +398,7 @@ struct txn_mgr {
 };
 
 /* list of all transaction managers in a system */
-TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
+TYPE_SAFE_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
 /* FUNCTION DECLARATIONS */
 

@@ -150,16 +150,16 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = coord_by_key(tree_by_inode(inode),
-			      key,
-			      coord,
-			      lh,
-			      lock_mode,
-			      FIND_EXACT,
-			      LEAF_LEVEL,
-			      LEAF_LEVEL,
-			      flags,
-			      0);
+	result = object_lookup(inode,
+			       key,
+			       coord,
+			       lh,
+			       lock_mode,
+			       FIND_EXACT,
+			       LEAF_LEVEL,
+			       LEAF_LEVEL,
+			       flags,
+			       0);
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
 
@@ -1036,7 +1036,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = NULL,
 			.label = "reg",
 			.desc = "regular file",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		/* FIXME: check which of these are relly needed */
 		.open = NULL,
@@ -1086,7 +1086,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = NULL,
 			.label = "dir",
 			.desc = "directory",
-			.linkage = TS_LIST_LINK_ZERO},
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO},
 		.open = NULL,
 		.truncate = eisdir,
 		.write_sd_by_inode = write_sd_by_inode_common,/*common_file_save,*/
@@ -1134,7 +1134,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = NULL,
 			.label = "symlink",
 			.desc = "symbolic link",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.open = NULL,
 		.truncate = eperm,
@@ -1184,7 +1184,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = NULL,
 			.label = "special",
 			.desc = "special: fifo, device or socket",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.open = NULL,
 		.truncate = eperm,
@@ -1233,7 +1233,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = NULL,
 			.label = "pseudo",
 			.desc = "pseudo file",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.open =              open_pseudo,
 		.truncate          = eperm,
@@ -1282,7 +1282,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = &cryptcompress_plugin_ops,
 			.label = "cryptcompress",
 			.desc = "cryptcompress file",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		/* FIXME: check which of these are relly needed */
 		.open = NULL,
