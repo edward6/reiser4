@@ -22,7 +22,8 @@
 #define REISERFS_LEGACY_FORMAT		(0x0)
 
 /* Master super block structure and macros */
-struct reiserfs_master {
+struct reiserfs_master_super {
+
     /* Reiser4 magic R4Sb */
     char mr_magic[4];
 
@@ -39,13 +40,22 @@ struct reiserfs_master {
     char mr_label[16];
 };
 
-typedef struct reiserfs_master reiserfs_master_t;
+typedef struct reiserfs_master_super reiserfs_master_super_t;
 
 #define get_mr_format_id(mr)		aal_get_le16(mr, mr_format_id)
 #define set_mr_format_id(mr, val)	aal_set_le16(mr, mr_format_id, val)
 
-#define get_mr_block_size(mr)		aal_get_le16(mr, mr_blocksize)
-#define set_mr_block_size(mr, val)	aal_set_le16(mr, mr_blocksize, val)
+#define get_mr_blocksize(mr)		aal_get_le16(mr, mr_blocksize)
+#define set_mr_blocksize(mr, val)	aal_set_le16(mr, mr_blocksize, val)
+
+struct reiserfs_master {
+    aal_block_t *block;
+    aal_device_t *device;
+
+    reiserfs_master_super_t *super;
+};
+
+typedef struct reiserfs_master reiserfs_master_t;
 
 typedef struct reiserfs_fs reiserfs_fs_t;
 

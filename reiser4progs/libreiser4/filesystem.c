@@ -66,16 +66,19 @@ reiserfs_fs_t *reiserfs_fs_open(
     if (!(fs->master = reiserfs_master_open(host_device)))
 	goto error_free_fs;
     
+    if (reiserfs_master_check(fs->master))
+	goto error_free_master;
+    
     /* Setting actual used block size from master super block */
-    if (aal_device_set_bs(host_device, get_mr_block_size(fs->master))) {
+    if (aal_device_set_bs(host_device, reiserfs_master_blocksize(fs->master))) {
         aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	   "Invalid block size detected %u. It must be power of two.", 
-	    get_mr_block_size(fs->master));
+	    reiserfs_master_blocksize(fs->master));
 	goto error_free_master;
     }
     
     /* Initializes used disk format. See format.c for details */
-    pid = get_mr_format_id(fs->master);
+    pid = reiserfs_master_format(fs->master);
 
     if (!(fs->format = reiserfs_format_open(host_device, pid)))
 	goto error_free_master;
@@ -230,7 +233,7 @@ reiserfs_fs_t *reiserfs_fs_create(
 	return NULL;
 	
     /* Creates master super block */
-    if (!(fs->master = reiserfs_master_create(profile->format, 
+    if (!(fs->master = reiserfs_master_create(host_device, profile->format, 
 	    blocksize, uuid, label)))
 	goto error_free_fs;
 
@@ -331,7 +334,7 @@ errno_t reiserfs_fs_sync(
 	on the host device is realy reiser4 filesystem.
     */
     if (reiserfs_master_confirm(fs->format->device)) {
-	if (reiserfs_master_sync(fs->master, fs->format->device))
+	if (reiserfs_master_sync(fs->master))
 	    return -1;
     }
     
@@ -358,10 +361,24 @@ errno_t reiserfs_fs_sync(
     return 0;
 }
 
-/* Makes filesystem check */
+/* Makes simple check of the all filesystem object metadata */
 errno_t reiserfs_fs_check(
     reiserfs_fs_t *fs		/* filesystem to be checked */
 ) {
+    aal_assert("umka-980", fs != NULL, return -1);
+
+    if (reiserfs_format_check(fs->format, 0))
+	return -1;
+	    
+    if (reiserfs_alloc_check(fs->alloc, 0))
+	return -1;
+    
+    if (reiserfs_oid_check(fs->oid, 0))
+	return -1;
+    
+    if (fs->journal && reiserfs_oid_check(fs->oid, 0))
+	return -1;
+    
     return 0;
 }
 
@@ -407,7 +424,7 @@ reiserfs_id_t reiserfs_fs_format_pid(
     aal_assert("umka-151", fs != NULL, return -1);
     aal_assert("umka-152", fs->master != NULL, return -1);
 
-    return get_mr_format_id(fs->master);
+    return reiserfs_master_format(fs->master);
 }
 
 /* Returns filesystem block size value */
@@ -417,6 +434,6 @@ uint16_t reiserfs_fs_blocksize(
     aal_assert("umka-153", fs != NULL, return 0);
     aal_assert("umka-154", fs->master != NULL, return 0);
     
-    return get_mr_block_size(fs->master);
+    return reiserfs_master_blocksize(fs->master);
 }
 
