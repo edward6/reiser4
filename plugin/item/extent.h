@@ -32,6 +32,9 @@ typedef struct {
  * plugin->u.item.b.*
  */
 reiser4_key * extent_max_key_inside    (const tree_coord *, reiser4_key *);
+int           extent_can_contain_key   ( const tree_coord *coord,
+					 const reiser4_key *key,
+					 const reiser4_item_data * );
 int           extent_mergeable         (const tree_coord * p1,
 					const tree_coord * p2);
 unsigned      extent_nr_units          (const tree_coord *);
@@ -63,7 +66,7 @@ int           extent_kill_units        (tree_coord *, unsigned *from,
 					reiser4_key * smallest_removed);
 reiser4_key * extent_unit_key          (const tree_coord * coord,
 					reiser4_key * key);
-int           extent_item_data_by_flow (const tree_coord *, const flow *,
+int           extent_item_data_by_flow (const tree_coord *, const flow_t *,
 					reiser4_item_data *);
 void          extent_print             (const char *, tree_coord *);
 
@@ -71,17 +74,17 @@ void          extent_print             (const char *, tree_coord *);
  * plugin->u.item.s.file.*
  */
 int extent_write    (struct inode *, tree_coord *, reiser4_lock_handle *,
-		     flow *);
+		     flow_t *);
 int extent_read     (struct inode *, tree_coord *, reiser4_lock_handle *,
-		     flow *);
+		     flow_t *);
 int extent_readpage (void * arg, struct page * page);
 
 
 
 int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder);
-squeeze_result allocate_and_copy_extent (znode * left, tree_coord * right,
-					 block_nr * preceder,
-					 reiser4_key * stop_key);
+int allocate_and_copy_extent (znode * left, tree_coord * right,
+			      block_nr * preceder,
+			      reiser4_key * stop_key);
 
 
 /* 
