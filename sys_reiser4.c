@@ -22,7 +22,7 @@
 #include <linux/backing-dev.h>
 #include <asm-generic/errno.h>
 
-#if 0 //def CONFIG_REISER4_FS_SYSCALL
+#if 0 /*CONFIG_REISER4_FS_SYSCALL*/
 
 #include "forward.h"
 #include "debug.h"
@@ -72,7 +72,7 @@ sys_reiser4(char *p_string)
 	/* allocate work space for parser 
 	   working variables, attached to this call */
 
-	if ((work_space = sys_reiser4_init()) == NULL) {
+	if ((work_space = reiser4_pars_init()) == NULL) {
 		return -ENOMEM;
 	}
 
@@ -84,7 +84,7 @@ sys_reiser4(char *p_string)
 	//	if (ret != -1 /*-ENOMEM*/) {
 	//		ret = execute_this_code(work_space);
 	//	}
-	sys_reiser4_free(work_space);
+	reiser4_pars_free(work_space);
 	return ret;
 
 	return 0;
@@ -100,7 +100,6 @@ sys_reiser4(void *p_string)
 }
 #endif
 
-#endif
 
 /*
  * Below is an implementation of hand crafted "recursive descent" parser. It
@@ -1277,6 +1276,8 @@ asmlinkage long sys_reiser4(const char __user * command)
 		result = PTR_ERR(inkernel);
 	return result;
 }
+
+#endif
 
 /* Make Linus happy.
    Local variables:
