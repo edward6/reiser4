@@ -324,6 +324,7 @@ extern txn_atom*    get_current_atom_locked (void);
 extern txn_atom*    atom_get_locked_by_jnode (jnode *);
 
 extern void         txn_insert_into_clean_list (txn_atom * atom, jnode * node);
+extern int          capture_super_block   (struct super_block * s);
 
 #if REISER4_USER_LEVEL_SIMULATION
 extern int          memory_pressure        (struct super_block *super, int *nr_to_flush);
