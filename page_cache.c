@@ -458,6 +458,7 @@ formatted_writepage(struct page *page /* page to write */ )
 {
 	int result;
 
+	assert ("zam-823", current->flags & PF_MEMALLOC);
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
