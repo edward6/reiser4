@@ -296,6 +296,21 @@ jnode_init (jnode *node)
 	capture_list_clean (node);
 }
 
+/* return already existing jnode of page */
+jnode* 
+jnode_by_page (struct page* pg)
+{
+	jnode *node;
+
+	assert ("nikita-2066", pg != NULL);
+	spin_lock (& _jnode_ptr_lock);
+	assert ("nikita-2068", PagePrivate (pg));
+	node = (jnode*) pg->private;
+	assert ("nikita-2067", node != NULL);
+	spin_unlock (& _jnode_ptr_lock);
+	return node;
+}
+
 /* Holding the jnode_ptr_lock, check whether the page already has a jnode and
  * if not, allocate one. */
 /* Audited by: umka (2002.06.13), umka (2002.06.15) */
@@ -309,7 +324,9 @@ jnode_of_page (struct page* pg)
 	jnode *jal = NULL;
 	
 	assert("umka-176", pg != NULL);
-	assert("umka-282", !spin_is_locked(&_jnode_ptr_lock));
+	/* check that page is unformatted */
+	assert ("nikita-2065", pg->mapping->host != 
+		get_super_private (pg->mapping->host->i_sb)->fake);
 	
  again:
 	spin_lock (& _jnode_ptr_lock);
@@ -341,12 +358,7 @@ jnode_of_page (struct page* pg)
 
 		jnode_attach_page_nolock (jal, pg);
 
-		/* guess whether page is formatted */
-		inode = pg->mapping->host;
-		if ( inode != get_super_private (inode->i_sb)->fake)
-			JF_SET (jal, ZNODE_UNFORMATTED);
-		else
-			JF_CLR (jal, ZNODE_UNFORMATTED);
+		JF_SET (jal, ZNODE_UNFORMATTED);
 
 		jal = NULL;
 	}
@@ -385,6 +397,8 @@ page_next_jnode( jnode* node )
 }
 
 /* Increment to the jnode's reference counter. */
+/* FIXME:NIKITA->JMACD comment is not exactly correct, because there is no
+ * reference counter in jnode. */
 /* Audited by: umka (2002.06.13) */
 jnode *jref( jnode *node )
 {
@@ -399,6 +413,8 @@ jnode *jref( jnode *node )
 }
 
 /* Decrement the jnode's reference counter. */
+/* FIXME:NIKITA->JMACD comment is not exactly correct, because there is no
+ * reference counter in jnode. */
 /* Audited by: umka (2002.06.13) */
 void   jput( jnode *node )
 {
@@ -976,6 +992,9 @@ int memory_pressure (struct super_block *super)
 				/* Add this context to the same atom */
 				capture_assign_txnh_nolock (atom, txnh);
 
+				/*
+				 * FIXME:NIKITA->JMACD jput is not called
+				 */
 				break;
 			}				
 		}
