@@ -532,9 +532,12 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 		pos->state = POS_ON_EPOINT;
 		move_flush_pos(pos, &lock, &load, &parent_coord);
 		pos->child = jref(org);
-		assert("nikita-3435",					
-		       ergo(extent_is_unallocated(&parent_coord),
-			    extent_unit_index(&parent_coord) == index_jnode(org)));
+		if (extent_is_unallocated(&parent_coord) && extent_unit_index(&parent_coord) != index_jnode(org)) {
+			/* @org is not first child of its parent unit. This may happen
+			   because longerm lock of its parent node was released between
+			   scan_left and scan_right. For now work around this having flush to repeat */
+			ret = -EAGAIN;
+		}
 	}
 
  done:
@@ -716,7 +719,8 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	/* scan right is inherently deadlock prone, because we are
-	 * (potentially) holding a lock on the twig node at this moment. */
+	 * (potentially) holding a lock on the twig node at this moment. 
+	 * FIXME: this is incorrect comment: lock is not held */
 	if (todo > 0 && (get_flush_scan_nstat(&right_scan) == LINKED)) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
