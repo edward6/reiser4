@@ -248,7 +248,6 @@ int check_sibling_list(znode * node)
    neighbors; works if one neighbor is NULL (was not found). */
 
 /* FIXME-VS: this is unstatic-ed to use in tree.c in prepare_twig_cut */
-/* Audited by: umka (2002.06.14) */
 reiser4_internal void
 link_left_and_right(znode * left, znode * right)
 {
@@ -433,7 +432,15 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		WLOCK_TREE(tree);
 	}
 
-	link_znodes(child, neighbor, to_left);
+	if (likely(neighbor == NULL ||
+		   (znode_get_level(child) == znode_get_level(neighbor))))
+		link_znodes(child, neighbor, to_left);
+	else {
+		warning("nikita-3532",
+			"Sibling nodes on the different levels: %i != %i\n",
+			znode_get_level(child), znode_get_level(neighbor));
+		ret = RETERR(-EIO);
+	}
 
 	WUNLOCK_TREE(tree);
 
@@ -601,7 +608,7 @@ out:
 	return ret;
 }
 
-/* 
+/*
    reiser4_get_neighbor() -- lock node's neighbor.
 
    reiser4_get_neighbor() locks node's neighbor (left or right one, depends on
@@ -624,7 +631,7 @@ out:
    @flags: logical OR of {GN_*} (see description above) subset.
 
    @return: 0 if success, negative value if lock was impossible due to an error
-   or lack of neighbor node. 
+   or lack of neighbor node.
 */
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
