@@ -1995,9 +1995,9 @@ void
 jnode_set_dirty(jnode * node)
 {
 	txn_atom * atom;
+	struct page *page;
 
 	assert("umka-204", node != NULL);
-	assert("umka-296", current_tree != NULL);
 
 	/* We get both locks (atom, jnode) before jnode state check because
 	   atom_locked_by_jnode may unlock jnode in a process of getting
@@ -2027,7 +2027,7 @@ jnode_set_dirty(jnode * node)
 			grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
 		}
 
-		if (atom && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+		if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 			/* If the atom is not set yet, it will be added to the appropriate list in
 			   capture_assign_block_nolock. */
 			/* Sometimes a node is set dirty before being captured -- the case for new
@@ -2049,6 +2049,23 @@ jnode_set_dirty(jnode * node)
 
 	UNLOCK_ATOM (atom);
 
+	page = jnode_page(node);
+	if (page != NULL)
+		page_cache_get(page);
+	else
+		/* FIXME-NIKITA dubious. What if jnode doesn't have page,
+		   because it was early flushed, or ->releasepaged? */
+		assert("zam-596", znode_above_root(JZNODE(node)));
+
+	UNLOCK_JNODE(node);
+
+	/* jnode lock is not needed for the rest of jnode_set_dirty(). */
+
+	if (page != NULL) {
+		set_page_dirty_internal(page);
+		page_cache_release(page);
+	}
+
 	if (jnode_is_znode(node)) {
 		reiser4_tree *tree;
 		znode *z;
@@ -2059,26 +2076,16 @@ jnode_set_dirty(jnode * node)
 		z->version = UNDER_RW(tree, tree, write, ++tree->znode_epoch);
 		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
 
-		   the flush code sets a node dirty even though it is read locked... but
-		   it captures it first.  However, the new assertion (jmacd-9777) seems to
-		   contradict the statement above, that a node is captured before being
-		   captured.  Perhaps that is no longer true. */
+		   the flush code sets a node dirty even though it is read
+		   locked... but it captures it first.  However, the new
+		   assertion (jmacd-9777) seems to contradict the statement
+		   above, that a node is captured before being captured.
+		   Perhaps that is no longer true. */
 		assert("nikita-1900", znode_is_write_locked(z));
 		assert("jmacd-9777", node->atom != NULL);
 		ON_DEBUG_MODIFY(z->cksum = znode_is_loaded(z) ? znode_checksum(z) : 0);
 	}
 
-	if (jnode_page(node) != NULL) {
-		struct page *page;
-
-		page = jnode_page(node);
-		set_page_dirty_internal(page);
-	} else
-		/* FIXME-NIKITA dubious. What if jnode doesn't have page,
-		   because it was early flushed, or ->releasepaged? */
-		assert("zam-596", znode_above_root(JZNODE(node)));
-
-	UNLOCK_JNODE(node);
 }
 
 /* Unset the dirty status for the node if necessary spin locks are already taken */
