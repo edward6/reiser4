@@ -267,7 +267,7 @@ typedef enum {
 	 * that ->releasepage() can tell. As this is used only for
 	 * unformatted, we can share bit with DKSET which is only meaningful
 	 * for formatted. */
-	JNODE_KEEPME = 20,
+/*	JNODE_KEEPME = 20,*/
 
 	/* cheap and effective protection of jnode from emergency flush. This
 	 * bit can only be set by thread that holds long term lock on jnode
@@ -302,7 +302,8 @@ typedef enum {
 	 *     (3) extent is allocated
 	 *
 	 */
-	JNODE_FLUSH_RESERVED = 29
+	JNODE_FLUSH_RESERVED = 29,
+	JNODE_KEEPME = 30
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
