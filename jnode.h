@@ -310,7 +310,7 @@ jnode_get_io_block(const jnode * node)
 
 /* Jnode flush interface. */
 extern long jnode_flush(jnode * node, long *nr_to_flush, int flags);
-extern int flush_enqueue_unformatted(jnode * node, flush_position * pos);
+extern int enqueue_unformatted(jnode * node, flush_position * pos);
 extern reiser4_blocknr_hint *pos_hint(flush_position * pos);
 extern int pos_leaf_relocate(flush_position * pos);
 

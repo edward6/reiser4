@@ -1598,10 +1598,10 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 		jnode_set_reloc(j);
 
 		/* Submit I/O and set the jnode clean. */
-		ret = flush_enqueue_unformatted(j, flush_pos);
+		ret = enqueue_unformatted(j, flush_pos);
 		jput(j);
 		if (ret)
-			warning("vs-1136", "flush_enqueue_unformatted failed with %d\n", ret);
+			warning("vs-1136", "enqueue_unformatted failed with %d\n", ret);
 	}
 
 	return 0;
@@ -1670,7 +1670,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
    setting the state to UNALLOCATED.  The calling code will then re-allocate them.
   
    If the ALLOCATED extent is not relocated, then its dirty blocks should be written via a
-   call to flush_enqueue_unformatted.
+   call to enqueue_unformatted.
   
    FIXME: JMACD->VS: Have I done it right? Can we remove the old FIXME below?
   
@@ -1825,7 +1825,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 					/* this does not work now */
 					/* Or else set RELOC.  It will get set again, but... */
 					jnode_set_reloc(j);
-					if ((ret = flush_enqueue_unformatted(j, pos))) {
+					if ((ret = enqueue_unformatted(j, pos))) {
 						assert("jmacd-71891", ret < 0);
 						jput(j);
 						goto fail;

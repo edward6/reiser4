@@ -19,7 +19,7 @@
 
 #if REISER4_TRACE_TREE
 
-static int flush_trace(reiser4_trace_file * trace);
+static int trace_flush(reiser4_trace_file * trace);
 static int free_space(reiser4_trace_file * trace, size_t * len);
 static int lock_trace(reiser4_trace_file * trace);
 static void unlock_trace(reiser4_trace_file * trace);
@@ -119,7 +119,7 @@ write_trace_raw(reiser4_trace_file * file, const void *data, size_t len)
 void
 close_trace_file(reiser4_trace_file * trace)
 {
-	flush_trace(trace);
+	trace_flush(trace);
 	if (trace->fd != NULL)
 		filp_close(trace->fd, NULL);
 	if (trace->buf != NULL) {
@@ -215,7 +215,7 @@ static void convert_to_shortterm (reiser4_trace_file * trace)
 }
 
 static int
-flush_trace(reiser4_trace_file * file)
+trace_flush(reiser4_trace_file * file)
 {
 	int result;
 
@@ -280,7 +280,7 @@ free_space(reiser4_trace_file * file, size_t * len)
 		int result;
 
 		/* flushing can sleep, so loop */
-		result = flush_trace(file);
+		result = trace_flush(file);
 		if (result < 0)
 			return result;
 	}
