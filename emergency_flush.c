@@ -386,6 +386,8 @@ flushable(const jnode * node, struct page *page)
 		return 0;
 	if (JF_ISSET(node, JNODE_EPROTECTED))   /* protected from e-flush */
 		return 0;
+	if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
+		return 0;
 	if (page == NULL)           		/* nothing to flush */
 		return 0;
 	if (PageWriteback(page))                /* already under io */
