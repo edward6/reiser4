@@ -10,7 +10,7 @@
    tail2extent and extent2tail */
 
 int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *,
-		   znode_lock_mode, __u32 cbk_flags, ra_info_t *, struct inode *);
+		   znode_lock_mode, __u32 cbk_flags, ra_info_t *, unix_file_info_t *, file_state *);
 int goto_right_neighbor(coord_t *, lock_handle *);
 void set_file_state_extents(struct inode *);
 void set_file_state_tails(struct inode *);
@@ -20,30 +20,30 @@ int file_is_built_of_extents(const struct inode *inode);
 
 #if REISER4_DEBUG
 static inline struct task_struct *
-inode_ea_owner(const struct inode *inode)
+inode_ea_owner(const unix_file_info_t *uf_info)
 {
-	return unix_file_inode_data(inode)->ea_owner;
+	return uf_info->ea_owner;
 }
 
-static void ea_set(struct inode *inode, void *value)
+static void ea_set(unix_file_info_t *uf_info, void *value)
 {
-	unix_file_inode_data(inode)->ea_owner = value;
+	uf_info->ea_owner = value;
 }
 #else
 #define ea_set(inode, value) noop
 #endif
 
-static int ea_obtained(const struct inode *inode)
+static int ea_obtained(const unix_file_info_t *uf_info)
 {
 	
-	assert("vs-1167", ergo (inode_ea_owner(inode) != NULL,
-				inode_ea_owner(inode) == current));
-	return inode_get_flag(inode, REISER4_EXCLUSIVE_USE);
+	assert("vs-1167", ergo (inode_ea_owner(uf_info) != NULL,
+				inode_ea_owner(uf_info) == current));
+	return uf_info->exclusive_use;
 }
 
 /* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
 void
-get_exclusive_access(struct inode *inode)
+get_exclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3028", schedulable());
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
@@ -51,21 +51,21 @@ get_exclusive_access(struct inode *inode)
 		assert("nikita-3048", lock_counters()->inode_sem_r == 0);
 		lock_counters()->inode_sem_w ++;
 	}
-	rw_latch_down_write(&unix_file_inode_data(inode)->latch);
-	assert("nikita-3060", inode_ea_owner(inode) == NULL);
-	assert("vs-1157", !ea_obtained(inode));
-	ea_set(inode, current);
-	inode_set_flag(inode, REISER4_EXCLUSIVE_USE);
+	rw_latch_down_write(&uf_info->latch);
+	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
+	assert("vs-1157", !ea_obtained(uf_info));
+	ea_set(uf_info, current);
+	uf_info->exclusive_use = 1;
 }
 
 void
-drop_exclusive_access(struct inode *inode)
+drop_exclusive_access(unix_file_info_t *uf_info)
 {
-	assert("nikita-3060", inode_ea_owner(inode) == current);
-	assert("vs-1158", ea_obtained(inode));
-	ea_set(inode, 0);
-	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	rw_latch_up_write(&unix_file_inode_data(inode)->latch);
+	assert("nikita-3060", inode_ea_owner(uf_info) == current);
+	assert("vs-1158", ea_obtained(uf_info));
+	ea_set(uf_info, 0);
+	uf_info->exclusive_use = 0;
+	rw_latch_up_write(&uf_info->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3049", lock_counters()->inode_sem_r == 0);
 		assert("nikita-3049", lock_counters()->inode_sem_w > 0);
@@ -75,25 +75,25 @@ drop_exclusive_access(struct inode *inode)
 
 /* nonexclusive access to a file is acquired for read, write, readpage */
 void
-get_nonexclusive_access(struct inode *inode)
+get_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3029", schedulable());
-	rw_latch_down_read(&unix_file_inode_data(inode)->latch);
+	rw_latch_down_read(&uf_info->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3050", lock_counters()->inode_sem_w == 0);
 		assert("nikita-3051", lock_counters()->inode_sem_r == 0);
 		lock_counters()->inode_sem_r ++;
 	}
-	assert("nikita-3060", inode_ea_owner(inode) == NULL);
-	assert("vs-1159", !ea_obtained(inode));
+	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
+	assert("vs-1159", !ea_obtained(uf_info));
 }
 
 void
-drop_nonexclusive_access(struct inode *inode)
+drop_nonexclusive_access(unix_file_info_t *uf_info)
 {
-	assert("nikita-3060", inode_ea_owner(inode) == NULL);
-	assert("vs-1160", !ea_obtained(inode));
-	rw_latch_up_read(&unix_file_inode_data(inode)->latch);
+	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
+	assert("vs-1160", !ea_obtained(uf_info));
+	rw_latch_up_read(&uf_info->latch);
 	if (REISER4_DEBUG && is_in_reiser4_context()) {
 		assert("nikita-3049", lock_counters()->inode_sem_w == 0);
 		assert("nikita-3049", lock_counters()->inode_sem_r > 0);
@@ -102,20 +102,20 @@ drop_nonexclusive_access(struct inode *inode)
 }
 
 static void
-nea2ea(struct inode *inode)
+nea2ea(unix_file_info_t *uf_info)
 {
-	drop_nonexclusive_access(inode);
-	get_exclusive_access(inode);
+	drop_nonexclusive_access(uf_info);
+	get_exclusive_access(uf_info);
 }
 
 static void
-ea2nea(struct inode *inode)
+ea2nea(unix_file_info_t *uf_info)
 {
-	assert("nikita-3060", inode_ea_owner(inode) == current);
-	assert("vs-1168", ea_obtained(inode));
-	ea_set(inode, 0);
-	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	rw_latch_downgrade(&unix_file_inode_data(inode)->latch);
+	assert("nikita-3060", inode_ea_owner(uf_info) == current);
+	assert("vs-1168", ea_obtained(uf_info));
+	ea_set(uf_info, 0);
+	uf_info->exclusive_use = 0;
+	rw_latch_downgrade(&uf_info->latch);
 	ON_DEBUG(lock_counters()->inode_sem_w --);
 	ON_DEBUG(lock_counters()->inode_sem_r ++);
 }
@@ -145,9 +145,8 @@ nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coor
 
 	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
 
-	coord_init_zero(first_coord);
-	
-	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
+	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */,
+				unix_file_inode_data(inode), 0);
 	if (result != CBK_COORD_FOUND) {
 		/* error occured */
 		done_lh(first_lh);
@@ -220,9 +219,9 @@ prepare_tail2extent(struct inode *inode)
 	reiser4_block_nr formatted_nodes, unformatted_nodes;
 	lock_handle first_lh;
 	coord_t coord;
-	tree_level height;
+	reiser4_tree *tree;
 
-	height = tree_by_inode(inode)->height;
+	tree = tree_by_inode(inode);
 
 	/* number of leaf formatted nodes file spans */
 	result = nodes_spanned(inode, &formatted_nodes, &coord, &first_lh);
@@ -238,8 +237,8 @@ prepare_tail2extent(struct inode *inode)
 	 * at this point we are stymied, because long term lock is held in
 	 * @first_lh. I removed BA_CAN_COMMIT from garbbing flags.
 	 */
-	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
-					  unformatted_nodes * estimate_one_insert_into_item(height), 0, "tail2extent");
+	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(tree) + unformatted_nodes +
+					  unformatted_nodes * estimate_one_insert_into_item(tree), 0, "tail2extent");
 	if (result) {
 		done_lh(&first_lh);
 		return result;
@@ -333,7 +332,7 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 
 /* this can be called with either exclusive (via truncate) or with non-exclusive (via write) access to file obtained */
 int
-tail2extent(struct inode *inode)
+tail2extent(unix_file_info_t *uf_info)
 {
 	int result;
 	reiser4_key key;	/* key of next byte to be moved to page */
@@ -351,26 +350,26 @@ tail2extent(struct inode *inode)
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
 	   to write_down */
 	access_switched = 0;
-	if (!ea_obtained(inode)) {
+	if (!ea_obtained(uf_info)) {
 		/* we are called from write */
 		access_switched = 1;
-		nea2ea(inode);
+		nea2ea(uf_info);
 	}
 
-	if (file_is_built_of_extents(inode)) {
+	if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS) {
 		warning("vs-1171", 
 			"file %llu is built of tails already. Should not happen",
-			get_inode_oid(inode));
+			get_inode_oid(uf_info->inode));
 		/* tail was converted by someone else */
 		if (access_switched)
-			ea2nea(inode);
+			ea2nea(uf_info);
 		return 0;
 	}
 
-	result = prepare_tail2extent(inode);
+	result = prepare_tail2extent(uf_info->inode);
 	if (result) {
 		if (access_switched)
-			ea2nea(inode);
+			ea2nea(uf_info);
 		return result;
 	}
 
@@ -378,7 +377,7 @@ tail2extent(struct inode *inode)
 	reiser4_stat_inc(file.tail2extent);
 
 	/* get key of first byte of a file */
-	key_by_inode_unix_file(inode, 0ull, &key);
+	key_by_inode_unix_file(uf_info->inode, 0ull, &key);
 
 	done = 0;
 	result = 0;
@@ -386,8 +385,8 @@ tail2extent(struct inode *inode)
 		xmemset(pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key)
-										      >> PAGE_CACHE_SHIFT));
+			pages[i] = grab_cache_page(uf_info->inode->i_mapping, (unsigned long) (get_key_offset(&key)
+											       >> PAGE_CACHE_SHIFT));
 			if (!pages[i]) {
 				result = RETERR(-ENOMEM);
 				goto error;
@@ -409,7 +408,7 @@ tail2extent(struct inode *inode)
 
 				/* get next item */
 				coord_init_zero(&coord);
-				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
+				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, uf_info, 0);
 				if (result != CBK_COORD_FOUND) {
 					/* tail conversion can not be called for empty file */
 					assert("vs-1169", result != CBK_COORD_NOTFOUND);
@@ -430,7 +429,7 @@ tail2extent(struct inode *inode)
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562", owns_item_unix_file(inode, &coord));
+				assert("vs-562", owns_item_unix_file(uf_info->inode, &coord));
 				assert("vs-856", coord.between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(&coord, &tmp)));
 				assert("vs-1170", item_id_by_coord(&coord) == FROZEN_TAIL_ID);
@@ -472,7 +471,7 @@ tail2extent(struct inode *inode)
 				zrelse(coord.node);
 				done_lh(&lh);
 
-				if (get_key_offset(&key) == (__u64)inode->i_size) {
+				if (get_key_offset(&key) == (__u64)uf_info->inode->i_size) {
 					/* end of file is detected here */
 					p_data = kmap_atomic(pages[i], KM_USER0);
 					memset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
@@ -487,23 +486,23 @@ tail2extent(struct inode *inode)
 		   znode lock */
 		for_all_pages(pages, sizeof_array(pages), UNLOCK);
 
-		result = replace(inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
+		result = replace(uf_info->inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
 		for_all_pages(pages, sizeof_array(pages), RELEASE);
 		if (result)
 			goto exit;
 	}
 	/* tail converted */
-	set_file_state_extents(inode);
+	uf_info->state = UNIX_FILE_BUILT_OF_EXTENTS;
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
 	if (access_switched)
-		ea2nea(inode);
+		ea2nea(uf_info);
 
 	/* It is advisable to check here that all grabbed pages were freed */
 
 	/* file could not be converted back to tails while we did not
 	   have neither NEA nor EA to the file */
-	assert("vs-830", file_is_built_of_extents(inode));
+	assert("vs-830", uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS);
 	assert("vs-1083", result == 0);
 	all_grabbed2free("tail2extent");
 	return 0;
@@ -512,7 +511,7 @@ error:
 	for_all_pages(pages, sizeof_array(pages), DROP);
 exit:
 	if (access_switched)
-		ea2nea(inode);
+		ea2nea(uf_info);
 	all_grabbed2free("tail2exten failed");
 	return result;
 }
@@ -543,7 +542,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 						count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
 	iplug = item_plugin_by_id(TAIL_ID);
 	while (f.length) {
-		result = find_file_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */);
+		result = find_file_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */, 0);
 		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND)
 			break;
 
@@ -590,9 +589,9 @@ static int prepare_extent2tail(struct inode *inode)
 	reiser4_block_nr twig_nodes, flow_insertions;
 	lock_handle first_lh;
 	coord_t coord;
-	tree_level height;
+	reiser4_tree *tree;
 
-	height = tree_by_inode(inode)->height;
+	tree = tree_by_inode(inode);
 
 	/* number of twig nodes file spans */
 	result = nodes_spanned(inode, &twig_nodes, &coord, &first_lh);
@@ -608,9 +607,9 @@ static int prepare_extent2tail(struct inode *inode)
 	 * at this point we are stymied, because long term lock is held in
 	 * @first_lh. I removed BA_CAN_COMMIT from garbbing flags.
 	 */
-	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(height) +
-				    flow_insertions * estimate_insert_flow(height) +
-				    1 + estimate_one_insert_item(height), 0, "extent2tail");
+	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(tree) +
+				    flow_insertions * estimate_insert_flow(tree->height) +
+				    1 + estimate_one_insert_item(tree), 0, "extent2tail");
 	if (result) {
 		done_lh(&first_lh);
 		return result;
@@ -711,6 +710,8 @@ extent2tail(struct inode *inode)
 		/* release reference taken by read_cache_page() above */
 		page_cache_release(page);
 	}
+
+	assert("vs-1260", reiser4_inode_data(inode)->eflushed == 0);
 
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
