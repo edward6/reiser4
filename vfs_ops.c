@@ -110,6 +110,8 @@ static int readdir_actor( reiser4_tree *tree,
 /**
  * reiser4_lookup() - entry point for ->lookup() method.
  *
+ * This is a wrapper for lookup_object which is a wrapper for the directory plugin that does the lookup.
+ *
  * This is installed in ->lookup() in reiser4_inode_operations.
  */
 static struct dentry *reiser4_lookup( struct inode *parent, /* directory within which we are to look for the name specified in dentry */
@@ -119,112 +121,10 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 
 )
 {
-	struct dentry *result;
-	REISER4_ENTRY_PTR( parent -> i_sb );
-
-	assert( "nikita-1030", parent != NULL );
-
-	/*
-	 * we are trying to do finer grained locking than BKL. Lock
-	 * inode in question and release BKL. Hopefully BKL was only
-	 * taken once by VFS. 
-	 */
-	if( reiser4_lock_inode_interruptible( parent ) != 0 )
-		return ERR_PTR( -EINTR );
-	unlock_kernel();
-	result = lookup_object( parent, dentry );
-	lock_kernel();
-	reiser4_unlock_inode( parent );
-
-	REISER4_EXIT_PTR( result );
+/* this should find the plugin and invoke its method, not more */
 }
 
-/** 
- * `directory' lookup wrapper. 
- *
- * Called by reiser4_lookup(). Call plugin to perform real lookup. If
- * this fails try lookup_pseudo(). 
- */
-static struct dentry *lookup_object( struct inode *parent, 
-				     struct dentry *dentry )
-{
-	dir_plugin          *dplug;
-	struct inode        *inode;
-	reiser4_key          key;
-	reiser4_dir_entry_desc        entry;
 
-	const char          *name;
-	int                  len;
-
-	assert( "nikita-403", parent != NULL );
-	assert( "nikita-404", dentry != NULL );
-
-	dplug = reiser4_get_dir_plugin( parent );
-
-	/* FIXME-HANS: is this okay? */
-	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
-		return ERR_PTR( -ENOTDIR );
-	}
-
-	/* check permissions */
-	if( perm_chk( parent, lookup, parent, dentry ) )
-		return ERR_PTR( -EPERM );
-
-	inode = NULL;
-	name = dentry -> d_name.name;
-	len  = dentry -> d_name.len;
-
-	/*
-	 * set up operations on dentry. 
-	 *
-	 * FIXME-NIKITA this also has to be done for root dentry somewhere?
-	 */
-	dentry -> d_op = &reiser4_dentry_operation;
-
-	if( dplug -> is_name_acceptable && 
-	    !dplug -> is_name_acceptable( parent, name, len ) ) {
-		/* some arbitrary error code to return */
-		return ERR_PTR( -ENAMETOOLONG );
-	}
-
-	xmemset( &entry, 0, sizeof entry );
-
-	/*switch( dplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {*/
-	switch( dplug -> resolve_into_inode( parent, &dentry -> d_name, 0/*name_t*/,&key, &entry ) ) {
-	default: wrong_return_value( "nikita-407", "->lookup()" );
-	case FILE_IO_ERROR:
-		return ERR_PTR( -EIO );
-	case FILE_OOM:
-		return ERR_PTR( -ENOMEM );
-	case FILE_NAME_NOTFOUND:
-		/*
-		 * FIXME-NIKITA here should go lookup of pseudo files. Hans
-		 * decided that existing implementation
-		 * (lookup_pseudo()) was unsatisfactory.
-		 */
-		return ERR_PTR( -ENOENT );
-		break;
-	case FILE_NAME_FOUND: {
-		__u32 *flags;
-
-		inode = reiser4_iget( parent -> i_sb, &key );
-		if( inode == NULL )
-			return ERR_PTR( -EACCES );
-		flags = reiser4_inode_flags( inode );
-		if( *flags & REISER4_LIGHT_WEIGHT_INODE ) {
-			inode -> i_uid = parent -> i_uid;
-			inode -> i_gid = parent -> i_gid;
-			/* clear light-weight flag. If inode would be
-			   read by any other name, [ug]id wouldn't
-			   change. */
-			*flags &= ~REISER4_LIGHT_WEIGHT_INODE;
-		}
-		reiser4_unlock_inode( inode );
-	}
-	}
-	d_add( dentry, inode );
-	return NULL;
-}
 
 /**
  * ->create() VFS method in reiser4 inode_operations
