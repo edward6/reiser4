@@ -15,11 +15,13 @@ struct bnode {
 	struct bnode * next_in_commit_list;
 };
 
+/* Audited by: green(2002.06.12) */
 static inline void spin_lock_bnode (struct bnode * bnode)
 {
 	spin_lock (& bnode -> guard);
 }
 
+/* Audited by: green(2002.06.12) */
 static inline void spin_unlock_bnode (struct bnode * bnode)
 {
 	spin_unlock (& bnode -> guard);
@@ -41,6 +43,7 @@ struct bitmap_allocator_data {
  * - all the helper functions like set bit, find_first_zero_bit, etc
  */
 
+/* Audited by: green(2002.06.12) */
 static int find_next_zero_bit_in_byte (unsigned int byte, int start)
 {
 	unsigned int mask = 1 << start;
@@ -144,6 +147,7 @@ static bmap_nr_t reiser4_find_next_set_bit (void * addr, bmap_off_t max_offset, 
 	return max_offset;
 }
 
+/* Audited by: green(2002.06.12) */
 static void reiser4_clear_bits (char * addr, bmap_off_t start, bmap_off_t end)
 {
 	int first_byte;
@@ -172,6 +176,7 @@ static void reiser4_clear_bits (char * addr, bmap_off_t start, bmap_off_t end)
 	}
 }
 
+/* Audited by: green(2002.06.12) */
 static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 {
 	int first_byte;
@@ -230,6 +235,7 @@ static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
 /** calculate bitmap block number and offset within that bitmap block */
+/* Audited by: green(2002.06.12) */
 static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_off_t *offset)
 {
 	struct super_block * super = get_current_context()->super;
@@ -242,6 +248,7 @@ static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_
  * or calculated on fly; it depends on disk format.
  * FIXME-VS: number of blocks in a filesystem is taken from reiser4
  * super private data */
+/* Audited by: green(2002.06.12) */
 static bmap_nr_t get_nr_bmap (struct super_block * super)
 {
 	assert ("zam-393", reiser4_block_count (super) != 0);
@@ -250,6 +257,7 @@ static bmap_nr_t get_nr_bmap (struct super_block * super)
 }
 
 /* bnode structure initialization */
+/* Audited by: green(2002.06.12) */
 static void init_bnode (struct bnode * bnode)
 {
 	xmemset (bnode, 0, sizeof (struct bnode)); 
@@ -259,6 +267,7 @@ static void init_bnode (struct bnode * bnode)
 /** return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
 #define REISER4_FIRST_BITMAP_BLOCK 100
+/* Audited by: green(2002.06.12) */
 void get_bitmap_blocknr (struct super_block * super, bmap_nr_t bmap, reiser4_block_nr *bnr)
 {
 
@@ -277,6 +286,7 @@ void get_bitmap_blocknr (struct super_block * super, bmap_nr_t bmap, reiser4_blo
 /** plugin->u.space_allocator.init_allocator
  *  constructor of reiser4_space_allocator object. It is called on fs mount
  */
+/* Audited by: green(2002.06.12) */
 int bitmap_init_allocator (reiser4_space_allocator * allocator,
 			   struct super_block * super, void * arg UNUSED_ARG)
 {
@@ -313,6 +323,7 @@ int bitmap_init_allocator (reiser4_space_allocator * allocator,
 
 /* plugin->u.space_allocator.destroy_allocator
  * destructor. It is called on fs unmount */
+/* Audited by: green(2002.06.12) */
 int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 			      struct super_block * super)
 {
@@ -342,6 +353,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 }
 
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
+/* Audited by: green(2002.06.12) */
 void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
 {
 	*bnr = (reiser4_block_nr) ((bmap 
@@ -350,7 +362,8 @@ void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under bnode spin lock held */
-/* AUDIT (green) I think it incorrect that in caqse of loading failure 
+/* Audited by: green(2002.06.12) */
+/* AUDIT (green) I think it incorrect that in case of loading failure 
    load_bnode_half and load_and_lock_bnode still returns locked bnode. It should
    only return locked bnode on success. So that caller can immediattely exit
    on failure without unlocking bnode first */
@@ -391,6 +404,7 @@ static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr
 }
 
 /* load bitmap blocks "on-demand" */
+/* Audited by: green(2002.06.12) */
 static int load_and_lock_bnode (struct bnode * bnode)
 {
 	struct super_block * super = get_current_context()->super;
@@ -469,6 +483,7 @@ static int bitmap_iterator (reiser4_block_nr *start, reiser4_block_nr *start,
  * block responsibility zone boundaries. This had no sense in v3.6 but may
  * have it in v4.x */
 
+/* Audited by: green(2002.06.12) */
 static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max_offset, 
 			      int min_len, int max_len)
 {
@@ -518,6 +533,7 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 }
 
 /** allocate contiguous range of blocks in bitmap */
+/* Audited by: green(2002.06.12) */
 int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_len, int max_len)
 {
 	bmap_nr_t bmap, end_bmap;
@@ -551,6 +567,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 }
 
 /* plugin->u.space_allocator.alloc_blocks */
+/* Audited by: green(2002.06.12) */
 int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 			 reiser4_blocknr_hint * hint, int needed,
 			 reiser4_block_nr * start, reiser4_block_nr * len)
@@ -610,6 +627,7 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 
 #if REISER4_DEBUG
 
+/* Audited by: green(2002.06.12) */
 static void check_block_range (const reiser4_block_nr * start, const reiser4_block_nr * len)
 {
 	struct super_block * sb = reiser4_get_current_sb();
@@ -634,6 +652,7 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 
 /** an actor which applies delete set to COMMIT bitmap pages and link modified
  * pages in a single-linked list */
+/* Audited by: green(2002.06.12) */
 static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 				      const reiser4_block_nr * start,
 				      const reiser4_block_nr * len,
@@ -686,6 +705,10 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 /** It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
  * rest is done by transaction manager (allocate wandered locations for COMMIT
  * BITMAP blocks, copy COMMIT BITMAP blocks data). */
+/* Audited by: green(2002.06.12) */
+/* Only one instance of this function can be running at one given time, because
+   only one transaction can be commited at a time, therefore it is safe to
+   access some global variables like commit_list without any locking */
 void bitmap_pre_commit_hook (void)
 {
 	reiser4_context * ctx = get_current_context ();
@@ -731,6 +754,7 @@ void bitmap_pre_commit_hook (void)
 /* FIXME: it probably needs to be changed when I get understanding what
  * wandered map format Josh proposed. I assume for now that wandered set
  * contains pairs (original location, target location). */
+/* Audited by: green(2002.06.12) */
 /** an actor which applies delete set to WORKING BITMAP pages */
 static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 				       const reiser4_block_nr * start,
@@ -767,6 +791,7 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 }
 
 /** called after transaction commit, apply DELETE SET to WORKING BITMAP */
+/* Audited by: green(2002.06.12) */
 void bitmap_post_commit_hook (void) {
 	reiser4_context * ctx = get_current_context ();
 
@@ -786,6 +811,10 @@ void bitmap_post_commit_hook (void) {
 
 /** an actor which marks all original block locations from a wandered set as
  * free in commit bitmap, and mark target locations as used. */
+/* Audited by: green(2002.06.12) */
+/* AUDIT: this function does not do what is described by above comment.
+   It also seems that nobody know how exactly wset works, so this would
+   be rewritten soon */
 static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 				       const reiser4_block_nr * a,
 				       const reiser4_block_nr * b UNUSED_ARG,
@@ -813,6 +842,7 @@ static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 /** This function is called after write-back (writing blocks from OVERWRITE
  * SET to real locations) transaction stage completes. (clear WANDERED SET in
  * WORKING BITMAP) */
+/* Audited by: green(2002.06.12) */
 void bitmap_post_write_back_hook (void)
 {
 	reiser4_context * ctx = get_current_context ();
