@@ -421,7 +421,8 @@ typedef enum {
 	TAIL_OVERWRITE,
 	TAIL_APPEND,
 	TAIL_RESEARCH,
-	TAIL_CANT_CONTINUE
+	TAIL_CANT_CONTINUE,
+	TAIL_WRITE_FLOW
 } tail_write_todo;
 
 
@@ -433,7 +434,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 
 
 	assert ("vs-860", znode_is_loaded (coord->node));
-
+#if 0
 	if (!znode_contains_key_lock (coord->node, key)) {
 		
 		if (coord_is_before_leftmost (coord)) {
@@ -451,7 +452,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 		return TAIL_RESEARCH;
 	}
 
-
+#endif
 	if (!coord_set_properly (key, coord)) {
 		return TAIL_RESEARCH;
 	}
@@ -461,6 +462,8 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 		return TAIL_OVERWRITE;
 	}
 
+	return TAIL_WRITE_FLOW;
+#if 0
 	if (coord->between == AFTER_ITEM) {
 		if (get_key_offset (key) == 0)
 			return TAIL_FIRST_ITEM;
@@ -482,130 +485,9 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 	if (get_key_offset (key) == get_key_offset (tail_max_key (coord, &item_key)) + 1)
 		return TAIL_APPEND;
 	return TAIL_APPEND_HOLE;
-}
-
-
-/*
- * prepare item data which will be passed down to either insert_by_coord or to
- * resize_item
- */
-/* Audited by: green(2002.06.14) */
-static void make_item_data (coord_t * coord, reiser4_item_data * item,
-			    char * data, int user, unsigned desired_len)
-{
-	item->data = data;
-	item->user = user;
-	item->length = node_plugin_by_node (coord->node)->max_item_size ();
-	if ((int)desired_len < item->length)
-		item->length = (int)desired_len;
-	item->arg = 0;
-	item->iplug = item_plugin_by_id (TAIL_ID);
-}
-
-
-/*
- * insert tail item consisting of zeros only. Number of bytes appended to the
- * file is returned
- */
-/* Audited by: green(2002.06.14) */
-static int create_hole (coord_t * coord, lock_handle * lh, flow_t * f)
-{
-	int result;
-	reiser4_key hole_key;
-	reiser4_item_data item;
-
-
-	hole_key = f->key;
-	set_key_offset (&hole_key, 0ull);
-
-	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
-	assert ("vs-575", f->user == 1);
-	make_item_data (coord, &item, 0, 0/*user*/,
-			(unsigned)get_key_offset (&f->key));
-	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0, 0/*flags*/);
-	if (result)
-		return result;
-
-	return item.length;
-}
-
-
-/*
- * append @coord item with zeros. Number of bytes appended to the file is
- * returned
- */
-static int append_hole (coord_t * coord, lock_handle * lh, flow_t * f)
-{
-	int result;
-	reiser4_key hole_key;
-	reiser4_item_data item;
-
-
-	item_key_by_coord (coord, &hole_key);
-	set_key_offset (&hole_key,
-			get_key_offset (&hole_key) + coord->unit_pos + 1);
-
-	assert ("vs-384", (get_key_offset (&f->key) - 
-			   get_key_offset (&hole_key)) <= INT_MAX);
-	assert ("vs-576", f->user == 1);
-	make_item_data (coord, &item, 0, 0/*user*/,
-			(unsigned)(get_key_offset (&f->key) -
-				   get_key_offset (&hole_key)));
-	result = resize_item (coord, &item, &hole_key, lh, 0/*flags*/);
-	if (result)
-		return result;
-
-	return item.length;
-}
-
-#if 0
-
-/*
- * insert first item of file into tree. Number of bytes appended to the file is
- * returned
- */
-/* Audited by: green(2002.06.14) */
-static int insert_first_item (coord_t * coord, lock_handle * lh, flow_t * f)
-{
-	reiser4_item_data item;
-	int result;
-
-	assert ("vs-383", get_key_offset (&f->key) == 0);
-
-	result = insert_flow (coord, f);
-	if (result)
-		return result;
-	
-	return item.length;
-}
-
-/*
- * append item @coord with flow @f's data. Number of bytes appended to the file
- * is returned
- */
-/* Audited by: green(2002.06.14) */
-static int append_tail (coord_t * coord, lock_handle * lh, flow_t * f)
-{
-	reiser4_item_data item;
-	int result;
-
-
-
-	/*make_space(flow_t f);*/
-
-	/* makes an item of size equal to free space in node pointed to by
-	 * coord */
-
-	make_item_data (coord, &item, f->data, f->user, f->length);
-
-	result = insert_into_item (coord, &item, &f->key, lh, 0/*flags*/);
-	if (result)
-		return result;
-
-	move_flow_forward (f, (unsigned)item.length);
-	return item.length;
-}
 #endif
+}
+
 
 /*
  * copy user data over file tail item
@@ -657,15 +539,6 @@ int tail_write (struct inode * inode, coord_t * coord,
 
 	result = 0;
 
-	if (!f->length) {
-		/* special case: expanding truncate */
-		reiser4_item_data data;
-
-		data.iplug = item_plugin_by_id (TAIL_ID);
-		return tail_can_contain_key (coord, &f->key, &data) ?
-			append_hole (coord, lh, f) : create_hole (coord, lh, f);
-	}
-
 	while (f->length) {
 		/*
 		 * coord->node may change as we loop here. So, we have to
@@ -679,13 +552,10 @@ int tail_write (struct inode * inode, coord_t * coord,
 
 		switch (what) {
 		case TAIL_CREATE_HOLE:
-			result = create_hole (coord, lh, f);
-			break;
 		case TAIL_APPEND_HOLE:
-			result = append_hole (coord, lh, f);
-			break;
 		case TAIL_FIRST_ITEM:
 		case TAIL_APPEND:
+		case TAIL_WRITE_FLOW:
 			result = insert_flow (coord, lh, f);
 			break;
 		case TAIL_OVERWRITE:
