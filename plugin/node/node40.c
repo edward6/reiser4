@@ -2216,7 +2216,9 @@ static void update_taps (const struct shift_params * shift)
 
 
 	for_all_taps (tap) {
-		tap_to_coord (tap, adjust_coord2 (shift, tap->coord, &new));
+		/* update only taps set to node which is source in the shift */
+		if (tap->coord->node == shift->wish_stop.node)
+			tap_to_coord (tap, adjust_coord2 (shift, tap->coord, &new));
 	}
 }
 
