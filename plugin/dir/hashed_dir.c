@@ -743,9 +743,10 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	/* We are done with all modifications to the @new_dir, release lock on
 	   node. */
 	done_lh(&new_lh);
-	reiser4_write_sd(new_dir);
+	/* "capture" inodes */
+	reiser4_mark_inode_dirty(new_dir);
 	if (new_inode != NULL)
-		reiser4_write_sd(new_inode);
+		reiser4_mark_inode_dirty(new_inode);
 
 	if (result != 0)
 		return result;
@@ -801,8 +802,9 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 		done_lh(&dotdot_lh);
 		reiser4_free_dentry_fsdata(&dotdot_name);
 	}
-	reiser4_write_sd(old_dir);
-	reiser4_write_sd(old_inode);
+	/* "capture" inodes */
+	reiser4_mark_inode_dirty(old_dir);
+	reiser4_mark_inode_dirty(old_inode);
 	return result;
 }
 
