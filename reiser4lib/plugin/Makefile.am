@@ -1,2 +1,2 @@
-SUBDIRS = layout36 layout40
+SUBDIRS = format36 format40
 

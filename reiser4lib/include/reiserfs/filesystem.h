@@ -10,7 +10,7 @@
 #include <reiserfs/plugin.h>
 
 struct reiserfs_super {
-	reiserfs_layout_opaque_t *entity;
+	reiserfs_format_opaque_t *entity;
 	reiserfs_plugin_t *plugin;
 };
 

@@ -18,7 +18,7 @@ enum reiserfs_plugin_type {
 	REISERFS_HOOK_PLUGIN,
 	REISERFS_PERM_PLUGIN,
 	REISERFS_SD_EXT_PLUGIN,
-	REISERFS_LAYOUT_PLUGIN,
+	REISERFS_FORMAT_PLUGIN,
 	REISERFS_OID_PLUGIN,
 	REISERFS_ALLOC_PLUGIN,
 	REISERFS_JOURNAL_PLUGIN
@@ -106,18 +106,18 @@ struct reiserfs_perm_plugin {
 
 typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
 
-typedef void reiserfs_layout_opaque_t;
+typedef void reiserfs_format_opaque_t;
 
-struct reiserfs_layout_plugin {
+struct reiserfs_format_plugin {
 	reiserfs_plugin_header_t h;
 	
-	reiserfs_layout_opaque_t *(*init) (aal_device_t *);
-	void (*done) (reiserfs_layout_opaque_t *);
-	reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_layout_opaque_t *);
-	reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_layout_opaque_t *);
+	reiserfs_format_opaque_t *(*init) (aal_device_t *);
+	void (*done) (reiserfs_format_opaque_t *);
+	reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_format_opaque_t *);
+	reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_format_opaque_t *);
 };
 
-typedef struct reiserfs_layout_plugin reiserfs_layout_plugin_t;
+typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
 
 typedef void reiserfs_oid_opaque_t;
 
@@ -159,7 +159,7 @@ union reiserfs_plugin {
 	reiserfs_tail_plugin_t tail;
 	reiserfs_hook_plugin_t hook;
 	reiserfs_perm_plugin_t perm;
-	reiserfs_layout_plugin_t layout;
+	reiserfs_format_plugin_t format;
 	reiserfs_oid_plugin_t oid;
 	reiserfs_alloc_plugin_t alloc;
 	reiserfs_journal_plugin_t journal;

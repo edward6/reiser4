@@ -27,10 +27,10 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	for (i = 0; i < aal_list_count(plugins); i++) {
 		plugin = (reiserfs_plugin_t *)aal_list_at(plugins, i);
 		
-		if (plugin->h.type != REISERFS_LAYOUT_PLUGIN)
+		if (plugin->h.type != REISERFS_FORMAT_PLUGIN)
 			continue;
 		
-		if ((fs->super->entity = plugin->layout.init(fs->device))) {
+		if ((fs->super->entity = plugin->format.init(fs->device))) {
 			fs->super->plugin = plugin;
 			return 1;
 		}	
@@ -45,7 +45,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 void reiserfs_super_close(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return);
 	
-	fs->super->plugin->layout.done(fs->super->entity);
+	fs->super->plugin->format.done(fs->super->entity);
 	aal_free(fs->super);
 	fs->super = NULL;
 }
@@ -55,7 +55,7 @@ reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	
-	return fs->super->plugin->layout.journal_plugin_id(fs->super->entity);
+	return fs->super->plugin->format.journal_plugin_id(fs->super->entity);
 }
 
 reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
@@ -63,6 +63,6 @@ reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	
-	return fs->super->plugin->layout.alloc_plugin_id(fs->super->entity);
+	return fs->super->plugin->format.alloc_plugin_id(fs->super->entity);
 }
 
