@@ -1,17 +1,18 @@
 /*
  *  journal.c -- reiserfs filesystem journal common code.
  *  Copyright (C) 1996-2002 Hans Reiser.
+ *  Author Vitalt Fertman
  */  
 
 
 #include <aal/aal.h>
+#include <reiserfs/reiserfs.h>
 
-
-int reiserfs_node_open (aal_block_t *block) {
+reiserfs_node_t *reiserfs_node_open (aal_block_t *block) {
     return 0;
 }
 
-int reiserfs_node_create (aal_block_t *block) {
+reiserfs_node_t *reiserfs_node_create (aal_block_t *block) {
     return 0;
 }
 
