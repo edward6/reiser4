@@ -1651,6 +1651,7 @@ struct tree_stat {
 	int leaves; /* number of leaves */
 	int leaf_free_space; /* average amount of free space for leaf level */
 
+	int internal_nodes;
 	int internal_free_space; /* average amount of free space for internal level */
 	int leaves_with_unformatted_left_neighbor;
 
@@ -1690,6 +1691,9 @@ static void collect_tree_stat( reiser4_tree *tree, znode *node )
 		/* amount of free space in leaves */
 		tree_stat.leaf_free_space += znode_free_space( node );
 	} else {
+		/* number of internal nodes */
+		tree_stat.internal_nodes ++;
+
 		/* amount of free space in internal nodes and number of items
 		 * (root not included) */
 		if( *znode_get_block( node ) != tree -> root_block ) {
@@ -1760,11 +1764,13 @@ static void print_tree_stat( void )
 	      "total number of formatted nodes: %d\n"
 	      "\tleaves: %d\n"
 	      "\taverage free space in leaves: %d\n"
+	      "\tinternals: %d\n"
 	      "\taverage free space in internals (root not included): %d\n"
 	      "\tleaves with no formatted left neighbor: %d\n",
 	      tree_stat.nodes, tree_stat.leaves,
 	      
 	      tree_stat.leaf_free_space / tree_stat.leaves,
+	      tree_stat.internal_nodes,
 	      tree_stat.internal_free_space ? tree_stat.internal_free_space / (tree_stat.nodes - tree_stat.leaves - 1) : 0,
 	      tree_stat.leaves_with_unformatted_left_neighbor);
 
@@ -1810,7 +1816,8 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	}
 
 	if( flags == REISER4_COLLECT_STAT ) {
-		info( "%lld\n", *znode_get_block( node ) );
+		info( "block %lld, level %d, items %u\n", *znode_get_block( node ),
+		      znode_get_level( node ), node_num_items( node ) );
 		collect_tree_stat( tree, node );
 	} else {
 
