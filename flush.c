@@ -3310,12 +3310,12 @@ scan_by_coord(flush_scan * scan)
 
 		if(iplug->f.utmost_child == NULL || znode_get_level(scan->parent_coord.node) != TWIG_LEVEL) {
 			/* stop this coord and continue on parrent level */
-			ret = scan_set_current(scan, ZJNODE(scan->parent_coord.node), 1, NULL);
+			ret = scan_set_current(scan, ZJNODE(zref(scan->parent_coord.node)), 1, NULL);
 			if (ret != 0)
-				goto exit;
+				goto exit; 
 			break;
 		}
-
+		
 		/* Either way, the invariant is that scan->parent_coord is set to the
 		   parent of scan->node. Now get the next unit. */
 		coord_dup(&next_coord, &scan->parent_coord);
