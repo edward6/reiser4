@@ -36,14 +36,15 @@ typedef struct {
 } reiser4_prof_cnt;
 
 typedef struct {
-	struct attribute attr;
+	struct kobject kobj;
 	reiser4_prof_cnt cnt;
 } reiser4_prof_entry;
 
 typedef struct {
+	reiser4_prof_entry cbk;
+#if 0
 	reiser4_prof_entry init_context;
 	reiser4_prof_entry jlook;
-#if 0
 	reiser4_prof_entry writepage;
 	reiser4_prof_entry jload;
 	reiser4_prof_entry jrelse;

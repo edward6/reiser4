@@ -70,6 +70,12 @@ void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 	update_prof_trace(cnt, depth, shift);
 }
 
+struct prof_attr_entry {
+	struct attribute attr;
+	char name[10];
+};
+
+static struct prof_attr_entry prof_attr[REISER4_PROF_TRACE_NUM];
 
 static ssize_t 
 show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
@@ -78,22 +84,20 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 	reiser4_prof_entry *entry;
 	reiser4_prof_cnt   *val;
 #ifdef CONFIG_FRAME_POINTER
-	int i;
+	int pos;
+	int j;
+
+	pos = ((struct prof_attr_entry *)attr) - prof_attr;
 #endif
-	entry = container_of(attr, reiser4_prof_entry, attr);
+	entry = container_of(kobj, reiser4_prof_entry, kobj);
 	val = &entry->cnt;
 	p = buf;
 	KATTR_PRINT(p, buf, "%llu %llu %llu %llu %llu %llu\n",
 		    val->nr, val->total, val->max,
 		    val->noswtch_nr, val->noswtch_total, val->noswtch_max);
 #ifdef CONFIG_FRAME_POINTER
-	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
-		int j;
-
-		if (val->bt[i].hash == 0)
-			continue;
-
-		KATTR_PRINT(p, buf, "\t%llu: ", val->bt[i].hits);
+	if (val->bt[pos].hash != 0) {
+		KATTR_PRINT(p, buf, "\t%llu: ", val->bt[pos].hits);
 		for (j = 0 ; j < REISER4_BACKTRACE_DEPTH ; ++ j) {
 			char         *module;
 			const char   *name;
@@ -102,7 +106,7 @@ show_prof_attr(struct kobject *kobj, struct attribute *attr, char *buf)
 			unsigned long offset;
 			unsigned long size;
 
-			address = (unsigned long) val->bt[i].path.trace[j];
+			address = (unsigned long) val->bt[pos].path.trace[j];
 			name = kallsyms_lookup(address, &size, 
 					       &offset, &module, namebuf);
 			KATTR_PRINT(p, buf, "\n\t\t%#lx ", address);
@@ -122,7 +126,7 @@ store_prof_attr(struct kobject *kobj, struct attribute *attr, const char *buf, s
 {
 	reiser4_prof_entry *entry;
 
-	entry = container_of(attr, reiser4_prof_entry, attr);
+	entry = container_of(kobj, reiser4_prof_entry, kobj);
 	memset(&entry->cnt, 0, sizeof(reiser4_prof_cnt));
 	return sizeof(reiser4_prof_cnt);
 }
@@ -139,13 +143,12 @@ static struct kobj_type ktype_reiser4_prof = {
 
 static decl_subsys(prof, &ktype_reiser4_prof, NULL);
 
-static struct kobject spin_prof;
+static struct kobject cpu_prof;
 
 #define DEFINE_PROF_ENTRY_0(attr_name,field_name)	\
 	.field_name = {					\
-		.attr = {	       			\
-			.name = (char *)attr_name,	\
-			.mode = 0644 /* rw-r--r-- */	\
+		.kobj = {	       			\
+			.name = attr_name	\
 		}					\
 	}
 
@@ -154,9 +157,10 @@ static struct kobject spin_prof;
  	DEFINE_PROF_ENTRY_0(#name,name)
 
 reiser4_prof reiser4_prof_defs = {
+	DEFINE_PROF_ENTRY(cbk),
+#if 0
 	DEFINE_PROF_ENTRY(init_context),
 	DEFINE_PROF_ENTRY(jlook),
-#if 0
 	DEFINE_PROF_ENTRY(writepage),
 	DEFINE_PROF_ENTRY(jload),
 	DEFINE_PROF_ENTRY(jrelse),
@@ -186,29 +190,54 @@ void calibrate_prof(void)
 int init_prof_kobject(void)
 {
 	int result;
+	int i;
+	reiser4_prof_entry *array;
+
+	for (i = 0; i < REISER4_PROF_TRACE_NUM; ++ i) {
+		sprintf(prof_attr[i].name, "%i", i);
+		prof_attr[i].attr.name = prof_attr[i].name;
+		prof_attr[i].attr.mode = 0644;
+	}
 
 	result = subsystem_register(&prof_subsys);
-	if (result == 0) {
-		spin_prof.kset = &prof_subsys.kset;
-		snprintf(spin_prof.name, KOBJ_NAME_LEN, "spin_prof");
-		result = kobject_register(&spin_prof);
-		if (result == 0) {
-			/* populate */
-			int i;
-			reiser4_prof_entry *array;
+	if (result != 0) 
+		return result;
 
-			array = (reiser4_prof_entry *)&reiser4_prof_defs;
-			for(i = 0 ; i < sizeof(reiser4_prof_defs)/sizeof(reiser4_prof_entry) && !result ; ++ i)
-				result = sysfs_create_file(&spin_prof,
-							   &array[i].attr);
+	cpu_prof.kset = &prof_subsys.kset;
+	snprintf(cpu_prof.name, KOBJ_NAME_LEN, "cpu_prof");
+	result = kobject_register(&cpu_prof);
+	if (result != 0)
+		return result;
+
+	/* populate */
+	array = (reiser4_prof_entry *)&reiser4_prof_defs;
+	for(i = 0 ; i < sizeof(reiser4_prof_defs)/sizeof(reiser4_prof_entry); 
+	    ++ i) {
+		struct kobject *kobj;
+		int j;
+
+		kobj = &array[i].kobj;
+		kobj->ktype = &ktype_reiser4_prof;
+		kobj->parent = kobject_get(&cpu_prof);
+
+		result = kobject_register(kobj);
+		if (result != 0)
+			break;
+
+		for (j = 0; j < REISER4_PROF_TRACE_NUM; ++ j) {
+			result = sysfs_create_file(kobj, &prof_attr[j].attr);
+			if (result != 0)
+				break;
 		}
 	}
+	if (result != 0)
+		kobject_unregister(&cpu_prof);
 	return result;
 }
 
 void done_prof_kobject(void)
 {
-	kobject_unregister(&spin_prof);
+	kobject_unregister(&cpu_prof);
 	subsystem_unregister(&prof_subsys);
 }
 
