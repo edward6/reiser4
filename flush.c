@@ -1167,6 +1167,27 @@ static int znode_is_allocated (znode *node)
 	return jnode_is_allocated (ZJNODE (node));
 }
 
+/* Audited by: umka (2002.06.11) */
+void jnode_set_block( jnode *node /* jnode to update */,
+		      const reiser4_block_nr *blocknr /* new block nr */ )
+{
+	assert( "nikita-2020", node  != NULL );
+	assert( "umka-055", blocknr != NULL );
+	assert( "vs-751", jnode_is_allocated( node ) );
+	assert( "vs-752", jnode_is_unformatted( node ) );
+	assert( "vs-753", jnode_mapped( node ) );
+	node -> blocknr = *blocknr;
+	JF_SET (node, ZNODE_RELOC);
+}
+
+/* return true if jnode has real blocknr */
+int jnode_has_block (jnode * node)
+{
+	assert ("vs-673", node);
+	assert ("vs-674", jnode_is_unformatted (node));
+	return node->blocknr;
+}
+
 /* FIXME: comment */
 static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flush_position *pos)
 {

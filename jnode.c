@@ -35,24 +35,6 @@ const reiser4_block_nr *jnode_get_block( const jnode *node /* jnode to
 	return & node -> blocknr;
 }
 
-/* Audited by: umka (2002.06.11) */
-void jnode_set_block( jnode *node /* jnode to update */,
-		      const reiser4_block_nr *blocknr /* new block nr */ )
-{
-	assert( "nikita-2020", node  != NULL );
-	assert( "umka-055", blocknr != NULL );
-	
-	node -> blocknr = *blocknr;
-}
-
-/* return true if jnode has real blocknr */
-int jnode_has_block (jnode * node)
-{
-	assert ("vs-673", node);
-	assert ("vs-674", jnode_is_unformatted (node));
-	return node->blocknr;
-}
-
 /* Audited by: umka (2002.06.15) */
 void jnode_attach_page_nolock( jnode *node, struct page *pg )
 {
