@@ -14,8 +14,9 @@
 static reiserfs_plugin_factory_t *factory = NULL;
 
 /* 
-    This is helper function. It is used for getting item's key by
-    given pos as callback function in reiserfs_misc_bin_search function.
+    This is helper function. It is used for getting item's 
+    key by given pos as callback function in reiserfs_misc_bin_search 
+    function.
 */
 static void *node40_item_key_at(aal_block_t *block, uint32_t pos) {
     aal_assert("vpf-009", block != NULL, return NULL);
@@ -337,43 +338,28 @@ static void *callback_elem_for_lookup(void *block, uint32_t pos,
 static int callback_compare_for_lookup(const void *key1,
     const void *key2, void *data)
 {
-    aal_assert("umka-566", key1 != NULL, return -2);
-    aal_assert("umka-567", key2 != NULL, return -2);
-    aal_assert("umka-656", data != NULL, return -2);
+    aal_assert("umka-566", key1 != NULL, return -1);
+    aal_assert("umka-567", key2 != NULL, return -1);
+    aal_assert("umka-656", data != NULL, return -1);
 
-    return libreiser4_plugin_call(return -2, ((reiserfs_plugin_t *)data)->key, 
+    return libreiser4_plugin_call(return -1, ((reiserfs_plugin_t *)data)->key, 
 	compare, key1, key2);
 }
-
-/*
-    Makes lookup inside the node and returns result of lookuping.
-
-    coord->item_pos = -1 if the wanted key goes before the first item 
-    of the node, count for item_pos if after. unit_num is preset on 0.
-    
-    Returns: 
-    -1 if problem occured, 1(0) - exact match has (not) been found.
-    
-    NOTE: coord results differ from api node_lookup method.
-*/
 
 static int node40_lookup(aal_block_t *block, reiserfs_unit_coord_t *coord, 
     reiserfs_key_t *key) 
 {
     int found; int64_t pos;
     
-    aal_assert("umka-472", key != NULL, return -2);
-    aal_assert("umka-714", key->plugin != NULL, return -2);
-    aal_assert("umka-478", coord != NULL, return -2);
-    aal_assert("umka-470", block != NULL, return -2);
+    aal_assert("umka-472", key != NULL, return -1);
+    aal_assert("umka-714", key->plugin != NULL, return -1);
+    aal_assert("umka-478", coord != NULL, return -1);
+    aal_assert("umka-470", block != NULL, return -1);
  
-    if ((found = reiserfs_misc_bin_search((void *)block, 
-	    node40_item_count(block), key->body, callback_elem_for_lookup, 
-	    callback_compare_for_lookup, key->plugin, &pos)) == -1)
-	return -1;
-
-    coord->item_pos = pos;
-    coord->unit_pos = 0;    
+    if ((found = reiserfs_misc_bin_search((void *)block, node40_item_count(block), 
+	    key->body, callback_elem_for_lookup, callback_compare_for_lookup, 
+	    key->plugin, &pos)) != -1)
+	coord->item_pos = pos;
 
     return found;
 }

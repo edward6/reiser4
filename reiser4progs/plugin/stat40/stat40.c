@@ -22,15 +22,15 @@ static error_t stat40_confirm(reiserfs_stat40_base_t *stat) {
 #ifndef ENABLE_COMPACT
 
 static error_t stat40_create(reiserfs_stat40_base_t *stat, 
-    reiserfs_item_hint_t *hint) 
+    reiserfs_item_hint_t *hint)
 {
     reiserfs_stat_hint_t *stat_hint;
     
     aal_assert("vpf-076", stat != NULL, return -1); 
     aal_assert("vpf-075", hint != NULL, return -1);
-    aal_assert("vpf-078", hint->info != NULL, return -1);
     
-    stat_hint = hint->info;
+    stat_hint = (reiserfs_stat_hint_t *)hint->hint;
+    
     sd40_set_mode(stat, stat_hint->mode);
     sd40_set_extmask(stat, stat_hint->extmask);
     sd40_set_nlink(stat, stat_hint->nlink);
@@ -91,7 +91,7 @@ static reiserfs_plugin_t stat40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = STAT_ITEM,
+	    .type = REISERFS_STAT_ITEM,
 
 #ifndef ENABLE_COMPACT
 	    .create = (error_t (*)(void *, void *))stat40_create,

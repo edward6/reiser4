@@ -95,17 +95,6 @@ struct reiserfs_node_header {
 
 typedef struct reiserfs_node_header reiserfs_node_header_t;
 
-/* 
-    Tree representation object. It consists of root node
-    chich contains childrens and so on.
-*/
-struct reiserfs_tree {
-    reiserfs_key_t *root_key;
-    reiserfs_node_t *root_node;
-};
-
-typedef struct reiserfs_tree reiserfs_tree_t;
-
 struct reiserfs_object {
     reiserfs_fs_t *fs;
     reiserfs_key_t key;
@@ -113,23 +102,6 @@ struct reiserfs_object {
 };
 
 typedef struct reiserfs_object reiserfs_object_t;
-
-struct reiserfs_dir {
-    reiserfs_object_t *object;
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_dir reiserfs_dir_t;
-
-struct reiserfs_file {
-    uint64_t offset;
-    reiserfs_object_t *object;
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_file reiserfs_file_t;
 
 /* Format structure */
 struct reiserfs_format {
@@ -164,6 +136,16 @@ struct reiserfs_oid {
 
 typedef struct reiserfs_oid reiserfs_oid_t;
 
+struct reiserfs_tree {
+    reiserfs_key_t root_key;
+    reiserfs_node_t *root_node;
+
+    reiserfs_alloc_t *alloc;
+    aal_device_t *device;
+};
+
+typedef struct reiserfs_tree reiserfs_tree_t;
+
 /* Filesystem compound structure */
 struct reiserfs_fs {
     aal_device_t *host_device;
@@ -182,6 +164,9 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     aal_device_t *journal_device, int replay);
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs);
+
+extern error_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
+    reiserfs_key_t *key, reiserfs_plugin_id_t key_plugin_id);
 
 #ifndef ENABLE_COMPACT
 

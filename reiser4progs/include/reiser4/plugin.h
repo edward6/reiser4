@@ -30,10 +30,10 @@ enum reiserfs_plugin_id {
 };
 
 enum reiserfs_item_type_id {
-    STAT_ITEM,
-    DIRENTRY_ITEM,
-    INTERNAL_ITEM,
-    FILE_ITEM
+    REISERFS_STAT_ITEM,
+    REISERFS_DIRENTRY_ITEM,
+    REISERFS_INTERNAL_ITEM,
+    REISERFS_FILE_ITEM
 };
 
 typedef enum reiserfs_item_type_id reiserfs_item_type_id_t;
@@ -122,12 +122,8 @@ typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 struct reiserfs_dir_ops {
     reiserfs_plugin_header_t h;
 
-    /* Creates directory at given block and pos */
-    reiserfs_opaque_t *(*create) (aal_block_t *, uint32_t, uint16_t, uint16_t, 
-	uint16_t, uint16_t, uint16_t);
-
-    reiserfs_opaque_t *(*open) (aal_block_t *, uint32_t);
-    void (*close) (reiserfs_opaque_t *);
+    void *(*build) (void *, void *, uint16_t, uint16_t); 
+    void (*destroy) (void *);
 };
 
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
@@ -490,22 +486,8 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 	beed specified on 3. 
 */
 
-/* 
-    Create item or paste into item on the base of this structure. 
-    "data" is a pointer to data to be copied. 
-*/ 
-struct reiserfs_item_hint {    
-    void *data;
-    void *info;
-
-    uint16_t length;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_item_hint reiserfs_item_hint_t;
-
 struct reiserfs_internal_hint {    
-    blk_t blk;
+    blk_t pointer;
 };
 
 typedef struct reiserfs_internal_hint reiserfs_internal_hint_t;
@@ -533,7 +515,7 @@ typedef struct reiserfs_entry_hint reiserfs_entry_hint_t;
 
 struct reiserfs_direntry_hint {
     uint16_t count;
-    reiserfs_entry_hint_t *entry;
+    reiserfs_entry_hint_t **entry;
     
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *hash_plugin;    
@@ -541,14 +523,39 @@ struct reiserfs_direntry_hint {
 
 typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
 
-struct reiserfs_dir_hint {
+/* 
+    Create item or paste into item on the base of this structure. 
+    "data" is a pointer to data to be copied. 
+*/ 
+struct reiserfs_item_hint {
+    reiserfs_item_type_id_t type;
+    /*
+	This is pointer to already formated item body. It 
+	is useful for item copying, replacing, etc. This
+	will be used by fsck probably.
+    */
+    void *data;
+
+    /*
+	This is pointer to hint which describes item.
+	It is widely used for creating an item.
+    */
+    void *hint;
+
+    struct {
+	reiserfs_plugin_t *plugin;
+	uint8_t body[24];
+    } key;
+    
+    uint16_t length;
+    reiserfs_plugin_t *plugin;
 };
 
-typedef struct reiserfs_dir_hint reiserfs_dir_hint_t;
+typedef struct reiserfs_item_hint reiserfs_item_hint_t;
 
 struct reiserfs_object_hint {
     uint16_t count;
-    reiserfs_item_hint_t items[0];
+    reiserfs_item_hint_t **item;
 };
 
 typedef struct reiserfs_object_hint reiserfs_object_hint_t;
@@ -594,8 +601,11 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 #define REISERFS_GUESS_PLUGIN_ID 0xff
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
+
 extern reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name);
+
 #endif
+
 extern reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry);
 
 extern void libreiser4_plugin_unload(reiserfs_plugin_t *plugin);

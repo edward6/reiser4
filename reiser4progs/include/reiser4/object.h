@@ -16,7 +16,8 @@ extern reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *na
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
-    reiserfs_coord_t *coord, reiserfs_profile_t *profile);
+    reiserfs_object_t *parent, reiserfs_plugin_t *plugin, 
+    reiserfs_profile_t *profile);
 
 #endif
 

@@ -10,13 +10,13 @@
 #include <aal/aal.h>
 
 struct reiserfs_internal40 {
-    blk_t block_nr;
+    blk_t pointer;
 };
 
 typedef struct reiserfs_internal40 reiserfs_internal40_t;
 
-#define int40_get_blk(int40)	    get_le64(int40, block_nr)
-#define int40_set_blk(int40, val)   set_le64(int40, block_nr, val)
+#define int40_get_pointer(int40)	get_le64(int40, pointer)
+#define int40_set_pointer(int40, val)   set_le64(int40, pointer, val)
 
 #endif
 

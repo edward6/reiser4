@@ -12,14 +12,11 @@
 #include <reiser4/reiser4.h>
 
 reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end, 
-    reiserfs_plugin_id_t oid_plugin_id, reiserfs_plugin_id_t key_plugin_id) 
+    reiserfs_plugin_id_t oid_plugin_id) 
 {
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
 
-    oid_t root_parent_objectid;
-    oid_t root_objectid;
-	
     aal_assert("umka-519", area_start != NULL, return NULL);
     aal_assert("umka-730", area_end != NULL, return NULL);
 
@@ -42,23 +39,6 @@ reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end,
 	goto error_free_oid;
     }
 
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 
-	key_plugin_id))) 
-    {
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, key_plugin_id, 
-	    goto error_free_oid);
-    }
-    
-    root_parent_objectid = libreiser4_plugin_call(goto error_free_oid, 
-	oid->plugin->oid, root_parent_objectid,);
-	    
-    root_objectid = libreiser4_plugin_call(goto error_free_oid, 
-	oid->plugin->oid, root_objectid,);
-	    
-    reiserfs_key_init(&oid->root_key, plugin);
-    reiserfs_key_build_file_key(&oid->root_key, KEY40_STATDATA_MINOR, 
-	root_parent_objectid, root_objectid, 0);
-    
     return oid;
     
 error_free_oid:
@@ -78,13 +58,10 @@ void reiserfs_oid_close(reiserfs_oid_t *oid) {
 #ifndef ENABLE_COMPACT
 
 reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end, 
-    reiserfs_plugin_id_t oid_plugin_id, reiserfs_plugin_id_t key_plugin_id) 
+    reiserfs_plugin_id_t oid_plugin_id) 
 {
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
-	
-    oid_t root_parent_objectid;
-    oid_t root_objectid;
 	
     aal_assert("umka-729", area_start != NULL, return NULL);
     aal_assert("umka-731", area_end != NULL, return NULL);
@@ -108,23 +85,6 @@ reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end,
 	goto error_free_oid;
     }
 
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 
-	key_plugin_id))) 
-    {
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, key_plugin_id, 
-	    goto error_free_oid);
-    }
-    
-    root_parent_objectid = libreiser4_plugin_call(goto error_free_oid, 
-	oid->plugin->oid, root_parent_objectid,);
-	    
-    root_objectid = libreiser4_plugin_call(goto error_free_oid, 
-	oid->plugin->oid, root_objectid,);
-	    
-    reiserfs_key_init(&oid->root_key, plugin);
-    reiserfs_key_build_file_key(&oid->root_key, KEY40_STATDATA_MINOR, 
-	root_parent_objectid, root_objectid, 0);
-    
     return oid;
     
 error_free_oid:
@@ -168,8 +128,24 @@ uint64_t reiserfs_oid_used(reiserfs_oid_t *oid) {
 	used, oid->entity);
 }
 
-reiserfs_key_t *reiserfs_oid_root_key(reiserfs_oid_t *oid) {
-    aal_assert("umka-736", oid != NULL, return NULL);
-    return &oid->root_key;
+oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid) {
+    aal_assert("umka-745", oid != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+	root_parent_locality,);
+}
+
+oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid) {
+    aal_assert("umka-746", oid != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+	root_parent_objectid,);
+}
+
+oid_t reiserfs_oid_root_objectid(reiserfs_oid_t *oid) {
+    aal_assert("umka-747", oid != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+	root_objectid,);
 }
 

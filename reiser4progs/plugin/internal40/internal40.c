@@ -21,14 +21,10 @@ static reiserfs_plugin_factory_t *factory = NULL;
 static error_t internal40_create(reiserfs_internal40_t *internal, 
     reiserfs_item_hint_t *hint) 
 {
-    reiserfs_internal_hint_t *internal_hint; 
-    
     aal_assert("vpf-063", internal != NULL, return -1); 
     aal_assert("vpf-064", hint != NULL, return -1);
-    aal_assert("vpf-065", hint->info != NULL, return -1);
 
-    internal_hint = hint->info; 
-    int40_set_blk(internal, internal_hint->blk);
+    int40_set_pointer(internal, ((reiserfs_internal_hint_t *)hint->hint)->pointer);
 	    
     return 0;
 }
@@ -65,21 +61,21 @@ static void internal40_set_pointer(reiserfs_internal40_t *internal,
     blk_t blk) 
 {
     aal_assert("umka-605", internal != NULL, return);
-    int40_set_blk(internal, blk);
+    int40_set_pointer(internal, blk);
 }
 
 #endif
 
 static blk_t internal40_get_pointer(reiserfs_internal40_t *internal) {
     aal_assert("umka-606", internal != NULL, return 0);
-    return int40_get_blk(internal);
+    return int40_get_pointer(internal);
 }
 
 static int internal40_has_pointer(reiserfs_internal40_t *internal, 
     blk_t blk) 
 {
     aal_assert("umka-628", internal != NULL, return 0);
-    return blk = int40_get_blk(internal);
+    return (blk == int40_get_pointer(internal));
 }
 
 static reiserfs_plugin_t internal40_plugin = {
@@ -93,7 +89,7 @@ static reiserfs_plugin_t internal40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = INTERNAL_ITEM,
+	    .type = REISERFS_INTERNAL_ITEM,
 
 #ifndef ENABLE_COMPACT	    
 	    .create = (error_t (*)(void *, void *))internal40_create,

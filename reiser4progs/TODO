@@ -1,3 +1,4 @@
-* block allocator API probably should give allocated aal_block_t at request
 * move all libc's replacing functions into separate library libaal. Other functions should be in 
-yet another library.
+  yet another library.
+* all plugins should be libaal independent. In order to reach this we should
+  export device working interface at least.

@@ -148,7 +148,7 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
 int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key, 
     reiserfs_unit_coord_t *coord)
 {
-    int found; void *body;
+    int lookup; void *body;
     reiserfs_plugin_t *item_plugin;
     reiserfs_key_t max_key;
     
@@ -157,7 +157,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     aal_assert("umka-715", key->plugin != NULL, return -1);
     aal_assert("vpf-048", node != NULL, return -1);
 
-    if ((found = libreiser4_plugin_call(return -1, node->plugin->node, 
+    if ((lookup = libreiser4_plugin_call(return -1, node->plugin->node, 
 	lookup, node->block, coord, key)) == -1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -166,12 +166,9 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
 	return -1;
     }
 
-    if (found == 1)
+    if (lookup == 1)
 	return 1;
    
-    if (coord->item_pos == -1) 
-	goto after_item;
-	
     if (!(item_plugin = reiserfs_node_item_get_plugin(node, coord->item_pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
@@ -179,14 +176,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
 	return -1;
     }
 
-    if (!(body = reiserfs_node_item_at(node, coord->item_pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find item at node %llu and pos %u.", 
-	    aal_block_get_nr(node->block), coord->item_pos);
-	return -1;
-    }
-    
-    /* 
+    /*
 	We are on the position where key is less then wanted. 
 	Key could lies within the item or after the item.
     */
@@ -204,26 +194,31 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
 	}
 	
 	if (libreiser4_plugin_call(return -1, key->plugin->key, 
-		compare, key->body, &max_key.body) > 0)
-	    goto after_item;
+	    compare, key->body, &max_key.body) > 0)
+	{
+	    coord->item_pos++;
+	    return lookup;
+	}
     }
 
     if (!item_plugin->item.common.lookup)
-	goto after_item;
+	return lookup;
 	    
-    if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
+    if (!(body = reiserfs_node_item_at(node, coord->item_pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item at node %llu and pos %u.", 
+	    aal_block_get_nr(node->block), coord->item_pos);
+	return -1;
+    }
+    
+    if ((lookup = item_plugin->item.common.lookup(body, key, coord)) == -1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the item %d in the node %llu failed.", 
 	    coord->item_pos, aal_block_get_nr(node->block));
 	return -1;
     }
     
-    return found;
-
-after_item:
-    coord->item_pos++;
-    coord->unit_pos = -1;
-    return found;
+    return lookup;
 }
 
 /* 
@@ -245,6 +240,9 @@ reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node,
     reiserfs_key_t *key)
 {
     aal_list_t *list;
+    
+    if (!node->children)
+	return NULL;
     
     if (!(list = aal_list_bin_search(node->children, key, 
 	    (int (*)(const void *, const void *, void *))
@@ -276,15 +274,23 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
 error_t reiserfs_node_add(reiserfs_node_t *node, 
     reiserfs_node_t *children) 
 {
+    reiserfs_key_t key;
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-561", node != NULL, return -1);
     aal_assert("umka-564", children != NULL, return -1);
-
+    
     /* FIXME-UMKA: Hardcoded plugin id */
     if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
 	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -1);
     
+    reiserfs_key_init(&key, plugin);
+    aal_memcpy(key.body, reiserfs_node_item_key_at(children, 0), 
+	sizeof(key.body));
+    
+    if (reiserfs_node_find(node, &key))
+	return 0;
+
     node->children = aal_list_insert_sorted(node->children, 
 	children, (int (*)(const void *, const void *, void *))
 	callback_comp_for_insert, (void *)plugin);
@@ -585,8 +591,8 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
     aal_assert("umka-541", node != NULL, return -1);
     aal_assert("umka-604", coord != NULL, return -1);
 
-    /* We must have item_info->plugin initialized for the 2nd case */
-    aal_assert("vpf-118", coord->unit_pos != -1 || hint->info == NULL || 
+    /* We must have hint->plugin initialized for the 2nd case */
+    aal_assert("vpf-118", coord->unit_pos != -1 || 
 	hint->plugin != NULL, return -1);
    
     if (!hint->plugin && !(hint->plugin = 

@@ -29,9 +29,8 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
     
     aal_assert("vpf-097", direntry != NULL, return -1);
     aal_assert("vpf-098", hint != NULL, return -1);
-    aal_assert("vpf-099", hint->info != NULL, return -1);
     
-    direntry_hint = hint->info;
+    direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
     key_plugin = direntry_hint->key_plugin;
     
     de40_set_count(direntry, direntry_hint->count);
@@ -42,18 +41,18 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 	e40_set_offset(&direntry->entry[i], offset);
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_dir_short_key, 
-	    &direntry->entry[i].entryid, direntry_hint->entry[i].name, 
+	    &direntry->entry[i].entryid, direntry_hint->entry[i]->name, 
 	    direntry_hint->hash_plugin, sizeof(reiserfs_entryid_t));
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_file_short_key, 
 	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
-	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid, 
+	    direntry_hint->entry[i]->locality, direntry_hint->entry[i]->objectid, 
 	    sizeof(reiserfs_objid_t));
 	
-	len = aal_strlen(direntry_hint->entry[i].name);
+	len = aal_strlen(direntry_hint->entry[i]->name);
 	offset += sizeof(reiserfs_objid_t);
 	
-	aal_memcpy((char *)(direntry) + offset, direntry_hint->entry[i].name, len);
+	aal_memcpy((char *)(direntry) + offset, direntry_hint->entry[i]->name, len);
 	
 	offset += len;
 	
@@ -71,14 +70,13 @@ static error_t direntry40_estimate(reiserfs_item_hint_t *hint,
     reiserfs_direntry_hint_t *direntry_hint;
 	    
     aal_assert("vpf-095", hint != NULL, return -1);
-    aal_assert("vpf-096", hint->info != NULL, return -1);
     aal_assert("umka-608", coord != NULL, return -1);
     
-    direntry_hint = hint->info;
+    direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
     hint->length = direntry_hint->count * sizeof(reiserfs_entry40_t);
     
     for (i = 0; i < direntry_hint->count; i++) {
-	hint->length += aal_strlen(direntry_hint->entry[i].name) + 
+	hint->length += aal_strlen(direntry_hint->entry[i]->name) + 
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
@@ -195,7 +193,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = DIRENTRY_ITEM,
+	    .type = REISERFS_DIRENTRY_ITEM,
 
 #ifndef ENABLE_COMPACT	    
 	    .create = (error_t (*)(void *, void *))direntry40_create,

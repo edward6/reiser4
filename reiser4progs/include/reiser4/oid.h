@@ -15,16 +15,14 @@
 #include <reiser4/filesystem.h>
 
 extern reiserfs_oid_t *reiserfs_oid_open(void *area_start, 
-    void *area_end, reiserfs_plugin_id_t oid_plugin_id, 
-    reiserfs_plugin_id_t key_plugin_id);
+    void *area_end, reiserfs_plugin_id_t oid_plugin_id);
 
 extern void reiserfs_oid_close(reiserfs_oid_t *oid);
 
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_oid_t *reiserfs_oid_create(void *area_start, 
-    void *area_end, reiserfs_plugin_id_t oid_plugin_id,
-    reiserfs_plugin_id_t key_plugin_id);
+    void *area_end, reiserfs_plugin_id_t oid_plugin_id);
 
 extern uint64_t reiserfs_oid_alloc(reiserfs_oid_t *oid);
 extern void reiserfs_oid_dealloc(reiserfs_oid_t *oid, uint64_t id);
@@ -35,7 +33,9 @@ extern error_t reiserfs_oid_sync(reiserfs_oid_t *oid);
 extern uint64_t reiserfs_oid_next(reiserfs_oid_t *oid);
 extern uint64_t reiserfs_oid_used(reiserfs_oid_t *oid);
 
-extern reiserfs_key_t *reiserfs_oid_root_key(reiserfs_oid_t *oid);
+extern oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid);
+extern oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid);
+extern oid_t reiserfs_oid_root_objectid(reiserfs_oid_t *oid);
 
 #endif
 
