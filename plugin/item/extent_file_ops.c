@@ -1156,6 +1156,7 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 	if (IS_ERR(j))
 		return PTR_ERR(j);
 	JF_CLR(j, JNODE_NEW);
+	done_lh(uf_coord->lh);
 
 	lock_page(page);
 	LOCK_JNODE(j);
@@ -1163,7 +1164,6 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 		jnode_attach_page(j, page);
 	}
 	unlock_page(page);
-	done_lh(uf_coord->lh);
 
 	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
 	if (result != 0)
