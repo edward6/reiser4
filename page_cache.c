@@ -250,8 +250,10 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 		kmap_once( node, page );
 		/* return with jnode spin-locked */
 		return 0;
-	} else
+	} else {
+		spin_lock_jnode( node );
 		return -ENOMEM;
+	}
 }
 
 /** ->release_node method of page-cache based tree operations */

@@ -844,8 +844,8 @@ int zinit_new( znode *node /* znode to initialise */ )
 
 	add_d_ref( ZJNODE( node ) );
 	result = tree -> ops -> allocate_node( tree, ZJNODE( node ) );
+	ON_SMP( assert( "nikita-2076", spin_znode_is_locked( node ) ) );
 	if( likely( result == 0 ) ) {
-		ON_SMP( assert( "nikita-2076", spin_znode_is_locked( node ) ) );
 		if( likely( !znode_is_loaded( node ) ) ) {
 			ZF_SET( node, ZNODE_LOADED );
 			ZF_SET( node, ZNODE_CREATED );
@@ -855,10 +855,9 @@ int zinit_new( znode *node /* znode to initialise */ )
 			if( result != 0 )
 				zrelse_nolock( node );
 		}
-	} else {
-		spin_lock_znode( node );
+	} else
 		zrelse_nolock( node );
-	}
+
 	spin_unlock_znode( node );
 	return result;
 }
