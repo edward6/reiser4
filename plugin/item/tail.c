@@ -45,7 +45,7 @@ mergeable_tail(const coord_t *p1, const coord_t *p2)
 {
 	reiser4_key key1, key2;
 
-	assert("vs-535", item_type_by_coord(p1) == ORDINARY_FILE_METADATA_TYPE);
+	assert("vs-535", item_type_by_coord(p1) == UNIX_FILE_METADATA_ITEM_TYPE);
 	assert("vs-365", item_id_by_coord(p1) == FORMATTING_ID);
 
 	if (item_id_by_coord(p2) != FORMATTING_ID) {

@@ -2027,7 +2027,7 @@ owns_item_unix_file(const struct inode *inode	/* object to check against */ ,
 	result = owns_item_common(inode, coord);
 	if (!result)
 		return 0;
-	if (item_type_by_coord(coord) != ORDINARY_FILE_METADATA_TYPE)
+	if (item_type_by_coord(coord) != UNIX_FILE_METADATA_ITEM_TYPE)
 		return 0;
 	assert("vs-547",
 	       item_id_by_coord(coord) == EXTENT_POINTER_ID ||

@@ -485,7 +485,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
-			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_extent,
 			.can_contain_key = can_contain_key_extent,
 			.mergeable = mergeable_extent,
@@ -548,7 +548,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
-			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_tail,
 			.mergeable = mergeable_tail,
@@ -611,7 +611,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
-			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_ctail,
 			.mergeable = mergeable_ctail,
