@@ -1479,7 +1479,6 @@ void node40_copy (struct shift_params * shift)
 	int old_offset;
 	unsigned i;
 
-
 	nh = node40_node_header (shift->target);
 	free_space_start = nh_40_get_free_space_start (nh);
 	old_items = nh_40_get_num_items (nh);
@@ -1492,7 +1491,8 @@ void node40_copy (struct shift_params * shift)
 
 	trace_if (TRACE_COORDS, print_coord ("node40_copy from:", & from, 0));
 
-	to.node = shift->target;
+	coord_init_first_unit (& to, shift->target);
+
 	if (shift->pend == SHIFT_LEFT) {
 		/* copying to left */
 
