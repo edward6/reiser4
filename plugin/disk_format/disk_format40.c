@@ -115,7 +115,7 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
 	
-	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - 
+	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) -
 				d64tocpu(&disk_sb->free_blocks));
 	
 	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
@@ -455,12 +455,12 @@ check_open_format40(const struct inode *object) {
 	
 	max = oid_next(object->i_sb) - 1;
 
-	/* Chekc the oid. */
+	/* Check the oid. */
 	oid = get_inode_oid(object);
 	if (oid > max) {
 		warning("vpf-1360", "The object with the oid %llu greater then the "
 			"max used oid %llu found.", oid, max);
-		return -EINVAL;
+		return RETERR(-EIO);
 	}
 
 	/* Check the locality. */
@@ -468,7 +468,7 @@ check_open_format40(const struct inode *object) {
 	if (oid > max) {
 		warning("vpf-1360", "The object with the locality %llu greater then the "
 			"max used oid %llu found.", oid, max);
-		return -EINVAL;
+		return RETERR(-EIO);
 	}
 
 	return 0;
