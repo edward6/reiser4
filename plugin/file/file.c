@@ -2438,7 +2438,6 @@ pre_delete_unix_file(struct inode *inode)
 reiser4_internal ssize_t sendfile_common (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target)
 {
-	ssize_t amount_read;
 	file_plugin *fplug;
 	struct inode *inode;
 	read_descriptor_t desc;
@@ -2457,8 +2456,6 @@ reiser4_internal ssize_t sendfile_common (
 	fplug = inode_file_plugin(inode);
 	if (fplug->readpage == NULL)
 		return RETERR(-EINVAL);
-
-	amount_read = 0;
 
 	while (desc.count != 0) {
 		unsigned long read_request_size;
@@ -2485,8 +2482,8 @@ reiser4_internal ssize_t sendfile_common (
 		}
 		page = grab_cache_page(inode->i_mapping, index);
 		if (unlikely(page == NULL)) {
-			ret = RETERR(-ENOMEM);
-			goto fail_no_page;
+			desc.error = RETERR(-ENOMEM);
+			break;
 		}
 
 		if (PageUptodate(page))
@@ -2497,12 +2494,13 @@ reiser4_internal ssize_t sendfile_common (
 		if (ret != 0) {
 			SetPageError(page);
 			ClearPageUptodate(page);
+			desc.error = ret;
 			goto fail_locked_page;
 		}
 
 		lock_page(page);
 		if (!PageUptodate(page)) {
-			ret = RETERR(-EIO);
+			desc.error = RETERR(-EIO);
 			goto fail_locked_page;
 		}
 
@@ -2510,24 +2508,24 @@ reiser4_internal ssize_t sendfile_common (
 		ret = actor(&desc, page, offset, read_request_size);
 		unlock_page(page);
 		page_cache_release(page);
-		if (ret < 0)
-			goto fail_no_page;
 
 		(*ppos) += ret;
-		amount_read += ret;
+	
+		if (ret != nr)
+			break;
+	}
+
+	if (0) {
+	fail_locked_page:
+		unlock_page(page);
+		page_cache_release(page);
 	}
 
 	update_atime(inode);
-	return amount_read;
 
-
- fail_locked_page:
-	unlock_page(page);
-	page_cache_release(page);
- fail_no_page:
-
-	update_atime(inode);
-	return ret;
+	if (desc.written)
+		return desc.written;
+	return desc.error;
 }
 
 reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
