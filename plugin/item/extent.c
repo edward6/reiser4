@@ -265,7 +265,8 @@ nr_units_extent(const coord_t * coord)
 }
 
 /* plugin->u.item.b.lookup */
-lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG, coord_t * coord)
+lookup_result
+lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG, coord_t * coord)
 {				/* znode and item_pos are
 				   set to an extent item to
 				   look through */
@@ -324,17 +325,13 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 }
 
 /* plugin->u.item.b.init_coord */
-void init_coord_extent(const reiser4_key * key, coord_t *coord)
+void
+init_coord_extent(coord_t *coord)
 {
 	coord->vp = extent_item(coord);
 	coord->nr_units = nr_units_extent(coord);
 	coord->width = extent_get_width((reiser4_extent *)coord->vp);
 	coord->pos_in_unit = 0;
-/*
-	coord->pos_in_node = 0;
-	coord->offset = get_key_offset(key);
-	coord->width = extent_get_width((reiser4_extent *)coord->vp);
-*/
 }
 
 /* set extent width and convert type to on disk representation */
@@ -516,7 +513,8 @@ create_hook_extent(const coord_t * coord, void *arg)
 }
 
 /* check inode's list of eflushed jnodes and drop those which correspond to this extent */
-static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
+static void
+drop_eflushed_nodes(struct inode *inode, unsigned long index)
 {
 	struct list_head *tmp, *next;
 	reiser4_inode *info;
@@ -1985,7 +1983,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 /* Block offset of first block addressed by unit */
 /* AUDIT shouldn't return value be of reiser4_block_nr type?
    Josh's answer: who knows?  This returns the same type of information as "struct page->index", which is currently an unsigned long. */
-__u64 extent_unit_index(const coord_t * item)
+__u64
+extent_unit_index(const coord_t * item)
 {
 	reiser4_key key;
 
@@ -1996,20 +1995,23 @@ __u64 extent_unit_index(const coord_t * item)
 
 /* AUDIT shouldn't return value be of reiser4_block_nr type?
    Josh's answer: who knows?  Is a "number of blocks" the same type as "block offset"? */
-__u64 extent_unit_width(const coord_t * item)
+__u64
+extent_unit_width(const coord_t * item)
 {
 	assert("vs-649", coord_is_existing_unit(item));
 	return width_by_coord(item);
 }
 
 /* Starting block location of this unit. */
-reiser4_block_nr extent_unit_start(const coord_t * item)
+reiser4_block_nr
+extent_unit_start(const coord_t * item)
 {
 	return extent_get_start(extent_by_coord(item));
 }
 
 /* new extent pointer is added into tree. init jnode corresponding to block addressed by that pointer */
-static void init_new_jnode(jnode *j)
+static void
+init_new_jnode(jnode *j)
 {
 	reiser4_block_nr fake_blocknr;
 
@@ -2020,7 +2022,8 @@ static void init_new_jnode(jnode *j)
 	jnode_set_block(j, &fake_blocknr);
 }
 
-static void init_allocated_jnode(jnode *j, reiser4_block_nr block)
+static void
+init_allocated_jnode(jnode *j, reiser4_block_nr block)
 {
 	jnode_set_mapped(j);
 	jnode_set_block(j, &block);
@@ -2345,8 +2348,9 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
-static int extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				      hint_t *hint, coord_state_t coord_state)
+static int
+extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
+			   hint_t *hint, coord_state_t coord_state)
 {
 	int result;
 	loff_t new_size;
@@ -2595,10 +2599,22 @@ check_key_in_unit(const coord_t * coord, const reiser4_key * key)
 
 	return offset_is_in_unit(coord, extent_by_coord(coord), get_key_offset(key), 0);
 }
+
+static void
+check_coord(const coord_t *coord)
+{
+	assert("vs-1285", coord->width == extent_get_width(extent_by_coord(coord)));
+	assert("vs-1286", coord->vp == extent_item(coord));
+	assert("vs-1287", coord->nr_units == nr_units_extent(coord));
+}
+
 #endif
 
-static void move_coord_page(coord_t *coord)
+static void
+move_coord_page(coord_t *coord)
 {
+	ON_DEBUG(check_coord(coord));
+
 	if (coord->pos_in_unit == coord->width - 1) {
 		coord->pos_in_unit = 0;
 		if (coord->unit_pos == coord->nr_units - 1)
@@ -2636,8 +2652,9 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 	assert("vs-1255", item_is_extent(coord));
-	assert("vs-1254", coord_is_existing_unit(coord));
+	/*assert("vs-1254", coord_is_existing_unit(coord));*/
 	assert("vs-1256", check_key_in_unit(coord, &f->key));
+	ON_DEBUG(check_coord(coord));
 
 	inode = file->f_dentry->d_inode;
 	offset = get_key_offset(&f->key);
@@ -2726,13 +2743,16 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 	return 0;
 }
 
-static int move_coord_pages(extent_coord_t *ext_coord, unsigned count)
+static int
+move_coord_pages(extent_coord_t *ext_coord, unsigned count)
 {
 	coord_t *coord;
 	
 	ext_coord->expected_page += count;
 
 	coord = &ext_coord->coord;
+	check_coord(coord);
+
 	do {
 		if (coord->pos_in_unit + count < coord->width) {
 			coord->pos_in_unit += count;
