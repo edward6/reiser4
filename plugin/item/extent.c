@@ -2805,6 +2805,8 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 	ext = extent_item (right);
 	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
+		reiser4_block_nr width;
+
 		trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n",
 			  right->unit_pos, coord_num_units (right));
 
