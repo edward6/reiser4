@@ -199,7 +199,7 @@ static int get_nr_bmap (struct super_block * super)
 {
 	assert ("zam-393", reiser4_block_count (super) != 0);
 
-	return (reiser4_block_count (super) - 1) / reiser4_blksize (super) + 1;
+	return (reiser4_block_count (super) - 1) / (reiser4_blksize (super) * 8) + 1;
 }
 
 /* bnode structure initialization */
@@ -256,7 +256,7 @@ int bitmap_init_allocator (reiser4_space_allocator * allocator,
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < bitmap_blocks_nr; i++) init_bnode(get_bnode(super,i));
+	for (i = 0; i < bitmap_blocks_nr; i++) init_bnode(data -> bitmap + i);
 
 	allocator->u.generic = data;
 
@@ -298,8 +298,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 void get_working_bitmap_blocknr (int bmap, reiser4_block_nr *bnr)
 {
-	/* FIXME: what's this 0xF0000000LL?  Name it. */
-	*bnr = (reiser4_block_nr) bmap | 0xF0000000LL;
+	*bnr = (reiser4_block_nr) bmap | REISER4_BITMAP_BLOCKS_BIT_MASK;
 }
 
 /** Load node at given blocknr, update given pointer. This function should be
@@ -309,7 +308,7 @@ static int load_bnode_half (struct reiser4_bnode * bnode, char ** data, reiser4_
 	struct super_block * super = get_current_context() -> super;
 	int (*read_node) (const reiser4_block_nr *, char **, size_t);
 
-	char * tmp;
+	char * tmp = NULL;
 	int    ret;
 
 	spin_unlock_bnode (bnode);
