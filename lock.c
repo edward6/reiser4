@@ -1176,7 +1176,6 @@ void check_lock_stack( lock_stack *stack )
 
 extern spinlock_t active_contexts_lock;
 extern context_list_head active_contexts;
-TS_LIST_DEFINE( context, reiser4_context, contexts_link );
 
 void check_lock_data()
 {

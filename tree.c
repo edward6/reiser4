@@ -95,7 +95,6 @@ const reiser4_block_nr FAKE_TREE_ADDR = 0ull;
 #if REISER4_DEBUG
 /* This list and the two fields that follow maintain the currently active
  * contexts, used for debugging purposes.  */
-TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 
 spinlock_t        active_contexts_lock;
 context_list_head active_contexts;

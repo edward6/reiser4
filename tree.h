@@ -582,6 +582,7 @@ SPIN_LOCK_FUNCTIONS( dk, reiser4_tree, dk_lock );
 
 #if REISER4_DEBUG
 #define check_tree() print_tree_rec( "", current_tree, REISER4_TREE_CHECK )
+TS_LIST_DEFINE( context, reiser4_context, contexts_link );
 #else
 #define check_tree() noop
 #endif
