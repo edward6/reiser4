@@ -1613,6 +1613,23 @@ extern unsigned int nr_free_pages( void );
 
 #define BITS_PER_LONG (32)
 
+struct completion {
+	struct semaphore sem;
+};
+
+#define COMPLETION_INITIALIZER(work) { .sem = DECLARE_MUTEX_LOCKED(work) }
+
+#define DECLARE_COMPLETION(work) \
+	struct completion work = COMPLETION_INITIALIZER(work)
+
+#define INIT_COMPLETION(x)	((x).sem = DECLARE_MUTEX_LOCKED(work))
+
+void complete_and_exit( struct completion *, long ) __attribute__((noreturn));
+
+void init_completion(struct completion *x);
+void wait_for_completion(struct completion *x);
+void complete(struct completion *x);
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

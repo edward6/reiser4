@@ -5295,6 +5295,29 @@ unsigned int nr_free_pages( void )
 	return ( unsigned int ) ~0;
 }
 
+void init_completion(struct completion *x)
+{
+	init_MUTEX_LOCKED( &x -> sem );
+}
+
+void wait_for_completion(struct completion *x)
+{
+	down( &x -> sem );
+}
+
+void complete(struct completion *x)
+{
+	up( &x -> sem );
+}
+
+void complete_and_exit( struct completion *comp, long code UNUSED_ARG )
+{
+	if( comp )
+		complete( comp );
+	for(;0;)
+		;
+}
+
 /*
  * Make Linus happy.
  * Local variables:
