@@ -941,7 +941,7 @@ capture_assign_block_nolock (txn_atom *atom,
 }
 
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
- * capture lists), removeing from the clean list and pushing in to the dirty list of the appropriate level.
+ * capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level.
  */
 void jnode_set_dirty( jnode *node )
 {
@@ -959,6 +959,7 @@ void jnode_set_dirty( jnode *node )
 		 * capture_assign_block_nolock. */
 		atom = atom_get_locked_by_jnode (node);
 
+		/* FIXME-NIKITA should it read "a node is set dirty..."? */
 		/* Sometimes an atom is set dirty before being captured -- the case for new jnodes.  In that case the
 		 * jnode will be added to the appropriate list in capture_assign_block_nolock. */
 		if (atom != NULL) {
