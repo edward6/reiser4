@@ -1351,7 +1351,7 @@ reiser4_dirty_inode(struct inode *inode)
 	if (reiser4_grab_space_exact(1, BA_RESERVED | BA_CAN_COMMIT))
 		goto no_space;
 	
-	trace_on(TRACE_RESERVE, info("ditry inode grabs 1 block.\n"));
+	trace_on(TRACE_RESERVE, "ditry inode grabs 1 block.\n");
 
 	result = reiser4_write_sd(inode);
 	if (result != 0)
@@ -1416,7 +1416,8 @@ reiser4_delete_inode(struct inode *object)
 		if (reiser4_grab_space_exact(reserved, BA_RESERVED | BA_CAN_COMMIT))
 			goto no_space;
 		
-		trace_on(TRACE_RESERVE, info("delete inode grabs %llu blocks.\n", reserved));
+		trace_on(TRACE_RESERVE, "delete inode grabs %llu blocks.\n", 
+			 reserved);
 		
 		get_exclusive_access(object);
 		truncate_object(object, (loff_t) 0);

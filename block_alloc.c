@@ -411,7 +411,7 @@ assign_fake_blocknr(reiser4_block_nr * blocknr, reiser4_ba_flags_t flags)
 		assert("zam-394", node == NULL);
 	}
 #endif
-	trace_on(TRACE_RESERVE, info("moving 1 grabbed block to fake allocated.\n"));
+	trace_on(TRACE_RESERVE, "moving 1 grabbed block to fake allocated.\n");
 	grabbed2fake_allocated(1, flags);
 	
 	return 0;
@@ -488,7 +488,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
-		trace_on(TRACE_RESERVE, info("grab for not counted %llu blocks.\n", *len));
+		trace_on(TRACE_RESERVE, "grab for not counted %llu blocks.\n", *len);
 		ret = reiser4_grab_space_force(*len, flags);
 		if (ret != 0)
 			return ret;
@@ -505,9 +505,9 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		switch (hint->block_stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
-			trace_on(TRACE_RESERVE, info("use %s %llu blocks.\n", 
+			trace_on(TRACE_RESERVE, "use %s %llu blocks.\n",
 				hint->block_stage == BLOCK_GRABBED ? 
-				"grabbed" : "not counted", *len));
+				"grabbed" : "not counted", *len);
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
