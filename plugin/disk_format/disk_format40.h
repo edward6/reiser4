@@ -55,6 +55,9 @@ typedef struct format40_disk_super_block {
 typedef struct format40_super_info {
 /*	format40_disk_super_block actual_sb; */
 	jnode *sb_jnode;
+	struct {
+		reiser4_block_nr super;
+	} loc;
 } format40_super_info;
 
 /* Defines for journal header and footer respectively. */
