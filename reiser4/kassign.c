@@ -180,8 +180,8 @@ reiser4_key *build_sd_key( const struct inode *target /* inode of an object */,
  *
  * See &obj_key_id
  */
-int build_obj_key_id( const reiser4_key *key /* key to encode */, 
-		      obj_key_id *id /* id where key is encoded in */ )
+static int build_obj_key_id( const reiser4_key *key /* key to encode */, 
+			     obj_key_id *id /* id where key is encoded in */ )
 {
 	assert( "nikita-1151", key != NULL );
 	assert( "nikita-1152", id != NULL );
