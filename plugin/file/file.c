@@ -2209,6 +2209,10 @@ write_unix_file(struct file *file, /* file to write to */
 	int nr_pages;
 	size_t count, written, left;
 	int user_space;
+	int try_free_space;
+
+	ON_TRACE(TRACE_UNIX_FILE_WRITE, "UF_WRITE-start: i_ino %li, size %llu, off %llu, count %u\n",
+		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size, *off, write_amount);
 
 	if (unlikely(write_amount == 0))
 		return 0;
@@ -2287,8 +2291,11 @@ write_unix_file(struct file *file, /* file to write to */
 	count = 0;
 	user_space = is_user_space(buf);
 	nr_pages = 0;
+	try_free_space = 1;
+
+	ON_TRACE(TRACE_UNIX_FILE_WRITE, "UF_WRITE-in loop: i_ino %li, size %llu, off %llu, left %u\n",
+		 inode->i_ino, inode->i_size, *off, left);
 	while (left > 0) {
-		int try_free_space = 1;
 		int excl = 0;
 		size_t to_write;
 
@@ -2325,13 +2332,19 @@ write_unix_file(struct file *file, /* file to write to */
 
 		/* With no locks held we can commit atoms in attempt to recover
 		 * free space. */
-		if (written == -ENOSPC && try_free_space) {
+		if ((ssize_t)written == -ENOSPC && try_free_space) {
+			ON_TRACE(TRACE_UNIX_FILE_WRITE,
+				 "UF_WRITE-try-to-free-space: i_ino %li, size %llu, off %llu, left %u\n",
+				 inode->i_ino, inode->i_size, *off, left);			
 			txnmgr_force_commit_all(inode->i_sb, 0);
 			try_free_space = 0;
 			continue;
 		}
-		if (written < 0) {
+		if ((ssize_t)written < 0) {
 			result = written;
+			ON_TRACE(TRACE_UNIX_FILE_WRITE,
+				 "UF_WRITE-error: %d. [i_ino %li, size %llu, off %llu, left %u]\n",
+				 result, inode->i_ino, inode->i_size, *off, left);			
 			break;
 		}
 		left -= written;
@@ -2339,6 +2352,9 @@ write_unix_file(struct file *file, /* file to write to */
 
 		/* total number of written bytes */
 		count += written;
+		ON_TRACE(TRACE_UNIX_FILE_WRITE,
+			 "UF_WRITE-written: %u bytes. i_ino %li, size %llu, off %llu, left %u\n",
+			 written, inode->i_ino, inode->i_size, *off, left);			
 	}
 
 	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
@@ -2352,6 +2368,9 @@ write_unix_file(struct file *file, /* file to write to */
 	up(&uf_info->write);
  	current->backing_dev_info = 0;
 	save_file_hint(file, &hint);
+
+	ON_TRACE(TRACE_UNIX_FILE_WRITE, "UF_WRITE-end: i_ino %li, size %llu, off %llu, count %u, result %d\n",
+		 inode->i_ino, inode->i_size, *off, count, result);
 	return count ? count : result;
 }
 
