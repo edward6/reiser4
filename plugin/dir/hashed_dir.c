@@ -32,8 +32,7 @@ int hashed_create( struct inode *object /* new directory */,
 	assert( "nikita-681", S_ISDIR( object -> i_mode ) );
 	assert( "nikita-682", parent != NULL );
 	assert( "nikita-684", data != NULL );
-	assert( "nikita-685", 
-		*reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA );
+	assert( "nikita-685", inode_get_flag( object, REISER4_NO_STAT_DATA ) );
 	assert( "nikita-686", data -> id == DIRECTORY_FILE_PLUGIN_ID );
 	assert( "nikita-687", object -> i_mode & S_IFDIR );
 	trace_stamp( TRACE_DIR );
@@ -58,27 +57,39 @@ int hashed_create( struct inode *object /* new directory */,
 int hashed_delete( struct inode *object /* object being deleted */, 
 		   struct inode *parent /* parent object */ )
 {
-	reiser4_dir_entry_desc entry;
-	struct dentry goodby_dots;
-	int           result;
-
 	assert( "nikita-1449", object != NULL );
 
-	if( ! ( *reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA ) ) {
+	if( !inode_get_flag( object, REISER4_NO_STAT_DATA ) ) {
+		int                    result;
+		struct dentry          goodby_dots;
+		reiser4_dir_entry_desc entry;
+
 		xmemset( &entry, 0, sizeof entry );
 
 		entry.obj = goodby_dots.d_inode = object;
 		xmemset( &goodby_dots, 0, sizeof goodby_dots );
 		goodby_dots.d_name.name = ".";
 		goodby_dots.d_name.len = 1;
-		hashed_rem_entry( object, &goodby_dots, &entry );
+		result = hashed_rem_entry( object, &goodby_dots, &entry );
+		if( result != 0 )
+			/*
+			 * only worth a warning
+			 *
+			 * "values of B will give rise to dom!\n"
+			 *          -- v6src/s2/mv.c:89
+			 */
+			warning( "nikita-2252", "Cannot remove dot of %li: %i",
+				 ( long ) object -> i_ino, result );
 
 		entry.obj = goodby_dots.d_inode = parent;
 		xmemset( &goodby_dots, 0, sizeof goodby_dots );
 		goodby_dots.d_name.name = "..";
 		goodby_dots.d_name.len = 2;
 		result = hashed_rem_entry( object, &goodby_dots, &entry );
-
+		if( result != 0 )
+			warning( "nikita-2253", "Cannot remove dotdot of %li: %i",
+				 ( long ) object -> i_ino, result );
+		
 		reiser4_del_nlink( parent );
 		return common_file_delete( object, parent );
 	} else
@@ -234,16 +245,14 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 
 		inode = reiser4_iget( parent -> i_sb, &entry.key );
 		if( !IS_ERR(inode) ) {
-			__u32 *flags;
- 
-			flags = reiser4_inode_flags( inode );
-			if( *flags & REISER4_LIGHT_WEIGHT_INODE ) {
+			if( inode_get_flag( inode, REISER4_LIGHT_WEIGHT_INODE ) ) {
 				inode -> i_uid = parent -> i_uid;
 				inode -> i_gid = parent -> i_gid;
 				/* clear light-weight flag. If inode would be
 				   read by any other name, [ug]id wouldn't
 				   change. */
-				*flags &= ~REISER4_LIGHT_WEIGHT_INODE;
+				inode_clr_flag( inode, 
+						REISER4_LIGHT_WEIGHT_INODE );
 			}
 			/* success */
 			d_add( dentry, inode );

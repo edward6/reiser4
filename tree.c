@@ -1700,7 +1700,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	 */
 	print_seal( "\tsd_seal", &ref -> sd_seal );
 	print_coord( "\tsd_coord", &ref -> sd_coord, 0 );
-	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
+	info( "\tflags: %lx, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
 	      ref -> flags, ref -> bytes, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
 }

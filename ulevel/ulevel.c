@@ -1103,6 +1103,9 @@ request_queue_t *bdev_get_queue(struct block_device *bdev)
 	return bdev->bd_queue;
 }
 
+#if !REISER4_DEBUG
+typedef long long int off64_t;
+#endif
 
 void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 {
@@ -2102,7 +2105,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			mkdir_thread( &info );
 
 		call_readdir( f, argv[ 2 ] );
-		print_tree_rec( "tree-dir", tree, REISER4_TREE_CHECK_ALL );
+		// print_tree_rec( "tree-dir", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "queue" ) ) {
 		/*
 		 * a.out nikita queue T C O | egrep '^queue' | cut -f2 -d' '
@@ -2205,7 +2208,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			done_lh( &lh );
 
 		}
-		print_tree_rec( "tree:ibk", tree, REISER4_TREE_CHECK_ALL );
+		// print_tree_rec( "tree:ibk", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "inode" ) ) {
 		struct inode f;
 		xmemset( &f, 0, sizeof f );
@@ -2279,7 +2282,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		}
 		ret = cut_tree( tree, min_key(), max_key() );
 		printf( "result: %i\n", ret );
-		print_tree_rec( "tree:cut", tree, REISER4_TREE_CHECK_ALL );
+		// print_tree_rec( "tree:cut", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "sizeof" ) ) {
 		STYPE( reiser4_key );
 		STYPE( reiser4_tree );
@@ -4225,6 +4228,7 @@ static int zam_test (int argc, char ** argv, reiser4_tree * tree)
 }
 
 kcond_t memory_pressed;
+int going_down;
 spinlock_t mp_guard;
 int is_mp;
 
@@ -4239,10 +4243,12 @@ static void *uswapd( void *untyped )
 		int flushed  = 0;
 
 		spin_lock( &mp_guard );
-		while( ! is_mp )
+		while( !is_mp && !going_down )
 			kcond_wait( &memory_pressed, &mp_guard, 0 );
 		is_mp = 0;
 		spin_unlock( &mp_guard );
+		if( going_down )
+			break;
 		rlog( "nikita-1939", "uswapd wakes up..." );
 
 		while (flushed < MEMORY_PRESSURE_HOWMANY) {
@@ -4389,6 +4395,7 @@ int real_main( int argc, char **argv )
 	
 	spin_lock_init( &mp_guard );
 	kcond_init( &memory_pressed );
+	going_down = 0;
 	result = pthread_create( &uswapper, NULL, uswapd, s );
 	assert( "nikita-1938", result == 0 );
 	
@@ -4414,6 +4421,13 @@ int real_main( int argc, char **argv )
 		reiser4_print_stats();
 
 	info( "tree height: %i\n", tree -> height );
+
+	/*
+	 * shut down uswpad
+	 */
+	going_down = 1;
+	declare_memory_pressure();
+	check_me( "nikita-2254", pthread_join( uswapper, NULL ) == 0 );
 
 	/*sb = reiser4_get_current_sb ();*/
 	{
@@ -4445,7 +4459,7 @@ int main (int argc, char **argv)
 	}
 
 	return real_main (argc, argv);
-}	
+}
 
 void funJustAfterMain()
 {}

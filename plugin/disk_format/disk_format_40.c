@@ -309,7 +309,6 @@ static void pack_40_super (const struct super_block * s, char * data)
 jnode * format_40_log_super (struct super_block * s)
 {
 	jnode * sb_jnode;
-	int ret;
 
 	sb_jnode = get_super_private(s)->u.format_40.sb_jnode;
 

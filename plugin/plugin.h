@@ -418,17 +418,6 @@ union reiser4_plugin {
 	void                   *generic;
 };
 
-typedef enum { 
-	REISER4_LIGHT_WEIGHT_INODE = 0x1,
-	REISER4_NO_STAT_DATA       = 0x2,
-	/** internal immutable flag. Currently is only used
-	    to avoid race condition during file creation.
-	    See comment in create_object(). */
-	REISER4_IMMUTABLE          = 0x4,
-	/** inode was read from storage */
-	REISER4_LOADED             = 0x8,
-} reiser4_file_plugin_flags;
-
 /** intra-syscall Repetitive Access Pattern. Use it when you are going to do
     several operations in a row */
 typedef enum { AHEAD_RAP, BEHIND_RAP, NO_RAP } intra_syscall_rap;

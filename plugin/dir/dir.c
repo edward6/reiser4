@@ -73,7 +73,7 @@ static int common_link( struct inode *parent /* parent directory */,
 	fplug = inode_file_plugin( object );
 
 	/* check for race with create_object() */
-	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
+	if( inode_get_flag( object, REISER4_IMMUTABLE ) )
 		return -EAGAIN;
 
 	/* links to directories are not allowed if file-system
@@ -149,7 +149,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	fplug = inode_file_plugin( object );
 
 	/* check for race with create_object() */
-	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
+	if( inode_get_flag( object, REISER4_IMMUTABLE ) )
 		return -EAGAIN;
 
 	/* check permissions */
@@ -311,17 +311,15 @@ static int common_create_child( struct inode *parent /* parent object */,
 	   disk space on crash. This all only matters if it's
 	   possible to access file without name, for example, by
 	   inode number */
-	*reiser4_inode_flags( object ) |= REISER4_IMMUTABLE;
+	inode_set_flag( object, REISER4_IMMUTABLE );
 	/* create stat-data, this includes allocation of new
 	   objectid (if we support objectid reuse). For
 	   directories this implies creation of dot and
 	   dotdot */
-	if( !( *reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA ) )
-		panic( "bar" );
 	result = fplug -> create( object, parent, data );
 	if( result == 0 ) {
-		assert( "nikita-434", !( *reiser4_inode_flags( object ) & 
-					 REISER4_NO_STAT_DATA ) );
+		assert( "nikita-434", !inode_get_flag( object,
+						       REISER4_NO_STAT_DATA ) );
 		/* insert inode into VFS hash table */
 		insert_inode_hash( object );
 		/* create entry */
@@ -342,12 +340,12 @@ static int common_create_child( struct inode *parent /* parent object */,
 			}
 		}
 	} else {
-		warning( "nikita-2219", "Failed to create sd for %lu (%x)",
-			 object -> i_ino, *reiser4_inode_flags( object ) );
+		warning( "nikita-2219", "Failed to create sd for %lu (%lx)",
+			 object -> i_ino, reiser4_inode_data( object ) -> flags );
 	}
 
 	/* file has name now, clear immutable flag */
-	*reiser4_inode_flags( object ) &= ~REISER4_IMMUTABLE;
+	inode_clr_flag( object, REISER4_IMMUTABLE );
 
 	/* 
 	 * on error, iput() will call ->delete_inode(). We should keep track

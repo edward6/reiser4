@@ -9,7 +9,24 @@
 #if !defined( __REISER4_INODE_H__ )
 #define __REISER4_INODE_H__
 
-/* state associated with each inode.  
+/** reiser4-specific inode flags */
+typedef enum { 
+	/** 
+	 * this is light-weight inode, inheriting some state from its
+	 * parent 
+	 */
+	REISER4_LIGHT_WEIGHT_INODE = 0,
+	/** stat data wasn't yet created */
+	REISER4_NO_STAT_DATA       = 1,
+	/** internal immutable flag. Currently is only used
+	    to avoid race condition during file creation.
+	    See comment in create_object(). */
+	REISER4_IMMUTABLE          = 2,
+	/** inode was read from storage */
+	REISER4_LOADED             = 3
+} reiser4_file_plugin_flags;
+
+/* state associated with each inode.
  * reiser4 inode.
  *
  * FIXME-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
@@ -38,11 +55,11 @@ typedef struct reiser4_inode_info {
 	seal_t                    sd_seal;
 	/** coord of stat-data in sealed node */
 	coord_t                sd_coord;
-	/** reiser4-specific inode flags. They are "transient" and 
-	    are not supposed to be stored on a disk. Used to trace
-	    "state" of inode. Bitmasks for this field are defined in 
-	    fs/reiser4/plugin/plugin.h:reiser4_file_plugin_flags */
-	__u32                      flags;
+	/** reiser4-specific inode flags. They are "transient" and are not
+	    supposed to be stored on a disk. Used to trace "state" of
+	    inode. Bitmasks for this field are defined in
+	    reiser4_file_plugin_flags enum */
+	unsigned long              flags;
 	/** bytes actually used by the file */
 	__u64                      bytes;
 	__u64                      extmask;
@@ -65,7 +82,6 @@ SPIN_LOCK_FUNCTIONS( inode, reiser4_inode_info, guard );
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
 extern reiser4_inode_info *reiser4_inode_data( const struct inode *inode );
-extern __u32 *reiser4_inode_flags( const struct inode *inode );
 extern int reiser4_max_filename_len( const struct inode *inode );
 extern int max_hash_collisions( const struct inode *dir );
 extern inter_syscall_rap *inter_syscall_ra( const struct inode *inode );
@@ -106,6 +122,10 @@ extern void print_inode( const char *prefix, const struct inode *i );
 #else
 #define print_inode( p, i ) noop
 #endif
+
+extern void inode_set_flag( struct inode *inode, reiser4_file_plugin_flags f );
+extern void inode_clr_flag( struct inode *inode, reiser4_file_plugin_flags f );
+extern int  inode_get_flag( struct inode *inode, reiser4_file_plugin_flags f );
 
 extern file_plugin *inode_file_plugin( const struct inode *inode );
 extern dir_plugin  *inode_dir_plugin ( const struct inode *inode );

@@ -26,14 +26,22 @@ reiser4_tree *tree_by_inode( const struct inode *inode /* inode queried */ )
 	return get_tree( inode -> i_sb );
 }
 
-/** return internal reiser4 inode flags, stored as part of object plugin
-    state in reiser4-specific part of inode */
-/* Audited by: green(2002.06.17) */
-__u32 *reiser4_inode_flags( const struct inode *inode /* inode queried */ )
+void inode_set_flag( struct inode *inode, reiser4_file_plugin_flags f )
 {
-	assert( "nikita-267", inode != NULL );
+	assert( "nikita-2248", inode != NULL );
+	set_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );
+}
 
-	return & reiser4_inode_data( inode ) -> flags;
+void inode_clr_flag( struct inode *inode, reiser4_file_plugin_flags f )
+{
+	assert( "nikita-2250", inode != NULL );
+	clear_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );
+}
+
+int inode_get_flag( struct inode *inode, reiser4_file_plugin_flags f )
+{
+	assert( "nikita-2251", inode != NULL );
+	return test_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );
 }
 
 /** lock inode. We lock file-system wide spinlock, because we have to lock
@@ -281,7 +289,7 @@ static void read_inode( struct inode * inode /* inode to read from disk */,
 				   ZNODE_READ_LOCK, &coord, &lh, key );
 	assert( "nikita-301", !is_inode_loaded( inode ) );
 	if( result == 0 ) {
-		*reiser4_inode_flags( inode ) |= REISER4_LOADED;
+		inode_set_flag( inode, REISER4_LOADED );
 		/* use stat-data plugin to load sd into inode. */
 		result = init_inode( inode, &coord );
 		if( result == 0 ) {

@@ -176,7 +176,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	assert( "nikita-723", inode != NULL );
 
 	/* stat data is already there */
-	if( !( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA ) )
+	if( !inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
 		return 0;
 
 	ref = reiser4_inode_data( inode );
@@ -256,7 +256,8 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 				result = ref -> sd -> s.sd.save( inode, &area );
 				if( result == 0 ) {
 					/* object has stat-data now */
-					*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
+					inode_clr_flag( inode, 
+							REISER4_NO_STAT_DATA );
 					/* initialise stat-data seal */
 					seal_init( &ref -> sd_seal, 
 						   &coord, &key );
@@ -295,7 +296,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	assert( "nikita-726", inode != NULL );
 
 	/* no stat-data, nothing to update?! */
-	if( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA )
+	if( inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
 		return -ENOENT;
 
 	init_lh( &lh );
@@ -418,14 +419,15 @@ int common_file_save( struct inode *inode /* object to save */ )
 
 	assert( "nikita-730", inode != NULL );
 	
-	if( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA )
+	if( inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
 		/* object doesn't have stat-data yet */
 		result = insert_new_sd( inode );
 	else
 		result = update_sd( inode );
 	if( result != 0 )
-		warning( "nikita-2221", "Failed to save sd for %lu: %i",
-			 inode -> i_ino, result );
+		warning( "nikita-2221", "Failed to save sd for %lu: %i (%lx)",
+			 inode -> i_ino, result, 
+			 reiser4_inode_data( inode ) -> flags );
 	return result;
 }
 
@@ -452,7 +454,7 @@ int common_file_delete( struct inode *inode /* object to remove */,
 
 	assert( "nikita-1477", inode != NULL );
 
-	if( ! ( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA ) ) {
+	if( !inode_get_flag( inode, REISER4_NO_STAT_DATA ) ) {
 		reiser4_key sd_key;
 
 		build_sd_key( inode, &sd_key );
@@ -460,7 +462,6 @@ int common_file_delete( struct inode *inode /* object to remove */,
 		if( result == 0 ) {
 			oid_allocator_plugin *oplug;
 
-			*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
 			assert( "nikita-1902", 
 				get_super_private( inode -> i_sb ) );
 			oplug = get_super_private( inode -> i_sb ) -> oid_plug;
@@ -493,7 +494,7 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 		object -> i_gid = current -> fsgid;
 
 	/* this object doesn't have stat-data yet */
-	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
+	inode_set_flag( object, REISER4_NO_STAT_DATA );
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops( object );
 	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
