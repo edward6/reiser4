@@ -50,7 +50,9 @@ static reiserfs_cache_t *reiserfs_tree_alloc(
 
 #endif
 
-static void reiserfs_tree_dealloc(reiserfs_cache_t *cache) {
+static void reiserfs_tree_dealloc(reiserfs_tree_t *tree, 
+    reiserfs_cache_t *cache) 
+{
     aal_assert("umka-917", cache != NULL, return);
     aal_assert("umka-918", cache->node != NULL, return);
 
@@ -204,7 +206,7 @@ errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, tree->cache->list)
-	    reiserfs_tree_dealloc((reiserfs_cache_t *)walk->item);
+	    reiserfs_tree_dealloc(tree, (reiserfs_cache_t *)walk->item);
 	
 	tree->cache->list = NULL;
     }
@@ -225,7 +227,7 @@ errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
 void reiserfs_tree_close(reiserfs_tree_t *tree) {
     aal_assert("umka-134", tree != NULL, return);
     
-    reiserfs_tree_dealloc(tree->cache);
+    reiserfs_tree_dealloc(tree, tree->cache);
     aal_free(tree);
 }
 
@@ -314,7 +316,7 @@ int reiserfs_tree_lookup(
 	    if (reiserfs_cache_register(parent, coord->cache)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't register node %llu in the tree.", blk);
-		reiserfs_tree_dealloc(coord->cache);
+		reiserfs_tree_dealloc(tree, coord->cache);
 		return -1;
 	    }
 	}
@@ -503,14 +505,16 @@ errno_t reiserfs_tree_shift(
 	
 	    if (reiserfs_tree_move(&dst, &src)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Right shifting failed. Can't move item.");
+		    "Right shifting of an item failed.");
 		return -1;
 	    }
 	    
 	    if (reiserfs_node_count(old->cache->node) > 0) {
 		mpos.item = reiserfs_node_count(old->cache->node) - 1;
+		
 		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
 		    item_overhead;
+    
 	    }
 	}
     }
@@ -534,7 +538,7 @@ errno_t reiserfs_tree_shift(
 	if (reiserfs_node_remove(parent->node, &pos))
 	    return -1;
 
-	reiserfs_tree_dealloc(old->cache);
+	reiserfs_tree_dealloc(tree, old->cache);
 	old->cache = NULL;
     }
     
@@ -668,7 +672,7 @@ errno_t reiserfs_tree_grow(
     return 0;
 
 error_free_cache:
-    reiserfs_tree_dealloc(tree->cache);
+    reiserfs_tree_dealloc(tree, tree->cache);
     tree->cache = cache;
     return -1;
 }
@@ -749,14 +753,14 @@ errno_t reiserfs_tree_insert(
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an item into the node %llu.", 
 		aal_block_get_nr(coord->cache->node->block));
-	    reiserfs_tree_dealloc(cache);
+	    reiserfs_tree_dealloc(tree, cache);
 	    return -1;
 	}
 	
 	if (reiserfs_tree_attach(tree, cache)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't attach node to the tree.");
-	    reiserfs_tree_dealloc(cache);
+	    reiserfs_tree_dealloc(tree, cache);
 	    return -1;
 	}
 
@@ -835,7 +839,7 @@ errno_t reiserfs_tree_insert(
 		    "Can't split node %llu.", 
 		    aal_block_get_nr(insert.cache->node->block));
 
-		reiserfs_tree_dealloc(right);
+		reiserfs_tree_dealloc(tree, right);
 		return -1;
 	    }
 
@@ -847,7 +851,7 @@ errno_t reiserfs_tree_insert(
 		if (reiserfs_tree_grow(tree, insert.cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't grow tree.");
-		    reiserfs_tree_dealloc(right);
+		    reiserfs_tree_dealloc(tree, right);
 		    return -1;
 		}
 	    }
@@ -856,7 +860,7 @@ errno_t reiserfs_tree_insert(
 	    if (reiserfs_tree_attach(tree, right)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't attach node to the tree.");
-		reiserfs_tree_dealloc(right);
+		reiserfs_tree_dealloc(tree, right);
 		return -1;
 	    }
 
@@ -907,14 +911,14 @@ errno_t reiserfs_tree_insert(
 		if (reiserfs_node_move(cache->node, &dst_pos, insert.cache->node, &src_pos)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't move last item from insert node to new allocated node.");
-		    reiserfs_tree_dealloc(cache);
+		    reiserfs_tree_dealloc(tree, cache);
 		    return -1;
 		}
 	    
 		if (reiserfs_tree_attach(tree, cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't attach node to the tree.");
-		    reiserfs_tree_dealloc(cache);
+		    reiserfs_tree_dealloc(tree, cache);
 		    return -1;
 		}
 	    
@@ -940,25 +944,67 @@ errno_t reiserfs_tree_insert(
 		    return -1;
 		}
 	    } else {
+		if (insert.pos.unit != 0xffffffff) {
+		    void *body;
+		    uint32_t count;
+		    
+		    reiserfs_plugin_t *plugin;
+		    reiserfs_coord_t src, dst;
+		    
+		    if (!(plugin = reiserfs_node_item_plugin(insert.cache->node, &insert.pos)))
+		       return -1;
+			
+		    if (!(body = reiserfs_node_item_body(insert.cache->node, &insert.pos)))
+			return -1;
 
-	        coord->cache = cache;
-	        coord->pos.item = 0;
-	        coord->pos.unit = 0xffffffff;
-		
+		    *coord = insert;
+		    while (reiserfs_node_get_space(insert.cache->node) < needed) {
+
+			if (!(count = libreiser4_plugin_call(return -1, 
+				plugin->item_ops.common, count, body)))
+			    break;
+			
+			reiserfs_coord_init(&src, insert.cache, insert.pos.item, count - 1);
+			reiserfs_coord_init(&dst, cache, 0, 0);
+		    
+			if (coord->cache != cache) {
+			    if (coord->pos.unit >= count - 1) {
+				coord->cache = cache;
+				coord->pos.item = 0;
+				coord->pos.unit = (coord->pos.unit > count - 1);
+			    }
+			} else
+			    coord->pos.unit++;
+				
+			if (reiserfs_tree_move(&dst, &src)) {
+			    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+				"Can't move unit.");
+				    
+			    reiserfs_tree_dealloc(tree, cache);
+			    return -1;
+			}
+		    }
+
+		    /* FIXME-UMKA: Here should be updating of the ldkey in parent node */
+		} else {
+		    coord->cache = cache;
+		    coord->pos.item = 0;
+		}
+
 		if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 
 			(coord->pos.unit == 0xffffffff ? "item" : "unit"),
 			aal_block_get_nr(coord->cache->node->block));
 		    
-		    reiserfs_tree_dealloc(cache);
+		    reiserfs_tree_dealloc(tree, cache);
 		    return -1;
 		}
 		
 		if (reiserfs_tree_attach(tree, coord->cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't attach node to the tree.");
-		    reiserfs_tree_dealloc(cache);
+		    reiserfs_tree_dealloc(tree, cache);
 		    return -1;
 		}
 	    }

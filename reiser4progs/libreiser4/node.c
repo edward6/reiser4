@@ -262,8 +262,21 @@ static errno_t reiserfs_node_relocate(
 		libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
 	    return -1;
 	
-	libreiser4_plugin_call(return -1, direntry_item.key.plugin->key_ops,
-	    build_by_entry, direntry_item.key.body, &entry.entryid);
+	{
+	    reiserfs_key_t key;
+	    oid_t locality, objectid;
+	    reiserfs_plugin_t *hash_plugin;
+	    
+	    hash_plugin = libreiser4_factory_find_by_id(HASH_PLUGIN_TYPE, HASH_R5_ID);
+	    
+	    reiserfs_node_get_key(src_node, src_pos, &key);
+	    locality = reiserfs_key_get_locality(&key);
+	    objectid = reiserfs_key_get_objectid(&key);
+	    
+	    libreiser4_plugin_call(return -1, direntry_item.key.plugin->key_ops,
+		build_entry_full, direntry_item.key.body, hash_plugin, locality, 
+		objectid, entry.name);
+	}
 	
 	if (!(direntry.entry = aal_calloc(sizeof(entry), 0)))
 	    return -1;
@@ -275,6 +288,8 @@ static errno_t reiserfs_node_relocate(
 	    Correction of unit pos in odrer to create new compound item, if passed
 	    item pos doesn't pouint to one.
 	*/
+	if (dst_pos->item >= reiserfs_node_count(dst_node))
+	    dst_pos->unit = 0xffffffff;
 	
 	if (reiserfs_node_insert(dst_node, dst_pos, &direntry_item))
 	    return -1;

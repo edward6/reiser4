@@ -118,7 +118,7 @@ void reiserfs_alloc_close(
     aal_free(alloc);
 }
 
-/* Returns the number of fre blocks in allocator */
+/* Returns the number of free blocks in allocator */
 count_t reiserfs_alloc_free(
     reiserfs_alloc_t *alloc	/* allocator to be realeased */
 ) {
