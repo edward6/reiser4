@@ -161,7 +161,11 @@ typedef struct file_plugin {
 
 typedef struct dir_plugin {
 
-	/* returns whether it is a builtin */
+	/* returns whether it is a builtin. 
+	 *
+	 * FIXME-NIKITA What does this mean? If builtin means pseudo-file,
+	 * does it mean that pseudo files are necessary directories and why it
+	 * is so?*/
 	int (*is_built_in)(char * name, int length);
 
 	/* VFS required/defined operations below this line */
