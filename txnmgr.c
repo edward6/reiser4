@@ -1281,13 +1281,15 @@ void txn_delete_page (struct page *pg)
 	
 	assert("umka-199", pg != NULL);
 	
+	node = (jnode *)(pg->private);
 	spin_lock_jnode (node);
 
  repeat:
 	atom = atom_get_locked_by_jnode (node);
 
 	if (atom == NULL) {
-		assert ("jmacd-7111", ! jnode_check_dirty (node));
+		assert ("jmacd-7111", ! jnode_is_dirty (node));
+		spin_unlock_jnode (node);
 		return;
 	}
 
