@@ -1858,83 +1858,34 @@ find_dir_carry(carry_node * node	/* node to start scanning
 	}
 }
 
-/* ->estimate method of tree operations */
-static __u64
-common_estimate(carry_op * op, carry_level * doing UNUSED_ARG)
-{
-	__u64 result = 0;	/* to keep gcc happy */
-	reiser4_tree *tree;
-
-	assert("nikita-2310", op != NULL);
-	assert("nikita-2311", doing != NULL);
-
-	tree = current_tree;
-
-	switch (op->op) {
-	case COP_INSERT:
-	case COP_PASTE:
-	case COP_EXTENT:
-		/* reserve for insertion of two block at each level, plus new
-		   tree root. */
-		result = (__u64) 2 *(tree->height + 1);
-		break;
-	case COP_DELETE:
-	case COP_CUT:
-		/* FIXME-NIKITA when key compression will be implemented,
-		   COP_UPDATE should be moved to COP_INSERT and friends,
-		   because them, update can possibly enlarge a key and result
-		   in insertion.
-		*/
-	case COP_UPDATE:
-		result = (__u64) 0;
-		break;
-	case COP_INSERT_FLOW:
-		/* flow insertion may cause adding of up to
-		   CARRY_FLOW_NEW_NODES_LIMIT + 1 new nodes to leaf level */
-#define MAX_TREE_HEIGHT 10
-		result = (CARRY_FLOW_NEW_NODES_LIMIT + 1) * MAX_TREE_HEIGHT;
-		break;
-	default:
-		not_implemented("nikita-2313", "Carry operation %i is not supported", op->op);
-	}
-	return result;
-}
-
 /* This is dispatch table for carry operations. It can be trivially
    abstracted into useful plugin: tunable balancing policy is a good
    thing. */
 carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_INSERT] = {
-			.handler = carry_insert,
-			.estimate = common_estimate}
-	,
+		.handler = carry_insert
+	},
 	[COP_DELETE] = {
-			.handler = carry_delete,
-			.estimate = common_estimate}
-	,
+		.handler = carry_delete
+	},
 	[COP_CUT] = {
-		     .handler = carry_cut,
-		     .estimate = common_estimate}
-	,
+		.handler = carry_cut
+	},
 	[COP_PASTE] = {
-		       .handler = carry_paste,
-		       .estimate = common_estimate}
-	,
+		.handler = carry_paste
+	},
 	[COP_EXTENT] = {
-			.handler = carry_extent,
-			.estimate = common_estimate}
-	,
+		.handler = carry_extent
+	},
 	[COP_UPDATE] = {
-			.handler = carry_update,
-			.estimate = common_estimate}
-	,
+		.handler = carry_update
+	},
 	[COP_MODIFY] = {
-			.handler = carry_modify,
-			.estimate = common_estimate}
-	,
+		.handler = carry_modify
+	},
 	[COP_INSERT_FLOW] = {
-			     .handler = carry_insert_flow,
-			     .estimate = common_estimate}
+		.handler = carry_insert_flow
+	}
 };
 
 /* Make Linus happy.
