@@ -628,10 +628,16 @@ int tail_write (struct inode * inode, coord_t * coord,
 		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
 {
 	int result;
-
+	tail_write_todo what;
 
 	while (f->length) {
-		switch (tail_what_todo (inode, coord, &f->key)) {
+		result = zload (coord->node);
+		if (result)
+			break;
+		what = tail_what_todo (inode, coord, &f->key);
+		zrelse (coord->node);
+
+		switch (what) {
 		case TAIL_CREATE_HOLE:
 			result = create_hole (coord, lh, f);
 			break;
