@@ -217,6 +217,7 @@ void reiser4_print_stats()
 		      "\t update:\t %lli\n"
 		      "\t modify:\t %lli\n"
 		      "\t half_split_race:\t %lli\n"
+		      "\t dk_vs_create_race:\t %lli\n"
 		      "\t track_lh:\t %lli\n",
 
 		      i + LEAF_LEVEL,
@@ -243,6 +244,7 @@ void reiser4_print_stats()
 		      s -> level[ i ].update,
 		      s -> level[ i ].modify,
 		      s -> level[ i ].half_split_race,
+		      s -> level[ i ].dk_vs_create_race,
 		      s -> level[ i ].track_lh );
 	}
 }

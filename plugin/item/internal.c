@@ -126,6 +126,7 @@ int internal_create_hook( const tree_coord *item, void *arg )
 	child = znode_at( item );
 	if( ! IS_ERR( child ) ) {
 		int result = 0;
+		spin_lock_dk( current_tree );
 		spin_lock_tree( current_tree );
 		assert( "nikita-1400", 
 			( child -> ptr_in_parent_hint.node == NULL ) ||
@@ -133,8 +134,20 @@ int internal_create_hook( const tree_coord *item, void *arg )
 		atomic_inc( &item -> node -> c_count );
 		child -> ptr_in_parent_hint = *item;
 		child -> ptr_in_parent_hint.between = AT_UNIT;
-		if( arg != NULL )
+		if( arg != NULL ) {
+			reiser4_key *rd;
+
 			reiser4_sibling_list_insert_nolock( child, arg );
+			rd = znode_get_rd_key( arg );
+			if( keycmp( rd, znode_get_ld_key( child ) ) != EQUAL_TO ) {
+				assert( "nikita-1806", 
+					keycmp( rd, znode_get_ld_key( child ) ) == GREATER_THAN );
+				reiser4_stat_add_at_level
+					( znode_get_level( child ), 
+					  dk_vs_create_race );
+				*znode_get_ld_key( child ) = *rd;
+			}
+		}
 
 		ZF_CLR( child, ZNODE_NEW );
 
@@ -144,6 +157,7 @@ int internal_create_hook( const tree_coord *item, void *arg )
 			  znode_get_block( child ) -> blk );
 
 		spin_unlock_tree( current_tree );
+		spin_unlock_dk( current_tree );
 		zput( child );
 		return result;
 	} else

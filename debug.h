@@ -41,7 +41,7 @@
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
 #define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: } })
 
-#define CONFIG_REISER4_CHECK
+//#define CONFIG_REISER4_CHECK
 
 #if defined( CONFIG_REISER4_CHECK )
 #define REISER4_DEBUG (1)
@@ -126,7 +126,7 @@ extern lock_counters_info *lock_counters();
     output useless for average user.
 */
 
-#define REISER4_TRACE (1)
+#define REISER4_TRACE (0)
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
@@ -213,7 +213,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
 /** statistics gathering */
-#define REISER4_STATS (1)
+#define REISER4_STATS (0)
 
 #if REISER4_STATS
 
@@ -240,16 +240,19 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_slum_add( stat ) ST_INC_CNT( slum. ## stat )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
 
-#define	reiser4_stat_level_add( l, stat )				\
+#define	reiser4_stat_add_at_level( lev, stat )				\
 ({									\
 	tree_level level;						\
 									\
-	level = ( l ) -> level_no - LEAF_LEVEL;				\
-	if( level < REAL_MAX_ZTREE_HEIGHT ) {				\
+	level = ( lev ) - LEAF_LEVEL;					\
+	if( ( lev ) < REAL_MAX_ZTREE_HEIGHT ) {				\
 		ST_INC_CNT( level[ level ]. ## stat );			\
 		ST_INC_CNT( level[ level ]. total_hits_at_level );	\
 	}								\
 })
+
+#define	reiser4_stat_level_add( l, stat )			\
+	reiser4_stat_add_at_level( ( l ) -> level_no, stat )
 
 #define MAX_CNT( field, value )			\
 ({						\
@@ -478,6 +481,12 @@ typedef struct reiser4_stat {
 		 */
 		stat_cnt half_split_race;
 		/*
+		 * how many times new node was inserted into sibling list
+		 * after concurrent balancing modified right delimiting key if
+		 * its left neighbor.
+		 */
+		stat_cnt dk_vs_create_race;
+		/*
 		 * how many times insert or paste ultimately went into
 		 * node different from original target
 		 */
@@ -583,6 +592,7 @@ typedef struct reiser4_stat {
 #define reiser4_stat_slum_add( stat ) noop
 #define reiser4_stat_pool_add( stat ) noop
 #define reiser4_stat_file_add( stat ) noop
+#define	reiser4_stat_add_at_level( lev, stat ) noop
 #define	reiser4_stat_level_add( l, stat ) noop
 #define reiser4_stat_nuniq_max( gen ) noop
 #define reiser4_stat_stack_check_max( gap ) noop
