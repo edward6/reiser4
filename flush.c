@@ -761,6 +761,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	flush_queue_t *fq = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
+	schedulable();
 
 	sb = reiser4_get_current_sb();
 	info = get_super_private(sb);
@@ -1028,9 +1029,6 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   before their leftmost child.)
 	*/
 
-	/* Write anything left in the queue, if specified by flags */
-	ret = write_prepped_nodes(&flush_pos, 1);
-
 	/* Any failure reaches this point. */
 failed:
 
@@ -1051,8 +1049,17 @@ failed:
 		ret = 0;
 	}
 
-	if (ret < 0) {
-		warning("jmacd-16739", "flush failed: %ld", ret);
+
+	{
+		int ret1;
+		/* Write anything left in the queue, if specified by flags */
+		ret1 = write_prepped_nodes(&flush_pos, 1);
+
+		if (ret)
+			warning("jmacd-16739", "flush failed: %ld", ret);
+		else
+			ret = ret1;
+
 	}
 
 	/* number of submitted to disk nodes is passed to caller as a return value */
