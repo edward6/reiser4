@@ -574,62 +574,6 @@ reiser4_internal void capture_reiser4_inodes (
 	}
 }
 
-#if REISER4_USE_ENTD
-
-#if 0 /* pages not having jnodes (anonymous pages) can be found in reiser_inode's radix tree of pages */
-static void move_to_anon_page_list(struct page * page)
-{
-	struct address_space * mapping;
-
-	assert ("zam-1037", page->mapping != NULL);
-	assert ("zam-1038", page->mapping->host != NULL);
-
-	mapping = page->mapping;
-	if (!TestSetPageDirty(page))
-		inc_page_state(nr_dirty);
-	spin_lock(&mapping->page_lock);
-	list_del(&page->list);
-	list_add(&page->list, get_moved_pages(mapping));
-	spin_unlock(&mapping->page_lock);
-	__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-}
-#endif
-
-static int write_page_by_ent (struct page *page)
-{
-	struct inode * inode;
-	struct super_block * super;
-	int count = 100;
-
-	check_me("zam-1036", (inode = page->mapping->host) != NULL);
-	check_me("zam-1035", (super = inode->i_sb) != NULL);
-
-	while (1) {
-		if (page->mapping == NULL || page->mapping->host->i_sb != super)
-			break;
-		/* FIXME: this is not necessary any more */
-		/*move_to_anon_page_list(page);*/
-		unlock_page(page);
-		wait_for_flush(super);
-		lock_page(page);
-		if (!PageDirty(page)) {
-			reiser4_stat_inc(pcwb.ent_written);
-			break;
-		}
-		/* FIXME(zam): this is a temporary solution for the deadlock problem.  */
-		if (--count <= 0) {
-			reiser4_stat_inc(pcwb.ent_repeat);
-			return -E_REPEAT;
-		}
-		/* FIXME: no need for blk_run_queue */
-		blk_run_backing_dev(page->mapping->backing_dev_info);
-		/*blk_run_queue();*/
-	}
-	unlock_page(page);
-	return 0;
-}
-
-#endif /* REISER4_USE_ENTD */
 
 /* Common memory pressure notification. */
 reiser4_internal int
@@ -650,8 +594,6 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 
 	assert("vs-828", PageLocked(page));
 
-	set_rapid_flush_mode(1);
-
 #if 0
 	FIXME: should be turned into assertion?
 	{
@@ -669,10 +611,9 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	
 	/* Throttle memory allocations if we were not in reiser4 */
 	if (ctx.parent == &ctx) {
-		result = write_page_by_ent(page);
-		if (result != -E_REPEAT)
-			goto out;
-		result = 0;
+		write_page_by_ent(page, wbc);
+		result = 1;
+		goto out;
 	}
 #endif /* REISER4_USE_ENTD */
 

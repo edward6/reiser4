@@ -20,6 +20,8 @@
 #include <linux/time.h>         /* INITIAL_JIFFIES */
 #include <linux/backing-dev.h>  /* bdi_write_congested */
 
+TYPE_SAFE_LIST_DEFINE(wbq, struct wbq, link);
+
 #define DEF_PRIORITY 12
 
 static void entd_flush(struct super_block *super);
@@ -47,7 +49,6 @@ init_entd_context(struct super_block *super)
 	xmemset(ctx, 0, sizeof *ctx);
 	kcond_init(&ctx->startup);
 	kcond_init(&ctx->wait);
-	kcond_init(&ctx->flush_wait);
 	init_completion(&ctx->finish);
 	spin_lock_init(&ctx->guard);
 
@@ -104,14 +105,16 @@ entd(void *arg)
 		entd_set_comm(".");
 		spin_lock(&ctx->guard);
 
-		kcond_broadcast(&ctx->flush_wait);
-		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
+		if (!ctx->rerun) {
+			result = kcond_wait(&ctx->wait, &ctx->guard, 1);
 
-		/* we are asked to exit */
-		if (ctx->done) {
-			spin_unlock(&ctx->guard);
-			break;
-		}
+			/* we are asked to exit */
+			if (ctx->done) {
+				spin_unlock(&ctx->guard);
+				break;
+			}
+		} else
+			ctx->rerun = 0;
 
 		spin_unlock(&ctx->guard);
 		entd_set_comm("!");
@@ -173,10 +176,13 @@ reiser4_internal void leave_flush (struct super_block * super)
 
 	spin_lock(&ent->guard);
 	ent->flushers --;
+	if (ent->flushers == 0 && ent->wbq_nr == 0) {
+		ent->rerun = 1;
+		kcond_signal(&ent->wait);
+	}
 #if REISER4_DEBUG
 	flushers_list_remove_clean(get_current_context());
 #endif
-	kcond_broadcast(&ent->flush_wait);
 	spin_unlock(&ent->guard);
 }
 
@@ -188,334 +194,6 @@ static void kick_entd(entd_context * ent)
 {
 	kcond_signal(&ent->wait);
 }
-
-void wait_for_flush (struct super_block * super)
-{
-	entd_context * ent;
-
-	ent = get_entd_context(super);
-
-	assert ("zam-1032", ent != NULL);
-
-	spin_lock(&ent->guard);
-	if (ent->flushers == 0)
-		kick_entd(ent);
-	kcond_timedwait(&ent->flush_wait, &ent->guard, HZ / 4, 1);
-	spin_unlock(&ent->guard);
-}
-
-#if 0 /* old code */
-
-reiser4_internal void
-enter_flush(struct super_block *super)
-{
-	entd_context * ctx;
-	reiser4_context * cur;
-
-	assert("nikita-3105", super != NULL);
-	assert("nikita-3118",
-	       get_current_context()->flush_started == INITIAL_JIFFIES);
-
-	ctx = get_entd_context(super);
-	cur = get_current_context();
-
-	spin_lock(&ctx->guard);
-	ctx->last_flush = jiffies;
-	ctx->flushers += 1;
-#if REISER4_DEBUG
-	flushers_list_push_front(&ctx->flushers_list, get_current_context());
-#endif
-	spin_unlock(&ctx->guard);
-	cur->flush_started = ctx->last_flush;
-	cur->io_started = INITIAL_JIFFIES;
-}
-
-static const int decay = 3;
-
-reiser4_internal void flush_started_io(void)
-{
-	entd_context * ctx;
-	reiser4_context * cur;
-	unsigned long delta;
-	unsigned long now;
-
-	cur = get_current_context();
-	ctx = get_entd_context(cur->super);
-
-	if (cur->io_started != INITIAL_JIFFIES)
-		return;
-
-	now = jiffies;
-	delta = now - cur->flush_started;
-	assert("nikita-3114", time_after_eq(now, cur->flush_started));
-	cur->io_started = now;
-
-	spin_lock(&ctx->guard);
-	ctx->timeout = (delta + ((1 << decay) - 1) * ctx->timeout) >> decay;
-	/* confine ctx->timeout within [1 .. HZ/20] */
-	if (ctx->timeout > HZ / 20)
-		ctx->timeout = HZ / 20;
-	if (ctx->timeout < 1)
-		ctx->timeout = 1;
-	spin_unlock(&ctx->guard);
-}
-
-reiser4_internal void leave_flush(struct super_block *super)
-{
-	entd_context * ctx;
-
-	assert("nikita-3105", super != NULL);
-
-	ctx = get_entd_context(super);
-
-	spin_lock(&ctx->guard);
-
-	assert("nikita-3117", ctx->flushers > 0);
-	assert("nikita-3115",
-	       get_current_context()->flush_started != INITIAL_JIFFIES);
-
-	ctx->flushers -= 1;
-	if (ctx->flushers == 0)
-		ctx->last_flush = INITIAL_JIFFIES;
-#if REISER4_DEBUG
-	flushers_list_remove_clean(get_current_context());
-#endif
-	spin_unlock(&ctx->guard);
-	get_current_context()->flush_started = INITIAL_JIFFIES;
-}
-
-static int get_flushers(struct super_block *super, unsigned long *flush_start)
-{
-	entd_context    * ctx;
-	int result;
-
-	assert("nikita-3106", super != NULL);
-	assert("nikita-3108", flush_start != NULL);
-
-	ctx = get_entd_context(super);
-
-	/* NOTE: locking is silly */
-	spin_lock(&ctx->guard);
-	*flush_start = ctx->last_flush;
-	result       = ctx->flushers;
-	spin_unlock(&ctx->guard);
-	return result;
-}
-
-static void kick_entd(struct super_block *super)
-{
-	entd_context    * ctx;
-	assert("nikita-3109", super != NULL);
-
-	ctx = get_entd_context(super);
-
-	spin_lock(&ctx->guard);
-	if (ctx->kicks_pending == 0)
-		kcond_signal(&ctx->wait);
-	++ ctx->kicks_pending;
-	spin_unlock(&ctx->guard);
-}
-
-/*
- * return true if we are done with @page (it is clean), or something really
- * wrong happened and wait_for_flush() is looping.
- *
- * Used in wait_for_flush(), which see for more details.
- */
-static int
-is_writepage_done(jnode *node)
-{
-	reiser4_stat_inc(wff.iteration);
-	/*
-	 * if flush managed to process this node we are done.
-	 */
-	if (jnode_check_flushprepped(node)) {
-		reiser4_stat_inc(wff.cleaned);
-		return 1;
-	}
-	/*
-	 * jnode removed from the tree (truncate or balancing)
-	 */
-	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-		reiser4_stat_inc(wff.removed);
-		return 1;
-	}
-
-	return 0;
-}
-
-/*
- * return true if calling thread is either ent thread or the only flusher for
- * this file system. Used in wait_for_flush(), which see for more details.
- */
-static int dont_wait_for_flush(struct super_block *super)
-{
-	reiser4_context * cur;
-	unsigned long flush_started;
-
-	cur = get_current_context();
-
-	if (cur->entd) {
-		reiser4_stat_inc(wff.skipped_ent);
-		return 1;
-	}
-
-	if (get_flushers(super, &flush_started) == 1 &&
-	    cur->flush_started != INITIAL_JIFFIES) {
-		reiser4_stat_inc(wff.skipped_last);
-		return 1;
-	}
-	return 0;
-}
-
-#define WFF_MAX_ITERATIONS (3)
-
-/*
- * This function uses some heuristic algorithm that results in @page being
- * cleaned by normal flushing (flush.c) in most cases. Reason for this is
- * whenever possible to avoid emergency flush (emergency_flush.c) that doesn't
- * perform disk layout optimization.
- *
- * Algorithm:
- *
- *  1. there is dedicated per-super block "ent" (from Tolkien's LOTR) thread
- *  used to start flushing if no other flushers are active. It is called an
- *  ent because it takes care of trees, it requires awakening, and once
- *  awakened it might do a lot.
- *
- *  2. our goal is to wait for some reasonable amount of time ("timeout") in
- *  hope that ongoing concurrent flush would process and clean @page.
- *
- *  3. specifically we wait until following happens:
- *
- *       there is flush (possibly being done by the ent) that started more
- *       than timeout ago,
- *
- *                              and
- *
- *       device queue is not congested.
- *
- *
- *  Intuitively this means that flush stalled, probably waiting for free
- *  memory.
- *
- *  Tricky part here is selection of timeout value. Probably it should be
- *  dynamically adjusting based on CPU load and average time it takes flush to
- *  start submitting nodes.
- *
- * Return:
- *
- *   > 0 we are done with page (it has been cleaned, or we decided we don't
- *       want to deal with it this time)
- *   < 0 some error occurred
- *     0 no luck, proceed with emergency flush
- *
- */
-
-reiser4_internal int
-wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
-{
-	struct backing_dev_info *bdi;
-	int                      flushers;
-	unsigned long            flush_started;
-	unsigned long            timeout;
-	int                      result;
-	int                      iterations;
-	struct super_block      *super;
-
-	bdi     = page->mapping->backing_dev_info;
-	super   = page->mapping->host->i_sb;
-	timeout = get_entd_context(super)->timeout;
-
-	reiser4_stat_inc(wff.asked);
-
-	result     = 0;
-	iterations = 0;
-
-	if (!USE_ENTD)
-		return 0;
-
-	while (result == 0) {
-		flushers = get_flushers(super, &flush_started);
-		/*
-		 * if there is no flushing going on---launch ent thread.
-		 */
-		if (flushers == 0) {
-			reiser4_stat_inc(wff.kicked);
-			kick_entd(super);
-		}
-
-		/*
-		 * if memory pressure is low, do nothing
-		 */
-		if (0/*page_zone(page)->prev_priority > (DEF_PRIORITY - 3)*/) {
-			reiser4_stat_inc(wff.low_priority);
-			result = 1;
-			break;
-		}
-
-		/*
-		 * we don't want to apply usual wait-for-flush logic in
-		 * ->writepage() if current thread is ent or, more generally,
-		 * if it is the only active flusher in this file
-		 * system. Otherwise we get some thread waiting for flush to
-		 * clean some pages and flush is waiting for nothing. This
-		 * brings VM scanning to almost complete halt.
-		 */
-		if (dont_wait_for_flush(super))
-			break;
-
-		/*
-		 * wait until at least one flushing thread is running for at
-		 * least @timeout
-		 */
-		if (flushers != 0 &&
-		    time_before(flush_started + timeout, jiffies))
-			break;
-
-		schedule_timeout(timeout);
-		reiser4_stat_inc(wff.wait_flush);
-
-		/*
-		 * if flush managed to clean this page we are done.
-		 */
-		result = is_writepage_done(node);
-
-		/*
-		 * check for some weird condition to avoid stalling memory
-		 * scan.
-		 */
-		if (++ iterations > WFF_MAX_ITERATIONS) {
-			reiser4_stat_inc(wff.toolong);
-			break;
-		}
-	}
-
-	if (result == 0)
-		result = is_writepage_done(node);
-
-	/*
-	 * at this point we are either done (result != 0), or there is flush
-	 * going on for at least @timeout. If device is congested, we
-	 * conjecture that flush is actively progressing (as opposed to being
-	 * stalled).
-	 */
-	if (result == 0 && bdi_write_congested(bdi)) {
-		reiser4_stat_inc(wff.skipped_congested);
-		result = 1;
-	}
-
-	/*
-	 * at this point either the scanning priority is low and we choose to
-	 * not wait, or we flushed something, or there was a flushing thread
-	 * going on for at least @timeout but nothing was sent down to the
-	 * disk. Probably flush stalls waiting for memory. This shouldn't
-	 * happen often for normal file system loads, because balance dirty
-	 * pages ensures there are enough clean pages around.
-	 */
-	return result;
-}
-#endif
 
 static void entd_capture_anonymous_pages(
 	struct super_block * super, struct writeback_control * wbc)
@@ -550,12 +228,100 @@ static void entd_flush(struct super_block *super)
 	reiser4_exit_context(&ctx);
 }
 
+static inline void init_wbq (struct wbq * rq)
+{
+	memset(rq, 0, sizeof(*rq));
+	wbq_list_clean(rq);
+}
+
+static inline void prepare_wbq (struct wbq * rq)
+{
+	sema_init(&rq->sem, 0);
+}
+
+void write_page_by_ent (struct page * page, struct writeback_control * wbc)
+{
+	struct super_block * sb;
+	entd_context * ent;
+	struct wbq rq;
+
+	sb = page->mapping->host->i_sb;
+	ent = get_entd_context(sb);
+
+	assert ("zam-1039", ent != NULL);
+
+	/* re-dirty page */
+	set_page_dirty_internal(page);
+	/* unlock it to avoid deadlocks with the thread which will do actual i/o  */
+	unlock_page(page);
+
+	init_wbq(&rq);
+	rq.page = page;
+	rq.wbc = wbc;
+
+	spin_lock(&ent->guard);
+	prepare_wbq(&rq);
+
+	wbq_list_push_front(&ent->wbq_list, &rq);
+
+	if (ent->flushers == 0)
+		kick_entd(ent);
+
+	spin_unlock(&ent->guard);
+
+	down(&rq.sem);
+
+	/* wbq dequeued by the ent thread. */
+}
+
+/* ent should be locked */
+static struct wbq * get_wbq (entd_context * ent)
+{
+	if (wbq_list_empty(&ent->wbq_list)) {
+		spin_unlock(&ent->guard);
+		return NULL;
+	}
+	return wbq_list_front(&ent->wbq_list);
+}
+
+
+void ent_writes_page (struct super_block * sb, struct page * page)
+{
+	entd_context * ent = get_entd_context(sb);
+	struct wbq * rq;
+
+	assert("zam-1041", ent != NULL);
+
+	if (PageActive(page)) 
+		return;
+
+	SetPageReclaim(page);
+
+	spin_lock(&ent->guard);
+
+	rq = get_wbq(ent);
+	if (rq == NULL)
+		return;
+
+	wbq_list_remove(rq);
+	rq->wbc->nr_to_write --;
+	up(&rq->sem);
+
+	spin_unlock(&ent->guard);
+}
+
+int wbq_available (void) {
+	struct super_block * sb = reiser4_get_current_sb();
+	entd_context * ent = get_entd_context(sb);
+	return ent->wbq_nr;
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    End:
 */
