@@ -2281,7 +2281,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	assert( "nikita-2258", node != NULL );
 
 #if REISER4_STATS
-	++ get_super_private( page -> mapping -> host -> i_sb ) -> stats.level[ jnode_get_level( node ) ].page_try_release;
+	++ get_super_private( page -> mapping -> host -> i_sb ) -> stats.level[ jnode_get_level( node ) - LEAF_LEVEL ].page_try_release;
 #endif
 
 	/*
