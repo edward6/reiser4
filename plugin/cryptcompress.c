@@ -152,7 +152,7 @@ static crypto_stat_t * inode_crypto_stat (struct inode * inode)
 	return (reiser4_inode_data(inode)->crypt);
 }
 
-static __u8 inode_cluster_shift (struct inode * inode)
+__u8 inode_cluster_shift (struct inode * inode)
 {
 	reiser4_inode * info;
 	
@@ -167,7 +167,7 @@ static __u8 inode_cluster_shift (struct inode * inode)
 	return info->cluster_shift;
 }
 
-static size_t inode_cluster_size (struct inode * inode)
+size_t inode_cluster_size (struct inode * inode)
 {
 	assert("edward-96", inode != NULL);
 	
@@ -198,7 +198,7 @@ static loff_t inode_scaled_offset (struct inode * inode,
 }
 
 /* returns disk cluster size */
-__attribute__((unused)) static size_t
+static size_t
 inode_scaled_cluster_size (struct inode * inode)
 {
 	assert("edward-110", inode != NULL);
@@ -221,15 +221,31 @@ cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 	return 0;
 }
 
-static void reiser4_cluster_init (reiser4_cluster_t * clust)
+void reiser4_cluster_init (reiser4_cluster_t * clust)
 {
 	assert("edward-84", clust != NULL);
 	xmemset(clust, 0, sizeof *clust);
 }
 
-static int ctail_read_page(reiser4_cluster_t * clust, struct page * page)
+/* release cluster's data */
+void put_cluster_data(reiser4_cluster_t * clust, struct inode * inode)
 {
-	return 0;
+	assert("edward-121", clust != NULL);
+	assert("edward-122", clust->buf != NULL);
+	assert("edward-123", clust->stat != HOLE_CLUSTER);
+	assert("edward-124", inode != NULL);
+	assert("edward-125", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	reiser4_kfree(clust->buf, inode_scaled_cluster_size(inode));
+	/* invalidate cluster data */
+	clust->buf = NULL;
+}
+
+/* returns true if we need to read new cluster from disk */
+int cluster_is_required (reiser4_cluster_t * clust)
+{
+	assert("edward-126", clust != NULL);
+	return (clust->buf == NULL && clust->stat != HOLE_CLUSTER);
 }
 
 /* plugin->read() :
@@ -252,7 +268,7 @@ cryptcompress_readpage(void *vp, struct page *page)
 	assert("edward-89", page->mapping && page->mapping->host);
 
 	file = vp;
-	assert("edward-112", page->mapping == file->f_dentry->d_inode->i_mapping);
+	assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
 	
 	if (PageUptodate(page)) {
 		printk("cryptcompress_readpage: page became already uptodate\n");
@@ -265,14 +281,22 @@ cryptcompress_readpage(void *vp, struct page *page)
 	if (!iplug->s.file.readpage)
 		return -EINVAL;
 
-	/* Perhaps here must be the following:
-	   result = iplug->s.file.readpage().
-	   But this is impossible due to poor item plugin interface */
+	result = iplug->s.file.readpage(&clust, page);
 	
-	result = ctail_read_page(&clust, page);
 	assert("edward-64", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
 	/* if page has jnode - that jnode is mapped */
 	assert("edward-65", ergo(result == 0 && PagePrivate(page), 
 				 jnode_mapped(jprivate(page))));
 	return result;
 }
+
+/*
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/
