@@ -603,6 +603,7 @@ crypto_overhead(size_t len /* advised length */,
 	return result;
 }
 
+/* alternating the pairs (@clust->buf, @clust->bsize) and (@buf, @bufsize) */
 static void
 alternate_buffers(reiser4_cluster_t * clust, __u8 ** buf, size_t * bufsize)
 {
@@ -710,11 +711,22 @@ reiser4_internal void set_compression_magic(__u8 * magic)
                  +---- |     page     | ----+
 	               |______________|
 
+
+  " --n-> " means one of the following operations on a pair of pointers (src, dst)
+
   1 - compression or encryption
   2 - encryption
   3 - alternation
   4 - compression
   5 - compression or encryption or copy
+
+  where
+  . compression is plugin->compress(),
+  . encryption is plugin->encrypt(),
+  . alternation is alternate_buffers() (if the final result is contained in temporary buffer @bf,
+    we should move it to the cluster handle @clust)
+  . copy is memcpy() 
+  
 
   FIXME-EDWARD: Currently the only symmetric crypto algorithms with ecb are
   supported
@@ -724,12 +736,12 @@ reiser4_internal int
 deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		struct inode *inode)
 {
-	int result = 0;
+	int result = 0; 
 	__u8 * bf = NULL;
 	__u8 * src = NULL;
 	__u8 * dst = NULL;
 	size_t bfsize = clust->count;
-	struct page * pg = NULL;
+	struct page * pg = NULL; 
 	
 	assert("edward-401", inode != NULL);
 	assert("edward-495", clust != NULL);
@@ -739,8 +751,8 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
-		__u8 * dst;
 		__u8 * wbuf;
+		__s32 dst_len;	
 		compression_plugin * cplug = inode_compression_plugin(inode);
 
 		assert("edward-602", cplug != NULL);
@@ -753,14 +765,14 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 				return -ENOMEM;
 			dst = bf;
 		}
-		else
+		else 
 			/* [5] */
 			dst = clust->buf;
 		if (clust->pages) {
 			/* [42], [5] */
 			assert("edward-619", clust->nr_pages == 1);
 			assert("edward-620", PageDirty(*clust->pages));
-			assert("edward-499", inode_cluster_size(inode) == PAGE_CACHE_SIZE);
+			assert("edward-499", inode_cluster_size(inode) == PAGE_CACHE_SIZE); 
 
 			pg = *clust->pages;
 			lock_page(pg);
@@ -776,8 +788,13 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 			result = -ENOMEM;
 			goto exit;
 		}
-		cplug->compress(wbuf, src, clust->count, dst/* res */, &clust->len/* res */);
+		cplug->compress(wbuf, src, clust->count, dst/* res */, &dst_len);
+		
+		if (dst_len < 0)
+			goto discard;
 
+		clust->len = dst_len;
+			
 		assert("edward-603", clust->len <= (bf ? bfsize : clust->bsize));
 		
 		/* estimate compression quality to accept or discard
@@ -787,9 +804,11 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 			set_compression_magic(dst + clust->len);
 			clust->len += CLUSTER_MAGIC_SIZE;
 		}
-		else
-			/* Discard */
+		else {
+			
+		discard:
 			clust->len = clust->count;
+		}
 		reiser4_kfree(wbuf, cplug->mem_req);
 	}
 	
@@ -824,7 +843,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 				/* refused */
 				;
 			if (pg) {
-                                /* flush the page */
+                                /* release flushed page */
 				assert("edward-625", PageLocked(pg));
 				
 				kunmap(pg);
@@ -846,8 +865,10 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 
 				bfsize += oh;
 				bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
-				if (!bf)
+				if (!bf) {
+					result = -ENOMEM;
 					goto exit;
+				}
 				alternate_buffers(clust, &bf, &bfsize);
 				src = bf;
 			}
@@ -884,11 +905,19 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 			cplug->encrypt(expkey, clust->buf + i*ocb /* dst */, src + i*icb);
 	}
 	
-	else if (bf && clust->len != clust->count)
-		/* [13], saved compression, no encryption */
-		alternate_buffers(clust, &bf, &bfsize);
-	else
-		/* not specified or discarded compression, no encryption */
+	else if (dst && clust->len != clust->count) {
+		/* [13], [5], saved compression, no encryption */
+		if (bf) {
+			/* [13] */
+			assert("edward-635", bf == dst);
+			assert("edward-636", !clust->pages);
+			alternate_buffers(clust, &bf, &bfsize);
+		}
+	}
+	else {
+		/* not specified or discarded compression, no encryption,
+		   [13], [5], [] */
+		
 		if (clust->pages) {
 			if (!pg) {
 				assert("edward-629", !src);
@@ -906,6 +935,10 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 			}
 			xmemcpy(clust->buf, src, clust->count);
 		}
+		if (!clust->len) 
+			/* not specified, [] */
+			clust->len = clust->count;
+	}
  exit:
 	if (bf)
 		reiser4_kfree(bf, bfsize);
@@ -949,18 +982,24 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
                  +---> |      @pg      | <---+
 	               |_______________|
 
+
+  " --n-> " means one of the following functions on a pair of pointers (src, dst):
+		       
   1, 5 - decryption or decompression
   2, 4 - decompression
   3    - alternation
+  
+  Where:
 
+  decryption is plugin->decrypt(),
+  decompression is plugin->decompress,
+  alternation is alternate_buffers()
 */
 reiser4_internal int
 inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 					     disk cluster to process */
 		struct inode *inode)
 {
-	/* FIXME-EDWARD: Need more revisions */
-	
 	int result = 0;
 	__u8 * dst;
 	__u8 * bf = NULL;  /* buffer to handle temporary results */
@@ -1033,6 +1072,7 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 		clust->len -= crypto_overhead(0, clust, inode, READ_OP);
 	}
 	if (need_decompression(clust, inode, 0 /* estimate for decrypted cluster */)) {
+		unsigned dst_len = inode_cluster_size(inode);
 		__u8 * src = bf;
 		__u8 * wbuf;
 		__u8 magic[CLUSTER_MAGIC_SIZE];
@@ -1067,16 +1107,17 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 				alternate_buffers(clust, &bf, &bfsize);
 			}
 			dst = clust->buf;
+			src = bf;
 		}
 			
 		/* Check compression magic for possible IO errors.
-		
+		   
 		   End-of-cluster format created before encryption:
-		
+		   
 		   data
 		   compression_magic  (4)   Indicates presence of compression
 		                            infrastructure, should be private.
-		                            Can be absent.
+		                            Can be absent.  
 		   crypto_overhead          Created by ->align() method of crypto-plugin,
 		                            Can be absent.
 		
@@ -1094,36 +1135,52 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 			result = -EIO;
 			goto exit;
 		}
+		clust->len -= (size_t)CLUSTER_MAGIC_SIZE;
 		/* decompress cluster */
 		wbuf = reiser4_kmalloc(cplug->mem_req, GFP_KERNEL);
 		if (wbuf == NULL) {
 			result = -ENOMEM;
 			goto exit;
 		}
-		cplug->decompress(wbuf, src, clust->len, dst, &clust->len);
+		cplug->decompress(wbuf, src, clust->len, dst, &dst_len);
 
 		/* check the length of decompressed data */
-		assert("edward-157", clust->len == fsize_to_count(clust, inode));
+		assert("edward-157", dst_len == fsize_to_count(clust, inode));
+
+		clust->len = dst_len;
 		
 		reiser4_kfree(wbuf, cplug->mem_req);
 	}
  exit:
 	if (bf)
 		reiser4_kfree(bf, bfsize);
-	if (pg) {
-		assert("edward-611", PageLocked(pg));
+	if (clust->pages) {
 		
-		if (!PageUptodate(pg)) {
-			
-			assert("edward-618", clust->len <= PAGE_CACHE_SIZE);
-			
-			xmemset(pg, 0, PAGE_CACHE_SIZE - clust->len);
-			kunmap(pg);
-			SetPageUptodate(pg);
+		assert("edward-618", clust->len <= PAGE_CACHE_SIZE);
+		
+		if (!pg) {
+			/* no encryption, no compression */
+			pg = *clust->pages;
+			lock_page(pg);
+			if (PageUptodate(pg)) {
+				/* races with other read/write */
+				unlock_page(pg);
+				return result;
+			}
+			dst = kmap(pg);
+			xmemcpy(dst, clust->buf, clust->len);
 		}
+		
+		assert("edward-611", PageLocked(pg));
+		assert("edward-637", !PageUptodate(pg));
+		assert("edward-638", dst != NULL);
+		
+		xmemset(dst + clust->len, 0, (size_t)PAGE_CACHE_SIZE - clust->len);
+		kunmap(pg);
+		SetPageUptodate(pg);
 		unlock_page(pg);
 	}
-	return result;	
+	return result;
 }
 
 /* plugin->read() :
@@ -1526,15 +1583,15 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	
 	if (clust->bsize > inode_scaled_cluster_size(inode))
 		clust->bsize = inode_scaled_cluster_size(inode);
-	
-	clust->bsize += compress_overhead(inode_compression_plugin(inode));
+	if (try_compress(clust, inode))
+		clust->bsize += compress_overhead(inode_compression_plugin(inode));
 	
 	clust->buf = reiser4_kmalloc(clust->bsize, GFP_KERNEL);
 	if (!clust->buf)
 		return -ENOMEM;
 	
 	if (inode_cluster_size(inode) == PAGE_CACHE_SIZE) {
-		/* do not flush single page */
+		/* delay flushing of a single page */
 		assert("edward-612", clust->nr_pages == 1);
 
 		clust->pages = reiser4_kmalloc(sizeof(*clust->pages), GFP_KERNEL);
@@ -1549,8 +1606,8 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 		return 0;
 	}
 
-        /* flush more then one page after its assembling in united flow */
-	for(i=0; i < clust->nr_pages; i++){
+	/* flush more then one page after its assembling into united flow */
+	for (i=0; i < clust->nr_pages; i++){       
 		struct page * page;
 		char * data;
 		
@@ -1558,11 +1615,12 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 		
 		assert("edward-242", page != NULL);
 		assert("edward-243", PageDirty(page));
+		assert("edward-634", clust->count <= clust->bsize);
 		/* FIXME_EDWARD: Make sure that jnodes are from the same dirty list */
 		
 		lock_page(page);
 		data = kmap(page);
-		xmemcpy(clust->buf + (i << PAGE_CACHE_SHIFT), data, PAGE_CACHE_SIZE);
+		xmemcpy(clust->buf + pg_to_off(i), data, off_to_pgcount(clust->count, i));
 		kunmap(page);
 		uncapture_page(page);
 		unlock_page(page);
