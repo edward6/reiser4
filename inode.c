@@ -166,7 +166,9 @@ static int is_inode_loaded( const struct inode *inode /* inode queried */ )
  * its mode.
  */
 /* Audited by: green(2002.06.17) */
-int setup_inode_ops( struct inode *inode /* inode to intialise */ )
+int setup_inode_ops( struct inode *inode /* inode to intialise */,
+		     reiser4_object_create_data *data /* parameters to create
+						       * object */ )
 {
 	switch( inode -> i_mode & S_IFMT ) {
 	case S_IFSOCK:
@@ -176,10 +178,15 @@ int setup_inode_ops( struct inode *inode /* inode to intialise */ )
 		int rdev; /* to keep gcc happy */
 
 		/* ugly hack with rdev */
-		rdev = kdev_val (inode -> i_rdev);
-		inode -> i_rdev = val_to_kdev( 0 );
+		if( data == NULL ) {
+			rdev = kdev_val( inode -> i_rdev );
+			inode -> i_rdev = val_to_kdev( 0 );
+		} else
+			rdev = data -> rdev;
 		inode -> i_blocks = 0;
-		/* I guess that not only i_blocks, but also at least i_size should be zeroed */
+		/*
+		 * other fields are already initialised.
+		 */
 		init_special_inode( inode, inode -> i_mode, rdev );
 		break;
 	}
@@ -237,7 +244,7 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	state -> sd = iplug;
 	spin_unlock_inode( state );
 	if( result == 0 ) {
-		result = setup_inode_ops( inode );
+		result = setup_inode_ops( inode, NULL );
 		if( ( result == 0 ) && ( inode -> i_sb -> s_root ) &&
 		    ( inode -> i_sb -> s_root -> d_inode ) ) {
 			reiser4_inode_info *self;

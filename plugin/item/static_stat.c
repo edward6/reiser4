@@ -310,7 +310,7 @@ static int unix_sd_present( struct inode *inode /* object being processed */,
 		inode -> i_atime = d32tocpu( &sd -> atime );
 		inode -> i_mtime = d32tocpu( &sd -> mtime );
 		inode -> i_ctime = d32tocpu( &sd -> ctime );
-		inode -> i_rdev  = val_to_kdev (d32tocpu( &sd -> rdev ));
+		inode -> i_rdev  = val_to_kdev( d32tocpu( &sd -> rdev ) );
 		reiser4_inode_data( inode ) -> bytes = d64tocpu( &sd -> bytes );
 		move_on( len, area, sizeof *sd );
 		return 0;

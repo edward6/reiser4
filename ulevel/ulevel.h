@@ -1505,6 +1505,11 @@ extern int inode_change_ok( struct inode *inode, struct iattr *attr );
 
 extern loff_t default_llseek( struct file *, loff_t, int );
 
+extern int vfs_readlink(struct dentry *dentry, char *buffer, 
+		 int buflen, const char *link);
+
+extern int vfs_follow_link(struct nameidata *nd, const char *link);
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

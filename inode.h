@@ -101,7 +101,8 @@ extern void reiser4_lock_inode( struct inode *inode );
 extern int reiser4_lock_inode_interruptible( struct inode *inode );
 extern void reiser4_unlock_inode( struct inode *inode );
 extern int is_reiser4_inode( const struct inode *inode );
-extern int setup_inode_ops( struct inode *inode );
+extern int setup_inode_ops( struct inode *inode, 
+			    reiser4_object_create_data *data );
 extern int init_inode( struct inode *inode, coord_t *coord );
 extern struct inode * reiser4_iget( struct super_block * super, 
 				    const reiser4_key *key );

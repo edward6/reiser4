@@ -5209,6 +5209,19 @@ int seq_printf(struct seq_file *file UNUSED_ARG, const char *f UNUSED_ARG, ...)
 	return 0;
 }
 
+int vfs_readlink(struct dentry *dentry UNUSED_ARG, 
+		 char *buffer UNUSED_ARG, 
+		 int buflen UNUSED_ARG, const char *link UNUSED_ARG)
+{
+	return 0;
+}
+
+int vfs_follow_link(struct nameidata *nd UNUSED_ARG, 
+		    const char *link UNUSED_ARG)
+{
+	return 0;
+}
+
 /*
  * Make Linus happy.
  * Local variables:

@@ -496,13 +496,12 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 	/* this object doesn't have stat-data yet */
 	inode_set_flag( object, REISER4_NO_STAT_DATA );
 	/* setup inode and file-operations for this inode */
-	setup_inode_ops( object );
+	setup_inode_ops( object, data );
 	/* i_nlink is left 1 here as set by new_inode() */
 	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
 	reiser4_inode_data( object ) -> extmask = ( 1 << UNIX_STAT );
 	return 0;
 }
-
 
 /**
  * Determine object plugin for @inode based on i_mode.
@@ -987,7 +986,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write_flow          = NULL,
 			.read_flow           = NULL,
 			.truncate            = NULL,
-			.create              = NULL,
+			.create              = unix_file_create,
 			.write_sd_by_inode   = common_file_save,
 			.readpage            = NULL,
 			.read                = NULL,
