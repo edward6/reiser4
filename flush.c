@@ -1006,7 +1006,8 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 	 */
    
 	/* Write anything left in the queue. */
-	ret = flush_empty_queue (& flush_pos);
+	// ret = flush_empty_queue (& flush_pos);
+	ret = 0;
 
 	/* Any failure reaches this point. */
    failed:
