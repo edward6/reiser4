@@ -1626,7 +1626,7 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		addr += dscale_write(addr, get_inode_locality(parent));
 		result += 2;
 		TRACE_EXPORT_OPS("parent oid %llu, parent locality %llu\n", 
-			 get_inode_oid(inode), get_inode_locality(inode));
+			 get_inode_oid(parent), get_inode_locality(parent));
 		ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(parent));
 			     result ++;
 			     TRACE_EXPORT_OPS("parent ordering %llu\n", get_inode_ordering(parent)));
