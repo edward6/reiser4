@@ -1,9 +1,20 @@
-#define TW_BEGIN
+                                 /* level type defines */
+#define TW_BEGIN    
 #define ASYN_BEGIN
 #define CD_BEGIN
 #define OP_LEVEL
 #define NOT_HEAD
 #define IF_STATEMENT
+
+
+                                 /* size's defines      */
+#define WRDTABSIZE
+#define FREESPACESIZE
+#define VARTABSIZE
+#define 
+#define 
+
+
 
 #ifndef YYSTYPE
 typedef int YYSTYPE;
@@ -58,13 +69,25 @@ typedef struct wrdtab
 	int        wrdTab[WRDTABSIZE];
 } wrdtab;
 
+typedef struct var             /* for list of variable */
+{
+	int vtype   ;   /* Type of name              */
+	int vSpace  ;   /* v4  space name or not     */
+	int vextn   ;   /* index of names  to wrdTab */
+	int vlevel  ;   /* level                     */
+	union
+	{
+		struct inode *  v_inode;    /* inode for object not on r4-fs */
+		struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
+	} u;
+} var;
 
 typedef struct Vartab
 {
 	wrdtab * Var_next;
 	int      VarTabSize;
-	char   * VarTabSpace;
-	char     VarTabBase[WRDTABSIZE];
+	int      VarTabLast;
+	var      VarTabName[VARTABSIZE];
 } Vartab;
 
 
@@ -80,20 +103,16 @@ typedef struct streg            /* for compile time level information */
 } streg;
 
 
-
-
-typedef struct var             /* for list of variable */
+typedef struct Strtab
 {
-	int vtype   ;   /* Type of name              */
-	int vSpace  ;   /* v4  space name or not     */
-	int vextn   ;   /* index of names  to wrdTab */
-	int vlevel  ;   /* level                     */
-	union
-	{
-		struct inode *  v_inode;    /* inode for object not on r4-fs */
-		struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
-	} u;
-} var;
+	wrdtab * Str_next;
+	int      StrTabSize;
+	int      StrTabLast;
+	strreg   StrTabName[STRTABSIZE];
+} Strtab;
+
+
+
 
 struct msglist
 {
@@ -118,8 +137,8 @@ struct yy_r4_work_space
 	YYSTYPE * ws_yyvsp;
 	YYSTYPE ws_yyval;
 	YYSTYPE ws_yylval;
-	short   ws_yyss[YYSTACKSIZE];           /*space size is ws_yystacksize*/
-	YYSTYPE ws_yyvs[YYSTACKSIZE];           /*space size is ws_yystacksize*/
+	short   ws_yyss[YYSTACKSIZE];           /* s stack size is ws_yystacksize*/
+	YYSTYPE ws_yyvs[YYSTACKSIZE];           /* v stack size is ws_yystacksize*/
 	int  ws_yystacksize; /*500*/
 	int  ws_yymaxdepth ; /*500*/
 
@@ -137,12 +156,11 @@ struct yy_r4_work_space
 	struct nameidata * nd;
 	char * tmpWrdEnd; 
 	char * freeSpace;
-
-	freeSpace * freeSpaceHeader;
-	wrdtab * WrdTabHead;
-
-	val_list * VarHead;
-	val_list * StrHead;
+	                               /* space for   */
+	freeSpace * freeSpHead;
+	wrdtab    * WrdTabHead;
+	vartab    * VarTabHead;
+	sterg     * StrTabHead;
 
 };
 

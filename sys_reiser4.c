@@ -26,26 +26,109 @@ int yywrap()
     return 1;
 }
 
+freeSpace * freeSpaceAlloc()
+{
+	freeSpace * fs;
+	if ( ( fs = ( freeSpace * ) kmalloc( sizeof( freeSpace ) ) ) != 0 )
+		{
+			fs->freeSpace_next = NULL;
+			fs->freeSpaceSize  = FREESPACESIZE;
+			fs->freeSpace      = fs->freeSpaceBase;
+		}
+	return fs;
+}
+
+wrdtab * WrdTabAlloc()
+{
+	wrdtab * wrd;
+
+	work_space->WrdTabHead      = 
+	work_space->WrdTabHead->
+	work_space->WrdTabHead->
+	work_space->WrdTabHead->
+
+	if ( ( wrd = ( wrdtab *    ) kmalloc( sizeof( wrdtab    ) ) ) != 0 )
+		{
+			wrd->wrd_next   = NULL;
+			wrd->wrdTabSize = WRDTABSIZE;
+			wrd->wrdTabLast = 0;
+		}
+	return wrd;
+}
+
+vartab * VarTabAlloc()
+{
+	vartab * var;
+	if ( ( var = ( vartab *    ) kmalloc( sizeof( vartab    ) ) ) != 0 )
+		{
+			var->Var_next   = NULL;
+			var->VarTabSize = VARTABSIZE;
+			var->VarTabLast = 0;
+		}
+	return var;
+}
+
+strtab * StrTabAlloc()
+{
+	strtab * str;
+	if ( ( str = ( strtab  *   ) kmalloc( sizeof( strtab   ) ) ) != 0 )
+		{
+			str->Str_next   = NULL;
+			str->StrTabSize = STRTABSIZE;
+			str->StrTabLast = 0;
+		}
+	return str;
+}
+
+
 /* @str is a command string for parsing  */
 int sys_reiser4(char * str)
 {
-struct yy_r4_work_space * work_space;
+	int ret;
+
+	struct yy_r4_work_space * work_space;
 
                                                             /* allocate work space for parser 
 							       working variables, dependens of task */
-	work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 );
+	if ( ( work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 ) )==0 )
+		{
+			return -1;
+		}
+	work_space->ws_yystacksize = MAXLEVELCO; /*500*/
+	work_space->ws_yymaxdepth  = MAXLEVELCO; /*500*/
 	
 	                                                    /* initialize fields */
 	                                                    /* this two field used for parsing string, one (inline) stay on begin */
 	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                   */
-  
-                                                            /* this is copy of work space structure for remember to initialize fields */
-	work_space->ws_yystacksize = MAXLEVELCO; /*500*/
-	work_space->ws_yymaxdepth  = MAXLEVELCO; /*500*/
+
+	work_space->freeSpHead = freeSpaceAlloc();
+	work_space->WrdTabHead = WrdTabAlloc();
+	work_space->VarTabHead = StrTabAlloc();
+	work_space->StrTabHead = VarTabAlloc();
+
+
+	if (work_space->freeSpHead && work_space->WrdTabHead && work_space->VarTabHead && work_space->StrTabHead)
+		{
+			ret = yyparse(work_space);
+		}
+	if (work_space->freeSpHead)
+		{
+			freeList(work_space->freeSpHead);
+		}
+	if (work_space->WrdTabHead)
+		{
+			freeList(work_space->WrdTabHead);
+		}
+	if (work_space->VarTabHead)
+		{
+			freeList(work_space->VarTabHead);
+		}
+	if (work_space->StrTabHead)
+		{
+			freeList(work_space->StrTabHead);
+		}
 	
-	i=yyparse(work_space);
-	
-	return 0;
+	return ret;
 }
 
 
