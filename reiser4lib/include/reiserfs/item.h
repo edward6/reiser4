@@ -8,14 +8,17 @@
 #define ITEM_H
 
 /* On memory structure to work with items */
-struct reiserfs_item_data {
-    reiserfs_key_t * key;
+/* Thougth: the key should not exist here, we should get it from item. */
+struct reiserfs_item_info {
+    reiserfs_plugin_id_t plugin_id;
+    reiserfs_key_t *key;
+    
     uint32_t length;
     void *data;
     void *arg;    
 };
 
-typedef struct reiserfs_item_data reiserfs_item_data_t;
+typedef struct reiserfs_item_info reiserfs_item_info_t;
 
 #endif
 
