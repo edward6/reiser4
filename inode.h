@@ -98,9 +98,10 @@ typedef struct reiser4_inode {
 	inter_syscall_rap ra;
 	/* locality id for this file */
 	oid_t locality_id;
-	/* tail2extent and extent2tail use down_write, read, write, readpage -
-	   down_read */
+	/* truncate, tail2extent and extent2tail use down_write, read, write, readpage - down_read */
 	struct rw_semaphore sem;
+	/* pointer to task struct of thread owning exclusive access to file */
+	void *ea_owner;
 	/* high 32 bits of object id */
 	oid_hi_t oid_hi;
 	readdir_list_head readdir_list;
