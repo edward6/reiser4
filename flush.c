@@ -1923,7 +1923,7 @@ static int flush_rewrite_jnode (jnode *node)
 	struct page *pg;
 	int ret;
 
-	/* IXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
+	/* FIXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
 	 * otherwise if the page was a fresh allocation the dealloc of that block might
 	 * have been non-deferred, and then we could trash otherwise-allocated data? */
 	ON_SMP (assert ("jmacd-53312", spin_jnode_is_locked (node)));
