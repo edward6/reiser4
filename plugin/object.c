@@ -126,7 +126,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		/* something other, for which we don't want to print a message */
 		break;
 	case CBK_COORD_FOUND: {
-		data_handle dh = INIT_DH_NODE( coord -> node );
+		load_count lc = INIT_LC_NODE( coord -> node );
 ;
 		assert( "nikita-1082", WITH_DATA_RET
 			( coord -> node, 1, coord_is_existing_unit( coord ) ) );
@@ -140,7 +140,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		assert( "nikita-1897", 
 			znode_get_level( coord -> node ) == LEAF_LEVEL );
 		/* check that what we really found is stat data */
-		result = load_dh( &dh );
+		result = load_lc( &lc );
 		if( ( result = 0 ) && !item_is_statdata( coord ) ) {
 			error_message = "sd found, but it doesn't look like sd ";
 			print_plugin( "found", 
@@ -148,7 +148,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 					      item_plugin_by_coord( coord ) ) );
 			result = -ENOENT;
 		}
-		done_dh( &dh );
+		done_lc( &lc );
 		break;
 	}
 	}

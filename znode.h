@@ -528,24 +528,24 @@ static inline tree_level jnode_get_level (const jnode *node)
  * handle automatically calls zrelse for every zload that it is responsible for.  In that
  * sense, it acts much like a lock_handle.
  */
-typedef struct data_handle {
+typedef struct load_count {
 	znode *node;
 	int    d_ref;
-} data_handle;
+} load_count;
 
-extern void init_dh( data_handle *dh );                     /* Initialize a data_handle: set the current node to NULL. */
-extern void done_dh( data_handle *dh );                     /* Finalize a data_handle: call zrelse() if necessary */
-extern int  load_dh( data_handle *dh );                     /* Call zload() on the current node. */
-extern int  load_dh_znode( data_handle *dh, znode *node );  /* Set the argument znode to the current node, call zload(). */
-extern int  load_dh_jnode( data_handle *dh, jnode *node );  /* If the argument jnode is formatted, do the same as
-							     * load_dh_znode, otherwise do nothing (unformatted nodes
+extern void init_lc( load_count *lc );                     /* Initialize a load_count set the current node to NULL. */
+extern void done_lc( load_count *dh );                     /* Finalize a load_count: call zrelse() if necessary */
+extern int  load_lc( load_count *dh );                     /* Call zload() on the current node. */
+extern int  load_lc_znode( load_count *dh, znode *node );  /* Set the argument znode to the current node, call zload(). */
+extern int  load_lc_jnode( load_count *dh, jnode *node );  /* If the argument jnode is formatted, do the same as
+							     * load_lc_znode, otherwise do nothing (unformatted nodes
 							     * don't require zload/zrelse treatment). */
-extern void move_dh( data_handle *new, data_handle *old );  /* Move the contents of a data_handle.  Old handle is released. */
-extern void copy_dh( data_handle *new, data_handle *old );  /* Copy the contents of a data_handle.  Old handle remains held. */
+extern void move_lc( load_count *new, load_count *old );  /* Move the contents of a load_count.  Old handle is released. */
+extern void copy_lc( load_count *new, load_count *old );  /* Copy the contents of a load_count.  Old handle remains held. */
 
-/* Variable initializers for data_handles. */
-#define INIT_DH ( data_handle * ){ .node = NULL, .d_ref = 0 }
-#define INIT_DH_NODE( n ) ( data_handle ){ .node = ( n ), .d_ref = 0 }
+/* Variable initializers for load_count. */
+#define INIT_LC ( load_count * ){ .node = NULL, .d_ref = 0 }
+#define INIT_LC_NODE( n ) ( load_count ){ .node = ( n ), .d_ref = 0 }
 
 /* A convenience macro for use in assertions or debug-only code, where loaded data is only
  * required to perform the debugging check.  This macro encapsulates an expression inside

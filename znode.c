@@ -930,13 +930,13 @@ int znode_io_hook( jnode *node, struct page *page UNUSED_ARG, int rw )
 	return 0;
 }
 
-void init_dh( data_handle *dh )
+void init_lc( load_count *dh )
 {
 	assert( "nikita-2105", dh != NULL );
 	xmemset( dh, 0, sizeof *dh );
 }
 
-void done_dh( data_handle *dh )
+void done_lc( load_count *dh )
 {
 	assert( "nikita-2106", dh != NULL );
 	if( dh -> node != NULL ) {
@@ -945,17 +945,17 @@ void done_dh( data_handle *dh )
 	}
 }
 
-int load_dh_znode( data_handle *dh, znode *node )
+int load_lc_znode( load_count *dh, znode *node )
 {
 	assert( "nikita-2107", dh != NULL );
 	assert( "nikita-2158", node != NULL );
 	assert( "nikita-2109", ergo( dh -> node != NULL, ( dh -> node == node ) || ( dh -> d_ref == 0 ) ) );
 
 	dh -> node = node;
-	return load_dh( dh );
+	return load_lc( dh );
 }
 
-int load_dh( data_handle *dh )
+int load_lc( load_count *dh )
 {
 	int result;
 
@@ -968,29 +968,29 @@ int load_dh( data_handle *dh )
 	return result;
 }
 
-int load_dh_jnode( data_handle *dh, jnode *node )
+int load_lc_jnode( load_count *dh, jnode *node )
 {
 	if( jnode_is_znode( node ) ) {
-		return load_dh_znode( dh, JZNODE( node ) );
+		return load_lc_znode( dh, JZNODE( node ) );
 	}
 	return 0;
 }
 
-void copy_dh( data_handle *new, data_handle *old )
+void copy_lc( load_count *new, load_count *old )
 {
 	int ret = 0;
-	done_dh( new );
+	done_lc( new );
 	new -> node  = old -> node;
 	new -> d_ref = 0;
 
-	while( (new -> d_ref < old -> d_ref) && ( ret = load_dh( new ) ) == 0 ) { }
+	while( (new -> d_ref < old -> d_ref) && ( ret = load_lc( new ) ) == 0 ) { }
 
 	assert( "jmacd-87589", ret == 0 );
 }
 
-void move_dh( data_handle *new, data_handle *old )
+void move_lc( load_count *new, load_count *old )
 {
-	done_dh( new );
+	done_lc( new );
 	new -> node  = old -> node;
 	new -> d_ref = old -> d_ref;
 	old -> node  = NULL;
