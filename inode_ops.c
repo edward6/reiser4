@@ -79,9 +79,6 @@ reiser4_internal int invoke_create_method(struct inode *parent,
 					  struct dentry *dentry,
 					  reiser4_object_create_data * data);
 
-/* setting this to 1 causes reiser4_create to create both unix and crc files */
-#define TEST_CRC 0
-
 /* ->create() VFS method in reiser4 inode_operations */
 static int
 reiser4_create(struct inode *parent	/* inode of parent

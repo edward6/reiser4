@@ -281,6 +281,8 @@
 #define REISER4_DEBUG_SIBLING_LIST (0)
 #endif
 
+/* defining this makes reiser4_create to create both unix and crc files */
+/*#define CONFIG_TEST_CRC*/
 #if defined(CONFIG_TEST_CRC)
 #define TEST_CRC (1)
 #else
