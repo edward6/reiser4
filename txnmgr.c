@@ -635,18 +635,7 @@ atom_try_commit_locked (txn_atom *atom)
 	/* Now we can commit. */
 	atom->stage = ASTAGE_PRE_COMMIT;
 
-	/* FIXME_JMACD Just release the captured nodes for now. -josh */
 	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
-
-	while (! capture_list_empty (& atom->clean_nodes)) {
-		
-		scan = capture_list_front (& atom->clean_nodes);
-		
-		assert ("jmacd-1063", scan != NULL);
-		assert ("jmacd-1061", scan->atom == atom);
-		
-		uncapture_block (atom, scan);
-	}
 
 	wakeup_atom_waitfor_list (atom);
 	wakeup_atom_waiting_list (atom);
@@ -743,12 +732,16 @@ txn_mgr_force_commit (struct super_block *super)
 
 static void invalidate_clean_list (txn_atom * atom)
 {
-	while (!capture_list_empty(&atom->clean_nodes)) {
-		jnode * cur = capture_list_front (&atom->clean_nodes);
-		capture_list_remove_clean(cur);
-		assert ("nikita-2224", cur->atom->capture_count != 0);
-		cur->atom->capture_count -= 1;
-		cur->atom = NULL;
+
+	while (! capture_list_empty (& atom->clean_nodes)) {
+		jnode * scan;
+
+		scan = capture_list_front (& atom->clean_nodes);
+		
+		assert ("jmacd-1063", scan != NULL);
+		assert ("jmacd-1061", scan->atom == atom);
+		
+		uncapture_block (atom, scan);
 	}
 }
 
