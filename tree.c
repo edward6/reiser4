@@ -1762,7 +1762,10 @@ done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	assert("nikita-311", tree != NULL);
 
-	zput(tree->fake);
+	if (tree->fake != NULL) {
+		zput(tree->fake);
+		tree->fake = NULL;
+	}
 	znodes_tree_done(tree);
 	jnodes_tree_done(tree);
 	cbk_cache_done(&tree->cbk_cache);
