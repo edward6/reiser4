@@ -38,18 +38,20 @@ typedef struct reiser4_plugin_ref reiser4_plugin_ref;
 TS_LIST_DECLARE( plugin );
 
 /** common part of each plugin instance. */
-typedef struct reiser4_plugin_header {
+typedef struct plugin_header {
 	/** plugin type */
 	reiser4_plugin_type  type_id;
 	/** id of this plugin */
 	reiser4_plugin_id    id;
+	/** plugin operations */
 	reiser4_plugin_ops  *pops;
 	/** short label of this plugin */
 	const char          *label;
 	/** descriptive string. Put your copyright message here. */
 	const char          *desc;
+	/** list linkage */
 	plugin_list_link     linkage;
-} reiser4_plugin_header;
+} plugin_header;
 
 /** VFS operations */
 typedef enum {
@@ -74,10 +76,10 @@ typedef enum {
 typedef ssize_t ( *rw_f_type )( struct file *file, flow *a_flow, loff_t *off );
 
 /** entry in file object
-
-Files have bytes not entries, or do you mean entry in directory?  Explain this to me.  -Hans
-
-*/
+ * 
+ * Files have bytes not entries, or do you mean entry in directory?  Explain this to me.  -Hans
+ *
+ */
 struct reiser4_entry {
 	/*
 	 * key of directory entry
@@ -90,12 +92,11 @@ struct reiser4_entry {
 	struct inode *obj;
 };
 
-/*
-    File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
-    includes all of the file related VFS operations.
-*/
-
-typedef struct fplug {
+/**
+ * File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
+ * includes all of the file related VFS operations.
+ */
+typedef struct file_plugin {
 
 /* reiser4 required file operations */
 
@@ -103,25 +104,25 @@ typedef struct fplug {
 	int (*write_flow)(flow * f);
 	int (*read_flow)(flow * f);
 	
-/* VFS required/defined operations */
-	int ( *reiser4_truncate )( struct inode *inode, loff_t size );
+	/* VFS required/defined operations */
+	int ( *truncate )( struct inode *inode, loff_t size );
 	/* create new object described by @data and add it to the @parent directory under the name described by
 	   @dentry */
-	int ( *reiser4_create )( struct inode *parent, struct dentry *dentry, 
+	int ( *create )( struct inode *parent, struct dentry *dentry, 
 			       reiser4_object_create_data *data );
 	/** save inode cached stat-data onto disk. It was called
 	    reiserfs_update_sd() in 3.x */
-	int ( *reiser4_write_inode)( struct inode *inode );
-	int ( *reiser4_readpage )( struct file *file, struct page * );
-	ssize_t ( *reiser4_read )( struct file *file, char *buf, size_t size, 
+	int ( *write_inode)( struct inode *inode );
+	int ( *readpage )( struct file *file, struct page * );
+	ssize_t ( *read )( struct file *file, char *buf, size_t size, 
 			 loff_t *off );
-	ssize_t ( *reiser4_write )( struct file *file, char *buf, size_t size, 
+	ssize_t ( *write )( struct file *file, char *buf, size_t size, 
 			 loff_t *off );
 
 	
-/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement a
-	   deviation from some other method that uses them.  You could logically argue that they should be a separate
-	   type of plugin. */
+	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
+	 * implement a deviation from some other method that uses them.  You could logically argue that they should be a
+	 * separate type of plugin. */
 	/**
 	 * Construct flow into @f according to user-supplied data.
 	 */
@@ -154,33 +155,16 @@ typedef struct fplug {
 	int ( *owns_item )( const struct inode *inode,
 			    const tree_coord *coord );
 
-	int ( *can_add_link )( reiser4_key *key );
+	/** FIXME-HANS: I NEED A COMMENT */
+	int ( *can_add_link )( struct inode *inode );
+} file_plugin;
 
-	/** inherit plugin properties from parent object and from top
-	    object. Latter is particulary required in a case when parent
-	    object is unaccessible like when knfsd asks for inode in the
-	    mid-air. This is called on object creation. */
-	int ( *set_unspecified_values)( );
-
-	/** return pointer to plugin of new item that should be inserted
-	    into body of @inode at position determined by @key. This is
-	    called by write() when it has to insert new item into
-	    file. */
-	int ( *item_plugin_at )( const struct inode *inode, 
-				 const reiser4_key *key );
-
-	/* converts an offset within the file into a key */
-	int (*key_by_offset)();
-
-
-} fplug;
-
-typedef struct dplug {
+typedef struct dir_plugin {
 
 	/* returns whether it is a builtin */
 	int (*is_built_in)(char * name, int length);
 
-/* VFS required/defined operations below this line */
+	/* VFS required/defined operations below this line */
 	int ( *unlink )( struct inode *parent, struct dentry *victim );
 	int ( *link )( struct inode *parent, struct dentry *existing, 
 		       struct dentry *where );
@@ -194,9 +178,9 @@ typedef struct dplug {
 	file_lookup_result ( *lookup )( struct inode *inode, 
 					const struct qstr *name,
 					reiser4_key *key, reiser4_entry *entry );
-/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement a
-	   deviation from some other method that uses them.  You could logically argue that they should be a separate
-	   type of plugin. */
+	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
+	   implement a deviation from some other method that uses them.  You could logically argue that they should be a
+	   separate type of plugin. */
 
 	/** check whether "name" is acceptable name to be inserted into
 	    this object. Optionally implemented by directory-like objects.
@@ -210,36 +194,48 @@ typedef struct dplug {
 
 	int ( *rem_entry )( struct inode *object, 
 			    struct dentry *where, reiser4_entry *entry );
+} dir_plugin;
 
 
 
 } dplug;
 
 typedef struct reiser4_tail_plugin {
+	    into body of @inode at position determined by @key. This is
+	    called by write() when it has to insert new item into
+	    file. */
+	int ( *item_plugin_at )( const struct inode *inode, 
+				 const reiser4_key *key );
+
+	int ( *find_item )( reiser4_tree *tree, reiser4_key *key,
+			    tree_coord *coord, reiser4_lock_handle *lh );
+} old_file_plugin;
+
+typedef struct tail_plugin {
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int ( *tail )( const struct inode *inode, loff_t size );
-} reiser4_tail_plugin;
+} tail_plugin;
 
-typedef struct reiser4_hash_plugin {
+typedef struct hash_plugin {
 	/** computes hash of the given name */
 	__u64 ( *hash ) ( const unsigned char *name, int len );
-} reiser4_hash_plugin;
+} hash_plugin;
 
 /* hook plugins exist for debugging only? */
-typedef struct reiser4_hook_plugin {
+typedef struct hook_plugin {
 	/** abstract hook function */
 	int ( *hook ) ( struct super_block *super, ... );
-} reiser4_hook_plugin;
+} hook_plugin;
 
-typedef struct reiser4_sd_ext_plugin {
+typedef struct sd_ext_plugin {
 	int ( *present ) ( struct inode *inode, char **area, int *len );
 	int ( *absent ) ( struct inode *inode );
 	int ( *save_len ) ( struct inode *inode );
 	int ( *save ) ( struct inode *inode, char **area );
 	/** alignment requirement for this stat-data part */
 	int alignment;
-} reiser4_sd_ext_plugin;
+} sd_ext_plugin;
 
 /** plugin instance. 
     We keep everything inside single union for simplicity.
@@ -247,17 +243,18 @@ typedef struct reiser4_sd_ext_plugin {
     in plugin type description. */
 struct reiser4_plugin {
 	/** generic fields */
-	reiser4_plugin_header h;
+	plugin_header h;
 	/** data specific to particular plugin type */
 	union __plugins {
-		reiser4_file_plugin   file;
-		reiser4_hash_plugin   hash;
-		reiser4_tail_plugin   tail;
-		reiser4_hook_plugin   hook;
-		reiser4_perm_plugin   perm;
-		reiser4_node_plugin   node;
-		reiser4_item_plugin   item;
-		reiser4_sd_ext_plugin sd_ext;
+		file_plugin   file;
+		dir_plugin    dir;
+		hash_plugin   hash;
+		tail_plugin   tail;
+		hook_plugin   hook;
+		perm_plugin   perm;
+		node_plugin   node;
+		item_plugin   item;
+		sd_ext_plugin sd_ext;
 		void                *generic;
 	} u;
 };
@@ -295,7 +292,7 @@ typedef struct inter_syscall_ra_hint {
 
 */
 struct reiser4_plugin_ref {
-	/** plugin of file itself */
+	/** plugin of file */
 	reiser4_plugin            *file;
 	/** perm plugin for this file */
 	reiser4_plugin            *perm;
@@ -417,12 +414,43 @@ typedef struct plugin_locator {
 } plugin_locator;
 
 extern int locate_plugin( struct inode *inode, plugin_locator *loc );
-extern reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, 
-				     reiser4_plugin_id id );
-extern reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id, 
-					    reiser4_plugin_id id );
-extern reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree, 
-					reiser4_plugin_type type_id, d16 *did );
+
+extern reiser4_plugin *plugin_by_type_id( reiser4_plugin_type type_id, 
+					  reiser4_plugin_id id );
+
+extern reiser4_plugin *plugin_by_disk_type_id( reiser4_tree *tree, 
+					       reiser4_plugin_type type_id, d16 *did );
+
+extern reiser4_plugin *plugin_by_unsafe_type_id( reiser4_plugin_type type_id, 
+						 reiser4_plugin_id id );
+
+#define PLUGIN_BY_ID(TYPE,ID,FIELD)                                                \
+static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )                         \
+{                                                                                  \
+	reiser4_plugin *plugin = plugin_by_type_id ( ID, id );                     \
+	return plugin ? & plugin -> u.FIELD : NULL;                                \
+}                                                                                  \
+static inline TYPE *TYPE ## _by_disk_id( reiser4_tree *tree, d16 *id )             \
+{                                                                                  \
+	reiser4_plugin *plugin = plugin_by_disk_type_id ( tree, ID, id );          \
+	return plugin ? & plugin -> u.FIELD : NULL;                                \
+}                                                                                  \
+static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )                  \
+{                                                                                  \
+	reiser4_plugin *plugin = plugin_by_unsafe_type_id ( ID, id );              \
+	return plugin ? & plugin -> u.FIELD : NULL;                                \
+}                                                                                  \
+static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )                   \
+{                                                                                  \
+	return (reiser4_plugin*) (((long) plugin) - sizeof (plugin_header));       \
+}                                                                                  \
+typedef struct { int foo; } TYPE ## _plugin_dummy
+
+PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_ID,item);
+PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_ID,file);
+PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_ID,node);
+PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_ID,sd_ext);
+
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
 extern void print_plugin( const char *prefix, reiser4_plugin *plugin );
