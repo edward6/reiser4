@@ -20,7 +20,7 @@ libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la @LIBREISERFS_LIBS@
 endif
 
 libreiserfs_la_SOURCES  = libreiserfs.c filesystem.c super.c journal.c \
-			  alloc.c tree.c tools.c plugin.c node.c
+			  alloc.c tree.c tools.c plugin.c node.c path.c
 
 INCLUDES = $(includedir)
 

@@ -133,21 +133,21 @@ static void reiserfs_node40_print(reiserfs_node40_t *node, char *buff) {
 }
 
 /* 
-    Returns -1 for item_pos if the wanted key goes before the first item of the node.
-    Returns count for item_pos if after.
-    Returns -1 for unit_pos if item_lookup method has not been implemented.
-    Other values for unit_num are set by item lookup method.
+    Returns -1 for item_pos if the wanted key goes before the first item of the node,
+    count for item_pos if after and -1 for unit_pos if item_lookup method has not been 
+    implemented. Other values for unit_num are set by item lookup method.
 */
 static reiserfs_coord_t *lookup(reiserfs_node40_t *node, reiserfs_key_t *key) {
     int ret;
     int64_t pos;
-    reiserfs_plugin_id_t plugin_id;
     reiserfs_coord_t *coord;
+    reiserfs_plugin_id_t plugin_id;
 
     reiserfs_plugin_t *plugin;
     
-    if (!node || !node->block || !key)
-	return NULL;
+    aal_assert("umka-470", node != NULL, return NULL);
+    aal_assert("umka-471", node->block != NULL, return NULL);
+    aal_assert("umka-472", key != NULL, return NULL);
 	
     if (!(coord = aal_calloc(sizeof(*coord), 0)))
 	return NULL;
@@ -178,9 +178,10 @@ static reiserfs_coord_t *lookup(reiserfs_node40_t *node, reiserfs_key_t *key) {
 	    goto error_free_coord;
 	}
 
-/*	Uncomment this when method's interfaces will be ready
+/*    	Uncomment this when method's interfaces will be ready
 	if there is no item lookup method implemented, return coord with 
 	unit_pos == -1.
+	
 	reiserfs_plugin_check_routine(plugin->item, lookup, return coord);
 	plugin->item->common.lookup(key, coord);*/
     }

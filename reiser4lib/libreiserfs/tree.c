@@ -108,8 +108,8 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
     fs->tree = NULL;
 }
 
-/*int reiserfs_tree_lookup(reiserfs_tree_t *tree, blk_t from, 
-    reiserfs_comp_func_t comp_func, struct key *key, int for_leaf, 
+/*int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from, 
+    reiserfs_comp_func_t comp_func, reiserfs_key_t *key, 
     reiserfs_path_t *path) 
 {
     reiserfs_block_t *node;

@@ -35,7 +35,7 @@ extern "C" {
 #include "node.h"
 #include "key.h"
 #include "item.h"
-#include "search.h"    
+#include "path.h"
 
 extern int libreiserfs_get_max_interface_version(void);
 extern int libreiserfs_get_min_interface_version(void);

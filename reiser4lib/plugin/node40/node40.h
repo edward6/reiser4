@@ -22,7 +22,7 @@ struct reiserfs_node40_header {
     uint8_t level;
     uint32_t magic;
     uint16_t num_items;
-/*    char flags;  - still commented out in kernel */
+    char flags;
     uint32_t flush_time;
 };
 
@@ -40,8 +40,8 @@ typedef struct reiserfs_node40_header reiserfs_node40_header_t;
 #define get_nh40_free_space_start(header)	get_le16(header, free_space_start)
 #define set_nh40_free_space_start(header, val)	set_le16(header, free_space_start, val)
 
-#define get_nh40_level(header)			header->level 
-#define set_nh40_level(header, val)		header->level = val
+#define get_nh40_level(header)			(header->level)
+#define set_nh40_level(header, val)		(header->level = val)
 
 #define get_nh40_magic(header)			get_le32(header, magic)
 #define set_nh40_magic(header, val)		set_le32(header, magic, val)
