@@ -139,7 +139,7 @@ typedef struct reiser4_entity reiser4_entity_t;
 #define INVALID_PLUGIN_ID	(0xffff)
 
 /* Types for layout defining */
-typedef errno_t (*reiser4_action_func_t) (aal_device_t *, 
+typedef errno_t (*reiser4_action_func_t) (reiser4_entity_t *, 
     blk_t, void *);
 
 typedef errno_t (*reiser4_layout_func_t) (reiser4_entity_t *, 
@@ -666,6 +666,9 @@ struct reiser4_format_ops {
     */
     reiser4_entity_t *(*create) (aal_device_t *, count_t, uint16_t);
     
+    /* Returns the device disk-format lies on */
+    aal_device_t *(*device) (reiser4_entity_t *);
+    
     /*
 	Called during filesystem syncing. It calls method sync
 	for every "child" plugin (block allocator, journal, etc).
@@ -828,6 +831,9 @@ struct reiser4_journal_ops {
     /* Creates journal on specified device */
     reiser4_entity_t *(*create) (reiser4_entity_t *, void *);
 
+    /* Returns the device journal lies on */
+    aal_device_t *(*device) (reiser4_entity_t *);
+    
     /* Frees journal instance */
     void (*close) (reiser4_entity_t *);
 
