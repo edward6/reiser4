@@ -54,6 +54,7 @@ struct flush_scan {
 	lock_handle parent_lock;
 	coord_t     parent_coord;
 	load_handle parent_load;
+	reiser4_block_nr preceder_blk;
 };
 
 /* An encapsulation of the current flush point and all the parameters that are passed
@@ -206,6 +207,10 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 		if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
 			goto failed;
 		}
+
+		/* In some cases, we discover the parent-first preceder during the
+		 * leftward scan.  Copy it. */
+		flush_pos.preceder.blk = left_scan.preceder_blk;
 		flush_scan_done (& left_scan);
 
 		/* At this point, try squeezing at the "left edge", meaning to possibly
@@ -374,7 +379,33 @@ static int flush_squeeze_left_edge (flush_position *pos UNUSED_ARG)
 	return 0;
 }
 
-/* FIXME: Not setting preceder now. */
+/* FIXME: comment */
+static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
+{
+	int ret;
+	coord_t coord;
+	lock_handle left_lock;
+	
+	coord_dup (& coord, coord_in);
+
+	init_lh (& left_lock);
+
+	if (! coord_is_leftmost_unit (& coord)) {
+		coord_prev_unit (& coord);
+	} else {
+		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, 0))) {
+			goto exit;
+		}
+	}
+
+	if ((ret = item_utmost_child_real_block (& coord, RIGHT_SIDE, & pos->preceder.blk))) {
+		goto exit;
+	}
+
+ exit:
+	done_lh (& left_lock);
+	return ret;
+}
 
 /* Recurse up the tree as long as ancestors are same_atom_dirty and not allocated,
  * allocate on the way back down. */
@@ -384,6 +415,15 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 	lock_handle alock;
 	load_handle aload;
 	coord_t acoord;
+
+	/* As we ascend at the left-edge of the region to flush, take this opportunity at
+	 * the twig level to find our parent-first preceder unless we have already set
+	 * it. */
+	if (pos->preceder.blk == 0 && znode_get_level (coord->node) == TWIG_LEVEL) {
+		if ((ret = flush_set_preceder (coord, pos))) {
+			return ret;
+		}
+	}
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	 * leftmost child, stop going up. */
@@ -408,8 +448,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 		}
 
 		/* Recursive call. */
-		if (coord_is_leftmost_unit (& acoord) &&
-		    znode_is_dirty (acoord.node) &&
+		if (znode_is_dirty (acoord.node) &&
 		    ! znode_is_allocated (acoord.node) &&
 		    (ret = flush_alloc_one_ancestor (& acoord, pos))) {
 			goto exit;
@@ -1446,6 +1485,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 {
 	jnode *neighbor;
 	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist; /* FIXME: is u64 right? */
+	reiser4_block_nr unit_start;
 	struct inode *ino = NULL;
 	struct page *pg;
 	int ret, allocated, incr;
@@ -1473,6 +1513,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 		allocated  = extent_is_allocated (coord);
 		unit_index = extent_unit_index (coord);
 		unit_width = extent_unit_width (coord);
+		unit_start = extent_unit_start (coord);
 
 		assert ("jmacd-7187", unit_width > 0);
 		assert ("jmacd-7188", scan_index >= unit_index);
@@ -1504,7 +1545,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 
 					if (pg == NULL) {
 						assert ("jmacd-3550", allocated);
-						goto stop_same_parent;
+						goto setup_preceder;
 					}
 
 					neighbor = jnode_of_page (pg);
@@ -1524,6 +1565,14 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 					assert ("jmacd-3551", allocated || (! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node)));
 
 					if (! flush_scan_goto (scan, neighbor)) {
+					setup_preceder:
+						/* If we are scanning left and we stop in
+						 * the middle of an allocated extent, we
+						 * know the preceder immediately. */
+						if (flush_scanning_left (scan)) {
+							scan->preceder_blk = unit_start + scan_index + incr;
+						}
+
 						goto stop_same_parent;
 					}
 
@@ -1535,6 +1584,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 				} while (scan_max != scan_index);
 
 			} else {
+				/* FIXME: This branch isn't very well tested. */
 
 				/* Optimized case for unallocated extents, skip to the end. */
 				pg = find_get_page (ino->i_mapping, scan_max);
@@ -1569,6 +1619,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 
 	if (0) {
 	stop_same_parent:
+
 		/* In this case, we leave *coord set to the parent of scan->node. */
 		scan->stop = 1;
 
