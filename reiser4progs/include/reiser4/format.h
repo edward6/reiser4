@@ -7,6 +7,10 @@
 #ifndef FORMAT_H
 #define FORMAT_H
 
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/plugin.h>
 #include <reiser4/filesystem.h>
@@ -14,25 +18,29 @@
 extern error_t reiserfs_format_open(reiserfs_fs_t *fs);
 extern error_t reiserfs_format_reopen(reiserfs_fs_t *fs);
 extern void reiserfs_format_close(reiserfs_fs_t *fs);
-extern error_t reiserfs_format_sync(reiserfs_fs_t *fs);
-
-extern error_t reiserfs_format_create(reiserfs_fs_t *fs, 
-    reiserfs_plugin_id_t format_plugin_id, count_t len, 
-    reiserfs_params_opaque_t *journal_params);
-
-extern const char *reiserfs_format_format(reiserfs_fs_t *fs);
-
-extern blk_t reiserfs_format_offset(reiserfs_fs_t *fs);
 
 extern blk_t reiserfs_format_get_root(reiserfs_fs_t *fs);
 extern count_t reiserfs_format_get_blocks(reiserfs_fs_t *fs);
 extern count_t reiserfs_format_get_free(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_format_get_height(reiserfs_fs_t *fs);
 
+#ifndef ENABLE_COMPACT
+
+extern error_t reiserfs_format_sync(reiserfs_fs_t *fs);
+
+extern error_t reiserfs_format_create(reiserfs_fs_t *fs, 
+    reiserfs_plugin_id_t format_plugin_id, count_t len, 
+    reiserfs_params_opaque_t *journal_params);
+
 extern void reiserfs_format_set_root(reiserfs_fs_t *fs, blk_t root);
 extern void reiserfs_format_set_blocks(reiserfs_fs_t *fs, count_t blocks);
 extern void reiserfs_format_set_free(reiserfs_fs_t *fs, count_t blocks);
 extern void reiserfs_format_set_height(reiserfs_fs_t *fs, uint16_t height);
+
+#endif
+
+extern const char *reiserfs_format_format(reiserfs_fs_t *fs);
+extern blk_t reiserfs_format_offset(reiserfs_fs_t *fs);
 
 extern reiserfs_plugin_id_t reiserfs_format_journal_plugin_id(reiserfs_fs_t *fs);
 extern reiserfs_plugin_id_t reiserfs_format_alloc_plugin_id(reiserfs_fs_t *fs);

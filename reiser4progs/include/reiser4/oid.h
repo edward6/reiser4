@@ -7,14 +7,22 @@
 #ifndef OID_H
 #define OID_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
 
 extern error_t reiserfs_oid_open(reiserfs_fs_t *fs);
 extern void reiserfs_oid_close(reiserfs_fs_t *fs);
 
+#ifndef ENABLE_COMPACT
+
 extern uint64_t reiserfs_oid_alloc(reiserfs_fs_t *fs);
 extern void reiserfs_oid_dealloc(reiserfs_fs_t *fs, uint64_t oid);
+
+#endif
 
 extern uint64_t reiserfs_oid_next(reiserfs_fs_t *fs);
 extern uint64_t reiserfs_oid_used(reiserfs_fs_t *fs);

@@ -28,6 +28,8 @@ static void *node40_item_at(aal_block_t *block, uint32_t pos) {
     return node40_item_at_pos(block, pos);
 }
 
+#ifndef ENABLE_COMPACT
+
 /*
     Removes item from given block at passed pos. It would
     be nice to be able to remove set of items, but due to
@@ -40,6 +42,8 @@ static error_t node40_item_remove(aal_block_t *block,
     aal_assert("vpf-025", block != NULL, return -1);
     return -1;
 }
+
+#endif
 
 /*
     Retutns items overhead for this node format.
@@ -105,14 +109,14 @@ static uint16_t node40_item_get_plugin_id(aal_block_t *block,
     return ih40_get_plugin_id(node40_ih_at(block, pos));
 }
 
+#ifndef ENABLE_COMPACT
+
 static void node40_item_set_plugin_id(aal_block_t *block, 
     uint16_t pos, uint16_t plugin_id) 
 {
     aal_assert("vpf-039", block != NULL, return);
     ih40_set_plugin_id(node40_ih_at(block, pos), plugin_id);
 }
-
-#ifndef ENABLE_COMPACT
 
 static error_t node40_prepare_space(aal_block_t *block, 
     reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info) 
@@ -286,15 +290,17 @@ static uint8_t node40_get_level(aal_block_t *block) {
     return nh40_get_level(reiserfs_nh40(block));
 }
 
-static void node40_set_level(aal_block_t *block, uint8_t level) {
-   aal_assert("vpf-043", block != NULL, return); 
-   nh40_set_level(reiserfs_nh40(block), level);
-}
-
 /* Gets/sets free space in given block. */
 static uint16_t node40_get_free_space(aal_block_t *block) {
     aal_assert("vpf-020", block != NULL, return 0);
     return nh40_get_free_space(reiserfs_nh40(block));
+}
+
+#ifndef ENABLE_COMPACT
+
+static void node40_set_level(aal_block_t *block, uint8_t level) {
+   aal_assert("vpf-043", block != NULL, return); 
+   nh40_set_level(reiserfs_nh40(block), level);
 }
 
 static void node40_set_free_space(aal_block_t *block, 
@@ -303,6 +309,8 @@ static void node40_set_free_space(aal_block_t *block,
     aal_assert("vpf-022", block != NULL, return);
     nh40_set_free_space(reiserfs_nh40(block), free_space);
 }
+
+#endif
 
 /* 
     Prepare text node description and push it into buff.
@@ -396,26 +404,33 @@ static reiserfs_plugin_t node40_plugin = {
 	.get_level = (uint8_t (*)(aal_block_t *))
 	    node40_get_level,
 	
-	.set_level = (void (*)(aal_block_t *, uint8_t))
-	    node40_set_level,
-	
 	.get_free_space = (uint16_t (*)(aal_block_t *))
 	    node40_get_free_space,
+	
+#ifndef ENABLE_COMPACT
+	.create = (error_t (*)(aal_block_t *, uint8_t))node40_create,
+	.set_level = (void (*)(aal_block_t *, uint8_t))
+	    node40_set_level,
 	
 	.set_free_space = (void (*)(aal_block_t *, uint32_t))
 	    node40_set_free_space,
 
-#ifndef ENABLE_COMPACT
-	.create = (error_t (*)(aal_block_t *, uint8_t))node40_create,
 	.item_insert = (error_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_item_insert,
 	
 	.item_paste = (error_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_item_insert,
+	
+	.item_set_plugin_id = (void (*)(aal_block_t *, int32_t, uint16_t))
+	    node40_item_set_plugin_id,
+	
 #else
 	.create = NULL,
+	.set_level = NULL,
+	.set_free_space = NULL,
 	.item_insert = NULL,
 	.item_paste = NULL,
+	.item_set_plugin_id = NULL,
 #endif
 	.item_overhead = (uint16_t (*)(aal_block_t *))node40_item_overhead,
 	.item_maxsize = (uint16_t (*)(aal_block_t *))node40_item_maxsize,
@@ -430,9 +445,6 @@ static reiserfs_plugin_t node40_plugin = {
 
 	.item_get_plugin_id = (uint16_t (*)(aal_block_t *, int32_t))
 	    node40_item_get_plugin_id,
-	
-	.item_set_plugin_id = (void (*)(aal_block_t *, int32_t, uint16_t))
-	    node40_item_set_plugin_id,
 	
 	.item_key_at = (reiserfs_opaque_t *(*)(aal_block_t *, int32_t))
 	    node40_item_key_at,

@@ -19,7 +19,8 @@ reiserfs_dir_t *reiserfs_dir_create(reiserfs_dir_t *parent,
     return dir;
 }
 
-reiserfs_dir_t *reiserfs_dir_open(void) {
+reiserfs_dir_t *reiserfs_dir_open(reiserfs_fs_t *fs, const char *name) {
+    aal_assert("umka-677", name != NULL, return NULL);
     return NULL;
 }
 

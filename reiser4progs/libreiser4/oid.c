@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
@@ -43,6 +47,8 @@ void reiserfs_oid_close(reiserfs_fs_t *fs) {
     fs->oid = NULL;
 }
 
+#ifndef ENABLE_COMPACT
+
 uint64_t reiserfs_oid_alloc(reiserfs_fs_t *fs) {
     aal_assert("umka-521", fs != NULL, return 0);
     aal_assert("umka-522", fs->oid != NULL, return 0);
@@ -58,6 +64,8 @@ void reiserfs_oid_dealloc(reiserfs_fs_t *fs, uint64_t oid) {
     libreiser4_plugin_call(return, fs->oid->plugin->oid, 
 	dealloc, fs->oid->entity, oid);
 }
+
+#endif
 
 uint64_t reiserfs_oid_next(reiserfs_fs_t *fs) {
     aal_assert("umka-526", fs != NULL, return 0);

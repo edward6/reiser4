@@ -159,6 +159,24 @@ count_t reiserfs_format_get_blocks(reiserfs_fs_t *fs) {
 	get_blocks, fs->format->entity);
 }
 
+count_t reiserfs_format_get_free(reiserfs_fs_t *fs) {
+    aal_assert("umka-425", fs != NULL, return 0);
+    aal_assert("umka-426", fs->format != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, fs->format->plugin->format, 
+	get_free, fs->format->entity);
+}
+
+uint16_t reiserfs_format_get_height(reiserfs_fs_t *fs) {
+    aal_assert("umka-556", fs != NULL, return 0);
+    aal_assert("umka-557", fs->format != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, fs->format->plugin->format, 
+	get_height, fs->format->entity);
+}
+
+#ifndef ENABLE_COMPACT
+
 void reiserfs_format_set_root(reiserfs_fs_t *fs, blk_t root) {
     aal_assert("umka-419", fs != NULL, return);
     aal_assert("umka-420", fs->format != NULL, return);
@@ -183,22 +201,6 @@ void reiserfs_format_set_free(reiserfs_fs_t *fs, count_t blocks) {
 	set_free, fs->format->entity, blocks);
 }
 
-count_t reiserfs_format_get_free(reiserfs_fs_t *fs) {
-    aal_assert("umka-425", fs != NULL, return 0);
-    aal_assert("umka-426", fs->format != NULL, return 0);
-    
-    return libreiser4_plugin_call(return 0, fs->format->plugin->format, 
-	get_free, fs->format->entity);
-}
-
-uint16_t reiserfs_format_get_height(reiserfs_fs_t *fs) {
-    aal_assert("umka-556", fs != NULL, return 0);
-    aal_assert("umka-557", fs->format != NULL, return 0);
-    
-    return libreiser4_plugin_call(return 0, fs->format->plugin->format, 
-	get_height, fs->format->entity);
-}
-
 void reiserfs_format_set_height(reiserfs_fs_t *fs, uint16_t height) {
     aal_assert("umka-558", fs != NULL, return);
     aal_assert("umka-559", fs->format != NULL, return);
@@ -206,6 +208,8 @@ void reiserfs_format_set_height(reiserfs_fs_t *fs, uint16_t height) {
     libreiser4_plugin_call(return, fs->format->plugin->format, 
 	set_height, fs->format->entity, height);
 }
+
+#endif
 
 reiserfs_plugin_id_t reiserfs_format_journal_plugin_id(reiserfs_fs_t *fs) {
     aal_assert("umka-114", fs != NULL, return -1);

@@ -228,7 +228,7 @@ after_item:
     return found;
 }
 
-static int reiserfs_node_cmp_key(reiserfs_plugin_t *plugin, 
+static int reiserfs_node_comp_key(reiserfs_plugin_t *plugin, 
     const void *key1, const void *key2)
 {
     aal_assert("umka-650", plugin != NULL, return -2);
@@ -237,6 +237,39 @@ static int reiserfs_node_cmp_key(reiserfs_plugin_t *plugin,
 
     return libreiser4_plugin_call(return -2, plugin->key, compare, 
 	key1, key2);
+}
+
+/* 
+    Callback function for comparing node's left delimiting key
+    with given key.
+*/
+static int callback_comp_for_find(reiserfs_node_t *node, void *key) {
+    reiserfs_plugin_t *plugin;
+    
+    aal_assert("umka-653", node != NULL, return -2);
+    aal_assert("umka-654", key != NULL, return -2);
+
+    /* 
+	FIXME-UMKA: We should avoid hardcoded magic numbers.
+	Here should be passed plugin id number for key plugin.
+    */
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) 
+    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
+    
+    return reiserfs_node_comp_key(plugin, reiserfs_node_item_key_at(node, 0), key);
+}
+
+/* Finds children node by its key in node cache */
+reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
+    void *key)
+{
+    aal_list_t *list;
+    
+    if (!(list = aal_list_bin_search(node->children, key, 
+	    (int (*)(const void *, const void *))callback_comp_for_find)))
+	return NULL;
+
+    return (reiserfs_node_t *)list->data;
 }
 
 /* 
@@ -265,40 +298,7 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
     key1 = reiserfs_node_item_key_at(node1, 0);
     key2 = reiserfs_node_item_key_at(node2, 0);
 
-    return reiserfs_node_cmp_key(plugin, key1, key2);
-}
-
-/* 
-    Callback function for comparing node's left delimiting key
-    with given key.
-*/
-static int callback_comp_for_find(reiserfs_node_t *node, void *key) {
-    reiserfs_plugin_t *plugin;
-    
-    aal_assert("umka-653", node != NULL, return -2);
-    aal_assert("umka-654", key != NULL, return -2);
-
-    /* 
-	FIXME-UMKA: We should avoid hardcoded magic numbers.
-	Here should be passed plugin id number for key plugin.
-    */
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) 
-    	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
-    
-    return reiserfs_node_cmp_key(plugin, reiserfs_node_item_key_at(node, 0), key);
-}
-
-/* Finds children node by its key in node cache */
-reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
-    void *key)
-{
-    aal_list_t *list;
-    
-    if (!(list = aal_list_bin_search(node->children, key, 
-	    (int (*)(const void *, const void *))callback_comp_for_find)))
-	return NULL;
-
-    return (reiserfs_node_t *)list->data;
+    return reiserfs_node_comp_key(plugin, key1, key2);
 }
 
 /* Connects children into sorted list of specified node */
@@ -389,6 +389,27 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
     return 0;
 }
 
+void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level) {
+    aal_assert("umka-454", node != NULL, return);
+
+    if (node->plugin->node.set_level == NULL)
+        return;
+
+    node->plugin->node.set_level(node->block, level);
+}
+
+void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
+    aal_assert("umka-456", node != NULL, return);
+    
+    return libreiser4_plugin_call(return, node->plugin->node, 
+	set_free_space, node->block, value);
+}
+
+void reiserfs_node_set_plugin_id(reiserfs_node_t *node, reiserfs_plugin_id_t plugin_id) {
+    aal_assert("umka-603", node != NULL, return);
+    set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
+}
+
 #endif
 
 uint8_t reiserfs_node_get_level(reiserfs_node_t *node) {
@@ -400,15 +421,6 @@ uint8_t reiserfs_node_get_level(reiserfs_node_t *node) {
     return node->plugin->node.get_level(node->block);
 }
 
-void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level) {
-    aal_assert("umka-454", node != NULL, return);
-
-    if (node->plugin->node.set_level == NULL)
-        return;
-
-    node->plugin->node.set_level(node->block, level);
-}
-
 uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
@@ -416,21 +428,9 @@ uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
 	get_free_space, node->block);
 }
 
-void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
-    aal_assert("umka-456", node != NULL, return);
-    
-    return libreiser4_plugin_call(return, node->plugin->node, 
-	set_free_space, node->block, value);
-}
-
 reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node) {
     aal_assert("umka-161", node != NULL, return -1);
     return get_le16((reiserfs_node_header_t *)node->block->data, plugin_id);
-}
-
-void reiserfs_node_set_plugin_id(reiserfs_node_t *node, reiserfs_plugin_id_t plugin_id) {
-    aal_assert("umka-603", node != NULL, return);
-    set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
 }
 
 /* Item functions */
@@ -476,6 +476,22 @@ void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos) {
 	item_key_at, node->block, pos);
 }
 
+reiserfs_plugin_id_t reiserfs_node_item_get_plugin_id(reiserfs_node_t *node, 
+    uint32_t pos)
+{
+    aal_assert("vpf-047", node != NULL, return 0);
+    return libreiser4_plugin_call(return 0, node->plugin->node, 
+	item_get_plugin_id, node->block, pos);
+}
+
+reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node, 
+    uint32_t pos)
+{
+    aal_assert("umka-542", node != NULL, return 0);
+    return libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
+	reiserfs_node_item_get_plugin_id(node, pos)); 
+}
+
 blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, uint32_t pos) {
     void *body;
     reiserfs_plugin_t *plugin;
@@ -497,31 +513,6 @@ blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, uint32_t pos) {
     
     return libreiser4_plugin_call(return 0, plugin->item.specific.internal, 
 	get_pointer, body);
-}
-
-void reiserfs_node_item_set_pointer(reiserfs_node_t *node, 
-    uint32_t pos, blk_t blk) 
-{
-    void *body;
-    reiserfs_plugin_t *plugin;
-    
-    aal_assert("umka-607", node != NULL, return);
-
-    if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find item plugin.");
-	return;
-    }
-    
-    if (!(body = reiserfs_node_item_at(node, pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find item at node %llu and pos %u",
-	    aal_block_get_nr(node->block), pos);
-	return;
-    }
-    
-    libreiser4_plugin_call(return, plugin->item.specific.internal, 
-	set_pointer, body, blk);
 }
 
 int reiserfs_node_item_has_pointer(reiserfs_node_t *node, 
@@ -560,6 +551,33 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
 	return 0;
     }
     return libreiser4_plugin_call(return 0, plugin->item.common, internal,);
+}
+
+#ifndef ENABLE_COMPACT
+
+void reiserfs_node_item_set_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk) 
+{
+    void *body;
+    reiserfs_plugin_t *plugin;
+    
+    aal_assert("umka-607", node != NULL, return);
+
+    if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
+	return;
+    }
+    
+    if (!(body = reiserfs_node_item_at(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
+	    aal_block_get_nr(node->block), pos);
+	return;
+    }
+    
+    libreiser4_plugin_call(return, plugin->item.specific.internal, 
+	set_pointer, body, blk);
 }
 
 /*
@@ -663,22 +681,6 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord
     return 0;
 }
 
-reiserfs_plugin_id_t reiserfs_node_item_get_plugin_id(reiserfs_node_t *node, 
-    uint32_t pos)
-{
-    aal_assert("vpf-047", node != NULL, return 0);
-    return libreiser4_plugin_call(return 0, node->plugin->node, 
-	item_get_plugin_id, node->block, pos);
-}
-
-reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node, 
-    uint32_t pos)
-{
-    aal_assert("umka-542", node != NULL, return 0);
-    return libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
-	reiserfs_node_item_get_plugin_id(node, pos)); 
-}
-
 void reiserfs_node_item_set_plugin_id(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_plugin_id_t plugin_id)
 {
@@ -695,4 +697,6 @@ void reiserfs_node_item_set_plugin(reiserfs_node_t *node,
     
     reiserfs_node_item_set_plugin_id(node, pos, plugin->h.id);
 }
+
+#endif
 

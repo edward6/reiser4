@@ -92,6 +92,8 @@ static void alloc40_close(reiserfs_alloc40_t *alloc) {
     aal_free(alloc);
 }
 
+#ifndef ENABLE_COMPACT
+
 static void alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-370", alloc != NULL, return);
@@ -124,6 +126,8 @@ static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
     reiserfs_bitmap_use(alloc->bitmap, blk);
     return blk;
 }
+
+#endif
 
 count_t alloc40_free(reiserfs_alloc40_t *alloc) {
 
@@ -164,16 +168,17 @@ static reiserfs_plugin_t alloc40_plugin = {
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_create,
 	.sync = (error_t (*)(reiserfs_opaque_t *))alloc40_sync,
+	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
+	.alloc = (blk_t (*)(reiserfs_opaque_t *))alloc40_alloc,
+	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_dealloc,
 #else
 	.create = NULL,
 	.sync = NULL,
+	.mark = NULL,
+	.alloc = NULL,
+	.dealloc = NULL,
 #endif
-
-	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
 	.test = (int (*)(reiserfs_opaque_t *, blk_t))alloc40_test,
-	.alloc = (blk_t (*)(reiserfs_opaque_t *))alloc40_alloc,
-	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_dealloc,
-	
 	.free = (count_t (*)(reiserfs_opaque_t *))alloc40_free,
 	.used = (count_t (*)(reiserfs_opaque_t *))alloc40_used
     }

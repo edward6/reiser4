@@ -59,12 +59,16 @@ static void internal40_print(reiserfs_internal40_t *internal,
     aal_assert("umka-545", buff != NULL, return);
 }
 
+#ifndef ENABLE_COMPACT
+
 static void internal40_set_pointer(reiserfs_internal40_t *internal, 
     blk_t blk) 
 {
     aal_assert("umka-605", internal != NULL, return);
     int40_set_blk(internal, blk);
 }
+
+#endif
 
 static blk_t internal40_get_pointer(reiserfs_internal40_t *internal) {
     aal_assert("umka-606", internal != NULL, return 0);
@@ -112,7 +116,11 @@ static reiserfs_plugin_t internal40_plugin = {
 	},
 	.specific = {
 	    .internal = {
+#ifndef ENABLE_COMPACT
 		.set_pointer = (void (*)(void *, blk_t))internal40_set_pointer,
+#else
+		.set_pointer = NULL,
+#endif
 		.get_pointer = (blk_t (*)(void *))internal40_get_pointer,
 		.has_pointer = (int (*)(void *, blk_t))internal40_has_pointer
 	    }

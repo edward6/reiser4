@@ -7,6 +7,10 @@
 #ifndef JOURNAL_H
 #define JOURNAL_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
 #include <reiser4/plugin.h>
@@ -14,7 +18,10 @@
 extern error_t reiserfs_journal_open(reiserfs_fs_t *fs, 
     int replay);
 
+#ifndef ENABLE_COMPACT
 extern error_t reiserfs_journal_sync(reiserfs_fs_t *fs);
+#endif
+
 extern void reiserfs_journal_close(reiserfs_fs_t *fs);
 
 #endif

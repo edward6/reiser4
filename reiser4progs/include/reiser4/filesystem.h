@@ -7,8 +7,13 @@
 #ifndef FILESYSTEM_H
 #define FILESYSTEM_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/plugin.h>
+#include <reiser4/key.h>
 
 #define REISERFS_DEFAULT_BLOCKSIZE	4096
 #define REISERFS_MASTER_OFFSET		65536
@@ -105,12 +110,28 @@ struct reiserfs_tree {
 
 typedef struct reiserfs_tree reiserfs_tree_t;
 
+struct reiserfs_object {
+    reiserfs_key_t key;
+};
+
+typedef struct reiserfs_object reiserfs_object_t;
+
 struct reiserfs_dir {
+    reiserfs_object_t *object;
     reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_dir reiserfs_dir_t;
+
+struct reiserfs_file {
+    uint64_t offset;
+    reiserfs_object_t *object;
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_file reiserfs_file_t;
 
 /* Format structure */
 struct reiserfs_format {
@@ -164,12 +185,17 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     aal_device_t *journal_device, int replay);
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs);
-extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
-	
+
+#ifndef ENABLE_COMPACT
+
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
     reiserfs_profile_t *profile, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
     reiserfs_params_opaque_t *journal_params);
+
+extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
+
+#endif
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);

@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiser4/reiser4.h>
 #include "oid40.h"
 
@@ -26,6 +30,8 @@ static void oid40_close(reiserfs_oid40_t *oid) {
     aal_free(oid);
 }
 
+#ifndef ENABLE_COMPACT
+
 static oid_t oid40_alloc(reiserfs_oid40_t *oid) {
     oid_t next, used;
 	    
@@ -47,6 +53,8 @@ static void oid40_dealloc(reiserfs_oid40_t *oid, oid_t inode) {
     used = oid40_get_used(oid->area);
     oid40_set_used(oid->area, used - 1);
 }
+
+#endif
 
 static oid_t oid40_next(reiserfs_oid40_t *oid) {
     aal_assert("umka-529", oid != NULL, return 0);
@@ -82,10 +90,15 @@ static reiserfs_plugin_t oid40_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(void *, uint32_t))oid40_open,
 	.close = (void (*)(reiserfs_opaque_t *))oid40_close,
-	
+
+#ifndef ENABLE_COMPACT	
 	.alloc = (oid_t (*)(reiserfs_opaque_t *))oid40_alloc,
 	.dealloc = (void (*)(reiserfs_opaque_t *, oid_t))oid40_dealloc,
-	
+#else
+	.alloc = NULL,
+	.dealloc = NULL,
+#endif
+
 	.next = (oid_t (*)(reiserfs_opaque_t *))oid40_next,
 	.used = (oid_t (*)(reiserfs_opaque_t *))oid40_used,
 	

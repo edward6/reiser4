@@ -18,46 +18,6 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-/* 
-    This will build sd key as objid has SD_MINOR. 
-    Use key.build_key_by_short_file_key insead
-*/
-/*
-static void direntry40_build_key_by_objid(void *key, reiserfs_plugin_t *plugin, 
-    reiserfs_objid_t *id) 
-{
-    aal_assert("vpf-087", id != NULL, return);
-    aal_assert("vpf-124", key != NULL, return);
-    aal_assert("umka-660", plugin != NULL, return);
-
-    libreiser4_plugin_call(return, plugin->key, clean, key);
-    libreiser4_plugin_call(return, plugin->key, set_locality, key, 
-	objid_get_locality(id));
-    libreiser4_plugin_call(return, plugin->key, set_objectid, key, 
-	objid_get_objectid(id));
-    libreiser4_plugin_call(return, plugin->key, set_type, key, 
-	KEY40_SD_MINOR);
-}
-*/
-
-/* 
-    Builds the key name poits to. It is used by direntry40_create
-    function. Use build_key_by_short_dir_key instead 
-*/
-/*
-static void direntry40_build_objid_by_params(reiserfs_objid_t *objid, 
-    oid_t locality, oid_t objectid)
-{
-    aal_assert("vpf-089", objid != NULL, return);
- 
-    //
-	//We can use here this code which likes some hack
-	//because direntry40 know about format of "objid".
-    //
-    objid_set_locality(objid, ((locality << 4) | KEY40_SD_MINOR));
-    objid_set_objectid(objid, objectid);
-}
-*/
 #ifndef ENABLE_COMPACT
 
 static error_t direntry40_create(reiserfs_direntry40_t *direntry, 
@@ -273,4 +233,3 @@ static reiserfs_plugin_t *direntry40_entry(reiserfs_plugin_factory_t *f) {
 }
 
 libreiser4_factory_register(direntry40_entry);
-

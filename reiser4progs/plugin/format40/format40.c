@@ -462,6 +462,8 @@ static uint16_t format40_get_height(reiserfs_format40_t *format) {
     return get_sb_tree_height((reiserfs_format40_super_t *)format->super->data);
 }
 
+#ifndef ENABLE_COMPACT
+
 static void format40_set_root(reiserfs_format40_t *format, blk_t root) {
     aal_assert("umka-403", format != NULL, return);
     set_sb_root_block((reiserfs_format40_super_t *)format->super->data, root);
@@ -481,6 +483,8 @@ static void format40_set_height(reiserfs_format40_t *format, uint16_t height) {
     aal_assert("umka-555", format != NULL, return);
     set_sb_tree_height((reiserfs_format40_super_t *)format->super->data, height);
 }
+
+#endif
 
 static reiserfs_plugin_t format40_plugin = {
     .format = {
@@ -512,17 +516,21 @@ static reiserfs_plugin_t format40_plugin = {
 	.offset = (blk_t (*)(reiserfs_opaque_t *))format40_offset,
 	
 	.get_root = (blk_t (*)(reiserfs_opaque_t *))format40_get_root,
-	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))format40_set_root,
-	
 	.get_blocks = (count_t (*)(reiserfs_opaque_t *))format40_get_blocks,
-	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))format40_set_blocks,
-	
 	.get_free = (count_t (*)(reiserfs_opaque_t *))format40_get_free,
-	.set_free = (void (*)(reiserfs_opaque_t *, count_t))format40_set_free,
-	
 	.get_height = (uint16_t (*)(reiserfs_opaque_t *))format40_get_height,
-	.set_height = (void (*)(reiserfs_opaque_t *, uint16_t))format40_set_height,
 	
+#ifndef ENABLE_COMPACT	
+	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))format40_set_root,
+	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))format40_set_blocks,
+	.set_free = (void (*)(reiserfs_opaque_t *, count_t))format40_set_free,
+	.set_height = (void (*)(reiserfs_opaque_t *, uint16_t))format40_set_height,
+#else
+	.set_root = NULL,
+	.set_blocks = NULL,
+	.set_free = NULL,
+	.set_height = NULL,
+#endif
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    format40_journal_plugin,
 		

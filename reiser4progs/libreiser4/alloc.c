@@ -87,6 +87,8 @@ count_t reiserfs_alloc_used(reiserfs_fs_t *fs) {
 	used, fs->alloc->entity);
 }
 
+#ifndef ENABLE_COMPACT
+
 void reiserfs_alloc_mark(reiserfs_fs_t *fs, blk_t blk) {
     aal_assert("umka-500", fs != NULL, return);
     aal_assert("umka-501", fs->alloc != NULL, return);
@@ -110,6 +112,8 @@ blk_t reiserfs_alloc_alloc(reiserfs_fs_t *fs) {
     return libreiser4_plugin_call(return 0, fs->alloc->plugin->alloc, 
 	alloc, fs->alloc->entity);
 }
+
+#endif
 
 int reiserfs_alloc_test(reiserfs_fs_t *fs, blk_t blk) {
     aal_assert("umka-661", fs != NULL, return 0);
