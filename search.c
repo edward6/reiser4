@@ -525,10 +525,10 @@ znode_contains_key_strict(znode * node	/* node to check key
 	assert("nikita-1760", node != NULL);
 	assert("nikita-1722", key != NULL);
 	
-	if (keyge(key, &node->rd_key))
+	if (keyge(key, znode_get_rd_key(node)))
 		return 0;
 
-	answer = keycmp(&node->ld_key, key);
+	answer = keycmp(znode_get_ld_key(node), key);
 
 	if (isunique)
 		return answer != GREATER_THAN;

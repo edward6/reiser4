@@ -697,7 +697,7 @@ znode_get_rd_key(znode * node /* znode to query */ )
 	assert("nikita-1661", rw_dk_is_locked(znode_get_tree(node)));
 	assert("nikita-3067", LOCK_CNT_GTZ(rw_locked_dk));
 
-	return &node->rd_key;
+	return &node->rd_key1;
 }
 
 /* right delimiting key of znode */
@@ -708,7 +708,7 @@ znode_get_ld_key(znode * node /* znode to query */ )
 	assert("nikita-1662", rw_dk_is_locked(znode_get_tree(node)));
 	assert("nikita-3068", LOCK_CNT_GTZ(rw_locked_dk));
 
-	return &node->ld_key;
+	return &node->ld_key1;
 }
 
 /* update right-delimiting key of @node */
@@ -719,15 +719,34 @@ znode_set_rd_key(znode * node, const reiser4_key * key)
 	assert("nikita-2939", key != NULL);
 	assert("nikita-2938", rw_dk_is_write_locked(znode_get_tree(node)));
 	assert("nikita-3069", LOCK_CNT_GTZ(write_locked_dk));
-/*
 	assert("nikita-2944",
 	       znode_is_any_locked(node) ||
 	       znode_get_level(node) != LEAF_LEVEL ||
 	       keyge(key, znode_get_rd_key(node)) ||
 	       keyeq(znode_get_rd_key(node), min_key()));
-*/
-	node->rd_key = *key;
-	return &node->rd_key;
+	BUG_ON(keyeq(znode_get_ld_key(node), key));
+
+	node->rd_key1 = *key;
+	return &node->rd_key1;
+}
+
+/* update left-delimiting key of @node */
+reiser4_internal reiser4_key *
+znode_set_ld_key(znode * node, const reiser4_key * key)
+{
+	assert("nikita-2940", node != NULL);
+	assert("nikita-2941", key != NULL);
+	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
+	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk > 0));
+	assert("nikita-2943",
+	       znode_is_any_locked(node) ||
+	       keyeq(znode_get_ld_key(node), min_key()));
+	BUG_ON(!JF_ISSET(ZJNODE(node), JNODE_HEARD_BANSHEE) && 
+	       !JF_ISSET(ZJNODE(node), JNODE_ORPHAN) &&
+	       !keyeq(key, min_key()) && keyeq(znode_get_rd_key(node), key));
+
+	node->ld_key1 = *key;
+	return &node->ld_key1;
 }
 
 /* znode has left and right delimiting keys. We moved data between nodes,
@@ -739,9 +758,13 @@ update_znode_dkeys(znode * left, znode * right)
 	reiser4_key key;
 
 	assert("nikita-1470", rw_dk_is_write_locked(znode_get_tree(right)));
-
+	assert("", znode_is_any_locked(left, right));
+	
 	leftmost_key_in_node(right, &key);
+	BUG_ON(!keyeq(znode_get_ld_key(right), &key));
+	znode_set_rd_key(left, znode_get_ld_key(right));
 
+#if 0
 	if (0) {
 		printk("update_znode_dkeys: %p(%s) %p(%s)\n",
 		       left, left ? (node_is_empty(left) ? "e" : "o") : "n",
@@ -769,10 +792,11 @@ update_znode_dkeys(znode * left, znode * right)
 		assert("vs-186", !node_is_empty(right));
 
 		/* update right delimiting key of @left */
-		znode_set_rd_key(left, znode_get_ld_key(left));
+		znode_set_rd_key(left, znode_get_ld_key(right));
 
 		/* update left delimiting key of @right */
-		znode_set_ld_key(right, &key);
+		BUG_ON(!keyeq(znode_get_ld_key(right), &key));
+		/*znode_set_ld_key(right, &key);*/
 		return;
 	}
 
@@ -787,22 +811,7 @@ update_znode_dkeys(znode * left, znode * right)
 		return;
 	}
 	impossible("vs-188", "both nodes can not be empty");
-}
-
-/* update left-delimiting key of @node */
-reiser4_internal reiser4_key *
-znode_set_ld_key(znode * node, const reiser4_key * key)
-{
-	assert("nikita-2940", node != NULL);
-	assert("nikita-2941", key != NULL);
-	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
-	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk > 0));
-	assert("nikita-2943",
-	       znode_is_any_locked(node) ||
-	       keyeq(znode_get_ld_key(node), min_key()));
-
-	node->ld_key = *key;
-	return &node->ld_key;
+#endif
 }
 
 /* true if @key is inside key range for @node */

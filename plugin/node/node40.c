@@ -602,7 +602,7 @@ check_node40(const znode * node /* node to check */ ,
 	}
 
 	if (flags & REISER4_NODE_DKEYS)
-		prev = node->ld_key;
+		prev = *znode_get_ld_key((znode *)node);
 	else
 		prev = *min_key();
 
@@ -715,14 +715,14 @@ check_node40(const znode * node /* node to check */ ,
 
 		flags |= REISER4_NODE_TREE_STABLE;
 
-		if (keygt(&prev, &node->rd_key)) {
+		if (keygt(&prev, znode_get_rd_key((znode *)node))) {
 			reiser4_stat_inc(tree.rd_key_skew);
 			if (flags & REISER4_NODE_TREE_STABLE) {
 				*error = "Last key is greater than rdkey";
 				return -1;
 			}
 		}
-		if (keygt(&node->ld_key, &node->rd_key)) {
+		if (keygt(znode_get_ld_key((znode *)node), znode_get_rd_key((znode *)node))) {
 			*error = "ldkey is greater than rdkey";
 			return -1;
 		}
@@ -730,8 +730,8 @@ check_node40(const znode * node /* node to check */ ,
 		    (node->left != NULL) &&
 		    !ZF_ISSET(node->left, JNODE_HEARD_BANSHEE) &&
 		    ergo(flags & REISER4_NODE_TREE_STABLE,
-			 !keyeq(&node->left->rd_key, &node->ld_key)) &&
-		    ergo(!(flags & REISER4_NODE_TREE_STABLE), keygt(&node->left->rd_key, &node->ld_key))) {
+			 !keyeq(znode_get_rd_key(node->left), znode_get_ld_key((znode *)node))) &&
+		    ergo(!(flags & REISER4_NODE_TREE_STABLE), keygt(znode_get_rd_key(node->left), znode_get_ld_key((znode *)node)))) {
 			*error = "left rdkey or ldkey is wrong";
 			return -1;
 		}
@@ -739,8 +739,8 @@ check_node40(const znode * node /* node to check */ ,
 		    (node->right != NULL) &&
 		    !ZF_ISSET(node->right, JNODE_HEARD_BANSHEE) &&
 		    ergo(flags & REISER4_NODE_TREE_STABLE,
-			 !keyeq(&node->rd_key, &node->right->ld_key)) &&
-		    ergo(!(flags & REISER4_NODE_TREE_STABLE), keygt(&node->rd_key, &node->right->ld_key))) {
+			 !keyeq(znode_get_rd_key((znode *)node), znode_get_ld_key(node->right))) &&
+		    ergo(!(flags & REISER4_NODE_TREE_STABLE), keygt(znode_get_rd_key((znode *)node), znode_get_ld_key(node->right)))) {
 			*error = "rdkey or right ldkey is wrong";
 			return -1;
 		}

@@ -1226,6 +1226,8 @@ prepare_twig_kill(carry_kill_data *kdata, znode * locked_left_neighbor)
 		kdata->left = kdata->right = NULL;
 	}
 
+#if 1
+	/* th*/
 	/* update right delimiting key of left_child */
 
 	if (result == 0 && left_child != NULL) {
@@ -1236,6 +1238,8 @@ prepare_twig_kill(carry_kill_data *kdata, znode * locked_left_neighbor)
 		RUNLOCK_TREE(tree);
 		WUNLOCK_DK(tree);
 	}
+#endif
+
  done:
 	if (right_child)
 		zput(right_child);
@@ -1497,7 +1501,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 		RLOCK_TREE(tree);
 		assert("zam-1021", znode_is_connected(node));
 		if (node->left)
-			node->left->rd_key = node->rd_key;
+			znode_set_rd_key(node->left, znode_get_rd_key(node));
 		RUNLOCK_TREE(tree);
 
 		*smallest_removed = *znode_get_ld_key(node);
