@@ -543,14 +543,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 	lock_handle lh;
 	file_plugin * fplug;
 	item_plugin * iplug;
-	
-	struct address_space * mapping = file->f_dentry->d_inode->i_mapping;
-	struct inode * inode = mapping->host;
-	struct page * page;
-	LIST_HEAD (page_pool);
-	int page_idx;
-	int nr_to_really_read = 0;
-	unsigned long cur_page, last_page;
+	unsigned long last_page, cur_page;
 	
 
 	assert ("vs-754", file && file->f_dentry && file->f_dentry->d_inode);
@@ -569,13 +562,13 @@ int reiser4_do_page_cache_readahead (struct file * file,
 
 	/* make sure that we can calculate a key by inode and offset we want to
 	 * read from */
-	assert ("vs-755", (inode_file_plugin (inode) &&
-			   inode_file_plugin (inode)->key_by_inode));
+	fplug = inode_file_plugin (inode);
+	assert ("vs-755", fplug && fplug->key_by_inode);
 
 	cur_page = start_page;
 	while (intrafile_readahead_amount) {
 		/* calc key of next page to readahead */
-		inode_file_plugin (inode)->key_by_inode (inode, cur_page << PAGE_CACHE_SHIFT);
+		inode_file_plugin (inode)->key_by_inode (inode, (loff_t)cur_page << PAGE_CACHE_SHIFT, &key);
 
 		result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
 		if (result != CBK_COORD_FOUND) {
@@ -583,21 +576,22 @@ int reiser4_do_page_cache_readahead (struct file * file,
 		}
 
 		iplug = item_plugin_by_coord (&coord);
-		if (!iplug->s.file.readahead) {
-			readahead_result = -EINVAL;
+		if (!iplug->s.file.page_cache_readahead) {
+			result = -EINVAL;
 			break;
 		}
-		/* item's readahead decreases returns number of pages for which readahead
+		/* item's readahead returns number of pages for which readahead
 		 * is started */
-		to_readahead = intrafile_readahead_amount;
-		result = iplug->s.file.readahead (file, &coord, &lh,
-						  intrafile_readahead_amount);
+		result = iplug->s.file.page_cache_readahead (file, &coord, &lh,
+							     cur_page,
+							     intrafile_readahead_amount);
 		if (result <= 0)
 			break;
-		assert ("vs-794", result <= intrafile_readahead_amount);
+		assert ("vs-794", (unsigned long)result <= intrafile_readahead_amount);
 		intrafile_readahead_amount -= result;
 		cur_page += result;
 	}
+	return result <= 0 ? result : (cur_page - start_page);
 }
 
 
