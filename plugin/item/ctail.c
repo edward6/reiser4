@@ -765,7 +765,7 @@ attach_squeeze_ctail_data(flush_pos_t * pos, struct inode * inode)
 	if (ret)
 		goto exit1;
 	/* attach flow by cluster buffer */
-	fplug->flow_by_inode(info->inode, info->clust->buf, 0/* kernel space */, info->clust->len, 0, WRITE_OP, &info->flow);
+	fplug->flow_by_inode(info->inode, info->clust->buf, 0/* kernel space */, info->clust->len, clust_to_off(info->clust->index, inode), WRITE_OP, &info->flow);
 	jput(pos->child);
  	return 0;
 
