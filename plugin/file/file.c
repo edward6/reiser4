@@ -508,9 +508,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.\n", needed);
 
 	if (file_size < inode->i_size) {
-		ea2nea(inode);
 		result = expand_file(inode, file_size, inode->i_size);
-		nea2ea(inode);
 	} else {
 		result = shorten_file(inode);
 	}
@@ -674,7 +672,8 @@ unix_file_writepage_nolock(struct page *page)
 	return result;
 }
 
-/* plugin->u.file.writepage */
+/* plugin->u.file.writepage this does not start i/o against this page. It just must garantee that tree has a pointer to
+   this page */
 int
 unix_file_writepage(struct page *page)
 {
@@ -683,28 +682,18 @@ unix_file_writepage(struct page *page)
 	tail_plugin *tail_plugin;
 	reiser4_block_nr needed;
 
-	assert("vs-1032", PageLocked(page));
 	assert("vs-1084", page->mapping && page->mapping->host);
-	assert("vs-1085", (page->mapping->host->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
+	inode = page->mapping->host;
+	assert("vs-1032", PageLocked(page));
+	assert("vs-1085", (inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
 
 	if (PagePrivate(page)) {
+		/* tree already has pointer to this page */
 		assert("vs-1097", jnode_mapped(jnode_by_page(page)));
 		return 0;
 	}
 
-	inode = page->mapping->host;
-
-	tail_plugin = inode_tail_plugin(inode);
-
-	assert("umka-1254", tail_plugin != NULL);
-
-	needed = tail_plugin->estimate(inode, 1, 0);
-
-	trace_on(TRACE_RESERVE, " write page grabbed %llu blocks\n", 
-		needed);
-	
-	/* to keep order of locks right we have to unlock page before
-	   call to get_nonexclusive_access */
+	/* to keep order of locks right we have to unlock page before call to get_nonexclusive_access */
 	page_cache_get(page);
 	reiser4_unlock_page(page);
 
@@ -717,6 +706,17 @@ unix_file_writepage(struct page *page)
 		return -EIO;
 	}
 
+	/*
+	 * FIXME-VS: why is tail plugin used here?
+	 */
+	tail_plugin = inode_tail_plugin(inode);
+
+	assert("umka-1254", tail_plugin != NULL);
+
+	needed = tail_plugin->estimate(inode, 1, 0);
+
+	trace_on(TRACE_RESERVE, " write page grabbed %llu blocks\n", 
+		needed);
 	if ((result = reiser4_grab_space_exact(needed, 0)) != 0)
 		goto out;
 
