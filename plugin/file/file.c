@@ -467,35 +467,31 @@ shorten_file(struct inode *inode)
    longer */
 static loff_t append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f);
 
-/* Add hole to end of file. @cur_size is current file size. Length of hole is new_size - cur_size. This is called with
-   NEA obtained */
-static int
-expand_file(struct inode *inode, loff_t cur_size, loff_t new_size)
+/* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
+   either NEA or EA obtained */
+static loff_t
+write_flow(struct file *file, struct inode *inode, const char *buf, size_t count, loff_t pos)
 {
 	int result;
 	file_plugin *fplug;
 	flow_t f;
 	loff_t written;
 
-	assert("vs-909", new_size > cur_size);
-
 	fplug = inode_file_plugin(inode);
-	result = fplug->flow_by_inode(inode, 0 /* buf */ , 1 /* user space */ ,
-				      new_size - cur_size /* count */ ,
-				      cur_size /* pos */ ,
-				      WRITE_OP, &f);
+	result = fplug->flow_by_inode(inode, (char *)buf, 1 /* user space */ ,
+				      count, pos, WRITE_OP, &f);
 	if (result)
 		return result;
 
-	written = append_and_or_overwrite(0, inode, &f);
-	if (written != new_size - cur_size) {
+	written = append_and_or_overwrite(file, inode, &f);
+	if (written != count) {
 		/* we were not able to write expand file to desired size */
 		if (written < 0)
 			return (int) written;
 		return -ENOSPC;
 	}
-	assert("vs-1081", new_size == inode->i_size);
-	return 0;
+	assert("vs-1081", ergo(buf == 0, ((pos + count) == inode->i_size)));
+	return written;
 }
 
 static inline loff_t
@@ -521,6 +517,25 @@ reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_siz
     return tail_plugin->estimate(inode, abs(old_size - inode->i_size), 1) + 1;
 }
 
+/* append file which has size @cur_size with hole of certain size (@hole_size) */
+static int
+expand_file(struct inode *inode, loff_t cur_size, loff_t hole_size)
+{
+	int result;
+	loff_t written;
+
+	result = 0;
+	written = write_flow(0, inode, 0, hole_size, cur_size);
+	if (written != hole_size) {
+		if (written > 0)
+			result = -ENOSPC;
+		else
+			result = written;
+		     
+	}
+	return result;
+}
+
 /* plugin->u.file.truncate
    this is called with exclusive access obtained in unix_file_setattr */
 int
@@ -539,19 +554,15 @@ unix_file_truncate(struct inode *inode, loff_t size)
 	needed = unix_file_estimate_truncate(inode, file_size);
 	
 	if (reiser4_grab_space_exact(needed, (size <= result) ? 
-		BA_RESERVED | BA_CAN_COMMIT : BA_CAN_COMMIT) != 0) 
-	{
-//		drop_nonexclusive_access (inode);
+				     BA_RESERVED | BA_CAN_COMMIT : BA_CAN_COMMIT) != 0) 
 		return -ENOSPC;
-	}
 	
 	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.\n", needed);
 
-	if (file_size < inode->i_size) {
-		result = expand_file(inode, file_size, inode->i_size);
-	} else {
+	if (file_size < inode->i_size)
+		result = expand_file(inode, file_size, inode->i_size - file_size);
+	else
 		result = shorten_file(inode);
-	}
 	
 	if (!result) {
 		result = reiser4_write_sd(inode);
@@ -1229,7 +1240,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		set_hint(&hint, &f->key, &coord);
 		done_lh(&lh);
 	}
-	update_sd_if_necessary(inode, f);
+	if (to_write != f->length)
+		update_sd_if_necessary(inode, f);
 
 	save_file_hint(file, &hint);
 
@@ -1239,7 +1251,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	return (to_write - f->length) ? (to_write - f->length) : result;
 }
 
-int update_sd_if_necessary(struct inode *inode, const flow_t *f)
+int
+update_sd_if_necessary(struct inode *inode, const flow_t *f)
 {
 	int result;
 	int update_inode;
@@ -1267,29 +1280,30 @@ int update_sd_if_necessary(struct inode *inode, const flow_t *f)
 	return result;
 }
 
-reiser4_block_nr unix_file_estimate_write(struct inode *inode, loff_t count,
-    loff_t *off) 
+reiser4_block_nr
+unix_file_estimate_write(struct inode *inode, loff_t count,
+			 loff_t *off) 
 {
-    tail_plugin *tail_plugin;
-    
-    assert("umka-1242", inode != NULL);
-    assert("umka-1248", inode != NULL);
-    
-    tail_plugin = inode_tail_plugin(inode);
-    assert("umka-1241", tail_plugin != NULL);
-   
-    return tail_plugin->estimate(inode, count, 0/*is_fake*/) + 1;
+	tail_plugin *tail_plugin;
+	
+	assert("umka-1242", inode != NULL);
+	assert("umka-1248", inode != NULL);
+	
+	tail_plugin = inode_tail_plugin(inode);
+	assert("umka-1241", tail_plugin != NULL);
+	
+	return tail_plugin->estimate(inode, count, 0/*is_fake*/) + 1;
 }
 
 /* plugin->u.file.write */
-ssize_t unix_file_write(struct file * file,	/* file to write to */
-			const char *buf,	/* comments are needed */
-			size_t count,	/* number of bytes to write */
-			loff_t * off /* position to write which */ )
+ssize_t
+unix_file_write(struct file * file,	/* file to write to */
+		const char *buf,	/* comments are needed */
+		size_t count,	/* number of bytes to write */
+		loff_t * off /* position to write which */ )
 {
 	int result;
 	struct inode *inode;
-	flow_t f;
 	ssize_t written;
 	loff_t pos;
 	reiser4_block_nr needed = 0;
@@ -1320,31 +1334,26 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 	if (file->f_flags & O_APPEND)
 		pos = inode->i_size;
 
-	if (inode->i_size < *off) {
+	if (inode->i_size < pos) {
+		size_t hole_size;
+
 		/* append file with a hole. This allows extent_write and
 		   tail_write to not decide when hole appending is
-		   necessary. When it is required f->length == 0 */
-		result = expand_file(inode, inode->i_size, *off);
+		   necessary. When it is required f->data == 0 */
+		hole_size = pos - inode->i_size;
+		result = expand_file(inode, inode->i_size, hole_size);
 		if (result) {
-			/* FIXME-VS: i_size may now be set incorrectly */
 			drop_nonexclusive_access(inode);
 			return result;
 		}
+		assert("vs-1081", pos == inode->i_size);
 	}
 
-	/* build flow */
-	result = inode_file_plugin(inode)->flow_by_inode(inode, (char *) buf, 1 /* user space */ ,
-							 count, pos, WRITE_OP, &f);
-	if (result)
-		return result;
-
-	written = append_and_or_overwrite(file, inode, &f);
-	if (written < 0) {
-		drop_nonexclusive_access(inode);
-		return written;
-	}
-
+	/* write user data to the file */
+	written = write_flow(file, inode, (char *)buf, count, pos);
 	drop_nonexclusive_access(inode);
+	if (written < 0)
+		return written;
 
 	/* update position in a file */
 	*off = pos + written;
@@ -1376,7 +1385,7 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
     
     {
 	reiser4_block_nr amount;
-	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+	amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
     
 	return (tail_plugin->have_tail(inode, file_size) ? 
 		tail_plugin->estimate(inode, file_size, 0) : amount + 1) + 
