@@ -3,8 +3,8 @@
  */
 
 /*
- * Declarations of data-types/functions for file (object) plugins.
- * see fs/reiser4/plugin/plugin.c for details
+ * this file contains:
+ * declarations of functions implementing file plugin for ordinary file
  */
 
 #if !defined( __REISER4_FILE_H__ )
@@ -12,18 +12,19 @@
 
 
 /* plugin->file.* */
-int     ordinary_file_create   (struct inode *object, struct inode *parent,
+int     unix_file_create   (struct inode *object, struct inode *parent,
 				 reiser4_object_create_data *data );
-ssize_t ordinary_file_write    (struct file * file, char * buf, size_t size,
+ssize_t unix_file_write    (struct file * file, char * buf, size_t size,
 				loff_t *off);
-ssize_t ordinary_file_read     (struct file * file, char * buf, size_t size,
+ssize_t unix_file_read     (struct file * file, char * buf, size_t size,
 				loff_t * off);
-int     ordinary_file_release  (struct file * file);
-int     ordinary_file_truncate (struct inode * inode, loff_t size);
-int     ordinary_file_create   (struct inode * object, struct inode * parent,
+int     unix_file_release  (struct file * file);
+int     unix_file_truncate (struct inode * inode, loff_t size);
+int     unix_file_key_by_inode ( struct inode *, loff_t off, reiser4_key * );
+int     unix_file_create   (struct inode * object, struct inode * parent,
 				reiser4_object_create_data *data);
-int     ordinary_readpage      (struct file * file, struct page * page);
-int     ordinary_file_owns_item( const struct inode *, const tree_coord *);
+int     unix_file_readpage (struct file * file, struct page * page);
+int     unix_file_owns_item( const struct inode *, const tree_coord *);
 
 
 /* __REISER4_FILE_H__ */
