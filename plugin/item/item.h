@@ -139,15 +139,11 @@ typedef struct {
 	int (*kill_hook) (const coord_t *, pos_in_node_t from, pos_in_node_t count, struct carry_kill_data *);
 	int (*shift_hook) (const coord_t *, unsigned from, unsigned count, znode *_node);
 
-	/* unit @*from contains @from_key. unit @*to contains
-	   @to_key. Cut all keys between @from_key and @to_key
-	   including boundaries. Set @from and @to to number of units
-	   which were removed. When units are cut from item beginning -
-	   move space which gets freed to head of item. When units are
-	   cut from item end - move freed space to item end. When units
-	   are cut from the middle of item - move freed space to item
-	   head. Return amount of space which got freed. Save smallest
-	   removed key if @smallest_removed is not 0
+	/* unit @*from contains @from_key. unit @*to contains @to_key. Cut all keys between @from_key and @to_key
+	   including boundaries. When units are cut from item beginning - move space which gets freed to head of
+	   item. When units are cut from item end - move freed space to item end. When units are cut from the middle of
+	   item - move freed space to item head. Return amount of space which got freed. Save smallest removed key in
+	   @smallest_removed if it is not 0. Save new first item key in @new_first_key if it is not 0
 	*/
 	int (*cut_units) (coord_t *, pos_in_node_t from, pos_in_node_t to, struct carry_cut_data *,
 			  reiser4_key *smallest_removed, reiser4_key *new_first_key);
