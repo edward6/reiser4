@@ -452,24 +452,17 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 	}
 }
 
-int jwrite (jnode * node)
+
+/* A wrapper around tree->ops->drop_node method */
+int jdrop (jnode * node)
 {
-	struct page * page;
+	reiser4_tree * tree = current_tree;
 
-	assert ("zam-445", node != NULL);
-	assert ("zam-446", jnode_page (node) != NULL);
+	assert ("zam-602", node != NULL);
+	assert ("zam-603", tree->ops != NULL);
+	assert ("zam-604", tree->ops->drop_node != NULL);
 
-	page = jnode_page (node);
-
-	assert ("zam-450", !blocknr_is_fake (jnode_get_block (node)));
-
-	return page_io (page, WRITE, GFP_NOIO);
-}
-
-int jwrite_to (jnode * node UNUSED_ARG, const reiser4_block_nr * block UNUSED_ARG)
-{
-	// FIXME: not completed
-	return 0;
+	return tree->ops->drop_node (tree, node);
 }
 
 int jwait_io (jnode * node, int rw)
