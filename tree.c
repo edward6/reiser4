@@ -1516,7 +1516,6 @@ void init_tree_ops( reiser4_tree *tree,
 {
 	assert ("zam-585", tree != NULL);
 	assert( "nikita-2037", tops != NULL );
-	assert( "nikita-1099", tops -> read_node != NULL );
 	assert( "nikita-2043", super != NULL );
 
 	tree->super = super;

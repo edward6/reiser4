@@ -30,7 +30,7 @@ static node_header_40 *node40_node_header( const znode *node /* node to
 							      * query */ )
 {
 	assert( "nikita-567", node != NULL );
-	assert( "nikita-568", znode_is_loaded( node ) );
+	assert( "nikita-568", znode_page( node ) != NULL );
 	assert( "nikita-569", zdata( node ) != NULL );
 	return ( node_header_40 * ) zdata( node );
 }
