@@ -473,17 +473,20 @@ add_d_ref(jnode * node /* node to increase d_count of */ )
 	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
 }
 
+struct page_filler_arg {
+	jnode * node;
+	int gfp;
+};
+
 static int
 page_filler(void *arg, struct page *page)
 {
-	jnode *node;
+	struct page_filler_arg * f_arg = arg;
 
-	node = arg;
+	assert("nikita-2369", page->mapping == jnode_ops(f_arg->node)->mapping(f_arg->node));
 
-	assert("nikita-2369", page->mapping == jnode_ops(node)->mapping(node));
-
-	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload_read);
-	return page_io(page, node, READ, GFP_KERNEL);
+	reiser4_stat_inc_at_level(jnode_get_level(f_arg->node), jnode.jload_read);
+	return page_io(page, f_arg->node, READ, f_arg->gfp);
 }
 
 static inline int
@@ -525,7 +528,7 @@ load_page(struct page *page, jnode *node)
 
 /* load jnode's data into memory using read_cache_page() */
 int
-jload(jnode * node)
+jload_gfp (jnode * node, int gfp_flags)
 {
 	int result;
 	struct page *page;
@@ -594,9 +597,11 @@ jload(jnode * node)
 			reiser4_stat_inc_at_level(jnode_get_level(node), 
 						  jnode.jload_page);
 		} else {
+			struct page_filler_arg f_arg = {.node = node, .gfp = gfp_flags };
+ 
 			page = read_cache_page(jplug->mapping(node), 
 					       jplug->index(node), 
-					       page_filler, node);
+					       page_filler, &f_arg);
 			/* after (successful) return from read_cache_page()
 			   @page is pinned into memory. */
 			if (!IS_ERR(page)) {
