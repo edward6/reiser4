@@ -1,0 +1,200 @@
+# Process this file with autoconf to produce a configure script.
+AC_INIT(include/reiserfs/reiserfs.h)
+AC_CANONICAL_HOST
+
+LIBREISERFS_MAJOR_VERSION=0
+LIBREISERFS_MINOR_VERSION=0
+LIBREISERFS_MICRO_VERSION=1
+
+LIBREISERFS_INTERFACE_AGE=0
+LIBREISERFS_BINARY_AGE=0
+LIBREISERFS_VERSION=$LIBREISERFS_MAJOR_VERSION.$LIBREISERFS_MINOR_VERSION.$LIBREISERFS_MICRO_VERSION
+
+LT_RELEASE=$LIBREISERFS_MAJOR_VERSION.$LIBREISERFS_MINOR_VERSION
+
+LT_CURRENT=`expr $LIBREISERFS_MICRO_VERSION - $LIBREISERFS_INTERFACE_AGE`
+
+LT_REVISION=$LIBREISERFS_INTERFACE_AGE
+
+LT_AGE=`expr $LIBREISERFS_BINARY_AGE - $LIBREISERFS_INTERFACE_AGE`
+
+AC_SUBST(LT_RELEASE)
+AC_SUBST(LT_CURRENT)
+AC_SUBST(LT_REVISION)
+AC_SUBST(LT_AGE)
+
+PACKAGE=reiser4lib
+VERSION=$LIBREISERFS_VERSION
+
+AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
+AM_CONFIG_HEADER(config.h)
+
+AC_DEFINE_UNQUOTED(LIBREISERFS_MAX_INTERFACE_VERSION, $LIBREISERFS_BINARY_AGE)
+AC_DEFINE_UNQUOTED(LIBREISERFS_MIN_INTERFACE_VERSION, $LIBREISERFS_INTERFACE_AGE)
+
+AC_ARG_ENABLE(debug, 
+    [  --enable-debug        compile in assertions [default=yes]], , 
+	enable_debug=yes
+)
+
+AM_ENABLE_SHARED
+
+AC_ARG_ENABLE(compact,
+    [  --enable-compact        build in compact maner (without libc) [default=no]], ,
+        enable_compact=no
+)
+if test x$enable_compact = xyes; then
+    enable_debug=no;
+    AC_DEFINE(ENABLE_COMPACT)
+fi
+
+AC_ARG_ENABLE(monolithic,
+    [  --enable-monolithic        build in monolithic maner (with builtin plugins) [default=no]], ,
+        enable_monolithic=yes
+)
+
+dnl if test x$enable_monolithic = xyes; then
+dnl     AC_MSG_CHECKING(elf_*.xs)
+dnl     host_script=$(find /usr -name "elf_*.xs" 2> /dev/null)
+dnl     if test x$host_script = x; then
+dnl 	AC_MSG_RESULT(no)
+dnl 	AC_MSG_WARN(Can't find elf_*.xs script needed for monolithic building. Monolithic building will be disabled.)
+dnl 	enable_monolithic=no
+dnl     else
+dnl 	AC_MSG_RESULT($host_script)
+dnl 	/bin/sed '/^ *\.text *:/i \
+dnl   __plugin_start = .; .plugins : {*(.plugins)} = 0x90909090 __plugin_end = .;' $host_script > ./libreiserfs/libreiserfs.lds
+dnl     fi
+dnl fi
+
+if test x$enable_monolithic = xyes; then
+    AC_DEFINE(ENABLE_MONOLITHIC)
+fi
+
+if test x$enable_debug = xyes; then
+    AC_DEFINE(ENABLE_DEBUG)
+fi
+
+AC_ARG_ENABLE(Werror,
+    [  --enable-Werror       build with gcc -Werror [default=yes]], ,
+	enable_Werror=yes
+)
+
+AC_ARG_WITH(plugin-dir, 
+    [  --with-plugin-dir=PATH where plugins will be placed]
+)
+if test x$with_plugin_dir = x; then
+    with_plugin_dir="$libdir/reiserfs"
+fi
+
+plugindir=$with_plugin_dir
+AC_SUBST(plugindir)
+
+dnl make libc threadsafe (not required for us, but useful other users of
+dnl libreiserfs)
+if test x$enable_compact = xno; then
+    CFLAGS="$CFLAGS -D_REENTRANT"
+fi
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_RANLIB
+
+AC_SYS_LARGEFILE
+
+CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=${ac_cv_sys_file_offset_bits}"
+
+AM_PROG_LIBTOOL
+
+# Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS([alloca.h argz.h errno.h fcntl.h langinfo.h libintl.h limits.h locale.h malloc.h stddef.h stdlib.h string.h strings.h sys/param.h unistd.h])
+
+dnl Checks for typedefs, structures and compiler characteristics.
+AC_C_BIGENDIAN
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_C_INLINE
+AC_TYPE_SIZE_T
+
+# Checks for library functions.
+AC_FUNC_ALLOCA
+AC_FUNC_MALLOC
+AC_CHECK_FUNCS([__argz_count __argz_next __argz_stringify dcgettext getcwd getwd memmove mempcpy memset munmap nl_langinfo setlocale stpcpy strcasecmp strchr strcspn strdup strstr strtoul strsep getopt_long_only])
+
+dnl Check for libdl, if we are doing dynamic loading
+LIBREISERFS_LIBS=""
+if test x$enable_compact = xno && test x$enable_monolithic = xno; then
+    AC_CHECK_LIB(dl, dlopen, LIBREISERFS_LIBS="$LIBREISERFS_LIBS -ldl",
+	AC_MSG_ERROR(libdl not found!)
+	exit
+    )
+fi
+AC_SUBST(LIBREISERFS_LIBS)
+
+if test x$enable_debug = xyes; then
+    CFLAGS="$CFLAGS -g"
+fi
+
+if test x$enable_compact = xyes; then
+    CFLAGS="$CFLAGS -O9 -fno-builtin"
+fi
+
+CFLAGS="$CFLAGS -W -Wall -Wno-unused"
+if test x$enable_Werror = xyes; then
+    CFLAGS="$CFLAGS -Werror"
+fi
+
+CFLAGS="$CFLAGS -DPLUGIN_DIR=\\\"$with_plugin_dir\\\""
+
+case "$host" in
+    *-sun-*)
+	AC_DEFINE(loff_t, offset_t)
+    ;;
+esac
+
+AM_CONDITIONAL(ENABLE_MONOLITHIC, test x$enable_monolithic = xyes)
+
+PLUGIN_LDFLAGS=""
+LIBREISERFS_LDFLAGS=""
+if test x$enable_monolithic = xno; then
+    PLUGIN_LDFLAGS="-module -avoid-version"
+else
+    LIBREISERFS_LDFLAGS="-Wl,-T -Wl,libreiserfs.lds"
+fi
+AC_SUBST(PLUGIN_LDFLAGS)
+AC_SUBST(LIBREISERFS_LDFLAGS)
+
+AC_OUTPUT([
+    Makefile
+    include/Makefile
+    include/aal/Makefile
+    include/reiserfs/Makefile
+    include/misc/Makefile
+    libaal/Makefile
+    libmisc/Makefile
+    libreiserfs/Makefile
+    plugin/Makefile
+    plugin/format36/Makefile
+    plugin/format40/Makefile
+    plugin/journal36/Makefile
+    plugin/journal40/Makefile
+    plugin/alloc36/Makefile
+    plugin/alloc40/Makefile
+    plugin/node36/Makefile    
+    plugin/node40/Makefile
+    plugin/internal40/Makefile
+    plugin/stat40/Makefile
+    plugin/direntry40/Makefile
+    demos/Makefile
+    debug/Makefile
+    doc/Makefile
+    libreiserfs.spec
+])
+
+echo
+echo Type \'make\' to compile libreiserfs
+
