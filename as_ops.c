@@ -72,7 +72,7 @@ reiser4_clear_page_dirty(struct page *page)
 	struct address_space *mapping;
 	unsigned long flags;
 
-	mapping = page_mapping(page);
+	mapping = page->mapping;
 	BUG_ON(mapping == NULL);
 
 	read_lock_irqsave(&mapping->tree_lock, flags);
