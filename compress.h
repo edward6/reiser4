@@ -4,6 +4,8 @@
 #include <linux/types.h>
 #include <linux/string.h>
 
+#define NONE_NRCOPY 4
+
 typedef enum {
 	TFM_READ,
 	TFM_WRITE
