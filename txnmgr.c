@@ -1475,6 +1475,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 
 	if (txnh->atom == NULL) {
 		int found = 0;
+
 		/* current atom is available, take first from txnmgr */
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
 
@@ -1500,11 +1501,27 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 			UNLOCK_ATOM(atom);
 		}
 
+		if (!found && !atom_list_empty(&tmgr->atoms_list)) {
+			/* Write throttling is case of no one atom can be
+			 * flushed/committed.  */
+			atom = atom_list_front(&tmgr->atoms_list);
+			LOCK_ATOM(atom);
+			spin_unlock_txnmgr(tmgr);
+			/* This atom is being flushed or committed.  We wait an
+			 * event which is sent at operation completion. */
+			assert("zam-1002", atom->stage >= ASTAGE_PRE_COMMIT 
+			       || atom->nr_flushers != 0);
+			atom_wait_event(atom);
+
+			return 0;
+		}
+
 		spin_unlock_txnmgr(tmgr);
 
 		/* no suitable atoms found, return */
-		if (!found)
+		if (!found) {
 			return 0;
+		}
 	} else
 		atom = get_current_atom_locked();
 
