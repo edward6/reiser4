@@ -18,7 +18,7 @@ int unix_file_release(struct file *);
 int unix_file_ioctl(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 int unix_file_mmap(struct file *, struct vm_area_struct *vma);
 int unix_file_get_block(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
-
+int unix_file_build_flow(struct inode *, char *buf, int user, size_t, loff_t, rw_op, flow_t *);
 int unix_file_key_by_inode(struct inode *, loff_t off, reiser4_key *);
 int unix_file_delete(struct inode *);
 int unix_file_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data);
@@ -33,7 +33,7 @@ typedef enum {
 	RESEARCH = 4
 } write_mode;
 
-write_mode how_to_write(coord_t *, lock_handle *, const reiser4_key *);
+write_mode how_to_write(coord_t *, const reiser4_key *);
 
 typedef enum {
 	COORD_RIGHT_STATE = 1,

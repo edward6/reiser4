@@ -171,12 +171,15 @@ reiser4_prof reiser4_prof_defs = {
 	/* read profiling */
 	DEFINE_PROF_ENTRY(file_read),
 	DEFINE_PROF_ENTRY(prep),
+	DEFINE_PROF_ENTRY(read_grab),
+	DEFINE_PROF_ENTRY(build_flow),
 	DEFINE_PROF_ENTRY(load_hint),
 	DEFINE_PROF_ENTRY(find),
 	DEFINE_PROF_ENTRY(zload),
 	DEFINE_PROF_ENTRY(item_read),
 	DEFINE_PROF_ENTRY(set_hint),
-	DEFINE_PROF_ENTRY(save_hint)	
+	DEFINE_PROF_ENTRY(save_hint),
+	DEFINE_PROF_ENTRY(copy_to_user)
 };
 
 void calibrate_prof(void)

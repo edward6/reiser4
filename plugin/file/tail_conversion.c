@@ -146,7 +146,6 @@ nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coor
 	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
 
 	coord_init_zero(first_coord);
-	init_lh(first_lh);
 	
 	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
 	if (result != CBK_COORD_FOUND) {
@@ -410,7 +409,6 @@ tail2extent(struct inode *inode)
 
 				/* get next item */
 				coord_init_zero(&coord);
-				init_lh(&lh);
 				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
 				if (result != CBK_COORD_FOUND) {
 					/* tail conversion can not be called for empty file */
@@ -539,7 +537,6 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	assert("vs-1089", count);
 
 	coord_init_zero(&coord);
-	init_lh(&lh);
 
 	/* build flow */
 	inode_file_plugin(inode)->flow_by_inode(inode, kmap(page), 0 /* not user space */ ,

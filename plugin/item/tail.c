@@ -376,7 +376,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 			return result;
 		loaded = coord->node;
 
-		todo = how_to_write(coord, lh, &f->key);
+		todo = how_to_write(coord, &f->key);
 		if (unlikely(todo < 0)) {
 			zrelse(loaded);
 			return todo;

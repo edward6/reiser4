@@ -64,12 +64,15 @@ typedef struct {
 	/* read profiling */
 	reiser4_prof_entry file_read;
 	reiser4_prof_entry prep;
+	reiser4_prof_entry read_grab;
+	reiser4_prof_entry build_flow;
 	reiser4_prof_entry load_hint;
 	reiser4_prof_entry find;
 	reiser4_prof_entry zload;
 	reiser4_prof_entry item_read;
 	reiser4_prof_entry set_hint;
 	reiser4_prof_entry save_hint;
+	reiser4_prof_entry copy_to_user;
 } reiser4_prof;
 
 extern reiser4_prof reiser4_prof_defs;

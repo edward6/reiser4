@@ -49,7 +49,7 @@ static char *
 first_unit(coord_t * coord)
 {
 	/* FIXME: warning: pointer of type `void *' used in arithmetic */
-	return item_body_by_coord(coord) + sizeof (ctail_item_format);
+	return (char *)item_body_by_coord(coord) + sizeof (ctail_item_format);
 }
 
 /* plugin->u.item.b.max_key_inside :
