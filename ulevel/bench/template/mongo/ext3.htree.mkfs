@@ -1,0 +1,1 @@
+MKFS=mkfs.ext3 -O dir_index

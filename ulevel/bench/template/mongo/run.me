@@ -1,0 +1,84 @@
+#! /bin/sh
+
+STAGE=$(cat stage)
+
+. options
+
+SRC=$TOPDIR/linux-2.4.19.tar.gz
+READNUM=30
+WRITENUM=30
+
+output ---ENTERING-STAGE: $STAGE---
+CONTEXT=$CONTEXT:$STAGE
+
+REPFILE=$TEST/report
+
+fourk="FILE_SIZE=8000"
+eighk="FILE_SIZE=8000"
+
+LANG=C
+logdir=$(date +%Y.%m.%d)
+mongodir="/root/bk/reiser3/reiserfsprogs/benchmarks/mongo/"
+
+s1_name="v4"
+s1_options="$baseoptions $r4_common $fourk"
+
+s2_name="v4.ext"
+s2_options="$baseoptions $r4_common $fourk @$TEST/v4.ext.mkfs"
+
+s3_name="ext3.writeback"
+s3_options="$baseoptions $ext3_common $fourk MOUNT_OPTIONS=data=writeback"
+
+s4_name="ext3.journal"
+s4_options="$baseoptions $ext3_common $fourk MOUNT_OPTIONS=data=journal"
+
+s5_name="ext3.ordered"
+s5_options="$baseoptions $ext3_common $fourk MOUNT_OPTIONS=data=ordered"
+
+s6_name="ext3.htree"
+s6_options="$baseoptions $ext3_common $fourk \
+            MOUNT_OPTIONS=data=ordered @$TEST/ext3.htree.mkfs"
+
+s7_name="end"
+
+
+function enterstage()
+{
+	echo RUNNING > stage
+}
+
+function switchto()
+{
+	local stage
+
+	stage=$1
+
+	cd $TEST                                                     || die
+	echo $stage > stage
+	systemrestart $KERNEL
+}
+
+case "$STAGE" in
+	RUNNING)
+	    abort Previous run failed. Aborting.
+        ;;
+	*)
+	    enterstage
+	    eval name=\$s${STAGE}_name
+            if [ x$name = xend ] ;then
+		OUTCOME=DONE
+		echo DONE > stage
+	    else
+		eval opt=\$s${STAGE}_options
+		cd $mongodir                                             || die
+                mkdir -p ./$logdir                                       || die
+                ./mongo.pl $opt LOG=$logdir/$name RUN                    || die
+		cd $TEST
+		switchto $(($STAGE + 1))
+	    fi
+esac
+
+# Local variables:
+# mode: shell-script
+# tab-width: 8
+# End:

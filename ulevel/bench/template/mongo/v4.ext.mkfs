@@ -1,0 +1,1 @@
+MKFS=mkfs.reiser4 -q -o policy=extents

@@ -1,0 +1,23 @@
+#! /bin/sh
+
+baseoptions="DD_MBCOUNT=768 \
+             NPROC=1 \
+             DIR=/mnt/testfs \
+             SYNC=off \
+             PHASE_COPY=cp \
+             REP_COUNTER=1 \
+             GAMMA=0.2 \
+             PHASE_OVERWRITE=off \
+             BYTES=512000000 \
+             PHASE_APPEND=off \
+             PHASE_READ=find \
+             DEV=/dev/hdb3 \
+             WRITE_BUFFER=131072 \
+             PHASE_DELETE=rm \
+             PHASE_MODIFY=off"
+
+r4_common="FSTYPE=reiser4 INFO_R4=''"
+
+ext3_common="FSTYPE=ext3"
+
+PATH=$PATH:/usr/local/sbin
