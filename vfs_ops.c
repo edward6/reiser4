@@ -2169,47 +2169,65 @@ int reiser4_writepages( struct address_space *mapping UNUSED_ARG,
 	return 0;
 }
 
+typedef enum {
+	INIT_NONE,
+	INIT_INODECACHE,
+	INIT_CONTEXT_MGR,
+	INIT_ZNODES,
+	INIT_PLUGINS,
+	INIT_TXN,
+	INIT_FAKES,
+	INIT_JNODES,
+	INIT_FS_REGISTERED
+} reiser4_init_stage;
+
+static reiser4_init_stage init_stage;
+
 /**
  * initialise reiser4: this is called either at bootup or at module load.
  */
-/* Audited by: umka (2002.06.12) I'd reorganize this function in more simple maner. */
 static int __init init_reiser4(void)
 {
+#define CHECK_INIT_RESULT do {			\
+	if( result == 0 )			\
+		++ init_stage;			\
+	else {					\
+		done_reiser4();			\
+		return result;			\
+	} while( 0 )
+
 	int result;
 
-	/* This kind of stair-steping code sucks ass. */
-	info( KERN_INFO "Loading Reiser4. See www.namesys.com for a description of Reiser4.\n" );
+	info( KERN_INFO "Loading Reiser4. "
+	      "See www.namesys.com for a description of Reiser4.\n" );
+	init_stage = INIT_NONE;
 	result = init_inodecache();
-	if( result == 0 ) {
-		init_context_mgr();
-		result = znodes_init();
-		if( result == 0 ) {
-			result = init_plugins();
-			if( result == 0 ) {
-				result = txn_init_static();
-				if( result == 0 ) {
-					result = init_fakes();
-					if( result == 0 ) {
-						result = register_filesystem ( &reiser4_fs_type );
+	CHECK_INIT_RESULT;
 
-						if( result == 0 ) {
+	result = init_context_mgr();
+	CHECK_INIT_RESULT;
 
-							result = jnode_init_static ();
+	result = znodes_init();
+	CHECK_INIT_RESULT;
+		
+	result = init_plugins();
+	CHECK_INIT_RESULT;
 
-							if (result != 0) {
-								jnode_done_static ();
-							}
-						}
-					}
-				}
-			}
-			if( result != 0 )
-				znodes_done();
-		}
-		if( result != 0 )
-			destroy_inodecache();
-	}
-	return result;
+	result = txn_init_static();
+	CHECK_INIT_RESULT;
+	
+	result = init_fakes();
+	CHECK_INIT_RESULT;
+
+	result = jnode_init_static();
+	CHECK_INIT_RESULT;
+
+	result = register_filesystem( &reiser4_fs_type );
+	CHECK_INIT_RESULT;
+
+	assert( "nikita-2515", init_stage == INIT_FS_REGISTERED;
+	return 0;
+#undef CHECK_INIT_RESULT
 }
 
 /**
@@ -2217,14 +2235,22 @@ static int __init init_reiser4(void)
  */
 static void __exit done_reiser4(void)
 {
-        unregister_filesystem( &reiser4_fs_type );
-	znodes_done();
-	destroy_inodecache();
-	txn_done_static();
-	jnode_done_static(); /* why no error checks here? */
-	/*
-	 * FIXME-NIKITA more cleanups here
-	 */
+#define DONE_IF( stage, exp )			\
+	if( init_stage == ( stage ) ) {		\
+		exp;				\
+		-- init_stage;			\
+	}
+
+        DONE_IF( INIT_FS_REGISTERED, unregister_filesystem( &reiser4_fs_type ) );
+	DONE_IF( INIT_JNODES, jnode_done_static() );
+	DONE_IF( INIT_FAKES, (0) );
+	DONE_IF( INIT_TXN, txn_done_static() );
+	DONE_IF( INIT_PLUGINS, (0) );
+	DONE_IF( INIT_ZNODES, znodes_done() );
+	DONE_IF( INIT_CONTEXT_MGR, (0) );
+	DONE_IF( INIT_INODECACHE, destroy_inodecache() );
+	assert( "nikita-2516", init_state == INIT_NONE );
+#undef DONE_IF
 }
 
 module_init( init_reiser4 );
