@@ -13,6 +13,7 @@
 #include "plugin/security/perm.h"
 #include "plugin/plugin.h"
 #include "plugin/object.h"
+#include "plugin/dir/dir.h"
 #include "znode.h"
 #include "vfs_ops.h"
 #include "inode.h"
@@ -287,6 +288,10 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 				inode_file_plugin(inode)->init_inode_data(inode,
 									  NULL,
 									  0);
+			/* load detached directory cursors for stateless
+			 * directory readers (NFS). */
+			load_cursors(inode);
+
 			/* Check the opened inode for consistency. */
 			result = get_super_private(inode->i_sb)->df_plug->check_open(inode);
 		}
@@ -348,8 +353,12 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 		 * initialised.
 		 */
 		is_reiser4_super(inode->i_sb) &&
-		(!is_inode_loaded(inode) ||
-		 reiser4_inode_data(inode)->locality_id == get_key_locality(key));
+		/*
+		 * usually objectid is unique, but pseudo files use counter to
+		 * generate objectid. All pseudo files are placed into special
+		 * (otherwise unused) locality.
+		 */
+		reiser4_inode_data(inode)->locality_id == get_key_locality(key);
 }
 
 /*
@@ -425,6 +434,11 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			warning("nikita-305", "Wrong key in sd");
 			print_key("sought for", key);
 			print_key("found", &found_key);
+		}
+		if (inode_file_plugin(inode)->not_linked(inode)) {
+			warning("nikita-3559", "Unlinked inode found: %llu\n",
+				get_inode_oid(inode));
+			print_inode("inode", inode);
 		}
 	}
 	return inode;
