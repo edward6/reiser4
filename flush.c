@@ -2012,9 +2012,16 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 		if (znode_check_flushprepped(right_lock.node)) {
 			if (should_convert_next_node(pos, right_lock.node)) {
+				/* in spite of flushprepped status of the node,
+				   its right slum neighbor should be converted */
 				assert("edward-953", convert_data(pos));
 				assert("edward-954", item_convert_data(pos));
 				
+				if (node_is_empty(right_lock.node)) {
+					done_load_count(&right_load);
+					done_lh(&right_lock);
+					continue;
+				} 
 				goto next;
 			}
 			pos_stop(pos);
@@ -2906,9 +2913,9 @@ jnode_lock_parent_coord(jnode         * node,
 				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, 0/*ra_info*/);
 		switch (ret) {
 		case CBK_COORD_NOTFOUND:
-			if (jnode_is_cluster_page(node))
-				impossible("edward-1038", "flush didn't find disk cluster");
-			else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+			assert("edward-1038",
+			       ergo(jnode_is_cluster_page(node), JF_ISSET(node, JNODE_HEARD_BANSHEE)));
+			if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
 			}
