@@ -1,20 +1,20 @@
 /* Copyright 2002 by Hans Reiser */
 
 /*
- * Reiser4 i/o handles are used for synchronization with i/o requests
- * submitted for given atom.
-REWRITE sentence above
+ * Reiser4 i/o handles are i/o synchronization objects.
  *
- * An i/o handle has a counter for submitted bio objects, which gets
- * decremented on each i/o completion. The last i/o request ups the i/o handle
- * semaphore. So, a thread can sleep on a semaphore instead of traverse a list
- * of jnodes and wait on each jnode's page for i/o completion.
- * 
- * The reason to have a per-atom list of i/o handles rather than one i/o
- * handle embedded into an atom is the atom fusion. After fusion one fused
- * atom is freed from memory. This may cause problems if it had active i/o
- * requests. With having i/o handles on atom's lists we can just join those
- * lists regardless of existence of active i/o requests.
+ * An i/o handle has a counter for submitted bio objects and a semaphore. The
+ * counter gets incremented when each new i/o request is submitted and gets
+ * decremented on each i/o completion. The last i/o request completion ups the
+ * i/o handle semaphore.
+ *
+ * The thread which waits for completion of all i/o requests submitted for
+ * given atom just sleeps on a semaphore instead of traversing a list of
+ * jnodes and waiting on each jnode's page for i/o completion.  
+ *
+ * It is less efficient to wait on each page on a list rather than to wait on
+ * one i/o handle semaphore because of unnecessary context switches which
+ * could happen at each wait_on_page*() call.
  */
 
 #include "reiser4.h"
@@ -32,19 +32,19 @@ static void init_io_handle (struct reiser4_io_handle * io)
 	atomic_set(&io->nr_errors, 0);
 }
 
-/* wait for completion of all i/o requests submitted given i/o handle */
+/* wait for completion of all i/o requests counted in the i/o handle */
 static int io_handle_wait_io (struct reiser4_io_handle * io)
 {
+	assert ("zam-700", no_counters_are_held ());
+
 	/* this 1 was from init_io_handle() */
 	if (! atomic_dec_and_test(&io->nr_submitted)) {
 		/* sort and pass requests to driver */
 		blk_run_queues();
 		/* wait all IO to complete */
-		assert ("zam-700", no_counters_are_held ());
 		down (&io->io_sema);
 
 		assert ("zam-577", atomic_read(&io->nr_submitted) == 0);
-
 	}
 
 	return  atomic_read(&io->nr_errors);
