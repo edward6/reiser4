@@ -9,12 +9,19 @@ typedef struct test_disk_super_block {
 	char magic [8];
 	d64 root_block;    /* root of tree */
 	d16 tree_height;
+
 	d16 root_dir_plugin; /* not used */
 	d16 root_hash_plugin;/* not used */
 	d16 node_plugin;
-	d64 next_to_use;   /* next oid to allocate */
-	d64 new_block_nr;  /* next block to allocate */
-	d64 root_locality; /* key of root directory */
+	d16 tail_policy;
+	d16 not_used [3];
+
+	d64 block_count;      /* number of blocks on device */
+	d64 next_free_block;  /* smallest free block */
+
+	d64 next_free_oid;    /* smallest oid to allocated */
+
+	d64 root_locality;    /* key of root directory */
 	d64 root_objectid;
 	
 } test_disk_super_block;

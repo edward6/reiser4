@@ -48,25 +48,26 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	/* initialize fields of reiser4 private part of super block which
 	 * are common for all disk formats
 	 * FIXME-VS: shouldn't that initizlization be in common code? */
-	reiser4_set_block_count (s, 10023ull);
+	reiser4_set_block_count (s, d64tocpu (&disk_sb->block_count));
 	/* number of used blocks */
-	reiser4_set_data_blocks (s, 10001ull);
-	reiser4_set_free_blocks (s, 10000ull); /* just some random value in fact */
+	reiser4_set_data_blocks (s, d64tocpu (&disk_sb->next_free_block));
+	reiser4_set_free_blocks (s, (d64tocpu (&disk_sb->block_count) -
+				     d64tocpu (&disk_sb->next_free_block)));
 
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
 	assert ("vs-627", (private->oid_plug &&
 			   private->oid_plug->init_oid_allocator));
 	result = private->oid_plug->init_oid_allocator (get_oid_allocator (s),
-							d64tocpu (&disk_sb->next_to_use),
-							d64tocpu (&disk_sb->next_to_use));
+							d64tocpu (&disk_sb->next_free_oid),
+							d64tocpu (&disk_sb->next_free_oid));
 
 	/* init space allocator */
 	private->space_plug = space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID);
 	assert ("vs-628", (private->space_plug &&
 			   private->space_plug->init_allocator));
 	result = private->space_plug->init_allocator (get_space_allocator (s), s,
-						      &disk_sb->new_block_nr);
+						      &disk_sb->next_free_block);
 	if (result) {
 		brelse (super_bh);
 		return result;
@@ -119,32 +120,22 @@ void test_layout_release (struct super_block * s)
 		return;
 	}
 
+	/*
+	 * update test disk format super block
+	 */
+	/* root block */
 	cputod64 (get_super_private (s)->tree.root_block, &disk_sb->root_block);
+
+	/* tree height */
 	cputod16 (get_super_private (s)->tree.height, &disk_sb->tree_height);
-	/* oid allocator is a oid_40 one */
-	assert ("vs-633",
-		get_super_private (s)->oid_plug ==
-		oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID));
-	{
-		oid_t oid;
 
-		get_super_private (s)->oid_plug->allocate_oid (get_oid_allocator (s),
-							       &oid);
-		cputod64 (oid, &disk_sb->next_to_use);
-	}
-	/* block allocator is a test one */
-	assert ("vs-632",
-		get_super_private (s)->space_plug ==
-		space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID));
-	cputod64 (get_space_allocator (s)->u.test.new_block_nr, &disk_sb->new_block_nr);
+	/* number of next free block */
+	cputod64 (get_space_allocator (s)->u.test.new_block_nr,
+		  &disk_sb->next_free_block);
 
-#if 0
-	/* FIXME-GREEN: generic_shutdown_super clears s->s_root */
-	/* root directory key */
-	cputod64 (reiser4_inode_data (s->s_root->d_inode)->locality_id,
-		  &disk_sb->root_locality);
-	cputod64 ((__u64)(s->s_root->d_inode->i_ino), &disk_sb->root_objectid);
-#endif
+	/* next free objectid */
+	cputod64 (get_oid_allocator (s)->u.oid_40.next_to_use, &disk_sb->next_free_oid);
+
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("release:\n", disk_sb);
 
@@ -161,11 +152,13 @@ static void print_test_disk_sb (const char * mes,
 {
 	info ("%s", mes);
 	info ("root %llu, tree height %u,\n"
-	      "next oid %llu, next free block %llu,\n"
+	      "block count %llu, next free block %llu,\n"
+	      "next free oid %llu\n"
 	      "root dir [%llu %llu]\n", d64tocpu (&disk_sb->root_block),
-	      d16tocpu (&disk_sb->tree_height), d64tocpu (&disk_sb->next_to_use),
-	      d64tocpu (&disk_sb->new_block_nr), d64tocpu (&disk_sb->root_locality),
-	      d64tocpu (&disk_sb->root_objectid));
+	      d16tocpu (&disk_sb->tree_height),
+	      d64tocpu (&disk_sb->block_count), d64tocpu (&disk_sb->next_free_block), 
+	      d64tocpu (&disk_sb->next_free_oid),
+	      d64tocpu (&disk_sb->root_locality), d64tocpu (&disk_sb->root_objectid));
 }
 
 
