@@ -504,14 +504,6 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 	ret = lock_side_neighbor(neighbor, node, lock_mode, flags);
 	spin_unlock_tree(tree);
 
-	/*
-	 * FIXME-NIKITA I don't believe following error handling path in right
-	 * way to do things. It silently assumes that if ( ret != 0 ) we
-	 * should connect @node with respective neighbor. But,
-	 * lock_side_neighbor() actually returns a lot more error codes. For
-	 * one it returns -EDEADLK.
-	 *
-	 */
 	if (!ret) {
 		/* load znode content if it was specified */
 		if (flags & GN_LOAD_NEIGHBOR) {
@@ -519,10 +511,11 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 			if (ret) longterm_unlock_znode(neighbor);
 		}
 		return ret;
-	} else if (ret == -EDEADLK)
-		return ret;
-				
-	if (!(flags & GN_DO_READ)) return ret;
+	}
+
+	/* only -ENOENT means we may look upward and try to connect
+	 * @node with its neighbor (if @flags allow us to do it) */
+	if (ret != -ENOENT || !(flags & GN_DO_READ)) return ret;
 
 	/* before establishing of sibling link we lock parent node; it is
 	 * required by renew_neighbor() to work.  */
