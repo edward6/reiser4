@@ -343,7 +343,8 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 	    return 0;
     }
 
-    if ((ret = reiser4_grab(count, flags)) == -ENOSPC) {
+    ret = reiser4_grab(count, flags);
+    if (ret == -ENOSPC) {
 
 	    /* Trying to commit the all transactions if BA_CAN_COMMIT flag present */
 	    if (flags & BA_CAN_COMMIT) {
@@ -403,37 +404,6 @@ reiser4_release_reserved(struct super_block *super)
 		up(&info->delete_sema);
 	}
 }
-
-#if 0
-/* A simple wrapper for reiser4_grab_space, suitable for most places when we
-   are going to allocate exact number of blocks .
-   Reserved means that allocated from 5% of disk space. */
-int
-__reiser4_grab_space_exact(__u64 count, reiser4_ba_flags_t flags
-			   , const char *message
-	)
-{
-	__u64 not_used;
-	return reiser4_grab_space(&not_used, count, count, flags);
-}
-
-/* Grabs space any way and restores grab_enabled flag back */
-int
-reiser4_grab_space_force(__u64 count, reiser4_ba_flags_t flags)
-{
-	int ret, save;
-   
-	save = is_grab_enabled();
-	grab_space_enable();
-    
-	ret = reiser4_grab_space_exact(count, flags);
-    
-	if (!save)
-		grab_space_disable();
-
-	return ret;
-}
-#endif
 
 /* is called after @count fake block numbers are allocated and pointer to
    those blocks are inserted into tree. */
