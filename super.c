@@ -430,7 +430,7 @@ build_object_ops(struct super_block *super, object_ops *ops)
 
 	/* ...and we don't need ->clear_inode, because its only user was
 	 * xattrs */
-	ops->super.clear_inode = NULL;
+	/*ops->super.clear_inode = NULL;*/
 
 	ops->regular = iops;
 	ops->dir     = iops;
