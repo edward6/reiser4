@@ -418,19 +418,22 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 
 
 /*
- * this finds item of file corresponding to page being read in and calls its
- * readpage method. It is used when exclusive or sharing access to inode is
+ * this finds item of file corresponding to page being read/written in and calls its
+ * readpage/writepage method. It is used when exclusive or sharing access to inode is
  * grabbed
  */
 /* Audited by: green(2002.06.15) */
-int unix_file_readpage_nolock (struct file * file, struct page * page)
+static int page_op (struct file * file, struct page * page, rw_op op)
 {
 	int result;
 	coord_t coord;
 	lock_handle lh;
 	reiser4_key key;
 	item_plugin * iplug;
+	znode * loaded;
 
+
+	assert ("vs-860", op == WRITE_OP || op == READ_OP);
 
 	/* get key of first byte of the page */
 	unix_file_key_by_inode (page->mapping->host,
@@ -440,14 +443,16 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 	init_lh (&lh);
 
 	/* look for file metadata corresponding to first byte of page */
-	result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
+	result = find_next_item (file, &key, &coord, &lh,
+				 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
 		done_lh (&lh);
 		return result;
 	}
 
-	result = zload (coord.node);
+	loaded = coord.node;
+	result = zload (loaded);
 	if (result) {
 		done_lh (&lh);
 		return result;
@@ -455,30 +460,58 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 
 	/* get plugin of found item */
 	iplug = item_plugin_by_coord (&coord);
-	if (!iplug->s.file.readpage) {
-		zrelse (coord.node);
-		done_lh (&lh);
-		return -EINVAL;
+	if (op == READ_OP) {
+		if (!iplug->s.file.readpage) {
+			zrelse (loaded);
+			done_lh (&lh);
+			return -EINVAL;
+		}
+		result = iplug->s.file.readpage (&coord, page);
+	} else {
+		if (!iplug->s.file.writepage) {
+			zrelse (loaded);
+			done_lh (&lh);
+			return -EINVAL;
+		}
+		result = iplug->s.file.writepage (&coord, &lh, page);
 	}
 
-	result = iplug->s.file.readpage (&coord, page);
-
-	zrelse (coord.node);
+	zrelse (loaded);
 	done_lh (&lh);
 
 	return result;
 }
 
 
-/* plugin->u.file.read */
+/* this is used a filler for read_cache_page in extent2tail where access
+ * (exclusive) to file is acquired already */
+int unix_file_readpage_nolock (struct file * file, struct page * page)
+{
+	return page_op (file, page, READ_OP);
+}
+
+
+/* plugin->u.file.readpage */
 /* Audited by: green(2002.06.15) */
 int unix_file_readpage (struct file * file, struct page * page)
 {
 	int result;
 
 	get_nonexclusive_access (file->f_dentry->d_inode);
-	result = unix_file_readpage_nolock (file, page);
+	result = page_op (file, page, READ_OP);
 	drop_nonexclusive_access (file->f_dentry->d_inode);
+	return result;
+}
+
+
+/* plugin->u.file.writepage */
+int unix_file_writepage (struct page * page)
+{
+	int result;
+
+	get_nonexclusive_access (page->mapping->host);
+	result = page_op (0, page, WRITE_OP);
+	drop_nonexclusive_access (page->mapping->host);
 	return result;
 }
 
