@@ -145,11 +145,11 @@ static extent_state state_of_extent (reiser4_extent * ext)
 }
 
 /* Audited by: green(2002.06.13) */
-int extent_is_allocated (const coord_t *item)
+int extent_is_unallocated (const coord_t *item)
 {
 	assert ("jmacd-5133", item_is_extent (item)); 
 
-	return state_of_extent (extent_item (item)) == ALLOCATED_EXTENT;
+	return state_of_extent (extent_by_coord (item)) == UNALLOCATED_EXTENT;
 }
 
 /*

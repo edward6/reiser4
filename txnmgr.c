@@ -1079,6 +1079,8 @@ try_capture_block (txn_handle  *txnh,
 			/* The txnh is unassigned, try to assign it. */
 			if ((ret = capture_assign_txnh (node, txnh, mode)) != 0) {
 				/* EAGAIN or otherwise */
+				assert ("jmacd-6129", spin_txnh_is_not_locked (txnh));
+				assert ("jmacd-6130", spin_jnode_is_not_locked (node));
 				return ret;
 			}
 
@@ -1088,6 +1090,8 @@ try_capture_block (txn_handle  *txnh,
 			/* In this case, both txnh and node belong to different atoms.  This function
 			 * returns -EAGAIN on successful fusion, 0 on the fall-through case. */
 			if ((ret = capture_init_fusion (node, txnh, mode)) != 0) {
+				assert ("jmacd-6131", spin_txnh_is_not_locked (txnh));
+				assert ("jmacd-6132", spin_jnode_is_not_locked (node));
 				return ret;
 			}
 
@@ -1103,6 +1107,8 @@ try_capture_block (txn_handle  *txnh,
 			/* The txnh is already assigned: add the page to its atom. */
 			if ((ret = capture_assign_block (txnh, node)) != 0) {
 				/* EAGAIN or otherwise */
+				assert ("jmacd-6133", spin_txnh_is_not_locked (txnh));
+				assert ("jmacd-6134", spin_jnode_is_not_locked (node));
 				return ret;
 			}
 
