@@ -1,6 +1,7 @@
 /*
-	tools.h -- tool functions which are needed by libreiserfs.
-	Copyright (C) 1996 - 2002 Hans Reiser
+    tools.h -- tool functions which are needed by libreiserfs.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef TOOLS_H

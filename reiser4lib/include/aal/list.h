@@ -1,6 +1,7 @@
 /*
-	list.h -- simple list implementation
-	Copyright (C) 1996 - 2002 Hans Reiser
+    list.h -- simple list implementation. It is used for plugins cashe.
+    Copyright (C) 1996 - 2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef LIST_H

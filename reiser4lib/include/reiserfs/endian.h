@@ -1,6 +1,7 @@
 /*
-	endian.h -- endianess translation macros.
-	Copyright (C) 1996-2002 Hans Reiser
+    endian.h -- endianess translation macros.
+    Copyright (C) 1996-2002 Hans Reiser
+    Author Yury Umanets.
 */
 
 #ifndef ENDIAN_H

@@ -1,6 +1,7 @@
 /*
-	super.h -- superblock's functions.
-	Copyright (C) 1996-2002 Hans Reiser.
+    super.h -- superblock's functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef SUPER_H

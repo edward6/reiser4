@@ -1,6 +1,7 @@
 /*
-	device.c -- device abstraction layer.
-	Copyright (C) 1996-2002 Hans Reiser.
+    device.c -- device independent interface.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <sys/types.h>

@@ -1,6 +1,7 @@
 /*
-	print.c -- output functions and some useful utilities.
-	Coiyright (C) 1996-2002 Hans Reiser
+    print.c -- output functions and some useful utilities.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifdef HAVE_CONFIG_H

@@ -1,6 +1,7 @@
 /*
-	plugin.c -- reiserfs plugin factory implementation.
-	Copyright (C) 1996-2002 Hans Reiser
+    plugin.c -- reiserfs plugin factory implementation.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef ENABLE_ALONE

@@ -1,6 +1,7 @@
 /*
-	print.h -- output functions.
-	Copyright (C) 1996-2002 Hans Reiser
+    print.h -- output functions and formating strings functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef PRINT_H

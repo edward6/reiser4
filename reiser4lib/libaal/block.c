@@ -1,6 +1,7 @@
 /*
-	block.c -- block-working functions.
-	Copyright (C) Hans Reiser.
+    block.c -- block-working functions.
+    Copyright (C) Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <aal/aal.h>

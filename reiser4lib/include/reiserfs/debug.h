@@ -1,6 +1,7 @@
 /*
-	debug.h -- libreiserfs assert implementation
-	Copyright (C) 1996 - 2002 Hans Reiser.
+    debug.h -- libreiserfs assert implementation through exception.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef DEBUG_H

@@ -1,6 +1,7 @@
 /*
-	exception.h -- exception types and defines
-	Copyright (C) 1996-2002 Hans Reiser.
+    exception.h -- exception types, structures and functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef EXCEPTION_H

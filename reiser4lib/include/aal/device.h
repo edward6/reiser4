@@ -1,6 +1,7 @@
 /*
-	device.h -- device interface.
-	Copyright (C) 1996-2002 Hans Reiser.
+    device.h -- device independent interface.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef DEVICE_H

@@ -1,6 +1,7 @@
 /*
-	malloc.h -- memory allocation functions.
-	Copyright (C) 1996-2002 Hans Reiser
+    malloc.h -- memory allocation functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef MALLOC_H

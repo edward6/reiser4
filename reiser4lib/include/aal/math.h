@@ -1,6 +1,7 @@
 /*
-	math.h -- some math functions which are needed by liaal.
-	Copyright (C) 1996-2002 Hans Reiser.
+    math.h -- some math functions which are needed by liaal.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef MATH_H

@@ -1,6 +1,7 @@
 /*
-	alloc.c -- reiserfs block allocator common code.
-	Copyright (C) 1996-2002 Hans Reiser.
+    alloc.c -- reiserfs block allocator common code.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <reiserfs/reiserfs.h>

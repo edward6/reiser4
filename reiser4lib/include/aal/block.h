@@ -1,6 +1,7 @@
 /*
-	block.h -- block-working functions.
-	Copyright (C) 1996-2002 Hans Reiser.
+    block.h -- block-working functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef BLOCK_H
@@ -21,14 +22,14 @@ typedef struct aal_block aal_block_t;
 #define aal_block_reading_failed(blk, action) \
     do { \
     	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
-	   "Reading block %lu failed.", blk); \
+	   "umka-041", "Reading block %lu failed.", blk); \
     	action; \
     } while (0)
 
 #define aal_block_writing_failed(blk, action) \
     do { \
     	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, \
-	   "Writing block %lu failed.", blk); \
+	   "umka-042", "Writing block %lu failed.", blk); \
 	action; \
     } while (0)
 

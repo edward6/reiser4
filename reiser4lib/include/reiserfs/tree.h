@@ -1,6 +1,7 @@
 /*
-	tree.h -- reiserfs balanced tree functions.
-	Copyright (C) 1996-2002 Hans Reiser.
+    tree.h -- reiserfs balanced tree functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef TREE_H

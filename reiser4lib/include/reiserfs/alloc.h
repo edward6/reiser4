@@ -1,6 +1,7 @@
 /*
-	alloc.h -- reiserfs block allocator functions.
-	Copyright (C) 1996-2002 Hans Reiser.
+    alloc.h -- reiserfs block allocator functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef ALLOC_H

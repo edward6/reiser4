@@ -1,6 +1,7 @@
 /*
-	string.h -- memory-working and string-working functions.
-	Copyright (C) 1996-2002 Hans Reiser.
+    string.h -- memory-working and string-working functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <sys/types.h>

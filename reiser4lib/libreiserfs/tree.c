@@ -1,6 +1,7 @@
 /*
-	tree.c -- reiserfs balanced tree code.
-	Copyright (C) 1996-2002 Hans Reiser.
+    tree.c -- reiserfs balanced tree code.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <reiserfs/reiserfs.h>

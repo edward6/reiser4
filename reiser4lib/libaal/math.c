@@ -1,6 +1,7 @@
 /*
-	math.c -- some math functions needed by libaal.
-	Copyright (C) 1996-2002 Hans Reiser.
+    math.c -- some math functions needed by libaal.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 int aal_pow_of_two(unsigned long n) {

@@ -1,6 +1,7 @@
 /*
-	aal.h -- the central AGL (Application Gateway Library) header.
-	Copyright (C) 1996-2002 Hans Reiser
+    aal.h -- the central AAL header. AAL - (Application Abstraction Library).
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef AAL_H

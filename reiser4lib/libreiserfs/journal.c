@@ -1,6 +1,7 @@
 /*
-	journal.c -- reiserfs filesystem journal common code.
-	Copyright (C) 1996-2002 Hans Reiser.
+    journal.c -- reiserfs filesystem journal common code.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <aal/aal.h>

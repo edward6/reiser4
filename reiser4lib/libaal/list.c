@@ -1,6 +1,7 @@
 /*
-	list.c -- simple list implementation.
-	Copyright (C) 1996-2002 Hans Reiser
+    list.c -- simple list implementation.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <aal/aal.h>

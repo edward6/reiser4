@@ -1,6 +1,7 @@
 /*
-	journal.h -- reiserfs filesystem journal functions.
-	Copyright (C) 1996-2002 Hans Reiser.
+    journal.h -- reiserfs filesystem journal functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef JOURNAL_H

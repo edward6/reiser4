@@ -1,6 +1,7 @@
 /*
-	filesystem.c -- common reiserfs filesystem code.
-	Copyright (C) 1996-2002 Hans Reiser
+    filesystem.c -- common reiserfs filesystem code.
+    Copyright (C) 1996-2002 Hans Reiser
+    Author Yury Umanets.
 */
 
 #include <aal/aal.h>

@@ -1,6 +1,7 @@
 /*
-	super.c -- format independent super block code.
-	Copyright (C) 1996-2002 Hans Reiser.
+    super.c -- format independent super block code.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifdef HAVE_CONFIG_H
