@@ -196,13 +196,18 @@ int jnode_flush (jnode *node, int flags)
 		 * less effective in almost all cases. */
 		if (flush_pos.left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
 
-			/* FIXME: Problem: The batch_relocate condition is not set early
-			 * enough to relocate the leaf-level parent, for example.  This is
-			 * not really a special case, but it maybe it should be handled? */
-			/* FIXME: this doesn't work because the leftpoint is already locked. */
-			if (0 && (ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count,
+			/* Have to release the flush_pos lock temporarily due to possible conflict. */
+			done_lh (& flush_pos.point_lock);
+
+			if ((ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count,
 							  FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
 				goto failed;
+			}
+
+			if (jnode_is_formatted (flush_pos.point)) {
+				if ((ret = longterm_lock_znode (& flush_pos.point_lock, JZNODE (flush_pos.point), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+					goto failed;
+				}
 			}
 
 			flush_pos.batch_relocate = (flush_pos.right_scan_count +
@@ -1810,6 +1815,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 {
 	int ret;
 	lock_handle first_lock;
+	jnode *child;
 
 	if (skip_first) {
 		init_lh (& first_lock);
@@ -1834,12 +1840,13 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			if ((ret = flush_scan_extent_coord (scan, & scan->parent_coord))) {
 				return ret;
 			}
+
+			if (flush_scan_finished (scan)) {
+				break;
+			}
+
 		} else {
 			ncoord_sideof_unit (& scan->parent_coord, scan->direction);
-		}
-
-		if (flush_scan_finished (scan)) {
-			break;
 		}
 
 		if (ncoord_is_after_sideof_unit (& scan->parent_coord, scan->direction)) {
@@ -1860,23 +1867,23 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			ncoord_init_sideof_unit (& scan->parent_coord, scan->parent_lock.node, sideof_reverse (scan->direction));
 		}
 
-		if (! item_is_extent_n (& scan->parent_coord)) {
-			if (skip_first) {
-				scan->stop = 1;
-				break;
-			} else {
-				jnode *child;
+		if (! item_is_extent_n (& scan->parent_coord) && skip_first) {
+			scan->stop = 1;
+			break;
+		}
 				
-				if ((ret = item_utmost_child (& scan->parent_coord, sideof_reverse (scan->direction), & child))) {
-					return ret;
-				}
+		if ((ret = item_utmost_child (& scan->parent_coord, sideof_reverse (scan->direction), & child))) {
+			return ret;
+		}
 
-				if (! flush_scan_goto (scan, child)) {
-					break;
-				}
+		if (! flush_scan_goto (scan, child)) {
+			break;
+		}
 
-				flush_scan_set_current (scan, child, 1);
-			}
+		flush_scan_set_current (scan, child, 1);
+
+		if (jnode_is_formatted (child)) {
+			break;
 		}
 	}
 
