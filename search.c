@@ -265,19 +265,22 @@ typedef struct cbk_handle {
 	reiser4_tree        *tree;
 	/** key we are going after */
 	const reiser4_key   *key;
-	/** coord we to store result */
+	/** coord we will store result in */
 	coord_t  	    *coord;
-	/** lock to take on target node */
+	/** type of lock to take on target node */
 	znode_lock_mode      lock_mode;
+/* NIKITA-FIXME-HANS:why exactly do we need both a tween field and a lookup bias? */
 	/** lookup bias */
 	lookup_bias          bias;
 	/** lock level */
 	tree_level           llevel;
 	/** stop level */
+/* NIKITA-FIXME-HANS: needs a bigger comment. */
 	tree_level           slevel;
 	/** level we are currently at */
 	tree_level           level;
 	/** block number of "active" node */
+/* does this differ from the current node?  what does active mean?  Is this the iterator? -Hans */
 	reiser4_block_nr    block;
 	/** put here error message to be printed by caller */
 	const char          *error;
@@ -286,9 +289,9 @@ typedef struct cbk_handle {
 	/** lock handles for active and parent */
 	lock_handle *parent_lh;
 	lock_handle *active_lh;
-	reiser4_key          ld_key;
+	reiser4_key          ld_key; /* of iterator? */
 	reiser4_key          rd_key;
-	__u32                flags;
+	__u32                flags; /* NIKITA-FIXME-HANS: totally inadequate commenting here.... */
 } cbk_handle;
 
 static lookup_result cbk_traversal( cbk_handle *h );
@@ -361,7 +364,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 {
 	cbk_handle          handle;
 	lock_handle parent_lh;
-
+/* AUDIT: add insertion to check whether lh and parent_lh are zeroed. -Hans */
 	/* AUDIT: initialising passed in parameters is totally pointless.
 	   caller should do this! */
 	init_lh(lh);
@@ -478,6 +481,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 /** main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
 /* Audited by: green(2002.06.15) */
+/* find more descriptive names for the onion layers of coord_by_key */
 static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 {
 	int done;
@@ -538,14 +542,14 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 	/* loop descending a tree */
 	for( ; !done ; ++ iterations ) {
 
-		if( REISER4_CBK_ITERATIONS_LIMIT && 
-		    ( iterations > REISER4_CBK_ITERATIONS_LIMIT ) &&
-		    !( iterations & ( iterations - 1 ) ) ) {
+		if( unlikely(( iterations > REISER4_CBK_ITERATIONS_LIMIT ) &&
+		    !( iterations & ( iterations - 1 ) )) ) {
 			warning( "nikita-1481", "Too many iterations: %i",
 				 iterations );
 			print_key( "key", h -> key );
 		}
 		switch( cbk_level_lookup( h ) ) {
+/* NIKITA-FIXME-HANS: rename these cases or comment them */
 		    case LLR_CONT:
 			    move_lh(h->parent_lh, h->active_lh);
 			    continue;
@@ -562,8 +566,8 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 		}
 	}
 
-	/* that's all. The rest if error handling */
-	if( h -> error != NULL ) {
+	/* that's all. The rest is error handling */
+	if( unlikely(h -> error != NULL) ) {
 		warning( "nikita-373", "%s: level: %i, "
 			 "lock_level: %i, stop_level: %i "
 			 "lock_mode: %s, bias: %s",
@@ -575,7 +579,8 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 		print_znode( "active", h -> active_lh -> node);
 		print_znode( "parent", h -> parent_lh -> node);
 	}
-	if( ( h -> result != CBK_COORD_FOUND ) &&
+/* the unlikely asssumes misses are rarer than finds */
+	if( ( unlikely (h -> result != CBK_COORD_FOUND) ) &&
 	    ( h -> result != CBK_COORD_NOTFOUND ) ) {
 		/* failure. do cleanup */
 		hput( h );

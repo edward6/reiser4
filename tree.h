@@ -184,6 +184,7 @@ struct reiser4_item_data {
 
 /** cbk flags: options for coord_by_key() */
 typedef enum {
+/* NIKITA-FIXME-HANS: is this field used?  if so, for what and where? -Hans */
 	/** coord_by_key() is called for insertion */
 	CBK_FOR_INSERT =    ( 1 << 0 ),
 	/** coord_by_key() is called with key that is known to be unique */

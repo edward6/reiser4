@@ -72,8 +72,12 @@
          rpanic( label, "not implemented: " format , ##args )
 /**
  * assert assures that @cond is true. If it is not, rpanic() is
- * called. Use this for checking logical consistentsy and _never_ call
+ * called. Use this for checking logical consistency and _never_ call
  * this to check correctness of input data.
+NIKITA-FIXME-HANS: explain, particularly explain input to what, the kernel, or a function within the kernel?
+
+drop preempt_point and check_stack from this function by Aug. 1, 2002.
+
  */
 #define assert( label, cond )					\
 ({								\
