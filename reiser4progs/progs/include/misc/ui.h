@@ -21,5 +21,8 @@ extern void progs_ui_set_possibilities(aal_list_t *list);
 extern aal_list_t *progs_ui_get_possibilities(void);
 #endif
 
+extern int64_t progs_ui_numeric_handler(const char *prompt, 
+    int64_t defvalue, aal_check_numeric_func_t check_func);
+
 #endif
 

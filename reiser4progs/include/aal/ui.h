@@ -15,7 +15,7 @@ typedef int64_t (*aal_get_numeric_func_t) (const char *,
 extern void aal_ui_set_numeric_handler(aal_get_numeric_func_t func);
 extern aal_get_numeric_func_t aal_ui_get_numeric_handler(void);
 
-extern int64_t aal_ui_get_numeric(const char *prompt, int64_t value, 
+extern int64_t aal_ui_get_numeric(const char *prompt, int64_t defvalue, 
     aal_check_numeric_func_t check_func);
 
 #endif

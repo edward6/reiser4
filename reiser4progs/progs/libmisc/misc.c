@@ -48,13 +48,14 @@ long long progs_misc_size_parse(
     if ((size = reiser4_aux_strtol(number, error)) == 0 && *error)
 	return 0;
 	
-    if (label == 0 || toupper(label) == toupper('m'))
+    if (toupper(label) == toupper('m'))
 	size = size * MB;
     else if (toupper(label) == toupper('k'))
 	size = size * KB;
     else if (toupper(label) == toupper('g'))
 	size = size * GB;
 
+    *error = ~0;
     return size;
 }
 

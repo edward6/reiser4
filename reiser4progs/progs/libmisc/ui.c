@@ -198,3 +198,39 @@ static void _init(void) {
 #endif
 }
 
+/* Common for all progs ui get numeric handler*/
+int64_t progs_ui_numeric_handler(
+    const char *prompt, int64_t defvalue, 
+    aal_check_numeric_func_t check_func
+) {
+    char buff[255];
+    int64_t value = 0;
+    
+    aal_assert("umka-1132", prompt != NULL, return ~0ll);
+    
+    aal_memset(buff, 0, sizeof(buff));
+    
+    aal_snprintf(buff, sizeof(buff), "%s [%lli]: ", 
+	prompt, defvalue);
+    
+    while (1) {
+	int error;
+	char *line;
+	
+	if (aal_strlen((line = progs_ui_readline(buff))) == 0) 
+	    return defvalue;
+
+	if (!(value = progs_misc_size_parse(line, &error)) && error != ~0) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Invalid numeric has been detected (%s). "
+		"Number is expected (1, 1K, 1M, 1G)", line);
+	    continue;
+	}
+	
+	if (!check_func || check_func(value))
+	    break;
+    }
+    
+    return value; 
+}
+

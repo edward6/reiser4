@@ -28,6 +28,7 @@ static void ls_init(void) {
 	progs_exception_set_stream(i, stderr);
 
     aal_exception_set_handler(progs_exception_handler);
+    aal_ui_set_numeric_handler(progs_ui_numeric_handler);
 }
 
 static reiser4_node_t *__node_open(aal_block_t *block, void *data) {
