@@ -305,6 +305,12 @@ static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
 
+/* The spin_is_not_locked function can only be implemented by the user-level debugging
+ * spinlocks. */
+#if ! REISER4_USER_LEVEL_SIMULATION
+#define spin_is_not_locked(s) 1
+#endif
+
 #include "kcond.h"
 #include "dformat.h"
 #include "key.h"

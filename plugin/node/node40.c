@@ -698,7 +698,8 @@ int node40_guess( const znode *node /* node to guess plugin of */)
 
 
 /* Audited by: green(2002.06.12) */
-void node40_print( const znode *node /* node to print */, 
+void node40_print( const char *prefix,
+		   const znode *node /* node to print */, 
 		   __u32 flags UNUSED_ARG /* print flags */ )
 {
 	node_header_40   *header;
