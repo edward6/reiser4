@@ -634,6 +634,7 @@ get_overwrite_set(struct commit_handle *ch)
 			spin_lock(&scan_lock);
 			JF_CLR(cur, JNODE_SCANNED);
 			cur = next;
+			nr_not_leaves ++;
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
@@ -641,6 +642,21 @@ get_overwrite_set(struct commit_handle *ch)
 			if (ret)
 				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 
+			/* Count not leaves here because we have to grab disk
+			 * space for wandered blocks. They were not counted as
+			 * "flush reserved". This should be done after doing
+			 * jload() to avoid races with emergency flush. */
+			if (!jnode_is_leaf(cur))
+				nr_not_leaves ++;
+#if REISER4_DEBUG
+			/* this is to check atom's flush reserved space for overwritten leaves */
+			else {
+				if (jnode_is_znode(cur))
+					nr_formatted_leaves ++;
+				else
+					nr_unformatted_leaves ++;
+			}
+#endif
 			spin_lock(&scan_lock);
 			JF_SET(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
 			assert("", cur->pg);
@@ -648,20 +664,6 @@ get_overwrite_set(struct commit_handle *ch)
 			cur = next;
 		}
 
-		/* Count not leaves here because we have to grab disk space
-		 * for wandered blocks. They were not counted as "flush
-		 * reserved". This should be done after doing jload() to avoid
-		 * races with emergency flush. */
-		if (!jnode_is_leaf(cur))
-			nr_not_leaves ++;
-#if REISER4_DEBUG
-		else {
-			if (jnode_is_znode(cur))
-				nr_formatted_leaves ++;
-			else
-				nr_unformatted_leaves ++;
-		}
-#endif		
 	}
 	spin_unlock(&scan_lock);
 
