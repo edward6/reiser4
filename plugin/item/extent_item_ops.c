@@ -385,31 +385,64 @@ invalidate_unformatted(jnode *node)
 	}
 }
 
+
+//radix_tree_gang_lookup(struct radix_tree_root *root, void **results,
+//			unsigned long first_index, unsigned int max_items)
+
+#define JNODE_GANG_SIZE (16)
+
 static int
 truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 {
-	int i;
-	reiser4_inode *r4_inode;
-	jnode *node;
+	reiser4_inode *info;
 	int truncated_jnodes;
 	reiser4_tree *tree;
+	unsigned long index;
+	unsigned long end;
+
+	assert("nikita-3465", count > 0);
 
 	truncated_jnodes = 0;
-	r4_inode = reiser4_inode_data(inode);
+
+	info = reiser4_inode_data(inode);
 	tree = tree_by_inode(inode);
-	WLOCK_TREE(tree);
-	for (i = 0; i < count; i ++) {
-		node = radix_tree_lookup(&r4_inode->jnode_tree, from + i);
-		if (node) {
-			jref(node);
-			WUNLOCK_TREE(tree);
-			invalidate_unformatted(node);
-			truncated_jnodes ++;
-			jput(node);
-			WLOCK_TREE(tree);
+
+	index = from;
+	end   = from + count;
+
+	while (1) {
+		jnode *gang[JNODE_GANG_SIZE];
+		int    taken;
+		int    i;
+		jnode *node;
+
+		assert("nikita-3466", index < end);
+
+		RLOCK_TREE(tree);
+		taken = radix_tree_gang_lookup(&info->jnode_tree, (void **)gang,
+					       index, JNODE_GANG_SIZE);
+		for (i = 0; i < taken; ++i) {
+			node = gang[i];
+			if (index_jnode(node) < end)
+				jref(node);
+			else
+				gang[i] = NULL;
 		}
+		RUNLOCK_TREE(tree);
+
+		for (i = 0; i < taken; ++i) {
+			node = gang[i];
+			if (node != NULL) {
+				index = max(index, index_jnode(node));
+				invalidate_unformatted(node);
+				truncated_jnodes ++;
+				jput(node);
+			} else
+				break;
+		}
+		if (i != taken || taken == 0)
+			break;
 	}
-	WUNLOCK_TREE(tree);
 	return truncated_jnodes;
 }
 
