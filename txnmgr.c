@@ -1938,13 +1938,13 @@ uncapture_page(struct page *pg)
 
 	assert("umka-199", pg != NULL);
 
-	write_lock(&pg->mapping->page_lock);
+	spin_lock(&pg->mapping->page_lock);
 	test_clear_page_dirty(pg);
 
 	list_del(&pg->list);
 	list_add(&pg->list, &pg->mapping->clean_pages);
 
-	write_unlock(&pg->mapping->page_lock);
+	spin_unlock(&pg->mapping->page_lock);
 
 	node = (jnode *) (pg->private);
 

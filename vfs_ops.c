@@ -621,14 +621,14 @@ static int reiser4_set_page_dirty (struct page * page)
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			write_lock(&mapping->page_lock);
+			spin_lock(&mapping->page_lock);
 			if (page->mapping) {	/* Race with truncate? */
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
 				list_del(&page->list);
 				list_add(&page->list, get_moved_pages(mapping));
 			}
-			write_unlock(&mapping->page_lock);
+			spin_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
@@ -2546,9 +2546,9 @@ static int mapping_has_anonymous_pages (struct address_space * mapping )
 {
 	int ret;
 
-	read_lock (&mapping->page_lock);
+	spin_lock (&mapping->page_lock);
 	ret = !list_empty (get_moved_pages(mapping));
-	read_unlock (&mapping->page_lock);
+	spin_unlock (&mapping->page_lock);
 
 	return ret;
 }
@@ -2576,7 +2576,7 @@ static int capture_anonymous_pages (struct address_space * mapping)
 {
 	struct list_head *mpages;
 
-	write_lock (&mapping->page_lock);
+	spin_lock (&mapping->page_lock);
 
 	mpages = get_moved_pages(mapping);
 	while (!list_empty (mpages)) {
@@ -2585,7 +2585,7 @@ static int capture_anonymous_pages (struct address_space * mapping)
 		list_move(&pg->list, &mapping->io_pages);
 		page_cache_get (pg);
 
-		write_unlock (&mapping->page_lock);
+		spin_unlock (&mapping->page_lock);
 
 		lock_page (pg);
 
@@ -2594,10 +2594,10 @@ static int capture_anonymous_pages (struct address_space * mapping)
 		unlock_page (pg);
 
 		page_cache_release (pg);
-		write_lock (&mapping->page_lock);
+		spin_lock (&mapping->page_lock);
 	}
 
-	write_unlock(&mapping->page_lock);
+	spin_unlock(&mapping->page_lock);
 
 	return 0;
 }

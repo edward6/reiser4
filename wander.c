@@ -663,7 +663,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 			SetPageWriteback(pg);
 
-			write_lock(&pg->mapping->page_lock);
+			spin_lock(&pg->mapping->page_lock);
 
 			/* don't check return value: submit page even if it
 			   wasn't dirty. */
@@ -672,7 +672,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 			list_del(&pg->list);
 			list_add(&pg->list, &pg->mapping->locked_pages);
 
-			write_unlock(&pg->mapping->page_lock);
+			spin_unlock(&pg->mapping->page_lock);
 
 			reiser4_unlock_page(pg);
 
