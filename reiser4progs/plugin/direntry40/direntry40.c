@@ -41,18 +41,18 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 	e40_set_offset(&direntry->entry[i], offset);
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_dir_short_key, 
-	    &direntry->entry[i].entryid, direntry_hint->entry[i]->name, 
+	    &direntry->entry[i].entryid, direntry_hint->entry[i].name, 
 	    direntry_hint->hash_plugin, sizeof(reiserfs_entryid_t));
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_file_short_key, 
 	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
-	    direntry_hint->entry[i]->locality, direntry_hint->entry[i]->objectid, 
+	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid, 
 	    sizeof(reiserfs_objid_t));
 	
-	len = aal_strlen(direntry_hint->entry[i]->name);
+	len = aal_strlen(direntry_hint->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
 	
-	aal_memcpy((char *)(direntry) + offset, direntry_hint->entry[i]->name, len);
+	aal_memcpy((char *)(direntry) + offset, direntry_hint->entry[i].name, len);
 	
 	offset += len;
 	
@@ -76,7 +76,7 @@ static error_t direntry40_estimate(reiserfs_item_hint_t *hint,
     hint->length = direntry_hint->count * sizeof(reiserfs_entry40_t);
     
     for (i = 0; i < direntry_hint->count; i++) {
-	hint->length += aal_strlen(direntry_hint->entry[i]->name) + 
+	hint->length += aal_strlen(direntry_hint->entry[i].name) + 
 	    sizeof(reiserfs_objid_t) + 1;
     }
 

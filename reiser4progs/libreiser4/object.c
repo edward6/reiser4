@@ -229,7 +229,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     /* Inserting all items into tree */
     for (i = 0; i < hint->count; i++) {
 	if (reiserfs_tree_item_insert(fs->tree, 
-	    (reiserfs_key_t *)(&hint->item[i]->key), hint->item[i])) 
+	    (reiserfs_key_t *)(&hint->item[i].key), &hint->item[i])) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't insert %i item into tree.", i);

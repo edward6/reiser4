@@ -30,7 +30,6 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
     reiserfs_object_hint_t *hint;
     reiserfs_item_hint_t *item_hint;
 
-    reiserfs_entry_hint_t **entry;
     reiserfs_stat_hint_t *stat_hint;
     reiserfs_direntry_hint_t *direntry_hint;
 
@@ -59,31 +58,26 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
 
     hint->count = 2;
     
-    if (!(hint->item = aal_calloc(2 * sizeof(reiserfs_item_hint_t *), 0)))
+    if (!(hint->item = aal_calloc(hint->count * sizeof(reiserfs_item_hint_t), 0)))
 	goto error_free_hint;
     
     /* Initializing stat data hint */
-    if (!(hint->item[0] = aal_calloc(sizeof(reiserfs_item_hint_t), 0)))
-	goto error_free_item;
+    hint->item[0].type = REISERFS_STAT_ITEM; 
     
-    hint->item[0]->type = REISERFS_STAT_ITEM; 
-    
-    if (!(hint->item[0]->plugin = 
-	    factory->find(REISERFS_ITEM_PLUGIN, stat_plugin_id)))
+    if (!(hint->item[0].plugin = 
+	factory->find(REISERFS_ITEM_PLUGIN, stat_plugin_id)))
     {
-	libreiser4_factory_failed(goto error_free_item0, 
+	libreiser4_factory_failed(goto error_free_item, 
 	    find, item, stat_plugin_id);
     }
 
-    if (!(hint->item[0]->hint = aal_calloc(sizeof(reiserfs_stat_hint_t), 0)))
-	goto error_free_item0;
+    if (!(hint->item[0].hint = aal_calloc(sizeof(reiserfs_stat_hint_t), 0)))
+	goto error_free_item;
    
-    hint->item[0]->key.plugin = key_plugin;
+    hint->item[0].key.plugin = key_plugin;
+    aal_memcpy(&hint->item[0].key.body, object->body, sizeof(object->body));
     
-    aal_memcpy(&hint->item[0]->key.body, 
-	object->body, sizeof(object->body));
-    
-    stat_hint = hint->item[0]->hint;
+    stat_hint = hint->item[0].hint;
 
     stat_hint->mode = S_IFDIR | 0755;
     stat_hint->extmask = 0;
@@ -91,68 +85,49 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
     stat_hint->size = 0;
     
     /* Initializing direntry hint */
-    if (!(hint->item[1] = aal_calloc(sizeof(reiserfs_item_hint_t), 0)))
-	goto error_free_hint0;
+    hint->item[1].type = REISERFS_DIRENTRY_ITEM; 
     
-    hint->item[1]->type = REISERFS_DIRENTRY_ITEM; 
-    
-    if (!(hint->item[1]->plugin = factory->find(REISERFS_ITEM_PLUGIN,
+    if (!(hint->item[1].plugin = factory->find(REISERFS_ITEM_PLUGIN,
 	direntry_plugin_id)))
     {
-	libreiser4_factory_failed(goto error_free_item1, find, item, 
+	libreiser4_factory_failed(goto error_free_hint0, find, item, 
 	    direntry_plugin_id);
     }
     
-    if (!(hint->item[1]->hint = aal_calloc(sizeof(reiserfs_direntry_hint_t), 0)))
-	goto error_free_item1;
+    if (!(hint->item[1].hint = aal_calloc(sizeof(reiserfs_direntry_hint_t), 0)))
+	goto error_free_hint0;
 
-    hint->item[1]->key.plugin = key_plugin; 
-    aal_memcpy(&hint->item[1]->key.body, parent, sizeof(parent->body));
-    direntry_hint = hint->item[1]->hint;
+    hint->item[1].key.plugin = key_plugin; 
+    aal_memcpy(&hint->item[1].key.body, parent, sizeof(parent->body));
+    
+    direntry_hint = hint->item[1].hint;
 
     direntry_hint->count = 2;
     direntry_hint->key_plugin = key_plugin;
     direntry_hint->hash_plugin = NULL;
    
     libreiser4_plugin_call(goto error_free_hint1, key_plugin->key, 
-	build_dir_key, &hint->item[1]->key.body, direntry_hint->hash_plugin, 
+	build_dir_key, &hint->item[1].key.body, direntry_hint->hash_plugin, 
 	parent_objectid, objectid, ".");
     
-    if (!(direntry_hint->entry = aal_calloc(2 * sizeof(reiserfs_entry_hint_t *), 0)))
+    if (!(direntry_hint->entry = aal_calloc(direntry_hint->count * 
+	    sizeof(reiserfs_entry_hint_t), 0)))
 	goto error_free_hint1;
     
-    entry = direntry_hint->entry;
-
-    if (!(entry[0] = aal_calloc(sizeof(reiserfs_entry_hint_t), 0)))
-	goto error_free_entry;
+    direntry_hint->entry[0].locality = parent_objectid;
+    direntry_hint->entry[0].objectid = objectid;
+    direntry_hint->entry[0].name = ".";
     
-    entry[0]->locality = parent_objectid;
-    entry[0]->objectid = objectid;
-    entry[0]->name = ".";
-    
-    if (!(entry[1] = aal_calloc(sizeof(reiserfs_entry_hint_t), 0)))
-	goto error_free_entry0;
-    
-    entry[1]->locality = parent_locality;
-    entry[1]->objectid = parent_objectid;
-    entry[1]->name = "..";
+    direntry_hint->entry[1].locality = parent_locality;
+    direntry_hint->entry[1].objectid = parent_objectid;
+    direntry_hint->entry[1].name = "..";
     
     return hint;
 
-error_free_entry1:
-    aal_free(entry[1]);
-error_free_entry0:
-    aal_free(entry[0]);
-error_free_entry:
-    aal_free(direntry_hint->entry);
 error_free_hint1:
-    aal_free(hint->item[1]->hint);
-error_free_item1:
-    aal_free(hint->item[1]);
+    aal_free(hint->item[1].hint);
 error_free_hint0:
-    aal_free(hint->item[0]->hint);
-error_free_item0:
-    aal_free(hint->item[0]);
+    aal_free(hint->item[0].hint);
 error_free_item:
     aal_free(hint->item);
 error_free_hint:
@@ -167,21 +142,12 @@ static void dir40_destroy(reiserfs_object_hint_t *hint) {
     aal_assert("umka-750", hint != NULL, return);
 
     for (i = 0; i < hint->count; i++) {
-	reiserfs_item_hint_t *item_hint = hint->item[i];
-	
-	if (item_hint->type == REISERFS_DIRENTRY_ITEM) {
-	    int j;
-	    
-	    reiserfs_direntry_hint_t *de_hint = 
-		(reiserfs_direntry_hint_t *)item_hint->hint;
-	
-	    for (j = 0; j < de_hint->count; j++)
-		aal_free(de_hint->entry[j]);
-	    
-	    aal_free(de_hint->entry);
-	    aal_free(de_hint);
+	if (hint->item[i].type == REISERFS_DIRENTRY_ITEM) {
+	    reiserfs_direntry_hint_t *direntry_hint = 
+		(reiserfs_direntry_hint_t *)hint->item[i].hint;
+	    aal_free(direntry_hint->entry);
+	    aal_free(direntry_hint);
 	}
-	aal_free(item_hint);
     }
     aal_free(hint->item);
     aal_free(hint);

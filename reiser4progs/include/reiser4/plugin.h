@@ -519,7 +519,7 @@ typedef struct reiserfs_entry_hint reiserfs_entry_hint_t;
 
 struct reiserfs_direntry_hint {
     uint16_t count;
-    reiserfs_entry_hint_t **entry;
+    reiserfs_entry_hint_t *entry;
     
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *hash_plugin;    
@@ -559,7 +559,7 @@ typedef struct reiserfs_item_hint reiserfs_item_hint_t;
 
 struct reiserfs_object_hint {
     uint16_t count;
-    reiserfs_item_hint_t **item;
+    reiserfs_item_hint_t *item;
 };
 
 typedef struct reiserfs_object_hint reiserfs_object_hint_t;
@@ -632,8 +632,7 @@ extern void libreiser4_factory_done(void);
 #define libreiser4_factory_failed(action, oper, type, id)	    \
     do {							    \
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,	    \
-	    "Can't " #oper " " #type " plugin by its id %x.",	    \
-	    id);						    \
+	    "Can't " #oper " " #type " plugin by its id %x.", id);  \
 	action;							    \
     } while (0)
 
