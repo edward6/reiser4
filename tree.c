@@ -731,7 +731,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	xmemset( context, 0, sizeof *context );
 
 	tid = set_current ();
-	if( current -> journal_info ) {
+	if( REISER4_DEBUG && current -> journal_info ) {
 		BUG ();
 	}
 	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
