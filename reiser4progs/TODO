@@ -1,3 +1,2 @@
 * block allocator API probably should give allocated aal_block_t at request
 * libreiserfs should work with keys in format-independent maner.
-* make all plugins independent on libreiserfs structures (reiserfs_item_coord_t, etc).

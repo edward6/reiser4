@@ -12,7 +12,7 @@
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, reiserfs_node_t *parent, 
+reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
     reiserfs_node_t *node;
@@ -23,7 +23,6 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, reiserfs_
 	return NULL;
     
     node->device = device;
-    node->parent = parent;
     node->children = NULL;
     
     if (!(node->block = aal_block_alloc(device, blk, 0))) {
@@ -62,7 +61,7 @@ error_free_node:
 #endif
 
 reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
-    reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) 
+    reiserfs_plugin_id_t plugin_id) 
 {
     reiserfs_node_t *node;
 
@@ -72,7 +71,6 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
 	return NULL;
    
     node->device = device;
-    node->parent = parent;
     node->children = NULL;
     
     if (!(node->block = aal_block_read(device, blk))) {
@@ -111,7 +109,7 @@ error_free_node:
 }
 
 error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
-    blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) 
+    blk_t blk, reiserfs_plugin_id_t plugin_id) 
 {
     return 0;
 }
@@ -147,8 +145,13 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
 	check, node->block, flags);
 }
 
-int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_item_coord_t *coord, 
-    void *key) 
+/*
+    Makes search inside specified node by passed key. Fills
+    passed coord by coors of found item and unit. This function
+    is used by reiserfs_tree_lookup function.
+*/
+int reiserfs_node_lookup(reiserfs_node_t *node, void *key, 
+    reiserfs_coord_t *coord) 
 {
     int found; 
     void *body;
@@ -240,6 +243,8 @@ error_t reiserfs_node_add_children(reiserfs_node_t *node,
 
     node->children = aal_list_insert_sorted(node->children, 
 	children, (int (*)(const void *, const void *))callback_comp_for_insert);
+
+    children->parent = node;
     
     return 0;   
 }
@@ -260,6 +265,7 @@ void reiserfs_node_remove_children(reiserfs_node_t *node,
 	if (length == 1)
 	    node->children = NULL;
     }
+    children->parent = NULL;
 }
 
 #ifndef ENABLE_COMPACT
@@ -501,8 +507,9 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
 }
 
 /*
-    We can estimate size for insertion and for pasting of item_info->data(to be memcpy) 
-    or of item_info->info(data to be created on the base of).
+    We can estimate size for insertion and for pasting of item_info->data (to be memcpy) 
+    or of item_info->info (data to be created on the base of).
+    
     1.Insertion of data: 
     a) coord->unit_pos == -1 
     b) item_info->data != NULL
@@ -522,7 +529,7 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
 */
 
 error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord)
+    reiserfs_item_info_t *item_info, reiserfs_coord_t *coord)
 {
     aal_assert("vpf-106", item_info != NULL, return -1);
     aal_assert("umka-541", node != NULL, return -1);
@@ -551,7 +558,7 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
     return 0;
 }
 
-error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_item_coord_t *coord, 
+error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord, 
     void *key, reiserfs_item_info_t *item_info) 
 {
     error_t ret;

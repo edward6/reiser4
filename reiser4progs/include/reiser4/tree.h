@@ -9,9 +9,9 @@
 
 #include <reiser4/plugin.h>
 #include <reiser4/filesystem.h>
+#include <misc/misc.h>
 
 #define REISERFS_LEAF_LEVEL 1
-#define REISERFS_ROOT_LEVEL 0
 
 extern error_t reiserfs_tree_open(reiserfs_fs_t *fs);
 extern void reiserfs_tree_close(reiserfs_fs_t *fs);
@@ -21,6 +21,19 @@ extern error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 
 extern error_t reiserfs_tree_sync(reiserfs_fs_t *fs);
 extern error_t reiserfs_tree_flush(reiserfs_fs_t *fs);
+
+extern int reiserfs_tree_lookup(reiserfs_fs_t *fs, 
+    reiserfs_comp_func_t comp_func, void *key, reiserfs_coord_t *coord);
+
+extern error_t reiserfs_tree_item_insert(reiserfs_fs_t *fs, void *key, 
+    reiserfs_item_info_t *item_info);
+
+extern error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, void *key);
+
+extern error_t reiserfs_tree_node_insert(reiserfs_fs_t *fs, 
+    reiserfs_node_t *node);
+
+extern error_t reiserfs_tree_node_remove(reiserfs_fs_t *fs, void *key);
 
 #endif
 

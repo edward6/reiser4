@@ -37,7 +37,7 @@ static uint32_t internal40_minsize(void) {
 }
 
 static void internal40_estimate(reiserfs_item_info_t *info, 
-    reiserfs_item_coord_t *coord) 
+    reiserfs_coord_t *coord) 
 {
     aal_assert("vpf-068", info != NULL, return);
     info->length = sizeof(internal40_t);

@@ -439,27 +439,31 @@ union reiserfs_plugin {
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
 /* 
-    To create a new item or to insert into the item we 
-    need to perform the following operations:
+    To create a new item or to insert into the item we need to 
+    perform the following operations:
     
-    1. Create the description of the data being inserted.
-    2. Ask item plugin how much space is needed for the 
-       data, described in 1.   
-    3. Free needed space for data being inserted.
-    4. Ask item plugin to create an item (to paste into 
-       the item) on the base of description from 1.
+    (1) Create the description of the data being inserted.
+    (2) Ask item plugin how much space is needed for the 
+    data, described in 1.
+    
+    (3) Free needed space for data being inserted.
+    (4) Ask item plugin to create an item (to paste into 
+    the item) on the base of description from 1.
 
     For such purposes we have:
     
-    1. Fixed description structures for all item types (stat, 
-       diritem, internal, etc).
-    2. Estimate common item method which gets coord of where 
-       to insert into (NULL or unit_pos == -1 for insertion, 
-       otherwise it is pasting) and data description from 1.
-    3. Insert node methods prepare needed space and call 
-       Create/Paste item methods if data description is specified.
-    4. Create/Paste item methods if data description has not 
-       beed specified on 3. 
+    (1) Fixed description structures for all item types (stat, 
+    diritem, internal, etc).
+    
+    (2) Estimate common item method which gets coord of where 
+    to insert into (NULL or unit_pos == -1 for insertion, 
+    otherwise it is pasting) and data description from 1.
+    
+    (3) Insert node methods prepare needed space and call 
+    Create/Paste item methods if data description is specified.
+    
+    (4) Create/Paste item methods if data description has not 
+    beed specified on 3. 
 */
 
 /* 
@@ -515,20 +519,13 @@ struct reiserfs_dir_info {
 
 typedef struct reiserfs_dir_info reiserfs_dir_info_t;
 
-struct reiserfs_item_coord {
+struct reiserfs_coord {
+    aal_block_t *node;
     int16_t item_pos;
     int16_t unit_pos;
 };
 
-typedef struct reiserfs_item_coord reiserfs_item_coord_t;
-
-struct reiserfs_node_coord {
-    void *node;
-    int16_t item_pos;
-    int16_t unit_pos;
-};
-
-typedef struct reiserfs_node_coord reiserfs_node_coord_t;
+typedef struct reiserfs_coord reiserfs_coord_t;
 
 struct reiserfs_plugin_factory {
     reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);

@@ -31,7 +31,7 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     }
 
     if (!(fs->tree->root = reiserfs_node_open(fs->host_device, 
-	    root_blk, NULL, REISERFS_GUESS_PLUGIN_ID)))
+	    root_blk, REISERFS_GUESS_PLUGIN_ID)))
 	goto error_free_tree;
     
     return 0;
@@ -58,7 +58,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 {
     blk_t block_nr;
     reiserfs_key40_t key;
-    reiserfs_item_coord_t coord;
+    reiserfs_coord_t coord;
     reiserfs_node_t *squeeze, *leaf;
     
     reiserfs_item_info_t item_info;
@@ -98,7 +98,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
     reiserfs_format_set_root(fs, block_nr);
   
-    if (!(squeeze = reiserfs_node_create(fs->host_device, block_nr, NULL, 
+    if (!(squeeze = reiserfs_node_create(fs->host_device, block_nr,
 	profile->node, REISERFS_LEAF_LEVEL + 1)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -149,7 +149,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 
     /* Create the leaf */
     if (!(leaf = reiserfs_node_create(fs->host_device, block_nr,
-	squeeze, profile->node, REISERFS_LEAF_LEVEL)))
+	profile->node, REISERFS_LEAF_LEVEL)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create a leaf node at %llu.", block_nr);
@@ -275,5 +275,105 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
     
     reiserfs_node_close(fs->tree->root);
     aal_free(fs->tree);
+}
+
+static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node, 
+    reiserfs_comp_func_t comp_func, void *key, reiserfs_coord_t *coord) 
+{
+    reiserfs_node_t *children;
+    uint8_t level, found = 0;
+
+    aal_assert("umka-645", node != NULL, return 0);
+    
+    while (1) {
+	if ((level = reiserfs_node_get_level(node)) > 
+	    reiserfs_format_get_height(fs))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, 
+		"Invalid node level. Found %d, expected less than %d.", 
+		level, reiserfs_format_get_height(fs));
+	    return 0;
+	}
+	
+	found = reiserfs_node_lookup(node, key, coord);
+	
+	if (level == REISERFS_LEAF_LEVEL)
+	    return found;
+			
+	if (!(children = reiserfs_node_open(fs->host_device, 
+		reiserfs_node_item_get_pointer(node, coord->item_pos), 
+		REISERFS_GUESS_PLUGIN_ID))) 
+	    return 0;
+	
+	reiserfs_node_add_children(node, children);
+	node = children;
+    }
+	
+    return 0;
+}
+
+/* 
+    Makes search in the tree by specified key. Fills passed
+    coord by coords of found item. 
+*/
+int reiserfs_tree_lookup(reiserfs_fs_t *fs, reiserfs_comp_func_t comp_func, 
+    void *key, reiserfs_coord_t *coord) 
+{
+    aal_assert("umka-642", fs != NULL, return 0);
+    aal_assert("umka-643", key != NULL, return 0);
+    aal_assert("umka-644", coord != NULL, return 0);
+    
+    if (reiserfs_format_get_height(fs) < 2)
+	return 0;
+	
+    return reiserfs_tree_node_lookup(fs, fs->tree->root, 
+	comp_func, key, coord);
+}
+
+/*
+    First makes search for correct place where new item should 
+    be inserted. There may be two general cases:
+    
+    (1) If found node hasn't enought free space, then allocates 
+    new  node and inserts item into new node and addes new node 
+    into tree cache.
+    
+    (2) If found node has free space enought for new item, then 
+    inserts item into found node.
+    
+    All insert operations shall be performed by calling node API 
+    functions.
+*/
+error_t reiserfs_tree_item_insert(reiserfs_fs_t *fs, void *key, 
+    reiserfs_item_info_t *item_info)
+{
+    return -1;
+}
+
+/* Removes item by specified key */
+error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, void *key) {
+    return -1;
+}
+
+/* 
+    First makes search for correct place where new node should be 
+    inserted. This is an internal node. Then inserts new internal 
+    item into found node and sets it up for correct pointing to new
+    node. Addes node into corresponding node cache.
+
+    FIXME-UMKA: I foresee some problems here concerned with difference
+    beetwen internal items in reiser3 and reiser4. Internal item in
+    reiser3 is array of pointers whereas in reiser4 it contains of one 
+    pointer. So in the first case we need performs "paste" operation
+    in order to insert pointer to new node, whereas in second case we 
+    should perform "insert" operation.
+*/
+error_t reiserfs_tree_node_insert(reiserfs_fs_t *fs, reiserfs_node_t *node) {
+    return -1;
+}
+
+/* Removes node from tree by its left delimiting key */
+error_t reiserfs_tree_node_remove(reiserfs_fs_t *fs, void *key) {
+    return -1;
 }
 

@@ -36,7 +36,7 @@ static error_t stat40_create(stat40_base_t *stat,
     return 0;
 }
 
-static void stat40_estimate(reiserfs_item_info_t *info, reiserfs_item_coord_t *coord) 
+static void stat40_estimate(reiserfs_item_info_t *info, reiserfs_coord_t *coord) 
 {
     aal_assert("vpf-074", info != NULL, return);
 

@@ -12,13 +12,13 @@
 #include <reiser4/plugin.h>
 
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, 
-    reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level);
+    reiserfs_plugin_id_t plugin_id, uint8_t level);
 
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
-    reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id);
+    reiserfs_plugin_id_t plugin_id);
 
 extern error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
-    blk_t blk,  reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id);
+    blk_t blk,  reiserfs_plugin_id_t plugin_id);
 
 extern error_t reiserfs_node_close(reiserfs_node_t *node);
 
@@ -35,8 +35,8 @@ extern error_t reiserfs_node_flush(reiserfs_node_t *node);
     
     FIXME-VITALY: it works in another way for now.
 */
-extern int reiserfs_node_lookup(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, void *key);
+extern int reiserfs_node_lookup(reiserfs_node_t *node, void *key, 
+    reiserfs_coord_t *coord);
 
 extern reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node);
 
@@ -72,10 +72,10 @@ extern reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node,
     uint32_t pos);
 
 extern error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info);
+    reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info);
 
 extern error_t reiserfs_node_item_replace(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info);
+    reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info);
 
 extern blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, 
     uint32_t pos);
@@ -89,7 +89,7 @@ extern int reiserfs_node_item_has_pointer(reiserfs_node_t *node,
 extern int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos);
 
 extern error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_item_info_t *info, reiserfs_item_coord_t *coord);
+    reiserfs_item_info_t *info, reiserfs_coord_t *coord);
 
 extern uint16_t reiserfs_node_item_overhead(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_item_maxsize(reiserfs_node_t *node);

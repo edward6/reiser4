@@ -81,7 +81,7 @@ static error_t direntry40_create(direntry40_t *direntry,
 }
 
 static void direntry40_estimate(reiserfs_item_info_t *info, 
-    reiserfs_item_coord_t *coord) 
+    reiserfs_coord_t *coord) 
 {
     int i;
     reiserfs_direntry_info_t *direntry_info;
@@ -142,7 +142,7 @@ static int callback_key_cmp(reiserfs_entryid_t *dirid,
 }
 
 static int direntry40_lookup(direntry40_t *direntry, 
-    reiserfs_key40_t *key, reiserfs_item_coord_t *coord)
+    reiserfs_key40_t *key, reiserfs_coord_t *coord)
 {
     int found;
     uint64_t pos;

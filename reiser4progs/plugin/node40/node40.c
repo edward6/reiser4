@@ -110,7 +110,7 @@ static void node40_item_set_plugin_id(aal_block_t *block,
 }
 
 static error_t node40_prepare_space(aal_block_t *block, 
-    reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
+    reiserfs_coord_t *coord, reiserfs_key40_t *key, 
     reiserfs_item_info_t *info) 
 {
     int i, item_pos;
@@ -189,7 +189,7 @@ static error_t node40_prepare_space(aal_block_t *block,
 
 /* Inserts item described by info structure into node. */
 static error_t node40_item_insert(aal_block_t *block, 
-    reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
+    reiserfs_coord_t *coord, reiserfs_key40_t *key, 
     reiserfs_item_info_t *info) 
 { 
     reiserfs_nh40_t *nh;
@@ -208,7 +208,7 @@ static error_t node40_item_insert(aal_block_t *block,
 
 /* Pastes units into item described by info structure. */
 static error_t node40_item_paste(aal_block_t *block, 
-    reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
+    reiserfs_coord_t *coord, reiserfs_key40_t *key, 
     reiserfs_item_info_t *info) 
 {   
     aal_assert("vpf-120", coord != NULL && coord->unit_pos != -1, return -1);
@@ -325,7 +325,7 @@ static int node40_key_cmp(const void *key1, const void *key2) {
     1 - exact match has been found.
 */
 
-static int node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coord, 
+static int node40_lookup(aal_block_t *block, reiserfs_coord_t *coord, 
     reiserfs_key40_t *key) 
 {
     int found; int64_t pos;
