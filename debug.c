@@ -89,7 +89,7 @@ lock_counters_info *lock_counters()
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
 void print_lock_counters( const char *prefix, const lock_counters_info *info )
 {
-	info( "%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i "
+	info( "%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i, fq: %i "
 	      "inode: %i, spin: %i, long: %i\n"
 	      "d: %i, x: %i, t: %i\n", prefix,
 	      info -> spin_locked_jnode,
@@ -99,6 +99,7 @@ void print_lock_counters( const char *prefix, const lock_counters_info *info )
 	      info -> spin_locked_atom,
 	      info -> spin_locked_stack,
 	      info -> spin_locked_txnmgr,
+	      info -> spin_locked_fq,
 	      info -> spin_locked_inode,
 	      info -> spin_locked,
 	      info -> long_term_locked_znode,
