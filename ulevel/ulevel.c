@@ -3070,8 +3070,6 @@ static int bash_mkfs (const char * file_name)
 			wait_on_buffer (bh);
 		}
 
-		init_formatted_fake( &super );
-
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
 		init_formatted_fake( &super );
