@@ -59,23 +59,6 @@ inode_get_flag(const struct inode * inode, reiser4_file_plugin_flags f)
 	return test_bit((int) f, inode_flags(inode));
 }
 
-/* get inode oid */
-oid_t get_inode_oid(const struct inode *inode)
-{
-
-	assert("nikita-2519", inode != NULL);
-	return inode_get_oid(inode);
-}
-
-/* set oid for inode */
-void
-set_inode_oid(struct inode *inode, oid_t oid)
-{
-	assert("nikita-2519", inode != NULL);
-	inode_set_oid(inode, oid);
-	assert("nikita-2521", get_inode_oid(inode) == oid);
-}
-
 /* convert oid to inode number */
 ino_t oid_to_ino(oid_t oid)
 {
