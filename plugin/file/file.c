@@ -9,7 +9,7 @@
  * all file data have to be stored in unformatted nodes
  */
 #define should_have_notail(inode,new_size) \
-reiser4_get_object_state (inode)->tail->u.tail.notail (inode, size)
+reiser4_get_object_state (inode)->tail->u.tail.notail (inode, new_size)
 
 /*
  * not all file data have to be stored in unformatted nodes
@@ -55,15 +55,15 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 /*
  * decide how to write @count bytes to position @offset of file @inode
  */
-write_todo what_todo (struct inode * inode, loff_t offset, size_t count,
-		      tree_coord * coord)
+write_todo what_todo (struct inode * inode, flow * f, tree_coord * coord)
 {
 	loff_t new_size;
+
 
 	/*
 	 * size file will have after write
 	 */
-	new_size = offset + size;
+	new_size = get_key_offset (&f->key) + f->length;
 
 	if (new_size <= inode->i_size) {
 		/*
@@ -76,7 +76,7 @@ write_todo what_todo (struct inode * inode, loff_t offset, size_t count,
 			return WRITE_TAIL;
 	}
 
-	assert ("vs-377", reiser4_get_object_state (inode)->u.tail->tail.notail);
+	assert ("vs-377", reiser4_get_object_state (inode)->tail->u.tail.notail);
 
 	if (inode->i_size == 0) {
 		/*
@@ -120,10 +120,11 @@ write_todo what_todo (struct inode * inode, loff_t offset, size_t count,
 }
 
 
-static int tail2extent (struct inode * inode,
-			tree_coord * coord,
-			reiser4_lock_handle * lh)
+static int tail2extent (struct inode * inode UNUSED_ARG,
+			tree_coord * coord UNUSED_ARG,
+			reiser4_lock_handle * lh UNUSED_ARG)
 {
+	return 0;
 }
 
 
@@ -163,7 +164,7 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 			reiser4_done_coord (&coord);
 			break;
 		}
-		switch (what_todo (&coord, &f->key)) {
+		switch (what_todo (inode, f, &coord)) {
 		case WRITE_EXTENT:
 			iplug = item_plugin_by_id (EXTENT_ITEM_ID);
 			/* resolves to extent_write function */

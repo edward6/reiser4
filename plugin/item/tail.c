@@ -308,7 +308,7 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 	}
 
 	if (item_plugin_id (item_plugin_by_coord (coord)) != BODY_ITEM_ID)
-		return CAN_CONTINUE;
+		return CANT_CONTINUE;
 
 	item_key_by_coord (coord, &item_key);
 	if (get_key_objectid (key) != get_key_objectid (&item_key))
@@ -340,12 +340,12 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
  * resize_item
  */
 static void make_item_data (tree_coord * coord, reiser4_item_data * item,
-			    char * data, int desired_len)
+			    char * data, unsigned desired_len)
 {
 	item->data = data;
-	item->len = node_plugin_by_node (coord->node)->max_item_size ();
-	if (desired_len < item->len)
-		item->len = desired_len;
+	item->length = node_plugin_by_node (coord->node)->max_item_size ();
+	if ((int)desired_len < item->length)
+		item->length = (int)desired_len;
 	item->arg = 0;
 	item->iplug = item_plugin_by_id (BODY_ITEM_ID);
 }
@@ -363,8 +363,9 @@ static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 	hole_key = f->key;
 	set_key_offset (&hole_key, 0ull);
 
-	make_item_data (coord, &item, 0, get_key_offset (&f->key));
-	return insert_by_coord (coord, &item, &hole_key);
+	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
+	make_item_data (coord, &item, 0, (unsigned)get_key_offset (&f->key));
+	return insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
 }
 
 
@@ -381,9 +382,12 @@ static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 	set_key_offset (&hole_key,
 			get_key_offset (&hole_key) + coord->unit_pos + 1);
 
-	make_item_data (coord, &item, 0, (get_key_offset (&f->key) -
-					  get_key_offset (&hole_key)));
-	return resize_item (coord, &item, &hole_key);
+	assert ("vs-384", (get_key_offset (&f->key) - 
+			   get_key_offset (&hole_key)) <= INT_MAX);
+	make_item_data (coord, &item, 0,
+			(unsigned)(get_key_offset (&f->key) -
+				   get_key_offset (&hole_key)));
+	return resize_item (coord, lh, &hole_key, &item);
 }
 
 
@@ -391,7 +395,7 @@ static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
  * @count bytes of flow @f got written, update correspondingly f->length,
  * f->data and f->key
  */
-static void move_flow_forward (flow * f, int count)
+static void move_flow_forward (flow * f, unsigned count)
 {
 	f->data += count;
 	f->length -= count;
@@ -407,15 +411,14 @@ static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow
 	reiser4_item_data item;
 	int result;
 
-	
 	assert ("vs-383", get_key_offset (&f->key) == 0);
 
-	prepare_hole_adding (coord, &item, f->data, f->length);
-	result = insert_by_coord (coord, &item, &f->key);
+	make_item_data (coord, &item, f->data, f->length);
+	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0);
 	if (result)
 		return result;
 	
-	move_flow_forward (f, item.length);
+	move_flow_forward (f, (unsigned)item.length);
 	return 0;
 }
 
@@ -429,12 +432,12 @@ static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 	int result;
 
 
-	prepare_item (coord, &item, f->data, f->length);
-	result = resize_item (coord, &item, &f->key);
+	make_item_data (coord, &item, f->data, f->length);
+	result = resize_item (coord, lh, &f->key, &item);
 	if (result)
 		return result;
 
-	move_flow_forward (f, item.length);
+	move_flow_forward (f, (unsigned)item.length);
 	return 0;
 }
 
@@ -442,9 +445,9 @@ static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 /*
  *
  */
-static int overwrite_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+static int overwrite_tail (tree_coord * coord, flow * f)
 {
-	int count;
+	unsigned count;
 
 
 	count = item_length_by_coord (coord) - coord->unit_pos;
@@ -484,7 +487,7 @@ int tail_write (struct inode * inode, tree_coord * coord,
 			result = insert_first_item (coord, lh, f);
 			break;
 		case OVERWRITE:
-			result = overwrite_tail (coord, lh, f);
+			result = overwrite_tail (coord, f);
 			break;
 		case APPEND:
 			result = append_tail (coord, lh, f);

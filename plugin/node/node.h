@@ -233,7 +233,7 @@ typedef struct node_plugin {
 	 * this limits max size of item which can be inserted into a node and
 	 * number of bytes item in a node may be appended with
 	 */
-	int max_item_size (void);	
+	int ( *max_item_size )( void );	
 } node_plugin;
 
 
