@@ -416,7 +416,7 @@ atom_init (txn_atom     *atom)
 	blocknr_set_init   (& atom->delete_set);
 	blocknr_set_init   (& atom->wandered_map);
 
-	flush_init_atom (atom);
+	fq_init_atom (atom);
 	atom_init_io (atom);
 }
 
@@ -937,7 +937,18 @@ atom_try_commit_locked (txn_atom *atom)
 
 	spin_unlock_atom (atom);
 
-	current_atom_wait_on_io ();
+	do {
+		txn_atom * cur_atom;
+
+		cur_atom = get_current_atom_locked ();
+		ret = finish_all_fq (cur_atom);
+
+	} while (ret == -EAGAIN);
+
+	if (ret)
+		return ret;
+
+	spin_unlock_atom (atom);
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
@@ -1160,6 +1171,7 @@ commit_txnh (txn_handle *txnh)
 	assert("umka-192", txnh != NULL);
 	
  again:
+
 	/* Get the atom and txnh locked. */
 	atom = atom_get_locked_with_txnh_locked (txnh);
 
@@ -1832,8 +1844,6 @@ capture_assign_block_nolock (txn_atom *atom,
 /* Audited by: umka (2002.06.13), umka (2002.06.15) */
 void jnode_set_dirty( jnode *node )
 {
-	txn_atom *atom;
-	
 	assert ("umka-204", node != NULL);	
 	assert ("umka-296", current_tree != NULL);	
 
@@ -1845,29 +1855,30 @@ void jnode_set_dirty( jnode *node )
 
 		assert ("jmacd-3981", jnode_is_dirty (node));
 
-		/* If the atom is not set yet, it will be added to the appropriate list in
-		 * capture_assign_block_nolock. */
-		atom = atom_get_locked_by_jnode (node);
 
-		/* Sometimes a node is set dirty before being captured -- the case for new jnodes.  In that case the
-		 * jnode will be added to the appropriate list in capture_assign_block_nolock. Another reason not to
-		 * re-link jnode is that jnode is on a flush queue (see flush.c for details) */
-		if (atom != NULL && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+		if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+			txn_atom *atom;
+			/* If the atom is not set yet, it will be added to the appropriate list in
+			 * capture_assign_block_nolock. */
+			atom = atom_get_locked_by_jnode (node);
 
-			int level = jnode_real_level (node);
+			/* Sometimes a node is set dirty before being captured -- the case for new
+			 * jnodes.  In that case the jnode will be added to the appropriate list
+			 * in capture_assign_block_nolock. Another reason not to re-link jnode is
+			 * that jnode is on a flush queue (see flush.c for details) */
+			if (atom != NULL) {
+				int level = jnode_real_level (node);
 
-			assert ("zam-654", !(JF_ISSET(node, JNODE_OVRWR) && atom->stage >= ASTAGE_PRE_COMMIT));
-			assert ("nikita-2607", 0 <= level);
-			assert ("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
+				assert ("zam-654", !(JF_ISSET(node, JNODE_OVRWR) && atom->stage >= ASTAGE_PRE_COMMIT));
+				assert ("nikita-2607", 0 <= level);
+				assert ("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
-			capture_list_remove     (node);
-			capture_list_push_front (& atom->dirty_nodes[level], node);
+				capture_list_remove     (node);
+				capture_list_push_front (& atom->dirty_nodes[level], node);
 
+				spin_unlock_atom (atom);
+			}
 		}
-		/*
-		 * FIXME-*: atom can be 0 here
-		 */
-		spin_unlock_atom (atom);
 
 		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
 		  jnode_is_unformatted (node) ? "un" : "", node);*/
@@ -1905,17 +1916,13 @@ void jnode_set_dirty( jnode *node )
 	spin_unlock_jnode (node);
 }
 
-/* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
- * lists), removing from the dirty_nodes list and pushing in to the clean list.
- */
-void jnode_set_clean( jnode *node )
+/* Unset the dirty status for the node if necessary spin locks are already taken */
+void jnode_set_clean_nolock (jnode * node)
 {
-	txn_atom *atom;
+	txn_atom * atom = node->atom;
 
-	assert ("umka-205", node != NULL);	
-	assert ("jmacd-1083", spin_jnode_is_not_locked (node));
-
-	spin_lock_jnode (node);
+	assert ("zam-748", spin_jnode_is_locked (node));
+	assert ("zam-750", ergo (atom, spin_atom_is_locked (atom)));
 
 	if (jnode_is_dirty (node)) {
 
@@ -1934,21 +1941,34 @@ void jnode_set_clean( jnode *node )
 
 	/* do not steal nodes from flush queue */
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		/* FIXME-VS: remove jnode from capture list even when jnode is not
-		 * dirty.  JMACD says: Is it wrong? */
-		atom = atom_get_locked_by_jnode (node);
-
-		capture_list_remove (node);
-		ON_DEBUG (capture_list_clean (node));
 		/* Now it's possible that atom may be NULL, in case this was called
 		 * from invalidate page */
 		if (atom != NULL) {
 
+			capture_list_remove_clean (node);
 			capture_list_push_front (& atom->clean_nodes, node);
-
-			spin_unlock_atom (atom);
 		}
 	}
+}
+
+/* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
+ * lists), removing from the dirty_nodes list and pushing in to the clean list.
+ */
+void jnode_set_clean( jnode *node )
+{
+	txn_atom *atom;
+
+	assert ("umka-205", node != NULL);	
+	assert ("jmacd-1083", spin_jnode_is_not_locked (node));
+
+	spin_lock_jnode (node);
+
+	atom = atom_get_locked_by_jnode (node);
+
+	jnode_set_clean_nolock (node);
+
+	if (atom)
+		spin_unlock_atom (atom);
 
 	spin_unlock_jnode (node);
 }
@@ -2413,11 +2433,11 @@ capture_fuse_into (txn_atom  *small,
 	tcount += capture_fuse_txnh_lists  (large, & large->txnh_list,    & small->txnh_list);
 
 	/* Check our accounting. */
-	assert ("jmacd-1063", zcount + small->num_queued == small->capture_count );
+	// assert ("jmacd-1063", zcount + small->num_queued == small->capture_count );
 	assert ("jmacd-1065", tcount == small->txnh_count);
 
 	/* splice flush queues */
-	flush_fuse_queues (large, small);
+	fq_fuse (large, small);
 
 	/* splice lists of i/o handles */
 	atom_fuse_io (large, small);
