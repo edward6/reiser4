@@ -716,11 +716,12 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
 
 	txn_begin (context);
 
+#if REISER4_DEBUG
 	context_list_clean (context); /* to satisfy assertion */
 	spin_lock (& active_contexts_lock);
 	context_list_push_front (& active_contexts, context);
 	spin_unlock (& active_contexts_lock);
-
+#endif
 	return 0;
 }
 
@@ -736,8 +737,8 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
  * Call to this function is optional.
  *
  */
-void reiser4_done_context( reiser4_context *context /* context being
-						     * released */ )
+void reiser4_done_context( reiser4_context *context UNUSED_ARG /* context being
+							        * released */ )
 {
 	assert( "nikita-860", context != NULL );
 	assert( "nikita-859", context -> magic == context_magic );
@@ -745,17 +746,21 @@ void reiser4_done_context( reiser4_context *context /* context being
 	assert( "jmacd-1002", reiser4_lock_stack_isclean (& context->stack));
 	/* add more checks here */
 
+#if REISER4_DEBUG
 	/* remove from active contexts */
 	spin_lock (& active_contexts_lock);
 	context_list_remove (context);
 	spin_unlock (& active_contexts_lock);
+#endif
 }
 
 void
 reiser4_init_context_mgr (void)
 {
+#if REISER4_DEBUG
 	spin_lock_init    (& active_contexts_lock);
 	context_list_init (& active_contexts);
+#endif
 }
 
 #if REISER4_DEBUG
