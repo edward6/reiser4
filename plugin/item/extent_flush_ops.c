@@ -888,8 +888,12 @@ alloc_extent(flush_pos_t *flush_pos)
 
 		/* assign new block numbers to protected nodes */
 		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes.nodes);
-
 		protected_jnodes_done(&jnodes);
+
+		/* send to log information about which blocks were allocated for what */
+		write_current_logf(ALLOC_EXTENT_LOG, "alloc: oid: %llu, index: %llu, [%llu %llu]",
+				   oid, index, first_allocated, allocated);
+
 		/* prepare extent which will replace current one */
 		set_extent(&replace_ext, first_allocated, allocated);
 
@@ -1053,10 +1057,15 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 
 		/* assign new block numbers to protected nodes */
 		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes.nodes);
+		protected_jnodes_done(&jnodes);
+
 		set_key_offset(&key, get_key_offset(&key) + (allocated << current_blocksize_bits));
 		ON_TRACE(TRACE_EXTENT_ALLOC,
 			 "copied to left: [%llu %llu]\n", first_allocated, allocated);
-		protected_jnodes_done(&jnodes);
+
+		/* send to log information about which blocks were allocated for what */
+		write_current_logf(ALLOC_EXTENT_LOG, "squalloc: oid: %llu, index: %llu, [%llu %llu]",
+				   oid, index, first_allocated, allocated);
 	} else {
 		/* overwrite */
 		ON_TRACE(TRACE_EXTENT_ALLOC,
