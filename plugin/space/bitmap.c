@@ -451,8 +451,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 	ret = jload (&bnode->cjnode);
 
 	if (ret < 0) { 
-		junlock_and_relse(&bnode->cjnode);
-		jnode_detach_page(&bnode->cjnode);
+		junlock_and_relse(&bnode->wjnode);
+		jnode_detach_page(&bnode->wjnode);
 	
 		return ret;
 	}
