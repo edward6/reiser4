@@ -1,4 +1,4 @@
-s/*
+/*
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
