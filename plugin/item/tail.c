@@ -133,7 +133,10 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
 		 */
 		memmove (item + data->length, item, old_item_length);
 
-	memcpy (item + coord->unit_pos, data->data, (unsigned)data->length);
+	if (data->data)
+		memcpy (item + coord->unit_pos, data->data, (unsigned)data->length);
+	else
+		memset (item + coord->unit_pos, 0, (unsigned)data->length);
 	return 0;
 }
 
