@@ -173,7 +173,7 @@ size_t node40_item_overhead (const znode * node UNUSED_ARG, flow_t * f UNUSED_AR
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-inline size_t node40_free_space ( znode *node )
+size_t node40_free_space ( znode *node )
 {
 	assert( "nikita-577", node != NULL );
 	assert( "nikita-578", znode_is_loaded( node ) );
@@ -187,7 +187,7 @@ inline size_t node40_free_space ( znode *node )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-inline int node40_num_of_items( const znode *node )
+int node40_num_of_items( const znode *node )
 {
 	trace_stamp( TRACE_NODES );
 	return nh_40_get_num_items (node40_node_header (node));
@@ -198,7 +198,7 @@ inline int node40_num_of_items( const znode *node )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-inline char * node40_item_by_coord( const coord_t *coord )
+char * node40_item_by_coord( const coord_t *coord )
 {
 	item_header_40 *ih;
 
@@ -216,7 +216,7 @@ inline char * node40_item_by_coord( const coord_t *coord )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-inline int node40_length_by_coord (const coord_t * coord)
+int node40_length_by_coord (const coord_t * coord)
 {
 	item_header_40 * ih;
 
@@ -238,7 +238,7 @@ inline int node40_length_by_coord (const coord_t * coord)
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-inline item_plugin *node40_plugin_by_coord( const coord_t *coord )
+item_plugin *node40_plugin_by_coord( const coord_t *coord )
 {
 	item_header_40 *ih;
 
@@ -259,7 +259,7 @@ inline item_plugin *node40_plugin_by_coord( const coord_t *coord )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-inline reiser4_key *node40_key_at( const coord_t *coord, reiser4_key *key )
+reiser4_key *node40_key_at( const coord_t *coord, reiser4_key *key )
 {
 	item_header_40 *ih;
 
