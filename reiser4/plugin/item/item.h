@@ -178,6 +178,9 @@ struct item_ops {
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 
+/* Josh's note:	child_on_right and child_on_left seem to be taken care of by
+ * the utmost_child operation.  The "child" routine doesn't appear to be useful. */
+
 /* These next three functions only apply to internal node items that coord to
    children (e.g. extents and block pointers).  They are used for tree
    traversal.  */
