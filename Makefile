@@ -102,6 +102,7 @@ reiser4-objs := \
 		   plugin/item/extent_item_ops.o \
 		   plugin/item/extent_file_ops.o \
 		   plugin/item/extent_flush_ops.o \
+		   plugin/item/extent_repack_ops.o \
            \
 		   plugin/hash.o \
 		   plugin/tail_policy.o \
