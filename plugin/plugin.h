@@ -15,19 +15,12 @@
    tree will slice the flow into items while storing it into nodes, but all of
    that is hidden from anything outside the tree.  */
 
-typedef enum {
-	USER_BUF,
-	PAGE_PTR /* this is used when data for writing are in page */
-} buf_or_page;
 
 struct flow {
 	reiser4_key key;    /* key of start of flow's sequence of bytes */
 	size_t      length; /* length of flow's sequence of bytes */
-	buf_or_page what;   /* show what is data in below */
-	union {   
-		char        *user_buf; /* start of flow's sequence of bytes */
-		struct page *page;
-	} data;
+	char        *data;  /* start of flow's sequence of bytes */
+	int         user;   /* if 1 data is user space, 0 - kernel space */
 };
 
 typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off );
@@ -158,7 +151,7 @@ typedef struct file_plugin {
 	 * global implemenation, because key in a flow used by plugin may
 	 * depend on data in a @buf.
 	 */
-	int ( *flow_by_inode )( struct inode *, void *buf, int page_or_buf,
+	int ( *flow_by_inode )( struct inode *, char *buf, int user,
 				size_t size, loff_t off, rw_op op, flow_t * );
 
 	/**
