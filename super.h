@@ -214,9 +214,6 @@ struct reiser4_super_info_data {
 	/* fake inode used to bind formatted nodes */
 	struct inode *fake;
 
-	ln_hash_table lnode_htable;
-	spinlock_t lnode_guard;
-
 	/* disk layout plugin */
 	disk_format_plugin *df_plug;
 
