@@ -1667,8 +1667,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 
 	JF_SET (node, ZNODE_FLUSH_QUEUED);
 
-	assert ("zam-670", PageDirty(jnode_page(node)));
-	// assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
+	// assert ("zam-670", PageDirty(jnode_page(node)));
 	assert ("jmacd-1771", jnode_is_allocated (node));
 
 	// pos->queue[pos->queue_num++] = jref (node);
