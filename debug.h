@@ -150,7 +150,11 @@ typedef enum {
 	/**
 	 * print a lot of information during umount
 	 */
-	REISER4_VERBOSE_UMOUNT    = 0x00000002
+	REISER4_VERBOSE_UMOUNT    = 0x00000002,
+	/**
+	 * print gathered statistics on umount
+	 */
+	REISER4_STATS_ON_UMOUNT   = 0x00000004
 } reiser4_debug_flags;
 
 extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
