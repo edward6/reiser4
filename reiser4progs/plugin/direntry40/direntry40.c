@@ -9,6 +9,7 @@
 #endif
 
 #include <reiser4/reiser4.h>
+#include <reiser4/key.h>
 #include <misc/misc.h>
 
 #include "direntry40.h"
@@ -17,37 +18,30 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-/* 
-    This will build sd key as objid has SD_MINOR.
-    FIXME-UMKA: What is the sence of this function.
-    It seems it doesn't used for now.
-*/
-static void *direntry40_build_key_by_objid(reiserfs_plugin_t *plugin, 
+/* This will build sd key as objid has SD_MINOR. */
+static void direntry40_build_key_by_objid(void *key, reiserfs_plugin_t *plugin, 
     reiserfs_objid_t *id) 
 {
-    oid_t locality;
-    oid_t objectid;
-
-    aal_assert("vpf-087", id != NULL, return NULL);
-    aal_assert("umka-660", plugin != NULL, return NULL);
+    aal_assert("vpf-087", id != NULL, return);
+    aal_assert("vpf-124", key != NULL, return);
+    aal_assert("umka-660", plugin != NULL, return);
    
-    aal_memcpy(&locality, id->locality, sizeof(locality));
-    aal_memcpy(&objectid, id->objectid, sizeof(objectid));
-    
-    return libreiser4_plugins_call(return NULL, plugin->key, 
-	create, 0, locality, objectid, 0);
+    plugin->key.clean(key);
+    plugin->key.set_locality(key, objid_get_locality(id));
+    plugin->key.set_objectid(key, objid_get_objectid(id));
+    plugin->key.set_type(key, KEY40_SD_MINOR);
 }
 
 /* 
-    Builds stat-data key. It is used by direntry40_create
+    Builds the key name poits to. It is used by direntry40_create
     function.
 */
 static void direntry40_build_objid_by_params(reiserfs_objid_t *objid, 
     oid_t locality, oid_t objectid)
 {
     aal_assert("vpf-089", objid != NULL, return);
-    aal_memcpy(objid, &locality, sizeof(locality));
-    aal_memcpy(((oid_t *)objid) + 1, &objectid, sizeof(objectid));
+    objid_set_locality(objid, locality);
+    objid_set_objectid(objid, objectid);
 }
 
 #ifndef ENABLE_COMPACT
@@ -58,29 +52,36 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
     int i;
     uint16_t len, offset;
     reiserfs_direntry_info_t *direntry_info;
+    uint8_t key[MAX_KEY_SIZE];
+    reiserfs_plugin_t *key_plug;
     
     aal_assert("vpf-097", direntry != NULL, return -1);
     aal_assert("vpf-098", info != NULL, return -1);
     aal_assert("vpf-099", info->info != NULL, return -1);
     
     direntry_info = info->info;
+    key_plug = direntry_info->key_plugin;
     
     de40_set_count(direntry, direntry_info->count);
     
     offset = sizeof(reiserfs_direntry40_t) + 
 	direntry_info->count * sizeof(reiserfs_entry40_t);
 
+    libreiser4_plugins_call(return -1, key_plug->key, clean, key);
     for (i = 0; i < direntry_info->count; i++) {	
 	e40_set_offset(&direntry->entry[i], offset);
-	
-	/* 
-	    FIXME-UMKA: This should be moved from libreiser4/key.c to 
-	    direntry40 plugin or to somethinkg like it.
-	*/
-	build_entryid_by_info(&direntry->entry[i].entryid, &direntry_info->entry[i]);
+
+	libreiser4_plugins_call(return -1, key_plug->key, build_dir_key, key, 
+	    direntry_info->parent_id, direntry_info->object_id, 
+	    direntry_info->entry[i].name, direntry_info->hash_plugin);
+
+	entryid_set_objectid(&direntry->entry[i].entryid, 
+	    key_plug->key.get_objectid(key));
+	entryid_set_offset(&direntry->entry[i].entryid, 
+	    key_plug->key.get_offset(key));
 	
 	direntry40_build_objid_by_params((reiserfs_objid_t *)((char *)direntry + offset), 
-	    direntry_info->entry[i].parent_id, direntry_info->entry[i].object_id);
+	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid);
 	
 	len = aal_strlen(direntry_info->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
@@ -215,6 +216,17 @@ static int direntry40_internal(void) {
     return 0;
 }
 
+static error_t direntry40_max_key_inside(void *key, reiserfs_plugin_t *plugin) {
+    aal_assert("vpf-120", plugin != NULL, return -1);
+    aal_assert("vpf-121", plugin->key.set_objectid != NULL, return -1);
+    aal_assert("vpf-122", plugin->key.get_objectid != NULL, return -1);
+    aal_assert("vpf-123", plugin->key.maximal != NULL, return -1);
+    
+    plugin->key.set_objectid(key, plugin->key.get_objectid(plugin->key.maximal()));
+    plugin->key.set_offset(key, plugin->key.get_offset(plugin->key.maximal()));
+    return 0;
+}
+
 static reiserfs_plugin_t direntry40_plugin = {
     .item = {
 	.h = {
@@ -239,6 +251,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
 	    .internal = (int (*)(void))direntry40_internal,
+	    .max_key_inside = (error_t (*)(void *, void*))direntry40_max_key_inside,
 	    
 	    .confirm = NULL,
 	    .check = NULL,
