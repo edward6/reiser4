@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     
     if (argc < 2) {
 	fsck_print_usage();
-	return ERROR_USER;
+	return USER_ERROR;
     }
 
     aal_exception_set_handler(progs_exception_handler);
@@ -74,11 +74,11 @@ int main(int argc, char *argv[]) {
 	    case 'u': 
 	    case 'h': {
 		fsck_print_usage();
-		return ERROR_NONE;
+		return NO_ERROR;
 	    }
 	    case 'v': {
 		printf("%s %s\n", argv[0], VERSION);
-		return ERROR_NONE;
+		return NO_ERROR;
 	    }
 	    case 'q': {
 		quiet = 1;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'k': {
 		progs_misc_profile_list();
-		return ERROR_NONE;
+		return NO_ERROR;
 	    }
 	    case 'n': {
 		replay = 0;
@@ -113,27 +113,27 @@ int main(int argc, char *argv[]) {
 		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Invalid tree-cache limit (%s).", optarg);
-		    return ERROR_USER;
+		    return USER_ERROR;
 		}
 		break;
 	    }
 	    case 'r': break;
 	    case '?': {
 	        fsck_print_usage();
-	        return ERROR_USER;
+	        return USER_ERROR;
 	    }
 	}
     }
 
     if (optind >= argc) {
 	fsck_print_usage();
-	return ERROR_USER;
+	return USER_ERROR;
     }
     
     if (!(profile = progs_misc_profile_find(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
-	return ERROR_PROG;
+	return OPERATION_ERROR;
     }
     
     if (!check && !rebuild)
@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
     libreiser4_done();
     aal_file_close(device);
     
-    return ERROR_NONE;
+    return NO_ERROR;
 
 error_free_fs:
     reiserfs_fs_close(fs);
@@ -242,6 +242,6 @@ error_free_libreiser4:
 error_free_device:
     aal_file_close(device);
 error:
-    return ERROR_PROG;
+    return OPERATION_ERROR;
 }
 

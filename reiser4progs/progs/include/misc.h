@@ -43,10 +43,11 @@
 #  endif
 #endif
 
-#define ERROR_USER (0xfe)
-#define ERROR_PROG (0xff)
-#define ERROR_NONE (0)
-
+/* Error codes for progs */
+#define NO_ERROR	    0 /*  */
+#define OPERATION_ERROR	    8 /* bug in the code, assertions, etc. */
+#define USER_ERROR	   16 /* wrong parameters, not allowed values, syntax error, etc. */
+    
 extern long int progs_misc_strtol(const char *str, int *error);
 
 extern int progs_misc_dev_mounted(const char *name, 
