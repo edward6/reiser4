@@ -302,6 +302,8 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 
 	DEFINE_STAT_CNT(txnmgr.slept_in_wait_atom),
 	DEFINE_STAT_CNT(txnmgr.slept_in_wait_event),
+	DEFINE_STAT_CNT(txnmgr.commits),
+	DEFINE_STAT_CNT(txnmgr.post_commit_writes),
 
 	DEFINE_STAT_CNT(flush.squeezed_completely),
 	DEFINE_STAT_CNT(flush.flushed_with_unallocated),

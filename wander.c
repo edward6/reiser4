@@ -1042,6 +1042,8 @@ reiser4_write_logs(void)
 		 "journal header updated (tx head at block %s)\n",
 		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
+	reiser4_stat_inc(txnmgr.commits);
+
 	post_commit_hook();
 
 	{
@@ -1079,6 +1081,8 @@ reiser4_write_logs(void)
 		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
 	post_write_back_hook();
+
+	reiser4_stat_inc(txnmgr.post_commit_writes);
 
 up_and_ret:
 	if (ret) {

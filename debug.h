@@ -627,7 +627,9 @@ typedef struct reiser4_statistics {
 	} tail;
 	struct {
 		stat_cnt slept_in_wait_event;
-		stat_cnt long slept_in_wait_atom;
+		stat_cnt slept_in_wait_atom;
+		stat_cnt commits;
+		stat_cnt post_commit_writes;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
