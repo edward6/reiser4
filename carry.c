@@ -429,8 +429,10 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
  * call carry( level, ... ). This function takes write lock on @node. Carry
  * manages all its locks by itself, don't worry about this.
  * 
+ * This function adds operation and node at the end of the queue. It is up to
+ * caller to guarantee proper ordering of node queue.
+ * 
  */
-/* Audited by: green(2002.06.17) */
 carry_op *post_carry( carry_level *level    /* queue where new operation is to
 					     * be posted at */, 
 		      carry_opcode op       /* opcode of operation */,
@@ -691,7 +693,11 @@ static carry_node *insert_carry_node( carry_level *doing, carry_level *todo,
 	return scan;
 }
 
-/** like post_carry(), but designed to be called from node plugin methods. */
+/** 
+ * like post_carry(), but designed to be called from node plugin methods.
+ * This function is different from post_carry() in that it finds proper place
+ * to insert node in the queue.
+ */
 carry_op *node_post_carry( carry_plugin_info *info    /* carry parameters
 						       * passed down to node
 						       * plugin */, 
