@@ -1,4 +1,9 @@
+/*
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+ */
+
 /* Parser for the reiser4() system call */
+
 
 /* Takes a string and parses it into a set of commands which are
    executed.  */
@@ -43,15 +48,14 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 
 
-
+/* type definitions */
 %union 
 {
 	long longType;
 	struct Label * Label;
 	struct String * StrPtr;
-	struct expr_v4 * expr;
-	struct var * Var;
-	/*	var_t * Var;*/
+	expr_v4 * expr;
+	var * Var;
 }
 
 %type <Var> WORD N_WORD P_WORD P_RUNNER 
@@ -69,12 +73,6 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %type <expr> Object_Path_Name 
 %type <expr> Unordered_list
 %type <expr> range_set
-/*
-%type <expr> Object_relative_Name 
-/*
-%type <expr> sl 
-*/
-
 
 %type <Label> tw_begin
 %type <Label> asyn_begin 
@@ -105,9 +103,6 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %token R_FLX_PARENT       /* } */
 %token L_FLX_PARENT       /* { */
 
-/*%token BLANK_SLASH_BLANK  /*  /  */
-/*%token BLANK              /*   */
-
 %token SLASH_PROCESS SPACE
 %token SLASH SLASH_L_PARENT ORDERED
 %token SLASH_STAT
@@ -131,7 +126,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %left COMMA              /* , */
 %right L_ASSIGN          /* <-  */
 %right L_APPEND          /* <<- */
-%right L_SYMLINK         /* <->  */
+%right L_SYMLINK         /* ->  */
 %left PLUS               /* + */
 
 %left EQ NE  LE GE   LT  GT   
@@ -140,13 +135,6 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %left NOT
 
 %right ELSE
-
-
-/*
-%left BLANK_SLASH_BLANK
-*/
-
-
 
 /*
   Starting production of our grammar.
@@ -230,9 +218,6 @@ cd_begin
 ;
 
 
-
-
- 
 UnordBeg
 : L_SKW_PARENT                                    { level_up( UNORDERED ); }
 ;

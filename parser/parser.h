@@ -1,3 +1,12 @@
+/*
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+ */
+
+/*
+ * definitions of common constants and data-types used by
+ * parser.y
+ */
+
                                  /* level type defines */
 #define TW_BEGIN    
 #define ASYN_BEGIN
@@ -24,11 +33,6 @@ typedef int YYSTYPE;
 #endif
 */
 
-#define wrdTab(x)   ws->f_WrdTab(x)
-
-#define V_type(x)   f_v_type(ws,x)
-#define V_extn(x)   f_v_extn(ws,x)
-#define V_levl(x)   f_v_levl(ws,x)
 
 #define Stype(x)    f_s_type(ws,x)
 #define Slab(x)     f_s_lab(ws,x)
@@ -37,13 +41,15 @@ typedef int YYSTYPE;
 
 
 
-#define inline   ws->ws_inline
+/*
 #define pnline   ws->ws_pnline
 #define yyerrco  ws->ws_yyerrco
 #define errco    ws->ws_errco
 #define labco    ws->ws_labco 
 #define strco    ws->ws_strco 
 #define varco    ws->ws_varco 
+*/
+
 #define yylex()  reiser4_lex(work_space)
 
 
@@ -65,13 +71,12 @@ typedef enum {
 	EXPR_OP2,
 	EXPR_OP,
 	EXPR_STRING
-} expr_type;
+} expr_v4_type;
 
 /** declare hash table of lnode_lw's */
 /*TS_HASH_DECLARE( ln, lnode );*/
 
 typedef union expr_v4  expr_v4;
-
 
 
 struct String
@@ -90,7 +95,6 @@ typedef struct expr_common {
 	 * type of expression
 	 */
 	__u8          exp_type;
-	union expr_v4 (* de_struct)(union expr_v4 *);
 } expr_common;
 
 typedef struct expr_lnode {
@@ -98,11 +102,11 @@ typedef struct expr_lnode {
 	lnode  *lnode;
 } expr_lnode;
 
-typedef struct expr_genirik {
+typedef struct expr_gen {
 	expr_common   h;
 	reiser4_key    key;                 /* key of start of flow's sequence of bytes */
 	size_t len;			   /* length of flow's sequence of bytes */
-} expr_generic;
+} expr_gen;
 
 typedef struct expr_iden {
 	expr_common   h;
@@ -134,7 +138,7 @@ typedef struct expr_assign {
 	expr_common   h;
 	expr_v4  *  target;
 	expr_v4  *  source;
-	union expr_v4 (* construct)( union expr_v4 *, union expr_v4 *  );
+	expr_v4  *  (* construct)( expr_v4 *, expr_v4 *  );
 } expr_assign;
 
 
@@ -145,7 +149,7 @@ typedef struct expr_assign {
 union expr_v4 {
 	expr_common   h;
 	expr_lnode    lnode;
-	expr_generic  gen;
+	expr_gen      gen;
 	expr_iden     iden;
 	expr_string   str;
 	expr_list     next;
@@ -159,14 +163,14 @@ union expr_v4 {
 
 
 /* ok this is space for names, constants and tmp*/
-typedef struct freeSpace freeSpace_t;
+typedef struct freeSpace freeSpace;
 
 struct freeSpace
 {
-	freeSpace_t * freeSpace_next;
-	char        * freeSpace;
-	int           freeSpaceSize;
-	char          freeSpaceBase[FREESPACESIZE];
+	freeSpace  * freeSpace_next;
+	char       * freeSpace;
+	char       * freeSpaceMax;
+	char         freeSpaceBase[FREESPACESIZE];
 };
 
 
@@ -182,12 +186,12 @@ struct qstr {
 */
 
 
-typedef struct var var_t;
+typedef struct var var;
 
 struct var
 {
 	struct qstr u ;             /* txt.name  is ptr to space     */
-	var_t * next ;              /* next var                      */
+	var * next ;              /* next var                      */
 	lnode *  vlnode;            /* lnode for object     on r4-fs */
 	int vtype   ;               /* Type of name                  */
 	int vSpace  ;               /* v4  space name or not         */
@@ -219,7 +223,7 @@ static struct msglist *Fistmsg;
 
 struct yy_r4_work_spaces
 {
-	char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
+	/*	char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
 	char * ws_pline;     /*   of token, second (pline) walk to end to token                   */
 
 
@@ -249,19 +253,15 @@ struct yy_r4_work_spaces
 	int	ws_varsol;             /* begin number of variables*/
 
 	                               /* working fields  */
-	char * tmpWrdEnd; 
-	char * freeSpace;
+	char       * tmpWrdEnd; 
+
 	char * yytext;
 	                               /* space for   */
-	freeSpace_t * freeSpHead;
-	/*
-	varTab    * VarTabHead;
-	*/
-	streg     * StrTabHead;
+	freeSpace * freeSpHead;
+	freeSpace * freeSpCur;
 
-	var_t     * WrdHead;
+	var     * WrdHead;
 	
-	lnode     * current_path;
 	
 	lnode * root_lnode;
 
@@ -294,6 +294,7 @@ static struct
 };
 
 
+/*
 
 TS_LIST_DECLARE( r4_pars );
 
@@ -313,7 +314,6 @@ struct _p_VarTab
 
 TS_LIST_DEFINE( r4_pars, p_VarTab, links );
 
-/*
  * 
  * r4_pars_list_init             Initialize a list_head
  * r4_pars_list_clean            Initialize a list_link
@@ -348,84 +348,6 @@ TS_LIST_DEFINE( r4_pars, p_VarTab, links );
  *        item = r4_pars_list_next  (item))
  *     {...}
  * */
-
-
-
-struct tree_struct
-{
-	union tree_node *chain;
-	union tree_node *type;
-};
-
-
-struct tree_string
-{
-	struct tree_stuct common;
-	int  length;
-	char *pointer;
-};
-
-
-struct tree_identifier
-{
-	struct tree_stuct common;
-	int length;
-	char *pointer;
-};
-
-struct tree_var
-{
-	struct tree_stuct common;
-	union tree_node *purpose;
-	union tree_node *value;
-};
-
-
-
-
-
-struct tree_list
-{
-	struct tree_stuct common;
-	union tree_node *purpose;
-	union tree_node *value;
-};
-
-struct tree_vec
-{
-	struct tree_stuct common;
-	int length;
-	union tree_node *a[1];
-};
-
-
-
-
-struct tree_type
-{
-	struct tree_stuct common;
-	union tree_node (* construct)( union tree_node *, union tree_node *  );
-	union tree_node (* de_struct)(union tree_node *);
-
-};
-
-union tree_node
-{
-	struct tree_stuct common;
-	
-	struct tree_string string;
-	
-	struct tree_identifier identifier;
-	
-	struct tree_type type;
-	
-	struct tree_list list;
-	struct tree_vec vec;
-	struct tree_exp exp;
-
-};
-
-
 
 static struct
 {
@@ -478,7 +400,7 @@ void else_lab(void);
 void make_end_label(void);
 
 
-freeSpace_t * freeSpaceAlloc(void);
+freeSpace * freeSpaceAlloc(void);
 /*strtab * StrTabAlloc(void)*/
 
 lnode * make_do_it( lnode * );
@@ -519,7 +441,7 @@ struct Label * reserv_label( int );
 
 void move_selected_word(struct yy_r4_work_spaces *  );
 int b_check_word(struct yy_r4_work_spaces * );
-var_t * inttab(struct yy_r4_work_spaces * );
+var * inttab(struct yy_r4_work_spaces * );
 int reiser4_lex( struct yy_r4_work_spaces * );
 
 lnode * get_root_lnode(struct yy_r4_work_spaces * );

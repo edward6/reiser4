@@ -8,6 +8,9 @@
 
 
 #include "reiser4.h"
+#include "lnode.h"
+
+
 
 #include "parser/parser.c"
 
