@@ -575,7 +575,7 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 		length = extent_get_width (ext);
 		/* "defer" parameter is set to 1 because blocks which get freed
 		 * are not safe to be freed immediately */
-		reiser4_dealloc_blocks (&start, &length, 1 /* defer */, 0 /* not used */);
+		reiser4_dealloc_blocks (&start, &length, 1 /* defer */, 0 /* not used */, 0 /* unformatted */);
 	}
 	return 0;
 }
@@ -761,7 +761,7 @@ static int cut_or_kill_units (coord_t * coord,
 					start = extent_get_start (ext) + new_width;
 					length = old_width - new_width;
 					reiser4_dealloc_blocks (&start, &length,
-								1 /* defer */, 0 /* not used */);
+								1 /* defer */, 0 /* not used */, 0 /* unformatted */);
 				}
 				extent_set_width (ext, new_width);
 				znode_set_dirty (coord->node);
@@ -830,7 +830,7 @@ static int cut_or_kill_units (coord_t * coord,
 				start = extent_get_start (ext);
 				length = old_width - new_width;
 				reiser4_dealloc_blocks (&start, &length,
-							1 /* defer */, 0 /* not used */);
+							1 /* defer */, 0 /* not used */, 0 /* unformatted */);
 			}
 
 			/* (old_width - new_width) blocks of this extent were
@@ -1615,13 +1615,19 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		     const reiser4_key * key, /* key of position in a file for write */
 		     extent_write_todo todo)
 {
+	int result;
+	znode * loaded;
 	reiser4_extent * ext, new_ext;
 	reiser4_block_nr hole_width;
 	reiser4_item_data item;
 	reiser4_key hole_key;
 
 
-	assert ("vs-953", znode_is_loaded (coord->node));
+	loaded = coord->node;
+	result = zload (loaded);
+	if (result)
+		return result;
+
 
 	if (todo == EXTENT_CREATE_HOLE) {
 		/* there are no items of this file yet. First item will be
@@ -1641,10 +1647,12 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		/* compose body of hole extent */
 		set_extent (&new_ext, HOLE_EXTENT, hole_width);
 
-		return insert_extent_by_coord (coord,
-					       init_new_extent (&item,
-								&new_ext, 1),
-					       &hole_key, lh);
+		result = insert_extent_by_coord (coord,
+						 init_new_extent (&item,
+								  &new_ext, 1),
+						 &hole_key, lh);
+		zrelse (loaded);
+		return result;
 	}
 
 	/* last item of file may have to be appended with hole */
@@ -1660,6 +1668,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	if (keyle (key, &hole_key)) {
 		/* there is already extent unit which contains position
 		 * specified by @key */
+		zrelse (loaded);
 		return 0;
 	}
 
@@ -1681,6 +1690,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		set_extent (ext, HOLE_EXTENT,
 			    extent_get_width (ext) + hole_width);
 		znode_set_dirty (coord->node);
+		zrelse (loaded);
 		return 0;
 	}
 
@@ -1691,9 +1701,11 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	/* compose body of hole extent */
 	set_extent (&new_ext, HOLE_EXTENT, hole_width);
 
-	return insert_into_item (coord, lh, &hole_key,
-				 init_new_extent (&item, &new_ext, 1),
-				 0 /*flags*/);
+	result = insert_into_item (coord, lh, &hole_key,
+				   init_new_extent (&item, &new_ext, 1),
+				   0 /*flags*/);
+	zrelse (loaded);
+	return result;
 }
 
 
@@ -1856,10 +1868,10 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 		return PTR_ERR (j);
 
 	assert ("vs-862", !jnode_mapped (j));
-	assert ("vs-863", znode_is_loaded (coord->node));
 	assert ("vs-864", znode_is_wlocked (coord->node));
 
 	result = extent_get_block (page->mapping->host, coord, lh, j);
+	done_lh (lh);
 	if (result) {
 		txn_delete_page (page);
 		jput (j);
@@ -2638,7 +2650,7 @@ What does this mean?  Did you do it as requested or differently?
 			 * FIXME-VS: grab space first
 			 */
 			/* FIXME: JMACD->ZAM: Is this right? */
-			if ((ret = reiser4_dealloc_blocks (& start, & count, /* defer */ 1, BLOCK_ALLOCATED))) {
+			if ((ret = reiser4_dealloc_blocks (& start, & count, /* defer */ 1, BLOCK_ALLOCATED, 0 /* unformatted */))) {
 				assert ("jmacd-71892", ret < 0);
 				goto fail;
 			}
@@ -2831,6 +2843,9 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			result = SQUEEZE_CONTINUE;
 			continue;
 		}
+
+		assert ("vs-959", state_of_extent (ext) == UNALLOCATED_EXTENT);
+
 		/*
 		 * extent must be allocated
 		 */
@@ -2880,7 +2895,13 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * again immediately.
 					 */
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
-								0 /* defer */, BLOCK_UNALLOCATED);
+								0 /* defer */, BLOCK_UNALLOCATED, 0/* unformatted */);
+					/*
+					 * FIXME-VS: blocks goes back from state "used" to state "fake allocated"
+					 */ 
+					unallocated_blocks += allocated;
+					
+
 					result = SQUEEZE_TARGET_FULL;
 					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 					/**/
@@ -3322,38 +3343,43 @@ static int extent_get_block (struct inode * inode, coord_t * coord,
 
 
 /* make sure that page is represented by extent item */
-static int make_page_extent (struct inode * inode, jnode * j, seal_t * seal,
-			     coord_t * coord, lock_handle * lh, flow_t * f,
-			     unsigned to_page)
+static int make_page_extent (struct inode * inode, jnode * j,
+			     lw_coord_t * lw_coord,
+			     flow_t * f, unsigned to_page)
 {
 	int result;
+	lock_handle lh;
 
 
-	
+	init_lh (&lh);
 	/*
 	 * re-obtain coord
 	 */
-	result = seal_validate (seal, coord, &f->key,
-				znode_get_level (coord->node), lh,
-				FIND_MAX_NOT_MORE_THAN,
+	result = seal_validate (lw_coord->seal, lw_coord->coord, &f->key,
+				znode_get_level (lw_coord->coord->node),
+				&lh, FIND_MAX_NOT_MORE_THAN,
 				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 	if (result) {
 		reiser4_stat_extent_add (broken_seals);
-		coord->node = 0;
+		lw_coord->coord->node = 0;
 		return -EAGAIN;
 	}
 
 	if (!jnode_mapped (j)) {
-		result = extent_get_block (inode, coord, lh, j);
+		result = extent_get_block (inode, lw_coord->coord, &lh, j);
 		if (result) {
-			done_lh (lh);
+			done_lh (&lh);
 			return result;
 		}
 	}
+
 	move_flow_forward (f, to_page);
-	if (coord->node)
-		seal_init (seal, coord, &f->key);
-	done_lh (lh);
+	if (lw_coord->coord->node)
+		/*
+		 * FIXME-VS: comment needed
+		 */
+		seal_init (lw_coord->seal, lw_coord->coord, &f->key);
+	done_lh (&lh);
 
 	return 0;
 }
@@ -3442,8 +3468,7 @@ static int prepare_page (struct inode * inode, struct page * page,
 /*
  * write flow's data into file by pages
  */
-static int extent_write_flow (struct inode * inode, coord_t * coord,
-			      lock_handle * lh, flow_t * f)
+static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_t * f)
 {
 	int result;
 	loff_t file_off;
@@ -3452,7 +3477,6 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 	char * user_buf;
 	struct page * page;
 	jnode * j;
-	seal_t seal;
 
 
 	assert ("vs-885", current_blocksize == PAGE_CACHE_SIZE);
@@ -3471,15 +3495,9 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 	page_off = (unsigned)(file_off & (PAGE_CACHE_SIZE - 1));
 
 
-	/*
-	 * right lock order is: lock_page -> longterm_lock_znode, create a seal
-	 * and unlock znode before grabbing page
-	 */
-	seal_init (&seal, coord, &f->key);
-	done_lh (lh);
-
 	do {
-		assert ("vs-959", coord->node && !znode_is_locked (coord->node));
+		assert ("vs-959", (lw_coord->coord->node &&
+				   !znode_is_locked (lw_coord->coord->node)));
 
 		/* number of bytes to be written to page */
 		to_page = PAGE_CACHE_SIZE - page_off;
@@ -3508,8 +3526,7 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		/*
 		 * make sure that page has non-zero extent pointing to it
 		 */
-		result = make_page_extent (inode, j, &seal, coord, lh, f,
-					   to_page);
+		result = make_page_extent (inode, j, lw_coord, f, to_page);
 		if (result)
 			goto exit3;
 
@@ -3563,9 +3580,7 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 	exit1:
 		break;
 	
-	} while (f->length && coord->node);
-
-	seal_done (&seal);
+	} while (f->length && lw_coord->coord->node);
 
 	if (f->length)
 		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
@@ -3573,230 +3588,58 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 	return result;
 }
 
-#if 0
-/*
- * write flow's data into file by pages
- */
-static int extent_write_flow (struct inode * inode, coord_t * coord,
-			      lock_handle * lh, flow_t * f)
-{
-	int result;
-	loff_t file_off;
-	int page_off, to_page;
-	char * page_data;
-	struct page * page;
-	jnode * j;
-
-
-	assert ("vs-885", current_blocksize == PAGE_CACHE_SIZE);
-	assert ("vs-700", f->user == 1);
-
-	result = 0;
-
-	if (DQUOT_ALLOC_SPACE_NODIRTY (inode, f->length))
-		return -EDQUOT;
-
-	/* write position */
-	file_off = get_key_offset (&f->key);
-
-	/* this can be != 0 only for the first of pages which will be
-	 * modified */
-	page_off = (int)(file_off & (PAGE_CACHE_SIZE - 1));
-
-	/*
-	 * coord->node is set to 0 when first extent item is created. To
-	 * complete the write extent write method will be called again after
-	 * researching
-	 */
-	while (f->length && coord->node) {
-		seal_t seal;
-
-		assert ("vs-956", znode_is_write_locked (coord->node));
-
-		j = 0;
-		/*
-		 * create seal and unlock znode before locking page
-		 */
-		seal_init (&seal, coord, &f->key);
-		done_lh (lh);
-
-		page = grab_cache_page (inode->i_mapping,
-					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
-		if (!page) {
-			result = -ENOMEM;
-			goto exit1;
-		}
-
-		assert ("vs-701", PageLocked (page));
-		
-		j = jnode_of_page (page);
-		if (IS_ERR (j)) {
-			result = PTR_ERR (j);
-			j = 0;
-			goto exit2;
-		}
-
-		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-		if (result) {
-			goto exit2;
-		}
-
-		/*
-		 * re-obtain coord
-		 */
-		result = seal_validate (&seal, coord, &f->key,
-					znode_get_level (coord->node), lh,
-					FIND_MAX_NOT_MORE_THAN,
-					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-		if (result) {
-			reiser4_stat_extent_add (broken_seals);
-			coord->node = 0;
-			goto exit3;
-		}
-
-		result = make_page_extent (coord, lh, page);
-		if (coord->node) {
-			seal_init (&seal, coord, &f->key);
-			done_lh (lh);
-			coord->node = 0;
-		}
-		if (result) {
-			goto exit3;
-		}
-		
-
-		to_page = PAGE_CACHE_SIZE - page_off;
-		if (to_page > (int)f->length)
-			to_page = (int)f->length;
-
-		if (have_to_read_block (page->mapping->host, j,
-					file_off, to_page)) {
-
-			reiser4_stat_extent_add (unfm_block_reads);
-
-			page_io (page, j, READ, GFP_NOIO);
-			wait_on_page_locked (page);
-			if (!PageUptodate (page)) {
-				warning ("jmacd-61238", "extent_write_flow: page not up to date");
-				result = -EIO;				
-				goto exit3;
-			}
-
-			lock_page (page);
-		}
-
-		page_data = kmap (page);
-		if (jnode_created (j) && !PageUptodate (page)) {
-			int padd;
-
-			/* new block added. Zero block content which is not
-			 * covered by write. Head.. */
-			memset (page_data, 0, (unsigned)page_off);
-
-			/* and end */
-			padd = current_blocksize - page_off - to_page;
-			assert ("vs-721", padd >= 0);
-			memset (page_data + page_off + to_page, 0, (unsigned)padd);
-		}
-
-		assert ("green-13", lock_counters ()->spin_locked == 0);
-
-		/* copy data into page */
-		if (unlikely (__copy_from_user (page_data + page_off,
-						f->data, (unsigned)to_page))) {
-			/* FIXME-VS: undo might be necessary */
-			kunmap (page);
-			result = -EFAULT;
-			goto exit3;
-		}
-		kunmap (page);
-
-		SetPageUptodate (page);
-		jnode_set_dirty (j);
-
-		jput (j);
-
-		unlock_page (page);
-		page_cache_release (page);
-
-		move_flow_forward (f, to_page);
-
-		/*
-		 * FIXME-VS: temporary fix: (it would be interesting to
-		 * benchmark) balance_dirty_pages is going to call eventually
-		 * reiser4_writepage synchrounously. This is not alowed with
-		 * locks held in a context
-		 */
-		if (coord->node) {
-			done_lh (lh);
-			coord->node = 0;
-		}
-		balance_dirty_pages (page->mapping);
-
-		page_off = 0;
-		file_off += to_page;
-		seal_done (&seal);
-		continue;
-
-	exit3:
-		/*
-		 * page is locked, but this is ok, because
-		 * txn_delete_page->uncapture_block->jput will not try to drop
-		 * jnode (in that case page must be unlocked) because we got
-		 * reference to it in above
-		 */
-		txn_delete_page (page);
-	exit2:
-		unlock_page (page);
-		page_cache_release (page);
-		if (j)
-			jput (j);
-	exit1:
-		seal_done (&seal);
-		break;
-	}
-
-	if (f->length)
-		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
-	return result;
-}
-#endif
 
 /* extent's write method. It can be called in tree modes:
  *
- * 1. real write - to write data from flow to a file
+ * 1. real write - to write data from flow to a file (@page == 0 && @f->data != 0)
  *
- * 2. with f->length == 0 to do expanding truncate.
+ * 2. expanding truncate (@page == 0 && @f->data == 0)
  *
  * 3. to make extent for page which contains data already. This occurs in
- * tail conversion
+ * tail conversion (@page != 0 && @f->data == 0)
  */
-int extent_write (struct inode * inode, coord_t * coord,
-		  lock_handle * lh, flow_t * f, struct page * page)
+int extent_write (struct inode * inode, lw_coord_t * lw_coord, flow_t * f,
+		  struct page * page)
 {
 	int result;
+	lock_handle lh;
 
+
+	if (!page && f->data)
+		/* real write */
+		return extent_write_flow (inode, lw_coord, f);
+
+	init_lh (&lh);
+	result = seal_validate (lw_coord->seal, lw_coord->coord, &f->key,
+				znode_get_level (lw_coord->coord->node),
+				&lh, FIND_MAX_NOT_MORE_THAN,
+				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	if (result) {
+		reiser4_stat_extent_add (broken_seals);
+		lw_coord->coord->node = 0;
+		return -EAGAIN;
+	}
 
 	if (!f->data && !page) {
 		/* expanding truncate. add_hole requires f->key to be set to
 		 * new end of file */
+		assert ("vs-958", !page);
 		set_key_offset (&f->key, get_key_offset (&f->key) + f->length);
 		f->length = 0;
-		return add_hole (coord, lh, &f->key,
-				 znode_get_level (coord->node) == TWIG_LEVEL ?
-				 EXTENT_APPEND_HOLE : EXTENT_CREATE_HOLE);
+		result = add_hole (lw_coord->coord, &lh, &f->key,
+				   znode_get_level (lw_coord->coord->node) == TWIG_LEVEL ?
+				   EXTENT_APPEND_HOLE : EXTENT_CREATE_HOLE);
+		done_lh (&lh);
+		return result;
 	}
-
-	if (!page)
-		/* real write */
-		return extent_write_flow (inode, coord, lh, f);
-
 
 	/* tail2extent is in progress. Page contains data already. Make extent
 	 * for it */
-	assert ("vs-884", f->data == 0);
+	assert ("vs-884", page != 0);
+	assert ("vs-963", !f->data);
 	assert ("vs-894", f->length <= PAGE_CACHE_SIZE);
-	result = extent_writepage (coord, lh, page);
+	result = extent_writepage (lw_coord->coord, &lh, page);
+	done_lh (&lh);
 	if (result == 0) {
 		/* everything is ok */
 		f->length = 0;
