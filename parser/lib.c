@@ -1503,8 +1503,8 @@ static int get_tube_next_src(tube_t * tube)
 		case EXPR_FLOW:
 			break;
 		case EXPR_OP2:
-			change_tube_stack( tube, ST_EXPR , s->op2.op_l );
-			push_tube_stack( tube, ST_EXPR , s->op2.op_r );
+			change_tube_stack( tube, ST_EXPR , s->op2.op_r );
+			push_tube_stack( tube, ST_EXPR , s->op2.op_l );
 			ret = 1;
 			break;
 		case EXPR_OP:
