@@ -1103,8 +1103,8 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	jnode_set_created (j);
 	extent_assign_fake_blocknr (j);
 
-	reiser4_stat_file_add (pointers);
-	reiser4_stat_file_add (write_repeats);
+	/*reiser4_stat_file_add (pointers);
+	  reiser4_stat_file_add (write_repeats);*/
 
 	/*
 	 * this is to indicate that research must be performed to continue
@@ -1167,7 +1167,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 	jnode_set_created (j);
 	extent_assign_fake_blocknr (j);
 
-	reiser4_stat_file_add (pointers);
+	/*reiser4_stat_file_add (pointers);*/
 	return 0;
 }
 
@@ -1584,7 +1584,7 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		jnode_set_created (j);
 		extent_assign_fake_blocknr (j);
 
-		reiser4_stat_file_add (pointers);
+		/*reiser4_stat_file_add (pointers);*/
 		break;
 
 	default:
@@ -3332,7 +3332,7 @@ static int extent_get_block (struct inode * inode, coord_t * coord,
 	case EXTENT_RESEARCH:
 		/* @coord is not set to a place in a file we have to write to,
 		   so, coord_by_key must be called to find that place */
-		reiser4_stat_file_add (write_repeats);
+		/*reiser4_stat_file_add (write_repeats);*/
 		result = -EAGAIN;
 		break;
 
@@ -3349,29 +3349,24 @@ static int extent_get_block (struct inode * inode, coord_t * coord,
 
 /* make sure that page is represented by extent item */
 static int make_page_extent (struct inode * inode, jnode * j,
-			     lw_coord_t * lw_coord,
+			     struct sealed_coord * hint,
 			     flow_t * f, unsigned to_page)
 {
 	int result;
+	coord_t coord;
 	lock_handle lh;
 
 
 	init_lh (&lh);
-	/*
-	 * re-obtain coord
-	 */
-	result = seal_validate (lw_coord->seal, lw_coord->coord, &f->key,
-				znode_get_level (lw_coord->coord->node),
-				&lh, FIND_MAX_NOT_MORE_THAN,
-				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+
+	result = hint_validate (hint, &f->key, &coord, &lh);
 	if (result) {
 		reiser4_stat_extent_add (broken_seals);
-		lw_coord->coord->node = 0;
 		return -EAGAIN;
 	}
 
 	if (!jnode_mapped (j)) {
-		result = extent_get_block (inode, lw_coord->coord, &lh, j);
+		result = extent_get_block (inode, &coord, &lh, j);
 		if (result) {
 			done_lh (&lh);
 			return result;
@@ -3379,11 +3374,13 @@ static int make_page_extent (struct inode * inode, jnode * j,
 	}
 
 	move_flow_forward (f, to_page);
-	if (lw_coord->coord->node)
+	if (coord.node)
 		/*
-		 * FIXME-VS: comment needed
+		 * seal current coord and keep hint for future accesses
 		 */
-		seal_init (lw_coord->seal, lw_coord->coord, &f->key);
+		set_hint (hint, &f->key, &coord);
+	else
+		unset_hint (hint);
 	done_lh (&lh);
 
 	return 0;
@@ -3473,7 +3470,8 @@ static int prepare_page (struct inode * inode, struct page * page,
 /*
  * write flow's data into file by pages
  */
-static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_t * f)
+static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
+			      flow_t * f)
 {
 	int result;
 	loff_t file_off;
@@ -3501,12 +3499,6 @@ static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_
 
 
 	do {
-		/*
-		 * make sure that znode is not locked by current thread
-		 */
-		assert ("vs-959", (lw_coord->coord->node &&
-				   !znode_is_any_locked (lw_coord->coord->node)));
-
 		/* number of bytes to be written to page */
 		to_page = PAGE_CACHE_SIZE - page_off;
 		if (to_page > f->length)
@@ -3534,7 +3526,7 @@ static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_
 		/*
 		 * make sure that page has non-zero extent pointing to it
 		 */
-		result = make_page_extent (inode, j, lw_coord, f, to_page);
+		result = make_page_extent (inode, j, hint, f, to_page);
 		if (result)
 			goto exit3;
 
@@ -3588,7 +3580,13 @@ static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_
 	exit1:
 		break;
 	
-	} while (f->length && lw_coord->coord->node);
+		/*
+		 * hint is unset by make_page_extent when first extent of a
+		 * file was inserted: in that case we can not use coord anymore
+		 * because we are to continue on twig level but are still at
+		 * leaf level
+		 */
+	} while (f->length && hint_is_set (hint));
 
 	if (f->length)
 		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
@@ -3606,26 +3604,24 @@ static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_
  * 3. to make extent for page which contains data already. This occurs in
  * tail conversion (@page != 0 && @f->data == 0)
  */
-int extent_write (struct inode * inode, lw_coord_t * lw_coord, flow_t * f,
+int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
 		  struct page * page)
 {
 	int result;
+	coord_t coord;
 	lock_handle lh;
 
 
 	if (!page && f->data)
 		/* real write */
-		return extent_write_flow (inode, lw_coord, f);
+		return extent_write_flow (inode, hint, f);
+
 
 	init_lh (&lh);
-	result = seal_validate (lw_coord->seal, lw_coord->coord, &f->key,
-				znode_get_level (lw_coord->coord->node),
-				&lh, FIND_MAX_NOT_MORE_THAN,
-				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	result = hint_validate (hint, &f->key, &coord, &lh);
 	if (result) {
 		reiser4_stat_extent_add (broken_seals);
-		lw_coord->coord->node = 0;
-		return -EAGAIN;
+		return result;
 	}
 
 	if (!f->data && !page) {
@@ -3634,8 +3630,8 @@ int extent_write (struct inode * inode, lw_coord_t * lw_coord, flow_t * f,
 		assert ("vs-958", !page);
 		set_key_offset (&f->key, get_key_offset (&f->key) + f->length);
 		f->length = 0;
-		result = add_hole (lw_coord->coord, &lh, &f->key,
-				   znode_get_level (lw_coord->coord->node) == TWIG_LEVEL ?
+		result = add_hole (&coord, &lh, &f->key,
+				   znode_get_level (coord.node) == TWIG_LEVEL ?
 				   EXTENT_APPEND_HOLE : EXTENT_CREATE_HOLE);
 		done_lh (&lh);
 		return result;
@@ -3646,7 +3642,7 @@ int extent_write (struct inode * inode, lw_coord_t * lw_coord, flow_t * f,
 	assert ("vs-884", page != 0);
 	assert ("vs-963", !f->data);
 	assert ("vs-894", f->length <= PAGE_CACHE_SIZE);
-	result = extent_writepage (lw_coord->coord, &lh, page);
+	result = extent_writepage (&coord, &lh, page);
 	done_lh (&lh);
 	if (result == 0) {
 		/* everything is ok */
