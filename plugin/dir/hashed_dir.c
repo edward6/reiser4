@@ -363,8 +363,8 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		       reiser4_dir_entry_desc *entry /* parameters of found
 						      * directory entry */ )
 {
-	seal_t            *seal;
 	const struct qstr *name;
+	seal_t            *seal;
 	tree_coord        *coord;
 	int                result;
 
@@ -373,6 +373,14 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 	assert( "nikita-1129", name != NULL );
 
 	name = &de -> d_name;
+	
+	/* 
+	 * dentry private data don't require lock, because dentry
+	 * manipulations are protected by i_sem on parent.  
+	 *
+	 * This is not so for inodes, because there is no -the- parent in
+	 * inode case.
+	 */
 	coord = &reiser4_get_dentry_fsdata( de ) -> entry_coord;
 	seal  = &reiser4_get_dentry_fsdata( de ) -> entry_seal;
 	/* compose key of directory entry for @name */
