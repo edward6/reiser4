@@ -80,7 +80,7 @@ sys_reiser4(char *p_string)
 	/* initialize fields */
 	/* this field used for parsing string, one (inline) stay on begin of token*/
 
-	work_space->ws_pline = p_string;
+	work_space->ws_pline = str;
 	PTRACE(work_space, "%s", "begin parsing");
 	ret = yyparse(work_space);	/* parse command */
 	reiser4_pars_free(work_space);

@@ -64,7 +64,7 @@ struct reiser4_syscall_w_space
 
 
 
-//#define printf prink
+#define printf prink
 
 /* 
  * Make Linus happy.

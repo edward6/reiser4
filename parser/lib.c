@@ -199,12 +199,13 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 	next = get_first_freeSpHead(ws);
 	while (next)
 		{
-	PTRACE(ws, "%s", "next");
+			PTRACE(ws, "next=%p",next);
 			curr = next;
 			next = get_next_freeSpHead(curr);
 		}
 	if ((next = freeSpaceAlloc())!=NULL)
 		{
+			PTRACE(ws, "allocated next=%p",next);
 			if(curr==NULL)
 				{
 					ws->freeSpHead=next;
@@ -215,27 +216,29 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 				}
 			next->freeSpace_next=NULL;
 		}
-else
-{
-
-	PTRACE(ws, "%s", "else");
-}
+	else
+		{
+			PTRACE(ws,"%s", "else");
+		}
 	return next;
 }
 
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size)
 {
 	char * rez;
-	PTRACE(ws, "%s, space=%p, free=%p", "begin",ws->freeSpCur,ws->freeSpCur->freeSpace);
+	PTRACE(ws, "begin, space=%p, free=%p", ws->freeSpCur,ws->freeSpCur->freeSpace);
 	assert("list_alloc:bad ws",ws!=NULL);
 	if( (unsigned long)(ws->freeSpCur->freeSpace) > ((unsigned long)(ws->freeSpCur->freeSpaceMax) - size) )
 		{
+			PTRACE(ws, "new1, space=%p, free=%p", ws->freeSpCur,ws->freeSpCur->freeSpace);
 			ws->freeSpCur = freeSpaceNextAlloc(ws);
+			PTRACE(ws, "new2, space=%p, free=%p", ws->freeSpCur,ws->freeSpCur->freeSpace);
 			assert("VD-LIST_ALLOC",ws->freeSpCur!=NULL);
 		}
 	rez = ws->freeSpCur->freeSpace;
 	assert("VD-LIST_ALLOC:rez==NULL",rez!=NULL);
 	ws->freeSpCur->freeSpace += ROUND_UP(size);
+	PTRACE(ws, "end, space=%p, free=%p rez = %p", ws->freeSpCur,ws->freeSpCur->freeSpace,rez);
 	return rez;
 }
 
@@ -381,7 +384,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 		{
 			ws->yytext++;
 		}
-	for( ws->tmpWrdEnd = ws->freeSpCur->freeSpace; ws->yytext <= curr_symbol(ws); )
+	for( ws->tmpWrdEnd = ws->freeSpCur->freeSpace; ws->yytext < curr_symbol(ws); )
 		{
 			i=0;
 			//			while( *ws->yytext == '\'' )
@@ -460,10 +463,12 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 						}
 		                }
                 }
+#if 0
 	if (exclude)
 		{
 			ws->tmpWrdEnd--;
 		}
+#endif
 	*ws->tmpWrdEnd++ = '\0';
 	PTRACE(ws, "term is---->%s<----", ws->freeSpCur->freeSpace);
 }
@@ -547,7 +552,15 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	char * s ;
 	PTRACE(ws, "%s", "lex1");
 
-	if ( ( s = curr_symbol(ws) ) == 0 ) return EOF;  /* first symbol or Last readed symbol of the previous token parsing */
+	s = curr_symbol(ws);              /* first symbol or Last readed symbol of the previous token parsing */
+	if ( *s == 0 ) return EOF;        /* end of string is EOF */
+
+	while(ncl[*s]==Blk)
+		{
+			s = next_symbol(ws);
+			if ( *s == 0 ) return EOF;  /* end of string is EOF */
+		}
+
 
 	lcls    =       ncl[*s];
 	ws->yytext  = s;
