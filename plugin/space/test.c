@@ -62,7 +62,11 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 		hint->blk = min_free;
 	}
 
+#ifndef __KERNEL__
 	p = 1 + (int) (10.0 * random () / (RAND_MAX + 1.0));
+#else
+	p = jiffies % 10;
+#endif
 	if (p < P) {
 		/*
 		 * return what we were asked for
