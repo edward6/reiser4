@@ -288,38 +288,100 @@ int find_next_item (struct file * file,
  * plugin->u.file.read_flow = NULL
  */
 
+/* find position of last byte of last item of the file plus 1 */
+static loff_t find_file_size (struct inode * inode)
+{
+	int result;
+	reiser4_key key;
+	coord_t coord;
+	lock_handle lh;
+	loff_t file_size;
+	item_plugin * iplug;
+
+
+	inode_file_plugin (inode)->key_by_inode (inode, get_key_offset (max_key ()), &key);
+
+	coord_init_zero (&coord);
+	init_lh (&lh);
+	result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
+	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+		/* error occured */
+		done_lh (&lh);
+		return (loff_t)result;
+	}
+
+	if (result == CBK_COORD_NOTFOUND) {
+		/* there are no items of this file */
+		done_lh (&lh);
+		return 0;
+	}
+
+	/* there are items of this file (at least one) */
+	result = zload (coord.node);
+	if (result) {
+		done_lh (&lh);
+		return (loff_t)result;
+	}
+	iplug = item_plugin_by_coord (&coord);
+
+	assert ("vs-853", iplug->common.real_max_key_inside);
+	iplug->common.real_max_key_inside (&coord, &key);
+
+	file_size = get_key_offset (&key) + 1;
+
+	zrelse (coord.node);
+	done_lh (&lh);
+	return file_size;
+}
+
+
 /* part of unix_file_truncate: it is called when truncate is used to make
  * file shorter */
-static int shorten (struct inode * inode, const reiser4_key * from)
+static int shorten (struct inode * inode)
 {
-	reiser4_key to;
+	reiser4_key from, to;
 
-	to = *from;
+	inode_file_plugin (inode)->key_by_inode (inode, inode->i_size, &from);
+	to = from;
 	set_key_offset (&to, get_key_offset (max_key ()));
 
 	/* all items of ordinary reiser4 file are grouped together. That is why
 	   we can use cut_tree. Plan B files (for instance) can not be
 	   truncated that simply */
-	return cut_tree (tree_by_inode (inode), from, &to);
+	return cut_tree (tree_by_inode (inode), &from, &to);
 }
 
 
 /* part of unix_file_truncate: it is called when truncate is used to make file
  * longer */
 ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f);
-static int expand (struct inode * inode, loff_t off, loff_t size)
+
+/* append hole to a file until inode->i_size < real size */
+static int expand (struct inode * inode, loff_t file_size)
 {
 	int result;
+	file_plugin * fplug;
 	flow_t f;
 
-	assert ("vs-854", off < size);
-	result = inode_file_plugin (inode)->flow_by_inode (inode, 0, 1/* user space */,
-							   0 /* count */, size /* offset */,
-							   WRITE_OP, &f);
+	fplug = inode_file_plugin (inode);
+	result = fplug->flow_by_inode (inode, 0/* buf */, 1/* user space */,
+				       0/* count */, inode->i_size/* offset */,
+				       WRITE_OP, &f);
 	if (result)
-		return result;	
+		return result;
 
-	return  write_flow (0, inode, &f);
+	do {
+		result = write_flow (0, inode, &f);
+		if (result) {
+			/* write_flow returns number of bytes written. As we
+			 * asked to write 0 bytes, !0 is error */
+			assert ("vs-859", result < 0);
+			return result;
+		}
+		file_size = find_file_size (inode); 
+	} while (file_size < inode->i_size);
+
+	return 0;
 }
 
 
@@ -328,77 +390,28 @@ static int expand (struct inode * inode, loff_t off, loff_t size)
 int unix_file_truncate (struct inode * inode, loff_t size)
 {
 	int result;
-	reiser4_key from, to;
-	coord_t coord;
-	lock_handle lh;
+	loff_t file_size;
 
 
 	assert ("vs-319", size == inode->i_size);
 
-	build_sd_key (inode, &from);
-	set_key_type (&from, KEY_BODY_MINOR);
-	set_key_offset (&from, (__u64) inode->i_size);
-	to = from;
-	set_key_offset (&to, get_key_offset (max_key ()));
-
 	get_nonexclusive_access (inode);
 
-	/* find whether we have to do truncate or expand */
-	coord_init_zero (&coord);
-	init_lh (&lh);
-	result = find_next_item (0, &from, &coord, &lh, ZNODE_READ_LOCK);
-	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-		/* error occured */
-		done_lh (&lh);
-		drop_nonexclusive_access (inode);
-		return result;
+	file_size = find_file_size (inode);
+	if (file_size < 0)
+		return (int)file_size;
+	if (file_size < inode->i_size)
+		result = expand (inode, file_size);
+	else
+		result = shorten (inode);
+	if (!result) {
+		result = reiser4_write_sd (inode);
+		if (result)
+			warning ("vs-638", "updating stat data failed: %i", result);
 	}
-
-	if (result == CBK_COORD_NOTFOUND) {
-		/* real file size is 0 - there are no items of this file */
-		done_lh (&lh);
-		if (size) {
-			result = expand (inode, (loff_t)0, size);
-		} else
-			result = 0;
-	} else {
-		/* there are items of this file (at least one) */
-		reiser4_key max_item_key;
-		item_plugin * iplug;
-
-		result = zload (coord.node);
-		if (result) {
-			done_lh (&lh);
-			drop_nonexclusive_access (inode);
-			return result;
-		}
-		iplug = item_plugin_by_coord (&coord);
-
-		assert ("vs-853", iplug->common.real_max_key_inside);
-		iplug->common.real_max_key_inside (&coord, &max_item_key);
-		set_key_offset (&max_item_key, get_key_offset (&max_item_key) + 1);
-
-		zrelse (coord.node);
-		done_lh (&lh);
-		if (keygt (&from, &max_item_key)) {
-			/* we have to expand file with items */
-			result = expand (inode, (loff_t)get_key_offset (&max_item_key), size);
-		} else {
-			result = shorten (inode, &from);
-		}
-	}
-	if (result) {
-		drop_nonexclusive_access (inode);
-		return result;
-	}
-
-	result = reiser4_write_sd (inode);
-	if (result)
-		warning ("vs-638", "updating stat data failed: %i", result);
-
 	drop_nonexclusive_access (inode);
 	return result;
-}
+}	
 
 
 /* plugin->u.write_sd_by_inode = common_file_save */
@@ -746,7 +759,13 @@ ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 		if ((loff_t)get_key_offset (&f->key) > inode->i_size)
 			/* file got longer */
 			inode->i_size = get_key_offset (&f->key);
+		if (!to_write) {
+			/* expanding truncate */
+			if ((loff_t)get_key_offset (&f->key) < inode->i_size)
+				continue;
+		}
 		if (f->length == 0)
+			/* write is done */
 			break;
 	}
 	if (coord_set_properly (&f->key, &coord) && file) {
