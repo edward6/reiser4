@@ -360,7 +360,7 @@ overwrite_reserve(tree_level height)
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
 int
-tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint)
+tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
 {
 	int result;
 	write_mode todo;
@@ -391,7 +391,8 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 				break;
 			}
 
-			result = insert_flow_reserve(znode_get_tree(loaded)->height);
+			if (!grabbed)
+				result = insert_flow_reserve(znode_get_tree(loaded)->height);
 			if (!result)
 				result = insert_flow(coord, lh, f);
 			if (f->length)
@@ -399,7 +400,8 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 			break;
 
 		case OVERWRITE_ITEM:
-			result = overwrite_reserve(znode_get_tree(loaded)->height);
+			if (!grabbed)
+				result = overwrite_reserve(znode_get_tree(loaded)->height);
 			if (!result)
 				result = overwrite_tail(coord, f);
 			break;
@@ -416,14 +418,15 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 
 		if (result) {
 			zrelse(loaded);
-			all_grabbed2free("tail_write: on error");
+			if (!grabbed)
+				all_grabbed2free("tail_write: on error");
 			break;
 		}
 
 		/* check whether coord is set properly. If coord is set such that it can not be later sealed - set coord->node
 		   to 0	*/
 		if (coord->node == loaded && coord_is_existing_item(coord) && item_is_tail(coord)) {
-			if (tail_key_in_item(coord, &f->key, 0)) {				
+			if (tail_key_in_item(coord, &f->key, 0)) { 
 				/* coord is set properly, it will be sealed before calling balance_dirty_pages */;
 				coord_state = COORD_RIGHT_STATE;
 			} else {
@@ -436,7 +439,8 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 		
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint, coord_state);
-		all_grabbed2free("tail_write");
+		if (!grabbed)
+			all_grabbed2free("tail_write");
 		if (result) {
 			// reiser4_stat_tail_add(bdp_caused_repeats);
 			break;

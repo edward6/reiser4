@@ -2486,9 +2486,9 @@ reserve_extent_write_iteration(tree_level height)
 {
 	int result;
 
-	grab_space_enable();
 	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
 	   involved */
+	grab_space_enable();
 	result = reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0/* flags */, "extent_write");
 	return result;
 }
@@ -2514,7 +2514,7 @@ static struct page *prof_grab_cache_page(struct address_space *mapping, unsigned
 
 /* write flow's data into file by pages */
 static int
-extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint)
+extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
 {
 	int result;
 	loff_t file_off;
@@ -2543,9 +2543,11 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	do {
 		unsigned long index;
 
-		result = reserve_extent_write_iteration(znode_get_tree(coord->node)->height);
-		if (result)
-			break;
+		if (!grabbed) {
+			result = reserve_extent_write_iteration(znode_get_tree(coord->node)->height);
+			if (result)
+				break;
+		}
 		/* number of bytes to be written to page */
 		to_page = PAGE_CACHE_SIZE - page_off;
 		if (to_page > f->length)
@@ -2626,7 +2628,8 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 
 		/* throttle the writer */
 		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);
-		all_grabbed2free("extent_write_flow");
+		if (!grabbed)
+			all_grabbed2free("extent_write_flow");
 		if (result) {
 			reiser4_stat_inc(extent.bdp_caused_repeats);
 			break;
@@ -2660,20 +2663,22 @@ exit1:
 static int
 extent_hole_reserve(tree_level height)
 {
-	grab_space_enable();
 	/* adding hole may require adding a hole unit into extent item and stat data update */
+	grab_space_enable();
 	return reiser4_grab_space(estimate_one_insert_into_item(height) * 2, 0, "extent_hole_reserve");
 }
 
 static int
-extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
+extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, int grabbed)
 {
 	int result;
 	loff_t new_size;
 
-	result = extent_hole_reserve(znode_get_tree(coord->node)->height);
-	if (result)
-		return result;
+	if (!grabbed) {
+		result = extent_hole_reserve(znode_get_tree(coord->node)->height);
+		if (result)
+			return result;
+	}
 
 	new_size = get_key_offset(&f->key) + f->length;
 	set_key_offset(&f->key, new_size);
@@ -2683,7 +2688,8 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		done_lh(lh);
 		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/);
 	}
-	all_grabbed2free("extent_write_hole");
+	if (!grabbed)
+		all_grabbed2free("extent_write_hole");
 	return result;
 }
 
@@ -2694,14 +2700,14 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
   2. expanding truncate (@f->data == 0)
 */
 int
-extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint)
+extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
 {
 	if (f->data)
 		/* real write */
-		return extent_write_flow(inode, coord, lh, f, hint);
+		return extent_write_flow(inode, coord, lh, f, hint, grabbed);
 
 	/* expanding truncate. add_hole requires f->key to be set to new end of file */
-	return extent_write_hole(inode, coord, lh, f);
+	return extent_write_hole(inode, coord, lh, f, grabbed);
 }
 
 /* part of this is filler for read_cache_page called via extent_read->read_cache_page */

@@ -1134,7 +1134,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	lock_handle lh;
 	size_t to_write;
 	struct sealed_coord hint;
-	int (*write_f) (struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *);
+	int (*write_f) (struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int grabbed);
 	int state;
 
 	assert("nikita-3031", schedulable());
@@ -1195,7 +1195,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 			write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
 		}
 
-		result = write_f(inode, &coord, &lh, f, &hint);
+		result = write_f(inode, &coord, &lh, f, &hint, 0);
+		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
 		if (to_write != f->length && file_is_empty(inode)) {
 			/* we have written something and file was empty, change file state */
 			assert("vs-1195", state == 1 || state == 2);
@@ -1463,27 +1464,41 @@ static struct vm_operations_struct unix_file_vm_ops = {
 static int
 unpack(struct inode *inode)
 {
-	int result;
+	int            result = 0;
+	reiser4_inode *state;
+	tail_plugin   *tplug;
 
-	result = 0;
-
-	/* tail2extent expects either exclusive or non-exclusive access obtained */
-	get_exclusive_access(inode);
+	get_nonexclusive_access(inode);
 
 	if (!file_state_is_known(inode)) {
 		loff_t file_size;
 
 		result = find_file_size(inode, &file_size);
-		if (result) {
-			drop_exclusive_access(inode);
-			return result;
-		}
 	}
 	assert("vs-1074", file_state_is_known(inode));
-	if (file_is_built_of_tails(inode))
-		result = tail2extent(inode);
+	if (result == 0) {
+		if (file_is_built_of_tails(inode))
+			result = tail2extent(inode);
+		if (result == 0) {
+			state = reiser4_inode_data(inode);
+			tplug = tail_plugin_by_id(NEVER_TAIL_ID);
+			plugin_set_tail(&state->pset, tplug);
+			inode_set_plugin(inode, tail_plugin_to_plugin(tplug));
+		}
+	}
 
-	drop_exclusive_access(inode);
+	drop_nonexclusive_access(inode);
+
+	if (result == 0) {
+		__u64 tograb;
+
+		grab_space_enable();
+		tograb = inode_file_plugin(inode)->estimate.update(inode);
+		result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
+		if (result == 0)
+			result = reiser4_write_sd(inode);
+	}
+
 	return result;
 }
 
@@ -1496,16 +1511,6 @@ unix_file_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsign
 	switch (cmd) {
 	case REISER4_IOC_UNPACK:
 		result = unpack(inode);
-		if (!result) {
-			reiser4_inode *state;
-
-			state = reiser4_inode_data(inode);
-			/* set new tail policy plugin in in-core inode */
-			plugin_set_tail(&state->pset, tail_plugin_by_id(NEVER_TAIL_ID));
-			/* store it in stat data */
-			inode_set_plugin(inode, tail_plugin_to_plugin(state->pset->tail));
-			result = reiser4_write_sd(inode);
-		}
 		break;
 
 	default:

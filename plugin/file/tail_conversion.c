@@ -558,7 +558,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 			break;
 
 		loaded = coord.node;
-		result = iplug->s.file.write(inode, &coord, &lh, &f, 0);
+		result = iplug->s.file.write(inode, &coord, &lh, &f, 0, 1);
 		zrelse(loaded);
 		done_lh(&lh);
 		if (result == -EAGAIN)
