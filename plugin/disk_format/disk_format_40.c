@@ -235,15 +235,9 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		sizeof (*sb_copy));
 	brelse (super_bh);
 
-	/* layout 40 uses oid_40 oid allocator - the one implemented in
-	 * plugin/oid/oid_40.[ch] */
-	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
-	assert ("vs-492", (private->oid_plug &&
-			   private->oid_plug->init_oid_allocator));
 	/* init oid allocator */
-	result = private->oid_plug->init_oid_allocator (get_oid_allocator (s),
-							get_format_40_file_count (sb_copy),
-							get_format_40_oid (sb_copy));
+	result = oid_init_allocator(get_format_40_file_count (sb_copy),
+				    get_format_40_oid (sb_copy));
 	if (result)
 		return result;
 

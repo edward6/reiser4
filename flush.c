@@ -1887,6 +1887,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
 			io_handle_add_bio (pos->hio, bio);
+			reiser4_update_last_written_location (super, jnode_get_block (check));
 
 			submit_bio (WRITE, bio);
 		}
