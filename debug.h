@@ -19,7 +19,7 @@
 
 #include <linux/sched.h>
 
-/* basic debug/logging output macro. "label" is unfamous "maintainer-id" */
+/* basic debug/logging output macro. "label" is infamous "maintainer-id" NIKITA-FIXME-HANS: so call it that, and also comment lev.  Provide an example of usage.  */
 
 /* generic function to produce formatted output, decorating it with
    whatever standard prefixes/postfixes we want. "Fun" is a function
@@ -47,6 +47,9 @@
     in 3.x journal.c. If cassertion fails you get compiler error,
     so no "maintainer-id". 
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
+
+/* GREEN-FIXME-HANS: if you copied more than the idea, did you get a license for it?  If you copied only the idea, so
+ * indicate, otherwise our licensors will be made nervous. */
 #define cassert(cond) ({ switch(-1) { case (cond): case 0: break; } })
 
 #if defined(CONFIG_REISER4_DEBUG)
@@ -177,7 +180,7 @@ extern int schedulable (void);
 
 /* REISER4_DEBUG */
 #endif
-
+/* NIKITA-FIXME-HANS: create a REISER4_DEBUG_LITE and put this into it. */
 typedef struct lock_counters_info {
 	int rw_locked_tree;
 	int read_locked_tree;
@@ -231,6 +234,7 @@ typedef struct {} backtrace_path;
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */
 typedef enum {
+/* NIKITA-FIXME-HANS: email me a description of what is a lot, and when we would not want a lot of info when panicking. */
 	/* print a lot of information during panic. */
 	REISER4_VERBOSE_PANIC = 0x00000001,
 	/* print a lot of information during umount */
