@@ -140,7 +140,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	return 0;
 }
 
-/* ->readpages() VFS method in reiser4 address_space_operations 
+/* ->readpages() VFS method in reiser4 address_space_operations
    method serving page cache readahead
 */
 static int
@@ -255,12 +255,15 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	return ret;
 }
 /* VS-FIXME-HANS: is the #if really a good idea?  where are the comments? */
-#if !REISER4_DEBUG
-static
+#if REISER4_DEBUG
+int jnode_is_releasable(const jnode *node)
+{
+	return releasable(node);
+}
 #endif
 
 /* this checks whether page can be detached from jnode */
-int
+static int
 releasable(const jnode *node)
 {
 	assert("nikita-2781", node != NULL);
@@ -375,20 +378,14 @@ reiser4_writepages(struct address_space *mapping,
 {
 	int ret = 0;
 	struct inode *inode;
-
-	reiser4_context ctx;
-
-	init_context(&ctx, mapping->host->i_sb);
-	/* avoid recursive calls to ->sync_inodes */
-	ctx.nobalance = 1;
-	assert("zam-760", ergo(is_in_reiser4_context(),
-			       lock_stack_isclean(get_current_lock_stack())));
+	file_plugin *fplug;
 
 	inode = mapping->host;
-	if (inode_file_plugin(inode) != NULL &&
-	    inode_file_plugin(inode)->capture != NULL)
-		/* call file plugin method to capture anonymous pages and anonymous jnodes */
-		ret = inode_file_plugin(inode)->capture(inode, wbc);
+	fplug = inode_file_plugin(inode);
+	if (fplug != NULL && fplug->capture != NULL)
+		/* call file plugin method to capture anonymous pages and
+		 * anonymous jnodes */
+		ret = fplug->capture(inode, wbc);
 
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
 	/* Problem: ->writepages() is supposed to submit io for the pages from
@@ -397,7 +394,6 @@ reiser4_writepages(struct address_space *mapping,
 	spin_lock(&inode_lock);
 	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
 	spin_unlock(&inode_lock);
-	reiser4_exit_context(&ctx);
 	return ret;
 }
 
@@ -413,7 +409,7 @@ struct address_space_operations reiser4_as_operations = {
 	/* called to read page from the storage when page is added into page
 	   cache  */
 	.readpage = reiser4_readpage,
-	/* This is most annoyingly misnomered method. 
+	/* This is most annoyingly misnomered method.
 
 VS-FIXME-HANS: then rename it to reiser4_start_up_io or some such, and post on lkml asking that the generic name be
 changed, instead of being passive and powerless in the face of the linux kernel gods;-).  You might find others agree
