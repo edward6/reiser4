@@ -56,6 +56,19 @@
 
 #define CHECKSUM_SIZE    4
 
+#define BYTES_PER_LONG (sizeof(long))
+
+#if BITS_PER_LONG == 64
+#  define LONG_INT_SHIFT (6)
+#else
+#  define LONG_INT_SHIFT (5)
+#endif
+
+#define LONG_INT_MASK (BITS_PER_LONG - 1)
+
+typedef unsigned long ulong_t;
+
+
 #define bmap_size(blocksize)	    ((blocksize) - CHECKSUM_SIZE)
 #define bmap_bit_count(blocksize)   (bmap_size(blocksize) << 3)
 
@@ -154,14 +167,14 @@ bnew(void)
 
 /* Audited by: green(2002.06.12) */
 static int
-find_next_zero_bit_in_byte(unsigned int byte, int start)
+find_next_zero_bit_in_word(ulong_t word, int start_bit)
 {
-	unsigned int mask = 1 << start;
-	int i = start;
+	unsigned int mask = 1 << start_bit;
+	int i = start_bit;
 
-	while ((byte & mask) != 0) {
+	while ((word & mask) != 0) {
 		mask <<= 1;
-		if (++i >= 8)
+		if (++i >= BITS_PER_LONG)
 			break;
 	}
 
@@ -177,100 +190,108 @@ find_next_zero_bit_in_byte(unsigned int byte, int start)
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
 ext2_find_next_zero_bit(addr, maxoffset, offset)
 
-/* ZAM-FIXME-HANS: would 32 or 64 bit comparisons be faster? Perhaps you should optimize for AMD and Intel instruction sets, which would give flx more to say in explaining why we need the loaner machines.... ;-) */
-static bmap_off_t
-reiser4_find_next_set_bit(void *addr, 
-bmap_off_t max_offset,		/* ZAM-FIXME-HANS: comment needed */
-bmap_off_t start_offset)
+/* Search for a set bit in the bit array [@start_offset, @max_offset[, offsets
+ * are counted from @addr, return the offset of the first bit if it is found,
+ * @maxoffset otherwise. */
+static bmap_off_t reiser4_find_next_set_bit(
+	void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
 {
-	unsigned char *base = addr;
+	ulong_t *base = addr;
         /* start_offset is in bits, convert it to byte offset within bitmap. */
-	int byte_nr = start_offset >> 3;
+	int word_nr = start_offset >> LONG_INT_SHIFT;
 	/* bit number within the byte. */
-	int bit_nr = start_offset & 0x7;
-	int max_byte_nr = (max_offset - 1) >> 3;
+	int bit_nr = start_offset & LONG_INT_MASK;
+	int max_word_nr = (max_offset - 1) >> LONG_INT_SHIFT;
 
 	assert("zam-387", max_offset != 0);
 
+	/* Unaligned @start_offset case.  */
 	if (bit_nr != 0) {
 		bmap_nr_t nr;
 
-		nr = find_next_zero_bit_in_byte(~(unsigned int) (base[byte_nr]), bit_nr);
+		nr = find_next_zero_bit_in_word(~(base[word_nr]), bit_nr);
 
-		if (nr < 8)
-			return (byte_nr << 3) + nr;
+		if (nr < BITS_PER_LONG)
+			return (word_nr << LONG_INT_SHIFT) + nr;
 
-		++byte_nr;
+		++word_nr;
 	}
 
-	while (byte_nr <= max_byte_nr) {
-		if (base[byte_nr] != 0) {
-			return (byte_nr << 3)
-			    + find_next_zero_bit_in_byte(~(unsigned int)
-							 (base[byte_nr]), 0);
+	/* Fast scan trough aligned words. */
+	while (word_nr <= max_word_nr) {
+		if (base[word_nr] != 0) {
+			return (word_nr << LONG_INT_SHIFT)
+			    + find_next_zero_bit_in_word(~(base[word_nr]), 0);
 		}
 
-		++byte_nr;
+		++word_nr;
 	}
 
 	return max_offset;
 }
 
-static int
-find_last_set_bit_in_byte (unsigned byte, int start)
+/* search for the first set bit in single word. */
+static int find_last_set_bit_in_word (ulong_t word, int start_bit)
 {
 	unsigned bit_mask;
-	int nr = start;
+	int nr = start_bit;
 
-	assert ("zam-965", start < 8);
-	assert ("zam-966", start >= 0);
+	assert ("zam-965", start_bit < BITS_PER_LONG);
+	assert ("zam-966", start_bit >= 0);
 
 	bit_mask = (1 << nr);
 
 	while (bit_mask != 0) {
-		if (bit_mask & byte)
+		if (bit_mask & word)
 			return nr;
 		bit_mask >>= 1;
 		nr --;
 	}
-	return 8;
+	return BITS_PER_LONG;
 }
 
 /* Search bitmap for a set bit in backward direction from the end to the
- * beginning of given region */
-/* ZAM-FIXME-HANS: comment more */
+ * beginning of given region
+ *
+ * @result: result offset of the last set bit
+ * @addr:   base memory address,
+ * @low_off:  low end of the search region, edge bit included into the region,
+ * @high_off: high end of the search region, edge bit included into the region,
+ *
+ * @return: 0 - set bit was found, -1 otherwise.
+ */
 static int
 reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
 {
-	unsigned char * base = addr;
-	int last_byte;
-	int first_byte;
+	ulong_t * base = addr;
+	int last_word;
+	int first_word;
 	int last_bit;
 	int nr;
 
 	assert ("zam-961", high_off >= 0);
 	assert ("zam-962", high_off >= low_off);
 
-	last_byte = high_off >> 3;
-	last_bit = high_off & 0x7;
-	first_byte = low_off >> 3;
+	last_word = high_off >> LONG_INT_SHIFT;
+	last_bit = high_off & LONG_INT_MASK;
+	first_word = low_off >> LONG_INT_SHIFT;
 
-	if (last_bit <= 7) {
-		nr = find_last_set_bit_in_byte(base[last_byte], last_bit);
-		if (nr < 8) {
-			*result = (last_byte << 3) + nr;
+	if (last_bit < BITS_PER_LONG) {
+		nr = find_last_set_bit_in_word(base[last_word], last_bit);
+		if (nr < BITS_PER_LONG) {
+			*result = (last_word << LONG_INT_SHIFT) + nr;
 			return 0;
 		}
-		-- last_byte;
+		-- last_word;
 	}
-	while (last_byte >= first_byte) {
-		if (base[last_byte] != 0x0) {
-			last_bit = find_last_set_bit_in_byte((unsigned)base[last_byte], 7);
-			assert ("zam-972", last_bit < 8);
-			*result = (last_byte << 3) + last_bit;
+	while (last_word >= first_word) {
+		if (base[last_word] != 0x0) {
+			last_bit = find_last_set_bit_in_word(base[last_word], BITS_PER_LONG - 1);
+			assert ("zam-972", last_bit < BITS_PER_LONG);
+			*result = (last_word << LONG_INT_SHIFT) + last_bit;
 			return 0;
 		}
-		-- last_byte;
+		-- last_word;
 	}
 
 	return -1;		/* set bit not found */
@@ -281,31 +302,31 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 static int
 reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
 {
-	unsigned char * base = addr;
-	int last_byte;
-	int first_byte;
+	ulong_t * base = addr;
+	int last_word;
+	int first_word;
 	int last_bit;
 	int nr;
 
-	last_byte = high_off >> 3;
-	last_bit = high_off & 0x7;
-	first_byte = low_off >> 3;
+	last_word = high_off >> LONG_INT_SHIFT;
+	last_bit = high_off & LONG_INT_MASK;
+	first_word = low_off >> LONG_INT_SHIFT;
 
-	if (last_bit <= 7) {
-		nr = find_last_set_bit_in_byte(~(unsigned)base[last_byte], last_bit);
-		if (nr < 8) {
-			 *result = (last_byte << 3) + nr;
+	if (last_bit < BITS_PER_LONG) {
+		nr = find_last_set_bit_in_word(~base[last_word], last_bit);
+		if (nr < BITS_PER_LONG) {
+			 *result = (last_word << LONG_INT_SHIFT) + nr;
 			 return 0;
 		}
-		-- last_byte;
+		-- last_word;
 	}
-	while (last_byte >= first_byte) {
-		if (base[last_byte] != 0xFF) {
-			*result =  (last_byte << 3) +
-				find_last_set_bit_in_byte(~(unsigned)base[last_byte], 7);
+	while (last_word >= first_word) {
+		if (base[last_word] != (ulong_t)(-1)) {
+			*result =  (last_word << LONG_INT_SHIFT) +
+				find_last_set_bit_in_word(~base[last_word], BITS_PER_LONG - 1);
 			return 0;
 		}
-		-- last_byte;
+		-- last_word;
 	}
 
 	return -1;	/* zero bit not found */
