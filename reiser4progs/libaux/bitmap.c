@@ -13,7 +13,7 @@
     This macros is used for checking whether given block is inside of allowed 
     range or not. It is used in all bitmap functions.
 */
-#define reiser4_bitmap_range_check(bitmap, blk, action)			\
+#define reiser4_bitmap_range_check(bitmap, blk, action)				\
 do {										\
     if (blk >= bitmap->total_blocks) {						\
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,			\

@@ -2,7 +2,7 @@ includedir 		 = -I$(top_srcdir)/include
 
 libaal_sources  	 = device.c file.c exception.c list.c malloc.c \
 			   print.c string.c math.c debug.c bitops.c \
-			   gauge.c block.c
+			   gauge.c block.c ui.c
 
 lib_LTLIBRARIES		 = libaal.la
 noinst_LTLIBRARIES	 = libaal-static.la
