@@ -47,21 +47,22 @@ struct zlock {
         /**
 	 * The number of readers if positive; the number of recursively taken
 	 * write locks if negative */
-	int nr_readers;
+	/*  0 */ int nr_readers;
 	/**
 	 * A number of processes (lock_stacks) that have this object
 	 * locked with high priority */
-	unsigned nr_hipri_owners;
+	/*  4 */ unsigned nr_hipri_owners;
 	/**
 	 * A number of attempts to lock znode in high priority direction */
-	unsigned nr_hipri_requests;
+	/*  8 */ unsigned nr_hipri_requests;
 	/**
 	 * A linked list of lock_handle objects that contains pointers
 	 * for all lock_stacks which have this lock object locked */
-	owners_list_head owners;
+	/* 12 */ owners_list_head owners;
 	/**
 	 * A linked list of lock_stacks that wait for this lock */
-	requestors_list_head requestors;
+	/* 20 */ requestors_list_head requestors;
+	/* 28 */
 };
 
 /* This structure is way too large.  Think for a moment.  There is one
@@ -123,53 +124,27 @@ struct zlock {
  */
 struct znode {
 	/* Embedded jnode. */
-	jnode zjnode;
-	
-	/* znode's tree level */
-	__u16 level;
+	/*   0 */ jnode zjnode;
 
-	/* design note: I think that tree traversal will be more
-	   efficient because of these pointers, but there will be bugs
-	   associated with these pointers.  We could simply record the
-	   left and right delimiting keys, and that would be enough to
-	   find the neighbors using search_by_key() from the root, but
-	   I think this will reduce cache/memory bandwidth consumption
-	   compared to doing that.  We could also just use
-	   search_by_key(), and unfortunately this code looks
-	   complicated enough to make that arguably correct to do.  */
-	/* get lock on left znode before modifying this field, you don't
-	   need a lock on this znode to modify this field. Conceptually,
-	   these fields are properties not of this node, but of the
-	   nodes they point to.  This field is zero if the neighbor node
-	   is not in memory. */
-	znode *left;
-	/* get lock on right znode before modifying this field, you
-	   don't need a lock on this znode to modify this
-	   field. Conceptually, these fields are properties not of this
-	   node, but of the nodes they point to.  This field is zero if
-	   the neighbor node is not in memory.  */
-	znode *right;
-	/*  This is a lock that yields right of way to processes that
-	    are locking in the rightward direction so as to ensure
-	    deadlock avoidance, read the lock_left() and lock_right()
-	    functions to understand this.  */
-	/* locks this znode (and the node the znode points to) except
-	   for the pointers from this znode to other znodes, and locks
-	   the pointers from other znodes to this znode. */
-	/* Some feel that this lock is too large grained and that for
-	   some operations on the znode spinlocks should be used.  I
-	   feel that we should optimize this later, if it turns out to
-	   be significant. -Hans */
+	/**
+	 * position of this node in a parent node. This is cached to
+	 * speed up lookups during balancing. Not required to be up to
+	 * date. Synched in find_child_ptr().
+	 *
+	 * This value allows us to avoid expensive binary searches.
+	 *
+	 * Also, parent pointer is stored here.  The parent pointer
+	 * stored here is NOT a hint, only the position is.
+	 */
+	/*  56 */ coord_t            in_parent;
 
-	/* znode lock object */
-	zlock lock;
-
-	/* what about when it is unallocated?  Did we ever resolve how
-	   we were going to find buffers with unallocated blocknrs?
-	   Negative blocknrs or what?  Also, is this consistent with
-	   the bio paradigm?  Nikita?  Monstr?  -Hans */
-	/** buffer head attached to this znode */
-	/* 	struct buffer_head *buffer; */
+	/*  76 */ znode *left;
+	/*  80 */ znode *right;
+	/**
+	 * long term lock on node content. This lock supports deadlock
+	 * detection. See lock.c
+	 */
+	/*  84 */ zlock lock;
 
 	/**
 	 * You cannot remove from memory a node that has children in
@@ -184,48 +159,39 @@ struct znode {
 	 * because we don't want to take and release spinlock for each
 	 * reference addition/drop.
 	 */
-	atomic_t               c_count;
+	/* 112 */ atomic_t               c_count;
 
-	/** plugin of node attached to this znode. NULL if znode is not
-	    loaded. */
-	node_plugin           *nplug;
+	/** 
+	 * plugin of node attached to this znode. NULL if znode is not
+	 * loaded. 
+	 */
+	/* 116 */ node_plugin           *nplug;
 
 	/** version of znode data. This is increased on each modification. */
-	__u64                  version;
+	/* 120 */ __u64                  version;
 
 	/** 
 	 * size of node referenced by this znode. This is not necessary
 	 * block size, because there znodes for extents.
 	 */
-	/* removed for now. We only support blocksize == PAGE_CACHE_SIZE
-	unsigned      size;
-	*/
-
-	/* Let's review why we need delimiting keys other than in the
-	   least common parent node.  It is so as to not have to get a
-	   lock on the least common parent node? -Hans */
 	/**
 	 * left delimiting key. Necessary to efficiently perform
 	 * balancing with node-level locking. Kept in memory only.
 	 */
-	reiser4_key            ld_key;
+	/* 128 */ reiser4_key            ld_key;
 	/**
 	 * right delimiting key.
 	 */
-	reiser4_key            rd_key;
+	/* 152 */ reiser4_key            rd_key;
 
-	/**
-	 * position of this node in a parent node. This is cached to
-	 * speed up lookups during balancing. Not required to be up to
-	 * date. Synched in find_child_ptr().
-	 *
-	 * This value allows us to avoid expensive binary searches.
-	 *
-	 * Also, parent pointer is stored here.  The parent pointer
-	 * stored here is NOT a hint, only the position is.
-	 */
-	coord_t            in_parent;
-
+	/* znode's tree level */
+	/* 176 */ __u16 level;
+	/* 178 */ __u16 nr_items;
+	/* 180 */ /* gap --- 4 bytes */
+	/* 184 */
+	/* removed for now. We only support blocksize == PAGE_CACHE_SIZE
+	   unsigned      size;
+	*/
 #if REISER4_DEBUG_MODIFY
 	/**
 	 * In debugging mode, used to detect loss of znode_set_dirty()
@@ -539,6 +505,12 @@ static inline tree_level jnode_get_level (const jnode *node)
 		 * "semi-formatted" nodes like bitmaps, level doesn't matter.
 		 */
 		return LEAF_LEVEL;
+}
+
+static inline reiser4_tree *znode_get_tree(const znode *node)
+{
+	assert ("nikita-2692", node != NULL);
+	return jnode_get_tree (ZJNODE (node));
 }
 
 /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We

@@ -1930,14 +1930,14 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	if (!info)
 		return -ENOMEM;
 
-	s->s_fs_info = info;
+	s->u.generic_sbp = info;
 	memset (info, 0, sizeof (*info));
 	ON_DEBUG (INIT_LIST_HEAD (&info->all_jnodes));
 
 	result = init_context (&__context, s);
 	if (result) {
 		kfree (info);
-		s->s_fs_info = NULL;
+		s->u.generic_sbp = NULL;
 		return result;
 	}
 
@@ -2096,7 +2096,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	txn_mgr_done (&info->tmgr);
  error1:
 	kfree (info);
-	s->s_fs_info = NULL;
+	s->u.generic_sbp = NULL;
 
 	REISER4_EXIT (result);
 }
@@ -2106,7 +2106,7 @@ static void reiser4_put_super (struct super_block *s)
 	reiser4_super_info_data *info;
 	__REISER4_ENTRY (s,);
 
-	info = (reiser4_super_info_data *) s->s_fs_info;
+	info = (reiser4_super_info_data *) s->u.generic_sbp;
 	if (!info) {
 		/* mount failed */
 		s->s_op = 0;
@@ -2174,7 +2174,7 @@ static void reiser4_put_super (struct super_block *s)
 	__REISER4_EXIT (&__context);
 
 	kfree(info);
-	s->s_fs_info = NULL;
+	s->u.generic_sbp = NULL;
 }
 
 static void reiser4_write_super (struct super_block * s)
@@ -2278,6 +2278,10 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
+#if REISER4_STATS
+	++ get_super_private( page -> mapping -> host -> i_sb ) -> stats.level[ jnode_get_level( node ) ].page_try_release;
+#endif
+
 	/*
 	 * is_page_cache_freeable() check 
 	 *
@@ -2316,6 +2320,8 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 		page_clear_jnode( page, node );
 		spin_unlock_jnode( node );
 
+		reiser4_stat_add_at_level( jnode_get_level( node ), 
+					   page_released );
 		/*
 		 * we are under memory pressure so release jnode also.
 		 */
@@ -2425,7 +2431,7 @@ static int __init init_reiser4(void)
 	CHECK_INIT_RESULT( register_filesystem( &reiser4_fs_type ) );
 
 	assert( "nikita-2515", init_stage == INIT_FS_REGISTERED );
-//	notifier_chain_register( &low_mem_chain, &low_mem_test );
+	// notifier_chain_register( &low_mem_chain, &low_mem_test );
 	return 0;
 #undef CHECK_INIT_RESULT
 }
@@ -2448,7 +2454,7 @@ static struct file_system_type reiser4_fs_type = {
 	.owner     = THIS_MODULE,
 	.name      = "reiser4",
 	.get_sb    = reiser4_get_sb,
-	.kill_sb   = kill_block_super, // reiser4_kill_super,
+	.kill_sb   = kill_block_super,
 
 	/*
 	 * FIXME-NIKITA something more?
@@ -2556,7 +2562,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.put_inode          = reiser4_put_inode, */
 	.drop_inode         = reiser4_drop_inode, /* d */
  	.delete_inode       = reiser4_delete_inode, /* d */
-	.put_super          = reiser4_put_super,
+	.put_super          = reiser4_put_super /* d */,
  	.write_super        = reiser4_write_super,
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */
 /* 	.unlockfs           = reiser4_unlockfs, */

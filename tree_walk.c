@@ -64,7 +64,7 @@ static int lock_neighbor (
 	int flags
 	)
 {
-	reiser4_tree * tree = current_tree;
+	reiser4_tree * tree = znode_get_tree( node );
 	znode * neighbor;
 	int ret;
 	
@@ -136,9 +136,9 @@ int reiser4_get_parent (lock_handle * result /* resulting lock
 					      * we want to access still
 					      * unconnected parents. */ )
 {
-	assert("umka-238", current_tree != NULL);
+	assert("umka-238", znode_get_tree (node) != NULL);
 
-	return UNDER_SPIN(tree, current_tree,
+	return UNDER_SPIN(tree, znode_get_tree (node),
 			  lock_neighbor(result, node, PARENT_PTR_OFFSET, mode, 
 					ZNODE_LOCK_HIPRI, 
 					only_connected_p ? 0: GN_ALLOW_NOT_CONNECTED));
@@ -236,6 +236,7 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 {
 	int ret;
 	znode *node;
+	reiser4_tree *tree;
 	
 	assert("umka-243", coord != NULL);
 	assert("umka-244", handle != NULL);
@@ -249,11 +250,11 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 
 	if (ret) return ret;
 
-	spin_unlock_tree(current_tree);
+	node = handle->node;
+	tree = znode_get_tree(node);
+	spin_unlock_tree(tree);
 
 	coord_init_zero(coord);
-
-	node = handle->node;
 
 	/* corresponded zrelse() should be called by the clients of
 	 * far_next_coords(), in place when this node gets unlocked. */
@@ -261,14 +262,14 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 
 	if (ret) {
 		longterm_unlock_znode(handle);
-		spin_lock_tree(current_tree);
+		spin_lock_tree(tree);
 		return ret;
 	}
 
 	if (flags & GN_GO_LEFT) coord_init_last_unit(coord, node);
 	else                    coord_init_first_unit(coord, node);
 
-	spin_lock_tree(current_tree);
+	spin_lock_tree(tree);
 	return 0;
 }
 
@@ -285,7 +286,7 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 	/* parent of the neighbor node; we set it to parent until not sharing
 	 * of one parent between child and neighbor node is detected */
 	znode * side_parent = coord->node;
-	reiser4_tree *tree = current_tree;
+	reiser4_tree *tree = znode_get_tree(child);
 	znode * neighbor = NULL;
 	
 	assert("umka-245", coord != NULL);
@@ -397,7 +398,7 @@ static int connect_one_side (coord_t * coord, znode * node, int flags)
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 int connect_znode (coord_t * coord, znode * node)
 {
-	reiser4_tree * tree = current_tree;
+	reiser4_tree * tree = znode_get_tree (node);
 	int ret = 0;
 
 	assert("zam-330", coord != NULL);
@@ -457,7 +458,7 @@ static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int 
 {
 	coord_t local;
 	lock_handle empty[2];
-	reiser4_tree * tree = current_tree;
+	reiser4_tree * tree = znode_get_tree (node);
 	znode * neighbor = NULL;
 	int nr_locked = 0;
 	int ret;
@@ -541,7 +542,7 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 			  int flags /* logical OR of {GN_*} (see description
 				     * above) subset. */ )
 {
-	reiser4_tree * tree = current_tree;
+	reiser4_tree * tree = znode_get_tree(node);
 	lock_handle path[REAL_MAX_ZTREE_HEIGHT];
 
 	coord_t coord;
@@ -737,9 +738,9 @@ void sibling_list_insert_nolock (znode *new, znode *before)
 void sibling_list_insert (znode *new, znode *before)
 {
 	assert("umka-256", new != NULL);
-	assert("umka-257", current_tree != NULL);
+	assert("umka-257", znode_get_tree(new) != NULL);
 	
-	UNDER_SPIN_VOID(tree, current_tree,
+	UNDER_SPIN_VOID(tree, znode_get_tree(new),
 			sibling_list_insert_nolock(new, before));
 }
 

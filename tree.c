@@ -239,7 +239,7 @@ static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
 	cdata.key   = key;
 	op -> u.insert.d = &cdata;
 	if( flags == 0 )
-		flags = current_tree -> carry.insert_flags;
+		flags = znode_get_tree( coord -> node ) -> carry.insert_flags;
 	op -> u.insert.flags = flags;
 	op -> u.insert.type = COPT_ITEM_DATA;
 	op -> u.insert.child = 0;
@@ -293,7 +293,7 @@ static int paste_with_carry( coord_t *coord /* coord of paste */,
 	cdata.key   = key;
 	op -> u.paste.d = &cdata;
 	if( flags == 0 )
-		flags = current_tree -> carry.paste_flags;
+		flags = znode_get_tree( coord -> node ) -> carry.paste_flags;
 	op -> u.paste.flags = flags;
 	op -> u.paste.type  = COPT_ITEM_DATA;
 	if( lh != NULL ) {
@@ -344,7 +344,8 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
 	assert( "vs-249", data -> length > 0 );
 	assert( "nikita-1191", znode_is_write_locked( coord -> node ) );
 
-	WRITE_TRACE( current_tree, tree_insert, key, data, coord, flags );
+	WRITE_TRACE( znode_get_tree( coord -> node ),
+		     tree_insert, key, data, coord, flags );
 
 	node = coord -> node;
 	result = zload( node );
@@ -459,7 +460,8 @@ int insert_into_item( coord_t *coord /* coord of pasting */,
 
 	assert( "nikita-1480", iplug == data -> iplug );
 
-	WRITE_TRACE( current_tree, tree_paste, key, data, coord, flags );
+	WRITE_TRACE( znode_get_tree( coord -> node ), 
+		     tree_paste, key, data, coord, flags );
 
 	size_change = space_needed( coord -> node, coord, data, 0 );
 	if( size_change > ( int ) znode_free_space( coord -> node ) &&
@@ -620,7 +622,7 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 
 	assert( "nikita-1374", parent_coord != NULL );
 	assert( "nikita-1482", parent != NULL );
-	assert( "nikita-1384", spin_dk_is_locked( current_tree ) );
+	assert( "nikita-1384", spin_dk_is_locked( znode_get_tree( parent ) ) );
 
 	if( znode_get_level( parent ) <= LEAF_LEVEL ) {		
 		/*
@@ -639,7 +641,7 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 		assert( "vs-512", iplug -> s.internal.down_link );
 		iplug -> s.internal.down_link( parent_coord, NULL, &addr );
 
-		tree = current_tree;
+		tree = znode_get_tree( parent );
 		spin_unlock_dk( tree );
 		if( incore_p )
 			child = zlook( tree, &addr );
@@ -703,7 +705,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 #endif
 		return 0;
 	}
-	sdata = ( reiser4_super_info_data* ) super -> s_fs_info;
+	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
 	tree  = & sdata -> tree;
 
 	context -> super = super;
@@ -949,6 +951,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	node_plugin       *nplug;
 	/* left delimiting key of a child */
 	reiser4_key        ld;
+	reiser4_tree      *tree;
 
 	assert( "nikita-934", parent != NULL );
 	assert( "nikita-935", child != NULL );
@@ -964,7 +967,8 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-939", nplug != NULL );
 
 
-	spin_lock_tree( current_tree );
+	tree = znode_get_tree( parent );
+	spin_lock_tree( tree );
 	/*
 	 * fast path. Try to use cached value. Lock tree to keep
 	 * node->pos_in_parent and pos->*_blocknr consistent.
@@ -973,20 +977,20 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 		reiser4_stat_tree_add( pos_in_parent_set );
 		xmemcpy( result, &child -> in_parent, sizeof *result );
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
-			spin_unlock_tree( current_tree );
+			spin_unlock_tree( tree );
 			return NS_FOUND;
 		}
 
 		reiser4_stat_tree_add( pos_in_parent_miss );
 		coord_set_item_pos( &child -> in_parent, ~0u );
 	}
-	spin_unlock_tree( current_tree );
+	spin_unlock_tree( tree );
 
 	/*
 	 * is above failed, find some key from @child. We are looking for the
 	 * least key in a child.
 	 */
-	spin_lock_dk( current_tree );
+	spin_lock_dk( tree );
 	ld = *znode_get_ld_key( child );
 	/*
 	 * now, lookup parent with key just found.
@@ -994,13 +998,13 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	lookup_res = nplug -> lookup( parent, &ld, FIND_EXACT, result );
 	/* update cached pos_in_node */
 	if( lookup_res == NS_FOUND ) {
-		spin_lock_tree( current_tree );
+		spin_lock_tree( tree );
 		child -> in_parent = *result;
 		child -> in_parent.between = AT_UNIT;
-		spin_unlock_tree( current_tree );
+		spin_unlock_tree( tree );
 		lookup_res = check_tree_pointer( result, child );
 	}
-	spin_unlock_dk( current_tree );
+	spin_unlock_dk( tree );
 	if( lookup_res == NS_NOT_FOUND )
 		lookup_res = find_child_by_addr( parent, child, result );
 	return lookup_res;
@@ -1031,7 +1035,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 
 	for_all_units( result, parent ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
-			UNDER_SPIN_VOID( tree, current_tree,
+			UNDER_SPIN_VOID( tree, znode_get_tree( parent ),
 					 child -> in_parent = *result );
 			ret = NS_FOUND;
 			break;
@@ -1250,7 +1254,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		return 0;
 	}
 
-	left_child = UNDER_SPIN (dk, current_tree,
+	left_child = UNDER_SPIN (dk, znode_get_tree(left_coord.node),
 				 child_znode (&left_coord, left_coord.node, 0,
 					      1/* update delimiting keys*/));
 	if (IS_ERR (left_child)) {
@@ -1296,7 +1300,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			case -ENAVAIL:
 				/* there is no formatted node to the right of
 				 * from->node */
-				UNDER_SPIN_VOID (dk, current_tree,
+				UNDER_SPIN_VOID (dk, znode_get_tree(from->node),
 						 key = *znode_get_rd_key (from->node));
 				right_coord.node = 0;
 				break;
@@ -1318,8 +1322,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		if (right_coord.node && /* there is right neighbor of @from */
 		    item_is_internal (&right_coord)) { /* it is internal item */
 			right_child = UNDER_SPIN 
-				(dk, current_tree,
-				 child_znode (&right_coord, 
+				(dk, znode_get_tree (right_coord.node),
+				 child_znode (&right_coord,
 					      right_coord.node, 0,
 					      1/* update delimiting keys*/));
 
@@ -1335,7 +1339,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			}
 
 			/* link left_child and right_child */
-			UNDER_SPIN_VOID (tree, current_tree,
+			UNDER_SPIN_VOID (tree, znode_get_tree (right_coord.node),
 					 link_left_and_right (left_child, 
 							      right_child));
 			zput (right_child);
@@ -1355,7 +1359,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 
 	/* update right delimiting key of left_child */
 
-	UNDER_SPIN_VOID (dk, current_tree,
+	UNDER_SPIN_VOID (dk, znode_get_tree (left_child),
 			 *znode_get_rd_key (left_child) = key);
 
 	zput (left_child);
@@ -1890,7 +1894,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			child = UNDER_SPIN
-				( dk, current_tree,
+				( dk, znode_get_tree( coord.node ),
 				  child_znode( &coord, coord.node, 
 					       ( int )( flags & REISER4_NODE_ONLY_INCORE ),
 					       0 ) );

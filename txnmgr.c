@@ -1904,7 +1904,7 @@ void jnode_set_dirty( jnode *node )
 		reiser4_tree *tree;
 		znode        *z;
 
-		tree = current_tree;
+		tree = jnode_get_tree (node);
 		z = JZNODE (node);
 		/* bump version counter in znode */
 		z->version = UNDER_SPIN (tree, tree, ++ tree->znode_epoch);

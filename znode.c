@@ -328,20 +328,19 @@ static znode *zalloc( int gfp_flag /* allocation flag */ )
 /** initialise fields of znode */
 /* Audited by: umka (2002.06.11), umka (2002.06.15) */
 static void zinit( znode *node /* znode to initialise */, 
-		   znode *parent /* parent znode */ )
+		   znode *parent /* parent znode */,
+		   reiser4_tree *tree /* tree we are in */ )
 {
-	reiser4_tree *tree;
-
 	assert( "nikita-466", node != NULL );
 	assert( "umka-268", current_tree != NULL );
 	
 	xmemset( node, 0, sizeof *node );
-	jnode_init( &node -> zjnode );
-	reiser4_init_lock( &node -> lock );
 
-	tree = current_tree;
 	assert( "umka-051", tree != NULL );
 	
+	jnode_init( &node -> zjnode, tree );
+	reiser4_init_lock( &node -> lock );
+
 	spin_lock_tree( tree );
 	coord_init_parent_hint (&node -> in_parent, parent);
 	node -> version = ++ tree -> znode_epoch;
@@ -398,13 +397,15 @@ int znode_rehash( znode *node /* node to rehash */,
 		  const reiser4_block_nr *new_block_nr /* new block number */ )
 {
 	z_hash_table *htable;
+	reiser4_tree *tree;
 
 	assert( "nikita-2018", node != NULL );
 	assert( "umka-052", current_tree != NULL );
 
-	htable  = &current_tree -> zhash_table;
+	tree = znode_get_tree( node );
+	htable = &tree -> zhash_table;
 
-	spin_lock_tree( current_tree );
+	spin_lock_tree( tree );
 	/* remove znode from hash-table */
 	z_hash_remove( htable, node );
 
@@ -416,7 +417,7 @@ int znode_rehash( znode *node /* node to rehash */,
 
 	/* insert it into hash */
 	z_hash_insert( htable, node );
-	spin_unlock_tree( current_tree );
+	spin_unlock_tree( tree );
 	return 0;
 }
 
@@ -578,7 +579,7 @@ zget (reiser4_tree *tree,
 		
 		/* Initialize znode before checking for a race and inserting.  Since this
 		 * is a freshly allocated znode there is no need to lock it here. */
-		zinit (result, parent);
+		zinit (result, parent, tree);
 
 		ZJNODE(result)->blocknr = *blocknr;
 		ZJNODE(result)->key.z   = *blocknr;
@@ -653,10 +654,10 @@ static node_plugin *znode_guess_plugin( const znode *node /* znode to guess
 	assert( "umka-053", current_tree != NULL );
 
 	if( reiser4_is_set( reiser4_get_current_sb(), REISER4_ONE_NODE_PLUGIN ) ) {
-		return current_tree -> nplug;
+		return znode_get_tree( node ) -> nplug;
 	} else {
 		return node_plugin_by_disk_id
-			( current_tree, 
+			( znode_get_tree( node ),
 			  &( ( common_node_header * ) zdata( node ) ) -> plugin_id );
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
@@ -767,7 +768,7 @@ int znode_is_loaded( const znode *node /* znode to query */ )
 reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-958", node != NULL );
-	assert( "nikita-1661", spin_dk_is_locked( current_tree ) );
+	assert( "nikita-1661", spin_dk_is_locked( znode_get_tree( node ) ) );
 
 	return &node -> rd_key;
 }
@@ -777,7 +778,7 @@ reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 reiser4_key *znode_get_ld_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-974", node != NULL );
-	assert( "nikita-1662", spin_dk_is_locked( current_tree ) );
+	assert( "nikita-1662", spin_dk_is_locked( znode_get_tree( node ) ) );
 
 	return &node -> ld_key;
 }
@@ -806,7 +807,8 @@ int znode_contains_key_lock( znode *node /* znode to look in */,
 	assert( "umka-057", key != NULL );
 	assert( "umka-058", current_tree != NULL );
 
-	return UNDER_SPIN( dk, current_tree, znode_contains_key( node, key ) );
+	return UNDER_SPIN( dk, znode_get_tree( node ), 
+			   znode_contains_key( node, key ) );
 }
 
 /** get parent pointer, assuming tree is not locked */
@@ -846,7 +848,7 @@ int znode_is_true_root( const znode *node /* znode to query */ )
 	assert( "umka-061", current_tree != NULL );
 	
 	return disk_addr_eq( znode_get_block( node ), 
-			     &current_tree -> root_block );
+			     &znode_get_tree( node ) -> root_block );
 }
 
 /** check that @node is root */
@@ -858,16 +860,16 @@ int znode_is_root( const znode *node /* znode to query */ )
 	assert( "nikita-1206", node != NULL );
 	assert( "umka-062", current_tree != NULL );
 	
-	result = znode_get_level (node) == current_tree -> height;
+	result = znode_get_level( node ) == znode_get_tree( node ) -> height;
 	if( REISER4_DEBUG ) {
-		spin_lock_tree( current_tree );
+		spin_lock_tree( znode_get_tree( node ) );
 		assert( "nikita-1208", !result || znode_is_true_root( node ) );
 		assert( "nikita-1209", !result ||
 			znode_get_level( znode_parent( node ) ) == 0 );
 		assert( "nikita-1212", !result ||
 			( ( node -> left == NULL ) && 
 			  ( node -> right == NULL ) ) );
-		spin_unlock_tree( current_tree );
+		spin_unlock_tree( znode_get_tree( node ) );
 	}
 	return result;
 }
@@ -1045,13 +1047,13 @@ int znode_invariant( const znode *node /* znode to check */ )
 	assert( "umka-064", current_tree != NULL );
 	
 	spin_lock_znode( ( znode * ) node );
-	spin_lock_tree( current_tree );
+	spin_lock_tree( znode_get_tree( node ) );
 	result = znode_invariant_f( node, &failed_msg );
 	if( !result ) {
 		print_znode( "corrupted node", node );
 		warning( "jmacd-555", "Condition %s failed", failed_msg );
 	}
-	spin_unlock_tree( current_tree );
+	spin_unlock_tree( znode_get_tree( node ) );
 	spin_unlock_znode( ( znode * ) node );
 	return result;
 }
@@ -1212,7 +1214,7 @@ int znode_x_count_is_protected( const znode *node )
 {
 	assert( "nikita-2518", node != NULL );
 	return ergo( atomic_read( &ZJNODE( node ) -> x_count ) == 0,
-		     spin_tree_is_locked( current_tree ) );
+		     spin_tree_is_locked( znode_get_tree( node ) ) );
 }
 
 #endif
