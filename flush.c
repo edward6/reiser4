@@ -208,6 +208,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	atomic_inc (& flush_cnt);
 	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
+        
+        /* temporary debugging code*/
 	if (FLUSH_SERIALIZE) {
 		if (atomic_read (& flush_cnt) > 1) {
 			/*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
@@ -218,6 +220,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	spin_lock_jnode (node);
 
 	/* a special case for znode-above-root */
+/* JMACD-FIXME-HANS: comment? */
 	if (jnode_is_formatted(node) && znode_above_root(JZNODE(node))) {
 		/* just pass dirty znode-above-root to overwrite set */
 		JF_SET(node, ZNODE_WANDER);
@@ -227,6 +230,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
+/* JMACD-FIXME-HANS: comment? */
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
 	if (! jnode_is_dirty (node) ||
 	    (jnode_is_formatted (node) && !znode_is_connected (JZNODE (node))) ||
@@ -240,6 +244,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
+/* JMACD-FIXME-HANS: comment? */
 	if (jnode_is_allocated (node)) {
 		/* Already has been assigned a block number, just write it again? */
 		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
@@ -258,6 +263,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
+/* JMACD-FIXME-HANS: comment? */
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		goto clean_out;
 	}
@@ -369,6 +375,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 
+/* JMACD-FIXME-HANS: comment? */
  clean_out:
 
 	/* wait for io completion */
