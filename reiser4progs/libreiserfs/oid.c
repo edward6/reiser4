@@ -1,0 +1,56 @@
+/*
+    oid.c -- oid allocator common code and API functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
+*/
+
+#include <aal/aal.h>
+#include <reiserfs/reiserfs.h>
+
+error_t reiserfs_oid_init(reiserfs_fs_t *fs) {
+    reiserfs_plugin_id_t plugin_id;
+	
+    aal_assert("umka-518", fs != NULL, return -1);
+    aal_assert("umka-519", fs->format != NULL, return -1);
+
+    if (!(fs->oid = aal_calloc(sizeof(*fs->oid), 0)))
+	return -1;
+    
+    plugin_id = reiserfs_format_oid_plugin_id(fs);
+    if (!(fs->oid->plugin = reiserfs_plugins_find_by_coords(REISERFS_OID_PLUGIN, plugin_id))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find oid allocator plugin by its id %x.", plugin_id);
+	goto error_free_oid;
+    }
+
+    if (!(fs->oid->entity = reiserfs_format_oid(fs))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't initialize oid allocator.");
+	goto error_free_oid;
+    }
+
+    return 0;
+    
+error_free_oid:
+    aal_free(fs->oid);
+    fs->oid = NULL;
+error:
+    return -1;
+}
+
+void reiserfs_oid_close(reiserfs_fs_t *fs) {
+    aal_assert("umka-520", fs != NULL, return);
+    aal_assert("umka-523", fs->oid != NULL, return);
+
+    aal_free(fs->oid);
+    fs->oid = NULL;
+}
+
+uint64_t reiserfs_oid_alloc(reiserfs_fs_t *fs) {
+    aal_assert("umka-521", fs != NULL, return 0);
+    aal_assert("umka-522", fs->oid != NULL, return 0);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, alloc, return 0);
+    return fs->oid->plugin->oid.alloc(fs->oid->entity);
+}
+
