@@ -928,7 +928,7 @@ commit_txnh (txn_handle *txnh)
 	txnh_list_remove (txnh);
 
 	trace_on (TRACE_TXN, "close txnh atom %u refcount %d\n", atom->atom_id, atom->refcount-1);
-	
+
 	spin_unlock_txnh (txnh);
 	atom_dec_and_unlock (atom);
 
@@ -956,7 +956,7 @@ int memory_pressure (struct super_block *super)
 	txnh = get_current_context ()->trans;
 
 	assert("umka-288", txnh != NULL);
-	
+
 	spin_lock_txnh (txnh);
 	spin_lock_txnmgr (mgr);
 
