@@ -34,10 +34,18 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
    LOCKING: 
 
    fq->guard spin lock protects fq->atom pointer and nothing else.  fq->prepped
-   list protected by atom spin lock.  For modification of fq->send both atom
-   spin lock and "in-use" fq state are needed. To safely traverse fq->sent list
-   only one locking (fq state or atom spin lock) is enough. atom->fq_list and
-   fq->state protected by atom spin lock.
+   list protected by atom spin lock.  fq->prepped list uses the following
+   locking:
+
+   two ways to protect fq->prepped list for read-only list traversal:
+
+   1. atom spin-lock atom.
+   2. fq is IN_USE, atom->nr_running_queues increased.
+
+   and one for list modification:
+
+   1. atom is spin-locked and one condition is true: fq is IN_USE or
+      atom->nr_running_queues == 0.
 
    The deadlock-safe order for flush queues and atoms is: first lock atom, then
    lock flush queue, then lock jnode.
