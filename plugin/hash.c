@@ -273,7 +273,7 @@ static __u64 fnv1_hash( const unsigned char *name /* name to hash */,
 /** degenerate hash function used to simplify testing of non-unique key
  * handling */
 static __u64 deg_hash( const unsigned char *name /* name to hash */, 
-		       int len /* @name's length */ )
+		       int len UNUSED_ARG /* @name's length */ )
 {
 	trace_on( TRACE_DIR, "Hashing %s\n", name );
 	return 0xc0c0c0c010101010ull;
