@@ -205,6 +205,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
 	reiser4_context ctx;
+	struct inode *inode;
 
 	/*
 	 * this is called for each truncated page from
@@ -216,20 +217,21 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
-
-	assert("vs-1426", ergo(PagePrivate(page) && get_super_fake(page->mapping->host->i_sb) != page->mapping->host, ((page->mapping->host->i_state & I_JNODES) &&
-														       (reiser4_inode_data(page->mapping->host)->jnodes > 0))));
+	inode = page->mapping->host;
+	assert("vs-1426", ergo(PagePrivate(page) && get_super_fake(inode->i_sb) != inode, ((inode->i_state & I_JNODES) &&
+											   (reiser4_inode_data(inode)->jnodes > 0))));
 	assert("vs-1427", ergo(PagePrivate(page), page->mapping == jnode_get_mapping(jnode_by_page(page))));
+	assert("vs-1449", !test_bit(PG_arch_1, &page->flags));
 
-	init_context(&ctx, page->mapping->host->i_sb);
+	init_context(&ctx, inode->i_sb);
 	/* capture page being truncated. */
 	ret = try_capture_page_to_invalidate(page);
 	if (ret != 0) {
 		warning("nikita-3141", "Cannot capture: %i", ret);
 		print_page("page", page);
 	} else
-		assert("vs-1425", ((page->mapping->host->i_state & I_JNODES) &&
-				   (reiser4_inode_data(page->mapping->host)->jnodes > 0)));
+		assert("vs-1425", ((inode->i_state & I_JNODES) &&
+				   (reiser4_inode_data(inode)->jnodes > 0)));
 
 
 	if (offset == 0) {
