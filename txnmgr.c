@@ -64,7 +64,7 @@ static void   uncapture_block                 (txn_atom   *atom,
 /* Local debugging */
 void          atom_print                      (txn_atom   *atom);
 
-#define JNODE_ID(x) ((x)->blocknr.blk)
+#define JNODE_ID(x) ((x)->blocknr)
 
 /****************************************************************************************
 				    GENERIC STRUCTURES
@@ -1302,10 +1302,7 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 
 	trace_on (TRACE_TXN, "thread %u waitfor %u waiting %u\n", (unsigned) pthread_self (), atomf->atom_id, atomh ? atomh->atom_id : 0);
 
-	/* Go to sleep.
-	 *
-	 * FIXME_JMACD This smells: the whole lock_stack condition variable thing is a
-	 * mess.  I think there is a race condition here. -josh */
+	/* Go to sleep. */
 	spin_unlock_txnh (txnh);
 	
 	if ((ret = prepare_to_sleep (wlinks._lock_stack)) != 0) {
