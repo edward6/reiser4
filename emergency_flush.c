@@ -193,8 +193,6 @@ emergency_flush(struct page *page)
 				assert("nikita-2759", efnode != NULL);
 				eflush_add(node, &blk, efnode);
 
-				spin_unlock_jnode(node);
-				
 				/* XXX JNODE_WRITEBACK bit is not set here */
 				result = page_io(page, 
 						 node, WRITE, GFP_NOFS | __GFP_HIGH);
@@ -410,45 +408,48 @@ ef_alloc(int flags)
 static int
 eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 {
+	reiser4_tree  *tree;
+
 	assert("nikita-2737", node != NULL);
 	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-2765", spin_jnode_is_locked(node));
 
-	if (ef == NULL)
-		ef = ef_alloc(GFP_NOFS);
-	if (ef != NULL) {
-		reiser4_tree  *tree;
+	tree = jnode_get_tree(node);
 
-		tree = jnode_get_tree(node);
+	ef->node = node;
+	ef->blocknr = *blocknr;
+	jref(node);
+	spin_lock_tree(tree);
+	ef_hash_insert(get_jnode_enhash(node), ef);
+	++ get_super_private(tree->super)->eflushed;
+	spin_unlock_tree(tree);
+	/*
+	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
+	 * point. We are safe, because page it is still attached to both @node
+	 * and its inode. Page cannot be released at this point, because it is
+	 * locked.
+	 */
+	JF_SET(node, JNODE_EFLUSH);
+	spin_unlock_jnode(node);
 
-		ef->node = node;
-		ef->blocknr = *blocknr;
-		jref(node);
-		spin_lock_tree(tree);
-		ef_hash_insert(get_jnode_enhash(node), ef);
-		++ get_super_private(tree->super)->eflushed;
-		spin_unlock_tree(tree);
-		JF_SET(node, JNODE_EFLUSH);
-		if (jnode_is_unformatted(node)) {
-			struct inode  *inode;
-			reiser4_inode *info;
+	if (jnode_is_unformatted(node)) {
+		struct inode  *inode;
+		reiser4_inode *info;
 
-			inode = jnode_mapping(node)->host;
-			info = reiser4_inode_data(inode);
-			/* pin inode containing eflushed pages. Otherwise it
-			 * may get evicted */
-			spin_lock_inode(inode);
-			if (info->eflushed == 0) {
-				spin_lock(&inode_lock);
-				__iget(inode);
-				spin_unlock(&inode_lock);
-			}
-			++ info->eflushed;
-			spin_unlock_inode(inode);
+		inode = jnode_mapping(node)->host;
+		info = reiser4_inode_data(inode);
+		/* pin inode containing eflushed pages. Otherwise it
+		 * may get evicted */
+		spin_lock_inode(inode);
+		if (info->eflushed == 0) {
+			spin_lock(&inode_lock);
+			__iget(inode);
+			spin_unlock(&inode_lock);
 		}
-		return 0;
-	} else
-		return -ENOMEM;
+		++ info->eflushed;
+		spin_unlock_inode(inode);
+	}
+	return 0;
 }
 
 /* Arrghh... cast to keep hash table code happy. */
