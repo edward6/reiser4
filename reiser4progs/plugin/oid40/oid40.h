@@ -14,7 +14,7 @@
 struct reiserfs_oid40 {
     aal_block_t *block;
     uint16_t offset;
-    uint64_t current;
+    uint64_t next;
 };
 
 typedef struct reiserfs_oid40 reiserfs_oid40_t;

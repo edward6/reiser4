@@ -30,7 +30,7 @@ static reiserfs_opaque_t *reiserfs_oid40_open(aal_block_t *block, uint16_t offse
     
     oid->block = block;
     oid->offset = offset;
-    oid->current = *((uint64_t *)(block->data + offset));
+    oid->next = *((uint64_t *)(block->data + offset));
     
     return oid;
 }
@@ -45,9 +45,9 @@ static reiserfs_opaque_t *reiserfs_oid40_create(aal_block_t *block, uint16_t off
     
     oid->block = block;
     oid->offset = offset;
-    oid->current = REISERFS_OID40_RESERVED;
+    oid->next = REISERFS_OID40_RESERVED;
     
-    *((uint64_t *)(block->data + offset)) = oid->current;
+    *((uint64_t *)(block->data + offset)) = oid->next;
     
     return oid;
 }
@@ -59,13 +59,23 @@ static void reiserfs_oid40_close(reiserfs_oid40_t *oid) {
 
 static uint64_t reiserfs_oid40_alloc(reiserfs_oid40_t *oid) {
     aal_assert("umka-513", oid != NULL, return 0);
-    return oid->current++;
+    return oid->next++;
+}
+
+static void reiserfs_oid40_dealloc(reiserfs_oid40_t *oid, uint64_t inode) {
+    aal_assert("umka-528", oid != NULL, return);
+    oid->next--;
+}
+
+static uint64_t reiserfs_oid40_next(reiserfs_oid40_t *oid) {
+    aal_assert("umka-529", oid != NULL, return 0);
+    return oid->next;
 }
 
 static error_t reiserfs_oid40_sync(reiserfs_oid40_t *oid) {
     aal_assert("umka-514", oid != NULL, return -1);
     
-    *((uint64_t *)(oid->block->data + oid->offset)) = oid->current;
+    *((uint64_t *)(oid->block->data + oid->offset)) = oid->next;
     return 0;
 }
 
@@ -84,7 +94,8 @@ static reiserfs_plugin_t oid40_plugin = {
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_oid40_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_oid40_sync,
 	.alloc = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_alloc,
-	.dealloc = NULL
+	.dealloc = (void (*)(reiserfs_opaque_t *, uint64_t))reiserfs_oid40_dealloc,
+	.next = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_next,
     }
 };
 

@@ -269,19 +269,19 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_super;
     }
     
-    reiserfs_check_method(alloc_plugin->alloc, use, goto error_free_alloc);
+    reiserfs_check_method(alloc_plugin->alloc, mark, goto error_free_alloc);
     
     /* Marking the skiped area (0-16 blocks) as used */
     for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / 
 	    aal_device_get_blocksize(host_device)); blk++)
-	alloc_plugin->alloc.use(format->alloc, blk);
+	alloc_plugin->alloc.mark(format->alloc, blk);
     
     /* Marking master super block as used */
-    alloc_plugin->alloc.use(format->alloc, (REISERFS_MASTER_OFFSET / 
+    alloc_plugin->alloc.mark(format->alloc, (REISERFS_MASTER_OFFSET / 
 	aal_device_get_blocksize(host_device)));
     
     /* Marking format-specific super block as used */
-    alloc_plugin->alloc.use(format->alloc, (REISERFS_FORMAT40_OFFSET / 
+    alloc_plugin->alloc.mark(format->alloc, (REISERFS_FORMAT40_OFFSET / 
 	aal_device_get_blocksize(host_device)));
     
     if (!(journal_plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
@@ -300,10 +300,10 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     }
 
     /* Marking journal blocks as used */
-    alloc_plugin->alloc.use(format->alloc, (REISERFS_JOURNAL40_HEADER / 
+    alloc_plugin->alloc.mark(format->alloc, (REISERFS_JOURNAL40_HEADER / 
 	aal_device_get_blocksize(host_device)));
     
-    alloc_plugin->alloc.use(format->alloc, (REISERFS_JOURNAL40_FOOTER / 
+    alloc_plugin->alloc.mark(format->alloc, (REISERFS_JOURNAL40_FOOTER / 
 	aal_device_get_blocksize(host_device)));
     
     if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
@@ -325,8 +325,8 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-/*    reiserfs_check_method(oid_plugin->oid, alloc, goto error_free_oid);
-    set_sb_oid(super, oid_plugin->oid.alloc(format->oid));*/
+    reiserfs_check_method(oid_plugin->oid, next, goto error_free_oid);
+    set_sb_oid(super, oid_plugin->oid.next(format->oid));
     
     return format;
 

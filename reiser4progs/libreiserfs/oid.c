@@ -54,3 +54,19 @@ uint64_t reiserfs_oid_alloc(reiserfs_fs_t *fs) {
     return fs->oid->plugin->oid.alloc(fs->oid->entity);
 }
 
+void reiserfs_oid_dealloc(reiserfs_fs_t *fs, uint64_t oid) {
+    aal_assert("umka-524", fs != NULL, return);
+    aal_assert("umka-525", fs->oid != NULL, return);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, dealloc, return);
+    fs->oid->plugin->oid.dealloc(fs->oid->entity, oid);
+}
+
+uint64_t reiserfs_oid_next(reiserfs_fs_t *fs) {
+    aal_assert("umka-526", fs != NULL, return 0);
+    aal_assert("umka-527", fs->oid != NULL, return 0);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, next, return 0);
+    return fs->oid->plugin->oid.next(fs->oid->entity);
+}
+

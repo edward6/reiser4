@@ -86,20 +86,20 @@ count_t reiserfs_alloc_used(reiserfs_fs_t *fs) {
     return fs->alloc->plugin->alloc.used(fs->alloc->entity);
 }
 
-void reiserfs_alloc_use(reiserfs_fs_t *fs, blk_t blk) {
+void reiserfs_alloc_mark(reiserfs_fs_t *fs, blk_t blk) {
     aal_assert("umka-500", fs != NULL, return);
     aal_assert("umka-501", fs->alloc != NULL, return);
 
-    reiserfs_check_method(fs->alloc->plugin->alloc, use, return);
-    fs->alloc->plugin->alloc.use(fs->alloc->entity, blk);
+    reiserfs_check_method(fs->alloc->plugin->alloc, mark, return);
+    fs->alloc->plugin->alloc.mark(fs->alloc->entity, blk);
 }
 
-void reiserfs_alloc_unuse(reiserfs_fs_t *fs, blk_t blk) {
+void reiserfs_alloc_dealloc(reiserfs_fs_t *fs, blk_t blk) {
     aal_assert("umka-502", fs != NULL, return);
     aal_assert("umka-503", fs->alloc != NULL, return);
 
-    reiserfs_check_method(fs->alloc->plugin->alloc, unuse, return);
-    fs->alloc->plugin->alloc.unuse(fs->alloc->entity, blk);
+    reiserfs_check_method(fs->alloc->plugin->alloc, dealloc, return);
+    fs->alloc->plugin->alloc.dealloc(fs->alloc->entity, blk);
 }
 
 blk_t reiserfs_alloc_alloc(reiserfs_fs_t *fs) {

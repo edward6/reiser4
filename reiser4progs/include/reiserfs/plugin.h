@@ -251,6 +251,8 @@ struct reiserfs_oid_plugin {
     
     uint64_t (*alloc) (reiserfs_opaque_t *);
     void (*dealloc) (reiserfs_opaque_t *, uint64_t);
+    
+    uint64_t (*next) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
@@ -263,10 +265,10 @@ struct reiserfs_alloc_plugin {
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
 
-    void (*use) (reiserfs_opaque_t *, blk_t);
-    void (*unuse) (reiserfs_opaque_t *, blk_t);
+    void (*mark) (reiserfs_opaque_t *, blk_t);
     
     blk_t (*alloc) (reiserfs_opaque_t *);
+    void (*dealloc) (reiserfs_opaque_t *, blk_t);
 
     count_t (*free) (reiserfs_opaque_t *);
     count_t (*used) (reiserfs_opaque_t *);

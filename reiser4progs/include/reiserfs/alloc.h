@@ -19,8 +19,9 @@ extern void reiserfs_alloc_close(reiserfs_fs_t *fs);
 extern count_t reiserfs_alloc_free(reiserfs_fs_t *fs);
 extern count_t reiserfs_alloc_used(reiserfs_fs_t *fs);
 
-extern void reiserfs_alloc_use(reiserfs_fs_t *fs, blk_t blk);
-extern void reiserfs_alloc_unuse(reiserfs_fs_t *fs, blk_t blk);
+extern void reiserfs_alloc_mark(reiserfs_fs_t *fs, blk_t blk);
+
+extern void reiserfs_alloc_dealloc(reiserfs_fs_t *fs, blk_t blk);
 extern blk_t reiserfs_alloc_alloc(reiserfs_fs_t *fs);
 
 #endif
