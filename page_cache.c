@@ -690,7 +690,7 @@ invalidate_unformatted(jnode *node)
 
 #define JNODE_GANG_SIZE (16)
 
-static int
+reiser4_internal int
 truncate_inode_jnodes_range(struct inode *inode, unsigned long from, unsigned long count)
 {
 	reiser4_inode *info;
