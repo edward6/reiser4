@@ -1287,6 +1287,9 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 
 	assert("zam-940", item_is_internal(&cut_from));
 
+	/* @node should be deleted after unlocking. */
+	ZF_SET(node, JNODE_HEARD_BANSHEE);
+
 	/* remove a pointer from the parent node to the node being deleted. */
 	coord_dup(&cut_to, &cut_from);
 	ret = cut_node(&cut_from, &cut_to, NULL, NULL, NULL, 0, 0, NULL);
@@ -1294,9 +1297,6 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 		/* FIXME(Zam): Should we re-connect the node to its parent if
 		 * cut_node fails? */
 		goto failed;
-
-	/* @node should be deleted after unlocking. */
-	ZF_SET(node, JNODE_HEARD_BANSHEE);
 
 	{
 		reiser4_tree * tree = current_tree;
