@@ -668,38 +668,16 @@ atom_try_commit_locked (txn_atom *atom)
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
-#if 0	
+#ifdef WRITE_LOG 	
 	/* We unlock atom to allow journal writer and others (block allocator
 	 * hooks) to do things which may schedule, like memory allocation or
 	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
 	 * can't be fused */
 	spin_unlock_atom (atom);
 
-	/* isolate critical code path which should be executed by only one thread using
- 	 * tmgr semaphore */
-	down (&private->tmgr.commit_semaphore);
-
-	do {
-		pre_commit_hook ();
-#ifdef WRITE_LOG
-		ret = alloc_wandered_blocks();
-		if (ret) break;
-
-		/* write transaction log records in a manner which allows further
-		 * transaction recovery after a system crash */
-		ret = reiser4_write_logs();
-#endif
-	} while (0);
-
-	up (&private->tmgr.commit_semaphore);
-
+	ret = reiser4_write_logs();
 	if (ret) return ret;
-#ifdef WRITE_LOG
-	/* FIXME: force write-back should be here */
 
-	ret = reiser4_flush_logs();
-	if (ret) return ret;
-#endif
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);
 #endif
