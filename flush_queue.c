@@ -409,7 +409,10 @@ static void release_prepped_list(flush_queue_t * fq)
 	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 
 	while(!capture_list_empty(&fq->prepped)) {
-		jnode * cur = capture_list_pop_front(&fq->prepped);
+		jnode * cur;
+
+		cur = capture_list_front(&fq->prepped);
+		capture_list_remove_clean(cur);
 
 		count_dequeued_node(fq);
 		LOCK_JNODE(cur);
