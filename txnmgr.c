@@ -1853,7 +1853,7 @@ repeat:
 
 		/* Although this may appear to be a busy loop, it is not.  There are
 		   several conditions that cause EAGAIN to be returned by the call to
-		   txn_block_try_capture, all cases indicating some kind of state
+		   try_capture_block, all cases indicating some kind of state
 		   change that means you should retry the request and will get a different
 		   result.  In some cases this could be avoided with some extra code, but
 		   generally it is done because the necessary locks were released as a
@@ -2513,6 +2513,41 @@ void jnode_make_reloc (jnode * node, flush_queue_t * fq)
 	
 }
 
+/*
+ * in transaction manager jnode spin lock and transaction handle spin lock
+ * nest within atom spin lock. During capturing we are in a situation when
+ * jnode and transaction handle spin locks are held and we want to manipulate
+ * atom's data (capture lists, and txnh list) to add node and/or handle to the
+ * atom. Releasing jnode (or txnh) spin lock at this point is unsafe, because
+ * concurrent fusion can render assumption made by capture so far (about
+ * ->atom pointers in jnode and txnh) invalid. Initial code used try-lock and
+ * if atom was busy returned -EAGAIN to the top level. This can lead to the
+ * busy loop if atom is locked for long enough time. Function below tries to
+ * throttle this loop.
+ *
+ */
+static int
+trylock_throttle(txn_atom *atom, txn_handle * txnh, jnode * node)
+{
+	assert("nikita-3224", atom != NULL);
+	assert("nikita-3225", txnh != NULL);
+	assert("nikita-3226", node != NULL);
+
+	assert("nikita-3227", spin_txnh_is_locked(txnh));
+	assert("nikita-3229", spin_jnode_is_locked(node));
+
+	if (unlikely(!spin_trylock_atom(atom))) {
+		atomic_inc(&atom->refcount);
+
+		UNLOCK_JNODE(node);
+		UNLOCK_TXNH(txnh);
+
+		UNDER_SPIN_VOID(atom, atom, atomic_dec(&atom->refcount));
+		return -EAGAIN;
+	} else
+		return 0;
+}
+
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
    the atom lock is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Since
    the transaction handle is currently open, we know the atom must also be open. */
@@ -2528,16 +2563,10 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 
 	assert("umka-297", atom != NULL);
 
-	if (!spin_trylock_atom(atom)) {
-
-		/* EAGAIN releases locks. */
-		UNLOCK_TXNH(txnh);
-		UNLOCK_JNODE(node);
-
-		/* NOTE-NIKITA Busy loop here? Look at the comment in
-		   capture_assign_txnh(). */
+	if (trylock_throttle(atom, txnh, node) != 0) {
+		/* this avoid busy loop, but we return -EAGAIN anyway to
+		 * simplify things. */
 		return -EAGAIN;
-
 	} else {
 
 		assert("jmacd-19", atom_isopen(atom));
@@ -2571,21 +2600,10 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	assert("umka-298", atom != NULL);
 
-	if (!spin_trylock_atom(atom)) {
-
-		/* EAGAIN releases locks. */
-		UNLOCK_JNODE(node);
-		UNLOCK_TXNH(txnh);
-
-		/* NOTE-NIKITA it looks like we have busy loop on atom spin
-		   lock here. We cannot simply acquire and immediately release
-		   atom spin lock here to avoid it because fusion can
-		   invalidate atom object. The only way to synchronise against
-		   this is jnode spin lock. Probably, atom->refcounter should
-		   be used as real reference counter protecting atom from
-		   destruction. */
+	if (trylock_throttle(atom, txnh, node) != 0) {
+		/* this avoid busy loop, but we return -EAGAIN anyway to
+		 * simplify things. */
 		return -EAGAIN;
-
 	} else if (atom->stage == ASTAGE_CAPTURE_WAIT) {
 
 		/* The atom could be blocking requests--this is the first chance we've had
