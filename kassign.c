@@ -355,15 +355,18 @@ cmp_t de_id_key_cmp( const de_id *id /* directory entry id to compare */,
 extern const reiser4_key ROOT_DIR_KEY;
 
 /** true if key of root directory sd */
-int is_root_dir_key( const struct super_block *super UNUSED_ARG /* super block
-								 * to check*/, 
+int is_root_dir_key( const struct super_block *super /* super block to check*/,
 		     const reiser4_key *key /* key to check */ )
 {
 	assert( "nikita-1819", super != NULL );
 	assert( "nikita-1820", key != NULL );
 	/*
-	 * FIXME-NIKITA this should call disk plugin.
+	 * call disk plugin's root_dir_key method if it exists
 	 */
+	if( get_super_private( super ) -> lplug &&
+	    get_super_private( super ) -> lplug -> root_dir_key )
+		return keyeq( key, get_super_private( super ) ->
+			      lplug -> root_dir_key( super ) );
 	return keyeq( key, &ROOT_DIR_KEY );
 }
 
