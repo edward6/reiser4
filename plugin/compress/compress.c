@@ -69,8 +69,7 @@ gzip1_alloc(tfm_action act)
 	ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
-		coa = __vmalloc(zlib_deflate_workspacesize(),
-				 GFP_KERNEL | __GFP_HIGHMEM, PAGE_KERNEL);
+		coa = vmalloc(zlib_deflate_workspacesize());
 		if (!coa) {
 			ret = -ENOMEM;
 			break;
@@ -78,8 +77,7 @@ gzip1_alloc(tfm_action act)
 		xmemset(coa, 0, zlib_deflate_workspacesize());
 		break;
 	case TFM_READ:	/* decompress */
-		coa = reiser4_kmalloc(zlib_inflate_workspacesize(),
-				      GFP_KERNEL);
+		coa = vmalloc(zlib_inflate_workspacesize());
 		if (!coa) {
 			ret = -ENOMEM;
 			break;
@@ -110,7 +108,7 @@ static void gzip1_free(coa_t coa, tfm_action act)
 		vfree(coa);
 		break;
 	case TFM_READ:	/* decompress */
-		reiser4_kfree(coa);
+		vfree(coa);
 		break;
 	default:
 		impossible("edward-770",
@@ -250,8 +248,7 @@ lzo1_alloc(tfm_action act)
 	
 	switch (act) {
 	case TFM_WRITE:	/* compress */
-		coa = reiser4_kmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS),
-				      GFP_KERNEL);
+		coa = vmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
 		if (!coa) {
 			ret = -ENOMEM;
 			break;
@@ -279,7 +276,7 @@ lzo1_free(coa_t coa, tfm_action act)
 	
 	switch (act) {
 	case TFM_WRITE:	/* compress */
-		reiser4_kfree(coa);
+		vfree(coa);
 	case TFM_READ:	/* decompress */
 		break;
 	default:
@@ -318,8 +315,7 @@ lzo1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 		goto out;
 	}
 	if (*dst_len >= src_len) {
-		warning("edward-850",
-			"lzo1x_1_compress: incompressible data\n");
+		//warning("edward-850", "lzo1x_1_compress: incompressible data\n");
 		goto out;
 	}
 	return;
