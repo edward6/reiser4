@@ -64,8 +64,7 @@ static void   uncapture_block                 (txn_atom   *atom,
 /* Local debugging */
 void          atom_print                      (txn_atom   *atom);
 
-/* FIXME_JMACD: ((x)->blocknr.blk) */
-#define JNODE_ID(x) (0LL)
+#define JNODE_ID(x) ((x)->blocknr.blk)
 
 /****************************************************************************************
 				    GENERIC STRUCTURES
@@ -88,6 +87,12 @@ TS_LIST_DEFINE(fwaiting,txn_wait_links,_fwaiting_link);
 
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
+static kmem_cache_t *_jnode_slab = NULL;
+
+/* The jnode_ptr_lock is a global spinlock used to protect the struct_page to
+ * jnode mapping (i.e., it protects all struct_page_private fields).  It could
+ * be a per-txnmgr spinlock instead. */
+static spinlock_t    _jnode_ptr_lock;
 
 /*****************************************************************************************
 				       TXN_INIT
@@ -100,31 +105,46 @@ txn_init_static (void)
 	assert ("jmacd-600", _atom_slab == NULL);
 	assert ("jmacd-601", _txnh_slab == NULL);
 
+	spin_lock_init (& _jnode_ptr_lock);
+
 	_atom_slab = kmem_cache_create ("txn_atom", sizeof (txn_atom),
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 
 	if (_atom_slab == NULL) {
-		return -ENOMEM;
+		goto error;
 	} 
 
 	_txnh_slab = kmem_cache_create ("txn_handle", sizeof (txn_handle),
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	
 	if (_txnh_slab == NULL) {
-		kmem_cache_destroy (_atom_slab);
-		return -ENOMEM;
-	} 
+		goto error;
+	}
 
+	_jnode_slab = kmem_cache_create ("jnode", sizeof (jnode),
+					 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	
+	if (_jnode_slab == NULL) {
+		goto error;
+	}
+	
 	return 0;
+
+ error:
+
+	if (_atom_slab != NULL) { kmem_cache_destroy (_atom_slab); }
+	if (_txnh_slab != NULL) { kmem_cache_destroy (_txnh_slab); }
+	if (_jnode_slab != NULL) { kmem_cache_destroy (_jnode_slab); }
+	return -ENOMEM;	
 }
 
 /* Un-initialize static variables in this file. */
 int
 txn_done_static (void)
 {
-	int ret1, ret2;
+	int ret1, ret2, ret3;
 
-	ret1 = ret2 = 0;
+	ret1 = ret2 = ret3 = 0;
 
 	if (_atom_slab != NULL) {
 		ret1 = kmem_cache_destroy (_atom_slab);
@@ -133,10 +153,15 @@ txn_done_static (void)
 
 	if (_txnh_slab != NULL) {
 		ret2 = kmem_cache_destroy (_txnh_slab);
-		_atom_slab = NULL;
+		_txnh_slab = NULL;
 	}
 
-	return ret1 ? : ret2;
+	if (_jnode_slab != NULL) {
+		ret3 = kmem_cache_destroy (_jnode_slab);
+		_jnode_slab = NULL;
+	}
+	
+	return ret1 ? : (ret2 ? : ret3);
 }
 
 /* Initialize a new transaction manager.  Called when the super_block is initialized. */
@@ -925,17 +950,58 @@ txn_try_capture (jnode           *node,
 	return ret;
 }
 
+#if 0
 /* This is the interface to capture unformatted nodes via their struct page
  * reference.  If the page currently has a jnode assigned to it, call
- * txn_try_capture, otherwise assign it a jnode and then make the call.
+ * txn_try_capture, otherwise assign it a jnode and then make the call.  To
+ * protect consistency of the per-page jnode pointer, we use a global
+ * spinlock.  This could be improved to a per-txn-mgr spinlock.
  */
 int
 txn_try_capture_page  (struct page        *pg,
 		       znode_lock_mode     mode,
 		       int                 non_blocking)
 {
+	/* FIXME: Note: The following code assumes page_size == block_size.
+	 * When support for page_size > block_size is added, we will need to
+	 * add a small per-page array to handle more than one jnode per
+	 * page. */
+	jnode *jal = NULL;
 
+ again:
+	spin_lock (& _jnode_ptr_lock);
+
+	if (pg->private == NULL) {
+		if (jal == NULL) {
+			spin_unlock (& _jnode_ptr_lock);
+			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
+			goto again;
+		}
+		pg->private = jal;
+		jal = NULL;
+
+		/* FIXME: INITIALIZE JNODE HERE */
+	}
+
+	/* FIXME: This may be called from memory.c, read_in_formatted, which
+	 * does is already synchronized under the page lock, but I imagine
+	 * this will get called from other places, in which case the
+	 * jnode_ptr_lock is probably still necessary, unless...
+	 *
+	 * If jnodes are unconditionally assigned at some other point, then
+	 * this interface and lock not needed? */
+
+	spin_unlock (& _jnode_ptr_lock);
+
+	if (jal != NULL) {
+		kmem_cache_free (_jnode_slab, jal);
+	}
+
+	return txn_try_capture (pg->private,
+				lock_mode,
+				non_blocking);
 }
+#endif
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
  * increases atom refcount, adds to txnh_list. */

@@ -115,7 +115,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 
 	blksizebits = super -> s_blocksize_bits;
 	/*
-	 * only blocks smaller than pages are supported
+	 * only blocks smaller or equal to page size are supported
 	 */
 	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
 	page_idx = block >> ( PAGE_CACHE_SHIFT - blksizebits );
