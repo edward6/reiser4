@@ -2,19 +2,51 @@
 
 #include "../../debug.h"
 #include "../../dformat.h"
-#include "../plugin.h"
 #include "../../txnmgr.h"
 #include "../../jnode.h"
 #include "../../block_alloc.h"
 #include "../../tree.h"
-#include "space_allocator.h"
-#include "bitmap.h"
 #include "../../super.h"
 #include "../../lib.h"
+
+#include "../plugin.h"
+
+#include "space_allocator.h"
+#include "bitmap.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
+
+/* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
+   blocks loading/unloading which is different from v3.x where all bitmap
+   blocks are loaded at mount time.
+  
+   To implement bitmap blocks unloading we need to count bitmap block usage
+   and detect currently unused blocks allowing them to be unloaded. It is not
+   a simple task since we allow several threads to modify one bitmap block
+   simultaneously.
+  
+   Briefly speaking, the following schema is proposed: we count in special
+   variable associated with each bitmap block. That is for counting of block
+   alloc/dealloc operations on that bitmap block. With a deferred block
+   deallocation feature of reiser4 all those operation will be represented in
+   atom dirty/deleted lists as jnodes for freshly allocated or deleted
+   nodes. 
+  
+   So, we increment usage counter for each new node allocated or deleted, and
+   decrement it at atom commit one time for each node from the dirty/deleted
+   atom's list.  Of course, freshly allocated node deletion and node reusing
+   from atom deleted (if we do so) list should decrement bitmap usage counter
+   also.
+  
+   FIXME-ZAM: This schema seems to be working but that reference counting is
+   not easy to debug. I think we should agree with Hans and do not implement
+   it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
+
+   For simplicity bitmap node (both commit and working bitmap blocks) are
+   loaded into memory on the first access and remain kmapped until umount.
+*/
 
 #define CHECKSUM_SIZE    4
 
@@ -31,8 +63,8 @@ struct bnode {
 
 	bmap_off_t first_zero_bit;	/* for skip_busy option implementation */
 
-	int loaded		/* a flag which shows that bnode is loaded
-				 * already */ ;
+	atomic_t loaded;	/* a flag which shows that bnode is loaded
+				 * already */
 };
 
 static inline char *
@@ -351,33 +383,6 @@ checksum_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 t
 	return (s2 << 16) | s1;
 }
 
-/* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
-   blocks loading/unloading which is different from v3.x where all bitmap
-   blocks are loaded at mount time.
-  
-   To implement bitmap blocks unloading we need to count bitmap block usage
-   and detect currently unused blocks allowing them to be unloaded. It is not
-   a simple task since we allow several threads to modify one bitmap block
-   simultaneously.
-  
-   Briefly speaking, the following schema is proposed: we count in special
-   variable associated with each bitmap block. That is for counting of block
-   alloc/dealloc operations on that bitmap block. With a deferred block
-   deallocation feature of reiser4 all those operation will be represented in
-   atom dirty/deleted lists as jnodes for freshly allocated or deleted
-   nodes. 
-  
-   So, we increment usage counter for each new node allocated or deleted, and
-   decrement it at atom commit one time for each node from the dirty/deleted
-   atom's list.  Of course, freshly allocated node deletion and node reusing
-   from atom deleted (if we do so) list should decrement bitmap usage counter
-   also.
-  
-   FIXME-ZAM: This schema seems to be working but that reference counting is
-   not easy to debug. I think we should agree with Hans and do not implement
-   it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
-*/
-
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
 /* A number of bitmap blocks for given fs. This number can be stored on disk
@@ -432,6 +437,8 @@ check_bnode_loaded(const struct bnode *bnode)
 	assert("zam-485", bnode != NULL);
 	assert("zam-483", jnode_page(bnode->wjnode) != NULL);
 	assert("zam-484", jnode_page(bnode->cjnode) != NULL);
+	assert("nikita-2820", jnode_is_loaded(bnode->wjnode));
+	assert("nikita-2821", jnode_is_loaded(bnode->cjnode));
 }
 
 #else
@@ -485,25 +492,21 @@ init_bnode(struct bnode *bnode, struct super_block *super, bmap_nr_t bmap)
 	xmemset(bnode, 0, sizeof (struct bnode));
 
 	sema_init(&bnode->sema, 1);
-
+	atomic_set(&bnode->loaded, 0);
 }
 
 /* This function is for internal bitmap.c use because it assumes that jnode is
    in under full control of this thread */
 static void
-invalidate_jnode(jnode * node)
+done_bnode(struct bnode *bnode)
 {
-	if (node) {
-		int relsed = 0;
-		spin_lock_jnode(node);
-		if (jnode_is_loaded(node)) {
-			jrelse_nolock(node);
-			relsed = 1;
-		}
-		spin_unlock_jnode(node);
-		if (relsed)
-			jput(node);
-		jdrop(node);
+	if (bnode) {
+		atomic_set(&bnode->loaded, 0);
+		if (bnode->wjnode != NULL)
+			jrelse(bnode->wjnode);
+		if (bnode->cjnode != NULL)
+			jrelse(bnode->cjnode);
+		bnode->wjnode = bnode->cjnode = NULL;
 	}
 }
 
@@ -569,36 +572,19 @@ bitmap_destroy_allocator(reiser4_space_allocator * allocator, struct super_block
 
 		down(&bnode->sema);
 
-		if (bnode->loaded) {
+		if (REISER4_DEBUG && atomic_read(&bnode->loaded)) {
 			jnode *wj = bnode->wjnode;
 			jnode *cj = bnode->cjnode;
 
 			assert("zam-480", jnode_page(cj) != NULL);
 			assert("zam-633", jnode_page(wj) != NULL);
 
-			if (REISER4_DEBUG) {
-				jload(wj);
-				jload(cj);
+			assert("zam-634", 
+			       memcmp(jdata(wj), jdata(wj), 
+				      bmap_size(super->s_blocksize)) == 0);
 
-				assert("zam-634", memcmp(jdata(wj), jdata(wj), bmap_size(super->s_blocksize))
-				       == 0);
-
-				jrelse(wj);
-				jrelse(cj);
-			}
-
-			unpin_jnode_data(cj);
-			unpin_jnode_data(wj);
-
-			invalidate_jnode(wj);
-			invalidate_jnode(cj);
-
-			bnode->wjnode = NULL;
-			bnode->cjnode = NULL;
-
-			bnode->loaded = 0;
 		}
-
+		done_bnode(bnode);
 		up(&bnode->sema);
 	}
 
@@ -610,67 +596,92 @@ bitmap_destroy_allocator(reiser4_space_allocator * allocator, struct super_block
 	return 0;
 }
 
+static int
+prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
+{
+	struct super_block *super;
+	jnode *cjnode;
+	jnode *wjnode;
+	bmap_nr_t bmap;
+	int ret;
+
+	super = reiser4_get_current_sb();
+
+	*wjnode_ret = wjnode = bnew();
+	if (wjnode == NULL)
+		return -ENOMEM;
+
+	*cjnode_ret = cjnode = bnew();
+	if (cjnode == NULL)
+		return -ENOMEM;
+
+	bmap = bnode - get_bnode(super, 0);
+
+	get_working_bitmap_blocknr(bmap, &wjnode->blocknr);
+	get_bitmap_blocknr(super, bmap, &cjnode->blocknr);
+
+	/* load commit bitmap */
+	ret = jload(cjnode);
+	if (ret != 0)
+		return ret;
+
+	/* allocate memory for working bitmap block. Note that for
+	 * bitmaps. jinit_new() doesn't actually modifies node content, so
+	 * parallel calls to this are ok. */
+	ret = jinit_new(wjnode);
+	return ret;
+
+}
+
 /* load bitmap blocks "on-demand" */
 static int
 load_and_lock_bnode(struct bnode *bnode)
 {
 	int ret;
 
-	assert ("zam-780", lock_counters()->spin_locked == 0);
+	jnode *cjnode;
+	jnode *wjnode;
 
-	down(&bnode->sema);
+	schedulable();
 
-	if (!bnode->loaded) {
-		struct super_block *super = get_current_context()->super;
-		bmap_nr_t bmap;
-
-		ret = -ENOMEM;
-
-		if ((bnode->wjnode = bnew()) == NULL)
-			goto fail;
-
-		if ((bnode->cjnode = bnew()) == NULL)
-			goto fail;
-
-		bmap = bnode - get_bnode(super, 0);
-
-		get_working_bitmap_blocknr(bmap, &bnode->wjnode->blocknr);
-		get_bitmap_blocknr(super, bmap, &bnode->cjnode->blocknr);
-
-		if ((ret = jload(bnode->cjnode)) < 0)
-			goto fail;
-
-		/* allocate memory for working bitmap block */
-		ret = jinit_new(bnode->wjnode);
-		if (ret < 0) {
-			goto fail;
-		}
-
-		/* node has been loaded by this jload call  */
-		/* working bitmap is initialized by on-disk commit bitmap */
-		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), bmap_size(super->s_blocksize));
-
-		pin_jnode_data(bnode->wjnode);
-		pin_jnode_data(bnode->cjnode);
-
-		bnode->loaded = 1;
-	} else {
-		if ((ret = jload(bnode->wjnode)) < 0)
-			goto fail;
-		if ((ret = jload(bnode->cjnode)) < 0)
-			goto fail;
+	if (atomic_read(&bnode->loaded)) {
+		/* bitmap is already loaded, nothing to do */
+		check_bnode_loaded(bnode);
+		down(&bnode->sema);
+		assert("nikita-2827", atomic_read(&bnode->loaded));
+		return 0;
 	}
 
-	return 0;
+	ret = prepare_bnode(bnode, &cjnode, &wjnode);
+	if (ret == 0) {
+		down(&bnode->sema);
 
-fail:
-	invalidate_jnode(bnode->wjnode);
-	invalidate_jnode(bnode->cjnode);
+		if (!atomic_read(&bnode->loaded)) {
+			assert("nikita-2822", cjnode != NULL);
+			assert("nikita-2823", wjnode != NULL);
+			assert("nikita-2824", jnode_is_loaded(cjnode));
+			assert("nikita-2825", jnode_is_loaded(wjnode));
 
-	bnode->wjnode = NULL;
-	bnode->cjnode = NULL;
+			bnode->wjnode = wjnode;
+			bnode->cjnode = cjnode;
 
-	up(&bnode->sema);
+			cjnode = wjnode = NULL;
+			atomic_set(&bnode->loaded, 1);
+			/* working bitmap is initialized by on-disk commit
+			 * bitmap. This should be performed under
+			 * semaphore. */
+			xmemcpy(bnode_working_data(bnode), 
+				bnode_commit_data(bnode), current_blocksize);
+		} else
+			/* race: someone already loaded bitmap while we were
+			 * busy initializing data. */
+			check_bnode_loaded(bnode);
+	}
+
+	if (wjnode != NULL)
+		jrelse(wjnode);
+	if (cjnode != NULL)
+		jrelse(cjnode);
 
 	return ret;
 }
@@ -678,9 +689,7 @@ fail:
 static void
 release_and_unlock_bnode(struct bnode *bnode)
 {
-	jrelse(bnode->cjnode);
-	jrelse(bnode->wjnode);
-
+	check_bnode_loaded(bnode);
 	up(&bnode->sema);
 }
 
