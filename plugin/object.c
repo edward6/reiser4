@@ -64,8 +64,8 @@ static void key_warning( const char *error_message /* message to print */,
 {
 	assert( "nikita-716", key != NULL );
 	
-	warning( "nikita-717", "%llu: %s %i", 
-		 get_key_objectid( key ), error_message ? : "error", code );
+	warning( "nikita-717", "%s inode %llu (%i)", 
+		 error_message ? : "error for", get_key_objectid( key ), code );
 	print_key( "for key", key );
 }
 
@@ -145,7 +145,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		/* check that what we really found is stat data */
 		result = incr_load_count( &lc );
 		if( ( result = 0 ) && !item_is_statdata( coord ) ) {
-			error_message = "sd found, but it doesn't look like sd ";
+			error_message = "sd found, but it doesn't look like sd";
 			print_plugin( "found", 
 				      item_plugin_to_plugin( 
 					      item_plugin_by_coord( coord ) ) );
