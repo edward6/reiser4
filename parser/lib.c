@@ -1046,7 +1046,7 @@ static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 
 static size_t reserv_space_in_sink(tube_t * tube, size_t len )
 {
-	PTRACE1( "%s", "begin");
+	PTRACE1( "%s", "begin tube->buf=%p, tube->len=%d, &tube->readoff=%d",tube->buf, tube->len, &tube->readoff);
 	return 	vfs_read(tube->src, tube->buf, len, &tube->readoff);
 }
 
@@ -1074,8 +1074,8 @@ static int tube_to_sink_general(tube_t * tube)
 {
 //	tube->sink->fplug->write(tube->offset,tube->len);
 //	tube->offset+=tube->len;
-	PTRACE1( "%s", "begin");
-	return 	vfs_read(tube->dst, tube->buf, tube->len, &tube->writeoff);
+	PTRACE1( "%s", "begin tube->buf=%p, tube->len=%d, &tube->writeoff=%d",tube->buf, tube->len, &tube->writeoff);
+	return 	vfs_write(tube->dst, tube->buf, tube->len, &tube->writeoff);
 }
 
 static void put_tube(tube_t * tube)
