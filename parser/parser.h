@@ -34,11 +34,11 @@
 //#include "../plugin/oid/oid.h"
 
 #include "../plugin/space/bitmap.h"
-#include "../plugin/space/test.h"
+//#include "../plugin/space/test.h"
 #include "../plugin/space/space_allocator.h"
 
 #include "../plugin/disk_format/disk_format40.h"
-#include "../plugin/disk_format/test.h"
+//#include "../plugin/disk_format/test.h"
 #include "../plugin/disk_format/disk_format.h"
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
