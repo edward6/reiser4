@@ -452,6 +452,21 @@ truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 	return truncated_jnodes;
 }
 
+/* number of blocks addressed by @count units of item @coord is set to starting from @from-th unit */
+static int
+nr_extent_pointers(const coord_t *coord, unsigned from, unsigned count)
+{
+	int pages;
+	reiser4_extent *ext;
+	int i;
+
+	pages = 0;
+	ext = extent_item(coord) + from;
+	for (i = 0; i < count; i ++, ext ++)
+		pages += extent_get_width(ext);
+	return pages;
+}
+
 /* item_plugin->b.kill_hook
    this is called when @count units starting from @from-th one are going to be removed */
 int
@@ -495,8 +510,11 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 	}
 
 	if (inode != NULL) {
-		truncate_inode_pages(inode->i_mapping, offset);
-		truncate_inode_jnodes(inode, index);
+		int nr_pages;
+
+		nr_pages = nr_extent_pointers(coord, from, count);
+		truncate_mapping_pages_range(inode->i_mapping, index, nr_pages);
+		truncate_inode_jnodes_range(inode, index, nr_pages);
 		drop_eflushed_nodes(inode, index, 0);
 	}
 
