@@ -192,6 +192,7 @@
 #include "reiser4.h"
 #include "vfs_ops.h"
 #include "inode.h"
+#include "prof.h"
 
 #include <asm/atomic.h>
 #include <linux/types.h>
