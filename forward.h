@@ -194,8 +194,6 @@ struct name {
 };
 typedef struct name name_t;
 
-typedef union lnode lnode;
-
 typedef enum { 
 	STATIC_STAT_DATA_ID,
 	SIMPLE_DIR_ENTRY_ID,
