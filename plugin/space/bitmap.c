@@ -76,7 +76,7 @@ bnode_working_data(struct bnode *bnode)
 	data = jdata(bnode->wjnode);
 	assert("zam-429", data != NULL);
 
-	return data;
+	return data + CHECKSUM_SIZE;
 }
 
 static inline char *
@@ -610,7 +610,7 @@ load_and_lock_bnode(struct bnode *bnode)
 			 * bitmap. This should be performed under
 			 * semaphore. */
 			xmemcpy(bnode_working_data(bnode), 
-				bnode_commit_data(bnode), current_blocksize);
+				bnode_commit_data(bnode), bmap_size(current_blocksize));
 		} else
 			/* race: someone already loaded bitmap while we were
 			 * busy initializing data. */
