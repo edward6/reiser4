@@ -1188,7 +1188,7 @@ again:
 		LOCK_ATOM(atom);
 
 		if (atom->stage < ASTAGE_PRE_COMMIT) {
-			spin_unlockunlock_txnmgr(mgr);
+			spin_unlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
 
 			/* Add force-context txnh */
@@ -1471,11 +1471,11 @@ try_commit_txnh(commit_data *cd)
 		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
 			/*
 			 * this thread (transaction handle that is) doesn't
-			 * want to commit atom. 
-
-/* NIKITA-FIXME-HANS: explain when that is, and whether it can happen when this is the only open transaction handle */
-			 Notify waiters that handle is
-			 * closed.
+			 * want to commit atom. Notify waiters that handle is
+			 * closed. This can happen, for example, when we are
+			 * under VFS directory lock and don't want to commit
+			 * atom right now to avoid stalling other threads
+			 * working in the same directory.
 			 */
 			atom_send_event(cd->atom);
 			result = 0;
@@ -1980,7 +1980,7 @@ check_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		}
 
 		UNLOCK_TXNH(ctx->trans);
-y
+
 		if (atomf == atomh || atomf->stage > ASTAGE_CAPTURE_WAIT) {
 			UNLOCK_ATOM(atomf);
 			continue;
