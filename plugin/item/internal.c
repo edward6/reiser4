@@ -270,6 +270,7 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 		coord_to_parent_coord(item, &child->in_parent);
 		sibling_list_insert_nolock(child, left);
 
+		assert("nikita-3297", ZF_ISSET(child, JNODE_ORPHAN));
 		ZF_CLR(child, JNODE_ORPHAN);
 
 		ON_TRACE(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
