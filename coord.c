@@ -912,8 +912,8 @@ int ncoord_set_to_left (coord_t *coord)
 		return 0;
 
 	case AFTER_ITEM:
-		coord->unit_pos = ncoord_last_unit_pos (coord);
 		coord->between  = AT_UNIT;
+		coord->unit_pos = ncoord_last_unit_pos (coord);
 		return 0;
 
 	case BEFORE_UNIT:
@@ -951,6 +951,21 @@ int ncoord_set_to_left (coord_t *coord)
 
 	impossible ("jmacd-9920", "unreachable");
 	return 0;
+}
+
+/* return true if coord is set after last unit in an item. 0 - otherwise. It is
+ * used mostly to avoid repeated tree traversals writing to a file
+ * sequentially */
+int ncoord_is_after_last_unit (coord_t *coord)
+{
+	assert ("vs-729", ncoord_check (coord));
+	if (!ncoord_is_existing_item (coord))
+		return 0;
+	if (coord->between != AFTER_UNIT)
+		return 0;
+	if (coord->unit_pos != ncoord_last_unit_pos (coord))
+		return 0;
+	return 1;
 }
 
 /* Audited by: green(2002.06.15) */
