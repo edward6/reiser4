@@ -526,9 +526,16 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 			twin.unit_pos = from + i;
 			twin.between = AT_UNIT;
 			tree = current_tree;
-			for (j = 0; j < length; j ++)
+			for (j = 0; j < length; j ++) {
+				jnode *node;
+
+				node = UNDER_SPIN(tree, tree, jlook(tree, oid, extent_unit_index(&twin) + j));
 				assert("vs-1095",
-				       UNDER_SPIN(tree, tree, jlook(tree, oid, extent_unit_index(&twin) + j)) == 0);
+				       node == NULL || 
+				       (JF_ISSET(node, JNODE_HEARD_BANSHEE) && 
+					!jnode_is_loaded(node) && 
+					jnode_page(node) == NULL));
+			}
 		}
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* FIXME-VITALY: this is necessary??? */
