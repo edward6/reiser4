@@ -11,6 +11,7 @@
     plugins in otder to let them ability access libreiser4 methods such as
     insert or remove an item from the tree.
 */
+
 static reiserfs_plugin_t *__factory_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
     return libreiser4_factory_find(type, id);
 }
@@ -23,10 +24,27 @@ static errno_t __tree_remove(const void *tree, reiserfs_key_t *key) {
     return reiserfs_tree_remove((reiserfs_tree_t *)tree, key);
 }
 
+static int __tree_lookup(const void *tree, reiserfs_key_t *key, 
+    reiserfs_place_t *place) 
+{
+    int lookup;
+    reiserfs_coord_t coord;
+    
+    lookup = reiserfs_tree_lookup((reiserfs_tree_t *)tree, REISERFS_LEAF_LEVEL, 
+	key, &coord);
+
+    place->pos = coord.pos;
+    place->node = coord.cache->node->entity;
+    
+    return lookup;
+}
+
 reiserfs_core_t core = {
     .factory_find = __factory_find,
+    
     .tree_insert = __tree_insert,
-    .tree_remove = __tree_remove
+    .tree_remove = __tree_remove,
+    .tree_lookup = __tree_lookup
 };
 
 int libreiser4_get_max_interface_version(void) {

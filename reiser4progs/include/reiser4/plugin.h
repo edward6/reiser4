@@ -654,6 +654,13 @@ union reiserfs_plugin {
     reiserfs_key_ops_t key_ops;
 };
 
+struct reiserfs_place {
+    reiserfs_entity_t *node;
+    reiserfs_pos_t pos;
+};
+
+typedef struct reiserfs_place reiserfs_place_t;
+
 /* 
     This structure is passed to all plugins in initialization time and used
     for access libreiser4 factories.
@@ -673,6 +680,12 @@ struct reiserfs_core {
 	modification purposes.
     */
     errno_t (*tree_remove)(const void *, reiserfs_key_t *);
+
+    /*
+	Makes lookup in the tree in order to know where say stat data item of a
+	file realy lies. It is used in all object plugins.
+    */
+    int (*tree_lookup) (const void *, reiserfs_key_t *, reiserfs_place_t *);
 };
 
 typedef struct reiserfs_core reiserfs_core_t;

@@ -45,7 +45,7 @@ extern errno_t reiserfs_tree_shift(reiserfs_coord_t *old,
 #endif
 
 extern int reiserfs_tree_lookup(reiserfs_tree_t *tree, 
-    uint8_t stop, reiserfs_key_t *key, reiserfs_coord_t *coord);
+    uint8_t stop_level, reiserfs_key_t *key, reiserfs_coord_t *coord);
 
 extern reiserfs_cache_t *reiserfs_tree_root(reiserfs_tree_t *tree);
 
