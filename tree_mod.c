@@ -129,6 +129,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 		if( !IS_ERR( new_root ) ) {
 			lock_handle rlh;
 
+			init_lh( &rlh );
 			/*
 			 * FIXME-NIKITA pass lock handle from add_new_root()
 			 * in stead
