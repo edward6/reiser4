@@ -39,9 +39,7 @@
 
    fake allocated -- counts all nodes without real disk block numbers assigned,
                      we have separate accounting for formatted and unformatted
-                     nodes;
-		     ZAM-FIXME-HANS: say why (I don't know....), and email me about it.
-
+                     nodes (for easier debugging);
  
    flush reserved -- disk space needed for flushing and committing an atom.
                      Each dirty already allocated block could be written as a
@@ -614,16 +612,31 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 	}
 	reiser4_spin_unlock_sb(sbinfo);
 }
-/* ZAM-FIXME-HANS: this needs a 15 line comment.  Do it. */
-/* wrapper to call space allocation plugin */
+/* Allocate "real" disk blocks by calling a proper space allocation plugin
+ * method. Blocks are allocated in one contiguous disk region. The plugin
+ * independent part accounts blocks by subtracting allocated amount from grabbed
+ * or fake block counter and add the same amount to the counter of allocated
+ * blocks.
+ * 
+ * @hint -- a reiser4 blocknr hint object which contains further block
+ *          allocation hints and parameters (search start, a stage of block
+ *          which will be mapped to disk, etc.),
+ * @blk  -- an out parameter for the beginning of the allocated region,
+ * @len  -- in/out parameter, it should contain the maximum number of allocated
+ *          blocks, after block allocation completes, it contains the length of
+ *          allocated disk region.
+ * @flags -- see reiser4_ba_flags_t description. 
+ * @message -- if REISER4_TRACE enable, it is a trace message.
+ *
+ * @return -- 0 if success, error code otherwise. 
+ */
 int
-#if REISER4_TRACE
 __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk, 
-		       reiser4_block_nr * len, reiser4_ba_flags_t flags, const char *message)
-#else
-__reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
-		       reiser4_block_nr * len, reiser4_ba_flags_t flags)
+		       reiser4_block_nr * len, reiser4_ba_flags_t flags
+#if REISER4_TRACE
+		       , const char *message
 #endif
+	)
 {
 	space_allocator_plugin *splug;
 	__u64 needed = *len;
@@ -649,7 +662,6 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 
 		/* If blocknr hint isn't set we use per fs "blocknr_hint default" */
 		/* FIXME-ZAM: should a mount option control this? */
-/* ZAM-FIXME-HANS: if blocknr hint is not set, why don't we issue a warning?. Change this to an assertion. */
 		if (hint->blk == 0) {
 			reiser4_spin_lock_sb(sbinfo);
 			hint->blk = sbinfo->blocknr_hint_default;
