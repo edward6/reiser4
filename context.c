@@ -260,7 +260,7 @@ done_context(reiser4_context * context /* context being released */)
 	assert("nikita-2174", parent != NULL);
 	assert("nikita-2093", parent == parent->parent);
 	assert("nikita-859", parent->magic == context_magic);
-	assert("vs-646", (reiser4_context *) current->fs_context == parent);
+	assert("vs-646", (reiser4_context *) current->journal_info == parent);
 	assert("zam-686", !in_interrupt() && !in_irq());
 
 	/* only do anything when leaving top-level reiser4 context. All nested

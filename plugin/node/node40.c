@@ -2756,18 +2756,18 @@ shift_node40(coord_t *from, znode *to, shift_direction pend,
 	result = delete_copied(&shift);
 
 	assert("vs-1610", result >= 0);
-	assert("vs-1471", ((reiser4_context *) current->fs_context)->magic == context_magic);
+	assert("vs-1471", ((reiser4_context *) current->journal_info)->magic == context_magic);
 
 	/* item which has been moved from one node to another might want to do
 	   something on that event. This can be done by item's shift_hook
 	   method, which will be now called for every moved items */
 	call_shift_hooks(&shift);
 
-	assert("vs-1472", ((reiser4_context *) current->fs_context)->magic == context_magic);
+	assert("vs-1472", ((reiser4_context *) current->journal_info)->magic == context_magic);
 
 	update_taps(&shift);
 
-	assert("vs-1473", ((reiser4_context *) current->fs_context)->magic == context_magic);
+	assert("vs-1473", ((reiser4_context *) current->journal_info)->magic == context_magic);
 
 	/* adjust @from pointer in accordance with @including_stop_coord flag
 	   and amount of data which was really shifted */
