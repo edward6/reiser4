@@ -618,7 +618,6 @@ extent2tail(unix_file_info_t *uf_info)
 
 	if (i == num_pages) {
 		uf_info->container = UF_CONTAINER_TAILS;
-		assert("nikita-3471", space_reserved);
 		if (inode_get_flag(inode, REISER4_PART_CONV)) {
 			inode_clr_flag(inode, REISER4_PART_CONV);
 			reiser4_update_sd(inode);
