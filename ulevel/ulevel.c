@@ -396,6 +396,38 @@ void iput( struct inode *inode )
 	}
 }
 
+
+/*
+ * FIXME-VS: these are copied from reiser4/inode.c
+ */
+static int init_locked_inode( struct inode *inode /* new inode */, 
+			      void *opaque /* key of stat data passed to the
+					    * iget5_locked as cookie */ )
+{
+	reiser4_key *key;
+
+	assert( "nikita-1947", inode != NULL );
+	assert( "nikita-1948", opaque != NULL );
+	key = opaque;
+	inode -> i_ino = get_key_objectid( key );
+	reiser4_inode_data( inode ) -> locality_id = get_key_locality( key );
+	return 0;
+}
+
+static int find_actor( struct inode *inode /* inode from hash table to
+					    * check */,
+		       void *opaque /* "cookie" passed to iget5_locked(). This
+				     * is stat data key */ )
+{
+    reiser4_key *key;
+
+    key = opaque;
+    return 
+	    ( inode -> i_ino == get_key_objectid( key ) ) &&
+	    ( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
+}
+
+
 struct inode *
 get_new_inode(struct super_block *sb, 
 	      unsigned long hashval, 
@@ -3062,7 +3094,9 @@ static int mkfs (reiser4_tree * tree)
 			
 		/* get inode of fake parent */
 
-		fake_parent = get_new_inode (reiser4_get_current_sb (), 2);
+		fake_parent = get_new_inode (reiser4_get_current_sb (), 2,
+					     find_actor, init_locked_inode,
+					     &key);
 		assert ("vs-621", fake_parent);
 		fake_parent->i_mode = S_IFDIR;
 		fake_parent->i_op = &reiser4_inode_operations;
