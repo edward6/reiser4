@@ -36,8 +36,6 @@ Internal on-disk structure:
 #include <linux/fs.h>
 #include <linux/pagevec.h>
 
-#define list_to_page(head) (list_entry((head)->prev, struct page, list))
-
 /* return body of ctail item at @coord */
 static ctail_item_format *
 formatted_at(const coord_t * coord)
@@ -501,7 +499,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 
 	if (!list_empty(pages) && pages->next != pages->prev)
 		/* more then one pages in the list - make sure its order is right */
-		assert("edward-214", list_to_page(pages)->index < prev_list_to_page(pages)->index);
+		assert("edward-214", list_to_page(pages)->index < list_to_page(pages)->index);
 	
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);

@@ -12,7 +12,8 @@ typedef struct ctail_item_format {
 
 #define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE  
 
-#define prev_list_to_page(head) (list_entry((head)->prev->prev, struct page, list))
+#define list_to_page(head) (list_entry((head)->prev, struct page, list))
+#define list_to_next_page(head) (list_entry((head)->prev->prev, struct page, list))
 
 /* plugin->item.b.* */
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
