@@ -42,7 +42,9 @@ static reiserfs_entity_t *oid40_create(void *area_start, void *area_end) {
     oid->area_end = area_end;
     
     oid40_set_next(area_start, REISERFS_OID40_RESERVED);
-    oid40_set_used(area_start, 0);
+    /* on filesystem creation root directory is created. So, number of
+     * objectids in use is 1 */
+    oid40_set_used(area_start, 1);
     
     return oid;
 }
