@@ -36,7 +36,7 @@ rm -f gmon.out.*
 #ORDER='000'
 ORDER=${2:-''}
 
-do_mkfs
+do_mkfs || exit 1
 
 if [ -z $REISER4_MOUNT ]
 then
