@@ -73,10 +73,18 @@ typedef enum {
 	LLR_REST
 } level_lookup_result;
 
-typedef int ( *node_read_actor )( const reiser4_block_nr *addr, char **data,
-				  size_t blocksize );
-typedef int ( *node_allocate_actor )( znode *node );
-typedef void ( *node_unread_actor )( znode *node );
+typedef struct tree_operations {
+	/** read given tree node from persistent storage */
+	int ( *read_node )( reiser4_tree *tree, jnode *node, char **data );
+	/** allocate memory for newly created znode */
+	int ( *allocate_node )( reiser4_tree *tree, jnode *node, char **data );
+	/** called when node is deleted from the tree. */
+	int ( *delete_node )( reiser4_tree *tree, jnode *node );
+	/** called when node is removed from the memory */
+	int ( *release_node )( reiser4_tree *tree, jnode *node );
+	/** mark node dirty */
+	int ( *dirty_node )( reiser4_tree *tree, jnode *node );
+} tree_operations;
 
 /** PUT THIS IN THE SUPER BLOCK
  *
@@ -128,13 +136,8 @@ struct reiser4_tree {
 
 	/** default plugin used to create new nodes in a tree. */
 	node_plugin         *nplug;
-	/** read given address from persistent storage */
-	node_read_actor      read_node;
-	/** allocate memory for newly created znode */
-	node_allocate_actor  allocate_node;
-	/* call on znode unloading. Currently used to kunmap and release page
-	 * into which znode is read */
-	node_unread_actor    unread_node;
+	tree_operations     *ops;
+	struct super_block  *super;
 };
 
 /**
@@ -239,7 +242,6 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 	       SHIFT_IO_ERROR     = -EIO,
 	       SHIFT_OOM          = -ENOMEM,
 } shift_result;
-
 
 extern node_plugin *node_plugin_by_coord ( const new_coord *coord );
 extern node_plugin *node_plugin_by_node( const znode *node );
@@ -347,7 +349,7 @@ extern int cbk_cache_init( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node );
 extern void cbk_cache_add( znode *node );
 
-#if defined (REISER4_DEBUG) && defined (REISER4_USER_LEVEL_SIMULATION)
+#if REISER4_DEBUG
 extern void print_tree( const char *prefix, reiser4_tree *tree, __u32 flags );
 extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
 extern void print_cbk_slot( const char *prefix, cbk_cache_slot *slot );
