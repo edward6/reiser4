@@ -331,7 +331,7 @@ static lookup_result coord_by_handle( cbk_handle *handle )
  *
  * - end of the tree is reached
  * - unformatted node is met
- * - error occured
+ * - error occurred
  * - @actor returns 0 or less
  *
  * Error code, or last actor return value is returned.
@@ -548,7 +548,11 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	/* lock @active */
 	h->result = longterm_lock_znode(h->active_lh, active,
 					cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
-/* ZAM-FIXME-HANS: explain this in a comment (why do we zput after locking) */
+	/*
+	 * longterm_lock_znode() acquires additional reference to znode (which
+	 * will be later released by longterm_unlock_znode()). Release
+	 * reference acquired by zget().
+	 */
 	zput(active);
 	if (h->result)
 		goto fail_or_restart;
@@ -565,15 +569,6 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 * FIXME-NIKITA this is ugly kludge. Reminder: this is necessary,
 	 * because ->lookup() method returns coord with ->between field
 	 * probably set to something different from AT_UNIT.
-	 *
-	 * This is what is meant by "between field is stupid"--- ->between is
-	 * only meaningful for insertions and here (just as in the most of the
-	 * code) coord_t is used for something different. As a result,
-	 * ->between field is not only useless---it is strictly
-	 * counter-productive.
-
-	 Programmers who are opposed to an idea will implement it stupidly so as to prove themselves right.  Why do you
-	 need to set this?  -Hans
 	 */
 	h->coord->between = AT_UNIT;
 
@@ -776,14 +771,15 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 		h -> result = CBK_IO_ERROR;
 		return LOOKUP_DONE;
 	}
- /* NIKITA-FIXME-HANS: if this is moved into the node40_lookup plugin then you can avoid the item_plugin_by_coord() call
-  * and this call becomes something simpler also? */
 	/* go down to next level */
 	assert( "vs-515", item_is_internal ( h -> coord ) );
 	iplug -> s.internal.down_link( h -> coord, h -> key, &h -> block );
 	-- h -> level;
 	return LOOKUP_CONT; /* continue */
 }
+
+/* multi-key search: comment it out and leave rotting until really needed. */
+#if 0
 
 /**
  * look for several keys at once. 
@@ -1010,6 +1006,7 @@ int lookup_couple( reiser4_tree *tree /* tree to perform search in */,
 	}
 	return result;
 }
+#endif
 
 /** true if @key is one of delimiting keys in @node */
 /* Audited by: green(2002.06.15) */
