@@ -465,7 +465,7 @@ SPIN_LOCK_FUNCTIONS(stack,reiser4_lock_stack,sguard);
 static inline void reiser4_wake_up (reiser4_lock_stack *owner)
 {
 	spin_lock_stack(owner);
-	reiser4_wake_up(owner);
+	__reiser4_wake_up(owner);
 	spin_unlock_stack(owner);
 }
 
