@@ -147,7 +147,7 @@ jnode_init (jnode *node, reiser4_tree *tree)
 {
 	assert("umka-175", node != NULL);
 
-	memset (node, 0, sizeof (jnode));
+	xmemset (node, 0, sizeof (jnode));
 	node->state = 0;
 	atomic_set (&node->d_count, 0);
 	atomic_set (&node->x_count, 0);
@@ -302,7 +302,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 
 	assert ("nikita-2046", jnode_page(jprivate(pg)) == pg);
 	assert ("nikita-2364", jprivate(pg)->key.j.index == pg -> index);
-	assert ("nikita-23657", jprivate(pg)->key.j.mapping == pg -> mapping);
+	assert ("nikita-2367", jprivate(pg)->key.j.mapping == pg -> mapping);
 	assert ("nikita-2365", jprivate(pg)->key.j.objectid == pg -> mapping -> host -> i_ino);
 
 	if (jal != NULL) {
