@@ -789,6 +789,8 @@ void flush_reserved2atom_all_nolock(txn_atom * atom)
 	
 	sub_from_ctx_flush_reserved(count);
 	add_to_atom_flush_reserved_nolock(atom, count);
+	trace_on(TRACE_RESERVE1, 
+		 "flush_reserved2atom: moving %u context flush reserved to atom's flush reserved. Atom %u\n", count, atom->atom_id);
 }
 
 /* release all grabbed blocks which where not used. */
