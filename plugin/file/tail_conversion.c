@@ -28,8 +28,17 @@ static int ea_obtained(const struct inode *inode)
 	
 	assert("", ergo (reiser4_inode_data(inode)->ea_owner,
 			 reiser4_inode_data(inode)->ea_owner == current));
-	return reiser4_inode_data(inode)->ea_owner != 0;
+	return inode_get_flag(inode, REISER4_EXCLUSIVE_USE);
 }
+
+#if REISER4_DEBUG
+static void ea_set(const struct inode *inode, void *value)
+{
+	reiser4_inode_data(inode)->ea_owner = value;
+}
+#else
+#define ea_set(inode, value) noop
+#endif
 
 /* exclusive access to a file is acquired for tail conversion */
 void
@@ -37,14 +46,16 @@ get_exclusive_access(struct inode *inode)
 {
 	down_write(&reiser4_inode_data(inode)->sem);
 	assert("", !ea_obtained(inode));
-	reiser4_inode_data(inode)->ea_owner = current;
+	ea_set(inode, current);
+	inode_set_flag(inode, REISER4_EXCLUSIVE_USE);
 }
 
 void
 drop_exclusive_access(struct inode *inode)
 {
 	assert("", ea_obtained(inode));
-	reiser4_inode_data(inode)->ea_owner = 0;
+	ea_set(inode, 0);
+	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
 	up_write(&reiser4_inode_data(inode)->sem);
 }
 
