@@ -731,11 +731,11 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 
 	if (handle_eottl(h, &result))
 		return result;
-
+/*
 	result = handle_ra(h);
 	if (result != 0)
 		return result;
-
+*/
 	assert("nikita-2116", item_is_internal(h->coord));
 	iplug = item_plugin_by_coord(h->coord);
 
@@ -1297,35 +1297,78 @@ search_to_left(cbk_handle * h /* search handle */ )
 
 static int start_ra(coord_t *item);
 
+static int readdir_ra(reiser4_tree * tree, coord_t * coord, lock_handle * lh, void *arg)
+{
+	reiser4_key *key, childkey;
+
+	assert("vs-1142", coord_is_existing_unit(coord));
+	if (!item_is_internal(coord))
+		return 0;
+	unit_key_by_coord(coord, &childkey);
+	key = arg;
+	if (get_key_locality(&childkey) != get_key_locality(key) || get_key_type(&childkey) >= KEY_BODY_MINOR)
+		return 0;
+
+	start_ra(coord);
+	
+	if (coord_is_rightmost_unit(coord)) {
+		/* optimization: we are at last unit in a node. Before going to right check first whether it makes sense
+		 * to go there */
+		if (UNDER_SPIN(dk, tree, (get_key_locality(znode_get_rd_key(coord->node)) != get_key_locality(key) ||
+					  get_key_type(znode_get_rd_key(coord->node)) >= KEY_BODY_MINOR)))
+			return 0;
+	}
+	return 1;
+}
+
 static int handle_ra(cbk_handle * h)
 {
 	coord_t scan;
 	int     i;
-	oid_t   oid;
 	int     result;
 
 	assert("nikita-2853", h != NULL);
 	assert("nikita-2855", item_is_internal(h->coord));
 
-	if (h->level != TWIG_LEVEL)
-		return 0; /* only do read ahead for leaves */
-	if (!(h->flags & CBK_READA))
-		return 0; /* only do read ahead when asked to */
+	if (h->flags & CBK_READA) {
+		/* readahead leaves whose first item has key's objectid equal to objectid of h->key */
+		oid_t   oid;
 
-	coord_dup(&scan, h->coord);
-	scan.between = AT_UNIT;
-	oid = get_key_objectid(h->key);
-	result = 0;
-	for (i = 0 ; i < MAX_RA && !coord_next_unit(&scan) && !result ; ++i) {
-		reiser4_key childkey;
+		if (h->level != TWIG_LEVEL)
+			return 0; /* only do read ahead for leaves */
 
-		if (!item_is_internal(&scan))
-			break;
-		if (get_key_objectid(unit_key_by_coord(&scan, &childkey)) != oid)
-			break;
-		result = start_ra(&scan);
+		coord_dup(&scan, h->coord);
+		scan.between = AT_UNIT;
+		oid = get_key_objectid(h->key);
+		result = 0;
+		for (i = 0 ; i < MAX_RA && !coord_next_unit(&scan) && !result ; ++i) {
+			reiser4_key childkey;
+			
+			if (!item_is_internal(&scan))
+				break;
+			if (get_key_objectid(unit_key_by_coord(&scan, &childkey)) != oid)
+				break;
+			result = start_ra(&scan);
+		}
+		return result;
 	}
-	return result;
+
+	if (h->flags & CBK_READDIR_RA) {
+		/* readahead whole directory and all its stat data */
+		lock_handle twin;
+
+		if (h->level != TWIG_LEVEL)
+			return 0; /* only do read ahead for leaves */
+
+		coord_dup(&scan, h->coord);
+		scan.between = AT_UNIT;
+
+		copy_lh(&twin, h->active_lh);
+		iterate_tree(h->tree, &scan, &twin, readdir_ra, (void *)(h->key), h->lock_mode, 1/* through units */);
+		done_lh(&twin);
+	}
+
+	return 0;
 }
 
 static int
