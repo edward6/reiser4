@@ -87,7 +87,7 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 	data.iplug  = item_plugin_by_id( SIMPLE_DIR_ITEM_ID );
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
-				  reiser4_inter_syscall_ra( dir ), NO_RA );
+				  reiser4_inter_syscall_ra( dir ), NO_RA, 0/*flags*/ );
 	dent = ( directory_entry_format * ) item_body_by_coord( coord );
 	build_inode_key_id( entry -> obj, &dent -> id );
 	assert( "nikita-1163", 
