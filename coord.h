@@ -2,8 +2,8 @@
 
 /* Coords */
 
-#if !defined( __REISER4_NEW_COORD_H__ )
-#define __REISER4_NEW_COORD_H__
+#if !defined( __REISER4_COORD_H__ )
+#define __REISER4_COORD_H__
 
 #include "forward.h"
 #include "debug.h"
@@ -348,7 +348,7 @@ extern int coord_sideof_unit(coord_t * coord, sideof dir);
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_item( coord ) == 0 ; )
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 extern const char *coord_tween_tostring(between_enum n);
 #endif
 
@@ -357,7 +357,7 @@ extern const char *coord_tween_tostring(between_enum n);
 extern int item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk);
 extern int item_utmost_child(const coord_t * coord, sideof side, jnode ** child);
 
-/* __REISER4_NEW_COORD_H__ */
+/* __REISER4_COORD_H__ */
 #endif
 
 /* Make Linus happy.

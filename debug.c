@@ -81,7 +81,7 @@ reiser4_print_prefix(const char *level, const char *mid,
 int
 preempt_point(void)
 {
-	assert("green-40", lock_counters()->spin_locked == 0);
+	schedulable();
 	cond_resched();
 	return signal_pending(current);
 }

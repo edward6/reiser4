@@ -172,8 +172,9 @@ print_context(const char *prefix, reiser4_context * context)
 		info("%s: null context\n", prefix);
 		return;
 	}
-	info("%s: trace_flags: %x, tid: %i\n", prefix, context->trace_flags, context->tid);
+	info("%s: trace_flags: %x\n", prefix, context->trace_flags);
 #if REISER4_DEBUG
+	info("\ttid: %i\n", context->tid);
 	print_lock_counters("\tlocks", &context->locks);
 	info("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
 #endif
