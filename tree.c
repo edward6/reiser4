@@ -1255,6 +1255,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 					if (left_zloaded_here)
 						zrelse (left_lh.node);
 					done_lh (&left_lh);
+					zput (left_child);
 					return result;
 				}
 				right_zloaded_here = 1;
@@ -1275,6 +1276,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 				if (left_zloaded_here)
 					zrelse (left_lh.node);
 				done_lh (&left_lh);
+				zput (left_child);
 				return result;
 			}
 		} else {
@@ -1298,6 +1300,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 				if (left_zloaded_here)
 					zrelse (left_lh.node);
 				done_lh (&left_lh);
+				zput (left_child);
+				return result;
 				return PTR_ERR (right_child);
 			}
 
