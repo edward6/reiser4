@@ -153,7 +153,10 @@ struct reiser4_inode {
 	   tree are distinguished by radix tree tags */
 	struct radix_tree_root ef_nodes;
 #if REISER4_DEBUG
-	/* numbers of jnodes of each type in the above tree */
+	/* list of jnodes. Number of jnodes in this list is the above jnodes field */
+	inode_jnodes_list_head jnodes_list;
+
+	/* numbers of eflushed jnodes of each type in the above tree */
 	int anonymous_eflushed;
 	int captured_eflushed;
 #endif
@@ -164,7 +167,7 @@ struct reiser4_inode {
 	struct semaphore loading;
 };
 
-#define I_EFLUSH (256)
+
 #define I_JNODES (512)	/* inode state bit. Set when in hash table there are more than 0 jnodes of unformatted nodes of
 			   an inode */
 
