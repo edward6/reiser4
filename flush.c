@@ -1,12 +1,4 @@
-/* Some old dead/pseudo-code removed -- Thu Apr 25 17:11:30 MSD 2002 */
-
-/* An older version of "squeeze left" was removed along with the file
- * "balance.c" -- Mon May  6 15:08:44 MSD 2002 */
-
-/* Marginally relevant text written by Hans on VM design issues was moved to
- * plugin/flush/flush.alg -- Mon May 6 15:08:44 MSD 2002 */
-
-/* Old slum-tracking.diffs removed -- Mon May  6 17:15:13 MSD 2002 */
+/* The design document for this file is in flush.alg.  It needs to be rewritten and put on the web. */
 
 /* Note on abbreviation: "squeeze and allocate" == "squalloc" */
 
@@ -14,9 +6,9 @@
 
 typedef struct flush_scan flush_scan;
 
-/* The flush_scan data structure maintains the state of an in-progress flush scan. */
+/* The flush_scan data structure maintains the state of an in-progress flush scan.  FIXME: comment */
 struct flush_scan {
-	/* The current number of nodes. */
+	/* The current number of nodes on this level. */
 	unsigned  size;
 
 	/* True if some condition stops the search (e.g., we found a clean
@@ -61,9 +53,11 @@ static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long no
 static int           jnode_is_allocated           (jnode *node);
 static int           jnode_allocate_flush         (jnode *node, reiser4_blocknr_hint *preceder);
 
-/* This is the main entry point for flushing a jnode.  Two basic steps are
- * performed: first the "greatest dirty ancestor" of the input jnode is
- * located, then the sub-tree rooted at that ancestor is squeezed and
+/* FIXME: Explain who calls....
+
+ * This is the main entry point for flushing a jnode.  Two basic steps are
+ * performed: first the "leftpoint" of the input jnode is
+ * located, then the FIXME ()X)(X)() rooted at that ancestor is squeezed and
  * allocated in a parent-first traversal.  During squeeze and allocate, nodes
  * are scheduled for writeback and their jnodes are set to the "clean" state
  * as far as the atom is concerned.
@@ -116,6 +110,8 @@ int jnode_flush (jnode *node)
 /********************************************************************************
  * FLUSH_LOCK_GREATEST_DIRTY_ANCESTOR
  ********************************************************************************/
+
+/* FIXME: Call GDA the "leftpoint".  That which we are going to allocate first. */
 
 /* This function is called on @start_node, which is where the search for the
  * greatest dirty ancestor begins.  This procedure is recursive (up the tree),

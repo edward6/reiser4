@@ -275,6 +275,27 @@ extern int          txn_try_capture_page  (struct page        *pg,
 					   int                 non_blocking);
 
 
+/* See the comment on the function blocknrset.c:blocknr_set_add for the
+ * calling convention of these three routines. */
+extern void         blocknr_set_init       (blocknr_set             *bset);
+extern void         blocknr_set_destroy    (blocknr_set             *bset);
+extern void         blocknr_set_merge      (blocknr_set             *from,
+					    blocknr_set             *into);
+extern int          blocknr_set_add_extent (txn_atom                *atom,
+					    blocknr_set             *bset,
+					    blocknr_set_entry      **new_bsep,
+					    const reiser4_block_nr  *start,
+					    const reiser4_block_nr  *len);
+extern int          blocknr_set_add_block  (txn_atom                *atom,
+					    blocknr_set             *bset,
+					    blocknr_set_entry      **new_bsep,
+					    const reiser4_block_nr  *block);
+extern int          blocknr_set_add_pair   (txn_atom                *atom,
+					    blocknr_set             *bset,
+					    blocknr_set_entry      **new_bsep,
+					    const reiser4_block_nr  *a,
+					    const reiser4_block_nr  *b);
+
 /*****************************************************************************************
 				     INLINE FUNCTIONS
  *****************************************************************************************/

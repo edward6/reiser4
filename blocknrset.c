@@ -18,14 +18,17 @@
  *
  * When current blocknr_set_entry is full, allocate a new one. */
 
-typedef struct blocknr_set_entry blocknr_set_entry;
 typedef struct blocknr_pair      blocknr_pair;
 
 /** The total size of a blocknr_set_entry. */
 #define BLOCKNR_SET_ENTRY_SIZE 128
 
 /** The number of blocks that can fit the blocknr data area. */
-#define BLOCKNR_SET_ENTS_SIZE ((BLOCKNR_SET_ENTRY_SIZE - 2 * sizeof (unsigned) - sizeof (blocknr_set_list_link)) / sizeof (reiser4_block_nr))
+#define BLOCKNR_SET_ENTS_SIZE               \
+       ((BLOCKNR_SET_ENTRY_SIZE -           \
+         2 * sizeof (unsigned) -            \
+         sizeof (blocknr_set_list_link)) /  \
+        sizeof (reiser4_block_nr))
 
 /** An entry of the blocknr_set */
 struct blocknr_set_entry {
@@ -83,7 +86,7 @@ static void bse_free (blocknr_set_entry *bse)
 	kfree (bse);
 }
 
-/** Add a block number to given blocknr_set_entry */
+/** Add a block number to a blocknr_set_entry */
 static void bse_put_single (blocknr_set_entry *bse, const reiser4_block_nr *block)
 {
 	assert ("jmacd-5099", bse_avail (bse) >= 1);
@@ -91,16 +94,20 @@ static void bse_put_single (blocknr_set_entry *bse, const reiser4_block_nr *bloc
 	bse->ents[bse->nr_singles++] = *block;
 }
 
-/** add one more extent to given DSLE */
+/** Get a pair of block numbers */
+static inline blocknr_pair* bse_get_pair (blocknr_set_entry *bse, unsigned pno)
+{
+	return (blocknr_pair*) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * (pno + 1));
+}
+
+/** Add a pair of block numbers to a blocknr_set_entry */
 static void bse_put_pair (blocknr_set_entry *bse, const reiser4_block_nr *a, const reiser4_block_nr *b)
 {
 	blocknr_pair *pair;
 
-	assert ("jmacd-5100", bse_avail (bse) >= 2);
+	assert ("jmacd-5100", bse_avail (bse) >= 2 && a != NULL && b != NULL);
 
-	bse->nr_pairs += 1;
-
-	pair = (blocknr_pair*) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * bse->nr_pairs);
+	pair = bse_get_pair (bse, bse->nr_pairs++);
 
 	pair->a = *a;
 	pair->b = *b;
@@ -194,6 +201,79 @@ int blocknr_set_add_pair (txn_atom                *atom,
 	assert ("jmacd-5103", a != NULL && b != NULL);
 	return blocknr_set_add (atom, bset, new_bsep, a, b);
 }
+
+/* Initialize a blocknr_set. */
+void blocknr_set_init (blocknr_set *bset)
+{
+	blocknr_set_list_init (& bset->entries);
+}
+
+/* Release the entries of a blocknr_set. */
+void blocknr_set_destroy (blocknr_set *bset)
+{
+	while (! blocknr_set_list_empty (& bset->entries)) {
+		bse_free (blocknr_set_pop_front (& bset->entries));
+	}
+}
+
+/* Merge blocknr_set entries out of @from into @into. */
+void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
+{
+	blocknr_set_entry *bse_into = NULL;
+
+	/* If @from is empty, no work to perform. */
+	if (blocknr_set_list_empty (& from->entries)) {
+		return;
+	}
+
+	/* If @into is not empty, try merging partial-entries. */
+	if (! blocknr_set_list_empty (& into->entries)) {
+
+		/* Neither set is empty, pop the front to members and try to combine them. */
+		blocknr_set_entry *bse_from;
+		unsigned into_avail;
+
+		bse_into = blocknr_set_list_pop_front (& into->entries);
+		bse_from = blocknr_set_list_pop_front (& from->entries);
+
+		/* Combine singles. */
+		for (into_avail = bse_avail (bse_into);
+		     into_avail != 0 && bse_from->nr_singles != 0;
+		     into_avail -= 1) {
+			bse_put_single (bse_into, bse_from->ents[--bse_from->nr_singles]);
+		}
+
+		/* Combine pairs. */
+		for (;
+		     into_avail > 1 && bse_from->nr_pairs != 0;
+		     into_avail -= 2) {
+			blocknr_pair *pair = bse_get_pair (--bse_from->nr_pairs);
+			bse_put_pair (bse_into, pair->a, pair->b);
+		}
+
+		/* If bse_from is empty, delete it now. */
+		if (bse_avail (bse_from) == BLOCKNR_SET_ENTS_SIZE) {
+			bse_free (bse_from);
+		} else {
+			/* Otherwise, bse_into is full or nearly full (e.g.,
+			 * it could have one slot avail and bse_from has one
+			 * pair left).  Push it back onto the list.  bse_from
+			 * becomes bse_into, which will be the new partial. */
+			blocknr_set_list_push_front (& into->entries, bse_into);
+			bse_into = bse_from;
+		}
+	}
+
+	/* Splice lists together. */
+	blocknr_set_list_splice (& into->entries, & from->entries);
+
+	/* Add the partial entry back to the head of the list. */
+	if (bse_into != NULL) {
+		blocknr_set_entry_push_front (& into->entries, bse_into);
+	}
+}
+
+
 
 /* 
  * Local variables:
