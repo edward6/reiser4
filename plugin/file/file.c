@@ -688,6 +688,8 @@ unix_file_writepage(struct page *page)
 {
 	int result;
 	struct inode *inode;
+	tail_plugin *tail_plugin;
+	reiser4_block_nr needed;
 
 	assert("vs-1032", PageLocked(page));
 	assert("vs-1084", page->mapping && page->mapping->host);
@@ -696,11 +698,20 @@ unix_file_writepage(struct page *page)
 	if (PagePrivate(page))
 		return 0;
 
-	if ((result = reiser4_grab_space_exact(1, 0)) != 0)
-		return result;
-	
 	inode = page->mapping->host;
 
+	tail_plugin = inode_tail_plugin(inode);
+
+	assert("umka-1254", tail_plugin != NULL);
+
+	needed = tail_plugin->estimate(inode, 1, 0);
+
+	trace_on(TRACE_RESERVE, " write page grabbed %llu blocks\n", 
+		needed);
+	
+	if ((result = reiser4_grab_space_exact(needed, 0)) != 0)
+		return result;
+	
 	/* to keep order of locks right we have to unlock page before
 	 * call to get_nonexclusive_access */
 	page_cache_get(page);

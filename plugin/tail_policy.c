@@ -30,15 +30,15 @@ never_tail(const struct inode *inode UNUSED_ARG	/* inode to
 	return 0;
 }
 
-reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
-	int is_fake) 
+static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
+	int is_hole) 
 {
 	/* Estimating the number of blocks for extents. Here is handled the both
 	 * cases: request for allocating fake allocated extents and real allocated 
 	 * ones */
 	
 	assert("umka-1245", inode != NULL);
-	if (is_fake) {
+	if (is_hole) {
 	    reiser4_block_nr amount;
 	    
 	    /* In the case of unallocated extent (truncate does) we are counting 
@@ -65,8 +65,8 @@ always_tail(const struct inode *inode UNUSED_ARG	/* inode to
 	return 1;
 }
 
-reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
-	int is_fake) 
+static reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
+	int is_hole) 
 {
 	reiser4_block_nr amount;
 	__u32 max_item_size, block_nr;
@@ -102,13 +102,13 @@ test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
 	return 1;
 }
 
-reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t size,
-	int is_fake) 
+static reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t size,
+	int is_hole) 
 {
 	assert("umka-1243", inode != NULL);
 
-	return test_tail(inode, size) ? always_tail_estimate(inode, size, is_fake) : 
-		never_tail_estimate(inode, size, is_fake);
+	return test_tail(inode, size) ? always_tail_estimate(inode, size, is_hole) : 
+		never_tail_estimate(inode, size, is_hole);
 }
 
 /* tail plugins */
