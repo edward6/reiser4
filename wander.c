@@ -650,6 +650,8 @@ get_overwrite_set(struct commit_handle *ch)
 #if REISER4_DEBUG
 			/* this is to check atom's flush reserved space for overwritten leaves */
 			else {
+				if (!JF_ISSET(cur, JNODE_FLUSH_RESERVED))
+					printk("jnode %p, state %lu\n", cur, cur->state);
 				if (jnode_is_znode(cur))
 					nr_formatted_leaves ++;
 				else
