@@ -216,12 +216,126 @@ void key_init(reiser4_key * key);
 /** minimal possible key in the tree. Return pointer to the static storage. */
 extern const reiser4_key *min_key(void);
 extern const reiser4_key *max_key(void);
-extern cmp_t keycmp(const reiser4_key * k1, const reiser4_key * k2);
-extern int keyeq(const reiser4_key * k1, const reiser4_key * k2);
-extern int keylt(const reiser4_key * k1, const reiser4_key * k2);
-extern int keyle(const reiser4_key * k1, const reiser4_key * k2);
-extern int keygt(const reiser4_key * k1, const reiser4_key * k2);
-extern int keyge(const reiser4_key * k1, const reiser4_key * k2);
+
+/** helper macro for keycmp() */
+#define DIFF( field )								\
+({										\
+	typeof ( get_key_ ## field ( k1 ) ) f1;                              	\
+	typeof ( get_key_ ## field ( k2 ) ) f2;					\
+										\
+	f1 = get_key_ ## field ( k1 );						\
+	f2 = get_key_ ## field ( k2 );						\
+										\
+	( f1 < f2 ) ? LESS_THAN : ( ( f1 == f2 ) ? EQUAL_TO : GREATER_THAN );	\
+})
+
+/** helper macro for keycmp() */
+#define DIFF_EL( off )								\
+({										\
+	__u64 e1;								\
+	__u64 e2;								\
+										\
+	e1 = get_key_el ( k1, off );						\
+	e2 = get_key_el ( k2, off );						\
+										\
+	( e1 < e2 ) ? LESS_THAN : ( ( e1 == e2 ) ? EQUAL_TO : GREATER_THAN );	\
+})
+
+/** compare `k1' and `k2'.  This function is a heart of "key allocation
+    policy". All you need to implement new policy is to add yet another
+    clause here. */
+static inline cmp_t
+keycmp(const reiser4_key * k1 /* first key to compare */ ,
+       const reiser4_key * k2 /* second key to compare */ )
+{
+	cmp_t result;
+
+	assert("nikita-439", k1 != NULL);
+	assert("nikita-440", k2 != NULL);
+
+	if (REISER4_PLANA_KEY_ALLOCATION) {
+		/* if physical order of fields in a key is identical
+		   with logical order, we can implement key comparison
+		   as three 64bit comparisons. */
+		/* 
+		   logical order of fields in plan-a:
+		   locality->type->objectid->offset.
+		 */
+		/* compare locality and type at once */
+		result = DIFF_EL(0);
+		if (result == EQUAL_TO) {
+			/* compare objectid (and band if it's there) */
+			result = DIFF_EL(1);
+			/* compare offset */
+			if (result == EQUAL_TO) {
+				result = DIFF_EL(2);
+			}
+		}
+	} else if (REISER4_3_5_KEY_ALLOCATION) {
+		result = DIFF(locality);
+		if (result == EQUAL_TO) {
+			result = DIFF(objectid);
+			if (result == EQUAL_TO) {
+				result = DIFF(type);
+				if (result == EQUAL_TO)
+					result = DIFF(offset);
+			}
+		}
+	} else
+		impossible("nikita-441", "Unknown key allocation scheme!");
+	return result;
+}
+
+/** true if @k1 equals @k2 */
+static inline int
+keyeq(const reiser4_key * k1 /* first key to compare */ ,
+      const reiser4_key * k2 /* second key to compare */ )
+{
+	assert("nikita-1879", k1 != NULL);
+	assert("nikita-1880", k2 != NULL);
+	return !memcmp(k1, k2, sizeof *k1);
+}
+
+/** true if @k1 is less than @k2 */
+static inline int
+keylt(const reiser4_key * k1 /* first key to compare */ ,
+      const reiser4_key * k2 /* second key to compare */ )
+{
+	assert("nikita-1952", k1 != NULL);
+	assert("nikita-1953", k2 != NULL);
+	return keycmp(k1, k2) == LESS_THAN;
+}
+
+/** true if @k1 is less than or equal to @k2 */
+static inline int
+keyle(const reiser4_key * k1 /* first key to compare */ ,
+      const reiser4_key * k2 /* second key to compare */ )
+{
+	assert("nikita-1954", k1 != NULL);
+	assert("nikita-1955", k2 != NULL);
+	return keycmp(k1, k2) != GREATER_THAN;
+}
+
+/** true if @k1 is greater than @k2 */
+static inline int
+keygt(const reiser4_key * k1 /* first key to compare */ ,
+      const reiser4_key * k2 /* second key to compare */ )
+{
+	assert("nikita-1959", k1 != NULL);
+	assert("nikita-1960", k2 != NULL);
+	return keycmp(k1, k2) == GREATER_THAN;
+}
+
+/** true if @k1 is greater than or equal to @k2 */
+static inline int
+keyge(const reiser4_key * k1 /* first key to compare */ ,
+      const reiser4_key * k2 /* second key to compare */ )
+{
+	assert("nikita-1956", k1 != NULL);
+	assert("nikita-1957", k2 != NULL);	/* October  4: sputnik launched
+						 * November 3: Laika */
+	return keycmp(k1, k2) != LESS_THAN;
+}
 
 extern int sprintf_key(char *buffer, const reiser4_key * key);
 #if REISER4_DEBUG_OUTPUT
