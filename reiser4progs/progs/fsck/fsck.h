@@ -9,6 +9,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -19,8 +20,7 @@
 #include <version.h>
 #include <misc.h>
 #include <profile.h>
-#include <repair/repair.h>
-#include <repair/filesystem.h>
+#include <repair/librepair.h>
 #include <reiser4/reiser4.h>
 
 
