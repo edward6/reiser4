@@ -155,8 +155,8 @@ static reiserfs_coord_t *lookup (reiserfs_node40_t *node, reiserfs_key_t *key) {
 
     coord->node = node;
     
-    if ((ret = reiserfs_bin_search (key, &pos, reiserfs_node40_item_count(node), 
-	node, node40_key_at, reiserfs_comp_keys)) == -1)
+    if ((ret = reiserfs_misc_bin_search (key, &pos, reiserfs_node40_item_count(node), 
+	node, node40_key_at, reiserfs_misc_comp_keys)) == -1)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Binary search failed on node %lu.", 
