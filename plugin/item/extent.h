@@ -34,7 +34,7 @@ typedef struct {
 	reiser4_block_nr pos_in_unit;
 	reiser4_block_nr width; /* width of current unit */
 	pos_in_node_t nr_units; /* number of units */
-	reiser4_extent *ext; /* */
+	int ext_offset; /* offset from the beginning of zdata() */
 	unsigned long expected_page;
 #if REISER4_DEBUG
 	reiser4_extent extent;
