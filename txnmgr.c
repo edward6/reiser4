@@ -3793,6 +3793,7 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 				to = kmap(new_page);
 				lock_page(page);
 				from = kmap(page);
+				radix_tree_preload();
 				lock_two_nodes(node, copy);
 				/*LOCK_JNODE(node);*/
 				spin_lock(&scan_lock);
@@ -3859,6 +3860,7 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 				spin_unlock(&scan_lock);
 				UNLOCK_JNODE(node);
 				UNLOCK_JNODE(copy);
+				radix_tree_preload_end();
 				kunmap(page);
 				unlock_page(page);
 				kunmap(new_page);
