@@ -305,7 +305,7 @@
  * reverse-parent first direction.
  *
  * There is another case which is considered the reverse direction, which comes at the end
- * of a twig in flush_right_relocate_end_of_twig().  As we finish processing a twig we may
+ * of a twig in flush_reverse_relocate_end_of_twig().  As we finish processing a twig we may
  * reach a point where there is a clean twig to the right with a dirty leftmost child.  In
  * this case, we may wish to relocate the child by testing if it should be relocated
  * relative to its parent.
@@ -434,16 +434,30 @@ static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_extent            (flush_scan *scan, int skip_first);
 static int           flush_scan_extent_coord      (flush_scan *scan, const coord_t *in_coord);
 
+/* Initial flush-point ancestor allocation. */
+static int           flush_alloc_ancestors        (flush_position *pos);
+static int           flush_alloc_one_ancestor     (coord_t *coord, flush_position *pos);
+static int           flush_set_preceder           (const coord_t *coord_in, flush_position *pos);
+
 /* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
+static int           flush_squalloc_right                (flush_position *pos);
+static int           flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flush_position *pos);
+static int           flush_squalloc_changed_ancestors    (flush_position *pos);
+
+/* Flush squeeze implementation. */
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
 static int           squeeze_right_non_twig       (znode *left, znode *right);
 static int           shift_one_internal_unit      (znode *left, znode *right);
-static int           flush_squalloc_right         (flush_position *pos);
 
-/* Flush allocate, relocate, write-queueing functions: */
-static int           flush_reverse_relocate_check_dirty_parent   (jnode *node, const coord_t *parent_coord, flush_position *pos);
+/* Flush reverse parent-first relocation routines. */
+static int           flush_reverse_relocate_if_close_enough    (const reiser4_block_nr *pblk, const reiser4_block_nr *nblk);
+static int           flush_reverse_relocate_test               (jnode *node, const coord_t *parent_coord, flush_position *pos);
+static int           flush_reverse_relocate_check_dirty_parent (jnode *node, const coord_t *parent_coord, flush_position *pos);
+static int           flush_reverse_relocate_end_of_twig        (flush_position *pos);
+
+/* Flush allocate write-queueing functions: */
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_rewrite_jnode          (jnode *node);
 static int           flush_queue_jnode            (jnode *node, flush_position *pos);
@@ -509,14 +523,14 @@ ON_DEBUG (atomic_t flush_cnt;)
  * ENOENT.  It needs careful thought and testing of corner conditions.
  */
 
-/* D. Atomicity of flush against deletion.  Suppose a created block is assigned a block
- * number then early-flushed to disk.  It is dirtied again and flush is called again.
- * Concurrently, that block is deleted, and the de-allocation of its block number does not
- * need to be deferred, since it is not part of the preserve set (i.e., it didn't exist
- * before the transaction).  I think there may be a race condition where flush writes the
- * dirty, created block after the non-deferred deallocated block number is re-allocated,
- * making it possible to write deleted data on top of non-deleted data.  Its just a
- * theory, but it needs to be thought out. */
+/* D. Atomicity of flush_prep against deletion and flush concurrency.  Suppose a created
+ * block is assigned a block number then early-flushed to disk.  It is dirtied again and
+ * flush is called again.  Concurrently, that block is deleted, and the de-allocation of
+ * its block number does not need to be deferred, since it is not part of the preserve set
+ * (i.e., it didn't exist before the transaction).  I think there may be a race condition
+ * where flush writes the dirty, created block after the non-deferred deallocated block
+ * number is re-allocated, making it possible to write deleted data on top of non-deleted
+ * data.  Its just a theory, but it needs to be thought out. */
 
 /* E. Never put JNODE_WANDER blocks in the flush queue.  This is easy to implement, but it
  * is done for historical reasons related to the time when we had no log-writing and the
@@ -738,23 +752,44 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_pos.preceder.blk = left_scan.preceder_blk;
 	flush_scan_done (& left_scan);
 
-	/* Do the rightward-bottom-up pass. */
-	ret = flush_squalloc_right (& flush_pos);
+	/* Check for relocation and allocate ancestors of the flush position.  First
+	 * perform a relocation check of the flush point (in reverse parent-first
+	 * context--see flush_reverse_relocate_test), then if the node is a leftmost child
+	 * and the parent is dirty repeat this process at the next level up.  Once
+	 * reaching the highest ancestor, allocate on the way back down.  In otherwords,
+	 * this operation recurses up in reverse parent-first order and then allocates on
+	 * the way back.  This initializes the flush operation for the main
+	 * flush_squalloc_right loop, which continues to allocate in forward parent-first
+	 * order. */
+	if ((ret = flush_alloc_ancestors (& flush_pos))) {
+		goto failed;
+	}
 
-	/* we catch -ENAVAIL code because it may happen due to reaching the atom boundary */
-	if (ret && ret != -ENAVAIL) goto failed;
+	/* Do the main rightward-bottom-up squeeze and allocate loop. */
+	if ((ret = flush_squalloc_right (& flush_pos))) {
+		/* FIXME(C): This is an ugly, UGLY hack to prevent a certain deadlocks by
+		 * trying to prevent atoms from fusing during flushing.  We allow -ENAVAIL
+		 * code to be returned from flush_squalloc_right and continue to
+		 * flush_empty_queue.  The proper solution, I feel, is to catch -EINVAL
+		 * everywhere it may be generated, not at the top level like this. */
+		if (ret != -ENAVAIL) {
+			goto failed;
+		}
+		/* FIXME(C): Should be this: */
+		/* goto failed; */
+	}
+
+	/* FIXME: JMACD (UNALLOCATED CHILDREN): Here, handle the twig-special case.
+	 * Finish allocating until the last twig that was allocated has no unallocated
+	 * children.  Note that the last twig may be the first one, and it may not have
+	 * been allocated at all, in which case this doesn't matter. */
 
 	/* Write anything left in the queue. */
 	ret = flush_empty_queue (& flush_pos);
 
-	/* FIXME: ->JMACD (UNALLOCATED CHILDREN): Here, handle the twig-special case. */
-
-	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
-
 	/* Any failure reaches this point. */
    failed:
 
-	//print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF);
 	if (nr_to_flush != NULL) {
 		if (ret == 0) {
 			trace_on (TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.enqueue_cnt);
@@ -820,13 +855,15 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 }
 
 /********************************************************************************
- * (RE-) LOCATION POLICIES
+ * REVERSE PARENT-FIRST RELOCATION POLICIES
  ********************************************************************************/
 
 /* This implements the is-it-close-enough-to-its-preceder? test for relocation in the
- * reverse parent-first relocate context.  In the forward parent-first relocate context
- * (not here) we actually call the block allocator to try and find a closer location.
- * Here all we know is the preceder and the block number. */
+ * reverse parent-first relocate context.  Here all we know is the preceder and the block
+ * number.  Since we are going in reverse, the preceder may still be relocated as well, so
+ * we can't ask the block allocator "is there a closer block available to relocate?" here.
+ * In the _forward_ parent-first relocate context (not here) we actually call the block
+ * allocator to try and find a closer location. */
 static int flush_reverse_relocate_if_close_enough (const reiser4_block_nr *pblk,
 						   const reiser4_block_nr *nblk)
 {
@@ -851,8 +888,8 @@ static int flush_reverse_relocate_if_close_enough (const reiser4_block_nr *pblk,
 /* This function is a predicate that tests for relocation.  Always called in the
  * reverse-parent-first context, when we are asking whether the current node should be
  * relocated in order to expand the flush by dirtying the parent level (and thus
- * proceeding to flush that level).  When traversing in the forward-parent-first
- * direction, relocation decisions are handled in two places: flush_allocate_znode() and
+ * proceeding to flush that level).  When traversing in the forward parent-first direction
+ * (not here), relocation decisions are handled in two places: flush_allocate_znode() and
  * extent_needs_allocation(). */
 static int flush_reverse_relocate_test (jnode *node, const coord_t *parent_coord, flush_position *pos)
 {
@@ -908,22 +945,16 @@ static int flush_reverse_relocate_check_dirty_parent (jnode *node, const coord_t
 	return 0;
 }
 
-/*
- * FIXME: JMACD->HANS: I AM STILL REVIEWING COMMENTS AND COMMENTING ALL BELOW THIS POINT.
- */
-
-/********************************************************************************
- * Flush Squeeze and Allocate
- ********************************************************************************/
-
-/* This function either continues or stops the squeeze-and-allocate procedure when it
- * reaches the end of the twig level.  This case is special because the first child of the
- * next-rightward twig may need to be relocated even if the parent is clean.  This only
- * performs part of the task: if the right neighbor is dirty then we continue with the
- * (upward-recursive) squalloc_changed_ancestors step regardless of the first child.  If
- * the first child is clean then we stop.  If the first child is dirty, then see if it
- * should be relocated and possibly dirty the parent. */
-static int flush_right_relocate_end_of_twig (flush_position *pos)
+/* This function is called when flush_squalloc_right reaches the end of a twig node.  At
+ * this point the leftmost child of the right twig may be considered for relocation.  This
+ * is another case of the reverse parent-first context relocate test (where we are testing
+ * the child against its parent which precedes it in parent-first order).  The right twig
+ * may already be dirty, in which case this step is unnecessary--we will check the child
+ * for relocation in forward parent-first context when we get there.  If neither the right
+ * twig or its leftmost child are dirty then we stop flushing here.  But if the right twig
+ * is clean, we need to check its leftmost child for dirtiness and relocation, possibly
+ * dirtying the right twig so we can continue the flush. */
+static int flush_reverse_relocate_end_of_twig (flush_position *pos)
 {
 	int ret;
 	jnode *child = NULL;
@@ -978,8 +1009,9 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 		goto exit;
 	}
 
-	/* If the child is relocated it will be handled by squalloc_changed_ancestor,
-	 * which also handles pos_to_child. */
+	/* All we are interested in here is possibly dirtying the right twig.  The child
+	 * will be allocated after its ancestors are processed by the next
+	 * flush_squalloc_changed_ancestors. */
 
  exit:
 	if (child != NULL) { jput (child); }
@@ -988,48 +1020,76 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	return ret;
 }
 
-/* flush_set_preceder -- This is one of two places where we may set the preceding block
- * number.  It is called during flush_allocate_ancestors, the upward-recursive step the
- * calls flush_query_relocate() as long as each child is a leftmost child.  At the
- * twig-level, this routine is called to remember the rightmost child of the left twig.
- * That child (if it is found in memory), is the preceder of the highest non-leftmost
- * child that we encounter during flush_allocate_ancestors.  It helps to draw a
- * picture...
+/********************************************************************************
+ * INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST)
+ ********************************************************************************/
+
+/* This step occurs after the left- and right-scans are completed, before starting the
+ * forward parent-first traversal.  Here we attempt to allocate ancestors of the starting
+ * flush point, which means continuing in the reverse parent-first direction to the
+ * parent, grandparent, and so on (as long as the child is a leftmost child).  This
+ * routine calls a recursive process, flush_alloc_one_ancestor, which does the real work,
+ * except there is special-case handling here for the first ancestor, which may be a twig.
+ * At each level (here and flush_alloc_one_ancestor), we check for relocation and then, if
+ * the child is a leftmost child, repeat at the next level.  On the way back down (the
+ * recursion), we allocate the ancestors in parent-first order.
  */
-static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
+static int flush_alloc_ancestors (flush_position *pos)
 {
-	int ret;
-	coord_t coord;
-	lock_handle left_lock;
+	int ret = 0;
+	lock_handle plock;
+	load_count pload;
+	coord_t pcoord;
 
-	coord_dup (& coord, coord_in);
+	trace_on (TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", flush_pos_tostring (pos));
 
-	init_lh (& left_lock);
-
-	/* FIXME(B): Same FIXME as in "Find the preceder" in flush_reverse_relocate_test.
-	 * coord_is_leftmost_unit is not the right test if the unformatted child is in the
-	 * middle of the first extent unit. */
-	if (! coord_is_leftmost_unit (& coord)) {
-		coord_prev_unit (& coord);
-	} else {
-		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, GN_SAME_ATOM))) {
-			/* FIXME(C): check EINVAL, EDEADLK */
-			if (ret == -EAGAIN || ret == -ENAVAIL || ret == -ENOENT) { ret = 0; }
-			goto exit;
-		}
+	/* FIXME(D): This check has no atomicity--the node is not spinlocked--so what good
+	 * is it?  It needs to be moved into some kind of spinlock protection, probably
+	 * flush_reverse_relocate_check_dirty_parent or flush_reverse_relocate_test,
+	 * definetly flush_allocate_znode. */
+	if (jnode_check_flushprepped (pos->point)) {
+		trace_on (TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", flush_pos_tostring (pos));
+		return 0;
 	}
 
-	if ((ret = item_utmost_child_real_block (& coord, RIGHT_SIDE, & pos->preceder.blk))) {
-		goto exit;
+	coord_init_invalid (& pcoord, NULL);
+	init_lh (& plock);
+	init_load_count (& pload);
+
+	if (flush_pos_unformatted (pos) || ! znode_is_root (JZNODE (pos->point))) {
+		/* Lock the parent (it may already be locked, thus the special case). */
+		if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, & pload, ZNODE_WRITE_LOCK))) {
+			goto exit;
+		}
+
+		/* The parent may not be dirty, in which case we should decide whether to
+		 * relocate the child now. */
+		if ((ret = flush_reverse_relocate_check_dirty_parent (pos->point, & pcoord, pos))) {
+			goto exit;
+		}
+
+		/* Do the recursive step, allocating zero or more of our ancestors. */
+		ret = flush_alloc_one_ancestor (& pcoord, pos);
+	}
+
+	/* Finally, allocate the current flush point if it is formatted.  This leaves us
+	 * with the current point allocated, ready to call the flush_squalloc_right
+	 * loop. */
+	if (ret == 0 && ! flush_pos_unformatted (pos)) {
+		ret = flush_allocate_znode (JZNODE (pos->point), & pcoord, pos);
 	}
 
  exit:
-	done_lh (& left_lock);
+	done_load_count (& pload);
+	done_lh (& plock);
 	return ret;
 }
 
-/* Recurse up the tree as long as ancestors are same_atom_dirty and not allocated,
- * allocate on the way back down. */
+/* This is the recursive step described in flush_alloc_ancestors, above.  Ignoring the
+ * call to flush_set_preceder, which is the next function described, this checks if the
+ * child is a leftmost child and returns if it is not.  If the child is a leftmost child
+ * it checks for relocation, possibly dirtying the parent.  Then it performs the recursive
+ * step. */
 static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 {
 	int ret = 0;
@@ -1087,43 +1147,148 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 	return ret;
 }
 
-/* Handle the first step in allocating ancestors, setup the call to
- * flush_alloc_one_ancestor.  This is a special case due to the twig-level and unformatted
- * nodes. */
-static int flush_alloc_ancestors (flush_position *pos)
+/* During the reverse parent-first flush_alloc_ancestors process described above there is
+ * a call to this function at the twig level.  During flush_alloc_ancestors we may ask:
+ * should this node be relocated (in reverse parent-first context)?  We repeat this
+ * process as long as the child is the leftmost child, eventually reaching an ancestor of
+ * the flush point that is not a leftmost child.  The preceder of that ancestors, which is
+ * not a leftmost child, is actually on the leaf level.  The preceder of that block is the
+ * left-neighbor of the flush point.  The preceder of that block is the rightmost child of
+ * the twig on the left.  So, when flush_alloc_ancestors passes upward through the twig
+ * level, it stops momentarily to remember the block of the rightmost child of the twig on
+ * the left and sets it to the flush_position's preceder_hint.
+ *
+ * There is one other place where we may set the flush_position's preceder hint, which is
+ * during scan-left.
+ */
+static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 {
-	int ret = 0;
-	lock_handle plock;
-	load_count pload;
-	coord_t pcoord;
+	int ret;
+	coord_t coord;
+	lock_handle left_lock;
 
-	coord_init_invalid (& pcoord, NULL);
-	init_lh (& plock);
-	init_load_count (& pload);
+	coord_dup (& coord, coord_in);
 
-	if (flush_pos_unformatted (pos) || ! znode_is_root (JZNODE (pos->point))) {
-		/* Lock the parent (it may already be locked, thus the special case). */
-		if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, & pload, ZNODE_WRITE_LOCK))) {
+	init_lh (& left_lock);
+
+	/* FIXME(B): Same FIXME as in "Find the preceder" in flush_reverse_relocate_test.
+	 * coord_is_leftmost_unit is not the right test if the unformatted child is in the
+	 * middle of the first extent unit. */
+	if (! coord_is_leftmost_unit (& coord)) {
+		coord_prev_unit (& coord);
+	} else {
+		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, GN_SAME_ATOM))) {
+			/* If we fail for any reason it doesn't matter because the
+			 * preceder is only a hint.  We are low-priority at this point, so
+			 * this must be the case. */
+			if (ret == -EAGAIN || ret == -ENAVAIL || ret == -ENOENT || ret == -EINVAL || ret == -EDEADLK) { ret = 0; }
 			goto exit;
 		}
-
-		/* It may not be dirty, in which case we should decide whether to relocate the
-		 * child now. */
-		if ((ret = flush_reverse_relocate_check_dirty_parent (pos->point, & pcoord, pos))) {
-			goto exit;
-		}
-
-		ret = flush_alloc_one_ancestor (& pcoord, pos);
 	}
 
-	/* If we are at a formatted node, allocate it now. */
-	if (ret == 0 && ! flush_pos_unformatted (pos)) {
-		ret = flush_allocate_znode (JZNODE (pos->point), & pcoord, pos);
+	if ((ret = item_utmost_child_real_block (& coord, RIGHT_SIDE, & pos->preceder.blk))) {
+		goto exit;
 	}
 
  exit:
-	done_load_count (& pload);
-	done_lh (& plock);
+	done_lh (& left_lock);
+	return ret;
+}
+
+/********************************************************************************
+ * SQUEEZE AND ALLOCATE
+ ********************************************************************************/
+
+/*
+ *
+ * FIXME: JMACD->HANS: I am still writing/reviewing/replacing/enhancing comments below
+ * this point.
+ *
+ */
+
+/* This procedure implements the outer loop of the flush algorithm. */
+static int flush_squalloc_right (flush_position *pos)
+{
+	int ret;
+
+	/* FIXME(D): This check has no atomicity. */
+	if (jnode_check_flushprepped (pos->point)) {
+		return 0;
+	}
+
+ ALLOC_EXTENTS:
+	/* Handle extents. */
+	if (flush_pos_valid (pos) && flush_pos_unformatted (pos)) {
+
+		int is_dirty;
+
+		assert ("jmacd-8712", item_is_extent (& pos->parent_coord));
+
+		trace_on (TRACE_FLUSH_VERB, "allocate_extent_in_place: %s\n", flush_pos_tostring (pos));
+
+		/* This allocates extents up to the end of the current extent item and
+		 * returns pos->parent_coord set to the next item. */
+		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
+			goto exit;
+		}
+
+		coord_next_unit (& pos->parent_coord);
+
+		/* If we have not allocated this node completely... */
+		if (! coord_is_after_rightmost (& pos->parent_coord)) {
+
+			if ((ret = item_utmost_child_dirty (& pos->parent_coord, LEFT_SIDE, & is_dirty))) {
+				goto exit;
+			}
+
+			/* If dirty then repeat, otherwise stop here. */
+			if (is_dirty) {
+				/* If the parent_coord is not positioned over an extent
+				 * (at this twig level), we should descend to the
+				 * formatted child. */
+				trace_on (TRACE_FLUSH_VERB, "sq_r unformatted_right_is_dirty: %s type %s\n",
+					  flush_pos_tostring (pos), item_is_extent (& pos->parent_coord) ? "extent" : "internal");
+
+				if (! item_is_extent (& pos->parent_coord) && (ret = flush_pos_to_child_and_alloc (pos))) {
+					goto exit;
+				}
+
+				trace_on (TRACE_FLUSH_VERB, "sq_r unformatted_goto_step2: %s\n", flush_pos_tostring (pos));
+				goto ALLOC_EXTENTS;
+			} else {
+				/* We are finished at this level. */
+				ret = 0;
+				goto exit;
+			}
+		}
+
+		/* We are about to try to allocate the right twig by calling
+		 * flush_squalloc_changed_ancestors in the flush_pos_unformatted state.
+		 * However, the twig may need to be dirtied first if its left-child will
+		 * be relocated. */
+		if ((ret = flush_reverse_relocate_end_of_twig (pos))) {
+			goto exit;
+		}
+
+		/* Now squeeze upward, allocate downward, for any ancestors that are not
+		 * in common between parent_node and right_twig and not allocated
+		 * (including right_twig itself). */
+	}
+
+	if (flush_pos_valid (pos)) {
+		/* Step 3: Formatted and unformatted cases. */
+		if ((ret = flush_squalloc_changed_ancestors (pos))) {
+			goto exit;
+		}
+	}
+
+	if (flush_pos_valid (pos)) {
+		/* Repeat. */
+		trace_on (TRACE_FLUSH_VERB, "sq_r repeat: %s\n", flush_pos_tostring (pos));
+		goto ALLOC_EXTENTS;
+	}
+
+ exit:
 	return ret;
 }
 
@@ -1483,106 +1648,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	return ret;
 }
 
-/* FIXME: comment */
-static int flush_squalloc_right (flush_position *pos)
-{
-	int ret;
-
-	/* Step 1: Re-allocate all the ancestors as long as the position is a leftmost
-	 * child. */
-	trace_on (TRACE_FLUSH_VERB, "sq_r alloc ancestors: %s\n", flush_pos_tostring (pos));
-
-	if (jnode_check_flushprepped (pos->point)) {
-		trace_on (TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", flush_pos_tostring (pos));
-		return 0;
-	}
-
-	if ((ret = flush_alloc_ancestors (pos))) {
-		goto exit;
-	}
-
- STEP_2:/* Step 2: Handle extents. */
-	if (flush_pos_valid (pos) && flush_pos_unformatted (pos)) {
-
-		int is_dirty;
-
-		assert ("jmacd-8712", item_is_extent (& pos->parent_coord));
-
-		trace_on (TRACE_FLUSH_VERB, "allocate_extent_in_place: %s\n", flush_pos_tostring (pos));
-
-		/* This allocates extents up to the end of the current twig 
-JOSH-FIXME-HANS: you mean up to the end of the current extent item, yes?
-
-and returns
-		 * pos->parent_coord set to the next item. */
-		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
-			goto exit;
-		}
-
-		coord_next_unit (& pos->parent_coord);
-
-		/* If we have not allocated this node completely... */
-		if (! coord_is_after_rightmost (& pos->parent_coord)) {
-
-			if ((ret = item_utmost_child_dirty (& pos->parent_coord, LEFT_SIDE, & is_dirty))) {
-				goto exit;
-			}
-
-			/* If dirty then repeat, otherwise stop here. */
-			if (is_dirty) {
-				/* If the parent_coord is not positioned over an extent
-				 * (at this twig level), we should descend to the
-				 * formatted child. */
-				trace_on (TRACE_FLUSH_VERB, "sq_r unformatted_right_is_dirty: %s type %s\n",
-					  flush_pos_tostring (pos), item_is_extent (& pos->parent_coord) ? "extent" : "internal");
-
-				if (! item_is_extent (& pos->parent_coord) && (ret = flush_pos_to_child_and_alloc (pos))) {
-					goto exit;
-				}
-
-				trace_on (TRACE_FLUSH_VERB, "sq_r unformatted_goto_step2: %s\n", flush_pos_tostring (pos));
-				goto STEP_2;
-			} else {
-				/* We are finished at this level. */
-				ret = 0;
-				goto exit;
-			}
-		}
-
-		/* We are about to try to allocate the right twig by calling
-		 * flush_squalloc_changed_ancestors in the flush_pos_unformatted state.
-		 * However, the twig may need to be dirtied first if its left-child will
-		 * be relocated. */
-		if ((ret = flush_right_relocate_end_of_twig (pos))) {
-			goto exit;
-		}
-
-		/* Now squeeze upward, allocate downward, for any ancestors that are not
-		 * in common between parent_node and right_twig and not allocated
-		 * (including right_twig itself). */
-	}
-
-	if (flush_pos_valid (pos)) {
-		/* Step 3: Formatted and unformatted cases. */
-		if ((ret = flush_squalloc_changed_ancestors (pos))) {
-			goto exit;
-		}
-	}
-
-	if (flush_pos_valid (pos)) {
-		/* Repeat. */
-		trace_on (TRACE_FLUSH_VERB, "sq_r repeat: %s\n", flush_pos_tostring (pos));
-		goto STEP_2;
-	}
-
- exit:
-	return ret;
-}
-
-/********************************************************************************
- * SQUEEZE AND ALLOCATE
- ********************************************************************************/
-
 /* Squeeze and allocate the right neighbor.  This is called after @left and
  * its current children have been squeezed and allocated already.  This
  * procedure's job is to squeeze and items from @right to @left.
@@ -1929,6 +1994,9 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	reiser4_block_nr blk;
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
+
+	/* FIXME(D): Need a spinlock in here. */
+	assert ("jmacd-67851", ! znode_check_flushprepped (node));
 
 	pos->preceder.block_stage = BLOCK_NOT_COUNTED;
 
