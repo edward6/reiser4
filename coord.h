@@ -142,9 +142,17 @@ extern int coord_eq (const tree_coord *c1, const tree_coord *c2);
 /* For debugging, error messages. */
 extern void coord_print (const char * mes, const tree_coord * coord, int print_node);
 
-/* ??? */
+/* If coord_is_after_rightmost return COORD_ON_THE_RIGHT, if coord_is_after_leftmost
+ * return COORD_ON_THE_LEFT, otherwise return COORD_INSIDE. */
 extern coord_wrt_node coord_wrt (const tree_coord *coord);
+
+/* Returns true if the coordinates are positioned at adjacent units, regardless of
+ * before-after or item boundaries. */
 extern int  coord_are_neighbors (tree_coord *c1, tree_coord *c2);
+
+/* Assuming two coordinates are positioned in the same node, return COORD_CMP_ON_RIGHT,
+ * COORD_CMP_ON_LEFT, or COORD_CMP_SAME depending on c1's position relative to c2.  */
+extern coord_cmp coord_compare (tree_coord * c1, tree_coord * c2);
 
 /*****************************************************************************************/
 /*				     COORD PREDICATES                                    */
@@ -158,8 +166,8 @@ extern int coord_is_invalid (const tree_coord *coord);
  * existing or not.  If this is true you can call methods of the item plugin.  */
 extern int coord_is_existing_item (const tree_coord *coord);
 
-/* Returns true if the coordinate is positioned between existing items (not between
- * existing units). */
+/* Returns true if the coordinate is positioned after a item, before a item, after the
+ * last unit of an item, before the first unit of an item, or at an empty node. */
 extern int coord_is_between_items (const tree_coord *coord);
 
 /* Returns true if the coordinate is positioned at an existing unit, not before or after a
@@ -181,10 +189,12 @@ extern int coord_is_rightmost_unit (const tree_coord *coord);
  * for empty nodes nor coordinates positioned after the last item. */
 extern int coord_is_rightmost_item (const tree_coord *coord);
 
-/* Returns true if the coordinate is positioned AFTER THE LAST ITEM. */
+/* Returns true if the coordinate is positioned after the last item or after the last unit
+ * of the last item or it is an empty node. */
 extern int coord_is_after_rightmost (const tree_coord *coord);
 
-/* Returns true if the coordinate is positioned BEFORE THE FIRST ITEM. */
+/* Returns true if the coordinate is positioned before the first item or it is an empty
+ * node. */
 extern int coord_is_before_leftmost (const tree_coord *coord);
 
 /* Calls either coord_is_before_leftmost or coord_is_after_rightmost depending on sideof

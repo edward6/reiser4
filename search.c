@@ -616,11 +616,6 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	if( ! znode_is_loaded( active ) )
 		setup_delimiting_keys( h );
 
-	/*
-	 * FIXME-NIKITA this is ugly kludge. To get rid of it, get rid of
-	 * tree_coord.between field first.
-	 */
-	/*h->coord->between = AT_UNIT;*/
 	coord_set_to_unit( h -> coord );
 
 	spin_lock_tree (h->tree);

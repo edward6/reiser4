@@ -529,26 +529,302 @@ int coord_eq (const tree_coord *c1, const tree_coord *c2)
 	impossible ("jmacd-9906", "unreachable");
 }
 
+/* If coord_is_after_rightmost return COORD_ON_THE_RIGHT, if coord_is_after_leftmost
+ * return COORD_ON_THE_LEFT, otherwise return COORD_INSIDE. */
+coord_wrt_node coord_wrt (const tree_coord *coord)
+{
+	if (coord_is_before_leftmost (coord)) {
+		return COORD_ON_THE_LEFT;
+	}
 
+	if (coord_is_after_rightmost (coord)) {
+		return COORD_ON_THE_RIGHT;
+	}
 
+	return COORD_INSIDE;
+}
 
+/* Returns true if the coordinate is positioned after the last item or after the last unit
+ * of the last item or it is an empty node. */
+int coord_is_after_rightmost (const tree_coord *coord)
+{
+	assert ("jmacd-7313", coord_check (coord));
 
+	switch (coord->between) {
+	case INVALID_COORD:
+	case AT_UNIT:
+	case BEFORE_UNIT:
+	case BEFORE_ITEM:
+		return 0;
 
+	case EMPTY_NODE:
+		return 1;
 
+	case AFTER_ITEM:
+		return (coord->item_pos == node_num_items (coord->node) - 1);
 
+	case AFTER_UNIT:
+		return ((coord->item_pos == node_num_items (coord->node) - 1) && 
+			coord->unit_pos == coord_last_unit_pos (coord));
+	}
 
+	impossible ("jmacd-9908", "unreachable");
+}
 
+/* Returns true if the coordinate is positioned before the first item or it is an empty
+ * node. */
+int coord_is_before_leftmost (const tree_coord *coord)
+{
+	assert ("jmacd-7313", coord_check (coord));
 
+	switch (coord->between) {
+	case INVALID_COORD:
+	case AT_UNIT:
+	case AFTER_ITEM:
+	case AFTER_UNIT:
+		return 0;
 
+	case EMPTY_NODE:
+		return 1;
 
+	case BEFORE_ITEM:
+	case BEFORE_UNIT:
+		return (coord->item_pos == 0) && (coord->unit_pos == 0);
+	}
 
+	impossible ("jmacd-9908", "unreachable");
+}
 
+/* Returns true if the coordinate is positioned after a item, before a item, after the
+ * last unit of an item, before the first unit of an item, or at an empty node. */
+int coord_is_between_items (const tree_coord *coord)
+{
+	assert ("jmacd-7313", coord_check (coord));
 
+	switch (coord->between) {
+	case INVALID_COORD:
+	case AT_UNIT:
+		return 0;
 
+	case AFTER_ITEM:
+	case BEFORE_ITEM:
+	case EMPTY_NODE:
+		return 1;
 
+	case BEFORE_UNIT:
+		return coord->unit_pos == 0;
 
+	case AFTER_UNIT:
+		return coord->unit_pos == coord_last_unit_pos (coord);
+	}
 
+	impossible ("jmacd-9908", "unreachable");
+}
 
+/* Returns true if the coordinates are positioned at adjacent units, regardless of
+ * before-after or item boundaries. */
+int coord_are_neighbors (tree_coord *c1, tree_coord *c2)
+{
+	tree_coord *left;
+	tree_coord *right;
+
+	assert( "nikita-1241", c1 != NULL );
+	assert( "nikita-1242", c2 != NULL );
+	assert( "nikita-1243", c1 -> node == c2 -> node );
+	assert( "nikita-1244", coord_is_existing_unit( c1 ) );
+	assert( "nikita-1245", coord_is_existing_unit( c2 ) );
+
+	switch( coord_compare( c1, c2 ) ) {
+	case COORD_CMP_ON_LEFT:
+		left  = c1;
+		right = c2;
+		break;
+	case COORD_CMP_ON_RIGHT:
+		left  = c2;
+		right = c1;
+		break;
+	case COORD_CMP_SAME:
+		return 0;
+	default:
+		wrong_return_value( "nikita-1246", "compare_coords()" );
+	}
+	if( left -> item_pos == right -> item_pos ) {
+		return left -> unit_pos + 1 == right -> unit_pos;
+	} else if( left -> item_pos + 1 == right -> item_pos ) {
+		return ( left -> unit_pos == coord_last_unit_pos( left ) ) &&
+			( right -> unit_pos == 0 );
+	} else {
+		return 0;
+	}
+}
+
+/* Assuming two coordinates are positioned in the same node, return COORD_CMP_ON_RIGHT,
+ * COORD_CMP_ON_LEFT, or COORD_CMP_SAME depending on c1's position relative to c2.  */
+coord_cmp coord_compare (tree_coord * c1, tree_coord * c2)
+{
+	assert ("vs-209", c1->node == c2->node);
+	assert ("vs-194", coord_is_existing_unit (c1) && coord_is_existing_unit (c2));
+
+	if (c1->item_pos > c2->item_pos)
+		return COORD_CMP_ON_RIGHT;
+	if (c1->item_pos < c2->item_pos)
+		return COORD_CMP_ON_LEFT;
+	if (c1->unit_pos > c2->unit_pos)
+		return COORD_CMP_ON_RIGHT;
+	if (c1->unit_pos < c2->unit_pos)
+		return COORD_CMP_ON_LEFT;
+	return COORD_CMP_SAME;
+}
+
+/* Returns true if coord is set to or before the first (if LEFT_SIDE) unit of the item and
+ * to or after the last (if RIGHT_SIDE) unit of the item. */
+int coord_is_delimiting (tree_coord *coord, sideof dir)
+{
+	assert ("jmacd-9824", dir == LEFT_SIDE || dir == RIGHT_SIDE);
+
+	if (dir == LEFT_SIDE) {
+		return coord_is_before_leftmost (coord);
+	} else {
+		return coord_is_after_rightmost (coord);
+	}
+}
+
+/* If the coordinate is before an item/unit, set to next item/unit.  If the coordinate is
+ * after an item/unit, set to the previous item/unit.  Returns 0 on success and non-zero
+ * if there is no position (i.e., if the coordinate is empty). */
+int coord_set_to_unit (tree_coord *coord)
+{
+	assert ("jmacd-7316", coord_check (coord));
+
+	switch (coord->between) {
+	case INVALID_COORD:
+	case EMPTY_NODE:
+		return 1;
+
+	case AT_UNIT:
+		return 0;
+
+	case AFTER_ITEM:
+	case BEFORE_ITEM:
+	case BEFORE_UNIT:
+	case AFTER_UNIT:
+		coord->between = AT_UNIT;
+		return 0;
+	}
+
+	impossible ("jmacd-9909", "unreachable");
+}
+
+/* If the coordinate is between items, shifts it to the right.  Returns 0 on success and
+ * non-zero if there is no position to the right. */
+int coord_set_to_right (tree_coord *coord)
+{
+	unsigned items = coord_num_items (coord);
+
+	if (coord_adjust_items (coord, items, 1) == 1) { return 1; }
+
+	switch (coord->between) {
+	case AT_UNIT:
+		return 0;
+
+	case BEFORE_ITEM:
+	case BEFORE_UNIT:
+		coord->between = AT_UNIT;
+		return 0;
+
+	case AFTER_UNIT:
+		if (coord->unit_pos < coord_last_unit_pos (coord)) {
+			coord->unit_pos += 1;
+			coord->between   = AT_UNIT;
+			return 0;
+		} else {
+
+			coord->unit_pos = 0;
+
+			if (coord->item_pos == items - 1) {
+				coord->between = AFTER_ITEM;
+				return 1;
+			}
+
+			coord->item_pos += 1;
+			coord->between   = AT_UNIT;
+			return 0;
+		}
+
+	case AFTER_ITEM:
+		if (coord->item_pos == items - 1) {
+			return 1;
+		}
+
+		coord->item_pos += 1;
+		coord->unit_pos  = 0;
+		coord->between   = AT_UNIT;
+		return 0;
+		
+	case INVALID_COORD:
+	case EMPTY_NODE:
+	break;
+	}
+
+	impossible ("jmacd-9920", "unreachable");
+}
+
+/* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
+ * non-zero if there is no position to the left. */
+int coord_set_to_left (tree_coord *coord)
+{
+	unsigned items = coord_num_items (coord);
+
+	if (coord_adjust_items (coord, items, 0) == 1) { return 1; }
+
+	switch (coord->between) {
+	case AT_UNIT:
+		return 0;
+
+	case AFTER_UNIT:
+		coord->between = AT_UNIT;
+		return 0;
+
+	case AFTER_ITEM:
+		coord->unit_pos = coord_last_unit_pos (coord);
+		coord->between  = AT_UNIT;
+		return 0;
+
+	case BEFORE_UNIT:
+		if (coord->unit_pos > 0) {
+			coord->unit_pos -= 1;
+			coord->between   = AT_UNIT;
+			return 0;
+		} else {
+
+			if (coord->item_pos == 0) {
+				coord->between = BEFORE_ITEM;
+				return 1;
+			}
+
+			coord->unit_pos  = coord_last_unit_pos (coord);
+			coord->item_pos -= 1;
+			coord->between   = AT_UNIT;
+			return 0;
+		}
+
+	case BEFORE_ITEM:
+		if (coord->item_pos == 0) {
+			return 1;
+		}
+
+		coord->item_pos -= 1;
+		coord->unit_pos  = coord_last_unit_pos (coord);
+		coord->between   = AT_UNIT;
+		return 0;
+		
+	case INVALID_COORD:
+	case EMPTY_NODE:
+	break;
+	}
+
+	impossible ("jmacd-9920", "unreachable");
+}
 
 #else
 
