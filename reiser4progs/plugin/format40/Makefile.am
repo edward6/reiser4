@@ -1,7 +1,15 @@
 includedir			= -I$(top_srcdir)/include
 libdir				= $(plugindir)
 
+if ENABLE_COMPACT
+
 format40_sources		= format40.c format40.h
+
+else
+
+format40_sources		= format40.c format40_repair.c format40.h
+
+endif
 
 lib_LTLIBRARIES			= libformat40.la
 noinst_LTLIBRARIES		= libformat40-static.la

@@ -71,5 +71,16 @@ extern aal_exception_option_t aal_exception_throw(aal_exception_type_t type,
 extern void aal_exception_fetch_all(void);
 extern void aal_exception_leave_all(void);
 
+#define aal_exception_fatal(msg, list...) \
+    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, msg, ##list)
+#define aal_exception_bug(msg, list...)	\
+    aal_exception_throw(EXCEPTION_BUG, EXCEPTION_OK, msg, ##list)
+#define aal_exception_error(msg, list...) \
+    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, msg, ##list)
+#define aal_exception_warn(msg, list...) \
+    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, msg, ##list)
+#define aal_exception_info(msg, list...) \
+    aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, msg, ##list)
+
 #endif
 

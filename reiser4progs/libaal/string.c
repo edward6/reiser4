@@ -84,6 +84,10 @@ char *aal_strncpy(char *dest, const char *src, uint32_t n) {
     return dest;
 }
 
+char *aal_strcat(char *dest, const char *src) {
+    return aal_strncat(dest, src, aal_strlen(src));
+}
+
 char *aal_strncat(char *dest, const char *src, uint32_t n) {
     uint32_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
 	
@@ -164,6 +168,8 @@ char *aal_strsep(char **stringp, const char *delim) {
 }
 
 #endif
+
+/* Converts string denoted as size into digits */
 
 #define CONV_DEC_RANGE 1000000000
 #define CONV_HEX_RANGE 0x10000000

@@ -9,6 +9,7 @@
 
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
+#include <misc/misc.h>
 
 #include <linux/major.h>
 
@@ -52,11 +53,7 @@
 extern int progs_misc_dev_mounted(const char *name, 
     const char *ops);
 
-/* Size parsing functions */
-extern long int progs_misc_strtol(const char *str, int *error);
-
-extern unsigned long long progs_misc_size_parse(const char *str, 
-    int *error);
+extern unsigned long long progs_misc_size_parse(const char *str, int *error);
 
 /* Common exception handler functions */
 extern aal_exception_option_t progs_exception_handler(aal_exception_t *exception);

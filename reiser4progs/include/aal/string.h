@@ -22,6 +22,7 @@ extern void *aal_memcpy(void *dest, const void *src, size_t n);
 extern int aal_memcmp(const void *s1, const void *s2, size_t n);
 
 extern char *aal_strncpy(char *dest, const char *src, size_t n);
+extern char *aal_strcat(char *dest, const char *src);
 extern char *aal_strncat(char *dest, const char *src, size_t n);
 extern int aal_strncmp(const char *s1, const char *s2, size_t n);
 extern size_t aal_strlen(const char *s);
@@ -41,6 +42,7 @@ extern char *aal_strsep(char **stringp, const char *delim);
 #define aal_memcmp  memcmp
 
 #define aal_strncpy strncpy
+#define aal_strcat  strcat
 #define aal_strncat strncat
 #define aal_strncmp strncmp
 #define aal_strlen  strlen
