@@ -211,26 +211,6 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 
 	trace_on( TRACE_PCACHE, "read node: %p\n", node );
 
-	/*
-	 * FIXME-NIKITA: consider using read_cache_page() here.
-	 */
-	page = read_cache_page (get_super_fake (reiser4_get_current_sb ())->i_mapping,
-				(unsigned long)node,
-				filler, node);
-	if (IS_ERR (page)) {
-		page_cache_release (page);
-		return PTR_ERR (page);
-	}
-	wait_on_page_locked (page);
-	if (!PageUptodate (page)) {
-		page_cache_release (page);
-		return -EIO;
-	}
-	mark_page_accessed (page);
-	kmap_once (node, page);
-	return 0;
-
-#if 0
 	page = add_page( tree -> super, node );
 	if( page != NULL ) {
 		int result;
@@ -239,13 +219,6 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 			result = page -> mapping -> a_ops -> readpage( NULL,
 								       page );
 			if( result == 0 ) {
-				/*
-				 * FIXME-VS: did submit_bio completed?
-				 */
-				trace_on( TRACE_IO, "[%i]: waiting.. %lu %lu\n",
-					  current_pid,
-					  page -> mapping -> host -> i_ino, 
-					  page -> index );
 				wait_on_page_locked( page );
 				if( PageUptodate( page ) )
 					mark_page_accessed( page );
@@ -263,8 +236,6 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 		return result;
 	} else
 		return -ENOMEM;
-
-#endif
 }
 
 /** 
@@ -704,6 +675,7 @@ void print_page( const char *prefix, struct page *page )
 		info( "null page\n" );
 		return;
 	}
+	kmap (page);
 	info( "%s: page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
 	      prefix, page -> index, page_address( page ), page -> mapping, 
 	      atomic_read( &page -> count ), page -> private );
@@ -730,6 +702,7 @@ void print_page( const char *prefix, struct page *page )
 		info_znode( "\tpage jnode", ( znode * ) jprivate( page ) );
 		info( "\n" );
 	}
+	kunmap (page);
 }
 
 
