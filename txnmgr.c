@@ -2519,7 +2519,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC)
 	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)) {
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
-		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
+		grabbed2flush_reserved_nolock(atom, (__u64)1);
 	}
 
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
