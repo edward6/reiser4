@@ -286,14 +286,12 @@ done_formatted_fake(struct super_block *super)
 	return 0;
 }
 
-#if REISER4_TRACE_TREE
+#if REISER4_LOG
 int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
 {
-	int result;
-
-	write_io_trace(moniker, rw, bio);
-	result = submit_bio(rw, bio);
-	return result;
+	write_io_log(moniker, rw, bio);
+	submit_bio(rw, bio);
+	return 0;
 }
 #endif
 
@@ -556,14 +554,15 @@ reiser4_internal void capture_reiser4_inodes (
 		/* set inode state according what pages it has. */
 		if (!(inode->i_state & I_FREEING)) {
 			struct address_space * mapping = inode->i_mapping;
+			unsigned long flags;
 
-			spin_lock(&mapping->page_lock);
-			if (list_empty(get_moved_pages(mapping)) &&
-			    list_empty(&mapping->dirty_pages)) 
+			spin_lock_irqsave(&mapping->tree_lock, flags);
+			if (!radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_DIRTY) &&
+			    !radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED)) 
 			{
 				inode->i_state &= ~(I_DIRTY);
 			}
-			spin_unlock(&mapping->page_lock);
+			spin_unlock_irqrestore(&mapping->tree_lock, flags);
 		}
 		spin_unlock(&inode_lock);
 
@@ -653,8 +652,6 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 
 	set_rapid_flush_mode(1);
 
-	/* set dirty bit back so that it will not contradict with PAGECACHE_TAG_* */
-	SetPageDirty(page);
 #if 0
 	FIXME: should be turned into assertion?
 	{
