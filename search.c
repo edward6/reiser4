@@ -714,8 +714,6 @@ check_dkeys(const znode *node)
 	RUNLOCK_TREE(current_tree);
 	RUNLOCK_DK(current_tree);
 }
-#else
-#define check_dkeys(node) noop
 #endif
 
 /* Process one node during tree traversal.
@@ -758,7 +756,7 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	nplug = active->nplug;
 	assert("nikita-380", nplug != NULL);
 
-	check_dkeys(active);
+	ON_DEBUG(check_dkeys(active));
 
 	/* return item from "active" node with maximal key not greater than
 	   "key"  */
