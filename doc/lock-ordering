@@ -354,6 +354,7 @@ i_sem
 ....................inode_guard
 ....................txnmgr_lock
 ......................atom_lock
+..........................super_guard
 ........................jnode_lock            [->vm_writeback()->jget()]
 ................................eflush_guard
 ..........................txnh_lock
@@ -548,6 +549,10 @@ jnode_lock->jload_lock
 jnode_lock->eflush_guard
 
     eflush_add(), eflush_del()
+
+atom_lock->super_guard
+
+    grabbed2flush_reserved_nolock()
 
 ----------------------------------DEADLOCKS-------------------------------------
 

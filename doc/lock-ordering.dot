@@ -100,9 +100,9 @@ subgraph spin {
 	RSPIN(zlock);
 	RSPIN(fq_lock);
 	RSPIN(jload_lock);
+	RSPIN(super_guard);
 
 	//RSPIN(stack_lock);
-	//RSPIN(super_guard);
 	//RSPIN(lnode_guard);
 	//RSPIN(cksum_guard);
 	//RSPIN(oid_guard);
@@ -267,4 +267,5 @@ ARC(mm_page_table_lock, zone_lru_lock, "try_to_unmap_one()"); // get_user_pages,
 ARC(jnode_lock, zone_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
 ARC(jnode_lock, zone_lru_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
 ARC(jnode_lock, jload_lock, "reiser4_releasepage()");
+ARC(atom_lock, super_guard, "grabbed2flush_reserved_nolock()");
 }
