@@ -1727,8 +1727,6 @@ void *mkdir_thread( mkdir_thread_info *info )
 	int                ret;
 	struct file        df;
 
-	register_thread();
-
 	sprintf( dir_name, "Dir-%i", current_pid );
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = dir_name;
@@ -1789,7 +1787,6 @@ void *mkdir_thread( mkdir_thread_info *info )
 	call_readdir( f, dir_name );
 	info( "(%i): done.\n", current_pid );
 	iput( f );
-	deregister_thread();
 	return NULL;
 }
 
@@ -3086,7 +3083,7 @@ static int bash_mkfs (const char * file_name)
 			/* block allocator */
 			root_block = bh->b_blocknr + 1;
 			next_block = root_block + 1;
-			get_super_private (&super)->space_plug = space_allocator_plugin_by_id (BITMAP_SPACE_ALLOCATOR_ID);
+			get_super_private (&super)->space_plug = space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID);
 			get_super_private (&super)->space_plug->
 				init_allocator (get_space_allocator( &super ),
 						&super, &next_block );
@@ -3257,13 +3254,13 @@ static int bash_mkfs (const char * file_name)
 			wait_on_buffer (bh);
 			brelse (bh);
 
-			call_umount (&super);
-			invalidate_pages ();
 		}
 
 		/*print_tree_rec ("mkfs", tree, REISER4_NODE_PRINT_ALL);*/
 
 		result = __REISER4_EXIT( &__context );
+		call_umount (&super);
+		invalidate_pages ();
 	}
 	return result;
 } /* bash_mkfs */
@@ -3475,8 +3472,6 @@ void * cpr_thread (struct cpr_thread_info * info)
 	struct inode * dir;
 	char * source_path;
 
-
-	register_thread();
 
 	/* create a directory where thread wll work */
 	sprintf (name, "%d", info->num);
@@ -4385,8 +4380,6 @@ int real_main( int argc, char **argv )
 
 	assert ("jmacd-998", s -> s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 	
-	register_thread();
-
 	spin_lock_init( &mp_guard );
 	kcond_init( &memory_pressed );
 	result = pthread_create( &uswapper, NULL, uswapd, s );
@@ -4414,8 +4407,6 @@ int real_main( int argc, char **argv )
 		reiser4_print_stats();
 
 	info( "tree height: %i\n", tree -> height );
-
-	deregister_thread();
 
 	/*sb = reiser4_get_current_sb ();*/
 	{

@@ -643,13 +643,15 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 
 	txn_begin (context);
 
+	context -> parent = context;
+
 #if REISER4_DEBUG
 	context_list_clean (context); /* to satisfy assertion */
 	spin_lock (& active_contexts_lock);
 	context_list_push_front (& active_contexts, context);
 	spin_unlock (& active_contexts_lock);
+	register_thread();
 #endif
-	context -> parent = context;
 	return 0;
 }
 
@@ -683,6 +685,7 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 		assert( "jmacd-1002", lock_stack_isclean (& parent->stack));
 		assert( "nikita-1936", no_counters_are_held() );
 #if REISER4_DEBUG
+		deregister_thread();
 		/* remove from active contexts */
 		spin_lock (& active_contexts_lock);
 		context_list_remove (parent);
@@ -1472,7 +1475,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		print_znode( "", node );
 
 	if( flags == REISER4_NODE_PRINT_ZADDR ) {
-		info( "[node %p block %llu level %u dirty %u xcnt %u]\n", node, *znode_get_block( node ), znode_get_level( node ), znode_check_dirty( node ), node -> x_count );
+		info( "[node %p block %llu level %u dirty %u xcnt %u]\n", node, *znode_get_block( node ), znode_get_level( node ), znode_check_dirty( node ), atomic_read( &node -> x_count ) );
 	} else {
 		print_znode_content( node, flags );
 	}

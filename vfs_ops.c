@@ -1515,10 +1515,23 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	struct inode * inode;
 	int result;
 	unsigned long blocksize;
-	REISER4_ENTRY (s);
+	reiser4_context __context;
 
 	assert( "umka-085", s != NULL );
 	
+	/* this is common for every disk layout. It has a pointer where layout
+	 * specific part of info can be attached to, though */
+	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
+				    GFP_KERNEL);
+	if (!s->u.generic_sbp)
+		return -ENOMEM;
+
+	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
+
+	result = init_context (&__context, s);
+	if (result)
+		return result;
+
  read_super_block:
 	/* look for reiser4 magic at hardcoded place */
 	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
@@ -1556,16 +1569,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	}
 
 	s->s_op = &reiser4_super_operations;
-
-	/* this is common for every disk layout. It has a pointer where layout
-	 * specific part of info can be attached to, though */
-	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
-				    GFP_KERNEL);
-	if (!s->u.generic_sbp) {
-		REISER4_EXIT (-ENOMEM);
-	}
-
-	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
 
 	spin_lock_init (&get_super_private(s)->guard);
 
