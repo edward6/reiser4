@@ -1392,11 +1392,12 @@ free_ow_set:
 	return ret;
 }
 
-/* find oldest not flushed transaction and flush it 
-
-ZAM-FIXME-HANS: flushed or played?  define in more detail the phase in which this occurs
-
-*/
+/* find oldest committed and not played transaction and play it. The transaction
+ * was committed and journal header block was updated but the blocks from the
+ * process of writing the atom's overwrite set in-place and updating of journal
+ * footer block were not completed. This function completes the process by
+ * recovering the atom's overwrite set from their wandered locations and writes
+ * them in-place and updating the journal footer. */
 static int
 replay_oldest_transaction(struct super_block *s)
 {
@@ -1590,8 +1591,7 @@ reiser4_journal_replay(struct super_block *s)
 
 	return ret;
 }
-/* ZAM-FIXME-HANS: define journal control block */
-/* load journal header or footer */
+/* load journal control block (either journal header or journal footer block) */
 static int
 load_journal_control_block(jnode ** node, const reiser4_block_nr * block)
 {

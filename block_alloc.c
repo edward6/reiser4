@@ -138,8 +138,9 @@ sub_from_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
 	atom->flush_reserved -= count;
 }
 
-/* super block has 6 counters: free, used, grabbed, fake allocated (formatted and unformatted) and flush reserved. Their
-   sum must be number of blocks on a device. This function checks this */
+/* super block has 6 counters: free, used, grabbed, fake allocated
+   (formatted and unformatted) and flush reserved. Their sum must be
+   number of blocks on a device. This function checks this */
 int
 check_block_counters(const struct super_block *super)
 {
@@ -202,8 +203,11 @@ reiser4_fs_reserved_space(struct super_block * super)
 	reiser4_block_nr b;
 
 	b = reiser4_block_count(super);
-	/* ZAM-FIXME-HANS: by this we avoid a floating point operation? If that is why, say so. */
-	/* 51. / (2^10) == .0498 */
+	/* The proper calculation of the reserved space counter (%5 of device
+	   block counter) we need a 64 bit division which is missing in Linux on
+	   i386 platform. Because we do not need a precise calculation here we
+	   can replace a div64 operation by this combination of multiplication
+	   and shift: 51. / (2^10) == .0498 .*/
 	return (b * 51) >> 10;
 }
 #endif
