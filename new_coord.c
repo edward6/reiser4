@@ -17,6 +17,33 @@ static inline void ncoord_init_values (new_coord  *coord,
 	coord->between  = between;
 }
 
+/* after shifting coord previously set properly may become invalid. */
+void ncoord_normalize (new_coord * coord)
+{
+	znode * node;
+
+	node = coord->node;
+	assert ("vs-683", node);
+
+	if (node_is_empty (node)) {
+		ncoord_init_first_unit (coord, node);
+	} else if (coord->item_pos == ncoord_num_items (coord) &&
+		   coord->between == BEFORE_ITEM) {
+		coord->item_pos --;
+		coord->between = AFTER_ITEM;
+	} else if (coord->unit_pos == ncoord_num_units (coord) &&
+		   coord->between == BEFORE_UNIT) {
+		coord->unit_pos --;
+		coord->between = AFTER_UNIT;
+	} else if (coord->item_pos == ncoord_num_items (coord) &&
+		   coord->unit_pos == 0 &&
+		   coord->between == BEFORE_UNIT) {
+		coord->item_pos --;
+		coord->unit_pos = 0;
+		coord->between = AFTER_ITEM;
+	}
+}
+
 /* Copy a coordinate. */
 void ncoord_dup (new_coord *coord, const new_coord *old_coord)
 {

@@ -151,6 +151,9 @@ extern void ncoord_init_zero (new_coord *coord);
 /*				      COORD METHODS                                      */
 /*****************************************************************************************/
 
+/* */
+void ncoord_normalize (new_coord * coord);
+
 /* Copy a coordinate. */
 extern void ncoord_dup (new_coord *coord, const new_coord *old_coord);
 
