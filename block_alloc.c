@@ -461,7 +461,7 @@ fake_allocated2used(__u64 count, reiser4_ba_flags_t flags)
 
 	reiser4_spin_lock_sb(super);
 
-	sub_from_sb_unallocated(super, count, flags & BA_FORMATTED);
+	sub_from_sb_unallocated(super, count, flags);
 	add_to_sb_used(super, count);
 
 	assert("nikita-2680", check_block_counters(super));
