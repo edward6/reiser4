@@ -1,5 +1,9 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
+/* The locking in this file is badly designed, and a filesystem scales only as well as its worst locking
+ * design. -Hans */
+
+
 /* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with
    aspects relating to ensuring high performance, and flexibility in the amount of
    isolation for reasons of high performance, being heavily influenced by Hans Reiser.
@@ -172,7 +176,7 @@ TS_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
-static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD Will it be used? */
+static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD (now NIKITA-FIXME-HANS:) Will it be used? */
 
 ON_DEBUG(extern atomic_t flush_cnt;)
 
@@ -490,7 +494,9 @@ atom_locked_by_jnode(jnode * node)
 		if (atom == NULL)
 			break;
 
-		/* there could be not contention for the atom spin lock at this
+		/* NIKITA-FIXME-HANS: broken english
+
+		there could be not contention for the atom spin lock at this
 		 * moment and trylock can succeed. */
 		if (spin_trylock_atom(atom))
 			break;
@@ -530,6 +536,7 @@ atom_locked_by_jnode(jnode * node)
 /* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
    by flush code to indicate whether the next node (in some direction) is suitable for
    flushing. */
+/* ZAM-FIXME-HANS: would it be better to get the lock once during the flush process? */
 int
 same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 {
@@ -613,7 +620,7 @@ void atom_dec_and_unlock(txn_atom * atom)
 	}
 }
 
-/* Return an new atom, locked.  This adds the atom to the transaction manager's list and
+/* Return a new atom, locked.  This adds the atom to the transaction manager's list and
    sets its reference count to 1, an artificial reference which is kept until it
    commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
 static txn_atom *
