@@ -757,7 +757,7 @@ int reiser4_write_logs (void)
 	capture_list_head overwrite_set, tx_list;
 	int overwrite_set_size, tx_size;
 
-	int ret;
+	int ret=0;
 
 	capture_list_init (&overwrite_set);
 	capture_list_init (&tx_list);
