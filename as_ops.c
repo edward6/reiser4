@@ -559,6 +559,18 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 #undef INC_NSTAT
 #undef INC_STAT
 
+static void move_inode_out_from_sync_inodes_loop (struct address_space * mapping)
+{
+	/* work around infinite loop in pdflush->sync_sb_inodes. */
+	/* Problem: ->writepages() is supposed to submit io for the pages from
+	 * ->io_pages list and to clean this list. */
+	mapping->dirtied_when = jiffies|1;
+	spin_lock(&inode_lock);
+	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
+	spin_unlock(&inode_lock);
+
+}
+
 /* reiser4 writepages() address space operation this captures anonymous pages
    and anonymous jnodes. Anonymous pages are pages which are dirtied via
    mmapping. Anonymous jnodes are ones which were created by reiser4_writepage
@@ -578,13 +590,7 @@ reiser4_writepages(struct address_space *mapping,
 		 * anonymous jnodes */
 		ret = fplug->capture(inode, wbc);
 
-	/* work around infinite loop in pdflush->sync_sb_inodes. */
-	/* Problem: ->writepages() is supposed to submit io for the pages from
-	 * ->io_pages list and to clean this list. */
-	mapping->dirtied_when = jiffies|1;
-	spin_lock(&inode_lock);
-	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
-	spin_unlock(&inode_lock);
+	move_inode_out_from_sync_inodes_loop(mapping);
 	return ret;
 }
 
@@ -598,16 +604,18 @@ reiser4_internal int reiser4_start_up_io(struct page *page)
 static int reiser4_writepages_nofile (
 	struct address_space * mapping, struct writeback_control * wbc)
 {
-	mapping->dirtied_when = jiffies|1;
-	spin_lock(&inode_lock);
-	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
-	spin_unlock(&inode_lock);
+	move_inode_out_from_sync_inodes_loop(mapping);
 	return 0;
 }
 
 static int reiser4_writepage_nofile (
 	struct page * page, struct writeback_control * wbc)
 {
+	/* no actual work */
+	SetPageDirty(page);
+	inc_page_state(nr_dirty);
+	unlock_page(page);
+
 	return 0;
 }
 
