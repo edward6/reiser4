@@ -31,7 +31,7 @@ readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 	pseudo_plugin *pplug;
 	struct inode  *inode;
 	struct dentry *dentry;
-	int result;
+	int result = 0;
 
 	dentry = f->f_dentry;
 	inode = dentry->d_inode;
@@ -60,7 +60,7 @@ readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 			/* fallthrough */
 		}
 	}
-	return 0;
+	return result;
 }
 
 /* Make Linus happy.
