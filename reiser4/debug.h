@@ -82,14 +82,13 @@
 #define ON_DEBUG( exp ) exp
 
 typedef struct lock_counters_info {
-	int                   spin_locked_znode;
+	int                   spin_locked_jnode;
 	int                   spin_locked_tree;
 	int                   spin_locked_dk;
 	int                   spin_locked_txnh;
 	int                   spin_locked_atom;
 	int                   spin_locked_stack;
 	int                   spin_locked_txnmgr;
-	int                   spin_locked_tnode;
 	int                   spin_locked;
 	int                   long_term_locked_znode;
 } lock_counters_info;
