@@ -738,7 +738,6 @@ void
 adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj)
 {
 	reiser4_file_fsdata *scan;
-	reiser4_inode *info;
 	dir_pos mod_point;
 
 	assert("nikita-2536", dir != NULL);
@@ -748,7 +747,6 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 	build_de_id(dir, &de->d_name, &mod_point.dir_entry_key);
 	mod_point.pos = offset;
 
-	info = reiser4_inode_data(dir);
 	spin_lock_inode(dir);
 
 	for (scan = readdir_list_front(get_readdir_list(dir));
@@ -878,7 +876,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 		++pos->position.pos;
 	else {
 		pos->position.pos = 0;
-		result = build_de_id_by_key(&de_key, did);
+		build_de_id_by_key(&de_key, did);
 	}
 
 	/* send information about directory entry to the ->filldir() filler
