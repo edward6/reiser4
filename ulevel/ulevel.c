@@ -307,7 +307,7 @@ static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
 
 #if 0
-static tree_operations ul_tops = {
+static node_operations ul_tops = {
 	.read_node     = ulevel_read_node,
 	.allocate_node = ulevel_read_node,
 	.delete_node   = NULL,
@@ -3072,7 +3072,7 @@ int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	return 0;
 }
 
-static tree_operations mkfs_tops = {
+static node_operations mkfs_tops = {
 	.read_node     = mkfs_bread,
 	.allocate_node = mkfs_getblk,
 	.delete_node   = mkfs_brelse,
@@ -3621,11 +3621,6 @@ static void allocate_unallocated (reiser4_tree * tree)
 }
 
 
-/*
- * tree_iterate actor
- */
-int squalloc_right_neighbor (znode * left, znode * right, 
-			     reiser4_blocknr_hint *preceder);
 static int do_twig_squeeze (reiser4_tree * tree, coord_t * coord,
 			    lock_handle * lh, void * arg UNUSED_ARG)
 {

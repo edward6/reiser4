@@ -78,6 +78,7 @@ static struct dentry * reiser4_fh_to_dentry(struct super_block *sb, __u32 *fh,
 					    int len, int fhtype, int parent);
 static int reiser4_dentry_to_fh(struct dentry *, __u32 *fh, 
 				int *lenp, int need_parent);
+static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt );
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 
 
@@ -1350,6 +1351,35 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 	return parse_options( opt_string, opts, sizeof_array( opts ) );
 }
 
+static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
+{
+#if 0
+	struct super_block      *super;
+	reiser4_super_info_data *info;
+
+	super = mnt -> mnt_sb;
+	info = get_super_private( super );
+
+	seq_printf( m, ",trace=0x%x", info -> trace_flags );
+
+	seq_printf( m, ",default_file_plugin=\"%s\"",
+		    default_file_plugin( super ) -> h.label );
+	seq_printf( m, ",default_dir_plugin=\"%s\"",
+		    default_dir_plugin( super ) -> h.label );
+	seq_printf( m, ",default_hash_plugin=\"%s\"",
+		    default_hash_plugin( super ) -> h.label );
+	seq_printf( m, ",default_tail_plugin=\"%s\"",
+		    default_tail_plugin( super ) -> h.label );
+	seq_printf( m, ",default_perm_plugin=\"%s\"",
+		    default_perm_plugin( super ) -> h.label );
+	seq_printf( m, ",default_dir_item_plugin=\"%s\"",
+		    default_dir_item_plugin( super ) -> h.label );
+	seq_printf( m, ",default_sd_plugin=\"%s\"",
+		    default_sd_plugin( super ) -> h.label );
+	return 0;
+#endif
+}
+
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
@@ -1384,7 +1414,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		info ("Blocksize %lu\n", blocksize);
 
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
-		/* only one plugin is available for now */
+		/* only two plugins are available for now */
 		assert ("vs-476", (plugin_id == LAYOUT_40_ID ||
 				   plugin_id == TEST_LAYOUT_ID));
 		lplug = layout_plugin_by_id (plugin_id);
@@ -1649,9 +1679,9 @@ struct file_operations reiser4_file_operations = {
 /* 	.get_unmapped_area = reiser4_get_unmapped_area */
 };
 
-define_never_ever_op( prepare_write );
-define_never_ever_op( commit_write );
-define_never_ever_op( direct_IO );
+define_never_ever_op( prepare_write_vfs )
+define_never_ever_op( commit_write_vfs )
+define_never_ever_op( direct_IO_vfs )
 
 #define V( func ) ( ( void * ) ( func ) )
 
@@ -1664,14 +1694,14 @@ struct address_space_operations reiser4_as_operations = {
 	.set_page_dirty = NULL,
 	.readpages      = NULL,
 	/*reiser4_prepare_write,*/
-	.prepare_write  = V( never_ever_prepare_write ),
+	.prepare_write  = V( never_ever_prepare_write_vfs ),
 	/*reiser4_commit_write,*/
-	.commit_write   = V( never_ever_commit_write ),
+	.commit_write   = V( never_ever_commit_write_vfs ),
  	.bmap           = reiser4_bmap,
 	.invalidatepage = NULL,
 	.releasepage    = NULL,
  	/*reiser4_direct_IO*/
-	.direct_IO      = V( never_ever_direct_IO )
+	.direct_IO      = V( never_ever_direct_IO_vfs )
 };
 
 struct super_operations reiser4_super_operations = {
@@ -1692,6 +1722,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.umount_begin       = reiser4_umount_begin, */
 /* 	.fh_to_dentry       = reiser4_fh_to_dentry, */
 /* 	.dentry_to_fh       = reiser4_dentry_to_fh */
+	.show_options       = reiser4_show_options /* d */
 };
 
 struct dentry_operations reiser4_dentry_operation = {
