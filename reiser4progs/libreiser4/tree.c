@@ -283,7 +283,7 @@ static errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree,
 	/* Shift target node */
 	aal_memset(&insert, 0, sizeof(insert));
 	    
-	if (reiserfs_node_shift(&coord, &insert) ||
+	if (reiserfs_node_shift(&coord, &insert, item.length) ||
 	    reiserfs_node_get_free_space(insert.node) < item.length)
 	{
 	    reiserfs_node_t *right;
@@ -423,7 +423,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    */
 	    aal_memset(&insert, 0, sizeof(insert));
 	    
-	    if (reiserfs_node_shift(&coord, &insert) ||
+	    if (reiserfs_node_shift(&coord, &insert, item->length) ||
 		reiserfs_node_get_free_space(insert.node) < item->length)
 	    {
 		/* 

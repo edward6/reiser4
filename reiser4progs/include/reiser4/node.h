@@ -39,8 +39,8 @@ extern errno_t reiserfs_node_split(reiserfs_node_t *node,
 extern errno_t reiserfs_node_embed_key(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_key_t *key);
 
-extern reiserfs_node_t *reiserfs_node_left_neighbor(reiserfs_node_t *node);
-extern reiserfs_node_t *reiserfs_node_right_neighbor(reiserfs_node_t *node);
+extern reiserfs_node_t *reiserfs_node_left_neighbour(reiserfs_node_t *node);
+extern reiserfs_node_t *reiserfs_node_right_neighbour(reiserfs_node_t *node);
 
 extern errno_t reiserfs_node_lnkey(reiserfs_node_t *node, 
     reiserfs_key_t *key);
@@ -64,7 +64,7 @@ extern reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node,
     reiserfs_key_t *key);
 
 extern errno_t reiserfs_node_shift(reiserfs_coord_t *old,
-    reiserfs_coord_t *new);
+    reiserfs_coord_t *new, uint32_t needed);
 
 extern errno_t reiserfs_node_remove(reiserfs_node_t *node, 
     reiserfs_pos_t *pos);
