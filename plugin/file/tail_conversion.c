@@ -335,7 +335,7 @@ int tail2extent (struct inode * inode)
 		/* how many bytes to copy */
 		count = item_length_by_coord (&coord) - copied;
 		/* limit length of copy to end of page */
-		if ((unsigned)count > PAGE_CACHE_SIZE - page_off) {
+		if (count > PAGE_CACHE_SIZE - page_off) {
 			count = PAGE_CACHE_SIZE - page_off;
 		}
 
