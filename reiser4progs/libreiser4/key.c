@@ -33,9 +33,9 @@ int reiserfs_key_cmp(reiserfs_key_t *key1, reiserfs_key_t *key2) {
     aal_assert("vpf-082", key1 != NULL, return -2);
     aal_assert("vpf-083", key2 != NULL, return -2);
     
-    if ((result = DIFF_EL(key1, key2, 0)) == 0) {
-	if ((result = DIFF_EL(key1, key2, 1)) == 0)
-	    result = DIFF_EL(key1, key2, 2);
+    if ((result = KEY_COMP_ELEMENT(key1, key2, 0)) == 0) {
+	if ((result = KEY_COMP_ELEMENT(key1, key2, 1)) == 0)
+	    result = KEY_COMP_ELEMENT(key1, key2, 2);
     }
 
     return result;
@@ -55,7 +55,8 @@ static uint64_t pack_string(const char *name, int start_idx) {
 }
 
 /* Build the entry key */
-void build_key_by_entryid(reiserfs_key_t *key, reiserfs_entryid_t *entryid)
+static void build_key_by_entryid(reiserfs_key_t *key, 
+    reiserfs_entryid_t *entryid)
 {
     aal_assert("vpf-090", key != NULL, return);
     aal_assert("vpf-091", entryid != NULL, return);
@@ -64,7 +65,8 @@ void build_key_by_entryid(reiserfs_key_t *key, reiserfs_entryid_t *entryid)
     set_key_type(key, KEY_FILE_NAME_MINOR);
 }
 
-static void build_entryid_by_key(reiserfs_entryid_t *entryid, reiserfs_key_t *key)
+static void build_entryid_by_key(reiserfs_entryid_t *entryid, 
+    reiserfs_key_t *key)
 {
     aal_assert("vpf-092", key != NULL, return);
     aal_assert("vpf-093", entryid != NULL, return);
@@ -75,7 +77,7 @@ static void build_entryid_by_key(reiserfs_entryid_t *entryid, reiserfs_key_t *ke
 }
 
 void build_entryid_by_entry_info(reiserfs_entryid_t *entryid, 
-    reiserfs_entry_info_t *info/*, reiserfs_dir_t *dir*/) 
+    reiserfs_entry_info_t *info) 
 {
     uint16_t len; 
     reiserfs_key_t key;

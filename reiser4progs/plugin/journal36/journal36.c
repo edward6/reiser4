@@ -77,5 +77,5 @@ reiserfs_plugin_t *reiserfs_journal36_entry(reiserfs_plugins_factory_t *f) {
     return &journal36_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_journal36_entry);
+libreiserfs_plugins_register(reiserfs_journal36_entry);
 

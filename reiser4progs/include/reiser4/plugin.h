@@ -434,27 +434,35 @@ typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_
 typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #ifndef ENABLE_COMPACT
-#   define reiserfs_check_method(ops, method, action) \
-    do { \
-	if (!ops.##method##) { \
-	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, \
-		"Method \"" #method "\" isn't implemented in %s.", \
-		#ops); \
-	    action; \
-	} \
-    } while(0)
+
+#define libreiserfs_plugins_call(action, ops, method, args...)	    \
+    ({								    \
+	if (!ops.##method##) {					    \
+	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,	    \
+		"Method \"" #method "\" isn't implemented in %s.",  \
+		#ops);						    \
+	    action;						    \
+	}							    \
+	ops.##method##(##args);					    \
+    })
+
 #else
-#   define reiserfs_check_method(plugin, routine, action) \
-	while(0) {}
+
+#define libreiserfs_plugins_call(action, ops, method, args...)	    \
+    ({ops.##method##(##args);})					    \
+    
 #endif
 
 #if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
-#   define reiserfs_plugin_register(entry) \
-	static reiserfs_plugin_entry_t __plugin_entry \
-	    __attribute__((__section__(".plugins"))) = entry
+    
+#define libreiserfs_plugins_register(entry)			    \
+    static reiserfs_plugin_entry_t __plugin_entry		    \
+	__attribute__((__section__(".plugins"))) = entry
 #else
-#   define reiserfs_plugin_register(entry) \
-	reiserfs_plugin_entry_t __plugin_entry = entry
+
+#define libreiserfs_plugins_register(entry)			    \
+    reiserfs_plugin_entry_t __plugin_entry = entry
+    
 #endif
 
 #define REISERFS_GUESS_PLUGIN_ID 0xff
@@ -476,3 +484,4 @@ extern reiserfs_plugin_t *libreiser4_plugins_find_by_label(const char *label);
 extern error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data);
 
 #endif
+

@@ -97,5 +97,5 @@ reiserfs_plugin_t *reiserfs_stat40_entry(reiserfs_plugins_factory_t *f) {
     return &stat40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_stat40_entry);
+libreiserfs_plugins_register(reiserfs_stat40_entry);
 

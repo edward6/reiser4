@@ -92,8 +92,8 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
 	goto error_free_super;
     }
     
-    reiserfs_check_method(alloc_plugin->alloc, init, goto error_free_super);
-    if (!(format->alloc = alloc_plugin->alloc.init(host_device, 
+    if (!(format->alloc = libreiserfs_plugins_call(goto error_free_super, 
+	alloc_plugin->alloc, init, host_device, 
 	get_sb_block_count((reiserfs_format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -111,8 +111,9 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
 	    goto error_free_alloc;
 	}
     
-	reiserfs_check_method(journal_plugin->journal, init, goto error_free_alloc);
-	if (!(format->journal = journal_plugin->journal.init(journal_device))) {
+	if (!(format->journal = libreiserfs_plugins_call(goto error_free_alloc, 
+	    journal_plugin->journal, init, journal_device))) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't initialize journal \"%s\".", journal_plugin->h.label);
 	    goto error_free_alloc;
@@ -129,8 +130,7 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
     }
     
     /* Initializing oid allocator on super block */
-    reiserfs_check_method(oid_plugin->oid, init, goto error_free_journal);
-    if (!(format->oid = oid_plugin->oid.init(
+    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, init,
 	get_sb_oid((reiserfs_format40_super_t *)format->super->data),
 	get_sb_file_count((reiserfs_format40_super_t *)format->super->data)))) 
     {
@@ -143,12 +143,12 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
 
 error_free_journal:
     if (format->journal) {
-	reiserfs_check_method(journal_plugin->journal, fini, goto error_free_super);
-	journal_plugin->journal.fini(format->journal);
+	libreiserfs_plugins_call(goto error_free_alloc, 
+	    journal_plugin->journal, fini, format->journal);
     }
 error_free_alloc:
-    reiserfs_check_method(alloc_plugin->alloc, fini, goto error_free_journal);
-    alloc_plugin->alloc.fini(format->alloc);
+    libreiserfs_plugins_call(goto error_free_super, 
+	alloc_plugin->alloc, fini, format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -208,27 +208,29 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_super;
     }
     
-    reiserfs_check_method(alloc_plugin->alloc, create, goto error_free_super);
-    if (!(format->alloc = alloc_plugin->alloc.create(host_device, blocks))) {
+    if (!(format->alloc = libreiserfs_plugins_call(goto error_free_super, 
+	alloc_plugin->alloc, create, host_device, blocks))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create allocator \"%s\".", alloc_plugin->h.label);
 	goto error_free_super;
     }
     
-    reiserfs_check_method(alloc_plugin->alloc, mark, goto error_free_alloc);
-    
     /* Marking the skiped area (0-16 blocks) as used */
     for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / 
 	    aal_device_get_blocksize(host_device)); blk++)
-	alloc_plugin->alloc.mark(format->alloc, blk);
+    {
+	libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+	    mark, format->alloc, blk);
+    }
     
     /* Marking master super block as used */
-    alloc_plugin->alloc.mark(format->alloc, (REISERFS_MASTER_OFFSET / 
-	aal_device_get_blocksize(host_device)));
+    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+	mark, format->alloc, (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(host_device)));
     
     /* Marking format-specific super block as used */
-    alloc_plugin->alloc.mark(format->alloc, (REISERFS_FORMAT40_OFFSET / 
-	aal_device_get_blocksize(host_device)));
+    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+	mark, format->alloc, (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(host_device)));
     
     if (!(journal_plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
 	REISERFS_FORMAT40_JOURNAL))) 
@@ -238,18 +240,21 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_alloc;
     }
     
-    reiserfs_check_method(journal_plugin->journal, create, goto error_free_alloc);
-    if (!(format->journal = journal_plugin->journal.create(journal_device, journal_params))) {
+    if (!(format->journal = libreiserfs_plugins_call(goto error_free_alloc, 
+	journal_plugin->journal, create, journal_device, journal_params))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create journal \"%s\".", journal_plugin->h.label);
 	goto error_free_alloc;
     }
 
     /* Marking journal blocks as used */
-    alloc_plugin->alloc.mark(format->alloc, (REISERFS_FORMAT40_JOURNAL_HEADER / 
+    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+	mark, format->alloc, (REISERFS_FORMAT40_JOURNAL_HEADER / 
 	aal_device_get_blocksize(host_device)));
     
-    alloc_plugin->alloc.mark(format->alloc, (REISERFS_FORMAT40_JOURNAL_FOOTER / 
+    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+	mark, format->alloc, (REISERFS_FORMAT40_JOURNAL_FOOTER / 
 	aal_device_get_blocksize(host_device)));
     
     if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
@@ -260,9 +265,8 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-    reiserfs_check_method(oid_plugin->oid, init, goto error_free_journal);
-    if (!(format->oid = oid_plugin->oid.init(
-	get_sb_oid((reiserfs_format40_super_t *)format->super->data),
+    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, 
+	oid_plugin->oid, init, get_sb_oid((reiserfs_format40_super_t *)format->super->data),
 	get_sb_file_count((reiserfs_format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -270,20 +274,20 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-    reiserfs_check_method(oid_plugin->oid, next, goto error_free_oid);
-    set_sb_oid(super, oid_plugin->oid.next(format->oid));
+    set_sb_oid(super, libreiserfs_plugins_call(goto error_free_oid, oid_plugin->oid, 
+	next, format->oid));
     
     return format;
 
 error_free_oid:
-    reiserfs_check_method(oid_plugin->oid, fini, goto error_free_journal);
-    oid_plugin->oid.fini(format->oid);
+    libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, 
+	fini, format->oid);
 error_free_journal:
-    reiserfs_check_method(journal_plugin->journal, fini, goto error_free_super);
-    journal_plugin->journal.fini(format->journal);
+    libreiserfs_plugins_call(goto error_free_journal, journal_plugin->journal, 
+	fini, format->journal);
 error_free_alloc:
-    reiserfs_check_method(alloc_plugin->alloc, fini, goto error_free_journal);
-    alloc_plugin->alloc.fini(format->alloc);
+    libreiserfs_plugins_call(goto error_free_super, alloc_plugin->alloc, 
+	fini, format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -308,8 +312,8 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	return -1;
     }
     
-    reiserfs_check_method(plugin->alloc, sync, return -1);
-    plugin->alloc.sync(format->alloc);
+    libreiserfs_plugins_call(return -1, plugin->alloc, sync, 
+	format->alloc);
     
     if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
 	REISERFS_FORMAT40_JOURNAL))) 
@@ -320,8 +324,8 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	return -1;
     }
     
-    reiserfs_check_method(plugin->journal, sync, return -1);
-    plugin->journal.sync(format->journal);
+    libreiserfs_plugins_call(return -1, plugin->journal, sync, 
+	format->journal);
     
     if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
@@ -332,13 +336,11 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	return -1;
     }
     
-    reiserfs_check_method(plugin->oid, next, return -1);
     set_sb_oid((reiserfs_format40_super_t *)format->super->data, 
-	plugin->oid.next(format->oid));
+	libreiserfs_plugins_call(return -1, plugin->oid, next, format->oid));
     
-    reiserfs_check_method(plugin->oid, used, return -1);
     set_sb_file_count((reiserfs_format40_super_t *)format->super->data, 
-	plugin->oid.used(format->oid));
+	libreiserfs_plugins_call(return -1, plugin->oid, used, format->oid));
     
     if (aal_device_write_block(format->device, format->super)) {
 	offset = aal_device_get_block_nr(format->device, format->super);
@@ -370,9 +372,10 @@ static void reiserfs_format40_fini(reiserfs_format40_t *format) {
 	    REISERFS_FORMAT40_ALLOC);
     }
     
-    reiserfs_check_method(plugin->alloc, fini, return);
-    plugin->alloc.fini(format->alloc);
+    libreiserfs_plugins_call(goto error_free_journal, plugin->alloc, 
+	fini, format->alloc);
 
+error_free_journal:
     if (format->journal) {
 	if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
 	    REISERFS_FORMAT40_JOURNAL))) 
@@ -382,10 +385,11 @@ static void reiserfs_format40_fini(reiserfs_format40_t *format) {
 		REISERFS_FORMAT40_JOURNAL);
 	}
     
-	reiserfs_check_method(plugin->journal, fini, return);
-	plugin->journal.fini(format->journal);
+	libreiserfs_plugins_call(goto error_free_oid, plugin->journal, 
+	    fini, format->journal);
     }
-    
+
+error_free_oid:
     if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
     {
@@ -394,9 +398,10 @@ static void reiserfs_format40_fini(reiserfs_format40_t *format) {
 	    REISERFS_FORMAT40_OID);
     }
     
-    reiserfs_check_method(plugin->oid, fini, return);
-    plugin->journal.fini(format->oid);
-    
+    libreiserfs_plugins_call(goto error_free_super, plugin->journal, 
+	fini, format->oid);
+
+error_free_super:
     aal_device_free_block(format->super);
     aal_free(format);
 }
@@ -545,5 +550,5 @@ reiserfs_plugin_t *reiserfs_format40_entry(reiserfs_plugins_factory_t *f) {
     return &format40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_format40_entry);
+libreiserfs_plugins_register(reiserfs_format40_entry);
 

@@ -98,5 +98,5 @@ reiserfs_plugin_t *reiserfs_internal40_entry(reiserfs_plugins_factory_t *f) {
     return &internal40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_internal40_entry);
+libreiserfs_plugins_register(reiserfs_internal40_entry);
 

@@ -62,9 +62,9 @@ static error_t reiserfs_master_init(reiserfs_fs_t *fs) {
 	
 	if (!(format36 = libreiser4_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, 0x1)))
 	    goto error_free_block;
-		
-	reiserfs_check_method(format36->format, confirm, goto error_free_block);
-	if (!format36->format.confirm(fs->host_device))
+	
+	if (!libreiserfs_plugins_call(goto error_free_block, format36->format, confirm, 
+		fs->host_device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */

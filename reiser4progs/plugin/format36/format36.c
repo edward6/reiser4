@@ -292,5 +292,5 @@ reiserfs_plugin_t *reiserfs_format36_entry(reiserfs_plugins_factory_t *f) {
     return &format36_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_format36_entry);
+libreiserfs_plugins_register(reiserfs_format36_entry);
 

@@ -1,1 +1,2 @@
 * block allocator API probably chould give allocated aal_block_t at request
+* add macro for searching a plugin and if not found to do some error

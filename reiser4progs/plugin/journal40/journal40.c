@@ -181,5 +181,5 @@ reiserfs_plugin_t *reiserfs_journal40_entry(reiserfs_plugins_factory_t *f) {
     return &journal40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_journal40_entry);
+libreiserfs_plugins_register(reiserfs_journal40_entry);
 

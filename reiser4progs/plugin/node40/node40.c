@@ -150,9 +150,8 @@ static uint16_t reiserfs_node40_item_maxnum(aal_block_t *block) {
 		"Can't find item plugin by its id %x.", plugin_id);
 	    return 0;
 	}
-	reiserfs_check_method(plugin->item.common, minsize, return 0);
-	total_size += plugin->item.common.minsize(node40_item_at(block, i)) + 
-	    sizeof(reiserfs_ih40_t);
+	total_size += libreiserfs_plugins_call(return 0, plugin->item.common, 
+	    minsize, node40_item_at(block, i)) + sizeof(reiserfs_ih40_t);
     }
     return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
 }
@@ -237,9 +236,9 @@ static int reiserfs_node40_key_cmp(const void *key1, const void *key2) {
     k1 = (reiserfs_key_t *)key1;
     k2 = (reiserfs_key_t *)key2;
 
-    if ((result = DIFF_EL(k1, k2, 0)) == 0) {
-	if ((result = DIFF_EL(k1, k2, 1)) == 0)
-	    result = DIFF_EL(k1, k2, 2);
+    if ((result = KEY_COMP_ELEMENT(k1, k2, 0)) == 0) {
+	if ((result = KEY_COMP_ELEMENT(k1, k2, 1)) == 0)
+	    result = KEY_COMP_ELEMENT(k1, k2, 2);
     }
 
     return result;
@@ -414,5 +413,5 @@ reiserfs_plugin_t *reiserfs_node40_entry(reiserfs_plugins_factory_t *f) {
     return &node40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_node40_entry);
+libreiserfs_plugins_register(reiserfs_node40_entry);
 

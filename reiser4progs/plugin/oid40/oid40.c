@@ -92,5 +92,5 @@ reiserfs_plugin_t *reiserfs_oid40_entry(reiserfs_plugins_factory_t *f) {
     return &oid40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_oid40_entry);
+libreiserfs_plugins_register(reiserfs_oid40_entry);
 

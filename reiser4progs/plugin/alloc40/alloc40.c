@@ -159,5 +159,5 @@ reiserfs_plugin_t *reiserfs_alloc40_entry(reiserfs_plugins_factory_t *f) {
     return &alloc40_plugin;
 }
 
-reiserfs_plugin_register(reiserfs_alloc40_entry);
+libreiserfs_plugins_register(reiserfs_alloc40_entry);
 
