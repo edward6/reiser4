@@ -2130,7 +2130,6 @@ uncapture_page(struct page *pg)
 {
 	jnode *node;
 	txn_atom *atom;
-	blocknr_set_entry *blocknr_entry = NULL;
 
 	assert("umka-199", pg != NULL);
 	assert("nikita-3155", PageLocked(pg));
@@ -2160,8 +2159,6 @@ uncapture_page(struct page *pg)
 		assert("jmacd-7111", !jnode_check_dirty(node));
 		return;
 	}
-
-	assert("jmacd-5177", blocknr_entry == NULL);
 
 	LOCK_JNODE(node);
 	/* We can remove jnode from transaction even if it is on flush queue
