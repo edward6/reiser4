@@ -413,26 +413,6 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
 }
 
 static int
-truncate_inode_jnodes(struct inode *inode, unsigned long from)
-{
-	reiser4_inode *r4_inode;
-	jnode *jnodes[16];
-	int i, nr;
-	int truncated_jnodes;
-	
-	truncated_jnodes = 0;
-	r4_inode = reiser4_inode_data(inode);
-	
-	while ((nr = radix_tree_gang_lookup(&r4_inode->jnode_tree, (void **)jnodes, from, 16)) != 0) {
-		for (i = 0; i < nr; i ++) {
-			uncapture_jnode(jnodes[i]);
-		}
-		truncated_jnodes += nr;
-	}
-	return truncated_jnodes;
-}
-
-static int
 truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 {
 	int i;
