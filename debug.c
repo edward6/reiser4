@@ -27,50 +27,55 @@ static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 void
 reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 {
+	static int in_panic = 0;
 	va_list args;
 
-	/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
-	   lib/bust_spinlocks.c:
+	if (in_panic == 0) {
+		in_panic = 1;
+
+		/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
+		   lib/bust_spinlocks.c:
 	  
-	   bust_spinlocks() clears any spinlocks which would prevent oops,
-	   die(), BUG() and panic() information from reaching the user.
-	*/
-	spin_lock(&panic_guard);
-	va_start(args, format);
-	vsnprintf(panic_buf, sizeof(panic_buf), format, args);
-	va_end(args);
-	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
-	spin_unlock(&panic_guard);
+		   bust_spinlocks() clears any spinlocks which would prevent oops,
+		   die(), BUG() and panic() information from reaching the user.
+		*/
+		spin_lock(&panic_guard);
+		va_start(args, format);
+		vsnprintf(panic_buf, sizeof(panic_buf), format, args);
+		va_end(args);
+		printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
+		spin_unlock(&panic_guard);
 
-	DEBUGON(1);
+		DEBUGON(1);
 
-	/* do something more impressive here, print content of
-	   get_current_context() */
-	if (get_current_context_check() != NULL) {
-		struct super_block *super;
-		reiser4_context *ctx;
+		/* do something more impressive here, print content of
+		   get_current_context() */
+		if (get_current_context_check() != NULL) {
+			struct super_block *super;
+			reiser4_context *ctx;
 
-		print_lock_counters("pins held", lock_counters());
-		print_contexts();
-		ctx = get_current_context();
-		super = ctx->super;
-		if ((get_super_private(super) != NULL) && reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
-			print_znodes("znodes", current_tree);
+			print_lock_counters("pins held", lock_counters());
+			print_contexts();
+			ctx = get_current_context();
+			super = ctx->super;
+			if ((get_super_private(super) != NULL) && reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
+				print_znodes("znodes", current_tree);
 #if REISER4_DEBUG
-		{
-			reiser4_context *top;
-			extern spinlock_t active_contexts_lock;
+			{
+				reiser4_context *top;
+				extern spinlock_t active_contexts_lock;
 
-			top = ctx->parent;
-			spin_lock(&active_contexts_lock);
-			context_list_remove(top);
-			spin_unlock(&active_contexts_lock);
-		}
+				top = ctx->parent;
+				spin_lock(&active_contexts_lock);
+				context_list_remove(top);
+				spin_unlock(&active_contexts_lock);
+			}
 #endif
-	}
+		}
 
-	BUG();
-	/* to make gcc happy about noreturn attribute */
+		BUG();
+		/* to make gcc happy about noreturn attribute */
+	}
 	panic("%s", panic_buf);
 }
 
