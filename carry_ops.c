@@ -498,9 +498,9 @@ static int make_space( carry_op *op /* carry operation, insert or
 		}
 		reiser4_done_coord( &coord_shadow );
 	}
-	if( ( not_enough_space > 0 ) && 
-	    !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ) {
-		warning( "nikita-948", "Cannot insert new item" );
+	if( not_enough_space > 0 ) {
+		if( !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) )
+			warning( "nikita-948", "Cannot insert new item" );
 		result = -ENOSPC;
 	}
 	if( ( result == 0 ) && ( node != orig_node ) && tracking -> track ) {
