@@ -34,18 +34,32 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size ,
 ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 			    loff_t * off);
 int ordinary_file_truncate (struct inode * inode, loff_t size);
+int ordinary_file_create (struct inode * object, struct inode * parent,
+			  reiser4_object_create_data *data);
 int ordinary_readpage (struct file * file, struct page * page);
 
 
-/* part of item plugin. These are operations specific to items regular file
-   metadata are built of */
+/*
+ * this structure is used to pass both coord and lock handle from extent_read
+ * down to extent_readpage via read_cache_page which can deliver to filler only
+ * one parameter specified by its caller
+ */
+struct readpage_arg {
+	tree_coord * coord;
+	reiser4_lock_handle * lh;
+};
+
+
+/*
+ * part of item plugin. These are operations specific to items regular file
+ * metadata are built of
+ */
 typedef struct file_ops {
 	int (* write) (struct inode *, tree_coord *,
 		       reiser4_lock_handle *, flow *);
 	int (* read) (struct inode *, tree_coord *,
 		      reiser4_lock_handle *, flow *);
-	int (* fill_page) (struct page *, tree_coord *,
-			   reiser4_lock_handle *);
+	int (* readpage) (struct readpage_arg *, struct page *);
 } file_ops;
 
 
