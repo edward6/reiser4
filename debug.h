@@ -931,6 +931,16 @@ extern void print_lock_counters( const char *prefix,
 #define REISER4_STACK_ABORT          (8192 - sizeof( struct task_struct ) - 30)
 #define REISER4_STACK_GAP            (REISER4_STACK_ABORT - 100)
 
+#if REISER4_DEBUG_MEMCPY
+extern void *xmemcpy( void *dest, const void *src, size_t n );
+extern void *xmemmove( void *dest, const void *src, size_t n );
+extern void *xmemset( void *s, int c, size_t n );
+#else
+#define xmemcpy( d, s, n ) memcpy( ( d ), ( s ), ( n ) )
+#define xmemmove( d, s, n ) memmove( ( d ), ( s ), ( n ) )
+#define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
+#endif
+
 /* __FS_REISER4_DEBUG_H__ */
 #endif
 

@@ -25,15 +25,6 @@ extern struct page *reiser4_lock_page( struct address_space *mapping,
 */
 extern void reiser4_check_mem( reiser4_context *ctx );
 
-#if REISER4_DEBUG_MEMCPY
-extern void *xmemcpy( void *dest, const void *src, size_t n );
-extern void *xmemmove( void *dest, const void *src, size_t n );
-extern void *xmemset( void *s, int c, size_t n );
-#else
-#define xmemcpy( d, s, n ) memcpy( ( d ), ( s ), ( n ) )
-#define xmemmove( d, s, n ) memmove( ( d ), ( s ), ( n ) )
-#define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
-#endif
 
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
 
