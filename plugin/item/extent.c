@@ -1186,7 +1186,9 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 			return -EIO;
 		}
 		assert ("vs-544", offset >> PAGE_SHIFT < ~0ul);
-		if ((pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_SHIFT)))) {
+		pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_SHIFT));
+
+		if (pg == NULL || IS_ERR (pg)) {
 			return -EIO;
 		}
 

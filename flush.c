@@ -37,6 +37,7 @@ struct flush_position {
 	lock_handle           parent_lock;
 	tree_coord            parent_coord;
 	reiser4_blocknr_hint  preceder;
+	__u32                 left_scan_count;
 	struct bio           *bio;
 };
 
@@ -155,6 +156,11 @@ int jnode_flush (jnode *node, int flags)
 			goto failed;
 		}
 
+		/* If we have not scanned past enough 
+		if (node->left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
+
+		}
+
 		/* Squeeze and allocate in parent-first order, scheduling writes and
 		 * cleaning jnodes.  The algorithm is described in more detail below.
 		 * This processes the subtree rooted at leftpoint and then continues
@@ -249,10 +255,12 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 		}
 
 		end_node = level_scan.node;
+		pos->left_scan_count += level_scan.size;
 
 	} else {
 		/* No scanning, only upward. */
 		end_node = start_node;
+		pos->left_scan_count += 1;
 	}
 
 	assert ("jmacd-5015", jnode_check_dirty (end_node));
@@ -1614,7 +1622,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 		/* Lock the left-of-parent node, but don't read into memory.
 		 * ENOENT means not-in-memory.  This may also cause atom
 		 * fusion, but in such case the regions were adjacent and so
-		 * this makes sense. FIXME: or should it use get_dirty_neighbor? */
+		 * this makes sense. */
 		if ((ret = reiser4_get_left_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, 0))) {
 			if (ret == -ENOENT) {
 				scan->stop = 1;
@@ -1801,6 +1809,8 @@ static int flush_scan_left (flush_scan *scan, jnode *init_node)
 static int flush_pos_init (flush_position *pos)
 {
 	pos->point = NULL;
+	pos->left_scan_count = 0;
+
 	blocknr_hint_init (& pos->preceder);
 	init_lh (& pos->point_lock);
 	init_lh (& pos->parent_lock);
