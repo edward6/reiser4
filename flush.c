@@ -1361,7 +1361,7 @@ static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node, reise
 	int ret;
 	reiser4_block_nr blk;
 	reiser4_block_nr len = 1;
-	int is_root;
+	lock_handle parent_lock;
 
 	assert ("jmacd-1233", jnode_is_formatted (node));
 
@@ -1371,51 +1371,42 @@ static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node, reise
 		return ret;
 	}
 
-	is_root = znode_is_root (JZNODE (node));
+	init_lh (& parent_lock);
 
 	/* FIXME: free old location if not fake? */
 
-	/* WARNING: UGLY, TEMPORARY */
-	{
-		lock_handle parent_lock;
+	/* WARNING: UGLY, TEMPORARY.  Nikita please inspect.  disk_layout, mkfs problems
+	 * when root block is relocated. */
+	if (! znode_is_root (JZNODE (node))) {
+		new_coord ncoord;
+		tree_coord tcoord;
 
-		init_lh (& parent_lock);
-
-		if (! is_root) {
-			new_coord ncoord;
-			tree_coord tcoord;
-
-			if ((ret = jnode_lock_parent_coord (node, & ncoord, & parent_lock, ZNODE_WRITE_LOCK))) {
-				goto out;
-			}
-
-			ncoord_to_tcoord (& tcoord, & ncoord);
-
-			internal_update (& tcoord, blk);
-
-		} else {
-			znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
-
-			if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto out; }
-
-			ret = longterm_lock_znode (& parent_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-
-			if (ret != 0) { goto out; }
-
-			spin_lock_tree (current_tree);
-			current_tree->root_block = blk;
-			spin_unlock_tree (current_tree);
+		if ((ret = jnode_lock_parent_coord (node, & ncoord, & parent_lock, ZNODE_WRITE_LOCK))) {
+			goto out;
 		}
-	out:
-		done_lh (& parent_lock);
-		if (ret != 0) { return ret; }
+
+		ncoord_to_tcoord (& tcoord, & ncoord);
+
+		internal_update (& tcoord, blk);
+
+	} else {
+		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
+
+		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto out; }
+
+		ret = longterm_lock_znode (& parent_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+
+		if (ret != 0) { goto out; }
+
+		spin_lock_tree (current_tree);
+		current_tree->root_block = blk;
+		spin_unlock_tree (current_tree);
 	}
 
-	if ((ret = znode_rehash (JZNODE (node), & blk))) {
-		return ret;
-	}
-
-	return 0;
+	ret = znode_rehash (JZNODE (node), & blk);
+out:
+	done_lh (& parent_lock);
+	return ret;
 }
 
 /* FIXME: comment */
