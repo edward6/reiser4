@@ -1028,7 +1028,7 @@ static int other_remove_op( jnode *node )
 	return 0;
 }
 
-extern int znode_io_hook( const jnode *node, struct page *page, int rw );
+extern int znode_io_hook( jnode *node, struct page *page, int rw );
 
 reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 	[ JNODE_UNFORMATTED_BLOCK ] = {
