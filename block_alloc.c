@@ -436,10 +436,8 @@ reiser4_release_reserved(struct super_block *super)
 	}
 }
 
-/* is called after @count fake block numbers are allocated and pointer to
-   those blocks are inserted into tree. */
-static void
-grabbed2fake_allocated_formatted(void)
+static reiser4_super_info_data *
+grabbed2fake_allocated_head(void)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -451,29 +449,34 @@ grabbed2fake_allocated_formatted(void)
 	reiser4_spin_lock_sb(sbinfo);
 
 	sub_from_sb_grabbed(sbinfo, 1);
+	/* return sbinfo locked */
+	return sbinfo;
+}
+
+/* is called after @count fake block numbers are allocated and pointer to
+   those blocks are inserted into tree. */
+static void
+grabbed2fake_allocated_formatted(void)
+{
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = grabbed2fake_allocated_head();
 	sbinfo->blocks_fake_allocated ++;
 
-	assert("vs-922", check_block_counters(ctx->super));
+	assert("vs-922", check_block_counters(reiser4_get_current_sb()));
 
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
 static void
-grabbed2fake_allocated_unformatted(__u64 count)
+grabbed2fake_allocated_unformatted(void)
 {
-	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
 
-	ctx = get_current_context();
-	sub_from_ctx_grabbed(ctx, count);
+	sbinfo = grabbed2fake_allocated_head();
+	sbinfo->blocks_fake_allocated_unformatted ++;
 
-	sbinfo = get_super_private(ctx->super);
-	reiser4_spin_lock_sb(sbinfo);
-
-	sub_from_sb_grabbed(sbinfo, count);
-	sbinfo->blocks_fake_allocated_unformatted += count;
-
-	assert("vs-922", check_block_counters(ctx->super));
+	assert("vs-9221", check_block_counters(reiser4_get_current_sb()));
 
 	reiser4_spin_unlock_sb(sbinfo);
 }
@@ -574,7 +577,7 @@ fake_blocknr_unformatted(void)
 	ON_TRACE(TRACE_RESERVE, "fake_blocknr_unformatted: moving 1 grabbed block to fake allocated unformatted\n");
 
 	assign_fake_blocknr(&blocknr);
-	grabbed2fake_allocated_unformatted(1);
+	grabbed2fake_allocated_unformatted();
 
 	return blocknr;
 }
@@ -927,55 +930,6 @@ reiser4_internal void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 	assert ("vpf-292", check_block_counters (ctx->super));
 
 	reiser4_spin_unlock_sb (sbinfo);	
-}
-
-reiser4_internal void
-grabbed2unallocated_unformatted(txn_atom *atom, __u64 count)
-{
-	reiser4_context *ctx;
-	reiser4_super_info_data *sbinfo;
-
-	ctx = get_current_context();
-	sub_from_ctx_grabbed(ctx, count);
-
-	sbinfo = get_super_private(ctx->super);
-	reiser4_spin_lock_sb(sbinfo);
-
-	sub_from_sb_grabbed(sbinfo, count);
-	sbinfo->blocks_fake_allocated_unformatted += count;
-
-	assert("vs-922", check_block_counters(ctx->super));
-
-	reiser4_spin_unlock_sb(sbinfo);
-}
-
-reiser4_internal void
-flush_reserved2free_all(void)
-{
-	reiser4_super_info_data *sbinfo;
-	txn_atom * atom = get_current_atom_locked_nocheck ();
-	__u64 count;
-
-	if (!atom)
-		return;
-
-	count = atom->flush_reserved;
-
-	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
-
-	sbinfo = get_current_super_private();
-	reiser4_spin_lock_sb(sbinfo);
-	
-	sub_from_sb_flush_reserved(sbinfo, count);
-	sbinfo->blocks_free += count;
-	
-	assert ("vpf-277", check_block_counters(reiser4_get_current_sb()));
-
-	reiser4_spin_unlock_sb(sbinfo);
-	
-	ON_TRACE(TRACE_RESERVE, "flush_reserved2free_all moved %llu flush reserved blocks to free\n", count);
-
-	UNLOCK_ATOM (atom);
 }
 
 /* release all blocks grabbed in context which where not used. */

@@ -103,7 +103,6 @@ void grabbed2free                 (reiser4_context *,
 void fake_allocated2free          (__u64 count, reiser4_ba_flags_t flags);
 void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count);
 void grabbed2flush_reserved       (__u64 count);
-void flush_reserved2free_all      (void);
 int  reiser4_alloc_blocks         (reiser4_blocknr_hint * hint,
 				   reiser4_block_nr * start,
 				   reiser4_block_nr * len,
