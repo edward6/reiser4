@@ -798,7 +798,7 @@ int zload( znode *node /* znode to load */ )
 		 * ->read_node() reads data from page cache. In any case we
 		 * rely on proper synchronization in the underlying
 		 * transport. Page reference counter is incremented and page is
-		 * kmapped, it will be decremented and kunmaped in zunload
+		 * kmapped, it will kunmapped in zunload
 		 */
 		result = tree -> ops -> read_node( tree, ZJNODE( node ) );
 		reiser4_stat_znode_add( zload_read );
@@ -904,7 +904,7 @@ int zrelse( znode *node /* znode to release references to */ )
 
 /** size of data in znode */
 /* Audited by: umka (2002.06.11) */
-unsigned znode_size( const znode *node /* znode to query */ )
+unsigned znode_size( const znode *node UNUSED_ARG /* znode to query */ )
 {
 	assert( "nikita-1416", node != NULL );
 	return PAGE_CACHE_SIZE;
