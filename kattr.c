@@ -69,7 +69,6 @@ static reiser4_kattr kattr_super_ro_ ## aname = {		\
 }
 
 #define getat(ptr, offset, type) *(type *)(((char *)(ptr)) + (offset))
-#define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
 
 static ssize_t 
 show_ro_32(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
@@ -127,6 +126,10 @@ DEFINE_SUPER_RO(19, tree.carry.new_extent_flags, "%llx", 32);
 DEFINE_SUPER_RO(20, tree.carry.paste_flags, "%llx", 32);
 DEFINE_SUPER_RO(21, tree.carry.insert_flags, "%llx", 32);
 
+/* not very good. Should be done by the plugin in stead */
+DEFINE_SUPER_RO(22, oid_allocator.u.oid40.next_to_use, "%llu", 64);
+DEFINE_SUPER_RO(23, oid_allocator.u.oid40.oids_in_use, "%llu", 64);
+
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
@@ -149,6 +152,8 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_19.attr,
 	&kattr_super_ro_20.attr,
 	&kattr_super_ro_21.attr,
+	&kattr_super_ro_22.attr,
+	&kattr_super_ro_23.attr,
 	NULL
 };
 
