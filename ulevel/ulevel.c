@@ -4211,7 +4211,7 @@ int jmacd_test( int argc UNUSED_ARG,
  *                                      BITMAP TEST
  *****************************************************************************************/
 
-#define BLOCK_COUNT 10000
+#define BLOCK_COUNT 14000
 
 /* tree op. read node which emulates read from valid reiser4 volume  */
 static int bm_test_read_node (reiser4_tree * tree, jnode * node )
@@ -4285,7 +4285,7 @@ static void fill_sb (struct super_block * super)
 	
 	info_data -> block_count = BLOCK_COUNT;
 	info_data -> blocks_used  = BLOCK_COUNT / 10;
-	info_data -> blocks_free  = info_data -> block_count - info_data -> blocks_free;
+	info_data -> blocks_free  = info_data -> block_count - info_data -> blocks_used;
 
 	info_data -> blocks_free_committed = info_data -> blocks_free;
 
@@ -4298,7 +4298,6 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 	struct super_block * super = reiser4_get_current_sb();
 
 	assert ("vs-510", get_super_private (super) != NULL);
-
 
 	/* just a setting of all sb fields when real read_super is not ready */ 
 	fill_sb (super);
@@ -4328,6 +4327,8 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 
 			blocknr_hint_init (&hint);
 
+			//	hint.not_counted = 1;
+
 			ret = reiser4_alloc_blocks (&hint, &block, &len);
 
 			blocknr_hint_done (&hint);
@@ -4337,11 +4338,11 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 			++ count;
 			total += (int)len;
 
-			printf ("allocated %d blocks in %d attempt(s)\n", total, count);
+			printf ("allocated %d blocks in attempt #%d, total = %d\n", (int)len, (int)count, (int)total);
 
 		}
 
-		printf ("total %d blocks allocated until %d error (%s) returned\n", total, ret, strerror(ret));
+		printf ("total %d blocks allocated until %d error (%s) returned\n", total, ret, strerror(-ret));
 	}
 
 
