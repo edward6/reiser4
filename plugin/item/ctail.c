@@ -534,6 +534,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	
 	if (!hint_prev_cluster(clust)) {
 		done_lh(clust->hint->coord.lh);
+		clust->hint->coord.valid = 0;
 		unset_hint(clust->hint);
 	}
 	
@@ -783,11 +784,10 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 		unlock_page(page);
 	}
 	assert("edward-870", !tfm_cluster_is_uptodate(&clust.tc));
-	hint.coord.valid = 0;
 	save_file_hint(clust.file, &hint);
  out:	
 	done_lh(&lh);
-	/* free array */
+	hint.coord.valid = 0;
 	put_cluster_handle(&clust, TFM_READ);
 	pagevec_lru_add(&lru_pvec);
 	return;
