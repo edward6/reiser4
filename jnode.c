@@ -932,6 +932,13 @@ static int znode_init( jnode *node )
 	return node_plugin_by_node( z ) -> init( z );
 }
 
+static int no_hook( const jnode *node, struct page *page, int rw )
+{
+	return 1;
+}
+
+extern int znode_io_hook( const jnode *node, struct page *page, int rw );
+
 reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 	[ JNODE_UNFORMATTED_BLOCK ] = {
 		.jnode = {
@@ -948,7 +955,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.remove  = jnode_remove_op,
 			.delete  = jnode_remove_op,
 			.mapping = jnode_mapping,
-			.index   = jnode_index
+			.index   = jnode_index,
+			.io_hook = no_hook
 		}
 	},
 	[ JNODE_FORMATTED_BLOCK ] = {
@@ -966,7 +974,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.remove  = znode_remove_op,
 			.delete  = znode_remove_op,
 			.mapping = znode_mapping,
-			.index   = znode_index
+			.index   = znode_index,
+			.io_hook = znode_io_hook
 		}
 	},
 	[ JNODE_BITMAP ] = {
@@ -984,7 +993,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.remove  = noparse,
 			.delete  = noparse,
 			.mapping = znode_mapping,
-			.index   = znode_index
+			.index   = znode_index,
+			.io_hook = no_hook
 		}
 	},
 	[ JNODE_JOURNAL_RECORD ] = {
@@ -1002,7 +1012,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.remove  = noparse,
 			.delete  = noparse,
 			.mapping = NULL,
-			.index   = NULL
+			.index   = NULL,
+			.io_hook = no_hook
 		}
 	},
 	[ JNODE_IO_HEAD ] = {
@@ -1020,7 +1031,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.remove  = noparse,
 			.delete  = noparse,
 			.mapping = znode_mapping,
-			.index   = znode_index
+			.index   = znode_index,
+			.io_hook = no_hook
 		}
 	}
 };

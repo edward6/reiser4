@@ -304,10 +304,14 @@ int page_io( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
 	int         result;
+	jnode      *node;
 
 	assert( "nikita-2094", page != NULL );
 	assert( "nikita-2226", PageLocked( page ) );
 
+	assert( "nikita-2412", PagePrivate( page ) && jprivate( page ) );
+	node = jprivate( page );
+	jnode_ops( node ) -> io_hook( node, page, rw );
 	bio = page_bio( page, rw, gfp );
 	if( !IS_ERR( bio ) ) {
 		if( rw == WRITE ) {

@@ -895,6 +895,26 @@ int znode_just_created( const znode *node )
 	return( znode_page( node ) == NULL );
 }
 
+int znode_io_hook( const jnode *node, struct page *page, int rw )
+{
+	if( REISER4_DEBUG && ( rw == WRITE ) && 
+	    ( jnode_get_level( node ) == TWIG_LEVEL ) ) {
+		/* make sure we don't write unallocated pointers to disk */
+		coord_t coord;
+
+		for_all_units( &coord, JZNODE( node ) ) {
+			reiser4_block_nr block;
+
+			if( !item_is_internal( &coord ) )
+				continue;
+			item_plugin_by_coord( &coord ) -> 
+				s.internal.down_link( &coord, NULL, &block );
+			assert( "nikita-2413", !blocknr_is_fake( &block ) );
+		}
+	}
+	return 0;
+}
+
 void init_dh( data_handle *dh )
 {
 	assert( "nikita-2105", dh != NULL );

@@ -411,6 +411,8 @@ typedef struct jnode_plugin {
 	int                   ( *delete ) ( jnode *node );
 	struct address_space *( *mapping )( const jnode *node );
 	unsigned long         ( *index )  ( const jnode *node );
+	int                   ( *io_hook )( const jnode *node, struct page *page,
+					    int rw );
 } jnode_plugin;
 
 typedef enum {
