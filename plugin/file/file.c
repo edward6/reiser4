@@ -471,29 +471,27 @@ expand_file(struct inode *inode, loff_t cur_size, loff_t new_size)
 	return 0;
 }
 
-#ifndef ABS
-#  define ABS(val) ((val > 0 ? val : -val))
-#endif
+static inline loff_t
+abs(loff_t v)
+{
+	return v < 0 ? -v : v;
+}
+
 
 /* Performs estimate of reserved blocks for truncate operation. Note,
  * that all estimate fundctions do not count the amount of blocks should
  * be reserved for internal blocks */
-reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count) {
-    __u64 file_size;
+reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size) {
     tail_plugin *tail_plugin;
     
     assert("umka-1233", inode != NULL);
    
-    /* Getting the logical file size */
-    file_size = inode->i_size;
-
     /* Here should be called tail policy plugin in order to handle correctly
      * the situation of converting extent to tail */
     tail_plugin = inode_tail_plugin(inode);
     
     assert("umka-1234", tail_plugin != NULL);
-    
-    return tail_plugin->estimate(inode, ABS(file_size - count), 1) + 1;
+    return tail_plugin->estimate(inode, abs(old_size - inode->i_size), 1) + 1;
 }
 
 /* plugin->u.file.truncate
@@ -512,7 +510,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 	if (result)
 		return result;
 	
-	needed = unix_file_estimate_truncate(inode, size);
+	needed = unix_file_estimate_truncate(inode, file_size);
 	
 	if (reiser4_grab_space_exact(needed, (size <= result)) != 0) {
 //		drop_nonexclusive_access (inode);
