@@ -1805,7 +1805,6 @@ try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 	}
 	jput(node);
 	reiser4_lock_page(pg);
-	PROF_END(try_capture, try_capture);
 	return ret;
 }
 
