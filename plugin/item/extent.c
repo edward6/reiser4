@@ -860,19 +860,22 @@ static void optimize_extent (coord_t * item)
 	old_num = extent_nr_units (item);
 
 	if (REISER4_DEBUG) {
-		/* make sure that extents do not overlap */
-		reiser4_block_nr next;
+		unsigned j;
 
-		next = 0;
-		for (i = 0; i < old_num; i ++) {
-			if (state_of_extent (&ext [i]) != ALLOCATED_EXTENT)
+		/* make sure that extents do not overlap */
+		for (i = 0; i < old_num; i ++, ext ++) {
+			if (state_of_extent (ext) != ALLOCATED_EXTENT)
 				continue;
-			assert ("vs-775",
-				ergo (next,
-				      extent_get_start (&ext [i]) >= next));
-			next = extent_get_start (&ext [i]) +
-				extent_get_width (&ext [i]);
+			prev = start;
+			for (j = 0; j < i; j ++, prev ++) {
+				if (state_of_extent (prev) != ALLOCATED_EXTENT)
+					continue;
+				assert ("vs-911",
+					(extent_get_start (ext) >= extent_get_start (prev) + extent_get_width (prev)) ||
+					(extent_get_start (ext) + extent_get_width (ext) <= extent_get_start (prev)));
+			}
 		}
+		ext = start;
 	}
 	prev = NULL;
 	new_num = 0;
