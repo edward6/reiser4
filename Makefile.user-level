@@ -32,7 +32,7 @@ LIBS	     = -lpthread \
 	       -lbfd \
 	       -liberty \
 	       -lreadline
-PROFFLAGS   := #-pg
+PROFFLAGS   := -pg
 OPTFLAGS    := 
 CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -pipe \
