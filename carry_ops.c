@@ -1244,8 +1244,17 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	coord_dup(&coord2, &coord);
 	info.doing = doing;
 	info.todo = todo;
-	result = node_plugin_by_node(parent)->cut_and_kill
-	    (&coord, &coord2, NULL, NULL, NULL, &info, NULL, op->u.delete.flags);
+	{
+		struct cut_list params;
+		params.from = &coord;
+		params.to = &coord2;
+		params.from_key = NULL;
+		params.to_key = NULL;
+		params.smallest_removed = NULL;
+		params.info = &info;
+		params.flags = op->u.delete.flags;
+		result = node_plugin_by_node(parent)->cut_and_kill(&params);
+	}
 	doing->restartable = 0;
 	znode_set_dirty(coord.node);
 	znode_set_dirty(coord2.node);
@@ -1272,6 +1281,7 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 {
 	int result;
 	carry_plugin_info info;
+	struct cut_list params;
 
 	assert("nikita-896", op != NULL);
 	assert("nikita-897", todo != NULL);
@@ -1281,21 +1291,21 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 
 	info.doing = doing;
 	info.todo = todo;
-	if (op->u.cut->flags & DELETE_KILL)
+
+	params.from = op->u.cut->from;
+	params.to = op->u.cut->to;
+	params.from_key = op->u.cut->from_key;
+	params.to_key = op->u.cut->to_key;
+	params.smallest_removed = op->u.cut->smallest_removed;
+	params.info = &info;
+	params.flags = 0;
+	if (op->u.cut->flags & DELETE_KILL) {
 		/* data gets removed from the tree */
-		result =
-		    node_plugin_by_node(op->node->real_node)->cut_and_kill(op->u.cut->from, op->u.cut->to,
-									   op->u.cut->from_key, op->u.cut->to_key,
-									   op->u.cut->smallest_removed, &info,
-									   op->u.cut->iplug_params, 0	/* FIXME-NIKITA flags */
-		    );
-	else
+		result = node_plugin_by_node(op->node->real_node)->cut_and_kill(&params);
+	} else
 		/* data get cut,  */
-		result =
-		    node_plugin_by_node(op->node->real_node)->cut(op->u.cut->from,
-								  op->u.cut->to, op->u.cut->from_key, op->u.cut->to_key,
-								  op->u.cut->smallest_removed, &info, 0	/* FIXME-NIKITA flags */
-		    );
+		result = node_plugin_by_node(op->node->real_node)->cut(&params);
+
 	znode_set_dirty(op->u.cut->from->node);
 	znode_set_dirty(op->u.cut->to->node);
 	doing->restartable = 0;

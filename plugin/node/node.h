@@ -129,6 +129,18 @@ typedef enum {
 #define REISER4_TREE_BRIEF ( REISER4_NODE_PRINT_BRIEF )
 #define REISER4_TREE_CHECK_ALL ( REISER4_TREE_CHECK & ~REISER4_NODE_ONLY_INCORE )
 
+/* cut and cut_and_kill have to long list of parameters. This structure is just to safe some space on stack */
+struct cut_list {
+	coord_t * from;
+	coord_t * to;
+	const reiser4_key * from_key;
+	const reiser4_key * to_key;
+	reiser4_key * smallest_removed;
+	carry_plugin_info * info;
+	/*void *kill_params;*/
+	__u32 flags;
+};
+
 /* The responsibility of the node plugin is to store and give access
    to the sequence of items within the node.  */
 typedef struct node_plugin {
@@ -200,17 +212,12 @@ typedef struct node_plugin {
 	void (*update_item_key) (coord_t * target, const reiser4_key * key, carry_plugin_info * info);
 
 	/* remove data between @from and @to from the tree */
-	int (*cut_and_kill) (coord_t * from, coord_t * to,
-			     const reiser4_key * from_key,
-			     const reiser4_key * to_key,
-			     reiser4_key * smallest_removed, carry_plugin_info * info, void *kill_params, __u32 flags);
+	int (*cut_and_kill) (struct cut_list *);
 
 	/* remove data between @from and @to from a node (when shifting from
 	   one node to another, one cuts from a node but does not cut_and_kill
 	   from the tree) */
-	int (*cut) (coord_t * from, coord_t * to,
-		    const reiser4_key * from_key, const reiser4_key * to_key,
-		    reiser4_key * smallest_removed, carry_plugin_info * info, __u32 flags);
+	int (*cut) (struct cut_list *);
 
 	/* copy as much as possible but not more than up to @stop from
 	   @stop->node to @target. If (pend == append) then data from beginning of

@@ -933,17 +933,14 @@ node40_update_item_key(coord_t * target, const reiser4_key * key, carry_plugin_i
 static unsigned
 cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	  int cut,
-	  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *kill_params)
+	  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
 {
-	unsigned cut_size;
-	item_plugin *iplug;
 	int (*cut_f) (coord_t *, unsigned *, unsigned *, const reiser4_key *, const reiser4_key *, reiser4_key *);
 
-	iplug = item_plugin_by_coord(coord);
 	if (cut) {
-		cut_f = iplug->b.cut_units;
+		cut_f = item_plugin_by_coord(coord)->b.cut_units;
 	} else {
-		cut_f = iplug->b.kill_units;
+		cut_f = item_plugin_by_coord(coord)->b.kill_units;
 	}
 
 	if (cut_f) {
@@ -952,32 +949,25 @@ cut_units(coord_t * coord, unsigned *from, unsigned *to,
 		   kill_units method, because it is not clear here which units
 		   will be actually cut. To have kill_item_hook here we would
 		   have to pass keys to kill_item_hook */
-		cut_size = cut_f(coord, from, to, from_key, to_key, smallest_removed);
+		return cut_f(coord, from, to, from_key, to_key, smallest_removed);
 	} else {
-		/* cut method is not defined, so there should be request to cut
-		   the single unit of item */
+		/* cut method is not defined, so there should be request to cut the single unit of item. The item will
+		   be removed entirely */
 		assert("vs-302", *from == 0 && *to == 0 && coord->unit_pos == 0 && coord_num_units(coord) == 1);
-		/* that item will be removed entirely */
-		cut_size = item_length_by_coord(coord);
+
 		if (smallest_removed)
 			item_key_by_coord(coord, smallest_removed);
-		if (!cut && iplug->b.kill_hook)
-			iplug->b.kill_hook(coord, 0, 1, kill_params);
+		if (!cut && item_plugin_by_coord(coord)->b.kill_hook)
+			item_plugin_by_coord(coord)->b.kill_hook(coord, 0, 1);
+		return item_length_by_coord(coord);
 	}
-
-	return cut_size;
 }
 
-/* this is auxiliary function used by both cutting methods - cut and
-   cut_and_kill. If it is called by cut_and_kill (@cut == 0) special action
-   (kill_hook) will be performed on every unit being removed from tree. When
-   @info != 0 - it is called not by node40_shift who cares about delimiting
-   keys itself - update znode's delimiting keys */
-static int
-cut_or_kill(coord_t * from, coord_t * to,
-	    const reiser4_key * from_key,
-	    const reiser4_key * to_key,
-	    reiser4_key * smallest_removed, carry_plugin_info * info, int cut, void *cut_params, __u32 flags)
+/* this is auxiliary function used by both cutting methods - cut and cut_and_kill. If it is called by cut_and_kill (@cut
+   == 0) special action (kill_hook) will be performed on every unit being removed from tree. When @[arams->info != 0 -
+   it is called not by node40_shift who cares about delimiting keys itself - update znode's delimiting keys */
+static inline int
+cut_or_kill(struct cut_list *params, int cut)
 {
 	znode *node;
 	node40_header *nh;
@@ -995,65 +985,64 @@ cut_or_kill(coord_t * from, coord_t * to,
 				   item key and key of first unit in it */
 	unsigned from_unit, to_unit;
 
-	assert("vs-184", from->node == to->node);
-	assert("vs-297", ergo(from->item_pos == to->item_pos, from->unit_pos <= to->unit_pos));
-	assert("vs-312", !node_is_empty(from->node));
-	assert("nikita-1912", ergo(cut, cut_params == NULL));
+	assert("vs-184", params->from->node == params->to->node);
+	assert("vs-297", ergo(params->from->item_pos == params->to->item_pos, params->from->unit_pos <= params->to->unit_pos));
+	assert("vs-312", !node_is_empty(params->from->node));
 
-	node = from->node;
+	node = params->from->node;
 	nh = node40_node_header(node);
 	old_first_key = node40_ih_at(node, 0)->key;
 
 	wrong_item = ~0u;
-	if (from->item_pos == to->item_pos) {
+	if (params->from->item_pos == params->to->item_pos) {
 		/* cut one item (partially or as whole) */
-		first_removed = from->item_pos;
+		first_removed = params->from->item_pos;
 		removed_entirely = 0;
-		from_unit = from->unit_pos;
-		to_unit = to->unit_pos;
-		cut_size = cut_units(from, &from_unit, &to_unit, cut, from_key, to_key, smallest_removed, cut_params);
-		if (cut_size == (unsigned) item_length_by_coord(from))
+		from_unit = params->from->unit_pos;
+		to_unit = params->to->unit_pos;
+		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed);
+		if (cut_size == (unsigned) item_length_by_coord(params->from))
 			/* item will be removed entirely */
 			removed_entirely = 1;
 		else
 			/* this item may have wrong key after cut_units */
-			wrong_item = from->item_pos;
+			wrong_item = params->from->item_pos;
 
-		ih = node40_ih_at(node, (unsigned) from->item_pos);
+		ih = node40_ih_at(node, (unsigned) params->from->item_pos);
 		/* there are 4 possible cases: cut from the beginning, cut from
 		   the end, cut from the middle and cut whole item */
 		if (removed_entirely) {
 			/* whole item is cut */
 			freed_space_start = ih40_get_offset(ih);
 			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = from->item_pos - 1;
+			rightmost_not_moved = params->from->item_pos - 1;
 		} else if (from_unit == 0) {
 			/* head is cut, freed space is in the beginning */
 			freed_space_start = ih40_get_offset(ih);
 			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = from->item_pos - 1;
+			rightmost_not_moved = params->from->item_pos - 1;
 			/* item now starts at different place */
 			ih40_set_offset(ih, freed_space_end);
 
-		} else if (to_unit == coord_last_unit_pos(to)) {
+		} else if (to_unit == coord_last_unit_pos(params->to)) {
 			/* tail is cut, freed space is in the end */
-			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(from) - cut_size;
+			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(params->from) - cut_size;
 			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = from->item_pos;
+			rightmost_not_moved = params->from->item_pos;
 		} else {
 			/* cut from the middle
 			   NOTE: cut method of item must leave freed space at
 			   the end of item
 			*/
-			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(from) - cut_size;
+			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(params->from) - cut_size;
 			freed_space_end = freed_space_start + cut_size;
-			rightmost_not_moved = from->item_pos;
+			rightmost_not_moved = params->from->item_pos;
 		}
 	} else {
 		/* @from and @to are different items */
-		first_removed = from->item_pos + 1;
-		removed_entirely = to->item_pos - from->item_pos - 1;
-		rightmost_not_moved = from->item_pos;
+		first_removed = params->from->item_pos + 1;
+		removed_entirely = params->to->item_pos - params->from->item_pos - 1;
+		rightmost_not_moved = params->from->item_pos;
 
 		if (!cut) {
 			/* for every item being removed entirely between @from
@@ -1072,36 +1061,36 @@ cut_or_kill(coord_t * from, coord_t * to,
 				tmp.between = AT_UNIT;
 				iplug = item_plugin_by_coord(&tmp);
 				if (iplug->b.kill_hook) {
-					iplug->b.kill_hook(&tmp, 0, coord_num_units(&tmp), cut_params);
+					iplug->b.kill_hook(&tmp, 0, coord_num_units(&tmp));
 				}
 			}
 		}
 
 		/* cut @from item first */
-		from_unit = from->unit_pos;
-		to_unit = coord_last_unit_pos(from);
-		cut_size = cut_units(from, &from_unit, &to_unit, cut, from_key, to_key, smallest_removed, cut_params);
-		if (cut_size == (unsigned) item_length_by_coord(from)) {
+		from_unit = params->from->unit_pos;
+		to_unit = coord_last_unit_pos(params->from);
+		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed);
+		if (cut_size == (unsigned) item_length_by_coord(params->from)) {
 			/* whole @from is cut */
 			first_removed--;
 			removed_entirely++;
 			rightmost_not_moved--;
 		}
-		ih = node40_ih_at(node, (unsigned) from->item_pos);
-		freed_space_start = ih40_get_offset(ih) + node40_length_by_coord(from) - cut_size;
+		ih = node40_ih_at(node, (unsigned) params->from->item_pos);
+		freed_space_start = ih40_get_offset(ih) + node40_length_by_coord(params->from) - cut_size;
 
 		/* cut @to item */
 		from_unit = 0;
-		to_unit = to->unit_pos;
-		cut_size = cut_units(to, &from_unit, &to_unit, cut, from_key, to_key, 0, cut_params);
-		if (cut_size == (unsigned) item_length_by_coord(to))
+		to_unit = params->to->unit_pos;
+		cut_size = cut_units(params->to, &from_unit, &to_unit, cut, params->from_key, params->to_key, 0/*smallest_removed*/);
+		if (cut_size == (unsigned) item_length_by_coord(params->to))
 			/* whole @to is cut */
 			removed_entirely++;
 		else
 			/* this item may have wrong key after cut_units */
-			wrong_item = to->item_pos;
+			wrong_item = params->to->item_pos;
 
-		ih = node40_ih_at(node, (unsigned) to->item_pos);
+		ih = node40_ih_at(node, (unsigned) params->to->item_pos);
 		freed_space_end = ih40_get_offset(ih) + cut_size;
 
 		/* item now starts at different place */
@@ -1144,20 +1133,20 @@ cut_or_kill(coord_t * from, coord_t * to,
 		node40_update_item_key(&coord, &unit_key, 0);
 	}
 
-	if (info) {
+	if (params->info) {
 		/* it is not called by node40_shift, so we have to take care
 		   of changes on upper levels */
-		if (node_is_empty(node) && !(flags & DELETE_RETAIN_EMPTY))
+		if (node_is_empty(node) && !(params->flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
-			node40_prepare_for_removal(node, info);
+			node40_prepare_for_removal(node, params->info);
 		else if (!keyeq(&node40_ih_at(node, 0)->key, &old_first_key)) {
 			/* first key changed */
-			prepare_for_update(NULL, node, info);
+			prepare_for_update(NULL, node, params->info);
 		}
 	}
 
 	/* FIXME-NIKITA overkill */
-	from->iplug = to->iplug = NULL;
+	params->from->iplug = params->to->iplug = NULL;
 
 	/*print_znode_content (node, ~0u); */
 	return removed_entirely;
@@ -1165,21 +1154,22 @@ cut_or_kill(coord_t * from, coord_t * to,
 
 /* plugin->u.node.cut_and_kill */
 int
-node40_cut_and_kill(coord_t * from, coord_t * to,
+node40_cut_and_kill(struct cut_list *params)
+/*
+                    coord_t * from, coord_t * to,
 		    const reiser4_key * from_key,
 		    const reiser4_key * to_key,
 		    reiser4_key * smallest_removed, carry_plugin_info * info, void *kill_params, __u32 flags)
+*/
 {
-	return cut_or_kill(from, to, from_key, to_key, smallest_removed, info, 0 /* not cut */ , kill_params, flags);
+	return cut_or_kill(params, 0 /* kill */);
 }
 
 /* plugin->u.node.cut */
 int
-node40_cut(coord_t * from, coord_t * to,
-	   const reiser4_key * from_key,
-	   const reiser4_key * to_key, reiser4_key * smallest_removed, carry_plugin_info * info, __u32 flags)
+node40_cut(struct cut_list *params)
 {
-	return cut_or_kill(from, to, from_key, to_key, smallest_removed, info, 1 /* cut */ , NULL, flags);
+	return cut_or_kill(params, 1 /* cut */);
 }
 
 /* this structure is used by shift method of node40 plugin */
@@ -1633,6 +1623,7 @@ node40_delete_copied(struct shift_params *shift)
 {
 	coord_t from;
 	coord_t to;
+	struct cut_list params;
 
 	if (shift->pend == SHIFT_LEFT) {
 		/* we were shifting to left, remove everything from the
@@ -1658,7 +1649,14 @@ node40_delete_copied(struct shift_params *shift)
 		coord_prev_unit(&shift->u.future_last);
 	}
 
-	return node40_cut(&from, &to, 0, 0, 0, 0, 0);
+	params.from = &from;
+	params.to = &to;
+	params.from_key = 0;
+	params.to_key = 0;
+	params.smallest_removed = 0;
+	params.info = 0;
+	params.flags = 0;
+	return node40_cut(&params);
 }
 
 /* znode has left and right delimiting keys. We moved data between nodes,
