@@ -143,6 +143,8 @@ struct reiser4_context {
 	err_site err;
 	/* information about delayed stat data updates. See above. */
 	dirty_inode_info dirty;
+
+	void *grabbed_at[4];
 #endif
 };
 
