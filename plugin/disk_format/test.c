@@ -88,9 +88,6 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		return result;
 	}
 
-	/* FIXME-VS: move up to reiser4_fill_super? */
-	result = init_formatted_fake (s);
-
 	brelse (super_bh);
 	return result;
 }
@@ -104,7 +101,7 @@ const reiser4_key * test_layout_root_dir_key (const struct super_block * s)
 
 
 /* plugin->u.layout.release */
-void test_layout_release (struct super_block * s)
+int test_layout_release (struct super_block * s)
 {
 	struct buffer_head * super_bh;
 	test_disk_super_block * disk_sb;
@@ -114,14 +111,14 @@ void test_layout_release (struct super_block * s)
 	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {
 		warning ("vs-630", "could not read super block");
-		return;
+		return -EIO;
 	}
 	disk_sb = (test_disk_super_block *)(super_bh->b_data + 
 					    sizeof (struct reiser4_master_sb));
 	if (strcmp (disk_sb->magic, TEST_MAGIC)) {
 		warning ("vs-631", "no test layout found");
 		brelse (super_bh);
-		return;
+		return -EIO;
 	}
 
 	/*
@@ -151,7 +148,7 @@ void test_layout_release (struct super_block * s)
 	wait_on_buffer (super_bh);
 	brelse (super_bh);
 
-	return;
+	return 0;
 }
 
 static void print_test_disk_sb (const char * mes,
