@@ -334,7 +334,12 @@ overwrite_reserve(reiser4_tree *tree)
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
 int
-write_tail(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, write_mode_t mode)
+write_tail(struct inode *inode, flow_t *f, hint_t *hint,
+	   int grabbed, /* tail's write may be called from plain unix file write and from tail conversion. In first
+			   case (grabbed == 0) space is not reserved forehand, so, it must be done here. When it is
+			   being called from tail conversion - space is reserved already for whole operation which may
+			   involve several calls to item write. In this case space reservation will not be done here */
+	   write_mode_t mode)
 {
 	int result;
 	coord_t *coord;
