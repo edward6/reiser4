@@ -533,7 +533,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			break;
 
 		wbc->nr_to_write -= nr_submitted;
-	} while (0);
+	} while (wbc->nr_to_write > 0);
 }
 
 static void
