@@ -446,7 +446,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 
 		info = &obj->p;
 
-		info->pset = plugin_set_get_empty();
+		info->hset = info->pset = plugin_set_get_empty();
 		scint_init(&info->extmask);
 		info->locality_id = 0ull;
 		info->plugin_mask = 0;
@@ -631,7 +631,7 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 
 	/* avoid recursive calls to ->sync_inodes */
 	context_set_commit_async(&ctx);
-	(void)reiser4_exit_context(&ctx);
+	reiser4_exit_context(&ctx);
 	spin_lock(&inode_lock);
 }
 
@@ -1101,25 +1101,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	if (result != 0)
 		return result;
 
-	if (sbinfo->plug.t == NULL)
-		sbinfo->plug.t = formatting_plugin_by_id(REISER4_FORMATTING_PLUGIN);
-	if (sbinfo->plug.sd == NULL)
-		sbinfo->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
-	if (sbinfo->plug.dir_item == NULL)
-		sbinfo->plug.dir_item = item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
-	if (sbinfo->plug.p == NULL)
-		sbinfo->plug.p = perm_plugin_by_id(REISER4_PERM_PLUGIN);
-	if (sbinfo->plug.f == NULL)
-		sbinfo->plug.f = file_plugin_by_id(REISER4_FILE_PLUGIN);
-	if (sbinfo->plug.d == NULL)
-		sbinfo->plug.d = dir_plugin_by_id(REISER4_DIR_PLUGIN);
-	if (sbinfo->plug.h == NULL)
-		sbinfo->plug.h = hash_plugin_by_id(REISER4_HASH_PLUGIN);
-	if (sbinfo->plug.fib == NULL)
-		sbinfo->plug.fib = fibration_plugin_by_id(REISER4_FIBRATION_PLUGIN);
-	if (sbinfo->ra_params.max == -1UL)
-		sbinfo->ra_params.max = max_sane_readahead(sbinfo->ra_params.max);
-
 	sbinfo->tmgr.atom_max_age *= HZ;
 	if (sbinfo->tmgr.atom_max_age <= 0)
 		/* overflow */
@@ -1383,7 +1364,7 @@ reiser4_kill_super(struct super_block *s)
 out:
 
 	/* no assertions below this line */
-	(void)reiser4_exit_context(&context);
+	reiser4_exit_context(&context);
 
 	phash_super_destroy(s);
 
@@ -1409,7 +1390,7 @@ reiser4_write_super(struct super_block *s)
 
 	s->s_dirt = 0;
 
-	(void)reiser4_exit_context(&ctx);
+	reiser4_exit_context(&ctx);
 }
 
 /* ->get_sb() method of file_system operations. */
