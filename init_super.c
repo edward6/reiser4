@@ -438,16 +438,6 @@ _DONE_(sysfs)
 	reiser4_sysfs_done(s);
 }
 
-_INIT_(sysctl)
-{
-	return reiser4_sysctl_init();
-}
-
-_DONE_(sysctl)
-{
-	reiser4_sysctl_done();
-}
-
 _INIT_(repacker)
 {
 	return init_reiser4_repacker(s);
@@ -502,7 +492,6 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(sb_counters),
 	_SUBSYS(fs_root),
 	_SUBSYS(sysfs),
-	_SUBSYS(sysctl),
 	_SUBSYS(repacker),
 	_SUBSYS(safelink),
 	_SUBSYS(exit_context)

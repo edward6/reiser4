@@ -205,6 +205,41 @@ static reiser4_kattr device = {
 	.show = show_device
 };
 
+static ssize_t
+show_trace_flags(struct super_block * s,
+		 reiser4_kattr * kattr, void * o, char * buf)
+{
+	char *p;
+
+	(void)o;
+	p = buf;
+	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)->trace_flags);
+	return (p - buf);
+}
+
+ssize_t store_trace_flags(struct super_block * s,
+			  reiser4_kattr *ka, void *opaque, const char *buf,
+			  size_t size)
+{
+	__u32 trace_flags;
+
+	if (sscanf(buf, "%i", &trace_flags) == 1)
+		get_super_private(s)->trace_flags = trace_flags;
+	else
+		size = RETERR(-EINVAL);
+	return size;
+}
+
+static reiser4_kattr trace_flags = {
+	.attr = {
+		.name = (char *) "trace_flags",
+		.mode = 0644   /* rw-r--r-- */
+	},
+	.cookie = NULL,
+	.store = store_trace_flags,
+	.show  = show_trace_flags
+};
+
 #if REISER4_DEBUG
 ssize_t store_bugme(struct super_block * s,
 		    reiser4_kattr *ka, void *opaque, const char *buf,
@@ -293,6 +328,7 @@ static struct attribute * kattr_def_attrs[] = {
 	&kattr_super_ro_27.attr,
 	&compile_options.attr,
 	&device.attr,
+	&trace_flags.attr,
 #if REISER4_DEBUG
 	&bugme.attr,
 #endif

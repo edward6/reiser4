@@ -325,18 +325,11 @@ extern int is_in_reiser4_context(void);
 	reiser4_panic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
 #if REISER4_TRACE
-#if 0
 /* helper macro for tracing, see trace_stamp() below. */
 #define IF_TRACE(flags, e) 							\
 	if(get_current_trace_flags() & (flags)) e
-#endif
-extern unsigned int trace_flags;
-#define IF_TRACE(flags, e)							\
-		if (trace_flags & (flags))					\
-			e
-
 #else
-#define IF_TRACE( flags, e ) noop
+#define IF_TRACE(flags, e) noop
 #endif
 
 /* tracing flags. */
@@ -522,9 +515,6 @@ const char *jnode_tostring(jnode *);
 void jnode_tostring_internal(jnode * node, char *buf);
 const char *znode_tostring(znode *);
 const char *flags_tostring(int flags);
-
-int reiser4_sysctl_init(void);
-void reiser4_sysctl_done(void);
 
 #if REISER4_ALL_IN_ONE
 #define reiser4_internal static
