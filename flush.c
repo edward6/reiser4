@@ -286,11 +286,33 @@ static int slum_allocate_left_edge_ancestors (jnode *node)
 			 * we want to flush the parent at the same time as the
 			 * child we are currently allocating.  Should it be
 			 * done prior to flush, or should it be done after
-			 * this call to slum_allocate_left_edge finishes its work at the
-			 * bottom level?  If this parent is the parent of the
-			 * bottom level, then the rightward phase that is
-			 * about to commense will do some of the allocation
-			 * that is required here.  Ask Hans for his thoughts.
+			 * this call to slum_allocate_left_edge finishes its
+			 * work at the bottom level?  If this parent is the
+			 * parent of the bottom level, then the rightward
+			 * phase that is about to commense will do some of the
+			 * allocation that is required here.  Ask Hans for his
+			 * thoughts.
+			 */
+
+			/* ANSWER: To address the allocate-during-squeeze
+			 * issue, we will not squeeze in this function.
+			 * During this recursive, upward pass, we find the
+			 * leftmost dirty edge on each level that are
+			 * connected in the tree.  Then we perform a "sweep"
+			 * across all levels on which we encountered dirty
+			 * nodes, processing dirty nodes in a pre-order
+			 * traversal, squeezing and allocating as we go along.
+			 * This algorithm has the nice property of not
+			 * squeezing nodes and then inflating unallocated
+			 * extents immediately afterward.  There is one
+			 * problem with this algorithm, however.
+			 *
+			 * In the pre-order traversal through dirty nodes of
+			 * the tree, we may miss the opportunity to relocate
+			 * the clean parent of a dirty child, even though a
+			 * later call to flush that dirty child would mark its
+			 * parent dirty, thus adding it to a consecutive group
+			 * of pre-ordered nodes.
 			 */
 		}
 	}
