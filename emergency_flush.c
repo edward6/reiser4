@@ -454,7 +454,7 @@ static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
 
 		/* further, transfer block from grabbed into flush reserved
 		 * space. */
-		spin_lock_jnode(ndoe);
+		spin_lock_jnode(node);
 		atom = atom_get_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
 		grabbed2flush_reserved_nolock(atom, 1);
