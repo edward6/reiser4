@@ -273,10 +273,9 @@ is_writepage_done(jnode *node, int *iterations)
 	 * check for some weird condition to avoid stalling
 	 * memory scan.
 	 */
-	if (++ (*iterations) > 100) {
-		warning("nikita-3110", "Flush cannot start");
+	if (++ (*iterations) > 100)
 		return -ENOMEM;
-	}
+
 	return 0;
 }
 
