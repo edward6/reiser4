@@ -1219,11 +1219,9 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		err = 1;
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
-		result = find_next_item(0, to_key, &intranode_to,	/* was set as hint in
-									 * previous loop
-									 * iteration (if there
-									 * was one) */
-					&lock_handle, ZNODE_WRITE_LOCK, CBK_UNIQUE);
+		result = find_file_item(0, to_key, &intranode_to, /* was set as hint in previous loop iteration (if
+								     there was one) */
+					&lock_handle, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 			/* -EIO, or something like that */
 			break;

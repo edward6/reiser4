@@ -119,7 +119,7 @@ nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coor
 	coord_init_zero(first_coord);
 	init_lh(first_lh);
 	
-	result = find_next_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE);
+	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */);
 	if (result != CBK_COORD_FOUND) {
 		/* error occured */
 		done_lh(first_lh);
@@ -377,7 +377,7 @@ tail2extent(struct inode *inode)
 				/* get next item */
 				coord_init_zero(&coord);
 				init_lh(&lh);
-				result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */);
 				if (result != CBK_COORD_FOUND) {
 					if (result == CBK_COORD_NOTFOUND && get_key_offset(&key) == 0)
 						/* conversion can be called for
@@ -514,7 +514,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 						count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
 	iplug = item_plugin_by_id(TAIL_ID);
 	while (f.length) {
-		result = find_next_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
+		result = find_file_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */);
 		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
 			break;
 		}
