@@ -56,6 +56,12 @@ typedef struct item_plugin {
 		reiser4_key *( *max_key_inside )( const tree_coord *coord, 
 						  reiser4_key *area );
 		/**
+		 * true if item @coord can merge data at @key.
+		 */
+		int ( *can_contain_key )( const tree_coord *coord, 
+					  const reiser4_key *key,
+					  const reiser4_item_data *data );
+		/**
 		 * mergeable() - check items for mergeability
 		 *
 		 * Optional method. Returns true if two items can be merged.
@@ -172,7 +178,7 @@ typedef struct item_plugin {
 		
 		/* converts flow @f to item data. @coord == 0 on insert */
 		int ( *item_data_by_flow )( const tree_coord *coord,
-					    const flow *f,
+					    const flow_t *f,
 					    reiser4_item_data *data );
 	} b;
 	
@@ -216,7 +222,8 @@ typedef enum {
 	LAST_ITEM_ID
 } reiser4_item_id;
 
-int item_can_contain_key( const tree_coord *item, const reiser4_key *key );
+int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
+			  const reiser4_item_data * );
 int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 );
 
 /* 
