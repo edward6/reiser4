@@ -161,7 +161,7 @@ tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info U
 	if (data->data) {
 		assert("vs-554", data->user == 0 || data->user == 1);
 		if (data->user) {
-			ON_DEBUG_CONTEXT(assert("green-6", lock_counters()->spin_locked == 0));
+			schedulable();
 			/* AUDIT: return result is not checked! */
 			/* copy from user space */
 			__copy_from_user(item + coord->unit_pos, data->data, (unsigned) data->length);
@@ -325,7 +325,7 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	assert("vs-946", f->data);
 	assert("vs-947", coord_is_existing_unit(coord));
 	assert("vs-948", znode_is_write_locked(coord->node));
-	ON_DEBUG_CONTEXT(assert("green-7", lock_counters()->spin_locked == 0));
+	schedulable();
 
 	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > f->length)
@@ -458,10 +458,10 @@ tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	assert("vs-571", f->user == 1);
 	assert("vs-571", f->data);
 	assert("vs-967", coord && coord->node);
-	ON_DEBUG_CONTEXT(assert("green-8", lock_counters()->spin_locked == 0));
 	assert("vs-1117", znode_is_rlocked(coord->node));
 	assert("vs-1118", znode_is_loaded(coord->node));
 
+	schedulable();
 	if (!tail_key_in_item(coord, &f->key))
 		return -EAGAIN;
 

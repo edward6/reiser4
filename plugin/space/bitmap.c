@@ -520,7 +520,7 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 	bmap_nr_t bitmap_blocks_nr;
 	bmap_nr_t i;
 
-	ON_DEBUG_CONTEXT(assert("green-3", lock_counters()->spin_locked == 0));
+	schedulable();
 	/* getting memory for bitmap allocator private data holder */
 	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
 

@@ -2394,6 +2394,9 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	/* We do not need the node lock. */
 	spin_unlock_jnode(node);
 
+	if (atomf->stage == ASTAGE_DONE)
+		print_atom("Waiting for dead to rise", atomf);
+
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
 	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
 	atomf->refcount += 1;
@@ -2416,6 +2419,9 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
 		ret = go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
+
+		if (atomf->stage == ASTAGE_DONE)
+			print_atom("Dead has risen", atomf);
 
 		if (ret == 0) {
 			ret = -EAGAIN;

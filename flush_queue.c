@@ -259,7 +259,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 	if (atomic_read(&fq->nr_submitted) != 0) {
 		spin_unlock_atom(fq->atom);
 
-		assert("zam-734", lock_counters()->spin_locked == 0);
+		schedulable();
 
 		blk_run_queues();
 		down(&fq->sema);

@@ -1151,7 +1151,7 @@ __go_to_sleep(lock_stack * owner
 	unsigned long sleep_start = jiffies;
 #endif
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
-	assert("green-30", lock_counters()->spin_locked == 0);
+	schedulable();
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
 #ifdef CONFIG_REISER4_STATS
