@@ -1908,6 +1908,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 				}
 				if (result)
 					return result;
+				all_grabbed2free();
 				unset_hint(hint);
 				continue;
 			}
