@@ -518,11 +518,11 @@ errno_t reiserfs_tree_add(
     reiserfs_key_init(&item.key, ldkey.plugin, ldkey.body);
     
     item.hint = &internal;
-    item.type = REISERFS_INTERNAL_ITEM;
+    item.type = INTERNAL_ITEM;
     
     /* FIXME-UMKA: Hardcoded internal item id */
-    if (!(item.plugin = libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, REISERFS_INTERNAL_ITEM)))
-    	libreiser4_factory_failed(return -1, find, item, REISERFS_INTERNAL_ITEM);
+    if (!(item.plugin = libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
+    	libreiser4_factory_failed(return -1, find, item, ITEM_INTERNAL40_ID);
    
     /* Estimating found internal node */
     if (reiserfs_node_item_estimate(parent->node, &coord.pos, &item))
@@ -649,7 +649,7 @@ errno_t reiserfs_tree_insert(
 
     /* Looking up for target leaf */
     if ((lookup = reiserfs_tree_lookup(tree, REISERFS_LEAF_LEVEL + 
-	(item->type == REISERFS_INTERNAL_ITEM), key, &coord)) == 1)
+	(item->type == INTERNAL_ITEM), key, &coord)) == 1)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Key (%llx:%x:%llx:%llx) already exists in block %llu.", 

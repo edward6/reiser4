@@ -15,7 +15,7 @@
     Tries to guess object plugin type passed first item plugin and item body. Most
     possible that passed item body is stat data body.
 */
-static reiserfs_plugin_t *reiserfs_object_guess_plugin(reiserfs_object_t *object) {
+reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
     void *item_body;
     reiserfs_plugin_t *item_plugin;
     
@@ -38,7 +38,7 @@ static reiserfs_plugin_t *reiserfs_object_guess_plugin(reiserfs_object_t *object
     }
     
     /* FIXME-UMKA: Here should be real detecting instead of hardcoded plugin */
-    return libreiser4_factory_find_by_id(REISERFS_DIR_PLUGIN, 0x0);
+    return libreiser4_factory_find_by_id(DIRECTORY_FILE, FILE_DIR40_ID);
 }
 
 /* 
@@ -148,7 +148,7 @@ static errno_t reiserfs_object_lookup(
 	    Here we should get dir plugin id from the statdata and using it try find 
 	    needed entry inside it.
 	*/
-	if (!(object_plugin = reiserfs_object_guess_plugin(object))) {
+	if (!(object_plugin = reiserfs_object_guess(object))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't guess object plugin for parent of %s.", track);
 	    return -1;
@@ -161,7 +161,7 @@ static errno_t reiserfs_object_lookup(
 	    return -1;
 	}
 	
-	if (object_plugin->h.type == REISERFS_DIR_PLUGIN) {
+	if (object_plugin->h.type == DIRECTORY_FILE) {
 	    reiserfs_entry_hint_t entry;
 	    
 	    if (!(object_entity = libreiser4_plugin_call(return -1, 
@@ -236,7 +236,7 @@ reiserfs_object_t *reiserfs_object_open(
     }
     
     /* Guessing object plugin from its first item */
-    if (!(object->plugin = reiserfs_object_guess_plugin(object))) {
+    if (!(object->plugin = reiserfs_object_guess(object))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't guess object plugin.");
 	goto error_free_object;

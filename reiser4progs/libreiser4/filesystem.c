@@ -24,7 +24,7 @@ static errno_t reiserfs_fs_build_root_key(
     reiserfs_plugin_t *plugin;
     
     /* Finding needed key plugin by its identifier */
-    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_KEY_PLUGIN, pid)))
+    if (!(plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, pid)))
 	libreiser4_factory_failed(return -1, find, key, pid);
 
     /* Getting root directory attributes from oid allocator */
@@ -279,8 +279,8 @@ reiserfs_fs_t *reiserfs_fs_create(
 	reiserfs_object_hint_t dir_hint;
 	
 	/* Finding directroy plugin */
-	if (!(dir_plugin = libreiser4_factory_find_by_id(REISERFS_DIR_PLUGIN, profile->object.dir)))
-	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->object.dir);
+	if (!(dir_plugin = libreiser4_factory_find_by_id(DIRECTORY_FILE, profile->file.dir)))
+	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->file.dir);
 	
 	dir_hint.statdata_pid = profile->item.statdata;
 	dir_hint.sdext = profile->sdext;

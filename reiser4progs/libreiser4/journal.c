@@ -28,7 +28,7 @@ reiserfs_journal_t *reiserfs_journal_open(
 	return NULL;
 	
     /* Getting plugin by its id from plugin factory */
-    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_JOURNAL_PLUGIN, pid)))
+    if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid)))
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 	
     journal->plugin = plugin;
@@ -70,7 +70,7 @@ reiserfs_journal_t *reiserfs_journal_create(
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
-    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_JOURNAL_PLUGIN, pid))) 
+    if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid))) 
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 
     journal->plugin = plugin;
