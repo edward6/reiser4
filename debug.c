@@ -256,8 +256,10 @@ void reiser4_print_stats()
 	      s -> file.find_items,
 	      s -> file.full_find_items );
 	info( "extent:\n"
-	      "\t read unformatted nodes:\t %lu\n",
-	      s -> extent.unfm_block_reads );
+	      "\t read unformatted nodes:\t %lu\n"
+	      "\t broken seals:\t %lu\n",
+	      s -> extent.unfm_block_reads,
+	      s -> extent.broken_seals );
 
 	info( "flush:\n"
 	      "\t squeeze:\t %lu\n"
