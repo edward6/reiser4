@@ -10,6 +10,7 @@
 
 #include <misc/misc.h>
 #include <reiserfs/reiserfs.h>
+#include <reiserfs/hack.h>
 
 error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     blk_t root_blk;
@@ -20,7 +21,8 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    root_blk = reiserfs_super_get_root(fs);
+    if (!(root_blk = reiserfs_super_get_root(fs)))
+	goto error_free_tree;
 
 /*    if (reiserfs_fs_format_plugin_id(fs) == 0x2) {
 	if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk, 0x2)))
@@ -52,13 +54,15 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    if (!(root_blk = reiserfs_alloc_find(fs))) {
+    root_blk = hack_create_tree(fs, node_plugin_id);
+
+/*    if (!(root_blk = reiserfs_alloc_find(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block for root node.");
 	goto error_free_tree;
     }
     
-    reiserfs_alloc_use(fs, root_blk);
+    reiserfs_alloc_use(fs, root_blk);*/
     reiserfs_super_set_root(fs, root_blk);
     
     /* Here will be also allocated leaf node */
@@ -68,19 +72,6 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
 	goto error_free_tree;*/
     
 
-    /* Create 2 nodes - leaf and squeeze */
-    /* Create internel item, insert it into squeeze */
-
-    /* Init internal item to be inserted into tree->root */
-/*    {
-	reiserfs_key_t key;
-	reiserfs_stat40_t stat40;
-	    
-        set_key_type(&key, KEY_SD_MINOR);
-        set_key_locality(&key, 1ull);
-        set_key_objectid(&key, 2ull);
-    }*/
-    
     return 0;
 
 error_free_tree:

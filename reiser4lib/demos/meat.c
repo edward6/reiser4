@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
 	    goto error_free_libreiserfs;
 	}
     
-	if (!(fs = reiserfs_fs_create(device, 0x1, 0x1, 0x1, 0x1, 4096, "test-uuid", "test-label", 
+	if (!(fs = reiserfs_fs_create(device, 0x0, 0x0, 0x0, 0x0, 0x0, 4096, "test-uuid", "test-label", 
 	    aal_device_len(device), device, NULL))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

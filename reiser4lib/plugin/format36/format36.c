@@ -132,7 +132,8 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
 
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
     count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id_t, reiserfs_plugin_id_t node_plugin_id)
+    reiserfs_plugin_id_t alloc_plugin_id_t, reiserfs_plugin_id_t oid_plugin_id, 
+    reiserfs_plugin_id_t node_plugin_id)
 {
     return NULL;
 }
@@ -174,15 +175,19 @@ static const char *reiserfs_format36_format(reiserfs_format36_t *format) {
 }
 
 static reiserfs_plugin_id_t reiserfs_format36_journal_plugin(reiserfs_format36_t *format) {
-    return 0x2;
+    return 0x1;
 }
 
 static reiserfs_plugin_id_t reiserfs_format36_alloc_plugin(reiserfs_format36_t *format) {
-    return 0x2;
+    return 0x1;
+}
+
+static reiserfs_plugin_id_t reiserfs_format36_oid_plugin(reiserfs_format36_t *format) {
+    return 0x1;
 }
 
 static reiserfs_plugin_id_t reiserfs_format36_node_plugin(reiserfs_format36_t *format) {
-    return 0x2;
+    return 0x1;
 }
 
 static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
@@ -224,7 +229,7 @@ static reiserfs_plugin_t format36_plugin = {
     .format = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x2,
+	    .id = 0x1,
 	    .type = REISERFS_FORMAT_PLUGIN,
 	    .label = "format36",
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
@@ -233,7 +238,8 @@ static reiserfs_plugin_t format36_plugin = {
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
-	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))reiserfs_format36_create,
+	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))
+	    reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_sync,
@@ -256,6 +262,9 @@ static reiserfs_plugin_t format36_plugin = {
 		
 	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_alloc_plugin,
+	
+	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	    reiserfs_format36_oid_plugin,
 	
 	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format36_node_plugin,

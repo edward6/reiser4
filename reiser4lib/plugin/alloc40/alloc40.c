@@ -12,6 +12,7 @@
 static reiserfs_plugins_factory_t *factory = NULL;
 
 static reiserfs_alloc40_t *reiserfs_alloc40_open(aal_device_t *device, count_t len) {
+    blk_t offset;
     reiserfs_alloc40_t *alloc;
     
     aal_assert("umka-364", device != NULL, return NULL);
@@ -19,9 +20,10 @@ static reiserfs_alloc40_t *reiserfs_alloc40_open(aal_device_t *device, count_t l
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if (!(alloc->bitmap = reiserfs_bitmap_open(device, 
-	(REISERFS_ALLOC40_OFFSET / aal_device_get_blocksize(device)), len))) 
-    {
+    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_blocksize(device))) / 
+	aal_device_get_blocksize(device);
+    
+    if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't open bitmap.");
 	goto error_free_alloc;
     }
@@ -38,6 +40,7 @@ error:
 static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device, 
     count_t len)
 {
+    blk_t offset;
     reiserfs_alloc40_t *alloc;
 
     aal_assert("umka-365", device != NULL, return NULL);
@@ -45,8 +48,10 @@ static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
-    if (!(alloc->bitmap = reiserfs_bitmap_create(device, 
-	(REISERFS_ALLOC40_OFFSET / aal_device_get_blocksize(device)), len))) 
+    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_blocksize(device))) / 
+	aal_device_get_blocksize(device);
+    
+    if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create bitmap.");
 	goto error_free_alloc;
@@ -122,7 +127,7 @@ static reiserfs_plugin_t alloc40_plugin = {
     .alloc = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x1,
+	    .id = 0x0,
 	    .type = REISERFS_ALLOC_PLUGIN,
 	    .label = "alloc40",
 	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "

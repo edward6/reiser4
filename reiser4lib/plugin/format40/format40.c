@@ -90,7 +90,8 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, 
     count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t node_plugin_id)
+    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t oid_plugin_id, 
+    reiserfs_plugin_id_t node_plugin_id)
 {
     blk_t blk;
     reiserfs_plugin_t *plugin;
@@ -135,6 +136,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
 
     set_sb_journal_plugin_id(super, journal_plugin_id);
     set_sb_alloc_plugin_id(super, alloc_plugin_id);
+    set_sb_oid_plugin_id(super, oid_plugin_id);
     set_sb_node_plugin_id(super, node_plugin_id);
 
     if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, alloc_plugin_id))) {
@@ -195,15 +197,23 @@ static const char *reiserfs_format40_format(reiserfs_format40_t *format) {
 }
 
 static reiserfs_plugin_id_t reiserfs_format40_journal_plugin(reiserfs_format40_t *format) {
-    return 0x1;
+    aal_assert("umka-482", format != NULL, return 0);
+    return get_sb_journal_plugin_id((reiserfs_format40_super_t *)format->super->data);
 }
 
 static reiserfs_plugin_id_t reiserfs_format40_alloc_plugin(reiserfs_format40_t *format) {
-    return 0x1;
+    aal_assert("umka-483", format != NULL, return 0);
+    return get_sb_alloc_plugin_id((reiserfs_format40_super_t *)format->super->data);
+}
+
+static reiserfs_plugin_id_t reiserfs_format40_oid_plugin(reiserfs_format40_t *format) {
+    aal_assert("umka-484", format != NULL, return 0);
+    return get_sb_oid_plugin_id((reiserfs_format40_super_t *)format->super->data);
 }
 
 static reiserfs_plugin_id_t reiserfs_format40_node_plugin(reiserfs_format40_t *format) {
-    return 0x1;
+    aal_assert("umka-485", format != NULL, return 0);
+    return get_sb_node_plugin_id((reiserfs_format40_super_t *)format->super->data);
 }
 
 static blk_t reiserfs_format40_offset(reiserfs_format40_t *format) {
@@ -245,7 +255,7 @@ static reiserfs_plugin_t format40_plugin = {
     .format = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x1,
+	    .id = 0x0,
 	    .type = REISERFS_FORMAT_PLUGIN,
 	    .label = "format40",
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
@@ -254,7 +264,8 @@ static reiserfs_plugin_t format40_plugin = {
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
-	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))reiserfs_format40_create,
+	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))
+	    reiserfs_format40_create,
 
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format40_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
@@ -277,6 +288,9 @@ static reiserfs_plugin_t format40_plugin = {
 		
 	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_alloc_plugin,
+	
+	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	    reiserfs_format40_oid_plugin,
 	
 	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    reiserfs_format40_node_plugin,
