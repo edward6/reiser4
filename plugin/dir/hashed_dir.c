@@ -172,7 +172,7 @@ done_hashed(struct inode *object /* object being deleted */)
 		             -- v6src/s2/mv.c:89
 		*/
 		warning("nikita-2252", "Cannot remove dot of %lli: %i",
-			get_inode_oid(object), result);
+			(unsigned long long)get_inode_oid(object), result);
 	return 0;
 }
 
@@ -595,7 +595,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 		result2 = reiser4_del_nlink(inode, dir, 0);
 		if (result2 != 0) {
 			warning("nikita-2327", "Cannot drop link on %lli %i. %s",
-				get_inode_oid(inode),
+				(unsigned long long)get_inode_oid(inode),
 				result2, possible_leak);
 		}
 	} else
@@ -951,7 +951,8 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		result = fplug->detach(new_inode, new_dir);
 		if (result != 0)
 			warning("nikita-2330", "Cannot detach %lli: %i. %s",
-				get_inode_oid(new_inode), result, possible_leak);
+				(unsigned long long)get_inode_oid(new_inode), 
+				result, possible_leak);
 	}
 
 	if (new_inode != NULL)
@@ -1138,7 +1139,7 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 				warning("nikita-3397",
 					"rem_entry: %#llx != %#llx\n",
 					get_key_objectid(&key),
-					get_inode_oid(child));
+					(unsigned long long)get_inode_oid(child));
 				return RETERR(-EIO);
 			}
 		}
@@ -1181,7 +1182,7 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 				INODE_DEC_FIELD(object, i_size);
 			else {
 				warning("nikita-2509", "Dir %llu is runt",
-					get_inode_oid(object));
+					(unsigned long long)get_inode_oid(object));
 				result = RETERR(-EIO);
 			}
 			write_current_logf(WRITE_TREE_LOG,

@@ -504,7 +504,7 @@ static int get_gid(struct file *file, const char *buf)
  */
 static int show_oid(struct seq_file *seq, void *cookie)
 {
-	seq_printf(seq, "%llu", get_inode_oid(get_seq_pseudo_host(seq)));
+	seq_printf(seq, "%llu", (unsigned long long)get_inode_oid(get_seq_pseudo_host(seq)));
 	return 0;
 }
 
@@ -545,7 +545,7 @@ static int show_nlink(struct seq_file *seq, void *cookie)
 static int show_locality(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%llu",
-		   reiser4_inode_data(get_seq_pseudo_host(seq))->locality_id);
+		   (unsigned long long)reiser4_inode_data(get_seq_pseudo_host(seq))->locality_id);
 	return 0;
 }
 
@@ -600,7 +600,7 @@ static int get_rwx(struct file *file, const char *buf)
 			struct iattr newattrs;
 
 			down(&host->i_sem);
-			if (rwx == (mode_t) -1)
+			if (rwx == (umode_t) -1)
 				rwx = host->i_mode;
 			newattrs.ia_mode =
 				(rwx & S_IALLUGO) | (host->i_mode & ~S_IALLUGO);
@@ -710,9 +710,9 @@ static int bmap_show(struct seq_file *m, void *v)
 					   lblock, &blocknr);
 	if (result == 0) {
 		if (blocknr_is_fake(&blocknr))
-			seq_printf(m, "%#llx\n", blocknr);
+			seq_printf(m, "%#llx\n", (unsigned long long)blocknr);
 		else
-			seq_printf(m, "%llu\n", blocknr);
+			seq_printf(m, "%llu\n", (unsigned long long)blocknr);
 	}
 	return result;
 }

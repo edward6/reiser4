@@ -1502,9 +1502,10 @@ readpage_unix_file(void *vp, struct page *page)
 		/* this indicates corruption */
 		warning("vs-280",
 			"Looking for page %lu of file %llu (size %lli). "
-			"No file items found (%d). "
-			"File is corrupted?\n",
-			page->index, get_inode_oid(inode), inode->i_size, result);
+			"No file items found (%d). File is corrupted?\n",
+			page->index, (unsigned long long)get_inode_oid(inode),
+			inode->i_size, result);
+
 		zrelse(coord->node);
 		done_lh(&lh);
 		return RETERR(-EIO);
@@ -1619,7 +1620,8 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 
 	case UF_CONTAINER_EMPTY:
 	default:
-		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n", get_inode_oid(inode), uf_info->container);
+		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n", 
+			(unsigned long long)get_inode_oid(inode), uf_info->container);
 		drop_access(uf_info);
 		return RETERR(-EIO);
 	}
@@ -2080,7 +2082,7 @@ write_unix_file(struct file *file, /* file to write to */
 		result = sync_unix_file(inode, 0/* data and stat data */);
 		if (result)
 			warning("reiser4-7", "failed to sync file %llu",
-				get_inode_oid(inode));
+				(unsigned long long)get_inode_oid(inode));
 	}
 	up(&inode->i_sem);
 	current->backing_dev_info = 0;
@@ -2106,7 +2108,7 @@ release_unix_file(struct inode *object, struct file *file)
 		result = extent2tail(uf_info);
 		if (result != 0) {
 			warning("nikita-3233", "Failed to convert in %s (%llu)",
-				__FUNCTION__, get_inode_oid(object));
+				__FUNCTION__, (unsigned long long)get_inode_oid(object));
 			print_inode("inode", object);
 		}
 	}
@@ -2296,15 +2298,17 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 	if (result == 0)
 		result = truncate_file_body(inode, attr->ia_size);
 	if (result)
-		warning("vs-1588", "truncate_file failed: oid %lli, old size %lld, new size %lld, retval %d",
-			get_inode_oid(inode), old_size, attr->ia_size, result);
+		warning("vs-1588", "truncate_file failed: oid %lli, "
+			"old size %lld, new size %lld, retval %d",
+			(unsigned long long)get_inode_oid(inode), 
+			old_size, attr->ia_size, result);
 
 	s_result = safe_link_grab(tree, BA_CAN_COMMIT);
 	if (s_result == 0)
 		s_result = safe_link_del(inode, SAFE_TRUNCATE);
 	if (s_result != 0) {
 		warning("nikita-3417", "Cannot kill safelink %lli: %i",
-			get_inode_oid(inode), s_result);
+			(unsigned long long)get_inode_oid(inode), s_result);
 	}
 	safe_link_release(tree);
 	all_grabbed2free();

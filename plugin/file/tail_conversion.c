@@ -243,7 +243,7 @@ complete_conversion(struct inode *inode)
 	}
 	if (result)
 		warning("vs-1696", "Failed to clear converting bit of %llu: %i",
-			get_inode_oid(inode), result);
+			(unsigned long long)get_inode_oid(inode), result);
 	return 0;
 }
 
@@ -415,7 +415,7 @@ tail2extent(unix_file_info_t *uf_info)
  error:
 		release_all_pages(pages, sizeof_array(pages));
 		warning("nikita-2282", "Partial conversion of %llu: %i",
-			get_inode_oid(inode), result);
+			(unsigned long long)get_inode_oid(inode), result);
 		print_inode("inode", inode);
 	}
 
@@ -651,7 +651,8 @@ extent2tail(unix_file_info_t *uf_info)
 		 * iteration of the loop above. */
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
-			get_inode_oid(inode), i, num_pages, result);
+			(unsigned long long)get_inode_oid(inode), i, 
+			num_pages, result);
 		print_inode("inode", inode);
 	}
 	all_grabbed2free();

@@ -521,16 +521,22 @@ check_open_format40(const struct inode *object) {
 	/* Check the oid. */
 	oid = get_inode_oid(object);
 	if (oid > max) {
-		warning("vpf-1360", "The object with the oid %llu greater then the "
-			"max used oid %llu found.", oid, max);
+		warning("vpf-1360", "The object with the oid %llu "
+			"greater then the max used oid %llu found.", 
+			(unsigned long long)oid, 
+			(unsigned long long)max);
+
 		return RETERR(-EIO);
 	}
 
 	/* Check the locality. */
 	oid = reiser4_inode_data(object)->locality_id;
 	if (oid > max) {
-		warning("vpf-1360", "The object with the locality %llu greater then the "
-			"max used oid %llu found.", oid, max);
+		warning("vpf-1360", "The object with the locality %llu "
+			"greater then the max used oid %llu found.", 
+			(unsigned long long)oid, 
+			(unsigned long long)max);
+
 		return RETERR(-EIO);
 	}
 

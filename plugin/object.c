@@ -94,7 +94,7 @@ key_warning(const reiser4_key * key /* key to print */,
 
 	if (code != -ENOMEM) {
 		warning("nikita-717", "Error for inode %llu (%i)",
-			get_key_objectid(key), code);
+			(unsigned long long)get_key_objectid(key), code);
 		print_key("for key", key);
 		print_inode("inode", inode);
 	}
@@ -477,7 +477,7 @@ write_sd_by_inode_common(struct inode *inode /* object to save */)
 	if (result != 0 && result != -ENAMETOOLONG && result != -ENOMEM)
 		/* Don't issue warnings about "name is too long" */
 		warning("nikita-2221", "Failed to save sd for %llu: %i",
-			get_inode_oid(inode), result);
+			(unsigned long long)get_inode_oid(inode), result);
 	return result;
 }
 
@@ -1005,7 +1005,7 @@ static void delete_inode_common(struct inode *object)
 		fplug = inode_file_plugin(object);
 		if (fplug->pre_delete != NULL && fplug->pre_delete(object) != 0)
 			warning("vs-1216", "Failed to delete file body %llu",
-				get_inode_oid(object));
+				(unsigned long long)get_inode_oid(object));
 		else
 			assert("vs-1430",
 			       reiser4_inode_data(object)->anonymous_eflushed == 0 &&

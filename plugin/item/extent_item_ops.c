@@ -67,7 +67,7 @@ show_extent(struct seq_file *m, coord_t *coord)
 {
 	reiser4_extent *ext;
 	ext = extent_by_coord(coord);
-	seq_printf(m, "%Lu %Lu", extent_get_start(ext), extent_get_width(ext));
+	seq_printf(m, "%llu %llu", extent_get_start(ext), extent_get_width(ext));
 }
 
 

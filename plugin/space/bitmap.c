@@ -720,8 +720,9 @@ static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
 
 	/* Check CRC */
 	if (check_adler32_jnode(bnode->cjnode, bmap_size(blksize))) {
-		warning("vpf-1361", "Checksum for the bitmap block %llu "
-			"is incorrect", bnode->cjnode->blocknr);
+		warning("vpf-1361", 
+			"Checksum for the bitmap block %llu is incorrect", 
+			(unsigned long long)bnode->cjnode->blocknr);
 
 		return -EINVAL;
 	}
@@ -730,8 +731,8 @@ static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
 
 	/* Check the very first bit -- it must be busy. */
 	if (!reiser4_test_bit(0, data)) {
-		warning("vpf-1362", "The allocator block %llu is not marked as used.",
-			bnode->cjnode->blocknr);
+		warning("vpf-1362", "The allocator block %llu is not marked "
+			"as used.", (unsigned long long)bnode->cjnode->blocknr);
 
 		return -EINVAL;
 	}

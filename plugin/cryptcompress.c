@@ -2312,7 +2312,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 
 		printk("edward-176, Warning: Hole of size %llu in "
 		       "cryptocompressed file (inode %llu, offset %llu) \n",
-		       hole_size, get_inode_oid(inode), file_off);
+		       hole_size, (unsigned long long)get_inode_oid(inode), file_off);
 
 		clust_by_offs(clust, inode, inode->i_size, file_off);
 		clust->stat = HOLE_CLUSTER;
@@ -3007,7 +3007,7 @@ delete_cryptcompress(struct inode *inode)
 		result = cryptcompress_truncate(inode, 0, 0);
 		if (result) {
 			warning("edward-430", "cannot truncate cryptcompress file  %lli: %i",
-				get_inode_oid(inode), result);
+				(unsigned long long)get_inode_oid(inode), result);
 			return result;
 		}
 	}

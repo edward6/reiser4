@@ -298,7 +298,8 @@ unlink_common(struct inode *parent /* parent object */ ,
 	if (unlikely(result != 0)) {
 		if (result != -ENOMEM)
 			warning("nikita-3398", "Cannot unlink %llu (%i)",
-				get_inode_oid(object), result);
+				(unsigned long long)get_inode_oid(object), 
+				result);
 		/* if operation failed commit pending inode modifications to
 		 * the stat-data */
 		reiser4_update_sd(object);
@@ -418,7 +419,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
-			data->id, get_inode_oid(object));
+			data->id, (unsigned long long)get_inode_oid(object));
 		DQUOT_FREE_INODE(object);
 		object->i_flags |= S_NOQUOTA;
 		return result;
@@ -443,7 +444,8 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 					    object->i_sb->s_root->d_inode);
 	if (result != 0) {
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
-			get_inode_oid(parent), get_inode_oid(object));
+			(unsigned long long)get_inode_oid(parent), 
+			(unsigned long long)get_inode_oid(object));
 		DQUOT_FREE_INODE(object);
 		object->i_flags |= S_NOQUOTA;
 		return result;
@@ -496,7 +498,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 		if (result != -ENAMETOOLONG && result != -ENOMEM)
 			warning("nikita-2219",
 				"Failed to create sd for %llu",
-				get_inode_oid(object));
+				(unsigned long long)get_inode_oid(object));
 		DQUOT_FREE_INODE(object);
 		object->i_flags |= S_NOQUOTA;
 		return result;
@@ -531,7 +533,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 			obj_plug->detach(object, parent);
 	} else if (result != -ENOMEM)
 		warning("nikita-2219", "Failed to initialize dir for %llu: %i",
-			get_inode_oid(object), result);
+			(unsigned long long)get_inode_oid(object), result);
 
 	/*
 	 * update stat-data, committing all pending modifications to the inode
