@@ -1045,7 +1045,7 @@ void done_lh (lock_handle *handle)
  * Transfer a lock handle (presumably so that variables can be moved between stack and
  * heap locations).
  */
-void move_lh (lock_handle * new, lock_handle * old)
+void move_lh_internal (lock_handle * new, lock_handle * old, int unlink_old)
 {
 	znode * node = old -> node;
 	lock_stack * owner = old -> owner;
@@ -1064,12 +1064,17 @@ void move_lh (lock_handle * new, lock_handle * old)
 	new -> node  = node;
 
 	signaled = old->signaled;
-	unlink_object( old );
+	if( unlink_old ) {
+		unlink_object( old );
+	}
 	link_object( new, owner, node );
 	new->signaled = signaled;
 
 	spin_unlock_znode( node );
 }
+
+void move_lh (lock_handle * new, lock_handle * old) { move_lh_internal (new, old, /*unlink_old*/1); }
+void copy_lh (lock_handle * new, lock_handle * old) { move_lh_internal (new, old, /*unlink_old*/0); }
 
 /* after getting -EDEADLK we unlock znodes until this function returns false */
 int check_deadlock ( void )

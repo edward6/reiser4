@@ -466,6 +466,7 @@ extern void reiser4_init_lock (zlock * lock);
 
 extern void init_lh (lock_handle*);
 extern void move_lh (lock_handle *new, lock_handle *old);
+extern void copy_lh (lock_handle *new, lock_handle *old);
 extern void done_lh (lock_handle*);
 
 extern int  prepare_to_sleep (lock_stack *owner);
