@@ -4,22 +4,19 @@
 
 #include "debug.h"
 #include "super.h"
+#include "kattr.h"
 
 #include <linux/kobject.h>     /* struct kobject */
 #include <linux/fs.h>          /* struct super_block */
 
-typedef struct reiser4_kattr {
-	struct attribute attr;
-	ssize_t (*show) (struct super_block * s, char *buf);
-} reiser4_kattr;
-
-#define DEFINE_REISER4_KATTR(aname, amode)	\
-static reiser4_kattr kattr_ ## aname = {	\
-	.attr = {				\
-		.name = #aname,			\
-		.mode = (amode)			\
-	},					\
-	.show	= show_ ## aname		\
+#define DEFINE_REISER4_KATTR(aname, amode, acookie)	\
+static reiser4_kattr kattr_ ## aname = {		\
+	.attr = {					\
+		.name = #aname,				\
+		.mode = (amode)				\
+	},						\
+	.cookie = acookie,				\
+	.show	= show_ ## aname			\
 }
 
 static inline reiser4_kattr *
@@ -37,39 +34,22 @@ to_super(struct kobject *kobj)
 	return info->tree.super;
 }
 
-#define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
-
-static ssize_t show_test (struct super_block * s, char *buf)
-{
-	char *p;
-	static int cnt = 0;
-
-	p = buf;
-	p += snprintf(p, LEFT(p, buf), "cnt: %i\n", ++ cnt);
-	return (p - buf);
-}
-
 static ssize_t
 kattr_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 {
 	struct super_block *super;
 	reiser4_kattr *kattr;
-	ssize_t ret;
 
 	super = to_super(kobj);
 	kattr = to_kattr(attr);
 
 	if (kattr->show != NULL)
-		ret = kattr->show(super, buf);
+		return kattr->show(super, kattr, 0, buf);
 	else
-		ret = 0;
-	return ret;
+		return 0;
 }
 
-DEFINE_REISER4_KATTR(test, 0444);
-
 static struct attribute * def_attrs[] = {
-	&kattr_test.attr,
 	NULL
 };
 
@@ -85,6 +65,59 @@ static struct kobj_type ktype_reiser4 = {
 /* define reiser4_subsys */
 static decl_subsys(reiser4, &ktype_reiser4);
 
+#if REISER4_STATS
+
+static ssize_t
+kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
+{
+	reiser4_super_info_data *info;
+	reiser4_level_stats_kobj *level_kobj;
+	int level;
+	reiser4_kattr *kattr;
+
+	level_kobj = container_of(kobj, reiser4_level_stats_kobj, kobj);
+	level = level_kobj->level;
+	level_kobj -= level;
+	info = container_of(level_kobj, reiser4_super_info_data, level[0]);
+	kattr = to_kattr(attr);
+
+	if (kattr->show != NULL)
+		return kattr->show(info->tree.super, kattr, &level, buf);
+	else
+		return 0;
+}
+
+static struct sysfs_ops attr_level_ops = {
+	.show = kattr_level_show,
+};
+
+static struct kobj_type ktype_level_reiser4 = {
+	.sysfs_ops	= &attr_level_ops,
+	.default_attrs	= def_attrs,
+};
+
+static int register_level_attrs(struct kobject *parent, 
+				reiser4_super_info_data *info, int i)
+{
+	struct kobject *level;
+	int result;
+
+	info->level[i].level = i;
+	level = &info->level[i].kobj;
+	level->parent = kobject_get(parent);
+	if (level->parent != NULL) {
+		snprintf(level->name, 
+			 KOBJ_NAME_LEN, "level%2.2i", i + LEAF_LEVEL);
+		level->ktype = &ktype_level_reiser4;
+		result = kobject_register(level);
+		if (result == 0)
+			result = reiser4_populate_kattr_level_dir(level, i);
+	} else
+		result = -EBUSY;
+	return result;
+}
+#endif
+
 int reiser4_sysfs_init(struct super_block *super)
 {
 	reiser4_super_info_data *info;
@@ -97,9 +130,23 @@ int reiser4_sysfs_init(struct super_block *super)
 
 	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", 
 		 kdevname(to_kdev_t(super->s_dev)));
-	kobj_set_kset_s(info,reiser4_subsys);
+	kobj_set_kset_s(info, reiser4_subsys);
 	result = kobject_register(kobj);
-	/* here optional attributes may be added */
+#if REISER4_STATS
+	/* add attributes representing statistical counters */
+	if (result == 0) {
+		result = reiser4_populate_kattr_dir(kobj);
+		if (result == 0) {
+			int i;
+
+			for (i = 0; i < REAL_MAX_ZTREE_HEIGHT; ++i) {
+				result = register_level_attrs(kobj, info, i);
+				if (result != 0)
+					break;
+			}
+		}
+	}
+#endif
 	return result;
 }
 

@@ -2,12 +2,14 @@
 
 /* Debugging/logging/tracing/profiling/statistical facilities. */
 
+#include "kattr.h"
 #include "debug.h"
 #include "super.h"
 #include "znode.h"
 #include "super.h"
 #include "reiser4.h"
 
+#include <linux/sysfs.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -184,6 +186,203 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 }
 
 #if REISER4_STATS
+
+#define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
+
+typedef struct reiser4_stats_cnt {
+	reiser4_kattr  kattr;
+	ptrdiff_t      offset;
+	size_t         size;
+	const char    *format;
+} reiser4_stats_cnt;
+
+#define getat(ptr, offset) *(stat_cnt *)(((char *)(ptr)) + (offset))
+
+static ssize_t show_stat_attr(struct super_block * s, 
+			      reiser4_kattr * kattr, void * opaque, char * buf)
+{
+	char *p;
+	reiser4_stats_cnt *cnt;
+
+	(void)opaque;
+
+	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	p = buf;
+	p += snprintf(p, LEFT(p, buf), cnt->format, 
+		      getat(&get_super_private(s)->stats, cnt->offset));
+	return (p - buf);
+}
+
+static ssize_t show_stat_level_attr(struct super_block * s, 
+				    reiser4_kattr * kattr, void *da, char * buf)
+{
+	char *p;
+	reiser4_stats_cnt *cnt;
+	int level;
+
+	level = *(int *)da;
+	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	p = buf;
+	p += snprintf(p, LEFT(p, buf), cnt->format, 
+		      getat(&get_super_private(s)->stats.level[level], 
+			    cnt->offset));
+	return (p - buf);
+}
+
+#define DEFINE_STAT_CNT_0(field, type, fmt, proc)	\
+{							\
+	.kattr = {					\
+		.attr = {				\
+			.name = #field,			\
+			.mode = 0444 /* r--r--r-- */	\
+		},					\
+		.cookie = 0,				\
+		.show = proc				\
+	},						\
+	.format = fmt,					\
+	.offset = offsetof(type, field),		\
+	.size   = sizeof(((type *)0)->field)		\
+}
+
+#define DEFINE_STAT_CNT(field)						\
+	DEFINE_STAT_CNT_0(field, reiser4_stat, "%lu", show_stat_attr)
+
+reiser4_stats_cnt reiser4_stat_defs[] = {
+	DEFINE_STAT_CNT(tree.cbk),
+	DEFINE_STAT_CNT(tree.cbk_found),
+	DEFINE_STAT_CNT(tree.cbk_notfound),
+	DEFINE_STAT_CNT(tree.cbk_restart),
+	DEFINE_STAT_CNT(tree.cbk_cache_hit),
+	DEFINE_STAT_CNT(tree.cbk_cache_miss),
+	DEFINE_STAT_CNT(tree.cbk_cache_wrong_node),
+	DEFINE_STAT_CNT(tree.cbk_cache_race),
+	DEFINE_STAT_CNT(tree.pos_in_parent_hit),
+	DEFINE_STAT_CNT(tree.pos_in_parent_miss),
+	DEFINE_STAT_CNT(tree.pos_in_parent_set),
+	DEFINE_STAT_CNT(tree.fast_insert),
+	DEFINE_STAT_CNT(tree.fast_paste),
+	DEFINE_STAT_CNT(tree.fast_cut),
+	DEFINE_STAT_CNT(tree.reparenting),
+	DEFINE_STAT_CNT(tree.rd_key_skew),
+	DEFINE_STAT_CNT(tree.multikey_restart),
+	DEFINE_STAT_CNT(tree.check_left_nonuniq),
+	DEFINE_STAT_CNT(tree.left_nonuniq_found),
+
+	DEFINE_STAT_CNT(vfs_calls.reads),
+	DEFINE_STAT_CNT(vfs_calls.writes),
+
+	DEFINE_STAT_CNT(dir.readdir.calls),
+	DEFINE_STAT_CNT(dir.readdir.reset),
+	DEFINE_STAT_CNT(dir.readdir.rewind_left),
+	DEFINE_STAT_CNT(dir.readdir.left_non_uniq),
+	DEFINE_STAT_CNT(dir.readdir.left_restart),
+	DEFINE_STAT_CNT(dir.readdir.rewind_right),
+	DEFINE_STAT_CNT(dir.readdir.adjust_pos),
+	DEFINE_STAT_CNT(dir.readdir.adjust_lt),
+	DEFINE_STAT_CNT(dir.readdir.adjust_gt),
+	DEFINE_STAT_CNT(dir.readdir.adjust_eq),
+
+	DEFINE_STAT_CNT(file.wait_on_page),
+	DEFINE_STAT_CNT(file.fsdata_alloc),
+	DEFINE_STAT_CNT(file.private_data_alloc),
+	DEFINE_STAT_CNT(file.tail2extent),
+	DEFINE_STAT_CNT(file.extent2tail),
+	DEFINE_STAT_CNT(file.find_next_item),
+	DEFINE_STAT_CNT(file.find_next_item_via_seal),
+	DEFINE_STAT_CNT(file.find_next_item_via_right_neighbor),
+	DEFINE_STAT_CNT(file.find_next_item_via_cbk),
+
+	DEFINE_STAT_CNT(extent.unfm_block_reads),
+	DEFINE_STAT_CNT(extent.broken_seals),
+	DEFINE_STAT_CNT(extent.bdp_caused_repeats),
+
+	DEFINE_STAT_CNT(tail.bdp_caused_repeats),
+
+	DEFINE_STAT_CNT(flush.squeezed_completely),
+	DEFINE_STAT_CNT(flush.flushed_with_unallocated),
+	DEFINE_STAT_CNT(flush.squeezed_leaves),
+	DEFINE_STAT_CNT(flush.squeezed_leaf_items),
+	DEFINE_STAT_CNT(flush.squeezed_leaf_bytes),
+	DEFINE_STAT_CNT(flush.flush),
+	DEFINE_STAT_CNT(flush.flush_left),
+	DEFINE_STAT_CNT(flush.flush_right),
+
+	DEFINE_STAT_CNT(pool.pool_alloc),
+	DEFINE_STAT_CNT(pool.pool_kmalloc),
+
+	DEFINE_STAT_CNT(seal.perfect_match),
+	DEFINE_STAT_CNT(seal.key_drift),
+	DEFINE_STAT_CNT(seal.out_of_cache),
+	DEFINE_STAT_CNT(seal.wrong_node),
+	DEFINE_STAT_CNT(seal.didnt_move),
+	DEFINE_STAT_CNT(seal.found),
+
+	DEFINE_STAT_CNT(non_uniq),
+	DEFINE_STAT_CNT(non_uniq_max),
+	DEFINE_STAT_CNT(stack_size_max)
+};
+
+#define DEFINE_STAT_LEVEL_CNT(field)				\
+	DEFINE_STAT_CNT_0(field, reiser4_level_stat, "%lu", show_stat_level_attr)
+
+reiser4_stats_cnt reiser4_stat_level_defs[] = {
+	DEFINE_STAT_LEVEL_CNT(carry_restart),
+	DEFINE_STAT_LEVEL_CNT(carry_done),
+	DEFINE_STAT_LEVEL_CNT(carry_left_in_carry),
+	DEFINE_STAT_LEVEL_CNT(carry_left_in_cache),
+	DEFINE_STAT_LEVEL_CNT(carry_left_missed),
+	DEFINE_STAT_LEVEL_CNT(carry_left_not_avail),
+	DEFINE_STAT_LEVEL_CNT(carry_left_refuse),
+	DEFINE_STAT_LEVEL_CNT(carry_right_in_carry),
+	DEFINE_STAT_LEVEL_CNT(carry_right_in_cache),
+	DEFINE_STAT_LEVEL_CNT(carry_right_missed),
+	DEFINE_STAT_LEVEL_CNT(carry_right_not_avail),
+	DEFINE_STAT_LEVEL_CNT(insert_looking_left),
+	DEFINE_STAT_LEVEL_CNT(insert_looking_right),
+	DEFINE_STAT_LEVEL_CNT(insert_alloc_new),
+	DEFINE_STAT_LEVEL_CNT(insert_alloc_many),
+	DEFINE_STAT_LEVEL_CNT(insert),
+	DEFINE_STAT_LEVEL_CNT(delete),
+	DEFINE_STAT_LEVEL_CNT(cut),
+	DEFINE_STAT_LEVEL_CNT(paste),
+	DEFINE_STAT_LEVEL_CNT(extent),
+	DEFINE_STAT_LEVEL_CNT(paste_restarted),
+	DEFINE_STAT_LEVEL_CNT(update),
+	DEFINE_STAT_LEVEL_CNT(modify),
+	DEFINE_STAT_LEVEL_CNT(half_split_race),
+	DEFINE_STAT_LEVEL_CNT(dk_vs_create_race),
+	DEFINE_STAT_LEVEL_CNT(track_lh),
+	DEFINE_STAT_LEVEL_CNT(sibling_search),
+	DEFINE_STAT_LEVEL_CNT(cbk_key_moved),
+	DEFINE_STAT_LEVEL_CNT(cbk_met_ghost),
+	DEFINE_STAT_LEVEL_CNT(page_try_release),
+	DEFINE_STAT_LEVEL_CNT(page_released),
+	DEFINE_STAT_LEVEL_CNT(emergency_flush),
+	DEFINE_STAT_LEVEL_CNT(long_term_lock_contented),
+	DEFINE_STAT_LEVEL_CNT(long_term_lock_uncontented),
+
+	DEFINE_STAT_LEVEL_CNT(jnode.jload),
+	DEFINE_STAT_LEVEL_CNT(jnode.jload_already),
+	DEFINE_STAT_LEVEL_CNT(jnode.jload_page),
+	DEFINE_STAT_LEVEL_CNT(jnode.jload_async),
+	DEFINE_STAT_LEVEL_CNT(jnode.jload_read),
+
+	DEFINE_STAT_LEVEL_CNT(znode.lock_znode),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_znode_iteration),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor_iteration)
+};
+
+#define getat(ptr, offset) *(stat_cnt *)(((char *)(ptr)) + (offset))
+
+static void
+print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
+{
+	info("%s%s:\t ", prefix, cnt->kattr.attr.name);
+	info(cnt->format, getat(base, cnt->offset));
+	info("\n");
+}
+
 /* Print statistical data accumulated so far. */
 void
 reiser4_print_stats()
@@ -192,243 +391,52 @@ reiser4_print_stats()
 	int i;
 
 	s = &get_current_super_private()->stats;
-	info("tree:"
-	     "\t cbk:\t %lu\n"
-	     "\t cbk_found:\t %lu\n"
-	     "\t cbk_notfound:\t %lu\n"
-	     "\t cbk_restart:\t %lu\n"
-	     "\t cbk_cache_hit:\t %lu\n"
-	     "\t cbk_cache_miss:\t %lu\n"
-	     "\t cbk_cache_wrong_node:\t %lu\n"
-	     "\t cbk_cache_race:\t %lu\n"
-	     "\t pos_in_parent_hit:\t %lu\n"
-	     "\t pos_in_parent_miss:\t %lu\n"
-	     "\t pos_in_parent_set:\t %lu\n"
-	     "\t fast_insert:\t %lu\n"
-	     "\t fast_paste:\t %lu\n"
-	     "\t fast_cut:\t %lu\n"
-	     "\t reparenting:\t %lu\n"
-	     "\t rd_key_skew:\t %lu\n"
-	     "\t multikey_restart:\t %lu\n"
-	     "\t check_left_nonuniq:\t %lu\n"
-	     "\t left_nonuniq_found:\t %lu\n",
-	     s->tree.cbk,
-	     s->tree.cbk_found,
-	     s->tree.cbk_notfound,
-	     s->tree.cbk_restart,
-	     s->tree.cbk_cache_hit,
-	     s->tree.cbk_cache_miss,
-	     s->tree.cbk_cache_wrong_node,
-	     s->tree.cbk_cache_race,
-	     s->tree.pos_in_parent_hit,
-	     s->tree.pos_in_parent_miss,
-	     s->tree.pos_in_parent_set,
-	     s->tree.fast_insert,
-	     s->tree.fast_paste,
-	     s->tree.fast_cut,
-	     s->tree.reparenting,
-	     s->tree.rd_key_skew, 
-	     s->tree.multikey_restart, 
-	     s->tree.check_left_nonuniq, 
-	     s->tree.left_nonuniq_found);
-
-	info("vfs:\n" "\t writes:\t %lu\n" "\t reads:\t %lu\n", 
-	     s->vfs_calls.writes, 
-	     s->vfs_calls.reads);
-
-	info("dir:\n"
-	     "\treaddir_calls:\t %lu\n"
-	     "\treaddir_reset:\t %lu\n"
-	     "\treaddir_rewind_left:\t %lu\n"
-	     "\treaddir_left_non_uniq:\t %lu\n"
-	     "\treaddir_left_restart:\t %lu\n"
-	     "\treaddir_rewind_right:\t %lu\n"
-	     "\treaddir_adjust_pos:\t %lu\n"
-	     "\treaddir_adjust_lt:\t %lu\n"
-	     "\treaddir_adjust_gt:\t %lu\n"
-	     "\treaddir_adjust_eq:\t %lu\n",
-	     s->dir.readdir.calls,
-	     s->dir.readdir.reset,
-	     s->dir.readdir.rewind_left,
-	     s->dir.readdir.left_non_uniq,
-	     s->dir.readdir.left_restart,
-	     s->dir.readdir.rewind_right,
-	     s->dir.readdir.adjust_pos, 
-	     s->dir.readdir.adjust_lt, 
-	     s->dir.readdir.adjust_gt, 
-	     s->dir.readdir.adjust_eq);
-
-	info("file:\n"
-	     "\t wait_on_page:\t %lu\n"
-	     "\t fsdata_alloc:\t %lu\n"
-	     "\t private_data_alloc:\t %lu\n"
-	     "\t tail2extent:\t %lu\n"
-	     "\t extent2tail:\t %lu\n"
-	     "\t find_next_item:\t %lu\n"
-	     "\t\t via seal:\t%lu\n"
-	     "\t\t via getting right neighbor:\t%lu\n"
-	     "\t\t via cbk:\t%lu\n",
-	     s->file.wait_on_page,
-	     s->file.fsdata_alloc,
-	     s->file.private_data_alloc,
-	     s->file.tail2extent,
-	     s->file.extent2tail,
-	     s->file.find_next_item,
-	     s->file.find_next_item_via_seal,
-	     s->file.find_next_item_via_right_neighbor, 
-	     s->file.find_next_item_via_cbk);
-	info("extent:\n"
-	     "\t read unformatted nodes:\t %lu\n"
-	     "\t broken seals:\t %lu\n"
-	     "\t repeats due to balance_dirty_pages:\t%lu\n",
-	     s->extent.unfm_block_reads, 
-	     s->extent.broken_seals,
-	     s->extent.bdp_caused_repeats);
-	info("tail:\n"
-	     "\t repeats due to balance_dirty_pages:\t%lu\n", s->tail.bdp_caused_repeats);
-
-	info("flush:\n"
-	     "\t flush:\t %lu\n"
-	     "\t flush_left:\t %lu\n"
-	     "\t flush_right:\t %lu\n"
-	     "\t squeezed_completely:\t %lu\n"
-	     "\t flushed with unallocated children: \t %lu\n"
-	     "\t leaves squeezed to left:\t %lu\n"
-	     "\t items squeezed in those leaves:\t %lu\n"
-	     "\t bytes in those items:\t %lu\n",
-	     s->flush.flush,
-	     s->flush.flush_left,
-	     s->flush.flush_right,
-	     s->flush.squeezed_completely, 
-	     s->flush.flushed_with_unallocated,
-	     /* FIXME-VS: urgently added leaf squeeze stats */
-	     s->flush.squeezed_leaves, 
-	     s->flush.squeezed_leaf_items, 
-	     s->flush.squeezed_leaf_bytes);
-
-	info("pool:\n"
-	     "\t alloc:\t %lu\n"
-	     "\t kmalloc:\t %lu\n"
-	     "seal:\n"
-	     "\t perfect_match:\t %lu\n"
-	     "\t key_drift:\t %lu\n"
-	     "\t out_of_cache:\t %lu\n"
-	     "\t wrong_node:\t %lu\n"
-	     "\t didnt_move:\t %lu\n"
-	     "\t found:\t %lu\n"
-	     "global:\n"
-	     "\t non_uniq:\t %lu\n"
-	     "\t non_uniq_max:\t %lu\n"
-	     "\t stack_size_max:\t %lu\n",
-	     s->pool.pool_alloc,
-	     s->pool.pool_kmalloc,
-	     s->seal.perfect_match,
-	     s->seal.key_drift,
-	     s->seal.out_of_cache,
-	     s->seal.wrong_node,
-	     s->seal.didnt_move,
-	     s->seal.found,
-	     s->non_uniq, 
-	     s->non_uniq_max, 
-	     s->stack_size_max);
+	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) ; ++ i)
+		print_cnt(&reiser4_stat_defs[i], "", s);
 
 	for (i = 0; i < REAL_MAX_ZTREE_HEIGHT; ++i) {
+		int j;
+
 		if (s->level[i].total_hits_at_level <= 0)
 			continue;
-		info("tree: at level: %i\n"
-		     "\t carry_restart:\t %lu\n"
-		     "\t carry_done:\t %lu\n"
-		     "\t carry_left_in_carry:\t %lu\n"
-		     "\t carry_left_in_cache:\t %lu\n"
-		     "\t carry_left_missed:\t %lu\n"
-		     "\t carry_left_not_avail:\t %lu\n"
-		     "\t carry_left_refuse:\t %lu\n"
-		     "\t carry_right_in_carry:\t %lu\n"
-		     "\t carry_right_in_cache:\t %lu\n"
-		     "\t carry_right_missed:\t %lu\n"
-		     "\t carry_right_not_avail:\t %lu\n"
-		     "\t insert_looking_left:\t %lu\n"
-		     "\t insert_looking_right:\t %lu\n"
-		     "\t insert_alloc_new:\t %lu\n"
-		     "\t insert_alloc_many:\t %lu\n"
-		     "\t insert:\t %lu\n"
-		     "\t delete:\t %lu\n"
-		     "\t cut:\t %lu\n"
-		     "\t paste:\t %lu\n"
-		     "\t extent:\t %lu\n"
-		     "\t paste_restarted:\t %lu\n"
-		     "\t update:\t %lu\n"
-		     "\t modify:\t %lu\n"
-		     "\t half_split_race:\t %lu\n"
-		     "\t dk_vs_create_race:\t %lu\n"
-		     "\t track_lh:\t %lu\n"
-		     "\t sibling_search:\t %lu\n"
-		     "\t cbk_key_moved:\t %lu\n"
-		     "\t cbk_met_ghost:\t %lu\n"
-		     "\t page_try_release:\t %lu\n"
-		     "\t page_releases:\t %lu\n"
-		     "\t emergency_flush:\t %lu\n"
-		     "\t long_term_lock_contented:\t %lu\n"
-		     "\t long_term_lock_uncontented:\t %lu\n",
-		     i + LEAF_LEVEL,
-		     s->level[i].carry_restart,
-		     s->level[i].carry_done,
-		     s->level[i].carry_left_in_carry,
-		     s->level[i].carry_left_in_cache,
-		     s->level[i].carry_left_missed,
-		     s->level[i].carry_left_not_avail,
-		     s->level[i].carry_left_refuse,
-		     s->level[i].carry_right_in_carry,
-		     s->level[i].carry_right_in_cache,
-		     s->level[i].carry_right_missed,
-		     s->level[i].carry_right_not_avail,
-		     s->level[i].insert_looking_left,
-		     s->level[i].insert_looking_right,
-		     s->level[i].insert_alloc_new,
-		     s->level[i].insert_alloc_many,
-		     s->level[i].insert,
-		     s->level[i].delete,
-		     s->level[i].cut,
-		     s->level[i].paste,
-		     s->level[i].extent,
-		     s->level[i].paste_restarted,
-		     s->level[i].update,
-		     s->level[i].modify,
-		     s->level[i].half_split_race,
-		     s->level[i].dk_vs_create_race,
-		     s->level[i].track_lh,
-		     s->level[i].sibling_search,
-		     s->level[i].cbk_key_moved,
-		     s->level[i].cbk_met_ghost, 
-		     s->level[i].page_try_release, 
-		     s->level[i].page_released,
-		     s->level[i].emergency_flush,
-		     s->level[i].long_term_lock_contented,
-		     s->level[i].long_term_lock_uncontented);
-
-		info("\tjnode:\n"
-		     "\t\t jload:\t %lu\n"
-		     "\t\t jload_read:\t %lu\n"
-		     "\t\t jload_already:\t %lu\n"
-		     "\t\t jload_page:\t %lu\n"
-		     "\t\t jload_async:\t %lu\n",
-		     s->level[i].jnode.jload,
-		     s->level[i].jnode.jload_read,
-		     s->level[i].jnode.jload_already,
-		     s->level[i].jnode.jload_page,
-		     s->level[i].jnode.jload_async);
-
-		info("\tznode:\n"
-		     "\t\t lock_znode:\t %lu\n"
-		     "\t\t lock_znode_iteration:\t %lu\n"
-		     "\t\t lock_neighbor:\t %lu\n"
-		     "\t\t lock_neighbor_iteration:\t %lu\n",
-		     s->level[i].znode.lock_znode,
-		     s->level[i].znode.lock_znode_iteration, 
-		     s->level[i].znode.lock_neighbor, 
-		     s->level[i].znode.lock_neighbor_iteration);
+		info("tree: at level: %i\n", i +  LEAF_LEVEL);
+		for(j = 0 ; j < sizeof_array(reiser4_stat_level_defs) ; ++ j)
+			print_cnt(&reiser4_stat_level_defs[j], "\t", &s->level[i]);
 	}
 }
+
+int
+reiser4_populate_kattr_dir(struct kobject * kobj)
+{
+	int result;
+	int i;
+
+	result = 0;
+	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) && !result ; ++ i)
+		result = sysfs_create_file(kobj,
+					  &reiser4_stat_defs[i].kattr.attr);
+	if (result != 0)
+		warning("nikita-2920", "Failed to add sysfs attr: %i, %i",
+			result, i);
+	return result;
+}
+
+int
+reiser4_populate_kattr_level_dir(struct kobject * kobj, int level)
+{
+	int result;
+	int i;
+
+	result = 0;
+	for(i = 0 ; i < sizeof_array(reiser4_stat_level_defs) && !result ; ++ i)
+		result = sysfs_create_file(kobj,
+					   &reiser4_stat_level_defs[i].kattr.attr);
+	if (result != 0)
+		warning("nikita-2921", "Failed to add sysfs level attr: %i, %i",
+			result, i);
+	return result;
+}
+
 #else
 void
 reiser4_print_stats()

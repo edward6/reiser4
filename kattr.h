@@ -5,6 +5,20 @@
 #if !defined( __REISER4_KATTR_H__ )
 #define __REISER4_KATTR_H__
 
+#include <linux/types.h>
+#include <linux/sysfs.h>
+
+struct super_block;
+struct reiser4_kattr;
+typedef struct reiser4_kattr reiser4_kattr;
+
+struct reiser4_kattr {
+	struct attribute attr;
+	int cookie;
+	ssize_t (*show) (struct super_block * s, 
+			 reiser4_kattr *, void *opaque, char *buf);
+};
+
 extern int reiser4_sysfs_init_all(void);
 extern void reiser4_sysfs_done_all(void);
 

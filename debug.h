@@ -378,6 +378,129 @@ extern __u32 reiser4_current_trace_flags;
 /* type of statistics counters */
 typedef unsigned long stat_cnt;
 
+typedef struct reiser4_level_statistics {
+	/* carries restarted due to deadlock avoidance algorithm */
+	stat_cnt carry_restart;
+	/* carries performed */
+	stat_cnt carry_done;
+	/* how many times carry, trying to find left neighbor of a given node,
+	   found it already in a carry set. */
+	stat_cnt carry_left_in_carry;
+	/* how many times carry, trying to find left neighbor of a given node,
+	   found it already in a memory. */
+	stat_cnt carry_left_in_cache;
+	/* how many times carry, trying to find left neighbor of a given node,
+	   found it is not in a memory. */
+	stat_cnt carry_left_missed;
+	/* how many times carry, trying to find left neighbor of a given node,
+	   found that left neighbor either doesn't exist (we are at the left
+	   border of the tree already), or that there is extent on the left.
+	*/
+	stat_cnt carry_left_not_avail;
+	/* how many times carry, trying to find left neighbor of a given node,
+	   gave this up to avoid deadlock */
+	stat_cnt carry_left_refuse;
+	/* how many times carry, trying to find right neighbor of a given
+	   node, found it already in a carry set. */
+	stat_cnt carry_right_in_carry;
+	/* how many times carry, trying to find right neighbor of a given
+	   node, found it already in a memory. */
+	stat_cnt carry_right_in_cache;
+	/* how many times carry, trying to find right neighbor of a given
+	   node, found it is not in a memory. */
+	stat_cnt carry_right_missed;
+	/* how many times carry, trying to find right neighbor of a given
+	   node, found that right neighbor either doesn't exist (we are at the
+	   right border of the tree already), or that there is extent on the
+	   right.
+	*/
+	stat_cnt carry_right_not_avail;
+	/* how many times insertion has to look into the left neighbor,
+	   searching for the free space. */
+	stat_cnt insert_looking_left;
+	/* how many times insertion has to look into the right neighbor,
+	   searching for the free space. */
+	stat_cnt insert_looking_right;
+	/* how many times insertion has to allocate new node, searching for
+	   the free space. */
+	stat_cnt insert_alloc_new;
+	/* how many times insertion has to allocate several new nodes in a
+	   row, searching for the free space. */
+	stat_cnt insert_alloc_many;
+	/* how many insertions were performed by carry. */
+	stat_cnt insert;
+	/* how many deletions were performed by carry. */
+	stat_cnt delete;
+	/* how many cuts were performed by carry. */
+	stat_cnt cut;
+	/* how many pastes (insertions into existing items) were performed by
+	   carry. */
+	stat_cnt paste;
+	/* how many extent insertions were done by carry. */
+	stat_cnt extent;
+	/* how many paste operations were restarted as insert. */
+	stat_cnt paste_restarted;
+	/* how many updates of delimiting keys were performed by carry. */
+	stat_cnt update;
+	/* how many times carry notified parent node about updates in its
+	   child. */
+	stat_cnt modify;
+	/* how many times node was found reparented at the time when its
+	   parent has to be updated. */
+	stat_cnt half_split_race;
+	/* how many times new node was inserted into sibling list after
+	   concurrent balancing modified right delimiting key if its left
+	   neighbor.
+	*/
+	stat_cnt dk_vs_create_race;
+	/* how many times insert or paste ultimately went into node different
+	   from original target */
+	stat_cnt track_lh;
+	/* how many times sibling lookup required getting that high in a
+	   tree */
+	stat_cnt sibling_search;
+	/* key was moved out of node while thread was waiting for the lock */
+	stat_cnt cbk_key_moved;
+	/* node was moved out of tree while thread was waiting for the lock */
+	stat_cnt cbk_met_ghost;
+	/* for how many pages on this level ->releasepage() was called. */
+	stat_cnt page_try_release;
+	/* how many pages were released on this level */
+	stat_cnt page_released;
+	/* how many times emergency flush was invoked on this level */
+	stat_cnt emergency_flush;
+	/* how many requests for znode long term lock couldn't succeed
+	 * immediately. */
+	stat_cnt long_term_lock_contented;
+	/* how many requests for znode long term lock managed to succeed
+	 * immediately. */
+	stat_cnt long_term_lock_uncontented;
+	struct {
+		/* calls to jload() */
+		stat_cnt jload;
+		/* calls to jload() that found jnode already loaded */
+		stat_cnt jload_already;
+		/* calls to jload() that found page already in memory */
+		stat_cnt jload_page;
+		/* calls to jload() that found jnode with asynchronous io
+		 * started */
+		stat_cnt jload_async;
+		/* calls to jload() that actually had to read data */
+		stat_cnt jload_read;
+	} jnode;
+	struct {
+		/* calls to lock_znode() */
+		stat_cnt lock_znode;
+		/* number of times loop inside lock_znode() was executed */
+		stat_cnt lock_znode_iteration;
+		/* calls to lock_neighbor() */
+		stat_cnt lock_neighbor;
+		/* number of times loop inside lock_neighbor() was executed */
+		stat_cnt lock_neighbor_iteration;
+	} znode;
+	stat_cnt total_hits_at_level;
+} reiser4_level_stat;
+
 /* set of statistics counter. This is embedded into super-block when
    REISER4_STATS is on. */
 typedef struct reiser4_statistics {
@@ -437,135 +560,7 @@ typedef struct reiser4_statistics {
 		stat_cnt check_left_nonuniq;
 		stat_cnt left_nonuniq_found;
 	} tree;
-	struct {
-		/* carries restarted due to deadlock avoidance algorithm */
-		stat_cnt carry_restart;
-		/* carries performed */
-		stat_cnt carry_done;
-		/* how many times carry, trying to find left neighbor of
-		   a given node, found it already in a carry set. */
-		stat_cnt carry_left_in_carry;
-		/* how many times carry, trying to find left neighbor of
-		   a given node, found it already in a memory. */
-		stat_cnt carry_left_in_cache;
-		/* how many times carry, trying to find left neighbor of
-		   a given node, found it is not in a memory. */
-		stat_cnt carry_left_missed;
-		/* how many times carry, trying to find left neighbor of
-		   a given node, found that left neighbor either doesn't
-		   exist (we are at the left border of the tree
-		   already), or that there is extent on the left.
-		*/
-		stat_cnt carry_left_not_avail;
-		/* how many times carry, trying to find left neighbor of
-		   a given node, gave this up to avoid deadlock */
-		stat_cnt carry_left_refuse;
-		/* how many times carry, trying to find right neighbor of
-		   a given node, found it already in a carry set. */
-		stat_cnt carry_right_in_carry;
-		/* how many times carry, trying to find right neighbor of
-		   a given node, found it already in a memory. */
-		stat_cnt carry_right_in_cache;
-		/* how many times carry, trying to find right neighbor of
-		   a given node, found it is not in a memory. */
-		stat_cnt carry_right_missed;
-		/* how many times carry, trying to find right neighbor
-		   of a given node, found that right neighbor either
-		   doesn't exist (we are at the right border of the tree
-		   already), or that there is extent on the right.
-		*/
-		stat_cnt carry_right_not_avail;
-		/* how many times insertion has to look into the left
-		   neighbor, searching for the free space. */
-		stat_cnt insert_looking_left;
-		/* how many times insertion has to look into the right
-		   neighbor, searching for the free space. */
-		stat_cnt insert_looking_right;
-		/* how many times insertion has to allocate new node,
-		   searching for the free space. */
-		stat_cnt insert_alloc_new;
-		/* how many times insertion has to allocate several new
-		   nodes in a row, searching for the free space. */
-		stat_cnt insert_alloc_many;
-		/* how many insertions were performed by carry. */
-		stat_cnt insert;
-		/* how many deletions were performed by carry. */
-		stat_cnt delete;
-		/* how many cuts were performed by carry. */
-		stat_cnt cut;
-		/* how many pastes (insertions into existing items) were
-		   performed by carry. */
-		stat_cnt paste;
-		/* how many extent insertions were done by carry. */
-		stat_cnt extent;
-		/* how many paste operations were restarted as insert. */
-		stat_cnt paste_restarted;
-		/* how many updates of delimiting keys were performed
-		   by carry. */
-		stat_cnt update;
-		/* how many times carry notified parent node about
-		   updates in its child. */
-		stat_cnt modify;
-		/* how many times node was found reparented at the time
-		   when its parent has to be updated. */
-		stat_cnt half_split_race;
-		/* how many times new node was inserted into sibling list
-		   after concurrent balancing modified right delimiting key if
-		   its left neighbor.
-		*/
-		stat_cnt dk_vs_create_race;
-		/* how many times insert or paste ultimately went into
-		   node different from original target */
-		stat_cnt track_lh;
-		/* how many times sibling lookup required getting that high in
-		   a tree */
-		stat_cnt sibling_search;
-		/* key was moved out of node while thread was waiting
-		   for the lock */
-		stat_cnt cbk_key_moved;
-		/* node was moved out of tree while thread was waiting
-		   for the lock */
-		stat_cnt cbk_met_ghost;
-		/* for how many pages on this level ->releasepage() was
-		   called. */
-		stat_cnt page_try_release;
-		/* how many pages were released on this level */
-		stat_cnt page_released;
-		/* how many times emergency flush was invoked on this level */
-		stat_cnt emergency_flush;
-		/* how many requests for znode long term lock couldn't succeed
-		 * immediately. */
-		stat_cnt long_term_lock_contented;
-		/* how many requests for znode long term lock managed to
-		 * succeed immediately. */
-		stat_cnt long_term_lock_uncontented;
-		struct {
-			/* calls to jload() */
-			stat_cnt jload;
-			/* calls to jload() that found jnode already loaded */
-			stat_cnt jload_already;
-			/* calls to jload() that found page already in memory */
-			stat_cnt jload_page;
-			/* calls to jload() that found jnode with asynchronous io
-			 * started */
-			stat_cnt jload_async;
-			/* calls to jload() that actually had to read data */
-			stat_cnt jload_read;
-		} jnode;
-		struct {
-			/* calls to lock_znode() */
-			stat_cnt lock_znode;
-			/* number of times loop inside lock_znode() was
-			 * executed */
-			stat_cnt lock_znode_iteration;
-			/* calls to lock_neighbor() */
-			stat_cnt lock_neighbor;
-			/* number of times loop inside lock_neighbor() was
-			   executed */
-			stat_cnt lock_neighbor_iteration;
-		} znode;
-		stat_cnt total_hits_at_level;
-	} level[REAL_MAX_ZTREE_HEIGHT];
+	reiser4_level_stat level[REAL_MAX_ZTREE_HEIGHT];
 	struct {
 		stat_cnt reads;
 		stat_cnt writes;
@@ -622,7 +617,7 @@ typedef struct reiser4_statistics {
 		   currently holds and uses seal_validate to lock it again. This field stores how many times
 		   balance_dirty_pages broke that seal and caused to repease search tree traversal
 		*/
-		stat_cnt bdp_caused_repeats;		
+		stat_cnt bdp_caused_repeats;
 	} tail;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
@@ -673,6 +668,10 @@ typedef struct reiser4_statistics {
 	stat_cnt stack_size_max;
 } reiser4_stat;
 
+struct kobject;
+extern int reiser4_populate_kattr_dir(struct kobject * kobj);
+extern int reiser4_populate_kattr_level_dir(struct kobject * kobj, int level);
+
 #else
 
 #define ON_STATS( e ) noop
@@ -694,6 +693,9 @@ typedef struct reiser4_statistics {
 #define reiser4_stat_seal_add( stat ) noop
 typedef struct {
 } reiser4_stat;
+
+#define reiser4_populate_kattr_dir(kobj) (0)
+#define reiser4_populate_kattr_level_dir(kobj, i) (0)
 
 #endif
 

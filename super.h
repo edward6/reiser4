@@ -59,6 +59,15 @@ typedef enum {
 	REISER4_MTFLUSH = 4
 } reiser4_fs_flag;
 
+#if REISER4_STATS
+
+typedef struct reiser4_level_stats_kobj {
+	struct kobject kobj;
+	int level;
+} reiser4_level_stats_kobj;
+
+#endif
+
 /* reiser4-specific part of super block 
 
    Locking
@@ -250,7 +259,9 @@ struct reiser4_super_info_data {
 	__u64 nr_files_committed;
 
 	struct kobject kobj;
-
+#if REISER4_STATS
+	reiser4_level_stats_kobj level[REAL_MAX_ZTREE_HEIGHT];
+#endif
 #if REISER4_DEBUG
 	/* minimum used blocks value (includes super blocks, bitmap blocks and
 	 * other fs reserved areas), depends on fs format and fs size. */
