@@ -652,10 +652,16 @@ typedef struct reiser4_statistics {
 		stat_cnt bdp_caused_repeats;
 	} tail;
 	struct {
+		/* jiffies, spent in atom_wait_event() */
 		stat_cnt slept_in_wait_event;
+		/* jiffies, spent in capture_fuse_wait (wait for atom state change) */
 		stat_cnt slept_in_wait_atom;
+		/* number of commits */
 		stat_cnt commits;
+		/*number of post commit writes */
 		stat_cnt post_commit_writes;
+		/* jiffies, spent in commits and post commit writes */
+		stat_cnt time_spent_in_commits;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */

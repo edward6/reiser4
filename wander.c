@@ -966,6 +966,10 @@ reiser4_write_logs(void)
 
 	int ret;
 
+#if REISER4_STATS
+	unsigned long commit_start_time = jiffies;
+#endif
+
 	/* block allocator may add j-nodes to the clean_list */
 	pre_commit_hook();
 
@@ -1083,6 +1087,7 @@ reiser4_write_logs(void)
 	post_write_back_hook();
 
 	reiser4_stat_inc(txnmgr.post_commit_writes);
+	reiser4_stat_add(txnmgr.time_spent_in_commits, commit_start_time - jiffies);
 
 up_and_ret:
 	if (ret) {
