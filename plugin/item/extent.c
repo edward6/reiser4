@@ -2394,7 +2394,7 @@ unflush(coord_t *coord)
 }
 #else
 #define unflush_finish(coord, done) noop
-#define unflush(coord_t *coord) noop
+#define unflush(coord) (0)
 #endif
 
 /* find all units of extent item which require allocation. Allocate free blocks
