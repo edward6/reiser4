@@ -53,24 +53,24 @@ typedef struct {
    manager lists, attached to atoms, etc. (NOTE-NIKITA one may argue that this
    means, there should be special type of jnode for inode.)
 
-   Locking: 
-  
+   Locking:
+
    Spin lock: the following fields are protected by the per-jnode spin lock:
-  
+
     ->state
     ->atom
     ->capture_link
 
    Following fields are protected by the global tree lock:
-  
+
     ->link
     ->key.z (content of ->key.z is only changed in znode_rehash())
     ->key.j
 
    Atomic counters
-  
+
     ->x_count
-    ->d_count 
+    ->d_count
 
     ->pg, and ->data are protected by spin lock for unused jnode and are
     immutable for used jnode (one for which fs/reiser4/vfs_ops.c:releasable()
@@ -87,7 +87,7 @@ typedef struct {
    memory order: lock znode with lower address first. (See
    spin_lock_znode_pair() and spin_lock_znode_triple() functions, NOTE-NIKITA
    TDB)
-  
+
    Invariants involving this data-type:
 
       [jnode-dirty]
@@ -97,7 +97,7 @@ typedef struct {
 */
 struct jnode {
 #if REISER4_DEBUG
-#define JMAGIC 0x52654973
+#define JMAGIC 0x52654973 /* "ReIs" */
 	int magic;
 #endif
 	union {
@@ -225,6 +225,12 @@ typedef enum {
 	/* used in plugin/item/extent.c */
 	JNODE_NEW = 19,
 	JNODE_DKSET = 20,
+	/* if page was dirtied through mmap, we don't want to lose data, even
+	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
+	 * that ->releasepage() can tell. As this is used only for
+	 * unformatted, we can share bit with DKSET which is only meaningful
+	 * for formatted. */
+	JNODE_KEEPME = 20,
 
 	/* cheap and effective protection of jnode from emergency flush. This
 	 * bit can only be set by thread that holds long term lock on jnode
@@ -267,7 +273,7 @@ JF_TEST_AND_SET(jnode * j, int f)
 	return test_and_set_bit(f, &j->state);
 }
 
-/* ordering constraint for znode spin lock: znode lock is weaker than 
+/* ordering constraint for znode spin lock: znode lock is weaker than
    tree lock and dk lock */
 #define spin_ordering_pred_jnode( node )					\
 	( ( lock_counters() -> rw_locked_tree == 0 ) &&			\
@@ -282,7 +288,7 @@ JF_TEST_AND_SET(jnode * j, int f)
 
 /* Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
    Take and release short-term spinlocks.  Don't hold these across
-   io. 
+   io.
 */
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
@@ -301,7 +307,7 @@ extern jnode *jalloc(void);
 extern void jfree(jnode * node) NONNULL;
 extern jnode *jnew_unformatted(void);
 extern jnode *jclone(jnode *);
-extern jnode *jlook_lock(reiser4_tree * tree, 
+extern jnode *jlookup(reiser4_tree * tree,
 			 oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg) NONNULL;
@@ -316,7 +322,7 @@ extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
 extern void jnode_make_wander(jnode*) NONNULL;
 extern void jnode_make_reloc(jnode*, flush_queue_t*) NONNULL;
-extern void jnode_set_block(jnode * node, 
+extern void jnode_set_block(jnode * node,
 			    const reiser4_block_nr * blocknr) NONNULL;
 extern int jnode_io_hook(jnode *node, struct page *page, int rw) NONNULL;
 
@@ -449,8 +455,8 @@ jnode_is_loaded(const jnode * node)
 	return atomic_read(&node->d_count) > 0;
 }
 
-extern void page_detach_jnode(struct page *page, 
-			      struct address_space *mapping, 
+extern void page_detach_jnode(struct page *page,
+			      struct address_space *mapping,
 			      unsigned long index) NONNULL;
 extern void page_clear_jnode(struct page *page, jnode * node) NONNULL;
 
@@ -653,7 +659,7 @@ extern void reiser4_stat_inc_at_level_jputlast(const jnode * node);
 #endif
 
 /* jput() - decrement x_count reference counter on znode.
-  
+
    Count may drop to 0, jnode stays in cache until memory pressure causes the
    eviction of its page. The c_count variable also ensures that children are
    pressured out of memory before the parent. The jnode remains hashed as
@@ -693,7 +699,7 @@ jput(jnode * node)
 extern void jrelse(jnode * node);
 
 /* protect @node from e-flush */
-static inline int 
+static inline int
 jprotect (jnode * node)
 {
 	int ret;
@@ -716,7 +722,7 @@ jprotect (jnode * node)
 }
 
 /* remove protection from e-flush */
-static inline void 
+static inline void
 junprotect (jnode * node)
 {
 	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
