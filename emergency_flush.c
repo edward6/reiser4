@@ -568,6 +568,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		struct inode  *inode;
 		reiser4_inode *info;
 
+		spin_lock(&inode_lock);
 		spin_lock_eflush(tree->super);
 
 		inode = mapping_jnode(node)->host;
@@ -586,6 +587,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		list_add(&ef->inode_link, &info->eflushed_jnodes);
 
 		spin_unlock_eflush(tree->super);
+		spin_unlock(&inode_lock);
 	}
 
 	UNLOCK_JLOAD(node);
@@ -670,6 +672,7 @@ static void eflush_free (jnode * node)
 	if (jnode_is_unformatted(node)) {
 		reiser4_inode *info;
 
+		spin_lock(&inode_lock);
 		spin_lock_eflush(tree->super);
 
 		inode = mapping_jnode(node)->host;
@@ -690,6 +693,7 @@ static void eflush_free (jnode * node)
 		}
 
 		spin_unlock_eflush(tree->super);
+		spin_unlock(&inode_lock);
 	}
 	UNLOCK_JNODE(node);
 
