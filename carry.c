@@ -1388,8 +1388,13 @@ print_op(const char *prefix /* prefix to print */ ,
 		print_carry("\tchild", op->u.delete.child);
 		break;
 	case COP_CUT:
-		print_coord("\tfrom", op->u.cut->from, 0);
-		print_coord("\tto", op->u.cut->to, 0);
+		if (op->u.cut_or_kill.is_cut) {
+			print_coord("\tfrom", op->u.cut_or_kill.u.kill->from, 0);
+			print_coord("\tto", op->u.cut_or_kill.u.kill->to, 0);
+		} else {
+			print_coord("\tfrom", op->u.cut_or_kill.u.cut->from, 0);
+			print_coord("\tto", op->u.cut_or_kill.u.cut->to, 0);
+		}
 		break;
 	case COP_UPDATE:
 		print_carry("\tleft", op->u.update.left);
