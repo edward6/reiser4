@@ -87,8 +87,6 @@ struct znode {
 
 	   in_parent->node points to the parent of this node, and is NOT a
 	   hint.
-
-	   why? NIKITA-FIXME-HANS Why what? HANS-FIXME-NIKITA
 	*/
 	coord_t in_parent;
 
