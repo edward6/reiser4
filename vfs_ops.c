@@ -2445,7 +2445,8 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		return txnmgr_force_commit_all(s);
 	}
 
-	while (wbc->nr_to_write > 0) {
+//	while (wbc->nr_to_write > 0) 
+	do {
 		long nr_submitted = 0;
 
 		/* do not put more requests to overload write queue */
@@ -2461,7 +2462,7 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 			break;
 
 		wbc->nr_to_write -= nr_submitted;
-	}
+	} while (0);
 
 	REISER4_EXIT(ret);
 }
