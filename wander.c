@@ -814,18 +814,12 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 				   encountered this CC jnode. Do not submit i/o
 				   for it */
 				assert("zam-912", JF_ISSET(cur, JNODE_CC));
-				UNLOCK_JNODE(cur);				
+				UNLOCK_JNODE(cur);
 			}
 			unlock_page(pg);
 
-			spin_lock(&scan_lock);
-			if (cur != first)
-				JF_CLR(cur, JNODE_SCANNED);
 			nr --;
 			cur = capture_list_next(cur);
-			if (!capture_list_end(head, cur))
-				JF_SET(cur, JNODE_SCANNED);
-			spin_unlock(&scan_lock);
 		}
 		if (nr_used > 0) {
 			assert("nikita-3455",
@@ -851,14 +845,36 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 	return 0;
 }
 
+/* @nr jnodes starting from @j are marked as JNODE_SCANNED. Clear this bit for
+   all those jnodes */
+static void
+unscan_sequence_nolock(jnode *j, int nr)
+{
+	int i;
+
+	for (i = 0; i < nr; i ++) {
+		assert("vs-1631", JF_ISSET(j, JNODE_SCANNED));
+		JF_CLR(j, JNODE_SCANNED);
+		j = capture_list_next(j);
+	}
+}
+
+static void
+unscan_sequence(jnode *j, int nr)
+{
+	spin_lock(&scan_lock);
+	unscan_sequence_nolock(j, nr);
+	spin_unlock(&scan_lock);
+}
+
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
 reiser4_internal int
-write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
+write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted)
 {
 	int ret;
-	jnode *beg;
+	jnode *beg, *end;
 
 	spin_lock(&scan_lock);
 	beg = capture_list_front(head);
@@ -867,22 +883,24 @@ write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitt
 		jnode *cur;
 
 		JF_SET(beg, JNODE_SCANNED);
+		end = beg;
 		cur = capture_list_next(beg);
 
 		while (!capture_list_end(head, cur)) {
-			if (*jnode_get_block(cur) != *jnode_get_block(beg) + nr) {
+			if (*jnode_get_block(cur) != *jnode_get_block(beg) + nr)
 				/* jnode from which next sequence of blocks starts */
-				JF_SET(cur, JNODE_SCANNED);
 				break;
-			}
-			++nr;
+
+			JF_SET(cur, JNODE_SCANNED);			
+			++ nr;
+			end = cur;
 			cur = capture_list_next(cur);
 		}
 		spin_unlock(&scan_lock);
 
 		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq);
 		if (ret) {
-			JF_CLR(beg, JNODE_SCANNED);
+			unscan_sequence(beg, nr);
 			return ret;
 		}
 
@@ -890,8 +908,8 @@ write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitt
 			*nr_submitted += nr;
 
 		spin_lock(&scan_lock);
-		JF_CLR(beg, JNODE_SCANNED);
-		beg = cur;
+		unscan_sequence_nolock(beg, nr);
+		beg = capture_list_next(end);
 	}
 
 	spin_unlock(&scan_lock);
@@ -912,15 +930,9 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 	assert("zam-568", block_p != NULL);
 	block = *block_p;
 	assert("zam-569", len > 0);
-	assert("vs-1422", JF_ISSET(cur, JNODE_SCANNED));
-
-	first = 1;
-	spin_lock(&scan_lock);
 
 	while ((len--) > 0) {
-		if (!first)
-			JF_SET(cur, JNODE_SCANNED);
-		spin_unlock(&scan_lock);
+		assert("vs-1422", JF_ISSET(cur, JNODE_SCANNED));
 
 		do {
 			atom = get_current_atom_locked();
@@ -936,21 +948,15 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
 				BA_FORMATTED/* formatted, without defer */);
 			
-			if (!first)
-				JF_CLR(cur, JNODE_SCANNED);
 			return ret;
 		}
 
 		UNLOCK_ATOM(atom);
 
-		spin_lock(&scan_lock);
-		if (!first)
-			JF_CLR(cur, JNODE_SCANNED);
 		cur = capture_list_next(cur);
 		++block;
 		first = 0;
 	}
-	spin_unlock(&scan_lock);
 
 	return 0;
 }
@@ -964,50 +970,60 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 	reiser4_block_nr block;
 
 	int rest;
-	int len;
+	int len, prev_len, i;
 	int ret;
-
-	jnode *cur;
+	jnode *cur, *beg, *end;
 
 	assert("zam-534", ch->overwrite_set_size > 0);
 
-	rest = ch->overwrite_set_size;
+	cur = beg = end = NULL;
 
-	spin_lock(&scan_lock);
-	cur = capture_list_front(ch->overwrite_set);
-	while (!capture_list_end(ch->overwrite_set, cur)) {
-		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
-		JF_SET(cur, JNODE_SCANNED);
-		spin_unlock(&scan_lock);
-
+	for (rest = ch->overwrite_set_size; rest > 0; rest -= len) {
 		ret = get_more_wandered_blocks(rest, &block, &len);
 		if (ret) {
-			JF_CLR(cur, JNODE_SCANNED);
+			if (beg != NULL)
+				unscan_sequence_nolock(beg, prev_len);
 			return ret;
 		}
-
-		rest -= len;
-
-		ret = add_region_to_wmap(cur, len, &block);
-		if (ret) {
-			JF_CLR(cur, JNODE_SCANNED);
-			return ret;
-		}
-
-		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len, &block, fq);
-		if (ret) {
-			JF_CLR(cur, JNODE_SCANNED);
-			return ret;
-		}
-
+		
 		spin_lock(&scan_lock);
-		JF_CLR(cur, JNODE_SCANNED);
-		while ((len--) > 0) {
-			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
+		if (beg == NULL)
+			cur = capture_list_front(ch->overwrite_set);
+		else {
+			unscan_sequence_nolock(beg, prev_len);
+			cur = capture_list_next(end);
+		}
+		beg = cur;
+
+		/* mark @len jnodes starting from @cur as scanned */
+		for (i = 0; i < len; i ++) {
+			assert("vs-1633", !capture_list_end(ch->overwrite_set, cur));
+			assert("vs-1632", !JF_ISSET(cur, JNODE_SCANNED));
+			JF_SET(cur, JNODE_SCANNED);
+			end = cur;
 			cur = capture_list_next(cur);
 		}
+		prev_len = len;
+		spin_unlock(&scan_lock);
+
+		ret = add_region_to_wmap(beg, len, &block);
+		if (ret) {
+			unscan_sequence(beg, len);
+			return ret;
+		}
+		ret = write_jnodes_to_disk_extent(ch->overwrite_set, beg, len, &block, fq);
+		if (ret) {
+			unscan_sequence(beg, len);
+			return ret;
+		}
+		assert("vs-1638", rest >= len);
 	}
-	spin_unlock(&scan_lock);
+
+	assert("vs-1634", rest == 0);
+	assert("vs-1635", beg != NULL && end != NULL);
+	assert("vs-1639", cur == capture_list_next(end));
+	assert("vs-1636", capture_list_end(ch->overwrite_set, cur));
+	unscan_sequence(beg, len);
 
 	return 0;
 }
