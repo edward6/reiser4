@@ -300,7 +300,7 @@ extern int          txn_reserve           (int                 reserved);
 extern void         txn_begin             (reiser4_context    *context);
 extern int          txn_end               (reiser4_context    *context);
 
-extern int          txn_mgr_force_commit  (struct super_block *super);
+extern int          txn_mgr_force_commit_all (struct super_block *super);
 extern int          txn_commit_some       (txn_mgr *mgr);
 extern int          txn_same_atom_dirty   (jnode              *base,
 					   jnode              *check,

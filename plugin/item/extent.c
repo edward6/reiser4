@@ -2880,11 +2880,11 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 				break;
 			}
 
-			if (jnode_check_allocated (j) /* Was (! jnode_check_dirty (j)) but
-						       * the node may already have been *
-						       * allocated, in which case we take
-						       * the * previous allocation for
-						       * this * extent. */) {
+			if (jnode_check_flushprepped (j) /* Was (! jnode_check_dirty (j)) but
+							  * the node may already have been *
+							  * allocated, in which case we take
+							  * the * previous allocation for
+							  * this * extent. */) {
 				jput (j);
 				all_need_alloc = 0;
 				break;
@@ -2935,10 +2935,10 @@ What does this mean?  Did you do it as requested or differently?
 				continue;
 			}
 
-			if (! jnode_check_allocated (j) /* Was (jnode_check_dirty (j)),
-							 * but allocated check prevents us
-							 * from relocating/wandering a
-							 * previously allocated block  */) {
+			if (! jnode_check_flushprepped (j) /* Was (jnode_check_dirty (j)),
+							    * but allocated check prevents us
+							    * from relocating/wandering a
+							    * previously allocated block  */) {
 
 				if (relocate == 0) {
 					/* If not relocating and dirty, WANDER it */

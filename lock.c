@@ -281,6 +281,8 @@
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
  *
+ * FIXME: DEADLOCK STILL OBSERVED:!!!
+ *
  * Point 1. The order in which a node is captured matters.  If a read-capture arrives
  * before a write-capture, the read-capture may cause no capturing "work" to be done at
  * all, whereas the write-capture may cause copy-on-capture to occur.  For this to be

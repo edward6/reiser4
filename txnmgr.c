@@ -850,7 +850,7 @@ atom_try_commit_locked (txn_atom *atom)
  * created. */
 /* Audited by: umka (2002.06.13) umka (2002.06.15) */
 int
-txn_mgr_force_commit (struct super_block *super)
+txn_mgr_force_commit_all (struct super_block *super)
 {
 	int ret;
 	txn_atom *atom;

@@ -287,8 +287,9 @@ int format_40_release (struct super_block * s)
 {
 	int ret;
 
-	if ((ret = txn_mgr_force_commit (s))) {
-		warning ("jmacd-77114429378", 
+	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember writing this. */
+	if ((ret = txn_mgr_force_commit_all (s))) {
+		warning ("jmacd-74438", 
 			 "txn_force failed in umount: %d", ret);
 	}
 

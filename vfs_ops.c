@@ -1938,7 +1938,9 @@ static void reiser4_write_super (struct super_block * s)
 	int ret;
 	__REISER4_ENTRY (s,);
 
-	if ((ret = txn_mgr_force_commit (s))) {
+	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember putting this
+	 * here. */
+	if ((ret = txn_mgr_force_commit_all (s))) {
 		warning ("jmacd-77113", "txn_force failed in write_super: %d", ret);
 	}
 
