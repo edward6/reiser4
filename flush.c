@@ -511,9 +511,6 @@ static int flush_alloc_ancestors (flush_position *pos)
 	load_handle pload;
 	coord_t pcoord;
 
-	assert ("jmacd-9921", jnode_check_dirty (pos->point));
-	assert ("jmacd-9925", ! jnode_is_allocated (pos->point));
-
 	init_lh (& plock);
 	init_zh (& pload);
 
@@ -799,6 +796,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	/* Get the right neighbor. */
 	assert ("jmacd-1092", znode_is_write_locked (node));
 	if ((ret = znode_get_utmost_if_dirty (node, & right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
+
 		/* Unless we get ENAVAIL at the leaf level, it means to stop. */
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
@@ -833,6 +831,13 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			trace_on (TRACE_FLUSH, "sq_changed_ancestors right again: %s\n", flush_pos_tostring (pos));
 
 			if (znode_check_dirty (node)) {
+				/* If we started at an allocated node and continued to the
+				 * right, reaching this point, it is possible that the
+				 * parent needs to be allocated.  But then, why do it? */
+				if (! znode_is_allocated (node)) {
+					ret = flush_pos_stop (pos);
+					goto exit;
+				}
 				goto repeat;
 			} else {
 				ret = flush_pos_stop (pos);
@@ -907,6 +912,9 @@ static int flush_squalloc_right (flush_position *pos)
 	/* Step 1: Re-allocate all the ancestors as long as the position is a leftmost
 	 * child. */
 	trace_on (TRACE_FLUSH, "squalloc_right alloc ancestors: %s\n", flush_pos_tostring (pos));
+
+	assert ("jmacd-9921", jnode_check_dirty (pos->point));
+	assert ("jmacd-9925", ! jnode_is_allocated (pos->point));
 
 	if ((ret = flush_alloc_ancestors (pos))) {
 		goto exit;
@@ -2170,8 +2178,10 @@ static int flush_pos_to_parent (flush_position *pos)
 	/* When this is called, we have already tried the sibling link of the znode in
 	 * question, therefore we are not interested in saving ->point. */
 	done_lh (& pos->point_lock);
-	jput (pos->point);
-	pos->point = NULL; /* @@@ FIXME: */
+
+	/* Note: we leave the point set, but unlocked. */
+	/*jput (pos->point);*/
+	/*pos->point = NULL;*/
 	return 0;
 }
 
