@@ -2,7 +2,7 @@
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "../../reiser4.h"
 
 /*
  * Object-id manipulations.
