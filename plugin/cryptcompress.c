@@ -1103,7 +1103,7 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 }
 
 #if REISER4_TRACE
-#define reserve4cluster(inode, clust, msg)    __reserve4cluster(inode, clust, msg)
+#define reserve4cluster(inode, clust, msg)    __reserve4cluster(inode, clust)
 #else
 #define reserve4cluster(inode, clust, msg)    __reserve4cluster(inode, clust)
 #endif
