@@ -1547,7 +1547,6 @@ static void flush_bio_write (struct bio *bio)
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
-		jnode *node;
 
 		trace_if (TRACE_FLUSH_VERB, print_page ("flush_bio_write", pg));
 
@@ -1565,10 +1564,6 @@ static void flush_bio_write (struct bio *bio)
 
 		unlock_page (pg);
 		page_cache_release (pg);
-
-		node = jnode_by_page (pg);
-
-		jput (node);
 	}
 	
 	bio_put (bio);
@@ -1708,6 +1703,9 @@ static int flush_finish (flush_position *pos, int none_busy)
 				bio->bi_io_vec[c].bv_page   = pg;
 				bio->bi_io_vec[c].bv_len    = blksz;
 				bio->bi_io_vec[c].bv_offset = 0;
+
+				/* The page reference is enough to maintain the jnode... */
+				jput (node);
 			}
 
 			i = j;
