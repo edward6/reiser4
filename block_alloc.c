@@ -536,13 +536,6 @@ used2fake_allocated(__u64 count, int formatted)
 	reiser4_spin_unlock_sb(super);
 }
 
-void
-fake_allocated2free(__u64 count, int formatted)
-{
-	fake_allocated2grabbed(count, formatted);
-	grabbed2free(count);
-}
-
 /**
  * disk space, virtually used by fake block numbers is counted as "grabbed" again.
  */
@@ -563,6 +556,13 @@ fake_allocated2grabbed(__u64 count, int formatted)
 	assert("nikita-2683", check_block_counters(super));
 
 	reiser4_spin_unlock_sb(super);
+}
+
+void
+fake_allocated2free(__u64 count, int formatted)
+{
+	fake_allocated2grabbed(count, formatted);
+	grabbed2free(count);
 }
 
 /**
