@@ -873,7 +873,7 @@ create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	assert("vs-212", coord_is_between_items(target));
 	/* node must have enough free space */
 	assert("vs-254", free_space_node40(target->node) >= data->length + sizeof(item_header40));
-	assert("vs-1410", data->length > 0);
+	assert("vs-1410", data->length >= 0);
 
 	if (coord_set_to_right(target))
 		/* there are not items to the right of @target, so, new item
@@ -2137,6 +2137,8 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	assert("nikita-2161", coord_check(from));
 
+	ON_DEBUG_MODIFY(znode_set_checksum(to, 0));
+
 	xmemset(&shift, 0, sizeof (shift));
 	shift.pend = pend;
 	shift.wish_stop = *from;
@@ -2181,6 +2183,8 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	target_empty = node_is_empty(to);
 
+	ON_DEBUG_MODIFY(assert("nikita-3427", to->cksum == znode_checksum(to)));
+
 	/* when first node plugin with item body compression is implemented,
 	   this must be changed to call node specific plugin */
 
@@ -2190,6 +2194,8 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	if (!shift.shift_bytes) {
 		/* we could not shift anything */
 		assert("nikita-2079", coord_check(from));
+		ON_DEBUG_MODIFY(assert("nikita-3433",
+				       to->cksum == znode_checksum(to)));
 		return 0;
 	}
 
@@ -2233,6 +2239,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		   will be removing the pointer to node @from->node */
 		result = prepare_removal_node40(source, info);
 	}
+
 #ifdef DEBUGGING_SHIFT
 	dinfo("SHIFT TO %s: merging %d, entire %d, part %d, size %d\n",
 	      shift.pend == SHIFT_LEFT ? "LEFT" : "RIGHT",
