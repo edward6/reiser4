@@ -322,7 +322,7 @@ tail2extent(struct inode *inode)
 		if (result)
 			goto exit;
 	}
-	/* tail coverted */
+	/* tail converted */
 	set_file_state(inode, EXTENT_POINTER_ID);
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
