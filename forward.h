@@ -1,5 +1,5 @@
 /*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by HanJNODE_FLUSH_MEMORY_UNFORMATTEDs Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -208,9 +208,16 @@ typedef enum {
 /* Flags passed to jnode_flush() to allow it to distinguish default settings based on
  * whether commit() was called or VM memory pressure was applied. */
 typedef enum {
-	JNODE_FLUSH_COMMIT             = 1,
-	JNODE_FLUSH_MEMORY_FORMATTED   = 2,
-	JNODE_FLUSH_MEMORY_UNFORMATTED = 4,
+	/* submit flush queue to disk at jnode_flush completion */
+	JNODE_FLUSH_WRITE_BLOCKS       = 1,
+
+	/* not implemented */
+	JNODE_FLUSH_COMMIT             = 2,
+	/* not implemented */
+	JNODE_FLUSH_MEMORY_FORMATTED   = 4,
+
+	/* not implemented */
+	JNODE_FLUSH_MEMORY_UNFORMATTED = 8,
 } jnode_flush_flags;
 
 /** 

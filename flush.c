@@ -735,7 +735,7 @@ ON_DEBUG (atomic_t flush_cnt;)
  * probably be handled properly rather than restarting, but there are a bunch of cases to
  * audit.
  */
-int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
+int jnode_flush (jnode *node, long *nr_to_flush, int flags)
 {
 	int ret = 0;
 	flush_position flush_pos;
@@ -1004,15 +1004,18 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 	 * before their leftmost child.)
 	 */
    
-	/* Write anything left in the queue. */
-	// ret = flush_empty_queue (& flush_pos);
-	ret = 0;
+	/* Write anything left in the queue, if specified by flags */
+	if (flags & JNODE_FLUSH_WRITE_BLOCKS) {
+		ret = fq_scan_and_write (fq, 0);
+	} else {
+		ret = 0;
+	}
 
 	/* Any failure reaches this point. */
    failed:
 
 	if (nr_to_flush != NULL) {
-		if (ret == 0) {
+		if (ret >= 0) {
 			trace_on (TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.prep_or_free_cnt);
 			(*nr_to_flush) = flush_pos.prep_or_free_cnt;
 		} else {
@@ -1028,7 +1031,7 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 		ret = 0;
 	}
 
-	if (ret != 0) {
+	if (ret < 0) {
 		warning ("jmacd-16739", "flush failed: %d", ret);
 	}
 
@@ -2534,7 +2537,9 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 	atom = atom_get_locked_by_jnode (node);
 
 	if (atom) {
-		fq_queue_node (pos->fq, node);
+		if (JF_ISSET (node, JNODE_DIRTY))
+			fq_queue_node (pos->fq, node);
+
 		spin_unlock_atom (atom);
 	}
 
@@ -3688,8 +3693,9 @@ static const char* flush_pos_tostring (flush_position *pos)
 static const char*   flush_flags_tostring         (int flags)
 {
 	switch (flags) {
-	case JNODE_FLUSH_COMMIT: return "(commit)";
-	case JNODE_FLUSH_MEMORY_FORMATTED: return "(memory-z)";
+	    case JNODE_FLUSH_WRITE_BLOCKS: return "(write blocks)";
+	    case JNODE_FLUSH_COMMIT: return "(commit)";
+	    case JNODE_FLUSH_MEMORY_FORMATTED: return "(memory-z)";
 	case JNODE_FLUSH_MEMORY_UNFORMATTED: return "(memory-j)";
 	default:
 		return "(unknown)";

@@ -887,6 +887,24 @@ static long write_list_fq (flush_queue_t * first, long how_many)
 	return nr_submitted;
 }
 
+/* perform a sent list scan before submitting queue to disk */
+int fq_scan_and_write (flush_queue_t * fq, int how_many) 
+{
+	if (atomic_read (&fq->nr_submitted) == 0) {
+		txn_atom * atom;
+
+		spin_lock_fq (fq);
+		atom = atom_get_locked_by_fq (fq);
+		spin_unlock_fq (fq);
+
+		fq_scan_io_list (fq);
+
+		spin_unlock_atom (atom);
+	}
+
+	return fq_write (fq, how_many);
+}
+
 /* A response to memory pressure */
 int fq_writeback (struct super_block *s, jnode * node, struct writeback_control * wbc)
 {
