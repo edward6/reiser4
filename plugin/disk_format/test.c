@@ -71,6 +71,7 @@ int test_format_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	/* initialize fields of reiser4 private part of super block which
 	 * are common for all disk formats
 	 * FIXME-VS: shouldn't that initizlization be in common code? */
+	reiser4_set_mkfs_id (s, 0);
 	reiser4_set_block_count (s, d64tocpu (&disk_sb->block_count));
 	/* number of used blocks */
 	reiser4_set_data_blocks (s, d64tocpu (&disk_sb->next_free_block));

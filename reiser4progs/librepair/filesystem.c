@@ -41,6 +41,7 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
     traverse->options = repair_data(fs)->options;
     
     /* Prepare a level. */
+    /* FIXME-VITALY: height as well as a level of nodes */
     traverse->level = reiser4_format_get_height(fs->format) + 1;
 
     /* FIXME-VITALY: Hardcoded key plugin id */

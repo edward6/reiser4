@@ -60,6 +60,11 @@ static __u16 get_format40_tail_policy(const format40_disk_super_block * sb)
 	return d16tocpu (&sb->tail_policy);
 }
 
+static __u32 get_format40_mkfs_id(const format40_disk_super_block * sb)
+{
+	return d32tocpu (&sb->mkfs_id);
+}
+
 /* find any valid super block of disk_format40 (even if the first
  * super block is destroyed) */
 static struct buffer_head * find_a_disk_format40_super_block (struct super_block * s
@@ -221,6 +226,7 @@ int format40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->default_uid = 0;
 	private->default_gid = 0;
 
+	reiser4_set_mkfs_id (s, get_format40_mkfs_id(sb_copy));
 	reiser4_set_block_count (s, get_format40_block_count (sb_copy));
 	reiser4_set_free_blocks (s, get_format40_free_blocks (sb_copy));
 	/* number of used blocks */
