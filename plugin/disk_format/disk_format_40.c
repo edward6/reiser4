@@ -66,7 +66,6 @@ static struct buffer_head * find_a_disk_format_40_super_block (struct super_bloc
     reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
     reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->free_blocks));
     reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
-    reiser4_set_free_committed_blocks (s, reiser4_free_blocks(s));
     
     return super_bh;
 }
@@ -216,7 +215,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	/* number of used blocks */
 	reiser4_set_data_blocks (s, get_format_40_block_count (sb_copy));
 	reiser4_set_free_blocks (s, get_format_40_free_blocks (sb_copy));
-	reiser4_set_free_committed_blocks (s, reiser4_free_blocks (s));
 
 	private->inode_generation = get_format_40_oid (sb_copy);
 	private->fsuid = 0;
