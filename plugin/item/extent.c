@@ -3737,7 +3737,7 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 	int nr_reserved = max_nr_processed;
 	struct inode * inode;
 	int ret;
-	reiser4_block_nr start, len;
+	reiser4_block_nr start, len = 0;
 	int done = 0;
 
 	ext = extent_by_coord(coord);
