@@ -73,6 +73,7 @@ typedef enum {
 	LLR_REST
 } level_lookup_result;
 
+/* EDWARD-FIXME-HANS: use an ifdef and macros instead */
 typedef struct tree_operations {
 	/** read given tree node from persistent storage */
 	int ( *read_node )( reiser4_tree *tree, jnode *node );
