@@ -304,7 +304,6 @@ init_locked_inode(struct inode *inode /* new inode */ ,
 	assert("nikita-1996", opaque != NULL);
 	key = opaque;
 	set_inode_oid(inode, get_key_objectid(key));
-	reiser4_inode_data(inode)->locality_id = get_key_locality(key);
 	return 0;
 }
 
@@ -380,7 +379,8 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			assert("nikita-1941", !is_inode_loaded(inode));
 			assert("nikita-1949",
 			       reiser4_inode_find_actor(inode,
-							(reiser4_key *) key));
+							(reiser4_key *)key));
+			info->locality_id = get_key_locality(key);
 			/* now, inode has objectid as -> i_ino and locality in
 			   reiser4-specific part. This data is enough for
 			   read_inode() to read stat data from the disk */
