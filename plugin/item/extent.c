@@ -2216,6 +2216,8 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 		reiser4_panic("vpf-340", "No space left in reserved area.");
 #endif	
 
+	DISABLE_NODE_CHECK;
+
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
 	result = insert_into_item(un_extent, (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh, key, data, flags);
@@ -2247,6 +2249,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 		}
 	}
 	tap_done(&watch);
+	ENABLE_NODE_CHECK;
 	return result;
 }
 
