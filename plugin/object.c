@@ -706,32 +706,6 @@ move_flow_forward(flow_t * f, unsigned count)
 	set_key_offset(&f->key, get_key_offset(&f->key) + count);
 }
 
-/* Default method to construct flow into @f according to user-supplied
-   data. */
-int
-common_build_flow(struct inode *inode /* file to build flow for */ ,
-		  char *buf /* user level buffer */ ,
-		  int user	/* 1 if @buf is of user space, 0 - if it is
-				   kernel space */ ,
-		  size_t size /* buffer size */ ,
-		  loff_t off /* offset to start io from */ ,
-		  rw_op op /* READ or WRITE */ ,
-		  flow_t * f /* resulting flow */ )
-{
-	file_plugin *fplug;
-
-	assert("nikita-1100", inode != NULL);
-
-	f->length = size;
-	f->data = buf;
-	f->user = user;
-	f->op = op;
-	fplug = inode_file_plugin(inode);
-	assert("nikita-1931", fplug != NULL);
-	assert("nikita-1932", fplug->key_by_inode != NULL);
-	return fplug->key_by_inode(inode, off, &f->key);
-}
-
 /* default ->add_link() method of file plugin */
 static int
 common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
@@ -1003,7 +977,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .ioctl = unix_file_ioctl,
 				    .mmap = unix_file_mmap,
 				    .get_block = unix_file_get_block,
-				    .flow_by_inode = common_build_flow,
+				    .flow_by_inode = unix_file_build_flow,
 				    .key_by_inode = unix_file_key_by_inode,
 				    .set_plug_in_inode = common_set_plug,
 				    .adjust_to_parent = common_adjust_to_parent,
