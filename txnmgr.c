@@ -1787,7 +1787,6 @@ try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 {
 	int ret;
 	jnode *node;
-	PROF_BEGIN(try_capture);
 
 	assert("umka-292", pg != NULL);
 	assert("nikita-2597", PageLocked(pg));
