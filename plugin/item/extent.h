@@ -20,8 +20,8 @@ typedef struct extent_stat {
 
 
 typedef struct {	
-	pos_in_unit_t pos_in_unit;
-	pos_in_unit_t width; /* width of current unit */
+	reiser4_block_nr pos_in_unit;
+	reiser4_block_nr width; /* width of current unit */
 	pos_in_item_t nr_units; /* number of units */
 	reiser4_extent *ext; /* */
 	unsigned long expected_page;
@@ -55,7 +55,7 @@ extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
 }
 
 static inline void
-extent_set_width(reiser4_extent *ext, pos_in_unit_t width)
+extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 {
 	cassert(sizeof (ext->width) == 8);
 	cpu_to_dblock(width, &ext->width);
