@@ -544,7 +544,8 @@ extern void up( semaphore *sem );
 extern void lock_kernel();
 extern void unlock_kernel();
 
-extern int init_special_inode( struct inode *inode, umode_t mode, __u16 rdev );
+extern void insert_inode_hash(struct inode *inode);
+extern int init_special_inode( struct inode *inode, __u32 mode, __u32 rdev );
 extern void make_bad_inode( struct inode *inode );
 extern int is_bad_inode( struct inode *inode );
 
