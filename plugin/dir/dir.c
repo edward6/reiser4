@@ -871,7 +871,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
  * Function that is called by common_readdir() on each directory entry while
  * doing readdir. ->filldir callback may block, so we had to release long term
  * lock while calling it. To avoid repeating tree traversal, seal is used. If
- * seal is broken, we return -EAGAIN. Node is unlocked in this case.
+ * seal is broken, we return -E_REPEAT. Node is unlocked in this case.
  *
  * Whether node is unlocked in case of any other error is undefined. It is
  * guaranteed to be still locked if success (0) is returned.
@@ -1108,12 +1108,13 @@ readdir_common(struct file *f /* directory file being read */ ,
 					else
 						break;
 				}
-			} else if (result == -EAGAIN)
+			} else if (result == -E_REPEAT) {
 				/* feed_entry() had to restart. */
+				tap_relse(&tap);
 				goto repeat;
+			}
 		}
-		if (result == 0)
-			tap_relse(&tap);
+		tap_relse(&tap);
 
 		if (result >= 0)
 			f->f_version = inode->i_version;
