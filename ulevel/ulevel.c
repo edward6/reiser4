@@ -1138,6 +1138,25 @@ void *mkdir_thread_start( void *arg )
 	REISER4_EXIT_PTR( NULL );
 }
 
+static char print_percentage( unsigned long reached, unsigned long total, char gap )
+{
+	int percentage;
+
+	percentage = reached / ( total / 100 );
+	if( percentage * ( total / 100 ) == reached )
+	{
+		if( ( percentage / 10 ) * 10 == percentage )
+		{
+			printf( "%i%%", percentage );
+		}
+		else if( percentage % 2 == 0 )
+		{
+			printf( "%c", gap );
+		}
+		fflush( stdout );
+	}
+}
+
 int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG, 
 		 reiser4_tree *tree )
 {
@@ -1181,12 +1200,14 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_create( f, name );
 			assert( "nikita-1720", ret == 0 );
+			print_percentage( i, atoi( argv[ 3 ] ), '+' );
 		}
 		call_readdir( f, "unlink-filled" );
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_rm( f, name );
 			assert( "nikita-1720", ret == 0 );
+			print_percentage( i, atoi( argv[ 3 ] ), '-' );
 		}
 		call_readdir( f, "unlink-end" );
 	} else if( !strcmp( argv[ 2 ], "dir" ) || 
