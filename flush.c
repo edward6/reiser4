@@ -1684,7 +1684,10 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
-	assert("edward-306", (znode_get_level(node) == LEAF_LEVEL));
+
+	if (znode_get_level(node) != LEAF_LEVEL)
+		/* do not squeeze this node */
+		return 0;
 	
 	coord_init_before_first_item(&pos->coord, node);
 	
@@ -1695,26 +1698,28 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		iplug = item_plugin_by_coord(&pos->coord);
 		
 		if (iplug->f.squeeze == NULL)
-			/* do not squeeze */
-			return 0;
+			/* do not squeeze this item */
+			goto next;
+		
 		/* get child if squeeze item data is not uptodate */
 		if (!pos->idata) {
 			ret = iplug->f.utmost_child(&pos->coord, LEFT_SIDE, &pos->child);
 			if (ret)
 				return ret;
 			if (pos->child == NULL)
-				/* do not squeeze */
-				return 0;
+				/* do not squeeze this item */
+				goto next;
 		}
 		ret = iplug->f.squeeze(pos, 1 /* attach info */);
 		
 		assert("edward-307", pos->child == NULL);
 		if (ret)
 			return ret;
+	next:
 		if (coord_next_item(&pos->coord))
 			/* node is over */
 			break;
-		if (item_plugin_by_coord(&pos->coord) != iplug) {
+		if (iplug->f.squeeze != NULL && item_plugin_by_coord(&pos->coord) != iplug) {
 			/* squeeze one more time previous item
 			   and invalidate squeeze item data */
 			ret = iplug->f.squeeze(pos, 0 /* detach info */);
@@ -3027,11 +3032,11 @@ scan_finished(flush_scan * scan)
 }
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
-   same_atom_dirty condition.  If not, deref the "left" node and stop the scan. */
+   same_slum_check condition.  If not, deref the "left" node and stop the scan. */
 int
 scan_goto(flush_scan * scan, jnode * tonode)
 {
-	int go = same_atom_dirty(scan->node, tonode, 1, 0);
+	int go = same_slum_check(scan->node, tonode, 1, 0);
 
 	if (!go) {
 		scan->stop = 1;
