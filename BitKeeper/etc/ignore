@@ -75,6 +75,7 @@
 .search.o.cmd
 .spinprof.o.cmd
 .stats.o.cmd
+.status_flags.o.cmd
 .super.o.cmd
 .super.o.d
 .sys_reiser4.o.cmd
@@ -294,6 +295,7 @@ plugin/item/.extent_file_ops.o.cmd
 plugin/item/.extent_flush_ops.o.cmd
 plugin/item/.extent_flush_ops.o.d
 plugin/item/.extent_item_ops.o.cmd
+plugin/item/.extent_repack_ops.o.cmd
 plugin/item/.internal.o.cmd
 plugin/item/.item.o.cmd
 plugin/item/.sde.o.cmd
@@ -1397,6 +1399,7 @@ ulevel/reiser4-seeks.sh
 ulevel/test
 ulevel/test.c
 ulevel/tmp.1001
+ulevel/tmp.10020
 ulevel/tmp.998
 ulevel/writes
 version
@@ -1414,5 +1417,3 @@ write-test.2
 yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
-plugin/item/.extent_repack_ops.o.cmd
-.status_flags.o.cmd
