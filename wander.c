@@ -25,13 +25,13 @@
  * are written in place) and _before_ wandered blocks and log records are
  * freed in WORKING bitmap */
 
-struct txn_atom_extra {
+struct io_handle {
 	struct semaphore io_sema;
 	atomic_t         nr_submitted;
 	atomic_t         nr_errors;
 };
 
-static int submit_write (jnode*, int, const reiser4_block_nr *, struct txn_atom_extra *);
+static int submit_write (jnode*, int, const reiser4_block_nr *, struct io_handle *);
 
 static const d64 *get_last_committed_tx (struct super_block *s)
 {
@@ -252,6 +252,8 @@ static int update_journal_header (capture_list_head * tx_list)
 
 	if (ret) return ret;
 
+	blk_run_queues();
+
 	ret = jwait_io (jh, WRITE);
 
 	return ret;
@@ -275,6 +277,8 @@ static int update_journal_footer (capture_list_head * tx_list)
 
 	ret = submit_write (jf, 1, jnode_get_block(jf), NULL);
 	if (ret) return ret;
+
+	blk_run_queues();
 
 	ret = jwait_io (jf, WRITE);
 	if (ret) return ret;
@@ -368,14 +372,14 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 static void wander_end_io (struct bio * bio)
 {
 	int i;
-	struct txn_atom_extra * extra = bio->bi_private;
+	struct io_handle * io_hdl = bio->bi_private;
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
 		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
 			SetPageError (pg);
-			if (extra) atomic_inc(&extra->nr_errors); 
+			if (io_hdl) atomic_inc(&io_hdl->nr_errors); 
 		} else {
 			SetPageUptodate(pg);
 		}
@@ -390,33 +394,33 @@ static void wander_end_io (struct bio * bio)
 		page_cache_release (pg);
 	}
 
-	if (extra && !atomic_sub_and_test(bio->bi_vcnt, &extra->nr_submitted)) {
-		up (&extra->io_sema);
+	if (io_hdl && !atomic_sub_and_test(bio->bi_vcnt, &io_hdl->nr_submitted)) {
+		up (&io_hdl->io_sema);
 	}
 
 	bio_put (bio);
 }
 
 
-static void init_extra (struct txn_atom_extra * extra)
+static void init_io_handle (struct io_handle * io_hdl)
 {
-	sema_init(&extra->io_sema, 0);
+	sema_init(&io_hdl->io_sema, 0);
 
-	atomic_set(&extra->nr_submitted, 0);
-	atomic_set(&extra->nr_errors, 0);
+	atomic_set(&io_hdl->nr_submitted, 0);
+	atomic_set(&io_hdl->nr_errors, 0);
 }
 
-static int done_extra (struct txn_atom_extra * extra)
+static int done_io_handle (struct io_handle * io_hdl)
 {
 	/* sort and pass requests to driver */
 	blk_run_queues();
 
 	/* wait all IO to complete */
-	down (&extra->io_sema);
+	down (&io_hdl->io_sema);
 
-	assert ("zam-577", atomic_read(&extra->nr_submitted) == 0);
+	assert ("zam-577", atomic_read(&io_hdl->nr_submitted) == 0);
 
-	if (atomic_read(&extra->nr_errors)) return -EIO;
+	if (atomic_read(&io_hdl->nr_errors)) return -EIO;
 
 	return 0;
 }
@@ -427,7 +431,7 @@ static int done_extra (struct txn_atom_extra * extra)
 /* FIXME: it should be combined with similar code in flush.c */
 static int submit_write (jnode * first, int nr, 
 			 const reiser4_block_nr  * block,
-			 struct txn_atom_extra * extra)
+			 struct io_handle * io_hdl)
 {
 	struct super_block * super;
 	jnode * cur = first;
@@ -438,7 +442,7 @@ static int submit_write (jnode * first, int nr,
 	assert ("zam-571", first != NULL);
 	assert ("zam-572", block != NULL);
 	assert ("zam-570", nr > 0);
-	assert ("zam-576", extra != NULL);
+	assert ("zam-576", io_hdl != NULL);
 
 	bio = bio_alloc(GFP_NOIO, nr);
 	if (!bio) return -ENOMEM;
@@ -452,8 +456,8 @@ static int submit_write (jnode * first, int nr,
 	bio->bi_size   = super->s_blocksize * nr;
 	bio->bi_end_io = wander_end_io;
 
-	atomic_add(nr, &extra->nr_submitted);
-	bio->bi_private = extra;
+	atomic_add(nr, &io_hdl->nr_submitted);
+	bio->bi_private = io_hdl;
 
 	for (i = 0; i < nr; i++) {
 		struct page * pg;
@@ -483,13 +487,13 @@ static int submit_write (jnode * first, int nr,
  * numbers in the given list of j-nodes and submits write requests on this
  * per-sequence basis */
 /* FIXME: it is much simpler now */
-static int submit_batched_write (capture_list_head * head, struct txn_atom_extra * extra)
+static int submit_batched_write (capture_list_head * head, struct io_handle * io_hdl)
 {
 	int ret;
 	jnode * cur = capture_list_front(head);
 
 	while (!capture_list_end(head, cur)) {
-		ret = submit_write(cur, 1, jnode_get_block(cur), extra);
+		ret = submit_write(cur, 1, jnode_get_block(cur), io_hdl);
 
 		if (ret) return ret;
 	}
@@ -499,7 +503,7 @@ static int submit_batched_write (capture_list_head * head, struct txn_atom_extra
 
 /* allocate given number of nodes over the journal area and link them into a
  * list, return pinter to the first jnode in the list */
-static int alloc_tx (int nr, capture_list_head * tx_list, struct txn_atom_extra * extra)
+static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_hdl)
 {
 	reiser4_blocknr_hint  hint;
 
@@ -584,7 +588,7 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct txn_atom_extra 
 		spin_unlock_atom (atom);
 	}
 
-	ret = submit_batched_write(tx_list, extra);
+	ret = submit_batched_write(tx_list, io_hdl);
 	if (ret) goto fail;
 
 	return 0;
@@ -646,7 +650,7 @@ static int add_region_to_wmap (jnode ** cur,
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
  * submit IO for allocated blocks.  We assume that current atom is in a stage
  * when any atom fusion is impossible and atom is unlocked and it is safe. */
-int alloc_wandered_blocks (int set_size, capture_list_head * set, struct txn_atom_extra * extra)
+int alloc_wandered_blocks (int set_size, capture_list_head * set, struct io_handle * io_hdl)
 {
 	int     rest;
 
@@ -675,7 +679,7 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct txn_ato
 
 		if (ret) goto free_blocks;
 
-		ret = submit_write (cur, (int)len, &block, extra);
+		ret = submit_write (cur, (int)len, &block, io_hdl);
 
 		if (ret) goto free_blocks;
 	}
@@ -690,12 +694,6 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct txn_ato
 	
 }
 
-/* submit i/o requests for writing in-place nodes from Overwrite set */
-static int force_write_back(struct txn_atom_extra * extra UNUSED_ARG)
-{
-	return 0;
-}
-
 /* We assume that at this moment all captured blocks are marked as RELOC or
  * WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
  * are submitted to write.*/
@@ -706,29 +704,29 @@ int reiser4_write_logs (void)
 	struct super_block * super = reiser4_get_current_sb();
 	reiser4_super_info_data * private = get_super_private(super);
 
-	struct txn_atom_extra extra;
+	struct io_handle io_hdl;
 
-	capture_list_head xw_set, tx_list;
-	int xw_set_size, tx_size;
+	capture_list_head overwrite_set, tx_list;
+	int overwrite_set_size, tx_size;
 
 	int ret;
 
-	capture_list_init (&xw_set);
+	capture_list_init (&overwrite_set);
 	capture_list_init (&tx_list);
 
 	atom = get_current_atom_locked();
-	xw_set_size = get_overwrite_set (atom, &xw_set);
+	overwrite_set_size = get_overwrite_set (atom, &overwrite_set);
 	spin_unlock_atom(atom);
 
 	/* count all records needed for storing of the wandered set */
-	tx_size = get_tx_size (super, xw_set_size);
+	tx_size = get_tx_size (super, overwrite_set_size);
 
-	if ((ret = reiser4_grab_space1((__u64)(xw_set_size + tx_size))))
+	if ((ret = reiser4_grab_space1((__u64)(overwrite_set_size + tx_size))))
 		return ret;
 
-	init_extra (&extra);
+	init_io_handle (&io_hdl);
 
-	if ((ret = alloc_wandered_blocks (xw_set_size, &xw_set, &extra)))
+	if ((ret = alloc_wandered_blocks (overwrite_set_size, &overwrite_set, &io_hdl)))
 		return ret;
 
 	/* isolate critical code path which should be executed by only one
@@ -737,10 +735,10 @@ int reiser4_write_logs (void)
 
 	pre_commit_hook();
 
-	if ((ret = alloc_tx (tx_size, &tx_list, &extra)))
+	if ((ret = alloc_tx (tx_size, &tx_list, &io_hdl)))
 		goto up_and_ret;
 
-	ret = done_extra(&extra);
+	ret = done_io_handle(&io_hdl);
 	if (ret) goto up_and_ret;
 
 	if ((ret = update_journal_header(&tx_list)))
@@ -748,12 +746,13 @@ int reiser4_write_logs (void)
 
 	post_commit_hook();
 
-	init_extra (&extra);
+	init_io_handle (&io_hdl);
 
-	if ((ret = force_write_back(&extra)))
+	/* force j-nodes write back */
+	if ((ret = submit_batched_write(&overwrite_set, &io_hdl)))
 		goto up_and_ret;
 
-	ret = done_extra(&extra);
+	ret = done_io_handle(&io_hdl);
 	if (ret) goto up_and_ret;
 
 	if ((ret = update_journal_footer(&tx_list)))
@@ -770,6 +769,8 @@ int reiser4_write_logs (void)
 	dealloc_wmap ();
 
 	reiser4_release_all_grabbed_space();
+
+	capture_list_splice (&atom->clean_nodes, &overwrite_set);
 
 	return ret;
 }
