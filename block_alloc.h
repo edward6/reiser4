@@ -68,7 +68,9 @@ extern void all_grabbed2free (void);
 
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
-extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int defer, block_stage_t);
+extern int reiser4_dealloc_blocks (const reiser4_block_nr *,
+				   const reiser4_block_nr *, int defer,
+				   block_stage_t, int formatted);
 extern void check_block_counters (const struct super_block *);
 
 #if REISER4_DEBUG
@@ -86,7 +88,7 @@ extern void reiser4_check_block (const reiser4_block_nr *, int);
 static inline int reiser4_dealloc_block (const reiser4_block_nr *block, int defer, block_stage_t stage)
 {
 	const reiser4_block_nr one = 1;
-	return reiser4_dealloc_blocks (block, &one, defer, stage);
+	return reiser4_dealloc_blocks (block, &one, defer, stage, 1);
 }
 
 

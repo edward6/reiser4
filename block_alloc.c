@@ -399,15 +399,14 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 /**
  * adjust sb block counters when @count unallocated blocks get unmapped from
  * disk
- * this is supposed to be used for non unformatted nodes only
  */
-static void used2fake_allocated (__u64 count)
+static void used2fake_allocated (__u64 count, int formatted)
 {
 	const struct super_block * super = reiser4_get_current_sb(); 
 
 	reiser4_spin_lock_sb(super);
 
-	add_to_sb_unallocated(super, count, 1/*formatted*/);
+	add_to_sb_unallocated(super, count, formatted);
 	sub_from_sb_used(super, count);
 
 	check_block_counters (super);
@@ -537,7 +536,11 @@ int reiser4_dealloc_blocks (
 	 * from disk, or freed but disk space is still grabbed by current
 	 * thread, or these blocks must not be counted in any reiser4 sb block
 	 * counters, see block_stage_t comment. */
-	block_stage_t target_stage)
+	block_stage_t target_stage,
+	int formatted /* this argument is only used when @defer == 0: it is
+		       * used to distinguish blocks allocated for unformatted
+		       * and formatted nodes */)
+
 {
 	txn_atom          * atom = NULL; 
 	int                 ret;
@@ -598,14 +601,17 @@ int reiser4_dealloc_blocks (
 
 		switch (target_stage) {
 		    case BLOCK_NOT_COUNTED:
+			    assert ("vs-960", formatted == 1);
 			    used2grabbed (*len);
 			    grabbed2free (*len);
 			    break;
 		    case BLOCK_GRABBED:
+			    assert ("vs-961", formatted == 1);
 			    used2grabbed (*len);
 			    break;
 		    case BLOCK_UNALLOCATED:
-			    used2fake_allocated (*len);
+			    assert ("vs-962", formatted == 0);
+			    used2fake_allocated (*len, formatted);
 			    break;
 		    default:
 			    impossible ("zam-532", "wrong block stage");
