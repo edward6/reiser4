@@ -187,25 +187,32 @@ init_ctail(coord_t * coord /* coord of item */,
 int
 paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
-	unsigned old_nr_units;
+	unsigned to_paste;
 
 	assert("edward-268", data->data != NULL);
 	/* copy only from kernel space */
 	assert("edward-66", data->user == 0);
 	
-	/* number of units the item had before resizing has been performed */
-	old_nr_units = nr_units_ctail(coord) - data->length;
-
-	/* tail items never get pasted in the middle */
-	assert("edward-65",
-	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||  /* after can_paste - wanna glue at right - impossible */
-	       (coord->unit_pos == old_nr_units - 1 && coord->between == AFTER_UNIT) ||
-	       (coord->unit_pos == 0 && old_nr_units == 0 && coord->between == AT_UNIT)); /* after create item */
+	/* ctail items never get pasted in the middle */
 	
-	if (coord->between == AFTER_UNIT)
-		coord->unit_pos++;
+	if (coord->unit_pos == 0) {
+		/* paste at the beginning, length contains item data overhead */
+		
+		assert("edward-xxx", item_length_by_coord(coord) == data->length);
+		assert("edward-xxx", coord->between == AT_UNIT);
+		
+		to_paste = data->length - sizeof(ctail_item_format);
+	}
+	else if (coord->unit_pos == (nr_units_ctail(coord) - data->length - 1)) {
+		/* paste at the end, length doesn't contain item data overhead */
+		assert("edward-xxx", coord->between == AFTER_UNIT);
+		
+		to_paste = data->length;
+	}
+	else
+		impossible("edward-xxx", "bad paste position");
 	
-	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, (unsigned) data->length);
+	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, to_paste);
 	return 0;
 }
 
@@ -662,10 +669,10 @@ item_plugin_by_jnode(jnode * node)
 }
 
 /* plugin->u.item.f.scan */
-/* Check if the cluster node we started from doesn't have any items
-   in the tree. If so, insert prosessed cluster into the tree.
-   Don't care about scan counter since leftward scanning will be continued
-   from rightmost dirty node.
+/* Check if the cluster node we started from is not presented by any items
+   in the tree. If so, create the link by inserting prosessed cluster into
+   the tree. Don't care about scan counter since leftward scanning will be
+   continued from rightmost dirty node.
 */
 int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 {
@@ -693,8 +700,8 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	
 	reiser4_cluster_init(&clust);
 
-	if (!coord_is_invalid(&scan->parent_coord)) {
-		/* do nothing */
+	if (get_flush_scan_istat(scan) == EXISTING_ITEM) {
+		/* nothing to do */
 		return 0;
 	}
 	assert("edward-233", scan->direction == LEFT_SIDE);
@@ -703,7 +710,7 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	   continue scan from rightmost dirty node */
 	
 	clust.index = pg_to_clust(page->index, inode);
-	
+
 	/* remove appropriate jnodes from dirty list */
 	result = flush_cluster_pages(&clust, inode);
 	if (result)
@@ -720,7 +727,10 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 		goto exit;
 	
 	assert("edward-234", f.length == 0);
-	assert("edward-235", !coord_is_invalid(&scan->parent_coord));
+	
+	/* now child is linked by item on parent level,
+	   set appropriate status */
+	set_flush_scan_istat(scan, EXISTING_ITEM);
 
  exit:	
 	put_cluster_data(&clust, inode);
