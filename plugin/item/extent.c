@@ -1240,11 +1240,15 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 	ret = insert_into_item (coord, lh, &key,
 				init_new_extent (&item, new_exts, count),
 				0/*flags*/);
-	if (!ret) {
+	if (!ret) {		
 		/* FIXME-VS: we might also try to optimize @coord */
-		set_extent (extent_by_coord (&coord_after), 
-			    state_after, width_after);
-		znode_set_dirty (coord_after.node);
+		ret = zload (coord_after.node);
+		if (likely (!ret)) {
+			set_extent (extent_by_coord (&coord_after), 
+				    state_after, width_after);
+			znode_set_dirty (coord_after.node);
+			zrelse (coord_after.node);
+		}
 	}
 	tap_done (&watch);
 	return ret;
