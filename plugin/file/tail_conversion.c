@@ -621,7 +621,9 @@ extent2tail(struct inode *inode)
 	reiser4_key from;
 	reiser4_key to;
 	unsigned count;
+	loff_t orig_isize;
 
+	orig_isize = inode->i_size;
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
 
@@ -631,6 +633,7 @@ extent2tail(struct inode *inode)
 		return 0;
 	}
 
+	assert("nikita-3059", orig_isize == inode->i_size);
 	/* number of pages in the file */
 	num_pages = (inode->i_size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
 
@@ -640,6 +643,7 @@ extent2tail(struct inode *inode)
 	result = 0;
 
 	for (i = 0; i < num_pages; i++) {
+		assert("nikita-3059", orig_isize == inode->i_size);
 		page = read_cache_page(inode->i_mapping, (unsigned) i, unix_file_readpage/*filler*/, 0);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
@@ -680,7 +684,9 @@ extent2tail(struct inode *inode)
 		count = PAGE_CACHE_SIZE;
 		if (i == num_pages - 1)
 			count = (inode->i_size & ~PAGE_CACHE_MASK) ? : PAGE_CACHE_SIZE;
+		assert("nikita-3059", orig_isize == inode->i_size);
 		result = write_page_by_tail(inode, page, count);
+		assert("nikita-3059", orig_isize == inode->i_size);
 		if (result) {
 			page_cache_release(page);
 			break;
@@ -698,6 +704,7 @@ extent2tail(struct inode *inode)
 		page_cache_release(page);
 	}
 
+	assert("nikita-3059", orig_isize == inode->i_size);
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
