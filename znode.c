@@ -276,22 +276,21 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	do {
 		parents = 0;
 		ON_DEBUG( killed = 0 );
-		for_all_ht_buckets( &tree -> zhash_table, bucket ) {
-			for_all_in_bucket( bucket, node, next, zjnode.link.z ) {
-				if( atomic_read( &node -> c_count ) != 0 ) {
-					++ parents;
-					continue;
-				}
-				/*
-				 * FIXME debugging output
-				 */
-				if( atomic_read( &ZJNODE(node) -> x_count ) != 0 )
-					print_znode( "busy on umount", node );
-				assert( "nikita-2179", 
-					atomic_read( &ZJNODE(node) -> x_count ) == 0 );
-				zdrop( tree, node );
-				ON_DEBUG( ++ killed );
+		for_all_in_htable( &tree -> zhash_table, 
+				   bucket, node, next, zjnode.link.z ) {
+			if( atomic_read( &node -> c_count ) != 0 ) {
+				++ parents;
+				continue;
 			}
+			/*
+			 * FIXME debugging output
+			 */
+			if( atomic_read( &ZJNODE(node) -> x_count ) != 0 )
+				print_znode( "busy on umount", node );
+			assert( "nikita-2179", 
+				atomic_read( &ZJNODE(node) -> x_count ) == 0 );
+			zdrop( tree, node );
+			ON_DEBUG( ++ killed );
 		}
 		assert( "nikita-2178", ( parents == 0 ) || ( killed > 0 ) );
 	} while( parents > 0 );
@@ -1167,9 +1166,8 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	tree_lock_taken = spin_trylock_tree( tree );
 	htable = &tree -> zhash_table;
 
-	for_all_ht_buckets( htable, bucket ) {
-		for_all_in_bucket( bucket, node, next, zjnode.link.z )
-			info_znode( prefix, node );
+	for_all_in_htable( htable, bucket, node, next, zjnode.link.z ) {
+		info_znode( prefix, node );
 	}
 	if( tree_lock_taken )
 		spin_unlock_tree( tree );

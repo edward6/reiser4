@@ -81,17 +81,14 @@ int jnodes_tree_done( reiser4_tree *tree /* tree to destroy jnodes for */ )
 
 	spin_lock_tree( tree );
 
-	for_all_ht_buckets( &tree -> jhash_table, bucket ) {
-		for_all_in_bucket( bucket, node, next, link.j ) {
-			/*
-			 * FIXME debugging output
-			 */
-			if( atomic_read( &node -> x_count ) != 0 )
-				info_jnode( "busy on umount", node );
-			assert( "nikita-2361", 
-				atomic_read( &node -> x_count ) == 0 );
-			jdrop( node );
-		}
+	for_all_in_htable( &tree -> jhash_table, bucket, node, next, link.j ) {
+		/*
+		 * FIXME debugging output
+		 */
+		if( atomic_read( &node -> x_count ) != 0 )
+			info_jnode( "busy on umount", node );
+		assert( "nikita-2361", atomic_read( &node -> x_count ) == 0 );
+		jdrop( node );
 	}
 
 	spin_unlock_tree( tree );
@@ -617,9 +614,6 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 	page = grab_cache_page( jplug -> mapping( node ), 
 				jplug -> index( node ) );
 	if( page != NULL ) {
-		/*
-		 * FIXME-NIKITA *dubious*
-		 */
 		SetPageUptodate( page );
 		jnode_attach_page( node, page );
 		unlock_page( page );
@@ -1095,11 +1089,9 @@ void print_jnodes( const char *prefix, reiser4_tree *tree )
 	tree_lock_taken = spin_trylock_tree( tree );
 	htable = &tree -> jhash_table;
 
-	for_all_ht_buckets( htable, bucket ) {
-		for_all_in_bucket( bucket, node, next, link.j ) {
-			info_jnode( prefix, node );
-			info( "\n" );
-		}
+	for_all_in_htable( htable, bucket, node, next, link.j ) {
+		info_jnode( prefix, node );
+		info( "\n" );
 	}
 	if( tree_lock_taken )
 		spin_unlock_tree( tree );
