@@ -264,7 +264,7 @@ update_prof_trace(reiser4_prof_cnt *cnt)
 #endif
 
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark)
+		     unsigned long swtch_mark, __u64 start_jif)
 {
 	__u64 delta;
 
@@ -277,6 +277,7 @@ void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 		cnt->noswtch_total += delta;
 		cnt->noswtch_max = max(cnt->noswtch_max, delta);
 	}
+	cnt->jiffies += (jiffies - start_jif);
 	update_prof_trace(cnt);
 }
 
@@ -294,9 +295,10 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 	val = getptrat(reiser4_prof_cnt, 
 		       &get_super_private(s)->prof, cnt->offset);
 	p = buf;
-	KATTR_PRINT(p, buf, "%llu %llu %llu %llu %llu %llu\n",
+	KATTR_PRINT(p, buf, "%llu %llu %llu %llu %llu %llu %llu\n",
 		    val->nr, val->total, val->max,
-		    val->noswtch_nr, val->noswtch_total, val->noswtch_max);
+		    val->noswtch_nr, val->noswtch_total, val->noswtch_max,
+		    val->jiffies);
 #ifdef CONFIG_FRAME_POINTER
 	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
 		int j;
@@ -336,7 +338,16 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(forward_squalloc),
 	DEFINE_PROF_CNT(atom_wait_event),
 	DEFINE_PROF_CNT(set_child_delimiting_keys),
-	DEFINE_PROF_CNT(length_by_coord),
+	DEFINE_PROF_CNT(extent_write),
+	DEFINE_PROF_CNT(reserve),
+	DEFINE_PROF_CNT(grab_cache_page),
+	DEFINE_PROF_CNT(make_extent),
+	DEFINE_PROF_CNT(prepare),
+	DEFINE_PROF_CNT(copy),
+	DEFINE_PROF_CNT(try_capture),
+	DEFINE_PROF_CNT(bdp),
+	DEFINE_PROF_CNT(real_write),
+	DEFINE_PROF_CNT(real_bdp),
 	DEFINE_PROF_CNT(zget)
 };
 
@@ -763,6 +774,32 @@ no_counters_are_held()
 }
 
 #endif
+
+ssize_t
+generic_file_write_nolock(struct file *file, const struct iovec *iov,
+			  unsigned long nr_segs, loff_t *ppos);
+
+ssize_t
+generic_file_write_nolock1(struct file *file, const struct iovec *iov,
+			   unsigned long nr_segs, loff_t *ppos)
+{
+	ssize_t res;
+	PROF_BEGIN(real_write);
+	res = generic_file_write_nolock(file, iov,
+					nr_segs, ppos);
+	PROF_END(real_write, real_write);
+	return res;
+}
+
+void balance_dirty_pages_ratelimited1(struct address_space *mapping);
+void balance_dirty_pages_ratelimited1(struct address_space *mapping)
+{
+	PROF_BEGIN(real_bdp);
+	balance_dirty_pages_ratelimited(mapping);
+	PROF_END(real_bdp, real_bdp);
+}
+
+
 
 /* Make Linus happy.
    Local variables:

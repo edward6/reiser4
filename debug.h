@@ -344,7 +344,7 @@ extern __u32 reiser4_current_trace_flags;
 /* include from asm-i386 directly to work under UML/i386 */
 #include <asm-i386/msr.h>
 
-#define REISER4_PROF_TRACE_NUM (40)
+#define REISER4_PROF_TRACE_NUM (8)
 #define REISER4_PROF_TRACE_DEPTH (6)
 
 typedef struct reiser4_trace {
@@ -360,6 +360,7 @@ typedef struct reiser4_prof_cnt {
 	__u64 noswtch_nr;
 	__u64 noswtch_total;
 	__u64 noswtch_max;
+	__u64 jiffies; /* FIXME: remove me */
 	reiser4_trace bt[REISER4_PROF_TRACE_NUM];
 } reiser4_prof_cnt;
 
@@ -372,15 +373,25 @@ typedef struct reiser4_prof {
 	reiser4_prof_cnt atom_wait_event;
 	reiser4_prof_cnt set_child_delimiting_keys;
 	reiser4_prof_cnt zget;
-	reiser4_prof_cnt length_by_coord;
+	reiser4_prof_cnt extent_write;
+	reiser4_prof_cnt reserve;
+	reiser4_prof_cnt grab_cache_page;
+	reiser4_prof_cnt make_extent;
+	reiser4_prof_cnt prepare;
+	reiser4_prof_cnt copy;
+	reiser4_prof_cnt try_capture;
+	reiser4_prof_cnt bdp;
+	reiser4_prof_cnt real_write;
+	reiser4_prof_cnt real_bdp;
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);
 extern void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-			    unsigned long swtch_mark);
+			    unsigned long swtch_mark, __u64);
 
 #define PROF_BEGIN(aname)							\
 	unsigned long __swtch_mark__ ## aname = nr_context_switches();		\
+        __u64 __prof_jiffies ## aname = jiffies;				\
 	__u64 __prof_cnt__ ## aname = ({ __u64 __tmp_prof ;			\
 			      		rdtscll(__tmp_prof) ; __tmp_prof; })
 
@@ -392,7 +403,7 @@ extern void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 	rdtscll(__prof_end);							\
 	prf = &get_super_private_nocheck(reiser4_get_current_sb()) -> prof;	\
 	update_prof_cnt(&prf->acnt, __prof_cnt__ ## aname, __prof_end,		\
-			__swtch_mark__ ## aname);				\
+			__swtch_mark__ ## aname, __prof_jiffies ## aname );	\
 })
 
 extern void calibrate_prof(void);
