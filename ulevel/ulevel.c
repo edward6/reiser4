@@ -910,6 +910,24 @@ int radix_tree_delete (struct radix_tree_root * tree, unsigned long index)
 
 /* mm/filemap.c */
 
+static int check_list_head( struct list_head *entry )
+{
+	return 
+		( entry != NULL ) &&
+		( entry -> next != NULL ) && ( entry -> prev != NULL ) &&
+		( entry -> next -> prev == entry ) &&
+		( entry -> prev -> next == entry );
+}
+
+static int check_list_head_list( struct list_head *list )
+{
+	struct list_head *entry;
+
+	list_for_each( entry, list )
+		if( !check_list_head( entry ) )
+			return 0;
+	return 1;
+}
 
 /* all pages are on this list. uswapd scans this list, writeback-s and frees
  * pages */
@@ -946,6 +964,7 @@ struct page * page_cache_alloc (struct address_space * mapping UNUSED_ARG)
 	
 	init_page (page);
 
+	assert ("nikita-2658", check_list_head_list (&page_lru_list));
 	/* add page into global lru list */
 	list_add (&page->lru, &page_lru_list);
 	nr_pages ++;
@@ -1052,7 +1071,7 @@ void remove_inode_page (struct page * page)
 	/* remove page from mapping */
 	radix_tree_delete (&page->mapping->page_tree, page->index);
 	/* remove from mapping's list: clean, dirty or locked */
-	list_del (&page->list);
+	list_del_init (&page->list);
 	page->mapping->nrpages--;
 	page->mapping = NULL;
 }
@@ -1428,6 +1447,7 @@ void page_cache_release (struct page * page)
 	assert ("vs-352", page_count (page) > 0);
 	atomic_dec (&page->count);
 	if (!page_count (page)) {
+		list_del_init (&page->lru);
 		kfree (page);
 	}
 }
@@ -4744,7 +4764,7 @@ static int shrink_cache (void)
 
 		tmp = page_lru_list.prev;
 		page = list_entry (tmp, struct page, lru);
-		list_del(tmp);
+		list_del_init(tmp);
 		list_add(tmp, &page_lru_list);
 
 		if (!PagePrivate (page) || !page->mapping) {
@@ -4805,7 +4825,7 @@ static int shrink_cache (void)
 
 		/* free page */
 		assert ("vs-822", page_count (page) == 1);
-		list_del (&page->lru);
+		list_del_init (&page->lru);
 		nr_pages --;
 
 		trace_on (TRACE_PCACHE, "page freed: page: %p (index %lu, ino %lu)\n",
@@ -5119,7 +5139,7 @@ int __set_page_dirty_nobuffers(struct page *page)
 
 		if (mapping) {
 			write_lock( &mapping->page_lock );
-			list_del(&page->list);
+			list_del_init(&page->list);
 			list_add(&page->list, &mapping->dirty_pages);
 			write_unlock( &mapping->page_lock );
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
@@ -5149,7 +5169,7 @@ int write_one_page(struct page *page, int wait)
 		wait_on_page_writeback(page);
 
 	spin_lock(&mapping->page_lock);
-	list_del(&page->list);
+	list_del_init(&page->list);
 	if (TestClearPageDirty(page)) {
 		list_add(&page->list, &mapping->locked_pages);
 		page_cache_get(page);
