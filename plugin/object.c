@@ -83,7 +83,7 @@
 #include <linux/quotaops.h>
 /** Amount of internals which will get dirty of get allocated we estimate as 
   * 5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
-  * and the currect block on the leaf level, 2 neighbour nodes + the current 
+  * and the current block on the leaf level, 2 neighbour nodes + the current 
   * (or 1 neighbour and 1 new and the current) on twig level, 2 neighbour nodes
   * on upper levels and 1 for a new root. So 5 for leaf level, 3 for twig level, 
   * 2 on upper + 1 for root. 
@@ -97,7 +97,7 @@ void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 	assert("umka-1249", amount != NULL);
 	
 	ten_percent = ((103 * childen) >> 10);
-	*amount = ((tree_height < 5 ? 5 : tree_height) * 2 + 4 + ten_percent);
+	*amount = (tree_height * 2 + (4 + ten_percent));
 }
 
 /** helper function to print errors */

@@ -74,16 +74,22 @@ reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_fake) 
 {
 	reiser4_block_nr amount;
-	__u32 max_item_size, item_nr;
+	__u32 max_item_size, block_nr;
 	
 	assert("umka-1244", inode != NULL);
 
         max_item_size = tree_by_inode(inode)->nplug->max_item_size();
+
+	/* Here 2 is the worse node packing factor */
+	max_item_size = div64_32(max_item_size, 2, NULL);
 	
-	/* The five blocks become dirty durring shifting on the leaf level */
-	item_nr = div64_32(size + (max_item_size - 1), max_item_size, NULL) * 2;
+	/* The four blocks become dirty durring shifting on the leaf level */
+	block_nr = div64_32(size + (max_item_size - 1), max_item_size, NULL) + 4;
+	
 	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
-        return (item_nr * amount) + (item_nr * 5);
+
+	return block_nr + (block_nr * amount) + 
+		inode_file_plugin(inode)->estimate.update(inode) + 1;
 }
 
 /* This function makes test if we should store file denoted @inode as tails only or
