@@ -1333,7 +1333,8 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 	   the twig level to find our parent-first preceder unless we have already set
 	   it. */
 	if (pos->preceder.blk == 0 && znode_get_level(coord->node) == TWIG_LEVEL) {
-		if ((ret = set_preceder(coord, pos))) {
+		ret = set_preceder(coord, pos);
+		if (ret != 0) {
 			return ret;
 		}
 	}
@@ -1353,12 +1354,14 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 	   parent in case we will relocate the child. */
 	if (!znode_is_root(coord->node)) {
 
-		if ((ret = jnode_lock_parent_coord(ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0))) {
+		ret = jnode_lock_parent_coord(ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0);
+		if (ret != 0) {
 			/* FIXME(C): check EINVAL, EDEADLK */
 			goto exit;
 		}
 
-		if ((ret = reverse_relocate_check_dirty_parent(ZJNODE(coord->node), &acoord, pos))) {
+		ret = reverse_relocate_check_dirty_parent(ZJNODE(coord->node), &acoord, pos);
+		if (ret != 0) {
 			goto exit;
 		}
 
@@ -1520,7 +1523,8 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:item_is_extent:", &coord, 0));
 
 		last_stop_key = stop_key;
-		if ((ret = allocate_and_copy_extent(left, &coord, pos, &stop_key)) < 0) {
+		ret = allocate_and_copy_extent(left, &coord, pos, &stop_key);
+		if (ret < 0) {
 			ENABLE_NODE_CHECK;
 			return ret;
 		}
@@ -1561,7 +1565,8 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
 
 		/* Helper function to do the cutting. */
-		if ((cut_ret = squalloc_right_twig_cut(&stop_coord, &stop_key, left))) {
+		cut_ret = squalloc_right_twig_cut(&stop_coord, &stop_key, left);
+		if (cut_ret != 0) {
 			assert("jmacd-6443", cut_ret < 0);
 			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
 		}
@@ -2317,7 +2322,8 @@ squeeze_right_non_twig(znode * left, znode * right)
 #endif
 		amount = left->zjnode.tree->height;
 		grabbed = get_current_context()->grabbed_blocks;
-		if ((ret = reiser4_grab_space_force(amount, BA_RESERVED, "squeeze_right_non_twig")) != 0) {
+		ret = reiser4_grab_space_force(amount, BA_RESERVED, __FUNCTION__);
+		if (ret != 0) {
 			reiser4_panic("nikita-3003", 
 				      "Reserved space is exhausted. Ask Hans.");
 			done_carry_pool(&pool);
@@ -2398,7 +2404,8 @@ shift_one_internal_unit(znode * left, znode * right)
 		 * updating delimiting keys after shifting
 		 */
 		grabbed = get_current_context()->grabbed_blocks;
-		if ((ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED, "shift_one_internal_unit")) != 0)
+		ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED, __FUNCTION__);
+		if (ret != 0)
 			return ret;
 		
 		znode_make_dirty(left);
@@ -2501,7 +2508,8 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
-				if ((ret = allocate_znode_update(node, parent_coord, pos))) {
+				ret = allocate_znode_update(node, parent_coord, pos);
+				if (ret != 0) {
 					return ret;
 				}
 				/* set JNODE_RELOC bit _after_ node gets allocated */
@@ -2682,16 +2690,22 @@ jnode_lock_parent_coord(jnode         * node,
 				 * FIXME-EDWARD Process one cluster and insert appropriate items 
  				 * by (ino, coord, parent_lh, get_key_offset(&key)))
 				 */
-			}
-			else
+			} else {
+				warning("nikita-3177", "Parent not found");
+				print_jnode("node", node);
 				return ret;
+			}
 		case CBK_COORD_FOUND:
 			if (coord->between != AT_UNIT) {
 				/* FIXME: comment needed */
 				done_lh(parent_lh);
+				warning("nikita-3178", "Found but not happy: %i",
+					coord->between);
+				print_jnode("node", node);
 				return -ENOENT;
 			}
-			if ((ret = incr_load_count_znode(parent_zh, parent_lh->node))) 
+			ret = incr_load_count_znode(parent_zh, parent_lh->node);
+			if (ret != 0) 
 				return ret;
 			break;
 		default:
@@ -2700,16 +2714,17 @@ jnode_lock_parent_coord(jnode         * node,
 		
 	} else {
 		int flags;
+		znode *z;
 
+		z = JZNODE(node);
 		/* Formatted node case: */
-		assert("jmacd-2061", !znode_is_root(JZNODE(node)));
+		assert("jmacd-2061", !znode_is_root(z));
 
 		flags = GN_ALLOW_NOT_CONNECTED;
 		if (try)
 			flags |= GN_TRY_LOCK;
 
-		ret = reiser4_get_parent_flags(parent_lh, JZNODE(node), 
-					       parent_mode, flags);
+		ret = reiser4_get_parent_flags(parent_lh, z, parent_mode, flags);
 		if (ret != 0) {
 			warning("nikita-2757", "get_parent failed: %i", ret);
 			return ret;
@@ -2721,11 +2736,12 @@ jnode_lock_parent_coord(jnode         * node,
 
 			ret = incr_load_count_znode(parent_zh, parent_lh->node);
 			if (ret != 0) {
-				warning("jmacd-976812", "incr_load_count_znode failed: %d", ret);
+				warning("jmacd-976812386", "incr_load_count_znode failed: %d", ret);
 				return ret;
 			}
 
-			if ((ret = find_child_ptr(parent_lh->node, JZNODE(node), coord))) {
+			ret = find_child_ptr(parent_lh->node, z, coord);
+			if (ret != 0) {
 				warning("jmacd-976812", "find_child_ptr failed: %d", ret);
 				return ret;
 			}
@@ -3068,7 +3084,8 @@ scan_formatted(flush_scan * scan)
 		   left sibling while the tree lock is released, but the flush-scan count
 		   does not need to be precise.  Thus, we release the tree lock as soon as
 		   we get the neighboring node. */
-		if ((neighbor = scanning_left(scan) ? node->left : node->right) != NULL) {
+		neighbor = scanning_left(scan) ? node->left : node->right;
+		if (neighbor != NULL) {
 			zref(neighbor);
 		}
 
@@ -3090,7 +3107,8 @@ scan_formatted(flush_scan * scan)
 		}
 
 		/* Advance the flush_scan state to the left, repeat. */
-		if ((ret = scan_set_current(scan, ZJNODE(neighbor), 1, NULL))) {
+		ret = scan_set_current(scan, ZJNODE(neighbor), 1, NULL);
+		if (ret != 0) {
 			return ret;
 		}
 
@@ -3119,7 +3137,8 @@ scan_formatted(flush_scan * scan)
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
 		   where this znode is already write-locked by us. */
-		if ((ret = longterm_lock_znode(&end_lock, JZNODE(scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+		ret = longterm_lock_znode(&end_lock, JZNODE(scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		if (ret != 0) {
 			/* EINVAL or EDEADLK here mean... try again!  At this point we've
 			   scanned too far and can't back out, just start over. */
 			return ret;
@@ -3189,7 +3208,8 @@ scan_extent(flush_scan * scan, int skip_first)
 			}
 			assert("jmacd-1230", item_is_extent(&scan->parent_coord));
 
-			if ((ret = scan_extent_coord(scan, &scan->parent_coord))) {
+			ret = scan_extent_coord(scan, &scan->parent_coord);
+			if (ret != 0) {
 				goto exit;
 			}
 
@@ -3225,7 +3245,8 @@ scan_extent(flush_scan * scan, int skip_first)
 				goto exit;
 			}
 
-			if ((ret = incr_load_count_znode(&next_load, next_lock.node))) {
+			ret = incr_load_count_znode(&next_load, next_lock.node);
+			if (ret != 0) {
 				goto exit;
 			}
 
@@ -3243,7 +3264,8 @@ scan_extent(flush_scan * scan, int skip_first)
 		}
 
 		/* Get the next child. */
-		if ((ret = item_utmost_child(&next_coord, sideof_reverse(scan->direction), &child))) {
+		ret = item_utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
+		if (ret != 0) {
 			goto exit;
 		}
 
@@ -3263,7 +3285,8 @@ scan_extent(flush_scan * scan, int skip_first)
 		}
 
 		/* If so, make it current. */
-		if ((ret = scan_set_current(scan, child, 1, &next_coord))) {
+		ret = scan_set_current(scan, child, 1, &next_coord);
+		if (ret != 0) {
 			goto exit;
 		}
 
@@ -3406,7 +3429,8 @@ repeat:
 				goto stop_same_parent;
 			}
 
-			if ((ret = scan_set_current(scan, neighbor, 1, &coord))) {
+			ret = scan_set_current(scan, neighbor, 1, &coord);
+			if (ret != 0) {
 				goto exit;
 			}
 
@@ -3431,7 +3455,8 @@ repeat:
 		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
 		       && same_atom_dirty(neighbor, scan->node, 0, 0));
 
-		if ((ret = scan_set_current(scan, neighbor, scan_dist, &coord))) {
+		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
+		if (ret != 0) {
 			goto exit;
 		}
 	}
