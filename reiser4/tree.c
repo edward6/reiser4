@@ -907,8 +907,13 @@ void forget_znode (reiser4_lock_handle *handle)
  *
  * This is only stub for now.
  *
+ * FIXME_JMACD: I strongly object to calling this (in tree.c) from zput() (in
+ * znode.c) and then immediately calling zdestroy (in znode.c).  This is just
+ * obfuscated.  I would like to see zdestroy() called directly from zput(), which
+ * also calls this function, but I don't know what the call in unlock_carry_node
+ * should really do.
  */
-int deallocate_node( znode *node )
+int deallocate_znode( znode *node )
 {
 	assert ("nikita-1281", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
 	zdestroy( node );
