@@ -1,5 +1,6 @@
---- yacc/skeleton.c	Wed Dec 22 14:28:01 1993
-+++ yacc.r4/skeleton.c	Mon Dec  9 22:26:12 2002
+diff -u ../yacc/skeleton.c ./skeleton.c
+--- ../yacc/skeleton.c	1993-12-22 14:28:01.000000000 +0300
++++ ./skeleton.c	2003-06-29 03:58:06.000000000 +0400
 @@ -16,7 +16,7 @@
  {
      "#ifndef lint",
@@ -39,7 +40,7 @@
      "#endif",
      0
  };
-@@ -49,28 +49,45 @@
+@@ -49,28 +49,49 @@
  
  char *header[] =
  {
@@ -47,8 +48,12 @@
 -    "#undef YYMAXDEPTH",
 -    "#define YYMAXDEPTH YYSTACKSIZE",
 +    "#if defined(YYREISER4_DEF)",
-+      "#define YYSTACKSIZE ws->ws_yystacksize ",
-+      "#define YYMAXDEPTH ws->ws_yymaxdeph",
++      "#define YYSTACKSIZE 500",
++      "#define YYMAXDEPTH 500",
++
++    //     "#define YYSTACKSIZE ws->ws_yystacksize ",
++    //      "#define YYMAXDEPTH ws->ws_yymaxdeph",
++
 +      "#define yydebug ws->ws_yydebug ",
 +      "#define yynerrs ws->ws_yynerrs",
 +      "#define yyerrflag ws->ws_yyerrflag",
@@ -105,7 +110,7 @@
      0
  };
  
-@@ -82,16 +99,20 @@
+@@ -82,16 +103,20 @@
      "#define YYACCEPT goto yyaccept",
      "#define YYERROR goto yyerrlab",
      "int",
@@ -127,12 +132,29 @@
      "",
      "    if (yys = getenv(\"YYDEBUG\"))",
      "    {",
-@@ -150,7 +171,7 @@
+@@ -150,7 +175,11 @@
      "        goto yyreduce;",
      "    }",
      "    if (yyerrflag) goto yyinrecovery;",
--    "    yyerror(\"syntax error\");",
-+    "    yyerror(11111,yystate,yychar);",
++    "#if defined(YYREISER4_DEF)",
++    "    yyerror(ws,11111,yystate,yychar);",
++    "#else ",
+     "    yyerror(\"syntax error\");",
++    "#endif",
      "#ifdef lint",
      "    goto yyerrlab;",
      "#endif",
+@@ -275,7 +304,11 @@
+     "    *++yyvsp = yyval;",
+     "    goto yyloop;",
+     "yyoverflow:",
++    "#if defined(YYREISER4_DEF)",
++    "    yyerror(ws,101); /*yacc stack overflow*/",
++    "#else ",
+     "    yyerror(\"yacc stack overflow\");",
++    "#endif",
+     "yyabort:",
+     "    return (1);",
+     "yyaccept:",
+Only in .: skeleton.c~
+Common subdirectories: ../yacc/test and ./test
