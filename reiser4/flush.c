@@ -190,8 +190,8 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 		reiser4_lock_handle node_lh, parent_lh;
 		tree_coord coord;
 
-		reiser4_lh_init (& node_lh);
-		reiser4_lh_init (& parent_lh);
+		reiser4_init_lh (& node_lh);
+		reiser4_init_lh (& parent_lh);
 
 		if ((ret = reiser4_lock_znode (& node_lh, node, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 			return ret;
