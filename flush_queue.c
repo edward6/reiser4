@@ -70,6 +70,7 @@ static void init_fq (flush_queue_t * fq)
 	capture_list_init (&fq->sent);
 
 	sema_init (&fq->sema, 0);
+	spin_lock_init (&fq->guard);
 }
 
 /* create new flush queue object */
