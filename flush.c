@@ -921,7 +921,7 @@ static int squalloc_parent_first (flush_position *pos)
 		/* Skipping this node if it is dirty means that we won't
 		 * squeeze and allocate any of its dirty grand-children.  Oh
 		 * well! */
-		if (! znode_is_dirty (child)) {
+		if (! znode_check_dirty (child)) {
 			flush_parent_first_broken (pos);
 			goto squeeze_again;
 		}
