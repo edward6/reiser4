@@ -36,6 +36,8 @@ int tail_can_contain_key (const coord_t * coord, const reiser4_key * key,
 	    get_key_objectid (key) != get_key_objectid (&item_key))
 		return 0;
 
+	return 1;
+
 	assert ("vs-459",
 		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
 		(coord->unit_pos == coord_last_unit_pos (coord) &&
