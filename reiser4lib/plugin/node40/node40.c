@@ -33,7 +33,7 @@ static reiserfs_opaque_t *node40_key_at(reiserfs_opaque_t *node, int64_t pos) {
 }
 
 static error_t reiserfs_node40_remove(aal_block_t *block, reiserfs_key_t *start_key, 
-	reiserfs_key_t *end_key) 
+    reiserfs_key_t *end_key) 
 {
     reiserfs_coord_t *start_position, *end_position;
     
@@ -50,7 +50,7 @@ static error_t reiserfs_node40_remove(aal_block_t *block, reiserfs_key_t *start_
 }
 
 static error_t reiserfs_node40_move(aal_block_t *block_dest, aal_block_t *block_src,
-	reiserfs_key_t *dest_key, reiserfs_key_t *src_key_from, reiserfs_key_t *src_key_to) 
+    reiserfs_key_t *dest_key, reiserfs_key_t *src_key_from, reiserfs_key_t *src_key_to) 
 {
     return 0;
 }
@@ -234,5 +234,5 @@ static reiserfs_plugin_t node40_plugin = {
     }
 };
 
-reiserfs_plugin_register (node40_plugin);
+reiserfs_plugin_register(node40_plugin);
 
