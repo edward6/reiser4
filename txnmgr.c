@@ -920,7 +920,7 @@ atom_should_commit_asap(const txn_atom * atom)
 
 	assert("nikita-3309", atom != NULL);
 
-	captured = (unsigned) atom_pointer_count(atom);
+	captured = (unsigned) atom->capture_count;
 	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(jnode);
 
 	return
@@ -1538,21 +1538,21 @@ invalidate_list(capture_list_head * head)
 {
 	spin_lock(&scan_lock);
 	while (!capture_list_empty(head)) {
-		jnode *pos_in_atom;
+		jnode *node;
 
-		pos_in_atom = capture_list_front(head);
-		JF_SET(pos_in_atom, JNODE_SCANNED);
+		node = capture_list_front(head);
+		JF_SET(node, JNODE_SCANNED);
 		spin_unlock(&scan_lock);
 
-		LOCK_JNODE(pos_in_atom);
-		if (JF_ISSET(pos_in_atom, JNODE_CC) && pos_in_atom->pg) {
+		LOCK_JNODE(node);
+		if (JF_ISSET(node, JNODE_CC) && node->pg) {
 			/* corresponding page_cache_get is in swap_jnode_pages */
-			assert("vs-1448", test_and_clear_bit(PG_arch_1, &pos_in_atom->pg->flags));
-			page_cache_release(pos_in_atom->pg);
+			assert("vs-1448", test_and_clear_bit(PG_arch_1, &node->pg->flags));
+			page_cache_release(node->pg);
 		}
-		uncapture_block(pos_in_atom);
-		JF_CLR(pos_in_atom, JNODE_SCANNED);
-		jput(pos_in_atom);
+		uncapture_block(node);
+		JF_CLR(node, JNODE_SCANNED);
+		jput(node);
 
 		spin_lock(&scan_lock);
 	}
@@ -1566,12 +1566,12 @@ static void
 invalidate_list(capture_list_head * head)
 {
 	while (!capture_list_empty(head)) {
-		jnode *pos_in_atom;
+		jnode *node;
 
-		pos_in_atom = capture_list_front(head);
-		LOCK_JNODE(pos_in_atom);
-		uncapture_block(pos_in_atom);
-		jput(pos_in_atom);
+		node = capture_list_front(head);
+		LOCK_JNODE(node);
+		uncapture_block(node);
+		jput(node);
 	}
 }
 
@@ -1675,21 +1675,12 @@ try_commit_txnh(commit_data *cd)
 		return 0;
 
 	if (atom_should_commit(cd->atom)) {
-		if (!atom_can_be_committed(cd->atom)) {
-			if (should_wait_commit(cd->txnh)) {
-				cd->atom->nr_waiters++;
-				cd->wait = 1;
-				atom_wait_event(cd->atom);
-				reiser4_stat_inc(txnmgr.restart.should_wait);
-				result = RETERR(-E_REPEAT);
-			} else {
-				result = 0;
-				if (atom_should_commit_asap(cd->atom)) {
-					cd->atom->stage = ASTAGE_CAPTURE_WAIT;
-					cd->atom->flags |= ATOM_FORCE_COMMIT;
-				}
-			}
-		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
+		if (atom_should_commit_asap(cd->atom)) {
+			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
+			cd->atom->flags |= ATOM_FORCE_COMMIT;
+			atom_send_event(cd->atom);
+		}
+		if (cd->txnh->flags & TXNH_DONT_COMMIT) {
 			/*
 			 * this thread (transaction handle that is) doesn't
 			 * want to commit atom. Notify waiters that handle is
@@ -1700,6 +1691,16 @@ try_commit_txnh(commit_data *cd)
 			 */
 			atom_send_event(cd->atom);
 			result = 0;
+		} else if (!atom_can_be_committed(cd->atom)) {
+			if (should_wait_commit(cd->txnh)) {
+				cd->atom->nr_waiters++;
+				cd->wait = 1;
+				atom_wait_event(cd->atom);
+				reiser4_stat_inc(txnmgr.restart.should_wait);
+				result = RETERR(-E_REPEAT);
+			} else {
+				result = 0;
+			}
 		} else if (cd->preflush > 0 && !is_current_ktxnmgrd()) {
 			/*
 			 * optimization: flush atom without switching it into
@@ -2695,6 +2696,8 @@ void jnode_make_wander_nolock (jnode * node)
 	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
 	assert("nikita-3153", jnode_is_dirty(node));
 	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+	assert("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
+	DEBUGON(blocknr_is_fake(jnode_get_block(node)));
 
 	atom = node->atom;
 
@@ -2740,7 +2743,9 @@ void znode_make_reloc (znode *z, flush_queue_t * fq)
 	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
 	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
-	
+	assert ("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
+	DEBUGON(blocknr_is_fake(jnode_get_block(node)));
+
 	jnode_set_reloc(node);
 	queue_jnode(fq, node);
 
