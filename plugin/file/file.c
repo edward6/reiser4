@@ -1751,9 +1751,6 @@ write_unix_file(struct file *file, /* file to write to */
 	if (written == 0) {
 		int gotaccess;
 
-		/* UNIX behavior: clear suid bit on file modification */
-		remove_suid(file->f_dentry);
-		grab_space_enable();
 
 		/* Checking for mapped pages, converting to something (tails, extents) */
 		written = check_pages_unix_file(file, 0, 1, 0, &gotaccess);
@@ -1772,6 +1769,13 @@ write_unix_file(struct file *file, /* file to write to */
 					else
 						get_nonexclusive_access(uf_info);
 				}
+
+				if (rep == 0) {
+					/* UNIX behavior: clear suid bit on file modification */
+					remove_suid(file->f_dentry);
+					grab_space_enable();
+				}
+
 				written = write_file(file, buf, count, off, uf_info);
 				drop_access(uf_info);
 				gotaccess = 0;
