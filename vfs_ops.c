@@ -1740,8 +1740,8 @@ reiser4_get_parent(struct dentry *child)
 	if (result)
 		return ERR_PTR(result);
 	
-	parent = reiser4_iget(sb, &key);
-	if (!IS_ERR(inode)) {
+	parent = reiser4_iget(dir->i_sb, &key);
+	if (!IS_ERR(parent)) {
 		parent_dentry = d_alloc_anon(parent);
 		if (!parent_dentry) {
 			/* FIXME: reiser4_iget might return down()-ed inode */
