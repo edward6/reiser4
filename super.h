@@ -194,7 +194,7 @@ struct reiser4_super_info_data {
 
 	/* we remember last written location for using as a hint for
 	 * new block allocation */
-	__u64         last_written_location;
+	__u64                 last_written_location;
 
 	/* committed number of files (oid allocator state variable ) */
 	__u64                 nr_files;
