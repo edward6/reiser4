@@ -354,7 +354,7 @@ extern __u32 reiser4_current_trace_flags;
 	level = (lev) - LEAF_LEVEL;					\
 	if (level >= 0) {						\
 		if(level < REAL_MAX_ZTREE_HEIGHT) {			\
-			reiser4_stat_inc(level[level]. stat , value );	\
+			reiser4_stat_add(level[level]. stat , value );	\
 			reiser4_stat_inc(level[level]. total_hits_at_level);	\
 		}							\
 	}								\

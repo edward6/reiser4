@@ -1157,10 +1157,10 @@ __go_to_sleep(lock_stack * owner
 #ifdef CONFIG_REISER4_STATS
 	switch (node_level) {
 	    case ADD_TO_SLEPT_IN_WAIT_EVENT:
-		    reiser4_stat_txnmgr_add_few(slept_in_wait_event, jiffies - sleep_start);
+		    reiser4_stat_add(txnmgr.slept_in_wait_event, jiffies - sleep_start);
 		    break;
 	    case ADD_TO_SLEPT_IN_WAIT_ATOM:
-		    reiser4_stat_txnmgr_add_few(slept_in_wait_atom, jiffies - sleep_start);
+		    reiser4_stat_add(txnmgr.slept_in_wait_atom, jiffies - sleep_start);
 		    break;
 	    default:
 		    reiser4_stat_add_at_level_value(node_level, time_slept, 
