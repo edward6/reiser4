@@ -379,7 +379,7 @@ znode *insert_new_node(coord_t * insert_coord, lock_handle * lh);
 
 int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*);
 
-static int inline cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to)
+static inline int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to)
 {
 	return cut_tree_object(tree, from, to, NULL, NULL);
 }
