@@ -201,7 +201,7 @@ struct reiser4_super_info_data {
 
 	/* Statistical counters. reiser4_stat is empty data-type unless
 	   REISER4_STATS is set. */
-	reiser4_stat stats;
+	reiser4_stat *stats;
 
 	/* transaction manager */
 	txn_mgr tmgr;

@@ -249,8 +249,6 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 								 * of one
 								 * plugin */
 
-	/* FIXME-VS: maybe this should be dealt with in common code */
-	xmemset(&sbinfo->stats, 0, sizeof (reiser4_stat));
 	/* sbinfo->tmgr is initialized already */
 
 	/* recover sb data which were logged separately from sb block */

@@ -1090,7 +1090,6 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 	args = entry_actor_arg;
 	++args->non_uniq;
 #if REISER4_USE_COLLISION_LIMIT
-	reiser4_stat_nuniq_max((unsigned) args->non_uniq);
 	if (args->non_uniq > args->max_non_uniq) {
 		args->not_found = 1;
 		/* hash collision overflow. */

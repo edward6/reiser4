@@ -11,14 +11,16 @@
 #include <linux/config.h>
 #include <linux/profile.h>
 #include <linux/kobject.h>
+#include <linux/percpu_counter.h>
 
 #if REISER4_LOCKPROF
 
 #define PROFREGION_MAX_DEPTH (12)
 
+typedef struct percpu_counter scnt_t;
+
 typedef struct locksite {
-	int         ins;
-	int         hits;
+	scnt_t      hits;
 	const char *func;
 	const char *file;
 	int         line;
@@ -26,16 +28,15 @@ typedef struct locksite {
 
 #define LOCKSITE_INIT(name)			\
 	static locksite name = {		\
-		.ins  = 0,			\
-		.hits = 0,			\
+		.hits = PERCPU_COUNTER_INIT,	\
 		.func = __FUNCTION__,		\
 		.file = __FILE__,		\
 		.line = __LINE__		\
 	}
 
 struct profregion {
-	int            hits;
-	int            busy;
+	scnt_t         hits;
+	scnt_t         busy;
 	struct kobject kobj;
 	void          *obj;
 	int            objhit;

@@ -1189,7 +1189,11 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		return RETERR(-ENOMEM);
 
 	s->s_fs_info = sbinfo;
-	memset(sbinfo, 0, sizeof (*sbinfo));
+	xmemset(sbinfo, 0, sizeof (*sbinfo));
+	result = reiser4_stat_init(&sbinfo->stats);
+	if (result)
+		goto error0;
+
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 	ON_DEBUG(kcond_init(&sbinfo->rcu_done));
 	ON_DEBUG(atomic_set(&sbinfo->jnodes_in_flight, 0));
@@ -1201,9 +1205,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 
 	result = init_context(&ctx, s);
 	if (result) {
-		kfree(sbinfo);
-		s->s_fs_info = NULL;
-		return result;
+		goto error_one_half;
 	}
 
 	result = reiser4_parse_options(s, data);
@@ -1363,11 +1365,14 @@ error3:
 error2:
 	txnmgr_done(&sbinfo->tmgr);
 error1:
-	kfree(sbinfo);
-	s->s_fs_info = NULL;
-
 	ctx.trans = NULL;
 	done_context(&ctx);
+
+error_one_half:
+	reiser4_stat_done(&sbinfo->stats);
+error0:
+	kfree(sbinfo);
+	s->s_fs_info = NULL;
 	return result;
 }
 
@@ -1457,6 +1462,8 @@ out:
 	(void)reiser4_exit_context(&context);
 
 	phash_super_destroy(s);
+
+	reiser4_stat_done(&sbinfo->stats);
 
 	kfree(sbinfo);
 	s->s_fs_info = NULL;

@@ -22,7 +22,7 @@ void profregion_functions_start_here(void);
 void profregion_functions_end_here(void);
 
 static locksite none = {
-	.hits = 0,
+	.hits = PERCPU_COUNTER_INIT,
 	.func = "",
 	.file = "",
 	.line = 0
@@ -32,6 +32,8 @@ struct profregion_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct profregion *pregion, char *buf);
 };
+
+#define GET_SCNT(scnt) percpu_counter_read(scnt)
 
 #define PROFREGION_ATTR(aname)			\
 static struct profregion_attr aname = {		\
@@ -45,14 +47,14 @@ static struct profregion_attr aname = {		\
 static ssize_t hits_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
-	KATTR_PRINT(p, buf, "%i\n", pregion->hits);
+	KATTR_PRINT(p, buf, "%li\n", GET_SCNT(&pregion->hits));
 	return (p - buf);
 }
 
 static ssize_t busy_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
-	KATTR_PRINT(p, buf, "%i\n", pregion->busy);
+	KATTR_PRINT(p, buf, "%li\n", GET_SCNT(&pregion->busy));
 	return (p - buf);
 }
 
@@ -76,8 +78,7 @@ static ssize_t code_show(struct profregion *pregion, char *buf)
 	locksite *site;
 
 	site = pregion->code ? : &none;
-	KATTR_PRINT(p, buf, "%i:%s:%s:%i\n",
-		    site->ins, site->func, site->file, site->line);
+	KATTR_PRINT(p, buf, "%s:%s:%i\n", site->func, site->file, site->line);
 	return (p - buf);
 }
 
@@ -115,8 +116,8 @@ static ssize_t profregion_store(struct kobject * kobj,
 	struct profregion *pregion;
 
 	pregion = container_of(kobj, struct profregion, kobj);
-	pregion->hits    = 0;
-	pregion->busy    = 0;
+	percpu_counter_reset(&pregion->hits);
+	percpu_counter_reset(&pregion->busy);
 	pregion->obj     = 0;
 	pregion->objhit  = 0;
 	pregion->code    = 0;
@@ -148,21 +149,21 @@ static decl_subsys(profregion, &ktype_profregion, NULL);
 
 DEFINE_PER_CPU(struct profregionstack, inregion) = {0};
 struct profregion outside = {
-	.hits = 0,
+	.hits = PERCPU_COUNTER_INIT,
 	.kobj = {
 		.name = "outside"
 	}
 };
 
 struct profregion incontext = {
-	.hits = 0,
+	.hits = PERCPU_COUNTER_INIT,
 	.kobj = {
 		.name = "incontext"
 	}
 };
 
 struct profregion overhead = {
-	.hits = 0,
+	.hits = PERCPU_COUNTER_INIT,
 	.kobj = {
 		.name = "overhead"
 	}
@@ -184,7 +185,7 @@ static int callback(struct notifier_block *self UNUSED_ARG,
 
 	if (pc > (unsigned long)profregion_functions_start_here &&
 	    pc < (unsigned long)profregion_functions_end_here) {
-		overhead.hits ++;
+		percpu_counter_inc(&overhead.hits);
 		return 0;
 	}
 
@@ -197,7 +198,7 @@ static int callback(struct notifier_block *self UNUSED_ARG,
 
 		act = &stack->stack[ntop - 1];
 		preg = act->preg;
-		preg->hits ++;
+		percpu_counter_inc(&preg->hits);
 
 		hits = 0;
 		if (act->objloc != NULL) {
@@ -215,8 +216,10 @@ static int callback(struct notifier_block *self UNUSED_ARG,
 		}
 
 		hits = 0;
-		if (act->codeloc != NULL)
-			hits = ++ act->codeloc->hits;
+		if (act->codeloc != NULL) {
+			percpu_counter_inc(&act->codeloc->hits);
+			hits = percpu_counter_read(&act->codeloc->hits);
+		}
 		if (unlikely(hits > preg->codehit)) {
 			preg->codehit = hits;
 			preg->code    = act->codeloc;
@@ -224,12 +227,12 @@ static int callback(struct notifier_block *self UNUSED_ARG,
 		for (; ntop > 0 ; --ntop) {
 			preg = stack->stack[ntop - 1].preg;
 			if (preg != NULL)
-				++ preg->busy;
+				percpu_counter_inc(&preg->busy);
 		}
 	} else if (is_in_reiser4_context())
-		incontext.hits ++;
+		percpu_counter_inc(&incontext.hits);
 	else
-		outside.hits ++;
+		percpu_counter_inc(&outside.hits);
 	put_cpu_var(inregion);
 	return 0;
 }
@@ -313,8 +316,6 @@ void profregfill(struct pregactivation *act,
 	act->preg    = pregion;
 	act->objloc  = objloc;
 	act->codeloc = codeloc;
-	if (codeloc != NULL)
-		++ codeloc->ins;
 }
 
 void profregion_in(int cpu, struct profregion *pregion,

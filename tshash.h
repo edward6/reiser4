@@ -10,6 +10,7 @@
 #define __REISER4_TSHASH_H__
 
 #include "debug.h"
+#include "stats.h"
 
 /* FIXME_JMACD Nikita says this should use doubly linked list. -josh */
 
