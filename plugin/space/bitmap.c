@@ -612,6 +612,8 @@ load_and_lock_bnode(struct bnode *bnode)
 {
 	int ret;
 
+	assert ("zam-780", lock_counters()->spin_locked == 0);
+
 	down(&bnode->sema);
 
 	if (!bnode->loaded) {
