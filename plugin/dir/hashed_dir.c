@@ -370,9 +370,9 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 
 	assert( "nikita-1130", lh != NULL );
 	assert( "nikita-1128", dir != NULL );
-	assert( "nikita-1129", name != NULL );
 
 	name = &de -> d_name;
+	assert( "nikita-1129", name != NULL );
 	
 	/* 
 	 * dentry private data don't require lock, because dentry
