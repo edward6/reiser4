@@ -65,44 +65,19 @@ typedef struct {
 	  
 	   ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
 	*/
-	reiser4_key *(*max_key_inside) (const coord_t * coord, reiser4_key * area, void *);
-	/* Maximal key that is _really_ occupied by this item currently. This
-	   cannot be greater than ->max_key_inside.
-	  
-	   For example extent with the key 
-	  
-	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-	  
-	   ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
-	  
-	   ->real_max_key_inside is 
-	  
-	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size - 1)
-	  
-	*/
-	/*reiser4_key *(*real_max_key_inside) (const coord_t * coord, reiser4_key *);*/
+	reiser4_key *(*max_key_inside) (const coord_t *, reiser4_key *);
 
 	/* true if item @coord can merge data at @key. */
-	int (*can_contain_key) (const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data);
+	int (*can_contain_key) (const coord_t *, const reiser4_key *, const reiser4_item_data *);
 	/* mergeable() - check items for mergeability
 	  
 	   Optional method. Returns true if two items can be merged.
 	  
 	*/
-	int (*mergeable) (const coord_t * p1, const coord_t * p2);
-
-#if REISER4_DEBUG_OUTPUT
-	/* used for debugging only, prints an ascii description of the
-	   item contents */
-	void (*print) (const char *, coord_t * coord);
-#endif
-	/* used for debugging, every item should have here the most
-	   complete possible check of the consistency of the item that
-	   the inventor can construct */
-	int (*check) (const coord_t * coord, const char **error);
+	int (*mergeable) (const coord_t *, const coord_t *);
 
 	/* number of atomic things in an item */
-	unsigned (*nr_units) (const coord_t * coord);
+	pos_in_item_t (*nr_units) (const coord_t *);
 
 	/* search within item for a unit within the item, and return a
 	   pointer to it.  This can be used to calculate how many
@@ -111,21 +86,18 @@ typedef struct {
 	   are continuous in the node, if the item's data are not
 	   continuous in the node, all sorts of other things are maybe
 	   going to break as well. */
-	lookup_result(*lookup) (const reiser4_key * key, lookup_bias bias, coord_t * coord);
-	/* optional method. It is called by node lookup method when key matches to item key and item's lookup does not
-	   get called */
-	void (*init_coord)(coord_t * coord);
+	lookup_result(*lookup) (const reiser4_key *, lookup_bias, coord_t *);
 	/* method called by ode_plugin->create_item() to initialise new
 	   item */
-	int (*init) (coord_t * coord, reiser4_item_data * data);
+	int (*init) (coord_t *, reiser4_item_data *);
 	/* method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
-	int (*paste) (coord_t * coord, reiser4_item_data * data, carry_plugin_info * info);
+	int (*paste) (coord_t *, reiser4_item_data *, carry_plugin_info *);
 	/* return true if paste into @coord is allowed to skip
 	   carry. That is, if such paste would require any changes
 	   at the parent level
 	*/
-	int (*fast_paste) (const coord_t * coord);
+	int (*fast_paste) (const coord_t *);
 	/* how many but not more than @want units of @source can be
 	   shifted into @target node. If pend == append - we try to
 	   append last item of @target by first units of @source. If
@@ -137,8 +109,8 @@ typedef struct {
 	   @target is not NULL if shifting to the mergeable item and
 	   NULL is new item will be created during shifting.
 	*/
-	int (*can_shift) (unsigned free_space, coord_t * source,
-			  znode * target, shift_direction pend, unsigned *size, unsigned want);
+	int (*can_shift) (unsigned free_space, coord_t *,
+			  znode *, shift_direction, unsigned *size, unsigned want);
 
 	/* starting off @from-th unit of item @source append or
 	   prepend @count units to @target. @target has been already
@@ -146,10 +118,10 @@ typedef struct {
 	   needed for those items in @target. If @where_is_free_space
 	   == SHIFT_LEFT - free space is at the end of @target item,
 	   othersize - it is in the beginning of it. */
-	void (*copy_units) (coord_t * target, coord_t * source,
+	void (*copy_units) (coord_t *, coord_t *,
 			    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
 
-	int (*create_hook) (const coord_t * item, void *arg);
+	int (*create_hook) (const coord_t *, void *);
 	/* do whatever is necessary to do when @count units starting
 	   from @from-th one are removed from the tree */
 	/* FIXME-VS: this is used to be here for, in particular,
@@ -164,8 +136,8 @@ typedef struct {
 	   balancing to perform dealloc_block - this will probably
 	   break balancing due to deadlock issues
 	*/
-	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count, void *);
-	int (*shift_hook) (const coord_t * item, unsigned from, unsigned count, znode * old_node);
+	int (*kill_hook) (const coord_t *, unsigned from, unsigned count, void *);
+	int (*shift_hook) (const coord_t *, unsigned from, unsigned count, znode *_node);
 
 	/* unit @*from contains @from_key. unit @*to contains
 	   @to_key. Cut all keys between @from_key and @to_key
@@ -178,74 +150,83 @@ typedef struct {
 	   removed key is @smallest_removed is not 0
 	*/
 	int (*cut_units) (coord_t *, unsigned *from, unsigned *to,
-			  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
+			  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, void *);
 
 	/* like cut_units, except that these units are removed from the
 	   tree, not only from a node */
 	int (*kill_units) (coord_t *, unsigned *from, unsigned *to,
-			   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
+			   const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, void *);
 
 	/* if @key_of_coord == 1 - returned key of coord, otherwise -
 	   key of unit is returned. If @coord is not set to certain
 	   unit - ERR_PTR(-ENOENT) is returned */
-	reiser4_key *(*unit_key) (const coord_t * coord, reiser4_key * key);
+	reiser4_key *(*unit_key) (const coord_t *, reiser4_key *);
 	/* estimate how much space is needed for paste @data into item at
 	   @coord. if @coord==0 - estimate insertion, otherwise - estimate
 	   pasting
 	*/
-	int (*estimate) (const coord_t * coord, const reiser4_item_data * data);
+	int (*estimate) (const coord_t *, const reiser4_item_data *);
 
 	/* converts flow @f to item data. @coord == 0 on insert */
-	int (*item_data_by_flow) (const coord_t * coord, const flow_t * f, reiser4_item_data * data);
+	int (*item_data_by_flow) (const coord_t *, const flow_t *, reiser4_item_data *);
 
+#if REISER4_DEBUG_OUTPUT
+	/* used for debugging only, prints an ascii description of the
+	   item contents */
+	void (*print) (const char *, coord_t *);
 	/* gather statistics */
-	void (*item_stat) (const coord_t * coord, void *);
+	void (*item_stat) (const coord_t *, void *);
+#endif
+
+#if REISER4_DEBUG
+	/* used for debugging, every item should have here the most
+	   complete possible check of the consistency of the item that
+	   the inventor can construct */
+	int (*check) (const coord_t *, const char **error);
+#endif
+
 } balance_ops;
 
 typedef struct {
 	/* return the right or left child of @coord, only if it is in memory */
-	int (*utmost_child) (const coord_t * coord, sideof side, jnode ** child);
+	int (*utmost_child) (const coord_t *, sideof side, jnode ** child);
 
 	/* return whether the right or left child of @coord has a non-fake
 	   block number. */
-	int (*utmost_child_real_block) (const coord_t * coord, sideof side, reiser4_block_nr * block);
+	int (*utmost_child_real_block) (const coord_t *, sideof side, reiser4_block_nr *);
 	/* relocate child at @coord to the @block */
-	void (*update) (const coord_t * coord, const reiser4_block_nr * block);
+	void (*update) (const coord_t *, const reiser4_block_nr *);
 } flush_ops;
 
 /* operations specific to the directory item */
 typedef struct {
 	/* extract stat-data key from directory entry at @coord and place it
 	   into @key. */
-	int (*extract_key) (const coord_t * coord, reiser4_key * key);
+	int (*extract_key) (const coord_t *, reiser4_key * key);
 	/* update object key in item. */
-	int (*update_key) (const coord_t * coord, const reiser4_key * key, lock_handle * lh);
+	int (*update_key) (const coord_t *, const reiser4_key *, lock_handle *);
 	/* extract name from directory entry at @coord and return it */
-	char *(*extract_name) (const coord_t * coord, char *buf);
+	char *(*extract_name) (const coord_t *, char *buf);
 	/* extract file type (DT_* stuff) from directory entry at @coord and
 	   return it */
-	unsigned (*extract_file_type) (const coord_t * coord);
-	int (*add_entry) (struct inode * dir,
-			  coord_t * coord, lock_handle * lh,
-			  const struct dentry * name, reiser4_dir_entry_desc * entry);
-	int (*rem_entry) (struct inode * dir, const struct qstr * name,
-			  coord_t * coord, lock_handle * lh, 
-			  reiser4_dir_entry_desc * entry);
-	int (*max_name_len) (const struct inode * dir);
+	unsigned (*extract_file_type) (const coord_t *);
+	int (*add_entry) (struct inode *dir,
+			  coord_t *, lock_handle *,
+			  const struct dentry *name, reiser4_dir_entry_desc *entry);
+	int (*rem_entry) (struct inode *dir, const struct qstr *name,
+			  coord_t *, lock_handle *, 
+			  reiser4_dir_entry_desc *entry);
+	int (*max_name_len) (const struct inode *dir);
 } dir_entry_ops;
 
-/* operations specific to items regular file metadata are built of */
+/* operations specific to items regular (unix) file metadata are built of */
 typedef struct {
-	/* @page is used in extent's write. If it is set (when tail2extent
-	   conversion is in progress) - do not grab a page and do not copy data
-	   from flow into it because all the data are already */
-	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int grabbed);
-	int (*read) (struct file *, coord_t *, flow_t *);
+	int (*write)(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
+	int (*read)(struct file *, flow_t *, uf_coord_t *);
 	int (*readpage) (void *, struct page *);
-	int (*writepage) (coord_t *, lock_handle *, struct page *);
-	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *, unsigned long start, unsigned long count);
-	int (*get_block) (const coord_t *, sector_t, struct buffer_head *);
-	void (*readpages) (coord_t *, struct address_space *, struct list_head *pages);
+	int (*writepage) (uf_coord_t *, struct page *, write_mode_t);
+	int (*get_block) (const uf_coord_t *, sector_t, struct buffer_head *);
+	void (*readpages) (void *, struct address_space *, struct list_head *pages);
 	/* key of first byte which is not addressed by the item @coord is set to
 	   For example extent with the key 
 	  
@@ -254,10 +235,15 @@ typedef struct {
 	   ->append_key is 
 	  
 	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size) */
-	reiser4_key *(*append_key) (const coord_t * coord, reiser4_key *, void *);
-	/* return true if item contains key in it, coord is adjusted correspondingly */
-	int (*key_in_item) (coord_t * coord, const reiser4_key * key, void *);
+	/* FIXME: could be uf_coord also */
+	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
 
+	void (*init_coord_extension)(uf_coord_t *, loff_t);
+
+#if REISER4_DEBUG
+	/* return true if item contains key in it, coord is adjusted correspondingly */
+	int (*key_in_item) (const uf_coord_t *, const reiser4_key *);
+#endif
 } file_ops;
 
 /* operations specific to items of stat data type */
