@@ -499,9 +499,9 @@ jparse(jnode * node, struct page *page)
 	result = 0;
 	if (!jnode_is_loaded(node)) {
 		result = jnode_ops(node)->parse(node);
-		if (likely(result == 0)) {
+		if (likely(result == 0))
 			JF_SET(node, JNODE_LOADED);
-		} else {
+		else {
 			/* if parsing failed, detach jnode from page. */
 			assert("nikita-2467", page == jnode_page(node));
 			page_clear_jnode(page, node);
@@ -533,6 +533,7 @@ jload(jnode * node)
 	result = 0;
 	reiser4_stat_znode_add(zload);
 	jref(node);
+	spin_lock_jnode(node);
 	add_d_ref(node);
 	if (!jnode_is_loaded(node)) {
 		jnode_plugin *jplug;
@@ -574,7 +575,8 @@ jload(jnode * node)
 		    smaller (not yet implemented). Pointer to atom?
 
 		*/
-		page = UNDER_SPIN(jnode, node, jnode_page(node));
+		page = jnode_page(node);
+		spin_unlock_jnode(node);
 		/* subtle locking point: ->pg pointer is protected by jnode
 		   spin lock, but it is safe to release spin lock here,
 		   because page can be detached from jnode only when ->d_count
@@ -619,12 +621,14 @@ jload(jnode * node)
 	} else {
 		struct page *page;
 
+		spin_unlock_jnode(node);
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
 	}
-	if (result == 0 && jnode_is_znode(node))
-		assert("nikita-2678", JZNODE(node)->nplug);
+	assert("nikita-2814", ergo(result == 0, jnode_is_loaded(node)));
+	assert("nikita-2816", ergo(result == 0 && jnode_is_znode(node),
+				   JZNODE(node)->nplug != NULL));
 	return result;
 }
 
@@ -651,12 +655,9 @@ jinit_new(jnode * node /* jnode to initialise */ )
 		result = 0;
 		spin_lock_jnode(node);
 		if (likely(!jnode_is_loaded(node))) {
-			JF_SET(node, JNODE_LOADED);
-			assert("nikita-1235", jnode_is_loaded(node));
 			result = jplug->init(node);
-			if (unlikely(result != 0)) {
-				JF_CLR(node, JNODE_LOADED);
-			}
+			if (likely(result == 0))
+				JF_SET(node, JNODE_LOADED);
 		}
 		spin_unlock_jnode(node);
 	} else
@@ -873,6 +874,7 @@ jnode_set_type(jnode * node, jnode_type type)
 	};
 
 	assert("zam-647", type < LAST_JNODE_TYPE);
+	assert("nikita-2815", !jnode_is_loaded(node));
 
 	node->state &= ((1UL << JNODE_TYPE_1) - 1);
 	node->state |= (type_to_mask[type] << JNODE_TYPE_1);
@@ -990,7 +992,7 @@ znode_init(jnode * node)
 	znode *z;
 
 	z = JZNODE(node);
-	return node_plugin_by_node(z)->init(z);
+	return z->nplug->init(z);
 }
 
 static int
