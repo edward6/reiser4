@@ -504,7 +504,7 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 
 		unlock_page (pg);
 
-		// jnode_ops (cur)->io_hook (first, pg, WRITE);
+		jnode_ops (first)->io_hook (first, pg, WRITE);
 
 		bio->bi_io_vec[nr_processed].bv_page   = pg;
 		bio->bi_io_vec[nr_processed].bv_len    = s->s_blocksize;
