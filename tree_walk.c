@@ -73,9 +73,13 @@ static int lock_neighbor (
 	while (1) {
 		reiser4_stat_znode_add(lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
-		if (neighbor == NULL || 
-		    ((flags & GN_ALLOW_NOT_CONNECTED) && !znode_is_connected(neighbor)))
+
+		if (neighbor == NULL) return -ENAVAIL;
+
+		if (!((flags & GN_ALLOW_NOT_CONNECTED) || znode_is_connected(neighbor))) {
+			assert ("zam-682", ergo (ptr_offset == PARENT_PTR_OFFSET, znode_above_root(neighbor)));
 			return -ENAVAIL;
+		}
 
 		/* protect it from deletion. */
 		zref(neighbor);
@@ -132,7 +136,7 @@ int reiser4_get_parent (lock_handle * result /* resulting lock
 	
 	spin_lock_tree(tree);
 	ret = lock_neighbor(result, node, PARENT_PTR_OFFSET, mode, ZNODE_LOCK_HIPRI, 
-			    only_connected_p ? GN_ALLOW_NOT_CONNECTED:0);
+			    only_connected_p ? 0: GN_ALLOW_NOT_CONNECTED);
 	spin_unlock_tree(tree);
 
 	return ret;
