@@ -419,7 +419,12 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count, capture_list_head *p
 	do {
 		count --;		
 		junprotect(node);
-		if (count == 0) {
+		ON_DEBUG(
+			LOCK_JNODE(node);
+			count_jnode(atom, node, PROTECT_LIST, DIRTY_LIST, 0);
+			UNLOCK_JNODE(node);
+			);
+		if (count == 0) {			
 			break;
 		}
 		tmp = capture_list_prev(node);
@@ -429,7 +434,7 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count, capture_list_head *p
 
 	/* move back to dirty list */
 	capture_list_split(protected_nodes, &unprotected_nodes, node);
-	capture_list_splice(&atom->dirty_nodes[LEAF_LEVEL], &unprotected_nodes);
+	capture_list_splice(ATOM_DIRTY_LIST(atom, LEAF_LEVEL), &unprotected_nodes);
 
 	UNLOCK_ATOM(atom);
 }
@@ -442,13 +447,13 @@ protect_reloc_node(capture_list_head *jnodes, jnode *node)
 {
 	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
 	assert("vs-1216", jnode_is_unformatted(node));
-	assert("vs-1468", node->list == DIRTY_LIST);
 	assert("vs-1477", spin_atom_is_locked(node->atom));
 	assert("nikita-3390", spin_jnode_is_locked(node));
 
 	JF_SET(node, JNODE_EPROTECTED);
 	capture_list_remove_clean(node);
 	capture_list_push_back(jnodes, node);
+	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, PROTECT_LIST, 0));
 }
 
 #define JNODES_TO_UNFLUSH (16)
@@ -656,6 +661,8 @@ conv_extent(coord_t *coord, reiser4_extent *replace)
 	return result;
 }
 
+/* for every jnode from @protected_nodes list assign block number and mark it RELOC and FLUSH_QUEUED. Attach whole
+   @protected_nodes list to flush queue's prepped list */
 static void
 assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_block_nr count,
 		     extent_state state, capture_list_head *protected_nodes)
@@ -673,18 +680,17 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 		assert("vs-1132", ergo(state == UNALLOCATED_EXTENT, blocknr_is_fake(jnode_get_block(node))));
 		assert("vs-1475", node->atom == atom);
 		assert("vs-1476", atomic_read(&node->x_count) > 0);
-		assert("vs-1412", JF_ISSET(node, JNODE_EPROTECTED));
- 		assert("vs-1460", !JF_ISSET(node, JNODE_EFLUSH));
 		JF_CLR(node, JNODE_FLUSH_RESERVED);
 		jnode_set_block(node, &first);
 		unformatted_make_reloc(node, fq);
+		/*XXXX*/ON_DEBUG(count_jnode(node->atom, node, PROTECT_LIST, FQ_LIST, 0));
 		junprotect(node);
-		ON_DEBUG(node->list = FQ_LIST);
+		assert("", NODE_LIST(node) == FQ_LIST);
 		UNLOCK_JNODE(node);
 		first ++;
 	}
 
-	capture_list_splice(&fq->prepped, protected_nodes);
+	capture_list_splice(ATOM_FQ_LIST(fq), protected_nodes);
 	UNLOCK_ATOM(atom);
 }
 
@@ -699,7 +705,7 @@ make_node_ovrwr(capture_list_head *jnodes, jnode *node)
 	JF_SET(node, JNODE_OVRWR);
 	capture_list_remove_clean(node);
 	capture_list_push_back(jnodes, node);	
-	ON_DEBUG(node->list = OVRWR_LIST);
+	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, OVRWR_LIST, 0));
 
 	UNLOCK_JNODE(node);
 }
@@ -744,7 +750,7 @@ mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid, unsigned long index, re
 		atomic_dec(&node->x_count);
 	}
 	
-	capture_list_splice(&atom->ovrwr_nodes, &jnodes);
+	capture_list_splice(ATOM_OVRWR_LIST(atom), &jnodes);
 	UNLOCK_ATOM(atom);	
 }
 
