@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Avoid commands that do not succeed
-if test "X$BK_STATUS" != XOK; then
+# Avoid commands that do nothing
+if test "X$BK_STATUS" = XDRYRUN -o "X$BK_STATUS" = XNOTHING; then
     exit 0
 fi
 
@@ -10,7 +10,15 @@ if test "X$BK_EVENT" != "Xincoming push"; then
     exit 0
 fi
 
-MODULE=`basename $BKD_ROOT`
+if test "X$BK_CSETLIST" == X; then
+    exit 0
+fi
+
+CSET=`cat $BK_CSETLIST`
+
+SUBJECT=`bk rset -r$CSET | cut --delim=\| -f1 | grep -v ^BitKeeper | grep -v ChangeSet`
+
+SUBJECT=`echo $SUBJECT`
 
 (
 echo "Changes by ${BK_USER}@${BK_HOST} at" `date`
@@ -18,18 +26,13 @@ echo "Repository ${BKD_HOST}:${BKD_ROOT}"
 echo
 
 # export the changes as a patch and remove some of the BK header
-if test "X$BK_CSETLIST" != X; then
-(
 #     bk changes -v - < $BK_CSETLIST
-     bk export -T -tpatch -du -r`cat $BK_CSETLIST`
-) \
+# indent it:
+#| sed 's/^/    /'
+
+bk export -T -tpatch -du -r$CSET \
 | tail +5 - \
 | grep -v "^#$" \
 | grep -v "^# The following is the BitKeeper ChangeSet Log$"
 
-# indent it:
-#| sed 's/^/    /'
-
-fi
-
-) | mail -s "bk commit" reiserfs-dev@namesys.com
+) | mail -s "[bk] ${SUBJECT}" reiserfs-dev@namesys.com
