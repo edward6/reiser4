@@ -685,6 +685,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	any_shifted = ! coord_is_after_rightmost (& at_right);
 
+	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after right neighbor %p[x=%u]: any_shifted = %u: %s\n", call_depth, right_lock.node, atomic_read (& right_lock.node->x_count), any_shifted, flush_pos_tostring (pos));
+
 	/* any_shifted may be true but we still may have allocated to the end of a twig
 	 * (via extent_copy_and_allocate), in which case we should unset it. */
 	if (any_shifted && node == pos->parent_coord.node) {
@@ -718,7 +720,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* If we emptied and allocated the entire contents of the right twig, try again,
 	 * unless we are at an internal node, in which case the next if-statement
 	 * applies. */
-	if ((any_shifted == 0 || znode_get_level (node) == LEAF_LEVEL) && node_is_empty (right_lock.node)) {
+	if ((any_shifted == 0 || call_depth == 0) && node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_zh (& right_load);
 		done_lh (& right_lock);
@@ -733,11 +735,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
-	if (node_is_empty (right_lock.node)) {
-		ret = 0;
-		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right node empty: %s\n", call_depth, flush_pos_tostring (pos));
-		goto exit;
-	}
+	assert ("jmacd-18231", ! node_is_empty (right_lock.node));
 
 	/* Here we still have the right node locked, current node is full, ready to shift
 	 * positions, but first we have to check for ancestor changes and squeeze going
@@ -1740,6 +1738,7 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 	if (! go) {
 		jput (tonode);
 		scan->stop = 1;
+		trace_on (TRACE_FLUSH, "flush scan stop: node %p do not go to %p\n", scan->node, tonode);
 	}
 
 	return go;
@@ -2086,7 +2085,8 @@ static int flush_scan_formatted (flush_scan *scan)
 			break;
 		}
 
-		trace_on (TRACE_FLUSH, "format scan node %p(atom=%p,dirty=%u,allocated=%u)\n",
+		trace_on (TRACE_FLUSH, "format scan %s node %p(atom=%p,dirty=%u,allocated=%u)\n",
+			  flush_scanning_left (scan) ? "left" : "right", 
 			  neighbor, neighbor->zjnode.atom, znode_check_dirty (neighbor), znode_check_allocated (neighbor));
 
 		/* Check the condition for going left, break if it is not met,
