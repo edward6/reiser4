@@ -417,7 +417,6 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 	lock_handle lh;
 	reiser4_key key;
 	item_plugin * iplug;
-	struct readpage_arg arg;
 
 
 	/* get key of first byte of the page */
@@ -449,9 +448,7 @@ int unix_file_readpage_nolock (struct file * file, struct page * page)
 		return -EINVAL;
 	}
 
-	arg.coord = &coord;
-	arg.lh = &lh;
-	result = iplug->s.file.readpage (&arg, page);
+	result = iplug->s.file.readpage (&coord, page);
 
 	zrelse (coord.node);
 	done_lh (&lh);
