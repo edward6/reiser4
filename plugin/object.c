@@ -918,10 +918,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					  .pops = NULL,
 					  .label = "reg",
 					  .desc = "regular file",
-					  .linkage = TS_LIST_LINK_ZERO}
-				    ,
-				    .write_flow = NULL,
-				    .read_flow = NULL,
+					  .linkage = TS_LIST_LINK_ZERO
+				    },
 				    .truncate = unix_file_truncate,
 				    .write_sd_by_inode = common_file_save,
 				    .readpage = unix_file_readpage,
@@ -955,19 +953,17 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .truncate = unix_file_estimate_truncate,
 					    .release = unix_file_estimate_release,
 					    .mmap = unix_file_estimate_mmap,
-					    .delete = common_estimate_file_delete}}
-	,
+					    .delete = common_estimate_file_delete
+				    }
+	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 				      .h = {
 					    .type_id = REISER4_FILE_PLUGIN_TYPE,
 					    .id = DIRECTORY_FILE_PLUGIN_ID,
 					    .pops = NULL,
 					    .label = "dir",
-					    .desc = "hashed directory",
-					    .linkage = TS_LIST_LINK_ZERO}
-				      ,
-				      .write_flow = NULL,
-				      .read_flow = NULL,
+					    .desc = "directory",
+					    .linkage = TS_LIST_LINK_ZERO},
 				      .truncate = NULL,	/* EISDIR */
 				      .write_sd_by_inode = common_file_save,
 				      .readpage = NULL,	/* EISDIR */
@@ -996,8 +992,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .estimate = {
 					    .create = common_estimate_create,
 					    .update = common_estimate_update,
-					    .delete = common_estimate_file_delete}}
-	,
+					    .delete = common_estimate_file_delete
+				      }
+	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 				    .h = {
 					  .type_id = REISER4_FILE_PLUGIN_TYPE,
@@ -1007,8 +1004,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					  .desc = "symbolic link",
 					  .linkage = TS_LIST_LINK_ZERO}
 				    ,
-				    .write_flow = NULL,
-				    .read_flow = NULL,
 				    .truncate = NULL,
 				    .write_sd_by_inode = common_file_save,
 				    .readpage = NULL,
@@ -1038,8 +1033,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .estimate = {
 					    .create = common_estimate_create,
 					    .update = common_estimate_update,
-					    .delete = common_estimate_file_delete}}
-	,
+					    .delete = common_estimate_file_delete
+				    }
+	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 				    .h = {
 					  .type_id = REISER4_FILE_PLUGIN_TYPE,
@@ -1049,8 +1045,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					  .desc = "special: fifo, device or socket",
 					  .linkage = TS_LIST_LINK_ZERO}
 				    ,
-				    .write_flow = NULL,
-				    .read_flow = NULL,
 				    .truncate = NULL,
 				    .create = common_file_create,
 				    .write_sd_by_inode = common_file_save,
@@ -1079,7 +1073,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .estimate = {
 					.create	= common_estimate_create,
 					.update	= common_estimate_update,
-					.delete	= common_estimate_file_delete}}
+					.delete	= common_estimate_file_delete
+				    }
+	}
 };
 
 /* Make Linus happy.

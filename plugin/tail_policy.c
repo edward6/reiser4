@@ -11,6 +11,7 @@
 
 #include "../tree.h"
 #include "../inode.h"
+#include "../super.h"
 #include "object.h"
 #include "plugin.h"
 #include "node/node.h"
@@ -50,8 +51,9 @@ static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t 
 	    /* Here we are counting the number of blocks needed for creating of the
 	       allocated extent(s). The digit 3 is the number of dirty nodes on 
 	       the twing level. */
-	    return div64_32(size + (current_blocksize - 1), current_blocksize, NULL) + 
-		inode_file_plugin(inode)->estimate.update(inode) + 3;
+	    return ((size + (current_blocksize - 1)) >> 
+		    reiser4_get_current_sb()->s_blocksize_bits) +
+		    inode_file_plugin(inode)->estimate.update(inode) + 3;
 	}
 }
 

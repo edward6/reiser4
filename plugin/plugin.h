@@ -147,13 +147,6 @@ typedef struct file_plugin {
 
 	/* generic fields */
 	plugin_header h;
-/* reiser4 required file operations */
-
-	int (*write_flow) (flow_t *,	/* buffer of data to write */
-			   reiser4_key *);
-	int (*read_flow) (flow_t *,	/* buffer to hold data to be read */
-			  reiser4_key *);
-/* VFS required/defined operations */
 	int (*truncate) (struct inode * inode, loff_t size);
 
 	/* save inode cached stat-data onto disk. It was called
@@ -255,20 +248,13 @@ typedef struct file_plugin {
 typedef struct dir_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* resolves one component of name_in, and returns the key that it
-	   resolves to plus the remaining name */
-	int (*resolve) (name_t * name_in,	/* name within this directory that is to be found */
-			name_t * name_out,	/* name remaining after the part of the name that was resolved is stripped from it */
-			key_t key_found	/* key of what was named */
-	    );
-
 	/* for use by open call, based on name supplied will install
 	   appropriate plugin and state information, into the inode such that
 	   subsequent VFS operations that supply a pointer to that inode
 	   operate in a manner appropriate.  Note that this may require storing
 	   some state for the plugin, and that this state might even include
 	   the name used by open.  */
-	int (*resolve_into_inode) (struct inode * parent_inode, struct dentry * dentry);
+	int (*lookup) (struct inode * parent_inode, struct dentry * dentry);
 	/* VFS required/defined operations below this line */
 	int (*unlink) (struct inode * parent, struct dentry * victim);
 	int (*link) (struct inode * parent, struct dentry * existing, struct dentry * where);

@@ -1010,8 +1010,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 					.desc = "hashed directory",
 					.linkage = TS_LIST_LINK_ZERO}
 				  ,
-				.resolve = NULL,
-				.resolve_into_inode = hashed_lookup,
+				.lookup = hashed_lookup,
 				.unlink = common_unlink,
 				.link = common_link,
 				.is_name_acceptable = is_name_acceptable,
@@ -1033,8 +1032,9 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 					.unlink = common_estimate_unlink,
 					.rename	= hashed_estimate_rename,
 					.init = hashed_estimate_init,
-					.done = hashed_estimate_done}}
-	,
+					.done = hashed_estimate_done
+				}
+	},
 	[SEEKABLE_HASHED_DIR_PLUGIN_ID] = {
 				.h = {
 					.type_id = REISER4_DIR_PLUGIN_TYPE,
@@ -1044,8 +1044,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 					.desc = "hashed directory",
 					.linkage = TS_LIST_LINK_ZERO}
 				,
-				.resolve = NULL,
-				.resolve_into_inode = hashed_lookup,
+				.lookup = hashed_lookup,
 				.unlink = common_unlink,
 				.link = common_link,
 				.is_name_acceptable = is_name_acceptable,
@@ -1067,8 +1066,9 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 					.unlink = common_estimate_unlink,
 					.rename	= hashed_estimate_rename,
 					.init = hashed_estimate_init,
-					.done = hashed_estimate_done}}
-	,
+					.done = hashed_estimate_done
+				}
+	}
 };
 
 /* Make Linus happy.

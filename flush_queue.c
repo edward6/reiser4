@@ -555,8 +555,14 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 	nr_processed = 0;
 	while (1) {
+		int result;
 		struct page *pg;
 
+		assert("nikita-2776", JF_ISSET(first, JNODE_FLUSH_QUEUED));
+		result = emergency_unflush(first);
+		if (result != 0)
+			rpanic("nikita-2775", 
+			       "Failure to reload jnode: %i", result);
 		pg = jnode_page(first);
 
 		/* This page is protected from washing from the page cache by
@@ -596,7 +602,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		bio->bi_io_vec[nr_processed].bv_len = s->s_blocksize;
 		bio->bi_io_vec[nr_processed].bv_offset = 0;
 
-		if ( ++ nr_processed >= nr)
+		if (++ nr_processed >= nr)
 			break;
 
 		first = capture_list_next(first);

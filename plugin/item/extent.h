@@ -41,14 +41,13 @@ extent_get_width(const reiser4_extent * ext)
 	return dblock_to_cpu(&ext->width);
 }
 
-extern __u64 reiser4_block_count(const struct super_block *super);
-extern struct super_block *reiser4_get_current_sb(void);
+extern __u64 reiser4_current_block_count(void);
 
 static inline void
 extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
 {
 	cassert(sizeof (ext->start) == 8);
-	assert("nikita-2510", ergo(start > 1, start < reiser4_block_count(reiser4_get_current_sb())));
+	assert("nikita-2510", ergo(start > 1, start < reiser4_current_block_count()));
 	cpu_to_dblock(start, &ext->start);
 }
 
@@ -59,7 +58,7 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 	cpu_to_dblock(width, &ext->width);
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
-		    extent_get_start(ext) + width <= reiser4_block_count(reiser4_get_current_sb())));
+		    extent_get_start(ext) + width <= reiser4_current_block_count()));
 }
 
 #define extent_item(coord) ((reiser4_extent *)item_body_by_coord (coord))

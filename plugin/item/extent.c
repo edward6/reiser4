@@ -2395,6 +2395,23 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	return result;
 }
 
+static int
+unflush(coord_t *coord)
+{
+	jnode        *node;
+	reiser4_key   key;
+	unsigned long ind;
+
+	unit_key_by_coord(coord, &key);
+	ind = get_key_offset(key) >> PAGE_CACHE_SHIFT;
+	
+	for (i = 0; i < (int) count; i++, first++) {
+
+		ind = offset >> PAGE_CACHE_SHIFT;
+
+		j = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(key), ind));
+}
+
 /* find all units of extent item which require allocation. Allocate free blocks
    for them and replace those extents with new ones. As result of this item may
    "inflate", so, special precautions are taken to have it to inflate to right
@@ -2450,6 +2467,10 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		/* inform block allocator that those blocks were in
 		   UNALLOCATED stage */
 		flush_pos_hint(flush_pos)->block_stage = BLOCK_UNALLOCATED;
+		result = unflush(coord);
+		if (result)
+			return result;
+
 		result = extent_allocate_blocks(flush_pos_hint(flush_pos), initial_width, &first_allocated, &allocated);
 		if (result)
 			return result;

@@ -3306,6 +3306,8 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);
 	assert("jmacd-1406", jnode_is_unformatted(scan->node));
 
+	emergency_unflush(scan->node);
+
 	/* The scan_index variable corresponds to the current page index of the
 	   unformatted block scan position. */
 	scan_index = jnode_get_index(scan->node);

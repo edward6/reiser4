@@ -174,7 +174,7 @@ typedef struct carry_cut_data {
    For the operations of the first type we store in &carry_op pointer to
    the &carry_node at the parent level. For the operation of the second
    type we store &carry_node or parents of the left and right nodes
-   modified and keep track of them upward until they conicide.
+   modified and keep track of them upward until they coincide.
   
 */
 typedef struct carry_op {

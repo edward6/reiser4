@@ -647,7 +647,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
 
-		reiser4_grab_space_enable();
+		grab_space_enable();
 		parent = (reiser4_context *) current->fs_context;
 		if (parent->super == super) {
 			context->parent = parent;
@@ -685,7 +685,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context->task = current;
 #endif
 
-	reiser4_grab_space_enable();
+	grab_space_enable();
 	if (sdata->fake && !(current->flags & PF_MEMALLOC))
 		/*
 		 * FIXME-ZAM: temporary

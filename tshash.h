@@ -88,6 +88,13 @@ we do as much deletion as insertion....
 */
 #define TS_HASH_DEFINE(PREFIX,ITEM_TYPE,KEY_TYPE,KEY_NAME,LINK_NAME,HASH_FUNC,EQ_FUNC)	\
 											\
+static __inline__ void									\
+PREFIX##_check_hash (PREFIX##_hash_table *table,					\
+		     __u32                hash)						\
+{											\
+	assert("nikita-2780", hash < table->_buckets);					\
+}											\
+											\
 static __inline__ int									\
 PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
 		    __u32                buckets)					\
@@ -117,6 +124,8 @@ PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
 {											\
   ITEM_TYPE *item;									\
 											\
+  PREFIX##_check_hash(hash, hash_index);						\
+											\
   for (item  = hash->_table[hash_index];						\
        item != NULL;									\
        item  = item->LINK_NAME._next)							\
@@ -137,6 +146,8 @@ PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
 {											\
   ITEM_TYPE *hash_item = hash->_table[hash_index];					\
   ITEM_TYPE *last_item;									\
+											\
+  PREFIX##_check_hash(hash, hash_index);						\
 											\
   if (del_item == hash_item)								\
     {											\
@@ -163,6 +174,8 @@ PREFIX##_hash_insert_index (PREFIX##_hash_table *hash,					\
 			    __u32                hash_index,				\
 			    ITEM_TYPE           *ins_item)				\
 {											\
+  PREFIX##_check_hash(hash, hash_index);						\
+											\
   ins_item->LINK_NAME._next = hash->_table[hash_index];					\
   hash->_table[hash_index]  = ins_item;							\
 }											\

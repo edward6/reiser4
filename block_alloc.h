@@ -85,9 +85,6 @@ extern int reiser4_grab_space(reiser4_block_nr *grabbed,
 extern int reiser4_grab_space_exact(__u64 count, reiser4_ba_flags_t flags);
 extern int reiser4_grab_space_force(__u64 count, reiser4_ba_flags_t flags);
 
-extern void reiser4_grab_space_enable(void);
-extern void reiser4_grab_space_disable(void);
-
 /* grabbed -> fake_allocated */
 extern int assign_fake_blocknr(reiser4_block_nr *, reiser4_ba_flags_t flags);
 
@@ -102,11 +99,13 @@ extern void fake_allocated2free(__u64, reiser4_ba_flags_t flags);
 
 extern void grabbed2free(__u64);
 extern void all_grabbed2free(void);
+extern void used2grabbed(__u64 count);
 extern void flush_reserved2free_all (void);
 extern void flush_reserved2atom_all_nolock (txn_atom *);
 extern void sub_from_atom_flush_reserved_nolock(txn_atom *, __u32);
 extern void grabbed2flush_reserved_nolock (txn_atom *, __u64);
 extern void grabbed2flush_reserved (__u64);
+extern void flush_reserved2grabbed(txn_atom * atom, __u64 count);
 extern int  check_atom_reserved_blocks(struct txn_atom *, __u64);
 extern __u64 reiser4_atom_flush_reserved(void);
 

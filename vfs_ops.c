@@ -27,6 +27,7 @@
 #include "super.h"
 #include "reiser4.h"
 #include "ioctl.h"
+#include "emergency_flush.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -159,12 +160,12 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	/* find @parent directory plugin and make sure that it has lookup
 	   method */
 	dplug = inode_dir_plugin(parent);
-	if (dplug == NULL || !dplug->resolve_into_inode /*lookup */ ) {
+	if (dplug == NULL || !dplug->lookup) {
 		REISER4_EXIT_PTR(ERR_PTR(-ENOTDIR));
 	}
 
 	/* call its lookup method */
-	retval = dplug->resolve_into_inode(parent, dentry);
+	retval = dplug->lookup(parent, dentry);
 	if (retval == 0) {
 		struct inode *obj;
 		file_plugin *fplug;
@@ -2079,12 +2080,13 @@ reiser4_kill_super(struct super_block *s)
 	   became dirty via mapping. Have them to go through writepage */
 	fsync_super(s);
 
-	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT)) {
+	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT))
 		get_current_context()->trace_flags |= (TRACE_PCACHE |
-						       TRACE_TXN |
-						       TRACE_FLUSH | TRACE_ZNODES | TRACE_IO_R | TRACE_IO_W);
-	}
-
+						       TRACE_TXN    |
+						       TRACE_FLUSH  |
+						       TRACE_ZNODES | 
+						       TRACE_IO_R   | 
+						       TRACE_IO_W);
 	/* flushes transactions, etc. */
 	if (get_super_private(s)->df_plug->release(s) != 0)
 		goto out;
@@ -2265,6 +2267,37 @@ try_to_lock:
 	REISER4_EXIT(ret);
 }
 
+static int
+releasable(const jnode *node)
+{
+	assert("nikita-2781", node != NULL);
+	assert("nikita-2783", spin_jnode_is_locked(node));
+
+	if (atomic_read(&node->d_count))
+		return 0;
+	if (jnode_is_loaded(node))
+		return 0;
+
+	if (JF_ISSET(node, JNODE_EFLUSH)) {
+		info("em. flushed node released\n");
+		return 1; /* yeah! */
+	}
+
+	/* can only release page if real block number is assigned to
+	   it. Simple check for ->atom wouldn't do, because it is possible for
+	   node to be clean, not it atom yet, and still having fake block
+	   number. For example, node just created in jinit_new(). */
+	if (blocknr_is_fake(jnode_get_block(node)))
+		return 0;
+	if (jnode_is_dirty(node))
+		return 0;
+	if (JF_ISSET(node, JNODE_OVRWR))
+		return 0;
+	if (JF_ISSET(node, JNODE_WRITEBACK))
+		return 0;
+	return 1;
+}
+
 /* ->releasepage method for reiser4 */
 int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
@@ -2277,59 +2310,47 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	/* FIXME-NIKITA: this can be called in the context of reiser4 call. It
 	   is not clear what to do in this case. A lot of deadlocks seems be
-	   possible.
-	*/
+	   possible. */
 
 	node = jnode_by_page(page);
 	assert("nikita-2258", node != NULL);
 
 #if REISER4_STATS
-	++get_super_private(page->mapping->host->i_sb)->stats.level[jnode_get_level(node) -
-								    LEAF_LEVEL].page_try_release;
+	++get_super_private(page->mapping->host->i_sb)->
+		stats.level[jnode_get_level(node) - LEAF_LEVEL].page_try_release;
 #endif
 
 	/* is_page_cache_freeable() check 
 	  
-	   (mapping + private + page_cache_get() by shrink_cache())
-	*/
+	   (mapping + private + page_cache_get() by shrink_cache()) */
 	if (page_count(page) > 3)
 		return 0;
 	if (PageDirty(page))
 		return 0;
 
 	spin_lock_jnode(node);
-	/* can only release page if real block number is assigned to
-	   it. Simple check for ->atom wouldn't do, because it is possible for
-	   node to be clean, not it atom yet, and still having fake block
-	   number. For example, node just created in jinit_new().
-	*/
-	if (atomic_read(&node->d_count) || jnode_is_loaded(node) ||
-	    blocknr_is_fake(jnode_get_block(node)) || jnode_is_dirty(node) || JF_ISSET(node, JNODE_OVRWR)
-	    || JF_ISSET(node, JNODE_WRITEBACK)) {
-		spin_unlock_jnode(node);
-		return 0;
-	}
-
-	{
+	if (releasable(node)) {
 		reiser4_tree *tree = tree_by_page(page);
 		REISER4_ENTRY(tree->super);
 
 		/* account for spin_lock_jnode() above */
-		if (REISER4_DEBUG && get_current_context() == &__context) {
-			ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_jnode);
-			ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
-		}
+		if (REISER4_DEBUG && get_current_context() == &__context)
+			spin_jnode_update();
 
 		jref(node);
 		page_clear_jnode(page, node);
 		spin_unlock_jnode(node);
 
 		reiser4_stat_add_at_level(jnode_get_level(node), page_released);
-		/* we are under memory pressure so release jnode also. */
 
+		/* we are under memory pressure so release jnode also. */
 		jput(node);
+
 		/* return with page still locked. shrink_cache() expects this. */
 		REISER4_EXIT(1);
+	} else {
+		spin_unlock_jnode(node);
+		return 0;
 	}
 }
 
@@ -2355,7 +2376,7 @@ static void capture_page_and_create_extent (struct page * page)
 	if (fplug == NULL)
 		return;
 
-	reiser4_grab_space_enable ();
+	grab_space_enable ();
 
 	result = fplug->writepage(page);
 
@@ -2456,6 +2477,7 @@ typedef enum {
 	INIT_TXN,
 	INIT_FAKES,
 	INIT_JNODES,
+	INIT_EFLUSH,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -2473,6 +2495,7 @@ shutdown_reiser4(void)
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
 	DONE_IF(INIT_JNODES, jnode_done_static());
+	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_FAKES,;);
 	DONE_IF(INIT_TXN, txnmgr_done_static());
 	DONE_IF(INIT_PLUGINS,;);
@@ -2511,6 +2534,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(txnmgr_init_static());
 	CHECK_INIT_RESULT(init_fakes());
 	CHECK_INIT_RESULT(jnode_init_static());
+	CHECK_INIT_RESULT(eflush_init());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);
