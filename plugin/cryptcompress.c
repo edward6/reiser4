@@ -14,7 +14,12 @@
 #include "../debug.h"
 #include "../inode.h"
 #include "../jnode.h"
+#include "../tree.h"
 #include "../page_cache.h"
+#include "../readahead.h"
+#include "../forward.h"
+#include "../super.h"
+#include "../context.h"
 #include "plugin.h"
 
 extern int common_file_save(struct inode *inode);
@@ -175,8 +180,8 @@ size_t inode_cluster_size (struct inode * inode)
 }
 
 /* returns translated offset */ 
-static loff_t inode_scaled_offset (struct inode * inode,
-				   const loff_t src_off /* input offset */)
+loff_t inode_scaled_offset (struct inode * inode,
+			    const loff_t src_off /* input offset */)
 {
 	crypto_plugin * cplug;
 	crypto_stat_t * stat;
@@ -198,7 +203,7 @@ static loff_t inode_scaled_offset (struct inode * inode,
 }
 
 /* returns disk cluster size */
-static size_t
+size_t
 inode_scaled_cluster_size (struct inode * inode)
 {
 	assert("edward-110", inode != NULL);
@@ -208,7 +213,7 @@ inode_scaled_cluster_size (struct inode * inode)
 }
 
 /* plugin->key_by_inode() */
-__attribute__((unused)) static int
+static int
 cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 {
 	assert("edward-64", inode != 0);
@@ -219,6 +224,28 @@ cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) inode_scaled_offset(inode, off));
 	return 0;
+}
+
+/* plugin->flow_by_inode */
+int
+cryptcompress_build_flow(struct inode *inode /* file to build flow for */ ,
+		     char *buf /* user level buffer */ ,
+		     int user	/* 1 if @buf is of user space, 0 - if it is
+				   kernel space */ ,
+		     size_t size /* buffer size */ ,
+		     loff_t off /* offset to start io from */ ,
+		     rw_op op /* READ or WRITE */ ,
+		     flow_t * f /* resulting flow */)
+{
+	assert("edward-149", inode != NULL);
+
+	f->length = size;
+	f->data = buf;
+	f->user = user;
+	f->op = op;
+	assert("edward-150", inode_file_plugin(inode) != NULL);
+	assert("edward-151", inode_file_plugin(inode)->key_by_inode == cluster_key_by_inode);
+	return cluster_key_by_inode(inode, off, &f->key);
 }
 
 void reiser4_cluster_init (reiser4_cluster_t * clust)
@@ -246,6 +273,33 @@ int cluster_is_required (reiser4_cluster_t * clust)
 {
 	assert("edward-126", clust != NULL);
 	return (clust->buf == NULL && clust->stat != HOLE_CLUSTER);
+}
+
+/* returns offset of the first page of the cluster that @page belows to */
+inline loff_t
+cluster_offset_by_page (struct page * page, struct inode * inode)
+{
+	return (page->index >> inode_cluster_shift(inode) <<
+		inode_cluster_shift(inode) << PAGE_CACHE_SHIFT);
+}
+
+int
+find_cluster_item(const reiser4_key *key, /* key of next cluster item to read */
+		  coord_t *coord,
+		  lock_handle *lh,
+		  ra_info_t *ra_info)
+{
+	assert("edward-152", schedulable());
+	
+	return  coord_by_key(current_tree, key, coord, lh, ZNODE_READ_LOCK,
+			     FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE, ra_info);
+}
+
+/* decrypt and inflate cluster data if @op == READ
+   deflate and decrypt cluster data if @op == WRITE */
+int process_cluster(reiser4_cluster_t *clust, struct inode *inode, rw_op op)
+{
+	return 0;
 }
 
 /* plugin->read() :
