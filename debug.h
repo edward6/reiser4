@@ -417,10 +417,6 @@ typedef struct reiser4_prof {} reiser4_prof;
 
 /* Macros to gather statistical data. If REISER4_STATS is disabled, they
    are preprocessed to nothing.
-  
-   reiser4_stat_foo_add( counter ) increases by one counter in foo section of 
-   &reiser4_stat - big struct used to collect all statistical data.
-  
 */
 
 #define	reiser4_stat(sb, cnt) (&get_super_private_nocheck(sb)->stats.cnt)
