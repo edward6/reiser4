@@ -91,11 +91,12 @@ error:
 void reiserfs_plugin_unload(reiserfs_plugin_t *plugin) {
 #ifndef ENABLE_ALONE	
 	ASSERT(plugin != NULL, return);
-	
-	if (!plugins) return;
 
+	if (!plugins)
+		return;
+	
 	dlclose(plugin->h.handle);
-	aal_list_remove(plugins, (void *)plugin);
 #endif	
+	aal_list_remove(plugins, (void *)plugin);
 }
 

@@ -19,7 +19,7 @@ int libreiserfs_assert(int cond, char *cond_text, char *file, int line, char *fu
 		return 1;
 
 	opt = aal_exception_throw(EXCEPTION_BUG, EXCEPTION_IGNORE | EXCEPTION_CANCEL,
-		"Assertion (%s) at %s:%d in function %s() failed.", cond_text, file, 
+		"", "Assertion (%s) at %s:%d in function %s() failed.", cond_text, file, 
 		line, function);
 	
 	return opt == EXCEPTION_IGNORE;

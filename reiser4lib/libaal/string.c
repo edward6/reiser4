@@ -5,6 +5,7 @@
 
 #include <sys/types.h>
 
+/* Memory-working functions */
 void *aal_memset(void *dest, char c, size_t n) {
 	char *dest_p = (char *)dest;
 
@@ -23,6 +24,20 @@ void *aal_memcpy(void *dest, const void *src, size_t n) {
 	return dest;
 }
 
+int aal_memcmp(const void *s1, const void *s2, size_t n) {
+	const char *p_s1 = (const char *)s1, *p_s2 = (const char *)s2;
+	for (; (size_t)(p_s1 - (int)s1) < n; p_s1++, p_s2++) {
+		
+		if (*p_s1 < *p_s2) 
+			return -1;
+		
+		if (*p_s1 > *p_s2)
+			return 1;
+	}
+	return p_s1 != s1 ? 0 : -1;
+}
+
+/* String-working functions */
 char *aal_strncpy(char *dest, const char *src, size_t n) {
 	size_t len = strlen(src) < n ? strlen(src) : n;
 	
@@ -46,22 +61,13 @@ char *aal_strncat(char *dest, const char *src, size_t n) {
 }
 
 int aal_strncmp(const char *s1, const char *s2, size_t n) {
-	const char *p;
-	
-	for (p = s1; *p; p++, s1++, s2++) {
-	
-		if ((size_t)(p - s1) >= n) 
-			break;
-		
-		if (*s1 < *s2) 
-			return -1;
-		
-		if (*s1 > *s2) 
-			return 1;
-	}
-	return p != s1 ? 0 : 1;
+	size_t len = strlen(s1) < n ? strlen(s1) : n;
+	len = strlen(s2) < len ? strlen(s2) : len;
+
+	return aal_memcmp((const void *)s1, (const void *)s2, len);
 }
 
+/* Longint to string convertation function */
 int aal_ltos(long int d, size_t n, char *a, int base) {
 	long int s;
 	char *p = a;
@@ -79,6 +85,11 @@ int aal_ltos(long int d, size_t n, char *a, int base) {
 	if (base == 16) {
 		aal_strncat(p, "0x", 2);
 		p += 2;
+	}
+	
+	if (d == 0) {
+		*p++ = '0';
+		return 1;
 	}
 	
 	for (s = range; s > 0; s /= base) {

@@ -41,13 +41,13 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	
 	master = (struct reiserfs_master_super *)block->data;
 
+	/* Checking for reiser3 disk-format */
 	if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
-		/* Checking for reiser3 disk-format */
 		unsigned int blocksize;
 		
 		if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
 			goto error_free_block;
-		
+	
 		if (!(blocksize = plugin->format.probe(fs->device)))
 			goto error_free_block;
 		
@@ -93,10 +93,11 @@ error:
 	return 0;
 }
 
-void reiserfs_super_close(reiserfs_fs_t *fs) {
+void reiserfs_super_close(reiserfs_fs_t *fs, int sync) {
 	ASSERT(fs != NULL, return);
+	ASSERT(fs->super != NULL, return);
 	
-	fs->super->plugin->format.done(fs->super->entity);
+	fs->super->plugin->format.done(fs->super->entity, sync);
 	aal_free(fs->super);
 	fs->super = NULL;
 }

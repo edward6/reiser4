@@ -39,11 +39,12 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	return fs;
 
 error_free_alloc:
-	reiserfs_alloc_close(fs);
+	reiserfs_alloc_close(fs, 0);
 error_free_journal:
-	reiserfs_journal_close(fs);
+	if (fs->journal)
+		reiserfs_journal_close(fs, 0);
 error_free_super:
-	reiserfs_super_close(fs);
+	reiserfs_super_close(fs, 0);
 error_free_fs:
 	aal_free(fs);
 error:
@@ -54,11 +55,14 @@ error:
 	Closes all filesystem's entities. Calls plugins' "done" 
 	routine for every plugin and frees all assosiated memory. 
 */
-void reiserfs_fs_close(reiserfs_fs_t *fs) {
-	reiserfs_tree_close(fs);
-	reiserfs_alloc_close(fs);
-	reiserfs_journal_close(fs);
-	reiserfs_super_close(fs);
+void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
+	reiserfs_tree_close(fs, sync);
+	reiserfs_alloc_close(fs, sync);
+	
+	if (fs->journal)
+		reiserfs_journal_close(fs, sync);
+	
+	reiserfs_super_close(fs, sync);
 	aal_free(fs);
 }
 

@@ -56,7 +56,7 @@ int aal_list_expand(aal_list_t *list) {
 
 int aal_list_shrink(aal_list_t *list) {
 	
-	if (list->size - list->count < list->inc)
+	if (list->size - list->count < list->inc + 1)
 		return 1;
 	
 	if (!aal_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
@@ -86,7 +86,7 @@ int aal_list_insert(aal_list_t *list, void *item, int pos) {
 	if (pos > list->count)
 		return 0;
 	
-	if (pos < list->count) {
+	if (pos < list->count - 1) {
 		int i;
 		for (i = list->count - 1; i >= pos; i--)
 			*ptr_by_pos(list->body, i + 1) = *ptr_by_pos(list->body, i);
@@ -94,13 +94,12 @@ int aal_list_insert(aal_list_t *list, void *item, int pos) {
 	
 	*ptr_by_pos(list->body, pos) = item;
 	list->count++;
-
 	return 1;
 }
 
 int aal_list_delete(aal_list_t *list, int pos) {
 	
-	if (pos < list->count) {
+	if (pos < list->count - 1) {
 		int i;
 		for (i = pos; i < list->count; i++)
 			*ptr_by_pos(list->body, i) = *ptr_by_pos(list->body, i + 1);
@@ -121,7 +120,7 @@ int aal_list_remove(aal_list_t *list, void *item) {
 	
 	if ((pos = aal_list_pos(list, item)) == -1)
 		return 0;
-
+	
 	return aal_list_delete(list, pos);
 }
 

@@ -69,8 +69,8 @@ error:
 	return NULL;
 }
 
-static void reiserfs_format40_done(reiserfs_format40_t *format) {
-	if (!aal_block_write(format->device, format->super)) {
+static void reiserfs_format40_done(reiserfs_format40_t *format, int sync) {
+	if (sync && !aal_block_write(format->device, format->super)) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-009", 
 			"Can't synchronize super block.");
 	}
@@ -108,7 +108,7 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_init,
-		.done = (void (*)(reiserfs_format_opaque_t *))reiserfs_format40_done,
+		.done = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format40_done,
 		.probe = (unsigned int (*)(aal_device_t *))reiserfs_format40_probe,
 		
 		.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))

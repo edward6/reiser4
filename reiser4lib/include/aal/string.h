@@ -10,6 +10,7 @@
 
 extern void *aal_memset(void *dest, char c, size_t n);
 extern void *aal_memcpy(void *dest, const void *src, size_t n);
+extern int aal_memcmp(const void *s1, const void *s2, size_t n);
 
 extern char *aal_strncpy(char *dest, const char *src, size_t n);
 extern char *aal_strncat(char *dest, const char *src, size_t n);

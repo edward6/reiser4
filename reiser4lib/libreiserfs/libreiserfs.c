@@ -65,7 +65,6 @@ int libreiserfs_init(void) {
 				"Can't load plugin %s.", plug_name);
 			continue;
 		}
-		aal_list_add(plugins, plugin);
 	}
 	
 	closedir(dir);

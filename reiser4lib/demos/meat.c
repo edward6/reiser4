@@ -36,9 +36,9 @@ int main(int argc, char *argv[]) {
 		goto error_free_device;
 	}
 	
-	fprintf(stderr, "Reiserfs was successfully oneped on %s.\n", argv[0]);
+	fprintf(stderr, "Reiserfs was successfully oneped on %s.\n", argv[1]);
 	
-	reiserfs_fs_close(fs);
+	reiserfs_fs_close(fs, 0);
 	libreiserfs_done();
 	
 	aal_file_close(device);

@@ -43,8 +43,8 @@ error:
 	return NULL;
 }
 
-static void reiserfs_journal40_done(reiserfs_journal40_t *journal) {
-	if (!aal_block_write(journal->device, journal->header))	{
+static void reiserfs_journal40_done(reiserfs_journal40_t *journal, int sync) {
+	if (sync && !aal_block_write(journal->device, journal->header))	{
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-023", 
 			"Can't synchronize journal header.");
 	}	
@@ -67,7 +67,7 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_journal_opaque_t *(*)(aal_device_t *))reiserfs_journal40_init,
-		.done = (void (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_done,
+		.done = (void (*)(reiserfs_journal_opaque_t *, int))reiserfs_journal40_done,
 		.replay = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_replay
 	}
 };

@@ -9,7 +9,7 @@
 #include <reiserfs/reiserfs.h>
 
 extern int reiserfs_alloc_open(reiserfs_fs_t *fs);
-extern void reiserfs_alloc_close(reiserfs_fs_t *fs);
+extern void reiserfs_alloc_close(reiserfs_fs_t *fs, int sync);
 
 #endif
 

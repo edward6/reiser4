@@ -29,13 +29,13 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	id = reiserfs_super_journal_plugin(fs);
 	if (!(plugin = reiserfs_plugin_find(REISERFS_JOURNAL_PLUGIN, id))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-012", 
-			"Can't find journal plugin by its identifier %d.", id);
+			"Can't find journal plugin by its identifier %x.", id);
 		goto error_free_journal;
 	}
 	
 	fs->journal->plugin = plugin;
 	
-	if ((fs->journal->entity = plugin->journal.init(device))) {
+	if (!(fs->journal->entity = plugin->journal.init(device))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
 			"Can't initialize the journal plugin.");
 		goto error_free_journal;
@@ -51,7 +51,7 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	return 1;
 
 error_free_entity:
-	plugin->journal.done(fs->journal->entity);
+	plugin->journal.done(fs->journal->entity, 0);
 	fs->journal->entity = NULL;
 error_free_journal:
 	aal_free(fs->journal);
@@ -61,12 +61,15 @@ error:
 }
 
 int reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
-	reiserfs_journal_close(fs);
+	reiserfs_journal_close(fs, 1);
 	return reiserfs_journal_open(fs, device, replay);
 }
 
-void reiserfs_journal_close(reiserfs_fs_t *fs) {
-	fs->journal->plugin->journal.done(fs->journal->entity);
+void reiserfs_journal_close(reiserfs_fs_t *fs, int sync) {
+	ASSERT(fs != NULL, return);
+	ASSERT(fs->journal != NULL, return);
+	
+	fs->journal->plugin->journal.done(fs->journal->entity, sync);
 	fs->journal->entity = NULL;
 	aal_free(fs->journal);
 	fs->journal = NULL;
