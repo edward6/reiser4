@@ -521,6 +521,13 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	return 0;
 }
 
+static void
+ctail_invalidate_extended_coord(uf_coord_t * uf_coord)
+{
+	uf_coord->extension.ctail.stat = DC_INVALID_STATE;
+	uf_coord->valid = 0;
+}
+
 /* this reads one cluster form disk,
    attaches buffer with decrypted and decompressed data */
 reiser4_internal int
@@ -540,7 +547,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	
 	if (!hint_prev_cluster(clust, inode)) {
 		done_lh(clust->hint->coord.lh);
-		clust->hint->coord.valid = 0;
+		ctail_invalidate_extended_coord(&clust->hint->coord);
 		unset_hint(clust->hint);
 	}
 	
@@ -556,9 +563,6 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-673", znode_is_any_locked(clust->hint->coord.lh->node));
 	
 	if (clust->dstat == FAKE_DISK_CLUSTER) {
-		/* FIXME-EDWARD: isn't support yet */
-		assert("edward-865", 0);
-
 		tfm_cluster_set_uptodate(&clust->tc);
 		return 0;
 	}
@@ -664,14 +668,18 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	hint.coord.lh = &lh;
 
 	result = do_readpage_ctail(clust, page);
+	
+	assert("edward-213", PageLocked(page));
+	assert("edward-1163", ergo (!result, PageUptodate(page)));
 	assert("edward-868", ergo (!result, tfm_cluster_is_uptodate(&clust->tc)));
+	       
+	unlock_page(page);
 
 	hint.coord.valid = 0;
 	save_file_hint(clust->file, &hint);
 	done_lh(&lh);
 	tfm_cluster_clr_uptodate(&clust->tc);
-
-	assert("edward-213", PageLocked(page));
+	
 	return result;
 }
 
@@ -957,16 +965,11 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	assert("edward-1085", inode != NULL);
 	assert("edward-1086", clust->hint != NULL);
 	assert("edward-1062", clust->dstat == FAKE_DISK_CLUSTER);
-	assert("edward-675", get_current_context()->grabbed_blocks == 0);
-
-	/* We need disk space right here to find
-	   locked position and insert unprepped cluster */
-	result = reiser4_grab_space_force(estimate_insert_cluster(inode, 1 /*unprepped */), 
-					  BA_CAN_COMMIT);
-	if (result)
-		return result;
-		
-	result = get_disk_cluster_locked(clust, ZNODE_WRITE_LOCK);
+	assert("edward-1164", clust->reserved == 1);
+	assert("edward-675",  get_current_context()->grabbed_blocks == 
+	       estimate_insert_cluster(inode, 1));
+	
+	result = get_disk_cluster_locked(clust, inode, ZNODE_WRITE_LOCK);
 	if (cbk_errored(result))
 		return result;
 	
@@ -989,27 +992,19 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	all_grabbed2free();
 	if (result)
 		return result;
-
+	
+	assert("edward-743", crc_inode_ok(inode));
 	assert("edward-871", znode_is_write_locked(clust->hint->coord.lh->node));
 	assert("edward-677", reiser4_clustered_blocks(reiser4_get_current_sb()));
-	assert("edward-678", znode_is_dirty(clust->hint->coord.base_coord.node));
 	assert("edward-872", znode_convertible(clust->hint->coord.base_coord.node));
-	
+#if REISER4_DEBUG	
 	if (!znode_is_dirty(clust->hint->coord.base_coord.node)) {
 		warning("edward-958",
 			"unprepped cluster inserted (clust %lu, inode %llu), "
 			"but znode is not dirty\n", 
 			clust->index, (unsigned long long)get_inode_oid(inode));
-		result = zload(clust->hint->coord.base_coord.node);
-		if (result)
-			return result;
-		znode_make_dirty(clust->hint->coord.base_coord.node);
-		zrelse(clust->hint->coord.base_coord.node);
 	}
-	assert("edward-743", crc_inode_ok(inode));
-	assert("edward-744", znode_is_write_locked(clust->hint->coord.lh->node));
-	assert("edward-745", znode_is_dirty(clust->hint->coord.lh->node));
-	
+#endif
 	set_dc_item_stat(clust->hint, DC_BEFORE_CLUSTER);
 	
 	return 0;
