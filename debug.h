@@ -188,7 +188,7 @@ typedef struct lock_counters_info {
 
 extern lock_counters_info *lock_counters(void);
 
-extern void schedulable (void); 
+extern int schedulable (void); 
 
 #else
 
