@@ -1057,8 +1057,8 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	result = 0;
 	for (i = 0; i < pagevec_count(&pvec); i ++) {
 		page = pvec.pages[i];
-		if (i && page->index != pvec.pages[i - 1]->index + 1)
-			/* break on non contiguous page */
+		if ((i && page->index != pvec.pages[i - 1]->index + 1) || !PageUptodate(page))
+			/* break on non contiguous page or on not uptodate page */
 			break;
 
 		/* contiguous page. get jnode for it and jload before calling capture_page_and_create_extent */
@@ -1078,6 +1078,9 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 		result = PTR_ERR(node);
 		break;
 	}
+
+	done = 0;
+	result = 0;
 
 	/* jnodes of all nr_pages pages are jloaded, we can call capture_page_and_create_extent */
 	for (i = 0; i < nr_pages; i ++) {
@@ -1822,6 +1825,15 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 	to_write = flow->length;
 	while (flow->length) {
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
+
+		{
+			size_t count;
+
+			count = PAGE_CACHE_SIZE;			
+			if (count > flow->length)
+				count = flow->length;
+			fault_in_pages_readable(flow->data, count);
+		}
 
 		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
