@@ -616,6 +616,7 @@ carry_op *reiser4_post_carry( carry_level *level    /* queue where new
 	carry_node *child;
 
 	assert( "nikita-1046", level != NULL );
+	assert( "nikita-1788", znode_is_write_locked( node ) );
 
 	result = reiser4_add_op( level, POOLO_LAST, NULL );
 	if( IS_ERR( result ) )
