@@ -22,7 +22,7 @@ static reiserfs_node40_t *node40_create(aal_block_t *block,
 {
     reiserfs_node40_t *node;
     
-    aal_assert("umka-806", node != NULL, return NULL);
+    aal_assert("umka-806", block != NULL, return NULL);
 
     if (!(node = aal_calloc(sizeof(*node), 0)))
 	return NULL;

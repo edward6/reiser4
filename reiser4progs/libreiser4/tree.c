@@ -418,8 +418,11 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 
 #endif
 
-/* Inserts a node into the tree */
-static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
+/*
+    Helper function. It is used for insert a node by its left delimiting key 
+    into the tree.
+*/
+static errno_t __tree_node_insert(reiserfs_tree_t *tree, 
     reiserfs_cache_t *parent, reiserfs_cache_t *cache)
 {
     int lookup;
@@ -520,7 +523,7 @@ static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
 		    return -1;
 		
 		/* Registering insert point node in the new root node  */
-		if (reiserfs_tree_node_insert(tree, tree->cache, insert.cache)) {
+		if (__tree_node_insert(tree, tree->cache, insert.cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert node %llu into the tree.", 
 			aal_block_get_nr(insert.cache->node->block));
@@ -536,7 +539,7 @@ static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
 	    }
 	   
 	    /* Inserting right node into parent of insert point node */ 
-	    if (reiserfs_tree_node_insert(tree, insert.cache->parent, 
+	    if (__tree_node_insert(tree, insert.cache->parent, 
 		reiserfs_cache_create(right))) 
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -645,7 +648,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    }
 	
 	    /* Inserting new leaf into the tree */
-	    if (reiserfs_tree_node_insert(tree, coord.cache, 
+	    if (__tree_node_insert(tree, coord.cache, 
 		reiserfs_cache_create(leaf))) 
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -695,8 +698,8 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		}
 	
 		/* Inserting new leaf into the tree */
-		if (reiserfs_tree_node_insert(tree, 
-		    coord.cache->parent, reiserfs_cache_create(leaf))) 
+		if (__tree_node_insert(tree, coord.cache->parent, 
+		    reiserfs_cache_create(leaf))) 
 		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert node %llu into the thee.", 
