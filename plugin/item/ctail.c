@@ -816,7 +816,9 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 		unlock_page(page);
 		reset_cluster_params(&clust);
 		
-		if (progress && pg_to_clust(page->index, inode) != clust.index + 1)
+		if (progress && 
+		    /* hole in the indices */
+		    pg_to_clust(page->index, inode) != clust.index + 1)
 			invalidate_hint_cluster(&clust);
 		progress++;
 
