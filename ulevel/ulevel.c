@@ -3442,6 +3442,7 @@ static int bash_mkfs (char * file_name)
 	test_disk_super_block * test_sb;
 	char * p;
 	reiser4_tail_id tail_id;
+	reiser4_super_info_data *info;
 
 
 	/* parse "mkfs options" */
@@ -3474,12 +3475,12 @@ static int bash_mkfs (char * file_name)
 		}
 	}
 
-	super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
-				       GFP_KERNEL);
-	if( super.u.generic_sbp == NULL )
+	info = kmalloc (sizeof (reiser4_super_info_data), GFP_KERNEL);
+	if( info == NULL )
 		BUG();
-	xmemset (super.u.generic_sbp, 0, 
-		 sizeof (reiser4_super_info_data));
+	super.u.generic_sbp = info;
+	xmemset (info, 0, sizeof (reiser4_super_info_data));
+	ON_DEBUG (INIT_LIST_HEAD (&info->all_jnodes));
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
 	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 

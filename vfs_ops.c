@@ -1676,7 +1676,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	s->u.generic_sbp = info;
 	memset (info, 0, sizeof (*info));
-	INIT_LIST_HEAD (&info->all_jnodes);
+	ON_DEBUG (INIT_LIST_HEAD (&info->all_jnodes));
 
 	result = init_context (&__context, s);
 	if (result) {
