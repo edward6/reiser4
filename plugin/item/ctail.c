@@ -260,12 +260,13 @@ copy_units_ctail(coord_t * target, coord_t * source,
 /* plugin->u.item.b.create_hook */
 /* plugin->u.item.b.kill_hook */
 int
-kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, void *p)
+kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_list *p)
 {
-	struct inode *inode = p;
+	struct inode *inode;
 
 	assert("edward-291", znode_is_write_locked(coord->node));
 	
+	inode = p->inode;
 	if (inode) {
 		reiser4_key key;
 		
@@ -285,7 +286,7 @@ int
 cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
 	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
-	       void *p UNUSED_ARG)
+	       struct cut_list *p UNUSED_ARG)
 { 
 	reiser4_key key;
 	unsigned count;

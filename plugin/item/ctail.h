@@ -20,6 +20,8 @@ typedef struct ctail_squeeze_info {
 #define list_to_page(head) (list_entry((head)->prev, struct page, list))
 #define list_to_next_page(head) (list_entry((head)->prev->prev, struct page, list))
 
+struct cut_list;
+
 /* plugin->item.b.* */
 int can_contain_key_ctail(const coord_t *, const reiser4_key *, const reiser4_item_data *);
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
@@ -33,7 +35,7 @@ int can_shift_ctail(unsigned free_space, coord_t * coord,
 void copy_units_ctail(coord_t * target, coord_t * source,
 		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
 int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
-		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
+		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
 /*int check_check(const coord_t * coord, const char **error);*/
 
 /* plugin->u.item.s.* */
@@ -42,7 +44,7 @@ int read_ctail(struct file *, flow_t *, uf_coord_t *);
 int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
-int kill_hook_ctail(const coord_t *, unsigned, unsigned, void *);
+int kill_hook_ctail(const coord_t *, unsigned, unsigned, struct cut_list *);
 
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);

@@ -812,7 +812,7 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 	      const reiser4_key * to_key UNUSED_ARG /* stop key */ ,
 	      reiser4_key * smallest_removed	/* smallest key actually
 						 * removed */,
-	      void *p UNUSED_ARG)
+	      struct cut_list *p UNUSED_ARG)
 {
 	char *header_from;
 	char *header_to;

@@ -450,17 +450,16 @@ create_hook_extent(const coord_t *coord, void *arg)
 	} else {
 		assert("vs-412", coord_wrt(child_coord) == COORD_ON_THE_RIGHT);
 		node = child_coord->node;
+		assert("nikita-3314", node != NULL);
 	}
 
-	if (node) {
+	if (node != NULL) {
 		znode_set_rd_key(node, item_key_by_coord(coord, &key));
 
 		assert("nikita-3282", check_sibling_list(node));
 		/* break sibling links */
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
-			/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED); */
 			node->right->left = NULL;
-			/*ZF_CLR (node, JNODE_RIGHT_CONNECTED); */
 			node->right = NULL;
 		}
 	}
@@ -513,7 +512,7 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
 /* plugin->u.item.b.kill_hook
    this is called when @count units starting from @from-th one are going to be removed */
 int
-kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
+kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut_list *p)
 {
 	reiser4_extent *ext;
 	unsigned i;
@@ -522,16 +521,35 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
 	loff_t offset;
 	unsigned long index;
 	struct inode *inode;
+	reiser4_tree *tree;
+	znode *left;
+	znode *right;
 
-	inode = p;
-
-	assert ("zam-811", znode_is_write_locked(coord->node));
+	assert("zam-811", znode_is_write_locked(coord->node));
+	assert("nikita-3315", p != NULL);
 
 	item_key_by_coord(coord, &key);
 	offset = get_key_offset(&key) + extent_size(coord, from);
 	index = offset >> current_blocksize_bits;
 
-	if (inode) {
+	inode = p->inode;
+
+	tree = current_tree;
+
+	if (p->left != NULL) {
+		assert("nikita-3316", p->right != NULL);
+
+		left = p->left->node;
+		right = p->right->node;
+
+		UNDER_RW_VOID(tree, tree, write, 
+			      link_left_and_right(left, right));
+
+		if (right != NULL)
+			UNDER_RW_VOID(dk, tree, write, 
+				      update_znode_dkeys(left, right));
+	}
+	if (inode != NULL) {
 		truncate_inode_pages(inode->i_mapping, offset);
 		drop_eflushed_nodes(inode, index, 0);
 	}
@@ -569,7 +587,7 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
 static int
 cut_or_kill_units(coord_t *coord,
 		  unsigned *from, unsigned *to,
-		  int cut, const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct inode *inode)
+		  int cut, const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct cut_list *cl)
 {
 	reiser4_extent *ext;
 	reiser4_key key;
@@ -577,7 +595,9 @@ cut_or_kill_units(coord_t *coord,
 	reiser4_block_nr offset;
 	unsigned count;
 	__u64 cut_from_to;
+	struct inode *inode;
 
+	inode = cl->inode;
 	count = *to - *from + 1;
 
 	blocksize = current_blocksize;
@@ -746,9 +766,12 @@ cut_or_kill_units(coord_t *coord,
 		}
 	}
 
-	if (!cut)
+	if (!cut) {
+		cl->inode = NULL;
 		/* call kill hook for all extents removed completely */
-		kill_hook_extent(coord, *from, count, NULL);
+		kill_hook_extent(coord, *from, count, cl);
+		cl->inode = inode;
+	}
 
 	if (*from == 0 && count != coord_last_unit_pos(coord) + 1) {
 		/* part of item is removed from item beginning, update item key
@@ -770,7 +793,7 @@ cut_or_kill_units(coord_t *coord,
 /* plugin->u.item.b.cut_units */
 int
 cut_units_extent(coord_t *item, unsigned *from, unsigned *to,
-		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, void *p)
+		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct cut_list *p)
 {
 	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
 }
@@ -778,7 +801,7 @@ cut_units_extent(coord_t *item, unsigned *from, unsigned *to,
 /* plugin->u.item.b.kill_units */
 int
 kill_units_extent(coord_t *item, unsigned *from, unsigned *to,
-		  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, void *p)
+		  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct cut_list *p)
 {
 	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
 }
