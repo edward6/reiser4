@@ -680,7 +680,8 @@ extent2tail(unix_file_info_t *uf_info)
 			warning("nikita-3422", "Cannot kill safe-link %lli: %i",
 				get_inode_oid(inode), s_result);
 		}
-	}
+	} else
+		s_result = 0;
 	all_grabbed2free();
 	return result ? : s_result;
 }
