@@ -25,6 +25,9 @@ struct ktxnmgrd_context {
 	struct completion finish;
 	/* condition variable on which ktxnmgrd sleeps */
 	kcond_t wait;
+	/* condition variable that ktxnmgrd broadcasts on each iterations. It
+	 * is used to synchronize with umount. */
+	kcond_t loop;
 	/* spin lock protecting all fields of this structure */
 	spinlock_t guard;
 	/* timeout of sleeping on ->wait */

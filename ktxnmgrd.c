@@ -86,7 +86,7 @@ ktxnmgrd(void *arg)
 
 		set_comm("wait");
 		/* wait for @ctx -> timeout or explicit wake up.
-		
+
 		   kcond_wait() is called with last argument 1 enabling wakeup
 		   by signals so that this thread is not counted in
 		   load-average. This doesn't require any special handling,
@@ -94,6 +94,10 @@ ktxnmgrd(void *arg)
 		*/
 		result = kcond_timedwait(&ctx->wait,
 					 &ctx->guard, ctx->timeout, 1);
+
+		/* wake up all threads doing umount. See ktxnmgrd_detach(). */
+		kcond_broadcast(&ctx->loop);
+
 		if (result != -ETIMEDOUT && result != 0) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
@@ -114,7 +118,6 @@ ktxnmgrd(void *arg)
 			ctx->rescan = 0;
 			for_all_type_safe_list(txn_mgrs, &ctx->queue, mgr) {
 				scan_mgr(mgr);
-
 				spin_lock(&ctx->guard);
 				if (ctx->rescan) {
 					/* the list could be modified while ctx
@@ -142,9 +145,10 @@ init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 	assert("nikita-2442", ctx != NULL);
 
 	xmemset(ctx, 0, sizeof *ctx);
-	kcond_init(&ctx->startup);
 	init_completion(&ctx->finish);
+	kcond_init(&ctx->startup);
 	kcond_init(&ctx->wait);
+	kcond_init(&ctx->loop);
 	spin_lock_init(&ctx->guard);
 	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
 	txn_mgrs_list_init(&ctx->queue);
@@ -218,8 +222,16 @@ ktxnmgrd_detach(txn_mgr * mgr)
 
 		/* wait until daemon finishes */
 		wait_for_completion(&ctx->finish);
-	} else
+	} else {
+		kcond_signal(&ctx->wait);
+		/* ctx->loop is signaled by ktxnmgrd() after it woke up, but
+		 * before it enters scan_mgr() loop. Note that both signaling
+		 * of ctx->wait and wait on ctx->loop are done under
+		 * ctx->guard spin lock. This guarantees that current thread
+		 * cannot lose wakeup. */
+		kcond_wait(&ctx->loop, &ctx->guard, 0);
 		spin_unlock(&ctx->guard);
+	}
 }
 
 reiser4_internal void
