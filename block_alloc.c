@@ -304,7 +304,11 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 
 #if REISER4_DEBUG
 	get_current_context()->grabbed_initially = count;
-	get_current_context()->grabbed_at = __builtin_return_address(0);
+	get_current_context()->grabbed_at[0] = __builtin_return_address(1);
+	get_current_context()->grabbed_at[1] = __builtin_return_address(2);
+	get_current_context()->grabbed_at[2] = __builtin_return_address(3);
+	get_current_context()->grabbed_at[3] = __builtin_return_address(4);
+	get_current_context()->grabbed_at[4] = __builtin_return_address(5);
 #endif
 
 	free_blocks -= count;
@@ -350,9 +354,11 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 
 		    trace_on(TRACE_RESERVE2, "force commit!..");
 
-		    if (txnmgr_force_commit_all(get_current_context()->super) != 0)
-			reiser4_panic("umka-1272", "Can't commit transactions durring block allocation\n");
+		    ret = txnmgr_force_commit_all(get_current_context()->super);
+		    if (ret != 0)
+			    reiser4_panic("umka-1272", "Can't commit transactions durring block allocation\n");
 
+		    grab_space_enable();
 		    ret = reiser4_grab(count, flags);
 	    }
     }
