@@ -109,6 +109,7 @@ spinlock_t *jnode_to_page_lock( const jnode *node )
 			for (j = 0; j < sizeof (spinlock_t); j += 1) {
 				info ("%02x", ((char*)(&get_current_super_private() -> j_to_p[i]))[j]);
 			}
+			info(" ");
 		}
 		info ("\n");
 	}
