@@ -348,8 +348,8 @@ static inline void reiser4_spin_unlock_sb(const struct super_block * s)
 	spin_unlock_reiser4_super_info_data(private);
 }
 
-extern __u64 reiser4_flush_reserved        ( const struct super_block*);
-extern void  reiser4_set_flush_reserved    ( const struct super_block*, __u64 nr );
+extern __u64 flush_reserved        ( const struct super_block*);
+extern void  set_flush_reserved    ( const struct super_block*, __u64 nr );
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 extern long statfs_type(const struct super_block *super);
 extern int reiser4_blksize(const struct super_block *super);

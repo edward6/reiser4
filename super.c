@@ -198,7 +198,7 @@ reiser4_set_grabbed_blocks(const struct super_block *super, __u64 nr)
 	get_super_private(super)->blocks_grabbed = nr;
 }
 
-__u64 reiser4_flush_reserved (const struct super_block *super)
+__u64 flush_reserved (const struct super_block *super)
 {
 	assert ("vpf-285", super != NULL);
 	assert ("vpf-286", is_reiser4_super (super));
@@ -206,7 +206,7 @@ __u64 reiser4_flush_reserved (const struct super_block *super)
 	return get_super_private (super) -> blocks_flush_reserved;
 }
 
-void reiser4_set_flush_reserved (const struct super_block *super, __u64 nr)
+void set_flush_reserved (const struct super_block *super, __u64 nr)
 {
 	assert ("vpf-282", super != NULL);
 	assert ("vpf-283", is_reiser4_super (super));

@@ -80,7 +80,7 @@ add_to_sb_grabbed(const struct super_block *super, __u64 count)
 /* Increase the counter of block reserved for flush in super block. */
 static void add_to_sb_flush_reserved (const struct super_block * super, __u64 count)
 {
-	__u64 reserved = reiser4_flush_reserved (super);
+	__u64 reserved = flush_reserved (super);
 
 	reserved += count;
 	reiser4_set_flush_reserved (super, reserved);
@@ -99,11 +99,11 @@ sub_from_sb_grabbed(const struct super_block *super, __u64 count)
 static void
 sub_from_sb_flush_reserved (const struct super_block * super, __u64 count)
 {
-	__u64 reserved = reiser4_flush_reserved (super);
+	__u64 reserved = flush_reserved (super);
 
 	assert ("vpf-291", reserved >= count);
 	reserved -= count;
-	reiser4_set_flush_reserved (super, reserved);
+	set_flush_reserved (super, reserved);
 }
 
 static void
@@ -200,7 +200,7 @@ check_block_counters(const struct super_block *super)
 
 	sum = reiser4_grabbed_blocks(super) + reiser4_free_blocks(super) +
 	    	reiser4_data_blocks(super) + reiser4_fake_allocated(super) + 
-		reiser4_fake_allocated_unformatted(super) + reiser4_flush_reserved(super);
+		reiser4_fake_allocated_unformatted(super) + flush_reserved(super);
 	if (reiser4_block_count(super) != sum) {
 		info("super block counters: "
 		     "used %llu, free %llu, "
@@ -211,7 +211,7 @@ check_block_counters(const struct super_block *super)
 		     reiser4_grabbed_blocks(super),
 		     reiser4_fake_allocated(super),
 		     reiser4_fake_allocated_unformatted(super),
-		     reiser4_flush_reserved(super),
+		     flush_reserved(super),
 		     sum, reiser4_block_count(super));
 		return 0;
 	}
@@ -232,7 +232,7 @@ print_block_counters(const char *prefix,
 	     reiser4_data_blocks(super),
 	     reiser4_fake_allocated(super),
 	     reiser4_fake_allocated_unformatted(super),
-	     reiser4_flush_reserved(super),
+	     flush_reserved(super),
 	     reiser4_block_count(super));
 	info("\tcontext: G: %llu",
 	     get_current_context()->grabbed_blocks);
@@ -820,7 +820,7 @@ void flush_reserved2used(txn_atom * atom, __u64 count)
 	reiser4_spin_unlock_sb (super);	
 }
 
-__u64 reiser4_atom_flush_reserved(void)
+__u64 atom_flush_reserved(void)
 {
 	__u32 count;
 	
