@@ -351,8 +351,6 @@ static int formatted_readpage( struct file *f UNUSED_ARG,
 {
 	struct bio         *bio;
 
-	rlog( "nikita-2093", "Entering" );
-
 	/*
 	 * Simple implemenation in the assumption that blocksize == pagesize.
 	 *
@@ -387,7 +385,7 @@ static int formatted_writepage( struct file *f UNUSED_ARG,
 {
 	struct bio         *bio;
 
-	rlog( "nikita-2093", "Entering" );
+	rlog( "nikita-2096", "Entering" );
 
 	assert( "nikita-2094", page != NULL );
 	bio = page_bio( page, GFP_NOIO );
@@ -444,6 +442,13 @@ static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG,
 	return 0;
 }
 
+static int formatted_set_page_dirty( struct page *page )
+{
+	assert( "nikita-2095", page != NULL );
+	rlog( "nikita-2093", "Entering" );
+	return __set_page_dirty_nobuffers( page );
+}
+
 define_never_ever_op( readpages );
 define_never_ever_op( prepare_write );
 define_never_ever_op( commit_write );
@@ -472,7 +477,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	/* Perform a writeback as a memory-freeing operation. */
 	.vm_writeback   = formatted_fake_pressure_handler,
 	/* Set a page dirty */
-	.set_page_dirty = __set_page_dirty_nobuffers,
+	.set_page_dirty = formatted_set_page_dirty,
 	/* used for read-ahead. Not applicable */
 	.readpages      = V( never_ever_readpages ),
 	.prepare_write  = V( never_ever_prepare_write ),
