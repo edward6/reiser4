@@ -109,7 +109,7 @@ static int renew_transaction (void)
 	return 0;
 }
 
-static int process_znode (tap_t * tap, void * arg)
+static int process_znode_forward (tap_t * tap, void * arg)
 {
 	struct repacker_cursor * cursor = arg;
 	znode * node = tap->lh->node;
@@ -132,7 +132,7 @@ static int process_znode (tap_t * tap, void * arg)
 	return 0;
 }
 
-static int process_extent (tap_t *tap, void * arg)
+static int process_extent_forward (tap_t *tap, void * arg)
 {
 	int ret;
 	struct repacker_cursor * cursor = arg;
@@ -177,17 +177,17 @@ static int prepare_repacking_session (void * arg)
  * one), it does relocation of all processed nodes to the end of disk.  Thus
  * repacker does what usually the reiser4 flush does but in backward direction
  * and node squeezing is not supported. */
-static int relocate_znode (tap_t * tap, void * arg)
+static int process_znode_backward (tap_t * tap, void * arg)
 {
 	lock_handle parent_lock;
-	coord_t parent_coord;
+	load_count parent_load;
 	znode * child = tap->lh->node;
 	struct repacker_cursor * cursor = arg;
 	__u64 new_blocknr;
 	int ret;
 
 	/* Add node to current transaction like in processing forward. */
-	ret = process_znode(tap, arg);
+	ret = process_znode_forward(tap, arg);
 	if (ret)
 		return ret;
 
@@ -196,31 +196,38 @@ static int relocate_znode (tap_t * tap, void * arg)
 	if (ret)
 		goto out;
 
+	init_load_count(&parent_load);
+
 	/* Do not relocate nodes which were processed by flush already. */
 	if (ZF_ISSET(child, JNODE_RELOC) || ZF_ISSET(child, JNODE_OVRWR))
 		goto out;
 
 	if (ZF_ISSET(child, JNODE_CREATED)) {
 		assert("zam-962", blocknr_is_fake(znode_get_block(child)));
+		cursor->hint.block_stage = BLOCK_UNALLOCATED;
 	} else {
 		assert("zam-963", !blocknr_is_fake(znode_get_block(child)));
 		ret = reiser4_dealloc_block(znode_get_block(child), 0, 
 					    BA_DEFER | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
 		if (ret) 
 			goto out;
-	}
 
-	cursor->hint.block_stage = BLOCK_UNALLOCATED;
+		if (znode_get_level(child) == LEAF_LEVEL)
+			cursor->hint.block_stage = BLOCK_FLUSH_RESERVED;
+		else {
+			ret = reiser4_grab_space((__u64)1, BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+			if (ret)
+				goto out;
+
+			cursor->hint.block_stage = BLOCK_GRABBED;
+		}
+	}
 
 	{
 		__u64 len = 1UL;
 
 		ret = reiser4_alloc_blocks(&cursor->hint, &new_blocknr, &len, 
 					   BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
-		if (ret)
-			goto out;
-
-		ret = znode_rehash(child, &new_blocknr);
 		if (ret)
 			goto out;
 	}
@@ -231,10 +238,15 @@ static int relocate_znode (tap_t * tap, void * arg)
 
 	/* Update parent reference. */
 	if (unlikely(znode_above_root(parent_lock.node))) {
-		reiser4_super_info_data * sbinfo = get_current_super_private();
-		sbinfo->tree.root_block = new_blocknr;
+		reiser4_tree * tree = current_tree;
+		UNDER_RW_VOID(tree, tree, write, tree->root_block = new_blocknr);
 	} else {
+		coord_t parent_coord;
 		item_plugin *iplug;
+
+		ret = incr_load_count_znode(&parent_load, parent_lock.node);
+		if (ret)
+			goto out;
 
 		ret = find_child_ptr(parent_lock.node, child, &parent_coord);
 		if (ret)
@@ -248,13 +260,15 @@ static int relocate_znode (tap_t * tap, void * arg)
 	}
 
 	znode_make_dirty(parent_lock.node);
+	ret = znode_rehash(child, &new_blocknr);
 
  out:
+	done_load_count(&parent_load);
 	done_lh(&parent_lock);
 	return ret;
 }
 
-static int relocate_extent (tap_t * tap, void * arg)
+static int process_extent_backward (tap_t * tap, void * arg)
 {
 	struct repacker_cursor * cursor = arg;
 	int ret;
@@ -271,14 +285,14 @@ static int relocate_extent (tap_t * tap, void * arg)
 }
 
 static struct tree_walk_actor forward_actor = {
-	.process_znode  = process_znode,
-	.process_extent = process_extent,
+	.process_znode  = process_znode_forward,
+	.process_extent = process_extent_forward,
 	.before         = prepare_repacking_session
 };
 
 static struct tree_walk_actor backward_actor = {
-	.process_znode  = relocate_znode,
-	.process_extent = relocate_extent,
+	.process_znode  = process_znode_backward,
+	.process_extent = process_extent_backward,
 	.before         = prepare_repacking_session
 };
 

@@ -3679,7 +3679,7 @@ static int relocate_one_part_of_extent_unit (
 	/* add new extent unit for the part of the extent which cannot be relocated */
 	if (i < ext_width - 1) {
 		ret = make_new_extent_at_end(tap->coord, ext_width - i, done);
-		if (ret || done)
+		if (ret || (*done))
 			return ret;
 
 		ext = extent_by_coord(tap->coord);
@@ -3694,11 +3694,7 @@ static int relocate_one_part_of_extent_unit (
 	/* relocate all unformatted nodes which we can relocate, determine size of relocated extent,
 	   update extent item/unit to the new location. */
 	j = i;
-	while(0) {
-		/* all reserved space is used already. */
-		if (*nr_reserved <= 0)
-			break;
-
+	while (*nr_reserved > 0) {
 		/* add node to transaction. */
 		ret = try_capture(check, ZNODE_WRITE_LOCK, 0);
 		if (ret)
