@@ -304,8 +304,6 @@ emergency_flush(struct page *page)
 	jref(node);
 	reiser4_stat_inc_at_level(jnode_get_level(node), emergency_flush);
 
-	ON_TRACE(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
-
 	result = 0;
 	LOCK_JNODE(node);
 	/*
@@ -533,7 +531,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	jref(node);
 	spin_lock_eflush(tree->super);
 	ef_hash_insert(get_jnode_enhash(node), ef);
-	++ get_super_private(tree->super)->eflushed;
+	ON_DEBUG(++ get_super_private(tree->super)->eflushed);
 	spin_unlock_eflush(tree->super);
 
 	atom = atom_locked_by_jnode(node);
@@ -600,7 +598,7 @@ eflush_get(const jnode *node)
 	assert("nikita-2742", ef != NULL);
 	return &ef->blocknr;
 }
-/* NIKITA-FIXME-HANS: review usage of unlikely's in this function */
+
 void
 eflush_del(jnode *node, int page_locked)
 {
@@ -673,7 +671,7 @@ eflush_del(jnode *node, int page_locked)
 		assert("nikita-2745", ef != NULL);
 		blk = ef->blocknr;
 		ef_hash_remove(table, ef);
-		-- get_super_private(tree->super)->eflushed;
+		ON_DEBUG(-- get_super_private(tree->super)->eflushed);
 		spin_unlock_eflush(tree->super);
 
 		if (ef->hadatom) {
@@ -731,9 +729,6 @@ eflush_del(jnode *node, int page_locked)
 		}
 
 		LOCK_JNODE(node);
-
-		ON_TRACE(TRACE_EFLUSH, "unflush: %i...\n",
-			 get_super_private(tree->super)->eflushed);
 	}
 }
 

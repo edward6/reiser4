@@ -199,7 +199,9 @@ DEFINE_SUPER_RO(06, blocks_fake_allocated_unformatted, "%llu", 64);
 DEFINE_SUPER_RO(07, blocks_fake_allocated, "%llu", 64);
 DEFINE_SUPER_RO(08, blocks_flush_reserved, "%llu", 64);
 DEFINE_SUPER_RO(09, fsuid, "%llx", 32);
+#if REISER4_DEBUG
 DEFINE_SUPER_RO(10, eflushed, "%llu", 32);
+#endif
 DEFINE_SUPER_RO(11, blocknr_hint_default, "%lli", 64);
 DEFINE_SUPER_RO(12, nr_files_committed, "%llu", 64);
 DEFINE_SUPER_RO(13, tmgr.atom_count, "%llu", 32);
@@ -233,7 +235,9 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_07.attr,
 	&kattr_super_ro_08.attr,
 	&kattr_super_ro_09.attr,
+#if REISER4_DEBUG
 	&kattr_super_ro_10.attr,
+#endif
 	&kattr_super_ro_11.attr,
 	&kattr_super_ro_12.attr,
 	&kattr_super_ro_13.attr,
