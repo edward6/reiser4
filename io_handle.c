@@ -3,6 +3,7 @@
 /*
  * Reiser4 i/o handles are used for synchronization with i/o requests
  * submitted for given atom.
+REWRITE sentence above
  *
  * An i/o handle has a counter for submitted bio objects, which gets
  * decremented on each i/o completion. The last i/o request ups the i/o handle
