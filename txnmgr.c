@@ -3631,6 +3631,25 @@ capturable(const jnode *node, const txn_atom *atom)
 	return 1;
 }
 
+static void
+remove_from_capture_list(jnode *node)
+{
+	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
+	JF_CLR(node, JNODE_DIRTY);
+	JF_CLR(node, JNODE_RELOC);
+	JF_CLR(node, JNODE_OVRWR);
+	JF_CLR(node, JNODE_CREATED);
+	JF_CLR(node, JNODE_WRITEBACK);
+	JF_CLR(node, JNODE_REPACK);
+	clear_cced_bits(node);
+	
+	capture_list_remove_clean(node);
+	node->atom->capture_count --;
+	atomic_dec(&node->x_count);
+	ON_DEBUG(node->list = NOT_CAPTURED);
+	node->atom = 0;
+}
+
 /* insert new jnode (copy) to capture list instead of old one */
 static void
 replace_on_capture_list(jnode *node, jnode *copy)
@@ -3639,31 +3658,17 @@ replace_on_capture_list(jnode *node, jnode *copy)
 	assert("vs-1489", !capture_list_is_clean(node));
 	assert("vs-1493", JF_ISSET(copy, JNODE_CC) && JF_ISSET(copy, JNODE_HEARD_BANSHEE));
 
-	copy->state = node->state | (1 << JNODE_CC) | (1 << JNODE_HEARD_BANSHEE);
+	copy->state |= node->state;
 
-	/* insert jnode @copy into capture list before jnode @node */
+	/* insert cc-jnode @copy into capture list before old jnode @node */
 	capture_list_insert_before(node, copy);
 	jref(copy);
 	copy->atom = node->atom;
 	node->atom->capture_count ++;
 	ON_DEBUG(copy->list = node->list);
 
-	{
-		ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
-		JF_CLR(node, JNODE_DIRTY);
-		JF_CLR(node, JNODE_RELOC);
-		JF_CLR(node, JNODE_OVRWR);
-		JF_CLR(node, JNODE_CREATED);
-		JF_CLR(node, JNODE_WRITEBACK);
-		JF_CLR(node, JNODE_REPACK);
-		clear_cced_bits(node);
-		
-		capture_list_remove_clean(node);
-		node->atom->capture_count --;
-		atomic_dec(&node->x_count);
-		ON_DEBUG(node->list = NOT_CAPTURED);
-		node->atom = 0;
-	}
+	/* remove old jnode from capture list */
+	remove_from_capture_list(node);
 }
 
 /* when capture request is made for a node which is captured but was never
@@ -3674,22 +3679,8 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 	assert("vs-1432", spin_jnode_is_locked(node));
 	spin_lock(&scan_lock);
 	if (capturable(node, atom)) {
-		{
-			ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
-			JF_CLR(node, JNODE_DIRTY);
-			JF_CLR(node, JNODE_RELOC);
-			JF_CLR(node, JNODE_OVRWR);
-			JF_CLR(node, JNODE_CREATED);
-			JF_CLR(node, JNODE_WRITEBACK);
-			JF_CLR(node, JNODE_REPACK);
-			clear_cced_bits(node);
-			
-			capture_list_remove_clean(node);
-			node->atom->capture_count --;
-			atomic_dec(&node->x_count);	
-			ON_DEBUG(node->list = NOT_CAPTURED);
-			node->atom = 0;
-		}
+		/* remove jnode from capture list */
+		remove_from_capture_list(node);
 
 		spin_unlock(&scan_lock);
 		UNLOCK_JNODE(node);
@@ -3854,7 +3845,6 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 					if (was_jloaded) {
 						jrelse_tail(node);
 						assert("vs-1494", JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET));
-						assert("vs-1495", JF_ISSET(copy, JNODE_JLOADED_BY_GET_OVERWRITE_SET));
 						JF_CLR(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
 					} else
 						kunmap(new_page);
