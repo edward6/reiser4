@@ -1081,9 +1081,12 @@ common_attach(struct inode *child, struct inode *parent)
 
 static reiser4_block_nr common_estimate_add_entry(struct inode *inode)
 {
+	reiser4_block_nr amount;
 	assert("vpf-316", inode != NULL);
 	
-	return estimate_internal_amount(1, tree_by_inode(inode)->height) + 1;
+	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+
+	return amount + 1;
 }
 
 static reiser4_block_nr common_estimate_rem_entry(struct inode *inode) 

@@ -16,6 +16,7 @@
 
 #include "../tree.h"
 #include "../inode.h"
+#include "object.h"
 #include "plugin.h"
 #include "plugin_header.h"
 
@@ -41,9 +42,13 @@ reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
 	
 	assert("umka-1245", inode != NULL);
 	if (is_fake) {
+	    reiser4_block_nr amount;
+	    
 	    /* In the case of fake allocated extent (truncate does) we are counting
 	     * only overhead for one balancing */
-	    return estimate_internal_amount(1, tree_by_inode(inode)->height); 
+	    estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+
+	    return amount;
 	} else {
 	    /* Here we are counting the number of blocks needed for creating of the
 	     * real allocated extent(s) */
