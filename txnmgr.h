@@ -22,8 +22,6 @@ TS_LIST_DECLARE(capture);          /* The transaction's list of captured znodes 
 
 TS_LIST_DECLARE(blocknr_set);      /* Used for the transaction's delete set
 				    * and wandered mapping. */
-/* per atom list of flush positions */
-TS_LIST_DECLARE(flushers); 
 
 /****************************************************************************************
 				    TYPE DECLARATIONS
@@ -165,6 +163,7 @@ struct blocknr_set {
 };
 
 TS_LIST_DECLARE (io_handles);
+TS_LIST_DECLARE (fq);
 
 /* An atomic transaction: this is the underlying system representation
  * of a transaction, not the one seen by clients. */
@@ -234,11 +233,11 @@ struct txn_atom
 
 	int num_queued;		/* number of jnodes which were removed from
 				 * atom's lists and put on flush_queue */
-	/* all flush_pos objects that flush this atom are on this list  */
-	flushers_list_head      flushers; 
+	/* all flush queue objects that flush this atom are on this list  */
+	fq_list_head      flush_queues; 
 
 	/* active i/o requests accounting */
-	io_handles_list_head    io_handles;
+	io_handles_list_head        io_handles;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
@@ -434,6 +433,70 @@ extern void flush_fuse_queues (txn_atom *large, txn_atom *small);
 SPIN_LOCK_FUNCTIONS(atom,txn_atom,alock);
 SPIN_LOCK_FUNCTIONS(txnh,txn_handle,hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr,txn_mgr,tmgr_lock);
+
+extern spinlock_t _jnode_ptr_lock;
+
+
+typedef enum { 
+	 FQ_READY = 0, 
+	 FQ_IN_USE
+} flush_queue_state_t;
+
+struct flush_queue {
+	/* 
+	 * linkage element is the first in this structure to make debugging
+	 * easier */
+	fq_list_link  link;
+	/*
+	 * A spinlock to protect state changes */
+	spinlock_t          guard;
+	/*
+	 * flush_handle state: empty, active, */
+	flush_queue_state_t state;
+	/*
+	 * lists for jnodes in different states */
+	capture_list_head   queue;
+	capture_list_head   io;
+
+	/*
+	 * total number of queued nodes */
+	int                 nr_queued;
+	/*
+	 * number of submitted i/o requests */
+	atomic_t            nr_submitted;
+	/*
+	 * number of i/o errors */
+	atomic_t            nr_errors;
+	/*
+	 * An atom this flush handle is attached to */
+	txn_atom          * atom;
+	/*
+	 */
+	struct semaphore    sema;
+};
+
+typedef struct flush_queue flush_queue_t;
+
+/*
+ * Flush manager is an object which manages all flush queues and maintain a
+ * balance between queued, dirty and clean nodes.
+ */
+
+struct flush_mgr {
+	int                     nr_queues;
+	fq_list_head  flush_queues;
+};
+
+typedef struct flush_mgr flush_mgr_t;
+
+
+extern int  fq_get         (txn_atom *, flush_queue_t **);
+extern void fq_put         (flush_queue_t *);
+extern void fq_fuse        (txn_atom * to, txn_atom *from);
+extern void fq_queue_node  (flush_queue_t *, jnode *);
+extern int  fq_write       (flush_queue_t *, int);
+extern int  finish_all_fq  (txn_atom *);
+extern void fq_init_atom   (txn_atom *);
 
 # endif /* __REISER4_TXNMGR_H__ */
 
