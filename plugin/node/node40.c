@@ -1279,9 +1279,21 @@ struct shift_params {
 	int everything; /* it is set to 1 if everything we have to shift is
 			   shifted, 0 - otherwise */
 
+	/*
+	 * FIXME-VS: get rid of read_stop
+	 */
+
 	/* these are set by estimate_shift */
 	coord_t real_stop; /* this will be set to last unit which will be
-				  really shifted */
+			      really shifted */
+
+	/* coordinate in source node before operation of unit which becomes
+	 * first after shift to left of last after shift to right */
+	union {
+		coord_t future_first;
+		coord_t future_last;
+	} u;
+
 	unsigned merging_units; /* number of units of first item which have to
 				   be merged with last item of target node */
 	unsigned merging_bytes; /* number of bytes in those units */
@@ -1754,12 +1766,22 @@ static int node40_delete_copied (struct shift_params * shift)
 		   @shift->wish_stop */
 		coord_init_first_unit (&from, shift->real_stop.node);
 		to = shift->real_stop;
+
+		/* store old coordinate of unit which will be first after
+		 * shift to left */
+		shift->u.future_first = to;
+		coord_next_unit (&shift->u.future_first);
 	} else {
 		/* we were shifting to right, remove everything from
 		   @shift->stop_coord upto to end of
 		   @shift->stop_coord->node */
 		from = shift->real_stop;
 		coord_init_last_unit (&to, from.node);
+
+		/* store old coordinate of unit which will be last after
+		 * shift to right */
+		shift->u.future_last = from;
+		coord_prev_unit (&shift->u.future_last);
 	}
 
 	return node40_cut (&from, &to, 0, 0, 0, 0, 0);
@@ -2074,6 +2096,119 @@ static int call_shift_hooks (struct shift_params * shift)
 	}
 
 	return 0;
+}
+
+
+/*
+ * shift to left is completed. Return 1 if unit @old was moved to left neighbor
+ */
+static int unit_moved_left (const struct shift_params * shift,
+			    const coord_t * old)
+{
+	assert ("vs-944", shift->real_stop.node == old->node);
+
+	if (shift->real_stop.item_pos < old->item_pos)
+		return 0;
+	if (shift->real_stop.item_pos == old->item_pos) {
+		if (shift->real_stop.unit_pos < old->unit_pos)
+			return 0;
+	}
+	return 1;
+}
+
+
+/*
+ * shift to right is completed. Return 1 if unit @old was moved to right
+ * neighbor
+ */
+static int unit_moved_right (const struct shift_params * shift,
+			     const coord_t * old)
+{
+	assert ("vs-944", shift->real_stop.node == old->node);
+
+	if (shift->real_stop.item_pos > old->item_pos)
+		return 0;
+	if (shift->real_stop.item_pos == old->item_pos) {
+		if (shift->real_stop.unit_pos > old->unit_pos)
+			return 0;
+	}
+	return 1;
+}
+
+
+/*
+ * coord @old was set in node from which shift was performed. What was shifted
+ * is stored in @shift. Update @old correspondingly to performed shift
+ */
+static coord_t * adjust_coord2 (const struct shift_params * shift,
+				const coord_t * old, coord_t * new)
+{
+	if (shift->pend == SHIFT_LEFT) {
+		if (unit_moved_left (shift, old)) {
+			/*
+			 * unit @old moved to left neighbor. Calculate its
+			 * coordinate there
+			 */
+			new->node = shift->target;
+			new->item_pos = node_num_items (shift->target) -
+				shift->entire - (shift->part_units ? 1 : 0) + old->item_pos;
+			new->unit_pos = old->unit_pos;
+			if (shift->merging_units) {
+				new->item_pos --;
+				if (old->item_pos == 0) {
+					/*
+					 * unit_pos only changes if item got
+					 * merged
+					 */
+					new->unit_pos = coord_num_units (new) - old->unit_pos;
+				}
+			}
+		} else {
+			/*
+			 * unit @old did not move to left neighbor
+			 */
+			coord_dup (new, old);
+			new->item_pos -= shift->u.future_first.item_pos;
+			new->unit_pos -= shift->u.future_first.unit_pos;
+		}
+	} else {
+		if (unit_moved_right (shift, old)) {
+			/*
+			 * unit @old moved to right neighbor
+			 */
+			new->node = shift->target;
+			new->item_pos = old->item_pos - shift->real_stop.item_pos;
+			if (new->item_pos == 0) {
+				/*
+				 * unit @old might change unit pos
+				 */
+				new->item_pos = old->unit_pos - shift->real_stop.unit_pos;
+			}
+		} else {
+			/*
+			 * unit @old did not move to right neighbor, therefore
+			 * it did not change
+			 */
+			coord_dup (new, old);
+		}
+	}
+	return new;
+}
+
+
+/* this is called when shift is completed (something of source node is copied
+ * to target and deleted in source) to update all taps set in current
+ * context */
+static void update_taps (const struct shift_params * shift,
+			 int items_removed_completely)
+{
+	tap_t * tap;
+	coord_t new;
+
+
+	for_all_taps (tap) {
+		tap_to (tap, adjust_coord2 (shift, old->coord, &new)
+	}
 }
 
 
