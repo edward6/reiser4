@@ -97,23 +97,31 @@ static void aal_gauge_change(aal_gauge_state_t state) {
 }
 
 void aal_gauge_failed(void) {
+    if (!gauge) return;
+    
     if (gauge->state == GAUGE_RUNNING || 
 	    gauge->state == GAUGE_STARTED)
 	aal_gauge_change(GAUGE_FAILED);
 }
 
 void aal_gauge_done(void) {
+    if (!gauge) return;
+    
     if (gauge->state == GAUGE_RUNNING || 
 	    gauge->state == GAUGE_STARTED)
 	aal_gauge_change(GAUGE_DONE);
 }
 
 void aal_gauge_pause(void) {
+    if (!gauge) return;
+    
     if (gauge->state == GAUGE_RUNNING)
 	aal_gauge_change(GAUGE_PAUSED);
 }
 
 void aal_gauge_resume(void) {
+    if (!gauge) return;
+    
     if (gauge->state == GAUGE_PAUSED)
 	aal_gauge_change(GAUGE_STARTED);
 }

@@ -189,6 +189,78 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     is_enought_space = (nh40_get_free_space(reiserfs_nh40(node->block)) >= 
 	item->len + sizeof(reiserfs_ih40_t));
 
+    is_inside_range = (pos->item <= node40_count(node));
+    
+    aal_assert("vpf-026", is_enought_space, return -1);
+    aal_assert("vpf-027", is_inside_range, return -1);
+
+    is_new_item = (pos->unit == 0xffff);
+    item_pos = pos->item + !is_new_item;
+    
+    nh = reiserfs_nh40(node->block);
+    ih = node40_ih_at(node->block, item_pos);
+    
+    if (item_pos < nh40_get_num_items(nh)) {
+        offset = ih40_get_offset(ih);
+
+        aal_memcpy(node->block->data + offset + item->len, 
+	    node->block->data + offset, nh40_get_free_space_start(nh) - offset);
+	
+	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
+	    ih40_set_offset(ih, ih40_get_offset(ih) + item->len);
+
+    	if (is_new_item) {
+	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
+		(node40_count(node) - item_pos));
+	}
+    } else
+	offset = nh40_get_free_space_start(nh);
+    
+    nh40_set_free_space(nh, nh40_get_free_space(nh) - 
+	item->len - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
+    
+    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
+	item->len);
+    
+    if (!is_new_item) {
+	ih = node40_ih_at(node->block, pos->item);
+	ih40_set_length(ih, ih40_get_length(ih) + item->len);
+	return 0;
+    }
+    
+    aal_memcpy(&ih->key, item->key.body, libreiser4_plugin_call(return -1, 
+	item->key.plugin->key_ops, size,));
+    
+    ih40_set_offset(ih, offset);
+    ih40_set_pid(ih, item->plugin->h.id);
+    ih40_set_length(ih, item->len);
+    
+    return 0;
+}
+
+/*static errno_t node40_prepare(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos, reiserfs_item_hint_t *item) 
+{
+    void *body;
+    int i, item_pos;
+    uint32_t offset;
+    
+    reiserfs_ih40_t *ih;
+    reiserfs_nh40_t *nh;
+    
+    int is_enought_space;
+    int is_inside_range;
+    int is_new_item;
+
+    aal_assert("umka-817", node != NULL, return -1);
+    aal_assert("vpf-006", pos != NULL, return -1);
+    aal_assert("vpf-007", item != NULL, return -1);
+
+    aal_assert("umka-712", item->key.plugin != NULL, return -1);
+
+    is_enought_space = (nh40_get_free_space(reiserfs_nh40(node->block)) >= 
+	item->len + sizeof(reiserfs_ih40_t));
+
     is_inside_range = pos->item <= node40_count(node);
     
     aal_assert("vpf-026", is_enought_space, return -1);
@@ -200,7 +272,6 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     nh = reiserfs_nh40(node->block);
     ih = node40_ih_at(node->block, item_pos);
 
-    /* Insert free space for item and header, change item headers */
     if (item_pos < nh40_get_num_items(nh)) {
 	offset = ih40_get_offset(ih);
 
@@ -214,10 +285,6 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 	    ih = node40_ih_at(node->block, pos->item);
 	    ih40_set_length(ih, ih40_get_length(ih) + item->len);
 	} else {
-	    /* 
-		Item header is set at the last item head - 1 in the last for 
-		clause.
-	    */
 	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
 		(node40_count(node) - item_pos)); 
 	}
@@ -227,7 +294,6 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 	offset = nh40_get_free_space_start(nh);
     } 
     
-    /* Update node header */
     nh40_set_free_space(nh, nh40_get_free_space(nh) - 
 	item->len - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
     
@@ -237,7 +303,6 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     if (!is_new_item)	
 	return 0;
     
-    /* Create a new item header */
     aal_memcpy(&ih->key, item->key.body, libreiser4_plugin_call(return -1, 
 	item->key.plugin->key_ops, size,));
     
@@ -246,7 +311,7 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     ih40_set_length(ih, item->len);
     
     return 0;
-}
+}*/
 
 /* Inserts item described by hint structure into node */
 static errno_t node40_insert(reiserfs_node40_t *node, 
@@ -264,7 +329,9 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
     if (item->data) {
-	aal_memcpy(node40_ib_at(node->block, pos->item), item->data, item->len);
+	aal_memcpy(node40_ib_at(node->block, pos->item), 
+	    item->data, item->len);
+
 	return 0;
     } else {
 	return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
@@ -334,10 +401,6 @@ static errno_t node40_remove(reiserfs_node40_t *node, reiserfs_pos_t *pos) {
 static errno_t node40_paste(reiserfs_node40_t *node, 
     reiserfs_pos_t *pos, reiserfs_item_hint_t *item) 
 {   
-    /* 
-	FIXME-UMKA: Vitaly, I think assertions for checking parameters should 
-	be separated, because we need to know exactly, which one has occured.
-    */
     aal_assert("vpf-120", pos != NULL && pos->unit != 0xffff, return -1);
     
     if (node40_prepare(node, pos, item))
@@ -474,7 +537,10 @@ static int node40_lookup(reiserfs_node40_t *node,
     
     aal_assert("umka-478", pos != NULL, return -1);
     aal_assert("umka-470", node != NULL, return -1);
- 
+
+    if (node40_count(node) == 0)
+	return 0;
+    
     if ((lookup = reiserfs_misc_bin_search(node, node40_count(node), 
 	    key->body, callback_elem_for_lookup, callback_compare_for_lookup, 
 	    key->plugin, &item)) != -1)

@@ -75,11 +75,11 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
     for (i = 0; i < direntry_hint->count; i++) {
 	en40_set_offset(&direntry->entry[i], offset);
 
-	aal_memcpy(&direntry->entry[i].entryid, &direntry_hint->entry[i].entryid, 
-	    sizeof(reiserfs_entryid_t));
+	aal_memcpy(&direntry->entry[i].entryid, 
+	    &direntry_hint->entry[i].entryid, sizeof(reiserfs_entryid_t));
 	
-	aal_memcpy(((char *)direntry) + offset, &direntry_hint->entry[i].objid, 
-	    sizeof(reiserfs_objid_t));
+	aal_memcpy(((char *)direntry) + offset, 
+	    &direntry_hint->entry[i].objid, sizeof(reiserfs_objid_t));
 	
 	len = aal_strlen(direntry_hint->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
@@ -92,19 +92,6 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
 	*((char *)(direntry) + offset + 1) = 0;
 	offset++;
     }
-    
-    return 0;
-}
-
-static errno_t direntry40_insert(reiserfs_direntry40_t *direntry, 
-    uint32_t pos, reiserfs_item_hint_t *hint)
-{
-    aal_assert("umka-791", direntry != NULL, return -1);
-    aal_assert("umka-792", hint != NULL, return -1);
-    
-    de40_set_count(direntry, de40_get_count(direntry) + 1);
-    
-    /* Here will be adding of an unit */
     
     return 0;
 }
@@ -125,6 +112,77 @@ static errno_t direntry40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
 
     if (pos == 0xffff)
 	hint->len += sizeof(reiserfs_direntry40_t);
+    
+    return 0;
+}
+
+static errno_t direntry40_insert(reiserfs_direntry40_t *direntry, 
+    uint32_t pos, reiserfs_item_hint_t *hint)
+{
+    uint32_t i, offset, len;
+    reiserfs_direntry_hint_t *direntry_hint;
+    
+    aal_assert("umka-791", direntry != NULL, return -1);
+    aal_assert("umka-792", hint != NULL, return -1);
+    aal_assert("umka-897", pos != 0xffff, return -1);
+
+    if (pos > de40_get_count(direntry))
+	return -1;
+    
+    direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
+    if (pos < de40_get_count(direntry)) {
+	uint32_t inc;
+	
+	inc = direntry40_estimate(pos, hint);
+	
+	/* Updating entry offsets */
+	for (i = pos; i < de40_get_count(direntry); i++) {
+	    en40_set_offset(&direntry->entry[i], 
+		en40_get_offset(&direntry->entry[i]) + inc);
+	}
+		
+	/* Estimating area, which should be moved */
+	len = (de40_get_count(direntry) - pos)*sizeof(reiserfs_entry40_t);
+	
+	for (i = pos; i < de40_get_count(direntry); i++) {
+	    char *name = (char *)(en40_get_offset(&direntry->entry[i]) + 
+		sizeof(reiserfs_objid_t));
+	    
+	    len += aal_strlen(name) + sizeof(reiserfs_objid_t) + 1;
+	}
+	
+	aal_memcpy(&direntry->entry[pos] + direntry_hint->count, 
+	    &direntry->entry[pos], len);
+    }
+    
+    /* Updating direntry count field */
+    de40_set_count(direntry, de40_get_count(direntry) + 
+	direntry_hint->count);
+    
+    /* Creating new entries from passed direntry_item hint */
+    offset = sizeof(reiserfs_direntry40_t) + (de40_get_count(direntry) * 
+	sizeof(reiserfs_entry40_t));
+    
+    for (i = 0; i < direntry_hint->count; i++) {
+	en40_set_offset(&direntry->entry[pos + i], offset);
+
+	aal_memcpy(&direntry->entry[pos + i].entryid, 
+	    &direntry_hint->entry[i].entryid, sizeof(reiserfs_entryid_t));
+	
+	aal_memcpy(((char *)direntry) + offset, 
+	    &direntry_hint->entry[i].objid, sizeof(reiserfs_objid_t));
+	
+	len = aal_strlen(direntry_hint->entry[i].name);
+	offset += sizeof(reiserfs_objid_t);
+	
+	aal_memcpy((char *)(direntry) + offset, 
+	    direntry_hint->entry[i].name, len);
+	
+	offset += len;
+	
+	*((char *)(direntry) + offset + 1) = 0;
+	offset++;
+    }
     
     return 0;
 }

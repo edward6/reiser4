@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
 	return 0xff;
     }
     
-    if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {
+    if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open device %s.", argv[1]);
 	goto error_free_libreiser4;
@@ -57,6 +57,15 @@ int main(int argc, char *argv[]) {
 	goto error_free_fs;
     }
     
+    {
+	reiserfs_entry_hint_t entry;
+
+	aal_memset(&entry, 0, sizeof(entry));
+	entry.name = "test";
+
+	reiserfs_dir_add(object, &entry);
+    }
+    
     if (reiserfs_dir_rewind(object)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't rewind dir \"%s\".", argv[2]);
@@ -69,7 +78,6 @@ int main(int argc, char *argv[]) {
     }
     
     reiserfs_dir_close(object);
-    
     reiserfs_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);

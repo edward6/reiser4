@@ -220,7 +220,7 @@ int reiserfs_tree_lookup(
     aal_assert("umka-742", key != NULL, return -1);
     aal_assert("umka-742", coord != NULL, return -1);
   
-    reiserfs_coord_init(coord, tree->cache, 0, 0xffff);
+    reiserfs_coord_init(coord, tree->cache, 0xffff, 0xffff);
     while (1) {
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored
@@ -241,10 +241,8 @@ int reiserfs_tree_lookup(
 	if (lookup == 0) {
 	    
 	    /* Nothing found, probably node was empty */
-	    if (coord->pos.item == 0)
+	    if (coord->pos.item == 0xffff)
 		return lookup;
-	    
-	    coord->pos.item--;
 	}
 
 	/* Getting the node pointer from internal item */
@@ -471,11 +469,8 @@ errno_t reiserfs_tree_shift(
     return 0;
 }
 
-/*
-    Helper function. It is used for insert a node by its left delimiting key 
-    into the tree.
-*/
-static errno_t __tree_node_insert(
+/* Adds passed cached node to tree */
+errno_t reiserfs_tree_add(
     reiserfs_tree_t *tree,	    /* tree we will operate on */
     reiserfs_cache_t *parent,	    /* cached node we will insert in */
     reiserfs_cache_t *cache	    /* cached node to be inserted */
@@ -510,6 +505,9 @@ static errno_t __tree_node_insert(
 	return -1;
     }
 
+    coord.pos.item = (coord.pos.item == 0xffff ? 
+	0 : coord.pos.item + 1);
+    
     /* Preparing internal item hint */
     aal_memset(&item, 0, sizeof(item));
     internal.pointer = aal_block_get_nr(cache->node->block);
@@ -532,11 +530,11 @@ static errno_t __tree_node_insert(
     
     /* 
 	Checking for free space inside found internal node. If it is enought 
-	for inserting one more internal item into it then we doing this. If no, 
+	for inserting one more internal item into it then we doing that. If no, 
 	we need to split internal node and insert item into right of new nodes.
 	After, we should insert right node into parent of found internal node 
-	by reiserfs_tree_node_insert. This may cause tree growing when recursion 
-	reach the root node.
+	by reiserfs_tree_add. This may cause tree growing when recursion reach 
+	the root node.
     */
     if (reiserfs_node_get_free_space(parent->node) < needed) {
 	reiserfs_coord_t insert;
@@ -580,7 +578,7 @@ static errno_t __tree_node_insert(
 		    return -1;
 		
 		/* Registering insert point node in the new root node  */
-		if (__tree_node_insert(tree, tree->cache, insert.cache)) {
+		if (reiserfs_tree_add(tree, tree->cache, insert.cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert node %llu into the tree.", 
 			aal_block_get_nr(insert.cache->node->block));
@@ -596,7 +594,7 @@ static errno_t __tree_node_insert(
 	    }
 	   
 	    /* Inserting right node into parent of insert point node */ 
-	    if (__tree_node_insert(tree, insert.cache->parent, 
+	    if (reiserfs_tree_add(tree, insert.cache->parent, 
 		reiserfs_cache_create(right))) 
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -613,9 +611,6 @@ static errno_t __tree_node_insert(
 	    }
 	}
     } else {
-    
-	coord.pos.unit = 0xffff;
-
 	/* Inserting item */
 	if (reiserfs_node_insert(parent->node, &coord.pos, &item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -634,7 +629,7 @@ static errno_t __tree_node_insert(
 /* 
     Inserts new item described by item hint into the tree. If found leaf doesn't
     has enought free space for new item then creates new node and inserts it into
-    the tree by reiserfs_tree_node_insert function. See bellow for details.
+    the tree by reiserfs_tree_add function. See bellow for details.
 */
 errno_t reiserfs_tree_insert(
     reiserfs_tree_t *tree,	    /* tree new item will be inserted in */
@@ -661,7 +656,18 @@ errno_t reiserfs_tree_insert(
 	    aal_block_get_nr(coord.cache->node->block));
 	return -1;
     }
-  
+
+    /* 
+	As lookup returns position of the last item, we should increment it in 
+	the new item insertion case. And w should make increment of unit pos
+	in the case of inserting new unit;
+    */
+    if (coord.pos.unit == 0xffff)
+	coord.pos.item = (coord.pos.item == 0xffff ? 
+	    0 : coord.pos.item + 1);
+    else
+	coord.pos.unit++;
+    
     if (lookup == -1)
 	return -1;
  
@@ -708,7 +714,7 @@ errno_t reiserfs_tree_insert(
 	    }
 	
 	    /* Inserting new leaf into the tree */
-	    if (__tree_node_insert(tree, coord.cache, 
+	    if (reiserfs_tree_add(tree, coord.cache, 
 		reiserfs_cache_create(leaf))) 
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -758,7 +764,7 @@ errno_t reiserfs_tree_insert(
 		}
 	
 		/* Inserting new leaf into the tree */
-		if (__tree_node_insert(tree, coord.cache->parent, 
+		if (reiserfs_tree_add(tree, coord.cache->parent, 
 		    reiserfs_cache_create(leaf))) 
 		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -769,22 +775,22 @@ errno_t reiserfs_tree_insert(
 		    return -1;
 		}
 	    } else {
-		    
 		/* Inserting item into found after shifting point */
 		if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-			"Can't insert an internal item into the node %llu.", 
+			"Can't insert an %s into the node %llu.", 
+			(coord.pos.unit == 0xffff ? "item" : "unit"),
 			aal_block_get_nr(coord.cache->node->block));
 		    return -1;
 		}
 	    }
 	}
     } else {
-	    
 	/* Inserting item into existent one leaf */
 	if (reiserfs_node_insert(coord.cache->node, &coord.pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert an internal item into the node %llu.", 
+		"Can't insert an %s into the node %llu.", 
+		(coord.pos.unit == 0xffff ? "item" : "unit"),
 		aal_block_get_nr(coord.cache->node->block));
 	    return -1;
 	}

@@ -75,7 +75,6 @@ static errno_t reiserfs_object_lookup(
 	    return -1;
 	}
 	
-	/* Checking whether found item is a link */
 	if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
 	    object->coord.pos.item))) 
 	{

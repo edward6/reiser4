@@ -39,9 +39,9 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
     
     aal_assert("umka-864", dir != NULL, return -1);
     
-    /* Preparing key of the first entyr in directory */
     key.plugin = dir->key.plugin;
-
+    
+    /* Preparing key of the first entry in directory */
     libreiser4_plugin_call(return -1, key.plugin->key_ops, build_entry_full, 
 	key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), ".");
 	    
@@ -418,9 +418,54 @@ error:
 static errno_t dir40_add(reiserfs_dir40_t *dir, 
     reiserfs_entry_hint_t *entry) 
 {
+    reiserfs_item_hint_t item;
+    reiserfs_direntry_hint_t direntry_hint;
+    
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
+   
+    aal_memset(&item, 0, sizeof(item));
+    aal_memset(&direntry_hint, 0, sizeof(direntry_hint));
 
+    direntry_hint.count = 1;
+
+    if (!(direntry_hint.entry = aal_calloc(sizeof(*entry), 0)))
+	return -1;
+    
+    aal_memcpy(&direntry_hint.entry[0], entry, sizeof(*entry));
+    
+    item.type = REISERFS_CDE_ITEM;
+    item.hint = &direntry_hint;
+   
+    libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
+	build_generic_short, &entry->objid, KEY40_STATDATA_MINOR, 
+	1000, 1001);
+	
+    libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
+	build_entry_short, &entry->entryid, dir->hash_plugin, entry->name);
+    
+    
+    item.key.plugin = dir->key.plugin;
+    
+    libreiser4_plugin_call(goto error_free_entry, item.key.plugin->key_ops, build_entry_full, 
+	item.key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), 
+	entry->name);
+    
+    item.len = 0;
+    item.plugin = dir->direntry_plugin;
+
+    /* Inserting the entry to the tree */
+    if (core->tree_ops.item_insert(dir->tree, &item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't entry \"%s\" to the thee.", entry->name);
+	goto error_free_entry;
+    }
+    
+    aal_free(direntry_hint.entry);
+    
+    return 0;
+error_free_entry:
+    aal_free(direntry_hint.entry);
     return -1;
 }
 
@@ -443,7 +488,7 @@ static reiserfs_plugin_t dir40_plugin = {
 	    .id = 0x0,
 	    .type = REISERFS_DIR_PLUGIN,
 	    .label = "dir40",
-	    .desc = "Directory for reiserfs 4.0, ver. 0.1, "
+	    .desc = "Compound directory plugin for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 #ifndef ENABLE_COMPACT
@@ -451,7 +496,7 @@ static reiserfs_plugin_t dir40_plugin = {
 	    reiserfs_key_t *, reiserfs_object_hint_t *))dir40_create,
 	
 	.add = (errno_t (*)(reiserfs_entity_t *, reiserfs_entry_hint_t *))
-	    dir40_read,
+	    dir40_add,
 	
 	.check = NULL,
 #else

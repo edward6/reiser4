@@ -300,7 +300,6 @@ int reiserfs_node_lookup(
     reiserfs_key_t *key,	/* key to be find */
     reiserfs_pos_t *pos		/* found pos will be stored here */
 ) {
-    uint32_t item_pos;
     reiserfs_key_t maxkey;
     int lookup; void *body;
     reiserfs_plugin_t *item_plugin;
@@ -309,7 +308,7 @@ int reiserfs_node_lookup(
     aal_assert("vpf-048", node != NULL, return -1);
     aal_assert("umka-476", key != NULL, return -1);
 
-    pos->item = 0;
+    pos->item = 0xffff;
     pos->unit = 0xffff;
 
     if (reiserfs_node_count(node) == 0)
@@ -327,12 +326,12 @@ int reiserfs_node_lookup(
 
     if (lookup == 1) return 1;
 
-    item_pos = pos->item - (pos->item > 0 ? 1 : 0);
-	    
-    if (!(item_plugin = reiserfs_node_item_get_plugin(node, item_pos))) {
+    pos->item -= (pos->item > 0 ? 1 : 0);
+    
+    if (!(item_plugin = reiserfs_node_item_get_plugin(node, pos->item))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
-	    aal_block_get_nr(node->block), item_pos);
+	    aal_block_get_nr(node->block), pos->item);
 	return -1;
     }
 
@@ -340,7 +339,7 @@ int reiserfs_node_lookup(
 	We are on the position where key is less then wanted. Key could lies 
 	within the item or after the item.
     */
-    reiserfs_node_get_key(node, item_pos, &maxkey);
+    reiserfs_node_get_key(node, pos->item, &maxkey);
     
     if (item_plugin->item_ops.common.maxkey) {
 	    
@@ -353,18 +352,18 @@ int reiserfs_node_lookup(
 	
 	if (reiserfs_key_compare_full(key, &maxkey) > 0) {
 	    pos->item++;
-	    return lookup;
+	    return 0;
 	}
     }
 
     /* Calling lookup method of found item (most probably direntry item) */
     if (!item_plugin->item_ops.common.lookup)
-	return lookup;
+	return 0;
 	    
-    if (!(body = reiserfs_node_item_body(node, item_pos))) {
+    if (!(body = reiserfs_node_item_body(node, pos->item))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item at node %llu and pos %u.", 
-	    aal_block_get_nr(node->block), item_pos);
+	    aal_block_get_nr(node->block), pos->item);
 	return -1;
     }
     
@@ -373,9 +372,13 @@ int reiserfs_node_lookup(
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the item %d in the node %llu failed.", 
-	    item_pos, aal_block_get_nr(node->block));
+	    pos->item, aal_block_get_nr(node->block));
 	return -1;
     }
+
+    /* Correcting unit pos in order to make it pointing to existent unit */
+    if (lookup == 0)
+	pos->unit--;
     
     return lookup;
 }
@@ -427,7 +430,7 @@ errno_t reiserfs_node_insert(
 	    Estimate the size that will be spent for item. This should be done
 	    if item->data not installed.
 	*/
-	if (reiserfs_node_item_estimate(node, pos, item)) {
+	if (item->len == 0 && reiserfs_node_item_estimate(node, pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't estimate space that item being inserted will consume.");
 	    return -1;
