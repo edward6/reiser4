@@ -1508,8 +1508,8 @@ unix_file_delete(struct inode *inode)
 		drop_exclusive_access(inode);
 		if (result) {
 			warning("nikita-2848",
-				"Cannot truncate unnamed file %lli. Run fsck",
-				get_inode_oid(inode));
+				"Cannot truncate unnamed file %lli: %i",
+				get_inode_oid(inode), result);
 			return result;
 		}
 	}
