@@ -529,7 +529,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 #endif
 	
 	assert("edward-671", clust->hint != NULL);
-	assert("edward-140", clust->stat != FAKE_CLUSTER);
+	assert("edward-140", clust->dstat != FAKE_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
@@ -550,7 +550,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	
 	assert("edward-673", znode_is_any_locked(clust->hint->coord.lh->node));
 	
-	if (clust->stat == FAKE_CLUSTER) {
+	if (clust->dstat == FAKE_DISK_CLUSTER) {
 		/* FIXME-EDWARD: isn't support yet */
 		assert("edward-865", 0);
 
@@ -607,7 +607,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 
 	assert("edward-119", tfm_cluster_is_uptodate(tc));
 	
-	if (clust->stat == FAKE_CLUSTER) {
+	if (clust->dstat == FAKE_DISK_CLUSTER) {
 		/* fill the page by zeroes */
 		char *kaddr = kmap_atomic(page, KM_USER0);
 		
@@ -953,7 +953,7 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	
 	assert("edward-1085", inode != NULL);
 	assert("edward-1086", clust->hint != NULL);
-	assert("edward-1062", new_cluster(clust, inode));
+	assert("edward-1062", clust->dstat == FAKE_DISK_CLUSTER);
 	assert("edward-675", get_current_context()->grabbed_blocks == 0);
 
 	/* We need disk space right here to find
