@@ -2731,18 +2731,8 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len,
 				   BA_FORMATTED | BA_PERMANENT);
-	if(ret) {
-		/* Get flush reserved block back if allocation fails. */
-		if (flush_reserved_used) {
-			/*
-			 * ok, we failed to move node into relocate
-			 * set. Restore status quo.
-			 */
-			grabbed2flush_reserved((__u64)1);
-			ZF_SET(node, JNODE_FLUSH_RESERVED);
-		}
+	if(ret)
 		goto exit;
-	}
 
 
 	if (!ZF_ISSET(node, JNODE_CREATED) &&
@@ -2783,6 +2773,19 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 
 	ret = znode_rehash(node, &blk);
 exit:
+	if(ret) {
+		/* Get flush reserved block back if something fails, because
+		 * callers assume that on error block wasn't relocated and its
+		 * flush reserved block wasn't used. */
+		if (flush_reserved_used) {
+			/*
+			 * ok, we failed to move node into relocate
+			 * set. Restore status quo.
+			 */
+			grabbed2flush_reserved((__u64)1);
+			ZF_SET(node, JNODE_FLUSH_RESERVED);
+		}
+	}
 	zrelse(node);
 	done_lh(&uber_lock);
 	grabbed2free_mark(grabbed);
