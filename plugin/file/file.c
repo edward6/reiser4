@@ -737,7 +737,11 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
 		unset_hint(hint);
 		return;
 	}
-	assert("", coord_is_existing_item(coord));
+	if (!coord_is_existing_item(coord)) {
+		info("set_hint: coord is not set to item\n");
+		unset_hint(hint);
+		return;
+	}
 	result = item_plugin_by_coord(coord)->b.key_in_item(coord, key);
 	zrelse(coord->node);
 	if (result == 0) {
