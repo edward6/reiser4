@@ -715,6 +715,9 @@ reiser4_internal int fq_by_jnode(jnode * node, flush_queue_t ** fq)
         return fq_by_jnode_gfp(node, fq, GFP_KERNEL);
 }
 
+
+#if REISER4_DEBUG
+
 void check_fq(const txn_atom *atom)
 {
 	/* check number of nodes on all atom's flush queues */
@@ -733,6 +736,8 @@ void check_fq(const txn_atom *atom)
 		warning("", "fq counter %d, real %d\n", atom->fq, count);
 			
 }
+
+#endif
 
 /* Make Linus happy.
    Local variables:
