@@ -99,7 +99,7 @@ int
 is_in_reiser4_context(void)
 {
 	return current->fs_context != NULL && 
-		( current->fs_context->owner) == context_magic;
+		( (unsigned long) current->fs_context->owner) == context_magic;
 }
 
 static void 
