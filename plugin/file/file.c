@@ -405,6 +405,8 @@ static void mark_buffers_dirty (struct page * page, unsigned count)
 
 #ifdef TAIL2EXTENT_ALL_AT_ONCE
 
+NOT THIS
+
 typedef struct {
 	struct inode * inode; /* inode of file being tail2extent converted */
 	struct page * page;   /* page being filled currently */
@@ -573,22 +575,29 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 
 #else /* TAIL2EXTENT_ITEM_BY_ITEM */
 
-/* this returns true if coord is set to not last item of file and tail2extent
- * must continue */
+/* part of tail2extent. It returns true if coord is set to not last item of
+ * file and tail2extent must continue */
 static int must_continue (struct inode * inode, reiser4_key * key,
 			  const tree_coord * coord UNUSED_ARG)
 {
+	reiser4_key coord_key;
+
+	assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
 	assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
+	item_key_by_coord (coord, &coord_key);
+	set_key_offset (&coord_key,
+			get_key_offset (&coord_key) +
+			item_length_by_coord (&coord_key));
+	assert ("vs-568", keycmp (key, &coord_key) == EQUAL_TO);
 	/*
 	 * FIXME-VS: do we need to try harder?
 	 */
-
 	return inode->i_size == (loff_t)get_key_offset (key);
 		
 }
 
 
-/* cut all items of which given page consists */
+/* part of tail2extent. Cut all items of which given page consists */
 static int cut_tail_page (struct page * page)
 {
 	struct inode * inode;
@@ -649,7 +658,10 @@ static int write_page_by_extent (struct inode * inode, struct page * page,
 }
 
 
-/* this does conversion item by item */
+/* this does conversion page by page. It starts from very first item of file,
+ * when page is filled with data from tail items those items are cut and
+ * unallocated extent corresponding to that page gets created. This loops until
+ * all the conversion is done */
 static int tail2extent (struct inode * inode, tree_coord * coord, 
 			lock_handle * lh)
 {
@@ -662,10 +674,8 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 	unsigned page_off, count, copied;
 	char * item;
 
-
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_file_add (tail2extent);
-
 
 	fplug = inode_file_plugin (inode);
 	if (!fplug || !fplug->key_by_inode) {
@@ -695,8 +705,8 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 
 		page_off = get_key_offset (&key) & PAGE_MASK;
 		if (page_off == 0) {
-			assert ("vs-561",
-				(__u64)i << PAGE_SHIFT == get_key_offset (&key));
+			/* we start new page */
+			assert ("vs-561", page == 0);
 			page = grab_cache_page (inode->i_mapping,
 						(unsigned long)(get_key_offset (&key) >> PAGE_SHIFT));
 			if (!page)
@@ -704,6 +714,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 		}
 		count = item_length_by_coord (coord) - copied;
 		if (count > PAGE_SIZE - page_off) {
+			/* page boundary is inside of tail item */
 			count = PAGE_SIZE - page_off;
 		}
 		p_data = kmap (page);
@@ -725,20 +736,34 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 			count = page_off;
 			if ((result = cut_tail_page (page)) ||
 			    (result = write_page_by_extent (inode, page, count))) {
+				/*
+				 * FIXME-VS: how do we handle this case? Abort
+				 * transaction?
+				 */
+				warning ("vs-565", "tail2extent conversion has eaten data");
 				UnlockPage (page);
 				page_cache_release (page);
 				break;
 			}
-
+			/* extent corresponding to page is in the tree, tail
+			 * items are not */
 			mark_buffers_dirty (page, count);
 			SetPageUptodate (page);
 			UnlockPage (page);
 			page_cache_release (page);
 
 			if (!must_continue (inode, &key, coord))
-			    break;
+				/* conversion is done */
+				break;
 
+			/* new page will be started */
 			page = 0;
+			/* we have to re-search item*/
+			item = 0;
+		}
+		if (copied == item_length_by_coord (coord)) {
+			/* all content of item is copied into page, therefore
+			 * we have to find new one */
 			item = 0;
 		}
 	}

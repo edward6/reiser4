@@ -62,6 +62,8 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 			},
 			.have_tail   = always_tail
 		}
+	},
+	[ TEST_TAIL_ID ] = {
 	}
 };
 

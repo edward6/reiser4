@@ -499,6 +499,7 @@ typedef enum {
 	SUPPRESS_OLD_ID,
 	FOURK_TAIL_ID, 
 	ALWAYS_TAIL_ID,
+	TEST_TAIL_ID,
 	LAST_TAIL_ID
 } reiser4_tail_id;
 
