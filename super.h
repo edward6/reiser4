@@ -10,7 +10,7 @@
 #define __REISER4_SUPER_H__
 
 /** reiser4-specific part of super block */
-typedef struct reiser4_super_info_data {
+struct reiser4_super_info_data {
 	/**
 	 * guard spinlock which protects reiser4 super 
 	 * block fields (currently blocks_free, 
@@ -18,13 +18,6 @@ typedef struct reiser4_super_info_data {
 	 */
 	spinlock_t        guard;
  
-	/**
-	 * allocator used to allocate new object ids for objects in the file
-	 * system. Current default implementation of object id allocator is
-	 * just counter and
-	 */
-	reiser4_oid_allocator_t allocator;
-
 	/**
 	 * reiser4 internal tree
 	 */
@@ -113,8 +106,12 @@ typedef struct reiser4_super_info_data {
 	 */
 	int                  kmalloc_allocated;
 #endif
+	/* disk layout plugin */
+	layout_plugin * lplug;
+	/* disk layout specific part of reiser4 super info data */
+	void * layout_private;
 
-} reiser4_super_info_data;
+};
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );
 
