@@ -2643,6 +2643,10 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 
 	grabbed = get_current_context()->grabbed_blocks;
 
+	/* discard e-flush allocation */
+	ret = zload(node);
+	if (ret)
+		return ret;
 
 	if (ZF_ISSET(node, JNODE_CREATED)) {
 		assert ("zam-816", blocknr_is_fake(znode_get_block(node)));
@@ -2678,14 +2682,9 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		}
 	}
 
-	/* discard e-flush allocation */
-	ret = zload(node);
-	if (ret)
-		goto exit;
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len,
 				   BA_FORMATTED | BA_PERMANENT);
-	zrelse(node);
 	if(ret) {
 		/* Get flush reserved block back if allocation fails. */
 		if (flush_reserved_used) {
@@ -2736,14 +2735,9 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		znode_make_dirty(uber);
 	}
 
-	/* FIXME-ZAM: Is zload needed here? */
-	ret = zload(node);
-	if (ret)
-		goto exit;
-
 	ret = znode_rehash(node, &blk);
-	zrelse(node);
 exit:
+	zrelse(node);
 	done_lh(&uber_lock);
 	grabbed2free_mark(grabbed);
 	return ret;
