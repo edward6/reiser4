@@ -123,7 +123,6 @@ int reiser4_get_parent (lock_handle * result /* resulting lock
 	int ret;
 	
 	assert("umka-238", tree != NULL);
-	assert("umka-302", !spin_is_locked(&tree->tree_lock));
 	
 	spin_lock_tree(tree);
 	ret = lock_neighbor(result, node, PARENT_DIR, mode, ZNODE_LOCK_HIPRI, 
@@ -282,7 +281,6 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 	assert("umka-246", handle != NULL);
 	assert("umka-247", child != NULL);
 	assert("umka-303", tree != NULL);
-	assert("umka-304", !spin_is_locked(&tree->tree_lock));
 	
 	spin_lock_tree(tree);
 
@@ -423,8 +421,6 @@ int connect_znode (coord_t * coord, znode * node)
 
 	if (ret != 0) return ret; 
 
-	assert("umka-306", !spin_is_locked(&tree->tree_lock));
-	
 	/* protect `connected' state check by tree_lock */
 	spin_lock_tree(tree);
 
@@ -486,8 +482,6 @@ static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int 
 	/* tree lock is not needed here because we keep parent node(s) locked
 	 * and reference to neighbor znode incremented */
 	neighbor = (flags & GN_GO_LEFT) ? node->left : node->right;
-	
-	assert("umka-309", !spin_is_locked(&tree->tree_lock));
 	
 	spin_lock_tree(tree);
 	ret = znode_is_connected(neighbor);
@@ -567,8 +561,6 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
  again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	 * link existence */
-	
-	assert("umka-311", !spin_is_locked(&tree->tree_lock));
 	
 	spin_lock_tree(tree);
 	ret = lock_side_neighbor(neighbor, node, lock_mode, flags);
@@ -726,7 +718,6 @@ void sibling_list_insert (znode *new, znode *before)
 {
 	assert("umka-256", new != NULL);
 	assert("umka-257", current_tree != NULL);
-	assert("umka-313", !spin_tree_is_locked(current_tree));
 	
 	spin_lock_tree(current_tree);
 	sibling_list_insert_nolock(new, before);

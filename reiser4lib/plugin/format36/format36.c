@@ -65,9 +65,13 @@ static error_t reiserfs_format36_super_check(reiserfs_format36_super_t *super,
 
 static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
     aal_block_t *block;
+    uint16_t blocksize;
     reiserfs_format36_super_t *super;
     int i, super_offset[] = {16, 2, -1};
 
+    blocksize = aal_device_get_blocksize(device);
+    aal_device_set_blocksize(device, REISERFS_DEFAULT_BLOCKSIZE);
+    
     for (i = 0; super_offset[i] != -1; i++) {
 	if ((block = aal_device_read_block(device, super_offset[i]))) {
 	    super = (reiserfs_format36_super_t *)block->data;
@@ -82,7 +86,10 @@ static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
 		    aal_device_free_block(block);
 		    continue;
 		}
-		return block;
+		
+		if (aal_device_set_blocksize(device, get_sb_block_size(super)))
+		    return block;
+		
 	    }
 	    aal_device_free_block(block);
 	}
@@ -126,8 +133,8 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
     return 0;
 }
 
-static reiserfs_format36_t *reiserfs_format36_create(reiserfs_opaque_t *alloc, 
-    aal_device_t *device, count_t blocks, uint16_t blocksize) 
+static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
+    blk_t offset, count_t blocks, uint16_t blocksize) 
 {
     return NULL;
 }
@@ -146,7 +153,7 @@ static void reiserfs_format36_close(reiserfs_format36_t *format, int sync) {
     aal_free(format);
 }
 
-static int reiserfs_format36_probe(aal_device_t *device) {
+static int reiserfs_format36_probe(aal_device_t *device, blk_t offset) {
     aal_block_t *block;
 	
     if (!(block = reiserfs_format36_super_open(device)))
@@ -190,15 +197,15 @@ static reiserfs_plugin_t format36_plugin = {
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *))reiserfs_format36_open,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t))reiserfs_format36_open,
 	
-	.create = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *, count_t, uint16_t))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t, count_t, uint16_t))
 	    reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_format36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_check,
-	.probe = (int (*)(aal_device_t *))reiserfs_format36_probe,
+	.probe = (int (*)(aal_device_t *, blk_t))reiserfs_format36_probe,
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format36_format,
 			
 	.root_block = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_root_block,

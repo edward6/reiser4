@@ -106,12 +106,13 @@ typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
 struct reiserfs_format_plugin {
     reiserfs_plugin_header_t h;
 	
-    reiserfs_opaque_t *(*open) (reiserfs_opaque_t *, aal_device_t *);
-    reiserfs_opaque_t *(*create) (reiserfs_opaque_t *, aal_device_t *, count_t, uint16_t);
+    reiserfs_opaque_t *(*open) (aal_device_t *, blk_t);
+    reiserfs_opaque_t *(*create) (aal_device_t *, blk_t, count_t, uint16_t);
+    
     void (*close) (reiserfs_opaque_t *, int);
     error_t (*sync) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *);
-    int (*probe) (aal_device_t *device);
+    int (*probe) (aal_device_t *device, blk_t);
     const char *(*format) (reiserfs_opaque_t *);
 
     blk_t (*root_block) (reiserfs_opaque_t *);

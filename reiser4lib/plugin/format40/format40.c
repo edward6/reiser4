@@ -28,32 +28,29 @@ static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
     return aal_strncmp(super->sb_magic, REISERFS_FORMAT40_MAGIC, 16) == 0;
 }
 
-static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
+static aal_block_t *reiserfs_format40_super_open(aal_device_t *device, blk_t offset) {
     aal_block_t *block;
     reiserfs_format40_super_t *super;
-    int i, super_offset[] = {17, -1};
 	
-    for (i = 0; super_offset[i] != -1; i++) {
-	if ((block = aal_device_read_block(device, super_offset[i]))) {
-	    super = (reiserfs_format40_super_t *)block->data;
-		
-	    if (reiserfs_format40_signature(super)) {
-		if (reiserfs_format40_super_check(super, device)) {
-		    aal_device_free_block(block);
-		    continue;
-		}	
-		return block;
-	    }
-			
-	    aal_device_free_block(block);
-	}
+    if (!(block = aal_device_read_block(device, offset))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't read block %d.", offset);
+	return NULL;
     }
-    return NULL;
+    super = (reiserfs_format40_super_t *)block->data;
+		
+    if (!reiserfs_format40_signature(super))
+	return NULL;
+    
+    if (!reiserfs_format40_super_check(super, device)) {
+        aal_device_free_block(block);
+        return NULL;
+    }
+    
+    return block;
 }
 
-static reiserfs_format40_t *reiserfs_format40_open(reiserfs_opaque_t *alloc, 
-    aal_device_t *device) 
-{
+static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *device, blk_t offset) {
     reiserfs_format40_t *format;
 	
     if (!device)
@@ -62,7 +59,7 @@ static reiserfs_format40_t *reiserfs_format40_open(reiserfs_opaque_t *alloc,
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
 
-    if (!(format->super = reiserfs_format40_super_open(device)))
+    if (!(format->super = reiserfs_format40_super_open(device, offset)))
 	goto error_free_format;
 		
     format->device = device;
@@ -87,13 +84,13 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     return 0;
 }
 
-static reiserfs_format40_t *reiserfs_format40_create(reiserfs_opaque_t *alloc, 
-    aal_device_t *device, count_t blocks, uint16_t blocksize) 
+static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, 
+    blk_t offset, count_t blocks, uint16_t blocksize) 
 {
     reiserfs_plugin_t *plugin;
     reiserfs_format40_t *format;
     reiserfs_format40_super_t *super;
-    reiserfs_segment_t request, response;
+//    reiserfs_segment_t request, response;
 
     if (!device)
 	return NULL;
@@ -103,7 +100,7 @@ static reiserfs_format40_t *reiserfs_format40_create(reiserfs_opaque_t *alloc,
     
     format->device = device;
     
-    if (!(format->super = aal_device_alloc_block(device, REISERFS_FORMAT40_OFFSET, 0))) {
+    if (!(format->super = aal_device_alloc_block(device, offset, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't allocate superblock.");
 	goto error_free_format;
@@ -120,7 +117,7 @@ static reiserfs_format40_t *reiserfs_format40_create(reiserfs_opaque_t *alloc,
     set_sb_free_blocks(super, blocks - ((REISERFS_MASTER_OFFSET / blocksize) + 1 + 1 + 1 + 1));
 
     /* Requesting allocator plugin to allocate one block for root node */
-    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 0x01))) {
+/*    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 0x01))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find allocator plugin by its coords (%x, %x).", 
 	    REISERFS_ALLOC_PLUGIN, 0x01);
@@ -135,14 +132,13 @@ static reiserfs_format40_t *reiserfs_format40_create(reiserfs_opaque_t *alloc,
     
     reiserfs_plugin_check_routine(plugin->alloc, allocate, goto error_free_format);
     if (plugin->alloc.allocate(alloc, &request, &response))
-	goto error_free_format;
+	goto error_free_format;*/
     
     /* 
 	Okay, allocator plugin has returned correctly filled 
 	response with allocated area.
     */
-    
-    set_sb_root_block(super, response.start);
+    set_sb_root_block(super, offset + 1);
 
     /* Tree height */
     set_sb_tree_height(super, 2);
@@ -160,7 +156,7 @@ static reiserfs_format40_t *reiserfs_format40_create(reiserfs_opaque_t *alloc,
     set_sb_flushes(super, 0);
     set_sb_journal_plugin_id(super, 0x01);
     set_sb_alloc_plugin_id(super, 0x01);
-    
+
     return format;
     
 error_free_super:
@@ -184,10 +180,10 @@ static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
     aal_free(format);
 }
 
-static int reiserfs_format40_probe(aal_device_t *device) {
+static int reiserfs_format40_probe(aal_device_t *device, blk_t offset) {
     aal_block_t *block;
 
-    if (!(block = reiserfs_format40_super_open(device)))
+    if (!(block = reiserfs_format40_super_open(device, offset)))
 	return 0;
 	
     aal_device_free_block(block);
@@ -226,15 +222,15 @@ static reiserfs_plugin_t format40_plugin = {
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *))reiserfs_format40_open,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t))reiserfs_format40_open,
 	
-	.create = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, aal_device_t *, count_t, uint16_t))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t, count_t, uint16_t))
 	    reiserfs_format40_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_format40_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,
-	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
+	.probe = (int (*)(aal_device_t *, blk_t))reiserfs_format40_probe,
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format40_format,
 	
 	.root_block = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_root_block,

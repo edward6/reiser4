@@ -11,8 +11,8 @@
 #include <reiserfs/plugin.h>
 #include <reiserfs/node.h>
 
-#define REISERFS_MASTER_OFFSET		65536
 #define REISERFS_DEFAULT_BLOCKSIZE	4096
+#define REISERFS_MASTER_OFFSET		65536
 #define REISERFS_MASTER_MAGIC		"R4Sb"
 
 struct reiserfs_master {

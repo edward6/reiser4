@@ -863,7 +863,6 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "zam-356", znode_is_loaded(parent)); 
 
 	assert( "umka-321", current_tree != NULL );
-	assert( "umka-322", !spin_is_locked(&current_tree->tree_lock) );
 
 	ncoord_init_zero( result );
 	result -> node = parent;
@@ -934,7 +933,6 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-1322", result != NULL );
 
 	assert( "umka-323", current_tree != NULL );
-	assert( "umka-324", !spin_is_locked(&current_tree->tree_lock) );
 	
 	ret = NS_NOT_FOUND;
 

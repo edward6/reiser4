@@ -656,7 +656,6 @@ atom_begin_andlock (void)
 	atom_init (atom);
 
 	assert ("jmacd-17", atom_isclean (atom));
-	assert ("umka-284", !spin_is_locked(&mgr->tmgr_lock));
 
 	/* Take the atom and txnmgr lock. */
 	spin_lock_atom   (atom);
@@ -708,7 +707,6 @@ atom_free (txn_atom *atom)
 	trace_on (TRACE_TXN, "free atom %u\n", atom->atom_id);	
 
 	assert ("jmacd-18", spin_atom_is_locked (atom));
-	assert ("umka-285", !spin_is_locked(&mgr->tmgr_lock));
 
 	/* Remove from the txn_mgr's atom list */
 	spin_lock_txnmgr (mgr);
@@ -847,7 +845,6 @@ txn_mgr_force_commit (struct super_block *super)
 	mgr = & get_super_private (super)->tmgr;
 	
 	assert("umka-287", mgr != NULL);
-	assert("umka-286", !spin_is_locked(&mgr->tmgr_lock));
 
 	txnh = get_current_context ()->trans;
 
@@ -970,9 +967,6 @@ int memory_pressure (struct super_block *super)
 
 	assert("umka-288", txnh != NULL);
 	
-	assert("umka-289", !spin_is_locked(&txnh->hlock));
-	assert("umka-290", !spin_is_locked(&mgr->tmgr_lock));
-
 	spin_lock_txnh (txnh);
 	spin_lock_txnmgr (mgr);
 
@@ -1076,8 +1070,6 @@ try_capture_block (txn_handle  *txnh,
 	assert("umka-194", txnh != NULL);
 	assert("umka-195", node != NULL);
 
-	assert("umka-291", !spin_is_locked(&txnh->hlock));
-	
 	/* The jnode is already locked!  Being called from txn_try_capture(). */
 	assert ("jmacd-567", spin_jnode_is_locked (node));
 
@@ -1273,7 +1265,6 @@ txn_try_capture_page  (struct page        *pg,
 	
 	node = jnode_of_page (pg);
 	
-	assert("umka-293", !spin_jnode_is_locked (node));
 	spin_lock_jnode (node);
 	
 	ret = txn_try_capture (node, lock_mode, non_blocking);
@@ -1297,8 +1288,6 @@ void txn_delete_page (struct page *pg)
 		return;
 	}
 
-	assert("umka-294", !spin_jnode_is_locked (node));
-	
 	spin_lock_jnode (node);
 
 	atom = atom_get_locked_by_jnode (node);

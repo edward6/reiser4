@@ -10,7 +10,6 @@
 #include <aal/aal.h>
 
 #define REISERFS_FORMAT40_MAGIC "R4Sb-Default"
-#define REISERFS_FORMAT40_OFFSET 17
 
 struct reiserfs_format40_super {
     uint64_t sb_block_count;

@@ -37,7 +37,9 @@ error_t reiserfs_super_open(reiserfs_fs_t *fs) {
     fs->super->plugin = plugin;
 	
     reiserfs_plugin_check_routine(plugin->format, open, goto error_free_super);
-    if (!(fs->super->entity = plugin->format.open(fs->alloc->entity, fs->device))) {
+    if (!(fs->super->entity = plugin->format.open(fs->device, 
+	(REISERFS_MASTER_OFFSET / aal_device_get_blocksize(fs->device)) + 1))) 
+    {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't initialize disk-format plugin.");
 	goto error_free_super;
@@ -75,7 +77,8 @@ error_t reiserfs_super_create(reiserfs_fs_t *fs,
 	
     /* Creating specified disk-format and format-specific superblock */
     reiserfs_plugin_check_routine(plugin->format, create, goto error_free_super);
-    if (!(fs->super->entity = plugin->format.create(fs->alloc->entity, fs->device, len, 
+    if (!(fs->super->entity = plugin->format.create(fs->device, 
+	(REISERFS_MASTER_OFFSET / aal_device_get_blocksize(fs->device)) + 1, len, 
 	reiserfs_fs_blocksize(fs))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

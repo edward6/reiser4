@@ -15,7 +15,7 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 	
     aal_assert("umka-135", fs != NULL, return -1);
-    aal_assert("umka-136", fs->super != NULL, return -1);
+    aal_assert("umka-333", fs->super != NULL, return -1);
 	
     if (fs->alloc) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -58,6 +58,7 @@ error_t reiserfs_alloc_create(reiserfs_fs_t *fs) {
     reiserfs_plugin_id_t id;
 	
     aal_assert("umka-137", fs != NULL, return -1);
+    aal_assert("umka-334", fs->super != NULL, return -1);
 	
     if (fs->alloc) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

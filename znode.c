@@ -263,7 +263,6 @@ static void zinit( znode *node /* znode to initialise */,
 {
 	assert( "nikita-466", node != NULL );
 	assert( "umka-268", current_tree != NULL );
-	assert( "umka-267", !spin_is_locked(&current_tree->tree_lock) );
 	
 	xmemset( node, 0, sizeof *node );
 	jnode_init( &node -> zjnode );
@@ -291,7 +290,6 @@ void zdestroy( znode *node /* znode to finish with */ )
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
 	assert( "nikita-1443", current_tree != NULL );
-	assert( "umka-271", !spin_is_locked(&current_tree->tree_lock) );
 
 	tree = current_tree;
 	spin_lock_tree( tree );
@@ -355,7 +353,6 @@ int znode_rehash( znode *node /* node to rehash */,
 
 	assert( "nikita-2018", node != NULL );
 	assert( "umka-052", current_tree != NULL );
-	assert( "umka-270", !spin_is_locked(&current_tree->tree_lock) );
 
 	htable  = &current_tree -> hash_table;
 
@@ -395,7 +392,6 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 
 	assert ("jmacd-506", tree    != NULL);
 	assert ("jmacd-507", blocknr != NULL);
-	assert( "umka-269", !spin_is_locked(&tree->tree_lock) );
 
 	/* Precondition for call to zlook_internal: locked hash table */
 	spin_lock_tree (tree);
@@ -475,7 +471,6 @@ zget (reiser4_tree *tree,
 	assert ("jmacd-512", tree    != NULL);
 	assert ("jmacd-513", blocknr != NULL);
 	assert ("jmacd-514", level < REISER4_MAX_ZTREE_HEIGHT);
-	assert( "umka-272", !spin_is_locked(&tree->tree_lock) );
 
 	hashi = blknrhashfn (blocknr);
 
@@ -731,7 +726,6 @@ int zload( znode *node /* znode to load */ )
 
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
-	assert( "umka-273", !spin_znode_is_locked( node ) );
 
 	result = 0;
 	spin_lock_znode( node );
@@ -846,9 +840,6 @@ int zrelse( znode *node /* znode to release references to */ )
 	assert( "nikita-1963", node != NULL );
 	assert( "nikita-1964", atomic_read( &node -> d_count ) > 0 );
 	
-	/* AUDIT: I think this check is really needed */
-	assert( "nikita-1907", !spin_znode_is_locked( node ) );
-
 	assert( "nikita-1381", znode_invariant( node ) );
 	spin_lock_znode( node );
 	ret = zrelse_nolock( node );
@@ -1032,7 +1023,6 @@ int znode_is_root( const znode *node /* znode to query */ )
 	
 	assert( "nikita-1206", node != NULL );
 	assert( "umka-062", current_tree != NULL );
-	assert( "umka-276", !spin_is_locked(&current_tree->tree_lock) );
 	
 	result = znode_get_level (node) == current_tree -> height;
 	spin_lock_tree( current_tree );
@@ -1069,7 +1059,6 @@ void jnode_attach_page( jnode *node, struct page *pg )
 {
 	assert( "nikita-2047", node != NULL );
 	assert( "nikita-2048", pg != NULL );
-	assert( "umka-277", !spin_is_locked( &_jnode_ptr_lock ) );
 
 	spin_lock( &_jnode_ptr_lock );
 	jnode_attach_page_nolock( node, pg );
@@ -1093,7 +1082,6 @@ jnode *page_detach_jnode( struct page *page )
 	jnode *node;
 
 	assert( "nikita-2062", page != NULL );
-	assert( "umka-278", !spin_is_locked( &_jnode_ptr_lock ) );
 
 	spin_lock( &_jnode_ptr_lock );
 	node = ( jnode * ) page -> private;
@@ -1111,7 +1099,6 @@ void jnode_detach_page( jnode *node )
 
 	assert( "nikita-2052", node != NULL );
 	assert( "nikita-2053", jnode_page( node ) != NULL );
-	assert( "umka-279", !spin_is_locked( &_jnode_ptr_lock ) );
 
 	spin_lock( &_jnode_ptr_lock );
 	page = jnode_page( node );
@@ -1182,8 +1169,6 @@ int znode_invariant( const znode *node /* znode to check */ )
 
 	assert( "umka-063", node != NULL );
 	assert( "umka-064", current_tree != NULL );
-	assert( "umka-280", !spin_is_locked(&current_tree->tree_lock) );
-	assert( "umka-281", !spin_znode_is_locked(node) );
 	
 	spin_lock_znode( ( znode * ) node );
 	spin_lock_tree( current_tree );

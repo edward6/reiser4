@@ -90,19 +90,19 @@ int aal_ltos(long int d, size_t n, char *a, int base) {
 
     if (d < 0) 
 	*p++ = '-';
-	
+
     if (base == 16) {
 	aal_strncat(p, "0x", 2);
 	p += 2;
     }
-	
+    
     if (d == 0) {
 	*p++ = '0';
 	return 1;
     }
 	
     for (s = range; s > 0; s /= base) {
-	long int v = d / s;
+	long int v = d < 0 ? -(d / s) : (d / s);
 		
 	if ((size_t)(p - a) >= n) 
 	    break;
