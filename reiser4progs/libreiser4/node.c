@@ -711,10 +711,18 @@ int reiserfs_node_item_internal(
     reiserfs_node_t *node,	/* node to be inspected */
     uint32_t pos		/* item pos to be checked */
 ) {
+    reiserfs_plugin_t *plugin;
+    
     aal_assert("vpf-042", node != NULL, return 0);
 
-    /* FIXME-UMKA: Here should be not hardcoded item id */
-    return reiserfs_node_item_get_pid(node, pos) == ITEM_INTERNAL40_ID;
+    if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
+	return 0;
+    }
+    
+    return plugin->item_ops.common.internal && 
+	plugin->item_ops.common.internal();
 }
 
 #ifndef ENABLE_COMPACT

@@ -40,6 +40,10 @@ static uint32_t internal40_minsize(void) {
     return sizeof(reiserfs_internal40_t);
 }
 
+static int internal40_internal(void) {
+    return 1;
+}
+
 static errno_t internal40_print(reiserfs_internal40_t *internal, 
     char *buff, uint32_t n) 
 {
@@ -95,7 +99,8 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .estimate = NULL,
 #endif
 	    .minsize = (uint32_t (*)(void))internal40_minsize,
-	    
+	    .internal = internal40_internal,
+
 	    .print = (errno_t (*)(const void *, char *, uint32_t))
 		internal40_print,
 

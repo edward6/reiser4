@@ -452,6 +452,9 @@ struct reiserfs_item_common_ops {
     
     /* Retunrs min size the item may occupy */
     uint32_t (*minsize) (void);
+
+    /* Returns TRUE if item plugin is internal item plugin */
+    int (*internal) (void);
 };
 
 typedef struct reiserfs_item_common_ops reiserfs_item_common_ops_t;

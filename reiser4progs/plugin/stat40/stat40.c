@@ -146,6 +146,10 @@ static uint32_t stat40_minsize(void) {
     return sizeof(reiserfs_stat40_t);
 }
 
+static int stat40_internal(void) {
+    return 0;
+}
+
 static uint16_t stat40_get_mode(reiserfs_stat40_t *stat) {
     aal_assert("umka-710", stat != NULL, return 0);
     return st40_get_mode(stat);
@@ -178,6 +182,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .check = (errno_t (*)(const void *, int))stat40_check,
 	    .print = (errno_t (*)(const void *, char *, uint32_t))stat40_print,
 	    .minsize = (uint32_t (*)(void))stat40_minsize,
+	    .internal = stat40_internal,
 
 	    .maxkey = NULL,
 	    .lookup = NULL,

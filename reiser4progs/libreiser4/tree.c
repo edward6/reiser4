@@ -927,7 +927,6 @@ errno_t reiserfs_tree_insert(
 		    return -1;
 		}
 	    } else {
-		coord->pos.unit = 0xffff;
 		coord->pos.item = 0;
 		coord->cache = cache;
 	    
