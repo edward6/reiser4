@@ -20,7 +20,7 @@ extern int reiser4_write_sd(struct inode *object);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
-extern int truncate_object(struct inode *inode, loff_t size);
+/*extern int truncate_object(struct inode *inode, loff_t size);*/
 
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
