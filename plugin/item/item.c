@@ -140,6 +140,12 @@ static unsigned int single_unit( const coord_t *coord UNUSED_ARG /* coord
 	return 1;
 }
 
+static int no_paste( coord_t *coord, reiser4_item_data *data,
+		     carry_plugin_info *info )
+{
+	return 0;
+}
+
 /** default ->fast_paste() method */
 int agree_to_fast_op( const coord_t *coord UNUSED_ARG /* coord of item */ )
 {
@@ -274,7 +280,7 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			/* to need for ->lookup method */
 			.lookup                  = NULL,
 			.init                    = NULL,
-			.paste                   = NULL,
+			.paste                   = no_paste,
 			.fast_paste              = NULL,
 			.can_shift               = NULL,
 			.copy_units              = NULL,
