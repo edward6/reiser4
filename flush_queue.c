@@ -344,6 +344,14 @@ fuse_fq(txn_atom * to, txn_atom * from)
 	to->num_queued += from->num_queued;
 }
 
+#if REISER4_DEBUG
+int atom_fq_parts_are_clean (txn_atom * atom)
+{
+	assert("zam-915", atom != NULL);
+	return fq_list_empty(&atom->flush_queues);
+}
+#endif
+
 /* bio i/o completion routine */
 static int
 end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
