@@ -2131,7 +2131,7 @@ write_crc_file(struct file * file, /* file to write to */
 
 	assert("edward-196", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
-	result = generic_write_checks(inode, file, off, &count, 0);
+	result = generic_write_checks(file, off, &count, 0);
 	if (unlikely(result != 0))
 		return result;
 	

@@ -1777,7 +1777,7 @@ write_unix_file(struct file *file, /* file to write to */
 	current->backing_dev_info = inode->i_mapping->backing_dev_info;
 
 	down(&inode->i_sem);
-	written = generic_write_checks(inode, file, off, &count, 0);
+	written = generic_write_checks(file, off, &count, 0);
 	if (written == 0) {
 		int gotaccess;
 
