@@ -749,9 +749,7 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 
 	spin_lock_inode(dir);
 
-	for (scan = readdir_list_front(get_readdir_list(dir));
-	          !readdir_list_end(get_readdir_list(dir), scan); 
-	     scan = readdir_list_next(scan))
+	for_all_tslist(readdir, get_readdir_list(dir), scan)
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
 
 	spin_unlock_inode(dir);

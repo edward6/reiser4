@@ -121,9 +121,7 @@ int phash_destroy_hook(phash_scope scope, void *object)
 	do {
 		called = 0;
 		spin_lock(&phash_lock);
-		for (user = phash_list_front(&phash_anchor[scope]);
-		     ! phash_list_end(&phash_anchor[scope], user);
-		     user = phash_list_next(user)) {
+		for_all_tslist(phash, &phash_anchor[scope], user) {
 			phash_header *head;
 
 			if (user->ops.destroy == NULL)

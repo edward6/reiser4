@@ -250,10 +250,7 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 	if (fq_list_empty(&atom->flush_queues))
 		return 0;
 
-	for (fq = fq_list_front(&atom->flush_queues);
-	     !fq_list_end(&atom->flush_queues, fq);
-	     fq = fq_list_next(fq))
-	{
+	for_all_tslist(fq, &atom->flush_queues, fq) {
 		if (fq_ready(fq)) {
 			int ret;
 
@@ -318,10 +315,7 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 {
 	jnode *cur;
 
-	for (cur = capture_list_front(list);
-	     !capture_list_end(list, cur);
-	     cur = capture_list_next(cur))
-	{
+	for_all_tslist(capture, list, cur) {
 		LOCK_JNODE(cur);
 		cur->atom = atom;
 		UNLOCK_JNODE(cur);
@@ -338,10 +332,7 @@ fuse_fq(txn_atom * to, txn_atom * from)
 	assert("zam-721", spin_atom_is_locked(from));
 
 
-	for (fq = fq_list_front(&from->flush_queues);
-	     !fq_list_end(&from->flush_queues, fq);
-	     fq = fq_list_next(fq))
-	{
+	for_all_tslist(fq, &from->flush_queues, fq) {
 		scan_fq_and_update_atom_ref(&fq->prepped, to);
 		spin_lock_fq(fq);
 		fq->atom = to;

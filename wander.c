@@ -509,10 +509,7 @@ static void put_overwrite_set(struct commit_handle * ch)
 {
 	jnode * cur;
 
-	for (cur = capture_list_front(ch->overwrite_set);
-	     ! capture_list_end(ch->overwrite_set, cur);
-	     cur = capture_list_next(cur))
-	{
+	for_all_tslist(capture, ch->overwrite_set, cur) {
 		jrelse(cur);
 	}
 
@@ -1117,7 +1114,7 @@ wait_on_jnode_list(capture_list_head * head)
 	jnode *scan;
 	int ret = 0;
 
-	for (scan = capture_list_front(head); !capture_list_end(head, scan); scan = capture_list_next(scan)) {
+	for_all_tslist(capture, head, scan) {
 		struct page *pg = jnode_page(scan);
 
 		if (pg) {

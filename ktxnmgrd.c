@@ -95,8 +95,7 @@ ktxnmgrd(void *arg)
 		*/
 		do {
 			ctx->rescan = 0;
-			for (mgr = txn_mgrs_list_front(&ctx->queue);
-			     !txn_mgrs_list_end(&ctx->queue, mgr); mgr = txn_mgrs_list_next(mgr)) {
+			for_all_tslist(txn_mgrs, &ctx->queue, mgr) {
 				scan_mgr(mgr);
 
 				spin_lock_ktxnmgrd(ctx);
