@@ -3460,29 +3460,6 @@ fake_jload(jnode *node)
 	JF_SET(node, JNODE_PARSED);	
 }
 
-
-#if REISER4_TRACE
-static void
-coc_info(void)
-{
-	static int skip;
-
-	if ((skip++ % 10) == 0)
-		printk("COC: all %ld, OK: reloc %ld, ovrwr %ld, failed: fq %ld, "
-		       "nopage(root %ld, eflush %ld), "
-		       "zload race %ld, scan race %ld, atom changed %ld\n",
-		       statcnt_get(&get_current_stat()->coc.calls),
-		       statcnt_get(&get_current_stat()->coc.reloc),
-		       statcnt_get(&get_current_stat()->coc.ovrwr),
-		       statcnt_get(&get_current_stat()->coc.flush_queued),
-		       statcnt_get(&get_current_stat()->coc.nopage_root),
-		       statcnt_get(&get_current_stat()->coc.nopage_eflush),
-		       statcnt_get(&get_current_stat()->coc.zload_race),
-		       statcnt_get(&get_current_stat()->coc.scan_race),
-		       statcnt_get(&get_current_stat()->coc.atom_changed));
-}
-#endif
-
 static int
 copy_on_capture_clean(jnode *node)
 {
@@ -3650,7 +3627,6 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	page_cache_get(page);
 	jref(node);
 	UNLOCK_JNODE(node);
->>>>>>>
 
 	/* create "capture copy" jnode */
 	result = -ENOMEM;
