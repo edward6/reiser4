@@ -538,16 +538,13 @@ static void put_overwrite_set(struct commit_handle * ch)
 	spin_lock(&scan_lock);
 	cur = capture_list_front(ch->overwrite_set);
 	while (!capture_list_end(ch->overwrite_set, cur)) {
+		assert("vs-1443", cur->list == OVRWR_LIST);
 		JF_SET(cur, JNODE_SCANNED);
 		spin_unlock(&scan_lock);
 		JF_CLR(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
-		if (JF_ISSET(cur, JNODE_CC)) {
-			/* on copy on capture old page had reference counter
-			   increased. Decrement it here */
-			page_cache_release(cur->pg);
-		}
 		jrelse(cur);
 		spin_lock(&scan_lock);
+		JF_CLR(cur, JNODE_SCANNED);
 		cur = capture_list_next(cur);
 	}
 	spin_unlock(&scan_lock);
@@ -580,6 +577,7 @@ get_overwrite_set(struct commit_handle *ch)
 		jnode *next;
 
 		/* FIXME: for all but first this bit is set already */
+		assert("vs-1444", cur->list == OVRWR_LIST);
 		JF_SET(cur, JNODE_SCANNED);
 		next = capture_list_next(cur);
 		if (!capture_list_end(ch->overwrite_set, next))
@@ -743,7 +741,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			LOCK_JNODE(cur);
 			assert("nikita-3166",
-			       pg->mapping == jnode_get_mapping(cur));
+			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 			assert("nikita-3165", !releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
