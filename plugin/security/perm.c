@@ -13,7 +13,7 @@
 static int
 mask_ok_common(struct inode *inode, int mask)
 {
-	return vfs_permission(inode, mask);
+	return generic_permission(inode, mask, NULL);
 }
 
 static int
