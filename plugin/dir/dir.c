@@ -884,62 +884,63 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-1371", name != NULL);
 
-	/* key of object the entry points to */
-	if (iplug->s.dir.extract_key(coord, &sd_key) != 0) {
-		tap_relse(tap);
-		longterm_unlock_znode(tap->lh);
-		tap->coord->node = 0;
-		return RETERR(-EIO);
-	}
+	/* key of object the entry points to */	
+	if (iplug->s.dir.extract_key(coord, &sd_key) == 0) {
+		/* we must release longterm znode lock before calling filldir to avoid deadlock which may happen if filldir
+		   causes page fault. So, copy name to intermediate buffer */
+		if (strlen(name) + 1 > sizeof(name_buf)) {
+			tmp_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
+		} else
+			tmp_name = name_buf;
 
-
-	/* we must release longterm znode lock before calling filldir to avoid deadlock which may happen if filldir
-	   causes page fault. So, copy name to intermediate buffer */
-	if (strlen(name) + 1 > sizeof(name_buf)) {
-		tmp_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
-		if (!tmp_name) {
+		if (tmp_name != NULL) {
+			strcpy(tmp_name, name);
+			file_type = iplug->s.dir.extract_file_type(coord);
+			
+			unit_key_by_coord(coord, &entry_key);
+			seal_init(&seal, coord, &entry_key);
+			
 			tap_relse(tap);
 			longterm_unlock_znode(tap->lh);
-			tap->coord->node = 0;
-			return RETERR(-ENOMEM);
-		}
+			
+			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
+				 name, pos->entry_no, get_key_objectid(&sd_key));
+			
+			/* send information about directory entry to the ->filldir() filler supplied to us by caller
+			   (VFS). */
+			result = filldir(dirent, name, (int) strlen(name),
+					 /* offset of the next entry */
+					 (loff_t) pos->entry_no,
+					 /* inode number of object bounden by this entry */
+					 oid_to_uino(get_key_objectid(&sd_key)),
+					 file_type);
+			if (tmp_name != name_buf)
+				kfree(tmp_name);
+			if (result < 0) {
+				/* ->filldir() is satisfied. (no space in buffer, IOW) */
+				result = 1;
+			} else {
+				result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL, tap->lh, FIND_EXACT,
+						       tap->mode, ZNODE_LOCK_HIPRI);
+				if (result == 0) {
+					result = tap_load(tap);
+					if (unlikely(result)) {
+						longterm_unlock_znode(tap->lh);
+						return result;
+					}
+				}
+			}
+			
+		} else
+			result = RETERR(-ENOMEM);
 	} else
-		tmp_name = name_buf;
+		result = RETERR(-EIO);
 
-	strcpy(tmp_name, name);
-	file_type = iplug->s.dir.extract_file_type(coord);
-
-	unit_key_by_coord(coord, &entry_key);
-	seal_init(&seal, coord, &entry_key);
-	
-	tap_relse(tap);
-	longterm_unlock_znode(tap->lh);
-
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
-		 name, pos->entry_no, get_key_objectid(&sd_key));
-
-	/* send information about directory entry to the ->filldir() filler
-	   supplied to us by caller (VFS). */
-	if (filldir(dirent, name, (int) strlen(name),
-		    /* offset of the next entry */
-		    (loff_t) pos->entry_no,
-		    /* inode number of object bounden by this entry */
-		    oid_to_uino(get_key_objectid(&sd_key)),
-		    file_type) < 0) {
-		/* ->filldir() is satisfied. */
-		result = 1;
-	} else {
-		result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL, tap->lh, FIND_EXACT,
-				       tap->mode, ZNODE_LOCK_HIPRI);
-		if (result == 0) {
-			result = tap_load(tap);
-			if (unlikely(result))
-				longterm_unlock_znode(tap->lh);
-		}
+	if (result < 0) {
+		tap_relse(tap);
+		longterm_unlock_znode(tap->lh);
 	}
 
-	if (result)
-		tap->coord->node = 0;
 	return result;
 }
 
@@ -1110,7 +1111,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 	tap_done(&tap);
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 		 "readdir_exit: offset: %lli\n", f->f_pos);
-	return result;
+	return (result <= 0) ? result : 0;
 }
 
 /* ->attach method of directory plugin */
