@@ -29,6 +29,7 @@ static int io_handle_wait_io (struct reiser4_io_handle * io)
 		/* sort and pass requests to driver */
 		blk_run_queues();
 		/* wait all IO to complete */
+		assert ("zam-700", no_counters_are_held ());
 		down (&io->io_sema);
 
 		assert ("zam-577", atomic_read(&io->nr_submitted) == 0);
