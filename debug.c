@@ -81,8 +81,11 @@ void check_preempt( void )
 lock_counters_info *lock_counters()
 {
 	reiser4_context *ctx = get_current_context();
-	assert ("jmacd-1123", ctx != NULL);
-	return &ctx -> locks;
+	static lock_counters_info fake;
+	if (ctx != NULL) {
+		return &ctx -> locks;
+	}
+	return & fake;
 }
 
 void print_lock_counters( const char *prefix, lock_counters_info *info )
