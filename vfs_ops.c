@@ -1709,9 +1709,13 @@ reiser4_get_dentry(struct super_block *sb, void *data)
 	if (!IS_ERR(inode)) {
 		dentry = d_alloc_anon(inode);
 		if (!dentry) {
+			/* FIXME: reiser4_iget might return down()-ed inode */
 			iput(inode);
 			dentry = ERR_PTR(-ENOMEM);
 		}
+		if (!is_inode_loaded(inode))
+			reiser4_iget_complete(inode);
+		
 		return dentry;
 	}
 	return ERR_PTR(PTR_ERR(inode));
@@ -1726,8 +1730,11 @@ reiser4_get_parent(struct dentry *child)
 	
 	dir = child->d_inode;
 	assert("vs-1484", inode_dir_plugin(dir) && inode_dir_plugin(dir)->lookup);
+
+	memset(&dentry, 0, sizeof(dentry));
 	dentry.d_name.name = "..";
 	dentry.d_name.len = 2;
+
 	result = inode_dir_plugin(dir)->lookup(dir, &dentry);
 	if (result)
 		return ERR_PTR(result);
