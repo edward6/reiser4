@@ -125,27 +125,27 @@ static reiser4_key_type_t key40_get_type(reiser4_body_t *body) {
 }
 
 static void key40_set_locality(reiser4_body_t *body, 
-    oid_t locality) 
+    roid_t locality) 
 {
     aal_assert("umka-636", body != NULL, return);
     k40_set_locality((key40_t *)body, (uint64_t)locality);
 }
 
-static oid_t key40_get_locality(reiser4_body_t *body) {
+static roid_t key40_get_locality(reiser4_body_t *body) {
     aal_assert("umka-637", body != NULL, return 0);
-    return (oid_t)k40_get_locality((key40_t *)body);
+    return (roid_t)k40_get_locality((key40_t *)body);
 }
     
 static void key40_set_objectid(reiser4_body_t *body, 
-    oid_t objectid) 
+    roid_t objectid) 
 {
     aal_assert("umka-638", body != NULL, return);
     k40_set_objectid((key40_t *)body, (uint64_t)objectid);
 }
 
-static oid_t key40_get_objectid(reiser4_body_t *body) {
+static roid_t key40_get_objectid(reiser4_body_t *body) {
     aal_assert("umka-639", body != NULL, return 0);
-    return (oid_t)k40_get_objectid((key40_t *)body);
+    return (roid_t)k40_get_objectid((key40_t *)body);
 }
 
 static void key40_set_offset(reiser4_body_t *body, 
@@ -203,7 +203,7 @@ static errno_t key40_build_hash(key40_t *key,
     reiser4_plugin_t *hash_plugin, const char *name) 
 {
     uint16_t len;
-    oid_t objectid, offset;
+    roid_t objectid, offset;
     
     aal_assert("vpf-101", key != NULL, return -1);
     aal_assert("vpf-102", name != NULL, return -1);
@@ -243,8 +243,8 @@ static errno_t key40_build_hash(key40_t *key,
 }
 
 static errno_t key40_build_direntry(reiser4_body_t *body, 
-    reiser4_plugin_t *hash_plugin, oid_t locality, 
-    oid_t objectid, const char *name) 
+    reiser4_plugin_t *hash_plugin, roid_t locality, 
+    roid_t objectid, const char *name) 
 {
     key40_t *key = (key40_t *)body;
     
@@ -279,7 +279,7 @@ static errno_t key40_build_entryid(reiser4_body_t *body,
 }
 
 static errno_t key40_build_generic(reiser4_body_t *body, 
-    reiser4_key_type_t type, oid_t locality, oid_t objectid, uint64_t offset) 
+    reiser4_key_type_t type, roid_t locality, roid_t objectid, uint64_t offset) 
 {
     key40_t *key = (key40_t *)body;
     
@@ -296,7 +296,7 @@ static errno_t key40_build_generic(reiser4_body_t *body,
 }
 
 static errno_t key40_build_objid(reiser4_body_t *body, 
-    reiser4_key_type_t type, oid_t locality, oid_t objectid)
+    reiser4_key_type_t type, roid_t locality, roid_t objectid)
 {
     key40_t key;
     

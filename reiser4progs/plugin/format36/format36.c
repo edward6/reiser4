@@ -143,7 +143,7 @@ static errno_t format36_sync(reiser4_entity_t *entity) {
 }
 
 static reiser4_entity_t *format36_create(aal_device_t *device, 
-    count_t blocks, uint16_t drop_policy)
+    count_t blocks, uint16_t tail)
 {
     return NULL;
 }
@@ -191,15 +191,15 @@ static const char *format36_name(reiser4_entity_t *entity) {
     return formats[version >= 0 && version < 3 ? version : 1];
 }
 
-static rid_t format36_journal_pid(reiser4_entity_t *entity) {
+static rpid_t format36_journal_pid(reiser4_entity_t *entity) {
     return JOURNAL_REISER36_ID;
 }
 
-static rid_t format36_alloc_pid(reiser4_entity_t *entity) {
+static rpid_t format36_alloc_pid(reiser4_entity_t *entity) {
     return ALLOC_REISER36_ID;
 }
 
-static rid_t format36_oid_pid(reiser4_entity_t *entity) {
+static rpid_t format36_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER36_ID;
 }
 

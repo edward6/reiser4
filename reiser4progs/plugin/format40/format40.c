@@ -240,7 +240,7 @@ error_free_block:
 
 /* This function should create super block and update all copies */
 static reiser4_entity_t *format40_create(aal_device_t *device, 
-    count_t blocks, uint16_t drop_policy)
+    count_t blocks, uint16_t tail)
 {
     blk_t blk;
     format40_t *format;
@@ -269,7 +269,7 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
     set_sb_block_count(super, blocks);
     set_sb_tree_height(super, 2);
     set_sb_flushes(super, 0);
-    set_sb_drop_policy(super, drop_policy);
+    set_sb_tail_policy(super, tail);
 
     /* Clobbering skipped area */
     if (format40_skipped_layout((reiser4_entity_t *)format, 
@@ -363,15 +363,15 @@ static const char *format40_name(reiser4_entity_t *entity) {
     return formats[0];
 }
 
-static rid_t format40_journal_pid(reiser4_entity_t *entity) {
+static rpid_t format40_journal_pid(reiser4_entity_t *entity) {
     return JOURNAL_REISER40_ID;
 }
 
-static rid_t format40_alloc_pid(reiser4_entity_t *entity) {
+static rpid_t format40_alloc_pid(reiser4_entity_t *entity) {
     return ALLOC_REISER40_ID;
 }
 
-static rid_t format40_oid_pid(reiser4_entity_t *entity) {
+static rpid_t format40_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER40_ID;
 }
 

@@ -21,14 +21,14 @@ extern int reiser4_key_compare(reiser4_key_t *key1,
 extern void reiser4_key_clean(reiser4_key_t *key);
 
 extern errno_t reiser4_key_build_generic(reiser4_key_t *key, 
-    uint32_t type, oid_t locality, oid_t objectid, uint64_t offset);
+    uint32_t type, roid_t locality, roid_t objectid, uint64_t offset);
 
 extern errno_t reiser4_key_build_objid(reiser4_key_t *key, 
-    uint32_t type, oid_t locality, oid_t objectid);
+    uint32_t type, roid_t locality, roid_t objectid);
 
 extern errno_t reiser4_key_build_direntry(reiser4_key_t *key, 
-    reiser4_plugin_t *hash_plugin, oid_t locality, 
-    oid_t objectid, const char *name);
+    reiser4_plugin_t *hash_plugin, roid_t locality, 
+    roid_t objectid, const char *name);
 
 extern errno_t reiser4_key_build_entryid(reiser4_key_t *key, 
     reiser4_plugin_t *hash_plugin, const char *name);
@@ -46,17 +46,17 @@ extern errno_t reiser4_key_set_hash(reiser4_key_t *key,
     uint64_t hash);
 
 extern errno_t reiser4_key_set_objectid(reiser4_key_t *key, 
-    oid_t objectid);
+    roid_t objectid);
 
 extern errno_t reiser4_key_set_locality(reiser4_key_t *key, 
-    oid_t locality);
+    roid_t locality);
 
 extern uint32_t reiser4_key_get_type(reiser4_key_t *key);
 extern uint64_t reiser4_key_get_offset(reiser4_key_t *key);
 extern uint64_t reiser4_key_get_hash(reiser4_key_t *key);
 
-extern oid_t reiser4_key_get_objectid(reiser4_key_t *key);
-extern oid_t reiser4_key_get_locality(reiser4_key_t *key);
+extern roid_t reiser4_key_get_objectid(reiser4_key_t *key);
+extern roid_t reiser4_key_get_locality(reiser4_key_t *key);
 extern void reiser4_key_maximal(reiser4_key_t *key);
 extern void reiser4_key_minimal(reiser4_key_t *key);
 

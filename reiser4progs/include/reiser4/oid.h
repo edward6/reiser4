@@ -32,9 +32,9 @@ extern void reiser4_oid_dealloc(reiser4_oid_t *oid, uint64_t id);
 extern uint64_t reiser4_oid_free(reiser4_oid_t *oid);
 extern uint64_t reiser4_oid_used(reiser4_oid_t *oid);
 
-extern oid_t reiser4_oid_root_locality(reiser4_oid_t *oid);
-extern oid_t reiser4_oid_root_objectid(reiser4_oid_t *oid);
-extern oid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid);
+extern roid_t reiser4_oid_root_locality(reiser4_oid_t *oid);
+extern roid_t reiser4_oid_root_objectid(reiser4_oid_t *oid);
+extern roid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid);
 
 #endif
 

@@ -15,7 +15,7 @@
 reiser4_oid_t *reiser4_oid_open(
     reiser4_format_t *format	    /* format oid allocated will be opened on */
 ) {
-    rid_t pid;
+    rpid_t pid;
     reiser4_oid_t *oid;
     reiser4_plugin_t *plugin;
 
@@ -78,7 +78,7 @@ void reiser4_oid_close(
 reiser4_oid_t *reiser4_oid_create(
     reiser4_format_t *format	    /* format oid allocator will be oned on */
 ) {
-    rid_t pid;
+    rpid_t pid;
     reiser4_oid_t *oid;
     reiser4_plugin_t *plugin;
 
@@ -176,7 +176,7 @@ uint64_t reiser4_oid_free(reiser4_oid_t *oid) {
 }
 
 /* Returns root parent locality from specified oid allocator */
-oid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid) {
+roid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid) {
     aal_assert("umka-745", oid != NULL, return 0);
     
     return plugin_call(return 0, oid->entity->plugin->oid_ops, 
@@ -184,7 +184,7 @@ oid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid) {
 }
 
 /* Returns root parent objectid from specified oid allocator */
-oid_t reiser4_oid_root_locality(reiser4_oid_t *oid) {
+roid_t reiser4_oid_root_locality(reiser4_oid_t *oid) {
     aal_assert("umka-746", oid != NULL, return 0);
     
     return plugin_call(return 0, oid->entity->plugin->oid_ops, 
@@ -192,7 +192,7 @@ oid_t reiser4_oid_root_locality(reiser4_oid_t *oid) {
 }
 
 /* Returns root objectid from specified oid allocator */
-oid_t reiser4_oid_root_objectid(reiser4_oid_t *oid) {
+roid_t reiser4_oid_root_objectid(reiser4_oid_t *oid) {
     aal_assert("umka-747", oid != NULL, return 0);
     
     return plugin_call(return 0, oid->entity->plugin->oid_ops, 

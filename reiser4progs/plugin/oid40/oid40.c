@@ -73,7 +73,7 @@ static errno_t oid40_sync(reiser4_entity_t *entity) {
     return 0;
 }
 
-static oid_t oid40_alloc(reiser4_entity_t *entity) {
+static roid_t oid40_alloc(reiser4_entity_t *entity) {
     aal_assert("umka-513", entity != NULL, return 0);
 
     ((oid40_t *)entity)->next++;
@@ -83,7 +83,7 @@ static oid_t oid40_alloc(reiser4_entity_t *entity) {
 }
 
 static void oid40_dealloc(reiser4_entity_t *entity, 
-    oid_t id) 
+    roid_t id) 
 {
     aal_assert("umka-528", entity != NULL, return);
     ((oid40_t *)entity)->used--;
@@ -100,25 +100,25 @@ static errno_t oid40_valid(reiser4_entity_t *entity) {
     return 0;
 }
 
-static oid_t oid40_free(reiser4_entity_t *entity) {
+static roid_t oid40_free(reiser4_entity_t *entity) {
     aal_assert("umka-961", entity != NULL, return 0);
     return ~0ull - ((oid40_t *)entity)->next;
 }
 
-static oid_t oid40_used(reiser4_entity_t *entity) {
+static roid_t oid40_used(reiser4_entity_t *entity) {
     aal_assert("umka-530", entity != NULL, return 0);
     return ((oid40_t *)entity)->used;
 }
 
-static oid_t oid40_root_parent_locality(void) {
+static roid_t oid40_root_parent_locality(void) {
     return OID40_ROOT_PARENT_LOCALITY;
 }
 
-static oid_t oid40_root_locality(void) {
+static roid_t oid40_root_locality(void) {
     return OID40_ROOT_LOCALITY;
 }
 
-static oid_t oid40_root_objectid(void) {
+static roid_t oid40_root_objectid(void) {
     return OID40_ROOT_OBJECTID;
 }
 

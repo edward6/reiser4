@@ -56,7 +56,7 @@ extern errno_t reiser4_node_get_key(reiser4_node_t *node,
 #ifndef ENABLE_COMPACT
 
 extern reiser4_node_t *reiser4_node_create(aal_block_t *block, 
-    rid_t pid, uint8_t level);
+    rpid_t pid, uint8_t level);
 
 extern errno_t reiser4_node_sync(reiser4_node_t *node);
 extern errno_t reiser4_node_flush(reiser4_node_t *node);

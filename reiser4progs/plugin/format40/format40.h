@@ -17,7 +17,7 @@ struct format40_super {
     uint64_t sb_block_count;
     uint64_t sb_free_blocks;
     uint64_t sb_root_block;
-    uint16_t sb_drop_policy;
+    uint16_t sb_tail_policy;
     uint64_t sb_oid;
     uint64_t sb_file_count;
     uint64_t sb_flushes;
@@ -41,8 +41,8 @@ typedef struct format40_super format40_super_t;
 #define get_sb_root_block(sb)			aal_get_le64(sb, sb_root_block)
 #define set_sb_root_block(sb, val)		aal_set_le64(sb, sb_root_block, val)
 
-#define get_sb_drop_policy(sb)			aal_get_le16(sb, sb_drop_policy)
-#define set_sb_drop_policy(sb, val)		aal_set_le16(sb, sb_drop_policy, val)
+#define get_sb_tail_policy(sb)			aal_get_le16(sb, sb_tail_policy)
+#define set_sb_tail_policy(sb, val)		aal_set_le16(sb, sb_tail_policy, val)
 
 #define get_sb_oid(sb)				aal_get_le64(sb, sb_oid)
 #define set_sb_oid(sb, val)			aal_set_le64(sb, sb_oid, val)

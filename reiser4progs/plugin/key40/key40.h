@@ -23,7 +23,7 @@ typedef enum {
     /* File attribute value */
     KEY40_ATTRBODY_MINOR = 3,
     
-    /* File body (drop or extent) */
+    /* File body (tail or extent) */
     KEY40_BODY_MINOR	 = 4,
     KEY40_LAST_MINOR
 } key40_minor_t;

@@ -21,7 +21,7 @@ reiser4_fs_t *reiser4_fs_open(
 ) {
     count_t len;
     reiser4_fs_t *fs;
-    rid_t pid;
+    rpid_t pid;
 
     aal_assert("umka-148", host_device != NULL, return NULL);
 
@@ -201,7 +201,7 @@ reiser4_fs_t *reiser4_fs_create(
 
     /* Creates disk format */
     if (!(fs->format = reiser4_format_create(host_device, len, 
-	    profile->drop_policy, profile->format)))
+	    profile->tail, profile->format)))
 	goto error_free_master;
 
     /* Creates block allocator */
@@ -349,7 +349,7 @@ const char *reiser4_fs_name(
 }
 
 /* Returns disk format plugin in use */
-rid_t reiser4_fs_format_pid(
+rpid_t reiser4_fs_format_pid(
     reiser4_fs_t *fs		/* filesystem disk format pid will be obtained from */
 ) {
     aal_assert("umka-151", fs != NULL, return -1);

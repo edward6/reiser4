@@ -16,7 +16,7 @@
 #ifndef ENABLE_COMPACT
 
 extern reiser4_master_t *reiser4_master_create(aal_device_t *device, 
-    rid_t format_pid, unsigned int blocksize, const char *uuid, 
+    rpid_t format_pid, unsigned int blocksize, const char *uuid, 
     const char *label);
 
 extern errno_t reiser4_master_sync(reiser4_master_t *master);
@@ -31,7 +31,7 @@ extern int reiser4_master_confirm(aal_device_t *device);
 extern void reiser4_master_close(reiser4_master_t *master);
 
 extern char *reiser4_master_magic(reiser4_master_t *master);
-extern rid_t reiser4_master_format(reiser4_master_t *master);
+extern rpid_t reiser4_master_format(reiser4_master_t *master);
 extern uint32_t reiser4_master_blocksize(reiser4_master_t *master);
 extern char *reiser4_master_uuid(reiser4_master_t *master);
 extern char *reiser4_master_label(reiser4_master_t *master);

@@ -20,7 +20,7 @@
 */
 reiser4_format_t *reiser4_format_open(
     aal_device_t *device,	/* device disk-format instance will be opened on */
-    rid_t pid		/* disk-format plugin id to be used */
+    rpid_t pid		/* disk-format plugin id to be used */
 ) {
     reiser4_format_t *format;
     reiser4_plugin_t *plugin;
@@ -63,8 +63,8 @@ error_free_format:
 reiser4_format_t *reiser4_format_create(
     aal_device_t *device,	/* device disk-format will be created on */
     count_t len,		/* filesystem length in blocks */
-    uint16_t drop_policy,	/* drop policy to be used */
-    rid_t pid		/* disk-format plugin id to be used */
+    uint16_t tail,		/* tail policy to be used */
+    rpid_t pid			/* disk-format plugin id to be used */
 ) {
     reiser4_format_t *format;
     reiser4_plugin_t *plugin;
@@ -90,7 +90,7 @@ reiser4_format_t *reiser4_format_create(
 	structures, namely, format-specific super block.
     */
     if (!(format->entity = plugin_call(goto error_free_format, 
-	plugin->format_ops, create, device, len, drop_policy))) 
+	plugin->format_ops, create, device, len, tail))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create disk-format %s on %s.", plugin->h.label, 
@@ -297,7 +297,7 @@ void reiser4_format_set_height(
 #endif
 
 /* Returns jouranl plugin id in use */
-rid_t reiser4_format_journal_pid(
+rpid_t reiser4_format_journal_pid(
     reiser4_format_t *format	/* disk-format journal pid will be obtained from */
 ) {
     aal_assert("umka-115", format != NULL, return -1);
@@ -307,7 +307,7 @@ rid_t reiser4_format_journal_pid(
 }
 
 /* Returns block allocator plugin id in use */
-rid_t reiser4_format_alloc_pid(
+rpid_t reiser4_format_alloc_pid(
     reiser4_format_t *format	/* disk-format allocator pid will be obtained from */
 ) {
     aal_assert("umka-117", format != NULL, return -1);
@@ -317,7 +317,7 @@ rid_t reiser4_format_alloc_pid(
 }
 
 /* Returns oid allocator plugin id in use */
-rid_t reiser4_format_oid_pid(
+rpid_t reiser4_format_oid_pid(
     reiser4_format_t *format	/* disk-format oid allocator pid will be obtained from */
 ) {
     aal_assert("umka-491", format != NULL, return -1);

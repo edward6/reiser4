@@ -9,7 +9,7 @@
 static reiser4_profile_t reiser4profiles[] = {
     [0] = {
 	.label = "default40",
-        .desc = "Profile for reiser4 with smart drop policy",
+        .desc = "Profile for reiser4 with smart tail policy",
 	.node		= NODE_REISER40_ID,
 	.dir = {
 	    .dir	= DIR_DIR40_ID,
@@ -24,13 +24,13 @@ static reiser4_profile_t reiser4profiles[] = {
 	    .statdata	= ITEM_STATDATA40_ID,
 	    .direntry	= ITEM_CDE40_ID,
 	    .file_body = {
-		.drop	= ITEM_DROP40_ID,
+		.tail	= ITEM_TAIL40_ID,
 		.extent	= ITEM_EXTENT40_ID,
 	    },
 	    .acl	= ITEM_ACL40_ID,
 	},       
 	.hash		= HASH_R5_ID,
-	.drop_policy	= DROP_SMART_ID,
+	.tail		= TAIL_SMART_ID,
 	.perm		= PERM_RWX_ID,
 	.format		= FORMAT_REISER40_ID,
 	.oid		= OID_REISER40_ID,
@@ -56,13 +56,13 @@ static reiser4_profile_t reiser4profiles[] = {
 	    .statdata	= ITEM_STATDATA40_ID,
 	    .direntry	= ITEM_CDE40_ID,
 	    .file_body = {
-		.drop	= ITEM_DROP40_ID,
+		.tail	= ITEM_TAIL40_ID,
 		.extent	= ITEM_EXTENT40_ID,
 	    },
 	    .acl	= ITEM_ACL40_ID,
 	},       
 	.hash		= HASH_R5_ID,
-	.drop_policy	= DROP_NEVER_ID,
+	.tail		= TAIL_NEVER_ID,
 	.perm		= PERM_RWX_ID,
 	.format		= FORMAT_REISER40_ID,
 	.oid		= OID_REISER40_ID,
@@ -72,8 +72,8 @@ static reiser4_profile_t reiser4profiles[] = {
 	.sdext		= 1 << SDEXT_UNIX_ID
     },
     [2] = {
-	.label = "drop40",
-	.desc = "Profile for reiser4 with drops turned on",     
+	.label = "tail40",
+	.desc = "Profile for reiser4 with tails turned on",     
 	.node		= NODE_REISER40_ID,
 	.dir = {
 	    .dir	= DIR_DIR40_ID,
@@ -88,13 +88,13 @@ static reiser4_profile_t reiser4profiles[] = {
 	    .statdata	= ITEM_STATDATA40_ID,
 	    .direntry	= ITEM_CDE40_ID,
 	    .file_body = {
-		.drop	= ITEM_DROP40_ID,
+		.tail	= ITEM_TAIL40_ID,
 		.extent	= ITEM_EXTENT40_ID,
 	    },
 	    .acl	= ITEM_ACL40_ID,
 	},       
 	.hash		= HASH_R5_ID,
-	.drop_policy	= DROP_ALWAYS_ID,
+	.tail		= TAIL_ALWAYS_ID,
 	.perm		= PERM_RWX_ID,
 	.format		= FORMAT_REISER40_ID,
 	.oid		= OID_REISER40_ID,
@@ -145,11 +145,11 @@ enum progs_plugin_type {
     PROGS_INTERNAL_PLUGIN, 
     PROGS_STATDATA_PLUGIN, 
     PROGS_DIRENTRY_PLUGIN,
-    PROGS_DROP_PLUGIN,
+    PROGS_TAIL_PLUGIN,
     PROGS_EXTENT_PLUGIN,
     PROGS_ACL_PLUGIN,
     PROGS_HASH_PLUGIN,
-    PROGS_DROP_POLICY_PLUGIN,
+    PROGS_TAIL_POLICY_PLUGIN,
     PROGS_PERM_PLUGIN,
     PROGS_FORMAT_PLUGIN,
     PROGS_OID_PLUGIN,
@@ -170,11 +170,11 @@ static char *progs_plugin_name[] = {
     "INTERNAL",
     "STATDATA",
     "DIRENTRY",
-    "DROP",
+    "TAIL",
     "EXTENT",
     "ACL",
     "HASH",
-    "DROP_POLICY",
+    "TAIL_POLICY",
     "PERM",
     "FORMAT",
     "OID",
@@ -183,7 +183,7 @@ static char *progs_plugin_name[] = {
     "KEY"
 };
 
-static rid_t *progs_profile_field(reiser4_profile_t *profile, 
+static rpid_t *progs_profile_field(reiser4_profile_t *profile, 
     progs_plugin_type_t type) 
 {
     aal_assert("umka-920", profile != NULL, return NULL);
@@ -208,16 +208,16 @@ static rid_t *progs_profile_field(reiser4_profile_t *profile,
 	    return &profile->item.statdata;
 	case PROGS_DIRENTRY_PLUGIN:
 	    return &profile->item.direntry;
-	case PROGS_DROP_PLUGIN:
-	    return &profile->item.file_body.drop;
+	case PROGS_TAIL_PLUGIN:
+	    return &profile->item.file_body.tail;
 	case PROGS_EXTENT_PLUGIN:
 	    return &profile->item.file_body.extent;
 	case PROGS_ACL_PLUGIN:
 	    return &profile->item.acl;
 	case PROGS_HASH_PLUGIN:
 	    return &profile->hash;
-	case PROGS_DROP_POLICY_PLUGIN:
-	    return &profile->drop_policy;
+	case PROGS_TAIL_POLICY_PLUGIN:
+	    return &profile->tail;
 	case PROGS_PERM_PLUGIN:
 	    return &profile->perm;
 	case PROGS_FORMAT_PLUGIN:
@@ -259,7 +259,7 @@ static reiser4_plugin_type_t progs_profile_it2pt(progs_plugin_type_t type) {
 	    return ITEM_PLUGIN_TYPE;
 	case PROGS_DIRENTRY_PLUGIN:
 	    return ITEM_PLUGIN_TYPE;
-	case PROGS_DROP_PLUGIN:
+	case PROGS_TAIL_PLUGIN:
 	    return ITEM_PLUGIN_TYPE;
 	case PROGS_EXTENT_PLUGIN:
 	    return ITEM_PLUGIN_TYPE;
@@ -267,8 +267,8 @@ static reiser4_plugin_type_t progs_profile_it2pt(progs_plugin_type_t type) {
 	    return ITEM_PLUGIN_TYPE;
 	case PROGS_HASH_PLUGIN:
 	    return HASH_PLUGIN_TYPE;
-	case PROGS_DROP_POLICY_PLUGIN:
-	    return DROP_POLICY_PLUGIN_TYPE;
+	case PROGS_TAIL_POLICY_PLUGIN:
+	    return TAIL_PLUGIN_TYPE;
 	case PROGS_PERM_PLUGIN:
 	    return PERM_PLUGIN_TYPE;
 	case PROGS_FORMAT_PLUGIN:
@@ -307,15 +307,15 @@ static progs_plugin_type_t progs_profile_name2it(const char *name) {
     else if (!aal_strncmp(name, "DIRENTRY", 8))
 	return PROGS_DIRENTRY_PLUGIN;
     else if (!aal_strncmp(name, "TAIL", 4))
-	return PROGS_DROP_PLUGIN;
+	return PROGS_TAIL_PLUGIN;
     else if (!aal_strncmp(name, "EXTENT", 6))
 	return PROGS_EXTENT_PLUGIN;
     else if (!aal_strncmp(name, "ACL", 3))
 	return PROGS_ACL_PLUGIN;
     else if (!aal_strncmp(name, "HASH", 4))
 	return PROGS_HASH_PLUGIN;
-    else if (!aal_strncmp(name, "DROP_POLICY", 11))
-	return PROGS_DROP_POLICY_PLUGIN;
+    else if (!aal_strncmp(name, "TAIL_POLICY", 11))
+	return PROGS_TAIL_POLICY_PLUGIN;
     else if (!aal_strncmp(name, "PERM", 4))
 	return PROGS_PERM_PLUGIN;
     else if (!aal_strncmp(name, "FORMAT", 6))
@@ -339,7 +339,7 @@ static char *progs_profile_it2name(progs_plugin_type_t type) {
 errno_t progs_profile_override(reiser4_profile_t *profile, 
     const char *type, const char *name) 
 {
-    rid_t *field;
+    rpid_t *field;
     progs_plugin_type_t it;
     reiser4_plugin_type_t pt;
     reiser4_plugin_t *plugin;

@@ -13,7 +13,7 @@
 errno_t reiser4_item_open(reiser4_item_t *item, 
     reiser4_node_t *node, reiser4_pos_t *pos)
 {
-    rid_t pid;
+    rpid_t pid;
     
     aal_assert("umka-1063", node != NULL, return -1);
     aal_assert("umka-1066", pos != NULL, return -1);

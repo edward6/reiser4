@@ -72,7 +72,7 @@ reiser4_object_t *reiser4_dir_create(
     reiser4_object_t *parent,	    /* parent object */
     const char *name		    /* name of entry */
 ) {
-    oid_t objectid, locality;
+    roid_t objectid, locality;
     reiser4_key_t parent_key, object_key;
     
     reiser4_object_t *object;
@@ -88,8 +88,8 @@ reiser4_object_t *reiser4_dir_create(
         reiser4_key_init(&parent_key, parent->key.plugin, parent->key.body);
         objectid = reiser4_oid_alloc(parent->fs->oid);
     } else {
-	oid_t root_locality = reiser4_oid_root_locality(fs->oid);
-	oid_t root_parent_locality = reiser4_oid_root_parent_locality(fs->oid);
+	roid_t root_locality = reiser4_oid_root_locality(fs->oid);
+	roid_t root_parent_locality = reiser4_oid_root_parent_locality(fs->oid);
 		
         parent_key.plugin = fs->tree->key.plugin;
         reiser4_key_build_generic(&parent_key, KEY_STATDATA_TYPE, 

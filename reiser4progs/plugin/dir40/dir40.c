@@ -21,14 +21,14 @@ extern reiser4_plugin_t dir40_plugin;
 
 static reiser4_core_t *core = NULL;
 
-static oid_t dir40_objectid(dir40_t *dir) {
+static roid_t dir40_objectid(dir40_t *dir) {
     aal_assert("umka-839", dir != NULL, return 0);
     
     return plugin_call(return 0, dir->key.plugin->key_ops, 
 	get_objectid, dir->key.body);
 }
 
-static oid_t dir40_locality(dir40_t *dir) {
+static roid_t dir40_locality(dir40_t *dir) {
     aal_assert("umka-839", dir != NULL, return 0);
     
     return plugin_call(return 0, dir->key.plugin->key_ops, 
@@ -103,7 +103,7 @@ static errno_t dir40_read(reiser4_entity_t *entity,
 
     if (dir->place.pos.unit >= count) {
 	reiser4_key_t key;
-	oid_t locality1, locality2;
+	roid_t locality1, locality2;
 	
 	/* Switching to the rest of directory, which lies in other node */
 	if (core->tree_ops.item_right(dir->tree, &dir->place))
@@ -158,8 +158,8 @@ static reiser4_entity_t *dir40_open(const void *tree,
 {
     uint32_t key_size;
     dir40_t *dir;
-    rid_t statdata_pid;
-    rid_t direntry_pid;
+    rpid_t statdata_pid;
+    rpid_t direntry_pid;
 
     aal_assert("umka-836", tree != NULL, return NULL);
     aal_assert("umka-837", object != NULL, return NULL);
@@ -204,6 +204,8 @@ static reiser4_entity_t *dir40_open(const void *tree,
 	    "Can't find stat data item plugin by its id 0x%x.", statdata_pid);
 	goto error_free_dir;
     }
+    
+    
     
     /*
 	FIXME-UMKA: Since hash plugin id will be stored as statdata extenstion, 
@@ -271,9 +273,9 @@ static reiser4_entity_t *dir40_create(const void *tree,
    
     reiser4_sdext_unix_hint_t unix_ext;
     
-    oid_t objectid;
-    oid_t locality;
-    oid_t parent_locality;
+    roid_t objectid;
+    roid_t locality;
+    roid_t parent_locality;
 
     aal_assert("umka-743", parent != NULL, return NULL);
     aal_assert("umka-744", object != NULL, return NULL);

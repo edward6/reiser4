@@ -274,7 +274,7 @@ static void *callback_elem_for_lookup(void *direntry,
     passed dirid.
 */
 static int callback_comp_for_lookup(void *key1, void *key2, void *data) {
-    oid_t locality;
+    roid_t locality;
     reiser4_key_t key;
     reiser4_plugin_t *plugin;
 
@@ -318,8 +318,8 @@ static int direntry40_lookup(reiser4_body_t *body,
 }
 
 static errno_t direntry40_maxkey(reiser4_key_t *key) {
-    oid_t offset;
-    oid_t objectid;
+    roid_t offset;
+    roid_t objectid;
     reiser4_body_t *maxkey;
     
     aal_assert("umka-716", key->plugin != NULL, return -1);

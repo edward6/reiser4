@@ -19,10 +19,10 @@ extern void libreiser4_factory_done(void);
 extern errno_t libreiser4_factory_foreach(reiser4_plugin_func_t func, 
     void *data);
 
-extern reiser4_plugin_t *libreiser4_factory_ifind(rid_t type, 
-    rid_t id);
+extern reiser4_plugin_t *libreiser4_factory_ifind(rpid_t type, 
+    rpid_t id);
 
-extern reiser4_plugin_t *libreiser4_factory_nfind(rid_t type, 
+extern reiser4_plugin_t *libreiser4_factory_nfind(rpid_t type, 
     const char *name);
 
 extern reiser4_plugin_t *libreiser4_factory_cfind(reiser4_plugin_func_t func,

@@ -15,15 +15,15 @@
 
 /* Handler for plugin finding requests from all plugins */
 static inline reiser4_plugin_t *__plugin_ifind(
-    rid_t type,			    /* needed type of plugin*/
-    rid_t id			    /* needed plugin id */
+    rpid_t type,			    /* needed type of plugin*/
+    rpid_t id			    /* needed plugin id */
 ) {
     return libreiser4_factory_ifind(type, id);
 }
 
 /* Handler for plugin finding requests from all plugins */
 static inline reiser4_plugin_t *__plugin_nfind(
-    rid_t type,			    /* needed type of plugin*/
+    rpid_t type,			    /* needed type of plugin*/
     const char *name		    /* needed plugin name (label) */
 ) {
     return libreiser4_factory_nfind(type, name);
@@ -161,7 +161,7 @@ static inline errno_t __item_key(
 }
 
 /* Handler for plugin id requests */
-static inline rid_t __item_pid(
+static inline rpid_t __item_pid(
     const void *tree,		    /* opaque pointer to the tree */
     reiser4_place_t *place,	    /* coord of item pid will be obtained from */
     reiser4_plugin_type_t type	    /* requested plugin type */

@@ -16,7 +16,7 @@
 /* Forms master super block disk structure */
 reiser4_master_t *reiser4_master_create(
     aal_device_t *device,	    /* device master will be created on */
-    rid_t format_pid,	    /* disk format plugin id to be used */
+    rpid_t format_pid,	    /* disk format plugin id to be used */
     unsigned int blocksize,	    /* blocksize to be used */
     const char *uuid,		    /* uuid to be used */
     const char *label		    /* filesystem label to be used */
@@ -247,7 +247,7 @@ char *reiser4_master_magic(reiser4_master_t *master) {
     return master->super->mr_magic;
 }
 
-rid_t reiser4_master_format(reiser4_master_t *master) {
+rpid_t reiser4_master_format(reiser4_master_t *master) {
     aal_assert("umka-982", master != NULL, return INVALID_PLUGIN_ID);
     return get_mr_format_id(master->super);
 }

@@ -106,22 +106,22 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
     
     /* Some extra check for root block? */    
 
-    /* Check the drop policy. */
-    if (get_sb_drop_policy(super) >= DROP_LAST_ID) {
-	aal_exception_error("Invalid drop policy (%u) found in the superblock.", 
-	    get_sb_drop_policy(super));
+    /* Check the tail policy. */
+    if (get_sb_tail_policy(super) >= TAIL_LAST_ID) {
+	aal_exception_error("Invalid tail policy (%u) found in the superblock.", 
+	    get_sb_tail_policy(super));
 	while (1) {
-	    if (!(result = __get_number(&error, "Enter the preferable drop policy "
-		"(0-%d)[0]: ", DROP_LAST_ID - 1)) && error == 1) 
+	    if (!(result = __get_number(&error, "Enter the preferable tail policy "
+		"(0-%d)[0]: ", TAIL_LAST_ID - 1)) && error == 1) 
 	    {
 		result = 0;
 		break;
-	    } else if (result >= DROP_LAST_ID) {
-		aal_exception_error("Invalid drop policy was specified (%ld)", result);
+	    } else if (result >= TAIL_LAST_ID) {
+		aal_exception_error("Invalid tail policy was specified (%ld)", result);
 	    } else 
 		break;
 	}
-	set_sb_drop_policy(super, result);
+	set_sb_tail_policy(super, result);
     }
     return 0;
 }
@@ -141,7 +141,7 @@ errno_t format40_print(reiser4_entity_t *entity, char *buff,
     reiser4_comm_strcat(buff, n, "Count of blocks free/all: (%llu)/(%llu)\n", 
 	get_sb_free_blocks(super), get_sb_block_count(super));
     reiser4_comm_strcat(buff, n, "Root block (%llu)\n", get_sb_root_block(super));
-    reiser4_comm_strcat(buff, n, "Drop policy (%u)\n", get_sb_drop_policy(super));
+    reiser4_comm_strcat(buff, n, "Tail policy (%u)\n", get_sb_tail_policy(super));
     reiser4_comm_strcat(buff, n, "Oid (%llu)\n", get_sb_oid(super));
     reiser4_comm_strcat(buff, n, "File count (%llu)\n", get_sb_file_count(super));
     reiser4_comm_strcat(buff, n, "Flushes (%llu)\n", get_sb_flushes(super));

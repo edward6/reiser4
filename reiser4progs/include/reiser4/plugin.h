@@ -13,8 +13,8 @@
 #define REISER4_MASTER_OFFSET		(65536)
 #define REISER4_MASTER_MAGIC		("R4Sb")
 
-typedef uint64_t oid_t;
-typedef uint16_t rid_t;
+typedef uint64_t roid_t;
+typedef uint16_t rpid_t;
 
 typedef void reiser4_body_t;
 
@@ -24,12 +24,13 @@ enum reiser4_plugin_type {
     ITEM_PLUGIN_TYPE,
     NODE_PLUGIN_TYPE,
     HASH_PLUGIN_TYPE,
-    DROP_POLICY_PLUGIN_TYPE,
+    TAIL_PLUGIN_TYPE,
     PERM_PLUGIN_TYPE,
     SDEXT_PLUGIN_TYPE,
     FORMAT_PLUGIN_TYPE,
     OID_PLUGIN_TYPE,
     ALLOC_PLUGIN_TYPE,
+    JNODE_PLUGIN_TYPE,
     JOURNAL_PLUGIN_TYPE,
     KEY_PLUGIN_TYPE
 };
@@ -53,7 +54,7 @@ enum reiser4_item_plugin_id {
     ITEM_INTERNAL40_ID		= 0x3,
     ITEM_ACL40_ID		= 0x4,
     ITEM_EXTENT40_ID		= 0x5,
-    ITEM_DROP40_ID		= 0x6
+    ITEM_TAIL40_ID		= 0x6
 };
 
 enum reiser4_item_group {
@@ -80,13 +81,13 @@ enum reiser4_hash_plugin_id {
 
 typedef enum reiser4_hash reiser4_hash_t;
 
-enum reiser4_drop_policy_plugin_id {
-    DROP_NEVER_ID		= 0x0,
-    DROP_SUPPRESS_ID		= 0x1,
-    DROP_FOURK_ID		= 0x2,
-    DROP_ALWAYS_ID		= 0x3,
-    DROP_SMART_ID		= 0x4,
-    DROP_LAST_ID		= 0x5
+enum reiser4_tail_plugin_id {
+    TAIL_NEVER_ID		= 0x0,
+    TAIL_SUPPRESS_ID		= 0x1,
+    TAIL_FOURK_ID		= 0x2,
+    TAIL_ALWAYS_ID		= 0x3,
+    TAIL_SMART_ID		= 0x4,
+    TAIL_LAST_ID		= 0x5
 };
 
 enum reiser4_perm_plugin_id {
@@ -256,11 +257,11 @@ struct reiser4_direntry_hint {
 typedef struct reiser4_direntry_hint reiser4_direntry_hint_t;
 
 struct reiser4_object_hint {
-    rid_t statdata_pid;
-    rid_t direntry_pid;
-    rid_t drop_pid;
-    rid_t extent_pid;
-    rid_t hash_pid;
+    rpid_t statdata_pid;
+    rpid_t direntry_pid;
+    rpid_t tail_pid;
+    rpid_t extent_pid;
+    rpid_t hash_pid;
     uint64_t sdext;
 };
 
@@ -308,7 +309,7 @@ typedef struct reiser4_pos reiser4_pos_t;
 /* Common plugin header */
 struct reiser4_plugin_header {
     void *handle;
-    rid_t id;
+    rpid_t id;
     reiser4_plugin_type_t type;
     const char label[REISER4_PLUGIN_MAX_LABEL];
     const char desc[REISER4_PLUGIN_MAX_DESC];
@@ -475,12 +476,12 @@ struct reiser4_direntry_ops {
 
 typedef struct reiser4_direntry_ops reiser4_direntry_ops_t;
 
-struct reiser4_stat_ops {
+struct reiser4_statdata_ops {
     uint16_t (*get_mode) (reiser4_body_t *);
     errno_t (*set_mode) (reiser4_body_t *, uint16_t);
 };
 
-typedef struct reiser4_stat_ops reiser4_stat_ops_t;
+typedef struct reiser4_statdata_ops reiser4_statdata_ops_t;
 
 struct reiser4_internal_ops {
     blk_t (*get_ptr) (reiser4_body_t *);
@@ -500,7 +501,7 @@ struct reiser4_item_ops {
 
     /* Methods specific to particular type of item */
     union {
-	reiser4_stat_ops_t statdata;
+	reiser4_statdata_ops_t statdata;
 	reiser4_internal_ops_t internal;
 	reiser4_direntry_ops_t direntry;
 	
@@ -621,11 +622,11 @@ struct reiser4_hash_ops {
 
 typedef struct reiser4_hash_ops reiser4_hash_ops_t;
 
-struct reiser4_drop_ops {
+struct reiser4_tail_ops {
     reiser4_plugin_header_t h;
 };
 
-typedef struct reiser4_drop_ops reiser4_drop_ops_t;
+typedef struct reiser4_tail_ops reiser4_tail_ops_t;
 
 struct reiser4_hook_ops {
     reiser4_plugin_header_t h;
@@ -712,9 +713,9 @@ struct reiser4_format_ops {
     void (*set_free) (reiser4_entity_t *, count_t);
     
     /* Returns children objects plugins */
-    rid_t (*journal_pid) (reiser4_entity_t *);
-    rid_t (*alloc_pid) (reiser4_entity_t *);
-    rid_t (*oid_pid) (reiser4_entity_t *);
+    rpid_t (*journal_pid) (reiser4_entity_t *);
+    rpid_t (*alloc_pid) (reiser4_entity_t *);
+    rpid_t (*oid_pid) (reiser4_entity_t *);
 
     /* Returns area where oid data lies */
     void (*oid_area)(reiser4_entity_t *, void **, uint32_t *);
@@ -839,7 +840,7 @@ union reiser4_plugin {
     reiser4_item_ops_t item_ops;
     reiser4_node_ops_t node_ops;
     reiser4_hash_ops_t hash_ops;
-    reiser4_drop_ops_t drop_ops;
+    reiser4_tail_ops_t tail_ops;
     reiser4_hook_ops_t hook_ops;
     reiser4_perm_ops_t perm_ops;
     reiser4_format_ops_t format_ops;
@@ -878,10 +879,10 @@ struct reiser4_core {
     struct {
 	
 	/* Finds plugin by its attribues (type and id) */
-	reiser4_plugin_t *(*plugin_ifind)(rid_t, rid_t);
+	reiser4_plugin_t *(*plugin_ifind)(rpid_t, rpid_t);
 	
 	/* Finds plugin by its type and name */
-	reiser4_plugin_t *(*plugin_nfind)(rid_t, const char *);
+	reiser4_plugin_t *(*plugin_nfind)(rpid_t, const char *);
 	
     } factory_ops;
     
@@ -917,7 +918,7 @@ struct reiser4_core {
 	errno_t (*item_left) (const void *, reiser4_place_t *);
 
 	/* Returs plugin id by coord */
-	rid_t (*item_pid) (const void *, reiser4_place_t *, 
+	rpid_t (*item_pid) (const void *, reiser4_place_t *, 
 	    reiser4_plugin_type_t type);
 	
     } tree_ops;

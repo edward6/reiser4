@@ -18,7 +18,7 @@ reiser4_journal_t *reiser4_journal_open(
     reiser4_format_t *format,	/* format journal is going to be opened on */
     aal_device_t *device	/* device journal weill be opened on */
 ) {
-    rid_t pid;
+    rpid_t pid;
     reiser4_plugin_t *plugin;
     reiser4_journal_t *journal;
 	
@@ -71,7 +71,7 @@ reiser4_journal_t *reiser4_journal_create(
     aal_device_t *device,	/* device journal will be created on */
     void *params		/* journal params (opaque pointer) */
 ) {
-    rid_t pid;
+    rpid_t pid;
     reiser4_plugin_t *plugin;
     reiser4_journal_t *journal;
 	

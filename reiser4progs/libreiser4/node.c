@@ -15,7 +15,7 @@
 /* Creates node on specified device and block and with spcified key plugin */
 reiser4_node_t *reiser4_node_create(
     aal_block_t *block,		/* block new node will be created on */
-    rid_t pid,		/* node plugin id to be used */
+    rpid_t pid,		/* node plugin id to be used */
     uint8_t level		/* node level */
 ) {
     reiser4_node_t *node;
@@ -81,7 +81,7 @@ errno_t reiser4_node_set_key(
 static reiser4_plugin_t *reiser4_node_guess(
     aal_block_t *block		/* block node lies in */
 ) {
-    rid_t pid;
+    rpid_t pid;
     reiser4_plugin_t *plugin;
     
     aal_assert("umka-902", block != NULL, return NULL);

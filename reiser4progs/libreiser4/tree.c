@@ -24,7 +24,7 @@ static reiser4_cache_t *reiser4_tree_alloc(
     blk_t blk;
     aal_block_t *block;
     
-    rid_t pid;
+    rpid_t pid;
     reiser4_node_t *node;
     reiser4_cache_t *cache;
     
@@ -127,9 +127,9 @@ reiser4_key_t *reiser4_tree_key(reiser4_tree_t *tree) {
 static errno_t reiser4_tree_build_key(
     reiser4_tree_t *tree	/* tree to be used */
 ) {
-    rid_t pid;
+    rpid_t pid;
     reiser4_oid_t *oid;
-    oid_t objectid, locality;
+    roid_t objectid, locality;
     reiser4_plugin_t *plugin;
     
     aal_assert("umka-1090", tree != NULL, return -1);

@@ -386,7 +386,7 @@ static errno_t node40_cut(reiser4_entity_t *entity,
 {
     void *body;
     uint16_t len;
-    rid_t pid;
+    rpid_t pid;
     
     item40_header_t *ih;
     node40_header_t *nh;

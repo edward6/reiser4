@@ -61,37 +61,37 @@ struct reiser4_profile {
     char label[255];
     char desc[255];
     
-    rid_t node;
+    rpid_t node;
 
     struct {
-	rid_t dir;
+	rpid_t dir;
     } dir;
     
     struct {
-	rid_t regular;
-	rid_t symlink;
-	rid_t special;      
+	rpid_t regular;
+	rpid_t symlink;
+	rpid_t special;      
     } file;
     
     struct {	    
-	rid_t statdata;
-	rid_t internal;
-	rid_t direntry;
+	rpid_t statdata;
+	rpid_t internal;
+	rpid_t direntry;
 	struct {
-	    rid_t drop;
-	    rid_t extent;
+	    rpid_t tail;
+	    rpid_t extent;
 	} file_body;
-	rid_t acl;
+	rpid_t acl;
     } item;
     
-    rid_t hash;
-    rid_t drop_policy;
-    rid_t perm;
-    rid_t format;
-    rid_t oid;
-    rid_t alloc;
-    rid_t journal;
-    rid_t key;
+    rpid_t hash;
+    rpid_t tail;
+    rpid_t perm;
+    rpid_t format;
+    rpid_t oid;
+    rpid_t alloc;
+    rpid_t journal;
+    rpid_t key;
     uint64_t sdext;
 };
 
@@ -314,7 +314,7 @@ extern errno_t reiser4_fs_sync(reiser4_fs_t *fs);
 extern const char *reiser4_fs_name(reiser4_fs_t *fs);
 extern uint16_t reiser4_fs_blocksize(reiser4_fs_t *fs);
 
-extern rid_t reiser4_fs_format_pid(reiser4_fs_t *fs);
+extern rpid_t reiser4_fs_format_pid(reiser4_fs_t *fs);
 extern aal_device_t *reiser4_fs_host_device(reiser4_fs_t *fs);
 extern aal_device_t *reiser4_fs_journal_device(reiser4_fs_t *fs);
 

@@ -73,11 +73,9 @@ static errno_t stat40_init(reiser4_body_t *body,
 	uint8_t i = 0;
 	aal_list_t *walk = NULL;
 	
-	if (!(extentions = stat40_extentions_init(stat_hint->extmask))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't initialize stat data extention plugins.");
-	    return -1;
-	}
+	/* There may be stat data items without any extentions */
+	if (!(extentions = stat40_extentions_init(stat_hint->extmask)))
+	    return 0;
 
 	if (aal_list_length(extentions) != stat_hint->extentions.count) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -119,11 +117,9 @@ static errno_t stat40_estimate(uint32_t pos,
     if (stat_hint->extmask) {
 	aal_list_t *walk = NULL;
 	
-	if (!(extentions = stat40_extentions_init(stat_hint->extmask))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't initialize stat data extention plugins.");
-	    return -1;
-	}
+	/* There may be stat data items without extentions */
+	if (!(extentions = stat40_extentions_init(stat_hint->extmask)))
+	    return 0;
 
 	/* Estimating the all stat data extentions */
 	aal_list_foreach_forward(walk, extentions) {
