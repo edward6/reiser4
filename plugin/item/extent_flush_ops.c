@@ -589,7 +589,7 @@ try_to_merge_with_left(coord_t *coord, reiser4_extent *ext, reiser4_extent *repl
 		xmemmove(ext, ext + 1, (from.unit_pos - coord->unit_pos) * sizeof(reiser4_extent));
 		/* wipe part of item which is going to be cut, so that node_check will not be confused */
 		ON_DEBUG(xmemset(extent_item(coord) + from.unit_pos, 0, sizeof (reiser4_extent)));
-		cut_node(&from, &to, 0, 0, 0, 0, 0, 0/*inode*/);
+		cut_node_content(&from, &to, NULL, NULL, NULL);
 	}
 	znode_make_dirty(coord->node);
 	/* move coord back */
