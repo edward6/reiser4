@@ -329,32 +329,6 @@ free_replace_reserved(reiser4_block_nr grabbed)
 		     ctx->grabbed_blocks - grabbed);
 }
 
-#if REISER4_DEBUG
-
-static int
-jnode_is_of_the_same_atom(jnode *node)
-{
-	int result;
-	reiser4_context *ctx;
-	txn_atom *atom;
-
-	ctx = get_current_context();
-	atom = get_current_atom_locked();
-
-	LOCK_JNODE(node);
-	LOCK_TXNH(ctx->trans);		
-	assert("nikita-3304", ctx->trans->atom == atom);
-	result = (node->atom == atom);
-	UNLOCK_TXNH(ctx->trans);
-	UNLOCK_JNODE(node);
-	if (atom != NULL)
-		UNLOCK_ATOM(atom);
-	return result;
-}
-
-#endif
-
-
 /* Block offset of first block addressed by unit */
 __u64
 extent_unit_index(const coord_t *item)
@@ -418,6 +392,18 @@ split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	return result;
 }
 
+/* remove protection from e-flush */
+static inline void
+junprotect (jnode * node)
+{
+	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
+	/* when REISER4_USE_EFLUSH is not defined - EPROTECT bit does not get
+	 * set */
+	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
+
+	JF_CLR(node, JNODE_EPROTECTED);
+}
+
 /* this is used to unprotect nodes which were protected before allocating but which will not be allocated either because
    space allocator allocates less blocks than were protected and/or if allocation of those nodes failed */
 static void
@@ -453,6 +439,8 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count, capture_list_head *p
 	UNLOCK_ATOM(atom);
 }
 
+extern int getjevent(void);
+
 /* remove node from atom's list and put to the end of list @jnodes */
 static void
 protect_reloc_node(capture_list_head *jnodes, jnode *node)
@@ -461,10 +449,11 @@ protect_reloc_node(capture_list_head *jnodes, jnode *node)
 	assert("vs-1216", jnode_is_unformatted(node));
 	assert("vs-1468", node->list == DIRTY_LIST);
 	assert("vs-1477", spin_atom_is_locked(node->atom));
+	assert("nikita-3390", spin_jnode_is_locked(node));
 
 	JF_SET(node, JNODE_EPROTECTED);
 	capture_list_remove_clean(node);
-	capture_list_push_back(jnodes, node);	
+	capture_list_push_back(jnodes, node);
 }
 
 #define JNODES_TO_UNFLUSH (16)
@@ -486,6 +475,8 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, rei
 	jnode          *buf[JNODES_TO_UNFLUSH];
        	txn_atom       *atom;
 
+	assert("nikita-3394", capture_list_empty(protected_nodes));
+
 	tree = current_tree;
 
 	atom = atom_locked_by_fq(pos_fq(flush_pos));
@@ -499,7 +490,7 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, rei
 
 		node = jlookup(tree, oid, index);
 		if (!node)
-			break;		
+			break;
 
 		if (jnode_check_flushprepped(node)) {
 			atomic_dec(&node->x_count);
@@ -508,11 +499,10 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, rei
 
 		LOCK_JNODE(node);
 		assert("vs-1476", atomic_read(&node->x_count) > 1);
-		/*protect_node(protected_nodes, node);*/
+		assert("nikita-3393", !JF_ISSET(node, JNODE_EPROTECTED));
 
 		if (JF_ISSET(node, JNODE_EFLUSH)) {
 			if (eflushed == JNODES_TO_UNFLUSH) {
-				JF_CLR(node, JNODE_EPROTECTED);
 				UNLOCK_JNODE(node);
  				atomic_dec(&node->x_count);
 				break;
@@ -521,9 +511,10 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, rei
 			eflushed ++;
 			protect_reloc_node(protected_nodes, node);
 			UNLOCK_JNODE(node);
-			/*jstartio(node);*/
 		} else {
+			assert("nikita-3384", node->atom == atom);
 			protect_reloc_node(protected_nodes, node);
+			assert("nikita-3383", !JF_ISSET(node, JNODE_EFLUSH));
 			UNLOCK_JNODE(node);
 			atomic_dec(&node->x_count);
 		}
@@ -537,7 +528,7 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, rei
 		jstartio(buf[j]);
 
 	result = 0;
-	for (j = 0 ; j < eflushed ; ++ j) {
+	for (j = 0; j < eflushed; ++ j) {
 		if (result == 0) {
 			result = emergency_unflush(buf[j]);
 			if (result != 0) {
@@ -806,7 +797,7 @@ alloc_extent(flush_pos_t *flush_pos)
 	assert("vs-1457", width > flush_pos->pos_in_unit);
 
 	if (flush_pos->leaf_relocate || state == UNALLOCATED_EXTENT) {
-		capture_list_head jnodes;
+		protected_jnodes jnodes;
 
 		/* relocate */
 		if (flush_pos->pos_in_unit) {
@@ -815,24 +806,27 @@ alloc_extent(flush_pos_t *flush_pos)
 			flush_pos->pos_in_unit = 0;
 			return result;
 		}
-		ON_TRACE(TRACE_EXTENT_ALLOC, 
+		ON_TRACE(TRACE_EXTENT_ALLOC,
 			 "ALLOC: relocate: (oid %llu, index %llu) [%llu %llu] - ",
 			 oid, index, start, width);
 		
 		/* Prevent nodes from e-flushing before allocating disk space for them. Nodes which were eflushed will be
 		   read from their temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that
 		   disk space will be freed. */
-		capture_list_init(&jnodes);
-		result = protect_extent_nodes(flush_pos, oid, index, width, &protected, ext, &jnodes);
+
+		protected_jnodes_init(&jnodes);
+
+		result = protect_extent_nodes(flush_pos, oid, index, width, &protected, ext, &jnodes.nodes);
 		if (result) {
   			warning("vs-1469", "Failed to protect extent. Should not happen\n");
+			protected_jnodes_done(&jnodes);
 			return result;
 		}
 		if (protected == 0) {
 			ON_TRACE(TRACE_EXTENT_ALLOC, "nothing todo\n");
-			assert("vs-1470", capture_list_empty(&jnodes));
 			flush_pos->state = POS_INVALID;
 			flush_pos->pos_in_unit = 0;
+			protected_jnodes_done(&jnodes);
 			return 0;
 		}
 		
@@ -857,7 +851,7 @@ alloc_extent(flush_pos_t *flush_pos)
 				grabbed2flush_reserved_nolock(atom, protected - allocated);
 				UNLOCK_ATOM(atom);
 			}
-			unprotect_extent_nodes(flush_pos, protected - allocated, &jnodes);
+			unprotect_extent_nodes(flush_pos, protected - allocated, &jnodes.nodes);
 		}
 		if (state == ALLOCATED_EXTENT) {
 			/* on relocating - free nodes which are going being relocated */
@@ -865,8 +859,9 @@ alloc_extent(flush_pos_t *flush_pos)
 		}
 
 		/* assign new block numbers to protected nodes */
-		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes);
+		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes.nodes);
 
+		protected_jnodes_done(&jnodes);
 		/* prepare extent which will replace current one */
 		set_extent(&replace_ext, first_allocated, allocated);
 
@@ -973,20 +968,22 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 	oid = get_key_objectid(&key);
 
 	if (flush_pos->leaf_relocate || state == UNALLOCATED_EXTENT) {
-		capture_list_head jnodes;
+		protected_jnodes jnodes;
 
 		ON_TRACE(TRACE_EXTENT_ALLOC, "SQUALLOC: relocate: (oid %llu, index %llu) [%llu %llu] - ",
 			 oid, index, start, width);
 
 		/* relocate */
-		capture_list_init(&jnodes);
-		result = protect_extent_nodes(flush_pos, oid, index, extent_get_width(ext), &protected, ext, &jnodes);
+		protected_jnodes_init(&jnodes);
+		result = protect_extent_nodes(flush_pos, oid, index, extent_get_width(ext), &protected, ext, &jnodes.nodes);
 		if (result) {
   			warning("vs-1469", "Failed to protect extent. Should not happen\n");
+			protected_jnodes_done(&jnodes);
 			return result;
 		}
 		if (protected == 0) {
 			flush_pos->state = POS_INVALID;
+			protected_jnodes_done(&jnodes);
 			return 0;
 		}
 
@@ -1008,7 +1005,7 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 				grabbed2flush_reserved_nolock(atom, protected - allocated);
 				UNLOCK_ATOM(atom);
 			}
-			unprotect_extent_nodes(flush_pos, protected - allocated, &jnodes);
+			unprotect_extent_nodes(flush_pos, protected - allocated, &jnodes.nodes);
 		}
 
 		/* prepare extent which will be copied to left */
@@ -1024,12 +1021,13 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 				 first_allocated, allocated);
 			target_block_stage = (state == ALLOCATED_EXTENT) ? BLOCK_FLUSH_RESERVED : BLOCK_UNALLOCATED;
 			reiser4_dealloc_blocks(&first_allocated, &allocated, target_block_stage, BA_PERMANENT);
-			unprotect_extent_nodes(flush_pos, allocated, &jnodes);
+			unprotect_extent_nodes(flush_pos, allocated, &jnodes.nodes);
 
 			/* rewind the preceder. */
 			flush_pos->preceder.blk = first_allocated;
 			check_preceder(flush_pos->preceder.blk);
 
+			protected_jnodes_done(&jnodes);
 			return SQUEEZE_TARGET_FULL;
 		}
 
@@ -1039,10 +1037,11 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 		}
 
 		/* assign new block numbers to protected nodes */
-		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes);
+		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes.nodes);
 		set_key_offset(&key, get_key_offset(&key) + (allocated << current_blocksize_bits));
 		ON_TRACE(TRACE_EXTENT_ALLOC,
 			 "copied to left: [%llu %llu]\n", first_allocated, allocated);
+		protected_jnodes_done(&jnodes);
 	} else {
 		/* overwrite */
 		ON_TRACE(TRACE_EXTENT_ALLOC,
