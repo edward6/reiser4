@@ -705,7 +705,7 @@ void print_page( const char *prefix, struct page *page )
 		return;
 	}
 	info( "%s: page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
-	      prefix, page -> index, page -> virtual, page -> mapping, 
+	      prefix, page -> index, page_address( page ), page -> mapping, 
 	      atomic_read( &page -> count ), page -> private );
 	info( "\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	      page_flag_name( page,  PG_locked ),
