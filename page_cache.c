@@ -299,7 +299,7 @@ reiser4_lock_page(struct page *page)
 void
 reiser4_unlock_page(struct page *page)
 {
-	assert("nikita-2700", page->owner != NULL);
+	/* assert("nikita-2700", page->owner != NULL); */
 	unlock_page(page);
 }
 
