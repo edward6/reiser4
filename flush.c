@@ -873,12 +873,13 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   the way back.  This initializes the flush operation for the main
 	   flush_forward_squalloc loop, which continues to allocate in forward parent-first
 	   order. */
-	if ((ret = flush_alloc_ancestors(&flush_pos))) {
+	ret = flush_alloc_ancestors(&flush_pos);
+	if (ret)
 		goto failed;
-	}
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
-	if ((ret = flush_forward_squalloc(&flush_pos))) {
+	ret = flush_forward_squalloc(&flush_pos);
+	if (ret) {
 		/* FIXME(C): This ENAVAIL check is an ugly, UGLY hack to prevent a certain
 		   deadlocks by trying to prevent atoms from fusing during flushing.  We
 		   allow -ENAVAIL code to be returned from flush_forward_squalloc and
@@ -1219,6 +1220,7 @@ flush_alloc_ancestors(flush_position * pos)
 	lock_handle plock;
 	load_count pload;
 	coord_t pcoord;
+	PROF_BEGIN(flush_alloc);
 
 	trace_on(TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", flush_pos_tostring(pos));
 
@@ -1269,6 +1271,7 @@ flush_alloc_ancestors(flush_position * pos)
 exit:
 	done_load_count(&pload);
 	done_lh(&plock);
+	PROF_END(flush_alloc, flush_alloc);
 	return ret;
 }
 
@@ -1422,6 +1425,7 @@ static int
 flush_forward_squalloc(flush_position * pos)
 {
 	int ret = 0;
+	PROF_BEGIN(forward_squalloc);
 
 #if 0				/* FIXME-ZAM: the flush_alloc_ancestors() leaves pos already prepped
 				 * without advancing the position, so this check is likely to break
@@ -1542,19 +1546,20 @@ ALLOC_EXTENTS:
 				ret = 0;
 				goto exit;
 			}
-		} else
+		} else {
+			/* end of the twig reached */
 
-		/* We are about to try to allocate the right twig by calling
-		   flush_squalloc_changed_ancestors in the flush_pos_on_twig_level state.
-		   However, the twig may need to be dirtied first if its left-child will
-		   be relocated. */
-		if ((ret = flush_reverse_relocate_end_of_twig(pos))) {
-			goto exit;
+			/* We are about to try to allocate the right twig by calling
+			   flush_squalloc_changed_ancestors in the flush_pos_on_twig_level state.
+			   However, the twig may need to be dirtied first if its left-child will
+			   be relocated. */
+			if ((ret = flush_reverse_relocate_end_of_twig(pos))) {
+				goto exit;
+			}
+
+			/* write flush queue at the and of twig (if twig is ended by extent item) */
+			ret = write_prepped_nodes(pos, 0);
 		}
-
-		/* write flush queue at the and of twig (if twig is ended by extent item) */
-		ret = write_prepped_nodes(pos, 0);
-
 	}
 
 	if (flush_pos_valid(pos)) {
@@ -1574,6 +1579,7 @@ ALLOC_EXTENTS:
 
 exit:
 	ENABLE_NODE_CHECK;
+	PROF_END(forward_squalloc, forward_squalloc);
 	return ret;
 }
 
@@ -2517,7 +2523,7 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 		trace_on(TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring(node));
 
 		spin_lock_znode(node);
-		atom = atom_get_locked_by_jnode(ZJNODE(node));
+		atom = atom_locked_by_jnode(ZJNODE(node));
 		assert ("zam-827", atom);
 
 		if (ZF_ISSET(node, JNODE_RELOC)) {
@@ -2632,7 +2638,7 @@ flush_enqueue_unformatted(jnode * node, flush_position * pos)
 	/* flush_queue_jnode expects the jnode to be locked. */
 	spin_lock_jnode(node);
 
-	atom = atom_get_locked_by_jnode(node);
+	atom = atom_locked_by_jnode(node);
 
 	if (atom) {
 		if (JF_ISSET(node, JNODE_DIRTY))
