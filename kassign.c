@@ -1,6 +1,198 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Key assignment policy implementation */
+
+/*
+ * In reiser4 every piece of file system data and meta-data has a key. Keys
+ * are used to store information in and retrieve it from reiser4 internal
+ * tree. In addition to this, keys define _ordering_ of all file system
+ * information: things having close keys are placed into the same or
+ * neighboring (in the tree order) nodes of the tree. As our block allocator
+ * tries to respect tree order (see flush.c), keys also define order in which
+ * things are laid out on the disk, and hence, affect performance directly.
+ *
+ * Obviously, assignment of keys to data and meta-data should be consistent
+ * across whole file system. Algorithm that calculates a key for a given piece
+ * of data or meta-data is referred to as "key assignment".
+ *
+ * Key assignment is too expensive to be implemented as a plugin (that is,
+ * with an ability to support different key assignment schemas in the same
+ * compiled kernel image). As a compromise, all key-assignment functions and
+ * data-structures are collected in this single file, so that modifications to
+ * key assignment algorithm can be localized. Additional changes may be
+ * required in key.[ch].
+ *
+ * Current default reiser4 key assignment algorithm is dubbed "Plan A". As one
+ * may guess, there is "Plan B" too.
+ *
+ */
+
+/*
+ * Additional complication with key assignment implementation is a requirement
+ * to support different key length.
+ */
+
+/*
+ *                   KEY ASSIGNMENT: PLAN A, LONG KEYS.
+ *
+ * DIRECTORY ITEMS
+ *
+ *  |       60     | 4 | 7 |1|   56        |        64        |        64       |
+ *  +--------------+---+---+-+-------------+------------------+-----------------+
+ *  |    dirid     | 0 | F |H|  prefix-1   |    prefix-2      |  prefix-3/hash  |
+ *  +--------------+---+---+-+-------------+------------------+-----------------+
+ *  |                  |                   |                  |                 |
+ *  |    8 bytes       |      8 bytes      |     8 bytes      |     8 bytes     |
+ *
+ * dirid         objectid of directory this item is for
+ *
+ * F             fibration, see fs/reiser4/plugin/fibration.[ch]
+ *
+ * H             1 if last 8 bytes of the key contain hash,
+ *               0 if last 8 bytes of the key contain prefix-3
+ *
+ * prefix-1      first 7 characters of file name.
+ *               Padded by zeroes if name is not long enough.
+ *
+ * prefix-2      next 8 characters of the file name.
+ *
+ * prefix-3      next 8 characters of the file name.
+ *
+ * hash          hash of the rest of file name (i.e., portion of file
+ *               name not included into prefix-1 and prefix-2).
+ *
+ * File names shorter than 23 (== 7 + 8 + 8) characters are completely encoded
+ * in the key. Such file names are called "short". They are distinguished by H
+ * bit set in the key.
+ *
+ * Other file names are "long". For long name, H bit is 0, and first 15 (== 7
+ * + 8) characters are encoded in prefix-1 and prefix-2 portions of the
+ * key. Last 8 bytes of the key are occupied by hash of the remaining
+ * characters of the name.
+ *
+ * This key assignment reaches following important goals:
+ *
+ *     (1) directory entries are sorted in approximately lexicographical
+ *     order.
+ *
+ *     (2) collisions (when multiple directory items have the same key), while
+ *     principally unavoidable in a tree with fixed length keys, are rare.
+ *
+ * STAT DATA
+ *
+ *  |       60     | 4 |       64        | 4 |     60       |        64       |
+ *  +--------------+---+-----------------+---+--------------+-----------------+
+ *  |  locality id | 1 |    ordering     | 0 |  objectid    |        0        |
+ *  +--------------+---+-----------------+---+--------------+-----------------+
+ *  |                  |                 |                  |                 |
+ *  |    8 bytes       |    8 bytes      |     8 bytes      |     8 bytes     |
+ *
+ * locality id     object id of a directory where first name was created for
+ *                 the object
+ *
+ * ordering        copy of second 8-byte portion of the key of directory
+ *                 entry for the first name of this object. Ordering has a form
+ *                         {
+ *                                 fibration :7;
+ *                                 h         :1;
+ *                                 prefix1   :56;
+ *                         }
+ *                 see description of key for directory entry above.
+ *
+ * objectid        object id for this object
+ *
+ * This key assignment policy is designed to keep stat-data in the same order
+ * as corresponding directory items, thus speeding up readdir/stat types of
+ * workload.
+ *
+ * FILE BODY
+ *
+ *  |       60     | 4 |       64        | 4 |     60       |        64       |
+ *  +--------------+---+-----------------+---+--------------+-----------------+
+ *  |  locality id | 4 |    ordering     | 0 |  objectid    |      offset     |
+ *  +--------------+---+-----------------+---+--------------+-----------------+
+ *  |                  |                 |                  |                 |
+ *  |    8 bytes       |    8 bytes      |     8 bytes      |     8 bytes     |
+ *
+ * locality id     object id of a directory where first name was created for
+ *                 the object
+ *
+ * ordering        the same as in the key of stat-data for this object
+ *
+ * objectid        object id for this object
+ *
+ * offset          logical offset from the beginning of this file.
+ *                 Measured in bytes.
+ *
+ *
+ *                   KEY ASSIGNMENT: PLAN A, SHORT KEYS.
+ *
+ * DIRECTORY ITEMS
+ *
+ *  |       60     | 4 | 7 |1|   56        |        64       |
+ *  +--------------+---+---+-+-------------+-----------------+
+ *  |    dirid     | 0 | F |H|  prefix-1   |  prefix-2/hash  |
+ *  +--------------+---+---+-+-------------+-----------------+
+ *  |                  |                   |                 |
+ *  |    8 bytes       |      8 bytes      |     8 bytes     |
+ *
+ * dirid         objectid of directory this item is for
+ *
+ * F             fibration, see fs/reiser4/plugin/fibration.[ch]
+ *
+ * H             1 if last 8 bytes of the key contain hash,
+ *               0 if last 8 bytes of the key contain prefix-2
+ *
+ * prefix-1      first 7 characters of file name.
+ *               Padded by zeroes if name is not long enough.
+ *
+ * prefix-2      next 8 characters of the file name.
+ *
+ * hash          hash of the rest of file name (i.e., portion of file
+ *               name not included into prefix-1).
+ *
+ * File names shorter than 15 (== 7 + 8) characters are completely encoded in
+ * the key. Such file names are called "short". They are distinguished by H
+ * bit set in the key.
+ *
+ * Other file names are "long". For long name, H bit is 0, and first 7
+ * characters are encoded in prefix-1 portion of the key. Last 8 bytes of the
+ * key are occupied by hash of the remaining characters of the name.
+ *
+ * STAT DATA
+ *
+ *  |       60     | 4 | 4 |     60       |        64       |
+ *  +--------------+---+---+--------------+-----------------+
+ *  |  locality id | 1 | 0 |  objectid    |        0        |
+ *  +--------------+---+---+--------------+-----------------+
+ *  |                  |                  |                 |
+ *  |    8 bytes       |     8 bytes      |     8 bytes     |
+ *
+ * locality id     object id of a directory where first name was created for
+ *                 the object
+ *
+ * objectid        object id for this object
+ *
+ * FILE BODY
+ *
+ *  |       60     | 4 | 4 |     60       |        64       |
+ *  +--------------+---+---+--------------+-----------------+
+ *  |  locality id | 4 | 0 |  objectid    |      offset     |
+ *  +--------------+---+---+--------------+-----------------+
+ *  |                  |                  |                 |
+ *  |    8 bytes       |     8 bytes      |     8 bytes     |
+ *
+ * locality id     object id of a directory where first name was created for
+ *                 the object
+ *
+ * objectid        object id for this object
+ *
+ * offset          logical offset from the beginning of this file.
+ *                 Measured in bytes.
+ *
+ *
+ */
 
 #include "debug.h"
 #include "key.h"
@@ -25,9 +217,12 @@
 
 #define INLINE_CHARS (ORDERING_CHARS + OID_CHARS)
 
-static const __u64 longname_mark = 0x0100000000000000ull;
+/* bitmask for H bit (see comment at the beginning of this file */
+static const __u64 longname_mark =  0x0100000000000000ull;
+/* bitmask for F and H portions of the key. */
 static const __u64 fibration_mask = 0xff00000000000000ull;
 
+/* return true if name is not completely encoded in @key */
 reiser4_internal int
 is_longname_key(const reiser4_key *key)
 {
@@ -44,6 +239,7 @@ is_longname_key(const reiser4_key *key)
 	return (highpart & longname_mark) ? 1 : 0;
 }
 
+/* return true if @name is too long to be completely encoded in the key */
 reiser4_internal int
 is_longname(const char *name UNUSED_ARG, int len)
 {
@@ -519,6 +715,9 @@ is_root_dir_key(const struct super_block *super /* super block to check */ ,
 	return 0;
 }
 
+/*
+ * return number of bytes necessary to encode @inode identity.
+ */
 int inode_onwire_size(const struct inode *inode)
 {
 	int result;
@@ -535,6 +734,9 @@ int inode_onwire_size(const struct inode *inode)
 	return result;
 }
 
+/*
+ * encode @inode identity at @start
+ */
 char *build_inode_onwire(const struct inode *inode, char *start)
 {
 	start += dscale_write(start, get_inode_locality(inode));
@@ -547,6 +749,9 @@ char *build_inode_onwire(const struct inode *inode, char *start)
 	return start;
 }
 
+/*
+ * extract key that was previously encoded by build_inode_onwire() at @addr
+ */
 char *extract_obj_key_id_from_onwire(char *addr, obj_key_id *key_id)
 {
 	__u64 val;

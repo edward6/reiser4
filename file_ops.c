@@ -1,6 +1,14 @@
 /* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Interface to VFS. Reiser4 file_operations are defined here. */
+/*
+ * Interface to VFS. Reiser4 file_operations are defined here.
+ *
+ * This file contains definitions of functions that are installed into ->i_fop
+ * field of reiser4 inodes.
+ *
+ * By the most part these functions simply find object plugin of inode
+ * involved, and call appropriate plugin method to do the actual work.
+ */
 
 #include "forward.h"
 #include "debug.h"
@@ -74,6 +82,10 @@ static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
 					       unsigned long, unsigned long, unsigned long);
 #endif
 
+/*
+ * ->llseek() file operation for reiser4. Calls ->seek() method of object
+ * plugin.
+ */
 static loff_t
 reiser4_llseek(struct file *file, loff_t off, int origin)
 {
@@ -97,15 +109,6 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 	return result;
 }
 
-typedef struct readdir_actor_args {
-	void *dirent;
-	filldir_t filldir;
-	struct file *dir;
-	__u64 skip;
-	__u64 skipped;
-	reiser4_key key;
-} readdir_actor_args;
-
 /* reiser4_readdir() - our readdir() method.
 
    readdir(2)/getdents(2) interface is based on implicit assumption that
@@ -121,6 +124,7 @@ typedef struct readdir_actor_args {
    always known, to start readdir() from given point objectid and offset
    fields have to be filled.
 
+   See plugin/dir/dir.c:readdir_common() for the details of our solution.
 */
 static int
 reiser4_readdir(struct file *f /* directory file being read */ ,
@@ -153,10 +157,8 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	return result;
 }
 
-/* reiser4_ioctl - handler for ioctl for inode supported commands:
-
-   REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing
-   file (argument arg has to be non-zero)
+/*
+  reiser4_ioctl - handler for ioctl for inode supported commands:
 */
 static int
 reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
@@ -350,6 +352,11 @@ reiser4_release(struct inode *i /* inode released */ ,
 	return result;
 }
 
+/*
+ * ->open file operation for reiser4. This is optional method. It's only
+ * present for mounts that support pseudo files. When "nopseudo" mount option
+ * is used, this method is zeroed, which speeds open(2) system call a bit.
+ */
 static int
 reiser4_open(struct inode * inode, struct file * file)
 {
@@ -371,8 +378,7 @@ reiser4_open(struct inode * inode, struct file * file)
 	return result;
 }
 
-/* FIXME: This way to support fsync is too expensive. Proper solution support is
-   to commit only atoms which contain dirty pages from given address space. */
+/* ->fsync file operation for reiser4. */
 static int
 reiser4_fsync(struct file *file, struct dentry *dentry, int datasync)
 {

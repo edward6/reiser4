@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Key assignment policy interface. */
+/* Key assignment policy interface. See kassign.c for details. */
 
 #if !defined( __KASSIGN_H__ )
 #define __KASSIGN_H__
@@ -12,6 +13,7 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block, etc  */
 #include <linux/dcache.h>	/* for struct qstr */
+
 /* key assignment functions */
 
 /* Information from which key of file stat-data can be uniquely
