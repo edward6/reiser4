@@ -157,10 +157,10 @@ detach_fq(flush_queue_t * fq)
 void
 done_fq(flush_queue_t * fq)
 {
-	assert ("zam-763", capture_list_empty (&fq->prepped));
-	assert ("zam-764", capture_list_empty (&fq->sent));
-	assert ("zam-765", fq->nr_queued == 0);
-	assert ("zam-766", atomic_read(&fq->nr_submitted) == 0);
+	assert("zam-763", capture_list_empty(&fq->prepped));
+	assert("zam-764", capture_list_empty(&fq->sent));
+	assert("zam-765", fq->nr_queued == 0);
+	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
 
 	reiser4_kfree(fq, sizeof *fq);
 }
@@ -342,7 +342,7 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 
 	assert("zam-743", spin_fq_is_locked(fq));
 	assert("zam-744", spin_atom_is_locked(fq->atom));
-	assert("zam-762", fq_in_use (fq));
+	assert("zam-762", fq_in_use(fq));
 
 	ret = wait_io(fq, nr_io_errors);
 	if (ret)
@@ -382,19 +382,18 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 	if (fq_list_empty(&atom->flush_queues))
 		return 0;
 
-	for (fq = fq_list_front(&atom->flush_queues);
-	     !fq_list_end(&atom->flush_queues, fq); fq = fq_list_next(fq)) {
+	for (fq = fq_list_front(&atom->flush_queues); !fq_list_end(&atom->flush_queues, fq); fq = fq_list_next(fq)) {
 		spin_lock_fq(fq);
 
 		if (fq_ready(fq)) {
 			int ret;
 
-			mark_fq_in_use (fq);
+			mark_fq_in_use(fq);
 
 			ret = finish_fq(fq, nr_io_errors);
 
 			if (ret) {
-				fq_put (fq);
+				fq_put(fq);
 				return ret;
 			}
 
@@ -447,8 +446,7 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 {
 	jnode *cur;
 
-	for (cur = capture_list_front(list);
-	     !capture_list_end(list, cur); cur = capture_list_next(cur)) {
+	for (cur = capture_list_front(list); !capture_list_end(list, cur); cur = capture_list_next(cur)) {
 		spin_lock_jnode(cur);
 		cur->atom = atom;
 		spin_unlock_jnode(cur);
@@ -486,8 +484,7 @@ fuse_fq(txn_atom * to, txn_atom * from)
 
 /* bio i/o completion routine */
 static int
-end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
-	  int err UNUSED_ARG)
+end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
 	int i;
 	int nr_errors = 0;
@@ -554,6 +551,9 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	assert("zam-724", lock_counters()->spin_locked == 0);
 	assert("zam-725", nr != 0);
 
+	trace_on (TRACE_IO_W, "write of %d blocks starting from %llu\n", nr, 
+		  (unsigned long long)(*jnode_get_block(first)));
+
 	if (!(bio = bio_alloc(GFP_KERNEL, nr)))
 		return -ENOMEM;
 
@@ -564,9 +564,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	bio->bi_vcnt = nr;
 	bio->bi_size = s->s_blocksize * nr;
 
-	for (nr_processed = 0;
-	     nr_processed < nr;
-	     nr_processed++, first = capture_list_next(first)) {
+	for (nr_processed = 0; nr_processed < nr; nr_processed++, first = capture_list_next(first)) {
 		struct page *pg;
 
 		pg = jnode_page(first);
@@ -598,14 +596,13 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 		/* Put pages to inactive list where they have chance to be
 		 * freed. (as in mpage_writepages()) */
-		if ((current->flags & PF_MEMALLOC) &&
-		    !PageActive(pg) && PageLRU(pg)) {
+		if ((current->flags & PF_MEMALLOC) && !PageActive(pg) && PageLRU(pg)) {
 			page_cache_get(pg);
 			if (!pagevec_add(&pvec, pg))
 				pagevec_deactivate_inactive(&pvec);
 		}
 
-		jnode_ops(first)->io_hook(first, pg, WRITE);
+		jnode_io_hook(first, pg, WRITE);
 
 		bio->bi_io_vec[nr_processed].bv_page = pg;
 		bio->bi_io_vec[nr_processed].bv_len = s->s_blocksize;
@@ -685,10 +682,7 @@ write_fq(flush_queue_t * fq, int how_many)
 #else
 	{
 		struct super_block *s = reiser4_get_current_sb();
-		max_blocks =
-		    bdev_get_queue(s->s_bdev)->max_sectors >> (s->
-							       s_blocksize_bits
-							       - 9);
+		max_blocks = bdev_get_queue(s->s_bdev)->max_sectors >> (s->s_blocksize_bits - 9);
 	}
 #endif
 
@@ -711,8 +705,8 @@ write_fq(flush_queue_t * fq, int how_many)
 			if (capture_list_end(&fq->prepped, cur))
 				break;
 
-			if (*jnode_get_block(cur) !=
-			    *jnode_get_block(first) + nr_contiguous) break;
+			if (*jnode_get_block(cur) != *jnode_get_block(first) + nr_contiguous)
+				break;
 
 			last = capture_list_next(last);
 
@@ -738,6 +732,8 @@ write_fq(flush_queue_t * fq, int how_many)
 
 		first = last;
 	} while (!capture_list_end(&fq->prepped, last));
+
+	trace_on (TRACE_IO_W, "write_fq submitted %d blocks\n", nr_submitted);
 
 	return nr_submitted;
 }
@@ -854,8 +850,7 @@ get_enough_fq(txn_atom * atom, flush_queue_t ** result_list, int how_many)
 
 	if (atom_has_queues_to_write(atom)) {
 		flush_queue_t *fq;
-		for (fq = fq_list_front(&atom->flush_queues);
-		     !fq_list_end(&atom->flush_queues, fq)
+		for (fq = fq_list_front(&atom->flush_queues); !fq_list_end(&atom->flush_queues, fq)
 		     && (total_est <= how_many); fq = fq_list_next(fq)) {
 			int est;
 
@@ -956,9 +951,7 @@ writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_co
 
 	if (atom != NULL) {
 		if (atom_has_queues_to_write(atom)) {
-			total_est =
-			    get_enough_fq(atom, &list_fq_to_write,
-					  wbc->nr_to_write);
+			total_est = get_enough_fq(atom, &list_fq_to_write, wbc->nr_to_write);
 		}
 		spin_unlock_atom(atom);
 	}
@@ -972,14 +965,10 @@ writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_co
 
 		spin_lock_txnmgr(mgr);
 
-		for (atom = atom_list_front(&mgr->atoms_list);
-		     !atom_list_end(&mgr->atoms_list, atom)
-		     && total_est < wbc->nr_to_write;
-		     atom = atom_list_next(atom)) {
+		for (atom = atom_list_front(&mgr->atoms_list); !atom_list_end(&mgr->atoms_list, atom)
+		     && total_est < wbc->nr_to_write; atom = atom_list_next(atom)) {
 			spin_lock_atom(atom);
-			total_est +=
-			    get_enough_fq(atom, &list_fq_to_write,
-					  wbc->nr_to_write - total_est);
+			total_est += get_enough_fq(atom, &list_fq_to_write, wbc->nr_to_write - total_est);
 			spin_unlock_atom(atom);
 		}
 
@@ -990,8 +979,7 @@ writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_co
 	if (list_fq_to_write) {
 		long nr_submitted;
 
-		nr_submitted =
-		    write_list_fq(list_fq_to_write, wbc->nr_to_write);
+		nr_submitted = write_list_fq(list_fq_to_write, wbc->nr_to_write);
 
 		if (nr_submitted < 0)
 			return (int) nr_submitted;
