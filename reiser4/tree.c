@@ -577,10 +577,8 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 		int result;
 
 		reiser4_stat_tree_add( fast_insert );
-		spin_lock_dk( current_tree );
 		result = node_plugin_by_node( coord -> node ) -> create_item
 			( coord, key, data, NULL );
-		spin_unlock_dk( current_tree );
 		return result;
 	} else {
 		/*
