@@ -1,0 +1,64 @@
+Cache-Optimized Concurrent Skip List NEWS -*- Text -*-
+Date: Oct, 01 2001
+ReleaseVersion: 20011028
+
+
+** Changes since version 20011001
+
+* Add cacheline alignment to fields of the anchor.
+
+* Add scripts to analyze data from testslpc2, testslpc1
+
+* Add the final results from testing on OSDL (DEV8-002, an 8-way SMP),
+  contained in the file results.tar.gz.
+
+
+** Changes since version 20010923
+
+* There is a new test comparing the Linux 2.4.10 red-black tree with
+  the skip list (non-concurrent).  You can repeat the experiment by
+  using the testslpc3.c, testslpc3-script, testslpc3.py, and
+  testslpc3-gnuplot.  My raw data and plots are included in this
+  distribution.
+
+* There is a new function to preallocate sufficiently many nodes to
+  accomodate a fixed number of keys, thus preventing allocation during
+  insertion.  It returns the number of nodes required.
+
+* There is a new function slpc_search_lub to find the least upper
+  bound of a search key.  The least upper bound is defined as the
+  least-valued key greater than the search key.  You can use this for
+  range searches or to develop an extent map (this is how Xdelta2
+  manipulates inverted deltas).
+
+* There is a new function slpc_search_min to find the minimum key in
+  the tree.  This is an O(1) operation.  If it weren't for the lack of
+  duplicate support, this would yield a complete set of priority queue
+  operations.  There is also currently no provision to search_min &
+  delete_min atomically.  A special pair of functions could be added
+  to achieve this.
+
+
+** Changes since version 20010917
+
+* There is a new tuning parameter: the CPP variable SLPC_USE_SPINLOCK
+  now has three settings: 0 = no locking, 1 = exclusive spinlock, 2 =
+  read/write spinlock, allowing the overhead of read/write locks to be
+  measured.
+
+* Some code reorganization abstracts the SLPC_NODE allocator in such a
+  way that a number of skip lists can share the same allocation pool.
+  This has two purposes: (1) allowing me to test the performance of a
+  hash table based on skip lists instead of hash chaining where there
+  is one allocator per hash table, and (2) allowing future porting to
+  the in-kernel kmem_slab_cache allocator.
+
+* Update Makefile to build 15 different versions of the testslpc1
+  executable, the cross product of sizes (64, 128, 256, 512, 1024) and
+  locking strategies (no locking, exclusive locking, read-write
+  locking).
+
+* Update testslpc2 to include a mix of append operations in the
+  workload.  Add command-line arguments in place of compile-time
+  constants.  The testslpc-script2 script runs a batch of various
+  concurrent workload experiments.
