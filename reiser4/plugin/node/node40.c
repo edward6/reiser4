@@ -789,7 +789,7 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 
 	if (item_plugin_by_coord (target) -> u.item.b.create_hook != NULL)
 		item_plugin_by_coord (target) -> u.item.b.create_hook (target,
-								       data->cookie);
+								       data->arg);
 
 	node_check (target->node, REISER4_NODE_PANIC);
 	return 0;
