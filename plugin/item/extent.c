@@ -273,7 +273,8 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	reiser4_block_nr lookuped, offset;
 	unsigned i, nr_units;
 	reiser4_extent *ext;
-	size_t blocksize;
+	unsigned blocksize;
+	unsigned char blocksize_bits;
 
 	item_key_by_coord(coord, &item_key);
 	offset = get_key_offset(&item_key);
@@ -284,8 +285,10 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 
 	if (keygt(key, max_key_inside_extent(coord, &item_key, 0))) {
 		/* @key is key of another file */
-		coord->unit_pos = nr_units - 1;
-		coord->between = AFTER_UNIT;
+		/*coord->unit_pos = nr_units - 1;
+		  coord->between = AFTER_UNIT;*/
+		coord->unit_pos = 0;
+		coord->between = AFTER_ITEM;
 		return CBK_COORD_NOTFOUND;
 	}
 
@@ -294,16 +297,20 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	assert("vs-1010", coord->unit_pos == 0);
 	ext = extent_by_coord(coord);
 	blocksize = current_blocksize;
+	blocksize_bits = current_blocksize_bits;
 
 	/* offset we are looking for */
 	lookuped = get_key_offset(key);
 
 	/* go through all extents until the one which address given offset */
 	for (i = 0; i < nr_units; i++, ext++) {
-		offset += (blocksize * extent_get_width(ext));
+		offset += (extent_get_width(ext) << blocksize_bits);
 		if (offset > lookuped) {
 			/* desired byte is somewhere in this extent */
 			coord->unit_pos = i;
+			coord->pos_in_unit = extent_get_width(ext) - ((offset - (lookuped & ~(blocksize - 1))) >> blocksize_bits);
+			/*	coord->pos_in_node = lookuped & (blocksize - 1);
+				coord->offset = lookuped;*/
 			coord->between = AT_UNIT;
 			return CBK_COORD_FOUND;
 		}
@@ -313,6 +320,19 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
 	return CBK_COORD_FOUND;	/*bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND; */
+}
+
+/* plugin->u.item.b.init_coord */
+void init_coord_extent(const reiser4_key * key, coord_t *coord)
+{
+	/*coord->vp = extent_item(coord);
+	  coord->nr_units = nr_units_extent(coord);*/
+	coord->pos_in_unit = 0;
+/*
+	coord->pos_in_node = 0;
+	coord->offset = get_key_offset(key);
+	coord->width = extent_get_width((reiser4_extent *)coord->vp);
+*/
 }
 
 /* set extent width and convert type to on disk representation */
@@ -2349,17 +2369,10 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 	PROF_END(bdp, bdp);\
 }
 
-#define HINT_VALIDATE \
-{\
-	PROF_BEGIN(validate);\
-	result = hint_validate(hint, &f->key, coord, lh);\
-	PROF_END(validate, validate);\
-}
-
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
 static int extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				      struct sealed_coord *hint, coord_state_t coord_state)
+				      hint_t *hint, coord_state_t coord_state)
 {
 	int result;
 	loff_t new_size;
@@ -2376,7 +2389,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	if (coord_state == COORD_WRONG_STATE)
 		return -EAGAIN;
 
-	HINT_VALIDATE;
+	result = hint_validate(hint, &f->key, coord, lh);
 
 	return result;
 }
@@ -2414,7 +2427,7 @@ reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 
 /* write flow's data into file by pages */
 static int
-extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
+extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hint_t *hint, int grabbed)
 {
 	int result;
 	loff_t file_off;
@@ -2596,7 +2609,7 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
   2. expanding truncate (@f->data == 0)
 */
 int
-write_extent(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
+write_extent(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hint_t *hint, int grabbed)
 {
 	if (f->data)
 		/* real write */
@@ -2604,27 +2617,6 @@ write_extent(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, s
 
 	/* expanding truncate. add_hole requires f->key to be set to new end of file */
 	return extent_write_hole(inode, coord, lh, f, grabbed);
-}
-
-/* part of this is filler for read_cache_page called via extent_read->read_cache_page */
-static int
-filler(void *vp, struct page *page)
-{
-	int result;
-
-	result = readpage_extent(vp, page);
-	if (result) {
-		SetPageError(page);
-		reiser4_unlock_page(page);
-	}
-	return result;
-}
-
-#define COPY_TO_USER \
-{\
-	PROF_BEGIN(copy_to_user);\
-	result = __copy_to_user(f->data, kaddr + page_off, count);\
-	PROF_END(copy_to_user, copy_to_user);\
 }
 
 #if REISER4_DEBUG
@@ -2641,6 +2633,26 @@ check_key_in_unit(const coord_t * coord, const reiser4_key * key)
 }
 #endif
 
+static void move_coord_page(coord_t *coord)
+{
+	if (coord->pos_in_unit == extent_get_width(extent_by_coord(coord)) - 1) {
+		coord->pos_in_unit = 0;
+		if (coord->unit_pos == nr_units_extent(coord) - 1)
+			coord->between = AFTER_UNIT;
+		else {
+			coord->unit_pos ++;
+		}
+	} else
+		coord->pos_in_unit ++;
+}
+
+typedef struct {
+	coord_t coord;
+	reiser4_extent *ext;
+	reiser4_block_nr width;
+	int nr_units;
+	unsigned long expected_page;
+} extent_coord_t;
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 int
@@ -2653,7 +2665,12 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 	char *kaddr;
 	jnode *j;
 	struct inode *inode;
+	__u64 offset;
 
+	trace_if(TRACE_EXTENTS, print_coord("read_extent start", coord, 0));
+	trace_if(TRACE_EXTENTS, print_key("read_extent start", &f->key));
+
+	assert("vs-572", f->user == 1);
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 	assert("vs-1255", item_is_extent(coord));
@@ -2661,20 +2678,28 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 	assert("vs-1256", check_key_in_unit(coord, &f->key));
 
 	inode = file->f_dentry->d_inode;
-	page_nr = (get_key_offset(&f->key) >> PAGE_CACHE_SHIFT);
+	offset = get_key_offset(&f->key);
+	page_nr = (offset >> PAGE_CACHE_SHIFT);
+	page_off = (offset & (PAGE_CACHE_SIZE - 1));
 
 	{
 		reiser4_file_fsdata *fsdata;
+		extent_coord_t ra_coord;
 
 		fsdata = reiser4_get_file_fsdata(file);
-		fsdata->reg.coord = coord;
+		ra_coord.coord = *coord;
+		ra_coord.ext = extent_item(coord);
+		ra_coord.width = extent_get_width(ra_coord.ext);
+		ra_coord.nr_units = nr_units_extent(coord);
+		ra_coord.expected_page = page_nr;
+		fsdata->reg.coord = &ra_coord;
+
 		page_cache_readahead(inode->i_mapping, &file->f_ra, file, page_nr);
 	}
 
 	/* this will return page if it exists and is uptodate, otherwise it
 	   will allocate page and call extent_readpage to fill it */
-	page = read_cache_page(inode->i_mapping, page_nr, filler, coord);
-
+	page = read_cache_page(inode->i_mapping, page_nr, readpage_extent, coord);
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
@@ -2700,13 +2725,13 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 		return RETERR(-EIO);
 	}
 
-	/* position within the page to read from */
-	page_off = (get_key_offset(&f->key) & ~PAGE_CACHE_MASK);
+	/* position within the page to start reading from */
+	page_off = (offset & (PAGE_CACHE_SIZE - 1));
 
 	/* number of bytes which can be read from the page */
 	if (page_nr == (inode->i_size >> PAGE_CACHE_SHIFT)) {
 		/* we read last page of a file. Calculate size of file tail */
-		count = inode->i_size & ~PAGE_CACHE_MASK;
+		count = inode->i_size & (PAGE_CACHE_SIZE - 1);
 	} else {
 		count = PAGE_CACHE_SIZE;
 	}
@@ -2717,59 +2742,64 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 
 	/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
 	kaddr = kmap(page);
-	assert("vs-572", f->user == 1);
 	assert("nikita-3034", schedulable());
 
 	/* read_cache_page() already marked page as accessed. No need to call
 	 * mark_page_accessed() */
-	COPY_TO_USER;
+	result = __copy_to_user(f->data, kaddr + page_off, count);
 	kunmap(page);
 
 	page_cache_release(page);
 	if (result)
 		return -EFAULT;
 
+	/* coord should still be set properly */
+	assert("vs-1263", check_key_in_unit(coord, &f->key));
 	move_flow_forward(f, count);
-	
-	check_me("vs-1214", key_in_item_extent(coord, &f->key, 0));
+
+	if (page_off + count == PAGE_CACHE_SIZE)
+		move_coord_page(coord);
+	assert("vs-1214", ergo(coord->between == AT_UNIT, check_key_in_unit(coord, &f->key)));
+
+	trace_if(TRACE_EXTENTS, print_coord("read_extent end", coord, 0));
+	trace_if(TRACE_EXTENTS, print_key("read_extent end", &f->key));
 
 	return 0;
 }
 
-/* 
-   plugin->s.file.readpage
-   reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->extent_readpage
-   or
-   filemap_nopage->reiser4_readpage->readpage_unix_file->->readpage_extent
-   
-   At the beginning: coord->node is read locked, zloaded, page is
-   locked, coord is set to existing unit inside of extent item
-*/
-int
-readpage_extent(void * vp, struct page *page)
+static int move_coord_pages(extent_coord_t *ext_coord, unsigned count)
 {
-	coord_t * coord = vp;
-	ON_DEBUG(reiser4_key key;)
-	reiser4_block_nr pos;
+	coord_t *coord;
+	
+	ext_coord->expected_page += count;
+
+	coord = &ext_coord->coord;
+	do {
+		if (coord->pos_in_unit + count < ext_coord->width) {
+			coord->pos_in_unit += count;
+			break;
+		}
+		
+		if (coord->unit_pos == ext_coord->nr_units - 1) {
+			coord->between = AFTER_UNIT;			
+			return 1;
+		}
+
+		/* shift to next unit */
+		count -= (ext_coord->width - coord->pos_in_unit);
+		coord->pos_in_unit = 0;
+		coord->unit_pos ++;
+		ext_coord->width = extent_get_width(ext_coord->ext + coord->unit_pos);
+	} while (1);
+
+	return 0;	
+}
+
+static int
+do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
+{
 	jnode *j;
-	reiser4_extent *ext;
 
-	trace_on(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
-
-	assert("vs-1040", PageLocked(page));
-	assert("vs-1050", !PageUptodate(page));
-	assert("vs-757", !jprivate(page) && !PagePrivate(page));
-	assert("vs-1039", page->mapping && page->mapping->host);
-	assert("vs-1044", znode_is_loaded(coord->node));
-	assert("vs-758", item_is_extent(coord));
-	assert("vs-1046", coord_is_existing_unit(coord));
-	assert("vs-1045", znode_is_rlocked(coord->node));
-	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
-
-	if (!offset_is_in_item(coord, ((loff_t) page->index) << PAGE_CACHE_SHIFT, &pos))
-		return RETERR(-EINVAL);
-
-	ext = extent_by_coord(coord);
 	switch (state_of_extent(ext)) {
 	case HOLE_EXTENT:
 		{
@@ -2780,7 +2810,6 @@ readpage_extent(void * vp, struct page *page)
 			kunmap_atomic(kaddr, KM_USER0);
 			SetPageUptodate(page);
 			reiser4_unlock_page(page);
-
 			trace_on(TRACE_EXTENTS, " - hole, OK\n");
 
 			return 0;
@@ -2788,8 +2817,11 @@ readpage_extent(void * vp, struct page *page)
 
 	case ALLOCATED_EXTENT:
 		j = jnode_of_page(page);
-		if (IS_ERR(j))
+		if (IS_ERR(j)) {
+			SetPageError(page);
+			reiser4_unlock_page(page);
 			return PTR_ERR(j);
+		}
 		if (!jnode_mapped(j))
 			init_allocated_jnode(j, extent_get_start(ext) + pos);
 		reiser4_stat_inc(extent.unfm_block_reads);
@@ -2806,13 +2838,74 @@ readpage_extent(void * vp, struct page *page)
 		break;
 
 	default:
-		impossible("vs-957", "extent_readpage: wrong extent");
+		warning("vs-957", "extent_readpage: wrong extent");
 		return RETERR(-EIO);
 	}
 
 	page_io(page, j, READ, GFP_NOIO);
 	jput(j);
 	return 0;
+}
+
+/* 
+   plugin->s.file.readpage
+   reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->extent_readpage
+   or
+   filemap_nopage->reiser4_readpage->readpage_unix_file->->readpage_extent
+   
+   At the beginning: coord->node is read locked, zloaded, page is
+   locked, coord is set to existing unit inside of extent item (it is not necessary that coord matches to page->index)
+*/
+int
+readpage_extent(void * vp, struct page *page)
+{
+	coord_t * coord = vp;
+	ON_DEBUG(reiser4_key key;)
+
+	trace_on(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
+
+	assert("vs-1040", PageLocked(page));
+	assert("vs-1050", !PageUptodate(page));
+	assert("vs-757", !jprivate(page) && !PagePrivate(page));
+	assert("vs-1039", page->mapping && page->mapping->host);
+	assert("vs-1044", znode_is_loaded(coord->node));
+	assert("vs-758", item_is_extent(coord));
+	assert("vs-1046", coord_is_existing_unit(coord));
+	assert("vs-1045", znode_is_rlocked(coord->node));
+	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
+
+	return do_readpage_extent(extent_by_coord(coord), coord->pos_in_unit, page);
+}
+
+static int
+readahead_readpage_extent(void * vp, struct page *page)
+{
+	extent_coord_t *ext_coord = vp;
+	coord_t *coord;
+	int result;
+
+	ext_coord = vp;
+	coord = &ext_coord->coord;
+	if (coord->between != AT_UNIT)
+		return RETERR(-EINVAL);
+			      
+	if (ext_coord->expected_page != page->index) {
+		/* read_cache_pages skipped few pages. Try to adjust coord to page */
+		assert("vs-1269", page->index > ext_coord->expected_page);
+		if (move_coord_pages(ext_coord,  page->index - ext_coord->expected_page))
+			/* extent pointing to this page is not here */
+			return RETERR(-EINVAL);
+
+		assert("vs-1274", offset_is_in_unit(coord, ext_coord->ext + coord->unit_pos, 
+						    (loff_t)page->index << PAGE_CACHE_SHIFT, 0));
+		ext_coord->expected_page = page->index;
+	}
+	
+	assert("vs-1281", page->index == ext_coord->expected_page);
+	result = do_readpage_extent(ext_coord->ext + coord->unit_pos, coord->pos_in_unit, page);
+	if (!result)
+		move_coord_pages(ext_coord, 1);
+	return result;
 }
 
 /*
@@ -2881,7 +2974,7 @@ int get_block_address_extent(const coord_t *coord, sector_t block, struct buffer
 void
 readpages_extent(coord_t *coord, struct address_space *mapping, struct list_head *pages)
 {
-	read_cache_pages(mapping, pages, filler, coord);
+	read_cache_pages(mapping, pages, readahead_readpage_extent, coord);
 }
 
 /*
