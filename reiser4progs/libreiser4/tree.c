@@ -325,23 +325,17 @@ int reiserfs_tree_lookup(
 
 #ifndef ENABLE_COMPACT
 
-/* 
-    The central packing on insert function. It shifts some number of items to left
-    or right neightbor in order to release "needed" space in specified by "old"
-    node. As insertion point may be shifted to one of neighbors, new insertion 
-    point position is stored in "new" coord.
-*/
-errno_t reiserfs_tree_shift(
+/* Pefroms left shifting of items */
+errno_t reiserfs_tree_lshift(
     reiserfs_tree_t *tree,	    /* tree pointer function operates on */
     reiserfs_coord_t *old,	    /* old coord of insertion point */
     reiserfs_coord_t *new,	    /* new coord will be stored here */
     uint32_t needed		    /* amount of space that should be freed */
 ) {
-    reiserfs_coord_t src, dst;
-    
     reiserfs_cache_t *left;
-    reiserfs_cache_t *right;
     reiserfs_cache_t *parent;
+    
+    reiserfs_coord_t src, dst;
 
     uint32_t item_len;
     uint32_t item_overhead;
@@ -349,10 +343,11 @@ errno_t reiserfs_tree_shift(
     aal_assert("umka-759", old != NULL, return -1);
     aal_assert("umka-766", new != NULL, return -1);
     aal_assert("umka-929", tree != NULL, return -1);
-    aal_assert("umka-930", needed > 0, return -1);
+
+    *new = *old;
     
     /* Checking for the root node which has not parent and has not any neighbours */
-    if (!(parent = old->cache->parent))
+    if (!(parent = old->cache->parent) || needed == 0)
 	return 0;
     
     /* 
@@ -366,21 +361,19 @@ errno_t reiserfs_tree_shift(
 	return -1;
     }
 
-    left = old->cache->left;
-    right = old->cache->right;
+    if (!(left = old->cache->left))
+	return 0;
     
-    *new = *old;
     item_overhead = reiserfs_node_item_overhead(old->cache->node);
     
     /* Trying to move items into the left neighbour */
-    if (left && reiserfs_node_count(old->cache->node) > 0) {
+    if (reiserfs_node_count(old->cache->node) > 0) {
 	reiserfs_pos_t mpos;
 
 	reiserfs_pos_init(&mpos, 0, 0xffffffff);
 
         /* Initializing item_len by first length of first item from shifted node */
-	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
-	    item_overhead;
+	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + item_overhead;
 	
 	/* Moving items until insertion point reach first position in node */
 	while (reiserfs_node_count(old->cache->node) > 0 && 
@@ -396,17 +389,23 @@ errno_t reiserfs_tree_shift(
 		    break;
 	    }
 	    
-	    if (new->pos.item == 0 && new->cache == old->cache) {
-		new->cache = left;
-		new->pos.item = reiserfs_node_count(left->node) - 1;
+	    /* Updating coord of new insertion point */
+	    if (new->cache == old->cache) {
+		if (new->pos.item == 0) {
+		    new->cache = left;
+		    new->pos.item = reiserfs_node_count(left->node) - 1;
+		} else 
+		    new->pos.item--;
 	    } else
 	        new->pos.item--;
 	    
+	    /* Preparing coord for moving items */
 	    reiserfs_coord_init(&src, old->cache, 0, 0xffffffff);
 	    
 	    reiserfs_coord_init(&dst, left, 
 		reiserfs_node_count(left->node), 0xffffffff);
 	    
+	    /* Moving item into left neighbor */
 	    if (reiserfs_cache_move(dst.cache, &dst.pos, src.cache, &src.pos)) {
 	        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		   "Left shifting failed. Can't move item.");
@@ -419,9 +418,52 @@ errno_t reiserfs_tree_shift(
 	    }
 	}
     }
+
+    return 0;
+}
+
+/* Performs shift of items into right neighbor */
+errno_t reiserfs_tree_rshift(
+    reiserfs_tree_t *tree,	    /* tree pointer function operates on */
+    reiserfs_coord_t *old,	    /* old coord of insertion point */
+    reiserfs_coord_t *new,	    /* new coord will be stored here */
+    uint32_t needed		    /* amount of space that should be freed */
+) {
+    reiserfs_cache_t *right;
+    reiserfs_cache_t *parent;
+    reiserfs_coord_t src, dst;
+
+    uint32_t item_len;
+    uint32_t item_overhead;
+
+    aal_assert("umka-759", old != NULL, return -1);
+    aal_assert("umka-766", new != NULL, return -1);
+    aal_assert("umka-929", tree != NULL, return -1);
+
+    *new = *old;
+    
+    /* Checking for the root node which has not parent and has not any neighbours */
+    if (!(parent = old->cache->parent) || needed == 0)
+	return 0;
+    
+    /* 
+	Checking both neighbours and loading them if needed in order to perform
+	the shifting of items from target node into neighbours.
+    */
+    if (reiserfs_cache_raise(old->cache)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't raise up neighbours of node %llu.", 
+	    aal_block_get_nr(old->cache->node->block));
+	return -1;
+    }
+
+    if (!(right = old->cache->right))
+	return 0;
+    
+    item_overhead = reiserfs_node_item_overhead(old->cache->node);
     
     /* Trying to move items into the right neghbour */
-    if (right && reiserfs_node_count(old->cache->node) > 0) {
+    if (reiserfs_node_count(old->cache->node) > 0) {
 	reiserfs_pos_t mpos;
 	
 	reiserfs_pos_init(&mpos, 
@@ -439,23 +481,22 @@ errno_t reiserfs_tree_shift(
 		into right neighbour or shifted already and if insertion node
 		has enough free space.
 	    */
-	    if (new->cache != left) {
-		if (new->cache == right || 
-		    new->pos.item == reiserfs_node_count(new->cache->node) - 1) 
-		{
-		    if ((reiserfs_node_get_space(right->node) - item_len) < needed)
-			break;
-		}
-		
-		if (new->cache == old->cache) {
-		    if (new->pos.item == reiserfs_node_count(new->cache->node) - 1) {
-			new->cache = right;
-			new->pos.item = 0;
-		    }
-		} else
-		    new->pos.item++;
+	    if (new->cache == right || 
+		new->pos.item == reiserfs_node_count(new->cache->node) - 1) 
+	    {
+		if ((reiserfs_node_get_space(right->node) - item_len) < needed)
+		    break;
 	    }
+		
+	    if (new->cache == old->cache) {
+		if (new->pos.item == reiserfs_node_count(new->cache->node) - 1) {
+		    new->cache = right;
+		    new->pos.item = 0;
+		}
+	    } else
+	        new->pos.item++;
 	    
+	    /* Moving item */
 	    reiserfs_coord_init(&src, old->cache, 
 		reiserfs_node_count(old->cache->node) - 1, 0xffffffff);
 
@@ -467,16 +508,58 @@ errno_t reiserfs_tree_shift(
 		return -1;
 	    }
 	    
+	    /* Updating item_len for next item to be moved */
 	    if (reiserfs_node_count(old->cache->node) > 0) {
 		mpos.item = reiserfs_node_count(old->cache->node) - 1;
-		
 		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
 		    item_overhead;
-    
 	    }
 	}
     }
     
+    return 0;
+}
+
+/* 
+    The central packing on insert function. It shifts some number of items to left
+    or right neightbor in order to release "needed" space in specified by "old"
+    node. As insertion point may be shifted to one of neighbors, new insertion 
+    point position is stored in "new" coord.
+*/
+errno_t reiserfs_tree_shift(
+    reiserfs_tree_t *tree,	    /* tree pointer function operates on */
+    reiserfs_coord_t *old,	    /* old coord of insertion point */
+    reiserfs_coord_t *new,	    /* new coord will be stored here */
+    uint32_t needed		    /* amount of space that should be freed */
+) {
+    reiserfs_cache_t *parent;
+
+    aal_assert("umka-759", old != NULL, return -1);
+    aal_assert("umka-766", new != NULL, return -1);
+    aal_assert("umka-929", tree != NULL, return -1);
+
+    if (!old->cache->parent || needed == 0)
+	return 0;
+    
+    /* Trying to shift items into left neighbour */
+    if (reiserfs_tree_lshift(tree, old, new, needed))
+	return -1;
+
+    /* Trying to shift items into right neighbour */
+    if (reiserfs_node_get_space(new->cache->node) < needed && 
+	reiserfs_node_count(old->cache->node) > 0) 
+    {
+	reiserfs_coord_t coord = *new;
+	
+	if (reiserfs_tree_rshift(tree, &coord, new, needed))
+	    return -1;
+    }
+
+    if (reiserfs_node_count(old->cache->node) == 0) {
+	reiserfs_cache_close(old->cache);
+	old->cache = NULL;
+    }
+
     return 0;
 }
 

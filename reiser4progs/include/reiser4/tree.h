@@ -43,6 +43,14 @@ extern errno_t reiserfs_tree_shift(reiserfs_tree_t *tree,
     reiserfs_coord_t *old, reiserfs_coord_t *new, 
     uint32_t needed);
 
+extern errno_t reiserfs_tree_lshift(reiserfs_tree_t *tree, 
+    reiserfs_coord_t *old, reiserfs_coord_t *new, 
+    uint32_t needed);
+
+extern errno_t reiserfs_tree_rshift(reiserfs_tree_t *tree, 
+    reiserfs_coord_t *old, reiserfs_coord_t *new, 
+    uint32_t needed);
+
 #endif
 
 extern int reiserfs_tree_lookup(reiserfs_tree_t *tree, 

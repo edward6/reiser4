@@ -511,6 +511,7 @@ errno_t reiserfs_cache_move(
     aal_assert("umka-997", src_cache != NULL, return -1);
     aal_assert("umka-998", src_pos != NULL, return -1);
     
+    /* Saving pos of ldkey in parent node for src node */
     if (src_pos->item == 0 && src_pos->unit == 0xffffffff &&
 	src_cache->parent)
     {
@@ -518,6 +519,7 @@ errno_t reiserfs_cache_move(
 	    return -1;
     }
     
+    /* Saving pos of ldkey in parent node for dst node */
     if (dst_pos->item == 0 && dst_pos->unit == 0xffffffff &&
 	dst_cache->parent)
     {
@@ -525,24 +527,39 @@ errno_t reiserfs_cache_move(
 	    return -1;
     }
     
-    if (reiserfs_node_get_level(src_cache->node) > REISERFS_LEAF_LEVEL) {
-	if (src_pos->unit == 0xffffffff) {
-	    reiserfs_key_t key;
-	    reiserfs_cache_t *child;
+    /* Updating cache pointers in the case of moving items on leaves level */
+    if (reiserfs_node_get_level(src_cache->node) > 
+	REISERFS_LEAF_LEVEL && src_pos->unit == 0xffffffff) 
+    {
+        reiserfs_key_t key;
+        reiserfs_cache_t *child;
 
-	    reiserfs_node_get_key(src_cache->node, src_pos, &key);
+        reiserfs_node_get_key(src_cache->node, src_pos, &key);
 	
-	    if ((child = reiserfs_cache_find(src_cache, &key))) {
-		reiserfs_cache_unregister(src_cache, child);
-		reiserfs_cache_register(dst_cache, child);
-	    }
+        if ((child = reiserfs_cache_find(src_cache, &key))) {
+	    reiserfs_cache_unregister(src_cache, child);
+	    reiserfs_cache_register(dst_cache, child);
 	}
     }
     
+    /* Moving items */
     if (reiserfs_node_move(dst_cache->node, dst_pos, 
 	    src_cache->node, src_pos))
 	return -1;
     
+    /* Updating ldkey in parent node for dst node */
+    if (dst_pos->item == 0 && dst_pos->unit == 0xffffffff &&
+	dst_cache->parent)
+    {
+	reiserfs_key_t ldkey;
+	
+	reiserfs_node_ldkey(dst_cache->node, &ldkey);
+	
+	if (reiserfs_cache_set_key(dst_cache->parent, &dp, &ldkey))
+	    return -1;
+    }
+
+    /* Updating ldkey in parent node for src node */
     if (reiserfs_node_count(src_cache->node) > 0) {
 	if (src_pos->item == 0 && src_pos->unit == 0xffffffff &&
 	    src_cache->parent)
@@ -555,24 +572,13 @@ errno_t reiserfs_cache_move(
 		return -1;
 	}
     } else {
+	
 	if (reiserfs_cache_remove(src_cache->parent, &sp))
 	    return -1;
 
 	reiserfs_cache_unregister(src_cache->parent, src_cache);
-	reiserfs_cache_close(src_cache);
     }
     
-    if (dst_pos->item == 0 && dst_pos->unit == 0xffffffff &&
-	dst_cache->parent)
-    {
-	reiserfs_key_t ldkey;
-	
-	reiserfs_node_ldkey(dst_cache->node, &ldkey);
-	
-	if (reiserfs_cache_set_key(dst_cache->parent, &dp, &ldkey))
-	    return -1;
-    }
-
     return 0;
 }
 
