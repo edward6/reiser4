@@ -222,7 +222,6 @@ int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 {
 	assert( "umka-050", tree != NULL );
 	
-	spin_lock_init( & tree -> tree_lock );
 	spin_lock_init( & tree -> dk_lock );
 
 	return z_hash_init( &tree -> zhash_table, 

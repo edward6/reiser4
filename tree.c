@@ -1534,6 +1534,13 @@ int check_jnode_for_unallocated (jnode * node)
 	return nr;
 }
 
+/* first step of reiser4 tree initialization */
+void init_tree_0( reiser4_tree * tree)
+{
+	assert( "zam-683", tree != NULL );
+	spin_lock_init( & tree -> tree_lock );
+}
+
 /* finishing reiser4 initialization */
 int init_tree( reiser4_tree *tree /* pointer to structure being
 				   * initialized */, 
@@ -1549,6 +1556,9 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	assert( "nikita-308", height > 0 );
 	assert( "nikita-309", nplug != NULL );
 	assert( "zam-587", tree->super != NULL );
+
+	/* someone might not call init_tree_0 before calling init_tree.*/
+	init_tree_0( tree );
 
 	tree -> root_block = *root_block;
 	tree -> height = height;

@@ -149,6 +149,8 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		return PTR_ERR (super_bh);
 	brelse (super_bh);
 
+	init_tree_0 (&private->tree);
+
 	/* map jnodes for journal control blocks (header, footer) to disk  */
 	result = init_journal_info (s, &jheader_block, &jfooter_block); 
 
