@@ -902,6 +902,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	doing -> restartable = 0;
 	result = iplug -> common.paste( op -> u.insert.d -> coord,
 					op -> u.insert.d -> data, todo );
+	znode_set_dirty( node );
 	if( real_size < 0 ) {
 		node -> nplug ->
 			change_item_size( op -> u.insert.d -> coord, 
@@ -1220,7 +1221,9 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 							   * can be moved */)
 {
 	int result;
+	znode *source;
 
+	source = insert_coord -> node;
 	result = node_plugin_by_node( node ) -> shift
 		( insert_coord, node, 
 		  ( side == LEFT_SIDE ) ? SHIFT_LEFT : SHIFT_RIGHT, 0,
@@ -1228,7 +1231,7 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 	assert( "nikita-915", result >= 0 );
 	if( result > 0 ) {
 		doing -> restartable = 0;
-		znode_set_dirty( insert_coord -> node );
+		znode_set_dirty( source );
 		znode_set_dirty( node );
 	}
 	return 0;
