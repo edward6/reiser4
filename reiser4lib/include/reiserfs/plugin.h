@@ -32,8 +32,8 @@ enum reiserfs_plugin_type {
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 typedef int reiserfs_plugin_id_t;
 
-#define REISERFS_PLUGIN_MAX_LABEL	255
-#define REISERFS_PLUGIN_MAX_DESC	4096
+#define REISERFS_PLUGIN_MAX_LABEL	16
+#define REISERFS_PLUGIN_MAX_DESC	256
 
 struct reiserfs_plugin_header {
     void *handle;
@@ -213,12 +213,21 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
     Here will be some plugin entry point 
     initialization for alone mode too.
 */
-
 #ifndef ENABLE_COMPACT
 #   define reiserfs_plugin_register(plugin) \
-	reiserfs_plugin_t *reiserfs_plugin_entry = &plugin
+    static reiserfs_plugin_t *reiserfs_plugin_main(void) { \
+        return &plugin; \
+    } \
+      \
+    reiserfs_plugin_t *(*reiserfs_plugin_entry)(void) = reiserfs_plugin_main
 #else
-#   define reiserfs_plugin_register(plugin) 
+#   define reiserfs_plugin_register(plugin) \
+    static reiserfs_plugin_t *reiserfs_plugin_main(void) { \
+        return &plugin; \
+    } \
+      \
+    static reiserfs_plugin_t *(*reiserfs_plugin_entry)(void) \
+	__attribute__((__section__(".plugins"))) = reiserfs_plugin_main
 #endif
 
 #define REISERFS_GUESS_PLUGIN_ID -1
