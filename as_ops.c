@@ -651,7 +651,8 @@ struct address_space_operations reiser4_as_operations = {
 
 struct address_space_operations reiser4_as_ops_nofile = {
 	.writepages = reiser4_writepages_nofile,
-	.writepage  = reiser4_writepage
+	.writepage  = reiser4_writepage,
+	.releasepage = reiser4_releasepage
 }; 
 
 /* Make Linus happy.
