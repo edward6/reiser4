@@ -1017,6 +1017,8 @@ reiser4_write_logs(void)
 			goto up_and_ret;
 		}
 
+		UNLOCK_ATOM(fq->atom);
+
 		if (!(ret = alloc_wandered_blocks(&ch, fq)))
 			ret = alloc_tx(&ch, fq);
 		
@@ -1060,6 +1062,8 @@ reiser4_write_logs(void)
 			ret = PTR_ERR(fq);
 			goto up_and_ret;
 		}
+
+		UNLOCK_ATOM(fq->atom);
 
 		ret = submit_batched_write(&ch.overwrite_set, fq);
 

@@ -827,7 +827,8 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 	return -EAGAIN;
 }
 
-/* A wrapper around fq_by_atom for getting a flush queue object for current atom */
+/* A wrapper around fq_by_atom for getting a flush queue object for current
+ * atom, if success fq->atom remains locked. */
 flush_queue_t *
 get_fq_for_current_atom(void)
 {
@@ -842,13 +843,11 @@ get_fq_for_current_atom(void)
 
 	if (ret)
 		return ERR_PTR(ret);
-
-	UNLOCK_ATOM(atom);
 	return fq;
 }
 
 /* Releasing flush queue object after exclusive use */
-static void
+void
 fq_put_nolock(flush_queue_t * fq)
 {
 	assert("zam-747", fq->atom != NULL);

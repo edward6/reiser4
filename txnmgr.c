@@ -201,8 +201,6 @@
 
 static void atom_free(txn_atom * atom);
 
-static long atom_try_commit_locked(txn_atom * atom);
-
 static long commit_txnh(txn_handle * txnh);
 
 static void wakeup_atom_waitfor_list(txn_atom * atom);
@@ -808,6 +806,13 @@ atom_is_dotard(const txn_atom * atom)
 	return time_after(jiffies, atom->start_time + get_current_super_private()->txnmgr.atom_max_age);
 }
 
+static int atom_can_be_committed (txn_atom * atom)
+{
+	assert ("zam-884", spin_atom_is_locked(atom));
+	assert ("zam-885", atom->txnh_count > atom->nr_waiters);
+	return atom->txnh_count == atom->nr_waiters + 1;
+}
+
 /* Return true if an atom should commit now.  This will be determined by aging.  For now
    this says to commit after the atom has 20 captured nodes.  The routine is only called
    when the txnh_count drops to 0. */
@@ -840,8 +845,7 @@ txn_wait_on_io(txn_atom * atom)
 
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
-static jnode *
-find_first_dirty(txn_atom * atom)
+jnode * find_first_dirty_jnode (txn_atom * atom)
 {
 	jnode *first_dirty;
 	tree_level level;
@@ -878,76 +882,43 @@ find_first_dirty(txn_atom * atom)
    Return value is an error code if commit fails, or non-negative number of
    blocks written.
 */
-static long
-atom_try_commit_locked(txn_atom * atom)
+static int commit_current_atom (long *nr_submitted, txn_atom ** result_atom)
 {
 	reiser4_super_info_data * sbinfo = get_current_super_private ();
-	long ret = 0;
-	jnode *first_dirty;	/* a variable for atom's dirty lists scanning */
+	txn_atom * atom;
+	long ret;
 
-	assert("umka-190", atom != NULL);
-	assert("jmacd-150", atom->txnh_count == (unsigned)atom->nr_waiters + 1);
-	assert("jmacd-151", atom_isopen(atom));
+	if (REISER4_DEBUG) {
+		atom = get_current_atom_locked();
+
+		assert("jmacd-151", atom_isopen(atom));
+		UNLOCK_ATOM(atom);
+	}
 
 	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current->pid);
 
-	/* FIXME_NFQUCMPD: Read the comment at the end of jnode_flush() about only calling
-	   jnode_flush() on the leaf level. */
+	do {
+		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS, nr_submitted, &atom);
+	} while (ret == -EAGAIN);
 
-	/* From the leaf level up (with the minor exception for the level 0,
-	   which is for fake znode), find the first dirty node in this
-	   transaction and call flush_jnode () and return -EAGAIN to the
-	   caller.  The caller is supposed to re-lock the atom and repeat
-	   flush attempt. */
-	first_dirty = find_first_dirty(atom);
+	if (ret)
+		return ret;
 
-	if (first_dirty) {
-		/* add an extra reference to jnode we begin flush from,
-		   because concurrent flushing may flush it faster than we
-		   and, probably, even throw it from memory */
-		jref(first_dirty);
+	assert ("zam-883", atom != NULL);
+	assert ("zam-882", spin_atom_is_locked(atom));
 
-		/* jnode_flush requires node locks, which require the atom
-		   lock and so on.  We begin this processing with the atom in
-		   the CAPTURE_WAIT state, unlocked. */
+	if (!atom_can_be_committed(atom)) {
 		UNLOCK_ATOM(atom);
-
-		/* Call jnode_flush() without tree_lock held. */
-		ret = jnode_flush(first_dirty, NULL, JNODE_FLUSH_COMMIT);
-		jput(first_dirty);
-
-		if (ret < 0) {
-			warning("nikita-2420", "jnode flush failed: %li", ret);
-			return ret;
-		}
-
-		preempt_point();
-
-		/* FIXME-ZAM: We may loose information about number of written
-		   blocks here. It would not be a problem because in the
-		   situation when this counting is really needed
-		   try_commit_locked() is called for atom with already empty
-		   dirty_nodes lists, so jnode_flush() is likely to do nothing
-		   and only write_logs writes data to disk.  */
-
-		/* Atom may be deleted at this point -- don't use it. */
 		return -EAGAIN;
 	}
 
-	/* Up to this point we have been flushing and after flush is called we return
-	   -EAGAIN.  Now we can commit.  We cannot return -EAGAIN at this point, commit
-	   should be successful. */
+	/* Up to this point we have been flushing and after flush is called we
+	   return -EAGAIN.  Now we can commit.  We cannot return -EAGAIN at this
+	   point, commit should be successful. */
 	atom->stage = ASTAGE_PRE_COMMIT;
 
 	trace_on(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
 	trace_on(TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", atom->atom_id);
-
-	if (REISER4_DEBUG) {
-		int level;
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level++) {
-			assert("zam-542", capture_list_empty(&atom->dirty_nodes[level]));
-		}
-	}
 
 	UNLOCK_ATOM(atom);
 
@@ -990,6 +961,8 @@ atom_try_commit_locked(txn_atom * atom)
 	assert("jmacd-1071", spin_atom_is_locked(atom));
 
 	trace_on(TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
+
+	*result_atom = atom;
 
 	return ret;
 }
@@ -1082,7 +1055,6 @@ again:
 		LOCK_ATOM(atom);
 
 		if (atom->stage < ASTAGE_PRE_COMMIT) {
-
 			spin_unlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
 
@@ -1090,7 +1062,6 @@ again:
 			capture_assign_txnh_nolock(atom, txnh);
 
 			ret = force_commit_atom_nolock(txnh);
-
 			if(ret)
 				return ret;
 
@@ -1178,153 +1149,75 @@ commit_some_atoms(txn_mgr * mgr)
 	return ret;
 }
 
-/* Flush some nodes from given locked atom */
-static int
-flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
-{
-	long ret = 0;
-	jnode *first_dirty;
-
-	assert("zam-755", spin_atom_is_locked(atom));
-
-	first_dirty = find_first_dirty(atom);
-
-	if (first_dirty) {
-
-		jref(first_dirty);
-		UNLOCK_ATOM(atom);
-
-		ret = jnode_flush(first_dirty, NULL, flags);
-
-		jput(first_dirty);
-		if (ret < 0) {
-			printk("jnode_flush failed with err = %ld\n", ret);
-		} else {
-			*nr_submitted += ret;
-		}
-	} else {
-		reiser4_context * ctx = get_current_context ();
-		/* If we cannot find more dirty blocks, just commit this atom */
-
-		atom->flags |= ATOM_FORCE_COMMIT;
-		UNLOCK_ATOM(atom);
-
-		/* we can commit atom here */
-		ret = txn_end (ctx);
-		if (ret >= 0) {
-			*nr_submitted += ret;
-			txn_begin (ctx);
-		}
-	}
-
-	return (int)ret;
-}
-
-/* Call jnode_flush for a node from one atom, count submitted nodes */
-int flush_one_atom(txn_mgr * tmgr, long *nr_submitted, int flags)
-{
-	txn_atom *atom;
-	reiser4_context *ctx = get_current_context();
-	txn_handle *txnh;
-	spin_lock_txnmgr(tmgr);
-
-	/* traverse the list of all atoms */
-	for (atom = atom_list_front(&tmgr->atoms_list);
-	     !atom_list_end(&tmgr->atoms_list, atom); 
-	     atom = atom_list_next(atom)) 
-	{
-		/* lock atom before checking its state */
-		LOCK_ATOM(atom);
-
-		/* we need an atom which is not being committed and which has no
-		 * flushers (jnode_flush() add one flusher at the beginning and
-		 * subtract one at the end). */
-		if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0)
-			goto found;
-
-		UNLOCK_ATOM(atom);
-	}
-
-	/* no one atom can be flushed */
-	spin_unlock_txnmgr(tmgr);
-
-	return 0;
-found:
-
-/* 	
-        Balance flushing between atoms:
-
-        atom_list_remove(atom);
- 	atom_list_push_back(&tmgr->atoms_list, atom); 
-*/
-	/* we do not need txnmgr lock */
-	spin_unlock_txnmgr(tmgr);
-
-	/* We are going to assign our transaction handle to the atom we have
-	   chosen */
-	txnh = ctx->trans;
-
-	LOCK_TXNH(txnh);
-
-	if (txnh->atom) {
-		/* There is a minor probability that atom was assigned to our
-		   transaction handle while we did atoms list traversal due to
-		   <znode lock> / <atom pseudo lock> deadlock avoidance
-		   algorithm, we have to continue we which was already assigned
-		   to us. */
-		if (txnh->atom != atom) {
-			UNLOCK_ATOM(atom);
-			UNLOCK_TXNH(txnh);
-
-			/* get current atom locked */
-			atom = atom_get_locked_with_txnh_locked(txnh);
-		}
-	} else {
-		/* just assign chosen atom to our empty transaction handle */
-		capture_assign_txnh_nolock(atom, txnh);
-	}
-
-	assert("zam-757", spin_atom_is_locked(atom));
-	assert("zam-758", spin_txnh_is_locked(txnh));
-	assert("zam-759", atom == txnh->atom);
-
-	UNLOCK_TXNH(txnh);
-
-	/* Here we get atom which we can flush by calling flush_this_atom() */
-	{			
-		int ret;
-
-		ret = flush_this_atom(atom, nr_submitted, flags);
-
-		if (ret < 0) {
-			printk("jnode_flush failed with err = %d\n", ret);
-		}
-	}
-
-	return 0;
-}
-
 /* Calls jnode_flush for current atom if it exists; if not, just take another
    atom and call jnode_flush() for him.  If current transaction handle has
    already assigned atom (current atom) we have to close current transaction
    prior to switch to another atom or do something with current atom. This
    code tries to flush current atom. */
-int
-flush_some_atom(long *nr_submitted, int flags)
+int flush_some_atom(long *nr_submitted, int flags)
 {
 	reiser4_context *ctx = get_current_context();
 	txn_handle *txnh = ctx->trans;
 	txn_atom *atom;
 	int ret;
 
-	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
-	UNLOCK_TXNH(txnh);
-
-	if (atom) {
-		ret = flush_this_atom(atom, nr_submitted, flags);
-	} else {
+	if (UNDER_SPIN(txnh, txnh, txnh->atom) == NULL) {
+		int found = 0;
+		/* current atom is available, take first from txnmgr */
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
-		ret = flush_one_atom(tmgr, nr_submitted, flags);
+
+		spin_lock_txnmgr(tmgr);
+
+		/* traverse the list of all atoms */
+		for (atom = atom_list_front(&tmgr->atoms_list);
+		     !found && !atom_list_end(&tmgr->atoms_list, atom); 
+		     atom = atom_list_next(atom)) 
+		{
+			/* lock atom before checking its state */
+			LOCK_ATOM(atom);
+
+			/* we need an atom which is not being committed and which has no
+			 * flushers (jnode_flush() add one flusher at the beginning and
+			 * subtract one at the end). */
+			if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0) {
+				found = 1;
+				LOCK_TXNH(txnh);
+				if (txnh->atom == NULL)
+					capture_assign_txnh_nolock(atom, txnh);
+				UNLOCK_TXNH(txnh);
+			}
+
+			UNLOCK_ATOM(atom);
+		}
+
+		spin_unlock_txnmgr(tmgr);
+
+		/* no suitable atoms found, return */
+		if (!found)
+			return 0;
+	}
+
+	ret = flush_current_atom(flags, nr_submitted, &atom);
+	if (ret == 0) {
+		if (*nr_submitted == 0) {
+			/* if early flushing could not make more nodes clean, we
+			 * force current atom to commit. */
+			txnh->flags |= TXNH_WAIT_COMMIT;
+			atom->flags |= ATOM_FORCE_COMMIT;
+		}
+		UNLOCK_ATOM(atom);
+	}
+
+	if (ret == -EAGAIN)
+		ret = 0;
+
+	{
+		int ret1;
+
+		ret1 = txn_end(ctx);
+		if (ret1 > 0)
+			*nr_submitted += ret1;
+		txn_begin(ctx);
 	}
 
 	return ret;
@@ -1411,26 +1304,22 @@ again:
 	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
 
 	/* Get the atom and txnh locked. */
-	atom = atom_get_locked_with_txnh_locked(txnh);
-
-	/* The txnh stays open while we try to commit, since it is still being used, but
-	   we don't need the txnh lock while trying to commit. */
-	UNLOCK_TXNH(txnh);
+	atom = get_current_atom_locked();
 
 	if (wait) {
 		atom->nr_waiters --;
 		wait = 0;
 	}
 
+	if (atom->stage == ASTAGE_DONE)
+		goto done;
+
 	trace_on(TRACE_TXN,
 		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
 		 atom->atom_id, failed, atom->txnh_count, atom_should_commit(atom));
 
 	if (!failed && atom_should_commit(atom)) {
-		if (atom->stage == ASTAGE_DONE)
-			goto done;
-
-		if (atom->txnh_count > (unsigned)atom->nr_waiters + 1) {
+		if (!atom_can_be_committed(atom)) {
 			if (should_wait_commit(txnh)) {
 				atom->nr_waiters++;
 				wait = 1;
@@ -1446,30 +1335,15 @@ again:
 		atom->stage = ASTAGE_CAPTURE_WAIT;
 		atom->flags |= ATOM_FORCE_COMMIT;
 
-		ret = atom_try_commit_locked(atom);
+		UNLOCK_ATOM(atom);
 
-		if (ret < 0) {
-			if (ret == -EAGAIN)
-				goto again;
-
-			if (ret == -EBUSY) {
-				/* -EBUSY means that another thread took fq object in exclusive use
-				   for submitting an I/O or so and we cannot find any fq object
-				   which is ready to write to disk; we just wait that thread. */
-				atom_wait_event(atom);
-
-				goto again;
-			}
-
+		ret = commit_current_atom(&nr_written, &atom);
+		if (ret) {
+			if (ret != -EAGAIN)
+				failed = 1;
 			ret = 0;
-			failed = 1;
-
 			preempt_point();
 			goto again;
-		} else {
-			/* count what number of blocks written is this
-			   jnode_flush() iteration. */
-			nr_written += ret;
 		}
 	}
 
