@@ -12,9 +12,6 @@
 /** declare hash table of znodes */
 TS_HASH_DECLARE(z, znode);
 
-/* The transaction's list of captured txn_nodes */
-TS_LIST_DECLARE(capture);
-
 typedef enum {
        /** just created */
        ZNODE_CLEAN             = 0,

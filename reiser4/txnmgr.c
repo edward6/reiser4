@@ -5,10 +5,10 @@
  * capture_block requests and manages the relationship between znodes and atoms through the various stages of a
  * transcrash, and it also oversees the fusion and capture-on-copy processes.  The main difficulty with this task is
  * maintaining a deadlock-free lock ordering between atoms and znodes/handles.  The reason for the difficulty is that
- * txn_nodes, handles, and atoms contain pointer circles, and the cycle must be broken.  The main requirement is that
- * atom-fusion be deadlock free, so once you hold the atom_lock you may then wait to aquire any txn_node or handle lock.
- * This implies that any time you check the atom-pointer of a txn_node or handle and then try to lock that atom, you
- * must use trylock() and possibly reverse the order.
+ * znodes, handles, and atoms contain pointer circles, and the cycle must be broken.  The main requirement is that
+ * atom-fusion be deadlock free, so once you hold the atom_lock you may then wait to aquire any znode or handle lock.
+ * This implies that any time you check the atom-pointer of a znode or handle and then try to lock that atom, you must
+ * use trylock() and possibly reverse the order.
  *
  * This code implements the design documented at:
  *
@@ -66,8 +66,7 @@ static void   uncapture_block                 (txn_atom   *atom,
 /* Local debugging */
 void          atom_print                      (txn_atom   *atom);
 
-/* FIXME_JMACD: debug printable ID of a txn_node */
-#define TNODE_ID(x) (0LL)
+#define ZNODE_ID(x) ((x)->blocknr.blk)
 
 /****************************************************************************************
 				    GENERIC STRUCTURES
@@ -87,6 +86,8 @@ TS_LIST_DEFINE(txnh,txn_handle,txnh_link);
 
 TS_LIST_DEFINE(fwaitfor,txn_wait_links,_fwaitfor_link);
 TS_LIST_DEFINE(fwaiting,txn_wait_links,_fwaiting_link);
+
+TS_LIST_DEFINE(capture,znode,capture_link);
 
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
@@ -189,10 +190,10 @@ atom_init (txn_atom     *atom)
 	atom->start_time    = jiffies;
 
 	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
-		capture_list_init (& atom->dirty_level[level]);
+		capture_list_init (& atom->dirty_znodes[level]);
 	}
 
-	capture_list_init (& atom->clean_nodes);
+	capture_list_init (& atom->clean_znodes);
 	spin_lock_init     (& atom->alock);
 	txnh_list_init     (& atom->txnh_list);
 	atom_list_clean    (atom);
@@ -207,7 +208,7 @@ atom_isclean (txn_atom *atom)
 	int level;
 
 	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
-		if (! capture_list_empty (& atom->dirty_level[level])) {
+		if (! capture_list_empty (& atom->dirty_znodes[level])) {
 			return 0;
 		}
 	}
@@ -217,7 +218,7 @@ atom_isclean (txn_atom *atom)
 		(atom->capture_count == 0) &&
 		(atom->refcount      == 0) &&
 		txnh_list_empty        (& atom->txnh_list) &&
-		capture_list_empty     (& atom->clean_nodes) &&
+		capture_list_empty     (& atom->clean_znodes) &&
 		atom_list_is_clean     (atom) &&
 		fwaitfor_list_empty    (& atom->fwaitfor_list) &&
 		fwaiting_list_empty    (& atom->fwaiting_list));
@@ -544,11 +545,11 @@ atom_try_commit_locked (txn_atom *atom)
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
 	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
 
-		if (capture_list_empty (& atom->dirty_level[level])) {
+		if (capture_list_empty (& atom->dirty_znodes[level])) {
 			continue;
 		}
 
-		scan = capture_list_front (& atom->dirty_level[level]);
+		scan = capture_list_front (& atom->dirty_znodes[level]);
 
 		/* Balancing a slum requires node locks, which require the
 		 * atom lock and so on.  We begin this processing with the
@@ -570,9 +571,9 @@ atom_try_commit_locked (txn_atom *atom)
 	/* FIXME_JMACD Just release the captured nodes for now. -josh */
 	trace_on (TRACE_TXN, "commit atom %u\n", atom->atom_id);
 
-	while (! capture_list_empty (& atom->clean_nodes)) {
+	while (! capture_list_empty (& atom->clean_znodes)) {
 		
-		scan = capture_list_front (& atom->clean_nodes);
+		scan = capture_list_front (& atom->clean_znodes);
 		
 		assert ("jmacd-1063", scan != NULL);
 		assert ("jmacd-1061", scan->atom == atom);
@@ -919,15 +920,15 @@ capture_assign_block_nolock (txn_atom *atom,
 	node->atom = atom;
 
 	if (znode_is_dirty (node)) {
-		capture_list_push_back (& atom->dirty_level[ znode_get_level (node) ], node);
+		capture_list_push_back (& atom->dirty_znodes[ znode_get_level (node) ], node);
 	} else {
-		capture_list_push_back (& atom->clean_nodes, node);
+		capture_list_push_back (& atom->clean_znodes, node);
 	}
 
 	atom->capture_count += 1;
 	zref (node);
 
-	trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", TNODE_ID (node), atom->atom_id, atom->capture_count);
+	trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", ZNODE_ID (node), atom->atom_id, atom->capture_count);
 }
 
 /* Set the dirty status for this znode.  If the znode is not already dirty, this involves locking the atom (for its
@@ -952,7 +953,7 @@ void znode_set_dirty( znode *node )
 		if (atom != NULL) {
 
 			capture_list_remove     (node);
-			capture_list_push_front (& atom->dirty_level[ znode_get_level (node) ], node);
+			capture_list_push_front (& atom->dirty_znodes[ znode_get_level (node) ], node);
 
 			spin_unlock_atom (atom);
 		}
@@ -962,7 +963,7 @@ void znode_set_dirty( znode *node )
 }
 
 /* Unset the dirty status for this znode.  If the znode is dirty, this involves locking the atom (for its capture
- * lists), removeing from the dirty_level list and pushing in to the clean list.
+ * lists), removeing from the dirty_znodes list and pushing in to the clean list.
  */
 void znode_set_clean( znode *node )
 {
@@ -981,7 +982,7 @@ void znode_set_clean( znode *node )
 		assert ("jmacd-1201", atom != NULL);
 
 		capture_list_remove     (node);
-		capture_list_push_front (& atom->clean_nodes, node);
+		capture_list_push_front (& atom->clean_znodes, node);
 
 		spin_unlock_atom (atom);
 	}
@@ -1349,11 +1350,11 @@ capture_fuse_into (txn_atom  *small,
 
 	/* Splice and update the dirty lists */
 	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
-		scount += capture_fuse_znode_lists (large, & large->dirty_level[level], & small->dirty_level[level]);
+		scount += capture_fuse_znode_lists (large, & large->dirty_znodes[level], & small->dirty_znodes[level]);
 	}
 
 	/* Splice and update the clean list */
-	scount += capture_fuse_znode_lists (large, & large->clean_nodes, & small->clean_nodes);
+	scount += capture_fuse_znode_lists (large, & large->clean_znodes, & small->clean_znodes);
 	
 	/* Check our accounting. */
 	assert ("jmacd-1063", scount == small->capture_count);
@@ -1447,7 +1448,7 @@ uncapture_block (txn_atom *atom,
 	assert ("jmacd-1022", spin_znode_is_not_locked (node));
 	assert ("jmacd-1023", spin_atom_is_locked (atom));
 
-	trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", TNODE_ID (node), atom->atom_id, atom->capture_count);
+	trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", ZNODE_ID (node), atom->atom_id, atom->capture_count);
 
 	spin_lock_znode (node);
 
@@ -1475,16 +1476,16 @@ atom_print (txn_atom *atom)
 
 		sprintf (prefix, "capture level %d", level);
 
-		for (scan = capture_list_front (& atom->dirty_level[level]);
-		     /**/ ! capture_list_end   (& atom->dirty_level[level], scan);
+		for (scan = capture_list_front (& atom->dirty_znodes[level]);
+		     /**/ ! capture_list_end   (& atom->dirty_znodes[level], scan);
 		     scan = capture_list_next  (scan)) {
 
 			info_znode (prefix, scan);
 		}
 	}
 
-	for (scan = capture_list_front (& atom->clean_nodes);
-	     /**/ ! capture_list_end   (& atom->clean_nodes, scan);
+	for (scan = capture_list_front (& atom->clean_znodes);
+	     /**/ ! capture_list_end   (& atom->clean_znodes, scan);
 	     scan = capture_list_next  (scan)) {
 		
 		info_znode (prefix, scan);
