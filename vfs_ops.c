@@ -1455,7 +1455,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		plugin_set_put(info->pset);
 
 	assert("nikita-2872", list_empty(&info->moved_pages));
-	assert("nikita-3064", list_empty(&info->eflushed_nodes));
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
