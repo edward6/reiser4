@@ -34,7 +34,7 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 int write_ctail(struct inode *, flow_t *, hint_t *, int, write_mode_t);
 int read_ctail(struct file *, flow_t *, uf_coord_t *);
 int readpage_ctail(void *, struct page *);
-int writepage_ctail(uf_coord_t *, struct page *, write_mode_t);
+int writepage_ctail(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 
@@ -48,10 +48,10 @@ int cluster_is_uptodate (reiser4_cluster_t *);
 loff_t inode_scaled_offset(struct inode *, const loff_t);
 size_t inode_scaled_cluster_size(struct inode *);
 unsigned long cluster_index_by_page(struct page *, struct inode *);
-int process_cluster(reiser4_cluster_t *, struct inode *, rw_op);
+int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
-
+int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
