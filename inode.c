@@ -323,7 +323,6 @@ init_locked_inode(struct inode *inode /* new inode */ ,
    (objectids) are distinguished by their packing locality.
 
 */
-/* Audited by: green(2002.06.17) */
 int
 reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 						 * check */ ,
