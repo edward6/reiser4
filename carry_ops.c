@@ -1057,9 +1057,8 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * item.
 	 */
 	insert_extent -> u.insert.type = COPT_KEY;
-	insert_extent -> u.insert.d = &cdata2;
-	insert_extent -> u.insert.d -> data = op -> u.extent.d -> data;
-	insert_extent -> u.insert.d -> key  = op -> u.extent.d -> key;
+	insert_extent -> u.insert.d = op -> u.extent.d;
+	assert( "nikita-1719", op -> u.extent.d -> key != NULL );
 	insert_extent -> u.insert.d -> data -> arg = op -> u.extent.d -> coord;
 		
 	return 0;
