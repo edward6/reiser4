@@ -688,15 +688,6 @@ node40_parse(znode * node /* node to parse */ )
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
 	}
-	if (result == 0) {
-		ZF_SET(node, JNODE_LOADED);
-		result = check_jnode_for_unallocated_in_core(node);
-		ZF_CLR(node, JNODE_LOADED);
-		if (result != 0) {
-			warning("nikita-2695", "Unallocated: %i", result);
-			result = -EIO;
-		}
-	}
 	if (result != 0)
 		print_znode("node", node);
 	return result;
