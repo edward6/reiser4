@@ -479,11 +479,20 @@ void print_fs_info (const char *prefix, const struct super_block * s)
 	if (private->space_plug->print_info)
 		private->space_plug->print_info ("", get_space_allocator (s));
 	if (private->oid_plug->print_info)
-		private->oid_plug->print_info ("", get_oid_allocator (s));
+		private->oid_plug->print_info (private->oid_plug->h.label,
+					       get_oid_allocator (s));
 	info ("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
 	      "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tunallocated\t%llu\n",
 	      reiser4_block_count (s), reiser4_free_blocks (s), reiser4_data_blocks (s),
 	      reiser4_grabbed_blocks (s), reiser4_unallocated_blocks (s));
+	print_key ("Root directory key", private->df_plug->root_dir_key (s));
+
+	if (private->df_plug->print_info) {
+		info ("=========== disk format info (%s) =============\n",
+		      private->df_plug->h.label);
+		private->df_plug->print_info (s);
+	}
+	
 }
 
 /* 
