@@ -2171,7 +2171,8 @@ static coord_t * adjust_coord2 (const struct shift_params * shift,
 			 */
 			coord_dup_nocheck (new, old);
 			new->item_pos -= shift->u.future_first.item_pos;
-			new->unit_pos -= shift->u.future_first.unit_pos;
+			if (new->item_pos == 0)
+				new->unit_pos -= shift->u.future_first.unit_pos;
 		}
 	} else {
 		if (unit_moved_right (shift, old)) {
