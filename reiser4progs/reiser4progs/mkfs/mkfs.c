@@ -12,56 +12,60 @@
 #include <reiser4/reiser4.h>
 #include <reiser4progs/misc.h>
 
-#define REISER40_PROFILE 0x1
-
-static reiserfs_profile_t profile40 = {
-    .label = "profile40",
-    .desc = "Default profile for reiser4 filesystem",
+static reiserfs_profile_t profiles[] = {
+    [0] = {
+	.label = "default40",
+	.desc = "Default profile for reiser4 filesystem. "
+	    "It consists of format40, journal40, alloc40, etc",
     
-    .node = 0x0,
-    .item = {
-	.internal = 0x3,
-	.statdata = 0x0,
-	.direntry = 0x2,
-	.fileentry = 0x0
-    },
-    .file = 0x0,
-    .dir = 0x0,
-    .hash = 0x0,
-    .tail = 0x0,
-    .hook = 0x0,
-    .perm = 0x0,
-    .format = 0x0,
-    .oid = 0x0,
-    .alloc = 0x0,
-    .journal = 0x0
-};
-    
-static error_t mkfs_setup_profile(reiserfs_profile_t *profile, int number) {
-    aal_assert("vpf-104", profile != NULL, return -1);
-
-    switch (number) {
-	case REISER40_PROFILE: {
-	    *profile = profile40;
-	    break;
-	}
-	default: {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Unknown profile has detected %x.", number);
-	    return -1;
-	}
+	.node = 0x0,
+	.item = {
+	    .internal = 0x3,
+	    .statdata = 0x0,
+	    .direntry = 0x2,
+	    .fileentry = 0x0
+	},
+	.file = 0x0,
+	.dir = 0x0,
+	.hash = 0x0,
+	.tail = 0x0,
+	.hook = 0x0,
+	.perm = 0x0,
+	.format = 0x0,
+	.oid = 0x0,
+	.alloc = 0x0,
+	.journal = 0x0
     }
-    return 0;
+};
+
+static reiserfs_profile_t *mkfs_find_profile(const char *profile) {
+    unsigned i;
+    
+    aal_assert("vpf-104", profile != NULL, return NULL);
+    
+    for (i = 0; i < (sizeof(profiles) / sizeof(reiserfs_profile_t)); i++) {
+	if (!strncmp(profiles[i].label, profile, strlen(profiles[i].label)))
+	    return &profiles[i];
+    }
+
+    return NULL;
+}
+
+static void mkfs_list_profiles(void) {
+    unsigned i;
+    
+    for (i = 0; i < (sizeof(profiles) / sizeof(reiserfs_profile_t)); i++)
+	printf("(%d) %s (%s).\n", i + 1, profiles[i].label, profiles[i].desc);
 }
 
 static void mkfs_print_usage(void) {
-    fprintf(stderr, "Usage: mkfs.reiser4 [ profile [ profile-options ] ] "
-	"[ options ] device [ size[K|M|G] ]\n");
+    fprintf(stderr, "Usage: mkfs.reiser4 [ options ] device [ size[K|M|G] ]\n");
     
     fprintf(stderr, "Options:\n"
 	"  -v | --version                  prints current version\n"
 	"  -u | --usage                    prints program usage\n"
-	"  -p | --profile                  prints known profiles\n"
+	"  -p | --profile                  profile to be used\n"
+	"  -k | --known-profiles           prints known profiles\n"
 	"  -b N | --block-size=N           block size (1024, 2048, 4096...)\n"
 	"  -f FORMAT | --format=FORMAT     reiserfs version (3.5, 3.6, 4.0)\n"
 	"  -l LABEL | --label=LABEL        volume label\n"
@@ -70,14 +74,14 @@ static void mkfs_print_usage(void) {
 
 int main(int argc, char *argv[]) {
     int c, error;
-    char *host_dev;
     char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
+    char *host_dev, *profile_label = "profile40";
     uint16_t blocksize = REISERFS_DEFAULT_BLOCKSIZE;
     
     reiserfs_fs_t *fs;
     aal_device_t *device;
-    reiserfs_profile_t profile;
+    reiserfs_profile_t *profile;
     
     static struct option long_options[] = {
 	{"version", no_argument, NULL, 'v'},
@@ -98,7 +102,7 @@ int main(int argc, char *argv[]) {
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
     
-    while ((c = getopt_long_only(argc, argv, "uvpb:f:i:l:", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uvp:kb:f:i:l:", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
@@ -108,6 +112,14 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'v': {
 		printf("%s %s\n", argv[0], VERSION);
+		return 0;
+	    }
+	    case 'p': {
+		profile_label = optarg;
+		break;
+	    }
+	    case 'k': {
+		mkfs_list_profiles();
 		return 0;
 	    }
 	    case 'b': {
@@ -154,6 +166,12 @@ int main(int argc, char *argv[]) {
     if (optind >= argc) {
 	mkfs_print_usage();
 	return 0xfe;
+    }
+    
+    if (!(profile = mkfs_find_profile(profile_label))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find profile by its label \"%s\".", profile_label);
+	return 0xff;
     }
     
     host_dev = argv[optind++];
@@ -208,20 +226,18 @@ int main(int argc, char *argv[]) {
 	goto error_free_libreiser4;
     }
 
-    mkfs_setup_profile(&profile, REISER40_PROFILE);
-    
     if (!(c = reiser4progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
-	    "All data on %s will be lost. Do you realy want to create reiserfs 4.0 "
-	    "(y/n) ", host_dev)))
+	    "All data on %s will be lost. Do you realy want create reiserfs "
+	    "with \"%s\" profile (y/n) ", host_dev, profile->label)))
 	goto error_free_device;
 	
     if (c == 'n' || c == 'N')
         goto error_free_device;
 
-    fprintf(stderr, "Creating reiserfs with default profile...");
+    fprintf(stderr, "Creating reiserfs with \"%s\" profile...", profile->label);
     fflush(stderr);
     
-    if (!(fs = reiserfs_fs_create(device, &profile, blocksize, 
+    if (!(fs = reiserfs_fs_create(device, profile, blocksize, 
 	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
