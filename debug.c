@@ -344,7 +344,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
 
-		if( item_plugin_by_coord( &coord ) -> down_link ) {
+		if( item_is_internal( &coord ) ) {
 			znode *child;
 
 			spin_lock_dk( current_tree );
@@ -402,7 +402,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	}
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
-		if( item_plugin_by_coord(&coord ) -> down_link ) {
+		if( item_is_internal(&coord ) ) {
 			znode *child;
 
 			spin_lock_dk( current_tree );
