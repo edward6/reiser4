@@ -2281,7 +2281,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	/* submit bio for all ranges */
 	{
 		struct list_head * cur, * tmp;
-		struct bio * bio;
+		struct bio * bio = NULL;
 		struct bio_vec * bvec;
 
 		list_for_each_safe (cur, tmp, &range_list) {
@@ -2357,7 +2357,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 			}
 			bio->bi_vcnt = bio->bi_idx;
 			submit_bio (READ, bio);
-			bio = 0;
+			bio = NULL;
 			range->nr_pages -= bio->bi_vcnt;
 			assert ("vs-783", list_empty (&range->pages));
 			assert ("vs-788", !range->nr_pages);
