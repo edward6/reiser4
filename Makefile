@@ -33,6 +33,7 @@ CFLAGS_lnode.o += -O0
 CFLAGS_kcond.o += -O0
 CFLAGS_seal.o += -O0
 CFLAGS_io_handle.o += -O0
+CFLAGS_flush_queue.o += -O0
 CFLAGS_ktxnmgrd.o += -O0
 CFLAGS_trace.o += -O0
 CFLAGS_all-reiser4.o += -O0
@@ -70,6 +71,7 @@ reiser4-objs := \
 	   kcond.o \
 	   seal.o \
 	   io_handle.o \
+	   flush_queue.o \
 	   trace.o \
 	   ktxnmgrd.o
 
