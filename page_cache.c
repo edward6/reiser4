@@ -782,9 +782,14 @@ invalidate_unformatted(jnode *node)
 	LOCK_JNODE(node);
 	page = node->pg;
 	if (page) {
+		loff_t from, to;
+
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
-		truncate_inode_pages_range(page->mapping, page->index, 1);
+		/* FIXME: use truncate_complete_page instead */
+		from = (loff_t)page->index << PAGE_CACHE_SHIFT;
+		to = from + PAGE_CACHE_SIZE - 1;
+		truncate_inode_pages_range(page->mapping, from, to);
 		page_cache_release(page);
 	} else {
 		JF_SET(node, JNODE_HEARD_BANSHEE);
@@ -849,7 +854,6 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	return truncated_jnodes;
 }
 
-/* */
 reiser4_internal void
 reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned long count)
 {
@@ -860,9 +864,8 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 	from_bytes = ((loff_t)from) << PAGE_CACHE_SHIFT;
 	count_bytes = ((loff_t)count) << PAGE_CACHE_SHIFT;
 
-	/*invalidate_mmap_range(mapping, from_bytes, count_bytes);*/
 	unmap_mapping_range(mapping, from_bytes, count_bytes, 1/*even cows*/);
-	truncate_inode_pages_range(mapping, from, count);
+	truncate_inode_pages_range(mapping, from_bytes, from_bytes + count_bytes - 1);
 	truncate_jnodes_range(mapping->host, from, count);
 }
 
