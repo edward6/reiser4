@@ -354,6 +354,7 @@ find_file_item(hint_t *hint,
 		result = hint_validate(hint, key, lh, 1/*check key*/);
 		if (!result) {
 			*coord = hint->coord;
+			coord_clear_iplug(coord);
 			if (coord->between == AFTER_UNIT && equal_to_rdk(coord->node, key)) {
 				result = goto_right_neighbor(coord, lh);
 				if (result == -E_NO_NEIGHBOR)
@@ -759,6 +760,7 @@ hint_validate(hint_t *hint, const reiser4_key * key, lock_handle * lh, int check
 	if (check_key && get_key_offset(key) != hint->offset)
 		return -EAGAIN;
 
+	coord_clear_iplug(&hint->coord);
 	return seal_validate(&hint->seal, &hint->coord, key,
 			     hint->level, lh, FIND_MAX_NOT_MORE_THAN, hint->lock, ZNODE_LOCK_LOPRI);
 }

@@ -420,6 +420,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	state = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
 	coord = state->sd_coord;
+	coord_clear_iplug(&coord);
 	seal = state->sd_seal;
 	spin_unlock_inode(inode);
 
