@@ -150,13 +150,13 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     passed coord by coords of found item and unit. This function
     is used by reiserfs_tree_lookup function.
 */
-int reiserfs_node_lookup(reiserfs_node_t *node, void *key, reiserfs_coord_t *coord) 
+int reiserfs_node_lookup(reiserfs_node_t *node, void *key, 
+    reiserfs_coord_t *coord) 
 {
-    int found; 
-    void *body;
-    reiserfs_plugin_t *item_plugin;
-    uint8_t max_key_inside[MAX_KEY_SIZE];
+    int found; void *body;
     reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *item_plugin;
+    reiserfs_key_t max_key_inside;
     
     aal_assert("umka-475", coord != NULL, return -1);
     aal_assert("umka-476", key != NULL, return -1);
@@ -203,11 +203,11 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key, reiserfs_coord_t *coo
 	We are on the position where key is less then wanted. Key could lies within
 	the item or after the item.
     */
-    aal_memcpy(max_key_inside, reiserfs_node_item_key_at(node, coord->item_pos), 
-	key_plugin->key.size());
+    aal_memcpy(&max_key_inside, reiserfs_node_item_key_at(node, coord->item_pos), 
+	libreiser4_plugins_call(return -1, key_plugin->key, size,));
 
     if (item_plugin->item.common.max_key_inside) {
-	if (item_plugin->item.common.max_key_inside(max_key_inside, key_plugin) == -1) {
+	if (item_plugin->item.common.max_key_inside(&max_key_inside, key_plugin) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Getting max key of the item %d in the node %llu failed.", 
 		coord->item_pos, aal_block_get_nr(node->block));
@@ -215,7 +215,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key, reiserfs_coord_t *coo
 	}
 	
 	if (libreiser4_plugins_call(return -1, key_plugin->key, compare, 
-		key, max_key_inside) > 0)
+		key, &max_key_inside) > 0)
 	    goto after_item;
     }
 

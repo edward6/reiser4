@@ -13,11 +13,6 @@
 
 #define INTERNAL40_ID 0x3
 
-/*
-    All items operate on given memory area. The highest
-    level should be concering about validness this memory area.
-*/
-
 static reiserfs_plugin_factory_t *factory = NULL;
 
 #ifndef ENABLE_COMPACT
@@ -104,9 +99,9 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .minsize = (uint32_t (*)(void))internal40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))internal40_print,
 	    .internal = (int (*)(void))internal40_internal,
-	    .max_key_inside = NULL,
-	    
+
 	    .lookup = NULL,
+	    .max_key_inside = NULL,
 	    .confirm = NULL,
 	    .check = NULL,
 	    .unit_add = NULL,

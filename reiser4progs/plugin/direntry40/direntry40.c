@@ -87,7 +87,7 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 	    direntry_info->hash_plugin, sizeof(reiserfs_entryid_t));
 
 	libreiser4_plugins_call(return -1, key_plugin->key, build_file_short_key, 
-	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_SD_MINOR, 
+	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
 	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid, 
 	    sizeof(reiserfs_objid_t));
 	
@@ -160,7 +160,7 @@ static int callback_cmp_for_lookup(const void *key1, const void *key2,
     oid_t locality;
     oid_t objectid;
     uint64_t offset;
-    uint8_t key[MAX_KEY_SIZE];
+    reiserfs_key_t key;
     reiserfs_plugin_t *plugin;
 
     aal_assert("umka-657", key1 != NULL, return -2);
@@ -180,7 +180,7 @@ static int callback_cmp_for_lookup(const void *key1, const void *key2,
     libreiser4_plugins_call(return -2, plugin->key, build_file_key, 
 	&key, 0, locality, objectid, offset);
     
-    return libreiser4_plugins_call(return -2, plugin->key, compare, key, key2);
+    return libreiser4_plugins_call(return -2, plugin->key, compare, &key, key2);
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
