@@ -514,6 +514,53 @@ int is_dir_empty( const struct inode *dir )
 	return result;
 }
 
+/** compare two logical positions within the same directory */
+cmp_t dir_pos_cmp( const dir_pos *p1, const dir_pos *p2 )
+{
+	cmp_t result;
+
+	assert( "nikita-2534", p1 != NULL );
+	assert( "nikita-2535", p2 != NULL );
+
+	result = de_id_cmp( &p1 -> dir_entry_key, &p2 -> dir_entry_key );
+	if( result == EQUAL_TO ) {
+		int diff;
+
+		diff = p1 -> pos - p2 -> pos;
+		result = 
+			( diff < 0 ) ? LESS_THAN : 
+			( diff ? GREATER_THAN : EQUAL_TO );
+	}
+	return result;
+}
+
+#if 0
+/**
+ * scan all file-descriptors for this directory and adjust their positions
+ * respectively.
+ */
+void adjust_dir_pos( struct file *dir, const dir_pos *mod_point, int adj )
+{
+	reiser4_file_fsdata *scan;
+	struct inode *inode;
+
+	assert( "nikita-2536", dir != NULL );
+	assert( "nikita-2538", mod_point != NULL );
+	assert( "nikita-2539", adj != 0 );
+
+	inode = dir -> f_dentry -> d_inode;
+	spin_lock( &inode -> readdir_lock );
+	for( scan = readdir_list_front( &inode -> readdir_list ) ;
+	     !readdir_list_end( &inode -> readdir_list, scan ) ;
+	     scan = readdir_list_next( scan ) ) {
+		switch( dir_pos_cmp( mod_point, scan -> dir.readdir.position ) ){
+		case LESS_THAN:
+		}
+	}
+	spin_unlock( &inode -> readdir_lock );
+}
+#endif
+
 reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 	[ HASHED_DIR_PLUGIN_ID ] = {
 		.dir = {

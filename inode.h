@@ -198,16 +198,17 @@ typedef struct reiser4_dentry_fsdata {
 	coord_t entry_coord;
 } reiser4_dentry_fsdata;
 
+TS_LIST_DECLARE( readdir );
+
 /**
  * &reiser4_dentry_fsdata - reiser4-specific data attached to files.
  *
  * This is allocated dynamically and released in reiser4_release()
  */
-typedef union reiser4_file_fsdata {
+typedef struct reiser4_file_fsdata {
 	/*
-	 * not clear what to do with objects that have both body and index. I
-	 * am hesitating to add so much to each struct file as duplicating of
-	 * all that stuff would require.
+	 * We need both directory and regular file parts here, because there
+	 * are file system objects that are files and directories.
 	 */
 	struct {
 		/**
@@ -219,6 +220,20 @@ typedef union reiser4_file_fsdata {
 		 * readdir()
 		 */
 		__u64 skip;
+		struct {
+			/** logical position within directory */
+			dir_pos position;
+			/** 
+			 * logical number of directory entry within
+			 * directory 
+			 */
+			__u64   entry_no;
+			/**
+			 * cyclic list of all file descriptors for this
+			 * directory that are involved into readdir
+			 */
+			readdir_list_link linkage;
+		} readdir;
 	} dir;
 	struct {
 		/*
@@ -235,6 +250,8 @@ typedef union reiser4_file_fsdata {
 		tree_level level;
 	} reg;
 } reiser4_file_fsdata;
+
+TS_LIST_DEFINE( readdir, reiser4_file_fsdata, dir.readdir.linkage );
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
 extern reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f );

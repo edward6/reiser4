@@ -11,6 +11,24 @@
 
 extern void directory_readahead( struct inode *dir, coord_t *coord );
 
+/** logical position within directory */
+typedef struct {
+	/** 
+	 * key of directory entry (actually, part of a key sufficient to
+	 * identify directory entry) 
+	 */
+	de_id dir_entry_key;
+	/**
+	 * ordinal number of directory entry among all entries with the same
+	 * key. (Starting from 0.)
+	 */
+	unsigned pos;
+} dir_pos;
+
+extern cmp_t dir_pos_cmp( const dir_pos *p1, const dir_pos *p2 );
+
+extern void adjust_dir_pos( struct file *dir, const dir_pos *mod_point, int adj );
+
 /** 
  * description of directory entry being created/destroyed/sought for
  * 

@@ -65,6 +65,7 @@ extern int extract_key_from_de_id( const oid_t locality,
 			    const de_id *id, reiser4_key *key );
 extern cmp_t key_id_cmp( const obj_key_id *i1, const obj_key_id *i2 );
 extern cmp_t key_id_key_cmp( const obj_key_id *id, const reiser4_key *key );
+extern cmp_t de_id_cmp( const de_id *id1, const de_id *id2 );
 extern cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key );
 
 extern int build_readdir_key( struct file *dir, reiser4_key *result );
