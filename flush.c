@@ -2105,6 +2105,8 @@ static int flush_pos_set_point (flush_position *pos, jnode *node)
 
 static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_handle *parent_load, znode_lock_mode mode)
 {
+	int ret;
+
 	if (flush_pos_unformatted (pos)) {
 		/* In this case we already have the parent locked. */
 		znode_lock_mode have_mode = lock_mode (& pos->parent_lock);
@@ -2114,8 +2116,11 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 		 * here and get a new one. */
 		assert ("jmacd-9923", have_mode == mode);
 		copy_lh (parent_lock, & pos->parent_lock);
+		if ((ret = load_zh (parent_load, parent_lock->node))) {
+			return ret;
+		}
 		coord_dup (parent_coord, & pos->parent_coord);
-		return load_zh (parent_load, parent_lock->node);
+		return 0;
 
 	} else {
 		assert ("jmacd-9922", ! znode_is_root (JZNODE (pos->point)));

@@ -2405,7 +2405,8 @@ static int map_allocated_buffers (reiser4_key * key,
 		ind = offset >> PAGE_CACHE_SHIFT;
 
 		page = find_lock_page (inode->i_mapping, ind);
-		assert ("vs-349", page && page->private);
+		assert ("vs-349", page != NULL);
+		assert ("vs-350", page->private != NULL);
 
 		j = jnode_of_page (page);
 		jnode_set_block (j, &first);
