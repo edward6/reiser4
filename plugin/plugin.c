@@ -502,8 +502,6 @@ extern perm_plugin perm_plugins[LAST_PERM_ID];
 extern item_plugin item_plugins[LAST_ITEM_ID];
 /* defined in fs/reiser4/plugin/node/node.c */
 extern node_plugin node_plugins[LAST_NODE_ID];
-/* defined in fs/reiser4/plugin/space/space_allocator.c */
-extern space_allocator_plugin space_plugins[LAST_SPACE_ALLOCATOR_ID];
 /* defined in fs/reiser4/plugin/disk_format/disk_format.c */
 extern disk_format_plugin format_plugins[LAST_FORMAT_ID];
 /* defined in jnode.c */
@@ -612,15 +610,6 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = sd_ext_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (sd_ext_plugin)
-	},
-	[REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE] = {
-		.type_id = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
-		.label = "disk space manager",
-		.desc = "allocate/deallocate disk free space",
-		.builtin_num = sizeof_array(space_plugins),
-		.builtin = space_plugins,
-		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (space_allocator_plugin)
 	},
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMAT_PLUGIN_TYPE,
