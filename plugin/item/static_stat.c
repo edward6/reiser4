@@ -426,7 +426,7 @@ present_unix_sd(struct inode *inode /* object being processed */ ,
 		inode->i_mtime.tv_sec = d32tocpu(&sd->mtime);
 		inode->i_ctime.tv_sec = d32tocpu(&sd->ctime);
 		if (S_ISBLK(inode->i_mode) || S_ISCHR(inode->i_mode))
-			inode->i_rdev = to_kdev_t(d64tocpu(&sd->u.rdev));
+			inode->i_rdev = d64tocpu(&sd->u.rdev);
 		else
 			inode_set_bytes(inode, (loff_t) d64tocpu(&sd->u.bytes));
 		next_stat(len, area, sizeof *sd);
@@ -473,7 +473,7 @@ save_unix_sd(struct inode *inode /* object being processed */ ,
 	cputod32((__u32) inode->i_ctime.tv_sec, &sd->ctime);
 	cputod32((__u32) inode->i_mtime.tv_sec, &sd->mtime);
 	if (S_ISBLK(inode->i_mode) || S_ISCHR(inode->i_mode))
-		cputod64(kdev_t_to_nr(inode->i_rdev), &sd->u.rdev);
+		cputod64(inode->i_rdev, &sd->u.rdev);
 	else
 		cputod64((__u64) inode_get_bytes(inode), &sd->u.bytes);
 	*area += sizeof *sd;
@@ -1090,7 +1090,13 @@ static int save_cluster_sd(struct inode *inode, char **area)
 	assert("edward-108", *area != NULL);
 	
 	sd = (reiser4_cluster_stat *) * area;
-	cputod8(reiser4_inode_data(inode)->cluster_shift, &sd->cluster_shift);
+	if (!inode_get_flag(inode, REISER4_CLUSTER_KNOWN)) {
+		cputod8(reiser4_inode_data(inode)->cluster_shift, &sd->cluster_shift);
+		inode_set_flag(inode, REISER4_CLUSTER_KNOWN);
+	}
+	else {
+		/* do nothing */
+	}
 	*area += sizeof *sd;
 	return 0;
 }
