@@ -78,11 +78,11 @@ void internal_down_link( const tree_coord *coord /* coord of item */,
 
 	assert( "nikita-609", coord != NULL );
 	assert( "nikita-611", block != NULL );
-	assert( "nikita-612",
-		(( key == NULL ) ||
-		 ( znode_get_level( coord -> node ) == TWIG_LEVEL ) ||
-		 ( keycmp( item_key_by_coord( coord, &item_key ),
-			   key ) != GREATER_THAN ) ) );
+	assert( "nikita-612", ( key == NULL ) || 
+		/* twig horrors */
+		( znode_get_level( coord -> node ) == TWIG_LEVEL ) ||
+		keycmp( item_key_by_coord( coord, 
+					   &item_key ), key ) != GREATER_THAN );
 
 	*block = pointer_at( coord );
 }
@@ -253,7 +253,8 @@ int internal_create_hook( const tree_coord *item /* coord of item */,
  */
 int internal_kill_hook( const tree_coord *item /* coord of item */, 
 			unsigned from UNUSED_ARG /* start unit */, 
-			unsigned count UNUSED_ARG /* stop unit */ )
+			unsigned count UNUSED_ARG /* stop unit */, 
+			void *kill_params UNUSED_ARG )
 {
 	znode *child;
 
