@@ -29,7 +29,9 @@
    Extents cannot be less then 2 blocks in length. Second meaning of block
    number pair is used and wandered sets (and the likes?) where the first block
    represent original data location and second block represents new data
-   location (and/or vice versa?). */
+   location (and/or vice versa?). 
+
+ZAM-FIXME-HANS: make the language here more definite.  Define the handling of extents and mention why their representation is different from that used in a tree (why we chose to not record a length instead of an end block). */
 
 typedef struct blocknr_pair blocknr_pair;
 
@@ -37,6 +39,8 @@ typedef struct blocknr_pair blocknr_pair;
 #define BLOCKNR_SET_ENTRY_SIZE 128
 
 /* The number of blocks that can fit the blocknr data area. */
+
+/* ZAM-FIXME-HANS: remove all references to ents that are not references to flushing daemons */
 #define BLOCKNR_SET_ENTS_SIZE               \
        ((BLOCKNR_SET_ENTRY_SIZE -           \
          2 * sizeof (unsigned) -            \
@@ -109,7 +113,7 @@ bse_free(blocknr_set_entry * bse)
 
 /* Add a block number to a blocknr_set_entry */
 /* Audited by: green(2002.06.11) */
-static void
+static void			/* ZAM-FIXME-HANS: should this be inlined? */
 bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 {
 	assert("jmacd-5099", bse_avail(bse) >= 1);
@@ -165,7 +169,7 @@ blocknr_set_add(txn_atom * atom,
 	assert("jmacd-5101", a != NULL);
 
 	ents_needed = (b == NULL) ? 1 : 2;
-
+/* ZAM-FIXME-HANS: remove this comment and tell me where blocknr_set_list_empty is defined? Also explain in email and comment the role of ents_needed in this condition.  */
 	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries)) < ents_needed) {
 
 		/* See if a bse was previously allocated. */
@@ -231,6 +235,8 @@ blocknr_set_add_block(txn_atom * atom,
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
+
+/* ZAM-FIXME-HANS: this function exists in place of a direct call to blocknr_set_add why? */
 int
 blocknr_set_add_pair(txn_atom * atom,
 		     blocknr_set * bset,
@@ -260,7 +266,7 @@ blocknr_set_destroy(blocknr_set * bset)
 
 /* Merge blocknr_set entries out of @from into @into. */
 /* Audited by: green(2002.06.11) */
-/* Auditor comments: This mergedoes not know if merged sets contain
+/* Auditor comments: This merge does not know if merged sets contain
    blocks pairs (As for wandered sets) or extents, so it cannot really merge
    overlapping ranges if there is some. So I believe it may lead to
    some blocks being presented several times in one blocknr_set. To help
