@@ -243,7 +243,7 @@ int find_next_item (struct file * file,
 		    __u32 cbk_flags /* coord_by_key flags: CBK_UNIQUE [| CBK_FOR_INSERT] */)
 {
 	int result;
-	__u32 flags;
+
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add (find_items);
@@ -577,7 +577,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 
 	if (result) {
 		SetPageError (page);
-		unlock_page (page);
+		/*unlock_page (page);*/
 	}
 
 	return result;
@@ -947,6 +947,8 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 	inode = file->f_dentry->d_inode;
 
+	assert ("vs-947", !inode_get_flag( inode, REISER4_NO_STAT_DATA ));
+
 	get_nonexclusive_access (inode);
 
 	pos = *off;
@@ -988,6 +990,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	if (written) {
 		/* something was written. Update stat data */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		assert ("vs-946", !inode_get_flag( inode, REISER4_NO_STAT_DATA ));
 		result = reiser4_write_sd (inode);
 		if (result)
 			warning ("vs-636", "updating stat data failed: %i",
