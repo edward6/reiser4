@@ -1140,8 +1140,8 @@ static void finish_rcu(reiser4_super_info_data *sbinfo)
 		warning("nikita-2622", 
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
 }
-#else finish_rcu(sbinfo) noop
-#define 
+#else
+#define finish_rcu(sbinfo) noop
 #endif
 
 static int
