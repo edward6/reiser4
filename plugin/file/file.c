@@ -783,8 +783,6 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
 void
 set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
 {
-	int result;
-
 	assert("vs-1208", coord->node);
 	assert("vs-1207",
 	       WITH_DATA_RET(coord->node, 1, (coord_is_existing_item(coord) &&

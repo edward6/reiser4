@@ -2460,7 +2460,6 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	int result;
 	loff_t file_off;
 	unsigned page_off, to_page;
-	char *data;
 	struct page *page;
 	jnode *j;
 	PROF_BEGIN(extent_write);
