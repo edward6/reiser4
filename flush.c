@@ -344,7 +344,7 @@
    relative to its parent.
   
    2. The FORWARD PARENT-FIRST context: Testing for forward relocation is done in
-   flush_allocate_znode.  What distinguishes the forward parent-first case from the
+   allocate_znode.  What distinguishes the forward parent-first case from the
    reverse-parent first case is that the preceder has already been allocated in the
    forward case, whereas in the reverse case we don't know what the preceder is until we
    finish "going in reverse".  That simplifies the forward case considerably, and there we
@@ -478,7 +478,7 @@ static int reverse_relocate_check_dirty_parent(jnode * node, const coord_t * par
 static int reverse_relocate_end_of_twig(flush_position * pos);
 
 /* Flush allocate write-queueing functions: */
-static int flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos);
+static int allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos);
 static int allocate_znode_update(znode * node, coord_t * parent_coord, flush_position * pos);
 
 /* Flush helper functions: */
@@ -1046,7 +1046,7 @@ reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_bl
    reverse-parent-first context, when we are asking whether the current node should be
    relocated in order to expand the flush by dirtying the parent level (and thus
    proceeding to flush that level).  When traversing in the forward parent-first direction
-   (not here), relocation decisions are handled in two places: flush_allocate_znode() and
+   (not here), relocation decisions are handled in two places: allocate_znode() and
    extent_needs_allocation(). */
 static int
 reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_position * pos)
@@ -1235,7 +1235,7 @@ alloc_ancestors(flush_position * pos)
 	/* FIXME(D): This check has no atomicity--the node is not spinlocked--so what good
 	   is it?  It needs to be moved into some kind of spinlock protection, probably
 	   reverse_relocate_check_dirty_parent or reverse_relocate_test,
-	   definitely flush_allocate_znode. */
+	   definitely allocate_znode. */
 	if (jnode_check_flushprepped(pos->point)) {
 		trace_on(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(pos));
 		return 0;
@@ -1273,7 +1273,7 @@ alloc_ancestors(flush_position * pos)
 	   with the current point allocated, ready to call the squalloc
 	   loop. */
 	if (ret == 0 && !pos_on_twig_level(pos)) {
-		ret = flush_allocate_znode(JZNODE(pos->point), &pcoord, pos);
+		ret = allocate_znode(JZNODE(pos->point), &pcoord, pos);
 	}
 
 exit:
@@ -1338,7 +1338,7 @@ alloc_one_ancestor(coord_t * coord, flush_position * pos)
 	/* Note: we call allocate with the parent write-locked (except at the root) in
 	   case we relocate the child, in which case it will modify the parent during this
 	   call. */
-	ret = flush_allocate_znode(coord->node, &acoord, pos);
+	ret = allocate_znode(coord->node, &acoord, pos);
 
 exit:
 	done_load_count(&aload);
@@ -2031,7 +2031,7 @@ RIGHT_AGAIN:
 
 	/* Allocate the right node if it was not already allocated.  We already checked if
 	   the right node was flushprepped above, before squeezing, so why check it now?
-	   Why not?  The call to flush_allocate_znode acquires a spinlock */
+	   Why not?  The call to allocate_znode acquires a spinlock */
 	if (!znode_check_flushprepped(right_lock.node)) {
 		if (
 		    (ret =
@@ -2042,8 +2042,8 @@ RIGHT_AGAIN:
 			goto exit;
 		}
 
-		if ((ret = flush_allocate_znode(right_lock.node, &right_parent_coord, pos))) {
-			warning("jmacd-61431", "flush_allocate_znode failed: %d", ret);
+		if ((ret = allocate_znode(right_lock.node, &right_parent_coord, pos))) {
+			warning("jmacd-61431", "allocate_znode failed: %d", ret);
 			goto exit;
 		}
 	}
@@ -2422,7 +2422,7 @@ jnode_set_block(jnode * node /* jnode to update */ ,
 /* Make the final relocate/wander decision during forward parent-first squalloc for a
    znode.  For unformatted nodes this is done in plugin/item/extent.c:extent_needs_allocation(). */
 static int
-flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
+allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 {
 	int ret;
 
@@ -2524,7 +2524,7 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 	}
 }
 
-/* A subroutine of flush_allocate_znode, this is called first to see if there is a close
+/* A subroutine of allocate_znode, this is called first to see if there is a close
    position to relocate to.  It may return ENOSPC if there is no close position.  If there
    is no close position it may not relocate.  This takes care of updating the parent node
    with the relocated block address. */
@@ -2612,7 +2612,7 @@ exit:
 }
 
 /* This is called by the extent code for each jnode after allocation has been performed.
-   Contrast with thef flush_allocate_znode() routine, which does znode allocation and then
+   Contrast with thef allocate_znode() routine, which does znode allocation and then
    calls flush_queue_jnode, the unformatted allocation is handled by the extent plugin and
    simply queued by this function. */
 int
@@ -3567,7 +3567,7 @@ pos_child_and_alloc(flush_position * pos)
 		return ret;
 	}
 
-	if ((ret = flush_allocate_znode(JZNODE(child), &pos->parent_coord, pos))) {
+	if ((ret = allocate_znode(JZNODE(child), &pos->parent_coord, pos))) {
 		return ret;
 	}
 
