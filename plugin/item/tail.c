@@ -305,11 +305,9 @@ int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 
 	new_size = get_key_offset(&f->key);
 	object = mapping->host;
-	size_changed = (new_size > object->i_size) ? 1 : 0;
-	result = update_inode_and_sd_if_necessary(object,
-						  new_size, 
-						  size_changed, 
-						  size_changed || f->user);
+	size_changed = new_size > object->i_size;
+	result = update_inode_and_sd_if_necessary(object, new_size, 
+						  size_changed, f->user, 1);
 	if (result)
 		return result;
 
