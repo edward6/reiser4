@@ -2716,7 +2716,11 @@ void check_fq(const txn_atom *atom);
 void
 count_jnode(txn_atom *atom, jnode *node, atom_list old_list, atom_list new_list, int check_lists)
 {
+#if REISER4_COPY_ON_CAPTURE
 	assert("", spin_atom_is_locked(atom));
+#else
+	assert("zam-1018", atom_is_protected(atom));
+#endif
 	assert("", spin_jnode_is_locked(node));
 	assert("", NODE_LIST(node) == old_list);
 
@@ -4179,7 +4183,11 @@ reiser4_internal void uncapture_block(jnode * node)
 
 	assert("jmacd-1021", node->atom == atom);
 	assert("jmacd-1022", spin_jnode_is_locked(node));
+#if REISER4_COPY_ON_CAPTURE
 	assert("jmacd-1023", spin_atom_is_locked(atom));
+#else
+	assert("jmacd-1023", atom_is_protected(atom));
+#endif	
 
 	/*ON_TRACE (TRACE_TXN, "un-capture %p from atom %u (captured %u)\n",
 	 * node, atom->atom_id, atom->capture_count); */
