@@ -893,7 +893,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 
 		if (atom == NULL) {
 			if (*fq) {
-				fq_put(*fq);
+				done_fq(*fq);
 				*fq = NULL;
 			}
 			return 0;
