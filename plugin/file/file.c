@@ -532,12 +532,14 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 					 &smallest_removed, inode, 1, &progress);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
-			INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
-			if (progress && update_sd) {
-				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-				result = reiser4_update_sd(inode);
-				if (result)
-					break;
+			if (progress) {
+				INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
+				if (update_sd) {
+					inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+					result = reiser4_update_sd(inode);
+					if (result)
+						break;
+				}
 			}
 
 			all_grabbed2free();
@@ -552,6 +554,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		if (result && !(result == CBK_COORD_NOTFOUND && new_size == 0 && inode->i_size == 0))
 			break;
 
+		result = 0;
 		INODE_SET_FIELD(inode, i_size, new_size);
 		if (progress && update_sd) {
 			/* Final sd update after the file gets its correct size */
