@@ -193,13 +193,13 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 }
 
 
-#if 0
 /* get right neighbor and set coord to first unit in it */
 static int get_next_item (coord_t * coord, lock_handle * lh,
 			  znode_lock_mode lock_mode)
 {
 	int result;
 	lock_handle lh_right_neighbor;
+
 
 	init_lh (&lh_right_neighbor);
 	result = reiser4_get_right_neighbor (&lh_right_neighbor,
@@ -226,7 +226,7 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 
 	return result;	
 }
-#endif
+
 
 int find_next_item (struct sealed_coord * hint,
 		    const reiser4_key * key, /* key of position in a file of
@@ -252,8 +252,17 @@ int find_next_item (struct sealed_coord * hint,
 
 	result = hint_validate (hint, key, coord, lh);
 	if (!result) {
-		reiser4_stat_file_add (find_next_item_via_seal);
-		return CBK_COORD_FOUND;
+		if (coord_set_properly (key, coord)) {
+			reiser4_stat_file_add (find_next_item_via_seal);
+			return CBK_COORD_FOUND;
+		}
+
+		result = get_next_item (coord, lh, lock_mode);
+		if (!result)
+			if (coord_set_properly (key, coord)) {
+				reiser4_stat_file_add (find_next_item_via_right_neighbor);
+				return CBK_COORD_FOUND;
+			}
 	}
 
 #if 0
@@ -507,324 +516,6 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 
 /* plugin->u.write_sd_by_inode = common_file_save */
 
-
-/*
- * this finds item of file corresponding to page being read/written in and calls its
- * readpage/writepage method. It is used when exclusive or sharing access to inode is
- * grabbed
- */
-/* Audited by: green(2002.06.15) */
-static int page_op (struct file * file, struct page * page, rw_op op)
-{
-	int result;
-	coord_t coord;
-	lock_handle lh;
-	reiser4_key key;
-	item_plugin * iplug;
-	znode * loaded;
-
-
-	assert ("vs-860", op == WRITE_OP || op == READ_OP);
-	assert ("vs-937", PageLocked (page));
-
-	/* get key of first byte of the page */
-	unix_file_key_by_inode (page->mapping->host,
-				(loff_t)page->index << PAGE_CACHE_SHIFT, &key);
-	
-	coord_init_zero (&coord);
-	init_lh (&lh);
-
-	/* look for file metadata corresponding to first byte of page
-	 * FIXME-VS: seal might be used here
-	 */
-	result = find_next_item (0, &key, &coord, &lh,
-				 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
-				 CBK_UNIQUE);
-	if (result != CBK_COORD_FOUND) {
-		warning ("vs-280", "No file items found\n");
-		goto out2;
-	}
-
-	loaded = coord.node;
-	result = zload (loaded);
-	if (result) {
-		goto out2;
-	}
-
-	if (!coord_is_existing_unit (&coord)) {
-		/*
-		 * truncate stole a march of us.
-		 */
-		result = -EIO;
-		goto out;
-	}
-
-	result = -EINVAL;
-
-	/* get plugin of found item */
-	iplug = item_plugin_by_coord (&coord);
-	if (op == READ_OP) {
-		if (!iplug->s.file.readpage) {
-			goto out;
-		}
-		result = iplug->s.file.readpage (&coord, page);
-	} else {
-		if (!iplug->s.file.writepage) {
-			goto out;
-		}
-		result = iplug->s.file.writepage (&coord, &lh, page);
-	}
-
- out:
-	zrelse (loaded);
- out2:
-	done_lh (&lh);
-
-	if (result) {
-		SetPageError (page);
-		/*unlock_page (page);*/
-	}
-
-	return result;
-}
-
-
-/* this is used a filler for read_cache_page in extent2tail where access
- * (exclusive) to file is acquired already */
-int unix_file_readpage_nolock (void * file, struct page * page)
-{
-	return page_op (file, page, READ_OP);
-}
-
-
-/* plugin->u.file.readpage */
-/* Audited by: green(2002.06.15) */
-int unix_file_readpage (struct file * file, struct page * page)
-{
-	int result;
-
-	get_nonexclusive_access (file->f_dentry->d_inode);
-	result = page_op (file, page, READ_OP);
-	drop_nonexclusive_access (file->f_dentry->d_inode);
-	return result;
-}
-
-
-/* plugin->u.file.writepage */
-int unix_file_writepage (struct page * page)
-{
-	int result;
-
-	get_nonexclusive_access (page->mapping->host);
-	result = page_op (0, page, WRITE_OP);
-	drop_nonexclusive_access (page->mapping->host);
-	return result;
-}
-
-
-/* plugin->u.file.read */
-ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
-			loff_t * off)
-{
-	int result;
-	struct inode * inode;
-	coord_t coord;
-	lock_handle lh;
-	size_t to_read;		/* do we really need both this and read_amount? */
-	item_plugin * iplug;
-	reiser4_plugin_id id;
-
-#ifdef NEW_READ_IS_READY
-	sink_t userspace_sink;
-#else
-	flow_t f;
-#endif /* NEW_READ_IS_READY */
-
-
-	inode = file->f_dentry->d_inode;
-	result = 0;
-
-	/* this should now be called userspace_sink_build, now that we have
-	 * both sinks and flows.  See discussion of sinks and flows in
-	 * www.namesys.com/v4/v4.html */
-#ifdef NEW_READ_IS_READY
-	result = userspace_sink_build (inode, buf, 1/* user space */, read_amount,
-				    *off, READ_OP, &f);
-#else
-	/* build flow */
-	result = inode_file_plugin (inode)->flow_by_inode (inode, buf, 1/* user space */,
-							   read_amount,
-							   *off, READ_OP, &f);
-#endif
-	if (result)
-		return result;
-
-	get_nonexclusive_access (inode);
-	
-#ifdef NEW_READ_IS_READY
-	/* have generic_readahead to return number of pages to
-	 * readahead. generic_readahead must not do readahead, but return
-	 * number of pages to readahead */
-	intrafile_readahead_amount = wrapper_for_generic_readahead(struct file * file, off, read_amount);
-
-	while (intrafile_readahead_amount) {
-		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;		/* coord will point to current item on entry and next item on exit */
-		readahead_result = find_next_item (file, &f.key, &coord, &lh,
-						   ZNODE_READ_LOCK);
-		if (readahead_result != CBK_COORD_FOUND)
-			/* item had to be found, as it was not - we have
-			 * -EIO */
-			break;
-		
-		/* call readahead method of found item */
-		iplug = item_plugin_by_coord (&coord);
-		if (!iplug->s.file.readahead) {
-			readahead_result = -EINVAL;
-			break;
-		}
-		
-		readahead_result = iplug->s.file.readahead (inode, &coord, &lh, &intrafile_readahead_amount);
-		if (readahead_result)
-			break;
-	}
-
-	unix_file_interfile_readahead(struct file * file, off, read_amount, coord);
-
-#endif /* NEW_READ_IS_READY */
-
-
-	to_read = f.length;
-	while (f.length) {
-		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;
-		
-                page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
-
-		/* coord will point to current item on entry and next item on exit */
-		coord_init_zero (&coord);
-		init_lh (&lh);
-
-		/*
-		 * FIXEM-VS: seal might be used here
-		 */
-		result = find_next_item (0, &f.key, &coord, &lh,
-					 ZNODE_READ_LOCK, CBK_UNIQUE);
-		if (result != CBK_COORD_FOUND) {
-			/* item had to be found, as it was not - we have
-			 * -EIO */
-			done_lh (&lh);
-			break;
-		}
-
-		result = zload (coord.node);
-		if (result) {
-			done_lh (&lh);
-			break;
-		}
-
-		iplug = item_plugin_by_coord (&coord);
-		id = item_plugin_id (iplug);
-		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
-			result = -EIO;
-			zrelse (coord.node);
-			done_lh (&lh);
-			break;
-		}
-
-		/* for debugging sake make sure that tail status is set
-		 * correctly if it claimes to be known */
-		if (REISER4_DEBUG &&
-		    inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
-			assert ("vs-829",
-				(id == TAIL_ID && inode_get_flag (inode, REISER4_HAS_TAIL)) ||
-				(id == EXTENT_POINTER_ID && !inode_get_flag (inode, REISER4_HAS_TAIL)));
-		}
-
-		/* get tail status if it is not known yet */
-		if (!inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
-			if (id == TAIL_ID)
-				inode_set_flag (inode, REISER4_HAS_TAIL);
-			else
-				inode_clr_flag (inode, REISER4_HAS_TAIL);
-		}
-
-		/* call read method of found item */
-		result = iplug->s.file.read (inode, &coord, &lh, &f);
-		zrelse (coord.node);
-		done_lh (&lh);
-		if (result) {
-			break;
-		}
-	}
-
-	if( to_read - f.length ) {
-		/* something was read. Update stat data */
-		UPDATE_ATIME (inode);
-		result = reiser4_write_sd (inode);
-		if (result)
-			warning ("vs-676", "updating stat data failed: %i",
-				 result);
-	}
-
-	drop_nonexclusive_access (inode);
-
-	/* update position in a file */
-	*off += (to_read - f.length);
-	/* return number of read bytes or error code if nothing is read */
-
-/* VS-FIXME-HANS: readahead_result needs to be handled here */
-	return (to_read - f.length) ? (to_read - f.length) : result;
-}
-
-#ifdef NEW_READ_IS_READY
-unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
-{
-
-	interfile_readahead_amount = unix_file_interfile_readahead_amount(struct file * file, off, read_amount);
-
-	while (interfile_readahead_amount--)
-	{
-		right = get_right_neightbor(current);
-		if (right is just after current)
-		{
-			coord_dup(right, current);
-			zload(current);
-			
-		}
-		else {
-			break;
-/* VS-FIXME-HANS: insert some coord releasing code here */
-		}
-
-	}
-
-			
-}
-
-unix_file_interfile_readahead_amount(struct file * file, off, read_amount)
-{
-				/* current generic guess.  More sophisticated code can come later in v4.1+. */
-	return 8;
-}
-
-#endif /* NEW_READ_IS_READY */
-
-
-/* these are write modes. Certain mode is chosen depending on resulting file
- * size and current metadata of file */
-typedef enum {
-	WRITE_EXTENT,
-	WRITE_TAIL,
-	CONVERT,
-	ERROR
-} write_todo;
-
-static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
-
-
 /*
  * get access hint (seal, coord, key, level) stored in reiser4 private part of
  * struct file if it was stores in previous access to file
@@ -918,24 +609,197 @@ int hint_validate (struct sealed_coord * hint, const reiser4_key * key,
 
 
 /*
- * This searches for write position in the tree and calls write method of
- * appropriate item to actually copy user data into filesystem. This loops
- * until all the data from flow @f are written to a file.
+ * this finds item of file corresponding to page being read/written in and calls its
+ * readpage/writepage method. It is used when exclusive or sharing access to inode is
+ * grabbed
  */
-static loff_t append_and_or_overwrite (struct file * file, 
-				       struct inode * inode, flow_t * f)
+/* Audited by: green(2002.06.15) */
+static int page_op (struct file * file, struct page * page, rw_op op)
 {
 	int result;
 	coord_t coord;
-	lock_handle lh;	
-	size_t to_write;
+	lock_handle lh;
+	reiser4_key key;
 	item_plugin * iplug;
-	write_todo mode;
 	struct sealed_coord hint;
 
 
+	assert ("vs-860", op == WRITE_OP || op == READ_OP);
+	assert ("vs-937", PageLocked (page));
+
+	/* get key of first byte of the page */
+	unix_file_key_by_inode (page->mapping->host,
+				(loff_t)page->index << PAGE_CACHE_SHIFT, &key);
+	
+
+	/* look for file metadata corresponding to first byte of page
+	 * FIXME-VS: seal might be used here
+	 */
+	result = load_file_hint (file, &hint);
+	if (result)
+		return result;
+ 
+	coord_init_zero (&coord);
 	init_lh (&lh);
 
+
+	while (1) {
+		result = find_next_item (&hint, &key, &coord, &lh,
+					 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
+					 CBK_UNIQUE);
+		if (result != CBK_COORD_FOUND) {
+			warning ("vs-280", "No file items found\n");
+			break;
+		}
+
+		result = zload (coord.node);
+		if (result)
+			break;
+		
+		if (!coord_is_existing_unit (&coord)) {
+			/*
+			 * truncate stole a march of us
+			 */
+			result = -EIO;
+			break;
+		}
+		
+		/* get plugin of found item */
+		iplug = item_plugin_by_coord (&coord);
+		zrelse (coord.node);
+		
+		set_hint (&hint, &key, &coord);
+		done_lh (&lh);
+		
+		result = -EINVAL;
+		if (op == READ_OP) {
+			if (iplug->s.file.readpage)
+				result = iplug->s.file.readpage (&hint, page);
+		} else {
+			if (iplug->s.file.writepage)
+				result = iplug->s.file.writepage (&hint, page);
+		}
+		if (result == -EAGAIN)
+			continue;
+		break;
+	}
+
+	if (result) {
+		SetPageError (page);
+		/*unlock_page (page);*/
+	}
+
+	return result;
+}
+
+
+/* this is used a filler for read_cache_page in extent2tail where access
+ * (exclusive) to file is acquired already */
+int unix_file_readpage_nolock (void * file, struct page * page)
+{
+	return page_op (file, page, READ_OP);
+}
+
+
+/* plugin->u.file.readpage */
+/* Audited by: green(2002.06.15) */
+int unix_file_readpage (struct file * file, struct page * page)
+{
+	int result;
+
+	get_nonexclusive_access (file->f_dentry->d_inode);
+	result = page_op (file, page, READ_OP);
+	drop_nonexclusive_access (file->f_dentry->d_inode);
+	return result;
+}
+
+
+/* plugin->u.file.writepage */
+int unix_file_writepage (struct page * page)
+{
+	int result;
+
+	get_nonexclusive_access (page->mapping->host);
+	result = page_op (0, page, WRITE_OP);
+	drop_nonexclusive_access (page->mapping->host);
+	return result;
+}
+
+
+typedef enum {
+	READ_EXTENT = 1,
+	READ_TAIL = 2
+} read_todo;
+
+static read_todo unix_file_how_to_read (struct inode * inode, coord_t * coord)
+{
+	int result;
+	reiser4_plugin_id id;
+
+
+	result = zload (coord->node);
+	if (result)
+		return result;
+
+	id = item_plugin_id (item_plugin_by_coord (coord));
+	if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
+		zrelse (coord->node);
+		return -EIO;
+	}
+
+	/* for debugging sake make sure that tail status is set correctly if it
+	 * claimes to be known */
+	if (REISER4_DEBUG &&
+	    inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+		assert ("vs-829",
+			(id == TAIL_ID && inode_get_flag (inode, REISER4_HAS_TAIL)) ||
+			(id == EXTENT_POINTER_ID && !inode_get_flag (inode, REISER4_HAS_TAIL)));
+	}
+	
+	/* get tail status if it is not known yet */
+	if (!inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+		if (id == TAIL_ID)
+			inode_set_flag (inode, REISER4_HAS_TAIL);
+		else
+			inode_clr_flag (inode, REISER4_HAS_TAIL);
+	}
+	zrelse (coord->node);
+
+	return id == EXTENT_POINTER_ID ? READ_EXTENT : READ_TAIL;
+}
+
+
+/* plugin->u.file.read */
+ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
+			loff_t * off)
+{
+	int result;
+	struct inode * inode;
+	coord_t coord;
+	lock_handle lh;
+	size_t to_read;		/* do we really need both this and read_amount? */
+	item_plugin * iplug;
+	flow_t f;
+	read_todo mode;
+	struct sealed_coord hint;
+
+
+	inode = file->f_dentry->d_inode;
+
+	assert ("vs-973", read_amount > 0);
+	assert ("vs-972", !inode_get_flag( inode, REISER4_NO_SD ));
+
+	get_nonexclusive_access (inode);
+
+	/* build flow */
+	result = inode_file_plugin (inode)->flow_by_inode (inode, buf,
+							   1/* user space */,
+							   read_amount, *off,
+							   READ_OP, &f);
+	if (result)
+		return result;
+	
+	init_lh (&lh);
 
 	/*
 	 * get seal and coord sealed with it from reiser4 private data of
@@ -945,173 +809,257 @@ static loff_t append_and_or_overwrite (struct file * file,
 	if (result)
 		return result;
 
-	to_write = f->length;
-	while (1) {
-		/* look for file's metadata (extent or tail item) corresponding
-		 * to position we write to */
-		result = find_next_item (&hint, &f->key, &coord, &lh,
-					 ZNODE_WRITE_LOCK,
-					 CBK_UNIQUE | CBK_FOR_INSERT);
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/* error occurred */
+	to_read = f.length;
+	while (f.length) {
+		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;
+		
+                page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
+
+		result = find_next_item (&hint, &f.key, &coord, &lh,
+					 ZNODE_READ_LOCK, CBK_UNIQUE);
+		if (result != CBK_COORD_FOUND) {
+			/* item had to be found, as it was not - we have
+			 * -EIO */
 			done_lh (&lh);
-			return result;
+			break;
 		}
 
-		mode = unix_file_how_to_write (inode, f, &coord);
-		if (mode == ERROR) {
-			done_lh (&lh);
-			return -EIO;
-		}
-
-		set_hint (&hint, &f->key, &coord);
-		done_lh (&lh);
-
+		mode = unix_file_how_to_read (inode, &coord);
 		switch (mode) {
-		case WRITE_EXTENT:
+		case READ_EXTENT:
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-			/* resolves to extent_write function */
-
-			result = iplug->s.file.write (inode, &hint, f, 0);
-			if (result == -EAGAIN) {
-				unset_hint (&hint);
-				continue;
-			}
-			if (!result) {
-				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
-				inode_clr_flag (inode, REISER4_HAS_TAIL);
-			}
 			break;
 
-		case WRITE_TAIL:
+		case READ_TAIL:
 			iplug = item_plugin_by_id (TAIL_ID);
-			/* resolves to tail_write function */
-
-			result = iplug->s.file.write (inode, &hint, f, 0);
-			if (result == -EAGAIN) {
-				unset_hint (&hint);
-				continue;
-			}
-			if (!result) {
-				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
-				inode_set_flag (inode, REISER4_HAS_TAIL);
-			}
 			break;
-
-		case CONVERT:
-			result = tail2extent (inode);
-			if (result)
-				return result;
-			unset_hint (&hint);
-			continue;
 
 		default:
-			impossible ("vs-293", "unknown write mode");
+			done_lh (&lh);
+			return mode;
 		}
 
-		if (result)
-			/* error */
-			break;
+		set_hint (&hint, &f.key, &coord);
+		done_lh (&lh);
 
-		if ((loff_t)get_key_offset (&f->key) > inode->i_size)
-			/* file got longer */
-			inode->i_size = get_key_offset (&f->key);
-
-		if (!to_write) {
-			/* expanding truncate */
-			if ((loff_t)get_key_offset (&f->key) < inode->i_size)
-				continue;
+		/* call read method of found item */
+		result = iplug->s.file.read (inode, &hint, &f);
+		if (result == -EAGAIN) {
+			unset_hint (&hint);
+			continue;
 		}
-
-		if (f->length == 0)
-			/* write is done */
+		if (result) {
 			break;
+		}
 	}
 
 	save_file_hint (file, &hint);
 
-	/* if nothing were written - there must be an error */
-	assert ("vs-951", ergo ((to_write == f->length), result < 0));
-
-	return (to_write - f->length) ? (to_write - f->length) : result;
-}
-
-
-/* plugin->u.file.write */
-ssize_t unix_file_write (struct file * file, /* file to write to */
-			 const char * buf, /* comments are needed */
-			 size_t count, /* number of bytes ot write */
-			 loff_t * off /* position to write which */)
-{
-	int result;
-	struct inode * inode;
-	flow_t f;
-	ssize_t written;
-	loff_t pos;
-
-
-	assert ("vs-855", count > 0);
-
-
-	inode = file->f_dentry->d_inode;
-
-	assert ("vs-947", !inode_get_flag( inode, REISER4_NO_SD ));
-
-	get_nonexclusive_access (inode);
-
-	pos = *off;
-	if (file->f_flags & O_APPEND)
-		pos = inode->i_size;
-
-	if (inode->i_size < *off) {
-		loff_t old_size;
-
-		/* append file with a hole. This allows extent_write and
-		 * tail_write to not decide when hole appending is
-		 * necessary. When it is required f->length == 0 */
-		old_size = inode->i_size;
-		inode->i_size = *off;
-		result = expand_file (inode, old_size);
-		if (result) {
-			/*
-			 * FIXME-VS: i_size may now be set incorrectly
-			 */
-			drop_nonexclusive_access (inode);
-			inode->i_size = old_size;
-			return result;
-		}
-	}
-
-	/* build flow */
-	result = inode_file_plugin (inode)->flow_by_inode (inode, (char *)buf,
-							   1/* user space */, count, pos,
-							   WRITE_OP, &f);
-	if (result)
-		return result;
-
-	written = append_and_or_overwrite (file, inode, &f);
-	if (written < 0) {
-		drop_nonexclusive_access (inode);
-		return written;
-	}
-	
-	if (written) {
-		/* something was written. Update stat data */
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		assert ("vs-946", !inode_get_flag( inode, REISER4_NO_SD ));
+	if (to_read - f.length) {
+		/* something was read. Update stat data */
+		UPDATE_ATIME (inode);
 		result = reiser4_write_sd (inode);
 		if (result)
-			warning ("vs-636", "updating stat data failed: %i",
+			warning ("vs-676", "updating stat data failed: %i",
 				 result);
 	}
 
 	drop_nonexclusive_access (inode);
 
 	/* update position in a file */
-	*off = pos + written;
-	/* return number of written bytes */
-	return written;
+	*off += (to_read - f.length);
+
+	/* return number of read bytes or error code if nothing is read */
+	return (to_read - f.length) ? (to_read - f.length) : result;
 }
+
+
+#ifdef NEW_READ_IS_READY
+
+/* plugin->u.file.read */
+ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
+			loff_t * off)
+{
+	int result;
+	struct inode * inode;
+	coord_t coord;
+	lock_handle lh;
+	size_t to_read;		/* do we really need both this and read_amount? */
+	item_plugin * iplug;
+	reiser4_plugin_id id;
+	sink_t userspace_sink;
+
+
+	inode = file->f_dentry->d_inode;
+	result = 0;
+
+	/* this should now be called userspace_sink_build, now that we have
+	 * both sinks and flows.  See discussion of sinks and flows in
+	 * www.namesys.com/v4/v4.html */
+	result = userspace_sink_build (inode, buf, 1/* user space */, read_amount,
+				    *off, READ_OP, &f);
+
+		return result;
+
+	get_nonexclusive_access (inode);
+	
+	/* have generic_readahead to return number of pages to
+	 * readahead. generic_readahead must not do readahead, but return
+	 * number of pages to readahead */
+	intrafile_readahead_amount = wrapper_for_generic_readahead(struct file * file, off, read_amount);
+
+	while (intrafile_readahead_amount) {
+		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;		/* coord will point to current item on entry and next item on exit */
+		readahead_result = find_next_item (file, &f.key, &coord, &lh,
+						   ZNODE_READ_LOCK);
+		if (readahead_result != CBK_COORD_FOUND)
+			/* item had to be found, as it was not - we have
+			 * -EIO */
+			break;
+		
+		/* call readahead method of found item */
+		iplug = item_plugin_by_coord (&coord);
+		if (!iplug->s.file.readahead) {
+			readahead_result = -EINVAL;
+			break;
+		}
+		
+		readahead_result = iplug->s.file.readahead (inode, &coord, &lh, &intrafile_readahead_amount);
+		if (readahead_result)
+			break;
+	}
+
+	unix_file_interfile_readahead(struct file * file, off, read_amount, coord);
+
+
+	to_read = f.length;
+	while (f.length) {
+		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;
+		
+                page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
+
+		/* coord will point to current item on entry and next item on exit */
+		coord_init_zero (&coord);
+		init_lh (&lh);
+
+		/*
+		 * FIXEM-VS: seal might be used here
+		 */
+		result = find_next_item (0, &f.key, &coord, &lh,
+					 ZNODE_READ_LOCK, CBK_UNIQUE);
+		if (result != CBK_COORD_FOUND) {
+			/* item had to be found, as it was not - we have
+			 * -EIO */
+			done_lh (&lh);
+			break;
+		}
+
+		result = zload (coord.node);
+		if (result) {
+			done_lh (&lh);
+			break;
+		}
+
+		iplug = item_plugin_by_coord (&coord);
+		id = item_plugin_id (iplug);
+		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
+			result = -EIO;
+			zrelse (coord.node);
+			done_lh (&lh);
+			break;
+		}
+
+		/* for debugging sake make sure that tail status is set
+		 * correctly if it claimes to be known */
+		if (REISER4_DEBUG &&
+		    inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+			assert ("vs-829",
+				(id == TAIL_ID && inode_get_flag (inode, REISER4_HAS_TAIL)) ||
+				(id == EXTENT_POINTER_ID && !inode_get_flag (inode, REISER4_HAS_TAIL)));
+		}
+
+		/* get tail status if it is not known yet */
+		if (!inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+			if (id == TAIL_ID)
+				inode_set_flag (inode, REISER4_HAS_TAIL);
+			else
+				inode_clr_flag (inode, REISER4_HAS_TAIL);
+		}
+
+		/* call read method of found item */
+		result = iplug->s.file.read (inode, &coord, &lh, &f);
+		zrelse (coord.node);
+		done_lh (&lh);
+		if (result) {
+			break;
+		}
+	}
+
+	if( to_read - f.length ) {
+		/* something was read. Update stat data */
+		UPDATE_ATIME (inode);
+		result = reiser4_write_sd (inode);
+		if (result)
+			warning ("vs-676", "updating stat data failed: %i",
+				 result);
+	}
+
+	drop_nonexclusive_access (inode);
+
+	/* update position in a file */
+	*off += (to_read - f.length);
+	/* return number of read bytes or error code if nothing is read */
+
+/* VS-FIXME-HANS: readahead_result needs to be handled here */
+	return (to_read - f.length) ? (to_read - f.length) : result;
+}
+
+unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
+{
+
+	interfile_readahead_amount = unix_file_interfile_readahead_amount(struct file * file, off, read_amount);
+
+	while (interfile_readahead_amount--)
+	{
+		right = get_right_neightbor(current);
+		if (right is just after current)
+		{
+			coord_dup(right, current);
+			zload(current);
+			
+		}
+		else {
+			break;
+/* VS-FIXME-HANS: insert some coord releasing code here */
+		}
+
+	}
+
+			
+}
+
+unix_file_interfile_readahead_amount(struct file * file, off, read_amount)
+{
+				/* current generic guess.  More sophisticated code can come later in v4.1+. */
+	return 8;
+}
+
+#endif /* NEW_READ_IS_READY */
+
+
+/* these are write modes. Certain mode is chosen depending on resulting file
+ * size and current metadata of file */
+typedef enum {
+	WRITE_EXTENT = 1,
+	WRITE_TAIL = 2,
+	CONVERT = 3,
+} write_todo;
 
 
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
@@ -1169,6 +1117,198 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 	if (should_have_notail (inode, new_size))
 		return WRITE_EXTENT;
 	return WRITE_TAIL;
+}
+
+
+/*
+ * This searches for write position in the tree and calls write method of
+ * appropriate item to actually copy user data into filesystem. This loops
+ * until all the data from flow @f are written to a file.
+ */
+static loff_t append_and_or_overwrite (struct file * file, 
+				       struct inode * inode, flow_t * f)
+{
+	int result;
+	coord_t coord;
+	lock_handle lh;	
+	size_t to_write;
+	item_plugin * iplug;
+	write_todo mode;
+	struct sealed_coord hint;
+
+
+	init_lh (&lh);
+
+	/*
+	 * get seal and coord sealed with it from reiser4 private data of
+	 * struct file
+	 */
+	result = load_file_hint (file, &hint);
+	if (result)
+		return result;
+
+	to_write = f->length;
+	while (1) {
+		/* look for file's metadata (extent or tail item) corresponding
+		 * to position we write to */
+		result = find_next_item (&hint, &f->key, &coord, &lh,
+					 ZNODE_WRITE_LOCK,
+					 CBK_UNIQUE | CBK_FOR_INSERT);
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+			/* error occurred */
+			done_lh (&lh);
+			return result;
+		}
+
+		mode = unix_file_how_to_write (inode, f, &coord);
+		set_hint (&hint, &f->key, &coord);
+		done_lh (&lh);
+
+		switch (mode) {
+		case WRITE_EXTENT:
+			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+			/* resolves to extent_write function */
+
+			result = iplug->s.file.write (inode, &hint, f, 0);
+			if (result == -EAGAIN) {
+				unset_hint (&hint);
+				continue;
+			}
+			if (!result) {
+				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
+				inode_clr_flag (inode, REISER4_HAS_TAIL);
+			}
+			break;
+
+		case WRITE_TAIL:
+			iplug = item_plugin_by_id (TAIL_ID);
+			/* resolves to tail_write function */
+
+			result = iplug->s.file.write (inode, &hint, f, 0);
+			if (result == -EAGAIN) {
+				unset_hint (&hint);
+				continue;
+			}
+			if (!result) {
+				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
+				inode_set_flag (inode, REISER4_HAS_TAIL);
+			}
+			break;
+
+		case CONVERT:
+			result = tail2extent (inode);
+			if (result)
+				return result;
+			unset_hint (&hint);
+			continue;
+
+		default:
+			done_lh (&lh);
+			unset_hint (&hint);
+			return mode;
+		}
+
+		if (result)
+			/* error */
+			break;
+
+		if ((loff_t)get_key_offset (&f->key) > inode->i_size)
+			/* file got longer */
+			inode->i_size = get_key_offset (&f->key);
+
+		if (!to_write) {
+			/* expanding truncate */
+			if ((loff_t)get_key_offset (&f->key) < inode->i_size)
+				continue;
+		}
+
+		if (f->length == 0)
+			/* write is done */
+			break;
+	}
+
+	save_file_hint (file, &hint);
+
+	/* if nothing were written - there must be an error */
+	assert ("vs-951", ergo ((to_write == f->length), result < 0));
+
+	return (to_write - f->length) ? (to_write - f->length) : result;
+}
+
+
+/* plugin->u.file.write */
+ssize_t unix_file_write (struct file * file, /* file to write to */
+			 const char * buf, /* comments are needed */
+			 size_t count, /* number of bytes ot write */
+			 loff_t * off /* position to write which */)
+{
+	int result;
+	struct inode * inode;
+	flow_t f;
+	ssize_t written;
+	loff_t pos;
+
+
+	inode = file->f_dentry->d_inode;
+
+	assert ("vs-855", count > 0);
+	assert ("vs-947", !inode_get_flag( inode, REISER4_NO_SD ));
+
+	get_nonexclusive_access (inode);
+
+	pos = *off;
+	if (file->f_flags & O_APPEND)
+		pos = inode->i_size;
+
+	if (inode->i_size < *off) {
+		loff_t old_size;
+
+		/* append file with a hole. This allows extent_write and
+		 * tail_write to not decide when hole appending is
+		 * necessary. When it is required f->length == 0 */
+		old_size = inode->i_size;
+		inode->i_size = *off;
+		result = expand_file (inode, old_size);
+		if (result) {
+			/*
+			 * FIXME-VS: i_size may now be set incorrectly
+			 */
+			drop_nonexclusive_access (inode);
+			inode->i_size = old_size;
+			return result;
+		}
+	}
+
+	/* build flow */
+	result = inode_file_plugin (inode)->flow_by_inode (inode, (char *)buf,
+							   1/* user space */,
+							   count, pos,
+							   WRITE_OP, &f);
+	if (result)
+		return result;
+
+	written = append_and_or_overwrite (file, inode, &f);
+	if (written < 0) {
+		drop_nonexclusive_access (inode);
+		return written;
+	}
+	
+	if (written) {
+		/* something was written. Update stat data */
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		assert ("vs-946", !inode_get_flag( inode, REISER4_NO_SD ));
+		result = reiser4_write_sd (inode);
+		if (result)
+			warning ("vs-636", "updating stat data failed: %i",
+				 result);
+	}
+
+	drop_nonexclusive_access (inode);
+
+	/* update position in a file */
+	*off = pos + written;
+	/* return number of written bytes */
+	return written;
 }
 
 
