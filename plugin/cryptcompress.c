@@ -191,19 +191,6 @@ static inline int inode_cluster_pages (struct inode * inode)
 	return (1 << inode_cluster_shift(inode));
 }
 
-/* return true if the cluster contains specified page */
-int
-page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
-{
-	assert("edward-162", page != NULL);
-	assert("edward-163", clust != NULL);
-	assert("edward-164", inode != NULL);
-	assert("edward-165", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	
-	return ((clust->index << PAGE_CACHE_SHIFT) <= page->index &&
-		page->index < ((clust->index + (1 << inode_cluster_shift(inode))) << PAGE_CACHE_SHIFT));
-}
-
 size_t inode_cluster_size (struct inode * inode)
 {
 	assert("edward-96", inode != NULL);
@@ -322,7 +309,7 @@ int cluster_is_uptodate (reiser4_cluster_t * clust)
 	return (clust->buf != NULL);
 }
 
-static inline unsigned long
+unsigned long
 pg_to_clust(unsigned long idx, struct inode * inode)
 {
 	return idx >> inode_cluster_shift(inode);
@@ -358,7 +345,7 @@ off_to_clust(loff_t off, struct inode * inode)
 	return pg_to_clust(off_to_pg(off), inode);
 }
 
-static inline loff_t
+loff_t
 clust_to_off(unsigned long idx, struct inode * inode)
 {
 	return pg_to_off(clust_to_pg(idx, inode));
@@ -382,6 +369,18 @@ off_to_cloff(loff_t off, struct inode * inode)
 	return off & ((loff_t)(inode_cluster_size(inode)) - 1);
 }
 
+/* return true if the cluster contains specified page */
+int
+page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
+{
+	assert("edward-162", page != NULL);
+	assert("edward-163", clust != NULL);
+	assert("edward-164", inode != NULL);
+	assert("edward-165", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	return (pg_to_clust(page->index, inode) == clust->index);
+}
+
 /* set minimal number of cluster pages (start from first one)
    which cover hole and users data */
 static void
@@ -395,6 +394,17 @@ set_cluster_nr_pages(struct inode * inode, reiser4_cluster_t * clust)
 		return;
 	}
 	clust->nr_pages = off_to_pg(clust->off + clust->count + clust->delta - 1) + 1;
+}
+
+static unsigned
+file_to_clust_count(reiser4_cluster_t * clust, struct inode * inode)
+{
+	assert("edward-288", clust != NULL);
+	assert("edward-289", inode != NULL);
+
+	if (clust->index > off_to_clust(inode->i_size, inode))
+		return 0;
+	return min_count(inode_cluster_size(inode), inode->i_size - clust_to_off(clust->index, inode));   
 }
 
 int
@@ -449,7 +459,7 @@ need_decompression(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-143", inode != NULL);
 	
 	return (inode_compression_plugin(inode) &&
-		clust->len < min_count(inode->i_size - pg_to_off(clust->index), inode_cluster_size(inode)));
+		clust->len < min_count(inode->i_size - clust_to_off(clust->index, inode), inode_cluster_size(inode)));
 }
 
 static void
@@ -491,10 +501,9 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
 		size_t cra_bsize = cplug->blocksize(inode_crypto_stat(inode)->keysize);
 		
-		assert("edward-154", clust->len <= inode_scaled_offset(inode, min_count(inode->i_size - (clust->index << PAGE_CACHE_SHIFT), inode_cluster_size(inode))));
+		assert("edward-154", clust->len <= inode_scaled_offset(inode, file_to_clust_count(clust, inode)));
 		
-		/* FIXME-EDWARD optimize size of kmalloced buffer for file tails 
-		   min_count(inode->i_size - (clust->index << PAGE_CACHE_SHIFT), inode_cluster_size(inode)); */
+		/* FIXME-EDWARD optimize size of kmalloced buffer */
 		buff_size = inode_cluster_size(inode);
 		buff = reiser4_kmalloc(buff_size, GFP_KERNEL);
 		if (!buff) 
@@ -558,7 +567,7 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		}
 		cplug->decompress(wbuf, buff, clust->len, clust->buf, &clust->len);
 		/* check the length of decompressed data */
-		assert("edward-157", clust->len == min_count(inode->i_size - (clust->index << PAGE_CACHE_SHIFT), inode_cluster_size(inode)));
+		assert("edward-157", clust->len == file_to_clust_count(clust, inode));
 	}
 	return 0;
  exit:
@@ -811,11 +820,10 @@ grab_cache_cluster(struct inode * inode, reiser4_cluster_t * clust)
 	
 	assert("edward-182", clust != NULL);
 	assert("edward-183", clust->pages != NULL);
-	assert("edward-158", !(clust->index & ~(~0UL << inode_cluster_shift(inode))));
 	assert("edward-184", 0 < clust->nr_pages && clust->nr_pages <= ( 1 << inode_cluster_shift(inode)));
 	
 	for (i = 0; i < clust->nr_pages; i++) {
-		clust->pages[i] = grab_cache_page(inode->i_mapping, clust->index + i);
+		clust->pages[i] = grab_cache_page(inode->i_mapping, clust_to_pg(clust->index, inode) + i);
 		if (!(clust->pages[i])) {
 			result = RETERR(-ENOMEM);
 			break;
@@ -900,7 +908,7 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 			/* skip */
 			clust->stat = HOLE_CLUSTER;
 			clust->off = 0;
-			clust->index = off_to_clust_to_pg(file_off, inode);
+			clust->index = off_to_clust(file_off, inode);
 			clust->count = off_to_cloff(file_off, inode);
 			clust->delta = min_count(inode_cluster_size(inode) - clust->count, to_file);
 			xmemset(*clust->pages, 0, sizeof(clust->pages) << inode_cluster_shift(inode));
@@ -934,18 +942,15 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-240", clust->delta == 0);
 	assert("edward-241", schedulable());
 
-	clust->count = inode_cluster_size(inode);
-	clust->nr_pages = inode_cluster_pages(inode);
-	if (inode->i_size < (clust->index + clust->nr_pages) << PAGE_CACHE_SHIFT) {
-		clust->count = (unsigned)(inode->i_size & inode_cluster_size(inode));
-		set_cluster_nr_pages(inode, clust);
-	}
+	clust->count = file_to_clust_count(clust, inode);
+	set_cluster_nr_pages(inode, clust);
+	
 	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
 	if (!clust->buf) 
 		return -ENOMEM;
 	for(i=0; i < clust->nr_pages; i++){
 		char * data;
-		page = find_get_page(inode->i_mapping, i + clust->index);
+		page = find_get_page(inode->i_mapping, clust_to_pg(clust->index, inode) + i);
 
 		assert("edward-242", page != NULL);
 		assert("edward-243", PageDirty(page));
@@ -1014,7 +1019,7 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 			return result;
 		}
 		make_cluster_jnodes_dirty(clust);
-		result = update_inode_and_sd_if_necessary(inode, pg_to_off(clust->index) + clust->off + clust->count, 1, 1, 1);
+		result = update_inode_and_sd_if_necessary(inode, clust_to_off(clust->index, inode) + clust->off + clust->count, 1, 1, 1);
 		if (result)
 			return result;
 		balance_dirty_pages_ratelimited(inode->i_mapping);
@@ -1034,7 +1039,7 @@ int find_cluster(reiser4_cluster_t * clust,
 	lock_handle lh;
 	hint_t hint;
 	int result;
-	unsigned long index;
+	unsigned long cl_idx;
 	ra_info_t ra_info;
 	file_plugin * fplug;
 	item_plugin * iplug;
@@ -1044,12 +1049,12 @@ int find_cluster(reiser4_cluster_t * clust,
 	assert("edward-137", inode != NULL);
 	assert("edward-138", clust != NULL);
 	
-	index = clust->index;
+	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
 	iplug = item_plugin_by_id(CTAIL_ID);
 	/* build flow for the cluster */
 	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
-			     inode_scaled_cluster_size(inode), index << PAGE_CACHE_SHIFT, READ_OP, &f);
+			     inode_scaled_cluster_size(inode), clust_to_off(cl_idx, inode), READ_OP, &f);
 	result = load_file_hint(clust->file, &hint, &lh);
 	if (result)
 		return result;
@@ -1060,7 +1065,7 @@ int find_cluster(reiser4_cluster_t * clust,
 		result = find_cluster_item(&hint, &f.key, (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), &ra_info, FIND_EXACT);
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
-			if (inode_scaled_offset(inode, index << PAGE_CACHE_SHIFT) == get_key_offset(&f.key)) {
+			if (inode_scaled_offset(inode, clust_to_off(cl_idx, inode)) == get_key_offset(&f.key)) {
 				/* first item not found: hole cluster */
 				clust->stat = FAKE_CLUSTER;
 				result = 0;
@@ -1179,7 +1184,7 @@ prepare_cluster(struct inode *inode,
 	result = grab_cache_cluster(inode, clust);
 	if (result)
 		return result;
-	if (clust->off == 0 && inode->i_size <= pg_to_off(clust->index) + to_write) {
+	if (clust->off == 0 && inode->i_size <= clust_to_off(clust->index, inode) + to_write) {
 		/* we don't need to read cluster from disk, just
 		   align the current chunk of data up to nr_pages */
 		int i;
@@ -1225,7 +1230,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 		       "cryptocompressed file (inode %llu, offset %llu) \n",
 		       hole_size, get_inode_oid(inode), file_off);
 		
-		clust->index = off_to_clust_to_pg(inode->i_size, inode);
+		clust->index = off_to_clust(inode->i_size, inode);
 		clust->off = off_to_cloff(inode->i_size, inode);
 		clust->count = min_count(inode_cluster_size(inode) - clust->off, hole_size);
 		clust->stat = HOLE_CLUSTER;
@@ -1236,7 +1241,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 		return;
 	}
 	
-	clust->index = off_to_clust_to_pg(file_off, inode);
+	clust->index = off_to_clust(file_off, inode);
 	clust->off = off_to_cloff(file_off, inode);
 	clust->count = min_count(inode_cluster_size(inode) - clust->off, f->length);
 	clust->delta = 0;
@@ -1319,8 +1324,8 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		make_cluster_jnodes_dirty(&clust);
 		
 		result = update_inode_and_sd_if_necessary(inode,
-							  pg_to_off(clust.index) + clust.off + clust.count /* new_size */,
-							  (pg_to_off(clust.index) + clust.off + clust.count > inode->i_size) ? 1 : 0,
+							  clust_to_off(clust.index, inode) + clust.off + clust.count /* new_size */,
+							  (clust_to_off(clust.index, inode) + clust.off + clust.count > inode->i_size) ? 1 : 0,
 							  1, 
 							  1/* update stat data */);
 		if (result)
