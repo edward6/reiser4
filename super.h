@@ -258,7 +258,7 @@ struct reiser4_super_info_data {
 
 #if REISER4_STATS
 	struct kobject stats_kobj;
-	reiser4_level_stats_kobj level[REAL_MAX_ZTREE_HEIGHT];
+	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];
 #endif
 #if REISER4_PROF
 	struct kobject prof_kobj;

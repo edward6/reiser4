@@ -376,6 +376,7 @@ int reiser4_stat_init(reiser4_stat ** storehere)
 void reiser4_stat_done(reiser4_stat ** stats)
 {
 	vfree(*stats);
+	*stats = NULL;
 }
 
 #else

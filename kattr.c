@@ -253,7 +253,7 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 	level->parent = kobject_get(parent);
 	if (level->parent != NULL) {
 		snprintf(level->name, 
-			 KOBJ_NAME_LEN, "level-%2.2i", i + LEAF_LEVEL);
+			 KOBJ_NAME_LEN, "level-%2.2i", i);
 		level->ktype = &ktype_level_reiser4;
 		result = kobject_register(level);
 		if (result == 0)
@@ -295,7 +295,7 @@ int reiser4_sysfs_init(struct super_block *super)
 	if (result == 0) {
 		int i;
 
-		for (i = 0; i < REAL_MAX_ZTREE_HEIGHT; ++i) {
+		for (i = 0; i < sizeof_array(sbinfo->level); ++i) {
 			result = register_level_attrs(sbinfo, i);
 			if (result != 0)
 				break;

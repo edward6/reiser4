@@ -252,7 +252,7 @@ typedef struct reiser4_statistics {
 		statcnt_t check_left_nonuniq;
 		statcnt_t left_nonuniq_found;
 	} tree;
-	reiser4_level_stat level[REAL_MAX_ZTREE_HEIGHT];
+	reiser4_level_stat level[REISER4_MAX_ZTREE_HEIGHT];
 	struct {
 		statcnt_t lookup;
 		statcnt_t create;
@@ -464,9 +464,9 @@ typedef struct reiser4_statistics {
 ({										\
 	int __level;								\
 										\
-	__level = (lev) - LEAF_LEVEL;						\
+	__level = (lev);        						\
 	if (__level >= 0) {							\
-		if(__level < REAL_MAX_ZTREE_HEIGHT) {				\
+		if(__level < REISER4_MAX_ZTREE_HEIGHT) {			\
 			reiser4_stat_inc(level[__level]. stat);			\
 			reiser4_stat_inc(level[__level]. total_hits_at_level);	\
 		}								\
@@ -477,9 +477,9 @@ typedef struct reiser4_statistics {
 ({										\
 	int level;								\
 										\
-	level = (lev) - LEAF_LEVEL;						\
+	level = (lev);          						\
 	if (level >= 0) {							\
-		if(level < REAL_MAX_ZTREE_HEIGHT) {				\
+		if(level < REISER4_MAX_ZTREE_HEIGHT) {				\
 			reiser4_stat_add(level[level]. stat , value );		\
 			reiser4_stat_inc(level[level]. total_hits_at_level);	\
 		}								\
