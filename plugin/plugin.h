@@ -255,7 +255,18 @@ typedef struct dir_plugin {
 	/* VFS required/defined operations below this line */
 	int (*unlink) (struct inode * parent, struct dentry * victim);
 	int (*link) (struct inode * parent, struct dentry * existing, struct dentry * where);
-	/* sub-methods: These are optional.  If used they will allow you to
+	/* rename object named by @old entry in @old_dir to be named by @new
+	   entry in @new_dir */
+	int (*rename) (struct inode * old_dir, struct dentry * old, struct inode * new_dir, struct dentry * new);
+
+	/* create new object described by @data and add it to the @parent
+	   directory under the name described by @dentry */
+	int (*create_child) (struct inode * parent, struct dentry * dentry, reiser4_object_create_data * data);
+
+	/* readdir implementation */
+	int (*readdir) (struct file * f, void *cookie, filldir_t filldir);
+
+	/* private methods: These are optional.  If used they will allow you to
 	   minimize the amount of code needed to implement a deviation from
 	   some other method that uses them.  You could logically argue that
 	   they should be a separate type of plugin. */
@@ -276,15 +287,6 @@ typedef struct dir_plugin {
 			  reiser4_object_create_data * data, reiser4_dir_entry_desc * entry);
 
 	int (*rem_entry) (struct inode * object, struct dentry * where, reiser4_dir_entry_desc * entry);
-	/* create new object described by @data and add it to the @parent
-	   directory under the name described by @dentry */
-	int (*create_child) (struct inode * parent, struct dentry * dentry, reiser4_object_create_data * data);
-	/* rename object named by @old entry in @old_dir to be named by @new
-	   entry in @new_dir */
-	int (*rename) (struct inode * old_dir, struct dentry * old, struct inode * new_dir, struct dentry * new);
-
-	/* readdir implementation */
-	int (*readdir) (struct file * f, void *cookie, filldir_t filldir);
 
 	/* initialize directory structure for newly created object. For normal
 	   unix directories, insert dot and dotdot. */
