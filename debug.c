@@ -270,8 +270,32 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(tree.check_left_nonuniq),
 	DEFINE_STAT_CNT(tree.left_nonuniq_found),
 
-	DEFINE_STAT_CNT(vfs_calls.reads),
-	DEFINE_STAT_CNT(vfs_calls.writes),
+	DEFINE_STAT_CNT(vfs_calls.lookup),
+	DEFINE_STAT_CNT(vfs_calls.create),
+	DEFINE_STAT_CNT(vfs_calls.mkdir),
+	DEFINE_STAT_CNT(vfs_calls.mknod),
+	DEFINE_STAT_CNT(vfs_calls.rename),
+	DEFINE_STAT_CNT(vfs_calls.readlink),
+	DEFINE_STAT_CNT(vfs_calls.follow_link),
+	DEFINE_STAT_CNT(vfs_calls.setattr),
+	DEFINE_STAT_CNT(vfs_calls.getattr),
+	DEFINE_STAT_CNT(vfs_calls.read),
+	DEFINE_STAT_CNT(vfs_calls.write),
+	DEFINE_STAT_CNT(vfs_calls.truncate),
+	DEFINE_STAT_CNT(vfs_calls.statfs),
+	DEFINE_STAT_CNT(vfs_calls.bmap),
+	DEFINE_STAT_CNT(vfs_calls.link),
+	DEFINE_STAT_CNT(vfs_calls.llseek),
+	DEFINE_STAT_CNT(vfs_calls.readdir),
+	DEFINE_STAT_CNT(vfs_calls.ioctl),
+	DEFINE_STAT_CNT(vfs_calls.mmap),
+	DEFINE_STAT_CNT(vfs_calls.unlink),
+	DEFINE_STAT_CNT(vfs_calls.rmdir),
+	DEFINE_STAT_CNT(vfs_calls.alloc_inode),
+	DEFINE_STAT_CNT(vfs_calls.destroy_inode),
+	DEFINE_STAT_CNT(vfs_calls.drop_inode),
+	DEFINE_STAT_CNT(vfs_calls.delete_inode),
+	DEFINE_STAT_CNT(vfs_calls.write_super),
 
 	DEFINE_STAT_CNT(dir.readdir.calls),
 	DEFINE_STAT_CNT(dir.readdir.reset),
@@ -389,7 +413,6 @@ print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
 	info("%s%s:\t ", prefix, cnt->kattr.attr.name);
 	info(cnt->format, getat(base, cnt->offset));
-	info("\n");
 }
 
 /* Print statistical data accumulated so far. */

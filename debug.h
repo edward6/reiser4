@@ -568,8 +568,32 @@ typedef struct reiser4_statistics {
 	} tree;
 	reiser4_level_stat level[REAL_MAX_ZTREE_HEIGHT];
 	struct {
-		stat_cnt reads;
-		stat_cnt writes;
+		stat_cnt lookup;
+		stat_cnt create;
+		stat_cnt mkdir;
+		stat_cnt mknod;
+		stat_cnt rename;
+		stat_cnt readlink;
+		stat_cnt follow_link;
+		stat_cnt setattr;
+		stat_cnt getattr;
+		stat_cnt read;
+		stat_cnt write;
+		stat_cnt truncate;
+		stat_cnt statfs;
+		stat_cnt bmap;
+		stat_cnt link;
+		stat_cnt llseek;
+		stat_cnt readdir;
+		stat_cnt ioctl;
+		stat_cnt mmap;
+		stat_cnt unlink;
+		stat_cnt rmdir;
+		stat_cnt alloc_inode;
+		stat_cnt destroy_inode;
+		stat_cnt drop_inode;
+		stat_cnt delete_inode;
+		stat_cnt write_super;
 	} vfs_calls;
 	struct {
 		struct {
