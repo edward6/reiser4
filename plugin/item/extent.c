@@ -219,7 +219,7 @@ print_ext_coord(const char *s, uf_coord_t *uf_coord)
 
 	item_key_by_coord(&uf_coord->base_coord, &key);
 	ext_coord = &uf_coord->extension.extent;
-	printk("%s: item key [%llu, %llu], nr_units %d, cur extent [%llu, %llu], unit_pos %d, pos_in_unit %d\n",
+	printk("%s: item key [%llu, %llu], nr_units %d, cur extent [%llu, %llu], unit_pos %d, pos_in_unit %Lu\n",
 	       s, get_key_objectid(&key), get_key_offset(&key),
 	       ext_coord->nr_units,
 	       extent_get_start(ext_coord->ext), extent_get_width(ext_coord->ext),
@@ -294,7 +294,7 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 
 /* set extent's start and width */
 static void
-set_extent(reiser4_extent *ext, reiser4_block_nr start, pos_in_unit_t width)
+set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width)
 {
 	extent_set_start(ext, start);
 	extent_set_width(ext, width);
@@ -1118,6 +1118,90 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 	return result;
 }
 
+/* used in allocate_extent_item_in_place and plug_hole to replace @un_extent
+   with either two or three extents
+
+   (@un_extent) with allocated (@star, @alloc_width) and unallocated
+   (@unalloc_width). Have insert_into_item to not try to shift anything to
+   left.
+*/
+static int
+replace_extent(coord_t *un_extent, lock_handle *lh,
+	       reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags)
+{
+	int result;
+	coord_t coord_after;
+	lock_handle lh_after;
+	tap_t watch;
+	ON_DEBUG(reiser4_extent orig_ext);	/* this is for debugging */
+	znode *orig_znode;
+
+	assert("vs-990", coord_is_existing_unit(un_extent));
+
+	coord_dup(&coord_after, un_extent);
+	init_lh(&lh_after);
+	copy_lh(&lh_after, lh);
+	tap_init(&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
+	tap_monitor(&watch);
+
+	orig_ext = *extent_by_coord(un_extent);
+	orig_znode = un_extent->node;
+
+	/* make sure that key is set properly */
+	if (REISER4_DEBUG) {
+		reiser4_key tmp;
+
+		unit_key_by_coord(un_extent, &tmp);
+		set_key_offset(&tmp, get_key_offset(&tmp) + extent_get_width(new_ext) * current_blocksize);
+		assert("vs-1080", keyeq(&tmp, key));
+	}
+#if 0
+	grabbed = get_current_context()->grabbed_blocks;
+	needed = estimate_internal_amount(1, znode_get_tree(orig_znode)->height);
+	/* Grab from 100% of disk space, not 95% as usual. */
+	if (reiser4_grab_space_force(needed, BA_RESERVED))
+		reiser4_panic("vpf-340", "No space left in reserved area.");
+#endif	
+
+	DISABLE_NODE_CHECK;
+
+	/* set insert point after unit to be replaced */
+	un_extent->between = AFTER_UNIT;
+	result = insert_into_item(un_extent, (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh, key, data, flags);
+	
+#if 0
+	/* While assigning unallocated block to block numbers we need to insert 
+	    new extent units - this may lead to new block allocation on twig and 
+	    upper levels. Take these blocks from 5% of disk space. */
+	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
+#endif	
+    
+	if (!result) {
+		reiser4_extent *ext;
+
+		if (coord_after.node != orig_znode) {
+			coord_clear_iplug(&coord_after);
+			result = zload(coord_after.node);
+		}
+
+		if (likely(!result)) {
+			ext = extent_by_coord(&coord_after);
+
+			assert("vs-987", znode_is_loaded(coord_after.node));
+			assert("vs-988", !memcmp(ext, &orig_ext, sizeof (*ext)));
+
+			*ext = *new_ext;
+			znode_make_dirty(coord_after.node);
+
+			if (coord_after.node != orig_znode)
+				zrelse(coord_after.node);
+		}
+	}
+	tap_done(&watch);
+	ENABLE_NODE_CHECK;
+	return result;
+}
+
 /* ask block allocator for some blocks */
 static int
 extent_allocate_blocks(reiser4_blocknr_hint *preceder,
@@ -1181,6 +1265,224 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	return 0;
 }
 
+#define MIN_SLUM_SIZE 32
+
+/* find "slum": sequence of dirty children. Scan the extent and look for  */
+static int
+find_slum(reiser4_tree *tree, oid_t oid, unsigned long ind,
+	  reiser4_block_nr ae_width,
+	  reiser4_block_nr *overwrite, /* number of dirty nodes which are to be put into overwrite set before first slum
+				       encountered */
+	  reiser4_block_nr *slum_start, reiser4_block_nr *slum_size) /* position and width of first found slum */
+{
+	reiser4_block_nr i;
+	jnode *j;
+	int slum_found;
+
+	*overwrite = 0;
+	*slum_start = 0;
+	*slum_size = 0;
+	slum_found = 0;
+
+	for (i = 0; i < ae_width; i ++) {
+		j = jlook_lock(tree, oid, ind + i);
+		if (j) {
+			if (!jnode_check_flushprepped(j)) {
+				if (*slum_size == 0)
+					*slum_start = i;
+				(*slum_size) ++;
+				/* count this as overwrite yet */
+				(*overwrite) ++;
+				if (*slum_size == MIN_SLUM_SIZE/*get_current_super_private()->flush.relocate_threshold*/) {
+					/* "slum" is found */
+					slum_found = 1;
+					/* this is going to be relocated */
+					(*overwrite) -= *slum_size;
+				}
+				jput(j);
+				/* "slum" continues */
+				continue;
+			}
+			jput(j);
+		}
+		/* current "slum" is over */
+		if (slum_found)
+			/* but it is long enough to be relocated */
+			break;
+
+		/* try to collect new "slum" */
+		*slum_size = 0;
+	}
+
+	return slum_found;
+}
+
+static lock_handle *
+znode_lh(znode *node)
+{
+	assert("vs-1371", znode_is_write_locked(node));
+	assert("vs-1372", znode_is_wlocked_once(node));
+	return owners_list_front(&node->lock.owners);
+}
+
+/* @coord is set to allocated extent. Convert it to contain unallocated extent replace allocated node pointer @uf_coord
+   is set to with unallocated node pointer */
+static int
+allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_nr ue_width)
+{
+	reiser4_extent *ext;
+	reiser4_extent new_exts[2]; /* extents which will be added after original hole one */
+	reiser4_extent replace;	    /* extent original hole extent will be replaced with */
+	reiser4_block_nr ae_first_block;
+	reiser4_block_nr ae_width;
+	reiser4_item_data item;
+	int count;
+	reiser4_key key;
+
+	ext = extent_by_coord(coord);
+	ae_first_block = extent_get_start(ext);
+	ae_width = extent_get_width(ext);
+	
+	if (ae_width == ue_width) {
+		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
+		znode_make_dirty(coord->node);
+		return 0;
+	} else if (ue_start == 0) {
+		/* replace ae with ue and ae
+		   unallocated extent */
+		set_extent(&replace, UNALLOCATED_EXTENT_START, ue_width);
+		/* allocated extent  */
+		set_extent(&new_exts[0], ae_first_block + ue_width, ae_width - ue_width);
+		count = 1;
+	} else if (ue_start + ue_width == ae_width) {
+		/* replace ae with ae and ue */
+		/* FIXME-VS: possible optimization: look to the right and merge if right neighbor is unallocated extent
+		   too */
+		/* allocated extent */
+		set_extent(&replace, ae_first_block, ae_width - ue_width);
+		/* unallocated extent */
+		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, ue_width);
+		count = 1;
+	} else {
+		/* replace ae with ae, ue, ae */
+		set_extent(&replace, ae_first_block, ue_start);
+		/* extents to be inserted */
+		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, ue_width);
+		set_extent(&new_exts[1], ae_first_block + ue_start + ue_width, ae_width - ue_start - ue_width);
+		count = 2;
+	}
+
+	/* insert_into_item will insert new units after the one @coord is set to. So, update key correspondingly */
+	unit_key_by_coord(coord, &key);
+	set_key_offset(&key, (get_key_offset(&key) + extent_get_width(&replace) * current_blocksize));
+
+	return replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, new_exts, count), &replace, COPI_DONT_SHIFT_LEFT);
+}
+
+static int
+extent_needs_allocation(coord_t *coord, reiser4_extent *extent, oid_t oid, unsigned long ind, flush_pos_t *pos)
+{
+	reiser4_blocknr_hint *preceder;
+	int relocate;
+	int ret;
+	reiser4_tree *tree = current_tree;
+	reiser4_block_nr ae_width, i;
+	jnode *j;
+	reiser4_block_nr slum_start, slum_size, overwrite;
+	reiser4_block_nr ae_start;
+	
+	/* Handle the non-allocated (simple) cases. */
+	switch (state_of_extent(extent)) {
+	    case UNALLOCATED_EXTENT:
+		    return 1;
+	    case HOLE_EXTENT:
+		    return 0;
+	    default:
+		    break;
+	}
+
+	/* extent is allocated. Look for slum in it */
+	assert("jmacd-83112", state_of_extent(extent) == ALLOCATED_EXTENT);
+
+	ae_start = extent_get_start(extent);
+	ae_width = extent_get_width(extent);
+
+	/*if (pos_leaf_relocate(pos)) {*/
+	preceder = pos_hint(pos);/*XXXX*/
+		
+	relocate = find_slum(tree, oid, ind, ae_width, &overwrite, &slum_start, &slum_size);
+	if (relocate) {
+		txn_atom *atom;
+		
+		atom = get_current_atom_locked();
+		/* All additional blocks needed for safe writing of modified extent are counted in atom's flush reserved
+		   counted.  Here we move that amount to "grabbed" counter for further spending it in
+		   assign_fake_blocknr(). Thus we convert "flush reserved" space to "unallocated" one reflecting that
+		   extent allocation status change. */
+		flush_reserved2grabbed(atom, slum_size);
+		UNLOCK_ATOM(atom);
+
+		/* assign fake blocknr to all nodes which are going to be relocated */
+		for (i = 0; i < slum_size; i ++) {
+			reiser4_block_nr block;
+				
+			j = jlook_lock(tree, oid, ind + slum_start + i);
+			assert("vs-1367", j);
+			assert("vs-1363", jnode_check_dirty(j));
+			assert("vs-1364", !JF_ISSET(j, JNODE_RELOC));
+			assert("vs-1365", !JF_ISSET(j, JNODE_OVRWR));
+				
+			assign_fake_blocknr_unformatted(&block);
+			jnode_set_block(j, &block);
+			jput(j);
+		}
+
+		/* convert [alloc/extent_width] to
+		   [alloc/slum_start],[unalloc/slum_size],[alloc/extent_width - slum_start - slum_size] */
+		ret = allocated2unallocated(coord, slum_start, slum_size);
+		if (ret) {
+			/* un-eprotect */
+			assert("vs-1369", ret < 0);
+			return ret;
+		}
+		ae_start += slum_start;
+		ret = reiser4_dealloc_blocks(&ae_start, &slum_size, BLOCK_ALLOCATED, BA_DEFER,
+				      "deallocate blocks of already allocated extent");
+		if (ret) {
+			/* un-eprotect */
+			assert("vs-1370", ret < 0);
+			return ret;
+		}
+
+		if (state_of_extent(extent) == UNALLOCATED_EXTENT)
+			/* initial AE got converted to UE unallocated one because "slum" was found right from the
+			   beginning of initial AE */
+			return 1;
+			
+		/* initial AE narrowed because UE for found "slum" was created to the right of it. Number of
+		   dirty nodes which are to get into overwrite set is known. Look for for all those nodes and
+		   make them "wander" */
+		ae_width = slum_start;
+	}
+
+	assert("vs-1358", state_of_extent(extent) == ALLOCATED_EXTENT);
+	for (i = 0; i < ae_width && overwrite; i ++) {
+		j = jlook_lock(tree, oid, ind + i);
+		if (j) {
+			if (!jnode_check_flushprepped(j)) {
+				jnode_make_wander(j);
+				overwrite --;
+			}
+			jput(j);
+		}
+	}		
+	assert("vs-1366", overwrite == 0);
+	return 0;
+}
+
+	
+#if 0
+	
 /* Check whether the @extent needs to be allocated.  An allocated extent status
    may be changed to unallocated if relocation of already allocated blocks look
    more optimal. Try to update preceder in parent-first order for next block
@@ -1351,6 +1653,8 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 */
 	return relocate;
 }
+
+#endif
 
 /* if @key is glueable to the item @coord is set to */
 static int
@@ -1551,7 +1855,7 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 		ON_TRACE(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
 
 		width = extent_get_width(ext);
-		if ((result = extent_needs_allocation(ext, oid, index, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(right, ext, oid, index, flush_pos)) < 0) {
 			goto done;
 		}
 
@@ -1667,90 +1971,6 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 	return result;
 }
 
-/* used in allocate_extent_item_in_place and plug_hole to replace @un_extent
-   with either two or three extents
-
-   (@un_extent) with allocated (@star, @alloc_width) and unallocated
-   (@unalloc_width). Have insert_into_item to not try to shift anything to
-   left.
-*/
-static int
-replace_extent(coord_t *un_extent, lock_handle *lh,
-	       reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags)
-{
-	int result;
-	coord_t coord_after;
-	lock_handle lh_after;
-	tap_t watch;
-	reiser4_extent orig_ext;	/* this is for debugging */
-	znode *orig_znode;
-
-	assert("vs-990", coord_is_existing_unit(un_extent));
-
-	coord_dup(&coord_after, un_extent);
-	init_lh(&lh_after);
-	copy_lh(&lh_after, lh);
-	tap_init(&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
-	tap_monitor(&watch);
-
-	orig_ext = *extent_by_coord(un_extent);
-	orig_znode = un_extent->node;
-
-	/* make sure that key is set properly */
-	if (REISER4_DEBUG) {
-		reiser4_key tmp;
-
-		unit_key_by_coord(un_extent, &tmp);
-		set_key_offset(&tmp, get_key_offset(&tmp) + extent_get_width(new_ext) * current_blocksize);
-		assert("vs-1080", keyeq(&tmp, key));
-	}
-#if 0
-	grabbed = get_current_context()->grabbed_blocks;
-	needed = estimate_internal_amount(1, znode_get_tree(orig_znode)->height);
-	/* Grab from 100% of disk space, not 95% as usual. */
-	if (reiser4_grab_space_force(needed, BA_RESERVED))
-		reiser4_panic("vpf-340", "No space left in reserved area.");
-#endif	
-
-	DISABLE_NODE_CHECK;
-
-	/* set insert point after unit to be replaced */
-	un_extent->between = AFTER_UNIT;
-	result = insert_into_item(un_extent, (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh, key, data, flags);
-	
-#if 0
-	/* While assigning unallocated block to block numbers we need to insert 
-	    new extent units - this may lead to new block allocation on twig and 
-	    upper levels. Take these blocks from 5% of disk space. */
-	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
-#endif	
-    
-	if (!result) {
-		reiser4_extent *ext;
-
-		if (coord_after.node != orig_znode) {
-			coord_clear_iplug(&coord_after);
-			result = zload(coord_after.node);
-		}
-
-		if (likely(!result)) {
-			ext = extent_by_coord(&coord_after);
-
-			assert("vs-987", znode_is_loaded(coord_after.node));
-			assert("vs-988", !memcmp(ext, &orig_ext, sizeof (*ext)));
-
-			*ext = *new_ext;
-			znode_make_dirty(coord_after.node);
-
-			if (coord_after.node != orig_znode)
-				zrelse(coord_after.node);
-		}
-	}
-	tap_done(&watch);
-	ENABLE_NODE_CHECK;
-	return result;
-}
-
 /* when on flush time unallocated extent is to be replaced with allocated one it may happen that one unallocated extent
    will have to be replaced with set of allocated extents. In this case insert_into_item will be called which may have
    to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
@@ -1830,7 +2050,7 @@ allocate_extent_item_in_place(coord_t *coord, lock_handle *lh, flush_pos_t *flus
 
 		width = extent_get_width(ext);
 
-		if ((result = extent_needs_allocation(ext, oid, index, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(coord, ext, oid, index, flush_pos)) < 0) {
 			break;
 		}
 
@@ -1960,27 +2180,22 @@ extent_unit_start(const coord_t *item)
 	return extent_get_start(extent_by_coord(item));
 }
 
+/* initialize jnode if newly created block. It is called by insert_first_block, append_one_block and hole overwrite */
 static void
-init_unallocated_jnode(jnode *j)
+init_new_jnode(jnode *j)
 {
 	reiser4_block_nr fake_blocknr;
 
 	jnode_set_mapped(j);
 	assign_fake_blocknr_unformatted(&fake_blocknr);
 	jnode_set_block(j, &fake_blocknr);	
+	jnode_set_created(j);
+	JF_SET(j, JNODE_NEW);
+	/* mark jnode dirty right away so that it will be captured directly to the dirty list */
 	JF_SET(j, JNODE_DIRTY);
 }
 
-/* initialize jnode if newly created block. It is called by insert_first_block, append_one_block and hole overwrite */
-static void
-init_new_jnode(jnode *j)
-{
-	init_unallocated_jnode(j);
-	jnode_set_created(j);
-	JF_SET(j, JNODE_NEW);
-}
-
-/* initialize jnode of */
+/* initialize jnode of existing block. It is called by overwrite_one_block and do_readpage_extent */
 static void
 init_allocated_jnode(jnode *j, reiser4_block_nr block)
 {
@@ -2156,6 +2371,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	return replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
 }
 
+#if 0
 /* replace allocated node pointer @uf_coord is set to with unallocated node pointer */
 static int
 allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
@@ -2165,7 +2381,7 @@ allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
 	reiser4_extent new_exts[2]; /* extents which will be added after original hole one */
 	reiser4_extent replace;	    /* extent original hole extent will be replaced with */
 	reiser4_block_nr block_nr;
-	pos_in_unit_t width, pos_in_unit;
+	reiser4_block_nr width, pos_in_unit;
 	reiser4_item_data item;
 	int count;
 	coord_t *coord;
@@ -2257,39 +2473,39 @@ allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
 			block_nr, get_key_objectid(key));
 	return result;
 }
+#endif
 
 /* make unallocated node pointer in the position @uf_coord is set to */
 static int
 overwrite_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 {
 	int result;
+	extent_coord_extension_t *ext_coord;
 
 	assert("vs-1312", uf_coord->base_coord.between == AT_UNIT);
 
-	switch (state_of_extent(uf_coord->extension.extent.ext)) {
+	ext_coord = &uf_coord->extension.extent;
+	switch (state_of_extent(ext_coord->ext)) {
 	case ALLOCATED_EXTENT:
-		result = allocated2unallocated(uf_coord, key);
-		if (!result)
-			init_unallocated_jnode(j);
-		break;
+		init_allocated_jnode(j, extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit);
+		return 0;
 
 	case UNALLOCATED_EXTENT:
 		assert("vs-1114", jnode_mapped(j));
-		result = 0;
-		break;
+		return 0;
 
 	case HOLE_EXTENT:
 		result = plug_hole(uf_coord, key);
 		if (!result)
 			init_new_jnode(j);
-		break;
+		return result;
 
 	default:
 		impossible("vs-238", "extent of unknown type found");
 		return RETERR(-EIO);
 	}
 
-	return result;
+	return 0;
 }
 
 static int
@@ -2494,7 +2710,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	uf_coord_t *uf_coord;
 	coord_t *coord;
 	PROF_BEGIN(extent_write);
-
 
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", flow->user == 1);
