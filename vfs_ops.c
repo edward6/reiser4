@@ -472,7 +472,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		JF_SET(j, JNODE_RIP);
 		check_me("vs-1242", jnode_try_drop(j) == 0);
 	}
-	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
+	if (!is_bad_inode(inode) && is_inode_loaded(inode)) {
 
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
 		if (inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
@@ -616,7 +616,7 @@ reiser4_delete_inode(struct inode *object)
 
 	init_context(&ctx, object->i_sb);
 	reiser4_stat_inc(vfs_calls.delete_inode);
-	if (inode_get_flag(object, REISER4_LOADED)) {
+	if (is_inode_loaded(object)) {
 		file_plugin *fplug;
 		fplug = inode_file_plugin(object);
 		if ((fplug != NULL) && (fplug->delete != NULL))
