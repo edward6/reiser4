@@ -1534,7 +1534,7 @@ write_unix_file(struct file * file, /* file to write to */
 /* plugin->u.file.release
    convert all extent items into tail items if necessary */
 int
-release_unix_file(struct file *file)
+release_unix_file(struct inode *inode, struct file *file)
 {
 	int result;
 	unix_file_info_t *uf_info;
@@ -1687,6 +1687,9 @@ get_block_unix_file(struct inode *inode,
 		return result;
 	}
 	iplug = item_plugin_by_coord(&hint.coord.base_coord);
+	if (!hint.coord.valid)
+		validate_extended_coord(&hint.coord, 
+					(loff_t) block << PAGE_CACHE_SHIFT);
 	if (iplug->s.file.get_block)
 		result = iplug->s.file.get_block(&hint.coord, block, bh_result);
 	else
