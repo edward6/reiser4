@@ -6,11 +6,20 @@
 
 #include <reiser4/reiser4.h>
 
-void reiserfs_key_init(reiserfs_key_t *key, reiserfs_plugin_t *key_plugin) {
-    aal_assert("umka-691", key != NULL, return);
-    aal_assert("umka-692", key_plugin != NULL, return);
+errno_t reiserfs_key_init(reiserfs_key_t *key, const void *data, 
+    reiserfs_plugin_t *plugin) 
+{
+    aal_assert("umka-691", key != NULL, return -1);
+    aal_assert("umka-692", plugin != NULL, return -1);
+    aal_assert("umka-769", data != NULL, return -1);
     
-    key->plugin = key_plugin;
+    aal_memset(key, 0, sizeof(key));
+    
+    key->plugin = plugin;
+    aal_memcpy(key->body, data, 
+	libreiser4_plugin_call(return -1, plugin->key, size,));
+
+    return 0;
 }
 
 int reiserfs_key_compare(reiserfs_key_t *key1, reiserfs_key_t *key2) {
@@ -19,23 +28,6 @@ int reiserfs_key_compare(reiserfs_key_t *key1, reiserfs_key_t *key2) {
 
     return libreiser4_plugin_call(return -1, key1->plugin->key, compare, 
 	key1->body, key2->body);
-}
-
-reiserfs_key_t *reiserfs_key_create(reiserfs_plugin_t *key_plugin) {
-    reiserfs_key_t *key;
-    
-    aal_assert("umka-690", key_plugin != NULL, return NULL);
-
-    if (!(key != aal_calloc(sizeof(*key), 0)))
-	return NULL;
-    
-    reiserfs_key_init(key, key_plugin); 
-    return key;
-}	
-
-void reiserfs_key_done(reiserfs_key_t *key) {
-    aal_assert("umka-693", key != NULL, return);
-    aal_free(key);
 }
 
 void reiserfs_key_clean(reiserfs_key_t *key) {
@@ -51,8 +43,8 @@ errno_t reiserfs_key_build_file_key(reiserfs_key_t *key,
     aal_assert("umka-665", key != NULL, return -1);
     aal_assert("umka-666", key->plugin != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, key->plugin->key, build_file_key, 
-	key->body, type, locality, objectid, offset);
+    return libreiser4_plugin_call(return -1, key->plugin->key, 
+	build_file_key, key->body, type, locality, objectid, offset);
 }
 
 errno_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
@@ -63,8 +55,8 @@ errno_t reiserfs_key_build_dir_key(reiserfs_key_t *key,
     aal_assert("umka-669", key->plugin != NULL, return -1);
     aal_assert("umka-670", name != NULL, return -1);
     
-    return libreiser4_plugin_call(return -1, key->plugin->key, build_dir_key, 
-	key->body, hash_plugin, locality, objectid, name);
+    return libreiser4_plugin_call(return -1, key->plugin->key, 
+	build_dir_key, key->body, hash_plugin, locality, objectid, name);
 }
 
 errno_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
@@ -73,6 +65,7 @@ errno_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
 
     libreiser4_plugin_call(return -1, key->plugin->key, 
 	set_type, key->body, type);
+    
     return 0;
 }
 

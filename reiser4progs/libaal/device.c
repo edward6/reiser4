@@ -268,16 +268,15 @@ errno_t aal_block_reread(aal_block_t *block, aal_device_t *device, blk_t blk) {
     Writes specified block onto device. Marks it as clean and returns error 
     code to caller.
 */
-errno_t aal_block_write(aal_device_t *device, aal_block_t *block) {
+errno_t aal_block_write(aal_block_t *block) {
     errno_t error;
 
-    aal_assert("umka-445", device != NULL, return -1);
     aal_assert("umka-446", block != NULL, return -1);
 
     if (aal_block_is_clean(block))
 	return 0;
 
-    if((error = aal_device_write(device, block->data, 
+    if((error = aal_device_write(block->device, block->data, 
 	aal_block_get_nr(block), 1)))
 
     aal_block_clean(block);

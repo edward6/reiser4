@@ -49,10 +49,7 @@ extern aal_list_t *aal_list_append(aal_list_t *list, void *item);
 extern void aal_list_remove(aal_list_t *list, void *item);
 extern aal_list_t *aal_list_find(aal_list_t *list, void *item);
 
-extern aal_list_t *aal_list_find_custom(aal_list_t *list, void *item, 
-    comp_func_t comp_func, void *data);
-
-extern aal_list_t *aal_list_bin_search(aal_list_t *list, void *item, 
+extern aal_list_t *aal_list_find_custom(aal_list_t *list, void *needle, 
     comp_func_t comp_func, void *data);
 
 extern void aal_list_free(aal_list_t *list);

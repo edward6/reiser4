@@ -132,7 +132,7 @@ static errno_t format36_sync(reiserfs_format36_t *format) {
     aal_assert("umka-381", format != NULL, return -1);    
     aal_assert("umka-382", format->super != NULL, return -1);    
 
-    if (aal_block_write(format->device, format->super)) {
+    if (aal_block_write(format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't write superblock to block %llu. %s.", 
 	    aal_block_get_nr(format->super), aal_device_error(format->device));

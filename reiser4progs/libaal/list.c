@@ -226,7 +226,7 @@ aal_list_t *aal_list_find(aal_list_t *list, void *item) {
     return NULL;
 }
 
-aal_list_t *aal_list_find_custom(aal_list_t *list, void *item, 
+aal_list_t *aal_list_find_custom(aal_list_t *list, void *needle, 
     comp_func_t comp_func, void *data) 
 {
 
@@ -234,48 +234,12 @@ aal_list_t *aal_list_find_custom(aal_list_t *list, void *item,
 	return NULL;
     
     while (list) {
-	if (comp_func((const void *)list->item, (const void *)item, data))
+	if (comp_func((const void *)list->item, (const void *)needle, data))
 	    return list;
 
 	list = list->next;
     }
     return NULL;
-}
-
-aal_list_t *aal_list_bin_search(aal_list_t *list, void *item, 
-    comp_func_t comp_func, void *data)
-{
-    int ret = 0;
-    aal_list_t *nth;
-    uint32_t rbound, lbound, j;
-
-    aal_assert("umka-626", list != NULL, return NULL);
-    
-    if (!comp_func)
-	return NULL;
-    
-    list = aal_list_first(list);
-    
-    lbound = 0;
-    rbound = aal_list_length(list) - 1;
-
-    for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
-	if (!(nth = aal_list_at(list, j)))
-	    return NULL;
-	
-        if ((ret = comp_func((const void *)nth->item, (const void *)item, data)) < 0) { 
-            lbound = j + 1;
-            continue;
-        } else if (ret > 0) { 
-            if (j == 0) 
-		break;
-            rbound = j - 1;
-            continue;
-        } else 
-            return aal_list_at(list, j);
-    }
-
-    return aal_list_at(list, lbound - (ret >= 0));
 }
 
 void aal_list_free(aal_list_t *list) {

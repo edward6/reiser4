@@ -115,8 +115,7 @@ extern aal_block_t *aal_block_read(aal_device_t *device,
 extern errno_t aal_block_reread(aal_block_t *block, 
     aal_device_t *device, blk_t blk);
 
-extern errno_t aal_block_write(aal_device_t *device, 
-    aal_block_t *block);
+extern errno_t aal_block_write(aal_block_t *block);
 
 extern void aal_block_free(aal_block_t *block);
 extern blk_t aal_block_get_nr(aal_block_t *block);

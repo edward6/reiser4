@@ -11,6 +11,14 @@
 #include <reiser4/reiser4.h>
 #include <sys/stat.h>
 
+/* Translation table for item types. It is used for nice exceptions */
+char *reiserfs_item_name[] = {
+    [REISERFS_STATDATA_ITEM] = "STATDATA",
+    [REISERFS_DIRENTRY_ITEM] = "DIRENTRY",
+    [REISERFS_INTERNAL_ITEM] = "INTERNAL",
+    [REISERFS_FILENTRY_ITEM] = "FILEENTRY"
+};
+
 static int reiserfs_object_find_entry(reiserfs_coord_t *coord, reiserfs_key_t *key) {
     return 0;
 }
@@ -196,7 +204,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	libreiser4_factory_failed(goto error_free_object, find, key, profile->key);
 	    
     if (!parent) {
-	reiserfs_key_init(&parent_key, key_plugin);
+	parent_key.plugin = key_plugin;
 	reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR,
 	    reiserfs_oid_root_parent_locality(fs->oid), 
 	    reiserfs_oid_root_parent_objectid(fs->oid), 0);
@@ -208,7 +216,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     }
     parent_objectid = reiserfs_key_get_objectid(&parent_key);
 	
-    reiserfs_key_init(&object_key, key_plugin);
+    object_key.plugin = key_plugin;
     reiserfs_key_build_file_key(&object_key, KEY40_STATDATA_MINOR,
 	parent_objectid, objectid, 0);
 	
@@ -238,9 +246,11 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     
     /* Inserting all items into tree */
     for (i = 0; i < hint->count; i++) {
-	if (reiserfs_tree_insert_item(fs->tree, &hint->item[i])) {
+	if (reiserfs_tree_insert(fs->tree, &hint->item[i])) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't insert one of object items into tree.");
+		"Can't insert \"%s\" item of object %llx into the tree.", 
+		reiserfs_item_name[hint->item[i].type], 
+		reiserfs_key_get_objectid(&object_key));
 	    goto error_free_hint;
 	}
     }

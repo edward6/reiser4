@@ -131,7 +131,7 @@ static errno_t journal40_sync(reiserfs_journal40_t *journal) {
 
     aal_assert("umka-410", journal != NULL, return -1);
     
-    if (aal_block_write(journal->device, journal->header)) {
+    if (aal_block_write(journal->header)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write journal header at %llu block. %s.", 
 	    aal_block_get_nr(journal->header), 
@@ -139,7 +139,7 @@ static errno_t journal40_sync(reiserfs_journal40_t *journal) {
 	return -1;
     }
     
-    if (aal_block_write(journal->device, journal->footer)) {
+    if (aal_block_write(journal->footer)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write journal footer at %llu block. %s.", 
 	    aal_block_get_nr(journal->footer), 

@@ -130,7 +130,7 @@ static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
 	filesystem lies. There is also journal device.
     */
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
-    if (aal_block_write(fs->host_device, block)) {
+    if (aal_block_write(block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize master super block at %llu. %s.", 
 	    master_offset, aal_device_error(fs->host_device));
@@ -174,7 +174,7 @@ errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
 	fs->oid->plugin->oid, root_objectid,);
 
     /* Initializing the key by found plugin */
-    reiserfs_key_init(key, key_plugin);
+    key->plugin = key_plugin;
 
     /* Building the key */
     reiserfs_key_build_file_key(key, KEY40_STATDATA_MINOR,

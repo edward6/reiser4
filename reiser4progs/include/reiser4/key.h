@@ -47,12 +47,11 @@ typedef enum {
     KEY40_BODY_MINOR	 = 4
 } reiserfs_key40_minor_t;
 
-extern void reiserfs_key_init(reiserfs_key_t *key, 
-    reiserfs_plugin_t *key_plugin);
+extern errno_t reiserfs_key_init(reiserfs_key_t *key, 
+    const void *data, reiserfs_plugin_t *plugin);
 
-extern int reiserfs_key_compare(reiserfs_key_t *key1, reiserfs_key_t *key2);
-extern reiserfs_key_t *reiserfs_key_create(reiserfs_plugin_t *key_plugin);
-extern void reiserfs_key_done(reiserfs_key_t *key);
+extern int reiserfs_key_compare(reiserfs_key_t *key1, 
+    reiserfs_key_t *key2);
 
 extern void reiserfs_key_clean(reiserfs_key_t *key);
 

@@ -40,6 +40,8 @@ enum reiserfs_item_type {
 
 typedef enum reiserfs_item_type reiserfs_item_type_t;
 
+extern char *reiserfs_item_name[];
+
 enum reiserfs_tail_policy {
     REISERFS_NEVER_TAIL,
     REISERFS_SUPPOLD_TAIL,

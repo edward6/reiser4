@@ -74,14 +74,12 @@ typedef struct reiserfs_node reiserfs_node_t;
 
 struct reiserfs_node {
     aal_block_t *block;
-    aal_device_t *device;
+    aal_list_t *children;
     
-    reiserfs_plugin_t *node_plugin;
     reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *node_plugin;
     
     reiserfs_node_t *parent;
-    aal_list_t *children;
-
     reiserfs_node_t *left, *right;
 };
 

@@ -218,7 +218,7 @@ static errno_t callback_bitmap_flush(aal_device_t *device,
 		
     aal_memcpy(block->data, map, chunk); 
 		
-    if (aal_block_write(device, block)) {
+    if (aal_block_write(block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write bitmap block to %llu. %s.", blk, 
 	    aal_device_error(device));

@@ -136,7 +136,7 @@ static errno_t format40_sync(reiserfs_format40_t *format) {
     blk_t offset;
     aal_assert("umka-394", format != NULL, return -1); 
    
-    if (aal_block_write(format->device, format->super)) {
+    if (aal_block_write(format->super)) {
 	offset = aal_block_get_nr(format->super);
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't write superblock to %llu. %s.", offset, 

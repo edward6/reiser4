@@ -15,6 +15,9 @@
 #include <reiser4/key.h>
 #include <reiser4/plugin.h>
 
+#define LEFT (1)
+#define RIGHT (0)
+
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, 
     blk_t blk, reiserfs_id_t node_plugin_id, reiserfs_id_t key_plugin_id);
 
@@ -24,14 +27,29 @@ extern errno_t reiserfs_node_reopen(reiserfs_node_t *node,
 
 extern errno_t reiserfs_node_close(reiserfs_node_t *node);
 
-extern errno_t reiserfs_node_rdkey(reiserfs_node_t *node, reiserfs_key_t *key);
-extern errno_t reiserfs_node_ldkey(reiserfs_node_t *node, reiserfs_key_t *key);
+extern errno_t reiserfs_node_embed_key(reiserfs_node_t *node, 
+    uint32_t pos, reiserfs_key_t *key);
+
+extern reiserfs_node_t *reiserfs_node_left_neighbor(reiserfs_node_t *node);
+extern reiserfs_node_t *reiserfs_node_right_neighbor(reiserfs_node_t *node);
+
+extern errno_t reiserfs_node_lnkey(reiserfs_node_t *node, 
+    reiserfs_key_t *key);
+
+extern errno_t reiserfs_node_rnkey(reiserfs_node_t *node, 
+    reiserfs_key_t *key);
+
+extern errno_t reiserfs_node_rdkey(reiserfs_node_t *node, 
+    reiserfs_key_t *key);
+
+extern errno_t reiserfs_node_ldkey(reiserfs_node_t *node, 
+    reiserfs_key_t *key);
 
 extern errno_t reiserfs_node_register(reiserfs_node_t *node, 
-    reiserfs_node_t *children);
+    reiserfs_node_t *child);
 
 extern void reiserfs_node_unregister(reiserfs_node_t *node, 
-    reiserfs_node_t *children);
+    reiserfs_node_t *child);
 
 extern reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node, 
     reiserfs_key_t *key);
@@ -50,6 +68,15 @@ extern int reiserfs_node_lookup(reiserfs_node_t *node,
 
 extern errno_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 
+extern blk_t reiserfs_node_get_pointer(reiserfs_node_t *node, 
+    uint32_t pos);
+
+extern int reiserfs_node_has_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk);
+
+extern int reiserfs_node_item_internal(reiserfs_node_t *node, 
+    uint32_t pos);
+
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, 
@@ -61,6 +88,9 @@ extern errno_t reiserfs_node_flush(reiserfs_node_t *node);
 
 extern errno_t reiserfs_node_insert(reiserfs_node_t *node, 
     reiserfs_pos_t *pos, reiserfs_key_t *key, reiserfs_item_hint_t *item);
+
+extern void reiserfs_node_set_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk); 
 
 #endif
 
@@ -82,24 +112,12 @@ extern void reiserfs_node_set_free_space(reiserfs_node_t *node,
 extern void reiserfs_node_set_item_plugin_id(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_id_t plugin_id);
 
-extern void reiserfs_node_set_item_pointer(reiserfs_node_t *node, 
-    uint32_t pos, blk_t blk); 
-
 extern errno_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
     reiserfs_item_hint_t *item, reiserfs_pos_t *pos);
 
 #endif
 
 extern reiserfs_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, 
-    uint32_t pos);
-
-extern blk_t reiserfs_node_get_item_pointer(reiserfs_node_t *node, 
-    uint32_t pos);
-
-extern int reiserfs_node_has_item_pointer(reiserfs_node_t *node, 
-    uint32_t pos, blk_t blk);
-
-extern int reiserfs_node_item_internal(reiserfs_node_t *node, 
     uint32_t pos);
 
 extern uint16_t reiserfs_node_item_overhead(reiserfs_node_t *node);
