@@ -805,13 +805,6 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	scan_init(&right_scan);
 	scan_init(&left_scan);
 
-	/* init linkage status of the node */
-	if (jnode_is_znode(node)) {
-		/* if jnode is unformatted this status will be set in scan_unformatted */
-		set_flush_scan_nstat(&left_scan, LINKED);
-		set_flush_scan_nstat(&right_scan, LINKED);
-	}
-
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
 
@@ -845,7 +838,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* scan right is inherently deadlock prone, because we are
 	 * (potentially) holding a lock on the twig node at this moment.
 	 * FIXME: this is incorrect comment: lock is not held */
-	if (todo > 0 && (get_flush_scan_nstat(&right_scan) == LINKED)) {
+	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
@@ -1628,13 +1621,15 @@ out:
 static void
 item_convert_invariant(flush_pos_t * pos)
 {
-	if (convert_data(pos) && item_convert_data(pos)) {
+	assert("edward-1225", coord_is_existing_item(&pos->coord));
+	if (chaining_data_present(pos)) {
 		item_plugin * iplug  = item_convert_plug(pos);
 		
-		assert("edward-1000", ergo(coord_is_existing_item(&pos->coord), 
-					  iplug == item_plugin_by_coord(&pos->coord)));
+		assert("edward-1000", iplug == item_plugin_by_coord(&pos->coord));
 		assert("edward-1001", iplug->f.convert != NULL);
 	}
+	else
+		assert("edward-1226", pos->child == NULL);
 }
 #else
 
@@ -1644,7 +1639,7 @@ item_convert_invariant(flush_pos_t * pos)
 
 /* Scan node items starting from the first one and apply for each
    item its flush ->convert() method (if any). This method may
-   resize/kill the item, and also may change the tree.
+   resize/kill the item so the tree will be changed.
 */
 static int convert_node(flush_pos_t * pos, znode * node)
 {
@@ -1665,17 +1660,10 @@ static int convert_node(flush_pos_t * pos, znode * node)
 	
 	while (1) {
 		ret = 0;
+		coord_set_to_left(&pos->coord);
 		item_convert_invariant(pos);
 		
-		if (convert_data(pos) && item_convert_data(pos))
-			iplug = item_convert_plug(pos);
-		else if (!coord_is_existing_item(&pos->coord)) {
-			assert("edward-1002", 0);
-			break;
-		}
-		else
-			iplug = item_plugin_by_coord(&pos->coord);
-		
+		iplug = item_plugin_by_coord(&pos->coord);
 		assert("edward-844", iplug != NULL);
 		
 		if (iplug->f.convert) {
@@ -1688,31 +1676,32 @@ static int convert_node(flush_pos_t * pos, znode * node)
 		if (coord_next_item(&pos->coord)) {
 			/* node is over */
 			
-			if (!convert_data(pos) || !item_convert_data(pos))
+			if (!chaining_data_present(pos))
 				/* finished this node */
 				break;
-			if (chain_next_node(pos)) {
+			if (should_chain_next_node(pos)) {
 				/* go to next node */
-				move_item_convert_data(pos, 0 /* to next node */);
+				move_chaining_data(pos, 0 /* to next node */);
 				break;
 			}
 			/* repeat this node */
-			move_item_convert_data(pos, 1 /* this node */);
+			move_chaining_data(pos, 1 /* this node */);
 			continue;
 		}
 		/* Node is not over.
 		   Check if there is attached convert data.
-		   If so, roll one item position back and repeat
+		   If so roll one item position back and repeat
 		   on this node 
 		*/
-		if (convert_data(pos) && item_convert_data(pos)) {
+		if (chaining_data_present(pos)) {
+			
 			if (iplug != item_plugin_by_coord(&pos->coord))
 				set_item_convert_count(pos, 0);
 			
 			ret = coord_prev_item(&pos->coord);
 			assert("edward-1003", !ret);
 			
-			move_item_convert_data(pos, 1 /* this node */);
+			move_chaining_data(pos, 1 /* this node */);
 		}
 	}
 	JF_CLR(ZJNODE(node), JNODE_CONVERTIBLE);
@@ -2917,19 +2906,9 @@ jnode_lock_parent_coord(jnode         * node,
 				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, 0/*ra_info*/);
 		switch (ret) {
 		case CBK_COORD_NOTFOUND:
-			if (jnode_is_cluster_page(node)) {
-				int result;
-				assert("edward-1038", 0);
-				assert("edward-164", jnode_page(node) != NULL);
-				assert("edward-165", jnode_page(node)->mapping != NULL);
-				assert("edward-166", jnode_page(node)->mapping->host != NULL);
-				assert("edward-167", inode_get_flag(jnode_page(node)->mapping->host, REISER4_CLUSTER_KNOWN));
-                                /* jnode of a new cluster which is not represented by any items in the tree. */
-				result = incr_load_count_znode(parent_zh, parent_lh->node);
-				if (result != 0)
-					return result;
-				coord->between = AFTER_ITEM;
-			} else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+			if (jnode_is_cluster_page(node))
+				impossible("edward-1038", "flush didn't find disk cluster");
+			else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
 			}
@@ -3257,21 +3236,6 @@ scan_common(flush_scan * scan, flush_scan * other)
 	return 0;
 }
 
-/* called by scan_unformatted() when jnode_lock_parent_coord
-   returns COORD_NOT_FOUND.
-*/
-static int
-scan_should_link_node(flush_scan * scan)
-{
-	assert("edward-311", scan->node != NULL);
-	if (jnode_is_cluster_page(scan->node)) {
-
-		assert("edward-303", scan->parent_coord.between != EMPTY_NODE);
-		return 1;
-	}
-	return 0;
-}
-
 static int
 scan_unformatted(flush_scan * scan, flush_scan * other)
 {
@@ -3334,22 +3298,16 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		if (IS_CBKERR(ret))
 			return ret;
 
-		if (ret == CBK_COORD_NOTFOUND) {
+		if (ret == CBK_COORD_NOTFOUND)
 			/* FIXME(C): check EINVAL, E_DEADLOCK */
-			if (!scan_should_link_node(scan))
-				return ret;
-		}
-		else {
-			/* parent was found */
-			set_flush_scan_nstat(scan, LINKED);
-			assert("jmacd-8661", other != NULL);
-		}
-
+			return ret;
+		
+		/* parent was found */
+		assert("jmacd-8661", other != NULL);
 		/* Duplicate the reference into the other flush_scan. */
 		coord_dup(&other->parent_coord, &scan->parent_coord);
 		copy_lh(&other->parent_lock, &scan->parent_lock);
 		copy_load_count(&other->parent_load, &scan->parent_load);
-		set_flush_scan_nstat(other, scan->nstat);
 	}
  scan:
 	return scan_by_coord(scan);
@@ -3451,10 +3409,7 @@ scan_by_coord(flush_scan * scan)
 	scan_this_coord = (jnode_is_unformatted(scan->node) ? 1 : 0);
 
         /* set initial item id */
-	if (get_flush_scan_nstat(scan) == UNLINKED)
-		iplug = item_plugin_by_jnode(scan->node);
-	else
-		iplug = item_plugin_by_coord(&scan->parent_coord);
+	iplug = item_plugin_by_coord(&scan->parent_coord);
 
 	for (; !scan_finished(scan); scan_this_coord = 1) {
 		if (scan_this_coord) {

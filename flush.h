@@ -7,11 +7,6 @@
 
 #include "plugin/cryptcompress.h"
 
-typedef enum {
-	UNLINKED = 0,
-	LINKED   = 1
-} flush_scan_node_stat_t;
-
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
    single level of the tree.  A flush-scan is used for counting the number of adjacent
    nodes to flush, which is used to determine whether we should relocate, and it is also
@@ -41,13 +36,6 @@ struct flush_scan {
 	   been incremented to reflect this reference. */
 	jnode *node;
 
-	/* node specific linkage status. This indicates if the node that flush
-	 * started from is linked to the tree (like formatted nodes, extent's jnodes),
-	 * or not (like jnodes of newly created cluster of cryptcompressed file.
-	 * If (nstat == UNLINKED) we don't do right scan. Also we use this status in
-	 * scan_by_coord() to assign item plugin */
-	flush_scan_node_stat_t nstat;
-
 	/* A handle for zload/zrelse of current scan position node. */
 	load_count node_load;
 
@@ -67,19 +55,6 @@ struct flush_scan {
 	   flush_position.  Otherwise, the preceder is computed later. */
 	reiser4_block_nr preceder_blk;
 };
-
-static inline flush_scan_node_stat_t
-get_flush_scan_nstat(flush_scan * scan)
-
-{
-	return scan->nstat;
-}
-
-static inline void
-set_flush_scan_nstat(flush_scan * scan, flush_scan_node_stat_t nstat)
-{
-	scan->nstat = nstat;
-}
 
 typedef struct convert_item_info {
 	dc_item_stat d_cur;     /* disk cluster state of the current item */
@@ -192,16 +167,20 @@ tfm_stream_sq (flush_pos_t * pos, tfm_stream_id id)
 	return tfm_stream(tfm_cluster_sq(pos), id);
 }
 
-/* Returns true if item convert data should be moved
-   to the right slum neighbor */
 static inline int
-chain_next_node(flush_pos_t * pos) {
+chaining_data_present (flush_pos_t * pos)
+{
+	return convert_data(pos) && item_convert_data(pos);
+}
+
+/* Returns true if next node contains next item of the disk cluster
+   so item convert data should be moved to the right slum neighbor.
+*/
+static inline int
+should_chain_next_node(flush_pos_t * pos) {
 	int result = 0;
 
-	assert("edward-1007", 
-	       convert_data(pos) && item_convert_data(pos));
-	assert("edward-1008", 
-	       pos->coord.item_pos == coord_num_items(&pos->coord) - 1);
+	assert("edward-1007", chaining_data_present(pos));
 	
 	switch (item_convert_data(pos)->d_next) {
 	case DC_CHAINED_ITEM:
@@ -210,17 +189,17 @@ chain_next_node(flush_pos_t * pos) {
 	case DC_AFTER_CLUSTER:
 		break;
 	default:
-		impossible("edward-1009", 
-			   "wrong cluster status of next slum item");
+		impossible("edward-1009", "bad state of next slum item");
 	}
 	return result;
 }
 
+/* update item state in a disk cluster to assign conversion mode */
 static inline void
-move_item_convert_data(flush_pos_t * pos, 
+move_chaining_data(flush_pos_t * pos,
 		       int this_node /* where is next item */) {
 	
-	assert("edward-1010", convert_data(pos) && item_convert_data(pos));
+	assert("edward-1010", chaining_data_present(pos));
 	
 	if (this_node == 0) {
 		/* next item is on the right neighbor */
@@ -234,12 +213,15 @@ move_item_convert_data(flush_pos_t * pos,
 		item_convert_data(pos)->d_next = DC_INVALID_STATE;
 	} else {
 		/* next item is on the same node */ 
-		
 		assert("edward-1013",
+		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
+		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
+		assert("edward-1227",	       
 		       item_convert_data(pos)->d_next == DC_AFTER_CLUSTER ||
 		       item_convert_data(pos)->d_next == DC_INVALID_STATE);
 		
 		item_convert_data(pos)->d_cur = DC_AFTER_CLUSTER;
+		item_convert_data(pos)->d_next = DC_INVALID_STATE;
 	}
 }
 
