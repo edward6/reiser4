@@ -592,7 +592,7 @@ make_cluster_jnodes_dirty(reiser4_cluster_t * clust)
 	}
 }
 
-/* collect some unlocked cluster pages and jnodes */
+/* collect unlocked cluster pages and jnodes */
 static int
 grab_cache_cluster(struct inode * inode, reiser4_cluster_t * clust)
 {
@@ -618,6 +618,7 @@ grab_cache_cluster(struct inode * inode, reiser4_cluster_t * clust)
 			result = PTR_ERR(node);
 			break;
 		}
+		JF_SET(node, JNODE_CLUSTER_PAGE);
 	}
 	if (result) {
 		while(i) {
