@@ -15,15 +15,13 @@
 #define WRDTABSIZE
 #define FREESPACESIZE (4096 - sizeof(char*)*2 - sizeof(int) )
 #define VARTABSIZE
+
+
 /*
-#define 
-*/
-
-
 #ifndef YYSTYPE
 typedef int YYSTYPE;
 #endif
-
+*/
 
 #define wrdTab(x)   ws->f_WrdTab(x)
 
@@ -47,28 +45,17 @@ typedef int YYSTYPE;
 #define varco    ws->ws_varco 
 
 
-/* mast be removed
-typedef struct val_list val_list;
-
-struct val_list
-{
-	val_list *  val_next;
-	unsigned    val_type;
-	unsigned    val_size;
-	void     *  val_space;
-} ;
-*/
-
-
 
 /* ok this is space for names, constants and tmp*/
-typedef struct freeSpace
+typedef struct freeSpace freeSpace_t;
+
+struct freeSpace
 {
-	freeSpace * freeSpace_next;
-	char      * freeSpace;
-	int         freeSpaceSize;
-	char        freeSpaceBase[FREESPACESIZE];
-} freeSpace;
+	freeSpace_t * freeSpace_next;
+	char        * freeSpace;
+	int           freeSpaceSize;
+	char          freeSpaceBase[FREESPACESIZE];
+};
 
 
 
@@ -83,15 +70,17 @@ struct qstr {
 */
 
 
-typedef struct var
+typedef struct var var_t;
+
+struct var
 {
-	struct qstr txt ;           /* txt.name  is ptr to space     */
-	var * next ;                /* next var                      */
+	struct qstr u ;             /* txt.name  is ptr to space     */
+	var_t * next ;              /* next var                      */
 	struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
 	int vtype   ;               /* Type of name                  */
 	int vSpace  ;               /* v4  space name or not         */
 	int vlevel  ;               /* level                     */
-} var;
+};
 
 
 
@@ -106,19 +95,10 @@ typedef struct streg                /* for compile time level information */
 	                            /* struct nameidata * curent_nd; */
 } streg;
 
-/*
-typedef struct StrTab
-{
-	wrdtab * Str_next;
-	int      StrTabSize;
-	int      StrTabLast;
-	strreg   StrTabName[STRTABSIZE];
-} StrTab;
-*/
 
-freeList(freeSpace * list)
+freeList(freeSpace_t * list)
 {
-	freeSpace * current,* next;
+	freeSpace_t * current,* next;
 	next = list;
 	while (next)
 		{
@@ -176,13 +156,13 @@ struct yy_r4_work_spaces
 	char * freeSpace;
 	char * yytext
 	                               /* space for   */
-	freeSpace * freeSpHead;
+	freeSpace_t * freeSpHead;
 	/*
 	varTab    * VarTabHead;
 	*/
 	streg     * StrTabHead;
 
-	wrdTab    * WrdHead;
+	var_t     * WrdHead;
 	
 	lnode     * current_path;
 	

@@ -19,10 +19,10 @@ int yywrap()
     return 1;
 }
 
-freeSpace * freeSpaceAlloc()
+freeSpace_t * freeSpaceAlloc()
 {
-	freeSpace * fs;
-	if ( ( fs = ( freeSpace * ) kmalloc( sizeof( freeSpace ) ) ) != 0 )
+	freeSpace_t * fs;
+	if ( ( fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ) ) ) != 0 )
 		{
 			fs->freeSpace_next = NULL;
 			fs->freeSpaceSize  = FREESPACESIZE;

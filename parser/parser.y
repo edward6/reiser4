@@ -50,7 +50,8 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 	struct Label * Label;
 	struct String * StrPtr;
 	struct lnode * expr;
-	var * Var;
+	struct var * Var;
+	/*	var_t * Var;*/
 }
 
 %type <Var> WORD N_WORD P_WORD P_RUNNER 
@@ -121,6 +122,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %token IF
 %token THEN ELSE
 %token EXIST
+%token NAME NONAME
 
 %token WORD N_WORD P_WORD STRING_CONSTANT
 
@@ -138,11 +140,6 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %left NOT
 
 %right ELSE
-
-
-
-
-
 
 
 /*
@@ -192,7 +189,7 @@ Expression
 
 | UnordBeg Unordered_list R_SKW_PARENT            { $$ = $2; level_down( UNORDERED ); }      /* grouping: [name1 name2 [name3]]  */
 
-| Object_Name SLASH Object_Name       { $$ = associate( $1, $3 );}    
+| Object_Name SLASH Object_Name                   { $$ = associate( $1, $3 );}    
 
 
 | tw_begin Expression R_SKW_PARENT                { $$ = end_tw_list( $1, $2 ); level_down( TW_BEGIN ); }     /*   ..tw/[a<-b;b<-c] */ 
@@ -209,6 +206,8 @@ Expression
 |  Object_Name  L_APPEND        Expression        { $$ = assign( $1, $3 ); }            /*  <-  direct assign  */
 |  Object_Name  L_ASSIGN  INV_L Expression INV_R  { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
 |  Object_Name  L_SYMLINK       Expression        { $$ = symlink( $1, $3 ); }           /*   ->  symlink   */
+|  UNNAME Expression                              { $$ = contens_of( $2 ); }
+|  NAME Expression                                { $$ = contens_to( $2 ); }
 
 
 
@@ -280,7 +279,6 @@ Object_Name
 Object_Path_Name
 : WORD                                            { $$ = pars_path_walk( $1 ); }
 | SLASH_PROCESS                                   { $$ = make_proc_lnode(); }
-| UNNAME WORD                                     { $$ = contens_of(pars_path_walk( $1 )); }
 ;
 
 /*
@@ -337,6 +335,8 @@ range
 #include <sys/stat.h>
 #include <linux/ctype.h>
 
+//#include "../lnode.h"
+#include "../reiser4.h"
 #include "parser.h"
 #include "pars.cls.h"
 
@@ -496,34 +496,46 @@ b_check_word(struct yy_r4_work_spaces * ws )
 
 
 
-var * inttab(struct yy_r4_work_spaces * ws )
+var_t * inttab(struct yy_r4_work_spaces * ws )
 {
 	int i;
-	var * cur_var;
-	var * new_var;
+	var_t * cur_var;
+	var_t * new_var;
+	int len;
 
-	cur_var = ws->WrdHead;
-
-	cur_var = get_first_wrd(ws);
+	new_var = get_first_wrd(ws);
 
 	len = strlen( ws->freeSpace );
 
-	while ( !( cur_var == Null ) )
+	cur_var = Nul;
+	while ( !( new_var == Null ) )
 		{
-			if (cur_var->txt.len==len)
+			cur_var = new_var;
+			if ( cur_var->u.len == len )
 				{
-					if( !( strcmp( cur_var->txt.name, ws->freeSpace ) )  )
+					if( !( strncmp( cur_var->ut.name, ws->freeSpace, cur_var->u.len ) )  )
 						{
 							return cur_var;
 						}
 				}
-
-			cur_var = get_next_wrd(ws,cur_var);
+			
+			new_var = get_next_wrd(ws,cur_var);
 		}
+	
 
-	new_var=(var*)( (char*)(ws->freeSpace) + len );
-	new_var->txt.name = ws->freeSpace;
-	new_var->txt.len  = ws->freeSpace;
+	new_var           = (var_t*)( (char*)(ws->freeSpace) + len );
+	new_var->u.name = ws->freeSpace;
+	new_var->u.len  = ws->freeSpace;
+	new_var->next     = Null;
+
+	if (cur_var==Null)
+		{
+			ws->WrdHead   = new_war;
+		}
+	else
+		{
+			cur_var->next = new_var;
+		}
 
 	return new_var;
 }
