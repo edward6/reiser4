@@ -62,22 +62,6 @@ struct aal_device_ops {
     count_t (*len)(aal_device_t *);
 };
 
-/*
-    Disk block structure. It is a replica of struct buffer_head from the linux 
-    kernel. It consists of flags (dirty, clean, etc), data (pointer to data of
-    block), block size, offset (offset in bytes where block is placed on device),
-    and pointer to device, block opened on.
-*/
-struct aal_block {
-    int flags;
-    void *data;
-    uint16_t size;
-    uint64_t offset;
-    aal_device_t *device;
-};
-
-typedef struct aal_block aal_block_t;
-
 extern aal_device_t *aal_device_open(struct aal_device_ops *ops, 
     uint16_t blocksize, int flags, void *data);
 
@@ -104,31 +88,6 @@ extern uint32_t aal_device_stat(aal_device_t *device);
 extern count_t aal_device_len(aal_device_t *device);
 extern char *aal_device_name(aal_device_t *device);
 extern char *aal_device_error(aal_device_t *device);
-
-/* Block-working functions */
-extern aal_block_t *aal_block_alloc(aal_device_t *device, 
-    blk_t blk, char c);
-
-extern aal_block_t *aal_block_read(aal_device_t *device, 
-    blk_t blk);
-
-extern errno_t aal_block_reread(aal_block_t *block, 
-    aal_device_t *device, blk_t blk);
-
-extern errno_t aal_block_write(aal_block_t *block);
-
-extern void aal_block_free(aal_block_t *block);
-extern blk_t aal_block_get_nr(aal_block_t *block);
-extern void aal_block_set_nr(aal_block_t *block, blk_t blk);
-extern uint32_t aal_block_size(aal_block_t *block);
-
-#define B_DIRTY 0 
-
-#define aal_block_is_dirty(block) block->flags & (1 << B_DIRTY)
-#define aal_block_is_clean(block) (!aal_block_is_dirty(block))
-
-#define aal_block_dirty(block) block->flags |=  (1 << B_DIRTY)
-#define aal_block_clean(block) block->flags &= ~(1 << B_DIRTY)
 
 #endif
 

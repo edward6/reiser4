@@ -21,6 +21,7 @@ reiser4_master_t *reiser4_master_create(
     const char *uuid,		    /* uuid to be used */
     const char *label		    /* filesystem label to be used */
 ) {
+    blk_t offset;
     reiser4_master_t *master;
     
     aal_assert("umka-981", device != NULL, return NULL);
@@ -29,8 +30,9 @@ reiser4_master_t *reiser4_master_create(
     if (!(master = aal_calloc(sizeof(*master), 0)))
 	return NULL;
     
-    if (!(master->block = aal_block_alloc(device, 
-	    REISER4_MASTER_OFFSET / blocksize, 0)))
+    offset = REISER4_MASTER_OFFSET / blocksize;
+    
+    if (!(master->block = aal_block_create(device, offset, 0)))
 	goto error_free_master;
     
     master->super = (reiser4_master_super_t *)master->block->data;
@@ -108,7 +110,7 @@ int reiser4_master_confirm(aal_device_t *device) {
     aal_device_set_bs(device, REISER4_DEFAULT_BLOCKSIZE);
     
     /* Reading the block where master super block lies */
-    if (!(block = aal_block_read(device, offset))) {
+    if (!(block = aal_block_open(device, offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't read master super block at %llu.", offset);
 	return 0;
@@ -154,7 +156,7 @@ reiser4_master_t *reiser4_master_open(aal_device_t *device) {
     aal_device_set_bs(device, REISER4_DEFAULT_BLOCKSIZE);
     
     /* Reading the block where master super block lies */
-    if (!(master->block = aal_block_read(device, offset))) {
+    if (!(master->block = aal_block_open(device, offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't read master super block at %llu.", offset);
 	goto error_free_master;
@@ -216,10 +218,10 @@ errno_t reiser4_master_sync(
 	return 0;
     
     /* Writing master super block to its device */
-    if (aal_block_write(master->block)) {
+    if (aal_block_sync(master->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize master super block at %llu. %s.", 
-	    aal_block_get_nr(master->block), 
+	    aal_block_number(master->block), 
 	    aal_device_error(master->block->device));
 	return -1;
     }

@@ -85,7 +85,7 @@ static int fsck_ask_confirmation(repair_data_t *data, char *host_name)
 
     fprintf(stderr, "Will use (%s) profile.\n", data->profile->label);
 
-    if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YES|EXCEPTION_NO, 
+    if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YESNO, 
 	"Continue?") == EXCEPTION_NO) 
 	return USER_ERROR;
      

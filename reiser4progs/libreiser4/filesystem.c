@@ -271,7 +271,7 @@ reiser4_fs_t *reiser4_fs_create(
     
     /* Setts up root block */
     reiser4_format_set_root(fs->format, 
-	aal_block_get_nr(fs->tree->cache->node->block));
+	aal_block_number(fs->tree->cache->node->block));
 
     /* Creates root directory */
     {

@@ -29,6 +29,8 @@ static aal_list_t *possibilities = NULL;
 
 #endif /* HAVE_LIBREADLINE */
 
+#include <misc/misc.h>
+
 /* This function gets user enter */
 char *progs_ui_readline(
     char *prompt		/* prompt to be printed */
@@ -146,15 +148,6 @@ void progs_ui_print_wrap(void *stream, char *text) {
 
 #ifdef HAVE_LIBREADLINE
 
-static void upper(char *dst, const char *src) {
-    int i = 0;
-    const char *s;
-
-    s = src;
-    while (*s) dst[i++] = toupper(*s++);
-    dst[i] = '\0';
-}
-
 static char *progs_ui_generator(char *text, int state) {
     char *opt;
     char s[80], s1[80];
@@ -170,7 +163,8 @@ static char *progs_ui_generator(char *text, int state) {
 	opt = (char *)cur->item;
 	cur = cur->next;
 
-	upper(s, opt); upper(s1, text);
+	progs_misc_upper(s, opt); 
+	progs_misc_upper(s1, text);
 	if (!aal_strncmp(s, s1, aal_strlen(s1)))
 	    return aal_strdup(opt);
     }

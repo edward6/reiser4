@@ -14,7 +14,7 @@
 #define REISER4_MASTER_MAGIC		("R4Sb")
 
 typedef uint64_t oid_t;
-typedef uint32_t reiser4_id_t;
+typedef uint16_t reiser4_id_t;
 typedef void reiser4_body_t;
 
 enum reiser4_plugin_type {
@@ -557,19 +557,19 @@ struct reiser4_node_ops {
     errno_t (*print) (reiser4_entity_t *, char *, uint32_t, uint16_t);
     
     /* Returns item count */
-    uint32_t (*count) (reiser4_entity_t *);
+    uint16_t (*count) (reiser4_entity_t *);
     
     /* Returns item's overhead */
-    uint32_t (*overhead) (reiser4_entity_t *);
+    uint16_t (*overhead) (reiser4_entity_t *);
 
     /* Returns item's max size */
-    uint32_t (*maxspace) (reiser4_entity_t *);
+    uint16_t (*maxspace) (reiser4_entity_t *);
     
     /* Returns free space in the node */
-    uint32_t (*space) (reiser4_entity_t *);
+    uint16_t (*space) (reiser4_entity_t *);
 
     /* Gets node's plugin id */
-    uint32_t (*pid) (reiser4_entity_t *);
+    uint16_t (*pid) (reiser4_entity_t *);
     
     /* 
 	Makes lookup inside node by specified key. Returns TRUE in the case exact
@@ -600,10 +600,10 @@ struct reiser4_node_ops {
     reiser4_body_t *(*item_body) (reiser4_entity_t *, reiser4_pos_t *);
 
     /* Returns item's length by pos */
-    uint32_t (*item_len) (reiser4_entity_t *, reiser4_pos_t *);
+    uint16_t (*item_len) (reiser4_entity_t *, reiser4_pos_t *);
     
     /* Gets/sets node's plugin ID */
-    uint32_t (*item_pid) (reiser4_entity_t *, reiser4_pos_t *);
+    uint16_t (*item_pid) (reiser4_entity_t *, reiser4_pos_t *);
 };
 
 typedef struct reiser4_node_ops reiser4_node_ops_t;
@@ -854,6 +854,14 @@ struct reiser4_place {
 };
 
 typedef struct reiser4_place reiser4_place_t;
+
+/* The common node header */
+struct reiser4_node_header {
+    uint16_t pid;
+    uint16_t num_items;
+};
+
+typedef struct reiser4_node_header reiser4_node_header_t;
 
 /* 
     This structure is passed to all plugins in initialization time and used

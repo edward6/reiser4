@@ -23,7 +23,7 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open item by coord. Node %llu, item %u.",
-	    aal_block_get_nr(object->coord.cache->node->block),
+	    aal_block_number(object->coord.cache->node->block),
 	    object->coord.pos.item);
 
 	return NULL;
@@ -118,7 +118,7 @@ static errno_t reiser4_object_lookup(
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open item by coord. Node %llu, item %u.",
-		aal_block_get_nr(object->coord.cache->node->block),
+		aal_block_number(object->coord.cache->node->block),
 		object->coord.pos.item);
 
 	    return -1;

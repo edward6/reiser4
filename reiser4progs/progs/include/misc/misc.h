@@ -56,6 +56,7 @@
 
 extern int progs_misc_dev_mounted(const char *name, const char *ops);
 extern long long progs_misc_size_parse(const char *str, int *error);
+extern void progs_misc_upper(char *dst, const char *src);
 extern void progs_misc_factory_list(void);
 
 #endif

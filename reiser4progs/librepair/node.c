@@ -21,15 +21,15 @@ errno_t repair_node_check(reiser4_node_t *node, void *data) {
     }*/
     
     /* Check if we met it already in the control allocator. */
-    if (reiser4_alloc_test(traverse->a_control, aal_block_get_nr(node->block))) {
+    if (reiser4_alloc_test(traverse->a_control, aal_block_number(node->block))) {
 	aal_exception_error("The node in the block (%llu) is used more then once in "
-	    "the tree.", aal_block_get_nr(node->block));
+	    "the tree.", aal_block_number(node->block));
 	return -1;
     }
     
     if (reiser4_node_lkey(node, &key)) {
 	aal_exception_error("Failed to get the left key from the node (%llu).", 
-	    aal_block_get_nr(node->block));
+	    aal_block_number(node->block));
 	return -1;
     }
     
@@ -38,7 +38,7 @@ errno_t repair_node_check(reiser4_node_t *node, void *data) {
     
     if (reiser4_key_compare(&traverse->ld_key, &key) != 0) {
 	aal_exception_error("The first key %k in the node (%llu) is not equal to the left "
-	    "delimiting key %k.", &key, aal_block_get_nr(node->block), &traverse->ld_key);
+	    "delimiting key %k.", &key, aal_block_number(node->block), &traverse->ld_key);
 	return -1;
     }
     

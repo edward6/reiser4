@@ -69,7 +69,7 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
 	return 0;
     }*/
  
-    if (!(block = aal_block_read(fs->format->device, blk))) {
+    if (!(block = aal_block_open(fs->format->device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read block %llu. %s.", blk, fs->format->device->error);
 	return -1;
@@ -98,7 +98,7 @@ static errno_t repair_master_check(reiser4_fs_t *fs, callback_ask_user_t ask_blo
     
     if (!fs->master) {
 	/* Master SB was not opened. Create a new one. */
-	if (aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_YES|EXCEPTION_NO, 
+	if (aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_YESNO, 
 	    "Master super block cannot be found. Do you want to build a new one on (%s)?",
 	    aal_device_name(repair_data(fs)->host_device)) == EXCEPTION_NO) 
 	    return -1;

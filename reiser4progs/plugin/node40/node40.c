@@ -47,7 +47,7 @@ static reiser4_entity_t *node40_create(aal_block_t *block,
 
 #endif
 
-static uint32_t node40_pid(reiser4_entity_t *entity) {
+static uint16_t node40_pid(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
     
     aal_assert("umka-827", node != NULL, return 0);
@@ -96,7 +96,7 @@ static int node40_confirm(aal_block_t *block) {
 }
 
 /* Returns item number in given block. Used for any loops through all items */
-static uint32_t node40_count(reiser4_entity_t *entity) {
+static uint16_t node40_count(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
     
     aal_assert("vpf-018", node != NULL, return 0);
@@ -140,12 +140,12 @@ static void *node40_item_body(reiser4_entity_t *entity,
     Retutns items overhead for this node format. Widely used in modification and 
     estimation routines.
 */
-static uint32_t node40_overhead(reiser4_entity_t *entity) {
+static uint16_t node40_overhead(reiser4_entity_t *entity) {
     return sizeof(item40_header_t);
 }
 
 /* Returns maximal size of item possible for passed node instance */
-static uint32_t node40_maxspace(reiser4_entity_t *entity) {
+static uint16_t node40_maxspace(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
     
     aal_assert("vpf-016", node != NULL, return 0);
@@ -154,7 +154,7 @@ static uint32_t node40_maxspace(reiser4_entity_t *entity) {
 	sizeof(item40_header_t);
 }
 
-static uint32_t node40_item_pid(reiser4_entity_t *entity, 
+static uint16_t node40_item_pid(reiser4_entity_t *entity, 
     reiser4_pos_t *pos)
 {
     node40_t *node = (node40_t *)entity;
@@ -169,7 +169,7 @@ static uint32_t node40_item_pid(reiser4_entity_t *entity,
 }
 
 /* Returns length of item at pos */
-static uint32_t node40_item_len(reiser4_entity_t *entity, 
+static uint16_t node40_item_len(reiser4_entity_t *entity, 
     reiser4_pos_t *pos)
 {
     node40_t *node = (node40_t *)entity;
@@ -190,7 +190,7 @@ static errno_t node40_expand(node40_t *node,
 {
     void *body;
     int i, item_pos;
-    uint32_t offset;
+    uint16_t offset;
     
     int is_insert;
     int is_space;
@@ -302,13 +302,13 @@ static errno_t node40_paste(reiser4_entity_t *entity,
 }
 
 static errno_t node40_shrink(node40_t *node,
-    reiser4_pos_t *pos, uint32_t len) 
+    reiser4_pos_t *pos, uint16_t len) 
 {
     int is_range;
     int is_move;
     int is_cut;
     
-    uint32_t offset;
+    uint16_t offset;
     node40_header_t *nh;
     item40_header_t *ih;
         
@@ -358,7 +358,7 @@ static errno_t node40_shrink(node40_t *node,
 static errno_t node40_remove(reiser4_entity_t *entity, 
     reiser4_pos_t *pos) 
 {
-    uint32_t len;
+    uint16_t len;
     item40_header_t *ih;
     node40_header_t *nh;
     node40_t *node = (node40_t *)entity;
@@ -385,7 +385,7 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     reiser4_pos_t *pos)
 {
     void *body;
-    uint32_t len;
+    uint16_t len;
     reiser4_id_t pid;
     
     item40_header_t *ih;
@@ -432,7 +432,7 @@ static errno_t node40_valid(reiser4_entity_t *entity) {
     return 0;
 }
 
-static uint32_t node40_space(reiser4_entity_t *entity) {
+static uint16_t node40_space(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
     
     aal_assert("vpf-020", node != NULL, return 0);

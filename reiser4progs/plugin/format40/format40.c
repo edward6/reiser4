@@ -174,7 +174,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
     
     offset = (FORMAT40_OFFSET / aal_device_get_bs(device));
 	
-    if (!(block = aal_block_read(device, offset))) {
+    if (!(block = aal_block_open(device, offset))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't read block %llu. %s.", offset, 
 	   aal_device_error(device));
@@ -216,13 +216,13 @@ static errno_t callback_clobber_block(aal_device_t *device,
 {
     aal_block_t *block;
 
-    if (!(block = aal_block_alloc(device, blk, 0))) {
+    if (!(block = aal_block_create(device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't clobber block %llu.", blk);
 	return -1;
     }
     
-    if (aal_block_write(block)) {
+    if (aal_block_sync(block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write block %llu to device. %s.", blk, 
 	    device->error);
@@ -254,7 +254,7 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
     format->device = device;
     format->plugin = &format40_plugin;
 
-    if (!(format->block = aal_block_alloc(device, (FORMAT40_OFFSET / 
+    if (!(format->block = aal_block_create(device, (FORMAT40_OFFSET / 
 	aal_device_get_bs(device)), 0))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -299,8 +299,8 @@ static errno_t format40_sync(reiser4_entity_t *entity) {
    
     format = (format40_t *)entity;
     
-    if (aal_block_write(format->block)) {
-	blk_t offset = aal_block_get_nr(format->block);
+    if (aal_block_sync(format->block)) {
+	blk_t offset = aal_block_number(format->block);
 	
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't write superblock to %llu. %s.", offset, 

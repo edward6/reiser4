@@ -30,14 +30,14 @@ static errno_t callback_fetch_journal(aal_device_t *device,
     journal40_t *journal = (journal40_t *)data;
 
     if (!journal->header) {
-	if (!(journal->header = aal_block_read(device, blk))) {
+	if (!(journal->header = aal_block_open(device, blk))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't read journal header from block %llu. %s.", 
 		blk, device->error);
 	    return -1;
 	}
     } else {
-	if (!(journal->footer = aal_block_read(device, blk))) {
+	if (!(journal->footer = aal_block_open(device, blk))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't read journal footer from block %llu. %s.", 
 		blk, device->error);
@@ -103,13 +103,13 @@ static errno_t callback_alloc_journal(aal_device_t *device,
     journal40_t *journal = (journal40_t *)data;
 
     if (!journal->header) {
-	if (!(journal->header = aal_block_alloc(device, blk, 0))) {
+	if (!(journal->header = aal_block_create(device, blk, 0))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't alloc journal header on block %llu.", blk);
 	    return -1;
 	}
     } else {
-	if (!(journal->footer = aal_block_alloc(device, blk, 0))) {
+	if (!(journal->footer = aal_block_create(device, blk, 0))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't alloc journal footer on block %llu.", blk);
 	    return -1;
@@ -161,15 +161,15 @@ static errno_t callback_flush_journal(aal_device_t *device,
 {
     journal40_t *journal = (journal40_t *)data;
 
-    if (blk == aal_block_get_nr(journal->header)) {
-	if (aal_block_write(journal->header)) {
+    if (blk == aal_block_number(journal->header)) {
+	if (aal_block_sync(journal->header)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't write journal header to block %llu. %s.", 
 		blk, device->error);
 	    return -1;
 	}
     } else {
-	if (aal_block_write(journal->footer)) {
+	if (aal_block_sync(journal->footer)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't write journal footer to block %llu. %s.", 
 		blk, device->error);

@@ -42,9 +42,17 @@ static aal_exception_option_t progs_exception_oneof(
     
     for (i = 0; i < aal_log2(EXCEPTION_LAST); i++) {
 	if ((1 << i) & options) {
+	    char str1[256], str2[256];
 	    char *opt = aal_exception_option_string(1 << i);
-	    if (aal_strncmp(opt, name, aal_strlen(name)) == 0 || 
-		    (aal_strlen(name) == 1 && toupper(opt[0]) == toupper(name[0])))
+
+	    aal_memset(str1, 0, sizeof(str1));
+	    aal_memset(str2, 0, sizeof(str2));
+	    
+	    progs_misc_upper(str1, opt);
+	    progs_misc_upper(str2, name);
+	    
+	    if (aal_strncmp(str1, str2, aal_strlen(str2)) == 0 || 
+		    (aal_strlen(str2) == 1 && str1[0] == name[0]))
 		return 1 << i;
 	}
     }

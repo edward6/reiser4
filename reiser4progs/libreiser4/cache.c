@@ -158,7 +158,7 @@ errno_t reiser4_cache_pos(
     if (reiser4_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find left delimiting key of node %llu in its parent.", 
-	    aal_block_get_nr(cache->node->block));
+	    aal_block_number(cache->node->block));
 	return -1;
     }
     
@@ -373,7 +373,7 @@ errno_t reiser4_cache_sync(
     if (reiser4_node_sync(cache->node)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize node %llu to device. %s.", 
-	    aal_block_get_nr(cache->node->block), 
+	    aal_block_number(cache->node->block), 
 	    aal_device_error(cache->node->block->device));
 	return -1;
     }
@@ -512,7 +512,7 @@ errno_t reiser4_cache_remove(
 		return -1;
 
 	    reiser4_alloc_dealloc(cache->tree->fs->alloc,
-		aal_block_get_nr(cache->node->block));
+		aal_block_number(cache->node->block));
 	    
 	    reiser4_cache_unregister(cache->parent, cache);
 	    reiser4_cache_close(cache);

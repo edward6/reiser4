@@ -21,31 +21,41 @@ struct node40 {
 
 typedef struct node40 node40_t;
 
-struct flush_stamp {
+struct node40_flush_stamp {
     uint32_t mkfs_id;
     uint64_t write_counter;
 };
 
-typedef struct flush_stamp flush_stamp_t;
+typedef struct node40_flush_stamp node40_flush_stamp_t;
 
 /* Format of node header for node40 */
 struct node40_header {
-    uint16_t pid; 
-    uint16_t free_space;
-    uint16_t free_space_start;
-    uint8_t level;
-    uint32_t magic;
-    uint16_t num_items;
+
+    /* The node common header */
+    reiser4_node_header_t h;
     
-    flush_stamp_t flush_stamp;
+    /* Node free space */
+    uint16_t free_space;
+
+    /* Free space start */
+    uint16_t free_space_start;
+
+    /* Node level (is not used in libreiser4) */
+    uint8_t level;
+
+    uint32_t magic;
+    node40_flush_stamp_t flush_stamp;
 };
 
 typedef struct node40_header node40_header_t;  
 
 #define	nh40(block)				((node40_header_t *)block->data)
 
-#define nh40_get_pid(header)			aal_get_le16(header, pid)
-#define nh40_set_pid(header, val)		aal_set_le16(header, pid, val)
+#define nh40_get_pid(header)			aal_get_le16(&header->h, pid)
+#define nh40_set_pid(header, val)		aal_set_le16(&header->h, pid, val)
+
+#define nh40_get_num_items(header)		aal_get_le16(&header->h, num_items)
+#define nh40_set_num_items(header, val)		aal_set_le16(&header->h, num_items, val)
 
 #define nh40_get_free_space(header)		aal_get_le16(header, free_space)
 #define nh40_set_free_space(header, val)	aal_set_le16(header, free_space, val)
@@ -58,9 +68,6 @@ typedef struct node40_header node40_header_t;
 
 #define nh40_get_magic(header)			aal_get_le32(header, magic)
 #define nh40_set_magic(header, val)		aal_set_le32(header, magic, val)
-
-#define nh40_get_num_items(header)		aal_get_le16(header, num_items)
-#define nh40_set_num_items(header, val)		aal_set_le16(header, num_items, val)
 
 /* 
     Item headers are not standard across all node layouts, pass

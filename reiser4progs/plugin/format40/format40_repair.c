@@ -65,7 +65,7 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
     if (aal_device_len(format->device) != get_sb_block_count(super)) {
 	result = aal_device_len(format->device);
 	    
-	if (aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_YES|EXCEPTION_NO, 
+	if (aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_YESNO, 
 	    "Number of blocks found in the superblock (%llu) is not equal to the size "
 	    "of the partition.\nHave you used resizer?", 
 	    get_sb_block_count(super)) == EXCEPTION_NO) 

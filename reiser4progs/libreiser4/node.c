@@ -53,7 +53,7 @@ errno_t reiser4_node_sync(
     reiser4_node_t *node	/* node to be save */
 ) {
     aal_assert("umka-798", node != NULL, return -1);
-    return aal_block_write(node->block);
+    return aal_block_sync(node->block);
 }
 
 /* Updates key in specified position */
@@ -111,7 +111,7 @@ reiser4_node_t *reiser4_node_open(
     if (!(plugin = reiser4_node_guess(node->block))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't guess node plugin for node %llu.", 
-	    aal_block_get_nr(block));
+	    aal_block_number(block));
 	return NULL;
     }
     
@@ -203,7 +203,7 @@ static errno_t reiser4_node_relocate(
     if (reiser4_item_open(&item, src_node, src_pos)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open item by its coord. Node %llu, item %u.",
-	    aal_block_get_nr(src_node->block), src_pos->item);
+	    aal_block_number(src_node->block), src_pos->item);
 	return -1;
     }
     
@@ -326,7 +326,7 @@ int reiser4_node_lookup(
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the node %llu failed.", 
-	    aal_block_get_nr(node->block));
+	    aal_block_number(node->block));
 	return -1;
     }
 
@@ -335,7 +335,7 @@ int reiser4_node_lookup(
     if (reiser4_item_open(&item, node, pos)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open item by coord. Nosde %llu, item %u.",
-	    aal_block_get_nr(node->block), pos->item);
+	    aal_block_number(node->block), pos->item);
 	return -1;
     }
 
@@ -350,7 +350,7 @@ int reiser4_node_lookup(
 	if (item.plugin->item_ops.common.maxkey(&maxkey) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Getting max key of the item %d in the node %llu failed.", 
-		pos->item, aal_block_get_nr(node->block));
+		pos->item, aal_block_number(node->block));
 	    return -1;
 	}
 	
@@ -370,7 +370,7 @@ int reiser4_node_lookup(
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the item %d in the node %llu failed.", 
-	    pos->item, aal_block_get_nr(node->block));
+	    pos->item, aal_block_number(node->block));
 	return -1;
     }
 
@@ -444,7 +444,7 @@ errno_t reiser4_node_insert(
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
             "There is no space to insert the %s of (%u) size in the node (%llu).",
             (pos->unit == ~0ul ? "item" : "unit"), hint->len, 
-	    aal_block_get_nr(node->block));
+	    aal_block_number(node->block));
         return -1;
     }
 

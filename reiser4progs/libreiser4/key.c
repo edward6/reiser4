@@ -257,7 +257,7 @@ void reiser4_key_maximal(reiser4_key_t *key) {
     aal_assert("vpf-185", key != NULL, return);
     aal_assert("vpf-186", key->plugin != NULL, return);
 
-    body = libreiser4_plugin_call(return, key->plugin->key_ops, maximal);
+    body = libreiser4_plugin_call(return, key->plugin->key_ops, maximal,);
 
     aal_memcpy(key->body, body, REISER4_KEY_SIZE);
 }
@@ -269,7 +269,7 @@ void reiser4_key_minimal(reiser4_key_t *key) {
     aal_assert("vpf-187", key != NULL, return);
     aal_assert("vpf-188", key->plugin != NULL, return);
 
-    body = libreiser4_plugin_call(return, key->plugin->key_ops, minimal);
+    body = libreiser4_plugin_call(return, key->plugin->key_ops, minimal,);
 
     aal_memcpy(key->body, body, REISER4_KEY_SIZE);
 }

@@ -125,6 +125,15 @@ error_free_mnt:
     return 0;
 }
 
+void progs_misc_upper(char *dst, const char *src) {
+    int i = 0;
+    const char *s;
+
+    s = src;
+    while (*s) dst[i++] = toupper(*s++);
+    dst[i] = '\0';
+}
+
 static errno_t callback_print_plugin(reiser4_plugin_t *plugin, void *data) {
     printf("%s: %s.\n", plugin->h.label, plugin->h.desc);
     return 0;

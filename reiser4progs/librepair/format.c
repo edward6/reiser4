@@ -27,7 +27,7 @@ static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, aal_device_t *host_de
 	    return NULL;	    
 	}
 
-	if (aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_YES|EXCEPTION_NO, 
+	if (aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_YESNO, 
 	    "Do you want to build the on-disk format (%s) specified in the profile?",
 	    plugin->h.label) == EXCEPTION_NO)
 	    return NULL;

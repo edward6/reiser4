@@ -37,7 +37,7 @@ static reiser4_cache_t *reiser4_tree_alloc(
 	return NULL;
     }
 
-    if (!(block = aal_block_alloc(tree->fs->format->device, blk, 0))) {
+    if (!(block = aal_block_create(tree->fs->format->device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block %llu in memory.", blk);
 	return NULL;
@@ -76,7 +76,7 @@ static void reiser4_tree_dealloc(reiser4_tree_t *tree,
     aal_assert("umka-918", cache->node != NULL, return);
 
     reiser4_alloc_dealloc(tree->fs->alloc, 
-	aal_block_get_nr(cache->node->block));
+	aal_block_number(cache->node->block));
     
     reiser4_cache_close(cache);
 }
@@ -90,7 +90,7 @@ static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree,
     reiser4_node_t *node;
     reiser4_cache_t *cache;
 
-    if (!(block = aal_block_read(tree->fs->format->device, blk))) {
+    if (!(block = aal_block_open(tree->fs->format->device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't allocate block %llu in memory.", blk);
 	return NULL;
@@ -203,7 +203,7 @@ reiser4_tree_t *reiser4_tree_create(
 	goto error_free_tree;
     }
 
-    if (!(block = aal_block_alloc(fs->format->device, blk, 0))) {
+    if (!(block = aal_block_create(fs->format->device, blk, 0))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate in memory root block.");
 	goto error_free_tree;
@@ -327,7 +327,7 @@ int reiser4_tree_lookup(
 	if (reiser4_item_open(&item, coord->cache->node, &coord->pos)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	        "Can't open item by its coord. Node %llu, item %u.",
-	        aal_block_get_nr(coord->cache->node->block), coord->pos.item);
+	        aal_block_number(coord->cache->node->block), coord->pos.item);
 	    return -1;
 	}
 	    
@@ -342,7 +342,7 @@ int reiser4_tree_lookup(
 	if (!(target = reiser4_item_target(&item))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
-		item.pos->item, aal_block_get_nr(item.node->block));
+		item.pos->item, aal_block_number(item.node->block));
 	    return -1;
 	}
 	
@@ -472,7 +472,7 @@ static errno_t reiser4_tree_attach(
 
     aal_memset(&internal_hint, 0, sizeof(internal_hint));
     
-    internal_hint.pointer = aal_block_get_nr(cache->node->block);
+    internal_hint.pointer = aal_block_number(cache->node->block);
 
     reiser4_node_lkey(cache->node, &ldkey);
     reiser4_key_init(&hint.key, ldkey.plugin, ldkey.body);
@@ -501,7 +501,7 @@ static errno_t reiser4_tree_attach(
     if (reiser4_cache_register(coord.cache, cache)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't register node %llu in tree cache.", 
-	    aal_block_get_nr(cache->node->block));
+	    aal_block_number(cache->node->block));
 	return -1;
     }
 
@@ -533,7 +533,7 @@ static errno_t reiser4_tree_grow(
 	reiser4_tree_height(tree) + 1);
     
     reiser4_format_set_root(tree->fs->format, 
-	aal_block_get_nr(tree->cache->node->block));
+	aal_block_number(tree->cache->node->block));
 
     return 0;
 
@@ -575,7 +575,7 @@ errno_t reiser4_tree_lshift(
     if (reiser4_cache_raise(old->cache)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't raise up neighbours of node %llu.", 
-	    aal_block_get_nr(old->cache->node->block));
+	    aal_block_number(old->cache->node->block));
 	return -1;
     }
 
@@ -595,7 +595,7 @@ errno_t reiser4_tree_lshift(
 	if (reiser4_item_open(&item, old->cache->node, &mpos)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open item by its coord. Node %llu, item %u.",
-		aal_block_get_nr(old->cache->node->block), mpos.item);
+		aal_block_number(old->cache->node->block), mpos.item);
 	    return -1;
 	}
 	
@@ -700,7 +700,7 @@ errno_t reiser4_tree_rshift(
     if (reiser4_cache_raise(old->cache)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't raise up neighbours of node %llu.", 
-	    aal_block_get_nr(old->cache->node->block));
+	    aal_block_number(old->cache->node->block));
 	return -1;
     }
 
@@ -729,7 +729,7 @@ errno_t reiser4_tree_rshift(
 	if (reiser4_item_open(&item, old->cache->node, &mpos)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open item by its coord. Node %llu, item %u.",
-		aal_block_get_nr(old->cache->node->block), mpos.item);
+		aal_block_number(old->cache->node->block), mpos.item);
 	    return -1;
 	}
 	
@@ -1025,7 +1025,7 @@ errno_t reiser4_tree_insert(
         if (reiser4_cache_insert(coord->cache, &coord->pos, hint)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an item into the node %llu.", 
-		aal_block_get_nr(coord->cache->node->block));
+		aal_block_number(coord->cache->node->block));
 	    reiser4_tree_dealloc(tree, cache);
 	    return -1;
 	}
@@ -1054,7 +1054,7 @@ errno_t reiser4_tree_insert(
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	   "Can't insert an %s into the node %llu.", 
 	    (coord->pos.unit == ~0ul ? "item" : "unit"),
-	    aal_block_get_nr(coord->cache->node->block));
+	    aal_block_number(coord->cache->node->block));
 	return -1;
     }
 
@@ -1150,7 +1150,7 @@ errno_t reiser4_tree_traverse(
 
     if (!(node = open_func(block, data))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open node on block %llu.", aal_block_get_nr(block));
+	    "Can't open node on block %llu.", aal_block_number(block));
 	return -1;
     }
     
@@ -1167,7 +1167,7 @@ errno_t reiser4_tree_traverse(
 	    if (reiser4_item_open(&item, node, &pos)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't open item by its coord. Node %llu, item %u.",
-		    aal_block_get_nr(node->block), pos.item);
+		    aal_block_number(node->block), pos.item);
 		goto error_free_node;
 	    }
 	    
@@ -1179,7 +1179,7 @@ errno_t reiser4_tree_traverse(
 		
 		if ((target = reiser4_item_target(&item)) > 0) {
 
-		    if (!(block = aal_block_read(device, target))) {
+		    if (!(block = aal_block_open(device, target))) {
 			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			    "Can't read block %llu. %s.", target, device->error);
 			goto error_free_node;

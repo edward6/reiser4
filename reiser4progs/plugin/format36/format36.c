@@ -72,7 +72,7 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
     aal_device_set_bs(device, REISER4_DEFAULT_BLOCKSIZE);
     
     for (i = 0; super_offset[i] != -1; i++) {
-	if ((block = aal_block_read(device, super_offset[i]))) {
+	if ((block = aal_block_open(device, super_offset[i]))) {
 	    super = (format36_super_t *)block->data;
 			
 	    if (format36_magic(super)) {
@@ -132,10 +132,10 @@ static errno_t format36_sync(reiser4_entity_t *entity) {
     format = (format36_t *)entity;
     aal_assert("umka-382", format->block != NULL, return -1);    
     
-    if (aal_block_write(format->block)) {
+    if (aal_block_sync(format->block)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't write superblock to block %llu. %s.", 
-	    aal_block_get_nr(format->block), aal_device_error(format->device));
+	    aal_block_number(format->block), aal_device_error(format->device));
 	return -1;
     }
     

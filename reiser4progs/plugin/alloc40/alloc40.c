@@ -25,7 +25,7 @@ static errno_t callback_fetch_bitmap(aal_device_t *device,
     aal_assert("umka-1052", device != NULL, return -1);
     aal_assert("umka-1053", alloc != NULL, return -1);
     
-    if (!(block = aal_block_read(device, blk))) {
+    if (!(block = aal_block_open(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read bitmap block %llu. %s.", blk, device->error);
 	return -1;
@@ -139,7 +139,7 @@ static errno_t callback_flush_bitmap(aal_device_t *device,
     aal_assert("umka-1054", device != NULL, return -1);
     aal_assert("umka-1055", alloc != NULL, return -1);
     
-    if (!(block = aal_block_alloc(device, blk, 0xff))) {
+    if (!(block = aal_block_create(device, blk, 0xff))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read bitmap block %llu. %s.", blk, device->error);
 	return -1;
@@ -155,7 +155,7 @@ static errno_t callback_flush_bitmap(aal_device_t *device,
 	    
     aal_memcpy(block->data, current, chunk);
     
-    if (aal_block_write(block)) {
+    if (aal_block_sync(block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write bitmap block %llu. %s.", blk, device->error);
 	goto error_free_block;
