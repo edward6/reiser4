@@ -38,12 +38,12 @@ typedef struct perm_plugin {
 /** call ->check_ok method of perm plugin for inode */
 #define perm_chk( inode, check, args... )			\
 ({								\
-	reiser4_plugin *perm;					\
+	perm_plugin *perm;					\
 								\
 	perm = reiser4_get_object_state( inode ) -> perm;	\
 	( ( perm != NULL ) &&					\
-	  ( perm -> u.perm. ## check ## _ok != NULL ) &&	\
-	    perm -> u.perm. ## check ## _ok( ##args ) );	\
+	  ( perm -> ## check ## _ok != NULL ) &&	\
+	    perm -> ## check ## _ok( ##args ) );	\
 })
 
 typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;

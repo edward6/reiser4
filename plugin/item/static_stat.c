@@ -403,8 +403,8 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 		slot = ( reiser4_plugin_slot * ) *area;
 		if( *len < ( int ) sizeof *slot )
 			return not_enough_space( inode, "additional plugin" );
-		plugin = plugin_by_type_id( d16tocpu( &slot -> type_id ), 
-					    d16tocpu( &slot -> id ) );
+		plugin = plugin_by_id( d16tocpu( &slot -> type_id ), 
+				       d16tocpu( &slot -> id ) );
 		if( plugin == NULL ) {
 			return unknown_plugin( d16tocpu( &slot -> id ), inode );
 		}
@@ -431,12 +431,11 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 	}
 	/* if object plugin wasn't loaded from stat-data, guess it by
 	   mode bits */
-	plugin = reiser4_get_object_state( inode ) -> file;
+	plugin = file_plugin_to_plugin( reiser4_get_object_state( inode ) -> file );
 	if( plugin == NULL ) {
 		result = plugin_sd_absent( inode );
-	} else if( plugin -> u.file.activate != NULL ) {
-		result = plugin -> u.file.activate( inode, plugin );
 	}
+	/* FIXME-VS: activate was called here */
 
 	reiser4_get_object_state( inode ) -> plugin_mask = mask;
 	return result;
@@ -454,12 +453,11 @@ static int plugin_sd_absent( struct inode *inode )
 	   Another, more logical but bit more complex solution is to add 
 	   "bad-file plugin". */
 	assert( "nikita-660", plugin != NULL );
-	reiser4_get_object_state( inode ) -> file = plugin;
-	if( plugin -> u.file.activate != NULL ) {
-		return plugin -> u.file.activate( inode, plugin );
-	} else {
-		return 0;
-	}
+	reiser4_get_object_state( inode ) -> file = &plugin -> u.file ;
+	/*
+	 * FIXME-VS: activate was called here
+	 */
+	return 0;
 }
 
 /** helper function for plugin_sd_save_len(): calculate how much space
@@ -495,10 +493,10 @@ static int plugin_sd_save_len( struct inode *inode )
 	if( state -> plugin_mask == 0 )
 		return 0;
 	len = sizeof( reiser4_plugin_stat );
-	len = len_for( state -> file, inode, len );
-	len = len_for( state -> perm, inode, len );
-	len = len_for( state -> tail, inode, len );
-	len = len_for( state -> hash, inode, len );
+	len = len_for( file_plugin_to_plugin( state -> file ), inode, len );
+	len = len_for( perm_plugin_to_plugin( state -> perm ), inode, len );
+	len = len_for( tail_plugin_to_plugin( state -> tail ), inode, len );
+	len = len_for( hash_plugin_to_plugin( state -> hash ), inode, len );
 	assert( "nikita-664", len > ( int ) sizeof( reiser4_plugin_stat ) );
 	return len;
 }
@@ -556,10 +554,10 @@ static int plugin_sd_save( struct inode *inode, char **area )
 	/* for now, use hardcoded list of plugins that can be associated
 	   with inode */
 	result = 
-		save_plug( state -> file, inode, area, &num_of_plugins ) &&
-		save_plug( state -> perm, inode, area, &num_of_plugins ) &&
-		save_plug( state -> tail, inode, area, &num_of_plugins ) &&
-		save_plug( state -> hash, inode, area, &num_of_plugins );
+		save_plug( file_plugin_to_plugin( state -> file ), inode, area, &num_of_plugins ) &&
+		save_plug( perm_plugin_to_plugin( state -> perm ), inode, area, &num_of_plugins ) &&
+		save_plug( tail_plugin_to_plugin( state -> tail ), inode, area, &num_of_plugins ) &&
+		save_plug( hash_plugin_to_plugin( state -> hash ), inode, area, &num_of_plugins );
 
 	cputod16( ( unsigned ) num_of_plugins, &sd -> plugins_no );
 	return result;

@@ -29,27 +29,21 @@ struct flow {
     fs/reiser4/plugin/object.c:common_file_save() */
 extern int ordinary_file_create( struct inode *object, struct inode *parent,
 				 reiser4_object_create_data *data );
-ssize_t reiser4_ordinary_file_write (struct file * file, 
-				     flow * f, loff_t *off);
-ssize_t reiser4_ordinary_file_read (struct file * file,
-				    flow * f, loff_t * off);
-int reiser4_ordinary_file_truncate (struct inode * inode, loff_t size);
-int reiser4_ordinary_readpage (struct file * file, struct page * page);
-
-
-struct page * reiser4_get_page (struct inode *, unsigned long long);
-int reiser4_copy_to_page (struct page *, flow *, unsigned);
-int reiser4_copy_from_page (struct page *, flow *, unsigned);
-void reiser4_put_page (struct page *);
+ssize_t ordinary_file_write (struct file * file, char * buf, size_t size ,
+			     loff_t *off);
+ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
+			    loff_t * off);
+int ordinary_file_truncate (struct inode * inode, loff_t size);
+int ordinary_readpage (struct file * file, struct page * page);
 
 
 /* part of item plugin. These are operations specific to items regular file
    metadata are built of */
 typedef struct file_ops {
-	int (* write) (struct inode *,
-		       tree_coord *,
-		       reiser4_lock_handle *,
-		       flow *);
+	int (* write) (struct inode *, tree_coord *,
+		       reiser4_lock_handle *, flow *);
+	int (* read) (struct inode *, tree_coord *,
+		      reiser4_lock_handle *, flow *);
 	int (* fill_page) (struct page *, tree_coord *,
 			   reiser4_lock_handle *);
 } file_ops;

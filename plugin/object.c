@@ -56,6 +56,9 @@
 
 #include "../reiser4.h"
 
+
+#ifdef INHERIT_EXISTS
+
 /** inheritance function for objects that have nothing to inherit from
     parents */
 static int no_inheritance( struct inode *inode UNUSED_ARG,
@@ -95,6 +98,8 @@ int total_inheritance( struct inode *inode,
 
 	return changed;
 }
+#endif
+
 
 static int is_file_empty( const struct inode *inode )
 {
@@ -102,6 +107,8 @@ static int is_file_empty( const struct inode *inode )
 
 	return( inode -> i_size == 0 );
 }
+
+#ifdef INSTALL_EXISTS
 
 /** part of initialisation of new inode common for all types of objects */
 int common_file_install( struct inode *inode, reiser4_plugin *plug,
@@ -133,6 +140,7 @@ int common_file_install( struct inode *inode, reiser4_plugin *plug,
 	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
 	return 0;
 }
+#endif
 
 /** helper function to print errors */
 static void key_warning( const char *error_message, reiser4_key *key, int code )
@@ -236,10 +244,9 @@ static int insert_new_sd( struct inode *inode )
 	ref = reiser4_get_object_state( inode );
 
 	if( ref -> sd == NULL ) {
-		ref -> sd = item_plugin_to_plugin( reiser4_get_sd_plugin( inode ) );
+		ref -> sd = reiser4_get_sd_plugin( inode );
 	}
-	assert ("jmacd-1600", ref -> sd -> h.type_id == REISER4_ITEM_PLUGIN_TYPE);
-	data.iplug = & ref -> sd  -> u.item;
+	data.iplug = ref -> sd;
 	data.length = ref -> sd_len;
 	if( data.length == 0 ) {
 		data.length = data.iplug -> s.sd.save_len( inode );
@@ -343,7 +350,7 @@ static int update_sd( struct inode *inode )
 		char *area;
 
 		assert( "nikita-728", state -> sd != NULL );
-		data.iplug = & state -> sd -> u.item;
+		data.iplug = state -> sd;
 
 		if( state -> sd_len == 0 ) {
 			/* recalculate stat-data length */
@@ -407,6 +414,13 @@ int common_file_save( struct inode *inode )
 		result = update_sd( inode );
 	return result;
 }
+
+
+int common_write_inode( struct inode *inode UNUSED_ARG )
+{
+	return -EINVAL;
+}
+
 
 /** checks whether yet another hard links to this object can be added */
 int common_file_can_add_link( const struct inode *object )
@@ -514,7 +528,7 @@ reiser4_plugin *guess_plugin_by_mode( struct inode *inode )
 		break;
 	}
 	assert( "nikita-738", result >= 0 );
-	return plugin_by_type_id( REISER4_FILE_PLUGIN_TYPE, result );
+	return plugin_by_id( REISER4_FILE_PLUGIN_TYPE, result );
 }
 
 /** standard implementation of ->owns_item() plugin method: compare objectids
@@ -606,13 +620,61 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	memset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
+#ifndef INSTALL_EXISTS
+	/*
+	 * this does what did removed install method do: namelly, inialization
+	 * of newly created inode's fields
+	 */
+	object -> i_mode = data -> mode;
+	object -> i_generation = reiser4_new_inode_generation( object -> i_sb );
+	/* this should be plugin decision */
+	object -> i_uid = current -> fsuid;
+	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
+	
+	if( parent -> i_mode & S_ISGID )
+		object -> i_gid = parent -> i_gid;
+	else
+		object -> i_gid = current -> fsgid;
+
+	reiser4_get_object_state( object ) -> file = fplug;
+
+	/* this object doesn't have stat-data yet */
+	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
+	/* setup inode and file-operations for this inode */
+	setup_inode_ops( object );
+	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
+
+#else
 	result = fplug -> install( object, fplug, parent, data );
 	if( result ) {
 		warning( "nikita-431", "Cannot install plugin %i on %lx", 
 			 data -> id, ( long ) object -> i_ino );
 		return result;
 	}
-       
+#endif /* install */
+
+#ifndef INHERIT_EXISTS
+	/*
+	 * set hash, tail and permission plugins for newly created inode if
+	 * they were not set yet
+	 */
+	{
+		reiser4_plugin_ref *self;
+		reiser4_plugin_ref *ancestor;
+
+		self = reiser4_get_object_state( object );
+		ancestor = reiser4_get_object_state( parent ? parent :
+						     object -> i_sb -> s_root -> d_inode );
+		if ( self -> dir == NULL )
+			self -> dir = ancestor -> dir;
+		if ( self -> hash == NULL )
+			self -> hash = ancestor -> hash;
+		if ( self -> tail == NULL )
+			self -> tail = ancestor -> tail;
+		if ( self -> perm == NULL )
+			self -> perm = ancestor -> perm;
+	}
+#else
 	result = fplug -> inherit
 		( object, parent, object -> i_sb -> s_root -> d_inode );
 	if( result < 0 ) {
@@ -620,9 +682,10 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 			 ( long ) parent -> i_ino, ( long ) object -> i_ino );
 		return result;
 	}
+#endif /* inherit */
 
 	/* reget plugin after installation */
-	fplug = & reiser4_get_object_state( object ) -> file -> u.file;
+	fplug = reiser4_get_object_state( object ) -> file;
 	reiser4_get_object_state( object ) -> locality_id = parent -> i_ino;
 
 	/* mark inode immutable. We disable changes to the file
@@ -650,12 +713,12 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 		result = dplug -> add_entry( parent, dentry,
 					     data, &entry );
 		if( result != 0 ) {
-			if( fplug -> destroy != NULL ) {
+			if( fplug -> destroy_stat_data != NULL ) {
 				/*
 				 * failure to create entry,
 				 * remove object
 				 */
-				fplug -> destroy( object, parent );
+				fplug -> destroy_stat_data( object, parent );
 			} else {
 				warning( "nikita-1164",
 					 "Cannot cleanup failed create: %i"
@@ -757,7 +820,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	if( result == 0 ) {
 		switch( uf_type ) {
 		case UNLINK_BY_DELETE:
-			result = fplug -> destroy( object, parent );
+			result = fplug -> destroy_stat_data( object, parent );
 			break;
 		case UNLINK_BY_PLUGIN:
 			result = fplug -> rem_link( object );
@@ -765,7 +828,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 		case UNLINK_BY_NLINK:
 			-- object -> i_nlink;
 			object -> i_ctime = CURRENT_TIME;
-			result = fplug -> save_sd( object );
+			result = fplug -> write_inode( object );
 		default:
 			wrong_return_value( "nikita-1478", "uf_type" );
 		}
@@ -824,7 +887,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	memset( &entry, 0, sizeof entry );
 
 	data.mode = object -> i_mode;
-	data.id   = reiser4_get_object_state( object ) -> file -> h.id;
+	data.id   = file_plugin_to_plugin( reiser4_get_object_state( object ) -> file ) -> h.id;
 
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
@@ -851,7 +914,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	return result;
 }
 
-#if 0
+
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
 		.h = {
@@ -864,35 +927,43 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
-				.install             = common_file_install,
-				.activate            = NULL,
-				.save_sd             = common_file_save,
+				.write_flow          = NULL,
+				.read_flow           = NULL,
+				.truncate            = ordinary_file_truncate,
+				.create              = ordinary_file_create,
+				.write_inode         = common_write_inode,
+				.readpage            = ordinary_readpage,
+				.read                = ordinary_file_read,
+				.write               = ordinary_file_write,
+				.flow_by_inode       = NULL,
+				.flow_by_key         = NULL,
+				.set_plug_in_sd      = NULL,
+				.set_plug_in_inode   = NULL,
+				.create_blank_sd     = NULL,
+				.destroy_stat_data   = common_file_delete,
+				.add_link            = NULL,
+				.rem_link            = NULL,
+				.owns_item           = common_file_owns_item,
+				.can_add_link        = NULL
+			}
+#if 0
+				.write_inode         = common_file_save,
 				.create_child        = NULL,
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
 				.link                = NULL,
-				.destroy             = common_file_delete,
 				.add_entry           = NULL,
 				.rem_entry           = NULL,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.can_add_link        = common_file_can_add_link,
 				.inherit             = total_inheritance,
 				.is_empty            = is_file_empty,
 				.io                  = common_io,
-				.rw_f = {
-					[ READ_OP ]  = reiser4_ordinary_file_read,
-					[ WRITE_OP ] = reiser4_ordinary_file_write,
-				},
 				.build_flow          = common_build_flow,
 				.is_name_acceptable  = NULL,
 				.lookup              = noent,
-				.owns_item           = common_file_owns_item,
 				.item_plugin_at      = NULL,
-				.truncate            = reiser4_ordinary_file_truncate,
 				.find_item	     = NULL,
-				.readpage	     = reiser4_ordinary_readpage
 			}
+#endif
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
@@ -905,17 +976,24 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.linkage = TS_LIST_LINK_ZERO
 		},
 		.u = {
-			.file = {
-				.install             = common_file_install,
-				.activate            = NULL,
-				.save_sd             = common_file_save,
-				.create_child        = common_create_child,
-				.create              = hashed_create,
+			.dir = {
+				.is_built_in         = NULL,
 				.unlink              = common_unlink,
 				.link                = common_link,
-				.destroy             = hashed_delete,
+				.lookup              = hashed_lookup,
+				.is_name_acceptable  = is_name_acceptable,
 				.add_entry           = hashed_add_entry,
 				.rem_entry           = hashed_rem_entry,
+				.create              = hashed_create,
+				.create_child        = common_create_child
+			}
+#if 0
+				.install             = common_file_install,
+				.activate            = NULL,
+				.write_inode         = common_file_save,
+				.create_child        = common_create_child,
+				.create              = hashed_create,
+				.destroy_stat_data   = hashed_delete,
 				.add_link            = NULL,
 				.rem_link            = NULL,
 				.can_add_link        = common_file_can_add_link,
@@ -932,13 +1010,13 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				},
 				.build_flow          = common_build_flow,
 				.is_name_acceptable  = is_name_acceptable,
-				.lookup              = hashed_lookup,
 				.owns_item           = hashed_owns_item,
 				.item_plugin_at      = NULL,
 				.truncate            = NULL,
 				.find_item            = NULL,
 				.readpage	      = NULL
 			}
+#endif
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
@@ -952,14 +1030,37 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
+				.write_flow          = NULL,
+				.read_flow           = NULL,
+				.truncate            = NULL,
+				.create              = NULL,
+				.write_inode         = common_write_inode,
+				.readpage            = NULL,
+				.read                = NULL,
+				.write               = NULL,
+				.flow_by_inode       = NULL,
+				.flow_by_key         = NULL,
+				.set_plug_in_sd      = NULL,
+				.set_plug_in_inode   = NULL,
+				.create_blank_sd     = NULL,
+				/*
+				 * FIXME-VS: symlink should probably have its own destroy method
+				 */
+				.destroy_stat_data   = common_file_delete,
+				.add_link            = NULL,
+				.rem_link            = NULL,
+				.owns_item           = NULL,
+				.can_add_link        = NULL
+			}
+#if 0
 				.install             = common_file_install,
 				.activate            = NULL,
-				.save_sd             = common_file_save,
+				.write_inode         = common_file_save,
 				.create_child        = NULL,
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
 				.link                = NULL,
-				.destroy             = common_file_delete,
+				.destroy_stat_data   = common_file_delete,
 				.add_entry           = NULL,
 				.rem_entry           = NULL,
 				.add_link            = NULL,
@@ -981,6 +1082,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.find_item            = NULL,
 				.readpage	      = NULL
 			}
+#endif
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
@@ -994,14 +1096,34 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
+				.write_flow          = NULL,
+				.read_flow           = NULL,
+				.truncate            = NULL,
+				.create              = NULL,
+				.write_inode         = common_write_inode,
+				.readpage            = NULL,
+				.read                = NULL,
+				.write               = NULL,
+				.flow_by_inode       = NULL,
+				.flow_by_key         = NULL,
+				.set_plug_in_sd      = NULL,
+				.set_plug_in_inode   = NULL,
+				.create_blank_sd     = NULL,
+				.destroy_stat_data   = common_file_delete,
+				.add_link            = NULL,
+				.rem_link            = NULL,
+				.owns_item           = common_file_owns_item,
+				.can_add_link        = NULL
+			}
+#if 0
 				.install             = common_file_install,
 				.activate            = NULL,
-				.save_sd             = common_file_save,
+				.write_inode         = common_file_save,
 				.create_child        = NULL,
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
 				.link                = NULL,
-				.destroy             = common_file_delete,
+				.destroy_stat_data   = common_file_delete,
 				.add_entry           = NULL,
 				.rem_entry           = NULL,
 				.add_link            = NULL,
@@ -1023,10 +1145,11 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.find_item            = NULL,
 				.readpage	      = NULL
 			}
+#endif
 		}
 	},
 };
-#endif
+
 
 /* 
  * Make Linus happy.

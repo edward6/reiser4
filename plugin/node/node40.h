@@ -108,6 +108,7 @@ int                node40_shift            ( tree_coord * from,
 int                node40_fast_insert      ( const tree_coord *coord );
 int                node40_fast_paste       ( const tree_coord *coord );
 int                node40_fast_cut         ( const tree_coord *coord );
+int                node40_max_item_size    ( void );
 
 void update_znode_dkeys (znode * left, znode * right);
 

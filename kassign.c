@@ -136,9 +136,8 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 		/*
 		 * offset is the hash of the file name.
 		 */
-		offset = reiser4_get_object_state( dir ) -> 
-			hash -> u.hash.hash( name -> name + OID_CHARS, 
-					     ( int ) name -> len );
+		offset = reiser4_get_object_state( dir ) -> hash -> hash ( name -> name + OID_CHARS, 
+									   ( int ) name -> len );
 	}
 
 	/*

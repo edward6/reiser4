@@ -240,6 +240,11 @@ int init_plugins( void )
 
 			plugin = &ptype -> builtin[ i ];
 				
+			if( plugin -> h.label == NULL )
+				/*
+				 * uninitialized slot encountered
+				 */
+				continue;
 			assert( "nikita-537", plugin -> h.type_id == type_id );
 			plugin -> h.id = i;
 			print_plugin( "\t", plugin ); 
@@ -453,6 +458,7 @@ reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id,
 
 /** 
  * return plugin by its @type_id and @id
+ * FIXME-VS: this was plugin_by_type_id (not sure how it got renamed)
  */
 reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, reiser4_plugin_id id )
 {

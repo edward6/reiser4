@@ -20,7 +20,7 @@ static int always_tail( const struct inode *inode UNUSED_ARG,
 	return 1;
 }
 
-#if 0
+
 reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 	[ NEVER_TAIL_ID ] = {
 		.h = {
@@ -53,7 +53,6 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 		}
 	}
 };
-#endif
 
 /* 
  * Make Linus happy.

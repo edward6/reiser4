@@ -57,6 +57,7 @@ extern int common_file_install( struct inode *inode, reiser4_plugin *plug,
 				reiser4_object_create_data *data );
 extern int common_file_delete( struct inode *inode, struct inode *parent );
 extern int common_file_save( struct inode *inode );
+extern int common_write_inode( struct inode *inode );
 extern int common_file_owns_item( const struct inode *inode, 
 				  const tree_coord *coord );
 extern void print_inode( const char *prefix, const struct inode *i );

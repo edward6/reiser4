@@ -9,13 +9,13 @@
  * all file data have to be stored in unformatted nodes
  */
 #define should_have_notail(inode,new_size) \
-reiser4_get_object_state (inode)->tail->u.tail.notail (inode, new_size)
+reiser4_get_object_state (inode)->tail->notail (inode, new_size)
 
 /*
  * not all file data have to be stored in unformatted nodes
  */
 #define should_have_tail(inode) \
-reiser4_get_object_state (inode)->tail->u.tail.tail (inode, inode->i_size)
+reiser4_get_object_state (inode)->tail->tail (inode, inode->i_size)
 
 /* Dead USING_INSERT_UNITYPE_FLOW code removed from version 1.76 of this file. */
 
@@ -76,7 +76,7 @@ write_todo what_todo (struct inode * inode, flow * f, tree_coord * coord)
 			return WRITE_TAIL;
 	}
 
-	assert ("vs-377", reiser4_get_object_state (inode)->tail->u.tail.notail);
+	assert ("vs-377", reiser4_get_object_state (inode)->tail->notail);
 
 	if (inode->i_size == 0) {
 		/*
@@ -129,10 +129,10 @@ static int tail2extent (struct inode * inode UNUSED_ARG,
 
 
 /*
- * plugin->u.file.rw_f [WRITE_OP]
+ * plugin->u.file.write
  */
-ssize_t reiser4_ordinary_file_write (struct file * file,
-				     flow * f, loff_t * off)
+ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
+			     loff_t * off)
 {
 	int result;
 	struct inode * inode;
@@ -140,22 +140,31 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 	reiser4_lock_handle lh;	
 	size_t to_write;
 	item_plugin * iplug;
+	flow f;
 	
 
 	/* collect statistics on the number of writes */
 	reiser4_stat_file_add (writes);
 
-	result = 0;
-	to_write = f->length;
 
 	inode = file->f_dentry->d_inode;
+	result = 0;
 
+	/*
+	 * build flow
+	 */
+	f.length = size;
+	f.data   = buf;
+	build_sd_key (file->f_dentry->d_inode, &f.key);
+	set_key_type (&f.key, KEY_BODY_MINOR );
+	set_key_offset (&f.key, ( __u64 ) *off);
 
-	while (f->length) {
+	to_write = f.length;
+	while (f.length) {
 		reiser4_init_coord (&coord);
 		reiser4_init_lh (&lh);
 
-		result = find_item (inode, &f->key, &coord, &lh);
+		result = find_item (inode, &f.key, &coord, &lh);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/*
 			 * error occured
@@ -164,19 +173,19 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 			reiser4_done_coord (&coord);
 			break;
 		}
-		switch (what_todo (inode, f, &coord)) {
+		switch (what_todo (inode, &f, &coord)) {
 		case WRITE_EXTENT:
 			iplug = item_plugin_by_id (EXTENT_ITEM_ID);
 			/* resolves to extent_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, f);
+			result = iplug->s.file.write (inode, &coord, &lh, &f);
 			break;
 
 		case WRITE_TAIL:
 			iplug = item_plugin_by_id (BODY_ITEM_ID);
 			/* resolves to tail_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, f);
+			result = iplug->s.file.write (inode, &coord, &lh, &f);
 			break;
 			
 		case CONVERT:
@@ -194,17 +203,16 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 		break;
 	}
 
-	*off += (to_write - f->length);
-	return (to_write - f->length) ? (to_write - f->length) : result;
+	*off += (to_write - f.length);
+	return (to_write - f.length) ? (to_write - f.length) : result;
 }
-
 
 
 /* plugin->u.file.readpage
    this finds item of file corresponding to page being read in and calls its
    fill_page method
 */
-int reiser4_ordinary_readpage (struct file * file, struct page * page)
+int ordinary_readpage (struct file * file, struct page * page)
 {
 	int result;
 	struct inode * inode;
@@ -245,7 +253,7 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
 }
 
 
-/* plugin->u.file.rw_f [READ_OP]
+/* plugin->u.file.read
 
    this calls mm/filemap.c:read_cache_page() for every page spanned by the
    flow @f. This read_cache_page allocates a page if it does not exist and
@@ -262,30 +270,69 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
    allocation of extra pages there will be no delay in delivering of the page
    we asked about.
  */
-ssize_t reiser4_ordinary_file_read (struct file * file,
-				    flow * f, loff_t * off)
+ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
+			    loff_t * off)
 {
 	int result;
 	struct inode * inode;
-	struct page * page;
-	unsigned long page_nr;
+	tree_coord coord;
+	reiser4_lock_handle lh;
 	size_t to_read;
-	char * kaddr;
 	unsigned long long file_off;
-	unsigned page_off, count;
+	flow f;
 
 
 	inode = file->f_dentry->d_inode;
-
 	result = 0;
-	to_read = f->length;
-	file_off = get_key_offset (&f->key);
 
-	while (f->length) {
-		if ((loff_t)get_key_offset (&f->key) >= inode->i_size)
-			/* do not read out of file */
+	/*
+	 * build flow
+	 */
+	f.length = size;
+	f.data   = buf;
+	build_sd_key (file->f_dentry->d_inode, &f.key);
+	set_key_type (&f.key, KEY_BODY_MINOR );
+	set_key_offset (&f.key, ( __u64 ) *off);
+
+	file_off = *off;
+	to_read = f.length;
+
+	while (f.length && !result) {
+		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/*
+			 * do not read out of file
+			 */
+			break;
+		reiser4_init_coord (&coord);
+		reiser4_init_lh (&lh);
+
+		result = find_item (inode, &f.key, &coord, &lh);
+		switch (result) {
+		case CBK_COORD_FOUND:
+			result = item_plugin_by_coord (&coord)->s.file.read (inode, &coord, &lh, &f);
 			break;
 
+		case CBK_COORD_NOTFOUND:
+			/* 
+			 * item had to be found, as it was not - we have -EIO
+			 */
+			result = -EIO;
+		default:
+			break;
+		}
+		reiser4_done_lh (&lh);
+		reiser4_done_coord (&coord);
+	}
+
+	*off += (to_read - f.length);
+	return (to_read - f.length) ? (to_read - f.length) : result;
+}
+
+#if 0
+
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+		}
+		
 		page_nr = (get_key_offset (&f->key) >> PAGE_SHIFT);
 		page = read_cache_page (inode->i_mapping, page_nr,
 					(filler_t *)reiser4_ordinary_readpage, file);
@@ -330,11 +377,11 @@ ssize_t reiser4_ordinary_file_read (struct file * file,
 	*off += (to_read - f->length);
 	return (to_read - f->length) ? (to_read - f->length) : result;
 }
-
+#endif
 
 /* plugin->u.file.truncate
  */
-int reiser4_ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
+int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 {
 	reiser4_key from, to;
 

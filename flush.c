@@ -148,7 +148,7 @@ static void slum_scan_init (slum_scan *scan)
 }
 
 /* Release any resources held by the slum scan, e.g., release locks, free memory, etc. */
-static void slum_scan_cleanup (slum_scan *scan)
+static void slum_scan_cleanup (slum_scan *scan UNUSED_ARG)
 {
 }
 
@@ -194,7 +194,7 @@ static void slum_scan_set_current (slum_scan *scan, jnode *node)
 /* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
  * reference it. */
 static jnode*
-jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
+jnode_get_neighbor_in_memory (jnode *node UNUSED_ARG, unsigned long node_index UNUSED_ARG)
 {
 	/* FIXME_JMACD: jref (), consult with vs. */
 	return NULL;
@@ -202,7 +202,8 @@ jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
 
 /* Get the parent znode and coordinate of a jnode, with parent read-locked. */
 static int
-jnode_get_parent_coord_locked (jnode *node, reiser4_lock_handle *lh, tree_coord *coord)
+jnode_get_parent_coord_locked (jnode *node UNUSED_ARG, reiser4_lock_handle *lh UNUSED_ARG,
+			       tree_coord *coord UNUSED_ARG)
 {
 	/* FIXME_JMACD: how do we do this? */
 	return 0;

@@ -211,7 +211,6 @@ reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
 				.free_space       = node40_free_space,
 				.lookup           = node40_lookup,
 				.num_of_items     = node40_num_of_items,
-				/*.item_at          = node40_item_at,*/
 				.item_by_coord	  = node40_item_by_coord,
 				.length_by_coord  = node40_length_by_coord,
 				.plugin_by_coord  = node40_plugin_by_coord,
@@ -234,8 +233,9 @@ reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
 				.fast_paste       = node40_fast_paste,
 				.fast_cut         = node40_fast_cut,
 #ifdef MODIFY_EXISTS
-				.modify           = NULL
+				.modify           = NULL,
 #endif
+				.max_item_size    = node40_max_item_size
 			}
 		}
 	},

@@ -855,13 +855,13 @@ static inline void inode_init_once(struct inode *inode)
 
 struct module;
 struct file_system_type {
+	struct module *owner;
 	const char *name;
-	int fs_flags;
 	struct super_block *(*get_sb) (struct file_system_type *, int, char *, void *);
 	void (*kill_sb) (struct super_block *);
-	struct module *owner;
 	struct file_system_type * next;
 	struct list_head fs_supers;
+	int fs_flags;
 };
 
 static inline struct super_block *get_sb_bdev(struct file_system_type *fs_type UNUSED_ARG,

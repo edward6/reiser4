@@ -637,9 +637,9 @@ int node40_guess( const znode *node )
 	return
 		( nh_40_get_magic( node40_node_header( ( znode * ) node ) ) ==
 		  reiser4_node_magic ) &&
-		( plugin_by_disk_type_id( current_tree,
-				   REISER4_NODE_PLUGIN_TYPE,
-				   &node40_node_header( ( znode * ) node ) -> common_header.plugin_id ) -> h.id ==
+		( plugin_by_disk_id( current_tree,
+				     REISER4_NODE_PLUGIN_TYPE,
+				     &node40_node_header( ( znode * ) node ) -> common_header.plugin_id ) -> h.id ==
 		  NODE40_ID );
 }
 
@@ -1921,8 +1921,16 @@ int node40_fast_cut( const tree_coord *coord UNUSED_ARG )
 }
 
 /* plugin->u.node.modify - not defined
-   look for description of this method in plugin/node/node.h
 */
+
+/*
+ * plugin->u.node.max_item_size
+ */
+int node40_max_item_size( void )
+{
+	return reiser4_get_current_sb() -> s_blocksize -
+		sizeof( node_header_40 ) - sizeof( item_header_40 );
+}
 
 
 

@@ -100,7 +100,6 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 	}
 }
 
-#if 0
 reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 	[ SD_ITEM_ID ] = {
 		.h = {
@@ -366,7 +365,6 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		}
 	}
 };
-#endif
 
 
 /* 

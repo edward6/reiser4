@@ -156,8 +156,8 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
    allocation of extra pages there will be no delay in delivering of the page
    we asked about.
  */
-ssize_t reiser4_ordinary_file_read (struct file * file,
-				    flow * f, loff_t * off)
+ssize_t ordinary_file_read (struct file * file,
+			    flow * f, loff_t * off)
 {
 	int result;
 	struct inode * inode;

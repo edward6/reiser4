@@ -134,10 +134,10 @@ typedef struct file_plugin {
 	
 	/* VFS required/defined operations */
 	int ( *truncate )( struct inode *inode, loff_t size );
-	/* create new object described by @data and add it to the @parent directory under the name described by
-	   @dentry */
-	int ( *create )( struct inode *parent, struct dentry *dentry, 
-			       reiser4_object_create_data *data );
+	/* create new object described by @data and add it to the @parent
+	   directory under the name described by @dentry */
+	int ( *create )( struct inode *object, struct inode *parent,
+			 reiser4_object_create_data *data );
 	/** save inode cached stat-data onto disk. It was called
 	    reiserfs_update_sd() in 3.x */
 	int ( *write_inode)( struct inode *inode );
@@ -148,9 +148,10 @@ typedef struct file_plugin {
 			 loff_t *off );
 
 	
-	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
-	 * implement a deviation from some other method that uses them.  You could logically argue that they should be a
-	 * separate type of plugin. */
+	/* sub-methods: These are optional.  If used they will allow you to
+	 * minimize the amount of code needed to implement a deviation from
+	 * some other method that uses them.  You could logically argue that
+	 * they should be a separate type of plugin. */
 	/**
 	 * Construct flow into @f according to user-supplied data.
 	 */
@@ -159,14 +160,16 @@ typedef struct file_plugin {
 	int (*flow_by_key)(reiser4_key *key, flow * f);
 	/* set the plugin for a file.  Called during file creation in reiser4() and creat(). */
 	int (*set_plug_in_sd)(reiser4_plugin_type plug_type, reiser4_key key_of_sd);
-	/* set the plugin for a file.  Called during file creation in creat() but not reiser4() unless an inode already exists
-	   for the file. */
+	/* set the plugin for a file.  Called during file creation in creat()
+	   but not reiser4() unless an inode already exists for the file. */
 	int (*set_plug_in_inode)(reiser4_plugin_type plug_type, struct inode *inode);
 	int (*create_blank_sd)(reiser4_key *key);
 	/** 
 	 * delete this object's stat-data if REISER4_NO_STAT_DATA is cleared
 	 * and set REISER4_NO_STAT_DATA 
-	 *
+	 * FIXME-VS: this does not delete stat data only. For example, for
+	 * directories which have "." and ".." explicitly it also removes those
+	 * entries
 	 */
 	int ( *destroy_stat_data )( struct inode *object, struct inode *parent );
 	/** bump reference counter on "object" */
@@ -191,9 +194,9 @@ typedef struct dir_plugin {
 
 	/* returns whether it is a builtin. 
 	 *
-	 * FIXME-NIKITA What does this mean? If builtin means pseudo-file,
-	 * does it mean that pseudo files are necessary directories and why it
-	 * is so?*/
+	 * FIXME-NIKITA What does this mean? If builtin means pseudo-file, does
+	 * it mean that pseudo files are necessary directories and why it is
+	 * so?*/
 	int (*is_built_in)(char * name, int length);
 
 	/* VFS required/defined operations below this line */
@@ -201,22 +204,22 @@ typedef struct dir_plugin {
 	int ( *link )( struct inode *parent, struct dentry *existing, 
 		       struct dentry *where );
 	/** lookup for "name" within this object and return its key in
-	    "key". If this is not implemented (set to NULL),
-	    reiser4_lookup will return -ENOTDIR 
+	    "key". If this is not implemented (set to NULL), reiser4_lookup
+	    will return -ENOTDIR
 
-	should be made to be more precisely VFS lookup -Hans 
-
+	    should be made to be more precisely VFS lookup -Hans 
 	*/
 	file_lookup_result ( *lookup )( struct inode *inode, 
 					const struct qstr *name,
 					reiser4_key *key, reiser4_dir_entry_desc *entry );
-	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
-	   implement a deviation from some other method that uses them.  You could logically argue that they should be a
-	   separate type of plugin. */
+	/* sub-methods: These are optional.  If used they will allow you to
+	   minimize the amount of code needed to implement a deviation from
+	   some other method that uses them.  You could logically argue that
+	   they should be a separate type of plugin. */
 
-	/** check whether "name" is acceptable name to be inserted into
-	    this object. Optionally implemented by directory-like objects.
-	    Can check for maximal length, reserved symbols etc */
+	/** check whether "name" is acceptable name to be inserted into this
+	    object. Optionally implemented by directory-like objects.  Can
+	    check for maximal length, reserved symbols etc */
 	int ( *is_name_acceptable )( const struct inode *inode, 
 				     const char *name, int len );
 
@@ -226,6 +229,15 @@ typedef struct dir_plugin {
 
 	int ( *rem_entry )( struct inode *object, 
 			    struct dentry *where, reiser4_dir_entry_desc *entry );
+	/*
+	 * this does what is necessary to be done when new directory is created
+	 */
+	int ( *create )( struct inode *object, struct inode *parent,
+			 reiser4_object_create_data *data );
+	/* create new object described by @data and add it to the @parent
+	   directory under the name described by @dentry */
+	int ( *create_child )( struct inode *parent, struct dentry *dentry,
+			       reiser4_object_create_data *data );
 } dir_plugin;
 
 typedef struct tail_plugin {
@@ -315,15 +327,17 @@ typedef struct inter_syscall_ra_hint {
 */
 struct reiser4_plugin_ref {
 	/** plugin of file */
-	reiser4_plugin            *file;
+	file_plugin            *file;
+	/** plugin of dir */
+	dir_plugin             *dir;
 	/** perm plugin for this file */
-	reiser4_plugin            *perm;
+	perm_plugin            *perm;
 	/** tail policy plugin. Only meaningful for regular files */
-	reiser4_plugin            *tail;
+	tail_plugin            *tail;
 	/** hash plugin. Only meaningful for directory files */
-	reiser4_plugin            *hash;
+	hash_plugin            *hash;
 	/** plugin of stat-data */
-	reiser4_plugin            *sd;
+	item_plugin            *sd;
 	/** reiser4-specific inode flags. They are "transient" and 
 	    are not supposed to be stored on a disk. Used to trace
 	    "state" of inode. Bitmasks for this field are defined in 
@@ -439,11 +453,11 @@ typedef struct plugin_locator {
 
 extern int locate_plugin( struct inode *inode, plugin_locator *loc );
 
-extern reiser4_plugin *plugin_by_type_id( reiser4_plugin_type type_id, 
-					  reiser4_plugin_id id );
+extern reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, 
+				     reiser4_plugin_id id );
 
-extern reiser4_plugin *plugin_by_disk_type_id( reiser4_tree *tree, 
-					       reiser4_plugin_type type_id, d16 *did );
+extern reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree, 
+					  reiser4_plugin_type type_id, d16 *did );
 
 extern reiser4_plugin *plugin_by_unsafe_type_id( reiser4_plugin_type type_id, 
 						 reiser4_plugin_id id );
@@ -451,12 +465,12 @@ extern reiser4_plugin *plugin_by_unsafe_type_id( reiser4_plugin_type type_id,
 #define PLUGIN_BY_ID(TYPE,ID,FIELD)                                                \
 static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )                         \
 {                                                                                  \
-	reiser4_plugin *plugin = plugin_by_type_id ( ID, id );                     \
+	reiser4_plugin *plugin = plugin_by_id ( ID, id );                     \
 	return plugin ? & plugin -> u.FIELD : NULL;                                \
 }                                                                                  \
 static inline TYPE *TYPE ## _by_disk_id( reiser4_tree *tree, d16 *id )             \
 {                                                                                  \
-	reiser4_plugin *plugin = plugin_by_disk_type_id ( tree, ID, id );          \
+	reiser4_plugin *plugin = plugin_by_disk_id ( tree, ID, id );          \
 	return plugin ? & plugin -> u.FIELD : NULL;                                \
 }                                                                                  \
 static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )                  \
