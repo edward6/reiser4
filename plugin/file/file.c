@@ -1332,7 +1332,7 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 	}
 	
 	trace_on(TRACE_RESERVE, "file write grabs %llu blocks "
-		"for %lu bytes long data.\n", needed, count);
+		"for %lu bytes long data.\n", needed, (unsigned long)count);
 	
 	pos = *off;
 	if (file->f_flags & O_APPEND)
