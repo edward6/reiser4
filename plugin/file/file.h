@@ -78,8 +78,8 @@ typedef struct unix_file_info {
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
 	atomic_t nr_neas;
-#ifdef CONFIG_FRAME_POINTER
 	void *last_reader;
+#ifdef CONFIG_FRAME_POINTER
 	void *where[5];
 #endif	
 #endif
