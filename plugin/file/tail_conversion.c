@@ -189,7 +189,6 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 }
 
 
-/* Audited by: green(2002.06.15) */
 static void drop_pages (struct page ** pages, unsigned nr_pages)
 {
 	unsigned i;

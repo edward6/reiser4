@@ -316,7 +316,6 @@ txn_init_static (void)
 }
 
 /* Un-initialize static variables in this file. */
-/* Audited by: umka (2002.06.13) */
 int
 txn_done_static (void)
 {
@@ -379,7 +378,6 @@ txnh_init (txn_handle *txnh,
 
 #if REISER4_DEBUG
 /* Check if a transaction handle is clean. */
-/* Audited by: umka (2002.06.13) */
 static int
 txnh_isclean (txn_handle *txnh)
 {
@@ -389,7 +387,6 @@ txnh_isclean (txn_handle *txnh)
 #endif
 
 /* Initialize an atom. */
-/* Audited by: umka (2002.06.13) */
 static void
 atom_init (txn_atom     *atom)
 {
@@ -420,7 +417,6 @@ atom_init (txn_atom     *atom)
 
 #if REISER4_DEBUG
 /* Check if an atom is clean. */
-/* Audited by: umka (2002.06.13) */
 static int
 atom_isclean (txn_atom *atom)
 {
@@ -475,7 +471,6 @@ txn_begin (reiser4_context *context)
 }
 
 /* Finish a transaction handle context. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 int
 txn_end (reiser4_context *context)
 {
@@ -515,7 +510,6 @@ txn_end (reiser4_context *context)
 /* Get the atom belonging to a txnh, which is not locked.  Return with both
  * txnh and atom locked.  This performs the necessary spin_trylock to break
  * the lock-ordering cycle.  May not return NULL. */
-/* Audited by: umka (2002.06.13) */
 txn_atom*
 atom_get_locked_with_txnh_locked (txn_handle *txnh)
 {
@@ -569,7 +563,6 @@ txn_atom * get_current_atom_locked (void)
  * both jnode and atom locked.  This performs the necessary spin_trylock to
  * break the lock-ordering cycle.  Assumes the jnode is already locked, and
  * returns NULL if atom is not set. */
-/* Audited by: umka (2002.06.13) */
 txn_atom*
 atom_get_locked_by_jnode (jnode *node)
 {
@@ -602,7 +595,6 @@ atom_get_locked_by_jnode (jnode *node)
 /* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
  * by flush code to indicate whether the next node (in some direction) is suitable for
  * flushing. */
-/* Audited by: umka (2002.06.13) */
 int
 txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value)
 {
@@ -648,7 +640,6 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 
 #if REISER4_DEBUG
 /* Return true if an atom is currently "open". */
-/* Audited by: umka (2002.06.13) */
 static int
 atom_isopen (const txn_atom *atom)
 {
@@ -660,7 +651,6 @@ atom_isopen (const txn_atom *atom)
 
 
 /* Decrement the atom's reference count and if it falls to zero, free it. */ 
-/* Audited by: umka (2002.06.13) */
 static void
 atom_dec_and_unlock (txn_atom *atom)
 {
@@ -783,7 +773,6 @@ atom_pointer_count (const txn_atom *atom)
 
 /* Called holding the atom lock, this removes the atom from the transaction manager list
  * and frees it. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static void
 atom_free (txn_atom *atom)
 {
@@ -826,7 +815,6 @@ static int atom_is_dotard (const txn_atom *atom)
  * this says to commit after the atom has 20 captured nodes.  The routine is only called
  * when the txnh_count drops to 0.
  */
-/* Audited by: umka (2002.06.13) */
 static int
 atom_should_commit (const txn_atom *atom)
 {
@@ -998,7 +986,6 @@ atom_try_commit_locked (txn_atom *atom)
 /* Called to force commit of any outstanding atoms.  Later this should be improved to: (1)
  * wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
  * created. */
-/* Audited by: umka (2002.06.13) umka (2002.06.15) */
 int
 txn_mgr_force_commit_all (struct super_block *super)
 {
@@ -1434,7 +1421,6 @@ commit_txnh (txn_handle *txnh)
  * released.  The external interface (txn_try_capture) manages re-aquiring the jnode lock
  * in the failure case.
  */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static int
 try_capture_block (txn_handle  *txnh,
 		   jnode       *node,
@@ -1602,8 +1588,6 @@ try_capture_block (txn_handle  *txnh,
  * the lock manager with the jnode lock held and it always returns with the jnode lock
  * held.
  */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
-/* AUDIT: node locking policy is very difficult because locking/unlocking is distributed through few functions */
 int
 txn_try_capture (jnode           *node,
 		 znode_lock_mode  lock_mode,
@@ -1804,7 +1788,6 @@ static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
 
 /* This is the interface to capture unformatted nodes via their struct page
  * reference. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 int
 txn_try_capture_page  (struct page        *pg,
 		       znode_lock_mode     lock_mode,
@@ -1946,7 +1929,6 @@ void txn_delete_page (struct page *pg)
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
  * increases atom refcount, adds to txnh_list. */
-/* Audited by: umka (2002.06.13) */
 static void
 capture_assign_txnh_nolock (txn_atom   *atom,
 			    txn_handle *txnh)
@@ -1969,19 +1951,14 @@ capture_assign_txnh_nolock (txn_atom   *atom,
 
 /* No-locking version of assign_block.  Sets the block's atom pointer, references the
  * block, adds it to the clean or dirty capture_jnode list, increments capture_count. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static void
 capture_assign_block_nolock (txn_atom *atom,
 			     jnode    *node)
 {
 	assert ("umka-202", atom != NULL);
 	assert ("umka-203", node != NULL);
-	
 	assert ("jmacd-321", spin_jnode_is_locked (node));
-	
-	/* AUDIT: Check whether atom is locked due to atom modifying protection */
 	assert ("umka-295", spin_atom_is_locked (atom));
-	
 	assert ("jmacd-323", node->atom == NULL);
 
 	/*
@@ -2008,7 +1985,6 @@ capture_assign_block_nolock (txn_atom *atom,
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
  * capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level.
  */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 void jnode_set_dirty( jnode *node )
 {
 	assert ("umka-204", node != NULL);	
@@ -2142,7 +2118,6 @@ void jnode_set_clean( jnode *node )
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
  * the atom lock is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Since
  * the transaction handle is currently open, we know the atom must also be open. */
-/* Audited by: umka (2002.06.13) */
 static int
 capture_assign_block (txn_handle *txnh,
 		      jnode      *node)
@@ -2189,7 +2164,6 @@ capture_assign_block (txn_handle *txnh,
  * handle.  If the atom is closed and the handle requests to write the block, then
  * initiate copy-on-capture.
  */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static int
 capture_assign_txnh (jnode       *node,
 		     txn_handle  *txnh,
@@ -2345,7 +2319,6 @@ wakeup_atom_waiting_list (txn_atom *atom)
  * Lock ordering in this method: all four locks are held: JNODE_LOCK, TXNH_LOCK,
  * BOTH_ATOM_LOCKS.  Result: all four locks are released.
  */
-/* Audited by: umka (2002.06.13) */
 static int
 capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *atomh, txn_capture mode)
 {
@@ -2511,7 +2484,6 @@ capture_init_fusion (jnode       *node,
 
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
  * the small list to point to the large atom.  Returns the length of the list. */
-/* Audited by: umka (2002.06.13) */
 static int
 capture_fuse_jnode_lists (txn_atom *large, capture_list_head *large_head, capture_list_head *small_head)
 {
@@ -2577,7 +2549,6 @@ capture_fuse_txnh_lists (txn_atom *large, txnh_list_head *large_head, txnh_list_
  * updated as well, and any waiting handles belonging to either are awakened.  Finally the
  * smaller atom's refcount is decremented.
  */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 static void
 capture_fuse_into (txn_atom  *small,
 		   txn_atom  *large)
@@ -2668,7 +2639,6 @@ capture_fuse_into (txn_atom  *small,
 
 /* Perform copy-on-capture of a block.  INCOMPLETE CODE.
  */
-/* Audited by: umka (2002.06.13) */
 static int
 capture_copy (jnode           *node,
 	      txn_handle      *txnh,
@@ -2703,7 +2673,6 @@ capture_copy (jnode           *node,
 
 /* Release a block from the atom, reversing the effects of being captured.
  * Currently this is only called when the atom commits. */
-/* Audited by: umka (2002.06.13) */
 static void
 uncapture_block (txn_atom *atom,
 		 jnode    *node)

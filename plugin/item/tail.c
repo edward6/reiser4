@@ -31,7 +31,6 @@ reiser4_key * tail_max_key_inside (const coord_t * coord,
 /*
  * plugin->u.item.b.can_contain_key
  */
-/* Audited by: green(2002.06.14) */
 int tail_can_contain_key (const coord_t * coord, const reiser4_key * key,
 			  const reiser4_item_data * data)
 {
@@ -124,7 +123,6 @@ int tail_mergeable (const coord_t * p1, const coord_t * p2)
 /*
  * plugin->u.item.b.nr_units
  */
-/* Audited by: green(2002.06.14) */
 unsigned tail_nr_units (const coord_t * coord)
 {
 	return item_length_by_coord (coord);
@@ -134,7 +132,6 @@ unsigned tail_nr_units (const coord_t * coord)
 /*
  * plugin->u.item.b.lookup
  */
-/* Audited by: green(2002.06.14) */
 lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 			   coord_t * coord)
 {
@@ -189,7 +186,6 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 /*
  * plugin->u.item.b.paste
  */
-/* Audited by: green(2002.06.14) */
 int tail_paste (coord_t * coord, reiser4_item_data * data,
 		carry_plugin_info *info UNUSED_ARG)
 {
@@ -252,7 +248,6 @@ int tail_paste (coord_t * coord, reiser4_item_data * data,
  * number of units is returned via return value, number of bytes via @size. For
  * tail items they coincide
  */
-/* Audited by: green(2002.06.14) */
 int tail_can_shift (unsigned free_space, coord_t * source UNUSED_ARG,
 		    znode * target UNUSED_ARG,
 		    shift_direction direction UNUSED_ARG,
@@ -272,7 +267,6 @@ int tail_can_shift (unsigned free_space, coord_t * source UNUSED_ARG,
 /*
  * plugin->u.item.b.copy_units
  */
-/* Audited by: green(2002.06.14) */
 void tail_copy_units (coord_t * target, coord_t * source,
 		      unsigned from, unsigned count,
 		      shift_direction where_is_free_space,
@@ -325,7 +319,6 @@ void tail_copy_units (coord_t * target, coord_t * source,
  * plugin->u.item.b.cut_units
  * plugin->u.item.b.kill_units
  */
-/* Audited by: green(2002.06.14) */
 int tail_cut_units (coord_t * coord, unsigned * from, unsigned * to,
 		    const reiser4_key * from_key UNUSED_ARG,
 		    const reiser4_key * to_key UNUSED_ARG,
@@ -374,7 +367,6 @@ int tail_cut_units (coord_t * coord, unsigned * from, unsigned * to,
 /*
  * plugin->u.item.b.unit_key
  */
-/* Audited by: green(2002.06.14) */
 reiser4_key * tail_unit_key (const coord_t * coord, reiser4_key * key)
 {
 	assert ("vs-375", coord_is_existing_unit (coord));

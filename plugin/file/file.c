@@ -740,7 +740,6 @@ static int expand_file (struct inode * inode, loff_t file_size)
 
 
 /* plugin->u.file.truncate */
-/* Audited by: green(2002.06.15) */
 int unix_file_truncate (struct inode * inode, loff_t size)
 {
 	int result;
@@ -1687,7 +1686,6 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 /* plugin->u.file.release
  * convert all extent items into tail items if necessary */
-/* Audited by: green(2002.06.15) */
 int unix_file_release (struct file * file)
 {
 	struct inode * inode;
