@@ -86,7 +86,7 @@ static int fsck_ask_confirmation(repair_data_t *data, char *host_name)
     fprintf(stderr, "Will use (%s) profile.\n", data->profile->label);
 
     if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YES|EXCEPTION_NO, 
-	"\nContinue?") == EXCEPTION_NO) 
+	"Continue?") == EXCEPTION_NO) 
 	return USER_ERROR;
      
     return NO_ERROR; 
@@ -177,7 +177,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	switch (c) {
 	    case 'l':
 		if ((stream = fopen(optarg, "w")) == NULL)
-		    aal_exception_fatal("Cannot not open the logfile (%s).\n", optarg);
+		    aal_exception_fatal("Cannot not open the logfile (%s).", optarg);
 		else {
 		    data->logfile = stream;
 		    progs_exception_set_stream(EXCEPTION_ERROR, stream);
@@ -216,7 +216,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	    case 'o':
 		str = aal_strsep(&optarg, "=");
 		if (!optarg || progs_profile_override(data->profile, str, optarg)) {
-		    aal_exception_fatal("Cannot load a plugin (%s) of the type (%s).\n", 
+		    aal_exception_fatal("Cannot load a plugin (%s) of the type (%s).", 
 			str, optarg);
 		    return USER_ERROR;
 		}
@@ -237,7 +237,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	}
     }
     if (profile_label && !(data->profile = progs_profile_find(profile_label))) {
-	aal_exception_fatal("Cannot find the specified profile (%s).\n", profile_label);
+	aal_exception_fatal("Cannot find the specified profile (%s).", profile_label);
 	return USER_ERROR;
     }
     if (optind == argc && profile_label) {
@@ -255,8 +255,10 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
     if (progs_misc_dev_mounted(argv[optind], NULL)) {
 	if (!progs_misc_dev_mounted(argv[optind], "ro")) {
 	    aal_exception_fatal("The partition (%s) is mounted w/ write permissions, "
-		"cannot fsck it.\n", argv[optind]);
+		"cannot fsck it.", argv[optind]);
 	    return USER_ERROR;
+	} else {
+	    repair_set_option(REPAIR_OPT_READ_ONLY, data);
 	}
 	    
 	if (mode == REPAIR_REBUILD) { 
@@ -267,7 +269,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
     if (!(data->host_device = aal_file_open(argv[optind], REISER4_DEFAULT_BLOCKSIZE, 
 	O_RDWR))) 
     {
-	aal_exception_fatal("Cannot open the partition (%s): %s.\n", argv[optind], 
+	aal_exception_fatal("Cannot open the partition (%s): %s.", argv[optind], 
 	    strerror(errno));
 	return OPER_ERROR;
     }
@@ -282,9 +284,14 @@ int fsck_check_fs(reiser4_fs_t *fs) {
     time(&t);
     fprintf(stderr, "###########\nreiserfsck --check started at %s###########\n", 
 	ctime (&t));
-    
-    if (repair_fs_check(fs)) {
-	aal_exception_fatal("Filesystem check failed. File system needs to be rebuild.\n");
+ 
+    if (!repair_read_only(repair_data(fs))) {
+	/* FIXME-VITALY: Journal needs to be replayed, when ready. */
+	
+    }
+
+    if ((retval = repair_fs_check(fs))) {
+	aal_exception_fatal("Filesystem check failed. File system needs to be rebuild.");
 	return OPER_ERROR;
     }
 
@@ -294,12 +301,6 @@ int fsck_check_fs(reiser4_fs_t *fs) {
 }
 
 int fsck_rebuild_fs(reiser4_fs_t *fs) {
-
-    if (repair_fs_sync(fs)) {
-	aal_exception_fatal("Cannot synchronize the filesystem.\n");
-	return OPER_ERROR;
-    }
-
     return NO_ERROR;
 }
 
@@ -315,7 +316,7 @@ int main(int argc, char *argv[]) {
     memset(&data, 0, sizeof(data));
 
     if (libreiser4_init(0)) {
-	aal_exception_fatal("Cannot initialize the libreiser4.\n");
+	aal_exception_fatal("Cannot initialize the libreiser4.");
 	exit(OPER_ERROR);
     }
    
@@ -323,7 +324,7 @@ int main(int argc, char *argv[]) {
 	goto free_device;
 
     if (!(fs = repair_fs_open(&data, fsck_callback_blocksize_from_user))) {
-	aal_exception_fatal("Cannot open the filesystem on (%s).\n", 
+	aal_exception_fatal("Cannot open the filesystem on (%s).", 
 	    aal_device_name(data.host_device));
 	goto free_device;
     }
@@ -333,12 +334,17 @@ int main(int argc, char *argv[]) {
 	    exit_code = fsck_check_fs(fs);
 	    break;
 	default:
-	    aal_exception_fatal("Only check mode is supported yet.\n");
+	    aal_exception_fatal("Only check mode is supported yet.");
 	    exit_code = USER_ERROR;
 	    goto free_fs;
     }
 	
     fprintf(stderr, "Synchronizing...");
+   
+    if (repair_fs_sync(fs)) {
+	aal_exception_fatal("Cannot synchronize the filesystem.");
+	return OPER_ERROR;
+    }
     
     if (aal_device_sync(data.host_device)) {
 	aal_exception_fatal("Cannot synchronize the device (%s).", 
