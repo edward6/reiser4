@@ -402,6 +402,7 @@ static int formatted_invalidatepage( struct page *page /* page to write */,
 	assert( "nikita-2111", !PageDirty( page ) );
 	assert( "nikita-2112", PageUptodate( page ) );
 	page_detach_jnode( page );
+	return 0;
 }
 
 int page_io( struct page *page, int rw, int gfp )
