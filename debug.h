@@ -172,6 +172,7 @@ typedef struct lock_counters_info {
 	int spin_locked_fq;
 	int spin_locked_super;
 	int spin_locked_inode_object;
+	int spin_locked_cbk_cache;
 	int spin_locked;
 	int long_term_locked_znode;
 
@@ -356,10 +357,10 @@ typedef struct reiser4_prof_cnt {
 
 typedef struct reiser4_prof {
 	reiser4_prof_cnt jload;
+	reiser4_prof_cnt jrelse;
 	reiser4_prof_cnt carry;
 	reiser4_prof_cnt flush_alloc;
 	reiser4_prof_cnt forward_squalloc;
-	reiser4_prof_cnt load_page;
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);
