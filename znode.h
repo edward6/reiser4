@@ -117,9 +117,10 @@ struct znode {
 	  
 	   This value allows us to avoid expensive binary searches.
 
-	   node points to the parent of this node, and is NOT a hint.
+	   in_parent->node points to the parent of this node, and is NOT a
+	   hint.
 
-	   why? NIKITA-FIXME-HANS
+	   why? NIKITA-FIXME-HANS Why what? HANS-FIXME-NIKITA
 	*/
 	coord_t in_parent;
 
