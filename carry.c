@@ -1282,8 +1282,7 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 							     &ref -> header ) );
 	}
 
-	add_pointer = post_carry( todo, COP_INSERT, 
-					  ref -> real_node, 1 );
+	add_pointer = post_carry( todo, COP_INSERT, ref -> real_node, 1 );
 	if( IS_ERR( add_pointer ) ) {
 		/*
 		 * no need to deallocate @new_znode here: it will be
