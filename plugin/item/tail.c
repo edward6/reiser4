@@ -18,6 +18,51 @@ reiser4_key * tail_max_key_inside (const tree_coord * coord,
 
 
 /*
+ * plugin->u.item.b.can_contain_key
+ */
+int tail_can_contain_key (const tree_coord * coord, const reiser4_key * key,
+			  const reiser4_item_data * data)
+{
+	reiser4_key item_key;
+
+
+	if (item_plugin_by_coord (coord) != data->iplug)
+		return 0;
+
+	item_key_by_coord (coord, &item_key);
+	if (get_key_locality (key) != get_key_locality (&item_key) ||
+	    get_key_objectid (key) != get_key_objectid (&item_key))
+		return 0;
+
+	assert ("vs-459",
+		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
+		(coord->unit_pos == last_unit_pos (coord) &&
+		 coord->between == AFTER_UNIT));
+
+	if (coord->between == BEFORE_UNIT) {
+		reiser4_extent * ext;
+
+		ext = (reiser4_extent *)data->data;
+		if (get_key_offset (key) + data->length !=
+		    get_key_offset (&item_key)) {
+			info ("could not merge tail items of one file\n");
+			return 0;
+		} else
+			return 1;
+
+	} else {
+		if (get_key_offset (key) != (get_key_offset (&item_key) +
+					     item_length_by_coord (coord))) {
+			info ("could not append tail item with "
+			      "a tail item of the same file\n");
+			return 0;
+		} else
+			return 1;
+	}
+}
+
+
+/*
  * plugin->u.item.b.mergeable
  * first item is of tail type
  */
@@ -416,7 +461,7 @@ static void make_item_data (tree_coord * coord, reiser4_item_data * item,
  * insert tail item consisting of zeros only. Number of bytes appended to the
  * file is returned
  */
-static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
 {
 	int result;
 	reiser4_key hole_key;
@@ -440,7 +485,7 @@ static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
  * append @coord item with zeros. Number of bytes appended to the file is
  * returned
  */
-static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
 {
 	int result;
 	reiser4_key hole_key;
@@ -468,7 +513,7 @@ static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
  * @count bytes of flow @f got written, update correspondingly f->length,
  * f->data and f->key
  */
-static void move_flow_forward (flow * f, unsigned count)
+static void move_flow_forward (flow_t * f, unsigned count)
 {
 	f->data += count;
 	f->length -= count;
@@ -480,7 +525,7 @@ static void move_flow_forward (flow * f, unsigned count)
  * insert first item of file into tree. Number of bytes appended to the file is
  * returned
  */
-static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
 	int result;
@@ -501,7 +546,7 @@ static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow
  * append item @coord with flow @f's data. Number of bytes appended to the file
  * is returned
  */
-static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
 	int result;
@@ -523,7 +568,7 @@ static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 /*
  * copy user data over file tail item
  */
-static int overwrite_tail (tree_coord * coord, flow * f)
+static int overwrite_tail (tree_coord * coord, flow_t * f)
 {
 	int result;
 	unsigned count;
@@ -551,7 +596,7 @@ static int overwrite_tail (tree_coord * coord, flow * f)
  * access to data stored in tails goes directly through formatted nodes
  */
 int tail_write (struct inode * inode, tree_coord * coord,
-		reiser4_lock_handle * lh, flow * f)
+		reiser4_lock_handle * lh, flow_t * f)
 {
 	int result;
 
@@ -604,7 +649,7 @@ int tail_write (struct inode * inode, tree_coord * coord,
  * plugin->u.item.s.file.read
  */
 int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
-	       reiser4_lock_handle * lh UNUSED_ARG, flow * f)
+	       reiser4_lock_handle * lh UNUSED_ARG, flow_t * f)
 {
 	unsigned count;
 
