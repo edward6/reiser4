@@ -144,12 +144,10 @@ static void sub_from_sb_used (const struct super_block *super, __u64 count)
  * super block has 4 counters: free, used, grabbed, unallocated. Their sum
  * must be number of blocks on a device. This function checks this
  */
-void check_block_counters (const struct super_block *super)
+int check_block_counters (const struct super_block *super)
 {
 	__u64 sum;
 
-	if (!REISER4_DEBUG)
-		return;
 	sum = reiser4_grabbed_blocks (super) + reiser4_free_blocks (super) +
 		reiser4_data_blocks (super) + reiser4_fake_allocated (super) +
 		reiser4_fake_allocated_unformatted (super);
@@ -164,8 +162,9 @@ void check_block_counters (const struct super_block *super)
 		      reiser4_fake_allocated (super),
 		      reiser4_fake_allocated_unformatted (super),
 		      sum, reiser4_block_count (super));
-		impossible ("vs-922", "wrong block counters");
+		return 0;
 	}
+	return 1;
 }
 
 
@@ -257,7 +256,7 @@ static void grabbed2fake_allocated (__u64 count, int formatted)
 	sub_from_sb_grabbed(super, count);
 	add_to_sb_unallocated(super, count, formatted);
 
-	check_block_counters (super);
+	assert ("vs-922", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -306,7 +305,7 @@ static void grabbed2used (__u64 count)
 	sub_from_sb_grabbed(super, count);
 	add_to_sb_used(super, count);
 
-	check_block_counters (super);
+	assert ("nikita-2679", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -324,7 +323,7 @@ static void fake_allocated2used (__u64 count, int formatted)
 	sub_from_sb_unallocated(super, count, formatted);
 	add_to_sb_used(super, count);
 
-	check_block_counters (super);
+	assert ("nikita-2680", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -409,7 +408,7 @@ static void used2fake_allocated (__u64 count, int formatted)
 	add_to_sb_unallocated(super, count, formatted);
 	sub_from_sb_used(super, count);
 
-	check_block_counters (super);
+	assert ("nikita-2681", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -426,12 +425,12 @@ static void fake_allocated2grabbed (__u64 count, int formatted)
 
 	reiser4_spin_lock_sb(super);
 
-	check_block_counters (super);
+	assert ("nikita-2682", check_block_counters (super));
 
 	add_to_sb_grabbed(super, count);
 	sub_from_sb_unallocated(super, count, formatted);
 
-	check_block_counters (super);
+	assert ("nikita-2683", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -451,7 +450,7 @@ void grabbed2free (__u64 count)
 	sub_from_sb_grabbed(super, count);
 	reiser4_set_free_blocks (super, reiser4_free_blocks (super) + count);
 	
-	check_block_counters (super);
+	assert ("nikita-2684", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -491,7 +490,7 @@ static void used2grabbed (__u64 count)
 	add_to_sb_grabbed(super, count);
 	sub_from_sb_used(super, count);
 
-	check_block_counters (super);
+	assert ("nikita-2685", check_block_counters (super));
 
 	reiser4_spin_unlock_sb (super);
 }

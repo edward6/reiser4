@@ -1991,6 +1991,8 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	init_committed_sb_counters(s);
 
+	assert ("nikita-2687", check_block_counters (s));
+
 	/*
 	 * FIXME-NIKITA actually, options should be parsed by plugins also.
 	 */
@@ -2046,7 +2048,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		unlock_new_inode (inode);
 	}
 
-	check_block_counters (s);
 	if (!silent)
 		print_fs_info ("mount ok", s);
 	REISER4_EXIT (0);
@@ -2339,6 +2340,23 @@ static void __exit done_reiser4(void)
 #undef DONE_IF
 }
 
+static int test( struct notifier_block *self, unsigned long event, void *arg )
+{
+	struct low_mem_info *info;
+
+	info = arg;
+
+	info( "low_mem: %lu, zone: %s, prio: %i, scanned: %i\n",
+	      event, info -> zone -> name, info -> priority, info -> scanned );
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block low_mem_test = {
+	.notifier_call = test,
+	.next          = NULL,
+	.priority      = 1
+};
+
 /**
  * initialise reiser4: this is called either at bootup or at module load.
  */
@@ -2371,6 +2389,7 @@ static int __init init_reiser4(void)
 	CHECK_INIT_RESULT( register_filesystem( &reiser4_fs_type ) );
 
 	assert( "nikita-2515", init_stage == INIT_FS_REGISTERED );
+	notifier_chain_register( &low_mem_chain, &low_mem_test );
 	return 0;
 #undef CHECK_INIT_RESULT
 }

@@ -71,7 +71,7 @@ extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_dealloc_blocks (const reiser4_block_nr *,
 				   const reiser4_block_nr *, int defer,
 				   block_stage_t, int formatted);
-extern void check_block_counters (const struct super_block *);
+extern int check_block_counters (const struct super_block *);
 
 #if REISER4_DEBUG
 
