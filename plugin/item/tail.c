@@ -8,7 +8,7 @@
 /*
  * plugin->u.item.b.max_key_inside
  */
-reiser4_key * tail_max_key_inside (const tree_coord * coord, 
+reiser4_key * tail_max_key_inside (const new_coord * coord, 
 				   reiser4_key * key)
 {
 	item_key_by_coord (coord, key);
@@ -20,7 +20,7 @@ reiser4_key * tail_max_key_inside (const tree_coord * coord,
 /*
  * plugin->u.item.b.can_contain_key
  */
-int tail_can_contain_key (const tree_coord * coord, const reiser4_key * key,
+int tail_can_contain_key (const new_coord * coord, const reiser4_key * key,
 			  const reiser4_item_data * data)
 {
 	reiser4_key item_key;
@@ -36,7 +36,7 @@ int tail_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 
 	assert ("vs-459",
 		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
-		(coord->unit_pos == last_unit_pos (coord) &&
+		(coord->unit_pos == ncoord_last_unit_pos (coord) &&
 		 coord->between == AFTER_UNIT));
 
 	if (coord->between == BEFORE_UNIT) {
@@ -63,7 +63,7 @@ int tail_can_contain_key (const tree_coord * coord, const reiser4_key * key,
  * plugin->u.item.b.mergeable
  * first item is of tail type
  */
-int tail_mergeable (const tree_coord * p1, const tree_coord * p2)
+int tail_mergeable (const new_coord * p1, const new_coord * p2)
 {
 	reiser4_key key1, key2;
 
@@ -109,7 +109,7 @@ int tail_mergeable (const tree_coord * p1, const tree_coord * p2)
 /*
  * plugin->u.item.b.nr_units
  */
-unsigned tail_nr_units (const tree_coord * coord)
+unsigned tail_nr_units (const new_coord * coord)
 {
 	return item_length_by_coord (coord);
 }
@@ -119,7 +119,7 @@ unsigned tail_nr_units (const tree_coord * coord)
  * plugin->u.item.b.lookup
  */
 lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
-			   tree_coord * coord)
+			   new_coord * coord)
 {
 	reiser4_key item_key;
 	__u64 lookuped, offset;
@@ -172,7 +172,7 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 /*
  * plugin->u.item.b.paste
  */
-int tail_paste (tree_coord * coord, reiser4_item_data * data,
+int tail_paste (new_coord * coord, reiser4_item_data * data,
 		carry_level * todo UNUSED_ARG)
 {
 	unsigned old_item_length;
@@ -231,7 +231,7 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
  * number of units is returned via return value, number of bytes via @size. For
  * tail items they coincide
  */
-int tail_can_shift (unsigned free_space, tree_coord * source UNUSED_ARG,
+int tail_can_shift (unsigned free_space, new_coord * source UNUSED_ARG,
 		    znode * target UNUSED_ARG,
 		    shift_direction direction UNUSED_ARG,
 		    unsigned * size, unsigned want)
@@ -250,7 +250,7 @@ int tail_can_shift (unsigned free_space, tree_coord * source UNUSED_ARG,
 /*
  * plugin->u.item.b.copy_units
  */
-void tail_copy_units (tree_coord * target, tree_coord * source,
+void tail_copy_units (new_coord * target, new_coord * source,
 		      unsigned from, unsigned count,
 		      shift_direction where_is_free_space,
 		      unsigned free_space UNUSED_ARG)
@@ -303,7 +303,7 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
  * plugin->u.item.b.cut_units
  * plugin->u.item.b.kill_units
  */
-int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
+int tail_cut_units (new_coord * coord, unsigned * from, unsigned * to,
 		    const reiser4_key * from_key UNUSED_ARG,
 		    const reiser4_key * to_key UNUSED_ARG,
 		    reiser4_key * smallest_removed)
@@ -322,7 +322,7 @@ int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
 	/*
 	 * tails items are never cut from the middle of an item
 	 */
-	assert ("vs-396", ergo (*from != 0, *to == last_unit_pos (coord)));
+	assert ("vs-396", ergo (*from != 0, *to == ncoord_last_unit_pos (coord)));
 
 
 	if (smallest_removed) {
@@ -351,9 +351,9 @@ int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
 /*
  * plugin->u.item.b.unit_key
  */
-reiser4_key * tail_unit_key (const tree_coord * coord, reiser4_key * key)
+reiser4_key * tail_unit_key (const new_coord * coord, reiser4_key * key)
 {
-	assert ("vs-375", coord_of_unit (coord));
+	assert ("vs-375", ncoord_is_existing_unit (coord));
 
 	item_key_by_coord (coord, key);
 	set_key_offset (key, (get_key_offset (key) + coord->unit_pos));
@@ -379,7 +379,7 @@ typedef enum {
 } tail_write_todo;
 
 
-static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
+static tail_write_todo tail_what_todo (struct inode * inode, new_coord * coord,
 				       reiser4_key * key)
 {
 	reiser4_key item_key;
@@ -415,7 +415,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 		get_key_objectid (key) == get_key_objectid (&item_key));
 
 
-	if (coord_of_unit (coord)) {
+	if (ncoord_is_existing_unit (coord)) {
 		/*
 		 * make sure that @coord is set to proper position
 		 */
@@ -427,7 +427,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 	}
 
 	if (coord->between != AFTER_UNIT ||
-	    coord->unit_pos != last_unit_pos (coord)) {
+	    coord->unit_pos != ncoord_last_unit_pos (coord)) {
 		/*
 		 * FIXME-VS: we could try to adjust coord
 		 */
@@ -445,7 +445,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
  * prepare item data which will be passed down to either insert_by_coord or to
  * resize_item
  */
-static void make_item_data (tree_coord * coord, reiser4_item_data * item,
+static void make_item_data (new_coord * coord, reiser4_item_data * item,
 			    char * data, int user, unsigned desired_len)
 {
 	item->data = data;
@@ -462,7 +462,7 @@ static void make_item_data (tree_coord * coord, reiser4_item_data * item,
  * insert tail item consisting of zeros only. Number of bytes appended to the
  * file is returned
  */
-static int create_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
+static int create_hole (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	reiser4_key hole_key;
@@ -488,7 +488,7 @@ static int create_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
  * append @coord item with zeros. Number of bytes appended to the file is
  * returned
  */
-static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
+static int append_hole (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	reiser4_key hole_key;
@@ -517,7 +517,7 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
  * insert first item of file into tree. Number of bytes appended to the file is
  * returned
  */
-static int insert_first_item (tree_coord * coord, lock_handle * lh, flow_t * f)
+static int insert_first_item (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
 	int result;
@@ -539,7 +539,7 @@ static int insert_first_item (tree_coord * coord, lock_handle * lh, flow_t * f)
  * append item @coord with flow @f's data. Number of bytes appended to the file
  * is returned
  */
-static int append_tail (tree_coord * coord, lock_handle * lh, flow_t * f)
+static int append_tail (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
 	int result;
@@ -559,7 +559,7 @@ static int append_tail (tree_coord * coord, lock_handle * lh, flow_t * f)
 /*
  * copy user data over file tail item
  */
-static int overwrite_tail (tree_coord * coord, flow_t * f)
+static int overwrite_tail (new_coord * coord, flow_t * f)
 {
 	int result;
 	unsigned count;
@@ -587,7 +587,7 @@ static int overwrite_tail (tree_coord * coord, flow_t * f)
  * plugin->u.item.s.file.write
  * access to data stored in tails goes directly through formatted nodes
  */
-int tail_write (struct inode * inode, tree_coord * coord,
+int tail_write (struct inode * inode, new_coord * coord,
 		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
 {
 	int result;
@@ -641,7 +641,7 @@ int tail_write (struct inode * inode, tree_coord * coord,
 /*
  * plugin->u.item.s.file.read
  */
-int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
+int tail_read (struct inode * inode UNUSED_ARG, new_coord * coord,
 	       lock_handle * lh UNUSED_ARG, flow_t * f)
 {
 	unsigned count;

@@ -32,7 +32,7 @@
 
 static znode *seal_node( const seal_t *seal );
 static int seal_matches( const seal_t *seal, znode *node );
-static int seal_search_node( seal_t *seal, tree_coord *coord, 
+static int seal_search_node( seal_t *seal, new_coord *coord, 
 			     znode *node, reiser4_key *key, lookup_bias bias,
 			     tree_level level );
 
@@ -41,7 +41,7 @@ static int seal_search_node( seal_t *seal, tree_coord *coord,
  * and @key can be NULL. 
  */
 void seal_init( seal_t      *seal /* seal to initialise */, 
-		tree_coord  *coord /* coord @seal will be attached to */, 
+		new_coord  *coord /* coord @seal will be attached to */, 
 		const reiser4_key *key UNUSED_ARG /* key @seal will be
 						   * attached to */ )
 {
@@ -89,7 +89,7 @@ int seal_is_set( const seal_t *seal /* seal to query */ )
  *
  */
 int seal_validate( seal_t            *seal  /* seal to validate */, 
-		   tree_coord        *coord /* coord to validate against */, 
+		   new_coord        *coord /* coord to validate against */, 
 		   reiser4_key       *key   /* key to validate against */, 
 		   tree_level         level /* level of node */,
 		   lock_handle       *lh    /* resulting lock handle */, 
@@ -124,7 +124,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 					({ 
 						reiser4_key ukey;
 
-						coord_of_unit( coord ) && 
+						ncoord_is_existing_unit( coord ) && 
 						keyeq( key, 
 						       unit_key_by_coord( coord,
 									  &ukey ) );
@@ -181,7 +181,7 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 
 /** intranode search */
 static int seal_search_node( seal_t      *seal  /* seal to repair */, 
-			     tree_coord  *coord /* coord attached to @seal */, 
+			     new_coord  *coord /* coord attached to @seal */, 
 			     znode       *node  /* node to search in */, 
 			     reiser4_key *key   /* key attached to @seal */, 
 			     lookup_bias  bias  /* search bias */,
@@ -206,7 +206,7 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 	if( result != 0 )
 		return result;
 	
-	if( coord_of_unit( coord ) && 
+	if( ncoord_is_existing_unit( coord ) && 
 	    keyeq( key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		/* coord is still at the same position in the @node */
 		reiser4_stat_seal_add( didnt_move );
@@ -234,7 +234,7 @@ void print_seal( const char *prefix, const seal_t *seal )
 		info( "%s: version: %llu, block: %llu\n",
 		      prefix, seal -> version, seal -> block );
 		print_key( "seal key", &seal -> key );
-		print_coord( "seal coord", &seal -> coord, 1 );
+		ncoord_print( "seal coord", &seal -> coord, 1 );
 	}
 }
 #endif

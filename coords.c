@@ -4,20 +4,20 @@
 
 #include "reiser4.h"
 
-unsigned coord_num_units (const tree_coord * coord)
+unsigned coord_num_units (const new_coord * coord)
 {
 	assert ("vs-276", coord_of_item (coord));
 	return item_plugin_by_coord (coord)->common.nr_units (coord);
 }
 
-unsigned last_unit_pos (const tree_coord * coord)
+unsigned last_unit_pos (const new_coord * coord)
 {
 	return coord_num_units (coord) - 1;
 }
 
 
 /* 1 is returned if @coord's fields are of reasonable values, 0 - otherwise */
-int coord_correct (const tree_coord * coord)
+int coord_correct (const new_coord * coord)
 {
 	if (coord->node == NULL)
 		return 0;
@@ -57,7 +57,7 @@ int coord_correct (const tree_coord * coord)
 
 /* 1 is returned if @coord->item_pos is set ot existing item within a
    @coord->node */
-int coord_of_item (const tree_coord * coord)
+int coord_of_item (const new_coord * coord)
 {
 	return coord->item_pos < node_num_items (coord->node);
 }
@@ -65,7 +65,7 @@ int coord_of_item (const tree_coord * coord)
 
 /* 1 is returned if @coord is set to certain unit within a node, 0 -
    otherwise */
-int coord_of_unit (const tree_coord * coord)
+int coord_of_unit (const new_coord * coord)
 {
 	if (coord->between != AT_UNIT)
 		return 0;
@@ -82,7 +82,7 @@ int coord_of_unit (const tree_coord * coord)
 /**
  * returns true iff @coord addresses something within a node.
  **/
-int coord_is_in_node( const tree_coord *coord )
+int coord_is_in_node( const new_coord *coord )
 {
 	pos_in_node pos;
 	unsigned unit;
@@ -118,7 +118,7 @@ int coord_is_in_node( const tree_coord *coord )
 /* this assumes that @coord is set to existing unit within a node. Move @coord
    to next unit. 1 is returned if coord is set already to last unit in the
    node. 0 - otherwise */
-int coord_next_unit (tree_coord * coord)
+int coord_next_unit (new_coord * coord)
 {
 	assert ("vs-199", coord_correct (coord));
 	assert ("vs-200", coord_of_unit (coord));
@@ -137,7 +137,7 @@ int coord_next_unit (tree_coord * coord)
 /* this assumes that @coord is set to existing unit within a node. Move @coord
    to previous unit. 1 is returned if coord is set already to first unit in
    the node. 0 - otherwise */
-int coord_prev_unit (tree_coord * coord)
+int coord_prev_unit (new_coord * coord)
 {
 	assert ("vs-201", coord_correct (coord));
 	assert ("vs-202", coord_of_unit (coord));
@@ -158,7 +158,7 @@ int coord_prev_unit (tree_coord * coord)
 /*
  * set coord to first unit of an item
  */
-void coord_first_item_unit (tree_coord * coord)
+void coord_first_item_unit (new_coord * coord)
 {
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;
@@ -168,7 +168,7 @@ void coord_first_item_unit (tree_coord * coord)
 /*
  * set coord to last unit of an item
  */
-void coord_last_item_unit (tree_coord * coord)
+void coord_last_item_unit (new_coord * coord)
 {
 	coord->unit_pos = last_unit_pos (coord);
 	coord->between = AT_UNIT;
@@ -178,7 +178,7 @@ void coord_last_item_unit (tree_coord * coord)
 /*
  * set coord to first unit within a node
  */
-void coord_first_unit (tree_coord * coord, znode *node)
+void coord_first_unit (new_coord * coord, znode *node)
 {
 	if (node != NULL) { coord->node = node; }
 	coord->item_pos = 0;
@@ -186,7 +186,7 @@ void coord_first_unit (tree_coord * coord, znode *node)
 }
 
 
-void coord_last_unit (tree_coord * coord, znode *node)
+void coord_last_unit (new_coord * coord, znode *node)
 {
 	if (node != NULL) { coord->node = node; }
 
@@ -204,7 +204,7 @@ void coord_last_unit (tree_coord * coord, znode *node)
 /*
  * set coord to first unit of next item, return 0 if there is no one
  */
-int coord_next_item (tree_coord * coord)
+int coord_next_item (new_coord * coord)
 {
 	assert ("vs-427", coord_correct (coord));
 	assert ("vs-428", coord_of_unit (coord));
@@ -220,7 +220,7 @@ int coord_next_item (tree_coord * coord)
 /*
  * set coord to first unit of prev item, return 0 if there is no one
  */
-int coord_prev_item (tree_coord * coord)
+int coord_prev_item (new_coord * coord)
 {
 	assert ("vs-452", coord_correct (coord));
 	assert ("vs-453", coord_of_unit (coord));
@@ -234,7 +234,7 @@ int coord_prev_item (tree_coord * coord)
 
 
 /* return 1 if @coord is set between items, 0 - otherwise */
-int coord_between_items (const tree_coord * coord)
+int coord_between_items (const new_coord * coord)
 {
 	if (coord_of_item (coord)) {
 		if (coord->between == AFTER_ITEM || coord->between == BEFORE_ITEM)
@@ -260,7 +260,7 @@ int coord_between_items (const tree_coord * coord)
 
 
 /* return 1 if @coord is set after last unit within @coord->node */
-int coord_after_last (const tree_coord * coord)
+int coord_after_last (const new_coord * coord)
 {
 	if (coord->item_pos == node_num_items (coord->node))
 		return 1;
@@ -272,7 +272,7 @@ int coord_after_last (const tree_coord * coord)
 
 /* this is supposed to be used when @coord is set between items. Return value
    is position of item which is left of those neighboring items */
-int left_item_pos (const tree_coord * coord)
+int left_item_pos (const new_coord * coord)
 {
 	assert ("vs-208", coord_correct (coord));
 	assert ("vs-197", !node_is_empty (coord->node));
@@ -298,7 +298,7 @@ int left_item_pos (const tree_coord * coord)
 
 /* @coord can be set between items and between units. This sets @coord to
    existing unit nearest to the left of @coord */
-int coord_set_to_left (tree_coord * coord)
+int coord_set_to_left (new_coord * coord)
 {
 	assert ("vs-203", coord_correct (coord));
 
@@ -323,7 +323,7 @@ int coord_set_to_left (tree_coord * coord)
 
 /* this is supposed to be used when @coord is set between items. Return value
    is position of item which is right of those neighboring items */
-unsigned right_item_pos (const tree_coord * coord)
+unsigned right_item_pos (const new_coord * coord)
 {
 	assert ("vs-204", coord_correct (coord));
 	assert ("vs-198", !node_is_empty (coord->node));
@@ -349,7 +349,7 @@ unsigned right_item_pos (const tree_coord * coord)
 /* @coord can be set between items and between units. This sets @coord to
    existing unit nearest to the right of @coord */
 
-int coord_set_to_right (tree_coord * coord)
+int coord_set_to_right (new_coord * coord)
 {
 	assert ("vs-207", coord_correct (coord));
 
@@ -373,7 +373,7 @@ int coord_set_to_right (tree_coord * coord)
 
 /* this only works for now if both coords are set to existing units within the
    same node */
-coord_cmp compare_coords (tree_coord * c1, tree_coord * c2)
+coord_cmp compare_coords (new_coord * c1, new_coord * c2)
 {
 	assert ("vs-209", c1->node == c2->node);
 	assert ("vs-194", coord_of_unit (c1) && coord_of_unit (c2));
@@ -389,10 +389,10 @@ coord_cmp compare_coords (tree_coord * c1, tree_coord * c2)
 	return COORD_CMP_SAME;
 }
 
-int coord_are_neighbors( tree_coord *c1, tree_coord *c2 )
+int coord_are_neighbors( new_coord *c1, new_coord *c2 )
 {
-	tree_coord *left;
-	tree_coord *right;
+	new_coord *left;
+	new_coord *right;
 
 	assert( "nikita-1241", c1 != NULL );
 	assert( "nikita-1242", c2 != NULL );
@@ -423,13 +423,13 @@ int coord_are_neighbors( tree_coord *c1, tree_coord *c2 )
 		return 0;
 }
 
-int coord_is_leftmost( const tree_coord *coord )
+int coord_is_leftmost( const new_coord *coord )
 {
 	assert( "nikita-1090", coord != NULL );
 	return ( coord -> item_pos == 0 ) && ( coord -> unit_pos == 0 );
 }
 
-int coord_is_rightmost( const tree_coord *coord )
+int coord_is_rightmost( const new_coord *coord )
 {
 	assert( "nikita-1091", coord != NULL );
 	return 
@@ -437,7 +437,7 @@ int coord_is_rightmost( const tree_coord *coord )
 		( coord -> unit_pos == last_unit_pos( coord ) );
 }
 
-int coord_is_utmost( const tree_coord *coord, sideof side )
+int coord_is_utmost( const new_coord *coord, sideof side )
 {
 	assert( "nikita-1092", coord != NULL );
 	assert( "nikita-1093", ( side == LEFT_SIDE ) || ( side == RIGHT_SIDE ) );
@@ -453,7 +453,7 @@ int coord_is_utmost( const tree_coord *coord, sideof side )
 
 
 /* return true if @coord is set after last unit in the item, 0 otherwise */
-int coord_is_after_item (const tree_coord * coord)
+int coord_is_after_item (const new_coord * coord)
 {
 	assert ("vs-261", coord_of_item (coord));
 	if (coord->unit_pos == last_unit_pos (coord) + 1)
@@ -463,7 +463,7 @@ int coord_is_after_item (const tree_coord * coord)
 }
 
 
-int coord_is_before_item (const tree_coord * coord, unsigned item_pos UNUSED_ARG)
+int coord_is_before_item (const new_coord * coord, unsigned item_pos UNUSED_ARG)
 {
 	/*
 	 * it is not ready yet for other item_pos than 0
@@ -482,7 +482,7 @@ int coord_is_before_item (const tree_coord * coord, unsigned item_pos UNUSED_ARG
 /**
  * determine how @coord is located w.r.t. its node.
  */
-coord_wrt_node coord_wrt( const tree_coord *coord )
+coord_wrt_node coord_wrt( const new_coord *coord )
 {
 	assert( "nikita-1713", coord != NULL );
 	assert( "nikita-1714", coord -> node != NULL );
@@ -499,7 +499,7 @@ coord_wrt_node coord_wrt( const tree_coord *coord )
 }
 
 /** true if @c1 and @c2 points to the same place in a node */
-int coord_eq( const tree_coord *c1, const tree_coord *c2 )
+int coord_eq( const new_coord *c1, const new_coord *c2 )
 {
 	assert( "nikita-1807", c1 != NULL );
 	assert( "nikita-1808", c2 != NULL );
@@ -558,7 +558,7 @@ static const char * tween (between_enum n)
 }
 
 
-void print_coord (const char * mes, const tree_coord * coord,
+void print_coord (const char * mes, const new_coord * coord,
 		  int node)
 {
 	if( coord == NULL ) {

@@ -38,7 +38,7 @@ int tail_nr_units (item_coord * item)
 /* plugin->u.item.b.can_shift
    look for description of this method in plugin/item/item.h
 */
-int tail_can_shift (int free_space, tree_coord * target,
+int tail_can_shift (int free_space, new_coord * target,
 		    unit_coord * source, shift_direction pend,
 		    int * size, int stop)
 {
@@ -64,7 +64,7 @@ int tail_can_shift (int free_space, tree_coord * target,
 /* plugin->u.item.b.copy_units
    look for description of this method in plugin/item/item.h
  */
-void tail_copy_units (tree_coord * target, unit_coord * source,
+void tail_copy_units (new_coord * target, unit_coord * source,
 		      int unit_num, shift_direction pend,
 		      char * new_data)
 {
@@ -97,7 +97,7 @@ void tail_copy_units (tree_coord * target, unit_coord * source,
 /* plugin->u.item.b.copy_units
    look for description of this method in plugin/item/item.h
  */
-void tail_pend_units (tree_coord * target, tree_coord * source,
+void tail_pend_units (new_coord * target, new_coord * source,
 		      int from, int count,
 		      shift_direction where_is_free_space, int free_space)
 {

@@ -380,7 +380,7 @@ static void sd_base_load (struct inv_entry * inv_entry, char * sd)
 
 /* initialise incore stat-data */
 
-static void init_incore_sd_base (struct inv_entry * inv_entry, tree_coord * coord)
+static void init_incore_sd_base (struct inv_entry * inv_entry, new_coord * coord)
 {
 	reiser4_plugin * plugin = item_plugin_by_coord (coord);
 	void * body = item_body_by_coord (coord);
@@ -412,7 +412,7 @@ int get_inv_entry (struct inode * invert_inode, /* inode of invert's body */
 		return (PTR_ERR(ientry));
 	
 	if (type == LIGHT_WEIGHT_FILE) {
-		tree_coord coord;
+		new_coord coord;
 		lock_handle lh;
 		
 		assert ("edward-108", key != NULL);

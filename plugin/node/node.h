@@ -137,19 +137,19 @@ typedef struct node_plugin {
 	    that item to see if it is in there */
 	node_search_result ( *lookup )( znode *node, const reiser4_key *key, 
 					lookup_bias bias, 
-					tree_coord *coord );
+					new_coord *coord );
 	/** number of items in node */
 	int ( *num_of_items )( const znode *node );
 
 	/** store information about item in @coord in @data */
 	/* break into several node ops, don't add any more uses of this before doing so */
-	/*int ( *item_at )( const tree_coord *coord, reiser4_item_data *data );*/
-	char *( *item_by_coord )( const tree_coord *coord );	
-	int ( *length_by_coord )( const tree_coord *coord );
-	item_plugin *( *plugin_by_coord )( const tree_coord *coord );
+	/*int ( *item_at )( const new_coord *coord, reiser4_item_data *data );*/
+	char *( *item_by_coord )( const new_coord *coord );	
+	int ( *length_by_coord )( const new_coord *coord );
+	item_plugin *( *plugin_by_coord )( const new_coord *coord );
 
 	/** store item key in @key */
-	reiser4_key * ( *key_at )( const tree_coord *coord, reiser4_key *key );
+	reiser4_key * ( *key_at )( const new_coord *coord, reiser4_key *key );
 	/** conservatively estimate whether unit of what size can fit
 	    into node. This estimation have to be performed without
 	    actually looking into node's content (free space is saved in
@@ -183,20 +183,20 @@ typedef struct node_plugin {
 	   space. When @by > 0 - free space is appended to end of item. When
 	   @by < 0 - item is truncated - it is assumed that last @by bytes if
 	   the item are freed already */
-	void ( *change_item_size )( tree_coord *item, int by );
+	void ( *change_item_size )( new_coord *item, int by );
 
 	/* create new item @length bytes long in coord @target */
-	int ( *create_item )( tree_coord *target, const reiser4_key *key,
+	int ( *create_item )( new_coord *target, const reiser4_key *key,
 				  reiser4_item_data *data, carry_level *todo );
 
 	/**
 	 * update key of item.
 	 */
-	void ( *update_item_key )( tree_coord *target, reiser4_key *key,
+	void ( *update_item_key )( new_coord *target, reiser4_key *key,
 				   carry_level *todo );
 
 	/* remove data between @from and @to from the tree */
-	int ( *cut_and_kill )( tree_coord *from, tree_coord *to,
+	int ( *cut_and_kill )( new_coord *from, new_coord *to,
 			       const reiser4_key *from_key,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed,
@@ -206,7 +206,7 @@ typedef struct node_plugin {
 	/* remove data between @from and @to from a node (when shifting from
 	   one node to another, one cuts from a node but does not cut_and_kill
 	   from the tree) */
-	int ( *cut )( tree_coord *from, tree_coord *to,
+	int ( *cut )( new_coord *from, new_coord *to,
 		      const reiser4_key *from_key, const reiser4_key *to_key,
 		      reiser4_key *smallest_removed,
 		      carry_level *todo, __u32 flags );
@@ -217,7 +217,7 @@ typedef struct node_plugin {
 	   data from the end of @stop->node are copied to the beginning of
 	   @target. Copied data are removed from @stop->node. Information
 	   about what to do on upper level is stored in @todo */
-	int ( *shift ) ( tree_coord *stop, znode *target, shift_direction pend, 
+	int ( *shift ) ( new_coord *stop, znode *target, shift_direction pend, 
 			 int delete_node, int including_insert_coord,
 			 carry_level *todo );
 	/*
@@ -230,9 +230,9 @@ typedef struct node_plugin {
 	 * believed that majority of insertions will fit there.
 	 *
 	 */
-	int ( *fast_insert )( const tree_coord *coord );
-	int ( *fast_paste )( const tree_coord *coord );
-	int ( *fast_cut )( const tree_coord *coord );
+	int ( *fast_insert )( const new_coord *coord );
+	int ( *fast_paste )( const new_coord *coord );
+	int ( *fast_cut )( const new_coord *coord );
 	/*
 	 * this limits max size of item which can be inserted into a node and
 	 * number of bytes item in a node may be appended with

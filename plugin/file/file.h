@@ -24,7 +24,7 @@ int     unix_file_key_by_inode ( struct inode *, loff_t off, reiser4_key * );
 int     unix_file_create   (struct inode * object, struct inode * parent,
 				reiser4_object_create_data *data);
 int     unix_file_readpage (struct file * file, struct page * page);
-int     unix_file_owns_item( const struct inode *, const tree_coord *);
+int     unix_file_owns_item( const struct inode *, const new_coord *);
 
 
 /* __REISER4_FILE_H__ */

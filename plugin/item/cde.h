@@ -31,39 +31,39 @@ typedef struct cde_entry_data {
 } cde_entry_data;
 
 /* plugin->item.common.* */
-reiser4_key  *cde_max_key_inside( const tree_coord *coord, 
+reiser4_key  *cde_max_key_inside( const new_coord *coord, 
 				  reiser4_key *result );
-int           cde_can_contain_key( const tree_coord *coord, const reiser4_key *key,
+int           cde_can_contain_key( const new_coord *coord, const reiser4_key *key,
 				   const reiser4_item_data * );
-int           cde_mergeable  ( const tree_coord *p1, const tree_coord *p2 );
-unsigned      cde_nr_units   ( const tree_coord *coord );
-reiser4_key  *cde_unit_key   ( const tree_coord *coord, reiser4_key *key );
-int           cde_estimate   ( const tree_coord *coord, 
+int           cde_mergeable  ( const new_coord *p1, const new_coord *p2 );
+unsigned      cde_nr_units   ( const new_coord *coord );
+reiser4_key  *cde_unit_key   ( const new_coord *coord, reiser4_key *key );
+int           cde_estimate   ( const new_coord *coord, 
 			       const reiser4_item_data *data );
-void          cde_print      ( const char *prefix, tree_coord *coord );
-int           cde_init       ( tree_coord *coord, reiser4_item_data *data );
+void          cde_print      ( const char *prefix, new_coord *coord );
+int           cde_init       ( new_coord *coord, reiser4_item_data *data );
 lookup_result cde_lookup     ( const reiser4_key *key, lookup_bias bias, 
-			       tree_coord *coord );
-int           cde_paste      ( tree_coord *coord, reiser4_item_data *data, 
+			       new_coord *coord );
+int           cde_paste      ( new_coord *coord, reiser4_item_data *data, 
 			       carry_level *todo UNUSED_ARG );
-int           cde_can_shift  ( unsigned free_space, tree_coord *coord, 
+int           cde_can_shift  ( unsigned free_space, new_coord *coord, 
 			       znode *target, shift_direction pend, 
 			       unsigned *size, unsigned want );
-void          cde_copy_units ( tree_coord *target, tree_coord *source,
+void          cde_copy_units ( new_coord *target, new_coord *source,
 			       unsigned from, unsigned count,
 			       shift_direction where_is_free_space,
 			       unsigned free_space );
-int           cde_cut_units  ( tree_coord *coord, unsigned *from, unsigned *to,
+int           cde_cut_units  ( new_coord *coord, unsigned *from, unsigned *to,
 			       const reiser4_key *from_key,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed );
-void          cde_print      ( const char *prefix, tree_coord *coord );
-int           cde_check      ( tree_coord *coord, const char **error );
+void          cde_print      ( const char *prefix, new_coord *coord );
+int           cde_check      ( new_coord *coord, const char **error );
 
 /* plugin->u.item.s.dir.* */
-int   cde_extract_key  ( const tree_coord *coord, reiser4_key *key );
-char *cde_extract_name ( const tree_coord *coord );
-int   cde_add_entry    ( const struct inode *dir, tree_coord *coord, 
+int   cde_extract_key  ( const new_coord *coord, reiser4_key *key );
+char *cde_extract_name ( const new_coord *coord );
+int   cde_add_entry    ( const struct inode *dir, new_coord *coord, 
 			 lock_handle *lh, const struct dentry *name, 
 			 reiser4_dir_entry_desc *entry );
 int   cde_max_name_len ( int block_size );

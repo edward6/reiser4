@@ -27,14 +27,14 @@ typedef struct directory_entry_format {
 	d8 name[ 0 ];
 } directory_entry_format;
 
-void  de_print        ( const char *prefix, tree_coord *coord );
-int   de_extract_key  ( const tree_coord *coord, reiser4_key *key );
-char *de_extract_name ( const tree_coord *coord );
-unsigned de_extract_file_type( const tree_coord *coord );
-int   de_add_entry    ( const struct inode *dir, tree_coord *coord, 
+void  de_print        ( const char *prefix, new_coord *coord );
+int   de_extract_key  ( const new_coord *coord, reiser4_key *key );
+char *de_extract_name ( const new_coord *coord );
+unsigned de_extract_file_type( const new_coord *coord );
+int   de_add_entry    ( const struct inode *dir, new_coord *coord, 
 			lock_handle *lh, const struct dentry *name, 
 			reiser4_dir_entry_desc *entry );
-int   de_rem_entry    ( const struct inode *dir, tree_coord *coord, 
+int   de_rem_entry    ( const struct inode *dir, new_coord *coord, 
 			lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   de_max_name_len ( int block_size );
 

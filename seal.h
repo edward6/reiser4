@@ -17,19 +17,19 @@ typedef struct seal_s {
 	reiser4_block_nr block;
 #if REISER4_DEBUG
 	/** coord this seal is attached to. For debugging. */
-	tree_coord       coord;
+	new_coord       coord;
 	/** key this seal is attached to. For debugging. */
 	reiser4_key      key;
 #endif
 } seal_t;
 
-extern void seal_init( seal_t *seal, tree_coord *coord, const reiser4_key *key );
+extern void seal_init( seal_t *seal, new_coord *coord, const reiser4_key *key );
 extern void seal_done( seal_t *seal );
 
 extern int seal_is_set( const seal_t *seal );
 
 extern int seal_validate( seal_t            *seal, 
-			  tree_coord        *coord, 
+			  new_coord        *coord, 
 			  reiser4_key       *key, 
 			  tree_level         level,
 			  lock_handle       *lh, 

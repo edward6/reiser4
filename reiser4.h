@@ -278,7 +278,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "dformat.h"
 #include "key.h"
 #include "kassign.h"
-#include "coords.h"
+/*#include "coords.h"*/
 #include "new_coord.h"
 #include "seal.h"
 #include "tshash.h"

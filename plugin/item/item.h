@@ -60,12 +60,12 @@ typedef struct {
 	 *  return max_key().
 	 *  
 	 */
-	reiser4_key *( *max_key_inside )( const tree_coord *coord, 
+	reiser4_key *( *max_key_inside )( const new_coord *coord, 
 					  reiser4_key *area );
 	/**
 	 * true if item @coord can merge data at @key.
 	 */
-	int ( *can_contain_key )( const tree_coord *coord, 
+	int ( *can_contain_key )( const new_coord *coord, 
 				  const reiser4_key *key,
 				  const reiser4_item_data *data );
 	/**
@@ -74,19 +74,19 @@ typedef struct {
 	 * Optional method. Returns true if two items can be merged.
 	 *
 	 */
-	int ( *mergeable )( const tree_coord *p1, 
-			    const tree_coord *p2 );
+	int ( *mergeable )( const new_coord *p1, 
+			    const new_coord *p2 );
 	
 	/* used for debugging only, prints an ascii description of the
 	   item contents */
-	void ( *print )( const char *, tree_coord *coord ); 
+	void ( *print )( const char *, new_coord *coord ); 
 	/* used for debugging, every item should have here the most
 	   complete possible check of the consistency of the item that
 	   the inventor can construct */
-	int ( *check )( tree_coord *coord, const char **error );
+	int ( *check )( new_coord *coord, const char **error );
 	
 	/* number of atomic things in an item */
-	unsigned ( *nr_units )( const tree_coord *coord );
+	unsigned ( *nr_units )( const new_coord *coord );
 	
 	/* search within item for a unit within the item, and return a
 	   pointer to it.  This can be used to calculate how many
@@ -97,20 +97,20 @@ typedef struct {
 	   going to break as well. */
 	lookup_result ( *lookup )( const reiser4_key *key, 
 				   lookup_bias bias, 
-				   tree_coord *coord );
+				   new_coord *coord );
 	/** method called by ode_plugin->create_item() to initialise new
 	 * item */
-	int ( *init )( tree_coord *coord, reiser4_item_data *data );
+	int ( *init )( new_coord *coord, reiser4_item_data *data );
 	/** method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
-	int ( *paste )( tree_coord *coord, reiser4_item_data *data,
+	int ( *paste )( new_coord *coord, reiser4_item_data *data,
 			carry_level *todo );
 	/**
 	 * return true if paste into @coord is allowed to skip
 	 * carry. That is, if such paste would require any changes
 	 * at the parent level
 	 */
-	int ( *fast_paste )( const tree_coord *coord );
+	int ( *fast_paste )( const new_coord *coord );
 	/**
 	 * how many but not more than @want units of @source can be
 	 * shifted into @target node. If pend == append - we try to
@@ -123,7 +123,7 @@ typedef struct {
 	 * @target is not NULL if shifting to the mergeable item and
 	 * NULL is new item will be created during shifting.
 	 */
-	int ( *can_shift )(unsigned free_space, tree_coord * source,
+	int ( *can_shift )(unsigned free_space, new_coord * source,
 			   znode * target, shift_direction pend,
 			   unsigned * size, unsigned want);
 	
@@ -133,12 +133,12 @@ typedef struct {
 	   needed for those items in @target. If @where_is_free_space
 	   == append - free space is at the end of @target item,
 	   othersize - it is in the beginning of it. */
-	void ( *copy_units )( tree_coord *target, tree_coord *source,
+	void ( *copy_units )( new_coord *target, new_coord *source,
 			      unsigned from, unsigned count,
 			      shift_direction where_is_free_space,
 			      unsigned free_space);
 	
-	int  ( *create_hook )( const tree_coord *item, void *arg );
+	int  ( *create_hook )( const new_coord *item, void *arg );
 	/* do whatever is necessary to do when @count units starting
 	 * from @from-th one are removed from the tree */
 	/*
@@ -154,9 +154,9 @@ typedef struct {
 	 * balancing to perform dealloc_block - this will probably
 	 * break balancing due to deadlock issues
 	 */
-	int ( *kill_hook )( const tree_coord *item, 
+	int ( *kill_hook )( const new_coord *item, 
 			    unsigned from, unsigned count, void *kill_params );
-	int ( *shift_hook )( const tree_coord *item, 
+	int ( *shift_hook )( const new_coord *item, 
 			     unsigned from, unsigned count, 
 			     znode *old_node );
 
@@ -171,7 +171,7 @@ typedef struct {
 	 * head. Return amount of space which got freed. Save smallest
 	 * removed key is @smallest_removed is not 0
 	 */
-	int ( *cut_units )( tree_coord *, unsigned *from, unsigned *to,
+	int ( *cut_units )( new_coord *, unsigned *from, unsigned *to,
 			    const reiser4_key *from_key,
 			    const reiser4_key *to_key,
 			    reiser4_key *smallest_removed );
@@ -180,7 +180,7 @@ typedef struct {
 	 * like cut_units, except that these units are removed from the
 	 * tree, not only from a node
 	 */
-	int ( *kill_units )( tree_coord *, unsigned *from, unsigned *to,
+	int ( *kill_units )( new_coord *, unsigned *from, unsigned *to,
 			     const reiser4_key *from_key,
 			     const reiser4_key *to_key,
 			     reiser4_key *smallest_removed );
@@ -188,31 +188,31 @@ typedef struct {
 	/* if @key_of_coord == 1 - returned key of coord, otherwise -
 	   key of unit is returned. If @coord is not set to certain
 	   unit - ERR_PTR(-ENOENT) is returned */
-	reiser4_key * ( *unit_key )( const tree_coord *coord, 
+	reiser4_key * ( *unit_key )( const new_coord *coord, 
 				     reiser4_key *key );
 	/**
 	 * estimate how much space is needed for paste @data into item
 	 * at @coord.
 	 */
-	int ( *estimate )( const tree_coord *coord, 
+	int ( *estimate )( const new_coord *coord, 
 			   const reiser4_item_data *data );
 	
 	/* converts flow @f to item data. @coord == 0 on insert */
-	int ( *item_data_by_flow )( const tree_coord *coord,
+	int ( *item_data_by_flow )( const new_coord *coord,
 				    const flow_t *f,
 				    reiser4_item_data *data );
 
 	/* return the right or left child of @coord, only if it is in memory */
-	int ( *utmost_child )( const tree_coord *coord, sideof side,
+	int ( *utmost_child )( const new_coord *coord, sideof side,
 			       jnode **child );
 	/* return whether the right or left child of @coord is dirty. */
-	int ( *utmost_child_dirty )( const tree_coord *coord, sideof side, int *is_dirty );
+	int ( *utmost_child_dirty )( const new_coord *coord, sideof side, int *is_dirty );
 	
 	/* return whether the right or left child of @coord has a non-fake block number. */
-	int ( *utmost_child_real_block )( const tree_coord *coord, sideof side,
+	int ( *utmost_child_real_block )( const new_coord *coord, sideof side,
 					  reiser4_block_nr *block );
 
-	reiser4_key *( *real_max_key_inside )( const tree_coord *coord, reiser4_key * );
+	reiser4_key *( *real_max_key_inside )( const new_coord *coord, reiser4_key * );
 } common_item_plugin;
 
 
@@ -222,21 +222,21 @@ typedef struct {
 	 * extract stat-data key from directory entry at @coord and place it
 	 * into @key.
 	 */
-	int ( *extract_key )( const tree_coord *coord, reiser4_key *key );
+	int ( *extract_key )( const new_coord *coord, reiser4_key *key );
 	/**
 	 * extract name from directory entry at @coord and return it
 	 */
-	char *( *extract_name )( const tree_coord *coord );
+	char *( *extract_name )( const new_coord *coord );
 	/**
 	 * extract file type (DT_* stuff) from directory entry at @coord and
 	 * return it
 	 */
-	unsigned ( *extract_file_type )( const tree_coord *coord );
+	unsigned ( *extract_file_type )( const new_coord *coord );
 	int ( *add_entry )( const struct inode *dir,
-			    tree_coord *coord, lock_handle *lh,
+			    new_coord *coord, lock_handle *lh,
 			    const struct dentry *name, reiser4_dir_entry_desc *entry );
 	int ( *rem_entry )( const struct inode *dir,
-			    tree_coord *coord, lock_handle *lh,
+			    new_coord *coord, lock_handle *lh,
 			    reiser4_dir_entry_desc *entry );
 	int ( *max_name_len )( int block_size );
 } dir_entry_ops;
@@ -247,11 +247,12 @@ typedef struct {
 	/* @page is used in extent's write. If it is set (when tail2extent
 	 * conversion is in progress) - do not grab a page and do not copy data
 	 * from flow into it because all the data are already */
-	int (* write) (struct inode *, tree_coord *, lock_handle *, flow_t *,
+	int (* write) (struct inode *, new_coord *, lock_handle *, flow_t *,
 		       struct page *);
-	int (* read) (struct inode *, tree_coord *,
+	int (* read) (struct inode *, new_coord *,
 		      lock_handle *, flow_t *);
-	int (* readpage) (void *, struct page *);
+	int (* readpage) (new_coord *,
+			  lock_handle *, struct page *);
 } file_ops;
 
 
@@ -267,11 +268,11 @@ typedef struct {
 typedef struct {
 	/** all tree traversal want to know from internal item is where
 	    to go next. */
-	void ( *down_link )( const tree_coord *coord, 
+	void ( *down_link )( const new_coord *coord, 
 			     const reiser4_key *key, 
 			     reiser4_block_nr *block );
 	/** check that given internal item contains given pointer. */
-	int ( *has_pointer_to )( const tree_coord *coord, 
+	int ( *has_pointer_to )( const new_coord *coord, 
 				 const reiser4_block_nr *block );
 } internal_item_ops;
 
@@ -297,12 +298,12 @@ static inline item_id item_id_by_plugin (item_plugin *plugin)
 }
 
 
-int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
+int item_can_contain_key( const new_coord *item, const reiser4_key *key,
 			  const reiser4_item_data * );
-int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 );
-int item_is_internal(const tree_coord * );
-int item_is_extent(const tree_coord * );
-int item_is_statdata (const tree_coord *item);
+int are_items_mergeable( const new_coord *i1, const new_coord *i2 );
+int item_is_internal(const new_coord * );
+int item_is_extent(const new_coord * );
+int item_is_statdata (const new_coord *item);
 
 
 /* 

@@ -206,7 +206,7 @@ typedef struct file_plugin {
 	    items of a file are not necessarily contiguous in a key space,
 	    for example, in a plan-b. */
 	int ( *owns_item )( const struct inode *inode,
-			    const tree_coord *coord );
+			    const new_coord *coord );
 
 	/** 
 	 * checks whether yet another hard links to this object can be

@@ -15,7 +15,7 @@
  * sd at @coord
  */
 void sd_print( const char *prefix /* prefix to print */, 
-	       tree_coord *coord /* coord of item */ )
+	       new_coord *coord /* coord of item */ )
 {
 	reiser4_stat_data_base *sd_base;
 

@@ -128,7 +128,6 @@ SRC		:= \
 		   carry_ops.c \
 		   lock.c \
 		   tree.c \
-		   coords.c \
 		   new_coord.c \
 		   block_alloc.c \
 		   txnmgr.c \

@@ -10,7 +10,7 @@
 
 /** ->max_key_inside() method for items consisting of exactly one key (like
     stat-data) */
-static reiser4_key *single_key( const tree_coord *coord /* coord of item */, 
+static reiser4_key *single_key( const new_coord *coord /* coord of item */, 
 				reiser4_key *result /* resulting key */ )
 {
 	assert( "nikita-604", coord != NULL );
@@ -21,7 +21,7 @@ static reiser4_key *single_key( const tree_coord *coord /* coord of item */,
 }
 
 /** ->nr_units() method for items consisting of exactly one unit always */
-static unsigned int single_unit( const tree_coord *coord UNUSED_ARG /* coord
+static unsigned int single_unit( const new_coord *coord UNUSED_ARG /* coord
 								       of
 								       item */ )
 {
@@ -29,12 +29,12 @@ static unsigned int single_unit( const tree_coord *coord UNUSED_ARG /* coord
 }
 
 /** default ->fast_paste() method */
-int agree_to_fast_op( const tree_coord *coord UNUSED_ARG /* coord of item */ )
+int agree_to_fast_op( const new_coord *coord UNUSED_ARG /* coord of item */ )
 {
 	return 1;
 }
 
-int item_can_contain_key( const tree_coord *item /* coord of item */, 
+int item_can_contain_key( const new_coord *item /* coord of item */, 
 			  const reiser4_key *key /* key to check */,
 			  const reiser4_item_data *data /* parameters of item
 							 * being created */ )
@@ -66,8 +66,8 @@ int item_can_contain_key( const tree_coord *item /* coord of item */,
 }
 
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
-int are_items_mergeable( const tree_coord *i1 /* coord of first item */, 
-			 const tree_coord *i2 /* coord of second item */ )
+int are_items_mergeable( const new_coord *i1 /* coord of first item */, 
+			 const new_coord *i2 /* coord of second item */ )
 {
 	item_plugin *iplug;
 	reiser4_key k1;
@@ -112,23 +112,23 @@ int are_items_mergeable( const tree_coord *i1 /* coord of first item */,
 	}
 }
 
-int item_is_extent (const tree_coord *item)
+int item_is_extent (const new_coord *item)
 {
-	assert ("vs-482", coord_of_item (item));
+	assert ("vs-482", ncoord_is_existing_item (item));
 	return item_id_by_coord (item) == EXTENT_POINTER_ID;
 }
 
 /* this returns true if item is of internal type */
-int item_is_internal (const tree_coord *item)
+int item_is_internal (const new_coord *item)
 {
-	assert ("vs-483", coord_of_item (item));
+	assert ("vs-483", ncoord_is_existing_item (item));
 	return item_type_by_coord (item) == INTERNAL_ITEM_TYPE;
 }
 
 
-int item_is_statdata (const tree_coord *item)
+int item_is_statdata (const new_coord *item)
 {
-	assert ("vs-516", coord_of_item (item));
+	assert ("vs-516", ncoord_is_existing_item (item));
 	return item_type_by_coord (item) == STAT_DATA_ITEM_TYPE;
 }
 

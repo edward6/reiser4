@@ -59,9 +59,9 @@ reiser4_key *leftmost_key_in_node( const znode *node /* node to query */,
 	assert( "nikita-1635", key != NULL );
 
 	if( !node_is_empty( node ) ) {
-		tree_coord first_item;
+		new_coord first_item;
 
-		coord_first_unit( &first_item, ( znode * ) node );
+		ncoord_init_first_unit( &first_item, ( znode * ) node );
 		item_key_by_coord( &first_item, key );
 	} else
 		*key = *max_key();
@@ -103,7 +103,7 @@ void print_znode_content( const znode *node /* node to print */,
 			  __u32 flags /* print flags */ )
 {
 	unsigned i;
-	tree_coord coord;
+	new_coord coord;
 	item_plugin *iplug;
 	reiser4_key key;
 

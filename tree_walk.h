@@ -8,7 +8,7 @@
 #define __FS_REISER4_TREE_WALK_H__
 
 /* establishes horizontal links between cached znodes */
-int connect_znode (tree_coord *coord, znode * node);
+int connect_znode (new_coord *coord, znode * node);
 
 /*
   tree traversal functions (reiser4_get_parent(), reiser4_get_neighbor())
