@@ -234,19 +234,20 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh,
 	reiser4_item_data item;
 	carry_insert_data cdata;
 	__u64 grabbed;
-
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 	ON_STATS(todo.level_no = TWIG_LEVEL);
-
 	assert("", znode_contains_key_lock(insert_coord->node, key));
 
-	grabbed = get_current_context()->grabbed_blocks;
-	result = reiser4_grab_space_exact((__u64) 1);
-	if (result != 0)
+	grabbed = get_current_context() -> grabbed_blocks;
+	/* VITALY: Grab block for the balancing needs. */
+	result = reiser4_grab_space_exact( (__u64)1 , 0);
+	warning("vpf-300", "SPACE: balance grabs %d block for a leaf.", result ? 0: 1);
+	if( result != 0 )
 		return result;
 
 	node = new_node(insert_coord->node, LEAF_LEVEL);
+	/* VITALY: Ungrab block for the balancing needs. */
 	grabbed2free
 	    /*reiser4_release_grabbed_space */
 	    (get_current_context()->grabbed_blocks - grabbed);
