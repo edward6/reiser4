@@ -227,15 +227,23 @@ reiser4_print_stats()
 	     s->tree.check_left_nonuniq, 
 	     s->tree.left_nonuniq_found);
 
+	info("jnode:\n"
+	     "\t jload:\t %lu\n"
+	     "\t jload_read:\t %lu\n"
+	     "\t jload_already:\t %lu\n"
+	     "\t jload_page:\t %lu\n"
+	     "\t jload_async:\t %lu\n"
+	     s->znode.jload,
+	     s->znode.jload_read,
+	     s->znode.jload_already,
+	     s->znode.jload_page,
+	     s->znode.jload_async);
+
 	info("znode:\n"
-	     "\t zload:\t %lu\n"
-	     "\t zload_read:\t %lu\n"
 	     "\t lock_znode:\t %lu\n"
 	     "\t lock_znode_iteration:\t %lu\n"
 	     "\t lock_neighbor:\t %lu\n"
 	     "\t lock_neighbor_iteration:\t %lu\n",
-	     s->znode.zload,
-	     s->znode.zload_read,
 	     s->znode.lock_znode,
 	     s->znode.lock_znode_iteration, 
 	     s->znode.lock_neighbor, 
