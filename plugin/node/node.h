@@ -111,6 +111,7 @@ typedef enum {
 	REISER4_NODE_DKEYS         = ( 1u << 8 ),
 	REISER4_NODE_TREE_STABLE   = ( 1u << 9 ),
 	REISER4_NODE_DONT_DOT      = ( 1u << 10 ),
+	REISER4_NODE_PRINT_ZADDR   = ( 1u << 11 ),
 	REISER4_NODE_PRINT_ALL     = ~0u,
 } reiser4_node_print_flag;
 
