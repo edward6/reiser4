@@ -35,7 +35,7 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 	spin_unlock( &panic_guard );
 	
 	/* print back-trace */
-	show_stack( NULL );
+	// show_stack( NULL );
 	/* do something more impressive here, print content of
 	   get_current_context() */
 	if( get_current_context() != NULL ) {
