@@ -84,7 +84,7 @@ static void sub_from_ctx_grabbed (__u64 count)
 	reiser4_context * ctx = get_current_context();
 
 	assert ("zam-527", ctx->grabbed_blocks >= count);
-	ctx->grabbed_blocks += count;
+	ctx->grabbed_blocks -= count;
 }
 
 static void add_to_sb_unallocated (const struct super_block * super, __u64 count)
