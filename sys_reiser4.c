@@ -10,7 +10,7 @@
 /* But it is June. */
 
 
-#include "parser/parser.h"
+/*#include "parser/parser.h"*/
 #include "parser/y.tab.c"
 
 
@@ -115,19 +115,19 @@ asmlinkage long  sys_reiser4(char * str)
 		}
 	if (work_space->freeSpHead)
 		{
-			freeList(work_space->freeSpHead);
+			freeList(work_space, freeSp);
 		}
 	if (work_space->WrdTabHead)
 		{
-			freeList(work_space->WrdTabHead);
+			freeList(work_space, WrdTab);
 		}
 	if (work_space->VarTabHead)
 		{
-			freeList(work_space->VarTabHead);
+			freeList(work_space, VarTab);
 		}
 	if (work_space->StrTabHead)
 		{
-			freeList(work_space->StrTabHead);
+			freeList(work_space, StrTab);
 		}
 	free(work_space);
 
