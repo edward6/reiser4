@@ -1855,7 +1855,12 @@ static int reiser4_invalidatepage( struct page *page, unsigned long offset )
 struct address_space_operations reiser4_as_operations = {
 	.writepage      = reiser4_writepage,
 	.readpage       = reiser4_readpage,
- 	.sync_page      = NULL,
+	/**
+	 * This is most annoyingly misnomered method. Actually it is called
+	 * from wait_on_page_bit() and lock_page() and its purpose is to
+	 * actually start io by jabbing device drivers.
+	 */
+ 	.sync_page      = block_sync_page,
 	.writepages     = NULL,
 	.vm_writeback   = reiser4_vm_writeback,
 	.set_page_dirty = __set_page_dirty_nobuffers,

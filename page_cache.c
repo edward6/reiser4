@@ -623,9 +623,11 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 * ->sync_page() method of fake inode address space operations. Called
 	 * from wait_on_page() and lock_page().
 	 *
-	 * FIXME-NIKITA not sure what to do.
+	 * This is most annoyingly misnomered method. Actually it is called
+	 * from wait_on_page_bit() and lock_page() and its purpose is to
+	 * actually start io by jabbing device drivers.
 	 */
-	.sync_page      = NULL,
+	.sync_page      = block_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync. */
 	.writepages     = NULL,
 	/* Perform a writeback as a memory-freeing operation. */
