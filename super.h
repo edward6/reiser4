@@ -267,6 +267,11 @@ static inline void reiser4_spin_unlock_sb(const struct super_block * s)
 	reiser4_super_info_data * private = get_super_private (s);
 	spin_unlock_reiser4_super_info_data(private);
 }
+static inline int reiser4_spin_sb_is_locked(const struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private (s);
+	return spin_reiser4_super_info_data_is_locked(private);
+}
 
 extern __u64 reiser4_flush_reserved        ( const struct super_block*);
 extern void  reiser4_set_flush_reserved    ( const struct super_block*, __u64 nr );
