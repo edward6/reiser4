@@ -536,17 +536,6 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 	}
 	return 0;
 }
-#if 0
-static reiser4_key *
-last_key_in_extent(const coord_t * coord, reiser4_key * key)
-{
-	/* FIXME-VS: this actually calculates key of first byte which is the
-	   next to last byte by addressed by this extent */
-	item_key_by_coord(coord, key);
-	set_key_offset(key, get_key_offset(key) + extent_size(coord, extent_nr_units(coord)));
-	return key;
-}
-#endif
 
 static int
 cut_or_kill_units(coord_t * coord,
@@ -2229,6 +2218,7 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 	znode *loaded;
 	reiser4_key key;
 	write_mode todo;
+	PROF_BEGIN(make_extent);
 
 	assert("vs-960", znode_is_write_locked(coord->node));
 
@@ -2248,12 +2238,6 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 		zrelse(loaded);
 		return todo;
 	}
-#if 0
-	/* zload is necessary because balancing may return coord->node moved to another possibly not loaded node */
-	result = zload(coord->node);
-	if (result)
-		return result;
-#endif
 
 	switch (todo) {
 	case FIRST_ITEM:
@@ -2277,6 +2261,7 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 	}
 
 	zrelse(loaded);
+	PROF_END(make_extent, make_extent);
 	return result;
 }
 
@@ -2285,13 +2270,16 @@ static int
 prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned from, unsigned count)
 {
 	char *data;
+	int result;
 	jnode *j;
+	PROF_BEGIN(prepare);
 
+	result = 0;
 	if (PageUptodate(page))
-		return 0;
+		goto done;
 
 	if (count == current_blocksize)
-		return 0;
+		goto done;
 
 	j = jnode_by_page(page);
 
@@ -2304,7 +2292,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 		memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
 		flush_dcache_page(page);
 		kunmap_atomic(data, KM_USER0);
-		return 0;
+		goto done;
 	}
 	/* page contains some data of this file */
 	assert("vs-699", inode->i_size > page->index << PAGE_CACHE_SHIFT);
@@ -2316,7 +2304,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 		data = kmap_atomic(page, KM_USER0);
 		memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
 		kunmap_atomic(data, KM_USER0);
-		return 0;
+		goto done;
 	}
 
 	/* read block because its content is not completely overwritten */
@@ -2329,9 +2317,12 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 	if (!PageUptodate(page)) {
 		warning("jmacd-61238", "prepare_page: page not up to date");
-		return -EIO;
+		result = -EIO;
 	}
-	return 0;
+	
+ done:
+	PROF_END(prepare, prepare);
+	return result;
 }
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
@@ -2341,6 +2332,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 {
 	int result;
 	loff_t new_size;
+	PROF_BEGIN(bdp);
 
 	set_hint(hint, &f->key, coord);
 	done_lh(lh);
@@ -2352,17 +2344,47 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 
 	/* balance dirty pages periodically */
 	balance_dirty_pages_ratelimited(mapping);
-	return hint_validate(hint, &f->key, coord, lh);
+	result = hint_validate(hint, &f->key, coord, lh);
+	PROF_END(bdp, bdp);
+	return result;
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
 static int
 reserve_extent_write_iteration(tree_level height)
 {
+	int result;
+	PROF_BEGIN(reserve);
+
 	grab_space_enable();
 	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
 	   involved */
-	return reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0/* flags */, "extent_write");
+	result = reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0/* flags */, "extent_write");
+	PROF_END(reserve, reserve);
+	return result;
+}
+
+/* FIXME: remove me */
+static int prof_copy_from_user(struct page *page, unsigned page_off, unsigned to_page,
+				flow_t *f)
+{
+	int result;
+	PROF_BEGIN(copy);
+
+	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);
+	kunmap(page);
+	PROF_END(copy, copy);
+	return result;
+}
+
+static struct page *prof_grab_cache_page(struct address_space *mapping, unsigned long index)
+{
+	struct page *page;
+	PROF_BEGIN(grab_cache_page);
+
+	page = grab_cache_page(mapping, index);
+	PROF_END(grab_cache_page, grab_cache_page);
+	return page;
 }
 
 /* write flow's data into file by pages */
@@ -2375,6 +2397,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	char *data;
 	struct page *page;
 	jnode *j;
+	PROF_BEGIN(extent_write);
 
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", f->user == 1);
@@ -2408,7 +2431,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		/* FIXME-NIKITA fault_in_pages_readable() should be used here
 		 * to avoid dead-locks */
 
-		page = grab_cache_page(inode->i_mapping, index);
+		page = prof_grab_cache_page(inode->i_mapping, index);
 		if (!page) {
 			result = -ENOMEM;
 			goto exit1;
@@ -2444,10 +2467,12 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
+		prof_copy_from_user(page, page_off, to_page, f);
+/*
 		data = kmap(page);
 		result = __copy_from_user(data + page_off, f->data, to_page);
 		kunmap(page);
-
+*/
 		/* jnode_set_dirty() will mark page accessed. No need to call
 		 * mark_page_accessed() here */
 
@@ -2499,6 +2524,7 @@ exit1:
 	if (f->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 
+	PROF_END(extent_write, extent_write);
 	return result;
 }
 
