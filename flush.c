@@ -115,34 +115,119 @@ static void slum_scan_set_current      (slum_scan *scan, jnode *node);
 static int  slum_scan_left             (slum_scan *scan, jnode *node);
 
 
-	/*
+#if 0
+/* What Hans wrote:
+ * 
+ * Hans recommends: try to release parent before taking child lock, to avoid
+ * contention with hipri traversals.
+ * 
+ * allocate_tree(node,
+ *               reiser4_blocknr * blocknrs_passed_by_parent, -- 0 on first entry 
+ *               nr_blocknrs -- 0 on first entry)
+ * 
+ * {
+ * blocks_needed = count(node) plus count(all of its children);
+ * get blocknrs for them;
+ * allocate_node(node, blocknrs_passed_by_parent, nr_blocknrs);
+ * if (update_pointer_in_parent_to_me() == PARENT_FULL) {
+ *         put_remaining_as_yet_unallocated_extent_in_right_neighbor_of_parent;
+ *         return;
+ * }
+ * if (child is formatted node)
+ *         squeeze_left (child);
+ * while (child can fit into parent)
+ *         allocate_tree (child, blocknrs, nr_blocknrs);
+ * free_unused_blocknrs();
+ * }
+ * 
+ */
 
-	Scan right (all levels):
+/* What Josh wrote: */
 
-	Hans says: try to release parent before taking child lock, to avoid
-	contention with hipri traversals.
+/* Begin allocation at a node by finding its greatest dirty ancestor (not its
+ * dirtiest ancestor).  Count the number of dirty nodes to allocate, then
+ * proceed in a tree-recursive manner.
+ */
+int allocate_tree (jnode *node)
+{
+	get_node_lock (LOPRI);
+	unformatted = node_is_unformatted (node);
 
-	allocate_tree(node,
-	              reiser4_blocknr * blocknrs_passed_by_parent, -- 0 on first entry 
-	              nr_blocknrs -- 0 on first entry)
+	/* upward search, avoiding recursion */
+ repeat:
+	get_parent_locked (HIPRI);
 
-	{
-	blocks_needed = count(node) plus count(all of its children);
-	get blocknrs for them;
-	allocate_node(node, blocknrs_passed_by_parent, nr_blocknrs);
-	if (update_pointer_in_parent_to_me() == PARENT_FULL)
-		{
-		put_remaining_as_yet_unallocated_extent_in_right_neighbor_of_parent;
-		return;
+	/* if the parent is dirty, or if it is an unformatted node without a dirty parent. */
+	if (parent_is_dirty () || unformatted) {
+		
+		release_node_lock ();
+		node = parent;
+		unformatted = 0;
+
+		/* unless the parent is not dirty, repeat upward search. */
+		if (! parent_is_dirty ()) {
+			goto repeat;
 		}
-	if (child is formatted node)
-		squeeze_left (child);
-	while (child can fit into parent)
-	    allocate_tree (child, blocknrs, nr_blocknrs);
-	free_unused_blocknrs();
+	} else {
+		/* found greatest dirty ancestor. */
+		release_parent_lock ();
 	}
 
-	*/
+	/* note: node is guaranteed to be formatted (i.e., its a znode) */
+
+	blocks_needed = allocate_count (node);
+
+	allocate_info = find (blocks_needed) blocks, prepare to allocate them;
+
+	return allocate_tree_recursive (node, allocate_info);
+}
+
+/* Return the number of blocks to allocate that are children of this node. */
+int allocate_count (jnode *node)
+{
+	int count = 1;
+
+	/* recursive count */
+	for (each child of node) {
+		count += allocate_count (child);
+		
+                if (count > MAX_ALLOCATE_COUNT) {
+			return MAX_ALLOCATE_COUNT;
+                }
+	}
+
+	return count;
+}
+
+/* Perform tree-recursive allocation, squeezing formatted nodes and filling in
+ * unallocated extent items. */
+int allocate_tree_recursive (znode *node, allocation_info)
+{
+	really_allocate_this_node (node, allocation_info);
+
+	for (each_child (node)) {
+		/* stop when we've allocated the entire allocation */
+		if (! more_blocks_available_in (allocation_info)) {
+			return 0;
+		}
+
+		/* if formatted, squeeze and recurse */
+		if (is_formatted (child)) {
+			squeeze_slum (child); /* FIXME: need a way to prevent re-squeezing nodes */
+			allocate_tree_recursive (child, allocation_info);
+		} else {
+			/* if unformatted, fill as much of the extent as possible */
+			add_as_many_extent_blocks_as_will_fit_in_this_node (node, child, allocation_info);
+
+			skip_as_many_children_of_this_node ();
+		}
+	}
+
+	/* release unallocated blocks */
+	free_unused_blocks (allocation_info);
+	return 0;
+}
+#endif
 
 
 
