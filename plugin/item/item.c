@@ -17,6 +17,7 @@
 #include "../plugin.h"
 #include "../../znode.h"
 #include "../../tree.h"
+#include "../../context.h"
 #include "ctail.h"
 
 /* return pointer to item body */
@@ -40,9 +41,6 @@ reiser4_internal int item_body_is_valid(const coord_t * coord)
 }
 
 /* return length of item at @coord */
-/* Audited by: green(2002.06.15) */
-void
-check_contexts(void);
 reiser4_internal pos_in_node_t
 item_length_by_coord(const coord_t * coord /* coord to query */ )
 {
@@ -54,7 +52,7 @@ item_length_by_coord(const coord_t * coord /* coord to query */ )
 	trace_stamp(TRACE_TREE);
 
 	len = node_plugin_by_node(coord->node)->length_by_coord(coord);
-	ON_DEBUG(check_contexts());
+	check_contexts();
 	return len;
 }
 

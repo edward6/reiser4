@@ -59,14 +59,12 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 			if (get_super_private(super) != NULL &&
 			    reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
 				print_znodes("znodes", current_tree);
-#if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 			{
-				reiser4_context *top;
 				extern spinlock_t active_contexts_lock;
 
-				top = ctx->parent;
 				spin_lock(&active_contexts_lock);
-				context_list_remove(top);
+				context_list_remove(ctx->parent);
 				spin_unlock(&active_contexts_lock);
 			}
 #endif

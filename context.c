@@ -8,7 +8,7 @@
 
 #include <linux/writeback.h> /* balance_dirty_pages() */
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 /* List of all currently active contexts, used for debugging purposes.  */
 context_list_head active_contexts;
 /* lock protecting access to active_contexts. */
@@ -21,11 +21,11 @@ check_contexts(void)
 
 	spin_lock(&active_contexts_lock);
 	for_all_type_safe_list(context, &active_contexts, ctx) {
-		assert("", ctx->magic == context_magic);
+		assert("vs-$BIGNUM", ctx->magic == context_magic);
 	}
 	spin_unlock(&active_contexts_lock);
 }
-
+/* REISER4_DEBUG_CONTEXTS */
 #endif
 
 struct {
@@ -124,12 +124,14 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context->parent = context;
 	tap_list_init(&context->taps);
 #if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 	context_list_clean(context);	/* to satisfy assertion */
 	spin_lock(&active_contexts_lock);
 	context_list_check(&active_contexts);
 	context_list_push_front(&active_contexts, context);
 	/*check_contexts();*/
 	spin_unlock(&active_contexts_lock);
+#endif
 	context->task = current;
 #endif
 	context->flush_started = INITIAL_JIFFIES;
@@ -228,15 +230,14 @@ done_context(reiser4_context * context /* context being released */)
 		spin_lock_stack(&context->stack);
 		spin_unlock_stack(&context->stack);
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 		/* remove from active contexts */
 		spin_lock(&active_contexts_lock);
 		/*check_contexts();*/
 		context_list_remove(parent);
 		spin_unlock(&active_contexts_lock);
-
-		assert("zam-684", context->nr_children == 0);
 #endif
+		assert("zam-684", context->nr_children == 0);
 		current->fs_context = context->outer;
 	} else {
 #if REISER4_DEBUG
@@ -250,7 +251,7 @@ done_context(reiser4_context * context /* context being released */)
 reiser4_internal int
 init_context_mgr(void)
 {
-#if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 	spin_lock_init(&active_contexts_lock);
 	context_list_init(&active_contexts);
 #endif
@@ -268,15 +269,15 @@ print_context(const char *prefix, reiser4_context * context)
 #if REISER4_TRACE
 	printk("%s: trace_flags: %x\n", prefix, context->trace_flags);
 #endif
-#if REISER4_DEBUG
 	print_lock_counters("\tlocks", &context->locks);
+#if REISER4_DEBUG
 	printk("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
 #endif
 	print_lock_stack("\tlock stack", &context->stack);
 	info_atom("\tatom", context->trans_in_ctx.atom);
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 void
 print_contexts(void)
 {

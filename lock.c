@@ -1370,22 +1370,10 @@ check_lock_stack(lock_stack * stack)
 	spin_unlock_stack(stack);
 }
 
-extern spinlock_t active_contexts_lock;
-extern context_list_head active_contexts;
-
 void
 check_lock_data(void)
 {
-	if (0) {
-		reiser4_context *context;
-
-		spin_lock(&active_contexts_lock);
-		for_all_type_safe_list(context, &active_contexts, context) {
-			check_lock_stack(&context->stack);
-		}
-		spin_unlock(&active_contexts_lock);
-	} else
-		check_lock_stack(&get_current_context()->stack);
+	check_lock_stack(&get_current_context()->stack);
 }
 
 void

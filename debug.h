@@ -153,6 +153,12 @@
 #define REISER4_DEBUG_SPIN_LOCKS (0)
 #endif
 
+#if defined(CONFIG_REISER4_DEBUG_CONTEXTS)
+#define REISER4_DEBUG_CONTEXTS (1)
+#else
+#define REISER4_DEBUG_CONTEXTS (0)
+#endif
+
 #define noop   do {;} while(0)
 
 #if REISER4_DEBUG

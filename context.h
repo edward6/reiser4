@@ -145,10 +145,16 @@ extern void print_context(const char *prefix, reiser4_context * ctx);
 #define print_context(p,c) noop
 #endif
 
-#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS && REISER4_DEBUG_OUTPUT
 extern void print_contexts(void);
 #else
 #define print_contexts() noop
+#endif
+
+#if REISER4_DEBUG_CONTEXTS
+extern void check_contexts(void);
+#else
+#define check_contexts() noop
 #endif
 
 #define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
