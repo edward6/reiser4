@@ -8,8 +8,8 @@
 
 #include <aal/aal.h>
 
-aal_device_t *aal_device_open(struct aal_device_ops *ops, const void *entity, 
-	size_t blocksize, int flags, void *data) 
+aal_device_t *aal_device_open(struct aal_device_ops *ops, size_t blocksize, 
+    int flags, void *data) 
 {
     aal_device_t *device;
 	
@@ -27,7 +27,6 @@ aal_device_t *aal_device_open(struct aal_device_ops *ops, const void *entity,
     device->ops = ops;
     device->data = data;
     device->flags = flags;
-    device->entity = entity;
     device->blocksize = blocksize;
 	
     return device;

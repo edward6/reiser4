@@ -34,8 +34,8 @@ struct aal_device_ops {
     count_t (*len)(aal_device_t *);
 };
 
-extern aal_device_t *aal_device_open(struct aal_device_ops *ops, const void *entity, 
-    size_t blocksize, int flags, void *data);
+extern aal_device_t *aal_device_open(struct aal_device_ops *ops, size_t blocksize, 
+    int flags, void *data);
 
 extern void aal_device_close(aal_device_t *device);
 

@@ -20,6 +20,7 @@ extern blk_t reiserfs_super_root_block(reiserfs_fs_t *fs);
 
 extern reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs);
 extern reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs);
+extern reiserfs_plugin_id_t reiserfs_super_node_plugin(reiserfs_fs_t *fs);
 
 #endif
 

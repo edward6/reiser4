@@ -6,6 +6,10 @@
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
+/* 
+    Tree functions which work with root node will 
+    work through node API later. 
+*/
 int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
@@ -32,6 +36,7 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
     aal_block_t *block;
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
+    reiserfs_node_head_t *head;
 
     ASSERT(fs != NULL, return 0);
     ASSERT(fs->super != NULL, return 0);
@@ -53,19 +58,22 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
 
-    if (!reiserfs_tree_node_check(fs, block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-034", 
-	    "Invalid root block has been detected.");
-	goto error_free_block;
-    }
-
-/*    id = get_nh_plugin_id(head);
+    head = (reiserfs_node_head_t *)block->data;
+    id = get_nh_plugin_id(head);
+    
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-039", 
 	    "Can't find node plugin for root node by its identifier %x.", id);
-	return 0;
+	goto error_free_block;
     }
-    fs->tree->plugin = plugin;*/
+    fs->tree->plugin = plugin;
+
+    reiserfs_plugin_check_routine(plugin->node, open, goto error_free_block);
+    if (!(fs->tree->entity = plugin->node.open(block))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-040", 
+	    "Can't open node %d.", aal_block_location(block));
+	goto error_free_block;
+    }
 	    
     return 1;
 
@@ -96,7 +104,7 @@ int reiserfs_tree_create(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
     
-/*    id = reiserfs_super_node_plugin(fs);
+    id = reiserfs_super_node_plugin(fs);
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-037", 
 	    "Can't find node plugin by its identifier %x.", id);
@@ -104,7 +112,7 @@ int reiserfs_tree_create(reiserfs_fs_t *fs) {
     }
     fs->tree->plugin = plugin;
     
-    reiserfs_plugin_check_routine(plugin->node, create, goto error_free_tree);
+/*    reiserfs_plugin_check_routine(plugin->node, create, goto error_free_tree);
     if (!(fs->tree->entity = plugin->node->create(REISERFS_NODE_LEAF))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-038", 
 	    "Can't create root node.");

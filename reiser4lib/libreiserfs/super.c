@@ -200,7 +200,7 @@ reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
     reiserfs_plugin_check_routine(fs->super->plugin->format, journal_plugin_id, 
     	return -1);
 		
-    return fs->super->plugin->format.journal_plugin_id();
+    return fs->super->plugin->format.journal_plugin_id(fs->super->entity);
 }
 
 reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
@@ -210,6 +210,16 @@ reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
     reiserfs_plugin_check_routine(fs->super->plugin->format, alloc_plugin_id, 
 	return -1);
 		
-    return fs->super->plugin->format.alloc_plugin_id();
+    return fs->super->plugin->format.alloc_plugin_id(fs->super->entity);
+}
+
+reiserfs_plugin_id_t reiserfs_super_node_plugin(reiserfs_fs_t *fs) {
+    ASSERT(fs != NULL, return -1);
+    ASSERT(fs->super != NULL, return -1);
+	
+    reiserfs_plugin_check_routine(fs->super->plugin->format, node_plugin_id, 
+	return -1);
+		
+    return fs->super->plugin->format.node_plugin_id(fs->super->entity);
 }
 

@@ -127,9 +127,9 @@ struct reiserfs_format_plugin {
 
     blk_t (*root_block) (reiserfs_format_opaque_t *);
 	
-    reiserfs_plugin_id_t (*journal_plugin_id) (void);
-    reiserfs_plugin_id_t (*alloc_plugin_id) (void);
-    reiserfs_plugin_id_t (*node_plugin_id) (void);
+    reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_format_opaque_t *);
+    reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_format_opaque_t *);
+    reiserfs_plugin_id_t (*node_plugin_id) (reiserfs_format_opaque_t *);
 };
 
 typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;

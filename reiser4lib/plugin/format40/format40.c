@@ -74,7 +74,8 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
 }
 
 static int reiserfs_format40_check(reiserfs_format40_t *format) {
-    return reiserfs_format40_super_check(format->super, super->device);
+    return reiserfs_format40_super_check((reiserfs_format40_super_t *)format->super->data, 
+	format->super->device);
 }
 
 static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
@@ -102,15 +103,15 @@ static const char *reiserfs_format40_format(reiserfs_format40_t *format) {
     return formats[0];
 }
 
-static reiserfs_plugin_id_t reiserfs_format40_journal_plugin(void) {
+static reiserfs_plugin_id_t reiserfs_format40_journal_plugin(reiserfs_format40_t *format) {
     return 0x1;
 }
 
-static reiserfs_plugin_id_t reiserfs_format40_alloc_plugin(void) {
+static reiserfs_plugin_id_t reiserfs_format40_alloc_plugin(reiserfs_format40_t *format) {
     return 0x1;
 }
 
-static reiserfs_plugin_id_t reiserfs_format40_node_plugin(void) {
+static reiserfs_plugin_id_t reiserfs_format40_node_plugin(reiserfs_format40_t *format) {
     return 0x1;
 }
 
@@ -137,13 +138,13 @@ reiserfs_plugin_t plugin_info = {
 	
 	.root_block = (blk_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_root_block,
 	
-	.journal_plugin_id = (reiserfs_plugin_id_t(*)(void))
+	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
 	    reiserfs_format40_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(void))
+	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
 	    reiserfs_format40_alloc_plugin,
 	
-	.node_plugin_id = (reiserfs_plugin_id_t(*)(void))
+	.node_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
 	    reiserfs_format40_node_plugin,
     }
 };
