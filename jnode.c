@@ -22,6 +22,7 @@
 #include "inode.h"
 #include "page_cache.h"
 
+#include <asm/uaccess.h>        /* UML needs this for PAGE_OFFSET */
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
@@ -929,7 +930,10 @@ znode_mapping(const jnode * node UNUSED_ARG)
 static unsigned long
 znode_index(const jnode * node)
 {
-	return (unsigned long) node;
+	unsigned long ind;
+
+	ind = (unsigned long)node;
+	return ind - PAGE_OFFSET;
 }
 
 extern int zparse(znode * node);
@@ -1018,7 +1022,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 					   .pops = NULL,
 					   .label = "unformatted",
 					   .desc = "unformatted node",
-					   .linkage = TS_LIST_LINK_ZERO},
+					   .linkage = TS_LIST_LINK_ZERO
+				     },
 				     .init = noparse,
 				     .parse = noparse,
 				     .remove = jnode_remove_op,
@@ -1026,7 +1031,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 				     .is_busy = jnode_is_busy,
 				     .mapping = jnode_mapping,
 				     .index = jnode_index,
-				     .io_hook = no_hook},
+				     .io_hook = no_hook
+	},
 	[JNODE_FORMATTED_BLOCK] = {
 				   .h = {
 					 .type_id = REISER4_JNODE_PLUGIN_TYPE,
@@ -1034,7 +1040,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 					 .pops = NULL,
 					 .label = "formatted",
 					 .desc = "formatted tree node",
-					 .linkage = TS_LIST_LINK_ZERO},
+					 .linkage = TS_LIST_LINK_ZERO
+				   },
 				   .init = znode_init,
 				   .parse = znode_parse,
 				   .remove = znode_remove_op,
@@ -1042,7 +1049,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 				   .is_busy = znode_is_busy,
 				   .mapping = znode_mapping,
 				   .index = znode_index,
-				   .io_hook = znode_io_hook},
+				   .io_hook = znode_io_hook
+	},
 	[JNODE_BITMAP] = {
 			  .h = {
 				.type_id = REISER4_JNODE_PLUGIN_TYPE,
@@ -1050,7 +1058,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 				.pops = NULL,
 				.label = "bitmap",
 				.desc = "bitmap node",
-				.linkage = TS_LIST_LINK_ZERO},
+				.linkage = TS_LIST_LINK_ZERO
+			  },
 			  .init = noparse,
 			  .parse = noparse,
 			  .remove = other_remove_op,
@@ -1058,7 +1067,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			  .is_busy = jnode_is_busy,
 			  .mapping = znode_mapping,
 			  .index = znode_index,
-			  .io_hook = no_hook},
+			  .io_hook = no_hook
+	},
 	[JNODE_IO_HEAD] = {
 			   .h = {
 				 .type_id = REISER4_JNODE_PLUGIN_TYPE,
@@ -1066,7 +1076,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 				 .pops = NULL,
 				 .label = "io head",
 				 .desc = "io head",
-				 .linkage = TS_LIST_LINK_ZERO},
+				 .linkage = TS_LIST_LINK_ZERO
+			   },
 			   .init = noparse,
 			   .parse = noparse,
 			   .remove = other_remove_op,
@@ -1074,7 +1085,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			   .is_busy = jnode_is_busy,
 			   .mapping = znode_mapping,
 			   .index = znode_index,
-			   .io_hook = no_hook}
+			   .io_hook = no_hook
+	}
 };
 
 /* IO head jnode implementation; The io heads are simple j-nodes with limited
