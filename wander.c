@@ -820,7 +820,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 		if (nr_used > 0) {
 			bio->bi_sector = block * (super->s_blocksize >> 9);
 			assert("nikita-3455",
-			       bio->bi_size = super->s_blocksize * nr_used);
+			       bio->bi_size == super->s_blocksize * nr_used);
 			assert("nikita-3456", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */
