@@ -1,4 +1,4 @@
-librepair_sources	     = filesystem.c format.c
+librepair_sources            = filesystem.c format.c node.c
 
 lib_LTLIBRARIES		     = librepair.la
 

@@ -1,5 +1,5 @@
 /*
-    libprogs/filesystem.c - methods are needed mostly by fsck for work 
+    librepair/filesystem.c - methods are needed mostly by fsck for work 
     with broken filesystems.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Vitaly Fertman.
@@ -8,7 +8,79 @@
 #include <repair/librepair.h>
 #include <reiser4/reiser4.h>
 
+static reiser4_node_t *__node_open(aal_block_t *block, void *data) {
+    return reiser4_node_open(block);
+}
+
+static errno_t __prepare_traverse(reiser4_node_t *node, void *data) {
+    repair_traverse_data_t *traverse = data;
+    
+    if (!traverse)
+	return 0;
+
+    traverse->level--;
+    return 0;
+}
+
+static errno_t repair_fs_check_setup(reiser4_fs_t *fs, 
+    repair_traverse_data_t *traverse) 
+{
+    /* Prepare a control allocator */
+    if (!(traverse->a_control = reiser4_alloc_create(fs->format))) {
+	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
+	    "Failed to create a control allocator.");
+	return -1;
+    }
+
+    reiser4_format_mark(fs->format, traverse->a_control);
+
+    /* Prepare a level. */
+    traverse->level = reiser4_format_get_height(fs->format) + 1;
+
+    if (!(traverse->ld_key.plugin = 
+	libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
+	libreiser4_factory_failed(return -1, find, key, KEY_REISER40_ID);
+
+    traverse->format = fs->format;
+    traverse->rd_key.plugin = traverse->ld_key.plugin;
+    reiser4_key_minimal(&traverse->ld_key);
+    reiser4_key_maximal(&traverse->rd_key);
+    
+    return 0;
+}
+
 errno_t repair_fs_check(reiser4_fs_t *fs) {
+    blk_t blk;
+    aal_block_t *block;
+    repair_traverse_data_t traverse;
+
+    aal_assert("vpf-180", fs != NULL, return -1);
+    aal_assert("vpf-181", fs->format != NULL, return -1);
+    aal_assert("vpf-182", fs->format->device != NULL, return -1);
+
+    aal_memset(&traverse, 0, sizeof(traverse));
+    
+    blk = reiser4_format_get_root(fs->format);
+    if (!reiser4_format_data_block(fs->format, blk)) {
+	aal_exception_error("Bad root block (%llu). (A previous recovery did not "
+	    "complete probably).", blk);
+	return 0;
+    }
+ 
+    if (!(block = aal_block_read(fs->format->device, 
+	reiser4_format_get_root(fs->format)))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't read block %llu. %s.", blk, fs->format->device->error);
+	return -1;
+    }
+    
+    if (repair_fs_check_setup(fs, &traverse))
+	return -1;    
+    
+    reiser4_tree_traverse(fs->format->device, block, __node_open, __prepare_traverse, 
+	repair_node_check, repair_node_update_internal, NULL, &traverse);
+
     return 0;
 }
 

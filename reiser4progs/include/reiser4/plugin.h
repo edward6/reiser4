@@ -359,6 +359,9 @@ struct reiser4_key_ops {
     /* Gets/sets directory key hash */
     void (*set_hash) (reiser4_body_t *, uint64_t);
     uint64_t (*get_hash) (reiser4_body_t *);
+
+    /* Prints the key content */
+    void (*print) (reiser4_body_t *, char *, uint32_t, uint16_t);
 };
 
 typedef struct reiser4_key_ops reiser4_key_ops_t;
@@ -668,11 +671,12 @@ struct reiser4_format_ops {
 	block for 4096 byte long blocks.
     */
     errno_t (*valid) (reiser4_entity_t *, int);
+    
     /*	Checks thoroughly the format structure and fixes what needed. */
     errno_t (*check) (reiser4_entity_t *, uint16_t);
 
     /* Prints all useful information about the format */
-    void (*print) (char *buf, size_t n, reiser4_entity_t *, uint16_t);
+    void (*print) (reiser4_entity_t *, char *, uint32_t, uint16_t);
     
     /*
 	Probes whether filesystem on given device has this format.
@@ -724,6 +728,12 @@ struct reiser4_format_ops {
     
     /* Returns the area journal lies on */
     void (*journal_area) (reiser4_entity_t *, blk_t *, blk_t *);
+
+    /* Returns 1 if specified block is not an allocator/journal/skipped/SB block */
+    int (*data_block) (reiser4_entity_t *, blk_t);
+
+    /* Returns 1 if specified block is an allocator block */
+    int (*alloc_block) (reiser4_entity_t *, blk_t);    
 };
 
 typedef struct reiser4_format_ops reiser4_format_ops_t;
