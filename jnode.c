@@ -1171,6 +1171,44 @@ void unpin_jnode_data (jnode * node)
 	page_cache_release (jnode_page (node));
 }
 
+void spin_lock_jnode_pair (jnode * first, jnode * second)
+{
+	if (first < second) { 
+		spin_lock_jnode (first);
+		spin_lock_jnode (second);
+	} else {
+		spin_lock_jnode (second);
+		spin_lock_jnode (first);
+	}
+}
+
+void spin_unlock_jnode_pair (jnode * first, jnode * second)
+{
+	if (first < second) { 
+		spin_unlock_jnode (first);
+		spin_unlock_jnode (second);
+	} else {
+		spin_unlock_jnode (second);
+		spin_unlock_jnode (first);
+	}
+}
+
+/* return true if jnode atoms are not the same */
+int jnodes_are_not_in_same_atom (jnode * first, jnode * second)
+{
+	int ret;
+
+	spin_lock_jnode_pair (first, second);
+
+	if (first->atom != second->atom ) ret = 1;
+	else                              ret = 0;
+
+	spin_unlock_jnode_pair (first, second);
+
+	return ret;
+}
+
+
 #if REISER4_DEBUG
 
 const char *jnode_type_name( jnode_type type )

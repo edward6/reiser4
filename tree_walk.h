@@ -42,15 +42,28 @@ int reiser4_get_parent (lock_handle * result, znode * node,
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */
 typedef enum {
-	GN_DO_READ       = 0x1,	/* allows to read block from disk */
-	GN_GO_LEFT       = 0x2,	/* locking left neighbor in stead of right
-				 * one */
-	GN_LOAD_NEIGHBOR = 0x4,	/* automatically load neighbor node content */
-	GN_TRY_LOCK      = 0x8,	/* return -EAGAIN if can't lock  */
-	GN_NO_ALLOC      = 0x10 /* used internally in tree_walk.c, causes
-				 * renew_sibling do not allocate neighbor
-				 * znode, but only search for him in znode
-				 * cache */
+	/* 
+	 * allows to read block from disk */
+	GN_DO_READ       = 0x1,
+	/* 
+	 * locking left neighbor in stead of right one */
+	GN_GO_LEFT       = 0x2,
+	/* 
+	 * automatically load neighbor node content */
+	GN_LOAD_NEIGHBOR = 0x4,
+	/* 
+	 * return -EAGAIN if can't lock  */
+	GN_TRY_LOCK      = 0x8,
+	/* 
+	 * used internally in tree_walk.c, causes renew_sibling do not
+	 * allocate neighbor znode, but only search for him in znode cache */
+	GN_NO_ALLOC      = 0x10,
+	/*
+	 * do not go across atom boundaries */ 
+	GN_SAME_ATOM     = 0x20,
+	/*
+	 * allow to lock not connected nodes */
+	GN_ALLOW_NOT_CONNECTED = 0x40
 } znode_get_neigbor_flags;
 
 int reiser4_get_neighbor (lock_handle * neighbor,

@@ -934,14 +934,7 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 	if (! coord_is_leftmost_unit (& coord)) {
 		coord_prev_unit (& coord);
 	} else {
-		/* since reiser4_get_left_neighbor knows nothing about atom
-		   boundaries, it may easily get tot a node that does not
-		   belong to our atom and deadlock might occur, to avoid that
-		   we ask to make a non blocking access to nodes not from
-		   this atom.
-		   May be later GN_DONT_CROSS_ATOM should be imlemented per
-		   zam's suggestion */
-		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, GN_TRY_LOCK))) {
+		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, GN_SAME_ATOM))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
 			if (ret == -EAGAIN || ret == -ENAVAIL || ret == -ENOENT) { ret = 0; }
 			goto exit;
@@ -2495,7 +2488,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 		goto fail;
 	}
 
-	if ((ret = reiser4_get_neighbor (lock, node, mode, side == LEFT_SIDE ? GN_GO_LEFT : 0))) {
+	if ((ret = reiser4_get_neighbor (lock, node, mode, GN_SAME_ATOM | (side == LEFT_SIDE ? GN_GO_LEFT  : 0)))) {
 		/* May return -ENOENT or -ENAVAIL. */
 		/* FIXME(C): check EINVAL, EDEADLK */
 		if (ret == -ENOENT) { ret = -ENAVAIL; }
@@ -3238,7 +3231,7 @@ static int flush_scan_rapid (flush_scan *scan)
 		 *
 		 * Finally, repeat this loop.
 		 */
-		if ((ret = reiser4_get_left_neighbor (& lt_lock, scan->parent_coord.node, ZNODE_WRITE_LOCK, 0))) {
+		if ((ret = reiser4_get_left_neighbor (& lt_lock, scan->parent_coord.node, ZNODE_WRITE_LOCK, GN_SAME_ATOM))) {
 			/* We get NAVAIL or NOENT if the left twig is not in memory, in
 			 * which case stop the rapid scan. */
 			if (ret == -ENAVAIL || ret == -ENOENT) {

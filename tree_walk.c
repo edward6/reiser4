@@ -21,38 +21,39 @@
 /* These macros are used internally in tree_walk.c in attempt to make
  * lock_neighbor() code usable to build lock_parent(), lock_right_neighbor,
  * lock_left_neighbor */
-#define GET_NODE_BY_DIR(node, dir) (*(znode**)(((unsigned long)(node)) + (dir)))
+#define GET_NODE_BY_PTR_OFFSET(node, off) (*(znode**)(((unsigned long)(node)) + (off)))
 #define FIELD_OFFSET(name)  ((int)(&((znode*)0)-> ## name ))
-#define PARENT_DIR FIELD_OFFSET(ptr_in_parent_hint.node)
-#define LEFT_DIR   FIELD_OFFSET(left)
-#define RIGHT_DIR  FIELD_OFFSET(right)
+#define PARENT_PTR_OFFSET FIELD_OFFSET(ptr_in_parent_hint.node)
+#define LEFT_PTR_OFFSET   FIELD_OFFSET(left)
+#define RIGHT_PTR_OFFSET  FIELD_OFFSET(right)
 
-/** This is the generic procedure to get and lock `generic' neighbor (left or right
-    neighbor or parent). It implements common algorithm for all cases of
+/** This is the generic procedure to get and lock `generic' neighbor (left or
+    right neighbor or parent). It implements common algorithm for all cases of
     getting lock on neighbor node, only znode structure field is different in
-    each case. This is parameterized by dir argument, which ?word missing here? byte offset for
-    neighbor pointer field within znode structure. This function should be
-    called with the tree lock held */
-/* Audited by: umka (2002.06.14), umka (2002.06.15) */
-static int lock_neighbor (lock_handle * result /* resulting lock
-							* handle*/, 
-			  znode * node /* node to lock */,
-			  int dir, /* FIXME: I have no understanding of why this is named this, and it seems like it should be more strongly typed. -Hans */
-			           /* FIXME: I don't have strong objections to the lack of strong types, but I agree that the
-				    * name is very bad.  Reame "dir" to "field_offset", perhaps?  You could do it w/
-				    * strong types by passing a function pointer, or by passing an enumerated type
-				    * value, then using a switch() to select the field based on that. -josh */
-			  znode_lock_mode mode,
-			  znode_lock_request req,
-			  int only_connected_p /* if this is true, neighbor is
-						* only returned when it is
-						* connected. If neighbor is
-						* unconnected, -ENAVAIL is
-						* returned. Normal users
-						* should pass 1 here. Only
-						* during carry we want to
-						* access still unconnected
-						* neighbors. */ )
+    each case. This is parameterized by ptr_offset argument, which is byte
+    offset for neighbor pointer field within znode structure. This function
+    should be called with the tree lock held */
+static int lock_neighbor (
+	 /* 
+	  *resulting lock handle*/
+	lock_handle * result,
+	/* 
+	 * node to lock */
+	znode * node,
+	/*
+	 * pointer to neighbor (or parent) znode field offset, in bytes from
+	 * the base address of znode structure  */
+	int ptr_offset,
+	/*
+	 * lock mode for longterm_lock_znode call */
+	znode_lock_mode mode,
+	/*
+	 * lock request for longterm_lock_znode call */
+	znode_lock_request req,
+	/* 
+	 * GN_* flags */ 
+	int flags
+	)
 {
 	reiser4_tree * tree = current_tree;
 	znode * neighbor;
@@ -63,18 +64,33 @@ static int lock_neighbor (lock_handle * result /* resulting lock
 	assert("umka-301", check_spin_is_locked(&tree->tree_lock));
 	
 	reiser4_stat_znode_add(lock_neighbor);
+
+	if (flags & GN_TRY_LOCK) req |= ZNODE_LOCK_NONBLOCK;
+
 	/* get neighbor's address by using of sibling link, quit while loop
 	 * (and return) if link is not available. */
 	while (1) {
 		reiser4_stat_znode_add(lock_neighbor_iteration);
-		neighbor = GET_NODE_BY_DIR(node, dir);
+		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 		if (neighbor == NULL || 
-		    (only_connected_p && !znode_is_connected(neighbor)))
+		    ((flags & GN_ALLOW_NOT_CONNECTED) && !znode_is_connected(neighbor)))
 			return -ENAVAIL;
 
 		/* protect it from deletion. */
 		zref(neighbor);
+
 		spin_unlock_tree(tree);
+
+		/* In the flush code we need a tree traversal which does not
+		 * cross atom boundaries which implies atom fusion to avoid
+		 * deadlocks. The following statement prevents current atom
+		 * from fusion with another atom, simple adding new not
+		 * captured node to current atom is also rejected. */
+		if ((flags & GN_SAME_ATOM) && jnodes_are_not_in_same_atom (node, neighbor)) {
+			zput (neighbor);
+			spin_lock_tree (tree);
+			return -ENAVAIL;
+		}
 
 		ret = longterm_lock_znode(result, neighbor, mode, req);
 
@@ -93,7 +109,7 @@ static int lock_neighbor (lock_handle * result /* resulting lock
 
 		/* check is neighbor link still points to just locked znode;
 		 * the link could be changed while process slept. */
-		if (neighbor == GET_NODE_BY_DIR(node, dir))
+		if (neighbor == GET_NODE_BY_PTR_OFFSET(node, ptr_offset))
 			return 0;
 
 		/* znode was locked by mistake; unlock it and restart locking
@@ -125,8 +141,8 @@ int reiser4_get_parent (lock_handle * result /* resulting lock
 	assert("umka-238", tree != NULL);
 	
 	spin_lock_tree(tree);
-	ret = lock_neighbor(result, node, PARENT_DIR, mode, ZNODE_LOCK_HIPRI, 
-			    only_connected_p);
+	ret = lock_neighbor(result, node, PARENT_PTR_OFFSET, mode, ZNODE_LOCK_HIPRI, 
+			    only_connected_p ? GN_ALLOW_NOT_CONNECTED:0);
 	spin_unlock_tree(tree);
 
 	return ret;
@@ -143,20 +159,18 @@ int lock_side_neighbor( lock_handle * result,
 			znode_lock_mode mode, int flags)
 {
 	int ret;
-	int dir;
+	int ptr_offset;
 	znode_lock_request req;
 
 	if (flags & GN_GO_LEFT) {
-		dir = LEFT_DIR;
+		ptr_offset = LEFT_PTR_OFFSET;
 		req = ZNODE_LOCK_LOPRI;
 	} else {
-		dir = RIGHT_DIR;
+		ptr_offset = RIGHT_PTR_OFFSET;
 		req = ZNODE_LOCK_HIPRI;
 	}
 
-	if (flags & GN_TRY_LOCK) req |= ZNODE_LOCK_NONBLOCK;
-
-	ret =  lock_neighbor(result, node, dir, mode, req, 1);
+	ret =  lock_neighbor(result, node, ptr_offset, mode, req, flags);
 
 	if (ret == -ENAVAIL)	/* if we walk left or right -ENAVAIL does not
 				 * guarantee that neighbor is absent in the
