@@ -157,7 +157,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	 */
 	assert ("vs-481", get_object_state (inode)->file);
 	fplug = get_object_state (inode)->file;
-	if (fplug->flow_by_inode)
+	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
 	result = fplug->flow_by_inode (file, buf, size, off, WRITE_OP, &f);
