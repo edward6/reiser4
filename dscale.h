@@ -8,8 +8,8 @@
 
 #include "dformat.h"
 
-extern int dscale_read (char *address, __u64 *value);
-extern int dscale_write(char *address, __u64 value);
+extern int dscale_read (unsigned char *address, __u64 *value);
+extern int dscale_write(unsigned char *address, __u64 value);
 extern int dscale_bytes(__u64 value);
 extern int dscale_fit  (__u64 value, __u64 other);
 

@@ -38,9 +38,16 @@
 #include "dscale.h"
 
 /* return tag of scaled integer stored at @address */
-static int gettag(const char *address)
+static int gettag(const unsigned char *address)
 {
-	return ((unsigned char)(*address)) >> 6;
+	return (*address) >> 6;
+}
+
+/* clear tag from value */
+static void cleartag(__u64 *value, int tag)
+{
+	/* W-w-what ?! */
+	*value &= ~(3 << (((1 << tag) << 3) - 2));
 }
 
 /* return tag for @value */
@@ -55,17 +62,9 @@ static int dscale_range(__u64 value)
 	return 0;
 }
 
-#define __be8_to_cpu(x) (x)
-#define readXX(XX)					\
-{							\
-	__u##XX tmp;					\
-							\
-	tmp = get_unaligned((__u##XX *)address);	\
-	*(char *)&tmp &= ~(tag << 6);			\
-	*value = __be##XX##_to_cpu(tmp);		\
-}
-
-int dscale_read(char *address, __u64 *value)
+/* restore value stored at @adderss by dscale_write() and return number of
+ * bytes consumed */
+int dscale_read(unsigned char *address, __u64 *value)
 {
 	int tag;
 
@@ -76,51 +75,34 @@ int dscale_read(char *address, __u64 *value)
 		/* worst case: 8 bytes for value itself plus one byte for
 		 * tag */
 		return 9;
-	case 0: 
-		readXX(8);
+	case 0:
+		*value = get_unaligned(address);
 		break;
 	case 1:
-		readXX(16);
+		*value = __be16_to_cpu(get_unaligned((__u16 *)address));
 		break;
 	case 2:
-		readXX(32);
+		*value = __be32_to_cpu(get_unaligned((__u32 *)address));
 		break;
 	default:
 		return RETERR(-EIO);
 	}
+	cleartag(value, tag);
 	return 1 << tag;
 }
 
 /* store @value at @address and return number of bytes consumed */
-int dscale_write(char *address, __u64 value)
+int dscale_write(unsigned char *address, __u64 value)
 {
 	int tag;
 	int shift;
+	unsigned char *valarr;
 
 	tag = dscale_range(value);
-	shift = 0;
 	value = __cpu_to_be64(value);
-	switch(tag) {
-	case 0:
-		value >>= 56;
-		put_unaligned(*(__u8 *)&value, (__u8 *)address);
-		break;
-
-	case 1:
-		value >>= 48;
-		put_unaligned(*(__u16 *)&value, (__u16 *)address);
-		break;
-
-	case 2:
-		value >>= 32;
-		put_unaligned(*(__u32 *)&value, (__u32 *)address);
-		break;
-
-	case 3:
-		put_unaligned(value, (__u64 *)(address + 1));
-		shift = 1;
-		break;
-	}
+	valarr = (unsigned char *)&value;
+	shift = (tag == 3) ? 1 : 0;
+	memcpy(address + shift, valarr + sizeof value - (1 << tag), 1 << tag);
 	*address |= (tag << 6);
 	return shift + (1 << tag);
 }
