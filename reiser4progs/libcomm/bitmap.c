@@ -109,10 +109,8 @@ static blk_t reiser4_bitmap_calc(
     reiser4_bitmap_range_check(bitmap, start, return 0);
     reiser4_bitmap_range_check(bitmap, end - 1, return 0);
 	
-    for (i = start; i < end; ) {
+    for (i = start; i < end; i++)
 	blocks += reiser4_bitmap_test(bitmap, i) ? flag : !flag;
-	i++;	
-    }
 
     return blocks;
 }
@@ -141,7 +139,7 @@ count_t reiser4_bitmap_calc_used_in_area(
     blk_t start,		/* start bit (block) */
     blk_t end			/* end bit (block) */
 ) {
-    return reiser4_bitmap_calc(bitmap, start, end, 0);
+    return reiser4_bitmap_calc(bitmap, start, end, 1);
 }
 
 /* The same as previous one */
@@ -150,7 +148,7 @@ count_t reiser4_bitmap_calc_unused_in_area(
     blk_t start,		/* start bit */
     blk_t end			/* end bit */
 ) {
-    return reiser4_bitmap_calc(bitmap, start, end, 1);
+    return reiser4_bitmap_calc(bitmap, start, end, 0);
 }
 
 /* Retuns stored value of used blocks from specified bitmap */
