@@ -1348,7 +1348,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	reiser4_lock_page(page);
 	if (PagePrivate(page)) {
 		j = jnode_by_page(page);
-		if (j)
+		if (REISER4_USE_EFLUSH && j)
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 	}
 	reiser4_unlock_page(page);
@@ -2319,6 +2319,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	return result;
 }
 
+#if REISER4_USE_EFLUSH
 static void
 unflush_finish(coord_t *coord, __u64 done)
 {
@@ -2393,6 +2394,10 @@ unflush(coord_t *coord)
 	}
 	return result;
 }
+#else
+#define unflush_finish(coord, done) noop
+#define unflush(coord_t *coord) noop
+#endif
 
 /* find all units of extent item which require allocation. Allocate free blocks
    for them and replace those extents with new ones. As result of this item may
