@@ -1479,6 +1479,7 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	ret = squeeze_right_non_twig(left_parent_lock.node, right_parent_lock.node);
 	if (ret < 0)
 		goto out;
+	ret = 0; /* screening of positive result codes */
 
 	/* If we have shifted one or more internal items, @right was reparented
 	   therefore @left and @right nodes do not share same parent anymore.
@@ -1497,7 +1498,6 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	ret = lock_parent_and_allocate_znode(right_parent_lock.node, pos);
 
  out:
-
 	done_load_count(&left_parent_load);
 	done_load_count(&right_parent_load);
 
