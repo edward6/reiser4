@@ -598,7 +598,9 @@ reiserfs_node_t *reiserfs_node_right_neighbour(reiserfs_node_t *node) {
 errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new, 
     uint32_t needed) 
 {
-    int count, point;
+    int point = 0;
+    int count, moved = 0;
+    
     reiserfs_pos_t pos;
     reiserfs_key_t key;
     reiserfs_node_t *left;
@@ -607,6 +609,10 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	
     aal_assert("umka-759", old != NULL, return -1);
     aal_assert("umka-766", new != NULL, return -1);
+    
+    /* Checking for he root node which has not parent and has not any neighbours */
+    if (!old->node->parent)
+	return 0;
     
     /* 
 	Checking the left neighbour and loading if it doesn't exists. Both neighbour
@@ -634,14 +640,44 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	    }
 	}
     }
+   
+    /* 
+	Getting the target node position in its parent. This will be used bellow
+	for updating left delimiting keys after shift will be complete.
+    */
+    if (reiserfs_node_ldkey(old->node, &key)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't get left delimiting key of node %llu.",
+	    aal_block_get_nr(old->node->block));
+	return -1;
+    }
     
+    if (reiserfs_node_lookup(old->node, &key, &pos) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find left delimiting key of node %llu.",
+	    aal_block_get_nr(old->node->block));
+	return -1;
+    }
+    
+    *new = *old;
     point = old->pos.item;
     
-    /* Trying to move items into the left nighbor */
+    /* Trying to move items into the left neighbour */
     if (left) {
-	while (reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(left) >= 
-	    reiserfs_node_item_length(old->node, 0) + reiserfs_node_item_overhead(old->node))
+	uint32_t item_len = reiserfs_node_item_length(old->node, 0) + 
+	    reiserfs_node_item_overhead(old->node);
+	
+	while (reiserfs_node_count(old->node) > 0 && 
+	    reiserfs_node_get_free_space(left) >= item_len)
 	{
+	    /* 
+		Now we are checking for the case when insertion point is almost 
+		shifted into left neighbour.
+	    */
+	    if (point <= 0) {
+		if ((reiserfs_node_get_free_space(left) - item_len) < needed)
+		    break;
+	    }
 	    reiserfs_coord_init(&src, old->node, 0, 0xffff);
 	    reiserfs_coord_init(&dst, left, reiserfs_node_count(left), 0xffff);
 	
@@ -650,19 +686,42 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 		    "Left shifting failed. Can't move item.");
 		return -1;
 	    }
+	    
+	    item_len = reiserfs_node_item_length(old->node, 0) + 
+		reiserfs_node_item_overhead(old->node);
+	    
 	    point--;
 	}
     }
     
+    if (point < 0) {
+	reiserfs_coord_init(new, left, reiserfs_node_count(left) + 
+	    point, 0xffff);
+    }
+    
     count = reiserfs_node_count(old->node);
    
-    /* Trying to move items into the right nighbor */
+    /* Trying to move items into the right neghbour */
     if (right) {
-	while (reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(right) >= 
-	    reiserfs_node_item_length(old->node, reiserfs_node_count(old->node) - 1) + 
-	    reiserfs_node_item_overhead(old->node))
+	
+	uint32_t item_len = reiserfs_node_item_length(old->node, 
+	    reiserfs_node_count(old->node) - 1) + 
+	    reiserfs_node_item_overhead(old->node);
+	    
+	while (reiserfs_node_count(old->node) > 0 && 
+	    reiserfs_node_get_free_space(right) >= item_len)
 	{
-	    reiserfs_coord_init(&src, old->node, reiserfs_node_count(old->node) - 1, 0xffff);
+	    /* 
+		Checking for the case when insertion point is almost shifted 
+		into right neighbour.
+	    */
+	    if (moved >= count - new->pos.item) {
+		if ((reiserfs_node_get_free_space(right) - item_len) < needed)
+		    break;
+	    }
+	    reiserfs_coord_init(&src, old->node, 
+		reiserfs_node_count(old->node) - 1, 0xffff);
+
 	    reiserfs_coord_init(&dst, right, 0, 0xffff);
 	
 	    if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
@@ -670,60 +729,42 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 		    "Right shifting failed. Can't move item.");
 		return -1;
 	    }
-	    poin++;
+	    
+	    item_len = reiserfs_node_item_length(old->node, 
+		reiserfs_node_count(old->node) - 1) + 
+		reiserfs_node_item_overhead(old->node);
+	    
+	    moved++;
 	}
     }
     
-    /* Here we should update parent's internal keys */
-    if (old->node->parent) {
-
-	/* Updating internal key for shifted node */
-	if (left && left_moved > 0) {
-	    reiserfs_node_ldkey(old->node, &key);
-	    if (reiserfs_node_embed_key(old->node->parent, pos.item, &key)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't update left delimiting key for shifted node %llu.",
-		    aal_block_get_nr(old->node->block));
-		return -1;
-	    }
-	}
-
-	if (right && right_moved > 0) {
-	    
-	    /* Updating ldkey for left neighbour */
-	    reiserfs_node_ldkey(right, &key);
-	    if (reiserfs_node_embed_key(right, pos.item + 1, &key)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't update left delimiting key for right neighbour block %llu.",
-		    aal_block_get_nr(right->block));
-		return -1;
-	    }
-	}
+    if (moved > count - new->pos.item) {
+	reiserfs_coord_init(new, right, 
+	    moved - (count - new->pos.item), 0xffff);
     }
     
-    /*
-	Okay, and now we should find out where is our insertion point. It might be
-	moved into one of neighbours.
-    */
-    if (point < 0) {
-	    
-	/* Insertion point was moved into left neighbour */
-	new->node = left;
-	new->pos.item = reiserfs_node_count(left) + point; 
-	new->pos.unit = 0xffff;
-    } else if (right_moved >= (count - point)) {
-	    
-	/* Insertion point was moved into right neightbor */
-	new->node = right;
-	new->pos.item = right_moved - (count - point);
-	new->pos.unit = 0xffff;
-    } else {
-	    
-	/* Insertion point stay in old node */
-	new->node = old->node;
-	new->pos.item = point;
-	new->pos.unit = 0xffff;
+    /* Updating internal key for shifted node */
+    if (left && old->pos.item != new->pos.item) {
+	reiserfs_node_ldkey(old->node, &key);
+	if (reiserfs_node_embed_key(old->node->parent, pos.item, &key)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't update left delimiting key for shifted node %llu.",
+		aal_block_get_nr(old->node->block));
+	    return -1;
+	}
     }
+
+    /* Updating ldkey for left neighbour */
+    if (right && count != reiserfs_node_count(old->node)) {
+	reiserfs_node_ldkey(right, &key);
+	if (reiserfs_node_embed_key(right, pos.item + 1, &key)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't update left delimiting key for right neighbour block %llu.",
+		aal_block_get_nr(right->block));
+	    return -1;
+	}
+    }
+
     return 0;
 }
 
