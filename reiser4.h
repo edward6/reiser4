@@ -10,6 +10,10 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
+const char *REISER4_SUPER_MAGIC_STRING;
+const int REISER4_MAGIC_OFFSET; /* offset to magic string from the beginning of
+				 * device */
+
 /* here go tunable parameters that are not worth special entry in kernel
    configuration */
 
@@ -269,6 +273,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/space/space_allocator.h"
 
 #include "plugin/disk_format/layout_40.h"
+#include "plugin/disk_format/test.h"
 #include "plugin/disk_format/layout.h"
 
 #include "plugin/plugin.h"
