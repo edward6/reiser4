@@ -1664,6 +1664,10 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	assert( "umka-085", s != NULL );
 	
+	if (REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
+	    REISER4_STATS || REISER4_DEBUG_MEMCPY)
+		warning ("nikita-2372", "Debugging is on. Happy benchmarking");
+
 	/* this is common for every disk layout. It has a pointer where layout
 	 * specific part of info can be attached to, though */
 	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
