@@ -78,33 +78,52 @@ get_format40_flags(const format40_disk_super_block * sb)
 	return d64tocpu(&sb->flags);
 }
 
+static format40_super_info *
+get_sb_info(struct super_block *super)
+{
+	return &get_super_private(super)->u.format40;
+}
+
+static int
+consult_diskmap(struct super_block *s)
+{
+	format40_super_info *info;
+	journal_location    *jloc;
+
+	info = get_sb_info(s);
+	jloc = &get_super_private(s)->jloc;
+	/* Default format-specific locations, if there is nothing in
+	 * diskmap */
+	jloc->footer = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
+	jloc->header = FORMAT40_JOURNAL_HEADER_BLOCKNR;
+	info->loc.super = FORMAT40_OFFSET / s->s_blocksize;
+#ifdef CONFIG_REISER4_BADBLOCKS
+        reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF,
+				  &jloc->footer);
+        reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH,
+				  &jloc->header);
+        reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER,
+				  &info->loc.super);
+#endif
+	return 0;
+}
 
 /* find any valid super block of disk_format40 (even if the first
    super block is destroyed), will change block numbers of actual journal header/footer (jf/jh)
    if needed */
 static struct buffer_head *
-find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block_nr *jf UNUSED_ARG, reiser4_block_nr *jh UNUSED_ARG)
+find_a_disk_format40_super_block(struct super_block *s)
 {
 	struct buffer_head *super_bh;
 	format40_disk_super_block *disk_sb;
-	reiser4_block_nr rootblock;
+	format40_super_info *info;
 
 	assert("umka-487", s != NULL);
 
-#ifdef CONFIG_REISER4_BADBLOCKS
-        if ( reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER, &rootblock) != 0 )
-		rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
+	info = get_sb_info(s);
 
-        if ( jf && reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF, jf) != 0 )
-		*jf = FORMAT40_JOURNAL_FOOTER_BLOCKNR; /* Default format-specific location, if there is nothing in diskmap */
-	
-        if ( jh && reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH, jh) != 0 )
-		*jh = FORMAT40_JOURNAL_HEADER_BLOCKNR; /* Default format-specific location, if there is nothing in diskmap */
-#else
-	rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
-#endif
-
-	if (!(super_bh = sb_bread(s, rootblock)))
+	super_bh = sb_bread(s, info->loc.super);
+	if (super_bh == NULL)
 		return ERR_PTR(RETERR(-EIO));
 
 	disk_sb = (format40_disk_super_block *) super_bh->b_data;
@@ -114,10 +133,8 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 	}
 
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
-	
 	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) -
 				d64tocpu(&disk_sb->free_blocks));
-	
 	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
 
 	return super_bh;
@@ -128,9 +145,10 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 static struct buffer_head *
 read_super_block(struct super_block *s UNUSED_ARG)
 {
-	/* FIXME-UMKA: Here must be reading of the most recent superblock copy. However, as
-	   journal isn't complete, we are using find_any_superblock function. */
-	return find_a_disk_format40_super_block(s, NULL, NULL);
+	/* Here the most recent superblock copy has to be read. However, as
+	   journal replay isn't complete, we are using
+	   find_a_disk_format40_super_block() function. */
+	return find_a_disk_format40_super_block(s);
 }
 
 static int
@@ -138,16 +156,9 @@ get_super_jnode(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *sb_jnode;
-	reiser4_block_nr super_block_nr;
 	int ret;
 
-#ifdef CONFIG_REISER4_BADBLOCKS
-
-        if ( reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER, &super_block_nr) != 0 )
-#endif
-		super_block_nr = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
-
-	sb_jnode = alloc_io_head(&super_block_nr);
+	sb_jnode = alloc_io_head(&get_sb_info(s)->loc.super);
 
 	ret = jload(sb_jnode);
 
@@ -175,23 +186,36 @@ done_super_jnode(struct super_block *s)
 	}
 }
 
-/* plugin->u.format.get_ready */
-reiser4_internal int
-get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
+typedef enum format40_init_stage {
+	NONE_DONE = 0,
+	CONSULT_DISKMAP,
+	FIND_A_SUPER,
+	INIT_JOURNAL_INFO,
+	INIT_EFLUSH,
+	INIT_STATUS,
+	JOURNAL_REPLAY,
+	READ_SUPER,
+	KEY_CHECK,
+	INIT_OID,
+	INIT_TREE,
+	JOURNAL_RECOVER,
+	INIT_SA,
+	INIT_JNODE,
+	ALL_DONE
+} format40_init_stage;
+
+static int
+try_init_format40(struct super_block *s, format40_init_stage *stage)
 {
 	int result;
 	struct buffer_head *super_bh;
-	/* UMKA-FIXME-HANS: needs better name */
 	reiser4_super_info_data *sbinfo;
 	format40_disk_super_block  sb;
 	/* FIXME-NIKITA ugly work-around: keep copy of on-disk super-block */
 	format40_disk_super_block *sb_copy = &sb;
-	reiser4_block_nr root_block;
 	tree_level height;
+	reiser4_block_nr root_block;
 	node_plugin *nplug;
-
-	static reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
-	static reiser4_block_nr jheader_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
 
 	cassert(sizeof sb == 512);
 
@@ -201,42 +225,57 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	/* initialize reiser4_super_info_data */
 	sbinfo = get_super_private(s);
 
-	super_bh = find_a_disk_format40_super_block(s, &jfooter_block, &jheader_block);
+	*stage = NONE_DONE;
+
+	result = consult_diskmap(s);
+	if (result)
+		return result;
+	*stage = CONSULT_DISKMAP;
+
+	super_bh = find_a_disk_format40_super_block(s);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 	brelse(super_bh);
+	*stage = FIND_A_SUPER;
 
 	/* map jnodes for journal control blocks (header, footer) to disk  */
-	result = init_journal_info(s, &jheader_block, &jfooter_block);
-
+	result = init_journal_info(s);
 	if (result)
 		return result;
+	*stage = INIT_JOURNAL_INFO;
 
 	result = eflush_init_at(s);
 	if (result)
 		return result;
+	*stage = INIT_EFLUSH;
 
 	/* ok, we are sure that filesystem format is a format40 format */
 	/* Now check it's state */
 	result = reiser4_status_init(FORMAT40_STATUS_BLOCKNR);
-	if ( result && result != -EINVAL ) // -EINVAL means there is no magic, so probably just old fs.
+	if (result != 0 && result != -EINVAL)
+		/* -EINVAL means there is no magic, so probably just old
+		 * fs. */
 		return result;
-	
+	*stage = INIT_STATUS;
+
 	result = reiser4_status_query(NULL, NULL);
-	if ( result == REISER4_STATUS_MOUNT_WARN )
+	if (result == REISER4_STATUS_MOUNT_WARN)
 		printk("Warning, mounting filesystem with errors\n");
-	if ( result == REISER4_STATUS_MOUNT_RO ) {
+	if (result == REISER4_STATUS_MOUNT_RO) {
 		printk("Warning, mounting filesystem with fatal errors, forcing read-only mount\n");
-		/* FIXME: here we should actually enforce read-only mount, only it is unsupported yet. */
+		/* FIXME: here we should actually enforce read-only mount,
+		 * only it is unsupported yet. */
 	}
 
 	result = reiser4_journal_replay(s);
 	if (result)
 		return result;
+	*stage = JOURNAL_REPLAY;
 
 	super_bh = read_super_block(s);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
+	*stage = READ_SUPER;
 
 	xmemcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
@@ -248,14 +287,16 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 			REISER4_LARGE_KEY ? "large" : "small");
 		return RETERR(-EINVAL);
 	}
+	*stage = KEY_CHECK;
 
 	result = oid_init_allocator(s, get_format40_file_count(sb_copy), get_format40_oid(sb_copy));
 	if (result)
 		return result;
+	*stage = INIT_OID;
 
 	/* initializing tail policy */
 	sbinfo->plug.t = formatting_plugin_by_id(get_format40_formatting_policy(sb_copy));
-	assert("umka-751", sbinfo->plug.t);
+	assert("umka-751", sbinfo->plug.t != NULL);
 
 	/* get things necessary to init reiser4_tree */
 	root_block = get_format40_root_block(sb_copy);
@@ -265,9 +306,9 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	sbinfo->tree.super = s;
 	/* init reiser4_tree for the filesystem */
 	result = init_tree(&sbinfo->tree, &root_block, height, nplug);
-
 	if (result)
 		return result;
+	*stage = INIT_TREE;
 
 	/* initialize reiser4_super_info_data */
 	sbinfo->default_uid = 0;
@@ -284,18 +325,25 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 								 * layout 40 are
 								 * of one
 								 * plugin */
-
 	/* sbinfo->tmgr is initialized already */
 
 	/* recover sb data which were logged separately from sb block */
-	reiser4_journal_recover_sb_data(s);
+
+	/* NOTE-NIKITA: reiser4_journal_recover_sb_data() calls
+	 * oid_init_allocator() and reiser4_set_free_blocks() with new
+	 * data. What's the reason to call them above? */
+	result = reiser4_journal_recover_sb_data(s);
+	if (result != 0)
+		return result;
+	*stage = JOURNAL_RECOVER;
 
 	/* Set number of used blocks.  The number of used blocks is not stored
 	   neither in on-disk super block nor in the journal footer blocks.  At
 	   this moment actual values of total blocks and free block counters are
 	   set in the reiser4 super block (in-memory structure) and we can
 	   calculate number of used blocks from them. */
-	reiser4_set_data_blocks(s, reiser4_block_count(s) - reiser4_free_blocks(s));
+	reiser4_set_data_blocks(s,
+				reiser4_block_count(s) - reiser4_free_blocks(s));
 
 #if REISER4_DEBUG
 	sbinfo->min_blocks_used =
@@ -305,12 +353,53 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 #endif
 
 	/* init disk space allocator */
-	sa_init_allocator(get_space_allocator(s), s, 0);
+	result = sa_init_allocator(get_space_allocator(s), s, 0);
 	if (result)
 		return result;
+	*stage = INIT_SA;
 
 	result = get_super_jnode(s);
+	if (result == 0)
+		*stage = ALL_DONE;
+	return result;
+}
 
+/* plugin->u.format.get_ready */
+reiser4_internal int
+get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
+{
+	int result;
+	format40_init_stage stage;
+
+	result = try_init_format40(s, &stage);
+	switch (stage) {
+	case ALL_DONE:
+		assert("nikita-3458", result == 0);
+		break;
+	case INIT_JNODE:
+		done_super_jnode(s);
+	case INIT_SA:
+		sa_destroy_allocator(get_space_allocator(s), s);
+	case JOURNAL_RECOVER:
+	case INIT_TREE:
+		done_tree(&get_super_private(s)->tree);
+	case INIT_OID:
+	case KEY_CHECK:
+	case READ_SUPER:
+	case JOURNAL_REPLAY:
+	case INIT_STATUS:
+		reiser4_status_finish();
+	case INIT_EFLUSH:
+		eflush_done_at(s);
+	case INIT_JOURNAL_INFO:
+		done_journal_info(s);
+	case FIND_A_SUPER:
+	case CONSULT_DISKMAP:
+	case NONE_DONE:
+		break;
+	default:
+		impossible("nikita-3457", "init stage: %i", stage);
+	}
 	return result;
 }
 
