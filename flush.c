@@ -157,112 +157,54 @@ int flush_jnode_slum (jnode *node)
  * SLUM ALLOCATE
  ********************************************************************************/
 
-/* Beginning at scan->node, lock parents until clean or allocated, and
- * allocate on the way back down. */
-static int slum_allocate_ancestors (slum_scan *scan, reiser4_lock_handle *locks)
-{
-	int ret;
-	unsigned int start_level = jnode_get_level (scan->node);
-	unsigned int ancestor_level;
-	tree_coord coord;
-	znode *ancestor;
-
-	/* Lock the first level above the node, and possibly also the node (if
-	 * it's formatted) */
-	if ((ret = jnode_lock_parent_coord (scan->node, & locks[start_level], & locks[start_level+1], & coord))) {
-		return ret;
-	}
-
-	ancestor_level = start_level+1;
-	ancestor       = locks[ancestor_level].node;
-
-	/* Lock upwards until we find a either an allocated node or a clean node */
-	while (znode_is_dirty (ancestor) && ! jnode_is_allocated (ZJNODE (ancestor))) {
-
-		ancestor_level += 1;
-
-		if ((ret = reiser4_get_parent (& locks[ancestor_level], ancestor, ZNODE_READ_LOCK, 1))) {
-			return ret;
-		}
-
-		ancestor = locks[ancestor_level].node;
-	}
-
-	/* FIXME: What happens if the ancestor is dirty but allocated?  It
-	 * means we have already processed this ancestor once, but what do we
-	 * do about it here? */
-
-	/* At this point, we have at least one znode locked, but it might not
-	 * even be dirty (an unformatted block is modified and its parent
-	 * extent is clean).  If we are going to relocate that block, then the
-	 * parent will be modified, otherwise we have no znodes.  Possibly we
-	 * should ask the flush plugin whether it wants to relocate this
-	 * block, in which case we should mark the parent dirty and continue
-	 * with our allocation.  Once the parent is marked dirty, however, we
-	 * may have a dirty grandparent, which really means we should start
-	 * the "lock upwards" process over again.
-	 */
-	if (ancestor_level == TWIG_LEVEL) {
-
-		/* FIXME: Its a dirty unformatted block: ancestor is either
-		 * allocated and dirty or clean. */
- 	}
-
-	/* The last-aquired ancestor lock is not needed, since it is either
-	 * clean or allocated (unless we are going to force relocation of the
-	 * ancestor for min-overwrite-set purposes). */
-	reiser4_done_lh (& locks[ancestor_level--]);
-
-	/* We've now got the left-edge of the slum locked on all levels,
-	 * except for the leaf if it is unformatted (unformatted nodes don't
-	 * have locks).  However, the leaf node may not be the leftmost dirty
-	 * child of its parent, the slum-scan-left operation doesn't find that
-	 * node. */
-
-	/* This almost suggests (brain storming): instead of slum_scan_left as
-	 * it is now, slum_scan_left should find the greatest dirty ancestor
-	 * and do tree recursion from there.  Problem: it has low-priority.
-	 */
-
-	/* The last lock is not needed.  Root special case? */
-	reiser4_done_lh (& locks[ancestor_level--]);
-
-	for (; ancestor_level > start_level; ancestor_level -= 1) {
-		/* allocate it, unlock it */
-	}
-
-	/* left at start_level: now scan right, allocate */
-
-	/* what about squeeze? */
-
-	return 0;
-}
-
 /* NO COMMENTS YET BECAUSE I DON'T KNOW WHAT I'M DOING */
 static int slum_allocate (slum_scan *scan)
 {
-	int ret, i;
+	int ret;
+	reiser4_lock_handle parent_lock;
+	reiser4_lock_handle child_lock;
+	tree_coord coord;
+	slum_scan parent_scan;
 
-	/* Per-level locks. */
-	reiser4_lock_handle locks[REISER4_MAX_ZTREE_HEIGHT];
+	reiser4_init_lh (& parent_lock);
+	reiser4_init_lh (& child_lock);
+	slum_scan_init (& parent_scan);
 
-	for (i = 0; i < REISER4_MAX_ZTREE_HEIGHT; i += 1) {
-		reiser4_init_lh (& locks[i]);
+	/* At the end of one level, lock node & parent. */
+	if ((ret = jnode_lock_parent_coord (scan->node, & child_lock, & parent_lock, & coord))) {
+		goto failure;
 	}
 
-	/* Step 1: go upward until clean or allocated, and allocate on the way back down. */
-	if ((ret = slum_allocate_ancestors (scan, locks))) {
-		goto fail;
+	/* FIXME: if its parent is dirty but not in the same atom? */
+
+	/* If we will relocate node or node is unallocated, then parent is dirty. */
+#define flush_should_relocate(x) 1
+	if (flush_should_relocate (child_lock.node)) {
+		znode_set_dirty (parent_lock.node);
 	}
 
-	ret = 0;
+	if (znode_is_dirty (parent_lock.node)) {
 
-	/* ... */
- fail:
+		/* scan parent level, then squeeze */
+		if ((ret = slum_scan_left (& parent_scan, ZJNODE (parent_lock.node)))) {
+			goto failure;
+		}
+		
+		if ((ret = balance_level_slum (& parent_scan))) {
+			goto failure;
+		}
 
-	for (i = 0; i < REISER4_MAX_ZTREE_HEIGHT; i += 1) {
-		reiser4_done_lh (& locks[i]);
+		/* FIXME: find and allocate unallocated children: */
 	}
+
+	/* if child is leftmost of parent, allocate for parent, otherwise
+	 * allocate starting from the right of child's left, continue
+	 * allocating rightward. */
+	
+ failure:
+	slum_scan_cleanup (& parent_scan);
+	reiser4_done_lh (& parent_lock);
+	reiser4_done_lh (& child_lock);
 	
 	return 0;
 }
@@ -513,10 +455,9 @@ static int slum_scan_left_formatted (slum_scan *scan, znode *node)
 	 * LEAF_LEVEL). */
 	if (left == NULL && znode_get_level (node) == LEAF_LEVEL && ! slum_scan_left_finished (scan)) {
 		return slum_scan_left_using_parent (scan);
-	} else {
-		scan->stop = 1;
-	}
+	} 
 
+	scan->stop = 1;
 	return 0;
 }
 
@@ -557,7 +498,8 @@ static int slum_scan_left_extent (slum_scan *scan, jnode *node)
 	if (scan_index == 0 && ! slum_scan_left_finished (scan)) {
 		return slum_scan_left_using_parent (scan);
 	}
-	
+
+	scan->stop = 1;	
 	return 0;
 }
 
@@ -591,6 +533,89 @@ static int slum_scan_left (slum_scan *scan, jnode *node)
 /********************************************************************************
  * PSEUDO CODE
  ********************************************************************************/
+
+#if 0
+/* Beginning at scan->node, lock parents until clean or allocated, and
+ * allocate on the way back down. */
+static int slum_allocate_ancestors (slum_scan *scan, reiser4_lock_handle *locks)
+{
+	int ret;
+	unsigned int start_level = jnode_get_level (scan->node);
+	unsigned int ancestor_level;
+	tree_coord coord;
+	znode *ancestor;
+
+	/* Lock the first level above the node, and possibly also the node (if
+	 * it's formatted) */
+	if ((ret = jnode_lock_parent_coord (scan->node, & locks[start_level], & locks[start_level+1], & coord))) {
+		return ret;
+	}
+
+	ancestor_level = start_level+1;
+	ancestor       = locks[ancestor_level].node;
+
+	/* Lock upwards until we find a either an allocated node or a clean node */
+	while (znode_is_dirty (ancestor) && ! jnode_is_allocated (ZJNODE (ancestor))) {
+
+		ancestor_level += 1;
+
+		if ((ret = reiser4_get_parent (& locks[ancestor_level], ancestor, ZNODE_READ_LOCK, 1))) {
+			return ret;
+		}
+
+		ancestor = locks[ancestor_level].node;
+	}
+
+	/* FIXME: What happens if the ancestor is dirty but allocated?  It
+	 * means we have already processed this ancestor once, but what do we
+	 * do about it here? */
+
+	/* At this point, we have at least one znode locked, but it might not
+	 * even be dirty (an unformatted block is modified and its parent
+	 * extent is clean).  If we are going to relocate that block, then the
+	 * parent will be modified, otherwise we have no znodes.  Possibly we
+	 * should ask the flush plugin whether it wants to relocate this
+	 * block, in which case we should mark the parent dirty and continue
+	 * with our allocation.  Once the parent is marked dirty, however, we
+	 * may have a dirty grandparent, which really means we should start
+	 * the "lock upwards" process over again.
+	 */
+	if (ancestor_level == TWIG_LEVEL) {
+
+		/* FIXME: Its a dirty unformatted block: ancestor is either
+		 * allocated and dirty or clean. */
+ 	}
+
+	/* The last-aquired ancestor lock is not needed, since it is either
+	 * clean or allocated (unless we are going to force relocation of the
+	 * ancestor for min-overwrite-set purposes). */
+	reiser4_done_lh (& locks[ancestor_level--]);
+
+	/* We've now got the left-edge of the slum locked on all levels,
+	 * except for the leaf if it is unformatted (unformatted nodes don't
+	 * have locks).  However, the leaf node may not be the leftmost dirty
+	 * child of its parent, the slum-scan-left operation doesn't find that
+	 * node. */
+
+	/* This almost suggests (brain storming): instead of slum_scan_left as
+	 * it is now, slum_scan_left should find the greatest dirty ancestor
+	 * and do tree recursion from there.  Problem: it has low-priority.
+	 */
+
+	/* The last lock is not needed.  Root special case? */
+	reiser4_done_lh (& locks[ancestor_level--]);
+
+	for (; ancestor_level > start_level; ancestor_level -= 1) {
+		/* allocate it, unlock it */
+	}
+
+	/* left at start_level: now scan right, allocate */
+
+	/* what about squeeze? */
+
+	return 0;
+}
+#endif
 
 #if 0
 /* What Hans wrote:

@@ -30,8 +30,7 @@ blocknumbers, which must be unique so that zget() still works.
  *
  * Go ahead and read comments in the body.
  */
-#if BROKEN_WITHOUT_SLUMS
-int balance_slum( slum *hood )
+int balance_level_slum (slum_scan *scan)
 {
 	int                  result;
 	znode               *target;
@@ -47,8 +46,6 @@ int balance_slum( slum *hood )
 
 	reiser4_tree        *tree = current_tree;
 
-	unsigned             before = hood->free_space;
-
 	carry_pool           pool;
 	/** slum_level: carry queue where locked nodes are accumulated. */
 	carry_level          slum_level;
@@ -56,19 +53,8 @@ int balance_slum( slum *hood )
 	 * parent level are accumulated for batch processing.  */
 	carry_level          todo;
 
-	trace_on (TRACE_SLUM, "slum balancing: %p free space %u\n", hood, before);
+	frontier = target = JZNODE (scan -> node);
 
-	/* Tree is locked at arrival to this function, ensuring that
-	 * slum_likely_squeezable() test and hood remain valid.
-	 */
-	assert ("jmacd-1014", spin_tree_is_locked (tree));
-	assert ("jmacd-1017", slum_likely_squeezable (hood));
-
-	/* protect ourselves from someone lurking from behind while we are
-	 * squeezing this slum */
-	hood -> flags |= SLUM_BEING_SQUEEZED;
-
-	frontier = target = hood -> leftmost;
 	/*
 	 * there is no need to take any kind of lock on @frontier: it can only
 	 * be different from @target due to carry batching leaving empty nodes
@@ -97,7 +83,7 @@ int balance_slum( slum *hood )
 
 	/* lock target */
 	result = reiser4_lock_znode( target_lh, target, ZNODE_WRITE_LOCK, 
-				     ZNODE_LOCK_HIPRI );
+				     ZNODE_LOCK_LOPRI );
 	if( result != 0 ) {
 		goto done;
 	}
@@ -112,10 +98,6 @@ int balance_slum( slum *hood )
 		goto done;
 	}
 
-	/* since slum denies new members/merges at this time, leftmost cannot
-	 * change. */
-	assert( "nikita-1275", hood -> leftmost == target );
-
 	/* 
 	 * iterate over all nodes in a slum, squeezing them to the left along
 	 * the way. Two variables: @source and @target indicate where we are
@@ -128,14 +110,12 @@ int balance_slum( slum *hood )
 	while( result == 0 ) {
 
 		znode *source;
-		int in_slum;
 
 		assert ("jmacd-1034", znode_is_connected (target));
 
 		result = reiser4_get_right_neighbor (source_lh, frontier, 
 						     ZNODE_WRITE_LOCK, 0);
 		if (result != 0) {
-			/* FIXME_JMACD ENAVAIL means no right neighbor, ENOENT means??? -josh */
 			if (result == -ENAVAIL || result == -ENOENT) {
 				result = 0;
 			}
@@ -149,12 +129,7 @@ int balance_slum( slum *hood )
 		assert( "nikita-1498", target_lh -> node == target );
 
 		/* check if its actually in the slum... */
-		spin_lock_tree (tree);
-		in_slum = is_in_slum( source, hood );
-		spin_unlock_tree (tree);
-
-		/* check end-of-slum */
-		if (! in_slum) {
+		if (! znode_is_connected (target) || ! znode_is_dirty (target) || scan->atom != znode_get_atom (target)) {
 			break;
 		}
 
@@ -255,13 +230,6 @@ int balance_slum( slum *hood )
 	zrelse( target, 1 );
 	zput( frontier );
 
-	/* we're finished with the slum now */
-	spin_lock_tree   (tree);
-	hood -> flags &= ~SLUM_BEING_SQUEEZED;
-	hood -> flags |= SLUM_WAS_SQUEEZED;
-
-	spin_unlock_tree (tree);
-
 	/*
 	 * unlock on reverse order
 	 */
@@ -278,13 +246,9 @@ int balance_slum( slum *hood )
 	
 	reiser4_done_carry_pool( &pool );
 
-	trace_on (TRACE_SLUM, "balancing increased free space %u\n", 
-		  hood -> free_space - before );
-
 	reiser4_stat_slum_add( squeeze );
 	return result;
 }
-#endif
 
 /*
  * Local variables:
