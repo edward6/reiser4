@@ -535,18 +535,17 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
  */
 /* Audited by: umka (2002.06.16) */
 znode *child_znode( const coord_t *parent_coord /* coord of pointer to
-						    * child */, 
+						 * child */, 
+		    znode *parent /* parent of child */,
 		    int setup_dkeys_p /* if !0 update delimiting keys of
 				       * child */ )
 {
 	znode *child;
-	znode *parent;
 
 	assert( "nikita-1374", parent_coord != NULL );
-	assert( "nikita-1482", parent_coord -> node != NULL );
+	assert( "nikita-1482", parent != NULL );
 	assert( "nikita-1384", spin_dk_is_locked( current_tree ) );
 
-	parent = parent_coord -> node;
 	if( znode_get_level( parent ) <= LEAF_LEVEL ) {		
 		/*
 		 * trying to get child of leaf node
@@ -716,15 +715,17 @@ void show_context (int show_tree)
 	             ! context_list_end   (& active_contexts, context);
 	     context = context_list_next  (context)) {
 
-		tree = &get_super_private (context->super)->tree;
+		if (get_super_private (context->super) != NULL) {
+			tree = &get_super_private (context->super)->tree;
 
-		info ("context for thread %u", context->tid);
-		print_address ("; tree root", & tree->root_block);
-		info ("\n");
+			info ("context for thread %u", context->tid);
+			print_address ("; tree root", & tree->root_block);
+			info ("\n");
 
-		show_lock_stack (context);
+			show_lock_stack (context);
 
-		info ("\n");
+			info ("\n");
+		}
 	}
 	
 	if (show_tree && (tree != NULL)) {
@@ -1149,7 +1150,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	}
 
 	spin_lock_dk (current_tree);
-	left_child = child_znode (&left_coord, 1/* update delimiting keys*/);
+	left_child = child_znode (&left_coord, left_coord.node, 
+				  1/* update delimiting keys*/);
 	spin_unlock_dk (current_tree);
 
 	if (IS_ERR (left_child)) {
@@ -1202,7 +1204,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		if (right_coord.node && /* there is right neighbor of @from */
 		    item_is_internal (&right_coord)) { /* it is internal item */
 			spin_lock_dk (current_tree);
-			right_child = child_znode (&right_coord, 1/* update delimiting keys*/);
+			right_child = child_znode (&right_coord, 
+						   right_coord.node, 
+						   1/* update delimiting keys*/);
 			spin_unlock_dk (current_tree);
 
 			if (IS_ERR (right_child)) {
@@ -1491,7 +1495,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			spin_lock_dk( current_tree );
-			child = child_znode( &coord, 0 );
+			child = child_znode( &coord, coord.node, 0 );
 			spin_unlock_dk( current_tree );
 			if( !IS_ERR( child ) ) {
 				tree_rec( tree, child, flags );

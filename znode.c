@@ -334,10 +334,10 @@ static void znode_remove( znode *node /* znode to remove */ )
 	 */
 
 	if( znode_parent( node ) != NULL ) {
-		/* father, onto your hands I forward my spirit... */
-		atomic_dec( &znode_parent( node ) -> c_count );
 		assert( "nikita-472",
-			atomic_read( &znode_parent( node ) -> c_count ) >= 0 );
+			atomic_read( &znode_parent( node ) -> c_count ) > 0 );
+		/* father, onto your hands I forward my spirit... */
+		del_c_ref( znode_parent( node ) );
 	} else {
 		/* orphaned znode?! Root? */ 
 	}
@@ -511,6 +511,15 @@ void add_d_ref( znode *node /* node to increase d_count of */ )
 	ON_DEBUG( ++ lock_counters() -> d_refs );
 }
 
+/** decrease c_count on @node */
+void del_c_ref( znode *node /* node to decrease c_count of */ )
+{
+	assert( "nikita-1962", node != NULL );
+
+	assert( "nikita-2133", atomic_read( &node -> c_count ) > 0 );
+	atomic_dec( &node -> c_count );
+}
+
 /**
  * zref() - increase counter of references to znode (x_count)
  */
@@ -579,6 +588,14 @@ zget (reiser4_tree *tree,
 	 * references. */
 	if (result != NULL) {
 		add_x_ref (result);
+		/*
+		 * FIXME-NIKITA it should be so, but special case during
+		 * creation of new root makes such assertion highly
+		 * complicated.
+		 */
+		assert ("nikita-2131", 1 || znode_parent (result) == parent ||
+			(ZF_ISSET (result, ZNODE_NEW) && 
+			 (znode_parent (result) == NULL)));
 	}
 
 	/* Release the hash table lock. */
@@ -598,7 +615,6 @@ zget (reiser4_tree *tree,
 
 			/* The block numbers must be equal. */
 			assert ("jmacd-1160", blknreq (& ZJNODE(result)->blocknr, blocknr));
-
 			spin_unlock_znode (result);
 		}
 
@@ -639,12 +655,14 @@ zget (reiser4_tree *tree,
 		/* Insert it into hash: no race. */
 		z_hash_insert_index (& tree->hash_table, hashi, result);
 
-		/* Release hash lock. */
-		spin_unlock_tree (tree);
-
+		/* Has to be done under tree lock, because it protects parent
+		 * pointer. */
 		if (parent != NULL) {
 			atomic_inc (& parent->c_count);
 		}
+
+		/* Release hash lock. */
+		spin_unlock_tree (tree);
 
 	}
 

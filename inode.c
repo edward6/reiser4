@@ -143,6 +143,7 @@ inter_syscall_rap *inter_syscall_ra( const struct inode *inode /* inode
 
 /* should be moved into .h */
 
+#if REISER4_DEBUG
 /*  has inode been initialized? */
 /* Audited by: green(2002.06.17) */
 static int is_inode_loaded( const struct inode *inode /* inode queried */ )
@@ -150,6 +151,7 @@ static int is_inode_loaded( const struct inode *inode /* inode queried */ )
 	assert( "nikita-1120", inode != NULL );
 	return reiser4_inode_data( inode ) -> flags & REISER4_LOADED;
 }
+#endif
 
 /**
  * Install file, inode, and address_space operation on @inode, depending on

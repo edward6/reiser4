@@ -1142,10 +1142,6 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	moved = (ret > 0);
 
 	if (moved) {
-		//info ("shifted %u bytes (1 internal unit) %p <- %p\n", ret, left, right);
-		/* Carry is called to update delimiting key or to remove empty node.
-		 * FIXME: Nikita: Note how this comment disagrees with the code?  Why
-		 * doesn't carry update the DK itself? */
 		znode_set_dirty (left);
 		znode_set_dirty (right);
 		spin_lock_dk (current_tree);

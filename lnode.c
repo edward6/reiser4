@@ -87,7 +87,9 @@ static reiser4_key *lnode_lw_key( const lnode *node, reiser4_key *result );
 static int lnode_inode_eq( const lnode *node1, const lnode *node2 );
 static int lnode_lw_eq( const lnode *node1, const lnode *node2 );
 
+#if REISER4_DEBUG
 static int lnode_valid_type( lnode_type type );
+#endif
 
 /*
  * Common operations for various types of lnodes.
@@ -325,12 +327,14 @@ int set_lnode_plugins( lnode *node /* lnode to modify */,
 	return lnode_ops[ node -> h.type ].set_plugins( node, area );
 }
 
+#if REISER4_DEBUG
 /** true if @type is valid lnode type */
 /* Audited by: green(2002.06.15) */
 static int lnode_valid_type( lnode_type type /* would-be lnode type */ )
 {
 	return type < LNODE_NR_TYPES;
 }
+#endif
 
 /** return key of object behind inode-based @node */
 /* Audited by: green(2002.06.15) */

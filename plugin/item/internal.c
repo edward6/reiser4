@@ -71,13 +71,14 @@ static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
 
 /** get znode pointed to by internal @item */
 /* Audited by: green(2002.06.14) */
-static znode *znode_at( const coord_t *item /* coord of item */ )
+static znode *znode_at( const coord_t *item /* coord of item */, 
+			znode *parent /* parent node */ )
 {
 	znode *result;
 
 	/* Take DK lock, as required by child_znode. */
 	spin_lock_dk( current_tree );
-	result = child_znode( item, 0 );
+	result = child_znode( item, parent, 0 );
 	spin_unlock_dk( current_tree );
 	return result;
 }
@@ -216,7 +217,7 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 	assert( "nikita-1181", znode_get_level( item -> node ) > LEAF_LEVEL );
 	assert( "nikita-1450", item -> unit_pos == 0 );
 
-	child = znode_at( item );
+	child = znode_at( item, item -> node );
 	if( ! IS_ERR( child ) ) {
 		int result = 0;
 		spin_lock_dk( current_tree );
@@ -286,7 +287,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 	assert( "nikita-1224", from == 0 );
 	assert( "nikita-1225", count == 1 );
 
-	child = znode_at( item );
+	child = znode_at( item, item -> node );
 	if( IS_ERR( child ) )
 		return PTR_ERR( child );
 	else if( node_is_empty( child ) ) {
@@ -297,7 +298,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		spin_lock_tree( current_tree );
 		coord_init_zero( &child -> ptr_in_parent_hint );
 		spin_unlock_tree( current_tree );
-		atomic_dec( &item -> node -> c_count );
+		del_c_ref( item -> node );
 		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",
 			  *znode_get_block( item -> node ),
 			  atomic_read( &item -> node -> c_count ),
@@ -329,31 +330,38 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 			 znode *old_node /* old parent */ )
 {
 	znode *child;
+	znode *new_node;
+	reiser4_tree *tree;
 
 	assert( "nikita-1276", item != NULL );
 	assert( "nikita-1277", from == 0 );
 	assert( "nikita-1278", count == 1 );
 	assert( "nikita-1451", item -> unit_pos == 0 );
 
-	child = znode_at( item );
+	new_node = item -> node;
+	assert( "nikita-2132", new_node != old_node );
+	tree = current_tree;
+	spin_lock_dk( tree );
+	child = child_znode( item, old_node, 1 );
+	spin_unlock_dk( tree );
 	if( !IS_ERR( child ) ) {
 		reiser4_stat_tree_add( reparenting );
-		spin_lock_tree( current_tree );
-		atomic_inc( &item -> node -> c_count );
-		assert( "nikita-1395", child -> ptr_in_parent_hint.node == old_node );
+		spin_lock_tree( tree );
+		atomic_inc( &new_node -> c_count );
+		assert( "nikita-1395", znode_parent( child ) == old_node );
 		assert( "nikita-1396", atomic_read( &old_node -> c_count ) > 0 );
 		child -> ptr_in_parent_hint = *item;
-		assert( "nikita-1781", znode_parent( child ) == item -> node );
+		assert( "nikita-1781", znode_parent( child ) == new_node );
 		assert( "nikita-1782", check_tree_pointer( item, 
 							   child ) == NS_FOUND );
-		atomic_dec( &old_node -> c_count );
-		spin_unlock_tree( current_tree );
+		del_c_ref( old_node );
+		spin_unlock_tree( tree );
 		zput( child );
 		trace_on( TRACE_ZWEB, "shift: %lli: %i -> %lli: %i [%lli]\n",
 			  *znode_get_block( old_node ), 
 			  atomic_read( &old_node -> c_count ),
-			  *znode_get_block( item -> node ), 
-			  atomic_read( &item -> node -> c_count ),
+			  *znode_get_block( new_node ), 
+			  atomic_read( &new_node -> c_count ),
 			  *znode_get_block( child ) );
 		return 0;
 	} else

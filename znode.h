@@ -391,6 +391,8 @@ static inline void reiser4_wake_up (lock_stack *owner)
 
 extern void add_x_ref( znode *node );
 extern void add_d_ref( znode *node );
+extern void del_c_ref( znode *node );
+
 extern znode *zref( znode *node );
 extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
 		    znode *parent, tree_level level, int gfp_flag );
