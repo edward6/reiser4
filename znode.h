@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Declaration of znode (Zam's node). */
 
@@ -23,6 +24,8 @@
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
 
+/* znode tracks its position within parent (internal item in a parent node,
+ * that contains znode's block number). */
 typedef struct parent_coord {
 	znode       *node;
 	pos_in_node_t  item_pos;
@@ -93,7 +96,13 @@ struct znode {
 	*/
 	parent_coord_t in_parent;
 
+	/*
+	 * sibling list pointers
+	 */
+
+	/* left-neighbor */
 	znode *left;
+	/* right-neighbor */
 	znode *right;
 	/* long term lock on node content. This lock supports deadlock
 	   detection. See lock.c
@@ -268,6 +277,7 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 extern int znode_x_count_is_protected(const znode * node);
 #endif
 
+/* acquire reference to @node */
 static inline znode *
 zref(znode * node)
 {
@@ -275,6 +285,7 @@ zref(znode * node)
 	return JZNODE(jref(ZJNODE(node)));
 }
 
+/* release reference to @node */
 static inline void
 zput(znode * node)
 {
@@ -300,6 +311,7 @@ jnode_get_level(const jnode * node)
 		return LEAF_LEVEL;
 }
 
+/* true if jnode is on leaf level */
 static inline int jnode_is_leaf(const jnode * node)
 {
 	if (jnode_is_znode(node))
@@ -309,11 +321,11 @@ static inline int jnode_is_leaf(const jnode * node)
 	return 0;
 }
 
+/* return znode's tree */
 static inline reiser4_tree *
 znode_get_tree(const znode * node)
 {
 	assert("nikita-2692", node != NULL);
-/* GREV-FIXME-HANS: make etags search work for all functions and macros, including the below. */
 	return jnode_get_tree(ZJNODE(node));
 }
 

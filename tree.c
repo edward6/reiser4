@@ -1,78 +1,172 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/*   To simplify balancing, allow some flexibility in locking and speed up
-     important coord cache optimization, we keep delimiting keys of nodes in
-     memory. Depending on disk format (implemented by appropriate node plugin)
-     node on disk can record both left and right delimiting key, only one of
-     them, or none. Still, our balancing and tree traversal code keep both
-     delimiting keys for a node that is in memory stored in the znode. When
-     node is first brought into memory during tree traversal, its left
-     delimiting key is taken from its parent, and its right delimiting key is
-     either next key in its parent, or is right delimiting key of parent if
-     node is the rightmost child of parent.
-
-     Physical consistency of delimiting key is protected by special dk spin
-     lock. That is, delimiting keys can only be inspected or modified under
-     this lock [NOTE-NIKITA it should be probably changed to read/write
-     lock.]. But dk lock is only sufficient for fast "pessimistic" check,
-     because to simplify code and to decrease lock contention, balancing
-     (carry) only updates delimiting keys right before unlocking all locked
-     nodes on the given tree level. For example, coord-by-key cache scans LRU
-     list of recently accessed znodes. For each node it first does fast check
-     under dk spin lock. If key looked for is not between delimiting keys for
-     this node, next node is inspected and so on. If key is inside of the key
-     range, long term lock is taken on node and key range is rechecked.
-
-   COORDINATES
-
-     To find something in the tree, you supply a key, and the key is resolved by coord_by_key() into a coord
-     (coordinate) that is valid as long as the node the coord points to remains locked.  As mentioned above trees
-     consist of nodes that consist of items that consist of units. A unit is the smallest and indivisible piece of tree
-     as far as balancing and tree search are concerned. Each node, item, and unit can be addressed by giving its level
-     in the tree and the key occupied by this entity.  A node knows what the key ranges are of the items within it, and
-     how to find its items and invoke their item handlers, but it does not know how to access individual units within
-     its items except through the item handlers.  coord is a structure containing a pointer to the node, the ordinal
-     number of the item within this node (a sort of item offset), and the ordinal number of the unit within this item.
-
-   TREE LOOKUP
-
-     There are two types of access to the tree: lookup and modification.
-
-     Lookup is a search for the key in the tree. Search can look for either
-     exactly the key given to it, or for the largest key that is not greater
-     than the key given to it. This distinction is determined by "bias"
-     parameter of search routine (coord_by_key()). coord_by_key() either
-     returns error (key is not in the tree, or some kind of external error
-     occurred), or successfully resolves key into coord.
-
-     This resolution is done by traversing tree top-to-bottom from root level
-     to the desired level. On levels above twig level (level one above the
-     leaf level) nodes consist exclusively of internal items. Internal item
-     is nothing more than pointer to the tree node on the child level. On
-     twig level nodes consist of internal items intermixed with extent
-     items. Internal items form normal search tree structure used by
-     traversal to descent through the tree.
-
-   COORD CACHE
-
-     Tree lookup described above is expensive even if all nodes traversed are
-     already in the memory: for each node binary search within it has to be
-     performed and binary searches are CPU consuming and tend to destroy CPU
-     caches.
-
-     To work around this, a "coord by key cache", or cbk_cache as it is called
-     in the code, was introduced.
-
-     The coord by key cache consists of small list of recently accessed nodes
-     maintained according to the LRU discipline. Before doing real top-to-down
-     tree traversal this cache is scanned for nodes that can contain key
-     requested.
-
-     The efficiency of coord cache depends heavily on locality of reference
-     for tree accesses. Our user level simulations show reasonably good hit
-     ratios for coord cache under most loads so far.
-*/
+/*
+ * KEYS IN A TREE.
+ *
+ * The tree consists of nodes located on the disk. Node in the tree is either
+ * formatted or unformatted. Formatted node is one that has structure
+ * understood by the tree balancing and traversal code. Formatted nodes are
+ * further classified into leaf and internal nodes. Latter distinctions is
+ * (almost) of only historical importance: general structure of leaves and
+ * internal nodes is the same in Reiser4. Unformatted nodes contain raw data
+ * that are part of bodies of ordinary files and attributes.
+ *
+ * Each node in the tree spawns some interval in the key space. Key ranges for
+ * all nodes in the tree are disjoint. Actually, this only holds in some weak
+ * sense, because of the non-unique keys: intersection of key ranges for
+ * different nodes is either empty, or consists of exactly one key.
+ *
+ * Formatted node consists of a sequence of items. Each item spawns some
+ * interval in key space. Key ranges for all items in a tree are disjoint,
+ * modulo non-unique keys again. Items within nodes are ordered in the key
+ * order of the smallest key in a item.
+ *
+ * Particular type of item can be further split into units. Unit is piece of
+ * item that can be cut from item and moved into another item of the same
+ * time. Units are used by balancing code to repack data during balancing.
+ *
+ * Unit can be further split into smaller entities (for example, extent unit
+ * represents several pages, and it is natural for extent code to operate on
+ * particular pages and even bytes within one unit), but this is of no
+ * relevance to the generic balancing and lookup code.
+ *
+ * Although item is said to "spawn" range or interval of keys, it is not
+ * necessary that item contains piece of data addressable by each and every
+ * key in this range. For example, compound directory item, consisting of
+ * units corresponding to directory entries and keyed by hashes of file names,
+ * looks more as having "discrete spectrum": only some disjoint keys inside
+ * range occupied by this item really address data.
+ *
+ * No than less, each item always has well-defined least (minimal) key, that
+ * is recorded in item header, stored in the node this item is in. Also, item
+ * plugin can optionally define method ->max_key_inside() returning maximal
+ * key that can _possibly_ be located within this item. This method is used
+ * (mainly) to determine when given piece of data should be merged into
+ * existing item, in stead of creating new one. Because of this, even though
+ * ->max_key_inside() can be larger that any key actually located in the item,
+ * intervals
+ *
+ * [ min_key( item ), ->max_key_inside( item ) ]
+ *
+ * are still disjoint for all items within the _same_ node.
+ *
+ * In memory node is represented by znode. It plays several roles:
+ *
+ *  . something locks are taken on
+ *
+ *  . something tracked by transaction manager (this is going to change)
+ *
+ *  . something used to access node data
+ *
+ *  . something used to maintain tree structure in memory: sibling and
+ *  parental linkage.
+ *
+ *  . something used to organize nodes into "slums"
+ *
+ * More on znodes see in znode.[ch]
+ *
+ * DELIMITING KEYS
+ *
+ *   To simplify balancing, allow some flexibility in locking and speed up
+ *   important coord cache optimization, we keep delimiting keys of nodes in
+ *   memory. Depending on disk format (implemented by appropriate node plugin)
+ *   node on disk can record both left and right delimiting key, only one of
+ *   them, or none. Still, our balancing and tree traversal code keep both
+ *   delimiting keys for a node that is in memory stored in the znode. When
+ *   node is first brought into memory during tree traversal, its left
+ *   delimiting key is taken from its parent, and its right delimiting key is
+ *   either next key in its parent, or is right delimiting key of parent if
+ *   node is the rightmost child of parent.
+ *
+ *   Physical consistency of delimiting key is protected by special dk
+ *   read-write lock. That is, delimiting keys can only be inspected or
+ *   modified under this lock. But dk lock is only sufficient for fast
+ *   "pessimistic" check, because to simplify code and to decrease lock
+ *   contention, balancing (carry) only updates delimiting keys right before
+ *   unlocking all locked nodes on the given tree level. For example,
+ *   coord-by-key cache scans LRU list of recently accessed znodes. For each
+ *   node it first does fast check under dk spin lock. If key looked for is
+ *   not between delimiting keys for this node, next node is inspected and so
+ *   on. If key is inside of the key range, long term lock is taken on node
+ *   and key range is rechecked.
+ *
+ * COORDINATES
+ *
+ *   To find something in the tree, you supply a key, and the key is resolved
+ *   by coord_by_key() into a coord (coordinate) that is valid as long as the
+ *   node the coord points to remains locked.  As mentioned above trees
+ *   consist of nodes that consist of items that consist of units. A unit is
+ *   the smallest and indivisible piece of tree as far as balancing and tree
+ *   search are concerned. Each node, item, and unit can be addressed by
+ *   giving its level in the tree and the key occupied by this entity.  A node
+ *   knows what the key ranges are of the items within it, and how to find its
+ *   items and invoke their item handlers, but it does not know how to access
+ *   individual units within its items except through the item handlers.
+ *   coord is a structure containing a pointer to the node, the ordinal number
+ *   of the item within this node (a sort of item offset), and the ordinal
+ *   number of the unit within this item.
+ *
+ * TREE LOOKUP
+ *
+ *   There are two types of access to the tree: lookup and modification.
+ *
+ *   Lookup is a search for the key in the tree. Search can look for either
+ *   exactly the key given to it, or for the largest key that is not greater
+ *   than the key given to it. This distinction is determined by "bias"
+ *   parameter of search routine (coord_by_key()). coord_by_key() either
+ *   returns error (key is not in the tree, or some kind of external error
+ *   occurred), or successfully resolves key into coord.
+ *
+ *   This resolution is done by traversing tree top-to-bottom from root level
+ *   to the desired level. On levels above twig level (level one above the
+ *   leaf level) nodes consist exclusively of internal items. Internal item is
+ *   nothing more than pointer to the tree node on the child level. On twig
+ *   level nodes consist of internal items intermixed with extent
+ *   items. Internal items form normal search tree structure used by traversal
+ *   to descent through the tree.
+ *
+ * TREE LOOKUP OPTIMIZATIONS
+ *
+ * Tree lookup described above is expensive even if all nodes traversed are
+ * already in the memory: for each node binary search within it has to be
+ * performed and binary searches are CPU consuming and tend to destroy CPU
+ * caches.
+ *
+ * Several optimizations are used to work around this:
+ *
+ *   . cbk_cache (look-aside cache for tree traversals, see search.c for
+ *   details)
+ *
+ *   . seals (see seal.[ch])
+ *
+ *   . vroot (see search.c)
+ *
+ * General search-by-key is layered thusly:
+ *
+ *                   [check seal, if any]   --ok--> done
+ *                           |
+ *                         failed
+ *                           |
+ *                           V
+ *                     [vroot defined] --no--> node = tree_root
+ *                           |                   |
+ *                          yes                  |
+ *                           |                   |
+ *                           V                   |
+ *                       node = vroot            |
+ *                                 |             |
+ *                                 |             |
+ *                                 |             |
+ *                                 V             V
+ *                            [check cbk_cache for key]  --ok--> done
+ *                                        |
+ *                                      failed
+ *                                        |
+ *                                        V
+ *                       [start tree traversal from node]
+ *
+ */
 
 #include "forward.h"
 #include "debug.h"
@@ -80,7 +174,6 @@
 #include "key.h"
 #include "coord.h"
 #include "plugin/item/static_stat.h"
-/*#include "plugin/file/file.h"*/
 #include "plugin/item/item.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
@@ -103,14 +196,14 @@
 #include <linux/spinlock.h>
 
 /* Disk address (block number) never ever used for any real tree node. This is
-   used as block number of "fake" znode.
+   used as block number of "uber" znode.
 
    Invalid block addresses are 0 by tradition.
 
 */
 const reiser4_block_nr UBER_TREE_ADDR = 0ull;
 
-/* Audited by: umka (2002.06.16) */
+/* return node plugin of coord->node */
 node_plugin *
 node_plugin_by_coord(const coord_t * coord)
 {
@@ -120,9 +213,8 @@ node_plugin_by_coord(const coord_t * coord)
 	return coord->node->nplug;
 }
 
-/* insert item into tree. Fields of "coord" are updated so
-    that they can be used by consequent insert operation. */
-/* Audited by: umka (2002.06.16) */
+/* insert item into tree. Fields of @coord are updated so that they can be
+ * used by consequent insert operation. */
 insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 						 * into */ ,
 			    const reiser4_key * key /* key of new item */ ,
@@ -148,9 +240,6 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 	case CBK_COORD_FOUND:
 		result = IBK_ALREADY_EXISTS;
 		break;
-	case -EIO:
-	case -ENOMEM:
-		break;
 	case CBK_COORD_NOTFOUND:
 		assert("nikita-2017", coord->node != NULL);
 		result = insert_by_coord(coord, data, key, lh, 0 /*flags */ );
@@ -161,7 +250,6 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 
 /* insert item by calling carry. Helper function called if short-cut
    insertion failed  */
-/* Audited by: umka (2002.06.16) */
 static insert_result
 insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 			   lock_handle * lh /* lock handle of insertion
@@ -215,7 +303,6 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
    different block.
 
 */
-/* Audited by: umka (2002.06.16) */
 static int
 paste_with_carry(coord_t * coord /* coord of paste */ ,
 		 lock_handle * lh	/* lock handle of node
@@ -269,7 +356,6 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
    that will do full carry().
 
 */
-/* Audited by: umka (2002.06.16) */
 insert_result insert_by_coord(coord_t * coord	/* coord where to
 						   * insert. coord->node has
 						   * to be write locked by
@@ -340,7 +426,6 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 }
 
 /* @coord is set to leaf level and @data is to be inserted to twig level */
-/* Audited by: umka (2002.06.16) */
 insert_result insert_extent_by_coord(coord_t * coord	/* coord where to
 							   * insert. coord->node
 							   * has to be write
@@ -371,7 +456,6 @@ insert_result insert_extent_by_coord(coord_t * coord	/* coord where to
 
 */
 /* paste_into_item */
-/* Audited by: umka (2002.06.16) */
 int
 insert_into_item(coord_t * coord /* coord of pasting */ ,
 		 lock_handle * lh /* lock handle on node involved */ ,
@@ -437,13 +521,12 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 }
 
 /* this either appends or truncates item @coord */
-/* Audited by: umka (2002.06.16) */
-resize_result resize_item(coord_t * coord /* coord of item being resized */ ,
-			  reiser4_item_data * data /* parameters of resize */ ,
-			  reiser4_key * key /* key of new unit */ ,
-			  lock_handle * lh	/* lock handle of node
-						   * being modified */ ,
-			  cop_insert_flag flags /* carry flags */ )
+int resize_item(coord_t * coord /* coord of item being resized */ ,
+		reiser4_item_data * data /* parameters of resize */ ,
+		reiser4_key * key /* key of new unit */ ,
+		lock_handle * lh	/* lock handle of node
+					 * being modified */ ,
+		cop_insert_flag flags /* carry flags */ )
 {
 	int result;
 	carry_pool pool;
@@ -480,7 +563,7 @@ resize_result resize_item(coord_t * coord /* coord of item being resized */ ,
 	return result;
 }
 
-/* insert */
+/* insert flow @f */
 int
 insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 {
@@ -722,7 +805,6 @@ check_tree_pointer(const coord_t * pointer	/* would-be pointer to
    be in.
 
 */
-/* Audited by: umka (2002.06.16) */
 int
 find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
 		   znode * child UNUSED_ARG /* child znode, passed locked */ ,
@@ -741,7 +823,7 @@ find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
 		return RETERR(-EIO);
 	} else {
 		result->between = AFTER_UNIT;
-		return NS_NOT_FOUND;
+		return RETERR(NS_NOT_FOUND);
 	}
 }
 
@@ -750,7 +832,6 @@ find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
    Find the &coord_t in the @parent where pointer to a given @child is in.
 
 */
-/* Audited by: umka (2002.06.16) */
 int
 find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	       znode * child /* child znode, passed locked */ ,
@@ -825,7 +906,6 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
    numbers in them with that of @child.
 
 */
-/* Audited by: umka (2002.06.16) */
 int
 find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 		   znode * child /* child znode, passed locked */ ,
@@ -853,7 +933,6 @@ find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 
 /* true, if @addr is "unallocated block number", which is just address, with
    highest bit set. */
-/* Audited by: umka (2002.06.16) */
 int
 is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 							 * check */ )
@@ -866,7 +945,6 @@ is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 /* convert unallocated disk address to the memory address
 
    FIXME: This needs a big comment. */
-/* Audited by: umka (2002.06.16) */
 void *
 unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
 								 * convert */ )
@@ -878,7 +956,6 @@ unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
 
 /* try to shift everything from @right to @left. If everything was shifted -
    @right is removed from the tree.  Result is the number of bytes shifted. */
-/* Audited by: umka (2002.06.16) */
 int
 shift_everything_left(znode * right, znode * left, carry_level * todo)
 {
@@ -903,43 +980,8 @@ shift_everything_left(znode * right, znode * left, carry_level * todo)
 	return result;
 }
 
-/* allocate new node and insert a pointer to it into the tree such that new
-   node becomes a right neighbor of @insert_coord->node */
-/* Audited by: umka (2002.06.16) */
-znode *
-insert_new_node(coord_t * insert_coord, lock_handle * lh)
-{
-	int result;
-	carry_pool pool;
-	carry_level this_level, parent_level;
-	carry_node *cn;
-	znode *new_znode;
-
-	init_carry_pool(&pool);
-	init_carry_level(&this_level, &pool);
-	init_carry_level(&parent_level, &pool);
-
-	new_znode = ERR_PTR(RETERR(-EIO));
-	cn = add_new_znode(insert_coord->node, 0, &this_level, &parent_level);
-	if (!IS_ERR(cn)) {
-		result = longterm_lock_znode(lh, carry_real(cn),
-					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
-		if (!result) {
-			new_znode = carry_real(cn);
-			result = carry(&parent_level, &this_level);
-		}
-		if (result)
-			new_znode = ERR_PTR(result);
-	} else
-		new_znode = ERR_PTR(PTR_ERR(cn));
-
-	done_carry_pool(&pool);
-	return new_znode;
-}
-
 /* returns true if removing bytes of given range of key [from_key, to_key]
    causes removing of whole item @from */
-/* Audited by: umka (2002.06.16) */
 static int
 item_removed_completely(coord_t * from, const reiser4_key * from_key, const reiser4_key * to_key)
 {
@@ -967,6 +1009,9 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 	return 1;
 }
 
+/* helper function for prepare_twig_cut(): @left and @right are formatted
+ * neighbors of extent item being completely removed. Load and lock neighbors
+ * and store lock handles into @cdata for later use by kill_hook_extent() */
 static int
 prepare_children(znode *left, znode *right, carry_cut_data *cdata)
 {

@@ -1,5 +1,9 @@
 /* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
 
+/*
+ * Pseudo file plugin. This contains helper functions used by pseudo files.
+ */
+
 #include "pseudo.h"
 #include "../plugin.h"
 
@@ -8,10 +12,9 @@
 #include <linux/seq_file.h>
 #include <linux/fs.h>
 
-/* NIKITA-FIXME-HANS: please write a one paragraph header for the top of this file */
-
 struct seq_operations pseudo_seq_op;
 
+/* extract pseudo file plugin, stored in @file */
 static pseudo_plugin *
 get_pplug(struct file * file)
 {
@@ -21,6 +24,7 @@ get_pplug(struct file * file)
 	return reiser4_inode_data(inode)->file_plugin_data.pseudo_info.plugin;
 }
 
+/* common routine to open pseudo file. */
 int open_pseudo(struct inode * inode, struct file * file)
 {
 	int result;
@@ -28,6 +32,7 @@ int open_pseudo(struct inode * inode, struct file * file)
 
 	pplug = get_pplug(file);
 
+	/* for pseudo files based on seq_file interface */
 	if (pplug->read_type == PSEUDO_READ_SEQ) {
 		result = seq_open(file, &pplug->read.ops);
 		if (result == 0) {
@@ -37,6 +42,7 @@ int open_pseudo(struct inode * inode, struct file * file)
 			m->private = file;
 		}
 	} else if (pplug->read_type == PSEUDO_READ_SINGLE)
+		/* for pseudo files containing one record */
 		result = single_open(file, pplug->read.single_show, file);
 	else
 		result = 0;
@@ -44,6 +50,7 @@ int open_pseudo(struct inode * inode, struct file * file)
 	return result;
 }
 
+/* common read method for pseudo files */
 ssize_t read_pseudo(struct file *file,
 		    char __user *buf, size_t size, loff_t *ppos)
 {
@@ -60,6 +67,7 @@ ssize_t read_pseudo(struct file *file,
 	}
 }
 
+/* common seek method for pseudo files */
 loff_t seek_pseudo(struct file *file, loff_t offset, int origin)
 {
 	switch (get_pplug(file)->read_type) {
@@ -71,6 +79,7 @@ loff_t seek_pseudo(struct file *file, loff_t offset, int origin)
 	}
 }
 
+/* common release method for pseudo files */
 int release_pseudo(struct inode *inode, struct file *file)
 {
 	int result;
@@ -87,12 +96,15 @@ int release_pseudo(struct inode *inode, struct file *file)
 	return result;
 }
 
+/* pseudo files need special ->drop() method, because they don't have nlink
+ * and only exist while host object does. */
 void drop_pseudo(struct inode * object)
 {
 	/* pseudo files are not protected from deletion by their ->i_nlink */
 	generic_delete_inode(object);
 }
 
+/* common write method for pseudo files */
 ssize_t write_pseudo(struct file *file,
 		     const char __user *buf, size_t size, loff_t *ppos)
 {

@@ -1,6 +1,31 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Tracing facility. Copied from reiserfs v3.x patch, never released */
+/* Tree-tracing facility. Copied from reiserfs v3.x patch, never released */
+
+/*
+ * Tree-tracing is enabled by REISER4_EVENT_LOG compile option, and
+ * trace_file=<path> mount option.
+ *
+ * File at <path> is opened (created if needed) and filled with log records
+ * while file system is mounted.
+ *
+ * Special path /dev/null disables logging.
+ *
+ *
+ * Special path /dev/console is interpreted as outputting log records through
+ * printk().
+ *
+ * Low-level functions to output log record are write_trace() and
+ * write_trace_raw(). Various macros defined in trace.h are used as wrappers.
+ *
+ * Output to trace file is buffered to reduce overhead, but as target file
+ * system (one where trace file lives) also buffers data in memory, tracing
+ * can distort file system behavior significantly. It has been experimentally
+ * found that optimal was to trace is by using trace_file=<pipe> and piping
+ * log records to another host (through netcat(1) or similar, for example).
+ *
+ */
 
 #include "forward.h"
 #include "debug.h"
@@ -24,6 +49,7 @@ static int free_space(reiser4_trace_file * trace, size_t * len);
 static int lock_trace(reiser4_trace_file * trace);
 static void unlock_trace(reiser4_trace_file * trace);
 
+/* helper macro: lock trace file, return with error if locking failed. */
 #define LOCK_OR_FAIL( trace )			\
 ({						\
 	int __result;				\
@@ -33,10 +59,16 @@ static void unlock_trace(reiser4_trace_file * trace);
 		return __result;		\
 })
 
+/* open trace file. This is called by mount, when trace_file=<path> option is
+ * used. */
 int
-open_trace_file(struct super_block *super, const char *file_name, size_t size, reiser4_trace_file * trace)
+open_trace_file(struct super_block *super,
+		const char *file_name,
+		size_t size,
+		reiser4_trace_file * trace)
 {
-	int mapping_mask;
+	int gfp_mask;
+
 	assert("nikita-2498", file_name != NULL);
 	assert("nikita-2499", trace != NULL);
 	assert("nikita-2500", size > 0);
@@ -46,6 +78,7 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	spin_lock_init(&trace->lock);
 	INIT_LIST_HEAD(&trace->wait);
 
+	/* special case: disable logging */
 	if (!strcmp(file_name, "/dev/null")) {
 		trace->type = log_to_bucket;
 		return 0;
@@ -54,6 +87,8 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	if (trace->buf == NULL)
 		return RETERR(-ENOMEM);
 	trace->size = size;
+
+	/* special case: log through printk() */
 	if (!strcmp(file_name, "/dev/console")) {
 		trace->type = log_to_console;
 		return 0;
@@ -70,14 +105,19 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	}
 	trace->fd->f_dentry->d_inode->i_flags |= S_NOATIME;
 	trace->fd->f_flags |= O_APPEND;
-	mapping_mask = mapping_gfp_mask(trace->fd->f_dentry->d_inode->i_mapping);
-	mapping_mask &= ~__GFP_FS;
-	mapping_mask |= GFP_NOFS;
-	mapping_set_gfp_mask( trace->fd->f_dentry->d_inode->i_mapping, mapping_mask);
+
+	/* avoid complications with calling memory allocator by ->write()
+	 * method of target file system, but setting GFP_NOFS bit in
+	 * mapping->gfp_mask */
+	gfp_mask = mapping_gfp_mask(trace->fd->f_dentry->d_inode->i_mapping);
+	gfp_mask &= ~__GFP_FS;
+	gfp_mask |= GFP_NOFS;
+	mapping_set_gfp_mask(trace->fd->f_dentry->d_inode->i_mapping, gfp_mask);
 	trace->type = log_to_file;
 	return 0;
 }
 
+/* write message (formatted according to @format) into trace file @file */
 int
 write_trace(reiser4_trace_file * file, const char *format, ...)
 {
@@ -103,6 +143,7 @@ write_trace(reiser4_trace_file * file, const char *format, ...)
 	return result;
 }
 
+/* write buffer @data into @file */
 int
 write_trace_raw(reiser4_trace_file * file, const void *data, size_t len)
 {
@@ -121,6 +162,7 @@ write_trace_raw(reiser4_trace_file * file, const void *data, size_t len)
 	return result;
 }
 
+/* close trace file. This is called by umount. */
 void
 close_trace_file(reiser4_trace_file * trace)
 {
@@ -136,6 +178,7 @@ close_trace_file(reiser4_trace_file * trace)
 	}
 }
 
+/* temporary suspend (or resume) tracing */
 int
 hold_trace(reiser4_trace_file * file, int flag)
 {
@@ -147,6 +190,7 @@ hold_trace(reiser4_trace_file * file, int flag)
 	}
 }
 
+/* disable or enable tracing */
 int
 disable_trace(reiser4_trace_file * file, int flag)
 {
@@ -172,6 +216,7 @@ struct __wlink {
 	struct semaphore sema;
 };
 
+/* lock trace file for exclusive use */
 static int
 lock_trace(reiser4_trace_file * trace)
 {
@@ -195,6 +240,7 @@ lock_trace(reiser4_trace_file * trace)
 	return ret;
 }
 
+/* unlock trace file */
 static void
 unlock_trace(reiser4_trace_file * trace)
 {

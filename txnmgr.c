@@ -1,14 +1,20 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Joshua MacDonald wrote the first draft of this code. */
 
 /* ZAM-LONGTERM-FIXME-HANS: The locking in this file is badly designed, and a
 filesystem scales only as well as its worst locking design.  You need to
-substantially restructure this code. Josh was not as experienced a programmer as
-you.  Particularly review how the locking style differs from what you did for
-znodes usingt hi-lo priority locking, and present to me an opinion on whether
-the differences are well founded.  */
+substantially restructure this code. Josh was not as experienced a programmer
+as you.  Particularly review how the locking style differs from what you did
+for znodes usingt hi-lo priority locking, and present to me an opinion on
+whether the differences are well founded.  */
 
+/* I cannot help but to disagree with the sentiment above. Locking of
+ * transaction manager is _not_ badly designed, and, at the very least, is not
+ * the scaling bottleneck. Scaling bottleneck is _exactly_ hi-lo priority
+ * locking on znodes, especially in the root node on the tree. --nikita,
+ * 2003.10.13 */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
    txnmgr processes capture_block requests and manages the relationship between jnodes and
@@ -797,15 +803,6 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	spin_lock_atom_no_ord(atom, 0, 0);
 
 	atom_list_push_back(&mgr->atoms_list, atom);
-/* GREEN-FIXME-HANS: please give a mini-seminar on precisely when variables have
- * to be atomically incremented/assigned.  I am a bit fuzzy on it, and I suspect
- * others are also. Also discuss what limits there are on compiler reordering of
- * instructions.  Can a compiler ever reorder past the release of a lock?  The
- * answer must be no, but explain why?  Do they avoid reordering past assembly
- * instructions and lock macros are in assembly?  After that, go through all
- * assignments in reiser4 and verify that the choice of whether to do them
- * atomically is correct. Yes, I know, it will be a mind numbing task, but it
- * has to be done by someone.  */
 	atom->atom_id = mgr->id_count++;
 	mgr->atom_count += 1;
 
@@ -825,17 +822,14 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 /* Return the number of pointers to this atom that must be updated during fusion.  This
    approximates the amount of work to be done.  Fusion chooses the atom with fewer
    pointers to fuse into the atom with more pointers. */
-
-/* DEMIDOV-FIXME-HANS: please send an email to reiserfs-dev defining when functions should be inlined, macros, or neither.  Please be sure to include the number of places calling the function, the size of the function, and whether the parent function was unreadably large in the policy articulation.  Adjust the below accordingly. */
-/* Audited by: umka (2002.06.13), umka (2002.16.15) */
 static int
 atom_pointer_count(const txn_atom * atom)
 {
 	assert("umka-187", atom != NULL);
 
-	/* This is a measure of the amount of work needed to fuse this atom into another. */
 	assert("jmacd-28", atom_isopen(atom));
 
+	/* This is a measure of the amount of work needed to fuse this atom into another. */
 	return atom->txnh_count + atom->capture_count;
 }
 
@@ -2955,7 +2949,6 @@ capture_super_block(struct super_block *s)
 }
 
 /* Wakeup every handle on the atom's WAITFOR list */
-/* Audited by: umka (2002.06.13) */
 static void
 wakeup_atom_waitfor_list(txn_atom * atom)
 {
@@ -2973,7 +2966,6 @@ wakeup_atom_waitfor_list(txn_atom * atom)
 }
 
 /* Wakeup every handle on the atom's WAITING list */
-/* Audited by: umka (2002.06.13) */
 static void
 wakeup_atom_waiting_list(txn_atom * atom)
 {
@@ -2990,6 +2982,7 @@ wakeup_atom_waiting_list(txn_atom * atom)
 	}
 }
 
+/* helper function used by capture_fuse_wait() to avoid "spurious wake-ups" */
 static int wait_for_fusion(txn_atom * atom, txn_wait_links * wlinks)
 {
 	assert("nikita-3330", atom != NULL);

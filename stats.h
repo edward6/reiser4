@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Statistics gathering. */
+/* Statistics gathering. See stats.c for comments. */
 
 #if !defined( __FS_REISER4_STATS_H__ )
 #define __FS_REISER4_STATS_H__

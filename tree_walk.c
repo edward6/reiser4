@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Routines and macros to:
 
@@ -236,7 +237,7 @@ int check_sibling_list(znode * node)
 /* Znode sibling pointers are established between any neighbored nodes which are
    in cache.  There are two znode state bits (JNODE_LEFT_CONNECTED,
    JNODE_RIGHT_CONNECTED), if left or right sibling pointer contains actual
-   value (even NULL), corresponded JNODE_*_CONNECTED bit is set.  
+   value (even NULL), corresponded JNODE_*_CONNECTED bit is set.
 
    Reiser4 tree operations which may allocate new znodes (CBK, tree balancing)
    take care about searching (hash table lookup may be required) of znode

@@ -1,6 +1,8 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Functions to add/delete new nodes to/from the tree */
+/* Functions to add/delete new nodes to/from the tree. See tree_mod.c for
+ * comments. */
 
 #if !defined( __REISER4_TREE_MOD_H__ )
 #define __REISER4_TREE_MOD_H__

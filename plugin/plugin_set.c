@@ -1,6 +1,25 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* plugin-sets */
+
+/*
+ * Each inode comes with a whole set of plugins: file plugin, directory
+ * plugin, hash plugin, tail policy plugin, security plugin, etc.
+ *
+ * Storing them (pointers to them, that is) in inode is a waste of
+ * space. Especially, given that on average file system plugins of vast
+ * majority of files will belong to few sets (e.g., one set for regular files,
+ * another set for standard directory, etc.)
+ *
+ * Plugin set (pset) is an object containing pointers to all plugins required
+ * by inode. Inode only stores a pointer to pset. psets are "interned", that
+ * is, different inodes with the same set of plugins point to the same
+ * pset. This is archived by storing psets in global hash table. Races are
+ * avoided by simple (and efficient so far) solution of never recycling psets,
+ * even when last inode pointing to it is destroyed.
+ *
+ */
 
 #include "../debug.h"
 

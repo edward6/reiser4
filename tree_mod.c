@@ -1,6 +1,18 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Functions to add/delete new nodes to/from the tree */
+/*
+ * Functions to add/delete new nodes to/from the tree.
+ *
+ * Functions from this file are used by carry (see carry*) to handle:
+ *
+ *     . insertion of new formatted node into tree
+ *
+ *     . addition of new tree root, increasing tree height
+ *
+ *     . removing tree root, decreasing tree height
+ *
+ */
 
 #include "forward.h"
 #include "debug.h"
@@ -25,14 +37,12 @@ static int add_child_ptr(znode * parent, znode * child);
 		warning( __VA_ARGS__ )
 
 /* allocate new node on the @level and immediately on the right of @brother. */
-/* Audited by: umka (2002.06.15) */
 znode *
 new_node(znode * brother /* existing left neighbor of new node */ ,
 	 tree_level level	/* tree level at which new node is to
 				 * be allocated */ )
 {
-/* NIKITA-FIXME-HANS: use a more descriptive name than result */
-	znode *result = 0;	/* to make cc happy */
+	znode *result;
 	int retcode;
 	reiser4_block_nr blocknr;
 
@@ -47,23 +57,14 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 				 "Cannot allocate znode for carry: %li", PTR_ERR(result));
 			return result;
 		}
-				/* NIKITA-FIXME-HANS: this if is executed even if debugging is off, why? */
+		/* cheap test, can be executed even when debugging is off */
 		if (!znode_just_created(result)) {
 			warning("nikita-2213", "Allocated already existing block: %llu", blocknr);
 			zput(result);
 			return ERR_PTR(RETERR(-EIO));
 		}
 
-		/* @result is created and inserted into hash-table. There is
-		   no need to lock it: nobody can access it yet anyway.
-		NIKITA-FIXME-HANS: josh is gone, so clean this comment up.
-		   FIXME_JMACD zget() should add additional checks to panic if attempt to
-		   access orphaned znode is made. -- is this comment still
-		   accurate? nikita: yes, it is, I think.  want to add those
-		   checks? -josh
-		*/
 		assert("nikita-931", result != NULL);
-
 		result->nplug = znode_get_tree(brother)->nplug;
 		assert("nikita-933", result->nplug != NULL);
 
@@ -81,8 +82,8 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 		   is not viable solution, because "out of disk space"
 		   is not transient error that will go away by itself.
 		*/
-		ewarning(retcode, "nikita-928", "Cannot allocate block for carry: %i", retcode);
-		zput(result);
+		ewarning(retcode, "nikita-928",
+			 "Cannot allocate block for carry: %i", retcode);
 		result = ERR_PTR(retcode);
 	}
 	assert("nikita-1071", result != NULL);
@@ -94,7 +95,6 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
    This helper function is called by add_new_root().
 
 */
-/* Audited by: umka (2002.06.15) */
 znode *
 add_tree_root(znode * old_root /* existing tree root */ ,
 	      znode * fake /* "fake" znode */ )
@@ -189,7 +189,6 @@ add_tree_root(znode * old_root /* existing tree root */ ,
    in its parent.
 
 */
-/* Audited by: umka (2002.06.15) */
 void
 build_child_ptr_data(znode * child	/* node pointer to which will be
 					 * inserted */ ,
@@ -214,7 +213,6 @@ build_child_ptr_data(znode * child	/* node pointer to which will be
    This is used when pointer to old root is inserted into new root which is
    empty.
 */
-/* Audited by: umka (2002.06.15) */
 static int
 add_child_ptr(znode * parent, znode * child)
 {
@@ -321,7 +319,6 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
    to do the actual job.
 
 */
-/* Audited by: umka (2002.06.15) */
 int
 kill_tree_root(znode * old_root /* tree root that we are removing */ )
 {

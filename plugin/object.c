@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Examples of object plugins: file, directory, symlink, special file */
 /* Plugins associated with inode:
@@ -192,6 +193,10 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	spin_lock_inode(inode);
 	grab_plugin_from(ref, sd, inode_sd_plugin(inode));
 
+	/*
+	 * prepare specification of new item to be inserted
+	 */
+
 	data.iplug = ref->pset->sd;
 	data.length = data.iplug->s.sd.save_len(inode);
 	spin_unlock_inode(inode);
@@ -276,6 +281,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 }
 
 
+/* update stat-data at @coord */
 static int
 update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	     lock_handle * lh)
@@ -687,6 +693,10 @@ move_flow_forward(flow_t * f, unsigned count)
 static int
 add_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 {
+	/*
+	 * increment ->i_nlink and update ->i_ctime
+	 */
+
 	INODE_INC_FIELD(object, i_nlink);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
@@ -698,6 +708,10 @@ rem_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 {
 	assert("nikita-2021", object != NULL);
 	assert("nikita-2163", object->i_nlink > 0);
+
+	/*
+	 * decrement ->i_nlink and update ->i_ctime
+	 */
 
 	INODE_DEC_FIELD(object, i_nlink);
 	object->i_ctime = CURRENT_TIME;
@@ -738,6 +752,10 @@ adjust_to_parent_common(struct inode *object /* new object */ ,
 	self = reiser4_inode_data(object);
 	ancestor = reiser4_inode_data(parent);
 
+	/*
+	 * inherit missing plugins from parent
+	 */
+
 	grab_plugin(self, ancestor, file);
 	grab_plugin(self, ancestor, sd);
 	grab_plugin(self, ancestor, tail);
@@ -761,6 +779,10 @@ adjust_to_parent_dir(struct inode *object /* new object */ ,
 
 	self = reiser4_inode_data(object);
 	ancestor = reiser4_inode_data(parent);
+
+	/*
+	 * inherit missing plugins from parent
+	 */
 
 	grab_plugin(self, ancestor, file);
 	grab_plugin(self, ancestor, dir);
@@ -808,13 +830,20 @@ getattr_common(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 static int
 release_dir(struct inode *inode, struct file *file)
 {
+	/* this is called when directory file descriptor is closed. */
 	spin_lock_inode(inode);
+	/* remove directory from readddir list. See comment before
+	 * readdir_common() for details. */
 	if (file->private_data != NULL)
 		readdir_list_remove(reiser4_get_file_fsdata(file));
 	spin_unlock_inode(inode);
 	return 0;
 }
 
+/*
+ * seek method for directory. See comment before readdir_common() for
+ * explanation.
+ */
 static loff_t
 seek_dir(struct file *file, loff_t off, int origin)
 {
@@ -825,6 +854,7 @@ seek_dir(struct file *file, loff_t off, int origin)
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "dir_seek: %s: %lli -> %lli/%i\n",
 		 file->f_dentry->d_name.name, file->f_pos, off, origin);
 	down(&inode->i_sem);
+	/* update ->f_pos */
 	result = default_llseek(file, off, origin);
 	if (result >= 0) {
 		int ff;
@@ -905,6 +935,8 @@ bind_dir(struct inode *child, struct inode *parent)
 	return dplug->attach(child, parent);
 }
 
+/* ->setattr() method. This is called when inode attribute (including
+ * ->i_size) is modified. */
 int
 setattr_common(struct inode *inode /* Object to change attributes */,
 	       struct iattr *attr /* change description */)
@@ -913,6 +945,10 @@ setattr_common(struct inode *inode /* Object to change attributes */,
 	__u64 tograb;
 
 	assert("nikita-3119", !(attr->ia_valid & ATTR_SIZE));
+
+	/*
+	 * grab disk space and call standard inode_setattr().
+	 */
 
 	tograb = estimate_one_insert_into_item(tree_by_inode(inode));
 	result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
@@ -926,28 +962,22 @@ setattr_common(struct inode *inode /* Object to change attributes */,
 	return result;
 }
 
-static void drop_object_body(struct inode *inode)
-{
-	if (!inode_file_plugin(inode)->pre_delete)
-		return;
-	if (inode_file_plugin(inode)->pre_delete(inode))
-		warning("vs-1216", "Failed to delete file body for %llu)\n",
-			get_inode_oid(inode));
-}
-
 /* doesn't seem to be exported in headers. */
 extern spinlock_t inode_lock;
 
+/* ->delete_inode() method. This is called by
+ * iput()->iput_final()->drop_inode() when last reference to inode is released
+ * and inode has no names. */
 static void delete_inode_common(struct inode *object)
 {
 	/* create context here.
-
-	removal of inode from the hash table (done at the very beginning of
-	generic_delete_inode(), truncate of pages, and removal of file's
-	extents has to be performed in the same atom. Otherwise, it may so
-	happen, that twig node with unallocated extent will be flushed to the
-	disk.
-	*/
+	 *
+	 * removal of inode from the hash table (done at the very beginning of
+	 * generic_delete_inode(), truncate of pages, and removal of file's
+	 * extents has to be performed in the same atom. Otherwise, it may so
+	 * happen, that twig node with unallocated extent will be flushed to
+	 * the disk.
+	 */
 	reiser4_context ctx;
 
 	/*
@@ -964,7 +994,13 @@ static void delete_inode_common(struct inode *object)
 	uncapture_inode(object);
 
 	if (!is_bad_inode(object)) {
-		drop_object_body(object);
+		file_plugin *fplug;
+
+		/* truncate object body */
+		fplug = inode_file_plugin(object);
+		if (fplug->pre_delete != NULL && fplug->pre_delete(object) != 0)
+			warning("vs-1216", "Failed to delete file body for %llu",
+				get_inode_oid(object));
 		assert("vs-1430", reiser4_inode_data(object)->jnodes == 0);
 	}
 
@@ -984,11 +1020,17 @@ static void delete_inode_common(struct inode *object)
 	(void)reiser4_exit_context(&ctx);
 }
 
+/*
+ * ->forget_inode() method. Called by iput()->iput_final()->drop_inode() when
+ * last reference to inode with names is released
+ */
 static void forget_inode_common(struct inode *object)
 {
 	generic_forget_inode(object);
 }
 
+/* ->drop_inode() method. Called by iput()->iput_final() when last reference
+ * to inode is released */
 static void drop_common(struct inode * object)
 {
 	file_plugin *fplug;
@@ -1024,6 +1066,10 @@ perm(void)
 }
 
 #define eperm ((void *)perm)
+
+/*
+ * Definitions of object plugins.
+ */
 
 file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 	[UNIX_FILE_PLUGIN_ID] = {

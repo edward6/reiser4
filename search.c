@@ -27,7 +27,17 @@
 /* tree searching algorithm, intranode searching algorithms are in
    plugin/node/ */
 
-/* tree lookup cache */
+/* tree lookup cache
+ *
+ * The coord by key cache consists of small list of recently accessed nodes
+ * maintained according to the LRU discipline. Before doing real top-to-down
+ * tree traversal this cache is scanned for nodes that can contain key
+ * requested.
+ *
+ * The efficiency of coord cache depends heavily on locality of reference for
+ * tree accesses. Our user level simulations show reasonably good hit ratios
+ * for coord cache under most loads so far.
+ */
 
 /* Initialise coord cache slot */
 static void

@@ -1,6 +1,8 @@
-/* Copyright 2000, 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2000, 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Tracing facility. Copied from reiserfs v3.x patch, never released */
+/* Tree-tracing facility. Copied from reiserfs v3.x patch, never released. See
+ * trace.c for comments. */
 
 #if !defined( __REISER4_TRACE_H__ )
 #define __REISER4_TRACE_H__

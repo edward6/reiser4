@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Tree operations. See fs/reiser4/tree.c for comments */
 
@@ -73,9 +74,10 @@ typedef struct cbk_cache {
 
 #define rw_ordering_pred_cbk_cache(cache) (1)
 
+/* defined read-write locking functions for cbk_cache */
 RW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
 
-
+/* define list manipulation functions for cbk_cache LRU list */
 TYPE_SAFE_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
 /* level_lookup_result - possible outcome of looking up key at some level.
@@ -198,10 +200,7 @@ struct reiser4_item_data {
 	*/
 	char *data;
 	/* 1 if 'char * data' contains pointer to user space and 0 if it is
-	   kernel space
-
-	 could be a char not an int?
-	*/
+	   kernel space */
 	int user;
 	/* amount of data we are going to insert or paste */
 	int length;
@@ -226,7 +225,6 @@ struct reiser4_item_data {
 	   argument passing and storing everywhere.
 	
 	*/
-/* arg is a bad name. */
 	void *arg;
 	/* plugin of item we are inserting */
 	item_plugin *iplug;
@@ -260,18 +258,13 @@ typedef enum {
 } cbk_flags;
 
 /* insertion outcome. IBK = insert by key */
-typedef enum { IBK_INSERT_OK = 0,
+typedef enum {
+	IBK_INSERT_OK = 0,
 	IBK_ALREADY_EXISTS = -EEXIST,
 	IBK_IO_ERROR = -EIO,
 	IBK_NO_SPACE = -E_NODE_FULL,
 	IBK_OOM = -ENOMEM
 } insert_result;
-
-typedef enum { RESIZE_OK = 0,
-	RESIZE_NO_SPACE = -E_NODE_FULL,
-	RESIZE_IO_ERROR = -EIO,
-	RESIZE_OOM = -ENOMEM
-} resize_result;
 
 #define IS_CBKERR(err) ((err) != CBK_COORD_FOUND && (err) != CBK_COORD_NOTFOUND)
 
@@ -291,6 +284,7 @@ node_plugin_by_node(const znode * node /* node to query */ )
 	return node->nplug;
 }
 
+/* number of items in @node */
 static inline pos_in_node_t
 node_num_items(const znode * node)
 {
@@ -311,13 +305,15 @@ coord_num_items(const coord_t * coord)
 	return node_num_items(coord->node);
 }
 
+/* true if @node is empty */
 static inline int
 node_is_empty(const znode * node)
 {
 	return node_num_items(node) == 0;
 }
 
-typedef enum { SHIFTED_SOMETHING = 0,
+typedef enum {
+	SHIFTED_SOMETHING = 0,
 	SHIFT_NO_SPACE = -E_NODE_FULL,
 	SHIFT_IO_ERROR = -EIO,
 	SHIFT_OOM = -ENOMEM,
@@ -388,8 +384,8 @@ int cut_node(coord_t * from, coord_t * to,
 	     const reiser4_key * to_key, reiser4_key * smallest_removed, unsigned flags, znode * left,
 	     struct inode *);
 
-resize_result resize_item(coord_t * coord, reiser4_item_data * data,
-			  reiser4_key * key, lock_handle * lh, cop_insert_flag);
+int resize_item(coord_t * coord, reiser4_item_data * data,
+		reiser4_key * key, lock_handle * lh, cop_insert_flag);
 int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key, reiser4_item_data * data, unsigned);
 int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
 int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * result);
@@ -397,7 +393,6 @@ int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * re
 int shift_right_of_but_excluding_insert_coord(coord_t * insert_coord);
 int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
 int shift_everything_left(znode * right, znode * left, carry_level * todo);
-znode *insert_new_node(coord_t * insert_coord, lock_handle * lh);
 
 int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*);
 
@@ -536,9 +531,11 @@ reiser4_block_nr estimate_insert_flow(tree_level);
 reiser4_block_nr estimate_one_item_removal(reiser4_tree *);
 reiser4_block_nr calc_estimate_one_insert(tree_level);
 
+/* take read or write tree lock, depending on @takeread argument */
 #define XLOCK_TREE(tree, takeread)				\
 	(takeread ? RLOCK_TREE(tree) : WLOCK_TREE(tree))
 
+/* release read or write tree lock, depending on @takeread argument */
 #define XUNLOCK_TREE(tree, takeread)				\
 	(takeread ? RUNLOCK_TREE(tree) : WUNLOCK_TREE(tree))
 

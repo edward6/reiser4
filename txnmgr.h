@@ -1,4 +1,8 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
+
+/* data-types and function declarations for transaction manager. See txnmgr.c
+ * for details. */
 
 #ifndef __REISER4_TXNMGR_H__
 #define __REISER4_TXNMGR_H__
@@ -45,7 +49,7 @@ TYPE_SAFE_LIST_DECLARE(fwaitfor);
  *
  * This is used in capture_fuse_wait() which see for more comments.
  */
-TYPE_SAFE_LIST_DECLARE(fwaiting);	
+TYPE_SAFE_LIST_DECLARE(fwaiting);
 
 /* The transaction's list of captured jnodes */
 TYPE_SAFE_LIST_DECLARE(capture);

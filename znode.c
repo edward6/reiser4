@@ -165,7 +165,6 @@
 /* hash table support */
 
 /* compare two block numbers for equality. Used by hash-table macros */
-/* Audited by: umka (2002.06.11) */
 static inline int
 blknreq(const reiser4_block_nr * b1, const reiser4_block_nr * b2)
 {
@@ -199,8 +198,7 @@ int znode_shift_order;
 
 /* ZNODE INITIALIZATION */
 
-/* call this once on reiser4 initialisation*/
-/* Audited by: umka (2002.06.11) */
+/* call this once on reiser4 initialisation */
 int
 znodes_init()
 {
@@ -218,7 +216,6 @@ znodes_init()
 }
 
 /* call this before unloading reiser4 */
-/* Audited by: umka (2002.06.11) */
 int
 znodes_done()
 {
@@ -279,6 +276,9 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 	znode *node;
 	znode *next;
 	z_hash_table *ztable;
+
+	/* scan znode hash-tables and kill all znodes, then free hash tables
+	 * themselves. */
 
 	assert("nikita-795", tree != NULL);
 
@@ -341,7 +341,10 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
 
-/* remove znode from hash table */
+/*
+ * remove znode from indices. This is called jput() when last reference on
+ * znode is released.
+ */
 void
 znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 {
@@ -351,14 +354,8 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 
 	/* remove reference to this znode from cbk cache */
 	cbk_cache_invalidate(node, tree);
-	/* while we were taking lock on pbk cache to remove us from
-	   there, some lucky parallel process could hit reference to
-	   this znode from pbk cache. Check for this.
-	
-	   Tree lock, shared by the hash table protects us from another
-	   process taking reference to this node.
-	*/
 
+	/* update c_count of parent */
 	if (znode_parent(node) != NULL) {
 		assert("nikita-472", znode_parent(node)->c_count > 0);
 		/* father, onto your hands I forward my spirit... */
@@ -381,7 +378,10 @@ zdrop(znode * node /* znode to finish with */ )
 	return jdrop(ZJNODE(node));
 }
 
-/* put znode into right place in the hash table */
+/*
+ * put znode into right place in the hash table. This is called by relocate
+ * code.
+ */
 int
 znode_rehash(znode * node /* node to rehash */ ,
 	     const reiser4_block_nr * new_block_nr /* new block number */ )
@@ -448,6 +448,8 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	return result;
 }
 
+/* return hash table where znode with block @blocknr is (or should be)
+ * stored */
 z_hash_table *
 get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 {
@@ -459,6 +461,7 @@ get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	return table;
 }
 
+/* return hash table where znode @node is (or should be) stored */
 z_hash_table *
 znode_get_htable(const znode *node)
 {
@@ -673,7 +676,6 @@ zrelse(znode * node /* znode to release references to */ )
 }
 
 /* returns free space in node */
-/* Audited by: umka (2002.06.11) */
 unsigned
 znode_free_space(znode * node /* znode to query */ )
 {
@@ -703,6 +705,7 @@ znode_get_ld_key(znode * node /* znode to query */ )
 	return &node->ld_key;
 }
 
+/* update right-delimiting key of @node */
 reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2937", node != NULL);
@@ -720,6 +723,7 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 	return &node->rd_key;
 }
 
+/* update left-delimiting key of @node */
 reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2940", node != NULL);
@@ -735,7 +739,6 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 }
 
 /* true if @key is inside key range for @node */
-/* Audited by: umka (2002.06.11) */
 int
 znode_contains_key(znode * node /* znode to look in */ ,
 		   const reiser4_key * key /* key to look for */ )
@@ -776,8 +779,7 @@ znode_parent(const znode * node /* child znode */ )
 	return znode_parent_nolock(node);
 }
 
-/* detect fake znode used to protect in-superblock tree root pointer */
-/* Audited by: umka (2002.06.11) */
+/* detect uber znode used to protect in-superblock tree root pointer */
 int
 znode_above_root(const znode * node /* znode to query */ )
 {
@@ -816,6 +818,7 @@ znode_just_created(const znode * node)
 	return (znode_page(node) == NULL);
 }
 
+/* obtain updated ->znode_epoch. See seal.c for description. */
 __u64
 znode_build_version(reiser4_tree * tree)
 {
@@ -977,6 +980,7 @@ move_load_count(load_count * new, load_count * old)
 	old->d_ref = 0;
 }
 
+/* convert parent pointer into coord */
 void parent_coord_to_coord(const parent_coord_t * pcoord, coord_t * coord)
 {
 	assert("nikita-3204", pcoord != NULL);
@@ -987,6 +991,7 @@ void parent_coord_to_coord(const parent_coord_t * pcoord, coord_t * coord)
 	coord->between = AT_UNIT;
 }
 
+/* pack coord into parent_coord_t */
 void coord_to_parent_coord(const coord_t * coord, parent_coord_t * pcoord)
 {
 	assert("nikita-3206", pcoord != NULL);
@@ -1112,6 +1117,30 @@ znode_invariant(const znode * node /* znode to check */ )
 }
 #endif
 
+/*
+ * Node dirtying debug.
+ *
+ * Whenever formatted node is modified, it should be marked dirty (through
+ * call to znode_make_dirty()) before exclusive long term lock (necessary to
+ * modify node) is released. This is critical for correct operation of seal.c
+ * code.
+ *
+ * As this is an error easy to make, special debugging mode was implemented to
+ * catch it.
+ *
+ * In this mode new field ->cksum is added to znode. This field contains
+ * checksum (adler32) of znode content calculated when znode is loaded into
+ * memory and re-calculated whenever znode_make_dirty() is called on it.
+ *
+ * Whenever long term lock on znode is released, and znode wasn't marked
+ * dirty, checksum of its content is calculated and compared with value stored
+ * in ->cksum. If they differ, call to znode_make_dirty() is missing.
+ *
+ * This debugging mode (tunable though fs/Kconfig) is very CPU consuming and
+ * hence, unsuitable for normal operation.
+ *
+ */
+
 #if REISER4_DEBUG_MODIFY
 static __u32 znode_checksum(const znode * node)
 {
@@ -1222,6 +1251,7 @@ info_znode(const char *prefix /* prefix to print */ ,
 	       node->c_count, node->lock.nr_readers, node->nr_items);
 }
 
+/* print all znodes in @tree */
 void
 print_znodes(const char *prefix, reiser4_tree * tree)
 {
@@ -1252,52 +1282,6 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 	if (tree_lock_taken)
 		WUNLOCK_TREE(tree);
 }
-#endif
-
-#if REISER4_DEBUG
-
-static int check_dk_called = 0;
-static int check_dk_start = 200000;
-static int check_dk_log = 300000;
-static int check_dk_step = 100;
-static int check_dk_trace = 0;
-
-void
-znodes_check_dk(reiser4_tree * tree)
-{
-	znode *node;
-	znode *next;
-	z_hash_table *htable;
-
-	return;
-
-	++ check_dk_called;
-
-	if (check_dk_called > check_dk_log)
-		check_dk_trace = 1;
-
-	if (check_dk_called < check_dk_start ||
-	    (check_dk_called % check_dk_step))
-		return;
-
-	RLOCK_DK(tree);
-	RLOCK_TREE(tree);
-	htable = &tree->zhash_table;
-
-	for_all_in_htable(htable, z, node, next) {
-		if (znode_is_right_connected(node) && node->right != NULL)
-			assert("nikita-2971",
-			       keyeq(znode_get_ld_key(node->right),
-				     znode_get_rd_key(node)));
-		if (znode_is_left_connected(node) && node->left != NULL)
-			assert("nikita-2972",
-			       keyeq(znode_get_rd_key(node->left),
-				     znode_get_ld_key(node)));
-	}
-	RUNLOCK_TREE(tree);
-	RUNLOCK_DK(tree);
-}
-
 #endif
 
 #if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)

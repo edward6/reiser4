@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Basic plugin infrastructure, lookup etc. */
 
@@ -623,7 +624,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	[REISER4_JNODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_JNODE_PLUGIN_TYPE,
 		.label = "jnode flavor",
-		.desc = "defined kind of jnode",
+		.desc = "defines kind of jnode",
 		.builtin_num = sizeof_array(jnode_plugins),
 		.builtin = jnode_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,

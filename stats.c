@@ -3,6 +3,37 @@
 
 /* Statistical facilities. */
 
+/*
+ * Reiser4 has special REISER4_STATS compilation option (flippable through
+ * kernel configuration process). When it is on, code to collect statistics is
+ * compiled in. When option is off, code is preprocessed to zilch.
+ *
+ * Statistics are ["statistics" as singular is a name of a science, used as
+ * plural it refers to "classified facts respecting ... any particular class
+ * or interest" (Webster)] collected in the form of "statistical
+ * counters". Each counter has type statcnt_t (see statcnt.h). Counters are
+ * organized into per-super block reiser4_statistics structure. This structure
+ * contains sub-structures used to group counters. This grouping is only for
+ * cleanness, it has no effect on execution.
+ *
+ * In addition to sub-structures reiser4_statistics also contains array of
+ * reiser4_level_stat structures used to collect statistics attributable to
+ * particular level in reiser4 internal tree.
+ *
+ * As explained in statcnt.h, statcnt_t is large, hence, reiser4_statistics,
+ * containing fewscores of counters is _huge_. It is so huge, that it cannot
+ * be allocated with kmalloc() and vmalloc() is used for this.
+ *
+ * reiser4_stat_inc() and reiser4_stat_add() macros defined in stats.h are
+ * main means of updating statistical counters. Note, that due to the
+ * construction of statcnt_t counters said macros are completely lock-less
+ * and, no than less, almost accurate.
+ *
+ * Each statistical counter is exported through sysfs (see kattr.c for more
+ * details).
+ *
+ */
+
 #include "kattr.h"
 #include "reiser4.h"
 #include "stats.h"

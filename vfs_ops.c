@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Interface to VFS. Reiser4 {file|inode|address_space|dentry}_operations
    are defined here. */
@@ -138,15 +139,13 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	return 0;
 }
 
-/* VS-FIXME-HANS: clean this code please */
-/* this is called whenever mark_inode_dirty is to be called. It links ("captures") inode to the atom. This allows to
-   postpone stat data update until atom commits */
+/* this is called whenever mark_inode_dirty is to be called. Stat-data are
+ * updated in the tree. */
 int
 reiser4_mark_inode_dirty(struct inode *inode)
 {
 	assert("vs-1207", is_in_reiser4_context());
 	return reiser4_update_sd(inode);
-	/*return capture_inode(inode);*/
 }
 
 /* update inode stat-data by calling plugin */
@@ -230,19 +229,8 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 	return result;
 }
 
-/* initial prefix of names of pseudo-files like ..plugin, ..acl,
-    ..whatnot, ..and, ..his, ..dog
-
-    Reminder: This is an optional style convention, not a requirement.
-    If anyone builds in any dependence in the parser or elsewhere on a
-    prefix existing for all pseudo files, and thereby hampers creating
-    pseudo-files without this prefix, I will be pissed.  -Hans */
-static const char PSEUDO_FILES_PREFIX[] = "..";
-
 /* Return and lazily allocate if necessary per-dentry data that we
    attach to each dentry. */
-/* odd how it returns either a nulled struct or a meaningful struct -Hans */
-/* Audited by: umka (2002.06.12) */
 reiser4_dentry_fsdata *
 reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 						 * queried */ )
@@ -261,6 +249,8 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	return dentry->d_fsdata;
 }
 
+/* opposite to reiser4_get_dentry_fsdata(), returns per-dentry data into slab
+ * allocator */
 void
 reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 {
@@ -271,7 +261,6 @@ reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 }
 
 /* Release reiser4 dentry. This is d_op->d_delease() method. */
-/* Audited by: umka (2002.06.12) */
 static void
 reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
@@ -362,7 +351,6 @@ init_inodecache(void)
 }
 
 /* initialise slab cache where reiser4 inodes lived */
-/* Audited by: umka (2002.06.12) */
 static void
 destroy_inodecache(void)
 {
@@ -423,7 +411,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	assert("vs-1428", info->jnodes == 0);
 
 	{
-		/* complete with inode's jnode */
+		/* finish with inode's jnode */
 		jnode *j;
 
 		j = &info->inode_jnode;
@@ -473,6 +461,8 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
+/* our ->drop_inode() method. This is called by iput_final() when last
+ * reference on inode is released */
 static void
 reiser4_drop_inode(struct inode *object)
 {
@@ -544,6 +534,8 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 		       current->comm, to_write, written);
 }
 
+/* ->sync_inodes() method. This is called by pdflush, and synchronous
+ * writeback (throttling by balance_dirty_pages()). */
 static void
 reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 {
@@ -584,7 +576,6 @@ reiser4_delete_inode(struct inode *object)
 	(void)reiser4_exit_context(&ctx);
 }
 
-/* Audited by: umka (2002.06.12) */
 const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096;	/* offset to magic string from the
 						 * beginning of device */
@@ -824,6 +815,7 @@ parse_options(char *opt_string /* starting point */ ,
 		}						\
 	}
 
+/* parse options during mount */
 int
 reiser4_parse_options(struct super_block *s, char *opt_string)
 {
@@ -1047,6 +1039,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	return result;
 }
 
+/* show mount options in /proc/mounts */
 static int
 reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 {
@@ -1063,6 +1056,14 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	return 0;
 }
 
+/*
+ * Lock profiling code.
+ *
+ * see spin_macros.h and spinprof.[ch]
+ *
+ */
+
+/* defined profiling regions for spin lock types */
 DEFINE_SPIN_PROFREGIONS(epoch);
 DEFINE_SPIN_PROFREGIONS(jnode);
 DEFINE_SPIN_PROFREGIONS(jload);
@@ -1076,12 +1077,18 @@ DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
 DEFINE_SPIN_PROFREGIONS(super_eflush);
 
+/* define profiling regions for read-write locks */
 DEFINE_RW_PROFREGIONS(zlock);
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 DEFINE_RW_PROFREGIONS(cbk_cache);
 
 #if 0 && REISER4_LOCKPROF
+
+/*
+ * functions used to report jnode whose spin lock (or zlock) is most wanted or
+ * most held
+ */
 
 static void echo_jnode(const char *prefix, const jnode *j)
 {
@@ -1122,6 +1129,7 @@ static void zlock_most_held(struct profregion * preg)
 
 #endif
 
+/* register profiling regions defined above */
 static int register_profregions(void)
 {
 #if 0 && REISER4_LOCKPROF
@@ -1152,6 +1160,7 @@ static int register_profregions(void)
 	return 0;
 }
 
+/* unregister profiling regions defined above */
 static void unregister_profregions(void)
 {
 	unregister_super_eflush_profregion();
@@ -1174,8 +1183,12 @@ static void unregister_profregions(void)
 }
 
 #if REISER4_DEBUG
+/*
+ * helper function used during umount. See super.h for more details.
+ */
 static void finish_rcu(reiser4_super_info_data *sbinfo)
 {
+	/* wait until all RCU-deferred jnode reclamation finishes */
 	spin_lock_irq(&sbinfo->all_guard);
 	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
 		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
@@ -1185,6 +1198,7 @@ static void finish_rcu(reiser4_super_info_data *sbinfo)
 #define finish_rcu(sbinfo) noop
 #endif
 
+/* umount. */
 static void
 reiser4_kill_super(struct super_block *s)
 {
@@ -1211,8 +1225,9 @@ reiser4_kill_super(struct super_block *s)
 	   became dirty via mapping. Have them to go through reiser4_writepages */
 	fsync_super(s);
 
-	/* FIXME: complete removal of directories which were not deleted when they were supposed to be because their
-	   dentries had negative child dentries */
+	/* FIXME: complete removal of directories which were not deleted when
+	   they were supposed to be because their dentries had negative child
+	   dentries */
 	shrink_dcache_parent(s->s_root);
 	
 #if REISER4_TRACE
@@ -1238,7 +1253,8 @@ reiser4_kill_super(struct super_block *s)
 
 	finish_rcu(sbinfo);
 
-	/* FIXME: done_formatted_fake just has finished with last jnodes (bitmap ones) */
+	/* done_formatted_fake just has finished with last jnodes (bitmap
+	 * ones) */
 	done_tree(&sbinfo->tree);
 	/* call finish_rcu(), because some znode were "released" in
 	 * done_tree(). */
@@ -1266,8 +1282,6 @@ reiser4_kill_super(struct super_block *s)
 			info_jnode("\nafter umount", busy);
 		}
 	}
-	/* sbinfo->stats is not allocated by reiser4_kmalloc, because it's too
-	 * large (vmalloc() is used). */
 	if (sbinfo->kmalloc_allocated > 0)
 		warning("nikita-2622",
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
@@ -1286,6 +1300,7 @@ out:
 	s->s_fs_info = NULL;
 }
 
+/* ->write_super() method. Called by sync(2). */
 static void
 reiser4_write_super(struct super_block *s)
 {
@@ -1299,7 +1314,6 @@ reiser4_write_super(struct super_block *s)
 		warning("jmacd-77113",
 			"txn_force failed in write_super: %d", ret);
 
-	/* Oleg says do this: */
 	s->s_dirt = 0;
 
 	(void)reiser4_exit_context(&ctx);
@@ -1317,6 +1331,7 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
 }
 
+/* initialization stages for reiser4 */
 typedef enum {
 	INIT_NONE,
 	INIT_INODECACHE,
@@ -1428,7 +1443,7 @@ void reiser4_handle_error(void)
 	reiser4_status_write(REISER4_STATUS_DAMAGED, 0, "Filesystem error occured");
 	switch ( get_super_private(sb)->onerror ) {
 	case 0:
-		reiser4_panic("", "Filesystem error occured\n");
+		reiser4_panic("foobar-42", "Filesystem error occured\n");
 	case 1:
 		if ( sb->s_flags & MS_RDONLY )
 			return;
