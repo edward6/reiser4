@@ -1914,10 +1914,11 @@ static int flush_scan_extent (flush_scan *scan)
 
 		/* Otherwise, start at the index (i.e., block offset) of the jnode in its
 		 * extent... */
+		/* FIXME: doesn't go right */
 		while (scan_index > 0 && ! flush_scan_finished (scan)) {
 
 			/* For each loop iteration, get the previous index. */
-			neighbor = jnode_get_extent_neighbor (scan->node, --scan_index);
+			neighbor = jnode_get_extent_neighbor (scan->node, scan->going_left ? --scan_index : ++scan_index);
 
 			/* If the neighbor is not in memory... */
 			if (neighbor == NULL) {
