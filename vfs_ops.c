@@ -1395,7 +1395,7 @@ reiser4_drop_inode(struct inode *object)
 		generic_delete_inode(object);
 		__REISER4_EXIT(&__context);
 	} else
-		generic_drop_inode(object);
+		generic_forget_inode(object);
 }
 
 /** ->delete_inode() super operation */
