@@ -1015,7 +1015,7 @@ errno_t reiserfs_tree_insert(
 		    return -1;
 		}
 	    } else {
-		if (insert.pos.unit != 0xffffffff) {
+		if (/*insert.pos.unit != 0xffffffff*/0) {
 		    void *body;
 		    uint32_t count;
 		    

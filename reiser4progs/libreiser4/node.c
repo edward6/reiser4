@@ -429,8 +429,12 @@ errno_t reiserfs_node_remove(
     aal_assert("umka-767", node != NULL, return -1);
     aal_assert("umka-768", pos != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
-	remove, node->entity, pos);
+    if (pos->unit == 0xffffffff)
+	return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
+	    remove, node->entity, pos);
+    else
+	return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
+	    cut, node->entity, pos);
 }
 
 /* Inserts item described by item hint into specified node at specified pos */

@@ -564,12 +564,15 @@ struct reiserfs_node_ops {
     errno_t (*insert) (reiserfs_entity_t *, reiserfs_pos_t *, 
 	reiserfs_item_hint_t *);
     
+    /* Removes item at specified pos */
+    errno_t (*remove) (reiserfs_entity_t *, reiserfs_pos_t *);
+    
     /* Pastes units at specified pos */
     errno_t (*paste) (reiserfs_entity_t *, reiserfs_pos_t *, 
 	reiserfs_item_hint_t *);
     
-    /* Removes item at specified pos */
-    errno_t (*remove) (reiserfs_entity_t *, reiserfs_pos_t *);
+    /* Removes unit at specified pos */
+    errno_t (*cut) (reiserfs_entity_t *, reiserfs_pos_t *);
     
     /* Returns max item count */
     uint32_t (*maxnum) (reiserfs_entity_t *);

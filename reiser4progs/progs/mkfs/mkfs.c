@@ -36,13 +36,14 @@ static void mkfs_print_usage(void) {
 	"                                 any questions.\n"
 	"  -f | --force                   makes mkfs to use whole disk, not block device\n"
 	"                                 or mounted partition.\n"
-	"  -p | --profile                 profile to be used.\n"
+	"  -d | --default=profile         profile to be used.\n"
 	"  -K | --known-profiles          prints known profiles.\n"
+	"  -s | --lost-found              forces mkfs to create lost+found directory,\n"
 	"  -b | --block-size=N            block size, 4096 by default,\n"
 	"                                 other are not supported for awhile.\n"
 	"  -l | --label=LABEL             volume label lets to mount\n"
 	"                                 filesystem by its label.\n"
-	"  -d | --uuid=UUID               universally unique identifier.\n");
+	"  -i | --uuid=UUID               universally unique identifier.\n");
 }
 
 static void mkfs_setup_streams(void) {
@@ -52,31 +53,56 @@ static void mkfs_setup_streams(void) {
 	progs_exception_set_stream(i, stderr);
 }
 
+/* Crates lost+found directory */
+static reiserfs_object_t *mkfs_create_lost_found(reiserfs_fs_t *fs, 
+    reiserfs_profile_t *profile) 
+{
+    reiserfs_plugin_t *plugin;
+    reiserfs_object_hint_t hint;
+
+    /* Getting needed object plugin */
+    if (!(plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, profile->dir.dir)))
+        libreiser4_factory_failed(return NULL, find, dir, profile->dir.dir);
+	
+    /* Preparing object hint */
+    hint.statdata_pid = profile->item.statdata;
+    hint.direntry_pid = profile->item.direntry;
+    
+    hint.sdext = profile->sdext;
+    hint.hash_pid = profile->hash;
+	
+    /* Creating lost+found */
+    return reiserfs_dir_create(fs, &hint, plugin, fs->dir, "lost+found");
+}
+
 int main(int argc, char *argv[]) {
     struct stat st;
+    
     char uuid[17], label[17];
-    aal_list_t *walk = NULL;
-    aal_list_t *devices = NULL;
     count_t fs_len = 0, dev_len = 0;
-    int c, error, force = 0, quiet = 0;
     char *host_dev, *profile_label = "default40";
     uint16_t blocksize = REISERFS_DEFAULT_BLOCKSIZE;
+    int c, error, force = 0, quiet = 0, lost_found = 0;
     
     reiserfs_fs_t *fs;
     aal_device_t *device;
     reiserfs_profile_t *profile;
 
+    aal_list_t *walk = NULL;
+    aal_list_t *devices = NULL;
+    
     static struct option long_options[] = {
 	{"version", no_argument, NULL, 'v'},
 	{"usage", no_argument, NULL, 'u'},
 	{"help", no_argument, NULL, 'h'},
-	{"profile", required_argument, NULL, 'p'},
+	{"default", required_argument, NULL, 'd'},
 	{"force", no_argument, NULL, 'f'},
 	{"known-profiles", no_argument, NULL, 'K'},
 	{"quiet", no_argument, NULL, 'q'},
 	{"block-size", required_argument, NULL, 'b'},
 	{"label", required_argument, NULL, 'l'},
 	{"uuid", required_argument, NULL, 'i'},
+	{"lost-found", required_argument, NULL, 's'},
 	{0, 0, 0, 0}
     };
     
@@ -92,7 +118,7 @@ int main(int argc, char *argv[]) {
     memset(label, 0, sizeof(label));
 
     /* Parsing parameters */    
-    while ((c = getopt_long_only(argc, argv, "uhvp:qfKb:i:l:", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uhvd:qfKb:i:l:s", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
@@ -105,7 +131,7 @@ int main(int argc, char *argv[]) {
 		printf("%s %s\n", argv[0], VERSION);
 		return NO_ERROR;
 	    }
-	    case 'p': {
+	    case 'd': {
 		profile_label = optarg;
 		break;
 	    }
@@ -157,6 +183,10 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'l': {
 		aal_strncpy(label, optarg, sizeof(label) - 1);
+	        break;
+	    }
+	    case 's': {
+		lost_found = 1;
 	        break;
 	    }
 	    case '?': {
@@ -295,6 +325,19 @@ int main(int argc, char *argv[]) {
 	    goto error_free_device;
 	}
 
+	/* Creating lost+found directory */
+	if (lost_found) {
+	    reiserfs_object_t *object;
+	    
+	    if (!(object = mkfs_create_lost_found(fs, profile))) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't create lost+found directory.");
+		goto error_free_device;
+	    }
+	    
+	    reiserfs_object_close(object);
+	}
+	
 	/* Flushing all filesystem buffers onto the device */
 	if (reiserfs_fs_sync(fs)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

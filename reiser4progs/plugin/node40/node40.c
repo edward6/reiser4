@@ -347,45 +347,60 @@ static errno_t node40_remove(reiserfs_node40_t *node,
 {
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
+
+    aal_assert("umka-986", node != NULL, return -1);
+    aal_assert("umka-987", pos != NULL, return -1);
     
     nh = reiserfs_nh40(node->block);
     ih = node40_ih_at(node->block, pos->item);
 
     /* Removing either item or unit, depending on pos */
-    if (pos->unit == 0xffffffff) {
-	if (node40_prepare_remove(node, pos, ih40_get_len(ih)))
-	    return -1;
+    if (node40_prepare_remove(node, pos, ih40_get_len(ih)))
+	return -1;
 	
-	nh40_set_num_items(nh, nh40_get_num_items(nh) - 1);
-	nh40_set_free_space(nh, nh40_get_free_space(nh) + 
-	    ih40_get_len(ih) + sizeof(reiserfs_ih40_t));
-    } else {
-	void *body;
-        uint32_t len;
-	reiserfs_id_t pid;
-	reiserfs_plugin_t *plugin;
-	
-	if ((pid = ih40_get_pid(ih)) == INVALID_PLUGIN_ID)
-	    return -1;
-	
-	if (!(plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, pid)))
-	    libreiser4_factory_failed(return -1, find, item, pid);
-	
-	body = node40_ib_at(node->block, pos->item);
-	
-	if (!(len = plugin->item_ops.common.remove(body, pos->unit)))
-	    return -1;
-	
-        if (node40_prepare_remove(node, pos, len))
-	    return -1;
-	
-	ih40_set_len(ih, ih40_get_len(ih) + len);
-	nh40_set_free_space(nh, nh40_get_free_space(nh) + len);
-    }
+    nh40_set_num_items(nh, nh40_get_num_items(nh) - 1);
+    nh40_set_free_space(nh, nh40_get_free_space(nh) + 
+        ih40_get_len(ih) + sizeof(reiserfs_ih40_t));
 	
     return 0;
 }
 
+static errno_t node40_cut(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos)
+{
+    void *body;
+    uint32_t len;
+    reiserfs_id_t pid;
+    
+    reiserfs_ih40_t *ih;
+    reiserfs_nh40_t *nh;
+    reiserfs_plugin_t *plugin;
+	
+    aal_assert("umka-988", node != NULL, return -1);
+    aal_assert("umka-989", pos != NULL, return -1);
+    
+    nh = reiserfs_nh40(node->block);
+    ih = node40_ih_at(node->block, pos->item);
+    
+    if ((pid = ih40_get_pid(ih)) == INVALID_PLUGIN_ID)
+        return -1;
+	
+    if (!(plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, pid)))
+        libreiser4_factory_failed(return -1, find, item, pid);
+	
+    body = node40_ib_at(node->block, pos->item);
+	
+    if (!(len = plugin->item_ops.common.remove(body, pos->unit)))
+        return -1;
+	
+    if (node40_prepare_remove(node, pos, len))
+        return -1;
+	
+    ih40_set_len(ih, ih40_get_len(ih) + len);
+    nh40_set_free_space(nh, nh40_get_free_space(nh) + len);
+
+    return 0;
+}
 
 #endif
 
@@ -567,11 +582,14 @@ static reiserfs_plugin_t node40_plugin = {
 	.insert = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
 	    reiserfs_item_hint_t *))node40_insert,
 	
+	.remove = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
+	    node40_remove,
+	
 	.paste = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
 	    reiserfs_item_hint_t *))node40_paste,
 	
-	.remove = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
-	    node40_remove,
+	.cut = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
+	    node40_cut,
 	
 	.set_level = (errno_t (*)(reiserfs_entity_t *, uint8_t))
 	    node40_set_level,
@@ -592,6 +610,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.insert = NULL,
 	.remove = NULL,
 	.paste = NULL,
+	.cut = NULL,
 	.set_pid = NULL,
 	.set_level = NULL,
 	.set_key = NULL,
