@@ -3476,7 +3476,7 @@ static int bash_write (struct inode * dir, const char * name)
 		info ("usage: write name from\n");
 		return 0;
 	}
-	info ("writing file %s from %d\nType data (ctrl-d to end):\n", name, from);
+	info ("writing file %s from %d\nType data (# to end):\n", name, from);
 
 	/* read stdin line by line and copy read data into buf. Break when '#'
 	 * is encountered */
@@ -3497,8 +3497,8 @@ static int bash_write (struct inode * dir, const char * name)
 		n += strlen (tmp);
 		free (tmp);
 	}
-
-	info ("Writing..\n");
+	count = n;
+	info ("Writing.. %d bytes\n", count);
 	inode = call_lookup (dir, name);
 	if (IS_ERR (inode)) {
 		info ("write: lookup failed\n");
