@@ -126,7 +126,7 @@ struct item_ops {
 				      shift_direction where_is_free_space,
 				      unsigned free_space);
 
-		int  ( *create_hook )( const tree_coord *item, void *cookie );
+		int  ( *create_hook )( const tree_coord *item, void *arg );
 		/* do whatever is necessary to do when @count units starting
 		   from @from-th one are removed from the tree */
 		int ( *kill_hook )( const tree_coord *item, 
