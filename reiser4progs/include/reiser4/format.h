@@ -39,7 +39,13 @@ extern reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
 extern void reiserfs_format_set_root(reiserfs_format_t *format, blk_t root);
 extern void reiserfs_format_set_len(reiserfs_format_t *format, count_t blocks);
 extern void reiserfs_format_set_free(reiserfs_format_t *format, count_t blocks);
-extern void reiserfs_format_set_height(reiserfs_format_t *format, uint16_t height);
+extern void reiserfs_format_set_height(reiserfs_format_t *format, uint8_t height);
+
+extern errno_t reiserfs_format_mark(reiserfs_format_t *format, 
+    reiserfs_alloc_t *alloc);
+
+extern errno_t reiserfs_format_mark_journal(reiserfs_format_t *format, 
+    reiserfs_alloc_t *alloc);
 
 #endif
 

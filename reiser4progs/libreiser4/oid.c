@@ -13,29 +13,39 @@
 
 /* Opens object allocator using start and end pointers */
 reiserfs_oid_t *reiserfs_oid_open(
-    void *start,		/* pointer to the area oid allocator lies in superblock */
-    uint32_t len,		/* length of oid area */
-    reiserfs_id_t oid_pid	/* oid allocator plugin */
+    reiserfs_format_t *format	    /* format oid allocated will be opened on */
 ) {
+    reiserfs_id_t pid;
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
 
-    aal_assert("umka-519", start != NULL, return NULL);
-    aal_assert("umka-730", len > 0, return NULL);
+    void *oid_start;
+    uint32_t oid_len;
+
+    aal_assert("umka-519", format != NULL, return NULL);
 
     /* Allocating memory needed for instance */
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
-   
+    
+    if ((pid = reiserfs_format_oid_pid(format)) == INVALID_PLUGIN_ID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid oid allocator plugin id has been detected.");
+	goto error_free_oid;
+    }
+    
     /* Getting oid allocator plugin */
-    if (!(plugin = libreiser4_factory_find_by_id(OID_PLUGIN_TYPE, oid_pid))) 
-	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
+    if (!(plugin = libreiser4_factory_find_by_id(OID_PLUGIN_TYPE, pid))) 
+	libreiser4_factory_failed(goto error_free_oid, find, oid, pid);
     
     oid->plugin = plugin;
     
+    libreiser4_plugin_call(goto error_free_oid, format->plugin->format_ops, 
+	oid_area, format->entity, &oid_start, &oid_len);
+    
     /* Initializing entity */
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
-	plugin->oid_ops, open, start, len))) 
+	plugin->oid_ops, open, oid_start, oid_len))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open oid allocator %s.", plugin->h.label);
@@ -65,29 +75,39 @@ void reiserfs_oid_close(
 
 /* Creates oid allocator in specified area */
 reiserfs_oid_t *reiserfs_oid_create(
-    void *start,		/* pointer to the area oid allocator lies */
-    uint32_t len,		/* length of the oid allocator area */
-    reiserfs_id_t oid_pid	/* plugin id for oid allocator */
+    reiserfs_format_t *format	    /* format oid allocator will be oned on */
 ) {
+    reiserfs_id_t pid;
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
+
+    void *oid_start;
+    uint32_t oid_len;
 	
-    aal_assert("umka-729", start != NULL, return NULL);
-    aal_assert("umka-731", len > 0, return NULL);
+    aal_assert("umka-729", format != NULL, return NULL);
 
     /* Initializing instance */
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
+    if ((pid = reiserfs_format_oid_pid(format)) == INVALID_PLUGIN_ID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid oid allocator plugin id has been detected.");
+	goto error_free_oid;
+    }
+    
     /* Getting plugin from plugin id */
-    if (!(plugin = libreiser4_factory_find_by_id(OID_PLUGIN_TYPE, oid_pid)))
-	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
+    if (!(plugin = libreiser4_factory_find_by_id(OID_PLUGIN_TYPE, pid)))
+	libreiser4_factory_failed(goto error_free_oid, find, oid, pid);
     
     oid->plugin = plugin;
     
+    libreiser4_plugin_call(goto error_free_oid, format->plugin->format_ops, 
+	oid_area, format->entity, &oid_start, &oid_len);
+    
     /* Initializing entity */
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
-	plugin->oid_ops, create, start, len)))
+	plugin->oid_ops, create, oid_start, oid_len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create oid allocator %s.", plugin->h.label);

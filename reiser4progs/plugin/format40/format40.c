@@ -183,6 +183,20 @@ static void format40_oid_area(reiserfs_format40_t *format,
     *oid_len = &super->sb_file_count - &super->sb_oid;
 }
 
+#define REISERFS_FORMAT40_JHEADER   (4096 * 19)
+#define REISERFS_FORMAT40_JFOOTER   (4096 * 20)
+
+static void format40_journal_area(reiserfs_format40_t *format, 
+    blk_t *start, blk_t *end) 
+{
+    aal_assert("umka-734", format != NULL, return);
+    aal_assert("umka-978", start != NULL, return);
+    aal_assert("umka-979", end != NULL, return);
+    
+    *start = (REISERFS_FORMAT40_JHEADER / aal_device_get_bs(format->device));
+    *end = (REISERFS_FORMAT40_JFOOTER / aal_device_get_bs(format->device));
+}
+
 static const char *formats[] = {"4.0"};
 
 static const char *format40_name(reiserfs_format40_t *format) {
@@ -275,6 +289,9 @@ static reiserfs_plugin_t format40_plugin = {
 #endif
 	.oid_area = (void (*)(reiserfs_entity_t *, void **, uint32_t *))
 	    format40_oid_area,
+	
+	.journal_area = (void (*)(reiserfs_entity_t *, blk_t *, blk_t *))
+	    format40_journal_area,
 	
 	.close = (void (*)(reiserfs_entity_t *))format40_close,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,

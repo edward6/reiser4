@@ -30,7 +30,7 @@ static void info_print_fs(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 
     fprintf(stderr, "\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
-	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
+	reiserfs_fs_name(fs), reiserfs_fs_blocksize(fs), 
 	reiserfs_format_get_len(fs->format), reiserfs_alloc_used(fs->alloc), 
 	reiserfs_alloc_free(fs->alloc));
 

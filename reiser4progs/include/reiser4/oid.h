@@ -14,15 +14,12 @@
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
 
-extern reiserfs_oid_t *reiserfs_oid_open(void *start, 
-    uint32_t len, reiserfs_id_t oid_pid);
-
+extern reiserfs_oid_t *reiserfs_oid_open(reiserfs_format_t *format);
 extern void reiserfs_oid_close(reiserfs_oid_t *oid);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_oid_t *reiserfs_oid_create(void *start, 
-    uint32_t len, reiserfs_id_t oid_pid);
+extern reiserfs_oid_t *reiserfs_oid_create(reiserfs_format_t *format);
 
 extern errno_t reiserfs_oid_sync(reiserfs_oid_t *oid);
 extern errno_t reiserfs_oid_check(reiserfs_oid_t *oid, int flags);

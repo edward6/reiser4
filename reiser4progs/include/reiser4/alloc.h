@@ -14,13 +14,11 @@
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
 
-extern reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device, 
-    count_t len, reiserfs_id_t pid);
+extern reiserfs_alloc_t *reiserfs_alloc_open(reiserfs_format_t *format);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device, 
-    count_t len, reiserfs_id_t pid);
+extern reiserfs_alloc_t *reiserfs_alloc_create(reiserfs_format_t *format);
 
 extern errno_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc);
 
@@ -37,7 +35,6 @@ extern count_t reiserfs_alloc_free(reiserfs_alloc_t *alloc);
 extern count_t reiserfs_alloc_used(reiserfs_alloc_t *alloc);
 
 extern int reiserfs_alloc_test(reiserfs_alloc_t *alloc, blk_t blk);
-extern int reiserfs_alloc_confirm(reiserfs_alloc_t *alloc);
 
 #endif
 

@@ -16,18 +16,24 @@
     used in all further operations.
 */
 reiserfs_alloc_t *reiserfs_alloc_open(
-    aal_device_t *device,	/* device the block allocated will be opened on */
-    count_t len,		/* filesystem length allocator will be describing */
-    reiserfs_id_t pid		/* plugin id for block allocator */
+    reiserfs_format_t *format	/* disk-format allocator is going to be opened on */
 ) {
+    count_t len;
+    reiserfs_id_t pid;
     reiserfs_alloc_t *alloc;
     reiserfs_plugin_t *plugin;
 	
-    aal_assert("umka-135", device != NULL, return NULL);
+    aal_assert("umka-135", format != NULL, return NULL);
 
     /* Initializing instance of block allocator */
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
+    
+    if ((pid = reiserfs_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid block allocator plugin id has been found.");
+	goto error_free_alloc;
+    }
     
     /* Finding block allocator plugin */
     if (!(plugin = libreiser4_factory_find_by_id(ALLOC_PLUGIN_TYPE, pid)))
@@ -35,9 +41,15 @@ reiserfs_alloc_t *reiserfs_alloc_open(
 
     alloc->plugin = plugin;
 
+    if (!(len = reiserfs_format_get_len(format))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid filesystem size has been found.");
+	goto error_free_alloc;
+    }
+
     /* Calling "open" method from block allocator plugin */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc_ops, open, device, len)))
+	plugin->alloc_ops, open, format->device, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator.");
@@ -58,18 +70,24 @@ error_free_alloc:
     plugin in order to initialize allocator instance and returns instance to caller.
 */
 reiserfs_alloc_t *reiserfs_alloc_create(
-    aal_device_t *device,	/* device the block allocator will be craeted on */
-    count_t len,		/* filesystem length block allocator will be describing */
-    reiserfs_id_t pid		/* plugin id for block allocator */
+    reiserfs_format_t *format	    /* disk-format block allocator is going to be created on */
 ) {
+    count_t len;
+    reiserfs_id_t pid;
     reiserfs_alloc_t *alloc;
     reiserfs_plugin_t *plugin;
 	
-    aal_assert("umka-726", device != NULL, return NULL);
+    aal_assert("umka-726", format != NULL, return NULL);
 
     /* Allocating memory for the allocator instance */
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
+
+    if ((pid = reiserfs_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid block allocator plugin id has been found.");
+	goto error_free_alloc;
+    }
     
     /* Getting needed plugin from plugin factory by its id */
     if (!(plugin = libreiser4_factory_find_by_id(ALLOC_PLUGIN_TYPE, pid)))
@@ -77,9 +95,15 @@ reiserfs_alloc_t *reiserfs_alloc_create(
 
     alloc->plugin = plugin;
 
+    if (!(len = reiserfs_format_get_len(format))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid filesystem size has been found.");
+	goto error_free_alloc;
+    }
+
     /* Query the block allocator plugin for creating allocator entity */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc_ops, create, device, len)))
+	plugin->alloc_ops, create, format->device, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create block allocator.");

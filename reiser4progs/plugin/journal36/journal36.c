@@ -64,7 +64,6 @@ static reiserfs_plugin_t journal36_plugin = {
 	    .desc = "Default journal for reiserfs 3.6.x, ver. " VERSION,
 	},
 	.create = NULL, 
-	.bounds = NULL, 
 	.open = (reiserfs_entity_t *(*)(aal_device_t *))journal36_open,
 	.close = (void (*)(reiserfs_entity_t *))journal36_close,
 	.sync = (errno_t (*)(reiserfs_entity_t *))journal36_sync,

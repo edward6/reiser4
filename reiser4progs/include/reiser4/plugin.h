@@ -719,6 +719,9 @@ struct reiserfs_format_ops {
 
     /* Returns area where oid data lies */
     void (*oid_area)(reiserfs_entity_t *, void **, uint32_t *);
+    
+    /* Returns the area journal lies on */
+    void (*journal_area) (reiserfs_entity_t *, blk_t *, blk_t *);
 };
 
 typedef struct reiserfs_format_ops reiserfs_format_ops_t;
@@ -820,9 +823,6 @@ struct reiserfs_journal_ops {
 
     /* Replays journal */
     errno_t (*replay) (reiserfs_entity_t *);
-    
-    /* Returns journal bounds if exist */
-    void (*bounds) (reiserfs_entity_t *, blk_t *, blk_t *);
 };
 
 typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;

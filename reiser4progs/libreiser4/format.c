@@ -31,6 +31,8 @@ reiserfs_format_t *reiserfs_format_open(
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
     
+    format->device = device;
+    
     /* Finding needed plugin by its plugin id */
     if (!(plugin = libreiser4_factory_find_by_id(FORMAT_PLUGIN_TYPE, pid))) 
 	libreiser4_factory_failed(goto error_free_format, find, format, pid);
@@ -75,7 +77,8 @@ reiserfs_format_t *reiserfs_format_create(
     /* Allocating memory */
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
-    
+
+    format->device = device;
     format->plugin = plugin;
 	
     /* 
@@ -118,6 +121,60 @@ errno_t reiserfs_format_check(
 
     return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
 	check, format->entity, flags);
+}
+
+/* Marks format area as used */
+errno_t reiserfs_format_mark(
+    reiserfs_format_t *format,	    /* format function works with */
+    reiserfs_alloc_t *alloc	    /* block allocator */
+) {
+    blk_t blk;
+    blk_t master_offset;
+    blk_t format_offset;
+    
+    aal_assert("umka-974", format != NULL, return -1);
+    aal_assert("umka-975", alloc != NULL, return -1);
+    
+    /* Getting master super block offset */
+    master_offset = (blk_t)(REISERFS_MASTER_OFFSET / 
+	aal_device_get_bs(format->device));
+    
+    /* Getting format-specific super block offset */
+    format_offset = reiserfs_format_offset(format);
+
+    if (format_offset < master_offset) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid format offset has been detected. Master "
+	    "super offset: %llu, format specific super %llu.",
+	    master_offset, format_offset);
+	return -1;
+    }
+    
+    for (blk = 0; blk <= format_offset; blk++)
+	reiserfs_alloc_mark(alloc, blk);
+
+    return 0;
+}
+
+/* Marks journal area as used */
+errno_t reiserfs_format_mark_journal(
+    reiserfs_format_t *format,	    /* format we will working with */
+    reiserfs_alloc_t *alloc	    /* block allocator */
+) {
+    blk_t blk;
+    blk_t journal_start;
+    blk_t journal_end;
+    
+    aal_assert("umka-976", format != NULL, return -1);
+    aal_assert("umka-977", alloc != NULL, return -1);
+
+    libreiser4_plugin_call(return -1, format->plugin->format_ops, 
+	journal_area, format->entity, &journal_start, &journal_end);
+    
+    for (blk = journal_start; blk <= journal_end; blk++)
+	reiserfs_alloc_mark(alloc, blk);
+    
+    return 0;
 }
 
 #endif
@@ -258,7 +315,7 @@ void reiserfs_format_set_free(
 /* Sets new tree height */
 void reiserfs_format_set_height(
     reiserfs_format_t *format,	/* format to be used */
-    uint16_t height		/* new tree height */
+    uint8_t height		/* new tree height */
 ) {
     aal_assert("umka-559", format != NULL, return);
     

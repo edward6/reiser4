@@ -15,6 +15,9 @@
 
 static reiserfs_core_t *core = NULL;
 
+#define REISERFS_JOURNAL40_HEADER   (4096 * 19)
+#define REISERFS_JOURNAL40_FOOTER   (4096 * 20)
+
 static errno_t journal40_check_header(reiserfs_journal40_header_t *header, 
     aal_device_t *device) 
 {
@@ -169,15 +172,6 @@ static errno_t journal40_replay(reiserfs_journal40_t *journal) {
     return 0;
 }
 
-static void journal40_bounds(reiserfs_journal40_t *journal, 
-    blk_t *start, blk_t *end) 
-{
-    aal_assert("umka-734", journal != NULL, return);
-    
-    *start = (REISERFS_JOURNAL40_HEADER / aal_device_get_bs(journal->device));
-    *end = (REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(journal->device));
-}
-
 static reiserfs_plugin_t journal40_plugin = {
     .journal_ops = {
 	.h = {
@@ -201,9 +195,6 @@ static reiserfs_plugin_t journal40_plugin = {
 	.sync = NULL,
 	.check = NULL,
 #endif
-	.bounds = (void (*)(reiserfs_entity_t *, blk_t *, blk_t *))
-	    journal40_bounds,
-	
 	.close = (void (*)(reiserfs_entity_t *))journal40_close,
 	.replay = (errno_t (*)(reiserfs_entity_t *))journal40_replay,
     }

@@ -280,7 +280,9 @@ static reiserfs_plugin_t format36_plugin = {
 	.get_free = (count_t (*)(reiserfs_entity_t *))format36_get_free,
 	
 	.get_height = NULL,
+
 	.oid_area = NULL,
+	.journal_area = NULL,
 	
 	.journal_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format36_journal_plugin,

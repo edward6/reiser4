@@ -15,23 +15,31 @@
     opened journal.
 */
 reiserfs_journal_t *reiserfs_journal_open(
-    aal_device_t *device,	/* device journal weill be opened on */
-    reiserfs_id_t pid		/* jouranl plugin id to be used */
+    reiserfs_format_t *format,	/* format journal is going to be opened on */
+    aal_device_t *device	/* device journal weill be opened on */
 ) {
+    reiserfs_id_t pid;
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;
 	
-    aal_assert("umka-095", device != NULL, return NULL);
+    aal_assert("umka-095", format != NULL, return NULL);
 	
     /* Allocating memory for jouranl instance */
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
-	
+
+    if ((pid = reiserfs_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid journal plugin id has been found.");
+	goto error_free_journal;
+    }
+    
     /* Getting plugin by its id from plugin factory */
     if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid)))
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 	
     journal->plugin = plugin;
+    journal->device = device;
 
     /* 
 	Initializing journal entity by means of calling "open" method from found 
@@ -57,23 +65,31 @@ error_free_journal:
 
 /* Creates journal on specified jopurnal. Returns initialized instance */
 reiserfs_journal_t *reiserfs_journal_create(
+    reiserfs_format_t *format,	/* format journal will be opened on */
     aal_device_t *device,	/* device journal will be created on */
-    void *params,		/* journal params (opaque pointer) */
-    reiserfs_id_t pid		/* jouranl plugin to be used */
+    void *params		/* journal params (opaque pointer) */
 ) {
+    reiserfs_id_t pid;
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;
 	
-    aal_assert("umka-095", device != NULL, return NULL);
+    aal_assert("umka-095", format != NULL, return NULL);
 	
     /* Allocating memory and finding plugin */
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
-	
+
+    if ((pid = reiserfs_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid journal plugin id has been found.");
+	goto error_free_journal;
+    }
+    
     if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid))) 
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 
     journal->plugin = plugin;
+    journal->device = device;
 	
     /* Initializing journal entity */
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
@@ -131,20 +147,6 @@ errno_t reiserfs_journal_check(
 }
 
 #endif
-
-/* Returns journal bounds */
-void reiserfs_journal_bounds(
-    reiserfs_journal_t *journal, 
-    blk_t *start, 
-    blk_t *end
-) {
-    aal_assert("umka-967", journal != NULL, return);
-    aal_assert("umka-968", start != NULL, return);
-    aal_assert("umka-969", end != NULL, return);
-    
-    libreiser4_plugin_call(return, journal->plugin->journal_ops, 
-	bounds, journal->entity, start, end);
-}
 
 /* Closes journal by means of freeing all assosiated memory */
 void reiserfs_journal_close(

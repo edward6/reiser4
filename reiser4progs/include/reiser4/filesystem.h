@@ -145,6 +145,9 @@ typedef struct reiserfs_object reiserfs_object_t;
 /* Reiser4 disk-format in-memory structure */
 struct reiserfs_format {
 
+    /* Device filesystem opended on */
+    aal_device_t *device;
+    
     /* 
 	Disk-format entity. It is initialized by disk-format plugin durring
 	initialization.
@@ -159,7 +162,19 @@ typedef struct reiserfs_format reiserfs_format_t;
 
 /* Journal structure */
 struct reiserfs_journal {
+    
+    /* 
+	Device journal opened on. In the case of standard journal this field will
+	be pointing to the same device as in disk-format struct. If the journal 
+	is t relocated one then device will be contain pointer to opened device 
+	journal is opened on.
+    */
+    aal_device_t *device;
+
+    /* Journal entity. Initializied by plugin */
     reiserfs_entity_t *entity;
+
+    /* Plugin for working with journal by */
     reiserfs_plugin_t *plugin;
 };
 
@@ -246,9 +261,6 @@ struct reiserfs_tree {
 
 /* Filesystem compound structure */
 struct reiserfs_fs {
-    aal_device_t *host_device;
-    aal_device_t *journal_device;
-    
     reiserfs_master_t *master;
     reiserfs_format_t *format;
     reiserfs_journal_t *journal;
@@ -258,7 +270,6 @@ struct reiserfs_fs {
     reiserfs_object_t *dir;
 
     reiserfs_key_t key;
-
     void *data;
 };
 
@@ -276,14 +287,16 @@ extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     void *journal_params);
 
 extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
-
 extern errno_t reiserfs_fs_check(reiserfs_fs_t *fs);
 
 #endif
 
-extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
+extern const char *reiserfs_fs_name(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
+
 extern reiserfs_id_t reiserfs_fs_format_pid(reiserfs_fs_t *fs);
+extern aal_device_t *reiserfs_fs_host_device(reiserfs_fs_t *fs);
+extern aal_device_t *reiserfs_fs_journal_device(reiserfs_fs_t *fs);
 
 #endif
 

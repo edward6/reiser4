@@ -53,25 +53,14 @@ reiserfs_fs_t *reiserfs_fs_open(
     aal_device_t *journal_device,   /* device journal will lie on */
     int replay			    /* flag that specify whether replaying is needed */
 ) {
-    count_t len;
     reiserfs_fs_t *fs;
+    reiserfs_id_t pid;
 
-    reiserfs_id_t oid_pid;
-    reiserfs_id_t format_pid;
-    reiserfs_id_t alloc_pid;
-    reiserfs_id_t journal_pid;
-
-    void *oid_start;
-    uint32_t oid_len;
-	
     aal_assert("umka-148", host_device != NULL, return NULL);
 
     /* Allocating memory and initializing fields */
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
-
-    fs->host_device = host_device;
-    fs->journal_device = journal_device;
 
     /* Reads master super block. See above for details */
     if (!(fs->master = reiserfs_master_open(host_device)))
@@ -86,23 +75,16 @@ reiserfs_fs_t *reiserfs_fs_open(
     }
     
     /* Initializes used disk format. See format.c for details */
-    format_pid = get_mr_format_id(fs->master);
+    pid = get_mr_format_id(fs->master);
 
-    if (!(fs->format = reiserfs_format_open(host_device, format_pid)))
+    if (!(fs->format = reiserfs_format_open(host_device, pid)))
 	goto error_free_master;
 
     if (reiserfs_format_check(fs->format, 0))
 	goto error_free_format;
     
-    /* Getting plugins which are in use from disk format object */
-    alloc_pid = reiserfs_format_alloc_pid(fs->format);
-    journal_pid = reiserfs_format_journal_pid(fs->format);
-    oid_pid = reiserfs_format_oid_pid(fs->format);
-   
-    len = reiserfs_format_get_len(fs->format);
-    
     /* Initializes block allocator. See alloc.c for details */
-    if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_pid)))
+    if (!(fs->alloc = reiserfs_alloc_open(fs->format)))
 	goto error_free_format;
     
     if (reiserfs_alloc_check(fs->alloc, 0))
@@ -115,7 +97,7 @@ reiserfs_fs_t *reiserfs_fs_open(
 	aal_device_set_bs(journal_device, reiserfs_fs_blocksize(fs));
 
 	/* Initializing the journal. See  journal.c for details */
-	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_pid)))
+	if (!(fs->journal = reiserfs_journal_open(fs->format, journal_device)))
 	    goto error_free_alloc;
     
 	if (reiserfs_journal_check(fs->journal, 0))
@@ -132,6 +114,15 @@ reiserfs_fs_t *reiserfs_fs_open(
 		    "Can't replay journal.");
 		goto error_free_journal;
 	    }
+	    
+	    /* 
+		Reopening format in odrer to keep it up to date after journal 
+		replaying. Journal might contain super block ior master super
+		block.
+	    */
+	    
+	    /* FIXME-UMKA: Here also master super block should be reopened */
+	    
 	    if (!(fs->format = reiserfs_format_reopen(fs->format, host_device)))
 		goto error_free_journal;
 	}
@@ -140,10 +131,7 @@ reiserfs_fs_t *reiserfs_fs_open(
     }
     
     /* Initializes oid allocator */
-    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format_ops, 
-	oid_area, fs->format->entity, &oid_start, &oid_len);
-    
-    if (!(fs->oid = reiserfs_oid_open(oid_start, oid_len, oid_pid)))
+    if (!(fs->oid = reiserfs_oid_open(fs->format)))
 	goto error_free_journal;
   
     if (reiserfs_oid_check(fs->oid, 0))
@@ -185,6 +173,19 @@ error:
     return NULL;
 }
 
+aal_device_t *reiserfs_fs_host_device(reiserfs_fs_t *fs) {
+    aal_assert("umka-970", fs != NULL, return NULL);
+    aal_assert("umka-971", fs->format != NULL, return NULL);
+
+    return fs->format->device;
+}
+
+aal_device_t *reiserfs_fs_journal_device(reiserfs_fs_t *fs) {
+    aal_assert("umka-972", fs != NULL, return NULL);
+
+    return (fs->journal ? fs->journal->device : NULL);
+}
+
 #ifndef ENABLE_COMPACT
 
 #define REISERFS_MIN_SIZE (23 + 100)
@@ -204,9 +205,6 @@ reiserfs_fs_t *reiserfs_fs_create(
     blk_t blk, master_offset;
     blk_t journal_area_start, journal_area_end;
 
-    void *oid_start;
-    uint32_t oid_len;
-    
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
     aal_assert("vpf-113", profile != NULL, return NULL);
@@ -231,9 +229,6 @@ reiserfs_fs_t *reiserfs_fs_create(
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 	
-    fs->host_device = host_device;
-    fs->journal_device = journal_device;
-
     /* Creates master super block */
     if (!(fs->master = reiserfs_master_create(profile->format, 
 	    blocksize, uuid, label)))
@@ -245,43 +240,22 @@ reiserfs_fs_t *reiserfs_fs_create(
 	goto error_free_master;
 
     /* Creates block allocator */
-    if (!(fs->alloc = reiserfs_alloc_create(host_device, len, 
-	    profile->alloc)))
+    if (!(fs->alloc = reiserfs_alloc_create(fs->format)))
 	goto error_free_format;
 
-    /* 
-	Marking the skiped area and master super block 
-	(0-16 blocks) as used.
-    */
-    master_offset = (blk_t)(REISERFS_MASTER_OFFSET / 
-	aal_device_get_bs(host_device));
-    
-    for (blk = 0; blk <= master_offset; blk++)
-	reiserfs_alloc_mark(fs->alloc, blk);
-    
-    /* Marking format-specific super blocks as used */
-    reiserfs_alloc_mark(fs->alloc, reiserfs_format_offset(fs->format));
+    if (reiserfs_format_mark(fs->format, fs->alloc))
+	goto error_free_alloc;
     
     /* Creates journal on journal device */
-    if (!(fs->journal = reiserfs_journal_create(journal_device, 
-	    journal_params, profile->journal)))
+    if (!(fs->journal = reiserfs_journal_create(fs->format, 
+	    journal_device, journal_params)))
 	goto error_free_alloc;
    
-    libreiser4_plugin_call(goto error_free_journal, fs->journal->plugin->journal_ops, 
-	bounds, fs->journal->entity, &journal_area_start, &journal_area_end);
+    if (reiserfs_format_mark_journal(fs->format, fs->alloc))
+	goto error_free_journal;
     
-    /* Setts up journal blocks in block allocator */
-    for (blk = journal_area_start; blk <= journal_area_end; blk++)
-	reiserfs_alloc_mark(fs->alloc, blk);
-   
-    /* 
-	Initializes oid allocator on got from disk format oid area of disk format 
-	specific super block.
-    */
-    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format_ops, 
-	oid_area, fs->format->entity, &oid_start, &oid_len);
-    
-    if (!(fs->oid = reiserfs_oid_create(oid_start, oid_len, profile->oid)))
+    /* Initializes oid allocator */
+    if (!(fs->oid = reiserfs_oid_create(fs->format)))
 	goto error_free_journal;
 
     /* Initializes root key */
@@ -356,8 +330,8 @@ errno_t reiserfs_fs_sync(
 	because reiser3 filesystem was created, we should make sure, that filesystem
 	on the host device is realy reiser4 filesystem.
     */
-    if (reiserfs_master_confirm(fs->host_device)) {
-	if (reiserfs_master_sync(fs->master, fs->host_device))
+    if (reiserfs_master_confirm(fs->format->device)) {
+	if (reiserfs_master_sync(fs->master, fs->format->device))
 	    return -1;
     }
     
@@ -420,7 +394,7 @@ void reiserfs_fs_close(
 }
 
 /* Returns format string from disk format object (for instance, reiserfs 4.0) */
-const char *reiserfs_fs_format(
+const char *reiserfs_fs_name(
     reiserfs_fs_t *fs		/* filesystem format name will be obtained from */
 ) {
     return reiserfs_format_name(fs->format);

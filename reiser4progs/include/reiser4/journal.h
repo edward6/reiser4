@@ -15,13 +15,13 @@
 #include <reiser4/filesystem.h>
 #include <reiser4/plugin.h>
 
-extern reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device,
-    reiserfs_id_t pid);
+extern reiserfs_journal_t *reiserfs_journal_open(reiserfs_format_t *format,
+    aal_device_t *device);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
-    void *params, reiserfs_id_t pid);
+extern reiserfs_journal_t *reiserfs_journal_create(reiserfs_format_t *format,
+    aal_device_t *device, void *params);
 
 extern errno_t reiserfs_journal_sync(reiserfs_journal_t *journal);
 extern errno_t reiserfs_journal_replay(reiserfs_journal_t *journal);
@@ -32,7 +32,6 @@ extern errno_t reiserfs_journal_check(reiserfs_journal_t *journal,
 #endif
 
 extern void reiserfs_journal_close(reiserfs_journal_t *journal);
-extern int reiserfs_journal_confirm(reiserfs_journal_t *journal);
 
 #endif
 

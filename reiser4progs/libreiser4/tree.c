@@ -36,7 +36,7 @@ static reiserfs_cache_t *reiserfs_tree_alloc(
     }
 
     /* Creating new node */
-    if (!(node = reiserfs_node_create(tree->fs->host_device, blk,
+    if (!(node = reiserfs_node_create(tree->fs->format->device, blk,
 	    reiserfs_node_get_pid(tree->cache->node), level)))
 	return NULL;
 
@@ -66,7 +66,7 @@ static reiserfs_cache_t *reiserfs_tree_load(reiserfs_tree_t *tree,
     reiserfs_node_t *node;
     reiserfs_cache_t *cache;
     
-    if (!(node = reiserfs_node_open(tree->fs->host_device, blk))) 
+    if (!(node = reiserfs_node_open(tree->fs->format->device, blk))) 
 	return NULL;
 	    
     if (!(cache = reiserfs_cache_create(node))) {
@@ -162,7 +162,7 @@ reiserfs_tree_t *reiserfs_tree_create(
     }
 
     /* Creating root node */
-    if (!(node = reiserfs_node_create(fs->host_device, block_nr,
+    if (!(node = reiserfs_node_create(fs->format->device, block_nr,
         profile->node, reiserfs_format_get_height(fs->format))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
