@@ -3793,21 +3793,26 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 				to = kmap(new_page);
 				lock_page(page);
 				from = kmap(page);
+				/* FIXME(zam): one preloaded radix tree node may
+				 * be not enough for two insertions, one
+				 * insertion is in replace_page_in_mapping(),
+				 * another one is in swap_jnode_pages(). The
+				 * radix_tree_delete() call might not help,
+				 * because an empty radix tree node is freed and
+				 * the node's free space may not be re-used in
+				 * insertion. */
 				radix_tree_preload();
 				lock_two_nodes(node, copy);
 				/*LOCK_JNODE(node);*/
 				spin_lock(&scan_lock);
 				if (capturable(node, atom)) {
-					int was_jloaded; /* if node was jloaded
-							    by
-							    get_overwrite_set,
-							    we have to jrelse it
-							    here, because we
-							    remove jnode from
-							    atom's capture list
-							    - put_overwrite_set
-							    will not jrelse
-							    it */
+					/* if node was jloaded by
+					   get_overwrite_set, we have to jrelse
+					   it here, because we remove jnode from
+					   atom's capture list -
+					   put_overwrite_set will not jrelse
+					   it */
+					int was_jloaded;
 					check_coc(node, page);
 
 					was_jloaded = JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
