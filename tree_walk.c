@@ -683,14 +683,11 @@ sibling_list_remove(znode * node)
 {
 	assert("umka-255", node != NULL);
 
-	if (!znode_is_connected(node))
-		return;
-
-	if (node->right != NULL) {
+	if (znode_is_right_connected(node) && node->right != NULL) {
 		assert("zam-322", znode_is_left_connected(node->right));
 		node->right->left = node->left;
 	}
-	if (node->left != NULL) {
+	if (znode_is_left_connected(node) && node->left != NULL) {
 		assert("zam-323", znode_is_right_connected(node->left));
 		node->left->right = node->right;
 	}
