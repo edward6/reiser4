@@ -101,8 +101,16 @@ spinlock_t *jnode_to_page_lock( const jnode *node )
 	result = &get_current_super_private() -> j_to_p[ spin_ind ];
 #ifdef CONFIG_DEBUG_SPINLOCK
 	if( result -> magic != SPINLOCK_MAGIC ) {
+		int i, j;
 		warning( "nikita-2242", "Unitialized spinlock: %i", spin_ind );
 		info_jnode( "jnode", node );
+		info ("spinlock array: ");
+		for (i = 0; i < REISER4_JNODE_TO_PAGE_HASH_SIZE; i += 1) {
+			for (j = 0; j < sizeof (spinlock_t); j += 1) {
+				info ("%02x", ((char*)(&get_current_super_private() -> j_to_p[i]))[j]);
+			}
+		}
+		info ("\n");
 	}
 #endif
 	return result;
