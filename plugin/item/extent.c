@@ -9,6 +9,7 @@
 #include "../../emergency_flush.h"
 #include "../../prof.h"
 #include "../../flush.h"
+#include "../object.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
@@ -1133,8 +1134,8 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	coord_t coord_after;
 	lock_handle lh_after;
 	tap_t watch;
-	ON_DEBUG(reiser4_extent orig_ext);	/* this is for debugging */
 	znode *orig_znode;
+	ON_DEBUG(reiser4_extent orig_ext);	/* this is for debugging */
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
 
@@ -1144,7 +1145,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	tap_init(&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
 	tap_monitor(&watch);
 
-	orig_ext = *extent_by_coord(un_extent);
+	ON_DEBUG(orig_ext = *extent_by_coord(un_extent));
 	orig_znode = un_extent->node;
 
 	/* make sure that key is set properly */
@@ -2647,7 +2648,7 @@ reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 				    /* if extent items will be ever used by plugins other than unix file plugin - estimate update should instead be taken by
 				       inode_file_plugin(inode)->estimate.update(inode)
 				    */
-				    estimate_common_update(inode),
+				    estimate_update_common(inode),
 				    0/* flags */, "extent_write");
 	return result;
 }
