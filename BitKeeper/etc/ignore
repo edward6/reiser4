@@ -23,8 +23,10 @@
 .debug.o.cmd
 .depend
 .dependencies
+.diskmap.o.cmd
 .dscale.o.cmd
 .emergency_flush.o.cmd
+.entd.o.cmd
 .eottl.o.cmd
 .estimate.o.cmd
 .flush.o.cmd
@@ -222,6 +224,7 @@ plugin/hash.bb
 plugin/hash.bbg
 plugin/item/.built-in.o.cmd
 plugin/item/.cde.o.cmd
+plugin/item/.ctail.o.cmd
 plugin/item/.extent.o.cmd
 plugin/item/.extent.o.d
 plugin/item/.internal.o.cmd
@@ -1255,6 +1258,7 @@ reiser4progs/reiser4progs/libmisc/misc.lo
 reiser4progs/stamp-h
 reiser4progs/stamp-h.in
 reiser4progs/stamp-h1
+remove
 remove_me
 rm-test
 rm.test-40
@@ -1308,7 +1312,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-.entd.o.cmd
-remove
-.diskmap.o.cmd
-plugin/item/.ctail.o.cmd
