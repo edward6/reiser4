@@ -6,6 +6,7 @@
 #include "carry.h"
 #include "inode.h"
 #include "cluster.h"
+#include "plugin/item/ctail.h"
 
 /* this returns how many nodes might get dirty and added nodes if @children nodes are dirtied
 
@@ -86,10 +87,12 @@ estimate_disk_cluster(struct inode * inode)
 
 /* how many nodes might get dirty and added nodes during insertion of a disk cluster */
 reiser4_internal reiser4_block_nr
-estimate_insert_cluster(struct inode * inode)
+estimate_insert_cluster(struct inode * inode, int unprepped)
 {
-	return 3 + inode_cluster_pages(inode) +
-		max_balance_overhead(3 + inode_cluster_pages(inode), REISER4_MAX_ZTREE_HEIGHT);
+	int per_cluster;
+	per_cluster = (unprepped ? 1 : inode_cluster_pages(inode));
+	
+	return 3 + per_cluster + max_balance_overhead(3 + per_cluster, REISER4_MAX_ZTREE_HEIGHT);
 }
 
 /* Make Linus happy.
