@@ -471,7 +471,7 @@ struct flush_queue {
 	 * An atom this flush handle is attached to */
 	txn_atom          * atom;
 	/*
-	  A semaphore for waiting on i/o completion */
+	  A semaphore for waiting on i/o completion
 	 */
 	struct semaphore    sema;
 };
