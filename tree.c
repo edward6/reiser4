@@ -1472,7 +1472,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		print_znode( "", node );
 
 	if( flags == REISER4_NODE_PRINT_ZADDR ) {
-		info( "[node %p block %llu level %u]\n", node, *znode_get_block( node ), znode_get_level( node ) );
+		info( "[node %p block %llu level %u dirty %u]\n", node, *znode_get_block( node ), znode_get_level( node ), znode_check_dirty( node ) );
 	} else {
 		print_znode_content( node, flags );
 	}

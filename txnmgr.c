@@ -1247,7 +1247,7 @@ void jnode_set_dirty( jnode *node )
 		}
 
 		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
-		            jnode_is_formatted (node) ? "" : "un", node);*/
+		  jnode_is_formatted (node) ? "" : "un", node);*/
 	}
 
 	if (jnode_is_formatted (node)) {

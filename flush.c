@@ -512,6 +512,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 	load_handle pload;
 	coord_t pcoord;
 
+	coord_init_invalid (& pcoord, NULL);
 	init_lh (& plock);
 	init_zh (& pload);
 
