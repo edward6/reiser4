@@ -536,16 +536,12 @@ common_file_delete(struct inode *inode /* object to remove */ )
 
 		/* grab space which is needed to remove one item from the tree */
 		if (reiser4_grab_space_force(reserve = estimate_one_item_removal(tree_by_inode(inode)->height),
-					     BA_RESERVED | BA_CAN_COMMIT)) {
+					     BA_RESERVED | BA_CAN_COMMIT, "common_file_delete")) {
 			warning("nikita-2847", 
 				"Cannot delete unnamed sd of %lli. Run fsck", 
 				get_inode_oid(inode));
 			return -ENOSPC;
 		}
-
-		trace_on(TRACE_RESERVE, 
-			 "file delete grabs %llu block.\n", reserve);
-
 		result = common_file_delete_no_reserve(inode);
 	} else
 		result = 0;
@@ -562,13 +558,13 @@ static int common_delete_directory(struct inode *inode)
 	assert("vs-1101", dplug && dplug->done);
 
 	/* grab space enough for removing two items */
-	if (reiser4_grab_space_exact(2 * estimate_one_item_removal(tree_by_inode(inode)->height), BA_RESERVED | BA_CAN_COMMIT))
+	if (reiser4_grab_space(2 * estimate_one_item_removal(tree_by_inode(inode)->height), BA_RESERVED | BA_CAN_COMMIT, "common_delete_directory"))
 		return -ENOSPC;
 
 	result = dplug->done(inode);
 	if (!result)
 		result = common_file_delete_no_reserve(inode);
-	all_grabbed2free();
+	all_grabbed2free("common_delete_directory");
 	return result;
 }
 
@@ -682,13 +678,11 @@ common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser
 	assert("nikita-747", data != NULL);
 	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
-	if (reiser4_grab_space_exact(reserve = 
-		common_estimate_create(object), BA_CAN_COMMIT))
-	{
+	if (reiser4_grab_space(reserve = 
+			       common_estimate_create(object), BA_CAN_COMMIT, "common_file_create")) {
 		return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, "file create grabs %llu, blocks.\n", reserve);
 	return reiser4_write_sd(object);
 }
 

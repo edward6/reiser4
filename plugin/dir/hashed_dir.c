@@ -71,10 +71,8 @@ hashed_init(struct inode *object /* new directory */ ,
 	trace_stamp(TRACE_DIR);
 
 	reserve = hashed_estimate_init(parent, object);
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_init: reserve for creating \".\" and \"..\"?"))
 		return -ENOSPC;
-	
-	trace_on(TRACE_RESERVE, "hashed_init grabs %llu blocks.\n", reserve);
 	
 	return create_dot_dotdot(object, parent);
 }
@@ -117,12 +115,10 @@ hashed_done(struct inode *object /* object being deleted */ )
 		xmemset(&entry, 0, sizeof entry);
 
 		reserve = hashed_estimate_done(parent, object);
-		if (reiser4_grab_space_exact(reserve, 
-					     BA_CAN_COMMIT | BA_RESERVED)) 
+		if (reiser4_grab_space(reserve, 
+				       BA_CAN_COMMIT | BA_RESERVED, "hashed_done")) 
 			return -ENOSPC;
-		
-		trace_on(TRACE_RESERVE, "hashed_done grabs %llu blocks.\n", reserve);
-		
+				
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
 		entry.obj = goodby_dots.d_inode = object;
 		goodby_dots.d_name.name = ".";
@@ -535,10 +531,8 @@ static int hashed_rename_estimate_and_grab(
     
 	reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name);
 	
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) 
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_rename"))
 		return -ENOSPC;
-
-	trace_on(TRACE_RESERVE, "hashed rename grabs %llu blocks.\n", reserve);
 
 	return 0;
 }
@@ -821,11 +815,9 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 		return PTR_ERR(fsdata);
 		
 	reserve = inode_dir_plugin(object)->estimate.add_entry(object);
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_add_entry"))
 		return -ENOSPC;
 
-	trace_on(TRACE_RESERVE, "add entry grabs %llu blocks.\n", reserve);
-	
 	init_lh(&lh);
 	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->dec.entry_coord;
@@ -868,11 +860,8 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
-	if (reiser4_grab_space_exact(inode_dir_plugin(object)->estimate.rem_entry(object), 
-		BA_CAN_COMMIT | BA_RESERVED))
-	{
+	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED, "hashed_rem_entry"))
 		return -ENOSPC;
-	}
 	
 	init_lh(&lh);
 

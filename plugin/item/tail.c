@@ -374,7 +374,7 @@ static int
 insert_flow_reserve(tree_level height)
 {
 	grab_space_enable();
-	return reiser4_grab_space_exact(estimate_insert_flow(height) + estimate_one_insert_into_item(height), 0);
+	return reiser4_grab_space(estimate_insert_flow(height) + estimate_one_insert_into_item(height), 0, "for insert_flow");
 }
 
 /* one block gets overwritten and stat data may get updated */
@@ -382,7 +382,7 @@ static int
 overwrite_reserve(tree_level height)
 {
 	grab_space_enable();
-	return reiser4_grab_space_exact(1 + estimate_one_insert_into_item(height), 0);
+	return reiser4_grab_space(1 + estimate_one_insert_into_item(height), 0, "overwrite_reserve");
 }
 
 /* plugin->u.item.s.file.write
@@ -440,12 +440,12 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 		zrelse(loaded);
 
 		if (result) {
-			all_grabbed2free();
+			all_grabbed2free("tail_write: on error");
 			break;
 		}
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh);
-		all_grabbed2free();
+		all_grabbed2free("tail_write");
 		if (result) {
 			// reiser4_stat_tail_add(bdp_caused_repeats);
 			break;
