@@ -398,6 +398,19 @@ cmp_t key_id_key_cmp( const obj_key_id *id /* object key id to compare */,
 	return keycmp( &k1, key );
 }
 
+/** compare two &de_id's */
+cmp_t de_id_cmp( const de_id *id1 /* first &de_id to compare */,
+		 const de_id *id2 /* second &de_id to compare */ )
+{
+	/* FIXME-NIKITA ugly implementation */
+	reiser4_key k1;
+	reiser4_key k2;
+
+	extract_key_from_de_id( ( oid_t ) 0, id1, &k1 );
+	extract_key_from_de_id( ( oid_t ) 0, id2, &k2 );
+	return keycmp( &k1, &k2 );
+}
+
 /** compare &de_id with key */
 cmp_t de_id_key_cmp( const de_id *id /* directory entry id to compare */, 
 		     const reiser4_key *key /* key to compare */ )
