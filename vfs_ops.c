@@ -1025,8 +1025,12 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 				reiser4_make_bad_inode( child );
 				iput( child );
 			}
-		} else
+		} else {
 			d_instantiate( dentry, child );
+			trace_on( TRACE_VFS_OPS, "create: %s (%o) %llu\n",
+				  dentry -> d_name.name, data -> mode,
+				  get_inode_oid( child ) );
+		}
 	} else
 		result = -EPERM;
 
@@ -1275,6 +1279,10 @@ reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super block new
 		info -> sd_len = 0;
 		info -> locality_id = 0ull;
 		info -> parent = NULL;
+		info -> plugin_mask = 0;
+#if !REISER4_INO_IS_OID
+		info -> oid_hi = 0;
+#endif
 		seal_init( &info -> sd_seal, NULL, NULL );
 		coord_init_invalid( &info -> sd_coord, NULL );
 		xmemset( &info -> ra, 0, sizeof info -> ra );
@@ -1289,8 +1297,6 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 							* destroyed */ )
 {
 	__REISER4_ENTRY( inode -> i_sb, );
-
-	trace_on( TRACE_BUG, "Removing inode %llx\n", get_inode_oid( inode ) );
 
 	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
 		assert( "vs-839", S_ISLNK( inode -> i_mode ) );
@@ -1382,9 +1388,7 @@ static void reiser4_delete_inode( struct inode *object )
 		fplug = inode_file_plugin( object );
 		if( ( fplug != NULL ) && ( fplug -> delete != NULL ) )
 			fplug -> delete( object );
-	} else
-		info( "reiser4_delete_inode: inode %lu not loaded\n",
-		      object -> i_ino );
+	}
 	object -> i_blocks = 0;
 	clear_inode( object );
 	__REISER4_EXIT( &__context );
