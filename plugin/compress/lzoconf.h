@@ -409,38 +409,15 @@ typedef void (__LZO_ENTRY *lzo_progress_callback_t) (lzo_uint, lzo_uint);
     (int)sizeof(lzo_compress_t))
 LZO_EXTERN(int) __lzo_init2(unsigned,int,int,int,int,int,int,int,int,int);
 
-/* version functions (useful for shared libraries) */
-LZO_EXTERN(unsigned) lzo_version(void);
-LZO_EXTERN(const char *) lzo_version_string(void);
-LZO_EXTERN(const char *) lzo_version_date(void);
-LZO_EXTERN(const lzo_charp) _lzo_version_string(void);
-LZO_EXTERN(const lzo_charp) _lzo_version_date(void);
-
-/* string functions */
-LZO_EXTERN(int)
-lzo_memcmp(const lzo_voidp _s1, const lzo_voidp _s2, lzo_uint _len);
-LZO_EXTERN(lzo_voidp)
-lzo_memcpy(lzo_voidp _dest, const lzo_voidp _src, lzo_uint _len);
-LZO_EXTERN(lzo_voidp)
-lzo_memmove(lzo_voidp _dest, const lzo_voidp _src, lzo_uint _len);
-LZO_EXTERN(lzo_voidp)
-lzo_memset(lzo_voidp _s, int _c, lzo_uint _len);
-
 /* checksum functions */
-LZO_EXTERN(lzo_uint32)
-lzo_adler32(lzo_uint32 _adler, const lzo_byte *_buf, lzo_uint _len);
 LZO_EXTERN(lzo_uint32)
 lzo_crc32(lzo_uint32 _c, const lzo_byte *_buf, lzo_uint _len);
 
 /* misc. */
-LZO_EXTERN(lzo_bool) lzo_assert(int _expr);
-LZO_EXTERN(int) _lzo_config_check(void);
 typedef union { lzo_bytep p; lzo_uint u; } __lzo_pu_u;
 typedef union { lzo_bytep p; lzo_uint32 u32; } __lzo_pu32_u;
 typedef union { void *vp; lzo_bytep bp; lzo_uint32 u32; long l; } lzo_align_t;
 
-/* align a char pointer on a boundary that is a multiple of `size' */
-LZO_EXTERN(unsigned) __lzo_align_gap(const lzo_voidp _ptr, lzo_uint _size);
 #define LZO_PTR_ALIGN_UP(_ptr,_size) \
     ((_ptr) + (lzo_uint) __lzo_align_gap((const lzo_voidp)(_ptr),(lzo_uint)(_size)))
 
