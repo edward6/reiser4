@@ -20,7 +20,7 @@
  *      1 it is not local, that is it operates on a big number of nodes,
  *      possibly far away from the starting node, both in tree and disk order.
  *
- *      2 it can involve reading of the large number of nodes from the disk
+ *      2 it can involve reading of nodes from the disk
  *      (for example, bitmap nodes are read during extent allocation that is
  *      deferred until flush).
  *
@@ -41,8 +41,8 @@
  *   from reiser4 ->vm_writeback() callback, because of OOM and deadlocks
  *   against threads waiting for memory.
  *
- *   So, it was decided that flush has to be performed from the separate
- *   thread. Reiser4 has thread used to periodically commit old transactions
+ *   So, it was decided that flush has to be performed from a separate
+ *   thread. Reiser4 has a thread used to periodically commit old transactions,
  *   and this thread can be used for the flushing. That is, flushing thread
  *   does flush and accumulates nodes prepared for the IO on the special
  *   queue. reiser4_vm_writeback() submits nodes from this queue, if queue is
@@ -78,7 +78,7 @@
  *   failed to free pages. This is already present in the
  *   mm/vmscan.c:set_shrinker() interface.
  *
- *   Another user thing that we would like to have is passing scanning
+ *   Another useful thing that we would like to have is passing scanning
  *   priority down to the ->vm_writeback() that will allow file system to
  *   switch to the emergency flush more gracefully.
  *
