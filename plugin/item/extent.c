@@ -984,7 +984,10 @@ extent_utmost_child(const coord_t * coord, sideof side, jnode ** childp)
 		assert("vs-544", (get_key_offset(&key) >> PAGE_CACHE_SHIFT) < ~0ul);
 		/* index of first or last (depending on @side) page addressed
 		   by the extent */
-		index = (unsigned long) ((get_key_offset(&key) >> PAGE_CACHE_SHIFT) - 1);
+		index = (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT);
+		if (side == RIGHT_SIDE)
+			index --;
+
 		tree = current_tree;
 		*childp = jlook_lock(tree, get_key_objectid(&key), index);
 	}
