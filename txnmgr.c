@@ -1803,35 +1803,37 @@ void txn_delete_page (struct page *pg)
 		return;
 	}
 
-	if (/**jnode_get_block(node) &&*/ !blocknr_is_fake(jnode_get_block(node))) {
-		/*
-		 * jnode has assigned real disk block. Put it into atom's
-		 * delete set
-		 */
-		if (REISER4_DEBUG) {
-			struct super_block * s = reiser4_get_current_sb();
-
-			reiser4_spin_lock_sb(s);
-			assert ("zam-561", *jnode_get_block(node) < reiser4_block_count(s));
-			reiser4_spin_unlock_sb(s);
+	if (!jnode_is_unformatted) {
+		if (/**jnode_get_block(node) &&*/ !blocknr_is_fake(jnode_get_block(node))) {
+			/*
+			 * jnode has assigned real disk block. Put it into
+			 * atom's delete set
+			 */
+			if (REISER4_DEBUG) {
+				struct super_block * s = reiser4_get_current_sb();
+				
+				reiser4_spin_lock_sb(s);
+				assert ("zam-561", *jnode_get_block(node) < reiser4_block_count(s));
+				reiser4_spin_unlock_sb(s);
+			}
+			
+			ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
+			
+			if (ret == -EAGAIN) {
+				/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
+				goto repeat;
+			}
+		} else {
+			/*
+			 * jnode has assigned block which is counted as "fake
+			 * allocated". Return it back to "free blocks" (via
+			 * "grabbed space")
+			 */
+			/*reiser4_count_fake_deallocation ((__u64)1);
+			  reiser4_release_grabbed_space ((__u64)1);*/
+			fake_allocated2free ((__u64)1, 1/*formatted*/);
 		}
-
-		ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
-
-		if (ret == -EAGAIN) {
-			/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
-			goto repeat;
-		}
-	} else {
-		/*
-		 * jnode has assigned block which is counted as "fake
-		 * allocated". Return it back to "free blocks" (via "grabbed
-		 * space")
-		 */
-		reiser4_count_fake_deallocation ((__u64)1);
-		reiser4_release_grabbed_space ((__u64)1);
 	}
-
 	assert ("jmacd-5177", blocknr_entry == NULL);
 
 	spin_unlock_jnode (node);
@@ -2597,9 +2599,12 @@ uncapture_block (txn_atom *atom,
 
 	spin_lock_jnode (node);
 
-	capture_list_remove_clean (node);
-	atom->capture_count -= 1;
-	node->atom = NULL;
+	if (!JF_ISSET (node, JNODE_FLUSH_QUEUED)) {
+		/* do not remove jnode from capture list if it is on flush queue */
+		capture_list_remove_clean (node);
+		atom->capture_count -= 1;
+		node->atom = NULL;
+	}
 
 	JF_CLR (node, JNODE_RELOC);
 	JF_CLR (node, JNODE_WANDER);
