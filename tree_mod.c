@@ -40,7 +40,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	 * interface to block allocator is non-existent as of now.
 	 */
 	retcode = assign_fake_blocknr( &blocknr );
-	/* assert( "nikita-2218", bitmap_is_allocated( &blocknr ) ); */
+	/* reiser4_check_block( &blocknr, 1 ); */
 	if( retcode == 0 ) {
 		result = zget( current_tree, &blocknr, NULL, level,
 			       GFP_KERNEL );
