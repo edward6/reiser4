@@ -388,18 +388,18 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	coord_init_zero(&coord);
 	init_lh(&lh);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */);
-	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-		/* error occured */
-		done_lh(&lh);
-		return result;
-	}
-
 	if (result == CBK_COORD_NOTFOUND) {
 		/* there are no items of this file */
 		done_lh(&lh);
 		*file_size = 0;
 		inode_clr_flag(inode, REISER4_FILE_STATE_KNOWN);
 		return 0;
+	}
+
+	if (result != CBK_COORD_FOUND) {
+		/* error occured */
+		done_lh(&lh);
+		return result;
 	}
 
 	/* there are items of this file (at least one) */
@@ -660,21 +660,20 @@ append_hole(struct inode *inode, loff_t new_size)
 	return result;
 }
 
-/* plugin->u.file.truncate
-   this is called with exclusive access obtained in unix_file_setattr */
-int
-unix_file_truncate(struct inode *inode, loff_t new_size)
+static int
+truncate_file(struct inode *inode)
 {
 	int result;
 	loff_t cur_size;
-	
-	assert("vs-1097", inode->i_size == new_size);
+	loff_t new_size;
+
+	new_size = inode->i_size;
 
 	result = find_file_size(inode, &cur_size);
 	if (result)
 		return result;
 
-	if (inode->i_size != cur_size) {
+	if (new_size != cur_size) {
 		int (*truncate_f)(struct inode *, loff_t);
 
 		INODE_SET_FIELD(inode, i_size, cur_size);
@@ -685,8 +684,20 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 		 * of not changing file size is detected in unix_file_setattr, therefore here we have expanding file
 		 * within its last page up to the end of that page */
 		assert("vs-1115", file_is_built_of_extents(inode));
-		assert("vs-1116", (inode->i_size & ~PAGE_CACHE_MASK) == 0);
+		assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
 	}
+	return result;
+}
+
+/* plugin->u.file.truncate
+   this is called with exclusive access obtained in unix_file_setattr */
+int
+unix_file_truncate(struct inode *inode, loff_t new_size)
+{
+	int result;
+
+	assert("vs-1097", inode->i_size == new_size);
+	result = truncate_file(inode);
 	if (!result) {
 		INODE_SET_FIELD(inode, i_size, new_size);
 		inode->i_mtime = inode->i_ctime = CURRENT_TIME;
@@ -1522,7 +1533,7 @@ unix_file_delete(struct inode *inode)
 	if (inode->i_size) {
 		get_exclusive_access(inode);
 		INODE_SET_FIELD(inode, i_size, 0);
-		result = unix_file_truncate(inode, 0);
+		result = truncate_file(inode);
 		drop_exclusive_access(inode);
 		if (result) {
 			warning("nikita-2848",
