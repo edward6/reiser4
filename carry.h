@@ -120,7 +120,7 @@ typedef enum {
 } cop_insert_pos_type;
 
 typedef enum {
-	DELETE_RETAIN_EMPTY
+	DELETE_RETAIN_EMPTY = ( 1 << 0 )
 } cop_delete_flag;
 
 /** 
