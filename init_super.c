@@ -386,6 +386,13 @@ static struct {
 	}
 };
 
+/* access to default plugin table */
+reiser4_internal reiser4_plugin *
+get_default_plugin(pset_member memb) 
+{
+	return plugin_by_id(default_plugins[memb].type, default_plugins[memb].id);
+}
+
 _INIT_(fs_root)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
@@ -410,8 +417,7 @@ _INIT_(fs_root)
 		for (memb = 0; memb < PSET_LAST; ++ memb) {
 			reiser4_plugin *plug;
 
-			plug = plugin_by_id(default_plugins[memb].type,
-					    default_plugins[memb].id);
+			plug = get_default_plugin(memb);
 			result = grab_plugin_from(inode, memb, plug);
 			if (result != 0)
 				break;
