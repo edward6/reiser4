@@ -161,6 +161,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  *
  * Currently this is constant (64k).
  */
+/* AUDIT: THIS CALCULATION IS INCORRECT. stat(2) returns optimal i/o blocksize
+   in bytes */
 #define REISER4_OPTIMAL_IO_SIZE( super, inode ) ((64 * 1024) >> VFS_BLKSIZE_BITS)
 
 /**
