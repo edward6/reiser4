@@ -108,8 +108,7 @@ key_warning(const char *error_message /* message to print */ ,
 {
 	assert("nikita-716", key != NULL);
 
-	warning("nikita-717", "%s inode %llu (%i)",
-		error_message ? : "error for", get_key_objectid(key), code);
+	warning("nikita-717", "%s inode %llu (%i)", error_message ? : "error for", get_key_objectid(key), code);
 	print_key("for key", key);
 }
 
@@ -126,8 +125,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	assert("nikita-1694", key != NULL);
 
 	build_sd_key(inode, key);
-	return lookup_sd_by_key(tree_by_inode(inode),
-				lock_mode, coord, lh, key);
+	return lookup_sd_by_key(tree_by_inode(inode), lock_mode, coord, lh, key);
 }
 
 /** find sd of inode in a tree, deal with errors */
@@ -137,7 +135,7 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 		 coord_t * coord /* resulting coord */ ,
 		 lock_handle * lh /* resulting lock handle */ ,
 		 const reiser4_key * key /* resulting key */ )
- {
+{
 	int result;
 	const char *error_message;
 	__u32 flags;
@@ -156,9 +154,7 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = coord_by_key(tree, key, coord, lh,
-			      lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL,
-			      flags);
+	result = coord_by_key(tree, key, coord, lh, lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags);
 	switch (result) {
 	case CBK_OOM:
 		error_message = "out of memory while looking for sd of";
@@ -175,27 +171,18 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 	case CBK_COORD_FOUND:{
 			load_count lc = INIT_LOAD_COUNT_NODE(coord->node);
 			;
-			assert("nikita-1082", WITH_DATA_RET
-			       (coord->node, 1, coord_is_existing_unit(coord)));
-			assert("nikita-721", WITH_DATA_RET
-			       (coord->node, 1,
-				item_plugin_by_coord(coord) != NULL));
+			assert("nikita-1082", WITH_DATA_RET(coord->node, 1, coord_is_existing_unit(coord)));
+			assert("nikita-721", WITH_DATA_RET(coord->node, 1, item_plugin_by_coord(coord) != NULL));
 			/* next assertion checks that item we found really has the key
 			 * we've been looking for */
 			assert("nikita-722", WITH_DATA_RET
-			       (coord->node, 1,
-				keyeq(unit_key_by_coord(coord, &key_found),
-				      key)));
-			assert("nikita-1897",
-			       znode_get_level(coord->node) == LEAF_LEVEL);
+			       (coord->node, 1, keyeq(unit_key_by_coord(coord, &key_found), key)));
+			assert("nikita-1897", znode_get_level(coord->node) == LEAF_LEVEL);
 			/* check that what we really found is stat data */
 			result = incr_load_count(&lc);
 			if ((result = 0) && !item_is_statdata(coord)) {
-				error_message =
-				    "sd found, but it doesn't look like sd";
-				print_plugin("found",
-					     item_plugin_to_plugin
-					     (item_plugin_by_coord(coord)));
+				error_message = "sd found, but it doesn't look like sd";
+				print_plugin("found", item_plugin_to_plugin(item_plugin_by_coord(coord)));
 				result = -ENOENT;
 			}
 			done_load_count(&lc);
@@ -262,11 +249,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	coord_init_zero(&coord);
 	init_lh(&lh);
 
-	result = insert_by_key(tree_by_inode(inode),
-			       build_sd_key(inode, &key), &data, &coord, &lh,
+	result = insert_by_key(tree_by_inode(inode), build_sd_key(inode, &key), &data, &coord, &lh,
 			       /* stat data lives on a leaf level */
-			       LEAF_LEVEL,
-			       inter_syscall_ra(inode), NO_RAP, CBK_UNIQUE);
+			       LEAF_LEVEL, inter_syscall_ra(inode), NO_RAP, CBK_UNIQUE);
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
 	   insert_by_key() returned error. */
@@ -371,17 +356,14 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		/* first, try to use seal */
 		build_sd_key(inode, &key);
 		result = seal_validate(&seal, &coord,
-				       &key, LEAF_LEVEL, &lh, FIND_EXACT,
-				       ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-		if (REISER4_DEBUG && (result == 0) &&
-		    ((result = zload(coord.node)) == 0)) {
+				       &key, LEAF_LEVEL, &lh, FIND_EXACT, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		if (REISER4_DEBUG && (result == 0) && ((result = zload(coord.node)) == 0)) {
 			reiser4_key ukey;
 
 			if (!coord_is_existing_unit(&coord) ||
 			    !item_plugin_by_coord(&coord) ||
 			    !keyeq(unit_key_by_coord(&coord, &ukey), &key) ||
-			    (znode_get_level(coord.node) != LEAF_LEVEL) ||
-			    !item_is_statdata(&coord)) {
+			    (znode_get_level(coord.node) != LEAF_LEVEL) || !item_is_statdata(&coord)) {
 				warning("nikita-1901", "Conspicuous seal");
 				/*print_inode( "inode", inode ); */
 				print_key("key", &key);
@@ -417,8 +399,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		   from if negative) sd */
 		data.length = state->sd_len - item_length_by_coord(&coord);
 		if (data.length < 0) {
-			info("sd_len: %i, item: %i\n", state->sd_len,
-			     item_length_by_coord(&coord));
+			info("sd_len: %i, item: %i\n", state->sd_len, item_length_by_coord(&coord));
 		}
 		spin_unlock_inode(state);
 
@@ -432,8 +413,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 			result = resize_item(&coord, &data, &key, &lh, 0);
 			switch (result) {
 			case RESIZE_OOM:
-				error_message =
-				    "out of memory while resizing sd of";
+				error_message = "out of memory while resizing sd of";
 			case RESIZE_OK:
 			default:
 				break;
@@ -448,8 +428,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		if (result == 0 && ((result = zload(coord.node)) == 0)) {
 			area = item_body_by_coord(&coord);
 			spin_lock_inode(state);
-			assert("nikita-729",
-			       item_length_by_coord(&coord) == state->sd_len);
+			assert("nikita-729", item_length_by_coord(&coord) == state->sd_len);
 			result = state->sd->s.sd.save(inode, &area);
 			znode_set_dirty(coord.node);
 			/* re-initialise stat-data seal */
@@ -484,8 +463,7 @@ common_file_save(struct inode *inode /* object to save */ )
 		 * Don't issue warnings about "name is too long"
 		 */
 		warning("nikita-2221", "Failed to save sd for %llu: %i (%lx)",
-			get_inode_oid(inode), result,
-			reiser4_inode_data(inode)->flags);
+			get_inode_oid(inode), result, reiser4_inode_data(inode)->flags);
 	return result;
 }
 
@@ -596,8 +574,7 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	setup_inode_ops(object, data);
 	/* i_nlink is left 1 here as set by new_inode() */
 	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
-	reiser4_inode_data(object)->extmask =
-	    (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
+	reiser4_inode_data(object)->extmask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	return 0;
 }
 
@@ -644,10 +621,8 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 		fplug_id = REGULAR_FILE_PLUGIN_ID;
 		break;
 	}
-	reiser4_inode_data(inode)->file =
-	    (fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL;
-	reiser4_inode_data(inode)->dir =
-	    (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL;
+	reiser4_inode_data(inode)->file = (fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL;
+	reiser4_inode_data(inode)->dir = (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL;
 	return 0;
 }
 
@@ -664,9 +639,7 @@ static reiser4_block_nr common_estimate_create(__u32 tree_height, struct inode *
  * ->create method of object plugin
  */
 static int
-common_file_create(struct inode *object,
-		   struct inode *parent UNUSED_ARG,
-		   reiser4_object_create_data * data UNUSED_ARG)
+common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser4_object_create_data * data UNUSED_ARG)
 {
 	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);
@@ -697,8 +670,7 @@ common_file_owns_item(const struct inode *inode	/* object to check
 
 	return			/*coord_is_in_node( coord ) && */
 	    coord_is_existing_item(coord) &&
-	    (get_key_objectid(build_sd_key(inode, &file_key)) ==
-	     get_key_objectid(item_key_by_coord(coord, &item_key)));
+	    (get_key_objectid(build_sd_key(inode, &file_key)) == get_key_objectid(item_key_by_coord(coord, &item_key)));
 }
 
 /*
@@ -725,7 +697,7 @@ common_build_flow(struct inode *inode /* file to build flow for */ ,
 				   kernel space */ ,
 		  size_t size /* buffer size */ ,
 		  loff_t off /* offset to start io from */ ,
-		  rw_op op UNUSED_ARG /* io operation */ ,
+		  rw_op op /* READ or WRITE */ ,
 		  flow_t * f /* resulting flow */ )
 {
 	file_plugin *fplug;
@@ -735,6 +707,7 @@ common_build_flow(struct inode *inode /* file to build flow for */ ,
 	f->length = size;
 	f->data = buf;
 	f->user = user;
+	f->op = op;
 	fplug = inode_file_plugin(inode);
 	assert("nikita-1931", fplug != NULL);
 	assert("nikita-1932", fplug->key_by_inode != NULL);
@@ -845,8 +818,7 @@ dir_adjust_to_parent(struct inode *object /* new object */ ,
 
 /** simplest implementation of ->getattr() method. Completely static. */
 static int
-common_getattr(struct vfsmount *mnt UNUSED_ARG,
-	       struct dentry *dentry, struct kstat *stat)
+common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *obj;
 
@@ -1080,8 +1052,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					  .id = SPECIAL_FILE_PLUGIN_ID,
 					  .pops = NULL,
 					  .label = "special",
-					  .desc =
-					  "special: fifo, device or socket",
+					  .desc = "special: fifo, device or socket",
 					  .linkage = TS_LIST_LINK_ZERO}
 				    ,
 				    .write_flow = NULL,
