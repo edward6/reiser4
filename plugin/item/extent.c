@@ -2102,13 +2102,14 @@ int extent_readpage (void * vp, struct page * page)
 	reiser4_key page_key, unit_key;
 	__u64 pos_in_extent;
 	reiser4_block_nr block;
+	struct readpage_arg *arg;
 	jnode * j;
 
-
+	arg = vp;
 	assert ("vs-761", page && page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 
-	coord = (coord_t *)vp;
+	coord = arg->coord;
 	/* no jnode yet */
 	assert ("vs-757", page->private == 0);
 	assert ("vs-758", item_is_extent (coord));

@@ -280,9 +280,6 @@ int tail2extent (struct inode * inode)
 	char * item;
 
 
-	assert ("vs-831", (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
-			   inode_get_flag (inode, REISER4_HAS_TAIL)));
-
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
 	 * to write_down */
 	drop_nonexclusive_access (inode);
@@ -324,7 +321,16 @@ int tail2extent (struct inode * inode)
 				goto error1;
 			}
 			if (item_id_by_coord (&coord) != TAIL_ID) {
-				result = -EIO;
+				/*
+				 * something other than tail found
+				 */
+				if (get_key_offset (&key) == (__u64)0) {
+					if (item_id_by_coord (&coord) != EXTENT_POINTER_ID)
+						result = -EIO;
+					else
+						result = 0;
+				} else
+					result = -EIO;
 				drop_pages (pages, nr_pages);
 				zrelse (coord.node);
 				goto error1;
