@@ -143,7 +143,7 @@ int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_n
 
 /** Block deallocation.  In current implementation it means move a node to
  * atom's DELETED SET. Working bitmap and `blocks_free' counter are not
- * modified in both cases of mapped and non-yet-mapped to disk nodes */
+ * modified in both cases of mapped and non-yet-mapped-to-disk nodes */
 void reiser4_dealloc_block (jnode *node)
 {
 	assert ("zam-399", node != NULL);
@@ -152,6 +152,13 @@ void reiser4_dealloc_block (jnode *node)
 
 	assert ("zam-400", node->atom != NULL);
 	assert ("zam-401", !JF_ISSET(node, ZNODE_DELETED));
+
+	if (JF_ISSET(node, ZNODE_UNFORMATTED)) {
+		
+
+
+	} else {
+	}
 
 	spin_unlock_jnode(node);
 }

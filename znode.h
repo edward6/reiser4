@@ -127,6 +127,9 @@ struct jnode
 	 */
 	spinlock_t   guard;
 
+	/* the real blocknr (as far as the parent node is concerned) */
+	reiser4_disk_addr blocknr;
+
 	/* the struct page pointer 
 	 *
 	 * FIXME-NIKITA pointer to page is not enough when block size is
@@ -190,9 +193,6 @@ struct znode {
 	   the bio paradigm?  Nikita?  Monstr?  -Hans */
 	/** buffer head attached to this znode */
 	/* 	struct buffer_head *buffer; */
-
-	/* the real blocknr (as far as the parent node is concerned) */
-	reiser4_disk_addr blocknr;
 
 	/**
 	 * You cannot remove from memory a node that has children in
@@ -524,9 +524,9 @@ static inline int znode_is_connected (const znode * node)
 	return znode_is_right_connected (node) && znode_is_left_connected (node);
 }
 
-static inline int znode_is_in_deleteset( const znode *node )
+static inline int jnode_is_in_deleteset( const jnode *node )
 {
-	return ZF_ISSET( node, ZNODE_RELOC ) || ZF_ISSET( node, ZNODE_DELETED );
+	return JF_ISSET( node, ZNODE_RELOC ) || JF_ISSET( node, ZNODE_DELETED );
 }
 
 extern znode *znode_parent( const znode *node );

@@ -187,7 +187,7 @@ static inline __u32 blknrhashfn( const reiser4_disk_addr *b )
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE( z, znode, reiser4_disk_addr, blocknr, link, blknrhashfn, blknreq );
+TS_HASH_DEFINE( z, znode, reiser4_disk_addr, zjnode.blocknr, link, blknrhashfn, blknreq );
 #undef KFREE
 #undef KMALLOC
 
@@ -434,7 +434,7 @@ zget (reiser4_tree *tree,
 			spin_lock_znode (result);
 
 			/* The block numbers must be equal. */
-			assert ("jmacd-1160", blknreq (& result->blocknr, blocknr));
+			assert ("jmacd-1160", blknreq (& ZJNODE(result)->blocknr, blocknr));
 
 			spin_unlock_znode (result);
 		}
@@ -452,7 +452,7 @@ zget (reiser4_tree *tree,
 		 * is a freshly allocated znode there is no need to lock it here. */
 		zinit (result, parent);
 
-		result->blocknr = *blocknr;
+		ZJNODE(result)->blocknr = *blocknr;
 
 		znode_set_level (result, level);
 
@@ -749,7 +749,7 @@ const reiser4_disk_addr *znode_get_block( const znode *node )
 /* As soon as we implement accessing nodes not stored on block devices
    (e.g. distributed reiserfs), then we need to replace this line with
    a call to a node plugin. */
-	return &node -> blocknr;
+	return & ZJNODE(node) -> blocknr;
 
 }
 
@@ -815,7 +815,7 @@ znode *znode_parent( const znode *node )
 /** detect fake znode used to protect in-superblock tree root pointer */
 int znode_above_root (const znode *node)
 {
-	return disk_addr_eq(&node->blocknr, &FAKE_TREE_ADDR);
+	return disk_addr_eq(&ZJNODE(node)->blocknr, &FAKE_TREE_ADDR);
 }
 
 /** 

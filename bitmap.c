@@ -277,26 +277,6 @@ static void release_bnode(struct reiser4_bnode * bnode)
 
 #endif
 
-/** find out real block number for given reiser4 node formatted or
- * unformatted */
-static inline int reconstruct_blocknr (jnode * node, reiser4_disk_addr *da)
-{
-	if (!JF_ISSET(node, ZNODE_UNFORMATTED)) 
-		*da = JZNODE(node)->blocknr;
-
-	da->blk = 0;
-	
-	/* ??? */
-	return 0;
-}
-
-/** find out wandered block number */
-static inline int reconstruct_wandered_blocknr (jnode * node UNUSED_ARG, reiser4_disk_addr * da)
-{
-	da->blk = 0;
-	/* ??? */
-	return 0;
-}
 
 /** This function does all block allocation work but only for one bitmap
  * block.*/
@@ -412,28 +392,22 @@ int reiser4_bitmap_prepare_commit (txn_atom * atom)
 	spin_lock_atom(atom);
 
 	WALK_ATOM {
-		reiser4_disk_addr da;
 		int bmap, offset;
 
 		struct reiser4_bnode * bnode;
 
-		if (!znode_is_in_deleteset(node) && 
+		if (!jnode_is_in_deleteset(node) && 
 		    !JF_ISSET(node, ZNODE_ALLOC))
 			continue;
 
-		ret = reconstruct_blocknr(node, &da);
+		parse_blocknr(node->blocknr.blk, &bmap, &offset);
 
-		if (ret) break;
-
-		parse_blocknr(da.blk, &bmap, &offset);
-
-		/* assert("zam-370", !reiser4_blocknr_is_fake(block));*/
+		assert("zam-370", !reiser4_blocknr_is_fake(&node->blocknr));
 
 		bnode = &info_data->bitmap[bmap];
 
 		if (node->atom == NULL) { 
 			/* capture a commit bitmap block */
-
 			/* Is there an interface to node capture another that
 			   reiser4_lock_znode() ? */
 			reiser4_lock_handle lh;
@@ -456,7 +430,7 @@ int reiser4_bitmap_prepare_commit (txn_atom * atom)
 		}
 
 		/* apply DELETED SET */
-		if (znode_is_in_deleteset(node))
+		if (jnode_is_in_deleteset(node))
 			reiser4_clear_bit(offset, bnode->commit->data);
 		/* set bits for freshly allocated nodes */
 		if (JF_ISSET(node, ZNODE_ALLOC))
@@ -478,18 +452,15 @@ int reiser4_bitmap_done_commit (txn_atom * atom) {
 
 	spin_lock_atom (atom);
 	WALK_ATOM {
-		reiser4_disk_addr da;
 		int bmap, offset;
 		struct reiser4_bnode * bnode;
 
-		if (! znode_is_in_deleteset(node))
+		if (! jnode_is_in_deleteset(node))
 			continue;
 
-		ret = reconstruct_blocknr(node, &da);
+		assert ("zam-403", !reiser4_blocknr_is_fake(&node->blocknr));
 
-		if (ret) break;
-
-		parse_blocknr(da.blk, &bmap, &offset);
+		parse_blocknr(node->blocknr.blk, &bmap, &offset);
 
 		bnode = (struct reiser4_bnode*)(info_data->bitmap) + bmap;
 
@@ -522,17 +493,13 @@ int reiser4_bitmap_done_writeback (txn_atom * atom)
 	WALK_ATOM {
 		int bmap, offset;
 		struct reiser4_bnode * bnode;
-		reiser4_disk_addr wandered_da;
 
 		if (!JF_ISSET(node, ZNODE_WANDER))
 			continue;
 
-		/* FIXME-ZAM: there should be way to
-		 * reconstruct wandered blocknr from jnode's
-		 * page offset or something else.*/;
-		ret = reconstruct_wandered_blocknr(node, &wandered_da);
-
-		parse_blocknr(wandered_da.blk, &bmap, &offset);
+		assert ("zam-404", !reiser4_blocknr_is_fake(&node->blocknr))
+;
+		parse_blocknr(node->blocknr.blk, &bmap, &offset);
 		bnode = (struct reiser4_bnode*)(info_data->bitmap) + bmap;
 
 		assert ("zam-379", bnode->commit != NULL);
