@@ -212,13 +212,11 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 
 /* 
  * what size units of IO we would like cp, etc., to use, in writing to
- * reiser4. In 512 byte blocks.
+ * reiser4. In bytes.
  *
  * Currently this is constant (64k).
  */
-/* AUDIT: THIS CALCULATION IS INCORRECT. stat(2) returns optimal i/o blocksize
-   in bytes */
-#define REISER4_OPTIMAL_IO_SIZE( super, inode ) ((64 * 1024) >> VFS_BLKSIZE_BITS)
+#define REISER4_OPTIMAL_IO_SIZE( super, inode ) ((64 * 1024))
 
 /**
  * Number of hashed spinlocks used to protect page-to-jnode linkage
