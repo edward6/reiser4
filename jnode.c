@@ -33,21 +33,6 @@
 
 static kmem_cache_t *_jnode_slab = NULL;
 
-static inline jnode_plugin *
-jnode_ops_of(const jnode_type type)
-{
-	assert("nikita-2367", type < LAST_JNODE_TYPE);
-	return jnode_plugin_by_id((reiser4_plugin_id) type);
-}
-
-static inline jnode_plugin *
-jnode_ops(const jnode * node)
-{
-	assert("nikita-2366", node != NULL);
-
-	return jnode_ops_of(jnode_get_type(node));
-}
-
 static inline int jnode_is_parsed (jnode * node)
 {
 	return JF_ISSET(node, JNODE_PARSED);
@@ -524,15 +509,14 @@ jparse(jnode * node, struct page *page)
 static struct page * jnode_get_page_locked(jnode * node, int gfp_flags)
 {
 	struct page * page;
-	jnode_plugin * jplug;
 
 	LOCK_JNODE(node);
 	page = jnode_page(node);
 
 	if (page == NULL) {
 		UNLOCK_JNODE(node);
-		jplug = jnode_ops(node);
-		page = grab_cache_page(jplug->mapping(node), jplug->index(node));
+		page = grab_cache_page(jnode_get_mapping(node), 
+				       jnode_get_index(node));
 		if (page == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 	} else {
@@ -543,8 +527,7 @@ static struct page * jnode_get_page_locked(jnode * node, int gfp_flags)
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
 		lock_page(page);
-		assert("nikita-3134",
-		       page->mapping == jnode_ops(node)->mapping(node));
+		assert("nikita-3134", page->mapping == jnode_get_mapping(node));
 	}
 
 	LOCK_JNODE(node);
@@ -1040,6 +1023,11 @@ jnode_mapping(const jnode * node)
 	assert("nikita-2714", map != NULL);
 	assert("nikita-2897", is_reiser4_inode(map->host));
 	assert("nikita-2715", get_inode_oid(map->host) == node->key.j.objectid);
+	/*
+	 * truncate removes page from mapping, from this moment on, nothing
+	 * protects inode from recycling
+	 */
+	assert("nikita-3163", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	return map;
 }
@@ -1354,6 +1342,7 @@ int jnode_io_hook(jnode *node, struct page *page, int rw)
 struct address_space *
 jnode_get_mapping(const jnode * node)
 {
+	assert("nikita-3162", node != NULL);
 	return jnode_ops(node)->mapping(node);
 }
 

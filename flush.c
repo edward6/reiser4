@@ -3584,7 +3584,7 @@ jnode_tostring_internal(jnode * node, char *buf)
 
 	items[0] = 0;
 	if (!fmttd) {
-		sprintf(items, " index=%lu", jnode_get_index(node));
+		sprintf(items, " index=%lu", jnode_index(node));
 	}
 
 	sprintf(buf + strlen(buf),

@@ -15,6 +15,8 @@
 #include "spin_macros.h"
 #include "emergency_flush.h"
 
+#include "plugin/plugin.h"
+
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
@@ -392,6 +394,7 @@ jdata(const jnode * node)
 static inline struct page *
 jnode_page(const jnode * node)
 {
+	assert("nikita-3164", spin_jnode_is_locked(node));
 	return node->pg;
 }
 
@@ -580,6 +583,20 @@ jnode_has_parent(const jnode * node)
 	return jnode_is_unformatted(node) || jnode_is_cluster_page(node);
 }
 
+static inline jnode_plugin *
+jnode_ops_of(const jnode_type type)
+{
+	assert("nikita-2367", type < LAST_JNODE_TYPE);
+	return jnode_plugin_by_id((reiser4_plugin_id) type);
+}
+
+static inline jnode_plugin *
+jnode_ops(const jnode * node)
+{
+	assert("nikita-2366", node != NULL);
+
+	return jnode_ops_of(jnode_get_type(node));
+}
 
 /* Get the index of a block. */
 static inline unsigned long
@@ -587,7 +604,7 @@ jnode_get_index(jnode * node)
 {
 	assert("edward-52", jnode_has_parent(node));
 	/*return jnode_page(node)->index;*/
-	return node->key.j.index;
+	return jnode_ops(node)->index(node);
 }
 
 /* return true if "node" is the root */

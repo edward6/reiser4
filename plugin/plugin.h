@@ -438,7 +438,7 @@ typedef struct disk_format_plugin {
 	void (*print_info) (const struct super_block *);
 } disk_format_plugin;
 
-typedef struct jnode_plugin {
+struct jnode_plugin {
 	/* generic fields */
 	plugin_header h;
 	int (*init) (jnode * node);
@@ -449,7 +449,7 @@ typedef struct jnode_plugin {
 	struct address_space *(*mapping) (const jnode * node);
 	unsigned long (*index) (const jnode * node);
 	int (*io_hook) (jnode * node, struct page * page, int rw);
-} jnode_plugin;
+};
 
 /* plugin instance.                                                         */
 /*                                                                          */

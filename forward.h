@@ -20,6 +20,7 @@ typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef union reiser4_plugin reiser4_plugin;
 typedef int reiser4_plugin_id;
 typedef struct item_plugin item_plugin;
+typedef struct jnode_plugin jnode_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
 typedef union reiser4_key reiser4_key;
 typedef union reiser4_dblock_nr reiser4_dblock_nr;
