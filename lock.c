@@ -793,7 +793,8 @@ int longterm_lock_znode (
 			owner->request.mode = 0;
 			/* next requestor may not fail */
 			wake_up_next = 1;
-			if ((ret != -EAGAIN) && (ret != -EINTR)) {
+			if ((ret != -EAGAIN) && 
+			    (ret != -EINTR) && (ret != -EDEADLK)) {
 				warning("nikita-1845", 
 					"Failed to capture node: %i",
 					ret);
