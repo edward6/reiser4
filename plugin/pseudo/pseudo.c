@@ -65,7 +65,11 @@ Use the pluginid field?
 
 #include "pseudo.h"
 
-struct inode *lookup_pseudo(struct inode *parent, const char *name)
+static int init_pseudo(struct inode *parent, struct inode *pseudo,
+		       pseudo_plugin *pplug, const char *name);
+
+struct inode *
+lookup_pseudo(struct inode *parent, const char *name)
 {
 	reiser4_plugin *plugin;
 
@@ -80,30 +84,50 @@ struct inode *lookup_pseudo(struct inode *parent, const char *name)
 
 		if (pplug->try(parent, name)) {
 			struct inode  *pseudo;
-			reiser4_inode *idata;
-
-			/*
-			 * construct object id and create inode.
-			 */
+			int result;
 
 			pseudo = new_inode(parent->i_sb);
 			if (pseudo == NULL)
 				return ERR_PTR(RETERR(-ENOMEM));
-
-			idata = reiser4_inode_data(pseudo);
-			idata->locality_id = 0;
-			plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
-			idata->file_plugin_data.pseudo_info.host   = parent;
-			idata->file_plugin_data.pseudo_info.plugin = pplug;
-
-			inode_set_flag(pseudo, REISER4_NO_SD);
-			pseudo->i_nlink = 1;
-			/* insert inode into VFS hash table */
-			insert_inode_hash(pseudo);
-			return pseudo;
+			result = init_pseudo(parent, pseudo, pplug, name);
+			if (result == 0)
+				return pseudo;
+			else
+				return ERR_PTR(result);
 		}
 	}
 	return NULL;
+}
+
+static int 
+init_pseudo(struct inode *parent, struct inode *pseudo,
+	    pseudo_plugin *pplug, const char *name)
+{
+	int result;
+	reiser4_inode *idata;
+	reiser4_object_create_data data;
+
+	idata = reiser4_inode_data(pseudo);
+	idata->locality_id = 0;
+	idata->file_plugin_data.pseudo_info.host   = parent;
+	idata->file_plugin_data.pseudo_info.plugin = pplug;
+
+	data.id   = pplug->h.id;
+	data.mode = pplug->lookup_mode;
+
+	plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
+	result = inode_file_plugin(pseudo)->set_plug_in_inode(pseudo, 
+							      parent, &data);
+	if (result != 0) {
+		warning("nikita-3203", "Cannot install pseudo plugin");
+		print_plugin("plugin", pseudo_plugin_to_plugin(pplug));
+		return result;
+	}
+
+	pseudo->i_nlink = 1;
+	/* insert inode into VFS hash table */
+	insert_inode_hash(pseudo);
+	return 0;
 }
 
 static int try_test(const struct inode *parent, const char *name)
@@ -125,9 +149,10 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .label = "test",
 			       .desc = "test",
 			       .linkage = TS_LIST_LINK_ZERO
-			       },
-			 .try = try_test,
-			 .lookup = lookup_test
+			 },
+			 .try         = try_test,
+			 .lookup      = lookup_test,
+			 .lookup_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH
 	}
 };
 

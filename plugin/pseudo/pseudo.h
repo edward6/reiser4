@@ -36,6 +36,8 @@ typedef struct pseudo_plugin {
 
 	oid_t (*makeid)(void);
 
+	umode_t lookup_mode;
+
 	/* NOTE-NIKITA some other operations. Reiser4 syntax people should
 	   add something here. */
 
