@@ -1378,7 +1378,6 @@ void jnode_set_dirty( jnode *node )
 	
 	assert ("umka-204", node != NULL);	
 	assert ("umka-296", current_tree != NULL);	
-	assert ("jmacd-1083", spin_jnode_is_not_locked (node));
 
 	spin_lock_jnode (node);
 

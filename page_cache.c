@@ -73,6 +73,7 @@
 #include "reiser4.h"
 
 static struct page *add_page( struct super_block *super, jnode *node );
+static void kmap_once( jnode *node, struct page *page );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -159,7 +160,8 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 				return result;
 		} else
 			unlock_page( page );
-		kmap( page );
+		kmap_once( node, page );
+		/* return with jnode spin-locked */
 		return 0;
 	} else
 		return -ENOMEM;
@@ -184,7 +186,8 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 		 */
 		SetPageUptodate( page );
 		unlock_page( page );
-		kmap( page );
+		kmap_once( node, page );
+		/* return with jnode spin-locked */
 		return 0;
 	} else
 		return -ENOMEM;
@@ -194,6 +197,8 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	kunmap( jnode_page( node ) );
+	assert( "nikita-2072", JF_ISSET( node, ZNODE_KMAPPED ) );
+	JF_CLR( node, ZNODE_KMAPPED );
 	return 0;
 }
 
@@ -210,6 +215,23 @@ static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
 	SetPageDirty( jnode_page( node ) );
 	return 0;
+}
+
+/** helper function to perform kmap  */
+static void kmap_once( jnode *node, struct page *page )
+{
+	assert( "nikita-2073", node != NULL );
+	assert( "nikita-2074", page != NULL );
+
+	kmap( page );
+	spin_lock_jnode( node );
+	/*
+	 * FIXME-NIKITA use test_and_set here.
+	 */
+	if( likely( !JF_ISSET( node, ZNODE_KMAPPED ) ) )
+		JF_SET( node, ZNODE_KMAPPED );
+	else
+		kunmap( page );
 }
 
 /** 

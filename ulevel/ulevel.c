@@ -640,6 +640,7 @@ static struct page * new_page (struct address_space * mapping,
 	page->count = 1;
 	/* use kmap to set this */
 	page->virtual = 0;
+	spin_lock_init (&page->lock);
 
 	spin_lock( &page_list_guard );
 	list_add (&page->list, &page_list);
@@ -650,7 +651,7 @@ static struct page * new_page (struct address_space * mapping,
 
 void lock_page (struct page * p)
 {
-	assert ("vs-287", !PageLocked (p));
+	spin_lock (&p->lock);
 	SetPageLocked (p);
 }
 
@@ -659,6 +660,7 @@ void unlock_page (struct page * p)
 {
 	assert ("vs-286", PageLocked (p));
 	ClearPageLocked (p);
+	spin_unlock (&p->lock);
 }
 
 
@@ -3045,6 +3047,7 @@ static int mkfs_bread (reiser4_tree *tree, jnode *node)
 	page_cache_release (pg);
 	unlock_page (pg);
 	kmap (pg);
+	spin_lock_jnode (node);
 	return 0;
 }
 
@@ -3059,6 +3062,7 @@ static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG)
 	jnode_attach_page (node, pg);
 	page_cache_release (pg);
 	kmap (pg);
+	spin_lock_jnode (node);
 	return 0;
 }
 
