@@ -285,8 +285,8 @@ static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 #endif
 
 /*
- * each reiser4 inode maintain a list of pages dirtied through mmap. This is
- * needed, because we need effective was to find all such pages and capture
+ * each reiser4 inode maintains a list of pages dirtied through mmap. This is
+ * needed, because we need effective way to find all such pages and capture
  * them. This function returns a head of this list.
  */
 static inline struct list_head *
