@@ -442,6 +442,7 @@ static void lock_object (lock_stack *owner, znode *node)
 	if (owner->curpri) {
 		node->lock.nr_hipri_owners ++;
 	}
+	trace_on (TRACE_LOCKS, "%spri lock: %p node: %p: hipri_owners: %u: nr_readers: %d\n", owner->curpri ? "hi" : "lo", owner, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 }
 
 /**
@@ -582,7 +583,11 @@ static void set_high_priority(lock_stack *owner)
 			znode *node = item->node;
 
 			spin_lock_znode(node);
+
 			node->lock.nr_hipri_owners++;
+
+			trace_on (TRACE_LOCKS, "set_hipri lock: %p node: %p: hipri_owners after: %u nr_readers: %d\n", item, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
+
 			/* we can safely set signaled to zero, because
 			 * previous statement (nr_hipri_owners ++) guarantees
 			 * that signaled will be never set again. */
@@ -616,6 +621,8 @@ static void set_low_priority(lock_stack *owner)
 			 * this thread just was hipri owner of @node, so
 			 * nr_hipri_owners has to be greater than zero.
 			 */
+			/* FIXME: JMACD->ZAM/NIKITA: This is failing for some reason. */
+			trace_on (TRACE_LOCKS, "set_lopri lock: %p node: %p: hipri_owners before: %u nr_readers: %d\n", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
 			node->lock.nr_hipri_owners--;
 			/*
@@ -663,6 +670,7 @@ void longterm_unlock_znode (lock_handle *handle)
 		assert("nikita-1836", node->lock.nr_hipri_owners > 0);
 		node->lock.nr_hipri_owners--;
 	}
+	trace_on (TRACE_LOCKS, "%spri unlock: %p node: %p: hipri_owners: %u nr_readers %d\n", oldowner->curpri ? "hi" : "lo", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
 	/* Last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
@@ -1044,6 +1052,9 @@ void move_lh_internal (lock_handle * new, lock_handle * old, int unlink_old)
 		}
 		if (signaled) {
 			atomic_inc (& owner->nr_signaled);
+		}
+		if (owner->curpri) {
+			node->lock.nr_hipri_owners += 1;
 		}
 		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
 
