@@ -735,7 +735,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 
 	flush_mode();
-	write_in_trace(__FUNCTION__, "in");
+	WRITE_IN_TRACE(__FUNCTION__, "in");
 
 	reiser4_stat_flush_add(flush);
 
@@ -1059,7 +1059,7 @@ clean_out:
 	atom->nr_flushers--;
 	spin_unlock_atom(atom);
 	not_flush_mode();
-	write_in_trace(__FUNCTION__, "ex");
+	WRITE_IN_TRACE(__FUNCTION__, "ex");
 
 	return ret;
 }
@@ -2144,9 +2144,10 @@ squeeze_right_non_twig(znode * left, znode * right)
 	int old_free_space;
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
-	assert("vs-1102", 
-	       (znode_is_dirty(left) || ZF_ISSET(left, JNODE_OVRWR)) && 
-	       (znode_is_dirty(right) || ZF_ISSET(right, JNODE_OVRWR)));
+
+	if (!znode_is_dirty(left) || !znode_is_dirty(right))
+		return SQUEEZE_TARGET_FULL;
+
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 

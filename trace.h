@@ -56,10 +56,11 @@ typedef struct {
 #define disable_trace( file, flag ) (0)
 #define close_trace_file( file ) noop
 #define write_trace_stamp( tree, op, ... ) (0)
-#define write_in_trace(func, mes) do {} while (0)
+#define write_in_trace(func, mes) (0)
 
 #endif
 
+#define WRITE_IN_TRACE(func, mes) ((void) write_in_trace((func), (mes)))
 #define WRITE_TRACE(...) ((void) write_trace_stamp(__VA_ARGS__))
 
 #define write_tracef(file, super, format, ...)		\

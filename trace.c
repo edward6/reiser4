@@ -249,7 +249,7 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 	key = va_arg(args, reiser4_key *);
 	rest = buf;
 	rest += sprintf(rest, "....tree %c ", op);
-	rest += sprintf_key(buf, key);
+	rest += sprintf_key(rest, key);
 	*rest++ = ' ';
 	*rest = '\0';
 

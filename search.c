@@ -515,6 +515,7 @@ restart:
 			     (h->bias == FIND_EXACT) &&
 			     (!node_is_empty(h->coord->node)), coord_is_existing_item(h->coord))));
 	}
+	write_in_trace("....tree l", "ex");
 	return h->result;
 }
 
@@ -1134,6 +1135,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 		} else {
 			assert("nikita-1319", (h->result == CBK_COORD_NOTFOUND) || (h->result == CBK_COORD_FOUND));
 			reiser4_stat_tree_add(cbk_cache_hit);
+			write_in_trace("....tree l", "cached");
 			break;
 		}
 	}

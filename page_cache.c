@@ -303,12 +303,13 @@ char *jnode_short_info(const jnode *j, char *buf)
 	if (j == NULL) {
 		sprintf(buf, "null");
 	} else {
-		sprintf(buf, "%i %c %c",
+		sprintf(buf, "%i %c %c %i",
 			jnode_get_level(j),
 			jnode_is_znode(j) ? 'Z' :
 			jnode_is_unformatted(j) ? 'J' : '?',
 			JF_ISSET(j, JNODE_OVRWR) ? 'O' :
-			JF_ISSET(j, JNODE_RELOC) ? 'R' : ' ');
+			JF_ISSET(j, JNODE_RELOC) ? 'R' : ' ',
+			j->atom ? j->atom->atom_id : -1);
 	}
 	return buf;
 }
