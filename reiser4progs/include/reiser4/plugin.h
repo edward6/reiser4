@@ -557,6 +557,9 @@ struct reiser4_node_ops {
     /* Confirms that given block contains valid node of requested format */
     int (*confirm) (aal_block_t *);
 
+    /*	Checks thoroughly the node structure and fixes what needed. */
+    errno_t (*check) (reiser4_entity_t *, uint16_t);
+
     errno_t (*valid) (reiser4_entity_t *);
     
     /* Prints node into given buffer */
