@@ -1,4 +1,4 @@
-/* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* This file contains code for various block number sets used by the atom to
  * track the deleted set and wandered block mappings. */
@@ -213,7 +213,7 @@ void blocknr_set_init (blocknr_set *bset)
 void blocknr_set_destroy (blocknr_set *bset)
 {
 	while (! blocknr_set_list_empty (& bset->entries)) {
-		bse_free (blocknr_set_pop_front (& bset->entries));
+		bse_free (blocknr_set_list_pop_front (& bset->entries));
 	}
 }
 
@@ -241,15 +241,15 @@ void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
 		for (into_avail = bse_avail (bse_into);
 		     into_avail != 0 && bse_from->nr_singles != 0;
 		     into_avail -= 1) {
-			bse_put_single (bse_into, bse_from->ents[--bse_from->nr_singles]);
+			bse_put_single (bse_into, & bse_from->ents[--bse_from->nr_singles]);
 		}
 
 		/* Combine pairs. */
 		for (;
 		     into_avail > 1 && bse_from->nr_pairs != 0;
 		     into_avail -= 2) {
-			blocknr_pair *pair = bse_get_pair (--bse_from->nr_pairs);
-			bse_put_pair (bse_into, pair->a, pair->b);
+			blocknr_pair *pair = bse_get_pair (bse_from, --bse_from->nr_pairs);
+			bse_put_pair (bse_into, & pair->a, & pair->b);
 		}
 
 		/* If bse_from is empty, delete it now. */
@@ -270,7 +270,7 @@ void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
 
 	/* Add the partial entry back to the head of the list. */
 	if (bse_into != NULL) {
-		blocknr_set_entry_push_front (& into->entries, bse_into);
+		blocknr_set_list_push_front (& into->entries, bse_into);
 	}
 }
 
