@@ -181,6 +181,18 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		return 0;
 	}
 
+	/* a special case for znode-above-root */
+	spin_lock_jnode (node);
+	ret = jnode_get_level(node) == 0;
+	spin_unlock_jnode (node);
+	if (ret) {
+		assert ("zam-589", znode_above_root(JZNODE(node)));
+		/* just pass dirty znode-above-root to overwrite set */
+		jnode_set_clean(node);
+		JF_SET(node, ZNODE_WANDER);
+		return 0;
+	}
+
 	if (jnode_is_allocated (node)) {
 		/* Already has been assigned a block number, just write it again? */
 		ret = flush_rewrite_jnode (node);
