@@ -463,7 +463,7 @@ connect_znode(coord_t * coord, znode * node)
 	} else
 		ret = 0;
 
-      zrelse_and_ret:
+zrelse_and_ret:
 	zrelse(coord->node);
 
 	return ret;
@@ -522,7 +522,7 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 	if (-ENOENT == ret || -ENAVAIL == ret)
 		ret = 0;
 
-      out:
+out:
 
 	for (--nr_locked; nr_locked >= 0; --nr_locked) {
 		zrelse(empty[nr_locked].node);
@@ -586,7 +586,7 @@ reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
 
 	coord_init_zero(&coord);
 
-      again:
+again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	 * link existence */
 
@@ -689,7 +689,7 @@ reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
 			goto fail;
 		}
 	}
-      fail:
+fail:
 	ON_DEBUG(check_lock_node_data(node));
 	ON_DEBUG(check_lock_data());
 

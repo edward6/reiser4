@@ -492,7 +492,7 @@ how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 
 	coord->between = AFTER_ITEM;
 	result = FIRST_ITEM;
-      ok:
+ok:
 	check_coord(coord, key);
 	zrelse(coord->node);
 	return result;

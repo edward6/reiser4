@@ -1046,7 +1046,7 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	}
 
 	/* Any failure reaches this point. */
-      failed:
+failed:
 
 	if (nr_to_flush != NULL) {
 		if (ret >= 0) {
@@ -1078,7 +1078,7 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	/* The clean_out label is reached by calls to jnode_flush that return before
 	 * initializing the flush_position and the two flush_scan objects.  After those
 	 * objects are initialized any abnormal return goes to the 'failed' label. */
-      clean_out:
+clean_out:
 
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
@@ -1283,7 +1283,7 @@ flush_reverse_relocate_end_of_twig(flush_position * pos)
 	 * will be allocated after its ancestors are processed by the next
 	 * flush_squalloc_changed_ancestors. */
 
-      exit:
+exit:
 	if (child != NULL && !IS_ERR(child)) {
 		jput(child);
 	}
@@ -1367,7 +1367,7 @@ flush_alloc_ancestors(flush_position * pos)
 		ret = flush_allocate_znode(JZNODE(pos->point), &pcoord, pos);
 	}
 
-      exit:
+exit:
 	done_load_count(&pload);
 	done_lh(&plock);
 	return ret;
@@ -1440,7 +1440,7 @@ flush_alloc_one_ancestor(coord_t * coord, flush_position * pos)
 	 * call. */
 	ret = flush_allocate_znode(coord->node, &acoord, pos);
 
-      exit:
+exit:
 	done_load_count(&aload);
 	done_lh(&alock);
 	return ret;
@@ -1500,7 +1500,7 @@ flush_set_preceder(const coord_t * coord_in, flush_position * pos)
 		goto exit;
 	}
 
-      exit:
+exit:
 	check_preceder(pos->preceder.blk);
 	done_lh(&left_lock);
 	return ret;
@@ -1554,7 +1554,7 @@ flush_forward_squalloc(flush_position * pos)
 	}
 #endif
 
-      ALLOC_EXTENTS:
+ALLOC_EXTENTS:
 	/* Step 4: Allocate the current extent (if current position is an extent). */
 	if (flush_pos_valid(pos) && flush_pos_on_twig_level(pos)) {
 
@@ -1664,7 +1664,7 @@ flush_forward_squalloc(flush_position * pos)
 		goto ALLOC_EXTENTS;
 	}
 
-      exit:
+exit:
 	return ret;
 }
 
@@ -1916,7 +1916,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 		move_lh(&pos->point_lock, &right_lock);
 	}
 
-      exit:
+exit:
 	done_lh(&right_lock);
 	return ret;
 }
@@ -1963,7 +1963,7 @@ flush_squalloc_one_changed_ancestor(znode * node, int call_depth,
 	 * have reached the end of a twig--see below.
 	 */
 
-      RIGHT_AGAIN:
+RIGHT_AGAIN:
 	/* First get the right neighbor. */
 	if (
 	    (ret =
@@ -2201,7 +2201,7 @@ flush_squalloc_one_changed_ancestor(znode * node, int call_depth,
 	 * algorithm.  If you were reading these comments and understood them,
 	 * congratulate yourself. :) */
 	ret = 0;
-      exit:
+exit:
 	done_load_count(&node_load);
 	done_load_count(&right_load);
 	done_load_count(&parent_load);
@@ -2456,7 +2456,7 @@ squalloc_right_twig(znode * left, znode * right, flush_position * pos)
 	 * extents, so we stop here. */
 	ret = shift_one_internal_unit(left, right);
 
-      out:
+out:
 	assert("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL
 	       || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
 	return ret;
@@ -2778,7 +2778,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord,
 	}
 
 	ret = znode_rehash(node, &blk);
-      exit:
+exit:
 	done_lh(&fake_lock);
 	return ret;
 }
@@ -2949,7 +2949,7 @@ znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side,
 		ret = -ENAVAIL;
 	}
 
-      fail:
+fail:
 	if (neighbor != NULL) {
 		zput(neighbor);
 	}
@@ -3494,7 +3494,7 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 
 	assert("jmacd-6233", flush_scan_finished(scan)
 	       || jnode_is_znode(scan->node));
-      exit:
+exit:
 	if (jnode_is_znode(scan->node)) {
 		done_lh(&scan->parent_lock);
 		done_load_count(&scan->parent_load);
@@ -3552,7 +3552,7 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 		 (flush_scanning_left(scan) ? "left" : "right"),
 		 scan_index, flush_jnode_tostring(scan->node));
 
-      repeat:
+repeat:
 	/* If the get_inode call is expensive we can be a bit more clever and only call
 	 * get_inode when the extent item changes, not just the extent unit.  As it is,
 	 * this repeats the get_inode call for every unit even when the OID doesn't
@@ -3673,7 +3673,7 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 	}
 
 	if (0) {
-	      stop_same_parent:
+stop_same_parent:
 
 		/* If we are scanning left and we stop in the middle of an allocated
 		 * extent, we know the preceder immediately.. */
@@ -3707,7 +3707,7 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 	}
 
 	ret = 0;
-      exit:
+exit:
 	/*if (ino != NULL) { iput (ino); } */
 	return ret;
 }
@@ -3850,7 +3850,7 @@ flush_pos_to_child_and_alloc(flush_position * pos)
 	}
 
 	if (0) {
-	      stop:
+stop:
 		ret = flush_pos_stop(pos);
 		return ret;
 	}

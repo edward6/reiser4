@@ -179,7 +179,7 @@ write_pages_by_item(struct inode *inode, struct page **pages,
 		count -= to_page;
 	}
 
-      done:
+done:
 	done_lh(&lh);
 
 	/* result of write is 0 or error */
@@ -418,7 +418,7 @@ tail2extent(struct inode *inode)
 	inode_set_flag(inode, REISER4_TAIL_STATE_KNOWN);
 	inode_clr_flag(inode, REISER4_HAS_TAIL);
 
-      ok:
+ok:
 	drop_pages(pages, sizeof_array(pages));
 	drop_exclusive_access(inode);
 	get_nonexclusive_access(inode);
@@ -431,7 +431,7 @@ tail2extent(struct inode *inode)
 
 	return 0;
 
-      error:
+error:
 	drop_pages(pages, sizeof_array(pages));
 	drop_exclusive_access(inode);
 	get_nonexclusive_access(inode);

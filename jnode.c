@@ -125,7 +125,7 @@ jnode_init_static(void)
 
 	return 0;
 
-      error:
+error:
 
 	if (_jnode_slab != NULL) {
 		kmem_cache_destroy(_jnode_slab);
@@ -263,7 +263,7 @@ jget(reiser4_tree * tree, struct page * pg)
 	assert("nikita-2065", pg->mapping->host !=
 	       get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
-      again:
+again:
 	if (jprivate(pg) == NULL) {
 		jnode *in_hash;
 		/** check hash-table first */

@@ -873,7 +873,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 	return ret;
 
-      free_not_assigned:
+free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	 * caller takes care about invalidating of tx list  */
 	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED,
@@ -1100,7 +1100,7 @@ reiser4_write_logs(void)
 
 	post_write_back_hook();
 
-      up_and_ret:
+up_and_ret:
 	if (ret) {
 		/* there could be fq attached to current atom; the only way to
 		 * remove them is: */
@@ -1329,7 +1329,7 @@ replay_transaction(const struct super_block *s,
 
 	ret = update_journal_footer(&ch);
 
-      free_ow_set:
+free_ow_set:
 
 	while (!capture_list_empty(&ch.overwrite_set)) {
 		jnode *cur = capture_list_pop_front(&ch.overwrite_set);
@@ -1469,7 +1469,7 @@ reiser4_journal_recover_sb_data(struct super_block *s)
 		oid_init_allocator(s, d64tocpu(&JF->nr_files),
 				   d64tocpu(&JF->next_oid));
 	}
-      out:
+out:
 	jrelse(private->journal_footer);
 	return ret;
 }

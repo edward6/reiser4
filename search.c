@@ -447,7 +447,7 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	iterations = 0;
 
 	/* loop for restarts */
-      restart:
+restart:
 
 	h->result = CBK_COORD_FOUND;
 
@@ -685,7 +685,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	return ret;
 
-      fail_or_restart:
+fail_or_restart:
 	if (h->result == -EDEADLK)
 		return LOOKUP_REST;
 	return LOOKUP_DONE;

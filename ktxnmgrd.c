@@ -295,7 +295,7 @@ scan_mgr(txn_mgr * mgr)
 			if (ret)
 				goto out;
 		}
-	      out:
+out:
 		REISER4_EXIT(ret);
 	}
 }

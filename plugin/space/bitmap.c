@@ -745,7 +745,7 @@ load_and_lock_bnode(struct bnode *bnode)
 
 	return 0;
 
-      fail:
+fail:
 	invalidate_jnode(bnode->wjnode);
 	invalidate_jnode(bnode->cjnode);
 
@@ -925,7 +925,7 @@ bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end,
 
 	len = search_one_bitmap(bmap, &offset, end_offset, min_len, max_len);
 
-      out:
+out:
 	*start = bmap * max_offset + offset;
 	return len;
 }
@@ -977,7 +977,7 @@ bitmap_alloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
 	search_start = 0;
 	actual_len = bitmap_alloc(&search_start, &search_end, 1, needed);
 
-      out:
+out:
 	if (actual_len == 0)
 		return -ENOSPC;
 
