@@ -218,21 +218,21 @@ typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_
 	while(0) {}
 #endif
 
-#ifndef ENABLE_COMPACT
-#   define reiserfs_plugin_register(entry) \
-	reiserfs_plugin_entry_t __plugin_entry = entry
-#else
+#if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITIC)
 #   define reiserfs_plugin_register(entry) \
 	static reiserfs_plugin_entry_t __plugin_entry \
 	    __attribute__((__section__(".plugins"))) = entry
+#else
+#   define reiserfs_plugin_register(entry) \
+	reiserfs_plugin_entry_t __plugin_entry = entry
 #endif
-
+	
 #define REISERFS_GUESS_PLUGIN_ID -1
 
 extern error_t reiserfs_plugins_init(void);
 extern void reiserfs_plugins_fini(void);
 
-#ifndef ENABLE_COMPACT
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
 extern reiserfs_plugin_t *reiserfs_plugins_load_by_name(const char *name);
 #endif
 

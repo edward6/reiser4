@@ -112,7 +112,7 @@ AC_CHECK_FUNCS([__argz_count __argz_next __argz_stringify dcgettext getcwd getwd
 
 dnl Check for libdl, if we are doing dynamic loading
 LIBREISERFS_LIBS=""
-if test x$enable_compact = xno; then
+if test x$enable_compact = xno && test x$enable_monolitic = xno; then
     AC_CHECK_LIB(dl, dlopen, LIBREISERFS_LIBS="$LIBREISERFS_LIBS -ldl",
 	AC_MSG_ERROR(libdl not found!)
 	exit
@@ -142,6 +142,12 @@ case "$host" in
 esac
 
 AM_CONDITIONAL(ENABLE_MONOLITIC, test x$enable_monolitic = xyes)
+
+PLUGIN_LDFLAGS=""
+if test x$enable_monolitic = xno; then
+    PLUGIN_LDFLAGS="-module -avoid-version"
+fi
+AC_SUBST(PLUGIN_LDFLAGS)
 
 AC_OUTPUT([
     Makefile
