@@ -18,9 +18,6 @@
  *                 pthread_cond_wait(3), 
  *                 pthread_cond_timedwait(3).
  *
- * Or Chapter 4 of
- * http://docs.sun.com:80/ab2/@LegacyTocView?toc=SUNWab_45_3%3A%2Fsafedir%2Fspace3%2Fcoll2%2FSUNWabsdk%2Ftoc%2FMTP%3AMTP%3Aclose;bt=&Ab2Lang=C&Ab2Enc=iso-8859-1
- *
  * See comments in kcond_wait().
  *
  */
