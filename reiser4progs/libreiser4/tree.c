@@ -55,6 +55,10 @@ static void reiserfs_tree_dealloc(reiserfs_tree_t *tree,
 {
     aal_assert("umka-917", cache != NULL, return);
     aal_assert("umka-918", cache->node != NULL, return);
+
+    reiserfs_alloc_dealloc(tree->fs->alloc, 
+	aal_block_get_nr(cache->node->block));
+    
     reiserfs_cache_close(cache);
 }
 
@@ -204,7 +208,7 @@ errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, tree->cache->list)
-	    reiserfs_tree_dealloc(tree, (reiserfs_cache_t *)walk->item);
+	    reiserfs_cache_close((reiserfs_cache_t *)walk->item);
 	
 	tree->cache->list = NULL;
     }
@@ -225,7 +229,7 @@ errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
 void reiserfs_tree_close(reiserfs_tree_t *tree) {
     aal_assert("umka-134", tree != NULL, return);
     
-    reiserfs_tree_dealloc(tree, tree->cache);
+    reiserfs_cache_close(tree->cache);
     aal_free(tree);
 }
 
@@ -425,8 +429,15 @@ errno_t reiserfs_tree_lshift(
 	return -1;
     }
 
-    if (!(left = old->cache->left))
-	return 0;
+    if (!(left = old->cache->left)) {
+	if (!(left = reiserfs_tree_alloc(tree, 
+	    reiserfs_node_get_level(old->cache->node)))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't allocate new leaf node durring left shift.");
+	    return -1;
+	}
+    }
     
     item_overhead = reiserfs_node_item_overhead(old->cache->node);
     
@@ -436,46 +447,36 @@ errno_t reiserfs_tree_lshift(
 
 	reiserfs_pos_init(&mpos, 0, ~0ul);
 
-        /* Initializing item_len by first length of first item from shifted node */
+        /* Initializing item_len by length of the first item from shifted node */
 	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + item_overhead;
 	
 	/* Moving items until insertion point reach first position in node */
 	while (reiserfs_node_count(old->cache->node) > 0 && 
-//	    reiserfs_node_get_space(left->node) >= item_len &&
 	    reiserfs_node_get_space(new->cache->node) < needed)
 	{
 	    if (reiserfs_node_get_space(left->node) < item_len) {
-		reiserfs_pos_t p;
-		reiserfs_plugin_t *plugin;
 
-		reiserfs_pos_init(&p, 0, ~0ul);
-		if (!(plugin = reiserfs_node_item_plugin(old->cache->node, &p))) {
+		if (!(left = reiserfs_tree_alloc(tree, 
+		    reiserfs_node_get_level(left->node)))) 
+		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't find item plugin.");
+			"Can't allocate new leaf node durring left shift.");
 		    return -1;
 		}
-		
-		/* We have a compound item (the item whcih is containg units) */
-		if (libreiser4_plugin_call(return -1, plugin->item_ops.common, 
-		    compound,))
-		{
-		    /* Moving unit into left neighbour */
-		}
-		break;
-	    }
-	    
-	    /* 
-		Checking if left neighbor node will have enough free space, after
-		insertion point will be shifted to it. If no, break left shifting.
-	    */
-	    if (new->cache == left || new->pos.item == 0) {
-		if (reiserfs_node_get_space(left->node) - item_len < needed)
-		    break;
 	    }
 	    
 	    /* Updating coord of new insertion point */
 	    if (new->cache == old->cache) {
 		if (new->pos.item == 0) {
+			
+		    /* 
+			Checking if left neighbor node will have enough free space, 
+			after insertion point will be shifted to it. If no, break 
+			left shifting.
+		    */
+		    if (reiserfs_node_get_space(left->node) - item_len < needed)
+			break;
+		    
 		    new->cache = left;
 		    new->pos.item = reiserfs_node_count(left->node) - 1;
 		} else 
@@ -499,6 +500,15 @@ errno_t reiserfs_tree_lshift(
 	    if (reiserfs_node_count(old->cache->node) > 0) {
 		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
 		    item_overhead;
+	    }
+	}
+	
+	if (left != old->cache->left) {
+	    if (reiserfs_tree_attach(tree, left)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't attach new left neighbour block to the tree "
+		    "durring left shift.");
+		return -1;
 	    }
 	}
     }
@@ -541,12 +551,19 @@ errno_t reiserfs_tree_rshift(
 	return -1;
     }
 
-    if (!(right = old->cache->right))
-	return 0;
+    if (!(right = old->cache->right)) {
+	if (!(right = reiserfs_tree_alloc(tree, 
+	    reiserfs_node_get_level(old->cache->node)))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't allocate new leaf node durring right shift.");
+	    return -1;
+	}
+    }
     
     item_overhead = reiserfs_node_item_overhead(old->cache->node);
     
-    /* Trying to move items into the right neghbour */
+    /* Trying to move items into the right neighbour */
     if (reiserfs_node_count(old->cache->node) > 0) {
 	reiserfs_pos_t mpos;
 	
@@ -557,122 +574,34 @@ errno_t reiserfs_tree_rshift(
 	    item_overhead;
 	    
 	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(right->node) >= item_len &&
 	    reiserfs_node_get_space(new->cache->node) < needed)
 	{
+	    /* Allocating new block */
 	    if (reiserfs_node_get_space(right->node) < item_len) {
-		reiserfs_pos_t p;
-		reiserfs_plugin_t *lp;
 
-		reiserfs_pos_init(&p, reiserfs_node_count(old->cache->node) - 1, ~0ul);
-
-		if (!(lp = reiserfs_node_item_plugin(old->cache->node, &p))) {
+		if (!(right = reiserfs_tree_alloc(tree, 
+		    reiserfs_node_get_level(right->node)))) 
+		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't find item plugin.");
+			"Can't allocate new leaf node durring right shift.");
 		    return -1;
 		}
-
-		if (libreiser4_plugin_call(return -1, lp->item_ops.common, compound,)) {
-		    reiserfs_body_t *lbody, *rbody;
-		    uint32_t lcount, rcount;
-		    
-		    reiserfs_entry_hint_t lentry, rentry;
-		    
-		    if (!(lbody = reiserfs_node_item_body(old->cache->node, &old->pos)))
-			return -1;
-		    
-		    if (!(lcount = libreiser4_plugin_call(return -1, lp->item_ops.common, 
-			count, lbody)))
-		    {
-			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			    "Invalid unit count has been detected.");
-			return -1;
-		    }
-		    
-		    if (libreiser4_plugin_call(return -1, lp->item_ops.specific.direntry,
-			entry, lbody, lcount - 1, &lentry))
-		    {
-			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			    "Can't get first unit from right neighbour item.");
-			return -1;
-		    }
-		    
-    		    reiserfs_coord_init(&src, old->cache, 
-			old->pos.item, lcount - 1);
-		    
-    		    reiserfs_coord_init(&dst, right, 0, ~0ul);
-		    
-		    {
-			reiserfs_plugin_t *rp;
-			
-			reiserfs_pos_init(&p, 0, ~0ul);
-			if (!(rp = reiserfs_node_item_plugin(right->node, &p))) {
-			    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-				"Can't find item plugin.");
-			    return -1;
-			}
-			
-			if (libreiser4_plugin_call(return -1, rp->item_ops.common, 
-			    compound,) && lp->h.id == rp->h.id)
-			{
-			    if (!(rbody = reiserfs_node_item_body(right->node, &dst.pos)))
-				return -1;
-		    
-			    if ((rcount = libreiser4_plugin_call(return -1, rp->item_ops.common, 
-				count, rbody)))
-			    {
-				if (libreiser4_plugin_call(return -1, rp->item_ops.specific.direntry,
-				    entry, rbody, 0, &rentry))
-				{
-				    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-					"Can't get first unit from right neighbour item.");
-				    return -1;
-				}
-
-				if (lentry.objid.locality == rentry.objid.locality)
-				    dst.pos.unit = 0;
-			    }
-			}
-		    }
-		   
-		    if (reiserfs_tree_unit_move(&dst, &src))
-		        break;
-		    
-		    if (new->cache == old->cache) {
-			if (new->pos.unit >= lcount - 1) {
-			    new->cache = right;
-			    new->pos.item = 0;
-			    
-			    new->pos.unit = dst.pos.unit;
-
-			    if (new->pos.unit == lcount)
-				break;
-			}
-		    } else
-			new->pos.unit++;
-	   
-		    continue;
-		    
-		} else
-		    break;
 	    }
 	    
-	    /* 
-		Checking for the case when insertion point is almost shifted 
-		into right neighbour or shifted already and if insertion node
-		has enough free space.
-	    */
-	    if (new->cache == right || 
-		new->pos.item == reiserfs_node_count(new->cache->node) - 1) 
-	    {
-		if ((reiserfs_node_get_space(right->node) - item_len) < needed)
-		    break;
-	    }
-	
 	    if (new->cache == old->cache) {
-		if (new->pos.item >= reiserfs_node_count(new->cache->node) - 1) {
+		uint32_t count = reiserfs_node_count(new->cache->node);
+		if (new->pos.item >= count - 1) {
+			
+		    /* 
+			Checking for the case when insertion point is almost shifted 
+			into right neighbour or shifted already and if insertion node
+			has enough free space.
+		    */
+		    if ((reiserfs_node_get_space(right->node) - item_len) < needed)
+			break;
+		    
 		    new->cache = right;
-		    new->pos.item = new->pos.item > reiserfs_node_count(new->cache->node) - 1;
+		    new->pos.item = (new->pos.item > count - 1);
 		}
 	    } else
 		new->pos.item++;
@@ -697,6 +626,15 @@ errno_t reiserfs_tree_rshift(
 	}
     }
     
+    if (right != old->cache->right) {
+        if (reiserfs_tree_attach(tree, right)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't attach new right neighbour block to the tree "
+		"durring right shift.");
+	    return -1;
+	}
+    }
+    
     return 0;
 }
 
@@ -706,7 +644,7 @@ errno_t reiserfs_tree_rshift(
     node. As insertion point may be shifted to one of neighbors, new insertion 
     point position is stored in "new" coord.
 */
-errno_t reiserfs_tree_shift(
+errno_t reiserfs_tree_mkspace(
     reiserfs_tree_t *tree,	    /* tree pointer function operates on */
     reiserfs_coord_t *old,	    /* old coord of insertion point */
     reiserfs_coord_t *new,	    /* new coord will be stored here */
@@ -722,8 +660,8 @@ errno_t reiserfs_tree_shift(
 	return 0;
     
     /* Trying to shift items into left neighbour */
-    if (reiserfs_tree_lshift(tree, old, new, needed))
-	return -1;
+/*    if (reiserfs_tree_lshift(tree, old, new, needed))
+	return -1;*/
 
     /* Trying to shift items into right neighbour */
     if (reiserfs_node_get_space(new->cache->node) < needed && 
@@ -742,6 +680,109 @@ errno_t reiserfs_tree_shift(
 
     return 0;
 }
+
+/* 
+    Performs shifting of units of item pointed by old coord into its right 
+    neighbour.
+*/
+/*errno_t reiserfs_tree_ishift(
+    reiserfs_coord_t *old,
+    reiserfs_coord_t *new,
+    uint32_t needed
+) {
+    uint32_t item_len;
+    reiserfs_cache_t *right;	
+    reiserfs_coord_t src, dst;
+
+    if (reisersf_cache_raise(old->cache))
+	return -1;
+    
+    if (!(right = old->cache->right))
+	return 0;
+    
+    while (reiserfs_node_count(old->cache->node) > 0 && 
+	reiserfs_node_get_space(right->node) >= item_len &&
+        reiserfs_node_get_space(new->cache->node) < needed)
+    {
+	reiserfs_pos_t p;
+	reiserfs_plugin_t *lp, *rp;
+
+	reiserfs_pos_init(&p, reiserfs_node_count(old->cache->node) - 1, ~0ul);
+
+	if (!(lp = reiserfs_node_item_plugin(old->cache->node, &p))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't find item plugin.");
+	    return -1;
+	}
+
+	if (libreiser4_plugin_call(return -1, lp->item_ops.common, compound,)) {
+	    reiserfs_body_t *lbody, *rbody;
+	    uint32_t lcount, rcount;
+		    
+	    reiserfs_entry_hint_t lentry, rentry;
+		    
+	    if (!(lbody = reiserfs_node_item_body(old->cache->node, &old->pos)))
+		return -1;
+		    
+	    if (!(lcount = libreiser4_plugin_call(return -1, lp->item_ops.common, 
+		count, lbody)))
+	    {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Invalid unit count has been detected.");
+		return -1;
+	    }
+		    
+	    if (libreiser4_plugin_call(return -1, lp->item_ops.specific.direntry,
+		entry, lbody, lcount - 1, &lentry))
+	    {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't get first unit from right neighbour item.");
+		return -1;
+	    }
+		    
+	    reiserfs_coord_init(&src, old->cache, 
+		old->pos.item, lcount - 1);
+		    
+    	    reiserfs_coord_init(&dst, right, 0, ~0ul);
+		    
+	    reiserfs_pos_init(&p, 0, ~0ul);
+	    if (!(rp = reiserfs_node_item_plugin(right->node, &p))) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't find item plugin.");
+		return -1;
+	    }
+			
+	    if (libreiser4_plugin_call(return -1, rp->item_ops.common, 
+		compound,) && lp->h.id == rp->h.id)
+	    {
+		reiserfs_key_t lkey, rkey;
+
+		reiserfs_node_get_key(old->cache->node, &old->pos, &lkey);
+		reiserfs_node_get_key(right->node, &dst.pos, &rkey);
+			    
+		if (reiserfs_key_get_locality(&lkey) == reiserfs_key_get_locality(&rkey))
+		    dst.pos.unit = 0;
+	    }
+		   
+	    if (new->cache == old->cache && new->pos.unit < lcount) {
+			    
+		if (reiserfs_tree_unit_move(&dst, &src)) {
+		    new->pos.unit = ~0ul;
+		    break;
+		}
+			
+		if (new->pos.unit == lcount - 1)
+		    reiserfs_coord_init(new, right, 0, 0);
+
+	    } else
+		reiserfs_coord_init(new, right, 0, 0);
+		    
+	    continue;
+		    
+	}
+    }
+    return 0;
+}*/
 
 /* This function inserts internal item to the tree */
 errno_t reiserfs_tree_attach(
@@ -955,25 +996,29 @@ errno_t reiserfs_tree_insert(
 	*/
 	aal_memset(&insert, 0, sizeof(insert));
 	    
-	if (reiserfs_tree_shift(tree, coord, &insert, needed))
+	if (reiserfs_tree_mkspace(tree, coord, &insert, needed))
 	    return -1;
 	
 	/* 
 	    After shifting is complete, we make check is new insert point has
 	    enough free space. If so, we make insert and retutn zero return code.
 	*/
-	if (reiserfs_node_get_space(insert.cache->node) >= needed) {
-
-	    if (reiserfs_cache_insert(insert.cache, &insert.pos, item)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert an %s into the node %llu.", 
-		    (insert.pos.unit == ~0ul ? "item" : "unit"),
-		    aal_block_get_nr(insert.cache->node->block));
-		return -1;
-	    }
-
-	    return 0;
+	if (reiserfs_node_get_space(insert.cache->node) < needed) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't make free space in order to insert new %s.",
+		(insert.pos.unit == ~0ul ? "item" : "unit"));
+	    return -1;
 	}
+	
+	if (reiserfs_cache_insert(insert.cache, &insert.pos, item)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	        "Can't insert an %s into the node %llu.", 
+	        (insert.pos.unit == ~0ul ? "item" : "unit"),
+	        aal_block_get_nr(insert.cache->node->block));
+	    return -1;
+	}
+
+	return 0;
 	
 	if (item->type == INTERNAL_ITEM) {
 	    uint32_t count;
@@ -1078,18 +1123,12 @@ errno_t reiserfs_tree_insert(
 	    
 		*coord = insert;
 	    
-		if (reiserfs_tree_shift(tree, coord, &insert, needed)) {
+		if (reiserfs_tree_mkspace(tree, coord, &insert, needed)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't perform shift of items to new allocated node.");
 		    return -1;
 		}
 	    
-		if (reiserfs_node_get_space(insert.cache->node) < needed) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"There is no enough free space in insert node.");
-		    return -1;
-		}
-		
 		if (reiserfs_cache_insert(insert.cache, &insert.pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 

@@ -143,7 +143,6 @@ static uint64_t key40_pack_string(const char *name,
     uint64_t str;
 
     aal_assert("vpf-134", name != NULL, return 0);
-    aal_assert("umka-1005", start < aal_strlen(name), return 0);
     
     str = 0;
     for (i = 0; (i < sizeof(str) - start) && name[i]; ++i) {
