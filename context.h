@@ -10,8 +10,6 @@
 #include "spin_macros.h"
 #include "dformat.h"
 #include "tslist.h"
-#include "plugin/node/node.h"
-#include "plugin/plugin.h"
 #include "jnode.h"
 #include "znode.h"
 #include "tap.h"
