@@ -130,7 +130,9 @@
  * stop flushing at this moment and write everything to disk, the parent may still contain
  * unallocated children.
  *
- * It may be undesireable to try and allocate all the children of every node before
+ * FIXME: rewrite next paragraph, in particular, draw a distinction between allocation and flushing
+
+ * It may be undesirable to try and allocate all the children of every node before
  * flushing, since it could require allocating many more nodes.  For example, suppose a
  * grandparent of the leaf level (i.e., level 3) still has unallocated children when flush
  * reaches a clean node.  This may involve allocating a number of twigs, which may require
@@ -451,7 +453,7 @@ ON_DEBUG (atomic_t flush_cnt;)
  * when an atom closes (to commit writes) and called by the VM under memory pressure (via
  * page_cache.c:page_common_writeback() to early-flush dirty blocks).
 
-FIXME: comments
+
 
  * Two basic steps are performed: first the "leftpoint" of the input jnode is located,
  * which is found by scanning leftward past dirty nodes and upward as long as the parent
