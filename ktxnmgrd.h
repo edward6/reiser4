@@ -41,7 +41,6 @@ typedef enum {
 } ktxnmgrd_wake;
 
 extern void init_ktxnmgrd_context(ktxnmgrd_context * context);
-extern int ktxnmgrd(void *context);
 
 extern int ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr);
 extern void ktxnmgrd_detach(txn_mgr * mgr);
