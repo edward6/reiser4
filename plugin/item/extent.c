@@ -2395,6 +2395,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	return result;
 }
 
+#if 0
 static int
 unflush(coord_t *coord)
 {
@@ -2411,6 +2412,7 @@ unflush(coord_t *coord)
 
 		j = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(key), ind));
 }
+#endif
 
 /* find all units of extent item which require allocation. Allocate free blocks
    for them and replace those extents with new ones. As result of this item may
