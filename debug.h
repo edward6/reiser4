@@ -115,7 +115,7 @@ extern lock_counters_info *lock_counters(void);
 #define not_implemented( label, format, args... ) noop
 #define assert( label, cond ) noop
 #define check_me( label, expr )	( ( void ) ( expr ) )
-#define ON_DEBUG( exp ) noop
+#define ON_DEBUG( exp )
 
 /* REISER4_DEBUG */
 #endif
@@ -212,6 +212,11 @@ typedef enum {
 	 * trace item shifts
 	 */
 	TRACE_SHIFT      =     (1 << 12),     /* 0x00001000 */
+	/*
+	 * vague section: used to trace bugs. Use it to issue optional prints
+	 * at arbitrary points of code.
+	 */
+	TRACE_BUG        =     (1 << 13),     /* 0x00002000 */
 	/*
 	 * trace everything above
 	 */
