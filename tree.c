@@ -1379,11 +1379,17 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
 		end_pg = (end - 1) >> PAGE_CACHE_SHIFT;
 
 		if ((start & (PAGE_CACHE_SIZE - 1)) == 0) {
-			assert("", start_pg == end_pg);
+			/*
+			 * kill up to the page boundary.
+			 */
+			assert("vs-123456", start_pg == end_pg);
 			reiser4_invalidate_pages(inode->i_mapping, start_pg, 1);
 		} else if (start_pg != end_pg) {
-			assert("", end_pg - start_pg == 1);
-			reiser4_invalidate_pages(inode->i_mapping, start_pg, end_pg - start_pg);
+			/*
+			 * page boundary is within killed portion of node.
+			 */
+			assert("vs-654321", end_pg - start_pg == 1);
+			reiser4_invalidate_pages(inode->i_mapping, end_pg, end_pg - start_pg);
 		}
 	}
 	inode_sub_bytes(inode, end - start);
@@ -1672,7 +1678,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
  */
 
 reiser4_internal int
-cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
+cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
 		struct inode * object, int lazy)
 {
