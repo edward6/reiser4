@@ -13,6 +13,7 @@
 #include "../../super.h"
 #include "../../wander.h"
 #include "../../diskmap.h"
+#include "../../reiser4_status_flags.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -211,6 +212,19 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 		return result;
 
 	/* ok, we are sure that filesystem format is a format40 format */
+	/* Now check it's state */
+	result = reiser4_status_init(FORMAT40_STATUS_BLOCK);
+	if ( result && result != -EINVAL ) // -EINVAL means there is no magic, so probably just old fs.
+		return result;
+	
+	result = reiser4_status_query(NULL, NULL);
+	if ( result == REISER4_STATUS_MOUNT_WARN )
+		printk("Warning, mounting filesystem with errors\n");
+	if ( result == REISER4_STATUS_MOUNT_RO ) {
+		printk("Warning, mounting filesystem with fatal errors, forcing read-only mount\n");
+		/* FIXME: here we should actually enforce read-only mount, only it is unsupported yet. */
+	}
+
 	result = reiser4_journal_replay(s);
 	if (result)
 		return result;
