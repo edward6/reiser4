@@ -1,0 +1,232 @@
+         Reiser4 File System Recovery Process.
+
+Reiser4 is supposed to work with different kind of elements through plugins.
+Reiser4fsck will be based on plugins also, but in contrast to the kernel
+plugins, fsck plugins will have some extra methods to support not only object
+managing, but their recovering also (of course, fsck does not need some kernel
+methods in every plugin, and almost all methods will be slightly different).
+All this plugins will compose reiser4lib. We will call them as fsck plugins and
+non-fsck plugins futher.
+
+The non-fsck plugins will be added only check methods for every plugin, for every
+kind of objects it work with.
+
+[all plugins noted below are fsck plugins if not specified the other]
+
+         Reiser4 recovery process.
+
+Pass 0. Check the tree.
+1. Scan the disk in the internal tree order, check each node for consistency.
+
+Walking the internal tree and as we encounter nodes, they are checked by the
+appropriate node plugin check methods. As we encounter items within each node,
+each item is checked by the appropriate plugin. For each layout, a consistency
+check method must be defined.
+
+All these methods (walking the tree and check) will be the same as in
+the non-fsck plugins.
+
+2. Delete all nodes which are not consistent from the tree.
+
+These methods will be taken from the non-fsck plugins also.
+
+3. Collect all useful information about nodes which are left in the tree -
+   internal nodes, leaves, unformatted nodes, double pointed, etc.
+
+As we do not have a bitmap plugin, all needed methods (create, delete, copy,
+zero, set bit, clear bit, other) could be taked from the kernel part or
+reiserfsck for v3.
+
+4. Correct on-disk bitmaps.
+   If block is left in the tree and marked as unused in on-disk bitmap, mark it as
+   used. If first bit of a bitmap is 0 when it must be 1, consider this bitmap as
+   broken and mark all blocks whithin this bitmap as used.
+
+After pass 0 internal tree should contain only consistent data.
+
+Pass 1. Scan the used blocks unconnected from the tree.
+1.Read through all blocks which are used, but were not left in the tree
+  (or got unconnected somehow).
+
+As we encounter nodes, they are checked by the appropriate node plugin check
+methods. As we encounter items within each node, each item is checked by the
+appropriate plugin. For each layout, a consistency check method must be defined.
+
+Check methods are the same as in non-fsck plugins.
+
+2. Data recovering.
+
+(in v1) if check method of an element on the previous step returns an error,
+delete an element. This implies that we cannot analyze its subelements and
+cannot delete just one or a few subelements.
+
+(in v2) Semantics for recovering objects of such kind should be added into upper
+layouts.
+E.g. if we add a new item type, we should change the recovery method of node and
+file/directory plugins.
+Indeed, it is node plugin which should know which item types could be neighbours,
+and which are not, and fix keys order, plugins types, etc whithin the node.
+E.g. for 3.6 format we know that it is impossible to have direct item just before
+indirect.
+
+The most of methods for this step should be added into fsck plugins.
+Although, some of them seem to exist in the kernel already, like identify method.
+For fsck it should work like the following:
+- every plugin should be able to identify the object: whether the object of this
+  type or not, and probably provide the information how familar it looks like.
+- every type of plugin should be able to identify the object: on the basis of
+  information from every identify method of all plugins of this type, choose
+  the most appropriate plugin.
+  E.g. if node header got corrupted somehow, we call identify_plugin method
+  which will call identify methids of every plugin of this type and will choose
+  that it is node4 plugin, not node36 nor node35 plugins.
+
+3. Collect all useful information about nodes which were not left in the tree -
+   internal nodes, leaves, unformatted nodes, double pointed, etc.
+
+Similar to the Pass 0, step 3.
+
+After pass 1 there should not be a formatted block which check methods finds
+unconsistency in. Some of them still may be not in the tree.
+
+VS' suggestion:
+one of the way of recovering - to have crc32(hm, does crc16 exist?) sum in
+the node header.  We can just delete all leaves/twigs with wrong crc sums.
+We can implement it as a plugin.
+
+Pass 2. Fast recovering.
+1. Insert into the tree indirect or extent items pointed to leaves or unformatted
+   blocks which were found on pass 1.
+
+These methods are taken from the kernel part.
+
+2. All items which cannot be inserted here, will be inserted on the next pass.
+3. Fix all problems with unformatted pointers just before insertion on the base
+   of the gathered info:
+   a leaf can be found in pointed by extent blocks;
+   2 extents may have an overlapped area;
+
+These problems are supposed to be solved on the base of flushstamp of every node.
+
+Note: flushstamp is made of mk_id and write_counter.
+mk_id is an id generated randomly at mkreiserfs time. So we can just skip all
+nodes with different mk_id.
+write_counter is __u64 counter of number of blocks written on disk.
+The reason to use write_counter, not timestamp, is that time could be screwed
+up, but with write_counter we can uniquelly define which block was written earler.
+SuperBlock structure should have a write_counter also. On every write we should
+take write_counter from SB, write it into node_headers of all blocks which should
+be written on the disk and increment SB write_counter.
+
+Discussion: to solve such problems we need to have the latest flushstamp for every
+block(s) which is pointed many times. A block gets interesting only when we encount
+the second pointer on it. Since this moment we should keep the list of pairs
+blocknumber/flushstamp somewhere. Suppose that we have too many wrong unformatted
+pointers, e.g. 25% of 1Tb partition are wrong pointed. To save it we will need more
+then 500Mb. So the only way is to save all nessesary information on disk.
+Or we can just do what we do now: pointers to leaves get zeroed, if an unformatted
+block is in the tree, zero all other pointers to it.
+
+After pass 2 we should have almost all extents and leaves in the tree.
+
+Pass 3. Preparing for uninserted data recovering.
+1. Choose the most recent data for all regions to be overwritten.
+
+We may not be able to insert some leaves on the previous pass. It may happens
+because of overlapping data. The most recent version of data should be chosen
+by its flashstamp. But we cannot just start inserting them now - insertion
+will launch balancing and we will lose all flushstamps. So we have to gather
+information about all overlapping regions first.
+E.g. 2 leaves happen to be neighbours in an internal tree. First has 10 as
+a flushstamp. The other has 20. After insertion into the other a few items
+move into the first from the second. And they become having 10 instead of 20.
+So other items with flushstamp 15 can easely overwrite them.
+
+Fsck methods indentifying such regions will be written.
+
+Discussion: We could do overwriting on this pass, only overwriting what do not launch
+rebalancing. Suppose that we have a leaf in the tree with write_counter == 10, and that
+we have 3 blocks like these:
+1) write_counter == 20, have an overlapped item with the leaf in the tree.
+2) write_counter == 15, have the same overlapped item with the leaf in the tree.
+3) write_counter == 15, have another overlapped item with the leaf in the tree.
+We are looking through all uninserted blocks and find first block, 20>10 => overwrite
+data, find the second one, 15>10 => overwrite data... It could be fixed by overwriting
+not only data, but write_counter for the leaf in the tree also. Now:
+We are looking through all uninserted blocks and find first block, 20>10 => overwrite
+data, write 20 into the node_header in the leaf which is in the tree, find the second
+one, 15<20 => skip it, find the third one, 15<20, skip it...
+The problem is even worse as we may find many many items which overwrite *almost*
+the same data, so we have to keep flushstamp for every byte. It is possible to solve
+such a problem only if we save all gethered information into unused blocks, and analize
+the info on the next pass.
+Or we can just do what we do now: last come, last written, overwriting all previously
+inserted data.
+
+After pass 3 all information about where is the latest version of every byte (if
+overlapping exists) should be gathered.
+
+Pass 4. Uninserted items recovering.
+1. Insert all items from leaves item-by-item, insert all extents, which
+   do not overlap other data in the tree.
+2. Choose the most recent data on the basis of the information gathered on
+   the previous pass, overwrite data in the tree if needed.
+
+Before inserting a new data into the file, make the file/directory body consistent
+(if there is just a gap between 2 items, insert a hole there, etc).
+A new method will be added into fsck file/directofy plugins for this purpose.
+Then write method can be used from the kernel from the file/directory plugins to
+write/overwrite data into the file/directory, but the most recent version of data
+should be choosed.
+
+After pass 4 there is left nothing to be inserted anymore.
+
+Pass 5. Semantic recovering.
+1. Go through all leaves in the internal tree order and handle every object
+   (file/directory):
+   a) fix its structure, add stat_datas if needed (sb_blocks, sb_size, etc),
+      relocate object with shared objectid.
+   b) mark the object as checked. (to avoid the second check in the case of
+      relocation)
+   c) for directories try to find all named objects and delete a name if
+      an object cannot be found.
+   d) mark all items of all found objects as reachable.
+2. delete garbage - pieces of items which cannot be considered as a file or
+   directory. (it is likely to be not possible, we can always add a sd, rebuild
+   the sequence of them, fix metadata. will see).
+
+Field in item header is needed to mark items as (un)checked.
+Field in item header is needed to mark the pointed object as (un)reacheble.
+
+Methods which are taken from non-fsck part: walking the tree semantically,
+delete entries, delete, insert items.
+
+Use the same methods from fsck file/directofy plugins as on the previous pass.
+They include:
+
+Fsck file and directory plugins will have method relocate - if 2 objects with
+the same id found, the second will be relocated.
+
+Fsck file plugin will have methods check/fix_file_structure methods - check/fix
+set of file items, append holes if needed, the hole file struture should be
+checked/fixed.
+
+Directory plugin will have methods check/fix_directory_structure methods -
+check/fix set of direntries whiin the hole directory, add '.', '..' if needed.
+The method will be called on semantic pass.
+
+Note:
+Directory items plugins (direntry, compressed_de) will have methods
+check/fix_diritem_structure methods - check/fix set of direntries, their hashes,
+locations, etc whithin only one item. The method will be called on pass 1, while
+checking/fixing separate items structure.
+
+Pass 6. Cleaning.
+Go through all leaves in the internal tree order and:
+1. move all unreachable objects into lost+found.
+2. delete all garbage if found.
+
+Methods connect should be implemented for directory/file plugins. This method will
+move a file/directory into directory with specified id. That is how we will move
+all unreachable objects into lost+found.
+
