@@ -322,26 +322,17 @@ int
 ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 {
 	int result;
-	crypto_plugin * cr_plug;
-	cryptcompress_info_t * info;
-	
+
 	assert("edward-139", clust->buf == NULL);
 	assert("edward-140", clust->stat != FAKE_CLUSTER);
-	
-	cr_plug = inode_crypto_plugin(inode);
-	info = cryptcompress_inode_data(inode);
-	
-	assert("edward-141", cr_plug != NULL);
-	
-	assert("edward-143", info != NULL);
-	assert("edward-144", info->expkey != NULL);
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
 	/* allocate temporary buffer of disk cluster size */
 	/* FIXME-EDWARD:
 	   - kmalloc?
 	   - optimize it for the clusters which represent end of file */
-	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
+	clust->bufsize = inode_scaled_cluster_size(inode);
+	clust->buf = reiser4_kmalloc(clust->bufsize, GFP_KERNEL);
 	if (!clust->buf) 
 		return -ENOMEM;
 	result = find_cluster(clust, inode, 1 /* read */, write);
