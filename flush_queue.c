@@ -526,8 +526,6 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	struct super_block *s = reiser4_get_current_sb();
 	int nr_processed;
 
-	struct pagevec pvec;
-
 	schedulable();
 	assert("zam-725", nr != 0);
 
@@ -536,8 +534,6 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 	if (!(bio = bio_alloc(GFP_KERNEL, nr)))
 		return -ENOMEM;
-
-	pagevec_init(&pvec, 0);
 
 	bio->bi_sector = *jnode_get_block(first) * (s->s_blocksize >> 9);
 	bio->bi_bdev = s->s_bdev;
@@ -888,9 +884,9 @@ static int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 	return ret;
 }
 
-/* Steal prepped nodes (amount less or equal @how_many) from another flush queue (from same @atom)
+/* Steal prepped nodes from another flush queue (from same @atom)
  * and add them to @dst flush queue */
-static void steal_queued_nodes (txn_atom * atom, flush_queue_t * dst, long how_many)
+static void steal_queued_nodes (txn_atom * atom, flush_queue_t * dst)
 {
 	flush_queue_t * fq;
 
@@ -914,8 +910,7 @@ static void steal_queued_nodes (txn_atom * atom, flush_queue_t * dst, long how_m
 				capture_list_remove_clean(node);
 				capture_list_push_back(&tmp, node);
 
-				if (++nr >= how_many)
-					break;
+				nr++;
 			}
 
 			fq->nr_queued -= nr;
@@ -929,13 +924,12 @@ static void steal_queued_nodes (txn_atom * atom, flush_queue_t * dst, long how_m
 }
 
 /* A response to memory pressure by submitting queued nodes to disk */
-int writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_control *wbc)
+int writeback_queued_jnodes(struct super_block *s, jnode * node)
 {
 	flush_queue_t * fq;
 	txn_atom * atom;
 	int ret;
 
-	assert("zam-747", wbc->nr_to_write > 0);
 	assert ("zam-790", node != NULL);
 		
 	ret = fq_by_jnode (node, &fq);
@@ -965,16 +959,13 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node, struct writebac
 	}
 
 	if (fq->nr_queued == 0)
-		steal_queued_nodes (atom, fq, wbc->nr_to_write);
+		steal_queued_nodes (atom, fq);
 
 	spin_unlock_atom(atom);
 
-	ret = write_fq(fq, (int)wbc->nr_to_write);
-
-	if (ret > 0)
-		wbc->nr_to_write -= ret;
-
+	ret = write_fq(fq, 0);
 	fq_put(fq);
+
 	return ret;
 }
 
