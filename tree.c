@@ -577,9 +577,9 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 			child = zlook(tree, &addr);
 		else
 			child = zget(tree, &addr, parent, znode_get_level(parent) - 1, GFP_KERNEL);
-		spin_lock_dk(tree);
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
 			set_child_delimiting_keys(parent, parent_coord, child);
+		spin_lock_dk(tree);
 	} else {
 		warning("nikita-1483", "Internal item expected");
 		print_znode("node", parent);

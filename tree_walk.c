@@ -343,12 +343,9 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 			return ret;
 		}
 
-		if (neighbor) {
-			spin_lock_dk(tree);
+		if (neighbor)
 			/* update delimiting keys */
 			set_child_delimiting_keys(coord->node, coord, neighbor);
-			spin_unlock_dk(tree);
-		}
 
 		spin_lock_tree(tree);
 	}
