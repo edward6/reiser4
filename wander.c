@@ -421,11 +421,16 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 
 				spin_lock_jnode(cur);
 
-				jput(cur);
 				cur->atom = NULL;
 				JF_CLR(cur, JNODE_WANDER);
 
 				spin_unlock_jnode(cur);
+				/*
+				 * FIXME:NIKITA->ZAM jput() can free jnode
+				 * object and thus, has to be last operation
+				 * performed.
+				 */
+				jput(cur);
 
 			} else {
 				capture_list_push_back (overwrite_list, cur);
