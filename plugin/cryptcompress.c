@@ -1560,7 +1560,7 @@ free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	UNLOCK_JNODE(j);
 }
 
-reiser4_internal int
+static int
 update_inode_cryptcompress(struct inode *inode,
 			      loff_t new_size,
 			      int update_i_size, int update_times,
@@ -1580,7 +1580,11 @@ update_inode_cryptcompress(struct inode *inode,
 		0/* flags */);
 	if (result)
 		return result;
-	result = update_inode_and_sd_if_necessary(inode, new_size, update_i_size, update_times, do_update);
+	if (do_update) {
+		INODE_SET_FIELD(inode, i_size, new_size);
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		result = reiser4_update_sd(inode);
+	}
 	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - old_grabbed);
 	return result;
 }
