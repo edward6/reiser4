@@ -194,16 +194,16 @@ gprof:
 	gprof -l > gprof.out.ll
 
 check-nikita:
-	python ../../scripts/uniqerrid.py nikita `$(FIND_NON_SCCS)`
+	python utilities/uniqerrid.py nikita `$(FIND_NON_SCCS)`
 
 check-jmacd:
-	python ../../scripts/uniqerrid.py jmacd `$(FIND_NON_SCCS)`
+	python utilities/uniqerrid.py jmacd `$(FIND_NON_SCCS)`
 
 check-vs:
-	python ../../scripts/uniqerrid.py vs `$(FIND_NON_SCCS)`
+	python utilities/uniqerrid.py vs `$(FIND_NON_SCCS)`
 
 check-zam:
-	python ../../scripts/uniqerrid.py zam `$(FIND_NON_SCCS)`
+	python utilities/uniqerrid.py zam `$(FIND_NON_SCCS)`
 
 check-all:
 	$(MAKE) -f Makefile.user-level check-nikita
