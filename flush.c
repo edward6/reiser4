@@ -98,15 +98,9 @@ struct flush_position {
 	int                   leaf_relocate;   /* True if enough leaf-level nodes were
 						* found to suggest a relocate policy. */
 	int                  *nr_to_flush;     /* If called under memory pressure,
-						* indicates how many nodes to flush. */
+						* indicates how many nodes the VM asked to flush. */
 	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
-	int                   enqueue_cnt;     /* The number of nodes enqueued during squeeze and allocate.  This number
-						* would equal alloc_cnt when flush finishes except for:
-						*
-						* - Nodes may be deleted that never get enqueued
-						* - The final, rightmost set of ancestors are never enqueued
-						*
-						* Therefore, enqueue_cnt is only good for debugging. */
+	int                   enqueue_cnt;     /* The number of nodes enqueued during squeeze and allocate. */
 	capture_list_head     queue;           /* The flush queue holds allocated but not-yet-submitted jnodes that are
 						* actually written when flush_empty_queue() is called. */
  	int                   queue_num;       /* The current number of queue entries. */
@@ -116,13 +110,13 @@ struct flush_position {
 	struct reiser4_io_handle * hio;        /* The handle for waiting on I/O completions. */
 };
 
+/* The flushers list maintains a per-atom list of active flush_positions.  This is because
+ * each concurrent flush maintains its own, private queue of allocated nodes.  When a node
+ * is placed on the flush queue it is removed from the atom's dirty list.  When the node
+ * is finally written to disk, it is returned to the atom's clean list.  Remember that
+ * atoms can fuse during flush--the flushers lists are fused and each flush_position and
+ * every jnode in the flush queues are updated to reflect the new combined atom. */
 TS_LIST_DEFINE(flushers, struct flush_position, flushers_link);
-
-typedef enum {
-	SCAN_EVERY_LEVEL,
-	SCAN_FIRST_LEVEL,
-	SCAN_NEVER
-} flush_scan_config;
 
 /* Flush-scan helper functions. */
 static void          flush_scan_init              (flush_scan *scan);
@@ -232,8 +226,9 @@ ON_DEBUG (atomic_t flush_cnt;)
  *   finishes.  It used to be that flush_empty_queue was called periodically during flush
  *   when there was a fixed queue, but that is no longer done.  See the changes on August
  *   6, 2002 when this support was removed.
- *
- * With these state bits, we can define a test used frequently in the code below,
+ */
+
+/* With these state bits, we describe a test used frequently in the code below,
  * jnode_is_allocated() (and the spin-lock-taking jnode_check_allocated()).  The test for
  * "allocated" returns true any of the following are true:
  *
@@ -241,8 +236,61 @@ ON_DEBUG (atomic_t flush_cnt;)
  *   - The node has JNODE_RELOC set
  *   - The node has JNODE_WANDER set
  *
- * In otherwords, if either the node is clean or it has already been processed be flush,
- * then it is allocated.
+ * If either the node is clean or it has already been processed by flush, then it is
+ * allocated.  If jnode_is_allocated() returns true then flush has work to do on that
+ * node.
+ */
+
+/* Within a single transaction a node is never allocated more than once (unless explicit
+ * steps are taken to deallocate and reset the RELOC/WANDER bit, not yet implemented).
+ * For example a node is dirtied, allocated, and then early-flushed to disk and set clean.
+ * Before the transaction commits, the page is dirtied again and, due to memory pressure,
+ * the node is flushed again.  The flush algorithm will not relocate the node to a new
+ * disk location, it will simply write it to the same, previously relocated position
+ * again.
+ */
+
+/* The BOTTOM-UP vs. TOP-DOWN issue: This code implements a bottom-up algorithm where we
+ * start at a leaf node and allocate in parent-first order by iterating to the left.  At
+ * each step of the iteration, we check for the right neighbor.  Before advancing to the
+ * right neighbor, we check if the current position and the right neighbor share the same
+ * parent.  If they do not share the same parent, the parent is allocated before the right
+ * neighbor.  This process goes recursively up the tree as long as the right neighbor and
+ * the current position have different parents, then it allocates the
+ * right-neighbors-with-different-parents on the way back down.  This process is described
+ * in more detail in flush_squalloc_changed_ancestor and the recursive function
+ * flush_squalloc_one_changed_ancestor.  But the purpose here is not to discuss the
+ * specifics of the bottom-up approach as it is to contrast the bottom-up and top-down
+ * approaches.
+ *
+ * The top-down algorithm was implemented earlier (April-May 2002).  In the top-down
+ * approach, we find a starting point by scanning left along each level past dirty nodes,
+ * then going up and repeating the process until the left node and the parent node are
+ * clean.  We then perform a parent-first traversal from the starting point, which makes
+ * allocating in parent-first order trivial.  After one subtree has been allocated in this
+ * manner, we move to the right, try moving upward, then repeat the parent-first
+ * traversal.
+ *
+ * Both approaches have problems that need to be addressed.  Both are approximately the
+ * same amount of code, but the bottom-up approach has advantages in the order it acquires
+ * locks which, at the very least, make it the better approach.  At first glance each one
+ * makes the other one look simpler, so it is important to remember a few of the problems
+ * with each one.
+ *
+ * Main problem with the top-down approach: When you encounter a clean child during the
+ * parent-first traversal, what do you do?  You would like to avoid searching through a
+ * large tree of nodes just to find a few dirty leaves at the bottom, and there is not an
+ * obvious solution.  One of the advantages of the top-down approach is that during the
+ * parent-first traversal you check every child of a parent to see if it is dirty.  In
+ * this way, the top-down approach easily handles the main problem of the bottom-up
+ * approach: unallocated children.
+ *
+ * The unallocated children problem is that before writing a node to disk we must make
+ * sure that all of its children are allocated.  Otherwise, the writing the node means
+ * extra I/O because the node will have to be read-in again when the child is finally
+ * allocated.
+ *
+ * FIXME: WE HAVE NOT YET SOLVE THE UNALLOCATED CHILDREN PROBLEM.  Except for bus
  */
 
 /********************************************************************************
@@ -335,12 +383,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	spin_lock_jnode (node);
 
 	/* A special case for znode-above-root.  The above-root (fake) znode is captured
-	 * and dirtied when the tree height changes, when the superblock is modified with
-	 * a new root block address.  This causes atoms to fuse.  However, this node is
-	 * never flushed.  This special case used to be in lock.c to prevent the
-	 * above-root node from ever being captured, but now that it is captured we simply
-	 * prevent it from flushing.  The log-writer code relies on this to properly log
-	 * superblock modifications of the tree height. */
+	 * and dirtied when the tree height changes (FIXME: JMACD->ZAM, and also when the
+	 * superblock is modified because the root node is relocated?).  This causes atoms
+	 * to fuse.  However, this node is never flushed.  This special case used to be in
+	 * lock.c to prevent the above-root node from ever being captured, but now that it
+	 * is captured we simply prevent it from flushing.  The log-writer code relies on
+	 * this to properly log superblock modifications of the tree height. */
 	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 		/* Just pass dirty znode-above-root to overwrite set. */
 		jnode_set_wander(node);
