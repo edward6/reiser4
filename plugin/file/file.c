@@ -897,19 +897,11 @@ find_or_create_extent(struct page *page)
 	return result;
 }
 
-/* Check mapping for existence of not captured dirty pages */
+/* Check mapping for existence of not captured dirty pages. This returns !0 if either reiser4 inode's page tree is not
+ * empty or number of eflushed anonymous jnodes is not 0 */
 static int inode_has_anonymous_pages(struct inode *inode)
 {
-	int ret;
-	struct address_space *mapping;
-
-	mapping = inode->i_mapping;
-	spin_lock (&mapping->page_lock);
-	ret = !list_empty (get_moved_pages(mapping));
-	spin_unlock (&mapping->page_lock);
-	ret |= (reiser4_inode_data(inode)->eflushed_anon > 0);
-
-	return ret;
+	return mapping_tagged(inode->i_mapping, PAGECACHE_TAG_REISER4_MOVED) | (reiser4_inode_data(inode)->eflushed_anon > 0);
 }
 
 static int capture_page_and_create_extent(struct page *page)
@@ -957,7 +949,8 @@ static void redirty_inode(struct inode *inode)
 }
 
 /* this returns 1 if it captured page */
-static int capture_anonymous_page(struct page *pg, int keepme)
+static int
+capture_anonymous_page(struct page *pg, int keepme)
 {
 	struct address_space *mapping;
 	int result;
@@ -965,19 +958,25 @@ static int capture_anonymous_page(struct page *pg, int keepme)
 	mapping = pg->mapping;
 	result = 0;
 	if (PageWriteback(pg)) {
+		/* FIXME: do nothing? */;
+#if 0
 		if (PageDirty(pg))
 			list_move(&pg->list, &mapping->dirty_pages);
 		else
 			list_move(&pg->list, &mapping->locked_pages);
+#endif
 	} else if (!PageDirty(pg) && !keepme) {
+#if 0
 		list_move(&pg->list, &mapping->clean_pages);
+#endif
+		/* FIXME: do nothing? */;
 	} else {
 		jnode *node;
 
-		list_move(&pg->list, &mapping->io_pages);
-		page_cache_get (pg);
+		/*list_move(&pg->list, &mapping->io_pages);*/
+		page_cache_get(pg);
 		
-		spin_unlock (&mapping->page_lock);
+		/*spin_unlock_irq (&mapping->tree_lock);*/
 
 		lock_page(pg);
 		/* page is guaranteed to be in the mapping, because we are
@@ -1010,7 +1009,7 @@ static int capture_anonymous_page(struct page *pg, int keepme)
 		} else
 			result = PTR_ERR(node);
 		page_cache_release(pg);
-		spin_lock(&mapping->page_lock);
+		/*spin_lock_irq(&mapping->tree_lock);*/
 	}
 	return result;
 }
@@ -1020,7 +1019,8 @@ static int capture_anonymous_page(struct page *pg, int keepme)
 
 #if REISER4_USE_EFLUSH
 
-static int capture_anonymous_jnodes(struct inode *inode)
+static int
+capture_anonymous_jnodes(struct inode *inode)
 {
 	struct list_head *tmp, *next;
 	reiser4_inode *info;
@@ -1067,10 +1067,9 @@ static int capture_anonymous_jnodes(struct inode *inode)
 			jput(node);
 			if (result != 0)
 				return result;
-
-			spin_lock(&inode->i_mapping->page_lock);
+			/*spin_lock_irq(&inode->i_mapping->tree_lock);*/
 			result = capture_anonymous_page(jnode_page(node), keepme);
-			spin_unlock(&inode->i_mapping->page_lock);
+			/*spin_unlock_irq(&inode->i_mapping->tree_lock);*/
 			jrelse(node);
 			spin_lock_eflush(tree->super);
 
@@ -1099,29 +1098,48 @@ static int capture_anonymous_jnodes(struct inode *inode)
 
 #endif /* REISER4_USE_EFLUSH */
 
-static int capture_anonymous_pages(struct address_space * mapping)
+static int
+capture_anonymous_pages(struct address_space *mapping)
 {
-	struct list_head *mpages;
 	int result;
 	int nr;
+	unsigned long from; /* start index for radix_tree_gang_lookup */
+	unsigned int found; /* return value for radix_tree_gang_lookup */
 
 	result = 0;
-	nr = 0;
+	nr = 0;	
 
-	spin_lock (&mapping->page_lock);
+	from = 0;
 
-	mpages = get_moved_pages(mapping);
-	while (result == 0 && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
-		struct page *pg = list_entry(mpages->prev, struct page, list);
+	spin_lock_irq(&mapping->tree_lock);
+
+	while (result == 0 && nr < CAPTURE_APAGE_BURST) {
+		struct page *pg;
+
+		/* look for dirty pages only */
+		found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&pg, from, 1, PAGECACHE_TAG_REISER4_MOVED);
+		assert("vs-1652", found < 2);
+		if (found == 0)
+			break;
 
 		assert("vs-1455", PageDirty(pg));
+
+		/* page may not leave radix tree because it is protected from truncating by unix file rw latch */
+		page_cache_get(pg);
+		spin_unlock_irq(&mapping->tree_lock);
+
+		from = pg->index + 1;
+
 		result = capture_anonymous_page(pg, 0);
 		if (result == 1) {
 			++ nr;
 			result = 0;
 		}
+
+		page_cache_release(pg);
+		spin_lock_irq(&mapping->tree_lock);
 	}
-	spin_unlock(&mapping->page_lock);
+	spin_unlock_irq(&mapping->tree_lock);
 
 	if (result) {
 		warning("vs-1454", "Cannot capture anon pages: result=%i (captured=%d)\n", result, nr);
@@ -1166,6 +1184,7 @@ sync_page(struct page *page)
 	return result;
 }
 
+#if 0
 /*
  * Commit atoms of pages on @pages list.
  */
@@ -1178,21 +1197,63 @@ sync_page_list(struct inode *inode, struct list_head *pages)
 
 	mapping = inode->i_mapping;
 	result = 0;
-	spin_lock(&mapping->page_lock);
+	spin_lock_irq(&mapping->tree_lock);
 	while (result == 0 && !list_empty(pages)) {
 		struct page *page;
 
 		page = container_of(pages->next, struct page, list);
 		page_cache_get(page);
 		list_move_tail(&page->list, &done);
-		spin_unlock(&mapping->page_lock);
+		spin_unlock_irq(&mapping->tree_lock);
 		result = sync_page(page);
 		page_cache_release(page);
-		spin_lock(&mapping->page_lock);
+		spin_lock_irq(&mapping->tree_lock);
 	}
 	/* put remaining pages back */
 	list_splice(&done, pages);
-	spin_unlock(&mapping->page_lock);
+	spin_unlock_irq(&mapping->tree_lock);
+	return result;
+}
+#endif
+
+/*
+ * Commit atoms of pages on @pages list.
+ * call sync_page for each page from mapping's page tree
+ */
+static int
+sync_page_list(struct inode *inode)
+{
+	int result;
+	struct address_space *mapping;
+	unsigned long from; /* start index for radix_tree_gang_lookup */
+	unsigned int found; /* return value for radix_tree_gang_lookup */
+
+	mapping = inode->i_mapping;
+	from = 0;
+	result = 0;
+	spin_lock_irq(&mapping->tree_lock);
+	while (result == 0) {
+		struct page *page;
+
+		found = radix_tree_gang_lookup(&mapping->page_tree, (void **)&page, from, 1);
+		assert("", found < 2);
+		if (found == 0)
+			break;
+
+		/* page may not leave radix tree because it is protected from truncating by inode->i_sem downed by
+		   sys_fsync */
+		page_cache_get(page);
+		spin_unlock_irq(&mapping->tree_lock);
+
+		from = page->index + 1;
+
+		result = sync_page(page);
+
+		page_cache_release(page);
+		spin_lock_irq(&mapping->tree_lock);
+	}
+
+	spin_unlock_irq(&mapping->tree_lock);
 	return result;
 }
 
@@ -1257,8 +1318,7 @@ commit_file_atoms(struct inode *inode)
 			 * So for simplicity we just commit ->io_pages and
 			 * ->dirty_pages.
 			 */
-			sync_page_list(inode, &inode->i_mapping->io_pages) ||
-			sync_page_list(inode, &inode->i_mapping->dirty_pages);
+			sync_page_list(inode);
 		break;
 	case UF_CONTAINER_TAILS:
 		/*
