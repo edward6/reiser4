@@ -19,9 +19,9 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
 
-/* Proposed optimization: dynamic loading/unloading of bitmap blocks
+/* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap blocks
 
-   The useful optimization in reiser4 bitmap handling would be dynamic bitmap
+   A useful optimization of reiser4 bitmap handling would be dynamic bitmap
    blocks loading/unloading which is different from v3.x where all bitmap
    blocks are loaded at mount time.
 
@@ -60,6 +60,7 @@
 
 /* Block allocation/deallocation are done through special bitmap objects which
    are allocated in an array at fs mount. */
+/* how about calling it a maplink instead of bnode? ZAM-FIXME-HANS: */
 struct bnode {
 	struct semaphore sema;	/* long term lock object */
 
@@ -119,6 +120,7 @@ bnode_set_commit_crc(struct bnode *bnode, __u32 crc)
 /* ZAM-FIXME-HANS: is the idea that this might be a union someday? having
  * written the code, does this added abstraction still have */
 /* ANSWER(Zam): No, the reiser4_space_allocator structure is for it. */
+/* ZAM-FIXME-HANS: I don't understand your english in comment above. */
 struct bitmap_allocator_data {
 	/* an array for bitmap blocks direct access */
 	struct bnode *bitmap;
@@ -170,12 +172,16 @@ find_next_zero_bit_in_byte(unsigned int byte, int start)
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
 ext2_find_next_zero_bit(addr, maxoffset, offset)
 
-
+/* ZAM-FIXME-HANS: would 32 or 64 bit comparisons be faster? */
 static bmap_off_t
-reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
+reiser4_find_next_set_bit(void *addr, 
+bmap_off_t max_offset,		/* ZAM-FIXME-HANS: comment needed */
+bmap_off_t start_offset)
 {
 	unsigned char *base = addr;
+        /* start_offset is in bits, convert it to byte offset within bitmap. */
 	int byte_nr = start_offset >> 3;
+	/* bit number within the byte. */
 	int bit_nr = start_offset & 0x7;
 	int max_byte_nr = (max_offset - 1) >> 3;
 
