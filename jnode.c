@@ -31,6 +31,7 @@
 #include <linux/pagemap.h>
 #include <linux/swap.h>
 #include <linux/fs.h>		/* for struct address_space  */
+#include <linux/writeback.h>	/* for inode_lock */
 
 static kmem_cache_t *_jnode_slab = NULL;
 
@@ -143,12 +144,14 @@ jnode_done_static(void)
 
 /* Initialize a jnode. */
 void
-jnode_init(jnode * node, reiser4_tree * tree)
+jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 {
 	assert("umka-175", node != NULL);
 
 	xmemset(node, 0, sizeof (jnode));
+	ON_DEBUG(node->magic = JMAGIC);
 	node->state = 0;
+	jnode_set_type(node, type);
 	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
 	spin_jnode_init(node);
@@ -224,21 +227,18 @@ jfree(jnode * node)
 }
 
 jnode *
-jnew(void)
+jnew_unformatted(void)
 {
 	jnode *jal;
 
 	jal = jalloc();
-
 	if (jal == NULL)
 		return NULL;
 
-	jnode_init(jal, current_tree);
-
-	/* FIXME: not a strictly correct, but should help in avoiding of
-	   looking to missing znode-only fields */
-	jnode_set_type(jal, JNODE_UNFORMATTED_BLOCK);
-
+	jnode_init(jal, current_tree, JNODE_UNFORMATTED_BLOCK);
+	jal->key.j.mapping = 0;
+	jal->key.j.index = (unsigned long)-1;
+	jal->key.j.objectid = 0;
 	return jal;
 }
 
@@ -286,19 +286,84 @@ void jnode_lockprof_hook(const jnode *node)
 }
 #endif
 
-void
-jnode_attach_page(jnode * node, struct page *pg);
+static int
+inode_has_no_jnodes(reiser4_inode *r4_inode)
+{
+	if (r4_inode->jnode_tree.rnode == 0) {
+		assert("vs-1434", r4_inode->jnodes == 0);
+		assert("vs-1435", (inode_by_reiser4_inode(r4_inode)->i_state & I_JNODES) == 0);
+		return 1;
+	}
+	assert("vs-1436", r4_inode->jnodes > 0);
+	assert("vs-1437", (inode_by_reiser4_inode(r4_inode)->i_state & I_JNODES) != 0);
+	return 0;
+}
 
+
+/* insert jnode into reiser4 inode's radix tree of jnodes. This is performed under tree spin lock. It also sets a bit
+   (I_JNODES) in inode's i_state so that fs/inode.c:can_unuse never returns 1, so, jnodes in inode's jnode tree prevent
+   inode from being pruned. This is important because jnodes store pointer to inode's mapping */
+static void
+inode_attach_jnode(jnode *node)
+{
+	struct inode *inode;
+	reiser4_inode *r4_inode;
+
+	assert("vs-1439", node->key.j.mapping);
+
+	inode = node->key.j.mapping->host;
+	r4_inode = reiser4_inode_data(inode);
+	if (inode_has_no_jnodes(r4_inode)) {
+		spin_lock(&inode_lock);
+		assert("vs-1433", (inode->i_state & I_JNODES) == 0);
+		inode->i_state |= I_JNODES;
+		spin_unlock(&inode_lock);
+	}
+	check_me("vs-1431", radix_tree_insert(&r4_inode->jnode_tree, node->key.j.index, node) == 0);
+	ON_DEBUG(r4_inode->jnodes ++);
+}
+
+/* remove jnode into reiser4 inode's radix tree. This is performed under tree spin lock. If last jnode is removed from
+   inode's jnode tree inode gets "released" - bit I_JNODES is cleared */
+static void
+inode_detach_jnode(jnode *node)
+{
+	struct inode *inode;
+	reiser4_inode *r4_inode;
+
+	assert("vs-1440", node->key.j.mapping);
+	inode = node->key.j.mapping->host;
+	assert("vs-1441", node->key.j.objectid == get_inode_oid(inode));
+	r4_inode = reiser4_inode_data(inode);
+	assert("vs-1431", r4_inode->jnodes > 0 && (inode->i_state & I_JNODES));
+
+	check_me("vs-1431", radix_tree_delete(&r4_inode->jnode_tree, jnode_get_index(node)));
+	ON_DEBUG(r4_inode->jnodes --);
+	if (r4_inode->jnodes == 0) {
+		spin_lock(&inode_lock);
+		assert("vs-1432", inode->i_state & I_JNODES);
+		assert("vs-1432", r4_inode->jnode_tree.rnode == 0);
+		inode->i_state &= ~I_JNODES;
+		spin_unlock(&inode_lock);
+	}
+}
+
+/* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
+   (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
+   fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is created */
 void
-bind_jnode_and_page(jnode *node, oid_t oid, struct page *pg)
+hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long index)
 {
 	j_hash_table *jtable;
 
-	jref(node);
-
-	node->key.j.mapping  = pg->mapping;
-	node->key.j.objectid = oid;
-	node->key.j.index    = pg->index;
+	assert("vs-1446", jnode_is_unformatted(node));
+	assert("vs-1442", node->key.j.mapping == 0);
+	assert("vs-1443", node->key.j.objectid == 0);
+	assert("vs-1444", node->key.j.index == (unsigned long)-1);
+	
+	node->key.j.mapping  = mapping;
+	node->key.j.objectid = get_inode_oid(mapping->host);
+	node->key.j.index    = index;
 
 	jtable = &node->tree->jhash_table;
 
@@ -311,9 +376,37 @@ bind_jnode_and_page(jnode *node, oid_t oid, struct page *pg)
 	 */
 	/* assert("nikita-3211", j_hash_find(jtable, &node->key.j) == NULL); */
 	j_hash_insert_rcu(jtable, node);
-	WUNLOCK_TREE(node->tree);
 
-	UNDER_SPIN_VOID(jnode, node, jnode_attach_page(node, pg));
+	inode_attach_jnode(node);
+
+	WUNLOCK_TREE(node->tree);
+}
+
+static void
+unhash_unformatted_node_nolock(jnode *node)
+{
+	/* remove jnode from hash-table */	
+	j_hash_remove_rcu(&node->tree->jhash_table, node);
+
+	/* remove jnode from inode's tree of jnodes */
+	inode_detach_jnode(node);
+
+	node->key.j.mapping = 0;
+	node->key.j.index = (unsigned long)-1;
+	node->key.j.objectid = 0;
+}
+
+/* remove jnode from hash table and from inode's tree of jnodes. This is used in reiser4_invalidatepage and in
+   kill_hook_extent->truncate_inode_jnodes->uncapture_jnode */
+void
+unhash_unformatted_jnode(jnode *node)
+{
+	assert("vs-1445", jnode_is_unformatted(node));
+	WLOCK_TREE(node->tree);
+
+	unhash_unformatted_node_nolock(node);
+
+	WUNLOCK_TREE(node->tree);
 }
 
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
@@ -350,14 +443,16 @@ do_jget(reiser4_tree * tree, struct page * pg)
 		return result;
 	}
 
-	jal = jnew();
+	jal = jnew_unformatted();
 
 	if (unlikely(jal == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
 
 	assert("nikita-3209", jprivate(pg) == NULL);
-
-	bind_jnode_and_page(jal, oid, pg);
+	jref(jal);
+	hash_unformatted_jnode(jal, pg->mapping, pg->index);
+	/* attach jnode to page */
+	UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
 	return jal;
 }
 
@@ -506,7 +601,8 @@ jparse(jnode * node)
 }
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
-static struct page * jnode_get_page_locked(jnode * node, int gfp_flags)
+struct page *
+jnode_get_page_locked(jnode * node, int gfp_flags)
 {
 	struct page * page;
 
@@ -895,8 +991,8 @@ index_jnode(const jnode * node)
 static inline void
 remove_jnode(jnode * node, reiser4_tree * tree)
 {
-	/* remove jnode from hash-table */
-	j_hash_remove_rcu(&tree->jhash_table, node);
+	if (node->key.j.mapping)
+		unhash_unformatted_node_nolock(node);
 }
 
 static void
@@ -1036,6 +1132,49 @@ io_hook_no_hook(jnode * node UNUSED_ARG, struct page *page UNUSED_ARG, int rw UN
 
 extern int io_hook_znode(jnode * node, struct page *page, int rw);
 
+/* jplug->clone for formatted nodes (znodes) */
+znode *zalloc(int gfp_flag);
+void zinit(znode *, const znode * parent, reiser4_tree *);
+jnode *
+clone_formatted(jnode *node)
+{
+	znode *clone;
+
+	assert("vs-1430", jnode_is_znode(node));
+	clone = zalloc(GFP_KERNEL);
+	if (clone == NULL)
+		return ERR_PTR(RETERR(-ENOMEM));
+	zinit(clone, 0, current_tree);
+	jnode_set_block(ZJNODE(clone), jnode_get_block(node));
+	/* ZJNODE(clone)->key.z is not initialized */
+	clone->level = JZNODE(node)->level;
+
+	/* mapping and index methods will work properly for this jnode */
+	return ZJNODE(clone);
+}
+
+/* jplug->clone for unformatted nodes */
+jnode *
+clone_unformatted(jnode *node)
+{
+	jnode *clone;
+
+	assert("vs-1431", jnode_is_unformatted(node));
+	clone = jalloc();
+	if (clone == NULL)
+		return ERR_PTR(RETERR(-ENOMEM));
+
+	jnode_init(clone, current_tree, JNODE_UNFORMATTED_BLOCK);
+	jnode_set_block(clone, jnode_get_block(node));
+
+	/* mapping and index are to set differently */
+	clone->key.j.mapping = mapping_znode(clone);
+	clone->key.j.index = index_znode(clone);
+	clone->key.j.objectid = get_inode_oid(clone->key.j.mapping->host);
+	return clone;
+	
+}
+
 jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 	[JNODE_UNFORMATTED_BLOCK] = {
 		.h = {
@@ -1050,7 +1189,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_noparse,
 		.mapping = mapping_jnode,
 		.index = index_jnode,
-		.io_hook = io_hook_no_hook
+		.io_hook = io_hook_no_hook,
+		.clone = clone_unformatted
 	},
 	[JNODE_FORMATTED_BLOCK] = {
 		.h = {
@@ -1065,7 +1205,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_znode,
 		.mapping = mapping_znode,
 		.index = index_znode,
-		.io_hook = io_hook_znode
+		.io_hook = io_hook_znode,
+		.clone = clone_formatted
 	},
 	[JNODE_BITMAP] = {
 		.h = {
@@ -1080,7 +1221,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_noparse,
 		.mapping = mapping_bitmap,
 		.index = index_is_address,
-		.io_hook = io_hook_no_hook
+		.io_hook = io_hook_no_hook,
+		.clone = NULL
 	},
 	[JNODE_IO_HEAD] = {
 		.h = {
@@ -1095,7 +1237,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = parse_noparse,
 		.mapping = mapping_bitmap,
 		.index = index_is_address,
-		.io_hook = io_hook_no_hook
+		.io_hook = io_hook_no_hook,
+		.clone = NULL
 	},
 	[JNODE_INODE] = {
 		.h = {
@@ -1110,7 +1253,8 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.parse = NULL,
 		.mapping = NULL,
 		.index = NULL,
-		.io_hook = NULL
+		.io_hook = NULL,
+		.clone = NULL
 	}
 };
 
@@ -1404,8 +1548,7 @@ alloc_io_head(const reiser4_block_nr * block)
 	jnode *jal = jalloc();
 
 	if (jal != NULL) {
-		jnode_init(jal, current_tree);
-		jnode_set_type(jal, JNODE_IO_HEAD);
+		jnode_init(jal, current_tree, JNODE_IO_HEAD);
 		jnode_set_block(jal, block);
 	}
 
@@ -1659,6 +1802,21 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 
 /* REISER4_DEBUG_OUTPUT */
 #endif
+
+/* this is only used to created jnode during capture copy */
+jnode *jclone(jnode *node)
+{
+	jnode *clone;
+
+	assert("vs-1429", jnode_ops(node)->clone);
+	clone = jnode_ops(node)->clone(node);
+	if (IS_ERR(clone))
+		return clone;
+
+	ON_DEBUG(JF_SET(clone, JNODE_CC));
+	return clone;
+}
+
 
 /* Make Linus happy.
    Local variables:
