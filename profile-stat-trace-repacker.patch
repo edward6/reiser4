@@ -678,7 +678,7 @@ diff -puN Kconfig~profile-stat-trace-repacker Kconfig
  plugin/hash.c                                                       |    1 
  plugin/item/blackbox.c                                              |    6 
  plugin/item/cde.c                                                   |   28 
- plugin/item/ctail.c                                                 |   36 
+ plugin/item/ctail.c                                                 |   26 
  plugin/item/ctail.h                                                 |    2 
  plugin/item/extent.c                                                |   15 
  plugin/item/extent.h                                                |    2 
@@ -738,11 +738,11 @@ diff -puN Kconfig~profile-stat-trace-repacker Kconfig
  wander.c                                                            |   66 
  znode.c                                                             |  305 +
  znode.h                                                             |   39 
- 202 files changed, 23671 insertions(+), 472 deletions(-)
+ 202 files changed, 23663 insertions(+), 470 deletions(-)
 
 diff -puN Kconfig~profile-stat-trace-repacker Kconfig
---- reiser4/Kconfig~profile-stat-trace-repacker	2005-02-09 18:36:23.107622938 +0300
-+++ reiser4-vs/Kconfig	2005-02-09 18:36:23.975686640 +0300
+--- reiser4/Kconfig~profile-stat-trace-repacker	2005-02-25 17:02:22.888028067 +0300
++++ reiser4-vs/Kconfig	2005-02-25 17:02:23.789093437 +0300
 @@ -1,7 +1,7 @@
  config REISER4_FS
  	tristate "Reiser4 (EXPERIMENTAL very fast general purpose filesystem)"
@@ -829,8 +829,8 @@ diff -puN Kconfig~profile-stat-trace-repacker Kconfig
 +	  Enable compilation of functions that print internal kernel data
 +	  structures in human readable form. Useful for debugging.
 diff -puN Makefile~profile-stat-trace-repacker Makefile
---- reiser4/Makefile~profile-stat-trace-repacker	2005-02-09 18:36:23.113623379 +0300
-+++ reiser4-vs/Makefile	2005-02-09 18:36:23.977686787 +0300
+--- reiser4/Makefile~profile-stat-trace-repacker	2005-02-25 17:02:22.896028648 +0300
++++ reiser4-vs/Makefile	2005-02-25 17:02:23.791093583 +0300
 @@ -4,8 +4,37 @@
  
  obj-$(CONFIG_REISER4_FS) += reiser4.o
@@ -944,8 +944,8 @@ diff -puN Makefile~profile-stat-trace-repacker Makefile
 +endif
 +
 diff -puN as_ops.c~profile-stat-trace-repacker as_ops.c
---- reiser4/as_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.122624039 +0300
-+++ reiser4-vs/as_ops.c	2005-02-09 18:36:23.979686934 +0300
+--- reiser4/as_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:22.904029228 +0300
++++ reiser4-vs/as_ops.c	2005-02-25 17:02:23.794093800 +0300
 @@ -18,12 +18,14 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -1048,8 +1048,8 @@ diff -puN as_ops.c~profile-stat-trace-repacker as_ops.c
  		/* there is no need to synchronize against
  		 * jnode_extent_write() here, because pages seen by
 diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
---- reiser4/block_alloc.c~profile-stat-trace-repacker	2005-02-09 18:36:23.130624626 +0300
-+++ reiser4-vs/block_alloc.c	2005-02-09 18:36:23.983687227 +0300
+--- reiser4/block_alloc.c~profile-stat-trace-repacker	2005-02-25 17:02:22.913029881 +0300
++++ reiser4-vs/block_alloc.c	2005-02-25 17:02:23.798094090 +0300
 @@ -123,7 +123,7 @@
  reiser4_internal void
  blocknr_hint_init(reiser4_blocknr_hint * hint)
@@ -1068,7 +1068,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	BUG_ON(ctx->grabbed_blocks < count);
  	assert("zam-527", ctx->grabbed_blocks >= count);
  	ctx->grabbed_blocks -= count;
-@@ -248,6 +250,35 @@ check_block_counters(const struct super_
+@@ -259,6 +261,35 @@ check_block_counters(const struct super_
  	return 1;
  }
  
@@ -1104,7 +1104,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  /* Adjust "working" free blocks counter for number of blocks we are going to
     allocate.  Record number of grabbed blocks in fs-wide and per-thread
     counters.  This function should be called before bitmap scanning or
-@@ -281,9 +312,14 @@ reiser4_grab(reiser4_context *ctx, __u64
+@@ -292,9 +323,14 @@ reiser4_grab(reiser4_context *ctx, __u64
  
  	free_blocks = sbinfo->blocks_free;
  
@@ -1119,7 +1119,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  		goto unlock_and_ret;
  	}
  
-@@ -294,10 +330,14 @@ reiser4_grab(reiser4_context *ctx, __u64
+@@ -305,10 +341,14 @@ reiser4_grab(reiser4_context *ctx, __u64
  
  #if REISER4_DEBUG
  	ctx->grabbed_initially = count;
@@ -1134,7 +1134,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	/* disable grab space in current context */
  	ctx->grab_enabled = 0;
  
-@@ -315,8 +355,11 @@ reiser4_grab_space(__u64 count, reiser4_
+@@ -326,8 +366,11 @@ reiser4_grab_space(__u64 count, reiser4_
  
  	assert("nikita-2964", ergo(flags & BA_CAN_COMMIT,
  				   lock_stack_isclean(get_current_lock_stack())));
@@ -1146,7 +1146,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  		return 0;
  	}
  
-@@ -325,11 +368,16 @@ reiser4_grab_space(__u64 count, reiser4_
+@@ -336,11 +379,16 @@ reiser4_grab_space(__u64 count, reiser4_
  
  		/* Trying to commit the all transactions if BA_CAN_COMMIT flag present */
  		if (flags & BA_CAN_COMMIT) {
@@ -1163,7 +1163,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	/*
  	 * allocation from reserved pool cannot fail. This is severe error.
  	 */
-@@ -524,6 +572,8 @@ static inline void assign_fake_blocknr(r
+@@ -535,6 +583,8 @@ static inline void assign_fake_blocknr(r
  reiser4_internal int
  assign_fake_blocknr_formatted(reiser4_block_nr *blocknr)
  {
@@ -1172,7 +1172,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	assign_fake_blocknr(blocknr);
  	grabbed2fake_allocated_formatted();
  
-@@ -536,6 +586,8 @@ fake_blocknr_unformatted(void)
+@@ -547,6 +597,8 @@ fake_blocknr_unformatted(void)
  {
  	reiser4_block_nr blocknr;
  
@@ -1181,7 +1181,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	assign_fake_blocknr(&blocknr);
  	grabbed2fake_allocated_unformatted();
  
-@@ -658,9 +710,18 @@ reiser4_alloc_blocks(reiser4_blocknr_hin
+@@ -669,9 +721,18 @@ reiser4_alloc_blocks(reiser4_blocknr_hin
  	ctx = get_current_context();
  	sbinfo = get_super_private(ctx->super);
  
@@ -1200,7 +1200,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  		get_blocknr_hint_default(&hint->blk);
  	}
  
-@@ -688,14 +749,17 @@ reiser4_alloc_blocks(reiser4_blocknr_hin
+@@ -699,14 +760,17 @@ reiser4_alloc_blocks(reiser4_blocknr_hin
  		switch (hint->block_stage) {
  		case BLOCK_NOT_COUNTED:
  		case BLOCK_GRABBED:
@@ -1219,7 +1219,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  				flush_reserved2used(atom, *len);
  				UNLOCK_ATOM (atom);
  			}
-@@ -780,6 +844,8 @@ fake_allocated2free(__u64 count, reiser4
+@@ -791,6 +855,8 @@ fake_allocated2free(__u64 count, reiser4
  	ctx = get_current_context();
  	sbinfo = get_super_private(ctx->super);
  
@@ -1228,7 +1228,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	fake_allocated2grabbed(ctx, sbinfo, count, flags);
  	grabbed2free(ctx, sbinfo, count);
  }
-@@ -804,6 +870,8 @@ reiser4_internal void
+@@ -815,6 +881,8 @@ reiser4_internal void
  grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
  	       __u64 count)
  {
@@ -1237,7 +1237,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	sub_from_ctx_grabbed(ctx, count);
  
  
-@@ -838,6 +906,9 @@ grabbed2flush_reserved_nolock(txn_atom *
+@@ -849,6 +917,9 @@ grabbed2flush_reserved_nolock(txn_atom *
  
  	assert ("vpf-292", check_block_counters(ctx->super));
  
@@ -1247,7 +1247,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	reiser4_spin_unlock_sb(sbinfo);
  }
  
-@@ -846,6 +917,8 @@ grabbed2flush_reserved(__u64 count)
+@@ -857,6 +928,8 @@ grabbed2flush_reserved(__u64 count)
  {
  	txn_atom * atom = get_current_atom_locked ();
  
@@ -1256,7 +1256,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	grabbed2flush_reserved_nolock (atom, count);
  
  	UNLOCK_ATOM (atom);
-@@ -958,6 +1031,8 @@ reiser4_dealloc_blocks(const reiser4_blo
+@@ -969,6 +1042,8 @@ reiser4_dealloc_blocks(const reiser4_blo
  	reiser4_context *ctx;
  	reiser4_super_info_data *sbinfo;
  
@@ -1265,7 +1265,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  	ctx = get_current_context();
  	sbinfo = get_super_private(ctx->super);
  
-@@ -974,6 +1049,8 @@ reiser4_dealloc_blocks(const reiser4_blo
+@@ -985,6 +1060,8 @@ reiser4_dealloc_blocks(const reiser4_blo
  	if (flags & BA_DEFER) {
  		blocknr_set_entry *bsep = NULL;
  
@@ -1274,7 +1274,7 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  		/* storing deleted block numbers in a blocknr set
  		   datastructure for further actual deletion */
  		do {
-@@ -1008,21 +1085,32 @@ reiser4_dealloc_blocks(const reiser4_blo
+@@ -1019,21 +1096,32 @@ reiser4_dealloc_blocks(const reiser4_blo
  		switch (target_stage) {
  		case BLOCK_NOT_COUNTED:
  			assert("vs-960", flags & BA_FORMATTED);
@@ -1308,8 +1308,8 @@ diff -puN block_alloc.c~profile-stat-trace-repacker block_alloc.c
  			used2flush_reserved(sbinfo, atom, *len, flags & BA_FORMATTED);
  			UNLOCK_ATOM(atom);
 diff -puN block_alloc.h~profile-stat-trace-repacker block_alloc.h
---- reiser4/block_alloc.h~profile-stat-trace-repacker	2005-02-09 18:36:23.138625213 +0300
-+++ reiser4-vs/block_alloc.h	2005-02-09 18:36:23.985687374 +0300
+--- reiser4/block_alloc.h~profile-stat-trace-repacker	2005-02-25 17:02:22.922030534 +0300
++++ reiser4-vs/block_alloc.h	2005-02-25 17:02:23.802094381 +0300
 @@ -150,14 +150,24 @@ extern int check_block_counters(const st
  
  #if REISER4_DEBUG
@@ -1336,8 +1336,8 @@ diff -puN block_alloc.h~profile-stat-trace-repacker block_alloc.h
  extern void post_commit_hook(void);
  extern void post_write_back_hook(void);
 diff -puN carry.c~profile-stat-trace-repacker carry.c
---- reiser4/carry.c~profile-stat-trace-repacker	2005-02-09 18:36:23.145625727 +0300
-+++ reiser4-vs/carry.c	2005-02-09 18:36:23.988687594 +0300
+--- reiser4/carry.c~profile-stat-trace-repacker	2005-02-25 17:02:22.930031114 +0300
++++ reiser4-vs/carry.c	2005-02-25 17:02:23.806094671 +0300
 @@ -146,6 +146,7 @@ I feel uneasy about this pool.  It adds 
  #include "carry_ops.h"
  #include "super.h"
@@ -1495,7 +1495,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  	/* lock nodes from left to right */
  	result = 0;
  	for_all_nodes(level, node, tmp_node) {
-@@ -805,6 +824,8 @@ unlock_carry_level(carry_level * level /
+@@ -808,6 +827,8 @@ unlock_carry_level(carry_level * level /
  
  	assert("nikita-889", level != NULL);
  
@@ -1504,7 +1504,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  	if (!failure) {
  		znode *spot;
  
-@@ -827,6 +848,8 @@ unlock_carry_level(carry_level * level /
+@@ -830,6 +851,8 @@ unlock_carry_level(carry_level * level /
  		   parents at this moment. */
  		assert("nikita-1631", ergo(!failure, !ZF_ISSET(carry_real(node),
  							       JNODE_ORPHAN)));
@@ -1513,7 +1513,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  		ON_DEBUG(check_dkeys(carry_real(node)));
  		unlock_carry_node(level, node, failure);
  	}
-@@ -846,6 +869,8 @@ done_carry_level(carry_level * level /* 
+@@ -849,6 +872,8 @@ done_carry_level(carry_level * level /* 
  
  	assert("nikita-1076", level != NULL);
  
@@ -1522,7 +1522,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  	unlock_carry_level(level, 0);
  	for_all_nodes(level, node, tmp_node) {
  		assert("nikita-2113", locks_list_is_clean(&node->lock_handle));
-@@ -914,6 +939,8 @@ lock_carry_node(carry_level * level /* l
+@@ -917,6 +942,8 @@ lock_carry_node(carry_level * level /* l
  	assert("nikita-887", level != NULL);
  	assert("nikita-882", node != NULL);
  
@@ -1531,7 +1531,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  	result = 0;
  	reference_point = node->node;
  	init_lh(&lh);
-@@ -1009,6 +1036,8 @@ unlock_carry_node(carry_level * level,
+@@ -1012,6 +1039,8 @@ unlock_carry_node(carry_level * level,
  
  	assert("nikita-884", node != NULL);
  
@@ -1540,7 +1540,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  	real_node = carry_real(node);
  	/* pair to zload() in lock_carry_node_tail() */
  	zrelse(real_node);
-@@ -1275,7 +1304,9 @@ carry_level_invariant(carry_level * leve
+@@ -1278,7 +1307,9 @@ carry_level_invariant(carry_level * leve
  			if (!keyle(leftmost_key_in_node(left, &lkey),
  				   leftmost_key_in_node(right, &rkey))) {
  				print_znode("left", left);
@@ -1550,7 +1550,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  				return 0;
  			}
  		}
-@@ -1284,6 +1315,7 @@ carry_level_invariant(carry_level * leve
+@@ -1287,6 +1318,7 @@ carry_level_invariant(carry_level * leve
  }
  #endif
  
@@ -1558,7 +1558,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  /* get symbolic name for boolean */
  static const char *
  tf(int boolean /* truth value */ )
-@@ -1321,7 +1353,7 @@ carry_op_name(carry_opcode op /* carry o
+@@ -1324,7 +1356,7 @@ carry_op_name(carry_opcode op /* carry o
  }
  
  /* dump information about carry node */
@@ -1567,7 +1567,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  print_carry(const char *prefix /* prefix to print */ ,
  	    carry_node * node /* node to print */ )
  {
-@@ -1336,7 +1368,7 @@ print_carry(const char *prefix /* prefix
+@@ -1339,7 +1371,7 @@ print_carry(const char *prefix /* prefix
  }
  
  /* dump information about carry operation */
@@ -1576,7 +1576,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  print_op(const char *prefix /* prefix to print */ ,
  	 carry_op * op /* operation to print */ )
  {
-@@ -1375,7 +1407,7 @@ print_op(const char *prefix /* prefix to
+@@ -1378,7 +1410,7 @@ print_op(const char *prefix /* prefix to
  }
  
  /* dump information about all nodes and operations in a @level */
@@ -1585,7 +1585,7 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  print_level(const char *prefix /* prefix to print */ ,
  	    carry_level * level /* level to print */ )
  {
-@@ -1396,6 +1428,7 @@ print_level(const char *prefix /* prefix
+@@ -1399,6 +1431,7 @@ print_level(const char *prefix /* prefix
  	for_all_ops(level, op, tmp_op)
  	    print_op("\tcarry op", op);
  }
@@ -1594,8 +1594,8 @@ diff -puN carry.c~profile-stat-trace-repacker carry.c
  /* Make Linus happy.
     Local variables:
 diff -puN carry.h~profile-stat-trace-repacker carry.h
---- reiser4/carry.h~profile-stat-trace-repacker	2005-02-09 18:36:23.153626314 +0300
-+++ reiser4-vs/carry.h	2005-02-09 18:36:23.991687814 +0300
+--- reiser4/carry.h~profile-stat-trace-repacker	2005-02-25 17:02:22.937031622 +0300
++++ reiser4-vs/carry.h	2005-02-25 17:02:23.810094961 +0300
 @@ -317,6 +317,9 @@ struct carry_level {
  	/* lock handle supplied by user that we are tracking. See
  	   above. */
@@ -1652,8 +1652,8 @@ diff -puN carry.h~profile-stat-trace-repacker carry.h
  #endif
  
 diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
---- reiser4/carry_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.162626975 +0300
-+++ reiser4-vs/carry_ops.c	2005-02-09 18:36:23.995688108 +0300
+--- reiser4/carry_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:22.945032203 +0300
++++ reiser4-vs/carry_ops.c	2005-02-25 17:02:23.815095324 +0300
 @@ -62,6 +62,7 @@ find_left_neighbor(carry_op * op	/* node
  				assert("nikita-3408", !carry_node_end(doing,
  								      left));
@@ -1795,7 +1795,7 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  
  	coord_init_zero(&coord);
  	coord_init_zero(&coord2);
-@@ -1320,6 +1353,8 @@ carry_cut(carry_op * op /* operation to 
+@@ -1321,6 +1354,8 @@ carry_cut(carry_op * op /* operation to 
  	assert("nikita-896", op != NULL);
  	assert("nikita-897", todo != NULL);
  	assert("nikita-898", op->op == COP_CUT);
@@ -1804,7 +1804,7 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  
  	info.doing = doing;
  	info.todo = todo;
-@@ -1443,6 +1478,9 @@ carry_paste(carry_op * op /* operation t
+@@ -1444,6 +1479,9 @@ carry_paste(carry_op * op /* operation t
  	assert("nikita-983", todo != NULL);
  	assert("nikita-984", op->op == COP_PASTE);
  
@@ -1814,7 +1814,7 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  	coord_init_zero(&dcoord);
  
  	result = insert_paste_common(op, doing, todo, &cdata, &dcoord, &data);
-@@ -1456,6 +1494,7 @@ carry_paste(carry_op * op /* operation t
+@@ -1457,6 +1495,7 @@ carry_paste(carry_op * op /* operation t
  	if (!can_paste(coord, op->u.insert.d->key, op->u.insert.d->data)) {
  		op->op = COP_INSERT;
  		op->u.insert.type = COPT_PASTE_RESTARTED;
@@ -1822,7 +1822,7 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  		result = op_dispatch_table[COP_INSERT].handler(op, doing, todo);
  
  		return result;
-@@ -1521,6 +1560,9 @@ carry_extent(carry_op * op /* operation 
+@@ -1522,6 +1561,9 @@ carry_extent(carry_op * op /* operation 
  	assert("nikita-1752", todo != NULL);
  	assert("nikita-1753", op->op == COP_EXTENT);
  
@@ -1832,7 +1832,7 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  	/* extent insertion overview:
  
  	   extents live on the TWIG LEVEL, which is level one above the leaf
-@@ -1737,6 +1779,8 @@ carry_update(carry_op * op /* operation 
+@@ -1738,6 +1780,8 @@ carry_update(carry_op * op /* operation 
  	assert("nikita-902", op != NULL);
  	assert("nikita-903", todo != NULL);
  	assert("nikita-904", op->op == COP_UPDATE);
@@ -1841,7 +1841,7 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  
  	lchild = op->u.update.left;
  	rchild = op->node;
-@@ -1751,6 +1795,21 @@ carry_update(carry_op * op /* operation 
+@@ -1752,6 +1796,21 @@ carry_update(carry_op * op /* operation 
  	tree = znode_get_tree(rchild->node);
  	RLOCK_TREE(tree);
  	right = znode_parent(rchild->node);
@@ -1864,8 +1864,8 @@ diff -puN carry_ops.c~profile-stat-trace-repacker carry_ops.c
  
  	if (right != NULL) {
 diff -puN cluster.h~profile-stat-trace-repacker cluster.h
---- reiser4/cluster.h~profile-stat-trace-repacker	2005-02-09 18:36:23.169627489 +0300
-+++ reiser4-vs/cluster.h	2005-02-09 18:38:09.386398982 +0300
+--- reiser4/cluster.h~profile-stat-trace-repacker	2005-02-25 17:02:22.952032711 +0300
++++ reiser4-vs/cluster.h	2005-02-25 17:02:23.819095614 +0300
 @@ -193,13 +193,13 @@ fsize_to_count(reiser4_cluster_t * clust
  static inline void
  reiser4_slide_init (reiser4_slide_t * win){
@@ -1882,7 +1882,7 @@ diff -puN cluster.h~profile-stat-trace-repacker cluster.h
  	clust->dstat = INVAL_DISK_CLUSTER;
  	clust->win = window;
  }
-@@ -219,6 +219,7 @@ set_dc_item_stat(hint_t * hint, dc_item_
+@@ -224,6 +224,7 @@ hint_is_unprepped_dclust(hint_t * hint)
  }
  
  int inflate_cluster(reiser4_cluster_t *, struct inode *);
@@ -1891,8 +1891,8 @@ diff -puN cluster.h~profile-stat-trace-repacker cluster.h
  void forget_cluster_pages(struct page ** page, int nrpages);
  int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 diff -puN context.c~profile-stat-trace-repacker context.c
---- reiser4/context.c~profile-stat-trace-repacker	2005-02-09 18:36:23.177628076 +0300
-+++ reiser4-vs/context.c	2005-02-09 18:36:23.999688402 +0300
+--- reiser4/context.c~profile-stat-trace-repacker	2005-02-25 17:02:22.959033218 +0300
++++ reiser4-vs/context.c	2005-02-25 17:02:23.823095904 +0300
 @@ -40,10 +40,9 @@
  #include <linux/writeback.h> /* balance_dirty_pages() */
  #include <linux/hardirq.h>
@@ -1999,8 +1999,8 @@ diff -puN context.c~profile-stat-trace-repacker context.c
  
  /* Make Linus happy.
 diff -puN context.h~profile-stat-trace-repacker context.h
---- reiser4/context.h~profile-stat-trace-repacker	2005-02-09 18:36:23.184628589 +0300
-+++ reiser4-vs/context.h	2005-02-09 18:36:24.001688548 +0300
+--- reiser4/context.h~profile-stat-trace-repacker	2005-02-25 17:02:22.965033654 +0300
++++ reiser4-vs/context.h	2005-02-25 17:02:23.825096049 +0300
 @@ -20,7 +20,7 @@
  #include <linux/sched.h>	/* for struct task_struct */
  
@@ -2020,9 +2020,9 @@ diff -puN context.h~profile-stat-trace-repacker context.h
  
  	/* list of all threads doing flush currently */
  	flushers_list_link  flushers_link;
-@@ -144,10 +147,26 @@ struct reiser4_context {
- 	/* information about delayed stat data updates. See above. */
- 	dirty_inode_info dirty;
+@@ -146,10 +149,26 @@ struct reiser4_context {
+ 
+ 	void *grabbed_at[4];
  #endif
 +
 +#if REISER4_TRACE
@@ -2048,7 +2048,7 @@ diff -puN context.h~profile-stat-trace-repacker context.h
  TYPE_SAFE_LIST_DEFINE(flushers, reiser4_context, flushers_link);
  #endif
  
-@@ -155,8 +174,22 @@ extern reiser4_context *get_context_by_l
+@@ -157,8 +176,22 @@ extern reiser4_context *get_context_by_l
  
  /* Debugging helps. */
  extern int init_context_mgr(void);
@@ -2073,8 +2073,8 @@ diff -puN context.h~profile-stat-trace-repacker context.h
  
  #define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
 diff -puN coord.c~profile-stat-trace-repacker coord.c
---- reiser4/coord.c~profile-stat-trace-repacker	2005-02-09 18:36:23.191629103 +0300
-+++ reiser4-vs/coord.c	2005-02-09 18:36:24.003688695 +0300
+--- reiser4/coord.c~profile-stat-trace-repacker	2005-02-25 17:02:22.972034162 +0300
++++ reiser4-vs/coord.c	2005-02-25 17:02:23.829096340 +0300
 @@ -167,7 +167,7 @@ coord_init_after_item(coord_t * coord)
  reiser4_internal void
  coord_init_zero(coord_t * coord)
@@ -2143,8 +2143,8 @@ diff -puN coord.c~profile-stat-trace-repacker coord.c
     return NCOORD_ON_THE_LEFT, otherwise return NCOORD_INSIDE. */
  /* Audited by: green(2002.06.15) */
 diff -puN coord.h~profile-stat-trace-repacker coord.h
---- reiser4/coord.h~profile-stat-trace-repacker	2005-02-09 18:36:23.198629617 +0300
-+++ reiser4-vs/coord.h	2005-02-09 18:36:24.005688842 +0300
+--- reiser4/coord.h~profile-stat-trace-repacker	2005-02-25 17:02:22.993035685 +0300
++++ reiser4-vs/coord.h	2005-02-25 17:02:23.831096485 +0300
 @@ -215,6 +215,10 @@ coord_update_v(coord_t * coord)
  
  extern int coords_equal(const coord_t * c1, const coord_t * c2);
@@ -2166,8 +2166,8 @@ diff -puN coord.h~profile-stat-trace-repacker coord.h
  #endif
  
 diff -puN debug.c~profile-stat-trace-repacker debug.c
---- reiser4/debug.c~profile-stat-trace-repacker	2005-02-09 18:36:23.205630131 +0300
-+++ reiser4-vs/debug.c	2005-02-09 18:36:24.008689062 +0300
+--- reiser4/debug.c~profile-stat-trace-repacker	2005-02-25 17:02:23.000036193 +0300
++++ reiser4-vs/debug.c	2005-02-25 17:02:23.835096775 +0300
 @@ -28,6 +28,7 @@
   *
   */
@@ -2649,8 +2649,8 @@ diff -puN debug.c~profile-stat-trace-repacker debug.c
     Local variables:
     c-indentation-style: "K&R"
 diff -puN debug.h~profile-stat-trace-repacker debug.h
---- reiser4/debug.h~profile-stat-trace-repacker	2005-02-09 18:36:23.212630644 +0300
-+++ reiser4-vs/debug.h	2005-02-09 18:36:24.011689282 +0300
+--- reiser4/debug.h~profile-stat-trace-repacker	2005-02-25 17:02:23.007036701 +0300
++++ reiser4-vs/debug.h	2005-02-25 17:02:23.838096992 +0300
 @@ -61,6 +61,7 @@
  		 * warnings for things like assert(a = b); */			\
  		;								\
@@ -2964,7 +2964,7 @@ diff -puN debug.h~profile-stat-trace-repacker debug.h
  #endif
 diff -puN /dev/null diskmap.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/diskmap.c	2005-02-09 18:36:24.012689356 +0300
++++ reiser4-vs/diskmap.c	2005-02-25 17:02:23.839097065 +0300
 @@ -0,0 +1,76 @@
 +/* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
 +/* Functions to deal with diskmap storage - read-only storage (currently can only be
@@ -3044,7 +3044,7 @@ diff -puN /dev/null diskmap.c
 +}
 diff -puN /dev/null diskmap.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/diskmap.h	2005-02-09 18:36:24.013689429 +0300
++++ reiser4-vs/diskmap.h	2005-02-25 17:02:23.840097138 +0300
 @@ -0,0 +1,52 @@
 +#if !defined (__REISER4_DISKMAP_H__)
 +#define __REISER4_DISKMAP_H__
@@ -3100,7 +3100,7 @@ diff -puN /dev/null diskmap.h
 +#endif
 diff -puN /dev/null doc/directory-service
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/directory-service	2005-02-09 18:36:24.015689576 +0300
++++ reiser4-vs/doc/directory-service	2005-02-25 17:02:23.842097283 +0300
 @@ -0,0 +1,203 @@
 +
 +					  DIRECTORY SERVICE IN REISER4
@@ -3307,7 +3307,7 @@ diff -puN /dev/null doc/directory-service
 +^ End:
 diff -puN /dev/null doc/lock-ordering
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/lock-ordering	2005-02-09 18:36:24.019689869 +0300
++++ reiser4-vs/doc/lock-ordering	2005-02-25 17:02:23.855098226 +0300
 @@ -0,0 +1,601 @@
 +---------------------------------INTRODUCTION-----------------------------------
 +
@@ -3912,7 +3912,7 @@ diff -puN /dev/null doc/lock-ordering
 +^ End:
 diff -puN /dev/null doc/lock-ordering.dot
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/lock-ordering.dot	2005-02-09 18:36:24.021690016 +0300
++++ reiser4-vs/doc/lock-ordering.dot	2005-02-25 17:02:23.857098371 +0300
 @@ -0,0 +1,276 @@
 +/* this is dot(1) input file for lock-ordering diagram */
 +/* it should be passed through C preprocessor first */
@@ -4192,7 +4192,7 @@ diff -puN /dev/null doc/lock-ordering.dot
 +}
 diff -puN /dev/null doc/metadata-in-pagecache
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/metadata-in-pagecache	2005-02-09 18:36:24.023690163 +0300
++++ reiser4-vs/doc/metadata-in-pagecache	2005-02-25 17:02:23.858098444 +0300
 @@ -0,0 +1,57 @@
 +Hello,
 +
@@ -4253,7 +4253,7 @@ diff -puN /dev/null doc/metadata-in-pagecache
 +
 diff -puN /dev/null doc/oid-locid
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/oid-locid	2005-02-09 18:36:24.024690236 +0300
++++ reiser4-vs/doc/oid-locid	2005-02-25 17:02:23.860098589 +0300
 @@ -0,0 +1,108 @@
 +MIME-Version: 1.0
 +Content-Type: text/plain; charset=us-ascii
@@ -4365,7 +4365,7 @@ diff -puN /dev/null doc/oid-locid
 +Nikita.
 diff -puN /dev/null doc/page-cache-for-formatted-nodes
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/page-cache-for-formatted-nodes	2005-02-09 18:36:24.025690310 +0300
++++ reiser4-vs/doc/page-cache-for-formatted-nodes	2005-02-25 17:02:23.861098661 +0300
 @@ -0,0 +1,60 @@
 +PROPOSAL:
 +
@@ -4429,7 +4429,7 @@ diff -puN /dev/null doc/page-cache-for-formatted-nodes
 +# End:
 diff -puN /dev/null doc/plugin.inheritance
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/plugin.inheritance	2005-02-09 18:36:24.026690383 +0300
++++ reiser4-vs/doc/plugin.inheritance	2005-02-25 17:02:23.862098734 +0300
 @@ -0,0 +1,119 @@
 +
 +				 Report about "plugin inheritance discussion"
@@ -4552,7 +4552,7 @@ diff -puN /dev/null doc/plugin.inheritance
 +
 diff -puN /dev/null doc/readdir-problems-and-implementations
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/readdir-problems-and-implementations	2005-02-09 18:36:24.027690456 +0300
++++ reiser4-vs/doc/readdir-problems-and-implementations	2005-02-25 17:02:23.863098806 +0300
 @@ -0,0 +1,12 @@
 +1.
 +
@@ -4568,7 +4568,7 @@ diff -puN /dev/null doc/readdir-problems-and-implementations
 +^ End:
 diff -puN /dev/null doc/reiser4.writeback.overview
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/reiser4.writeback.overview	2005-02-09 18:36:24.028690530 +0300
++++ reiser4-vs/doc/reiser4.writeback.overview	2005-02-25 17:02:23.864098879 +0300
 @@ -0,0 +1,68 @@
 +Hello,
 +
@@ -4640,7 +4640,7 @@ diff -puN /dev/null doc/reiser4.writeback.overview
 +awkwardness.
 diff -puN /dev/null doc/reiser4_roadmap.html
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/reiser4_roadmap.html	2005-02-09 18:36:24.034690970 +0300
++++ reiser4-vs/doc/reiser4_roadmap.html	2005-02-25 17:02:23.870099314 +0300
 @@ -0,0 +1,1120 @@
 +<p> <H1> Reiser4 (Version 4 of ReiserFS)</H1>
 +
@@ -5764,7 +5764,7 @@ diff -puN /dev/null doc/reiser4_roadmap.html
 +on commit.
 diff -puN /dev/null doc/set-theoretic-stuff.tex
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/set-theoretic-stuff.tex	2005-02-09 18:36:24.035691043 +0300
++++ reiser4-vs/doc/set-theoretic-stuff.tex	2005-02-25 17:02:23.872099459 +0300
 @@ -0,0 +1,82 @@
 +\documentclass[a4paper, oneside, fleqn]{article}
 +
@@ -5850,7 +5850,7 @@ diff -puN /dev/null doc/set-theoretic-stuff.tex
 +% End:
 diff -puN /dev/null doc/syntax.alg
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/syntax.alg	2005-02-09 18:36:24.037691190 +0300
++++ reiser4-vs/doc/syntax.alg	2005-02-25 17:02:23.873099532 +0300
 @@ -0,0 +1,152 @@
 +<TITLE>Reiser4() Syntax In All Its Obscurities</TITLE>
 +
@@ -6006,7 +6006,7 @@ diff -puN /dev/null doc/syntax.alg
 +
 diff -puN /dev/null doc/sys-reiser4-implemenation-overview
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/sys-reiser4-implemenation-overview	2005-02-09 18:36:24.039691337 +0300
++++ reiser4-vs/doc/sys-reiser4-implemenation-overview	2005-02-25 17:02:23.876099750 +0300
 @@ -0,0 +1,222 @@
 +SYS_REISER4 IMPLEMENTATION OVERVIEW
 +
@@ -6232,7 +6232,7 @@ diff -puN /dev/null doc/sys-reiser4-implemenation-overview
 +# End:
 diff -puN /dev/null doc/wander.txt
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/doc/wander.txt	2005-02-09 18:36:24.041691484 +0300
++++ reiser4-vs/doc/wander.txt	2005-02-25 17:02:23.878099895 +0300
 @@ -0,0 +1,184 @@
 +
 +Before discussing the format of the commit record occupying the
@@ -6419,8 +6419,8 @@ diff -puN /dev/null doc/wander.txt
 +
 +Comments?
 diff -puN emergency_flush.c~profile-stat-trace-repacker emergency_flush.c
---- reiser4/emergency_flush.c~profile-stat-trace-repacker	2005-02-09 18:36:23.221631305 +0300
-+++ reiser4-vs/emergency_flush.c	2005-02-09 18:36:24.043691630 +0300
+--- reiser4/emergency_flush.c~profile-stat-trace-repacker	2005-02-25 17:02:23.016037354 +0300
++++ reiser4-vs/emergency_flush.c	2005-02-25 17:02:23.880100040 +0300
 @@ -291,6 +291,7 @@ emergency_flush(struct page *page)
  	assert("vs-1452", node != NULL);
  
@@ -6543,8 +6543,8 @@ diff -puN emergency_flush.c~profile-stat-trace-repacker emergency_flush.c
  
  reiser4_internal void
 diff -puN entd.c~profile-stat-trace-repacker entd.c
---- reiser4/entd.c~profile-stat-trace-repacker	2005-02-09 18:36:23.229631892 +0300
-+++ reiser4-vs/entd.c	2005-02-09 18:36:24.045691777 +0300
+--- reiser4/entd.c~profile-stat-trace-repacker	2005-02-25 17:02:23.023037862 +0300
++++ reiser4-vs/entd.c	2005-02-25 17:02:23.883100257 +0300
 @@ -54,7 +54,7 @@ init_entd_context(struct super_block *su
  
  	ctx = get_entd_context(super);
@@ -6555,8 +6555,8 @@ diff -puN entd.c~profile-stat-trace-repacker entd.c
  	kcond_init(&ctx->wait);
  	init_completion(&ctx->finish);
 diff -puN eottl.c~profile-stat-trace-repacker eottl.c
---- reiser4/eottl.c~profile-stat-trace-repacker	2005-02-09 18:36:23.237632479 +0300
-+++ reiser4-vs/eottl.c	2005-02-09 18:36:24.047691924 +0300
+--- reiser4/eottl.c~profile-stat-trace-repacker	2005-02-25 17:02:23.031038442 +0300
++++ reiser4-vs/eottl.c	2005-02-25 17:02:23.885100402 +0300
 @@ -181,6 +181,7 @@ add_empty_leaf(coord_t * insert_coord, l
  	if (IS_ERR(pool))
  		return PTR_ERR(pool);
@@ -6574,8 +6574,8 @@ diff -puN eottl.c~profile-stat-trace-repacker eottl.c
  		return 1;
  	}
 diff -puN estimate.c~profile-stat-trace-repacker estimate.c
---- reiser4/estimate.c~profile-stat-trace-repacker	2005-02-09 18:36:23.243632919 +0300
-+++ reiser4-vs/estimate.c	2005-02-09 18:36:24.048691997 +0300
+--- reiser4/estimate.c~profile-stat-trace-repacker	2005-02-25 17:02:23.039039023 +0300
++++ reiser4-vs/estimate.c	2005-02-25 17:02:23.887100548 +0300
 @@ -41,6 +41,12 @@ calc_estimate_one_insert(tree_level heig
  }
  
@@ -6590,8 +6590,8 @@ diff -puN estimate.c~profile-stat-trace-repacker estimate.c
  {
  	return tree->estimate_one_insert;
 diff -puN file_ops.c~profile-stat-trace-repacker file_ops.c
---- reiser4/file_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.250633433 +0300
-+++ reiser4-vs/file_ops.c	2005-02-09 18:36:24.050692144 +0300
+--- reiser4/file_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:23.047039603 +0300
++++ reiser4-vs/file_ops.c	2005-02-25 17:02:23.889100693 +0300
 @@ -26,12 +26,14 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -6729,8 +6729,8 @@ diff -puN file_ops.c~profile-stat-trace-repacker file_ops.c
  
  	if (fplug->open != NULL)
 diff -puN flush.c~profile-stat-trace-repacker flush.c
---- reiser4/flush.c~profile-stat-trace-repacker	2005-02-09 18:36:23.258634020 +0300
-+++ reiser4-vs/flush.c	2005-02-09 18:36:24.058692731 +0300
+--- reiser4/flush.c~profile-stat-trace-repacker	2005-02-25 17:02:23.057040329 +0300
++++ reiser4-vs/flush.c	2005-02-25 17:02:23.897101273 +0300
 @@ -23,8 +23,10 @@
  #include "page_cache.h"
  #include "wander.h"
@@ -7070,7 +7070,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		if (ret < 0)
  			break;
  
-@@ -2031,10 +2135,12 @@ static int handle_pos_on_formatted (flus
+@@ -2038,10 +2142,12 @@ static int handle_pos_on_formatted (flus
  		/* parent(right_lock.node) has to be processed before
  		 * (right_lock.node) due to "parent-first" allocation order. */
  		ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
@@ -7083,7 +7083,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		if (ret)
  			break;
  
-@@ -2047,9 +2153,11 @@ static int handle_pos_on_formatted (flus
+@@ -2054,9 +2160,11 @@ static int handle_pos_on_formatted (flus
  		move_flush_pos(pos, &right_lock, &right_load, NULL);
  
  		ret = rapid_flush(pos);
@@ -7095,7 +7095,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  
  	assert("edward-1006", !convert_data(pos) || !item_convert_data(pos));
  
-@@ -2131,6 +2239,7 @@ static int handle_pos_on_twig (flush_pos
+@@ -2138,6 +2246,7 @@ static int handle_pos_on_twig (flush_pos
  	assert ("zam-844", pos->state == POS_ON_EPOINT);
  	assert ("zam-843", item_is_extent(&pos->coord));
  
@@ -7103,7 +7103,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	/* We decide should we continue slum processing with current extent
  	   unit: if leftmost child of current extent unit is flushprepped
  	   (i.e. clean or already processed by flush) we stop squalloc().  There
-@@ -2145,7 +2254,9 @@ static int handle_pos_on_twig (flush_pos
+@@ -2152,7 +2261,9 @@ static int handle_pos_on_twig (flush_pos
  	}
  
  	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord) && item_is_extent(&pos->coord)) {
@@ -7113,7 +7113,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		if (ret) {
  			break;
  		}
-@@ -2163,6 +2274,7 @@ static int handle_pos_on_twig (flush_pos
+@@ -2170,6 +2281,7 @@ static int handle_pos_on_twig (flush_pos
  
  	assert ("zam-860", item_is_extent(&pos->coord));
  
@@ -7121,7 +7121,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	/* "slum" is over */
  	pos->state = POS_INVALID;
  	return 0;
-@@ -2186,6 +2298,7 @@ static int handle_pos_end_of_twig (flush
+@@ -2193,6 +2305,7 @@ static int handle_pos_end_of_twig (flush
  	init_lh(&right_lock);
  	init_load_count(&right_load);
  
@@ -7129,7 +7129,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	/* We get a lock on the right twig node even it is not dirty because
  	 * slum continues or discontinues on leaf level not on next twig. This
  	 * lock on the right twig is needed for getting its leftmost child. */
-@@ -2202,7 +2315,9 @@ static int handle_pos_end_of_twig (flush
+@@ -2209,7 +2322,9 @@ static int handle_pos_end_of_twig (flush
  		/* If right twig node is dirty we always attempt to squeeze it
  		 * content to the left... */
  became_dirty:
@@ -7139,7 +7139,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		if (ret <=0) {
  			/* pos->coord is on internal item, go to leaf level, or
  			 * we have an error which will be caught in squalloc() */
-@@ -2220,11 +2335,13 @@ became_dirty:
+@@ -2227,11 +2342,13 @@ became_dirty:
  		if (!znode_check_flushprepped(right_lock.node)) {
  			/* As usual, process parent before ...*/
  			ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
@@ -7153,7 +7153,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  			if (ret)
  				goto out;
  		}
-@@ -2240,7 +2357,9 @@ became_dirty:
+@@ -2247,7 +2364,9 @@ became_dirty:
  
  		/* check clean twig for possible relocation */
  		if (!znode_check_flushprepped(right_lock.node)) {
@@ -7163,7 +7163,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  			if (ret)
  				goto out;
  			if (znode_check_dirty(right_lock.node))
-@@ -2263,6 +2382,7 @@ became_dirty:
+@@ -2270,6 +2389,7 @@ became_dirty:
  	move_flush_pos(pos, &right_lock, &right_load, &at_right);
  
   out:
@@ -7171,7 +7171,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	done_load_count(&right_load);
  	done_lh(&right_lock);
  
-@@ -2287,6 +2407,7 @@ static int handle_pos_to_leaf (flush_pos
+@@ -2294,6 +2414,7 @@ static int handle_pos_to_leaf (flush_pos
  	init_lh(&child_lock);
  	init_load_count(&child_load);
  
@@ -7179,7 +7179,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	ret = get_leftmost_child_of_unit(&pos->coord, &child);
  	if (ret)
  		return ret;
-@@ -2309,6 +2430,7 @@ static int handle_pos_to_leaf (flush_pos
+@@ -2316,6 +2437,7 @@ static int handle_pos_to_leaf (flush_pos
  		goto out;
  
  	ret = allocate_znode(JZNODE(child), &pos->coord, pos);
@@ -7187,7 +7187,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	if (ret)
  		goto out;
  
-@@ -2318,9 +2440,11 @@ static int handle_pos_to_leaf (flush_pos
+@@ -2325,9 +2447,11 @@ static int handle_pos_to_leaf (flush_pos
  
  	if (node_is_empty(JZNODE(child))) {
  		ret = delete_empty_node(JZNODE(child));
@@ -7199,7 +7199,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	done_load_count(&child_load);
  	done_lh(&child_lock);
  	jput(child);
-@@ -2342,6 +2466,7 @@ static int handle_pos_to_twig (flush_pos
+@@ -2349,6 +2473,7 @@ static int handle_pos_to_twig (flush_pos
  	init_lh(&parent_lock);
  	init_load_count(&parent_load);
  
@@ -7207,7 +7207,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK, 0);
  	if (ret)
  		goto out;
-@@ -2372,6 +2497,7 @@ static int handle_pos_to_twig (flush_pos
+@@ -2379,6 +2504,7 @@ static int handle_pos_to_twig (flush_pos
  	move_flush_pos(pos, &parent_lock, &parent_load, &pcoord);
  
   out:
@@ -7215,7 +7215,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	done_load_count(&parent_load);
  	done_lh(&parent_lock);
  
-@@ -2406,11 +2532,14 @@ static int squalloc (flush_pos_t * pos)
+@@ -2413,11 +2539,14 @@ static int squalloc (flush_pos_t * pos)
  	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
  	 * greater CPU efficiency? Measure and see.... -Hans */
  	while (pos_valid(pos)) {
@@ -7230,7 +7230,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		if (ret)
  			break;
  	}
-@@ -2463,6 +2592,8 @@ shift_everything_left(znode * right, zno
+@@ -2470,6 +2599,8 @@ shift_everything_left(znode * right, zno
  
  	coord_init_after_last_item(&from, right);
  
@@ -7239,7 +7239,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	nplug = node_plugin_by_node(right);
  	info.doing = NULL;
  	info.todo = todo;
-@@ -2481,6 +2612,7 @@ squeeze_right_non_twig(znode * left, zno
+@@ -2488,6 +2619,7 @@ squeeze_right_non_twig(znode * left, zno
  	int ret;
  	carry_pool *pool;
  	carry_level todo;
@@ -7247,7 +7247,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  
  	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
  
-@@ -2492,6 +2624,8 @@ squeeze_right_non_twig(znode * left, zno
+@@ -2499,6 +2631,8 @@ squeeze_right_non_twig(znode * left, zno
  		return PTR_ERR(pool);
  	init_carry_level(&todo, pool);
  
@@ -7256,7 +7256,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	ret = shift_everything_left(right, left, &todo);
  	if (ret > 0) {
  		/* something was shifted */
-@@ -2513,6 +2647,9 @@ squeeze_right_non_twig(znode * left, zno
+@@ -2520,6 +2654,9 @@ squeeze_right_non_twig(znode * left, zno
  		grabbed = get_current_context()->grabbed_blocks;
  		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
  		assert("nikita-3003", ret == 0); /* reserved space is exhausted. Ask Hans. */
@@ -7266,7 +7266,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		ret = carry(&todo, NULL /* previous level */ );
  		grabbed2free_mark(grabbed);
  	} else {
-@@ -2522,6 +2659,14 @@ squeeze_right_non_twig(znode * left, zno
+@@ -2529,6 +2666,14 @@ squeeze_right_non_twig(znode * left, zno
  
  	done_carry_pool(pool);
  
@@ -7281,7 +7281,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	return ret;
  }
  
-@@ -2593,10 +2738,16 @@ shift_one_internal_unit(znode * left, zn
+@@ -2600,10 +2745,16 @@ shift_one_internal_unit(znode * left, zn
  		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
  		assert("nikita-3003", ret == 0); /* reserved space is exhausted. Ask Hans. */
  
@@ -7298,7 +7298,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  	done_carry_pool(pool);
  
  	if (ret != 0) {
-@@ -2648,6 +2799,7 @@ allocate_znode_loaded(znode * node,
+@@ -2655,6 +2806,7 @@ allocate_znode_loaded(znode * node,
  			   using of default value for search start is better than search
  			   from block #0. */
  			get_blocknr_hint_default(&pos->preceder.blk);
@@ -7306,7 +7306,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  			check_preceder(pos->preceder.blk);
  		}
  
-@@ -3075,6 +3227,12 @@ scan_goto(flush_scan * scan, jnode * ton
+@@ -3082,6 +3234,12 @@ scan_goto(flush_scan * scan, jnode * ton
  
  	if (!go) {
  		scan->stop = 1;
@@ -7319,7 +7319,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		jput(tonode);
  	}
  
-@@ -3298,10 +3456,15 @@ scan_unformatted(flush_scan * scan, flus
+@@ -3305,10 +3463,15 @@ scan_unformatted(flush_scan * scan, flus
  		if (IS_CBKERR(ret))
  			return ret;
  
@@ -7336,7 +7336,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		/* parent was found */
  		assert("jmacd-8661", other != NULL);
  		/* Duplicate the reference into the other flush_scan. */
-@@ -3358,6 +3521,9 @@ scan_formatted(flush_scan * scan)
+@@ -3365,6 +3528,9 @@ scan_formatted(flush_scan * scan)
  			break;
  		}
  
@@ -7346,7 +7346,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  		/* Check the condition for going left, break if it is not met.  This also
  		   releases (jputs) the neighbor if false. */
  		if (!scan_goto(scan, ZJNODE(neighbor))) {
-@@ -3537,7 +3703,7 @@ scan_by_coord(flush_scan * scan)
+@@ -3544,7 +3710,7 @@ scan_by_coord(flush_scan * scan)
  static void
  pos_init(flush_pos_t * pos)
  {
@@ -7355,7 +7355,7 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  
  	pos->state = POS_INVALID;
  	coord_init_invalid(&pos->coord, NULL);
-@@ -3600,6 +3766,14 @@ pos_hint(flush_pos_t * pos)
+@@ -3607,6 +3773,14 @@ pos_hint(flush_pos_t * pos)
  	return &pos->preceder;
  }
  
@@ -7371,8 +7371,8 @@ diff -puN flush.c~profile-stat-trace-repacker flush.c
  {
  	return pos->fq;
 diff -puN flush.h~profile-stat-trace-repacker flush.h
---- reiser4/flush.h~profile-stat-trace-repacker	2005-02-09 18:36:23.266634607 +0300
-+++ reiser4-vs/flush.h	2005-02-09 18:36:24.060692878 +0300
+--- reiser4/flush.h~profile-stat-trace-repacker	2005-02-25 17:02:23.065040909 +0300
++++ reiser4-vs/flush.h	2005-02-25 17:02:23.901101563 +0300
 @@ -259,17 +259,21 @@ txn_atom *atom_locked_by_fq(flush_queue_
  int init_fqs(void);
  void done_fqs(void);
@@ -7397,8 +7397,8 @@ diff -puN flush.h~profile-stat-trace-repacker flush.h
  
  /* __REISER4_FLUSH_H__ */
 diff -puN flush_queue.c~profile-stat-trace-repacker flush_queue.c
---- reiser4/flush_queue.c~profile-stat-trace-repacker	2005-02-09 18:36:23.274635194 +0300
-+++ reiser4-vs/flush_queue.c	2005-02-09 18:36:24.062693025 +0300
+--- reiser4/flush_queue.c~profile-stat-trace-repacker	2005-02-25 17:02:23.073041489 +0300
++++ reiser4-vs/flush_queue.c	2005-02-25 17:02:23.904101781 +0300
 @@ -58,7 +58,7 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, g
  #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
  
@@ -7427,8 +7427,8 @@ diff -puN flush_queue.c~profile-stat-trace-repacker flush_queue.c
  {
  	flush_queue_t *fq;
 diff -puN init_super.c~profile-stat-trace-repacker init_super.c
---- reiser4/init_super.c~profile-stat-trace-repacker	2005-02-09 18:36:23.281635708 +0300
-+++ reiser4-vs/init_super.c	2005-02-09 18:36:24.078694199 +0300
+--- reiser4/init_super.c~profile-stat-trace-repacker	2005-02-25 17:02:23.088042578 +0300
++++ reiser4-vs/init_super.c	2005-02-25 17:02:23.906101926 +0300
 @@ -13,8 +13,11 @@
  #include "ktxnmgrd.h"
  #include "super.h"
@@ -7549,8 +7549,8 @@ diff -puN init_super.c~profile-stat-trace-repacker init_super.c
  	_SUBSYS(exit_context)
  };
 diff -puN inode.c~profile-stat-trace-repacker inode.c
---- reiser4/inode.c~profile-stat-trace-repacker	2005-02-09 18:36:23.289636295 +0300
-+++ reiser4-vs/inode.c	2005-02-09 18:36:24.081694419 +0300
+--- reiser4/inode.c~profile-stat-trace-repacker	2005-02-25 17:02:23.096043158 +0300
++++ reiser4-vs/inode.c	2005-02-25 17:02:23.908102071 +0300
 @@ -331,7 +331,7 @@ init_locked_inode(struct inode *inode /*
     (objectids) are distinguished by their packing locality.
  
@@ -7587,8 +7587,8 @@ diff -puN inode.c~profile-stat-trace-repacker inode.c
  get_reiser4_inode_by_key (struct inode ** result, const reiser4_key * key)
  {
 diff -puN inode.h~profile-stat-trace-repacker inode.h
---- reiser4/inode.h~profile-stat-trace-repacker	2005-02-09 18:36:23.295636736 +0300
-+++ reiser4-vs/inode.h	2005-02-09 18:36:24.083694566 +0300
+--- reiser4/inode.h~profile-stat-trace-repacker	2005-02-25 17:02:23.104043739 +0300
++++ reiser4-vs/inode.h	2005-02-25 17:02:23.911102289 +0300
 @@ -315,6 +315,7 @@ extern int inode_has_no_jnodes(reiser4_i
  
  extern znode *inode_get_vroot(struct inode *inode);
@@ -7618,8 +7618,8 @@ diff -puN inode.h~profile-stat-trace-repacker inode.h
  
  /* __REISER4_INODE_H__ */
 diff -puN inode_ops.c~profile-stat-trace-repacker inode_ops.c
---- reiser4/inode_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.302637249 +0300
-+++ reiser4-vs/inode_ops.c	2005-02-09 18:36:24.086694786 +0300
+--- reiser4/inode_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:23.112044319 +0300
++++ reiser4-vs/inode_ops.c	2005-02-25 17:02:23.914102507 +0300
 @@ -19,12 +19,14 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -7841,8 +7841,8 @@ diff -puN inode_ops.c~profile-stat-trace-repacker inode_ops.c
  	return result;
  }
 diff -puN jnode.c~profile-stat-trace-repacker jnode.c
---- reiser4/jnode.c~profile-stat-trace-repacker	2005-02-09 18:36:23.309637763 +0300
-+++ reiser4-vs/jnode.c	2005-02-09 18:36:24.089695006 +0300
+--- reiser4/jnode.c~profile-stat-trace-repacker	2005-02-25 17:02:23.121044972 +0300
++++ reiser4-vs/jnode.c	2005-02-25 17:02:23.918102797 +0300
 @@ -113,6 +113,7 @@
  #include "super.h"
  #include "inode.h"
@@ -8115,8 +8115,8 @@ diff -puN jnode.c~profile-stat-trace-repacker jnode.c
  /* this is only used to created jnode during capture copy */
  reiser4_internal jnode *jclone(jnode *node)
 diff -puN jnode.h~profile-stat-trace-repacker jnode.h
---- reiser4/jnode.h~profile-stat-trace-repacker	2005-02-09 18:36:23.316638277 +0300
-+++ reiser4-vs/jnode.h	2005-02-09 18:36:24.093695300 +0300
+--- reiser4/jnode.h~profile-stat-trace-repacker	2005-02-25 17:02:23.129045552 +0300
++++ reiser4-vs/jnode.h	2005-02-25 17:02:23.921103014 +0300
 @@ -396,7 +396,7 @@ extern void unformatted_make_reloc(jnode
  
  extern void jnode_set_block(jnode * node,
@@ -8211,8 +8211,8 @@ diff -puN jnode.h~profile-stat-trace-repacker jnode.h
  	} else
  		rcu_read_unlock();
 diff -puN kassign.c~profile-stat-trace-repacker kassign.c
---- reiser4/kassign.c~profile-stat-trace-repacker	2005-02-09 18:36:23.323638790 +0300
-+++ reiser4-vs/kassign.c	2005-02-09 18:36:24.095695447 +0300
+--- reiser4/kassign.c~profile-stat-trace-repacker	2005-02-25 17:02:23.137046133 +0300
++++ reiser4-vs/kassign.c	2005-02-25 17:02:23.924103232 +0300
 @@ -272,7 +272,7 @@ pack_string(const char *name /* string t
  	return str;
  }
@@ -8308,8 +8308,8 @@ diff -puN kassign.c~profile-stat-trace-repacker kassign.c
   * return number of bytes necessary to encode @inode identity.
   */
 diff -puN kassign.h~profile-stat-trace-repacker kassign.h
---- reiser4/kassign.h~profile-stat-trace-repacker	2005-02-09 18:36:23.329639231 +0300
-+++ reiser4-vs/kassign.h	2005-02-09 18:36:24.096695520 +0300
+--- reiser4/kassign.h~profile-stat-trace-repacker	2005-02-25 17:02:23.146046786 +0300
++++ reiser4-vs/kassign.h	2005-02-25 17:02:23.925103305 +0300
 @@ -70,6 +70,8 @@ extern oid_t extract_dir_id_from_key(con
  extern int build_de_id(const struct inode *dir, const struct qstr *name, de_id * id);
  extern int build_de_id_by_key(const reiser4_key * entry_key, de_id * id);
@@ -8329,7 +8329,7 @@ diff -puN kassign.h~profile-stat-trace-repacker kassign.h
  extern int is_longname(const char *name, int len);
 diff -puN /dev/null kattr.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/kattr.c	2005-02-09 18:36:24.099695740 +0300
++++ reiser4-vs/kattr.c	2005-02-25 17:02:23.928103522 +0300
 @@ -0,0 +1,641 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -8974,7 +8974,7 @@ diff -puN /dev/null kattr.c
 +*/
 diff -puN /dev/null kattr.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/kattr.h	2005-02-09 18:36:24.100695813 +0300
++++ reiser4-vs/kattr.h	2005-02-25 17:02:23.930103667 +0300
 @@ -0,0 +1,70 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -9047,8 +9047,8 @@ diff -puN /dev/null kattr.h
 +   End:
 +*/
 diff -puN kcond.c~profile-stat-trace-repacker kcond.c
---- reiser4/kcond.c~profile-stat-trace-repacker	2005-02-09 18:36:23.336639745 +0300
-+++ reiser4-vs/kcond.c	2005-02-09 18:36:24.102695960 +0300
+--- reiser4/kcond.c~profile-stat-trace-repacker	2005-02-25 17:02:23.153047294 +0300
++++ reiser4-vs/kcond.c	2005-02-25 17:02:23.931103740 +0300
 @@ -55,12 +55,19 @@ kcond_init(kcond_t * cvar /* cvar to ini
  {
  	assert("nikita-1868", cvar != NULL);
@@ -9086,8 +9086,8 @@ diff -puN kcond.c~profile-stat-trace-repacker kcond.c
  static void
  kcond_timeout(unsigned long datum)
 diff -puN kcond.h~profile-stat-trace-repacker kcond.h
---- reiser4/kcond.h~profile-stat-trace-repacker	2005-02-09 18:36:23.343640258 +0300
-+++ reiser4-vs/kcond.h	2005-02-09 18:36:24.103696034 +0300
+--- reiser4/kcond.h~profile-stat-trace-repacker	2005-02-25 17:02:23.159047729 +0300
++++ reiser4-vs/kcond.h	2005-02-25 17:02:23.933103885 +0300
 @@ -28,12 +28,15 @@ struct kcond_queue_link_s {
  };
  
@@ -9105,8 +9105,8 @@ diff -puN kcond.h~profile-stat-trace-repacker kcond.h
  
  #define KCOND_STATIC_INIT			\
 diff -puN key.c~profile-stat-trace-repacker key.c
---- reiser4/key.c~profile-stat-trace-repacker	2005-02-09 18:36:23.349640699 +0300
-+++ reiser4-vs/key.c	2005-02-09 18:36:24.105696180 +0300
+--- reiser4/key.c~profile-stat-trace-repacker	2005-02-25 17:02:23.165048164 +0300
++++ reiser4-vs/key.c	2005-02-25 17:02:23.934103958 +0300
 @@ -36,7 +36,7 @@ reiser4_internal void
  reiser4_key_init(reiser4_key * key /* key to init */ )
  {
@@ -9126,8 +9126,8 @@ diff -puN key.c~profile-stat-trace-repacker key.c
  static const char *
  type_name(unsigned int key_type /* key type */ )
 diff -puN key.h~profile-stat-trace-repacker key.h
---- reiser4/key.h~profile-stat-trace-repacker	2005-02-09 18:36:23.355641139 +0300
-+++ reiser4-vs/key.h	2005-02-09 18:36:24.107696327 +0300
+--- reiser4/key.h~profile-stat-trace-repacker	2005-02-25 17:02:23.174048817 +0300
++++ reiser4-vs/key.h	2005-02-25 17:02:23.937104175 +0300
 @@ -369,7 +369,7 @@ prefetchkey(reiser4_key *key)
  #define KEY_BUF_LEN (80)
  
@@ -9138,8 +9138,8 @@ diff -puN key.h~profile-stat-trace-repacker key.h
  #else
  #define print_key(p,k) noop
 diff -puN ktxnmgrd.c~profile-stat-trace-repacker ktxnmgrd.c
---- reiser4/ktxnmgrd.c~profile-stat-trace-repacker	2005-02-09 18:36:23.363641726 +0300
-+++ reiser4-vs/ktxnmgrd.c	2005-02-09 18:36:24.108696401 +0300
+--- reiser4/ktxnmgrd.c~profile-stat-trace-repacker	2005-02-25 17:02:23.182049398 +0300
++++ reiser4-vs/ktxnmgrd.c	2005-02-25 17:02:23.939104320 +0300
 @@ -51,7 +51,7 @@ init_ktxnmgrd_context(txn_mgr * mgr)
  
  	assert("nikita-2442", ctx != NULL);
@@ -9151,7 +9151,7 @@ diff -puN ktxnmgrd.c~profile-stat-trace-repacker ktxnmgrd.c
  	kcond_init(&ctx->wait);
 diff -puN /dev/null lnode.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/lnode.c	2005-02-09 18:36:24.111696621 +0300
++++ reiser4-vs/lnode.c	2005-02-25 17:02:23.941104465 +0300
 @@ -0,0 +1,431 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -9586,7 +9586,7 @@ diff -puN /dev/null lnode.c
 +*/
 diff -puN /dev/null lnode.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/lnode.h	2005-02-09 18:36:24.112696694 +0300
++++ reiser4-vs/lnode.h	2005-02-25 17:02:23.943104611 +0300
 @@ -0,0 +1,122 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -9711,8 +9711,8 @@ diff -puN /dev/null lnode.h
 +   End:
 +*/
 diff -puN lock.c~profile-stat-trace-repacker lock.c
---- reiser4/lock.c~profile-stat-trace-repacker	2005-02-09 18:36:23.372642387 +0300
-+++ reiser4-vs/lock.c	2005-02-09 18:36:24.115696914 +0300
+--- reiser4/lock.c~profile-stat-trace-repacker	2005-02-25 17:02:23.190049978 +0300
++++ reiser4-vs/lock.c	2005-02-25 17:02:23.946104828 +0300
 @@ -222,6 +222,9 @@ static int request_is_deadlock_safe(znod
  				    znode_lock_request);
  #endif
@@ -10029,8 +10029,8 @@ diff -puN lock.c~profile-stat-trace-repacker lock.c
  {
  	spin_lock_stack(stack);
 diff -puN lock.h~profile-stat-trace-repacker lock.h
---- reiser4/lock.h~profile-stat-trace-repacker	2005-02-09 18:36:23.384643267 +0300
-+++ reiser4-vs/lock.h	2005-02-09 18:36:24.117697061 +0300
+--- reiser4/lock.h~profile-stat-trace-repacker	2005-02-25 17:02:23.199050631 +0300
++++ reiser4-vs/lock.h	2005-02-25 17:02:23.948104973 +0300
 @@ -190,7 +190,25 @@ extern void done_lh(lock_handle *);
  extern znode_lock_mode lock_mode(lock_handle *);
  
@@ -10060,7 +10060,7 @@ diff -puN lock.h~profile-stat-trace-repacker lock.h
  extern int lock_stack_isclean(lock_stack * owner);
 diff -puN /dev/null log.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/log.c	2005-02-09 18:36:24.120697281 +0300
++++ reiser4-vs/log.c	2005-02-25 17:02:23.951105191 +0300
 @@ -0,0 +1,522 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -10586,7 +10586,7 @@ diff -puN /dev/null log.c
 +*/
 diff -puN /dev/null log.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/log.h	2005-02-09 18:36:24.122697428 +0300
++++ reiser4-vs/log.h	2005-02-25 17:02:23.953105336 +0300
 @@ -0,0 +1,122 @@
 +/* Copyright 2000, 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -10712,7 +10712,7 @@ diff -puN /dev/null log.h
 +*/
 diff -puN /dev/null not-for-inclusion/dont-use-rwlocks.patch
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/dont-use-rwlocks.patch	2005-02-09 18:36:24.124697575 +0300
++++ reiser4-vs/not-for-inclusion/dont-use-rwlocks.patch	2005-02-25 17:02:23.955105481 +0300
 @@ -0,0 +1,358 @@
 +diff -ru bk/reiser4/lock.c /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/lock.c
 +--- bk/reiser4/lock.c	2004-10-27 18:47:03.467643409 +0400
@@ -11074,7 +11074,7 @@ diff -puN /dev/null not-for-inclusion/dont-use-rwlocks.patch
 + TYPE_SAFE_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 diff -puN /dev/null not-for-inclusion/interpolate.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/interpolate.c	2005-02-09 18:36:24.126697721 +0300
++++ reiser4-vs/not-for-inclusion/interpolate.c	2005-02-25 17:02:23.956105554 +0300
 @@ -0,0 +1,20 @@
 +/* We will use @ as the symbol for dereferencing, we won't use * because
 +we want to reserve it for use as a wildcard someday.
@@ -11098,7 +11098,7 @@ diff -puN /dev/null not-for-inclusion/interpolate.c
 +*/
 diff -puN /dev/null not-for-inclusion/linux-5_reiser4_syscall.patch
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/linux-5_reiser4_syscall.patch	2005-02-09 18:36:24.126697721 +0300
++++ reiser4-vs/not-for-inclusion/linux-5_reiser4_syscall.patch	2005-02-25 17:02:23.957105626 +0300
 @@ -0,0 +1,38 @@
 +===== arch/um/kernel/sys_call_table.c 1.5 vs edited =====
 +--- 1.5/arch/um/kernel/sys_call_table.c	Wed Nov  6 17:36:22 2002
@@ -11140,7 +11140,7 @@ diff -puN /dev/null not-for-inclusion/linux-5_reiser4_syscall.patch
 +
 diff -puN /dev/null not-for-inclusion/parser/Makefile
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/Makefile	2005-02-09 18:36:24.127697795 +0300
++++ reiser4-vs/not-for-inclusion/parser/Makefile	2005-02-25 17:02:23.958105699 +0300
 @@ -0,0 +1,35 @@
 +
 +.SUFFIXES= .l .y .c
@@ -11179,7 +11179,7 @@ diff -puN /dev/null not-for-inclusion/parser/Makefile
 +
 diff -puN /dev/null not-for-inclusion/parser/lex.l
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/lex.l	2005-02-09 18:36:24.128697868 +0300
++++ reiser4-vs/not-for-inclusion/parser/lex.l	2005-02-25 17:02:23.959105771 +0300
 @@ -0,0 +1,65 @@
 +%Start Normal
 +
@@ -11248,7 +11248,7 @@ diff -puN /dev/null not-for-inclusion/parser/lex.l
 +
 diff -puN /dev/null not-for-inclusion/parser/lib.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/lib.c	2005-02-09 18:36:24.135698382 +0300
++++ reiser4-vs/not-for-inclusion/parser/lib.c	2005-02-25 17:02:23.966106279 +0300
 @@ -0,0 +1,2187 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -13439,7 +13439,7 @@ diff -puN /dev/null not-for-inclusion/parser/lib.c
 +*/
 diff -puN /dev/null not-for-inclusion/parser/lib.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/lib.h	2005-02-09 18:36:24.136698455 +0300
++++ reiser4-vs/not-for-inclusion/parser/lib.h	2005-02-25 17:02:23.968106424 +0300
 @@ -0,0 +1,84 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -13527,7 +13527,7 @@ diff -puN /dev/null not-for-inclusion/parser/lib.h
 +
 diff -puN /dev/null not-for-inclusion/parser/pars.cls.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/pars.cls.h	2005-02-09 18:36:24.138698602 +0300
++++ reiser4-vs/not-for-inclusion/parser/pars.cls.h	2005-02-25 17:02:23.970106569 +0300
 @@ -0,0 +1,242 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -13773,7 +13773,7 @@ diff -puN /dev/null not-for-inclusion/parser/pars.cls.h
 +
 diff -puN /dev/null not-for-inclusion/parser/pars.yacc.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/pars.yacc.h	2005-02-09 18:36:24.139698675 +0300
++++ reiser4-vs/not-for-inclusion/parser/pars.yacc.h	2005-02-25 17:02:23.971106642 +0300
 @@ -0,0 +1,66 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -13843,7 +13843,7 @@ diff -puN /dev/null not-for-inclusion/parser/pars.yacc.h
 + */
 diff -puN /dev/null not-for-inclusion/parser/parser.code.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/parser.code.c	2005-02-09 18:36:24.141698822 +0300
++++ reiser4-vs/not-for-inclusion/parser/parser.code.c	2005-02-25 17:02:23.973106787 +0300
 @@ -0,0 +1,484 @@
 +#ifndef lint
 +/*static char yysccsid[] = "from: @(#)yaccpar	1.9 (Berkeley) 02/21/93";*/
@@ -14331,7 +14331,7 @@ diff -puN /dev/null not-for-inclusion/parser/parser.code.c
 +}
 diff -puN /dev/null not-for-inclusion/parser/parser.doc
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/parser.doc	2005-02-09 18:36:24.144699042 +0300
++++ reiser4-vs/not-for-inclusion/parser/parser.doc	2005-02-25 17:02:23.976107005 +0300
 @@ -0,0 +1,473 @@
 +/* Parser for the reiser4() system call */
 +
@@ -14808,7 +14808,7 @@ diff -puN /dev/null not-for-inclusion/parser/parser.doc
 +
 diff -puN /dev/null not-for-inclusion/parser/parser.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/parser.h	2005-02-09 18:36:24.146699189 +0300
++++ reiser4-vs/not-for-inclusion/parser/parser.h	2005-02-25 17:02:23.978107150 +0300
 @@ -0,0 +1,345 @@
 + /*
 + * Copyright, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -15157,7 +15157,7 @@ diff -puN /dev/null not-for-inclusion/parser/parser.h
 +*/
 diff -puN /dev/null not-for-inclusion/parser/parser.tab.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/parser.tab.c	2005-02-09 18:36:24.148699336 +0300
++++ reiser4-vs/not-for-inclusion/parser/parser.tab.c	2005-02-25 17:02:23.980107295 +0300
 @@ -0,0 +1,194 @@
 +short yylhs[] = {                                        -1,
 +    0,    6,    6,    6,    6,    6,    6,    6,    6,    6,
@@ -15355,7 +15355,7 @@ diff -puN /dev/null not-for-inclusion/parser/parser.tab.c
 +#endif
 diff -puN /dev/null not-for-inclusion/parser/parser.tab.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/parser.tab.h	2005-02-09 18:36:24.149699409 +0300
++++ reiser4-vs/not-for-inclusion/parser/parser.tab.h	2005-02-25 17:02:23.981107368 +0300
 @@ -0,0 +1,40 @@
 +#define L_BRACKET 257
 +#define R_BRACKET 258
@@ -15399,7 +15399,7 @@ diff -puN /dev/null not-for-inclusion/parser/parser.tab.h
 +extern YYSTYPE yylval;
 diff -puN /dev/null not-for-inclusion/parser/parser.y
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/parser.y	2005-02-09 18:36:24.150699483 +0300
++++ reiser4-vs/not-for-inclusion/parser/parser.y	2005-02-25 17:02:23.983107513 +0300
 @@ -0,0 +1,175 @@
 +/*
 + * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
@@ -15578,7 +15578,7 @@ diff -puN /dev/null not-for-inclusion/parser/parser.y
 +*/
 diff -puN /dev/null not-for-inclusion/parser/tmp.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/tmp.c	2005-02-09 18:36:24.151699556 +0300
++++ reiser4-vs/not-for-inclusion/parser/tmp.c	2005-02-25 17:02:23.984107585 +0300
 @@ -0,0 +1,32 @@
 +
 +/*
@@ -15614,7 +15614,7 @@ diff -puN /dev/null not-for-inclusion/parser/tmp.c
 + */
 diff -puN /dev/null not-for-inclusion/parser/yacc_reiser4.patch
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/parser/yacc_reiser4.patch	2005-02-09 18:36:24.152699629 +0300
++++ reiser4-vs/not-for-inclusion/parser/yacc_reiser4.patch	2005-02-25 17:02:23.985107658 +0300
 @@ -0,0 +1,127 @@
 +--- ../yacc/skeleton.c	1993-12-22 14:28:01.000000000 +0300
 ++++ skeleton.c	2004-01-29 23:05:26.000000000 +0300
@@ -15745,7 +15745,7 @@ diff -puN /dev/null not-for-inclusion/parser/yacc_reiser4.patch
 +     "yyaccept:",
 diff -puN /dev/null not-for-inclusion/plugin/name/invterp.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/plugin/name/invterp.c	2005-02-09 18:36:24.153699703 +0300
++++ reiser4-vs/not-for-inclusion/plugin/name/invterp.c	2005-02-25 17:02:23.986107730 +0300
 @@ -0,0 +1,11 @@
 +/* Invterp is short for invertable interpolate, and interpolate means to
 +substitute in.
@@ -15760,7 +15760,7 @@ diff -puN /dev/null not-for-inclusion/plugin/name/invterp.c
 +*/
 diff -puN /dev/null not-for-inclusion/reiser4-for-2.6.9.patch
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/reiser4-for-2.6.9.patch	2005-02-09 18:36:24.155699850 +0300
++++ reiser4-vs/not-for-inclusion/reiser4-for-2.6.9.patch	2005-02-25 17:02:23.988107875 +0300
 @@ -0,0 +1,186 @@
 +
 +This patch is to get reiser4 runable under not mm serie of kernel
@@ -15950,7 +15950,7 @@ diff -puN /dev/null not-for-inclusion/reiser4-for-2.6.9.patch
 +_
 diff -puN /dev/null not-for-inclusion/sys_reiser4.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/sys_reiser4.c	2005-02-09 18:36:24.156699923 +0300
++++ reiser4-vs/not-for-inclusion/sys_reiser4.c	2005-02-25 17:02:23.989107948 +0300
 @@ -0,0 +1,106 @@
 +/* System call for accessing enhanced semantics of the Reiser Filesystem Version 4 (reiser4). */
 +
@@ -16060,7 +16060,7 @@ diff -puN /dev/null not-for-inclusion/sys_reiser4.c
 +*/
 diff -puN /dev/null not-for-inclusion/sys_reiser4_2.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/sys_reiser4_2.c	2005-02-09 18:36:24.160700217 +0300
++++ reiser4-vs/not-for-inclusion/sys_reiser4_2.c	2005-02-25 17:02:23.993108238 +0300
 @@ -0,0 +1,1174 @@
 +
 +/*
@@ -17238,7 +17238,7 @@ diff -puN /dev/null not-for-inclusion/sys_reiser4_2.c
 +}
 diff -puN /dev/null not-for-inclusion/ulevel/bench/README
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/README	2005-02-09 18:36:24.161700290 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/README	2005-02-25 17:02:23.994108311 +0300
 @@ -0,0 +1,20 @@
 +README file for bench package.
 +
@@ -17262,7 +17262,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/README
 +test directory.
 diff -puN /dev/null not-for-inclusion/ulevel/bench/driver.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/driver.sh	2005-02-09 18:36:24.162700363 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/driver.sh	2005-02-25 17:02:23.996108456 +0300
 @@ -0,0 +1,59 @@
 +#! /bin/sh
 +
@@ -17325,7 +17325,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/driver.sh
 +systemrestart $KERNEL
 diff -puN /dev/null not-for-inclusion/ulevel/bench/functions.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/functions.sh	2005-02-09 18:36:24.163700437 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/functions.sh	2005-02-25 17:02:23.997108528 +0300
 @@ -0,0 +1,115 @@
 +#! /bin/sh
 +
@@ -17444,12 +17444,12 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/functions.sh
 +}
 diff -puN /dev/null not-for-inclusion/ulevel/bench/kernel
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/kernel	2005-02-09 18:36:24.164700510 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/kernel	2005-02-25 17:02:23.998108601 +0300
 @@ -0,0 +1 @@
 +test s
 diff -puN /dev/null not-for-inclusion/ulevel/bench/rc1.d.sample
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/rc1.d.sample	2005-02-09 18:36:24.165700583 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/rc1.d.sample	2005-02-25 17:02:23.999108674 +0300
 @@ -0,0 +1,65 @@
 +#! /bin/sh
 +# Copyright (c) 1996-2002 SuSE Linux AG, Nuernberg, Germany.
@@ -17518,7 +17518,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/rc1.d.sample
 +rc_exit
 diff -puN /dev/null not-for-inclusion/ulevel/bench/start-bench.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/start-bench.sh	2005-02-09 18:36:24.165700583 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/start-bench.sh	2005-02-25 17:02:24.000108746 +0300
 @@ -0,0 +1,7 @@
 +#! /bin/sh
 +
@@ -17529,13 +17529,13 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/start-bench.sh
 +systemrestart "$(cat kernel)"
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs	2005-02-09 18:36:24.166700657 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/ext3.htree.mkfs	2005-02-25 17:02:24.000108746 +0300
 @@ -0,0 +1 @@
 +MKFS=mkfs.ext3 -O dir_index
 \ No newline at end of file
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/options
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/options	2005-02-09 18:36:24.167700730 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/options	2005-02-25 17:02:24.002108891 +0300
 @@ -0,0 +1,23 @@
 +#! /bin/sh
 +
@@ -17562,7 +17562,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/options
 +PATH=$PATH:/usr/local/sbin
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/run.me	2005-02-09 18:36:24.168700804 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/run.me	2005-02-25 17:02:24.003108964 +0300
 @@ -0,0 +1,87 @@
 +#! /bin/sh
 +
@@ -17653,18 +17653,18 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/run.me
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/stage
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/stage	2005-02-09 18:36:24.169700877 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/stage	2005-02-25 17:02:24.004109036 +0300
 @@ -0,0 +1 @@
 +1
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs	2005-02-09 18:36:24.170700950 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/mongo/v4.ext.mkfs	2005-02-25 17:02:24.005109109 +0300
 @@ -0,0 +1 @@
 +MKFS=mkfs.reiser4 -q -o policy=extents
 \ No newline at end of file
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/options
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/options	2005-02-09 18:36:24.170700950 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/options	2005-02-25 17:02:24.005109109 +0300
 @@ -0,0 +1,8 @@
 +#! /bin/sh
 +
@@ -17676,7 +17676,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/opti
 +
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me	2005-02-09 18:36:24.172701097 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/run.me	2005-02-25 17:02:24.007109254 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -17839,12 +17839,12 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/run.
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/ext2/stage
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage	2005-02-09 18:36:24.173701171 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/ext2/stage	2005-02-25 17:02:24.008109327 +0300
 @@ -0,0 +1 @@
 +INIT
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/options
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options	2005-02-09 18:36:24.173701171 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/options	2005-02-25 17:02:24.009109399 +0300
 @@ -0,0 +1,8 @@
 +#! /bin/sh
 +
@@ -17856,7 +17856,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/o
 +
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me	2005-02-09 18:36:24.175701317 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/run.me	2005-02-25 17:02:24.010109472 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -18019,12 +18019,12 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/r
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage	2005-02-09 18:36:24.175701317 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiser4/stage	2005-02-25 17:02:24.011109544 +0300
 @@ -0,0 +1 @@
 +INIT
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options	2005-02-09 18:36:24.176701391 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/options	2005-02-25 17:02:24.012109617 +0300
 @@ -0,0 +1,9 @@
 +#! /bin/sh
 +
@@ -18037,7 +18037,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/
 +
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me	2005-02-09 18:36:24.177701464 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/run.me	2005-02-25 17:02:24.013109689 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -18200,12 +18200,12 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage	2005-02-09 18:36:24.178701537 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/reiserfs/stage	2005-02-25 17:02:24.014109762 +0300
 @@ -0,0 +1 @@
 +INIT
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/run.me	2005-02-09 18:36:24.179701611 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/read-write/run.me	2005-02-25 17:02:24.015109834 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -18368,7 +18368,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/read-write/run.me
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/reiserfs/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/reiserfs/run.me	2005-02-09 18:36:24.181701758 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/reiserfs/run.me	2005-02-25 17:02:24.017109979 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -18531,7 +18531,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/reiserfs/run.me
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/run.me	2005-02-09 18:36:24.182701831 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/run.me	2005-02-25 17:02:24.019110125 +0300
 @@ -0,0 +1,159 @@
 +#! /bin/sh
 +
@@ -18694,7 +18694,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/run.me
 +# End:
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me	2005-02-09 18:36:24.184701978 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/untar-build/ext3/run.me	2005-02-25 17:02:24.020110197 +0300
 @@ -0,0 +1,150 @@
 +#! /bin/sh
 +
@@ -18848,12 +18848,12 @@ diff -puN /dev/null not-for-inclusion/ulevel/bench/template/untar-build/ext3/run
 +esac
 diff -puN /dev/null not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage	2005-02-09 18:36:24.185702051 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bench/template/untar-build/ext3/stage	2005-02-25 17:02:24.021110270 +0300
 @@ -0,0 +1 @@
 +INIT
 diff -puN /dev/null not-for-inclusion/ulevel/bio-out.py
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bio-out.py	2005-02-09 18:36:24.186702125 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bio-out.py	2005-02-25 17:02:24.022110342 +0300
 @@ -0,0 +1,78 @@
 +#! /usr/bin/python
 +
@@ -18935,7 +18935,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bio-out.py
 +
 diff -puN /dev/null not-for-inclusion/ulevel/bio-out.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/bio-out.sh	2005-02-09 18:36:24.187702198 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/bio-out.sh	2005-02-25 17:02:24.023110415 +0300
 @@ -0,0 +1,4 @@
 +#! /bin/sh
 +
@@ -18943,7 +18943,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/bio-out.sh
 +awk 'BEGIN {cnt=1} { split($9, pair, "[(,)]"); for(i=0 ; i<pair[3] ; ++i) { print cnt " " pair[2]+i " " $7; cnt +=1; } }'
 diff -puN /dev/null not-for-inclusion/ulevel/cp-r
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/cp-r	2005-02-09 18:36:24.187702198 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/cp-r	2005-02-25 17:02:24.024110487 +0300
 @@ -0,0 +1,7 @@
 +DIR=$1
 +
@@ -18954,7 +18954,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/cp-r
 +) | ./a.out sh
 diff -puN /dev/null not-for-inclusion/ulevel/driller.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/driller.c	2005-02-09 18:36:24.188702271 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/driller.c	2005-02-25 17:02:24.025110560 +0300
 @@ -0,0 +1,45 @@
 +#include <unistd.h>
 +#include <stdio.h>
@@ -19003,7 +19003,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/driller.c
 +}
 diff -puN /dev/null not-for-inclusion/ulevel/loid.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/loid.c	2005-02-09 18:36:24.189702345 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/loid.c	2005-02-25 17:02:24.026110632 +0300
 @@ -0,0 +1,206 @@
 +#include <stdio.h>
 +#include <unistd.h>
@@ -19213,7 +19213,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/loid.c
 +}
 diff -puN /dev/null not-for-inclusion/ulevel/make-teeny-files.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/make-teeny-files.c	2005-02-09 18:36:24.190702418 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/make-teeny-files.c	2005-02-25 17:02:24.027110705 +0300
 @@ -0,0 +1,102 @@
 +/*
 + * make-teeny-files.c by Andrew Morton <akpm@digeo.com>
@@ -19319,7 +19319,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/make-teeny-files.c
 +}
 diff -puN /dev/null not-for-inclusion/ulevel/massage-lockmeter-output
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/massage-lockmeter-output	2005-02-09 18:36:24.191702491 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/massage-lockmeter-output	2005-02-25 17:02:24.028110778 +0300
 @@ -0,0 +1,17 @@
 +#! /bin/sh
 +
@@ -19340,7 +19340,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/massage-lockmeter-output
 +awk '{ if (NF == 12) { printf "%10li %10li %s\n", $3 * $8, $5 * $8, $0} }'
 diff -puN /dev/null not-for-inclusion/ulevel/nfs_fh_stale.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/nfs_fh_stale.c	2005-02-09 18:36:24.194702712 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/nfs_fh_stale.c	2005-02-25 17:02:24.032111068 +0300
 @@ -0,0 +1,1065 @@
 +/* -*- C -*- */
 +
@@ -20409,7 +20409,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/nfs_fh_stale.c
 +*/
 diff -puN /dev/null not-for-inclusion/ulevel/puncher.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/puncher.sh	2005-02-09 18:36:24.196702858 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/puncher.sh	2005-02-25 17:02:24.033111140 +0300
 @@ -0,0 +1,23 @@
 +#! /bin/sh
 +
@@ -20436,7 +20436,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/puncher.sh
 +done
 diff -puN /dev/null not-for-inclusion/ulevel/readdir.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/readdir.c	2005-02-09 18:36:24.196702858 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/readdir.c	2005-02-25 17:02:24.034111213 +0300
 @@ -0,0 +1,43 @@
 +#define _LARGEFILE64_SOURCE
 +
@@ -20483,14 +20483,14 @@ diff -puN /dev/null not-for-inclusion/ulevel/readdir.c
 +}
 diff -puN /dev/null not-for-inclusion/ulevel/seek-info.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/seek-info.sh	2005-02-09 18:36:24.197702932 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/seek-info.sh	2005-02-25 17:02:24.035111285 +0300
 @@ -0,0 +1,3 @@
 +#! /bin/sh
 +
 +awk 'BEGIN {prev=0} {cur = $2 ; print (cur - prev - 1) " " prev " " cur ; prev = cur}'
 diff -puN /dev/null not-for-inclusion/ulevel/seeks.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/seeks.sh	2005-02-09 18:36:24.198703005 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/seeks.sh	2005-02-25 17:02:24.036111358 +0300
 @@ -0,0 +1,73 @@
 +#! /bin/sh
 +
@@ -20567,7 +20567,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/seeks.sh
 +rm -f $FNAME $FNAME.r $FNAME.w
 diff -puN /dev/null not-for-inclusion/ulevel/shortlived
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/shortlived	2005-02-09 18:36:24.198703005 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/shortlived	2005-02-25 17:02:24.037111431 +0300
 @@ -0,0 +1,72 @@
 +#! /bin/sh
 +
@@ -20643,7 +20643,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/shortlived
 +wait
 diff -puN /dev/null not-for-inclusion/ulevel/show-stats.sh
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/show-stats.sh	2005-02-09 18:36:24.199703079 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/show-stats.sh	2005-02-25 17:02:24.038111503 +0300
 @@ -0,0 +1,27 @@
 +#! /bin/sh
 +
@@ -20675,7 +20675,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/show-stats.sh
 \ No newline at end of file
 diff -puN /dev/null not-for-inclusion/ulevel/sleep-info-parse
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/sleep-info-parse	2005-02-09 18:36:24.200703152 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/sleep-info-parse	2005-02-25 17:02:24.038111503 +0300
 @@ -0,0 +1,4 @@
 +BEGIN { filename=/dev/null; system("mkdir ./zzz") }
 +/[0-9]+ [0-9]+ [0-9]+$/ { filename="./zzz/" sprintf("%0.15d", $2) }
@@ -20683,7 +20683,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/sleep-info-parse
 +END { system("cat ./zzz/*; rm -fr zzz 0") }
 diff -puN /dev/null not-for-inclusion/ulevel/stripspaces
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/stripspaces	2005-02-09 18:36:24.201703225 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/stripspaces	2005-02-25 17:02:24.039111576 +0300
 @@ -0,0 +1,14 @@
 +#! /bin/sh
 +
@@ -20702,7 +20702,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/stripspaces
 \ No newline at end of file
 diff -puN /dev/null not-for-inclusion/ulevel/syscalltest.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/ulevel/syscalltest.c	2005-02-09 18:36:24.202703299 +0300
++++ reiser4-vs/not-for-inclusion/ulevel/syscalltest.c	2005-02-25 17:02:24.040111648 +0300
 @@ -0,0 +1,20 @@
 +#include <stdio.h>
 +#include <errno.h>
@@ -20726,7 +20726,7 @@ diff -puN /dev/null not-for-inclusion/ulevel/syscalltest.c
 +}
 diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c	2005-02-09 18:36:24.203703372 +0300
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid.c	2005-02-25 17:02:24.041111721 +0300
 @@ -0,0 +1,172 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -20902,7 +20902,7 @@ diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid.c
 +*/
 diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h	2005-02-09 18:36:24.205703519 +0300
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid.h	2005-02-25 17:02:24.043111866 +0300
 @@ -0,0 +1,54 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -20960,7 +20960,7 @@ diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid.h
 +*/
 diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c	2005-02-09 18:36:24.206703592 +0300
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c	2005-02-25 17:02:24.045112011 +0300
 @@ -0,0 +1,170 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -21134,7 +21134,7 @@ diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid40.c
 +*/
 diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h	2005-02-09 18:36:24.207703666 +0300
++++ reiser4-vs/not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h	2005-02-25 17:02:24.046112084 +0300
 @@ -0,0 +1,57 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -21194,8 +21194,8 @@ diff -puN /dev/null not-for-inclusion/yet_unneeded_abstractions/oid/oid40.h
 +   End:
 +*/
 diff -puN page_cache.c~profile-stat-trace-repacker page_cache.c
---- reiser4/page_cache.c~profile-stat-trace-repacker	2005-02-09 18:36:23.424646203 +0300
-+++ reiser4-vs/page_cache.c	2005-02-09 18:36:24.209703812 +0300
+--- reiser4/page_cache.c~profile-stat-trace-repacker	2005-02-25 17:02:23.231052953 +0300
++++ reiser4-vs/page_cache.c	2005-02-25 17:02:24.048112229 +0300
 @@ -286,6 +286,15 @@ done_formatted_fake(struct super_block *
  	return 0;
  }
@@ -21336,8 +21336,8 @@ diff -puN page_cache.c~profile-stat-trace-repacker page_cache.c
  #define page_flag_name( page, flag )			\
  	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
 diff -puN page_cache.h~profile-stat-trace-repacker page_cache.h
---- reiser4/page_cache.h~profile-stat-trace-repacker	2005-02-09 18:36:23.432646790 +0300
-+++ reiser4-vs/page_cache.h	2005-02-09 18:36:24.210703886 +0300
+--- reiser4/page_cache.h~profile-stat-trace-repacker	2005-02-25 17:02:23.237053388 +0300
++++ reiser4-vs/page_cache.h	2005-02-25 17:02:24.050112374 +0300
 @@ -20,7 +20,15 @@ extern reiser4_tree *tree_by_page(const 
  
  extern int set_page_dirty_internal (struct page * page, int tag_as_moved);
@@ -21364,8 +21364,8 @@ diff -puN page_cache.h~profile-stat-trace-repacker page_cache.h
  #else
  #define print_page(prf, p) noop
 diff -puN plugin/compress/compress.c~profile-stat-trace-repacker plugin/compress/compress.c
---- reiser4/plugin/compress/compress.c~profile-stat-trace-repacker	2005-02-09 18:36:23.440647377 +0300
-+++ reiser4-vs/plugin/compress/compress.c	2005-02-09 18:36:24.212704033 +0300
+--- reiser4/plugin/compress/compress.c~profile-stat-trace-repacker	2005-02-25 17:02:23.245053969 +0300
++++ reiser4-vs/plugin/compress/compress.c	2005-02-25 17:02:24.052112519 +0300
 @@ -35,7 +35,7 @@ null_compress(coa_t coa, __u8 * src_firs
  	assert("edward-797", dst_len != NULL);
  
@@ -21385,12 +21385,12 @@ diff -puN plugin/compress/compress.c~profile-stat-trace-repacker plugin/compress
  		break;
  	default:
 diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompress.c
---- reiser4/plugin/cryptcompress.c~profile-stat-trace-repacker	2005-02-09 18:36:23.450648111 +0300
-+++ reiser4-vs/plugin/cryptcompress.c	2005-02-09 18:38:10.045447059 +0300
+--- reiser4/plugin/cryptcompress.c~profile-stat-trace-repacker	2005-02-25 17:02:23.255054694 +0300
++++ reiser4-vs/plugin/cryptcompress.c	2005-02-25 17:06:13.863784831 +0300
 @@ -59,6 +59,7 @@ int cut_file_items(struct inode *inode, 
  int delete_object(struct inode *inode, int mode);
- __u8 cluster_shift_by_coord(const coord_t * coord);
  int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
+ int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 +unsigned long clust_by_coord(const coord_t * coord);
  int hint_is_set(const hint_t *hint);
  reiser4_plugin * get_default_plugin(pset_member memb);
@@ -21496,7 +21496,7 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  }
  
  reiser4_internal int
-@@ -1275,6 +1274,16 @@ try_capture_cluster(reiser4_cluster_t * 
+@@ -1281,6 +1280,16 @@ try_capture_cluster(reiser4_cluster_t * 
  	return 0;
  }
  
@@ -21513,7 +21513,7 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  /* Collect unlocked cluster pages and jnode */
  static int
  grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
-@@ -1507,7 +1516,7 @@ update_sd_cryptcompress(struct inode *in
+@@ -1508,7 +1517,7 @@ update_sd_cryptcompress(struct inode *in
  	return result;
  }
  
@@ -21522,7 +21522,7 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  uncapture_cluster_jnode(jnode *node)
  {
  	txn_atom *atom;
-@@ -1624,8 +1633,8 @@ struct inode * inode)
+@@ -1625,8 +1634,8 @@ struct inode * inode)
  		
  		assert("edward-986", off_to_pgcount(tc->len, i) != 0);
  
@@ -21533,7 +21533,7 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  		kunmap(clust->pages[i]);
  		unlock_page(clust->pages[i]);
  		if (i)
-@@ -1728,7 +1737,7 @@ write_hole(struct inode *inode, reiser4_
+@@ -1730,7 +1739,7 @@ write_hole(struct inode *inode, reiser4_
  		to_pg = min_count(PAGE_CACHE_SIZE - pg_off, cl_count);
  		lock_page(page);
  		data = kmap_atomic(page, KM_USER0);
@@ -21542,7 +21542,7 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  		flush_dcache_page(page);
  		kunmap_atomic(data, KM_USER0);
  		SetPageUptodate(page);
-@@ -3100,6 +3109,10 @@ capture_anonymous_clusters(struct addres
+@@ -3139,6 +3148,10 @@ capture_anonymous_clusters(struct addres
  		if (to_capture == 0)
  			/* there may be left more pages */
  			redirty_inode(mapping->host);
@@ -21553,7 +21553,7 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  	}
   out:
  	done_lh(&lh);
-@@ -3317,7 +3330,7 @@ save_len_cryptcompress_plugin(struct ino
+@@ -3356,7 +3369,7 @@ save_len_cryptcompress_plugin(struct ino
  	return 0;
  }
  
@@ -21563,9 +21563,9 @@ diff -puN plugin/cryptcompress.c~profile-stat-trace-repacker plugin/cryptcompres
  {
  	assert("edward-455", inode != NULL);
 diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompress.h
---- reiser4/plugin/cryptcompress.h~profile-stat-trace-repacker	2005-02-09 18:36:23.458648698 +0300
-+++ reiser4-vs/plugin/cryptcompress.h	2005-02-09 18:36:24.219704546 +0300
-@@ -71,7 +71,7 @@ alloc_ts(tfm_stream_t ** stm)
+--- reiser4/plugin/cryptcompress.h~profile-stat-trace-repacker	2005-02-25 17:02:23.263055275 +0300
++++ reiser4-vs/plugin/cryptcompress.h	2005-02-25 17:02:24.063113317 +0300
+@@ -70,7 +70,7 @@ alloc_ts(tfm_stream_t ** stm)
  	*stm = reiser4_kmalloc(sizeof ** stm, GFP_KERNEL);
  	if (*stm == NULL)
  		return -ENOMEM;
@@ -21574,7 +21574,7 @@ diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompres
  	return 0;
  }
  
-@@ -222,7 +222,7 @@ alloc_tfm_stream(tfm_cluster_t * tc, siz
+@@ -221,7 +221,7 @@ alloc_tfm_stream(tfm_cluster_t * tc, siz
  	tc->tun[id] = reiser4_kmalloc(sizeof(tfm_stream_t), GFP_KERNEL);
  	if (!tc->tun[id])
  		return -ENOMEM;
@@ -21583,7 +21583,7 @@ diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompres
  	return alloc_ts_data(tfm_stream(tc, id), size);
  }
  
-@@ -374,7 +374,7 @@ static inline void
+@@ -371,7 +371,7 @@ static inline void
  reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
  {
  	assert("edward-1057", clust->pages != NULL);
@@ -21592,7 +21592,7 @@ diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompres
  }
  
  static inline int
-@@ -405,7 +405,7 @@ put_cluster_handle(reiser4_cluster_t * c
+@@ -402,7 +402,7 @@ put_cluster_handle(reiser4_cluster_t * c
  	put_tfm_cluster(&clust->tc, act);
  	if (clust->pages)
  		free_cluster_pgset(clust);
@@ -21601,7 +21601,7 @@ diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompres
  }
  
  /* security attributes supposed to be stored on disk
-@@ -424,6 +424,7 @@ typedef struct cryptcompress_info {
+@@ -421,6 +421,7 @@ typedef struct cryptcompress_info {
  
  cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode);
  int equal_to_rdk(znode *, const reiser4_key *);
@@ -21610,8 +21610,8 @@ diff -puN plugin/cryptcompress.h~profile-stat-trace-repacker plugin/cryptcompres
  int load_file_hint(struct file *, hint_t *);
  void save_file_hint(struct file *, const hint_t *);
 diff -puN plugin/dir/dir.c~profile-stat-trace-repacker plugin/dir/dir.c
---- reiser4/plugin/dir/dir.c~profile-stat-trace-repacker	2005-02-09 18:36:23.467649358 +0300
-+++ reiser4-vs/plugin/dir/dir.c	2005-02-09 18:36:24.224704913 +0300
+--- reiser4/plugin/dir/dir.c~profile-stat-trace-repacker	2005-02-25 17:02:23.272055928 +0300
++++ reiser4-vs/plugin/dir/dir.c	2005-02-25 17:02:24.068113680 +0300
 @@ -120,7 +120,7 @@ link_common(struct inode *parent /* pare
  
  	parent_dplug = inode_dir_plugin(parent);
@@ -21819,8 +21819,8 @@ diff -puN plugin/dir/dir.c~profile-stat-trace-repacker plugin/dir/dir.c
  
  	/* update ->f_pos */
 diff -puN plugin/dir/hashed_dir.c~profile-stat-trace-repacker plugin/dir/hashed_dir.c
---- reiser4/plugin/dir/hashed_dir.c~profile-stat-trace-repacker	2005-02-09 18:36:23.476650019 +0300
-+++ reiser4-vs/plugin/dir/hashed_dir.c	2005-02-09 18:36:24.228705207 +0300
+--- reiser4/plugin/dir/hashed_dir.c~profile-stat-trace-repacker	2005-02-25 17:02:23.280056508 +0300
++++ reiser4-vs/plugin/dir/hashed_dir.c	2005-02-25 17:02:24.072113970 +0300
 @@ -59,7 +59,7 @@ static int find_entry(struct inode *dir,
  static int check_item(const struct inode *dir,
  		      const coord_t * coord, const char *name);
@@ -21977,8 +21977,8 @@ diff -puN plugin/dir/hashed_dir.c~profile-stat-trace-repacker plugin/dir/hashed_
  
  	   NOTE-NIKITA Here should go code for support of something like
 diff -puN plugin/disk_format/disk_format40.c~profile-stat-trace-repacker plugin/disk_format/disk_format40.c
---- reiser4/plugin/disk_format/disk_format40.c~profile-stat-trace-repacker	2005-02-09 18:36:23.484650606 +0300
-+++ reiser4-vs/plugin/disk_format/disk_format40.c	2005-02-09 18:36:24.230705354 +0300
+--- reiser4/plugin/disk_format/disk_format40.c~profile-stat-trace-repacker	2005-02-25 17:02:23.289057161 +0300
++++ reiser4-vs/plugin/disk_format/disk_format40.c	2005-02-25 17:02:24.074114115 +0300
 @@ -12,6 +12,7 @@
  #include "../../tree.h"
  #include "../../super.h"
@@ -22008,8 +22008,8 @@ diff -puN plugin/disk_format/disk_format40.c~profile-stat-trace-repacker plugin/
  	sa_destroy_allocator(&sbinfo->space_allocator, s);
  	done_journal_info(s);
 diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
---- reiser4/plugin/file/file.c~profile-stat-trace-repacker	2005-02-09 18:36:23.493651267 +0300
-+++ reiser4-vs/plugin/file/file.c	2005-02-09 18:36:24.235705720 +0300
+--- reiser4/plugin/file/file.c~profile-stat-trace-repacker	2005-02-25 17:02:23.299057886 +0300
++++ reiser4-vs/plugin/file/file.c	2005-02-25 17:02:24.079114478 +0300
 @@ -8,6 +8,7 @@
  #include "../../page_cache.h"
  #include "../../ioctl.h"
@@ -22214,7 +22214,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	file = vp;
  	result = load_file_hint(file, &hint);
  	if (result)
-@@ -1974,7 +2004,16 @@ write_flow(hint_t *hint, struct file *fi
+@@ -1975,7 +2005,16 @@ write_flow(hint_t *hint, struct file *fi
  	return append_and_or_overwrite(hint, file, inode, &flow, exclusive);
  }
  
@@ -22232,7 +22232,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int * unused)
  {
  	struct page *page;
-@@ -1984,6 +2023,10 @@ unix_file_filemap_nopage(struct vm_area_
+@@ -1985,6 +2024,10 @@ unix_file_filemap_nopage(struct vm_area_
  	inode = area->vm_file->f_dentry->d_inode;
  	init_context(&ctx, inode->i_sb);
  
@@ -22243,7 +22243,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	/* block filemap_nopage if copy on capture is processing with a node of this file */
  	down_read(&reiser4_inode_data(inode)->coc_sem);
  	/* second argument is to note that current atom may exist */
-@@ -1996,6 +2039,11 @@ unix_file_filemap_nopage(struct vm_area_
+@@ -1997,6 +2040,11 @@ unix_file_filemap_nopage(struct vm_area_
  
  	/*txn_restart_current();*/
  
@@ -22255,7 +22255,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	reiser4_exit_context(&ctx);
  	return page;
  }
-@@ -2129,6 +2177,9 @@ write_unix_file(struct file *file, /* fi
+@@ -2130,6 +2178,9 @@ write_unix_file(struct file *file, /* fi
  	int user_space;
  	int try_free_space;
  
@@ -22265,7 +22265,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	if (unlikely(write_amount == 0))
  		return 0;
  
-@@ -2208,6 +2259,8 @@ write_unix_file(struct file *file, /* fi
+@@ -2209,6 +2260,8 @@ write_unix_file(struct file *file, /* fi
  	nr_pages = 0;
  	try_free_space = 1;
  
@@ -22274,7 +22274,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	while (left > 0) {
  		unsigned long addr;
  		size_t to_write;
-@@ -2253,12 +2306,18 @@ write_unix_file(struct file *file, /* fi
+@@ -2254,12 +2307,18 @@ write_unix_file(struct file *file, /* fi
  		/* With no locks held we can commit atoms in attempt to recover
  		 * free space. */
  		if ((ssize_t)written == -ENOSPC && try_free_space) {
@@ -22293,7 +22293,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  			break;
  		}
  		left -= written;
-@@ -2266,6 +2325,9 @@ write_unix_file(struct file *file, /* fi
+@@ -2267,6 +2326,9 @@ write_unix_file(struct file *file, /* fi
  
  		/* total number of written bytes */
  		count += written;
@@ -22303,7 +22303,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	}
  
  	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
-@@ -2280,6 +2342,8 @@ write_unix_file(struct file *file, /* fi
+@@ -2281,6 +2343,8 @@ write_unix_file(struct file *file, /* fi
   	current->backing_dev_info = 0;
  	save_file_hint(file, &hint);
  
@@ -22312,7 +22312,7 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	return count ? count : result;
  }
  
-@@ -2303,6 +2367,7 @@ release_unix_file(struct inode *object, 
+@@ -2304,6 +2368,7 @@ release_unix_file(struct inode *object, 
  		if (result != 0) {
  			warning("nikita-3233", "Failed to convert in %s (%llu)",
  				__FUNCTION__, (unsigned long long)get_inode_oid(object));
@@ -22321,8 +22321,8 @@ diff -puN plugin/file/file.c~profile-stat-trace-repacker plugin/file/file.c
  	}
  	drop_exclusive_access(uf_info);
 diff -puN plugin/file/funcs.h~profile-stat-trace-repacker plugin/file/funcs.h
---- reiser4/plugin/file/funcs.h~profile-stat-trace-repacker	2005-02-09 18:36:23.499651707 +0300
-+++ reiser4-vs/plugin/file/funcs.h	2005-02-09 18:36:24.236705794 +0300
+--- reiser4/plugin/file/funcs.h~profile-stat-trace-repacker	2005-02-25 17:02:23.308058539 +0300
++++ reiser4-vs/plugin/file/funcs.h	2005-02-25 17:02:24.081114623 +0300
 @@ -5,6 +5,7 @@ void get_exclusive_access(unix_file_info
  void drop_exclusive_access(unix_file_info_t *);
  void get_nonexclusive_access(unix_file_info_t *, int);
@@ -22332,8 +22332,8 @@ diff -puN plugin/file/funcs.h~profile-stat-trace-repacker plugin/file/funcs.h
  int tail2extent(unix_file_info_t *);
  int extent2tail(unix_file_info_t *);
 diff -puN plugin/file/pseudo.c~profile-stat-trace-repacker plugin/file/pseudo.c
---- reiser4/plugin/file/pseudo.c~profile-stat-trace-repacker	2005-02-09 18:36:23.505652147 +0300
-+++ reiser4-vs/plugin/file/pseudo.c	2005-02-09 18:36:24.238705941 +0300
+--- reiser4/plugin/file/pseudo.c~profile-stat-trace-repacker	2005-02-25 17:02:23.316059120 +0300
++++ reiser4-vs/plugin/file/pseudo.c	2005-02-25 17:02:24.083114768 +0300
 @@ -12,6 +12,8 @@
  #include <linux/seq_file.h>
  #include <linux/fs.h>
@@ -22344,8 +22344,8 @@ diff -puN plugin/file/pseudo.c~profile-stat-trace-repacker plugin/file/pseudo.c
  static pseudo_plugin *
  get_pplug(struct file * file)
 diff -puN plugin/file/tail_conversion.c~profile-stat-trace-repacker plugin/file/tail_conversion.c
---- reiser4/plugin/file/tail_conversion.c~profile-stat-trace-repacker	2005-02-09 18:36:23.512652661 +0300
-+++ reiser4-vs/plugin/file/tail_conversion.c	2005-02-09 18:36:24.240706087 +0300
+--- reiser4/plugin/file/tail_conversion.c~profile-stat-trace-repacker	2005-02-25 17:02:23.324059700 +0300
++++ reiser4-vs/plugin/file/tail_conversion.c	2005-02-25 17:02:24.085114913 +0300
 @@ -279,6 +279,9 @@ tail2extent(unix_file_info_t *uf_info)
  	int first_iteration;
  	int bytes;
@@ -22418,8 +22418,8 @@ diff -puN plugin/file/tail_conversion.c~profile-stat-trace-repacker plugin/file/
  	all_grabbed2free();
  	return result;
 diff -puN plugin/hash.c~profile-stat-trace-repacker plugin/hash.c
---- reiser4/plugin/hash.c~profile-stat-trace-repacker	2005-02-09 18:36:23.520653248 +0300
-+++ reiser4-vs/plugin/hash.c	2005-02-09 18:36:24.242706234 +0300
+--- reiser4/plugin/hash.c~profile-stat-trace-repacker	2005-02-25 17:02:23.332060281 +0300
++++ reiser4-vs/plugin/hash.c	2005-02-25 17:02:24.087115058 +0300
 @@ -240,6 +240,7 @@ static __u64
  hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
  	 int len UNUSED_ARG /* @name's length */ )
@@ -22429,8 +22429,8 @@ diff -puN plugin/hash.c~profile-stat-trace-repacker plugin/hash.c
  }
  
 diff -puN plugin/item/blackbox.c~profile-stat-trace-repacker plugin/item/blackbox.c
---- reiser4/plugin/item/blackbox.c~profile-stat-trace-repacker	2005-02-09 18:36:23.528653835 +0300
-+++ reiser4-vs/plugin/item/blackbox.c	2005-02-09 18:36:24.243706308 +0300
+--- reiser4/plugin/item/blackbox.c~profile-stat-trace-repacker	2005-02-25 17:02:23.340060861 +0300
++++ reiser4-vs/plugin/item/blackbox.c	2005-02-25 17:02:24.089115203 +0300
 @@ -25,7 +25,7 @@ store_black_box(reiser4_tree *tree,
  	coord_t coord;
  	lock_handle lh;
@@ -22459,8 +22459,8 @@ diff -puN plugin/item/blackbox.c~profile-stat-trace-repacker plugin/item/blackbo
  				warning("nikita-3437",
  					"Wrong black box length: %i < %i",
 diff -puN plugin/item/cde.c~profile-stat-trace-repacker plugin/item/cde.c
---- reiser4/plugin/item/cde.c~profile-stat-trace-repacker	2005-02-09 18:36:23.537654496 +0300
-+++ reiser4-vs/plugin/item/cde.c	2005-02-09 18:36:24.246706528 +0300
+--- reiser4/plugin/item/cde.c~profile-stat-trace-repacker	2005-02-25 17:02:23.348061442 +0300
++++ reiser4-vs/plugin/item/cde.c	2005-02-25 17:02:24.092115421 +0300
 @@ -262,7 +262,7 @@ expand_item(const coord_t * coord /* coo
  	/* place where new header will be in */
  	header = header_at(coord, pos);
@@ -22560,59 +22560,36 @@ diff -puN plugin/item/cde.c~profile-stat-trace-repacker plugin/item/cde.c
  
  	return header_delta + entry_delta;
 diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
---- reiser4/plugin/item/ctail.c~profile-stat-trace-repacker	2005-02-09 18:36:23.546655156 +0300
-+++ reiser4-vs/plugin/item/ctail.c	2005-02-09 18:36:24.249706748 +0300
-@@ -69,7 +69,7 @@ pg_by_coord(const coord_t * coord)
- 	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
- }
- 
--static unsigned long
-+reiser4_internal unsigned long
- clust_by_coord(const coord_t * coord)
- {
- 	return pg_by_coord(coord) >> cluster_shift_by_coord(coord);
-@@ -251,7 +251,7 @@ paste_ctail(coord_t * coord, reiser4_ite
+--- reiser4/plugin/item/ctail.c~profile-stat-trace-repacker	2005-02-25 17:02:23.356062022 +0300
++++ reiser4-vs/plugin/item/ctail.c	2005-02-25 17:09:55.267847189 +0300
+@@ -286,7 +286,7 @@ paste_ctail(coord_t * coord, reiser4_ite
  	else
  		impossible("edward-453", "bad paste position");
  
 -	memcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
 +	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
  	
- 	assert("edward-857", !check_ctail(coord, NULL));
+ 	assert("edward-857", ctail_ok(coord));
  
-@@ -298,13 +298,21 @@ copy_units_ctail(coord_t * target, coord
- 
- 	assert("edward-858", !check_ctail(source, NULL));
- 	
-+#if 0
-+	if (item_length_by_coord(target) == count) {
-+		/* new item has been created */
-+		assert("edward-465", count > sizeof(ctail_item_format));
-+		assert("edward-859", free_space == count + 1);
-+		count--;
-+	}
-+#endif	
- 	if (where_is_free_space == SHIFT_LEFT) {
- 		/* append item @target with @count first bytes of @source:
- 		   this restriction came from ordinary tails */
+@@ -339,7 +339,7 @@ copy_units_ctail(coord_t * target, coord
  		assert("edward-71", from == 0);
- 		assert("edward-860", !check_ctail(target, NULL));
+ 		assert("edward-860", ctail_ok(target));
  		
 -		memcpy(first_unit(target) + nr_units_ctail(target) - count, first_unit(source), count);
 +		xmemcpy(first_unit(target) + nr_units_ctail(target) - count, first_unit(source), count);
  	} else {
  		/* target item is moved to right already */
  		reiser4_key key;
-@@ -319,7 +327,7 @@ copy_units_ctail(coord_t * target, coord
+@@ -354,7 +354,7 @@ copy_units_ctail(coord_t * target, coord
  			/* new item has been created */
- 			assert("edward-862", !check_ctail(target, NULL));
+ 			assert("edward-862", ctail_ok(target));
  		}
 -		memcpy(first_unit(target), first_unit(source) + from, count);
 +		xmemcpy(first_unit(target), first_unit(source) + from, count);
  		
- 		assert("edward-863", !check_ctail(target, NULL));
+ 		assert("edward-863", ctail_ok(target));
  		
-@@ -442,7 +450,7 @@ cut_or_kill_ctail_units(coord_t * coord,
+@@ -482,7 +482,7 @@ cut_or_kill_ctail_units(coord_t * coord,
  			/* part of item is removed, so move free space at the beginning
  			   of the item and update item key */
  			reiser4_key key;
@@ -22621,7 +22598,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  			item_key_by_coord(coord, &key);
  			set_key_offset(&key, get_key_offset(&key) + count);
  			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
-@@ -455,10 +463,10 @@ cut_or_kill_ctail_units(coord_t * coord,
+@@ -495,10 +495,10 @@ cut_or_kill_ctail_units(coord_t * coord,
  			count += sizeof(ctail_item_format);
  		}
  		if (REISER4_DEBUG)
@@ -22634,7 +22611,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  	return count;
  }
  
-@@ -613,6 +621,8 @@ do_readpage_ctail(reiser4_cluster_t * cl
+@@ -672,6 +672,8 @@ do_readpage_ctail(reiser4_cluster_t * cl
  		flush_dcache_page(page);
  		kunmap_atomic(data, KM_USER0);
  		SetPageUptodate(page);
@@ -22643,7 +22620,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  		break;
  	case PREP_DISK_CLUSTER:
  		/* fill the page by transformed data */
-@@ -628,6 +638,7 @@ do_readpage_ctail(reiser4_cluster_t * cl
+@@ -687,6 +689,7 @@ do_readpage_ctail(reiser4_cluster_t * cl
  		flush_dcache_page(page);
  		kunmap(page);
  		SetPageUptodate(page);
@@ -22651,7 +22628,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  		break;
  	default:
  		impossible("edward-1169", "bad disk cluster state");
-@@ -861,6 +872,7 @@ insert_crc_flow(coord_t * coord, lock_ha
+@@ -952,6 +955,7 @@ insert_crc_flow(coord_t * coord, lock_ha
  	lowest_level.track_type = CARRY_TRACK_CHANGE;
  	lowest_level.tracked = lh;
  
@@ -22659,7 +22636,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  	result = carry(&lowest_level, 0);
  	done_carry_pool(pool);
  
-@@ -912,7 +924,7 @@ overwrite_ctail(coord_t * coord, flow_t 
+@@ -1004,7 +1008,7 @@ overwrite_ctail(coord_t * coord, flow_t 
  
  	if (count > f->length)
  		count = f->length;
@@ -22668,16 +22645,16 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  	move_flow_forward(f, count);
  	coord->unit_pos += count;
  	return 0;
-@@ -960,7 +972,7 @@ int ctail_make_unprepped_cluster(reiser4
+@@ -1082,7 +1086,7 @@ int ctail_make_unprepped_cluster(reiser4
  	assert("edward-1211", result == CBK_COORD_NOTFOUND);
  	assert("edward-1063", znode_is_write_locked(clust->hint->coord.lh->node));
  	
--	memset(buf, 0, UNPREPPED_DCLUSTER_LEN);
-+	xmemset(buf, 0, UNPREPPED_DCLUSTER_LEN);
+-	memset(buf, 0, (size_t)UCTAIL_NR_UNITS);
++	xmemset(buf, 0, (size_t)UCTAIL_NR_UNITS);
  	
  	flow_by_inode_cryptcompress(inode,
  				    buf,
-@@ -998,7 +1010,7 @@ int ctail_make_unprepped_cluster(reiser4
+@@ -1120,7 +1124,7 @@ int ctail_make_unprepped_cluster(reiser4
  	return 0;
  }
  
@@ -22686,7 +22663,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  do_convert_ctail(flush_pos_t * pos, crc_write_mode_t mode)
  {
  	int result = 0;
-@@ -1141,7 +1153,7 @@ alloc_convert_data(flush_pos_t * pos)
+@@ -1264,7 +1268,7 @@ alloc_convert_data(flush_pos_t * pos)
  	pos->sq = reiser4_kmalloc(sizeof(*pos->sq), GFP_KERNEL);
  	if (!pos->sq)
  		return RETERR(-ENOMEM);
@@ -22695,7 +22672,7 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  	return 0;
  }
  
-@@ -1174,7 +1186,7 @@ init_item_convert_data(flush_pos_t * pos
+@@ -1297,7 +1301,7 @@ init_item_convert_data(flush_pos_t * pos
  
  	sq = pos->sq;
  
@@ -22705,20 +22682,20 @@ diff -puN plugin/item/ctail.c~profile-stat-trace-repacker plugin/item/ctail.c
  	/* iplug->init_convert_data() */
  	return init_convert_data_ctail(sq->itm, inode);
 diff -puN plugin/item/ctail.h~profile-stat-trace-repacker plugin/item/ctail.h
---- reiser4/plugin/item/ctail.h~profile-stat-trace-repacker	2005-02-09 18:36:23.554655743 +0300
-+++ reiser4-vs/plugin/item/ctail.h	2005-02-09 18:36:24.251706895 +0300
-@@ -65,6 +65,8 @@ int utmost_child_ctail(const coord_t *, 
+--- reiser4/plugin/item/ctail.h~profile-stat-trace-repacker	2005-02-25 17:02:23.364062602 +0300
++++ reiser4-vs/plugin/item/ctail.h	2005-02-25 17:09:54.001755337 +0300
+@@ -68,6 +68,8 @@ int utmost_child_ctail(const coord_t *, 
  int scan_ctail(flush_scan *);
  int convert_ctail(flush_pos_t *);
  size_t inode_scaled_cluster_size(struct inode *);
 +loff_t inode_scaled_offset (struct inode *, const loff_t);
 +unsigned max_crypto_overhead(struct inode *);
+ int cluster_shift_by_coord(const coord_t * coord);
  
  #endif /* __FS_REISER4_CTAIL_H__ */
- 
 diff -puN plugin/item/extent.c~profile-stat-trace-repacker plugin/item/extent.c
---- reiser4/plugin/item/extent.c~profile-stat-trace-repacker	2005-02-09 18:36:23.561656257 +0300
-+++ reiser4-vs/plugin/item/extent.c	2005-02-09 18:36:24.253707041 +0300
+--- reiser4/plugin/item/extent.c~profile-stat-trace-repacker	2005-02-25 17:02:23.372063183 +0300
++++ reiser4-vs/plugin/item/extent.c	2005-02-25 17:02:24.104116292 +0300
 @@ -7,6 +7,7 @@
  #include "../../inode.h"
  #include "../../page_cache.h"
@@ -22770,8 +22747,8 @@ diff -puN plugin/item/extent.c~profile-stat-trace-repacker plugin/item/extent.c
  }
  
 diff -puN plugin/item/extent.h~profile-stat-trace-repacker plugin/item/extent.h
---- reiser4/plugin/item/extent.h~profile-stat-trace-repacker	2005-02-09 18:36:23.567656697 +0300
-+++ reiser4-vs/plugin/item/extent.h	2005-02-09 18:36:24.254707115 +0300
+--- reiser4/plugin/item/extent.h~profile-stat-trace-repacker	2005-02-25 17:02:23.380063763 +0300
++++ reiser4-vs/plugin/item/extent.h	2005-02-25 17:02:24.106116437 +0300
 @@ -141,8 +141,10 @@ int allocate_extent_item_in_place(coord_
  int allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * pos, reiser4_key * stop_key);
  
@@ -22784,8 +22761,8 @@ diff -puN plugin/item/extent.h~profile-stat-trace-repacker plugin/item/extent.h
  /* plugin->u.item.f. */
  int scan_extent (flush_scan * scan);
 diff -puN plugin/item/extent_file_ops.c~profile-stat-trace-repacker plugin/item/extent_file_ops.c
---- reiser4/plugin/item/extent_file_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.574657211 +0300
-+++ reiser4-vs/plugin/item/extent_file_ops.c	2005-02-09 18:36:24.257707335 +0300
+--- reiser4/plugin/item/extent_file_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:23.388064344 +0300
++++ reiser4-vs/plugin/item/extent_file_ops.c	2005-02-25 17:02:24.109116654 +0300
 @@ -474,6 +474,8 @@ make_extent(reiser4_key *key, uf_coord_t
  	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
  	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
@@ -22915,8 +22892,8 @@ diff -puN plugin/item/extent_file_ops.c~profile-stat-trace-repacker plugin/item/
  }
  
 diff -puN plugin/item/extent_flush_ops.c~profile-stat-trace-repacker plugin/item/extent_flush_ops.c
---- reiser4/plugin/item/extent_flush_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.581657725 +0300
-+++ reiser4-vs/plugin/item/extent_flush_ops.c	2005-02-09 18:36:24.261707628 +0300
+--- reiser4/plugin/item/extent_flush_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:23.397064997 +0300
++++ reiser4-vs/plugin/item/extent_flush_ops.c	2005-02-25 17:02:24.113116945 +0300
 @@ -10,8 +10,6 @@
  
  #include <linux/pagemap.h>
@@ -23235,8 +23212,8 @@ diff -puN plugin/item/extent_flush_ops.c~profile-stat-trace-repacker plugin/item
  	*stop_key = key;
  	return SQUEEZE_CONTINUE;
 diff -puN plugin/item/extent_item_ops.c~profile-stat-trace-repacker plugin/item/extent_item_ops.c
---- reiser4/plugin/item/extent_item_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.588658239 +0300
-+++ reiser4-vs/plugin/item/extent_item_ops.c	2005-02-09 18:36:24.263707775 +0300
+--- reiser4/plugin/item/extent_item_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:23.405065577 +0300
++++ reiser4-vs/plugin/item/extent_item_ops.c	2005-02-25 17:02:24.116117162 +0300
 @@ -249,12 +249,12 @@ paste_extent(coord_t *coord, reiser4_ite
  	}
  
@@ -23264,7 +23241,7 @@ diff -puN plugin/item/extent_item_ops.c~profile-stat-trace-repacker plugin/item/
  /* item_plugin->b.create_hook
 diff -puN /dev/null plugin/item/extent_repack_ops.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/plugin/item/extent_repack_ops.c	2005-02-09 18:36:24.266707995 +0300
++++ reiser4-vs/plugin/item/extent_repack_ops.c	2005-02-25 17:02:24.118117307 +0300
 @@ -0,0 +1,447 @@
 +/* Copyright 2003 by Hans Reiser. */
 +
@@ -23714,8 +23691,8 @@ diff -puN /dev/null plugin/item/extent_repack_ops.c
 +   End:
 +*/
 diff -puN plugin/item/internal.c~profile-stat-trace-repacker plugin/item/internal.c
---- reiser4/plugin/item/internal.c~profile-stat-trace-repacker	2005-02-09 18:36:23.595658752 +0300
-+++ reiser4-vs/plugin/item/internal.c	2005-02-09 18:36:24.267708069 +0300
+--- reiser4/plugin/item/internal.c~profile-stat-trace-repacker	2005-02-25 17:02:23.414066230 +0300
++++ reiser4-vs/plugin/item/internal.c	2005-02-25 17:09:52.953679302 +0300
 @@ -274,6 +274,10 @@ create_hook_internal(const coord_t * ite
  		assert("nikita-3297", ZF_ISSET(child, JNODE_ORPHAN));
  		ZF_CLR(child, JNODE_ORPHAN);
@@ -23724,9 +23701,9 @@ diff -puN plugin/item/internal.c~profile-stat-trace-repacker plugin/item/interna
 +			 *znode_get_block(item->node), item->node->c_count,
 +			 *znode_get_block(child));
 +
- 		WUNLOCK_TREE(tree);
  		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
  					     znode_get_rd_key(child))) {
+ 			znode_set_rd_key(child, znode_get_rd_key(left));
 @@ -329,6 +333,10 @@ kill_hook_internal(const coord_t * item 
  		init_parent_coord(&child->in_parent, NULL);
  		-- item->node->c_count;
@@ -23758,8 +23735,8 @@ diff -puN plugin/item/internal.c~profile-stat-trace-repacker plugin/item/interna
  	} else
  		return PTR_ERR(child);
 diff -puN plugin/item/item.c~profile-stat-trace-repacker plugin/item/item.c
---- reiser4/plugin/item/item.c~profile-stat-trace-repacker	2005-02-09 18:36:23.602659266 +0300
-+++ reiser4-vs/plugin/item/item.c	2005-02-09 18:36:24.271708362 +0300
+--- reiser4/plugin/item/item.c~profile-stat-trace-repacker	2005-02-25 17:02:23.422066810 +0300
++++ reiser4-vs/plugin/item/item.c	2005-02-25 17:02:24.132118323 +0300
 @@ -26,6 +26,7 @@ item_body_by_coord_hard(coord_t * coord 
  	assert("nikita-325", coord->node != NULL);
  	assert("nikita-326", znode_is_loaded(coord->node));
@@ -23884,8 +23861,8 @@ diff -puN plugin/item/item.c~profile-stat-trace-repacker plugin/item/item.c
  			.check             = NULL
  #endif
 diff -puN plugin/item/item.h~profile-stat-trace-repacker plugin/item/item.h
---- reiser4/plugin/item/item.h~profile-stat-trace-repacker	2005-02-09 18:36:23.609659780 +0300
-+++ reiser4-vs/plugin/item/item.h	2005-02-09 18:36:24.273708509 +0300
+--- reiser4/plugin/item/item.h~profile-stat-trace-repacker	2005-02-25 17:02:23.430067391 +0300
++++ reiser4-vs/plugin/item/item.h	2005-02-25 17:02:24.134118468 +0300
 @@ -167,7 +167,15 @@ typedef struct {
  	/* converts flow @f to item data. @coord == 0 on insert */
  	int (*item_data_by_flow) (const coord_t *, const flow_t *, reiser4_item_data *);
@@ -23920,8 +23897,8 @@ diff -puN plugin/item/item.h~profile-stat-trace-repacker plugin/item/item.h
  	if (coord->offset == INVALID_OFFSET)
  		item_body_by_coord_hard((coord_t *)coord);
 diff -puN plugin/item/sde.c~profile-stat-trace-repacker plugin/item/sde.c
---- reiser4/plugin/item/sde.c~profile-stat-trace-repacker	2005-02-09 18:36:23.615660220 +0300
-+++ reiser4-vs/plugin/item/sde.c	2005-02-09 18:36:24.275708656 +0300
+--- reiser4/plugin/item/sde.c~profile-stat-trace-repacker	2005-02-25 17:02:23.438067971 +0300
++++ reiser4-vs/plugin/item/sde.c	2005-02-25 17:02:24.136118613 +0300
 @@ -156,7 +156,7 @@ add_entry_de(struct inode *dir /* direct
  	dent = (directory_entry_format *) item_body_by_coord(coord);
  	build_inode_key_id(entry->obj, &dent->id);
@@ -23932,8 +23909,8 @@ diff -puN plugin/item/sde.c~profile-stat-trace-repacker plugin/item/sde.c
  	}
  	return 0;
 diff -puN plugin/item/static_stat.c~profile-stat-trace-repacker plugin/item/static_stat.c
---- reiser4/plugin/item/static_stat.c~profile-stat-trace-repacker	2005-02-09 18:36:23.623660807 +0300
-+++ reiser4-vs/plugin/item/static_stat.c	2005-02-09 18:36:24.277708803 +0300
+--- reiser4/plugin/item/static_stat.c~profile-stat-trace-repacker	2005-02-25 17:02:23.446068552 +0300
++++ reiser4-vs/plugin/item/static_stat.c	2005-02-25 17:02:24.139118831 +0300
 @@ -598,7 +598,7 @@ symlink_target_to_inode(struct inode *in
  	if (!inode->u.generic_ip)
  		return RETERR(-ENOMEM);
@@ -23979,8 +23956,8 @@ diff -puN plugin/item/static_stat.c~profile-stat-trace-repacker plugin/item/stat
  	} else {
  		/* do nothing */
 diff -puN plugin/item/tail.c~profile-stat-trace-repacker plugin/item/tail.c
---- reiser4/plugin/item/tail.c~profile-stat-trace-repacker	2005-02-09 18:36:23.630661321 +0300
-+++ reiser4-vs/plugin/item/tail.c	2005-02-09 18:36:24.280709023 +0300
+--- reiser4/plugin/item/tail.c~profile-stat-trace-repacker	2005-02-25 17:02:23.454069132 +0300
++++ reiser4-vs/plugin/item/tail.c	2005-02-25 17:02:24.142119049 +0300
 @@ -133,7 +133,7 @@ paste_tail(coord_t *coord, reiser4_item_
  	if (coord->unit_pos == 0)
  		/* make space for pasted data when pasting at the beginning of
@@ -24055,8 +24032,8 @@ diff -puN plugin/item/tail.c~profile-stat-trace-repacker plugin/item/tail.c
  		flush_dcache_page(page);
  
 diff -puN plugin/node/node.c~profile-stat-trace-repacker plugin/node/node.c
---- reiser4/plugin/node/node.c~profile-stat-trace-repacker	2005-02-09 18:36:23.638661908 +0300
-+++ reiser4-vs/plugin/node/node.c	2005-02-09 18:36:24.282709170 +0300
+--- reiser4/plugin/node/node.c~profile-stat-trace-repacker	2005-02-25 17:02:23.462069713 +0300
++++ reiser4-vs/plugin/node/node.c	2005-02-25 17:02:24.145119266 +0300
 @@ -74,6 +74,251 @@ leftmost_key_in_node(const znode * node 
  	return key;
  }
@@ -24320,8 +24297,8 @@ diff -puN plugin/node/node.c~profile-stat-trace-repacker plugin/node/node.c
  		.create_item = create_item_node40,
  		.update_item_key = update_item_key_node40,
 diff -puN plugin/node/node.h~profile-stat-trace-repacker plugin/node/node.h
---- reiser4/plugin/node/node.h~profile-stat-trace-repacker	2005-02-09 18:36:23.647662569 +0300
-+++ reiser4-vs/plugin/node/node.h	2005-02-09 18:36:24.284709316 +0300
+--- reiser4/plugin/node/node.h~profile-stat-trace-repacker	2005-02-25 17:02:23.469070220 +0300
++++ reiser4-vs/plugin/node/node.h	2005-02-25 17:02:24.147119411 +0300
 @@ -179,7 +179,7 @@ typedef struct node_plugin {
  	   Uncomment after 4.0 only.
  	*/
@@ -24377,8 +24354,8 @@ diff -puN plugin/node/node.h~profile-stat-trace-repacker plugin/node/node.h
  #endif
  /*
 diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
---- reiser4/plugin/node/node40.c~profile-stat-trace-repacker	2005-02-09 18:36:23.656663229 +0300
-+++ reiser4-vs/plugin/node/node40.c	2005-02-09 18:36:24.290709757 +0300
+--- reiser4/plugin/node/node40.c~profile-stat-trace-repacker	2005-02-25 17:02:23.477070801 +0300
++++ reiser4-vs/plugin/node/node40.c	2005-02-25 17:02:24.154119919 +0300
 @@ -1,5 +1,6 @@
  /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
  
@@ -24495,8 +24472,8 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
 +			reiser4_stat_inc(tree.rd_key_skew);
  			if (flags & REISER4_NODE_TREE_STABLE) {
  				*error = "Last key is greater than rdkey";
- 				return -1;
-@@ -760,7 +789,10 @@ init_node40(znode * node /* node to init
+ 				RUNLOCK_DK(current_tree);
+@@ -768,7 +797,10 @@ init_node40(znode * node /* node to init
  	assert("nikita-572", zdata(node) != NULL);
  
  	header = node40_node_header(node);
@@ -24508,7 +24485,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	nh40_set_free_space(header, znode_size(node) - sizeof (node40_header));
  	nh40_set_free_space_start(header, sizeof (node40_header));
  	/* sane hypothesis: 0 in CPU format is 0 in disk format */
-@@ -775,7 +807,6 @@ init_node40(znode * node /* node to init
+@@ -783,7 +815,6 @@ init_node40(znode * node /* node to init
  	return 0;
  }
  
@@ -24516,7 +24493,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  reiser4_internal int
  guess_node40(const znode * node /* node to guess plugin of */ )
  {
-@@ -788,6 +819,19 @@ guess_node40(const znode * node /* node 
+@@ -796,6 +827,19 @@ guess_node40(const znode * node /* node 
  	    (plugin_by_disk_id(znode_get_tree(node),
  			       REISER4_NODE_PLUGIN_TYPE, &nethack->common_header.plugin_id)->h.id == NODE40_ID);
  }
@@ -24536,7 +24513,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  #endif
  
  /* plugin->u.node.chage_item_size
-@@ -801,6 +845,8 @@ change_item_size_node40(coord_t * coord,
+@@ -809,6 +853,8 @@ change_item_size_node40(coord_t * coord,
  	int item_length;
  	unsigned i;
  
@@ -24545,7 +24522,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	/* make sure that @item is coord of existing item */
  	assert("vs-210", coord_is_existing_item(coord));
  
-@@ -811,8 +857,8 @@ change_item_size_node40(coord_t * coord,
+@@ -819,8 +865,8 @@ change_item_size_node40(coord_t * coord,
  
  	/* move item bodies */
  	ih = node40_ih_at_coord(coord);
@@ -24556,7 +24533,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	/* update offsets of moved items */
  	for (i = coord->item_pos + 1; i < nh40_get_num_items(nh); i++) {
-@@ -842,6 +888,8 @@ create_item_node40(coord_t * target, con
+@@ -850,6 +896,8 @@ create_item_node40(coord_t * target, con
  	unsigned offset;
  	unsigned i;
  
@@ -24565,7 +24542,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	nh = node40_node_header(target->node);
  
  	assert("vs-212", coord_is_between_items(target));
-@@ -861,7 +909,7 @@ create_item_node40(coord_t * target, con
+@@ -869,7 +917,7 @@ create_item_node40(coord_t * target, con
  		/* new item will start at this offset */
  		offset = ih40_get_offset(ih);
  
@@ -24574,7 +24551,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  			 zdata(target->node) + offset, nh40_get_free_space_start(nh) - offset);
  		/* update headers of moved items */
  		for (i = target->item_pos; i < nh40_get_num_items(nh); i++) {
-@@ -870,7 +918,7 @@ create_item_node40(coord_t * target, con
+@@ -878,7 +926,7 @@ create_item_node40(coord_t * target, con
  		}
  
  		/* @ih is set to item header of the last item, move item headers */
@@ -24583,7 +24560,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	} else {
  		/* new item will start at this offset */
  		offset = nh40_get_free_space_start(nh);
-@@ -878,7 +926,7 @@ create_item_node40(coord_t * target, con
+@@ -886,7 +934,7 @@ create_item_node40(coord_t * target, con
  
  	/* make item header for the new item */
  	ih = node40_ih_at_coord(target);
@@ -24592,7 +24569,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	ih40_set_offset(ih, offset);
  	save_plugin_id(item_plugin_to_plugin(data->iplug), &ih->plugin_id);
  
-@@ -910,7 +958,7 @@ create_item_node40(coord_t * target, con
+@@ -918,7 +966,7 @@ create_item_node40(coord_t * target, con
  			__copy_from_user(zdata(target->node) + offset, data->data, (unsigned) data->length);
  		} else
  			/* copy from kernel space */
@@ -24601,7 +24578,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	}
  
  	if (target->item_pos == 0) {
-@@ -922,6 +970,7 @@ create_item_node40(coord_t * target, con
+@@ -930,6 +978,7 @@ create_item_node40(coord_t * target, con
  		item_plugin_by_coord(target)->b.create_hook(target, data->arg);
  	}
  
@@ -24609,7 +24586,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	return 0;
  }
  
-@@ -933,7 +982,7 @@ update_item_key_node40(coord_t * target,
+@@ -941,7 +990,7 @@ update_item_key_node40(coord_t * target,
  	item_header40 *ih;
  
  	ih = node40_ih_at_coord(target);
@@ -24618,7 +24595,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	if (target->item_pos == 0) {
  		prepare_for_update(NULL, target->node, info);
-@@ -990,8 +1039,8 @@ compact(znode *node, struct cut40_info *
+@@ -998,8 +1047,8 @@ compact(znode *node, struct cut40_info *
  	nr_items = nh40_get_num_items(nh);
  
  	/* remove gap made up by removal */
@@ -24629,7 +24606,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	/* update item headers of moved items - change their locations */
  	pos = cinfo->first_moved;
-@@ -1015,8 +1064,8 @@ compact(znode *node, struct cut40_info *
+@@ -1023,8 +1072,8 @@ compact(znode *node, struct cut40_info *
  	if (cinfo->removed_count != MAX_POS_IN_NODE) {
  		/* number of items changed. Remove item headers of those items */
  		ih = node40_ih_at(node, nr_items - 1);
@@ -24640,7 +24617,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  		freed += sizeof (item_header40) * cinfo->removed_count;
  		node40_set_num_items(node, nh, nr_items - cinfo->removed_count);
  	}
-@@ -1039,6 +1088,7 @@ shrink_item_node40(coord_t *coord, int d
+@@ -1047,6 +1096,7 @@ shrink_item_node40(coord_t *coord, int d
  	assert("nikita-3488", delta >= 0);
  
  	node = coord->node;
@@ -24648,7 +24625,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	nh = node40_node_header(node);
  	nr_items = nh40_get_num_items(nh);
  
-@@ -1047,7 +1097,7 @@ shrink_item_node40(coord_t *coord, int d
+@@ -1055,7 +1105,7 @@ shrink_item_node40(coord_t *coord, int d
  	end = zdata(node) + ih40_get_offset(ih) + length_by_coord_node40(coord);
  
  	/* remove gap made up by removal */
@@ -24657,7 +24634,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	/* update item headers of moved items - change their locations */
  	pos = coord->item_pos + 1;
-@@ -1307,7 +1357,7 @@ prepare_for_compact(struct cut40_info *c
+@@ -1315,7 +1365,7 @@ prepare_for_compact(struct cut40_info *c
  			ih = node40_ih_at(node, item_pos);
  
  			if (params->smallest_removed)
@@ -24666,7 +24643,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  			cinfo->freed_space_start = ih40_get_offset(ih);
  
-@@ -1379,7 +1429,7 @@ prepare_for_compact(struct cut40_info *c
+@@ -1387,7 +1437,7 @@ prepare_for_compact(struct cut40_info *c
  			ih = node40_ih_at(node, item_pos);
  
  			if (params->smallest_removed)
@@ -24675,7 +24652,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  			freed = kill_head_f(params->to, data, 0, &new_first_key);
  
-@@ -1431,6 +1481,7 @@ kill_node40(struct carry_kill_data *kdat
+@@ -1439,6 +1489,7 @@ kill_node40(struct carry_kill_data *kdat
  	int first_key_changed;
  
  	node = kdata->params.from->node;
@@ -24683,7 +24660,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	first_key_changed = prepare_for_compact(&cinfo, &kdata->params, 0/* not cut */, kdata, info);
  	compact(node, &cinfo);
-@@ -1449,6 +1500,7 @@ kill_node40(struct carry_kill_data *kdat
+@@ -1457,6 +1508,7 @@ kill_node40(struct carry_kill_data *kdat
  	coord_clear_iplug(kdata->params.from);
  	coord_clear_iplug(kdata->params.to);
  
@@ -24691,7 +24668,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	znode_make_dirty(node);
  	return cinfo.removed_count == MAX_POS_IN_NODE ? 0 : cinfo.removed_count;
  }
-@@ -1463,6 +1515,7 @@ cut_node40(struct carry_cut_data *cdata,
+@@ -1471,6 +1523,7 @@ cut_node40(struct carry_cut_data *cdata,
  	int first_key_changed;
  
  	node = cdata->params.from->node;
@@ -24699,7 +24676,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	first_key_changed = prepare_for_compact(&cinfo, &cdata->params, 1/* not cut */, cdata, info);
  	compact(node, &cinfo);
-@@ -1481,6 +1534,7 @@ cut_node40(struct carry_cut_data *cdata,
+@@ -1489,6 +1542,7 @@ cut_node40(struct carry_cut_data *cdata,
  	coord_clear_iplug(cdata->params.from);
  	coord_clear_iplug(cdata->params.to);
  
@@ -24707,7 +24684,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	znode_make_dirty(node);
  	return cinfo.removed_count == MAX_POS_IN_NODE ? 0 : cinfo.removed_count ;
  }
-@@ -1720,6 +1774,8 @@ copy_units(coord_t * target, coord_t * s
+@@ -1728,6 +1782,8 @@ copy_units(coord_t * target, coord_t * s
  	assert("nikita-1464", source != NULL);
  	assert("nikita-1465", from + count <= coord_num_units(source));
  
@@ -24716,7 +24693,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	iplug = item_plugin_by_coord(source);
  	assert("nikita-1468", iplug == item_plugin_by_coord(target));
  	iplug->b.copy_units(target, source, from, count, dir, free_space);
-@@ -1760,6 +1816,8 @@ copy(struct shift_params *shift)
+@@ -1768,6 +1824,8 @@ copy(struct shift_params *shift)
  
  	from = shift->wish_stop;
  
@@ -24725,7 +24702,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	coord_init_first_unit(&to, shift->target);
  
  	/* NOTE:NIKITA->VS not sure what I am doing: shift->target is empty,
-@@ -1785,8 +1843,11 @@ copy(struct shift_params *shift)
+@@ -1793,8 +1851,11 @@ copy(struct shift_params *shift)
  			nh40_set_free_space_start(nh, (unsigned) free_space_start);
  			nh40_set_free_space(nh, nh40_get_free_space(nh) - shift->merging_bytes);
  
@@ -24738,7 +24715,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  				   shift->merging_units, SHIFT_LEFT, shift->merging_bytes);
  			coord_inc_item_pos(&from);
  			from_ih--;
-@@ -1798,8 +1859,8 @@ copy(struct shift_params *shift)
+@@ -1806,8 +1867,8 @@ copy(struct shift_params *shift)
  			/* copy @entire items entirely */
  
  			/* copy item headers */
@@ -24749,7 +24726,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  			/* update item header offset */
  			old_offset = ih40_get_offset(from_ih);
  			/* AUDIT: Looks like if we calculate old_offset + free_space_start here instead of just old_offset, we can perform one "add" operation less per each iteration */
-@@ -1807,8 +1868,8 @@ copy(struct shift_params *shift)
+@@ -1815,8 +1876,8 @@ copy(struct shift_params *shift)
  				ih40_set_offset(to_ih, ih40_get_offset(from_ih) - old_offset + free_space_start);
  
  			/* copy item bodies */
@@ -24760,7 +24737,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  			coord_add_item_pos(&from, (int) shift->entire);
  			coord_add_item_pos(&to, (int) shift->entire);
-@@ -1830,7 +1891,7 @@ copy(struct shift_params *shift)
+@@ -1838,7 +1899,7 @@ copy(struct shift_params *shift)
  			/* copy item header of partially copied item */
  			coord_set_item_pos(&to, node40_num_of_items_internal(to.node)
  					   - 1);
@@ -24769,7 +24746,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  			ih40_set_offset(to_ih, nh40_get_free_space_start(nh) - shift->part_bytes);
  			if (item_plugin_by_coord(&to)->b.init)
  				item_plugin_by_coord(&to)->b.init(&to, &from, 0);
-@@ -1846,9 +1907,9 @@ copy(struct shift_params *shift)
+@@ -1854,9 +1915,9 @@ copy(struct shift_params *shift)
  		coord_set_item_pos(&to, 0);
  
  		/* prepare space for new items */
@@ -24782,7 +24759,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  		/* update item headers of moved items */
  		to_ih = node40_ih_at(to.node, 0);
  		/* first item gets @merging_bytes longer. free space appears
-@@ -1860,7 +1921,7 @@ copy(struct shift_params *shift)
+@@ -1868,7 +1929,7 @@ copy(struct shift_params *shift)
  			ih40_set_offset(to_ih - i, ih40_get_offset(to_ih - i) + shift->shift_bytes);
  
  		/* move item headers to make space for new items */
@@ -24791,7 +24768,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  		to_ih -= (new_items - 1);
  
  		nh40_set_free_space_start(nh, free_space_start + shift->shift_bytes);
-@@ -1888,7 +1949,7 @@ copy(struct shift_params *shift)
+@@ -1896,7 +1957,7 @@ copy(struct shift_params *shift)
  			/* copy @entire items entirely */
  
  			/* copy item headers */
@@ -24800,7 +24777,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  			/* update item header offset */
  			old_offset = ih40_get_offset(from_ih + shift->entire - 1);
-@@ -1899,9 +1960,9 @@ copy(struct shift_params *shift)
+@@ -1907,9 +1968,9 @@ copy(struct shift_params *shift)
  						old_offset + sizeof (node40_header) + shift->part_bytes);
  			/* copy item bodies */
  			coord_add_item_pos(&from, -(int) (shift->entire - 1));
@@ -24813,7 +24790,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  			coord_dec_item_pos(&from);
  		}
  
-@@ -1913,7 +1974,7 @@ copy(struct shift_params *shift)
+@@ -1921,7 +1982,7 @@ copy(struct shift_params *shift)
  			   a new item into @target->node */
  
  			/* copy item header of partially copied item */
@@ -24822,7 +24799,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  			ih40_set_offset(to_ih, sizeof (node40_header));
  			if (item_plugin_by_coord(&to)->b.init)
  				item_plugin_by_coord(&to)->b.init(&to, &from, 0);
-@@ -2591,13 +2652,15 @@ shift_check(void *vp, const znode *left,
+@@ -2608,13 +2669,15 @@ shift_check(void *vp, const znode *left,
  
  #endif
  
@@ -24841,7 +24818,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	     carry_plugin_info *info)
  {
  	struct shift_params shift;
-@@ -2605,16 +2668,23 @@ shift_node40(coord_t *from, znode *to, s
+@@ -2622,16 +2685,23 @@ shift_node40(coord_t *from, znode *to, s
  	znode *left, *right;
  	znode *source;
  	int target_empty;
@@ -24866,7 +24843,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  
  	source = from->node;
  
-@@ -2654,6 +2724,8 @@ shift_node40(coord_t *from, znode *to, s
+@@ -2671,6 +2741,8 @@ shift_node40(coord_t *from, znode *to, s
  
  	target_empty = node_is_empty(to);
  
@@ -24875,7 +24852,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	/* when first node plugin with item body compression is implemented,
  	   this must be changed to call node specific plugin */
  
-@@ -2663,9 +2735,15 @@ shift_node40(coord_t *from, znode *to, s
+@@ -2680,9 +2752,15 @@ shift_node40(coord_t *from, znode *to, s
  	if (!shift.shift_bytes) {
  		/* we could not shift anything */
  		assert("nikita-2079", coord_check(from));
@@ -24891,7 +24868,7 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  	copy(&shift);
  
  	/* result value of this is important. It is used by adjust_coord below */
-@@ -2704,7 +2782,23 @@ shift_node40(coord_t *from, znode *to, s
+@@ -2721,7 +2799,23 @@ shift_node40(coord_t *from, znode *to, s
  		   will be removing the pointer to node @from->node */
  		result = prepare_removal_node40(source, info);
  	}
@@ -24916,8 +24893,8 @@ diff -puN plugin/node/node40.c~profile-stat-trace-repacker plugin/node/node40.c
  }
  
 diff -puN plugin/node/node40.h~profile-stat-trace-repacker plugin/node/node40.h
---- reiser4/plugin/node/node40.h~profile-stat-trace-repacker	2005-02-09 18:36:23.664663816 +0300
-+++ reiser4-vs/plugin/node/node40.h	2005-02-09 18:36:24.292709903 +0300
+--- reiser4/plugin/node/node40.h~profile-stat-trace-repacker	2005-02-25 17:02:23.485071381 +0300
++++ reiser4-vs/plugin/node/node40.h	2005-02-25 17:02:24.156120064 +0300
 @@ -79,10 +79,11 @@ reiser4_key *key_at_node40(const coord_t
  size_t estimate_node40(znode * node);
  int check_node40(const znode * node, __u32 flags, const char **error);
@@ -24933,8 +24910,8 @@ diff -puN plugin/node/node40.h~profile-stat-trace-repacker plugin/node/node40.h
  int create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
  void update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info);
 diff -puN plugin/object.c~profile-stat-trace-repacker plugin/object.c
---- reiser4/plugin/object.c~profile-stat-trace-repacker	2005-02-09 18:36:23.672664403 +0300
-+++ reiser4-vs/plugin/object.c	2005-02-09 18:36:24.295710124 +0300
+--- reiser4/plugin/object.c~profile-stat-trace-repacker	2005-02-25 17:02:23.493071962 +0300
++++ reiser4-vs/plugin/object.c	2005-02-25 17:02:24.159120282 +0300
 @@ -72,6 +72,7 @@ NIKITA-FIXME-HANS: period?
  #include "../inode.h"
  #include "../super.h"
@@ -24997,8 +24974,8 @@ diff -puN plugin/object.c~profile-stat-trace-repacker plugin/object.c
  {
  	int result;
 diff -puN plugin/object.h~profile-stat-trace-repacker plugin/object.h
---- reiser4/plugin/object.h~profile-stat-trace-repacker	2005-02-09 18:36:23.678664844 +0300
-+++ reiser4-vs/plugin/object.h	2005-02-09 18:36:24.296710197 +0300
+--- reiser4/plugin/object.h~profile-stat-trace-repacker	2005-02-25 17:02:23.501072542 +0300
++++ reiser4-vs/plugin/object.h	2005-02-25 17:02:24.161120427 +0300
 @@ -22,6 +22,8 @@ extern int write_sd_by_inode_common(stru
  extern int owns_item_common(const struct inode *inode,
  			    const coord_t * coord);
@@ -25009,8 +24986,8 @@ diff -puN plugin/object.h~profile-stat-trace-repacker plugin/object.h
  extern int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
  extern int setattr_reserve_common(reiser4_tree *);
 diff -puN plugin/plugin.c~profile-stat-trace-repacker plugin/plugin.c
---- reiser4/plugin/plugin.c~profile-stat-trace-repacker	2005-02-09 18:36:23.685665357 +0300
-+++ reiser4-vs/plugin/plugin.c	2005-02-09 18:36:24.298710344 +0300
+--- reiser4/plugin/plugin.c~profile-stat-trace-repacker	2005-02-25 17:02:23.510073195 +0300
++++ reiser4-vs/plugin/plugin.c	2005-02-25 17:02:24.163120572 +0300
 @@ -187,6 +187,7 @@ NIKTIA-FIXME-HANS: Do the line above.  I
  int init_plugins(void);
  int setup_plugins(struct super_block *super, reiser4_plugin ** area);
@@ -25074,8 +25051,8 @@ diff -puN plugin/plugin.c~profile-stat-trace-repacker plugin/plugin.c
  reiser4_internal int
  is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
 diff -puN plugin/plugin.h~profile-stat-trace-repacker plugin/plugin.h
---- reiser4/plugin/plugin.h~profile-stat-trace-repacker	2005-02-09 18:36:23.692665871 +0300
-+++ reiser4-vs/plugin/plugin.h	2005-02-09 18:36:24.301710564 +0300
+--- reiser4/plugin/plugin.h~profile-stat-trace-repacker	2005-02-25 17:02:23.518073776 +0300
++++ reiser4-vs/plugin/plugin.h	2005-02-25 17:02:24.166120790 +0300
 @@ -474,6 +474,9 @@ typedef struct sd_ext_plugin {
  	int (*absent) (struct inode * inode);
  	int (*save_len) (struct inode * inode);
@@ -25099,8 +25076,8 @@ diff -puN plugin/plugin.h~profile-stat-trace-repacker plugin/plugin.h
  TYPE_SAFE_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
  
 diff -puN plugin/plugin_set.c~profile-stat-trace-repacker plugin/plugin_set.c
---- reiser4/plugin/plugin_set.c~profile-stat-trace-repacker	2005-02-09 18:36:23.698666311 +0300
-+++ reiser4-vs/plugin/plugin_set.c	2005-02-09 18:36:24.303710711 +0300
+--- reiser4/plugin/plugin_set.c~profile-stat-trace-repacker	2005-02-25 17:02:23.527074429 +0300
++++ reiser4-vs/plugin/plugin_set.c	2005-02-25 17:02:24.168120935 +0300
 @@ -150,6 +150,11 @@ reiser4_internal void plugin_set_put(plu
  {
  }
@@ -25182,8 +25159,8 @@ diff -puN plugin/plugin_set.c~profile-stat-trace-repacker plugin/plugin_set.c
  		plugin_set_slab = kmem_cache_create("plugin_set",
  						    sizeof (plugin_set), 0,
 diff -puN plugin/plugin_set.h~profile-stat-trace-repacker plugin/plugin_set.h
---- reiser4/plugin/plugin_set.h~profile-stat-trace-repacker	2005-02-09 18:36:23.705666825 +0300
-+++ reiser4-vs/plugin/plugin_set.h	2005-02-09 18:36:24.305710857 +0300
+--- reiser4/plugin/plugin_set.h~profile-stat-trace-repacker	2005-02-25 17:02:23.534074936 +0300
++++ reiser4-vs/plugin/plugin_set.h	2005-02-25 17:02:24.170121080 +0300
 @@ -43,14 +43,17 @@ struct plugin_set {
  };
  
@@ -25211,8 +25188,8 @@ diff -puN plugin/plugin_set.h~profile-stat-trace-repacker plugin/plugin_set.h
  
  /* __PLUGIN_SET_H__ */
 diff -puN plugin/pseudo/pseudo.c~profile-stat-trace-repacker plugin/pseudo/pseudo.c
---- reiser4/plugin/pseudo/pseudo.c~profile-stat-trace-repacker	2005-02-09 18:36:23.714667486 +0300
-+++ reiser4-vs/plugin/pseudo/pseudo.c	2005-02-09 18:36:24.307711004 +0300
+--- reiser4/plugin/pseudo/pseudo.c~profile-stat-trace-repacker	2005-02-25 17:02:23.543075589 +0300
++++ reiser4-vs/plugin/pseudo/pseudo.c	2005-02-25 17:02:24.173121298 +0300
 @@ -359,6 +359,7 @@ init_pseudo(struct inode *parent, struct
  							      parent, &data);
  	if (result != 0) {
@@ -25245,8 +25222,8 @@ diff -puN plugin/pseudo/pseudo.c~profile-stat-trace-repacker plugin/pseudo/pseud
  		data.mode = S_IFREG | 0 /* mode */;
  		data.id = UNIX_FILE_PLUGIN_ID;
 diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.c
---- reiser4/plugin/space/bitmap.c~profile-stat-trace-repacker	2005-02-09 18:36:23.721667999 +0300
-+++ reiser4-vs/plugin/space/bitmap.c	2005-02-09 18:36:24.311711298 +0300
+--- reiser4/plugin/space/bitmap.c~profile-stat-trace-repacker	2005-02-25 17:02:23.552076242 +0300
++++ reiser4-vs/plugin/space/bitmap.c	2005-02-25 17:02:24.177121588 +0300
 @@ -8,7 +8,10 @@
  #include "../../tree.h"
  #include "../../super.h"
@@ -25258,7 +25235,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  #include "space_allocator.h"
  #include "bitmap.h"
  
-@@ -344,7 +347,7 @@ reiser4_clear_bits(char *addr, bmap_off_
+@@ -390,7 +393,7 @@ reiser4_clear_bits(char *addr, bmap_off_
  	last_byte = (end - 1) >> 3;
  
  	if (last_byte > first_byte + 1)
@@ -25267,7 +25244,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  
  	first_byte_mask >>= 8 - (start & 0x7);
  	last_byte_mask <<= ((end - 1) & 0x7) + 1;
-@@ -374,7 +377,7 @@ reiser4_set_bits(char *addr, bmap_off_t 
+@@ -420,7 +423,7 @@ reiser4_set_bits(char *addr, bmap_off_t 
  	last_byte = (end - 1) >> 3;
  
  	if (last_byte > first_byte + 1)
@@ -25276,7 +25253,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  
  	first_byte_mask <<= start & 0x7;
  	last_byte_mask >>= 7 - ((end - 1) & 0x7);
-@@ -594,7 +597,7 @@ adjust_first_zero_bit(struct bitmap_node
+@@ -640,7 +643,7 @@ adjust_first_zero_bit(struct bitmap_node
  	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
  
  /* Audited by: green(2002.06.12) */
@@ -25285,7 +25262,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr * bnr)
  {
  
-@@ -618,7 +621,7 @@ get_bitmap_blocknr(struct super_block *s
+@@ -664,7 +667,7 @@ get_bitmap_blocknr(struct super_block *s
  
  /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
  /* Audited by: green(2002.06.12) */
@@ -25294,7 +25271,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
  {
  	*bnr = (reiser4_block_nr) ((bmap & ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
-@@ -629,7 +632,7 @@ static void
+@@ -675,7 +678,7 @@ static void
  init_bnode(struct bitmap_node *bnode,
  	   struct super_block *super UNUSED_ARG, bmap_nr_t bmap UNUSED_ARG)
  {
@@ -25303,7 +25280,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  
  	sema_init(&bnode->sema, 1);
  	atomic_set(&bnode->loaded, 0);
-@@ -779,9 +782,9 @@ load_and_lock_bnode(struct bitmap_node *
+@@ -825,9 +828,9 @@ load_and_lock_bnode(struct bitmap_node *
  				/* working bitmap is initialized by on-disk
  				 * commit bitmap. This should be performed
  				 * under semaphore. */
@@ -25316,7 +25293,7 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  			} else {
  				up(&bnode->sema);
  			}
-@@ -1013,9 +1016,9 @@ static int bitmap_alloc_backward(reiser4
+@@ -1059,9 +1062,9 @@ static int bitmap_alloc_backward(reiser4
  }
  
  /* plugin->u.space_allocator.alloc_blocks() */
@@ -25329,8 +25306,8 @@ diff -puN plugin/space/bitmap.c~profile-stat-trace-repacker plugin/space/bitmap.
  	struct super_block *super = get_current_context()->super;
  	int actual_len;
 diff -puN plugin/space/bitmap.h~profile-stat-trace-repacker plugin/space/bitmap.h
---- reiser4/plugin/space/bitmap.h~profile-stat-trace-repacker	2005-02-09 18:36:23.727668440 +0300
-+++ reiser4-vs/plugin/space/bitmap.h	2005-02-09 18:36:24.312711371 +0300
+--- reiser4/plugin/space/bitmap.h~profile-stat-trace-repacker	2005-02-25 17:02:23.560076823 +0300
++++ reiser4-vs/plugin/space/bitmap.h	2005-02-25 17:02:24.178121661 +0300
 @@ -27,6 +27,9 @@ extern int pre_commit_hook_bitmap(void);
  typedef __u64 bmap_nr_t;
  typedef __u32 bmap_off_t;
@@ -25342,8 +25319,8 @@ diff -puN plugin/space/bitmap.h~profile-stat-trace-repacker plugin/space/bitmap.
  
  /* Make Linus happy.
 diff -puN pool.c~profile-stat-trace-repacker pool.c
---- reiser4/pool.c~profile-stat-trace-repacker	2005-02-09 18:36:23.734668953 +0300
-+++ reiser4-vs/pool.c	2005-02-09 18:36:24.314711518 +0300
+--- reiser4/pool.c~profile-stat-trace-repacker	2005-02-25 17:02:23.569077476 +0300
++++ reiser4-vs/pool.c	2005-02-25 17:02:24.180121806 +0300
 @@ -76,13 +76,13 @@ reiser4_init_pool(reiser4_pool * pool /*
  	assert("nikita-956", num_of_objs >= 0);
  	assert("nikita-957", data != NULL);
@@ -25411,8 +25388,8 @@ diff -puN pool.c~profile-stat-trace-repacker pool.c
  	if (IS_ERR(result))
  		return result;
 diff -puN pool.h~profile-stat-trace-repacker pool.h
---- reiser4/pool.h~profile-stat-trace-repacker	2005-02-09 18:36:23.740669394 +0300
-+++ reiser4-vs/pool.h	2005-02-09 18:36:24.315711591 +0300
+--- reiser4/pool.h~profile-stat-trace-repacker	2005-02-25 17:02:23.576077984 +0300
++++ reiser4-vs/pool.h	2005-02-25 17:02:24.182121951 +0300
 @@ -51,6 +51,7 @@ TYPE_SAFE_LIST_DEFINE(pool_level, reiser
  
  extern void reiser4_init_pool(reiser4_pool * pool, size_t obj_size, int num_of_objs, char *data);
@@ -25423,7 +25400,7 @@ diff -puN pool.h~profile-stat-trace-repacker pool.h
  			     pool_ordering order, reiser4_pool_header * reference);
 diff -puN /dev/null prof.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/prof.c	2005-02-09 18:36:24.317711738 +0300
++++ reiser4-vs/prof.c	2005-02-25 17:02:24.184122096 +0300
 @@ -0,0 +1,273 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -25700,7 +25677,7 @@ diff -puN /dev/null prof.c
 +#endif
 diff -puN /dev/null prof.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/prof.h	2005-02-09 18:36:24.319711885 +0300
++++ reiser4-vs/prof.h	2005-02-25 17:02:24.185122168 +0300
 @@ -0,0 +1,130 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -25833,8 +25810,8 @@ diff -puN /dev/null prof.h
 +/* __REISER4_PROF_H__ */
 +#endif
 diff -puN readahead.c~profile-stat-trace-repacker readahead.c
---- reiser4/readahead.c~profile-stat-trace-repacker	2005-02-09 18:36:23.753670348 +0300
-+++ reiser4-vs/readahead.c	2005-02-09 18:36:24.320711958 +0300
+--- reiser4/readahead.c~profile-stat-trace-repacker	2005-02-25 17:02:23.586078709 +0300
++++ reiser4-vs/readahead.c	2005-02-25 17:02:24.187122313 +0300
 @@ -68,6 +68,8 @@ formatted_readahead(znode *node, ra_info
  	if (low_on_memory())
  		return;
@@ -25854,8 +25831,8 @@ diff -puN readahead.c~profile-stat-trace-repacker readahead.c
  
  static inline loff_t get_max_readahead(struct reiser4_file_ra_state *ra)
 diff -puN reiser4.h~profile-stat-trace-repacker reiser4.h
---- reiser4/reiser4.h~profile-stat-trace-repacker	2005-02-09 18:36:23.761670935 +0300
-+++ reiser4-vs/reiser4.h	2005-02-09 18:36:24.323712178 +0300
+--- reiser4/reiser4.h~profile-stat-trace-repacker	2005-02-25 17:02:23.593079217 +0300
++++ reiser4-vs/reiser4.h	2005-02-25 17:02:24.190122531 +0300
 @@ -25,6 +25,133 @@
  #define REISER4_DEBUG (0)
  #endif
@@ -26119,7 +26096,7 @@ diff -puN reiser4.h~profile-stat-trace-repacker reiser4.h
  /*
 diff -puN /dev/null repacker.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/repacker.c	2005-02-09 18:36:24.326712399 +0300
++++ reiser4-vs/repacker.c	2005-02-25 17:02:24.193122749 +0300
 @@ -0,0 +1,661 @@
 +/* Copyright 2003 by Hans Reiser */
 +
@@ -26784,7 +26761,7 @@ diff -puN /dev/null repacker.c
 +}
 diff -puN /dev/null repacker.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/repacker.h	2005-02-09 18:36:24.327712472 +0300
++++ reiser4-vs/repacker.h	2005-02-25 17:02:24.194122821 +0300
 @@ -0,0 +1,22 @@
 +/* Copyright 2003 by Hans Reiser */
 +
@@ -26809,8 +26786,8 @@ diff -puN /dev/null repacker.h
 +
 +#endif /* __FS_REISER4_REPACKER_H__ */
 diff -puN safe_link.c~profile-stat-trace-repacker safe_link.c
---- reiser4/safe_link.c~profile-stat-trace-repacker	2005-02-09 18:36:23.769671522 +0300
-+++ reiser4-vs/safe_link.c	2005-02-09 18:36:24.328712545 +0300
+--- reiser4/safe_link.c~profile-stat-trace-repacker	2005-02-25 17:02:23.600079725 +0300
++++ reiser4-vs/safe_link.c	2005-02-25 17:02:24.196122966 +0300
 @@ -104,8 +104,7 @@ build_link_key(struct inode *inode, reis
   * how much disk space is necessary to insert and remove (in the
   * error-handling path) safe-link.
@@ -26830,8 +26807,8 @@ diff -puN safe_link.c~profile-stat-trace-repacker safe_link.c
  		}
  		if (result != 0) {
 diff -puN seal.c~profile-stat-trace-repacker seal.c
---- reiser4/seal.c~profile-stat-trace-repacker	2005-02-09 18:36:23.778672183 +0300
-+++ reiser4-vs/seal.c	2005-02-09 18:36:24.330712692 +0300
+--- reiser4/seal.c~profile-stat-trace-repacker	2005-02-25 17:02:23.608080305 +0300
++++ reiser4-vs/seal.c	2005-02-25 17:02:24.198123112 +0300
 @@ -55,7 +55,7 @@ seal_init(seal_t * seal /* seal to initi
  						 * attached to */ )
  {
@@ -26858,8 +26835,8 @@ diff -puN seal.c~profile-stat-trace-repacker seal.c
  	}
  	return result;
 diff -puN seal.h~profile-stat-trace-repacker seal.h
---- reiser4/seal.h~profile-stat-trace-repacker	2005-02-09 18:36:23.787672843 +0300
-+++ reiser4-vs/seal.h	2005-02-09 18:36:24.332712839 +0300
+--- reiser4/seal.h~profile-stat-trace-repacker	2005-02-25 17:02:23.616080886 +0300
++++ reiser4-vs/seal.h	2005-02-25 17:02:24.199123184 +0300
 @@ -40,6 +40,12 @@ extern int seal_validate(seal_t * seal,
  			 lock_handle * lh, lookup_bias bias, znode_lock_mode mode, znode_lock_request request);
  
@@ -26874,8 +26851,8 @@ diff -puN seal.h~profile-stat-trace-repacker seal.h
  #endif
  
 diff -puN search.c~profile-stat-trace-repacker search.c
---- reiser4/search.c~profile-stat-trace-repacker	2005-02-09 18:36:23.797673577 +0300
-+++ reiser4-vs/search.c	2005-02-09 18:36:24.335713059 +0300
+--- reiser4/search.c~profile-stat-trace-repacker	2005-02-25 17:02:23.624081466 +0300
++++ reiser4-vs/search.c	2005-02-25 17:02:24.203123474 +0300
 @@ -15,14 +15,14 @@
  #include "block_alloc.h"
  #include "tree_walk.h"
@@ -27081,7 +27058,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  	return h->result;
  }
  
-@@ -951,6 +1004,12 @@ cbk_level_lookup(cbk_handle * h /* searc
+@@ -954,6 +1007,12 @@ cbk_level_lookup(cbk_handle * h /* searc
  		   2. or, node itself is going to be removed from the
  		   tree. Release lock and restart.
  		*/
@@ -27094,7 +27071,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  		h->result = -E_REPEAT;
  	}
  	if (h->result == -E_REPEAT)
-@@ -972,6 +1031,7 @@ cbk_level_lookup(cbk_handle * h /* searc
+@@ -975,6 +1034,7 @@ cbk_level_lookup(cbk_handle * h /* searc
  	if (ldkeyset && !node_is_empty(active) &&
  	    !keyeq(leftmost_key_in_node(active, &key), &ldkey)) {
  		warning("vs-3533", "Keys are inconsistent. Fsck?");
@@ -27102,7 +27079,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  		print_key("inparent", &ldkey);
  		print_key("inchild", &key);
  		h->result = RETERR(-EIO);
-@@ -1095,8 +1155,10 @@ cbk_node_lookup(cbk_handle * h /* search
+@@ -1098,8 +1158,10 @@ cbk_node_lookup(cbk_handle * h /* search
  				return search_to_left(h);
  			} else
  				h->result = CBK_COORD_FOUND;
@@ -27113,7 +27090,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  		}
  		if (!(h->flags & CBK_IN_CACHE))
  			cbk_cache_add(active);
-@@ -1246,6 +1308,7 @@ cbk_cache_scan_slots(cbk_handle * h /* c
+@@ -1249,6 +1311,7 @@ cbk_cache_scan_slots(cbk_handle * h /* c
  
  		if (llr != LOOKUP_DONE) {
  			/* restart or continue on the next level */
@@ -27121,7 +27098,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  			result = RETERR(-ENOENT);
  		} else if (IS_CBKERR(h->result))
  			/* io or oom */
-@@ -1275,6 +1338,7 @@ cbk_cache_scan_slots(cbk_handle * h /* c
+@@ -1278,6 +1341,7 @@ cbk_cache_scan_slots(cbk_handle * h /* c
  		   so that cbk() will be performed. This is not that
  		   important, because such races should be rare. Are they?
  		*/
@@ -27129,7 +27106,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  		result = RETERR(-ENOENT);	/* -ERAUGHT */
  	}
  	zrelse(node);
-@@ -1311,8 +1375,11 @@ cbk_cache_search(cbk_handle * h /* cbk h
+@@ -1314,8 +1378,11 @@ cbk_cache_search(cbk_handle * h /* cbk h
  		if (result != 0) {
  			done_lh(h->active_lh);
  			done_lh(h->parent_lh);
@@ -27141,7 +27118,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  			break;
  		}
  	}
-@@ -1408,6 +1475,7 @@ search_to_left(cbk_handle * h /* search 
+@@ -1416,6 +1483,7 @@ search_to_left(cbk_handle * h /* search 
  	node = h->active_lh->node;
  	assert("nikita-1763", coord_is_leftmost_unit(coord));
  
@@ -27149,7 +27126,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  	h->result = reiser4_get_left_neighbor(
  		&lh, node, (int) h->lock_mode, GN_CAN_USE_UPPER_LEVELS);
  	neighbor = NULL;
-@@ -1438,11 +1506,14 @@ search_to_left(cbk_handle * h /* search 
+@@ -1446,11 +1514,14 @@ search_to_left(cbk_handle * h /* search 
  			if (h->result == NS_NOT_FOUND) {
  	case -E_NO_NEIGHBOR:
  				h->result = CBK_COORD_FOUND;
@@ -27164,7 +27141,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  				RLOCK_DK(znode_get_tree(neighbor));
  				h->rd_key = *znode_get_ld_key(node);
  				leftmost_key_in_node(neighbor, &h->ld_key);
-@@ -1471,7 +1542,7 @@ search_to_left(cbk_handle * h /* search 
+@@ -1479,7 +1550,7 @@ search_to_left(cbk_handle * h /* search 
  }
  
  /* debugging aid: return symbolic name of search bias */
@@ -27173,7 +27150,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  bias_name(lookup_bias bias /* bias to get name of */ )
  {
  	if (bias == FIND_EXACT)
-@@ -1488,7 +1559,7 @@ bias_name(lookup_bias bias /* bias to ge
+@@ -1496,7 +1567,7 @@ bias_name(lookup_bias bias /* bias to ge
  	}
  }
  
@@ -27182,7 +27159,7 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  /* debugging aid: print human readable information about @p */
  reiser4_internal void
  print_coord_content(const char *prefix /* prefix to print */ ,
-@@ -1506,6 +1577,7 @@ print_coord_content(const char *prefix /
+@@ -1514,6 +1585,7 @@ print_coord_content(const char *prefix /
  	if (znode_is_loaded(p->node)) {
  		item_key_by_coord(p, &key);
  		print_key(prefix, &key);
@@ -27191,8 +27168,8 @@ diff -puN search.c~profile-stat-trace-repacker search.c
  }
  
 diff -puN spin_macros.h~profile-stat-trace-repacker spin_macros.h
---- reiser4/spin_macros.h~profile-stat-trace-repacker	2005-02-09 18:36:23.804674091 +0300
-+++ reiser4-vs/spin_macros.h	2005-02-09 18:36:24.339713353 +0300
+--- reiser4/spin_macros.h~profile-stat-trace-repacker	2005-02-25 17:02:23.633082119 +0300
++++ reiser4-vs/spin_macros.h	2005-02-25 17:02:24.209123910 +0300
 @@ -35,6 +35,7 @@
  #include <linux/profile.h>
  
@@ -27796,7 +27773,7 @@ diff -puN spin_macros.h~profile-stat-trace-repacker spin_macros.h
  #define UNLOCK_JLOAD(node) spin_unlock_jload(node)
 diff -puN /dev/null spinprof.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/spinprof.c	2005-02-09 18:36:24.342713573 +0300
++++ reiser4-vs/spinprof.c	2005-02-25 17:02:24.212124127 +0300
 @@ -0,0 +1,553 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -28353,7 +28330,7 @@ diff -puN /dev/null spinprof.c
 +*/
 diff -puN /dev/null spinprof.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/spinprof.h	2005-02-09 18:36:24.343713646 +0300
++++ reiser4-vs/spinprof.h	2005-02-25 17:02:24.214124272 +0300
 @@ -0,0 +1,131 @@
 +/* Copyright 2002, 2003, 2004 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -28488,7 +28465,7 @@ diff -puN /dev/null spinprof.h
 +*/
 diff -puN /dev/null statcnt.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/statcnt.h	2005-02-09 18:36:24.344713719 +0300
++++ reiser4-vs/statcnt.h	2005-02-25 17:02:24.215124345 +0300
 @@ -0,0 +1,113 @@
 +/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 +
@@ -28605,7 +28582,7 @@ diff -puN /dev/null statcnt.h
 +*/
 diff -puN /dev/null stats.c
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/stats.c	2005-02-09 18:36:24.347713940 +0300
++++ reiser4-vs/stats.c	2005-02-25 17:02:24.217124490 +0300
 @@ -0,0 +1,639 @@
 +/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -29248,7 +29225,7 @@ diff -puN /dev/null stats.c
 +*/
 diff -puN /dev/null stats.h
 --- /dev/null	2003-09-23 21:59:22.000000000 +0400
-+++ reiser4-vs/stats.h	2005-02-09 18:36:24.350714160 +0300
++++ reiser4-vs/stats.h	2005-02-25 17:02:24.221124780 +0300
 @@ -0,0 +1,769 @@
 +/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
 + * reiser4/README */
@@ -30020,8 +29997,8 @@ diff -puN /dev/null stats.h
 +   End:
 +*/
 diff -puN super.c~profile-stat-trace-repacker super.c
---- reiser4/super.c~profile-stat-trace-repacker	2005-02-09 18:36:23.812674678 +0300
-+++ reiser4-vs/super.c	2005-02-09 18:36:24.352714307 +0300
+--- reiser4/super.c~profile-stat-trace-repacker	2005-02-25 17:02:23.642082772 +0300
++++ reiser4-vs/super.c	2005-02-25 17:02:24.223124925 +0300
 @@ -42,6 +42,17 @@ statfs_type(const struct super_block *su
  	return (long) REISER4_SUPER_MAGIC;
  }
@@ -30154,8 +30131,8 @@ diff -puN super.c~profile-stat-trace-repacker super.c
  reiser4_internal reiser4_space_allocator *
  get_space_allocator(const struct super_block * super)
 diff -puN super.h~profile-stat-trace-repacker super.h
---- reiser4/super.h~profile-stat-trace-repacker	2005-02-09 18:36:23.820675265 +0300
-+++ reiser4-vs/super.h	2005-02-09 18:36:24.355714527 +0300
+--- reiser4/super.h~profile-stat-trace-repacker	2005-02-25 17:02:23.650083353 +0300
++++ reiser4-vs/super.h	2005-02-25 17:02:24.226125143 +0300
 @@ -10,8 +10,11 @@
  #include "debug.h"
  #include "tree.h"
@@ -30286,8 +30263,8 @@ diff -puN super.h~profile-stat-trace-repacker super.h
  
  #if REISER4_DEBUG
 diff -puN tap.c~profile-stat-trace-repacker tap.c
---- reiser4/tap.c~profile-stat-trace-repacker	2005-02-09 18:36:23.827675779 +0300
-+++ reiser4-vs/tap.c	2005-02-09 18:36:24.357714673 +0300
+--- reiser4/tap.c~profile-stat-trace-repacker	2005-02-25 17:02:23.658083933 +0300
++++ reiser4-vs/tap.c	2005-02-25 17:02:24.228125288 +0300
 @@ -151,7 +151,7 @@ tap_move(tap_t * tap, lock_handle * targ
   * move @tap to @target. Acquire lock on @target, if @tap was already
   * loaded.
@@ -30332,8 +30309,8 @@ diff -puN tap.c~profile-stat-trace-repacker tap.c
  static int tap_invariant(const tap_t * tap)
  {
 diff -puN tap.h~profile-stat-trace-repacker tap.h
---- reiser4/tap.h~profile-stat-trace-repacker	2005-02-09 18:36:23.836676439 +0300
-+++ reiser4-vs/tap.h	2005-02-09 18:36:24.359714820 +0300
+--- reiser4/tap.h~profile-stat-trace-repacker	2005-02-25 17:02:23.665084441 +0300
++++ reiser4-vs/tap.h	2005-02-25 17:02:24.230125433 +0300
 @@ -44,11 +44,13 @@ extern void tap_monitor(tap_t * tap);
  extern void tap_copy(tap_t * dst, tap_t * src);
  extern void tap_done(tap_t * tap);
@@ -30349,8 +30326,8 @@ diff -puN tap.h~profile-stat-trace-repacker tap.h
  extern int rewind_left(tap_t * tap, int shift);
  
 diff -puN tree.c~profile-stat-trace-repacker tree.c
---- reiser4/tree.c~profile-stat-trace-repacker	2005-02-09 18:36:23.844677026 +0300
-+++ reiser4-vs/tree.c	2005-02-09 18:36:24.362715040 +0300
+--- reiser4/tree.c~profile-stat-trace-repacker	2005-02-25 17:02:23.675085166 +0300
++++ reiser4-vs/tree.c	2005-02-25 17:02:24.234125723 +0300
 @@ -186,6 +186,7 @@
  #include "carry_ops.h"
  #include "tap.h"
@@ -30502,8 +30479,8 @@ diff -puN tree.c~profile-stat-trace-repacker tree.c
  
  	do {
 diff -puN tree.h~profile-stat-trace-repacker tree.h
---- reiser4/tree.h~profile-stat-trace-repacker	2005-02-09 18:36:23.853677687 +0300
-+++ reiser4-vs/tree.h	2005-02-09 18:36:24.364715187 +0300
+--- reiser4/tree.h~profile-stat-trace-repacker	2005-02-25 17:02:23.683085747 +0300
++++ reiser4-vs/tree.h	2005-02-25 17:02:24.236125869 +0300
 @@ -406,28 +406,37 @@ extern int delete_node(znode * node, rei
  extern int check_tree_pointer(const coord_t * pointer, const znode * child);
  extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
@@ -30543,7 +30520,7 @@ diff -puN tree.h~profile-stat-trace-repacker tree.h
  
  /* struct used internally to pack all numerous arguments of tree lookup.
      Used to avoid passing a lot of arguments to helper functions. */
-@@ -515,6 +524,7 @@ RW_LOCK_FUNCTIONS(dk, reiser4_tree, dk_l
+@@ -518,6 +527,7 @@ RW_LOCK_FUNCTIONS(dk, reiser4_tree, dk_l
  #endif
  
  /* estimate api. Implementation is in estimate.c */
@@ -30552,8 +30529,8 @@ diff -puN tree.h~profile-stat-trace-repacker tree.h
  reiser4_block_nr estimate_one_insert_into_item(reiser4_tree *);
  reiser4_block_nr estimate_insert_flow(tree_level);
 diff -puN tree_walk.c~profile-stat-trace-repacker tree_walk.c
---- reiser4/tree_walk.c~profile-stat-trace-repacker	2005-02-09 18:36:23.861678274 +0300
-+++ reiser4-vs/tree_walk.c	2005-02-09 18:36:24.367715407 +0300
+--- reiser4/tree_walk.c~profile-stat-trace-repacker	2005-02-25 17:02:23.691086327 +0300
++++ reiser4-vs/tree_walk.c	2005-02-25 17:02:24.241126231 +0300
 @@ -70,6 +70,8 @@ lock_neighbor(
  	assert("umka-237", tree != NULL);
  	assert("umka-301", rw_tree_is_locked(tree));
@@ -30590,7 +30567,7 @@ diff -puN tree_walk.c~profile-stat-trace-repacker tree_walk.c
  #endif
  
  /* Znode sibling pointers maintenence. */
-@@ -692,6 +694,7 @@ again:
+@@ -717,6 +719,7 @@ again:
  		znode *child = (h == 0) ? node : path[h - 1].node;
  		znode *parent = path[h].node;
  
@@ -30599,8 +30576,8 @@ diff -puN tree_walk.c~profile-stat-trace-repacker tree_walk.c
  		if (ret)
  			break;
 diff -puN tree_walk.h~profile-stat-trace-repacker tree_walk.h
---- reiser4/tree_walk.h~profile-stat-trace-repacker	2005-02-09 18:36:23.869678861 +0300
-+++ reiser4-vs/tree_walk.h	2005-02-09 18:36:24.368715481 +0300
+--- reiser4/tree_walk.h~profile-stat-trace-repacker	2005-02-25 17:02:23.701087053 +0300
++++ reiser4-vs/tree_walk.h	2005-02-25 17:02:24.244126449 +0300
 @@ -98,7 +98,7 @@ struct tree_walk_actor {
  };
  extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *, void *);
@@ -30611,8 +30588,8 @@ diff -puN tree_walk.h~profile-stat-trace-repacker tree_walk.h
  #else
  #define check_sibling_list(n) (1)
 diff -puN txnmgr.c~profile-stat-trace-repacker txnmgr.c
---- reiser4/txnmgr.c~profile-stat-trace-repacker	2005-02-09 18:36:23.880679668 +0300
-+++ reiser4-vs/txnmgr.c	2005-02-09 18:36:24.375715994 +0300
+--- reiser4/txnmgr.c~profile-stat-trace-repacker	2005-02-25 17:02:23.709087633 +0300
++++ reiser4-vs/txnmgr.c	2005-02-25 17:02:24.252127029 +0300
 @@ -232,6 +232,7 @@ year old --- define all technical terms 
  #include "reiser4.h"
  #include "vfs_ops.h"
@@ -31151,8 +31128,8 @@ diff -puN txnmgr.c~profile-stat-trace-repacker txnmgr.c
  
  static int count_deleted_blocks_actor (
 diff -puN txnmgr.h~profile-stat-trace-repacker txnmgr.h
---- reiser4/txnmgr.h~profile-stat-trace-repacker	2005-02-09 18:36:23.888680255 +0300
-+++ reiser4-vs/txnmgr.h	2005-02-09 18:36:24.378716215 +0300
+--- reiser4/txnmgr.h~profile-stat-trace-repacker	2005-02-25 17:02:23.718088286 +0300
++++ reiser4-vs/txnmgr.h	2005-02-25 17:02:24.254127175 +0300
 @@ -460,6 +460,7 @@ extern long txn_end(reiser4_context * co
  extern void txn_restart(reiser4_context * context);
  extern void txn_restart_current(void);
@@ -31214,8 +31191,8 @@ diff -puN txnmgr.h~profile-stat-trace-repacker txnmgr.h
  
  # endif				/* __REISER4_TXNMGR_H__ */
 diff -puN type_safe_hash.h~profile-stat-trace-repacker type_safe_hash.h
---- reiser4/type_safe_hash.h~profile-stat-trace-repacker	2005-02-09 18:36:23.896680842 +0300
-+++ reiser4-vs/type_safe_hash.h	2005-02-09 18:36:24.380716361 +0300
+--- reiser4/type_safe_hash.h~profile-stat-trace-repacker	2005-02-25 17:02:23.726088867 +0300
++++ reiser4-vs/type_safe_hash.h	2005-02-25 17:02:24.257127392 +0300
 @@ -8,6 +8,7 @@
  #define __REISER4_TYPE_SAFE_HASH_H__
  
@@ -31305,8 +31282,8 @@ diff -puN type_safe_hash.h~profile-stat-trace-repacker type_safe_hash.h
    ins_item->LINK_NAME._next = hash->_table[hash_index];					\
    smp_wmb();    									\
 diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
---- reiser4/vfs_ops.c~profile-stat-trace-repacker	2005-02-09 18:36:23.904681430 +0300
-+++ reiser4-vs/vfs_ops.c	2005-02-09 18:36:24.384716655 +0300
+--- reiser4/vfs_ops.c~profile-stat-trace-repacker	2005-02-25 17:02:23.734089447 +0300
++++ reiser4-vs/vfs_ops.c	2005-02-25 17:02:24.261127682 +0300
 @@ -21,14 +21,18 @@
  #include "znode.h"
  #include "block_alloc.h"
@@ -31382,7 +31359,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	info = reiser4_inode_data(inode);
  
  	assert("vs-1220", inode_has_no_jnodes(info));
-@@ -648,6 +658,7 @@ reiser4_delete_inode(struct inode *objec
+@@ -642,6 +652,7 @@ reiser4_delete_inode(struct inode *objec
  	reiser4_context ctx;
  
  	init_context(&ctx, object->i_sb);
@@ -31390,7 +31367,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	if (is_inode_loaded(object)) {
  		file_plugin *fplug;
  
-@@ -1047,6 +1058,16 @@ do {						\
+@@ -1041,6 +1052,16 @@ do {						\
  		}
  	});
  
@@ -31407,7 +31384,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
  	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
  	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
-@@ -1090,6 +1111,12 @@ do {						\
+@@ -1084,6 +1105,12 @@ do {						\
  		warning("nikita-2497", "optimal_io_size is too small");
  		return RETERR(-EINVAL);
  	}
@@ -31420,7 +31397,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  
  	/* disable single-threaded flush as it leads to deadlock */
  	sbinfo->fs_flags |= (1 << REISER4_MTFLUSH);
-@@ -1114,6 +1141,79 @@ reiser4_show_options(struct seq_file *m,
+@@ -1108,6 +1135,79 @@ reiser4_show_options(struct seq_file *m,
  	return 0;
  }
  
@@ -31500,7 +31477,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  /* ->write_super() method. Called by sync(2). */
  static void
  reiser4_write_super(struct super_block *s)
-@@ -1124,6 +1224,7 @@ reiser4_write_super(struct super_block *
+@@ -1118,6 +1218,7 @@ reiser4_write_super(struct super_block *
  	assert("vs-1700", !rofs_super(s));
  
  	init_context(&ctx, s);
@@ -31508,7 +31485,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  
  	ret = capture_super_block(s);
  	if (ret != 0)
-@@ -1149,7 +1250,11 @@ reiser4_put_super(struct super_block *s)
+@@ -1143,7 +1244,11 @@ reiser4_put_super(struct super_block *s)
  	assert("vs-1699", sbinfo);
  
  	init_context(&context, s);
@@ -31520,7 +31497,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  
  	/* have disk format plugin to free its resources */
  	if (get_super_private(s)->df_plug->release)
-@@ -1172,6 +1277,8 @@ reiser4_put_super(struct super_block *s)
+@@ -1166,6 +1271,8 @@ reiser4_put_super(struct super_block *s)
  	/* no assertions below this line */
  	reiser4_exit_context(&context);
  
@@ -31529,7 +31506,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	kfree(sbinfo);
  	s->s_fs_info = NULL;
  }
-@@ -1218,6 +1325,9 @@ typedef enum {
+@@ -1212,6 +1319,9 @@ typedef enum {
  	INIT_FAKES,              /* fake inode initialized */
  	INIT_JNODES,             /* jnode slab initialized */
  	INIT_EFLUSH,             /* emergency flush initialized */
@@ -31539,7 +31516,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	INIT_FQS,                /* flush queues initialized */
  	INIT_DENTRY_FSDATA,      /* dentry_fsdata slab initialized */
  	INIT_FILE_FSDATA,        /* file_fsdata slab initialized */
-@@ -1246,6 +1356,9 @@ shutdown_reiser4(void)
+@@ -1240,6 +1350,9 @@ shutdown_reiser4(void)
  	DONE_IF(INIT_FILE_FSDATA, done_file_fsdata());
  	DONE_IF(INIT_DENTRY_FSDATA, done_dentry_fsdata());
  	DONE_IF(INIT_FQS, done_fqs());
@@ -31549,7 +31526,7 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	DONE_IF(INIT_EFLUSH, eflush_done());
  	DONE_IF(INIT_JNODES, jnode_done_static());
  	DONE_IF(INIT_FAKES,;);
-@@ -1292,12 +1405,17 @@ init_reiser4(void)
+@@ -1286,12 +1399,17 @@ init_reiser4(void)
  	CHECK_INIT_RESULT(init_fakes());
  	CHECK_INIT_RESULT(jnode_init_static());
  	CHECK_INIT_RESULT(eflush_init());
@@ -31568,8 +31545,8 @@ diff -puN vfs_ops.c~profile-stat-trace-repacker vfs_ops.c
  	return 0;
  #undef CHECK_INIT_RESULT
 diff -puN wander.c~profile-stat-trace-repacker wander.c
---- reiser4/wander.c~profile-stat-trace-repacker	2005-02-09 18:36:23.912682017 +0300
-+++ reiser4-vs/wander.c	2005-02-09 18:36:24.388716948 +0300
+--- reiser4/wander.c~profile-stat-trace-repacker	2005-02-25 17:02:23.744090173 +0300
++++ reiser4-vs/wander.c	2005-02-25 17:02:24.267128118 +0300
 @@ -212,7 +212,7 @@ struct commit_handle {
  static void
  init_commit_handle(struct commit_handle *ch, txn_atom * atom)
@@ -31764,8 +31741,8 @@ diff -puN wander.c~profile-stat-trace-repacker wander.c
  }
  /* load journal control block (either journal header or journal footer block) */
 diff -puN znode.c~profile-stat-trace-repacker znode.c
---- reiser4/znode.c~profile-stat-trace-repacker	2005-02-09 18:36:23.922682751 +0300
-+++ reiser4-vs/znode.c	2005-02-09 18:36:24.392717242 +0300
+--- reiser4/znode.c~profile-stat-trace-repacker	2005-02-25 17:02:23.752090753 +0300
++++ reiser4-vs/znode.c	2005-02-25 17:02:24.272128480 +0300
 @@ -154,16 +154,13 @@
  #include "tree_walk.h"
  #include "super.h"
@@ -31915,7 +31892,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  	assert("nikita-1378", znode_invariant(node));
  	return result;
  }
-@@ -793,8 +803,7 @@ znode_above_root(const znode * node /* z
+@@ -792,8 +802,7 @@ znode_above_root(const znode * node /* z
  
  /* check that @node is root---that its block number is recorder in the tree as
     that of root node */
@@ -31925,7 +31902,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  znode_is_true_root(const znode * node /* znode to query */ )
  {
  	assert("umka-060", node != NULL);
-@@ -802,7 +811,6 @@ znode_is_true_root(const znode * node /*
+@@ -801,7 +810,6 @@ znode_is_true_root(const znode * node /*
  
  	return disk_addr_eq(znode_get_block(node), &znode_get_tree(node)->root_block);
  }
@@ -31933,7 +31910,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  
  /* check that @node is root */
  reiser4_internal int
-@@ -830,11 +838,94 @@ znode_build_version(reiser4_tree * tree)
+@@ -829,11 +837,94 @@ znode_build_version(reiser4_tree * tree)
  	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
  }
  
@@ -32029,7 +32006,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  }
  
  reiser4_internal void
-@@ -848,7 +939,18 @@ done_load_count(load_count * dh)
+@@ -847,7 +938,18 @@ done_load_count(load_count * dh)
  	}
  }
  
@@ -32049,7 +32026,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  incr_load_count(load_count * dh)
  {
  	int result;
-@@ -863,17 +965,6 @@ incr_load_count(load_count * dh)
+@@ -862,17 +964,6 @@ incr_load_count(load_count * dh)
  }
  
  reiser4_internal int
@@ -32067,7 +32044,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  incr_load_count_jnode(load_count * dh, jnode * node)
  {
  	if (jnode_is_znode(node)) {
-@@ -939,7 +1030,7 @@ init_parent_coord(parent_coord_t * pcoor
+@@ -938,7 +1029,7 @@ init_parent_coord(parent_coord_t * pcoor
  }
  
  
@@ -32076,7 +32053,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  int jnode_invariant_f(const jnode * node, char const **msg);
  
  /* debugging aid: znode invariant */
-@@ -1021,7 +1112,13 @@ znode_invariant_f(const znode * node /* 
+@@ -1020,7 +1111,13 @@ znode_invariant_f(const znode * node /* 
  		 * invariant */
  		/* unfortunately, zlock is unordered w.r.t. jnode_lock, so we
  		 * cannot check this. */
@@ -32090,7 +32067,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  		/* only referenced znode can be long-term locked */
  		_ergo(znode_is_locked(node),
  		      atomic_read(&ZJNODE(node)->x_count) != 0);
-@@ -1048,22 +1145,125 @@ znode_invariant(const znode * node /* zn
+@@ -1047,22 +1144,125 @@ znode_invariant(const znode * node /* zn
  	spin_unlock_znode((znode *) node);
  	return result;
  }
@@ -32227,7 +32204,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  
  /* debugging aid: output more human readable information about @node that
     info_znode(). */
-@@ -1087,6 +1287,22 @@ print_znode(const char *prefix /* prefix
+@@ -1086,6 +1286,22 @@ print_znode(const char *prefix /* prefix
  	printk("\n");
  }
  
@@ -32250,7 +32227,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  /* print all znodes in @tree */
  reiser4_internal void
  print_znodes(const char *prefix, reiser4_tree * tree)
-@@ -1118,6 +1334,9 @@ print_znodes(const char *prefix, reiser4
+@@ -1117,6 +1333,9 @@ print_znodes(const char *prefix, reiser4
  	if (tree_lock_taken)
  		WUNLOCK_TREE(tree);
  }
@@ -32260,7 +32237,7 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  
  /* return non-0 iff data are loaded into znode */
  reiser4_internal int
-@@ -1127,13 +1346,15 @@ znode_is_loaded(const znode * node /* zn
+@@ -1126,13 +1345,15 @@ znode_is_loaded(const znode * node /* zn
  	return jnode_is_loaded(ZJNODE(node));
  }
  
@@ -32279,32 +32256,33 @@ diff -puN znode.c~profile-stat-trace-repacker znode.c
  /* Make Linus happy.
     Local variables:
 diff -puN znode.h~profile-stat-trace-repacker znode.h
---- reiser4/znode.h~profile-stat-trace-repacker	2005-02-09 18:36:23.929683264 +0300
-+++ reiser4-vs/znode.h	2005-02-09 18:36:24.394717389 +0300
-@@ -142,13 +142,21 @@ struct znode {
- 	/* number of items in this node. This field is modified by node
+--- reiser4/znode.h~profile-stat-trace-repacker	2005-02-25 17:02:23.761091406 +0300
++++ reiser4-vs/znode.h	2005-02-25 17:09:51.101544934 +0300
+@@ -141,6 +141,13 @@ struct znode {
  	 * plugin. */
  	__u16 nr_items;
+ 
 +#if REISER4_DEBUG_MODIFY
 +	/* In debugging mode, used to detect loss of znode_set_dirty()
 +	   notification. */
 +	spinlock_t cksum_lock;
 +	__u32 cksum;
 +#endif
- 
++
  #if REISER4_DEBUG
  	void *creator;
  	reiser4_key first_key;
- 	unsigned long times_locked;
+@@ -151,6 +158,9 @@ struct znode {
+ 	int rd_key_version; /* when node->rd_key was updated */
  #endif
--
+ 
 +#if REISER4_STATS
 +	int last_lookup_pos;
 +#endif
  } __attribute__((aligned(16)));
  
- /* In general I think these macros should not be exposed. */
-@@ -217,6 +225,8 @@ extern void znode_remove(znode *, reiser
+ ON_DEBUG(extern atomic_t delim_key_version;)
+@@ -221,6 +231,8 @@ extern void znode_remove(znode *, reiser
  extern znode *znode_parent(const znode * node);
  extern znode *znode_parent_nolock(const znode * node);
  extern int znode_above_root(const znode * node);
@@ -32313,7 +32291,7 @@ diff -puN znode.h~profile-stat-trace-repacker znode.h
  extern int znodes_init(void);
  extern int znodes_done(void);
  extern int znodes_tree_init(reiser4_tree * ztree);
-@@ -230,19 +240,26 @@ extern int znode_just_created(const znod
+@@ -234,19 +246,26 @@ extern int znode_just_created(const znod
  
  extern void zfree(znode * node);
  
@@ -32343,7 +32321,7 @@ diff -puN znode.h~profile-stat-trace-repacker znode.h
  #define print_znodes( p, t ) noop
  #define print_lock_stack( p, o ) noop
  #endif
-@@ -270,7 +287,12 @@ extern void print_lock_stack(const char 
+@@ -274,7 +293,12 @@ extern void print_lock_stack(const char 
  
  #if REISER4_DEBUG
  extern int znode_x_count_is_protected(const znode * node);
@@ -32356,7 +32334,7 @@ diff -puN znode.h~profile-stat-trace-repacker znode.h
  #endif
  
  /* acquire reference to @node */
-@@ -344,8 +366,14 @@ znode_rip_check(reiser4_tree *tree, znod
+@@ -348,8 +372,14 @@ znode_rip_check(reiser4_tree *tree, znod
  int znode_is_loaded(const znode * node /* znode to query */ );
  #endif
  
@@ -32371,7 +32349,7 @@ diff -puN znode.h~profile-stat-trace-repacker znode.h
  /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
     must load the data for a node in many places.  We could do this by simply calling
     zload() everywhere, the difficulty arises when we must release the loaded data by
-@@ -361,6 +389,7 @@ typedef struct load_count {
+@@ -365,6 +395,7 @@ typedef struct load_count {
  
  extern void init_load_count(load_count * lc);	/* Initialize a load_count set the current node to NULL. */
  extern void done_load_count(load_count * dh);	/* Finalize a load_count: call zrelse() if necessary */
@@ -32379,7 +32357,7 @@ diff -puN znode.h~profile-stat-trace-repacker znode.h
  extern int incr_load_count_znode(load_count * dh, znode * node);	/* Set the argument znode to the current node, call zload(). */
  extern int incr_load_count_jnode(load_count * dh, jnode * node);	/* If the argument jnode is formatted, do the same as
  									   * incr_load_count_znode, otherwise do nothing (unformatted nodes
-@@ -414,7 +443,7 @@ extern void copy_load_count(load_count *
+@@ -418,7 +449,7 @@ extern void copy_load_count(load_count *
  })
  
  
