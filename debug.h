@@ -309,6 +309,11 @@ typedef struct reiser4_stat {
 		 */
 		stat_cnt cbk_cache_miss;
 		/*
+		 * cbk cache search found item at the edge of a node with
+		 * possibly non-unique key
+		 */
+		stat_cnt cbk_cache_utmost;
+		/*
 		 * search for key in coord cache raced against parallel
 		 * balancing and lose. This should be rare. If not,
 		 * update cbk_cache_search() according to comment
