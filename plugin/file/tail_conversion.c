@@ -373,7 +373,6 @@ int tail2extent (struct inode * inode)
 				assert ("green-11",
 					keyeq (&key, unit_key_by_coord (&coord, &tmp)));
 				if (item_id_by_coord (&coord) != TAIL_ID) {
-					impossible ("vs-968", "does this ever happen?");
 					/*
 					 * something other than tail found
 					 */
