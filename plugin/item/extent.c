@@ -1250,9 +1250,7 @@ extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 			tree = current_tree;
 			j = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
 			assert("nikita-2688", j);
-			assert("vs-917", (*jnode_get_block(j) &&
-					  *jnode_get_block(j) < reiser4_block_count(reiser4_get_current_sb())));
-			assert("vs-981", jnode_mapped(j));
+			assert("nikita-2802", JF_ISSET(j, JNODE_EFLUSH));
 			break;
 		}
 
@@ -1322,80 +1320,7 @@ int extent_get_block_address(const coord_t *coord, sector_t block, struct buffer
 static int
 filler(void *vp, struct page *page)
 {
-	reiser4_block_nr block;
-	jnode *j;
-	coord_t *coord;
-
-
-	trace_on(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
-
-	assert("vs-761", page->mapping && page->mapping->host);
-
-	/* there should be no jnode yet */
-	assert("vs-757", !page->private && !PagePrivate(page));
-
-	coord = (coord_t *) vp;
-	assert("vs-860", znode_is_rlocked(coord->node));
-	assert("vs-1088", znode_is_loaded(coord->node));
-	assert("vs-758", item_is_extent(coord));
-	assert("vs-1087", coord_is_existing_unit(coord));
-
-
-	switch (state_of_extent(extent_by_coord(coord))) {
-	case HOLE_EXTENT:
-		if (!PageUptodate(page)) {
-			char *kaddr = kmap_atomic(page, KM_USER0);
-			
-			memset(kaddr, 0, PAGE_CACHE_SIZE);
-			flush_dcache_page(page);
-			kunmap_atomic(kaddr, KM_USER0);
-			SetPageUptodate(page);
-		}
-		reiser4_unlock_page(page);
-
-		trace_on(TRACE_EXTENTS, " - hole, OK\n");
-		
-		return 0;
-
-	case ALLOCATED_EXTENT:
-		j = jnode_of_page(page);
-		if (IS_ERR(j)) {
-			reiser4_unlock_page(page);
-			return PTR_ERR(j);
-		}
-		block = blocknr_by_coord_in_extent(coord, (reiser4_block_nr)
-						   page->index << PAGE_CACHE_SHIFT);
-		jnode_set_mapped(j);
-		jnode_set_block(j, &block);
-		reiser4_stat_extent_add(unfm_block_reads);
-
-		trace_on(TRACE_EXTENTS, " - allocated, read issued\n");
-
-		break;
-
-	case UNALLOCATED_EXTENT:
-		{
-			reiser4_tree *tree;
-
-			info("extent_readpage: " "reading node corresponding to unallocated extent\n");
-			tree = current_tree;
-			j = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
-			assert("nikita-2688", j);
-			assert("vs-917", (*jnode_get_block(j) &&
-					  *jnode_get_block(j) < reiser4_block_count(reiser4_get_current_sb())));
-			assert("vs-981", jnode_mapped(j));
-
-			break;
-		}
-
-	default:
-		impossible("vs-957", "extent_readpage: wrong extent");
-		return -EIO;
-	}
-
-	page_io(page, j, READ, GFP_NOIO);
-	jput(j);
-	return 0;
+	return extent_readpage(vp, NULL, page);
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
@@ -2427,8 +2352,10 @@ unflush(coord_t *coord, struct inode **obj)
 		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
 		if (node == NULL)
 			continue;
-		if (!JF_ISSET(node, JNODE_EFLUSH))
+		if (!JF_ISSET(node, JNODE_EFLUSH)) {
+			jput(node);
 			continue;
+		}
 		assert("nikita-2794", jnode_is_unformatted(node));
 		if (*obj == NULL) {
 			*obj = node->key.j.mapping->host;
@@ -2441,6 +2368,7 @@ unflush(coord_t *coord, struct inode **obj)
 
 		assert("nikita-2796", *obj == node->key.j.mapping->host);
 		result = emergency_unflush(node);
+		jput(node);
 	}
 	return result;
 }
