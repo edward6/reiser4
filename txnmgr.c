@@ -336,15 +336,10 @@ jnode_of_page (struct page* pg)
 			spin_unlock (& _jnode_ptr_lock);
 			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
 
-			/* 
-			 * umka (2002.06.13) 
-			 * In this point should be a check for kmalloc_cache_alloc 
-			 * has really allocated memory. In the case it hasn't allocated 
-			 * memory and jnode page isn't allocated, here will be endless 
-			 * cycle or very long and useless cycle until kmem_cache_alloc 
-			 * function will be able to allocate memory.
-			 */
-			
+			if (jal == NULL) {
+				return NULL;
+			}
+
 			goto again;
 		}
 
@@ -380,7 +375,7 @@ jnode_of_page (struct page* pg)
 	/*
 	 * FIXME:NIKITA->JMACD possible race here: page is released and
 	 * allocated again. All jnode_of_page() callers have to protect
-	 * against this.
+	 * against this.  Josh says: Huh? What?
 	 */
 	return (jnode*) pg->private;
 }
@@ -865,13 +860,8 @@ txn_mgr_force_commit (struct super_block *super)
 	ret = init_context (& local_context, super);
 	if (ret != 0)
 		return ret;
-
-	assert("umka-191", super != NULL);
-	
 	mgr = & get_super_private (super)->tmgr;
 	
-	assert("umka-287", mgr != NULL);
-
 	txnh = get_current_context ()->trans;
 
  again:
@@ -948,7 +938,7 @@ commit_txnh (txn_handle *txnh)
 		if (ret != 0) {
 			assert ("jmacd-1027", spin_atom_is_not_locked (atom));
 			if (ret != -EAGAIN) {
-				warning ("jmacd-7881", "transaction commit failed");
+				warning ("jmacd-7881", "transaction commit failed: %d", ret);
 				failed = 1;
 			} else {
 				ret = 0;
@@ -1014,9 +1004,8 @@ int memory_pressure (struct super_block *super)
 				/* Add this context to the same atom */
 				capture_assign_txnh_nolock (atom, txnh);
 
-				/*
-				 * FIXME:NIKITA->JMACD jput is not called
-				 */
+				/* By setting node != NULL, this will break the outer loop
+				 * as well, so only one jput() is needed below. */
 				break;
 			}				
 		}
@@ -1293,7 +1282,9 @@ txn_try_capture_page  (struct page        *pg,
        
 	assert("umka-292", pg != NULL);
 	
-	node = jnode_of_page (pg);
+	if ((node = jnode_of_page (pg)) == NULL) {
+		return -ENOMEM;
+	}
 	
 	spin_lock_jnode (node);
 	
