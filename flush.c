@@ -1520,7 +1520,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 
 	pos->queue[pos->queue_num++] = jref (node);
 
-	trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });
+	/*trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });*/
 
 	spin_unlock_jnode (node);
 
@@ -1593,7 +1593,11 @@ static int flush_finish (flush_position *pos, int finish)
 	int refill = 0;
 	int ret = 0;
 
-	assert ("vs-806", pos->queue_num > 0);
+	trace_on (TRACE_FLUSH, "flush_finish with %u queued; finish? %u\n", pos->queue_num, finish);
+
+	if (pos->queue_num == 0) {
+		return 0;
+	}
 
 	for (i = 0; ret == 0 && i < pos->queue_num; ) {
 
@@ -1729,7 +1733,7 @@ static int flush_finish (flush_position *pos, int finish)
 
 				JF_CLR (node, ZNODE_FLUSH_QUEUED);
 
-				trace_on (TRACE_FLUSH_VERB, "flush_finish writes %s\n", flush_jnode_tostring (node));
+				/*trace_on (TRACE_FLUSH_VERB, "flush_finish writes %s\n", flush_jnode_tostring (node));*/
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
@@ -1870,8 +1874,6 @@ static int flush_rewrite_jnode (jnode *node)
 	assert ("jmacd-76515", PageDirty (pg));
 
 	ret = write_one_page (pg, 0 /* no wait */);
-
-	trace_on (TRACE_FLUSH, "rewrite: %s\n", flush_jnode_tostring (node));
 
 	return ret;
 }
