@@ -758,6 +758,11 @@ void forget_znode (lock_handle *handle)
 	   supposed to be called on the last _unlock_ rather than last zput().
 	   assert ("vs-145", atomic_read (&node->x_count) == 1);
 	*/
+	/*
+	 * and remove node from transaction. FIXME-NIKITA Locking?
+	 */
+	znode_set_clean (node);
+	txn_delete_page (znode_page (node));
 }
 
 /**

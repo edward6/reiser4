@@ -241,6 +241,15 @@ static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	return 0;
 }
 
+/** ->clean_node method of page-cache based tree operations */
+static int page_cache_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+{
+	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
+	trace_on( TRACE_PCACHE, "clean node: %p\n", node );
+	ClearPageDirty( jnode_page( node ) );
+	return 0;
+}
+
 /** helper function to perform kmap  */
 static void kmap_once( jnode *node, struct page *page )
 {
@@ -518,7 +527,8 @@ node_operations page_cache_tops = {
 	.delete_node   = page_cache_delete_node,
 	.release_node  = page_cache_release_node,
 	.drop_node     = page_cache_drop_node,
-	.dirty_node    = page_cache_dirty_node
+	.dirty_node    = page_cache_dirty_node,
+	.clean_node    = page_cache_clean_node
 };
 
 #if REISER4_DEBUG

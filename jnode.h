@@ -279,6 +279,8 @@ typedef struct node_operations {
 	int ( *drop_node )( reiser4_tree *tree, jnode *node );
 	/** mark node dirty. This is called from jnode_set_dirty(). */
 	int ( *dirty_node )( reiser4_tree *tree, jnode *node );
+	/** mark node clean. This is called from jnode_set_clean(). */
+	int ( *clean_node )( reiser4_tree *tree, jnode *node );
 } node_operations;
 
 

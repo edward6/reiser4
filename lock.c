@@ -685,10 +685,6 @@ void longterm_unlock_znode (lock_handle *handle)
 			 */
 			spin_unlock_znode(node);
 			forget_znode(handle);
-
-			/* FIXME_JMACD: for now, set it to clean so it doesn't
-			 * get flushed.  Zam wants this to be a deleted list. */
-			znode_set_clean (node);
 			return;
 		}
 	}

@@ -3040,13 +3040,21 @@ int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	return 0;
 }
 
+int mkfs_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+{
+	assert ("vs-692", JF_ISSET (node, ZNODE_LOADED));
+	ClearPageDirty (jnode_page (node));
+	return 0;
+}
+
 static node_operations mkfs_tops = {
 	.read_node     = mkfs_bread,
 	.allocate_node = mkfs_getblk,
 	.delete_node   = mkfs_brelse,
 	.release_node  = mkfs_brelse,
 	.drop_node     = mkfs_bdrop,
-	.dirty_node    = mkfs_dirty_node
+	.dirty_node    = mkfs_dirty_node,
+	.clean_node    = mkfs_clean_node
 };
 
 #define TEST_MKFS_ROOT_LOCALITY   (41ull)
