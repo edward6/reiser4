@@ -911,7 +911,7 @@ static void optimize_extent (const coord_t * item)
 	reiser4_extent * cur, * new_cur, * start;
 	reiser4_block_nr cur_width, new_cur_width;
 	extent_state cur_state;
-	const char * error;
+	ON_DEBUG (const char * error);
 
 
 	assert ("vs-765", coord_is_existing_item (item));
@@ -1564,10 +1564,7 @@ int extent_readpage (void * vp, struct page * page)
 		tree = tree_by_inode (inode);
 		j = UNDER_SPIN (tree, tree,
 				jlook (tree, inode->i_mapping, page->index));
-		if (IS_ERR (j)) {
-			unlock_page (page);
-			return PTR_ERR (j);
-		}
+		assert ("nikita-2688", j);
 		assert ("vs-917", (*jnode_get_block (j) &&
 				   *jnode_get_block (j) < reiser4_block_count (inode->i_sb)));
 		assert ("vs-981", jnode_mapped (j));
@@ -1747,6 +1744,7 @@ static void print_range_list (struct list_head * list)
 #define print_range_list(l) noop
 #endif
 
+#if 0
 static int extent_end_io_read(struct bio *bio, 
 			      unsigned int bytes_done UNUSED_ARG, 
 			      int err UNUSED_ARG)
@@ -1775,7 +1773,6 @@ static int extent_end_io_read(struct bio *bio,
 	return 0;
 }
 
-#if 0
 /* Implements plugin->u.item.s.file.readahead operation for extent items.
  *
  * scan extent item @coord starting from position addressing @start_page and
@@ -2876,6 +2873,7 @@ reiser4_block_nr extent_unit_start (const coord_t *item)
 
 
 
+#if REISER4_DEBUG
 /*
  * new write
  */
@@ -2889,7 +2887,7 @@ static int no_left_neighbor (znode * node)
 	spin_unlock_tree (current_tree);
 	return result;
 }
-
+#endif
 
 static extent_write_todo extent_what_todo2 (coord_t * coord,
 					    const reiser4_key * key)
