@@ -151,7 +151,10 @@ typedef enum {
 	/* shifting of data to/from this jnode is disabled. This is needed to
 	 * guarantee that node content is not scattered across several nodes
 	 * after it has been taken into account by estimation mechanics. */
-	JNODE_IMMOVABLE = 19
+	JNODE_IMMOVABLE = 19,
+
+	/* used in plugin/item/extent.c */
+	JNODE_NEW = 20
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
