@@ -2211,6 +2211,8 @@ reiser4_internal ssize_t sendfile_common (
 		index = *ppos >> PAGE_CACHE_SHIFT;
 		offset = *ppos & ~PAGE_CACHE_MASK;
 
+		page_cache_readahead(inode->i_mapping, &file->f_ra, file, offset);
+
 		/* determine valid read request size. */
 		read_request_size = PAGE_CACHE_SIZE - offset;
 		if (read_request_size > desc.count)
@@ -2225,8 +2227,6 @@ reiser4_internal ssize_t sendfile_common (
 			ret = RETERR(-ENOMEM);
 			goto fail_no_page;
 		}
-
-		/* FIXME-UMKA: apparently here readahead should be called first.*/
 
 		if (PageUptodate(page))
 			/* process locked, up-to-date  page by read actor */
