@@ -111,10 +111,8 @@ static int common_link( struct inode *parent /* parent directory */,
 			   that something is going really wrong */
 		}
 	}
-	if( result == 0 ) {
+	if( result == 0 )
 		atomic_inc( &object -> i_count );
-		d_instantiate( where, object );
-	}
 	return result;
 }
 
