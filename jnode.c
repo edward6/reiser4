@@ -786,21 +786,43 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 
 int jnode_try_drop( jnode *node )
 {
+	struct page  *page;
+	int           result;
+	reiser4_tree *tree;
+	jnode_plugin *jplug;
+
+	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-2491", node != NULL );
+	assert( "nikita-2582", !JF_ISSET( node, JNODE_HEARD_BANSHEE ) );
+	assert( "nikita-2583", JF_ISSET( node, JNODE_RIP ) );
+
+	trace_on( TRACE_PCACHE, "trying to drop node: %p\n", node );
+
+	jplug = jnode_ops( node );
+
+	page = jnode_lock_page( node );
+	assert( "nikita-2584", spin_jnode_is_locked( node ) );
+
+	tree = current_tree;
+
+	spin_lock_tree( tree );
 
 	/*
-	 * first do lazy check without taking tree lock.
+	 * FIXME-NIKITA znode releasing is not yet fully supported
 	 */
-	if( ( atomic_read( &node -> x_count ) > 0 ) ||
-	    ( jnode_is_znode( node ) && 
-	      atomic_read( &JZNODE( node ) -> c_count ) > 0 ) ||
-	    UNDER_SPIN( jnode, node, node -> pg ) )
-		return -EBUSY;
-	/*
-	 * FIXME-NIKITA not finished
-	 */
-
-	return -ENOSYS;
+	result = jnode_is_znode( node ) || jplug -> is_busy( node );
+	spin_unlock_jnode( node );
+	if( !result && ( page == NULL ) )
+		/*
+		 * no page and no references---despatch him.
+		 */
+		result = jplug -> remove( node, tree );
+	else
+		JF_CLR( node, JNODE_RIP );
+	spin_unlock_tree( tree );
+	if( page != NULL )
+		unlock_page( page );
+	return result;
 }
 
 /**
@@ -827,22 +849,24 @@ void jput (jnode *node)
 	tree = current_tree;
 
 	if (atomic_dec_and_lock (& node->x_count, & tree->tree_lock)) {
+		int r_i_p;
+
 		ON_DEBUG_CONTEXT (++ lock_counters()->spin_locked_tree);
 		ON_DEBUG_CONTEXT (++ lock_counters()->spin_locked);
-		if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
-			if (!JF_TEST_AND_SET (node, JNODE_RIP)) {
-				spin_unlock_tree (tree);
+		r_i_p = !JF_TEST_AND_SET (node, JNODE_RIP);
+		spin_unlock_tree (tree);
+		if (r_i_p) {
+			if (JF_ISSET (node, JNODE_HEARD_BANSHEE))
 				/*
 				 * node is removed from the tree.
 				 */
 				jdelete (node);
-			} else
-				/*
-				 * some other thread is already killing it
-				 */
-				spin_unlock_tree (tree);
-		} else
-			spin_unlock_tree (tree);
+			else
+				jnode_try_drop (node);
+		}
+		/*
+		 * if !r_i_p some other thread is already killing it
+		 */
 	}
 }
 
