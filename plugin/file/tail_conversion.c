@@ -180,7 +180,7 @@ nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coor
 
 /* Scan all nodes spanned by the file and mark all items of file as frozen. */
 static int
-mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks, coord_t *coord, lock_handle *lh)
+mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks UNUSED_ARG, coord_t *coord, lock_handle *lh)
 {
 	int result;
 	coord_t twin;
@@ -705,7 +705,7 @@ extent2tail(unix_file_info_t *uf_info)
 		/* waiting for writeback completion with page lock held is
 		 * perfectly valid. */
 		wait_on_page_writeback(page);
-		drop_page(page, NULL);
+		drop_page(page);
 		/* release reference taken by read_cache_page() above */
 		page_cache_release(page);
 	}

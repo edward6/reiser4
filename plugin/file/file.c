@@ -714,7 +714,7 @@ unset_hint(hint_t *hint)
 
 /* coord must be set properly. So, that set_hint has nothing to do */
 void
-set_hint(hint_t *hint, const reiser4_key * key, coord_t * coord, coord_state_t coord_state)
+set_hint(hint_t *hint, const reiser4_key * key, coord_t * coord, coord_state_t coord_state UNUSED_ARG)
 {
 	assert("vs-1208", coord->node);
 	assert("vs-1213", coord_state == COORD_RIGHT_STATE);
@@ -1598,7 +1598,7 @@ unpack(struct inode *inode, int forever)
 
 /* plugin->u.file.ioctl */
 int
-ioctl_unix_file(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
+ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int cmd, unsigned long arg UNUSED_ARG)
 {
 	int result;
 
@@ -1778,8 +1778,9 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 
 			if (attr->ia_valid != ATTR_SIZE)
 				get_exclusive_access(unix_file_inode_data(inode));
-			else
+			else {
 				/* setattr is called from delete_inode to remove file body */;
+			}
 			result = truncate_file(inode, attr->ia_size, 1/* update stat data */);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated

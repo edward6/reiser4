@@ -219,7 +219,7 @@ init_commit_handle(struct commit_handle *ch, txn_atom * atom)
 }
 
 static void
-done_commit_handle(struct commit_handle *ch)
+done_commit_handle(struct commit_handle *ch UNUSED_ARG)
 {
 	assert("zam-690", capture_list_empty(&ch->tx_list));
 }
@@ -485,7 +485,7 @@ dealloc_tx_list(struct commit_handle *ch)
 /* An actor for use in block_nr_iterator() routine which frees wandered blocks
    from atom's overwrite set. */
 static int
-dealloc_wmap_actor(txn_atom * atom,
+dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 		   const reiser4_block_nr * a UNUSED_ARG, const reiser4_block_nr * b, void *data UNUSED_ARG)
 {
 

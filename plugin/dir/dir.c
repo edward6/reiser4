@@ -140,10 +140,9 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	data.mode = object->i_mode;
 	data.id = inode_file_plugin(object)->h.id;
-	/*
-	 * FIXME: comparing unsigned with 0
-	 */
-	if ((reserve = common_estimate_link(parent, existing->d_inode)) < 0)
+
+	reserve = common_estimate_link(parent, existing->d_inode);
+	if ((__s64)reserve < 0)
 	    return reserve;
 
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_link"))
@@ -1064,7 +1063,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 
 /* ->attach method of directory plugin */
 static int
-attach_common(struct inode *child, struct inode *parent)
+attach_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 {
 	assert("nikita-2647", child != NULL);
 	assert("nikita-2648", parent != NULL);

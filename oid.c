@@ -40,7 +40,7 @@ oid_allocate(struct super_block *super)
 }
 
 int
-oid_release(struct super_block *super, oid_t oid)
+oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
 {
 	reiser4_super_info_data *sbinfo;
 

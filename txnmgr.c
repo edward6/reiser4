@@ -2289,9 +2289,7 @@ jnode_make_dirty(jnode * node)
 
 	assert("vs-1094", atom);
 
-	if (!jnode_is_dirty(node)) {
-		JF_SET(node, JNODE_DIRTY);
-
+	if (!JF_TEST_AND_SET(node, JNODE_DIRTY)) {
 		assert("jmacd-3981", jnode_is_dirty(node));
 
 		get_current_context()->nr_marked_dirty ++;
@@ -3109,7 +3107,7 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 }
 
 unsigned int
-txnmgr_get_max_atom_size(struct super_block *super)
+txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 {
 	return nr_free_pagecache_pages() / 2;
 }

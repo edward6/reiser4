@@ -71,7 +71,7 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 
 	BUG();
 	/* to make gcc happy about noreturn attribute */
-	panic(panic_buf);
+	panic("%s", panic_buf);
 }
 
 void
@@ -549,7 +549,7 @@ reiser4_print_stats()
 #endif
 
 int
-reiser4_populate_kattr_dir(struct kobject * kobj)
+reiser4_populate_kattr_dir(struct kobject * kobj UNUSED_ARG)
 {
 	int result;
 	int i;
