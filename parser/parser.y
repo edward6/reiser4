@@ -349,7 +349,7 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 %token L_ASSIGN /*L_ASSIGN_APPEND*/ L_SYMLINK
 /*%token DOTDOT*/
 %token EOL
-%token PROCESS SP
+%token PROCESS SPACE
 %token SLASH /*SLASH_DOTDOT*/ SLASH2 SLASH3 ORDERED
 %token STAT
 %token L_PAREN R_PAREN INV_L INV_R
@@ -519,7 +519,7 @@ Object_Name
 Unordered_list
 : Object_Name                                           { }
 | P_RUNNER                                              {}
-| Unordered_list SP Unordered_list                      {}
+| Unordered_list SPACE Unordered_list                      {}
 ;
 
 Object_Path_Name
@@ -625,7 +625,7 @@ static struct
 	struct inode *inode;
 	int Name_type;
 
-}
+};
 
 static struct
 {
@@ -679,10 +679,13 @@ reinitial()
 	memset((char*) Var     , 0,  i );
 
 	Str     =   (struct streg *) (Var+(NVAR));
-	freetab =   (        char *) (Str+(MAXNEST));
-	maxtab  =                     freetab+(MAXTAB);
+	freeSpace =   (        char *) (Str+(MAXNEST));
+	maxtab  =                     freeSpace+(MAXTAB);
 	inline  =                     maxtab;
 	maxbuf  =                     maxtab+(MAXBUF);
+
+	pline   = inline;
+
 
 	yyerrco =  0;
 	errco   =  0;
@@ -716,6 +719,7 @@ lexem()
 {
 	unsigned char term,n,i;
 	int l,m;
+	int ret;
 	term=1;
 
 	if (insymbol()) return(0);                      /* first symbl  */
@@ -751,20 +755,20 @@ lexem()
 		}
 	 switch (lcls)
 		{
-		case :                                /*  others  */
-			l=*yytext;
+		case 1223:
+		default :                                /*  others  */
+			ret=*yytext;
 			break;
 		}
-	return(l);
+	return(ret);
 }
 
 
-/*movstrtofr()*/
-select_word()
+move_selected_word()
 {
 	int i,j;
 
-	for( freetend = freetab; yytext <= s; )
+	for( tmpWrdEnd = freeSpace; yytext <= s; )
 		{
 			i=0;
 			while( *yytext == '\'' )
@@ -777,7 +781,7 @@ select_word()
 					i--;
 					yytext--;
 				}
-			if ( i ) for ( i/=2; i; i-- )      *freetend++='\'';    /*   in source text for each '' - result will '   */
+			if ( i ) for ( i/=2; i; i-- )      *tmpWrdEnd++='\'';    /*   in source text for each '' - result will '   */
 
 			if ( *yytext == '\\' )           /*         \????????   */
 				{
@@ -786,23 +790,23 @@ select_word()
 					switch ( tolower(*yytext) )
 						{
 						case 'n':                       /*  \n  */
-							*freetend++='\n';
+							*tmpWrdEnd++='\n';
 							yytext++;
 							break;
 						case 'b':                       /*  \n  */
-							*freetend++='\b';
+							*tmpWrdEnd++='\b';
 							yytext++;
 							break;
 						case 'r':                       /*  \n  */
-							*freetend++='\r';
+							*tmpWrdEnd++='\r';
 							yytext++;
 							break;
 						case 'f':                       /*  \n  */
-							*freetend++='\f';
+							*tmpWrdEnd++='\f';
 							yytext++;
 							break;
 						case 't':                       /*  \t  */
-							*freetend++='\t';
+							*tmpWrdEnd++='\t';
 							yytext++;
 							break;
 						case 'o':                       /*  \o123  */
@@ -810,9 +814,9 @@ select_word()
 							i = 0;
 							while( tmpI-- && isdigit( * ( yytext ) ) )
 								{
-									i = (i * 8) + ( *yytext++ - '0' );
+									i = (i << 3) + ( *yytext++ - '0' );
 								}
-							*freetend++ = (unsigned char) i;
+							*tmpWrdEnd++ = (unsigned char) i;
 							break;
 						case 'x':                       /*  \x01..9a..e  */
 							i = 0;
@@ -821,23 +825,23 @@ select_word()
 								{
 									if (isdigit( *yytext ) )
 										{
-											i = (i * 16) + ( *yytext++ - '0' );
+											i = (i << 4) + ( *yytext++ - '0' );
 										}
 									else if( tolower( *yytext ) >= 'a' && tolower( *yytext ) <= 'e' )
 										{
-											i = (i * 16) + ( *yytext++ - 'a' + 10 );
+											i = (i << 4) + ( *yytext++ - 'a' + 10 );
 										}
 									else 
 										{
-											if ( tmpI % 2 )
+											if ( tmpI & 1 )
 												{
 													yyerror(); /* x format has odd number of symbols */
 												}
 											tmpI = 0;
 										}
-									if ( tmpI && !( tmpI++ % 2 ) )
+									if ( tmpI && !( tmpI++ & 1 ) )
 										{
-											*freetend++ = (unsigned char) i;
+											*tmpWrdEnd++ = (unsigned char) i;
 											i = 0;
 										}
 								}
@@ -850,22 +854,22 @@ select_word()
 									tmpI=3;
 									while( tmpI-- && isdigit( * ( ++yytext ) ) ) ;
 									i = i % 256 ;    /* ??????? */
-									*freetend++ = (unsigned char) i;
+									*tmpWrdEnd++ = (unsigned char) i;
 								}
 							else
 								{                          /*    any symbol */
-									*freetend++ = *yytext++;
+									*tmpWrdEnd++ = *yytext++;
 								}
 						}
 				}
-			else *freetend++ = *yytext++;
-	                if( freetend > maxtab )
+			else *tmpWrdEnd++ = *yytext++;
+	                if( tmpWrdEnd > maxtab )
 		                {
 					yyerror(1101);
 					exit(1101);
 		                }
                 }
-	*freetend++ = '\0';
+	*tmpWrdEnd++ = '\0';
 }
 
 
@@ -878,7 +882,7 @@ b_check_word()
 	while( ( j - l ) >= 0 )
 		{
 			i  =  ( j + l + 1 ) >> 1;
-			switch( strcmp( key[i].wrd, freetab ) )
+			switch( strcmp( key[i].wrd, freeSpace ) )
 				{
 				case  0: return( key[i].class );  break;
 				case  1: j = i - 1;               break;
@@ -893,13 +897,13 @@ inttab()
 	int i;
 	if (strco)
 		for( i=strco-1;i; i--)
-			if( !(strcmp(tptr[i],freetab)) )
+			if( !(strcmp(wrdTab(i),freeSpace)) )
 				{
 					return(i);
 				}
 	if( strco >= MAXSTRN )             yyerror(1101);
-	tptr[strco] = freetab;
-	freetab=freetend;
+	wrdTab(strco) = freeSpace;
+	freeSpace=tmpWrdEnd;
 	return(strco++);
 }
 
@@ -925,7 +929,7 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 	char     * nss;
 
 	i=pline-inline;
-	if (!freetab) freetab=malloc(1024);
+	if (!freeSpace) freeSpace=malloc(1024);
 	if(i<0 || i>MAXLINE)
 		{
 			i=0;
@@ -933,7 +937,7 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 		}
 	if (!errf) errf=fopen(errfname,"r");
 	j=0;
-	sprintf(freetab,"%5d",nmsg);
+	sprintf(freeSpace,"%5d",nmsg);
 	strcpy(errt,"0");
 	if (errf)
 		{
@@ -941,33 +945,21 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 			while( nmsg>(j=atoi(errt)) ) if ( !fgets(errt,LENFNAME,errf) ) break;
 		}
 	if ( errf && nmsg==j )
-		sprintf( freetab, errt, x1, x2, x3, x4, x5, x6, x7, x8 ) ;
-	else    sprintf( freetab," %d Syntax error",nmsg);
-	if (Pflag )
+		sprintf( freeSpace, errt, x1, x2, x3, x4, x5, x6, x7, x8 ) ;
+	else    sprintf( freeSpace," %d Syntax error",nmsg);
+	j=0;
+	if (i || yylineno[yyinlev] )
 		{
-			j=0;
-			if (i || yylineno[yyinlev] )
-				{
-					printf("\n");
-					if (i)
-						for(i--;i;i--,j++)
-							printf( ( *(inline+j)=='\t' ) ? "\t" : " " );
-					printf("\n%s\n",inline);
-				}
-			if (j || yylineno[yyinlev] )  printf("FILE %-13s LINE %4d "
-							     , curfile [ yyinlev ]
-							     ,yylineno [ yyinlev ]  );
-			printf("ERROR #%s",freetab);
+			printf("\n");
+			if (i)
+				for(i--;i;i--,j++)
+					printf( ( *(inline+j)=='\t' ) ? "\t" : " " );
+			printf("\n%s\n",inline);
 		}
-	else
-		{
-			if (!yyerrco)
-				{
-					
-					mailsend (yylineno [yyinlev], i, curfile [yyinlev], freetab);
-					
-				}
-		}
+	if (j || yylineno[yyinlev] )  printf("FILE %-13s LINE %4d "
+					     , curfile [ yyinlev ]
+					     ,yylineno [ yyinlev ]  );
+	printf("ERROR #%s",freeSpace);
 	yyerrco++;
 }
 
@@ -1002,19 +994,19 @@ getvar(int n,int def)
 		{
 			if ( i )
 				{
-					if( i > parco )  yyerror(1015,tptr[n]);
+					if( i > parco )  yyerror(1015,wrdTab(n));
 					else
-						if(  !Varc(i)  ) yyerror(1015,tptr[n]);
+						if(  !Varc(i)  ) yyerror(1015,wrdTab(n));
 				}
 			else
 				i = newvar(n);
 		}
 	else
 		{
-			if ( !i ) yyerror(1018,tptr[n]);
+			if ( !i ) yyerror(1018,wrdTab(n));
 			else
 			{
-				if ( Varn( i ) & FRBD ) yyerror(1019,tptr[n]);
+				if ( Varn( i ) & FRBD ) yyerror(1019,wrdTab(n));
 				Varn( i )|=USED;
 			}
 		}
