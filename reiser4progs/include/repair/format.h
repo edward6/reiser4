@@ -15,6 +15,8 @@
 #include <reiser4/filesystem.h>
 
 extern errno_t repair_format_check(reiser4_fs_t *fs);
-extern void repair_format_print(reiser4_fs_t *fs, FILE *stream, uint16_t options);
-
+extern void repair_format_print(reiser4_fs_t *fs, FILE *stream, 
+    uint16_t options);
+extern errno_t callback_data_block_check(aal_device_t *device, blk_t blk, 
+    void *data);
 #endif

@@ -30,12 +30,12 @@ static void fsck_print_usage() {
         "                                 seems clean.\n"
 	"  -v | --verbose                 makes fsck to be verbose.\n"
 	"  -r                             ignored.\n"
-	"Plugins options:\n"
+	"Plugin options:\n"
 	"  -K | --known-profiles          prints known profiles.\n"
 	"  -k | --known-plugins           prints known plugins.\n"	
 	"  -e | --profile PROFILE         profile 'PROFILE' to be used or printed.\n"
-	"  -o | --override 'TYPE=plugin'  overrides the default plugin of the type 'TYPE'\n"
-	"                                 by the plugin 'plugin'.\n"
+	"  -o | --override 'TYPE=plugin'  overrides the default plugin of the type\n"
+	"                                 'TYPE' by the plugin 'plugin'.\n"
 	"Expert options:\n"
 	"  --no-journal                   does not open nor replay journal.\n\n");
 }
@@ -81,7 +81,8 @@ static int fsck_ask_confirmation(repair_data_t *data, char *host_name)
     } else if (repair_mode(data) == REPAIR_REBUILD) {
 	fprintf(stderr, REBUILD_WARNING, host_name);	
     } else if (repair_mode(data) == REPAIR_ROLLBACK) {
-	fprintf(stderr, "Will rollback all data saved in (%s) into (%s).\n", "", host_name);
+	fprintf(stderr, "Will rollback all data saved in (%s) into (%s).\n", 
+	    "", host_name);
     }
 
     fprintf(stderr, "Will use (%s) profile.\n", data->profile->label);
@@ -113,10 +114,11 @@ uint16_t fsck_callback_blocksize_from_user(reiser4_fs_t *fs, int *error) {
 
     getline(&answer, &n, stdin);
     if (aal_strncmp(answer, "\n", 1)) {
-        if ((!(blocksize = (uint16_t)reiser4_comm_strtol(answer, error)) && *error) || 
-	    !aal_pow_of_two(blocksize)) 
+        if ((!(blocksize = (uint16_t)reiser4_comm_strtol(answer, error)) && 
+	    *error) || !aal_pow_of_two(blocksize)) 
 	{
-            aal_exception_fatal("Invalid blocksize was specified (%d).", blocksize);
+            aal_exception_fatal("Invalid blocksize was specified (%d).", 
+		blocksize);
 	    *error = -1;
 	    blocksize = 0;
         }
@@ -178,7 +180,8 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	switch (c) {
 	    case 'l':
 		if ((stream = fopen(optarg, "w")) == NULL)
-		    aal_exception_fatal("Cannot not open the logfile (%s).", optarg);
+		    aal_exception_fatal("Cannot not open the logfile (%s).", 
+			optarg);
 		else {
 		    data->logfile = stream;
 		    progs_exception_set_stream(EXCEPTION_ERROR, stream);
@@ -216,9 +219,11 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 		return NO_ERROR;
 	    case 'o':
 		str = aal_strsep(&optarg, "=");
-		if (!optarg || progs_profile_override(data->profile, str, optarg)) {
-		    aal_exception_fatal("Cannot load a plugin (%s) of the type (%s).", 
-			str, optarg);
+		if (!optarg || progs_profile_override(data->profile, str, 
+		    optarg)) 
+		{
+		    aal_exception_fatal("Cannot load a plugin (%s) of the type "
+			"(%s).", str, optarg);
 		    return USER_ERROR;
 		}
 		break;
@@ -228,8 +233,8 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 		fsck_print_usage();
 		return NO_ERROR;	    
 	    case 'V': 
-		fprintf("\n");
-		fprintf(BANNER("fsck.reiser4"));
+		printf("\n");
+		printf(BANNER("fsck.reiser4"));
 		return USER_ERROR;
 	    case 'q': 
 		repair_set_option(REPAIR_OPT_QUIET, data);
@@ -239,7 +244,8 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	}
     }
     if (profile_label && !(data->profile = progs_profile_find(profile_label))) {
-	aal_exception_fatal("Cannot find the specified profile (%s).", profile_label);
+	aal_exception_fatal("Cannot find the specified profile (%s).", 
+	    profile_label);
 	return USER_ERROR;
     }
     if (optind == argc && profile_label) {
@@ -256,8 +262,8 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
     /* Check if device is mounted and we are able to fsck it. */ 
     if (progs_misc_dev_mounted(argv[optind], NULL)) {
 	if (!progs_misc_dev_mounted(argv[optind], "ro")) {
-	    aal_exception_fatal("The partition (%s) is mounted w/ write permissions, "
-		"cannot fsck it.", argv[optind]);
+	    aal_exception_fatal("The partition (%s) is mounted w/ write "
+		"permissions, cannot fsck it.", argv[optind]);
 	    return USER_ERROR;
 	} else {
 	    repair_set_option(REPAIR_OPT_READ_ONLY, data);
@@ -268,8 +274,8 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	}
     }
     
-    if (!(data->host_device = aal_file_open(argv[optind], REISER4_DEFAULT_BLOCKSIZE, 
-	O_RDWR))) 
+    if (!(data->host_device = aal_file_open(argv[optind], 
+	REISER4_DEFAULT_BLOCKSIZE, O_RDWR))) 
     {
 	aal_exception_fatal("Cannot open the partition (%s): %s.", argv[optind], 
 	    strerror(errno));
@@ -284,7 +290,7 @@ int fsck_check_fs(reiser4_fs_t *fs) {
     time_t t;
     
     time(&t);
-    fprintf(stderr, "###########\nreiserfsck --check started at %s###########\n", 
+    fprintf(stderr, "##########\nreiserfsck --check started at %s##########\n", 
 	ctime (&t));
  
     if (!repair_read_only(repair_data(fs))) {
@@ -293,11 +299,12 @@ int fsck_check_fs(reiser4_fs_t *fs) {
     }
 
     if ((retval = repair_fs_check(fs))) {
-	aal_exception_fatal("Filesystem check failed. File system needs to be rebuild.");
+	aal_exception_fatal("Filesystem check failed. File system needs to be "
+	    "rebuild.");
 	return OPER_ERROR;
     }
 
-    fprintf(stderr, "###########\nreiserfsck --check finished at %s###########\n", 
+    fprintf(stderr, "##########\nreiserfsck --check finished at %s##########\n", 
 	ctime (&t));
     return NO_ERROR;
 }

@@ -61,9 +61,10 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
 }
 
 errno_t repair_fs_check(reiser4_fs_t *fs) {
+    repair_traverse_data_t traverse;
     blk_t blk;
     aal_block_t *block;
-    repair_traverse_data_t traverse;
+    int res;    
 
     aal_assert("vpf-180", fs != NULL, return -1);
     aal_assert("vpf-181", fs->format != NULL, return -1);
@@ -72,11 +73,13 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
     aal_memset(&traverse, 0, sizeof(traverse));
     
     blk = reiser4_format_get_root(fs->format);
-/*    if (!reiser4_format_data_block(fs->format, blk)) {
-	aal_exception_error("Bad root block (%llu). (A previous recovery did not "
-	    "complete probably).", blk);
+    if ((res = reiser4_format_layout(fs->format, callback_data_block_check, &blk)) &&
+	res != -1) 
+    {
+	aal_exception_error("Bad root block (%llu). (A previous recovery did "
+	    "not complete probably).", blk);
 	return 0;
-    }*/
+    }
  
     if (!(block = aal_block_open(fs->format->device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -87,13 +90,15 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
     if (repair_fs_check_setup(fs, &traverse))
 	return -1;    
     
-    reiser4_tree_traverse(fs->format->device, block, __node_open, __prepare_traverse, 
-	repair_node_check, repair_node_update_internal, NULL, &traverse);
+    reiser4_tree_traverse(fs->format->device, block, __node_open, 
+	__prepare_traverse, repair_node_check, repair_node_update_internal, 
+	NULL, &traverse);
 
     return 0;
 }
 
-static errno_t repair_master_check(reiser4_fs_t *fs, callback_ask_user_t ask_blocksize) 
+static errno_t repair_master_check(reiser4_fs_t *fs, 
+    callback_ask_user_t ask_blocksize) 
 {
     uint16_t blocksize = 0;
     int error = 0;
@@ -108,8 +113,9 @@ static errno_t repair_master_check(reiser4_fs_t *fs, callback_ask_user_t ask_blo
     if (!fs->master) {
 	/* Master SB was not opened. Create a new one. */
 	if (aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_YESNO, 
-	    "Master super block cannot be found. Do you want to build a new one on (%s)?",
-	    aal_device_name(repair_data(fs)->host_device)) == EXCEPTION_NO) 
+	    "Master super block cannot be found. Do you want to build a new "
+	    "one on (%s)?", aal_device_name(repair_data(fs)->host_device)) == 
+	    EXCEPTION_NO) 
 	    return -1;
 
         if (!(blocksize = ask_blocksize(fs, &error)) && error)
@@ -136,8 +142,8 @@ static errno_t repair_master_check(reiser4_fs_t *fs, callback_ask_user_t ask_blo
 
 	/* Check the blocksize. */
 	if (!aal_pow_of_two(reiser4_master_blocksize(fs->master))) {
-	    aal_exception_fatal("Invalid blocksize found in the master super block (%u).", 
-		reiser4_master_blocksize(fs->master));
+	    aal_exception_fatal("Invalid blocksize found in the master super "
+		"block (%u).", reiser4_master_blocksize(fs->master));
 	    
 	    if (!(blocksize = ask_blocksize(fs, &error)) && error)
 		return -1;
@@ -165,7 +171,8 @@ static errno_t repair_oid_check(reiser4_fs_t *fs) {
     return 0;
 }
 
-reiser4_fs_t *repair_fs_open(repair_data_t *data, callback_ask_user_t ask_blocksize) 
+reiser4_fs_t *repair_fs_open(repair_data_t *data, 
+    callback_ask_user_t ask_blocksize) 
 {
     reiser4_fs_t *fs;
     void *oid_area_start, *oid_area_end;

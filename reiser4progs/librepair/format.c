@@ -6,6 +6,19 @@
 
 #include <repair/librepair.h>
 
+errno_t callback_data_block_check(aal_device_t *device, blk_t blk, 
+    void *data) 
+{
+    blk_t passed_blk = *(blk_t *)data;
+
+/*    
+    if (passed_blk >= reiser4_format_get_len(format))
+	return -1;
+*/  
+    return passed_blk == blk ? 1 : 0;
+}
+
+
 static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, aal_device_t *host_device) {
     reiser4_plugin_t *plugin;
    

@@ -8,56 +8,66 @@
 #include <reiser4/reiser4.h>
 
 errno_t repair_node_check(reiser4_node_t *node, void *data) {
-    reiser4_key_t key;
     repair_traverse_data_t *traverse = data;
+    reiser4_key_t key;
+    blk_t blk;
+    int res;
     
     aal_assert("vpf-183", traverse != NULL, return -1);
     aal_assert("vpf-184", traverse->format != NULL, return -1);
     aal_assert("vpf-192", node != NULL, return -1);
-    aal_assert("vpf-193", node->plugin != NULL, return -1);
+    aal_assert("vpf-193", node->entity != NULL, return -1);    
+    aal_assert("vpf-220", node->entity->plugin != NULL, return -1);
 
-/*
-    if (node->plugin->node_ops.get_level && 
-	node->plugin->node_ops.get_level(node->entity) != traverse->level) 
+
+    if (node->entity->plugin->node_ops.get_level && 
+	node->entity->plugin->node_ops.get_level(node->entity) != 
+	traverse->level) 
     {
-	aal_exception_error("Level of the node (%u) is not correct, expected (%u)", 
-	    node->plugin->node_ops.get_level(node->entity), traverse->level);
+	aal_exception_error("Level of the node (%u) is not correct, expected "
+	    "(%u)", node->entity->plugin->node_ops.get_level(node->entity), 
+	    traverse->level);
 	return -1;
     }
-*/
 
-/*    if (!reiser4_format_data_block(traverse->format, aal_block_get_nr(node->block))) {
-	aal_exception_error("The node in the invalid block number (%llu) found in the "
-	    "tree.", aal_block_get_nr(node->block));
+    blk = aal_block_number(node->block);
+    if ((res = reiser4_format_layout(traverse->format, callback_data_block_check, 
+	&blk)) && res != -1) 
+    {
+	aal_exception_error("The node in the invalid block number (%llu) "
+	    "found in the tree.", aal_block_number(node->block));
 	return -1;
-    }*/
+    }
     
     /* Check if we met it already in the control allocator. */
-    if (reiser4_alloc_test(traverse->a_control, aal_block_number(node->block))) {
-	aal_exception_error("The node in the block (%llu) is used more then once in "
-	    "the tree.", aal_block_number(node->block));
+    if (reiser4_alloc_test(traverse->a_control, aal_block_number(node->block))) 
+    {
+	aal_exception_error("The node in the block (%llu) is used more then "
+	    "once in the tree.", aal_block_number(node->block));
 	return -1;
     }
 
-    return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
-	check, node->entity, traverse->options);
+    return plugin_call(return -1, node->entity->plugin->node_ops, check, 
+	node->entity, traverse->options);
 
 /*    
     if (traverse->level != reiser4_format_get_height(traverse->format)) {
 	// Check the delimiting keys for all nodes but the root one. 
 	if (reiser4_node_lkey(node, &key)) {
-	    aal_exception_error("Failed to get the left key from the node (%llu).", 
-		aal_block_get_nr(node->block));
+	    aal_exception_error("Failed to get the left key from the node "
+		"(%llu).", aal_block_get_nr(node->block));
 	    return -1;
 	}
     
 	
-//	if (!(key.plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
+//	if (!(key.plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, 
+//	    KEY_REISER40_ID)))
 //	    libreiser4_factory_failed(return -1, find, key, KEY_REISER40_ID);
 
 	if (reiser4_key_compare(&traverse->ld_key, &key) != 0) {
-	    aal_exception_error("The first key %k in the node (%llu) is not equal to the left "
-		"delimiting key %k.", &key, aal_block_get_nr(node->block), &traverse->ld_key);
+	    aal_exception_error("The first key %k in the node (%llu) is not "
+		"equal to the left delimiting key %k.", &key, 
+		aal_block_get_nr(node->block), &traverse->ld_key);
 	    return -1;
 	}
     }
@@ -66,6 +76,9 @@ errno_t repair_node_check(reiser4_node_t *node, void *data) {
 */
 }
 
-errno_t repair_node_update_internal(reiser4_node_t *node, uint32_t pos, void *data) {
+errno_t repair_node_update_internal(reiser4_node_t *node, uint32_t pos, 
+    void *data) 
+{
     return 0;
 }
+
