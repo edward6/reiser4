@@ -235,6 +235,8 @@ struct txn_atom {
 	int nr_objects_deleted;
 	int nr_objects_created;
 
+	__u64 nr_blocks_allocated; 
+
 	int num_queued;		/* number of jnodes which were removed from
 				 * atom's lists and put on flush_queue */
 	/* ZAM-FIXME-HANS unclear: all flush queue objects that flush this atom are on this list  */

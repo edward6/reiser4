@@ -1802,8 +1802,7 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
 	preceder->block_stage = BLOCK_UNALLOCATED;
 	
-	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 
-		0/* unformatted, do not use 5% */);
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT);
 
 	if (result) {
 		/* no free space
@@ -2269,7 +2268,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 					   again immediately.
 					*/
 					reiser4_dealloc_blocks(&first_allocated, &allocated,
-						BLOCK_UNALLOCATED, 0/* unformatted, without defer */);
+						BLOCK_UNALLOCATED, BA_PERMANENT);
 
 					result = SQUEEZE_TARGET_FULL;
 					trace_on(TRACE_EXTENTS,

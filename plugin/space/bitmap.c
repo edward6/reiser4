@@ -1071,8 +1071,6 @@ bitmap_pre_commit_hook(void)
 
 	atom = get_current_atom_locked ();
 
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
-
 	{			/* scan atom's captured list and find all freshly allocated nodes,
 				 * mark corresponded bits in COMMIT BITMAP as used */
 		capture_list_head *head = &atom->clean_nodes;
@@ -1121,8 +1119,6 @@ bitmap_pre_commit_hook(void)
 				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
 					warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
 
-				blocks_freed--;
-
 				/* working of this depends on how it inserts
 				   new j-node into clean list, because we are
 				   scanning the same list now. It is OK, if
@@ -1133,6 +1129,10 @@ bitmap_pre_commit_hook(void)
 			node = capture_list_next(node);
 		}
 	}
+
+	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
+
+	blocks_freed -= atom->nr_blocks_allocated;
 
 	spin_unlock_atom(atom);
 

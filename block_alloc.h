@@ -53,10 +53,21 @@ struct reiser4_blocknr_hint {
 
 /* These flags control block allocation/deallocation behavior */
 enum reiser4_ba_flags {
-	BA_RESERVED	    = 1 << 0,	/* do allocatations from reserved (5%) area */
-	BA_CAN_COMMIT	    = 1 << 1,	/* do commit if there is no free space */
-	BA_FORMATTED	    = 1 << 2,	/* if operation will be aplyed to formated block */
-	BA_DEFER	    = 1 << 3	/* defer actual block freeing until transaction commit */
+	/* do allocatations from reserved (5%) area */
+	BA_RESERVED	    = 1 << 0,
+
+	/* block allocator can do commit trying to recover free space */
+	BA_CAN_COMMIT	    = 1 << 1,
+
+	/* if operation will be aplyed to formated block */
+	BA_FORMATTED	    = 1 << 2,
+
+	/* defer actual block freeing until transaction commit */
+	BA_DEFER	    = 1 << 3,
+
+	/* allocate blocks for permanent fs objects (formatted or unformatted), not
+	   wandered of log blocks */
+	BA_PERMANENT        = 1 << 4
 };
 
 typedef enum reiser4_ba_flags reiser4_ba_flags_t;
