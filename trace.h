@@ -56,7 +56,7 @@ typedef struct {
 #define disable_trace( file, flag ) (0)
 #define close_trace_file( file ) noop
 #define write_trace_stamp( tree, op, ... ) (0)
-#define write_in_trace(const char *mes) (0)
+#define write_in_trace(mes) (0)
 
 #endif
 
