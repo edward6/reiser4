@@ -1416,6 +1416,19 @@ static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
 	return ret;
 }
 
+/* forward declaration */
+static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
+
+/* do a fast check for "same parents" condition before calling
+ * squalloc_upper_levels() */
+static inline int check_parents_and_squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
+{
+	if (znode_same_parents(left, right))
+		return 0;
+
+	return squalloc_upper_levels(pos, left, right);
+} 
+
 /* Check whether the parent of given @right node needs to be processes
    ((re)allocated) prior to processing of the child.  If @left and @right do not
    share at least the parent of the @right is after the @left but before the
@@ -1477,7 +1490,7 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 
 	/* parent(@left) and parent(@right) may have different parents also. We
 	 * do a recursive call for checking that. */
-	ret = squalloc_upper_levels(pos, left_parent_lock.node, right_parent_lock.node);
+	ret = check_parents_and_squalloc_upper_levels(pos, left_parent_lock.node, right_parent_lock.node);
 	if (ret)
 		goto out;
 
@@ -1598,14 +1611,11 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 		goto again;
 	}
 
-	/* fast (without taking longterm locks) check for same parents */
-	if (!znode_same_parents(pos->lock.node, right_lock.node)) {
-		/* parent(right_lock.node) has to be processed before
-		 * (right_lock.node) due to "parent-first" allocation order. */
-		ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
-		if (ret)
-			goto stop;
-	}
+	/* parent(right_lock.node) has to be processed before
+	 * (right_lock.node) due to "parent-first" allocation order. */
+	ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+	if (ret)
+		goto stop;
 
 	/* (re)allocate _after_ going upward */
 	ret = lock_parent_and_allocate_znode(right_lock.node, pos);
@@ -1784,11 +1794,9 @@ became_dirty:
 		/* ... and prep it if it is not yet prepped */
 		if (!znode_check_flushprepped(right_lock.node)) {
 			/* As usual, process parent before ...*/
-			if (!znode_same_parents(pos->lock.node, right_lock.node)) {
-				ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
-				if (ret)
-					goto out;
-			}
+			ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+			if (ret)
+				goto out;
 
 			/* ... processing the child */
 			ret = lock_parent_and_allocate_znode(right_lock.node, pos);
