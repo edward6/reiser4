@@ -18,13 +18,14 @@
 #include <getopt.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 #include <reiser4/reiser4.h>
 #include <progs/misc.h>
 
 static void mkfs_print_usage(void) {
-    fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE [ size[K|M|G] ]\n");
+    fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
     
     fprintf(stderr, "Options:\n"
 	"  -v | --version                 prints current version.\n"
@@ -204,6 +205,9 @@ int main(int argc, char *argv[]) {
 	aal_memset(label, 0, sizeof(label));
     }
     
+    if (aal_gauge_create(GAUGE_SILENT, "", __progs_gauge_handler, NULL))
+	goto error_free_libreiser4;
+    
     /* The loop through all devices */
     aal_list_foreach_forward(walk, devices) {
     
@@ -268,12 +272,11 @@ int main(int argc, char *argv[]) {
 		"All data on \"%s\" will be lost.", host_dev) == EXCEPTION_NO)
 	    goto error_free_device;
     }
+    
+    aal_gauge_rename("Creating reiser4 on \"%s\" with "
+	"\"%s\" profile", host_dev, profile->label);
+    aal_gauge_start();
 
-    fprintf(stderr, "Creating reiser4 on \"%s\" with "
-	"\"%s\" profile...", host_dev, profile->label);
-    
-    fflush(stderr);
-    
     /* Creating filesystem */
     if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
 	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
@@ -282,10 +285,7 @@ int main(int argc, char *argv[]) {
 	    "Can't create filesystem on %s.", aal_device_name(device));
 	goto error_free_device;
     }
-    fprintf(stderr, "done\n");
 
-    fprintf(stderr, "Synchronizing...");
-    
     /* Flushing all filesystem buffers onto the device */
     if (reiserfs_fs_sync(fs)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -300,16 +300,18 @@ int main(int argc, char *argv[]) {
 	goto error_free_fs;
     }
 
-    fprintf(stderr, "done\n");
-    
     /* Zeroing uuid in order to force mkfs to generate it on its own */
     aal_memset(uuid, 0, sizeof(uuid));
 	
     reiserfs_fs_close(fs);
+    
+    aal_gauge_done();
+    
     aal_file_close(device);
 
     }
     
+    aal_gauge_free();
     aal_list_free(devices);
     libreiser4_done();
     
