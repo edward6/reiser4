@@ -79,10 +79,12 @@ ktxnmgrd(void *arg)
 		int result;
 		txn_mgr *mgr;
 
-		/* software suspend support. Doesn't work currently
-		   (kcond_timedwait), also refrigerator() may schedule */
-		if (0 && (me->flags & PF_FREEZE))
+		/* software suspend support. */
+		if (me->flags & PF_FREEZE) {
+			spin_unlock(&ctx->guard);
 			refrigerator(PF_IOTHREAD);
+			spin_lock(&ctx->guard);
+		}
 
 		set_comm("wait");
 		/* wait for @ctx -> timeout or explicit wake up.
