@@ -158,6 +158,9 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				assert("nikita-1990", node == seal->coord.node);
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
 				reiser4_stat_inc(seal.perfect_match);
+			} else
+				result = -E_REPEAT;
+#if 0
 			} else if (coord->between != AT_UNIT)
 				/* if seal was placed on position with node
 				   (rather than on the existing unit within
@@ -178,6 +181,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				reiser4_stat_inc(seal.key_drift);
 				result = -E_REPEAT;
 			}
+#endif
 		}
 		if (result != 0) {
 			if (should_repeat(result))
