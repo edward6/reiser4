@@ -2043,6 +2043,7 @@ init_committed_sb_counters(const struct super_block *s)
 }
 
 DEFINE_SPIN_PROFREGIONS(jnode);
+DEFINE_SPIN_PROFREGIONS(jload);
 DEFINE_SPIN_PROFREGIONS(dk);
 DEFINE_SPIN_PROFREGIONS(stack);
 DEFINE_SPIN_PROFREGIONS(super);
@@ -2075,6 +2076,7 @@ static int register_profregions(void)
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
 #endif
 	register_jnode_profregion();
+	register_jload_profregion();
 	register_dk_profregion();
 	register_stack_profregion();
 	register_super_profregion();
@@ -2094,6 +2096,7 @@ static int register_profregions(void)
 static void unregister_profregions(void)
 {
 	unregister_jnode_profregion();
+	unregister_jload_profregion();
 	unregister_dk_profregion();
 	unregister_stack_profregion();
 	unregister_super_profregion();

@@ -166,6 +166,7 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
 	spin_jnode_init(node);
+	spin_jload_init(node);
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
@@ -559,6 +560,7 @@ jload_gfp (jnode * node, int gfp_flags)
 {
 	int result;
 	struct page *page;
+	int loaded;
 	PROF_BEGIN(jload);
 
 	assert("nikita-3010", schedulable());
@@ -573,10 +575,13 @@ jload_gfp (jnode * node, int gfp_flags)
 	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
 	 * should be atomic, otherwise there is a race against jrelse().
 	 */
-	LOCK_JNODE(node);
+	spin_lock_jload(node);
 	add_d_ref(node);
+	loaded = jnode_is_loaded(node);
+	spin_unlock_jload(node);
 
-	if (!jnode_is_loaded(node)) {
+	if (!loaded) {
+		LOCK_JNODE(node);
 		/* If node is not loaded we need a spin lock to get reliable not
 		 * null jnode_page() result */
 		page = jnode_page(node);
@@ -665,7 +670,6 @@ jload_gfp (jnode * node, int gfp_flags)
 				jrelse(node);
 		}
 	} else {
-		UNLOCK_JNODE(node);
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
@@ -732,25 +736,29 @@ jrelse(jnode * node /* jnode to release references to */)
 	trace_on(TRACE_PCACHE, "release node: %p\n", node);
 
 	page = jnode_page(node);
-	if (page) {
+	if (likely(page != NULL)) {
 		/*
-		 * it is safe not to lock jnode here, because at this point * @node->d_count is greater than zero (if
-		 * jrelse() is used correctly, * that is). JNODE_LOADED may be not set yet, if, for example, we got *
-		 * here as a result of error handling path in jload(). Anyway, page * cannot be detached by
-		 * reiser4_releasepage(). truncate will * invalidate page regardless, but this should not be a problem.
+		 * it is safe not to lock jnode here, because at this point
+		 * @node->d_count is greater than zero (if jrelse() is used
+		 * correctly, that is). JNODE_LOADED may be not set yet, if,
+		 * for example, we got here as a result of error handling path
+		 * in jload(). Anyway, page cannot be detached by
+		 * reiser4_releasepage(). truncate will invalidate page
+		 * regardless, but this should not be a problem.
 		 */
 		kunmap(page);
 		page_cache_release(page);
 	}
-	LOCK_JNODE(node);
-	if (atomic_dec_and_test(&node->d_count))
+	if (atomic_dec_and_lock(&node->d_count, &node->loadguard.lock)) {
+		spin_lock_jnode_acc(node, 0);
 		/* FIXME it is crucial that we first decrement ->d_count and
 		   only later clear JNODE_LOADED bit. I hope that
 		   atomic_dec_and_test() implies memory barrier (and
 		   optimization barrier, of course).
 		*/
 		JF_CLR(node, JNODE_LOADED);
-	UNLOCK_JNODE(node);
+		spin_unlock_jload(node);
+	}
 	jput(node);
 	PROF_END(jrelse, jrelse);
 }

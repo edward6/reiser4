@@ -125,12 +125,12 @@ int schedulable (void)
 void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
-	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i\n"
+	printk("%s: jnode: %i, jload: %i, tree: %i (r:%i,w:%i), dk: %i\n"
 	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
 	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
 	       "inode: %i, spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
-	       info->spin_locked_jnode, 
+	       info->spin_locked_jnode, info->spin_locked_jload,
 	       info->rw_locked_tree, info->read_locked_tree, 
 	       info->write_locked_tree,
 	       info->spin_locked_dk, info->spin_locked_txnh,

@@ -177,6 +177,7 @@ typedef struct lock_counters_info {
 	int write_locked_tree;
 
 	int spin_locked_jnode;
+	int spin_locked_jload;
 	int spin_locked_dk;
 	int spin_locked_txnh;
 	int spin_locked_atom;
@@ -435,7 +436,7 @@ typedef struct reiser4_prof {} reiser4_prof;
 	}									\
 })
 
-#define	reiser4_stat_add_at_level_value(lev, stat, value)				\
+#define	reiser4_stat_add_at_level_value(lev, stat, value)		\
 ({									\
 	int level;							\
 									\
