@@ -119,46 +119,19 @@ sys_reiser4(void *p_string)
  *
  * Grammar:
  *
- *     expression ::=
+ *     expression ::= binary_exp { ; binary_exp }
  *
- *         binary_expression     |
+ *     binary_exp ::= path | path binop binary_exp
  *
- *         literal               |
+ *     path       ::= literal | rel_path | / rel_path
  *
- *         ( expression )
+ *     literal    ::= "string" | #number
  *
- *     binary_expression ::=
+ *     rel_path   ::= name { / name }
  *
- *         pathname binop expression
+ *     name       ::= name_token | ( expression )
  *
- *     literal ::=
- *
- *         "string"              |
- *
- *         #number
- *
- *     pathname ::=
- *
- *         rel_path              |
- *
- *         / rel_path
- *
- *     binop ::=
- *
- *         <-
- *
- *     rel_path ::=
- *
- *         name                  |
- *
- *         name / rel_path_cont
- *
- *     rel_path_cont ::=
- *
- *         name                  |
- *
- *         ( expression )
- *
+ *     binop      ::= <-
  *
  *
  * Examples:
@@ -210,6 +183,8 @@ typedef enum proto_token_type {
 	TOKEN_LESS_THAN,	/* < */
 	TOKEN_GREATER_THAN,	/* > */
 	TOKEN_EQUAL_TO,		/* = */
+	TOKEN_SEMICOLON,	/* ; */
+	TOKEN_COMMA,    	/* , */
 	TOKEN_EOF,		/* eof-of-file reached */
 	TOKEN_INVALID		/* syntax-error */
 } proto_token_type_t;
@@ -517,7 +492,7 @@ static proto_token_type_t extract_name(proto_ctx_t *ctx, int *pos,
 			break;
 		if (ch == 0)
 			break;
-		if (strchr("/+-=() \t\n\r[]<>", ch) != NULL)
+		if (strchr("/+-=()[]<>;,.", ch) != NULL)
 			break;
 	}
 	if (len == 0) {
@@ -551,6 +526,12 @@ static proto_token_type_t next_token(proto_ctx_t *ctx,
 		break;
 	case ')':
 		ttype = TOKEN_RPAREN;
+		break;
+	case ';':
+		ttype = TOKEN_SEMICOLON;
+		break;
+	case ',':
+		ttype = TOKEN_COMMA;
 		break;
 	case '"':
 		ttype = extract_string(ctx, &pos, token);
@@ -629,14 +610,17 @@ static int ctx_init(proto_ctx_t *ctx, const char *command)
 }
 
 /* go one level deeper to parse and execute sub-expression */
-static void inlevel(proto_ctx_t *ctx)
+static int inlevel(proto_ctx_t *ctx)
 {
 	if (ctx->depth >= PROTO_LEVELS - 1) {
 		/* handle stack overflow */
+		post_error(ctx, "stack overflow");
+		return -EXFULL;
 	}
 	++ ctx->depth;
 	xmemset(get_level(ctx), 0, sizeof *get_level(ctx)); 
 	get_val(ctx)->type = VAL_VOID;
+	return 0;
 }
 
 /* go one level up */
@@ -669,6 +653,17 @@ static void build_string_val(proto_ctx_t *ctx,
 		strncpy(val->u.string, ctx->command + token->pos + delta, len);
 		val->u.string[len] = 0;
 	}
+}
+
+/* given @token which should be token for a number literal, produce number
+ * value */
+static void build_number_val(proto_ctx_t *ctx,
+			     proto_token_t *token, proto_val_t *val)
+{
+	assert("nikita-3245", token->type == TOKEN_NUMBER);
+
+	val->type = VAL_NUMBER;
+	val->u.number = token->u.number.val;
 }
 
 /* follow mount points. COPIED from fs/namei.c */
@@ -747,90 +742,6 @@ static int lookup(fs_point_t * parent, const char * name, fs_point_t * fsobj)
 	return result;
 }
 
-/* parse pathname token a/b/c/d */
-static int parse_path(proto_ctx_t *ctx)
-{
-	int result;
-	int done;
-
-	proto_token_t  token;
-
-	fs_point_t parent;
-	fs_point_t child;
-
-	fscpy(&parent, get_cur(ctx));
-
-	done = result = 0;
-	do {
-		next_token(ctx, &token);
-
-		PTRACE(ctx, "%i", token.type);
-
-		switch (token.type) {
-		case TOKEN_NAME: {
-			proto_val_t name;
-
-			build_string_val(ctx, &token, &name);
-			result = lookup(&parent, name.u.string, &child);
-			if (result == 0) {
-				fsput(&parent);
-				fscpy(&parent, &child);
-			} else if (result == -ENOENT)
-				post_error(ctx, "not found");
-			else
-				post_error(ctx, "lookup failure");
-			proto_val_put(&name);
-			break;
-		}
-		case TOKEN_SLASH:
-			continue;
-		case TOKEN_LPAREN:
-			back_token(ctx, &token);
-			inlevel(ctx);
-			fscpy(&get_level(ctx)->cur, &parent);
-			result = parse_exp(ctx);
-			if (result == 0) {
-				if (get_val(ctx)->type == VAL_FSOBJ) {
-					fsput(&parent);
-					fscpy(&parent, &get_val(ctx)->u.fsobj);
-				} else {
-					post_error(ctx, "lnode expected");
-					result = -EINVAL;
-				}
-			}
-			exlevel(ctx);
-			break;
-		case TOKEN_STRING:
-		case TOKEN_NUMBER:
-		case TOKEN_ASSIGNMENT:
-		case TOKEN_RPAREN:
-		case TOKEN_LESS_THAN:
-		case TOKEN_GREATER_THAN:
-		case TOKEN_EQUAL_TO:
-		case TOKEN_EOF:
-			back_token(ctx, &token);
-			done = 1;
-			break;
-		case TOKEN_INVALID:
-		default:
-			post_error(ctx, "confused");
-			result = -EINVAL;
-			done = 1;
-			break;
-		}
-	} while(result == 0 && !done);
-
-	if (result == 0) {
-		proto_val_t *val;
-
-		val = get_val(ctx);
-		val->type = VAL_FSOBJ;
-		fscpy(&val->u.fsobj, &parent);
-	}
-	fsput(&parent);
-	return result;
-}
-
 #define START_KERNEL_IO				\
         {					\
 		mm_segment_t __ski_old_fs;	\
@@ -872,8 +783,10 @@ static int pump(fs_point_t *lefthand, fs_point_t *righthand)
 			END_KERNEL_IO;
 			if (result == 0)
 				result = writeoff;
+			filp_close(dst, current->files);
 		} else
 			result = PTR_ERR(dst);
+		filp_close(src, current->files);
 	} else
 		result = PTR_ERR(src);
 
@@ -899,6 +812,7 @@ static int pump_buf(fs_point_t *lefthand, char *buf, int len)
 		END_KERNEL_IO;
 		if (result == 0)
 			result = writeoff;
+		filp_close(dst, current->files);
 	} else
 		result = PTR_ERR(dst);
 
@@ -921,7 +835,7 @@ static int proto_assign(proto_ctx_t *ctx, proto_val_t *lhs, proto_val_t *rhs)
 		char buf[20];
 
 		snprintf(buf, sizeof buf, "%li", rhs->u.number);
-		result = pump_buf(&dst, buf, strlen(buf) + 1);
+		result = pump_buf(&dst, buf, strlen(buf));
 		break;
 	}
 	case VAL_STRING: {
@@ -932,7 +846,6 @@ static int proto_assign(proto_ctx_t *ctx, proto_val_t *lhs, proto_val_t *rhs)
 		post_error(ctx, "lnode expected");
 		result = -EINVAL;
 	}
-	exlevel(ctx);
 	fsput(&dst);
 	if (result >= 0) {
 		proto_val_t *ret;
@@ -946,142 +859,208 @@ static int proto_assign(proto_ctx_t *ctx, proto_val_t *lhs, proto_val_t *rhs)
 	return result;
 }
 
-/* helper function: parse "expression" of the form "<- righthand" */
-static int parse_exp_tail(proto_ctx_t *ctx)
+/* parse "name" token */
+static int parse_name(proto_ctx_t *ctx)
 {
-	proto_val_t   *lhs;
-	proto_token_t  token;
 	int result;
-	int done;
+	proto_token_t token;
 
-	assert("nikita-3239", ctx->depth > 0);
+	/* name ::= name_token | ( expression ) */
 
-	lhs = get_val(ctx);
-	assert("nikita-3240", lhs->type == VAL_FSOBJ);
+	next_token(ctx, &token);
+	PTRACE(ctx, "%i", token.type);
 
-	done = result = 0;
-	do {
-		next_token(ctx, &token);
+	result = 0;
+	switch (token.type) {
+	case TOKEN_NAME: {
+		proto_val_t name;
+		fs_point_t  child;
 
-		PTRACE(ctx, "%i", token.type);
+		build_string_val(ctx, &token, &name);
+		result = lookup(get_cur(ctx), name.u.string, &child);
+		if (result == 0) {
+			proto_val_put(get_val(ctx));
+			get_val(ctx)->type = VAL_FSOBJ;
+			fscpy(&get_val(ctx)->u.fsobj, &child);
+		} else if (result == -ENOENT)
+			post_error(ctx, "not found");
+		else
+			post_error(ctx, "lookup failure");
+		proto_val_put(&name);
+		break;
+	}
+	case TOKEN_LPAREN: {
+		proto_token_t rparen;
 
-		switch(token.type) {
-		case TOKEN_ASSIGNMENT: {
-			/* a/b <- c/d */
-			inlevel(ctx);
+		result = inlevel(ctx);
+		if (result == 0) {
 			result = parse_exp(ctx);
-			if (result == 0)
-				result = proto_assign(ctx, lhs, get_val(ctx));
-			else
-				exlevel(ctx);
-			break;
+			proto_val_up(ctx);
+			exlevel(ctx);
+			if (next_token(ctx, &rparen) != TOKEN_RPAREN) {
+				post_error(ctx, "expecting `)'");
+				result = -EINVAL;
+			}
 		}
-		case TOKEN_RPAREN:
-			/* a/b ) c/d */
-		case TOKEN_NAME:
-			/* a/b c/d */
-		case TOKEN_SLASH:
-			/* a/b / c/d */
-		case TOKEN_LPAREN:
-			/* a/b ( c/d */
-		case TOKEN_LESS_THAN:
-		case TOKEN_GREATER_THAN:
-		case TOKEN_EQUAL_TO:
-		case TOKEN_STRING:
-			/* a/b "foo!" c/d */
-		case TOKEN_NUMBER:
-			/* a/b #123 */
-		case TOKEN_EOF:
-			/* a/b */
-			back_token(ctx, &token);
-			done = 1;
-			break;
-		case TOKEN_INVALID:
-		default:
-			post_error(ctx, "unexpected");
-			result = -EINVAL;
-			break;
-		}
-	} while(result == 0 && !done);
+		break;
+	}
+	case TOKEN_INVALID:
+		post_error(ctx, "huh");
+		result = -EINVAL;
+	default:
+		back_token(ctx, &token);
+		break;
+	}
 	return result;
 }
 
-/* parse "binary_expression" token */
+/* parse "path" token */
 static int parse_rel_path(proto_ctx_t *ctx, fs_point_t *start)
 {
 	int result;
 
-	inlevel(ctx);
+	/* rel_path ::= name { / name } */
+
+	result = inlevel(ctx);
+	if (result != 0)
+		return result;
+
 	fscpy(&get_level(ctx)->cur, start);
-	result = parse_path(ctx);
+
+	while (1) {
+		proto_token_t token;
+		proto_val_t  *val;
+
+		result = parse_name(ctx);
+		if (result != 0)
+			break;
+
+		val = get_val(ctx);
+		if (val->type != VAL_FSOBJ) {
+			post_error(ctx, "name is not an file system object");
+			break;
+		}
+
+		fsput(&get_level(ctx)->cur);
+		fscpy(&get_level(ctx)->cur, &val->u.fsobj);
+
+		next_token(ctx, &token);
+		PTRACE(ctx, "%i", token.type);
+
+		if (token.type != TOKEN_SLASH) {
+			back_token(ctx, &token);
+			break;
+		}
+	}
 	proto_val_up(ctx);
 	exlevel(ctx);
-	if (result == 0)
-		result = parse_exp_tail(ctx);
+	return result;
+}
+
+/* parse "path" token */
+static int parse_path(proto_ctx_t *ctx)
+{
+	int result;
+	proto_token_t token;
+
+	/* path ::= literal | rel_path | / rel_path */
+
+	next_token(ctx, &token);
+	PTRACE(ctx, "%i", token.type);
+
+	result = 0;
+	switch (token.type) {
+	case TOKEN_STRING:
+		build_string_val(ctx, &token, get_val(ctx));
+		break;
+	case TOKEN_NUMBER:
+		build_number_val(ctx, &token, get_val(ctx));
+		break;
+	case TOKEN_SLASH:
+		parse_rel_path(ctx, &ctx->root);
+		break;
+	default:
+		back_token(ctx, &token);
+		parse_rel_path(ctx, get_cur(ctx));
+		break;
+	case TOKEN_INVALID:
+		post_error(ctx, "cannot parse path");
+		result = -EINVAL;
+		back_token(ctx, &token);
+		break;
+	}
+	return result;
+}
+
+/* parse "binary_exp" token */
+static int parse_binary_exp(proto_ctx_t *ctx)
+{
+	int result;
+	proto_val_t *lhs;
+
+	/* binary_exp ::= path | path binop binary_exp */
+
+	result = inlevel(ctx);
+	if (result != 0)
+		return result;
+
+	result = parse_path(ctx);
+	if (result == 0) {
+		proto_token_t  token;
+
+		lhs = get_val(ctx);
+
+		next_token(ctx, &token);
+		PTRACE(ctx, "%i", token.type);
+
+		if (token.type == TOKEN_ASSIGNMENT) {
+			result = inlevel(ctx);
+			if (result == 0) {
+				result = parse_binary_exp(ctx);
+				if (result == 0)
+					result = proto_assign(ctx, 
+							      lhs, get_val(ctx));
+				proto_val_up(ctx);
+				exlevel(ctx);
+			}
+		} else
+			back_token(ctx, &token);
+	}
+	proto_val_up(ctx);
+	exlevel(ctx);
 	return result;
 }
 
 /* parse "expression" token */
 static int parse_exp(proto_ctx_t *ctx)
 {
-	proto_token_t  token;
-	int            result;
-	proto_level_t *level;
+	int result;
 
-	level = get_level(ctx);
+	/* expression ::= binary_exp { ; binary_exp } */
 
-	result = 0;
-	next_token(ctx, &token);
+	result = inlevel(ctx);
+	if (result != 0)
+		return result;
 
-	PTRACE(ctx, "%i", token.type);
+	while (1) {
+		proto_token_t  token;
 
-	switch(token.type) {
-	case TOKEN_NAME:
-		back_token(ctx, &token);
-		parse_rel_path(ctx, get_cur(ctx));
-		break;
-	case TOKEN_SLASH:
-		parse_rel_path(ctx, &ctx->root);
-		break;
-	case TOKEN_LPAREN: {
-		proto_token_t rparen;
-
-		inlevel(ctx);
-		result = parse_exp(ctx);
+		result = parse_binary_exp(ctx);
 		proto_val_up(ctx);
-		exlevel(ctx);
-		if (next_token(ctx, &rparen) != TOKEN_RPAREN) {
-			post_error(ctx, "expecting `)'");
-			result = -EINVAL;
-		}
-		break;
-	}
-	case TOKEN_STRING: {
-		build_string_val(ctx, &token, get_val(ctx));
-		break;
-	}
-	case TOKEN_NUMBER: {
-		proto_val_t *val;
+		if (result != 0)
+			break;
 
-		val = get_val(ctx);
-		val->type = VAL_NUMBER;
-		val->u.number = token.u.number.val;
-		break;
+		next_token(ctx, &token);
+		PTRACE(ctx, "%i", token.type);
+
+		if (token.type != TOKEN_SEMICOLON) {
+			back_token(ctx, &token);
+			break;
+		}
+		/* discard value */
+		proto_val_put(get_val(ctx));
 	}
-	case TOKEN_ASSIGNMENT:
-	case TOKEN_RPAREN:
-	case TOKEN_LESS_THAN:
-	case TOKEN_GREATER_THAN:
-	case TOKEN_EQUAL_TO:
-	case TOKEN_EOF:
-		back_token(ctx, &token);
-		break;
-	case TOKEN_INVALID:
-	default:
-		post_error(ctx, "huh");
-		result = -EINVAL;
-		break;
-	}
+	exlevel(ctx);
 	return result;
 }
 
