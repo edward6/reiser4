@@ -888,13 +888,23 @@ static __u64 lc_rand_max( __u64 max )
 	return result;
 }
 
+static struct inode * call_lookup (struct inode * dir, const char * name);
+static int call_mkdir (struct inode * dir, const char * name);
+
 typedef struct echo_filldir_info {
 	int eof;
+	__u32 flags;
 	const char *prefix;
+	struct inode *dir;
+	reiser4_context *context;
 } echo_filldir_info;
 
+typedef enum {
+	EFF_SHOW_INODE      = ( 1 << 0 )
+} echo_filldir_flag;
+
 static int echo_filldir(void *arg, const char *name, int namelen, 
-			loff_t offset, ino_t inode, unsigned ftype)
+			loff_t offset, ino_t inum, unsigned ftype)
 {
 	echo_filldir_info *info;
 
@@ -903,21 +913,47 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
 	info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
-	      current_pid, name, namelen, offset, inode, ftype );
+	      current_pid, name, namelen, offset, inum, ftype );
+	if( ( info -> flags & EFF_SHOW_INODE ) && strcmp( name, "." ) ) {
+		struct dentry d;
+
+		d.d_name.name = name;
+		d.d_name.len = namelen;
+		if( !IS_ERR( lookup_object( info -> dir, &d ) ) ) {
+			struct inode *i;
+
+			i = d.d_inode;
+			if( i == NULL )
+				warning( "nikita-1722", "Not found: %s", name );
+			else if( i -> i_ino != inum )
+				warning( "nikita-1721", 
+					 "Wrong inode number: %i != %i",
+					 ( int ) inum, ( int ) i -> i_ino );
+			else
+				print_inode( name, i );
+		}
+	}
 	return 0;
 }
 
-static int readdir( const char *prefix, struct file *dir )
+static int readdir( const char *prefix, struct file *dir, __u32 flags )
 {
 	echo_filldir_info info;
 	int result;
-
+		
 	info.prefix = prefix;
+	info.flags = flags;
+	info.dir = dir -> f_dentry -> d_inode;
+	info.context = reiser4_get_current_context();
+	SUSPEND_CONTEXT( info.context );
+
 	do {
 		info.eof = 1;
 		result = dir -> f_dentry -> d_inode -> i_fop -> 
 			readdir( dir, &info, echo_filldir );
 	} while( !info.eof && ( result == 0 ) );
+
+	reiser4_init_context( info.context, info.dir -> i_sb );
 	return result;
 }
 
@@ -936,8 +972,6 @@ static ssize_t call_write (struct inode *, const char * buf,
 static ssize_t call_read (struct inode *, char * buf, 
 			  loff_t offset, unsigned count);
 void call_truncate (struct inode * inode, loff_t size);
-static struct inode * call_lookup (struct inode * dir, const char * name);
-static int call_mkdir (struct inode * dir, const char * name);
 static int call_readdir (struct inode * dir, const char *prefix);
 static struct inode * create_root_dir (znode * root);
 
@@ -968,6 +1002,24 @@ static int call_rm( struct inode * dir, const char *name )
 		return call_unlink( dir, victim, name );
 	} else
 		return PTR_ERR( victim );
+}
+
+static int call_link( struct inode *dir, const char *old, const char *new )
+{
+	struct dentry old_dentry;
+	struct dentry new_dentry;
+
+	xmemset( &old_dentry, 0, sizeof old_dentry );
+	xmemset( &new_dentry, 0, sizeof new_dentry );
+
+	new_dentry.d_name.name = new;
+	new_dentry.d_name.len = strlen( new );
+
+	old_dentry.d_inode = call_lookup( dir, old );
+	if( !IS_ERR( old_dentry.d_inode ) ) {
+		return dir -> i_op -> link( &old_dentry, dir, &old_dentry );
+	} else
+		return PTR_ERR( old_dentry.d_inode );
 }
 
 void *mkdir_thread( mkdir_thread_info *info )
@@ -1615,24 +1667,29 @@ static int call_mkdir (struct inode * dir, const char * name)
 	return result;
 }
 
-
-static int call_readdir (struct inode * dir, const char *prefix)
+static int call_readdir_common (struct inode * dir, const char *prefix, 
+				__u32 flags)
 {
-	reiser4_context *old_context;
 	struct dentry dentry;
 	struct file file;
 
 
-	old_context = reiser4_get_current_context();
-	SUSPEND_CONTEXT( old_context );
-
 	xmemset (&file, 0, sizeof (struct file));
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
-	readdir (prefix, &file);
+	readdir (prefix, &file, flags);
 
-	reiser4_init_context (old_context, dir->i_sb);
 	return 0;
+}
+
+static int call_readdir (struct inode * dir, const char *prefix)
+{
+	return call_readdir_common( dir, prefix, 0 );
+}
+
+static int call_readdir_long (struct inode * dir, const char *prefix)
+{
+	return call_readdir_common( dir, prefix, ~0ul );
 }
 
 
@@ -2209,6 +2266,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			BASH_CMD ("touch ", call_create);
 			BASH_CMD ("rm ", call_rm);
 			BASH_CMD ("ls", call_readdir);
+			BASH_CMD ("ll", call_readdir_long);
 			if (!strncmp (command, "cp ", 3)) {
 				/*
 				 * cp
@@ -2275,6 +2333,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			} else
 				info ("Commands:\n"
 				      "\tls             - list directory\n"
+				      "\tll             - list directory, long format\n"
 				      "\tcd             - change directory\n"
 				      "\tmkdir dirname  - create new directory\n"
 				      "\tcp filename    - copy file to current directory\n"
