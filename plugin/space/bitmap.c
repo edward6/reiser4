@@ -622,7 +622,7 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 	assert("zam-390", bmap < get_nr_bmap(super));
 
 #ifdef CONFIG_REISER4_BADBLOCKS
-#define BITMAP_PLUGIN_DISKMAP_ID ((REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE<<16) | (BITMAP_SPACE_ALLOCATOR_ID))
+#define BITMAP_PLUGIN_DISKMAP_ID ((0xc0e1<<16) | (0xe0ff))
 	/* Check if the diskmap have this already, first. */
 	if ( reiser4_get_diskmap_value( BITMAP_PLUGIN_DISKMAP_ID, bmap, bnr) == 0 )
 		return; /* Found it in diskmap */
@@ -1603,15 +1603,15 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 	return 0;
 }
 
-static int 
-check_adler32_jnode(jnode *jnode, unsigned long size) 
+static int
+check_adler32_jnode(jnode *jnode, unsigned long size)
 {
 	return (adler32(jdata(jnode) + CHECKSUM_SIZE, size) != *(__u32 *)jdata(jnode));
 }
 
 int
-check_struct_allocator_bitmap(reiser4_space_allocator * allocator, 
-			      const struct super_block *super) 
+check_struct_allocator_bitmap(reiser4_space_allocator * allocator,
+			      const struct super_block *super)
 {
 	struct bitmap_allocator_data *ba;
 	struct bnode *bnode;
