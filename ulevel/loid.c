@@ -5,7 +5,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#define MAX_LEN   (20)
+#define MAX_LEN   (2000)
 
 static double RAT( unsigned long long a, unsigned long long b )
 {
