@@ -656,7 +656,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		if (hint->blk == 0) {
 			reiser4_spin_lock_sb(sbinfo);
 			hint->blk = sbinfo->blocknr_hint_default;
-			/* warning("reiser-2030", "no hint was set, block allocation is presumably suboptimal"); */
+			reiser4_stat_inc(block_alloc.nohint);
 			assert("zam-677",
 			       hint->blk < sbinfo->block_count);
 			reiser4_spin_unlock_sb(sbinfo);

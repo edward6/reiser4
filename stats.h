@@ -449,6 +449,11 @@ typedef struct reiser4_statistics {
 		statcnt_t removed;
 		statcnt_t toolong;
 	} wff;
+	struct {
+		/* how many times block was allocated without having valid
+		 * preceder. */
+		statcnt_t nohint;
+	} block_alloc;
 	/* how many non-unique keys were scanned into tree */
 	statcnt_t non_uniq;
 

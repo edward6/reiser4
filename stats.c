@@ -266,6 +266,8 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(wff.removed),
 	DEFINE_STATCNT(wff.toolong),
 
+	DEFINE_STATCNT(block_alloc.nohint),
+
 	DEFINE_STATCNT(non_uniq),
 
 	DEFINE_STATCNT(pcwb_calls),
