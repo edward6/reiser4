@@ -920,6 +920,9 @@ extern void *xmemset(void *s, int c, size_t n);
 	!(__i & (__i - 1));			\
 })
 
+#define KERNEL_DEBUGGER (0)
+
+#if KERNEL_DEBUGGER
 #define DEBUGON(cond)				\
 ({						\
 	extern void debugtrap(void);		\
@@ -927,6 +930,9 @@ extern void *xmemset(void *s, int c, size_t n);
 	if (cond)				\
 		debugtrap();			\
 })
+#else
+#define DEBUGON(cond) noop
+#endif
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif
