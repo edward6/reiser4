@@ -97,11 +97,6 @@ static void yyerror( struct reiser4_syscall_w_space *ws  /* work space ptr */,
 //	printk("\n%s",curr_symbol(ws));
 }
 
-//static int yywrap()
-//{
-//   return 1;
-//}
-
 /* free lists of work space*/
 static void freeList(freeSpace_t * list /* head of list to be fee */)
 {
@@ -117,7 +112,7 @@ static void freeList(freeSpace_t * list /* head of list to be fee */)
 /* free work space*/
 static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
-	assert("VD-reiser4_pars_free:ws_level",        ws->cur_level->ws_level >= 0);
+	assert("VD-reiser4_pars_free:ws_level",        ws->ws_level >= 0);
 	assert("VD-reiser4_pars_free:cur_exp" ,        ws->cur_level->cur_exp != NULL);
 	assert("VD-reiser4_pars_free:EXPR_LNODE",      ws->cur_level->cur_exp->h.type == EXPR_LNODE);
 	assert("VD-reiser4_pars_free:lnode",           ws->cur_level->cur_exp->lnode.lnode != NULL);
@@ -136,9 +131,9 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space p
 static inline void path4_release( struct dentry *de, struct vfsmount *mnt)
 {
 	assert("VD-path4_release:root dentry",    de != NULL);
-	assert("VD-path4_release:root d_count",   de->d_count >0 NULL);
+//	assert("VD-path4_release:root d_count",   de->d_count > 0 );
 	assert("VD-path4_release:root mnt",       mnt != NULL);
-	assert("VD-path4_release:root mnt_count", mnt->mnt_count >0 NULL);
+//	assert("VD-path4_release:root mnt_count", mnt->mnt_count >0 );
 
 	printk("path4_release: de_put =%d\n ",    de->d_count);
 	printk("path4_release: mnt_put =%d\n ",   mnt->mnt_count);
@@ -240,8 +235,8 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 	case EXPR_WRD:
 		break;
 	case EXPR_PARS_VAR:
-		assert("VD-free_expr.EXPR_PARS_VAR", expr->pars_var.v!=Null);
-		assert("VD-free_expr.EXPR_PARS_VAR.ln", expr->pars_var.v->ln!=Null);
+		assert("VD-free_expr.EXPR_PARS_VAR", expr->pars_var.v!=NULL);
+		assert("VD-free_expr.EXPR_PARS_VAR.ln", expr->pars_var.v->ln!=NULL);
 		if (!--expr->pars_var.v->count) {
 			path4_release( expr->pars_var.v->ln->dentry.dentry, expr->pars_var.v->ln->dentry.mnt );
 			lput(expr->pars_var.v->ln);
@@ -256,8 +251,8 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 		}
 		break;
 	case EXPR_ASSIGN:
-		assert("VD-free_expr.EXPR_ASSIGN", expr->assgn.target!=Null);
-		assert("VD-free_expr.EXPR_ASSIGN.ln", expr->assgn.target->ln!=Null);
+		assert("VD-free_expr.EXPR_ASSIGN", expr->assgn.target!=NULL);
+		assert("VD-free_expr.EXPR_ASSIGN.ln", expr->assgn.target->ln!=NULL);
 		assert("VD-free_expr.EXPR_ASSIGN.count", expr->assgn.target->count>0);
 		if ( !--expr->assgn.target->count ) {
 			path4_release( expr->assgn.target->ln->dentry.dentry, expr->assgn.target->ln->dentry.mnt );
@@ -266,7 +261,7 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 		ret |= free_expr( expr->assgn.source );
 		break;
 	case EXPR_LNODE:
-		assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=Null);
+		assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=NULL);
 		path4_release( expr->lnode.lnode->dentry.dentry,  expr->lnode.lnode->dentry.mnt );
 		lput( expr->lnode.lnode ); 
 		break;
