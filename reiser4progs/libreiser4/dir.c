@@ -41,7 +41,32 @@ reiserfs_object_t *reiserfs_dir_create(
     reiserfs_object_t *parent,	    /* parent object */
     const char *name		    /* name of entry */
 ) {
-    return reiserfs_object_create(fs, hint, plugin, parent, name);
+    reiserfs_object_t *object;
+	
+    if (!(object = reiserfs_object_create(fs, hint, plugin, parent, name)))
+	return NULL;
+    
+    if (parent) {
+	reiserfs_entry_hint_t entry;
+
+	aal_memset(&entry, 0, sizeof(entry));
+	
+	entry.objid.objectid = reiserfs_key_get_objectid(&object->key);
+	entry.objid.locality = reiserfs_key_get_locality(&object->key);
+	entry.name = (char *)name;
+
+	if (reiserfs_dir_add(parent, &entry)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't add entry into parent object.");
+	    goto error_free_object;
+	}
+    }
+    
+    return object;
+    
+error_free_object:
+    reiserfs_object_close(object);
+    return NULL;
 }
 
 /* Adds speficied entry into passed opened dir */

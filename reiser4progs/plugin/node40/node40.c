@@ -441,7 +441,7 @@ static inline void *callback_elem_for_lookup(void *node,
     return &(node40_ih_at(((reiserfs_node40_t *)node)->block, pos)->key);
 }
 
-static inline int callback_compare_for_lookup(const void *key1,
+static inline int callback_comp_for_lookup(const void *key1,
     const void *key2, void *data)
 {
     aal_assert("umka-566", key1 != NULL, return -1);
@@ -467,7 +467,7 @@ static int node40_lookup(reiserfs_node40_t *node,
 	return 0;
     
     if ((lookup = reiserfs_misc_bin_search(node, node40_count(node), 
-	    key->body, callback_elem_for_lookup, callback_compare_for_lookup, 
+	    key->body, callback_elem_for_lookup, callback_comp_for_lookup, 
 	    key->plugin, &item)) != -1)
 	pos->item = item;
 

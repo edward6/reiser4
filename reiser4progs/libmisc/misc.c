@@ -56,7 +56,7 @@ int reiserfs_misc_bin_search(
 	}	
     }
 
-    *pos = left;
+    *pos = left - (left > 0 ? 1 : 0);
     return 0;
 }
 

@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 	goto error_free_fs;
     }
     
-    {
+/*    {
 	reiserfs_entry_hint_t entry;
 
 	aal_memset(&entry, 0, sizeof(entry));
@@ -67,6 +67,23 @@ int main(int argc, char *argv[]) {
 	
 	entry.name = "1";
 	reiserfs_dir_add(object, &entry);
+    }*/
+    
+    {
+	reiserfs_plugin_t *dir_plugin;
+	reiserfs_object_hint_t dir_hint;
+	
+	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0)))
+	    libreiser4_factory_failed(goto error_free_object, find, dir, 0x0);
+	
+	dir_hint.statdata_pid = REISERFS_STATDATA_ITEM;
+	dir_hint.sdext = REISERFS_UNIX_SDEXT;
+
+	dir_hint.direntry_pid = REISERFS_CDE_ITEM;
+	dir_hint.hash_pid = REISERFS_R5_HASH;
+	
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir");
     }
     
     if (reiserfs_dir_rewind(object)) {
@@ -81,7 +98,7 @@ int main(int argc, char *argv[]) {
     }
     
     reiserfs_dir_close(object);
-    reiserfs_fs_sync(fs);
+//    reiserfs_fs_sync(fs);
 
     reiserfs_fs_close(fs);
     libreiser4_done();

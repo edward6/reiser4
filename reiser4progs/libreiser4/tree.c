@@ -220,7 +220,7 @@ int reiserfs_tree_lookup(
     aal_assert("umka-742", key != NULL, return -1);
     aal_assert("umka-742", coord != NULL, return -1);
   
-    reiserfs_coord_init(coord, tree->cache, 0xffff, 0xffff);
+    reiserfs_coord_init(coord, tree->cache, 0, 0xffff);
     while (1) {
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored
@@ -241,8 +241,10 @@ int reiserfs_tree_lookup(
 	if (lookup == 0) {
 	    
 	    /* Nothing found, probably node was empty */
-	    if (coord->pos.item == 0xffff)
+	    if (coord->pos.item == 0)
 		return lookup;
+
+	    coord->pos.item--;
 	}
 
 	/* Getting the node pointer from internal item */
@@ -505,9 +507,6 @@ errno_t reiserfs_tree_add(
 	return -1;
     }
 
-    coord.pos.item = (coord.pos.item == 0xffff ? 
-	0 : coord.pos.item + 1);
-    
     /* Preparing internal item hint */
     aal_memset(&item, 0, sizeof(item));
     internal.pointer = aal_block_get_nr(cache->node->block);
@@ -657,20 +656,12 @@ errno_t reiserfs_tree_insert(
 	return -1;
     }
 
-    /* 
-	As lookup returns position of the last item, we should increment it in 
-	the new item insertion case. And w should make increment of unit pos
-	in the case of inserting new unit;
-    */
-    if (coord.pos.unit == 0xffff)
-	coord.pos.item = (coord.pos.item == 0xffff ? 
-	    0 : coord.pos.item + 1);
-    else
-	coord.pos.unit++;
-    
     if (lookup == -1)
 	return -1;
  
+    if (coord.pos.unit != 0xffff)
+	coord.pos.unit++;
+    
     /* Estimating item in order to insert it into found node */
     if (reiserfs_node_item_estimate(coord.cache->node, &coord.pos, item))
         return -1;
@@ -718,7 +709,7 @@ errno_t reiserfs_tree_insert(
 		reiserfs_cache_create(leaf))) 
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert node %llu into the thee.", 
+		    "Can't insert node %llu into the tree.", 
 		    aal_block_get_nr(leaf->block));
 
 		reiserfs_node_close(leaf);
@@ -768,7 +759,7 @@ errno_t reiserfs_tree_insert(
 		    reiserfs_cache_create(leaf))) 
 		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-			"Can't insert node %llu into the thee.", 
+			"Can't insert node %llu into the tree.", 
 			aal_block_get_nr(leaf->block));
 
 		    reiserfs_node_close(leaf);

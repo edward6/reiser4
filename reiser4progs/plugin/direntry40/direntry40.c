@@ -169,10 +169,10 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
 	len1 = aal_strlen(direntry_hint->entry[i].name);
 	aal_memcpy((char *)(direntry) + offset, 
 	    direntry_hint->entry[i].name, len1);
-	
+
 	offset += len1;
-	
-	*((char *)(direntry) + ++offset) = 0;
+	*((char *)(direntry) + offset) = '\0';
+	offset++;
     }
     
     /* Updating direntry count field */
@@ -220,6 +220,7 @@ static void *callback_elem_for_lookup(void *direntry,
 static int callback_comp_for_lookup(const void *key1, 
     const void *key2, void *data) 
 {
+    oid_t locality;
     reiserfs_key_t key;
     reiserfs_plugin_t *plugin;
 
@@ -232,6 +233,12 @@ static int callback_comp_for_lookup(const void *key1,
     libreiser4_plugin_call(return -1, plugin->key_ops, 
 	build_by_entry, (void *)&key, (void *)key1);
 
+    locality = libreiser4_plugin_call(return -1, plugin->key_ops,
+	get_locality, key2);
+
+    libreiser4_plugin_call(return -1, plugin->key_ops,
+	set_locality, (void *)&key, locality);
+    
     return libreiser4_plugin_call(return -1, plugin->key_ops, 
 	compare_full, &key, key2);
 }

@@ -79,7 +79,7 @@ typedef enum {
     KEY40_GEN_SHIFT        = 0,
 } reiserfs_key40_shift_t;
 
-#define KEY40_COMP_ELEMENT(k1, k2, off)	    \
+/*#define KEY40_COMP_ELEMENT(k1, k2, off)	    \
     ({					    \
 	uint64_t e1;			    \
 	uint64_t e2;			    \
@@ -88,7 +88,7 @@ typedef enum {
 	e2 = get_key40_el(k2, off);	    \
 					    \
 	e1 < e2 ? -1 : (e1 == e2 ? 0 : 1);  \
-    })
+    })*/
 
 static inline uint64_t get_key40_el(const reiserfs_key40_t *key,
     reiserfs_key40_field_t off)
@@ -104,6 +104,16 @@ static inline void set_key40_el(reiserfs_key40_t *key,
     aal_assert("vpf-031", key != NULL, return);
     aal_assert("vpf-032", off < KEY40_LAST_INDEX, return);
     key->el[off] = CPU_TO_LE64(value);
+}
+
+inline int KEY40_COMP_ELEMENT(void *k1, void *k2, int off) {
+    uint64_t e1;
+    uint64_t e2;
+
+    e1 = get_key40_el(k1, off);
+    e2 = get_key40_el(k2, off);
+
+    return (e1 < e2 ? -1 : (e1 == e2 ? 0 : 1));
 }
 
 /* 

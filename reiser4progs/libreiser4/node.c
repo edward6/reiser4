@@ -308,7 +308,7 @@ int reiserfs_node_lookup(
     aal_assert("vpf-048", node != NULL, return -1);
     aal_assert("umka-476", key != NULL, return -1);
 
-    pos->item = 0xffff;
+    pos->item = 0;
     pos->unit = 0xffff;
 
     if (reiserfs_node_count(node) == 0)
@@ -326,8 +326,6 @@ int reiserfs_node_lookup(
 
     if (lookup == 1) return 1;
 
-    pos->item -= (pos->item > 0 ? 1 : 0);
-    
     if (!(item_plugin = reiserfs_node_item_get_plugin(node, pos->item))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
@@ -354,6 +352,14 @@ int reiserfs_node_lookup(
 	    pos->item++;
 	    return 0;
 	}
+    } else {
+	/* 
+	    FIXME-UMKA: This is some dirty hack due to statdata plugin doesn't 
+	    contains maxkey method. It probably should be changes soon, or lookup
+	    will be redisigned.
+	*/
+	pos->item++;
+	return 0;
     }
 
     /* Calling lookup method of found item (most probably direntry item) */
@@ -376,10 +382,6 @@ int reiserfs_node_lookup(
 	return -1;
     }
 
-    /* Correcting unit pos in order to make it pointing to existent unit */
-    if (lookup == 0)
-	pos->unit--;
-    
     return lookup;
 }
 

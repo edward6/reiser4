@@ -336,29 +336,24 @@ aal_exception_option_t progs_exception_handler(
     else
 	aal_gauge_pause();
 
-    do {
-	fflush(stdout);
+    /* Printing exception type */
+    if (exception->type != EXCEPTION_BUG)
+        fprintf(stderr, "%s: ", aal_exception_type_string(exception->type));
 	
-	/* Printing exception type */
-	if (exception->type != EXCEPTION_BUG)
-	    fprintf(stderr, "%s: ", aal_exception_type_string(exception->type));
-	
-	/* Printing exception message */
-	fprintf(stderr, "%s ", exception->message);
+    /* Printing exception message */
+    fprintf(stderr, "%s\n", exception->message);
     
-	if (progs_exception_bit_count(exception->options, 0) == 1) {
-	    fprintf(stderr, "\n");
+    if (progs_exception_bit_count(exception->options, 0) == 1) {
+        if (exception->type == EXCEPTION_WARNING || 
+		exception->type == EXCEPTION_INFORMATION)
+	    aal_gauge_resume();
 	    
-	    if (exception->type == EXCEPTION_WARNING || 
-		    exception->type == EXCEPTION_INFORMATION)
-		aal_gauge_resume();
+	return exception->options;
+    }
 	    
-	    return exception->options;
-	}
-	    
+    do {
 	progs_exception_print_options(exception->options);
 	opt = progs_exception_selected_option();
-	
     } while (opt == EXCEPTION_UNHANDLED);
 
     if (exception->type == EXCEPTION_WARNING || 

@@ -435,10 +435,9 @@ static errno_t dir40_add(reiserfs_dir40_t *dir,
     item.type = REISERFS_CDE_ITEM;
     item.hint = &direntry_hint;
    
-    /* FIXME-UMKA: These magical digits are here for test purposes */
     libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
 	build_generic_short, &entry->objid, KEY40_STATDATA_MINOR, 
-	45, 46);
+	entry->objid.locality, entry->objid.objectid);
 	
     libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
 	build_entry_short, &entry->entryid, dir->hash_plugin, entry->name);
