@@ -300,7 +300,7 @@ static int slum_allocate_and_squeeze_children (znode *node)
 			return -EIO;
 		}
 
-	} while (! coord_next (& crd));
+	} while (! coord_next_unit (& crd));
 
 	return 0;
 }
