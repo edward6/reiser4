@@ -588,10 +588,8 @@ static int prepare_extent2tail(struct inode *inode)
 
 	/* number of twig nodes file spans */
 	result = nodes_spanned(inode, &twig_nodes, &coord, &first_lh);
-	if (result) {
-		warning("xxx", "%s %s %i\n", __FUNCTION__, __FILE__, __LINE__);
+	if (result)
 		return result;
-	}
 	/* number of "flow insertions" which will be needed */
 	flow_insertions = div64_32(inode->i_size + min_bytes_per_flow() - 1, min_bytes_per_flow(), NULL);
 
@@ -607,7 +605,6 @@ static int prepare_extent2tail(struct inode *inode)
 				    1 + estimate_one_insert_item(height), 0, "extent2tail");
 	if (result) {
 		done_lh(&first_lh);
-		warning("xxx", "%s %s %i\n", __FUNCTION__, __FILE__, __LINE__);
 		return result;
 	}
 	return mark_frozen(inode, twig_nodes, &coord, &first_lh);
@@ -625,13 +622,11 @@ extent2tail(struct inode *inode)
 	reiser4_key to;
 	unsigned count;
 
-	printk("%s: %llu\n", __FUNCTION__, get_inode_oid(inode));
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
 
 	result = prepare_extent2tail(inode);
 	if (result) {
-		warning("xxx", "%s %s %i\n", __FUNCTION__, __FILE__, __LINE__);
 		/* no space? Leave file stored in extent state */
 		return 0;
 	}
@@ -713,9 +708,6 @@ extent2tail(struct inode *inode)
 			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
 	}
-	if (result != 0)
-		warning("xxx", "%s %s %i\n", __FUNCTION__, __FILE__, __LINE__);
-
 	all_grabbed2free("extent2tail");
 	return result;
 }
