@@ -1110,6 +1110,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 				}
 			} else if (result == -E_REPEAT) {
 				/* feed_entry() had to restart. */
+				++ f->f_pos;
 				tap_relse(&tap);
 				goto repeat;
 			}
