@@ -80,6 +80,16 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	
 	if (!result) {
 		/* node does not contain @key */
+		if (coord_is_before_leftmost (coord)) {
+			/* this is only possible when left neighbor is
+			 * unformatted node */
+			assert ("vs-910", znode_get_level (coord->node) == LEAF_LEVEL);
+			assert ("vs-684", UNDER_SPIN 
+				(tree, current_tree,
+				 znode_is_left_connected (coord->node) && coord->node->left == 0));
+			if (UNDER_SPIN (dk, current_tree, keylt (key, znode_get_ld_key (coord->node))))
+				return 1;
+		}
 		return 0;
 	}
 
@@ -359,7 +369,7 @@ static int shorten (struct inode * inode)
 
 /* part of unix_file_truncate: it is called when truncate is used to make file
  * longer */
-static ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f);
+static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f);
 
 /* append hole to a file until inode->i_size < real size */
 static int expand_file (struct inode * inode, loff_t file_size)
@@ -367,24 +377,25 @@ static int expand_file (struct inode * inode, loff_t file_size)
 	int result;
 	file_plugin * fplug;
 	flow_t f;
+	loff_t written;
+
+
+	assert ("vs-909", inode->i_size > file_size);
 
 	fplug = inode_file_plugin (inode);
 	result = fplug->flow_by_inode (inode, 0/* buf */, 1/* user space */,
-				       0/* count */, inode->i_size/* offset */,
+				       inode->i_size - file_size, file_size,
 				       WRITE_OP, &f);
 	if (result)
 		return result;
 
-	do {
-		result = write_flow (0, inode, &f);
-		if (result) {
-			/* write_flow returns number of bytes written. As we
-			 * asked to write 0 bytes, !0 is error */
-			assert ("vs-859", result < 0);
-			return result;
-		}
-		file_size = find_file_size (inode); 
-	} while (file_size < inode->i_size);
+	written = write_flow (0, inode, &f);	
+	if (written != inode->i_size - file_size) {
+		/* we were not able to write expand file to desired size */
+		if (written < 0)
+			return (int)written;
+		return -ENOSPC;
+	}
 
 	return 0;
 }
@@ -726,7 +737,7 @@ static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
  * appropriate item to actually copy user data into filesystem. This loops
  * until all the data from flow @f are written to a file.
  */
-static ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
+static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 {
 	int result;
 	coord_t coord;
@@ -811,7 +822,7 @@ static ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			/* write is done */
 			break;
 	}
-	if (coord_set_properly (&f->key, &coord) && file) {
+	if (coord.node && coord_set_properly (&f->key, &coord) && file) {
 		reiser4_file_fsdata * fdata;
 		seal_t seal;
 
