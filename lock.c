@@ -667,7 +667,8 @@ void longterm_unlock_znode (lock_handle *handle)
 
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, ZNODE_HEARD_BANSHEE)) {
-			assert("nikita-1221", node_is_empty(node));
+			assert("nikita-1221", ergo (znode_is_loaded(), 
+						    node_is_empty(node)));
 
 			/*
 			 * invalidate lock. FIXME-NIKITA locking.  This doesn't
