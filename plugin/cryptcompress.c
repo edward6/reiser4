@@ -43,30 +43,109 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	return &reiser4_inode_data(inode)->file_plugin_data.cryptcompress_info;
 }
 
+static void
+destroy_key(__u32 * expkey, crypto_plugin * cplug)
+{
+	assert("edward-410", cplug != NULL);
+	assert("edward-411", expkey != NULL);
+	
+	xmemset(expkey, 0, (cplug->nr_keywords)*sizeof(__u32));
+	reiser4_kfree(expkey, (cplug->nr_keywords)*sizeof(__u32));
+}
+
+static void
+detach_crypto_stat(crypto_stat_t * stat, digest_plugin * dplug)
+{
+	assert("edward-412", stat != NULL);
+	assert("edward-413",  dplug != NULL);
+	
+	reiser4_kfree(stat->keyid, (size_t)(dplug->digestsize));
+	reiser4_kfree(stat, sizeof(*stat));
+}
+
+/*  1) fill cryptcompress specific part of inode
+    2) set inode crypto stat which is supposed to be saved in stat-data */
+static int
+inode_set_crypto(struct inode * object, crypto_data_t * data)
+{
+	int result;
+	crypto_stat_t * stat;
+	cryptcompress_info_t * info = cryptcompress_inode_data(object);	
+	crypto_plugin * cplug = crypto_plugin_by_id(data->cra);
+	digest_plugin * dplug = digest_plugin_by_id(data->dia);
+	void * digest_ctx = NULL;
+
+	assert("edward-414", dplug != NULL);
+	assert("edward-415", cplug != NULL);	
+	assert("edward-416", data != NULL);
+	assert("edward-417", data->key!= NULL);
+	assert("edward-88", data->keyid != NULL);
+	assert("edward-83", data->keyid_size != 0);
+	assert("edward-89", data->keysize != 0);
+
+	/* set secret key */
+	info->expkey = reiser4_kmalloc((cplug->nr_keywords)*sizeof(__u32), GFP_KERNEL);
+	if (!info->expkey)
+		return RETERR(-ENOMEM);
+	result = cplug->set_key(info->expkey, data->key);
+	if (result)
+		goto destroy_key;
+	assert ("edward-34", !inode_get_flag(object, REISER4_SECRET_KEY_INSTALLED));
+	inode_set_flag(object, REISER4_SECRET_KEY_INSTALLED);
+
+        /* attach crypto stat */
+	stat = reiser4_kmalloc(sizeof(*stat), GFP_KERNEL);
+	if (!stat) {
+		result = -ENOMEM;
+		goto destroy_key;
+	}
+	stat->keyid = reiser4_kmalloc((size_t)(dplug->digestsize), GFP_KERNEL);
+	if (!stat->keyid) {
+		reiser4_kfree(stat, sizeof(*stat));
+		result = -ENOMEM;
+		goto destroy_key;
+	}
+	/* fingerprint creation of the pair (@key, @keyid) includes two steps: */
+	/* 1. encrypt keyid by key: */
+	/* FIXME-EDWARD: add encryption of keyid */
+	
+	/* 2. make digest of encrypted keyid */
+	result = dplug->alloc(digest_ctx);
+	if (result)
+		goto exit;
+	dplug->init(digest_ctx);
+	dplug->update(digest_ctx, data->keyid, data->keyid_size);
+	dplug->final(digest_ctx, stat->keyid);
+	dplug->free(digest_ctx);
+	
+	stat->keysize = data->keysize;
+	reiser4_inode_data(object)->crypt = stat;
+	return 0;
+ exit:
+	detach_crypto_stat(stat, dplug);
+ destroy_key:
+	destroy_key(info->expkey, cplug);
+	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
+	return result;
+}
+
+
 /* plugin->create() method for crypto-compressed files 
-
+   
 . install plugins
-. set bits in appropriate masks
-. attach secret key
-. attach crypto info 
+. attach crypto info if specified 
+. attach compression info if specified
 . attach cluster info
-
-FIXME-EDWARD: Cipher and hash key-id by the secret key
-(open method requires armored identification of the key */
-
-int create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
+*/
+int
+create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
 {
 	int result;
 	scint_t *extmask;
 	reiser4_inode * info;
-	cryptcompress_info_t * crc_info;
-	cryptcompress_data_t * crc_data = data->crc;
-	digest_plugin * dplug = digest_plugin_by_id(crc_data->dia);
-	crypto_plugin * cplug;
-	compression_plugin *coplug;
-	crypto_stat_t stat; /* for crypto stat-data */
-       	__u8 fip[dplug->digestsize]; /* for fingerprint */ 
-	void * digest_ctx = NULL;
+	digest_plugin * dplug = NULL;
+	crypto_plugin * cplug = NULL;
+	compression_plugin * coplug = NULL;
 	
 	assert("edward-23", object != NULL);
 	assert("edward-24", parent != NULL);
@@ -74,93 +153,64 @@ int create_cryptcompress(struct inode *object, struct inode *parent, reiser4_obj
 	assert("edward-27", data->id == CRC_FILE_PLUGIN_ID);
 	
 	info = reiser4_inode_data(object);
-	crc_info = cryptcompress_inode_data(object);
+	cryptcompress_inode_data(object);
 	
 	assert("edward-29", info != NULL);
-	
-	/* install plugins */
 	assert("edward-30", info->pset->crypto == NULL);
 	assert("edward-85", info->pset->digest == NULL);
 	assert("edward-31", info->pset->compression == NULL);
+
+	extmask = &info->extmask;
 	
-	cplug = crypto_plugin_by_id(crc_data->cra);
+	if (data->crypto) {
+		/* set plugins and crypto stat */
+		cplug = crypto_plugin_by_id(data->crypto->cra);
+		dplug = digest_plugin_by_id(data->crypto->dia);
+		result = inode_set_crypto(object, data->crypto);
+		if (result)
+			return result;
+		scint_pack(extmask, scint_unpack(extmask) |
+			   (1 << CRYPTO_STAT), GFP_ATOMIC);
+	}
 	plugin_set_crypto(&info->pset, cplug);
-
 	plugin_set_digest(&info->pset, dplug);
-
-	coplug = compression_plugin_by_id(crc_data->coa);
+	
+	if (data->compression)
+		/* set plugin */
+		coplug = compression_plugin_by_id(*data->compression);
 	plugin_set_compression(&info->pset, coplug);
+	
+	/* cluster params always is necessary */
+	if(!data->cluster) {
+		printk("edward-418, create_cryptcompress: default cluster size (4K) was assigned");
+		info->cluster_shift = 0;
+	}
+	else
+		info->cluster_shift = *data->cluster;
+	scint_pack(extmask, scint_unpack(extmask) |
+		   (1 << PLUGIN_STAT) |
+		   (1 << CLUSTER_STAT), GFP_ATOMIC);
 
-	/* set bits */
+        /* set bits */
 	info->plugin_mask |= (1 << REISER4_FILE_PLUGIN_TYPE) |
 		(1 << REISER4_CRYPTO_PLUGIN_TYPE) |
 		(1 << REISER4_DIGEST_PLUGIN_TYPE) |
 		(1 << REISER4_COMPRESSION_PLUGIN_TYPE);
-	extmask = &info->extmask;
-	scint_pack(extmask, scint_unpack(extmask) |
-		   (1 << PLUGIN_STAT) |
-		   (1 << CLUSTER_STAT) |
-		   (1 << CRYPTO_STAT), GFP_ATOMIC);
 
-	/* attach secret key */
-	assert("edward-84", crc_info->expkey == NULL);
-	
-	crc_info->expkey = reiser4_kmalloc((cplug->nr_keywords)*sizeof(__u32), GFP_KERNEL);
-	if (!crc_info->expkey)
-		return RETERR(-ENOMEM);
-	result = cplug->set_key(crc_info->expkey, crc_data->key);
-	if (result)
-		goto destroy_key;
-	assert ("edward-34", !inode_get_flag(object, REISER4_SECRET_KEY_INSTALLED));
-	inode_set_flag(object, REISER4_SECRET_KEY_INSTALLED);
-
-	/* attach crypto stat */
-	assert("edward-87", info->crypt == NULL);
-	assert("edward-88", crc_data->keyid != NULL);
-	assert("edward-83", crc_data->keyid_size != 0);
-	assert("edward-89", crc_data->keysize != 0);
-	
-	/* fingerprint creation of the pair (@key, @keyid) includes two steps: */
-	/* 1. encrypt keyid by key: */
-	/* FIXME-EDWARD: add encryption of keyid */
-
-	/* 2. make digest of encrypted keyid */
-	result = dplug->alloc(digest_ctx);
-	if (result)
-		goto destroy_key;
-	dplug->init(digest_ctx);
-	dplug->update(digest_ctx, crc_data->keyid, crc_data->keyid_size);
-	dplug->final(digest_ctx, fip);
-	dplug->free(digest_ctx);
-	
-	stat.keysize = crc_data->keysize;
-	stat.keyid = fip;
-	info->crypt = &stat;
-
-	/* attach cluster info */
-	info->cluster_shift = crc_data->cluster_shift;
-	
+	/* save everything in disk stat-data */
 	result = write_sd_by_inode_common(object);
 	if (!result)
 		return 0;
-	/* FIXME-EDWARD remove me */
-	if (info->crypt == &stat) 
-		goto destroy_key;
-
-	/* now the pointer was updated to kmalloced data, but save() method
-	   for some another sd-extension failed, release attached crypto stat */
 	
-	assert("edward-32", !memcmp(info->crypt->keyid, stat.keyid, dplug->digestsize));
-
-	reiser4_kfree(info->crypt->keyid, (size_t)dplug->digestsize);
-	reiser4_kfree(info->crypt, sizeof(crypto_stat_t));
+        /* save() method failed, release attached crypto info */
 	inode_clr_flag(object, REISER4_CRYPTO_STAT_LOADED);
 	inode_clr_flag(object, REISER4_CLUSTER_KNOWN);
 	
- destroy_key:
-	xmemset(crc_info->expkey, 0, (cplug->nr_keywords)*sizeof(__u32));
-	reiser4_kfree(crc_info->expkey, (cplug->nr_keywords)*sizeof(__u32));
-	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
+	if (info->crypt) {
+		destroy_key(cryptcompress_inode_data(object)->expkey, cplug);
+		inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
+		detach_crypto_stat(info->crypt, dplug); 
+	}
 	return result;
 }
 
@@ -170,7 +220,7 @@ crypto_stat_t * inode_crypto_stat (struct inode * inode)
 	assert("edward-91", reiser4_inode_data(inode) != NULL);
 	return (reiser4_inode_data(inode)->crypt);
 }
-
+	
 __u8 inode_cluster_shift (struct inode * inode)
 {
 	reiser4_inode * info;
@@ -611,7 +661,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	size_t buff_size = 0;
 	
 	assert("edward-401", clust->buf != 0);
-	assert("edward-401", clust->bufsize != 0);
+	assert("edward-409", clust->bufsize != 0);
 	
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
