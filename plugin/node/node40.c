@@ -1589,7 +1589,8 @@ copy(struct shift_params *shift)
 			/* copy item bodies */
 			coord_add_item_pos(&from, -(int) (shift->entire - 1));
 			xmemcpy(zdata(to.node) + sizeof (node40_header) +
-				shift->part_bytes, item_body_by_coord(&from), shift->entire_bytes);
+				shift->part_bytes, item_by_coord_node40(&from), 
+				shift->entire_bytes);
 			coord_dec_item_pos(&from);
 		}
 
@@ -2001,7 +2002,9 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			return new;
 		}
 		new->node = old->node;
-		new->item_pos = old->item_pos + shift->entire + (shift->part_units ? 1 : 0);
+		coord_set_item_pos(new,
+				   old->item_pos + shift->entire + 
+				   (shift->part_units ? 1 : 0));
 		new->unit_pos = old->unit_pos;
 		if (old->item_pos == 0 && shift->merging_units)
 			new->unit_pos += shift->merging_units;
@@ -2014,11 +2017,15 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			/* unit @old moved to left neighbor. Calculate its
 			   coordinate there */
 			new->node = shift->target;
-			new->item_pos = node_num_items(shift->target) -
-			    shift->entire - (shift->part_units ? 1 : 0) + old->item_pos;
+			coord_set_item_pos(new,
+					   node_num_items(shift->target) -
+					   shift->entire - 
+					   (shift->part_units ? 1 : 0) + 
+					   old->item_pos);
+
 			new->unit_pos = old->unit_pos;
 			if (shift->merging_units) {
-				new->item_pos--;
+				coord_dec_item_pos(new);
 				if (old->item_pos == 0) {
 					/* unit_pos only changes if item got
 					   merged */
@@ -2031,7 +2038,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			   Use _nocheck, because @old is outside of its node.
 			*/
 			coord_dup_nocheck(new, old);
-			new->item_pos -= shift->u.future_first.item_pos;
+			coord_add_item_pos(new, -shift->u.future_first.item_pos);
 			if (new->item_pos == 0)
 				new->unit_pos -= shift->u.future_first.unit_pos;
 		}
@@ -2039,10 +2046,14 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 		if (unit_moved_right(shift, old)) {
 			/* unit @old moved to right neighbor */
 			new->node = shift->target;
-			new->item_pos = old->item_pos - shift->real_stop.item_pos;
+			coord_set_item_pos(new, 
+					   old->item_pos - 
+					   shift->real_stop.item_pos);
 			if (new->item_pos == 0) {
 				/* unit @old might change unit pos */
-				new->item_pos = old->unit_pos - shift->real_stop.unit_pos;
+				coord_set_item_pos(new,
+						   old->unit_pos - 
+						   shift->real_stop.unit_pos);
 			}
 		} else {
 			/* unit @old did not move to right neighbor, therefore
