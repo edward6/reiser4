@@ -400,7 +400,7 @@ int shift_everything_left(znode * right, znode * left, carry_level * todo);
 
 void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end);
 
-extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*);
+extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*, int lazy);
 extern int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to, struct inode*);
 
 extern int check_tree_pointer(const coord_t * pointer, const znode * child);
