@@ -2481,13 +2481,9 @@ releasable(const jnode *node)
 	assert("nikita-2783", spin_jnode_is_locked(node));
 
 	if (node->d_count != 0) {
-		assert("vs-1183", !JF_ISSET(node, JNODE_EFLUSH));
 		return 0;
 	}
-	if (jnode_is_loaded(node)) {
-		assert("vs-1182", !JF_ISSET(node, JNODE_EFLUSH));
-		return 0;
-	}
+	assert("vs-1214", !jnode_is_loaded(node));
 
 	if (JF_ISSET(node, JNODE_EFLUSH))
 		return 1; /* yeah! */
