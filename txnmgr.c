@@ -791,44 +791,38 @@ commit_txnh (txn_handle *txnh)
 			}
 			goto again;
 		}
-	}
 
-	assert ("jmacd-1027", spin_atom_is_locked (atom));
+		assert ("jmacd-1027", spin_atom_is_locked (atom));
 
-	/* We unlock atom to allow journal writer and others (block allocator
-	 * hooks) to do things which may schedule, like memory allocation or
-	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
-	 * can't be fused */
-	spin_unlock_atom (atom);
+		/* We unlock atom to allow journal writer and others (block allocator
+		 * hooks) to do things which may schedule, like memory allocation or
+		 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
+		 * can't be fused */
+		spin_unlock_atom (atom);
 
-	/* code between start_commit and end_commit() is protected from
-	 * parallel execution. */
-	start_commit();
+		/* code between start_commit and end_commit() is protected from
+		 * parallel execution. */
+		start_commit();
 
-	pre_commit_hook ();
+		pre_commit_hook ();
 
 #if 0	/* NOT YET TESTED */
-	/* write transaction log records in a manner which allows further
-	 * transaction recovery after a system crash */
-	reiser4_write_logs ();
+		/* write transaction log records in a manner which allows further
+		 * transaction recovery after a system crash */
+		reiser4_write_logs ();
 #endif
 
-	end_commit();
+		end_commit();
 
-	/* Now close this txnh's reference to the atom. */
-	spin_lock_atom (atom);
-	spin_lock_txnh (txnh);
+		/* Now close this txnh's reference to the atom. */
+		spin_lock_atom (atom);
 
-#if 0 /*REISER4_DEBUG*/
-	{
-		int level;
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level ++) {
-			assert ("zam-542", capture_list_empty(&atom->dirty_nodes[level]));
-		}
+		invalidate_clean_list(atom);
+		assert ("jmacd-1062", atom->capture_count == 0);
+
 	}
-#endif
-	invalidate_clean_list(atom);
-	assert ("jmacd-1062", atom->capture_count == 0);
+
+	spin_lock_txnh (txnh);
 
 	atom->txnh_count -= 1;
 	txnh->atom = NULL;
@@ -1960,6 +1954,7 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 
 	capture_list_push_front (&atom->clean_nodes, node);
 	node->atom = atom;
+	node->atom->capture_count ++;
 }
 
 /*****************************************************************************************
