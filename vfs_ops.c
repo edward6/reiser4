@@ -530,11 +530,12 @@ static int reiser4_bmap(struct address_space * mapping, long block)
  * implementation
  * @start_page_index - number of page to start readahead from
  * @intrafile_readahead_amount - number of pages to issue i/o for
+ * return value: number of pages for which i/o is started
  */
 #if 0
-void reiser4_do_page_cache_readahead (struct file * file,
-				      unsigned long start_page,
-				      unsigned long intrafile_readahead_amount)
+int reiser4_do_page_cache_readahead (struct file * file,
+				     unsigned long start_page,
+				     unsigned long intrafile_readahead_amount)
 {
 	int result;
 	struct inode * inode;
@@ -561,10 +562,10 @@ void reiser4_do_page_cache_readahead (struct file * file,
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
-	cur_page = start_page;
 	last_page = ((inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
-	if (cur_page + intrafile_readahead_amount > last_page)
-		intrafile_readahead_amount = last_page - cur_page;
+	if (start_page + intrafile_readahead_amount > last_page)
+		/* do not read past current file size */
+		intrafile_readahead_amount = last_page - start_page;
 
 	/* make sure that we can calculate a key by inode and offset we want to
 	 * read from */
@@ -573,7 +574,8 @@ void reiser4_do_page_cache_readahead (struct file * file,
 
 	while (intrafile_readahead_amount) {
 		/* calc key of next page to readahead */
-		inode_file_plugin (inode)->key_by_inode (inode, cur_page >> );
+		cur_page = last_page - intrafile_readahead_amount;
+		inode_file_plugin (inode)->key_by_inode (inode, cur_page << PAGE_CACHE_SHIFT);
 
 		result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
 		if (result != CBK_COORD_FOUND) {
