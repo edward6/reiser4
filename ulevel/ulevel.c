@@ -817,7 +817,7 @@ __u32 set_current ()
 		self = malloc (sizeof (struct task_struct));
 		assert ("vs-827", self);
 		memset (self, 0, sizeof (struct task_struct));
-		self->journal_info = 0;
+		self->fs_context = 0;
 		self->sig = &self->sig_here;
 		spin_lock_init (&self->sig->siglock);
 		if ((ret = pthread_setspecific (__current_key, self)) != 0) {

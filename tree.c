@@ -665,18 +665,11 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 }
 
 /**
- * debugging aid: magic constant we store in reiser4_context allocated at the
- * stack. Used to catch accesses to staled or uninitialized contexts.
- */
-static const __u32 context_magic = 0x4b1b5d0a;
-
-/**
  * initialise context and bind it to the current thread
  *
  * This function should be called at the beginning of reiser4 part of
  * syscall.
  */
-/* Audited by: umka (2002.06.16) */
 int init_context( reiser4_context *context /* pointer to the reiser4 context
 					    * being initalised */, 
 		  struct super_block *super /* super block we are going to
@@ -698,12 +691,17 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	xmemset( context, 0, sizeof *context );
 
 	tid = set_current ();
-	if( current -> journal_info ) {
-		context -> parent = current -> journal_info;
+	if( is_in_reiser4_context() ) {
+		reiser4_context *parent;
+
+		parent = ( reiser4_context * ) current -> fs_context;
+		if( parent -> super == super ) {
+			context -> parent = parent;
 #if (REISER4_DEBUG)
-		++ context->parent->nr_children;
+			++ context->parent->nr_children;
 #endif
-		return 0;
+			return 0;
+		}
 	}
 	sdata = ( reiser4_super_info_data* ) super -> s_fs_info;
 	tree  = & sdata -> tree;
@@ -713,10 +711,9 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 
 	assert("green-7", super->s_op == NULL || super->s_op == &reiser4_super_operations );
 
-	if( REISER4_DEBUG ) 
-		context -> magic = context_magic;
-
-	current -> journal_info = context;
+	context -> magic = context_magic;
+	context -> outer = current -> fs_context;
+	current -> fs_context = ( struct fs_activation * ) context;
 
 	init_lock_stack( &context -> stack );
 
@@ -759,7 +756,8 @@ void done_context( reiser4_context *context /* context being released */ )
 	assert( "nikita-2174", parent != NULL );
 	assert( "nikita-2093", parent == parent -> parent );
 	assert( "nikita-859", parent -> magic == context_magic );
-	assert( "vs-646", current -> journal_info == parent );
+	assert( "vs-646", 
+		( reiser4_context * ) current -> fs_context == parent );
 	assert( "zam-686", !no_context);
 
 	if (context->grabbed_blocks != 0) {
@@ -783,7 +781,7 @@ void done_context( reiser4_context *context /* context being released */ )
 
 		assert ("zam-684", context->nr_children == 0);
 #endif
-		current -> journal_info = NULL;
+		current -> fs_context = context -> outer;
 	} else {
 #if REISER4_DEBUG
 		parent->nr_children --;

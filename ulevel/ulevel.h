@@ -586,7 +586,7 @@ struct signal_struct {
 struct task_struct {
 	char comm[ 30 ];
 	int   pid;
-	void *journal_info;
+	void *fs_context;
 	__u32         fsuid;
 	__u32         fsgid;
 	int i_am_swapd; /**/

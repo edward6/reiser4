@@ -486,7 +486,7 @@ TS_LIST_DECLARE(context);
  * global context used during system call. Variable of this type is
  * allocated on the stack at the beginning of the reiser4 part of the
  * system call and pointer to it is stored in the
- * current->journal_info. This allows us to avoid passing pointer to
+ * current->fs_context. This allows us to avoid passing pointer to
  * current transaction and current lockstack (both in one-to-one mapping
  * with threads) all over the call chain.
 
@@ -512,6 +512,11 @@ struct reiser4_context {
 	 * use &get_super_private (reiser4_get_current_sb ())->tree.
 	 */
 	struct super_block   *super;
+
+	/**
+	 * parent fs activation
+	 */
+	struct fs_activation *outer;
 
 	/**
 	 * per-thread grabbed (for further allocation) blocks counter
@@ -569,6 +574,19 @@ extern int  init_context( reiser4_context *context,
 				  struct super_block *super );
 extern void done_context( reiser4_context *context );
 
+/**
+ * magic constant we store in reiser4_context allocated at the stack. Used to
+ * catch accesses to staled or uninitialized contexts.
+ */
+#define context_magic ( ( __u32 ) 0x4b1b5d0b )
+
+static inline int is_in_reiser4_context( void )
+{
+	return
+		current -> fs_context != NULL && 
+		( ( __u32 ) current -> fs_context -> owner ) == context_magic;
+}
+
 /** return context associated with given thread */
 static inline reiser4_context *get_context( const struct task_struct *tsk )
 {
@@ -576,7 +594,7 @@ static inline reiser4_context *get_context( const struct task_struct *tsk )
 		BUG ();
 	}
 	
-	return tsk -> journal_info;
+	return ( reiser4_context * ) tsk -> fs_context;
 }
 
 /** return context associated with current thread */
