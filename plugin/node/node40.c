@@ -2074,6 +2074,10 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	node_check(to, REISER4_NODE_PANIC);
 
 	source = from->node;
+	/* if source or target node are "immovable"---shift nothing. */
+	if (JF_ISSET(source, JNODE_IMMOVABLE) || JF_ISSET(to, JNODE_IMMOVABLE))
+		return 0;
+
 	/* set @shift.wish_stop to rightmost/leftmost unit among units we want
 	   shifted */
 	if (node_is_empty(shift.wish_stop.node))

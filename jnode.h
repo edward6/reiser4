@@ -145,7 +145,11 @@ typedef enum {
 	JNODE_MISSED_IN_CAPTURE = 17,
 
 	/* write is in progress */
-	JNODE_WRITEBACK = 18
+	JNODE_WRITEBACK = 18,
+	/* shifting of data to/from this jnode is disabled. This is needed to
+	 * guarantee that node content is not scattered across several nodes
+	 * after it has been taken into account by estimation mechanics. */
+	JNODE_IMMOVABLE = 19
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
