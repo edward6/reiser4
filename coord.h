@@ -40,7 +40,7 @@ struct coord {
 	znode        *node;
 
 	/* position of item within node */
-	const pos_in_node item_pos;
+	pos_in_node item_pos;
 	/* position of unit within item */
 	pos_in_item   unit_pos;
 	/** 
