@@ -283,6 +283,16 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 
 	/* If relocating the child, artificially dirty the parent right now. */
 	if (ret == 1) {
+
+		/* The parent may need to be captured, as well. */
+		if (! txn_same_atom_dirty (end_node, ZJNODE (parent_node))) {
+			done_lh (& parent_lock);
+
+			if ((ret = jnode_lock_parent_coord (end_node, & parent_coord, & parent_lock, ZNODE_WRITE_LOCK))) {
+				goto failure;
+			}
+		}
+
 		znode_set_dirty (parent_node);
 	}
 
