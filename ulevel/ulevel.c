@@ -1334,7 +1334,7 @@ static void call_umount (struct super_block * sb)
 
 
 static int call_unlink( struct inode * dir, struct inode *victim, 
-			const char *name )
+			const char *name, int dir_p )
 {
 	reiser4_context *old_context;
 	struct dentry guillotine;
@@ -1347,7 +1347,10 @@ static int call_unlink( struct inode * dir, struct inode *victim,
 	guillotine.d_inode = victim;
 	guillotine.d_name.name = name;
 	guillotine.d_name.len = strlen( name );
-	result = dir -> i_op -> unlink( dir, &guillotine );
+	if( dir_p )
+		result = dir -> i_op -> rmdir( dir, &guillotine );
+	else
+		result = dir -> i_op -> unlink( dir, &guillotine );
 	init_context( old_context, dir -> i_sb );
 	return result;
 }
@@ -1360,12 +1363,28 @@ static int call_rm( struct inode * dir, const char *name )
 	if( !IS_ERR( victim ) ) {
 		int result;
 		
-		result = call_unlink( dir, victim, name );
+		result = call_unlink( dir, victim, name, 0 );
 		iput( victim );
 		return result;
 	} else
 		return PTR_ERR( victim );
 }
+
+static int call_rmdir( struct inode * dir, const char *name )
+{
+	struct inode *victim;
+
+	victim = call_lookup( dir, name );
+	if( !IS_ERR( victim ) ) {
+		int result;
+		
+		result = call_unlink( dir, victim, name, 1 );
+		iput( victim );
+		return result;
+	} else
+		return PTR_ERR( victim );
+}
+
 
 static int call_link( struct inode *dir, const char *old, const char *new )
 {
@@ -2952,7 +2971,7 @@ static int bash_mkfs (const char * file_name)
 			if (!inode)
 				return 1;
 			call_write2 (inode, (loff_t)0, super.s_blocksize);
-			call_unlink (fake_parent, inode, "x");
+			call_unlink (fake_parent, inode, "x", 0);
 			inode->i_state &= ~I_DIRTY;
 			iput (inode);
 
@@ -3525,6 +3544,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		BASH_CMD ("mkdir ", call_mkdir);
 		BASH_CMD ("touch ", call_create);
 		BASH_CMD ("rm ", call_rm);
+		BASH_CMD ("rmdir ", call_rmdir);
 		BASH_CMD ("ls", call_readdir);
 		BASH_CMD ("ll", call_readdir_long);
 		BASH_CMD ("ln ", call_ln);
