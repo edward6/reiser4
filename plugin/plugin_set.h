@@ -32,6 +32,8 @@ struct plugin_set {
 	item_plugin        *dir_item;
 	/* crypto plugin */
 	crypto_plugin      *crypto;
+	/* digest plugin */
+	digest_plugin      *digest;	
 	/* compression plugin */
 	compression_plugin *compression;
 	ps_hash_link        link;
@@ -49,6 +51,7 @@ extern int plugin_set_hash       (plugin_set **set, hash_plugin *file);
 extern int plugin_set_sd         (plugin_set **set, item_plugin *file);
 extern int plugin_set_dir_item   (plugin_set **set, item_plugin *file);
 extern int plugin_set_crypto     (plugin_set **set, crypto_plugin *file);
+extern int plugin_set_digest     (plugin_set **set, digest_plugin *file);
 extern int plugin_set_compression(plugin_set **set, compression_plugin *file);
 
 extern int  plugin_set_init(void);
