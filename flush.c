@@ -1626,7 +1626,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	if (ret)
 		goto stop;
 
-	/* advance the flush position */
+	/* advance the flush position to the right neighbor */
 	move_flush_pos(pos, &right_lock, &right_load, NULL);
 
 	if(0) {
@@ -1637,6 +1637,8 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	done_load_count(&right_load);
 	done_lh(&right_lock);
 
+	/* This function indicates via pos whether to stop or go to twig or continue on current
+	 * level. */
 	return ret;
 }
 
@@ -1891,7 +1893,7 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 
 	return ret;
 }
-
+/* move pos from leaf to twig, and move lock from leaf to twig. */
 /* Move pos->lock to upper (twig) level */
 static int handle_pos_to_twig (flush_pos_t * pos)
 {
@@ -1926,16 +1928,25 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 
 typedef int (*pos_state_handle_t)(flush_pos_t*);
 static pos_state_handle_t flush_pos_handlers[] = {
+	/* process formatted nodes on leaf level, keep lock on a leaf node */
 	[POS_ON_LEAF]     = handle_pos_on_leaf,
+	/* process unformatted nodes, keep lock on twig node, pos->coord points to extent currently
+	 * being processed */
 	[POS_ON_TWIG]     = handle_pos_on_twig,
+	/* move a lock from leaf node to its parent for further processing of unformatted nodes */
 	[POS_TO_TWIG]     = handle_pos_to_twig,
+	/* move a lock from twig to leaf level when a processing of unformatted nodes finishes,
+	 * pos->coord points to the leaf node we jump to */
 	[POS_TO_LEAF]     = handle_pos_to_leaf,
+	/* after processing last extent in the twig node, attempting to shift items from the twigs
+	 * right neighbor and process them while shifting */
 	[POS_END_OF_TWIG] = handle_pos_end_of_twig,
+	/* process formatted nodes on internal level, keep lock on an internal node */
 	[POS_ON_INTERNAL] = handle_pos_on_internal
 };
 
-/* Advance flush position horizontally with given level, process ((re)allocate)
- * nodes and its ancestors in "parent-first" order */
+/* Advance flush position horizontally, prepare for flushing ((re)allocate, squeeze,
+ * encrypt) nodes and their ancestors in "parent-first" order */
 static int squalloc (flush_pos_t * pos)
 {
 	int ret = 0;
@@ -2455,10 +2466,10 @@ jnode_lock_parent_coord(jnode         * node,
 	return 0;
 }
 
-/* Get the right neighbor of a znode locked provided a condition is met.  The neighbor
-   must be dirty and a member of the same atom.  If there is no right neighbor or the
-   neighbor is not in memory or if there is a neighbor but it is not dirty or not in the
-   same atom, -ENAVAIL is returned. */
+/* Get the right neighbor of a znode locked provided the following condition is met: the neighbor
+   must be dirty and a member of the same atom.  If there is no right neighbor or the neighbor is
+   not in memory or if there is a neighbor but it is not dirty or not in the same atom, -ENAVAIL is
+   returned. */
 static int
 znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side, znode_lock_mode mode)
 {
