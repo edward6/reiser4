@@ -33,10 +33,11 @@ static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
 }
 
 /** store tails only Always store file's tail as direct item */
-static int test_tail( const struct inode *inode /* inode to operate on */,
+static int test_tail( const struct inode *inode UNUSED_ARG /* inode to operate
+							    * on */,
 		      loff_t size /* new object size */ )
 {
-	if (size > inode->i_sb->s_blocksize * 2)
+	if (size > PAGE_SIZE * 8)
 		return 0;
 	return 1;
 }
