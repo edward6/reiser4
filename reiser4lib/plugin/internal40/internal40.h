@@ -7,6 +7,9 @@
 #ifndef INTERNAL40_H
 #define INTERNAL40_H
 
+#include <aal/aal.h>
+#include <reiserfs/reiserfs.h>
+
 struct reiserfs_internal40 {
     /* 
 	Vitaly! Here must be uint64_t! Sorry, but why I should fix 

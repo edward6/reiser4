@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <aal/aal.h>
 
-typedef void *(*reiserfs_elem_func_t) (void *, int64_t);
+typedef void *(*reiserfs_elem_func_t) (void *, uint32_t);
 typedef int (*reiserfs_comp_func_t) (void *, void *);
 
 extern int reiserfs_misc_bin_search(void *needle, void *array, 

@@ -31,6 +31,56 @@ typedef struct reiserfs_master reiserfs_master_t;
 #define get_mr_block_size(mr)		get_le16(mr, mr_blocksize)
 #define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
 
+/* Default plugins structure */
+struct reiserfs_default_plugin {
+    reiserfs_plugin_id_t node;
+    struct item_plugins {
+	reiserfs_plugin_id_t internal;
+	reiserfs_plugin_id_t stat;
+	reiserfs_plugin_id_t dir_item;
+	reiserfs_plugin_id_t file_item;
+    } item;
+    reiserfs_plugin_id_t file;
+    reiserfs_plugin_id_t dir;
+    reiserfs_plugin_id_t hash;
+    reiserfs_plugin_id_t tail;
+    reiserfs_plugin_id_t hook;
+    reiserfs_plugin_id_t perm;
+    reiserfs_plugin_id_t format;
+    reiserfs_plugin_id_t oid;
+    reiserfs_plugin_id_t alloc;
+    reiserfs_plugin_id_t journal;
+};
+
+typedef struct reiserfs_default_plugin reiserfs_default_plugin_t;
+
+typedef struct reiserfs_node reiserfs_node_t;
+
+struct reiserfs_node {
+    aal_device_t *device;
+    aal_block_t *block;
+    
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+
+    reiserfs_node_t *parent;
+    /* we do not need this list at all */
+    aal_list_t *childs;
+};
+
+struct reiserfs_coord {
+    reiserfs_node_t *node;	/* node in the tree */
+    int16_t item_pos;		/* pos of an item in the node */
+    int16_t unit_pos;		/* pos of an unit in the item */
+};
+
+typedef struct reiserfs_coord reiserfs_coord_t;
+
+struct reiserfs_path {
+    aal_list_t *entity;		/* list for holding path elements */
+    void *data;			/* user specified per-path data */
+};
+
 /* Super block structure */
 struct reiserfs_super {
     reiserfs_opaque_t *entity;
@@ -57,38 +107,38 @@ struct reiserfs_alloc {
 
 typedef struct reiserfs_alloc reiserfs_alloc_t;
 
-/* 
-    On memory structure to work with items
-    Thougth: the key should not exist here, 
-    we should get it from item.
-*/
-struct reiserfs_item {
-    reiserfs_key_t *key;
-    uint32_t length;
-    reiserfs_opaque_t *entity;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_item reiserfs_item_t;
-
 struct reiserfs_node_common_header {
     uint16_t plugin_id; 
 };
 
 typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
 
-typedef struct reiserfs_node reiserfs_node_t;
 
-struct reiserfs_node {
-    aal_device_t *device;
-    aal_block_t *block;
-    
-    reiserfs_opaque_t *entity;
+
+/*
+This structure differs from others and I think we should move others to 
+the same form. 
+1. It is useless complicity to have opaque structures which encapsulate 
+   information available on the api level like blocks, devices, etc.
+2. Opaque structures are useful when we work with e.g. compressed nodes
+   which data shuold be uncompressed first. 
+3. For e.g. not-compressed nodes node plugin open method does just nothing
+   but creates useless structure, which contails the same data as in 
+   the reiserfs_node_t structure. 
+4. Plugins should work with the same structures as api does. E.g. node40 
+   plugin should work with reiserfs_node_t method. If plugin needs it can 
+   create some entity for itself.
+5. As many plugins does not need methods like open/create etc, we get rid 
+   of their implementation. Good.
+*/
+struct reiserfs_item {
+    reiserfs_coord_t *coord;
+ 
     reiserfs_plugin_t *plugin;
-
-    reiserfs_node_t *parent;
-    aal_list_t *childs;
+    reiserfs_opaque_t *entity;
 };
+
+typedef struct reiserfs_item reiserfs_item_t;
 
 /* Tree structure */
 struct reiserfs_tree {
@@ -96,6 +146,40 @@ struct reiserfs_tree {
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
+
+/* 
+To create a new item or to insert into the item we need to perform the following 
+operations:
+1. Create the description of the data being inserted.
+2. Ask item plugin how much space is needed for the data, described in 1.   
+3. Free needed space for data being inserted.
+4. Ask item plugin to create an item (to paste into the item) on the base of 
+   description from 1.
+
+For such purposes we have: 
+1. Fixed description structures for all item types (stat, diritem, internal, etc).
+2. Estimate common item method which gets coord of where to insert into 
+   (NULL or unit_pos == -1 for insertion, otherwise it is pasting) and data 
+   description from 1.
+3. Insert node methods prepare needed space and call Create/Paste item methods if 
+   data description is specified.
+4. Create/Paste item methods if data description has not beed specified on 3. 
+*/
+
+struct reiserfs_item_info {
+    /* Create items on the base of this info, 
+       casted to the proper item info type. */    
+    void *info;
+    uint16_t length;
+    reiserfs_plugin_t *plugin;
+};
+typedef struct reiserfs_item_info reiserfs_item_info_t;
+
+struct reiserfs_internal_item_info {    
+    blk_t *block;
+};
+
+typedef struct reiserfs_internal_item_info reiserfs_internal_item_info_t;
 
 /* Filesystem compound structure */
 struct reiserfs_fs {

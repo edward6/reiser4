@@ -14,7 +14,9 @@ static error_t reiserfs_stat40_confirm(reiserfs_stat40_t *stat) {
     return 0;
 }
 
-static reiserfs_stat40_t *reiserfs_stat40_create(reiserfs_key_t *key) {
+static reiserfs_stat40_t *reiserfs_stat40_create(reiserfs_coord_t *coord, 
+    reiserfs_item_info_t *item_info) 
+{
     reiserfs_stat40_t *stat;
     
     if (!(stat = aal_calloc(sizeof(*stat), 0)))
@@ -48,7 +50,8 @@ static reiserfs_plugin_t stat40_plugin = {
 	},
 	.common = {
 	    .item_type = STAT40_ID,
-	    .create = (reiserfs_opaque_t *(*)(reiserfs_key_t *key))reiserfs_stat40_create,
+	    .create = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *coord, 
+		reiserfs_opaque_t *item_info))reiserfs_stat40_create,
 	    .open =   (reiserfs_opaque_t *(*)(void *data))reiserfs_stat40_open,
 	    .add_unit = NULL,
 	    .confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,

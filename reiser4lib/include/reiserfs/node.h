@@ -31,13 +31,18 @@ extern uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_item_maxnum(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_item_count(reiserfs_node_t *node);
 
-extern uint8_t reiserfs_node_level(reiserfs_node_t *node);
+extern void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level);
 extern reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node);
 
 extern uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node);
 extern void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value);
 
 extern void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos);
+
+extern int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key,
+    reiserfs_item_info_t *item);
+
+extern reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, uint16_t pos);
 
 #endif
 

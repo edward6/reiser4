@@ -8,19 +8,7 @@
 #define PATH_H
 
 #include <aal/aal.h>
-
-struct reiserfs_coord {
-    void *node;			/* node in the tree */
-    int16_t item_pos;		/* pos of an item in the node */
-    int16_t unit_pos;		/* pos of an unit in the item */
-};
-
-typedef struct reiserfs_coord reiserfs_coord_t;
-
-struct reiserfs_path {
-    aal_list_t *entity;		/* list for holding path elements */
-    void *data;			/* user specified per-path data */
-};
+#include <reiserfs/filesystem.h>
 
 typedef struct reiserfs_path reiserfs_path_t;
 
