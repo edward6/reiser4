@@ -472,11 +472,13 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
 	/* allocate temporary buffer of disk cluster size */
-	/* FIXME-EDWARD:
-	   - kmalloc?
-	   - optimize it for the clusters which represent end of file */
-	clust->len = inode_scaled_cluster_size(inode);
-	clust->buf = reiser4_kmalloc(clust->len, GFP_KERNEL);
+	
+	clust->bsize = inode_scaled_offset(inode, fsize_to_count(clust, inode) +
+					   max_crypto_overhead(inode_crypto_plugin(inode), inode_crypto_stat(inode)));
+	if (clust->bsize > inode_scaled_cluster_size(inode))
+		clust->bsize = inode_scaled_cluster_size(inode);
+	
+	clust->buf = reiser4_kmalloc(clust->bsize, GFP_KERNEL);
 	if (!clust->buf)
 		return -ENOMEM;
 	result = find_cluster(clust, inode, 1 /* read */, write);
@@ -499,8 +501,11 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	struct inode * inode;
 	char * data;
 	int release = 0;
-
+	size_t pgcnt;
+	
 	assert("edward-212", PageLocked(page));
+	assert("edward-483", ergo(clust->pages, *clust->pages == page));
+	
 	inode = page->mapping->host;
 
 	if (!cluster_is_uptodate(clust)) {
@@ -513,6 +518,12 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		/* cluster was uptodated here, release it before exit */
 		release = 1;	
 	}
+	if(PageUptodate(page))
+		/* Two possible reasons for it:
+		   1. page was filled by the caller,
+		   2. races with another read/write
+		*/
+		goto exit;	
 	if (clust->stat == FAKE_CLUSTER) {
 		/* fill page by zeroes */
 		char *kaddr = kmap_atomic(page, KM_USER0);
@@ -527,16 +538,19 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
 		return 0;
 	}	
-	if(PageUptodate(page))
-		/* races with other read/write */
-		goto exit;	
-	/* fill page by plain text */
+	/* fill page by plain text from cluster handle */
+
 	assert("edward-120", clust->len <= inode_cluster_size(inode));
-//	assert("edward-299", off_to_pgoff(clust->len) == 0);
-	
+		
+        /* start page offset in the cluster */
 	cloff = pg_to_off_to_cloff(page->index, inode);
+	/* bytes in page */
+	pgcnt = off_to_pgcount(inode->i_size, page->index);
+	assert("edward-620", off_to_pgcount(inode->i_size, page->index) > 0);
+	
 	data = kmap(page);
-	memcpy(data, clust->buf + cloff, off_to_pgcount(clust_to_off(clust->index, inode) + clust->len, page->index));
+	memcpy(data, clust->buf + cloff, pgcnt);
+	memset(data + pgcnt, 0, (size_t)PAGE_CACHE_SIZE - pgcnt);
 	kunmap(page);
 	SetPageUptodate(page);
  exit:
@@ -597,6 +611,10 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
 			clust.index = pg_to_clust(page->index, inode);
+			if (inode_cluster_size(inode) == PAGE_CACHE_SIZE) {
+				clust.pages = &page;
+				clust.nr_pages = 1;
+			}
 			unlock_page(page);
 			ret = ctail_read_cluster(&clust, inode, 0 /* do not write */);
 			if (ret)
@@ -657,7 +675,8 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
 
-	assert("edward-466", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT);
+	assert("edward-466", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT ||
+	       coord->between == BEFORE_ITEM);
 	
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
 	if (IS_ERR(op) || (op == NULL))
@@ -691,7 +710,18 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	coord_t point;
 	lock_handle lock;
 
+	assert("edward-484", coord->between == AT_UNIT || coord->between == AFTER_ITEM);
+	
 	coord_dup (&point, coord);
+	
+	if (coord->between == AT_UNIT) {
+		coord_prev_item(&point);
+		
+		assert("edward-485", item_plugin_by_coord(&point) == item_plugin_by_id(CTAIL_ID));
+		
+		point.between = AFTER_ITEM;
+	}
+	
 	init_lh (&lock);
 	copy_lh(&lock, lh);
 	
@@ -851,8 +881,7 @@ int scan_ctail(flush_scan * scan)
 	set_flush_scan_nstat(scan, LINKED);
 
  exit:	
-	/* put_cluster_data(&clust, inode); */
-	reiser4_kfree(clust.buf, inode_scaled_cluster_size(inode));
+	release_cluster_buf(&clust, inode);
 	
 	return result;
 }
@@ -864,15 +893,20 @@ should_attach_squeeze_idata(flush_pos_t * pos)
 	int result;
 	assert("edward-431", pos != NULL);
 	assert("edward-432", pos->child == NULL);
+	assert("edward-619", znode_is_write_locked(pos->coord.node));
 	assert("edward-470", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 	
 	/* check for leftmost child */
 	utmost_child_ctail(&pos->coord, LEFT_SIDE, &pos->child);
-	result = (pos->child != NULL &&
-		  jnode_is_dirty(pos->child) &&
-		  pos->child->atom == ZJNODE(pos->coord.node)->atom);
+
+	if (!pos->child)
+		return 0;
+	LOCK_JNODE(pos->child);
+	result = jnode_is_dirty(pos->child) &&
+		pos->child->atom == ZJNODE(pos->coord.node)->atom;
+	UNLOCK_JNODE(pos->child);
 	if (!result && pos->child) {
-		/* this child isn't to attach, clear up this one */
+		/* existing child isn't to attach, clear up this one */
 		jput(pos->child);
 		pos->child = NULL;
 	}
@@ -956,7 +990,7 @@ detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 	assert("edward-255", info->inode != NULL);
 	assert("edward-256", info->clust->buf != NULL);
 
-	reiser4_kfree(info->clust->buf, inode_scaled_cluster_size(info->inode));
+	release_cluster_buf(info->clust, info->inode);
 	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
 	reiser4_kfree(info, sizeof(flush_squeeze_item_data_t));
 	
