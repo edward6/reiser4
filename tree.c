@@ -223,7 +223,8 @@ It is questionable whether (1) needs to precede (3).  If (3) was performed first
  * Invalid block addresses are 0 by tradition.
  *
  */
-const reiser4_block_nr FAKE_TREE_ADDR = 0;
+/* FIXME-VS: fake bit set */
+const reiser4_block_nr FAKE_TREE_ADDR = (0 | REISER4_FAKE_BLOCKNR_BIT_MASK);
 
 #if REISER4_DEBUG
 /* This list and the two fields that follow maintain the currently active
@@ -1065,7 +1066,7 @@ int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
 {
 	assert( "nikita-1766", addr != NULL );
 	cassert( sizeof( reiser4_block_nr ) == 8 );
-	return *addr & REISER4_UNALLOCATED_BIT_MASK;
+	return (*addr & REISER4_UNALLOCATED_BIT_MASK) ? 1 : 0;
 }
 
 /**
