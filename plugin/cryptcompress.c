@@ -1192,6 +1192,9 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	
 	iplug = item_plugin_by_id(CTAIL_ID);
 
+	if (clust_to_off(clust->index, inode) >= inode->i_size)
+		/* new cluster, nothing to read */
+		return 0;
 	/* bytes we wanna read starting from the beginning of cluster
 	   to keep first @off ones */
 	to_read = clust->off + clust->count + clust->delta;
