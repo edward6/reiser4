@@ -51,16 +51,15 @@
 
 /* address space operations */
 
-static int reiser4_writepage(struct page *, struct writeback_control *wbc);
 static int reiser4_readpage(struct file *, struct page *);
-/* static int reiser4_prepare_write(struct file *, 
+/* static int reiser4_prepare_write(struct file *,
 				 struct page *, unsigned, unsigned);
-static int reiser4_commit_write(struct file *, 
+static int reiser4_commit_write(struct file *,
 				struct page *, unsigned, unsigned);
 */
 static int reiser4_set_page_dirty (struct page *);
 sector_t reiser4_bmap(struct address_space *, sector_t);
-/* static int reiser4_direct_IO(int, struct inode *, 
+/* static int reiser4_direct_IO(int, struct inode *,
 			     struct kiobuf *, unsigned long, int); */
 
 /* address space operations */
@@ -74,7 +73,7 @@ get_moved_pages(struct address_space *mapping)
 /* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
 
    It is used by others (except reiser4) to set reiser4 pages dirty. Reiser4
-   itself uses set_page_dirty_internal(). 
+   itself uses set_page_dirty_internal().
 
    The difference is that reiser4_set_page_dirty puts dirty page on
    reiser4_inode->moved_pages.  That list is processed by reiser4_writepages()
@@ -94,7 +93,6 @@ static int reiser4_set_page_dirty (struct page * page)
 
 		if (mapping) {
 			spin_lock(&mapping->page_lock);
-			/*XXXXX*/
 			if (page->mapping) {	/* Race with truncate? */
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
@@ -103,8 +101,6 @@ static int reiser4_set_page_dirty (struct page * page)
 			}			
 			spin_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-			/*XXXX*/if (mapping->host->i_state & I_CLEAR)
-				/*XXXX*/printk("SPD: clear inode: %p, page %p\n", mapping->host, page);
 		}
 	}
 	return ret;
@@ -179,20 +175,6 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	return 0;
 }
 
-/* write page in response to memory pressure */
-static int
-reiser4_writepage(struct page *page, struct writeback_control *wbc)
-{
-	int result;
-
-	assert("zam-822", current->flags & PF_MEMALLOC);
-	assert("nikita-3017", schedulable());
-
-	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
-	assert("nikita-3018", schedulable());
-	return result;
-}
-
 /* ->writepages()
    ->vm_writeback()
    ->set_page_dirty()
@@ -241,7 +223,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
 
-	assert("vs-1426", ergo(PagePrivate(page) && get_super_fake(page->mapping->host->i_sb) != page->mapping->host, ((page->mapping->host->i_state & I_JNODES) && 
+	assert("vs-1426", ergo(PagePrivate(page) && get_super_fake(page->mapping->host->i_sb) != page->mapping->host, ((page->mapping->host->i_state & I_JNODES) &&
 														       (reiser4_inode_data(page->mapping->host)->jnodes > 0))));
 	assert("vs-1427", ergo(PagePrivate(page), page->mapping == jnode_get_mapping(jnode_by_page(page))));
 
@@ -252,7 +234,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 		warning("nikita-3141", "Cannot capture: %i", ret);
 		print_page("page", page);
 	} else
-		assert("vs-1425", ((page->mapping->host->i_state & I_JNODES) && 
+		assert("vs-1425", ((page->mapping->host->i_state & I_JNODES) &&
 				   (reiser4_inode_data(page->mapping->host)->jnodes > 0)));
 
 
@@ -307,6 +289,10 @@ releasable(const jnode *node)
 		return 0;
 	if (JF_ISSET(node, JNODE_WRITEBACK))
 		return 0;
+	/* page was modified through mmap, but its jnode is not yet
+	 * captured. Don't discard modified data. */
+	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME))
+		return 0;
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
 		return 0;
@@ -337,7 +323,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	INC_STAT(page, node, page_try_release);
 
-	/* is_page_cache_freeable() check 
+	/* is_page_cache_freeable() check
 
 	   (mapping + private + page_cache_get() by shrink_cache()) */
 	if (page_count(page) > 3) {
@@ -390,7 +376,7 @@ static int mapping_has_anonymous_pages (struct address_space * mapping )
 	return ret;
 }
 
-static void capture_page_and_create_extent (struct page * page)
+static int capture_page_and_create_extent (struct page * page)
 {
 	int result;
 	file_plugin *fplug;
@@ -398,62 +384,171 @@ static void capture_page_and_create_extent (struct page * page)
 	fplug = inode_file_plugin(page->mapping->host);
 
 	if (fplug == NULL)
-		return;
+		return 0;
 
 	grab_space_enable ();
 
 	result = fplug->capture(page);
 
-	if (result != 0) {
+	if (result != 0)
 		SetPageError(page);
-	}
+	return result;
 }
 
-static int capture_anonymous_pages (struct address_space * mapping)
+static void redirty_inode(struct inode *inode)
+{
+	spin_lock(&inode_lock);
+	inode->i_state |= I_DIRTY;
+	spin_unlock(&inode_lock);
+}
+
+static int capture_anonymous_page(struct page *pg)
+{
+	struct address_space *mapping;
+	int result;
+
+	mapping = pg->mapping;
+	result = 0;
+	if (PageWriteback(pg)) {
+		if (PageDirty(pg))
+			list_move(&pg->list, &mapping->dirty_pages);
+		else
+			list_move(&pg->list, &mapping->locked_pages);
+	} else if (!PageDirty(pg))
+		list_move(&pg->list, &mapping->clean_pages);
+	else {
+		jnode *node;
+
+		list_move(&pg->list, &mapping->io_pages);
+		page_cache_get (pg);
+		
+		spin_unlock (&mapping->page_lock);
+
+		lock_page(pg);
+		node = jnode_of_page(pg);
+		if (!IS_ERR(node)) {
+			jref(node);
+			unlock_page(pg);
+			result = jload(node);
+			lock_page(pg);
+			jput(node);
+			if (result == 0) {
+				result = capture_page_and_create_extent(pg);
+				if (result == 0) {
+					assert("nikita-3326",
+					       jnode_check_dirty(node));
+					assert("nikita-3327",
+					       node->atom != NULL);
+					JF_CLR(node, JNODE_KEEPME);
+				} else
+					warning("nikita-3329",
+						"Cannot capture anon page: %i",
+						result);
+				jrelse(node);
+			}
+		} else
+			result = PTR_ERR(node);
+		unlock_page(pg);
+		page_cache_release(pg);
+		spin_lock(&mapping->page_lock);
+	}
+	return result;
+}
+
+#define CAPTURE_AJNODE_BURST     (128)
+#define CAPTURE_APAGE_BURST      (1024)
+
+static int capture_anonymous_jnodes(struct inode *inode)
+{
+	struct list_head *tmp, *next;
+	reiser4_inode *info;
+	reiser4_tree *tree;
+	int nr;
+	int found;
+	int result;
+
+	tree = tree_by_inode(inode);
+
+	info = reiser4_inode_data(inode);
+	result = 0;
+	nr = 0;
+	do {
+		found = 0;
+		spin_lock_eflush(tree->super);
+
+		list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
+			eflush_node_t *ef;
+			jnode *node;
+
+			ef = list_entry(tmp, eflush_node_t, inode_link);
+			node = ef->node;
+			/*
+			 * anonymous jnode doesn't have an atom.
+			 *
+			 * jnode spin-lock is not needed, because we don't have
+			 * requirement to capture _all_ anonymous jnodes anyway.
+			 */
+			if (node->atom != NULL)
+				continue;
+			jref(node);
+			spin_unlock_eflush(tree->super);
+			result = jload(node);
+			jput(node);
+			if (result != 0)
+				return result;
+			spin_lock(&inode->i_mapping->page_lock);
+			result = capture_anonymous_page(jnode_page(node));
+			spin_unlock(&inode->i_mapping->page_lock);
+			jrelse(node);
+			found ++;
+			nr ++;
+			if (nr >= CAPTURE_AJNODE_BURST) {
+				found = 0;
+				redirty_inode(inode);
+			}
+			spin_lock_eflush(tree->super);
+			break;
+		}
+		spin_unlock_eflush(tree->super);
+	} while (found > 0 && result == 0);
+	return result;
+}
+
+static int capture_anonymous_pages(struct address_space * mapping)
 {
 	struct list_head *mpages;
+	int result;
+	int nr;
+
+	result = 0;
+	nr = 0;
 
 	spin_lock (&mapping->page_lock);
 
 	mpages = get_moved_pages(mapping);
-	while (!list_empty (mpages)) {
+	while (result == 0 && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
 		struct page *pg = list_entry(mpages->prev, struct page, list);
 
-		if (PageWriteback(pg)) {
-			if (PageDirty(pg))
-				list_move(&pg->list, &mapping->dirty_pages);
-			else
-				list_move(&pg->list, &mapping->locked_pages);
-		} else if (!PageDirty(pg))
-			list_move(&pg->list, &mapping->clean_pages);
-		else {
-			/*XXXX*/assert("", mpages->prev == &pg->list);
-			/*XXXX*/assert("", mpages == pg->list.next);
-			list_move(&pg->list, &mapping->io_pages);
-			/*XXXX*/assert("", mpages->prev != &pg->list);
-			/*XXXX*/assert("", mapping->io_pages.next == &pg->list);
-			/*XXXX*/assert("", pg->list.prev == &mapping->io_pages);
-			page_cache_get (pg);
-
-			spin_unlock (&mapping->page_lock);
-
-			lock_page (pg);
-			capture_page_and_create_extent (pg);
-			unlock_page (pg);
-
-			page_cache_release (pg);
-			spin_lock (&mapping->page_lock);
-		}
+		result = capture_anonymous_page(pg);
+		++ nr;
 	}
 
 	spin_unlock(&mapping->page_lock);
 
-	return 0;
+	if (nr >= CAPTURE_APAGE_BURST)
+		redirty_inode(mapping->host);
+
+	if (result == 0)
+		result = capture_anonymous_jnodes(mapping->host);
+
+	if (result != 0)
+		warning("nikita-3328", "Cannot capture anon pages: %i", result);
+	return result;
 }
 
 /* reiser4 writepages() address space operation */
 int
-reiser4_writepages(struct address_space *mapping, 
+reiser4_writepages(struct address_space *mapping,
 		   struct writeback_control *wbc UNUSED_ARG)
 {
 	int ret = 0;
@@ -467,7 +562,9 @@ reiser4_writepages(struct address_space *mapping,
 	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
 
 	init_context(&ctx, mapping->host->i_sb);
-	assert("zam-760", ergo(is_in_reiser4_context(), 
+	/* avoid recursive calls to ->sync_inodes */
+	ctx.nobalance = 1;
+	assert("zam-760", ergo(is_in_reiser4_context(),
 			       lock_stack_isclean(get_current_lock_stack())));
 
 	if (mapping_has_anonymous_pages(mapping)) {
@@ -481,7 +578,7 @@ reiser4_writepages(struct address_space *mapping,
 				if (REISER4_DEBUG)
 					lock_counters()->inode_sem_r ++;
 
-				ret = capture_anonymous_pages (mapping);
+				ret = capture_anonymous_pages(mapping);
 
 				rw_latch_up_read(&uf_info->latch);
 				if (REISER4_DEBUG)
@@ -529,12 +626,6 @@ int reiser4_sync_page(struct page *page)
 	return 0;
 }
 
-
-define_never_ever_op(prepare_write_vfs)
-    define_never_ever_op(commit_write_vfs)
-    define_never_ever_op(direct_IO_vfs)
-#define V( func ) ( ( void * ) ( func ) )
-
 struct address_space_operations reiser4_as_operations = {
 	/* called during memory pressure by kswapd */
 	.writepage = reiser4_writepage,
@@ -551,8 +642,8 @@ struct address_space_operations reiser4_as_operations = {
 	.set_page_dirty = reiser4_set_page_dirty,
 	/* called during read-ahead */
 	.readpages = reiser4_readpages,
-	.prepare_write = V(never_ever_prepare_write_vfs),
-	.commit_write = V(never_ever_commit_write_vfs),
+	.prepare_write = NULL,
+	.commit_write = NULL,
 	.bmap = reiser4_bmap,
 	/* called just before page is taken out from address space (on
 	   truncate, umount, or similar).  */
@@ -560,7 +651,7 @@ struct address_space_operations reiser4_as_operations = {
 	/* called when VM is about to take page from address space (due to
 	   memory pressure). */
 	.releasepage = reiser4_releasepage,
-	.direct_IO = V(never_ever_direct_IO_vfs)
+	.direct_IO = NULL
 };
 
 

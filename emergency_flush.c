@@ -5,38 +5,38 @@
 /* Implementation of emergency flush. */
 
 /* OVERVIEW:
-  
+
      Before writing a node to the disk, some complex process (flush.[ch]) is to be performed. Flushprep is the main necessary
      preliminary step before writing pages back to the disk, but it has some characteristics that make it completely
      different from traditional ->writepage():
-     
+
         1 It operates on a large number of nodes, possibly far away from the starting node, both in tree and disk order.
-  
+
         2 it can involve reading of nodes from the disk
         (for example, bitmap nodes are read during extent allocation that is
         deferred until flush).
 
 Eliminate dynamic loading of bitmap nodes.  It is an optimization not worth its weight in complexity.
-  
+
         3 it can allocate memory (during insertion of
         allocated extents).
 
         4 it participates in the locking protocol which reiser4 uses to
         implement concurrent tree modifications.
-  
+
         5 it is CPU consuming and long
-  
+
      As a result, flush reorganizes some part of reiser4 tree and produces
      large queue of nodes ready to be submitted for io.
-  
+
      Items (3) and (4) alone make flush unsuitable for being called directly
      from reiser4 ->writepage() callback, because of OOM and deadlocks
      against threads waiting for memory.
-  
+
      So, flush is performed from within balance_dirty_page() path when dirty
      pages are generated. If balance_dirty_page() fails to throttle writers
      and page replacement finds dirty page on the inactive list, we resort to
-     "emergency flush" in our ->vm_writeback(). 
+     "emergency flush" in our ->vm_writeback().
 
 This approach is wrong in its principles of design.
 
@@ -63,7 +63,7 @@ supervise it....
      to the disk without taking locks and without thoroughly optimizing tree
      layout. We only want to call emergency flush in desperate situations,
      because it is going to produce sub-optimal disk layouts.
-  
+
   DETAILED DESCRIPTION
 
      Emergency flush (eflush) is designed to work as low level mechanism with
@@ -166,42 +166,42 @@ supervise it....
       block counters (allocated, grabbed, etc.) are manipulated. To be done.
 
    *****HISTORICAL SECTION****************************************************
-  
+
    DELAYED PARENT UPDATE
-  
+
      Important point of emergency flush is that update of parent is sometimes
      delayed: we don't update parent immediately if:
-  
+
       1 Child was just allocated, but parent is locked. Waiting for parent
       lock in emergency flush is impossible (deadlockable).
-  
+
       2 Part of extent was allocated, but parent has not enough space to
       insert allocated extent unit. Balancing in emergency flush is
       impossible, because it will possibly wait on locks.
-  
+
      When we delay update of parent node, we mark it as such (and possibly
      also mark children to simplify delayed update later). Question: when
      parent should be really updated?
-  
+
    WHERE TO WRITE PAGE INTO?
-  
-    
+
+
      So, it was decided that flush has to be performed from a separate
      thread. Reiser4 has a thread used to periodically commit old transactions,
      and this thread can be used for the flushing. That is, flushing thread
      does flush and accumulates nodes prepared for the IO on the special
      queue. reiser4_vm_writeback() submits nodes from this queue, if queue is
      empty, it only wakes up flushing thread and immediately returns.
-  
+
      Still there are some problems with integrating this stuff into VM
      scanning:
-  
+
         1 As ->vm_writeback() returns immediately without actually submitting
         pages for IO, throttling on PG_writeback in shrink_list() will not
         work. This opens a possibility (on a fast CPU), of try_to_free_pages()
         completing scanning and calling out_of_memory() before flushing thread
         managed to add anything to the queue.
-  
+
         2 It is possible, however unlikely, that flushing thread will be
         unable to flush anything, because there is not enough memory. In this
         case reiser4 resorts to the "emergency flush": some dumb algorithm,
@@ -209,35 +209,35 @@ supervise it....
         without taking locks and without thoroughly optimizing tree layout. We
         only want to call emergency flush in desperate situations, because it
         is going to produce sub-optimal disk layouts.
-  
+
         3 Nodes prepared for IO can be from the active list, this means that
         they will not be met/freed by shrink_list() after IO completion. New
         blk_congestion_wait() should help with throttling but not
         freeing. This is not fatal though, because inactive list refilling
         will ultimately get to these pages and reclaim them.
-  
+
    REQUIREMENTS
-  
+
      To make this work we need at least some hook inside VM scanning which
      gets triggered after scanning (or scanning with particular priority)
      failed to free pages. This is already present in the
      mm/vmscan.c:set_shrinker() interface.
-  
+
      Another useful thing that we would like to have is passing scanning
      priority down to the ->vm_writeback() that will allow file system to
      switch to the emergency flush more gracefully.
-  
+
    POSSIBLE ALGORITHMS
-  
+
      1 Start emergency flush from ->vm_writeback after reaching some priority.
      This allows to implement simple page based algorithm: look at the page VM
      supplied us with and decide what to do.
-  
+
      2 Start emergency flush from shrinker after reaching some priority.
      This delays emergency flush as far as possible.
-  
+
    *****END OF HISTORICAL SECTION**********************************************
-  
+
 */
 
 #include "forward.h"
@@ -265,8 +265,8 @@ static int flushable(const jnode * node, struct page *page);
 static int needs_allocation(const jnode * node);
 static eflush_node_t *ef_alloc(int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
-static int ef_free_block(jnode *node, const reiser4_block_nr *blk);
-static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, block_stage_t stage);
+static int ef_free_block(jnode *node, const reiser4_block_nr *blk, int hadatom);
+static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, block_stage_t stage, int hadatom);
 static int ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **enode, reiser4_blocknr_hint *hint);
 static int eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef);
 
@@ -276,7 +276,11 @@ static kmem_cache_t *eflush_slab;
 #define EFLUSH_START_BLOCK ((reiser4_block_nr)0)
 
 /* this function exists only until VM gets fixed to reserve pages properly, which might or might not be very political. */
-/* try to flush @page to the disk */
+/* try to flush @page to the disk
+ *
+ * Return 0 if page was successfully paged out. 1 if it is busy, error
+ * otherwise.
+ */
 int
 emergency_flush(struct page *page)
 {
@@ -296,7 +300,7 @@ emergency_flush(struct page *page)
 	node = jprivate(page);
 
 	if (node == NULL)
-		return 0;
+		return 1;
 
 	jref(node);
 	reiser4_stat_inc_at_level(jnode_get_level(node), emergency_flush);
@@ -305,6 +309,13 @@ emergency_flush(struct page *page)
 
 	result = 0;
 	LOCK_JNODE(node);
+	/*
+	 * page was dirty and under eflush. This is (only?) possible if page
+	 * was re-dirtied through mmap(2) after eflush IO was submitted, but
+	 * before ->releasepage() freed page.
+	 */
+	eflush_del(node, 1);
+	
 	if (flushable(node, page)) {
 		if (needs_allocation(node)) {
 			reiser4_block_nr blk;
@@ -321,27 +332,18 @@ emergency_flush(struct page *page)
 				assert("nikita-2759", efnode != NULL);
 				eflush_add(node, &blk, efnode);
 
-				/* XXX JNODE_WRITEBACK bit is not set here */
-				result = page_io(page, 
-						 node, WRITE, GFP_NOFS | __GFP_HIGH);
-				if (result == 0) {
-					result = 1;
-					ON_TRACE(TRACE_EFLUSH, "ok: %llu\n", blk);
-				} else {
-					/* 
-					 * XXX may be set_page_dirty() should
-					 * be called
-					 */
-					set_page_dirty_internal(page);
-					ON_TRACE(TRACE_EFLUSH, "submit-failure\n");
-				}
+				result = page_io(page,
+						 node,
+						 WRITE,
+						 GFP_NOFS | __GFP_HIGH);
 			} else {
 				UNLOCK_JNODE(node);
 				if (blk != 0ull)
-					ef_free_block_with_stage(node, &blk, hint.block_stage);
+					ef_free_block_with_stage(node, &blk, hint.block_stage, efnode->hadatom);
 				if (efnode != NULL)
 					kmem_cache_free(eflush_slab, efnode);
 				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
+				result = 1;
 			}
 
 			blocknr_hint_done(&hint);
@@ -366,7 +368,7 @@ emergency_flush(struct page *page)
 				UNLOCK_JNODE(node);
 				UNLOCK_ATOM(atom);
 				fq_put(fq);
-				return 0;
+				return 1;
 			}
 
 			/* ok, now we can flush it */
@@ -381,13 +383,13 @@ emergency_flush(struct page *page)
 			ON_TRACE(TRACE_EFLUSH, "flushed %d blocks\n", result);
 			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
 			   not be unlocked again */
-			result = 1; 
 			fq_put(fq);
 		}
 		
 	} else {
 		UNLOCK_JNODE(node);
 		ON_TRACE(TRACE_EFLUSH, "failure-1\n");
+		result = 1;
 	}
 
 	jput(node);
@@ -400,8 +402,6 @@ flushable(const jnode * node, struct page *page)
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
 
-	if (!jnode_is_dirty(node))
-		return 0;
 	if (jnode_is_loaded(node))              /* loaded */
 		return 0;
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) /* already pending io */
@@ -469,10 +469,10 @@ TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
 #undef KFREE
 #undef KMALLOC
 
-int 
+int
 eflush_init(void)
 {
-	eflush_slab = kmem_cache_create("eflush", sizeof (eflush_node_t), 
+	eflush_slab = kmem_cache_create("eflush", sizeof (eflush_node_t),
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (eflush_slab == NULL)
 		return RETERR(-ENOMEM);
@@ -480,7 +480,7 @@ eflush_init(void)
 		return 0;
 }
 
-int 
+int
 eflush_done(void)
 {
 	return kmem_cache_destroy(eflush_slab);
@@ -489,7 +489,7 @@ eflush_done(void)
 int
 eflush_init_at(struct super_block *super)
 {
-	return ef_hash_init(&get_super_private(super)->efhash_table, 
+	return ef_hash_init(&get_super_private(super)->efhash_table,
 			    nr_free_pagecache_pages() >> 2,
 			    reiser4_stat(super, hashes.eflush));
 }
@@ -520,6 +520,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 	ef->node = node;
 	ef->blocknr = *blocknr;
+	ef->hadatom = 0;
 	jref(node);
 	spin_lock_eflush(tree->super);
 	ef_hash_insert(get_jnode_enhash(node), ef);
@@ -527,9 +528,11 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	spin_unlock_eflush(tree->super);
 
 	atom = atom_locked_by_jnode(node);
-	assert("nikita-3310", atom != NULL);
-	++ atom->flushed;
-	UNLOCK_ATOM(atom);
+	if (atom != NULL) {
+		++ atom->flushed;
+		ef->hadatom = 1;
+		UNLOCK_ATOM(atom);
+	}
 
 	/*
 	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
@@ -547,14 +550,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
-
-		spin_lock(&inode_lock);
-		if (info->eflushed == 0 && inodes_stat.nr_unused > 0) {
-			/* it is not unused */
-			inodes_stat.nr_unused--;
-			inode_set_flag(inode, REISER4_DEC_UNUSED);
-		}
-		spin_unlock(&inode_lock);
 
 		++ info->eflushed;
 
@@ -623,14 +618,15 @@ eflush_del(jnode *node, int page_locked)
 
 		assert("nikita-2806", ergo(page_locked, page != NULL));
 		assert("nikita-2807", ergo(page_locked, PageLocked(page)));
-		if (!page_locked && page != NULL) {
+		if (page != NULL) {
 			/* emergency flush hasn't reclaimed page yet. Wait
 			 * until io is submitted. Otherwise there is a room
 			 * for a race: emergency_flush() calls page_io() and
 			 * we clear JNODE_EFLUSH bit concurrently---page_io()
 			 * gets wrong block number. */
 			UNLOCK_JNODE(node);
-			reiser4_lock_page(page);
+			if (!page_locked)
+				reiser4_lock_page(page);
 			wait_on_page_writeback(page);
 			LOCK_JNODE(node);
 
@@ -638,14 +634,15 @@ eflush_del(jnode *node, int page_locked)
 				/*
 				 * race: some other thread unflushed jnode.
 				 */
-				reiser4_unlock_page(page);
+				if (!page_locked)
+					reiser4_unlock_page(page);
 				page_cache_release(page);
 				return;
 			}
 			if (jnode_is_dirty(node))
 				/*
 				 * jnode was dirty (otherwise it wouldn't be
-				 * eflushed in th first place). Page's dirty
+				 * eflushed in the first place). Page's dirty
 				 * bit was cleared before io was submitted. If
 				 * page is left clean, we would have dirty
 				 * jnode with clean page. Neither
@@ -665,10 +662,12 @@ eflush_del(jnode *node, int page_locked)
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_eflush(tree->super);
 
-		atom = atom_locked_by_jnode(node);
-		assert("nikita-3311", atom != NULL);
-		-- atom->flushed;
-		UNLOCK_ATOM(atom);
+		if (ef->hadatom) {
+			atom = atom_locked_by_jnode(node);
+			assert("nikita-3311", atom != NULL);
+			-- atom->flushed;
+			UNLOCK_ATOM(atom);
+		}
 
 		assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
 		JF_CLR(node, JNODE_EFLUSH);
@@ -682,17 +681,11 @@ eflush_del(jnode *node, int page_locked)
 			info = reiser4_inode_data(inode);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
-			/* remove eflush node from inode's list of eflush nodes */
+			/* remove eflush node from inode's list of eflush
+			 * nodes */
 			list_del(&ef->inode_link);
-			if (info->eflushed == 0) {
+			if (info->eflushed == 0)
 				inode->i_state &= ~I_EFLUSH;
-				if (inode_get_flag(inode, REISER4_DEC_UNUSED)) {
-					spin_lock(&inode_lock);
-					inodes_stat.nr_unused++;
-					inode_clr_flag(inode, REISER4_DEC_UNUSED);
-					spin_unlock(&inode_lock);
-				}
-			}
 
 			/*printk("eflush_del: j %p, inode %llu, index %lu atom %p\n", node, get_inode_oid(inode),
 			  jnode_index(node), node->atom);*/
@@ -710,8 +703,8 @@ eflush_del(jnode *node, int page_locked)
 
 		jput(node);
 
+		ef_free_block(node, &blk, ef->hadatom);
 		kmem_cache_free(eflush_slab, ef);
-		ef_free_block(node, &blk);
 
 		if (page != NULL) {
 			if (!page_locked)
@@ -721,7 +714,7 @@ eflush_del(jnode *node, int page_locked)
 
 		LOCK_JNODE(node);
 
-		ON_TRACE(TRACE_EFLUSH, "unflush: %i...\n", 
+		ON_TRACE(TRACE_EFLUSH, "unflush: %i...\n",
 			 get_super_private(tree->super)->eflushed);
 	}
 }
@@ -757,7 +750,9 @@ ef_block_flags(const jnode *node)
 	return jnode_is_znode(node) ? BA_FORMATTED : 0;
 }
 
-static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, block_stage_t stage)
+static int ef_free_block_with_stage(jnode *node,
+				    const reiser4_block_nr *blk,
+				    block_stage_t stage, int hadatom)
 {
 	int result = 0;
 	reiser4_block_nr one;
@@ -769,7 +764,7 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
-		if (jnode_is_leaf(node)) {
+		if (jnode_is_leaf(node) && hadatom) {
 			/* further, transfer block from grabbed into flush
 			 * reserved space. */
 			LOCK_JNODE(node);
@@ -786,17 +781,17 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 	return result;
 }
 
-static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
+static int ef_free_block(jnode *node, const reiser4_block_nr *blk, int hadatom)
 {
 	block_stage_t stage;
 
-	stage = blocknr_is_fake(jnode_get_block(node)) ? 
+	stage = blocknr_is_fake(jnode_get_block(node)) ?
 		BLOCK_UNALLOCATED : BLOCK_GRABBED;
 
-	return ef_free_block_with_stage(node, blk, stage);
+	return ef_free_block_with_stage(node, blk, stage, hadatom);
 }
 
-static int 
+static int
 ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_blocknr_hint * hint)
 {
 	int result;
@@ -813,22 +808,30 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	if (blocknr_is_fake(jnode_get_block(node)))
 		hint->block_stage = BLOCK_UNALLOCATED;
 	else {
-		if (jnode_is_leaf(node)) {
-			txn_atom *atom;
-
+		txn_atom *atom;
+		switch (jnode_is_leaf(node)) {
+		default:
 			/* We cannot just ask block allocator to take block from
 			 * flush reserved space, because there is no current
 			 * atom at this point. */
 			atom = atom_locked_by_jnode(node);
-			assert("nikita-2785", atom != NULL);
-			flush_reserved2grabbed(atom, 1);
-			UNLOCK_ATOM(atom);
-		} else {
-			result = reiser4_grab_space_force((__u64)1, BA_RESERVED, 
+			if (atom != NULL) {
+				flush_reserved2grabbed(atom, 1);
+				UNLOCK_ATOM(atom);
+				break;
+			}
+			/* fall through */
+			/* node->atom == NULL if page was dirtied through
+			 * mmap */
+		case 0:
+			result = reiser4_grab_space_force((__u64)1, BA_RESERVED,
 							  "eflush takes 1 block reserved area");
 			grab_space_enable();
-			if (result)
+			if (result) {
+				warning("nikita-3323",
+					"Cannot allocate eflush block");
 				return result;
+			}
 		}
 
 		hint->block_stage = BLOCK_GRABBED;
