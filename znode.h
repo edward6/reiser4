@@ -181,8 +181,6 @@ extern void coord_to_parent_coord(const coord_t *coord, parent_coord_t *pcoord);
 extern void init_parent_coord(parent_coord_t * pcoord, const znode * node);
 
 extern unsigned znode_free_space(znode * node);
-extern int znode_is_loaded(const znode * node);
-extern int znode_is_loaded_nolock(const znode * node);
 
 extern reiser4_key *znode_get_rd_key(znode * node);
 extern reiser4_key *znode_get_ld_key(znode * node);
@@ -310,6 +308,15 @@ znode_get_tree(const znode * node)
 	assert("nikita-2692", node != NULL);
 	return jnode_get_tree(ZJNODE(node));
 }
+
+/* return non-0 iff data are loaded into znode */
+static inline int
+znode_is_loaded(const znode * node /* znode to query */ )
+{
+	assert("nikita-497", node != NULL);
+	return jnode_is_loaded(ZJNODE(node));
+}
+
 
 extern z_hash_table *get_htable(reiser4_tree * tree, 
 				const reiser4_block_nr * const blocknr);

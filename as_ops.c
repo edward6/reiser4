@@ -273,7 +273,7 @@ releasable(const jnode *node)
 	assert("nikita-2781", node != NULL);
 	assert("nikita-2783", spin_jnode_is_locked(node));
 
-	if (node->d_count != 0) {
+	if (atomic_read(&node->d_count) != 0) {
 		return 0;
 	}
 	assert("vs-1214", !jnode_is_loaded(node));

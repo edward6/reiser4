@@ -149,7 +149,7 @@ jnode_init(jnode * node, reiser4_tree * tree)
 
 	xmemset(node, 0, sizeof (jnode));
 	node->state = 0;
-	node->d_count = 0;
+	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
 	spin_jnode_init(node);
 	node->atom = NULL;
@@ -487,15 +487,8 @@ jparse(jnode * node)
 	int result;
 
 	assert("nikita-2466", node != NULL);
-	assert("nikita-2637", spin_jnode_is_locked(node));
 
-	result = 0;
-	if (!jnode_is_loaded(node)) {
-		result = jnode_ops(node)->parse(node);
-		if (likely(result == 0))
-			JF_SET(node, JNODE_LOADED);
-	}
-	return result;
+	return jnode_ops(node)->parse(node);
 }
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
@@ -561,8 +554,9 @@ int jload_gfp (jnode * node, int gfp_flags)
 	jref(node);
 
 	/*
-	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
-	 * should be atomic, otherwise there is a race against jrelse().
+	 * acquiring d-reference to @jnode and check for JNODE_PARSED bit
+	 * should be atomic, otherwise there is a race against
+	 * reiser4_releasepage().
 	 */
 	LOCK_JNODE(node);
 	add_d_ref(node);
@@ -573,32 +567,36 @@ int jload_gfp (jnode * node, int gfp_flags)
 		ON_TRACE(TRACE_PCACHE, "read node: %p\n", node);
 
 		page = jnode_get_page_locked(node, gfp_flags);
-		if (IS_ERR(page)) {
+		if (unlikely(IS_ERR(page))) {
 			result = PTR_ERR(page);
 			goto failed;
 		}
 		
 		result = jnode_start_read(node, page);
-		if (result)
+		if (unlikely(result != 0))
 			goto failed;
 
 		wait_on_page_locked(page);
-		if (!PageUptodate(page)) {
+		if (unlikely(!PageUptodate(page))) {
 			result = RETERR(-EIO);
 			goto failed;
 		}
 
 		node->data = kmap(page);
 			
-		if (!jnode_is_parsed(node)) {
-			result = UNDER_SPIN(jnode, node, jparse(node));
-			if (result) {
+		/* "parse" jnode's page. We don't need locking here, because
+		 * d_count is already incremented and, hence, page cannot be
+		 * released and JNODE_PARSED cannot be cleared. Worst thing we
+		 * can possible get here is several threads entering jparse
+		 * concurrently---not a big deal, because jparse() is supposed
+		 * to be idempotent. */
+		if (likely(!jnode_is_parsed(node))) {
+			result = jparse(node);
+			if (unlikely(result != 0)) {
 				kunmap(page);
 				goto failed;
 			}
 			JF_SET(node, JNODE_PARSED);
-			reiser4_stat_inc_at_level(jnode_get_level(node), 
-						  jnode.jload_page);
 		}
 	} else {
 		page = jnode_page(node);
@@ -620,7 +618,6 @@ int jload_gfp (jnode * node, int gfp_flags)
 		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
 
-	JF_SET(node, JNODE_LOADED);
 	PROF_END(jload, jload);
 	return 0;
 
@@ -675,7 +672,6 @@ int jinit_new (jnode * node)
 		JF_SET(node, JNODE_PARSED);
 	}
 
-	JF_SET(node, JNODE_LOADED);
 	return 0;
 
  failed:
@@ -703,7 +699,7 @@ jrelse(jnode * node /* jnode to release references to */)
 		/*
 		 * it is safe not to lock jnode here, because at this point
 		 * @node->d_count is greater than zero (if jrelse() is used
-		 * correctly, that is). JNODE_LOADED may be not set yet, if,
+		 * correctly, that is). JNODE_PARSED may be not set yet, if,
 		 * for example, we got here as a result of error handling path
 		 * in jload(). Anyway, page cannot be detached by
 		 * reiser4_releasepage(). truncate will invalidate page
@@ -711,18 +707,8 @@ jrelse(jnode * node /* jnode to release references to */)
 		 */
 		kunmap(page);
 	}
-	LOCK_JNODE(node);
-	assert("nikita-489", node->d_count > 0);
-	node->d_count --;
-	if (node->d_count == 0) {
-		/* FIXME it is crucial that we first decrement ->d_count and
-		   only later clear JNODE_LOADED bit. I hope that
-		   atomic_dec_and_test() implies memory barrier (and
-		   optimization barrier, of course).
-		*/
-		JF_CLR(node, JNODE_LOADED);
-	}
-	UNLOCK_JNODE(node);
+	assert("nikita-489", atomic_read(&node->d_count) > 0);
+	atomic_dec(&node->d_count);
 	/* release reference acquired in jload_gfp() or jinit_new() */
 	jput(node);
 	PROF_END(jrelse, jrelse);
@@ -779,7 +765,7 @@ jput_final(jnode * node)
 	int r_i_p;
 
 	assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
-	assert("jmacd-511", node->d_count == 0);
+	assert("jmacd-511", atomic_read(&node->d_count) == 0);
 
 	/* A fast check for keeping node in cache. We always keep node in cache
 	 * if its page is present and node was not marked for deletion */
@@ -1282,7 +1268,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	result = jnode_is_busy(node, jtype);
 	if (!result) {
 		assert("nikita-2488", page == jnode_page(node));
-		assert("nikita-2533", node->d_count == 0);
+		assert("nikita-2533", atomic_read(&node->d_count) == 0);
 		if (page != NULL) {
 			assert("nikita-2126", !PageDirty(page));
 			assert("nikita-2127", PageUptodate(page));
@@ -1408,7 +1394,7 @@ jnode_invariant_f(const jnode * node,
 		/* [jnode-refs] invariant */
 
 		/* only referenced jnode can be loaded */
-		_check(atomic_read(&node->x_count) >= node->d_count);
+		_check(atomic_read(&node->x_count) >= atomic_read(&node->d_count));
 
 }
 
@@ -1500,7 +1486,6 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       " block: %s, d_count: %d, x_count: %d, "
 	       "pg: %p, atom: %p, lock: %i:%i, type: %s, ",
 	       prefix, node, node->state,
-	       jnode_state_name(node, JNODE_LOADED),
 	       jnode_state_name(node, JNODE_HEARD_BANSHEE),
 	       jnode_state_name(node, JNODE_LEFT_CONNECTED),
 	       jnode_state_name(node, JNODE_RIGHT_CONNECTED),

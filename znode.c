@@ -684,14 +684,6 @@ znode_free_space(znode * node /* znode to query */ )
 	return node_plugin_by_node(node)->free_space(node);
 }
 
-/* return non-0 iff data are loaded into znode */
-int
-znode_is_loaded(const znode * node /* znode to query */ )
-{
-	assert("nikita-497", node != NULL);
-	return ZF_ISSET(node, JNODE_LOADED);
-}
-
 /* left delimiting key of znode */
 reiser4_key *
 znode_get_rd_key(znode * node /* znode to query */ )

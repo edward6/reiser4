@@ -132,7 +132,7 @@ struct jnode {
 	   memory while this is greater than 0. Increased on jload().
 	   Decreased on jrelse().
 	*/
-	int d_count;
+	atomic_t d_count;
 
 	/* atom the block is in, if any */
 	txn_atom *atom;
@@ -152,8 +152,8 @@ struct jnode {
 TS_LIST_DEFINE(capture, jnode, capture_link);
 
 typedef enum {
-       /* data are loaded from node */
-	JNODE_LOADED = 0,
+	/* jnode's data parsed */
+	JNODE_PARSED = 0,
        /* node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
@@ -209,15 +209,13 @@ typedef enum {
 
 	/* used in plugin/item/extent.c */
 	JNODE_NEW = 19,
-	/* jnode's data parsed */
-	JNODE_PARSED = 20,
-	JNODE_DKSET = 21,
+	JNODE_DKSET = 20,
 
 	/* cheap and effective protection of jnode from emergency flush. This
 	 * bit can only be set by thread that holds long term lock on jnode
 	 * parent node (twig node, where extent unit lives). */
-	JNODE_EPROTECTED = 22,
-	JNODE_CLUSTER_PAGE = 23
+	JNODE_EPROTECTED = 21,
+	JNODE_CLUSTER_PAGE = 22
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -404,7 +402,7 @@ static inline int
 jnode_is_loaded(const jnode * node)
 {
 	assert("zam-506", node != NULL);
-	return JF_ISSET(node, JNODE_LOADED);
+	return atomic_read(&node->d_count) > 0;
 }
 
 extern void page_detach_jnode(struct page *page, 
@@ -425,7 +423,7 @@ static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
 {
 	assert("nikita-1962", node != NULL);
 
-	++ node->d_count;
+	atomic_inc(&node->d_count);
 	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
 }
 

@@ -340,7 +340,7 @@ extern reiser4_key *item_key_by_coord(const coord_t * coord, reiser4_key * key);
 extern reiser4_key *unit_key_by_coord(const coord_t * coord, reiser4_key * key);
 
 extern void obtain_item_plugin(const coord_t * coord);
-extern int znode_is_loaded(const znode * node);
+static inline int znode_is_loaded(const znode * node);
 
 /* return plugin of item at @coord */
 static inline item_plugin *

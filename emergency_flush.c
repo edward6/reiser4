@@ -397,7 +397,7 @@ flushable(const jnode * node, struct page *page)
 
 	if (!jnode_is_dirty(node))
 		return 0;
-	if (node->d_count != 0)   /* used */
+	if (atomic_read(&node->d_count) != 0)   /* used */
 		return 0;
 	if (jnode_is_loaded(node))              /* loaded */
 		return 0;
