@@ -336,6 +336,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	} else {
 		warning( "nikita-2219", "Failed to create sd for %lu (%x)",
 			 object -> i_ino, *reiser4_inode_flags( object ) );
+		BUG();
 	}
 
 	/* file has name now, clear immutable flag */
