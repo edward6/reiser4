@@ -53,7 +53,7 @@
  * When it comes to the balancing, each directory entry in compound directory
  * item is unit, that is, something that can be cut from one item and pasted
  * into another item of the same type. Handling of unit cut and paste is major
- * reason for the complexity of cide below.
+ * reason for the complexity of code below.
  *
  */
 
