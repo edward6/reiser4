@@ -121,22 +121,6 @@ sub_from_ctx_grabbed(__u64 count)
 	ctx->grabbed_blocks -= count;
 }
 
-/* Increase the counter of block reserved for flush in context. */
-static void add_to_ctx_flush_reserved (__u64 count)
-{
-	reiser4_context * ctx = get_current_context();
-	ctx->flush_reserved += count;
-}
-
-/* Decrease the counter of block reserved for flush in context. */
-static void sub_from_ctx_flush_reserved (__u64 count)
-{
-	reiser4_context * ctx = get_current_context();
-
-	assert ("vpf-284", ctx->flush_reserved >= count);
-	ctx->flush_reserved -= count;
-}
-
 static void
 add_to_sb_unallocated(const struct super_block *super, __u64 count, reiser4_ba_flags_t flags)
 {
@@ -246,9 +230,8 @@ print_block_counters(const char *prefix,
 	     reiser4_fake_allocated_unformatted(super),
 	     reiser4_flush_reserved(super),
 	     reiser4_block_count(super));
-	info("\tcontext: G: %llu, R: %llu",
-	     get_current_context()->grabbed_blocks,
-	     get_current_context()->flush_reserved);
+	info("\tcontext: G: %llu",
+	     get_current_context()->grabbed_blocks);
 	if (atom == NULL)
 		atom = get_current_atom_locked_nocheck();
 	if (atom != NULL) {
@@ -568,6 +551,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			impossible("zam-531", "wrong block stage");
 		}
 	} else {
+		assert ("zam-821", ergo(hint->max_dist == 0, ret != -ENOSPC));
 		if (hint->block_stage == BLOCK_NOT_COUNTED)
 			grabbed2free(needed);
 	}
@@ -669,14 +653,11 @@ void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 {
 	const struct super_block * super = reiser4_get_current_sb(); 
 
+	assert("vs-1095", atom);
+
 	sub_from_ctx_grabbed (count);
 
-	/* add to atom if exists, otherwise to ctx. */
-	assert("vs-1095", atom);
-	if (atom) {
-	    atom->flush_reserved += count;
-	} else
-	    add_to_ctx_flush_reserved (count);
+	atom->flush_reserved += count;
 
 	reiser4_spin_lock_sb(super);
 
@@ -690,12 +671,11 @@ void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 
 void grabbed2flush_reserved(__u64 count)
 {
-	txn_atom * atom = get_current_atom_locked_nocheck ();
+	txn_atom * atom = get_current_atom_locked ();
 
 	grabbed2flush_reserved_nolock (atom, count);
 
-	if (atom)
-		spin_unlock_atom (atom);
+	spin_unlock_atom (atom);
 }
 
 void flush_reserved2grabbed(txn_atom * atom, __u64 count)
@@ -779,19 +759,6 @@ void flush_reserved2free_all ()
 	reiser4_spin_unlock_sb (super);
 	    
 	spin_unlock_atom (atom);
-}
-
-void flush_reserved2atom_all_nolock(txn_atom * atom) 
-{
-	__u32 count = get_current_context()->flush_reserved;
-
-	assert ("zam-771", atom != NULL);
-	assert ("zam-770", spin_atom_is_locked (atom));
-	
-	sub_from_ctx_flush_reserved(count);
-	add_to_atom_flush_reserved_nolock(atom, count);
-	trace_on(TRACE_RESERVE1, 
-		 "flush_reserved2atom: moving %u context flush reserved to atom's flush reserved. Atom %u\n", count, atom->atom_id);
 }
 
 /* release all grabbed blocks which where not used. */

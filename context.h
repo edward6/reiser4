@@ -63,7 +63,6 @@ struct reiser4_context {
 	/* per-thread grabbed (for further allocation) blocks counter */
 	reiser4_block_nr grabbed_blocks;
 
-	reiser4_block_nr flush_reserved;
 	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
 	   bits in it. */
 	__u32 trace_flags;
