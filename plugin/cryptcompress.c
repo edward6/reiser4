@@ -11,7 +11,7 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 * data structure       *         field        * data structure       *          field      *
 ********************************************************************************************
 * plugin_set           *file plugin id        * reiser4_plugin_stat  *file plugin id       *
-*                      *crypto plsugin id     *                      *crypto plugin id     *
+*                      *crypto plugin id      *                      *crypto plugin id     *
 *                      *digest plugin id      *                      *digest plugin id     *
 *                      *compression plugin id *                      *compression plugin id*
 ********************************************************************************************
@@ -553,61 +553,84 @@ flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
 }
 
 reiser4_internal int
-hint_prev_cluster(reiser4_cluster_t * clust)
+hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
 	assert("edward-699", clust != NULL);
+	assert("edward-1088", inode != NULL);
 	assert("edward-700", clust->hint != NULL);
 
 	if (!clust->hint->coord.valid)
 		return 0;
-	assert("edward-701", clust->file != NULL);
-	assert("edward-702", clust->file->f_dentry != NULL);
-	assert("edward-703", clust->file->f_dentry->d_inode != NULL);
-
-	return (clust->index == off_to_clust(clust->hint->offset, clust->file->f_dentry->d_inode));
+	return (clust->index == off_to_clust(clust->hint->offset, inode));
 }
 
+/*
+  If we want to read/write/create more then one disk cluster
+  and don't have a lock, we should start from this function.
+  
+  Check if hint is set and valid. Note, that
+  . @key should be of the page cluster we want to read/write/create
+  . if @hint is set, it should represent a first item of the disk cluster
+  we want to read/write or the insert position for unprepped cluster
+  that will be created */
 static int
 crc_hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mode lock_mode)
 {
-	assert("edward-704", hint != NULL);
+	coord_t * coord;
 	
-	if (hint->coord.valid) {
-		assert("edward-705", znode_is_any_locked(hint->coord.base_coord.node)); 
-		return 0;
-	}
+	assert("edward-704", hint != NULL);
+	assert("edward-1089", !hint->coord.valid);
 	assert("edward-706", hint->coord.lh->owner == NULL);
+	
+	coord = &hint->coord.base_coord;
+	
 	if (!hint || !hint_is_set(hint) || hint->mode != lock_mode)
 		/* hint either not set or set by different operation */
 		return RETERR(-E_REPEAT);
+	
+	if (get_key_offset(key) != hint->offset)
+		/* hint is set for different key */
+		return RETERR(-E_REPEAT);
 
-	if (check_key) {
-		if (get_key_offset(key) != hint->offset)
-			/* hint is set for different key */
-			return RETERR(-E_REPEAT);
-	}
-	else {
-		/* unexpected */
-		coord_t * coord = &hint->coord.base_coord;
-		assert("edward-963", coord->between == AFTER_ITEM /* was not found */||
-		       coord->between == AFTER_UNIT /* next unprepped cluster */ ||
-		       coord->between == AT_UNIT /* after find disk cluster(last item was't read */ ||
-		       coord->between == BEFORE_ITEM /* after find disk cluster(last item was read */);	
-		if (coord->between == AT_UNIT || coord->between == BEFORE_ITEM) {
-			/* AFTER_CLUSTER */
-			assert("edward-964", coord->item_pos > 0);
+	assert("edward-1090",
+	       get_dc_item_stat(hint) == DC_BEFORE_CLUSTER ||
+	       get_dc_item_stat(hint) == DC_AFTER_CLUSTER);
+	
+	switch (get_dc_item_stat(hint)) {
+	case DC_BEFORE_CLUSTER:
+		if (check_key)
+			/* the caller is find_disk_cluster */
+			coord->item_pos ++;
+		break;
+	case DC_AFTER_CLUSTER:
+		if (!check_key) {
+			/* the caller is make_unprepped_cluster */
+			assert("edward-1091", 
+			       coord->between == AFTER_ITEM || /* set by make_unprepped cluster() */
+			       coord->between == AFTER_UNIT ||
+			       coord->between == AT_UNIT ||    /* set by find_disk_cluster() */
+			       coord->between == BEFORE_ITEM   /* set by find_disk_cluster() */);
+			assert("edward-1092", coord->item_pos > 0);
 			coord->item_pos --;
 			coord->between = AT_UNIT;
 #if REISER4_DEBUG
 			hint->seal.coord.item_pos --;
 			hint->seal.coord.between = AT_UNIT;
 #endif
-		}
-	}	
+		}			
+		break;
+	default:
+		impossible("edward-1093", "bad disk cluster state");
+	}
 	assert("edward-707", schedulable());
+	assert("edward-1094",
+	       get_dc_item_stat(hint) == DC_BEFORE_CLUSTER ||
+	       get_dc_item_stat(hint) == DC_AFTER_CLUSTER);
 	
-	return seal_validate(&hint->seal, &hint->coord.base_coord, key,
-			     hint->level, hint->coord.lh, FIND_MAX_NOT_MORE_THAN, lock_mode, ZNODE_LOCK_LOPRI);
+	return seal_validate(&hint->seal, &hint->coord.base_coord,
+			     key, hint->level, hint->coord.lh,
+			     FIND_MAX_NOT_MORE_THAN, lock_mode,
+			     ZNODE_LOCK_LOPRI);
 }
 
 static inline void
@@ -685,30 +708,36 @@ free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust)
 /* Search a disk cluster item.
    If result is not cbk_errored current znode is locked */
 reiser4_internal int
-find_cluster_item(hint_t * hint, /* coord, lh, seal */
-		  const reiser4_key *key, /* key of next cluster item to read */
-		  int check_key,
+find_cluster_item(hint_t * hint,            
+		  const reiser4_key *key,   /* key of next cluster item to read */
+		  int check_key,            /* 1, if the caller read/write items */
 		  znode_lock_mode lock_mode /* which lock */,
 		  ra_info_t *ra_info,
 		  lookup_bias bias,
 		  __u32 flags)
 {
 	int result;
+	int cluster_shift;
 	reiser4_key ikey;
 	coord_t * coord = &hint->coord.base_coord;
 	
 	assert("edward-152", hint != NULL);
 	
 	if (hint->coord.valid) {
-#if REISER4_DEBUG
-		result = zload(coord->node);
-		
-		assert("edward-889", !result);
-		assert("edward-890", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
-		zrelse(coord->node);
-#endif
+		/* The caller is find_disk_cluster()
+		   or get_disk_cluster_locked (if we write 
+		   the rest of the flow to the next cluster).
+		*/
 		assert("edward-709", znode_is_any_locked(coord->node));
-		if (coord->between == BEFORE_ITEM) {
+
+		switch (get_dc_item_stat(hint)) {
+		case DC_FIRST_ITEM:
+		case DC_CHAINED_ITEM:
+		case DC_AFTER_CLUSTER:	
+			assert("edward-1095", check_key == 1);
+			assert("edward-1096", 
+			       coord->between == BEFORE_ITEM ||
+			       coord->between == AT_UNIT);
 			if (equal_to_rdk(coord->node, key)) {
 				result = goto_right_neighbor(coord, hint->coord.lh);
 				if (result == -E_NO_NEIGHBOR) {
@@ -720,16 +749,29 @@ find_cluster_item(hint_t * hint, /* coord, lh, seal */
 			result = zload(coord->node);
 			if (result)
 				return result;
-			/* check current item */
-			
-			if(!coord_is_existing_item(coord)) {
-				/* FIXME-EDWARD: This was the last item
-				   of the object */
-				crc_invalidate_extended_coord(&hint->coord);
+			if (node_is_empty(coord->node)) {
+				assert("edward-1097", 
+				       get_dc_item_stat(hint) == DC_FIRST_ITEM ||
+				       get_dc_item_stat(hint) == DC_CHAINED_ITEM);
 				zrelse(coord->node);
-				longterm_unlock_znode(hint->coord.lh);
 				goto traverse_tree;
 			}
+			assert("edward-1098", item_id_by_coord(coord) == CTAIL_ID);
+			if (!check_key) {
+				/* caller is make_unprepped_cluster, which
+				   is looking for a first disk cluster item,
+				   so we need do decrenent item position */
+				assert("edward-1099", coord->item_pos > 0);
+				coord->item_pos--;
+				set_dc_item_stat(hint, DC_BEFORE_CLUSTER);
+			}
+			if (!coord_is_existing_item(coord)) {
+				zrelse(coord->node);
+				return CBK_COORD_NOTFOUND;
+			}
+			/* real lookup is going here,
+			   the state should be set to 'found' or 'not found' */
+			
 			item_key_by_coord(coord, &ikey);
 			if (!all_but_offset_key_eq(key, &ikey)) {
 				unset_hint(hint);
@@ -738,78 +780,65 @@ find_cluster_item(hint_t * hint, /* coord, lh, seal */
 			}
 			if (get_key_offset(key) == get_key_offset(&ikey)) {
 				zrelse(coord->node);
-				return CBK_COORD_FOUND;
-			}
-			//assert("edward-765", get_key_offset(key) > get_key_offset(&ikey));
-			zrelse(coord->node);
-			return CBK_COORD_NOTFOUND;
-		}
-		else {
-			assert("edward-710", coord->between == AT_UNIT);	
-			
-			/* repeat check with updated @key */
-			result = zload(coord->node);
-			if (result)
-				return result;
-			item_key_by_coord(coord, &ikey);
-			assert("edward-711", all_but_offset_key_eq(key, &ikey));
-			
-			if (get_key_offset(key) == get_key_offset(&ikey)) {
-				zrelse(coord->node);
+				if (get_dc_item_stat(hint) == DC_AFTER_CLUSTER)
+					set_dc_item_stat(hint, DC_FIRST_ITEM);
 				return CBK_COORD_FOUND;
 			}
 			zrelse(coord->node);
-			/* status is not changed, perhaps this is a hole */
 			return CBK_COORD_NOTFOUND;
+			break;
+		default:
+			impossible("edward-1100", "bad disk cluster state");
 		}
-	}
-	else {
-		/* extended coord is invalid */
+	} else {
+		/* extended coord is invalid, 
+		   callers are looking for a first disk cluster item */
+		assert("edward-1101",
+		       get_dc_item_stat(hint) == DC_INVALID_STATE ||
+		       get_dc_item_stat(hint) == DC_BEFORE_CLUSTER ||
+		       get_dc_item_stat(hint) == DC_AFTER_CLUSTER);
+		
 		result = crc_hint_validate(hint, key, check_key, lock_mode);
 		if (result)
 			goto traverse_tree;
-#if REISER4_DEBUG
-		result = zload(coord->node);
 		
-		assert("edward-891", !result);
-		assert("edward-892", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
-		zrelse(coord->node);
-#endif		
 		assert("edward-712", znode_is_any_locked(coord->node));	
 		
-		/* hint is valid, extended coord is invalid */
+		/* seal is ok */
 		if (check_key) {
+			/* the caller is find_disk_cluster */
+			assert("edward-1102",
+			       get_dc_item_stat(hint) == DC_AFTER_CLUSTER);
 #if REISER4_DEBUG
 			result = zload(coord->node);
-			assert("edward-893", !result);
+			assert("edward-1103", !result);
 			item_key_by_coord(coord, &ikey);
-			assert("edward-894", keyeq(key, &ikey));
+			assert("edward-1104", keyeq(key, &ikey));
 			zrelse(coord->node);
 #endif
-			
 			coord->between = AT_UNIT;
+			set_dc_item_stat(hint, DC_FIRST_ITEM);
 			return CBK_COORD_FOUND;
 		}
-#if REISER4_DEBUG
-		{
-			int cluster_shift;
-			result = zload(coord->node);
-			assert("edward-897", !result);
-			cluster_shift = cluster_shift_by_coord(coord);
-			item_key_by_coord(coord, &ikey);
-			
-			/* at least current item should be of previous cluster */
-			assert("edward-898", all_but_offset_key_eq(key, &ikey));
-			assert("edward-899", get_key_offset(key) >> PAGE_CACHE_SHIFT >> cluster_shift ==
-			       (get_key_offset(&ikey) >> PAGE_CACHE_SHIFT >> cluster_shift) + 1);
-			zrelse(coord->node);
-		}
+		/* the caller is make_unprepped cluster */
+#if REISER4_DEBUG		
+		result = zload(coord->node);
+		assert("edward-1105", !result);
+		cluster_shift = cluster_shift_by_coord(coord);
+		item_key_by_coord(coord, &ikey);
+		
+		/* at least current item should be of previous cluster */
+		assert("edward-1106", all_but_offset_key_eq(key, &ikey));
+		assert("edward-1107", 
+		       (get_key_offset(key)   >> PAGE_CACHE_SHIFT >> cluster_shift) ==
+		       (get_key_offset(&ikey) >> PAGE_CACHE_SHIFT >> cluster_shift) + 1);
+		zrelse(coord->node);
 #endif		
 		return CBK_COORD_NOTFOUND;
 	}
-	assert("edward-713", hint->coord.lh->owner == NULL);
+	assert("edward-1108", 0);
  traverse_tree:
-	
+	assert("edward-713", hint->coord.lh->owner == NULL);
 	assert("edward-714", schedulable());
 	
 	coord_init_zero(coord);
@@ -1666,8 +1695,11 @@ struct inode * inode)
 	return result;
 }
 
+/* set hint for the cluster of the index @index */
 reiser4_internal void
-set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode)
+set_hint_cluster(struct inode * inode, hint_t * hint,
+		 unsigned long index,
+		 znode_lock_mode mode)
 {
 	reiser4_key key;
 	assert("edward-722", crc_inode_ok(inode));
@@ -1776,6 +1808,9 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
   . scans all items of disk cluster
   . maybe reads each one (if @read != 0)
   . maybe makes its znode dirty  (if @write != 0)
+
+  NOTE-EDWARD: Callers should handle the case when disk cluster
+  is incomplete (-EIO)
 */
 reiser4_internal int
 find_cluster(reiser4_cluster_t * clust,
@@ -1809,9 +1844,9 @@ find_cluster(reiser4_cluster_t * clust,
 	assert("edward-462", !tfm_cluster_is_uptodate(tc));
 	assert("edward-461", ergo(read, tfm_stream_is_set(tc, INPUT_STREAM)));
 
-	/* build flow for the cluster */
+	/* set key of the first disk cluster item */
 	fplug->flow_by_inode(inode, 
-			     (tfm_stream_is_set(tc, INPUT_STREAM) ? tfm_stream_data(tc, INPUT_STREAM) : 0),
+			     (read ? tfm_stream_data(tc, INPUT_STREAM) : 0),
 			     0 /* kernel space */,
 			     inode_scaled_cluster_size(inode),
 			     clust_to_off(cl_idx, inode), READ_OP, &f);
@@ -1831,10 +1866,9 @@ find_cluster(reiser4_cluster_t * clust,
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
 			if (inode_scaled_offset(inode, clust_to_off(cl_idx, inode)) == get_key_offset(&f.key)) {
-				/* first item not found */
-				if (read)
-					/* hole cluster */
-					clust->stat = FAKE_CLUSTER;
+				/* first item not found, this is treated
+				   as disk cluster is absent */
+				clust->stat = FAKE_CLUSTER;
 				result = 0;
 				goto out2;
 			}
@@ -1871,6 +1905,7 @@ find_cluster(reiser4_cluster_t * clust,
 	/* NOTE-EDWARD: Callers should handle the case when disk cluster is incomplete (-EIO) */
 	tc->len = inode_scaled_cluster_size(inode) - f.length;
 	/* set hint for next cluster */
+	set_dc_item_stat(clust->hint, DC_AFTER_CLUSTER);
 	set_hint_cluster(inode, clust->hint, clust->index + 1, write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK);
 	all_grabbed2free();
 	return 0;
@@ -2654,30 +2689,32 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 	int to_capture;
 	int found;
 	cloff_t cidx = 0;
-	struct page * page;
+	struct page * page = NULL;
 	hint_t hint;
 	lock_handle lh;
 	reiser4_cluster_t clust;
 
 	init_lh(&lh);
-	result = load_file_hint(file, &hint, &lh);
-	if (result)
-		goto exit;
+	hint_init_zero(&hint, &lh);
 	reiser4_cluster_init(&clust, 0);
 	clust.hint = &hint;
 	
 	to_capture = (__u32)CAPTURE_APAGE_BURST >> inode_cluster_shift(mapping->host);
 	
 	do {
-		found = find_get_pages_tag(mapping, index, PAGECACHE_TAG_REISER4_MOVED, 1, &pages);
+		found = find_get_pages_tag(mapping, index, PAGECACHE_TAG_REISER4_MOVED, 1, &page);
 		if (!found)
 			break;
-		
+		assert("edward-1109", page != NULL);
+
 		clust->index = pg_to_clust(*index);
 		
 		result = capture_anonymous_cluster(clust, mapping->host);
-		if (result)
+		if (result) {
+			page_cache_release(page);
 			break;
+		}
+		page_cache_release(page);
 		to_capture --;
 		
 		assert("edward-1076", clust->index <= page_to_clust(*index));
