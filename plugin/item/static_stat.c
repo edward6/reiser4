@@ -14,6 +14,7 @@
  * ->print() method of static sd item. Prints human readable information about
  * sd at @coord
  */
+/* Audited by: green(2002.06.14) */
 void sd_print( const char *prefix /* prefix to print */, 
 	       new_coord *coord /* coord of item */ )
 {
@@ -42,6 +43,7 @@ void sd_print( const char *prefix /* prefix to print */,
 
 /** helper function used while we are dumping/loading inode/plugin state
     to/from the stat-data. */
+/* Audited by: green(2002.06.14) */
 static void move_on( int *length /* space remaining in stat-data */, 
 		     char **area /* current coord in stat data */, 
 		     int size_of /* how many bytes to move forward */ )
@@ -58,6 +60,7 @@ static void move_on( int *length /* space remaining in stat-data */,
 /** helper function used while loading inode/plugin state from stat-data.
     Complain if there is less space in stat-data than was expected.
     Can only happen on disk corruption. */
+/* Audited by: green(2002.06.14) */
 static int not_enough_space( struct inode *inode /* object being processed */, 
 			     const char *where /* error message */ )
 {
@@ -70,6 +73,7 @@ static int not_enough_space( struct inode *inode /* object being processed */,
 
 /** helper funtion used while loading inode/plugin state from
     stat-data. Call it if invalid plugin id was found. */
+/* Audited by: green(2002.06.14) */
 static int unknown_plugin( reiser4_plugin_id id /* invalid id */, 
 			   struct inode *inode /* object being processed */ )
 {
@@ -81,6 +85,7 @@ static int unknown_plugin( reiser4_plugin_id id /* invalid id */,
 /** helper function used while storing/loading inode/plugin data to/from
     stat-data. Move current coord in stat-data ("area") to position
     aligned up to "alignment" bytes. */
+/* Audited by: green(2002.06.14) */
 static int align( struct inode *inode /* object being processed */, 
 		  int *length /* space remaining in stat-data */, 
 		  char **area /* current coord in stat data */, 
@@ -105,6 +110,7 @@ static int align( struct inode *inode /* object being processed */,
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
     Hanldes stat-data extensions. */
+/* Audited by: green(2002.06.14) */
 int sd_load( struct inode *inode /* object being processed */, 
 	     char *sd /* stat-data body */, 
 	     int len /* length of stat-data */ )
@@ -189,6 +195,8 @@ int sd_load( struct inode *inode /* object being processed */,
 			break;
 	}
 	/* common initialisations */
+	/* AUDIT: Off by one blocks calculation error here. PErhaps
+	   (VFS_BLKSIZE-1) should be added to state -> bytes before shifting */
 	inode -> i_blocks     = state -> bytes >> VFS_BLKSIZE_BITS;
 	inode -> i_blksize    = REISER4_OPTIMAL_IO_SIZE( inode -> i_sb, inode );
 	inode -> i_version    = ++ event;
@@ -201,6 +209,7 @@ int sd_load( struct inode *inode /* object being processed */,
 /** estimates size of stat-data required to store inode.
     Installed as ->save_len() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
+/* Audited by: green(2002.06.14) */
 int sd_len( struct inode *inode /* object being processed */ )
 {
 	unsigned int result;
@@ -229,6 +238,7 @@ int sd_len( struct inode *inode /* object being processed */ )
 /** saves inode into stat-data.
     Installed as ->save() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
+/* Audited by: green(2002.06.14) */
 int sd_save( struct inode *inode /* object being processed */, 
 	     char **area /* where to save stat-data */ )
 {
@@ -273,6 +283,7 @@ int sd_save( struct inode *inode /* object being processed */,
 
 /* stat-data extension handling functions. */
 
+/* Audited by: green(2002.06.14) */
 static int unix_sd_present( struct inode *inode /* object being processed */, 
 			    char **area /* position in stat-data */, 
 			    int *len /* remaining length */ )
@@ -301,6 +312,7 @@ static int unix_sd_present( struct inode *inode /* object being processed */,
 		return not_enough_space( inode, "unix sd" );
 }
 
+/* Audited by: green(2002.06.14) */
 static int unix_sd_absent( struct inode *inode /* object being processed */ )
 {
 	inode -> i_uid = get_super_private( inode -> i_sb ) -> default_uid;
@@ -314,12 +326,14 @@ static int unix_sd_absent( struct inode *inode /* object being processed */ )
 	return 0;
 }
 
+/* Audited by: green(2002.06.14) */
 static int unix_sd_save_len( struct inode *inode UNUSED_ARG /* object being
 							     * processed */ )
 {
 	return sizeof( reiser4_unix_stat );
 }
 
+/* Audited by: green(2002.06.14) */
 static int unix_sd_save( struct inode *inode /* object being processed */, 
 			 char **area /* position in stat-data */ )
 {
@@ -341,6 +355,7 @@ static int unix_sd_save( struct inode *inode /* object being processed */,
 	return 0;
 }
 
+/* Audited by: green(2002.06.14) */
 static int gaf_sd_present( struct inode *inode /* object being processed */, 
 			   char **area /* position in stat-data */, 
 			   int *len /* remaining length */ )
@@ -365,12 +380,14 @@ static int gaf_sd_present( struct inode *inode /* object being processed */,
 		return not_enough_space( inode, "generation and attrs" );
 }
 
+/* Audited by: green(2002.06.14) */
 static int gaf_sd_save_len( struct inode *inode UNUSED_ARG /* object being
 							    * processed */ )
 {
 	return sizeof( reiser4_gen_and_flags_stat );
 }
 
+/* Audited by: green(2002.06.14) */
 static int gaf_sd_save( struct inode *inode /* object being processed */, 
 			char **area /* position in stat-data */ )
 {
@@ -388,6 +405,7 @@ static int gaf_sd_save( struct inode *inode /* object being processed */,
 }
 
 static int plugin_sd_absent( struct inode *inode );
+/* Audited by: green(2002.06.14) */
 static int plugin_sd_present( struct inode *inode /* object being processed */, 
 			      char **area /* position in stat-data */, 
 			      int *len /* remaining length */ )
@@ -459,6 +477,7 @@ static int plugin_sd_present( struct inode *inode /* object being processed */,
 	return result;
 }
 
+/* Audited by: green(2002.06.14) */
 static int plugin_sd_absent( struct inode *inode /* object being processed */ )
 {
 	int result;
@@ -478,6 +497,7 @@ static int plugin_sd_absent( struct inode *inode /* object being processed */ )
 
 /** helper function for plugin_sd_save_len(): calculate how much space
     required to save state of given plugin */
+/* Audited by: green(2002.06.14) */
 static int len_for( reiser4_plugin *plugin /* plugin to save */, 
 		    struct inode *inode /* object being processed */, int len )
 {
@@ -498,6 +518,7 @@ static int len_for( reiser4_plugin *plugin /* plugin to save */,
 
 /** calculate how much space is required to save state of all plugins,
     associated with inode */
+/* Audited by: green(2002.06.14) */
 static int plugin_sd_save_len( struct inode *inode /* object being processed */ )
 {
 	int                 len;
@@ -510,6 +531,12 @@ static int plugin_sd_save_len( struct inode *inode /* object being processed */ 
 	if( state -> plugin_mask == 0 )
 		return 0;
 	len = sizeof( reiser4_plugin_stat );
+	/* AUDIT this looks really ugly. And are you going to add more plugins
+	   here later hardwired???
+	   Why not simply get len_for() to return size of that exact plugin?
+	   Addition can be performed here. Also probably some kind of loop
+	   should be done thriugh all plugins, not blind hardwiring of all
+	   plugins known at compilation time */
 	len = len_for( file_plugin_to_plugin( state -> file ), inode, len );
 	len = len_for( perm_plugin_to_plugin( state -> perm ), inode, len );
 	len = len_for( tail_plugin_to_plugin( state -> tail ), inode, len );
@@ -520,6 +547,7 @@ static int plugin_sd_save_len( struct inode *inode /* object being processed */ 
 
 /** helper function for plugin_sd_save(): save plugin, associated with
     inode. */
+/* Audited by: green(2002.06.14) */
 static int save_plug( reiser4_plugin *plugin /* plugin to save */, 
 		      struct inode *inode /* object being processed */,
 		      char **area /* position in stat-data */, 
@@ -551,6 +579,7 @@ static int save_plug( reiser4_plugin *plugin /* plugin to save */,
 }
 
 /** save state of all non-standard plugins associated with inode */
+/* Audited by: green(2002.06.14) */
 static int plugin_sd_save( struct inode *inode /* object being processed */, 
 			   char **area /* position in stat-data */ )
 {
@@ -574,6 +603,7 @@ static int plugin_sd_save( struct inode *inode /* object being processed */,
 	num_of_plugins = 0;
 	/* for now, use hardcoded list of plugins that can be associated
 	   with inode */
+	/* AUDIT. Hardcoded list of plugins is bad */
 	result = 
 		save_plug( file_plugin_to_plugin( state -> file ), inode, area, &num_of_plugins ) &&
 		save_plug( perm_plugin_to_plugin( state -> perm ), inode, area, &num_of_plugins ) &&
