@@ -1869,6 +1869,12 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 		}
 
+		ret = jload (check);
+		if (ret != 0) {
+			warning ("nikita-2423", "Failure to load jnode: %i", ret);
+			info_jnode ("jnode", check);
+			break;
+		}
 		/* Lock the first page, test writeback. */
 		cpage = jnode_lock_page (check);
 		spin_unlock_jnode (check);
@@ -1968,13 +1974,21 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes");
 
 			for (node = check, i = 0; i < nr; i++) { 
-				struct page *pg   = jnode_page (node);
+				struct page *pg;
 				jnode * tmp = node;
 
 				node = capture_list_next (node);
 
 				trace_on (TRACE_FLUSH_VERB, " %s", flush_jnode_tostring (tmp));
 
+				ret = jload (tmp);
+				if (ret != 0) {
+					warning ("nikita-2430", "Failure to load jnode: %i", ret);
+					info_jnode ("jnode", tmp);
+					continue;
+				}
+
+				pg = jnode_page (tmp);
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
 				/* FIXME: Use TestClearPageDirty? */
@@ -1989,7 +2003,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				/*
 				 * prepare node to being written
 				 */
-				jnode_ops (node)->io_hook (node, pg, WRITE);
+				jnode_ops (tmp)->io_hook (tmp, pg, WRITE);
 
 				bio->bi_io_vec[i].bv_page   = pg;
 				bio->bi_io_vec[i].bv_len    = blksz;
@@ -2002,6 +2016,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				/* The page cannot be purged while it is in writeback,
 				 * release last reference. */
 				flush_dequeue_jnode(pos, tmp);
+				jrelse (tmp);
 			}
 
 			bio->bi_vcnt = nr;
@@ -2019,6 +2034,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 			submit_bio (WRITE, bio);
 		}
+		jrelse (check);
 	}
 
 	blk_run_queues ();

@@ -1925,7 +1925,6 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 {
 	jnode        *node;
-	int           result;
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
@@ -1933,25 +1932,30 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
-	result = 0;
-
+	/*
+	 * is_page_cache_freeable() check
+	 */
+	if( page_count( page ) > 2 )
+		return 0;
 	if( PageDirty( page ) )
 		return 0;
-	if( atomic_read( &node -> d_count ) > 0 )
-		return 0;
-	if( jnode_is_loaded( node ) )
-		return 0;
+
+	spin_lock_jnode( node );
 	/*
-	 * can only release page if it is not in a atom and real block number
-	 * is assigned to it. Simple check for ->atom wouldn't do, because it
-	 * is possible for node to be clean, not it atom yet, and still having
-	 * fake block number. For example, node just created in jinit_new().
+	 * can only release page if real block number is assigned to
+	 * it. Simple check for ->atom wouldn't do, because it is possible for
+	 * node to be clean, not it atom yet, and still having fake block
+	 * number. For example, node just created in jinit_new().
 	 */
-	if( node -> atom != NULL )
+	if( atomic_read( &node -> d_count ) || jnode_is_loaded( node ) ||
+	    blocknr_is_fake( jnode_get_block( node ) ) || 
+	    JF_ISSET( node, ZNODE_WANDER ) ) {
+		spin_unlock_jnode( node );
 		return 0;
-	if( blocknr_is_fake( jnode_get_block( node ) ) )
-		return 0;
-	page_clear_jnode( page );
+	}
+	page_clear_jnode_nolock( page, node );
+	spin_unlock_jnode( node );
+	page_cache_release( page );
 	/*
 	 * return with page still locked. shrink_cache() expects this.
 	 */
