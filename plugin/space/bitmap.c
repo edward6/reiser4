@@ -352,9 +352,13 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 	sema_init (&bnode->sema, 1);
 
 	jnode_init (& bnode->wjnode);
+	/*bitmap nodes should be marked as having no znode fields, it is done
+	  by setting of ZNODE_UNFORMATTED bit.*/
+	JF_SET(& bnode->wjnode, ZNODE_UNFORMATTED);
 	get_working_bitmap_blocknr (bmap, & bnode->wjnode.blocknr); 
 
 	jnode_init (& bnode->cjnode);
+	JF_SET(& bnode->cjnode, ZNODE_UNFORMATTED);
 	get_bitmap_blocknr (super, bmap, & bnode->cjnode.blocknr);
 }
 
