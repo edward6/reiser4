@@ -235,6 +235,9 @@ static void zfree( znode *node /* znode to free */ )
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-465", node != NULL );
 	assert( "nikita-2120", znode_page( node ) == NULL );
+	assert( "nikita-2301", owners_list_empty( &node -> lock.owners ) );
+	assert( "nikita-2302", requestors_list_empty( &node -> lock.requestors ) );
+
 	/*
 	 * poison memory.
 	 */
@@ -392,6 +395,7 @@ void zdelete( znode *node /* znode to finish with */ )
 	assert( "nikita-467", node != NULL );
 	assert( "nikita-1443", current_tree != NULL );
 	assert( "nikita-2123", ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
+	assert( "nikita-2306", !znode_is_locked( node ) );
 
 	tree = current_tree;
 
