@@ -569,21 +569,28 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 int extent_check (coord_t *coord /* coord of item to check */, 
 		  const char **error /* where to store error message */)
 {
- 	reiser4_extent * ext;
-	unsigned i;
+ 	reiser4_extent * ext, * first;
+	unsigned i, j;
 	reiser4_block_nr start, width, blk_cnt;
+	unsigned num_units;
+
+
+	assert ("vs-933", REISER4_DEBUG);
 
 	if (item_length_by_coord (coord) % sizeof (reiser4_extent) != 0) {
 		*error = "Wrong item size";
 		return -1;
 	}
-	ext = extent_item (coord);
-	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
-	for (i = 0 ; i < coord_num_units (coord) ; ++ i, ++ ext) {
+	ext = first = extent_item (coord);
+	blk_cnt = reiser4_block_count (reiser4_get_current_sb ());
+	num_units = coord_num_units (coord);
+
+	for (i = 0; i < num_units; ++ i, ++ ext) {
 
 		start = extent_get_start (ext);
 		if (start < 2)
 			continue;
+		/* extent is allocated one */
 		width = extent_get_width (ext);
 		if (start >= blk_cnt) {
 			*error = "Start too large";
@@ -593,6 +600,20 @@ int extent_check (coord_t *coord /* coord of item to check */,
 			*error = "End too large";
 			return -1;
 		}
+		/* make sure that this extent does not overlap with other
+		 * allocated extents extents */
+		for (j = 0; j < i; j ++) {
+			if (state_of_extent (first + j) != ALLOCATED_EXTENT)
+				continue;
+			if (!((extent_get_start (ext) >=
+			       extent_get_start (first + j) + extent_get_width (first + j)) ||
+			      (extent_get_start (ext) + extent_get_width (ext) <=
+			       extent_get_start (first + j)))) {
+				*error = "Extent overlaps with others";
+				return -1;
+			}
+		}
+		
 	}
 	return 0;
 }
@@ -853,65 +874,63 @@ reiser4_key * extent_unit_key (const coord_t * coord, reiser4_key * key)
 static void optimize_extent (coord_t * item)
 {
 	unsigned i, old_num, new_num;
-	reiser4_extent * ext, * prev, * start;
-	reiser4_block_nr width;
+	reiser4_extent * cur, * new_cur, * start;
+	reiser4_block_nr cur_width, new_cur_width;
+	extent_state cur_state;
+	const char * error;
 
-	ext = start = extent_item (item);
-	old_num = extent_nr_units (item);
 
-	if (REISER4_DEBUG) {
-		unsigned j;
-
-		/* make sure that extents do not overlap */
-		for (i = 0; i < old_num; i ++, ext ++) {
-			if (state_of_extent (ext) != ALLOCATED_EXTENT)
-				continue;
-			prev = start;
-			for (j = 0; j < i; j ++, prev ++) {
-				if (state_of_extent (prev) != ALLOCATED_EXTENT)
-					continue;
-				assert ("vs-911",
-					(extent_get_start (ext) >= extent_get_start (prev) + extent_get_width (prev)) ||
-					(extent_get_start (ext) + extent_get_width (ext) <= extent_get_start (prev)));
-			}
-		}
-		ext = start;
-	}
-	prev = NULL;
-	new_num = 0;
 	assert ("vs-765", coord_is_existing_item (item));
 	assert ("vs-763", item_is_extent (item));
-	item->unit_pos = 0;
-	item->between = AT_UNIT;
-	for (i = 0; i < old_num; i ++, ext ++) {
-		width = extent_get_width (ext);
-		if (!width)
+	assert ("vs-934", extent_check (item, &error) == 0);
+
+
+	cur = start = extent_item (item);
+	old_num = extent_nr_units (item);
+	new_num = 0;
+	new_cur = NULL;
+
+	for (i = 0; i < old_num; i ++, cur ++) {
+		cur_width = extent_get_width (cur);
+		if (!cur_width)
 			continue;
-		if (prev && state_of_extent (prev) == state_of_extent (ext)) {
-			/* current extent (@ext) and previous one (@prev) can
-			   be unioned when they are hole or unallocated
-			   extents or when they are adjacent allocated
-			   extents */
-			if (state_of_extent (prev) != ALLOCATED_EXTENT) {
-				set_extent (prev, state_of_extent (ext),
-					    extent_get_width (prev) + width);
+
+		cur_state = state_of_extent (cur);
+		if (new_cur && state_of_extent (new_cur) == cur_state) {
+			/* extents can be unioned when they are holes or
+			   unallocated extents or when they are adjacent
+			   allocated extents */
+			if (cur_state != ALLOCATED_EXTENT) {
+				new_cur_width += cur_width;
+				set_extent (new_cur, cur_state, new_cur_width);
 				continue;
-			} else if (extent_get_start (prev) + extent_get_width (prev) ==
-				   extent_get_start (ext)) {
-				extent_set_width (prev, extent_get_width (prev) + width);
+			} else if (extent_get_start (new_cur) + new_cur_width ==
+				   extent_get_start (cur)) {
+				new_cur_width += cur_width;				
+				extent_set_width (new_cur, new_cur_width);
 				continue;
 			}
 		}
 
 		/* @ext can not be joined with @prev, move @prev forward */
-		if (prev)
-			prev ++;
-		else
-			prev = start;
-		*prev = *ext;
+		if (new_cur)
+			new_cur ++;
+		else {
+			assert ("vs-935", cur == start);
+			new_cur = start;
+		}
+
+		/*
+		 * FIXME-VS: this is not necessary if 
+		 */
+		*new_cur = *cur;
+		new_cur_width = cur_width;
 		new_num ++;
 	}
+
 	if (new_num != old_num)	{
+		/* at least one pair of adjacent extents has merged. Shorten
+		 * item from the end correspondingly */
 		int result;
 		coord_t from, to;
 
@@ -1848,6 +1867,8 @@ int extent_readpage (void * vp, struct page * page)
 		jnode_set_block (j, &block);
 		
 	case UNALLOCATED_EXTENT:
+		assert ("vs-926", *jnode_get_block (j));
+		reiser4_stat_extent_add (unfm_block_reads);
 		page_io (page, READ, GFP_NOIO);
 		break;
 	}
@@ -1894,6 +1915,39 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	jput (j);
 	return 0;
 }
+
+
+#if DEBUGGING_FSX
+
+/*
+ * FIXME-VS: remove after debugging
+ */
+struct {
+	char page_data [PAGE_CACHE_SIZE];
+	struct page * page;
+} fu_data [8];
+
+struct page * get_fu_page (int index)
+{
+	assert ("vs-928", index < 8);
+	return fu_data [index].page;
+}
+
+void set_fu_page (unsigned long index, struct page * page)
+{
+	assert ("vs-932",
+		(fu_data [index].page == 0 && page) ||
+		(page == 0));
+	fu_data [index].page = page;
+}
+
+char * get_fu_page_data (int index)
+{
+	assert ("vs-931", index < 8);
+	return fu_data [index].page_data;
+}
+
+#endif /* DEBUGGING_FSX */
 
 
 /*
@@ -1957,6 +2011,20 @@ int extent_read (struct inode * inode, coord_t * coord,
 	assert ("vs-572", f->user == 1);
 	ON_DEBUG_CONTEXT( assert( "green-6", 
 				  lock_counters() -> spin_locked == 0 ) );
+
+#if DEBUGGING_FSX
+	{
+		/*
+		 * FIXME-VS: remove after debugging
+		 */
+		if (page != get_fu_page (page->index)) {
+			info ("!!!!!! page changed\n");
+		}
+		if (memcmp (get_fu_page_data (page->index), kaddr, PAGE_CACHE_SIZE) != 0) {
+			info ("!!!!!! content mismatch\n");
+		}
+	}
+#endif
 	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
 
@@ -2455,6 +2523,9 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 	reiser4_blocknr_hint *preceder;
 	int relocate = 0;
 	int ret;
+	jnode * check; /* this is used to check that all dirty jnodes are of
+			* the same atom */
+
 
 	/* Handle the non-allocated cases. */
 	switch ((st = state_of_extent (extent))) {
@@ -2490,7 +2561,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		assert ("jmacd-748", count > 0);
 		assert ("jmacd-749", blocksize == PAGE_CACHE_SIZE);
 		assert ("jmacd-750", ((offset & (blocksize - 1)) == 0));
-
+#if 0
 		/* See if the extent is entirely dirty. */
 		for (i = 0; i < count; i += 1, offset += blocksize) {
 
@@ -2523,7 +2594,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 
 			jput (j);
 		}
-
+#endif
 		/* If all blocks are dirty we may justify relocating this extent. */
 
 		/* FIXME: JMACD->HANS: It is very complicated to use the formula you give
@@ -2544,6 +2615,11 @@ What does this mean?  Did you do it as requested or differently?
 
 */
 		relocate = (all_need_alloc == 1) && flush_pos_leaf_relocate (pos);
+		/*
+		 * FIXME-VS: no relocation of allocated extents
+		 */
+		relocate = 0;
+		check = 0;
 
 		/* Now scan through again. */
 		offset = get_key_offset (& item_key);
@@ -2566,32 +2642,59 @@ What does this mean?  Did you do it as requested or differently?
 				continue;
 			}
 
+			if (!jnode_check_dirty (j)) {
+				jput (j);
+				continue;
+			}
+
+			if (REISER4_DEBUG) {
+				/*
+				 * all jnodes of this extent unit must belong
+				 * to one atom. Check that
+				 */
+				if (check) {
+					assert ("vs-936", txn_jnodes_of_one_atom (check, j));
+				} else {
+					check = jref (j);
+				}
+			}
+
 			if (! jnode_check_flushprepped (j) /* Was (jnode_check_dirty (j)),
 							    * but allocated check prevents us
 							    * from relocating/wandering a
 							    * previously allocated block  */) {
 
 				if (relocate == 0) {
-					/* If not relocating and dirty, WANDER it */
+					/* WANDER it */
 					jnode_set_wander (j);
-
+					jnode_set_clean (j);
+				} else {
+					/*
+					 * this does not work now
+					 */
+					/* Or else set RELOC.  It will get set again, but... */
+					jnode_set_reloc (j);
 					if ((ret = flush_enqueue_unformatted (j, pos))) {
 						assert ("jmacd-71891", ret < 0);
 						jput (j);
 						goto fail;
 					}
-				} else {
-					/* Or else set RELOC.  It will get set again, but... */
-					jnode_set_reloc (j);
 				}
 			}
 
 			jput (j);
 		}
 
+		if (REISER4_DEBUG && check)
+			jput (check);
+
+
 		/* Now if relocating, free old blocks & change extent state */
 		if (relocate == 1) {
 
+			/*
+			 * FIXME-VS: grab space first
+			 */
 			/* FIXME: JMACD->ZAM: Is this right? */
 			if ((ret = reiser4_dealloc_blocks (& start, & count, /* defer */ 1, BLOCK_ALLOCATED))) {
 				assert ("jmacd-71892", ret < 0);
@@ -3280,6 +3383,8 @@ static int make_page_extent (coord_t * coord, lock_handle * lh,
 }
 
 
+
+
 /*
  * write flow's data into file by pages
  */
@@ -3392,6 +3497,26 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		jnode_set_dirty (j);
 
 		jput (j);
+
+#if 0
+		{
+			/*
+			 * FIXME-VS: remove after debugging
+			 */
+			assert ("vs-927", page->index < 8);
+			if (get_fu_page (page->index) != page) {
+				if (get_fu_page (page->index) != 0)
+					info ("!!!!!!!! write: page changed: %lu\n", page->index);
+				else {
+					info ("Setting page %lu to %p\n", page->index,
+					      page);
+					set_fu_page (page->index, page);
+				}
+			}
+			memcpy (get_fu_page_data (page->index) + page_off,
+				page_data + page_off, to_page);
+		}
+#endif
 		kunmap (page);
 		unlock_page (page);
 		page_cache_release (page);
