@@ -252,8 +252,14 @@ static int insert_new_sd( struct inode *inode )
 	ref -> sd_len = data.length;
 	data.data = NULL;
 
+	assert( "vs-479", get_super_private( inode -> i_sb ) );
+	assert( "vs-480", get_super_private( inode -> i_sb ) -> lplug );
+	resutl = get_super_private( inode -> i_sb ) ->
+		lplug -> allocate_oid( inode -> i_sb, &oid );
+/*
 	result = allocate_oid
 		( reiser4_get_oid_allocator( inode -> i_sb ), &oid );
+*/
 	if( result != 0 )
 		return result;
 
