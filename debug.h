@@ -77,6 +77,10 @@
 
 #ifndef REISER4_DEBUG_NODE
 /** check node content integrity */
+/*
+ * FIXME-VS: do not set this. It gets confused with allocate_and_copy_extent
+ * which copies extents to left without updating delimting keys
+ */
 #define REISER4_DEBUG_NODE   (0)
 #endif
 
