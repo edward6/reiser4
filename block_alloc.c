@@ -53,7 +53,8 @@ blocknr_hint_init(reiser4_blocknr_hint * hint)
 void
 blocknr_hint_done(reiser4_blocknr_hint * hint UNUSED_ARG)
 {
-	/* FIXME: relase bitmap lock. */
+	/* FIXME: Currently, a blocknr hint has no resources which might be
+	 * freed */
 }
 
 /** is it a real block number from real block device or fake block number for
@@ -151,8 +152,7 @@ static void sub_from_ctx_flush_reserved (__u64 count)
 }
 
 static void
-add_to_sb_unallocated(const struct super_block *super,
-		      __u64 count, int formatted)
+add_to_sb_unallocated(const struct super_block *super, __u64 count, int formatted)
 {
 	__u64 unallocated;
 
@@ -166,8 +166,7 @@ add_to_sb_unallocated(const struct super_block *super,
 }
 
 static void
-sub_from_sb_unallocated(const struct super_block *super,
-			__u64 count, int formatted)
+sub_from_sb_unallocated(const struct super_block *super, __u64 count, int formatted)
 {
 	__u64 unallocated;
 
@@ -245,8 +244,8 @@ check_block_counters(const struct super_block *super)
 	__u64 sum;
 
 	sum = reiser4_grabbed_blocks(super) + reiser4_free_blocks(super) +
-	    reiser4_data_blocks(super) + reiser4_fake_allocated(super) +
-	    reiser4_fake_allocated_unformatted(super) + reiser4_flush_reserved(super);
+	    	reiser4_data_blocks(super) + reiser4_fake_allocated(super) + 
+		reiser4_fake_allocated_unformatted(super) + reiser4_flush_reserved(super);
 	if (reiser4_block_count(super) != sum) {
 		info("super block counters: "
 		     "used %llu, free %llu, "
@@ -304,8 +303,8 @@ static int reiser4_is_grab_enabled(void)
  * it allows more error checks. */
 
 int
-reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
-		   __u64 max_block_count, int reserved)
+reiser4_grab_space(__u64 * grabbed, __u64 min_block_count, __u64 max_block_count,
+	int reserved)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	__u64 free_blocks, reserved_blocks;
@@ -332,15 +331,12 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
 
 		ret = -ENOSPC;
 		trace_if(TRACE_ALLOC,
-			 info
-			 ("reiser4_grab_space: ENOSPC: min %llu, max %llu\n",
-			  min_block_count, max_block_count));
+			 info("reiser4_grab_space: ENOSPC: min %llu, max %llu\n", min_block_count, max_block_count));
 
 		goto unlock_and_ret;
 	}
 
-	*grabbed =
-	    free_blocks <= max_block_count ? free_blocks : max_block_count;
+	*grabbed = free_blocks <= max_block_count ? free_blocks : max_block_count;
 
 	add_to_ctx_grabbed(*grabbed);
 	add_to_sb_grabbed(super, *grabbed);
@@ -481,8 +477,8 @@ fake_allocated2used(__u64 count, int formatted)
 
 /* wrapper to call space allocation plugin */
 int
-reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
-		     reiser4_block_nr * len, int formatted, int from_reserved_space)
+reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk, 
+	reiser4_block_nr * len, int formatted, int from_reserved_space)
 {
 	space_allocator_plugin *splug;
 	reiser4_block_nr needed = *len;
@@ -493,21 +489,21 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 
 	assert("vpf-339", hint != NULL);
 	assert("vs-514", (get_super_private(s) &&
-			  get_super_private(s)->space_plug &&
-			  get_super_private(s)->space_plug->alloc_blocks));
+			  get_super_private(s)->space_plug && get_super_private(s)->space_plug->alloc_blocks));
 
 	trace_on(TRACE_ALLOC,
 		 "alloc_blocks: requested %llu, search from %llu\n",
-		 (unsigned long long) *len,
-		 (unsigned long long) (hint ? hint->blk : ~0ull));
+		 (unsigned long long) *len, (unsigned long long) (hint ? hint->blk : ~0ull));
+	if (hint != NULL) {
+		stage = hint->block_stage;
 
-	/* FIXME-ZAM: should a mount option control this? */
-	if (hint->blk == 0) {
-		reiser4_spin_lock_sb(s);
-		hint->blk = get_super_private(s)->last_written_location;
-		assert("zam-677",
-			hint->blk < get_super_private(s)->block_count);
-		reiser4_spin_unlock_sb(s);
+		/* FIXME-ZAM: should a mount option control this? */
+		if (hint->blk == 0) {
+			reiser4_spin_lock_sb(s);
+			hint->blk = get_super_private(s)->last_written_location;
+			assert("zam-677",
+			       hint->blk < get_super_private(s)->block_count);
+			reiser4_spin_unlock_sb(s);
 	}
 	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
@@ -521,9 +517,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	}
 
 	splug = get_super_private(s)->space_plug;
-	ret =
-	    splug->alloc_blocks(get_space_allocator(s), hint, (int) needed, blk,
-				len);
+	ret = splug->alloc_blocks(get_space_allocator(s), hint, (int) needed, blk, len);
 
 	if (!ret) {
 
@@ -747,8 +741,7 @@ used2grabbed(__u64 count)
 
 /* check "allocated" state of given block range */
 void
-reiser4_check_blocks(const reiser4_block_nr * start,
-		     const reiser4_block_nr * len, int desired)
+reiser4_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
 	space_allocator_plugin *splug = get_current_super_private()->space_plug;
 
@@ -775,8 +768,7 @@ reiser4_check_block(const reiser4_block_nr * block, int desired)
  * structure depend on @defer parameter.
  */
 int
-reiser4_dealloc_blocks(const reiser4_block_nr * start,
-		       const reiser4_block_nr * len,
+reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
 		       /* defer actual block freeing until transaction commit */
 		       int defer,
 		       /* if @defer is zero, @target_stage means the stage of blocks which
@@ -787,7 +779,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		       block_stage_t target_stage, int formatted	/* this argument is only used when @defer == 0: it is
 									 * used to distinguish blocks allocated for unformatted
 									 * and formatted nodes */ )
- {
+{
 	txn_atom *atom = NULL;
 	int ret;
 
@@ -812,9 +804,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 			atom = get_current_atom_locked();
 			assert("zam-430", atom != NULL);
 
-			ret =
-			    blocknr_set_add_extent(atom, &atom->delete_set,
-						   &bsep, start, len);
+			ret = blocknr_set_add_extent(atom, &atom->delete_set, &bsep, start, len);
 
 			if (ret == -ENOMEM) {
 				/* FIXME: JMACD->ZAM: return FAILURE. */
@@ -845,9 +835,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		assert("zam-461", splug != NULL);
 		assert("zam-462", splug->dealloc_blocks != NULL);
 
-		splug->
-		    dealloc_blocks(get_space_allocator
-				   (reiser4_get_current_sb()), *start, *len);
+		splug->dealloc_blocks(get_space_allocator(reiser4_get_current_sb()), *start, *len);
 
 		switch (target_stage) {
 		case BLOCK_NOT_COUNTED:
@@ -888,9 +876,7 @@ pre_commit_hook(void)
 
 /** an actor which applies delete set to block allocator data */
 static int
-apply_dset(txn_atom * atom UNUSED_ARG,
-	   const reiser4_block_nr * a,
-	   const reiser4_block_nr * b, void *data UNUSED_ARG)
+apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data UNUSED_ARG)
 {
 	space_allocator_plugin *splug;
 	struct super_block *s = reiser4_get_current_sb();
