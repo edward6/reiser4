@@ -584,13 +584,12 @@ int find_next_item (struct sealed_coord * hint,
  */
 
 /* find position of last byte of last item of the file plus 1 */
-static loff_t find_file_size (struct inode * inode)
+static int find_file_size (struct inode * inode, loff_t * file_size)
 {
 	int result;
 	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
-	loff_t file_size;
 	item_plugin * iplug;
 
 
@@ -603,12 +602,13 @@ static loff_t find_file_size (struct inode * inode)
 	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		/* error occured */
 		done_lh (&lh);
-		return (loff_t)result;
+		return result;
 	}
 
 	if (result == CBK_COORD_NOTFOUND) {
 		/* there are no items of this file */
 		done_lh (&lh);
+		*file_size = 0;
 		return 0;
 	}
 
@@ -616,18 +616,24 @@ static loff_t find_file_size (struct inode * inode)
 	result = zload (coord.node);
 	if (result) {
 		done_lh (&lh);
-		return (loff_t)result;
+		return result;
 	}
 	iplug = item_plugin_by_coord (&coord);
 
 	assert ("vs-853", iplug->b.real_max_key_inside);
 	iplug->b.real_max_key_inside (&coord, &key);
 
-	file_size = get_key_offset (&key) + 1;
+	*file_size = get_key_offset (&key) + 1;
+
+	if (znode_get_level (coord.node) == LEAF_LEVEL)
+		inode_set_flag (inode, REISER4_HAS_TAIL);
+	else
+		inode_clr_flag (inode, REISER4_HAS_TAIL);
+	inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
 
 	zrelse (coord.node);
 	done_lh (&lh);
-	return file_size;
+	return 0;
 }
 
 
@@ -751,9 +757,9 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 //	get_nonexclusive_access (inode);
 
 
-	file_size = find_file_size (inode);
-	if (file_size < 0)
-		return (int)file_size;
+	result = find_file_size (inode, &file_size);
+	if (result)
+		return result;
 	if (file_size < inode->i_size)
 		result = expand_file (inode, file_size);
 	else {		
@@ -1541,7 +1547,7 @@ static loff_t append_and_or_overwrite (struct file * file,
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			/* resolves to extent_write function */
 
-			result = iplug->s.file.write (inode, &hint, f, 0);
+			result = iplug->s.file.write (inode, &hint, f);
 			if (result == -EAGAIN) {
 				unset_hint (&hint);
 				continue;
@@ -1556,7 +1562,7 @@ static loff_t append_and_or_overwrite (struct file * file,
 			iplug = item_plugin_by_id (TAIL_ID);
 			/* resolves to tail_write function */
 
-			result = iplug->s.file.write (inode, &hint, f, 0);
+			result = iplug->s.file.write (inode, &hint, f);
 			if (result == -EAGAIN) {
 				unset_hint (&hint);
 				continue;
@@ -1727,6 +1733,21 @@ int unix_file_mmap (struct file * file, struct vm_area_struct * vma)
 
 	/* tail2extent expects file to be nonexclusively locked */
 	get_nonexclusive_access (inode);
+
+	if (!inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN)) {
+		loff_t file_size;
+
+		result = find_file_size (inode, &file_size);
+		if (result)
+			return result;
+	}
+	assert ("vs-1074", inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN));
+	if (!inode_get_flag (inode, REISER4_HAS_TAIL)) {
+		/* file is built of extents already */
+		drop_nonexclusive_access (inode);
+		return 0;
+	}
+
 	result = tail2extent (inode);
 	drop_nonexclusive_access (inode);
 	if (result)
