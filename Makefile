@@ -132,10 +132,9 @@ reiser4-objs := \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o
 
-reiser4-objs += sys_reiser4.o
-
 ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
 
+  reiser4-objs += sys_reiser4.o
   ifeq ($(CONFIG_REISER4_FS_SYSCALL_YACC),y)
 
       YFLAGS= -d -v -r -b $(obj)/parser/parser
