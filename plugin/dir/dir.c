@@ -269,8 +269,8 @@ static int common_create_child( struct inode *parent /* parent object */,
 	reiser4_inode_data( object ) -> file = fplug;
 	result = fplug -> set_plug_in_inode( object, parent, data );
 	if( result ) {
-		warning( "nikita-431", "Cannot install plugin %i on %lx", 
-			 data -> id, ( long ) object -> i_ino );
+		warning( "nikita-431", "Cannot install plugin %i on %llx", 
+			 data -> id, get_inode_oid( object ) );
 		return result;
 	}
 
@@ -290,12 +290,12 @@ static int common_create_child( struct inode *parent /* parent object */,
 	result = fplug -> adjust_to_parent
 		( object, parent, object -> i_sb -> s_root -> d_inode );
 	if( result != 0 ) {
-		warning( "nikita-432", "Cannot inherit from %lx to %lx", 
-			 ( long ) parent -> i_ino, ( long ) object -> i_ino );
+		warning( "nikita-432", "Cannot inherit from %llx to %llx", 
+			 get_inode_oid( parent ), get_inode_oid( object ) );
 		return result;
 	}
 
-	reiser4_inode_data( object ) -> locality_id = parent -> i_ino;
+	reiser4_inode_data( object ) -> locality_id = get_inode_oid( parent );
 
 	/* mark inode immutable. We disable changes to the file
 	   being created until valid directory entry for it is
@@ -336,8 +336,9 @@ static int common_create_child( struct inode *parent /* parent object */,
 			}
 		}
 	} else {
-		warning( "nikita-2219", "Failed to create sd for %lu (%lx)",
-			 object -> i_ino, reiser4_inode_data( object ) -> flags );
+		warning( "nikita-2219", "Failed to create sd for %llu (%lx)",
+			 get_inode_oid( object ), 
+			 reiser4_inode_data( object ) -> flags );
 	}
 
 	/* file has name now, clear immutable flag */
@@ -459,7 +460,7 @@ int is_dir_empty( const struct inode *dir )
 	case CBK_COORD_NOTFOUND:
 		/* no entries?! */
 		warning( "nikita-2002", "Directory %lli is TOO empty",
-			 ( __u64 ) dir -> i_ino );
+			 get_inode_oid( dir ) );
 		result = 0;
 		break;
 	default:

@@ -210,7 +210,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	if( result != 0 )
 		return result;
 
-	inode -> i_ino = oid;
+	set_inode_oid( inode, oid );
 
 	coord_init_zero( &coord );
 	init_lh( &lh );
@@ -437,8 +437,8 @@ int common_file_save( struct inode *inode /* object to save */ )
 	else 
 		result = update_sd( inode );
 	if( result != 0 )
-		warning( "nikita-2221", "Failed to save sd for %lu: %i (%lx)",
-			 inode -> i_ino, result, 
+		warning( "nikita-2221", "Failed to save sd for %llu: %i (%lx)",
+			 get_inode_oid( inode ), result, 
 			 reiser4_inode_data( inode ) -> flags );
 	return result;
 }
@@ -484,7 +484,7 @@ int common_file_delete( struct inode *inode /* object to remove */,
 
 		if( result ) return result;
 
-		result = oid_release( ( oid_t ) inode -> i_ino );
+		result = oid_release( get_inode_oid( inode ) );
 
 		if (result) return result;
 
@@ -753,7 +753,7 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 	obj = dentry -> d_inode;
 
 	stat -> dev     = obj -> i_dev;
-	stat -> ino     = obj -> i_ino;
+	stat -> ino     = oid_to_uino( get_inode_oid( obj ) );
 	stat -> mode    = obj -> i_mode;
 	stat -> nlink   = obj -> i_nlink;
 	stat -> uid     = obj -> i_uid;

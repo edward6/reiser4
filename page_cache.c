@@ -134,7 +134,7 @@ static struct address_space_operations formatted_fake_as_ops;
 
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
 
-static const __u64 fake_ino = 0x1;
+static const oid_t fake_ino = 0x1;
 
 /**
  * one-time initialisation of fake inodes handling functions.
@@ -153,7 +153,7 @@ int init_formatted_fake( struct super_block *super )
 
 	assert( "nikita-1703", super != NULL );
 
-	fake = iget_locked( super, fake_ino );
+	fake = iget_locked( super, oid_to_ino( fake_ino ) );
 
 	if( fake ) {
 		assert( "nikita-2168", fake -> i_state & I_NEW );

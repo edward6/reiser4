@@ -84,8 +84,8 @@ static int not_enough_space( struct inode *inode /* object being processed */,
 {
 	assert( "nikita-618", inode != NULL );
 
-	warning( "nikita-619", "Not enough space in %lx while loading %s", 
-		 ( long ) inode -> i_ino, where );
+	warning( "nikita-619", "Not enough space in %llu while loading %s", 
+		 get_inode_oid( inode ), where );
 	return -EINVAL;
 }
 
@@ -95,8 +95,8 @@ static int not_enough_space( struct inode *inode /* object being processed */,
 static int unknown_plugin( reiser4_plugin_id id /* invalid id */, 
 			   struct inode *inode /* object being processed */ )
 {
-	warning( "nikita-620", "Unknown plugin %i in %lx", 
-		 id, ( long ) inode -> i_ino );
+	warning( "nikita-620", "Unknown plugin %i in %llu", 
+		 id, get_inode_oid( inode ) );
 	return -EINVAL;
 }
 
@@ -163,8 +163,8 @@ int sd_load( struct inode *inode /* object being processed */,
 			sdplug = sd_ext_plugin_by_id( bit );
 			if( sdplug == NULL ) {
 				warning( "nikita-627", 
-					 "No such extension %i in inode %lx",
-					 bit, ( long ) inode -> i_ino );
+					 "No such extension %i in inode %llu",
+					 bit, get_inode_oid( inode ) );
 				result = -EINVAL;
 				break;
 			}
@@ -188,8 +188,8 @@ int sd_load( struct inode *inode /* object being processed */,
 			/* next portion of bitmask */
 			if( len < ( int ) sizeof( d16 ) ) {
 				warning( "nikita-629", 
-					 "No space for bitmap in inode %lx",
-					 ( long ) inode -> i_ino );
+					 "No space for bitmap in inode %llu",
+					 get_inode_oid( inode ) );
 				result = -EINVAL;
 				break;
 			}
@@ -205,8 +205,8 @@ int sd_load( struct inode *inode /* object being processed */,
 					continue;
 				}
 				/* too much */
-				warning( "nikita-630", "Too many extensions in %lx",
-					 ( long ) inode -> i_ino );
+				warning( "nikita-630", "Too many extensions in %llu",
+					 get_inode_oid( inode ) );
 				result = -EINVAL;
 				break;
 			}
@@ -220,8 +220,8 @@ int sd_load( struct inode *inode /* object being processed */,
 	inode -> i_blksize    = reiser4_blksize( inode -> i_sb );
 	inode -> i_version    = ++ event;
 	if( len > 0 )
-		warning( "nikita-631", "unused space in inode %lx", 
-			 ( long ) inode -> i_ino );
+		warning( "nikita-631", "unused space in inode %llu", 
+			 get_inode_oid( inode ) );
 	return result;
 }
 
@@ -569,8 +569,8 @@ static int plugin_sd_present( struct inode *inode /* object being processed */,
 		if( !( mask & ( 1 << plugin -> h.type_id ) ) ) {
 			mask |= ( 1 << plugin -> h.type_id );
 		} else {
-			warning( "nikita-658", "duplicate plugin for %lx",
-				 ( long ) inode -> i_ino );
+			warning( "nikita-658", "duplicate plugin for %llu",
+				 get_inode_oid( inode ) );
 			print_plugin( "plugin", plugin );
 			return -EINVAL;
 		}

@@ -50,8 +50,7 @@ int build_readdir_key( struct file *dir /* directory being read */,
 	assert( "nikita-1373", dir -> f_dentry -> d_inode != NULL );
 
 	key_init( result );
-	set_key_locality( result, 
-			  ( oid_t ) dir -> f_dentry -> d_inode -> i_ino );
+	set_key_locality( result, get_inode_oid( dir -> f_dentry -> d_inode ) );
 	set_key_type( result, KEY_FILE_NAME_MINOR );
 	set_key_objectid( result, ( oid_t ) dir -> f_pos );
 	fdata = reiser4_get_file_fsdata( dir );
@@ -86,7 +85,7 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 	 * locality of directory entry's key is objectid of parent
 	 * directory
 	 */
-	set_key_locality( result, ( oid_t ) dir -> i_ino );
+	set_key_locality( result, get_inode_oid( dir ) );
 	/*
 	 * minor packing locality is constant
 	 */
@@ -177,7 +176,7 @@ int build_readdir_stable_entry_key( const struct inode *dir /* directory where
 	 * locality of directory entry's key is objectid of parent
 	 * directory
 	 */
-	set_key_locality( result, ( oid_t ) dir -> i_ino );
+	set_key_locality( result, get_inode_oid( dir ) );
 	/*
 	 * minor packing locality is constant
 	 */
@@ -233,7 +232,7 @@ reiser4_key *build_sd_key( const struct inode *target /* inode of an object */,
 
 	key_init( result );
 	set_key_locality( result, reiser4_inode_data( target ) -> locality_id );
-	set_key_objectid( result, ( oid_t ) target -> i_ino );
+	set_key_objectid( result, get_inode_oid( target ) );
 	set_key_type    ( result, KEY_SD_MINOR );
 	set_key_offset  ( result, ( __u64 ) 0 );
 	return result;

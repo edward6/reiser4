@@ -160,8 +160,8 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 		if( dir -> i_size >= 1 )
 			dir -> i_size -= 1;
 		else {
-			warning( "nikita-2509", "Dir %li is runt",
-				 ( long ) dir -> i_ino );
+			warning( "nikita-2509", "Dir %llu is runt",
+				 get_inode_oid( dir ) );
 			result = -EIO;
 		}
 	}

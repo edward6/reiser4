@@ -2780,7 +2780,9 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	set_key_type (&sd_key, KEY_SD_MINOR);
 	set_key_offset (&sd_key, 0ull);
 //	inode = reiser4_iget (reiser4_get_current_sb (), &sd_key);
-	inode = find_get_inode (reiser4_get_current_sb (), get_key_objectid (key), reiser4_inode_find_actor, key);
+	inode = find_get_inode (reiser4_get_current_sb (), 
+				oid_to_ino (get_key_objectid (key)), 
+				reiser4_inode_find_actor, key);
 	assert ("vs-348", inode);
 /*	if( inode -> i_state & I_NEW )
 		unlock_new_inode( inode );*/

@@ -42,8 +42,8 @@ int hashed_create( struct inode *object /* new directory */,
 		result = create_dot_dotdot( object, parent );
 	else
 		warning( "nikita-2223", 
-			 "Failed to create sd of directory %lu: %i",
-			 object -> i_ino, result );
+			 "Failed to create sd of directory %llu: %i",
+			 get_inode_oid( object ), result );
 	return result;
 }
 
@@ -79,8 +79,8 @@ int hashed_delete( struct inode *object /* object being deleted */,
 			 * "values of B will give rise to dom!\n"
 			 *          -- v6src/s2/mv.c:89
 			 */
-			warning( "nikita-2252", "Cannot remove dot of %li: %i",
-				 ( long ) object -> i_ino, result );
+			warning( "nikita-2252", "Cannot remove dot of %lli: %i",
+				 get_inode_oid( object ), result );
 
 		entry.obj = goodby_dots.d_inode = parent;
 		xmemset( &goodby_dots, 0, sizeof goodby_dots );
@@ -89,8 +89,8 @@ int hashed_delete( struct inode *object /* object being deleted */,
 		result = hashed_rem_entry( object, &goodby_dots, &entry );
 		reiser4_free_dentry_fsdata( &goodby_dots );
 		if( result != 0 )
-			warning( "nikita-2253", "Cannot remove dotdot of %li: %i",
-				 ( long ) object -> i_ino, result );
+			warning( "nikita-2253", "Cannot remove .. of %lli: %i",
+				 get_inode_oid( object ), result );
 		
 		reiser4_del_nlink( parent, 1 );
 		return common_file_delete( object, parent );
@@ -113,7 +113,7 @@ int hashed_owns_item( const struct inode *inode /* object to check against */,
 		/*
 		 * FIXME-NIKITA move this into kassign.c
 		 */
-		return get_key_locality( item_key_by_coord( coord, &item_key ) ) == ( oid_t ) inode -> i_ino;
+		return get_key_locality( item_key_by_coord( coord, &item_key ) ) == get_inode_oid( inode );
 	else
 		return common_file_owns_item( inode, coord );
 }
@@ -158,8 +158,8 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 	if( result == 0 )
 		result = reiser4_add_nlink( object, 1 );
 	else
-		warning( "nikita-2222", "Failed to create dot in %lu: %i",
-			 object -> i_ino, result );
+		warning( "nikita-2222", "Failed to create dot in %llu: %i",
+			 get_inode_oid( object ), result );
 
 	if( result == 0 ) {
 		entry.obj = dots_entry.d_inode = parent;
@@ -173,8 +173,8 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 		 */
 		if( result != 0 )
 			warning( "nikita-2234", 
-				 "Failed to create dotdot in %lu: %i",
-				 object -> i_ino, result );
+				 "Failed to create dotdot in %llu: %i",
+				 get_inode_oid( object ), result );
 	}
 
 	if( result == 0 )
@@ -220,7 +220,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	init_lh( &lh );
 
 	trace_on( TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n",
-		  ( __u64 ) parent -> i_ino, dentry -> d_name.name );
+		  get_inode_oid( parent ), dentry -> d_name.name );
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
@@ -691,8 +691,8 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 			 * replace_name() decreases i_nlink on @old_dir
 			 */
 		} else {
-			warning( "nikita-2336", "Dotdot not found in %li",
-				 ( long ) old_inode -> i_ino );
+			warning( "nikita-2336", "Dotdot not found in %llu",
+				 get_inode_oid( old_inode ) );
 			result = -EIO;
 		}
 		done_lh( &dotdot_lh );
@@ -729,8 +729,8 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 
 	init_lh( &lh );
 
-	trace_on( TRACE_DIR, "[%i]: creating \"%s\" in %lx\n", current_pid,
-		  where -> d_name.name, object -> i_ino );
+	trace_on( TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid,
+		  where -> d_name.name, get_inode_oid( object ) );
 
 	coord = &fsdata -> entry_coord;
 

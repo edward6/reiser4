@@ -212,6 +212,12 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_JNODE_TO_PAGE_HASH_SIZE (16)
 
+/**
+ * see comments in inode.c:oid_to_uino()
+ */
+#define REISER4_UINO_SHIFT (1 << 30)
+
+
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )
 

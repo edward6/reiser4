@@ -44,18 +44,24 @@ int inode_get_flag( const struct inode *inode, reiser4_file_plugin_flags f )
 	return test_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );
 }
 
+/** get inode oid */
 oid_t get_inode_oid( const struct inode *inode )
 {
+	oid_t result;
+
 	assert( "nikita-2519", inode != NULL );
 	if( REISER4_INO_IS_OID ) {
 		assert( "nikita-2520", BITS_PER_LONG >= 64 );
-		return ( oid_t ) inode -> i_ino;
-	} else 
-		return 
-			( reiser4_inode_data( inode ) -> oid_hi << OID_HI_SHIFT ) | 
-			inode -> i_ino;
+		result = ( oid_t ) inode -> i_ino;
+	} else {
+		result = reiser4_inode_data( inode ) -> oid_hi;
+		result <<= OID_HI_SHIFT;
+		result |= inode -> i_ino;
+	}
+	return result;
 }
 
+/** set oid for inode */
 void set_inode_oid( struct inode *inode, oid_t oid )
 {
 	assert( "nikita-2519", inode != NULL );
@@ -68,9 +74,39 @@ void set_inode_oid( struct inode *inode, oid_t oid )
 	assert( "nikita-2521", get_inode_oid( inode ) == oid );
 }
 
-ino_t ino_t_by_oid( oid_t oid )
+/** convert oid to inode number */
+ino_t oid_to_ino( oid_t oid )
 {
 	return ( ino_t ) oid;
+}
+
+/** convert oid to user visible inode number */
+ino_t oid_to_uino( oid_t oid )
+{
+	/*
+	 * reiser4 object is uniquely identified by oid which is 64 bit
+	 * quantity. Kernel in-memory inode is indexed (in the hash table) by
+	 * 32 bit i_ino field, but this is not a problem, because there is a
+	 * way to further distinguish inodes with identical inode numbers
+	 * (find_actor supplied to iget()).
+	 *
+	 * But user space expects unique 32 bit inode number. Obviously this
+	 * is impossible. Work-around is to somehow hash oid into user visible
+	 * inode number.
+	 */
+	oid_t max_ino = ( ino_t ) ~0;
+
+	if( REISER4_INO_IS_OID || ( oid <= max_ino ) )
+		return oid;
+	else
+		/*
+		 * this is remotely similar to algorithm used to find next pid
+		 * to use for process: after wrap-around start from some
+		 * offset rather than from 0. Idea is that there are some long
+		 * living objects with which we don't want to collide.
+		 */
+		return REISER4_UINO_SHIFT + 
+			( oid - max_ino ) % ( max_ino - REISER4_UINO_SHIFT );
 }
 
 /** lock inode. We lock file-system wide spinlock, because we have to lock
@@ -231,8 +267,8 @@ int setup_inode_ops( struct inode *inode /* inode to intialise */,
 		inode -> i_mapping -> a_ops = &reiser4_as_operations;
 		break;
 	default:
-		warning( "nikita-291", "wrong file mode: %o for %lx", 
-			 inode -> i_mode, ( long ) inode -> i_ino );
+		warning( "nikita-291", "wrong file mode: %o for %llu", 
+			 inode -> i_mode, get_inode_oid( inode ) );
 		reiser4_make_bad_inode( inode );
 		return -EINVAL;
 	}
@@ -396,7 +432,7 @@ int reiser4_inode_find_actor( struct inode *inode /* inode from hash table to
 		/*
 		 * oid is unique, so first term is enough, actually.
 		 */
-		( oid_by_inode( inode ) == get_key_objectid( key ) ) &&
+		( get_inode_oid( inode ) == get_key_objectid( key ) ) &&
 		( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
 }
 

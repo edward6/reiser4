@@ -806,7 +806,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 
 	trace_on( TRACE_DIR | TRACE_VFS_OPS, 
 		  "readdir: inode: %lli offset: %lli\n", 
-		  (__u64) inode -> i_ino, f -> f_pos );
+		  get_inode_oid( inode ), f -> f_pos );
 	trace_if( TRACE_DIR | TRACE_VFS_OPS, print_key( "readdir", &arg.key ) );
 
 	if( result == 0 ) {
@@ -1088,8 +1088,8 @@ int truncate_object( struct inode *inode /* object to truncate */,
 		int result;
 		result = fplug -> truncate( inode, size );
 		if( result != 0 ) {
-			warning( "nikita-1602", "Truncate error: %i for %li",
-				 result, inode -> i_ino );
+			warning( "nikita-1602", "Truncate error: %i for %lli",
+				 result, get_inode_oid( inode ) );
 		}
 		return result;
 	} else {
@@ -1284,7 +1284,7 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 
 	trace_on( TRACE_DIR | TRACE_VFS_OPS,
 		  "readdir_actor: %lli: name: %s, off: 0x%llx, ino: %lli\n",
-		  ( __u64 ) inode -> i_ino, name, get_key_objectid( &de_key ),
+		  get_inode_oid( inode ), name, get_key_objectid( &de_key ),
 		  get_key_objectid( &sd_key ) );
 
 	/*
@@ -1761,7 +1761,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 					  REISER4_TRACE_BUF_SIZE, 
 					  &info -> trace_file );
 	else
-		info -> trace_file.buf = NULL;
+		info -> trace_file.type = log_to_bucket;
 #endif
 	return result;
 }
@@ -2164,8 +2164,8 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
 			int *nr_to_write UNUSED_ARG )
 {
-	trace_on( TRACE_PCACHE, "Writepages called and ignored for %li\n",
-		  ( long ) mapping -> host -> i_ino );
+	trace_on( TRACE_PCACHE, "Writepages called and ignored for %lli\n",
+		  get_inode_oid( mapping -> host ) );
 	return 0;
 }
 
