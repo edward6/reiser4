@@ -595,6 +595,23 @@ int node40_check( const znode *node /* node to check */,
 		}
 	}
 
+	if( ( flags & REISER4_NODE_DKEYS ) && !node_is_empty( node ) ) {
+		coord_t coord;
+		item_plugin *iplug;
+				
+		coord_init_last_unit( &coord, node );
+		iplug = item_plugin_by_coord( &coord );
+		if( iplug -> common.real_max_key_inside != NULL ) {
+			reiser4_key mkey;
+			
+			if( keygt( iplug -> common.real_max_key_inside( &coord, 
+									&mkey ), 
+				   znode_get_rd_key( node ) ) ) {
+				*error = "key of rightmost item is too large";
+				return -1;
+			}
+		}
+	}
 	if( 0 && ( flags & REISER4_NODE_DKEYS ) ) {
 		spin_lock_dk( current_tree );
 		spin_lock_tree( current_tree );
