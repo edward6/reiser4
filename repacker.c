@@ -31,10 +31,10 @@
 #include "kcond.h"
 
 enum repacker_state_bits {
-	REPACKER_RUNNING   = 0x1,
-	REPACKER_STOP      = 0x2,
-	REPACKER_DESTROY   = 0x4,
-	REPACKER_GOES_LEFT = 0x8
+	REPACKER_RUNNING       = 0x1,
+	REPACKER_STOP          = 0x2,
+	REPACKER_DESTROY       = 0x4,
+	REPACKER_GOES_BACKWARD = 0x8
 };
 
 /* Per super block repacker structure for  */
@@ -54,12 +54,40 @@ struct repacker {
 	
 };
 
+
+static inline int check_repacker_state_bit(struct repacker *repacker, enum repacker_state_bits bits)
+{
+	int result;
+
+	spin_lock(&repacker->guard);
+	result = !!(repacker->state & bits);
+	spin_unlock(&repacker->guard);
+
+	return result;
+}
+
 /* Repacker per tread state and statistics. */
-struct repacker_stats {
+struct repacker_cursor {
+	reiser4_blocknr_hint hint;
 	int count;
-	long znodes_dirtied;
-	long jnodes_dirtied;
+	struct  {
+		long znodes_dirtied;
+		long jnodes_dirtied;
+	} stats;
 };
+
+static void repacker_cursor_init (struct repacker_cursor * cursor, struct repacker * repacker)
+{
+	int backward = check_repacker_state_bit(repacker, REPACKER_GOES_BACKWARD);
+
+	blocknr_hint_init(&cursor->hint);
+	cursor->hint.backward = backward;
+}
+
+static void repacker_cursor_done (struct repacker_cursor * cursor)
+{
+	blocknr_hint_done(&cursor->hint);
+}
 
 static int renew_transaction (void)
 {
@@ -74,23 +102,12 @@ static int renew_transaction (void)
 	return 0;
 }
 
-static inline int check_repacker_state_bit(struct repacker *repacker, enum repacker_state_bits bits)
-{
-	int result;
-
-	spin_lock(&repacker->guard);
-	result = !!(repacker->state & bits);
-	spin_unlock(&repacker->guard);
-
-	return result;
-}
-
 static int process_znode (tap_t * tap, void * arg)
 {
-	struct repacker_stats * stats = arg;
+	struct repacker_cursor * cursor = arg;
 	znode * node = tap->lh->node;
 
-	assert("zam-954", stats->count > 0);
+	assert("zam-954", cursor->count > 0);
 
 	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
@@ -101,9 +118,9 @@ static int process_znode (tap_t * tap, void * arg)
 	znode_make_dirty(node);
 	ZF_SET(node, JNODE_REPACK);
 
-	stats->znodes_dirtied ++;
+	cursor->stats.znodes_dirtied ++;
 
-	if (-- stats->count <= 0)
+	if (-- cursor->count <= 0)
 		return -EAGAIN;
 	return 0;
 }
@@ -111,16 +128,16 @@ static int process_znode (tap_t * tap, void * arg)
 static int process_extent (tap_t *tap, void * arg)
 {
 	int ret;
-	struct repacker_stats * stats = arg;
+	struct repacker_cursor * cursor = arg;
 
 	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
 
-	ret = mark_extent_for_repacking(tap, stats->count);
+	ret = mark_extent_for_repacking(tap, cursor->count);
 	if (ret > 0) {
-		stats->jnodes_dirtied += ret;
-		stats->count -= ret;
-		if (stats->count <= 0)
+		cursor->stats.jnodes_dirtied += ret;
+		cursor->count -= ret;
+		if (cursor->count <= 0)
 			     return -EAGAIN;
 		return 0;
 	}
@@ -135,7 +152,7 @@ static int process_extent (tap_t *tap, void * arg)
 /* It is for calling by tree walker before taking any locks. */
 static int prepare_repacking_session (void * arg)
 {
-	struct repacker_stats * stats = arg;
+	struct repacker_cursor * cursor = arg;
 	int ret;
 
 	assert("zam-951", schedulable());
@@ -145,15 +162,64 @@ static int prepare_repacking_session (void * arg)
 	if (ret)
 		return ret;
 
-	stats->count = REPACKER_CHUNK_SIZE;
+	cursor->count = REPACKER_CHUNK_SIZE;
 	return  reiser4_grab_space((__u64)REPACKER_CHUNK_SIZE, BA_CAN_COMMIT | BA_FORCE, __FUNCTION__);
 }
 
-static struct tree_walk_actor repacker_actor = {
+/* When the repacker goes backward (from the rightmost key to the leftmost
+ * one), it does relocation of all processed nodes to the end of disk.  Thus
+ * repacker does what usually the reiser4 flush does but in backward direction
+ * and node squeezing is not supported. */
+static int relocate_znode (tap_t * tap, void * arg)
+{
+	reiser4_blocknr_hint hint;
+	lock_handle parent_lock;
+
+	blocknr_hint_init(&hint);
+	init_lh(&parent_lock);
+	
+	blocknr_hint_done(&hint);
+	return 0;
+}
+
+static int relocate_extent (tap_t * tap, void * arg)
+{
+	return 0;
+}
+
+static struct tree_walk_actor forward_actor = {
 	.process_znode  = process_znode,
 	.process_extent = process_extent,
 	.before         = prepare_repacking_session
 };
+
+
+
+static struct tree_walk_actor backward_actor = {
+	.process_znode  = relocate_znode,
+	.process_extent = relocate_extent,
+	.before         = prepare_repacking_session
+};
+
+static int reiser4_repacker (struct repacker * repacker)
+{
+	struct repacker_cursor cursor;
+	int backward;
+	struct tree_walk_actor * actor;
+	int ret;
+
+	repacker_cursor_init(&cursor, repacker);
+
+	backward = check_repacker_state_bit(repacker, REPACKER_GOES_BACKWARD);
+	actor = backward ? &backward_actor : &forward_actor;
+	ret = tree_walk(NULL, backward, actor, &cursor);
+	printk(KERN_INFO "reiser4 repacker: "
+	       "%lu formatted node(s) processed, %lu unformatted node(s) processed, ret = %d\n",
+	       cursor.stats.znodes_dirtied, cursor.stats.jnodes_dirtied, ret);
+
+	repacker_cursor_done(&cursor);
+	return ret;
+}
 
 /* The repacker kernel thread code. */
 static int repacker_d(void *arg)
@@ -175,23 +241,12 @@ static int repacker_d(void *arg)
 	/* zeroing the fs_context copied form parent process' task struct. */
 	me->fs_context = NULL;
 
-	ret = init_context(&ctx, repacker->super);
-	if (ret)
-		goto done;
-
 	printk(KERN_INFO "Repacker: I am alive, pid = %u\n", me->pid);
-	{
-		struct repacker_stats stats = {.znodes_dirtied = 0, .jnodes_dirtied = 0};
-
-		ret = tree_walk(NULL, repacker->state & REPACKER_GOES_LEFT, &repacker_actor, &stats);
-		printk(KERN_INFO "reiser4 repacker: "
-		       "%lu formatted node(s) processed, %lu unformatted node(s) processed, ret = %d\n",
-		       stats.znodes_dirtied, stats.jnodes_dirtied, ret);
-	}
- done:
-	{ 
+	ret = init_context(&ctx, repacker->super);
+	if (!ret) {
 		int ret1;
-	
+
+		ret = reiser4_repacker(repacker);
 		ret1 = reiser4_exit_context(&ctx);
 		if (!ret && ret1)
 			ret = ret1;
@@ -264,7 +319,7 @@ static ssize_t start_attr_store (struct repacker * repacker,  const char *buf, s
 
 static ssize_t direction_attr_show (struct repacker * repacker, char * buf)	
 {
-	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state_bit(repacker, REPACKER_GOES_LEFT));
+	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state_bit(repacker, REPACKER_GOES_BACKWARD));
 }
 
 static ssize_t direction_attr_store (struct repacker * repacker,  const char *buf, size_t size)
@@ -276,9 +331,9 @@ static ssize_t direction_attr_store (struct repacker * repacker,  const char *bu
 	spin_lock(&repacker->guard);
 	if (!(repacker->state & REPACKER_RUNNING)) {
 		if (go_left) 
-			repacker->state |= REPACKER_GOES_LEFT;
+			repacker->state |= REPACKER_GOES_BACKWARD;
 		else
-			repacker->state &= ~REPACKER_GOES_LEFT;
+			repacker->state &= ~REPACKER_GOES_BACKWARD;
 	}
 	spin_unlock(&repacker->guard);
 	return size;
