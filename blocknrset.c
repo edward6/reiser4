@@ -316,7 +316,6 @@ void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
 }
 
 /* Iterate over all blocknr set elements, should be called under atom (spin)lock held. */
-/* Audited by: green(2002.06.11) */
 int blocknr_set_iterator (txn_atom * atom,
 			  blocknr_set * bset,
 			  blocknr_set_actor_f actor,
@@ -332,7 +331,7 @@ int blocknr_set_iterator (txn_atom * atom,
 	assert ("zam-432", actor != NULL);
 
 	entry = blocknr_set_list_front(&bset->entries);
-	while (blocknr_set_list_end(&bset->entries, entry)) {
+	while (!blocknr_set_list_end(&bset->entries, entry)) {
 		blocknr_set_entry * tmp = blocknr_set_list_next(entry);
 		unsigned int i;
 		int ret;
@@ -356,7 +355,10 @@ int blocknr_set_iterator (txn_atom * atom,
 			if (ret != 0 && !delete) return ret;
 		}
 
-		if (delete) blocknr_set_list_remove(entry);
+		if (delete) {
+			blocknr_set_list_remove(entry);
+			bse_free(entry);
+		}
 
 		entry = tmp;
 	}

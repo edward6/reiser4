@@ -285,6 +285,7 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 
 	assert ("zam-455", start != NULL);
 	assert ("zam-437", *start != 0);
+	assert ("zam-541", !blocknr_is_fake (start));
 	assert ("zam-441", *start < reiser4_block_count(sb));
 
 	if (len != NULL) {
@@ -296,8 +297,8 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 static void check_bnode_loaded (const struct bnode * bnode)
 {
 	assert ("zam-485", bnode != NULL);
-	assert ("zam-483", JF_ISSET (&bnode->wjnode, ZNODE_LOADED));
-	assert ("zam-484", JF_ISSET (&bnode->cjnode, ZNODE_LOADED));
+	assert ("zam-483", jnode_page(&bnode->wjnode) != NULL);
+	assert ("zam-484", jnode_page(&bnode->cjnode) != NULL);
 }
 
 #else
@@ -351,11 +352,9 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 	sema_init (&bnode->sema, 1);
 
 	jnode_init (& bnode->wjnode);
-	jref (&bnode->wjnode);
 	get_working_bitmap_blocknr (bmap, & bnode->wjnode.blocknr); 
 
 	jnode_init (& bnode->cjnode);
-	jref (& bnode->cjnode);
 	get_bitmap_blocknr (super, bmap, & bnode->cjnode.blocknr);
 }
 
@@ -710,10 +709,6 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	bnode = get_bnode (super, bmap);
 
 	assert ("zam-470", bnode != NULL);
-	/*
-	 * FIXME:NIKITA->ZAM should this go after load_and_lock_bnode()?
-	 */
-	assert ("zam-471", JF_ISSET(&bnode->wjnode, ZNODE_LOADED));
 
 	ret = load_and_lock_bnode (bnode);
 	assert ("zam-481", ret == 0);
@@ -761,34 +756,37 @@ int bitmap_is_allocated (reiser4_block_nr *start)
 	return !!ret;
 }
 
-/*
- * These functions are hooks from the journal code to manipulate COMMIT BITMAP
- * and WORKING BITMAP objects.
- */
-
-static inline void add_bnode_to_commit_list (struct bnode ** commit_list, struct bnode * bnode)
+/* conditional insertion of @node into atom's clean list if it was not there */
+static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
 {
-	if (bnode -> next_in_commit_list != NULL) return;
+	assert ("zam-546", atom != NULL);
+	assert ("zam-547", spin_atom_is_locked(atom));
+	assert ("zam-548", node != NULL);
 
-	bnode -> next_in_commit_list = *commit_list;
-	*commit_list = bnode;
+	spin_lock_jnode (node);
+
+	if (node->atom != NULL) {
+		assert ("zam-549", node->atom == atom);
+		txn_insert_into_clean_list (atom, node);
+	}
+
+	spin_unlock_jnode (node);
 }
 
 
 /** an actor which applies delete set to COMMIT bitmap pages and link modified
  * pages in a single-linked list */
 /* Audited by: green(2002.06.12) */
-static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
+static int apply_dset_to_commit_bmap (txn_atom               * atom,
 				      const reiser4_block_nr * start,
 				      const reiser4_block_nr * len,
-				      void                   * data)
+				      void                   * data UNUSED_ARG)
 {
 	
 	bmap_nr_t bmap;
 	bmap_off_t offset;
 
 	struct bnode       * bnode;
-	struct bnode      ** commit_list = data;
 
 	struct super_block * sb = reiser4_get_current_sb();
 
@@ -803,12 +801,12 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 	bnode = get_bnode(sb, bmap);
 	assert ("zam-448", bnode != NULL);
 	
-	/* put bnode in a special list for post-processing */
-	add_bnode_to_commit_list (commit_list, bnode);
-
 	/* apply DELETE SET */
 	check_bnode_loaded (bnode);
 	load_and_lock_bnode (bnode);
+
+	/* put bnode in a special list for post-processing */
+	cond_add_to_clean_list (atom, &bnode->cjnode);
 
 	data = bnode_commit_data(bnode);
 
@@ -835,18 +833,15 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 /** It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
  * rest is done by transaction manager (allocate wandered locations for COMMIT
  * BITMAP blocks, copy COMMIT BITMAP blocks data). */
-/* Audited by: green(2002.06.12) */
 /* Only one instance of this function can be running at one given time, because
-   only one transaction can be commited at a time, therefore it is safe to
-   access some global variables like commit_list without any locking */
+   only one transaction can be committed a time, therefore it is safe to access
+   some global variables without any locking */
 void bitmap_pre_commit_hook (void)
 {
 	reiser4_context * ctx = get_current_context ();
 
 	txn_handle      * tx;
 	txn_atom        * atom;
-
-	struct bnode    * commit_list = NULL;
 
 	assert ("zam-433", ctx != NULL);
 
@@ -857,7 +852,7 @@ void bitmap_pre_commit_hook (void)
 	assert ("zam-435", atom != 0);
 	spin_unlock_txnh(tx);
 
-	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, &commit_list, 0);
+	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, NULL, 0);
 
 	{ /* scan atom's captured list and find all freshly allocated nodes,
 	   * mark corresponded bits in COMMIT BITMAP as used */
@@ -869,7 +864,7 @@ void bitmap_pre_commit_hook (void)
 
 			while (!capture_list_end (head, node)) {
 				/* we detect freshly allocated jnodes */
-				if (JF_ISSET(node, ZNODE_CREATED) || JF_ISSET(node, ZNODE_RELOC))
+				if (JF_ISSET(node, ZNODE_RELOC))
 				{
 					bmap_nr_t  bmap;
 					bmap_off_t offset;
@@ -893,7 +888,7 @@ void bitmap_pre_commit_hook (void)
 
 					/* we use the same commit list to
 					 * store bnodes we will capture */
-					add_bnode_to_commit_list (&commit_list, bn);
+					cond_add_to_clean_list (atom, &bn->cjnode);
 				}
 
 				node = capture_list_next(node);
@@ -902,21 +897,6 @@ void bitmap_pre_commit_hook (void)
 	}
 
 	spin_unlock_atom (atom);
-
-	/* adding bnode->cpage into the transaction. it may wait, so it is
-	 * done as a bnode commit list post-processing */
-	while (commit_list != NULL) {
-		struct bnode * bnode = commit_list;
-		int err;
-
-		err = txn_try_capture(&bnode->cjnode, ZNODE_WRITE_LOCK, 0);
-		jnode_set_dirty (&bnode->cjnode);
-
-		if (err == -EAGAIN) continue;
-
-		commit_list = bnode->next_in_commit_list;
-		bnode->next_in_commit_list = NULL;
-	}
 }
 
 /* FIXME: it probably needs to be changed when I get understanding what

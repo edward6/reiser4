@@ -251,6 +251,9 @@ struct txn_mgr
 
 	/* A counter used to assign atom->atom_id values. */
 	__u32                  id_count;
+
+	/* a semaphore object for commit serialization */
+	struct semaphore       commit_semaphore;
 };
 
 /****************************************************************************************
@@ -288,6 +291,8 @@ extern void         txn_delete_page       (struct page        *pg);
 
 extern txn_atom*    atom_get_locked_with_txnh_locked (txn_handle       *txnh);
 extern txn_atom*    get_current_atom_locked (void);
+
+extern void         txn_insert_into_clean_list (txn_atom * atom, jnode * node);
 
 #if REISER4_USER_LEVEL_SIMULATION
 extern int          memory_pressure        (struct super_block *super, int *nr_to_flush);
