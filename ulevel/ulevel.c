@@ -3301,33 +3301,33 @@ static int bash_mkfs (char * file_name)
 
 	/* parse "mkfs options" */
 	p = strchr (file_name, ' ');
-	if (!p) {
-		info ("Usage: mkfs filename tail | notail | test\n");
-		return 1;
-	}
-	*p ++ = 0;
-	if (!strcmp (p, "tail")) {
-		tail_id = ALWAYS_TAIL_ID;
-	} else if (!strcmp (p, "notail")) {
-		tail_id = NEVER_TAIL_ID;
-	} else if (!strcmp (p, "test")) {
+	if (p == NULL) {
+		info ("Using default tail policy: test\n");
 		tail_id = TEST_TAIL_ID;
-	} else if (!strcmp (p, "40")) {
-		char * command;
+	} else {
+		*p ++ = 0;
+		if (!strcmp (p, "tail")) {
+			tail_id = ALWAYS_TAIL_ID;
+		} else if (!strcmp (p, "notail")) {
+			tail_id = NEVER_TAIL_ID;
+		} else if (!strcmp (p, "test")) {
+			tail_id = TEST_TAIL_ID;
+		} else if (!strcmp (p, "40")) {
+			char * command;
 
-		asprintf (&command, "echo y | reiser4progs/reiser4progs/mkfs/mkfs.reiser4 %s", file_name);
-		if (system (command)) {
+			asprintf (&command, "echo y | ./reiser4progs/reiser4progs/mkfs/mkfs.reiser4 %s", file_name);
+			if (system (command)) {
+				free (command);
+				info ("mkfs 40: %s\n", strerror (errno));
+				return 1;
+			}
 			free (command);
-			info ("mkfs 40: %s\n", strerror (errno));
+			return 0;
+		} else {
+			info ("Usage: mkfs filename tail | notail | test | 40\n");
 			return 1;
 		}
-		free (command);
-		return 0;
-	} else {
-		info ("Usage: mkfs filename tail | notail | test | 40\n");
-		return 1;
 	}
-
 
 	super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				       GFP_KERNEL);

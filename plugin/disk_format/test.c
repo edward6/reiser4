@@ -113,11 +113,6 @@ int test_layout_release (struct super_block * s)
 		warning ("jmacd-7711", "txn_force failed in umount: %d", ret);
 	}
 
-	/*
-	 * FIXME-NIKITA here is a problem: txn_mgr_force_commit (s) doesn't
-	 * wait for io completion (as of now). Hence, there are still bios in
-	 * flight and thus, znodes with x_count > 0. Bad.
-	 */
 	done_tree (&get_super_private (s)->tree);
 
 	/* 
