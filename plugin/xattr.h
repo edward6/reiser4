@@ -32,9 +32,10 @@ typedef struct xattr_namespace {
 
 TYPE_SAFE_LIST_DEFINE(xattr, xattr_namespace, linkage);
 
-#define REISER4_XATTR_COMMON_NR (1)
-
-extern reiser4_xattr_plugin xattr_handlers_common[REISER4_XATTR_COMMON_NR];
+extern void xattr_add_common_namespace(xattr_namespace *ns);
+extern void xattr_del_common_namespace(xattr_namespace *ns);
+extern void xattr_add_global_namespace(xattr_namespace *ns);
+extern void xattr_del_global_namespace(xattr_namespace *ns);
 
 ssize_t xattr_get_common(struct dentry *dentry, const char *name,
 			 void *buffer, size_t size);

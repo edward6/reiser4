@@ -194,6 +194,18 @@ read_ace(struct posix_acl *acl, int no, char **area, int *len)
 }
 
 static reiser4_xattr_plugin xattr_acl_handlers[];
+static reiser4_xattr_plugin xattr_acl_trigger_handlers[];
+
+static xattr_namespace acl_trigger_namespace = {
+	.linkage = TYPE_SAFE_LIST_HEAD_INIT(acl_trigger_namespace.linkage),
+	.plug    = xattr_acl_trigger_handlers
+};
+
+static int init_acl(reiser4_plugin *plugin)
+{
+	xattr_add_common_namespace(&acl_trigger_namespace);
+	return 0;
+}
 
 /* this is called by ->present method of static_stat_data plugin when plugin
  * extension is present that contains ACL plugin. */
@@ -285,10 +297,11 @@ clear_acl(struct inode *inode)
 }
 
 reiser4_plugin_ops acl_plugin_ops = {
-	.load = load_acl,
+	.init     = init_acl,
+	.load     = load_acl,
 	.save_len = save_len_acl,
-	.save = save_acl,
-	.change = change_acl
+	.save     = save_acl,
+	.change   = change_acl
 };
 
 static int
@@ -481,6 +494,32 @@ static reiser4_xattr_plugin xattr_acl_handlers[] = {
 		.prefix	= XATTR_NAME_ACL_DEFAULT,
 		.list	= reiser4_xattr_list_acl_default,
 		.get	= reiser4_xattr_get_acl_default,
+		.set	= reiser4_xattr_set_acl_default
+	},
+	[2] = {
+		.prefix	= NULL,
+		.list	= NULL,
+		.get	= NULL,
+		.set	= NULL
+	}
+};
+
+static int eopnotsupp(void)
+{
+	return RETERR(-EOPNOTSUPP);
+}
+
+static reiser4_xattr_plugin xattr_acl_trigger_handlers[] = {
+	[0] = {
+		.prefix	= XATTR_NAME_ACL_ACCESS,
+		.list	= (void *)eopnotsupp,
+		.get	= (void *)eopnotsupp,
+		.set	= reiser4_xattr_set_acl_access
+	},
+	[1] = {
+		.prefix	= XATTR_NAME_ACL_DEFAULT,
+		.list	= (void *)eopnotsupp,
+		.get	= (void *)eopnotsupp,
 		.set	= reiser4_xattr_set_acl_default
 	},
 	[2] = {

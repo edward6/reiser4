@@ -9,21 +9,12 @@
 
 #include <linux/xattr.h>
 
-reiser4_xattr_plugin xattr_handlers_common[REISER4_XATTR_COMMON_NR] = {
-	[0] = {
-		.prefix	= NULL,
-		.list	= NULL,
-		.get	= NULL,
-		.set	= NULL
-	}
-};
+static xattr_list_head
+global_namespaces = (xattr_list_head)TYPE_SAFE_LIST_HEAD_INIT(global_namespaces);
 
-reiser4_xattr_plugin xattr_handler_default = {
-	.prefix	= NULL,
-	.list	= NULL,
-	.get	= NULL,
-	.set	= NULL
-};
+xattr_list_head
+xattr_common_namespaces = (xattr_list_head)TYPE_SAFE_LIST_HEAD_INIT(xattr_common_namespaces);
+
 
 /* copied from ext2 */
 static inline const char *
@@ -56,10 +47,23 @@ xattr_search_table(const char **name, reiser4_xattr_plugin *table)
 }
 
 static reiser4_xattr_plugin *
+xattr_search_namespaces(const char **name, xattr_list_head *head)
+{
+	xattr_namespace *ns;
+	reiser4_xattr_plugin *result;
+
+	for_all_type_safe_list(xattr, head, ns) {
+		result = xattr_search_table(name, ns->plug);
+		if (result != NULL)
+			return result;
+	}
+	return NULL;
+}
+
+static reiser4_xattr_plugin *
 xattr_resolve_name(const char **name, struct inode *inode)
 {
 	reiser4_inode *info;
-	xattr_namespace *ns;
 	reiser4_xattr_plugin *result;
 	file_plugin *fplug;
 
@@ -67,16 +71,14 @@ xattr_resolve_name(const char **name, struct inode *inode)
 		return NULL;
 
 	info = reiser4_inode_data(inode);
-	for_all_type_safe_list(xattr, &info->xattr_namespaces, ns) {
-		result = xattr_search_table(name, ns->plug);
-		if (result != NULL)
-			return result;
-	}
+	result = xattr_search_namespaces(name, &info->xattr_namespaces);
+	if (result != NULL)
+		return result;
 	fplug = inode_file_plugin(inode);
-	result = xattr_search_table(name, fplug->xattr.handlers);
-	if (result == NULL)
-		result = NULL; /* &xattr_handler_default; */
-	return result;
+	result = xattr_search_namespaces(name, fplug->xattr.ns);
+	if (result != NULL)
+		return result;
+	return xattr_search_namespaces(name, &global_namespaces);
 }
 
 ssize_t
@@ -163,6 +165,30 @@ xattr_del_namespace(struct inode *inode, reiser4_xattr_plugin *plug)
 			break;
 		}
 	}
+}
+
+void
+xattr_add_common_namespace(xattr_namespace *ns)
+{
+	xattr_list_push_front(&xattr_common_namespaces, ns);
+}
+
+void
+xattr_del_common_namespace(xattr_namespace *ns)
+{
+	xattr_list_remove(ns);
+}
+
+void
+xattr_add_global_namespace(xattr_namespace *ns)
+{
+	xattr_list_push_front(&global_namespaces, ns);
+}
+
+void
+xattr_del_global_namespace(xattr_namespace *ns)
+{
+	xattr_list_remove(ns);
 }
 
 void
