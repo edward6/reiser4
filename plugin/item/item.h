@@ -230,7 +230,7 @@ typedef struct {
 	int (*read)(struct file *, flow_t *, hint_t *);
 	int (*readpage) (void *, struct page *);
 	int (*capture) (reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
-	int (*get_block) (const uf_coord_t *, sector_t, struct buffer_head *);
+	int (*get_block) (const coord_t *, sector_t, struct buffer_head *);
 	void (*readpages) (void *, struct address_space *, struct list_head *pages);
 	/* key of first byte which is not addressed by the item @coord is set to
 	   For example extent with the key
