@@ -2187,6 +2187,7 @@ repeat:
 		reiser4_stat_inc(coc.coc_wait);
 		/* disable COC for the next loop iteration */
 		coc_enabled = 0;
+		LOCK_JNODE(node);
 		goto repeat;
 	}
 #endif
