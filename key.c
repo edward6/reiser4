@@ -18,7 +18,7 @@ static const reiser4_key MINIMAL_KEY = {
 };
 
 /**
- * Minimal possible key: all components are ~0. It is presumed that this is
+ * Maximal possible key: all components are ~0. It is presumed that this is
  * independent of key scheme.
  */
 static const reiser4_key MAXIMAL_KEY = {
