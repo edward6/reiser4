@@ -39,14 +39,8 @@ extern errno_t reiserfs_tree_move(reiserfs_coord_t *dst,
 extern errno_t reiserfs_tree_copy(reiserfs_coord_t *dst, 
     reiserfs_coord_t *src);
 
-extern errno_t reiserfs_tree_move(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src);
-
-extern errno_t reiserfs_tree_copy(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src);
-
-extern errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new, 
-    uint32_t needed);
+extern errno_t reiserfs_tree_shift(reiserfs_coord_t *old, 
+    reiserfs_coord_t *new, uint32_t needed);
 
 #endif
 

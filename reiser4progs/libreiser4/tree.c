@@ -238,12 +238,15 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 #ifndef ENABLE_COMPACT
 
 errno_t reiserfs_tree_move(reiserfs_coord_t *dst, reiserfs_coord_t *src) {
+    if (src->cache->parent)
+	reiserfs_cache_unregister(src->cache->parent, src->cache);
+    
+    if (dst->cache->parent) {
+	if (reiserfs_cache_register(dst->cache->parent, src->cache))
+	    return -1;
+    }
+    
     return reiserfs_node_move(dst->cache->node, &dst->pos, 
-	src->cache->node, &src->pos);
-}
-
-errno_t reiserfs_tree_copy(reiserfs_coord_t *dst, reiserfs_coord_t *src) {
-    return reiserfs_node_copy(dst->cache->node, &dst->pos, 
 	src->cache->node, &src->pos);
 }
 
