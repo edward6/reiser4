@@ -1,4 +1,5 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
 /* Memory pressure hooks. Fake inodes handling. */
 /* We store all file system meta data (and data, of course) in the page cache.
   
@@ -424,6 +425,7 @@ formatted_writepage(struct page *page /* page to write */ )
 	struct writeback_control wbc;
 	int result;
 
+	impossible("vs-1100", "this is not to be called");
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
 	xmemset(&wbc, 0, sizeof wbc);
@@ -571,13 +573,25 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	jnode *node;
 	int flush_some;
 	struct super_block *s = page->mapping->host->i_sb;
+	reiser4_tree *tree;
 
 	REISER4_ENTRY(s);
 
 	assert("vs-828", PageLocked(page));
 
-	node = jfind(page);
-	assert("nikita-2419", node != NULL);
+	tree = &get_super_private(s)->tree;
+	/* jfind which used to be here creates jnode for the page if it is not private yet. But that jnode is only later
+	   used by writeback_queued_jnodes to get its atom. As newly created jnode has no atom - there is no reason to
+	   call jfind, jlook (or zlook if page is of fake inode) is enough */
+	if (page->mapping->host != get_super_private(s)->fake)
+		node = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
+	else {
+		/* formatted pages always have znode attached to them */
+		assert("vs-1101", PagePrivate(page) && jnode_by_page(page));
+		node = jref(jnode_by_page(page));
+	}
+
+	/*assert("nikita-2419", node != NULL);*/
 
 	reiser4_unlock_page(page);
 
@@ -586,7 +600,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	   prepare some nodes by calling jnode_flush().  If the node is not "queued" we do that. This job is done
 	   asynchronously by ktxnmgrd. Our current thread just write required number of nodes from flush queues. If
 	   there are no prepared nodes, we say VM that we can write nothing to disk.*/
-	flush_some = !JF_ISSET(node, JNODE_FLUSH_QUEUED);
+	flush_some = !node || !JF_ISSET(node, JNODE_FLUSH_QUEUED);
 
 	writeback_queued_jnodes(s, node, wbc);
 
@@ -594,7 +608,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		ktxnmgr_writeback(s, wbc);
 	}
 
-	jput(node);
+	if (node)
+		jput(node);
 	REISER4_EXIT(0);
 }
 
