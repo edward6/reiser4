@@ -155,6 +155,8 @@ static int carry_on_level( carry_level *doing, carry_level *todo );
 static void fatal_carry_error( carry_level *doing, int ecode );
 static int add_new_root( carry_level *level, carry_node *node, znode *fake );
 
+static int carry_level_invariant( carry_level *level );
+
 ON_DEBUG( TS_LIST_DEFINE( owners, lock_handle, owners_link ) );
 ON_DEBUG( TS_LIST_DEFINE( locks, lock_handle, locks_link ) );
 
@@ -747,35 +749,9 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
 	carry_node *tmp_node;
 
 	assert( "nikita-881", level != NULL );
+	assert( "nikita-2229", carry_level_invariant( level ) );
 
 	trace_stamp( TRACE_CARRY );
-
-/*	for_all_nodes( level, node, tmp_node ) {
-		znode *left;
-		znode *right;
-
-		spin_lock_dk( current_tree );
-		if( node != carry_node_front( level ) ) {
-			right = node -> node;
-			left  = carry_node_prev( node ) -> node;
-			if( !keyle( znode_get_ld_key( left ), znode_get_ld_key( right ) ) ) {
-				print_node_content( "left", left, ~REISER4_NODE_SILENT );
-				print_node_content( "right", right, ~REISER4_NODE_SILENT );
-				BUG();
-			}
-		}
-		if( node != carry_node_back( level ) ) {
-			left  = node -> node;
-			right = carry_node_next( node ) -> node;
-			if( !keyle( znode_get_ld_key( left ), znode_get_ld_key( right ) ) ) {
-				print_node_content( "left", left, ~REISER4_NODE_SILENT );
-				print_node_content( "right", right, ~REISER4_NODE_SILENT );
-				BUG();
-			}
-		}
-		spin_unlock_dk( current_tree );
-	}
-*/
 
 	/* lock nodes from left to right */
 	result = 0;
@@ -1323,6 +1299,49 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
  * Probably we also should leave them on even when
  * debugging is turned off to print dumps at errors.
  */
+#if REISER4_DEBUG
+static int carry_level_invariant( carry_level *level )
+{
+	carry_node *node;
+	carry_node *tmp_node;
+
+	if( level == NULL )
+		return 0;
+
+	/* check that nodes are in ascending order */
+	for_all_nodes( level, node, tmp_node ) {
+		znode *left;
+		znode *right;
+
+		spin_lock_dk( current_tree );
+		if( node != carry_node_front( level ) ) {
+			right = node -> node;
+			left  = carry_node_prev( node ) -> node;
+			if( !keyle( znode_get_ld_key( left ), 
+				    znode_get_ld_key( right ) ) ) {
+				print_node_content( "left", 
+						    left, ~REISER4_NODE_SILENT );
+				print_node_content( "right", 
+						    right, ~REISER4_NODE_SILENT );
+				return 0;
+			}
+		}
+		if( node != carry_node_back( level ) ) {
+			left  = node -> node;
+			right = carry_node_next( node ) -> node;
+			if( !keyle( znode_get_ld_key( left ), 
+				    znode_get_ld_key( right ) ) ) {
+				print_node_content( "left", 
+						    left, ~REISER4_NODE_SILENT );
+				print_node_content( "right", 
+						    right, ~REISER4_NODE_SILENT );
+				return 0;
+			}
+		}
+		spin_unlock_dk( current_tree );
+	}
+	return 1;
+}
 
 /* get symbolic name for boolean */
 static const char *tf( int boolean /* truth value */)
@@ -1432,6 +1451,7 @@ void print_level( const char *prefix /* prefix to print */,
 	for_all_ops( level, op, tmp_op )
 		print_op( "\tcarry op", op );
 }
+#endif
 
 /*
  * Make Linus happy.
