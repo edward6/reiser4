@@ -10,6 +10,8 @@
 #ifndef __SLPL_H__
 #define __SLPL_H__
 
+#include <libkut/atomic.h>
+
 #if SLPC_USE_SPINLOCK
 
 #define KUT_LOCK_SPINLOCK

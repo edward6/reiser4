@@ -196,7 +196,7 @@
  *               |      N   RW-SPINLOCK   N	 N   RW-SPINLOCK   N	  N   RW-SPINLOCK        N
  *               |      N   COUNT=2       N	 N   COUNT=3       N	  N   COUNT=4            N
  *               |      N                 N	 N                 N	  N                      N
- *               |      N   4 | 10 |      N	 N  21 | 25 | 30 | N	  N  37 | 44 | 51 | DC | N
+ *               |      N   4 | 10 |      N	 N  21 | 25 | 29 | N	  N  37 | 44 | 51 | DC | N
  *               |      N     |    |      N	 N     |    |    | N	  N     |    |    |    | N
  *               |      NNNNNN|NNNN|NNNNNNN	 NNNNNN|NNNN|NNNN|NN	  NNNNNN|NNNN|NNNN|NNNN|NN
  *               |            |    |      	       |    |    |  	        |    |    |    |
@@ -368,13 +368,11 @@ typedef char    SLPC_PAD_T;
 
 #undef SLPC_RESTART_OPERATION
 #if SLPC_COUNT_RESTARTS
-#define SLPC_RESTART_OPERATION() \
-  SLPC_SPINLOCK_GET_EXCL (anchor->_rs._restart_count_lock); \
-  anchor->_rs._restarts += 1; \
-  SLPC_SPINLOCK_PUT_EXCL (anchor->_rs._restart_count_lock); \
+#define SLPC_RESTART_OPERATION()    \
+  atomic_inc (& anchor->_restarts); \
   goto start_over
 #else
-#define SLPC_RESTART_OPERATION() \
+#define SLPC_RESTART_OPERATION()    \
   goto start_over
 #endif
 
@@ -589,7 +587,6 @@ struct SLPC_PARAM(_SLPC_NODE_) {
 #if SLPC_USE_SPINLOCK
   volatile
   SLPC_SHORT_T  _cycle;     // A sequence number to detect races during lock upgrade
-  SLPC_SHORT_T  _magic;     // Unused field being used for DEBUG
   SLPC_SPINLOCK _node_lock; // The spinlock used to protect this node
 #endif
 
@@ -612,7 +609,6 @@ struct SLPC_PARAM(_SLPC_SHORT_NODE_) {
 #if SLPC_USE_SPINLOCK
   volatile
   SLPC_SHORT_T  _cycle;     // A sequence number to detect races during lock upgrade
-  SLPC_SHORT_T  _magic;     // Unused field being used for DEBUG
   SLPC_SPINLOCK _node_lock; // The spinlock used to protect this node
 #endif
 
@@ -681,30 +677,15 @@ struct SLPC_PARAM(_SLPC_ANCHOR_) {
   SLPC_SLAB    *_slab       SLPC_ANCHORFIELD_ALIGNED;
 
 #if SLPC_COUNT_KEYS
-  struct {
-    SLPC_SIZE_T   _key_count;
-#if SLPC_USE_SPINLOCK
-    SLPC_SPINLOCK _key_count_lock;
-#endif
-  } _ks SLPC_ANCHORFIELD_ALIGNED;
+  atomic_t      _key_count;
 #endif
 
 #if SLPC_COUNT_RESTARTS
-  struct {
-    SLPC_SIZE_T   _restarts;
-#if SLPC_USE_SPINLOCK
-    SLPC_SPINLOCK _restart_count_lock;
-#endif
-  } _rs SLPC_ANCHORFIELD_ALIGNED;
+  atomic_t      _restarts;
 #endif
 
 #if SLPC_COUNT_NODES
-  struct {
-    SLPC_SIZE_T   _node_count;
-#if SLPC_USE_SPINLOCK
-    SLPC_SPINLOCK _node_count_lock;
-#endif
-  } _ns SLPC_ANCHORFIELD_ALIGNED;
+  atomic_t      _node_count;
 #endif
 };
 
@@ -863,9 +844,7 @@ SLPC_PARAM(slpc_insert_) (SLPC_ANCHOR *anchor, SLPC_KEY *key, SLPC_DATA *data)
 
       // Update the anchor's key_count variable
 #if SLPC_COUNT_KEYS
-      SLPC_SPINLOCK_GET_EXCL (anchor->_ks._key_count_lock);
-      anchor->_ks._key_count += 1;
-      SLPC_SPINLOCK_PUT_EXCL (anchor->_ks._key_count_lock);
+      atomic_inc (& anchor->_key_count);
 #endif
 
       SLPC_INCREMENT_CYCLE (PLACE_NODE);
@@ -1062,7 +1041,6 @@ SLPC_PARAM(slpc_delete_int_) (SLPC_ANCHOR *anchor, SLPC_KEY *key, SLPC_DATA *dat
   int            height;
   int            key_i;
   SLPC_RESULT    result;
-  SLPC_KEY       high_key; /* High_key cannot be used in the first loop iteration (! is_pivot) */
 
  start_over:
 
@@ -1164,39 +1142,28 @@ SLPC_PARAM(slpc_delete_int_) (SLPC_ANCHOR *anchor, SLPC_KEY *key, SLPC_DATA *dat
 		      // its lock
 		      SLPC_JOIN_NODES (anchor, CHILD_NODE, rchild, & ctx._other);
 
-		      // Eliminate the right child key
-		      SLPC_SHIFT_KEYS_LEFT (PLACE_NODE, key_i+1);
+		      // Shift the right child key over
+		      SLPC_SHIFT_KEYS_LEFT (PLACE_NODE, key_i);
+
+		      // The down pointer was overwritten
+		      SLPC_ITH_DOWN (PLACE_NODE, key_i) = CHILD_NODE;
 		    }
 		  else
 		    {
-		      // Don't need to join nodes: just borrow from
-		      // the right neighbor
+		      // Don't need to join nodes, just borrow 
 		      SLPC_REDIST_RIGHT_LEFT (CHILD_NODE, rchild);
 
+		      // Update the child's key 
+		      SLPC_ITH_KEY (PLACE_NODE,key_i) = SLPC_ITH_KEY (CHILD_NODE, CHILD_NODE->_count - 1);
+		      
 		      // Release the right child lock.
 		      SLPC_CTX_GIVE (& ctx._other);
 		    }
-
-		  // In both cases, the child (on the left) has gained
-		  // at least one new maximum entry, so update the
-		  // corresponding key in PLACE_NODE accordingly.  If
-		  // the last key is being updated we have to carry
-		  // the high key from above: we don't know it
-		  // locally.
-		  if (key_i < PLACE_NODE->_count - 1)
-		    {
-		      SLPC_ITH_KEY (PLACE_NODE,key_i) = SLPC_ITH_KEY (CHILD_NODE, CHILD_NODE->_count - 1);
-		    }
-		  else
-		    {
-		      SLPC_ITH_KEY (PLACE_NODE,key_i) = high_key;
-		    }
-
-		  // Key_i is unchanged: the right joined the left child
 		}
 	      else
 		{
-		  // Using the left neighbor and the child
+		  // Using the left neighbor and the child: child is the last
+		  // in its node
 		  SLPC_NODE *lchild = OTHER_NODE;
 
 		  int key_i_1 = key_i - 1;
@@ -1220,14 +1187,17 @@ SLPC_PARAM(slpc_delete_int_) (SLPC_ANCHOR *anchor, SLPC_KEY *key, SLPC_DATA *dat
 
 		      // Switch lchild to child:
 		      SLPC_CTX_CHILD_OTHER (& ctx);
+
+#if SLPC_DEBUG
+		      key_i = key_i - 1;
+#endif
 		    }
 		  else
 		    {
 		      // Don't need to join, just borrow
 		      SLPC_REDIST_LEFT_RIGHT (lchild, CHILD_NODE);
 
-		      // Update the left child's key in place, right
-		      // child's key is unchanged
+		      // Update the left child's key */
 		      SLPC_ITH_KEY(PLACE_NODE,key_i_1) = SLPC_ITH_KEY(lchild, lchild->_count-1);
 
 		      // Release the left child lock
@@ -1244,9 +1214,6 @@ SLPC_PARAM(slpc_delete_int_) (SLPC_ANCHOR *anchor, SLPC_KEY *key, SLPC_DATA *dat
 		}
 	    }
 	}
-
-      // Save the high key
-      high_key = SLPC_ITH_KEY (PLACE_NODE, key_i);
 
       // Now have the proper child lock, release the place lock,
       // transfer place to the child
@@ -1283,9 +1250,7 @@ SLPC_PARAM(slpc_delete_int_) (SLPC_ANCHOR *anchor, SLPC_KEY *key, SLPC_DATA *dat
 
       // Update the anchor's key_count variable
 #if SLPC_COUNT_KEYS
-      SLPC_SPINLOCK_GET_EXCL (anchor->_ks._key_count_lock);
-      anchor->_ks._key_count -= 1;
-      SLPC_SPINLOCK_PUT_EXCL (anchor->_ks._key_count_lock);
+      atomic_dec (& anchor->_key_count);
 #endif
       result = SLPC_OKAY;
     }

@@ -526,9 +526,7 @@ SLPC_PARAM(slpc_node_new_) (SLPC_ANCHOR *anchor)
   SLPC_NODE *node = (SLPC_NODE*) SLPC_SLAB_NEW (anchor->_slab);
 
 #if SLPC_COUNT_NODES
-  SLPC_SPINLOCK_GET_EXCL (anchor->_ns._node_count_lock);
-  anchor->_ns._node_count += 1;
-  SLPC_SPINLOCK_PUT_EXCL (anchor->_ns._node_count_lock);
+  atomic_inc (& anchor->_node_count);
 #endif
 
   return node;
@@ -547,9 +545,7 @@ SLPC_PARAM(slpc_node_free_) (SLPC_ANCHOR *anchor, SLPC_NODE *node, SLPC_NODE_CTX
 #endif
 
 #if SLPC_COUNT_NODES
-  SLPC_SPINLOCK_GET_EXCL (anchor->_ns._node_count_lock);
-  anchor->_ns._node_count -= 1;
-  SLPC_SPINLOCK_PUT_EXCL (anchor->_ns._node_count_lock);
+  atomic_dec (& anchor->_node_count);
 #endif
 
   node->_type = SLPC_TYPE_LEAF;
@@ -571,18 +567,15 @@ SLPC_PARAM(slpc_anchor_init_) (SLPC_ANCHOR *anchor, SLPC_SLAB *slab)
   anchor->_slab       = slab;
 
 #if SLPC_COUNT_KEYS
-  anchor->_ks._key_count  = 0;
-  SLPC_SPINLOCK_INIT (anchor->_ks._key_count_lock);
+  atomic_set (& anchor->_key_count, 0);
 #endif
 
 #if SLPC_COUNT_NODES
-  anchor->_ns._node_count = 0;
-  SLPC_SPINLOCK_INIT (anchor->_ns._node_count_lock);
+  atomic_set (& anchor->_node_count, 0);
 #endif
 
 #if SLPC_COUNT_RESTARTS
-  anchor->_rs._restarts   = 0;
-  SLPC_SPINLOCK_INIT (anchor->_rs._restart_count_lock);
+  atomic_set (& anchor->_restarts, 0);
 #endif
 
   anchor->_left_leaf = SLPC_NODE_NEW (anchor);

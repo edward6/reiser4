@@ -76,8 +76,12 @@ struct _result_t
 
 /* These numbers are consistently best for concurrent access on
  * x86. */
+#if 0
 #define SLPC_MAX_COUNT      30
 #define SLPC_TARGET_SIZE    256
+#endif
+#define SLPC_MAX_COUNT      6
+#define SLPC_TARGET_SIZE    64
 #define SLPC_SKIP_LIMIT     250000
 
 /* The Srinivasan/Carey paper uses the following workload:
@@ -195,7 +199,7 @@ void test_1 ()
     }
 
   init_levels = test->_height;
-  init_keys   = test->_ks._key_count;
+  init_keys   = atomic_read (& test->_key_count);
 
   rdtscll (start);
   for (i = 0; i < TEST_PROCESSORS; i += 1)
@@ -229,7 +233,7 @@ void test_1 ()
   rdtscll (stop);
 
   end_levels = test->_height;
-  end_keys   = test->_ks._key_count;
+  end_keys   = atomic_read (& test->_key_count);
 
   SLPC_SLAB_DESTROY (slab);
 
@@ -245,7 +249,7 @@ void test_1 ()
 	  init_levels,
 	  end_levels,
 	  1.0 * TEST_OPERATIONS / 1e6,
-	  test->_rs._restarts,
+	  atomic_read (& test->_restarts),
 	  result_total.skips,
 	  100.0 * TEST_INSERT_PROB,
 	  100.0 * (TEST_SEARCH_PROB - TEST_DELETE_PROB),

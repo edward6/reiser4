@@ -1,5 +1,5 @@
 /* -*-Mode: C;-*-
- * $Id$
+ * $Id: testslpc1.c,v 1.9 2002/03/18 20:46:45 flx Exp $
  * Author: Joshua MacDonald
  * Copyright (C) 2001 Hans Reiser.  All rights reserved.
  */
@@ -58,9 +58,11 @@ struct _test_pair
  * intermediate tree state--it checks that all keys supposedly in the
  * tree can be located before and after each modification.
  */
-#define DOUBLE_CHECK 0
 #define SLPC_DEBUG   0
-#define SLPC_DEBUG1  0
+#define SLPC_DEBUG3  0
+#define PROGRESS     0
+
+#define DOUBLE_CHECK 0
 #define SLPC_DEBUG2  0
 
 /* With these definitions, including SLPC.H defines the implementation
@@ -73,6 +75,8 @@ struct _test_pair
  */
 #include <asm/msr.h>
 
+#include <stdio.h>
+
 /* Two helper functions:
  */
 void die()
@@ -83,46 +87,8 @@ void die()
 
 int next_random ()
 {
-  return lrand48 () >> 10;
+  return lrand48 ();
 }
-
-#if 0
-/* The first test checks just a few conditions: the pre- and
- * post-conditions of a few basic insertion and deletion operations
- * are checked using search.
- */
-void test_basic ()
-{
-  SLPC_ANCHOR_test test_s, *test = & test_s;
-  SLPC_SLAB *slab = SLPC_SLAB_CREATE ("basic");
-
-  test_key key1, key2, key3;
-  test_dat dat1, dat2, dat3;
-
-  key1 = 42;
-  key2 = 43;
-  key3 = 44;
-  dat1 = 24;
-  dat2 = 25;
-  dat2 = 26;
-
-  slpc_anchor_init_test (test, slab);
-
-  if (slpc_insert_test     (test, & key1, & dat1) != SLPC_OKAY) die ();
-  if (slpc_insert_test     (test, & key1, & dat1) != SLPC_KEY_EXISTS) die ();
-
-  if (slpc_search_test     (test, & key1, & dat2) != SLPC_OKAY || dat1 != dat2) die ();
-  if (slpc_search_test     (test, & key2, & dat3) != SLPC_KEY_NOTFOUND) die ();
-
-  if (slpc_delete_key_test (test, & key1, & dat3) != SLPC_OKAY || dat1 != dat3) die ();
-  if (slpc_delete_key_test (test, & key1, & dat3) != SLPC_KEY_NOTFOUND) die ();
-
-  if (slpc_insert_test     (test, & key1, & dat1) != SLPC_OKAY) die ();
-  if (slpc_delete_min_test (test, & key3, & dat2) != SLPC_OKAY || !SLPC_EQUAL_TO(key1,key3)) die ();
-
-  SLPC_SLAB_DESTROY (slab);
-}
-#endif
 
 void test_1 ()
 {
@@ -156,21 +122,15 @@ void test_1 ()
   /* INSERTION PHASE */
   for (i = 0; i < LARGE_NUMBER; i += 1)
     {
+#if PROGRESS
+      if ((i % 1000) == 0)
+	{
+	  fprintf (stderr, "i");
+	}
+#endif
     again:
       pairs[i].k = next_random ();
       pairs[i].d = next_random ();
-
-#if SLPC_DEBUG1
-      if (i > 869583)
-	{
-	  test_dat dx;
-	  if ((ret = slpc_search_test (test, & pairs[869583].k, & dx)) != SLPC_OKAY)
-	    {
-	      printf ("SLPC test1 failed DEBUG\n");
-	      die ();
-	    }
-	}
-#endif
 
       rdtscll (t1);
       if ((ret = slpc_insert_test (test, & pairs[i].k, & pairs[i].d)) != SLPC_OKAY)
@@ -208,7 +168,7 @@ void test_1 ()
       slpc_debug_structure_test (test);
 #endif
 
-#if DOUBLE_CHECK
+#if DOUBLE_CHECK2
       for (j = 0; j <= i; j += 1)
 	{
 	  if (slpc_search_test (test, & pairs[j].k, & d1) != SLPC_OKAY || d1 != pairs[j].d)
@@ -221,9 +181,9 @@ void test_1 ()
     }
 
   cycles_per_insert  = cycle_total / cycle_count;
-  full_insert_nodes  = test->_ns._node_count;
+  full_insert_nodes  = atomic_read (& test->_node_count);
   full_insert_levels = test->_height;
-  space_utilization  = 100.0 * (LARGE_NUMBER * sizeof (test_pair)) / (double) (test->_ns._node_count * sizeof (SLPC_NODE));
+  space_utilization  = 100.0 * (LARGE_NUMBER * sizeof (test_pair)) / (double) (atomic_read (& test->_node_count) * sizeof (SLPC_NODE));
 
   cycle_count = 0;
   cycle_total = 0;
@@ -231,6 +191,12 @@ void test_1 ()
   /* SEARCH PHASE */
   for (i = 0; i < LARGE_NUMBER; i += 1)
     {
+#if PROGRESS
+      if ((i % 1000) == 0)
+	{
+	  fprintf (stderr, "s");
+	}
+#endif
       rdtscll (t1);
       if ((ret = slpc_search_test (test, & pairs[i].k, & d1)) != SLPC_OKAY)
 	{
@@ -260,19 +226,12 @@ void test_1 ()
   /* DELETION PHASE */
   for (c = 0, i = LARGE_NUMBER-1; i >= 0; i -= 1, c += 1)
     {
-#if SLPC_DEBUG1
-      if (i <= 939800)
+#if PROGRESS
+      if ((c % 1000) == 0)
 	{
-	  slpc_debug_structure_test (test);
+	  fprintf (stderr, "d");
 	}
-
-      if (i == 939754)
-	{
-	  printf ("SLPC test1 STOP HERE\n");
-	  slpc_debug_structure_test (test);
-	}
-#endif
-
+#endif      
       rdtscll (t1);
       if ((ret = slpc_delete_key_test (test, & pairs[i].k, & d1)) != SLPC_OKAY)
 	{
