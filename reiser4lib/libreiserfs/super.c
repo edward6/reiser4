@@ -63,7 +63,6 @@ error_t reiserfs_super_create(reiserfs_fs_t *fs,
     reiserfs_plugin_t *plugin;
 		
     aal_assert("umka-105", fs != NULL, return -1);
-    aal_assert("umka-332", fs->alloc != NULL, return -1);
 
     if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, format_plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

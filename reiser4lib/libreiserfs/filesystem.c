@@ -212,11 +212,11 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_alloc_create(fs))
 	goto error_free_super;
 	
-    if (reiserfs_journal_create(fs, journal_device, journal_params))
-	goto error_free_alloc;
+/*    if (reiserfs_journal_create(fs, journal_device, journal_params))
+	goto error_free_alloc;*/
 	
-    if (reiserfs_tree_create(fs, node_plugin_id))
-	goto error_free_journal;
+/*    if (reiserfs_tree_create(fs, node_plugin_id))
+	goto error_free_journal;*/
 	
     return fs;
 
@@ -252,7 +252,7 @@ void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
     
     aal_assert("umka-230", fs != NULL, return);
     
-    reiserfs_tree_close(fs, sync);
+//    reiserfs_tree_close(fs, sync);
     reiserfs_alloc_close(fs, sync);
     
     if (fs->journal)
