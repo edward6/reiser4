@@ -631,7 +631,7 @@ node40_check(const znode * node /* node to check */ ,
 		}
 	}
 	if (flags & REISER4_NODE_DKEYS) {
-		spin_lock_tree(current_tree);
+		read_lock_tree(current_tree);
 
 		flags |= REISER4_NODE_TREE_STABLE;
 
@@ -665,7 +665,7 @@ node40_check(const znode * node /* node to check */ ,
 			return -1;
 		}
 
-		spin_unlock_tree(current_tree);
+		read_unlock_tree(current_tree);
 	}
 	spin_unlock_dk(current_tree);
 

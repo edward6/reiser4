@@ -127,7 +127,7 @@ typedef struct reiser4_inode_object {
 /* ordering predicate for inode spin lock: only jnode lock can be held */
 #define spin_ordering_pred_inode(inode)				\
 	( lock_counters() -> spin_locked_dk == 0 ) &&		\
-	( lock_counters() -> spin_locked_tree == 0 ) &&		\
+	( lock_counters() -> rw_locked_tree == 0 ) &&		\
 	( lock_counters() -> spin_locked_txnh == 0 ) &&		\
 	( lock_counters() -> spin_locked_atom == 0 ) &&		\
 	( lock_counters() -> spin_locked_ktxnmgrd == 0 ) &&	\

@@ -170,7 +170,8 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	capture_list_clean(node);
 
 #if REISER4_DEBUG
-	UNDER_SPIN_VOID(tree, tree, list_add(&node->jnodes, &get_current_super_private()->all_jnodes));
+	UNDER_RW_VOID(tree, tree, write,
+		      list_add(&node->jnodes, &get_current_super_private()->all_jnodes));
 #endif
 }
 
@@ -236,7 +237,7 @@ jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	jnode *node;
 
 	assert("nikita-2353", tree != NULL);
-	assert("nikita-2355", spin_tree_is_locked(tree));
+	assert("nikita-2355", rw_tree_is_locked(tree));
 
 	jkey.objectid = objectid;
 	jkey.index = index;
@@ -247,6 +248,13 @@ jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
 		assert("nikita-2955", jnode_invariant(node, 1, 0));
 	}
 	return node;
+}
+
+/* like jlook, but acquire tree read lock first */
+jnode *
+jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
+{
+	return UNDER_RW(tree, tree, read, jlook(tree, objectid, index));
 }
 
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
@@ -271,18 +279,18 @@ again:
 		jnode *in_hash;
 		/* check hash-table first */
 		tree = tree_by_page(pg);
-		spin_lock_tree(tree);
+		write_lock_tree(tree);
 		in_hash = jlook(tree, oid, pg->index);
 		if (in_hash != NULL) {
 			assert("nikita-2358", jnode_page(in_hash) == NULL);
-			spin_unlock_tree(tree);
+			write_unlock_tree(tree);
 			UNDER_SPIN_VOID(jnode, in_hash, jnode_attach_page(in_hash, pg));
 			in_hash->key.j.mapping = pg->mapping;
 		} else {
 			j_hash_table *jtable;
 
 			if (jal == NULL) {
-				spin_unlock_tree(tree);
+				write_unlock_tree(tree);
 				jal = jnew();
 
 				if (jal == NULL) {
@@ -302,7 +310,7 @@ again:
 			assert("nikita-2357", j_hash_find(jtable, &jal->key.j) == NULL);
 
 			j_hash_insert(jtable, jal);
-			spin_unlock_tree(tree);
+			write_unlock_tree(tree);
 
 			UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
 			jal = NULL;
@@ -769,11 +777,11 @@ jnode_try_drop(jnode * node)
 	jplug = jnode_ops(node);
 
 	spin_lock_jnode(node);
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 	if (jnode_page(node) != NULL) {
 		JF_CLR(node, JNODE_RIP);
 		spin_unlock_jnode(node);
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 		return -EBUSY;
 	}
 
@@ -784,7 +792,7 @@ jnode_try_drop(jnode * node)
 		result = jplug->remove(node, tree);
 	else
 		JF_CLR(node, JNODE_RIP);
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	return result;
 }
 
@@ -814,7 +822,7 @@ jdelete(jnode * node /* jnode to finish with */)
 
 	tree = jnode_get_tree(node);
 
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 	result = jplug->is_busy(node);
 	if (!result) {
 		/* detach page */
@@ -828,7 +836,7 @@ jdelete(jnode * node /* jnode to finish with */)
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	return result;
 }
 
@@ -849,7 +857,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	int result;
 
 	assert("zam-602", node != NULL);
-	assert("nikita-2362", spin_tree_is_not_locked(tree));
+	assert("nikita-2362", rw_tree_is_not_locked(tree));
 	assert("nikita-2403", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	// assert( "nikita-2532", JF_ISSET( node, JNODE_RIP ) );
 
@@ -860,7 +868,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	page = jnode_lock_page(node);
 	assert("nikita-2405", spin_jnode_is_locked(node));
 
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 
 	result = jplug->is_busy(node);
 	if (!result) {
@@ -883,7 +891,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	return result;
 }
 
@@ -1044,7 +1052,7 @@ znode_delete_op(jnode * node, reiser4_tree * tree)
 {
 	znode *z;
 
-	assert("nikita-2128", spin_tree_is_locked(tree));
+	assert("nikita-2128", rw_tree_is_write_locked(tree));
 	assert("vs-898", JF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	z = JZNODE(node);
@@ -1063,7 +1071,7 @@ znode_remove_op(jnode * node, reiser4_tree * tree)
 {
 	znode *z;
 
-	assert("nikita-2128", spin_tree_is_locked(tree));
+	assert("nikita-2128", rw_tree_is_locked(tree));
 	z = JZNODE(node);
 
 	if (atomic_read(&z->c_count) == 0) {
@@ -1283,14 +1291,14 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	if (!jlocked && !tlocked)
 		spin_lock_jnode((jnode *) node);
 	if (!tlocked)
-		spin_lock_tree(jnode_get_tree(node));
+		read_lock_tree(jnode_get_tree(node));
 	result = jnode_invariant_f(node, &failed_msg);
 	if (!result) {
 		info_jnode("corrupted node", node);
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
 	if (!tlocked)
-		spin_unlock_tree(jnode_get_tree(node));
+		read_unlock_tree(jnode_get_tree(node));
 	if (!jlocked && !tlocked)
 		spin_unlock_jnode((jnode *) node);
 	return result;
@@ -1383,7 +1391,7 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 	   with tree spin-lock already held. Trylock is not exactly what we
 	   want here, but it is passable.
 	*/
-	tree_lock_taken = spin_trylock_tree(tree);
+	tree_lock_taken = write_trylock_tree(tree);
 	htable = &tree->jhash_table;
 
 	for_all_in_htable(htable, j, node, next) {
@@ -1391,7 +1399,7 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 		info("\n");
 	}
 	if (tree_lock_taken)
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 }
 
 #endif

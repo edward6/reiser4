@@ -394,10 +394,10 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	ef->node = node;
 	ef->blocknr = *blocknr;
 	jref(node);
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	++ get_super_private(tree->super)->eflushed;
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	/*
 	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
 	 * point. We are safe, because page it is still attached to both @node
@@ -439,7 +439,7 @@ eflush_get(const jnode *node)
 	assert("nikita-2741", JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-2767", spin_jnode_is_locked(node));
 
-	ef = UNDER_SPIN(tree, jnode_get_tree(node),
+	ef = UNDER_RW(tree, jnode_get_tree(node), read,
 			ef_hash_find(get_jnode_enhash(node), C(node)));
 
 	assert("nikita-2742", ef != NULL);
@@ -465,13 +465,13 @@ eflush_del(jnode *node, int page_locked)
 
 		tree = jnode_get_tree(node);
 
-		spin_lock_tree(tree);
+		write_lock_tree(tree);
 		ef = ef_hash_find(table, C(node));
 		assert("nikita-2745", ef != NULL);
 		blk = ef->blocknr;
 		ef_hash_remove(table, ef);
 		-- get_super_private(tree->super)->eflushed;
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 
 		if (jnode_is_unformatted(node))
 			inode = jnode_mapping(node)->host;

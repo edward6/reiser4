@@ -210,7 +210,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 
 		tree = znode_get_tree(item->node);
 		spin_lock_dk(tree);
-		spin_lock_tree(tree);
+		write_lock_tree(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL) || (znode_above_root(child->in_parent.node)));
 		atomic_inc(&item->node->c_count);
 		child->in_parent = *item;
@@ -222,7 +222,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 		trace_on(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
 			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
 
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 		spin_unlock_dk(tree);
 		zput(child);
 		return result;
@@ -264,7 +264,8 @@ internal_kill_hook(const coord_t * item /* coord of item */ ,
 		assert("nikita-1397", znode_is_write_locked(child));
 		assert("nikita-1398", atomic_read(&child->c_count) == 0);
 		assert("nikita-2546", ZF_ISSET(child, JNODE_HEARD_BANSHEE));
-		UNDER_SPIN_VOID(tree, znode_get_tree(item->node), coord_init_zero(&child->in_parent));
+		UNDER_RW_VOID(tree, znode_get_tree(item->node), write,
+			      coord_init_zero(&child->in_parent));
 		del_c_ref(item->node);
 		trace_on(TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
 			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
@@ -319,7 +320,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 		return 0;
 	if (!IS_ERR(child)) {
 		reiser4_stat_inc(tree.reparenting);
-		spin_lock_tree(tree);
+		write_lock_tree(tree);
 		atomic_inc(&new_node->c_count);
 		assert("nikita-1395", znode_parent(child) == old_node);
 		assert("nikita-1396", atomic_read(&old_node->c_count) > 0);
@@ -327,7 +328,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 		assert("nikita-1781", znode_parent(child) == new_node);
 		assert("nikita-1782", check_tree_pointer(item, child) == NS_FOUND);
 		del_c_ref(old_node);
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 		zput(child);
 		trace_on(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
 			 *znode_get_block(old_node),

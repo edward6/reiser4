@@ -55,11 +55,11 @@ find_left_neighbor(carry_op * op	/* node to find left
 		reiser4_tree *tree;
 
 		tree = znode_get_tree(node->real_node);
-		spin_lock_tree(tree);
+		read_lock_tree(tree);
 		if (node->real_node->left != left->real_node) {
 			left = NULL;
 		}
-		spin_unlock_tree(tree);
+		read_unlock_tree(tree);
 		if (left != NULL) {
 			reiser4_stat_level_inc(doing, carry_left_in_carry);
 			return left;
@@ -141,11 +141,11 @@ find_right_neighbor(carry_op * op	/* node to find right
 		reiser4_tree *tree;
 
 		tree = znode_get_tree(node->real_node);
-		spin_lock_tree(tree);
+		read_lock_tree(tree);
 		if (node->real_node->right != right->real_node) {
 			right = NULL;
 		}
-		spin_unlock_tree(tree);
+		read_unlock_tree(tree);
 		if (right != NULL) {
 			reiser4_stat_level_inc(doing, carry_right_in_carry);
 			return right;
@@ -1202,13 +1202,13 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	parent = op->node->real_node;
 	child = op->u.delete.child ? op->u.delete.child->real_node : op->node->node;
 	tree = znode_get_tree(child);
-	spin_lock_tree(tree);
+	read_lock_tree(tree);
 	if (znode_parent(child) != parent) {
 		/* NOTE-NIKITA add stat counter for this. */
 		parent = znode_parent(child);
 		assert("nikita-2581", find_carry_node(doing, parent));
 	}
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 
 	assert("nikita-1213", znode_get_level(parent) > LEAF_LEVEL);
 
@@ -1688,7 +1688,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 		left = NULL;
 
 	tree = znode_get_tree(rchild->node);
-	spin_lock_tree(tree);
+	read_lock_tree(tree);
 	right = znode_parent(rchild->node);
 	if (REISER4_STATS) {
 		znode *old_right;
@@ -1705,7 +1705,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 			*/
 			reiser4_stat_level_inc(doing, half_split_race);
 	}
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 
 	if (right != NULL) {
 		result = update_delimiting_key(right,

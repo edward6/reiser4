@@ -405,18 +405,18 @@ extern void flush_fuse_queues(txn_atom * large, txn_atom * small);
 	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> spin_locked_tree == 0 ) )
+	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 #define spin_ordering_pred_txnh(txnh)				\
 	( ( lock_counters() -> spin_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> spin_locked_tree == 0 ) )
+	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 #define spin_ordering_pred_txnmgr(tmgr) 			\
 	( ( lock_counters() -> spin_locked_atom == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> spin_locked_tree == 0 ) )
+	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 SPIN_LOCK_FUNCTIONS(atom, txn_atom, alock);
 SPIN_LOCK_FUNCTIONS(txnh, txn_handle, hlock);

@@ -300,10 +300,10 @@ zinit(znode * node /* znode to initialise */ ,
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
 
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 	coord_init_parent_hint(&node->in_parent, parent);
 	node->version = ++tree->znode_epoch;
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	ON_DEBUG_MODIFY(spin_lock_init(&node->cksum_guard));
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
@@ -362,7 +362,7 @@ znode_rehash(znode * node /* node to rehash */ ,
 	tree = znode_get_tree(node);
 	htable = &tree->zhash_table;
 
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 	/* remove znode from hash-table */
 	z_hash_remove(htable, node);
 
@@ -374,7 +374,7 @@ znode_rehash(znode * node /* node to rehash */ ,
 
 	/* insert it into hash */
 	z_hash_insert(htable, node);
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	return 0;
 }
 
@@ -397,7 +397,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	assert("jmacd-507", blocknr != NULL);
 
 	/* Precondition for call to zlook_internal: locked hash table */
-	spin_lock_tree(tree);
+	read_lock_tree(tree);
 
 	result = z_hash_find_index(&tree->zhash_table, blknrhashfn(blocknr), blocknr);
 
@@ -408,7 +408,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	}
 
 	/* Release hash table lock: non-null result now referenced. */
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 
 	return result;
 }
@@ -450,7 +450,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 	zth = &tree->zhash_table;
 	/* Take the hash table lock. */
-	spin_lock_tree(tree);
+	read_lock_tree(tree);
 
 	/* NOTE-NIKITA address-as-unallocated-blocknr still is not
 	   implemented. */
@@ -478,7 +478,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	}
 
 	/* Release the hash table lock. */
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 
 	if (result != NULL) {
 
@@ -518,7 +518,7 @@ retry_miss_race:
 		add_x_ref(ZJNODE(result));
 
 		/* Repeat search in case of a race, first take the hash table lock. */
-		spin_lock_tree(tree);
+		write_lock_tree(tree);
 
 		shadow = z_hash_find_index(zth, hashi, blocknr);
 
@@ -526,7 +526,7 @@ retry_miss_race:
 
 			/* Another process won: release hash lock, free result, retry as
 			   if it were an earlier hit. */
-			spin_unlock_tree(tree);
+			write_unlock_tree(tree);
 			zfree(result);
 			result = shadow;
 			goto retry_miss_race;
@@ -542,7 +542,7 @@ retry_miss_race:
 		}
 
 		/* Release hash lock. */
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 
 	}
 
@@ -771,7 +771,7 @@ znode *
 znode_parent(const znode * node /* child znode */ )
 {
 	assert("nikita-1226", node != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1406", lock_counters()->spin_locked_tree > 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1406", lock_counters()->rw_locked_tree > 0));
 	return znode_parent_nolock(node);
 }
 
@@ -807,11 +807,11 @@ znode_is_root(const znode * node /* znode to query */ )
 
 	result = znode_get_level(node) == znode_get_tree(node)->height;
 	if (REISER4_DEBUG) {
-		spin_lock_tree(znode_get_tree(node));
+		read_lock_tree(znode_get_tree(node));
 		assert("nikita-1208", !result || znode_is_true_root(node));
 		assert("nikita-1209", !result || znode_get_level(znode_parent(node)) == 0);
 		assert("nikita-1212", !result || ((node->left == NULL) && (node->right == NULL)));
-		spin_unlock_tree(znode_get_tree(node));
+		read_unlock_tree(znode_get_tree(node));
 	}
 	return result;
 }
@@ -1011,13 +1011,13 @@ znode_invariant(const znode * node /* znode to check */ )
 	assert("umka-064", current_tree != NULL);
 
 	spin_lock_znode((znode *) node);
-	spin_lock_tree(znode_get_tree(node));
+	read_lock_tree(znode_get_tree(node));
 	result = znode_invariant_f(node, &failed_msg);
 	if (!result) {
 		print_znode("corrupted node", node);
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
-	spin_unlock_tree(znode_get_tree(node));
+	read_unlock_tree(znode_get_tree(node));
 	spin_unlock_znode((znode *) node);
 	return result;
 }
@@ -1157,14 +1157,14 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 	   with tree spin-lock already held. Trylock is not exactly what we
 	   want here, but it is passable.
 	*/
-	tree_lock_taken = spin_trylock_tree(tree);
+	tree_lock_taken = write_trylock_tree(tree);
 	htable = &tree->zhash_table;
 
 	for_all_in_htable(htable, z, node, next) {
 		info_znode(prefix, node);
 	}
 	if (tree_lock_taken)
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 }
 #endif
 
@@ -1175,7 +1175,48 @@ int
 znode_x_count_is_protected(const znode * node)
 {
 	assert("nikita-2518", node != NULL);
-	return ergo(atomic_read(&ZJNODE(node)->x_count) == 0, spin_tree_is_locked(znode_get_tree(node)));
+	return ergo(atomic_read(&ZJNODE(node)->x_count) == 0, rw_tree_is_locked(znode_get_tree(node)));
+}
+
+static int check_dk_called = 0;
+static int check_dk_start = 200000;
+static int check_dk_log = 300000;
+static int check_dk_step = 100;
+
+void
+znodes_check_dk(reiser4_tree * tree)
+{
+	znode *node;
+	znode *next;
+	z_hash_table *htable;
+
+	return 0;
+
+	++ check_dk_called;
+
+	if (check_dk_called > check_dk_log)
+		check_dk_trace = 1;
+
+	if (check_dk_called < check_dk_start ||
+	    (check_dk_called % check_dk_step))
+		return;
+
+	spin_lock_dk(tree);
+	read_lock_tree(tree);
+	htable = &tree->zhash_table;
+
+	for_all_in_htable(htable, z, node, next) {
+		if (znode_is_right_connected(node) && node->right != NULL)
+			assert("nikita-2971", 
+			       keyeq(znode_get_ld_key(node->right),
+				     znode_get_rd_key(node)));
+		if (znode_is_left_connected(node) && node->left != NULL)
+			assert("nikita-2972", 
+			       keyeq(znode_get_rd_key(node->left),
+				     znode_get_ld_key(node)));
+	}
+	read_unlock_tree(tree);
+	spin_unlock_dk(tree);
 }
 
 #endif

@@ -2339,9 +2339,9 @@ shift_one_internal_unit(znode * left, znode * right)
 	assert("nikita-2436", znode_is_write_locked(right));
 
 	if (REISER4_DEBUG) {
-		spin_lock_tree(znode_get_tree(left));
+		read_lock_tree(znode_get_tree(left));
 		assert("nikita-2434", left->right == right);
-		spin_unlock_tree(znode_get_tree(left));
+		read_unlock_tree(znode_get_tree(left));
 	}
 
 	coord_init_first_unit(&coord, right);
@@ -2594,7 +2594,7 @@ allocate_znode_update(znode * node, coord_t * parent_coord, flush_position * pos
 
 		fake = fake_lock.node;
 
-		UNDER_SPIN_VOID(tree, tree, tree->root_block = blk);
+		UNDER_RW_VOID(tree, tree, write, tree->root_block = blk);
 
 		znode_set_dirty(fake);
 	}
@@ -2764,7 +2764,8 @@ znode_same_parents(znode * a, znode * b)
 	assert("jmacd-7011", znode_is_write_locked(a));
 	assert("jmacd-7012", znode_is_write_locked(b));
 
-	return UNDER_SPIN(tree, znode_get_tree(a), (znode_parent_nolock(a) == znode_parent_nolock(b)));
+	return UNDER_RW(tree, znode_get_tree(a), read,
+			(znode_parent_nolock(a) == znode_parent_nolock(b)));
 }
 
 /* FLUSH SCAN */
@@ -3036,7 +3037,7 @@ scan_formatted(flush_scan * scan)
 		}
 
 		/* Lock the tree, check-for and reference the next sibling. */
-		spin_lock_tree(znode_get_tree(node));
+		read_lock_tree(znode_get_tree(node));
 
 		/* It may be that a node is inserted or removed between a node and its
 		   left sibling while the tree lock is released, but the flush-scan count
@@ -3046,7 +3047,7 @@ scan_formatted(flush_scan * scan)
 			zref(neighbor);
 		}
 
-		spin_unlock_tree(znode_get_tree(node));
+		read_unlock_tree(znode_get_tree(node));
 
 		/* If neighbor is NULL at the leaf level, need to check for an unformatted
 		   sibling using the parent--break in any case. */
@@ -3368,7 +3369,7 @@ repeat:
 	   is unallocated we can skip to the scan_max. */
 	if (allocated) {
 		do {
-			neighbor = UNDER_SPIN(tree, tree, jlook(tree, oid, scan_index));
+			neighbor = jlook_lock(tree, oid, scan_index);
 			if (neighbor == NULL)
 				goto stop_same_parent;
 
@@ -3392,7 +3393,7 @@ repeat:
 
 	} else {
 		/* Optimized case for unallocated extents, skip to the end. */
-		neighbor = UNDER_SPIN(tree, tree, jlook(tree, oid, scan_index));
+		neighbor = jlook_lock(tree, oid, scan_index);
 		if (neighbor == NULL) {
 			/* Race with truncate */
 			scan->stop = 1;

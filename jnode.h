@@ -243,7 +243,7 @@ JF_TEST_AND_SET(jnode * j, int f)
 /* ordering constraint for znode spin lock: znode lock is weaker than 
    tree lock and dk lock */
 #define spin_ordering_pred_jnode( node )					\
-	( ( lock_counters() -> spin_locked_tree == 0 ) &&			\
+	( ( lock_counters() -> rw_locked_tree == 0 ) &&			\
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&                       \
 	  ( lock_counters() -> spin_locked_dk == 0 )   &&                       \
 	  /*                                                                    \
@@ -275,6 +275,7 @@ extern jnode *jnew(void);
 extern jnode *jget(reiser4_tree * tree, struct page *pg);
 extern jnode *jfind(struct page *pg);
 extern jnode *jlook(reiser4_tree *, oid_t objectid, unsigned long index);
+extern jnode *jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long ind);
 extern jnode *jnode_by_page(struct page *pg);
 extern jnode *jnode_of_page(struct page *pg);
 extern jnode *page_next_jnode(jnode * node);

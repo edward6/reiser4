@@ -509,7 +509,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	   no atom - there is no reason to call jfind, jlook (or zlook if page
 	   is of fake inode) is enough */
 	if (page->mapping->host != get_super_private(s)->fake) {
-		node = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
+		node = jlook_lock(tree, get_inode_oid(page->mapping->host),
+				  page->index);
 		if (!node) {
 			/*
 			 * page dirtied via mapping?

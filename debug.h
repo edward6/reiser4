@@ -155,8 +155,11 @@
 #define ON_DEBUG( exp ) exp
 
 typedef struct lock_counters_info {
+	int rw_locked_tree;
+	int read_locked_tree;
+	int write_locked_tree;
+
 	int spin_locked_jnode;
-	int spin_locked_tree;
 	int spin_locked_dk;
 	int spin_locked_txnh;
 	int spin_locked_atom;

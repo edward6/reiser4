@@ -704,21 +704,24 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	assert("nikita-939", nplug != NULL);
 
 	tree = znode_get_tree(parent);
-	spin_lock_tree(tree);
+	/* NOTE-NIKITA taking read-lock on tree here assumes that @result is
+	 * not aliased to ->in_parent of some znode. Otherwise, xmemcpy()
+	 * below would modify data protected by tree lock. */
+	read_lock_tree(tree);
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
 		reiser4_stat_inc(tree.pos_in_parent_set);
 		xmemcpy(result, &child->in_parent, sizeof *result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			spin_unlock_tree(tree);
+			read_unlock_tree(tree);
 			return NS_FOUND;
 		}
 
 		reiser4_stat_inc(tree.pos_in_parent_miss);
 		coord_invalid_item_pos(&child->in_parent);
 	}
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 
 	/* is above failed, find some key from @child. We are looking for the
 	   least key in a child. */
@@ -728,10 +731,10 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
 	if (lookup_res == NS_FOUND) {
-		spin_lock_tree(tree);
+		write_lock_tree(tree);
 		child->in_parent = *result;
 		child->in_parent.between = AT_UNIT;
-		spin_unlock_tree(tree);
+		write_unlock_tree(tree);
 		lookup_res = check_tree_pointer(result, child);
 	}
 	spin_unlock_dk(tree);
@@ -763,7 +766,8 @@ find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 
 	for_all_units(result, parent) {
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			UNDER_SPIN_VOID(tree, znode_get_tree(parent), child->in_parent = *result);
+			UNDER_RW_VOID(tree, znode_get_tree(parent), write,
+				      child->in_parent = *result);
 			ret = NS_FOUND;
 			break;
 		}
@@ -979,6 +983,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	tree = znode_get_tree(left_coord.node);
 	left_child = UNDER_SPIN(dk, tree,
 				child_znode(&left_coord, left_coord.node, 1, 0 /* update delimiting keys */ ));
+
 	if (IS_ERR(left_child)) {
 		if (left_zloaded_here)
 			zrelse(left_lh.node);
@@ -1055,8 +1060,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			}
 
 			/* link left_child and right_child */
-			UNDER_SPIN_VOID(tree, tree,
-					link_left_and_right(left_child, right_child));
+			UNDER_RW_VOID(tree, tree, write,
+				      link_left_and_right(left_child, right_child));
 		}
 	} else {
 		/* only head of item @to is removed. calculate new item key, it

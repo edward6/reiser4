@@ -451,17 +451,17 @@ int lookup_couple(reiser4_tree * tree,
 		  tree_level lock_level, tree_level stop_level, __u32 flags, int *result1, int *result2);
 
 /* ordering constraint for tree spin lock: tree lock is "strongest" */
-#define spin_ordering_pred_tree(tree)			\
+#define rw_ordering_pred_tree(tree)			\
 	(lock_counters()->spin_locked_txnh == 0)
 
 /* Define spin_lock_tree, spin_unlock_tree, and spin_tree_is_locked:
    spin lock protecting znode hash, and parent and sibling pointers. */
-SPIN_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
+RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
 /* ordering constraint for delimiting key spin lock: dk lock is weaker than 
    tree lock */
 #define spin_ordering_pred_dk( tree )			\
-	(lock_counters()->spin_locked_tree == 0) &&	\
+	(lock_counters()->rw_locked_tree == 0) &&	\
 	(lock_counters()->spin_locked_jnode == 0) &&	\
 	(lock_counters()->spin_locked_txnh == 0) &&	\
 	(lock_counters()->spin_locked_atom == 0) &&	\

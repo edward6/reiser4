@@ -465,7 +465,7 @@ extent_create_hook(const coord_t * coord, void *arg)
 	tree = znode_get_tree(coord->node);
 
 	spin_lock_dk(tree);
-	spin_lock_tree(tree);
+	write_lock_tree(tree);
 	/* find a node on the left level for which right delimiting key has to
 	   be updated */
 	if (coord_wrt(child_coord) == COORD_ON_THE_LEFT) {
@@ -487,7 +487,7 @@ extent_create_hook(const coord_t * coord, void *arg)
 			node->right = NULL;
 		}
 	}
-	spin_unlock_tree(tree);
+	write_unlock_tree(tree);
 	spin_unlock_dk(tree);
 	return 0;
 }
@@ -536,9 +536,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 		for (j = 0; j < length; j ++) {
 			jnode *node;
 
-			node = UNDER_SPIN(tree, tree, 
-					  jlook(tree, oid, 
-						extent_unit_index(&twin) + j));
+			node = jlook_lock(tree, oid, extent_unit_index(&twin) + j);
 			if (node != NULL) {
 				assert("vs-1095", 
 				       UNDER_SPIN(jnode, node, 
@@ -989,7 +987,7 @@ extent_utmost_child(const coord_t * coord, sideof side, jnode ** childp)
 		   by the extent */
 		index = (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT);
 		tree = current_tree;
-		*childp = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(&key), index));
+		*childp = jlook_lock(tree, get_key_objectid(&key), index);
 	}
 
 	return 0;
@@ -1585,7 +1583,7 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	tree = current_tree;
 
 	for (i = 0; i < (int) count; i++, first++, index ++) {
-		j = UNDER_SPIN(tree, tree, jlook(tree, oid, index));
+		j = jlook_lock(tree, oid, index);
 		if (!j)
 			continue;
 
@@ -1627,7 +1625,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 	/* look for all dirty jnodes and mark them OVERWRITE if they are not marked yet */
 	tree = current_tree;
 	for (i = 0; i < count; ++i, ++ind) {		
-		j = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		j = jlook_lock(tree, oid, ind);
 		if (!j)
 			continue;
 
@@ -1792,7 +1790,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 		for (i = 0; i < count; i += 1, offset += blocksize) {
 			ind = offset >> PAGE_CACHE_SHIFT;
 
-			j = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(&item_key), ind));
+			j = jlook_lock(tree, get_key_objectid(&item_key), ind);
 			if (!j) {
 				continue;
 			}
@@ -1970,7 +1968,7 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 	for (i = 0; i < count; ++i, ++ind) {
 		jnode  *node;
 
-		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		node = jlook_lock(tree, oid, ind);
 		if (node == NULL)
 			continue;
 
@@ -2004,7 +2002,7 @@ unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 	for (i = 0 ; i < count; ++ i, ++ ind) {
 		jnode  *node;
 
-		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		node = jlook_lock(tree, oid, ind);
 		if (node == NULL)
 			continue;
 		junprotect(node);
@@ -3149,7 +3147,8 @@ extent_readpage(coord_t * coord, struct page *page)
 			 * case is ok, for eflushed jnode, right? */
 			/* info("extent_readpage: " "reading node corresponding to unallocated extent\n"); */
 			tree = current_tree;
-			j = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
+			j = jlook_lock(tree, get_inode_oid(page->mapping->host),
+				       page->index);
 			assert("nikita-2688", j);
 			assert("nikita-2802", JF_ISSET(j, JNODE_EFLUSH));
 			break;

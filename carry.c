@@ -622,7 +622,7 @@ find_begetting_brother(carry_node * node	/* node to start search
 
 	assert("nikita-1614", node != NULL);
 	assert("nikita-1615", kin != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1616", lock_counters()->spin_locked_tree > 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1616", lock_counters()->rw_locked_tree > 0));
 	assert("nikita-1619", ergo(node->real_node != NULL, ZF_ISSET(node->real_node, JNODE_ORPHAN)));
 
 	for (scan = node;; scan = carry_node_prev(scan)) {
@@ -781,7 +781,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	tree = znode_get_tree(node->real_node);
 	spin_lock_dk(tree);
 	spot = node->real_node;
-	spin_lock_tree(tree);
+	read_lock_tree(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
 
@@ -821,7 +821,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 			break;
 	}
 
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 	spin_unlock_dk(tree);
 }
 
@@ -971,8 +971,9 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 		   and thus, their sibling linkage cannot change.
 		  
 		*/
-		reference_point = UNDER_SPIN
-		    (tree, znode_get_tree(reference_point), find_begetting_brother(node, level)->node);
+		reference_point = UNDER_RW
+		    (tree, znode_get_tree(reference_point), read, 
+		     find_begetting_brother(node, level)->node);
 		assert("nikita-1186", reference_point != NULL);
 	}
 	if (node->parent && (result == 0)) {

@@ -171,7 +171,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	cbk_cache *cache;
 
 	assert("nikita-350", node != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1479", lock_counters()->spin_locked_tree > 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1479", lock_counters()->rw_locked_tree > 0));
 
 	cache = &tree->cbk_cache;
 	assert("nikita-2470", cbk_cache_invariant(cache));
@@ -590,7 +590,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	   ->in_parent: coord where pointer to this node is stored in
 	   parent.
 	*/
-	spin_lock_tree(h->tree);
+	write_lock_tree(h->tree);
 
 	if (znode_just_created(active) && (h->coord->node != NULL))
 		active->in_parent = *h->coord;
@@ -605,7 +605,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	   releasing-acquiring spinlock requires d-cache flushing on some
 	   architectures and can thus be expensive.
 	*/
-	spin_unlock_tree(h->tree);
+	write_unlock_tree(h->tree);
 
 	if (!ret) {
 		/* FIXME: h->coord->node and active are of different levels? */
@@ -1023,7 +1023,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	key = h->key;
 
 	spin_lock_dk(tree);
-	spin_lock_tree(tree);
+	read_lock_tree(tree);
 	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
@@ -1046,7 +1046,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	}
 
 	cbk_cache_unlock(cache);
-	spin_unlock_tree(tree);
+	read_unlock_tree(tree);
 	spin_unlock_dk(tree);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
@@ -1293,7 +1293,8 @@ search_to_left(cbk_handle * h /* search handle */ )
 				   Parent hint was set up by
 				   reiser4_get_left_neighbor()
 				*/
-				UNDER_SPIN_VOID(tree, znode_get_tree(neighbor), h->coord->node = NULL);
+				UNDER_RW_VOID(tree, znode_get_tree(neighbor), write, 
+					      h->coord->node = NULL);
 				result = LOOKUP_CONT;
 			} else {
 				result = LOOKUP_DONE;
