@@ -1487,10 +1487,11 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 	int ret;
 	int ret1;
 
+ repeat:
 	if (txnh->atom == NULL) {
 		/* current atom is available, take first from txnmgr */
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
-	repeat:
+
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
@@ -1544,10 +1545,8 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 		atom = get_current_atom_locked();
 
 	ret = flush_current_atom(flags, nr_submitted, &atom);
-	if (ret == -E_REPEAT) {
-		ret = 0;
-		atom = get_current_atom_locked();
-	}
+	if (ret == -E_REPEAT && *nr_submitted == 0)
+		goto repeat;
 	if (ret == 0) {
 		if (*nr_submitted == 0 || atom_should_commit_asap(atom)) {
 			/* if early flushing could not make more nodes clean,
