@@ -248,7 +248,7 @@ extern lock_counters_info *lock_counters(void);
 
 #ifdef CONFIG_FRAME_POINTER
 /* update debug.c:fill_backtrace() if you change this */
-#define REISER4_BACKTRACE_DEPTH (6)
+#define REISER4_BACKTRACE_DEPTH (4)
 typedef struct {
 	void *trace[REISER4_BACKTRACE_DEPTH];
 } backtrace_path;

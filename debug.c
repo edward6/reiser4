@@ -338,7 +338,7 @@ commit_check_locks(void)
 void
 return_err(int code, const char *file, int line)
 {
-	if (code < 0) {
+	if (code < 0 && is_in_reiser4_context()) {
 		reiser4_context *ctx = get_current_context();
 
 		if (ctx != NULL) {
@@ -400,7 +400,7 @@ fill_backtrace(backtrace_path *path, int depth, int shift)
 	int i;
 	void *addr;
 
-	cassert(REISER4_BACKTRACE_DEPTH == 6);
+	cassert(REISER4_BACKTRACE_DEPTH == 4);
 	assert("nikita-3229", shift < 6);
 
 	/* long live Duff! */
