@@ -9,6 +9,7 @@ ifeq ($(CONFIG_REISER4_NOOPT),y)
 endif
 
 reiser4-objs := \
+                   crypt.o \
 		   debug.o \
 		   jnode.o \
 		   znode.o \
