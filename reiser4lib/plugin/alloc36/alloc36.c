@@ -11,13 +11,11 @@
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-static reiserfs_alloc36_t *reiserfs_alloc36_open(aal_device_t *device, 
-    blk_t format_specific_offset, count_t fs_blocks, uint16_t blocksize) {
+static reiserfs_alloc36_t *reiserfs_alloc36_open(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
-	
-    if (!device)
-	return NULL;
-	
+
+    aal_assert("umka-413", device != NULL, return NULL);
+
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 	
@@ -32,13 +30,10 @@ error:
     return NULL;
 }
 
-static reiserfs_alloc36_t *reiserfs_alloc36_create(aal_device_t *device, 
-    blk_t format_specific_offset, count_t fs_blocks, uint16_t blocksize) 
-{
+static reiserfs_alloc36_t *reiserfs_alloc36_create(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
-	
-    if (!device)
-	return NULL;
+
+    aal_assert("umka-414", device != NULL, return NULL);
 	
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
@@ -55,11 +50,13 @@ error:
 }
 
 static error_t reiserfs_alloc36_sync(reiserfs_alloc36_t *alloc) {
-    /* Synchronizing code must be here */
+    aal_assert("umka-415", alloc != NULL, return -1);
+    
     return -1;
 }
 
 static void reiserfs_alloc36_close(reiserfs_alloc36_t *alloc) {
+    aal_assert("umka-416", alloc != NULL, return);
     aal_free(alloc);
 }
 
@@ -73,8 +70,8 @@ static reiserfs_plugin_t alloc36_plugin = {
 	    .desc = "Space allocator for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t, count_t, uint16_t))reiserfs_alloc36_open,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t, count_t, uint16_t))reiserfs_alloc36_create,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_open,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_create,
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_alloc36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc36_sync,
 

@@ -97,13 +97,10 @@ static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
     return NULL;
 }
 
-static reiserfs_format36_t *reiserfs_format36_open(reiserfs_opaque_t *alloc, 
-    aal_device_t *device) 
-{
+static reiserfs_format36_t *reiserfs_format36_open(aal_device_t *device) {
     reiserfs_format36_t *format;
-	
-    if (!device)
-	return NULL;
+
+    aal_assert("umka-380", device != NULL, return NULL);    
 	
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
@@ -121,8 +118,8 @@ error:
 }
 
 static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
-    if (!format || !format->super)
-	return -1;
+    aal_assert("umka-381", format != NULL, return -1);    
+    aal_assert("umka-382", format->super != NULL, return -1);    
 
     if (aal_device_write_block(format->device, format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
@@ -134,24 +131,32 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
 }
 
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
-    blk_t offset, count_t blocks, uint16_t blocksize) 
+    count_t blocks, reiserfs_opaque_t *alloc) 
 {
     return NULL;
 }
 
 static error_t reiserfs_format36_check(reiserfs_format36_t *format) {
+    
+    aal_assert("umka-383", format != NULL, return -1);
+    
     return reiserfs_format36_super_check((reiserfs_format36_super_t *)format->super->data, 
 	format->device);
 }
 
 static void reiserfs_format36_close(reiserfs_format36_t *format) {
+    
+    aal_assert("umka-384", format != NULL, return);
+    
     aal_device_free_block(format->super);
     aal_free(format);
 }
 
-static int reiserfs_format36_probe(aal_device_t *device, blk_t offset) {
+static int reiserfs_format36_probe(aal_device_t *device) {
     aal_block_t *block;
-	
+    
+    aal_assert("umka-385", device != NULL, return 0);
+    
     if (!(block = reiserfs_format36_super_open(device)))
 	return 0;
 	
@@ -180,30 +185,37 @@ static reiserfs_plugin_id_t reiserfs_format36_node_plugin(reiserfs_format36_t *f
 }
 
 static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
+    aal_assert("umka-386", format != NULL, return 0);
     return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device));
 }
 
 static blk_t reiserfs_format36_get_root(reiserfs_format36_t *format) {
+    aal_assert("umka-387", format != NULL, return 0);
     return get_sb_root_block((reiserfs_format36_super_t *)format->super->data);
 }
 
 static count_t reiserfs_format36_get_blocks(reiserfs_format36_t *format) {
+    aal_assert("umka-388", format != NULL, return 0);
     return get_sb_block_count((reiserfs_format36_super_t *)format->super->data);
 }
 
 static count_t reiserfs_format36_get_free(reiserfs_format36_t *format) {
+    aal_assert("umka-389", format != NULL, return 0);
     return get_sb_free_blocks((reiserfs_format36_super_t *)format->super->data);
 }
 
 static void reiserfs_format36_set_root(reiserfs_format36_t *format, blk_t root) {
+    aal_assert("umka-390", format != NULL, return);
     set_sb_root_block((reiserfs_format36_super_t *)format->super->data, root);
 }
 
 static void reiserfs_format36_set_blocks(reiserfs_format36_t *format, count_t blocks) {
+    aal_assert("umka-391", format != NULL, return);
     set_sb_block_count((reiserfs_format36_super_t *)format->super->data, blocks);
 }
 
 static void reiserfs_format36_set_free(reiserfs_format36_t *format, count_t blocks) {
+    aal_assert("umka-392", format != NULL, return);
     set_sb_free_blocks((reiserfs_format36_super_t *)format->super->data, blocks);
 }
 
@@ -217,15 +229,15 @@ static reiserfs_plugin_t format36_plugin = {
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t))reiserfs_format36_open,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
 	
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t, count_t, uint16_t))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *))
 	    reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_check,
-	.probe = (int (*)(aal_device_t *, blk_t))reiserfs_format36_probe,
+	.probe = (int (*)(aal_device_t *))reiserfs_format36_probe,
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format36_format,
 
 	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_offset,

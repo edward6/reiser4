@@ -12,7 +12,7 @@
 
 #ifndef ENABLE_COMPACT
 
-static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
+static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id, 
     unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
@@ -20,7 +20,8 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t fo
     if (!(fs->master = aal_calloc(REISERFS_DEFAULT_BLOCKSIZE, 0)))
 	return -1;
     
-    aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, aal_strlen(REISERFS_MASTER_MAGIC));
+    aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, 
+	aal_strlen(REISERFS_MASTER_MAGIC));
     
     if (uuid)
 	aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
@@ -28,7 +29,7 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t fo
     if (label)
 	aal_strncpy(fs->master->mr_label, label, sizeof(fs->master->mr_label));
 	
-    set_mr_format_id(fs->master, format_plugin_id);
+    set_mr_format_id(fs->master, plugin_id);
     set_mr_block_size(fs->master, blocksize);
 	
     return 0;
@@ -63,7 +64,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	    goto error_free_block;
 		
 	reiserfs_plugin_check_routine(format36->format, probe, goto error_free_block);
-	if (!format36->format.probe(fs->device, 0))
+	if (!format36->format.probe(fs->device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
@@ -159,8 +160,8 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	    goto error_free_alloc;
     }
 	
-/*    if (reiserfs_tree_open(fs))
-	goto error_free_journal;*/
+    if (reiserfs_tree_open(fs))
+	goto error_free_journal;
 	
     return fs;
 
@@ -182,12 +183,12 @@ error:
 #ifndef ENABLE_COMPACT
 
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id,
-    size_t blocksize, const char *uuid, const char *label, count_t len, 
-    aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
+    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t alloc_plugin_id,
+    reiserfs_plugin_id_t node_plugin_id, size_t blocksize, const char *uuid, 
+    const char *label, count_t len, aal_device_t *journal_device, 
+    reiserfs_params_opaque_t *journal_params)
 {
     reiserfs_fs_t *fs;
-    blk_t root_blk, blk;
 
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
@@ -207,55 +208,19 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
 	goto error_free_fs;
 	    
-    if (reiserfs_super_create(fs, format_plugin_id, len))
+    if (reiserfs_alloc_create(fs, alloc_plugin_id, len))
 	goto error_free_master;
+    
+    if (reiserfs_super_create(fs, format_plugin_id, len))
+	goto error_free_alloc;
 	
-    if (reiserfs_alloc_create(fs))
+    if (reiserfs_journal_create(fs, journal_device, journal_params))
 	goto error_free_super;
-    
-    /* Marking the skiped area (0-16 4Kb blocks) as used */
-    for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / blocksize); blk++)
-	reiserfs_alloc_use(fs, blk);
-    
-    /* Marking master super block as used */
-    reiserfs_alloc_use(fs, (REISERFS_MASTER_OFFSET / blocksize));
-    
-    /* Marking format-specific super block as used */
-    reiserfs_alloc_use(fs, reiserfs_super_offset(fs));
-
-/*    if (reiserfs_journal_create(fs, journal_device, journal_params))
-	goto error_free_alloc;*/
 	
-/*    if (reiserfs_tree_create(fs, node_plugin_id))
-	goto error_free_journal;*/
-    
-    /* 
-	Setting up root block. Here also should be setting 
-	of free-blocks filed. 
-    */
-    if (!(root_blk = reiserfs_alloc_find(fs))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't allocate root block.");
+    if (reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_journal;
-    }
     
-    /* Marking nodes used */
-    reiserfs_alloc_use(fs, root_blk);
-
-    /* 
-	Here leaf should be found, marked used and passed into 
-	internal root create function.
-    */
-    reiserfs_alloc_use(fs, reiserfs_alloc_find(fs));
-
-    /* Following calls should be made via reiserfs_super_* functions */
-    reiserfs_plugin_check_routine(fs->super->plugin->format, set_root, goto error_free_journal);
-    fs->super->plugin->format.set_root(fs->super->entity, root_blk);
-
-    /* 
-	Free blocks value equals: block count - skiped area - master super block -
-       	- format-specific super block - first bitmap block - minus root internal node - leaf.
-    */
+    /* Setting up free blocks value to format-specific super block */
     reiserfs_plugin_check_routine(fs->super->plugin->format, set_free, goto error_free_journal);
     fs->super->plugin->format.set_free(fs->super->entity, reiserfs_alloc_free(fs));
 
@@ -263,10 +228,10 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 
 error_free_journal:
     reiserfs_journal_close(fs);
-error_free_alloc:
-    reiserfs_alloc_close(fs);
 error_free_super:
     reiserfs_super_close(fs);
+error_free_alloc:
+    reiserfs_alloc_close(fs);
 error_free_master:
     reiserfs_master_close(fs);    
 error_free_fs:

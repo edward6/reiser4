@@ -20,6 +20,8 @@ static error_t reiserfs_journal36_header_check(reiserfs_journal36_header_t *head
 static reiserfs_journal36_t *reiserfs_journal36_open(aal_device_t *device) {
     reiserfs_journal36_t *journal;
 
+    aal_assert("umka-406", device != NULL, return NULL);
+    
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
@@ -31,6 +33,9 @@ static reiserfs_journal36_t *reiserfs_journal36_open(aal_device_t *device) {
 }
 
 static error_t reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
+    
+    aal_assert("umka-407", journal != NULL, return -1);
+    
     if (aal_device_write_block(journal->device, journal->header)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't synchronize journal header.");
@@ -40,11 +45,12 @@ static error_t reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
 }
 
 static void reiserfs_journal36_close(reiserfs_journal36_t *journal) {
+    aal_assert("umka-408", journal != NULL, return);
+    
     aal_free(journal);
 }
 
 static error_t reiserfs_journal36_replay(reiserfs_journal36_t *journal) {
-    /* Journal replaying must be here. */
     return 0;
 }
 

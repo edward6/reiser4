@@ -74,7 +74,7 @@ error_t reiserfs_journal_create(reiserfs_fs_t *fs, aal_device_t *device,
     reiserfs_plugin_id_t id;
 	
     aal_assert("umka-097", device != NULL, return -1);
-    aal_assert("umka-098", journal_params != NULL, return -1);
+//    aal_assert("umka-098", journal_params != NULL, return -1);
 
     if (!(fs->journal = aal_calloc(sizeof(*fs->journal), 0)))
 	return -1;

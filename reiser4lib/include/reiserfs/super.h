@@ -13,7 +13,7 @@
 extern error_t reiserfs_super_open(reiserfs_fs_t *fs);
 extern void reiserfs_super_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_super_sync(reiserfs_fs_t *fs);
-extern error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
+extern error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id, 
     count_t len);
 
 extern const char *reiserfs_super_format(reiserfs_fs_t *fs);

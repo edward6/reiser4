@@ -11,7 +11,7 @@
 #include <reiserfs/reiserfs.h>
 
 error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
-    reiserfs_plugin_id_t id;
+    reiserfs_plugin_id_t plugin_id;
     reiserfs_plugin_t *plugin;
 	
     aal_assert("umka-135", fs != NULL, return -1);
@@ -26,21 +26,17 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
     if (!(fs->alloc = aal_calloc(sizeof(*fs->alloc), 0)))
 	return -1;
 	
-    id = reiserfs_super_alloc_plugin(fs);
-    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, id))) {
+    plugin_id = reiserfs_super_alloc_plugin(fs);
+    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find block allocator plugin by its identifier %x.", id);
+	    "Can't find block allocator plugin by its identifier %x.", plugin_id);
 	goto error_free_alloc;
     }
 
     fs->alloc->plugin = plugin;
 
     reiserfs_plugin_check_routine(plugin->alloc, open, goto error_free_alloc);
-    
-    if (!(fs->alloc->entity = plugin->alloc.open(fs->device, 
-	reiserfs_super_offset(fs), reiserfs_super_blocks(fs), 
-	reiserfs_fs_blocksize(fs)))) 
-    {
+    if (!(fs->alloc->entity = plugin->alloc.open(fs->device, reiserfs_super_blocks(fs)))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator plugin.");
 	goto error_free_alloc;
@@ -57,12 +53,10 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-error_t reiserfs_alloc_create(reiserfs_fs_t *fs) {
+error_t reiserfs_alloc_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id, count_t blocks) {
     reiserfs_plugin_t *plugin;
-    reiserfs_plugin_id_t id;
 	
     aal_assert("umka-137", fs != NULL, return -1);
-    aal_assert("umka-334", fs->super != NULL, return -1);
 	
     if (fs->alloc) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -73,18 +67,15 @@ error_t reiserfs_alloc_create(reiserfs_fs_t *fs) {
     if (!(fs->alloc = aal_calloc(sizeof(*fs->alloc), 0)))
 	return -1;
 	
-    id = reiserfs_super_alloc_plugin(fs);
-    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find block allocator plugin by its identifier %x.", id);
+	    "Can't find block allocator plugin by its identifier %x.", plugin_id);
 	goto error_free_alloc;
     }
     fs->alloc->plugin = plugin;
 
     reiserfs_plugin_check_routine(plugin->alloc, create, goto error_free_alloc);
-    if (!(fs->alloc->entity = plugin->alloc.create(fs->device, reiserfs_super_offset(fs), 
-	reiserfs_super_blocks(fs), reiserfs_fs_blocksize(fs)))) 
-    {
+    if (!(fs->alloc->entity = plugin->alloc.create(fs->device, blocks))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't allocator.");
 	goto error_free_alloc;
