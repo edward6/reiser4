@@ -244,13 +244,17 @@ char *
 item_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
+	char *p;
+	PROF_BEGIN(item_by_coord);
 
 	/* @coord is set to existing item */
 	assert("nikita-596", coord != NULL);
 	assert("vs-255", coord_is_existing_item(coord));
 
 	ih = node40_ih_at_coord(coord);
-	return zdata(coord->node) + ih40_get_offset(ih);
+	p = zdata(coord->node) + ih40_get_offset(ih);
+	PROF_END(item_by_coord, item_by_coord);
+	return p;
 }
 
 /* plugin->u.node.length_by_coord
@@ -260,6 +264,7 @@ length_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
 	int result;
+	PROF_BEGIN(length_by_coord);
 
 	/* @coord is set to existing item */
 	assert("vs-256", coord != NULL);
@@ -271,6 +276,7 @@ length_by_coord_node40(const coord_t * coord)
 	else
 		result = ih40_get_offset(ih - 1) - ih40_get_offset(ih);
 
+	PROF_END(length_by_coord, length_by_coord);
 	return result;
 }
 
@@ -298,12 +304,14 @@ reiser4_key *
 key_at_node40(const coord_t * coord, reiser4_key * key)
 {
 	item_header40 *ih;
+	PROF_BEGIN(key_by_coord);
 
 	assert("nikita-1765", coord_is_existing_item(coord));
 
 	/* @coord is set to existing item */
 	ih = node40_ih_at_coord(coord);
 	xmemcpy(key, &ih->key, sizeof (reiser4_key));
+	PROF_END(key_by_coord, key_by_coord);
 	return key;
 }
 
