@@ -35,12 +35,12 @@ static const d64 *get_last_committed_tx (struct super_block *s)
 	assert ("zam-477", private != NULL);
 	assert ("zam-478", private->journal_header != NULL);
 
-	jkmap (private->journal_header);
+	jload_and_lock (private->journal_header);
 
 	h = (struct journal_header*)jdata(private->journal_header);
 	assert ("zam-485", h != NULL);
 
-	junload (private->journal_header);
+	junlock_and_relse (private->journal_header);
 
 	return &h->last_committed_tx; 
 }
@@ -54,12 +54,12 @@ static void set_last_committed_tx (struct super_block *s, const d64 * block)
 	assert ("zam-479", private != NULL);
 	assert ("zam-480", private->journal_header != NULL);
 
-	jkmap (private->journal_header);
+	jload_and_lock (private->journal_header);
 
 	h = (struct journal_header*)jdata(private->journal_header);
 	assert ("zam-484", h != NULL);
 
-	jrelse (private->journal_header);
+	junlock_and_relse (private->journal_header);
 
 	h->last_committed_tx = *block;
 }
@@ -85,12 +85,12 @@ static const d64 *get_last_flushed_tx (struct super_block * s)
 	assert ("zam-481", private != NULL);
 	assert ("zam-482", private->journal_footer != NULL);
 
-	jkmap (private->journal_footer);
+	jload_and_lock (private->journal_footer);
 
 	h = (struct journal_footer*)jdata(private->journal_footer);
 	assert ("zam-483", h != NULL);
 
-	jrelse (private->journal_footer);
+	junlock_and_relse (private->journal_footer);
 
 	return &h->last_flushed_tx;
 }
@@ -104,12 +104,12 @@ static void set_last_flushed_tx (struct super_block *s, const d64 *block)
 	assert ("zam-493", private != NULL);
 	assert ("zam-494", private->journal_header != NULL);
 
-	jkmap (private->journal_footer);
+	jload_and_lock (private->journal_footer);
 
 	h = (struct journal_footer*)jdata(private->journal_footer);
 	assert ("zam-495", h != NULL);
 
-	jrelse (private->journal_footer);
+	junlock_and_relse (private->journal_footer);
 
 	h->last_flushed_tx = *block;
 }
@@ -394,7 +394,7 @@ static int alloc_tx (capture_list_head * head, int nr)
 		jnode * node = capture_list_pop_back(head);
 
 		jrelse (node);
-		junload (node);
+		jnode_detach_page (node);
 		jfree (node);
 	}
 
@@ -474,8 +474,8 @@ static int write_tx (capture_list_head * tx_list)
 
 	while (!capture_list_end (tx_list, cur)) {
 		ret = jwait_io (cur);
-
-		junload (cur);	/* free jnode page */
+		jrelse (cur);
+		jnode_detach_page (cur);
 
 		if (ret != 0) return ret;
 	}

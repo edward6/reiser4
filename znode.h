@@ -175,12 +175,6 @@ struct znode {
 	 */
 	atomic_t               c_count;
 	/**
-	 * counter of references to znode's data. Pin data page(s) in
-	 * memory while this is greater than 0. Increased on zload().
-	 * Decreased on zrelse().
-	 */
-	atomic_t               d_count;
-	/**
 	 * counter of references to znode itself. Increased on zref().
 	 * Decreased on zput().
 	 */
@@ -390,7 +384,6 @@ static inline void reiser4_wake_up (lock_stack *owner)
 }
 
 extern void add_x_ref( znode *node );
-extern void add_d_ref( znode *node );
 extern void del_c_ref( znode *node );
 
 extern znode *zref( znode *node );

@@ -94,7 +94,7 @@ static void done_journal_info (struct super_block *s)
 		if (JF_ISSET(private->journal_header, ZNODE_KMAPPED)) 
 			jrelse (private->journal_header);
 		if (jnode_page(private->journal_footer))
-			junload (private->journal_header);
+			jnode_detach_page (private->journal_header);
 		jfree (private->journal_header);
 
 		private->journal_header = NULL;
@@ -104,7 +104,7 @@ static void done_journal_info (struct super_block *s)
 		if (JF_ISSET(private->journal_footer, ZNODE_KMAPPED))
 			jrelse (private->journal_footer);
 		if (jnode_page(private->journal_footer))
-			junload (private->journal_footer);
+			jnode_detach_page (private->journal_footer);
 		jfree (private->journal_footer);
 
 		private->journal_footer = NULL;
