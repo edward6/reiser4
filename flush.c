@@ -1165,8 +1165,8 @@ static int squalloc_right_twig (znode    *left,
 	stop_key = *min_key ();
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:before copy extents: %p %p\n", left, right);
-	/*trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));*/
-	/*trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));*/
+	trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));
+	trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
 
 	while (item_is_extent (&coord)) {
 
@@ -1195,8 +1195,8 @@ static int squalloc_right_twig (znode    *left,
 	}
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:after copy extents: %p %p\n", left, right);
-	/*trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));*/
-	/*trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));*/
+	trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));
+	trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
 
 	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
@@ -1222,7 +1222,7 @@ static int squalloc_right_twig (znode    *left,
 			return cut_ret;
 		}
 
-		/*trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));*/
+		trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
 	}
 
 	if (ret == SQUEEZE_TARGET_FULL) { goto out; }
@@ -1236,13 +1236,7 @@ static int squalloc_right_twig (znode    *left,
 
 	coord_init_first_unit (&coord, right);
 
-	if (! item_is_internal (&coord)) {
-		/* There is no space in @left anymore. */
-		assert ("vs-433", item_is_extent (&coord));
-		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
-		trace_on (TRACE_FLUSH, "sq_right_neighbor target is full: %s\n", flush_pos_tostring (pos));
-		goto out;
-	}
+	assert ("jmacd-433", item_is_internal (&coord));
 
 	/* Shift an internal unit.  The child must be allocated before shifting any more
 	 * extents, so we stop here. */

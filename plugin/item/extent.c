@@ -491,7 +491,8 @@ int extent_create_hook (const coord_t * coord, void * arg)
 	if (!node)
 		return 0;
 
-	assert ("vs-413", znode_is_write_locked (node));
+	/* FIXME: NIKITA->VS: Nobody knows if this assertion is right or wrong. */
+	/*assert ("vs-413", znode_is_write_locked (node));*/
 
 	spin_lock_dk (current_tree);
 	*znode_get_rd_key (node) = *item_key_by_coord (coord, &key);
