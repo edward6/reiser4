@@ -403,6 +403,7 @@ void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end);
 extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*, int lazy);
 extern int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to, struct inode*, int lazy);
 
+extern int delete_node(znode * node, reiser4_key *, struct inode *);
 extern int check_tree_pointer(const coord_t * pointer, const znode * child);
 extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
 extern int find_child_ptr(znode * parent, znode * child, coord_t * result);

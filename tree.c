@@ -1451,7 +1451,7 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
  * cut_worker() iteration.  This is needed for proper accounting of
  * "i_blocks" and "i_bytes" fields of the @object.
  */
-static int delete_node (znode * left, znode * node, reiser4_key * smallest_removed,
+reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 			struct inode * object)
 {
 	lock_handle parent_lock;
@@ -1462,7 +1462,6 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 
 	assert ("zam-937", node != NULL);
 	assert ("zam-933", znode_is_write_locked(node));
-	assert ("zam-939", ergo(left != NULL, znode_is_locked(left)));
 	assert ("zam-999", smallest_removed != NULL);
 
 	init_lh(&parent_lock);
@@ -1520,9 +1519,13 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 			start_offset = get_key_offset(znode_get_ld_key(node));
 			end_offset = get_key_offset(smallest_removed);
 		}
-		
-		if (left)
-			left->rd_key = node->rd_key;
+
+		RLOCK_TREE(tree);
+		assert("zam-1021", znode_is_connected(node));
+		if (node->left)
+			node->left->rd_key = node->rd_key;
+		RUNLOCK_TREE(tree);
+
 		*smallest_removed = *znode_get_ld_key(node);
 
 		WUNLOCK_DK(tree);
@@ -1588,8 +1591,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		    UNDER_RW(dk, current_tree, read,
 			     (lazy ? keyle(from_key, znode_get_ld_key(node)) : 
 			      keylt(from_key, znode_get_ld_key(node)) ))) {
-			result = delete_node(
-				next_node_lock.node, node, smallest_removed, object);
+			result = delete_node(node, smallest_removed, object);
 		} else {
 			result = tap_load(tap);
 			if (result)

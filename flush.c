@@ -1887,6 +1887,17 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	return ret;
 }
 
+/* delete empty node which has  */
+static int delete_empty_node (znode * node)
+{
+	reiser4_key smallest_removed;
+
+	assert("zam-1019", node != NULL);
+	assert("zam-1020", node_is_empty(node));
+
+	return delete_node(node, &smallest_removed, NULL);
+}
+
 /* Process nodes on leaf level until unformatted node or rightmost node in the
  * slum reached.  */
 static int handle_pos_on_formatted (flush_pos_t * pos)
@@ -2228,6 +2239,10 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	pos->state = POS_ON_LEAF;
 	move_flush_pos(pos, &child_lock, &child_load, NULL);
 
+	if (node_is_empty(JZNODE(child))) {
+		ret = delete_empty_node(JZNODE(child));
+		pos->state = POS_INVALID;
+	}
  out:
 	done_load_count(&child_load);
 	done_lh(&child_lock);
@@ -2367,7 +2382,6 @@ squeeze_right_non_twig(znode * left, znode * right)
 	ret = shift_everything_left(right, left, &todo);
 
 #if REISER4_STATS
-	/* FIXME-VS: urgently added squeeze statistics */
 	if (znode_get_level(left) == LEAF_LEVEL) {
 		int old_free_space = znode_free_space(left);
 
