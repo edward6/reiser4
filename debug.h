@@ -46,12 +46,23 @@
 #endif
 
 #ifndef REISER4_DEBUG
+
 #if defined( CONFIG_REISER4_CHECK )
+
+/* have assert to check condition only */
 #define REISER4_DEBUG (1)
+/* have assert to check condition and check stack */
+/*#define REISER4_DEBUG (2)*/
+/* have assert to do everything */
+/*#define REISER4_DEBUG (3)*/
+
 #else
+
 #define REISER4_DEBUG (0)
-#endif
-#endif
+
+#endif /* #if defined( CONFIG_REISER4_CHECK ) */
+
+#endif /* REISER4_DEBUG */
 
 #define REISER4_DEBUG_MODIFY 0 /* this significantly slows down testing, but we should run
 				* our testsuite through with this every once in a
