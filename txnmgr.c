@@ -332,8 +332,6 @@ jnode_of_page (struct page* pg)
 	spin_lock (& _jnode_ptr_lock);
 
 	if ((jnode*) pg->private == NULL) {
-		struct inode *inode;
-
 		if (jal == NULL) {
 			spin_unlock (& _jnode_ptr_lock);
 			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
