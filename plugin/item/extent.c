@@ -1343,15 +1343,40 @@ znode_lh(znode *node)
 	return owners_list_front(&node->lock.owners);
 }
 
+/* when on flush time unallocated extent is to be replaced with allocated one it may happen that one unallocated extent
+   will have to be replaced with set of allocated extents. In this case insert_into_item will be called which may have
+   to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
+static reiser4_block_nr
+reserve_replace(void)
+{
+	reiser4_block_nr grabbed, needed;
+
+	grabbed = get_current_context()->grabbed_blocks;
+	needed = estimate_one_insert_into_item(current_tree);
+	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED, "reserve_replace"));
+	return grabbed;
+}
+
+static void
+free_replace_reserved(reiser4_block_nr grabbed)
+{
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks - grabbed, "free_replace_reserved");
+}
+
 /* @coord is set to allocated extent. Convert it to contain unallocated extent replace allocated node pointer @uf_coord
    is set to with unallocated node pointer */
 static int
 allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_nr ue_width)
 {
+	int result;
 	reiser4_extent *ext;
 	reiser4_extent new_exts[2]; /* extents which will be added after original hole one */
 	reiser4_extent replace;	    /* extent original hole extent will be replaced with */
 	reiser4_block_nr ae_first_block;
+	reiser4_block_nr grabbed;
 	reiser4_block_nr ae_width;
 	reiser4_item_data item;
 	int count;
@@ -1394,7 +1419,10 @@ allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_n
 	unit_key_by_coord(coord, &key);
 	set_key_offset(&key, (get_key_offset(&key) + extent_get_width(&replace) * current_blocksize));
 
-	return replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, new_exts, count), &replace, COPI_DONT_SHIFT_LEFT);
+	grabbed = reserve_replace();
+	result = replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, new_exts, count), &replace, COPI_DONT_SHIFT_LEFT);
+	free_replace_reserved(grabbed);
+	return result;
 }
 
 static int
@@ -1990,29 +2018,6 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 		right->between = AFTER_ITEM;
 	}
 	return result;
-}
-
-/* when on flush time unallocated extent is to be replaced with allocated one it may happen that one unallocated extent
-   will have to be replaced with set of allocated extents. In this case insert_into_item will be called which may have
-   to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
-static reiser4_block_nr
-reserve_replace(void)
-{
-	reiser4_block_nr grabbed, needed;
-
-	grabbed = get_current_context()->grabbed_blocks;
-	needed = estimate_one_insert_into_item(current_tree);
-	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED, "reserve_replace"));
-	return grabbed;
-}
-
-static void
-free_replace_reserved(reiser4_block_nr grabbed)
-{
-	reiser4_context *ctx;
-
-	ctx = get_current_context();
-	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks - grabbed, "free_replace_reserved");
 }
 
 /* find all units of extent item which require allocation. Allocate free blocks
