@@ -9,7 +9,7 @@
 #if !defined( __REISER4_INODE_H__ )
 #define __REISER4_INODE_H__
 
-/** 
+/* state associated with each inode.  
  * reiser4 inode.
  *
  * FIXME-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
@@ -19,21 +19,42 @@
  *
  */
 typedef struct reiser4_inode_info {
-	/** plugin, associated with inode and its state, including
-	     dependant plugins: 
-	     object,
-	     security, 
-	     tail policy, 
-	     hash for directories */
-	reiser4_plugin_ref plugin;
+	lnode_header            lnode_header;
+	/** plugin of file */
+	file_plugin            *file;
+	/** plugin of dir */
+	dir_plugin             *dir;
+	/** perm plugin for this file */
+	perm_plugin            *perm;
+	/** tail policy plugin. Only meaningful for regular files */
+	tail_plugin            *tail;
+	/** hash plugin. Only meaningful for directories. */
+	hash_plugin            *hash;
+	/** plugin of stat-data */
+	item_plugin            *sd;
+	/** reiser4-specific inode flags. They are "transient" and 
+	    are not supposed to be stored on a disk. Used to trace
+	    "state" of inode. Bitmasks for this field are defined in 
+	    fs/reiser4/plugin/types.h:reiser4_file_plugin_flags */
+	__u32                      flags;
+	/** bytes actually used by the file */
+	__u64                      bytes;
+	__u64                      extmask;
+	/** length of stat-data for this inode */
+	short                      sd_len;
+	/** bitmask of non-default plugins for this inode */
+	__u16                      plugin_mask;
+	inter_syscall_ra_hint      ra;
+	/** locality id for this file */
+	oid_t                      locality_id;
 	/**
-	 * generic VFS fields
+	 * generic fields not specific to reiserfs but used by all linux filesystems
 	 */
 	struct inode       vfs_inode;
 } reiser4_inode_info;
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
-extern reiser4_plugin_ref *get_object_state( const struct inode *inode );
+extern inodes_plugins *get_object_state( const struct inode *inode );
 extern reiser4_inode_info *reiser4_inode_data( const struct inode * );
 extern __u32 *reiser4_inode_flags( const struct inode *inode );
 extern file_plugin *get_file_plugin( const struct inode *inode );
