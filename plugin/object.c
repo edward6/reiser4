@@ -577,7 +577,7 @@ static int delete_directory_common(struct inode *inode)
 	result = dplug->done(inode);
 	if (!result)
 /* NIKITA-FIXME-HANS: please comment on whether file is the right word here.  maybe common_object_delete_no_reserve? */
-		result = common_file_delete_no_reserve(inode);
+		result = common_file_delete_no_reserve(inode, 1);
 	all_grabbed2free();
 	return result;
 }
