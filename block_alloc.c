@@ -137,7 +137,7 @@ int reiser4_dealloc_blocks (const reiser4_block_nr * start, const reiser4_block_
 /** obtain block number for formatted node */
 int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr)
 {
-	if (0) {
+	if (1) {
 		space_allocator_plugin * splug;
 		reiser4_blocknr_hint preceder;
 		reiser4_block_nr one;
