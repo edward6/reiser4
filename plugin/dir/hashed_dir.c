@@ -332,7 +332,7 @@ lookup_hashed(struct inode * parent	/* inode of directory to
 
 	result = lookup_name_hashed(parent, dentry, &entry.key);
 	if (result == 0) {
-		inode = reiser4_iget(parent->i_sb, &entry.key);
+		inode = reiser4_iget(parent->i_sb, &entry.key, 0);
 		if (!IS_ERR(inode)) {
 			if (inode_get_flag(inode, REISER4_LIGHT_WEIGHT)) {
 				inode->i_uid = parent->i_uid;

@@ -1723,7 +1723,7 @@ reiser4_get_dentry(struct super_block *sb, void *data)
 	ON_LARGE_KEY(set_key_ordering(&key, oid[2]));
 	set_key_objectid(&key, oid[1]);
 
-	inode = reiser4_iget(sb, &key);
+	inode = reiser4_iget(sb, &key, 1);
 	if (!IS_ERR(inode)) {
 		dentry = d_alloc_anon(inode);
 		if (!dentry) {
@@ -1731,12 +1731,15 @@ reiser4_get_dentry(struct super_block *sb, void *data)
 			iput(inode);
 			dentry = ERR_PTR(-ENOMEM);
 		}
-		if (!is_inode_loaded(inode))
-			reiser4_iget_complete(inode);
-		
+		reiser4_iget_complete(inode);
 		return dentry;
-	}
-	return ERR_PTR(PTR_ERR(inode));
+	} else if (PTR_ERR(inode) == -ENOENT)
+		/*
+		 * inode wasn't found at the key encoded in the file
+		 * handle. Hence, file handle is stale.
+		 */
+		inode = ERR_PTR(RETERR(-ESTALE));
+	return (void *)inode;
 }
 
 static struct dentry *
@@ -1759,7 +1762,7 @@ reiser4_get_dentry_parent(struct dentry *child)
 	if (result)
 		return ERR_PTR(result);
 	
-	parent = reiser4_iget(dir->i_sb, &key);
+	parent = reiser4_iget(dir->i_sb, &key, 1);
 	if (!IS_ERR(parent)) {
 		parent_dentry = d_alloc_anon(parent);
 		if (!parent_dentry) {
@@ -1771,8 +1774,9 @@ reiser4_get_dentry_parent(struct dentry *child)
 			reiser4_iget_complete(parent);
 		
 		return parent_dentry;
-	}
-	return ERR_PTR(PTR_ERR(parent));
+	} else if (PTR_ERR(parent) == -ENOENT)
+		parent = ERR_PTR(RETERR(-ESTALE));
+	return (void *)parent;
 }
 
 struct export_operations reiser4_export_operations = {

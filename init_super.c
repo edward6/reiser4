@@ -284,7 +284,7 @@ _INIT_(fs_root)
 	struct inode * inode;
 	int result;
 
-	inode = reiser4_iget(s, sbinfo->df_plug->root_dir_key(s));
+	inode = reiser4_iget(s, sbinfo->df_plug->root_dir_key(s), 0);
 	if (IS_ERR(inode))
 		return RETERR(PTR_ERR(inode));
 

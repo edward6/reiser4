@@ -141,7 +141,8 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	  znode_lock_mode lock_mode /* lock mode */ ,
 	  coord_t * coord /* resulting coord */ ,
 	  lock_handle * lh /* resulting lock handle */ ,
-	  const reiser4_key * key /* resulting key */ )
+	  const reiser4_key * key /* resulting key */,
+	  int silent)
 {
 	int result;
 	__u32 flags;
@@ -174,7 +175,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
 
-	if (result != 0)
+	if (result != 0 && !silent)
 		key_warning(key, inode, result);
 	return result;
 }
@@ -414,7 +415,8 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 
 	if (result != 0) {
 		coord_init_zero(&coord);
-		result = lookup_sd(inode, ZNODE_WRITE_LOCK, &coord, &lh, &key);
+		result = lookup_sd(inode,
+				   ZNODE_WRITE_LOCK, &coord, &lh, &key, 0);
 	}
 	
 	/* we don't want to re-check that somebody didn't remove stat-data

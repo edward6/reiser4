@@ -257,7 +257,8 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 */
 static int
 read_inode(struct inode *inode /* inode to read from disk */ ,
-	   const reiser4_key * key /* key of stat data */ )
+	   const reiser4_key * key /* key of stat data */,
+	   int silent)
 {
 	int result;
 	lock_handle lh;
@@ -273,7 +274,7 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 	coord_init_zero(&coord);
 	init_lh(&lh);
 	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd(inode, ZNODE_READ_LOCK, &coord, &lh, key);
+	result = lookup_sd(inode, ZNODE_READ_LOCK, &coord, &lh, key, silent);
 	assert("nikita-301", !is_inode_loaded(inode));
 	if (result == 0) {
 		/* use stat-data plugin to load sd into inode. */
@@ -363,8 +364,8 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
  */
 reiser4_internal struct inode *
 reiser4_iget(struct super_block *super /* super block  */ ,
-	     const reiser4_key * key	/* key of inode's
-					 * stat-data */ )
+	     const reiser4_key * key /* key of inode's stat-data */,
+	     int silent)
 {
 	struct inode *inode;
 	int result;
@@ -383,7 +384,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			     (reiser4_key *) key);
 	if (inode == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-	if (is_bad_inode(inode)) {
+	if (is_bad_inode(inode) && !silent) {
 		warning("nikita-304", "Stat data not found");
 		print_key("key", key);
 		iput(inode);
@@ -410,7 +411,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			/* now, inode has objectid as ->i_ino and locality in
 			   reiser4-specific part. This is enough for
 			   read_inode() to read stat data from the disk */
-			result = read_inode(inode, key);
+			result = read_inode(inode, key, silent);
 		}
 	}
 

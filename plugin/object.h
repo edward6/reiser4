@@ -12,7 +12,8 @@
 #include <linux/types.h>
 
 extern int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
-		     coord_t * coord, lock_handle * lh, const reiser4_key * key);
+		     coord_t * coord, lock_handle * lh, const reiser4_key * key,
+		     int silent);
 extern int guess_plugin_by_mode(struct inode *inode);
 
 extern int delete_file_common(struct inode *inode);
