@@ -471,10 +471,6 @@ add_d_ref(jnode * node /* node to increase d_count of */ )
 	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
 }
 
-/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
-/* load content of jnode into memory in all places except cases of unformatted
-   nodes access  */
-
 static int
 page_filler(void *arg, struct page *page)
 {
@@ -484,6 +480,7 @@ page_filler(void *arg, struct page *page)
 
 	assert("nikita-2369", page->mapping == jnode_ops(node)->mapping(node));
 
+	reiser4_stat_jnode_add(jload_read);
 	return page_io(page, node, READ, GFP_KERNEL);
 }
 
@@ -532,7 +529,7 @@ jload(jnode * node)
 	schedulable();
 
 	result = 0;
-	reiser4_stat_znode_add(zload);
+	reiser4_stat_jnode_add(jload);
 	jref(node);
 	spin_lock_jnode(node);
 	add_d_ref(node);
@@ -583,12 +580,15 @@ jload(jnode * node)
 		   because page can be detached from jnode only when ->d_count
 		   is 0, and JNODE_LOADED is not set.
 		*/
-		if (page != NULL) {
+		if (page != NULL && !JF_ISSET(node, JNODE_ASYNC)) {
 			JF_SET(node, JNODE_LOADED);
 			load_page(page, node);
 			node->data = page_address(page);
+			reiser4_stat_jnode_add(jload_page);
 		} else {
-			page = read_cache_page(jplug->mapping(node), jplug->index(node), page_filler, node);
+			page = read_cache_page(jplug->mapping(node), 
+					       jplug->index(node), 
+					       page_filler, node);
 			/* after (successful) return from read_cache_page()
 			   @page is pinned into memory. */
 			if (!IS_ERR(page)) {
@@ -611,6 +611,9 @@ jload(jnode * node)
 					result = -EIO;
 				if (REISER4_USE_EFLUSH)
 					eflush_del(node, 1);
+				if (REISER4_STATS && JF_ISSET(node, JNODE_ASYNC))
+					reiser4_stat_jnode_add(jload_async);
+				JF_CLR(node, JNODE_ASYNC);
 				spin_unlock_jnode(node);
 				reiser4_unlock_page(page);
 			} else
@@ -626,6 +629,7 @@ jload(jnode * node)
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
+		reiser4_stat_jnode_add(jload_already);
 	}
 	assert("nikita-2814", ergo(result == 0, jnode_is_loaded(node)));
 	assert("nikita-2816", ergo(result == 0 && jnode_is_znode(node),
@@ -696,6 +700,43 @@ jrelse_nolock(jnode * node /* jnode to release references to */ )
 		   optimization barrier, of course).
 		*/
 		JF_CLR(node, JNODE_LOADED);
+}
+
+/* start async io for @node */
+int
+jstartio(jnode * node)
+{
+	jnode_plugin *jplug;
+	struct page *page;
+	int result;
+
+	assert("nikita-2857", node != NULL);
+
+	result = 0;
+	jplug = jnode_ops(node);
+	page = find_or_create_page(jplug->mapping(node), jplug->index(node),
+				   GFP_KERNEL);
+	if (page == NULL)
+		return -ENOMEM;
+
+	assert("nikita-2858", PageLocked(page));
+
+	spin_lock_jnode(node);
+	if (jnode_page(node) == NULL) {
+		jnode_attach_page(node, page);
+		JF_SET(node, JNODE_ASYNC);
+		spin_unlock_jnode(node);
+		if (!PageUptodate(page))
+			result = page_io(page, node, READ, GFP_KERNEL);
+		else
+			unlock_page(page);
+	} else {
+		assert("nikita-2636", jnode_page(node) == page);
+		spin_unlock_jnode(node);
+		unlock_page(page);
+	}
+	
+	return result;
 }
 
 int
@@ -1180,7 +1221,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 		return;
 	}
 
-	info("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	info("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	     " block: %s, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	     prefix, node, node->state,
 	     jnode_state_name(node, JNODE_LOADED),
@@ -1199,6 +1240,8 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	     jnode_state_name(node, JNODE_RIP),
 	     jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
 	     jnode_state_name(node, JNODE_WRITEBACK),
+	     jnode_state_name(node, JNODE_NEW),
+	     jnode_state_name(node, JNODE_ASYNC),
 	     jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	     atomic_read(&node->d_count), atomic_read(&node->x_count),
 	     jnode_page(node), jnode_type_name(jnode_get_type(node)));

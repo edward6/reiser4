@@ -150,7 +150,9 @@ typedef enum {
 	JNODE_WRITEBACK = 18,
 
 	/* used in plugin/item/extent.c */
-	JNODE_NEW = 19
+	JNODE_NEW = 19,
+	/* async io request was issued */
+	JNODE_ASYNC = 20,
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -388,6 +390,7 @@ extern void add_d_ref(jnode * node);
 
 extern int jload(jnode * node);
 extern int jinit_new(jnode * node);
+extern int jstartio(jnode * node);
 
 extern int jdrop_in_tree(jnode * node, reiser4_tree * tree);
 extern void jdrop(jnode * node);
