@@ -1336,7 +1336,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 #endif
 
 	/* Load all bitmap blocks at mount time. */
-	if (test_bit(REISER4_LOAD_BITMAP, &get_super_private(super)->fs_flags)) {
+	if (!test_bit(REISER4_DONT_LOAD_BITMAP, &get_super_private(super)->fs_flags)) {
 		__u64 start_time, elapsed_time;
 		struct bnode * bnode;
 		int ret;

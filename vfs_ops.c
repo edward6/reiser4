@@ -935,11 +935,11 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 #endif
 		/* Load all bitmap blocks at mount time */
 		{
-			.name = "loadbitmap",
+			.name = "dont_load_bitmap",
 			.type = OPT_BIT,
 			.u = {
 				.bit = {
-					.nr = REISER4_LOAD_BITMAP,
+					.nr = REISER4_DONT_LOAD_BITMAP,
 					.addr = &sbinfo->fs_flags
 				}
 			}
