@@ -1,6 +1,6 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* The design document for this file is at http://www.namesys.com/v4/fast_reiser4.html. */
+/* The design document for this file is at http://www.namesys.com/v4/v4.html. */
 
 #include "forward.h"
 #include "debug.h"

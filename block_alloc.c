@@ -18,7 +18,7 @@
 
 /* We need to be able to reserve enough disk space to ensure that an atomic
    operation will have enough disk space to flush (see flush.c and
-   http://namesys.com/v4/fast_reiser4.html) and commit it once it is started.
+   http://namesys.com/v4/v4.html) and commit it once it is started.
 
    In our design a call for reserving disk space may fail but not an actual
    block allocation.
