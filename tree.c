@@ -1419,7 +1419,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 void
 fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
 {
-	if (inode_get_flag(inode, REISER4_TAILS_FILE_MMAPED)) {
+	if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
 		pgoff_t start_pg, end_pg;
 
 		start_pg = start >> PAGE_CACHE_SHIFT;
