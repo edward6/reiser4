@@ -481,7 +481,7 @@ static int ul_find_actor( struct inode *inode /* inode from hash table to
 }
 
 
-struct inode *
+static struct inode *
 get_new_inode(struct super_block *sb, 
 	      unsigned long hashval, 
 	      int (*test)(struct inode *, void *), 
@@ -505,6 +505,10 @@ get_new_inode(struct super_block *sb,
 			}
 
 			inode->i_state = I_LOCK|I_NEW;
+			/*
+			 * FIXME-VS: put inode into hash list
+			 */
+			list_add (&inode->i_hash, &inode_hash_list);
 			spin_unlock(&inode_hash_guard);
 
 			return inode;
