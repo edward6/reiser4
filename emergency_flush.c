@@ -4,9 +4,9 @@
 
 /* OVERVIEW:
   
-     Reiser4 maintains all meta data in the single balanced tree. This tree is
-     maintained in the memory in the form different from what will be
-     ultimately written to the disk. Roughly speaking, before writing tree
+     Reiser4 maintains all meta data in a single balanced tree. This tree is
+     maintained in memory in a form different from what will ultimately be
+     written to the disk. Roughly speaking, before writing a tree
      node to the disk, some complex process (flush.[ch]) is to be
      performed. Flush is main necessary preliminary step before writing pages
      back to the disk, but it has some characteristics that make it completely
@@ -28,9 +28,7 @@
         5 it is CPU consuming and long
   
      As a result, flush reorganizes some part of reiser4 tree and produces
-     large queue of nodes ready to be submitted for io (as a matter of fact,
-     flush write clustering is so good that it used to hit BIO_MAX_PAGES all
-     the time, until checks were added for this).
+     large queue of nodes ready to be submitted for io.
   
      Items (3) and (4) alone make flush unsuitable for being called directly
      from reiser4 ->vm_writeback() callback, because of OOM and deadlocks
@@ -138,6 +136,7 @@
 #if REISER4_USE_EFLUSH
 
 static int flushable(const jnode * node, struct page *page);
+static int needs_allocation(const jnode * node);
 static eflush_node_t *ef_alloc(int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
 static int ef_free_block(jnode *node, const reiser4_block_nr *blk);
@@ -158,11 +157,7 @@ emergency_flush(struct page *page)
 	jnode *node;
 	int result;
 
-	if (!PageDirty(page))
-		return 0;
-
 	assert("nikita-2721", page != NULL);
-	assert("nikita-2723", PageDirty(page));
 	assert("nikita-2724", PageLocked(page));
 
 	/*
@@ -183,47 +178,110 @@ emergency_flush(struct page *page)
 	result = 0;
 	spin_lock_jnode(node);
 	if (flushable(node, page)) {
-		reiser4_block_nr blk;
-		eflush_node_t *efnode;
-		reiser4_blocknr_hint hint;
+		if (needs_allocation(node)) {
+			reiser4_block_nr blk;
+			eflush_node_t *efnode;
+			reiser4_blocknr_hint hint;
 
-		blk = 0ull;
-		efnode = NULL;
+			blk = 0ull;
+			efnode = NULL;
 
-		blocknr_hint_init(&hint);
+			blocknr_hint_init(&hint);
+			
+			result = ef_prepare(node, &blk, &efnode, &hint);
+			if (flushable(node, page) && result == 0) {
+				assert("nikita-2759", efnode != NULL);
+				eflush_add(node, &blk, efnode);
 
-		result = ef_prepare(node, &blk, &efnode, &hint);
-		if (flushable(node, page) && result == 0 && 
-		    test_clear_page_dirty(page)) {
-			assert("nikita-2759", efnode != NULL);
-			eflush_add(node, &blk, efnode);
-
-			spin_unlock_jnode(node);
-
-			/* XXX JNODE_WRITEBACK bit is not set here */
-			result = page_io(page, 
-					 node, WRITE, GFP_NOFS | __GFP_HIGH);
-			if (result == 0) {
-				result = 1;
-				trace_on(TRACE_EFLUSH, "ok: %llu\n", blk);
+				spin_unlock_jnode(node);
+				
+				/* XXX JNODE_WRITEBACK bit is not set here */
+				result = page_io(page, 
+						 node, WRITE, GFP_NOFS | __GFP_HIGH);
+				if (result == 0) {
+					result = 1;
+					trace_on(TRACE_EFLUSH, "ok: %llu\n", blk);
+				} else {
+					/* 
+					 * XXX may be set_page_dirty() should be called
+					 */
+					__set_page_dirty_nobuffers(page);
+					trace_on(TRACE_EFLUSH, "submit-failure\n");
+				}
 			} else {
-				/* 
-				 * XXX may be set_page_dirty() should be called
-				 */
-				__set_page_dirty_nobuffers(page);
-				trace_on(TRACE_EFLUSH, "submit-failure\n");
+				spin_unlock_jnode(node);
+				if (blk != 0ull)
+					ef_free_block_with_stage(node, &blk, hint.block_stage);
+				if (efnode != NULL)
+					kmem_cache_free(eflush_slab, efnode);
+				trace_on(TRACE_EFLUSH, "failure-2\n");
 			}
+			
+			blocknr_hint_done(&hint);
 		} else {
-			spin_unlock_jnode(node);
-			if (blk != 0ull)
-				ef_free_block_with_stage(node, &blk, hint.block_stage);
-			if (efnode != NULL)
-				kmem_cache_free(eflush_slab, efnode);
-			trace_on(TRACE_EFLUSH, "failure-2\n");
+			txn_atom *atom;
+			flush_queue_t *fq = NULL;
+
+			/* eflush without allocation temporary location for a node */
+			trace_on(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
+			
+			/*
+			 * FIXME-VS: this is temporary
+			 */
+
+			/* get flush queue for this node */
+			while (1) {
+				assert("vs-1140", spin_jnode_is_locked(node));
+
+				atom = atom_get_locked_by_jnode(node);
+				spin_unlock_jnode(node);
+
+				if (atom == NULL)
+					break;
+
+				result = fq_by_atom(atom, &fq);
+				if (result) {
+					assert("zam-745", !spin_atom_is_locked(atom));
+					if (result == -EAGAIN) {
+						spin_lock_jnode(node);
+						continue;
+					}
+					trace_on(TRACE_EFLUSH, "failure-4\n");
+					break;
+				}
+
+				assert("zam-745", spin_atom_is_locked(atom));
+				spin_lock_jnode(node);
+				
+				if (node->atom == atom) {
+					if (!flushable(node, page) || needs_allocation(node)) {
+						trace_on(TRACE_EFLUSH, "failure-3\n");
+						spin_unlock_jnode(node);
+						spin_unlock_atom(atom);
+						break;
+					}
+					/* ok, now we can flush it */
+					reiser4_unlock_page(page);
+					
+					queue_jnode(fq, node);
+					spin_unlock_jnode(node);
+					spin_unlock_atom(atom);
+
+					result = write_fq(fq, 0);
+					trace_on(TRACE_EFLUSH, "flushed %d blocks\n", result);
+					assert("vs-1141", result > 0);
+					fq_put(fq);
+					break;
+				}
+
+				fq_put(fq);
+				fq = NULL;
+
+				spin_unlock_atom(atom);
+			}
+			
 		}
-
-		blocknr_hint_done(&hint);
-
+		
 	} else {
 		spin_unlock_jnode(node);
 		trace_on(TRACE_EFLUSH, "failure-1\n");
@@ -254,13 +312,16 @@ flushable(const jnode * node, struct page *page)
 		return 0;
 	if (jnode_page(node) == NULL)           /* nothing to flush */
 		return 0;
-	/* jnode is in relocate set and already has block number
-	 * assigned. Skip it to avoid complications with flush queue code. */
-	if (JF_ISSET(node, JNODE_RELOC) &&
-	    !blocknr_is_fake(jnode_get_block(node)))
-		return 0;
 	return 1;
 }
+
+/* does node need allocation for eflushing? */
+static int
+needs_allocation(const jnode * node)
+{
+	return !(JF_ISSET(node, JNODE_RELOC) && !blocknr_is_fake(jnode_get_block(node)));
+}
+
 
 static inline int
 jnode_eq(jnode * const * j1, jnode * const * j2)
@@ -522,7 +583,7 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 	one = 1ull;
 	/* We cannot just ask block allocator to return block into flush
 	 * reserved space, because there is no current atom at this point. */
-	result = reiser4_dealloc_blocks(blk, &one, stage, ef_block_flags(node));
+	result = reiser4_dealloc_blocks(blk, &one, stage, ef_block_flags(node), "ef_free_block_with_stage");
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
@@ -531,7 +592,7 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 		spin_lock_jnode(node);
 		atom = atom_get_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
-		grabbed2flush_reserved_nolock(atom, 1);
+		grabbed2flush_reserved_nolock(atom, 1, "ef_free_block_with_stage");
 		spin_unlock_atom(atom);
 		spin_unlock_jnode(node);
 	}
@@ -582,7 +643,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	spin_unlock_jnode(node);
 
 	one = 1ull;
-	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node));
+	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node), "ef_prepare");
 	if (result == 0) {
 		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
 		if (*efnode == NULL)
