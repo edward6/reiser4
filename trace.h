@@ -57,6 +57,9 @@ extern void write_tree_trace(reiser4_tree * tree, reiser4_traced_op op, ...);
 
 extern char *jnode_short_info(const jnode *j, char *buf);
 
+extern void set_trace_mark (const char *);
+extern void clear_trace_mark (void);
+
 #else
 
 typedef struct {
@@ -74,6 +77,9 @@ typedef struct {
 #define write_node_trace(node) noop
 #define write_page_trace(mapping, index) noop
 #define jnode_short_info(j, buf) buf
+
+#define set_trace_mark(mark) noop
+#define clear_trace_mark()   noop
 
 #endif
 
