@@ -217,7 +217,7 @@ ZAM-FIXME-HANS: define compatible
         recheck whether lock request is still compatible.
         \_ and if it is not, same as step #1
      4. before releasing znode spinlock, call lock_object() as before.  */
-ZAM-FIXME-HANS: the above is not clear to me
+/* ZAM-FIXME-HANS: the above is not clear to me */
 
 #include "debug.h"
 #include "txnmgr.h"
