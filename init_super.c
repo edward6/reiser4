@@ -18,6 +18,7 @@
 #include "emergency_flush.h"
 #include "prof.h"
 #include "repacker.h"
+#include "safe_link.h"
 
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -367,6 +368,15 @@ _DONE_(repacker)
 	done_reiser4_repacker(s);
 }
 
+_INIT_(safelink)
+{
+	return process_safelinks(s);
+}
+
+_DONE_(safelink)
+{
+}
+
 _INIT_(exit_context)
 {
 	return reiser4_exit_context(ctx);
@@ -400,6 +410,7 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(sysfs),
 	_SUBSYS(sysctl),
 	_SUBSYS(repacker),
+	_SUBSYS(safelink),
 	_SUBSYS(exit_context)
 };
 

@@ -21,6 +21,7 @@
 #include "../../vfs_ops.h"
 #include "../../inode.h"
 #include "../../super.h"
+#include "../../safe_link.h"
 #include "../object.h"
 
 #include "hashed_dir.h"
@@ -183,6 +184,8 @@ static reiser4_block_nr common_estimate_unlink (
 	res += inode_file_plugin(parent)->estimate.update(parent);
 	/* fplug->unlink */
 	res += fplug->estimate.unlink(object, parent);
+	/* safe-link */
+	res += estimate_one_insert_item(tree_by_inode(object));
 
 	return res;
 }
@@ -263,6 +266,9 @@ unlink_common(struct inode *parent /* parent object */ ,
 				   st_ctime field of the file shall be marked
 				   for update. --SUS */
 				result = reiser4_update_dir(parent);
+			/* add safe-link for this file */
+			if (result == 0 && fplug->not_linked(object))
+				result = safe_link_add(object, SAFE_UNLINK);
 		}
 		if (unlikely(result != 0))
 			warning("nikita-3398", "Cannot unlink %llu (%i)",
