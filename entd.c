@@ -65,7 +65,7 @@ init_entd_context(struct super_block *super)
 	wbq_list_init(&ctx->wbq_list);
 }
 
-static void wakeup_wbq (struct wbq * rq)
+static void wakeup_wbq (entd_context * ent, struct wbq * rq)
 {
 	wbq_list_remove(rq);
 	ent->wbq_nr --;
@@ -78,9 +78,9 @@ static void wakeup_all_wbq (entd_context * ent)
 	struct wbq * rq;
 
 	spin_lock(&ent->guard);
-	while (!wbq_list_empty(&ent->wbq_list) {
+	while (!wbq_list_empty(&ent->wbq_list)) {
 		rq = wbq_list_front(&ent->wbq_list);
-		wakeup_wbq(rq);
+		wakeup_wbq(ent, rq);
 	}
 	spin_unlock(&ent->guard);
 }
@@ -129,13 +129,15 @@ entd(void *arg)
 		while (ctx->wbq_nr != 0) {
 			struct wbq * rq = wbq_list_front(&ctx->wbq_list);
 
-			if (++ rq->nr_entd_iters > MAX_ENTD_ITERS)
-				wakeup_wbq(rq);
+			if (++ rq->nr_entd_iters > MAX_ENTD_ITERS) {
+				wakeup_wbq(ctx, rq);
+				continue;
+			}
 
-			spin_unlock(&ctx-guard);
+			spin_unlock(&ctx->guard);
 			entd_set_comm("!");
 			entd_flush(super);
-			spin_lock(&ctx-guard);
+			spin_lock(&ctx->guard);
 		}
 
 		entd_set_comm(".");
@@ -324,7 +326,7 @@ void ent_writes_page (struct super_block * sb, struct page * page)
 	if (rq == NULL)
 		return;
 
-	wakeup_wbq(rq);
+	wakeup_wbq(ent, rq);
 
 	spin_unlock(&ent->guard);
 }
