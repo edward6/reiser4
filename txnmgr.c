@@ -1,15 +1,10 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* The locking in this file is badly designed, and a filesystem scales only as well as its worst locking
- * design. -Hans */
-
-
-/* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with
-   aspects relating to ensuring high performance, and flexibility in the amount of
-   isolation for reasons of high performance, being heavily influenced by Hans Reiser.
-   Alexander Zarochentcev became the maintainer when Josh left.  Hans would like to
-   commend Josh for leaving his code in a well commented and well structured condition,
-   and to recommend him to any prospective future employers he might have. */
+/* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with aspects relating to ensuring high
+ * performance, and flexibility in the amount of isolation for reasons of high performance, being heavily influenced by
+ * Hans Reiser.  Alexander Zarochentcev became the maintainer when Josh left.  Hans would like to commend Josh for
+ * leaving his code in a well commmented and well structured condition, and to recommend him to any prospective future
+ * employers he might have.  */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
    txnmgr processes capture_block requests and manages the relationship between jnodes and
@@ -101,9 +96,102 @@ year old --- define all technical terms used.
    requests with the RMW flag set.
 */
 
-/* ZAM-FIXME-HANS: describe the deadlock avoidance design
+/* Special disk space reservation:
+  
+   The space reserved for a transcrash by calling RESERVE_BLOCKS does not cover all
+   possible space requirements that a transaction may encounter trying to flush.  The
+   prime example of this is extent-allocation, which can consume an unpredictable amount
+   of space during flush, due to fragmentation.  We have discussed two ways to reserve for
+   any "extra allocation":
+  
+   - Reserve a fixed percentage of disk space for use (e.g., 5%), and if that approach
+   doesn't work (because Nikita Was Right), then...
+  
+   - Reserve an amount of disk space proportional to the number of unallocated extent
+   blocks, or something like that.
+*/
 
-
+/* CURRENT DEADLOCK BETWEEN LOCK_MANAGER & ATOM_CAPTURE_WAIT: SOLUTION.  Its not a true
+   deadlock, its a bug.  The bug occurs when one thread waits on a lock held by another
+   thread waiting in capture_wait.  The thread waiting for capture is blocked because the
+   atom is expired, trying to commit, but it holds a lock.  This problem has the symptoms
+   of PRIORITY INVERSION because the lock-waiter should be unblocked so that it can
+   eventually release the lock needed to commit the atom.
+  
+   Currently the transaction manager code is properly signalled by the lock manager when a
+   thread is waiting for capture but the lock manager determines that it must yield one of
+   its locks.  The problem is that the transaction manager does not wake threads that are
+   blocked in capture_wait when they hold a lock needed to commit the atom.
+  
+   The problem seems impossible--it seems to be already solved.  As described in comments
+   at the top of lock.c, we try to capture a block before we try to lock it.  First we
+   take the znode spinlock, then we try to capture.  When capture succeeds it returns with
+   the spinlock still held.  This is important because if the lock is available (i.e., it
+   is unlocked or read-locked) the lock must be granted before any other thread "skips
+   ahead" and takes the lock first.  This is done because sometimes a capture request can
+   return without actually requiring capture.  For example, a read-request with a
+   WRITE_FUSING transcrash does nothing, or a read-request with READ_FUSING and a clean
+   node does nothing.  But in order for this to work, the read-request must be granted
+   before any writers can lock the node.  For this reason, we capture before we lock.
+  
+   At first glance, capture-before-lock would seem to address the problem, but it does not
+   always.  The explanation is not difficult, but it requires carefully labeling the
+   objects involved.
+  
+   - There are two threads, BLOCKED_IN_LOCK and BLOCKED_IN_CAPTURE, and there are two
+   nodes, CLEAN_NODE and DIRTY_NODE.
+  
+   - BLOCKED_IN_LOCK and DIRTY_NODE belong to an atom that is trying to commit.
+   BLOCKED_IN_LOCK has already made modifications.
+  
+   - BLOCKED_IN_CAPTURE and CLEAN_NODE have no atom.  BLOCKED_IN_CAPTURE is likely a
+   coord_by_key tree traversal and it has made no modifications.
+  
+   The chain of events goes like this:
+  
+                   BLOCKED_IN_CAPTURE                  BLOCKED_IN_LOCK
+  
+   1.           read-captures CLEAN_NODE
+                  (no capture needed)
+  
+   2.            read-locks CLEAN_NODE
+                      (succeeds)
+  
+   3.                                              write-captures CLEAN_NODE
+                                                    (capture succeeds, now
+                                                     CLEAN_NODE is part of
+                                                     the atom)
+  
+   4.                                               write-locks CLEAN_NODE
+                                                     (!-- blocked waiting for
+                                                      the CLEAN_NODE lock --!)
+  
+   5.          write-captures DIRTY_NODE
+                 (!-- blocked waiting for
+                  atom to commit --!)
+  
+   There we have both processes blocked and capture-before-lock did not help.  The reason
+   capture-before-lock did not help is that neither BLOCKED_IN_CAPTURE nor CLEAN_NODE have
+   an atom, thus the capture step in #3 causes no fusion.  The above order of events is
+   fine the way it is, except in step #3.  At the moment we capture CLEAN_NODE (#3), the
+   BLOCKED_IN_CAPTURE thread (which is not actually blocked until #5) should be "taken in"
+   to the atom because it is trying to commit.  Then BLOCKED_IN_CAPTURE will never
+   actually be blocked in capture when it reaches #5, it will get the lock it wants and
+   eventually release CLEAN_NODE so that BLOCKED_IN_LOCK can get it.  In general, the
+   following steps will solve this problem:
+  
+   - When an atom that is trying to commit will succeed at capturing a block, the to-be
+   captured block's list of lock owners should be inspected.
+  
+   - If the thread (transcrash) that holds the lock belongs to another atom: fuse the
+   lock-holder's atom with the capturer's atom.
+  
+   - If the thread (transcrash) that holds the lock does NOT belong to another atom:
+   assign that thread to the capturer's atom.
+  
+   In our previous discussion on this matter, we included the following step "wake the
+   thread", but now I believe that is not necessary.  In the example above, taking these
+   steps will prevent the BLOCKED_IN_CAPTURE thread from ever blocking.
 */
 
 #include "debug.h"
@@ -176,7 +264,7 @@ TS_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
-static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD (now NIKITA-FIXME-HANS:) Will it be used? */
+static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD Will it be used? */
 
 ON_DEBUG(extern atomic_t flush_cnt;)
 
@@ -494,12 +582,8 @@ atom_locked_by_jnode(jnode * node)
 		if (atom == NULL)
 			break;
 
-		/* NIKITA-FIXME-HANS: broken english 
-
-		HANS-FIXME-NIKITA: English is spelled with the first letter
-		capitalized.
-
-		If atom is not locked, grab the lock and return */
+		/* there could be not contention for the atom spin lock at this
+		 * moment and trylock can succeed. */
 		if (spin_trylock_atom(atom))
 			break;
 
@@ -538,7 +622,14 @@ atom_locked_by_jnode(jnode * node)
 /* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
    by flush code to indicate whether the next node (in some direction) is suitable for
    flushing. */
-/* ZAM-FIXME-HANS: would it be better to get the lock once during the flush process? */
+
+/* ZAM-FIXME-HANS: change this to take two already locked nodes as arguments, and to
+
+return (jnode_is_dirty(check) && (node->atom == check->atom)) 
+
+or else tell me why it should be as complicated and inefficient as the below.
+
+*/
 int
 same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 {
@@ -578,7 +669,7 @@ same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 
 	return compat;
 }
-
+/* ZAM-FIXME-HANS: move debugging code to debugging code files. */
 #if REISER4_DEBUG
 /* Return true if an atom is currently "open". */
 static int
@@ -591,7 +682,7 @@ atom_isopen(const txn_atom * atom)
 #endif
 
 /* Decrement the atom's reference count and if it falls to zero, free it. */
-void atom_dec_and_unlock(txn_atom * atom)
+void atom_dec_and_unlock(txn_atom * atom ) 
 {
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
@@ -624,7 +715,9 @@ void atom_dec_and_unlock(txn_atom * atom)
 
 /* Return a new atom, locked.  This adds the atom to the transaction manager's list and
    sets its reference count to 1, an artificial reference which is kept until it
-   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
+   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. 
+
+ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
 static txn_atom *
 atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 {
@@ -636,7 +729,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	assert("jmacd-43226", node->atom == NULL);
 	assert("jmacd-43225", txnh->atom == NULL);
 
-	/* Cannot allocate under those spinlocks. */
+	/* Cannot allocate under those spinlocks. ZAM-FIXME-HANS: provide the reason. */
 	UNLOCK_JNODE(node);
 	UNLOCK_TXNH(txnh);
 
@@ -666,6 +759,9 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 		spin_unlock_txnmgr(mgr);
 
 		reiser4_stat_inc(txnmgr.restart.atom_begin);
+/*  ZAM-FIXME-HANS: explain this error code which is for user space interactions being used here.  I thought I clearly
+ *  indicated I didn't want user space error codes used for purposes other than what they were intended for, returning
+ *  errors to user space? */
 		return ERR_PTR(-EAGAIN);
 	}
 
@@ -701,6 +797,8 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 /* Return the number of pointers to this atom that must be updated during fusion.  This
    approximates the amount of work to be done.  Fusion chooses the atom with fewer
    pointers to fuse into the atom with more pointers. */
+
+/* DEMIDOV-FIXME-HANS: please send an email to reiserfs-dev defining when functions should be inlined, macros, or neither.  Please be sure to include the number of places calling the function, the size of the function, and whether the parent function was unreadably large in the policy articulation.  Adjust the below accordingly. */
 /* Audited by: umka (2002.06.13), umka (2002.16.15) */
 static int
 atom_pointer_count(const txn_atom * atom)
@@ -732,7 +830,7 @@ atom_free(txn_atom * atom)
 	atom_list_remove_clean(atom);
 
 	/* Clean the atom */
-	assert("jmacd-16", (atom->stage == ASTAGE_INVALID || atom->stage == ASTAGE_DONE));
+	assert("jmacd-16", (atom->stage == ASTAGE_FUSED || atom->stage == ASTAGE_DONE));
 	atom->stage = ASTAGE_FREE;
 
 	blocknr_set_destroy(&atom->delete_set);
@@ -759,8 +857,9 @@ static int atom_can_be_committed (txn_atom * atom)
 	return atom->txnh_count == atom->nr_waiters + 1;
 }
 
-/* Return true if an atom should commit now.  This is determined by aging, atom
-   size or atom flags. */
+/* Return true if an atom should commit now.  This will be determined by aging.  For now
+   this says to commit after the atom has 20 captured nodes.  The routine is only called
+   when the txnh_count drops to 0. */
 static int
 atom_should_commit(const txn_atom * atom)
 {
@@ -770,6 +869,22 @@ atom_should_commit(const txn_atom * atom)
 		((unsigned) atom_pointer_count(atom) > get_current_super_private()->tmgr.atom_max_size) ||
 		atom_is_dotard(atom);
 }
+
+#if 0
+/* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
+   active io_handles here. */
+static void
+txn_wait_on_io(txn_atom * atom)
+{
+	jnode *scan;
+
+	for_all_tslist(capture, &atom->clean_nodes, scan) {
+		if (scan->pg && PageWriteback(scan->pg)) {
+			wait_on_page_writeback(scan->pg);
+		}
+	}
+}
+#endif
 
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
@@ -1356,8 +1471,6 @@ typedef struct commit_data {
 	int          failed;
 } commit_data;
 
-/* NIKITA-FIXME-HANS: comment this, including explaining why we only "try".  Advise on whether more "unlikely"'s should be included here. */
-
 static int
 try_commit_txnh(commit_data *cd)
 {
@@ -1466,7 +1579,7 @@ commit_txnh(txn_handle * txnh)
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
 
-	/* VS-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-VS-BY-HANS: Note: We are ignoring the failure code.  Can't change the result of the caller.
+	/* Note: We are ignoring the failure code.  Can't change the result of the caller.
 	   E.g., in write():
 	  
 	     result = 512;
@@ -2048,6 +2161,7 @@ uncapture_page(struct page *pg)
 {
 	jnode *node;
 	txn_atom *atom;
+	blocknr_set_entry *blocknr_entry = NULL;
 
 	assert("umka-199", pg != NULL);
 	assert("nikita-3155", PageLocked(pg));
@@ -2077,6 +2191,8 @@ uncapture_page(struct page *pg)
 		assert("jmacd-7111", !jnode_check_dirty(node));
 		return;
 	}
+
+	assert("jmacd-5177", blocknr_entry == NULL);
 
 	LOCK_JNODE(node);
 	/* We can remove jnode from transaction even if it is on flush queue
@@ -2216,8 +2332,9 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	   relocate set nor overwrite one. If node is in overwrite or
 	   relocate set we assume that atom's flush reserved counter was
 	   already adjusted. */
-	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC) 
-	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node))
+	if (!JF_ISSET(node, JNODE_CREATED)
+	    && !JF_ISSET(node, JNODE_RELOC) 
+	    && !JF_ISSET(node, JNODE_OVRWR))
 	{
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
@@ -3019,7 +3136,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 		wakeup_atom_waiting_list(large);
 	}
 
-	small->stage = ASTAGE_INVALID;
+	small->stage = ASTAGE_FUSED;
 
 	/* Unlock atoms */
 	UNLOCK_ATOM(large);
