@@ -1614,34 +1614,24 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	tmp = addr;
 
 	/* encode data necessary to restore stat data key */
-	addr += dscale_write(addr, get_inode_oid(inode));
 	addr += dscale_write(addr, get_inode_locality(inode));
-	TRACE_EXPORT_OPS("oid %llu, locality %llu\n", 
-			 get_inode_oid(inode), get_inode_locality(inode));
+	addr += dscale_write(addr, get_inode_oid(inode));
+	TRACE_EXPORT_OPS("locality %llu, oid %llu\n", 
+			 get_inode_locality(inode), get_inode_oid(inode));
 	result = 2;
 	ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(inode));
 		     result = 3;
 		     TRACE_EXPORT_OPS("ordering %llu\n", get_inode_ordering(inode))
 		     );
-
-	{
-		/*XXX*/
-		oid_t x, y;
-
-		tmp += dscale_read(tmp, &x);
-		tmp += dscale_read(tmp, &y);
-		TRACE_EXPORT_OPS("read: %llu, %llu\n", x, y);
-		/*XXX*/
-	}
 	
 	if (need_parent) {
 		/* FIXME: spin_lock(&dentry->d_lock)? */
 		parent = dentry->d_parent->d_inode;
-		addr += dscale_write(addr, get_inode_oid(parent));
 		addr += dscale_write(addr, get_inode_locality(parent));
+		addr += dscale_write(addr, get_inode_oid(parent));
 		result += 2;
-		TRACE_EXPORT_OPS("parent oid %llu, parent locality %llu\n", 
-			 get_inode_oid(parent), get_inode_locality(parent));
+		TRACE_EXPORT_OPS("parent locality %llu, parent oid %llu\n", 
+				 get_inode_locality(parent), get_inode_oid(parent));
 		ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(parent));
 			     result ++;
 			     TRACE_EXPORT_OPS("parent ordering %llu\n", get_inode_ordering(parent)));
@@ -1677,19 +1667,19 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 #endif
 
 	addr = (char *)data;
-	addr += dscale_read(addr, &obj[0]);
-	addr += dscale_read(addr, &obj[1]);
-	TRACE_EXPORT_OPS("fhtype %d, obj[0] %llu, obj[1] %llu\n", fhtype, obj[0], obj[1]);
-	ON_LARGE_KEY(addr += dscale_read(addr, &obj[2]);
-		     TRACE_EXPORT_OPS("obj[2] %llu\n", obj[2]);
+	addr += dscale_read(addr, &obj[0]); /* locality */
+	addr += dscale_read(addr, &obj[1]); /* objectid */
+	TRACE_EXPORT_OPS("fhtype %d, locality %llu, oid %llu\n", fhtype, obj[0], obj[1]);
+	ON_LARGE_KEY(addr += dscale_read(addr, &obj[2]); /* ordering */
+		     TRACE_EXPORT_OPS("ordering %llu\n", obj[2]);
 		     );
 
 	if (with_parent) {
-		addr += dscale_read(addr, &parent[0]);
-		addr += dscale_read(addr, &parent[1]);
-		TRACE_EXPORT_OPS("parent[0] %llu, parent[1] %llu\n", parent[0], parent[1]);
-		ON_LARGE_KEY(addr += dscale_read(addr, &parent[2]);
-			     TRACE_EXPORT_OPS("parent[2] %llu\n", parent[2]);
+		addr += dscale_read(addr, &parent[0]); /* locality */
+		addr += dscale_read(addr, &parent[1]); /* objectid */
+		TRACE_EXPORT_OPS("parent locality %llu, parent oid %llu\n", parent[0], parent[1]);
+		ON_LARGE_KEY(addr += dscale_read(addr, &parent[2]); /* ordering */
+			     TRACE_EXPORT_OPS("parent ordering %llu\n", parent[2]);
 			     );
 	}
 
