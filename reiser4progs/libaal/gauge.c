@@ -49,11 +49,11 @@ errno_t aal_gauge_create(
     
     aal_strncpy(gauge->name, name, sizeof(gauge->name));
     
-    gauge->type = type;
-    gauge->handler = handler;
-    gauge->data = data;
     gauge->value = 0;
-    gauge->state = GAUGE_DONE;
+    gauge->type = type;
+    gauge->data = data;
+    gauge->handler = handler;
+    gauge->state = GAUGE_STARTED;
 
 #ifndef ENABLE_COMPACT
     if (type == GAUGE_INDICATOR)
@@ -68,20 +68,16 @@ void aal_gauge_reset(void) {
     aal_assert("umka-894", gauge != NULL, return);
 
     gauge->value = 0;
-    gauge->state = GAUGE_DONE;
+    gauge->state = GAUGE_STARTED;
 }
 
 /* Resets gauge and forces it to redraw itself */
 void aal_gauge_start(void) {
     aal_assert("umka-892", gauge != NULL, return);
 
-    if (gauge->state == GAUGE_RUNNING)
-	return;
-
     aal_gauge_reset();
-    
-    gauge->state = GAUGE_STARTED;
     aal_gauge_touch();
+    
     gauge->state = GAUGE_RUNNING;
 }
 
@@ -96,19 +92,19 @@ static void aal_gauge_change(aal_gauge_state_t state) {
     aal_gauge_touch();
 }
 
-void aal_gauge_failed(void) {
+static void aal_gauge_resume(void) {
     if (!gauge) return;
     
-    if (gauge->state == GAUGE_RUNNING || 
-	    gauge->state == GAUGE_STARTED)
-	aal_gauge_change(GAUGE_FAILED);
+    if (gauge->state == GAUGE_PAUSED)
+	aal_gauge_change(GAUGE_STARTED);
 }
 
 void aal_gauge_done(void) {
     if (!gauge) return;
     
-    if (gauge->state == GAUGE_RUNNING || 
-	    gauge->state == GAUGE_STARTED)
+    aal_gauge_resume();
+    
+    if (gauge->state == GAUGE_RUNNING || gauge->state == GAUGE_STARTED)
 	aal_gauge_change(GAUGE_DONE);
 }
 
@@ -119,17 +115,12 @@ void aal_gauge_pause(void) {
 	aal_gauge_change(GAUGE_PAUSED);
 }
 
-void aal_gauge_resume(void) {
-    if (!gauge) return;
-    
-    if (gauge->state == GAUGE_PAUSED)
-	aal_gauge_change(GAUGE_STARTED);
-}
-
 /* Updates gauge value */
 void aal_gauge_update(uint32_t value) {
     aal_assert("umka-895", gauge != NULL, return);
 
+    aal_gauge_resume();
+    
     gauge->value = value;
     aal_gauge_touch();
 }

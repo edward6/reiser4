@@ -21,7 +21,6 @@ enum aal_gauge_state {
     GAUGE_STARTED,
     GAUGE_RUNNING,
     GAUGE_PAUSED,
-    GAUGE_FAILED,
     GAUGE_DONE,
 };
 
@@ -50,12 +49,10 @@ extern void aal_gauge_rename(const char *name, ...)
 
 extern void aal_gauge_reset(void);
 extern void aal_gauge_start(void);
-extern void aal_gauge_failed(void);
 extern void aal_gauge_done(void);
 extern void aal_gauge_touch(void);
 extern void aal_gauge_free(void);
 extern void aal_gauge_pause(void);
-extern void aal_gauge_resume(void);
 
 #endif
 

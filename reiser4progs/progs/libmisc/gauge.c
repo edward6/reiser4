@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <aal/aal.h>
+#include <misc/misc.h>
 
 #define GAUGE_BITS_SIZE 4
 
@@ -43,8 +44,9 @@ static inline void progs_gauge_footer(
 }
 
 void progs_gauge_handler(aal_gauge_t *gauge) {
+
     if (gauge->state == GAUGE_PAUSED) {
-	putc('\r', stderr);
+	progs_ui_wipe_line(stderr);
 	fflush(stderr);
 	return;
     }
@@ -74,9 +76,6 @@ void progs_gauge_handler(aal_gauge_t *gauge) {
     if (gauge->state == GAUGE_DONE)
 	progs_gauge_footer("done\n", gauge->type);
     
-    if (gauge->state == GAUGE_FAILED)
-	progs_gauge_footer("failed\n", gauge->type);
-	
     fflush(stderr);
 }
 

@@ -14,6 +14,7 @@
 extern char *progs_ui_readline(char *prompt);
 extern uint16_t progs_ui_screen_width(void);
 extern void progs_ui_print_wrap(void *stream, char *text);
+extern void progs_ui_wipe_line(void *stream);
 
 #ifdef HAVE_LIBREADLINE
 extern void progs_ui_set_possibilities(aal_list_t *list);

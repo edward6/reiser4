@@ -73,6 +73,23 @@ uint16_t progs_ui_screen_width(void) {
     return winsize.ws_col;
 }
 
+void progs_ui_wipe_line(void *stream) {
+    char *buff;
+    int i, width = progs_ui_screen_width();
+    
+    if (!(buff = aal_calloc(width + 1, 0)))
+	return;
+    
+    aal_strncat(buff, "\r", 1);
+    for (i = 0; i < width - 2; i++)
+	aal_strncat(buff, " ", 1);
+
+    aal_strncat(buff, "\r", 1);
+
+    fprintf(stream, buff);
+    aal_free(buff);
+}
+
 /* Constructs exception message */
 void progs_ui_print_wrap(void *stream, char *text) {
     uint16_t width;

@@ -124,25 +124,18 @@ aal_exception_option_t progs_exception_handler(
     aal_exception_option_t opt;
     aal_list_t *possibilities = NULL;
     
-    if (exception->type == EXCEPTION_ERROR || 
-	exception->type == EXCEPTION_FATAL ||
-	exception->type == EXCEPTION_BUG)
-        aal_gauge_failed(); 
-    else
-	aal_gauge_pause();
-
     if (progs_exception_option_count(exception->options, 0) == 1) {
 	if (!(stream = streams[exception->type]))
 	    return EXCEPTION_UNHANDLED;
     }
 
-    if (progs_exception_option_count(exception->options, 0) == 1) {
-        if (exception->type == EXCEPTION_WARNING || 
-	    exception->type == EXCEPTION_INFORMATION)
-	    aal_gauge_resume();
-	    
+    progs_ui_wipe_line(stream);
+
+    aal_gauge_pause();
+    progs_exception_print_wrap(exception);
+    
+    if (progs_exception_option_count(exception->options, 0) == 1)
 	return exception->options;
-    }
 
 #ifdef HAVE_LIBREADLINE
     for (i = 1; i < aal_log2(EXCEPTION_LAST); i++) {
@@ -154,8 +147,6 @@ aal_exception_option_t progs_exception_handler(
     progs_ui_set_possibilities(aal_list_first(possibilities));
 #endif
     
-    progs_exception_print_wrap(exception);
-    
     do {
 	opt = progs_exception_prompt(exception->options);
     } while (opt == EXCEPTION_UNHANDLED && isatty(0));
@@ -164,11 +155,7 @@ aal_exception_option_t progs_exception_handler(
     aal_list_free(possibilities);
     progs_ui_set_possibilities(NULL);
 #endif
-
-    if (exception->type == EXCEPTION_WARNING || 
-	exception->type == EXCEPTION_INFORMATION)
-	aal_gauge_resume();
-	    
+    
     return opt;
 }
 
