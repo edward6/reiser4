@@ -1266,6 +1266,8 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	 */
 
 	ZF_SET( new_znode, JNODE_ORPHAN );
+	ZF_SET( new_znode, JNODE_LEFT_CONNECTED);
+	ZF_SET( new_znode, JNODE_RIGHT_CONNECTED);
 	fresh -> node = new_znode;
 
 	while( ZF_ISSET( ref -> real_node, JNODE_ORPHAN ) ) {
