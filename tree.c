@@ -650,48 +650,12 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 	return child;
 }
 
-/* This is called from longterm_unlock_znode() when last lock is released from
-   the node that has been removed from the tree. At this point node is removed
-   from sibling list and its lock is invalidated. */
-reiser4_internal void
-forget_znode(lock_handle * handle)
+/* remove znode from transaction */
+static void uncapture_znode (znode * node)
 {
-	znode *node;
-	reiser4_tree *tree;
-	struct page *page;
+	struct page * page;
 
-	assert("umka-319", handle != NULL);
-
-	node = handle->node;
-	tree = znode_get_tree(node);
-
-	assert("vs-164", znode_is_write_locked(node));
-	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
-	assert("nikita-3337", rw_zlock_is_locked(&node->lock));
-
-	/* We assume that this node was detached from its parent before
-	 * unlocking, it gives no way to reach this node from parent through a
-	 * down link.  The node should have no children and, thereby, can't be
-	 * reached from them by their parent pointers.  The only way to obtain a
-	 * reference to the node is to use sibling pointers from its left and
-	 * right neighbors.  In the next several lines we remove the node from
-	 * the sibling list. */
-
-	WLOCK_TREE(tree);
-	sibling_list_remove(node);
-	znode_remove(node, tree);
-	WUNLOCK_TREE(tree);
-
-	/* Here we set JNODE_DYING and cancel all pending lock requests.  It
-	 * forces all lock requestor threads to repeat iterations of getting
-	 * lock on a child, neighbor or parent node.  But, those threads can't
-	 * come to this node again, because this node is no longer a child,
-	 * neighbor or parent of any other node.  This order of znode
-	 * invalidation does not allow other threads to waste cpu time is a busy
-	 * loop, trying to lock dying object.  The exception is in the flush
-	 * code when we take node directly from atom's dirty list.  There is
-	 * special code to handle such nodes.*/
-	invalidate_lock(handle);
+	assert ("zam-1001", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	/* Get e-flush block allocation back before deallocating node's
 	 * block number. */
@@ -706,8 +670,8 @@ forget_znode(lock_handle * handle)
 		int ret;
 
 		/* An already allocated block goes right to the atom's delete set. */
-		ret = reiser4_dealloc_block(znode_get_block(node), 0,
-					    BA_DEFER | BA_FORMATTED);
+		ret = reiser4_dealloc_block(
+			znode_get_block(node), 0, BA_DEFER | BA_FORMATTED);
 		if (ret)
 			warning("zam-942", "can\'t add a block (%llu) number to atom's delete set\n",
 					(unsigned long long)(*znode_get_block(node)));
@@ -773,6 +737,54 @@ forget_znode(lock_handle * handle)
 		UNLOCK_ATOM(atom);
 		zput(node);
 	}
+}
+
+/* This is called from longterm_unlock_znode() when last lock is released from
+   the node that has been removed from the tree. At this point node is removed
+   from sibling list and its lock is invalidated. */
+reiser4_internal void
+forget_znode(lock_handle * handle)
+{
+	znode *node;
+	reiser4_tree *tree;
+
+	assert("umka-319", handle != NULL);
+
+	node = handle->node;
+	tree = znode_get_tree(node);
+
+	assert("vs-164", znode_is_write_locked(node));
+	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+	assert("nikita-3337", rw_zlock_is_locked(&node->lock));
+
+	/* We assume that this node was detached from its parent before
+	 * unlocking, it gives no way to reach this node from parent through a
+	 * down link.  The node should have no children and, thereby, can't be
+	 * reached from them by their parent pointers.  The only way to obtain a
+	 * reference to the node is to use sibling pointers from its left and
+	 * right neighbors.  In the next several lines we remove the node from
+	 * the sibling list. */
+
+	WLOCK_TREE(tree);
+	sibling_list_remove(node);
+	znode_remove(node, tree);
+	WUNLOCK_TREE(tree);
+
+	/* Here we set JNODE_DYING and cancel all pending lock requests.  It
+	 * forces all lock requestor threads to repeat iterations of getting
+	 * lock on a child, neighbor or parent node.  But, those threads can't
+	 * come to this node again, because this node is no longer a child,
+	 * neighbor or parent of any other node.  This order of znode
+	 * invalidation does not allow other threads to waste cpu time is a busy
+	 * loop, trying to lock dying object.  The exception is in the flush
+	 * code when we take node directly from atom's capture list.*/
+
+	write_unlock_zlock(&node->lock);
+	/* and, remove from atom's capture list. */
+	uncapture_znode(node);
+	write_lock_zlock(&node->lock);
+
+	invalidate_lock(handle);
 }
 
 /* Check that internal item at @pointer really contains pointer to @child. */

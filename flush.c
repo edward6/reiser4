@@ -930,43 +930,6 @@ void set_rapid_flush_mode (int on)
 
 #endif /* REISER4_USE_RAPID_FLUSH */
 
-
-/*
- * True if flush should *not* be started from @node.  It is possible that
- * @node is "stale" and is only accessible from atom capture lists (that is,
- * inaccessible from tree). We don't want to start slum collection from such
- * node.
- */
-static int
-skip_jnode(const jnode *node)
-{
-	assert("nikita-3085", node != NULL);
-	assert("nikita-3086", spin_jnode_is_locked(node));
-
-	if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
-		return 1;
-
-#if 0
-	if (jnode_is_unformatted(node)) {
-		struct inode *inode;
-		reiser4_inode *info;
-		int ghost;
-
-		inode = jnode_mapping(node)->host;
-		info = reiser4_inode_data(inode);
-		/*
-		 * taking inode spin lock here would violate lock ordering
-		 * (jnode spin lock is already held). But this is not strictly
-		 * necessary, because whole this check is but an optimization.
-		 */
-		ghost = (inode->i_state & I_GHOST);
-		if (ghost)
-			return 1;
-	}
-#endif
-	return 0;
-}
-
 /* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
@@ -1024,12 +987,6 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	while ((node = find_first_dirty_jnode(*atom, flags))) {
 		LOCK_JNODE(node);
 
-		if (skip_jnode(node)) {
-			UNLOCK_JNODE(node);
-			UNLOCK_ATOM(*atom);
-			goto submit;
-		}
-
 		assert ("zam-881", jnode_is_dirty(node));
 		assert ("zam-898", !JF_ISSET(node, JNODE_OVRWR));
 
@@ -1074,7 +1031,6 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		jput(node);
 	}
 
- submit:
 	flush_started_io();
 	trace_mark(flush);
 	ret = write_fq(fq, nr_submitted);
