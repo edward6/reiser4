@@ -650,6 +650,15 @@ static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 		return 1;
 }
 
+/** default ->add_link() method of file plugin */
+static int common_add_link( struct inode *object )
+{
+	/* do reasonable default stuff */
+	++ object -> i_nlink;
+	object -> i_ctime = CURRENT_TIME;
+	return inode_file_plugin( object ) -> write_sd_by_inode( object );
+}
+
 /** default ->rem_link() method of file plugin */
 static int common_rem_link( struct inode *object )
 {
@@ -827,7 +836,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.adjust_to_parent    = common_adjust_to_parent,
 			.create              = unix_file_create,
 			.destroy_stat_data   = common_file_delete,
-			.add_link            = NULL,
+			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = unix_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
@@ -861,7 +870,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.adjust_to_parent    = dir_adjust_to_parent,
 			.create              = hashed_create,
 			.destroy_stat_data   = hashed_delete,
-			.add_link            = NULL,
+			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = hashed_owns_item,
 			.can_add_link        = common_file_can_add_link,
@@ -898,7 +907,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			 * FIXME-VS: symlink should probably have its own destroy method
 			 */
 			.destroy_stat_data   = common_file_delete,
-			.add_link            = NULL,
+			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = NULL,
 			.can_add_link        = common_file_can_add_link,
@@ -932,7 +941,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
 			.destroy_stat_data   = common_file_delete,
-			.add_link            = NULL,
+			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = common_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
