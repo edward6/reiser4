@@ -1828,6 +1828,8 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			move_zh (& scan->parent_load, & next_load);
 			coord_dup (& scan->parent_coord, & next_coord);
 		}
+
+		assert ("jmacd-1239", item_is_extent (& scan->parent_coord));
 	}
 
 	assert ("jmacd-6233", flush_scan_finished (scan) || jnode_is_formatted (scan->node));
