@@ -16,8 +16,8 @@ struct reiser4_blocknr_hint {
 	/* FIXME: I think we want to add a longterm lock on the bitmap block here.  This
 	 * is to prevent jnode_flush() calls from interleaving allocations on the same
 	 * bitmap, once a hint is established. */
-	reiser4_block_nr blk;
-	reiser4_block_nr max_dist;
+	reiser4_block_nr blk;	     /* search start hint */
+	reiser4_block_nr max_dist;   /* if not zero, it is a region size we search for free blocks in */
 };
 
 extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
