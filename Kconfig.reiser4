@@ -1,7 +1,7 @@
 config REISER4_FS
 	tristate "Reiser4 (EXPERIMENTAL very fast general purpose filesystem)"
 	depends on EXPERIMENTAL && !4KSTACKS
-	---help---
+	help
 	  Reiser4 is more than twice as fast for both reads and writes as
 	  ReiserFS V3, and is the fastest Linux filesystem, by a lot,
 	  for typical IO intensive workloads.  [It is slow at fsync
@@ -72,10 +72,10 @@ config REISER4_FS
 
 	  To learn more about reiser4, go to http://www.namesys.com
 
-config REISER4_CHECK
-	bool "Enable reiser4 debug options"
+config REISER4_DEBUG
+	bool "Enable reiser4 debug mode"
 	depends on REISER4_FS
-	---help---
+	help
 	  Don't use this unless you are a developer debugging reiser4.  If
 	  using a kernel made by a distro that thinks they are our competitor
 	  (sigh) rather than made by Linus, always check each release to make
@@ -88,61 +88,3 @@ config REISER4_CHECK
 	  again.  Include a description of what you did to test it.  All
 	  reiser4 code must be tested, reviewed, and signed off on by two
 	  persons before it will be accepted into a stable kernel by Hans.
-
-config REISER4_DEBUG
-	bool "Assertions"
-	depends on REISER4_CHECK && REISER4_FS!=m
-	help
-	  Turns on assertions checks. Eats a lot of CPU.
-
-config REISER4_DEBUG_MODIFY
-	bool "Dirtying"
-	depends on REISER4_CHECK
-	help
-	  Check that node is marked dirty each time it's modified. This is done
-	  through maintaining checksum of node content. CPU hog.
-
-config REISER4_DEBUG_MEMCPY
-	bool "Memory copying"
-	depends on REISER4_CHECK
-	help
-	  Use special non-inlined versions on memcpy, memset, and memmove in
-	  reiser4 to estimate amount of CPU time spent in data copying.
-
-config REISER4_DEBUG_NODE
-	bool "Node consistency"
-	depends on REISER4_CHECK
-	help
-	  Run consistency checks on nodes in balanced tree. CPU hog.
-
-config REISER4_ZERO_NEW_NODE
-	bool "Node zeroing"
-	depends on REISER4_CHECK
-	help
-	  Zero new node before use.
-
-config REISER4_TRACE
-	bool "Tracing"
-	depends on REISER4_CHECK
-	help
-	  Turn on tracing facility. This enables trace_flags mount option.
-
-config REISER4_EVENT_LOG
-	bool "Log events"
-	depends on REISER4_CHECK
-	help
-	  Log events into user supplied file. This enables trace_file mount option.
-
-config REISER4_STATS
-	bool "Statistics"
-	depends on REISER4_CHECK
-	help
-	  Turn on statistics collection. This increases size of in-memory super
-	  block considerably.
-
-config REISER4_DEBUG_OUTPUT
-	bool "Printing"
-	depends on REISER4_CHECK
-	help
-	  Enable compilation of functions that print internal kernel data
-	  structures in human readable form. Useful for debugging.
