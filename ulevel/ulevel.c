@@ -3583,7 +3583,10 @@ static int bash_mkfs (char * file_name)
 		init_formatted_fake( &super );
 		tree -> super = &super;
 		result = init_tree( tree, &root_block,
-				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
+				    1/*tree_height*/, node_plugin_by_id( NODE4_ID ));
+		assert ("", result == 0);
+		result = cbk_cache_init (&tree->cbk_cache);
+		assert ("", result == 0);
 
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block);
@@ -4197,8 +4200,9 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			 * print tree
 			 */
 			if (!strncmp (command, "pp", 2)) {
+				/* iterate */
 				print_tree_rec ("DONE", tree_by_inode (cwd),
-						REISER4_TREE_VERBOSE & ~REISER4_NODE_ONLY_INCORE);
+						REISER4_COLLECT_STAT);
 			} else if (!strncmp (command, "pb", 2)) {
 				print_tree_rec ("BRIEF", tree_by_inode (cwd),
 						REISER4_NODE_PRINT_HEADER);
