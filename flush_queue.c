@@ -312,9 +312,10 @@ static int
 finish_fq(flush_queue_t * fq, int *nr_io_errors)
 {
 	int ret;
+	txn_atom * atom = fq->atom;
 
-	assert("zam-801", fq->atom != NULL);
-	assert("zam-744", spin_atom_is_locked(fq->atom));
+	assert("zam-801", atom != NULL);
+	assert("zam-744", spin_atom_is_locked(atom));
 	assert("zam-762", fq_in_use(fq));
 
 	ret = wait_io(fq, nr_io_errors);
@@ -325,7 +326,7 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 
 	/* check can we release this fq object */
 	if (fq->nr_queued) {
-		spin_unlock_atom(fq->atom);
+		spin_unlock_atom(atom);
 
 		/* re-submit nodes to write */
 		ret = write_fq(fq, 0);
@@ -338,6 +339,8 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 
 	detach_fq(fq);
 	done_fq(fq);
+
+	atom_send_event(atom);
 
 	return 0;
 }
