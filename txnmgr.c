@@ -575,16 +575,8 @@ atom_locked_by_jnode(jnode * node)
 /* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
    by flush code to indicate whether the next node (in some direction) is suitable for
    flushing. */
-
-/* ZAM-FIXME-HANS: change this to take two already locked nodes as arguments, and to
-
-return (jnode_is_dirty(check) && (node->atom == check->atom)) 
-
-or else tell me why it should be as complicated and inefficient as the below.
-
-*/
 int
-same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
+same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 {
 	int compat;
 	txn_atom *atom;
@@ -596,8 +588,12 @@ same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 	   neither formatted nor unformatted (bitmap or so). */
 	assert("nikita-2373", jnode_is_znode(check) || jnode_is_unformatted(check));
 
-	/* Need a lock on CHECK to get its atom and to check various state
-	   bits.  Don't need a lock on NODE once we get the atom lock. */
+	/* Need a lock on CHECK to get its atom and to check various state bits.
+	   Don't need a lock on NODE once we get the atom lock. */
+	/* It is not enough to lock two nodes and check (node->atom ==
+	   check->atom) because atom could be locked and being fused at that
+	   moment, jnodes of the atom of that state (being fused) can point to
+	   different objects, but the atom is the same.*/
 	LOCK_JNODE(check);
 
 	atom = atom_locked_by_jnode(check);
@@ -2316,32 +2312,40 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	}
 }
 
-/* Set the dirty status for this znode.  If the znode is not already dirty, this involves locking the atom (for its
-   capture lists), removing it from the clean list and pushing in to the dirty list of the appropriate level. */
+/* Set the dirty status for this (spin locked) jnode. */
+void
+jnode_make_dirty_locked(jnode * node)
+{
+	assert("umka-204", node != NULL);
+	assert("zam-7481", spin_jnode_is_locked(node));
+
+	/* Fast check for already dirty node */
+	if (!jnode_is_dirty(node)) {
+		txn_atom * atom;
+
+		atom = atom_locked_by_jnode (node);
+		assert("vs-1094", atom);
+		/* Check jnode dirty status again because node spin lock might
+		 * be released inside atom_locked_by_jnode(). */
+		if (likely(!jnode_is_dirty(node)))
+			do_jnode_make_dirty(node, atom);
+		UNLOCK_ATOM (atom);
+	}
+}
+
+/* Set the dirty status for this znode. */
 void
 znode_make_dirty(znode * z)
 {
 	jnode *node;
-	txn_atom * atom;
 	struct page *page;
 
 	assert("umka-204", z != NULL);
 
 	node = ZJNODE(z);
 
-	/* We get both locks (atom, jnode) before jnode state check because
-	   atom_locked_by_jnode may unlock jnode in a process of getting
-	   atom spin lock */
 	LOCK_JNODE(node);
-	atom = atom_locked_by_jnode (node);
-
-	assert("vs-1094", atom);
-
-/* ZAM-FIXME-HANS: jnode_is_dirty case could be optimized to skip atom locking, yes?  */
-	if (!jnode_is_dirty(node))
-		do_jnode_make_dirty(node, atom);
-	UNLOCK_ATOM (atom);
-
+	jnode_make_dirty_locked(node);
 	page = jnode_page(node);
 	if (page != NULL)
 		page_cache_get(page);
@@ -2353,9 +2357,10 @@ znode_make_dirty(znode * z)
 	ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
 	UNLOCK_JNODE(node);
 
-	/* jnode lock is not needed for the rest of jnode_set_dirty(). */
-
+	/* jnode lock is not needed for the rest of znode_set_dirty(). */
 	if (page != NULL) {
+		/* reiser4 file write code calls set_page_dirty for unformatted
+		 * nodes, for formatted nodes we do it here. */
 		set_page_dirty_internal(page);
 		page_cache_release(page);
 	}
@@ -2366,25 +2371,6 @@ znode_make_dirty(znode * z)
 	assert("jmacd-9777", node->atom != NULL);
 }
 
-/* ZAM-FIXME-HANS: I suggest you drop either unformatted or jnode from the function name below. */
-/* this differs from the above that it starts with spin locked jnode and that it
-   does not do anything with a page */
-void
-unformatted_jnode_make_dirty(jnode * node)
-{
-	txn_atom * atom;
-
-	assert("umka-204", node != NULL);
-	assert("zam-7481", spin_jnode_is_locked(node));
-
-	if (!jnode_is_dirty(node)) {
-		atom = atom_locked_by_jnode (node);
-		assert("vs-1094", atom);
-		if (!jnode_is_dirty(node))
-			do_jnode_make_dirty(node, atom);
-		UNLOCK_ATOM (atom);
-	}
-}
 
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this
    involves locking the atom (for its capture lists), removing from the
