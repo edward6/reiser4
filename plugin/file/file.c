@@ -359,7 +359,7 @@ static int shorten (struct inode * inode)
 
 /* part of unix_file_truncate: it is called when truncate is used to make file
  * longer */
-ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f);
+static ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f);
 
 /* append hole to a file until inode->i_size < real size */
 static int expand_file (struct inode * inode, loff_t file_size)
@@ -720,8 +720,13 @@ typedef enum {
 
 static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
 
-/* VS-FIXME-HANS: comments are where? */
-ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
+
+/*
+ * This searches for write position in the tree and calls write method of
+ * appropriate item to actually copy user data into filesystem. This loops
+ * until all the data from flow @f are written to a file.
+ */
+static ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 {
 	int result;
 	coord_t coord;
