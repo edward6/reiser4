@@ -52,7 +52,7 @@ typedef union
 #define USLASH 289
 #define YYERRCODE 256
 #define YYTABLESIZE 444
-#define YYFINAL 5
+#define YYFINAL 4
 #ifndef YYDEBUG
 #define YYDEBUG 0
 #endif
@@ -321,95 +321,95 @@ case 11:
 #line 99 "fs/reiser4/parser/parser.y"
 { yyval.expr = symlink( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 13:
+case 12:
 #line 108 "fs/reiser4/parser/parser.y"
 { yyval.expr = if_then_else( ws, yyvsp[-3].expr, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 14:
+case 13:
 #line 109 "fs/reiser4/parser/parser.y"
 { yyval.expr = if_then( ws, yyvsp[-1].expr, yyvsp[0].expr) ;         }
 break;
-case 15:
+case 14:
 #line 113 "fs/reiser4/parser/parser.y"
 { yyval.expr = yyvsp[0].expr; }
 break;
-case 16:
+case 15:
 #line 116 "fs/reiser4/parser/parser.y"
 { level_up( ws, IF_STATEMENT ); }
 break;
-case 17:
+case 16:
 #line 120 "fs/reiser4/parser/parser.y"
 { yyval.expr = not_expression( ws, yyvsp[0].expr ); }
 break;
-case 18:
+case 17:
 #line 121 "fs/reiser4/parser/parser.y"
 { yyval.expr = check_exist( ws, yyvsp[0].expr ); }
 break;
-case 19:
+case 18:
 #line 122 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_EQ_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 20:
+case 19:
 #line 123 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_NE_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 21:
+case 20:
 #line 124 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_LE_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 22:
+case 21:
 #line 125 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_GE_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 23:
+case 22:
 #line 126 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_LT_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 24:
+case 23:
 #line 127 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_GT_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 25:
+case 24:
 #line 128 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_OR_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 26:
+case 25:
 #line 129 "fs/reiser4/parser/parser.y"
 { yyval.expr = compare_AND_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
-case 27:
+case 26:
 #line 133 "fs/reiser4/parser/parser.y"
 { goto_end( ws );}
 break;
-case 28:
+case 27:
 #line 137 "fs/reiser4/parser/parser.y"
 { yyval.expr = yyvsp[0].expr;}
 break;
-case 29:
+case 28:
 #line 141 "fs/reiser4/parser/parser.y"
 { yyval.expr = pars_expr( ws, yyvsp[-1].expr, yyvsp[0].expr ) ; }
 break;
-case 30:
+case 29:
 #line 142 "fs/reiser4/parser/parser.y"
 { yyval.expr = pars_expr( ws, yyvsp[-2].expr, yyvsp[0].expr ) ; }
 break;
-case 31:
+case 30:
 #line 146 "fs/reiser4/parser/parser.y"
 { yyval.expr = pars_lookup_root( ws ) ; }
 break;
-case 32:
+case 31:
 #line 147 "fs/reiser4/parser/parser.y"
 { yyval.expr = pars_lookup_curr( ws ) ; }
 break;
-case 33:
+case 32:
 #line 151 "fs/reiser4/parser/parser.y"
 { yyval.expr = lookup_word( ws, yyvsp[0].wrd ); }
 break;
-case 34:
+case 33:
 #line 152 "fs/reiser4/parser/parser.y"
 { yyval.expr = yyvsp[-1].expr; level_down( ws, yyvsp[-2].charType, yyvsp[0].charType );}
 break;
-case 35:
+case 34:
 #line 156 "fs/reiser4/parser/parser.y"
 { yyval.charType = yyvsp[0].charType; level_up( ws, yyvsp[0].charType ); /*set_curr_path( ws ); */}
 break;
