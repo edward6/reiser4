@@ -2198,7 +2198,7 @@ try_to_lock:
 					goto try_to_lock;
 				} else {
 					jput( node );
-					return -1;
+					return ret;
 				}
 			}
 			spin_unlock_jnode( node );
