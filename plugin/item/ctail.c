@@ -21,13 +21,14 @@ Internal on-disk structure:
 #include "../../key.h"
 #include "../../coord.h"
 #include "item.h"
-#include "ctail.h"
 #include "../node/node.h"
 #include "../plugin.h"
 #include "../../znode.h"
 #include "../../carry.h"
 #include "../../tree.h"
 #include "../../inode.h"
+#include "ctail.h"
+#include "../../page_cache.h"
 
 #include <linux/fs.h>	
 
@@ -278,11 +279,68 @@ ctail_read(struct file *file, coord_t *coord, flow_t * f)
 	return 0;
 }
 
-/* plugin->u.item.s.file.readpage */
-int
-ctail_readpage(coord_t * coord, struct page *page)
+static int ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct inode * inode)
 {
 	return 0;
+}
+
+/* plugin->u.item.s.file.readpage */
+int ctail_readpage(void * vp, struct page *page)
+{
+	reiser4_cluster_t * clust = vp;
+	int index; /* page index in the cluster */
+	int length;
+	struct inode * inode;
+	char * data;
+	int release = 0;
+
+	assert("edward-114", clust != NULL);
+	assert("edward-115", PageLocked(page));
+	assert("edward-116", !PageUptodate(page));
+	assert("edward-117", !jprivate(page) && !PagePrivate(page));
+	assert("edward-118", page->mapping && page->mapping->host);
+
+	inode = page->mapping->host;
+
+	if (cluster_is_required(clust)) {
+		int ret;
+		ret = ctail_cluster_by_page(clust, page, inode);
+		if (ret)
+			return ret;
+		/* we just has attached data that must be released
+		   before exit */
+		release = 1;
+	}
+	if (clust->stat == HOLE_CLUSTER) {
+		char *kaddr = kmap_atomic(page, KM_USER0);
+		
+		assert("edward-119", clust->buf == NULL);
+		
+		memset(kaddr, 0, PAGE_CACHE_SIZE);
+		flush_dcache_page(page);
+		kunmap_atomic(kaddr, KM_USER0);
+		SetPageUptodate(page);
+		reiser4_unlock_page(page);
+		
+		trace_on(TRACE_CTAIL, " - hole, OK\n");
+		return 0;
+	}	
+	
+	/* fill one required page */
+	assert("edward-120", clust->len <= inode_cluster_size(inode));
+	/* length of data to copy to the page */
+
+	index = page->index >> inode_cluster_shift(inode);
+	length = (index == clust->len >> PAGE_CACHE_SHIFT ?
+		  /* is this a last page of the cluster? */
+		  inode_cluster_size(inode) - clust->len : PAGE_CACHE_SIZE);
+	data = kmap(page);
+	memcpy(data, clust->buf + (index << PAGE_CACHE_SHIFT), length);
+	memset(data + clust->len, 0, PAGE_CACHE_SIZE - length);
+	kunmap(page);
+	if (release) 
+		put_cluster_data(clust, inode);
+	return 0;	
 }
 
 /* plugin->u.item.s.file.writepage */
