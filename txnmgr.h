@@ -360,6 +360,7 @@ extern txn_atom*    atom_get_locked_with_txnh_locked (txn_handle       *txnh);
 extern txn_atom*    get_current_atom_locked (void);
 extern txn_atom*    atom_get_locked_by_jnode (jnode *);
 
+extern txn_atom*    atom_wait_event       (txn_handle *);
 extern void         atom_send_event       (txn_atom *);
 
 extern void         txn_insert_into_clean_list (txn_atom * atom, jnode * node);
