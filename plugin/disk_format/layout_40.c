@@ -83,7 +83,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	super_bh = find_any_super_block (s);
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
-	brelse (super_bh);
+	reiser4_sb_brelse (super_bh);
 
 	/* ok, we are sure that filesystem format is a layout 40 format */
 	result = replay_journal (s);
@@ -101,7 +101,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	sb_copy = &private->u.layout_40.actual_sb;
 	memcpy (sb_copy, super_bh->b_data,
 		sizeof (sizeof (layout_40_disk_super_block)));
-	brelse (super_bh);
+	reiser4_sb_brelse (super_bh);
 
 
 	spin_lock_init (&private->guard);
@@ -125,7 +125,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	assert ("vs-493", (private->space_plug &&
 			   private->space_plug->init_allocator));
 	/* init disk space allocator */
-	result = private->space_plug->init_allocator (get_space_allocator (s), s);
+	result = private->space_plug->init_allocator (get_space_allocator (s), s, 0);
 	if (result)
 		return result;
 
@@ -172,10 +172,11 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 }
 
 /* plugin->u.layout.root_dir_key */
-const reiser4_key * layout_40_root_dir_key (void)
+const reiser4_key * layout_40_root_dir_key (
+	const struct super_block * super UNUSED_ARG)
 {
 	static const reiser4_key LAYOUT_40_ROOT_DIR_KEY = {
-		.el = { { ( 2 << 4 ) | KEY_SD_MINOR }, { 42ull }, { 0ull } }
+		.el = { { ( 2 << 4 ) | KEY_SD_MINOR }, { 0x10002ull }, { 0ull } }
 	};
 
 	return &LAYOUT_40_ROOT_DIR_KEY;
