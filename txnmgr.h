@@ -121,6 +121,8 @@ typedef enum {
 	   blocks and fuse with other atoms. */
 	ASTAGE_CAPTURE_FUSE = 1,
 
+	/* We need to have a ASTAGE_CAPTURE_SLOW in which an atom fuses with one node for every X nodes it flushes to disk where X > 1. */
+
 	/* When an atom reaches a certain age it must do all it can to commit.  An atom in
 	   the CAPTURE_WAIT stage refuses new transaction handles and prevents fusion from
 	   atoms in the CAPTURE_FUSE stage. */
@@ -129,14 +131,15 @@ typedef enum {
 	/* Waiting for I/O before commit.  Copy-on-capture. */
 	ASTAGE_PRE_COMMIT = 3,
 
+	/* ZAM-FIXME-HANS: define steal vs. copy. */
 	/* Post-commit overwrite I/O.  Steal-on-capture. */
 	ASTAGE_POST_COMMIT = 4,
 
-	/* Atom which waits removing of last reference to de deleted from memory  */
+	/* Atom which waits for the removal of the last reference to (it? ) to be deleted from memory  */
 	ASTAGE_DONE = 5,
 
-	/* Post-fusion, invalid atom. */
-	ASTAGE_FUSED = 6,
+	/* invalid atom. */
+	ASTAGE_INVALID = 6,
 
 } txn_stage;
 
@@ -307,7 +310,7 @@ struct txn_atom {
 	fwaiting_list_head fwaiting_list;
 
 	/* Numbers of objects which were deleted/created in this transaction
-	   thereby numbers of objects IDs where released/deallocated. */
+	   thereby numbers of objects IDs which were released/deallocated. */
 	int nr_objects_deleted;
 	int nr_objects_created;
 	/* number of blocks allocated during the transaction */
