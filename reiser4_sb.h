@@ -23,9 +23,11 @@
 #define REISER4_STUB_SUPER_INFO_LENGTH    (2048)
 #endif
 
+/*
 struct reiser4_sb_info {
 	char padding[ REISER4_STUB_SUPER_INFO_LENGTH ];
 };
+*/
 
 /* __REISER4_SB_H__ */
 #endif
