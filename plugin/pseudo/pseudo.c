@@ -107,6 +107,9 @@ static void pseudo_set_datum(struct inode *pseudo, unsigned long datum)
 	reiser4_inode_data(pseudo)->file_plugin_data.pseudo_info.datum = datum;
 }
 
+/*
+ * try to look up built-in pseudo file by its name.
+ */
 int
 lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 {
@@ -118,11 +121,13 @@ lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 	assert("nikita-2999", parent != NULL);
 	assert("nikita-3000", dentry != NULL);
 
+	/* if pseudo files are disabled for this file system bail out */
 	if (reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
 		return RETERR(-ENOENT);
 
 	name = dentry->d_name.name;
 	pseudo = ERR_PTR(-ENOENT);
+	/* scan all pseudo file plugins and check each */
 	for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
 		pseudo_plugin *pplug;
 
@@ -159,6 +164,10 @@ static struct inode *add_pseudo(struct inode *parent,
 }
 
 
+/*
+ * initialize pseudo file @pseudo to be child of @parent, with plugin @pplug
+ * and name @name.
+ */
 static int
 init_pseudo(struct inode *parent, struct inode *pseudo,
 	    pseudo_plugin *pplug, const char *name)
@@ -177,6 +186,8 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 	data.mode = pplug->lookup_mode;
 
 	plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
+	/* if plugin has a ->lookup method, it means that @pseudo should
+	 * behave like directory. */
 	if (pplug->lookup != NULL)
 		plugin_set_dir(&idata->pset,
 			       dir_plugin_by_id(PSEUDO_DIR_PLUGIN_ID));
@@ -189,6 +200,7 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 		return result;
 	}
 
+	/* inherit permission plugin from parent */
 	grab_plugin(idata, reiser4_inode_data(parent), perm);
 
 	pseudo->i_nlink = 1;
@@ -197,11 +209,13 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 	return 0;
 }
 
+/* helper function: return host object of @inode pseudo file */
 static struct inode *get_inode_host(struct inode *inode)
 {
 	return reiser4_inode_data(inode)->file_plugin_data.pseudo_info.host;
 }
 
+/* helper function: return host object by file descriptor */
 static struct inode *get_pseudo_host(struct file *file)
 {
 	struct inode *inode;
@@ -210,6 +224,7 @@ static struct inode *get_pseudo_host(struct file *file)
 	return get_inode_host(inode);
 }
 
+/* helper function: return host object by seq_file */
 static struct inode *get_seq_pseudo_host(struct seq_file *seq)
 {
 	struct file *file;
