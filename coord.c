@@ -824,6 +824,32 @@ int coord_set_to_left (tree_coord *coord)
 	impossible ("jmacd-9920", "unreachable");
 }
 
+static const char * coord_tween (between_enum n)
+{
+	switch (n) {
+	case BEFORE_UNIT: return "before unit";
+	case BEFORE_ITEM: return "before item";
+	case AT_UNIT: return "at unit";
+	case AFTER_UNIT: return "after unit";
+	case AFTER_ITEM: return "after item";
+	default: return "unknown";
+	}
+}
+
+
+void coord_print (const char * mes, const tree_coord * coord, int node)
+{
+	if( coord == NULL ) {
+		info( "%s: null\n", mes );
+		return;
+	}
+	info ("%s: item_pos = %d, unit_pos %d, tween=%s\n",
+	      mes, coord->item_pos, coord->unit_pos, 
+	      coord_tween (coord->between));
+	if (node)
+		print_znode( "\tnode", coord -> node );
+}
+
 /* 
  * Local variables:
  * c-indentation-style: "K&R"
