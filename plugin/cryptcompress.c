@@ -362,6 +362,12 @@ clust_to_off(unsigned long idx, struct inode * inode)
 	return pg_to_off(clust_to_pg(idx, inode));
 }
 
+static loff_t 
+off_to_clust_to_off(loff_t off, struct inode * inode)
+{
+	return clust_to_off(off_to_clust(off, inode), inode);
+}
+
 static inline unsigned long
 off_to_clust_to_pg(loff_t off, struct inode * inode)
 {
@@ -426,6 +432,14 @@ off_to_count(loff_t off, unsigned long idx, struct inode * inode)
 	return min_count(inode_cluster_size(inode), off - clust_to_off(idx, inode));
 }
 
+unsigned
+off_to_pgcount(loff_t off, unsigned long idx)
+{
+	if (idx > off_to_pg(off))
+		return 0;
+	return min_count(PAGE_CACHE_SIZE, off - pg_to_off(idx));
+}
+
 static unsigned
 fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 {
@@ -440,7 +454,7 @@ int
 key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 {
 	assert("edward-64", inode != 0);
-	assert("edward-112", !(off_to_cloff(off, inode)));
+	assert("edward-112", ergo(off != get_key_offset(max_key()), !off_to_cloff(off, inode)));
 	/* don't come here with other offsets */
 	
 	build_sd_key(inode, key);
@@ -1247,15 +1261,17 @@ int find_cluster(reiser4_cluster_t * clust,
 			}
 			/* we are outside the cluster, stop search here */
 			assert("edward-146", f.length != inode_scaled_cluster_size(inode));
-			result = 0;
+			done_lh(&lh);
 			goto ok;
 		case CBK_COORD_FOUND:
-			assert("edward-147", item_plugin_by_coord(&hint.coord.base_coord) == iplug);
-			assert("edward-148", hint.coord.base_coord.between != AT_UNIT);
+			assert("edward-148", hint.coord.base_coord.between == AT_UNIT);
+			assert("edward-xxx", hint.coord.base_coord.unit_pos == 0);
+			
 			coord_clear_iplug(&hint.coord.base_coord);
 			result = zload_ra(hint.coord.base_coord.node, &ra_info);
 			if (unlikely(result))
 				goto out2;
+			assert("edward-147", item_plugin_by_coord(&hint.coord.base_coord) == iplug);
 			if (read) {
 				result = iplug->s.file.read(NULL, &f, &hint);
 				if(result)
@@ -1274,6 +1290,8 @@ int find_cluster(reiser4_cluster_t * clust,
 	/* gathering finished with number of items > 0 */
 	/* NOTE-EDWARD: Handle the cases when cluster is incomplete (-EIO) */	
 	clust->len = inode_scaled_cluster_size(inode) - f.length;
+	save_file_hint(clust->file, &hint);
+	return 0;
  out:
 	zrelse(hint.coord.base_coord.node);
  out2:
@@ -1682,7 +1700,7 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 	int result;
 	
 	assert("edward-293", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
-	key_by_inode_cryptcompress(inode, off_to_clust(new_size, inode) + 1, &from_key);
+	key_by_inode_cryptcompress(inode, off_to_clust_to_off(new_size, inode), &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
 	
@@ -1746,7 +1764,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	result = cut_items_cryptcompress(inode, new_size, update_sd);
 	if(result)
 		return result;
-	if (!off_to_cloff(old_size, inode))
+	if (!off_to_cloff(new_size, inode))
 		/* truncated to cluster boundary */
 		return 0;
 	/* FIXME-EDWARD: reserve partial page */
@@ -1811,7 +1829,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	int result;
 	loff_t old_size = inode->i_size;
 	unsigned long idx;
-	unsigned long old_idx = off_to_clust(old_size, inode);
+//	unsigned long old_idx = off_to_clust(old_size, inode);
 	unsigned long new_idx = off_to_clust(new_size, inode);
 	
 	/* inode->i_size != new size */
@@ -1820,7 +1838,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	   real file offsets only up to cluster size */
 	result = find_file_idx(inode, &idx);
 
-	assert("edward-278", idx <= old_idx);
+//	assert("edward-278", idx <= old_idx);
 
 	if (result)
 		return result;

@@ -336,7 +336,7 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 
 	uf_coord = &hint->coord;
 	coord = &uf_coord->base_coord;
-	assert("edward-127", f->user == 1);
+	assert("edward-127", f->user == 0);
 	assert("edward-128", f->data);
 	assert("edward-129", coord && coord->node);
 	assert("edward-130", coord_is_existing_unit(coord));
@@ -431,11 +431,11 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		goto exit;	
 	/* fill page by plain text */
 	assert("edward-120", clust->len <= inode_cluster_size(inode));
-	assert("edward-299", off_to_pgoff(clust->len) == 0);
+//	assert("edward-299", off_to_pgoff(clust->len) == 0);
 	
 	cloff = pg_to_off_to_cloff(page->index, inode);
 	data = kmap(page);
-	memcpy(data, clust->buf + cloff, PAGE_CACHE_SIZE);
+	memcpy(data, clust->buf + cloff, off_to_pgcount(clust_to_off(clust->index, inode) + clust->len, page->index));
 	kunmap(page);
 	SetPageUptodate(page);
  exit:
