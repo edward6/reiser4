@@ -909,18 +909,22 @@ unix_file_readpage_nolock(void *file, struct page *page)
 				ZNODE_READ_LOCK, CBK_UNIQUE);
 	if (result != CBK_COORD_FOUND) {
 		done_lh(&lh);
+		reiser4_lock_page(page);
 		return result;
 	}
 	result = zload(coord.node);
+	reiser4_lock_page(page);
 	if (result) {
 		done_lh(&lh);
 		return result;
 	}
 
+	assert("nikita-2720", page->mapping == inode->i_mapping);
+
 	if (!coord_is_existing_unit(&coord)) {
 		/* this indicates corruption */
 		warning("vs-280",
-			"Looking for page %lu of file %lu (size %lli)."
+			"Looking for page %lu of file %lu (size %lli). "
 			"No file items found (%d). "
 			"File is corrupted?\n",
 			page->index, inode->i_ino, inode->i_size, result);
@@ -928,8 +932,6 @@ unix_file_readpage_nolock(void *file, struct page *page)
 		done_lh(&lh);
 		return -EIO;
 	}
-
-	reiser4_lock_page(page);
 
 	/* get plugin of found item or use plugin if extent if there are no
 	 * one */
@@ -1158,8 +1160,10 @@ unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 							 1 /* user space */ ,
 							 read_amount, *off,
 							 READ_OP, &f);
-	if (unlikely(result))
+	if (unlikely(result)) {
+		drop_nonexclusive_access(inode);
 		return result;
+	}
 
 	init_lh(&lh);
 
@@ -1170,8 +1174,10 @@ unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 	 * is still valid.
 	 */
 	result = load_file_hint(file, &hint);
-	if (unlikely(result))
+	if (unlikely(result)) {
+		drop_nonexclusive_access(inode);
 		return result;
+	}
 
 	to_read = f.length;
 	while (f.length) {
