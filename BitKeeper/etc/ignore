@@ -1190,3 +1190,4 @@ reiser4progs/progs/libmisc/libmisc.la
 reiser4progs/progs/libmisc/misc.lo
 reiser4progs/progs/libmisc/profile.lo
 reiser4progs/progs/libmisc/ui.lo
+plugin/file/.file.o.tmp
