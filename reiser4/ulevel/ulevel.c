@@ -300,8 +300,8 @@ struct inode * new_inode (struct super_block * sb)
 }
 
 
-int init_special_inode( struct inode *inode UNUSED_ARG, umode_t mode UNUSED_ARG,
-			__u16 rdev UNUSED_ARG )
+int init_special_inode( struct inode *inode UNUSED_ARG, __u32 mode UNUSED_ARG,
+			__u32 rdev UNUSED_ARG )
 {
 	return 0;
 }
