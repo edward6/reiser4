@@ -148,12 +148,6 @@ int __reiser4_grab_reserved(struct super_block *, __u64, reiser4_ba_flags_t);
 #endif /* !REISER4_TRACE */
 
 extern void grabbed2free_mark(int mark);
-
-extern int __reiser4_grab_reserved(struct super_block *super,
-				   __u64 count, reiser4_ba_flags_t flags, 
-				   const char *message
-	);
-
 extern void reiser4_release_reserved(struct super_block *super);
 
 /* grabbed -> fake_allocated */
