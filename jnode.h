@@ -235,9 +235,9 @@ typedef enum {
 	 * block allocator should process this node special way  */
 	JNODE_REPACK = 23,
 	JNODE_SCANNED = 24,
-	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25
+	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25,
 #if REISER4_DEBUG
-	,
+	/* capture copy jnode */
 	JNODE_CC = 31
 #endif
 } reiser4_znode_state;
@@ -486,7 +486,6 @@ static inline int jload(jnode * node)
 extern int jinit_new(jnode * node) NONNULL;
 extern int jstartio(jnode * node) NONNULL;
 
-extern int jdrop_in_tree(jnode * node, reiser4_tree * tree) NONNULL;
 extern void jdrop(jnode * node) NONNULL;
 extern int jwait_io(jnode * node, int rw) NONNULL;
 
