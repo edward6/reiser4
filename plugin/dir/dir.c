@@ -731,14 +731,14 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 	mod_point.pos = offset;
 
 	info = reiser4_inode_data(dir);
-	spin_lock(&info->guard);
+	spin_lock_inode(dir);
 
-	for (scan = readdir_list_front(&info->readdir_list);
-	          !readdir_list_end(&info->readdir_list, scan); 
+	for (scan = readdir_list_front(get_readdir_list(dir));
+	          !readdir_list_end(get_readdir_list(dir), scan); 
 	     scan = readdir_list_next(scan))
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
 
-	spin_unlock(&info->guard);
+	spin_unlock_inode(dir);
 }
 
 static int
@@ -897,11 +897,11 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 
 	info = reiser4_inode_data(inode);
 
-	spin_lock(&info->guard);
+	spin_lock_inode(inode);
 	if (readdir_list_is_clean(fsdata))
-		readdir_list_push_front(&info->readdir_list, fsdata);
+		readdir_list_push_front(get_readdir_list(inode), fsdata);
 	*pos = &fsdata->dir.readdir;
-	spin_unlock(&info->guard);
+	spin_unlock_inode(inode);
 
 	/* move @tap to the current position */
 	return dir_rewind(f, *pos, f->f_pos, tap);

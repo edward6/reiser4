@@ -42,7 +42,8 @@ typedef enum {
 	REISER4_BUILT_OF_TAILS = 5,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
-	REISER4_GENERIC_VP_USED = 6
+	REISER4_GENERIC_VP_USED = 6,
+	REISER4_EXCLUSIVE_USE = 7
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -80,32 +81,32 @@ typedef struct reiser4_inode {
 	item_plugin *sd;
 	/* plugin of items a directory is built of */
 	item_plugin *dir_item;
-	spinlock_t guard;
+	struct inode *parent;
 	/* seal for stat-data */
 	seal_t sd_seal;
+	__u64 extmask;
+	/* locality id for this file */
+	oid_t locality_id;
 	/* coord of stat-data in sealed node */
 	coord_t sd_coord;
 	/* reiser4-specific inode flags. They are "transient" and are not
-	    supposed to be stored on a disk. Used to trace "state" of
-	    inode. Bitmasks for this field are defined in
-	    reiser4_file_plugin_flags enum */
+	   supposed to be stored on a disk. Used to trace "state" of
+	   inode. Bitmasks for this field are defined in
+	   reiser4_file_plugin_flags enum */
 	unsigned long flags;
-	__u64 extmask;
 	/* length of stat-data for this inode */
 	short sd_len;
 	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
 	inter_syscall_rap ra;
-	/* locality id for this file */
-	oid_t locality_id;
 	/* truncate, tail2extent and extent2tail use down_write, read, write, readpage - down_read */
 	struct rw_semaphore sem;
+#if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
+#endif
 	/* high 32 bits of object id */
 	oid_hi_t oid_hi;
-	readdir_list_head readdir_list;
-	struct inode *parent;
 	int eflushed;
 } reiser4_inode;
 
@@ -116,8 +117,8 @@ typedef struct reiser4_inode_object {
 	struct inode vfs_inode;
 } reiser4_inode_object;
 
-#define spin_ordering_pred_inode( inode )   (1)
-SPIN_LOCK_FUNCTIONS(inode, reiser4_inode, guard);
+#define spin_ordering_pred_inode(inode)   (1)
+SPIN_LOCK_FUNCTIONS(inode, struct inode, i_mapping->private_lock);
 
 extern oid_t get_inode_oid(const struct inode *inode);
 extern void set_inode_oid(struct inode *inode, oid_t oid);
@@ -152,6 +153,12 @@ extern void inode_set_plugin(struct inode *inode, reiser4_plugin * plug);
 extern void reiser4_make_bad_inode(struct inode *inode);
 
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
+
+static inline readdir_list_head *
+get_readdir_list(const struct inode *inode)
+{
+	return (readdir_list_head *)&inode->i_mapping->private_list;
+}
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_inode(const char *prefix, const struct inode *i);

@@ -1162,6 +1162,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 
 	if (f->private_data == NULL) {
 		reiser4_file_fsdata *fsdata;
+		struct inode *inode;
 		reiser4_inode *info;
 
 		reiser4_stat_file_add(private_data_alloc);
@@ -1171,15 +1172,16 @@ reiser4_get_file_fsdata(struct file *f	/* file
 			return ERR_PTR(-ENOMEM);
 		xmemset(fsdata, 0, sizeof *fsdata);
 
-		info = reiser4_inode_data(f->f_dentry->d_inode);
-		spin_lock(&info->guard);
+		inode = f->f_dentry->d_inode;
+		info = reiser4_inode_data(inode);
+		spin_lock_inode(inode);
 		if (f->private_data == NULL) {
 			fsdata->back = f;
 			readdir_list_clean(fsdata);
 			f->private_data = fsdata;
 			fsdata = NULL;
 		}
-		spin_unlock(&info->guard);
+		spin_unlock_inode(inode);
 		if (fsdata != NULL)
 			/* other thread initialised ->fsdata */
 			reiser4_kfree(fsdata, sizeof *fsdata);
@@ -1267,11 +1269,11 @@ init_once(void *obj /* pointer to new inode */ ,
 		   heads, etc. that will be added to our private inode part. */
 		/* FIXME-NIKITA where inode is zeroed? */
 		inode_init_once(&info->vfs_inode);
-		spin_lock_init(&info->p.guard);
 		init_rwsem(&info->p.sem);
-		info->p.ea_owner = 0;
-		readdir_list_init(&info->p.readdir_list);
 		info->p.eflushed = 0;
+#if REISER4_DEBUG
+		info->p.ea_owner = 0;
+#endif
 	}
 }
 
@@ -2649,7 +2651,7 @@ define_never_ever_op(prepare_write_vfs)
     define_never_ever_op(direct_IO_vfs)
 #define V( func ) ( ( void * ) ( func ) )
 struct address_space_operations reiser4_as_operations = {
-	/* called from write_one_page(). Not sure how this is to be used. */
+	/* called during memory pressure by kswapd */
 	.writepage = reiser4_writepage,
 	/* called to read page from the storage when page is added into page
 	   cache  */
@@ -2661,8 +2663,6 @@ struct address_space_operations reiser4_as_operations = {
 	.sync_page = block_sync_page,
 	/* called during sync (pdflush) */
 	.writepages = reiser4_writepages,
-	/* called during memory pressure by kswapd */
-//	.vm_writeback = reiser4_vm_writeback,
 	.set_page_dirty = reiser4_set_page_dirty,
 	/* called during read-ahead */
 	.readpages = NULL,

@@ -345,10 +345,10 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 		result = init_inode(inode, &coord);
 		if (result == 0) {
 			/* initialise stat-data seal */
-			spin_lock_inode(info);
+			spin_lock_inode(inode);
 			seal_init(&info->sd_seal, &coord, key);
 			info->sd_coord = coord;
-			spin_unlock_inode(info);
+			spin_unlock_inode(inode);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
@@ -532,12 +532,12 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	assert("nikita-2717", (0 <= ext) && (ext < LAST_SD_EXTENSION));
 
 	state = reiser4_inode_data(inode);
-	spin_lock_inode(state);
+	spin_lock_inode(inode);
 	state->extmask |= (1 << ext);
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
 	state->sd_len = 0;
-	spin_unlock_inode(state);
+	spin_unlock_inode(inode);
 }
 
 void

@@ -373,11 +373,11 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 			info = reiser4_inode_data(inode);
 			/* pin inode containing eflushed pages. Otherwise it
 			 * may get evicted */
-			spin_lock_inode(info);
+			spin_lock_inode(inode);
 			if (info->eflushed == 0)
 				__iget(inode);
 			++ info->eflushed;
-			spin_unlock_inode(info);
+			spin_unlock_inode(inode);
 		}
 		return 0;
 	} else
@@ -437,10 +437,10 @@ eflush_del(jnode *node, int page_locked)
 			info = reiser4_inode_data(inode);
 			/* unpin inode after unflushing last eflushed apge
 			 * from it. Dual to __iget() in eflush_add(). */
-			spin_lock_inode(info);
+			spin_lock_inode(inode);
 			-- info->eflushed;
 			putit = (info->eflushed == 0);
-			spin_unlock_inode(info);
+			spin_unlock_inode(inode);
 		}
 		JF_CLR(node, JNODE_EFLUSH);
 
