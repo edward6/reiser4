@@ -439,7 +439,6 @@ static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG,
 static int formatted_set_page_dirty( struct page *page )
 {
 	assert( "nikita-2095", page != NULL );
-	rlog( "nikita-2093", "Entering" );
 	return __set_page_dirty_nobuffers( page );
 }
 
