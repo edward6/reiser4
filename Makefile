@@ -78,6 +78,7 @@ reiser4-objs := \
 		   diskmap.o \
 		   prof.o \
 		   repacker.o \
+		   reiser4_status_flags.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \
