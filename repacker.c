@@ -1,5 +1,13 @@
 /* Copyright 2003 by Hans Reiser */
 
+/* 
+   The reiser4 repacker.
+
+   It walks the reiser4 tree and marks all nodes (reads them if it is
+   necessary) for repacking by setting JNODE_REPACK bit. Also, all nodes which
+   have no JNODE_REPACK bit set nodes added to a transaction and marked dirty.
+*/
+
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/kobject.h>
@@ -29,17 +37,24 @@ enum repacker_state_bits {
 	REPACKER_GOES_LEFT = 0x8
 };
 
+/* Per super block repacker structure for  */
 struct repacker {
+	/* Back reference to a super block. */
 	struct super_block * super;
+	/* Repacker thread state */
 	enum repacker_state_bits  state;
+	/* A spin lock to protect state */
 	spinlock_t guard;
+	/* A conditional variable to wait repacker state change. */
 	kcond_t    cond;
 #if REISER4_USE_SYSFS
+	/* An object (kobject), externally visible through SysFS. */
 	struct kobject kobj;
 #endif
 	
 };
 
+/* Repacker per tread state and statistics. */
 struct repacker_stats {
 	int count;
 	long znodes_dirtied;
@@ -59,7 +74,7 @@ static int renew_transaction (void)
 	return 0;
 }
 
-static inline int check_repacker_state(struct repacker *repacker, enum repacker_state_bits bits)
+static inline int check_repacker_state_bit(struct repacker *repacker, enum repacker_state_bits bits)
 {
 	int result;
 
@@ -70,19 +85,21 @@ static inline int check_repacker_state(struct repacker *repacker, enum repacker_
 	return result;
 }
 
-static int dirtying_znode (tap_t * tap, void * arg)
+static int process_znode (tap_t * tap, void * arg)
 {
 	struct repacker_stats * stats = arg;
+	znode * node = tap->lh->node;
 
 	assert("zam-954", stats->count > 0);
 
-	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_STOP))
+	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
 
-	if (znode_is_dirty(tap->lh->node))
+	if (ZF_ISSET(node, JNODE_REPACK))
 		return 0;
 
-	znode_make_dirty(tap->lh->node);
+	znode_make_dirty(node);
+	ZF_SET(node, JNODE_REPACK);
 
 	stats->znodes_dirtied ++;
 
@@ -91,12 +108,12 @@ static int dirtying_znode (tap_t * tap, void * arg)
 	return 0;
 }
 
-static int dirtying_extent (tap_t *tap, void * arg)
+static int process_extent (tap_t *tap, void * arg)
 {
 	int ret;
 	struct repacker_stats * stats = arg;
 
-	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_STOP))
+	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
 
 	ret = mark_extent_for_repacking(tap, stats->count);
@@ -115,6 +132,7 @@ static int dirtying_extent (tap_t *tap, void * arg)
  * size. */
 #define REPACKER_CHUNK_SIZE 100
 
+/* It is for calling by tree walker before taking any locks. */
 static int prepare_repacking_session (void * arg)
 {
 	struct repacker_stats * stats = arg;
@@ -132,11 +150,12 @@ static int prepare_repacking_session (void * arg)
 }
 
 static struct tree_walk_actor repacker_actor = {
-	.process_znode  = dirtying_znode,
-	.process_extent = dirtying_extent,
+	.process_znode  = process_znode,
+	.process_extent = process_extent,
 	.before         = prepare_repacking_session
 };
 
+/* The repacker kernel thread code. */
 static int repacker_d(void *arg)
 {
 	struct repacker * repacker = arg;
@@ -219,19 +238,15 @@ static void stop_repacker(struct repacker * repacker)
 
 #if REISER4_USE_SYSFS
 
-struct repacker_attr_ops {
+struct repacker_attr {
+	struct attribute attr;
 	ssize_t (*show)(struct repacker *, char * buf);
 	ssize_t (*store)(struct repacker *, const char * buf, size_t size);
 };
 
-struct repacker_attr {
-	struct repacker_attr_ops ops;
-	struct attribute attr;
-};
-
 static ssize_t start_attr_show (struct repacker * repacker, char * buf)	
 {
-	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state(repacker, REPACKER_RUNNING));
+	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state_bit(repacker, REPACKER_RUNNING));
 }
 
 static ssize_t start_attr_store (struct repacker * repacker,  const char *buf, size_t size)
@@ -249,7 +264,7 @@ static ssize_t start_attr_store (struct repacker * repacker,  const char *buf, s
 
 static ssize_t direction_attr_show (struct repacker * repacker, char * buf)	
 {
-	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state(repacker, REPACKER_GOES_LEFT));
+	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state_bit(repacker, REPACKER_GOES_LEFT));
 }
 
 static ssize_t direction_attr_store (struct repacker * repacker,  const char *buf, size_t size)
@@ -270,25 +285,21 @@ static ssize_t direction_attr_store (struct repacker * repacker,  const char *bu
 }
 
 static struct repacker_attr start_attr = {
-	.ops = { 
-		.show = start_attr_show,
-		.store = start_attr_store,
-	},
 	.attr = {
 		.name = "start",
 		.mode = 0644		/* rw-r--r */
-	}
+	},
+	.show = start_attr_show,
+	.store = start_attr_store,
 };
 
 static struct repacker_attr direction_attr = {
-	.ops = { 
-		.show = direction_attr_show,
-		.store = direction_attr_store
-	},
 	.attr = {
 		.name = "direction",
 		.mode = 0644		/* rw-r--r */
-	}
+	},
+	.show = direction_attr_show,
+	.store = direction_attr_store,
 };
 
 static struct attribute * repacker_def_attrs[] = {
@@ -302,7 +313,7 @@ static ssize_t repacker_attr_show (struct kobject *kobj, struct attribute *attr,
 	struct repacker_attr * r_attr = container_of(attr, struct repacker_attr, attr);
 	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
 
-	return r_attr->ops.show(repacker, buf);
+	return r_attr->show(repacker, buf);
 }
 	
 static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr, const char *buf, size_t size)
@@ -310,10 +321,8 @@ static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr
 	struct repacker_attr * r_attr = container_of(attr, struct repacker_attr, attr);
 	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
 
-	return r_attr->ops.store(repacker, buf, size);
+	return r_attr->store(repacker, buf, size);
 }
-
-
 
 static struct sysfs_ops repacker_sysfs_ops = {
 	.show  = repacker_attr_show,
@@ -326,7 +335,7 @@ static struct kobj_type repacker_ktype = {
 	.release       = NULL
 };
 
-static int init_repacker_sysfs_iface (struct super_block * s)
+static int init_repacker_sysfs_interface (struct super_block * s)
 {
 	int ret = 0;
 	reiser4_super_info_data * sinfo = get_super_private(s);
@@ -343,7 +352,7 @@ static int init_repacker_sysfs_iface (struct super_block * s)
 	return ret;
 }
 
-static void done_repacker_sysfs_iface (struct super_block * s)
+static void done_repacker_sysfs_interface (struct super_block * s)
 {
 	reiser4_super_info_data * sinfo = get_super_private(s);
 
@@ -371,7 +380,7 @@ int init_reiser4_repacker (struct super_block *super)
 	spin_lock_init(&sinfo->repacker->guard);
 	kcond_init(&sinfo->repacker->cond);
 
-	return init_repacker_sysfs_iface(super);
+	return init_repacker_sysfs_interface(super);
 }
 
 void done_reiser4_repacker (struct super_block *super)
@@ -381,7 +390,7 @@ void done_reiser4_repacker (struct super_block *super)
 
 	repacker = sinfo->repacker;
 	assert("zam-945", repacker != NULL);
-	done_repacker_sysfs_iface(super);
+	done_repacker_sysfs_interface(super);
 
 	spin_lock(&repacker->guard);
 	repacker->state |= (REPACKER_STOP | REPACKER_DESTROY);
