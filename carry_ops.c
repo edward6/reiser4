@@ -548,6 +548,9 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 				       * shifting data into new node */
 		carry_node *node_shadow; /* remembered insertion node before
 					  * shifting */
+		int gointo; /* whether insertion point should move into newly
+			     * allocated node */
+
 
 		reiser4_stat_level_add( doing, insert_alloc_new );
 		if( blk_alloc > 0 )
@@ -591,8 +594,19 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		coord_dup( &coord_shadow, op -> u.insert.d -> coord );
 		node_shadow = op -> node;
 		adj = get_split_point( op, RIGHT_SIDE );
+		/*
+		 * move insertion point into newly created node if:
+		 *
+		 *  . insertion point is rightmost in the source node, or
+		 *  . this is not the first node we are allocating in a row.
+		 */
+		gointo = 
+			( blk_alloc > 0 ) ||
+			coord_is_after_rightmost( op -> u.insert.d -> coord );
+
 		result = carry_shift_data( RIGHT_SIDE, coord,
-					   fresh -> real_node, doing, todo, 1 );
+					   fresh -> real_node, doing, todo, 
+					   gointo );
 		put_split_point( op, adj, flags );
 		/*
 		 * if insertion point was actually moved into new node,
