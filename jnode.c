@@ -9,6 +9,7 @@
   
 */
 
+#include "reiser4.h"
 #include "debug.h"
 #include "dformat.h"
 #include "plugin/plugin_header.h"
