@@ -1067,11 +1067,7 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	flow_t f;
 	jnode * node = scan->node;
 	file_plugin * fplug;
-#if 0	
-	tap_t tap;
-	coord_t coord;
-	lock_handle lh;	
-#endif	
+	
 	assert("edward-227", scan->node != NULL);
 	assert("edward-228", jnode_is_cluster_page(scan->node));
 	assert("edward-639", znode_is_write_locked(scan->parent_lock.node));
@@ -1091,62 +1087,9 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 			inode->i_size);
 #endif
 	}
-#if 0	
-	LOCK_JNODE(scan->node);
-	if (!jnode_is_dirty(scan->node)) {
-		warning("edward-960", "scan_ctail: jnode of cluster page is not"
-			" dirty (clust %lu, inode %llu, current file size %llu)\n", 
-			pg_to_clust(page->index, inode),
-			(unsigned long long) get_inode_oid(inode),
-			inode->i_size);
-		UNLOCK_JNODE(scan->node);
-		return -EAGAIN;
-	}
-	UNLOCK_JNODE(scan->node);
-	
-	/* make sure all the nodes which contains disk cluster are dirty */
-	init_lh(&lh);
-	copy_lh(&lh, &scan->parent_lock);
-	coord_dup(&coord, &scan->parent_coord);
-	
-	tap_init(&tap, &coord, &lh, ZNODE_WRITE_LOCK);
-	
-	result = tap_load(&tap);
-	if (result)
-		goto exit2;
-	while (1) {
-		coord_t prev_coord;
-		
-		coord_dup(&prev_coord, &coord);
-		znode_make_dirty(coord.node);
-		znode_set_convertible(coord.node);
-		
-		/* next item */
-		result = go_dir_el(&tap, RIGHT_SIDE, 0 /* next item */);
-		
-		if (result) {
-			if (result == -E_NO_NEIGHBOR)
-				result = 0;
-			goto exit1;
-		}
-		result = zload(prev_coord.node);
-		if (result)
-			goto exit1;
-		if (mergeable_ctail(&prev_coord, &coord)) {
-			assert("edward-961", prev_coord.node != coord.node);
-			zrelse(prev_coord.node);
-			continue;
-		}
-		zrelse(prev_coord.node);
-		break;
-	}
- exit1:
-	tap_relse(&tap);	
- exit2:
-	tap_done(&tap);
-#endif	
 #ifndef	HANDLE_VIA_FLUSH_SCAN
 	if (!znode_convertible(scan->parent_lock.node)) {
+		LOCK_JNODE(scan->node);
 		if (jnode_is_dirty(scan->node)) {
 			warning("edward-873", "child is dirty but parent not convertible");
 			edward_break_scan();
@@ -1154,7 +1097,12 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 		}
 		else {
 			warning("edward-681", "cluster page is already processed");
-			return -EAGAIN;
+			result = -EAGAIN;
+		}
+		UNLOCK_JNODE(scan->node);
+		if (result) {
+			assert("edward-1026", 0);
+			return result;
 		}
 	}
 #endif	
