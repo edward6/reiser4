@@ -874,15 +874,20 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	char name_buf[32], *tmp_name;
 	unsigned file_type;
 	seal_t seal;
-	coord_t * coord;
+	coord_t *coord;
+	reiser4_key entry_key;
 
 	coord = tap->coord;
 	iplug = item_plugin_by_coord(coord);
 
+	/* pointer to name within the node */
 	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-1371", name != NULL);
+
+	/* key of object the entry points to */
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
 		return RETERR(-EIO);
+
 
 	/* we must release longterm znode lock before calling filldir to avoid deadlock which may happen if filldir
 	   causes page fault. So, copy name to intermediate buffer */
@@ -893,10 +898,11 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	} else
 		tmp_name = name_buf;
 
-	strcpy(tmp_name, name, strlen(name));
+	strcpy(tmp_name, name);
 	file_type = iplug->s.dir.extract_file_type(coord);
 
-	seal_init(&seal, coord, 0);
+	unit_key_by_coord(coord, &entry_key);
+	seal_init(&seal, coord, &entry_key);
 	tap_relse(tap);
 	longterm_unlock_znode(tap->lh);
 
@@ -914,10 +920,10 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 		/* ->filldir() is satisfied. */
 		result = 1;
 	} else {
-		result = seal_validate(&seal, coord, 0, LEAF_LEVEL, tap->lh, FIND_EXACT,
+		result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL, tap->lh, FIND_EXACT,
 				       tap->mode, ZNODE_LOCK_HIPRI);
 		if (result == 0) {
-			check_me("vs-1485", tap_load(tap));
+			check_me("vs-1485", tap_load(tap) == 0);
 		}
 	}
 	return result;
