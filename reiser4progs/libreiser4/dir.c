@@ -19,11 +19,11 @@ reiserfs_dir_t *reiserfs_dir_create(reiserfs_dir_t *parent,
     return dir;
 }
 
-reiserfs_dir_t *reiserfs_dir_init(void) {
+reiserfs_dir_t *reiserfs_dir_open(void) {
     return NULL;
 }
 
-void reiserfs_dir_fini(reiserfs_dir_t *dir) {
+void reiserfs_dir_close(reiserfs_dir_t *dir) {
     aal_assert("umka-589", dir != NULL, return);
     aal_free(dir);
 }

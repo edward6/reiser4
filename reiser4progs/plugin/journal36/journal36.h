@@ -9,18 +9,18 @@
 
 #include <aal/aal.h>
 
-struct reiserfs_journal36 {
+struct journal36 {
     aal_device_t *device;
     aal_block_t *header;
 };
 
-typedef struct reiserfs_journal36 reiserfs_journal36_t;
+typedef struct journal36 journal36_t;
 
-struct reiserfs_journal36_header {
+struct journal36_header {
     char jh_unused[100];
 };
 
-typedef struct reiserfs_journal36_header reiserfs_journal36_header_t;
+typedef struct journal36_header journal36_header_t;
 
 #endif
 

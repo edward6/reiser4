@@ -10,7 +10,7 @@
 
 #include <reiser4/reiser4.h>
 
-error_t reiserfs_journal_init(reiserfs_fs_t *fs, int replay) {
+error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
 	
@@ -19,7 +19,7 @@ error_t reiserfs_journal_init(reiserfs_fs_t *fs, int replay) {
 	
     if (fs->journal) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Journal already initialized.");
+	    "Journal already opened.");
 	return -1;
     }
 	
@@ -37,7 +37,7 @@ error_t reiserfs_journal_init(reiserfs_fs_t *fs, int replay) {
 	
     if (!(fs->journal->entity = reiserfs_format_journal(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize journal.");
+	    "Can't open journal.");
 	goto error_free_journal;
     }
 	
@@ -54,7 +54,7 @@ error_t reiserfs_journal_init(reiserfs_fs_t *fs, int replay) {
 
 error_free_entity:
     libreiserfs_plugins_call(goto error_free_journal, plugin->journal, 
-	fini, fs->journal);
+	close, fs->journal);
 error_free_journal:
     aal_free(fs->journal);
     fs->journal = NULL;
@@ -74,7 +74,7 @@ error_t reiserfs_journal_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-void reiserfs_journal_fini(reiserfs_fs_t *fs) {
+void reiserfs_journal_close(reiserfs_fs_t *fs) {
     aal_assert("umka-101", fs != NULL, return);
     aal_assert("umka-102", fs->journal != NULL, return);
 

@@ -13,14 +13,14 @@
     could be stored in the container if there are objects of 
     the same size only. 
 */
-struct reiserfs_stat40_base {
+struct stat40_base {
     uint16_t mode;
     uint16_t extmask;
     uint32_t nlink;
     uint64_t size;
 };
 
-typedef struct reiserfs_stat40_base reiserfs_stat40_base_t;  
+typedef struct stat40_base stat40_base_t;  
 
 #define stat40_get_mode(stat)		get_le16(stat, mode)
 #define stat40_set_mode(stat, val)	set_le16(stat, mode, val)

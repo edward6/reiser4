@@ -11,7 +11,7 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
-error_t reiserfs_format_init(reiserfs_fs_t *fs) {
+error_t reiserfs_format_open(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 	
     aal_assert("umka-103", fs != NULL, return -1);
@@ -19,7 +19,7 @@ error_t reiserfs_format_init(reiserfs_fs_t *fs) {
 	
     if (fs->format) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Format already initialized.");
+	    "Format already opened.");
 	return -1;
     }
 
@@ -37,10 +37,10 @@ error_t reiserfs_format_init(reiserfs_fs_t *fs) {
     fs->format->plugin = plugin;
 	
     if (!(fs->format->entity = libreiserfs_plugins_call(goto error_free_format, 
-	plugin->format, init, fs->host_device, fs->journal_device)))
+	plugin->format, open, fs->host_device, fs->journal_device)))
     {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-	    "Can't initialize disk-format plugin.");
+	    "Can't open disk-format plugin.");
 	goto error_free_format;
     }
 
@@ -66,7 +66,7 @@ error_t reiserfs_format_create(reiserfs_fs_t *fs,
 
     if (fs->format) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Format already initialized.");
+	    "Format already opened.");
 	return -1;
     }
     
@@ -110,20 +110,20 @@ error_t reiserfs_format_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-error_t reiserfs_format_reinit(reiserfs_fs_t *fs) {
+error_t reiserfs_format_reopen(reiserfs_fs_t *fs) {
     aal_assert("umka-427", fs != NULL, return -1);
     aal_assert("umka-428", fs->format != NULL, return -1);
 
-    reiserfs_format_fini(fs);
-    return reiserfs_format_init(fs);
+    reiserfs_format_close(fs);
+    return reiserfs_format_open(fs);
 }
 
-void reiserfs_format_fini(reiserfs_fs_t *fs) {
+void reiserfs_format_close(reiserfs_fs_t *fs) {
     aal_assert("umka-108", fs != NULL, return);
     aal_assert("umka-109", fs->format != NULL, return);
    
     libreiserfs_plugins_call(goto error_free_format, 
-	fs->format->plugin->format, fini, fs->format->entity);
+	fs->format->plugin->format, close, fs->format->entity);
     
 error_free_format:    
     aal_free(fs->format);

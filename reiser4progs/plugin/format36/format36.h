@@ -46,7 +46,7 @@ struct reiserfs_super_v1 {
 
 typedef struct reiserfs_super_v1 reiserfs_super_v1_t;
 
-struct reiserfs_format36_super {
+struct format36_super {
     reiserfs_super_v1_t s_v1;
     uint32_t s_inode_generation;
     uint32_t s_flags;
@@ -55,9 +55,9 @@ struct reiserfs_format36_super {
     char s_unused[88];
 };
 
-typedef struct reiserfs_format36_super reiserfs_format36_super_t;
+typedef struct format36_super format36_super_t;
 
-struct reiserfs_format36 {
+struct format36 {
     aal_device_t *device;
     aal_block_t *super;
 
@@ -66,7 +66,7 @@ struct reiserfs_format36 {
     reiserfs_opaque_t *oid;
 };
 
-typedef struct reiserfs_format36 reiserfs_format36_t;
+typedef struct format36 format36_t;
 
 #define SUPER_V1_SIZE				(sizeof(reiserfs_super_v1_t))
 #define SUPER_V2_SIZE				(sizeof(reiserfs_super_t))

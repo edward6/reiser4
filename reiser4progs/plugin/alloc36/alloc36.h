@@ -9,11 +9,11 @@
 
 #include <aal/aal.h>
 
-struct reiserfs_alloc36 {
+struct alloc36 {
     aal_device_t *device;
 };
 
-typedef struct reiserfs_alloc36 reiserfs_alloc36_t;
+typedef struct alloc36 alloc36_t;
 
 #endif
 

@@ -46,7 +46,7 @@ extern error_t reiserfs_bitmap_check(reiserfs_bitmap_t *bitmap);
 
 extern reiserfs_bitmap_t *reiserfs_bitmap_alloc(count_t len);
 
-extern reiserfs_bitmap_t *reiserfs_bitmap_init(aal_device_t *device, 
+extern reiserfs_bitmap_t *reiserfs_bitmap_open(aal_device_t *device, 
     blk_t start, count_t len);
 
 extern reiserfs_bitmap_t *reiserfs_bitmap_create(aal_device_t *device, 
@@ -60,9 +60,9 @@ extern blk_t reiserfs_bitmap_copy(reiserfs_bitmap_t *dest_bitmap,
 
 extern reiserfs_bitmap_t *reiserfs_bitmap_clone(reiserfs_bitmap_t *bitmap);
 extern error_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap);
-extern void reiserfs_bitmap_fini(reiserfs_bitmap_t *bitmap);
+extern void reiserfs_bitmap_close(reiserfs_bitmap_t *bitmap);
 
-extern reiserfs_bitmap_t *reiserfs_bitmap_reinit(reiserfs_bitmap_t *bitmap, 
+extern reiserfs_bitmap_t *reiserfs_bitmap_reopen(reiserfs_bitmap_t *bitmap, 
     aal_device_t *device);
 
 extern error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap, 

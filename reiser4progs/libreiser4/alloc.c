@@ -10,7 +10,7 @@
 
 #include <reiser4/reiser4.h>
 
-error_t reiserfs_alloc_init(reiserfs_fs_t *fs) {
+error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
     reiserfs_plugin_id_t plugin_id;
     reiserfs_plugin_t *plugin;
 	
@@ -19,7 +19,7 @@ error_t reiserfs_alloc_init(reiserfs_fs_t *fs) {
 	
     if (fs->alloc) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Block allocator already initialized.");
+	    "Block allocator already opened.");
 	return -1;
     }
 	
@@ -37,7 +37,7 @@ error_t reiserfs_alloc_init(reiserfs_fs_t *fs) {
 
     if (!(fs->alloc->entity = reiserfs_format_alloc(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize block allocator.");
+	    "Can't open block allocator.");
 	goto error_free_alloc;
     }
 	
@@ -62,7 +62,7 @@ error_t reiserfs_alloc_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-void reiserfs_alloc_fini(reiserfs_fs_t *fs) {
+void reiserfs_alloc_close(reiserfs_fs_t *fs) {
     aal_assert("umka-140", fs != NULL, return);
     aal_assert("umka-141", fs->alloc != NULL, return);
 	

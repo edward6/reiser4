@@ -15,12 +15,12 @@
 #define REISERFS_OID40_ROOT_OBJECTID		0x2a
 #define REISERFS_OID40_RESERVED			(1 << 16)
 
-struct reiserfs_oid40 {
+struct oid40 {
     oid_t used;
     oid_t next;
 };
 
-typedef struct reiserfs_oid40 reiserfs_oid40_t;
+typedef struct oid40 oid40_t;
 
 #endif
 

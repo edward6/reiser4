@@ -10,12 +10,12 @@
 #include <aal/aal.h>
 #include <misc/bitmap.h>
 
-struct reiserfs_alloc40 {
+struct alloc40 {
     aal_device_t *device;
     reiserfs_bitmap_t *bitmap;
 };
 
-typedef struct reiserfs_alloc40 reiserfs_alloc40_t;
+typedef struct alloc40 alloc40_t;
 
 #endif
 

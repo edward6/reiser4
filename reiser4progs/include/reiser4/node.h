@@ -11,13 +11,17 @@
 #include <reiser4/key.h>
 #include <reiser4/plugin.h>
 
-extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
+extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, 
     reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level);
 
-extern reiserfs_node_t *reiserfs_node_init(aal_device_t *device, blk_t blk,
+extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
     reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id);
 
-extern void reiserfs_node_fini(reiserfs_node_t *node);
+extern error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
+    blk_t blk,  reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id);
+
+extern error_t reiserfs_node_close(reiserfs_node_t *node);
+
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 extern error_t reiserfs_node_sync(reiserfs_node_t *node);
 extern error_t reiserfs_node_flush(reiserfs_node_t *node);
@@ -26,7 +30,7 @@ extern error_t reiserfs_node_flush(reiserfs_node_t *node);
     I suggest the following results of lookup (item_pos/unit_pos):
     0/-1 - before the 0 item.
     0/0  - before the first unit in the item.
-    0/unit_count - after the last unit in the item.
+    0/units_count - after the last unit in the item.
     item_count/ANY - after the last item.
     
     FIXME-VITALY: it works in another way for now.

@@ -66,7 +66,7 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
 #define node40_ih_at(block, pos) \
     ((reiserfs_ih40_t *) (block->data + block->size) - pos - 1)
 
-#define node40_item_at(block, pos) \
+#define node40_item_at_pos(block, pos) \
     (block->data + ih40_get_offset(node40_ih_at(block, pos)))
     
 #define ih40_get_offset(ih)			get_le16(ih, offset)

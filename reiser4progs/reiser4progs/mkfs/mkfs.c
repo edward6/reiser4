@@ -112,14 +112,14 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "done\n");
     
-    reiserfs_fs_fini(fs);
+    reiserfs_fs_close(fs);
     libreiser4_fini();
     aal_file_close(device);
     
     return 0;
 
 error_free_fs:
-    reiserfs_fs_fini(fs);
+    reiserfs_fs_close(fs);
 error_free_device:
     aal_file_close(device);
 error_free_libreiser4:

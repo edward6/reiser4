@@ -7,7 +7,7 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
-error_t reiserfs_oid_init(reiserfs_fs_t *fs) {
+error_t reiserfs_oid_open(reiserfs_fs_t *fs) {
     reiserfs_plugin_id_t plugin_id;
 	
     aal_assert("umka-518", fs != NULL, return -1);
@@ -25,7 +25,7 @@ error_t reiserfs_oid_init(reiserfs_fs_t *fs) {
 
     if (!(fs->oid->entity = reiserfs_format_oid(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize oid allocator.");
+	    "Can't open oid allocator.");
 	goto error_free_oid;
     }
 
@@ -38,7 +38,7 @@ error:
     return -1;
 }
 
-void reiserfs_oid_fini(reiserfs_fs_t *fs) {
+void reiserfs_oid_close(reiserfs_fs_t *fs) {
     aal_assert("umka-520", fs != NULL, return);
     aal_assert("umka-523", fs->oid != NULL, return);
 

@@ -75,14 +75,14 @@ int main(int argc, char *argv[]) {
 	goto error_free_libreiser4;
     }
     
-    if (!(fs = reiserfs_fs_init(device, device, 0))) {
+    if (!(fs = reiserfs_fs_open(device, device, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open filesystem on %s.", aal_device_name(device));
 	goto error_free_device;
     }
     meat_print_fs(fs);
 
-    reiserfs_fs_fini(fs);
+    reiserfs_fs_close(fs);
     libreiser4_fini();
     aal_file_close(device);
 

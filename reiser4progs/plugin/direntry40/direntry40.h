@@ -23,12 +23,12 @@ struct reiserfs_entry40 {
 
 typedef struct reiserfs_entry40 reiserfs_entry40_t;
 
-struct reiserfs_direntry40 {
+struct direntry40 {
     uint16_t count;
     reiserfs_entry40_t entry[0];
 };
 
-typedef struct reiserfs_direntry40 reiserfs_direntry40_t;
+typedef struct direntry40 direntry40_t;
 
 #define direntry40_get_count(de, num)	    get_le16(de, count)
 #define direntry40_set_count(de, num)	    set_le16(de, count, num)

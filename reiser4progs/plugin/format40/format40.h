@@ -21,7 +21,7 @@
 #define REISERFS_FORMAT40_ALLOC		    0x0
 #define REISERFS_FORMAT40_OID		    0x0
 
-struct reiserfs_format40_super {
+struct format40_super {
     uint64_t sb_block_count;
     uint64_t sb_free_blocks;
     uint64_t sb_root_block;
@@ -35,7 +35,7 @@ struct reiserfs_format40_super {
     char sb_unused[420];
 };
 
-typedef struct reiserfs_format40_super reiserfs_format40_super_t;
+typedef struct format40_super format40_super_t;
 
 #define get_sb_block_count(sb)			get_le64(sb, sb_block_count)
 #define set_sb_block_count(sb, val)		set_le64(sb, sb_block_count, val)
@@ -58,7 +58,7 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 #define get_sb_flushes(sb)			get_le64(sb, sb_flushes)
 #define set_sb_flushes(sb, val)			set_le64(sb, sb_flushes, val)
 
-struct reiserfs_format40 {
+struct format40 {
     aal_device_t *device;
     aal_block_t *super;
 
@@ -67,7 +67,7 @@ struct reiserfs_format40 {
     reiserfs_opaque_t *oid;
 };
 
-typedef struct reiserfs_format40 reiserfs_format40_t;
+typedef struct format40 format40_t;
 
 #endif
 
