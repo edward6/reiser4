@@ -557,6 +557,10 @@ struct reiser4_plugin_ops {
 	/* install itself into given inode. This can return error
 	    (e.g., you cannot change hash of non-empty directory). */
 	int (*change) (struct inode * inode, reiser4_plugin * plugin);
+	/* install itself into given inode. This can return error
+	    (e.g., you cannot change hash of non-empty directory). */
+	int (*inherit) (struct inode * inode, struct inode * parent,
+			reiser4_plugin * plugin);
 };
 
 /* functions implemented in fs/reiser4/plugin/plugin.c */
@@ -780,8 +784,7 @@ for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
 		    __val->h.pops->change != NULL) {			\
 			__result = __val->h.pops->change(__inode,	\
 					      (reiser4_plugin *)__val);	\
-		}							\
-		if (__result == 0)					\
+		} else							\
 			plugin_set_ ## field(&__self->pset, __val);	\
 	}								\
 	__result;							\

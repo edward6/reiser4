@@ -230,12 +230,20 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			self = reiser4_inode_data(inode);
 			root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
 			/* file and directory plugins are already initialised. */
-			result =
-				grab_plugin(self, root, sd) ||
-				grab_plugin(self, root, hash) ||
-				grab_plugin(self, root, formatting) ||
-				grab_plugin(self, root, perm) ||
-				grab_plugin(self, root, dir_item);
+			result = grab_plugin(self, root, sd);
+			if (result == 0)
+				result = grab_plugin(self, root, hash);
+			if (result == 0)
+				result = grab_plugin(self, root, formatting);
+			if (result == 0)
+				result = grab_plugin(self, root, perm);
+			if (result == 0)
+				result = grab_plugin(self, root, dir_item);
+			if (result != 0) {
+				warning("nikita-3447",
+					"Cannot set up plugins for %lli",
+					get_inode_oid(inode));
+			}
 		}
 	}
 	zrelse(coord->node);
@@ -423,7 +431,6 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			print_key("found", &found_key);
 		}
 	}
-
 	return inode;
 }
 

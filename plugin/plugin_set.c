@@ -202,11 +202,12 @@ static int plugin_set_field(plugin_set **set, const unsigned long val, const int
 	return 0;
 }
 
-#define DEFINE_PLUGIN_SET(type, field)						\
-reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)		\
-{										\
-	cassert(sizeof val == sizeof(unsigned long));				\
-	return plugin_set_field(set, (unsigned long)val, offsetof(plugin_set, field));	\
+#define DEFINE_PLUGIN_SET(type, field)					\
+reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)	\
+{									\
+	cassert(sizeof val == sizeof(unsigned long));			\
+	return plugin_set_field(set, (unsigned long)val,		\
+				offsetof(plugin_set, field));		\
 }
 
 DEFINE_PLUGIN_SET(file_plugin, file)

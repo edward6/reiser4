@@ -229,9 +229,8 @@ load_acl(struct inode * inode, reiser4_plugin * plugin, char **area, int *len)
 
 		for (i = 0, result = 0; i < count && result == 0; ++ i)
 			result = read_ace(acl, i, area, len);
-		if (result == 0) {
+		if (result == 0)
 			result = reiser4_set_acl(inode, ACL_TYPE_ACCESS, acl);
-		}
 		if (result != 0)
 			inode_set_acl(inode, NULL);
 	} else
@@ -282,12 +281,20 @@ save_acl(struct inode * inode, reiser4_plugin * plugin, char **area)
 static int
 change_acl(struct inode * inode, reiser4_plugin * plugin)
 {
+	int result;
+
 	if (inode_perm_plugin(inode) == NULL ||
 	    inode_perm_plugin(inode)->h.id != ACL_PERM_ID ||
-	    inode_get_acl(inode) == NULL)
-		return reiser4_set_acl(inode, ACL_TYPE_ACCESS, NULL);
-	else
-		return 0;
+	    inode_get_acl(inode) == NULL) {
+		result = reiser4_set_acl(inode, ACL_TYPE_ACCESS, NULL);
+		if (result == 0)
+			plugin_set_perm(&reiser4_inode_data(inode)->pset,
+					&plugin->perm);
+		else if (result == -EOPNOTSUPP)
+			result = 0;
+	} else
+		result = 0;
+	return result;
 }
 
 void

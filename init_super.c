@@ -301,15 +301,25 @@ _INIT_(fs_root)
 
 		info = reiser4_inode_data(inode);
 
-		result =
-			grab_plugin_from(info, file, default_file_plugin(s)) ||
-			grab_plugin_from(info, dir, default_dir_plugin(s)) ||
-			grab_plugin_from(info, sd, default_sd_plugin(s)) ||
-			grab_plugin_from(info, hash, default_hash_plugin(s)) ||
-			grab_plugin_from(info, formatting, default_formatting_plugin(s)) ||
-			grab_plugin_from(info, perm, default_perm_plugin(s)) ||
-			grab_plugin_from(info, dir_item, default_dir_item_plugin(s));
-
+		result = grab_plugin_from(info, file, default_file_plugin(s));
+		if (result == 0)
+			result = grab_plugin_from(info,
+						  dir, default_dir_plugin(s));
+		if (result == 0)
+			result = grab_plugin_from(info,
+						  sd, default_sd_plugin(s));
+		if (result == 0)
+			result = grab_plugin_from(info, hash,
+						  default_hash_plugin(s));
+		if (result == 0)
+			result = grab_plugin_from(info, formatting,
+						  default_formatting_plugin(s));
+		if (result == 0)
+			result = grab_plugin_from(info,
+						  perm, default_perm_plugin(s));
+		if (result == 0)
+			result = grab_plugin_from(info, dir_item,
+						  default_dir_item_plugin(s));
 		if (result == 0) {
 			assert("nikita-1951", info->pset->file != NULL);
 			assert("nikita-1814", info->pset->dir != NULL);
@@ -318,7 +328,9 @@ _INIT_(fs_root)
 			assert("nikita-1817", info->pset->formatting != NULL);
 			assert("nikita-1818", info->pset->perm != NULL);
 			assert("vs-545", info->pset->dir_item != NULL);
-		}
+		} else
+			warning("nikita-3448", "Cannot set plugins of root: %i",
+				result);
 		reiser4_iget_complete(inode);
 	} else
 		result = 0;
