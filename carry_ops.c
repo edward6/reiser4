@@ -569,6 +569,8 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 */
 		;
 	} else if( op -> u.insert.type == COPT_KEY ) {
+		node_search_result  intra_node;
+		znode              *node;
 		/*
 		 * Problem with doing batching at the lowest level, is that
 		 * operations here are given by coords where modification is
@@ -586,15 +588,20 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 *
 		 */
 		/*
-		 * FIXME-NIKITA return value is just dropped on the floor,
-		 * because what else can we do?
-		 *
-		 * Lookup bias is fixed to FIND_EXACT. Complain if you need
-		 * something else.
+		 * FIXME-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
+		 * if you need something else.
 		 */
-		node_plugin_by_node( op -> node -> real_node ) -> lookup
-			( op -> node -> real_node, op -> u.insert.key, 
-			  FIND_EXACT, op -> u.insert.coord );
+		node = op -> node -> real_node;
+		intra_node = node_plugin_by_node( node ) -> lookup
+			( node, op -> u.insert.key, FIND_EXACT, 
+			  op -> u.insert.coord );
+		if( ( intra_node != NS_FOUND ) && 
+		    ( intra_node != NS_NOT_FOUND ) ) {
+			warning( "nikita-1715", "Intra node lookup failure: %i",
+				 intra_node );
+			print_znode( "node", node );
+			return intra_node;
+		}
 	} else if( op -> u.insert.type == COPT_CHILD ) {
 		/*
 		 * if we are asked to insert pointer to the child into
