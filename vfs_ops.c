@@ -673,8 +673,14 @@ static int unlink_file( struct inode *parent /* parent directory */,
 	assert( "nikita-1436", victim != NULL );
 
 	/* is this dead-lock safe? FIXME-NIKITA */
+#if 0
+	/* FIXME-GREEN: this is done by VFS itself */
 	if( ! reiser4_lock_inode_interruptible( parent ) ) {
 		if( ! reiser4_lock_inode_interruptible( victim -> d_inode ) ) {
+#else
+		{
+#endif
+		
 			dir_plugin *dplug;
 
 			dplug = inode_dir_plugin( parent );
@@ -689,12 +695,17 @@ static int unlink_file( struct inode *parent /* parent directory */,
 			 * wouldn't try to remove stat data. But inode
 			 * itself is still there.
 			 */
+#if 0
+		/* FIXME-GREEN done by VFS */
 			reiser4_unlock_inode( victim -> d_inode );
 		} else
 			result = -EINTR;
 		reiser4_unlock_inode( parent );
 	} else
 		result = -EINTR;
+#else
+		}
+#endif
 	REISER4_EXIT( result );
 }
 
