@@ -545,7 +545,6 @@ static int write_page_by_ent (struct page *page)
 {
 	struct inode * inode;
 	struct super_block * super;
-	int result = 0;
 	int count = 100;
 
 	check_me("zam-1036", (inode = page->mapping->host) != NULL);
@@ -561,14 +560,12 @@ static int write_page_by_ent (struct page *page)
 		if (!PageDirty(page))
 			break;
 		/* FIXME(zam): this is a temporary solution for the deadlock problem.  */
-		if (--count <= 0) {
-			result = -E_REPEAT;
-			break;
-		}
+		if (--count <= 0)
+			return -E_REPEAT;
 		blk_run_queues();
 	}
 	unlock_page(page);
-	return result;
+	return 0;
 }
 
 #endif /* REISER4_USE_ENTD */
@@ -602,6 +599,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 		result = write_page_by_ent(page);
 		if (result != -E_REPEAT)
 			goto out;
+		result = 0;
 	}
 #endif /* REISER4_USE_ENTD */
 
