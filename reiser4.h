@@ -10,9 +10,9 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
-const char *REISER4_SUPER_MAGIC_STRING;
-const int REISER4_MAGIC_OFFSET; /* offset to magic string from the beginning of
-				 * device */
+extern const char *REISER4_SUPER_MAGIC_STRING;
+extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
+					* beginning of device */
 
 /* here go tunable parameters that are not worth special entry in kernel
    configuration */
@@ -205,6 +205,7 @@ const int REISER4_MAGIC_OFFSET; /* offset to magic string from the beginning of
 #include <linux/pagemap.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/buffer_head.h>
 /* for kernel_locked(), lock_kernel() etc. */
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
@@ -216,10 +217,14 @@ const int REISER4_MAGIC_OFFSET; /* offset to magic string from the beginning of
 #include <asm/current.h>
 #include <asm/uaccess.h>
 #include <linux/sched.h>
+#include <linux/module.h>
+
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
 #define current_pid     ( current -> pid )
+#define set_current()   current_pid
+#define pthread_self()  0
 
 #endif
 
@@ -259,19 +264,19 @@ static inline void spin_unlock_ ## NAME (TYPE *x)			\
 		lock_counters() -> spin_locked > 0 );			\
 	ON_DEBUG( -- lock_counters() -> spin_locked_ ## NAME );		\
 	ON_DEBUG( -- lock_counters() -> spin_locked );			\
-	spin_unlock (& x->FIELD);					\
-}									\
-									\
-static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)		\
-{									\
-	return spin_is_locked (& x->FIELD);				\
-}									\
-									\
-static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)		\
-{									\
-	return spin_is_not_locked (& x->FIELD);				\
-}									\
-									\
+	spin_unlock (& x->FIELD);						\
+}										\
+										\
+static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
+{										\
+	return spin_is_locked (& x->FIELD);					\
+}										\
+										\
+static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
+{										\
+	return !spin_is_locked (& x->FIELD);				        \
+}										\
+										\
 typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "kcond.h"
@@ -322,8 +327,11 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "inode.h"
 #include "lnode.h"
 #include "super.h"
-
 #include "page_cache.h"
+
+/* this is used for methods which should not be called */
+int never_ever(void);
+#define NO_SUCH_OP ( ( void * ) never_ever )
 
 #endif /* __REISER4_H__ */
 
