@@ -25,6 +25,7 @@ static inline void done_zh (load_handle *zh) { if (zh->node != NULL) { zrelse (z
 static inline int  load_zh_common (load_handle *zh, znode *node) { int ret; if ((ret = zload (node))) { return ret; } zh->node = node; return 0; }
 static inline int  load_zh (load_handle *zh, znode *node) { done_zh (zh); return load_zh_common (zh, node); }
 static inline int  load_jh (load_handle *zh, jnode *node) { done_zh (zh); return jnode_is_formatted (node) ? load_zh_common (zh, JZNODE (node)) : 0; }
+static inline void move_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; old->node = NULL; }
 
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
@@ -1447,14 +1448,15 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
  * write-locked (for squeezing) so no tree lock is needed. */
 static int znode_same_parents (znode *a, znode *b)
 {
+	int x;
+
 	assert ("jmacd-7011", znode_is_write_locked (a));
 	assert ("jmacd-7012", znode_is_write_locked (b));
 
-	/* The assumption here could be broken if the "hint" actually becomes one... */
-	/*
-	 * FIXIME:NIKITA->JMACD ->ptr_in_parent_hint is protected by tree lock.
-	 */
-	return a->ptr_in_parent_hint.node == b->ptr_in_parent_hint.node;
+	spin_lock_tree (current_tree);
+	x = (a->ptr_in_parent_hint.node == b->ptr_in_parent_hint.node);
+	spin_unlock_tree (current_tree);
+	return x;
 }
 
 /********************************************************************************
@@ -1695,10 +1697,12 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 {
 	int ret = 0;
 	lock_handle next_lock;
+	load_handle next_load;
 	coord_t next_coord;
 	jnode *child;
 
 	init_lh (& next_lock);
+	init_zh (& next_load);
 
 	for (;; skip_first = 0) {
 		/* Either skip the first item (formatted) or scan the first extent. */
@@ -1730,9 +1734,9 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 
 			if (ret != 0) { goto exit; }
 
-			/*
-			 * FIXME:NIKITA->JMACD next_lock.node is not loaded
-			 */
+			if ((ret = load_zh (& next_load, next_lock.node))) {
+				goto exit;
+			}
 
 			coord_init_sideof_unit (& next_coord, next_lock.node, sideof_reverse (scan->direction));
 		}
@@ -1767,15 +1771,16 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			done_lh (& scan->parent_lock);
 			break;
 		} else {
-			
 			done_lh (& scan->parent_lock);
 			move_lh (& scan->parent_lock, & next_lock);
+			move_zh (& scan->parent_load, & next_load);
 			coord_dup (& scan->parent_coord, & next_coord);
 		}
 	}
 
 	assert ("jmacd-6233", flush_scan_finished (scan) || jnode_is_formatted (scan->node));
  exit:
+	done_zh (& next_load);
 	done_lh (& next_lock);
 	return ret;
 }
