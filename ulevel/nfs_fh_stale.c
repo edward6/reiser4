@@ -304,10 +304,15 @@ main(int argc, char **argv)
 		for (op = &ops[0] ; op->label ; ++ op) {
 			int done;
 			int subtotal;
+			int ratio;
 
 			done = op->result.ok;
 			subtotal = op->result.subtotal;
 			op->result.subtotal = done;
+			if (op->freq != 0)
+				ratio = stats.totfreq / op->freq;
+			else
+				ratio = 0;
 
 			printf("%s:\t%i\t%i\t%i\t%i\t%f\t%f\n",
 			       op->label,
@@ -315,7 +320,8 @@ main(int argc, char **argv)
 			       op->result.missed,
 			       op->result.busy,
 			       op->result.failure,
-			       rate(done - subtotal, delta), rate(done, i));
+			       rate((done - subtotal) * ratio, delta), 
+			       rate(done * ratio, i));
 		}
 		if (limit != 0) {
 			int origfreq;
