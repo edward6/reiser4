@@ -504,18 +504,6 @@ void d_instantiate(struct dentry *entry, struct inode * inode)
 	entry -> d_inode = inode;
 }
 
-static spinlock_t alloc_guard;
-static reiser4_block_nr new_block_nr;
-
-int reiser4_alloc_block( znode *neighbor UNUSED_ARG, reiser4_block_nr *blocknr )
-{
-	
-	spin_lock( &alloc_guard );
-	*blocknr = new_block_nr;
-	++ new_block_nr;
-	spin_unlock( &alloc_guard );
-	return 0;
-}
 
 void d_add(struct dentry * entry, struct inode * inode )
 {
@@ -3244,6 +3232,8 @@ static void test_bash (void)
 			 */
 			print_tree_rec ("DONE", tree_by_inode (cwd),
 					REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE);
+		} else if (!strncmp (command, "info", 1)) {
+			get_current_super_private ()->lplug->print_info (reiser4_get_current_sb ());
 		} else if (!strcmp (command, "exit")) {
 			/*
 			 * exit
@@ -3267,6 +3257,7 @@ static void test_bash (void)
 			      "\tsqueeze        - squeeze twig level\n"
 			      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"
 			      "\tp              - print tree\n"
+			      "\tinfo           - print fs info (height, root, etc)"
 			      "\texit\n");
 	}
 	info ("Done\n");
@@ -3923,6 +3914,8 @@ extern int init_inodecache( void );
 void funJustBeforeMain()
 {}
 
+/* fixme: not used */
+reiser4_block_nr new_block_nr;
 
 int real_main( int argc, char **argv )
 {
@@ -4041,7 +4034,7 @@ int real_main( int argc, char **argv )
 			! ( super.s_blocksize & ( super.s_blocksize - 1 ) ) );
 
 		spin_lock_init( &inode_hash_guard );
-		spin_lock_init( &alloc_guard );
+/*		spin_lock_init( &alloc_guard );*/
 
 		init_inodecache();
 		znodes_init();
