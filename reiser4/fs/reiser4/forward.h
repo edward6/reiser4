@@ -145,7 +145,7 @@ typedef enum {
 					   like this.  I expect you to comment all your code thoroughly.  Don't write
 					   more code, comment what you have written so that I can stop spending my time
 					   commenting it for you.  What does nonblock mean? -Hans */
-[} znode_lock_request;
+} znode_lock_request;
 
 /* used to specify direction of shift. These must be -1 and 1 */
 typedef enum {
