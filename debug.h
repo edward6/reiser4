@@ -439,6 +439,10 @@ typedef struct reiser4_stat {
 		 */
 		stat_cnt paste;
 		/*
+		 * how many extent insertions were done by carry.
+		 */
+		stat_cnt extent;
+		/*
 		 * how many paste operations were restarted as insert.
 		 */
 		stat_cnt paste_restarted;

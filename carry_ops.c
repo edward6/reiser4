@@ -182,10 +182,11 @@ static unsigned int space_needed_for_op( znode *node /* znode data are
 
 	if( op -> op == COP_INSERT )
 		return space_needed( node, NULL, op -> u.insert.data, 1 );
-	else
+	else if( op -> op == COP_PASTE )
 		return space_needed( node, 
 				     op -> u.insert.coord, 
 				     op -> u.insert.data, 0 );
+	impossible( "nikita-1701", "Wrong opcode" );
 }
 
 /**
@@ -276,7 +277,15 @@ static int free_space_shortage( znode *node, carry_op *op )
 	assert( "nikita-1061", node != NULL );
 	assert( "nikita-1062", op != NULL );
 
-	return space_needed_for_op( node, op ) - znode_free_space( node );
+	switch( op -> op ) {
+	default:
+		impossible( "nikita-1702", "Wrong opcode" );
+	case COP_INSERT:
+	case COP_PASTE:
+		return space_needed_for_op( node, op ) - znode_free_space( node );
+	case COP_EXTENT:
+		return coord_after_last( op -> u.insert.coord ) ? -1 : +1;
+	}
 }
 
 /**
@@ -654,7 +663,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 					    * are accumulated */ )
 {
 	znode            *node;
-	tree_coord       coord;
+	tree_coord        coord;
 	reiser4_item_data data;
 	int               result;
 
@@ -907,6 +916,51 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 			( op -> u.insert.coord, &item_key, todo );
 	}
 
+	reiser4_done_coord( &coord );
+	return result;
+}
+
+/**
+ * handle carry COP_EXTENT operation.
+ */
+static int carry_extent( carry_op *op /* operation to perform */, 
+			 carry_level *doing /* queue of operations @op
+					     * is part of */, 
+			 carry_level *todo /* queue where new operations
+					    * are accumulated */ )
+{
+	znode            *node;
+	tree_coord        coord;
+	reiser4_item_data data;
+	int               result;
+
+	assert( "nikita-1036", op != NULL );
+	assert( "nikita-1037", todo != NULL );
+	assert( "nikita-1038", op -> op == COP_INSERT );
+
+	trace_stamp( TRACE_CARRY );
+	reiser4_stat_level_add( doing, extent );
+
+	/*
+	 * perform common functionality of insert and paste.
+	 */
+	result = insert_paste_common( op, doing, todo, &coord, &data );
+	if( result != 0 )
+		return result;
+
+	node = op -> u.insert.coord -> node;
+	assert( "nikita-1039", node != NULL );
+	assert( "nikita-1040", node_plugin_by_node( node ) != NULL );
+	assert( "nikita-1700", coord_after_last( op -> u.insert.coord ) );
+	
+	/*
+	 * ask node layout to create new item.
+	 */
+	result = node_plugin_by_node( node ) -> create_item
+		( op -> u.insert.coord, op -> u.insert.key,
+		  op -> u.insert.data, todo );
+	doing -> restartable = 0;
+	znode_set_dirty( node );
 	reiser4_done_coord( &coord );
 	return result;
 }
@@ -1196,6 +1250,7 @@ carry_op_handler op_dispatch_table[ COP_LAST_OP ] = {
 	[ COP_DELETE ] = carry_delete,
 	[ COP_CUT    ] = carry_cut,
 	[ COP_PASTE  ] = carry_paste,
+	[ COP_EXTENT ] = carry_extent,
 	[ COP_UPDATE ] = carry_update,
 	[ COP_MODIFY ] = carry_modify,
 };

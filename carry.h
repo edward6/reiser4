@@ -90,6 +90,10 @@ typedef enum {
 	COP_CUT,
 	/** increase size of item. */
 	COP_PASTE,
+	/**
+	 * insert extent (that is sequence of unformatted nodes).
+	 */
+	COP_EXTENT,
 	/** 
 	 * update delimiting key in least common ancestor of two
 	 * nodes. This is performed when items are moved between two
@@ -157,7 +161,7 @@ typedef struct carry_op {
 	union {
 		struct {
 			/** position where new item is to be inserted */
-			tree_coord         *coord;
+			tree_coord          *coord;
 			cop_insert_pos_type  type;
 			carry_node          *child;
 			/** new item description */
@@ -165,7 +169,7 @@ typedef struct carry_op {
 			/** key of new item */
 			const reiser4_key   *key;
 			znode               *brother;
-		} insert, paste;
+		} insert, paste, extent;
 		struct {
 			tree_coord         *from;
 			tree_coord         *to;

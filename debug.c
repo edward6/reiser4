@@ -204,6 +204,7 @@ void reiser4_print_stats()
 		      "\t delete:\t %lli\n"
 		      "\t cut:\t %lli\n"
 		      "\t paste:\t %lli\n"
+		      "\t extent:\t %lli\n"
 		      "\t paste_restarted:\t %lli\n"
 		      "\t update:\t %lli\n"
 		      "\t modify:\t %lli\n"
@@ -229,6 +230,7 @@ void reiser4_print_stats()
 		      s -> level[ i ].delete,
 		      s -> level[ i ].cut,
 		      s -> level[ i ].paste,
+		      s -> level[ i ].extent,
 		      s -> level[ i ].paste_restarted,
 		      s -> level[ i ].update,
 		      s -> level[ i ].modify,
