@@ -49,25 +49,6 @@ typedef struct pseudo_ops {
 
 } pseudo_ops;
 
-/**
- * this is 
- */
-typedef struct pseudo_file {
-
-	/**
-	 * low level operations for this pseudo file
-	 */
-	pseudo_ops   *ops;
-
-	/**
-	 * host (or owner) object. For "foo/..acl" this is "foo" inode.
-	 *
-	 * Call iput( host ) on pseudo file creation and iget( host ) in
-	 * ->release().
-	 */
-	struct inode *host;
-} pseudo_file;
-
 #endif
 
 /* __REISER4_PSEUDO_H__ */
