@@ -517,7 +517,7 @@ item_plugin *inode_dir_item_plugin( const struct inode *inode )
 	return reiser4_inode_data( inode ) -> dir_item;
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 /** Debugging aid: print information about inode. */
 void print_inode( const char *prefix /* prefix to print */, 
 		  const struct inode *i /* inode to print */ )

@@ -143,6 +143,7 @@ int internal_utmost_child ( const coord_t  *coord,
 	return 0;
 }
 
+#if REISER4_DEBUG_OUTPUT
 /** 
  * debugging aid: print human readable information about internal item at
  * @coord 
@@ -155,6 +156,7 @@ void internal_print( const char *prefix /* prefix to print */,
 	blk = pointer_at( coord );
 	info( "%s: internal: %s\n", prefix, sprint_address( &blk ) );
 }
+#endif
 
 /** return true only if this item really points to "block" */
 /* Audited by: green(2002.06.14) */

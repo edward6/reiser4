@@ -256,7 +256,9 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.real_max_key_inside     = NULL,
 			.can_contain_key         = NULL,
 			.mergeable               = NULL,
+#if REISER4_DEBUG_OUTPUT
 			.print                   = sd_print,
+#endif
 			.check                   = NULL,
 			.nr_units                = single_unit,
 			/* to need for ->lookup method */
@@ -305,7 +307,9 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.real_max_key_inside     = NULL,
 			.can_contain_key         = NULL,
 			.mergeable               = NULL,
+#if REISER4_DEBUG_OUTPUT
 			.print                   = de_print,
+#endif
 			.check                   = NULL,
 			.nr_units                = single_unit,
 			/* to need for ->lookup method */
@@ -358,7 +362,9 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.real_max_key_inside     = NULL,
 			.can_contain_key         = cde_can_contain_key,
 			.mergeable               = cde_mergeable,
+#if REISER4_DEBUG_OUTPUT
 			.print                   = cde_print,
+#endif
 			.check                   = cde_check,
 			.nr_units                = cde_nr_units,
 			.lookup                  = cde_lookup,
@@ -410,7 +416,9 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.real_max_key_inside     = NULL,
 			.can_contain_key         = NULL,
 			.mergeable               = internal_mergeable,
+#if REISER4_DEBUG_OUTPUT
 			.print                   = internal_print,
+#endif
 			.check                   = NULL,
 			.nr_units                = single_unit,
 			.lookup                  = internal_lookup,
@@ -457,7 +465,9 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.real_max_key_inside     = extent_max_key,
 			.can_contain_key         = extent_can_contain_key,
 			.mergeable               = extent_mergeable,
+#if REISER4_DEBUG_OUTPUT
 			.print                   = extent_print,
+#endif
 			.check                   = extent_check,
 			.nr_units                = extent_nr_units,
 			.lookup                  = extent_lookup,
@@ -508,7 +518,9 @@ item_plugin item_plugins[ LAST_ITEM_ID ] = {
 			.real_max_key_inside     = tail_max_key,
 			.can_contain_key         = tail_can_contain_key,
 			.mergeable               = tail_mergeable,
+#if REISER4_DEBUG_OUTPUT
 			.print                   = NULL,
+#endif
 			.check                   = NULL,
 			.nr_units                = tail_nr_units,
 			.lookup                  = tail_lookup,

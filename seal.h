@@ -47,7 +47,7 @@ extern int seal_validate( seal_t            *seal,
 			  znode_lock_mode    mode,
 			  znode_lock_request request );
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 extern void print_seal( const char *prefix, const seal_t *seal );
 #else
 #define print_seal( prefix, seal ) noop

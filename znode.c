@@ -1117,7 +1117,7 @@ const char *lock_mode_name( znode_lock_mode lock /* lock mode to get name of */ 
 	}
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 
 /** debugging aid: output more human readable information about @node that
  * info_znode(). */
@@ -1183,7 +1183,9 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	if( tree_lock_taken )
 		spin_unlock_tree( tree );
 }
+#endif
 
+#if REISER4_DEBUG
 /** 
  * helper function used to implement assertion in zref():
  * change of x_count from 0 to 1 is protected by tree spin-lock 

@@ -365,7 +365,8 @@ void *xmemset( void *s, int c, size_t n )
  *
  */
 static int end_bio_single_page_read( struct bio *bio, 
-				     unsigned int bytes_done, int err )
+				     unsigned int bytes_done UNUSED_ARG, 
+				     int err UNUSED_ARG)
 {
 	struct page *page;
 
@@ -392,7 +393,8 @@ static int end_bio_single_page_read( struct bio *bio,
  *
  */
 static int end_bio_single_page_write( struct bio *bio, 
-				      unsigned int bytes_done, int err )
+				      unsigned int bytes_done UNUSED_ARG, 
+				      int err UNUSED_ARG)
 {
 	struct page *page;
 
@@ -693,7 +695,7 @@ void set_page_clean_nolock (struct page * pg)
 } 
 
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 
 #define page_flag_name( page, flag )			\
 	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )

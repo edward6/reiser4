@@ -163,7 +163,7 @@ int keyge( const reiser4_key *k1 /* first key to compare */,
 	return keycmp( k1, k2 ) != LESS_THAN;
 }
 
-
+#if REISER4_DEBUG_OUTPUT
 /** debugging aid: print symbolic name of key type */
 static const char *type_name( unsigned int key_type /* key type */ )
 {
@@ -202,6 +202,8 @@ void print_key( const char *prefix /* prefix to print */,
 	/* printf ("\033[m\017"); */
 }
 
+#endif
+
 int sprintf_key( char *buffer /* buffer to print key into */, 
 		 const reiser4_key *key /* key to print */ )
 {
@@ -210,6 +212,7 @@ int sprintf_key( char *buffer /* buffer to print key into */,
 			get_key_band( key ), get_key_objectid( key ), 
 			get_key_offset( key ) );
 }
+
 
 /* 
  * Make Linus happy.

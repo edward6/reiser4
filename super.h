@@ -277,7 +277,11 @@ perm_plugin *default_perm_plugin( const struct super_block *super );
 tail_plugin *default_tail_plugin( const struct super_block *super );
 item_plugin *default_sd_plugin( const struct super_block *super );
 item_plugin *default_dir_item_plugin( const struct super_block *super );
+#if REISER4_DEBUG_OUTPUT
 void print_fs_info (const char *prefix, const struct super_block *);
+#else
+#define print_fs_info(p,s) noop
+#endif
 
 /* __REISER4_SUPER_H__ */
 #endif

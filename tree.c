@@ -773,11 +773,27 @@ init_context_mgr (void)
 	return 0;
 }
 
+#if REISER4_DEBUG_OUTPUT
+void print_context( const char *prefix, reiser4_context *context )
+{
+	if( context == NULL ) {
+		info( "%s: null context\n", prefix );
+		return;
+	}
+	info( "%s: trace_flags: %x, tid: %i\n", 
+	      prefix, context -> trace_flags, context -> tid );
 #if REISER4_DEBUG
-void show_context (int show_tree)
+	print_lock_counters( "\tlocks", &context -> locks );
+	info( "pid: %i, comm: %s\n", 
+	      context -> task -> pid, context -> task -> comm );
+#endif
+	print_lock_stack( "\tlock stack", &context -> stack );
+	info_atom( "\tatom", context -> trans_in_ctx.atom );
+}
+
+void print_contexts (void)
 {
 	reiser4_context *context;
-	reiser4_tree    *tree = NULL;
 
 	spin_lock (& active_contexts_lock);
 
@@ -785,23 +801,9 @@ void show_context (int show_tree)
 	             ! context_list_end   (& active_contexts, context);
 	     context = context_list_next  (context)) {
 
-		if (get_super_private (context->super) != NULL) {
-			tree = &get_super_private (context->super)->tree;
-
-			info ("context for thread %u", context->tid);
-			print_address ("; tree root", & tree->root_block);
-			info ("\n");
-
-			show_lock_stack (context);
-
-			info ("\n");
-		}
+		print_context ("context", context);
 	}
 	
-	if (show_tree && (tree != NULL)) {
-		/*print_tree_rec ("", tree, REISER4_TREE_BRIEF);*/
-	}
-
 	spin_unlock (& active_contexts_lock);
 }
 #endif
@@ -1644,7 +1646,7 @@ void done_tree( reiser4_tree *tree /* tree to release */ )
 	cbk_cache_done( &tree -> cbk_cache );
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 
 struct tree_stat {
 	int nodes; /* number of node in the tree */

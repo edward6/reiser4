@@ -1158,17 +1158,17 @@ int lock_stack_isclean (lock_stack *owner)
 	return 0;
 }
 
+#if REISER4_DEBUG_OUTPUT
 /*
  * Debugging help
  */
-void show_lock_stack (reiser4_context *context)
+void print_lock_stack (const char *prefix, lock_stack *owner)
 {
 	lock_handle *handle;
-	lock_stack  *owner = & context->stack;
 
 	spin_lock_stack (owner);
 
-	info (".. lock stack:\n");
+	info ("%s:\n", prefix);
 	info (".... nr_signaled %d\n", atomic_read (& owner->nr_signaled));
 	info (".... curpri %s\n", owner->curpri ? "high" : "low");
 
@@ -1189,6 +1189,7 @@ void show_lock_stack (reiser4_context *context)
 
 	spin_unlock_stack (owner);
 }
+#endif
 
 #if REISER4_DEBUG
 

@@ -248,6 +248,9 @@ extern int jnodes_tree_done( reiser4_tree *tree );
 
 #if REISER4_DEBUG
 extern int  znode_is_any_locked( const znode *node );
+#endif
+
+#if REISER4_DEBUG_OUTPUT
 extern void info_jnode( const char *prefix, const jnode *node );
 extern void print_jnodes( const char *prefix, reiser4_tree *tree );
 #else

@@ -144,7 +144,7 @@ extern item_plugin *inode_dir_item_plugin( const struct inode *inode );
 
 extern void reiser4_make_bad_inode( struct inode *inode );
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 extern void print_inode( const char *prefix, const struct inode *i );
 #else
 #define print_inode( p, i ) noop

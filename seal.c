@@ -258,7 +258,7 @@ static int seal_search_node( seal_t  *seal  /* seal to repair */,
 	return result;
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 void print_seal( const char *prefix, const seal_t *seal )
 {
 	if( seal == NULL ) {

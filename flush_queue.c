@@ -344,7 +344,8 @@ static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
 }
 
 /* bio i/o completion routine */
-static int fq_end_io (struct bio * bio, unsigned int bytes_done, int err)
+static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG, 
+		      int err UNUSED_ARG)
 {
 	int i;
 	flush_queue_t * fq = bio->bi_private;

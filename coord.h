@@ -176,8 +176,13 @@ extern int  coord_check (const coord_t *coord);
  * or items are considered equal. */
 extern int coord_eq (const coord_t *c1, const coord_t *c2);
 
+#if REISER4_DEBUG_OUTPUT
 /* For debugging, error messages. */
-extern void print_coord (const char * mes, const coord_t * coord, int print_node);
+extern void print_coord (const char * mes, 
+			 const coord_t * coord, int print_node);
+#else
+#define print_coord(m,c,n) noop
+#endif
 
 /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost
  * return NCOORD_ON_THE_LEFT, otherwise return NCOORD_INSIDE. */

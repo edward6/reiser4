@@ -369,7 +369,6 @@ extern int  prepare_to_sleep (lock_stack *owner);
 extern int  go_to_sleep      (lock_stack *owner);
 extern void __reiser4_wake_up          (lock_stack *owner);
 
-extern void show_lock_stack    (reiser4_context    *owner);
 extern int  lock_stack_isclean (lock_stack *owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
@@ -453,14 +452,16 @@ extern int znode_post_write( const znode *node );
 
 const char *lock_mode_name( znode_lock_mode lock );
 
-#if REISER4_DEBUG
-void print_znode( const char *prefix, const znode *node );
-void info_znode( const char *prefix, const znode *node );
-void print_znodes( const char *prefix, reiser4_tree *tree );
+#if REISER4_DEBUG_OUTPUT
+extern void print_znode( const char *prefix, const znode *node );
+extern void info_znode( const char *prefix, const znode *node );
+extern void print_znodes( const char *prefix, reiser4_tree *tree );
+extern void print_lock_stack( const char *prefix, lock_stack  *owner);
 #else
 #define print_znode( p, n ) noop
 #define info_znode( p, n ) noop
 #define print_znodes( p, t ) noop
+#define print_lock_stack( p, o ) noop
 #endif
 
 /* Make it look like various znode functions exist instead of treating znodes as

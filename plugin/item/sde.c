@@ -8,6 +8,7 @@
 
 #include "../../reiser4.h"
 
+#if REISER4_DEBUG_OUTPUT
 /* Audited by: green(2002.06.14) */
 void de_print( const char *prefix /* prefix to print */, 
 	       coord_t *coord /* item to print */ )
@@ -30,6 +31,7 @@ void de_print( const char *prefix /* prefix to print */,
 		print_key( "\tsdkey", &sdkey );
 	}
 }
+#endif
 
 /**
  * ->extract_key() method of simple directory item plugin.

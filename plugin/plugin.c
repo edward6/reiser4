@@ -473,7 +473,7 @@ static int is_plugin_id_valid( reiser4_plugin_type type_id /* plugin type id */,
 	return( ( id < plugins[ type_id ].builtin_num ) && ( id >= 0 ) );
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 /** print human readable plugin information */
 void print_plugin( const char *prefix /* prefix to print */, 
 		   reiser4_plugin *plugin /* plugin to print */)

@@ -12,7 +12,11 @@ extern void oid_count_allocated( void );
 extern void oid_count_released ( void );
 
 extern int  oid_init_allocator (const struct super_block *,  __u64, __u64);
+#if REISER4_DEBUG_OUTPUT
 extern void oid_print_allocator(const char * prefix, const struct super_block *);
+#else
+#define oid_print_allocator(p,s) noop
+#endif
 
 /* identifiers of available objectid managers */
 typedef enum {

@@ -4,7 +4,11 @@
 
 #include "../../reiser4.h"
 
+#if REISER4_DEBUG_OUTPUT
 static void print_test_disk_sb (const char *, const test_disk_super_block *);
+#else
+#define print_test_disk_sb(p,s) noop
+#endif
 
 /* plugin->u.format.get_ready */
 int test_format_get_ready (struct super_block * s, void * data UNUSED_ARG)
@@ -168,6 +172,7 @@ int test_format_release (struct super_block * s)
 	return 0;
 }
 
+#if REISER4_DEBUG_OUTPUT
 static void print_test_disk_sb (const char * mes,
 				const test_disk_super_block * disk_sb)
 {
@@ -188,9 +193,10 @@ static void print_test_disk_sb (const char * mes,
 }
 
 
+#endif
+
 /* plugin->u.format.print_info */
 void test_format_print_info (const struct super_block * s UNUSED_ARG)
 {
 	/* there is nothing to print */
 }
-

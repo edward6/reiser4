@@ -121,6 +121,16 @@
 #define REISER4_STATS (0)
 #endif
 
+#if defined( CONFIG_REISER4_DEBUG_OUTPUT )
+/**
+ * debugging print functions.
+ */
+#define REISER4_DEBUG_OUTPUT (1)
+#else
+#define REISER4_DEBUG_OUTPUT (0)
+#endif
+
+
 #define noop   do {;} while( 0 )
 
 #if REISER4_DEBUG
@@ -895,7 +905,11 @@ extern __u32 get_current_trace_flags( void );
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
 extern void check_stack( void );
-extern void print_lock_counters( const char *prefix, lock_counters_info *info );
+#endif
+
+#if REISER4_DEBUG_OUTPUT
+extern void print_lock_counters( const char *prefix, 
+				 const lock_counters_info *info );
 #else
 #define print_lock_counters( p, i ) noop
 #endif

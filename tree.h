@@ -374,10 +374,6 @@ extern int find_child_delimiting_keys( znode *parent,
 extern znode *child_znode( const coord_t *in_parent, znode *parent, int incore_p,
 			   int setup_dkeys_p );
 
-extern void print_coord_content( const char *prefix, coord_t *p );
-extern char *sprint_address( const reiser4_block_nr *block );
-extern void print_address( const char *prefix, const reiser4_block_nr *block );
-extern const char *bias_name( lookup_bias bias );
 extern int  cbk_cache_init( cbk_cache *cache );
 extern void cbk_cache_done( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node, reiser4_tree *tree );
@@ -385,11 +381,18 @@ extern void cbk_cache_add( const znode *node );
 
 extern int check_jnode_for_unallocated (jnode * node);
 
-#if REISER4_DEBUG
+extern const char *bias_name( lookup_bias bias );
+extern char *sprint_address( const reiser4_block_nr *block );
+
+#if REISER4_DEBUG_OUTPUT
+extern void print_coord_content( const char *prefix, coord_t *p );
+extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
 extern void print_cbk_slot( const char *prefix, const cbk_cache_slot *slot );
 extern void print_cbk_cache( const char *prefix, const cbk_cache  *cache );
 #else
+#define print_coord_content( p, c ) noop
+#define print_address( p, b ) noop
 #define print_tree_rec( p, f, t ) noop
 #define print_cbk_slot( p, s ) noop
 #define print_cbk_cache( p, c ) noop
@@ -527,10 +530,12 @@ extern reiser4_context * get_context_by_lock_stack (lock_stack*);
 
 /* Debugging helps. */
 extern int  init_context_mgr (void);
-#if REISER4_DEBUG
-extern void show_context     (int show_tree);
+#if REISER4_DEBUG_OUTPUT
+extern void print_context    (const char *prefix, reiser4_context *ctx);
+extern void print_contexts   (void);
 #else
-#define show_context(st) noop
+#define print_context(p,c) noop
+#define print_contexts() noop
 #endif
 
 /* Hans, is this too expensive? */

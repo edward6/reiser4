@@ -1791,6 +1791,8 @@ static inline void clear_page_dirty(struct page *page)
 	test_clear_page_dirty(page);
 }
 
+extern void generic_delete_inode(struct inode *inode);
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

@@ -186,8 +186,9 @@ typedef struct node_plugin {
 	 * Uncomment after 4.0 only.
 	 */
 	/* 	int ( *guess )( const znode *node ); */
+#if REISER4_DEBUG_OUTPUT
 	void ( *print )( const char *prefix, const znode *node, __u32 flags );
-
+#endif
 	/* change size of @item by @by bytes. @item->node has enough free
 	   space. When @by > 0 - free space is appended to end of item. When
 	   @by < 0 - item is truncated - it is assumed that last @by bytes if
@@ -259,8 +260,13 @@ typedef enum {
 } reiser4_node_id;
 
 extern reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key );
+#if REISER4_DEBUG_OUTPUT
 extern void print_node_content( const char *prefix, 
 				const znode *node, __u32 flags );
+#else
+#define print_node_content(p,n,f) noop
+#endif
+
 extern void indent( unsigned indentation );
 extern void indent_znode( const znode *node );
 

@@ -654,7 +654,7 @@ PLUGIN_BY_ID(jnode_plugin,REISER4_JNODE_PLUGIN_TYPE, jnode);
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 extern void print_plugin( const char *prefix, reiser4_plugin *plugin );
 #else
 #define print_plugin( pr, pl ) noop

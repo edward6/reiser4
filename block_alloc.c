@@ -286,7 +286,7 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr, int formatted)
 	}
 #endif
 
-	grabbed2fake_allocated (1, formatted);
+	grabbed2fake_allocated ((__u64)1, formatted);
 	return 0;
 }
 
@@ -347,7 +347,7 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			   get_super_private (s)->space_plug->alloc_blocks));
 
 	trace_on (TRACE_ALLOC, "alloc_blocks: requested %llu, search from %llu\n",
-		  (unsigned long long)*len, (unsigned long long)(hint ? hint->blk : -1));
+		  (unsigned long long)*len, (unsigned long long)(hint ? hint->blk : ~0ull));
 
 	if (hint != NULL) {
 		stage = hint->block_stage;

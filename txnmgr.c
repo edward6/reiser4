@@ -231,10 +231,6 @@ static void   uncapture_block                 (txn_atom   *atom,
 static void   invalidate_clean_list           (txn_atom * atom);
 
 
-/* Local debugging */
-void          print_atom                      (const char *prefix,
-					       txn_atom   *atom);
-
 /****************************************************************************************
 				    GENERIC STRUCTURES
 ****************************************************************************************/
@@ -2633,7 +2629,21 @@ int txn_jnodes_of_one_atom (jnode * j1, jnode * j2)
 					DEBUG HELP
 *****************************************************************************************/
 
-/* Audited by: umka (2002.06.13) */
+#if REISER4_DEBUG_OUTPUT
+void
+info_atom (const char *prefix, txn_atom *atom)
+{
+	if (atom == NULL) {
+		info ("%s: no atom\n", prefix);
+		return;
+	}
+
+	info ("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	      " capture_count: %i stage: %x start: %lu\n", prefix,
+	      atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
+	      atom->capture_count, atom->stage, atom->start_time);
+}
+
 void
 print_atom (const char *prefix, txn_atom *atom)
 {
@@ -2643,10 +2653,7 @@ print_atom (const char *prefix, txn_atom *atom)
 	
 	assert("umka-229", atom != NULL);
 
-	info ("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	      " capture_count: %i stage: %x start: %lu\n", prefix,
-	      atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
-	      atom->capture_count, atom->stage, atom->start_time);
+	info_atom (prefix, atom);
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
@@ -2669,6 +2676,7 @@ print_atom (const char *prefix, txn_atom *atom)
 		info ("\n");
 	}
 }
+#endif
 
 /*
  * Make Linus happy.

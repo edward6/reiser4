@@ -424,6 +424,7 @@ int cde_can_contain_key( const coord_t *coord /* coord of item */,
 		  extract_dir_id_from_key( key ) );
 }
 
+#if REISER4_DEBUG_OUTPUT
 /** ->print() method for this item plugin. */
 /* Audited by: green(2002.06.13) */
 void cde_print( const char *prefix /* prefix to print */, 
@@ -489,6 +490,7 @@ void cde_print( const char *prefix /* prefix to print */,
 		}
 	}
 }
+#endif
 
 /**
  * cde_check ->check() method for compressed directory items

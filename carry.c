@@ -1431,7 +1431,9 @@ static int carry_level_invariant( carry_level *level )
 	}
 	return 1;
 }
+#endif
 
+#if REISER4_DEBUG_OUTPUT
 /* get symbolic name for boolean */
 static const char *tf( int boolean /* truth value */)
 {

@@ -1346,6 +1346,7 @@ void print_pages (const char *prefix)
 }
 */
 
+#if REISER4_DEBUG_OUTPUT
 void print_inodes (const char *prefix)
 {
 	struct list_head * cur;
@@ -1400,7 +1401,7 @@ void print_inodes_2 (void)
 		print_inode_pages (inode);
 	}
 }
-
+#endif
 
 char * kmap (struct page * page)
 {
@@ -4371,7 +4372,7 @@ void* monitor_test_handler (void* arg)
 	for (;;) {
 		sleep (10);
 
-		show_context (0);
+		print_contexts ();
 	}
 
 	REISER4_EXIT_PTR (NULL);

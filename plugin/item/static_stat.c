@@ -10,6 +10,7 @@
 
 /* see static_stat.h for explanation */
 
+#if REISER4_DEBUG_OUTPUT
 /**
  * ->print() method of static sd item. Prints human readable information about
  * sd at @coord
@@ -40,6 +41,7 @@ void sd_print( const char *prefix /* prefix to print */,
 		 */
 	}
 }
+#endif
 
 void sd_item_stat( const coord_t *coord, void *vp )
 {
@@ -374,7 +376,7 @@ static int unix_sd_save( struct inode *inode /* object being processed */,
 	cputod32( ( __u32 ) inode -> i_ctime, &sd -> ctime );
 	cputod32( ( __u32 ) inode -> i_mtime, &sd -> mtime );
 	cputod32( kdev_val( inode -> i_rdev ), &sd -> rdev );
-	cputod64( inode_get_bytes( inode ), &sd -> bytes );
+	cputod64( ( __u64 ) inode_get_bytes( inode ), &sd -> bytes );
 	*area += sizeof *sd;
 	return 0;
 }

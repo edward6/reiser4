@@ -171,6 +171,7 @@ int extent_is_unallocated (const coord_t *item)
 	return state_of_extent (extent_by_coord (item)) == UNALLOCATED_EXTENT;
 }
 
+#if REISER4_DEBUG_OUTPUT
 /*
  * plugin->u.item.b.print
  */
@@ -217,7 +218,7 @@ void extent_print (const char * prefix, coord_t * coord)
 	}
 	info ("\n");
 }
-
+#endif
 
 /*
  * plugin->u.item.b.check
@@ -1084,7 +1085,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	/* extent insertion starts at leaf level */
 	assert ("vs-719", znode_get_level (coord->node) == LEAF_LEVEL);
 
-	result = reiser4_grab_space_exact (1);
+	result = reiser4_grab_space_exact ((__u64)1);
 	if (result)
 		return result;
 
@@ -1095,7 +1096,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	result = insert_extent_by_coord (coord, init_new_extent (&unit, &ext, 1),
 					 &first_key, lh);
 	if (result) {
-		grabbed2free (1);
+		grabbed2free ((__u64)1);
 		return result;
 	}
 
@@ -1136,7 +1137,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 			keyeq (key, last_key_in_extent (coord, &next));
 		}));
 
-	result = reiser4_grab_space_exact (1);
+	result = reiser4_grab_space_exact ((__u64)1);
 	if (result)
 		return result;
 
@@ -1157,7 +1158,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 					   init_new_extent (&unit, &new_ext, 1),
 					   0/* flags */);
 		if (result) {
-			grabbed2free (1);
+			grabbed2free ((__u64)1);
 			return result;
 		}
 		break;
@@ -1574,13 +1575,13 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		break;
 
 	case HOLE_EXTENT:
-		result = reiser4_grab_space_exact (1);
+		result = reiser4_grab_space_exact ((__u64)1);
 		if (result)
 			return result;
 
 		result = plug_hole (coord, lh, off);
 		if (result) {
-			grabbed2free (1);
+			grabbed2free ((__u64)1);
 			return result;
 		}
 
@@ -2012,6 +2013,7 @@ struct page_range {
 };
 
 
+#if REISER4_DEBUG_OUTPUT
 static void print_range_list (struct list_head * list)
 {
 	struct list_head * cur;
@@ -2025,9 +2027,13 @@ static void print_range_list (struct list_head * list)
 		info ("range: sector %llu, nr_pages %d\n", sector, range->nr_pages);
 	}
 }
+#else
+#define print_range_list(l) noop
+#endif
 
-
-static int extent_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
+static int extent_end_io_read(struct bio *bio, 
+			      unsigned int bytes_done UNUSED_ARG, 
+			      int err UNUSED_ARG)
 {
 	int uptodate;
         struct bio_vec * bvec;

@@ -370,7 +370,7 @@ carry_node *find_carry_node( carry_level *level, const znode *node );
 
 /* debugging function */
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 extern void print_carry( const char *prefix, carry_node *node );
 extern void print_op( const char *prefix, carry_op *op );
 extern void print_level( const char *prefix, carry_level *level );

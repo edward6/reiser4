@@ -44,7 +44,7 @@ static int never_ever_ ## op ( void )						\
 
 extern void set_page_clean_nolock (struct page *);
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 extern void print_page( const char *prefix, struct page *page );
 #else
 #define print_page( prf, p ) noop

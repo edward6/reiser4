@@ -324,7 +324,7 @@ int is_reiser4_super( const struct super_block *super /* super block
 
 int reiser4_is_set( const struct super_block *super, reiser4_fs_flag f )
 {
-	return test_bit( f, &get_super_private( super ) -> fs_flags );
+	return test_bit( ( int ) f, &get_super_private( super ) -> fs_flags );
 }
 
 /**
@@ -476,6 +476,7 @@ item_plugin *default_dir_item_plugin( const struct super_block *super UNUSED_ARG
 	return get_super_private( super ) -> plug.dir_item;
 }
 
+#if REISER4_DEBUG_OUTPUT
 void print_fs_info (const char *prefix, const struct super_block * s)
 {
 	reiser4_super_info_data * private;
@@ -504,6 +505,7 @@ void print_fs_info (const char *prefix, const struct super_block * s)
 	}
 	
 }
+#endif
 
 /* 
  * Make Linus happy.

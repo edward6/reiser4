@@ -43,7 +43,7 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 		struct super_block *super;
 
 		print_lock_counters( "pins held", lock_counters() );
-		show_context( 0 );
+		print_contexts();
 		super = get_current_context() -> super;
 		if( ( get_super_private( super ) != NULL ) &&
 		    reiser4_is_debugged( super, REISER4_VERBOSE_PANIC ) )
@@ -75,8 +75,10 @@ lock_counters_info *lock_counters()
 	assert ("jmacd-1123", ctx != NULL);
 	return &ctx -> locks;
 }
+#endif
 
-void print_lock_counters( const char *prefix, lock_counters_info *info )
+#if REISER4_DEBUG_OUTPUT
+void print_lock_counters( const char *prefix, const lock_counters_info *info )
 {
 	info( "%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i "
 	      "inode: %i, spin: %i, page: %i, long: %i\n"
@@ -97,7 +99,9 @@ void print_lock_counters( const char *prefix, lock_counters_info *info )
 	      info -> x_refs,
 	      info -> t_refs );
 }
+#endif
 
+#if REISER4_DEBUG
 /**
  * check_stack() - check for possible stack overflow
  *

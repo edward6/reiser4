@@ -76,9 +76,11 @@ typedef struct {
 	int ( *mergeable )( const coord_t *p1, 
 			    const coord_t *p2 );
 	
+#if REISER4_DEBUG_OUTPUT
 	/* used for debugging only, prints an ascii description of the
 	   item contents */
 	void ( *print )( const char *, coord_t *coord ); 
+#endif
 	/* used for debugging, every item should have here the most
 	   complete possible check of the consistency of the item that
 	   the inventor can construct */

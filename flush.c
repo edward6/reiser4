@@ -575,11 +575,16 @@ static void          flush_pos_release_point      (flush_position *pos);
 static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_count *parent_load, znode_lock_mode mode);
 
 /* Flush debug functions */
-#if REISER4_TRACE
+#if REISER4_DEBUG_OUTPUT
 static const char*   flush_pos_tostring           (flush_position *pos);
 static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
 static const char*   flush_flags_tostring         (int flags);
+#else
+#define flush_pos_tostring(p)   ""
+#define flush_jnode_tostring(n) ""
+#define flush_znode_tostring(n) ""
+#define flush_flags_tostring(f) ""
 #endif
 
 static flush_params *flush_get_params( void );
@@ -3568,9 +3573,7 @@ static flush_params *flush_get_params( void )
 	return &get_current_super_private() -> flush;
 }
 
-//#if REISER4_DEBUG
-#if 1
-#if REISER4_TRACE
+#if REISER4_DEBUG_OUTPUT
 static void flush_jnode_tostring_internal (jnode *node, char *buf)
 {
 	const char* state;
@@ -3703,7 +3706,6 @@ static const char*   flush_flags_tostring         (int flags)
 		return "(unknown)";
 	}
 }
-#endif
 #endif
 
 /*

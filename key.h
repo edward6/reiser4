@@ -217,8 +217,12 @@ extern int   keyle ( const reiser4_key *k1, const reiser4_key *k2 );
 extern int   keygt ( const reiser4_key *k1, const reiser4_key *k2 );
 extern int   keyge ( const reiser4_key *k1, const reiser4_key *k2 );
 
-extern void print_key( const char *prefix, const reiser4_key *key );
 extern int  sprintf_key( char *buffer, const reiser4_key *key );
+#if REISER4_DEBUG_OUTPUT
+extern void print_key( const char *prefix, const reiser4_key *key );
+#else
+#define print_key(p,k) noop
+#endif
 
 /* __FS_REISERFS_KEY_H__ */
 #endif

@@ -735,6 +735,7 @@ int node40_guess( const znode *node /* node to guess plugin of */)
 }
 
 
+#if REISER4_DEBUG_OUTPUT
 /* Audited by: green(2002.06.12) */
 void node40_print( const char *prefix,
 		   const znode *node /* node to print */, 
@@ -751,7 +752,7 @@ void node40_print( const char *prefix,
 	      nh40_get_level( header ),
 	      nh40_get_num_items( header ) );
 }
-
+#endif
 
 /* plugin->u.node.chage_item_size
    look for description of this method in plugin/node/node.h

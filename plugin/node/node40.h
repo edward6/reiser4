@@ -81,7 +81,10 @@ size_t             node40_estimate         ( znode *node );
 int                node40_check            ( const znode *node, __u32 flags,
 					     const char **error );
 int                node40_parse            ( znode *node );
-void               node40_print            ( const char *prefix, const znode *node, __u32 flags );
+#if REISER4_DEBUG_OUTPUT
+void               node40_print            ( const char *prefix, 
+					     const znode *node, __u32 flags );
+#endif
 int                node40_init             ( znode *node );
 int                node40_guess            ( const znode *node );
 void               node40_change_item_size ( coord_t * coord, int by );

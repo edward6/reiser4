@@ -76,7 +76,7 @@ static void cbk_cache_unlock( cbk_cache *cache /* cache to unlock */)
 	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
 	     ( slot ) = cbk_cache_list_next( slot ) )
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_OUTPUT
 /** Debugging aid: print human readable information about @slot */
 void print_cbk_slot( const char *prefix /* prefix to print */, 
 		     const cbk_cache_slot *slot /* slot to print */ )
@@ -101,7 +101,9 @@ void print_cbk_cache( const char *prefix /* prefix to print */,
 			print_cbk_slot( "slot", scan );
 	}
 }
+#endif
 
+#if REISER4_DEBUG
 static int cbk_cache_invariant( const cbk_cache *cache )
 {
 	cbk_cache_slot *slot;
@@ -1363,10 +1365,6 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 	return result;
 }
 
-/** helper macro: swap its arguments */
-#define swap( a, b ) 								\
-	({ typedef _t = (a); _t tmp ; tmp = (a) ; (a) = (b) ; (b) = tmp; })
-
 /** debugging aid: return symbolic name of search bias */
 const char *bias_name( lookup_bias bias /* bias to get name of */ )
 {
@@ -1384,6 +1382,7 @@ const char *bias_name( lookup_bias bias /* bias to get name of */ )
 	}
 }
 
+#if REISER4_DEBUG_OUTPUT
 /** debugging aid: print human readable information about @p */
 void print_coord_content( const char *prefix /* prefix to print */, 
 			  coord_t *p /* coord to print */ )
@@ -1406,6 +1405,14 @@ void print_coord_content( const char *prefix /* prefix to print */,
 	}
 }
 
+/** debugging aid: print human readable information about @block */
+void print_address( const char *prefix /* prefix to print */, 
+		    const reiser4_block_nr *block /* block number to print */ )
+{
+	info( "%s: %s\n", prefix, sprint_address( block ) );
+}
+#endif
+
 char *sprint_address( const reiser4_block_nr *block /* block number to print */ )
 {
 	static char address[ 30 ];
@@ -1417,13 +1424,6 @@ char *sprint_address( const reiser4_block_nr *block /* block number to print */ 
 	else
 		sprintf( address, "%llu", *block );
 	return address;
-}
-
-/** debugging aid: print human readable information about @block */
-void print_address( const char *prefix /* prefix to print */, 
-		    const reiser4_block_nr *block /* block number to print */ )
-{
-	info( "%s: %s\n", prefix, sprint_address( block ) );
 }
 
 /** release parent node during traversal */

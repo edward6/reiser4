@@ -40,5 +40,6 @@ extern int   oid40_allocate        ( reiser4_oid_allocator *, oid_t *result );
 extern int   oid40_release         ( reiser4_oid_allocator *, oid_t oid );
 extern int   oid40_reserve_allocate( reiser4_oid_allocator * );
 extern int   oid40_reserve_release ( reiser4_oid_allocator * );
+
 extern void  oid40_print_info      ( const char *, reiser4_oid_allocator * );
 

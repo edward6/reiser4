@@ -69,6 +69,7 @@ reiser4_key *leftmost_key_in_node( const znode *node /* node to query */,
 	return key;
 }
 
+#if REISER4_DEBUG_OUTPUT
 /** helper function: convert 4 bit integer to its hex representation */
 /* Audited by: green(2002.06.12) */
 static char hex_to_ascii( const int hex /* hex digit */ )
@@ -80,7 +81,6 @@ static char hex_to_ascii( const int hex /* hex digit */ )
 	else
 		return 'a' + hex - 10;
 }
-
 
 /** helper function used to indent output during recursive tree printing */
 /* Audited by: green(2002.06.12) */
@@ -196,6 +196,7 @@ void print_node_content( const char *prefix /* output prefix */,
 	}
 	info( "\n" );
 }
+#endif
 
 #if REISER4_DEBUG_NODE
 /** debugging aid: check consistency of @node content */
@@ -250,7 +251,9 @@ node_plugin node_plugins[ LAST_NODE_ID ] = {
 #ifdef GUESS_EXISTS
 		.guess            = node40_guess,
 #endif
+#if REISER4_DEBUG_OUTPUT
 		.print            = node40_print,
+#endif
 		.change_item_size = node40_change_item_size,
 		.create_item      = node40_create_item,
 		.update_item_key  = node40_update_item_key, 

@@ -494,6 +494,15 @@ extern int  fq_write       (flush_queue_t *, int);
 extern int  finish_all_fq  (txn_atom *);
 extern void fq_init_atom   (txn_atom *);
 
+/* Debugging */
+#if REISER4_DEBUG_OUTPUT
+void          print_atom   (const char *prefix, txn_atom *atom);
+void          info_atom    (const char *prefix, txn_atom *atom);
+#else
+#define       print_atom(p,a) noop
+#define       ifno_atom(p,a) noop
+#endif
+
 # endif /* __REISER4_TXNMGR_H__ */
 
 /*
