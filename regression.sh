@@ -11,5 +11,7 @@ export REISER4_PRINT_STATS=1
 ./a.out nikita dir 3 1000 || exit 3
 ./a.out jmacd build 3 1000 1000 || exit 4
 ( find /tmp | ./a.out vs copydir ) || exit 5
+./a.out nikita mongo 3 1000 1000 || exit 6
+./a.out nikita rm 3 1000 1000 || exit 7
 
 
