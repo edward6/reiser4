@@ -1269,11 +1269,25 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 {
 	reiser4_key coord_key;
 	tree_coord left, right;
+	__u64 fbb_offset; /* offset of First Byte of Block */
 
+
+	/* offset of First Byte of Block key->offset falls to */
+	fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 
 	spin_lock_dk (current_tree);
 	if (!znode_contains_key (coord->node, key)) {
 		spin_unlock_dk (current_tree);
+		/* if left neighbor of coord->node is unformatted node of
+		 * another file we can get here even if coord->node does not
+		 * key we are looking for */
+		if (znode_get_level (coord->node) == LEAF_LEVEL &&
+		    coord_is_before_item (coord, 0)) {
+			if (fbb_offset == 0)
+				return EXTENT_FIRST_BLOCK;
+			else
+				return EXTENT_CREATE_HOLE;
+		}
 		return EXTENT_RESEARCH;
 	}
 	spin_unlock_dk (current_tree);
@@ -1282,10 +1296,6 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 		return key_in_extent (coord, key) ? EXTENT_OVERWRITE_BLOCK : EXTENT_RESEARCH;
 
 	if (coord_between_items (coord)) {
-		reiser4_block_nr fbb_offset; /* offset of First Byte of Block */
-
-
-		fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 		if (node_is_empty (coord->node)) {
 			if (fbb_offset == 0)
 				return EXTENT_FIRST_BLOCK;
@@ -1577,11 +1587,12 @@ int extent_write (struct inode * inode, tree_coord * coord,
 		}
 
 		/* Capture the page. */
+/*
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result != 0) {
 			goto capture_failed;
 		}
-
+*/
 		kaddr = kmap (page);
 		count = f->length;
 		result = prepare_write (coord, lh, page, &f->key, &count);
