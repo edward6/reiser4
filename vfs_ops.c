@@ -1425,6 +1425,7 @@ reiser4_kill_super(struct super_block *s)
 
 	close_trace_file(&sbinfo->trace_file);
 
+#if REISER4_DEBUG
 	{
 		struct list_head *scan;
 
@@ -1439,6 +1440,7 @@ reiser4_kill_super(struct super_block *s)
 	if (sbinfo->kmalloc_allocated > 0)
 		warning("nikita-2622", 
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
+#endif
 
 	/* we don't want ->write_super to be called any more. */
 	s->s_op->write_super = NULL;
