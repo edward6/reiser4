@@ -52,6 +52,7 @@
 /**
  * return starting key of the leftmost item in the @node
  */
+/* Audited by: green(2002.06.12) */
 reiser4_key *leftmost_key_in_node( const znode *node /* node to query */, 
 				   reiser4_key *key /* resulting key */ )
 {
@@ -68,7 +69,8 @@ reiser4_key *leftmost_key_in_node( const znode *node /* node to query */,
 	return key;
 }
 
-/** helper function: convert integer to its hex representation */
+/** helper function: convert 4 bit integer to its hex representation */
+/* Audited by: green(2002.06.12) */
 static char hex_to_ascii( const int hex /* hex digit */ )
 {
 	assert( "nikita-1081", ( 0 <= hex ) && ( hex < 0x10 ) );
@@ -81,6 +83,7 @@ static char hex_to_ascii( const int hex /* hex digit */ )
 
 
 /** helper function used to indent output during recursive tree printing */
+/* Audited by: green(2002.06.12) */
 void indent (unsigned indentation)
 {
 	unsigned i;
@@ -91,6 +94,7 @@ void indent (unsigned indentation)
 
 /** helper function used to indent output for @node during recursive tree
  * printing */
+/* Audited by: green(2002.06.12) */
 void indent_znode( const znode *node /* current node */ )
 {
 	indent( current_tree -> height - znode_get_level( node ) );
