@@ -1988,6 +1988,7 @@ int extent_write (struct inode * inode, coord_t * coord,
 }
 
 
+#if 0
 /*
  * start i/o not loaded nodes
  */
@@ -2206,6 +2207,9 @@ static int reset_coord (struct page * page,
  * map all buffers of the page and start io if necessary
  */
 /* Audited by: green(2002.06.13) */
+/*
+ * FIXME-VS: needs rewriting
+ */
 int extent_readpage (void * vp, struct page * page)
 {
 	int result;
@@ -2225,8 +2229,10 @@ int extent_readpage (void * vp, struct page * page)
 	 * set arg->coord to extent containing beginning of page
 	 */
 	result = reset_coord (page, arg->coord, arg->lh);
-	if (result)
+	if (result) {
+		page_detach_jnode (page);
 		return result;
+	}
 
 	xmemset (&desc, 0, sizeof (struct readpage_desc));
 	desc.page = page;
@@ -2237,8 +2243,10 @@ int extent_readpage (void * vp, struct page * page)
 	result = iterate_tree (current_tree, arg->coord, arg->lh,
 			       map_extent, &desc,
 			       ZNODE_READ_LOCK, 1 /* through units */);
-	if (result)
+	if (result && result != -ENAVAIL) {
+		page_detach_jnode (page);
 		return result;
+	}
 
 	/*
 	 * all the page jnodes got block number set
@@ -2251,12 +2259,56 @@ int extent_readpage (void * vp, struct page * page)
 		SetPageUptodate (page);
 		unlock_page (page);
 	} else {
-		start_page_read (page);
+		page_io (page, READ, GFP_NOIO);
 	}
 
 	return 0;
 }
+#endif
 
+/*
+ * FIXME-VS: comment, cleanups are needed here
+ */
+int extent_readpage (void * vp, struct page * page)
+{
+	struct inode * inode;
+	coord_t * coord;
+	reiser4_extent * ext;
+	reiser4_key page_key, unit_key;
+	__u64 pos_in_extent;
+	reiser4_block_nr block;
+	jnode * j;
+
+
+	assert ("vs-761", page && page->mapping && page->mapping->host);
+	inode = page->mapping->host;
+
+	coord = (coord_t *)vp;
+	/* no jnode yet */
+	assert ("vs-757", page->private == 0);
+	assert ("vs-758", item_is_extent (coord));
+	assert ("vs-759", coord_is_existing_unit (coord));
+	ext = extent_by_coord (coord);
+	assert ("vs-760", state_of_extent (ext) == ALLOCATED_EXTENT);
+
+	/* calculate key of page */
+	inode_file_plugin (inode)->key_by_inode (inode, (loff_t)page->index << PAGE_CACHE_SHIFT,
+						 &page_key);
+	/* make sure that extent is found properly */
+	assert ("vs-762", extent_key_in_coord (coord, &page_key));
+	unit_key_by_coord (coord, &unit_key);
+	pos_in_extent = (get_key_offset (&page_key) - get_key_offset (&unit_key)) >>
+		current_blocksize_bits;
+
+	j = jnode_of_page (page);
+	if (!j)
+		return -ENOMEM;
+
+	block = extent_get_start (ext) + pos_in_extent;
+	jnode_set_block (j, &block);
+	page_io (page, READ, GFP_NOIO);
+	return 0;
+}
 
 
 
@@ -2281,15 +2333,19 @@ int extent_read (struct inode * inode, coord_t * coord,
 
 	/* this will return page if it exists and is uptodate, otherwise it
 	 * will allocate page and call extent_readpage to fill it */
-	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage, &arg);
+	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage, coord);
 
 	if (IS_ERR (page)) {
 		return PTR_ERR (page);
 	}
 
+	/*
+	 * FIXME-VS: there should be jnode attached to page
+	 */
+	assert ("vs-756", page->private);
 	wait_on_page_locked (page);
-	
 	if (!PageUptodate (page)) {
+		page_detach_jnode (page);
 		page_cache_release (page);
 		return -EIO;
 	}
@@ -2297,6 +2353,7 @@ int extent_read (struct inode * inode, coord_t * coord,
 	/* Capture the page. */
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	if (result != 0) {
+		page_detach_jnode (page);
 		page_cache_release (page);
 		return result;
 	}
@@ -2368,12 +2425,12 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
  * FIXME-VS: this needs changes if blocksize != pagesize is needed
  */
 /* Audited by: green(2002.06.13) */
-static int map_allocated_buffers (reiser4_key * key,
-				   reiser4_block_nr first, 
-				   /* FIXME-VS: get better type for number of
-				    * blocks */
-				   reiser4_block_nr count,
-				   flush_position *flush_pos)
+static int assign_jnode_blocknrs (reiser4_key * key,
+				  reiser4_block_nr first, 
+				  /* FIXME-VS: get better type for number of
+				   * blocks */
+				  reiser4_block_nr count,
+				  flush_position *flush_pos)
 {
 	loff_t offset;
 	struct inode * inode;
@@ -2410,7 +2467,7 @@ static int map_allocated_buffers (reiser4_key * key,
 		 * mkfs, mount, cp /etc/passwd, umount.
 		 */
 		assert ("vs-349", page != NULL);
-		assert ("vs-350", page->private != NULL);
+		assert ("vs-350", page->private != 0);
 
 		j = jnode_of_page (page);
 		jnode_set_block (j, &first);
@@ -2423,45 +2480,13 @@ static int map_allocated_buffers (reiser4_key * key,
 			return ret;
 		}
 
+		offset += blocksize;
 		/*unlock_page (page);*/
 		/*page_cache_release (page);*/
 	}
  	iput (inode);
 		
 	return 0;
-#if 0
-	while (1) {
-		ind = offset >> PAGE_CACHE_SHIFT;
-		page = find_lock_page (inode->i_mapping, ind);
-		assert ("vs-349", page && page->private);
-		
-		j = jnode_of_page (page);
-		/* AUDIT: bh is not checked for NULL */
-		for (page_off = 0; offset != (ind << PAGE_CACHE_SHIFT) + page_off;
-		     page_off += blocksize, bh = bh->b_this_page);
-		/* set blocknumber for jnode */
-		assert ("vs-351", !jnode_has_block (j));
-		jnode_set_block (j, &first);
-		do {
-			assert ("vs-350", buffer_mapped (bh));
-			bh->b_blocknr = first;
-
-			j = jnode_of_page (page);
-			assert ("vs-351", !jnode_has_block (j));
-			jnode_set_block (j, &first);
-			first ++;
-
-			offset += blocksize;
-			count --;
-			bh = bh->b_this_page;
-		} while (count && bh != page_buffers (page));
-		unlock_page (page);
-		page_cache_release (page);
-		if (!count)
-			break; 
-	}
- 	iput (inode);
-#endif
 }
 
 
@@ -2664,7 +2689,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 * find all pages containing allocated blocks
 				 * and map corresponding buffers
 				 */
-				if ((result = map_allocated_buffers (&key, first_allocated, allocated, flush_pos))) {
+				if ((result = assign_jnode_blocknrs (&key, first_allocated, allocated, flush_pos))) {
 					goto done;
 				}
 				/*
@@ -2702,7 +2727,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			 * find all pages containing allocated blocks and map
 			 * corresponding buffers
 			 */
-			if ((result = map_allocated_buffers (&key, first_allocated,
+			if ((result = assign_jnode_blocknrs (&key, first_allocated,
 							     allocated, flush_pos))) {
 				goto done;
 			}
@@ -2808,7 +2833,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 		 * find all pages containing allocated blocks and map
 		 * corresponding buffers
 		 */
-		if ((result = map_allocated_buffers (&key, first_allocated, allocated, flush_pos))) {
+		if ((result = assign_jnode_blocknrs (&key, first_allocated, allocated, flush_pos))) {
 			return result;
 		}
 
