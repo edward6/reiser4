@@ -15,7 +15,7 @@
 #include <misc/misc.h>
 #include <reiser4/reiser4.h>
 
-error_t reiserfs_tree_init(reiserfs_fs_t *fs) {
+error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     blk_t root_blk;
 
     aal_assert("umka-127", fs != NULL, return -1);
@@ -30,7 +30,7 @@ error_t reiserfs_tree_init(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
 
-    if (!(fs->tree->root = reiserfs_node_init(fs->host_device, 
+    if (!(fs->tree->root = reiserfs_node_open(fs->host_device, 
 	    root_blk, NULL, REISERFS_GUESS_PLUGIN_ID)))
 	goto error_free_tree;
     
@@ -226,9 +226,9 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     return 0;
 
 error_free_leaf:
-    reiserfs_node_fini(leaf);
+    reiserfs_node_close(leaf);
 error_free_squeeze:
-    reiserfs_node_fini(squeeze);
+    reiserfs_node_close(squeeze);
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
@@ -273,11 +273,11 @@ error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-void reiserfs_tree_fini(reiserfs_fs_t *fs) {
+void reiserfs_tree_close(reiserfs_fs_t *fs) {
     aal_assert("umka-133", fs != NULL, return);
     aal_assert("umka-134", fs->tree != NULL, return);
     
-    reiserfs_node_fini(fs->tree->root);
+    reiserfs_node_close(fs->tree->root);
     aal_free(fs->tree);
 }
 

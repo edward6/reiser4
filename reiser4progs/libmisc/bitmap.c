@@ -160,7 +160,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_alloc(blk_t len) {
     return bitmap;
 	
 error_free_bitmap:
-    reiserfs_bitmap_fini(bitmap);
+    reiserfs_bitmap_close(bitmap);
 error:
     return NULL;
 }
@@ -233,7 +233,7 @@ error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap,
     return 0;
 }
 
-reiserfs_bitmap_t *reiserfs_bitmap_init(aal_device_t *device, 
+reiserfs_bitmap_t *reiserfs_bitmap_open(aal_device_t *device, 
     blk_t start, count_t len) 
 {
     reiserfs_bitmap_t *bitmap;
@@ -255,7 +255,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_init(aal_device_t *device,
     return bitmap;
 	
 error_free_bitmap:
-    reiserfs_bitmap_fini(bitmap);
+    reiserfs_bitmap_close(bitmap);
 error:
     return NULL;
 }
@@ -404,7 +404,7 @@ error_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap) {
     return 0;
 }
 
-void reiserfs_bitmap_fini(reiserfs_bitmap_t *bitmap) {
+void reiserfs_bitmap_close(reiserfs_bitmap_t *bitmap) {
     aal_assert("umka-354", bitmap != NULL, return);
 	
     if (bitmap->map)
@@ -413,7 +413,7 @@ void reiserfs_bitmap_fini(reiserfs_bitmap_t *bitmap) {
     aal_free(bitmap);
 }
 
-reiserfs_bitmap_t *reiserfs_bitmap_reinit(reiserfs_bitmap_t *bitmap, 
+reiserfs_bitmap_t *reiserfs_bitmap_reopen(reiserfs_bitmap_t *bitmap, 
     aal_device_t *device) 
 {
     blk_t start;
@@ -424,9 +424,9 @@ reiserfs_bitmap_t *reiserfs_bitmap_reinit(reiserfs_bitmap_t *bitmap,
     start = bitmap->start;
     len = bitmap->total_blocks;
 		
-    reiserfs_bitmap_fini(bitmap);
+    reiserfs_bitmap_close(bitmap);
 
-    return reiserfs_bitmap_init(device, start, len);
+    return reiserfs_bitmap_open(device, start, len);
 }
 
 char *reiserfs_bitmap_map(reiserfs_bitmap_t *bitmap) {
