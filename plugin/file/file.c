@@ -349,12 +349,6 @@ static loff_t find_file_size (struct inode * inode)
 	return file_size;
 }
 
-/*
- * FIXME-VS: remove after debugging
- */
-void set_fu_page (unsigned long index, struct page * page);
-char * get_fu_page_data (int index);
-
 
 /* part of unix_file_truncate: it is called when truncate is used to make
  * file shorter */
@@ -366,9 +360,7 @@ static int shorten (struct inode * inode)
 	int padd_from;
 	jnode * j;
 	unsigned long index;
-#ifdef DEBUGGING_FSX
-	int i;
-#endif /* DEBUGGING_FSX */
+
 
 	inode_file_plugin (inode)->key_by_inode (inode, inode->i_size, &from);
 	to = from;
@@ -383,18 +375,6 @@ static int shorten (struct inode * inode)
 
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
 
-#ifdef DEBUGGING_FSX
-	/*
-	 * FIXME-VS: remove after debugging
-	 */
-	/* completely truncated pages */
-	assert ("vs-930", (inode->i_size <= 32768));
-	for (i = index + 1; i < 8; i ++) {
-		memset (get_fu_page_data (i), 0, PAGE_CACHE_SIZE);
-		set_fu_page (i, 0);
-	}
-#endif /* DEBUGGING_FSX */
-
 	if (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
 	    inode_get_flag (inode, REISER4_HAS_TAIL))
 		/* file is built of tail items. No need to worry about zeroing
@@ -404,15 +384,6 @@ static int shorten (struct inode * inode)
 
 	padd_from = inode->i_size & (PAGE_CACHE_SIZE - 1);
 	if (!padd_from) {
-#ifdef DEBUGGING_FSX
-		/*
-		 * FIXME-VS: remove after debugging
-		 */
-		if (index < 8) {
-			memset (get_fu_page_data (index), 0, PAGE_CACHE_SIZE);
-			set_fu_page (index, 0);
-		}
-#endif
 		return 0;
 	}
 
@@ -462,16 +433,8 @@ static int shorten (struct inode * inode)
 	memset (kmap (page) + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
 	flush_dcache_page (page);
 
-#ifdef DEBUGGING_FSX
-	/*
-	 * FIXME-VS: remove after debugging
-	 */
-	memset (get_fu_page_data (page->index) + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
-#endif
-
 	kunmap (page);
 	
-
 	jnode_set_dirty (jnode_by_page (page));
 	
 	unlock_page (page);
