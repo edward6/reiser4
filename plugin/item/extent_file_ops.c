@@ -1149,9 +1149,10 @@ readpage_extent(void *vp, struct page *page)
 }
 
 /*
-  plugin->s.file.writepage
-  At the beginning: coord.node is read locked, zloaded, page is
-  locked, coord is set to existing unit inside of extent item
+  plugin->s.file.capture 
+
+  At the beginning: coord.node is write locked, zloaded, page is not locked, coord is set to existing unit inside of
+  extent item
 */
 reiser4_internal int
 capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
