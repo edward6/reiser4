@@ -229,12 +229,17 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_journal_init(fs, 0))
 	goto error_free_alloc;
 
-    if (reiserfs_tree_create(fs, node_id))
+    if (reiserfs_oid_init(fs))
 	goto error_free_journal;
+    
+    if (reiserfs_tree_create(fs, node_id))
+	goto error_free_oid;
     
     reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
     return fs;
 
+error_free_oid:
+    reiserfs_oid_close(fs);
 error_free_journal:
     reiserfs_journal_close(fs);
 error_free_alloc:
@@ -284,10 +289,10 @@ reiserfs_fs_t *reiserfs_fs_create_2(aal_device_t *host_device,
     if (reiserfs_journal_init(fs, 0))
 	goto error_free_alloc;
 
-    if (reiserfs_tree_create_2(fs, default_plugins))
+    if (reiserfs_oid_init(fs))
 	goto error_free_journal;
-    
-    if (reiserfs_tree_create(fs, node_plugin_id))
+
+    if (reiserfs_tree_create_2(fs, default_plugins))
 	goto error_free_oid;
     
     reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
