@@ -706,7 +706,8 @@ void node40_print( const char *prefix,
 	
 	
 	header = node40_node_header( node );
-	info( "BLOCKNR %Lu FREE_SPACE %u, LEVEL %u, ITEM_NUMBER %u\n",
+	info( "%s: BLOCKNR %Lu FREE_SPACE %u, LEVEL %u, ITEM_NUMBER %u\n",
+	      prefix,
 	      *znode_get_block (node),
 	      nh_40_get_free_space( header ),
 	      nh_40_get_level( header ),
@@ -1441,7 +1442,7 @@ static void copy_units (coord_t * target, coord_t * source,
 	assert ("nikita-1464", source != NULL);
 	assert ("nikita-1465", from + count <= coord_num_units (source));
 
-	trace_if (TRACE_COORDS, coord_print ("copy_units source:", source, 0));
+	trace_if (TRACE_COORDS, print_coord ("copy_units source:", source, 0));
 	
 	iplug = item_plugin_by_coord (source);
 	assert ("nikita-1468", iplug == item_plugin_by_coord (target));
@@ -1489,7 +1490,7 @@ void node40_copy (struct shift_params * shift)
 
 	from = shift->wish_stop;
 
-	trace_if (TRACE_COORDS, coord_print ("node40_copy from:", & from, 0));
+	trace_if (TRACE_COORDS, print_coord ("node40_copy from:", & from, 0));
 
 	to.node = shift->target;
 	if (shift->pend == SHIFT_LEFT) {
@@ -1507,8 +1508,8 @@ void node40_copy (struct shift_params * shift)
 			nh_40_set_free_space (nh, nh_40_get_free_space (nh) -
 					      shift->merging_bytes);
 
-			trace_if (TRACE_COORDS, coord_print ("before copy_units from:", & from, 0));
-			trace_if (TRACE_COORDS, coord_print ("before copy_units to:", & to, 0));
+			trace_if (TRACE_COORDS, print_coord ("before copy_units from:", & from, 0));
+			trace_if (TRACE_COORDS, print_coord ("before copy_units to:", & to, 0));
 
 			/* appending last item of @target */
 			copy_units (&to, &from, 0, /* starting from 0-th unit */
@@ -2065,7 +2066,7 @@ int node40_shift (coord_t * from, znode * to,
 		return 0;
 	}
 
-	trace_if (TRACE_COORDS, coord_print ("shift->wish_stop before copy:", & shift.wish_stop, 0));
+	trace_if (TRACE_COORDS, print_coord ("shift->wish_stop before copy:", & shift.wish_stop, 0));
 
 	node40_copy (&shift);
 

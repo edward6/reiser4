@@ -1018,7 +1018,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 
 	coord_init_after_last_item (&from, right);
 
-	trace_if (TRACE_COORDS, coord_print ("shift_everything_left:", & from, 0));
+	trace_if (TRACE_COORDS, print_coord ("shift_everything_left:", & from, 0));
 
 	nplug = node_plugin_by_node (right);
 	info.doing = NULL;
