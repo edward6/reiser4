@@ -1095,7 +1095,7 @@ int tree_walk (const reiser4_key *start_key, int go_left, struct tree_walk_actor
 		}
 
 		ret = coord_by_key(current_tree, &handle.start_key, &coord, &lock, ZNODE_WRITE_LOCK,
-				   FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0, NULL);
+				   FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, 0, NULL);
 		if (ret != CBK_COORD_FOUND)
 			break;
 	no_start_key:
