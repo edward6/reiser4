@@ -77,11 +77,11 @@ static ssize_t reiser4_write(struct file *, const char *, size_t, loff_t *);
 static int reiser4_readdir(struct file *, void *, filldir_t);
 static int reiser4_mmap(struct file *, struct vm_area_struct *);
 static int reiser4_release(struct inode *, struct file *);
+static int reiser4_fsync(struct file *, struct dentry *, int datasync);
 #if 0
 static unsigned int reiser4_poll(struct file *, struct poll_table_struct *);
 static int reiser4_open(struct inode *, struct file *);
 static int reiser4_flush(struct file *);
-static int reiser4_fsync(struct file *, struct dentry *, int datasync);
 static int reiser4_fasync(int, struct file *, int);
 static int reiser4_lock(struct file *, int, struct file_lock *);
 static ssize_t reiser4_readv(struct file *, const struct iovec *, unsigned long, loff_t *);
@@ -1225,9 +1225,11 @@ reiser4_release(struct inode *i /* inode released */ ,
 
 /* FIXME: This way to support fsync is too expensive. Proper solution support is to commit only atoms which contain
    dirty pages from given address space. */
-int reiser4_fsync(struct file *file, struct dentry *dentry, int datasync)
+static int
+reiser4_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
-	return txnmgr_force_commit_all(dentry->d_inode->i_sb);
+	REISER4_ENTRY(dentry->d_inode->i_sb);
+	REISER4_EXIT(txnmgr_force_commit_all(dentry->d_inode->i_sb));
 }
 
 /* our ->read_inode() is no-op. Reiser4 inodes should be loaded
