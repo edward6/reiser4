@@ -141,6 +141,7 @@ int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const c
 int scan_finished(flush_scan * scan);
 int scanning_left(flush_scan * scan);
 int scan_goto(flush_scan * scan, jnode * tonode);
+txn_atom *atom_locked_by_fq(flush_queue_t * fq);
 
 int init_fqs(void);
 int done_fqs(void);
