@@ -1383,7 +1383,7 @@ reiser4_dirty_inode(struct inode *inode)
 	 */
 
 	assert("nikita-2523", inode != NULL);
-	if (reiser4_grab_space_exact(1, 0))
+	if (reiser4_grab_space_exact(1, 1))
 		goto no_space;
 	
 	warning("vpf-332", "SPACE: ditry inode grabs 1 block.");
@@ -1451,7 +1451,7 @@ reiser4_delete_inode(struct inode *object)
 				fplug->estimate.truncate ? fplug->estimate.truncate(object, 0) : 0 + 
 				fplug->estimate.delete(object); 
 		
-		if (reiser4_grab_space_exact(reserved, 0))
+		if (reiser4_grab_space_exact(reserved, 1))
 			goto no_space;
 		
 		warning("vpf-333", "SPACE: delete inode grabs %llu blocks.", reserved);
