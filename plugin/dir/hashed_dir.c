@@ -304,7 +304,7 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 		return RETERR(-ENAMETOOLONG);
 
 	/* set up operations on dentry. */
-	dentry->d_op = &reiser4_dentry_operation;
+	dentry->d_op = &reiser4_dentry_operations;
 
 	coord = &reiser4_get_dentry_fsdata(dentry)->dec.entry_coord;
 	coord_clear_iplug(coord);
