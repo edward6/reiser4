@@ -457,16 +457,19 @@ static void wander_end_io (struct bio * bio)
  * request. j-nodes are in a double-linked list (capture_list)*/
 /* FIXME: it should be combined with similar code in flush.c */
 static int submit_write (jnode * first, int nr, 
-			 const reiser4_block_nr * block,
+			 const reiser4_block_nr * block_p,
 			 struct reiser4_io_handle * io_hdl)
 {
 	struct super_block * super = reiser4_get_current_sb();
 	int max_blocks;
 	jnode * cur = first;
+	reiser4_block_nr block;
 
 	assert ("zam-571", first != NULL);
-	assert ("zam-572", block != NULL);
+	assert ("zam-572", block_p != NULL);
 	assert ("zam-570", nr > 0);
+
+	block = *block_p;
 
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = nr;
@@ -484,7 +487,7 @@ static int submit_write (jnode * first, int nr,
 
 		assert ("zam-574", jnode_page (first) != NULL);
 
-		bio->bi_sector = *block * (super->s_blocksize >>9);
+		bio->bi_sector = block * (super->s_blocksize >>9);
 		bio->bi_bdev   = super->s_bdev;
 		bio->bi_vcnt   = nr_blocks;
 		bio->bi_size   = super->s_blocksize * nr_blocks;
@@ -514,10 +517,12 @@ static int submit_write (jnode * first, int nr,
 		}
 
 		io_handle_add_bio(io_hdl, bio);
-
 		submit_bio(WRITE, bio);
 
 		nr -= nr_blocks;
+		block += nr_blocks;
+
+		reiser4_update_last_written_location(super, &block);
 	}
 
 	return 0;
