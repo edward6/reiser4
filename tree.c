@@ -101,16 +101,6 @@ static spinlock_t        active_contexts_lock;
 static context_list_head active_contexts;
 #endif
 
-/** release resources associated with @tree */
-void reiser4_done_tree( reiser4_tree *tree /* tree to release */ )
-{
-	assert( "nikita-311", tree != NULL );
-
-	znodes_tree_done( tree );
-
-	if( tree -> cbk_cache != NULL )
-		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
-}
 
 node_plugin *node_plugin_by_coord ( const new_coord *coord )
 {
@@ -165,13 +155,6 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 		break;
 	case CBK_COORD_NOTFOUND:
 		assert( "nikita-2017", coord -> node != NULL );
-		/*
-		 * FIXME-VS: temporary fix. The proper one should go to node's
-		 * lookup?
-		 */
-		if( node_is_empty( coord -> node ) )
-			/* this will set coord in empty node properly */
-			ncoord_init_first_unit( coord, coord -> node );
 		result = insert_by_coord( coord, 
 					  data, key, lh, ra, ira, 0/*flags*/ );
 		break;
@@ -490,16 +473,21 @@ resize_result resize_item( new_coord *coord /* coord of item being resized */,
 						    * being modified */,
 			   cop_insert_flag flags /* carry flags */ )
 {
-	int result;
+	int         result;
 	carry_pool  pool;
 	carry_level lowest_level;
-	carry_op * op;
+	carry_op   *op;
+	znode      *node;
 
 
 	assert( "nikita-362", coord != NULL );
 	assert( "nikita-363", data != NULL );
 	assert( "vs-245", data -> length != 0 );
 
+	node = coord -> node;
+	result = zload( node );
+	if( result != 0 )
+		return result;
 
 	init_carry_pool( &pool );
 	init_carry_level( &lowest_level, &pool );
@@ -521,14 +509,7 @@ resize_result resize_item( new_coord *coord /* coord of item being resized */,
 	} else
 		result = insert_into_item( coord, lh, key, data, flags );
 
-#if 0
-	/*
-	 * FIXME-VS: this is not needed
-	 */
-	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
-	result = carry (&lowest_level, 0);
-	done_carry_pool( &pool );
-#endif
+	zrelse( node );
 	return result;
 }
 
@@ -715,7 +696,7 @@ void show_context (int show_tree)
 	}
 	
 	if (show_tree && (tree != NULL)) {
-		print_tree_rec ("", tree, REISER4_NODE_PRINT_HEADER);
+		/*print_tree_rec ("", tree, REISER4_NODE_PRINT_HEADER);*/
 	}
 
 	spin_unlock (& active_contexts_lock);
@@ -1006,6 +987,7 @@ znode *insert_new_node (new_coord * insert_coord, lock_handle *lh)
 	init_carry_level (&this_level, &pool);
 	init_carry_level (&parent_level, &pool);
 
+	new_znode = ERR_PTR (-EIO);
 	cn = add_new_znode (insert_coord->node, 0, &this_level, &parent_level);
 	if (!IS_ERR (cn)) {
 		result = longterm_lock_znode (lh, cn->real_node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
@@ -1329,9 +1311,11 @@ int cut_tree (reiser4_tree * tree,
 	reiser4_key smallest_removed;
 	lock_handle lock_handle;
 	int result;
+	znode * loaded;
 
 
 	ncoord_init_zero (&intranode_to);
+	ncoord_init_zero (&intranode_from);
 	init_lh(&lock_handle);
 
 #define WE_HAVE_READAHEAD (0)
@@ -1352,20 +1336,30 @@ int cut_tree (reiser4_tree * tree,
 			/* -EIO, or something like that */
 			break;
 
-		/* lookup for @from_key in current node */
-		intranode_from.node = intranode_to.node;
-		result = node_plugin_by_node (intranode_to.node)->lookup 
-			(intranode_to.node, from_key, FIND_EXACT, 
-			 &intranode_from);
-               
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
-			/* -EIO, or something like that */
+		loaded = intranode_to.node;
+		result = zload (loaded);
+		if (result)
 			break;
+
+		/* lookup for @from_key in current node */
+		assert ("vs-686", intranode_to.node->nplug);
+		assert ("vs-687", intranode_to.node->nplug->lookup);
+		result = intranode_to.node->nplug->lookup (intranode_to.node,
+							   from_key, FIND_EXACT,
+							   &intranode_from);
+               
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+			/* -EIO, or something like that */
+			zrelse (loaded);
+			break;
+		}
+
 
 		if (ncoord_eq (&intranode_from, &intranode_to) && 
 		    !ncoord_is_existing_unit (&intranode_from)) {
 			/* nothing to cut */
 			result = 0;
+			zrelse (loaded);
 			break;
 		}
 		/* cut data from one node */
@@ -1376,6 +1370,7 @@ int cut_tree (reiser4_tree * tree,
 						     being a hint used by next
 						     loop iteration */
 				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/, 0);
+		zrelse (loaded);
 		if (result)
 			break;
 		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
