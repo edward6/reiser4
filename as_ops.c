@@ -383,7 +383,8 @@ reiser4_writepages(struct address_space *mapping,
 			       lock_stack_isclean(get_current_lock_stack())));
 
 	inode = mapping->host;
-	if (inode_file_plugin(inode)->capture != NULL)
+	if (inode_file_plugin(inode) != NULL &&
+	    inode_file_plugin(inode)->capture != NULL)
 		ret = inode_file_plugin(inode)->capture(inode, wbc);
 
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
