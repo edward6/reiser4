@@ -803,6 +803,8 @@ txn_mgr_force_commit (struct super_block *super)
 				return ret;
 			}
 
+			schedule(); /* FIXME-ZAM: just a hack; proper synchronization should be added here */
+
 			txn_begin (& local_context);
 
 			goto again;
