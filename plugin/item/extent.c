@@ -2083,53 +2083,54 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 				   that this item is going  to be removed soon */
 				goto done;
 
+			/* add extent unit (0, 0) to the end of node @left before allocating */
+			extent_set_start(&new_ext, 0);
+			extent_set_width(&new_ext, 0);			
+			result = put_unit_to_end(left, &key, init_new_extent(&data, &new_ext, 1));
+			if (result == -ENOSPC) {
+				result = SQUEEZE_TARGET_FULL;
+				trace_on(TRACE_EXTENTS,
+					 "alloc_and_copy_extent: target full, to_allocate = %llu\n",
+					 to_allocate);
+				if (to_allocate == width) {
+					/* nothing of this unit were allocated and copied. Take care that it does not
+					   get cut */
+					right->between = BEFORE_UNIT;
+				} else {
+					/* part of extent was allocated and copied to left neighbor. Leave coord @right
+					   at this unit so that it will be cut properly by squalloc_right_twig_cut */
+				}
+				protected -= unprotect_extent_nodes(oid, index, protected);
+				assert("vs-1203", protected == 0);
+				goto done;
+			}
+
 			check_me("vs-1137", extent_allocate_blocks(pos_hint(flush_pos),
 								   protected, &first_allocated, &allocated) == 0);
 			if (allocated < protected)
+				/* there were more protected nodes than we have allocated. Unprotect ones which will not
+				   be allocated in this iteration */
 				protected -= unprotect_extent_nodes(oid, index + allocated, protected - allocated);
 
 			trace_on(TRACE_EXTENTS,
 				 "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
 
+			/* update last extent of node @left */
+			{
+				coord_t last;
+				reiser4_extent *ext;
+				
+				coord_init_last_unit(&last, left);
+				assert("vs-1205", item_is_extent(&last));
+				ext = extent_by_coord(&last);
+				assert("vs-1206", extent_get_start(ext) == 0);
+				assert("vs-1207", extent_get_width(ext) == 0);
+				extent_set_start(ext, first_allocated);
+				extent_set_width(ext, allocated);
+				znode_set_dirty(left);
+			}
 			to_allocate -= allocated;
 
-			if (!try_to_glue(left, first_allocated, allocated, &key)) {
-				/* could not copy current extent by just increasing width of last extent in left
-				   neighbor, add new extent to the end of @left
-				*/
-				extent_set_start(&new_ext, first_allocated);
-				extent_set_width(&new_ext, (reiser4_block_nr) allocated);
-
-				result = put_unit_to_end(left, &key, init_new_extent(&data, &new_ext, 1));
-				if (result == -ENOSPC) {
-					/* @left is full, free blocks we grabbed because this extent will stay in
-					   right->node, and, therefore, blocks it points to have different predecer in
-					   parent-first order. Set "defer" parameter of reiser4_dealloc_block to 0
-					   because these blocks can be made allocable again immediately.
-					*/
-					reiser4_dealloc_blocks(&first_allocated, &allocated,
-						BLOCK_UNALLOCATED, BA_PERMANENT, "alloc_and_copy_extent: no space in left neighbor");
-					/* restore preceder */
-					pos_hint(flush_pos)->blk = first_allocated;
-
-					result = SQUEEZE_TARGET_FULL;
-					trace_on(TRACE_EXTENTS,
-						 "alloc_and_copy_extent: target full, to_allocate = %llu\n",
-						 to_allocate);
-					if (to_allocate == width) {
-						/* nothing of this unit were allocated and copied. Take care that it
-						   does not get cut */
-						right->between = BEFORE_UNIT;
-					} else {
-						/* part of extent was allocated and copied to left neighbor. Leave coord
-						   @right at this unit so that it will be cut properly by
-						   squalloc_right_twig_cut */
-					}
-					protected -= unprotect_extent_nodes(oid, index, allocated);
-					assert("vs-1203", protected == 0);
-					goto done;
-				}
-			}
 			/* find all jnodes for which blocks were allocated and assign block numbers to them */
 			assign_jnode_blocknrs(oid, index, first_allocated, allocated, flush_pos);
 			protected -= unprotect_extent_nodes(oid, index, allocated);
