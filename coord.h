@@ -58,13 +58,13 @@ struct coord {
 	/* 10 */ __u16 pad;
 	/* 12 */
 	reiser4_block_nr pos_in_unit;
+	reiser4_block_nr width; /* width of current unit */
+	int nr_units; /* number of units */
+	void *vp;
 #if 0
 	/* fixme: attempt to decrease cpu usage */
 	unsigned long pos_in_node;
 	__u64 offset;
-	reiser4_block_nr width; /* width of current unit */
-	int nr_units; /* number of units */
-	void *vp;
 	int move;
 	unsigned long expected_page;
 #endif

@@ -295,7 +295,8 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	assert("vs-11", get_key_objectid(key) == get_key_objectid(&item_key));
 
 	assert("vs-1010", coord->unit_pos == 0);
-	ext = extent_by_coord(coord);
+	ext = extent_item(coord);
+	coord->vp = ext;
 	blocksize = current_blocksize;
 	blocksize_bits = current_blocksize_bits;
 
@@ -303,14 +304,14 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	lookuped = get_key_offset(key);
 
 	/* go through all extents until the one which address given offset */
+	coord->nr_units = nr_units;
 	for (i = 0; i < nr_units; i++, ext++) {
+		coord->width = extent_get_width(ext);
 		offset += (extent_get_width(ext) << blocksize_bits);
 		if (offset > lookuped) {
 			/* desired byte is somewhere in this extent */
 			coord->unit_pos = i;
-			coord->pos_in_unit = extent_get_width(ext) - ((offset - (lookuped & ~(blocksize - 1))) >> blocksize_bits);
-			/*	coord->pos_in_node = lookuped & (blocksize - 1);
-				coord->offset = lookuped;*/
+			coord->pos_in_unit = coord->width - ((offset - (lookuped & ~(blocksize - 1))) >> blocksize_bits);
 			coord->between = AT_UNIT;
 			return CBK_COORD_FOUND;
 		}
@@ -325,8 +326,9 @@ lookup_result lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 /* plugin->u.item.b.init_coord */
 void init_coord_extent(const reiser4_key * key, coord_t *coord)
 {
-	/*coord->vp = extent_item(coord);
-	  coord->nr_units = nr_units_extent(coord);*/
+	coord->vp = extent_item(coord);
+	coord->nr_units = nr_units_extent(coord);
+	coord->width = extent_get_width((reiser4_extent *)coord->vp);
 	coord->pos_in_unit = 0;
 /*
 	coord->pos_in_node = 0;
@@ -2635,12 +2637,13 @@ check_key_in_unit(const coord_t * coord, const reiser4_key * key)
 
 static void move_coord_page(coord_t *coord)
 {
-	if (coord->pos_in_unit == extent_get_width(extent_by_coord(coord)) - 1) {
+	if (coord->pos_in_unit == coord->width - 1) {
 		coord->pos_in_unit = 0;
-		if (coord->unit_pos == nr_units_extent(coord) - 1)
+		if (coord->unit_pos == coord->nr_units - 1)
 			coord->between = AFTER_UNIT;
 		else {
 			coord->unit_pos ++;
+			coord->width = extent_get_width((reiser4_extent *)(coord->vp) + coord->unit_pos);
 		}
 	} else
 		coord->pos_in_unit ++;

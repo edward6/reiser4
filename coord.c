@@ -613,7 +613,8 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 		sizeof(c1->item_pos) +
 		sizeof(c1->unit_pos) + 
 		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad) +
-		sizeof(c1->pos_in_unit));
+		sizeof(c1->pos_in_unit) + sizeof(c1->width) + sizeof(c1->nr_units) +
+		sizeof(c1->vp));
 	return 
 		c1->node == c2->node &&
 		c1->item_pos == c2->item_pos &&
