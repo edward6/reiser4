@@ -743,36 +743,46 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			LOCK_JLOAD(cur);
 			assert("nikita-3166",
 			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
-			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
-			assert("nikita-3165", !jnode_is_releasable(cur));
-			JF_SET(cur, JNODE_WRITEBACK);
-			JF_CLR(cur, JNODE_DIRTY);
-			UNLOCK_JLOAD(cur);
-			UNLOCK_JNODE(cur);
+			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
+				assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
+				assert("nikita-3165", !jnode_is_releasable(cur));
+				JF_SET(cur, JNODE_WRITEBACK);
+				JF_CLR(cur, JNODE_DIRTY);
+				UNLOCK_JLOAD(cur);
+				UNLOCK_JNODE(cur);
 
-			SetPageWriteback(pg);
-
-			spin_lock(&pg->mapping->page_lock);
+				SetPageWriteback(pg);
+				
+				spin_lock(&pg->mapping->page_lock);
 
 #if REISER4_STATS
-			if (!PageDirty(pg))
-				reiser4_stat_inc(pages_clean);
+				if (!PageDirty(pg))
+					reiser4_stat_inc(pages_clean);
 #endif
-			/* don't check return value: submit page even if it
-			   wasn't dirty. */		
-			test_clear_page_dirty(pg);
-
-			list_del(&pg->list);
-			list_add(&pg->list, &pg->mapping->locked_pages);
-
-			spin_unlock(&pg->mapping->page_lock);
-
-			unlock_page(pg);
-
-			bio->bi_io_vec[nr_used].bv_page = pg;
-			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
-			bio->bi_io_vec[nr_used].bv_offset = 0;
+				/* don't check return value: submit page even if
+				   it wasn't dirty. */		
+				test_clear_page_dirty(pg);
 				
+				list_del(&pg->list);
+				list_add(&pg->list, &pg->mapping->locked_pages);
+				
+				spin_unlock(&pg->mapping->page_lock);
+				
+				unlock_page(pg);
+				
+				bio->bi_io_vec[nr_used].bv_page = pg;
+				bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
+				bio->bi_io_vec[nr_used].bv_offset = 0;
+			} else {
+				/* jnode being WRITEBACK might be replaced on
+				   ovrwr_nodes list with jnode CC. We just
+				   encountered this CC jnode. Do not submit i/o
+				   for it */
+				assert("zam-912", JF_ISSET(cur, JNODE_CC));
+				UNLOCK_JLOAD(cur);
+				UNLOCK_JNODE(cur);				
+			}
+
 			spin_lock(&scan_lock);
 			if (cur != first)
 				JF_CLR(cur, JNODE_SCANNED);
