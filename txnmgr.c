@@ -1170,6 +1170,8 @@ static void atom_unlock_and_wait_event (txn_handle * h)
 	atom->refcount ++;
 	fwaitfor_list_push_back (&atom->fwaitfor_list, &_wlinks);
 
+	spin_unlock_atom (atom);
+
 	prepare_to_sleep (_wlinks._lock_stack);
 	go_to_sleep (_wlinks._lock_stack);
 	
