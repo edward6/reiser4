@@ -57,7 +57,8 @@ aal_device_t *aal_device_open(
     device->data = data;
     device->flags = flags;
     device->blocksize = blocksize;
-	
+    device->length = 0;
+
     return device;
 }
 
@@ -192,10 +193,14 @@ uint32_t aal_device_stat(
 count_t aal_device_len(
     aal_device_t *device	/* device, length in blocks will be obtained from */
 ) {
-    aal_assert("umka-441", device != NULL, return 0);	
+    aal_assert("vpf-216", device != NULL, return 0);	
 
-    aal_device_check_routine(device, len, return 0);
-    return device->ops->len(device);
+    if (!device->length) {
+	aal_device_check_routine(device, len, return 0);
+	device->length = device->ops->len(device);
+    }
+
+    return device->length * 1024 / device->blocksize;
 }
 
 /* Returns device name. For standard file it is file name */
