@@ -547,6 +547,9 @@ check_preceder(reiser4_block_nr blk)
    no static initializer function...) */
 ON_DEBUG(atomic_t flush_cnt;)
 
+
+/* FIXME: remove me */#define FLUSH_CHECKS_CONGESTION 1
+
 #if defined (FLUSH_CHECKS_CONGESTION)
 /* check fs backing device for write congestion */
 static int check_write_congestion (void)
