@@ -61,7 +61,6 @@ extern void spinlock_bug (const char *msg);
 #include "../reiser4.h"
 #include "../forward.h"
 #include "../debug.h"
-#include "../reiser4_sb.h"
 
 #include "kutlock.h"
 
@@ -449,12 +448,15 @@ struct file_lock;
 struct iovec;
 struct page;
 struct nameidata;
+struct kiocb;
 
 struct file_operations {
 	struct module *owner;
 	loff_t (*llseek) (struct file *, loff_t, int);
 	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
+	ssize_t (*aio_read) (struct kiocb *, char *, size_t, loff_t);
 	ssize_t (*write) (struct file *, const char *, size_t, loff_t *);
+	ssize_t (*aio_write) (struct kiocb *, char *, size_t, loff_t);
 	int (*readdir) (struct file *, void *, filldir_t);
 	unsigned int (*poll) (struct file *, struct poll_table_struct *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
@@ -463,10 +465,12 @@ struct file_operations {
 	int (*flush) (struct file *);
 	int (*release) (struct inode *, struct file *);
 	int (*fsync) (struct file *, struct dentry *, int datasync);
+	int (*aio_fsync) (struct kiocb *, int datasync);
 	int (*fasync) (int, struct file *, int);
 	int (*lock) (struct file *, int, struct file_lock *);
 	ssize_t (*readv) (struct file *, const struct iovec *, unsigned long, loff_t *);
 	ssize_t (*writev) (struct file *, const struct iovec *, unsigned long, loff_t *);
+	ssize_t (*sendfile) (struct file *, struct file *, loff_t *, size_t);
 	ssize_t (*sendpage) (struct file *, struct page *, int, size_t, loff_t *, int);
 	unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
 };
@@ -510,6 +514,8 @@ struct iattr {
 	unsigned int	ia_attr_flags;
 };
 
+struct kstat;
+
 struct inode_operations {
 	int (*create) (struct inode *,struct dentry *,int);
 	struct dentry * (*lookup) (struct inode *,struct dentry *);
@@ -526,7 +532,7 @@ struct inode_operations {
 	void (*truncate) (struct inode *);
 	int (*permission) (struct inode *, int);
 	int (*setattr) (struct dentry *, struct iattr *);
-	int (*getattr) (struct dentry *, struct iattr *);
+	int (*getattr) (struct vfsmount *mnt, struct dentry *, struct kstat *);
 	int (*setxattr) (struct dentry *, const char *, void *, size_t, int);
 	ssize_t (*getxattr) (struct dentry *, const char *, void *, size_t);
 	ssize_t (*listxattr) (struct dentry *, char *, size_t);
@@ -550,10 +556,13 @@ struct seq_file;
 struct super_operations {
    	struct inode *(*alloc_inode)(struct super_block *sb);
 	void (*destroy_inode)(struct inode *);
+
 	void (*read_inode) (struct inode *);
+  
    	void (*dirty_inode) (struct inode *);
 	void (*write_inode) (struct inode *, int);
 	void (*put_inode) (struct inode *);
+	void (*drop_inode) (struct inode *);
 	void (*delete_inode) (struct inode *);
 	void (*put_super) (struct super_block *);
 	void (*write_super) (struct super_block *);
@@ -563,8 +572,7 @@ struct super_operations {
 	int (*remount_fs) (struct super_block *, int *, char *);
 	void (*clear_inode) (struct inode *);
 	void (*umount_begin) (struct super_block *);
-	struct dentry * (*fh_to_dentry)(struct super_block *sb, __u32 *fh, int len, int fhtype, int parent);
-	int (*dentry_to_fh)(struct dentry *, __u32 *fh, int *lenp, int need_parent);
+
 	int (*show_options)(struct seq_file *, struct vfsmount *);
 };
 
@@ -644,8 +652,8 @@ struct address_space_operations {
 	int (*bmap)(struct address_space *, long);
 	int (*invalidatepage) (struct page *, unsigned long);
 	int (*releasepage) (struct page *, int);
-#define KERNEL_HAS_O_DIRECT /* this is for modules out of the kernel */
-	int (*direct_IO)(int, struct inode *, struct kiobuf *, unsigned long, int);
+	int (*direct_IO)(int, struct inode *, char *buf,
+				loff_t offset, size_t count);
 };
 
 
@@ -875,12 +883,12 @@ struct page {
 	mp_hash_link link; /* link to mapping */
 };
 
-#define PG_locked	 0	/* Page is locked. Don't touch. */
+#define PG_locked	         0	/* Page is locked. Don't touch. */
 #define PG_error		 1
 #define PG_referenced		 2
 #define PG_uptodate		 3
 
-#define PG_dirty_dontuse	 4
+#define PG_dirty        	 4
 #define PG_lru			 5
 #define PG_active		 6
 #define PG_slab			 7	/* slab debug (Suparna wants this) */
@@ -930,17 +938,17 @@ struct page {
 #define SetPageUptodate(page)	set_bit(PG_uptodate, &(page)->flags)
 #define ClearPageUptodate(page)	clear_bit(PG_uptodate, &(page)->flags)
 
-#define PageDirty(page)		test_bit(PG_dirty_dontuse, &(page)->flags)
+#define PageDirty(page)		test_bit(PG_dirty, &(page)->flags)
 #define SetPageDirty(page)						\
 	do {								\
-		if (!test_and_set_bit(PG_dirty_dontuse,			\
+		if (!test_and_set_bit(PG_dirty,			\
 					&(page)->flags))		\
 			inc_page_state(nr_dirty);			\
 	} while (0)
 #define TestSetPageDirty(page)						\
 	({								\
 		int ret;						\
-		ret = test_and_set_bit(PG_dirty_dontuse,		\
+		ret = test_and_set_bit(PG_dirty,		\
 				&(page)->flags);			\
 		if (!ret)						\
 			inc_page_state(nr_dirty);			\
@@ -948,14 +956,14 @@ struct page {
 	})
 #define ClearPageDirty(page)						\
 	do {								\
-		if (test_and_clear_bit(PG_dirty_dontuse,		\
+		if (test_and_clear_bit(PG_dirty,		\
 				&(page)->flags))			\
 			dec_page_state(nr_dirty);			\
 	} while (0)
 #define TestClearPageDirty(page)					\
 	({								\
 		int ret;						\
-		ret = test_and_clear_bit(PG_dirty_dontuse,		\
+		ret = test_and_clear_bit(PG_dirty,		\
 				&(page)->flags);			\
 		if (ret)						\
 			dec_page_state(nr_dirty);			\
@@ -1738,6 +1746,10 @@ static inline void DQUOT_FREE_SPACE(struct inode *inode, qsize_t nr)
 extern void clear_inode(struct inode *);
 
 #define remove_from_page_cache remove_inode_page
+
+#define IS_RDONLY( something ) (0)
+
+void fsync_super( struct super_block *s );
 
 /* __REISER4_ULEVEL_H__ */
 #endif

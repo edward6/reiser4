@@ -592,45 +592,82 @@ int invalidate_inodes (struct super_block *sb)
 	return busy;
 }
 
+void generic_delete_inode(struct inode *inode)
+{
+	struct super_operations *op = inode->i_sb->s_op;
+
+	/* destroy inode */
+	list_del_init( &inode -> i_hash );
+	spin_unlock( &inode_hash_guard );
+
+	/* file is deleted. free all its pages */
+	truncate_inode_pages (inode->i_mapping, (loff_t)0); 
+
+	/* delete file from the tree */
+	/*
+	 * FIXME-VS: reiser4 does not have delete inode!
+	 */
+
+	if (op->delete_inode)
+		op->delete_inode (inode);
+	else
+		clear_inode(inode);
+
+	op->destroy_inode (inode);
+}
+
+static void generic_forget_inode(struct inode *inode)
+{
+	/* last reference to file is closed, call release */
+	struct file file;
+	struct dentry dentry;
+			
+	spin_unlock( &inode_hash_guard );
+	/*
+	 * we don't have struct file in the user level. Emulate close of last
+	 * struct file here.
+	 */
+	xmemset (&dentry, 0, sizeof dentry);
+	xmemset (&file, 0, sizeof file);
+	file.f_dentry = &dentry;
+	dentry.d_inode = inode;
+	if (inode->i_fop && inode->i_fop->release && 
+	    inode->i_fop->release (inode, &file))
+		info ("release failed\n");
+	/* leave inode in hash table with all its pages */
+}
+
+void generic_drop_inode(struct inode *inode)
+{
+	if (!inode->i_nlink)
+		generic_delete_inode(inode);
+	else
+		generic_forget_inode(inode);
+}
+
+static inline void iput_final( struct inode *inode )
+{
+	struct super_operations *op = inode->i_sb->s_op;
+	void (*drop)(struct inode *) = generic_drop_inode;
+
+	if (op && op->drop_inode)
+		drop = op->drop_inode;
+	drop(inode);
+}
 
 void iput( struct inode *inode )
 {
+	struct super_operations *op;
+
 	if( !inode )
 		return;
-	if( atomic_dec_and_test( & inode -> i_count) ) {
-		/* i_count drops to 0 */
-		if( inode->i_nlink == 0 ) {
-			/* file is deleted. free all its pages */
-			truncate_inode_pages (inode->i_mapping, (loff_t)0); 
+	op = inode->i_sb->s_op;
 
-			/* delete file from the tree */
-			/*
-			 * FIXME-VS: reiser4 does not have delete inode!
-			 */
+	if (op && op->put_inode)
+		op->put_inode(inode);
 
-			if (inode->i_sb->s_op->delete_inode)
-				inode->i_sb->s_op->delete_inode (inode);
-
-			/* destroy inode */
-			spin_lock( &inode_hash_guard );
-			list_del_init( &inode -> i_hash );
-			spin_unlock( &inode_hash_guard );
-			inode->i_sb->s_op->destroy_inode (inode);
-		} else {
-			/* last reference to file is closed, call release */
-			struct file file;
-			struct dentry dentry;
-			
-			xmemset (&dentry, 0, sizeof dentry);
-			xmemset (&file, 0, sizeof file);
-			file.f_dentry = &dentry;
-			dentry.d_inode = inode;
-			if (inode->i_fop && inode->i_fop->release && 
-			    inode->i_fop->release (inode, &file))
-				info ("release failed\n");
-			/* leave inode in hash table with all its pages */
-		}
-	}
+	if( atomic_dec_and_lock( &inode -> i_count, &inode_hash_guard ) )
+		iput_final( inode );
 }
 
 
@@ -5346,6 +5383,11 @@ void clear_inode(struct inode *inode)
 	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->clear_inode)
 		inode->i_sb->s_op->clear_inode(inode);
 	inode->i_state = I_CLEAR;
+}
+
+void fsync_super( struct super_block *s )
+{
+	fsync_bdev (s->s_bdev);
 }
 
 /*
