@@ -533,6 +533,33 @@ item_plugin *inode_dir_item_plugin( const struct inode *inode )
 	return reiser4_inode_data( inode ) -> dir_item;
 }
 
+void inode_set_extension( struct inode *inode, sd_ext_bits ext )
+{
+	reiser4_inode *state;
+
+	assert( "nikita-2716", inode != NULL );
+	assert( "nikita-2717", ( 0 <= ext ) && ( ext < LAST_SD_EXTENSION ) );
+
+	state = reiser4_inode_data( inode );
+	spin_lock_inode( state );
+	state -> extmask |= ( 1 << ext );
+	/*
+	 * force re-calculation of stat-data length on next call to
+	 * update_sd().
+	 */
+	state -> sd_len = 0;
+	spin_unlock_inode( state );
+}
+
+void inode_set_plugin( const struct inode *inode, reiser4_plugin *plug )
+{
+	assert( "nikita-2718", inode != NULL );
+	assert( "nikita-2719", plug != NULL );
+
+	reiser4_inode_data( inode ) -> plugin_mask |= ( 1 << plug -> h.type_id );
+	inode_set_extension( inode, PLUGIN_STAT );
+}
+
 #if REISER4_DEBUG_OUTPUT
 /** Debugging aid: print information about inode. */
 void print_inode( const char *prefix /* prefix to print */, 
