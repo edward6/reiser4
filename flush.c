@@ -581,6 +581,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int dont_check_congestion)
 	ret = write_fq(pos->fq);
 	if (ret > 0) {
 		*pos->nr_written += ret;
+		set_rapid_flush_mode(0);
 		ret = 0;
 	}
 	flush_started_io();
@@ -955,6 +956,44 @@ failed:
 	return ret;
 }
 
+/* The reiser4 flush subsystem can be turned into "rapid flush mode" means that
+ * flusher should submit all prepped nodes immediately without keeping them in
+ * flush queues for long time.  The reason for rapid flush mode is to free
+ * memory as fast as possible. */
+
+#if defined(REISER4_USE_RAPID_FLUSH)
+
+/* A system-wide rapid_flush_mode flag. */
+static atomic_t rapid_flush_mode_flg = ATOMIC_INIT(0);
+
+/**
+ * submit all prepped nodes if rapid flush mode is set,
+ * turn rapid flush mode off. 
+ */
+
+static int rapid_flush (flush_pos_t * pos)
+{
+	if (!atomic_read(&rapid_flush_mode_flg))
+		return 0;
+
+	return write_prepped_nodes(pos, 0);
+}
+
+/**
+ * set rapid flush mode.
+ */
+void set_rapid_flush_mode (int on)
+{
+	atomic_set(&rapid_flush_mode_flg, on);
+}
+
+#else
+
+#define rapid_flush(pos) (0)
+
+#endif /* REISER4_USE_RAPID_FLUSH */
+
+
 /* 
  * True if flush should *not* be started from @node.  It is possible that
  * @node is "stale" and is only accessible from atom capture lists (that is,
@@ -1103,8 +1142,10 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		flush_started_io();
 		trace_mark(flush);
 		ret1 = write_fq(fq);
-		if (ret1 > 0)
+		if (ret1 > 0) {
+			set_rapid_flush_mode(0);
 			*nr_submitted += ret1;
+		}
 	}
 
 	fq_put(fq);
@@ -1918,6 +1959,10 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 		/* advance the flush position to the right neighbor */
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
+
+		ret = rapid_flush(pos);
+		if (ret)
+			break;
 	}
 
 	done_load_count(&right_load);
@@ -2015,8 +2060,12 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		return 0;
 	}
 
-	if (item_is_extent(&pos->coord))
+	if (item_is_extent(&pos->coord)) {
+		ret = rapid_flush(pos);
+		if (ret)
+			return ret;
 		goto again;
+	}
 
 	assert ("zam-860", item_is_internal(&pos->coord));
 
@@ -2258,8 +2307,15 @@ static int squalloc (flush_pos_t * pos)
 	PROF_BEGIN(forward_squalloc);
 	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
 	 * greater CPU efficiency? Measure and see.... -Hans */
-	while (pos_valid(pos) && ret >= 0)
+	while (pos_valid(pos)) {
 		ret = flush_pos_handlers[pos->state](pos);
+		if (ret < 0)
+			break;
+
+		ret = rapid_flush(pos);
+		if (ret)
+			break;
+	}
 
 	PROF_END(forward_squalloc, forward_squalloc);
 
