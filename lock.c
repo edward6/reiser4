@@ -420,12 +420,16 @@ unlink_object(lock_handle * handle)
 
 /* Actually locks an object knowing that we are able to do this */
 static void
-lock_object(lock_stack * owner, znode * node)
+lock_object(lock_stack * owner)
 {
+	lock_request *request;
+	znode        *node;
 	assert("nikita-1834", spin_znode_is_locked(node));
 	assert("nikita-1839", owner == get_current_lock_stack());
 
-	if (owner->request.mode == ZNODE_READ_LOCK) {
+	request = &owner->request;
+	node    = request->node;
+	if (request->mode == ZNODE_READ_LOCK) {
 		node->lock.nr_readers++;
 	} else {
 		/* check that we don't switched from read to write lock */
@@ -435,7 +439,7 @@ lock_object(lock_stack * owner, znode * node)
 		node->lock.nr_readers--;
 	}
 
-	link_object(owner->request.handle, owner, node);
+	link_object(request->handle, owner, node);
 
 	if (owner->curpri) {
 		node->lock.nr_hipri_owners++;
@@ -447,9 +451,13 @@ lock_object(lock_stack * owner, znode * node)
 
 /* Check for recursive write locking */
 static int
-recursive(lock_stack * owner, znode * node)
+recursive(lock_stack * owner)
 {
 	int ret;
+	znode *node;
+
+	node = owner->request.node;
+
 	/* Owners list is not empty for a locked node */
 	assert("zam-314", !owners_list_empty(&node->lock.owners));
 	assert("nikita-1841", owner == get_current_lock_stack());
@@ -541,8 +549,10 @@ check_deadlock_condition(znode * node)
 
 /* checks lock/request compatibility */
 static int
-check_lock_object(lock_stack * owner, znode * node)
+check_lock_object(lock_stack * owner)
 {
+	znode *node = owner->request.node;
+
 	assert("nikita-1842", owner == get_current_lock_stack());
 	assert("nikita-1843", spin_znode_is_locked(node));
 
@@ -559,7 +569,7 @@ check_lock_object(lock_stack * owner, znode * node)
 		return -EAGAIN;
 	}
 
-	if (!is_lock_compatible(node, owner->request.mode) && !recursive(owner, node)) {
+	if (!is_lock_compatible(node, owner->request.mode) && !recursive(owner)){
 		return -EAGAIN;
 	}
 
@@ -567,11 +577,12 @@ check_lock_object(lock_stack * owner, znode * node)
 }
 
 static int
-can_lock_object(lock_stack * owner, znode * node)
+can_lock_object(lock_stack * owner)
 {
 	int result;
+	znode *node = owner->request.node;
 
-	result = check_lock_object(owner, node);
+	result = check_lock_object(owner);
 	if (REISER4_STATS && znode_get_level(node) > 0) {
 		if (result != 0)
 			reiser4_stat_inc_at_level(znode_get_level(node), 
@@ -592,6 +603,13 @@ set_high_priority(lock_stack * owner)
 	assert("nikita-1846", owner == get_current_lock_stack());
 	/* Do nothing if current priority is already high */
 	if (!owner->curpri) {
+		/* We don't need locking for owner->locks list, because, this
+		 * function is only called with the lock stack of the current
+		 * thread, and no other thread can play with owner->locks list
+		 * and/or change ->node pointers of lock handles in this list.
+		 *
+		 * (Interrupts also are not involved.)
+		 */
 		lock_handle *item = locks_list_front(&owner->locks);
 		while (!locks_list_end(&owner->locks, item)) {
 			znode *node = item->node;
@@ -621,6 +639,7 @@ set_high_priority(lock_stack * owner)
 static void
 set_low_priority(lock_stack * owner)
 {
+	assert("nikita-3075", owner == get_current_lock_stack());
 	/* Do nothing if current priority is already low */
 	if (owner->curpri) {
 		/* scan all locks (lock handles) held by @owner, which is
@@ -789,13 +808,14 @@ int longterm_lock_znode(
 	}
 
 	reiser4_stat_inc_at_level(znode_get_level(node), znode.lock_znode);
-	/* Synchronize on node's guard lock. */
-	spin_lock_znode(node);
 
 	/* Fill request structure with our values. */
 	owner->request.mode = mode;
 	owner->request.handle = handle;
 	owner->request.node = node;
+
+	/* Synchronize on node's guard lock. */
+	spin_lock_znode(node);
 
 	for (;;) {
 
@@ -804,15 +824,19 @@ int longterm_lock_znode(
 
 		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
 		   indicates "can_lock", otherwise the node is invalid.  */
-		ret = can_lock_object(owner, node);
+		ret = can_lock_object(owner);
 
-		if (ret == -EINVAL) {
+		if (unlikely(ret == -EINVAL)) {
+			/* @node is dying. Leave it alone. */
 			/* wakeup next requestor to support lock invalidating */
 			wake_up_next = 1;
 			break;
 		}
 
-		if (ret == -EAGAIN && non_blocking) {
+		if (unlikely(ret == -EAGAIN && non_blocking)) {
+			/* either locking of @node by the current thread will
+			 * lead to the deadlock, or lock modes are
+			 * incompatible. */
 			break;
 		}
 
@@ -834,7 +858,7 @@ int longterm_lock_znode(
 		/* Check the lock's availability again -- this is because under some
 		   circumstances the capture code has to release and reacquire the znode
 		   spinlock. */
-		ret = can_lock_object(owner, node);
+		ret = can_lock_object(owner);
 
 		/* This time, a return of (ret == 0) means we can lock, so we should break
 		   out of the loop. */
@@ -895,7 +919,7 @@ int longterm_lock_znode(
 
 	/* If we broke with (ret == 0) it means we can_lock, now do it. */
 	if (ret == 0) {
-		lock_object(owner, node);
+		lock_object(owner);
 		owner->request.mode = 0;
 		if (mode == ZNODE_READ_LOCK)
 			wake_up_next = 1;

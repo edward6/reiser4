@@ -207,6 +207,15 @@ struct lock_handle {
 	owners_list_link owners_link;
 };
 
+typedef struct lock_request {
+	/* A pointer to uninitialized link object */
+	lock_handle *handle;
+	/* A pointer to the object we want to lock */
+	znode *node;
+	/* Lock mode (ZNODE_READ_LOCK or ZNODE_WRITE_LOCK) */
+	znode_lock_mode mode;
+} lock_request;
+
 /* A lock stack structure for accumulating locks owned by a process */
 struct lock_stack {
 	/* A guard lock protecting a lock stack */
@@ -219,7 +228,9 @@ struct lock_stack {
 	   locking.
 	*/
 	int curpri;
-	/* A list of all locks owned by this process */
+	/* A list of all locks owned by this process. Elements can be added to
+	 * this list only by the current thread. ->node pointers in this list
+	 * can be only changed by the current thread. */
 	locks_list_head locks;
 	/* When lock_stack waits for the lock, it puts itself on double-linked
 	   requestors list of that lock */
@@ -229,14 +240,7 @@ struct lock_stack {
 	   This is only accessed by the current thread and thus requires no
 	   locking.
 	*/
-	struct {
-		/* A pointer to uninitialized link object */
-		lock_handle *handle;
-		/* A pointer to the object we want to lock */
-		znode *node;
-		/* Lock mode (ZNODE_READ_LOCK or ZNODE_WRITE_LOCK) */
-		znode_lock_mode mode;
-	} request;
+	lock_request request;
 	/* It is a lock_stack's synchronization object for when process sleeps
 	   when requested lock not on this lock_stack but which it wishes to
 	   add to this lock_stack is not immediately available. It is used
