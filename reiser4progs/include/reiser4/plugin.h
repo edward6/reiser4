@@ -145,8 +145,19 @@ struct reiserfs_stat_hint {
 typedef struct reiserfs_stat_hint reiserfs_stat_hint_t;
 
 struct reiserfs_entry_hint {
-    uint64_t locality;
-    uint64_t objectid;
+    /* Locality and objectid of object pointed by entry */
+    struct {
+	uint64_t locality;
+	uint64_t objectid;
+    } objid;
+
+    /* Offset of entry */
+    struct {
+	uint64_t objectid;
+	uint64_t offset;
+    } entryid;
+
+    /* Name of entry */
     char *name;
 };
 
@@ -155,9 +166,6 @@ typedef struct reiserfs_entry_hint reiserfs_entry_hint_t;
 struct reiserfs_direntry_hint {
     uint16_t count;
     reiserfs_entry_hint_t *entry;
-    
-    reiserfs_plugin_t *key_plugin;
-    reiserfs_plugin_t *hash_plugin;    
 };
 
 typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
@@ -232,8 +240,8 @@ struct reiserfs_key_ops {
     int (*compare_short) (const void *, const void *);
 
     /* 
-	Cleans key. Actually it just memsets it by zeros,
-	but more smart behavior may be implemented.
+	Cleans key up. Actually it just memsets it by zeros, but more smart behavior may 
+	be implemented.
     */
     void (*clean) (void *);
 
@@ -270,8 +278,7 @@ struct reiserfs_key_ops {
     errno_t (*build_generic_short) (void *, uint32_t, uint64_t, uint64_t);
     errno_t (*build_entry_short) (void *, void *, const char *);
 
-    errno_t (*build_by_entry_short) (void *, void *);
-    errno_t (*build_by_generic_short) (void *, void *);
+    errno_t (*build_by_entry) (void *, void *);
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;

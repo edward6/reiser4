@@ -246,7 +246,7 @@ static errno_t key40_build_generic_short(void *ptr, uint32_t type,
     return 0;
 }
 
-static errno_t key40_build_by_entry_short(reiserfs_key40_t *key, 
+static errno_t key40_build_by_entry(reiserfs_key40_t *key, 
     void *data)
 {
     aal_assert("umka-877", key != NULL, return -1);
@@ -254,17 +254,6 @@ static errno_t key40_build_by_entry_short(reiserfs_key40_t *key,
     
     key40_clean(key);    
     aal_memcpy(&key->el[1], data, sizeof(uint64_t) * 2);
-    
-    return 0;
-}
-
-static errno_t key40_build_by_generic_short(reiserfs_key40_t *key, 
-    void *data)
-{
-    aal_assert("umka-879", key != NULL, return -1);
-    aal_assert("umka-880", data != NULL, return -1);
-    
-    aal_memcpy(key, data, sizeof(uint64_t) * 2);
     
     return 0;
 }
@@ -319,11 +308,8 @@ static reiserfs_plugin_t key40_plugin = {
 	.build_entry_short = (errno_t (*)(void *, void *, const char *))
 	    key40_build_entry_short,
 
-	.build_by_entry_short = (errno_t (*)(void *, void *))
-	    key40_build_by_entry_short,
-	
-	.build_by_generic_short = (errno_t (*)(void *, void *))
-	    key40_build_by_generic_short,
+	.build_by_entry = (errno_t (*)(void *, void *))
+	    key40_build_by_entry,
     }
 };
 

@@ -22,14 +22,12 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
 {
     int i;
     uint16_t len, offset;
-    reiserfs_plugin_t *key_plugin;
     reiserfs_direntry_hint_t *direntry_hint;
     
     aal_assert("vpf-097", direntry != NULL, return -1);
     aal_assert("vpf-098", hint != NULL, return -1);
     
     direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
-    key_plugin = direntry_hint->key_plugin;
     
     de40_set_count(direntry, direntry_hint->count);
     offset = sizeof(reiserfs_direntry40_t) + 
@@ -38,13 +36,11 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
     for (i = 0; i < direntry_hint->count; i++) {
 	en40_set_offset(&direntry->entry[i], offset);
 
-	libreiser4_plugin_call(return -1, key_plugin->key_ops, build_entry_short, 
-	    &direntry->entry[i].entryid, direntry_hint->hash_plugin, 
-	    direntry_hint->entry[i].name);
-
-	libreiser4_plugin_call(return -1, key_plugin->key_ops, build_generic_short, 
-	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
-	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid);
+	aal_memcpy(&direntry->entry[i].entryid, &direntry_hint->entry[i].entryid, 
+	    sizeof(reiserfs_entryid_t));
+	
+	aal_memcpy(((char *)direntry) + offset, &direntry_hint->entry[i].objid, 
+	    sizeof(reiserfs_objid_t));
 	
 	len = aal_strlen(direntry_hint->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
@@ -83,11 +79,16 @@ static errno_t direntry40_get_entry(reiserfs_direntry40_t *direntry,
     
     en = (reiserfs_entry40_t *)(((char *)direntry) + offset);
     
+    entry->entryid.objectid = eid_get_objectid((reiserfs_entryid_t *)(&en->entryid));
+    entry->entryid.offset = eid_get_offset((reiserfs_entryid_t *)(&en->entryid));
+    
     offset = en40_get_offset(en); 
     objid = (reiserfs_objid_t *)(((char *)direntry) + offset);
     
-    entry->objectid = oid_get_objectid(objid);
-    entry->locality = oid_get_locality(objid);
+    entry->objid.objectid = oid_get_objectid(objid);
+    entry->objid.locality = oid_get_locality(objid);
+
+    /* Here will be also filling up of entry->entryid */
     
     offset += sizeof(*objid);
     entry->name = ((char *)direntry) + offset;
@@ -102,6 +103,8 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
     aal_assert("umka-792", hint != NULL, return -1);
     
     de40_set_count(direntry, de40_get_count(direntry) + 1);
+    
+    /* Here will be adding of an unit */
     
     return 0;
 }
@@ -168,7 +171,7 @@ static int callback_comp_for_lookup(const void *key1,
     plugin = (reiserfs_plugin_t *)data;
     
     libreiser4_plugin_call(return -1, plugin->key_ops, 
-	build_by_entry_short, (void *)&key, (void *)key1);
+	build_by_entry, (void *)&key, (void *)key1);
 
     return libreiser4_plugin_call(return -1, plugin->key_ops, 
 	compare_full, &key, key2);

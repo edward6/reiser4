@@ -104,8 +104,10 @@ int main(int argc, char *argv[]) {
 	    goto error_free_device;
 	}
 
-	while (!reiserfs_object_read(obj, &entry))
-	    aal_printf("%llx:%llx %s\n", (entry.locality >> 4), entry.objectid, entry.name);
+	while (!reiserfs_object_read(obj, &entry)) {
+	    aal_printf("%llx:%llx %s\n", (entry.objid.locality >> 4), 
+		entry.objid.objectid, entry.name);
+	}
 
 	reiserfs_object_close(obj);
     }

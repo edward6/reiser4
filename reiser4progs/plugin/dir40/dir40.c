@@ -116,7 +116,7 @@ static errno_t dir40_read(reiserfs_dir40_t *dir,
 		get_entry, dir->direntry, dir->place.pos.unit, &next_entry)))
 	    return -1;
 
-	if (prev_entry.locality != next_entry.locality)
+	if (prev_entry.objid.locality != next_entry.objid.locality)
 	    return -1;
     }
     
@@ -283,24 +283,32 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	key_plugin->key_ops, size,));
     
     direntry.count = 2;
-    direntry.key_plugin = key_plugin;
-    direntry.hash_plugin = hash_plugin;
    
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, 
-	build_entry_full, item.key.body, direntry.hash_plugin, 
-	parent_objectid, objectid, ".");
+	build_entry_full, item.key.body, hash_plugin, parent_objectid, 
+	objectid, ".");
     
     if (!(direntry.entry = aal_calloc(direntry.count * 
 	    sizeof(reiserfs_entry_hint_t), 0)))
 	goto error_free_dir;
     
-    direntry.entry[0].locality = parent_objectid;
-    direntry.entry[0].objectid = objectid;
+    /* Preparing dot entry */
     direntry.entry[0].name = ".";
     
-    direntry.entry[1].locality = parent_locality;
-    direntry.entry[1].objectid = parent_objectid;
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_generic_short, 
+        &direntry.entry[0].objid, KEY40_STATDATA_MINOR, parent_objectid, objectid);
+	
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_entry_short, 
+	&direntry.entry[0].entryid, hash_plugin, direntry.entry[0].name);
+    
+    /* Preparing dot-dot entry */
     direntry.entry[1].name = "..";
+    
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_generic_short, 
+        &direntry.entry[1].objid, KEY40_STATDATA_MINOR, parent_locality, parent_objectid);
+	
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_entry_short, 
+	&direntry.entry[1].entryid, hash_plugin, direntry.entry[1].name);
     
     item.hint = &direntry;
     
