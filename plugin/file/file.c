@@ -2290,10 +2290,21 @@ reiser4_internal ssize_t sendfile_unix_file (
 	if (ret)
 		return ret;
 
-	ret = sendfile_common(file, ppos, count, actor, target);
-	return ret;
+	return sendfile_common(file, ppos, count, actor, target);
 }
 
+reiser4_internal int prepare_write_unix_file (
+	struct file * file, struct page * page, unsigned from, unsigned to)
+{
+	struct inode * inode;
+	ssize_t ret;
+
+	inode = file->f_dentry->d_inode;
+	ret = unpack(inode, 0, 0);
+	if (ret)
+		return ret;
+	return prepare_write_common(file, page, from, to);
+}
 
 /*
    Local variables:
