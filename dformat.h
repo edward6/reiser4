@@ -126,16 +126,15 @@ typedef struct reiser4_master_sb {
 } reiser4_master_sb;
 
 
-/* identifiers for disk layouts, they are also used as indexes in array of disk
- * plugins */
+
 typedef enum { 
-	/* standard reiser4 disk layout plugin id */
-	LAYOUT_40_ID,
-	LAST_LAYOUT_ID
-} disk_layout_id;
+	/* default for reiser 4.0 disk space manager id */
+	DEFAULT_40_SPACE_MGR_ID,
+	LAST_SPACE_MGR_ID
+} space_mgr_id;
 
-extern reiser4_plugin layout_plugins [];
 
+extern reiser4_plugin space_plugins[ LAST_SPACE_MGR_ID ];
 
 
 /* super block for standard reiser 40 disk layout */
@@ -143,19 +142,6 @@ typedef struct layout_40_disk_super_block {
 	reiser4_master_sb master;
 	
 } layout_40_disk_super_block;
-
-
-#include "oid.h"
-
-/* layout 40 specific part of reiser4_super_info_data */
-typedef struct layout_40_super_info_data {
-	/**
-	 * allocator used to allocate new object ids for objects in the file
-	 * system. Current default implementation of object id allocator is
-	 * just counter and
-	 */
-	reiser4_oid_allocator_t oid_allocator;	
-} layout_40_super_info_data;
 
 
 /* __FS_REISER4_DFORMAT_H__ */
