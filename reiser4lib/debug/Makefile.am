@@ -1,3 +1,3 @@
-noinst_SCRIPTS  = detect functions test
+noinst_SCRIPTS  = detect
 
 EXTRA_DIST		= $(noinst_SCRIPTS)

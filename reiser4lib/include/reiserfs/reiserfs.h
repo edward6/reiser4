@@ -21,7 +21,8 @@ extern "C" {
 #endif
 
 #include "exception.h"
-	
+#include "tools.h"
+
 typedef void *(*libreiserfs_malloc_handler_t) (size_t);
 typedef void *(*libreiserfs_realloc_handler_t) (void *, size_t);
 typedef void (*libreiserfs_free_handler_t) (void *);

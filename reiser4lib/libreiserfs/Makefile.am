@@ -8,7 +8,7 @@ libreiserfs_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) \
 
 libreiserfs_la_LIBADD  	= $(top_builddir)/libdal/libdal.la
 
-libreiserfs_la_SOURCES  = libreiserfs.c exception.c
+libreiserfs_la_SOURCES  = libreiserfs.c exception.c tools.c
 
 INCLUDES = $(includedir)
 

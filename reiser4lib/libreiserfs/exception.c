@@ -52,12 +52,6 @@ reiserfs_exception_type_t reiserfs_exception_type(reiserfs_exception_t *ex) {
 	return ex->type;
 }
 
-static int log2(int n) {
-	int x;
-	for (x = 0; 1 << x <= n; x++);
-		return x - 1;
-}
-
 char *reiserfs_exception_option_string(reiserfs_exception_option_t opt) {
 	return option_strings[reiserfs_tools_log2(opt)];
 }
@@ -140,7 +134,7 @@ reiserfs_exception_option_t reiserfs_exception_throw(reiserfs_exception_type_t t
 	
 	exception->type = type;
 	exception->options = opts;
-	strncpy(exception->hint, hint);
+	strncpy(exception->hint, hint, 4096);
 
 	va_start(arg_list, message);
 	vsnprintf(exception->message, 8192, message, arg_list);
@@ -167,7 +161,7 @@ void reiserfs_exception_fetch_all(void) {
 }
 
 void reiserfs_exception_leave_all(void) {
-	if (fetch_count > 0);
+	if (fetch_count > 0)
 		fetch_count--;
 }
 
