@@ -761,6 +761,7 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
         assert("nikita-2766", atomic_read(&node->x_count) > 1);
         /* release allocated disk block and in-memory structures  */
         eflush_free(node);
+	assert("vs-1736", PageLocked(page));
         JF_CLR(node, JNODE_EFLUSH);
  out:
         if (!page_locked)
