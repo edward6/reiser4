@@ -96,6 +96,16 @@ that case we would discover a node is dirty when we have already
 passed over its position in the parent-first ordering.  In otherwords,
 we would discover this information too late to be useful.
 
+The Several-Pass Solution:
+
+It is possible to construct this relocate information at flush time by
+scanning the tree, but it means at least two passes over the tree.
+Using several passes has an advantage: we can then choose overwrite
+when the "optimal location" is part of the atom's own preserve set.
+This requires knowing the (partial) set of blocks being flushed before
+allocation begins.  This strategy was initially proposed by Hans,
+before we realized it would require multiple passes.
+
 The Solution:
 
 Maintain an active count of dirty children for each node.  This allows
@@ -107,7 +117,7 @@ the same size as our znode's c_count field is needed.  If this value
 were only ever incremented, then we could use a single bit (0 = no
 dirty children, 1 = single dirty child, otherwise mark dirty &
 relocate).  But since a node may have dirty children added while
-flushes are active (it can happen, right) this requires more than just
+flushes are active (it can happen, right?) this requires more than just
 a bit.  I worry about the complexity of maintaining this dirty count,
 but I fear that the parent-first allocation policy will not succeed
 without knowing before-hand all the dirty nodes it must consider.
@@ -119,14 +129,231 @@ should be relocated (i.e., that the flush algorithm does not make this
 decision during as part of its passing over the tree).
 
 Starting from some leaf node, find the maximal dirty ancestor (note:
-no scan left involved).  From the maximal dirty ancestor, find the
+no scan left involved).  If the maximal dirty ancestor is NOT the
+leftmost child of its own parent (and not the root node), there may be
+a dirty parent-first-ordered node in a subtree to the left of this
+one.  In those cases, from the maximal dirty ancestor, find the
 leftmost in-memory descendant.  If the leftmost descendant is dirty,
 consider its left neighbor.  If the neighbor is also dirty, repeat the
-steps of this paragraph starting at that node.  If the neighbor is not
-dirty, save the maximal dirty parent of the leftmost descendant.
+steps of this paragraph starting at that node.  Pseudo-code for this
+is:
+
+/* Starting from a node, find the greatest dirty ancestor. */
+jnode* greatest_dirty_parent (jnode *node)
+{
+  while (! is_root_node (node)) {
+     znode *parent = get_parent (node);
+
+     if (! znode_is_dirty (parent)) {
+         break;
+     }
+
+     node = parent;
+  }
+  return node;
+}
+
+/* Starting at a node, find the greatest dirty parent, then see if it
+ * has a preceding dirty node on the leaf of the subtree to its left. */
+void find_maximal_dirty_ancestor (jnode *node)
+{
+ repeat:
+  node = greatest_dirty_parent (node)
+
+  /* End search at the root node or if the node is the leftmost child
+   * of its parent, in which case the left-of-leftmost-descendent does
+   * not precede it in parent first order, its parent does in that
+   * case. */
+  if (! is_root_node (node) && ! leftmost_child_of_parent (node)) {
+     jnode *godown = node;
+
+     while (jnode_get_level (godown) > LEAF_LEVEL) {
+       /* Iterate downward as long as leftmost nodes in memory (note:
+        * they don't have to be dirty). */
+       jnode *child = leftmost_child (godown);
+
+       if (child == NULL) {
+         return node;
+       }
+
+       godown = child;
+    }
+
+    /* Reached the leftmost descendant of the maximal dirty node,
+     * now see if its left is dirty.  Otherwise return. */
+    if ((godown = godown->left) == NULL || ! jnode_is_dirty (godown)) {
+      return node;
+    }
+
+    /* At this point, "godown" precedes "node" in the parent-first
+     * traversal, so search for a new maximal dirty node. */
+    node = godown;
+    goto repeat;
+  }
+}
 
 Now we have found the maximal dirty ancestor from which to begin
 allocating and squeezing.  From this point we will traverse all
 descendants of the maximal dirty ancestor, in parent-first order,
-allocating blocks and squeezing nodes in the Right Order.  I will
-define this order tomorrow.
+allocating blocks and squeezing nodes in the following order.
+
+Squeezing must be performed in a bottom-up, left-to-right order, whereas
+allocation occurs in parent-first order.  The following pseudo-code
+accomplishes both at once:
+
+
+/* A function to find the parent-first-preceder of a node, although
+ * there may not be enough nodes in memory to actually compute this.
+ * In that case, pick something else.  If node is leftmost child of
+ * its parent, return its parent's block number.  Otherwise if node
+ * is a leaf node, return its left neighbor.  Finally, return the
+ * block number of the parent's left neighbor's rightmost descendent
+ * (which may not be in memory).  In the actual implementation of the
+ * parent-first traversal below, we can optimize this (because we
+ * know the result most of the time). */
+blocknr parent_first_preceder_of (jnode *node) { ... }
+
+/* A parent-first recursive tree traversal, allocate and squeeze.
+ * This allocates and squeezes the children of a single sub-tree.
+ */
+void allocate_and_squeeze_parent_first_subtree (jnode *node)
+{
+  /* Stop recursion if its not dirty, meaning don't allocate children either.
+   * Children might be dirty but there is an overwrite below this level
+   * or else this node would be dirty. */
+  if (! is_dirty (node)) {
+    return;
+  }
+
+  /* Allocate (parent) first. */
+  allocate_node (node, parent_first_preceder_of (node));
+
+  if (jnode_is_unformatted (node)) {
+    /* We got here because the parent (twig) of an unformatted node is
+     * not being relocated.  Otherwise this recursion does not descend
+     * to unformatted nodes. */
+     return;
+  }
+
+  /* Recursive case: */
+  if (jnode_get_level (node) > LEAF_LEVEL) {
+
+    for (each_item_left_to_right (node)) {
+
+      if (is_extent_item (item) && extent_item_is_dirty (item)) {
+         allocate_extent_item (item);
+      } else if (is_internal_item (item) && jnode_is_dirty (internal_item_child (item))) {
+         allocate_and_squeeze_parent_first (internal_item_child (item));
+      }
+    }
+  }
+
+  /* Squeeze a node: note that this makes the "one big memcpy"
+   * approach somewhat more difficult, but its still possible. */
+  while (not_empty (node) && jnode_is_formatted (node->right) && is_dirty (node->right)) {
+
+    item = first_item_of (node->right);
+
+    if (is_extent_item (item) && extent_item_is_dirty (item)) {
+       allocate_extent_item_into (item, node);
+    } else if (can_shift_into (item, node)) {
+       shift_item (item, node);
+    }
+  } 
+}
+
+/* Allocate and squeeze starting at the maximal dirty ancestor
+ * described above.  Repeat in rightward direction for adjacent
+ * subtrees.
+ */
+void allocate_and_squeeze_parent_first (jnode *node)
+{
+  jnode *right;
+
+repeat:
+  /* Do one sub-tree */
+  allocate_and_squeeze_parent_first (node);
+
+  /* Now try to repeat to the right. */
+  right = get_right_neighbor (node);
+
+  if (right != NULL && jnode_is_dirty (right)) {
+     node = greatest_dirty_parent (right);
+     goto repeat;
+  }
+}
+
+
+
+
+
+
+/* The crap below was my first attempt to write this iteratively. */
+
+
+
+
+
+jnode *maximal_dirty_ancestor = ...;                   /* Computed using above algorithm */
+jnode *left_edge[MAX_LEVELS];                          /* Vertical edge of left-to-right scan */
+int    top_edge = jnode_get_level (node) - LEAF_LEVEL; /* Highest index to the left_edge array --
+                                                        * by subtracting LEAF_LEVEL it becomes 0-origin */
+
+/* Initialize left_edge array entries to NULL, set top edge */
+left_edge[top_edge] = maximal_dirty_ancestor;
+
+/* For each node above the leaf level, set the child in left_edge */
+for (int level = top_edge; level >= 1; level -= 1) {
+
+  jnode *parent = left_edge[level];
+
+  /* Find its leftmost dirty child. */
+  jnode *child  = leftmost_dirty_child (parent);
+
+  /* Its possible that a dirty node could have no dirty children,
+   * in which case leave the lower edges NULL. */
+  if (child == NULL) { break; }
+
+  left_edge[level-1] = child;
+}
+
+/* To store the lowest dirty entry in left_edge[]. */
+int current_level = 0;
+
+/* Allocate each node in the left edge. */
+for (int level = top_edge; level >= 0 && left_edge[level] != NULL; level -= 1) {
+
+  jnode *node = left_edge[level];
+
+  /* Allocate this node... */
+  allocate_node (node, parent_first_preceder_of (node));
+
+  current_level = level;
+}
+
+/* Now starting with the current level, squeeze and allocate until finished. */
+while (current_level <= top_level) {
+
+  jnode *current_node = left_edge[current_level];
+
+  if (jnode_is_formatted (current_node)) {
+
+    do {
+
+      /* Shift as much as possible. */
+      while (node_has_room_to_shift_into (current_node)) {
+        if (is_twig_level (current_node)) {
+          shift_left (current_node, current_node->right);
+        } else {
+          allocate_extents_and_shift_left (current_node, current_node->right);
+        }
+      }
+
+      /* Once it has been tightly packed, allocate it. */
+      allocate_node (current_node, parent_first_preceder_of (node));
+
+      current_node = current_node->right;
+  }
+
+  current_level += 1;
+}
