@@ -13,8 +13,17 @@
 
 #include "alloc40.h"
 
+/* 
+    Pointer to libreiser4 plugin factory. As all libreiser4 plugins are able to 
+    use another plugins, it is needed to make request find plugin by its attributes.
+*/
 static reiserfs_plugin_factory_t *factory = NULL;
 
+/* 
+    Performs actual opening of the alloc40 allocator. As alloc40 is the bitmap-based
+    block allocator, this function calles reiserfs_bitmap_open function in order to 
+    load it from device.
+*/
 static reiserfs_alloc40_t *alloc40_open(aal_device_t *device, 
     count_t len) 
 {
@@ -26,9 +35,11 @@ static reiserfs_alloc40_t *alloc40_open(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
+    /* Addres of first bitmap block */
     offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
 	aal_device_get_bs(device);
 
+    /* Opening bitmap */
     if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open bitmap.");
@@ -46,6 +57,10 @@ error:
 
 #ifndef ENABLE_COMPACT
 
+/* 
+    Initializes new alloc40 instance, creates bitmap and return new instance to 
+    caller (block allocator in libreiser4).
+*/
 static reiserfs_alloc40_t *alloc40_create(aal_device_t *device, 
     count_t len)
 {
@@ -75,6 +90,7 @@ error:
     return NULL;
 }
 
+/* Saves alloc40 data (bitmap in fact) to device */
 static errno_t alloc40_sync(reiserfs_alloc40_t *alloc) {
 
     aal_assert("umka-366", alloc != NULL, return -1);
@@ -85,6 +101,7 @@ static errno_t alloc40_sync(reiserfs_alloc40_t *alloc) {
 
 #endif
 
+/* Frees alloc40 instance */
 static void alloc40_close(reiserfs_alloc40_t *alloc) {
     
     aal_assert("umka-368", alloc != NULL, return);
@@ -96,6 +113,7 @@ static void alloc40_close(reiserfs_alloc40_t *alloc) {
 
 #ifndef ENABLE_COMPACT
 
+/* Marks specified block as used in its own bitmap */
 static void alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-370", alloc != NULL, return);
@@ -104,6 +122,7 @@ static void alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
     reiserfs_bitmap_use(alloc->bitmap, blk);
 }
 
+/* Marks "blk" as free */
 static void alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-372", alloc != NULL, return);
@@ -112,6 +131,7 @@ static void alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
     reiserfs_bitmap_unuse(alloc->bitmap, blk);
 }
 
+/* Finds first free block in bitmap and returns it to caller */
 static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
     blk_t blk;
     
@@ -119,8 +139,8 @@ static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
     aal_assert("umka-375", alloc->bitmap != NULL, return 0);
     
     /* 
-	It is possible to implement here more smart 
-	allocation algorithm 
+	It is possible to implement here more smart allocation algorithm. For
+	instance, it may look for contiguous areas.
     */
     if (!(blk = reiserfs_bitmap_find(alloc->bitmap, 0)))
 	return 0;
@@ -131,6 +151,7 @@ static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
 
 #endif
 
+/* Returns free blcoks count */
 count_t alloc40_free(reiserfs_alloc40_t *alloc) {
 
     aal_assert("umka-376", alloc != NULL, return 0);
@@ -139,6 +160,7 @@ count_t alloc40_free(reiserfs_alloc40_t *alloc) {
     return reiserfs_bitmap_unused(alloc->bitmap);
 }
 
+/* Returns used blocks count */
 count_t alloc40_used(reiserfs_alloc40_t *alloc) {
     
     aal_assert("umka-378", alloc != NULL, return 0);
@@ -147,6 +169,7 @@ count_t alloc40_used(reiserfs_alloc40_t *alloc) {
     return reiserfs_bitmap_used(alloc->bitmap);
 }
 
+/* Checks whether specified block is used or not */
 int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
     aal_assert("umka-663", alloc != NULL, return 0);
     aal_assert("umka-664", alloc->bitmap != NULL, return 0);
@@ -154,6 +177,7 @@ int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
     return reiserfs_bitmap_test(alloc->bitmap, blk);
 }
 
+/* Filling the alloc40 structure by methods */
 static reiserfs_plugin_t alloc40_plugin = {
     .alloc = {
 	.h = {
@@ -186,6 +210,7 @@ static reiserfs_plugin_t alloc40_plugin = {
     }
 };
 
+/* Registering aloc40 plugin in plugin factory */
 static reiserfs_plugin_t *alloc40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &alloc40_plugin;
