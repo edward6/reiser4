@@ -15,10 +15,28 @@
     Tries to guess object plugin type passed first item plugin and item body. Most
     possible that passed item body is stat data body.
 */
-static reiserfs_plugin_t *__guess_object_plugin(
-    reiserfs_plugin_t *item_plugin, /* plugin of the first item in object */
-    void *item_body		    /* item body to be used in guessing */
-) {
+static reiserfs_plugin_t *reiserfs_object_guess_plugin(reiserfs_object_t *object) {
+    void *item_body;
+    reiserfs_plugin_t *item_plugin;
+    
+    /* Getting plugin for the first object item (most probably stat data item) */
+    if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
+	object->coord.pos.item)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find first item plugin.");
+	return NULL;
+    }
+    
+    /* Getting first item body */
+    if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
+	object->coord.pos.item)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find first item plugin.");
+	return NULL;
+    }
+    
     /* FIXME-UMKA: Here should be real detecting instead of hardcoded plugin */
     return libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0);
 }
@@ -130,7 +148,7 @@ static errno_t reiserfs_object_lookup(
 	    Here we should get dir plugin id from the statdata and using it try find 
 	    needed entry inside it.
 	*/
-	if (!(object_plugin = __guess_object_plugin(item_plugin, item_body))) {
+	if (!(object_plugin = reiserfs_object_guess_plugin(object))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't guess object plugin for parent of %s.", track);
 	    return -1;
@@ -195,9 +213,6 @@ reiserfs_object_t *reiserfs_object_open(
     reiserfs_key_t parent_key;
     reiserfs_object_t *object;
     
-    reiserfs_plugin_t *item_plugin;
-    void *item_body;
-    
     aal_assert("umka-678", fs != NULL, return NULL);
     aal_assert("umka-789", name != NULL, return NULL);
 
@@ -223,45 +238,10 @@ reiserfs_object_t *reiserfs_object_open(
 	goto error_free_object;
     }
     
-    /* Getting plugin for the first object item (most probably stat data item) */
-    if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
-	object->coord.pos.item)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find first item plugin.");
-	goto error_free_object;
-    }
-    
-    /* Getting first item body */
-    if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
-	object->coord.pos.item)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find first item plugin.");
-	goto error_free_object;
-    }
-    
     /* Guessing object plugin from its first item */
-    if (!(object->plugin = __guess_object_plugin(item_plugin, item_body))) {
+    if (!(object->plugin = reiserfs_object_guess_plugin(object))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't guess object plugin.");
-	goto error_free_object;
-    }
-    
-    /* As we have few kinds of object plugin we should know what plugin we want call */
-    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
-	
-	/* Calling dir plugin */
-	if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
-	    object->plugin->dir_ops, open, fs->tree, &object->key)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open directory %s.", name);
-	    goto error_free_object;
-	}
-    } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, files are not supported yet!");
 	goto error_free_object;
     }
     
@@ -277,15 +257,9 @@ error_free_object:
 /* Creates new object on specified filesystem */
 reiserfs_object_t *reiserfs_object_create(
     reiserfs_fs_t *fs,		    /* filesystem new object will be created on */
-    reiserfs_object_hint_t *hint,   /* object hint (contains plugin ids for all components) */
-    reiserfs_plugin_t *plugin,	    /* plugin to be used */
-    reiserfs_object_t *parent,	    /* pointer to the parent object */
-    const char *name		    /* object name (file or directory name) */
+    reiserfs_plugin_t *plugin	    /* plugin to be used */
 ) {
-    int i;
     reiserfs_object_t *object;
-    oid_t objectid, parent_objectid;
-    reiserfs_key_t parent_key, object_key;
     
     aal_assert("umka-790", fs != NULL, return NULL);
     aal_assert("umka-785", plugin != NULL, return NULL);
@@ -298,53 +272,6 @@ reiserfs_object_t *reiserfs_object_create(
     object->fs = fs;
     object->plugin = plugin;
 
-    /* Preparing object key and parent object key */
-    object->key.plugin = fs->key.plugin;
-    reiserfs_key_init(&object->key, fs->key.body);
-    
-    /* Checking for the special case when parent is NULL (creating root object) */
-    if (parent) {
-	parent_key.plugin = parent->key.plugin;
-	reiserfs_key_init(&parent_key, parent->key.body);
-	objectid = reiserfs_oid_alloc(parent->fs->oid);
-    } else {
-	parent_key.plugin = fs->key.plugin;
-	reiserfs_key_build_generic_full(&parent_key, KEY40_STATDATA_MINOR, 
-	    reiserfs_oid_root_parent_locality(fs->oid), 
-	    reiserfs_oid_root_parent_objectid(fs->oid), 0);
-
-	objectid = reiserfs_oid_root_objectid(fs->oid);
-    }
-    parent_objectid = reiserfs_key_get_objectid(&parent_key);
-    
-    object_key.plugin = parent_key.plugin;
-    reiserfs_key_build_generic_full(&object_key, KEY40_STATDATA_MINOR,
-	parent_objectid, objectid, 0);
-    
-    /* Calling object plugin in order to perform all needed actions */
-    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
-	if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
-	    plugin->dir_ops, create, fs->tree, &parent_key, &object_key, hint)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't create object with oid %llx.", reiserfs_key_get_objectid(&object_key));
-	    goto error_free_object;
-	}
-    } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, files are not supported now!");
-	goto error_free_object;
-    }
-    
-    /* Here will be also adding entry to parent object */
-
-    /* Updating object key */
-    object->key.plugin = object_key.plugin;
-
-    aal_memcpy(object->key.body, object_key.body, 
-	libreiser4_plugin_call(goto error_free_object, 
-	object_key.plugin->key_ops, size,));
-    
     return object;
 
 error_free_object:
@@ -359,11 +286,6 @@ void reiserfs_object_close(
     reiserfs_object_t *object	    /* object to be closed */
 ) {
     aal_assert("umka-680", object != NULL, return);
-    aal_assert("umka-841", object->entity != NULL, return);
-    
-    libreiser4_plugin_call(return, object->plugin->dir_ops, 
-        close, object->entity);
-    
     aal_free(object);
 }
 
