@@ -582,7 +582,7 @@ static reiser4_key *last_key_in_extent (const tree_coord * coord,
 /* @coord is set to extent after which new extent(s) (@data) have to be
    inserted. Attempt to union adjacent extents is made. So, resulting item may
    be longer, shorter or of the same length as initial item */
-static int add_extents (reiser4_tree * tree, tree_coord * coord,
+static int add_extents (tree_coord * coord,
 			reiser4_lock_handle * lh,
 			reiser4_key * key,
 			reiser4_item_data * data)
@@ -746,9 +746,7 @@ static unsigned long long in_extent (const tree_coord * coord,
 
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
-static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
-			       tree_coord * coord,
-			       reiser4_lock_handle * lh,
+static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 			       reiser4_key * key, struct buffer_head * bh)
 {
 	int result;
@@ -810,7 +808,7 @@ static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
 /* @coord is set to the end of extent item. Append it with pointer to one
    block - either by expanding last unallocated extent or by appending a new
    one of width 1 */
-static int append_one_block (reiser4_tree * tree, tree_coord * coord,
+static int append_one_block (tree_coord * coord,
 			     reiser4_lock_handle *lh, struct buffer_head * bh)
 {
 	int result;
@@ -838,7 +836,7 @@ static int append_one_block (reiser4_tree * tree, tree_coord * coord,
 		unit.data = (char *)&new_ext;
 		unit.length = sizeof (reiser4_extent);
 		unit.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
-		result = add_extents (tree, coord, lh, last_key_in_extent (coord, &key),
+		result = add_extents (coord, lh, last_key_in_extent (coord, &key),
 				      &unit);
 		if (result)
 			return result;
@@ -859,8 +857,7 @@ static int append_one_block (reiser4_tree * tree, tree_coord * coord,
 
 /* @coord is set to hole extent, replace it with unallocated extent of length
    1 and correct amount of hole extents around it */
-static int plug_hole (reiser4_tree * tree, 
-		      tree_coord * coord, reiser4_lock_handle * lh,
+static int plug_hole (tree_coord * coord, reiser4_lock_handle * lh,
 		      unsigned long long off)
 {
 	reiser4_extent * ext,
@@ -902,7 +899,7 @@ static int plug_hole (reiser4_tree * tree,
 	item.length = count * sizeof (reiser4_extent);
 	item.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 	coord->between = AFTER_UNIT;
-	return add_extents (tree, coord, lh, &key, &item);
+	return add_extents (coord, lh, &key, &item);
 }
 
 
@@ -961,9 +958,7 @@ struct jnode * extent_utmost_child (tree_coord * coord, sideof side)
 
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
-static int overwrite_one_block (reiser4_tree * tree,
-				tree_coord * coord,
-				reiser4_lock_handle * lh,
+static int overwrite_one_block (tree_coord * coord, reiser4_lock_handle * lh,
 				struct buffer_head * bh,
 				unsigned long long off)
 {
@@ -985,7 +980,7 @@ static int overwrite_one_block (reiser4_tree * tree,
 		break;
 		
 	case HOLE_EXTENT:
-		result = plug_hole (tree, coord, lh, off);
+		result = plug_hole (coord, lh, off);
 		if (result)
 			return result;
 		
@@ -1019,8 +1014,7 @@ typedef enum {
 /* @coord is set either to the end of last extent item of a file or to a place
    where first item of file has to be inserted to. Calculate size of hole to
    be inserted. If that hole is too big - only part of it is inserted */
-static int add_hole (reiser4_tree * tree,
-		     tree_coord * coord, reiser4_lock_handle * lh,
+static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 		     reiser4_key * key,
 		     extent_write_todo todo)
 {
@@ -1104,7 +1098,7 @@ static int add_hole (reiser4_tree * tree,
 		case ALLOCATED_EXTENT:
 		case UNALLOCATED_EXTENT:
 			/* append hole extent */
-			result = add_extents (tree, coord, lh,
+			result = add_extents (coord, lh,
 					      last_key_in_extent (coord, &last_key),
 					      &item);
 
@@ -1242,10 +1236,8 @@ static int overwritten_entirely (loff_t file_size,
 
 /* map all buffers of @page the write falls to. Number of bytes which can be
    written into @page are returned via @count */
-static int prepare_write (reiser4_tree * tree, tree_coord * coord,
-			  reiser4_lock_handle * lh,
-			  struct page * page,
-			  reiser4_key * key,
+static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
+			  struct page * page, reiser4_key * key,
 			  unsigned * count)
 {
 	int result;
@@ -1290,25 +1282,25 @@ static int prepare_write (reiser4_tree * tree, tree_coord * coord,
 			switch (todo) {
 			case CREATE_HOLE:
 			case APPEND_HOLE:
-				return add_hole (tree, coord, lh, &tmp_key,
+				return add_hole (coord, lh, &tmp_key,
 						 todo);
 
 			case FIRST_BLOCK:
 				/* create first item of the file */
-				result = insert_first_block (tree, coord, lh,
+				result = insert_first_block (coord, lh,
 							     &tmp_key, bh);
 				assert ("vs-252", buffer_new (bh));
 				break;
 
 			case APPEND_BLOCK:
-				result = append_one_block (tree, coord, lh, bh);
+				result = append_one_block (coord, lh, bh);
 				assert ("vs-253", buffer_new (bh));		
 				break;
 
 			case OVERWRITE_BLOCK:
 				/* there is found extent (possibly hole
 				   one) */
-				result = overwrite_one_block (tree, coord, lh,
+				result = overwrite_one_block (coord, lh,
 							      bh, file_off);
 				if (buffer_new (bh)) {
 					;
@@ -1423,13 +1415,10 @@ int extent_write (struct inode * inode, tree_coord * coord,
 	struct page * page;
 	unsigned long long file_off; /* offset within a file we write to */
 	unsigned long long blocksize;
-	reiser4_tree * tree;
 	int research = 0;
 	char * kaddr;
 	unsigned count;
 
-
-	tree = tree_by_inode (inode);
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 	file_off = get_key_offset (&f->key);
@@ -1442,7 +1431,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 
 		kaddr = kmap (page);
 		count = f->length;
-		result = prepare_write (tree, coord, lh, page, &f->key, &count);
+		result = prepare_write (coord, lh, page, &f->key, &count);
 		if (result && result != -EAGAIN) {
 			/* error occurred */
 			kunmap (page);
@@ -1765,8 +1754,7 @@ static void set_blocknrs (unsigned long long objectid,
 
 /* this replaces unallocated extents with allocated ones. @coord may change to
    another node */
-static int allocate_unallocated_extent (reiser4_tree * tree,
-					tree_coord * coord,
+static int allocate_unallocated_extent (tree_coord * coord,
 					reiser4_lock_handle * lh,
 					reiser4_key * key)
 {
@@ -1841,7 +1829,7 @@ static int allocate_unallocated_extent (reiser4_tree * tree,
 				}
 
 				coord->between = AFTER_UNIT;
-				result = add_extents (tree, coord, lh, key, &item);
+				result = add_extents (coord, lh, key, &item);
 				if (result)
 					return result;
 
@@ -1885,7 +1873,7 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 	}
 
 	item_key_by_coord (coord, &key);
-	while ((result = allocate_unallocated_extent (tree, coord, lh, &key)) > 0) {
+	while ((result = allocate_unallocated_extent (coord, lh, &key)) > 0) {
 		reiser4_key last_key;
 
 		/* extent is not done yet */
