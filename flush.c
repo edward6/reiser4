@@ -3204,30 +3204,6 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	 * is unallocated we can skip to the scan_max. */
 	if (allocated) {
 		do {
-#if 0
-
-			/* Note: On the very first pass through this block we test the
-			 * current position (pg of the starting scan_index, which we know
-			 * is dirty/same atom by pre-condition).  Its redundant but it
-			 * makes this code simpler. */
-			pg = reiser4_lock_page (ino->i_mapping, scan_index);
-
-			if (pg == NULL) {
-				goto stop_same_parent;
-			}
-
-			neighbor = jnode_of_page (pg);
-
-			unlock_page (pg);
-			page_cache_release (pg);
-			if (IS_ERR(neighbor)) {
-				ret = PTR_ERR(neighbor);
-				goto exit;
-			}
-#endif
-			/*
-			 * 
-			 */
 			neighbor = UNDER_SPIN (tree, tree,
 					       jlook (tree, ino->i_mapping,
 						      scan_index));
@@ -3251,25 +3227,6 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 	} else {
 		/* Optimized case for unallocated extents, skip to the end. */
-#if 0
-		pg = reiser4_lock_page (ino->i_mapping, scan_max);
-
-		if (pg == NULL) {
-			impossible ("jmacd-8337", "unallocated node index %lu ino %lu not in memory", scan_max, ino->i_ino);
-			ret = -EIO;
-			goto exit;
-		}
-
-		neighbor = jnode_of_page (pg);
-
-		unlock_page (pg);
-		page_cache_release (pg);
-
-		if (IS_ERR(neighbor)) {
-			ret = PTR_ERR(neighbor);
-			goto exit;
-		}
-#endif
 		neighbor = UNDER_SPIN (tree, tree,
 				       jlook (tree, ino->i_mapping,
 					      scan_index));
