@@ -834,7 +834,7 @@ static int ef_free_block(jnode *node,
 
 	/* We cannot just ask block allocator to return block into flush
 	 * reserved space, because there is no current atom at this point. */
-	result = reiser4_dealloc_blocks(blk, stage, ef_block_flags(node));
+	result = reiser4_dealloc_block(blk, stage, ef_block_flags(node));
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
