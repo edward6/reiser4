@@ -1079,7 +1079,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 	if( node -> left && ( result == 0 ) ) {
 		assert( "nikita-1183", node -> parent );
 		assert( "nikita-883", reference_point != NULL );
-		result = get_left_neighbor( &tmp_lh, reference_point, 
+		result = reiser4_get_left_neighbor( &tmp_lh, reference_point, 
 						    ZNODE_WRITE_LOCK, 
 						    GN_DO_READ );
 		if( result == 0 ) {
