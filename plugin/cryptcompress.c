@@ -31,6 +31,7 @@ The list of cryptcompress specific EA:
 #include "../forward.h"
 #include "../super.h"
 #include "../context.h"
+#include "../cluster.h"
 #include "plugin.h"
 #include "object.h"
 
@@ -271,34 +272,6 @@ reiser4_internal crypto_stat_t * inode_crypto_stat (struct inode * inode)
 	return (reiser4_inode_data(inode)->crypt);
 }
 	
-reiser4_internal __u8 inode_cluster_shift (struct inode * inode)
-{
-	reiser4_inode * info;
-	
-	assert("edward-92", inode != NULL);
-
-	info = reiser4_inode_data(inode);
-
-	assert("edward-93", info != NULL);
-	assert("edward-94", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	assert("edward-95", info->cluster_shift <= MAX_CLUSTER_SHIFT);
-
-	return info->cluster_shift;
-}
-
-/* returns number of pages in the cluster */
-reiser4_internal int inode_cluster_pages (struct inode * inode)
-{
-	return (1 << inode_cluster_shift(inode));
-}
-
-reiser4_internal size_t inode_cluster_size (struct inode * inode)
-{
-	assert("edward-96", inode != NULL);
-	
-	return (PAGE_CACHE_SIZE << inode_cluster_shift(inode));
-}
-
 /* returns translated offset */
 reiser4_internal loff_t inode_scaled_offset (struct inode * inode,
 			    const loff_t src_off /* input offset */)
@@ -375,95 +348,6 @@ reiser4_internal int cluster_is_uptodate (reiser4_cluster_t * clust)
 	return (clust->buf != NULL);
 }
 
-reiser4_internal unsigned long
-pg_to_clust(unsigned long idx, struct inode * inode)
-{
-	return idx >> inode_cluster_shift(inode);
-}
-
-reiser4_internal unsigned long
-clust_to_pg(unsigned long idx, struct inode * inode)
-{
-	return idx << inode_cluster_shift(inode);
-}
-
-reiser4_internal inline unsigned long
-pg_to_clust_to_pg(unsigned long idx, struct inode * inode)
-{
-	return clust_to_pg(pg_to_clust(idx, inode), inode);
-}
-
-reiser4_internal unsigned long
-off_to_pg(loff_t off)
-{
-	return (off >> PAGE_CACHE_SHIFT);
-}
-
-static inline loff_t
-pg_to_off(unsigned long idx)
-{
-	return ((loff_t)(idx) << PAGE_CACHE_SHIFT);
-}
-
-static inline unsigned long
-off_to_clust(loff_t off, struct inode * inode)
-{
-	return pg_to_clust(off_to_pg(off), inode);
-}
-
-reiser4_internal loff_t
-clust_to_off(unsigned long idx, struct inode * inode)
-{
-	return pg_to_off(clust_to_pg(idx, inode));
-}
-
-static loff_t
-off_to_clust_to_off(loff_t off, struct inode * inode)
-{
-	return clust_to_off(off_to_clust(off, inode), inode);
-}
-
-static inline unsigned long
-off_to_clust_to_pg(loff_t off, struct inode * inode)
-{
-	return clust_to_pg(off_to_clust(off, inode), inode);
-}
-
-reiser4_internal unsigned
-off_to_pgoff(loff_t off)
-{
-	return off & (PAGE_CACHE_SIZE - 1);
-}
-
-static inline unsigned
-off_to_cloff(loff_t off, struct inode * inode)
-{
-	return off & ((loff_t)(inode_cluster_size(inode)) - 1);
-}
-
-reiser4_internal unsigned
-pg_to_off_to_cloff(unsigned long idx, struct inode * inode)
-{
-	return off_to_cloff(pg_to_off(idx), inode);
-}
-
-/* if @size != 0, returns index of the page
-   which contains the last byte of the file */
-static inline pgoff_t
-size_to_pg(loff_t size)
-{
-	return (size ? off_to_pg(size - 1) : 0);
-}
-
-/* minimal index of the page which doesn't contain
-   file data */
-static inline pgoff_t
-size_to_next_pg(loff_t size)
-{
-	return (size ? off_to_pg(size - 1) + 1 : 0);
-}
-
-
 /* return true if the cluster contains specified page */
 reiser4_internal int
 page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
@@ -500,31 +384,6 @@ set_nrpages_by_frame(reiser4_cluster_t * clust)
 		return;
 	}
 	clust->nr_pages = count_to_nrpages(clust->off + clust->count + clust->delta);
-}
-
-static unsigned
-off_to_count(loff_t off, unsigned long idx, struct inode * inode)
-{
-	if(idx > off_to_clust(off, inode))
-		return 0;
-	return min_count(inode_cluster_size(inode), off - clust_to_off(idx, inode));
-}
-
-reiser4_internal unsigned
-off_to_pgcount(loff_t off, unsigned long idx)
-{
-	if (idx > off_to_pg(off))
-		return 0;
-	return min_count(PAGE_CACHE_SIZE, off - pg_to_off(idx));
-}
-
-reiser4_internal unsigned
-fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
-{
-	assert("edward-288", clust != NULL);
-	assert("edward-289", inode != NULL);
-	
-	return off_to_count(inode->i_size, clust->index, inode);
 }
 
 /* plugin->key_by_inode() */
@@ -1503,6 +1362,7 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 	assert ("edward-185", clust != NULL);
 	assert ("edward-438", clust->pages != NULL);
 	assert ("edward-281", cluster_invariant(clust, inode));
+	assert ("edward-xxx", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
 	
 	switch (clust->stat) {
 	case DATA_CLUSTER:
@@ -2017,7 +1877,8 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 	assert("edward-197", clust != NULL);
 	assert("edward-286", clust->pages != NULL);
 	assert("edward-198", inode != NULL);
-
+	assert("edward-xxx", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+	
 	xmemset(clust->pages, 0, sizeof(clust->pages) << inode_cluster_shift(inode));
 	
 	if (file_off > inode->i_size) {
@@ -2061,7 +1922,8 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	cnt++; /* FIXME-EDWARD: Remove me */
 	
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
-
+	assert("edward-xxx", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+	
 	pages = reiser4_kmalloc(sizeof(*pages) << inode_cluster_shift(inode), GFP_KERNEL);
 	if (!pages)
 		return -ENOMEM;
@@ -2225,6 +2087,8 @@ find_object_size(struct inode *inode, loff_t * size)
 	item_plugin *iplug;
 	file_plugin *fplug = inode_file_plugin(inode);
 	
+	assert("edward-95", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+
 	fplug->key_by_inode(inode, get_key_offset(max_key()), &key);
 	
 	hint_init_zero(&hint, &lh);
@@ -2338,6 +2202,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	crypto_plugin * cplug;
 
 	assert("edward-290", inode->i_size > new_size);
+	assert("edward-xxx", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
 
 	pgoff = 0;
 	start = count = 0;
@@ -2476,6 +2341,10 @@ cryptcompress_writepage(struct page * page, reiser4_cluster_t * clust)
 	assert("edward-423", page->mapping && page->mapping->host);
 
 	inode = page->mapping->host;
+
+	assert("edward-xxx", inode != NULL);
+	assert("edward-xxx", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+	
 	reiser4_cluster_init(&clust);
 
         /* read all cluster pages if necessary */
