@@ -1232,12 +1232,11 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
 		root -> nplug = node_plugin_by_id( NODE40_ID );
 		result = zinit_new( root );
-		if( result == 0 )
-			zrelse( root );
 	} else {
 		result = zload( root );
 	}
 	assert( "nikita-1171", result == 0 );
+	zrelse( root );
 	return root;
 }
 
@@ -3143,22 +3142,14 @@ static int bash_mkfs (const char * file_name)
 		result = init_tree( tree, &super, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
 				    &mkfs_tops );
+
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block, 1);
 		root -> rd_key = *max_key();
 		sibling_list_insert( root, NULL );
-/*
-		{
-			lock_handle lh;
 
-			init_lh (&lh);
-			longterm_lock_znode (&lh, root, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
-			znode_set_dirty (root);
-			done_lh (&lh);
-		}
-*/
-		/*zrelse (root);*/
-		zput (fake);
+		zrelse (root);
+		/*zput (fake);*/
 
 		{
 			int result;
