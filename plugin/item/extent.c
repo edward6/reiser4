@@ -191,13 +191,13 @@ static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 	/* FIXME(Zam). We have a problem because a reiser4 inode
 	 * initialization cannot be completed.  Some inode properties
 	 * are inherited from a parent directory, unlike
-	 * reiser4_lookup() a parent directory is unknown here.  
+	 * reiser4_lookup() a parent directory is unknown here.
 
 	 * The reiser4 file inheritance may be fixed by implementing a
 	 * copying of parent directory properties at the moment of new
 	 * file creation. But, still we do not know what to do with
 	 * light-weight files which have no stat data and all their
-	 * properties are inherited from parent directory. 
+	 * properties are inherited from parent directory.
 
 	 * I think this problem is from bad layering of reiser4 tree
 	 * access. The repacker is for dealing with reiser4 tree, not
@@ -268,11 +268,11 @@ static jnode * get_jnode_by_mapping (struct inode * inode, long index)
 	return node;
 }
 
-/* 
+/*
    Mark jnodes of given extent for repacking.
    @tap : lock, coord and load status for the tree traversal position,
    @max_nr_marked: a maximum number of nodes which can be marked for repacking,
-   @return: error code if < 0, number of marked nodes otherwise. 
+   @return: error code if < 0, number of marked nodes otherwise.
 */
 int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 {
@@ -350,7 +350,7 @@ static int relocatable (jnode * check)
 	return !JF_ISSET(check, JNODE_OVRWR) && !JF_ISSET(check, JNODE_RELOC);
 }
 
-static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_start, 
+static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_start,
 				  reiser4_block_nr end_part_width, int * all_replaced)
 {
 	reiser4_extent * ext;
@@ -401,7 +401,7 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 		grabbed = ctx->grabbed_blocks;
 
 		ret =  replace_extent(
-			coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key, 
+			coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key,
 			init_new_extent(&item, &new_ext, 1), &replace_ext, COPI_DONT_SHIFT_LEFT);
 
 		/* release grabbed space if it was not used. */
@@ -476,7 +476,7 @@ static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, in
 }
 
 
-static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_blocknr_hint * hint, 
+static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_blocknr_hint * hint,
 			    int *done, reiser4_block_nr * len)
 {
 	reiser4_block_nr ext_width, ext_start;
@@ -540,7 +540,7 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 	parse_extent(coord, &ext_start, &ext_width, &ext_index);
 
 	for (reloc_end = ext_width - 1;
-	     reloc_end >= 0 && *nr_reserved > 0; reloc_end --) 
+	     reloc_end >= 0 && *nr_reserved > 0; reloc_end --)
 	{
 		check = get_jnode_by_mapping(inode, reloc_end + ext_index);
 		if (IS_ERR(check))
