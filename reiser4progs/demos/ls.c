@@ -83,7 +83,9 @@ int main(int argc, char *argv[]) {
 	dir_hint.hash_pid = REISERFS_R5_HASH;
 	
 	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir");
-	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir1");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir2");
+	reiserfs_dir_create(fs, &dir_hint, dir_plugin, fs->dir, "testdir3");
     }
     
     if (reiserfs_dir_rewind(object)) {
