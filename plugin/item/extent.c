@@ -1545,8 +1545,27 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 #endif
 }
 
+#ifdef REISER4_DEBUG
 
-unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
+static int
+jnode_is_of_the_same_atom(jnode *node)
+{
+	int result;
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	LOCK_JNODE(node);
+	LOCK_TXNH(ctx->trans);		
+	result = (node->atom == ctx->trans->atom);
+	UNLOCK_TXNH(ctx->trans);
+	UNLOCK_JNODE(node);
+	return result;
+}
+
+#endif
+
+unsigned
+find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 {
 	reiser4_tree *tree;
 	oid_t oid;
@@ -1570,6 +1589,8 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 	ON_TRACE(TRACE_BUG, "find_extent_slum_size: start from page %lu, [item %d, unit %d, pos_in_unit %u] ext:[%llu/%llu] of oid %llu\n",
 		 index, coord.item_pos, coord.unit_pos, pos_in_unit, extent_unit_start(&coord), extent_unit_width(&coord), oid);
 
+	assert("vs-1407", jnode_is_of_the_same_atom(ZJNODE(coord.node)));
+
 	slum_size = 0;
 	slum_done = 0;
 	do {
@@ -1587,6 +1608,7 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 					slum_done = 1;
 					break;
 				}
+				assert("vs-1408", jnode_is_of_the_same_atom(node));
 				slum_size ++;
 				index ++;
 				jput(node);
@@ -1606,6 +1628,7 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 					node = jlook_lock(tree, oid, index + i);
 					assert("vs-1389", node);
 					assert("vs-1363", !jnode_check_flushprepped(node));
+					assert("vs-1408", jnode_is_of_the_same_atom(node));
 					jput(node);
 				}
 			});
