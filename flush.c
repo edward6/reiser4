@@ -467,7 +467,7 @@ static int flush_squalloc_one_changed_ancestor(znode * node, int call_depth, flu
 static int flush_squalloc_changed_ancestors(flush_position * pos);
 
 /* Flush squeeze implementation. */
-/*static*/ int squalloc_right_neighbor(znode * left, znode * right,
+static int squalloc_right_neighbor(znode * left, znode * right,
 				       flush_position * pos);
 static int squalloc_right_twig(znode * left, znode * right, flush_position * pos);
 static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * left);
