@@ -289,7 +289,7 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord, u
 {
 	int ret;
 	int is_leftmost;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	int is_dirty;
 	znode *parent = parent_coord->node;
 	tree_coord coord;
@@ -319,10 +319,10 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord, u
 
 	iplug = item_plugin_by_coord (& coord);
 
-	assert ("jmacd-2049", iplug->utmost_child_dirty != NULL);
+	assert ("jmacd-2049", iplug->common.utmost_child_dirty != NULL);
 
 	/* Ask the item: is your left child dirty? */
-	if ((ret = iplug->utmost_child_dirty (& coord, LEFT_SIDE, & is_dirty))) {
+	if ((ret = iplug->common.utmost_child_dirty (& coord, LEFT_SIDE, & is_dirty))) {
 		assert ("jmacd-2051", ret < 0);
 		return ret;
 	}
@@ -370,7 +370,7 @@ static int flush_preceder_hint (jnode *node,
 	int is_leaf;
 	znode *parent;
 	tree_coord coord;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	lock_handle parent_lock;
 	/* If the current node is already allocated, don't set the hint yet. */
 	if (jnode_is_allocated (node)) {
@@ -410,12 +410,12 @@ static int flush_preceder_hint (jnode *node,
 		
 		iplug = item_plugin_by_coord (& coord);
 
-		assert ("jmacd-2040", iplug->utmost_child_real_block != NULL);
+		assert ("jmacd-2040", iplug->common.utmost_child_real_block != NULL);
 
 		/* Get the rightmost block number of this coord, which is the
 		 * child to the left of node.  If the block is unallocated or a
 		 * hole, preceder is set to 0. */
-		ret = iplug->utmost_child_real_block (& coord, RIGHT_SIDE, & preceder->blk);
+		ret = iplug->common.utmost_child_real_block (& coord, RIGHT_SIDE, & preceder->blk);
 
 	} else if (is_leftmost) {
 		/* Leftmost case: parent must be allocated or else we would
@@ -443,7 +443,7 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 {
 	int ret;
 	znode *parent = parent_coord->node;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	jnode *child;
 	tree_coord child_coord;
 
@@ -454,19 +454,21 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 	if (znode_get_level (parent) == TWIG_LEVEL) {
 		/* End recursion, we made it all the way. */
 
-		assert ("jmacd-2042", iplug->utmost_child_real_block != NULL);
+		assert ("jmacd-2042", iplug->common.utmost_child_real_block != NULL);
 
 		/* Get the rightmost block number of this coord, which is the
 		 * child to the left of the starting node.  If the block is a
 		 * unallocated or a hole, the preceder is set to 0. */
-		return iplug->utmost_child_real_block (parent_coord, RIGHT_SIDE, & preceder->blk);
+		return iplug->common.utmost_child_real_block (parent_coord,
+							      RIGHT_SIDE,
+							      & preceder->blk);
 	}
 
 	/* Recurse downwards case: ABOVE TWIG LEVEL. */
-	assert ("jmacd-2045", iplug->utmost_child != NULL);
+	assert ("jmacd-2045", iplug->common.utmost_child != NULL);
 
 	/* Get the child if it is in memory. */
-	if ((ret = iplug->utmost_child (parent_coord, RIGHT_SIDE, & child))) {
+	if ((ret = iplug->common.utmost_child (parent_coord, RIGHT_SIDE, & child))) {
 		return ret;
 	}
 
@@ -601,7 +603,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		init_coord (& crd);
 		coord_last_unit (& crd, JZNODE (node));
 
-		assert ("vs-442", item_plugin_by_coord (&crd)->down_link);
+		assert ("vs-442", item_is_internal (& crd));
 
 		child = child_znode (& crd, 1/*set delim key*/);
 		if (IS_ERR (child)) { return PTR_ERR (child); }
@@ -659,11 +661,11 @@ static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
 
 	/* Do ... while not the last unit. */
 	do {
-		if (item_plugin_by_coord (&crd)->item_plugin_id == EXTENT_POINTER_ID) {
+		if (item_id_by_coord (&crd) == EXTENT_POINTER_ID) {
 			if ((ret = allocate_extent_item_in_place (&crd, preceder))) {
 				return ret;
 			}
-		} else if (item_plugin_by_coord (&crd)->down_link) {
+		} else if (item_is_internal (&crd)) {
 			/* Get the child of this node pointer, check for
 			 * error, skip if it is not dirty. */
 			znode *child = child_znode (& crd, 1);
@@ -800,7 +802,7 @@ static int squalloc_twig (znode    *left,
 	 * was copied (and there is nothing to cut). */
 	stop_key = *min_key ();
 
-	while (item_plugin_by_coord (&coord)->item_plugin_id == EXTENT_POINTER_ID) {
+	while (item_id_by_coord (&coord) == EXTENT_POINTER_ID) {
 
 		if ((ret = allocate_and_copy_extent (left, &coord, preceder, &stop_key)) < 0) {
 			return ret;
@@ -845,11 +847,10 @@ static int squalloc_twig (znode    *left,
 
 	coord_first_unit (&coord, right);
 
-	if (! item_plugin_by_coord (&coord)->down_link) {
+	if (! item_is_internal (&coord)) {
 		/* There is no space in @left anymore. */
 		assert ("vs-433",
-			item_plugin_by_coord (&coord)->item_plugin_id ==
-			EXTENT_POINTER_ID);
+			item_id_by_coord (&coord) == EXTENT_POINTER_ID);
 		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
 		return ret;
 	}
@@ -885,7 +886,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 	coord_first_unit (&coord, right);
 
-	assert ("jmacd-2007", item_plugin_by_coord (&coord)->down_link);
+	assert ("jmacd-2007", item_is_internal (&coord));
 
 	init_carry_pool (&pool);
 	init_carry_level (&todo, &pool);
@@ -951,7 +952,7 @@ static int jnode_is_allocated (jnode *node)
 static int jnode_allocate_flush (jnode *node, reiser4_blocknr_hint *preceder)
 {
 	int ret;
-	int len;
+	reiser4_block_nr len;
 	reiser4_block_nr blk;
 
 	/* FIXME: Need to set RELOC/WANDER bits. */
@@ -1081,7 +1082,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	int ret;
 	lock_handle node_lh, parent_lh, left_parent_lh;
 	tree_coord coord;
-	common_item_plugin *iplug;
+	item_plugin *iplug;
 	jnode *child_left;
 
 	assert ("jmacd-1403", ! flush_scan_left_finished (scan));
@@ -1140,10 +1141,10 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	/* Get the item plugin. */
 	iplug = item_plugin_by_coord (& coord);
 
-	assert ("jmacd-2040", iplug->utmost_child != NULL);
+	assert ("jmacd-2040", iplug->common.utmost_child != NULL);
 
 	/* Get the rightmost child of this coord, which is the child to the left of the scan position. */
-	if ((ret = iplug->utmost_child (& coord, RIGHT_SIDE, & child_left))) {
+	if ((ret = iplug->common.utmost_child (& coord, RIGHT_SIDE, & child_left))) {
 		goto done;
 	}
 

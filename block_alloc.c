@@ -59,7 +59,7 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 
 
 int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
-			  int *len)
+			  reiser4_block_nr *len)
 {
 	space_allocator_plugin * splug;
 	int needed;

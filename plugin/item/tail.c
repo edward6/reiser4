@@ -71,9 +71,11 @@ int tail_mergeable (const tree_coord * p1, const tree_coord * p2)
 	reiser4_key key1, key2;
 
 
-	assert ("vs-365", item_plugin_by_coord (p1)->item_plugin_id == TAIL_ID);
+	assert ("vs-535",
+		item_type_by_coord (p1) == ORDINARY_FILE_METADATA_TYPE);
+	assert ("vs-365", item_id_by_coord (p1) == TAIL_ID);
 
-	if (common_item_plugin_to_plugin (item_plugin_by_coord (p2))->h.id != TAIL_ID) {
+	if (item_type_by_coord (p2) != TAIL_ID) {
 		/*
 		 * second item is of another type
 		 */
@@ -393,7 +395,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 			return TAIL_CREATE_HOLE;
 	}
 
-	if (item_plugin_by_coord (coord)->item_plugin_id != TAIL_ID)
+	if (item_id_by_coord (coord) != TAIL_ID)
 		return TAIL_CANT_CONTINUE;
 
 	item_key_by_coord (coord, &item_key);
@@ -438,7 +440,7 @@ static void make_item_data (tree_coord * coord, reiser4_item_data * item,
 	if ((int)desired_len < item->length)
 		item->length = (int)desired_len;
 	item->arg = 0;
-	item->iplug = common_item_plugin_by_id (TAIL_ID);
+	item->iplug = item_plugin_by_id (TAIL_ID);
 }
 
 
@@ -659,14 +661,6 @@ int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
 	move_flow_forward (f, count);
 	return 0;
 }
-
-
-tail_item_plugin direct_item_plugin = {
-	.write_2          = tail_write,
-	.read_2           = tail_read,
-	.readpage_2       = NULL,
-	.common_2         = NULL
-};
 
 
 /* 
