@@ -8,7 +8,6 @@ EXTRA_CFLAGS += \
 	       -Wpointer-arith \
            -Wformat \
 	       -Wundef \
-	       -Wcast-align \
 	       -Wlarger-than-16384 \
            -Wunused \
 	       -Wcomment \
