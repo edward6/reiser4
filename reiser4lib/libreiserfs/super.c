@@ -185,6 +185,14 @@ unsigned int reiserfs_super_blocksize(reiserfs_fs_t *fs) {
 	return get_mr_block_size(&fs->super->master);
 }
 
+blk_t reiserfs_super_root_block(reiserfs_fs_t *fs) {
+	ASSERT(fs != NULL, return 0);
+	ASSERT(fs->super != NULL, return 0);
+
+	reiserfs_plugin_check_routine(fs->super->plugin->format, root_block, return 0);
+	return fs->super->plugin->format.root_block(fs->super->entity);
+}
+
 reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
 
 	ASSERT(fs != NULL, return -1);

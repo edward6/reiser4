@@ -28,6 +28,26 @@ error:
 	return NULL;
 }
 
+static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device) {
+	reiserfs_alloc40_t *alloc;
+	
+	if (!device)
+		return NULL;
+	
+	if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
+		return NULL;
+	
+	/* Creating disk structures must be here. Probably bitmap? */
+	
+	alloc->device = device;
+	return alloc;
+
+error_free_format:
+	aal_free(alloc);
+error:
+	return NULL;
+}
+
 static void reiserfs_alloc40_done(reiserfs_alloc40_t *alloc, int sync) {
 	if (sync) {
 		/* Synchronizing code must be here */
@@ -46,7 +66,7 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc40_init,
-		.create = NULL,
+		.create = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc40_create,
 		.done = (void (*)(reiserfs_alloc_opaque_t *, int))reiserfs_alloc40_done
 	}
 };

@@ -50,21 +50,6 @@ error:
 	return NULL;
 }
 
-/* 
-	Closes all filesystem's entities. Calls plugins' "done" 
-	routine for every plugin and frees all assosiated memory. 
-*/
-void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
-	reiserfs_tree_close(fs, sync);
-	reiserfs_alloc_close(fs, sync);
-	
-	if (fs->journal)
-		reiserfs_journal_close(fs, sync);
-	
-	reiserfs_super_close(fs, sync);
-	aal_free(fs);
-}
-
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, reiserfs_plugin_id_t format, 
 	unsigned int blocksize, const char *uuid, const char *label, count_t len, 
 	aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
@@ -109,6 +94,21 @@ error_free_fs:
 	aal_free(fs);
 error:
 	return NULL;
+}
+
+/* 
+	Closes all filesystem's entities. Calls plugins' "done" 
+	routine for every plugin and frees all assosiated memory. 
+*/
+void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
+	reiserfs_tree_close(fs, sync);
+	reiserfs_alloc_close(fs, sync);
+	
+	if (fs->journal)
+		reiserfs_journal_close(fs, sync);
+	
+	reiserfs_super_close(fs, sync);
+	aal_free(fs);
 }
 
 const char *reiserfs_fs_format(reiserfs_fs_t *fs) {

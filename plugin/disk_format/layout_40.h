@@ -25,7 +25,7 @@ typedef struct layout_40_disk_super_block {
 				    * flushed. Needed if layout 40
 				    * will have few super blocks */
 	/*  56 */ char magic[16]; /* magic string R4Sb-Default */
-	/*  56 */ char not_used [408]; /* 88 */
+	/*  72 */ char not_used [408]; /* 88 */
 } layout_40_disk_super_block;
 
 

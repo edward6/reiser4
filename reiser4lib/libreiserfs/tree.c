@@ -7,6 +7,8 @@
 #include <reiserfs/debug.h>
 
 int reiserfs_tree_open(reiserfs_fs_t *fs) {
+	ASSERT(fs != NULL, return NULL);
+	ASSERT(fs->super != NULL, return NULL);
 	
 	if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 		return 0;
