@@ -630,7 +630,7 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 	get_working_bitmap_blocknr(bmap, &wjnode->blocknr);
 	get_bitmap_blocknr(super, bmap, &cjnode->blocknr);
 
-	jref(cjmode);
+	jref(cjnode);
 	jref(wjnode);
 
 	/* load commit bitmap */
