@@ -317,11 +317,15 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 		/* use stat-data plugin to load sd into inode. */
 		result = init_inode(inode, &coord);
 		if (result == 0) {
-			/* initialise stat-data seal */
+			/* initialize stat-data seal */
 			spin_lock_inode(inode);
 			seal_init(&info->sd_seal, &coord, key);
 			info->sd_coord = coord;
 			spin_unlock_inode(inode);
+
+			/* call file plugin's method to initialize plugin specific part of inode */
+			if (inode_file_plugin(inode)->init_inode_data)
+				inode_file_plugin(inode)->init_inode_data(inode, 0/*not create*/);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
@@ -590,72 +594,6 @@ print_inode(const char *prefix /* prefix to print */ ,
 	       ref->plugin_mask, ref->locality_id);
 }
 #endif
-
-void 
-rw_latch_init(rw_latch_t * latch)
-{
-	spin_lock_init(&latch->guard);
-	latch->access = 0;
-	kcond_init(&latch->cond);
-}
-
-void 
-rw_latch_done(rw_latch_t * latch)
-{
-	assert("nikita-3062", latch->access == 0);
-	kcond_destroy(&latch->cond);
-}
-
-void 
-rw_latch_down_read(rw_latch_t * latch)
-{
-	spin_lock(&latch->guard);
-	while (latch->access < 0)
-		kcond_wait(&latch->cond, &latch->guard, 0);
-	latch->access ++;
-	spin_unlock(&latch->guard);
-}
-
-void
-rw_latch_down_write(rw_latch_t * latch)
-{
-	spin_lock(&latch->guard);
-	while (latch->access != 0)
-		kcond_wait(&latch->cond, &latch->guard, 0);
-	latch->access = -1;
-	spin_unlock(&latch->guard);
-}
-
-void
-rw_latch_up_read(rw_latch_t * latch)
-{
-	spin_lock(&latch->guard);
-	assert("nikita-3063", latch->access > 0);
-	latch->access --;
-	if (latch->access == 0)
-		kcond_broadcast(&latch->cond);
-	spin_unlock(&latch->guard);
-}
-
-void
-rw_latch_up_write(rw_latch_t * latch)
-{
-	spin_lock(&latch->guard);
-	assert("nikita-3063", latch->access == -1);
-	latch->access = 0;
-	kcond_broadcast(&latch->cond);
-	spin_unlock(&latch->guard);
-}
-
-void
-rw_latch_downgrade(rw_latch_t * latch)
-{
-	spin_lock(&latch->guard);
-	assert("nikita-3063", latch->access == -1);
-	latch->access = +1;
-	kcond_broadcast(&latch->cond);
-	spin_unlock(&latch->guard);
-}
 
 /* Make Linus happy.
    Local variables:
