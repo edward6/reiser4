@@ -254,6 +254,9 @@ struct txn_atom {
 	/* 
 	 * number of treads which do jnode_flush() over this atom */
 	int nr_flushers;
+
+	/* A counter of grabbed unformatted nodes. */
+	int flush_reserved;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
