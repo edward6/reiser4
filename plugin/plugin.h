@@ -17,8 +17,6 @@
 #include "item/sde.h"
 #include "item/cde.h"
 #include "file/file.h"
-/*#include "item/extent.h"
-  #include "item/tail.h"*/
 #include "pseudo/pseudo.h"
 #include "symlink.h"
 #include "dir/hashed_dir.h"
@@ -34,6 +32,8 @@
 
 #include "disk_format/disk_format40.h"
 #include "disk_format/disk_format.h"
+
+#include "xattr.h"
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
 #include <linux/mm.h>		/* for struct page */
@@ -138,8 +138,6 @@ typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
  plugins.
 
 */
-
-
 typedef struct file_plugin {
 
 	/* generic fields */
@@ -267,6 +265,15 @@ typedef struct file_plugin {
 	 * garbage collected. */
 	void (*delete_inode)(struct inode *);
 	void (*forget_inode)(struct inode *);
+	void (*clear_inode)(struct inode *);
+
+	struct {
+		int (*set) (struct dentry*, const char*,const void *,size_t,int);
+		ssize_t (*get) (struct dentry *, const char *, void *, size_t);
+		ssize_t (*list) (struct dentry *, char *, size_t);
+		int (*remove) (struct dentry *, const char *);
+		reiser4_xattr_plugin *handlers;
+	} xattr;
 } file_plugin;
 
 typedef struct dir_plugin {
@@ -752,10 +759,28 @@ for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
 	grab_plugin_from((self), plugin, (ancestor)->pset->plugin)
 
 /* if plugin in @self->field is not yet set, set it to be equal to @val */
-#define grab_plugin_from(self, field, val)			\
-	if((self)->pset->field == NULL)				\
-		plugin_set_ ## field(&self->pset, (val))
-
+#define grab_plugin_from(self, field, val)				\
+({									\
+	typeof(val) __val;						\
+	struct inode *__inode;						\
+	reiser4_inode *__self;						\
+	int __result;							\
+									\
+	__val = (val);							\
+	__self = (self);						\
+	__inode = inode_by_reiser4_inode(__self);			\
+	__result = 0;							\
+	if(__self->pset->field == NULL) {				\
+		if (__val->h.pops != NULL &&				\
+		    __val->h.pops->change != NULL) {			\
+			__result = __val->h.pops->change(__inode,	\
+					      (reiser4_plugin *)__val);	\
+		}							\
+		if (__result == 0)					\
+			plugin_set_ ## field(&__self->pset, __val);	\
+	}								\
+	__result;							\
+})
 
 /* __FS_REISER4_PLUGIN_TYPES_H__ */
 #endif
