@@ -378,13 +378,13 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
    a pair of calls to zload()/zrelse(). */
 #define WITH_DATA( node, exp )				\
 ({							\
-	int __with_dh_result;				\
+	long __with_dh_result;				\
 	znode *__with_dh_node;				\
 							\
 	__with_dh_node = ( node );			\
 	__with_dh_result = zload( __with_dh_node );	\
 	if( __with_dh_result == 0 ) {			\
-		__with_dh_result = ( int )( exp );	\
+		__with_dh_result = ( long )( exp );	\
 		zrelse( __with_dh_node );		\
 	}						\
 	__with_dh_result;				\
