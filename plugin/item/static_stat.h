@@ -63,6 +63,8 @@ NIKITA-FIXME-HANS: needs three more sentences to explain absent().
 
 /** stat-data extension. Please order this by presumed frequency of use */
 typedef enum {
+	/** support for light-weight files */
+	LIGHT_WEIGHT_STAT,
 	/** data required to implement unix stat(2) call. Layout is in
 	    reiser4_unix_stat. If this is not present, file is light-weight */
 	UNIX_STAT, 
@@ -101,10 +103,16 @@ typedef enum {
  * stat_data_base. Do you have a proof that they do not need this? */
 /** minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
-	/*  0 */ d16 mode;
-	/** bitmask indicating what pieces of data (extensions) follow
-	    this minimal stat-data */
+	/*  0 */ d16 extmask;
+	/*  2 */
 } reiser4_stat_data_base;
+
+typedef struct reiser4_light_weight_stat {
+	/*  0 */ d16 mode;
+	/*  2 */ d32 nlink;
+	/*  8 */ d64 size;	/* size in bytes */
+	/* 16 */
+} reiser4_light_weight_stat;
 
 typedef struct reiser4_unix_stat {
 	/*  0 */ d32 uid;	/* owner id */

@@ -377,6 +377,9 @@ typedef struct sd_ext_plugin {
 	int ( *absent ) ( struct inode *inode );
 	int ( *save_len ) ( struct inode *inode );
 	int ( *save ) ( struct inode *inode, char **area );
+#if REISER4_DEBUG_OUTPUT
+	void ( *print ) ( const char *prefix, char **area, int *len );
+#endif
 	/** alignment requirement for this stat-data part */
 	int alignment;
 } sd_ext_plugin;
