@@ -9,6 +9,18 @@
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
 
+/* You know, it really is unnecessary to write
+ *
+ *   struct F;
+ *   typedef struct F F;
+ *
+ * the first line is not needed:
+ *
+ *   typedef struct F F;
+ *
+ * has the effect of declaring struct F and typedeffing it at once.  Correct
+ * me if I'm wrong, but I've been writing programs this way for a long time...
+ */
 struct __reiser4_zlock;
 typedef struct __reiser4_zlock reiser4_zlock;
 
@@ -86,6 +98,9 @@ typedef struct jnode jnode;
 
 struct slum_scan;
 typedef struct slum_scan slum_scan;
+
+struct reiser4_blocknr_hint;
+typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
 
 struct inode;
 struct page;
@@ -167,7 +182,7 @@ typedef enum {
 	ZNODE_LOCK_LOPRI    = 0,
 	ZNODE_LOCK_HIPRI    = (1 << 0),
 
-	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to reiser4_lock_znode will not sleep
+	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to longterm_lock_znode will not sleep
 	 * waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
 	 * return the value -EAGAIN.
 	 */

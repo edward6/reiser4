@@ -522,11 +522,8 @@ static int cut_or_kill_units (tree_coord * coord,
 						   extent_size (coord, *from)));
 	}
 
+	/* it may happen that extent @from will not be removed */
 	if (from_key) {
-		/*
-		 * it may happen that extent @from will not be removed
-		 */
-
 		/*
 		 * @to_key must be not 0 if @from_key is not
 		 */
@@ -2271,15 +2268,15 @@ static int allocate_unallocated_extent (tree_coord * coord,
  * return 1 for allocated extents all unformatted nodes of which are in
  * memory. But that would require changes to allocate_extent_item as well
  */
-static int extent_needs_allocation (reiser4_extent * extent, block_nr * preceder)
+static int extent_needs_allocation (reiser4_extent * extent, reiser4_blocknr_hint * preceder)
 {
-	if (state_of_extent (extent) == UNALLOCATED_EXTENT)
+	if (state_of_extent (extent) == UNALLOCATED_EXTENT) {
 		return 1;
-	if (state_of_extent (extent) == ALLOCATED_EXTENT)
-		/*
-		 * recalculate preceder
-		 */
-		*preceder = extent_get_start (extent) + extent_get_width (extent) - 1;
+	}
+	if (state_of_extent (extent) == ALLOCATED_EXTENT) {
+		/* recalculate preceder */
+		preceder->blk = extent_get_start (extent) + extent_get_width (extent) - 1;
+	}
 	return 0;
 }
 
@@ -2379,7 +2376,7 @@ static int try_to_glue (znode * left, tree_coord * right,
  * to impossibility to allocate desired number of contiguous free blocks
  */
 int allocate_and_copy_extent (znode * left, tree_coord * right,
-			      block_nr * preceder,
+			      reiser4_blocknr_hint * preceder,
 			      /*
 			       * biggest key which was moved, it is
 			       * * maintained while shifting is in *
@@ -2444,7 +2441,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 		 * while whole extent is allocated
 		 */
 		while (to_allocate) {
-			result = extent_allocate_blocks (*preceder, to_allocate,
+			result = extent_allocate_blocks (preceder->blk, to_allocate,
 							 &first_allocated,
 							 &allocated);
 			if (result) {
@@ -2452,7 +2449,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			}
 
 			to_allocate -= allocated;
-			*preceder += allocated;
+			preceder->blk += allocated;
 			if (try_to_glue (left, right, first_allocated, allocated)) {
 				/*
 				 * find all pages containing allocated blocks
@@ -2550,7 +2547,7 @@ static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
  * only, so items to the right of @item and part of item itself may get moved
  * to right
  */
-int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
+int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * preceder)
 {
 	int result;
 	unsigned i;
@@ -2577,7 +2574,7 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 		 * *preceder
 		 */
 		initial_width = extent_get_width (ext);
-		result = extent_allocate_blocks (*preceder, initial_width,
+		result = extent_allocate_blocks (preceder->blk, initial_width,
 						 &first_allocated, &allocated);
 		if (result)
 			return result;
@@ -2588,7 +2585,7 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 		 */
 		extent_set_start (ext, first_allocated);
 		extent_set_width (ext, allocated);
-		*preceder = first_allocated + allocated - 1;
+		preceder->blk = first_allocated + allocated - 1;
 
 		unit_key_by_coord (item, &key);
 		/*
@@ -2646,7 +2643,7 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 		  reiser4_lock_handle * lh UNUSED_ARG, void * arg UNUSED_ARG)
 {
-	block_nr preceder;
+	reiser4_blocknr_hint preceder;
 
 	if (!item_is_extent (coord)) {
 		return 1;
@@ -2656,7 +2653,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 	 * try to calculate block number of left neighbor in parent-first order
 	 */
 	if (coord->item_pos == 0) {
-		preceder = znode_get_block (coord->node)->blk;
+		preceder.blk = znode_get_block (coord->node)->blk;
 	} else {
 		tree_coord prev;
 		reiser4_disk_addr da;
@@ -2667,16 +2664,17 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 		if (item_is_internal (&prev)) {
 			item_plugin_by_coord (&prev)->s.internal.down_link (&prev, 0,
 						       &da);
-			preceder = da.blk;
+			preceder.blk = da.blk;
 		} else if (item_is_extent (&prev)) {
 			reiser4_extent * ext;
 			ext = extent_by_coord (&prev);
-			preceder = extent_get_start (ext) + extent_get_width (ext);
+			preceder.blk = extent_get_start (ext) + extent_get_width (ext);
 		} else
 			impossible ("vs-454", "unknown item type");
 		reiser4_done_coord (&prev);
 	}
 
+	/* FIXME: used only by ulevel, but what about this return value? */
 	allocate_extent_item_in_place (coord, &preceder);
 	return 1;
 }
