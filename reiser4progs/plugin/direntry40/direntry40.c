@@ -196,11 +196,12 @@ static int direntry40_lookup(reiserfs_direntry40_t *direntry,
     aal_assert("umka-610", key != NULL, return -2);
     aal_assert("umka-629", coord != NULL, return -2);
     
-    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -2;
-    }
+    /*
+	FIXME-UMKA: Here should be using not hardcoded
+	key id.
+    */
+    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
+	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
     
     if ((found = reiserfs_misc_bin_search((void *)direntry, 
 	    direntry->count, key, callback_elem_for_lookup, 

@@ -81,25 +81,22 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     if (!(key_plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 
 	key_plugin_id))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", key_plugin_id);
-	return NULL;
+	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, key_plugin_id,
+	    return NULL);
     }
     
     if (!(node_plugin = factory->find_by_coord(REISERFS_NODE_PLUGIN,
 	node_plugin_id)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find node plugin by its id %x.", node_plugin_id);
-	return NULL;
+	libreiser4_factory_find_failed(REISERFS_NODE_PLUGIN, node_plugin_id,
+	    return NULL);
     }
     
     if (!(oid_plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
 	oid_plugin_id)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find oid plugin by its id %x.", oid_plugin_id);
-	return NULL;
+	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, oid_plugin_id,
+	    return NULL);
     }
     
     root_parent_objectid = libreiser4_plugin_call(return NULL, 
@@ -135,9 +132,8 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     if (!(item_info.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN,
 	stat_plugin_id)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find stat data item plugin by its id %x.", stat_plugin_id);
-	goto error_free_dir;
+	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, stat_plugin_id,
+	    goto error_free_dir);
     }
     
     if (dir40_item_insert(&item_info, dir_coord, &item_coord, 
@@ -182,9 +178,8 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     if (!(item_info.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, 
 	direntry_plugin_id))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find direntry item plugin by its id %x.", direntry_plugin_id);
-	goto error_free_dir;
+	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, direntry_plugin_id,
+	    goto error_free_dir);
     }
 
     if (dir40_item_insert(&item_info, dir_coord, &item_coord, 

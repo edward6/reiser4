@@ -90,10 +90,8 @@ static reiserfs_format40_t *format40_open(aal_device_t *host_device,
     if (!(alloc_plugin = factory->find_by_coord(REISERFS_ALLOC_PLUGIN, 
 	REISERFS_FORMAT40_ALLOC))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_ALLOC);
-	goto error_free_super;
+	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, REISERFS_FORMAT40_ALLOC,
+	    goto error_free_super);
     }
     
     if (!(format->alloc = libreiser4_plugin_call(goto error_free_super, 
@@ -109,10 +107,8 @@ static reiserfs_format40_t *format40_open(aal_device_t *host_device,
 	if (!(journal_plugin = factory->find_by_coord(REISERFS_JOURNAL_PLUGIN, 
 	    REISERFS_FORMAT40_JOURNAL))) 
 	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't find journal plugin by its id %x.", 
-		REISERFS_FORMAT40_JOURNAL);
-	    goto error_free_alloc;
+	    libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, REISERFS_FORMAT40_JOURNAL,
+		goto error_free_alloc);
 	}
     
 	if (!(format->journal = libreiser4_plugin_call(goto error_free_alloc, 
@@ -127,10 +123,8 @@ static reiserfs_format40_t *format40_open(aal_device_t *host_device,
     if (!(oid_plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find oid allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_OID);
-	goto error_free_journal;
+	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, REISERFS_FORMAT40_OID,
+	    goto error_free_journal);
     }
     
     /* Initializing oid allocator on super block */
@@ -208,9 +202,8 @@ static reiserfs_format40_t *format40_create(aal_device_t *host_device,
     if (!(alloc_plugin = factory->find_by_coord(REISERFS_ALLOC_PLUGIN, 
 	REISERFS_FORMAT40_ALLOC))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find allocator plugin by its id %x.", REISERFS_FORMAT40_ALLOC);
-	goto error_free_super;
+	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, REISERFS_FORMAT40_ALLOC,
+	    goto error_free_super);
     }
     
     if (!(format->alloc = libreiser4_plugin_call(goto error_free_super, 
@@ -240,9 +233,8 @@ static reiserfs_format40_t *format40_create(aal_device_t *host_device,
     if (!(journal_plugin = factory->find_by_coord(REISERFS_JOURNAL_PLUGIN, 
 	REISERFS_FORMAT40_JOURNAL))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find journal plugin by its id %x.", REISERFS_FORMAT40_JOURNAL);
-	goto error_free_alloc;
+	libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, REISERFS_FORMAT40_JOURNAL,
+	    goto error_free_alloc);
     }
     
     if (!(format->journal = libreiser4_plugin_call(goto error_free_alloc, 
@@ -265,9 +257,8 @@ static reiserfs_format40_t *format40_create(aal_device_t *host_device,
     if (!(oid_plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find oid plugin by its id %x.", REISERFS_FORMAT40_OID);
-	goto error_free_journal;
+	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, REISERFS_FORMAT40_OID,
+	    goto error_free_journal);
     }
     
     if (!(format->oid = libreiser4_plugin_call(goto error_free_journal, 
@@ -310,10 +301,8 @@ static error_t format40_sync(reiserfs_format40_t *format) {
     if (!(plugin = factory->find_by_coord(REISERFS_ALLOC_PLUGIN, 
 	REISERFS_FORMAT40_ALLOC))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_ALLOC);
-	return -1;
+	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, 
+	    REISERFS_FORMAT40_ALLOC, return -1);
     }
     
     libreiser4_plugin_call(return -1, plugin->alloc, sync, 
@@ -322,10 +311,8 @@ static error_t format40_sync(reiserfs_format40_t *format) {
     if (!(plugin = factory->find_by_coord(REISERFS_JOURNAL_PLUGIN, 
 	REISERFS_FORMAT40_JOURNAL))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find journal plugin by its id %x.", 
-	    REISERFS_FORMAT40_JOURNAL);
-	return -1;
+	libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, 
+	    REISERFS_FORMAT40_JOURNAL, return -1);
     }
     
     libreiser4_plugin_call(return -1, plugin->journal, sync, 
@@ -334,10 +321,8 @@ static error_t format40_sync(reiserfs_format40_t *format) {
     if (!(plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find oid allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_OID);
-	return -1;
+	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, 
+	    REISERFS_FORMAT40_OID, return -1);
     }
     
     set_sb_oid((reiserfs_format40_super_t *)format->super->data, 
@@ -373,9 +358,8 @@ static void format40_close(reiserfs_format40_t *format) {
     if (!(plugin = factory->find_by_coord(REISERFS_ALLOC_PLUGIN, 
 	REISERFS_FORMAT40_ALLOC))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_ALLOC);
+	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, 
+	    REISERFS_FORMAT40_ALLOC, goto error_free_journal);
     }
     
     libreiser4_plugin_call(goto error_free_journal, plugin->alloc, 
@@ -386,9 +370,8 @@ error_free_journal:
 	if (!(plugin = factory->find_by_coord(REISERFS_JOURNAL_PLUGIN, 
 	    REISERFS_FORMAT40_JOURNAL))) 
 	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't find journal plugin by its id %x.", 
-		REISERFS_FORMAT40_JOURNAL);
+	    libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, 
+		REISERFS_FORMAT40_JOURNAL, goto error_free_oid);
 	}
     
 	libreiser4_plugin_call(goto error_free_oid, plugin->journal, 
@@ -399,9 +382,8 @@ error_free_oid:
     if (!(plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find oid allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_OID);
+	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, 
+	    REISERFS_FORMAT40_OID, goto error_free_super);
     }
     
     libreiser4_plugin_call(goto error_free_super, plugin->journal, 

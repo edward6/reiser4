@@ -72,11 +72,10 @@ static uint16_t node40_item_maxnum(aal_block_t *block) {
    
     for (i = 0; i < nh40_get_num_items(reiserfs_nh40(block)); i++) {
 	uint16_t plugin_id = ih40_get_plugin_id(node40_ih_at(block, i));
-	if (!(plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, plugin_id))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't find item plugin by its id %x.", plugin_id);
-	    return 0;
-	}
+	
+	if (!(plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, plugin_id)))
+	    libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, plugin_id, return 0);
+	
 	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
 	    minsize,) + sizeof(reiserfs_ih40_t);
     }
@@ -183,11 +182,9 @@ static error_t node40_prepare_space(aal_block_t *block,
     if (!is_new_item)	
 	return 0;
     
-    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -1;
-    }
+    /* FIXME-UMKA: The same as above concerning key id */
+    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
+	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -1);
 
     /* Create a new item header */
     aal_memcpy(&ih->key, key, libreiser4_plugin_call(return -1, 
