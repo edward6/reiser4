@@ -1,7 +1,7 @@
 /*
     stat40.c -- reiser4 default stat data plugin.
     Copyright (C) 1996-2002 Hans Reiser.
-    Author Vitaly Fertman.
+    Author Yury Umanets.
 */
 
 #ifdef HAVE_CONFIG_H

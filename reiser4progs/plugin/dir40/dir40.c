@@ -352,7 +352,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     stat.mode = S_IFDIR | 0755;
     stat.extmask = hint->sdext;
     stat.nlink = 2;
-    stat.size = 0;
+    stat.size = 2;
     
     unix_ext.uid = getuid();
     unix_ext.gid = getgid();
