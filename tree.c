@@ -1131,6 +1131,192 @@ znode *insert_new_node (tree_coord * insert_coord, lock_handle *lh)
 }
 
 
+/* returns true if removing bytes of given range of key [from_key, to_key]
+ * causes removing of whole item @from */
+static int item_removed_completely (tree_coord * from,
+				    const reiser4_key * from_key, 
+				    const reiser4_key * to_key)
+{
+	item_plugin * iplug;
+	reiser4_key key_in_item;
+
+
+	/* check first key just for case */
+	item_key_by_coord (from, &key_in_item);
+	if (keycmp (from_key, &key_in_item) == GREATER_THAN)
+		return 0;
+
+	/* check last key */
+	iplug = item_plugin_by_coord (from);
+	assert ("vs-611", iplug && iplug->common.real_max_key_inside);
+
+	iplug->common.real_max_key_inside (from, &key_in_item);
+
+	if (keycmp (to_key, &key_in_item) == LESS_THAN)
+		/* last byte is not removed */
+		return 0;
+	return 1;
+}
+
+
+/* part of cut_node. It is called when cut_node is called to remove or cut part
+ * of extent item. When head of that item is removed - we have to update right
+ * delimiting of left neighbor of extent. When item is removed completely - we
+ * have to set sibling link between left and right neighbor of removed
+ * extent. This may return -EDEADLK because of trying to get left neighbor
+ * locked. So, caller should repeat an attempt
+ */
+static int prepare_twig_cut (tree_coord * from, tree_coord * to,
+			     const reiser4_key * from_key, 
+			     const reiser4_key * to_key)
+{
+	int result;
+	reiser4_key key;
+	lock_handle left_lh;
+	tree_coord left_coord;
+	znode * left_child;
+	znode * right_child;
+
+
+	/* for one extent item only yet */
+	assert ("vs-591", item_is_extent (from));
+	assert ("vs-592", from->item_pos == to->item_pos);
+
+
+	if (keycmp (from_key, item_key_by_coord (from, &key)) == GREATER_THAN) {
+		/* head of item @from is not removed, there is nothing to
+		 * worry about */
+		return 0;
+	}
+
+	assert ("vs-593", from->unit_pos == 0);
+
+	dup_coord (&left_coord, from);
+	init_lh (&left_lh);
+	if (coord_prev_unit (&left_coord)) {
+		/* @from is leftmost item in its node */
+		result = reiser4_get_left_neighbor (&left_lh, from->node,
+						    ZNODE_READ_LOCK,
+						    GN_DO_READ);
+		switch (result) {
+		case 0:
+			break;
+		case -ENAVAIL:
+			/* there is no formatted node to the left of
+			 * from->node */
+			warning ("vs-605", "extent item has smallest key in "
+				 "the tree and it is about to be removed");
+			return 0;
+		case -EDEADLK:
+			/* need to restart */
+		default:
+			return result;
+		}
+
+		/* we have acquired left neighbor of from->node */
+		coord_last_unit (&left_coord, left_lh.node);
+	}
+
+	if (!item_is_internal (&left_coord)) {
+		/* there is no left child */
+		done_lh (&left_lh);
+		/* what else but extent can be on twig level */
+		assert ("vs-606", item_is_extent (&left_coord));
+		return 0;
+	}
+
+	spin_lock_dk (current_tree);
+	left_child = child_znode (&left_coord, 1/* update delimiting keys*/);
+	spin_unlock_dk (current_tree);
+
+	if (IS_ERR (left_child)) {
+		return PTR_ERR (left_child);
+	}
+
+
+	/* left child is acquired, calculate new right delimiting key for it
+	 * and get right child if it is necessary */
+	if (item_removed_completely (from, from_key, to_key)) {
+		/* try to get right child of removed item */
+		tree_coord right_coord;
+		lock_handle right_lh;
+
+
+		assert ("vs-607", to->unit_pos == last_unit_pos (to));
+		dup_coord (&right_coord, from);
+		init_lh (&right_lh);
+		if (coord_next_unit (&right_coord)) {
+			/* @to is rightmost unit in the node */
+			result = reiser4_get_right_neighbor (&right_lh, from->node,
+							     ZNODE_READ_LOCK,
+							     GN_DO_READ);
+			switch (result) {
+			case 0:
+				coord_first_unit (&right_coord, right_lh.node);
+				item_key_by_coord (&right_coord, &key);
+				break;
+
+			case -ENAVAIL:
+				/* there is no formatted node to the right of
+				 * from->node */
+				spin_lock_dk (current_tree);
+				key = *znode_get_rd_key (from->node);
+				spin_unlock_dk (current_tree);
+				right_coord.node = 0;
+				break;
+			default:
+				/* real error */
+				done_lh (&right_lh);
+				done_lh (&left_lh);
+				return result;
+			}
+		} else {
+			/* there is an item to the right of @from - take its key */
+			item_key_by_coord (&right_coord, &key);
+		}
+
+		/* try to get right child of @from */
+		if (right_coord.node && /* there is right neighbor of @from */
+		    item_is_internal (&right_coord)) { /* it is internal item */
+			spin_lock_dk (current_tree);
+			right_child = child_znode (&right_coord, 1/* update delimiting keys*/);
+			spin_unlock_dk (current_tree);
+
+			if (IS_ERR (right_child)) {
+				done_lh (&right_lh);
+				done_lh (&left_lh);
+				return PTR_ERR (right_child);
+			}
+
+			/* link left_child and right_child */
+			spin_lock_tree (current_tree);
+			link_left_and_right (left_child, right_child);
+			spin_unlock_tree (current_tree);
+
+			zput (right_child);
+		}
+		done_lh (&right_lh);
+
+	} else {
+		/* calculate right delimiting key */
+		key = *to_key;
+		set_key_offset (&key, get_key_offset (&key) + 1);
+		assert ("vs-608", (get_key_offset (&key) & 
+			     (reiser4_get_current_sb ()->s_blocksize - 1)) == 0);
+	}
+
+	/* update right delimiting key of left_child */
+
+	spin_lock_dk (current_tree);	
+	*znode_get_rd_key (left_child) = key;
+	spin_unlock_dk (current_tree);	
+
+	zput (left_child);
+	done_lh (&left_lh);
+	return 0;
+}
+
+
 /**
  * cut part of the node
  * 
@@ -1174,6 +1360,16 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	   node */
 	assert ("vs-161", coord_of_unit (from));
 	assert ("vs-162", coord_of_unit (to));
+
+
+	if (znode_get_level (from->node) == TWIG_LEVEL && item_is_extent (from)) {
+		/* left child of extent item may have to get updated right
+		 * delimiting key and to get linked with right child of extent
+		 * @from if it will be removed completely */
+		result = prepare_twig_cut (from, to, from_key, to_key);
+		if (result)
+			return result;
+	}
 
 	init_carry_pool( &pool );
 	init_carry_level( &lowest_level, &pool );
