@@ -506,6 +506,119 @@ static int reiser4_bmap(struct address_space * mapping, long block)
    ->releasepage()
 */
 
+/* 
+ * FIXME-VS: 
+ * for some reasons we are not satisfied with address space's readpages() method.
+ *
+ * Andrew Morton says:
+ * Probably, we make do_page_cache_readahead an a_op.  It's a pretty small
+ * function, so the fs can take a copy and massage it to suit.
+ * We'll have to get that a_op to pass back to page_cache_readahead() the
+ * start/nr_pages which it actually did start I/O against, so the readahead
+ * logic can adjust its state.
+ *
+ * So, if/when this method will be added - the below is reiser4's
+ * implementation
+ * @start_page_index - number of page to start readahead from
+ * @intrafile_readahead_amount - number of pages to issue i/o for
+ */
+#if 0
+void reiser4_do_page_cache_readahead (struct file * file,
+				      unsigned long start_page,
+				      unsigned long intrafile_readahead_amount)
+{
+	int result;
+	struct inode * inode;
+	reiser4_key key;
+	coord_t coord;
+	lock_handle lh;
+	file_plugin * fplug;
+	item_plugin * iplug;
+	
+	struct address_space * mapping = file->f_dentry->d_inode->i_mapping;
+	struct inode * inode = mapping->host;
+	struct page * page;
+	LIST_HEAD (page_pool);
+	int page_idx;
+	int nr_to_really_read = 0;
+	unsigned long cur_page, last_page;
+	
+
+	assert ("vs-754", file && file->f_dentry && file->f_dentry->d_inode);
+	inode = file->f_dentry->d_inode;
+	if (inode->i_size == 0)
+		return;
+
+	coord_init_zero (&coord);
+	init_lh (&lh);
+
+	cur_page = start_page;
+	last_page = ((inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
+	if (cur_page + intrafile_readahead_amount > last_page)
+		intrafile_readahead_amount = last_page - cur_page;
+
+	/* make sure that we can calculate a key by inode and offset we want to
+	 * read from */
+	assert ("vs-755", (inode_file_plugin (inode) &&
+			   inode_file_plugin (inode)->key_by_inode));
+
+	while (intrafile_readahead_amount) {
+		/* calc key of next page to readahead */
+		inode_file_plugin (inode)->key_by_inode (inode, cur_page >> );
+
+		result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
+		if (result != CBK_COORD_FOUND) {
+			break;
+		}
+
+		iplug = item_plugin_by_coord (&coord);
+		if (!iplug->s.file.readahead) {
+			readahead_result = -EINVAL;
+			break;
+		}
+		readahead_result = iplug->s.file.readahead (file, &coord, &lh,
+							    &intrafile_readahead_amount);
+		if (readahead_result)
+			break;
+	}
+}
+
+	/*
+	 * Preallocate as many pages as we will need.
+	 */
+	read_lock(&mapping->page_lock);
+	for (page_idx = 0; page_idx < nr_to_read; page_idx++) {
+		unsigned long page_offset = offset + page_idx;
+		
+		if (page_offset > end_index)
+			break;
+
+		page = radix_tree_lookup(&mapping->page_tree, page_offset);
+		if (page)
+			continue;
+
+		read_unlock(&mapping->page_lock);
+		page = page_cache_alloc(mapping);
+		read_lock(&mapping->page_lock);
+		if (!page)
+			break;
+		page->index = page_offset;
+		list_add(&page->list, &page_pool);
+		nr_to_really_read++;
+	}
+	read_unlock(&mapping->page_lock);
+
+	/*
+	 * Now start the IO.  We ignore I/O errors - if the page is not
+	 * uptodate then the caller will launch readpage again, and
+	 * will then handle the error.
+	 */
+	read_pages(mapping, &page_pool, nr_to_really_read);
+	blk_run_queues();
+	BUG_ON(!list_empty(&page_pool));
+	return;
+}
+#endif
 
 /**
  * ->link() VFS method in reiser4 inode_operations
