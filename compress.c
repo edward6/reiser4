@@ -31,6 +31,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.mem_req = MIN_CLUSTER_SIZE,
+		.overrun = 0,
 	        .compress = compress_none,
 	        .decompress = compress_none
 	}
