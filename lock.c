@@ -1058,8 +1058,6 @@ void move_lh_internal (lock_handle * new, lock_handle * old, int unlink_old)
 		}
 		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
 
-		if (owner->curpri) node->lock.nr_hipri_owners ++;
-
 		zref (node);
 	}
 	link_object( new, owner, node );
