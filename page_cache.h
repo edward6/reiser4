@@ -54,8 +54,12 @@ extern void drop_page(struct page *page, jnode * node);
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_page(const char *prefix, struct page *page);
+extern void print_page_state(const char *prefix, struct page_state *ps);
+extern void print_page_stats(const char *prefix);
 #else
-#define print_page( prf, p ) noop
+#define print_page(prf, p) noop
+#define print_page_state(prefix, ps) noop
+#define print_page_stats(prefix) noop
 #endif
 
 /* __REISER4_PAGE_CACHE_H__ */

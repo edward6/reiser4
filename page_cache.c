@@ -754,6 +754,72 @@ print_page(const char *prefix, struct page *page)
 	}
 }
 
+void
+print_page_state(const char *prefix, struct page_state *ps)
+{
+	info("%i: %s: "
+	     "free: %u, "
+	     "dirty: %lu, "
+	     "writeback: %lu, "
+	     "pagecache: %lu, "
+//	     "page_table_pages: %lu, "
+//	     "reverse_maps: %lu, "
+	     "mapped: %lu, "
+	     "slab: %lu, "
+//	     "pgpgin: %lu, "
+//	     "pgpgout: %lu, "
+//	     "pswpin: %lu, "
+//	     "pswpout: %lu, "
+//	     "pgalloc: %lu, "
+//	     "pgfree: %lu, "
+//	     "pgactivate: %lu, "
+//	     "pgdeactivate: %lu, "
+//	     "pgfault: %lu, "
+//	     "pgmajfault: %lu, "
+//	     "pgscan: %lu, "
+//	     "pgrefill: %lu, "
+//	     "pgsteal: %lu, "
+	     "kswapd_steal: %lu, "
+//	     "pageoutrun: %lu, "
+//	     "allocstall: %lu
+	     "\n", current->pid, prefix,
+
+	     nr_free_pages(),
+	     ps->nr_dirty,
+	     ps->nr_writeback,
+	     ps->nr_pagecache,
+//	     ps->nr_page_table_pages,
+//	     ps->nr_reverse_maps,
+	     ps->nr_mapped,
+	     ps->nr_slab,
+//	     ps->pgpgin,
+//	     ps->pgpgout,
+//	     ps->pswpin,
+//	     ps->pswpout,
+//	     ps->pgalloc,
+//	     ps->pgfree,
+//	     ps->pgactivate,
+//	     ps->pgdeactivate,
+//	     ps->pgfault,
+//	     ps->pgmajfault,
+//	     ps->pgscan,
+//	     ps->pgrefill,
+//	     ps->pgsteal,
+	     ps->kswapd_steal //,
+//	     ps->pageoutrun,
+//	     ps->allocstall
+	     );
+}
+
+void
+print_page_stats(const char *prefix)
+{
+	struct page_state ps;
+	get_full_page_state(&ps);
+	print_page_state(prefix, &ps);
+}
+
+
 #endif
 
 /* Make Linus happy.
