@@ -222,59 +222,45 @@ reiser4_internal void *
 reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		int gfp_flag /* allocation flag */ )
 {
-	if (REISER4_DEBUG) {
+	void *result;
+
+	assert("nikita-3009", ergo(gfp_flag & __GFP_WAIT, schedulable()));
+
+	result = kmalloc(size, gfp_flag);
+	if (REISER4_DEBUG && result != NULL) {
+		unsigned int usedsize;
 		reiser4_super_info_data *sbinfo;
+
+		usedsize = ksize(result);
 
 		sbinfo = get_current_super_private();
 
+		assert("nikita-3459", usedsize >= size);
 		assert("nikita-1407", sbinfo != NULL);
-		if (gfp_flag & __GFP_WAIT)
-			assert("nikita-3009", schedulable());
-
 		reiser4_spin_lock_sb(sbinfo);
-		ON_DEBUG(sbinfo->kmalloc_allocated += size);
+		ON_DEBUG(sbinfo->kmalloc_allocated += usedsize);
 		reiser4_spin_unlock_sb(sbinfo);
 	}
-	return kmalloc(size, gfp_flag);
+	return result;
 }
 
 /* release memory allocated by reiser4_kmalloc() and update counter. */
 reiser4_internal void
-reiser4_kfree(void *area /* memory to from */,
-	      size_t size UNUSED_ARG /* number of bytes to free */)
+reiser4_kfree(void *area /* memory to from */)
 {
 	assert("nikita-1410", area != NULL);
-
-	kfree(area);
-	if (REISER4_DEBUG) {
-		reiser4_super_info_data *sbinfo;
-
-		sbinfo = get_current_super_private();
-
-		reiser4_spin_lock_sb(sbinfo);
-		assert("nikita-1411", sbinfo != NULL);
-		assert("nikita-1412", sbinfo->kmalloc_allocated >= (int) size);
-		ON_DEBUG(sbinfo->kmalloc_allocated -= size);
-		reiser4_spin_unlock_sb(sbinfo);
-	}
+	return reiser4_kfree_in_sb(area, reiser4_get_current_sb());
 }
-
-#if defined(CONFIG_REISER4_NOOPT)
-void __you_cannot_kmalloc_that_much(void)
-{
-	BUG();
-}
-#endif
 
 reiser4_internal void
-reiser4_kfree_in_sb(void *area /* memory to from */,
-		    size_t size UNUSED_ARG /* number of bytes to free */,
-		    struct super_block *sb)
+reiser4_kfree_in_sb(void *area /* memory to from */, struct super_block *sb)
 {
 	assert("nikita-2729", area != NULL);
-	kfree(area);
 	if (REISER4_DEBUG) {
+		unsigned int size;
 		reiser4_super_info_data *sbinfo;
+
+		size = ksize(area);
 
 		sbinfo = get_super_private(sb);
 
@@ -283,8 +269,16 @@ reiser4_kfree_in_sb(void *area /* memory to from */,
 		ON_DEBUG(sbinfo->kmalloc_allocated -= size);
 		reiser4_spin_unlock_sb(sbinfo);
 	}
+	kfree(area);
 }
 
+
+#if defined(CONFIG_REISER4_NOOPT)
+void __you_cannot_kmalloc_that_much(void)
+{
+	BUG();
+}
+#endif
 
 #if REISER4_DEBUG
 
@@ -664,7 +658,7 @@ ctl_table sys_fs[] = {
 		/* /proc/sys/fs/ */
 		.ctl_name = CTL_FS,
 		.procname = "fs",
-		.mode = 0644,
+		.mode = 0555,
 		.child = sys_fs_reiser4
 	},
 	{
