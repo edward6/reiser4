@@ -551,6 +551,14 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 		goto out2;
 	}
 
+	if (!coord_is_existing_unit (&coord)) {
+		/*
+		 * truncate stole a march of us.
+		 */
+		result = -EIO;
+		goto out;
+	}
+
 	result = -EINVAL;
 
 	/* get plugin of found item */
