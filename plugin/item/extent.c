@@ -1577,8 +1577,15 @@ int extent_write (struct inode * inode, tree_coord * coord,
 	while (f->length) {
 		page = grab_cache_page (inode->i_mapping,
 					(unsigned long)(file_off >> PAGE_SHIFT));
-		if (IS_ERR (page))
+		if (IS_ERR (page)) {
 			return PTR_ERR (page);
+		}
+
+		/* Capture the page. */
+		result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
+		if (result != 0) {
+			goto capture_failed;
+		}
 
 		kaddr = kmap (page);
 		count = f->length;
@@ -1586,6 +1593,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 		if (result && result != -EAGAIN) {
 			/* error occurred */
 			kunmap (page);
+		capture_failed:
 			UnlockPage (page);
 			page_cache_release (page);
 			return result;
@@ -1925,8 +1933,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
 	/*
 	 * item @coord must belong to the file we read
 	 */
-	assert ("vs-392", (
-	{
+	assert ("vs-392", ({
 		struct inode * inode;
 		inode = page->mapping->host;
 		reiser4_get_file_plugin (inode)->owns_item (inode, coord);
@@ -1984,21 +1991,20 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	page_nr = (get_key_offset (&f->key) >> PAGE_SHIFT);
 	arg.coord = coord;
 	arg.lh = lh;
-	/*
-	 * this will return page if it exists and is uptodate, otherwise it
-	 * will allocate page and call extent_readpage to fill it
-	 */
-	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage,
-				&arg);
-	if (IS_ERR (page))
-		return PTR_ERR (page);
 
-	if (!Page_Uptodate (page))
-		/*
-		 * make some readahead pages of extent we stopped at and start
-		 * reading them
-		 */
+	/* this will return page if it exists and is uptodate, otherwise it
+	 * will allocate page and call extent_readpage to fill it */
+	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage, &arg);
+
+	if (IS_ERR (page)) {
+		return PTR_ERR (page);
+	}
+
+	if (!Page_Uptodate (page)) {
+		/* make some readahead pages of extent we stopped at and start
+		 * reading them */
 		read_ahead (page, arg.coord);
+	}
 
 	wait_on_page (page);
 	
@@ -2006,22 +2012,23 @@ int extent_read (struct inode * inode, tree_coord * coord,
 		page_cache_release (page);
 		return -EIO;
 	}
+
+	/* Capture the page. */
+	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
+	if (result != 0) {
+		goto capture_failed;
+	}
 	
-	/*
-	 * position within the page to read from
-	 */
+	/* position within the page to read from */
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
 
-	/*
-	 * number of bytes which can be read from the page
-	 */
-	if (page_nr == (inode->i_size >> PAGE_SHIFT))
-		/*
-		 * we read last page of a file. Calculate size of file tail
-		 */
+	/* number of bytes which can be read from the page */
+	if (page_nr == (inode->i_size >> PAGE_SHIFT)) {
+		/* we read last page of a file. Calculate size of file tail */
 		count = inode->i_size & ~PAGE_MASK;
-	else
+	} else {
 		count = PAGE_SIZE;
+	}
 	assert ("vs-388", count > page_off);
 	count -= page_off;
 	if (count > f->length)
@@ -2030,9 +2037,12 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	kaddr = kmap (page);
 	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
+
+ capture_failed:
 	page_cache_release (page);
-	if (result)
+	if (result) {
 		return result;
+	}
 	
 	f->data += count;
 	f->length -= count;
