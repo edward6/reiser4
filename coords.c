@@ -137,7 +137,7 @@ int coord_next_unit (tree_coord * coord)
 /* this assumes that @coord is set to existing unit within a node. Move @coord
    to previous unit. 1 is returned if coord is set already to first unit in
    the node. 0 - otherwise */
-int coord_prev (tree_coord * coord)
+int coord_prev_unit (tree_coord * coord)
 {
 	assert ("vs-201", coord_correct (coord));
 	assert ("vs-202", coord_of_unit (coord));
@@ -153,6 +153,8 @@ int coord_prev (tree_coord * coord)
 	}
 	return 0;
 }
+
+
 
 
 /*
@@ -202,6 +204,22 @@ int coord_next_item (tree_coord * coord)
 	if (coord->item_pos >= node_num_items (coord->node) - 1)
 		return 0;
 	coord->item_pos ++;
+	coord_first_item_unit (coord);
+	return 1;
+}
+
+
+/*
+ * set coord to first unit of prev item, return 0 if there is no one
+ */
+int coord_prev_item (tree_coord * coord)
+{
+	assert ("vs-452", coord_correct (coord));
+	assert ("vs-453", coord_of_unit (coord));
+
+	if (coord->item_pos == 0)
+		return 0;
+	coord->item_pos --;
 	coord_first_item_unit (coord);
 	return 1;
 }
