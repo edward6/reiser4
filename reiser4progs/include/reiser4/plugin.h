@@ -69,10 +69,11 @@ struct reiserfs_key_plugin {
     /* Compares two keys */
     int (*compare) (const void *, const void *);
 
-    /* Creates/destroys key by its components */
-    void *(*create) (uint16_t, oid_t, oid_t, uint64_t);
+    /* 
+	Cleans key. Actually it just memsets it by zeros,
+	but more smart behavior may be implemented.
+    */
     void (*clean) (void *);
-    void (*close) (void *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
     void (*set_type) (void *, uint32_t);
@@ -101,12 +102,14 @@ struct reiserfs_key_plugin {
     /* Get size of the key */
     uint8_t (*size) (void);
 
-    void (*build_dir_key) (void *, oid_t, oid_t, char *, void *);
-    void (*build_file_key) (void *, uint32_t, oid_t, oid_t, uint64_t);
-    void (*build_dir_short_key) (void *, char *, void *, uint8_t);
-    void (*build_file_short_key) (void *, uint32_t, oid_t, oid_t, uint8_t);
-    void (*build_key_by_dir_short_key) (void *key, void *sh_key, uint8_t size); 
-    void (*build_key_by_file_short_key) (void *key, void *sh_key, uint8_t size);
+    error_t (*build_file_key) (void *, uint32_t, oid_t, oid_t, uint64_t);
+    error_t (*build_dir_key) (void *, void *, oid_t, oid_t, const char *);
+    
+    error_t (*build_file_short_key) (void *, uint32_t, oid_t, oid_t, uint8_t);
+    error_t (*build_dir_short_key) (void *, const char *, void *, uint8_t);
+    
+    error_t (*build_key_by_file_short_key) (void *, void *, uint8_t);
+    error_t (*build_key_by_dir_short_key) (void *, void *, uint8_t); 
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
