@@ -396,6 +396,9 @@ typedef struct compression_plugin {
 	plugin_header h;
 	/* working memory size, bytes */
 	unsigned mem_req;
+	/* the maximum number of bytes the size of the "compressed" data can
+	 * exceed the uncompressed data. */
+	unsigned overrun;	
 	/* main text processing procedures */
 	void (*compress) (__u8 *buf, __u8 *src_first, unsigned src_len,
 			  __u8 *dst_first, unsigned *dst_len);
