@@ -27,9 +27,13 @@
     2 read plugin id from stat data or try to guess plugin id
       from inode->i_mode bits if plugin id is missing.
     3 Call ->init_inode() method of stat-data plugin to initialise inode fields.
+
+NIKITA-FIXME-HANS: can you say a little about 1 being done before 3?  What if stat data does contain i_size, etc., due to it being an unusual plugin?
     4 Call ->activate() method of object's plugin. Plugin is either read from
       from stat-data or guessed from mode bits
-    5 Call ->inherit() method of object plugin to inherit as yet initialized
+    5 Call ->inherit() method of object plugin to inherit as yet 
+NIKITA-FIXME-HANS: are you missing an "un" here?
+initialized
       plugins from parent.
 
    Easy induction proves that on last step all plugins of inode would be
@@ -37,13 +41,13 @@
 
    When creating new object:
     1 obtain object plugin id (see next period)
+NIKITA-FIXME-HANS: period?
     2 ->install() this plugin
     3 ->inherit() the rest from the parent
 
 */
 /* We need some examples of creating an object with default and
   non-default plugin ids.  Nikita, please create them.
-
 */
 
 #include "../forward.h"
@@ -99,6 +103,7 @@ key_warning(const reiser4_key * key /* key to print */,
 	}
 }
 
+/* NIKITA-FIXME-HANS: perhaps this function belongs in another file? */
 #if REISER4_DEBUG
 static void
 check_inode_seal(const struct inode *inode,
@@ -214,13 +219,16 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 
 	data.data = NULL;
 	data.user = 0;
-
+/* could be optimized for case where there is only one node format in
+ * use in the filesystem, probably there are lots of such
+ * places we could optimize for only one node layout.... -Hans */
 	if (data.length > tree_by_inode(inode)->nplug->max_item_size()) {
 		/* This is silly check, but we don't know actual node where
 		   insertion will go into. */
 		return RETERR(-ENAMETOOLONG);
 	}
 	oid = oid_allocate(inode->i_sb);
+/* NIKITA-FIXME-HANS: what is your opinion on whether this error check should be encapsulated into oid_allocate? */
 	if (oid == ABSOLUTE_MAX_OID)
 		return RETERR(-EOVERFLOW);
 
@@ -453,7 +461,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 
 	return result;
 }
-
+/* NIKITA-FIXME-HANS: the distinction between writing and updating made in the function names seems muddled, please adopt a better function naming strategy */
 /* save object's stat-data to disk */
 reiser4_internal int
 write_sd_by_inode_common(struct inode *inode /* object to save */)
@@ -489,6 +497,7 @@ can_add_link_common(const struct inode *object /* object to check */ )
 
 
 /* space for stat data removal is reserved */
+/* NIKITA-FIXME-HANS: must be reserved by caller before calling you mean? */
 reiser4_internal int
 common_file_delete_no_reserve(struct inode *inode /* object to remove */,
 			      int mode /* cut_mode */)
@@ -520,8 +529,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */,
 	return result;
 }
 
-/* delete_object() - delete object stat-data. This is to be used when file
- * deletion turns into stat data removal */
+/* delete_file_common() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
 reiser4_internal int
 delete_object(struct inode *inode /* object to remove */, int mode /* cut mode */)
 {
@@ -535,6 +543,7 @@ delete_object(struct inode *inode /* object to remove */, int mode /* cut mode *
 		reiser4_block_nr reserve;
 
 		/* grab space which is needed to remove stat data and
+NIKITA-FIXME-HANS: form?
 		 * safe-link form the tree */
 		reserve = 2 * estimate_one_item_removal(tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
@@ -567,7 +576,8 @@ static int delete_directory_common(struct inode *inode)
 
 	result = dplug->done(inode);
 	if (!result)
-		result = common_file_delete_no_reserve(inode, 1);
+/* NIKITA-FIXME-HANS: please comment on whether file is the right word here.  maybe common_object_delete_no_reserve? */
+		result = common_file_delete_no_reserve(inode);
 	all_grabbed2free();
 	return result;
 }
@@ -585,7 +595,7 @@ set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	/* this should be plugin decision */
 	object->i_uid = current->fsuid;
 	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
-
+/* NIKITA-FIXME-HANS: which is defined as what where? */
 	/* support for BSD style group-id assignment. */
 	if (reiser4_is_set(object->i_sb, REISER4_BSD_GID))
 		object->i_gid = parent->i_gid;
@@ -614,8 +624,8 @@ set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 
 /* Determine object plugin for @inode based on i_mode.
 
-   Most objects in reiser4 file system are controlled by standard object
-   plugins: regular file, directory, symlink, fifo, and so on.
+   Many objects in reiser4 file system are controlled by standard object
+   plugins that emulate traditional unix objects: unix file, directory, symlink, fifo, and so on.
 
    For such files we don't explicitly store plugin id in object stat
    data. Rather required plugin is guessed from mode bits, where file "type"
