@@ -352,3 +352,37 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
  */
 
 
+examples:
+
+
+.....b/(new/(name<-"new_file_name"; type<-regular_file; permition<-acl); new_file_name/acl/( uid<-"357", access<-denied );new_file_name<-/etc/passwd)
+
+where:
+  b is a directory
+we have lnode for it.and make:
+b_lnode->lookup(new)
+it that meen we find lnode for directory plugin "new"
+   and then we find new_lnode->lookup(name). this is lnode for name of new file and we assign to it string constant "new_file_name".
+
+   then we find new_lnode->lookup(type). this is lnode of type of new file
+   then we find new_lnode->lookup(regular_file) this is lnode of constants of types of plugin "new" for regular file
+   then we copy contens regular_file_lnode throuse tube to type_lnode.
+
+   then we find new_lnode->lookup(permition). this is lnode of type of permition of new file
+   then we find new_lnode->lookup(acl). this is lnode of constants of type of permition of "new" plugin, correcponding to acl
+   then we copy contens acl_lnode throuse tube to permition_lnode.
+
+then we find b_lnode->lookup(new_file_name). this is lnode for new file we jast created.
+then we find new_file_name_lnode->lookup(acl) . this is lnode of acl plugin .
+   then we find acl_lnode->lookup(uid)this is lnode for uid field of acl and assign to it string constant "357".
+   then we find acl_lnode->lookup(access).
+   then we find acl_lnode->lookup(denied).
+   then we copy contens denied_lnode throuse tube to access_lnode.
+
+then we find root_lnode->lookup(etc),
+then we find etc_lnode->lookup(passwd)
+then we read contens passwd_lnode throuse tube and write to new_file_name_lnode lnode.
+
+ok. command string is executed.
+
+
