@@ -79,8 +79,8 @@ ktxnmgrd(void *arg)
 		   load-average. This doesn't require any special handling,
 		   because all signals were blocked.
 		*/
-		result = kcond_timedwait(&ctx->wait, &ctx->guard, ctx->timeout, 1	/* signalable */
-		    );
+		result = kcond_timedwait(&ctx->wait, 
+					 &ctx->guard, ctx->timeout, 1);
 		if ((result != -ETIMEDOUT) && (result != 0)) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
@@ -133,8 +133,6 @@ init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 	atomic_set(&ctx->pressure, 0);
 }
 
-static const unsigned int ktxnmrgd_flags = CLONE_VM | CLONE_FS | CLONE_FILES;
-
 int
 ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 {
@@ -144,25 +142,30 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 
 	spin_lock(&ctx->guard);
 
-	first_mgr = txn_mgrs_list_empty(&ctx->queue);
+	first_mgr = !ctx->started;
+	ctx->started = 1;
 
 	/* attach @mgr to daemon. Not taking spin-locks, because this is early
 	   during @mgr initialization. */
 	mgr->daemon = ctx;
 	txn_mgrs_list_push_back(&ctx->queue, mgr);
 
-	/* daemon thread is not yet initialized */
-	if (ctx->tsk == NULL) {
-		/* attaching first mgr, start daemon */
-		if (first_mgr) {
-			ctx->done = 0;
+	spin_unlock(&ctx->guard);
 
-			/* kernel_thread never fails. */
-			kernel_thread(ktxnmgrd, ctx, ktxnmrgd_flags);
-		}
+	if (first_mgr) {
+		/* attaching first mgr, start daemon */
+		ctx->done = 0;
+		/* kernel_thread never fails. */
+		kernel_thread(ktxnmgrd, ctx, CLONE_VM | CLONE_FS | CLONE_FILES);
+	}
+
+	spin_lock(&ctx->guard);
+
+	/* daemon thread is not yet initialized */
+	if (ctx->tsk == NULL)
 		/* wait until initialization completes */
 		kcond_wait(&ctx->startup, &ctx->guard, 0);
-	}
+
 	assert("nikita-2452", ctx->tsk != NULL);
 
 	spin_unlock(&ctx->guard);
@@ -190,6 +193,7 @@ ktxnmgrd_detach(txn_mgr * mgr)
 	if (txn_mgrs_list_empty(&ctx->queue)) {
 		ctx->tsk = NULL;
 		ctx->done = 1;
+		ctx->started = 0;
 		spin_unlock(&ctx->guard);
 		kcond_signal(&ctx->wait);
 
