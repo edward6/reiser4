@@ -1567,8 +1567,9 @@ static int create_twig( reiser4_tree *tree, struct inode *root )
 
 static void call_umount (struct super_block * sb)
 {
-	if (sb->s_op->umount_begin)
-		sb->s_op->umount_begin (sb);
+	struct file_system_type *fs = sb->s_type;
+
+	fs->kill_sb(sb);
 
 	if (sb->s_op->put_super)
 		sb->s_op->put_super (sb);
