@@ -18,8 +18,8 @@
 
 typedef struct locksite {
 	int   hits;
-	char *func;
-	char *file;
+	const char *func;
+	const char *file;
 	int   line;
 } locksite;
 
@@ -38,6 +38,7 @@ struct profregion {
 	int            objhit;
 	locksite      *code;
 	int            codehit;
+	void (*champion)(struct profregion * preg);
 };
 
 
@@ -54,70 +55,14 @@ struct profregionstack {
 
 DECLARE_PER_CPU(struct profregionstack, inregion);
 
-extern int profregion_find(struct profregionstack *stack, 
-			   struct profregion *pregion);
-
-static inline void profregfill(struct pregactivation *act,
-			       struct profregion *pregion,
-			       void *objloc, void *codeloc)
-{
-	act->preg    = pregion;
-	act->objloc  = objloc;
-	act->codeloc = codeloc;
-}
-
-static inline void profregion_in(int cpu, struct profregion *pregion,
-				 void *objloc, locksite *codeloc)
-{
-	struct profregionstack *stack;
-	int ntop;
-
-	preempt_disable();
-	stack = &per_cpu(inregion, cpu);
-	ntop = stack->top;
-	BUG_ON(ntop == PROFREGION_MAX_DEPTH);
-	profregfill(&stack->stack[ntop], pregion, objloc, codeloc);
-	/* put optimization barrier here */
-	barrier();
-	++ stack->top;
-}
-
-static inline void profregion_ex(int cpu, struct profregion *pregion)
-{
-	struct profregionstack *stack;
-	int ntop;
-
-	stack = &per_cpu(inregion, cpu);
-	ntop = stack->top;
-	BUG_ON(ntop == 0);
-	if(likely(stack->stack[ntop - 1].preg == pregion)) {
-		do {
-			-- ntop;
-		} while (ntop > 0 &&
-			 stack->stack[ntop - 1].preg == NULL);
-		/* put optimization barrier here */
-		barrier();
-		stack->top = ntop;
-	} else
-		stack->stack[profregion_find(stack, pregion)].preg = NULL;
-	preempt_enable();
-	put_cpu();
-}
-
-static inline void profregion_replace(int cpu, struct profregion *pregion,
-				      void *objloc, void *codeloc)
-{
-	struct profregionstack *stack;
-	int ntop;
-
-	stack = &per_cpu(inregion, cpu);
-	ntop = stack->top;
-	BUG_ON(ntop == 0);
-	profregfill(&stack->stack[ntop - 1], pregion, objloc, codeloc);
-}
-
 extern int  profregion_register(struct profregion *pregion);
 extern void profregion_unregister(struct profregion *pregion);
+
+extern void profregion_in(int cpu, struct profregion *pregion,
+			  void *objloc, locksite *codeloc);
+extern void profregion_ex(int cpu, struct profregion *pregion);
+extern void profregion_replace(int cpu, struct profregion *pregion,
+			       void *objloc, void *codeloc);
 
 /* REISER4_LOCKPROF */
 #else
