@@ -157,6 +157,20 @@
 
 #define ON_DEBUG( exp ) exp
 
+extern int schedulable (void); 
+
+#else
+
+#define dinfo( format, args... ) noop
+#define impossible( label, format, args... ) noop
+#define assert( label, cond ) noop
+#define check_me( label, expr )	( ( void ) ( expr ) )
+#define ON_DEBUG( exp )
+#define schedulable() might_sleep()
+
+/* REISER4_DEBUG */
+#endif
+
 typedef struct lock_counters_info {
 	int rw_locked_tree;
 	int read_locked_tree;
@@ -185,20 +199,6 @@ typedef struct lock_counters_info {
 } lock_counters_info;
 
 extern lock_counters_info *lock_counters(void);
-
-extern int schedulable (void); 
-
-#else
-
-#define dinfo( format, args... ) noop
-#define impossible( label, format, args... ) noop
-#define assert( label, cond ) noop
-#define check_me( label, expr )	( ( void ) ( expr ) )
-#define ON_DEBUG( exp )
-#define schedulable() might_sleep()
-
-/* REISER4_DEBUG */
-#endif
 
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */
