@@ -1176,6 +1176,8 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 				REISER4_EXIT (-EINVAL);
 			goto read_super_block;
 		}
+		info ("BLocksize %lu\n", blocksize);
+
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
 		/* only one plugin is available for now */
 		assert ("vs-476", (plugin_id == LAYOUT_40_ID ||

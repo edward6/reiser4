@@ -1181,10 +1181,15 @@ static inline void unlock_new_inode(struct inode *inode)
 
 extern void declare_memory_pressure( void );
 
-#define PAGE_CACHE_SHIFT	9
+
+extern int PAGE_CACHE_SHIFT;
+extern int PAGE_CACHE_SIZE;
+extern int PAGE_CACHE_MASK;
+/*
+#define PAGE_CACHE_SHIFT	12
 #define PAGE_CACHE_SIZE	(1UL << PAGE_CACHE_SHIFT)
 #define PAGE_CACHE_MASK	(~(PAGE_CACHE_SIZE-1))
-
+*/
 #define PAGE_CACHE_ALIGN(addr)	(((addr)+PAGE_CACHE_SIZE-1)&PAGE_CACHE_MASK)
 
 enum bh_state_bits {

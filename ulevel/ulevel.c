@@ -4447,6 +4447,10 @@ void funJustBeforeMain()
 /* fixme: not used */
 reiser4_block_nr new_block_nr;
 
+int PAGE_CACHE_SHIFT;
+int PAGE_CACHE_SIZE;
+int PAGE_CACHE_MASK;
+
 int real_main( int argc, char **argv )
 {
 	int result, eresult, fresult;
@@ -4471,6 +4475,24 @@ int real_main( int argc, char **argv )
 	else
 		++ __prog_name;
  	abendInit( argc, argv );
+
+	/*
+	 * currently reiser4 supports only pagesize==blocksize, we have to make
+	 * sure that PAGE_CACHE_* are set correspondingly to blocksize
+	 */
+	{
+		int blocksize;
+
+		blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
+			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+		for (PAGE_CACHE_SHIFT = 0; blocksize >>= 1; PAGE_CACHE_SHIFT ++);
+		
+		PAGE_CACHE_SIZE	= (1UL << PAGE_CACHE_SHIFT);
+		PAGE_CACHE_MASK	= (~(PAGE_CACHE_SIZE-1));
+		info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%d, PAGE_CACHE_MASK=0x%x\n",
+		      PAGE_CACHE_SHIFT, PAGE_CACHE_SIZE, PAGE_CACHE_MASK);
+	}
+
 /*
 	trap_signal( SIGBUS );
 	trap_signal( SIGSEGV );
