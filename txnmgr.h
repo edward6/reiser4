@@ -223,6 +223,9 @@ struct txn_atom {
 	/* The atom's overwrite set */
 	capture_list_head ovrwr_nodes;
 
+	/* nodes which are being written to disk */
+	capture_list_head writeback_nodes;
+
 	/* List of handles associated with this atom. */
 	txnh_list_head txnh_list;
 
@@ -325,7 +328,7 @@ extern long txn_end(reiser4_context * context);
 extern int txnmgr_force_commit_current_atom(void);
 extern int txnmgr_force_commit_all(struct super_block *super);
 
-extern jnode * find_first_dirty_jnode (txn_atom *);
+extern jnode * find_first_dirty_jnode (txn_atom *, int);
 
 extern int commit_some_atoms(txn_mgr *);
 extern int flush_current_atom (int, long *, txn_atom **);
@@ -467,10 +470,6 @@ struct flush_queue {
 	txn_atom *atom;
 	/* A semaphore for waiting on i/o completion */
 	struct semaphore sema;
-
-	/* A link field for single-linked list of fq which are collected for
-	   writing to disk */
-	flush_queue_t *next_to_write;
 };
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);

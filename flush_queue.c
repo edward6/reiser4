@@ -531,15 +531,42 @@ add_fq_to_bio(flush_queue_t * fq, struct bio *bio)
 		atomic_add(bio->bi_vcnt, &fq->nr_submitted);
 }
 
+static void release_sent_list(flush_queue_t * fq)
+{
+	txn_atom * atom;
+
+	assert("zam-904", fq_in_use(fq));
+	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
+
+	while(!capture_list_empty(&fq->sent)) {
+		jnode * cur = capture_list_pop_front(&fq->sent);
+
+		count_dequeued_node(fq);
+		LOCK_JNODE(cur);
+
+		JF_CLR(cur, JNODE_FLUSH_QUEUED);
+		if (JF_ISSET(cur, JNODE_DIRTY))
+			capture_list_push_back(&atom->dirty_nodes[jnode_get_level(cur)], cur);
+		else
+			capture_list_push_back(&atom->clean_nodes, cur);
+
+		UNLOCK_JNODE(cur);
+	}
+
+	UNLOCK_ATOM(atom);
+}
+
 /* submitting to write prepared list of jnodes */
 static int
-submit_write(flush_queue_t * fq, jnode * first, int nr)
+submit_write(flush_queue_t * fq, int nr)
 {
 	struct bio *bio;
 	struct super_block *s = reiser4_get_current_sb();
 	int nr_processed;
 	int doing_reclaim;
+	jnode * first = capture_list_front(&fq->sent);
 
+	assert("zam-903", fq_in_use(fq));
 	assert("nikita-3014", schedulable());
 	assert("zam-725", nr != 0);
 
@@ -637,6 +664,8 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	reiser4_submit_bio(WRITE, bio);
 
 	update_blocknr_hint_default (s, jnode_get_block (first));
+
+	release_sent_list(fq);
  
 	return nr;
 }
@@ -697,6 +726,8 @@ write_fq(flush_queue_t * fq, int how_many)
 	/* atom the fq is attached to */
 	txn_atom * atom;
 
+	assert("zam-900", fq_in_use(fq));
+	assert("zam-901", capture_list_empty(&fq->sent));
 	assert("nikita-3015", schedulable());
 
 #if REISER4_USER_LEVEL_SIMULATION
@@ -762,7 +793,7 @@ write_fq(flush_queue_t * fq, int how_many)
 
 		/* take the set we just prepped, and submit it for writing to disk */
 		if (nr_contiguous) {
-			ret = submit_write(fq, first, nr_contiguous);
+			ret = submit_write(fq, nr_contiguous);
 
 			if (ret < 0)
 				return ret;
@@ -851,6 +882,7 @@ void
 fq_put_nolock(flush_queue_t * fq)
 {
 	assert("zam-747", fq->atom != NULL);
+	assert("zam-902", capture_list_empty(&fq->sent));
 	mark_fq_ready(fq);
 }
 

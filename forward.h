@@ -193,7 +193,7 @@ typedef enum {
 	/* submit flush queue to disk at jnode_flush completion */
 	JNODE_FLUSH_WRITE_BLOCKS = 1,
 
-	/* not implemented */
+	/* flush is called for commit */
 	JNODE_FLUSH_COMMIT = 2,
 	/* not implemented */
 	JNODE_FLUSH_MEMORY_FORMATTED = 4,
