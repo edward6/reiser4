@@ -411,7 +411,7 @@ item_plugin *default_dir_item_plugin( const struct super_block *super UNUSED_ARG
 }
 
 int init_tree( reiser4_tree *tree /* pointer to structure being
-				   * initialised */, 
+				   * initialized */, 
 	       struct super_block *super /* super block this tree is
 					  * associated with */,
 	       const reiser4_block_nr *root_block /* address of a root block
