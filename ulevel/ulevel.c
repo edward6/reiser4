@@ -4729,6 +4729,41 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 
 #endif
 
+void __mark_inode_dirty(struct inode *inode, int flags)
+{
+}
+
+/*
+ * For address_spaces which do not use buffers.  Just set the page's dirty bit
+ * and move it to the dirty_pages list.  Also perform space reservation if
+ * required.
+ *
+ * __set_page_dirty_nobuffers() may return -ENOSPC.  But if it does, the page
+ * is still safe, as long as it actually manages to find some blocks at
+ * writeback time.
+ *
+ * This is also used when a single buffer is being dirtied: we want to set the
+ * page dirty in that case, but not all the buffers.  This is a "bottom-up"
+ * dirtying, whereas __set_page_dirty_buffers() is a "top-down" dirtying.
+ */
+int __set_page_dirty_nobuffers(struct page *page)
+{
+	int ret = 0;
+
+	if (!TestSetPageDirty(page)) {
+		struct address_space *mapping = page->mapping;
+
+		if (mapping) {
+			spin_lock( &page_list_guard );
+			list_del(&page->list);
+			list_add(&page->list, &mapping->dirty_pages);
+			spin_lock( &page_list_guard );
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+		}
+	}
+	return ret;
+}
+
 /*
  * Make Linus happy.
  * Local variables:
