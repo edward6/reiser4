@@ -177,6 +177,7 @@ typedef struct reiser4_capabilities_stat {
 } PACKED reiser4_capabilities_stat;
 
 typedef struct reiser4_cluster_stat {
+/* this defines cluster size (an attribute of cryptcompress objects) as PAGE_SIZE << cluster shift */	
 	/* 0 */ d8 cluster_shift;
 	/* 1 */
 } PACKED reiser4_cluster_stat;
