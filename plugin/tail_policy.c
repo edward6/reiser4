@@ -111,7 +111,8 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 				 .desc = "Never store file's tail",
 				 .linkage = TS_LIST_LINK_ZERO}
 			   ,
-			   .have_tail = never_tail}
+			   .have_tail = never_tail,
+			   .estimate = never_tail_estimate}
 	,
 	[ALWAYS_TAIL_ID] = {
 			    .h = {
@@ -122,7 +123,8 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 				  .desc = "Always store file's tail",
 				  .linkage = TS_LIST_LINK_ZERO}
 			    ,
-			    .have_tail = always_tail}
+			    .have_tail = always_tail,
+			    .estimate = always_tail_estimate}
 	,
 	[TEST_TAIL_ID] = {
 			  .h = {
@@ -134,7 +136,8 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 				"store files shorter than 2 blocks in tail items",
 				.linkage = TS_LIST_LINK_ZERO}
 			  ,
-			  .have_tail = test_tail}
+			  .have_tail = test_tail,
+			  .estimate = test_tail_estimate}
 };
 
 /* 

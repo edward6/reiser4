@@ -959,7 +959,16 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .setattr = unix_file_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
-				    .bind = common_bind}
+				    .bind = common_bind,
+				    .estimate = {
+					    .create = common_estimate_create,
+					    .update = common_estimate_update,
+					    .read = unix_file_estimate_read,
+					    .write = unix_file_estimate_write,
+					    .truncate = unix_file_estimate_truncate,
+					    .release = unix_file_estimate_release,
+					    .mmap = unix_file_estimate_mmap,
+					    .delete = common_estimate_file_delete}}
 	,
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 				      .h = {
@@ -996,7 +1005,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .setattr = inode_setattr,
 				      .getattr = common_getattr,
 				      .seek = dir_seek,
-				      .bind = dir_bind}
+				      .bind = dir_bind,
+				      .estimate = {
+					    .create = common_estimate_create,
+					    .update = common_estimate_update,
+					    .delete = common_estimate_file_delete}}
 	,
 	[SYMLINK_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1036,7 +1049,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .setattr = inode_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
-				    .bind = common_bind}
+				    .bind = common_bind,
+				    .estimate = {
+					    .create = common_estimate_create,
+					    .update = common_estimate_update,
+					    .delete = common_estimate_file_delete}}
 	,
 	[SPECIAL_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1074,7 +1091,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .setattr = inode_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
-				    .bind = common_bind}
+				    .bind = common_bind,
+				    .estimate = {
+					.create	= common_estimate_create,
+					.update	= common_estimate_update,
+					.delete	= common_estimate_file_delete}}
 };
 
 /* 
