@@ -86,8 +86,6 @@ typedef enum {
 	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
 } sd_ext_bits;
 
-#define PACKED __attribute__((packed))
-
 /* this is not minimal.  I used to think that size was the only stat
    data which cannot be eliminated/inherited, but then I realized that
    if you have a directory of files of equal size, you could cause

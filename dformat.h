@@ -41,6 +41,8 @@ typedef struct d64 {
 	__u64 datum;
 } d64 __attribute__ ((aligned(8)));
 
+#define PACKED __attribute__((packed))
+
 static inline __u8
 d8tocpu(const d8 * ondisk /* on-disk value to convert */ )
 {

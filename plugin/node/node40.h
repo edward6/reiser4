@@ -32,25 +32,27 @@ typedef struct node40_header {
 	    who don't have the new trashcan installed on their linux distro
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
-	struct {
-		/* magic field we need to tell formatted nodes */
-		d32 magic;
-		/* flushstamp is made of mk_id and write_counter. mk_id is an
-		   id generated randomly at mkreiserfs time. So we can just
-		   skip all nodes with different mk_id. write_counter is d64
-		   incrementing counter of writes on disk. It is used for
-		   choosing the newest data at fsck time.
-		*/
-		d32 mkfs_id;
-		d64 flush_id;
-		/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
-		   and repacker */
-		d16 flags;
-	} fsck;
-	/* 1 is leaf level, 2 is twig level, root is the numerically largest
-	   level */
+	
+	/* magic field we need to tell formatted nodes */
+	d32 magic;
+	/* flushstamp is made of mk_id and write_counter. mk_id is an
+	   id generated randomly at mkreiserfs time. So we can just
+	   skip all nodes with different mk_id. write_counter is d64
+	   incrementing counter of writes on disk. It is used for
+	   choosing the newest data at fsck time. */
+	
+	d32 mkfs_id;
+	d64 flush_id;
+	/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
+	   and repacker */
+	d16 flags;
+	
+	/* 1 is leaf level, 2 is twig level, root is the numerically 
+	   largest level */
 	d8 level;
-} node40_header;
+	
+	d8 pad;
+} PACKED node40_header;
 
 /* item headers are not standard across all node layouts, pass
    pos_in_node to functions instead */
@@ -61,7 +63,7 @@ typedef struct item_header40 {
 	/* 24 */ d16 offset;
 	/* 26 */ d16 flags;
 	/* 28 */ d16 plugin_id;
-} item_header40;
+} PACKED item_header40;
 
 size_t item_overhead_node40(const znode * node, flow_t * aflow);
 size_t free_space_node40(znode * node);
