@@ -1299,3 +1299,4 @@ znode.bbg
 plugin/.crypo_compressed.o.cmd
 ulevel/loid
 plugin/.plugin_set.o.cmd
+.kattr.o.d
