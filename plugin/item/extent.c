@@ -2535,7 +2535,7 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 			goto exit2;
 		}
 
-		if (!jnode_mapped(j) || !jnode_check_flushprepped(j) || !!jnode_check_dirty(j)) {
+		if (!jnode_mapped(j) || !jnode_check_flushprepped(j) || !jnode_check_dirty(j)) {
 			ON_TRACE(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
 
 			/* unlock page before doing anything with filesystem tree */
