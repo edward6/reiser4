@@ -49,7 +49,8 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 /** a generator for tree nodes fake block numbers */
 void get_next_fake_blocknr (reiser4_block_nr *bnr)
 {
-	/* FIXME: This isn't thread-safe. */
+	/* FIXME: This isn't thread-safe.
+	 * Who will fix this? */
 	static reiser4_block_nr gen = 0;
 
 	gen += 1;
@@ -87,27 +88,11 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 				    preceder, needed, blk, len);
 }
 
-#if 0
-/* FIXME: Josh says: this is wrong.  See flush.c: flush_alloc_block(). */
-/* this wrapper is used by new_node only
- * FIXME-VS: shouldn't this return "fake "block number?
- */
-int reiser4_alloc_block( znode *neighbor, reiser4_block_nr *blocknr )
+int reiser4_alloc_block( znode *neighbor UNUSED_ARG, reiser4_block_nr *blocknr )
 {
-	space_allocator_plugin * splug;
-	reiser4_blocknr_hint preceder;
-	reiser4_block_nr one;
-
-	if (neighbor)
-		preceder.blk = ZJNODE (neighbor)->blocknr;
-	else
-		preceder.blk = 0;
-
-	splug = get_current_super_private ()->space_plug;	
-	return splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
-				    &preceder, 1, blocknr, &one);
+	get_next_fake_blocknr (blocknr);
+	return 0;
 }
-#endif
 
 /* 
  * Local variables:
