@@ -158,6 +158,7 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 			} else
 				rdev = data->rdev;
 			inode->i_blocks = 0;
+			inode->i_op = &sinfo->ops.special;
 			/* other fields are already initialised. */
 			init_special_inode(inode, inode->i_mode, rdev);
 			break;
@@ -187,7 +188,7 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 
 /* initialise inode from disk data. Called with inode locked.
     Return inode locked. */
-int
+static int
 init_inode(struct inode *inode /* inode to intialise */ ,
 	   coord_t * coord /* coord of stat data */ )
 {

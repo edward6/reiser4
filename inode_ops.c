@@ -604,8 +604,15 @@ struct inode_operations reiser4_inode_operations = {
 };
 
 struct inode_operations reiser4_symlink_inode_operations = {
+	.setattr = reiser4_setattr,	/* d */
+	.getattr = reiser4_getattr,	/* d */
 	.readlink = reiser4_readlink,
 	.follow_link = reiser4_follow_link
+};
+
+struct inode_operations reiser4_special_inode_operations = {
+	.setattr = reiser4_setattr,	/* d */
+	.getattr = reiser4_getattr	/* d */
 };
 
 /* Make Linus happy.

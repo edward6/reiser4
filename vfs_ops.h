@@ -27,6 +27,7 @@ extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 extern struct file_operations reiser4_file_operations;
 extern struct inode_operations reiser4_inode_operations;
 extern struct inode_operations reiser4_symlink_inode_operations;
+extern struct inode_operations reiser4_special_inode_operations;
 extern struct super_operations reiser4_super_operations;
 extern struct address_space_operations reiser4_as_operations;
 extern struct dentry_operations reiser4_dentry_operation;

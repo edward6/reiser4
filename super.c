@@ -465,6 +465,7 @@ void build_object_ops(struct super_block *super, object_ops *ops)
 	ops->regular = reiser4_inode_operations;
 	ops->dir     = reiser4_inode_operations;
 	ops->symlink = reiser4_symlink_inode_operations;
+	ops->special = reiser4_special_inode_operations;
 	ops->dentry  = reiser4_dentry_operation;
 	ops->as      = reiser4_as_operations;
 

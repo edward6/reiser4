@@ -81,6 +81,7 @@ typedef struct object_ops {
 	struct inode_operations         regular;
 	struct inode_operations         dir;
 	struct inode_operations         symlink;
+	struct inode_operations		special;
 } object_ops;
 
 /* reiser4-specific part of super block
