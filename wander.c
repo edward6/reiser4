@@ -1,10 +1,8 @@
 /* Copyright 2002 by Hans Reiser */
 
-/* The Reiser4 log writer is here */
-
-#include "reiser4.h"
-
-int WRITE_LOG = 1;		/* journal is written by default  */
+/*
+ * The Reiser4 log writer is here 
+ */
 
 /* The Reiser4 log writer takes care about safe writing of nodes modified
  * during a transaction.  This safe writing means blocks should be written
@@ -73,7 +71,20 @@ int WRITE_LOG = 1;		/* journal is written by default  */
  * completion.
  *
  * 4. Free disk space which was used for wandered blocks and log records.
+ *
+ * After the freeing of wandered blocks and log records we have that journal
+ * footer points to the on-disk structure which might be overwritten soon.
+ * Neither the log writer nor the journal recovery procedure use that pointer
+ * for accessing the data.  When the journal recovery procedure finds the
+ * oldest transaction it compares the journal footer pointer value with the
+ * "prev_tx" pointer value in tx head, if values are equal the oldest not
+ * flushed transaction is found.
  */
+
+#include "reiser4.h"
+
+int WRITE_LOG = 1;		/* journal is written by default  */
+
 
 static int submit_write (jnode*, int, const reiser4_block_nr *, int use_io_handle);
 
