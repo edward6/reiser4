@@ -279,7 +279,7 @@ reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off
 	last_bit = high_off & 0x7;
 	first_byte = low_off >> 3;
 
-	if (last_bit != 0) {
+	if (last_bit <= 7) {
 		nr = find_last_set_bit_in_byte(~(unsigned)base[last_byte], last_bit);
 		if (nr < 8) {
 			 *result = (last_byte << 3) + nr;
