@@ -349,12 +349,26 @@ static loff_t find_file_size (struct inode * inode)
 	return file_size;
 }
 
+/*
+ * FIXME-VS: remove after debugging
+ */
+void set_fu_page (unsigned long index, struct page * page);
+char * get_fu_page_data (int index);
+
 
 /* part of unix_file_truncate: it is called when truncate is used to make
  * file shorter */
 static int shorten (struct inode * inode)
 {
+	int result;
 	reiser4_key from, to;
+	struct page * page;
+	int padd_from;
+	jnode * j;
+	unsigned long index;
+#ifdef DEBUGGING_FSX
+	int i;
+#endif /* DEBUGGING_FSX */
 
 	inode_file_plugin (inode)->key_by_inode (inode, inode->i_size, &from);
 	to = from;
@@ -363,7 +377,107 @@ static int shorten (struct inode * inode)
 	/* all items of ordinary reiser4 file are grouped together. That is why
 	   we can use cut_tree. Plan B files (for instance) can not be
 	   truncated that simply */
-	return cut_tree (tree_by_inode (inode), &from, &to);
+	result = cut_tree (tree_by_inode (inode), &from, &to);
+	if (result)
+		return result;
+
+	index = (inode->i_size >> PAGE_CACHE_SHIFT);
+
+#ifdef DEBUGGING_FSX
+	/*
+	 * FIXME-VS: remove after debugging
+	 */
+	/* completely truncated pages */
+	assert ("vs-930", (inode->i_size <= 32768));
+	for (i = index + 1; i < 8; i ++) {
+		memset (get_fu_page_data (i), 0, PAGE_CACHE_SIZE);
+		set_fu_page (i, 0);
+	}
+#endif /* DEBUGGING_FSX */
+
+	if (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
+	    inode_get_flag (inode, REISER4_HAS_TAIL))
+		/* file is built of tail items. No need to worry about zeroing
+		 * last page after new file end */
+		return 0;
+
+
+	padd_from = inode->i_size & (PAGE_CACHE_SIZE - 1);
+	if (!padd_from) {
+#ifdef DEBUGGING_FSX
+		/*
+		 * FIXME-VS: remove after debugging
+		 */
+		if (index < 8) {
+			memset (get_fu_page_data (index), 0, PAGE_CACHE_SIZE);
+			set_fu_page (index, 0);
+		}
+#endif
+		return 0;
+	}
+
+	/* last page is partially truncated - zero its content */
+	page = read_cache_page (inode->i_mapping, index,
+				unix_file_readpage_nolock,
+				0);
+	if (IS_ERR (page)) {
+		if (likely (PTR_ERR (page) == -EINVAL)) {
+			/* looks like file is built of tail items */
+			return 0;
+		}
+		return PTR_ERR (page);
+	}
+	wait_on_page_locked (page);
+	if (!PageUptodate (page)) {
+		page_cache_release (page);
+		return -EIO;
+	}
+	lock_page (page);
+
+	j = jnode_of_page (page);
+	if (IS_ERR (j)) {
+		unlock_page (page);
+		page_cache_release (page);
+		return PTR_ERR (j);
+	}
+	if (*jnode_get_block (j) == 0 && !jnode_created (j) && !PageDirty (page)) {
+		/* hole page. It is not dirty so it was not modified via
+		 * mmaping */
+		unlock_page (page);
+		jput (j);
+		page_cache_release (page);
+		return 0;
+	}
+	unlock_page (page);
+	jput (j);
+	lock_page (page);
+
+	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+	if (result) {
+		unlock_page (page);
+		page_cache_release (page);
+		return -EIO;
+	}
+	
+	memset (kmap (page) + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
+	flush_dcache_page (page);
+
+#ifdef DEBUGGING_FSX
+	/*
+	 * FIXME-VS: remove after debugging
+	 */
+	memset (get_fu_page_data (page->index) + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
+#endif
+
+	kunmap (page);
+	
+
+	jnode_set_dirty (jnode_by_page (page));
+	
+	unlock_page (page);
+	page_cache_release (page);
+
+	return 0;
 }
 
 
@@ -415,13 +529,15 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 
 	get_nonexclusive_access (inode);
 
+
 	file_size = find_file_size (inode);
 	if (file_size < 0)
 		return (int)file_size;
 	if (file_size < inode->i_size)
 		result = expand_file (inode, file_size);
-	else
+	else {		
 		result = shorten (inode);
+	}
 	if (!result) {
 		result = reiser4_write_sd (inode);
 		if (result)
@@ -452,6 +568,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 
 
 	assert ("vs-860", op == WRITE_OP || op == READ_OP);
+	assert ("vs-937", PageLocked (page));
 
 	/* get key of first byte of the page */
 	unix_file_key_by_inode (page->mapping->host,
@@ -465,37 +582,40 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 				 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
-		done_lh (&lh);
-		return result;
+		goto out2;
 	}
 
 	loaded = coord.node;
 	result = zload (loaded);
 	if (result) {
-		done_lh (&lh);
-		return result;
+		goto out2;
 	}
+
+	result = -EINVAL;
 
 	/* get plugin of found item */
 	iplug = item_plugin_by_coord (&coord);
 	if (op == READ_OP) {
 		if (!iplug->s.file.readpage) {
-			zrelse (loaded);
-			done_lh (&lh);
-			return -EINVAL;
+			goto out;
 		}
 		result = iplug->s.file.readpage (&coord, page);
 	} else {
 		if (!iplug->s.file.writepage) {
-			zrelse (loaded);
-			done_lh (&lh);
-			return -EINVAL;
+			goto out;
 		}
 		result = iplug->s.file.writepage (&coord, &lh, page);
 	}
 
+ out:
 	zrelse (loaded);
+ out2:
 	done_lh (&lh);
+
+	if (result) {
+		SetPageError (page);
+		unlock_page (page);
+	}
 
 	return result;
 }
@@ -503,7 +623,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 
 /* this is used a filler for read_cache_page in extent2tail where access
  * (exclusive) to file is acquired already */
-int unix_file_readpage_nolock (struct file * file, struct page * page)
+int unix_file_readpage_nolock (void * file, struct page * page)
 {
 	return page_op (file, page, READ_OP);
 }
@@ -913,7 +1033,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	return written;
 }
 
-
+#if 0
 /*
  * unix files of reiser4 are built either of extents only or of tail items
  * only. If looking for file item coord_by_key stopped at twig level - file
@@ -927,6 +1047,7 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 {
 	return znode_get_level (coord->node) == TWIG_LEVEL;
 }
+#endif
 
 
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
@@ -976,7 +1097,7 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 	return WRITE_TAIL;
 }
 
-
+#if 0
 /* decide how to write flow @f into file @inode */
 /* Audited by: green(2002.06.15) */
 static write_todo unix_file_how_to_write2 (struct inode * inode, flow_t * f,
@@ -1032,6 +1153,8 @@ static write_todo unix_file_how_to_write2 (struct inode * inode, flow_t * f,
 	else
 		return WRITE_TAIL;
 }
+#endif
+
 
 
 /* plugin->u.file.release
