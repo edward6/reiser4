@@ -115,8 +115,11 @@ typedef struct reiser4_inode {
 	   Only meaningful for crypto-files */
 	/* 100 */__u32 *expkey;
 	/* 104 */__u8 *keyid;
-	/* 108 */
-	
+	/* crypto plugin */
+	/* 108 */crypto_plugin *crypto;
+	/* compression plugin */
+	/* 112 */compression_plugin *compression;
+	/* 116 */
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
