@@ -264,10 +264,10 @@ i_sem
 ..................ktxnmgrd_lock
 ................mapping->i_shared_sem
 ................kalloc
+....................inode_guard
 ....................txnmgr_lock
 ......................atom_lock
 ........................jnode_lock            [->vm_writeback()->jget()]
-..........................inode_guard
 ..........................txnh_lock
 ..................dk_lock
 ..............................tree_lock
