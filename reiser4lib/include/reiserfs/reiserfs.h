@@ -40,7 +40,7 @@ extern int libreiserfs_get_min_interface_version(void);
 extern const char *libreiserfs_get_version(void);
 
 extern error_t libreiserfs_init(void);
-extern void libreiserfs_done(void);
+extern void libreiserfs_fini(void);
 
 #ifdef __cplusplus
 }

@@ -216,12 +216,14 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 	while(0) {}
 #endif
 
-extern reiserfs_plugin_t *reiserfs_plugin_load(const char *filename);
-extern void reiserfs_plugin_unload(reiserfs_plugin_t *plugin);
+extern error_t reiserfs_plugins_init(void);
+extern void reiserfs_plugins_fini(void);
 
-extern reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type, 
+extern reiserfs_plugin_t *reiserfs_plugins_load(const char *filename);
+extern void reiserfs_plugins_unload(reiserfs_plugin_t *plugin);
+
+extern reiserfs_plugin_t *reiserfs_plugins_find(reiserfs_plugin_type_t type, 
     reiserfs_plugin_id_t id);
 
 #endif
-
 

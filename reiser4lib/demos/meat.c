@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 	reiserfs_fs_blocksize(fs));
 	
     reiserfs_fs_close(fs, 0);
-    libreiserfs_done();
+    libreiserfs_fini();
 	
     aal_file_close(device);
 	

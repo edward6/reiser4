@@ -46,7 +46,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
     if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
 	reiserfs_plugin_t *format36;
 	
-	if (!(format36 = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
+	if (!(format36 = reiserfs_plugins_find(REISERFS_FORMAT_PLUGIN, 0x2)))
 	    goto error_free_block;
 		
 	reiserfs_plugin_check_routine(format36->format, probe, goto error_free_block);

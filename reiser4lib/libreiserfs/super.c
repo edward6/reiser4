@@ -25,7 +25,7 @@ error_t reiserfs_super_open(reiserfs_fs_t *fs) {
     if (!(fs->super = aal_calloc(sizeof(*fs->super), 0)))
 	return -1;
 	
-    if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 
+    if (!(plugin = reiserfs_plugins_find(REISERFS_FORMAT_PLUGIN, 
 	get_mr_format_id(fs->master)))) 
     {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
@@ -59,7 +59,7 @@ error_t reiserfs_super_create(reiserfs_fs_t *fs,
 		
     aal_assert("umka-105", fs != NULL, return -1);
 
-    if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, format_plugin_id))) {
+    if (!(plugin = reiserfs_plugins_find(REISERFS_FORMAT_PLUGIN, format_plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find format plugin by its identifier %x.", 
 	    format_plugin_id);

@@ -22,6 +22,9 @@
 
 typedef int error_t;
 
+typedef int (*comp_func_t) (const void *, const void *);
+typedef int (*foreach_func_t) (const void *, const void *);
+
 #include "device.h"
 #include "file.h"
 #include "exception.h"

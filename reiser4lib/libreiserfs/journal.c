@@ -26,7 +26,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int repla
     fs->journal->device = device;
 	
     id = reiserfs_super_journal_plugin(fs);
-    if (!(plugin = reiserfs_plugin_find(REISERFS_JOURNAL_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugins_find(REISERFS_JOURNAL_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find journal plugin by its identifier %x.", id);
 	goto error_free_journal;
@@ -76,7 +76,7 @@ error_t reiserfs_journal_create(reiserfs_fs_t *fs, aal_device_t *device,
     fs->journal->device = device;
 	
     id = reiserfs_super_journal_plugin(fs);
-    if (!(plugin = reiserfs_plugin_find(REISERFS_JOURNAL_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugins_find(REISERFS_JOURNAL_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find journal plugin by its identifier %x.", id);
 	goto error_free_journal;
