@@ -385,13 +385,24 @@ jnode_of_page (struct page* pg)
 	return (jnode*) pg->private;
 }
 
+
+/* FIXME-VS: change next two functions switching to support of blocksize !=
+ * page cache size */
+jnode * nth_jnode (struct page * page, int block)
+{
+	assert ("vs-695", PagePrivate (page) && page->private);
+	assert ("vs-696", current_blocksize == PAGE_CACHE_SIZE);
+	assert ("vs-697", block == 0);
+	return (jnode *)page->private;
+}
+
+
 /* get next jnode of a page.
  * FIXME-VS: update this when more than one jnode per page will be allowed */
 /* Audited by: umka (2002.06.13) */
-jnode*
-page_next_jnode( jnode* node )
+jnode * next_jnode (jnode * node UNUSED_ARG)
 {
-	return node;
+	return 0;
 }
 
 /* Increment to the jnode's reference counter. */
