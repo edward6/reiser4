@@ -162,7 +162,7 @@ static void reiser4_set_bits (char * addr, int start, int end)
 /** calculate bitmap block number and offset within that bitmap block */
 static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset)
 {
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 
 	*bmap   = *block / super->s_blocksize;
 	*offset = *block % super->s_blocksize;
@@ -315,7 +315,7 @@ static int load_bnode_half (znode ** node_pp, reiser4_block_nr *block)
 static int load_bnode (struct reiser4_bnode * bnode)
 {
 	reiser4_super_info_data * info_data = get_current_super_private(); 
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 	int ret = 0;
 	int bmap_nr = info_data->space_allocator.u.bitmap.bitmap - bnode;
 	reiser4_block_nr bnr;
@@ -429,7 +429,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	int end_bmap, end_offset;
 	int len;
 
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 	int max_offset = super->s_blocksize;
 
 	parse_blocknr(start, &bmap, &offset);
@@ -464,7 +464,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 int bitmap_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
 			 reiser4_block_nr * start, int * len)
 {
-	struct super_block      * super = reiser4_get_current_context()->super;
+	struct super_block      * super = get_current_context()->super;
 
 	int      actual_len;
 
@@ -509,7 +509,7 @@ int bitmap_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
 /* plugin->u.space_allocator.dealloc_block */
 void bitmap_dealloc_blocks (reiser4_block_nr start UNUSED_ARG, int len UNUSED_ARG)
 {
-	struct super_block      * super = reiser4_get_current_context()->super;
+	struct super_block      * super = get_current_context()->super;
 	reiser4_super_info_data * info_data = get_current_super_private();
 	jnode *node;
 	txn_atom * atom = node->atom;

@@ -112,7 +112,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	assert ("vs-492", (private->oid_plug &&
 			   private->oid_plug->init_oid_allocator));
 	/* init oid allocator */
-	result = private->oid_plug->init_oid_allocator (reiser4_get_oid_allocator (s),
+	result = private->oid_plug->init_oid_allocator (get_oid_allocator (s),
 							get_layout_40_file_count (sb_copy),
 							get_layout_40_oid (sb_copy));
 	if (result)
@@ -125,7 +125,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	assert ("vs-493", (private->space_plug &&
 			   private->space_plug->init_allocator));
 	/* init disk space allocator */
-	result = private->space_plug->init_allocator (reiser4_get_space_allocator (s), s);
+	result = private->space_plug->init_allocator (get_space_allocator (s), s);
 	if (result)
 		return result;
 
@@ -135,8 +135,8 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	nplug = node_plugin_by_id (NODE40_ID);
 
 	/* init reiser4_tree for the filesystem */
-	result = reiser4_init_tree (&private->tree, &root_block, height, nplug,
-				    0/* read_actor */);
+	result = init_tree (&private->tree, &root_block, height, nplug,
+			    0/* read_actor */);
 	if (result)
 		return result;
 

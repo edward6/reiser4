@@ -55,14 +55,10 @@ typedef struct reiser4_inode_info {
 } reiser4_inode_info;
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
-extern inodes_plugins *get_object_state( const struct inode *inode );
-extern reiser4_inode_info *reiser4_inode_data( const struct inode * );
+extern reiser4_inode_info *reiser4_inode_data( const struct inode *inode );
 extern __u32 *reiser4_inode_flags( const struct inode *inode );
-extern file_plugin *get_file_plugin( const struct inode *inode );
-extern dir_plugin *get_dir_plugin( const struct inode *inode );
 extern int reiser4_max_filename_len( const struct inode *inode );
 extern int max_hash_collisions( const struct inode *dir );
-extern sd_plugin *get_sd_plugin( const struct inode *inode );
 extern inter_syscall_rap *inter_syscall_ra( const struct inode *inode );
 extern void reiser4_lock_inode( struct inode *inode );
 extern int reiser4_lock_inode_interruptible( struct inode *inode );
@@ -92,6 +88,12 @@ extern int common_write_inode( struct inode *inode );
 extern int common_file_owns_item( const struct inode *inode, 
 				  const tree_coord *coord );
 extern void print_inode( const char *prefix, const struct inode *i );
+
+extern file_plugin *inode_file_plugin( const struct inode *inode );
+extern dir_plugin  *inode_dir_plugin ( const struct inode *inode );
+extern perm_plugin *inode_perm_plugin( const struct inode *inode );
+extern tail_plugin *inode_tail_plugin( const struct inode *inode );
+extern hash_plugin *inode_hash_plugin( const struct inode *inode );
 
 extern struct file_operations reiser4_file_operations;
 extern struct inode_operations reiser4_inode_operations;

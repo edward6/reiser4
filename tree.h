@@ -444,14 +444,14 @@ static inline reiser4_context *get_current_context()
 /* comment me.  Say something clever, like I am called at every reiser4 entry point, and I create a struct that is used
    to allow functions to efficiently pass large amounts of parameters around by moving a pointer to the parameters
    called "context". */
-#define __REISER4_ENTRY( super, errret )   		               \
-	reiser4_context __context;			               \
-	do {                                                           \
-                int __ret;                                             \
-                __ret = reiser4_init_context( &__context, ( super ) ); \
-                if (__ret != 0) {                                      \
-			return errret;                                 \
-		}                                                      \
+#define __REISER4_ENTRY( super, errret )			\
+	reiser4_context __context;				\
+	do {							\
+                int __ret;					\
+                __ret = init_context( &__context, ( super ) );	\
+                if (__ret != 0) {				\
+			return errret;				\
+		}						\
         } while (0)
 
 #define REISER4_ENTRY_PTR( super )  __REISER4_ENTRY( super, ERR_PTR(__ret) )

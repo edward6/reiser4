@@ -106,8 +106,7 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
    we asked about.
  */
 static int find_item (reiser4_key * key, tree_coord * coord,
-		      reiser4_lock_handle * lh,
-		      znode_lock_mode lock_mode);
+		      lock_handle * lh, znode_lock_mode lock_mode);
 
 ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 			    loff_t * off)
@@ -186,7 +185,7 @@ typedef enum {
 } write_todo;
 
 static write_todo what_todo (struct inode *, flow_t *, tree_coord *);
-static int tail2extent (struct inode *, tree_coord *, reiser4_lock_handle *);
+static int tail2extent (struct inode *, tree_coord *, lock_handle *);
 
 ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 			     loff_t * off)
@@ -194,7 +193,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	int result;
 	struct inode * inode;
 	tree_coord coord;
-	reiser4_lock_handle lh;	
+	lock_handle lh;	
 	size_t to_write;
 	file_plugin * fplug;
 	item_plugin * iplug;
@@ -212,8 +211,8 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	/*
 	 * build flow
 	 */
-	assert ("vs-481", get_object_state (inode)->file);
-	fplug = get_object_state (inode)->file;
+	assert ("vs-481", inode_file_plugin (inode));
+	fplug = inode_file_plugin (inode);
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
@@ -277,8 +276,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
  * look for item of file @inode corresponding to @key
  */
 static int find_item (reiser4_key * key, tree_coord * coord,
-		      reiser4_lock_handle * lh,
-		      znode_lock_mode lock_mode)
+		      lock_handle * lh, znode_lock_mode lock_mode)
 {
 	init_coord (coord);
 	init_lh (lh);
@@ -304,7 +302,7 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 /* all file data have to be stored in unformatted nodes */
 static int should_have_notail (struct inode * inode, loff_t new_size)
 {
-	return !get_object_state (inode)->tail->have_tail (inode, new_size);
+	return !inode_tail_plugin (inode)->have_tail (inode, new_size);
 
 }
 
@@ -331,7 +329,7 @@ static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coor
 			return WRITE_TAIL;
 	}
 
-	assert ("vs-377", get_object_state (inode)->tail->have_tail);
+	assert ("vs-377", inode_tail_plugin (inode)->have_tail);
 
 	if (inode->i_size == 0) {
 		/*
@@ -382,15 +380,15 @@ typedef struct {
 /* read all direct items of file into newly created pages
  * remove all those item from the tree
  * insert extent item */
-static int tail2extent (struct inode * inode, tree_coord * coord,
-			reiser4_lock_handle * lh)
+static int tail2extent (struct inode * inode, tree_coord * coord, 
+			lock_handle * lh)
 {
 	int result;
 	file_plugin * fplug;
 	reiser4_key key;
 
 
-	fplug = get_object_state (inode)->file;
+	fplug = inode_file_plugin (inode);
 	if (!fplug || !fplug->key_by_inode) {
 		return -EINVAL;
 	}

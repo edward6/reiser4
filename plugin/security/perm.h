@@ -53,12 +53,12 @@ typedef struct perm_plugin {
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
-#define perm_chk( inode, check, args... )			\
-({								\
-	perm_plugin *perm;					\
-								\
-	perm = get_object_state( inode ) -> perm;	\
-	( ( perm != NULL ) &&					\
+#define perm_chk( inode, check, args... )		\
+({							\
+	perm_plugin *perm;				\
+							\
+	perm = inode_perm_plugin( inode );		\
+	( ( perm != NULL ) &&				\
 	  ( perm -> ## check ## _ok != NULL ) &&	\
 	    perm -> ## check ## _ok( ##args ) );	\
 })

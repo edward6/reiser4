@@ -885,7 +885,7 @@ int cde_add_entry( const struct inode *dir /* directory object */,
 		data.length = cde_estimate( NULL, &data );
 		result = insert_by_coord( coord, &data, &dir_entry -> key, lh,
 					  inter_syscall_ra( dir ), 
-					  NO_RA, 0/*flags*/ );
+					  NO_RAP, 0/*flags*/ );
 	} else {
 		data.length = cde_estimate( coord, &data );
 		result = resize_item( coord, &data, 

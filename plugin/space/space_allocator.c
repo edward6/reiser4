@@ -16,10 +16,13 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 				.desc    = "bitmap based space allocator",
 				.linkage = TS_LIST_LINK_ZERO,
 			},
-			.init_allocator    = bitmap_init_allocator,
-			.destroy_allocator = bitmap_destroy_allocator,
-			.alloc_blocks      = bitmap_alloc_blocks,
-			.dealloc_blocks    = bitmap_dealloc_blocks
+			.init_allocator       = bitmap_init_allocator,
+			.destroy_allocator    = bitmap_destroy_allocator,
+			.alloc_blocks         = bitmap_alloc_blocks,
+			.dealloc_blocks       = bitmap_dealloc_blocks,
+			.pre_commit_hook      = NULL,
+			.post_commit_hook     = NULL,
+			.post_write_back_hook = NULL
 		}
 	},
 	[ TEST_SPACE_ALLOCATOR_ID ] = {
@@ -35,7 +38,10 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 			.init_allocator    = NULL,
 			.destroy_allocator = NULL,
 			.alloc_blocks      = test_alloc_blocks,
-			.dealloc_blocks    = test_dealloc_blocks
+			.dealloc_blocks    = test_dealloc_blocks,
+			.pre_commit_hook      = NULL,
+			.post_commit_hook     = NULL,
+			.post_write_back_hook = NULL
 		}
 	}
 };

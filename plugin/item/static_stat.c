@@ -114,7 +114,7 @@ int sd_load( struct inode *inode /* object being processed */,
 	int   chunk;
 	__u16 mask;
 	reiser4_stat_data_base *sd_base;
-	inodes_plugins     *state;
+	reiser4_inode_info *state;
 
 	assert( "nikita-625", inode != NULL );
 	assert( "nikita-626", sd != NULL );
@@ -124,7 +124,7 @@ int sd_load( struct inode *inode /* object being processed */,
 	inode -> i_mode       = d16tocpu( &sd_base -> mode );
 	inode -> i_nlink      = d32tocpu( &sd_base -> nlink );
 	inode -> i_size       = d64tocpu( &sd_base -> size );
-	state = get_object_state( inode );
+	state = reiser4_inode_data( inode );
 	mask = state -> extmask = d16tocpu( &sd_base -> extmask );
 	state -> sd_len = len;
 
@@ -210,7 +210,7 @@ int sd_len( struct inode *inode /* object being processed */ )
 	assert( "nikita-632", inode != NULL );
 
 	result = sizeof( reiser4_stat_data_base );
-	mask = get_object_state( inode ) -> extmask;
+	mask = reiser4_inode_data( inode ) -> extmask;
 	for( bit = 0 ; mask != 0 ; ++ bit, mask >>= 1 ) {
 		if( mask & 1 ) {
 			sd_ext_plugin *sdplug;
@@ -242,7 +242,7 @@ int sd_save( struct inode *inode /* object being processed */,
 	assert( "nikita-635", area != NULL );
 
 	result = 0;
-	emask = get_object_state( inode ) -> extmask;
+	emask = reiser4_inode_data( inode ) -> extmask;
 	sd_base = ( reiser4_stat_data_base * ) *area;
 	cputod16( inode -> i_mode, &sd_base -> mode );
 	cputod16( ( unsigned ) ( emask & 0xffff ), &sd_base -> extmask );
@@ -294,8 +294,7 @@ static int unix_sd_present( struct inode *inode /* object being processed */,
 		inode -> i_mtime = d32tocpu( &sd -> mtime );
 		inode -> i_ctime = d32tocpu( &sd -> ctime );
 		inode -> i_rdev  = d32tocpu( &sd -> rdev );
-		get_object_state( inode ) -> bytes = 
-			d64tocpu( &sd -> bytes );
+		reiser4_inode_data( inode ) -> bytes = d64tocpu( &sd -> bytes );
 		move_on( len, area, sizeof *sd );
 		return 0;
 	} else
@@ -307,11 +306,11 @@ static int unix_sd_absent( struct inode *inode /* object being processed */ )
 	inode -> i_uid = get_super_private( inode -> i_sb ) -> default_uid;
 	inode -> i_gid = get_super_private( inode -> i_sb ) -> default_gid;
 	inode -> i_atime = inode -> i_mtime = inode -> i_ctime = CURRENT_TIME;
-	get_object_state( inode ) -> bytes = inode -> i_size;
+	reiser4_inode_data( inode ) -> bytes = inode -> i_size;
 	/* mark inode as lightweight, so that caller (reiser4_lookup)
 	   will complete initialisation by copying [ug]id from a
 	   parent.*/
-	get_object_state( inode ) -> flags |= REISER4_LIGHT_WEIGHT_INODE;
+	reiser4_inode_data( inode ) -> flags |= REISER4_LIGHT_WEIGHT_INODE;
 	return 0;
 }
 
@@ -337,7 +336,7 @@ static int unix_sd_save( struct inode *inode /* object being processed */,
 	cputod32( ( __u32 ) inode -> i_ctime, &sd -> ctime );
 	cputod32( ( __u32 ) inode -> i_mtime, &sd -> mtime );
 	cputod32( inode -> i_rdev, &sd -> rdev );
-	cputod64( get_object_state( inode ) -> bytes, &sd -> bytes );
+	cputod64( reiser4_inode_data( inode ) -> bytes, &sd -> bytes );
 	*area += sizeof *sd;
 	return 0;
 }
@@ -450,13 +449,13 @@ static int plugin_sd_present( struct inode *inode /* object being processed */,
 	}
 	/* if object plugin wasn't loaded from stat-data, guess it by
 	   mode bits */
-	plugin = file_plugin_to_plugin( get_object_state( inode ) -> file );
+	plugin = file_plugin_to_plugin( inode_file_plugin( inode ) );
 	if( plugin == NULL ) {
 		result = plugin_sd_absent( inode );
 	}
 	/* FIXME-VS: activate was called here */
 
-	get_object_state( inode ) -> plugin_mask = mask;
+	reiser4_inode_data( inode ) -> plugin_mask = mask;
 	return result;
 }
 
@@ -485,7 +484,7 @@ static int len_for( reiser4_plugin *plugin /* plugin to save */,
 	assert( "nikita-661", inode != NULL );
 	assert( "nikita-662", plugin != NULL );
 
-	if( get_object_state( inode ) -> plugin_mask & 
+	if( reiser4_inode_data( inode ) -> plugin_mask & 
 	    ( 1 << ( plugin -> h.type_id ) ) ) {
 		len += sizeof( reiser4_plugin_slot );
 		if( plugin -> h.pops -> save_len != NULL ) {
@@ -502,11 +501,11 @@ static int len_for( reiser4_plugin *plugin /* plugin to save */,
 static int plugin_sd_save_len( struct inode *inode /* object being processed */ )
 {
 	int                 len;
-	inodes_plugins *state;
+	reiser4_inode_info *state;
 
 	assert( "nikita-663", inode != NULL );
 	
-	state = get_object_state( inode );
+	state = reiser4_inode_data( inode );
 	/* common case: no non-standard plugins */
 	if( state -> plugin_mask == 0 )
 		return 0;
@@ -535,7 +534,7 @@ static int save_plug( reiser4_plugin *plugin /* plugin to save */,
 	assert( "nikita-667", *area != NULL );
 	assert( "nikita-668", plugin != NULL );
 
-	if( !( get_object_state( inode ) -> plugin_mask & 
+	if( !( reiser4_inode_data( inode ) -> plugin_mask & 
 	       ( 1 << plugin -> h.type_id ) ) )
 		return 0;
 	slot = ( reiser4_plugin_slot * ) *area;
@@ -558,14 +557,14 @@ static int plugin_sd_save( struct inode *inode /* object being processed */,
 	int result;
 	int num_of_plugins;
 	reiser4_plugin_stat *sd;
-	inodes_plugins  *state;
+	reiser4_inode_info  *state;
 	int fake_len;
 
 	assert( "nikita-669", inode != NULL );
 	assert( "nikita-670", area != NULL );
 	assert( "nikita-671", *area != NULL );
 
-	state = get_object_state( inode );
+	state = reiser4_inode_data( inode );
 	if( state -> plugin_mask == 0 )
 		return 0;
 	sd = ( reiser4_plugin_stat * ) *area;
