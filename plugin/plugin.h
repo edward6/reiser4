@@ -388,7 +388,7 @@ typedef struct space_allocator_plugin {
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
  * are any) locations, etc */
-typedef struct layout_plugin {
+typedef struct disk_format_plugin {
 	/** generic fields */
 	plugin_header h;
 	/* replay journal, initialize super_info_data, etc */
@@ -399,8 +399,8 @@ typedef struct layout_plugin {
 
 	int ( *release )( struct super_block * );
 	jnode * (*log_super)( struct super_block * );
-	void ( *print_info )( struct super_block * );
-} layout_plugin;
+	void ( *print_info )( const struct super_block * );
+} disk_format_plugin;
 
 typedef struct jnode_plugin {
 	/** generic fields */
@@ -459,7 +459,7 @@ union reiser4_plugin {
 	/** stat-data extension plugin */
 	sd_ext_plugin           sd_ext;
 	/** disk layout plugin */
-	layout_plugin           layout;
+	disk_format_plugin      format;
 	/** object id allocator plugin */
 	oid_allocator_plugin    oid_allocator;
 	/** disk space allocator plugin */
@@ -643,7 +643,7 @@ PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_TYPE,sd_ext);
 PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);
 PLUGIN_BY_ID(hash_plugin,REISER4_HASH_PLUGIN_TYPE,hash);
 PLUGIN_BY_ID(tail_plugin,REISER4_TAIL_PLUGIN_TYPE,tail);
-PLUGIN_BY_ID(layout_plugin,REISER4_LAYOUT_PLUGIN_TYPE,layout);
+PLUGIN_BY_ID(disk_format_plugin,REISER4_FORMAT_PLUGIN_TYPE,format);
 PLUGIN_BY_ID(oid_allocator_plugin,REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 	     oid_allocator);
 PLUGIN_BY_ID(space_allocator_plugin,REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,

@@ -1819,7 +1819,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	struct reiser4_master_sb * master_sb;
 	reiser4_super_info_data *info;
 	int plugin_id;
-	layout_plugin * lplug;
+	disk_format_plugin * df_plug;
 	struct inode * inode;
 	int result;
 	unsigned long blocksize;
@@ -1881,9 +1881,9 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
 		/* only two plugins are available for now */
-		assert ("vs-476", (plugin_id == LAYOUT_40_ID ||
-				   plugin_id == TEST_LAYOUT_ID));
-		lplug = layout_plugin_by_id (plugin_id);
+		assert ("vs-476", (plugin_id == FORMAT_40_ID ||
+				   plugin_id == TEST_FORMAT_ID));
+		df_plug = disk_format_plugin_by_id (plugin_id);
 		brelse (super_bh);
 	} else {
 		/* no standard reiser4 super block found */
@@ -1902,7 +1902,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	spin_lock_init (&info->guard);
 
 	/* init layout plugin */
-	info->lplug = lplug;
+	info->df_plug = df_plug;
 
 	txn_mgr_init (&info->tmgr);
 
@@ -1921,7 +1921,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	/* call disk format plugin method to do all the preparations like
 	 * journal replay, reiser4_super_info_data initialization, read oid
 	 * allocator, etc */
-	result = lplug->get_ready (s, data);
+	result = df_plug->get_ready (s, data);
 	if (result) {
 		goto error3;
 	}
@@ -1939,7 +1939,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		goto error4;
 	}
 
-	inode = reiser4_iget (s, lplug->root_dir_key (s));
+	inode = reiser4_iget (s, df_plug->root_dir_key (s));
 	if ( IS_ERR( inode ) ) {
 		result = PTR_ERR (inode);
 		goto error4;
@@ -1981,10 +1981,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		unlock_new_inode (inode);
 	}
 
+	print_fs_info ("mount ok", s);
 	REISER4_EXIT (0);
 
  error4:
-	get_super_private (s)->lplug->release (s);
+	get_super_private (s)->df_plug->release (s);
  error3:
 	done_formatted_fake (s);
 	/* shutdown daemon */
@@ -2024,7 +2025,7 @@ static void reiser4_kill_super (struct super_block *s)
 	}
 
 	/* flushes transactions, etc. */
-	get_super_private (s)->lplug->release (s);
+	get_super_private (s)->df_plug->release (s);
 
 	/* shutdown daemon if last mount is removed */
 	ktxnmgrd_detach (&info->tmgr);
