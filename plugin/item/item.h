@@ -309,13 +309,20 @@ static inline item_id item_id_by_plugin (item_plugin *plugin)
 }
 
 
-int item_can_contain_key( const coord_t *item, const reiser4_key *key,
-			  const reiser4_item_data * );
-int are_items_mergeable( const coord_t *i1, const coord_t *i2 );
-int item_is_internal(const coord_t * );
-int item_is_extent(const coord_t * );
-int item_is_statdata (const coord_t *item);
+extern int item_can_contain_key( const coord_t *item, const reiser4_key *key,
+				 const reiser4_item_data * );
+extern int are_items_mergeable( const coord_t *i1, const coord_t *i2 );
+extern int item_is_internal(const coord_t * );
+extern int item_is_extent(const coord_t * );
+extern int item_is_statdata (const coord_t *item);
 
+extern void *item_body_by_coord( const coord_t *coord );
+extern int item_length_by_coord( const coord_t *coord );
+extern item_plugin *item_plugin_by_coord( const coord_t *coord );
+extern item_type_id item_type_by_coord( const coord_t *coord );
+extern item_id item_id_by_coord( const coord_t *coord /* coord to query */ );
+extern reiser4_key *item_key_by_coord( const coord_t *coord, reiser4_key *key );
+extern reiser4_key *unit_key_by_coord( const coord_t *coord, reiser4_key *key );
 
 /* 
  * Make Linus happy.
