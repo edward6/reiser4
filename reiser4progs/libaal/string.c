@@ -87,226 +87,68 @@ char *aal_strncat(char *dest, const char *src, size_t n) {
     return dest;
 }
 
-#define CONV_INT_DEC_RANGE 1000000000
-#define CONV_INT_HEX_RANGE 0x10000000
+#define CONV_DEC_RANGE 1000000000
+#define CONV_HEX_RANGE 0x10000000
+#define CONV_OCT_RANGE 01000000000
 
-#define CONV_LONG_DEC_RANGE 1000000000
-#define CONV_LONG_HEX_RANGE 0x10000000
+#undef aal_def_conv
 
-int aal_utos(unsigned int d, size_t n, char *a, int base) {
-    char *p = a;
-    unsigned int s;
-    unsigned int range;
-	
-    if (base != 10 && base != 16)
-	return 0;
+#define aal_def_conv(name, type)				\
+int name(type d, size_t n, char *a, int base, int flags) {	\
+    char *p = a;						\
+    type s;							\
+    type range;							\
+								\
+    switch (base) {						\
+	case 10: range = CONV_DEC_RANGE; break;			\
+	case 16: range = CONV_HEX_RANGE; break;			\
+	case 8: range = CONV_OCT_RANGE; break;			\
+	default: return 0;					\
+    }								\
+    aal_memset(p, 0, n);					\
+								\
+    if (base == 16) {						\
+	aal_strncat(p, "0x", 2);				\
+	p += 2;							\
+    }								\
+								\
+    if (base == 8)						\
+	*p++ = '0';						\
+								\
+    if (d == 0) {						\
+	*p++ = '0';						\
+	return 1;						\
+    }								\
+								\
+    for (s = range; s > 0; s /= base) {				\
+	type v = d / s;						\
+								\
+	if ((size_t)(p - a) >= n)				\
+	    break;						\
+								\
+	if (v > 0) {						\
+	    if (v >= (type)base)				\
+		v = (d / s) - ((v / base) * base);		\
+	    switch (base) {					\
+		case 10: case 8: *p++ = '0' + v; break;		\
+		case 16: {					\
+		    if (flags == 0)				\
+			*p++ = '0' + (v > 9 ? 39 : 0) + v;	\
+		    else					\
+			*p++ = '0' + (v > 9 ? 7 : 0) + v;	\
+		    break;					\
+		}						\
+	    }							\
+	}							\
+    }								\
+    return p - a;						\
+}								\
 
-    range = base == 10 ? CONV_INT_DEC_RANGE : CONV_INT_HEX_RANGE;
-    aal_memset(p, 0, n);
-    
-    if (base == 16) {
-	aal_strncat(p, "0x", 2);
-	p += 2;
-    }
-    
-    if (d == 0) {
-	*p++ = '0';
-	return 1;
-    }
-	
-    for (s = range; s > 0; s /= base) {
-	unsigned int v = d / s;
-		
-	if ((size_t)(p - a) >= n) 
-	    break;
-		
-	if (v > 0) {
-	    if (v >= (unsigned int)base)
-		v = (d / s) - ((v / base) * base);
-	    *p++ = ('0' + (base == 16 && v > 9 ? 39 : 0) + v);
-	}
-    }
-    return p - a;
-}
+aal_def_conv(aal_utoa, unsigned int);
+aal_def_conv(aal_lutoa, unsigned long int);
+aal_def_conv(aal_llutoa, unsigned long long);
 
-int aal_lutos(unsigned long int d, size_t n, char *a, int base) {
-    char *p = a;
-    unsigned long int s;
-    unsigned long int range;
-    
-    if (base != 10 && base != 16)
-	return 0;
-
-    range = base == 10 ? CONV_LONG_DEC_RANGE : CONV_LONG_HEX_RANGE;
-    aal_memset(p, 0, n);
-    
-    if (base == 16) {
-	aal_strncat(p, "0x", 2);
-	p += 2;
-    }
-    
-    if (d == 0) {
-	*p++ = '0';
-	return 1;
-    }
-	
-    for (s = range; s > 0; s /= base) {
-	unsigned long int v = d / s;
-	
-	if ((size_t)(p - a) >= n) 
-	    break;
-	
-	if (v > 0) {
-	    if (v >= (unsigned long int)base)
-		v = (d / s) - ((v / base) * base);
-	    *p++ = ('0' + (base == 16 && v > 9 ? 39 : 0) + v);
-	}
-    }
-    return p - a;
-}
-
-int aal_llutos(unsigned long long d, size_t n, char *a, int base) {
-    char *p = a;
-    unsigned long long s;
-    unsigned long long range;
-
-    if (base != 10 && base != 16)
-	return 0;
-
-    if (base == 16)
-	return aal_utos((unsigned long long)d, n, a, 16);
-
-    range = base == 10 ? CONV_LONG_DEC_RANGE : CONV_LONG_HEX_RANGE;
-    aal_memset(p, 0, n);
-    
-    if (d == 0) {
-	*p++ = '0';
-	return 1;
-    }
-    
-    for (s = range; s > 0; s /= base) {
-	unsigned long long v = (d / s);
-	
-	if ((size_t)(p - a) >= n) 
-	    break;
-		
-	if (v > 0) {
-	    if (v >= (unsigned long long)base)
-		v = (d / s) - ((v / base) * base);
-	    *p++ = ('0' + v);
-	}
-    }
-    return p - a;
-}
-
-int aal_stos(int d, size_t n, char *a, int base) {
-    int s;
-    int range;
-    char *p = a;
-
-    if (base != 10 && base != 16)
-	return 0;
-
-    if (base == 16)
-	return aal_utos((unsigned int)d, n, a, 16);
-    
-    range = base == 10 ? CONV_INT_DEC_RANGE : CONV_INT_HEX_RANGE;
-    aal_memset(p, 0, n);
-    
-    if (d == 0) {
-	*p++ = '0';
-	return 1;
-    }
-    
-    if (d < 0) 
-	*p++ = '-';
-
-    for (s = range; s > 0; s /= base) {
-	int v = d < 0 ? -(d / s) : (d / s);
-		
-	if ((size_t)(p - a) >= n) 
-	    break;
-		
-	if (v > 0) {
-	    if (v >= base)
-		v = (d / s) - ((v / base) * base);
-	    *p++ = ('0' + v);
-	}
-    }
-    return p - a;
-}
-
-int aal_lstos(long int d, size_t n, char *a, int base) {
-    char *p = a;
-    long int s;
-    long int range;
-
-    if (base != 10 && base != 16)
-	return 0;
-
-    if (base == 16)
-	return aal_utos((unsigned long int)d, n, a, 16);
-    
-    range = base == 10 ? CONV_LONG_DEC_RANGE : CONV_LONG_HEX_RANGE;
-    aal_memset(p, 0, n);
-    
-    if (d == 0) {
-	*p++ = '0';
-	return 1;
-    }
-    
-    if (d < 0) 
-	*p++ = '-';
-
-    for (s = range; s > 0; s /= base) {
-	long int v = d < 0 ? -(d / s) : (d / s);
-		
-	if ((size_t)(p - a) >= n) 
-	    break;
-		
-	if (v > 0) {
-	    if (v >= base)
-		v = (d / s) - ((v / base) * base);
-	    *p++ = ('0' + v);
-	}
-    }
-    return p - a;
-}
-
-int aal_llstos(long long d, size_t n, char *a, int base) {
-    char *p = a;
-    long long s;
-    long long range;
-
-    if (base != 10 && base != 16)
-	return 0;
-
-    if (base == 16)
-	return aal_utos((unsigned long long)d, n, a, 16);
-    
-    range = base == 10 ? CONV_LONG_DEC_RANGE : CONV_LONG_HEX_RANGE;
-    aal_memset(p, 0, n);
-    
-    if (d == 0) {
-	*p++ = '0';
-	return 1;
-    }
-    
-    if (d < 0) 
-	*p++ = '-';
-
-    for (s = range; s > 0; s /= base) {
-	long long v = d < 0 ? -(d / s) : (d / s);
-		
-	if ((size_t)(p - a) >= n) 
-	    break;
-		
-	if (v > 0) {
-	    if (v >= (long long)base)
-		v = (d / s) - ((v / base) * base);
-	    *p++ = ('0' + v);
-	}
-    }
-    return p - a;
-}
+aal_def_conv(aal_stoa, int);
+aal_def_conv(aal_lstoa, long int);
+aal_def_conv(aal_llstoa, long long);
 

@@ -97,6 +97,7 @@ repeat:
 			goto repeat;
 		    }
 		    case 'd':
+		    case 'o':
 		    case 'i':
 		    case 'u':
 		    case 'X':
@@ -108,25 +109,76 @@ repeat:
 			if (*fmt == 'd' || *fmt == 'i') {
 			    if (modifier == MOD_EMPTY) {
 				i = va_arg(arg_list, int);
-				aal_stos(i, sizeof(s), s, 10);
+				aal_stoa(i, sizeof(s), s, 10, 0);
 			    } else if (modifier == MOD_LONG) {
 				li = va_arg(arg_list, long int);
-				aal_lstos(li, sizeof(s), s, 10);
+				aal_lstoa(li, sizeof(s), s, 10, 0);
 			    } else {
 				lli = va_arg(arg_list, long long int);
-				aal_llstos(lli, sizeof(s), s, 10);
+				aal_llstoa(lli, sizeof(s), s, 10, 0);
 			    }
 			    aal_strncat(buff, s, n - aal_strlen(buff));
 			} else {
 			    if (modifier == MOD_EMPTY) {
 				u = va_arg(arg_list, unsigned int);
-				aal_utos(u, sizeof(s), s, (*fmt == 'u' ? 10 : 16));
+				switch (*fmt) {
+				    case 'u': {
+					aal_utoa(u, sizeof(s), s, 10, 0);
+					break;
+				    }
+				    case 'x': {
+					aal_utoa(u, sizeof(s), s, 16, 0);
+					break;
+				    }
+				    case 'X': {
+					aal_utoa(u, sizeof(s), s, 16, 1);
+					break;
+				    }
+				    case 'o': {
+					aal_utoa(u, sizeof(s), s, 8, 0);
+					break;
+				    }
+				}
 			    } else if (modifier == MOD_LONG) {
 				lu = va_arg(arg_list, unsigned long int);
-				aal_lutos(lu, sizeof(s), s, (*fmt == 'u' ? 10 : 16));
+				switch (*fmt) {
+				    case 'u': {
+					aal_lutoa(lu, sizeof(s), s, 10, 0);
+					break;
+				    }
+				    case 'x': {
+					aal_lutoa(lu, sizeof(s), s, 16, 0);
+					break;
+				    }
+				    case 'X': {
+					aal_lutoa(lu, sizeof(s), s, 16, 1);
+					break;
+				    }
+				    case 'o': {
+					aal_lutoa(lu, sizeof(s), s, 8, 0);
+					break;
+				    }
+				}
 			    } else {
 				llu = va_arg(arg_list, unsigned long long);
-				aal_llutos(llu, sizeof(s), s, (*fmt == 'u' ? 10 : 16));
+				switch (*fmt) {
+				    case 'u': {
+					aal_llutoa(llu, sizeof(s), s, 10, 0);
+					break;
+				    }
+				    case 'x': {
+					aal_llutoa(llu, sizeof(s), s, 16, 0);
+					break;
+				    }
+				    case 'X': {
+					aal_llutoa(llu, sizeof(s), s, 16, 1);
+					break;
+				    }
+				    case 'o': {
+					aal_llutoa(llu, sizeof(s), s, 8, 0);
+					break;
+				    }
+				}
 			    }
 			    aal_strncat(buff, s, n - aal_strlen(buff));
 			}
