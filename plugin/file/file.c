@@ -720,7 +720,7 @@ load_file_hint(struct file *file, struct sealed_coord *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
-	xmemset(hint, 0, sizeof (hint));
+	xmemset(hint, 0, sizeof (*hint));
 	if (file) {
 		fsdata = reiser4_get_file_fsdata(file);
 		if (IS_ERR(fsdata))
