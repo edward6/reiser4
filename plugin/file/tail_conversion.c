@@ -291,11 +291,11 @@ tail2extent(unix_file_info_t *uf_info)
 	done = 0;
 	result = 0;
 	while (!done) {
+		xmemset(pages, 0, sizeof (pages));
 		all_grabbed2free();
 		result = reserve_tail2extent_iteration(inode);
 		if (result != 0)
 			break;
-		xmemset(pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
 			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT));
