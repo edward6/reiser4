@@ -716,10 +716,10 @@ int extent2tail (struct file * file)
 		if (PagePrivate (page)) {
 			page -> mapping -> a_ops -> invalidatepage( page, 0 );
 		}
-		clear_page_dirty(page);
-		ClearPageUptodate(page);
-		remove_from_page_cache (page);
-		unlock_page (page);
+		drop_page(page, NULL);
+		/*
+		 * release reference taken by read_cache_page() above
+		 */
 		page_cache_release (page);		
 	}
 
