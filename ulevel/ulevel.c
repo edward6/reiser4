@@ -1502,8 +1502,8 @@ static struct inode * create_root_dir (znode * root)
 	reiser4_init_carry_level( &lowest_level, &pool );
 
 	reiser4_init_lh( &lh );
-	ret = reiser4_lock_znode( &lh, root, 
-				  ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
+	ret = longterm_lock_znode( &lh, root, 
+				   ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
 	assert( "nikita-1792", ret == 0 );
 	op = reiser4_post_carry( &lowest_level,
 				 COP_INSERT, root, 0 );
@@ -2848,6 +2848,18 @@ int jmacd_test( int argc UNUSED_ARG,
 }
 
 /*****************************************************************************************
+ *                                      BITMAP TEST
+ *****************************************************************************************/
+int zam_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree UNUSED_ARG)
+{
+	struct super_block * super = reiser4_get_current_sb();
+
+	reiser4_init_bitmap(super);
+
+	reiser4_done_bitmap(super);
+}
+
+/*****************************************************************************************
 				      
  *****************************************************************************************/
 
@@ -2868,6 +2880,10 @@ static tester team[] = {
 	{
 		.name = "jmacd",
 		.func = jmacd_test
+	},
+	{
+		.name = "zam",
+		.func = zam_test
 	},
 	{
 		.name = NULL,
