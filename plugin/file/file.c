@@ -671,7 +671,6 @@ shorten_file(struct inode *inode, loff_t new_size)
 	result = unix_file_writepage_nolock(page);
 	assert("vs-98221", PageLocked(page));
 	all_grabbed2free("shorten_file");
-	reiser4_release_reserved(inode->i_sb);
 	if (result) {
 		reiser4_unlock_page(page);
 		page_cache_release(page);
