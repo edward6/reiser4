@@ -219,14 +219,14 @@ int init_plugins( void )
 {
 	reiser4_plugin_type type_id;
 
-	dinfo( "Builtin plugins:\n" );
+	trace_on( TRACE_PLUGINS, "Builtin plugins:\n" );
 	for( type_id = 0 ; type_id < REISER4_PLUGIN_TYPES ; ++ type_id ) {
 		reiser4_plugin_type_data *ptype;
 		int i;
 
 		ptype = &plugins[ type_id ];
 		plugin_list_init( &ptype -> plugins_list );
-		trace_on( TRACE_PLUGINS, 
+		trace_on( TRACE_PLUGINS,
 			  "Of type %s (%s):\n", ptype -> label, ptype -> desc );
 		for( i = 0 ; i < ptype -> builtin_num ; ++ i ) {
 			reiser4_plugin *plugin;
