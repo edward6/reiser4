@@ -394,10 +394,8 @@ static  void  level_down(struct reiser4_syscall_w_space * ws /* work space ptr *
 	assert("VD-level_down: type mithmatch", type1==type2);
 	assert("VD-level_down: type mithmatch with level", type1==ws->cur_level->stype);
 	assert("VD-level_down: This is top level, prev == NULL", ws->cur_level->prev != NULL);
-
 	free_expr(ws->cur_level->prev->wrk_exp);
-
-	ws->cur_level->prev->wrk_exp = ws->cur_level->wrk_exp ;           /* current wrk for new level */
+	ws->cur_level->prev->wrk_exp = ws->cur_level->wrk_exp ;           /* current wrk for prev level */
 	ws->cur_level                = ws->cur_level->prev;
 }
 
@@ -429,55 +427,50 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws /* work space
 		//					ws->yytext--;
 		//				}
 		//			if ( i ) for ( i/=2; i; i-- )      *ws->tmpWrdEnd++='\'';    /*   in source text for each '' - result will '   */
-		                                                 /*         \????????   */ 
-			if ( *ws->yytext == '\\' ) {
-				int tmpI;
-				ws->yytext++;
-				switch ( tolower( (int)*(ws->yytext) ) ) {
-				case 'x':                       /*  \x01..9a..e  */
-					i = 0;
-					tmpI = 1;
-					while( tmpI) {
-						if (isdigit( (int)*(ws->yytext) ) ) {
-							i = (i << 4) + ( *ws->yytext++ - '0' );
-						}
-						else if( tolower( (int) *(ws->yytext) ) >= 'a' && tolower( (int)*(ws->yytext) ) <= 'e' ) {
-							i = (i << 4) + ( *ws->yytext++ - 'a' + 10 );
-						}
-						else {
-							if ( tmpI & 1 ) {
-								yyerror( ws, LEX_XFORM ); /* x format has odd number of symbols */
-							}
-							tmpI = 0;
-						}
-						if ( tmpI && !( tmpI++ & 1 ) ) {
-							*ws->tmpWrdEnd++ = (unsigned char) i;
-							i = 0;
-						}
+		/*         \????????   */ 
+		if ( *ws->yytext == '\\' ) {
+			int tmpI;
+			ws->yytext++;
+			switch ( tolower( (int)*(ws->yytext) ) ) {
+			case 'x':                       /*  \x01..9a..e  */
+				i = 0;
+				tmpI = 1;
+				while( tmpI) {
+					if (isdigit( (int)*(ws->yytext) ) ) {
+						i = (i << 4) + ( *ws->yytext++ - '0' );
 					}
-					break;
-				}
-			}
-			else *ws->tmpWrdEnd++ = *ws->yytext++;
-	                if( ws->tmpWrdEnd > (ws->freeSpCur->freeSpaceMax - sizeof(wrd_t)) ) {
-				
-				assert ("VD sys_reiser4. selectet_word:Internal space buffer overflow: input token exceed size of bufer",
-					ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase);
-				/* we can reallocate new space and copy all
-				   symbols of current token inside it */
-				{
-					freeSpace_t * tmp;
-					tmp=ws->freeSpCur;
-					ws->freeSpCur = freeSpaceNextAlloc(ws);
-					assert ("VD sys_reiser4:Internal text buffer overflow: no enouse mem", ws->freeSpCur !=NULL);
-					{
-						int i;
-						i = ws->tmpWrdEnd - tmp->freeSpace;
-						memmove( ws->freeSpCur->freeSpace, tmp->freeSpace, i );
-							ws->tmpWrdEnd = ws->freeSpCur->freeSpace + i;
+					else if( tolower( (int) *(ws->yytext) ) >= 'a' && tolower( (int)*(ws->yytext) ) <= 'e' ) {
+						i = (i << 4) + ( *ws->yytext++ - 'a' + 10 );
+						}
+					else {
+						if ( tmpI & 1 ) {
+							yyerror( ws, LEX_XFORM ); /* x format has odd number of symbols */
+						}
+						tmpI = 0;
+					}
+					if ( tmpI && !( tmpI++ & 1 ) ) {
+						*ws->tmpWrdEnd++ = (unsigned char) i;
+						i = 0;
 					}
 				}
+				break;
 			}
+		}
+		else *ws->tmpWrdEnd++ = *ws->yytext++;
+		if( ws->tmpWrdEnd > (ws->freeSpCur->freeSpaceMax - sizeof(wrd_t)) ) {
+			freeSpace_t * tmp;
+			int i;
+			assert ("VD sys_reiser4. selectet_word:Internal space buffer overflow: input token exceed size of bufer",
+				ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase);
+			/* we can reallocate new space and copy all
+			   symbols of current token inside it */
+			tmp=ws->freeSpCur;
+			ws->freeSpCur = freeSpaceNextAlloc(ws);
+			assert ("VD sys_reiser4:Internal text buffer overflow: no enouse mem", ws->freeSpCur !=NULL);
+			i = ws->tmpWrdEnd - tmp->freeSpace;
+			memmove( ws->freeSpCur->freeSpace, tmp->freeSpace, i );
+			ws->tmpWrdEnd = ws->freeSpCur->freeSpace + i;
+		}
 	}
 	if (exclude) {
 		ws->tmpWrdEnd--;
@@ -585,11 +578,11 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 	case Wrd:
 		move_selected_word( ws, lexcls[(int) lcls ].c[0] );
 		                                                    /* if ret>0 this is keyword */
-			if ( !(ret = b_check_word(ws)) ) {                          /*  this is not keyword. tray check in worgs. ret = Wrd */
-				ret=lexcls[(int) lcls ].term;
-				ws->ws_yylval.wrd = _wrd_inittab(ws);
-			}
-			break;
+		if ( !(ret = b_check_word(ws)) ) {                          /*  this is not keyword. tray check in worgs. ret = Wrd */
+			ret=lexcls[(int) lcls ].term;
+			ws->ws_yylval.wrd = _wrd_inittab(ws);
+		}
+		break;
 	case Int:
 	case Ptr:
 	case Pru:
@@ -758,21 +751,20 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws /* work spac
 
 #else
 	cur_pars_var       = getFirstPars_VarFromExpr(ws);
-	while(pars_var!=NULL)
-		{
+	while(pars_var!=NULL) {
 #endif
 
+		
+		
+		e             = alloc_new_expr( ws, EXPR_PARS_VAR );
+		
+		e->pars_var.v    = lookup_pars_var_word( ws, cur_pars_var, w );
 
-
-	e             = alloc_new_expr( ws, EXPR_PARS_VAR );
-
-	e->pars_var.v    = lookup_pars_var_word( ws, cur_pars_var, w );
-
-
+		
 #if 0
-			pars_var=getNextPars_VarFromExpr(ws);
-		}
- all rezult mast be connected to expression.
+		pars_var=getNextPars_VarFromExpr(ws);
+	}
+	all rezult mast be connected to expression.
 #endif
 
 
@@ -1351,19 +1343,17 @@ static int push_tube_stack( tube_t * tube, long type, void * pointer )
 {
 	sourece_stack_t * ret;
 	ret = kmalloc( sizeof(struct sourece_stack), GFP_KERNEL );
-	if (!IS_ERR(ret))
-		{
-			ret->prev        = tube->st_current;
-			ret->type        = type;
-			ret->u.pointer   = pointer;
-			tube->st_current = ret;
-			printk("get stack tube=%p, type=%d ret=%p\n", tube, type, ret);
-			return 0;
-		}
-	else
-		{
-			return PTR_ERR(ret);
-		}
+	if (!IS_ERR(ret)) {
+		ret->prev        = tube->st_current;
+		ret->type        = type;
+		ret->u.pointer   = pointer;
+		tube->st_current = ret;
+		printk("get stack tube=%p, type=%d ret=%p\n", tube, type, ret);
+		return 0;
+	}
+	else {
+		return PTR_ERR(ret);
+	}
 }
 
 static int push_tube_list_stack_done(tube_t * tube)
@@ -1380,35 +1370,31 @@ static int push_tube_list_stack_init( tube_t * tube, long type, void * pointer )
 {
 	sourece_stack_t * ret;
 	tube->last = kmalloc( sizeof(struct sourece_stack), GFP_KERNEL );
-	if (!IS_ERR(tube->last))
-		{
-			tube->next       = tube->last;
-			ret->type        = type;
-			ret->u.pointer   = pointer;
-			return 0;
-		}
-	else
-		{
-			return PTR_ERR(tube->last);
-		}
+	if (!IS_ERR(tube->last)) {
+		tube->next       = tube->last;
+		ret->type        = type;
+		ret->u.pointer   = pointer;
+		return 0;
+	}
+	else {
+		return PTR_ERR(tube->last);
+	}
 }
 
 static int push_tube_list_stack(tube_t * tube, long type, void * pointer )
 {
 	sourece_stack_t * ret;
 	ret = kmalloc( sizeof(struct sourece_stack), GFP_KERNEL );
-	if (!IS_ERR(ret))
-		{
-			tube->next->prev = ret;
-			ret->type        = type;
-			ret->u.pointer   = pointer;
-			tube->next       = ret;
-			return 0;
-		}
-	else
-		{
-			return PTR_ERR(ret);
-		}
+	if (!IS_ERR(ret)) {
+		tube->next->prev = ret;
+		ret->type        = type;
+		ret->u.pointer   = pointer;
+		tube->next       = ret;
+		return 0;
+	}
+	else {
+		return PTR_ERR(ret);
+	}
 }
 
 static int change_tube_stack(tube_t * tube, long type, void * pointer )
@@ -1421,32 +1407,29 @@ static int change_tube_stack(tube_t * tube, long type, void * pointer )
 static int pop_tube_stack( tube_t * tube )
 {
 	sourece_stack_t * ret;
-	if ( tube->st_current->prev == NULL )
-		{
-			return -1;
-		}
-	else
-		{
-			ret              = tube->st_current;
-			tube->st_current = tube->st_current->prev;
-			kfree( ret );
-			return 0;
-		}
+	if ( tube->st_current->prev == NULL ) {
+		return -1;
+	}
+	else {
+		ret              = tube->st_current;
+		tube->st_current = tube->st_current->prev;
+		kfree( ret );
+		return 0;
+	}
 }
 
 /*  pop onto stack for calculate expressions one step */
 static void put_tube_src(tube_t * tube)
 {
 	/*  close readed file and pop stack */
-	switch (tube->st_current->type)
-		{
-		case 	ST_FILE:
-			filp_close(tube->st_current->u.file, current->files );
-		case 	ST_DE:
-		case 	ST_WD:
-			pop_tube_stack(tube);
-			break;
-		}
+	switch (tube->st_current->type) {
+	case 	ST_FILE:
+		filp_close(tube->st_current->u.file, current->files );
+	case 	ST_DE:
+	case 	ST_WD:
+		pop_tube_stack(tube);
+		break;
+	}
 }
 
 /* push & pop onto stack for calculate expressions one step */
@@ -1459,94 +1442,89 @@ static int get_tube_next_src(tube_t * tube)
 
 	tube->readoff=0;
 
-			printk("get stack tube=%p, tube->writeoff=%d\n ", tube, tube->writeoff);
+	printk("get stack tube=%p, tube->writeoff=%d\n ", tube, tube->writeoff);
 
 	assert ("VD stack is empty", tube->st_current != NULL );
 
 	/* check stack and change its head */
-	switch (tube->st_current->type)
-		{
-		case 	ST_FILE:
-		case 	ST_DE:
-		case 	ST_WD:
+	switch (tube->st_current->type) {
+	case 	ST_FILE:
+	case 	ST_DE:
+	case 	ST_WD:
+		ret = 0;
+		break;
+	case 	ST_EXPR:
+		s = tube->st_current->u.expr;
+		switch (s->h.type) {
+		case EXPR_WRD:
+			change_tube_stack( tube, ST_WD , s->wd.s );
+			break;
+		case EXPR_PARS_VAR:
+			assert("VD-free_expr.EXPR_PARS_VAR", s->pars_var.v!=NULL);
+			assert("VD-free_expr.EXPR_PARS_VAR.ln", s->pars_var.v->ln!=NULL);
+//					if ( S_ISREG(s->pars_var.v->ln->dentry.dentry->d_inode) )
+			{
+				fl=  dentry_open( s->pars_var.v->ln->dentry.dentry,
+						  s->pars_var.v->ln->dentry.mnt, O_RDONLY ) ;
+				if ( !IS_ERR(fl) ) {
+					change_tube_stack( tube, ST_FILE , fl);
+				}
+				else printk("error for open source\n");
+			}
+#if 0          // not yet
+			else if ( S_ISDIR(s->pars_var.v->ln->dentry.dentry->d_inode) ) {
+				while(NOT EOF)
+					{
+						readdir();
+					}
+#endif
+			}
 			ret = 0;
 			break;
-		case 	ST_EXPR:
-			s = tube->st_current->u.expr;
-			switch (s->h.type)
-				{
-				case EXPR_WRD:
-					change_tube_stack( tube, ST_WD , s->wd.s );
-					break;
-				case EXPR_PARS_VAR:
-					assert("VD-free_expr.EXPR_PARS_VAR", s->pars_var.v!=NULL);
-					assert("VD-free_expr.EXPR_PARS_VAR.ln", s->pars_var.v->ln!=NULL);
-//					if ( S_ISREG(s->pars_var.v->ln->dentry.dentry->d_inode) )
-					{
-						fl=  dentry_open( s->pars_var.v->ln->dentry.dentry,
-								  s->pars_var.v->ln->dentry.mnt, O_RDONLY ) ;
-						if ( !IS_ERR(fl) )
-							{
-								change_tube_stack( tube, ST_FILE , fl);
-							}
-						else printk("error for open source\n");
-					}
-//						else if ( S_ISDIR(s->pars_var.v->ln->dentry.dentry->d_inode) )
-					{
-#if 0          // not yet
-						while(NOT EOF)
-							{
-								readdir();
-							}
-#endif
-					}
-					ret = 0;
-					break;
-				case EXPR_LIST:
-					tmp = &s->list;
-					push_tube_list_stack_init( tube, ST_EXPR , tmp->source );
-					while (tmp)
-						{
-							tmp = tmp->next;
-							push_tube_list_stack( tube, ST_EXPR, tmp->source );
-						}
-					pop_tube_stack( tube );
-					push_tube_list_stack_done( tube );
-					ret = 1;
-					break;
-				case EXPR_ASSIGN:
+		case EXPR_LIST:
+			tmp = &s->list;
+			push_tube_list_stack_init( tube, ST_EXPR , tmp->source );
+			while (tmp) {
+				tmp = tmp->next;
+				push_tube_list_stack( tube, ST_EXPR, tmp->source );
+			}
+			pop_tube_stack( tube );
+			push_tube_list_stack_done( tube );
+			ret = 1;
+			break;
+		case EXPR_ASSIGN:
 #if 0   // not yet
-					assert("VD-free_expr.EXPR_ASSIGN", s->assgn.target!=NULL);
-					assert("VD-free_expr.EXPR_ASSIGN.ln", s->assgn.target->ln!=NULL);
-					assert("VD-free_expr.EXPR_ASSIGN.count", s->assgn.target->count>0);
-					( s->assgn.target->ln);
-					( s->assgn.source );
+			assert("VD-free_expr.EXPR_ASSIGN", s->assgn.target!=NULL);
+			assert("VD-free_expr.EXPR_ASSIGN.ln", s->assgn.target->ln!=NULL);
+			assert("VD-free_expr.EXPR_ASSIGN.count", s->assgn.target->count>0);
+			( s->assgn.target->ln);
+			( s->assgn.source );
 #endif
-					break;
-				case EXPR_LNODE:
-					assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=NULL);
-					//					if ( S_ISREG(s->lnode.lnode->dentry.dentry->d_inode) )
-					{
-						change_tube_stack( tube, ST_FILE ,
-								   dentry_open( s->lnode.lnode->dentry.dentry,
-										s->lnode.lnode->dentry.mnt, O_RDONLY ) );
-					}
-					ret = 0;
-					break;
-				case EXPR_FLOW:
-					break;
-				case EXPR_OP2:
-					change_tube_stack( tube, ST_EXPR , s->op2.op_l );
-					push_tube_stack( tube, ST_EXPR , s->op2.op_r );
-					ret = 1;
-					break;
-				case EXPR_OP:
-					change_tube_stack( tube, ST_EXPR , s->op.op );
-					ret = 1;
-					break;
-				}
+			break;
+		case EXPR_LNODE:
+			assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=NULL);
+//					if ( S_ISREG(s->lnode.lnode->dentry.dentry->d_inode) )
+			{
+				change_tube_stack( tube, ST_FILE ,
+						   dentry_open( s->lnode.lnode->dentry.dentry,
+								s->lnode.lnode->dentry.mnt, O_RDONLY ) );
+			}
+			ret = 0;
+			break;
+		case EXPR_FLOW:
+			break;
+		case EXPR_OP2:
+			change_tube_stack( tube, ST_EXPR , s->op2.op_l );
+			push_tube_stack( tube, ST_EXPR , s->op2.op_r );
+			ret = 1;
+			break;
+		case EXPR_OP:
+			change_tube_stack( tube, ST_EXPR , s->op.op );
+			ret = 1;
 			break;
 		}
+		break;
+	}
 	return ret;
 }
 
@@ -1557,44 +1535,40 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 	char * buf;
 
 	tube              = kmalloc( sizeof(struct tube), GFP_KERNEL);
-	if (!IS_ERR(tube))
-		{
-			if (!IS_ERR(buf))
-				{
-					START_KERNEL_IO_GLOB;
-					memset( tube , 0, sizeof( struct tube ));
+	if (!IS_ERR(tube)) {
+		if (!IS_ERR(buf)) {
+			START_KERNEL_IO_GLOB;
+			memset( tube , 0, sizeof( struct tube ));
 					
-					assert("VD get_tube_general: no tube",!IS_ERR(tube));
-					assert("VD get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
+			assert("VD get_tube_general: no tube",!IS_ERR(tube));
+			assert("VD get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
 					
-					//	assert("get_tube_general: src expression wrong",source->h.type == EXPR_PARS_VAR);
-					//	assert("get_tube_general: src no dentry",source->pars_var.v->ln->h.type== LNODE_DENTRY);
+			//	assert("get_tube_general: src expression wrong",source->h.type == EXPR_PARS_VAR);
+			//	assert("get_tube_general: src no dentry",source->pars_var.v->ln->h.type== LNODE_DENTRY);
 					
 
 #if 0
-					tube->readoff     = 0;
-					tube->type_offset = 0;
-					tube->offset      = 0;
-					tube->len         = 0;
-					tube->used        = 0;
+			tube->readoff     = 0;
+			tube->type_offset = 0;
+			tube->offset      = 0;
+			tube->len         = 0;
+			tube->used        = 0;
 #endif
-					tube->dst         = dentry_open( sink->ln->dentry.dentry, sink->ln->dentry.mnt, O_WRONLY|O_TRUNC );
-					tube->writeoff    = 0;
+			tube->dst         = dentry_open( sink->ln->dentry.dentry, sink->ln->dentry.mnt, O_WRONLY|O_TRUNC );
+			tube->writeoff    = 0;
 			printk("get stack tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
-					tube->st_current  = NULL;
-					push_tube_stack( tube, ST_EXPR, (long *)source );
-					return tube;
-				}
-			else
-				{
-					kfree(tube);
-					return NULL;
-				}
+			tube->st_current  = NULL;
+			push_tube_stack( tube, ST_EXPR, (long *)source );
+			return tube;
 		}
-	else
-		{
+		else {
+			kfree(tube);
 			return NULL;
 		}
+	}
+	else {
+		return NULL;
+	}
 }
 
 static size_t reserv_space_in_sink(tube_t * tube )
@@ -1610,36 +1584,32 @@ static size_t get_available_src_len(tube_t * tube)
 	int ret = 1;
 	len = PUMP_BUF_SIZE;
 	printk("get av src len tube=%p, tube->writeoff=%d len=%d\n", tube,(int) (tube->writeoff), (int) len);
-	while ( tube->st_current != NULL && ret )
-		{
-			ret = 0;
-			switch( tube->st_current->type )
-				{
-				case 	ST_FILE:
-					s_len = tube->st_current->u.file->f_dentry->d_inode->i_size;
-					/* for reiser4 find_file_size() */
-					break;
-				case 	ST_DE:
-					break;
-				case 	ST_WD:
-					s_len = tube->st_current->u.wd->u.len;
-					break;
-				case 	ST_EXPR:
-					while( tube->st_current != NULL && get_tube_next_src( tube ) ) ;
-					len = -1;
-					ret = 1;
-					break;
-				}
+	while ( tube->st_current != NULL && ret ) {
+		ret = 0;
+		switch( tube->st_current->type ) {
+		case 	ST_FILE:
+			s_len = tube->st_current->u.file->f_dentry->d_inode->i_size;
+			/* for reiser4 find_file_size() */
+			break;
+		case 	ST_DE:
+			break;
+		case 	ST_WD:
+			s_len = tube->st_current->u.wd->u.len;
+			break;
+		case 	ST_EXPR:
+			while( tube->st_current != NULL && get_tube_next_src( tube ) ) ;
+			len = -1;
+			ret = 1;
+			break;
 		}
+	}
 	s_len -= tube->readoff;
-	if (tube->st_current == NULL)
-		{
-			len = 0;
-		}
-	else
-		{
-			if ( len > s_len ) len = s_len;
-		}
+	if (tube->st_current == NULL) {
+		len = 0;
+	}
+	else {
+		if ( len > s_len ) len = s_len;
+	}
 	printk( " len =%d, slen=%d, readoff=%d\n", (int)len,(int) s_len, (int)tube->readoff );
 	return len;
 }
@@ -1647,14 +1617,12 @@ static size_t get_available_src_len(tube_t * tube)
 static size_t prep_tube_general(tube_t * tube)
 {
 	size_t ret;
-	if ( tube->st_current != NULL )
-		{
-			ret = get_available_src_len( tube ) ;
-		}
-	else
-		{
-			ret = 0;
-		}
+	if ( tube->st_current != NULL ) {
+		ret = get_available_src_len( tube ) ;
+	}
+	else {
+		ret = 0;
+	}
 	tube->len = ret;
 	return ret;
 }
@@ -1665,19 +1633,18 @@ static size_t source_to_tube_general(tube_t * tube)
 {
 	//	tube->source->fplug->read(tube->offset,tube->len);
 	size_t ret;
-	switch( tube->st_current->type )
-		{
-		case 	ST_FILE:
-			ret = vfs_read(tube->st_current->u.file, tube->buf, tube->len, &tube->readoff);
-			tube->len = ret;
-			break;
-		case 	ST_DE:
-			break;
-		case 	ST_WD:
-			memcpy( tube->buf,  tube->st_current->u.wd->u.name + tube->readoff, ret = tube->len );
-			tube->readoff += ret;
-			break;
-		}
+	switch( tube->st_current->type ) {
+	case 	ST_FILE:
+		ret = vfs_read(tube->st_current->u.file, tube->buf, tube->len, &tube->readoff);
+		tube->len = ret;
+		break;
+	case 	ST_DE:
+		break;
+	case 	ST_WD:
+		memcpy( tube->buf,  tube->st_current->u.wd->u.name + tube->readoff, ret = tube->len );
+		tube->readoff += ret;
+		break;
+	}
 	printk("source ro tube tube=%p, stack =%p tube->writeoff=%d,tube->readoff=%d\n", tube, tube->st_current, (int)tube->writeoff,(int)tube->readoff);
 	return ret;
 }
@@ -1737,37 +1704,31 @@ static int  pump( pars_var_t *sink, expr_v4_t *source )
       tube_to_sink = sink->fplug->tube_to_sink;
 #else
       tube       = get_tube_general( tube, sink, source);
-      if ( tube == NULL )
-	      {
-		      ret_code=-1;
-	      }
-      else
-	      {
-		      printk("p tube=%p, tube->writeoff=%d \n", tube, (int)tube->writeoff);
-		      prep_tube      = prep_tube_general;
-		      source_to_tube = source_to_tube_general;
-		      tube_to_sink   = tube_to_sink_general;
+      if ( tube == NULL ) {
+	      ret_code=-1;
+      }
+      else {
+	      printk("p tube=%p, tube->writeoff=%d \n", tube, (int)tube->writeoff);
+	      prep_tube      = prep_tube_general;
+	      source_to_tube = source_to_tube_general;
+	      tube_to_sink   = tube_to_sink_general;
 #endif
-
-		      reserv_space_in_sink( tube );
-		      while ( tube->st_current != NULL && prep_tube( tube )  )
-			      {
-				      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
-				      ret_code = source_to_tube( tube );
-				      if ( ret_code>0 )
-					      {
-						      ret_code = tube_to_sink( tube );
-					      }
-				      else
-					      {
-						      put_tube_src( tube );
-					      }
-			      }
-				      printk("p 3 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff,(int)tube->readoff);
-
-		      ret_code=tube->writeoff;
-		      put_tube(tube);
+	      reserv_space_in_sink( tube );
+	      while ( tube->st_current != NULL && prep_tube( tube )  ) {
+		      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
+		      ret_code = source_to_tube( tube );
+		      if ( ret_code>0 ) {
+			      ret_code = tube_to_sink( tube );
+		      }
+		      else {
+			      put_tube_src( tube );
+		      }
 	      }
+	      printk("p 3 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff,(int)tube->readoff);
+	      
+	      ret_code=tube->writeoff;
+	      put_tube(tube);
+      }
       return ret_code;
 }
 
