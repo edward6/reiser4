@@ -210,7 +210,9 @@ typedef enum {
 	JNODE_PARSED = 20,
 	JNODE_DKSET = 21,
 
-	/* cheap and effective protection of jnode from emergency flush */
+	/* cheap and effective protection of jnode from emergency flush. This
+	 * bit can only be set by thread that holds long term lock on jnode
+	 * parent node (twig node, where extent unit lives). */
 	JNODE_EPROTECTED = 22
 } reiser4_znode_state;
 
