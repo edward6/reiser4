@@ -1063,8 +1063,10 @@ commit_one_atom(txn_mgr * mgr)
 		spin_unlock_ktxnmgrd(mgr->daemon);
 		ret = txn_end(ctx);
 
-		if (ret < 0)
+		if (ret >= 0) {
 			txn_begin(ctx);
+			ret = 0;
+		}
 
 		spin_lock_ktxnmgrd(mgr->daemon);
 		spin_lock_txnmgr(mgr);
