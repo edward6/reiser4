@@ -72,9 +72,10 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		if( retcode == 0 ) {
 			ZF_SET( result, JNODE_CREATED );
 			zrelse( result );
-		} else
+		} else {
 			zput (result);
 			result = ERR_PTR( retcode );
+		}
 	} else {
 		/*
 		 * failure to allocate new node during balancing.
