@@ -526,6 +526,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	struct bio *bio;
 	struct super_block *s = reiser4_get_current_sb();
 	int nr_processed;
+	int doing_reclaim;
 
 	schedulable();
 	assert("zam-725", nr != 0);
@@ -542,6 +543,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	bio->bi_size = s->s_blocksize * nr;
 
 	nr_processed = 0;
+	doing_reclaim = current->flags & PF_KSWAPD;
 	while (1) {
 		int result;
 		struct page *pg;
@@ -587,6 +589,10 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 		lock_and_wait_page_writeback(pg);
 		SetPageWriteback(pg);
+		if (doing_reclaim)
+			/* pages are submitted from kswapd as part of memory
+			 * reclamation. Mark them as such. */
+			SetPageReclaim(pg);
 
 		write_lock(&pg->mapping->page_lock);
 		/* clear dirty bit and update page cache statistics. */
