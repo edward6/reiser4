@@ -434,7 +434,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	 * FIXME: comparing unsigned with 0
 	 */
 	if ((reserve = common_estimate_create_child(parent, object)) < 0)
-	    return reserve;
+		return reserve;
 
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "comon_create_child"))
 		return -ENOSPC;
