@@ -951,7 +951,7 @@ int
 alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 		    reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start, reiser4_block_nr * len)
 {
-	struct super_block *super = get_current_context()->super;
+	ON_DEBUG(struct super_block *super = get_current_context()->super;)
 
 	int actual_len;
 
