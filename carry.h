@@ -103,8 +103,12 @@ typedef enum {
 	 * emulation uses this to update "child size" in parent.
 	 **/
 	COP_MODIFY,
+	COP_INSERT_FLOW,
 	COP_LAST_OP,
 } carry_opcode;
+
+
+#define CARRY_FLOW_NEW_NODES_LIMIT 4
 
 typedef enum {
 	COP_MODIFY_FREE_SPACE = ( 1 << 0 ), /* FIXME_JMACD currently unused
@@ -255,6 +259,16 @@ typedef struct carry_op {
 			 */
 			carry_node          *child;
 		} delete;
+		struct {
+			flow_t              *flow;
+			coord_t             *insert_point;
+			/* flow insertion is limited by number of new blocks
+			 * added in that operation which do not get any data
+			 * but part of flow. This limit is set by macro
+			 * CARRY_FLOW_NEW_NODES_LIMIT. This field stores number
+			 * of nodes added already during one carry_flow */
+			int                  new_nodes;
+		} insert_flow;
 	} u;
 } carry_op;
 
