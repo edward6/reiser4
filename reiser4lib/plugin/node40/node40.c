@@ -22,13 +22,13 @@ static void reiserfs_node40_get_free_space(reiserfs_node40_t *node, uint32_t fre
 static aal_device_block_t *reiserfs_node40_block(reiserfs_node40_t *node); 
 static void reiserfs_node40_print (reiserfs_node40_t *node);
 
-reiserfs_plugin_t plugin_info = {
+static reiserfs_plugin_t node40_plugin = {
     .node = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x2,
 	    .type = REISERFS_NODE_PLUGIN,
-	    .label = "NODE40",
+	    .label = "Node40",
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
@@ -74,7 +74,7 @@ static reiserfs_node40_t *reiserfs_node40_create(aal_device_block_t *block, uint
     node_header = (reiserfs_node40_header_t *)block->data;
     
     aal_memset (node_header, 0, sizeof (*node_header));
-    reiserfs_node_set_plugin_id (block, plugin_info.h.id);
+    reiserfs_node_set_plugin_id (block, node40_plugin.h.id);
     set_node_level (node_header, level);
     set_node_magic (node_header, reiser4_node_magic);
     set_node_free_space_start (node_header, aal_block_get_size (block));
@@ -140,7 +140,4 @@ static aal_device_block_t *reiserfs_node40_block(reiserfs_node40_t *node) {
 static void reiserfs_node40_print (reiserfs_node40_t *node) {
 }
 
-reiserfs_plugin_t *reiserfs_plugin_info() {
-    return &plugin_info;
-}
-
+reiserfs_plugin_register (node40_plugin);
