@@ -84,15 +84,12 @@
      (belonging to the preserve-set) have (JNODE_RELOC) set and created-set members which
      have no previous location to preserve have (JNODE_RELOC | JNODE_CREATED) set.
   
-     JNODE_OVRWR: The flush algorithm made the decision to maintain the pre-existing
-     location for this node and it will be written to the wandered-log.  FIXME(E): The
-     following NOTE needs to be fixed by adding a wander_list to the atom.  NOTE: In this
-     case, flush sets the node to be clean!  By returning the node to the clean list,
-     where the log-writer expects to find it, flush simply pretends it was written even
-     though it has not been.  Clean nodes with JNODE_OVRWR set cannot be released from
-     memory (checked in reiser4_releasepage()).  The reason we choose to have this limit
-     is to avoid the IO cost of reading data we could just keep in memory.
-  
+     JNODE_OVRWR: The node belongs to atom's overwrite set. The flush algorithm made the
+     decision to maintain the pre-existing location for this node and it will be written
+     to the wandered-log.  FIXME-ZAM: Currently the flush code puts such nodes to atom's
+     clean list which is wrong and needs to be fixed by adding a special atom's list for
+     the overwrite set.
+
      JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
      not created, see note above).  A block with JNODE_RELOC set is eligible for
      early-flushing and may be submitted during flush_empty_queues.  When the JNODE_RELOC
@@ -564,11 +561,6 @@ static int write_prepped_nodes (flush_position * pos, int scan)
 /* I have labelled most of the legitimate FIXME comments in this file with letters to
    indicate which issue they relate to.  There are a few miscellaneous FIXMEs with
    specific names mentioned instead that need to be inspected/resolved. */
-/* A. Deal with the IO completion issue described at the end of jnode_flush(), then remove
-   the temporary-hack txn_wait_on_io() in txnmgr.c.  Currently it is possible for a
-   transaction to commit before all of its IO has completed... Solution described
-   below. */
-/* DONE */
 /* B. There is an issue described in flush_reverse_relocate_test having to do with an
    imprecise is_preceder? check having to do with partially-dirty extents.  The code that
    sets preceder hints and computes the preceder is basically untested.  Careful testing
@@ -592,29 +584,30 @@ static int write_prepped_nodes (flush_position * pos, int scan)
    where flush writes the dirty, created block after the non-deferred deallocated block
    number is re-allocated, making it possible to write deleted data on top of non-deleted
    data.  Its just a theory, but it needs to be thought out. */
-/* E. Never put JNODE_OVRWR blocks in the flush queue.  This is easy to implement, but it
-   is done for historical reasons related to the time when we had no log-writing and the
-   test layout. Placing wandered blocks in the flush queue can only cause more BIO objects to be
-   allocated than might otherwise be required.  We need to create a wander_queue to solve
-   this properly. */
-/* DONE */
 /* F. bio_alloc() failure is not handled gracefully. */
 /* G. Unallocated children. */
 /* H. Add a WANDERED_LIST to the atom to clarify the placement of wandered blocks. */
-/* I. SHORT LIST:
-  
-   FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?) */
+/* I. Rename flush-scan to scan-point, (flush-pos to flush-point?) */
+
+
+
+
+
+
 
 /* JNODE_FLUSH: MAIN ENTRY POINT */
 /* This is the main entry point for flushing a jnode and its dirty neighborhood (dirty
    neighborhood is named "slum").  Jnode_flush() is called if reiser4 has to write dirty
    blocks to disk, it happens when Linux VM decides to reduce number of dirty pages or as
    a part of transaction commit.
+
+   Our objective here is to prep and flush the slum the jnode belongs to. We want to
+   squish the slum together, and allocate the nodes in it as we squish because allocation
+   of children affects squishing of parents.
   
-   The "argument" @node tells flush where to start.  From there, flush searches through
-   the adjacent nodes to find a better place to start the parent-first traversal, during
-   which nodes are squeezed and allocated (squalloc).  To find a "better place" to start
-   squalloc first we perform a flush_scan.
+   The "argument" @node tells flush where to start.  From there, flush finds the left edge
+   of the slum, and calls squalloc (in which nodes are squeezed and allocated).  To find a
+   "better place" to start squalloc first we perform a flush_scan.
   
    Flush-scanning may be performed in both left and right directions, but for different
    purposes.  When scanning to the left, we are searching for a node that precedes a
@@ -810,6 +803,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   scan limit is the difference between left_scan.count and the threshold. */
 	reiser4_stat_add(flush.left, left_scan.count);
 
+	/* ZAM-FIXME-HANS: reduce the layers of wrappings, eliminate flush_get_params function please */
 	todo = flush_get_params()->relocate_threshold - left_scan.count;
 	if (todo > 0) {
 		ret = flush_scan_right(&right_scan, node, (unsigned)todo);
@@ -2849,7 +2843,6 @@ flush_scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, cons
 	if (scan->node != NULL) {
 		jput(scan->node);
 	}
-
 	scan->node = node;
 	scan->count += add_count;
 
