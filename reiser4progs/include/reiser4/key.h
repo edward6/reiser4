@@ -1,7 +1,7 @@
 /*
     key.h -- reiserfs key defines and functions.
     Copyright (C) 1996-2002 Hans Reiser.
-    Author Vitaly Fertman.
+    Author Yury Umanets.
 */
 
 #ifndef KEY_H
