@@ -462,7 +462,7 @@ errno_t reiserfs_node_remove(reiserfs_node_t *node, reiserfs_pos_t *pos) {
 	remove, node->block, pos);
 }
 
-static errno_t reiserfs_node_shift_item(reiserfs_coord_t *dst, 
+static errno_t reiserfs_node_relocate_item(reiserfs_coord_t *dst, 
     reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin, int remove) 
 {
     int res;
@@ -502,13 +502,13 @@ static errno_t reiserfs_node_shift_item(reiserfs_coord_t *dst,
 errno_t reiserfs_node_move_item(reiserfs_coord_t *dst, 
     reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin) 
 {
-    return reiserfs_node_shift_item(dst, src, key_plugin, 1);
+    return reiserfs_node_relocate_item(dst, src, key_plugin, 1);
 }
 
 errno_t reiserfs_node_copy_item(reiserfs_coord_t *dst, 
     reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin) 
 {
-    return reiserfs_node_shift_item(dst, src, key_plugin, 0);
+    return reiserfs_node_relocate_item(dst, src, key_plugin, 0);
 }
 
 errno_t reiserfs_node_embed_key(reiserfs_node_t *node, uint32_t pos, 
@@ -603,11 +603,6 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     reiserfs_key_t key;
     reiserfs_node_t *left;
     reiserfs_node_t *right;
-    int left_moved, right_moved;
-    
-    reiserfs_item_hint_t item;
-    reiserfs_id_t item_plugin_id;
-    
     reiserfs_coord_t src, dst;
 	
     aal_assert("umka-759", old != NULL, return -1);
@@ -628,8 +623,8 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     }
     
     /* 
-	Checking the right neighbour and loading if it doesn't exists. See above 
-	for details.
+	Checking the right neighbour and loading if it doesn't exists. The same 
+	as previous one.
     */
     if (!(right = old->node->right)) {
 	if ((right = reiserfs_node_right_neighbour(old->node))) {
@@ -640,47 +635,43 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	}
     }
     
-    left_moved = 0;
     point = old->pos.item;
     
     /* Trying to move items into the left nighbor */
-    while (left && reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(left) >= 
-	reiserfs_node_item_length(old->node, 0) + reiserfs_node_item_overhead(old->node))
-    {
-	reiserfs_coord_init(&src, old->node, 0, 0xffff);
-	reiserfs_coord_init(&dst, left, reiserfs_node_count(left), 0xffff);
+    if (left) {
+	while (reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(left) >= 
+	    reiserfs_node_item_length(old->node, 0) + reiserfs_node_item_overhead(old->node))
+	{
+	    reiserfs_coord_init(&src, old->node, 0, 0xffff);
+	    reiserfs_coord_init(&dst, left, reiserfs_node_count(left), 0xffff);
 	
-        if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Left shifting failed. Can't move item.");
-	    return -1;
+	    if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Left shifting failed. Can't move item.");
+		return -1;
+	    }
+	    point--;
 	}
-	left_moved++;
     }
     
-    right_moved = 0;
-    point = point - left_moved;
     count = reiserfs_node_count(old->node);
-    
+   
     /* Trying to move items into the right nighbor */
-    while (right && reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(right) >= 
-	reiserfs_node_item_length(old->node, reiserfs_node_count(old->node) - 1) + 
-	reiserfs_node_item_overhead(old->node))
-    {
-        src.node = old->node;
-        src.pos.item = reiserfs_node_count(old->node) - 1;
-        src.pos.unit = 0xffff;
+    if (right) {
+	while (reiserfs_node_count(old->node) > 0 && reiserfs_node_get_free_space(right) >= 
+	    reiserfs_node_item_length(old->node, reiserfs_node_count(old->node) - 1) + 
+	    reiserfs_node_item_overhead(old->node))
+	{
+	    reiserfs_coord_init(&src, old->node, reiserfs_node_count(old->node) - 1, 0xffff);
+	    reiserfs_coord_init(&dst, right, 0, 0xffff);
 	
-        dst.node = right;
-        dst.pos.item = 0;
-        dst.pos.unit = 0xffff;
-	
-        if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Left shifting failed. Can't move item.");
-	    return -1;
+	    if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Right shifting failed. Can't move item.");
+		return -1;
+	    }
+	    poin++;
 	}
-	right_moved++;
     }
     
     /* Here we should update parent's internal keys */
