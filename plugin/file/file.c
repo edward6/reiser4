@@ -1924,7 +1924,8 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 		}
 
 		assert("vs-1648", (uf_info->container == UF_CONTAINER_TAILS ||
-				   uf_info->container == UF_CONTAINER_EXTENTS));
+				   uf_info->container == UF_CONTAINER_EXTENTS ||
+				   uf_info->container == UF_CONTAINER_EMPTY));
 		if (uf_info->container == UF_CONTAINER_TAILS) {			
 			/* invalidate all pages and convert file from tails to extents */
 			result = check_pages_unix_file(inode);
