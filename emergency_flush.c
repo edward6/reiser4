@@ -262,6 +262,8 @@ emergency_flush(struct page *page)
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2724", PageLocked(page));
 
+	warning("nikita-3112", "Emergency flush. Notify Reiser@Namesys.COM");
+
 	/*
 	 * Page is locked, hence page<->jnode mapping cannot change.
 	 */
@@ -550,10 +552,12 @@ eflush_del(jnode *node, int page_locked)
 	eflush_node_t *ef;
 	ef_hash_table *table;
 	reiser4_tree  *tree;
+	struct page   *lockedpage;
 
 	assert("nikita-2743", node != NULL);
 	assert("nikita-2770", spin_jnode_is_locked(node));
 
+	lockedpage = NULL;
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		reiser4_block_nr blk;
 		struct page *page;
@@ -577,16 +581,17 @@ eflush_del(jnode *node, int page_locked)
 			 * for a race: emergency_flush() calls page_io() and
 			 * we clear JNODE_EFLUSH bit concurrently---page_io()
 			 * gets wrong block number. */
-			page_cache_get(page);
 			UNLOCK_JNODE(node);
-			wait_on_page_locked(page);
-			page_cache_release(page);
-			LOCK_JNODE(node);
-			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
+			lockedpage = jnode_lock_page(node);
+			assert("nikita-3113", lockedpage == page);
+
+			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH))) {
 				/*
 				 * race: some other thread unflushed jnode.
 				 */
+				reiser4_unlock_page(page);
 				return;
+			}
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
@@ -631,6 +636,9 @@ eflush_del(jnode *node, int page_locked)
 
 		kmem_cache_free(eflush_slab, ef);
 		ef_free_block(node, &blk);
+
+		if (lockedpage != NULL)
+			reiser4_unlock_page(lockedpage);
 
 		LOCK_JNODE(node);
 
