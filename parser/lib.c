@@ -999,7 +999,7 @@ static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 
 	assert("get_tube_general: no tube",!IS_ERR(tube));
 	assert("get_tube_general: src expression wrong",source->h.type == EXPR_VNODE);
-	assert("get_tube_general: src no dentry",source->vnode.vnode->ln->h.type== LNODE_DENTRY);
+	assert("get_tube_general: src no dentry",source->vnode.v->ln->h.type== LNODE_DENTRY);
 	assert("get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
 
 	tube->buf = kmalloc(PUMP_BUF_SIZE, GFP_KERNEL);
