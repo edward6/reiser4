@@ -198,7 +198,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* number of bits in size of VFS block (512==2^9) */
 #define VFS_BLKSIZE_BITS 9
 
-#define REISER4_I reiser4_inode_by_inode
+#define REISER4_I reiser4_inode_data
 
 /* implication */
 #define ergo( antecedent, consequent ) ( !( antecedent ) || ( consequent ) )

@@ -83,7 +83,7 @@ typedef __u32 oid_hi_t;
 typedef struct reiser4_inode reiser4_inode;
 /* return pointer to reiser4-specific part of inode */
 static inline reiser4_inode *
-reiser4_inode_by_inode(const struct inode * inode /* inode queried */);
+reiser4_inode_data(const struct inode * inode /* inode queried */);
 
 #include "plugin/file/file.h"
 
@@ -133,7 +133,7 @@ typedef struct reiser4_inode_object {
 } reiser4_inode_object;
 
 static inline reiser4_inode *
-reiser4_inode_by_inode(const struct inode * inode /* inode queried */)
+reiser4_inode_data(const struct inode * inode /* inode queried */)
 {
 	assert("nikita-254", inode != NULL);
 	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
@@ -168,14 +168,14 @@ extern void inode_invariant(const struct inode *inode);
 
 static inline void spin_lock_inode(struct inode *inode)
 {
-	spin_lock_inode_object(reiser4_inode_by_inode(inode));
+	spin_lock_inode_object(reiser4_inode_data(inode));
 	inode_invariant(inode);
 }
 
 static inline void spin_unlock_inode(struct inode *inode)
 {
 	inode_invariant(inode);
-	spin_unlock_inode_object(reiser4_inode_by_inode(inode));
+	spin_unlock_inode_object(reiser4_inode_data(inode));
 }
 
 extern int reiser4_max_filename_len(const struct inode *inode);
@@ -240,7 +240,7 @@ extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 static inline readdir_list_head *
 get_readdir_list(const struct inode *inode)
 {
-	return &reiser4_inode_by_inode(inode)->readdir_list;
+	return &reiser4_inode_data(inode)->readdir_list;
 }
 
 #if REISER4_DEBUG_OUTPUT

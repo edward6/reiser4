@@ -594,7 +594,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 static struct list_head *
 get_moved_pages(struct address_space *mapping)
 {
-	return &reiser4_inode_by_inode(mapping->host)->moved_pages;
+	return &reiser4_inode_data(mapping->host)->moved_pages;
 }
 
 /* address space operations */
@@ -1430,7 +1430,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	reiser4_inode *info;
 
-	info = reiser4_inode_by_inode(inode);
+	info = reiser4_inode_data(inode);
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
 	assert("vs-1220", list_empty(&info->eflushed_jnodes));
@@ -1448,7 +1448,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	}
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
-		assert("nikita-2828", reiser4_inode_by_inode(inode)->eflushed == 0);
+		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
 		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
@@ -2277,7 +2277,7 @@ read_super_block:
 	if (inode->i_state & I_NEW) {
 		reiser4_inode *info;
 
-		info = reiser4_inode_by_inode(inode);
+		info = reiser4_inode_data(inode);
 
 		grab_plugin_from(info, file, default_file_plugin(s));
 		grab_plugin_from(info, dir, default_dir_plugin(s));

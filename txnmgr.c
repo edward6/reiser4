@@ -1939,7 +1939,7 @@ int capture_inode(struct inode *inode)
 	int result;
 	jnode *j;
 
-	j = &(reiser4_inode_by_inode(inode)->inode_jnode);
+	j = &(reiser4_inode_data(inode)->inode_jnode);
 	LOCK_JNODE(j);
 	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
 	if (result)
@@ -1956,7 +1956,7 @@ int uncapture_inode(struct inode *inode)
 	txn_atom *atom;
 	jnode *j;
 
-	j = &(reiser4_inode_by_inode(inode)->inode_jnode);
+	j = &(reiser4_inode_data(inode)->inode_jnode);
 
 	LOCK_JNODE(j);
 
@@ -2992,7 +2992,7 @@ int capture_inode(txn_handle * txnh, struct inode *inode)
 	txn_atom *atom;
 	reiser4_inode *r4_inode;
 
-	r4_inode = reiser4_inode_by_inode(inode);
+	r4_inode = reiser4_inode_data(inode);
 	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
 	protect_inode_atom_pointer(r4_inode);
 
@@ -3070,7 +3070,7 @@ int uncapture_inode(struct inode *inode)
 	txn_atom *atom;
 	reiser4_inode *r4_inode;
 
-	r4_inode = reiser4_inode_by_inode(inode);
+	r4_inode = reiser4_inode_data(inode);
 
 	protect_inode_atom_pointer(r4_inode);
 	atom = atom_locked_by_inode(r4_inode);

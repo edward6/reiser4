@@ -386,7 +386,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	xmemset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
-	plugin_set_file(&reiser4_inode_by_inode(object)->pset, obj_plug);
+	plugin_set_file(&reiser4_inode_data(object)->pset, obj_plug);
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx", data->id, get_inode_oid(object));
@@ -419,7 +419,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	if ((obj_dir != NULL) && (obj_dir->init == NULL))
 		return -EPERM;
 
-	reiser4_inode_by_inode(object)->locality_id = get_inode_oid(parent);
+	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
 	reserve = common_estimate_create_child(parent, object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
@@ -748,7 +748,7 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 	build_de_id(dir, &de->d_name, &mod_point.dir_entry_key);
 	mod_point.pos = offset;
 
-	info = reiser4_inode_by_inode(dir);
+	info = reiser4_inode_data(dir);
 	spin_lock_inode(dir);
 
 	for (scan = readdir_list_front(get_readdir_list(dir));

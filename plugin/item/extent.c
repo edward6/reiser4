@@ -510,7 +510,7 @@ static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
 	
 	spin_lock_eflush(tree->super);
 
-	info = reiser4_inode_by_inode(inode);
+	info = reiser4_inode_data(inode);
 	list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
 		eflush_node_t *ef;
 		jnode *j;

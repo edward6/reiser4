@@ -44,7 +44,7 @@ extern int common_file_save(struct inode *inode);
 	crc_data = data->crc;
 	assert("edward-28", crc_data != NULL);
 	
-	info = reiser4_inode_by_inode(object);
+	info = reiser4_inode_data(object);
 	assert("edward-29", info != NULL);
 		
 	cplug = crypto_plugin_by_id(crc_data->cra);

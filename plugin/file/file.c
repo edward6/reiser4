@@ -23,7 +23,7 @@ int extent2tail(struct inode *);
 /* get unix file plugin specific portion of inode */
 inline unix_file_info_t *unix_file_inode_data(const struct inode * inode)
 {
-	return &reiser4_inode_by_inode(inode)->file_plugin_data.unix_file_info;
+	return &reiser4_inode_data(inode)->file_plugin_data.unix_file_info;
 }
 
 int file_state_is_known(const struct inode *inode)
@@ -1474,8 +1474,6 @@ static int
 unpack(struct inode *inode)
 {
 	int            result = 0;
-	reiser4_inode *state;
-	tail_plugin   *tplug;
 
 	get_exclusive_access(inode);
 
@@ -1507,7 +1505,7 @@ unpack(struct inode *inode)
 		tograb = inode_file_plugin(inode)->estimate.update(inode);
 		result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
 		if (result == 0)
-			result = reiser4_write_sd(inode);
+			result = reiser4_mark_inode_dirty(inode);
 	}
 
 	return result;

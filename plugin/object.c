@@ -194,7 +194,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	if (!inode_get_flag(inode, REISER4_NO_SD))
 		return 0;
 
-	ref = reiser4_inode_by_inode(inode);
+	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
 	grab_plugin_from(ref, sd, inode_sd_plugin(inode));
 
@@ -284,7 +284,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	reiser4_inode     *state;
 	znode             *loaded;
 
-	state = reiser4_inode_by_inode(inode);
+	state = reiser4_inode_data(inode);
 
 	result = zload(coord->node);
 	if (result != 0)
@@ -364,7 +364,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 
 	init_lh(&lh);
 
-	state = reiser4_inode_by_inode(inode);
+	state = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
 	coord = state->sd_coord;
 	seal = state->sd_seal;
@@ -536,12 +536,12 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops(object, data);
 	/* i_nlink is left 1 here as set by new_inode() */
-	seal_init(&reiser4_inode_by_inode(object)->sd_seal, NULL, NULL);
+	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
 	mask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
 		mask |= (1 << LARGE_TIMES_STAT);
 
-	scint_pack(&reiser4_inode_by_inode(object)->extmask, mask, GFP_ATOMIC);
+	scint_pack(&reiser4_inode_data(object)->extmask, mask, GFP_ATOMIC);
 	return 0;
 }
 
@@ -587,7 +587,7 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 		fplug_id = UNIX_FILE_PLUGIN_ID;
 		break;
 	}
-	info = reiser4_inode_by_inode(inode);
+	info = reiser4_inode_data(inode);
 	plugin_set_file(&info->pset, 
 			(fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL);
 	plugin_set_dir(&info->pset, 
@@ -743,8 +743,8 @@ common_adjust_to_parent(struct inode *object /* new object */ ,
 		parent = root;
 	assert("nikita-2069", parent != NULL);
 
-	self = reiser4_inode_by_inode(object);
-	ancestor = reiser4_inode_by_inode(parent);
+	self = reiser4_inode_data(object);
+	ancestor = reiser4_inode_data(parent);
 
 	grab_plugin(self, ancestor, file);
 	grab_plugin(self, ancestor, sd);
@@ -767,8 +767,8 @@ dir_adjust_to_parent(struct inode *object /* new object */ ,
 		parent = root;
 	assert("nikita-2167", parent != NULL);
 
-	self = reiser4_inode_by_inode(object);
-	ancestor = reiser4_inode_by_inode(parent);
+	self = reiser4_inode_data(object);
+	ancestor = reiser4_inode_data(parent);
 
 	grab_plugin(self, ancestor, file);
 	grab_plugin(self, ancestor, dir);
