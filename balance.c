@@ -111,7 +111,11 @@ int balance_level_slum (slum_scan *scan)
 		/* FIXME_JMACD: We need to avoid fusing atoms due to a
 		 * WRITE_LOCK request without modification, otherwise the
 		 * scan->atom != target->atom test will never do anything.
-		 * Think about that.
+		 * Think about that.  Realistically, we can check in_slum
+		 * without getting the long-term lock.  That's a decent
+		 * solution.  Capturing after the lock request leads to
+		 * blocking with a lock held -- to be avoided for reasons
+		 * discussed at the top of lock.c
 		 */
 		result = reiser4_get_right_neighbor (source_lh, frontier, 
 						     ZNODE_WRITE_LOCK, 0);

@@ -84,3 +84,49 @@ if ( (new_parent = parent(current_leaf)) != parent)
 }
 
 
+################################################################################
+
+
+The Problem:
+
+We need to know the relocate set in order to perform a left-to-right
+parent-first allocate-and-squeeze traversal over a dirty sub-tree.  We
+could make this decision during the allocate-and-squeeze pass, but in
+that case we would discover a node is dirty when we have already
+passed over its position in the parent-first ordering.  In otherwords,
+we would discover this information too late to be useful.
+
+The Solution:
+
+Maintain an active count of dirty children for each node.  This allows
+us to mark a node dirty whenever its dirty count becomes >= 2 because
+at that point overwriting the parent reduces the total number of
+blocks written to disk.  How much of a counter is needed?  In order to
+keep track of additions and subtractions to this count, a counter at
+the same size as our znode's c_count field is needed.  If this value
+were only ever incremented, then we could use a single bit (0 = no
+dirty children, 1 = single dirty child, otherwise mark dirty &
+relocate).  But since a node may have dirty children added while
+flushes are active (it can happen, right) this requires more than just
+a bit.  I worry about the complexity of maintaining this dirty count,
+but I fear that the parent-first allocation policy will not succeed
+without knowing before-hand all the dirty nodes it must consider.
+
+The Algorithm:
+
+Given the above assumption, that nodes are marked dirty whenever they
+should be relocated (i.e., that the flush algorithm does not make this
+decision during as part of its passing over the tree).
+
+Starting from some leaf node, find the maximal dirty ancestor (note:
+no scan left involved).  From the maximal dirty ancestor, find the
+leftmost in-memory descendant.  If the leftmost descendant is dirty,
+consider its left neighbor.  If the neighbor is also dirty, repeat the
+steps of this paragraph starting at that node.  If the neighbor is not
+dirty, save the maximal dirty parent of the leftmost descendant.
+
+Now we have found the maximal dirty ancestor from which to begin
+allocating and squeezing.  From this point we will traverse all
+descendants of the maximal dirty ancestor, in parent-first order,
+allocating blocks and squeezing nodes in the Right Order.  I will
+define this order tomorrow.
