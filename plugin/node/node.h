@@ -250,7 +250,13 @@ extern reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key );
 extern void print_znode_content( const znode *node, __u32 flags );
 extern void indent( unsigned indentation );
 extern void indent_znode( const znode *node );
+
+#if REISER4_DEBUG
 extern void node_check( const znode *node, __u32 flags );
+#else
+#define node_check( n, f )noop
+#endif
+
 extern void indent_znode( const znode *node );
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE

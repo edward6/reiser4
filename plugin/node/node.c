@@ -186,6 +186,7 @@ void print_znode_content( const znode *node, __u32 flags )
 	info( "\n" );
 }
 
+#if REISER4_DEBUG
 /**
  * debugging aid: check consistency of @node content
  */
@@ -201,7 +202,7 @@ void node_check( const znode *node, __u32 flags )
 			rpanic( "vs-273", "node corrupted" );
 	}
 }
-
+#endif
 
 
 reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
