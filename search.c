@@ -1428,9 +1428,8 @@ block_nr_is_correct(reiser4_block_nr * block UNUSED_ARG	/* block
 	assert("nikita-757", block != NULL);
 	assert("nikita-758", tree != NULL);
 
-	/* XXX add some sensible checks here */
 	/* check to see if it exceeds the size of the device. */
-	return 1;
+	return reiser4_blocknr_is_sane_for(tree->super, block);
 }
 
 /* check consistency of fields */

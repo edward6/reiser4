@@ -414,6 +414,26 @@ default_dir_item_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.dir_item;
 }
 
+int reiser4_blocknr_is_sane_for(const struct super_block *super, 
+				const reiser4_block_nr *blk)
+{
+	reiser4_super_info_data *info;
+
+	assert("nikita-2957", super != NULL);
+	assert("nikita-2958", blk != NULL);
+
+	if (blocknr_is_fake(blk))
+		return 1;
+
+	info = get_super_private(super);
+	return *blk < info->block_count;
+}
+
+int reiser4_blocknr_is_sane(const reiser4_block_nr *blk)
+{
+	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
+}
+
 #if REISER4_DEBUG_OUTPUT
 void
 print_fs_info(const char *prefix, const struct super_block *s)

@@ -390,6 +390,11 @@ perm_plugin *default_perm_plugin(const struct super_block *super);
 tail_plugin *default_tail_plugin(const struct super_block *super);
 item_plugin *default_sd_plugin(const struct super_block *super);
 item_plugin *default_dir_item_plugin(const struct super_block *super);
+
+extern int reiser4_blocknr_is_sane(const reiser4_block_nr *blk);
+extern int reiser4_blocknr_is_sane_for(const struct super_block *super, 
+				       const reiser4_block_nr *blk);
+
 #if REISER4_DEBUG_OUTPUT
 void print_fs_info(const char *prefix, const struct super_block *);
 #else
