@@ -3901,7 +3901,7 @@ void uncapture_block(jnode * node)
 	LOCK_CNT_DEC(t_refs);
 }
 
-/* Unconditional insert of jnode into atom's clean list. Currently used in
+/* Unconditional insert of jnode into atom's overwrite list. Currently used in
    bitmap-based allocator code for adding modified bitmap blocks the
    transaction. @atom and @node are spin locked */
 void
