@@ -1654,6 +1654,7 @@ static int flush_finish (flush_position *pos, int finish)
 		/* Lock the first page, test writeback. */
 		cpage = jnode_page (check);
 		lock_page (cpage);
+
 		if (PageWriteback (cpage)) {
 			/* FIXME: It is being written, presumably it is clean already?  In
 			 * any case, deal with it later. */
@@ -1841,6 +1842,26 @@ static int flush_rewrite_jnode (jnode *node)
 	jnode_set_clean (node);
 
 	lock_page (pg);
+
+	if (unlikely (pg->mapping == NULL)) {
+		/*
+		 * page was freed while we were waiting for the lock.
+		 *
+		 * FIXME:NIKITA->JMACD such checks should go after each
+		 * lock_page().
+		 */
+		unlock_page (pg);
+		return 0;
+	}
+
+	/*
+	 * FIXME-NIKITA not sure about this. mpage.c:mpage_writepages() does
+	 * this,
+	 */
+	if (unlikely (PageWriteback (pg))) {
+		unlock_page (pg);
+		return 0;
+	}
 
 	/*
 	 * FIXME:NIKITA->JMACD I see this failing when called from

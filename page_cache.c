@@ -511,8 +511,6 @@ int page_io( struct page *page, int rw, int gfp )
 	bio = page_bio( page, rw, gfp );
 	if( !IS_ERR( bio ) ) {
 		if( rw == WRITE ) {
-			if( unlikely( PageWriteback( page ) ) )
-				return 0;
 			SetPageWriteback( page );
 			unlock_page(page);
 		}
