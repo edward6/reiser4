@@ -183,7 +183,10 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 
 
 #if REISER4_DEBUG
-	private->kmalloc_allocated = 0;
+	/*
+	 * FIXME-VS: init_tree worked already
+	 */
+	/*private->kmalloc_allocated = 0;*/
 #endif
 	return 0;
 }
