@@ -8,6 +8,7 @@
 #define KEY_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 extern errno_t reiser4_key_init(reiser4_key_t *key, 
     reiser4_plugin_t *plugin, const void *data);
@@ -48,6 +49,10 @@ extern uint64_t reiser4_key_get_hash(reiser4_key_t *key);
 
 extern oid_t reiser4_key_get_objectid(reiser4_key_t *key);
 extern oid_t reiser4_key_get_locality(reiser4_key_t *key);
+extern void reiser4_key_maximal(reiser4_key_t *key);
+extern void reiser4_key_minimal(reiser4_key_t *key);
+extern void reiser4_key_print(reiser4_key_t *key, char *buffer, uint32_t size, 
+    uint16_t options);
 
 #endif
 

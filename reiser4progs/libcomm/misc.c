@@ -89,7 +89,7 @@ long int reiser4_comm_strtol(
 
 char *reiser4_comm_strcat(
     char *dest,		    /* a buffer where result will be stored */
-    size_t n,		    /* size of the buffer */
+    uint32_t n,		    /* size of the buffer */
     const char *src,	    /* format string */
     ...			    /* list of params */
 ) {

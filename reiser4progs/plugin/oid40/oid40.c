@@ -85,9 +85,9 @@ static void oid40_dealloc(reiser4_entity_t *entity,
     ((oid40_t *)entity)->used--;
 }
 
-static errno_t oid40_valid(reiser4_entity_t *entity, 
-    int flags) 
-{
+#endif
+
+static errno_t oid40_valid(reiser4_entity_t *entity, int flags) {
     aal_assert("umka-966", entity != NULL, return -1);
 
     if (((oid40_t *)entity)->next < OID40_ROOT_PARENT_LOCALITY)
@@ -95,8 +95,6 @@ static errno_t oid40_valid(reiser4_entity_t *entity,
     
     return 0;
 }
-
-#endif
 
 static oid_t oid40_free(reiser4_entity_t *entity) {
     aal_assert("umka-961", entity != NULL, return 0);

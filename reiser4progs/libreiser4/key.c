@@ -250,3 +250,36 @@ oid_t reiser4_key_get_locality(reiser4_key_t *key) {
 	get_locality, key->body);
 }
 
+/* Returns the maximal possible key  */
+void reiser4_key_maximal(reiser4_key_t *key) {
+    void *body;
+    
+    aal_assert("vpf-185", key != NULL, return);
+    aal_assert("vpf-186", key->plugin != NULL, return);
+
+    body = libreiser4_plugin_call(return, key->plugin->key_ops, maximal);
+
+    aal_memcpy(key->body, body, REISER4_KEY_SIZE);
+}
+
+/* Returns the minimal possible key */
+void reiser4_key_minimal(reiser4_key_t *key) {
+    void *body;
+    
+    aal_assert("vpf-187", key != NULL, return);
+    aal_assert("vpf-188", key->plugin != NULL, return);
+
+    body = libreiser4_plugin_call(return, key->plugin->key_ops, minimal);
+
+    aal_memcpy(key->body, body, REISER4_KEY_SIZE);
+}
+
+void reiser4_key_print(reiser4_key_t *key, char *buffer, uint32_t size, 
+    uint16_t options) 
+{
+    aal_assert("vpf-189", key != NULL, return);
+    aal_assert("vpf-190", key->plugin != NULL, return);
+
+    libreiser4_plugin_call(return, key->plugin->key_ops, 
+	print, key->body, buffer, size, options); 
+}

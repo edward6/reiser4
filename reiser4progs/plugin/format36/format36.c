@@ -316,7 +316,9 @@ static reiser4_plugin_t format36_plugin = {
 	
 	.get_height	= NULL,
 	.oid_area	= NULL,
-	.journal_area	= NULL
+	.journal_area	= NULL,
+	.data_block	= NULL,
+	.alloc_block	= NULL
     }
 };
 

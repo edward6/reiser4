@@ -4,8 +4,6 @@
     Author Yury Umanets.
 */
 
-#include <aal/aal.h>
-#include <reiser4/plugin.h>
 #include "key40.h"
 
 static reiser4_core_t *core = NULL;
@@ -275,6 +273,9 @@ static errno_t key40_build_by_entry(reiser4_body_t *body,
     return 0;
 }
 
+extern void key40_print(reiser4_body_t *body, char *buffer, uint32_t size, 
+    uint16_t options);
+
 static reiser4_plugin_t key40_plugin = {
     .key_ops = {
 	.h = {
@@ -314,7 +315,9 @@ static reiser4_plugin_t key40_plugin = {
 	.build_objid	= key40_build_objid,
 	.build_entryid  = key40_build_entryid,
 	
-	.build_by_entry	= key40_build_by_entry
+	.build_by_entry	= key40_build_by_entry,
+
+	.print		= key40_print
     }
 };
 

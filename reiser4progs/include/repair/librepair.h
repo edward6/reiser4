@@ -11,10 +11,11 @@
 #  include <config.h>
 #endif
 
-#include <reiser4/reiser4.h>
 #include <repair/repair.h>
 #include <repair/filesystem.h>
 #include <repair/format.h>
+#include <repair/node.h>
+#include <reiser4/reiser4.h>
 
 /*  -------------------------------------------------
     | Common scheem for communication with users.   |

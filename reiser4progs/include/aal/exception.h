@@ -66,7 +66,8 @@ extern aal_exception_option_t aal_exception_option(aal_exception_t *ex);
 extern void aal_exception_set_handler(aal_exception_handler_t handler);
 
 extern aal_exception_option_t aal_exception_throw(aal_exception_type_t type, 
-    aal_exception_option_t opt, const char *message, ...) __check_format__(printf, 3, 4);
+    aal_exception_option_t opt, const char *message, ...) ;
+//__check_format__(printf, 3, 4);
 
 extern void aal_exception_fetch_all(void);
 extern void aal_exception_leave_all(void);

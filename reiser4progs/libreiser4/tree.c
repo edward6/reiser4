@@ -67,8 +67,6 @@ error_free_block:
     return NULL;
 }
 
-#endif
-
 static void reiser4_tree_dealloc(reiser4_tree_t *tree, 
     reiser4_cache_t *cache) 
 {
@@ -80,6 +78,8 @@ static void reiser4_tree_dealloc(reiser4_tree_t *tree,
     
     reiser4_cache_close(cache);
 }
+
+#endif
 
 static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree, 
     blk_t blk) 
@@ -364,7 +364,7 @@ int reiser4_tree_lookup(
 	    if (reiser4_cache_register(parent, coord->cache)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't register node %llu in the tree.", blk);
-		reiser4_tree_dealloc(tree, coord->cache);
+		reiser4_cache_close(coord->cache);
 		return -1;
 	    }
 	}
@@ -465,7 +465,7 @@ static errno_t reiser4_tree_attach(
 
     aal_memset(&internal, 0, sizeof(internal));
     
-    reiser4_node_ldkey(cache->node, &ldkey);
+    reiser4_node_lkey(cache->node, &ldkey);
     internal.pointer = aal_block_get_nr(cache->node->block);
     reiser4_key_init(&internal_item.key, ldkey.plugin, ldkey.body);
 
@@ -1165,7 +1165,7 @@ errno_t reiser4_tree_traverse(
 		    result = reiser4_tree_traverse(device, block, open_func, 
 			before_func, setup_func, update_func, after_func, data);
 
-		    if (update_func && !update_func(node, pos.item, data))
+		    if (update_func && !(result = update_func(node, pos.item, data)))
 			goto error_free_node;
 		}
 	    }
@@ -1176,7 +1176,7 @@ errno_t reiser4_tree_traverse(
 	goto error_free_node;
 
     reiser4_node_close(node);
-    return result;
+    return 0;
 
 error_free_node:
     reiser4_node_close(node);

@@ -147,7 +147,7 @@ errno_t reiser4_node_close(reiser4_node_t *node) {
 }
 
 /* Gets right delimiting key from the specified node */
-errno_t reiser4_node_rdkey(
+errno_t reiser4_node_rkey(
     reiser4_node_t *node,	/* node the rdkey will be obtained from */
     reiser4_key_t *key		/* key pointer to store the found rdkey */
 ) {
@@ -163,7 +163,7 @@ errno_t reiser4_node_rdkey(
 }
 
 /* Gets left delemiting key from the specified node */
-errno_t reiser4_node_ldkey(
+errno_t reiser4_node_lkey(
     reiser4_node_t *node,	/* node the ldkey will be obtained from */
     reiser4_key_t *key		/* key pointer found key will be stored in */
 ) {
@@ -570,7 +570,7 @@ reiser4_body_t *reiser4_node_item_body(
 /* Returns key from specified node at sepcified pos */
 errno_t reiser4_node_get_key(
     reiser4_node_t *node,	/* node key will be got from */
-    reiser4_pos_t *pos,	/* pos key will be got at */
+    reiser4_pos_t *pos,		/* pos key will be got at */
     reiser4_key_t *key		/* place found key will be stored in */
 ) {
     errno_t res;
@@ -583,6 +583,11 @@ errno_t reiser4_node_get_key(
 	    get_key, node->entity, pos, key)))
 	return res;
 
+    /* 
+	FIXME-VITALY: when this guess will check key structure, plugin 
+	should be set outside here. Fsck should be able to recover such 
+	keys but it won't getting -1.
+    */
     return -((key->plugin = reiser4_key_guess(&key->body)) == NULL);
 }
 

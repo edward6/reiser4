@@ -95,7 +95,7 @@ static reiser4_plugin_t internal40_plugin = {
 	    .init	= internal40_init,
 	    .estimate	= internal40_estimate,
 #else
-	    .create	= NULL,
+	    .init	= NULL,
 	    .estimate	= NULL,
 #endif
 	    .lookup	= NULL,

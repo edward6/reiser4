@@ -39,10 +39,10 @@ extern errno_t reiser4_node_move(reiser4_node_t *dst_node,
 
 #endif
 
-extern errno_t reiser4_node_rdkey(reiser4_node_t *node, 
+extern errno_t reiser4_node_rkey(reiser4_node_t *node, 
     reiser4_key_t *key);
 
-extern errno_t reiser4_node_ldkey(reiser4_node_t *node, 
+extern errno_t reiser4_node_lkey(reiser4_node_t *node, 
     reiser4_key_t *key);
 
 extern uint32_t reiser4_node_count(reiser4_node_t *node);

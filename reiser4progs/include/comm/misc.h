@@ -16,7 +16,7 @@
 #include <errno.h>
 
 extern long int reiser4_comm_strtol(const char *str, int *error);
-extern char *reiser4_comm_strcat(char *dest, size_t n, const char *src, ...) 
+extern char *reiser4_comm_strcat(char *dest, uint32_t n, const char *src, ...) 
     __check_format__(printf, 3, 4);
     
 #endif

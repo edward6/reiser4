@@ -5,6 +5,7 @@
 */
 
 #include <reiser4/reiser4.h>
+#include <printf.h>
 
 /* 
     Initializing the libreiser4 core instance. It will be passed into all plugins 
@@ -175,6 +176,35 @@ static inline reiser4_id_t __item_pid(
     }
 }
 
+#ifndef ENABLE_COMPACT
+
+/* %k */
+#define PA_REISER4_KEY          (PA_LAST)
+
+static int _arginfo_k (const struct printf_info *info, size_t n, int *argtypes) {
+    if (n > 0)
+        argtypes[0] = PA_REISER4_KEY | PA_FLAG_PTR;
+    return 1;
+}
+
+static int __print_key(FILE * stream, const struct printf_info *info, 
+    const void *const *args) 
+{
+    reiser4_key_t *key;
+    char buffer[100];
+    int len;
+
+    aal_memset(buffer, 0, 100);
+    key = *((reiser4_key_t **)(args[0]));
+    reiser4_key_print(key, buffer, 100, 0);
+
+    fprintf(stream, "%s", buffer);
+    
+    return aal_strlen(buffer);
+}
+
+#endif
+
 reiser4_core_t core = {
     .factory_ops = {
 	/* Installing callback for make search for a plugin by its attributes */
@@ -256,6 +286,10 @@ errno_t libreiser4_init(
     }
 
     mlimit = mem_limit;
+
+#ifndef ENABLE_COMPACT
+    register_printf_function ('k', __print_key, _arginfo_k);
+#endif
     
     return 0;
 }

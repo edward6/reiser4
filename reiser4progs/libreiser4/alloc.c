@@ -70,7 +70,7 @@ error_free_alloc:
     plugin in order to initialize allocator instance and returns instance to caller.
 */
 reiser4_alloc_t *reiser4_alloc_create(
-    reiser4_format_t *format	    /* disk-format block allocator is going to be created on */
+    reiser4_format_t *format	    /* format block allocator is going to be created on */
 ) {
     count_t len;
     reiser4_id_t pid;

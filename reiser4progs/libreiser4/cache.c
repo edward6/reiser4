@@ -65,7 +65,7 @@ static int callback_comp_for_find(
 ) {
     reiser4_key_t ldkey;
     
-    reiser4_node_ldkey(cache->node, &ldkey);
+    reiser4_node_lkey(cache->node, &ldkey);
     return reiser4_key_compare(&ldkey, key) == 0;
 }
 
@@ -153,7 +153,7 @@ errno_t reiser4_cache_pos(
     if (!cache->parent)
 	return -1;
     
-    reiser4_node_ldkey(cache->node, &ldkey);
+    reiser4_node_lkey(cache->node, &ldkey);
     
     if (reiser4_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -224,8 +224,8 @@ static int callback_comp_for_register(
 ) {
     reiser4_key_t ldkey1, ldkey2;
     
-    reiser4_node_ldkey(cache1->node, &ldkey1);
-    reiser4_node_ldkey(cache2->node, &ldkey2);
+    reiser4_node_lkey(cache1->node, &ldkey1);
+    reiser4_node_lkey(cache2->node, &ldkey2);
     
     return reiser4_key_compare(&ldkey1, &ldkey2);
 }
@@ -274,7 +274,7 @@ errno_t reiser4_cache_register(
     
     /* Setting up neighbours */
     if (left) {
-	if (reiser4_node_ldkey(left->node, &ldkey))
+	if (reiser4_node_lkey(left->node, &ldkey))
 	    return -1;
 	
 	/* Getting left neighbour key */
@@ -286,7 +286,7 @@ errno_t reiser4_cache_register(
     }
    
     if (right) {
-	if (reiser4_node_ldkey(right->node, &ldkey))
+	if (reiser4_node_lkey(right->node, &ldkey))
 	    return -1;
 	
 	/* Getting right neighbour key */
@@ -499,7 +499,7 @@ errno_t reiser4_cache_remove(
 	if (reiser4_node_count(cache->node) > 0) {
 	    reiser4_key_t ldkey;
 	    
-	    reiser4_node_ldkey(cache->node, &ldkey);
+	    reiser4_node_lkey(cache->node, &ldkey);
 	    
 	    if (reiser4_cache_set_key(cache->parent, &p, &ldkey))
 		return -1;
@@ -582,7 +582,7 @@ errno_t reiser4_cache_move(
     {
 	reiser4_key_t ldkey;
 	
-	reiser4_node_ldkey(dst_cache->node, &ldkey);
+	reiser4_node_lkey(dst_cache->node, &ldkey);
 	
 	if (reiser4_node_count(dst_cache->node) > 1) {
 		
@@ -607,7 +607,7 @@ errno_t reiser4_cache_move(
 	{
 	    reiser4_key_t ldkey;
 	
-	    reiser4_node_ldkey(src_cache->node, &ldkey);
+	    reiser4_node_lkey(src_cache->node, &ldkey);
 	
 	    if (reiser4_cache_set_key(src_cache->parent, &sp, &ldkey))
 		return -1;

@@ -1,7 +1,11 @@
 includedir			= -I$(top_srcdir)/include
 libdir				= $(plugindir)
 
+if ENABLE_COMPACT
 key40_sources			= key40.c key40.h
+else
+key40_sources                   = key40.c key40_repair.c key40.h
+endif
 
 lib_LTLIBRARIES			= libkey40.la
 noinst_LTLIBRARIES		= libkey40-static.la

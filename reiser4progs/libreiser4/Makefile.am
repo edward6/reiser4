@@ -11,14 +11,11 @@ noinst_LTLIBRARIES	     = libreiser4-static.la
 libreiser4_la_LDFLAGS	     = -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) -release $(LT_RELEASE)
 
 if ENABLE_MONOLITHIC
-
 libreiser4_la_LIBADD	     = $(top_builddir)/libaal/libaal.la \
 			       $(top_builddir)/libcomm/libcomm-static.la \
 			       $(top_builddir)/plugin/libreiser4-plugin.la
 else
-
 libreiser4_la_LIBADD	     = $(top_builddir)/libaal/libaal.la @LIBREISER4_LIBS@
-
 endif
 
 libreiser4_la_SOURCES	     = $(libreiser4_sources)

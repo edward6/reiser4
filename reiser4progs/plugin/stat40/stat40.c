@@ -184,7 +184,7 @@ static reiser4_plugin_t stat40_plugin = {
 	    .init	= stat40_init,
 	    .estimate	= stat40_estimate,
 #else
-	    .create	= NULL,
+	    .init	= NULL,
 	    .estimate	= NULL,
 #endif
 	    .maxkey	= NULL,

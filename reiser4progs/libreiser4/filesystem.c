@@ -246,17 +246,13 @@ reiser4_fs_t *reiser4_fs_create(
     /* Creates block allocator */
     if (!(fs->alloc = reiser4_alloc_create(fs->format)))
 	goto error_free_format;
-
-    if (reiser4_format_mark(fs->format, fs->alloc))
-	goto error_free_alloc;
     
     /* Creates journal on journal device */
     if (!(fs->journal = reiser4_journal_create(fs->format, 
 	    journal_device, journal_params)))
 	goto error_free_alloc;
    
-    if (reiser4_format_mark_journal(fs->format, fs->alloc))
-	goto error_free_journal;
+    reiser4_format_mark(fs->format, fs->alloc);
     
     /* Initializes oid allocator */
     if (!(fs->oid = reiser4_oid_create(fs->format)))

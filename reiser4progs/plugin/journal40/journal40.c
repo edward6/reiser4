@@ -127,22 +127,6 @@ error:
     return NULL;
 }
 
-static errno_t journal40_valid(reiser4_entity_t *entity, 
-    int flags) 
-{
-    journal40_t *journal = (journal40_t *)entity;
-    
-    aal_assert("umka-965", journal != NULL, return -1);
-    
-    if (journal40_hcheck(journal->header->data, journal->device))
-	return -1;
-	
-    if (journal40_fcheck(journal->footer->data, journal->device))
-	return -1;
-    
-    return 0;
-}
-
 static errno_t journal40_sync(reiser4_entity_t *entity) {
     journal40_t *journal = (journal40_t *)entity;
 
@@ -167,6 +151,22 @@ static errno_t journal40_sync(reiser4_entity_t *entity) {
 }
 
 #endif
+
+static errno_t journal40_valid(reiser4_entity_t *entity, 
+    int flags) 
+{
+    journal40_t *journal = (journal40_t *)entity;
+    
+    aal_assert("umka-965", journal != NULL, return -1);
+    
+    if (journal40_hcheck(journal->header->data, journal->device))
+	return -1;
+	
+    if (journal40_fcheck(journal->footer->data, journal->device))
+	return -1;
+    
+    return 0;
+}
 
 static void journal40_close(reiser4_entity_t *entity) {
     journal40_t *journal = (journal40_t *)entity;

@@ -366,7 +366,7 @@ static reiser4_plugin_t direntry40_plugin = {
 	    .remove	= direntry40_remove,
 	    .estimate	= direntry40_estimate,
 #else
-	    .create	= NULL,
+	    .init	= NULL,
 	    .estimate	= NULL,
 	    .insert	= NULL,
 	    .remove	= NULL,
