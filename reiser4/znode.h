@@ -554,6 +554,11 @@ static inline int jnode_is_dirty( const jnode *node )
 	return JF_ISSET( node, ZNODE_DIRTY );
 }
 
+static inline int jnode_is_unformatted( const jnode *node)
+{
+	return JF_ISSET (node, ZNODE_UNFORMATTED);
+}
+
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
  * doesn't allow overloading of const prototypes. */
 #define ZJNODE(x) (& (x) -> zjnode)
