@@ -446,17 +446,20 @@ extern void flush_fuse_queues(txn_atom * large, txn_atom * small);
 #define spin_ordering_pred_atom(atom)				\
 	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_zlock == 0 ) &&	\
 	  ( lock_counters() -> rw_locked_dk == 0 ) &&		\
 	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 #define spin_ordering_pred_txnh(txnh)				\
 	( ( lock_counters() -> rw_locked_dk == 0 ) &&		\
+	  ( lock_counters() -> spin_locked_zlock == 0 ) &&	\
 	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 #define spin_ordering_pred_txnmgr(tmgr) 			\
 	( ( lock_counters() -> spin_locked_atom == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_zlock == 0 ) &&	\
 	  ( lock_counters() -> rw_locked_dk == 0 ) &&		\
 	  ( lock_counters() -> rw_locked_tree == 0 ) )
 

@@ -156,6 +156,7 @@ inode_by_reiser4_inode(const reiser4_inode *r4_inode /* inode queried */)
 	( lock_counters() -> rw_locked_dk == 0 ) &&		\
 	( lock_counters() -> rw_locked_tree == 0 ) &&		\
 	( lock_counters() -> spin_locked_txnh == 0 ) &&		\
+	( lock_counters() -> spin_locked_zlock == 0 ) &&	\
 	( lock_counters() -> spin_locked_jnode == 0 ) &&	\
 	( lock_counters() -> spin_locked_atom == 0 ) &&		\
 	( lock_counters() -> spin_locked_ktxnmgrd == 0 ) &&	\

@@ -674,6 +674,7 @@ no_counters_are_held()
 
 	counters = lock_counters();
 	return
+		(counters->spin_locked_zlock == 0) &&
 		(counters->spin_locked_jnode == 0) &&
 		(counters->rw_locked_tree == 0) &&
 		(counters->read_locked_tree == 0) &&
