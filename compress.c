@@ -10,6 +10,30 @@
 #include <linux/vmalloc.h>
 #include <linux/types.h>
 
+static void
+null_compress(void * ctx, __u8 *src_first, unsigned src_len,
+	      __u8 *dst_first, unsigned *dst_len)
+{
+	int i;
+	assert("edward-793", ctx == NULL);
+	assert("edward-794", src_first != NULL);
+	assert("edward-795", dst_first != NULL);
+	assert("edward-796", src_len != 0);
+	assert("edward-797", dst_len != NULL);
+	
+	for (i=0; i < NONE_NRCOPY; i++)
+		fast_copy(src_first, dst_first, src_len);
+	*dst_len = src_len;
+	return;
+}
+
+static void
+null_decompress(void * ctx, __u8 *src_first, unsigned src_len,
+		__u8 *dst_first, unsigned *dst_len)
+{
+	impossible("edward-798", "trying to decompress uncompressed data");
+}
+
 LOCAL void __lzrw1_compress(UBYTE *, ULONG, UBYTE *, ULONG *);
 LOCAL void __lzrw1_decompress(UBYTE *, ULONG, UBYTE *, ULONG *);
 
@@ -351,6 +375,21 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 		.free = NULL,
 	        .compress = NULL,
 	        .decompress = NULL
+	},
+	[NULL_COMPRESSION_ID] = {
+		.h = {
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
+			.id = NULL_COMPRESSION_ID,
+			.pops = NULL,
+			.label = "null",
+			.desc = "fast copy",
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+		},
+		.overrun = 0,
+		.alloc = NULL,
+		.free = NULL,
+	        .compress = null_compress,
+	        .decompress = null_decompress
 	},
 	[LZRW1_COMPRESSION_ID] = {
 		.h = {
