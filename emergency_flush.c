@@ -726,7 +726,9 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
 			warning ("zam-1025", "eflush_del failed to get page back\n");
 			return;
 		}
-
+		if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
+			/* race: some other thread unflushed jnode. */
+			goto out;
 	}
 
 	if (PageWriteback(page)) {
