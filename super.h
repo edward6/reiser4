@@ -561,10 +561,21 @@ void print_fs_info(const char *prefix, const struct super_block *);
 #define print_fs_info(p,s) noop
 #endif
 
+#if REISER4_DEBUG
+
 void inc_unalloc_unfm_ptr(void);
 void dec_unalloc_unfm_ptrs(int nr);
 void inc_unfm_ef(void);
 void dec_unfm_ef(void);
+
+#else
+
+#define inc_unalloc_unfm_ptr() noop
+#define dec_unalloc_unfm_ptrs(nr) noop
+#define inc_unfm_ef() noop
+#define dec_unfm_ef() noop
+ 
+#endif
 
 
 /* __REISER4_SUPER_H__ */
