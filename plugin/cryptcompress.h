@@ -334,6 +334,7 @@ typedef struct reiser4_cluster{
 	unsigned off;    /* offset we want to read/write/truncate from */
 	unsigned count;  /* bytes to read/write/truncate */
 	unsigned delta;  /* bytes of user's data to append to the hole */
+	int reserved;    /* indicates that space for disk cluster insertion is reserved */
 } reiser4_cluster_t;
 
 static inline int
