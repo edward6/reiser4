@@ -1975,6 +1975,9 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 	reiser4_block_nr to_allocate, allocated;
 	reiser4_extent *ext, new_ext;
 
+	if (item_id_by_coord(right) == FROZEN_EXTENT_POINTER_ID)
+		return SQUEEZE_TARGET_FULL;
+
 	blocksize = current_blocksize;
 
 	optimize_extent(right);
@@ -2233,6 +2236,15 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	assert("vs-1019", item_is_extent(coord));
 	assert("vs-1018", coord_is_existing_unit(coord));
 	assert("zam-807", znode_is_write_locked(coord->node));
+
+	/*
+	 * skip extent being converted into tail
+	 */
+	if (item_id_by_coord(coord) == FROZEN_EXTENT_POINTER_ID) {
+		coord->unit_pos = coord_last_unit_pos(coord);
+		coord->between = AFTER_UNIT;
+		return 0;
+	}
 
 	blocksize = current_blocksize;
 
