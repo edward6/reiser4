@@ -1953,7 +1953,7 @@ repeat:
 	spin_unlock_jnode (node);
 
 	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_is_dirty(node));
+		assert("jmacd-7111", !jnode_check_dirty(node));
 		return;
 	}
 
