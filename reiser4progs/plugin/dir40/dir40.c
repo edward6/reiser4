@@ -182,6 +182,14 @@ static int dir40_continue(reiser4_entity_t *entity,
     return (dir_locality == next_locality);
 }
 
+static uint32_t dir40_count(dir40_t *dir) {
+    aal_assert("umka-1156", dir != NULL, return 0);
+    aal_assert("umka-1157", dir->direntry != NULL, return 0);
+    
+    return plugin_call(return -1, dir->direntry->plugin->item_ops, 
+        count, dir->direntry.body);
+}
+
 /* Reads n entries to passed buffer buff */
 static uint64_t dir40_read(reiser4_entity_t *entity, 
     char *buff, uint64_t n)
@@ -197,11 +205,10 @@ static uint64_t dir40_read(reiser4_entity_t *entity,
 
     plugin = dir->direntry.plugin;
     
-    /* Getting count entries */
-    if ((count = plugin_call(return -1, plugin->item_ops, 
-	    count, dir->direntry.body)) == 0)
-	return -1;
-
+    /* Getting the number of entries */
+    if (!(count = dir40_count(dir)))
+	return 0;
+    
     for (i = 0; i < n; i++) {
 	if (dir->place.pos.unit >= count) {
 	    reiser4_place_t place = dir->place;
@@ -229,6 +236,10 @@ static uint64_t dir40_read(reiser4_entity_t *entity,
     return i;
 }
 
+/* 
+    Makes lookup in directory by name. Returns the key of the stat data item found
+    entry points to.
+*/
 static int dir40_lookup(reiser4_entity_t *entity, 
     char *name, reiser4_key_t *key) 
 {
