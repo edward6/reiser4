@@ -53,7 +53,7 @@ int kill_hook_ctail(const coord_t *, unsigned, unsigned, struct cut_list *);
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);
 int scan_ctail(flush_scan *, const coord_t *);
-int squeeze_ctail(flush_pos_t *, int child);
+int squeeze_ctail(flush_pos_t *);
 
 
 __u8 inode_cluster_shift (struct inode *);

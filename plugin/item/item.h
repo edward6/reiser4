@@ -201,7 +201,7 @@ typedef struct {
 	/* count unformatted nodes per item for leave relocation policy, etc.. */
 	int (*scan) (flush_scan * scan, const coord_t * in_coord);
 	/* squeeze by unformatted child */
-	int (*squeeze) (flush_pos_t * pos, int child);
+	int (*squeeze) (flush_pos_t * pos);
 } flush_ops;
 
 /* operations specific to the directory item */
