@@ -173,6 +173,7 @@ reserve_tail2extent_iteration(struct inode *inode)
 	 *     5. possible update of stat-data
 	 *
 	 */
+	clog_op(T2E_RESERVE, inode);
 	grab_space_enable();
 	return reiser4_grab_space
 		(2 * tree->height +
@@ -222,6 +223,26 @@ find_start(struct inode *object, reiser4_plugin_id id, __u64 *offset)
 	} while (result == 0 && !found);
 	*offset = get_key_offset(&key);
 	return result;
+}
+
+/* clear stat data's flag indicating that conversion is being converted */
+static int
+complete_conversion(struct inode *inode)
+{
+	int result;
+
+	all_grabbed2free();
+	grab_space_enable();
+	result = reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
+				    BA_CAN_COMMIT);
+	if (result == 0) {
+		inode_clr_flag(inode, REISER4_PART_CONV);
+		result = reiser4_update_sd(inode);
+	}
+	if (result)
+		warning("vs-1696", "Failed to clear converting bit of %llu: %i",
+			get_inode_oid(inode), result);
+	return 0;
 }
 
 reiser4_internal int
@@ -380,13 +401,11 @@ tail2extent(unix_file_info_t *uf_info)
 	}
 
 	if (result == 0) {
-		/* tail converted */
-		uf_info->container = UF_CONTAINER_EXTENTS;
+		/* file is converted to extent items */
+		assert("vs-1697", inode_get_flag(inode, REISER4_PART_CONV));
 
-		if (inode_get_flag(inode, REISER4_PART_CONV)) {
-			inode_clr_flag(inode, REISER4_PART_CONV);
-			reiser4_update_sd(inode);
-		}
+		uf_info->container = UF_CONTAINER_EXTENTS;
+		complete_conversion(inode);
 	} else {
 		/* conversion is not complete. Inode was already marked as
 		 * REISER4_PART_CONV and stat-data were updated at the first
@@ -494,6 +513,7 @@ reserve_extent2tail_iteration(struct inode *inode)
 	 *
 	 *     4. possible update of stat-data
 	 */
+	clog_op(E2T_RESERVE, inode);
 	grab_space_enable();
 	return reiser4_grab_space
 		(estimate_one_item_removal(tree) +
@@ -619,11 +639,11 @@ extent2tail(unix_file_info_t *uf_info)
 			   reiser4_inode_data(inode)->anonymous_eflushed == 0));
 
 	if (i == num_pages) {
+		/* file is converted to formatted items */
+		assert("vs-1698", inode_get_flag(inode, REISER4_PART_CONV));
+
 		uf_info->container = UF_CONTAINER_TAILS;
-		if (inode_get_flag(inode, REISER4_PART_CONV)) {
-			inode_clr_flag(inode, REISER4_PART_CONV);
-			reiser4_update_sd(inode);
-		}
+		complete_conversion(inode);
 	} else {
 		/* conversion is not complete. Inode was already marked as
 		 * REISER4_PART_CONV and stat-data were updated at the first
