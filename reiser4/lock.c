@@ -741,7 +741,7 @@ static int internal_lock_znode (reiser4_lock_handle *handle /* local link
 		 * lock.  Don't capture above the root. */
 		if (! znode_above_root (node)) {
 			
-			if ((ret = txn_try_capture (node, mode, non_blocking)) != 0) {
+			if ((ret = txn_try_capture (ZJNODE (node), mode, non_blocking)) != 0) {
 				/* In the failure case, the txnmgr releases the znode's lock (or
 				 * in some cases, it was released a while ago).  There's no need
 				 * to reaquire it so we should return here, avoid releasing the
