@@ -11,8 +11,9 @@
 
 
 /* tree searching algorithm, intranode searching algorithms are in
-   plugin/nodes/* */
+   plugin/node/ */
 
+#if 0
 /** clear coord content */
 int init_coord( new_coord *coord /* coord to init */ )
 {
@@ -48,6 +49,7 @@ int done_coord( new_coord *coord UNUSED_ARG /* coord to finish with */ )
 
 	return 0;
 }
+#endif
 
 /* return pointer to item body */
 void *item_body_by_coord( const new_coord *coord /* coord to query */ )
@@ -253,7 +255,7 @@ void cbk_cache_add( znode *node /* node to add to the cache */ )
 	cbk_cache_unlock( cache );
 }
 
-#if REISER4_DEBUG
+#if defined (REISER4_DEBUG) && defined (REISER4_USER_LEVEL_SIMULATION)
 /** Debugging aid: print human readable information about @slot */
 void print_cbk_slot( const char *prefix /* prefix to print */, 
 		     cbk_cache_slot *slot /* slot to print */ )
@@ -429,9 +431,8 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
 
 /* so where do we check to see if @coord is already set? -Hans */
 	done_lh (lh);
-	done_coord (coord);
 
-	init_coord (coord);
+	ncoord_init_zero (coord);
 	init_lh (lh);
 	result = coord_by_key (tree, key, coord, lh,
 			       ZNODE_WRITE_LOCK, bias,
@@ -471,11 +472,13 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 	assert( "nikita-1146", lh != NULL );
 	assert( "nikita-1147", actor != NULL );
 
-	if( !ncoord_is_existing_unit( coord ) )
-		return -ENOENT;
 	result = zload( coord -> node );
 	if( result != 0 )
 		return result;
+	if( !ncoord_is_existing_unit( coord ) ) {
+		zrelse( coord -> node );
+		return -ENOENT;
+	}
 	while( ( result = actor( tree, coord, lh, arg ) ) > 0 ) {
 		/*
 		 * move further 
@@ -495,7 +498,6 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 				zrelse( coord -> node );
 				if( result == 0 ) {
 					done_lh( lh );
-					done_coord( coord );
 
 					result = zload( couple.node );
 					if( result != 0 )
@@ -616,10 +618,22 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 	    ( h -> result != CBK_COORD_NOTFOUND ) ) {
 		/* failure. do cleanup */
 		hput( h );
+	} else if( REISER4_DEBUG ) {
+		int result;
+
+		result = zload( h -> coord -> node );
+		if( !result ) {
+			assert( "nikita-1605", ergo( ( h -> result == CBK_COORD_FOUND ) &&
+						     ( h -> bias == FIND_EXACT ) &&
+						     ( !node_is_empty( h -> coord -> node ) ),
+						     ncoord_is_existing_unit( h -> coord ) ) );
+			zrelse( h -> coord -> node );
+		} else {
+			h -> error = "zload failed on unloading";
+			h -> result = result;
+			hput( h );
+		}
 	}
-	assert( "nikita-1605", ergo( ( h -> result == CBK_COORD_FOUND ) &&
-				     ( h -> bias == FIND_EXACT ),
-				     ncoord_is_existing_unit( h -> coord ) ) );
 	return h -> result;
 }
 
@@ -766,19 +780,16 @@ static int is_next_item_internal( new_coord *coord,  lock_handle *lh )
 				 * switch to right neighbor
 				 */
 				done_lh( lh );
-				done_coord( coord );
 
-				init_coord( coord );
-				dup_coord( coord, &right );
+				ncoord_init_zero( coord );
+				ncoord_dup( coord, &right );
 				move_lh( lh, &right_lh );
 
-				done_coord( &right );
 				return 1;
 			}
 		}
 		/* item to the right of @coord either does not exist or is not
 		   of internal type */
-		done_coord( &right );
 		done_lh( &right_lh );
 		return 0;
 	}
@@ -797,10 +808,9 @@ static reiser4_key *rd_key( new_coord *coord, reiser4_key *key )
 		 */
 		new_coord tmp;
 
-		dup_coord( &tmp, coord );
+		ncoord_dup( &tmp, coord );
 		tmp.item_pos ++;
 		item_key_by_coord( &tmp, key );
-		done_coord( &tmp );
 	} else {
 		/*
 		 * use right delimiting key of znode we insert new pointer to
@@ -1222,7 +1232,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	assert( "nikita-1484", parent != NULL );
 	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
 	
-	dup_coord( &neighbor, parent_coord );
+	ncoord_dup( &neighbor, parent_coord );
 
 	if( neighbor.between == AT_UNIT )
 		/* imitate item ->lookup() behavior. */
@@ -1233,16 +1243,14 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 		unit_key_by_coord( &neighbor, ld );
 	else
 		*ld = *znode_get_ld_key( parent );
-	done_coord( &neighbor );
 
-	dup_coord( &neighbor, parent_coord );
+	ncoord_dup( &neighbor, parent_coord );
 	if( neighbor.between == AT_UNIT )
 		neighbor.between = AFTER_UNIT;
 	if( ncoord_set_to_right( &neighbor ) == 0 )
 		unit_key_by_coord( &neighbor, rd );
 	else
 		*rd = *znode_get_rd_key( parent );
-	done_coord( &neighbor );
 
 	return 0;
 }
@@ -1304,13 +1312,12 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 
 		nplug = neighbor -> nplug;
 
-		init_coord( &crd );
+		ncoord_init_zero( &crd );
 		bias = h -> bias;
 		h -> bias = FIND_EXACT;
 		h -> result = nplug -> lookup( neighbor, h -> key,
 					       h -> bias, &crd );
 		h -> bias = bias;
-		done_coord( &crd );
 
 		if( h -> result == NS_NOT_FOUND ) {
 	case -ENAVAIL:
