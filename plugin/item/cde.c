@@ -884,11 +884,11 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 		data.length = cde_estimate( NULL, &data );
 		result = insert_by_coord( coord, &data, &dir_entry -> key, lh,
 					  reiser4_inter_syscall_ra( dir ), 
-					  NO_RA );
+					  NO_RA, 0/*flags*/ );
 	} else {
 		data.length = cde_estimate( coord, &data );
 		result = resize_item( coord, lh, 
-				      &dir_entry -> key, &data );
+				      &dir_entry -> key, &data, 0/*flags*/ );
 	}
 	return result;
 }

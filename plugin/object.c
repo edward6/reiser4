@@ -372,9 +372,9 @@ static int update_sd( struct inode *inode )
 			/*
 			 * FIXME-NIKITA resize can create new item.
 			 */
-			result = resize_item( &coord, 
+			result = resize_item( &coord, &data, &key,
 					      0/*FIXME-NIKITA lh?*/, 
-					      &key, &data );
+					      0/*flags*/ );
 			switch( result ) {
 			case RESIZE_OOM:
 				error_message = "out of memory while resizing sd of";

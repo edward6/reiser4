@@ -229,7 +229,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/plugin.h"
 #include "txnmgr.h"
 #include "znode.h"
-#include "tree.h"
+/*#include "tree.h"*/
 #include "slum.h"
 #include "bitmap.h"
 #include "block_alloc.h"
@@ -238,6 +238,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "tree_mod.h"
 #include "carry.h"
 #include "carry_ops.h"
+#include "tree.h"
 
 #include "inode.h"
 #include "super.h"

@@ -428,7 +428,7 @@ static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 
 	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
 	make_item_data (coord, &item, 0, (unsigned)get_key_offset (&f->key));
-	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
+	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0, 0/*flags*/);
 	if (result)
 		return result;
 
@@ -456,7 +456,7 @@ static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 	make_item_data (coord, &item, 0,
 			(unsigned)(get_key_offset (&f->key) -
 				   get_key_offset (&hole_key)));
-	result = resize_item (coord, lh, &hole_key, &item);
+	result = resize_item (coord, lh, &hole_key, &item, 0/**/);
 	if (result)
 		return result;
 
@@ -488,7 +488,7 @@ static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow
 	assert ("vs-383", get_key_offset (&f->key) == 0);
 
 	make_item_data (coord, &item, f->data, f->length);
-	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0);
+	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0, 0/*flags*/);
 	if (result)
 		return result;
 	
@@ -511,7 +511,7 @@ static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 	/*
 	 * FIXME-VS: we must copy data with __copy_from_user
 	 */
-	result = resize_item (coord, lh, &f->key, &item);
+	result = resize_item (coord, lh, &f->key, &item, 0/*flags*/);
 	if (result)
 		return result;
 
