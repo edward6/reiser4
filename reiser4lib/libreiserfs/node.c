@@ -156,15 +156,15 @@ reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node) {
 uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
-    reiserfs_check_method(node->plugin->node, item_maxsize, return 0); 
-    return node->plugin->node.item_maxsize(node->entity);
+    reiserfs_check_method(node->plugin->node, item_max_size, return 0); 
+    return node->plugin->node.item_max_size(node->entity);
 }
     
 uint32_t reiserfs_node_item_maxnum(reiserfs_node_t *node) {
     aal_assert("umka-452", node != NULL, return 0);
     
-    reiserfs_check_method(node->plugin->node, item_maxnum, return 0); 
-    return node->plugin->node.item_maxnum(node->entity);
+    reiserfs_check_method(node->plugin->node, item_max_num, return 0); 
+    return node->plugin->node.item_max_num(node->entity);
 }
 
 uint32_t reiserfs_node_item_count(reiserfs_node_t *node) {
@@ -174,12 +174,14 @@ uint32_t reiserfs_node_item_count(reiserfs_node_t *node) {
     return node->plugin->node.item_count(node->entity);
 }
 
+/*
 uint8_t reiserfs_node_level(reiserfs_node_t *node) {
     aal_assert("umka-454", node != NULL, return 0);
     
     reiserfs_check_method(node->plugin->node, level, return 0); 
     return node->plugin->node.level(node->entity);
 }
+*/
 
 uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
@@ -196,6 +198,36 @@ void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
 }
 
 reiserfs_item_info_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos) {
+    reiserfs_item_info_t *info;
+
+    if (!(info = aal_calloc(sizeof(*info), 0)))
+	return NULL;
+    
+    reiserfs_check_method(node->plugin->node, item_length, return 0);
+    info->length = node->plugin->node.item_length(node->entity, pos); 
+    
+    reiserfs_check_method(node->plugin->node, item_min_key, return 0); 
+    if (!(info->key = node->plugin->node.item_min_key(node->entity, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't get key of the item (%d) in node (%d).",
+	    pos, aal_device_get_block_location (node->device, node->block));
+	goto free_info;
+    }
+
+    reiserfs_check_method(node->plugin->node, item, return 0); 
+    if (!(info->data = node->plugin->node.item(node->entity, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't get item (%d) in node (%d).",
+	    pos, aal_device_get_block_location (node->device, node->block));
+	goto free_info;
+    }
+
+    reiserfs_check_method(node->plugin->node, item_plugin_id, return 0); 
+    info->plugin_id = node->plugin->node.item_plugin_id(node->entity, pos);
+    
+    return info;
+free_info:
+    aal_free(info);
     return NULL;
 }
 
