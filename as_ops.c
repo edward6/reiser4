@@ -520,7 +520,7 @@ reiser4_internal int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
 	jnode *node;
-	reiser4_context ctx;
+	/*reiser4_context ctx;*/
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
@@ -547,7 +547,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	if (PageDirty(page))
 		return 0;
 
-	init_context(&ctx, page->mapping->host->i_sb);
+/*	init_context(&ctx, page->mapping->host->i_sb);*/
 
 	/* releasable() needs jnode lock, because it looks at the jnode fields
 	 * and we need jload_lock here to avoid races with jload(). */
@@ -566,7 +566,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		 * jnode_extent_write() are !releasable(). */
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
-#if 1 /*XXXX*/
+#if 0 /*XXXX*/
 		if (!JF_ISSET(node, JNODE_EFLUSH) && jnode_is_unformatted(node)) {
 			/* unformatted jnodes have pointer to inode's address space. Jnodes are stored in per filesystem
 			   hash table. */
@@ -589,13 +589,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		}
 		write_unlock_irq(&mapping->tree_lock);
 		
-		reiser4_exit_context(&ctx);
+		/*reiser4_exit_context(&ctx);*/
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
-		reiser4_exit_context(&ctx);
+		/*reiser4_exit_context(&ctx);*/
 		return 0;
 	}
 }
@@ -630,10 +630,16 @@ reiser4_writepages(struct address_space *mapping,
 
 	inode = mapping->host;
 	fplug = inode_file_plugin(inode);
-	if (fplug != NULL && fplug->capture != NULL)
+	if (fplug != NULL && fplug->capture != NULL) {
+		long captured = 0;
+
 		/* call file plugin method to capture anonymous pages and
 		 * anonymous jnodes */
-		ret = fplug->capture(inode, wbc);
+		ret = fplug->capture(inode, wbc, &captured);
+		if (captured)
+			ON_TRACE(TRACE_WRITEOUT, "%s: captured %ld pages\n",
+				 current->comm, captured);
+	}
 
 	move_inode_out_from_sync_inodes_loop(mapping);
 	return ret;
