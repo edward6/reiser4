@@ -7,6 +7,7 @@
 
 #include "forward.h"
 #include "tslist.h"
+#include "readahead.h"
 
 TS_LIST_DECLARE(tap);
 
@@ -16,6 +17,7 @@ struct tree_access_pointer {
 	znode_lock_mode mode;
 	int loaded;
 	tap_list_link linkage;
+	ra_info_t ra_info;
 };
 
 TS_LIST_DEFINE(tap, tap_t, linkage);
