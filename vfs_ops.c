@@ -1758,7 +1758,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		},
 		{
 			/* tree traversal readahead parameters:
-			   -o readahead:MAX:ADJACENT:LEAVES_ONLY:ONE_PARENT_ONLY
+			   -o readahead=MAX:ADJACENT:LEAVES_ONLY:ONE_PARENT_ONLY
 			   set MAX to 0 to disable tree traversal readahead */
 			.name = "readahead",
 			.type = OPT_FORMAT,
