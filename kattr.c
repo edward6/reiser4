@@ -140,7 +140,7 @@ show_device(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 
 	(void)o;
 	p = buf;
-	KATTR_PRINT(p, buf, "(%u,%u)", MAJOR(s->s_dev), MINOR(s->s_dev));
+	KATTR_PRINT(p, buf, "%lu", (unsigned long)s->s_dev);
 	return (p - buf);
 }
 
