@@ -1306,7 +1306,8 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 
 		start = extent_get_start(extent);
 
-		ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER, "");
+		ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER,
+					     "deallocate blocks of already allocated extent");
 		if (ret)
 			return ret;
 
@@ -1342,7 +1343,9 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 				jnode_make_wander(j);
 			else {
 				reiser4_block_nr block;
-				assign_fake_blocknr(&block, 0, "");
+				assign_fake_blocknr(&block, 0,
+						    "make one node of already allocated extent "
+						    "fake allocated");
 				jnode_set_block(j, &block);
 			}
 		}
