@@ -276,6 +276,7 @@ typedef struct cbk_handle {
 	tree_level           llevel;
 	/** stop level */
 /* NIKITA-FIXME-HANS: needs a bigger comment. */
+/* NIKITA-FIXME-HANS: rename it to stop_level  */
 	tree_level           slevel;
 	/** level we are currently at */
 	tree_level           level;
@@ -294,7 +295,7 @@ typedef struct cbk_handle {
 	__u32                flags; /* NIKITA-FIXME-HANS: totally inadequate commenting here.... */
 } cbk_handle;
 
-static lookup_result cbk_traversal( cbk_handle *h );
+static lookup_result traverse_tree( cbk_handle *h );
 static int cbk_cache_search( cbk_handle *h );
 
 static level_lookup_result cbk_level_lookup( cbk_handle *h );
@@ -399,7 +400,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	if( cbk_cache_search( &handle ) == 0 )
 		return handle.result;
 	else
-		return cbk_traversal( &handle );
+		return traverse_tree( &handle );
 }
 
 
@@ -482,7 +483,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
     (fake znode handling), restarts, error handling, completion */
 /* Audited by: green(2002.06.15) */
 /* find more descriptive names for the onion layers of coord_by_key */
-static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
+static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 {
 	int done;
 	int iterations;
@@ -597,6 +598,13 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 
 /** coord_by_key level function that maintains znode sibling/parent
     pointers (web of znodes)) */
+
+/* NIKITA-FIXME-HANS: Is the following comment correct?  Please add to it.... particularly in regard to checking to see if the key is in this node, and all the locking issues associated with that (perhaps it needs a paragraph or three for the web page?)
+
+Loads the node if it needs to be loaded, worries about whether balancing occuring during this search shifted the key we
+are looking for out of the subtree rooted at this node, and then calls a function to search within the node.
+
+*/
 /* Audited by: green(2002.06.15) */
 static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 {
@@ -873,42 +881,39 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 
 /*
    Process one node during tree traversal.
-   This is standard function independent of tree locking protocols.
+   This is standard function independent of tree locking protocols.  (Meaning that the node must be locked at entry or what? NIKITA-FIXME-HANS)
  */
-/* Audited by: green(2002.06.15) */
 static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 {
 	node_plugin      *nplug;
 	item_plugin      *iplug;
 	lookup_bias       node_bias;
-	znode            *active;
+	znode            *active; /* NIKITA-FIXME-HANS: this is what? suggest use of cur_node instead of active....*/
 	reiser4_tree     *tree;
 	int               result;
 
 	/**
 	 * true if @key is left delimiting key of @node
 	 */
-	/* AUDIT What is the point for having nested functions anyway? 
-	   Actually this is first time I am ever hearing about nested
-	   functions in C language. */
 	static int key_is_ld( znode *node, const reiser4_key *key )
 	{
-		int is_ld;
+		int ld;
 			
 		assert( "nikita-1716", node != NULL );
 		assert( "nikita-1758", key != NULL );
 			
 		spin_lock_dk( current_tree );
 		assert( "nikita-1759", znode_contains_key( node, key ) );
-		is_ld = keyeq( znode_get_ld_key( node ), key );
+		ld = keyeq( znode_get_ld_key( node ), key );
 		spin_unlock_dk( current_tree );
-		return is_ld;
+		return ld;
 	}
 
 
 	assert( "nikita-379", h != NULL );
 
 	/* disinter actively used active out of handle */
+/* NIKITA-FIXME-HANS: this means what? maybe it is clearer without a comment? */
 	active = h -> active_lh -> node;
 	tree   = h -> tree;
 
@@ -921,7 +926,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	 */
 	node_bias = h -> bias;
 	result = nplug -> lookup( active, h -> key, node_bias, h -> coord );
-	if( result != NS_FOUND && result != NS_NOT_FOUND ) {
+	if( unlikely(result != NS_FOUND && result != NS_NOT_FOUND) ) {
 		/* error occured */
 		h -> result = result;
 		return LLR_DONE;
@@ -999,6 +1004,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			 * new node and insert pointer to it after item h ->
 			 * coord
 			 */
+/* NIKITA-FIXME-HANS: needs better comment, one that explains how this is the result of extents being at the twig level. */
 			reiser4_key key;
 			
 			
@@ -1033,7 +1039,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			 * node pointed to by said internal item (otherwise
 			 * search wouldn't come to the extent in the first
 			 * place).
-			 */
+			 */	/* NIKITA-FIXME-HANS: explain what we do as a result, do we go into the child of that internal item on the right? */
 			h -> flags &= ~CBK_TRUST_DK;
 		}
 		assert( "vs-362", item_is_internal( h -> coord ) );

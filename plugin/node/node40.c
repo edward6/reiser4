@@ -363,7 +363,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 			 * the following case does not work: there is extent of
 			 * file 10000, 10001. File 10000, 10002 has been just
 			 * created. When writing to position 0 in that file -
-			 * cbk_traversal will stop here on twig level. When we
+			 * traverse_tree will stop here on twig level. When we
 			 * want it to go down to leaf level
 			 */
 			return NS_NOT_FOUND;
