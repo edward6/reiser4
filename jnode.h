@@ -53,7 +53,7 @@ struct jnode {
 	*/
 	/*  12 */ atomic_t x_count;
 
-	/** the real blocknr (where io is going to/from) */
+	/* the real blocknr (where io is going to/from) */
 	/*  16 */ reiser4_block_nr blocknr;
 
 	/*  24 */ union {
@@ -71,7 +71,7 @@ struct jnode {
 	/*  36 */ void *data;
 
 	/*  40 */ union {
-		/** pointers to maintain hash-table */
+		/* pointers to maintain hash-table */
 		z_hash_link z;
 		j_hash_link j;
 	} link;

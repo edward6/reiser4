@@ -64,7 +64,7 @@ typedef struct item_header40 {
 /* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
    add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
 	/*  0 */ reiser4_key key;
-	/** offset from start of a node measured in 8-byte chunks */
+	/* offset from start of a node measured in 8-byte chunks */
 	/* 24 */ d16 offset;
 	/* 26 */ d16 length;
 	/* 28 */ d16 plugin_id;

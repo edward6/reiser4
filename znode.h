@@ -147,16 +147,14 @@ struct znode {
 	/* 112 */ atomic_t c_count;
 
 	/* plugin of node attached to this znode. NULL if znode is not
-	   loaded. 
-	*/
+	   loaded. */
 	/* 116 */ node_plugin *nplug;
 
-	/** version of znode data. This is increased on each modification. */
+	/* version of znode data. This is increased on each modification. */
 	/* 120 */ __u64 version;
 
 	/* size of node referenced by this znode. This is not necessary
-	   block size, because there znodes for extents.
-	*/
+	   block size, because there znodes for extents. */
 	/* left delimiting key. Necessary to efficiently perform
 	   balancing with node-level locking. Kept in memory only. */
 	/* 128 */ reiser4_key ld_key;

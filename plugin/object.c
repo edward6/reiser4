@@ -19,7 +19,6 @@
    i_mode bits. Once it is established we ask it to install its
    subordinate plugins, by looking again in stat-data or inheriting them
    from parent.
-  
 */
 /* How new inode is initialized during ->read_inode():
     1 read stat-data and initialize inode fields: i_size, i_mode, 
@@ -90,8 +89,8 @@ void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 	
 	ten_percent = ((103 * childen) >> 10);
 	
-	/** If we have too many balancings at the time, tree height can raise on more
-	 *  then 1. Assume that if tree_height is 5, it can raise on 1 only. */
+	/* If we have too many balancings at the time, tree height can raise on more
+	   then 1. Assume that if tree_height is 5, it can raise on 1 only. */
 	*amount = ((tree_height < 5 ? 5 : tree_height) * 2 + (4 + ten_percent));
 }
 
@@ -269,7 +268,8 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	   during io, so that stat-data wouldn't fit into sd. To avoid
 	   this race we keep inode_state lock. This lock has to be
 	   taken each time you access inode in a way that would cause
-	   changes in sd size: changing plugins etc. */
+	   changes in sd size: changing plugins etc.
+	*/
 
 	error_message = NULL;
 	switch (result) {
@@ -295,7 +295,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 				break;
 
 			assert("nikita-725",	/* have we really inserted stat
-						 * data? */
+						   data? */
 			       item_is_statdata(&coord));
 			/* inode was just created. It is inserted into hash table, but
 			   no directory entry was yet inserted into parent. So, inode
@@ -592,7 +592,6 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
    For such files we don't explicitly store plugin id in object stat
    data. Rather required plugin is guessed from mode bits, where file "type"
    is encoded (see stat(2)).
-  
 */
 int
 guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
