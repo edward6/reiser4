@@ -2132,7 +2132,13 @@ static int flush_empty_queue (flush_position *pos)
 				 * This checks, among other things, that there are no
 				 * unallocated children of this node.
 				 */
-				jnode_ops (tmp)->io_hook (tmp, pg, WRITE);
+				/* FIXME: JMACD->?: The io_hook is temporarily disabled
+				 * until we actually solve the unallocated-children issue.
+				 * Until then, it is possible that we will write nodes
+				 * with unallocated children, it just means those nodes
+				 * will be dirtied again when the children are
+				 * allocated. */
+				/*jnode_ops (tmp)->io_hook (tmp, pg, WRITE);*/
 
 				bio->bi_io_vec[i].bv_page   = pg;
 				bio->bi_io_vec[i].bv_len    = blksz;
