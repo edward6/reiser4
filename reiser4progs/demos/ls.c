@@ -61,8 +61,11 @@ int main(int argc, char *argv[]) {
 	reiserfs_entry_hint_t entry;
 
 	aal_memset(&entry, 0, sizeof(entry));
-	entry.name = "test";
-
+	
+	entry.name = "2";
+	reiserfs_dir_add(object, &entry);
+	
+	entry.name = "1";
 	reiserfs_dir_add(object, &entry);
     }
     
@@ -78,6 +81,8 @@ int main(int argc, char *argv[]) {
     }
     
     reiserfs_dir_close(object);
+    reiserfs_fs_sync(fs);
+
     reiserfs_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);

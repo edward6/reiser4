@@ -53,7 +53,7 @@ errno_t aal_gauge_create(
     gauge->handler = handler;
     gauge->data = data;
     gauge->value = 0;
-    gauge->state = GAUGE_STARTED;
+    gauge->state = GAUGE_DONE;
 
 #ifndef ENABLE_COMPACT
     if (type == GAUGE_INDICATOR)
@@ -68,7 +68,7 @@ void aal_gauge_reset(void) {
     aal_assert("umka-894", gauge != NULL, return);
 
     gauge->value = 0;
-    gauge->state = GAUGE_STARTED;
+    gauge->state = GAUGE_DONE;
 }
 
 /* Resets gauge and forces it to redraw itself */

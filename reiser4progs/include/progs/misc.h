@@ -59,8 +59,8 @@ extern unsigned long long progs_misc_size_parse(const char *str,
 extern reiserfs_profile_t *progs_misc_profile_find(const char *profile);
 extern void progs_misc_profile_list(void);
 
-extern aal_exception_option_t __progs_exception_handler(aal_exception_t *exception);
-extern void __progs_gauge_handler(aal_gauge_t *gauge);
+extern aal_exception_option_t progs_exception_handler(aal_exception_t *exception);
+extern void progs_gauge_handler(aal_gauge_t *gauge);
 
 #endif
 

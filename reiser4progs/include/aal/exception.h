@@ -15,7 +15,7 @@ enum aal_exception_type {
     EXCEPTION_WARNING	    = 2,
     EXCEPTION_ERROR	    = 3,
     EXCEPTION_FATAL	    = 4,
-    EXCEPTION_BUG	    = 5,
+    EXCEPTION_BUG	    = 5
 };
 
 typedef enum aal_exception_type aal_exception_type_t;

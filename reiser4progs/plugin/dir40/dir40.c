@@ -432,18 +432,18 @@ static errno_t dir40_add(reiserfs_dir40_t *dir,
     if (!(direntry_hint.entry = aal_calloc(sizeof(*entry), 0)))
 	return -1;
     
-    aal_memcpy(&direntry_hint.entry[0], entry, sizeof(*entry));
-    
     item.type = REISERFS_CDE_ITEM;
     item.hint = &direntry_hint;
    
     /* FIXME-UMKA: These magical digits are here for test purposes */
     libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
 	build_generic_short, &entry->objid, KEY40_STATDATA_MINOR, 
-	1000, 1001);
+	45, 46);
 	
     libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
 	build_entry_short, &entry->entryid, dir->hash_plugin, entry->name);
+    
+    aal_memcpy(&direntry_hint.entry[0], entry, sizeof(*entry));
     
     item.key.plugin = dir->key.plugin;
     

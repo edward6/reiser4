@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 	return ERROR_USER;
     }
 
-    aal_exception_set_handler(__progs_exception_handler);
+    aal_exception_set_handler(progs_exception_handler);
     
     while ((c = getopt_long_only(argc, argv, "uhvp:kqcnbrl:", long_options, 
 	(int *)0)) != EOF) 
@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
 	goto error_free_libreiser4;
     }
     
-    if (aal_gauge_create(GAUGE_SILENT, "", __progs_gauge_handler, NULL))
+    if (aal_gauge_create(GAUGE_SILENT, "", progs_gauge_handler, NULL))
 	goto error_free_libreiser4;
     
     if (check)

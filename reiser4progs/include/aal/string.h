@@ -15,6 +15,8 @@
 
 #ifdef ENABLE_COMPACT
 
+#define aal_memmove aal_memcpy
+
 extern void *aal_memset(void *dest, char c, size_t n);
 extern void *aal_memcpy(void *dest, const void *src, size_t n);
 extern int aal_memcmp(const void *s1, const void *s2, size_t n);
@@ -35,6 +37,7 @@ extern char *aal_strsep(char **stringp, const char *delim);
 
 #define aal_memset  memset
 #define aal_memcpy  memcpy
+#define aal_memmove memmove
 #define aal_memcmp  memcmp
 
 #define aal_strncpy strncpy

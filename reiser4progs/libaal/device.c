@@ -325,8 +325,8 @@ errno_t aal_block_write(
 
     aal_assert("umka-446", block != NULL, return -1);
 
-    if (aal_block_is_clean(block))
-	return 0;
+/*    if (aal_block_is_clean(block))
+	return 0;*/
 
     if((error = aal_device_write(block->device, block->data, 
 	aal_block_get_nr(block), 1)))

@@ -203,14 +203,14 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     if (item_pos < nh40_get_num_items(nh)) {
         offset = ih40_get_offset(ih);
 
-        aal_memcpy(node->block->data + offset + item->len, 
+        aal_memmove(node->block->data + offset + item->len, 
 	    node->block->data + offset, nh40_get_free_space_start(nh) - offset);
 	
 	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
 	    ih40_set_offset(ih, ih40_get_offset(ih) + item->len);
 
     	if (is_new_item) {
-	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
+	    aal_memmove(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
 		(node40_count(node) - item_pos));
 	}
     } else
@@ -228,7 +228,7 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 	return 0;
     }
     
-    aal_memcpy(&ih->key, item->key.body, libreiser4_plugin_call(return -1, 
+    aal_memmove(&ih->key, item->key.body, libreiser4_plugin_call(return -1, 
 	item->key.plugin->key_ops, size,));
     
     ih40_set_offset(ih, offset);
@@ -237,81 +237,6 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     
     return 0;
 }
-
-/*static errno_t node40_prepare(reiserfs_node40_t *node, 
-    reiserfs_pos_t *pos, reiserfs_item_hint_t *item) 
-{
-    void *body;
-    int i, item_pos;
-    uint32_t offset;
-    
-    reiserfs_ih40_t *ih;
-    reiserfs_nh40_t *nh;
-    
-    int is_enought_space;
-    int is_inside_range;
-    int is_new_item;
-
-    aal_assert("umka-817", node != NULL, return -1);
-    aal_assert("vpf-006", pos != NULL, return -1);
-    aal_assert("vpf-007", item != NULL, return -1);
-
-    aal_assert("umka-712", item->key.plugin != NULL, return -1);
-
-    is_enought_space = (nh40_get_free_space(reiserfs_nh40(node->block)) >= 
-	item->len + sizeof(reiserfs_ih40_t));
-
-    is_inside_range = pos->item <= node40_count(node);
-    
-    aal_assert("vpf-026", is_enought_space, return -1);
-    aal_assert("vpf-027", is_inside_range, return -1);
-
-    is_new_item = (pos->unit == 0xffff);
-    item_pos = pos->item + !is_new_item;
-    
-    nh = reiserfs_nh40(node->block);
-    ih = node40_ih_at(node->block, item_pos);
-
-    if (item_pos < nh40_get_num_items(nh)) {
-	offset = ih40_get_offset(ih);
-
-	aal_memcpy(node->block->data + offset + item->len, 
-	    node->block->data + offset, nh40_get_free_space_start(nh) - offset);
-	
-	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
-	    ih40_set_offset(ih, ih40_get_offset(ih) + item->len);
-
-	if (!is_new_item) {	    
-	    ih = node40_ih_at(node->block, pos->item);
-	    ih40_set_length(ih, ih40_get_length(ih) + item->len);
-	} else {
-	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
-		(node40_count(node) - item_pos)); 
-	}
-    } else {
-	if (!is_new_item) 
-	    return -1;
-	offset = nh40_get_free_space_start(nh);
-    } 
-    
-    nh40_set_free_space(nh, nh40_get_free_space(nh) - 
-	item->len - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
-    
-    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
-	item->len);
-    
-    if (!is_new_item)	
-	return 0;
-    
-    aal_memcpy(&ih->key, item->key.body, libreiser4_plugin_call(return -1, 
-	item->key.plugin->key_ops, size,));
-    
-    ih40_set_offset(ih, offset);
-    ih40_set_pid(ih, item->plugin->h.id);
-    ih40_set_length(ih, item->len);
-    
-    return 0;
-}*/
 
 /* Inserts item described by hint structure into node */
 static errno_t node40_insert(reiserfs_node40_t *node, 
@@ -329,7 +254,7 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
     if (item->data) {
-	aal_memcpy(node40_ib_at(node->block, pos->item), 
+	aal_memmove(node40_ib_at(node->block, pos->item), 
 	    item->data, item->len);
 
 	return 0;
@@ -368,7 +293,7 @@ static errno_t node40_remove(reiserfs_node40_t *node, reiserfs_pos_t *pos) {
 	nh40_get_free_space_start(nh));
     
     if (do_move) {
-	aal_memcpy(node->block->data + offset, node->block->data + offset + 
+	aal_memmove(node->block->data + offset, node->block->data + offset + 
 	    ih40_get_length(ih_at_pos), nh40_get_free_space_start(nh) - 
 	    offset - ih40_get_length(ih_at_pos));
     
@@ -390,7 +315,7 @@ static errno_t node40_remove(reiserfs_node40_t *node, reiserfs_pos_t *pos) {
     
     /* Moving the item headers */
     if (do_move) {
-	aal_memcpy(ih_at_end, ih_at_end + 1, ((void *)ih_at_pos) - 
+	aal_memmove(ih_at_end, ih_at_end + 1, ((void *)ih_at_pos) - 
 	    ((void *)ih_at_end));
     }
     

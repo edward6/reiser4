@@ -263,7 +263,7 @@ void progs_misc_profile_list(void) {
     Common reiser4progs exception handler functions. This one returns number of
     specified turned on options.
 */
-static int __progs_exception_bit_count(
+static int progs_exception_bit_count(
     aal_exception_option_t options,	    /* options to be inspected */
     int start				    /* options will be inspected started from */
 ) {
@@ -276,17 +276,17 @@ static int __progs_exception_bit_count(
 }
 
 /* This function print turned on options */
-static void __progs_exception_print_options(aal_exception_option_t options) {
+static void progs_exception_print_options(aal_exception_option_t options) {
     int i;
 
-    if (__progs_exception_bit_count(options, 0) == 0)
+    if (progs_exception_bit_count(options, 0) == 0)
 	return;
     
     printf("(");
     for (i = 1; i < aal_log2(EXCEPTION_LAST); i++) {
 	if ((1 << i) & options) {
 	    if (i < aal_log2(EXCEPTION_LAST) - 1 && 
-		    __progs_exception_bit_count(options, i + 1) > 0)
+		    progs_exception_bit_count(options, i + 1) > 0)
 		printf("%s/", aal_exception_option_string(1 << i));
 	    else
 		printf("%s)? ", aal_exception_option_string(1 << i));
@@ -295,7 +295,7 @@ static void __progs_exception_print_options(aal_exception_option_t options) {
 }
 
 /* This function makes serach for option by its name */
-static aal_exception_option_t __progs_exception_option_by_name(char *name) {
+static aal_exception_option_t progs_exception_option_by_name(char *name) {
     int i;
     
     if (!name || aal_strlen(name) == 0)
@@ -313,18 +313,18 @@ static aal_exception_option_t __progs_exception_option_by_name(char *name) {
 }
 
 /* This function gets user enter */
-static aal_exception_option_t __progs_exception_selected_option(void) {
+static aal_exception_option_t progs_exception_selected_option(void) {
     char str[256];
     
     aal_memset(str, 0, sizeof(str));
-    return __progs_exception_option_by_name(gets(str));
+    return progs_exception_option_by_name(gets(str));
 }
 
 /* 
     Common exception handler for all reiser4progs. It implements exception handling 
     in "question-answer" maner and used for all communications with user.
 */
-aal_exception_option_t __progs_exception_handler(
+aal_exception_option_t progs_exception_handler(
     aal_exception_t *exception		/* exception to be processed */
 ) {
     aal_exception_option_t opt;
@@ -341,13 +341,13 @@ aal_exception_option_t __progs_exception_handler(
 	
 	/* Printing exception type */
 	if (exception->type != EXCEPTION_BUG)
-	    printf("%s: ", aal_exception_type_string(exception->type));
-    
+	    fprintf(stderr, "%s: ", aal_exception_type_string(exception->type));
+	
 	/* Printing exception message */
-	printf("%s ", exception->message);
+	fprintf(stderr, "%s ", exception->message);
     
-	if (__progs_exception_bit_count(exception->options, 0) == 1) {
-	    printf("\n");
+	if (progs_exception_bit_count(exception->options, 0) == 1) {
+	    fprintf(stderr, "\n");
 	    
 	    if (exception->type == EXCEPTION_WARNING || 
 		    exception->type == EXCEPTION_INFORMATION)
@@ -356,8 +356,8 @@ aal_exception_option_t __progs_exception_handler(
 	    return exception->options;
 	}
 	    
-	__progs_exception_print_options(exception->options);
-	opt = __progs_exception_selected_option();
+	progs_exception_print_options(exception->options);
+	opt = progs_exception_selected_option();
 	
     } while (opt == EXCEPTION_UNHANDLED);
 
@@ -371,7 +371,7 @@ aal_exception_option_t __progs_exception_handler(
 /* Common gauge handler */
 #define GAUGE_BITS_SIZE 4
 
-static inline void __progs_gauge_blit(void) {
+static inline void progs_gauge_blit(void) {
     static short bitc = 0;
     static const char bits[] = "|/-\\";
 
@@ -383,7 +383,7 @@ static inline void __progs_gauge_blit(void) {
 }
 
 /* This functions "draws" gauge header */
-static inline void __progs_gauge_header(
+static inline void progs_gauge_header(
     const char *name,		/* gauge name */
     aal_gauge_type_t type	/* gauge type */
 ) {
@@ -396,7 +396,7 @@ static inline void __progs_gauge_header(
 }
 
 /* This function "draws" gauge footer */
-static inline void __progs_gauge_footer(
+static inline void progs_gauge_footer(
     const char *name,	    /* footer name */
     aal_gauge_type_t type   /* gauge type */
 ) {
@@ -405,7 +405,7 @@ static inline void __progs_gauge_footer(
 }
 
 /* Common gauge handler */
-void __progs_gauge_handler(aal_gauge_t *gauge) {
+void progs_gauge_handler(aal_gauge_t *gauge) {
     if (gauge->state == GAUGE_PAUSED) {
 	putc('\r', stderr);
 	fflush(stderr);
@@ -413,7 +413,7 @@ void __progs_gauge_handler(aal_gauge_t *gauge) {
     }
 	
     if (gauge->state == GAUGE_STARTED)
-	__progs_gauge_header(gauge->name, gauge->type);
+	progs_gauge_header(gauge->name, gauge->type);
 	
     switch (gauge->type) {
 	case GAUGE_PERCENTAGE: {
@@ -428,17 +428,17 @@ void __progs_gauge_handler(aal_gauge_t *gauge) {
 	    break;
 	}
 	case GAUGE_INDICATOR: {
-	    __progs_gauge_blit();
+	    progs_gauge_blit();
 	    break;
 	}
 	case GAUGE_SILENT: break;
     }
 
     if (gauge->state == GAUGE_DONE)
-	__progs_gauge_footer("done\n", gauge->type);
+	progs_gauge_footer("done\n", gauge->type);
     
     if (gauge->state == GAUGE_FAILED)
-	__progs_gauge_footer("failed\n", gauge->type);
+	progs_gauge_footer("failed\n", gauge->type);
 	
     fflush(stderr);
 }
