@@ -328,6 +328,10 @@ typedef enum {
 
        /* znode lock is being invalidated */
        ZNODE_IS_DYING          = 11,
+
+       /* jnode of block which has pointer (allocated or unallocated) from
+	* extent or somethign similar (indirect item, for example) */
+       ZNODE_MAPPED            = 12
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
@@ -597,6 +601,23 @@ extern const reiser4_block_nr* jnode_get_block( const jnode *node );
 extern int                     jnode_has_block( jnode * );
 extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
 extern int    jnode_flush     (jnode *node, int flags);
+
+/*
+ * FIXME-VS: these are used in plugin/item/extent.c
+ */
+
+/* does extent_get_block have to be called */
+#define jnode_mapped(node)     JF_ISSET (node, ZNODE_MAPPED)
+#define jnode_set_mapped(node) JF_SET (node, ZNODE_MAPPED)
+/* was pointer to this block just created (either by appending or by plugging a
+ * hole) */
+#define jnode_new(node)        JF_ISSET (node, ZNODE_NEW)
+#define jnode_set_new(node)    JF_SET (node, ZNODE_NEW)
+#define jnode_clear_new(node)    JF_SET (node, ZNODE_NEW)
+/* similar to buffer_uptodate */
+#define jnode_loaded(node)     JF_ISSET (node, ZNODE_LOADED)
+#define jnode_set_loaded(node) JF_SET (node, ZNODE_LOADED)
+
 
 #if REISER4_DEBUG
 void info_jnode( const char *prefix, const jnode *node );
