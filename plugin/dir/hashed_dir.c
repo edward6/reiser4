@@ -876,7 +876,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 		seal_done(&fsdata->dec.entry_seal);
 		adjust_dir_file(object, where, fsdata->dec.pos, -1);
 		result = WITH_DATA(coord->node,
-				   inode_dir_item_plugin(object)->s.dir.rem_entry(object, coord, &lh, entry));
+				   inode_dir_item_plugin(object)->s.dir.rem_entry(object, &where->d_name, coord, &lh, entry));
 		if (result == 0) {
 			if (object->i_size >= 1)
 				object->i_size -= 1;
@@ -1082,6 +1082,7 @@ static int
 check_item(const struct inode *dir, const coord_t * coord, const char *name)
 {
 	item_plugin *iplug;
+	char buf[DE_NAME_BUF_LEN];
 
 	iplug = item_plugin_by_coord(coord);
 	if (iplug == NULL) {
@@ -1099,14 +1100,14 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 	assert("nikita-1137", iplug->s.dir.extract_name);
 
 	trace_on(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli (%lli)\n",
-		 current->pid, name, iplug->s.dir.extract_name(coord),
+		 current->pid, name, iplug->s.dir.extract_name(coord, buf),
 		 get_inode_oid(dir), *znode_get_block(coord->node));
 	/* Compare name stored in this entry with name we are looking for.
 	   
 	   NOTE-NIKITA Here should go code for support of something like
 	   unicode, code tables, etc.
 	*/
-	return !!strcmp(name, iplug->s.dir.extract_name(coord));
+	return !!strcmp(name, iplug->s.dir.extract_name(coord, buf));
 }
 
 /* Make Linus happy.

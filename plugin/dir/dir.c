@@ -571,6 +571,7 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 	file_plugin *fplug;
 	item_plugin *iplug;
 	char *name;
+	char buf[DE_NAME_BUF_LEN];
 
 	assert("nikita-2004", tree != NULL);
 	assert("nikita-2005", coord != NULL);
@@ -587,7 +588,7 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 		return 0;
 
 	iplug = item_plugin_by_coord(coord);
-	name = iplug->s.dir.extract_name(coord);
+	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-2162", name != NULL);
 
 	if ((name[0] != '.') || ((name[1] != '.') && (name[1] != '\0')))
@@ -898,11 +899,12 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	reiser4_key sd_key;
 	reiser4_key de_key;
 	int result;
+	char buf[DE_NAME_BUF_LEN];
 	de_id *did;
 
 	iplug = item_plugin_by_coord(coord);
 
-	name = iplug->s.dir.extract_name(coord);
+	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-1371", name != NULL);
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
 		return -EIO;

@@ -856,7 +856,7 @@ optimize_extent(const coord_t * item)
 
 		/* wipe part of item which is going to be cut, so that
 		   node_check will not be confused by extent overlapping */
-		memset(extent_by_coord(&from), 0, sizeof (reiser4_extent) * (old_num - new_num));
+		xmemset(extent_by_coord(&from), 0, sizeof (reiser4_extent) * (old_num - new_num));
 		result = cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0);
 
 		/* nothing should happen cutting
