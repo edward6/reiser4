@@ -21,7 +21,7 @@ echo
 if test "X$BK_CSETLIST" != X; then
 (
 #     bk changes -v - < $BK_CSETLIST
-     bk export -T -tpatch -dc -r`cat $BK_CSETLIST`
+     bk export -T -tpatch -du -r`cat $BK_CSETLIST`
 ) \
 | tail +5 - \
 | grep -v "^#$" \
