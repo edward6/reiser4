@@ -223,6 +223,7 @@ extern __u32 sys_lrand (__u32 max);
  */
 int random_commit_record (txn_atom *atom, log_region *region, struct super_block *super)
 {
+#if 0
 	int   ret;
 	__u32 i;
 
@@ -300,9 +301,9 @@ int random_commit_record (txn_atom *atom, log_region *region, struct super_block
 
 	cputod32 (checksum, & footer->checksum);
 
+#endif
 	return 0;
 }
-
 /* This function will be combined with the logic of "random_commit_record" above, but
  * first there are some other issues to work out.  At that point, random_commit_record
  * will go away and this will be the main entry point for formatting a log record.
