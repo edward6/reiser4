@@ -11,7 +11,8 @@
 #include <linux/sysfs.h>
 #include <linux/fs.h>
 
-#define REISER4_USE_SYSFS (1)
+/* fixme: access to sysfs files may cause deadlock. Do not turn for now */
+#define REISER4_USE_SYSFS (0)
 
 /* helper macros used by kattr code to output information into buffer without
  * caring about overflow checking. */
