@@ -32,4 +32,4 @@ if test "X$BK_CSETLIST" != X; then
 
 fi
 
-) | mail -s "[bk] $MODULE" reiserfs-dev@namesys.com
+) | mail -s "bk commit" reiserfs-dev@namesys.com
