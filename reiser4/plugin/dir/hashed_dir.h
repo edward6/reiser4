@@ -10,17 +10,25 @@
 #if !defined( __HASHED_DIR_H__ )
 #define __HASHED_DIR_H__
 
-extern int hashed_dir_find ( const struct inode *dir, const struct qstr *name, 
-			     tree_coord *coord, reiser4_lock_handle *lh,
-			     znode_lock_mode mode, reiser4_entry *entry );
-
-extern int hashed_dir_add  ( struct inode *dir, const struct dentry *where,
-			     tree_coord *coord, reiser4_lock_handle *lh,
-			     reiser4_object_create_data *data,
-			     reiser4_entry *entry );
-
-extern int hashed_dir_rem  ( struct inode *dir, tree_coord *coord, 
-			     reiser4_lock_handle *lh, reiser4_entry *entry );
+/** create sd for directory file. Create stat-data, dot, and dotdot. */
+extern int                hashed_create    ( struct inode *object, 
+					     struct inode *parent,
+					     reiser4_object_create_data * );
+extern int                hashed_delete    ( struct inode *object, 
+					     struct inode *parent );
+extern int                hashed_owns_item ( const struct inode *inode, 
+					     const tree_coord *coord );
+extern file_lookup_result hashed_lookup    ( struct inode *inode, 
+					     const struct qstr *name,
+					     reiser4_key *key, 
+					     reiser4_entry *entry );
+extern int                hashed_add_entry ( struct inode *object,
+					     struct dentry *where, 
+					     reiser4_object_create_data *,
+					     reiser4_entry *entry );
+extern int                hashed_rem_entry ( struct inode *object, 
+					     struct dentry *where, 
+					     reiser4_entry *entry );
 
 /* __HASHED_DIR_H__ */
 #endif
