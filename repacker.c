@@ -404,6 +404,8 @@ static void wait_repacker_completion(struct repacker * repacker)
 	}
 }
 
+#if REISER4_USE_SYSFS
+
 static int start_repacker(struct repacker * repacker)
 {
 	spin_lock(&repacker->guard);
@@ -426,8 +428,6 @@ static void stop_repacker(struct repacker * repacker)
 	repacker->state |= REPACKER_STOP;
 	spin_unlock(&repacker->guard);
 }
-
-#if REISER4_USE_SYSFS
 
 struct repacker_attr {
 	struct attribute attr;
