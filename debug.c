@@ -163,6 +163,9 @@ void reiser4_print_stats()
 	      "\t write repeats:\t %lli\n"
 	      "\t tail2extent:\t %lli\n"
 	      "\t extent2tail:\t %lli\n"
+	      "\t unformatted node pointers added (hole plugging not included):\t %lli\n"
+	      "\t find_items:\t %lli\n"
+	      "\t full find items:\t%llu\n"
 
 	      "flush:\n"
 	      "\t squeeze:\t %lli\n"
@@ -230,6 +233,9 @@ void reiser4_print_stats()
 	      s -> file.write_repeats,
 	      s -> file.tail2extent,
 	      s -> file.extent2tail,
+	      s -> file.pointers,
+	      s -> file.find_items,
+	      s -> file.full_find_items,
 
 	      s -> flush.squeeze,
 	      s -> flush.flush_carry,

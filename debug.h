@@ -588,6 +588,8 @@ typedef struct reiser4_statistics {
 		stat_cnt find_items;
 		/* how many times find_next_item had to call coord_by_key */
 		stat_cnt full_find_items;
+		/* pointers to unformatted nodes added */
+		stat_cnt pointers;
 
 	} file;
 	struct {

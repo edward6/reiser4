@@ -1796,9 +1796,11 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 
 	case EXTENT_FIRST_BLOCK:
 		/* create first item of the file */
+		reiser4_stat_file_add (pointers);
 		return insert_first_block (coord, lh, j, key);
 		
 	case EXTENT_APPEND_BLOCK:
+		reiser4_stat_file_add (pointers);
 		return append_one_block (coord, lh, j);
 
 	case EXTENT_OVERWRITE_BLOCK:
@@ -1856,25 +1858,6 @@ static int have_to_read_block (struct inode * inode, jnode * j,
 	}
 	return 1;
 }
-
-
-/* read block into buffer @data. returns 0 on success or -EIO */
-static int read_block (reiser4_block_nr block, char * data)
-{
-	struct buffer_head bh, *pbh;
-	
-	bh.b_state = 0;
-	bh.b_blocknr = block;
-	bh.b_size = current_blocksize;
-	bh.b_bdev = current_tree->super->s_bdev;
-	bh.b_data = data;
-	pbh = &bh;
-	ll_rw_block (READ, 1, &pbh);
-	wait_on_buffer (pbh);
-	return buffer_uptodate (pbh) ? 0 : -EIO;
-}
-
-
 
 
 /* make sure that all blocks of the page which are to be modified have pointers
