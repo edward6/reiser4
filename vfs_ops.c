@@ -1226,7 +1226,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	assert("nikita-1365", dentry != NULL);
 
 	if (dentry->d_fsdata == NULL) {
-		reiser4_stat_inc(file.fsdata_alloc);
+		reiser4_stat_inc(vfs_calls.private_data_alloc);
 		/* NOTE-NIKITA use slab in stead */
 		dentry->d_fsdata = reiser4_kmalloc(sizeof (reiser4_dentry_fsdata), GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
@@ -1267,7 +1267,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		reiser4_file_fsdata *fsdata;
 		struct inode *inode;
 
-		reiser4_stat_inc(file.private_data_alloc);
+		reiser4_stat_inc(vfs_calls.private_data_alloc);
 		/* NOTE-NIKITA use slab in stead */
 		fsdata = reiser4_kmalloc(sizeof *fsdata, GFP_KERNEL);
 		if (fsdata == NULL)

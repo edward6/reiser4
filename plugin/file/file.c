@@ -339,7 +339,7 @@ find_file_item(struct sealed_coord *hint,
 	assert("nikita-3030", schedulable());
 
 	/* collect statistics on the number of calls to this function */
-	reiser4_stat_inc(file.find_next_item);
+	reiser4_stat_inc(file.find_file_item);
 
 	if (hint) {
 		hint->lock = lock_mode;
@@ -354,9 +354,9 @@ find_file_item(struct sealed_coord *hint,
 					return result;
 				assert("vs-1152", equal_to_ldk(coord->node, key));
 
-				reiser4_stat_inc(file.find_next_item_via_right_neighbor);
+				reiser4_stat_inc(file.find_file_item_via_right_neighbor);
 			} else {
-				reiser4_stat_inc(file.find_next_item_via_seal);
+				reiser4_stat_inc(file.find_file_item_via_seal);
 			}
 			set_file_state(inode, CBK_COORD_FOUND, znode_get_level(coord->node));
 			return CBK_COORD_FOUND;
@@ -364,7 +364,7 @@ find_file_item(struct sealed_coord *hint,
 	}
 
 	/* collect statistics on the number of calls to this function which did not get optimized */
-	reiser4_stat_inc(file.find_next_item_via_cbk);
+	reiser4_stat_inc(file.find_file_item_via_cbk);
 	
 	result = coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags, ra_info);
 	if (result == CBK_COORD_FOUND || result == CBK_COORD_NOTFOUND)
@@ -804,6 +804,8 @@ unix_file_writepage_nolock(struct page *page)
 	reiser4_key key;
 	item_plugin *iplug;
 
+	reiser4_stat_inc(file.page_ops.writepage_calls);
+
 	assert("vs-1064", !PageLocked(page));
 	assert("vs-1065", page->mapping && page->mapping->host);
 
@@ -897,6 +899,8 @@ unix_file_readpage(void *vp, struct page *page)
 	item_plugin *iplug;
 	struct sealed_coord hint;
 	struct file *file;
+
+	reiser4_stat_inc(file.page_ops.readpage_calls);
 
 	assert("vs-1062", PageLocked(page));
 	assert("vs-1061", page->mapping && page->mapping->host);

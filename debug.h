@@ -729,6 +729,7 @@ typedef struct reiser4_statistics {
 		stat_cnt drop_inode;
 		stat_cnt delete_inode;
 		stat_cnt write_super;
+		stat_cnt private_data_alloc; /* allocations of either per struct dentry or per struct file data */
 	} vfs_calls;
 	struct {
 		struct {
@@ -744,21 +745,25 @@ typedef struct reiser4_statistics {
 			stat_cnt adjust_eq;
 		} readdir;
 	} dir;
+
 	/* statistics of unix file plugin */
 	struct {
-		stat_cnt wait_on_page;
-		stat_cnt fsdata_alloc;
-		stat_cnt private_data_alloc;
+		
+		struct {
+			stat_cnt readpage_calls;
+			stat_cnt writepage_calls;
+		} page_ops;
 
 		/* number of tail conversions */
 		stat_cnt tail2extent;
 		stat_cnt extent2tail;
 
 		/* find_next_item statistic */
-		stat_cnt find_next_item;
-		stat_cnt find_next_item_via_seal;
-		stat_cnt find_next_item_via_right_neighbor;
-		stat_cnt find_next_item_via_cbk;
+		stat_cnt find_file_item;
+		stat_cnt find_file_item_via_seal;
+		stat_cnt find_file_item_via_right_neighbor;
+		stat_cnt find_file_item_via_cbk;
+		
 	} file;
 	struct {
 		/* how many unformatted nodes were read */
