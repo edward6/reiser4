@@ -10,6 +10,25 @@
 
 extern errno_t node40_remove(reiser4_entity_t *entity, reiser4_pos_t *pos);
 
+static uint16_t node40_get_offset_at(aal_block_t *block, int pos) {
+    if (pos > nh40_get_num_items(nh40(block)))
+	return 0;
+    
+    return nh40_get_num_items(nh40(block)) == pos ?
+	nh40_get_free_space_start(nh40(block)) : 
+	ih40_get_offset(node40_ih_at(block, pos));
+}
+
+static void node40_set_offset_at(aal_block_t *block, int pos, uint16_t offset) {
+    if (pos > nh40_get_num_items(nh40(block)))
+	return;
+    
+    if (nh40_get_num_items(nh40(block)) == pos) 
+	nh40_set_free_space_start(nh40(block), offset);
+    else 
+	ih40_set_offset(node40_ih_at(block, pos), offset);
+}
+
 static int64_t __length_sum(item40_header_t *ih, uint16_t count) {
     aal_assert("vpf-215", ih != NULL, return 0);
 

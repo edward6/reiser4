@@ -104,8 +104,8 @@ typedef struct item40_header item40_header_t;
 #define ih40_get_pid(ih)			aal_get_le16(ih, pid)
 #define ih40_set_pid(ih, val)			aal_set_le16(ih, pid, val)
 
-#define node40_free_space_end(block) \
-    aal_device_get_bs(block->device) - nh40_get_num_items(nh40(block)) * sizeof(item40_header_t)
+#define node40_free_space_end(block)	aal_device_get_bs(block->device) - \
+    nh40_get_num_items(nh40(block)) * sizeof(item40_header_t)
 
 /* Returns item header by pos */
 static item40_header_t *node40_ih_at(aal_block_t *block, int pos) {
@@ -115,25 +115,6 @@ static item40_header_t *node40_ih_at(aal_block_t *block, int pos) {
 /* Retutrns item body by pos */
 static void *node40_ib_at(aal_block_t *block, int pos) {
     return block->data + ih40_get_offset(node40_ih_at(block, pos));
-}
-
-static uint16_t node40_get_offset_at(aal_block_t *block, int pos) {
-    if (pos > nh40_get_num_items(nh40(block)))
-	return 0;
-    
-    return nh40_get_num_items(nh40(block)) == pos ?
-	nh40_get_free_space_start(nh40(block)) : 
-	ih40_get_offset(node40_ih_at(block, pos));
-}
-
-static void node40_set_offset_at(aal_block_t *block, int pos, uint16_t offset) {
-    if (pos > nh40_get_num_items(nh40(block)))
-	return;
-    
-    if (nh40_get_num_items(nh40(block)) == pos) 
-	nh40_set_free_space_start(nh40(block), offset);
-    else 
-	ih40_set_offset(node40_ih_at(block, pos), offset);
 }
 
 #endif
