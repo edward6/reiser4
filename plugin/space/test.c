@@ -18,7 +18,13 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 
 	assert ("vs-629", arg);
 	next = arg;
+
+	spin_lock_init (&allocator->u.test.guard);
+
+	spin_lock (&allocator->u.test.guard);
 	allocator->u.test.new_block_nr = *next;
+	spin_unlock (&allocator->u.test.guard);
+
 	return 0;
 }
 
@@ -28,14 +34,22 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 #define P 0.2
 
 /* plugin->u.space_allocator.alloc_blocks */
-int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
-		       reiser4_block_nr * start, reiser4_block_nr * len)
+int test_alloc_blocks (reiser4_space_allocator * allocator,
+		       reiser4_blocknr_hint * hint, int needed,
+		       reiser4_block_nr * start /* first of allocated blocks */,
+		       reiser4_block_nr * num /* num of allocated blocks */)
 {
 	double p;
-	static reiser4_block_nr min_free = 10000;
+	reiser4_block_nr min_free;
 
-	assert ("vs-460", *len > 0);
 
+	assert ("vs-460", needed > 0);
+
+
+	spin_lock (&allocator->u.test.guard);
+
+	/* minimal free block is stored in space allocator */
+	min_free = allocator->u.test.new_block_nr;
 
 	if (hint->blk < min_free) {
 		/* hint is set such that we can not return
@@ -49,7 +63,7 @@ int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
 		 * return what we were asked for
 		 */
 		*start = hint->blk;
-		*len = needed;
+		*num = needed;
 	} else {
 		/* return blocks not contiguous with hint->blk */
 		*start = hint->blk + 3;
@@ -57,20 +71,34 @@ int test_alloc_blocks (reiser4_blocknr_hint * hint, int needed,
 		 * choose amount of free blocks randomly in the range
 		 * from 1 to needed
 		 */
-		*len = 1 + (int) ((double)(needed) * rand () / (RAND_MAX + 1.0));
+		*num = 1 + (int) ((double)(needed) * rand () / (RAND_MAX + 1.0));
 	}
 
-	min_free = *start + *len;
+	min_free = *start + *num;
 	
+	/* update space allocator */
+	allocator->u.test.new_block_nr = min_free;
+
 	/* update hint to next free */
 	hint->blk = min_free;
+
+	spin_unlock (&allocator->u.test.guard);
+
 	return 0;
 }
 
 
-void test_dealloc_blocks (reiser4_block_nr start UNUSED_ARG,
+void test_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
+			  reiser4_block_nr start UNUSED_ARG,
 			  reiser4_block_nr len UNUSED_ARG)
 {
 	return;
 }
 
+void test_print_info (reiser4_space_allocator * allocator)
+{
+	spin_lock (&allocator->u.test.guard);
+	info ("test space allocator: next free block is %lli\n",
+	      allocator->u.test.new_block_nr);
+	spin_unlock (&allocator->u.test.guard);
+}
