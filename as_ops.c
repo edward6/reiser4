@@ -561,12 +561,22 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		/* there is no need to synchronize against
 		 * jnode_extent_write() here, because pages seen by
 		 * jnode_extent_write() are !releasable(). */
-		page_clear_jnode(page, node);
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 
+		if (!JF_ISSET(node, JNODE_EFLUSH) && jnode_is_unformatted(node)) {
+			/* unformatted jnodes have pointer inode's address space. Jnodes are stored in per filesystem
+			   hash table.  */
+			uncapture_page(page);
+			UNDER_SPIN_VOID(jnode,
+					node,
+					page_clear_jnode(page, node));
+			/* remove jnode from hash table */
+			unhash_unformatted_jnode(node);
+		}
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
+
 		write_lock_irq(&mapping->tree_lock);
 		/* shrink_list() + radix-tree */
 		if (page_count(page) == 2) {

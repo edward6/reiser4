@@ -983,7 +983,6 @@ static void delete_inode_common(struct inode *object)
 
 	init_context(&ctx, object->i_sb);
 
-	/*uncapture_inode(object);*/
 	kill_cursors(object);
 
 	if (!is_bad_inode(object)) {

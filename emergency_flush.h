@@ -7,11 +7,6 @@
 
 #if REISER4_USE_EFLUSH
 
-/* this bit is set when inode gets first eflushed jnode (eflush_add()). It is cleared when last eflushed jnode is
-   eunflushed (eflush_del()). It solely exists to prevent inodes having eflushed jnodes from being pruned
-   (fs/inode.c:can_unuse()) */
-#define I_EFLUSH (256)
-
 #include "block_alloc.h"
 
 struct eflush_node;

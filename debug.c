@@ -635,7 +635,7 @@ typedef struct {
 	int id;
 	pid_t pid;
 	int op;
-	int data;
+	void *data;
 } clog_t;
 
 clog_t clog[CLOG_LENGTH];
@@ -645,7 +645,7 @@ int clog_length = 0;
 int clog_id = 0;
 
 void
-clog_op(int op, int data)
+clog_op(int op, void *data)
 {
 	spin_lock(&clog_lock);
 	if (clog_length == CLOG_LENGTH) {
@@ -671,16 +671,12 @@ static const char *
 op2str(int op)
 {
 	static const char *op_names[OP_NUM] = {
-		"add-empty-leaf",
-		"kill-empty-node",
-		"lookup-deadlock",
-		"store-bb",
-		"make-znode-dirty",
-		"dirty-empty-node",
-		"create-item",
-		"new-node",
-		"kill-internal",
-		"delete-empty-node"
+		"clear-inode",
+		"new-inode",
+		"get-new-inode",
+		"get-new-inode-fast",
+		"hash",
+		"unhash"
 	};
 	assert("vs-1673", op < OP_NUM);
 	return op_names[op];
@@ -693,7 +689,7 @@ print_clog(void)
 
 	j = clog_start;
 	for (i = 0; i < clog_length; i ++) {
-		printk("%d(%d): id %d: pid %d, op %s, data %d\n",
+		printk("%d(%d): id %d: pid %d, op %s, data %p\n",
 		       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data);
 		j ++;
 		j %= CLOG_LENGTH;

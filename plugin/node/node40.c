@@ -971,7 +971,6 @@ create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	}
 
 	node_check(target->node, 0);
-	clog_op(OP_CREATE_ITEM, item_plugin_id(data->iplug));
 	return 0;
 }
 
@@ -2691,11 +2690,6 @@ shift_node40(coord_t *from, znode *to, shift_direction pend,
 
 	/* set @shift.wish_stop to rightmost/leftmost unit among units we want
 	   shifted */
-	/*XXXX debugging */
-	if (node_is_empty(shift.wish_stop.node)) {
-		if (znode_get_level(to) == LEAF_LEVEL)
-			clog_op(OP_KILL_EMPTY_NODE, 0);
-	}
 	if (pend == SHIFT_LEFT) {
 		result = coord_set_to_left(&shift.wish_stop);
 		left = to;

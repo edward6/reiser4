@@ -2375,65 +2375,12 @@ try_capture_page_to_invalidate(struct page *pg)
 	LOCK_JNODE(node);
 	unlock_page(pg);
 
-	/*ret = try_capture(node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);*/
 	ret = try_capture(node, ZNODE_WRITE_LOCK, 0, 0/* no copy on capture */);
 	UNLOCK_JNODE(node);
 	jput(node);
 	lock_page(pg);
 	return ret;
 }
-
-/* this is to prevent captured inodes from being pruned. FIXME: maybe we could use I_DIRTY*/
-#define I_CAPTURED 512
-
-#if 0
-/* VS-FIXME-HANS: explain the concept behind capturing an inode, and all of
- * its principles of operation / guarantees provided. No adding design features
- * without explanations of them!;-), especially when the last thing I vaguely
- * remember you were saying something about how it isn't used to any
- * effect.... */
-/* this is called by reiser4_mark_inode_dirty */
-reiser4_internal int capture_inode(struct inode *inode)
-{
-	int result;
-	jnode *j;
-
-	j = &(reiser4_inode_data(inode)->inode_jnode);
-	LOCK_JNODE(j);
-	result = try_capture(j, ZNODE_WRITE_LOCK, 0, 0/* no copy on capture */);
-	if (result)
-		warning("vs-1249", "Failed to capture inode: ino %llu\n", get_inode_oid(inode));
-	else
-		inode->i_state |= I_CAPTURED;
-		
-	UNLOCK_JNODE(j);
-	return result;
-}
-
-reiser4_internal int uncapture_inode(struct inode *inode)
-{
-	txn_atom *atom;
-	jnode *j;
-
-	return 0;
-	j = &(reiser4_inode_data(inode)->inode_jnode);
-
-	LOCK_JNODE(j);
-
-	inode->i_state &= ~I_CAPTURED;
-	assert("vs-1244", !jnode_is_dirty(j));
-	atom = jnode_get_atom(j);
-	if (atom == NULL) {
-		UNLOCK_JNODE (j);
-		return 0;
-	}
-	uncapture_block(j);
-	UNLOCK_ATOM(atom);
-	jput(j);
-	return 0;
-}
-
-#endif
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
    atom's delete set and uncapture the block.

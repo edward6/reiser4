@@ -527,19 +527,16 @@ typedef struct err_site {} err_site;
 #endif
 
 /* operations to clog */
-#define OP_ADD_EMPTY_LEAF 0 /* eottl.c:handle_eottl(), data is result of add_empty_leaf */
-#define OP_KILL_EMPTY_NODE 1 /* node40.c:shift_node40(), data is unused */
-#define OP_LOOKUP_DEADLOCK 2 /* search.c:traverse_tree() when cbk_level_lookup returns LOOKUP_REST + E_DEADLOCK */
-#define OP_STORE_BB 3 /* blackbox.c:store_block_box(), to delimit cbk which got problem, data is not used */
-#define OP_MAKE_ZNODE_DIRTY 4 /* OFF txnmgr.c:do_jnode_make_dirty(), context's nr_mark_dirty is increased */
-#define OP_DIRTY_EMPTY_LEAF 5 /* eottl.c:add_empty_leaf(), znode_make_dirty for inserted empty node */
-#define OP_CREATE_ITEM 6 /* node40.c:create_item_node40, item is created */
-#define OP_NEW_NODE 7
-#define OP_KILL_INTERNAL 8
-#define OP_DELETE_EMPTY_NODE 9
-#define OP_NUM 10
+/* debugging inode->i_state == 0 and r4_inode->jnodes != 0 */
+#define CLEAR_INODE 0
+#define NEW_INODE 1
+#define GET_NEW_INODE 2
+#define GET_NEW_INODE_FAST 3
+#define HASH_JNODE 4
+#define UNHASH_JNODE 5
+#define OP_NUM 6
 
-void clog_op(int op, int data);
+void clog_op(int op, void *);
 void print_clog(void);
 
 /* __FS_REISER4_DEBUG_H__ */
