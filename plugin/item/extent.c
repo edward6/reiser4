@@ -2207,8 +2207,9 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	inode = page->mapping->host;
 
 	/* jnode exists and it is not mapped */
-	assert ("vs-862", (PagePrivate (page) &&
-			   !jnode_mapped (jnode_by_page (page))));
+	assert ("vs-871", PagePrivate (page) && page->private);
+	j = jnode_of_page (page);
+	assert ("vs-862", !jnode_mapped (j));
 	assert ("vs-863", znode_is_loaded (coord->node));
 	assert ("vs-864", znode_is_wlocked (coord->node));
 	assert ("vs-865", item_is_extent (coord));
@@ -2222,8 +2223,6 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	/* this will check that unit @coord is set to addresses this page */
 	if (REISER4_DEBUG)
 		in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
-
-	j = jnode_of_page (page);
 
 	if (state_of_extent (ext) == ALLOCATED_EXTENT) {
 		/* allocated extent found. Calculate block number corresponding
