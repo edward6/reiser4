@@ -1900,8 +1900,9 @@ RIGHT_AGAIN:
 	}
 
 	/* Now check whether there are shifted nodes below this level using the coordinate
-	   set prior to squeezing.  */
-	shifted_nodes_below = !coord_is_after_rightmost(&at_right);
+	   set prior to squeezing. It has sense when we above leaf level -zam. */
+	shifted_nodes_below = 
+		(znode_get_level(node) != LEAF_LEVEL) && !coord_is_after_rightmost(&at_right);
 
 	trace_on(TRACE_FLUSH_VERB,
 		 "sq1_ca[%u] after right neighbor %s: shifted_nodes_below = %u\n",
