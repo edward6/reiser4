@@ -20,6 +20,7 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size);
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws);
 static pars_var_t * alloc_pars_var(struct reiser4_syscall_w_space * ws, pars_var_t * last_pars_var);
+static int free_expr(  expr_v4_t * expr);
 static lnode * get_lnode(struct reiser4_syscall_w_space * ws);
 static struct reiser4_syscall_w_space * reiser4_pars_init(void);
 static void level_up(struct reiser4_syscall_w_space *ws, long type);
@@ -61,7 +62,7 @@ static expr_v4_t * symlink(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, 
 static  int source_not_empty(expr_v4_t *source);
 static tube_t * get_tube_general(pars_var_t *sink, expr_v4_t *source);
 static size_t reserv_space_in_sink(tube_t * tube, size_t len );
-static size_t get_available_len(struct file * fl);
+static size_t get_available_len(tube_t * tube);
 static int prep_tube_general(tube_t * tube);
 static int source_to_tube_general(tube_t * tube);
 static int tube_to_sink_general(tube_t * tube);
