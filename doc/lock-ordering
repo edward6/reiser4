@@ -92,6 +92,9 @@ Reiser4 introduces following locks:
     znode_epoch field, used to implement seals (seal.[ch]) 
     efficiently.
 
+35. Per-atom "event". This is not really lock. Rather, this is an event
+    signaled each time atom changes its state.                  (atom_event)
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -260,6 +263,7 @@ i_sem
 ......I_LOCK                      |
 ....delete_sema                   |
 ......flush_sema                  |
+........atom_event                |
 ........longterm_lock <---DEAD2-+ |
 ......commit_sema               | |
 ..........page_lock             | |

@@ -12,11 +12,15 @@
 #define LONGATTR shape=ellipse
 #define SPINATTR shape=box
 
+#define CONDATTR color=blue, peripheries=2, LONGATTR
+
 #define MARKLONG(name) name -> schedulable [style=invis, weight=0]
 
 #define SYSLONG(name, l) name [label=l, NATTR, LONGATTR, SYSATTR]; MARKLONG(name)
 #define SYSPSEUDO(name) name [NATTR, LONGATTR, PSEUDOATTR]; MARKLONG(name)
 #define RLONG(name) name [NATTR, LONGATTR]; MARKLONG(name)
+
+#define RCOND(name, l) name [label=l, NATTR, CONDATTR]; MARKLONG(name)
 
 #define MARKSPIN(name) schedulable -> name [style=invis, weight=0]
 
@@ -46,6 +50,10 @@ subgraph long {
 	txncommit [LONGATTR, PSEUDOATTR]; MARKLONG(txncommit);
 	txncommit -> flush_sema [style=dotted, dir=both];
 	txncommit -> commit_sema [style=dotted, dir=both];
+
+    /* atom_event is not really a lock: you can wait on it, but cannot "own"
+       it. */
+	RCOND(atom_event,atom_event);
 
 	//RLONG(lnode_kcond);
 	//RLONG(ktxnmgrd_start);
@@ -224,4 +232,6 @@ ARC(jnode_lock, zone_lru_lock, "jnode_set_dirty()");
 
 ARC(I_LOCK, longterm_lock, "reiser4_iget()");
 
+//one cannot wait for atom event keeping longterm lock
+ARC(atom_event, longterm_lock, "flush");
 }
