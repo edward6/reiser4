@@ -30,7 +30,7 @@
 /* Never store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
-have_tail_never(const struct inode *inode UNUSED_ARG /* inode to operate on */ ,
+have_formatting_never(const struct inode *inode UNUSED_ARG /* inode to operate on */ ,
 		loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 0;
@@ -39,7 +39,7 @@ have_tail_never(const struct inode *inode UNUSED_ARG /* inode to operate on */ ,
 /* Always store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
-have_tail_always(const struct inode *inode UNUSED_ARG	/* inode to operate on */ ,
+have_formatting_always(const struct inode *inode UNUSED_ARG	/* inode to operate on */ ,
 		 loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 1;
@@ -48,7 +48,7 @@ have_tail_always(const struct inode *inode UNUSED_ARG	/* inode to operate on */ 
 /* This function makes test if we should store file denoted @inode as tails only or
    as extents only. */
 static int
-have_tail_default(const struct inode *inode UNUSED_ARG	/* inode to operate on */ ,
+have_formatting_default(const struct inode *inode UNUSED_ARG	/* inode to operate on */ ,
 		  loff_t size /* new object size */ )
 {
 	assert("umka-1253", inode != NULL);
@@ -70,7 +70,7 @@ formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID] = {
 			.desc = "Never store file's tail",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.have_tail = have_tail_never
+		.have_tail = have_formatting_never
 	},
 	[ALWAYS_TAILS_FORMATTING_ID] = {
 		.h = {
@@ -81,7 +81,7 @@ formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID] = {
 			.desc = "Always store file's tail",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.have_tail = have_tail_always
+		.have_tail = have_formatting_always
 	},
 	[SMALL_FILE_FORMATTING_ID] = {
 		.h = {
@@ -92,7 +92,7 @@ formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID] = {
 			.desc = "store files shorter than 4 blocks in tail items",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.have_tail = have_tail_default
+		.have_tail = have_formatting_default
 	}
 };
 

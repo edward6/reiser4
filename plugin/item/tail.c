@@ -46,9 +46,9 @@ mergeable_tail(const coord_t *p1, const coord_t *p2)
 	reiser4_key key1, key2;
 
 	assert("vs-535", item_type_by_coord(p1) == ORDINARY_FILE_METADATA_TYPE);
-	assert("vs-365", item_id_by_coord(p1) == TAIL_ID);
+	assert("vs-365", item_id_by_coord(p1) == FORMATTING_ID);
 
-	if (item_id_by_coord(p2) != TAIL_ID) {
+	if (item_id_by_coord(p2) != FORMATTING_ID) {
 		/* second item is of another type */
 		return 0;
 	}
@@ -454,7 +454,7 @@ int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
-static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
+static int formatting_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 				    hint_t *hint)
 {
 	return item_balance_dirty_pages(mapping, f, hint, 1, 1/* set hint */);
@@ -537,7 +537,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 		hint->coord.valid = 0;
 
 		/* throttle the writer */
-		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
+		result = formatting_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free();
 		if (result) {

@@ -584,7 +584,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 
 	/* these are permanent during insert_flow */
 	data.user = 1;
-	data.iplug = item_plugin_by_id(TAIL_ID);
+	data.iplug = item_plugin_by_id(FORMATTING_ID);
 	data.arg = 0;
 	/* data.length and data.data will be set before calling paste or
 	   insert */
@@ -1897,7 +1897,7 @@ collect_tree_stat(reiser4_tree * tree, znode * node)
 			tree_stat.extents++;
 			item_plugin_by_id(EXTENT_POINTER_ID)->b.item_stat(&coord, &tree_stat.ex_stat);
 			break;
-		case TAIL_ID:
+		case FORMATTING_ID:
 			tree_stat.tails++;
 			tree_stat.tail_total_length += coord_num_units(&coord);
 			break;

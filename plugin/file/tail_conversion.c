@@ -129,7 +129,7 @@ mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks UNUSED_AR
 	reiser4_block_nr blocks;
 
 	coord_dup_nocheck(&twin, coord);
-	id =  znode_get_level(twin.node) == LEAF_LEVEL ? FROZEN_TAIL_ID : FROZEN_EXTENT_POINTER_ID;
+	id =  znode_get_level(twin.node) == LEAF_LEVEL ? FROZEN_FORMATTING_ID : FROZEN_EXTENT_POINTER_ID;
 	blocks = 1;
 
 	result = 0;
@@ -201,7 +201,7 @@ prepare_tail2extent(struct inode *inode)
    @offset */
 /* Audited by: green(2002.06.15) */
 static int
-cut_tail_items(struct inode *inode, loff_t offset, int count)
+cut_formatting_items(struct inode *inode, loff_t offset, int count)
 {
 	reiser4_key from, to;
 
@@ -264,7 +264,7 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 	assert("vs-596", nr_pages > 0 && pages[0]);
 
 	/* cut copied items */
-	result = cut_tail_items(inode, (loff_t) pages[0]->index << PAGE_CACHE_SHIFT, count);
+	result = cut_formatting_items(inode, (loff_t) pages[0]->index << PAGE_CACHE_SHIFT, count);
 	if (result)
 		return result;
 
@@ -375,9 +375,9 @@ tail2extent(unix_file_info_t *uf_info)
 				assert("vs-562", owns_item_unix_file(unix_file_info_to_inode(uf_info), coord));
 				assert("vs-856", coord->between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(coord, &tmp)));
-				assert("vs-1170", item_id_by_coord(coord) == FROZEN_TAIL_ID);
+				assert("vs-1170", item_id_by_coord(coord) == FROZEN_FORMATTING_ID);
 #if 0
-				if (item_id_by_coord(coord) != TAIL_ID && item_id_by_coord(coord) != FROZEN_TAIL_ID) {
+				if (item_id_by_coord(coord) != FORMATTING_ID && item_id_by_coord(coord) != FROZEN_FORMATTING_ID) {
 					/* something other than tail found. This is only possible when first item of a
 					   file found during call to reiser4_mmap.
 					*/
@@ -477,7 +477,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	/* build flow */
 	inode_file_plugin(inode)->flow_by_inode(inode, kmap(page), 0 /* not user space */ ,
 						count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
-	iplug = item_plugin_by_id(TAIL_ID);
+	iplug = item_plugin_by_id(FORMATTING_ID);
 	while (f.length) {
 		hint_init_zero(&hint, &lh);
 		result = find_file_item(&hint, &f.key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */);

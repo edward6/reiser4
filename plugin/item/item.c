@@ -245,7 +245,7 @@ int
 item_is_tail(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
-	return item_id_by_coord(item) == TAIL_ID || item_id_by_coord(item) == FROZEN_TAIL_ID;
+	return item_id_by_coord(item) == FORMATTING_ID || item_id_by_coord(item) == FROZEN_FORMATTING_ID;
 }
 
 int
@@ -565,10 +565,10 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			}
 		}
 	},
-	[TAIL_ID] = {
+	[FORMATTING_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id = TAIL_ID,
+			.id = FORMATTING_ID,
 			.pops = NULL,
 			.label = "body",
 			.desc = "body (or tail?) item",
@@ -694,10 +694,10 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 	/* the below two items are used in tail conversion. Before tail conversion starts all items of file becomes
 	   frozen. That is nothing of them can be shifted to another node. This guarantees that estimation/reservation
 	   remains valid during tail conversion operation */
-	[FROZEN_TAIL_ID] = {
+	[FROZEN_FORMATTING_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id = FROZEN_TAIL_ID,
+			.id = FROZEN_FORMATTING_ID,
 			.pops = NULL,
 			.label = "frozen tail",
 			.desc = "non split-able tail item",

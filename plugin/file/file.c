@@ -12,7 +12,7 @@
 
 #include <linux/writeback.h>
 
-/* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
+/* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (FORMATTING_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
 static int unpack(struct inode *inode, int forever, int locked);
@@ -1465,7 +1465,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
 		break;
 	case UF_CONTAINER_TAILS:
-		read_f = item_plugin_by_id(TAIL_ID)->s.file.read;
+		read_f = item_plugin_by_id(FORMATTING_ID)->s.file.read;
 		break;
 	case UF_CONTAINER_UNKNOWN:
 		read_f = 0;
@@ -1597,7 +1597,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 				write_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.write;
 			} else {
 				new_container = UF_CONTAINER_TAILS;
-				write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
+				write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
 			}
 			break;
 
@@ -1617,7 +1617,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 				unset_hint(&hint);
 				continue;
 			}
-			write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
+			write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
 			new_container = cur_container;
 			break;
 
@@ -2113,8 +2113,8 @@ owns_item_unix_file(const struct inode *inode	/* object to check against */ ,
 		return 0;
 	if (item_type_by_coord(coord) != ORDINARY_FILE_METADATA_TYPE)
 		return 0;
-	assert("vs-547", (item_id_by_coord(coord) == EXTENT_POINTER_ID || item_id_by_coord(coord) == TAIL_ID ||
-			  item_id_by_coord(coord) == FROZEN_EXTENT_POINTER_ID || item_id_by_coord(coord) == FROZEN_TAIL_ID));
+	assert("vs-547", (item_id_by_coord(coord) == EXTENT_POINTER_ID || item_id_by_coord(coord) == FORMATTING_ID ||
+			  item_id_by_coord(coord) == FROZEN_EXTENT_POINTER_ID || item_id_by_coord(coord) == FROZEN_FORMATTING_ID));
 	return 1;
 }
 

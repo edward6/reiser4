@@ -294,14 +294,14 @@ static __inline__ void list_add_rcu(struct list_head *new, struct list_head *hea
 }
 
 /**
- * list_add_tail_rcu - add a new entry to rcu-protected list
+ * list_add_formatting_rcu - add a new entry to rcu-protected list
  * @new: new entry to be added
  * @head: list head to add it before
  *
  * Insert a new entry before the specified head.
  * This is useful for implementing queues.
  */
-static __inline__ void list_add_tail_rcu(struct list_head *new, struct list_head *head)
+static __inline__ void list_add_formatting_rcu(struct list_head *new, struct list_head *head)
 {
 	__list_add_rcu(new, head->prev, head);
 }
