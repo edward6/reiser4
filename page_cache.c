@@ -100,9 +100,19 @@ int init_formatted_fake( struct super_block *super )
 		return -ENOMEM;
 }
 
+int done_formatted_fake( struct super_block *super )
+{
+	struct inode *fake;
+
+	fake = get_super_private( super ) -> fake;
+	iput( fake );
+	return 0;
+}
+
+
 /**
  * read @block into page cache and bind it to the formatted fake inode of
- * @super. Return pointer to the data in @data.
+ * @super. Kmap the page. Return pointer to the data in @data.
  */
 int read_in_formatted( struct super_block *super, sector_t block, char **area )
 {
@@ -110,9 +120,11 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 	struct page  *page;
 	int           result;
 	int           blksizebits;
+	char         *addr;
 
 	assert( "nikita-1771", super != NULL );
 	assert( "nikita-1772", area != NULL );
+	assert( "vs-663", super -> s_blocksize == PAGE_CACHE_SIZE );
 
 	blksizebits = super -> s_blocksize_bits;
 	/*
@@ -122,9 +134,10 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 	page_idx = block >> ( PAGE_CACHE_SHIFT - blksizebits );
 	page = grab_cache_page( get_super_fake( super ) -> i_mapping, 
 				page_idx );
-	if( page != NULL ) {
-		struct buffer_head *bh;
-
+	if( page == NULL ) {
+		return -ENOMEM;
+	}
+	if( !PageUptodate( page ) ) {
 		/*
 		 * we have page locked and referenced.
 		 */
@@ -144,22 +157,41 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 		 * each other on the disk, so this is cheap.
 		 */
 		result = block_read_full_page( page, fake_get_block );
-		assert( "nikita-1775", page -> buffers != NULL );
+		if (result) {
+			page_cache_release( page );
+			return result;
+		}
+	}
+	wait_on_page_locked( page );
+	if( !PageUptodate( page ) ) {
+		page_cache_release( page );
+		return result;
+	}
+	/*
+	 * FIXME-VS: to return pointer inside of page via @area we have to kmap
+	 * it (page) first
+	 */
+	addr = kmap( page );
+	*area = addr + ((block % (PAGE_CACHE_SIZE / super->s_blocksize)) * super->s_blocksize);
+
+#ifdef USE_BUFFER_HEADS
+		struct buffer_head *bh;
+		assert( "nikita-1775", page_has_buffers (page) );
 
 		/*
 		 * find buffer head for @block
 		 */
-		bh = page -> buffers;
+		bh = page_buffers( page );
 		while( bh -> b_blocknr != block ) {
 			bh = bh -> b_this_page;
-			assert( "nikita-1776", bh != page -> buffers );
+			assert( "nikita-1776", bh != page_buffers( page ) );
 		}
 
 		if( REISER4_FORMATTED_CLUSTER_READ )
 			/*
 			 * wait until all buffers on this page are read in.
 			 */
-			wait_on_page( page );
+			wait_on_page_locked( page );
 		else
 			/*
 			 * wait on the buffer we are really interested in. io
@@ -184,10 +216,36 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 		 * unlocked by async io completion handler, when last buffer
 		 * io finishes.
 		 */
-	} else
-		result = -ENOMEM;
-	return result;
+#endif
+
+	return 0;
 }
+
+
+static struct page * page_by_znode (znode * node)
+{
+	char * virt;
+	int block_per_page;	
+
+	block_per_page = PAGE_CACHE_SIZE / reiser4_get_current_sb ()->s_blocksize;
+	virt = zdata( node ) - ((*znode_get_block( node ) % block_per_page) *
+				reiser4_get_current_sb ()->s_blocksize);
+	return virt_to_page (virt);
+}
+
+
+/* @area is pointer within a kmaped page. Calculate that page, kunmap it and
+ * release */
+void unread_formatted( znode *node )
+{
+	struct page * page;
+
+	page = page_by_znode( node );
+	assert( "vs-661", page );
+	kunmap( page );
+	page_cache_release( page );
+}
+
 
 #if REISER4_DEBUG
 void *xmemcpy( void *dest, const void *src, size_t n )
@@ -287,7 +345,6 @@ static int fake_get_block( struct inode *inode,
 	 * But max_block is static in fs/block_dev.c
 	 */
 
-	bh -> b_dev     = inode -> i_rdev;
 	bh -> b_bdev    = inode -> i_bdev;
 	bh -> b_blocknr = block;
 	bh -> b_state  |= 1UL << BH_Mapped;
@@ -298,7 +355,7 @@ static int fake_get_block( struct inode *inode,
 /**
  * stub for fake address space methods that should be never called
  */
-static int never_ever()
+int never_ever(void)
 {
 	warning( "nikita-1708", 
 		 "Unexpected filemap operation was called for fake znode" );
@@ -311,15 +368,19 @@ static int never_ever()
  * address space operations for the fake inode
  */
 static struct address_space_operations formatted_fake_as_ops = {
-	.writepage     = NULL,
-	.readpage      = NO_SUCH_OP,
-	.sync_page     = NO_SUCH_OP,
-	.prepare_write = NO_SUCH_OP,
-	.commit_write  = NO_SUCH_OP,
-	.bmap          = NO_SUCH_OP,
-	.flushpage     = NO_SUCH_OP,
-	.releasepage   = formatted_fake_pressure_handler,
-	.direct_IO     = NO_SUCH_OP
+	.writepage      = NULL,
+	.readpage       = NO_SUCH_OP,
+	.sync_page      = NO_SUCH_OP,
+	.writepages     = NO_SUCH_OP,
+	.vm_writeback   = NO_SUCH_OP,
+	.set_page_dirty = NO_SUCH_OP,
+	.readpages      = NO_SUCH_OP,
+	.prepare_write  = NO_SUCH_OP,
+	.commit_write   = NO_SUCH_OP,
+	.bmap           = NO_SUCH_OP,
+	.invalidatepage = NO_SUCH_OP,
+	.releasepage    = formatted_fake_pressure_handler,
+	.direct_IO      = NO_SUCH_OP
 };
 
 
