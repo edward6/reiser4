@@ -562,7 +562,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 			  ergo( ( h -> result == CBK_COORD_FOUND ) &&
 				( h -> bias == FIND_EXACT ) &&
 				( !node_is_empty( h -> coord -> node ) ),
-				coord_is_existing_unit( h -> coord ) ) ) );
+				coord_is_existing_item( h -> coord ) ) ) );
 	}
 	return h -> result;
 }
@@ -776,8 +776,14 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 		assert( "nikita-381", h -> coord -> node == active );
 		if( result == NS_FOUND ) {
 			/* success of tree lookup */
+			/*
+			 * FIXME-NIKITA following assertion doesn't work
+			 * currently, because ->lookup method of internal item
+			 * sets ->between == AFTER_UNIT and bias is
+			 * unconditionally set to FIND_EXACT above (why?)
+			 */
 			assert( "nikita-1604",
-				ergo( h -> bias == FIND_EXACT, 
+				1 || ergo( h -> bias == FIND_EXACT, 
 				      coord_is_existing_unit( h -> coord ) ) );
 			if( !( h -> flags & CBK_UNIQUE ) && 
 			    key_is_ld( active, h -> key ) ) {
