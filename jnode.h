@@ -396,7 +396,6 @@ jnode_is_loaded(const jnode * node)
 	return JF_ISSET(node, JNODE_LOADED);
 }
 
-extern void jnode_attach_page(jnode * node, struct page *pg);
 extern void page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index);
 extern void page_clear_jnode(struct page *page, jnode * node);
 static inline int jnode_is_dirty(const jnode * node);
@@ -622,6 +621,9 @@ static inline int jprotect (jnode * node)
 	LOCK_JNODE(node);
 
 	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
+	assert("vs-1216", jnode_is_unformatted(node));
+	assert("vs-1217", !(jnode_mapping(node)->host->i_state & I_GHOST));
+	
 
 	JF_SET(node, JNODE_EPROTECTED);
 	ret = JF_ISSET(node, JNODE_EFLUSH);
