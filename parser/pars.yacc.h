@@ -12,7 +12,7 @@
 #define BEGIN_FROM_CURRENT 333
 
 struct reiser4_syscall_w_space {
-	/*	char * ws_inline;     this two field used for parsing string, one (inline) stay on begin */
+	char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
 	char * ws_pline;     /*   of token, second (pline) walk to end to token                   */
 #ifdef yyacc
 	                     /* next field need for yacc                   */
