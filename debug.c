@@ -143,6 +143,14 @@ void reiser4_print_stats()
 	      "\t alloc:\t %lli\n"
 	      "\t kmalloc:\t %lli\n"
 
+	      "seal:\n"
+	      "\t perfect_match:\t %lli\n"
+	      "\t key_drift:\t %lli\n"
+	      "\t out_of_cache:\t %lli\n"
+	      "\t wrong_node:\t %lli\n"
+	      "\t didnt_move:\t %lli\n"
+	      "\t found:\t %lli\n"
+
 	      "global:\n"
 	      "\t non_uniq:\t %lli\n"
 	      "\t non_uniq_max:\t %lli\n"
@@ -188,6 +196,13 @@ void reiser4_print_stats()
 
 	      s -> pool.pool_alloc,
 	      s -> pool.pool_kmalloc,
+
+	      s -> seal.perfect_match,
+	      s -> seal.key_drift,
+	      s -> seal.out_of_cache,
+	      s -> seal.wrong_node,
+	      s -> seal.didnt_move,
+	      s -> seal.found,
 
 	      s -> non_uniq,
 	      s -> non_uniq_max,

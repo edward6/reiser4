@@ -239,6 +239,7 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file. ## stat )
 #define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush. ## stat )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
+#define reiser4_stat_seal_add( stat ) ST_INC_CNT( seal. ## stat )
 
 #define	reiser4_stat_add_at_level( lev, stat )				\
 ({									\
@@ -567,6 +568,33 @@ typedef struct reiser4_statistics {
 		 */
 		stat_cnt pool_kmalloc;
 	} pool;
+	struct {
+		/*
+		 * seals that were found pristine
+		 */
+		stat_cnt perfect_match;
+		/*
+		 * how many times key drifted from sealed node
+		 */
+		stat_cnt key_drift;
+		/*
+		 * how many times node under seal was out of cache
+		 */
+		stat_cnt out_of_cache;
+		/*
+		 * how many times wrong node was found under seal
+		 */
+		stat_cnt wrong_node;
+		/*
+		 * how many times coord was found in exactly the same position
+		 * under seal
+		 */
+		stat_cnt didnt_move;
+		/*
+		 * how many times key was actually found under seal
+		 */
+		stat_cnt found;
+	} seal;
 	/*
 	 * how many non-unique keys were scanned into tree
 	 */
@@ -597,6 +625,7 @@ typedef struct reiser4_statistics {
 #define	reiser4_stat_level_add( l, stat ) noop
 #define reiser4_stat_nuniq_max( gen ) noop
 #define reiser4_stat_stack_check_max( gap ) noop
+#define reiser4_stat_seal_add( stat ) noop
 typedef struct {} reiser4_stat;
 
 #endif

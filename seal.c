@@ -113,6 +113,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				 * coincide */
 				assert( "nikita-1887", 
 					node == seal -> coord.node );
+				reiser4_stat_seal_add( perfect_match );
 				result = 0;
 			} else if( znode_contains_key_lock( node, key ) )
 				/* 
@@ -123,16 +124,20 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 							   coord, 
 							   node, 
 							   key, bias, level );
-			else
+			else {
 				/* key is not in @node */
+				reiser4_stat_seal_add( key_drift );
 				result = -EAGAIN;
+			}
 		}
 		if( result != 0 )
 			/* unlock node on failure */
 			done_lh( lh );
-	} else
+	} else {
 		/* znode wasn't in cache */
+		reiser4_stat_seal_add( out_of_cache );
 		result = -EAGAIN;
+	}
 	return result;
 }
 
@@ -187,25 +192,29 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 
 	if( ( znode_get_level( node ) != level ) ||
 	    ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) ||
-	    ZF_ISSET( node, ZNODE_IS_DYING ) )
+	    ZF_ISSET( node, ZNODE_IS_DYING ) ) {
+		reiser4_stat_seal_add( wrong_node );
 		return -EAGAIN;
+	}
 
 	result = zparse( node );
 	if( result != 0 )
 		return result;
 	
 	if( coord_of_unit( coord ) && 
-	    keyeq( key, unit_key_by_coord( coord, &unit_key ) ) )
+	    keyeq( key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		/* coord is still at the same position in the @node */
+		reiser4_stat_seal_add( didnt_move );
 		result = 0;
-	else {
+	} else {
 		result = node_plugin_by_node( node ) -> lookup( node, key, 
 								bias, coord );
 		if( result == NS_FOUND ) {
 			/* renew seal */
+			reiser4_stat_seal_add( found );
 			seal_init( seal, coord, key );
 		} else
-			result = -EAGAIN;
+			result = -ENOENT;
 	}
 	zrelse( node );
 	return result;
