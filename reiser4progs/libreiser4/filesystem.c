@@ -344,15 +344,8 @@ errno_t reiser4_fs_sync(
     if (reiser4_format_sync(fs->format))
 	return -1;
 
-    /* 
-	Synchronizing the master super block. As master may not be exist on device,
-	because reiser3 filesystem was created, we should make sure, that filesystem
-	on the host device is realy reiser4 filesystem.
-    */
-    if (reiser4_master_confirm(fs->format->device)) {
-	if (reiser4_master_sync(fs->master))
-	    return -1;
-    }
+    if (reiser4_master_sync(fs->master))
+        return -1;
 
     return 0;
 }
