@@ -1009,7 +1009,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		PLUG_OPT("plugin.file", file, &sbinfo->plug.f),
 		PLUG_OPT("plugin.dir", dir, &sbinfo->plug.d),
 		PLUG_OPT("plugin.hash", hash, &sbinfo->plug.h),
-		PLUG_OPT("plugin.fibration", hash, &sbinfo->plug.fib),
+		PLUG_OPT("plugin.fibration", fibration, &sbinfo->plug.fib),
 
 		/* turn on BSD-style gid assignment */
 		BIT_OPT("bsdgroups", REISER4_BSD_GID),
