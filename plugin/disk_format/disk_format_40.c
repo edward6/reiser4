@@ -290,10 +290,16 @@ static void pack_40_super (const struct super_block * s, char * data)
 	reiser4_super_info_data * private = get_super_private(s);
 
 	assert ("zam-591", data != NULL);
+	assert ("zam-598", private->oid_plug != NULL);
+	assert ("zam-599", private->oid_plug->oids_used != NULL);
+	assert ("zam-600", private->oid_plug->next_oid != NULL);
 
 	cputod64(reiser4_free_committed_blocks(s), &super_data->free_blocks);
 	cputod64(private->tree.root_block, &super_data->root_block);
-//	cputod64(???, &super_data->oid);
+
+	cputod64(private->oid_plug->next_oid(&private->oid_allocator), &super_data->oid);
+	cputod64(private->oid_plug->oids_used(&private->oid_allocator), &super_data->file_count);
+
 	cputod16(private->tree.height, &super_data->tree_height);
 }
 
