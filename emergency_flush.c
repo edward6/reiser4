@@ -574,8 +574,11 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		info = reiser4_inode_data(inode);
 
 		ON_DEBUG(++ info->eflushed);
-		if (!ef->hadatom)
+		assert("zam-1039", info->eflushed_anon >= 0);
+		if (!ef->hadatom) {
 			++ info->eflushed_anon;
+			list_add(&ef->inode_anon_link, &info->anon_jnodes);
+		}
 
 		/* this is to make inode not freeable */
 		inode->i_state |= I_EFLUSH;
@@ -673,8 +676,11 @@ static void eflush_free (jnode * node)
 		info = reiser4_inode_data(inode);
 		assert("vs-1194", info->eflushed > 0);
 		ON_DEBUG(-- info->eflushed);
-		if (!ef->hadatom)
+		if (!ef->hadatom) {
 			-- info->eflushed_anon;
+			list_del(&ef->inode_anon_link);
+		}
+		assert("zam-1040", info->eflushed_anon >= 0);
 		/* remove eflush node from inode's list of eflush
 		 * nodes */
 		list_del(&ef->inode_link);
