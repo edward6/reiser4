@@ -251,7 +251,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * prevent it from flushing. */
 	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 		/* just pass dirty znode-above-root to overwrite set */
-		JF_SET(node, ZNODE_WANDER);
+		jnode_set_wander(node);
 		spin_unlock_jnode(node);
 		jnode_set_clean(node);
 		trace_on (TRACE_FLUSH, "flush aboveroot %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
@@ -1586,7 +1586,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	} else if (pos->preceder.blk == 0) {
 
 		/* If we don't know the preceder, leave it where it is. */
-		ZF_SET (node, ZNODE_WANDER);
+		jnode_set_wander (ZJNODE (node));
 	} else {
 		/* Make a decision based on block distance. */
 		reiser4_block_nr dist;
@@ -1598,7 +1598,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 
 		if (pos->preceder.blk == nblk - 1) {
 			/* Ideal. */
-			ZF_SET (node, ZNODE_WANDER);
+			jnode_set_wander (ZJNODE (node));
 		} else {
 
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
@@ -1613,14 +1613,14 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 
 			if (ret == 0) {
 				/* Got a better allocation. */
-				ZF_SET (node, ZNODE_RELOC);
+				jnode_set_reloc (ZJNODE (node));
 			} else if (dist < FLUSH_RELOCATE_DISTANCE) {
 				/* The present allocation is good enough. */
-				ZF_SET (node, ZNODE_WANDER);
+				jnode_set_wander (ZJNODE (node));
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			best_reloc:
-				ZF_SET (node, ZNODE_RELOC);
+				jnode_set_reloc (ZJNODE (node));
 				pos->preceder.max_dist = 0;
 				if ((ret = flush_allocate_znode_update (node, parent_coord, pos))) {
 					return ret;
@@ -1994,6 +1994,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				SetPageWriteback (pg);
 				set_page_clean_nolock(pg);
 
+				trace_on (TRACE_BUG, "submitted: %li, %lu\n",
+					  pg->mapping->host->i_ino, pg->index);
 				unlock_page (pg);
 
 				/*
