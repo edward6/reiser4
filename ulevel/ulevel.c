@@ -2955,7 +2955,7 @@ static __u64 get_fs_size (struct super_block * s)
 #define TEST_MKFS_ROOT_OBJECTID   (42ull)
 
 /* this creates reiser4 filesystem of TEST_LAYOUT_ID */
-static int bash_mkfs (const char * file_name)
+static int bash_mkfs (char * file_name)
 {
 	znode * fake, * root;
 	struct super_block super;
@@ -2968,6 +2968,39 @@ static int bash_mkfs (const char * file_name)
 	unsigned long blocksize;
 	struct buffer_head * bh;
 	test_disk_super_block * test_sb;
+	char * p;
+	reiser4_tail_id tail_id;
+
+
+	/* parse "mkfs options" */
+	p = strchr (file_name, ' ');
+	if (!p) {
+		info ("Usage: mkfs filename tail | notail | test\n");
+		return 1;
+	}
+	*p ++ = 0;
+	if (!strcmp (p, "tail")) {
+		tail_id = ALWAYS_TAIL_ID;
+	} else if (!strcmp (p, "notail")) {
+		tail_id = NEVER_TAIL_ID;
+	} else if (!strcmp (p, "test")) {
+		tail_id = TEST_TAIL_ID;
+	} else if (!strcmp (p, "40")) {
+		char * command;
+
+		asprintf (&command, "reiser4progs/reiser4progs/mkfs/mkfs.reiser4 %s", file_name);
+		if (system (command)) {
+			free (command);
+			info ("mkfs 40: %s\n", strerror (errno));
+			return 1;
+		}
+		free (command);
+		return 0;
+	} else {
+		info ("Usage: mkfs filename tail | notail | test\n");
+		return 1;
+	}
+
 
 	super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				       GFP_KERNEL);
@@ -2983,6 +3016,7 @@ static int bash_mkfs (const char * file_name)
 	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
 	super.s_bdev = &bd;
 	super.s_type = find_filesystem ("reiser4");
+
 	super.s_bdev->bd_dev = open (file_name, O_RDWR);
 	if (super.s_bdev->bd_dev == -1) {
 		info ("Could not open device: %s\n", strerror (errno));
@@ -3041,7 +3075,8 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy); /* FIXME: mount option! */
+			cputod16 (tail_id, &test_sb->tail_policy);
+
 
 			/* block count on device */
 			block_count = get_fs_size (&super);
