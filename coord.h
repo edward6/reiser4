@@ -125,6 +125,10 @@ extern void coord_init_before_first_item (coord_t *coord, znode *node);
  * at the EMPTY_NODE. */
 extern void coord_init_after_last_item (coord_t *coord, znode *node);
 
+/* Initialize a coordinate to after last unit in the item. Coord must be set
+ * already to existing item */
+void coord_init_after_item (coord_t *coord);
+
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
 extern void coord_init_sideof_unit (coord_t *coord, znode *node, sideof dir);
 

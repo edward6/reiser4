@@ -136,6 +136,15 @@ void coord_init_after_last_item (coord_t *coord, znode *node)
 	assert ("jmacd-9804", coord_check (coord));
 }
 
+/* Initialize a coordinate to after last unit in the item. Coord must be set
+ * already to existing item */
+void coord_init_after_item (coord_t *coord)
+{
+	assert ("vs-904", coord_is_existing_item (coord));
+	coord->unit_pos = coord_last_unit_pos (coord);
+	coord->between = AFTER_UNIT;
+}
+
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
  * look for comments there) */
 /* Audited by: green(2002.06.15) */
