@@ -522,7 +522,7 @@ static reiser4_plugin *znode_guess_plugin( const znode *node )
 	assert( "nikita-1053", node != NULL );
 	assert( "nikita-1055", znode_is_loaded( node ) );
 
-	if( reiser4_get_current_super_data() -> one_node_plugin )
+	if( reiser4_get_current_super_private() -> one_node_plugin )
 		return current_tree -> node_plugin;
 	else {
 		return plugin_by_disk_id
