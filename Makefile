@@ -7,15 +7,10 @@ obj-$(CONFIG_REISER4_FS) += reiser4.o
 EXTRA_CFLAGS += \
 	       -Wpointer-arith \
 	       -Wwrite-strings \
-	       -Woverloaded-virtual \
            -Wformat \
-	       -Wsynth \
 	       -Wundef \
 	       -Wcast-align \
 	       -Wlarger-than-4096 \
-	       -Wnon-virtual-dtor \
-	       -Wreorder \
-	       -Wsign-promo \
            -Wunused \
 	       -Wcomment \
            \
