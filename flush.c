@@ -46,14 +46,14 @@
  *   submitted for writing when the flush finishes.  This prevents multiple concurrent
  *   flushes from attempting to flush the same node.
  *
- *   (DEAD STATE BIT) JNODE_FLUSH_BUSY: This bit was set during the bottom-up
+ *   (REMOVED STATE BIT) JNODE_FLUSH_BUSY: This bit was set during the bottom-up
  *   squeeze-and-allocate on a node while its children are actively being squeezed and
  *   allocated.  This flag was created to avoid submitting a write request for a node
  *   while its children are still being allocated and squeezed.  However, this flag is no
  *   longer needed because flush_empty_queue is only called in one place after flush
  *   finishes.  It used to be that flush_empty_queue was called periodically during flush
  *   when there was a fixed queue, but that is no longer done.  See the changes on August
- *   6, 2002 when this support was removed.
+ *   6, 2002 and August 9, 2002 when this support was removed.
  *
  * With these state bits, we describe a test used frequently in the code below,
  * jnode_is_allocated() (and the spin-lock-taking jnode_check_allocated()).  The test for
@@ -468,6 +468,7 @@ ON_DEBUG (atomic_t flush_cnt;)
 
 /* NEW STUFF: */
 /* FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?) */
+/* FIXME: Zam wants to optimize relocate block allocation for large allocations. */
 
 /********************************************************************************
  * JNODE_FLUSH: MAIN ENTRY POINT
@@ -1207,9 +1208,6 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to enqueue node %s\n", call_depth, flush_znode_tostring (node));
 
-	/* Now finished with node. */
-	/* JF_CLR (node, JNODE_FLUSH_BUSY) */
-
 	/* No reason to hold onto the node data now, can release it early.  Okay to call
 	 * done_dh twice. */
 	done_dh (& node_load);
@@ -1314,9 +1312,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		}
 
 		trace_on (TRACE_FLUSH_VERB, "sq_rca no right at leaf, to parent: %s\n", flush_pos_tostring (pos));
-
-		/* We are leaving node now. */
-		/*JF_CLR (node, JNODE_FLUSH_BUSY)*/
 
 		/* We may have a unformatted node to the right. */
 		if ((ret = flush_pos_to_parent (pos))) {
@@ -1963,9 +1958,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	spin_lock_znode (node);
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
-	/*assert ("jmacd-4278", ! ZF_ISSET (node, JNODE_FLUSH_BUSY));*/
 
-	/*ZF_SET (node, JNODE_FLUSH_BUSY);*/
 	trace_on (TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring (node));
 
 	/* Queue it now, releases lock. */
@@ -2098,10 +2091,13 @@ static void flush_bio_write (struct bio *bio)
  */
 static int flush_empty_queue (flush_position *pos)
 {
-	int flushed = 0; /* Track number of jnodes we've flushed already */
 	int ret = 0;
-
 	jnode * node;
+#if REISER4_USER_LEVEL_SIMULATION == 0	/* FIXME: Eliminate #ifdefs */
+	int max_queue_len = (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9));
+#else
+	int max_queue_len = pos->queue_num;
+#endif
 
 	trace_on (TRACE_FLUSH, "flush_empty_queue with %u queued\n", pos->queue_num);
 
@@ -2131,36 +2127,9 @@ static int flush_empty_queue (flush_position *pos)
 
 		assert ("jmacd-71236", jnode_check_allocated (check));
 
-		/* Skip if the node is still busy (i.e., its children are being squalloced). */
-		/* FIXME: JMACD->?: This is dead code now that FLUSH_BUSY is no longer
-		 * needed--someone should remove it, but it is retained in case
-		 * JNODE_FLUSH_BUSY is needed again. */
-		/*if (JF_ISSET (check, JNODE_FLUSH_BUSY)) {
-
-			if (finish == 0) {
-				if ( flushed >= FLUSH_WRITTEN_THRESHOLD ) {
-		                      *//* If we have already flushed some amount of
-					 * jnodes, we return now in hope that this jnode
-					 * will be cleaned next time we are called */
-		                      /*break;
-				}
-
-				refill++;
-
-				trace_on (TRACE_FLUSH, "flush_empty_queue refills busy %s\n", flush_jnode_tostring (check));
-				continue;
-			}
-
-			JF_CLR (check, JNODE_FLUSH_BUSY);
-		} else*/ {
-			/* Increase number of flushed jnodes */
-			flushed ++;
-		}
-
 		/* FIXME(E): JMACD->ZAM: I think that WANDER nodes should never be put in the
 		 * queue at all, they should simply be ignored by jnode_flush_queue or
-		 * something similar.  Then we don't need this special case here or below
-		 * (See the NOTE*** mark below). */
+		 * something similar.  Then we don't need this special case here or below. */
 		if (WRITE_LOG && JF_ISSET (check, JNODE_WANDER)) {
 			/* Log-writer expects these to be on the clean list.  They cannot
 			 * leave memory and will remain captured. */
@@ -2168,7 +2137,6 @@ static int flush_empty_queue (flush_position *pos)
 
 			trace_on (TRACE_FLUSH, "flush_empty_queue skips wandered %s\n", flush_jnode_tostring (check));
 			continue;
-
 		}
 
 		ret = jload (check);
@@ -2182,60 +2150,33 @@ static int flush_empty_queue (flush_position *pos)
 		spin_unlock_jnode (check);
 		assert ("jmacd-78199", cpage != NULL);
 
-		if (PageWriteback (cpage)) {
-			/* FIXME: It is being written, presumably it is clean already?  In
-			 * any case, deal with it later. */
-			/* FIXME-ZAM: This situation should be impossible with
-			 * new flush queue implementation */
-			/* FIXME: JMACD->ZAM: So this should be an assertion, right?  If so, this if-block should be removed. */
-			unlock_page (cpage);
+		/* PageWriteback situation should be impossible with the current flush
+		 * queue implementation. */
+		assert ("jmacd-78200", ! PageWriteback (cpage));
 
-			flush_dequeue_jnode (pos, check);
-			warning ("jmacd-74232", "flush_empty_queue: page in writeback already: %s", flush_jnode_tostring (check));
-			continue;
-
-		} else {
-
+		{
 			/* Find consecutive nodes. */
 			struct bio *bio;
-			/*jnode *prev = check;*/
-			int nr, i;
+			int nr = 1, i;
 			struct super_block *super;
+			jnode *prev = check;
 			int blksz;
-			int max_j;
 
 			super = cpage->mapping->host->i_sb;
 			assert( "jmacd-2029", super != NULL );
 
-			/* FIXME: Should eliminate these #if lines, fix ulevel to support
-			 * the operations: */
-#if REISER4_USER_LEVEL_SIMULATION
-			max_j = pos->queue_num;
-#else
- 			max_j = min (pos->queue_num, i+ (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9)));
-#endif
-
-			nr = 1;
-
-			while (1) {
+			for (; ! capture_list_end (&pos->queue, node) && nr < max_queue_len; nr += 1, prev = node, node = capture_list_next (node)) {
 				struct page *npage;
-
-				if (capture_list_end(&pos->queue, node) || nr > max_j)
-					break;
 
 				npage = jnode_lock_page (node);
 				spin_unlock_jnode (node);
 
-				if ((WRITE_LOG && JF_ISSET (node, JNODE_WANDER)) /* NOTE*** Wandered blocks should not enter the queue.  See the note above */ ||
-				    /*JF_ISSET (node, JNODE_FLUSH_BUSY) ||*/
-				    (*jnode_get_block (node) != *jnode_get_block (check) + 1) ||
-				    PageWriteback (npage)) {
+				if ((WRITE_LOG && JF_ISSET (node, JNODE_WANDER)) /* FIXME(E): */ ||
+				    (*jnode_get_block (node) != *jnode_get_block (prev) + 1) ||
+				    PageWriteback (npage) /* FIXME: JMACD->ZAM, is this PageWriteback check needed? */) {
 					unlock_page (npage);
 					break;
 				}
-
-				nr ++;
-				node = capture_list_next (node);
 			}
 
 			/* FIXME: JMACD->NIKITA: Is this GFP flag right? */
@@ -2321,7 +2262,7 @@ static int flush_empty_queue (flush_position *pos)
 	}
 
 	blk_run_queues ();
-	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue wrote %u\n", pos->queue_num); });
+	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue length %u\n", pos->queue_len); });
 
 	return ret;
 }
@@ -3393,7 +3334,6 @@ static void invalidate_flush_queue (struct flush_position * pos)
 		spin_lock_jnode (cur);
 		atom = atom_get_locked_by_jnode (cur);
 
-		/*JF_CLR (cur, JNODE_FLUSH_BUSY);*/
 		JF_CLR (cur, JNODE_FLUSH_QUEUED);
 
 		pos->queue_num --;
