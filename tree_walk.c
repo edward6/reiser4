@@ -753,10 +753,16 @@ sibling_list_insert(znode * new, znode * before)
 		      sibling_list_insert_nolock(new, before));
 }
 struct tree_walk_handle {
-	reiser4_key       start_key;
-	tap_t             tap;
-	tree_walk_actor_t actor;
-	void            * opaque;
+	/* A key for tree walking (re)start, updated after each successful tree
+	 * node processing */
+	reiser4_key            start_key;
+	/* A tree traversal current position. */
+	tap_t                  tap;
+	/* An externally supplied pair of functions for formatted and
+	 * unformatted nodes processing. */
+	struct tree_walk_actor * actor;
+	/* it is passed to actor functions as is. */
+	void                 * opaque;
 };
 
 /* it locks the root node, handles the restarts inside */
@@ -811,16 +817,16 @@ static int go_next_node (struct tree_walk_handle * h, lock_handle * lock, const 
 
 	if (coord)
 		coord_dup(h->tap.coord, coord);
-	else {
+	else
 		coord_init_first_unit(h->tap.coord, lock->node);
-		ret = (h->actor)(lock->node, h->opaque);
+
+	if (h->actor->process_znode != NULL) {
+		ret = (h->actor->process_znode)(lock->node, h->opaque);
 		if (ret)
 			goto error;
-
-		h->start_key = lock->node->ld_key;
-
 	}
 
+	h->start_key = lock->node->ld_key;
  error:
 	done_lh(lock);
 	return ret;
@@ -881,6 +887,11 @@ static int tree_walk_by_handle (struct tree_walk_handle * h)
 		}
 
 		if (item_is_extent(h->tap.coord)) {
+			if (h->actor->process_extent != NULL) {
+				ret = (h->actor->process_extent)(h->tap.coord, h->opaque);
+				if (ret)
+					break;
+			}
 			coord_next_unit(h->tap.coord);
 			continue;
 		} else {
@@ -916,13 +927,15 @@ static int tree_walk_by_handle (struct tree_walk_handle * h)
 
 
 /* Walk the reiser4 tree in parent-first order */
-int tree_walk (const reiser4_key *start_key, tree_walk_actor_t actor, void * opaque)
+int tree_walk (const reiser4_key *start_key, struct tree_walk_actor * actor, void * opaque)
 {
 	coord_t coord;
 	lock_handle lock;
 	struct tree_walk_handle handle;
 
 	int ret;
+
+	assert ("zam-950", actor != NULL);
 
 	ON_DEBUG(xmemset(&handle, 0, sizeof (struct tree_walk_handle)));
 

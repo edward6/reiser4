@@ -13,7 +13,11 @@
 #include "repacker.h"
 #include "tree.h"
 #include "tree_walk.h"
+#include "jnode.h"
 #include "znode.h"
+#include "block_alloc.h"
+
+#include "plugin/item/extent.h"
 
 struct repacker {
 	struct super_block * super;
@@ -25,15 +29,46 @@ struct repacker {
 };
 
 struct repacker_stats {
-	long blocks_processed;
+	long blocks_dirtied;
 };
 
-static int repacker_actor(znode * node, void * arg)
+static int dirtying_znode (znode * node, void * arg)
 {
 	struct repacker_stats * stats = arg;
-	stats->blocks_processed ++;
+	int ret;
+
+	if (!znode_is_dirty(node))
+		return 0;
+
+	ret = reiser4_grab_space((__u64)1, BA_CAN_COMMIT | BA_FORMATTED, "repacker");
+	if (ret)
+		return ret;
+
+	znode_make_dirty(node);
+	
+	{
+		reiser4_context * ctx = get_current_context();
+		long _ret;
+
+		_ret = txn_end(ctx);
+		if (_ret < 0)
+			ret = (int)_ret;
+		txn_begin(ctx);
+	}
+
+	stats->blocks_dirtied ++;
+	return ret;
+}
+
+static int dirtying_extent (const coord_t * coord, void * stats)
+{
 	return 0;
 }
+
+static struct tree_walk_actor repacker_actor = {
+	.process_znode = dirtying_znode,
+	.process_extent = dirtying_extent
+};
 
 static int repacker_d(void *arg)
 {
@@ -61,10 +96,10 @@ static int repacker_d(void *arg)
 
 	printk(KERN_INFO "Repacker: I am alive, pid = %u\n", me->pid);
 	{
-		struct repacker_stats stats = {.blocks_processed = 0};
-		ret = tree_walk(NULL, repacker_actor, &stats);
+		struct repacker_stats stats = {.blocks_dirtied = 0};
+		ret = tree_walk(NULL, &repacker_actor, &stats);
 		printk(KERN_INFO "reiser4 repacker: %lu blocks processed\n",
-		       stats.blocks_processed);
+		       stats.blocks_dirtied);
 	}
  done:
 	{ 
