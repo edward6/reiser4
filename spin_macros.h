@@ -17,13 +17,14 @@
  *    (3) optional checking of lock ordering. For object type foo, it is
  *    possible to provide "lock ordering predicate" (possibly using
  *    information stored in reiser4_context->locks) checking that locks are
- *    acquired in proper order. This is done if REISER4_DEBUG is on.
+ *    acquired in the proper order. This is done if REISER4_DEBUG is on.
  *
  *    (4) optional collection of spin lock contention statistics. In this mode
  *    two sysfs objects (located in /sys/profregion) are associated with each
  *    spin lock type. One object (foo_t) shows how much time was spent trying
  *    to acquire spin locks of foo type. Another (foo_h) shows how much time
- *    spin locks of the type foo were held locked.
+ *    spin locks of the type foo were held locked. See spinprof.h for more
+ *    details on this.
  *
  */
 
