@@ -45,7 +45,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
 
-		grab_space_enable();
 		parent = (reiser4_context *) current->fs_context;
 		if (parent->super == super) {
 			context->parent = parent;
