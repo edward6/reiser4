@@ -86,11 +86,14 @@ set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width)
 	extent_set_width(ext, width);
 }
 
-/* used in split_allocate_extent, allocated2unallocated, extent_handle_relocate_in_place, plug_hole to insert 1 or 2
-   extent units after the one @un_extent is set to. @un_extent itself is changed to @new_ext */
+/* used in split_allocated_extent, conv_extent, plug_hole to insert 1 or 2 extent units (@exts_to_add) after the one
+   @un_extent is set to. @un_extent itself is changed to @replace */
 reiser4_internal int
 replace_extent(coord_t *un_extent, lock_handle *lh,
-	       reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags)
+	       reiser4_key *key, reiser4_item_data *exts_to_add, const reiser4_extent *replace, unsigned flags UNUSED_ARG,
+	       int return_inserted_position /* if it is 1 - un_extent and lh are returned set to first of newly inserted
+					       units, if it is 0 - un_extent and lh are returned set to unit which was
+					       replaced */)
 {
 	int result;
 	coord_t coord_after;
@@ -101,8 +104,8 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
 	assert("vs-1375", znode_is_write_locked(un_extent->node));
-	assert("vs-1426", extent_get_width(new_ext) != 0);
-	assert("vs-1427", extent_get_width((reiser4_extent *)data->data) != 0);
+	assert("vs-1426", extent_get_width(replace) != 0);
+	assert("vs-1427", extent_get_width((reiser4_extent *)exts_to_add->data) != 0);
 
 	coord_dup(&coord_after, un_extent);
 	init_lh(&lh_after);
@@ -118,7 +121,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 		reiser4_key tmp;
 
 		unit_key_by_coord(un_extent, &tmp);
-		set_key_offset(&tmp, get_key_offset(&tmp) + extent_get_width(new_ext) * current_blocksize);
+		set_key_offset(&tmp, get_key_offset(&tmp) + extent_get_width(replace) * current_blocksize);
 		assert("vs-1080", keyeq(&tmp, key));
 	}
 
@@ -126,8 +129,13 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
-	result = insert_into_item(un_extent, (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh, key, data, flags);
+
+	result = insert_into_item(un_extent,
+				  return_inserted_position ? lh : 0,
+				  /*(flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh,*/ key, exts_to_add, flags);
 	if (!result) {
+		/* now we have to replace the unit after which new units were inserted. Its position is tracked by
+		   @watch */
 		reiser4_extent *ext;
 
 		if (coord_after.node != orig_znode) {
@@ -141,16 +149,32 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 			assert("vs-987", znode_is_loaded(coord_after.node));
 			assert("vs-988", !memcmp(ext, &orig_ext, sizeof (*ext)));
 
-			*ext = *new_ext;
+			*ext = *replace;
 			znode_make_dirty(coord_after.node);
 
 			if (coord_after.node != orig_znode)
 				zrelse(coord_after.node);
+			
+			if (return_inserted_position == 0) {
+				/* return un_extent and lh set to the same */
+				assert("vs-1662", WITH_DATA(coord_after.node, !memcmp(replace, extent_by_coord(&coord_after), sizeof(reiser4_extent))));
+
+				*un_extent = coord_after;
+				done_lh(lh);
+				copy_lh(lh, &lh_after);
+			} else {
+				/* return un_extent and lh set to first of inserted units */
+				assert("vs-1663", WITH_DATA(un_extent->node, !memcmp(exts_to_add->data, extent_by_coord(un_extent), sizeof(reiser4_extent))));
+				assert("vs-1664", lh->node == un_extent->node);
+			}
+
+#if 0
 			if (flags == COPI_DONT_SHIFT_LEFT) {
 				/* set coord back to initial extent unit */
 				*un_extent = coord_after;
 				assert("vs-1375", znode_is_write_locked(un_extent->node));
 			}
+#endif
 		}
 	}
 	tap_done(&watch);

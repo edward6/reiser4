@@ -246,6 +246,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
 	reiser4_key tmp_key;
+	int return_inserted_position;
 
 	coord = &uf_coord->base_coord;
 	ext_coord = &uf_coord->extension.extent;
@@ -278,6 +279,9 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 		set_extent(&replace, UNALLOCATED_EXTENT_START, 1);
 		/* extent to be inserted */
 		set_extent(&new_exts[0], HOLE_EXTENT_START, width - 1);
+
+		/* have replace_extent to return with @coord and @uf_coord->lh set to unit which was replaced */
+		return_inserted_position = 0;
 		count = 1;
 	} else if (pos_in_unit == width - 1) {
 		if (coord->unit_pos < nr_units_extent(coord) - 1) {
@@ -299,6 +303,9 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 		set_extent(&replace, HOLE_EXTENT_START, width - 1);
 		/* extent to be inserted */
 		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
+
+		/* have replace_extent to return with @coord and @uf_coord->lh set to unit which was inserted */
+		return_inserted_position = 1;
 		count = 1;
 	} else {
 		/* extent for replace */
@@ -306,6 +313,10 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 		/* extents to be inserted */
 		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
 		set_extent(&new_exts[1], HOLE_EXTENT_START, width - pos_in_unit - 1);
+
+		/* have replace_extent to return with @coord and @uf_coord->lh set to first of units which were
+		   inserted */
+		return_inserted_position = 1;
 		count = 2;
 	}
 
@@ -314,10 +325,8 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	unit_key_by_coord(coord, &tmp_key);
 	set_key_offset(&tmp_key, (get_key_offset(&tmp_key) + extent_get_width(&replace) * current_blocksize));
 
-	assert("vs-1661", keyeq(key, &tmp_key));
-
 	uf_coord->valid = 0;
-	return replace_extent(coord, uf_coord->lh, &tmp_key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
+	return replace_extent(coord, uf_coord->lh, &tmp_key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */, return_inserted_position);
 }
 
 /* make unallocated node pointer in the position @uf_coord is set to */

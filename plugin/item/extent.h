@@ -155,7 +155,7 @@ reiser4_block_nr extent_size(const coord_t *coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent *ext);
 void set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width);
 int replace_extent(coord_t *un_extent, lock_handle *lh,
-		   reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags);
+		   reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags, int);
 lock_handle *znode_lh(znode *);
 
 /* the reiser4 repacker support */
