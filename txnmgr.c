@@ -1134,13 +1134,63 @@ int txn_commit_some (txn_mgr *mgr)
 	return ret;
 }
 
-/* Call jnode_flush for a node from one atom */
-int txn_flush_one (txn_mgr * tmgr)
+/* Flush some nodes from given locked atom */
+static int txn_flush_this_atom (txn_atom * atom, long * nr_submitted, int flags)
+{
+	int ret = 0;
+	jnode * first_dirty;
+
+	assert ("zam-755", spin_atom_is_locked (atom));
+
+	first_dirty = find_first_dirty (atom);
+
+	if (first_dirty) {
+
+		jref (first_dirty);
+		spin_unlock_atom (atom); 
+
+		ret = jnode_flush (first_dirty, NULL, flags);
+
+		jput(first_dirty);
+
+		if (ret < 0) {
+			info ("jnode_flush failed with err = %d\n", ret);
+		} else {
+
+			/* we count number of blocks submitted by this jnode_flush call*/
+			/* FIXME-ZAM: txn_end() may submit more blocks we should count them too */
+			if (nr_submitted)
+				*nr_submitted += ret;
+
+			{	/* FIXME-ZAM: this accounting should be re-implemented or just
+				 * thrown away. It is needed for current reiser4_vm_writeback()
+				 * implementation which does not work as it designed
+				 * (2002.10.21) */
+				txn_mgr * tmgr = &get_current_super_private () -> tmgr;
+
+				spin_lock_txnmgr (tmgr);
+				/* FIXME: exact counting is not implemented  */
+				tmgr->flush_control.nr_to_flush = 0;
+				spin_unlock_txnmgr (tmgr);
+			}
+		}
+	} else { 
+		/* If we cannot find more dirty blocks, just commit this atom */
+#if 0
+		atom->flags |= ATOM_FORCE_COMMIT;
+#endif
+		spin_unlock_atom (atom);
+	}
+
+	return ret;
+}
+
+/* Call jnode_flush for a node from one atom, count submitted nodes */
+int txn_flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
 {
 	txn_atom * atom;
 	reiser4_context * ctx = get_current_context();
 	txn_handle * txnh;
-	jnode * first_dirty;
 	spin_lock_txnmgr (tmgr);
 
 	for (atom = atom_list_front (&tmgr->atoms_list);
@@ -1168,35 +1218,59 @@ int txn_flush_one (txn_mgr * tmgr)
 
 	spin_lock_txnh (txnh);
 
-	capture_assign_txnh_nolock (atom, txnh);
+	if (txnh->atom) {
+		/* It could happen if deadlock avoidance forced atom fusion (see
+		 * check_not_fused_lock_owners()) */
+		if (txnh->atom != atom) {
+			spin_unlock_atom (atom);
+			spin_unlock_txnh (txnh);
 
-	first_dirty = find_first_dirty (atom);
-
-	if (first_dirty) {
-		jref (first_dirty);
+			/* get current atom locked */
+			atom = atom_get_locked_with_txnh_locked (txnh);
+		}
+	} else {
+		capture_assign_txnh_nolock (atom, txnh);
 	}
 
-	spin_unlock_txnh (txnh);
-	spin_unlock_atom (atom);
+	assert ("zam-757", spin_atom_is_locked (atom));
+	assert ("zam-758", spin_txnh_is_locked (txnh));
+	assert ("zam-759", atom == txnh->atom);
 
-	if (first_dirty) {
+	spin_unlock_txnh (txnh);
+
+	{ 
 		int ret;
 
-		ret = jnode_flush (first_dirty, NULL, 0);
+		ret = txn_flush_this_atom (atom, nr_submitted, flags);
 
-		jput(first_dirty);
-
-		if (ret) {
+		if (ret < 0) {
 			info ("jnode_flush failed with err = %d\n", ret);
-		} else {
-			spin_lock_txnmgr (tmgr);
-			/* FIXME: exact counting is not implemented  */
-			tmgr->flush_control.nr_to_flush = 0;
-			spin_unlock_txnmgr (tmgr);
 		}
 	}
 
-	return txn_end(ctx);
+	return txn_end (ctx);
+}
+
+/* calls jnode_flush for current atom if it exists; if not, just take another atom and call
+ * jnode_flush() for him  */
+int txn_flush_some_atom (long * nr_submitted, int flags)
+{
+	reiser4_context * ctx = get_current_context();
+	txn_handle * txnh = ctx ->trans;
+	txn_atom * atom;
+	int ret;
+
+	atom = atom_get_locked_with_txnh_locked (txnh);
+	spin_unlock_txnh (txnh);
+
+	if (atom) {
+		ret = txn_flush_this_atom (atom, nr_submitted, flags);
+	} else {
+		txn_mgr * tmgr = &get_super_private (ctx->super)->tmgr;
+		ret = txn_flush_one (tmgr, nr_submitted, flags);
+	}
+
+	return ret;
 }
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
