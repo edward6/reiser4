@@ -35,7 +35,7 @@ typedef struct perm_plugin {
 
 	/** check permissions for create */
 	int ( *create_ok )( struct inode *parent, struct dentry *dentry, 
-			    reiser4_object_create_data *data );
+	-Lî		    reiser4_object_create_data *data );-A
 
 	/** check permissions for linking @where to @existing */
 	int ( *link_ok )( struct dentry *existing, struct inode *parent, 
@@ -47,9 +47,6 @@ typedef struct perm_plugin {
 	/** check permissions for deletion of @object whose last reference is by @parent */
 	int ( *delete_ok )( struct inode *parent, struct dentry *victim );
 
-	/** check UNIX access bits. This is ->permission() check called by VFS.  This needs to be eliminated if we are
-	 * to have real security plugins.  */
-	int ( *mask_ok )( struct inode *inode, int mask );
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
