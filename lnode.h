@@ -26,6 +26,8 @@ typedef enum {
 	LNODE_NR_TYPES
 } lnode_type;
 
+typedef union lnode lnode;
+
 /** declare hash table of lnode_lw's */
 TS_HASH_DECLARE( ln, lnode );
 
