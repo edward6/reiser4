@@ -623,20 +623,6 @@ eq_to_ldk(znode *node, const reiser4_key *key)
 {
 	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_ld_key(node)));
 }
-
-static lookup_result
-check_found(const coord_t *coord, const reiser4_key *key)
-{
-	coord_t twin;
-	lookup_result result;
-	
-	result = node_plugin_by_node(coord->node)->lookup(coord->node, key, FIND_EXACT, &twin);
-	if (result != CBK_COORD_FOUND)
-		return result;
-	assert("edward-1299", coords_equal(coord, &twin));
-	return result;
-}
-
 #endif
 
 /* The core search procedure.
@@ -704,8 +690,7 @@ find_cluster_item(hint_t * hint,
 	
  not_found:
 	assert("edward-1220", coord->item_pos > 0);
-	assert("edward-1300", 
-	       WITH_DATA_RET(coord->node, CBK_COORD_NOTFOUND, check_found(coord, key)));
+	//coord->item_pos--;
 	/* roll back */
 	*coord = orig;
 	ON_DEBUG(coord_update_v(coord));
@@ -804,16 +789,21 @@ min_size_to_compress(struct inode * inode)
 	return inode_compression_plugin(inode)->min_tfm_size();
 }
 
+#ifndef LAZY_COMPRESSION_MODE
+#define SHOULD_COMPRESS_CLUSTER(index) 1
+#else
+#define SHOULD_COMPRESS_CLUSTER(index) (!test_bit(0, &index))
+#endif
 
 /* The following two functions represent reiser4 compression policy */
 static int
-try_compress(tfm_cluster_t * tc, struct inode * inode)
+try_compress(tfm_cluster_t * tc, cloff_t index, struct inode * inode)
 {
 	assert("edward-1037", min_size_to_compress(inode) > 0 &&
 	       min_size_to_compress(inode) < inode_cluster_size(inode));
 	
 	return (inode_compression_plugin(inode) != compression_plugin_by_id(NONE_COMPRESSION_ID)) &&
-		(tc->len >= min_size_to_compress(inode));
+		SHOULD_COMPRESS_CLUSTER(index) && (tc->len >= min_size_to_compress(inode));
 }
 
 static int
@@ -893,7 +883,7 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	
 	if (result)
 		return result;
-	if (try_compress(tc, inode)) {
+	if (try_compress(tc, clust->index, inode)) {
 		/* try to compress, discard bad results */
 		__u32 dst_len;
 		compression_plugin * cplug = inode_compression_plugin(inode);
@@ -3130,8 +3120,6 @@ capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-1074", inode != NULL);
 	assert("edward-1075", clust->dstat == INVAL_DISK_CLUSTER);
 
-	/* we might want to create unprepped cluster,
-	   so this will acquire a write longterm lock */
 	result = prepare_cluster(inode, 0, 0, clust, PCL_APPEND);
 	if (result)
 		return result;
@@ -3152,14 +3140,13 @@ redirty_inode(struct inode *inode)
 	spin_unlock(&inode_lock);
 }
 
-#define CAPTURE_APAGE_BURST      (1024)
+#define MAX_CLUSTERS_TO_CAPTURE(inode)      (1024 >> inode_cluster_shift(inode))
 
 /* read lock should be acquired */
 static int
-capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
+capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index, int to_capture)
 {
 	int result = 0;
-	int to_capture;
 	int found;
 	int progress = 0;
 	struct page * page = NULL;
@@ -3179,12 +3166,13 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(mapping->host));
 	if (result)
 		goto out;
-	to_capture = (__u32)CAPTURE_APAGE_BURST >> inode_cluster_shift(mapping->host);
 	
-	do {
+	while (to_capture > 0) {
 		found = find_get_pages_tag(mapping, index, PAGECACHE_TAG_REISER4_MOVED, 1, &page);
-		if (!found)
+		if (!found) {
+			*index = (pgoff_t) - 1;
 			break;
+		}
 		assert("edward-1109", page != NULL);
 
 		move_cluster_forward(&clust, mapping->host, page->index, &progress);
@@ -3193,17 +3181,15 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 		if (result)
 			break;
 		to_capture --;
-		
-	} while (to_capture);
-	
+	}
 	if (result) {
 		warning("edward-1077", "Cannot capture anon pages: result=%i (captured=%d)\n",
 			result, 
-			((__u32)CAPTURE_APAGE_BURST >> inode_cluster_shift(mapping->host)) - to_capture);
+			((__u32)MAX_CLUSTERS_TO_CAPTURE(mapping->host)) - to_capture);
 	} else {
 		/* something had to be found */
-		assert("edward-1078", to_capture <= CAPTURE_APAGE_BURST);
-		if (to_capture == 0)
+		assert("edward-1078", to_capture <= MAX_CLUSTERS_TO_CAPTURE(mapping->host));
+		if (to_capture <= 0)
 			/* there may be left more pages */
 			redirty_inode(mapping->host);
 	}
@@ -3227,6 +3213,8 @@ reiser4_internal int
 capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 {
 	int result;
+	int to_capture;
+	pgoff_t nrpages;
 	pgoff_t index = 0;
 	cryptcompress_info_t * info;
 
@@ -3234,11 +3222,19 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 		return 0;
 	
 	info = cryptcompress_inode_data(inode);
+	nrpages = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	
+	if (wbc->sync_mode != WB_SYNC_ALL)
+		to_capture = min_count(wbc->nr_to_write, MAX_CLUSTERS_TO_CAPTURE(inode));
+	else
+		to_capture = MAX_CLUSTERS_TO_CAPTURE(inode);
 	do {
 		reiser4_context ctx;
 	
 		if (is_in_reiser4_context()) {
+			/* FIXME-EDWARD: REMOVEME */
+			all_grabbed2free();
+			
 			/* It can be in the context of write system call from
 			   balance_dirty_pages() */
 			if (down_read_trylock(&info->lock) == 0) {
@@ -3255,7 +3251,7 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 		
 		LOCK_CNT_INC(inode_sem_r);
 		
-		result = capture_anonymous_clusters(inode->i_mapping, &index);
+		result = capture_anonymous_clusters(inode->i_mapping, &index, to_capture);
 		
 		up_read(&info->lock);
 		
@@ -3267,7 +3263,7 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 		}
 		result = txnmgr_force_commit_all(inode->i_sb, 0);
 		reiser4_exit_context(&ctx);
-	} while (result == 0 && crc_inode_has_anon_pages(inode));
+	} while (result == 0 && index < nrpages);
 	
 	return result;
 }
