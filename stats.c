@@ -423,6 +423,7 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(vm.eflush.nopage),
 	DEFINE_STAT_LEVEL_CNT(vm.eflush.writeback),
 	DEFINE_STAT_LEVEL_CNT(vm.eflush.bitmap),
+	DEFINE_STAT_LEVEL_CNT(vm.eflush.clustered),
 	DEFINE_STAT_LEVEL_CNT(vm.eflush.eflushed),
 
 	DEFINE_STAT_LEVEL_CNT(time_slept),

@@ -539,7 +539,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			page_cache_release(page);
 			continue;
 		}
-		/* update cluster if it is necessary */
+		/* update cluster handle if it is necessary */
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
 			clust.index = pg_to_clust(page->index, inode);

@@ -209,6 +209,7 @@ typedef struct reiser4_level_statistics {
 			statcnt_t nopage;
 			statcnt_t writeback;
 			statcnt_t bitmap;
+			statcnt_t clustered;
 			statcnt_t eflushed;
 		} eflush;
 	} vm;

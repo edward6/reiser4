@@ -76,6 +76,7 @@ void put_cluster_data(reiser4_cluster_t *, struct inode *);
 int cluster_is_uptodate (reiser4_cluster_t *);
 size_t inode_scaled_cluster_size(struct inode *);
 __u8 inode_cluster_shift (struct inode * inode);
+int inode_cluster_pages (struct inode * inode);
 inline unsigned long pg_to_clust_to_pg(unsigned long idx, struct inode *);
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *, lookup_bias);
