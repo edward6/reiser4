@@ -25,12 +25,11 @@
  * jnode cannot be removed from memory until its backing page is.
  *
  * jnode contain pointer to page (->pg field) and page contain pointer to
- * jnode in ->private field. These fields are protected by global
- * _jnode_ptr_lock spinlock. This is so, because we have to go in both
- * direction and jnode spinlock is useless when going from page to
- * jnode. Scalability can be improved by introducing array of spinlocks and
- * hashing by page ->offset. Then something similar to try-and-release
- * approach of transaction manager has to be used.
+ * jnode in ->private field. Pointer from jnode to page is protected to by
+ * jnode's spinlock and pointer from page to jnode is protected by page lock
+ * (PG_locked bit). Lock ordering is: first take page lock, then jnode spin
+ * lock. To go into reverse direction use jnode_lock_page() function that uses
+ * standard try-lock-and-release device.
  *
  * Properties:
  *
@@ -40,11 +39,58 @@
  * 2. when jnode-to-page mapping is destroyed (by jnode_detach_page() and
  * page_detach_jnode()), page reference counter is decreased.
  *
- * 3. when znode is loaded (->d_count becomes larger than 0), page is kmapped.
+ * 3. on jload() reference counter on jnode page is increased, page is
+ * kmapped and `referenced'.
  *
- * 4. when znode is unloaded (->d_count drops to zero), page is kunmapped.
+ * 4. on jrelse() inverse operations are performed.
  *
  * 5. kmapping/kunmapping of unformatted pages is done by read/write methods.
+ *
+ *
+ * DEADLOCKS RELATED TO MEMORY PRESSURE.
+ *
+ * [In the following discussion, `lock' invariably means long term lock on
+ * znode.] (What about page locks?)
+ *
+ * There is some special class of deadlock possibilities related to memory
+ * pressure. Locks acquired by other reiser4 threads are accounted for in
+ * deadlock prevention mechanism (lock.c), but when ->vm_writeback() is
+ * invoked additional hidden arc is added to the locking graph: thread that
+ * tries to allocate memory waits for ->vm_writeback() to finish. If this
+ * thread keeps lock and ->vm_writeback() tries to acquire this lock, deadlock
+ * prevention is useless.
+ *
+ * Another related problem is possibility for ->vm_writeback() to run out of
+ * memory itself. This is not a problem for ext2 and friends, because their
+ * ->vm_writeback() don't allocate much memory, but reiser4 flush is
+ * definitely able to allocate huge amounts of memory.
+ *
+ * It seems that there is no reliable way to cope with the problems above. In
+ * stead it was decided that ->vm_writeback() (as invoked in the kswapd
+ * context) wouldn't perform any flushing itself, but rather should just wake
+ * up some auxiliary thread dedicated for this purpose (or, the same thread
+ * that does periodic commit of old atoms (ktxnmgrd.c)).
+ *
+ * Details:
+ *
+ * 1. Page is called `reclaimable' against particular reiser4 mount F if this
+ * page can be ultimately released by try_to_free_pages() under presumptions
+ * that:
+ *
+ *  a. ->vm_writeback() for F is no-op, and
+ *
+ *  b. none of the threads accessing F are making any progress, and
+ *
+ *  c. other reiser4 mounts obey the same memory reservation protocol as F
+ *  (described below).
+ *
+ * For example, clean un-pinned page, or page occupied by ext2 data are
+ * reclaimable against any reiser4 mount. 
+ *
+ * When there is more than one reiser4 mount in a system, condition (c) makes
+ * reclaim-ability not easily verifiable beyond trivial cases mentioned above.
+ *
+ *
  *
  *
  *
@@ -204,7 +250,7 @@ void reiser4_check_mem( reiser4_context *ctx )
 	total = nr_free_pagecache_pages();
 	free  = nr_free_pages();
 
-	/* 
+	/*
 	 * we don't care about overflows here, because this is only hint
 	 * anyway.
 	 */
