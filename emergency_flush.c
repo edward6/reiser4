@@ -358,7 +358,8 @@ int
 eflush_init_at(struct super_block *super)
 {
 	return ef_hash_init(&get_super_private(super)->efhash_table, 
-			    REISER4_EF_HASH_SIZE);
+			    REISER4_EF_HASH_SIZE, 
+			    reiser4_stat(super, hashes.eflush));
 }
 
 void

@@ -370,6 +370,8 @@ typedef struct reiser4_prof {
 	reiser4_prof_cnt flush_alloc;
 	reiser4_prof_cnt forward_squalloc;
 	reiser4_prof_cnt atom_wait_event;
+	reiser4_prof_cnt set_child_delimiting_keys;
+	reiser4_prof_cnt zget;
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);
@@ -420,6 +422,8 @@ typedef struct reiser4_prof {} reiser4_prof;
    &reiser4_stat - big struct used to collect all statistical data.
   
 */
+
+#define	reiser4_stat(sb, cnt) (&get_super_private_nocheck(sb)->stats.cnt)
 
 #define	reiser4_stat_inc_at(sb, counter)        		\
 	(++ (get_super_private_nocheck(sb) -> stats . counter))
@@ -598,6 +602,18 @@ typedef struct reiser4_level_statistics {
 	stat_cnt total_hits_at_level;
 	stat_cnt time_slept;
 } reiser4_level_stat;
+
+typedef struct tshash_stat {
+	stat_cnt lookup;
+	stat_cnt insert;
+	stat_cnt remove;
+	stat_cnt scanned;
+} tshash_stat;
+
+#define TSHASH_LOOKUP(stat) ({ if(stat) (stat)->lookup ++; })
+#define TSHASH_INSERT(stat) ({ if(stat) (stat)->insert ++; })
+#define TSHASH_REMOVE(stat) ({ if(stat) (stat)->remove ++; })
+#define TSHASH_SCANNED(stat) ({ if(stat) (stat)->scanned ++; })
 
 /* set of statistics counter. This is embedded into super-block when
    REISER4_STATS is on. */
@@ -796,6 +812,12 @@ typedef struct reiser4_statistics {
 		/* how many times key was actually found under seal */
 		stat_cnt found;
 	} seal;
+	struct {
+		tshash_stat znode;
+		tshash_stat jnode;
+		tshash_stat lnode;
+		tshash_stat eflush;
+	} hashes;
 	/* how many non-unique keys were scanned into tree */
 	stat_cnt non_uniq;
 	/* maximal length of sequence of items with identical keys found
@@ -808,10 +830,12 @@ typedef struct reiser4_statistics {
 struct kobject;
 extern int reiser4_populate_kattr_level_dir(struct kobject * kobj);
 
+/* REISER4_STATS */
 #else
 
 #define ON_STATS(e) noop
 
+#define	reiser4_stat(sb, cnt) ((void *)NULL)
 #define	reiser4_stat_inc(counter)  noop
 #define reiser4_stat_add(counter, delta) noop
 
@@ -824,6 +848,14 @@ extern int reiser4_populate_kattr_level_dir(struct kobject * kobj);
 
 typedef struct {
 } reiser4_stat;
+
+typedef struct tshash_stat {
+} tshash_stat;
+
+#define TSHASH_LOOKUP(stat) noop
+#define TSHASH_INSERT(stat) noop
+#define TSHASH_REMOVE(stat) noop
+#define TSHASH_SCANNED(stat) noop
 
 #define reiser4_populate_kattr_level_dir(kobj, i) (0)
 

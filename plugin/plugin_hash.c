@@ -153,7 +153,7 @@ int phash_init(void)
 	for (i = 0 ; i < PHASH_LAST ; ++ i)
 		phash_list_init(&phash_anchor[i]);
 
-	return phash_hash_init(&phash_table, PHASH_TABLE_SIZE);
+	return phash_hash_init(&phash_table, PHASH_TABLE_SIZE, NULL);
 }
 
 void phash_done(void)

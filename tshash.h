@@ -25,30 +25,27 @@ typedef struct PREFIX##_hash_link_   PREFIX##_hash_link;                        
                                                                                               \
 struct PREFIX##_hash_table_                                                                   \
 {                                                                                             \
-  ITEM_TYPE **_table;                                                                         \
-  __u32       _buckets;                                                                       \
+  ITEM_TYPE  **_table;                                                                        \
+  __u32        _buckets;                                                                      \
+  tshash_stat *_stats;                                                                        \
 };                                                                                            \
                                                                                               \
 struct PREFIX##_hash_link_                                                                    \
 {                                                                                             \
   ITEM_TYPE *_next;                                                                           \
 }
-/* what is an object type of the hash?  What is a prefix? */
+
 /* Step 2: Define the object type of the hash: give it field of type
    PREFIX_hash_link. */
 
 /* Step 3: Use TS_HASH_DEFINE to define the hash table interface using
    the type and field name used in step 3.  The arguments are:
   
-
-put this explanation at the top of this file.
-
    ITEM_TYPE    The item type being hashed
    KEY_TYPE     The type of key being hashed
    KEY_NAME     The name of the key field within the item
    LINK_NAME    The name of the link field within the item, which you must make type PREFIX_hash_link)
    HASH_FUNC    The name of the hash function (or macro, takes const pointer to key)
-sentence below is not enough.
    EQ_FUNC      The name of the equality function (or macro, takes const pointer to two keys)
   
    It implements these functions:
@@ -75,9 +72,6 @@ sentence below is not enough.
    This hash table uses a single-linked hash chain.  This means
    insertion is fast but deletion requires searching the chain.
 
-we do as much deletion as insertion....
-
-  
    There is also the doubly-linked hash chain approach, under which
    deletion requires no search but the code is longer and it takes two
    pointers per item.
@@ -97,10 +91,12 @@ PREFIX##_check_hash (PREFIX##_hash_table *table,					\
 											\
 static __inline__ int									\
 PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
-		    __u32                buckets)					\
+		    __u32                buckets,					\
+		    tshash_stat         *stats) 					\
 {											\
   hash->_table   = (ITEM_TYPE**) KMALLOC (sizeof (ITEM_TYPE*) * buckets);		\
   hash->_buckets = buckets;								\
+  hash->_stats = stats; 								\
   if (hash->_table == NULL)								\
     {											\
       return -ENOMEM;									\
@@ -130,11 +126,13 @@ PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
   ITEM_TYPE *item;									\
 											\
   PREFIX##_check_hash(hash, hash_index);						\
+  TSHASH_LOOKUP(hash->_stats);								\
 											\
   for (item  = hash->_table[hash_index];						\
        item != NULL;									\
        item  = item->LINK_NAME._next)							\
     {											\
+      TSHASH_SCANNED(hash->_stats);							\
       if (EQ_FUNC (& item->KEY_NAME, find_key))						\
         {										\
           return item;									\
@@ -152,8 +150,10 @@ PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
   ITEM_TYPE ** hash_item_p = &hash->_table[hash_index];                                 \
 											\
   PREFIX##_check_hash(hash, hash_index);						\
+  TSHASH_REMOVE(hash->_stats);								\
                                                                                         \
   while (*hash_item_p != NULL) {                                                        \
+    TSHASH_SCANNED(hash->_stats);							\
     if (*hash_item_p == del_item) {                                                     \
       *hash_item_p = (*hash_item_p)->LINK_NAME._next;                                   \
       return 1;                                                                         \
@@ -169,6 +169,7 @@ PREFIX##_hash_insert_index (PREFIX##_hash_table *hash,					\
 			    ITEM_TYPE           *ins_item)				\
 {											\
   PREFIX##_check_hash(hash, hash_index);						\
+  TSHASH_INSERT(hash->_stats);								\
 											\
   ins_item->LINK_NAME._next = hash->_table[hash_index];					\
   hash->_table[hash_index]  = ins_item;							\

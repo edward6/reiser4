@@ -336,7 +336,9 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(carry),
 	DEFINE_PROF_CNT(flush_alloc),
 	DEFINE_PROF_CNT(forward_squalloc),
-	DEFINE_PROF_CNT(atom_wait_event)
+	DEFINE_PROF_CNT(atom_wait_event),
+	DEFINE_PROF_CNT(set_child_delimiting_keys),
+	DEFINE_PROF_CNT(zget)
 };
 
 void calibrate_prof(void)
@@ -494,6 +496,23 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(seal.wrong_node),
 	DEFINE_STAT_CNT(seal.didnt_move),
 	DEFINE_STAT_CNT(seal.found),
+
+	DEFINE_STAT_CNT(hashes.znode.lookup),
+	DEFINE_STAT_CNT(hashes.znode.insert),
+	DEFINE_STAT_CNT(hashes.znode.remove),
+	DEFINE_STAT_CNT(hashes.znode.scanned),
+	DEFINE_STAT_CNT(hashes.jnode.lookup),
+	DEFINE_STAT_CNT(hashes.jnode.insert),
+	DEFINE_STAT_CNT(hashes.jnode.remove),
+	DEFINE_STAT_CNT(hashes.jnode.scanned),
+	DEFINE_STAT_CNT(hashes.lnode.lookup),
+	DEFINE_STAT_CNT(hashes.lnode.insert),
+	DEFINE_STAT_CNT(hashes.lnode.remove),
+	DEFINE_STAT_CNT(hashes.lnode.scanned),
+	DEFINE_STAT_CNT(hashes.eflush.lookup),
+	DEFINE_STAT_CNT(hashes.eflush.insert),
+	DEFINE_STAT_CNT(hashes.eflush.remove),
+	DEFINE_STAT_CNT(hashes.eflush.scanned),
 
 	DEFINE_STAT_CNT(non_uniq),
 	DEFINE_STAT_CNT(non_uniq_max),

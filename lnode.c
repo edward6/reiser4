@@ -166,7 +166,9 @@ lnodes_init(struct super_block *super	/* super block to initialise lnodes
 					 * for */ )
 {
 	assert("nikita-1861", super != NULL);	/* slavery forbidden in Russia */
-	ln_hash_init(&get_super_private(super)->lnode_htable, LNODE_HTABLE_BUCKETS);
+	ln_hash_init(&get_super_private(super)->lnode_htable, 
+		     LNODE_HTABLE_BUCKETS, 
+		     reiser4_stat(super, hashes.lnode));
 	spin_lock_init(&get_super_private(super)->lnode_guard);
 	return 0;
 }

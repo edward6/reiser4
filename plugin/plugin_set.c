@@ -210,7 +210,7 @@ int plugin_set_init(void)
 {
 	int result;
 
-	result = ps_hash_init(&ps_table, PS_TABLE_SIZE);
+	result = ps_hash_init(&ps_table, PS_TABLE_SIZE, NULL);
 	if (result == 0) {
 		plugin_set_slab = kmem_cache_create("plugin_set", 
 						    sizeof (plugin_set), 0, 

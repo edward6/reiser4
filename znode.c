@@ -224,7 +224,8 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 
 	rw_dk_init(tree);
 
-	return z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE);
+	return z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE,
+			   reiser4_stat(tree->super, hashes.znode));
 }
 
 /* free this znode */
@@ -439,6 +440,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	__u32 hashi;
 
 	z_hash_table *zth;
+	PROF_BEGIN(zget);
 
 	trace_stamp(TRACE_ZNODES);
 
@@ -503,6 +505,7 @@ retry_miss_race:
 		result = zalloc(gfp_flag);
 
 		if (result == NULL) {
+			PROF_END(zget, zget);
 			return ERR_PTR(-ENOMEM);
 		}
 
@@ -553,10 +556,11 @@ retry_miss_race:
 		reiser4_check_block(blocknr, 1);
 #endif
 
+	PROF_END(zget, zget);
 	/* Check for invalid tree level, return -EIO */
-	if (znode_get_level(result) != level) {
+	if (unlikely(znode_get_level(result) != level)) {
 		warning("jmacd-504",
-			"Wrong tree level for cached block %llu: level %i expecting %i",
+			"Wrong level for cached block %llu: %i expecting %i",
 			*blocknr, znode_get_level(result), level);
 		return ERR_PTR(-EIO);
 	}
@@ -769,7 +773,6 @@ znode_contains_key_lock(znode * node /* znode to look in */ ,
 {
 	assert("umka-056", node != NULL);
 	assert("umka-057", key != NULL);
-	assert("umka-058", current_tree != NULL);
 
 	return UNDER_RW(dk, znode_get_tree(node), 
 			read, znode_contains_key(node, key));
@@ -1220,7 +1223,7 @@ znodes_check_dk(reiser4_tree * tree)
 	    (check_dk_called % check_dk_step))
 		return;
 
-	read_lock_dk(tree);
+	RLOCK_DK(tree);
 	RLOCK_TREE(tree);
 	htable = &tree->zhash_table;
 
@@ -1235,7 +1238,7 @@ znodes_check_dk(reiser4_tree * tree)
 				     znode_get_ld_key(node)));
 	}
 	RUNLOCK_TREE(tree);
-	read_unlock_dk(tree);
+	RUNLOCK_DK(tree);
 }
 
 #endif
