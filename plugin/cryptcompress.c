@@ -206,20 +206,20 @@ loff_t inode_scaled_offset (struct inode * inode,
 	crypto_plugin * cplug;
 	crypto_stat_t * stat;
 	size_t size;
-
+	
 	assert("edward-97", inode != NULL);
 	
 	stat = inode_crypto_stat(inode);
 	
 	assert("edward-98", stat != NULL);
-	assert("edward-99", stat->keysize != 0);
-
+	
 	cplug = inode_crypto_plugin(inode);
 	
-	assert("edward-109", cplug != NULL);
-
-	if (src_off == get_key_offset(max_key()))
+	if (!cplug && src_off == get_key_offset(max_key()))
 		return src_off;
+
+	assert("edward-99", stat->keysize != 0);
+	
 	size = cplug->blocksize(stat->keysize);
 	return cplug->scale(inode, size, src_off);
 }
@@ -1219,6 +1219,20 @@ prepare_cluster(struct inode *inode,
  	return 0;
 }
 
+/* get cluster handle params by two offsets */
+static void
+clust_by_offs(reiser4_cluster_t * clust, struct inode * inode, loff_t o1, loff_t o2)
+{
+	assert("edward-295", clust != NULL);
+	assert("edward-296", inode != NULL);
+	assert("edward-297", o1 <= o2);
+
+	clust->index = off_to_clust(o1, inode);
+	clust->off = off_to_cloff(o1, inode);
+	clust->count = min_count(inode_cluster_size(inode) - clust->off, o2 - o1);
+	clust->delta = 0;
+}
+
 static void
 set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, loff_t file_off)
 {
@@ -1232,25 +1246,20 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 		/* Uhmm, hole in crypto-file... */
 		loff_t hole_size;
 		hole_size = file_off - inode->i_size;
+
 		printk("edward-176, Warning: Hole of size %llu in "
 		       "cryptocompressed file (inode %llu, offset %llu) \n",
 		       hole_size, get_inode_oid(inode), file_off);
 		
-		clust->index = off_to_clust(inode->i_size, inode);
-		clust->off = off_to_cloff(inode->i_size, inode);
-		clust->count = min_count(inode_cluster_size(inode) - clust->off, hole_size);
+		clust_by_offs(clust, inode, inode->i_size, file_off);
 		clust->stat = HOLE_CLUSTER;
-
 		if (clust->off + hole_size < inode_cluster_size(inode))
 			/* besides there is also user's data to write to this cluster */
 			clust->delta = min_count(inode_cluster_size(inode) - (clust->off + clust->count), f->length);
 		return;
 	}
-	
-	clust->index = off_to_clust(file_off, inode);
-	clust->off = off_to_cloff(file_off, inode);
-	clust->count = min_count(inode_cluster_size(inode) - clust->off, f->length);
-	clust->delta = 0;
+	clust_by_offs(clust, inode, file_off, file_off + f->length);
+	clust->stat = DATA_CLUSTER;
 }
 
 /* Main write procedure for cryptcompress objects,
@@ -1533,7 +1542,6 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	struct page ** pages;
 	loff_t old_size;
 	char * kaddr;
-	loff_t to_cut;
 	pgoff_t pg_padd;
 	reiser4_cluster_t clust;
 	crypto_plugin * cplug;
@@ -1541,7 +1549,6 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	assert("edward-290", inode->i_size > new_size);
 	
 	old_size = inode->i_size;
-	to_cut = old_size - new_size;
 	cplug = inode_crypto_plugin(inode);
 	result = cut_items_cryptcompress(inode, new_size, update_sd);
 	if(result)
@@ -1556,9 +1563,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 
 	reiser4_cluster_init(&clust);
 	clust.pages = pages;
-	clust.index = off_to_clust(new_size, inode);
-	clust.off = off_to_cloff(new_size, inode);
-	clust.count = min_count(inode_cluster_size(inode) - clust.off, to_cut);
+	clust_by_offs(&clust, inode, new_size, old_size);
 
 	result = prepare_cluster(inode, 0, 0, &clust);
 	if (result)
