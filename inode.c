@@ -207,7 +207,8 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	spin_unlock_inode( state );
 	if( result == 0 ) {
 		result = setup_inode_ops( inode );
-		if( ( result == 0 ) && ( inode -> i_sb -> s_root -> d_inode ) ) {
+		if( ( result == 0 ) && ( inode -> i_sb -> s_root ) &&
+		    ( inode -> i_sb -> s_root -> d_inode ) ) {
 			reiser4_inode_info *self;
 			reiser4_inode_info *root;
 
@@ -373,64 +374,6 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 			warning( "nikita-305", "Wrong key in sd" );
 			print_key( "sought for", key );
 			print_key( "found", &found_key );
-			failed = 1;
-		}
-		if( !failed ) {
-			/* install remaining plugins */
-			reiser4_inode_info *self;
-
-			self = reiser4_inode_data( inode );
-			if( ! is_root_dir_key( inode -> i_sb, key ) ) {
-				reiser4_inode_info *root;
-
-				/* take missing plugins from file-system
-				 * defaults */
-				root = reiser4_inode_data
-					( inode -> i_sb -> s_root -> d_inode );
-				if( self -> dir == NULL )
-					self -> dir = root -> dir;
-				if( self -> sd == NULL )
-					self -> sd = root -> sd;
-				if( self -> hash == NULL )
-					self -> hash = root -> hash;
-				if( self -> tail == NULL )
-					self -> tail = root -> tail;
-				if( self -> perm == NULL )
-					self -> perm = root -> perm;
-				if( self -> dir_item == NULL )
-					self -> dir_item = root -> dir_item;
-			} else {
-				/* install plugins of root directory */
-				/*
-				 * FIXME-VS: ask layout plugin?
-				 */
-/*
-				assert( "nikita-1814", self -> dir  != NULL );
-				assert( "nikita-1815", self -> sd   != NULL );
-				assert( "nikita-1816", self -> hash != NULL );
-				assert( "nikita-1817", self -> tail != NULL );
-				assert( "nikita-1818", self -> perm != NULL );
-				assert( "vs-545", self -> dir_item != NULL );
-*/
-				if( !self -> dir )
-					self -> dir = dir_plugin_by_id( HASHED_DIR_PLUGIN_ID );
-				if( !self -> file )
-					self -> file = file_plugin_by_id( DIRECTORY_FILE_PLUGIN_ID );
-				if( !self -> sd )
-					self -> sd = item_plugin_by_id( STATIC_STAT_DATA_ID );
-				if( !self -> hash )
-					self -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-				if( !self -> tail )
-					self -> tail = tail_plugin_by_id ( TEST_TAIL_ID );
-				if( !self -> perm )
-					self -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-				if( !self -> dir_item )
-					self -> dir_item = item_plugin_by_id ( COMPOUND_DIR_ID );
-			}
-			/*
-			 * FIXME-VS: move to proper place
-			 */
-			reiser4_unlock_inode( inode );
 		}
 	}
 	return inode;
