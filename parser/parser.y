@@ -52,8 +52,8 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 	char charType;
 	/*	String * StrPtr;*/
 	expr_v4_t * expr;
-	//	expr_flow * flw;
-	//	expr_lnode * lnd;
+	//	expr_flow_t * flw;
+	expr_lnode_t * lnd;
 	vnode_t * vnode;
 	wrd_t * wrd;
 }
@@ -65,11 +65,12 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %type <wrd> STRING_CONSTANT
 
 %type <vnode> Object_Name name  
+%type <vnode> Object_Name name  
+%type <expr> Expression 
 
 %type <expr> if_statement 
-%type <expr> Expression 
 %type <expr> reiser4
-%type <expr> if_statement if_Expression
+%type <expr> if_statement if_Expression if_Begin
 %type <expr> then_operation 
 
 %token TRANSCRASH
@@ -149,24 +150,12 @@ reiser4
 Expression
 : Object_Name                                     { $$ = objToExpr( ws, $1 );}
 | STRING_CONSTANT                                 { $$ = constToExpr( ws, $1 ); }
-
-| Expression PLUS  Expression                     { $$ = connect_expression( ws, $1, $3 ); }
-| Expression EQ   Expression                      { $$ = compare_EQ_expression( ws, $1, $3 ); }
-| Expression NE   Expression                      { $$ = compare_NE_expression( ws, $1, $3 ); }
-| Expression LE   Expression                      { $$ = compare_LE_expression( ws, $1, $3 ); }
-| Expression GE   Expression                      { $$ = compare_GE_expression( ws, $1, $3 ); }
-| Expression LT   Expression                      { $$ = compare_LT_expression( ws, $1, $3 ); }
-| Expression GT   Expression                      { $$ = compare_GT_expression( ws, $1, $3 ); }
-| Expression OR   Expression                      { $$ = compare_OR_expression( ws, $1, $3 ); }
-| Expression AND  Expression                      { $$ = compare_AND_expression( ws, $1, $3 ); }
-
+| Expression PLUS       Expression                { $$ = connect_expression( ws, $1, $3 ); }
 | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
 | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
 
 | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT ); }
-| NOT  Expression                                 { $$ = not_expression( ws, $2 ); } 
-| EXIST  Expression                               { $$ = check_exist( ws, $2 ); }
                                                                             /* the ASSIGNMENT operator return a value: bytes written */
 |  Object_Name  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
 |  Object_Name  L_APPEND        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
@@ -175,16 +164,31 @@ Expression
 ;
 
 if_statement        
-: if_Expression then_operation ELSE Expression %prec PLUS   { $$ = if_then_else( ws, $1, $2, $4 ); }
-| if_Expression then_operation                 %prec PLUS   { $$ = if_then( ws, $1, $2) ;         }
+: if_Begin then_operation ELSE Expression %prec PLUS   { $$ = if_then_else( ws, $1, $2, $4 ); }
+| if_Begin then_operation                 %prec PLUS   { $$ = if_then( ws, $1, $2) ;         }
 ;
 
-if_Expression 
-: if Expression                                   { $$ = $2; }
+
+if_Begin
+: if if_Expression                                   { $$ = $2; }
 ;
 
 if: IF                                            { level_up( ws, IF_STATEMENT ); }
 ;
+
+if_Expression 
+: NOT  Expression                                 { $$ = not_expression( ws, $2 ); } 
+| EXIST  Expression                               { $$ = check_exist( ws, $2 ); }
+| Expression EQ   Expression                      { $$ = compare_EQ_expression( ws, $1, $3 ); }
+| Expression NE   Expression                      { $$ = compare_NE_expression( ws, $1, $3 ); }
+| Expression LE   Expression                      { $$ = compare_LE_expression( ws, $1, $3 ); }
+| Expression GE   Expression                      { $$ = compare_GE_expression( ws, $1, $3 ); }
+| Expression LT   Expression                      { $$ = compare_LT_expression( ws, $1, $3 ); }
+| Expression GT   Expression                      { $$ = compare_GT_expression( ws, $1, $3 ); }
+| Expression OR   Expression                      { $$ = compare_OR_expression( ws, $1, $3 ); }
+| Expression AND  Expression                      { $$ = compare_AND_expression( ws, $1, $3 ); }
+;
+
 
 then_operation
 : THEN Expression                %prec PLUS       { goto_end( ws );}
@@ -196,14 +200,14 @@ then_operation
 
 
 Object_Name 
-: name                                            { $$ = pars_path_walk( ws, BEGIN_FROM_CURRENT, $2 ) ; }
-| SLASH name                     %prec ROOT       { $$ = pars_path_walk( ws, BEGIN_FROM_ROOT   , $2 ) ; }
-| Object_Name SLASH name                          { $$ = pars_path_walk( ws, $1                , $3 ) ; }
+: name                                            { $$ = pars_lookup_curr( ws, $1 ) ; }
+| SLASH name                     %prec ROOT       { $$ = pars_lookup_root( ws, $2 ) ; }
+| Object_Name SLASH name                          { $$ = pars_lookup( ws, $1, $3 ) ; }
 ;
 
 name
 : WORD                                            { $$ = $1; }
-| level_up  Expression R_BRAKET                   { $$ = $2; level_down( ws, $1, $3 );}
+//| level_up  Expression R_BRAKET                   { $$ =  $2 ; level_down( ws, $1, $3 );}
 ;
 
 level_up
