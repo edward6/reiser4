@@ -624,6 +624,17 @@ forget_znode(lock_handle * handle)
 		if (ret)
 			warning("zam-942", "can\'t add a block (%llu) number to atom's delete set\n",
 					(unsigned long long)(*znode_get_block(node)));
+
+		if (znode_is_dirty(node)) {
+			txn_atom * atom ;
+
+			spin_lock_znode(node);
+			atom = atom_locked_by_jnode(ZJNODE(node));
+			assert("zam-939", atom != NULL);
+			spin_unlock_znode(node);
+			flush_reserved2grabbed(atom, (__u64)1);
+			UNLOCK_ATOM(atom);
+		}
 	} else {
 		/* znode has assigned block which is counted as "fake
 		   allocated". Return it back to "free blocks") */
