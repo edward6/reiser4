@@ -838,16 +838,21 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * 
 		switch (target_stage) {
 		case BLOCK_NOT_COUNTED:
 			assert("vs-960", formatted == 1);
+
+			trace_on(TRACE_RESERVE, "Moving %llu used blocks to free", *len);
 			used2grabbed(*len);
 			/* VITALY: This is what was grabbed for internal/tx-lists/similar only */
 			grabbed2free(*len);
 			break;
 		case BLOCK_GRABBED:
 			assert("vs-961", formatted == 1);
+			
+			trace_on(TRACE_RESERVE, "Moving %llu used blocks to grabbed", *len);
 			used2grabbed(*len);
 			break;
 		case BLOCK_UNALLOCATED:
 			assert("vs-962", formatted == 0);
+			trace_on(TRACE_RESERVE, "Moving %llu used blocks to fake allocated", *len);
 			used2fake_allocated(*len, formatted);
 			break;
 		default:
