@@ -45,7 +45,7 @@ crab_lock(crab_lock_t *plock, crab_lock_t *clock, znode *node)
 			clock->node = zref(node);
 			clock->version = node->version;
 			clock->locked = 1;
-			RLOCK_DLOCK(node);
+			/* RLOCK_DLOCK(node); */
 			result = 0;
 		} else
 			result = -E_REPEAT;
@@ -62,7 +62,7 @@ void
 crab_unlock(crab_lock_t *clock)
 {
 	if (clock->locked) {
-		RUNLOCK_DLOCK(clock->node);
+		/* RUNLOCK_DLOCK(clock->node); */
 		clock->locked = 0;
 	}
 }
