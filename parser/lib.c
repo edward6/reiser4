@@ -526,7 +526,6 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 			new_wrd = cur_wrd->next;
 		}
 	new_wrd         = ( wrd_t *)(ws->freeSpCur->freeSpace + ROUND_UP( len+1 ));
-        PTRACE( ws, "VD-wrd_inittab:_ROUND_UP_MASK=%d",((unsigned long) new_wrd & _ROUND_UP_MASK(3)) );
 	new_wrd->u.name = ws->freeSpCur->freeSpace;
 	new_wrd->u.len  = len;
 	ws->freeSpCur->freeSpace= (char*)new_wrd + ROUND_UP(sizeof(wrd_t));
