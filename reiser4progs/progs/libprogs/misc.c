@@ -320,6 +320,24 @@ static aal_exception_option_t progs_exception_selected_option(void) {
     return progs_exception_option_by_name(gets(str));
 }
 
+/* Streams assigned with exception type are stored here */
+static void *streams[10];
+
+/* This function sets up exception streams */
+void progs_exception_set_stream(
+    aal_exception_type_t type,	/* type to be assigned with stream */
+    void *stream		/* stream to be assigned */
+) {
+    streams[type] = stream;
+}
+
+/* This function gets exception streams */
+void *progs_exception_get_stream(
+    aal_exception_type_t type	/* type exception stream will be obtained for */
+) {
+    return streams[type];
+}
+
 /* 
     Common exception handler for all reiser4progs. It implements exception handling 
     in "question-answer" maner and used for all communications with user.
@@ -327,6 +345,7 @@ static aal_exception_option_t progs_exception_selected_option(void) {
 aal_exception_option_t progs_exception_handler(
     aal_exception_t *exception		/* exception to be processed */
 ) {
+    void *stream = stderr;
     aal_exception_option_t opt;
     
     if (exception->type == EXCEPTION_ERROR || 
@@ -336,12 +355,20 @@ aal_exception_option_t progs_exception_handler(
     else
 	aal_gauge_pause();
 
+    if (progs_exception_bit_count(exception->options, 0) == 1) {
+	if (!(stream = streams[exception->type])) {
+	    fprintf(stderr, "There is no stream assosiated with %s exception type\n",
+		aal_exception_type_string(exception->type));
+	    
+	    stream = stderr;
+	}
+    }
     /* Printing exception type */
     if (exception->type != EXCEPTION_BUG)
-        fprintf(stderr, "%s: ", aal_exception_type_string(exception->type));
+        fprintf(stream, "%s: ", aal_exception_type_string(exception->type));
 	
     /* Printing exception message */
-    fprintf(stderr, "%s\n", exception->message);
+    fprintf(stream, "%s\n", exception->message);
     
     if (progs_exception_bit_count(exception->options, 0) == 1) {
         if (exception->type == EXCEPTION_WARNING || 

@@ -16,6 +16,8 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
+#include <progs/misc.h>
+
 static void info_print_usage(void) {
     aal_printf(ERR, "Usage: info FILE\n");
 }
@@ -73,6 +75,23 @@ int main(int argc, char *argv[]) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
 	return 0xff;
+    }
+    
+    {
+	FILE *file;
+	
+	aal_exception_set_handler(progs_exception_handler);
+
+	if (!(file = fopen("/tmp/test", "w+"))) {
+	    fprintf(stderr, "Error\n");
+	    return 0;
+	}
+	
+	progs_exception_set_stream(EXCEPTION_INFORMATION, file);
+	aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, 
+	    "Test exception.");
+	
+	fclose(file);
     }
     
     if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {

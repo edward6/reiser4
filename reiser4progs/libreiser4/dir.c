@@ -141,11 +141,11 @@ reiserfs_object_t *reiserfs_dir_create(
 	    goto error_free_object;
 	}
     }
-    
+
     if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
-        plugin->dir_ops, create, fs->tree, &parent_key, &object_key, hint)))
+	plugin->dir_ops, create, fs->tree, &parent_key, &object_key, hint)))
     {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create object"
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create object"
 	    " with oid %llx.", reiserfs_key_get_objectid(&object_key));
 	goto error_free_object;
     }
