@@ -65,7 +65,6 @@ static void reiser4_drop_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
 static int reiser4_statfs(struct super_block *, struct kstatfs *);
-static void reiser4_kill_super(struct super_block *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static void reiser4_sync_inodes(struct super_block *s, struct writeback_control * wbc);
 
@@ -1188,105 +1187,6 @@ static void unregister_profregions(void)
 	unregister_cbk_cache_profregion();
 	unregister_dk_profregion();
 	unregister_tree_profregion();
-}
-
-/* umount. */
-static void
-reiser4_kill_super(struct super_block *s)
-{
-	reiser4_super_info_data *sbinfo;
-	reiser4_context context;
-
-	sbinfo = (reiser4_super_info_data *) s->s_fs_info;
-	if (!sbinfo)
-		/* mount failed */
-		return;
-
-	init_context(&context, s);
-
-	ON_TRACE(TRACE_VFS_OPS, "kill_super\n");
-
-	stop_ktxnmgrd(&sbinfo->tmgr);
-
-	reiser4_sysfs_done(s);
-
-	/* FIXME-VS: the problem is that there still might be dirty pages
-	   which became dirty via mapping. Have them to go through
-	   reiser4_writepages */
-	fsync_super(s);
-
-	/* complete removal of directories which were not deleted when they
-	 * were supposed to be because their dentries had negative child
-	 * dentries */
-	shrink_dcache_parent(s->s_root);
-	/* kill "anonymous" dentries that are created, for example, while
-	 * decoding NFS file handles. */
-	shrink_dcache_anon(&s->s_anon);
-	INIT_HLIST_HEAD(&s->s_anon);
-
-#if REISER4_TRACE
-	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT))
-		get_current_context()->trace_flags |= (TRACE_PCACHE |
-						       TRACE_TXN    |
-						       TRACE_FLUSH  |
-						       TRACE_ZNODES |
-						       TRACE_IO_R   |
-						       TRACE_IO_W);
-#endif
-
-	/* flushes transactions, etc. */
-	if (get_super_private(s)->df_plug->release(s) != 0)
-		goto out;
-
-	done_ktxnmgrd_context(&sbinfo->tmgr);
-	done_entd_context(s);
-
-	check_block_counters(s);
-
-	rcu_barrier();
-	/* done_formatted_fake just has finished with last jnodes (bitmap
-	 * ones) */
-	done_tree(&sbinfo->tree);
-	/* call finish_rcu(), because some znode were "released" in
-	 * done_tree(). */
-	rcu_barrier();
-	done_formatted_fake(s);
-
-	close_log_file(&sbinfo->log_file);
-
-	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
-		reiser4_print_stats();
-
-	/* we don't want ->write_super to be called any more. */
-	s->s_op->write_super = NULL;
-	kill_block_super(s);
-
-#if REISER4_DEBUG
-	{
-		struct list_head *scan;
-
-		/* print jnodes that survived umount. */
-		list_for_each(scan, &sbinfo->all_jnodes) {
-			jnode *busy;
-
-			busy = list_entry(scan, jnode, jnodes);
-			info_jnode("\nafter umount", busy);
-		}
-	}
-	if (sbinfo->kmalloc_allocated > 0)
-		warning("nikita-2622",
-			"%i bytes still allocated", sbinfo->kmalloc_allocated);
-#endif
-
-out:
-
-	/* no assertions below this line */
-	reiser4_exit_context(&context);
-
-	reiser4_stat_done(&sbinfo->stats);
-
-	kfree(sbinfo);
-	s->s_fs_info = NULL;
 }
 
 /* ->write_super() method. Called by sync(2). */
