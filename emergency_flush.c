@@ -578,7 +578,7 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 		/* further, transfer block from grabbed into flush reserved
 		 * space. */
 		spin_lock_jnode(node);
-		atom = atom_get_locked_by_jnode(node);
+		atom = atom_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
 		grabbed2flush_reserved_nolock(atom, 1, "ef_free_block_with_stage");
 		spin_unlock_atom(atom);
@@ -619,7 +619,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 		/* We cannot just ask block allocator to take block from flush
 		 * reserved space, because there is no current atom at this
 		 * point. */
-		atom = atom_get_locked_by_jnode(node);
+		atom = atom_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
 		flush_reserved2grabbed(atom, 1);
 		spin_unlock_atom(atom);

@@ -533,7 +533,7 @@ get_current_atom_locked_nocheck(void)
    break the lock-ordering cycle.  Assumes the jnode is already locked, and
    returns NULL if atom is not set. */
 txn_atom *
-atom_get_locked_by_jnode(jnode * node)
+atom_locked_by_jnode(jnode * node)
 {
 	txn_atom *atom;
 
@@ -581,7 +581,7 @@ same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 	   bits.  Don't need a lock on NODE once we get the atom lock. */
 	spin_lock_jnode(check);
 
-	atom = atom_get_locked_by_jnode(check);
+	atom = atom_locked_by_jnode(check);
 
 	if (atom == NULL) {
 		compat = 0;
@@ -1902,7 +1902,7 @@ attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
 	spin_lock_jnode(node);
 	spin_lock_txnh(txnh);
 
-	atom = atom_get_locked_by_jnode(node);
+	atom = atom_locked_by_jnode(node);
 
 	/* Atom can commit at this point. */
 	if (atom == NULL) {
@@ -1925,7 +1925,7 @@ fail_unlock:
    atom's delete set and uncapture the block.  Handles the EAGAIN result from
    blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
    lock to perform an allocation.  The atom could fuse while this lock is held, which is
-   why the EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.  The
+   why the EAGAIN must be handled by repeating the call to atom_locked_by_jnode.  The
    second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
    "repeat" once.  */
 void
@@ -1958,7 +1958,7 @@ repeat:
 
 	assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));
 
-	atom = atom_get_locked_by_jnode(node);
+	atom = atom_locked_by_jnode(node);
 	spin_unlock_jnode (node);
 
 	if (atom == NULL) {
@@ -2055,10 +2055,10 @@ jnode_set_dirty(jnode * node)
 	assert("umka-296", current_tree != NULL);
 
 	/* We get both locks (atom, jnode) before jnode state check because
-	   atom_get_locked_by_jnode may unlock jnode in a process of getting
+	   atom_locked_by_jnode may unlock jnode in a process of getting
 	   atom spin lock */
 	spin_lock_jnode(node);
-	atom = atom_get_locked_by_jnode (node);
+	atom = atom_locked_by_jnode (node);
 
 	assert("vs-1094", atom);
 
@@ -2184,7 +2184,7 @@ jnode_set_clean(jnode * node)
 
 	spin_lock_jnode(node);
 
-	atom = atom_get_locked_by_jnode(node);
+	atom = atom_locked_by_jnode(node);
 
 	jnode_set_clean_nolock(node);
 
