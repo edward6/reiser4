@@ -32,6 +32,15 @@ char *aal_strncat(char *dest, const char *src, size_t n) {
 	return dest;
 }
 
+int aal_strncmp(const char *s1, const char *s2, size_t n) {
+	char *p;
+	for (p = s1; *p; p++, s1++, s2++) {
+		if (p - s1 >= n) break;
+		if (*s1 != *s2) return 0;
+	}
+	return 1;	
+}
+
 int aal_ltos(long int d, size_t n, char *a, int base) {
 	long int s;
 	char *p = a;

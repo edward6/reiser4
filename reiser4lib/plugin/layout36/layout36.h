@@ -1,6 +1,6 @@
 /*
 	layout36.h -- disk-layout plugin for reiserfs 3.6.x
-	Copyright (C) 1996 - 2002 Hans Reiser
+	Copyright (C) 1996-2002 Hans Reiser
 */
 
 #ifndef LAYOUT36_H
@@ -55,9 +55,64 @@ typedef struct reiserfs_layout36_super reiserfs_layout36_super_t;
 
 struct reiserfs_layout36 {
 	aal_device_t *device;
+	reiserfs_layout36_super_t *super;
 };
 
 typedef struct reiserfs_layout36 reiserfs_layout36_t;
+
+#define REISERFS_3_5_SUPER_SIGNATURE "ReIsErFs"
+#define REISERFS_3_6_SUPER_SIGNATURE "ReIsEr2Fs"
+#define REISERFS_JR_SUPER_SIGNATURE  "ReIsEr3Fs"
+
+#define SUPER_V1_SIZE                       (sizeof(reiserfs_super_v1_t))
+#define SUPER_V2_SIZE                       (sizeof(reiserfs_super_t))
+
+#define get_sb_jp(sb)                       (&((sb)->s_v1.sb_journal))
+
+#define get_sb_block_count(sb)              get_le32(sb, s_v1.sb_block_count)
+#define set_sb_block_count(sb, val)         set_le32(sb, s_v1.sb_block_count, val)
+
+#define get_sb_free_blocks(sb)              get_le32(sb, s_v1.sb_free_blocks)
+#define set_sb_free_blocks(sb, val)         set_le32(sb, s_v1.sb_free_blocks, val)
+
+#define get_sb_root_block(sb)               get_le32(sb, s_v1.sb_root_block)
+#define set_sb_root_block(sb, val)          set_le32(sb, s_v1.sb_root_block, val)
+
+#define get_sb_mount_id(sb)                 get_le32(sb, s_v1.sb_mountid)
+#define set_sb_mount_id(sb, val)            set_le32(sb, s_v1.sb_mountid, val)
+
+#define get_sb_block_size(sb)               get_le16(sb, s_v1.sb_block_size)
+#define set_sb_block_size(sb, val)          set_le16(sb, s_v1.sb_block_size, val)
+
+#define get_sb_oid_maxsize(sb)              get_le16(sb, s_v1.sb_oid_maxsize)
+#define set_sb_oid_maxsize(sb, val)         set_le16(sb, s_v1.sb_oid_maxsize, val)
+
+#define get_sb_oid_cursize(sb)              get_le16(sb, s_v1.sb_oid_cursize)
+#define set_sb_oid_cursize(sb, val)         set_le16(sb, s_v1.sb_oid_cursize, val)
+
+#define get_sb_umount_state(sb)             get_le16(sb, s_v1.sb_umount_state)
+#define set_sb_umount_state(sb, val)        set_le16(sb, s_v1.sb_umount_state, val)
+
+#define get_sb_fs_state(sb)                 get_le16(sb, s_v1.sb_fs_state)
+#define set_sb_fs_state(sb, val)            set_le16(sb, s_v1.sb_fs_state, val)
+
+#define get_sb_hash_code(sb)                get_le32(sb, s_v1.sb_hash_function_code)
+#define set_sb_hash_code(sb, val)           set_le32(sb, s_v1.sb_hash_function_code, val)
+
+#define get_sb_tree_height(sb)              get_le16(sb, s_v1.sb_tree_height)
+#define set_sb_tree_height(sb, val)         set_le16(sb, s_v1.sb_tree_height, val)
+
+#define get_sb_bmap_nr(sb)                  get_le16(sb, s_v1.sb_bmap_nr)
+#define set_sb_bmap_nr(sb, val)             set_le16(sb, s_v1.sb_bmap_nr, val)
+
+#define get_sb_format(sb)                   get_le16(sb, s_v1.sb_format)
+#define set_sb_format(sb, val)              set_le16(sb, s_v1.sb_format, val)
+
+#define get_sb_reserved_for_journal(sb)     get_le16(sb, s_v1.sb_reserved_for_journal)
+#define set_sb_reserved_for_journal(sb,val) set_le16(sb, s_v1.sb_reserved_for_journal,val)
+
+#define get_sb_objectid_map(sb) ((uint32_t *)((char *)(sb) + \
+	(sb->s_v1.sb_format == FS_FORMAT_3_6 ? SUPER_V2_SIZE : SUPER_V1_SIZE)))
 
 #endif
 

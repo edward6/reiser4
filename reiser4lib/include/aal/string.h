@@ -13,6 +13,7 @@ extern void *aal_memcpy(void *dest, const void *src, size_t n);
 
 extern char *aal_strncpy(char *dest, const char *src, size_t n);
 extern char *aal_strncat(char *dest, const char *src, size_t n);
+extern int aal_strncmp(const char *s1, const char *s2, size_t n);
 
 extern int aal_ltos(long int d, size_t n, char *a, int base);
 	

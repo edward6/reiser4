@@ -11,7 +11,7 @@ aal_block_t *aal_block_alloc(aal_device_t *device, blk_t blk, char c) {
 	if (!device)
 		return NULL;
 	
-	if (!(block == (aal_block_t *)aal_calloc(sizeof(*block), 0)))
+	if (!(block = (aal_block_t *)aal_calloc(sizeof(*block), 0)))
 		return NULL;
 
 	if (!(block->data = aal_calloc(aal_device_blocksize(device), c)))
@@ -33,7 +33,7 @@ aal_block_t *aal_block_realloc(aal_block_t *block, aal_device_t *device, blk_t b
 	if (!block || !device)
 		return NULL;
 	
-	if (!(block->data = aal_realloc(&block->data, aal_device_blocksize(device))))
+	if (!aal_realloc(&block->data, aal_device_blocksize(device)))
 		return NULL;
 
 	block->device = device;
